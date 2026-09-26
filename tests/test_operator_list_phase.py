@@ -437,7 +437,7 @@ def test_the_sweeps_unnamable_isotropy_subgroups_still_produce_candidates(
 
 @pytest.mark.slow
 def test_the_ba2fesbse5_s3ab_child_is_built_instead_of_refused():
-    """The one real case: Pm in 2a,b,a+c, which M-1 could not state at all.
+    """The one real case: Pm in 2a,b,a+c, which a symbol-only phase could not state.
 
     The parent is a *generic* Pnma structure — generic members of the 8d and 4c
     Wyckoff classes and a nominal cell, no fitted or published number — which
@@ -473,13 +473,13 @@ def test_the_ba2fesbse5_s3ab_child_is_built_instead_of_refused():
     assert statement.child_group_named is False
     assert sym.split_group_label(statement.phase.space_group) is not None
     assert statement.phase.symmetry_operations is not None
-    # M2d: two of S3_CHILD_OPS's four operations carry the wrong little-group
-    # sign for this candidate's own (grey) mode field (checks/
-    # M2B_SINGLE_COMPONENT_SIGN_CHECK.md) — the cross-coset mirror
-    # 'x+1/2,-y+1/2,z' and the pure translation 'x+1/2,y,z' — so the declared
-    # group is now only the sign-consistent order-2 subgroup, and the sibling
-    # they used to reach (wrongly) is its own explicit representative
-    # instead: 24 atoms where the pre-M2d group gave 12.
+    # Two of S3_CHILD_OPS's four operations — the pure translation
+    # 'x+1/2,y,z' (the child's anti-translation) and its product with the
+    # mirror, 'x+1/2,-y+1/2,z' — carry little-group character −1 on this
+    # displacive candidate's mode field, which an ε = +1 nuclear operation
+    # cannot state; supercell._sign_consistent_operations drops them, so the
+    # declared group is the order-2 subgroup and each sibling they would have
+    # reached is its own representative: 24 atoms.
     assert set(statement.phase.symmetry_operations) == {"x,y,z", "x,-y+1/2,z"}
     assert len(statement.phase.atoms) == 24
     codes = [d.code for d in statement.diagnostics]

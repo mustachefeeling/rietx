@@ -17,13 +17,13 @@ The three controls the rung is bought with:
 and the fence that keeps the statement honest: a parent whose operations carry
 a half translation along the doubled axis has **no** Hermann-Mauguin symbol in
 the child cell, and is never stated with a symbol that would generate the wrong
-absences.  Since Q-17 that case is *stated* — as the child's own operation list
-under a bracketed label, with a ``CHILD_GROUP_UNNAMED`` diagnostic — instead of
-refused, and the three controls above are asserted on such a child too.  Two
-refusals remain and both are named here: an operation list whose point group
-and lattice name no tabulated group at all (its cell has no metric
-constraints), and a ``nuclear_group="parent"`` child whose nuclear orbit the
-magnetic group cannot cover.
+absences.  Since the operation-list phase (#448) that case is *stated* — as the
+child's own operation list under a bracketed label, with a
+``CHILD_GROUP_UNNAMED`` diagnostic — instead of refused, and the three controls
+above are asserted on such a child too.  Two refusals remain and both are named
+here: an operation list whose point group and lattice name no tabulated group
+at all (its cell has no metric constraints), and a ``nuclear_group="parent"``
+child whose nuclear orbit the magnetic group cannot cover.
 """
 
 from __future__ import annotations
@@ -50,8 +50,7 @@ from rietx.crystallography.symmetry import d_spacings, generate_reflections
 from rietx.schemas.common import Parameter as P
 from rietx.schemas.structure import Atom, Cell, Phase
 
-#: A synthetic Pbcm parent with a magnetic B site.  Pbcm is the parent M-7's
-#: own Mn₃O₄ row uses (BNS 62.452, k = (½, 0, 0)), and it is a group with glide
+#: A synthetic Pbcm parent with a magnetic B site.  Pbcm is a group with glide
 #: and screw absences, so the child's reflection list is not the trivial case.
 PBCM_CELL = (5.0, 9.0, 9.5, 90.0, 90.0, 90.0)
 HALF_A = (Fraction(1, 2), 0, 0)
@@ -273,7 +272,7 @@ def test_a_half_translation_along_the_doubled_axis_is_stated_as_an_operator_list
     under the *symbol* would give a phase whose ``space_group`` generates
     neither its own site orbits nor its own systematic absences — silently,
     because both would still be *a* group.  This used to be a refusal for that
-    reason; since Q-17 the child carries its own operation list under a
+    reason; since #448 the child carries its own operation list under a
     bracketed label, so the orbits and the absences come from the operations
     and the label is only a label.  The ``CHILD_GROUP_UNNAMED`` diagnostic
     carries what the refusal used to say: the cell, the symbol spglib found and
@@ -316,8 +315,7 @@ def test_the_parent_route_is_refused_when_the_magnetic_orbit_is_smaller():
     unnamed child was refused one step earlier for the unrelated reason that no
     symbol named it, the compile never saw the case; now that the child is
     stated, the check has to be here, where the documented remedy
-    (``nuclear_group="magnetic"``) is still reachable and
-    ``strategy.magnetic._supercell`` takes it by itself.
+    (``nuclear_group="magnetic"``) is still reachable.
     """
     parent = Phase(
         name="synthetic P212121", space_group="P 21 21 21",
@@ -428,7 +426,7 @@ def test_the_symmorphic_child_reproduces_its_parents_structure_factor_too():
 
 # ========================================================== the scope fences
 def test_the_basis_is_the_unreduced_one_and_says_why():
-    """M-7's reduction is right there and wrong here — asserted, not argued.
+    """``magnetic_cell``'s reduction is right there and wrong here — asserted.
 
     ``isotropy.magnetic_cell`` reduces the supercell basis so spglib can
     identify a group in it; for P6/mmm-family parents that reduction returns
@@ -451,7 +449,7 @@ def test_the_basis_is_the_unreduced_one_and_says_why():
 
 
 def test_a_k_outside_the_rungs_scope_is_refused_by_magnetic_cells_own_message():
-    """One authority on which k this rung admits: M-7's fence, not a second one."""
+    """One authority on which k this rung admits: ``magnetic_cell``'s fence."""
     with pytest.raises(ValueError, match="outside the reciprocal lattice"):
         child_basis("P 3", (Fraction(1, 3), Fraction(1, 3), 0))
 
@@ -543,8 +541,8 @@ def test_the_anti_translation_ties_remove_the_ferromagnetic_mode():
 
     Without them the statement carries two independent moment columns per
     parent site, one combination of which is the ferromagnetic mode the
-    declared group forbids — and a free fit spends it (measured on Ba₆Co₆:
-    3.8 μ_B away from its own symmetry).  With them the pair is one column and
+    declared group forbids, and nothing else in a fit holds it at zero.  With
+    them the pair is one column and
     ``anti_translation_residual`` stays at zero through a refinement.
     """
     import rietx as rx
@@ -617,12 +615,12 @@ def test_a_higher_dimensional_subspace_ties_through_the_angles_too():
                        -moment_from_dofs(frames[0], source_dofs), atol=1e-12)
 
 
-# ============================ the explicit route, for a k M-7 will not take
+# ================= the explicit route, for a k ``candidates`` will not take
 def test_the_explicit_route_reproduces_the_candidate_route_exactly():
-    """A group and its transform state the same phase M-7's candidate does.
+    """A group and its transform state the same phase a candidate does.
 
-    The explicit route exists because M-7's scope fence (2k in the reciprocal
-    lattice) is M-7's and not this module's: a supercell statement needs a child
+    The explicit route exists because ``candidates``' scope fence (2k in the
+    reciprocal lattice) is not this module's: a supercell statement needs a child
     lattice, which every commensurate k has, and a magnetic space group in that
     cell, which a database or a k-SUBGROUPSMAG table supplies.  What must not
     differ is the *answer* when both routes are available, and that is asserted
@@ -783,7 +781,7 @@ def test_pnma_half_zero_half_states_in_the_magnetic_nuclear_group():
 def test_every_spglib_short_symbol_resolves_after_normalisation():
     """All 530 Hall settings: spglib's ``international_short`` reaches the resolver.
 
-    Measured 2026-09-08: raw, exactly three fail — ``P2_1``, ``P2_1/m``,
+    Raw, exactly three fail — ``P2_1``, ``P2_1/m``,
     ``P2_1/c`` (the underscore spelling of a 2_1 screw); with the underscore
     stripped every one resolves, and to the right group number.  spglib's
     ``international_full`` (``P 2/m 2/m 2/m``) and ``international``
@@ -794,11 +792,15 @@ def test_every_spglib_short_symbol_resolves_after_normalisation():
 
     from rietx.crystallography.magnetic import supercell as sc
 
-    unresolved, wrong = [], []
+    unresolved, wrong, raw_fail = [], [], set()
     for hall in range(1, 531):
         t = spglib.get_spacegroup_type(hall)
         short = str(t["international_short"] if isinstance(t, dict) else t.international_short)
         number = int(t["number"] if isinstance(t, dict) else t.number)
+        try:
+            sc.get_spacegroup(short)
+        except (ValueError, RuntimeError):
+            raw_fail.add(short)
         try:
             sg = sc.get_spacegroup(short.replace("_", ""))
         except (ValueError, RuntimeError):
@@ -806,6 +808,7 @@ def test_every_spglib_short_symbol_resolves_after_normalisation():
             continue
         if sg.number != number:
             wrong.append((short, sg.number, number))
+    assert raw_fail == {"P2_1", "P2_1/m", "P2_1/c"}
     assert unresolved == []
     assert wrong == []
 

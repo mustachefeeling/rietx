@@ -4,8 +4,7 @@ WP-1327 stores **one moment per atom of the nuclear asymmetric unit** and
 propagates it over that site's magnetic orbit.  A commensurate k ≠ 0 structure
 does not fit that shape in the *parent* cell: the moment is not periodic on the
 parent lattice, so one nuclear orbit carries several different moments and there
-is no field for the second (WP-1328 D3 refuses a k ≠ 0 magCIF for exactly this
-reason, and its § 6.1 names the route out).
+is no field for the second.
 
 The route out is the one magCIF itself takes.  A commensurate structure is
 stated in its **magnetic supercell**: the child cell whose lattice is
@@ -37,7 +36,7 @@ are asserted rather than argued:
    symbol's operations, times the child's lattice cosets, reproduce the
    transformed group exactly — and when they do not, the child phase carries
    its **own operation list** under a bracketed label
-   (:func:`resolve_child_group`, ``Phase.symmetry_operations``, Q-17) so that
+   (:func:`resolve_child_group`, ``Phase.symmetry_operations``, #448) so that
    every orbit, multiplicity and absence still comes from the operations.  It
    used to refuse there, which was right while a phase could only store a
    symbol and cost the whole S3(a,b) direction of Ba₂FeSbSe₅; the check is
@@ -52,9 +51,10 @@ are asserted rather than argued:
    comment.
 
 **Scope.** Commensurate k with 2k in the reciprocal lattice — the same fence
-WP-1326, WP-1327 and M-7 carry — because that is where the child lattice has
-index 2 and one anti-translation.  A k of higher denominator needs a larger
-child cell and is M-8/M-11's; an incommensurate k has no child cell at all.
+WP-1326 and :func:`~.isotropy.candidates` carry — because that is where the
+child lattice has index 2 and one anti-translation.  A k of higher denominator
+needs a larger child cell and is not handled here; an incommensurate k has no
+child cell at all.
 
 **The anti-centring has to be tied, not only seeded.**  The two cosets of one
 parent site are independent *sites* of the child, so their moment DOFs are
@@ -62,8 +62,8 @@ independent columns of the fit — and one combination of those columns is the
 **ferromagnetic** mode the declared group forbids.  Seeding the pair
 antiparallel (which :func:`magnetic_supercell` does, by propagating one seed
 over the group's own orbit) states the candidate correctly but does not keep a
-refinement inside it; measured on Ba₆Co₆, a free fit leaves its own group by up
-to 3.8 μ_B.  :func:`anti_translation_ties` is therefore part of the statement,
+refinement inside it: nothing in the fit stops the pair drifting off
+antiparallel.  :func:`anti_translation_ties` is therefore part of the statement,
 not an option: it returns the affine ties for
 :meth:`rietx.Refinement.tie` that spend that freedom the way the symmetry
 already spends it.  They *are* affine, and the reason is structural — an
@@ -72,11 +72,10 @@ exactly the case modulus-and-angles carries linearly.
 :func:`anti_translation_residual` is the check that they were applied, and the
 number to quote beside any moment refined from a supercell statement.
 
-This is **not** the moment-cardinality change WP-1328 § 6.1 item 2 asks for: it
-does not let one nuclear orbit carry two independent moments, it makes two
-nuclear orbits carry one. That is enough for a commensurate k with 2k ∈ L*,
-where the child's magnetic asymmetric unit is the parent's; a larger child cell
-would need the field.
+This is **not** a change to moment cardinality: it does not let one nuclear
+orbit carry two independent moments, it makes two nuclear orbits carry one.
+That is enough for a commensurate k with 2k ∈ L*, where the child's magnetic
+asymmetric unit is the parent's; a larger child cell would need the field.
 
 References
 ----------
@@ -85,7 +84,7 @@ References
   symmetry, the magnetic supercell and MAGNDATA's stored form.
 * Campbell, B. J., Stokes, H. T., Tanner, D. E. & Hatch, D. M. (2006).
   *J. Appl. Cryst.* **39**, 607 — parent + irrep + direction → structure, the
-  workflow M-7's candidates come from.
+  workflow :func:`~.isotropy.candidates` comes from.
 * Hahn, T., ed. (2005). *International Tables for Crystallography, Vol. A* —
   sect. 5.1 for the (P, p) convention this module's transforms are written in.
 """
@@ -163,7 +162,7 @@ class SupercellStatement:
     #: Whether a Hermann-Mauguin symbol generates the child's nuclear group in
     #: the child cell.  ``False`` means ``phase.space_group`` is the bracketed
     #: *label* and ``phase.symmetry_operations`` is the group — the case that
-    #: used to be a refusal (Q-17, ``resolve_child_group``).  A caller
+    #: used to be a refusal (#448, ``resolve_child_group``).  A caller
     #: reporting the child group should print the label either way and read
     #: this only when it wants to say *why* the label looks the way it does.
     child_group_named: bool = True
@@ -199,14 +198,14 @@ def _parse_basis(transform: str):
 
 
 def child_basis(space_group, k) -> tuple[tuple[Fraction, ...], ...]:
-    """P for the magnetic cell of ``k``, **without** M-7's shortest-basis reduction.
+    """P for the magnetic cell of ``k``, **without** the shortest-basis reduction.
 
     :func:`~.isotropy.magnetic_cell` reduces the basis so that spglib can
     identify a magnetic group in a cell no tabulated setting looks like — the
-    right choice there, because nothing in M-7 needs the cell to be
-    *conventional*.  Here it is the wrong one: a reduced hexagonal supercell
-    comes out with γ = 60°, and the nuclear operations of a hexagonal
-    Hermann-Mauguin symbol are written for γ = 120°.  A phase whose
+    right choice there, because nothing in :func:`~.isotropy.candidates` needs
+    the cell to be *conventional*.  Here it is the wrong one: a reduced
+    hexagonal supercell comes out with γ = 60°, and the nuclear operations of a
+    hexagonal Hermann-Mauguin symbol are written for γ = 120°.  A phase whose
     ``space_group`` symbol does not generate its own operations is the silent
     failure this module exists to avoid.
 
@@ -216,63 +215,14 @@ def child_basis(space_group, k) -> tuple[tuple[Fraction, ...], ...]:
     axis; for a centred one it is a primitive cell of the magnetic lattice, and
     the caller is told so by the symbol check in :func:`magnetic_supercell`.
 
-    **When two or more primitive vectors carry ε = −1 (Q-17c), that recipe is
-    ambiguous** — it names *which* ε = −1 vector is doubled and which is
-    merely shifted, and the same doubled lattice has another, equally valid,
-    primitive basis: shift the *other* way (``row − anti`` instead of
-    ``row + anti``) while trading the doubled pivot for the sum
-    (``row + anti``) as well.  For a k = (½,½,0)-type doubling in a P
-    tetragonal/orthorhombic parent the first recipe gives ``2a, a+b, c``, in
-    which mm2/4mm's axes sit along the parent's [110]-type directions and the
-    invariant metric ties one length to *another length times a cosine*
-    (b² = 2ab·cos γ) — inexpressible by :class:`~rietx.crystallography.
-    symmetry.CellConstraints`, which is only ties and fixed angles.  The
-    second recipe gives ``a+b, −a+b, c``, the √2×√2 cell in which those same
-    operations are conventional (a′ = b′, γ′ = 90°).  Both are the *same*
-    lattice — det P = 2 either way — so nothing here is a different physical
-    cell, only a different, equally legitimate, choice of primitive generators
-    of it.
-
-    The choice is therefore made **empirically, against the oracle that
-    already exists for this exact question** —
-    :func:`~rietx.crystallography.symmetry.cell_constraints_from_rotations`
-    (Q-17b) — but fed the rotation set of a **real candidate's isotropy
-    subgroup**, not the parent's own full point group.  The two disagree on a
-    case this rung must not disturb: Ba₂FeSbSe₅'s S₃(a,b), Pnma at
-    k = (½,0,½) in ``2a,b,a+c`` (Q-17), fails for the parent's full *mmm*
-    point group (one of its two mirrors does not fit that cell) but is
-    exactly the tested, already-built statement, because the real candidates
-    there use a 2- or 4-operation isotropy subgroup that never needs the
-    mirror the full group's failure comes from — testing the full group would
-    "fix" a cell that was never broken, at the cost of every transform string
-    and bracketed label Q-17's own tests already pin.  So
-    :func:`_choose_child_basis` probes M-7's own :func:`~.isotropy.candidates`
-    against a **generic** site (a site enters ``candidates`` only through its
-    stabiliser and orbit, so a generic one's isotropy subgroups are the same
-    ones any real site's would give — Q-17's own convention), which is the
-    same *k*-family the twenty-two (½,½,0) children were counted from and the
-    same construction :func:`magnetic_supercell`'s ``nuclear_group="magnetic"``
-    route performs for real.
-
-    The **current** ``(2·anti, row+anti, …)`` choice is kept whenever *at
-    least one* real candidate verifies with it — which is every pre-existing
-    case, Ba₂FeSbSe₅ included, and every one of the (0,0,½)-type family too.
-    Only when *no* candidate verifies with it — the twenty-two (½,½,0)
-    children — are the alternates tried, each scored by whether at least one
-    of its own verifying candidates also names a tabulated ``closest_type``
-    (the conventional cell a published assignment is likeliest to use), then
-    by the smallest transform-matrix entries (deterministic tie-break: max
-    |entry|, then their sum, then the entries themselves in row-major order —
-    see :func:`_choose_child_basis`).  When nothing verifies at all, the
-    pre-Q17c choice is returned unchanged, so the eventual refusal is still
-    :func:`_unnamed_child`'s, with its full diagnostic text, rather than a
-    substitution made silently here.
-
-    When only **one** vector carries ε = −1 — every (0,0,½)-type doubling,
-    and the hexagonal γ = 60°-vs-120° trap this docstring already guards —
-    there is no ambiguity to resolve (there is only the one ε = −1 vector, so
-    no "other" vector to trade the shift against) and the historical choice is
-    returned bit-identically, without touching the oracle at all.
+    When two or more primitive vectors carry ε = −1 (a k = (½,½,0)-type
+    doubling) the recipe names one of them as the doubled pivot; the same
+    lattice has other primitive bases, and in some of them a mm2/4mm child is
+    conventional where here it is not.  This rung does not choose between
+    them: the pivot is the first ε = −1 vector, and a child whose group then
+    has no expressible metric is refused by :func:`magnetic_supercell` with
+    :func:`_unnamed_child`'s full text rather than restated in a cell picked
+    for it.
     """
     sg = _isotropy._irreps._resolve(space_group)
     kk = _isotropy.as_kvector(k)
@@ -294,158 +244,12 @@ def child_basis(space_group, k) -> tuple[tuple[Fraction, ...], ...]:
             rows.append(tuple(Fraction(c) + Fraction(a) for c, a in zip(row, anti)))
         else:
             rows.append(tuple(Fraction(c) for c in row))
-    if len(anti_indices) < 2:
-        # one ε = −1 vector: nothing to choose between, bit-identical to the
-        # pre-Q17c behaviour.
-        return _rows_to_columns(rows)
-
-    candidate_rows = [rows]
-    for i in anti_indices[1:]:
-        row = prim[i]
-        alt = list(rows)
-        alt[pivot] = tuple(Fraction(c) + Fraction(a) for c, a in zip(row, anti))
-        alt[i] = tuple(Fraction(c) - Fraction(a) for c, a in zip(row, anti))
-        candidate_rows.append(alt)
-    return _rows_to_columns(_choose_child_basis(space_group, kk, candidate_rows))
+    return _rows_to_columns(rows)
 
 
 def _rows_to_columns(rows) -> tuple[tuple[Fraction, ...], ...]:
     """Three basis-vector rows as the (P, p)-convention matrix (columns)."""
     return tuple(tuple(rows[j][i] for j in range(3)) for i in range(3))
-
-
-#: Generic (non-special) fractional site used only to probe which magnetic
-#: candidates M-7 would generate for a (parent, k) pair, when the caller's own
-#: site is not yet to hand — ``child_basis`` receives only ``space_group`` and
-#: ``k``, deliberately, since the child *cell* does not depend on which site or
-#: candidate direction will use it.  ``candidates`` reads a site only through
-#: its stabiliser and its orbit (Q-17's own docstring; see
-#: ``tests/test_operator_list_phase.py``), so a generic site's isotropy
-#: subgroups are the same ones any real site's would give, just not narrowed
-#: further by a site that happens to sit on a special position.
-_BASIS_PROBE_SITE = (Fraction(11, 100), Fraction(13, 100), Fraction(17, 100))
-
-
-def _candidate_basis_score(candidate, p_columns) -> tuple[bool, bool]:
-    """``(verifies, closest_type_resolves)`` for one real candidate's isotropy
-    subgroup, carried through the transform ``p_columns``.
-
-    Mirrors :func:`magnetic_supercell`'s own ``nuclear_group="magnetic"``
-    construction exactly (the ``step`` composition is copied from there), so
-    this asks the identical question that function will later ask for real —
-    not a proxy for it.  Any failure along the way (a transform that does not
-    map the candidate's own cell onto a lattice, an inexpressible metric)
-    reads as ``(False, False)`` rather than propagating: a candidate failing
-    here is exactly the fact the caller is choosing against, not a bug.
-
-    "Verifies" means :func:`~rietx.crystallography.symmetry.cell_constraints`
-    returns ties and fixed angles for the probe group: an inexpressible metric
-    raises, which this function reads as "this basis is wrong for this
-    candidate" — exactly the signal the basis choice is built on (some parents
-    fall back to the sum/difference basis *because* every real candidate they
-    have fails this probe on the pre-existing one).
-    """
-    try:
-        p = [[Fraction(v) for v in row] for row in p_columns]
-        p_candidate = [[Fraction(v) for v in row] for row in candidate.cell.basis]
-        step = _mat_mul(_isotropy._exact_inverse(p_candidate), p)
-        nuclear = _colourless(candidate.group.transformed(
-            format_transform(_isotropy._exact_inverse(step),
-                             (Fraction(0), Fraction(0), Fraction(0)))))
-        probe = OperatorGroup(label="", xyz=_child_triplets(nuclear))
-        cell_constraints(probe)
-    except ValueError:
-        return False, False
-    try:
-        probe.closest_type.xhm()
-        return True, True
-    except ValueError:
-        return True, False
-
-
-def _basis_verifies(space_group, kk, p_columns) -> tuple[bool, bool]:
-    """``(some_candidate_verifies, some_verifying_candidate_is_named)`` for
-    the transform ``p_columns``, probed against :data:`_BASIS_PROBE_SITE`'s
-    real candidates at ``(space_group, kk)``.
-
-    **Restricted to candidates M-7 itself cannot identify**
-    (``identification is None`` — the population ``magnetic_supercell``'s own
-    unnamed path exists for, and the exact filter Q-17's and Q-17b's own sweep
-    tests use).  A candidate M-7 *can* identify never reaches
-    :func:`_unnamed_child` at all in production — its child resolves through
-    the ordinary Hermann-Mauguin symbol lookup, which is always expressible
-    and does not care what this function says — so letting one of those "pass"
-    here would be answering a question production never asks.  Measured on
-    P c c n at k=(½,½,0): the generic site gives six candidates, four of them
-    identified MSGs (13.70, 3.4) whose *own* metric already verifies in the
-    pre-Q17c basis (trivially — small point groups almost always do), and two
-    unidentified ones that do not (Q-17b's actual finding); counting the
-    identified ones as evidence the current basis "already works" would have
-    masked the very refusal this rung exists to fix.  ``identify_groups=True``
-    is therefore paid for (unlike a cheaper rotations-only probe) exactly to
-    be able to apply this filter; ``verify=False`` still skips the
-    moment-family cross-check, irrelevant to a cell-metric question.  A k this
-    rung's scope fence refuses, or any other ``ValueError`` from the
-    enumeration itself, reads as "nothing verifies" rather than propagating —
-    the same conservative default as an individual candidate's own failure,
-    and (see :func:`_choose_child_basis`) exactly what keeps a (parent, k)
-    whose generic site simply has no unidentified candidate at all — Pnma at
-    k=(½,0,½), whose real unnamed candidate (Ba₂FeSbSe₅'s S₃(a,b)) needs a
-    special, non-generic site to appear — on its pre-Q17c basis rather than
-    switching it on no evidence either way.
-    """
-    try:
-        found = _isotropy.candidates(space_group, _BASIS_PROBE_SITE, kk,
-                                     identify_groups=True, verify=False)
-    except ValueError:
-        return False, False
-    verifies = named = False
-    for candidate in found.candidates:
-        if candidate.identification is not None:
-            continue
-        ok, is_named = _candidate_basis_score(candidate, p_columns)
-        verifies = verifies or ok
-        named = named or (ok and is_named)
-    return verifies, named
-
-
-def _choose_child_basis(space_group, kk, candidate_rows):
-    """The candidate (rows-format) basis to use, preferring the current one.
-
-    ``candidate_rows[0]`` is always the pre-Q17c ``(2·anti, row+anti, …)``
-    choice; kept whenever :func:`_basis_verifies` finds at least one real
-    candidate that verifies with it — every pre-existing case this rung must
-    not disturb already does (Ba₂FeSbSe₅'s S₃(a,b) among them), and switching
-    a cell that already works would be a different, gratuitous choice with a
-    real cost (every pinned transform string and bracketed label) and no
-    benefit.  The alternates — the sum/difference form for each other
-    ε = −1 vector paired with the pivot — are tried, in order, only when
-    *no* real candidate verifies with the current choice at all (the
-    twenty-two (½,½,0) children); the first with at least one verifying
-    candidate is kept, preferring one whose closest tabulated type also
-    resolves, then the smallest transform-matrix entries (max |entry|, then
-    their sum, then the entries themselves in row-major order — deterministic,
-    not dependent on iteration order). When nothing verifies at all, the
-    pre-Q17c choice is returned unchanged, so the eventual refusal is still
-    :func:`_unnamed_child`'s, with its full diagnostic text.
-    """
-    current = candidate_rows[0]
-    verifies, _named = _basis_verifies(space_group, kk, _rows_to_columns(current))
-    if verifies:
-        return current
-    scored = []
-    for rows in candidate_rows[1:]:
-        p_columns = _rows_to_columns(rows)
-        verifies, named = _basis_verifies(space_group, kk, p_columns)
-        if not verifies:
-            continue
-        entries = [abs(v) for row in p_columns for v in row]
-        scored.append((0 if named else 1, max(entries), sum(entries),
-                       tuple(entries), rows))
-    if not scored:
-        return current
-    scored.sort(key=lambda item: item[:4])
-    return scored[0][-1]
 
 
 def _transform_string(basis) -> str:
@@ -526,7 +330,7 @@ def _nuclear_group_of(space_group, symmetry_operations=None) -> MagneticGroup:
 
     ``symmetry_operations`` is a phase's own explicit operator list
     (``Phase.symmetry_operations``), for the case ``space_group`` is a
-    bracketed, unnamed label (stage3 D2): :func:`~..symmetry.resolve_group`
+    bracketed, unnamed label: :func:`~..symmetry.resolve_group`
     reads the operators directly rather than resolving the label through
     gemmi, exactly as every other consumer of a phase's own group already
     does.  ``None`` (every call before this parameter existed) is bit-
@@ -592,7 +396,8 @@ def _symbol_operations(symbol: str) -> set[tuple]:
 def _identify_child_space_group(group: MagneticGroup, lattice) -> str | None:
     """spglib's identification of the child's **nuclear** group, or ``None``.
 
-    The magnetic identification is M-5's and lives on the group; what is wanted
+    The magnetic identification is :func:`~.operators.identify`'s and lives on
+    the group; what is wanted
     here is the plain space-group type of the same operation list with ε
     dropped, because that is the symbol :class:`Phase` stores and the symbol
     ``generate_reflections`` resolves.
@@ -615,9 +420,10 @@ def _identify_child_space_group(group: MagneticGroup, lattice) -> str | None:
         return None
     # spglib writes screw axes with an underscore (``P2_1/m``, ``P4_2/mnm``);
     # rietx's resolver and gemmi's table spell them without one (``P21/m``).
-    # Measured on Ba2FeSbSe5, Pnma at k = (1/2, 0, 1/2): the child came back as
-    # 'P2_1/m', the resolver refused the underscore, and every candidate was
-    # reported as inexpressible when all four were P 1 21/m 1 supercells.
+    # Pnma at k = (1/2, 0, 1/2) is the case: the child comes back as 'P2_1/m'
+    # and every candidate is a P 1 21/m 1 supercell
+    # (tests/test_magnetic_supercell.py::
+    # test_pnma_half_zero_half_states_in_the_magnetic_nuclear_group).
     return str(symbol).replace("_", "")
 
 
@@ -697,7 +503,7 @@ def _unnamed_child(group: MagneticGroup, head: str, transform: str,
     (:attr:`~rietx.crystallography.symmetry.OperatorGroup.closest_type`).
     That orientation lookup fails for a child cell whose axes are not
     conventional for its own point group (a c- or n-glide group doubled along
-    the glide's own translation is the measured case), and there this function
+    the glide's own translation), and there this function
     still refuses: deriving the constraints straight from the rotation set is
     the distortion-mode track's (WP-1419), not this rung's.  Refusing there is
     the right call on this tree: building the phase anyway would move the
@@ -758,12 +564,13 @@ def resolve_child_group(group: MagneticGroup, symbol: str | None,
     a ½ translation along the doubled axis becomes a ¼ in the child cell, and ¼
     appears in no standard operation list — so for such a parent there is *no*
     Hermann-Mauguin symbol that generates the child's nuclear group in the
-    child's cell.  Until Q-17 a ``Phase`` could only store a symbol, so the
+    child's cell.  Until the operation-list phase (#448) a ``Phase`` could only
+    store a symbol, so the
     only honest answer was a refusal: a phase whose symbol does not generate
     its own operations gets the wrong site orbits and the wrong systematic
     absences, and a fit on it converges anyway.  That refusal cost real work —
-    Ba₂FeSbSe₅'s S3(a,b) direction could not be tested at all, and M-1's
-    acceptance table carries the gap.
+    Ba₂FeSbSe₅'s S3(a,b) direction could not be stated at all
+    (``tests/test_operator_list_phase.py`` now builds it).
 
     A phase can now carry its own operation list
     (``Phase.symmetry_operations``), so the answer is the list plus a label
@@ -845,7 +652,7 @@ def _cosets_of_the_operation_list(group: MagneticGroup
 def _sign_consistent_operations(cand, m_matrix, ops, *, tol: float = 1e-6
                                 ) -> set[tuple]:
     r"""The subset of ``ops`` that is a symmetry of ``cand``'s own **signed**
-    field, not only of its positions (M2d).
+    field, not only of its positions.
 
     ``_colourless`` drops which copy of a grey operation {R | t, ±1} a
     candidate's own isotropy subgroup actually carries, and every consumer of
@@ -857,45 +664,38 @@ def _sign_consistent_operations(cand, m_matrix, ops, *, tol: float = 1e-6
     order-parameter direction is 1-dimensional (or whose components never
     split) that loss is harmless: every operation of the colourless group
     that moves a listed position at all turns out to carry the same, single
-    character on every component, and this function returns ``ops`` back
-    unchanged (measured on S1(a,b), S2(a,b), S4(a,b) of the toy fixture in
-    ``tests/test_multi_component_statements.py`` — checks/M2B's own controls).
-    S3(a,b) on the same fixture is where it is not (checks/
-    M2B_SINGLE_COMPONENT_SIGN_CHECK.md): one of its declared operations is the
-    *cross-coset* copy (rotation composed with the child lattice's own
-    anti-translation-derived coset shift) and carries ε = +1 on two of its
-    four free amplitudes and ε = −1 on the other two — a single scalar ε
-    cannot state that, and dropping the operation (rather than keeping it
-    with a wrong assumed sign) is the only choice available to a group whose
-    operators carry one ε each.
+    character on every component.  Where it does not — an operation carrying
+    ε = +1 on some free amplitudes and ε = −1 on others, as the child
+    lattice's anti-translation and its products do for a displacive k ≠ 0
+    mode — a single scalar ε cannot state it, and dropping the operation
+    (rather than keeping it with a wrong assumed sign) is the only choice
+    available to a group whose operators carry one ε each.  On the generic
+    Pnma fixture of ``tests/test_operator_list_phase.py`` at k = (½, 0, ½)
+    that leaves S3(a,b) the order-2 ``{x,y,z; x,-y+1/2,z}`` which
+    ``test_the_ba2fesbse5_s3ab_child_is_built_instead_of_refused`` pins.
 
     ``cand`` is one of :mod:`.isotropy`'s ``MagneticCandidate`` objects
     (``kind="displacive"`` or ``"magnetic"`` — the test is the same shape for
     either; the axial-vs-polar distinction is already baked into
     ``cand.configurations`` by :func:`~.isotropy.order_parameter_space`, so
     this function never itself decides which action a component takes).
-    ``m_matrix`` carries ``cand.positions``/``cand.configurations`` from M-7's
-    own cell into the cell ``ops`` is expressed in — the same matrix
-    :func:`_mode_vectors` and :func:`_component_respects_declared_symmetry`
-    use, because a mode vector is contravariant and one matrix carries both
-    the positions and the components.
+    ``m_matrix`` carries ``cand.positions``/``cand.configurations`` from the
+    candidate's own cell into the cell ``ops`` is expressed in; one matrix
+    carries both, because a mode vector is contravariant.
 
     An operation with no free amplitude to check (``cand.configurations`` has
     zero rows — an undistorted parent, or a direction with no free
-    amplitude) is vacuously kept, matching
-    :func:`_component_respects_declared_symmetry`'s own early return. An
-    operation whose image matches no listed position at all is dropped rather
-    than kept — the conservative default :func:`_component_respects_declared_symmetry`
-    already takes, since an operation this rung cannot verify is not one it
-    should trust.
+    amplitude) is vacuously kept.  An operation whose image matches no listed
+    position at all is dropped rather than kept, since an operation this rung
+    cannot verify is not one it should trust.
 
     The identity is always kept, and the result always contains it, so
     :func:`~.operators.MagneticGroup.from_operations` never sees an empty
-    list. **The result is a group in every case this rung has measured** (a
-    product of two sign-consistent operations propagates ``cand``'s own field
-    correctly twice in a row, hence once) — ``from_operations`` is the check
-    that would catch it not being one (it raises on a set that does not
-    close), so this function does not re-derive closure itself.
+    list.  The result is a group (a product of two sign-consistent operations
+    propagates ``cand``'s own field correctly twice in a row, hence once), and
+    ``from_operations`` is the check that would catch it not being one — it
+    raises on a set that does not close — so this function does not re-derive
+    closure itself.
     """
     identity = tuple(tuple(int(i == j) for j in range(3)) for i in range(3))
     if cand.configurations.shape[0] == 0:
@@ -931,10 +731,9 @@ def _sign_consistent_operations(cand, m_matrix, ops, *, tol: float = 1e-6
 def _group_from_nuclear_ops(ops) -> MagneticGroup:
     """A colourless :class:`MagneticGroup` from a set of nuclear (rot, tran) pairs.
 
-    The same construction :func:`_intersection_group` uses for the
-    positionally-intersected set; factored out so :func:`magnetic_supercell`
-    and the multi-component builder share it rather than each writing the
-    ``MagneticOperator.build`` loop.
+    Every operation gets ε = +1: the input is a nuclear set, and
+    :func:`magnetic_supercell` uses the result only as the child's nuclear
+    group.
     """
     from .operators import MagneticOperator
 
@@ -1236,30 +1035,31 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
                        ) -> SupercellStatement:
     r"""The nuclear phase of ``parent`` restated in the magnetic cell of a k.
 
-    **Two ways in, and only the first goes through M-7.**
+    **Two ways in, and only the first goes through** :func:`~.isotropy.candidates`.
 
-    ``candidate`` is one of M-7's :class:`~.isotropy.MagneticCandidate`
+    ``candidate`` is one of :func:`~.isotropy.candidates`'
+    :class:`~.isotropy.MagneticCandidate`
     objects — a magnetic space group with its cell and its k.  Only its
     ``group``, ``cell.k`` and ``bns_number`` are read: the moment *family* is
     not, because the family is derived per site from the group itself
     (``allowed_moment_basis``), which is what lets a parent with several
     magnetic sites be stated from one candidate.  The child cell is
-    :func:`child_basis`'s, and M-7's scope fence applies — 2k in the reciprocal
-    lattice.
+    :func:`child_basis`'s, and ``candidates``' scope fence applies — 2k in the
+    reciprocal lattice.
 
     ``group`` + ``transform`` is the other way, and it exists because that
-    fence is M-7's and not this module's.  M-7 needs 2k ∈ L\* so that a lattice
-    translation enters the order parameter with a phase of ±1 and an isotropy
-    subgroup of the grey little group exists; **a supercell statement needs no
-    such thing**.  It needs a child lattice, which every commensurate k has, and
-    a magnetic space group in that cell, which a database or a k-SUBGROUPSMAG
-    table supplies directly.  Mn₃O₄ on POWGEN is the case: parent I4₁/amd with
-    k = (0, ½, 0), whose 2k = (0, 1, 0) is *not* a reciprocal-lattice vector of
-    a body-centred lattice, so M-7 refuses it by name — and yet the structure is
-    stated, and refined, in a, 2b, c with a primitive lattice.  Pass the
-    operator list in that cell and its (P, p) transform in
-    ``transform_BNS_Pp_abc`` form; ``k`` is then a record for the report and
-    nothing derives from it.
+    fence is ``candidates``' and not this module's.  It needs 2k ∈ L\* so that a
+    lattice translation enters the order parameter with a phase of ±1 and an
+    isotropy subgroup of the grey little group exists; **a supercell statement
+    needs no such thing**.  It needs a child lattice, which every commensurate k
+    has, and a magnetic space group in that cell, which a database or a
+    k-SUBGROUPSMAG table supplies directly.  Mn₃O₄ on POWGEN is the case: parent
+    I4₁/amd with k = (0, ½, 0), whose 2k = (0, 1, 0) is *not* a
+    reciprocal-lattice vector of a body-centred lattice, so ``candidates``
+    refuses it by name — and yet the structure is stated, and refined, in a,
+    2b, c with a primitive lattice.  Pass the operator list in that cell and its
+    (P, p) transform in ``transform_BNS_Pp_abc`` form; ``k`` is then a record
+    for the report and nothing derives from it.
 
     ``nuclear_group`` chooses which group the child phase's ``space_group``
     states, and it is the one knob a caller can get wrong, so both settings and
@@ -1306,10 +1106,11 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     """
     if (candidate is None) == (group is None):
         raise ValueError(
-            "magnetic_supercell(): pass either one of M-7's candidates or an "
+            "magnetic_supercell(): pass either one of isotropy.candidates' "
+            "candidates or an "
             "explicit group with its transform, not both and not neither. The "
             "candidate route derives the child cell from k and is fenced at "
-            "2k in the reciprocal lattice (M-7's scope); the explicit route "
+            "2k in the reciprocal lattice (candidates' scope); the explicit route "
             "takes the cell from the transform and has no such fence, because "
             "a child lattice exists for every commensurate k.")
     if nuclear_group not in ("parent", "magnetic"):
@@ -1333,14 +1134,13 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
             "(crystallography/adp.py). Convert the sites to biso, or wait for "
             "the rung that carries the tensor.")
 
-    # stage3 D2: an unnamed (bracketed-label) parent used to be refused here
-    # by name.  ``child_basis``/``magnetic_cell``/``candidates`` all resolve
-    # their group through ``_irreps._resolve``, which already accepts the
-    # ``OperatorGroup`` ``resolve_group`` builds from a phase's own operator
-    # list — no tabulated space-group number is used anywhere in that chain
-    # (D-1, COMMON.md) — so the parent's group is resolved once, from its
-    # operators when it has no name, and threaded through instead of refusing
-    # before either derivation is tried.
+    # An unnamed (bracketed-label) parent used to be refused here by name.
+    # ``child_basis``/``magnetic_cell``/``candidates`` all resolve their group
+    # through ``_irreps._resolve``, which already accepts the ``OperatorGroup``
+    # ``resolve_group`` builds from a phase's own operator list — no tabulated
+    # space-group number is used anywhere in that chain — so the parent's group
+    # is resolved once, from its operators when it has no name, and threaded
+    # through instead of refusing before either derivation is tried.
     parent_group = resolve_group(parent.space_group, parent.symmetry_operations)
     if candidate is not None:
         basis = child_basis(parent_group, candidate.cell.k)
@@ -1348,8 +1148,8 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
         transform = format_transform([list(row) for row in basis], origin)
         k = candidate.cell.k
         bns_number = candidate.bns_number if bns_number is None else bns_number
-        # the MSG in *this* cell.  The candidate's group is in M-7's reduced
-        # cell, so it is carried across rather than rebuilt:
+        # the MSG in *this* cell.  The candidate's group is in magnetic_cell's
+        # reduced cell, so it is carried across rather than rebuilt:
         # MagneticGroup.transformed takes (P, p) in the BNS sense and applies
         # the inverse map, so reaching a cell whose basis is M relative to the
         # current one means handing it M⁻¹ (isotropy.MagneticCell.
@@ -1393,27 +1193,23 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
             format_transform(p_inverse, child_origin))
     else:
         nuclear = _colourless(group)
-        # **The little-group sign (M2d).**  A commensurate k != 0 little group
-        # is generally grey: the same spatial operation {R | t} can carry
+        # **The little-group sign.**  A commensurate k != 0 little group is
+        # generally grey: the same spatial operation {R | t} can carry
         # little-group character +1 on one component of a multi-dimensional
-        # order-parameter direction and -1 on another
-        # (checks/M2B_SINGLE_COMPONENT_SIGN_CHECK.md, confirmed). _colourless
-        # already discarded that character above; here, for a candidate whose
-        # own (positions, configurations) this rung can check against, the
-        # declared group is reduced to the subgroup that is a symmetry of the
+        # order-parameter direction and -1 on another. _colourless already
+        # discarded that character above; here, for a candidate whose own
+        # (positions, configurations) this rung can check against, the declared
+        # group is reduced to the subgroup that is a symmetry of the
         # candidate's **signed** field, not only of its positions — so an
         # operation whose sign this rung cannot state correctly is excluded
         # rather than trusted with an implicit +1, and the sibling it used to
-        # reach becomes its own explicit representative instead
-        # (:func:`_mode_vectors` already fills every representative by direct
-        # position-match against the candidate, never by rotating a
-        # sibling's).  Gated on ``kind == "displacive"``: the moment path's
-        # own consumer (``magnetic.scattering.compile_magnetic_sites``)
-        # re-derives each image's axial matrix from the *full*, non-colourless
-        # magnetic group at compile time, one operation at a time, so it never
-        # trusts the *declared* nuclear group's sign in the first place —
-        # reducing it too would only add atoms no consumer needs (measured;
-        # see the M2d report's moment-path table).
+        # reach becomes its own explicit representative instead.  Gated on
+        # ``kind == "displacive"``: the moment path's own consumer
+        # (``magnetic.scattering.compile_magnetic_sites``) re-derives each
+        # image's axial matrix from the *full*, non-colourless magnetic group
+        # at compile time, one operation at a time, so it never trusts the
+        # *declared* nuclear group's sign in the first place — reducing it too
+        # would only add atoms no consumer needs.
         if candidate is not None and candidate.kind == "displacive":
             m_matrix = (_isotropy._fraction_inverse(basis)
                        @ _matrix_of(candidate.cell.basis))
@@ -1438,7 +1234,7 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     # ``None`` when spglib will not even name the *type* — no longer a refusal:
     # the type is the leading half of a label and the operation list is the
     # group either way, so what used to stop the statement now only shortens
-    # its label (Q-17).
+    # its label (#448).
     symbol = _identify_child_space_group(nuclear, lattice)
     child_group = resolve_child_group(nuclear, symbol, transform)
     symbol = child_group.label
@@ -1542,11 +1338,11 @@ def _refuse_a_nuclear_orbit_the_magnetic_group_cannot_cover(
     tolerance makes one.  It refuses at *compile*, which was invisible while
     ``resolve_child_group`` refused every such child one step earlier for the
     unrelated reason that no symbol named it — and that earlier refusal is what
-    ``strategy.magnetic._supercell`` reads to take the documented remedy
-    (``nuclear_group="magnetic"``) by itself.  Measured on P2₁2₁2₁ at
-    k = (½,0,0): with the child now stated as an operation list, the build
-    succeeds and the compile refuses, so a workflow that used to fall back
-    would abstain instead.
+    a caller could read to take the documented remedy
+    (``nuclear_group="magnetic"``).  P2₁2₁2₁ at k = (½,0,0) is the case
+    (``test_the_parent_route_is_refused_when_the_magnetic_orbit_is_smaller``):
+    with the child stated as an operation list the build would succeed and the
+    compile refuse, so a caller that used to fall back would abstain instead.
 
     So the check moves here, where the remedy is still reachable.  It is the
     same arithmetic and the same verdict — nothing is loosened, and a statement
