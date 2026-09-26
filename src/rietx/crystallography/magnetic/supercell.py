@@ -1369,9 +1369,18 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     # candidate of the same structure, which is the ranking measuring the wrong
     # thing.
     if nuclear_group == "parent":
+        # ``transformed((Q, q))`` restates a group under x' = Q·x + q (its
+        # docstring: W → Q·W·Q⁻¹, w → Q·w + (I − Q·W·Q⁻¹)·q), and
+        # :func:`_child_positions` places the atoms at x_c = P⁻¹·(x − p) =
+        # P⁻¹·x − P⁻¹·p.  So Q = P⁻¹ and q = −P⁻¹·p, **not** p: handing it the
+        # parent-frame shift unchanged moves the group's origin by
+        # (I − W')·(p + P⁻¹·p) against the atoms', which is a lattice vector
+        # for some shifts and an orbit the child cannot hold for the rest.
+        p_inverse = _isotropy._exact_inverse(p_child)
+        child_origin = tuple(-v for v in _mat_vec(p_inverse, origin))
         nuclear = _nuclear_group_of(
             parent.space_group, parent.symmetry_operations).transformed(
-            format_transform(_isotropy._exact_inverse(p_child), origin))
+            format_transform(p_inverse, child_origin))
     else:
         nuclear = _colourless(group)
         # **The little-group sign (M2d).**  A commensurate k != 0 little group
@@ -1401,6 +1410,20 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
             reduced_ops = _sign_consistent_operations(
                 candidate, m_matrix, _nuclear_operations(nuclear))
             nuclear = _group_from_nuclear_ops(reduced_ops)
+    # The group is exact rationals here and meets gemmi's integer-over-24
+    # operations downstream (the orbit partition, the phase's own list), where
+    # a 1/7 does not survive.  An origin shift is free to put one there, so it
+    # is refused by name rather than left to surface as an orbit that "does
+    # not fit" the child cell.
+    off_grid = sorted({str(v) for op in nuclear.all_operations()
+                       for v in op.translation if 24 % Fraction(v).denominator})
+    if off_grid:
+        raise ValueError(
+            f"magnetic_supercell(): transform {transform!r} gives the child's "
+            f"nuclear group translations {off_grid}, which are not multiples "
+            f"of 1/24; symmetry operations are carried at that resolution "
+            f"(gemmi's), so this origin cannot be stated. Choose an origin "
+            f"shift in multiples of 1/24 — every tabulated origin choice is one")
     lattice = _child_lattice(parent_cell, basis)
     # ``None`` when spglib will not even name the *type* — no longer a refusal:
     # the type is the leading half of a label and the operation list is the
@@ -1491,6 +1514,11 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
 def _mat_mul(a, b):
     return [[sum(Fraction(a[i][t]) * Fraction(b[t][j]) for t in range(3))
              for j in range(3)] for i in range(3)]
+
+
+def _mat_vec(a, v):
+    return [sum(Fraction(a[i][t]) * Fraction(v[t]) for t in range(3))
+            for i in range(3)]
 
 
 def _refuse_a_nuclear_orbit_the_magnetic_group_cannot_cover(

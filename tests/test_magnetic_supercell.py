@@ -808,3 +808,151 @@ def test_every_spglib_short_symbol_resolves_after_normalisation():
             wrong.append((short, sg.number, number))
     assert unresolved == []
     assert wrong == []
+
+
+# ================================================ an origin shift on the parent route
+def pnnn_parent() -> Phase:
+    """P n n n in origin choice 2 (at 1̄): the group whose origin choice matters.
+
+    Centrosymmetric, and its two tabulated origins sit (¼, ¼, ¼) apart, so a
+    shift between them is exactly the non-lattice origin a database setting
+    routinely carries.  Fe on a 1̄ site, O on a 222 site.
+    """
+    return Phase(
+        name="synthetic Pnnn:2", space_group="P n n n:2",
+        cell=_cell(5.0, 6.0, 7.0, 90.0, 90.0, 90.0),
+        atoms=[
+            Atom(label="Fe", species="Fe", x=P(value=0.0), y=P(value=0.0),
+                 z=P(value=0.0), biso=P(value=0.4)),
+            Atom(label="O", species="O", x=P(value=0.25), y=P(value=0.25),
+                 z=P(value=0.25), biso=P(value=0.6)),
+        ])
+
+
+def _child_site_set(parent: Phase, p_matrix, shift, index: int) -> list[np.ndarray]:
+    """Every atom of the child cell, derived here and not by the builder.
+
+    x_c = P⁻¹·(g·x + n − p) over the parent's orbit and the integer translations
+    n in a box wide enough to reach every coset, deduplicated modulo the child
+    lattice.  Written independently of ``_child_positions`` so the two can
+    disagree.
+    """
+    from rietx.crystallography.symmetry import expand_positions, resolve_group
+
+    sg = resolve_group(parent.space_group, parent.symmetry_operations)
+    inverse = np.linalg.inv(np.asarray(p_matrix, dtype=np.float64))
+    p = np.array([float(v) for v in shift])
+    out: list[np.ndarray] = []
+    for atom in parent.atoms:
+        xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
+        for image in expand_positions(sg, xyz):
+            for n in np.ndindex(3, 3, 3):
+                q = (inverse @ (image + np.array(n, dtype=np.float64) - p)) % 1.0
+                if not any(np.all(np.minimum(np.abs(q - r), 1 - np.abs(q - r)) < 1e-9)
+                           for r in out):
+                    out.append(q)
+    per_cell = sum(len(expand_positions(sg, np.array(
+        [a.x.value, a.y.value, a.z.value]))) for a in parent.atoms)
+    assert len(out) == index * per_cell
+    return out
+
+
+def _assert_the_child_group_holds_the_child_positions(statement, parent, shift):
+    """The child group's orbits of the stated atoms are exactly the child cell."""
+    from rietx.crystallography.symmetry import expand_positions, resolve_group
+
+    child = statement.phase
+    sg = resolve_group(child.space_group, child.symmetry_operations)
+    expected = _child_site_set(parent, _p_matrix(statement), shift, statement.index)
+    stated: list[np.ndarray] = []
+    for atom in child.atoms:
+        stated.extend(expand_positions(sg, np.array(
+            [atom.x.value, atom.y.value, atom.z.value])))
+    assert len(stated) == len(expected)
+    for q in stated:
+        assert any(np.all(np.minimum(np.abs(q - r), 1 - np.abs(q - r)) < 1e-9)
+                   for r in expected), q
+    # and every operation maps the child position set onto itself
+    for op in sg.operations():
+        for q in expected:
+            image = np.array([v for v in op.apply_to_xyz(list(q))]) % 1.0
+            assert any(np.all(np.minimum(np.abs(image - r), 1 - np.abs(image - r))
+                              < 1e-9) for r in expected), (op.triplet(), q)
+
+
+@pytest.mark.parametrize("shift", [(0, 0, Fraction(1, 4)), (Fraction(1, 2), 0, 0)])
+def test_an_origin_shift_on_the_parent_route_restates_the_parent(shift):
+    """``transform="a,b,2c;0,0,1/4"`` builds: restating a parent at a new origin.
+
+    The parent route carries the parent's group through (P, p) and places the
+    atoms at x_c = P⁻¹·(x − p); ``MagneticGroup.transformed`` realises
+    x' = Q·x + q, so the group has to be handed Q = P⁻¹ and q = −P⁻¹·p.  It
+    was handed p, which disagrees with the atoms by (I − W')·(p + P⁻¹·p): a
+    lattice vector for ``1/2,0,0`` (which built) and a half-orbit for
+    ``0,0,1/4`` (which was refused as a child cell "not holding a whole
+    orbit").  The reviewer's reproduction, verbatim — the unshifted group
+    passed as it came — and then the orbit identity asserted per operation.
+    """
+    parent = p4mmm_parent()
+    cand = candidates(parent.space_group, (0.0, 0.0, 0.0), HALF_C).candidates[0]
+    base = magnetic_supercell(parent, cand, magnetic_species="Mn", ion="Mn2+")
+    transform = "a,b,2c;" + ",".join(str(v) for v in shift)
+    statement = magnetic_supercell(parent, group=base.group, transform=transform,
+                                   k=cand.cell.k, magnetic_species="Mn",
+                                   ion="Mn2+")
+    assert statement.transform == transform
+    _assert_the_child_group_holds_the_child_positions(statement, parent, shift)
+    refl = generate_reflections(parent.space_group, parent.cell.lengths_angles(),
+                                1.5, two_theta_max=120.0)
+    mapped = np.rint(refl.hkl @ _p_matrix(statement)).astype(np.int64)
+    f2_parent, f2_child = _nuclear_f2(parent, refl.hkl), _nuclear_f2(
+        statement.phase, mapped)
+    live = f2_parent > 1e-9
+    assert np.allclose(f2_child[live] / f2_parent[live], statement.index ** 2,
+                       rtol=1e-12, atol=0.0)
+
+
+@pytest.mark.parametrize("shift", [
+    (Fraction(1, 4), Fraction(1, 4), Fraction(1, 4)),   # origin choice 2 → 1
+    (0, Fraction(1, 4), 0),
+    (Fraction(1, 2), 0, 0),
+])
+def test_a_non_lattice_origin_on_a_centrosymmetric_parent_keeps_its_orbits(shift):
+    """The same identity on a group where the shift moves the 1̄ centres.
+
+    P n n n:2 at k = (½, 0, 0), doubled a, with the magnetic group carried to
+    the shifted child origin the way a caller supplying a database setting
+    would (``transformed`` under (I, −P⁻¹·p)).  The child group must map the
+    child's full position list onto itself, the stated atoms' orbits must be
+    that list exactly, and the anti-translation law must hold on the seeds.
+    """
+    from rietx.crystallography.magnetic.operators import format_transform
+
+    parent = pnnn_parent()
+    cand = candidates(parent.space_group, (0.0, 0.0, 0.0), HALF_A).candidates[0]
+    base = magnetic_supercell(parent, cand, magnetic_species="Fe", ion="Fe3+",
+                              magnitude=2.0)
+    assert base.transform == "2a,b,c;0,0,0"
+    child_origin = (-Fraction(shift[0]) / 2, -Fraction(shift[1]),
+                    -Fraction(shift[2]))
+    group = base.group.transformed(format_transform(
+        [[1, 0, 0], [0, 1, 0], [0, 0, 1]], child_origin))
+    transform = "2a,b,c;" + ",".join(str(v) for v in shift)
+    statement = magnetic_supercell(parent, group=group, transform=transform,
+                                   k=cand.cell.k, magnetic_species="Fe",
+                                   ion="Fe3+", magnitude=2.0)
+    _assert_the_child_group_holds_the_child_positions(statement, parent, shift)
+    assert anti_translation_residual(statement.phase) == pytest.approx(0.0, abs=1e-12)
+    moments = [a.moment for a in statement.phase.atoms if a.moment is not None]
+    assert moments
+
+
+def test_an_origin_off_the_operation_grid_is_refused_by_name():
+    """A 1/7 origin puts translations gemmi cannot carry: refused, not mis-stated."""
+    parent = p4mmm_parent()
+    cand = candidates(parent.space_group, (0.0, 0.0, 0.0), HALF_C).candidates[0]
+    base = magnetic_supercell(parent, cand, magnetic_species="Mn", ion="Mn2+")
+    with pytest.raises(ValueError, match="multiples of 1/24"):
+        magnetic_supercell(parent, group=base.group,
+                           transform="a,b,2c;1/3,1/5,1/7", k=cand.cell.k,
+                           magnetic_species="Mn", ion="Mn2+")
