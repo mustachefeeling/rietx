@@ -353,7 +353,8 @@ Two things here will mislead you if nobody says them:
   for both an ionic solid and an organic. LaB₆ at the default draws every La–B
   contact and looks like a cage; one turn of the slider down and the B₆
   octahedron appears. It sits behind the `drawing` disclosure, and a first-time
-  user needs it.
+  user needs it. No stick joins a metal to a cation at any threshold, so
+  forsterite's Mg is never joined to the Si of its SiO₄ neighbours.
 - The ellipsoids are a diagnostic. Their axes are refined quantities, so a
   background flexible enough to imitate the peaks arrives here as balloons,
   while improving Rwp. A non-positive-definite tensor arrives as a flat disc,
