@@ -20,6 +20,7 @@ ships or runs in the suite. The logs in `results/` are the runs the WP quotes.
 | `first_frame.mjs` | Draw calls and screenshots at three delays after the Model tab opens, which showed Firefox presenting its first frame late. Port 8797. |
 | `loaf_attribution.mjs` | The script each long animation frame on opening names, with the viewer open and after a reload (Chromium). Port 8795. |
 | `gl_time.mjs` | Every WebGL2 method timed over a first opening, beside that opening's long frames (Chromium). Port 8794. |
+| `gate.py` | The GPU gate. `run` drives the real viewer through a fixed script in one browser configuration and records the GL driver, seven screenshots, both exports, a lost and restored context and the contexts left after five toggles. `compare` holds a run to a reference run of the same engine, against the bar in its docstring. Python playwright, an ephemeral port. |
 
 ## Running it
 
@@ -45,6 +46,16 @@ HEADED=1 node docs/wp/1462-spike/paired.mjs /tmp/ex/nac.rex firefox new 3
 `paired.mjs` measured the plotly build by checking out the dist of commit
 `040c07ce` into `src/rietx/gui/static`, running with the label `plotly`, and
 checking the dist back out of `HEAD` afterwards.
+
+The gate takes a reference on one machine and holds another machine's runs to
+it. Each run lands in `OUT/<config>/`, and the configurations are `CONFIGS` in
+the script:
+
+```sh
+for c in chromium firefox webkit; do .venv/bin/python docs/wp/1462-spike/gate.py run /tmp/ref $c --headed; done
+.venv/bin/python docs/wp/1462-spike/gate.py run /tmp/win chromium-d3d11 --headed
+.venv/bin/python docs/wp/1462-spike/gate.py compare /tmp/win /tmp/ref
+```
 
 `driver.mjs` binds port 8823 and `shot.mjs` port 8824. Both expect
 playwright's browser builds in the playwright cache: chromium 1223, firefox

@@ -1,7 +1,7 @@
 """WP-1462's GPU gate: the GUI's structure viewer on whatever GL driver a
 machine has, and the same pictures compared with a reference machine's.
 
-    .venv/bin/python docs/wp/1462-spike/gate.py run OUT CONFIG [--headed]
+    .venv/bin/python docs/wp/1462-spike/gate.py run OUT CONFIG [--headed] [--payload=FILE]
     .venv/bin/python docs/wp/1462-spike/gate.py compare OUT REF
 
 Run from the repository root with python playwright installed. ``run`` serves
@@ -150,7 +150,11 @@ def _settle(page, frames: int = 4) -> None:
                   frames)
 
 
-def run(out: Path, config: str, headed: bool) -> dict:
+def run(out: Path, config: str, headed: bool, payload: Path | None = None) -> dict:
+    """One configuration's run. ``payload`` replays a saved ``/api/structure3d``
+    answer in place of this machine's, so two machines draw the same numbers:
+    the server's eigen-decomposition is this machine's LAPACK, and a tensor
+    uniaxial by symmetry has two principal axes any LAPACK may choose."""
     import tempfile
 
     from playwright.sync_api import sync_playwright
@@ -159,7 +163,8 @@ def run(out: Path, config: str, headed: bool) -> dict:
     here = out / config
     here.mkdir(parents=True, exist_ok=True)
     record: dict = {"config": config, "engine": engine, "headed": headed,
-                    "platform": sys.platform, "errors": [], "failed": [], "pictures": {}}
+                    "platform": sys.platform, "payload": str(payload) if payload else None,
+                    "errors": [], "failed": [], "pictures": {}}
     url, httpd = _serve(Path(tempfile.mkdtemp(prefix="gate-")))
     try:
         with sync_playwright() as p:
@@ -175,6 +180,12 @@ def run(out: Path, config: str, headed: bool) -> dict:
                 "Failed to load resource") and record["errors"].append(m.text))
             page.on("response", lambda r: r.status >= 400 and record["failed"].append(f"{r.status} {r.url}"))
             page.add_init_script(COUNT_CONTEXTS.join(["(", ")()"]))
+            served = []
+            page.on("response", lambda r: "/api/structure3d" in r.url and served.append(r))
+            if payload:
+                text = payload.read_text()
+                page.route("**/api/structure3d*", lambda route: route.fulfill(
+                    status=200, content_type="application/json", body=text))
             page.goto(url)
             page.add_style_tag(content=PIN)
             page.get_by_role("button", name="Model", exact=True).click()
@@ -183,6 +194,12 @@ def run(out: Path, config: str, headed: bool) -> dict:
             _settle(page, 8)
             bad = page.locator(".viewer p.bad")
             record["viewer_error"] = bad.first.text_content() if bad.count() else None
+            (here / "payload.json").write_bytes(served[0].body())
+            if record["viewer_error"]:
+                # the viewer's own answer to a browser with no WebGL2; nothing to draw
+                canvas.screenshot(path=here / "unsupported.png")
+                browser.close()
+                return _write(here, record)
             record["driver"] = page.evaluate(DRIVER)
             box = canvas.bounding_box()
             record["canvas_css"] = [box["width"], box["height"]]
@@ -259,17 +276,26 @@ def run(out: Path, config: str, headed: bool) -> dict:
             browser.close()
     finally:
         httpd.shutdown()
-    (here / f"{config}.json").write_text(json.dumps(record, indent=1))
+    return _write(here, record)
+
+
+def _write(here: Path, record: dict) -> dict:
+    (here / f"{record['config']}.json").write_text(json.dumps(record, indent=1))
     return record
 
 
 def compare(out: Path, ref: Path) -> bool:
     """Print every run under ``out`` against ``ref``'s run of the same engine."""
     ok = True
-    for path in sorted(out.glob("*/*.json")):
+    for path in sorted(p for p in out.glob("*/*.json") if p.stem == p.parent.name):
         rec = json.loads(path.read_text())
         base = ref / rec["engine"]
-        print(f"\n{path.parent.name}: {rec.get('browser')} on {rec['platform']}")
+        print(f"\n{path.parent.name}: {rec.get('browser')} on {rec['platform']}"
+              + (f", replaying {Path(rec['payload']).name}" if rec.get("payload") else ""))
+        if rec.get("viewer_error"):
+            print(f"  the viewer declined: {rec['viewer_error']}")
+            ok = False
+            continue
         driver = rec.get("driver") or {}
         print(f"  driver  {driver.get('vendor')} | {driver.get('renderer')} | samples {driver.get('samples')}")
         checks = {
@@ -284,7 +310,7 @@ def compare(out: Path, ref: Path) -> bool:
             "only the transparent export is": [e["corner_alpha"] for e in rec["exports"]] == [1.0, 0.0],
         }
         # the screenshots, and the two exports, alpha included
-        for png in sorted(path.parent.glob("*.png")):
+        for png in sorted(p for p in path.parent.glob("*.png") if p.stem != "unsupported"):
             name = png.stem
             mine = _image(png.read_bytes())
             theirs = _image((base / png.name).read_bytes())
@@ -308,7 +334,8 @@ def compare(out: Path, ref: Path) -> bool:
 if __name__ == "__main__":
     verb, *rest = sys.argv[1:]
     if verb == "run":
-        rec = run(Path(rest[0]), rest[1], "--headed" in rest)
+        replay = next((Path(a.split("=", 1)[1]) for a in rest if a.startswith("--payload=")), None)
+        rec = run(Path(rest[0]), rest[1], "--headed" in rest, replay)
         print(json.dumps({k: rec.get(k) for k in ("config", "browser", "driver", "viewer_error", "errors")},
                          indent=1))
     else:

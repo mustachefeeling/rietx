@@ -35,12 +35,17 @@ jobs:
       - run: uv venv --python 3.12
       - run: uv pip install -e ".[dev]" playwright==1.63.0
       - run: ${{ matrix.python }} -m playwright install --with-deps chromium firefox webkit
+      # native: this machine's payload; replay: the reference Mac's, so only
+      # the renderer differs from the reference pictures
       - name: Each browser, headed
         run: |
           for c in ${{ matrix.configs }}; do
             echo "::group::$c"
-            ${{ matrix.display }} ${{ matrix.python }} docs/wp/1462-spike/gate.py run gate-out "$c" --headed \
-              || echo "::warning::$c did not finish"
+            ${{ matrix.display }} ${{ matrix.python }} docs/wp/1462-spike/gate.py run gate-out/native "$c" --headed \
+              || echo "::warning::$c native did not finish"
+            ${{ matrix.display }} ${{ matrix.python }} docs/wp/1462-spike/gate.py run gate-out/replay "$c" --headed \
+              --payload=docs/wp/1462-spike/results/gate_payload_mac.json \
+              || echo "::warning::$c replay did not finish"
             echo "::endgroup::"
           done
       - uses: actions/upload-artifact@v7
