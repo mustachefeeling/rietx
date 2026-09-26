@@ -3253,7 +3253,7 @@ describe("the structure viewer", () => {
     await openViewer();
     expect(host.textContent).toContain("2 atoms in the cell + 1 image outside it");
     expect(host.textContent).toContain("1 bond segment at 1.15×");
-    expect(host.textContent).toContain("metal–metal contacts not bonded");
+    expect(host.textContent).toContain("metal–metal and metal–cation contacts not bonded");
     expect(host.textContent).toContain("balls at 0.40× the covalent radius");
   });
 

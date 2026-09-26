@@ -305,10 +305,10 @@ because U\* → R·U\*·Rᵀ means an image drawn with its parent's tensor is ri
 a cubic site and wrong on every other one; `expand_positions` now delegates to
 it. Four rules. **gemmi has no colour table** — it supplies radii and
 `is_metal`, and the colours are the CPK convention with values chosen here
-(ATTRIBUTION.md), never transcribed. **A radius-sum bond rule needs one chemical
-predicate**: bond metals to metals only when the phase has no non-metal in it,
-or LaB6's twelve cell edges become La–La sticks (covalent radius 2.07 Å against
-a = 4.158 Å). **A non-positive-definite tensor draws its non-positive axes at
+(ATTRIBUTION.md), never transcribed. **A radius-sum bond rule needs a chemical
+predicate**: bond a metal to a cation only when the phase has no non-metal in
+it, or LaB6's cell edges become La–La sticks and forsterite grows Mg–Si ones
+(a cation is `_cation_sites`', WP-1466). **A non-positive-definite tensor draws its non-positive axes at
 zero** on the server (a √ of a negative is a NaN), and the client keeps such a
 column at `FLAT_AXIS` = 1 mÅ because the ray-caster solves through M⁻¹. And
 **bond segments complete their partners exactly one level** — a bond to a

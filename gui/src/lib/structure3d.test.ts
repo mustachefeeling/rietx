@@ -408,7 +408,7 @@ describe("the caption", () => {
     expect(text).toContain("2 atoms in the cell");
     expect(text).toContain("+ 1 image outside it");
     expect(text).toContain("1 bond segment at 1.15×");
-    expect(text).toContain("metal–metal contacts not bonded");
+    expect(text).toContain("metal–metal and metal–cation contacts not bonded");
     expect(text).toContain("ellipsoids at 50 %");
     expect(caption(geometry(), "ball")).toContain("0.40× the covalent radius");
   });

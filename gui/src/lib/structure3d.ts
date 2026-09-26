@@ -799,7 +799,7 @@ export function caption(geometry: Geometry, mode: Mode, exaggeration = 1,
     `${geometry.bonds.length} bond segment${geometry.bonds.length === 1 ? "" : "s"}`
       + ` at ${geometry.bond_tolerance.toFixed(2)}×(rᵢ+rⱼ)`,
   ];
-  if (!geometry.bond_metals) parts.push("metal–metal contacts not bonded");
+  if (!geometry.bond_metals) parts.push("metal–metal and metal–cation contacts not bonded");
   if (mode === "ellipsoid") {
     // The probability and the exaggeration are stated **separately**, always.
     // A probability cannot exceed 1 — k(p) = √χ²₃(p) diverges as p → 1, and
