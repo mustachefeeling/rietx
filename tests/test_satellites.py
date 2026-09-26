@@ -779,8 +779,38 @@ def test_the_arm_ranks_the_true_k_first_by_generated_positions():
     # and the ranking is a ranking — the runner-up does not also explain
     # everything, or the top row would mean nothing
     assert arm.candidates[1].matched < arm.candidates[0].matched
+    runner = arm.candidates[1]
+    assert (f"runner-up {runner.vector} indexes {runner.matched} "
+            f"(from {runner.n_satellites})") in arm.note
+    assert "no chance baseline" in arm.note and "a tie" not in arm.note
     assert arm.generator == "zone_boundary_candidates"
     assert "incommensurate" in arm.note
+
+
+def test_the_note_carries_the_comparison_that_judges_the_best_candidate():
+    """Review item 2: the best's positions and the runner-up ride in the note.
+
+    Peaks at the satellites of (1/3, 0, 0), which the zone-boundary set does
+    not contain, so whatever it indexes is chance — the no-order shape.  A note
+    naming its best without ``n_satellites`` and the runner-up's ``matched``
+    would read as a finding.
+    """
+    instrument = _neutron()
+    structure = rx.Structure(phases=[_phase(None)])
+    model, values, peaks, ticks = _arm_inputs(structure, instrument,
+                                              ("1/3", 0, 0))
+    arm = analyse_satellites(model, values, residual_two_theta=peaks,
+                             ticks=ticks)[0]
+    best, runner = arm.candidates[0], arm.candidates[1]
+    assert 0 < best.matched < arm.n_unexplained, arm.note
+    assert (f"indexes {best.matched} of them" in arm.note
+            and f"from {best.n_satellites} satellite position(s)" in arm.note)
+    # measured: (0, 0, 1/2) and (1/2, 0, 0) each index 1 of 5, from 31 and
+    # 30 positions — a tie, and the note must say the ranking chose nothing
+    assert runner.matched == best.matched, arm.note
+    assert (f"runner-up {runner.vector} also indexes {runner.matched} "
+            f"(from {runner.n_satellites})") in arm.note
+    assert "a tie" in arm.note and "chooses nothing" in arm.note
 
 
 def test_the_arm_takes_a_generator_and_a_different_set_changes_the_ranking():

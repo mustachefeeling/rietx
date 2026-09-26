@@ -222,10 +222,31 @@ def _note(evidence: SatelliteEvidence) -> str:
                 "candidate in the enumerated set puts a satellite on any of "
                 "them")
         else:
+            # the comparison that judges the top row rides with it: the count
+            # has no chance baseline, so a best named without the positions it
+            # had to land on and without the runner-up is a confident singleton
+            # (root CLAUDE.md; review item 2 on #468)
             parts.append(
                 f"{evidence.n_unexplained} peak(s) sit at neither; the best "
                 f"candidate {best.vector} indexes {best.matched} of them "
-                f"(worst offset {best.worst_offset_deg:.3f}°)")
+                f"(worst offset {best.worst_offset_deg:.3f}°) from "
+                f"{best.n_satellites} satellite position(s) in range")
+            runner = (evidence.candidates[1]
+                      if len(evidence.candidates) > 1 else None)
+            if runner is None:
+                parts.append("there is no runner-up to compare it with")
+            elif runner.matched == best.matched:
+                parts.append(
+                    f"the runner-up {runner.vector} also indexes "
+                    f"{runner.matched} (from {runner.n_satellites}), a tie the "
+                    "ranking breaks only on the offset and the name, so it "
+                    "chooses nothing")
+            else:
+                parts.append(
+                    f"the runner-up {runner.vector} indexes {runner.matched} "
+                    f"(from {runner.n_satellites}); the count has no chance "
+                    "baseline, so a k with more positions matches more by "
+                    "being everywhere")
         if evidence.excess_on_nuclear_lines:
             parts.append(
                 f"a further {evidence.excess_on_nuclear_lines} residual "

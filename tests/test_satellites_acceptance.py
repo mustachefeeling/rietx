@@ -202,3 +202,7 @@ def test_cr2wo6_4k_shows_the_k_zero_signature_and_150k_does_not(cr2wo6):
     assert arm4.excess_on_absent_lattice_lines >= 2, arm4.note
     assert "k = 0" in arm4.note
     assert arm150.excess_on_absent_lattice_lines == 0, arm150.note
+    # the chance-level best at 150 K is named with what judges it
+    if arm150.candidates and arm150.candidates[0].matched:
+        assert "runner-up" in arm150.note, arm150.note
+        assert "satellite position(s) in range" in arm150.note

@@ -398,7 +398,10 @@ on that 4 K pattern the two best zone-boundary candidates each index 2 of the
 6 peaks left at neither place, and on the 150 K pattern, which has no magnetic
 order, the best one indexes 2 of 5. Read `SatelliteCandidate.n_satellites`
 beside `SatelliteCandidate.matched`: a k with a line every few tenths of a
-degree matches peaks by being everywhere.
+degree matches peaks by being everywhere. The note quotes both where it names
+the best candidate, with the runner-up's `matched` and `n_satellites` beside
+them, and says so when the two tie, since the ranking then breaks only on the
+offset and the name.
 
 Two cases where the ranking means nothing, and the arm says so.
 
