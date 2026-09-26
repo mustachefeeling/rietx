@@ -531,12 +531,25 @@ def _rung_stamp(rung: str, *, escalation: bool) -> dict[str, Any]:
 
 def _carry_into(structure: Structure, instrument: Instrument,
                 source: tuple[Structure, Instrument],
-                carry: Sequence[str]) -> None:
+                carry: Sequence[str]) -> list[str]:
     """Overwrite ``structure``/``instrument`` values from a fitted pair, in place.
 
     Only paths matching one of the ``carry`` globs move; everything else keeps
     the value it came in with (the *initial* model, when this is called from the
     chain).
+
+    **A refined coordinate is carried as its site's displacement**, because
+    copying the entry carries nothing (WP-1333).  A coordinate is a row
+    x = x_stored + Σ Bₖθₖ whose DOF every build rederives to zero, so the DOF
+    read off the fitted pair is 0.0 wherever the fit left the atom, and the
+    re-derivation below then put the coordinate back at *this* model's stored
+    value — while ``cell.a`` beside it carried, and ``carry=["*"]`` said the
+    coordinate had too.  :meth:`ParameterTable.displace_anchored_dofs` solves
+    for the displacement that reaches the fitted coordinates instead, a site
+    at a time, so a glob naming only ``x`` still moves every row the site
+    ties to it.  Returns the DOF paths it displaced, which
+    :func:`_reanchor_carried` needs once the caller's hook has tied any of
+    them.
 
     The knob is a control, not a tuning parameter — and the measurement says
     so.  It was built expecting that chaining a phase scale across mixtures
@@ -552,10 +565,15 @@ def _carry_into(structure: Structure, instrument: Instrument,
     previous = {e.path: e.value
                 for e in ParameterTable(source[0], source[1]).entries}
     table = ParameterTable(structure, instrument)
+
+    def named(path: str) -> bool:
+        return any(fnmatch.fnmatchcase(path, g) for g in carry)
+
     for e in table.entries:
         value = previous.get(e.path)
-        if value is not None and any(fnmatch.fnmatchcase(e.path, g) for g in carry):
+        if value is not None and named(e.path):
             e.value = value
+    displaced = table.displace_anchored_dofs(previous, named)
     # Hold everything, then read the affine map back: tied entries (crystal-
     # system cell ties, Wyckoff coordinate DOFs, site-symmetry ADP patterns)
     # are re-derived from whatever their sources now hold, so a narrow carry
@@ -565,6 +583,43 @@ def _carry_into(structure: Structure, instrument: Instrument,
     for e in table.entries:
         e.value = resolved[e.path]
     table.apply_to_models(structure, instrument)
+    return displaced
+
+
+def _reanchor_carried(ref: Refinement, displaced: Sequence[str],
+                      source: tuple[Structure, Instrument],
+                      previous_vars: dict[str, float]) -> None:
+    """Keep a carried coordinate where it was when the hook ties its DOF.
+
+    :func:`_carry_into`'s coordinate carry meets the ``constrain`` hook here.
+    A hook that ties a displacement DOF to a named variable re-declares the
+    variable at its start value, and the build that applies the tie rebases
+    the anchor on that value (WP-1432).  But the carried coordinate was
+    written with the variable at the previous pattern's *fitted* value, so it
+    already holds that displacement, and :func:`_carry_variables` warming the
+    variable adds it again, once per pattern.  Before the coordinate carried,
+    the hook's tie gave the right start by accident, from an anchor the carry
+    had never moved; that is why the carry could not land without this.
+
+    So the anchor is rebased against what the source held
+    (:meth:`ParameterTable.reanchor_dofs`), and the tied coordinate becomes
+    the source's anchor plus whatever the variable starts at.  The variable
+    warm-started gives the fitted coordinate exactly.  The variable excluded
+    from ``carry`` restarts the coordinate with it, as a narrow glob restarts
+    every tie's source.  Runs between the hook and the variable carry, the one
+    order in which both the tie and the start value exist.  A DOF the hook
+    ties to another DOF contributes zero at both ends, and a hook that ties
+    nothing costs one membership test.
+    """
+    tied = [p for p in displaced if p in ref._ties]
+    if not tied:
+        return
+    absorbed = {e.path: e.value for e in ParameterTable(*source).entries}
+    absorbed.update({f"{VAR_PREFIX}{name}": value
+                     for name, value in previous_vars.items()})
+    table = ref._working_table()
+    if table.reanchor_dofs(tied, absorbed):
+        ref._write_back(table)
 
 
 def _carry_variables(ref: Refinement, previous: dict[str, float],
@@ -1015,7 +1070,10 @@ class SequentialRefinement:
                                   backend=self._backend, solver=self._solver,
                                   dtype=backend_dtype_note(self._backend),
                                   report_thresholds_version=THRESHOLDS_VERSION))
-        steps = _discontinuity_steps(series)
+        # the displacement DOFs of the model the chain was handed: their values
+        # are steps from where each fit began, so no fence judges them
+        relative = ParameterTable(self.structure, self.instrument).anchored_dof_paths
+        steps = _discontinuity_steps(series, relative)
         diagnostics += [s.diagnostic for s in steps]
         # WP-1305 (c): the check the diagnostic asks the reader for, run here.
         # A cancelled chain gets none — it starts new fits, and a chain that
@@ -1078,7 +1136,7 @@ class SequentialRefinement:
                     f"{len(back_entries)} of {len(patterns)} patterns"
                     f"{in_flight}"))
             else:
-                diagnostics += _path_dependence_diagnostics(series, back)
+                diagnostics += _path_dependence_diagnostics(series, back, relative)
             self.backward_ = back
             # …and on the result, so `refine_sequential` — the one-shot API the
             # manual recommends — hands back the trajectory its
@@ -1370,8 +1428,9 @@ class SequentialRefinement:
         """One pattern: warm the models from ``previous``, then run ``plan``."""
         structure = self.structure.model_copy(deep=True)
         instrument = self.instrument.model_copy(deep=True)
+        displaced: list[str] = []
         if previous is not None:
-            _carry_into(structure, instrument, previous, self.carry)
+            displaced = _carry_into(structure, instrument, previous, self.carry)
         if prepare is not None:
             prepare(index, data, structure, instrument)
         ref = Refinement(structure, instrument, backend=self._backend,
@@ -1402,6 +1461,8 @@ class SequentialRefinement:
                                         for r in previous_hkl]
         if constrain is not None:
             constrain(index, ref)
+            if previous is not None:
+                _reanchor_carried(ref, displaced, previous, previous_vars or {})
         _carry_variables(ref, previous_vars or {}, self.carry)
         try:
             result = ref.fit(data, mode=mode, plan=plan,
@@ -1839,7 +1900,9 @@ class _FlaggedStep:
     diagnostic: Diagnostic
 
 
-def _discontinuity_steps(series: SeriesResult) -> list[_FlaggedStep]:
+def _discontinuity_steps(series: SeriesResult,
+                         relative: frozenset[str] = frozenset()
+                         ) -> list[_FlaggedStep]:
     """Steps far larger than the same parameter's typical step in this series.
 
     The one authority: every caller takes the diagnostics off these (there is
@@ -1849,11 +1912,21 @@ def _discontinuity_steps(series: SeriesResult) -> list[_FlaggedStep]:
     Reported, never smoothed: a jump is either the science (a transition) or a
     chain failure, and nothing here can tell them apart — so the diagnostic
     names both and the trajectory is left exactly as fitted.
+
+    ``relative`` names the paths whose value is measured from where each fit
+    began (:attr:`ParameterTable.anchored_dof_paths`), and they are not judged.
+    Since WP-1333 a chain starts each pattern where its predecessor ended, so a
+    coordinate DOF's trajectory is the step each pattern took rather than a
+    position, and its first step (from the model, not from a neighbour) read
+    as a jump on every clean series.  The coordinate rows it drives are
+    absolute, carry the same esd, and are judged instead.
     """
     if len(series) < MIN_POINTS_FOR_DISCONTINUITY:
         return []
     out: list[_FlaggedStep] = []
     for path in series.paths(varied_only=False):
+        if path in relative:
+            continue
         traj = series.trajectory(path)
         if len(traj) < MIN_POINTS_FOR_DISCONTINUITY:
             continue
@@ -1960,7 +2033,9 @@ def _persistent_diagnostics(series: SeriesResult) -> list[Diagnostic]:
 
 
 def _path_dependence_diagnostics(forward: SeriesResult,
-                                 backward: SeriesResult) -> list[Diagnostic]:
+                                 backward: SeriesResult,
+                                 relative: frozenset[str] = frozenset()
+                                 ) -> list[Diagnostic]:
     """Where the forward and backward chains disagree beyond their esds.
 
     The one measurement that says whether a sequential trajectory is a
@@ -1976,6 +2051,14 @@ def _path_dependence_diagnostics(forward: SeriesResult,
     reported on for part of a series and be silent for the rest of it — and a
     path the two chains share no measured pattern for is not judged here at
     all.
+
+    ``relative`` paths are not compared, for :func:`_discontinuity_steps`'
+    reason and more sharply: the two chains start a pattern from opposite
+    neighbours, so a coordinate DOF's value — the step from that start — has
+    opposite signs in the two by construction.  Compared, it named the DOF
+    path-dependent on a series whose coordinate agreed in both chains
+    (WP-1333).  The coordinate rows are compared instead, and they are what
+    the check was asked about.
     """
     out: list[Diagnostic] = []
     # which patterns the comparison can reach at all: a pattern one chain
@@ -1989,6 +2072,8 @@ def _path_dependence_diagnostics(forward: SeriesResult,
                for chain in ("forward", "backward") if i not in fitted[chain]]
     unjudged: list[str] = []
     for path in forward.paths(varied_only=False):
+        if path in relative:
+            continue
         f, b = forward.trajectory(path), backward.trajectory(path)
         # Pair the two chains by *pattern label*, not by position.  Equal
         # lengths do not make two trajectories comparable: ``trajectory()``

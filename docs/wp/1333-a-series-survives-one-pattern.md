@@ -251,9 +251,18 @@ the reporter's PR offer stands for that case.
       series whose backward pass is cancelled reports the check as not run.
       *Landed 2026-09-22*: `tests/test_series_error_policy.py` (+9) and
       `tests/test_covariance_scaling.py` (+4).
-- [ ] A refined coordinate crosses the pattern boundary (Context, folded from
+- [x] A refined coordinate crosses the pattern boundary (Context, folded from
       WP-1432's review): through `rebase_anchored_dofs`, with the `constrain`
       re-declaration handled — or its own WP if it outgrows this one.
+      *Landed 2026-09-26, here*: `_carry_into` carries a site's displacement
+      (`ParameterTable.displace_anchored_dofs`, solved over the site's rows so
+      a glob naming `x` moves the whole site and nothing leaves it); after the
+      hook, `_reanchor_carried` rebases a DOF the hook ties to a variable
+      against the previous pattern's source values
+      (`ParameterTable.reanchor_dofs`), so the warmed variable does not add
+      the displacement twice (0.2092 against 0.1996 without it). The DOF's
+      value became the step from the warm start, which fired both fences on a
+      clean ramp, so they skip `anchored_dof_paths` and judge the coordinate.
 - [x] Skill: `references/series.md` — the row saying that zero
       `SEQUENTIAL_PATH_DEPENDENT` findings is only a clean bill once the
       not-run signal exists, and the row on what survives a failed pattern.

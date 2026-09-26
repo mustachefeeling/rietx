@@ -20,7 +20,7 @@ matrix — no pydantic objects are touched per iteration.
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
 
 import numpy as np
@@ -970,6 +970,9 @@ class ParameterTable:
         #: second application walks the coordinate the other way — exactly the
         #: defect it exists to end, mirrored.
         self._rebased: set[str] = set()
+        #: the anchored DOF paths :meth:`reanchor_dofs` has corrected on this
+        #: table — a subtraction from a stored constant, guarded as above
+        self._reanchored: set[str] = set()
         #: path → a fixed positive factor between this table's *physical* value
         #: and the number the free column carries — see :meth:`apply_value_scale`.
         #: Empty for every single-histogram table, which is why an unscaled
@@ -1716,6 +1719,144 @@ class ParameterTable:
         self._rebased.update(hits)
         self._rebuild()
         return hits
+
+    @property
+    def anchored_dof_paths(self) -> frozenset[str]:
+        """The displacement DOFs, whose values are relative to where a fit began.
+
+        A coordinate DOF reads the displacement from the coordinate this table
+        was built on, so a fit reports how far it moved the atom, and two fits
+        of one pattern started from different coordinates report different
+        values for the same answer.  A reader comparing that value *across*
+        fits is comparing their starting points, and should compare the
+        coordinate rows, which are absolute and carry the same esd.  Read off
+        :attr:`_anchored_dofs`, the data built where the anchor is, never off
+        the path's name: the ADP and Stephens DOFs spell theirs the same way
+        and are absolute.
+        """
+        return frozenset(self._anchored_dofs)
+
+    def displace_anchored_dofs(self, coordinates: Mapping[str, float],
+                               named: Callable[[str], bool]) -> list[str]:
+        """Set displacement DOFs so their coordinates reach ``coordinates``.
+
+        The inverse of what a build does.  A build anchors each coordinate row
+        at the stored value and rederives its DOF to zero, so the DOF of a
+        table built from a *fitted* model reads zero however far the fit moved
+        the atom: the displacement lives in the anchor, and copying the DOF
+        from one table to another copies nothing.  A series did exactly that,
+        and restarted every pattern's refined coordinates from the initial
+        model while ``carry=["*"]`` said they crossed (WP-1333).  So the
+        displacement is recovered from the coordinates themselves: the DOF
+        values θ solving ``anchor + B·θ = target`` over a site's rows.
+
+        **A site moves as a site.**  A DOF moves when ``named`` admits its own
+        path or any coordinate row it reaches, and then every row it reaches
+        follows, since a row is a tie and ``named`` is a caller's policy, not
+        the site's.  θ is solved over all of a site's rows present in
+        ``coordinates``, so a target that is not on the site is *projected*
+        onto the site's own directions: nothing here can move an atom off the
+        special position this table's model puts it on.  A DOF already tied
+        by the caller follows its source and is left alone, as is a row
+        symmetry has taken over.
+
+        Sites are grouped by the rows their DOFs share, read off
+        :attr:`_anchored_dofs` rather than off the path names, for the reason
+        that attribute gives.  Returns the DOF paths set.
+        """
+        groups: list[tuple[list[str], set[str]]] = []
+        for dof, rows in self._anchored_dofs.items():
+            if dof not in self._paths:
+                continue
+            reach = {p for p, _ in rows}
+            dofs = [dof]
+            for group in [g for g in groups if g[1] & reach]:
+                groups.remove(group)
+                dofs = group[0] + dofs
+                reach |= group[1]
+            groups.append((dofs, reach))
+        moved: list[str] = []
+        for dofs, reach in groups:
+            chosen = [d for d in dofs
+                      if self.entries[self._paths[d]].tie is None
+                      and (named(d) or any(named(p) for p, _ in self._anchored_dofs[d]))]
+            rows = sorted(p for p in reach
+                          if p in coordinates and self.entries[self._paths[p]].tie is not None)
+            if not chosen or not rows:
+                continue
+            basis = np.zeros((len(rows), len(dofs)), dtype=np.float64)
+            for k, d in enumerate(dofs):
+                for p, coeff in self._anchored_dofs[d]:
+                    if p in rows:
+                        basis[rows.index(p), k] = coeff
+            gap = np.array([coordinates[p] - self.entries[self._paths[p]].tie.const
+                            for p in rows], dtype=np.float64)
+            theta, *_ = np.linalg.lstsq(basis, gap, rcond=None)
+            for k, d in enumerate(dofs):
+                if d in chosen:
+                    self.entries[self._paths[d]].value = float(theta[k])
+                    moved.append(d)
+        for d in moved:
+            for p, _ in self._anchored_dofs[d]:
+                e = self.entries[self._paths[p]]
+                if e.tie is not None:
+                    e.value = self._implied(e.tie, p)
+        if moved:
+            self._rebuild()
+        return moved
+
+    def reanchor_dofs(self, paths: Iterable[str],
+                      absorbed: Mapping[str, float]) -> list[str]:
+        """Re-anchor tied DOFs whose coordinates absorbed the tie elsewhere.
+
+        :meth:`rebase_anchored_dofs` takes a tie's contribution at its sources'
+        *current* values out of the anchor, which is right while the stored
+        coordinate was written by this table's own sources.  A coordinate
+        carried in from another model was written by *that* model's: a
+        series' previous pattern, whose variable held its fitted value, while
+        this pattern's ``constrain`` hook re-declares the variable at its
+        start.  The anchor is then short by ``B·(f(absorbed) − f(now))``, and
+        warming the variable adds that displacement a second time, once per
+        pattern (WP-1333, the chain form of WP-1432).
+
+        ``absorbed`` maps source paths to the values they held when the
+        coordinate was written; a source it does not name is taken to have
+        held its current value, so contributes nothing.  The tie is read as
+        declared *here*: a caller whose sources were tied differently when the
+        coordinate was written has no correct answer to ask this for.
+
+        Guarded once per path per table, like :attr:`_rebased` and for its
+        reason: the correction subtracts from a stored constant, so a repeat
+        walks the coordinate back.  Only a move is remembered, so a call that
+        found nothing to correct does not stand in the way of one that does.
+        Returns the paths whose anchor moved.
+        """
+        moved: list[str] = []
+        for path in paths:
+            if (path not in self._anchored_dofs or path not in self._paths
+                    or path in self._reanchored):
+                continue
+            dof = self.entries[self._paths[path]]
+            if dof.tie is None:
+                continue
+            terms, const = self._flatten(dof.tie, (path,))
+            then = const + sum(
+                c * absorbed.get(self.entries[j].path, self.entries[j].value)
+                for j, c in terms)
+            shift = then - self._implied(dof.tie, path)
+            if shift == 0.0:
+                continue
+            self._reanchored.add(path)
+            for coord, coeff in self._anchored_dofs[path]:
+                e = self.entries[self._paths[coord]]
+                if e.tie is None:   # symmetry took the row over
+                    continue
+                e.tie = replace(e.tie, const=e.tie.const - coeff * shift)
+                e.value = self._implied(e.tie, coord)
+            moved.append(path)
+        if moved:
+            self._rebuild()
+        return moved
 
     def _implied(self, tie: AffineTie, path: str) -> float:
         """The value a tie implies right now, chains flattened onto free rows."""
