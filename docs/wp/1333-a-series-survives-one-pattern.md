@@ -1,8 +1,7 @@
 # WP-1333 — a series survives one pattern, and says which one it lost
 
-Milestone: unscheduled · Status: 🔄 2026-09-23 — seven of eight tasks landed, PR #420 open and green; the coordinate carry remains
+Milestone: unscheduled · Status: ✅ 2026-09-26 — all eight tasks landed: seven in PR #420, the coordinate carry in PR #484
 Depends on: — (1317 soft: #218's forward-pass exposure is the sibling ask)
-Priority: P1 2026-09-23 — a chain of hundreds lost to one raise, and a check that died reading as passed
 
 ## Goal
 
@@ -251,9 +250,20 @@ the reporter's PR offer stands for that case.
       series whose backward pass is cancelled reports the check as not run.
       *Landed 2026-09-22*: `tests/test_series_error_policy.py` (+9) and
       `tests/test_covariance_scaling.py` (+4).
-- [ ] A refined coordinate crosses the pattern boundary (Context, folded from
+- [x] A refined coordinate crosses the pattern boundary (Context, folded from
       WP-1432's review): through `rebase_anchored_dofs`, with the `constrain`
       re-declaration handled — or its own WP if it outgrows this one.
+      *Landed 2026-09-26, here*: `_carry_into` carries a site's displacement
+      (`ParameterTable.displace_anchored_dofs`, solved over the site's rows so
+      a glob naming `x` moves the whole site and nothing leaves it); after the
+      hook, `_reanchor_carried` rebases a DOF the hook ties to a variable
+      against the previous pattern's source values
+      (`ParameterTable.reanchor_dofs`), so the warmed variable does not add
+      the displacement twice (0.2092 against 0.1996 without it). The DOF's
+      value became the step from the warm start, which fired both fences on a
+      clean ramp, so they skip `anchored_dof_paths` and judge the coordinate,
+      and the GUI's disagreement column abstains with them
+      (`sequential._relative_paths`, the one list).
 - [x] Skill: `references/series.md` — the row saying that zero
       `SEQUENTIAL_PATH_DEPENDENT` findings is only a clean bill once the
       not-run signal exists, and the row on what survives a failed pattern.
@@ -283,6 +293,160 @@ one, never as the gate.
   a small one.
 
 ## Handover log
+
+- **2026-09-26** — A series now carries a refined atomic coordinate into the
+  next pattern. `carry` always said it did, but every pattern had restarted
+  its atoms from the model the caller handed in. That was the last task, so
+  the WP closes. Answers and cost do not move: on a seven-pattern ramp the
+  fitted coordinates agree with the old chain to 8e-10, and the chain took
+  125 iterations against 122. What changes is that a both-way run can now
+  judge a coordinate for path dependence, which it could not while the
+  coordinate never chained. The work also showed that a coordinate's
+  degree-of-freedom value is a step from where its fit began, so the series
+  checks and the GUI now judge the coordinate itself instead.
+
+  *Arrival.* Nothing inherited: the 2026-09-22 session had already folded and
+  deleted `### Inherited`. The finding was re-checked against `b16772f`
+  before building on it, and it still held: `_carry_into` from a fitted pair
+  with boron `x` at 0.2100 left the start model's 0.1993, while `cell.a`
+  carried. The 2026-09-23 entry recommended its own WP. The task said "or its
+  own WP if it outgrows this one", and it did not outgrow it: three functions
+  and two table methods. So it landed here. PR #420 had merged 2026-09-23, so
+  the branch was cut fresh from `main`.
+
+  *Done*: four commits `39c9237..b902a5f`, pushed from local
+  `wp1333-coordinate-carry` to `claude/wp-start-by-importance-0tho5p` (the
+  session's assigned remote branch), draft PR #484.
+  - **The carry** (`f936373`). `_carry_into` carries each site's
+    displacement through `ParameterTable.displace_anchored_dofs`. That
+    solves `anchor + B·θ = target` over the site's rows, grouping sites by
+    the rows their DOFs share, read off `_anchored_dofs` and never off the
+    path names. A DOF moves when a glob names it or any row it reaches, and
+    then all its rows follow. A target off the site is projected onto it, so
+    no atom leaves its special position (tested on an 8g `(x, x, x)` atom).
+  - **The `constrain` re-declaration.** After the hook, `_reanchor_carried`
+    calls `ParameterTable.reanchor_dofs` on every displaced DOF the hook tied.
+    That rebases the anchor against the previous pattern's source values
+    (the source table's values plus `previous_vars`), so warming the variable
+    does not add the displacement twice. Without it, pattern 2 of the test
+    chain started boron at 0.20916 against the fitted 0.19958, and `vars.dx`
+    read [0.00958, −0.00052, 0.00027] instead of [0.00958, 0.00906, 0.00933].
+    `reanchor_dofs` is guarded once per path per table and remembers only an
+    actual move.
+  - **The fences** (`f936373`, `b902a5f`). With the coordinate carried, a
+    DOF's value is its step from the warm start. That fired
+    `SEQUENTIAL_DISCONTINUITY`, and under `direction="both"`
+    `SEQUENTIAL_PATH_DEPENDENT`, naming `phases.0.atoms.1.dof.0` on a clean
+    ramp whose `x` agreed between the chains. `ParameterTable.anchored_dof_paths`
+    lists the relative paths. `sequential._relative_paths` builds it from the
+    runner's own models and is the one list both fences skip. The GUI's
+    `trajectories` abstains `n_sigma` on the same list, passed through
+    `result_payload` from the session. The coordinate rows carry the same
+    esd, 4.1e-4, and are judged instead.
+  - **Docs** (`3efc2d8`): the manual's series chapter (both sections), the
+    1.5.1 notes (a section and an Upgrading line), and a skill row in
+    `references/series.md` re-synced into both copies. Root CLAUDE.md: one
+    rule added to the coordinate-DOF bullet at an unchanged line count, by
+    compressing WP-1432's example numbers to its pointer. The numbers are in
+    that WP's file.
+  - **Tests**: +10 fast items, none slow, no new skip. That is 8 in
+    `test_sequential.py` (the carry, a site moving as a site, the re-anchor
+    guard, the chain start over three configurations, both fences' `relative`,
+    and the chain's wiring) and 2 in `test_gui_server.py` (the abstention, and
+    the session's list, which the review asked for). Collection of the two
+    files is 242 on `main` and 252 here. The `test_sequential.py` tests were
+    each confirmed to fail without the piece they guard, by stubbing
+    `displace_anchored_dofs`, `_reanchor_carried` or `anchored_dof_paths`.
+
+  *Measured* (`[dev]` venv, Linux x86-64, py3.12, 4 cores).
+  - **The merged tree** (`c9af1f2`: this branch plus `main` at `63e2a8c`,
+    WP-1327's PR #477, which touches no file here) carries the counts to
+    quote. Fast selection: 1 failed, 6182 passed, 158 skipped in 18:25,
+    with the uid-0 case as the failure. The slow series rows: 23 passed.
+    The rows below are the bare branch's, kept for what they show.
+  - **Fast selection** on `3efc2d8`, which is all but the GUI commit: 1
+    failed, 6145 passed, 158 skipped in 18:30. The failure is the uid-0
+    `test_telemetry.py::…[unwritable-directory]` case the 2026-09-23 entry
+    names. The GUI commit's files were re-run after it landed: `test_gui_server.py -k
+    "series or disagreement"`, 13 passed. The series, variable, covariance
+    and termination files were 191 passed.
+  - **Slow series rows** (`test_acceptance_sequential.py`,
+    `test_held_phase.py`, `test_sequential.py -m slow`). On `f936373` before
+    the fence change: 23 passed. On the final `b902a5f`: 1 failed, 22 passed,
+    then 23 passed on the re-run. The one failure was the held-phase ramp,
+    whose only load-sensitive assertion is its 60 s wall-clock guard,
+    already filed to WP-1420. Its failing line was not captured. Alone it
+    takes 14.6-14.9 s here against 15.6 s on `main`'s code (exported with
+    `git archive` and confirmed loaded), so this change does not slow it.
+  - **Full selection: not run.** The rule's trigger is a change that could
+    move a measured number. The only slow tests reaching the changed code
+    are the three files above; no other file driving a series has a slow
+    test (collected: 0 of 400). And the table's new methods have no caller
+    outside `sequential.py`.
+  - **Seven-pattern ramp**, boron started at 0.19 and freed, old carry
+    against new. Iterations 122 against 125, so no saving (the first two
+    warm patterns took 9 and 9 against 12 and 10, and pattern 6 took 17
+    against 10). Max |Δx| 7.55e-10, |Δa| 5.64e-12 Å, relative ΔRwp 3.81e-12.
+    With both fences skipping the DOF, the new chain's findings equal the
+    old chain's.
+
+  *Decisions a reviewer should see.*
+  - **A variable left out of `carry` restarts its coordinate** (the anchor
+    carries what the fit put there, a tie carries what its source says). The
+    alternative, keeping the carried coordinate with the variable restarted,
+    moves the anchor every pattern and makes `vars.X`'s trajectory a list of
+    increments.
+  - **A DOF's series value is now the step from the warm start.** Before,
+    every fit started at the root, so it read `x − x_root`. Re-expressing it
+    against the root in `SeriesEntry` would restore that, but at the cost of
+    a second authority for a value `RefinementResult` already reports. It
+    was not built. The manual, notes and skill say to chart the coordinate
+    rows.
+  - `_reanchor_carried` assumes the hook ties the DOF the same way on every
+    pattern. `reanchor_dofs` reads the tie as declared *now*, and its
+    docstring says so.
+  - `relative` defaults to empty on all four functions, which means judge
+    everything, as before. The one production writer is `_relative_paths`,
+    so a new judgement across patterns must be handed it. That is now a
+    CLAUDE.md rule.
+
+  *Review* (`/code-review high --fix`, 8 findings). **Kept three:**
+  - `displace_anchored_dofs` now solves over the chosen DOFs only, with
+    unchosen ones held at their values. It was a joint solve followed by a
+    partial write, which is wrong when a site's DOFs share a row and a glob
+    names only some of them. No fixture has such a site, so no number moves.
+  - The anchor subtraction is one `_shift_anchor`, shared by
+    `rebase_anchored_dofs` and `reanchor_dofs` with the same arithmetic.
+  - The GUI session computes the relative set once, with the run's entry,
+    instead of per `GET`. The finding's own test gap is now closed:
+    `test_the_run_keeps_the_paths_its_fences_skipped` fails if the session
+    drops the list.
+
+  **Declined five:**
+  - Clearing the variables under `on_error="skip"` was reverted after it
+    landed. `warm = previous is not None`, so a pattern after a skipped one
+    is cold, and a cold rung passes no variables. The defect it named
+    cannot happen.
+  - The second source-table build in `_reanchor_carried` is bounded by the
+    early return.
+  - Recording which paths are relative on `SeriesResult` is a schema
+    decision, the second item under *Decisions*.
+  - A DOF tied to another atom's coordinate row is corrected against this
+    table's anchor for that row. That is exotic, and it is now stated in
+    `reanchor_dofs`' docstring rather than fixed.
+  - The missing session test was written instead (see the kept three).
+
+  After the fixes: the four affected files, fast items, 303 passed. The
+  slow series rows were not re-run, because the only arithmetic change
+  moves nothing on a site whose DOFs are all chosen.
+
+  Next, in order:
+  1. Review #484, starting with the two decisions above. Either reversal is
+     local: the anchor rule is `_reanchor_carried` alone, and the DOF's
+     series value would be a re-expression in `_entry_from_result`.
+  2. Nothing else remains here. WP-1420's soft dependency on this WP is
+     discharged, and its `### Inherited` says what the carry changes for a
+     held phase.
 
 - **2026-09-23** — The work is now on GitHub and checked end to end. Once
   GitHub access was fixed the branch went up as PR #420, and its required

@@ -1,6 +1,6 @@
 # WP-1327 — a magnetic structure: state it, refine it, report what the powder cannot see
 
-Milestone: v1.6 · Status: 🔄 2026-09-25 — the k = 0 moment (PR #433) and the operation-list phase (PR #448) landed from outside; the analytic moment branch, the LaMnO₃ second dataset and the PNGs remain, and k ≠ 0's supercell is the contributor's follow-on branch
+Milestone: v1.6 · Status: 🔄 2026-09-26 — the k = 0 moment (PR #433), the operation-list phase (PR #448) and k ≠ 0's magnetic supercell (PR #477) landed from outside; the analytic moment branch, the LaMnO₃ second dataset and the PNGs remain
 Depends on: 1326 (the satellite reflection list)
 Priority: P2 2026-09-23 — the open milestone's core; the moment and its hold start without 1326's list
 
@@ -375,6 +375,97 @@ rule above applies to the form factors.
   [1312](1312-neutron-followthrough.md) the joint-fit audit this term joins.
 
 ## Handover log
+
+### 2026-09-26 — k ≠ 0's magnetic supercell landed from outside
+
+A commensurate k ≠ 0 magnetic structure can now be stated. As magCIF does, it
+is stated in its magnetic supercell, with the parent's k recorded beside it.
+The satellites are then the child cell's own reflections, and one scale covers
+the nuclear and magnetic parts, as § "The shape we chose" asks. It arrived as
+the contributor's PR #477, split out of #433 at the first review, parked
+until #433 and #448 landed, and reviewed over two rounds. No task line ticks: the
+tasks track the k = 0 moment, and this is the k ≠ 0 route the design section
+describes.
+
+- *Done*: PR #477, merged as `63e2a8c4`.
+  `crystallography.magnetic.supercell.magnetic_supercell` returns a
+  `SupercellStatement`: the child `Phase`, the transform,
+  `child_group_named` and the statement's own diagnostics. There are two ways
+  in.
+  - A candidate from `isotropy.candidates`, which inherits that function's
+    2k ∈ L* fence.
+  - An explicit group with its `transform_BNS_Pp_abc` transform, which works
+    for any commensurate k. The docstring's case is Mn₃O₄: I4₁/amd at
+    k = (0, ½, 0), which `candidates` refuses.
+
+  `nuclear_group` chooses what the child's `space_group` states: `"parent"`
+  (the parent's group carried through the transform) or `"magnetic"` (the
+  magnetic group with ε dropped).
+  - **An unnamed child is an operation list.** Where no Hermann-Mauguin symbol
+    generates the child's nuclear group in the child cell, the child is #448's
+    operation-list phase under a bracketed label, with an info
+    `CHILD_GROUP_UNNAMED`. The usual cause is a parent half translation along
+    the doubled axis, which becomes a quarter in the child. The diagnostic's
+    `where` is `space_group`, relative to the returned phase, because the
+    statement cannot know its phase's index.
+  - **The anti-centring ties are part of the statement.**
+    `anti_translation_ties` gives the affine ties for `Refinement.tie`, and
+    `anti_translation_residual` measures how far a refinement has left the
+    declared group. Without the ties, the two cosets of a parent site are
+    independent columns, and their ferromagnetic combination is free. Both
+    cite Gallego et al. (2012) eq. (3).
+  - **The parent's k is provenance.** `MagneticSymmetry.propagation_vector_parent`
+    records it. Only `magnetic_supercell` writes it, and it never generates
+    a reflection: a k beside a moment model is still refused by
+    `refuse_moment_model_with_k`. `SCHEMA_VERSION` is 0.31.
+- *Not done*:
+  - A MAGNDATA k ≠ 0 round trip and real-data k ≠ 0 acceptance. `Magnetic-III`
+    and `Magnetic-IV` (#257 A7) are the public candidates, with k unconfirmed.
+    Every fixture in the PR is synthetic.
+  - `magnetic_supercell(components=[…])` for a multi-irrep moment.
+  - The GUI's `symmetryLine` closest-type wording, carried from #448.
+  - The task list's own open lines: the analytic moment branch, LaMnO₃ and
+    the PNGs.
+- *Gotchas found in review*: round one found two bugs, and both are fixed with
+  tests. I mutation-checked both: restoring the old line fails its tests.
+  - **The origin shift was applied in the wrong frame.** With an origin shift
+    on the explicit route, the child's group sat at a different origin from
+    its atoms. `MagneticGroup.transformed((Q, q))` realises x′ = Q·x + q,
+    and the atoms sit at P⁻¹·(x − p), so q is −P⁻¹·p, not p. The error is
+    (I − W′)·(p + P⁻¹·p), which is a lattice vector for some shifts and
+    not for others. So `1/2,0,0` on P4/mmm built, while `0,0,1/4` was
+    refused as "not a whole orbit". A shift that puts translations off gemmi's
+    1/24 grid is now refused by name.
+  - **The seed was normalised in the wrong metric.** `tilted_seed` received a
+    unit cubic cell, so an oblique child's seed had the wrong modulus: 2.324
+    μ_B for `magnitude=3` on a hexagonal child. The child's own cell now goes
+    through.
+  - **Docstrings cited code that exists only on the contributor's fork.**
+    They named fork-only functions, files and tracking labels, and all of them
+    are restated in terms of `main`. `child_basis`'s alternate-basis chooser
+    went with them, because its oracle was fork-only.
+    - Against `main`'s `cell_constraints` it never switched a basis: 639
+      (group, k) pairs in the contributor's sweep.
+    - Where it would have switched, the child is now refused by
+      `_unnamed_child` rather than restated in another primitive cell of the
+      same lattice.
+- *Measured on the merged tree* (`main` `b16772f0` + #477, a fast-forward;
+  Linux x86_64, python 3.12.3, `[dev,jax]`, 4 cores, run as root, nothing
+  else running):
+  - ruff clean.
+  - Fast suite: 6235 passed, 106 skipped, 1 failed, 21:00. The failure is
+    `test_telemetry`'s unwritable-directory case, which cannot hold as root.
+    passed + skipped + failed matches the contributor's 6342.
+  - Full `-m slow`: 226 passed, 14 skipped, 2 failed, 1:27:20. Neither
+    failure is the PR's.
+    - The ramp runaway guard in `test_held_phase` (154 s against 60 s under
+      `-n auto`) passes when run alone.
+    - Brucite's strict xfail passed. It is red on `main`'s nightly of
+      2026-09-25 too, and xfails when run alone.
+  - CI's fast jobs and lint were green.
+- *Next*: #468 (WP-1326's satellites) conflicts with this merge in six files
+  and renumbers to `SCHEMA_VERSION` 0.32. After it come the analytic moment
+  branch, LaMnO₃ once its licence is checked, and the acceptance PNGs.
 
 ### 2026-09-25 — the operation-list phase landed from outside
 

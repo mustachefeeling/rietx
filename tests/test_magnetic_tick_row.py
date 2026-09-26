@@ -13,6 +13,8 @@ import numpy as np
 import pytest
 
 import rietx as rx
+from rietx.crystallography.magnetic.isotropy import candidates
+from rietx.crystallography.magnetic.supercell import magnetic_supercell
 from rietx.schemas.common import Parameter
 from rietx.schemas.structure import Atom, Cell, Moment, Phase
 
@@ -101,6 +103,29 @@ def test_a_magnetic_phase_draws_two_tick_rows(tmp_path):
     trace_names = _tick_trace_names(html)
     assert phase.name in trace_names
     assert f"{phase.name} (magnetic)" in trace_names
+
+
+@pytest.mark.slow
+def test_a_supercell_phase_draws_two_tick_rows(tmp_path):
+    """A k=(0,0,1/2) magnetic tetragonal phase built by ``magnetic_supercell``:
+    two ``hkl:`` traces, one nuclear and one "(magnetic)" — the case
+    ``MAGNETIC_TICK_PURITY`` exists for, where the mask alone is not enough."""
+    instrument = neutron()
+    truth = candidates("P 4/m m m", (0.0, 0.0, 0.0), (0, 0, "1/2"))[0]
+    statement = magnetic_supercell(tetragonal(), truth, magnetic_species=["Mn1"],
+                                   ion={"Mn1": "Mn3+"}, magnitude=3.0)
+    data = simulate(statement.phase, instrument)
+
+    ref = rx.Refinement(rx.Structure(phases=[statement.phase]), instrument)
+    ref.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
+        rx.Stage("moment", ["phases.*.atoms.*.moment.dof*"])]))
+    result = ref.result_
+
+    names = {name for name in result.ticks}
+    assert statement.phase.name in names
+    assert f"{statement.phase.name} (magnetic)" in names
+    assert result.ticks[f"{statement.phase.name} (magnetic)"]
 
 
 def test_a_non_magnetic_phase_draws_one_tick_row(tmp_path):

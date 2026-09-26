@@ -118,8 +118,8 @@ and [1448](wp/1448-a-number-somebody-chose.md) block nothing.
 WinXPOW export, and a blank for a `rietx compare` standard.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
-triage's 1312-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341 less 1342; 1133;
-the **2026-09-15 triage**'s 1415-1421, less the two in v1.6 and 1432.
+triage's 1312-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341 less
+1333 and 1342; 1133; the **2026-09-15 triage**'s 1415-1421, less the two in v1.6 and 1432.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -591,7 +591,7 @@ existing.
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1326](wp/1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | ⬜ | P2 | — |
-| [1327](wp/1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 🔄 2026-09-25 | P2 | 1326 |
+| [1327](wp/1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 🔄 2026-09-26 | P2 | 1326 |
 | [1328](wp/1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | ⬜ | P3 | 1327 (1118 soft) |
 | [1329](wp/1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | ⬜ | P3 | 1327 (1326 soft) |
 | [1343](wp/1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | ⬜ | P3 | 1327 (1326 soft) |
@@ -702,7 +702,7 @@ the chain says nothing (issue #267).
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1333](wp/1333-a-series-survives-one-pattern.md) | A series survives one pattern, and says which one it lost | 🔄 2026-09-23 | P1 | — (1317 soft) |
+| [1333](wp/1333-a-series-survives-one-pattern.md) | A series survives one pattern, and says which one it lost | ✅ 2026-09-26 | — | — (1317 soft) |
 | [1334](wp/1334-the-stage-that-ran-out-of-budget.md) | The stage that ran out of budget | ⬜ | P3 | — |
 | [1335](wp/1335-the-report-costs-more-than-the-fit.md) | The report costs more than the fit | ⬜ | P3 | — |
 | [1420](wp/1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | ⬜ | P2 | — (1333, 1342, 1419 soft) |

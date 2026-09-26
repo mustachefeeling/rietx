@@ -207,6 +207,9 @@ whose point group and lattice match the list, which are this group's own, so
 they are exact rather than approximate. Two things such a phase does not get:
 a Wyckoff letter, and the `SPACE_GROUP_SETTING_ASSUMED` warning, both being
 properties of a tabulated setting.
+`crystallography.magnetic.supercell.magnetic_supercell` builds such a phase by
+itself and says so with a `CHILD_GROUP_UNNAMED` diagnostic on the statement it
+returns.
 
 `Cell` holds six parameters and applies no symmetry itself.
 

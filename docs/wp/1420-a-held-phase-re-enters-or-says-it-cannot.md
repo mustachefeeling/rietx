@@ -123,6 +123,20 @@ down.
 
 ### Inherited
 
+**From WP-1333 (2026-09-26): 1333 closed, so the soft dependency is
+discharged, and a refined coordinate now crosses the pattern boundary.** Three
+facts this WP's chain work meets. (1) `_carry_into` carries a site's
+displacement, so a held phase's coordinates carry whatever value they were
+held at, where before every pattern restarted them from the model. (2) A
+coordinate DOF's value in a chain is the step from where that pattern's fit
+began, so any judgement across patterns skips `sequential._relative_paths`
+and reads the coordinate rows. Both fences and the GUI's disagreement column
+do this, so a re-entry check comparing trajectories should too. (3) The
+ramp reproduction's 60 s guard tripped once more under 4-worker load
+(`[dev]`, Linux x86-64), and passed alone in 14.6-14.9 s against 15.6 s on
+`main`'s code. So it is still the load sensor the note below describes, and
+the carry did not slow it.
+
 **From the 2026-09-24 transcript review (PR #444, which filed WPs 1453-1456):
 a real held-phase series for task 3, and a deferred question.** The series is
 `in-situ series 1` in the private `yue-here/rietx-corpus-map`, which says

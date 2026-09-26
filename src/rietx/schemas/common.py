@@ -269,8 +269,11 @@ from .._nearmiss import did_you_mean
 #: is a ¼ in the child and no symbol carries it.  What a consumer notices
 #: beyond the null is that ``space_group`` may then be a bracketed *label*,
 #: and that a bracketed label with no list, or a plain symbol that does not
-#: generate the list, is refused.
-SCHEMA_VERSION = "0.30"
+#: generate the list, is refused.  0.30 → 0.31 (WP-1327, the k ≠ 0 route):
+#: ``MagneticSymmetry.propagation_vector_parent``, the parent's k recorded on
+#: a magnetic supercell ``magnetic.supercell.magnetic_supercell`` builds,
+#: defaulted to ``None``.
+SCHEMA_VERSION = "0.31"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

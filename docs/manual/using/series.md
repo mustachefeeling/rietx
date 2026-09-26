@@ -127,6 +127,16 @@ either, the fence below catches it.
 The default is `["*"]`, meaning everything. A parameter excluded from it
 restarts from the initial model on every pattern, and not from its neighbour.
 
+A refined atomic coordinate crosses as its site's displacement. The degree of
+freedom a plan frees (`phases.*.atoms.*.dof.*`) is rebuilt at zero for every
+fit, so what the chain carries is where the fit moved the atom. A glob naming
+either the coordinate or its degree of freedom moves every coordinate the site
+ties to it, and the atom stays on its special position. The degree of
+freedom's value is measured from where its fit began, which in a chain is the
+previous pattern's answer, so its trajectory is each pattern's step. Chart the
+coordinate rows instead: they carry the same esd, and they are what the
+discontinuity and path-dependence checks judge (WP-1333).
+
 A Le Bail or Pawley pattern's per-$hkl$ intensities are not parameters, so no
 glob reaches them. `SequentialRefinement.carry_hkl_intensities` decides whether
 they cross the boundary. The default is `True`, which seeds each warm pattern
@@ -187,6 +197,14 @@ beyond the fourth decimal. Keep it for the declaration: a caller who writes
 `carry=["phases.*.cell.*", "vars.*"]` gets what that glob says, and only the
 chain knows which pattern was *accepted*, so a quarantined one seeds no
 successor here either.
+
+A coordinate's degree of freedom tied to a variable is where the two carries
+meet. The carried coordinate already holds the variable's fitted displacement,
+so the chain rebases it before warming the variable, and the pattern starts
+where its predecessor left the atom rather than one displacement further on:
+0.1996 on a synthetic LaB6 ramp, against the 0.2092 that warming it naively
+gave. Leave `vars.*` out of `carry` and the coordinate restarts with its
+variable.
 
 ## What comes back
 
