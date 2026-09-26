@@ -2747,8 +2747,9 @@ def _magnetic_build_diagnostics(model: TopasModel, phases_in, specs,
     * ``TOPAS_MOMENT_CONVENTION`` — ``mlx mly mlz`` are read as
       **fractional-basis** components and stored as crystal-axis μ_B
       (component × edge; :attr:`TopasSite.moment` carries the evidence). The
-      reading is the TOPAS Technical Reference's own formula, and it is **not
-      measured** against TOPAS output, so the diagnostic says both.
+      reading is the TOPAS Technical Reference's own formula, and it is
+      **measured** against TOPAS's own calculated intensities, so the
+      diagnostic says both.
     * ``TOPAS_MOMENT_ION_UNCHARGED`` — the magnetic form factor is keyed by
       oxidation state and the site's own species is what supplies it. TOPAS
       files usually write ``occ Cr+3``, which normalises to ``Cr3+`` and
