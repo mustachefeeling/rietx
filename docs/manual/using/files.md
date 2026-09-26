@@ -248,7 +248,10 @@ Hund's-rule g_J is assumed too (magCIF has no item for g any more than it has
 one for the ion, so refusing on a quantity the file could never have carried
 either way would be the wrong-shaped fix), reporting `LANDE_G_ASSUMED`. An ion
 *stated* explicitly (`moment_ions=`) still needs `moment_g=` stated alongside
-it, unchanged: that gap is the caller's, unrelated to this default.
+it, unchanged: that gap is the caller's, unrelated to this default. Both
+arguments are keyed by `_atom_site_moment.label`, and a key that names no row
+of that loop is refused with the labels the file does carry, since a
+misspelled label would leave its site on the default with nothing said.
 
 All three moment forms are read. The dictionary defines the moment in
 crystal axes, in spherical coordinates and in Cartesian ones; a reader taking

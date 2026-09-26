@@ -1391,6 +1391,21 @@ def test_a_missing_centring_loop_is_read_as_trivial_and_named(tmp_path):
                            moment_ions=_IONS["LaMnO3"], diagnostics=quiet)
     assert "CIF_MAGNETIC_CENTERING_ASSUMED" not in {d.code for d in quiet}
 
+
+def test_a_misspelled_moment_ions_or_g_key_is_refused(tmp_path):
+    """Review of #478, follow-up: ``moment_ions={"Mn_1": ...}`` against a loop
+    labelled ``Mn1`` was ignored, and Mn1 took the neutral atom's form factor.
+    A key naming no moment row is refused, naming the key and the labels."""
+    path = str(_fixture(tmp_path, "LaMnO3"))
+    with pytest.raises(magcif.MagCifError) as excinfo:
+        structure_from_cif(path, moment_ions={"Mn_1": "Mn3+"})
+    assert "moment_ions" in str(excinfo.value)
+    assert "'Mn_1'" in str(excinfo.value) and "'Mn1'" in str(excinfo.value)
+    with pytest.raises(magcif.MagCifError, match="moment_g"):
+        structure_from_cif(path, moment_ions={"Mn1": "Mn3+"},
+                           moment_g={"La1": 2.0})
+    structure_from_cif(path, moment_ions={"Mn1": "Mn3+"}, moment_g={"Mn1": 2.0})
+
 def test_a_moment_on_a_site_the_block_does_not_name_is_refused(tmp_path):
     """The whole magnetic contribution of a site, dropped because a label was
     misspelled, is the silent-drop failure in its purest form."""

@@ -266,7 +266,9 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
     Where ``moment_ions`` says nothing the site's own type symbol is used and a
     ``CIF_MAGNETIC_ION_UNCHARGED`` diagnostic reports it, because MAGNDATA
     writes a bare ``Mn`` for a site that is chemically Mn³⁺ and the two form
-    factors differ.
+    factors differ.  A key of either that names no ``_atom_site_moment`` row is
+    refused (:class:`~rietx.crystallography.magcif.MagCifError`), since a
+    misspelled label would leave its site on that default in silence.
 
     ``nuclear_group`` chooses which group a magCIF's atom *positions* refine
     under (the moments always refine under the file's magnetic group).
@@ -427,6 +429,22 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
                 f"({', '.join(repr(k) for k in by_label)}). A moment whose "
                 f"site cannot be found is refused rather than dropped — it is "
                 f"the whole magnetic contribution of that site.")
+        # A caller's key that names no moment row is a misspelling, and a
+        # misspelled ion would leave its site on the neutral atom's form
+        # factor with nothing said -- the TOPAS arm refuses a misspelled
+        # phase name for the same reason (review of #478, follow-up)
+        for argument, stated in (("moment_ions", moment_ions),
+                                 ("moment_g", moment_g)):
+            stray = sorted(set(stated or {}) - set(moments))
+            if stray:
+                raise magcif.MagCifError(
+                    f"{path}: {argument} names "
+                    f"{', '.join(repr(k) for k in stray)}, which "
+                    f"{'is' if len(stray) == 1 else 'are'} not a label in this "
+                    f"file's _atom_site_moment loop "
+                    f"({', '.join(repr(k) for k in moments) or 'no moments'}). "
+                    f"A misspelled label would leave that site's moment on the "
+                    f"file's own default with nothing said, so it is refused.")
         if moments and magnetic_symmetry is None:
             raise magcif.MagCifError(
                 f"{path} states moments on "
