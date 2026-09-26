@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: 1462
-Priority: P3 2026-09-25 — many users are solid-state chemists who read a structure by its polyhedra; VESTA covers it until then
+Priority: P3 2026-09-26 — WP-1462 closed, so its one blocker is gone; the first task waits on the maintainer for P1-P8 and Brunner & Schwarzenbach (1971), and VESTA covers it until then
 
 ## Goal
 
@@ -11,6 +11,19 @@ setting sees the polyhedra a solid-state chemist would draw first, and no
 others (`gui/CLAUDE.md` § Defaults).
 
 ## Context
+
+### Inherited
+
+- **From WP-1462, closed 2026-09-26.** The renderer this WP extends passed its
+  GPU gate as partial: Direct3D 11 over WARP, Mesa llvmpipe and SwiftShader on
+  GitHub's runners, with no vendor GPU. `1462-spike/gate.py` is the probe for
+  acceptance 3's "draw it the same". It pins the canvas at a fixed size, runs
+  one browser through a fixed script, and compares every picture with a
+  reference machine's. A polyhedra case added to its script would cover this
+  WP. Two things it found bear on a translucent pass. Firefox on WARP granted
+  no multisample buffer, so any coverage through alpha-to-coverage vanishes
+  there. And the server now pins an ellipsoid's free principal axes
+  (`structure3d._pin_axes`), so a payload from any machine draws the same.
 
 ### Why
 

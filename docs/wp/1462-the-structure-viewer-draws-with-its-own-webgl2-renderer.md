@@ -1,8 +1,7 @@
 # WP-1462 — the structure viewer draws with its own WebGL2 renderer
 
-Milestone: unscheduled · Status: 🔄 2026-09-26 — claimed by @yue-here; the rename and the GPU gate remain
+Milestone: unscheduled · Status: ✅ 2026-09-26 — the viewer draws with its own renderer; the GPU gate passed as partial, on software drivers
 Depends on: 1461 (soft)
-Priority: P3 2026-09-26 — WP-1461 closed, so the rename can land; the GPU gate waits on a Windows or Linux machine, and the viewer already ships without plotly
 
 ## Goal
 

@@ -90,6 +90,10 @@ draws with its own WebGL2 renderer, compiled into `app.js` with no
 dependency, so the allow list stays as WP-1461 left it. three.js joins it only
 if WP-1462's GPU gate sends its D1 to the fallback.
 
+**From WP-1462 (2026-09-26, closed).** The gate passed, as partial, on the
+software drivers of GitHub's Windows and Linux runners. D1 stands, and three.js
+joins no allow list.
+
 ## Non-goals
 
 - **Not the `.gitattributes` interim** — merged (issue #163); it stays until
