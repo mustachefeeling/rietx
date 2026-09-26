@@ -1,6 +1,6 @@
 # WP-1466 — the structure viewer draws coordination polyhedra
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-26 — claimed by @yue-here
 Depends on: 1462
 Priority: P3 2026-09-26 — WP-1462 closed, so its one blocker is gone; the first task waits on the maintainer for P1-P8 and Brunner & Schwarzenbach (1971), and VESTA covers it until then
 
