@@ -1,7 +1,7 @@
 # WP-1462 spike
 
 The pages and drivers that produced the numbers in
-[WP-1462](../1462-the-structure-viewer-draws-with-threejs.md). Nothing here
+[WP-1462](../1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md). Nothing here
 ships or runs in the suite. The logs in `results/` are the runs the WP quotes.
 
 ## Files

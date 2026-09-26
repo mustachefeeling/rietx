@@ -16,21 +16,15 @@ and `pyproject.toml` names it nowhere. Two users of plotly are outside this
 WP: `rietx compare` and `viz.html.write_html`, which writes a plotly page
 from Python. Both keep it through the `viz` extra until WP-1461's last two
 tasks move them to uPlot and take plotly out of that extra.
+*Superseded 2026-09-26:* WP-1461 closed with both moved, and
+`pyproject.toml` names plotly nowhere. The first goal holds whole.
 
-The file was filed recommending three.js, and its name still says so. The
-maintainer chose a renderer of our own (D1). The file is renamed once
-WP-1461 closes, because WP-1461's in-flight file links to this name.
+The file was filed recommending three.js as
+`1462-the-structure-viewer-draws-with-threejs.md`. The maintainer chose a
+renderer of our own (D1), and the file took its title's name on
+2026-09-26, once WP-1461 had closed.
 
 ## Context
-
-### Inherited
-
-- **From WP-1461, closed 2026-09-26.** The rename task is due. Three files
-  link this name: `ROADMAP.md`, WP-1461 (twice) and `1462-spike/README.md`.
-  `grep -rl 1462-the-structure-viewer-draws-with-threejs docs` finds them all.
-  The maintainer dragged in the GUI in real Safari on 2026-09-26 and it
-  worked, which answers WP-1461's finding 15 for the 2D charts. The viewer's
-  own drag was not part of that report.
 
 ### What the viewer is
 
@@ -312,7 +306,9 @@ shell.
   already held.
 - **Only Apple GPUs have drawn it.** Chromium ran on ANGLE over Metal,
   Firefox and WebKit on the same M4, and headless Chromium on SwiftShader.
-  Windows (ANGLE over D3D11) and Linux drivers have not.
+  Windows (ANGLE over D3D11) and Linux drivers have not. The maintainer
+  dragged the GUI's 2D charts in real Safari on 2026-09-26 and they worked.
+  The viewer's own drag was not part of that report.
 - **jsdom has no WebGL.** vitest covers the pure half: the projected
   extents, the pick, the trackball and the instance data. A stand-in
   records what was asked to be drawn, as `gui/src/test-uplot.ts` does for
@@ -326,7 +322,8 @@ shell.
 - **plotly outlives this WP until the Series panel leaves it.**
   `panels/Series.svelte` still draws with plotly. The `/plotly.js` route,
   `lib/plotly.ts` and the `gui` extra's plotly go with whichever of this WP
-  and WP-1461's Series task lands second.
+  and WP-1461's Series task lands second. *Done 2026-09-25*, in this WP's
+  third session.
 - **The camera is owned outright.** The renderer keeps the camera between
   draws, so the read-back rule above goes. A redraw must still not reset
   the view, and a test says so.
@@ -353,7 +350,7 @@ shell.
 - [x] Interaction: hover on atoms and bond halves, legend toggles, the a/b/c and reset views, pan and zoom, the three knobs, the view kept across redraws, and `ResizeObserver` sizing
 - [x] Export (D5): the offscreen render at a 3000 px long side, multisampled, lines and labels scaled, on the screen's background and on a transparent one
 - [x] Leave plotly in the viewer: the trace builders, the tessellation, the camera read-back and the modebar. The `/plotly.js` route, `gui/src/lib/plotly.ts`, the `gui` extra's plotly, `viz/plotlyjs.py`, `lib/plot.ts:hoverLabel` and the `Plotly` stand-in in `test-setup.ts` go only if the Series panel has left plotly too. It had, so they went on 2026-09-25 and the `gui` extra is empty; `viz/plotlyjs.py` stays for `rietx compare`.
-- [ ] Rename this file to its title once WP-1461 has closed, with its ROADMAP row and WP-1461's two links
+- [x] Rename this file to its title once WP-1461 has closed, with its ROADMAP row and WP-1461's two links
 - [x] Tests: `structure3d.test.ts` on the pure half and the instance data; a WebGL stand-in beside `test-uplot.ts`; a browser test that reads pixels at known atoms, finds a principal ellipse on an anisotropic site, and asserts a redraw keeps the view; a test that no page requests `/plotly.js`
 - [x] Docs: the structure viewer paragraphs in `gui/CLAUDE.md` (crystallography rules kept, plotly traps deleted), `using/install.md` for the `gui` extra, ATTRIBUTION.md, and the root CLAUDE.md's GUI lines if they name plotly. On the three.js fallback also: its row in `.github/dependabot.yml`'s allow list (WP-1461 created it) and its licence text in `LICENSE-3RD-PARTY.md`.
 

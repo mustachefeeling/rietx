@@ -543,7 +543,7 @@ confirmed on a summary saying every marker "stays fast at NAC's size", while
 finding 4 says two runs in three had long frames. Put back with those
 numbers, the maintainer chose to let the pilot measure both marker paths on
 the real panel and pick. The 3D viewer's move is
-[WP-1462](1462-the-structure-viewer-draws-with-threejs.md), filed the same
+[WP-1462](1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md), filed the same
 day.
 
 **Decided 2026-09-25, the fifth session.** Task 6 said to delete the plotly-only
@@ -696,7 +696,7 @@ with the plotly renderer.
 ## Non-goals
 
 - **The 3D structure viewer.** It draws a scene, and uPlot has no 3D.
-  [WP-1462](1462-the-structure-viewer-draws-with-threejs.md) gave it its own
+  [WP-1462](1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md) gave it its own
   WebGL2 renderer (PR #472, merged 2026-09-25). That also deleted the GUI's
   plotly: the `/plotly.js` route, `lib/plotly.ts`, and plotly in the `gui`
   extra, which is now `[]`. Its mount costs 14-34 ms of WebGL calls plus
