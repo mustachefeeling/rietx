@@ -2472,10 +2472,12 @@ class GuiSession:
                 else "no series has completed in this session yet; stage the "
                      "patterns with PUT /api/series, then POST /api/series/run",
                 code="NO_SERIES_RESULT", status=409)
+        from ..sequential import _relative_paths
         runner = entry["runner"]
         return series_mod.result_payload(
             entry["result"], entry["backward"], running=busy,
-            curves=[bool(r.two_theta) for r in runner.results_])
+            curves=[bool(r.two_theta) for r in runner.results_],
+            relative=_relative_paths(runner.structure, runner.instrument))
 
     def _series_member_result(self, index: int):
         """The series entry and member ``index``'s result, which has curves, or a refusal."""

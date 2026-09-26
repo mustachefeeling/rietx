@@ -3776,6 +3776,32 @@ def test_an_unjudgeable_parameter_gets_no_disagreement_rather_than_zero():
     assert row["backward"] == [4.156, 4.158, 4.171]
 
 
+def test_a_relative_path_gets_no_disagreement_since_the_fence_skips_it():
+    """The same abstention for a path the fence does not judge at all.
+
+    A coordinate DOF is the step from where each fit began, and the two chains
+    begin a pattern from opposite neighbours, so ``_path_dependence_diagnostics``
+    skips ``sequential._relative_paths`` (WP-1333).  Served anyway, its number
+    would rank top on a series whose coordinates agree.  The mechanism is pinned
+    on the helper's one path; its backward values are still served.
+    """
+    from rietx.gui import series as series_mod
+    from rietx.sequential import PATH_DEPENDENCE_SIGMA
+
+    forward, backward = _series_pair([4.156, 4.158, 4.160],
+                                     [4.156, 4.158, 4.171])
+    row, = series_mod.trajectories(forward, backward)
+    assert row["n_sigma"] > PATH_DEPENDENCE_SIGMA
+
+    relative = frozenset({"phases.0.cell.a"})
+    row, = series_mod.trajectories(forward, backward, relative)
+    assert row["n_sigma"] is None
+    assert row["backward"] == [4.156, 4.158, 4.171]
+    payload = series_mod.result_payload(forward, backward, running=False,
+                                        curves=[True] * 3, relative=relative)
+    assert payload["trajectories"][0]["n_sigma"] is None
+
+
 # --------------------------------------------------------------------------- #
 # What the pattern file already knows (WP-1047 tasks 15-16)
 # --------------------------------------------------------------------------- #

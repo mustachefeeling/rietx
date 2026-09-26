@@ -1070,9 +1070,7 @@ class SequentialRefinement:
                                   backend=self._backend, solver=self._solver,
                                   dtype=backend_dtype_note(self._backend),
                                   report_thresholds_version=THRESHOLDS_VERSION))
-        # the displacement DOFs of the model the chain was handed: their values
-        # are steps from where each fit began, so no fence judges them
-        relative = ParameterTable(self.structure, self.instrument).anchored_dof_paths
+        relative = _relative_paths(self.structure, self.instrument)
         steps = _discontinuity_steps(series, relative)
         diagnostics += [s.diagnostic for s in steps]
         # WP-1305 (c): the check the diagnostic asks the reader for, run here.
@@ -1898,6 +1896,19 @@ class _FlaggedStep:
     labels: tuple[str, str]
     step: float
     diagnostic: Diagnostic
+
+
+def _relative_paths(structure: Structure, instrument: Instrument) -> frozenset[str]:
+    """The paths of this model whose values are steps, not positions.
+
+    Its displacement DOFs (:attr:`ParameterTable.anchored_dof_paths`): each is
+    measured from where its fit began, which in a chain is the neighbour's
+    answer (WP-1333).  The one list every judgement across patterns skips —
+    both fences here, and the GUI's disagreement column, which must abstain
+    where they do.  Taken from the models the chain was handed, since nothing
+    in a ``SeriesEntry`` says a path is relative.
+    """
+    return ParameterTable(structure, instrument).anchored_dof_paths
 
 
 def _discontinuity_steps(series: SeriesResult,

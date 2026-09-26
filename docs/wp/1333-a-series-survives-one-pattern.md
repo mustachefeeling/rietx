@@ -262,7 +262,9 @@ the reporter's PR offer stands for that case.
       (`ParameterTable.reanchor_dofs`), so the warmed variable does not add
       the displacement twice (0.2092 against 0.1996 without it). The DOF's
       value became the step from the warm start, which fired both fences on a
-      clean ramp, so they skip `anchored_dof_paths` and judge the coordinate.
+      clean ramp, so they skip `anchored_dof_paths` and judge the coordinate,
+      and the GUI's disagreement column abstains with them
+      (`sequential._relative_paths`, the one list).
 - [x] Skill: `references/series.md` — the row saying that zero
       `SEQUENTIAL_PATH_DEPENDENT` findings is only a clean bill once the
       not-run signal exists, and the row on what survives a failed pattern.
