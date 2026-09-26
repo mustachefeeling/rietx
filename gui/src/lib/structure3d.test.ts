@@ -12,9 +12,10 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { instanceData } from "./gl3d";
+import { faceData, instanceData } from "./gl3d";
 import {
   CELL_WIDTH_PX,
+  EDGE_WIDTH_PX,
   FLAT_AXIS,
   STICK_FLOOR,
   STICK_RADIUS,
@@ -32,14 +33,20 @@ import {
   mul3,
   openingView,
   pickAtom,
+  pickFace,
   pickHalf,
+  polyhedraLegend,
+  polyhedronFormula,
+  polyhedronLabel,
   project,
   rgb,
   rotateBy,
+  shownPolyhedra,
   stickRadius,
   transform,
   type Geometry,
   type Mat3,
+  type Polyhedron,
   type Site,
 } from "./structure3d";
 
@@ -79,6 +86,7 @@ function geometry(extra: Partial<Geometry> = {}): Geometry {
         rms: [0.1, 0.1, 0.2], npd: false },
     ],
     bonds: [{ i: 0, j: 2, a: [0, 0, 0], b: [2, 2, 0.8], d: 3.0 }],
+    polyhedra: [],
     probability: 0.5, probability_levels: { "0.5": 1.5382, "0.9": 2.5003 },
     scale: 1.5382, ball_fraction: 0.40, bond_tolerance: 1.15,
     bond_metals: false, note: "", ...extra,
@@ -400,7 +408,7 @@ describe("the caption", () => {
     expect(text).toContain("2 atoms in the cell");
     expect(text).toContain("+ 1 image outside it");
     expect(text).toContain("1 bond segment at 1.15×");
-    expect(text).toContain("metal–metal contacts not bonded");
+    expect(text).toContain("metal–metal and metal–cation contacts not bonded");
     expect(text).toContain("ellipsoids at 50 %");
     expect(caption(geometry(), "ball")).toContain("0.40× the covalent radius");
   });
@@ -412,5 +420,113 @@ describe("the caption", () => {
       .toContain("not positive definite");
     // …and only in the mode that draws it
     expect(atomLabel(geo, geo.atoms[2], "ball")).not.toContain("positive");
+  });
+});
+
+/** SiO₄ alone: Si at the origin, four O at 1.6 Å, the four sticks between them
+ *  and the tetrahedron, wound outward, the way the server sends it (WP-1466). */
+function tetrahedron(extra: Partial<Polyhedron> = {}): Geometry {
+  const k = 1.6 / Math.sqrt(3);
+  const corners = [[k, k, k], [k, -k, -k], [-k, k, -k], [-k, -k, k]];
+  const atom = (s: number, pos: number[]) => ({
+    site: s, frac: pos.map((v) => v / 10), pos, boundary: false,
+    ellipsoid: [[0.1, 0, 0], [0, 0.1, 0], [0, 0, 0.1]], rms: [0.1, 0.1, 0.1], npd: false,
+  });
+  return geometry({
+    sites: [site({ label: "Si1", species: "Si", element: "Si", color: "#f0c8a0",
+                   radius: 1.11, metal: false }),
+            site({ index: 1, label: "O1", species: "O", element: "O", color: "#e02020",
+                   radius: 0.66, metal: false })],
+    atoms: [atom(0, [0, 0, 0]), ...corners.map((c) => atom(1, c))],
+    bonds: corners.map((c, j) => ({ i: 0, j: j + 1, a: [0, 0, 0], b: c, d: 1.6 })),
+    polyhedra: [{
+      center: 0, site: 0, vertices: [1, 2, 3, 4],
+      faces: [[0, 1, 2], [0, 3, 1], [0, 2, 3], [1, 3, 2]],
+      edges: [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]],
+      bonds: [0, 1, 2, 3], coordination: 4, mean_distance: 1.6, gap: 2.0,
+      drawn_by_default: true, ...extra,
+    }],
+  });
+}
+
+describe("the polyhedra", () => {
+  it("are written the way a chemist writes them", () => {
+    const geo = tetrahedron();
+    expect(polyhedronFormula(geo, geo.polyhedra[0])).toBe("SiO₄");
+    expect(polyhedronLabel(geo, geo.polyhedra[0]))
+      .toBe("SiO₄ around Si1  ·  4 ligands  ·  mean 1.600 Å  ·  gap ×2.00");
+    expect(polyhedraLegend(geo)).toEqual([
+      { species: "Si", color: "#f0c8a0", formulas: ["SiO₄"], byDefault: true }]);
+  });
+
+  it("show by the server's default, until a switch or a legend says otherwise", () => {
+    const shown = tetrahedron();
+    const hidden = tetrahedron({ drawn_by_default: false });
+    expect(shownPolyhedra(shown, true, new Map())).toEqual([0]);
+    expect(shownPolyhedra(hidden, true, new Map())).toEqual([]);
+    expect(shownPolyhedra(hidden, true, new Map([["Si", true]]))).toEqual([0]);
+    expect(shownPolyhedra(shown, true, new Map([["Si", false]]))).toEqual([]);
+    // the one switch, and the atom legend hiding the centre's species
+    expect(shownPolyhedra(shown, false, new Map([["Si", true]]))).toEqual([]);
+    expect(shownPolyhedra(shown, true, new Map(), new Set(["Si"]))).toEqual([]);
+    // an image's polyhedron goes with the images
+    shown.atoms[0].boundary = true;
+    expect(shownPolyhedra(shown, true, new Map(), new Set(), false)).toEqual([]);
+  });
+
+  it("bring their faces and edges, and take their centre's sticks away", () => {
+    const geo = tetrahedron();
+    const bare = buildScene(geo, { mode: "ball" });
+    expect(bare.faces).toEqual([]);
+    expect(bare.halves).toHaveLength(8);
+    const scene = buildScene(geo, { mode: "ball", polyhedra: [0] });
+    expect(scene.halves).toEqual([]);
+    const edges = scene.lines.filter((line) => line.width === EDGE_WIDTH_PX);
+    expect(edges).toHaveLength(6);
+    // the edge ink is the centre's colour, darker
+    expect(edges[0].color).toEqual(rgb(dim("#f0c8a0", 0.5)));
+    const [faces] = scene.faces;
+    expect(faces.triangles).toHaveLength(4 * 9);
+    expect(faces.color).toEqual(rgb("#f0c8a0"));
+    expect(faces.centroid.every((v) => Math.abs(v) < 1e-12)).toBe(true);
+    // every normal points away from the centre, as the server wound the face
+    for (let f = 0; f < 4; f += 1) {
+      const n = faces.normals.slice(3 * f, 3 * f + 3);
+      const a = faces.triangles.slice(9 * f, 9 * f + 3);
+      expect(dot(n, a)).toBeGreaterThan(0);
+      expect(Math.hypot(...n)).toBeCloseTo(1, 12);
+    }
+  });
+
+  it("are one vertex array with a range each, three vertices a triangle", () => {
+    const scene = buildScene(tetrahedron(), { mode: "ball", polyhedra: [0] });
+    const { vertices, ranges } = faceData(scene);
+    expect(vertices).toHaveLength(12 * 9);
+    expect(ranges).toEqual([{ first: 0, count: 12, centroid: scene.faces[0].centroid }]);
+    // the fifth vertex is the second triangle's: its normal, and the colour
+    expect(Array.from(vertices.slice(9 * 4 + 3, 9 * 4 + 9)).map((v) => +v.toFixed(5)))
+      .toEqual([...scene.faces[0].normals.slice(3, 6), ...rgb("#f0c8a0")]
+        .map((v) => +v.toFixed(5)));
+  });
+
+  it("are picked where no atom is, at the face nearer the viewer", () => {
+    const scene = buildScene(tetrahedron(), { mode: "ball", polyhedra: [0] });
+    const view = { rotation: I3, zoom: 1, pan: [0, 0] };
+    const [w, h] = [400, 400];
+    // the centroid of the face x − y + z = k, which faces the viewer; the ray
+    // through it leaves by another face, farther back
+    const k = 1.6 / Math.sqrt(3);
+    const [x, y, z] = project(scene, view, w, h, [k / 3, -k / 3, k / 3]);
+    const hit = pickFace(scene, view, w, h, x, y);
+    expect(hit).not.toBeNull();
+    expect(hit!.z).toBeCloseTo(z, 9);
+    expect(pickFace(scene, view, w, h, 5, 5)).toBeNull();
+  });
+
+  it("are named in the caption, drawn or not", () => {
+    const geo = tetrahedron();
+    expect(caption(geo, "ball", 1, [0])).toContain("polyhedra SiO₄ ×1");
+    expect(caption(geo, "ellipsoid", 1, [])).toContain("polyhedra off (SiO₄)");
+    expect(caption(geometry(), "ball")).not.toContain("polyhedr");
   });
 });

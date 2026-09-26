@@ -337,6 +337,7 @@ const GEOMETRY = {
       rms: [0.07, 0.07, 0.07], npd: false },
   ],
   bonds: [{ i: 0, j: 2, a: [0, 0, 0], b: [0.8284, 2.0784, 2.0784], d: 3.058 }],
+  polyhedra: [],
   probability: 0.5, probability_levels: { "0.5": 1.5382, "0.9": 2.5003 },
   scale: 1.5382, ball_fraction: 0.40, bond_tolerance: 1.15,
   bond_metals: false, note: "",
@@ -3209,11 +3210,50 @@ describe("the structure viewer", () => {
       .toEqual(["a", "b", "c"]);
   });
 
+  it("draws polyhedra in ball mode and not in ellipsoid mode until switched (WP-1466)", async () => {
+    // La with four B around it, the stick to the first given way to the faces
+    const B = GEOMETRY.atoms[2];
+    const withPolyhedra = {
+      ...GEOMETRY,
+      atoms: [...GEOMETRY.atoms, { ...B, pos: [2.08, 0.83, 2.08] },
+              { ...B, pos: [2.08, 2.08, 0.83] }, { ...B, pos: [-0.83, -0.83, -0.83] }],
+      polyhedra: [{
+        center: 0, site: 0, vertices: [2, 3, 4, 5],
+        faces: [[0, 1, 2], [0, 3, 1], [0, 2, 3], [1, 3, 2]],
+        edges: [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]],
+        bonds: [0], coordination: 4, mean_distance: 2.9, gap: 1.5, drawn_by_default: true,
+      }],
+    };
+    await openViewer({ "/api/structure3d": () => ({ body: withPolyhedra }) });
+    expect(last().scene.faces).toHaveLength(1);
+    expect(last().scene.halves).toHaveLength(0);
+    expect(host.textContent).toContain("polyhedra LaB₄ ×1");
+
+    button("ellipsoids")!.click();
+    await flush();
+    expect(last().scene.faces).toHaveLength(0);
+    expect(last().scene.halves).toHaveLength(2);
+    expect(host.textContent).toContain("polyhedra off (LaB₄)");
+    // the one switch turns them on in the mode it is pressed in…
+    button("polyhedra")!.click();
+    await flush();
+    expect(last().scene.faces).toHaveLength(1);
+    // …and ball mode keeps its own setting
+    button("balls")!.click();
+    await flush();
+    expect(last().scene.faces).toHaveLength(1);
+    // the legend switches one centre species
+    button("LaB₄")!.click();
+    await flush();
+    expect(last().scene.faces).toHaveLength(0);
+    expect(host.textContent).toContain("polyhedra off (LaB₄)");
+  });
+
   it("says what it drew and at which thresholds", async () => {
     await openViewer();
     expect(host.textContent).toContain("2 atoms in the cell + 1 image outside it");
     expect(host.textContent).toContain("1 bond segment at 1.15×");
-    expect(host.textContent).toContain("metal–metal contacts not bonded");
+    expect(host.textContent).toContain("metal–metal and metal–cation contacts not bonded");
     expect(host.textContent).toContain("balls at 0.40× the covalent radius");
   });
 

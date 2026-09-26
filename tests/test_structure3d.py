@@ -15,6 +15,7 @@ mesh with it rather than an atom that looks odd.
 
 from __future__ import annotations
 
+import json
 import math
 from pathlib import Path
 
@@ -543,3 +544,331 @@ def test_every_bond_ends_on_an_atom_that_is_drawn(lab6):
     small = s3.build(lab6, bond_tolerance=1.15, max_atoms=20)
     assert len(small["atoms"]) == 20
     assert "end in mid-air" in small["note"]
+
+
+# ----------------------------------------------------------------------
+# coordination polyhedra (WP-1466)
+# ----------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def fap():
+    """Hexagonal P6₃/m: PO₄ tetrahedra, and two Ca sites with no clear gap."""
+    return structure_from_cif(str(DATA / "fluorapatite.cif"))
+
+
+def brucite() -> Structure:
+    """Mg(OH)₂, P-3m1, from textbook coordinates: MgO₆ with H 2.68 Å from Mg."""
+    cell = Cell(a=_p(3.147), b=_p(3.147), c=_p(4.770),
+                alpha=_p(90.0), beta=_p(90.0), gamma=_p(120.0))
+    atoms = [Atom(label="Mg1", species="Mg", x=_p(0.0), y=_p(0.0), z=_p(0.0)),
+             Atom(label="O1", species="O", x=_p(1 / 3), y=_p(2 / 3), z=_p(0.2203)),
+             Atom(label="H1", species="H", x=_p(1 / 3), y=_p(2 / 3), z=_p(0.4130))]
+    return Structure(phases=[Phase(name="brucite", space_group="P -3 m 1",
+                                   cell=cell, atoms=atoms)])
+
+
+#: a tetrahedron's four corners at 1.6 Å, the Si–O distance
+TETRAHEDRON = [1.6 * np.array(v) / math.sqrt(3.0)
+               for v in ((1, 1, 1), (1, -1, -1), (-1, 1, -1), (-1, -1, 1))]
+
+
+def cluster(centre, ligands) -> Structure:
+    """``(species, occ)`` pairs at the centre and ``(species, offset Å, occ)``
+    around it, alone in a 12 Å P1 cell.
+
+    Built rather than read, because each test needs one shell with one defect
+    in it: the nearest translated ligand is 8.8 Å from the centre, beyond
+    :data:`~rietx.gui.structure3d.SHELL_RADIUS`.
+    """
+    side = 12.0
+    cell = Cell(a=_p(side), b=_p(side), c=_p(side),
+                alpha=_p(90.0), beta=_p(90.0), gamma=_p(90.0))
+    atoms = [Atom(label=f"{species}0{k}", species=species, x=_p(0.5), y=_p(0.5),
+                  z=_p(0.5), occ=_p(occ)) for k, (species, occ) in enumerate(centre)]
+    for k, (species, offset, occ) in enumerate(ligands):
+        x, y, z = 0.5 + np.asarray(offset, dtype=float) / side
+        atoms.append(Atom(label=f"{species}{k + 1}", species=species,
+                          x=_p(x), y=_p(y), z=_p(z), occ=_p(occ)))
+    return Structure(phases=[Phase(name="cluster", space_group="P 1",
+                                   cell=cell, atoms=atoms)])
+
+
+def _drawn(payload: dict) -> dict:
+    """``{(site label, coordination, drawn by default): count}``."""
+    out: dict = {}
+    for p in payload["polyhedra"]:
+        key = (payload["sites"][p["site"]]["label"], p["coordination"],
+               p["drawn_by_default"])
+        out[key] = out.get(key, 0) + 1
+    return out
+
+
+@pytest.mark.parametrize(("center", "element", "ligand"), [
+    ("P", "O", True), ("Al", "F", True), ("Ca", "F", True),
+    ("P", "Ca", False),          # a metal is never a ligand
+    ("O", "O", False),           # nor the centre's own element
+    ("Mg", "H", False),          # nor hydrogen, which a hydroxide's cation reaches
+    ("Mg", "D", False),
+])
+def test_a_ligand_is_a_non_metal_of_another_element_other_than_hydrogen(center, element,
+                                                                        ligand):
+    assert s3.is_ligand(center, element) is ligand
+
+
+def test_the_shell_ends_at_the_largest_gap_among_the_first_thirteen():
+    # fluorapatite's P: four O, then Ca at 3.12 Å
+    n, gap = s3.shell_gap([1.52, 1.52, 1.55, 1.58, 3.12, 3.59])
+    assert (n, gap) == (4, pytest.approx(3.12 / 1.58))
+    # LaB6's La: 24 B at one distance, so no gap at all
+    assert s3.shell_gap([3.06] * 24)[1] == 1.0
+    # a gap after the thirteenth distance is not looked for
+    assert s3.shell_gap([2.0] * 14 + [4.0])[1] == 1.0
+
+
+def test_the_default_picture_draws_tetrahedra_and_octahedra(lab6, nac, fap):
+    """P5 on WP-1462's three phases: PO₄ and AlF₆ drawn, the larger shells hidden.
+
+    Fluorapatite's Ca sites are CaO₉ and CaO₆F, and LaB6's La has 24 B at one
+    distance, so it is no polyhedron at all.
+    """
+    assert _drawn(s3.build(lab6)) == {}
+    assert _drawn(s3.build(nac)) == {("Al1", 6, True): 8, ("Ca1", 8, False): 18,
+                                     ("Na1", 7, False): 8}
+    assert _drawn(s3.build(fap)) == {("P3", 4, True): 6, ("Ca1", 9, False): 4,
+                                     ("Ca2", 7, False): 6}
+
+
+def test_a_non_metal_bonded_to_a_stronger_one_is_a_cation_and_no_ligand():
+    """P2: Si bonded to O is a cation, so it is never a corner of Mg's octahedron.
+
+    As in forsterite, the Si sits 2.69 Å from Mg across an edge of MgO₆.
+    Counted as a ligand, it would join a shell of seven.
+    """
+    x, y, z = np.eye(3) * 2.10
+    silicon = 2.69 * np.array([1.0, 1.0, 0.0]) / math.sqrt(2.0)
+    payload = s3.build(cluster([("Mg", 1.0)], [*[("O", v, 1.0) for v in (x, -x, y, -y, z, -z)],
+                                               ("Si", silicon, 1.0)]))
+    (only,) = payload["polyhedra"]
+    assert only["coordination"] == 6
+    assert {payload["sites"][payload["atoms"][v]["site"]]["element"]
+            for v in only["vertices"]} == {"O"}
+
+
+def test_an_anion_is_never_a_centre():
+    """P2: an F among six O draws no FO₆, as fluorapatite's F4 nearly did.
+
+    O is a non-metal of another element, so only the centre half of the rule
+    turns the shell away.  An O among four SiO₄ groups draws no OSi₄ either,
+    as andalusite's OA did: each Si is bonded to an O of its own.
+    """
+    x, y, z = np.eye(3) * 3.13
+    fluorine = cluster([("F", 1.0)], [("O", v, 1.0) for v in (x, -x, y, -y, z, -z)])
+    assert s3.build(fluorine)["polyhedra"] == []
+    ligands = []
+    for corner in TETRAHEDRON:
+        outward = corner / np.linalg.norm(corner)
+        ligands += [("Si", 3.0 * outward, 1.0), ("O", 4.6 * outward, 1.0)]
+    assert s3.build(cluster([("O", 1.0)], ligands))["polyhedra"] == []
+
+
+def test_a_metal_and_a_cation_share_no_stick():
+    """The metal–metal rule widened to metal–cation (WP-1466).
+
+    Forsterite drew 36 Mg–Si sticks at 2.69-2.79 Å, and they crossed the MgO₆
+    faces.  Two cationic non-metals keep theirs: a C bonded to O is a cation
+    and so is the H on it, and an organic without C–H sticks is no picture.
+    """
+    def pairs(payload: dict) -> set[frozenset]:
+        element = lambda i: payload["sites"][payload["atoms"][i]["site"]]["element"]  # noqa: E731
+        return {frozenset((element(b["i"]), element(b["j"]))) for b in payload["bonds"]}
+
+    row = next(r for r in MEASURED if r["name"] == "olivine forsterite")
+    forsterite = pairs(s3.build(measured(row)))
+    assert frozenset(("Mg", "Si")) not in forsterite
+    assert {frozenset(("Mg", "O")), frozenset(("O", "Si"))} <= forsterite
+
+    formate = pairs(s3.build(cluster([("C", 1.0)], [
+        ("O", (1.25, 0.0, 0.0), 1.0), ("H", (-0.6, 0.9, 0.0), 1.0),
+        # 2.6 Å, inside the radius-sum cutoff of 2.90
+        ("Ca", (0.0, 0.0, 2.6), 1.0)])))
+    assert {frozenset(("C", "O")), frozenset(("C", "H"))} <= formate
+    assert frozenset(("C", "Ca")) not in formate
+
+
+def test_a_shell_with_no_clear_gap_is_not_a_polyhedron():
+    """P4: six O at 2.0 Å then eight at 2.2 Å, a gap of 1.10 against 1.15."""
+    octahedron = [v * 2.0 for v in (*np.eye(3), *-np.eye(3))]
+    cube = [2.2 * np.array(v) / math.sqrt(3.0)
+            for v in np.array(np.meshgrid(*[(-1, 1)] * 3)).reshape(3, -1).T]
+    payload = s3.build(cluster([("Al", 1.0)], [("O", v, 1.0) for v in octahedron + cube]))
+    assert payload["polyhedra"] == []
+
+
+#: WP-1466's measured phase set, written by ``docs/wp/1466-measure/measure.py``
+#: with the picture a chemist draws first beside each phase
+MEASURED = json.loads((DATA / "polyhedra_phases.json").read_text(encoding="utf-8"))
+
+
+def measured(row: dict) -> Structure:
+    a, b, c, alpha, beta, gamma = row["cell"]
+    cell = Cell(a=_p(a), b=_p(b), c=_p(c), alpha=_p(alpha), beta=_p(beta), gamma=_p(gamma))
+    atoms = [Atom(label=label, species=species, x=_p(x), y=_p(y), z=_p(z), occ=_p(occ))
+             for label, species, x, y, z, occ in row["atoms"]]
+    return Structure(phases=[Phase(name=row["name"], space_group=row["space_group"],
+                                   symmetry_operations=row["symmetry_operations"],
+                                   cell=cell, atoms=atoms)])
+
+
+@pytest.mark.parametrize("row", MEASURED, ids=[row["name"] for row in MEASURED])
+def test_the_default_picture_on_the_measured_phases(row):
+    """Acceptance 1: each phase draws what its row expects by default, and no more."""
+    drawn: dict[str, set[int]] = {}
+    payload = s3.build(measured(row))
+    for p in payload["polyhedra"]:
+        if p["drawn_by_default"]:
+            element = payload["sites"][p["site"]]["element"]
+            drawn.setdefault(element, set()).add(p["coordination"])
+    assert {e: sorted(v) for e, v in drawn.items()} == row["expected"]
+    _every_polyhedron_is_one(payload)
+
+
+@pytest.mark.parametrize("name", ["nac", "fap", "brucite"])
+def test_every_drawn_polyhedron_is_one(name, nac, fap):
+    """P4, checked from the payload alone, as a client would draw it."""
+    structure = {"nac": nac, "fap": fap, "brucite": brucite()}[name]
+    payload = s3.build(structure)
+    assert payload["polyhedra"]
+    _every_polyhedron_is_one(payload)
+
+
+def _every_polyhedron_is_one(payload: dict) -> None:
+    atoms = payload["atoms"]
+    for p in payload["polyhedra"]:
+        centre = np.array(atoms[p["center"]]["pos"])
+        element = payload["sites"][p["site"]]["element"]
+        vertices = np.array([atoms[v]["pos"] for v in p["vertices"]])
+        assert len(set(p["vertices"])) == len(vertices) == p["coordination"] >= 4
+        assert p["gap"] >= s3.POLYHEDRON_GAP
+        for v in p["vertices"]:
+            assert s3.is_ligand(element, payload["sites"][atoms[v]["site"]]["element"])
+        distance = np.linalg.norm(vertices - centre, axis=1)
+        assert p["mean_distance"] == pytest.approx(distance.mean())
+        # every ligand at a vertex, and every face wound outward with the
+        # whole shell behind it and the centre strictly inside
+        assert {v for face in p["faces"] for v in face} == set(range(len(vertices)))
+        for face in p["faces"]:
+            a, b, c = vertices[face]
+            normal = np.cross(b - a, c - a)
+            normal /= np.linalg.norm(normal)
+            assert ((vertices - a) @ normal <= 1e-9).all()
+            assert (centre - a) @ normal < -s3.INSIDE_TOL
+        # an edge is a side of some face
+        sides = {tuple(sorted((f[i], f[(i + 1) % 3]))) for f in p["faces"] for i in range(3)}
+        assert {tuple(e) for e in p["edges"]} <= sides
+
+
+def test_a_polyhedron_is_never_cut_off(nac):
+    """P7: a vertex outside the cell is drawn, as an image flagged ``boundary``."""
+    payload = s3.build(nac)
+    atoms = payload["atoms"]
+    outside = {v for p in payload["polyhedra"] for v in p["vertices"]
+               if min(atoms[v]["frac"]) < -s3.BOUNDARY_TOL
+               or max(atoms[v]["frac"]) > 1 + s3.BOUNDARY_TOL}
+    assert outside
+    assert all(atoms[v]["boundary"] for v in outside)
+
+    # one that would take the drawing past the atom cap is not drawn, and says so
+    full = len(payload["polyhedra"])
+    small = s3.build(nac, max_atoms=175)
+    assert len(small["atoms"]) <= 175
+    assert 0 < len(small["polyhedra"]) < full
+    assert f"{full - len(small['polyhedra'])} coordination polyhedra not drawn" in small["note"]
+    for p in small["polyhedra"]:
+        assert max(p["vertices"]) < len(small["atoms"])
+
+
+def test_the_centres_sticks_give_way_to_its_polyhedron(nac):
+    """P6: exactly the sticks between a centre and its own vertices are listed.
+
+    Na is where the bond rule and the gap disagree: 4 sticks, 7 vertices.
+    """
+    payload = s3.build(nac)
+    atoms, bonds = payload["atoms"], payload["bonds"]
+    key = lambda pos: tuple(np.round(pos, 6))                      # noqa: E731
+    for p in payload["polyhedra"]:
+        ends = {frozenset((key(atoms[p["center"]]["pos"]), key(atoms[v]["pos"])))
+                for v in p["vertices"]}
+        listed = {k for k, b in enumerate(bonds)
+                  if frozenset((key(b["a"]), key(b["b"]))) in ends}
+        assert set(p["bonds"]) == listed
+    na = next(p for p in payload["polyhedra"]
+              if payload["sites"][p["site"]]["label"] == "Na1")
+    assert (len(na["bonds"]), na["coordination"]) == (4, 7)
+
+
+def test_hydrogen_never_joins_a_hydroxides_shell():
+    """Counted as a ligand, brucite's 6 H at 2.68 Å would cut Mg's gap to 1.28."""
+    payload = s3.build(brucite())
+    assert _drawn(payload) == {("Mg1", 6, True): 8}
+    for p in payload["polyhedra"]:
+        assert p["gap"] == pytest.approx(1.80, abs=0.01)
+        assert {payload["sites"][payload["atoms"][v]["site"]]["element"]
+                for v in p["vertices"]} == {"O"}
+
+
+def test_a_split_site_draws_no_polyhedron_and_a_full_one_does():
+    """P9: one corner of a tetrahedron split 0.3 Å across its bond.
+
+    Both positions are hull vertices and the gap is clear, so only the split
+    rule turns the shell away. At full occupancy it is a real five-vertex
+    shell and is drawn.
+    """
+    across = 0.15 * np.array([1.0, -1.0, 0.0]) / math.sqrt(2.0)
+    corners = [TETRAHEDRON[0] + across, TETRAHEDRON[0] - across, *TETRAHEDRON[1:]]
+
+    def shell(occ):
+        return [("O", v, occ if k < 2 else 1.0) for k, v in enumerate(corners)]
+
+    assert s3.build(cluster([("Si", 1.0)], shell(0.5)))["polyhedra"] == []
+    (whole,) = s3.build(cluster([("Si", 1.0)], shell(1.0)))["polyhedra"]
+    assert whole["coordination"] == 5
+
+
+def test_a_mixed_site_counts_once_as_centre_and_as_ligand():
+    """P9: Si/Ge on the centre and O/F on one corner give one tetrahedron."""
+    ligands = [("O", TETRAHEDRON[0], 0.5), ("F", TETRAHEDRON[0], 0.5),
+               *[("O", v, 1.0) for v in TETRAHEDRON[1:]]]
+    payload = s3.build(cluster([("Si", 0.5), ("Ge", 0.5)], ligands))
+    (only,) = payload["polyhedra"]
+    assert payload["sites"][only["site"]]["element"] == "Si"
+    assert only["coordination"] == 4
+
+
+@pytest.mark.parametrize("shape", ["square", "one-sided", "centre on a face"])
+def test_a_shell_the_centre_is_not_inside_is_not_a_polyhedron(shape):
+    """P4: a planar shell has no hull, and a centre outside or on one is refused."""
+    x, y, z = np.eye(3) * 1.95
+    ligands = {
+        "square": [x, -x, y, -y],
+        # three low and one high, all at 1.95 Å and all above the centre
+        "one-sided": [1.95 * np.array(v) / np.linalg.norm(v)
+                      for v in ((1, 0, 0.3), (-0.5, 0.87, 0.3), (-0.5, -0.87, 0.3), (0, 0, 1))],
+        "centre on a face": [x, -x, y, -y, z],
+    }[shape]
+    payload = s3.build(cluster([("Cu", 1.0)], [("O", v, 1.0) for v in ligands]))
+    assert payload["polyhedra"] == []
+
+
+def test_a_shell_enclosing_one_of_its_own_ligands_is_not_a_polyhedron():
+    """P4, Daams & Villars' convex-volume condition: every ligand at a vertex.
+
+    An octahedron at 2.0 Å with a seventh ligand at 1.9 Å on one vertex's
+    ray. The gap after all seven is clear and the centre is inside, so only
+    the vertex condition turns it away.
+    """
+    x, y, z = np.eye(3) * 2.0
+    octahedron = [x, -x, y, -y, z, -z]
+    assert len(s3.build(cluster([("Al", 1.0)], [("F", v, 1.0) for v in octahedron]))
+               ["polyhedra"]) == 1
+    enclosed = [*octahedron, 0.95 * x]
+    payload = s3.build(cluster([("Al", 1.0)], [("F", v, 1.0) for v in enclosed]))
+    assert payload["polyhedra"] == []

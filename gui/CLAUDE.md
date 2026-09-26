@@ -305,17 +305,21 @@ because U\* → R·U\*·Rᵀ means an image drawn with its parent's tensor is ri
 a cubic site and wrong on every other one; `expand_positions` now delegates to
 it. Four rules. **gemmi has no colour table** — it supplies radii and
 `is_metal`, and the colours are the CPK convention with values chosen here
-(ATTRIBUTION.md), never transcribed. **A radius-sum bond rule needs one chemical
-predicate**: bond metals to metals only when the phase has no non-metal in it,
-or LaB6's twelve cell edges become La–La sticks (covalent radius 2.07 Å against
-a = 4.158 Å). **A non-positive-definite tensor draws its non-positive axes at
+(ATTRIBUTION.md), never transcribed. **A radius-sum bond rule needs a chemical
+predicate**: bond a metal to a cation only when the phase has no non-metal in
+it, or LaB6's cell edges become La–La sticks and forsterite grows Mg–Si ones
+(a cation is `_cation_sites`', WP-1466). **A non-positive-definite tensor draws its non-positive axes at
 zero** on the server (a √ of a negative is a NaN), and the client keeps such a
 column at `FLAT_AXIS` = 1 mÅ because the ray-caster solves through M⁻¹. And
 **bond segments complete their partners exactly one level** — a bond to a
 translated image is correct and *reads* as broken — which is the line between a
 coordination and the packing diagram this WP declined. `probability` and
 `bond_tolerance` are drawing thresholds on the query string, never in
-`ProjectDoc`.
+`ProjectDoc`. **Polyhedra are chemistry, so the server builds them** (WP-1466):
+a centre is a cation, a ligand an anion, and a non-metal bonded to a more
+electronegative one is a cation (`_cation_sites`). A rule change re-runs
+`docs/wp/1466-measure/measure.py`, which writes the 21-phase default picture
+the tests hold (`tests/data/polyhedra_phases.json`).
 
 Its **look** (the second pass, 2026-07-30, read against VESTA, Jmol and
 3Dmol.js) is crystallography's rather than a plotting library's. **Parallel
@@ -338,7 +342,7 @@ rings as an X and a + (WP-1462's gate). It pins a site once and turns that T by
 each image's M·R·M⁻¹, so equivalent atoms wear equivalent rings.
 
 The **renderer** (WP-1462) draws a `Scene` from a `View`, both built by pure
-functions in `structure3d.ts`, and knows nothing else. Seven rules.
+functions in `structure3d.ts`, and knows nothing else. Eight rules.
 **Every atom and bond half is a ray-cast quadric** on one instanced quad, exact
 at any zoom and export size (the practice of Mol\* and NGL; WP-1462 § The field).
 **Hover solves the shader's own equations on the CPU** (`pickAtom`, `pickHalf`,
@@ -357,9 +361,11 @@ and nothing else, calling `rebuild` under `untrack` — called bare, it read the
 geometry, every payload re-ran the effect, and its cleanup's `loseContext` left
 the canvas holding a dead context that drew Chrome's sad face (jsdom's stand-in
 loses nothing, so `test-gl3d.ts` now counts a renderer made on a dead canvas).
-And **Firefox presents the first frame only after compiling the shaders**, some
+**Firefox presents the first frame only after compiling the shaders**, some
 hundreds of ms after the draw call, so a first-show number is read off
-screenshots, never off the call. Under test, `test-setup.ts` mocks
+screenshots, never off the call. And **faces blend, never through coverage**,
+whole polyhedra back to front; only a translucent export pixel proves a face
+painted (WP-1466). Under test, `test-setup.ts` mocks
 `lib/gl3d`'s `createRenderer` with `test-gl3d.ts`, which records every scene
 and view; `--line` is invisible in a 3D scene, so the cell frame takes
 `--accent`; and pictures are compared, never a sha256 of one.

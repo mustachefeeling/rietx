@@ -317,6 +317,31 @@ angle round the third. One of them is drawn through the lattice vector nearest
 their plane, and each symmetry copy of the site shows the copy of those rings.
 Every machine draws the same picture.
 
+Ball mode also draws coordination polyhedra: the shape the nearest anions make
+around a cation, such as SiO₄ or AlF₆. Shells of four to six ligands are drawn
+by default, which are the tetrahedra and octahedra of a framework. Larger
+shells, such as NAC's CaF₈, start switched off. The row under the species
+legend holds a `polyhedra` switch and one button per centre species, labelled
+with the formulas it draws. The switch is held per mode, so polyhedra start on
+in ball mode and off in ellipsoid mode, where the faces would cover the
+ellipsoids. A drawn polyhedron takes the place of its centre's sticks. Pointing
+at a face names the polyhedron, its ligand count, its mean distance and its
+gap, and the caption lists what is drawn and what is off.
+
+A centre is a metal, or a non-metal bonded to a more electronegative one, as P
+is in PO₄. A ligand is any other non-metal except hydrogen. The shell ends at
+the largest jump in the sorted ligand distances. It is drawn only when that
+jump is at least 1.15 times, every ligand is a corner, and the centre is
+inside. On 21 test phases, from spinel to gypsum, this draws the picture a
+chemist would. It does not cover three cases:
+
+- An intermetallic has no anions, so it draws no polyhedra.
+- A split site draws none. That is a shell holding two partly occupied ligands
+  closer to each other than to the centre.
+- A cyanide or carbonyl ligand is misread. Its C bonds the metal and is itself
+  bonded to a more electronegative N or O, so Prussian blue's C-bonded iron
+  gets a larger shape made of N.
+
 `PNG` renders the picture again, 3000 pixels on its long side, with the a, b, c
 letters drawn in. That is a 17 cm figure at 300 dpi with room to crop.
 `transparent PNG`, under `drawing`, leaves the background out.
@@ -328,7 +353,8 @@ Two things here will mislead you if nobody says them:
   for both an ionic solid and an organic. LaB₆ at the default draws every La–B
   contact and looks like a cage; one turn of the slider down and the B₆
   octahedron appears. It sits behind the `drawing` disclosure, and a first-time
-  user needs it.
+  user needs it. No stick joins a metal to a cation at any threshold, so
+  forsterite's Mg is never joined to the Si of its SiO₄ neighbours.
 - The ellipsoids are a diagnostic. Their axes are refined quantities, so a
   background flexible enough to imitate the peaks arrives here as balloons,
   while improving Rwp. A non-positive-definite tensor arrives as a flat disc,

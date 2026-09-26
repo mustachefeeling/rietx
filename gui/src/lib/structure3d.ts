@@ -58,6 +58,26 @@ export interface Bond {
   d: number;
 }
 
+/** One coordination polyhedron (WP-1466): chemistry and geometry both
+ *  server-side, so a client only draws it. */
+export interface Polyhedron {
+  /** the centre, an index into `atoms` */
+  center: number;
+  site: number;
+  /** indices into `atoms`, every one of them drawn */
+  vertices: number[];
+  /** outward-wound triangles and the edges between faces that are not
+   *  coplanar, both as indices into `vertices` */
+  faces: number[][];
+  edges: number[][];
+  /** the centre's sticks to its own vertices, indices into `bonds` */
+  bonds: number[];
+  coordination: number;
+  mean_distance: number;
+  gap: number;
+  drawn_by_default: boolean;
+}
+
 export interface Geometry {
   phase: number;
   phases: string[];
@@ -71,6 +91,7 @@ export interface Geometry {
   sites: Site[];
   atoms: DrawnAtom[];
   bonds: Bond[];
+  polyhedra: Polyhedron[];
   probability: number;
   probability_levels: Record<string, number>;
   scale: number;
@@ -155,6 +176,73 @@ export function atomLabel(geometry: Geometry, atom: DrawnAtom, mode: Mode): stri
 export function bondLabel(geometry: Geometry, bond: Bond): string {
   const name = (index: number) => geometry.sites[geometry.atoms[index].site].label;
   return `${name(bond.i)}–${name(bond.j)}  ${bond.d.toFixed(3)} Å`;
+}
+
+const SUBSCRIPT = "₀₁₂₃₄₅₆₇₈₉";
+
+/** A polyhedron as a chemist writes it: the centre, then its ligands by count,
+ *  most first — `AlF₆`, `CaO₆F`. */
+export function polyhedronFormula(geometry: Geometry, polyhedron: Polyhedron): string {
+  const counts = new Map<string, number>();
+  for (const v of polyhedron.vertices) {
+    const element = geometry.sites[geometry.atoms[v].site].element;
+    counts.set(element, (counts.get(element) ?? 0) + 1);
+  }
+  const ligands = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([element, n]) => element + (n > 1 ? [...String(n)].map((d) => SUBSCRIPT[+d]).join("") : ""));
+  return geometry.sites[polyhedron.site].element + ligands.join("");
+}
+
+/** One hover line per polyhedron: what it is, around which site, and its shell. */
+export function polyhedronLabel(geometry: Geometry, polyhedron: Polyhedron): string {
+  const site = geometry.sites[polyhedron.site];
+  return [`${polyhedronFormula(geometry, polyhedron)} around ${site.label}`,
+          `${polyhedron.coordination} ligands`,
+          `mean ${polyhedron.mean_distance.toFixed(3)} Å`,
+          `gap ×${polyhedron.gap.toFixed(2)}`].join("  ·  ");
+}
+
+/**
+ * Which polyhedra are drawn, as indices into `geometry.polyhedra`.
+ *
+ * `on` is the one switch, and its default is the mode's (WP-1466, P8): on in
+ * ball mode, off in ellipsoid mode, where faces would cover the ADPs that mode
+ * exists to show.  `species` holds the legend's switches per centre species;
+ * a species it does not name takes the server's default (P5), which draws
+ * shells of four to six.  A polyhedron goes with its centre's species when
+ * the atom legend hides that, and with its centre when the images outside the
+ * cell are hidden.
+ */
+export function shownPolyhedra(geometry: Geometry, on: boolean,
+                               species: ReadonlyMap<string, boolean>,
+                               hidden: ReadonlySet<string> = new Set(),
+                               showBoundary = true): number[] {
+  if (!on) return [];
+  return geometry.polyhedra.flatMap((p, i) => {
+    const centre = geometry.sites[p.site].species;
+    if (hidden.has(centre)) return [];
+    if (!showBoundary && geometry.atoms[p.center].boundary) return [];
+    return (species.get(centre) ?? p.drawn_by_default) ? [i] : [];
+  });
+}
+
+/** Centre species → its polyhedra legend entry, in the order the sites are
+ *  declared, with the formulas it draws and whether the default draws any. */
+export function polyhedraLegend(geometry: Geometry): Array<{
+  species: string; color: string; formulas: string[]; byDefault: boolean }> {
+  const out: Array<{ species: string; color: string; formulas: string[]; byDefault: boolean }> = [];
+  for (const p of geometry.polyhedra) {
+    const site = geometry.sites[p.site];
+    let entry = out.find((e) => e.species === site.species);
+    if (!entry) {
+      entry = { species: site.species, color: site.color, formulas: [], byDefault: false };
+      out.push(entry);
+    }
+    const formula = polyhedronFormula(geometry, p);
+    if (!entry.formulas.includes(formula)) entry.formulas.push(formula);
+    entry.byDefault ||= p.drawn_by_default;
+  }
+  return out;
 }
 
 /** Species → its legend entry, in the order the sites are declared. */
@@ -262,11 +350,32 @@ export interface SceneLabel {
   pos: number[];
 }
 
+/** A polyhedron's faces are drawn at this opacity in the centre's colour
+ *  (WP-1466, P6: VESTA's look). */
+export const POLY_ALPHA = 0.55;
+
+/** A polyhedron's edges, in CSS pixels, drawn as the cell frame's quads (D9). */
+export const EDGE_WIDTH_PX = 1.25;
+
+/** One polyhedron as the renderer draws it: flat triangles, wound outward. */
+export interface SceneFaces {
+  /** index into `geometry.polyhedra`, for the hover text */
+  index: number;
+  /** three points a triangle, nine numbers, in Å */
+  triangles: number[];
+  /** one outward normal a triangle, three numbers */
+  normals: number[];
+  color: number[];
+  /** the vertices' mean, which orders translucent polyhedra back to front */
+  centroid: number[];
+}
+
 /** Everything the renderer draws, in Å — and nothing it has to derive. */
 export interface Scene {
   atoms: SceneAtom[];
   halves: SceneHalf[];
   lines: SceneLine[];
+  faces: SceneFaces[];
   labels: SceneLabel[];
   /** the centre of the cell and its atoms, and the radius the view fits */
   center: number[];
@@ -282,6 +391,8 @@ export interface SceneOptions {
   exaggeration?: number;
   /** the cell frame's colour, `#rrggbb` */
   cell?: string;
+  /** the polyhedra drawn, indices into `geometry.polyhedra` (`shownPolyhedra`) */
+  polyhedra?: readonly number[];
 }
 
 function toRowMajor(m: number[][]): Mat3 {
@@ -364,10 +475,18 @@ function drawable(m: number[][]): Mat3 {
  * Bonds are split at the midpoint and each half is coloured by the atom it
  * leaves — the convention every other viewer uses, and the thing that makes a
  * bond say which two species it joins without a hover.
+ *
+ * A drawn polyhedron (WP-1466) brings its faces and its edges, the edges as
+ * lines in a darker ink of the centre's colour, and takes away its centre's
+ * sticks to its own vertices.  The gap shell and the bond rule can disagree
+ * (NAC's Na: 4 sticks, 7 vertices), and drawing both would show the
+ * contradiction rather than the shell.
  */
 export function buildScene(geometry: Geometry, options: SceneOptions): Scene {
   const { mode, hidden = new Set<string>(), showBoundary = true,
-          exaggeration = 1, cell = "#1f5fa8" } = options;
+          exaggeration = 1, cell = "#1f5fa8", polyhedra = [] } = options;
+  // a drawn polyhedron replaces its centre's sticks to its own vertices (P6)
+  const replaced = new Set(polyhedra.flatMap((i) => geometry.polyhedra[i].bonds));
   const atoms: SceneAtom[] = [];
   geometry.atoms.forEach((atom, index) => {
     const site = geometry.sites[atom.site];
@@ -388,6 +507,7 @@ export function buildScene(geometry: Geometry, options: SceneOptions): Scene {
   const radius = stickRadius(geometry, mode, exaggeration);
   const halves: SceneHalf[] = [];
   geometry.bonds.forEach((bond, index) => {
+    if (replaced.has(index)) return;
     const mid = [0, 1, 2].map((k) => (bond.a[k] + bond.b[k]) / 2);
     for (const [from, at] of [[bond.a, bond.i], [bond.b, bond.j]] as const) {
       const site = geometry.sites[geometry.atoms[at].site];
@@ -399,6 +519,28 @@ export function buildScene(geometry: Geometry, options: SceneOptions): Scene {
   const lines: SceneLine[] = geometry.edges.map(([a, b]) => ({
     a: geometry.corners[a], b: geometry.corners[b], color: ink, width: CELL_WIDTH_PX,
   }));
+  const faces: SceneFaces[] = polyhedra.map((index) => {
+    const p = geometry.polyhedra[index];
+    const site = geometry.sites[p.site];
+    // an image's polyhedron is dimmed with its centre, for the same reason
+    const color = geometry.atoms[p.center].boundary ? dim(site.color) : site.color;
+    const at = p.vertices.map((v) => geometry.atoms[v].pos);
+    for (const [i, j] of p.edges) {
+      lines.push({ a: at[i], b: at[j], color: rgb(dim(color, 0.5)), width: EDGE_WIDTH_PX });
+    }
+    const triangles: number[] = [], normals: number[] = [];
+    for (const face of p.faces) {
+      const [a, b, c] = face.map((v) => at[v]);
+      const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+      const w = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      const n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+      const length = Math.hypot(n[0], n[1], n[2]) || 1;
+      triangles.push(...a, ...b, ...c);
+      normals.push(n[0] / length, n[1] / length, n[2] / length);
+    }
+    const centroid = [0, 1, 2].map((k) => at.reduce((sum, q) => sum + q[k], 0) / at.length);
+    return { index, triangles, normals, color: rgb(color), centroid };
+  });
   // the fit reads positions and ball sizes only, so neither a mode nor a
   // legend click moves the zoom; the depth range holds whatever is drawn
   const points = [...geometry.corners, ...geometry.atoms.map((a) => a.pos)];
@@ -411,7 +553,7 @@ export function buildScene(geometry: Geometry, options: SceneOptions): Scene {
   const ball = geometry.ball_fraction * Math.max(0, ...geometry.sites.map((s) => s.radius));
   const reach = Math.max(ball, ...atoms.map((a) => [0, 1, 2].reduce((m, c) =>
     Math.max(m, Math.hypot(a.shape[c], a.shape[3 + c], a.shape[6 + c])), 0)));
-  return { atoms, halves, lines, labels: axisLabels(geometry), center,
+  return { atoms, halves, lines, faces, labels: axisLabels(geometry), center,
            radius: Math.max(half + ball, 1), depth: half + reach + 1 };
 }
 
@@ -622,8 +764,33 @@ export function pickHalf(scene: Scene, view: View, width: number, height: number
   return best;
 }
 
+/** The polyhedron whose face is under a canvas point, or `null`: the ray
+ *  `(x, y, z)` with `z` free meets a triangle where the point lies inside the
+ *  triangle's projection, at the depth its barycentric weights give. */
+export function pickFace(scene: Scene, view: View, width: number, height: number,
+                         px: number, py: number): { faces: number; z: number } | null {
+  const [x, y] = unproject(scene, view, width, height, px, py);
+  let best: { faces: number; z: number } | null = null;
+  for (const [i, polyhedron] of scene.faces.entries()) {
+    const t = polyhedron.triangles;
+    for (let k = 0; k < t.length; k += 9) {
+      const [a, b, c] = [0, 3, 6].map((o) => toView(scene, view, t.slice(k + o, k + o + 3)));
+      const det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
+      if (Math.abs(det) < 1e-12) continue;           // seen edge-on
+      const l1 = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / det;
+      const l2 = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / det;
+      const l3 = 1 - l1 - l2;
+      if (l1 < 0 || l2 < 0 || l3 < 0) continue;
+      const z = l1 * a[2] + l2 * b[2] + l3 * c[2];
+      if (!best || z > best.z) best = { faces: i, z };
+    }
+  }
+  return best;
+}
+
 /** The sentence under the plot: what is drawn, at what thresholds. */
-export function caption(geometry: Geometry, mode: Mode, exaggeration = 1): string {
+export function caption(geometry: Geometry, mode: Mode, exaggeration = 1,
+                        shown: readonly number[] = []): string {
   const real = geometry.atoms.filter((a) => !a.boundary).length;
   const ghosts = geometry.atoms.length - real;
   const parts = [
@@ -632,7 +799,7 @@ export function caption(geometry: Geometry, mode: Mode, exaggeration = 1): strin
     `${geometry.bonds.length} bond segment${geometry.bonds.length === 1 ? "" : "s"}`
       + ` at ${geometry.bond_tolerance.toFixed(2)}×(rᵢ+rⱼ)`,
   ];
-  if (!geometry.bond_metals) parts.push("metal–metal contacts not bonded");
+  if (!geometry.bond_metals) parts.push("metal–metal and metal–cation contacts not bonded");
   if (mode === "ellipsoid") {
     // The probability and the exaggeration are stated **separately**, always.
     // A probability cannot exceed 1 — k(p) = √χ²₃(p) diverges as p → 1, and
@@ -651,5 +818,16 @@ export function caption(geometry: Geometry, mode: Mode, exaggeration = 1): strin
     parts.push(`balls at ${geometry.ball_fraction.toFixed(2)}× the covalent radius`);
   }
   parts.push(`sticks ${stickRadius(geometry, mode, exaggeration).toFixed(3)} Å`);
+  if (geometry.polyhedra.length) {
+    const formula = (i: number) => polyhedronFormula(geometry, geometry.polyhedra[i]);
+    const all = [...new Set(geometry.polyhedra.map((_p, i) => formula(i)))];
+    const drawn = new Map<string, number>();
+    for (const i of shown) drawn.set(formula(i), (drawn.get(formula(i)) ?? 0) + 1);
+    const off = all.filter((f) => !drawn.has(f));
+    parts.push(shown.length
+      ? "polyhedra " + [...drawn].map(([f, n]) => `${f} ×${n}`).join(", ")
+        + (off.length ? `; ${off.join(", ")} off` : "")
+      : `polyhedra off (${all.join(", ")})`);
+  }
   return parts.join(" · ");
 }

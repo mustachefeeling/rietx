@@ -162,6 +162,41 @@ def test_an_anisotropic_site_shows_its_principal_ellipses(page):
     assert _dark_green(_picture(page)) < rings / 10
 
 
+def test_the_polyhedra_are_painted_and_give_way_to_their_switch(page, tmp_path):
+    """WP-1466: NAC's AlF₆ octahedra are drawn by default in ball mode.
+
+    jsdom sees only the scene the viewer hands over, so a face pass that
+    painted nothing would pass every vitest.  The screen cannot tell either:
+    the switch also moves the edges and the sticks the faces replace, and
+    with the faces' alpha forced to 0 the picture still changed by 1.42
+    levels against 2.86.  What only a face makes is a **translucent** pixel
+    in the transparent export, where the background is nothing: the switch
+    added 61 347 of them (1.15 % of 5.3 Mpx) and, faces broken, 1 400.
+    """
+    page.get_by_role("button", name="▸ drawing").click()
+    page.locator(".drawer label", has_text="transparent PNG").locator("input").check()
+    switch = page.locator(".viewer .legend").nth(1).get_by_role("button", name="polyhedra",
+                                                               exact=True)
+
+    def translucent(name: str) -> tuple[int, int]:
+        with page.expect_download() as download:
+            page.locator("section.viewer").get_by_role("button", name="PNG", exact=True).click()
+        download.value.save_as(tmp_path / name)
+        alpha = np.asarray(imread(tmp_path / name), dtype=float)[..., 3]
+        return int(((alpha > 0.3) & (alpha < 0.9)).sum()), alpha.size
+
+    drawn = _picture(page)
+    faces, size = translucent("on.png")
+    switch.click()
+    _settle(page)
+    bare, _ = translucent("off.png")
+    switch.click()
+    _settle(page)
+    assert faces - bare > 0.003 * size
+    # and the switch gives the picture back as it was
+    assert float(np.abs(drawn - _picture(page)).mean() * 255) < 0.5
+
+
 def test_the_png_is_rendered_again_at_3000_pixels(page, tmp_path):
     with page.expect_download() as download:
         # the viewer's own: the pattern panel beside it has a PNG export too (WP-1461)

@@ -1,0 +1,24 @@
+
+firefox against chromium
+  ball                 0.00 levels,  0.00 % past 32
+  dragged              0.00 levels,  0.00 % past 32
+  ellipsoid            0.02 levels,  0.03 % past 32
+  export-transparent   0.02 levels,  0.00 % past 32
+  export               0.00 levels,  0.00 % past 32
+  polyhedra            0.00 levels,  0.00 % past 32
+  redrawn              0.00 levels,  0.00 % past 32
+  restored             0.00 levels,  0.00 % past 32
+  rings-ball           0.00 levels,  0.00 % past 32
+  rings                0.09 levels,  0.14 % past 32
+
+webkit against chromium
+  ball                 0.00 levels,  0.00 % past 32
+  dragged              0.00 levels,  0.00 % past 32
+  ellipsoid            0.00 levels,  0.00 % past 32
+  export-transparent   0.01 levels,  0.01 % past 32
+  export               0.02 levels,  0.01 % past 32
+  polyhedra            0.00 levels,  0.00 % past 32
+  redrawn              0.00 levels,  0.00 % past 32
+  restored             0.00 levels,  0.00 % past 32
+  rings-ball           0.00 levels,  0.00 % past 32
+  rings                0.00 levels,  0.00 % past 32
