@@ -877,6 +877,60 @@ def test_a_magnetic_supercell_is_refused_naming_what_would_be_needed(tmp_path):
         _read(tmp_path, "LaMnO3", k="1/2 0 0")
 
 
+def test_a_magnetic_supercell_phase_round_trips_in_its_own_cell(tmp_path):
+    """A phase ``magnetic_supercell`` built (#477) is already stated in the
+    magnetic cell, one nuclear orbit split into its magnetic sites, so the
+    writer states it there with no child transform and no k, and the fence
+    above does not fire: it reads back as a k = 0 structure in that cell.
+
+    Operators, moments, positions and the predicted pattern survive.  What does
+    not is ``propagation_vector_parent``, the record of which parent k the
+    cell came from: writing it as magCIF does, beside a child transform, is
+    exactly what the fence refuses.
+    """
+    from rietx.crystallography.magnetic.isotropy import candidates
+    from rietx.crystallography.magnetic.supercell import magnetic_supercell
+    from rietx.schemas.structure import Atom, Cell, Phase
+
+    def p(v):
+        return rx.Parameter(value=v)
+
+    parent = Phase(
+        name="tetragonal", space_group="P 4/m m m",
+        cell=Cell(a=p(4.0), b=p(4.0), c=p(4.2), alpha=p(90.0), beta=p(90.0),
+                  gamma=p(90.0)),
+        atoms=[Atom(label="Mn1", species="Mn", x=p(0.0), y=p(0.0), z=p(0.0),
+                    biso=p(0.4)),
+               Atom(label="O1", species="O", x=p(0.5), y=p(0.5), z=p(0.5),
+                    biso=p(0.6))])
+    truth = candidates("P 4/m m m", (0.0, 0.0, 0.0), (0, 0, "1/2"))[0]
+    phase = magnetic_supercell(parent, truth, magnetic_species=["Mn1"],
+                               ion={"Mn1": "Mn3+"}, magnitude=3.0).phase
+    path = tmp_path / "supercell.mcif"
+    structure_to_cif(rx.Structure(phases=[phase]), str(path))
+    back = structure_from_cif(str(path)).phases[0]
+
+    assert back.space_group == phase.space_group
+    assert [(a.label, a.x.value, a.y.value, a.z.value) for a in back.atoms] == [
+        (a.label, a.x.value, a.y.value, a.z.value) for a in phase.atoms]
+    for field in ("operations", "centerings", "bns_number", "setting"):
+        assert (getattr(back.magnetic_symmetry, field)
+                == getattr(phase.magnetic_symmetry, field)), field
+    assert {a.label: (a.moment.values(), a.moment.ion) for a in back.atoms
+            if a.moment is not None} == {
+        a.label: (a.moment.values(), a.moment.ion) for a in phase.atoms
+        if a.moment is not None}
+    assert phase.magnetic_symmetry.propagation_vector_parent is not None
+    assert back.magnetic_symmetry.propagation_vector_parent is None
+
+    grid = np.linspace(10.0, 90.0, 2001)
+    instrument = rx.Instrument.constant_wavelength_neutron(1.54, fwhm_deg=0.35)
+    y0, y1 = (np.asarray(rx.Refinement(rx.Structure(phases=[ph]),
+                                       instrument).predict(grid))
+              for ph in (phase, back.model_copy(update={"name": phase.name})))
+    assert np.max(np.abs(y1 - y0)) <= 1e-9 * np.max(y0)
+
+
 def test_an_all_integer_k_is_gamma_not_a_supercell(tmp_path):
     """D2: k = (1, 1, 1) is Gamma identically -- a propagation vector is only
     ever physically meaningful modulo the reciprocal lattice, so an all-integer
