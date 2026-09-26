@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: 🔄 2026-09-25 — the renderer replaces plotly and no GUI page loads plotly; the Windows or Linux GPU gate and the rename after WP-1461 closes remain
 Depends on: 1461 (soft)
-Priority: P3 2026-09-25 — after WP-1461 the structure viewer is the last page that loads plotly, 4.82 MB evaluated in a 700-811 ms frame on its first show
+Priority: P3 2026-09-26 — WP-1461 closed, so the rename can land; the GPU gate waits on a Windows or Linux machine, and the viewer already ships without plotly
 
 ## Goal
 
@@ -22,6 +22,15 @@ maintainer chose a renderer of our own (D1). The file is renamed once
 WP-1461 closes, because WP-1461's in-flight file links to this name.
 
 ## Context
+
+### Inherited
+
+- **From WP-1461, closed 2026-09-26.** The rename task is due. Three files
+  link this name: `ROADMAP.md`, WP-1461 (twice) and `1462-spike/README.md`.
+  `grep -rl 1462-the-structure-viewer-draws-with-threejs docs` finds them all.
+  The maintainer dragged in the GUI in real Safari on 2026-09-26 and it
+  worked, which answers WP-1461's finding 15 for the 2D charts. The viewer's
+  own drag was not part of that report.
 
 ### What the viewer is
 
