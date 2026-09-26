@@ -1,8 +1,7 @@
 # WP-1462 — the structure viewer draws with its own WebGL2 renderer
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — the renderer replaces plotly and no GUI page loads plotly; the Windows or Linux GPU gate and the rename after WP-1461 closes remain
+Milestone: unscheduled · Status: ✅ 2026-09-26 — the viewer draws with its own renderer; the GPU gate passed as partial, on software drivers
 Depends on: 1461 (soft)
-Priority: P3 2026-09-26 — WP-1461 closed, so the rename can land; the GPU gate waits on a Windows or Linux machine, and the viewer already ships without plotly
 
 ## Goal
 
@@ -16,21 +15,15 @@ and `pyproject.toml` names it nowhere. Two users of plotly are outside this
 WP: `rietx compare` and `viz.html.write_html`, which writes a plotly page
 from Python. Both keep it through the `viz` extra until WP-1461's last two
 tasks move them to uPlot and take plotly out of that extra.
+*Superseded 2026-09-26:* WP-1461 closed with both moved, and
+`pyproject.toml` names plotly nowhere. The first goal holds whole.
 
-The file was filed recommending three.js, and its name still says so. The
-maintainer chose a renderer of our own (D1). The file is renamed once
-WP-1461 closes, because WP-1461's in-flight file links to this name.
+The file was filed recommending three.js as
+`1462-the-structure-viewer-draws-with-threejs.md`. The maintainer chose a
+renderer of our own (D1), and the file took its title's name on
+2026-09-26, once WP-1461 had closed.
 
 ## Context
-
-### Inherited
-
-- **From WP-1461, closed 2026-09-26.** The rename task is due. Three files
-  link this name: `ROADMAP.md`, WP-1461 (twice) and `1462-spike/README.md`.
-  `grep -rl 1462-the-structure-viewer-draws-with-threejs docs` finds them all.
-  The maintainer dragged in the GUI in real Safari on 2026-09-26 and it
-  worked, which answers WP-1461's finding 15 for the 2D charts. The viewer's
-  own drag was not part of that report.
 
 ### What the viewer is
 
@@ -310,9 +303,25 @@ shell.
 - **A lost context must come back.** `webglcontextlost` and
   `webglcontextrestored` rebuild the programs and buffers from the payload
   already held.
-- **Only Apple GPUs have drawn it.** Chromium ran on ANGLE over Metal,
-  Firefox and WebKit on the same M4, and headless Chromium on SwiftShader.
-  Windows (ANGLE over D3D11) and Linux drivers have not.
+- **No vendor GPU off Apple has drawn it.** On 2026-09-26 the gate
+  (`1462-spike/gate.py`, `results/gate_ci.txt`) ran on GitHub's Windows and
+  Linux runners, which have no GPU. Their drivers are software ones:
+  Direct3D 11 over WARP through ANGLE (Chromium, WebKit), Mesa llvmpipe
+  (Chromium through ANGLE's GL backend, Firefox, WebKit) and SwiftShader
+  (Chromium's default). So ANGLE's translation to HLSL and to GLSL is
+  covered, but no NVIDIA, AMD or Intel driver is. `gate.py run` on such a
+  machine, compared with `results/gate_payload_mac.json` replayed, is
+  the one command that closes it. The maintainer dragged the GUI's 2D
+  charts in real Safari on 2026-09-26 and they worked. The viewer's own
+  drag was not part of that report.
+- **A context with no multisample buffer draws aliased silhouettes.**
+  D7's coverage goes through alpha-to-coverage, which needs samples.
+  Firefox on WARP granted `antialias: false`. The picture is otherwise the
+  reference's, and 96 % of its differing pixels lie on an edge. The export
+  renders into its own multisampled buffer and stayed smooth there.
+- **A browser that blocks WebGL2 gets the viewer's message.** Firefox's
+  default on WARP refuses WebGL2, and the panel said "this browser has no
+  WebGL2" with no knobs, as designed.
 - **jsdom has no WebGL.** vitest covers the pure half: the projected
   extents, the pick, the trackball and the instance data. A stand-in
   records what was asked to be drawn, as `gui/src/test-uplot.ts` does for
@@ -326,7 +335,8 @@ shell.
 - **plotly outlives this WP until the Series panel leaves it.**
   `panels/Series.svelte` still draws with plotly. The `/plotly.js` route,
   `lib/plotly.ts` and the `gui` extra's plotly go with whichever of this WP
-  and WP-1461's Series task lands second.
+  and WP-1461's Series task lands second. *Done 2026-09-25*, in this WP's
+  third session.
 - **The camera is owned outright.** The renderer keeps the camera between
   draws, so the read-back rule above goes. A redraw must still not reset
   the view, and a test says so.
@@ -348,12 +358,13 @@ shell.
 ## Tasks
 
 - [x] The maintainer confirms D1-D8 (2026-09-25); the critical pass revises D5 and D6 and adds D9; WP-1466 is filed for D8
-- [ ] Spike, the gate: the renderer on the GPU paths the prototype has not met (any Windows or Linux machine the maintainer can reach), and paired against today's plotly viewer on the same machine: first show, rotation frames and hover work per event, in Chromium, WebKit and Firefox. Record go or no-go in the handover. On no-go, draw the same payloads with three.js before stopping.
+- [x] Spike, the gate: the renderer on the GPU paths the prototype has not met (any Windows or Linux machine the maintainer can reach), and paired against today's plotly viewer on the same machine: first show, rotation frames and hover work per event, in Chromium, WebKit and Firefox. Record go or no-go in the handover. On no-go, draw the same payloads with three.js before stopping. *Closed as partial 2026-09-26, by the maintainer's choice:* go on the software drivers of GitHub's Windows and Linux runners, with no vendor GPU (§ Where it will bite). The timings were not repeated there, since a software rasteriser's times measure the rasteriser, so the Mac's paired runs stand.
 - [x] The renderer: instanced atom and bond-half impostors, D9's line quads for the cell frame, the a/b/c overlay, the orthographic camera, the trackball, the light on the camera, theme colours, boundary images dimmed, D6's ellipses, D7's antialiasing, context loss, and release on unmount
 - [x] Interaction: hover on atoms and bond halves, legend toggles, the a/b/c and reset views, pan and zoom, the three knobs, the view kept across redraws, and `ResizeObserver` sizing
 - [x] Export (D5): the offscreen render at a 3000 px long side, multisampled, lines and labels scaled, on the screen's background and on a transparent one
 - [x] Leave plotly in the viewer: the trace builders, the tessellation, the camera read-back and the modebar. The `/plotly.js` route, `gui/src/lib/plotly.ts`, the `gui` extra's plotly, `viz/plotlyjs.py`, `lib/plot.ts:hoverLabel` and the `Plotly` stand-in in `test-setup.ts` go only if the Series panel has left plotly too. It had, so they went on 2026-09-25 and the `gui` extra is empty; `viz/plotlyjs.py` stays for `rietx compare`.
-- [ ] Rename this file to its title once WP-1461 has closed, with its ROADMAP row and WP-1461's two links
+- [x] D6's rings on a tensor whose principal axes are not all fixed. The gate found four of NAC's six sites with two equal principal values. Three sit on a threefold axis, and Ca1's file gives U11 = U33 on a twofold. `eigh` places their two free axes per LAPACK build. The Mac draws Na1's rings as an X and an x86 runner as a +, while T·Tᵀ agrees to 2e-17 (`1462-spike/shots/gate-uniaxial-rings.png`). *Decided 2026-09-26:* ORTEP-III, PLATON and Jmol draw all three rings on every anisotropic site, wherever their solver puts the axes, and no manual or paper names a tie-break (a survey, with Jmol's `EllipsoidsRenderer` read here). The maintainer chose that practice, made stable: `structure3d._pin_axes` fixes each sign, turns a free pair so one ring's plane holds the lattice vector nearest it, and gives a sphere the orthonormalised lattice. It pins each site once and turns that T by every image's Cartesian rotation, so equivalent atoms wear equivalent rings (the review's finding: pinned image by image they sat up to 60° apart). The x86 runners' own vectors, pinned, land on the Mac's to 5.6e-17 Å.
+- [x] Rename this file to its title once WP-1461 has closed, with its ROADMAP row and WP-1461's two links
 - [x] Tests: `structure3d.test.ts` on the pure half and the instance data; a WebGL stand-in beside `test-uplot.ts`; a browser test that reads pixels at known atoms, finds a principal ellipse on an anisotropic site, and asserts a redraw keeps the view; a test that no page requests `/plotly.js`
 - [x] Docs: the structure viewer paragraphs in `gui/CLAUDE.md` (crystallography rules kept, plotly traps deleted), `using/install.md` for the `gui` extra, ATTRIBUTION.md, and the root CLAUDE.md's GUI lines if they name plotly. On the three.js fallback also: its row in `.github/dependabot.yml`'s allow list (WP-1461 created it) and its licence text in `LICENSE-3RD-PARTY.md`.
 
@@ -416,6 +427,109 @@ npm --prefix gui test && npm --prefix gui run check
 - `1462-spike/README.md`: the files and how to rerun them.
 
 ## Handover log
+
+### 2026-09-26 (4th session) — renamed, the GPU gate passes as partial, and the WP closes
+
+The structure viewer has now drawn on Windows and Linux as well as on Apple
+hardware, and this WP is closed. GitHub's runners have no GPU, so the check ran
+on three software drivers. There the pictures matched the Mac's, so the
+renderer stands and three.js is not needed. The check also found that a site
+displacing equally in two directions drew two of its rings at an angle that
+depended on the machine. The viewer now fixes that angle to the lattice. This
+follows ORTEP and Jmol, and adds the tie-break they lack. No NVIDIA, AMD or
+Intel driver has drawn the viewer yet.
+
+*Done.*
+- The file took its title's name, with the ROADMAP row, WP-1461's two links
+  and the spike README. The Inherited entry was pruned on arrival. The rename
+  it announced is this session's, and its Safari note moved beside the GPU
+  risk in § Where it will bite. The goal's 2026-09-25 narrowing is marked
+  superseded, since `pyproject.toml` names plotly nowhere now.
+- `1462-spike/gate.py` is the gate's probe. `run` drives the real viewer in
+  one browser configuration, with its canvas lifted over the page at 720 × 540
+  CSS px. It records the GL driver, seven screenshots, both exports, a lost
+  and restored context and the contexts left after five toggles. `compare`
+  holds a run to a reference machine's run of the same engine, against a bar
+  written into its docstring before the first CI run. `--payload=` replays
+  another machine's payload. A one-off workflow ran it headed on
+  `windows-latest` and `ubuntu-latest`, five configurations each, native and
+  replayed. It never reached main, and commit 5f2f495c holds it. The output
+  is `results/gate_ci.txt` and the replayed payload
+  `results/gate_payload_mac.json`.
+- The maintainer chose to close the gate as partial, on software drivers.
+- The rings. The maintainer asked for best practice. A survey agent read the
+  ORTEP-III and PLATON manuals and Jmol's source, and I read Jmol's
+  `EllipsoidsRenderer` and `Tensor` myself. All three draw three rings on
+  every anisotropic site wherever their solver puts the axes, and none
+  documents a tie-break. The maintainer chose that practice, made stable, in
+  `structure3d._pin_axes`. Each lone axis faces (1, e, π). An equal pair's
+  first axis is the shadow of the lattice vector nearest their plane. A sphere
+  takes the orthonormalised lattice. A site is pinned once, and each image is
+  turned by its own M·R·M⁻¹.
+- Docs: `gui/CLAUDE.md`'s viewer paragraph, the GUI guide's 3D section and the
+  1.5.1 notes.
+- Forward notes. WP-1466 inherits the probe and the gate's two findings for a
+  translucent pass. Its Priority is re-rated and stays P3: its blocker is gone,
+  and its first task waits on the maintainer. WP-1313 inherits that three.js
+  joins no allow list.
+
+*Measured.* The reference is this Mac: Apple M4, playwright 1.63.0, Chromium
+153 on ANGLE Metal, Firefox 155 and WebKit 26.6, all headed. Its three engines
+agree to 0.09 levels of 255 on every picture. With the Mac's payload replayed,
+the worst picture per runner configuration was:
+
+| Driver the runner reported | Browsers | Against the bar |
+|---|---|---|
+| Direct3D 11 over WARP, via ANGLE | Chromium, WebKit (Windows) | go: 0.15 levels, 0.30 % past 32 |
+| Mesa llvmpipe | Chromium via ANGLE's GL, Firefox, WebKit (Linux) | go: 0.07 levels, 0.15 % |
+| SwiftShader | default Chromium, both runners | 0.50 levels, 1.01 % against a 1 % bar; 99.3 % of those pixels on an edge |
+| WARP with no multisample buffer | Firefox forced (Windows) | no-go: 2.44 levels, aliased edges, 96 % on an edge |
+| WARP, blocklisted | default Firefox (Windows) | the viewer's "no WebGL2" message |
+
+- On every run a redraw and a restored context came back to 0.000 levels,
+  reset moved the view by 22.95 or more, hover picked Ca1, both exports were
+  3000 × 2250, five toggles made six contexts and lost six, and no page threw.
+- Native payloads, before the pin: T differed from the Mac's by 0.04-0.18 Å on
+  the four sites with an equal pair, and by sign alone (≤ 1e-16) on F1 and F2.
+  T·Tᵀ agreed to 2e-17. After the pin, each site's own image from the x86
+  runners' vectors lands on the Mac's to 5.6e-17 Å.
+- Fast selection on the final tree, `[dev]` venv plus python playwright
+  1.63.0, macOS arm64, no other suite running, load 3.5 at the start: 6270
+  passed, 140 skipped, 179 s. The session added five tests to
+  `tests/test_structure3d.py`, all passing, and changed no other test file.
+  The full selection did not run, because the change moves the viewer's
+  payload and no measured refinement number. GUI vitest did not run, since no
+  file under `gui/src` changed.
+
+*Review.* `/code-review high --fix` found nine. It fixed three: the tolerance
+comment's numbers (4.5e-16 rounding, 7.8 % nearest real gap), the count of
+symmetry-uniaxial sites, and a test through `build()`. Only three of the four
+sites with an equal pair sit on a threefold. Ca1 is on a twofold, and its file
+gives U11 = U33. I took three it left. Images were pinned one by one, which put
+equivalent atoms' free rings up to 60° apart, so a site is now pinned once.
+`gate.py` now waits for the payload and reports a reference picture it lacks.
+The `_FACING` comment and the guide now say less and cover more. Declined:
+`gate.py`'s argument order, whose documented usage puts the flags last.
+
+*Gotchas.*
+- `timeout` is not on this Mac. Wrapped round `gh run watch` with stderr
+  hidden, it returned at once, three times. Check elapsed time with `date -u`
+  against the job's `startedAt`.
+- The worktree guard refuses a heredoc whose text names git, and a command
+  with a shell variable in its path. A scratchpad script run in one plain
+  command passes.
+- An element screenshot captures whatever is composited over the element. The
+  first reference caught page chrome across the canvas, which is why the probe
+  lifts it over the page.
+- A real wheel event gives each engine its own zoom, and Firefox zoomed less.
+  The probe dispatches a synthetic one.
+
+*Next.*
+1. The gate's residual: on a Windows or Linux machine with an NVIDIA, AMD or
+   Intel GPU, take a fresh Mac reference and run `gate.py` natively there
+   (`1462-spike/README.md` § Running it).
+2. WP-1466, the polyhedra, needs the maintainer's P1-P8 and Brunner &
+   Schwarzenbach (1971) before its first task.
 
 ### 2026-09-25 (3rd session) — the GUI's plotly goes, and the handover resumes
 

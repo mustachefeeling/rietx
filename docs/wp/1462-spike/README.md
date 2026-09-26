@@ -1,7 +1,7 @@
 # WP-1462 spike
 
 The pages and drivers that produced the numbers in
-[WP-1462](../1462-the-structure-viewer-draws-with-threejs.md). Nothing here
+[WP-1462](../1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md). Nothing here
 ships or runs in the suite. The logs in `results/` are the runs the WP quotes.
 
 ## Files
@@ -20,6 +20,7 @@ ships or runs in the suite. The logs in `results/` are the runs the WP quotes.
 | `first_frame.mjs` | Draw calls and screenshots at three delays after the Model tab opens, which showed Firefox presenting its first frame late. Port 8797. |
 | `loaf_attribution.mjs` | The script each long animation frame on opening names, with the viewer open and after a reload (Chromium). Port 8795. |
 | `gl_time.mjs` | Every WebGL2 method timed over a first opening, beside that opening's long frames (Chromium). Port 8794. |
+| `gate.py` | The GPU gate. `run` drives the real viewer through a fixed script in one browser configuration and records the GL driver, seven screenshots, both exports, a lost and restored context and the contexts left after five toggles. `compare` holds a run to a reference run of the same engine, against the bar in its docstring. Python playwright, an ephemeral port. |
 
 ## Running it
 
@@ -46,6 +47,25 @@ HEADED=1 node docs/wp/1462-spike/paired.mjs /tmp/ex/nac.rex firefox new 3
 `040c07ce` into `src/rietx/gui/static`, running with the label `plotly`, and
 checking the dist back out of `HEAD` afterwards.
 
+The gate takes a reference on one machine and holds another machine's runs to
+it. Each run lands in `OUT/<config>/`, and the configurations are `CONFIGS` in
+the script:
+
+```sh
+for c in chromium firefox webkit; do .venv/bin/python docs/wp/1462-spike/gate.py run /tmp/ref $c --headed; done
+.venv/bin/python docs/wp/1462-spike/gate.py run /tmp/win chromium-d3d11 --headed
+.venv/bin/python docs/wp/1462-spike/gate.py compare /tmp/win /tmp/ref
+```
+
+Add `--payload=docs/wp/1462-spike/results/gate_payload_mac.json` to `run` to
+draw the reference Mac's payload rather than this machine's. That payload
+predates `structure3d._pin_axes`. Since the pin, a native run draws every
+machine's payload alike, so take a fresh reference and run natively. The CI runs used a
+one-off workflow that ran each configuration both ways on `windows-latest` and
+`ubuntu-latest`. It never reached `main`, and
+`git show 5f2f495c:.github/workflows/gpu-gate.yml` prints it.
+`results/gate_ci.txt` is its output.
+
 `driver.mjs` binds port 8823 and `shot.mjs` port 8824. Both expect
 playwright's browser builds in the playwright cache: chromium 1223, firefox
 1543 and webkit 2359, which playwright-core 1.63.0 names. Without `HEADED=1`
@@ -53,12 +73,13 @@ Chromium runs headless on SwiftShader, a CPU rasteriser, and its timings
 measure that. The machine was shared with other sessions, so compare runs
 taken side by side and quote ranges.
 
-The five kept screenshots are the ones the WP cites. `nac-rings.png` is NAC
+The six kept screenshots are the ones the WP cites. `nac-rings.png` is NAC
 at 2.5× exaggeration, and `engines-nac.png` is the same view in Chromium,
 Firefox and WebKit. `lab6-dpr1-edges.png` is a 3× nearest-neighbour crop at
 devicePixelRatio 1, showing the unsmoothed outlines D7 is about.
 `nac-poly.png` is NAC with its polyhedra, and `engines-nac-poly.png` is that
-view in the three engines.
+view in the three engines. `gate-uniaxial-rings.png` is NAC's Na1, uniaxial by
+symmetry, drawn from the Mac's payload and from an x86 runner's.
 
 `results/proto_run0.txt` to `proto_run2.txt` predate the polyhedra case.
 `proto_run3_poly.txt` has it.

@@ -190,6 +190,106 @@ def test_every_symmetry_image_rotates_its_tensor_and_keeps_its_size(nac):
     assert seen_rotation, "no image was rotated; the tensors were copied"
 
 
+def _turned(vectors: np.ndarray, pair: list[int], angle: float) -> np.ndarray:
+    """``vectors`` as another LAPACK may return them: ``pair`` turned by
+    ``angle`` within its plane, and every column's sign flipped."""
+    out = -np.array(vectors)
+    i, j = pair
+    c, s = math.cos(angle), math.sin(angle)
+    out[:, i], out[:, j] = c * out[:, i] + s * out[:, j], c * out[:, j] - s * out[:, i]
+    return out
+
+
+def test_a_uniaxial_sites_free_axes_are_the_same_whatever_eigh_returned(nac):
+    """The client draws a principal ellipse round each of T's columns (D6), and
+    on a site uniaxial by symmetry two of them are free. A Mac and an x86
+    runner chose them differently for NAC's Na1, an X against a + (WP-1462's
+    gate). This test plays every other solver: turned and flipped, the axes
+    must come back as one answer, and still reproduce U."""
+    phase = nac.phases[0]
+    cell = phase.cell.lengths_angles()
+    basis = s3.cartesian_basis(*cell)
+    na = next(atom for atom in phase.atoms if atom.label == "Na1")
+    u = u_cartesian(na.aniso.values(), cell)
+    values, vectors = np.linalg.eigh(u)
+    # oblate on the threefold axis: the short axis is the lone one
+    assert values[2] - values[1] < 1e-12 * values[2] < values[1] - values[0]
+
+    want = s3._pin_axes(values, vectors, basis)
+    for angle in (0.3, 1.1, 2.9):
+        assert np.allclose(s3._pin_axes(values, _turned(vectors, [1, 2], angle), basis),
+                           want, rtol=0, atol=1e-12)
+    assert np.allclose(want @ np.diag(values) @ want.T, u, rtol=0, atol=1e-15)
+    # the first free axis is a's shadow on the plane (a, b and c tie on [111])
+    lone, a = want[:, 0], basis[:, 0] / np.linalg.norm(basis[:, 0])
+    shadow = a - (a @ lone) * lone
+    assert np.allclose(want[:, 1], shadow / np.linalg.norm(shadow), rtol=0, atol=1e-12)
+    assert np.allclose(want.T @ want, np.eye(3), rtol=0, atol=1e-12)
+
+
+def test_a_spherical_tensors_axes_are_the_lattice_orthonormalised():
+    """Three equal values leave every axis free, so a sphere takes a, then b's
+    part normal to a, then their cross product."""
+    basis = s3.cartesian_basis(5.0, 6.0, 7.0, 90.0, 104.0, 90.0)
+    values = np.full(3, 0.02)
+    rng = np.random.default_rng(1462)
+    answers = [s3._pin_axes(values, np.linalg.qr(rng.normal(size=(3, 3)))[0], basis)
+               for _ in range(3)]
+    for answer in answers:
+        assert np.allclose(answer, answers[0], rtol=0, atol=1e-12)
+    a = basis[:, 0] / np.linalg.norm(basis[:, 0])
+    assert np.allclose(answers[0][:, 0], a, rtol=0, atol=1e-12)
+    assert np.allclose(answers[0].T @ answers[0], np.eye(3), rtol=0, atol=1e-12)
+
+
+def test_a_distinct_axis_only_ever_flips_to_face_one_way(nac):
+    """A lone axis is free only in its sign: flipped, it comes back as it was."""
+    phase = nac.phases[0]
+    cell = phase.cell.lengths_angles()
+    basis = s3.cartesian_basis(*cell)
+    f1 = next(atom for atom in phase.atoms if atom.label == "F1")
+    values, vectors = np.linalg.eigh(u_cartesian(f1.aniso.values(), cell))
+    assert np.allclose(s3._pin_axes(values, -vectors, basis),
+                       s3._pin_axes(values, vectors, basis), rtol=0, atol=0)
+    assert np.allclose(np.abs(s3._pin_axes(values, vectors, basis)), np.abs(vectors),
+                       rtol=0, atol=0)
+
+
+def test_the_payload_draws_the_same_ellipsoids_whatever_eigh_returned(nac, monkeypatch):
+    """The tests above hold ``_pin_axes`` to one answer; this one holds the
+    payload to it. Every image of every NAC site is built again under an
+    ``eigh`` that flips every column and turns every equal pair, which is what
+    another LAPACK may do. Four of the six sites have such a pair."""
+    want = [atom["ellipsoid"] for atom in s3.build(nac)["atoms"]]
+    eigh = np.linalg.eigh
+
+    def other_lapack(u):
+        values, vectors = eigh(u)
+        close = np.diff(values) < 1e-12 * np.abs(values).max()
+        pair = [int(np.argmax(close)), int(np.argmax(close)) + 1] if close.any() else None
+        return values, (_turned(vectors, pair, 0.7) if pair else -vectors)
+
+    monkeypatch.setattr(np.linalg, "eigh", other_lapack)
+    got = [atom["ellipsoid"] for atom in s3.build(nac)["atoms"]]
+    assert np.allclose(got, want, rtol=0, atol=1e-12)
+
+
+def test_an_images_rings_are_the_image_of_its_sites_rings(nac):
+    """Each image's T is the site's pinned T turned by that image's Cartesian
+    rotation, so equivalent atoms wear equivalent rings. Pinned image by image,
+    NAC's images drew their free rings up to 60° from the site's, turned."""
+    payload = s3.build(nac)
+    phase = nac.phases[0]
+    basis = s3.cartesian_basis(*phase.cell.lengths_angles())
+    turns = [basis @ (np.array(op.rot, dtype=float) / op.DEN) @ np.linalg.inv(basis)
+             for op in get_spacegroup(phase.space_group).operations()]
+    for site in payload["sites"]:
+        images = [np.array(a["ellipsoid"]) for a in payload["atoms"] if a["site"] == site["index"]]
+        own = images[0]
+        for image in images:
+            assert any(np.allclose(image, turn @ own, rtol=0, atol=1e-12) for turn in turns)
+
+
 def test_a_non_positive_definite_tensor_is_flagged_and_never_nan():
     """The ``ADP_NOT_POSITIVE_DEFINITE`` case, as geometry.
 
