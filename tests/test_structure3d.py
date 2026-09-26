@@ -681,7 +681,7 @@ def test_a_shell_with_no_clear_gap_is_not_a_polyhedron():
 
 #: WP-1466's measured phase set, written by ``docs/wp/1466-measure/measure.py``
 #: with the picture a chemist draws first beside each phase
-MEASURED = json.loads((DATA / "polyhedra_phases.json").read_text())
+MEASURED = json.loads((DATA / "polyhedra_phases.json").read_text(encoding="utf-8"))
 
 
 def measured(row: dict) -> Structure:

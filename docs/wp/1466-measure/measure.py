@@ -184,7 +184,7 @@ def main(cache: Path, fixture_path: Path | None = None) -> None:
                 "expected": {e: v for e, v in EXPECTED[name].items() if v},
             })
     if fixture_path is not None:
-        fixture_path.write_text("[\n" + ",\n".join(json.dumps(row) for row in fixture) + "\n]\n")
+        fixture_path.write_text("[\n" + ",\n".join(json.dumps(row) for row in fixture) + "\n]\n", encoding="utf-8")
 
 
 def default_picture(payload: dict) -> dict[str, list[int]]:
