@@ -19,9 +19,8 @@ properties carry it and each has its own group here:
   refusals with the reason in them.
 * **the 29 unnamable isotropy subgroups.**  Every (group, k) case the all-group
   k-sweep could not name reaches ``candidates`` and comes back with a
-  candidate carrying its operator list.  (Building the child of the one real
-  case — Ba₂FeSbSe₅'s S3(a,b) in 2a,b,a+c — needs ``magnetic_supercell``,
-  which lands with the moment model and is tested there.)
+  candidate carrying its operator list, and the child of the one real case —
+  Ba₂FeSbSe₅'s S3(a,b) in 2a,b,a+c — is *built* rather than refused.
 * **every consumer reads the list** — the CIF exporter included (review of
   #433, finding 3).
 
@@ -36,6 +35,7 @@ import pytest
 
 import rietx as rx
 from rietx.crystallography import symmetry as sym
+from rietx.crystallography.magnetic import supercell as sc
 from rietx.crystallography.magnetic.isotropy import candidates
 from rietx.crystallography.magnetic.operators import identification, identify
 from rietx.schemas.common import Parameter
@@ -433,6 +433,95 @@ def test_the_sweeps_unnamable_isotropy_subgroups_still_produce_candidates(
         assert result.named is False
         assert result.operations
         assert result.reason
+
+
+@pytest.mark.slow
+def test_the_ba2fesbse5_s3ab_child_is_built_instead_of_refused():
+    """The one real case: Pm in 2a,b,a+c, which a symbol-only phase could not state.
+
+    The parent is a *generic* Pnma structure — generic members of the 8d and 4c
+    Wyckoff classes and a nominal cell, no fitted or published number — which
+    is sound because ``candidates`` reads a site only through its stabiliser
+    and its orbit.
+    """
+    from rietx.crystallography.adp import cartesian_basis
+
+    parent = Phase(
+        name="parent", space_group="P n m a",
+        cell=_cell((12.0, 9.0, 8.0, 90.0, 90.0, 90.0)),
+        atoms=[
+            Atom(label="Ba1", species="Ba", x=Parameter(value=0.11),
+                 y=Parameter(value=0.13), z=Parameter(value=0.17),
+                 occ=Parameter(value=1.0), biso=Parameter(value=0.9)),
+            Atom(label="Fe1", species="Fe", x=Parameter(value=0.19),
+                 y=Parameter(value=0.25), z=Parameter(value=0.23),
+                 occ=Parameter(value=1.0), biso=Parameter(value=0.5)),
+            Atom(label="Se1", species="Se", x=Parameter(value=0.29),
+                 y=Parameter(value=0.31), z=Parameter(value=0.37),
+                 occ=Parameter(value=1.0), biso=Parameter(value=0.7)),
+        ])
+    lattice = np.asarray(cartesian_basis(*parent.cell.lengths_angles())).T
+    k = ("1/2", "0", "1/2")
+    per_site = [{c.label: c for c in candidates(
+        parent.space_group, (a.x.value, a.y.value, a.z.value), k,
+        kind="displacive", cell=lattice, verify=True)}
+        for a in parent.atoms]
+    assert all("S3(a,b)" in table for table in per_site)
+
+    statement = sc.magnetic_supercell(parent, candidate=per_site[0]["S3(a,b)"],
+                                      nuclear_group="magnetic")
+    assert statement.child_group_named is False
+    assert sym.split_group_label(statement.phase.space_group) is not None
+    assert statement.phase.symmetry_operations is not None
+    # Two of S3_CHILD_OPS's four operations — the pure translation
+    # 'x+1/2,y,z' (the child's anti-translation) and its product with the
+    # mirror, 'x+1/2,-y+1/2,z' — carry little-group character −1 on this
+    # displacive candidate's mode field, which an ε = +1 nuclear operation
+    # cannot state; supercell._sign_consistent_operations drops them, so the
+    # declared group is the order-2 subgroup and each sibling they would have
+    # reached is its own representative: 24 atoms.
+    assert set(statement.phase.symmetry_operations) == {"x,y,z", "x,-y+1/2,z"}
+    assert len(statement.phase.atoms) == 24
+    codes = [d.code for d in statement.diagnostics]
+    assert "CHILD_GROUP_UNNAMED" in codes
+    note = next(d for d in statement.diagnostics
+                if d.code == "CHILD_GROUP_UNNAMED")
+    assert "quarter" in note.message
+    # the child compiles and predicts, which is the whole point of stating it
+    y = rx.Refinement(Structure(phases=[statement.phase]),
+                      INSTRUMENT.model_copy(deep=True)).predict(TWO_THETA)
+    assert np.isfinite(np.asarray(y)).all()
+    assert float(np.asarray(y).max()) > 0.0
+
+
+@pytest.mark.slow
+def test_a_named_child_is_untouched_by_the_unnamed_path():
+    """S2(a,b) of the same parent still gives the plain symbol and no list.
+
+    The negative arm of the test above: a child whose nuclear group *is*
+    reproduced by a symbol keeps the symbol, carries no operation list, and
+    raises no diagnostic — so the new path cannot have been taken for it.
+    """
+    from rietx.crystallography.adp import cartesian_basis
+
+    parent = Phase(
+        name="parent", space_group="P n m a",
+        cell=_cell((12.0, 9.0, 8.0, 90.0, 90.0, 90.0)),
+        atoms=[
+            Atom(label="Fe1", species="Fe", x=Parameter(value=0.19),
+                 y=Parameter(value=0.25), z=Parameter(value=0.23),
+                 occ=Parameter(value=1.0), biso=Parameter(value=0.5)),
+        ])
+    lattice = np.asarray(cartesian_basis(*parent.cell.lengths_angles())).T
+    found = {c.label: c for c in candidates(
+        parent.space_group, (0.19, 0.25, 0.23), ("1/2", "0", "1/2"),
+        kind="displacive", cell=lattice, verify=True)}
+    statement = sc.magnetic_supercell(parent, candidate=found["S2(a,b)"],
+                                      nuclear_group="magnetic")
+    assert statement.child_group_named is True
+    assert statement.phase.space_group == "P 1 21/m 1"
+    assert statement.phase.symmetry_operations is None
+    assert [d.code for d in statement.diagnostics] == []
 
 
 def test_site_constraints_of_an_unnamed_group_withholds_the_wyckoff_letter():

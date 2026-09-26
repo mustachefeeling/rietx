@@ -699,11 +699,13 @@ class MagneticSymmetry(Base):
     ``crystallography.magnetic.operators.magnetic_group`` (issue #257 A4),
     which fills all four fields.  What is stored is still the operator list.
 
-    A commensurate k ≠ 0 structure is stated in its **magnetic supercell**:
-    that is what magCIF itself does, and it is what lets one reflection list
-    and one scale serve the nuclear and the magnetic contribution.  A
-    propagation vector that generates reflections is WP-1326's route, which a
-    moment model refuses (:func:`refuse_moment_model_with_k`).
+    A commensurate k ≠ 0 structure is stated in its **magnetic supercell**
+    with the parent's k recorded in ``propagation_vector_parent``: that is what
+    magCIF itself does, and it is what lets one reflection list and one scale
+    serve the nuclear and the magnetic contribution.  It is a *record* of
+    provenance, never a propagation vector that generates reflections (that is
+    WP-1326's route, which a moment model refuses:
+    :func:`refuse_moment_model_with_k`).
     """
 
     operations: list[str]
@@ -713,6 +715,11 @@ class MagneticSymmetry(Base):
     uni_number: int | None = None
     symbol: str | None = None
     setting: str | None = None
+    #: k of the parent cell this supercell was built from, as three rational
+    #: strings — a record of provenance for the report, never used to generate
+    #: a reflection (the supercell's own reflections are the satellites).
+    #: Written by ``magnetic.supercell.magnetic_supercell``.
+    propagation_vector_parent: tuple[str, str, str] | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -912,8 +919,9 @@ class Phase(Base):
     # only state in which an atom of this phase may carry no ``moment``:
     # declaring one is what gives a moment an allowed subspace to refine in
     # and an orbit to be propagated over.  A commensurate k ≠ 0 structure is
-    # stated in its magnetic supercell, never as a propagation vector beside
-    # a moment model (:data:`MOMENT_MODEL_FIELDS`).
+    # stated in its magnetic supercell
+    # (``crystallography.magnetic.supercell.magnetic_supercell``), never as a
+    # propagation vector beside a moment model (:data:`MOMENT_MODEL_FIELDS`).
     #
     # A UNI/BNS/OG number is accepted here in place of the block and resolved
     # through spglib (issue #257 A4); what is stored is always the operator
