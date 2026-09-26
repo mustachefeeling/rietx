@@ -1,0 +1,9 @@
+chromium run 0: drag gap p50 16.7 p95 17.0 ms over 63 frames, long frames 0, load 4.4 on 10 cpus | CaF₈ ×18, AlF₆ ×8, NaF₇ ×8
+chromium run 1: drag gap p50 16.6 p95 17.0 ms over 62 frames, long frames 0, load 4.7 on 10 cpus | CaF₈ ×18, AlF₆ ×8, NaF₇ ×8
+chromium run 2: drag gap p50 16.7 p95 17.3 ms over 62 frames, long frames 0, load 4.7 on 10 cpus | CaF₈ ×18, AlF₆ ×8, NaF₇ ×8
+firefox  run 0: drag gap p50 17.0 p95 18.0 ms over 62 frames, long frames 0, load 4.7 on 10 cpus | CaF₈ ×18, AlF₆ ×8, NaF₇ ×8
+firefox  run 1: drag gap p50 17.0 p95 17.9 ms over 62 frames, long frames 0, load 4.7 on 10 cpus | CaF₈ ×18, AlF₆ ×8, NaF₇ ×8
+firefox  run 2: drag gap p50 17.0 p95 17.0 ms over 62 frames, long frames 0, load 4.9 on 10 cpus | CaF₈ ×18, AlF₆ ×8, NaF₇ ×8
+webkit   run 0: drag gap p50 15.0 p95 17.0 ms over 5 frames, long frames 0, load 4.7 on 10 cpus | CaF₈ ×18, AlF₆ ×8, NaF₇ ×8
+webkit   run 1: drag gap p50 12.5 p95 16.9 ms over 4 frames, long frames 0, load 4.7 on 10 cpus | CaF₈ ×18, AlF₆ ×8, NaF₇ ×8
+webkit   run 2: drag gap p50 16.0 p95 17.0 ms over 5 frames, long frames 0, load 4.7 on 10 cpus | CaF₈ ×18, AlF₆ ×8, NaF₇ ×8

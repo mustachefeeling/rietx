@@ -19,8 +19,9 @@ run on 2026-09-26:
 - no page error, and the viewer did not report "no WebGL2";
 - each picture's mean difference from the reference is under 2 levels of 255,
   and under 1 % of its pixels differ by more than 32 levels in a channel. The
-  pictures are seven screenshots and the two exports. On the reference Mac the
-  three engines agree to 0.09 levels and 0.14 %;
+  pictures are eight screenshots and the two exports; WP-1466 added the
+  polyhedra picture. On the reference Mac the three engines agree to 0.09
+  levels and 0.14 %;
 - the principal rings put at least ten times the ring ink of the ball picture;
 - a redraw, and a context lost and restored, each land within 0.5 levels of the
   picture before them, and reset moves it by more than 2;
@@ -221,6 +222,18 @@ def run(out: Path, config: str, headed: bool, payload: Path | None = None) -> di
                 return rgb
 
             home = shoot("ball")
+            # WP-1466: every centre species' polyhedra on, the translucent pass
+            # at its fullest, then back to the default the later pictures assume
+            row = page.locator(".viewer .legend").nth(1)
+            switched = []
+            while row.locator("button.off:not([disabled])").count():
+                button = row.locator("button.off:not([disabled])").first
+                switched.append(button.text_content())
+                button.click()
+                _settle(page)
+            shoot("polyhedra")
+            for text in switched:
+                row.get_by_role("button", name=text, exact=True).click()
             # the first offset along a fixed sweep that the pick answers
             for dx in range(-90, 91, 6):
                 page.mouse.move(cx + dx, cy + dx / 3)
