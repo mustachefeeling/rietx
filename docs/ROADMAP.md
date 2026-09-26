@@ -118,8 +118,8 @@ and [1448](wp/1448-a-number-somebody-chose.md) block nothing.
 WinXPOW export, and a blank for a `rietx compare` standard.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
-triage's 1312-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341 less 1342; 1133;
-the **2026-09-15 triage**'s 1415-1421, less the two in v1.6 and 1432.
+triage's 1312-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341 less
+1333 and 1342; 1133; the **2026-09-15 triage**'s 1415-1421, less the two in v1.6 and 1432.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -702,7 +702,7 @@ the chain says nothing (issue #267).
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1333](wp/1333-a-series-survives-one-pattern.md) | A series survives one pattern, and says which one it lost | 🔄 2026-09-26 | P1 | — (1317 soft) |
+| [1333](wp/1333-a-series-survives-one-pattern.md) | A series survives one pattern, and says which one it lost | ✅ 2026-09-26 | — | — (1317 soft) |
 | [1334](wp/1334-the-stage-that-ran-out-of-budget.md) | The stage that ran out of budget | ⬜ | P3 | — |
 | [1335](wp/1335-the-report-costs-more-than-the-fit.md) | The report costs more than the fit | ⬜ | P3 | — |
 | [1420](wp/1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | ⬜ | P2 | — (1333, 1342, 1419 soft) |
