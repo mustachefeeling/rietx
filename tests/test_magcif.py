@@ -1986,6 +1986,7 @@ def test_mag_only_for_mag_sites_stays_refused_in_the_tutorials_two_str_idiom(
 def _magnetic_vocabulary() -> set[str]:
     tags = set(magcif.READ_TAGS) | set(magcif.PRIVATE_TAGS)
     tags |= {tag for tag, _what in magcif.REFUSED_TAGS}
+    tags |= {tag for tag, _why in magcif.IGNORED_TAGS}
     keywords = {kw for feat in coverage.FEATURES for kw in feat.keywords
                 if kw.startswith("mag") or kw in ("mlx", "mly", "mlz", "mg")}
     return tags | keywords
@@ -2000,8 +2001,9 @@ def test_no_shipped_fixture_carries_a_magnetic_construct_without_a_stance():
 
     1. every magnetic token found in any shipped fixture must be one this
        package declares a stance on — a tag in
-       :data:`~rietx.crystallography.magcif.READ_TAGS` or its refused list, or
-       a keyword with a row in :mod:`~rietx.io.projects.coverage`;
+       :data:`~rietx.crystallography.magcif.READ_TAGS`, its known-and-ignored
+       list (each with its reason) or its refused list, or a keyword with a
+       row in :mod:`~rietx.io.projects.coverage`;
     2. the shipped set is *recorded*, so if someone adds a magnetic fixture the
        count changes and this test says so. Today it is zero, which is exactly
        what makes the synthetic fixtures above the only coverage of the magnetic
@@ -2042,6 +2044,25 @@ def test_no_shipped_fixture_carries_a_magnetic_construct_without_a_stance():
         f"the synthetic ones above are no longer their only coverage. Update "
         f"this assertion, and point the round-trip tests at the new file.")
 
+
+
+def test_a_known_and_ignored_tag_is_not_listed_as_read_and_says_why():
+    """Review of #478, item 3: four tags sat in ``READ_TAGS`` that no code
+    reads, and the stance test above counted membership as the stance.
+
+    Each now sits in ``IGNORED_TAGS`` with the reason it changes nothing that
+    is built, the two lists are disjoint, and no ignored tag is one the writer
+    emits (a tag written and never read back would be a field lost on the next
+    round trip).
+    """
+    ignored = {tag for tag, _why in magcif.IGNORED_TAGS}
+    assert ignored == {"_space_group_magn.name_OG",
+                       "_parent_space_group.IT_number",
+                       "_parent_space_group.transform_Pp_abc",
+                       "_atom_site_moment.refinement_flags_magnetic"}
+    assert not ignored & set(magcif.READ_TAGS)
+    assert not ignored & set(magcif.WRITTEN_TAGS)
+    assert all(len(why) > 40 for _tag, why in magcif.IGNORED_TAGS)
 
 def test_every_written_magnetic_tag_is_one_the_reader_takes_back(tmp_path):
     """The writer's vocabulary is a subset of the reader's, checked on a real

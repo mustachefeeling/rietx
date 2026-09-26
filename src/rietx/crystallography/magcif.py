@@ -10,8 +10,8 @@ speaks.  It sits beside :mod:`.cif` rather than inside it because the magnetic
 tag set is its own dictionary — the COMCIFS ``magnetic_dic`` (``cif_mag.dic``,
 tags checked against the 2026-06-03 revision) — and because "which tags does
 rietx know?" has to be answerable as a *list* (:data:`READ_TAGS`,
-:data:`WRITTEN_TAGS`, :data:`REFUSED_TAGS`), not as whatever the code happens to
-branch on.  That is `io/CLAUDE.md`'s report-or-refuse rule applied to a
+:data:`IGNORED_TAGS`, :data:`WRITTEN_TAGS`, :data:`REFUSED_TAGS`), not as
+whatever the code happens to branch on.  That is `io/CLAUDE.md`'s report-or-refuse rule applied to a
 dictionary: a magnetic item this reader has no model for is **named**, never
 dropped.
 
@@ -68,11 +68,8 @@ READ_TAGS: tuple[str, ...] = (
     "_space_group_magn.number_BNS",
     "_space_group_magn.name_BNS",
     "_space_group_magn.number_OG",
-    "_space_group_magn.name_OG",
     "_space_group_magn.transform_BNS_Pp_abc",
     "_parent_space_group.name_H-M_alt",
-    "_parent_space_group.IT_number",
-    "_parent_space_group.transform_Pp_abc",
     "_parent_space_group.child_transform_Pp_abc",
     "_parent_propagation_vector.kxkykz",
     "_atom_site_moment.label",
@@ -91,8 +88,35 @@ READ_TAGS: tuple[str, ...] = (
     "_atom_site_moment.magnitude",
     "_atom_site_moment.magnitude_su",
     "_atom_site_moment.symmform",
-    "_atom_site_moment.refinement_flags_magnetic",
     "_atom_site_moment.modulation_flag",
+)
+
+#: Magnetic items this reader **knows and deliberately does not take**, each
+#: with the reason it changes nothing that is built.  Kept apart from
+#: :data:`READ_TAGS` so that list's claim — "the reader takes this into the
+#: model" — stays true item by item (review of #478, item 3; root
+#: ``CLAUDE.md``'s rule that a declared name is a claim), while the vocabulary
+#: stays complete: a file carrying one of these has had a stance taken on it,
+#: and it is this one.
+IGNORED_TAGS: tuple[tuple[str, str], ...] = (
+    ("_space_group_magn.name_OG",
+     "the OG symbol of the group the operator loops already state; "
+     "MagneticSymmetry keeps one symbol, the BNS name, and the OG *number* "
+     "is read, so the name has no field and no consumer"),
+    ("_parent_space_group.IT_number",
+     "a second statement of the parent's type beside name_H-M_alt; the "
+     "symbol is only a hint, whose setting is checked against the file's own "
+     "operators (resolve_nuclear_symmetry), so a number contradicting it "
+     "could change nothing that is built — the operators decide"),
+    ("_parent_space_group.transform_Pp_abc",
+     "how the parent symbol's reference setting relates to the file's own; "
+     "the nuclear group is derived from the file's own operators in the "
+     "file's own setting, and whether the cell is a supercell is the child "
+     "transform's determinant (refuse_a_magnetic_supercell), never this one's"),
+    ("_atom_site_moment.refinement_flags_magnetic",
+     "which moment components the producer refined — a plan, not a model "
+     "value; what a rietx fit frees is the caller's stage globs, and a "
+     "file's flags free nothing"),
 )
 
 #: The magnetic items the writer emits.  A subset of :data:`READ_TAGS` — the
