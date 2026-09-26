@@ -359,6 +359,11 @@ one, never as the gate.
     `displace_anchored_dofs`, `_reanchor_carried` or `anchored_dof_paths`.
 
   *Measured* (`[dev]` venv, Linux x86-64, py3.12, 4 cores).
+  - **The merged tree** (`c9af1f2`: this branch plus `main` at `63e2a8c`,
+    WP-1327's PR #477, which touches no file here) carries the counts to
+    quote. Fast selection: 1 failed, 6182 passed, 158 skipped in 18:25,
+    with the uid-0 case as the failure. The slow series rows: 23 passed.
+    The rows below are the bare branch's, kept for what they show.
   - **Fast selection** on `3efc2d8`, which is all but the GUI commit: 1
     failed, 6145 passed, 158 skipped in 18:30. The failure is the uid-0
     `test_telemetry.py::…[unwritable-directory]` case the 2026-09-23 entry
