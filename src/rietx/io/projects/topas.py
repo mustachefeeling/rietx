@@ -2696,7 +2696,19 @@ def _nuclear_groups(model: TopasModel, phases_in, specs) -> dict:
         spec = specs.get(ph.name)
         if spec is None and (number := _magnetic_group_number(
                 ph.mag_space_group)) is not None:
-            spec = MagneticSymmetry.model_validate(number)
+            # built inside the guard, as every schema object a conversion
+            # builds is (io/CLAUDE.md): a number the schema cannot resolve
+            # (``999.1``) raises naming the file and the phase, never as a
+            # bare pydantic report about a field (review of #478, item 2)
+            try:
+                spec = MagneticSymmetry.model_validate(number)
+            except Exception as exc:
+                raise TopasInpError(
+                    f"{path}: phase {ph.name!r} states no space_group, and its "
+                    f"mag_space_group {ph.mag_space_group!r} is not a magnetic "
+                    f"space group this schema can resolve, so there is no "
+                    f"operator list to derive the nuclear group from: "
+                    f"{exc}") from exc
         if spec is None:
             raise TopasInpError(
                 f"{path}: phase {ph.name!r} states no space_group, and its "

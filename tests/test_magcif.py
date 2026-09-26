@@ -1771,6 +1771,30 @@ def test_a_topas_mag_only_phase_is_refused_by_name(tmp_path):
         topas_to_structure(model, magnetic_symmetry="58.395")
 
 
+
+def test_an_unresolvable_mag_space_group_number_is_refused_naming_the_file(
+        tmp_path):
+    """Review of #478, item 2, the reviewer's reproduction: a ``str`` with
+    ``mag_space_group 999.1``, no ``space_group`` and no moment.
+
+    Its nuclear group comes from the number, so the number is resolved while
+    building — and it used to be resolved outside the guard that turns a
+    schema error into a :class:`TopasInpError`, reaching the caller as a bare
+    pydantic ``ValidationError`` naming no file (``io/CLAUDE.md``).
+    """
+    path = _inp(tmp_path, """\
+str
+   phase_name "x"
+   mag_space_group 999.1
+   a 5.0 b 6.0 c 7.0
+   site Fe1 x 0 y 0 z 0 occ Fe+3 1 beq 0.3
+""")
+    with pytest.raises(TopasInpError) as excinfo:
+        topas_to_structure(read_topas_inp(path))
+    assert not isinstance(excinfo.value, ValidationError)
+    message = str(excinfo.value)
+    assert path in message and "'x'" in message and "999.1" in message
+
 def test_a_magnetic_symmetry_for_a_phase_that_states_no_moment_is_refused(
         tmp_path):
     """A magnetic space group on a phase with no moment constrains nothing and
