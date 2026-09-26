@@ -304,11 +304,25 @@ shell.
 - **A lost context must come back.** `webglcontextlost` and
   `webglcontextrestored` rebuild the programs and buffers from the payload
   already held.
-- **Only Apple GPUs have drawn it.** Chromium ran on ANGLE over Metal,
-  Firefox and WebKit on the same M4, and headless Chromium on SwiftShader.
-  Windows (ANGLE over D3D11) and Linux drivers have not. The maintainer
-  dragged the GUI's 2D charts in real Safari on 2026-09-26 and they worked.
-  The viewer's own drag was not part of that report.
+- **No vendor GPU off Apple has drawn it.** On 2026-09-26 the gate
+  (`1462-spike/gate.py`, `results/gate_ci.txt`) ran on GitHub's Windows and
+  Linux runners, which have no GPU. Their drivers are software ones:
+  Direct3D 11 over WARP through ANGLE (Chromium, WebKit), Mesa llvmpipe
+  (Chromium through ANGLE's GL backend, Firefox, WebKit) and SwiftShader
+  (Chromium's default). So ANGLE's translation to HLSL and to GLSL is
+  covered, but no NVIDIA, AMD or Intel driver is. `gate.py run` on such a
+  machine, compared with `results/gate_payload_mac.json` replayed, is
+  the one command that closes it. The maintainer dragged the GUI's 2D
+  charts in real Safari on 2026-09-26 and they worked. The viewer's own
+  drag was not part of that report.
+- **A context with no multisample buffer draws aliased silhouettes.**
+  D7's coverage goes through alpha-to-coverage, which needs samples.
+  Firefox on WARP granted `antialias: false`. The picture is otherwise the
+  reference's, and 96 % of its differing pixels lie on an edge. The export
+  renders into its own multisampled buffer and stayed smooth there.
+- **A browser that blocks WebGL2 gets the viewer's message.** Firefox's
+  default on WARP refuses WebGL2, and the panel said "this browser has no
+  WebGL2" with no knobs, as designed.
 - **jsdom has no WebGL.** vitest covers the pure half: the projected
   extents, the pick, the trackball and the instance data. A stand-in
   records what was asked to be drawn, as `gui/src/test-uplot.ts` does for
@@ -345,11 +359,12 @@ shell.
 ## Tasks
 
 - [x] The maintainer confirms D1-D8 (2026-09-25); the critical pass revises D5 and D6 and adds D9; WP-1466 is filed for D8
-- [ ] Spike, the gate: the renderer on the GPU paths the prototype has not met (any Windows or Linux machine the maintainer can reach), and paired against today's plotly viewer on the same machine: first show, rotation frames and hover work per event, in Chromium, WebKit and Firefox. Record go or no-go in the handover. On no-go, draw the same payloads with three.js before stopping.
+- [x] Spike, the gate: the renderer on the GPU paths the prototype has not met (any Windows or Linux machine the maintainer can reach), and paired against today's plotly viewer on the same machine: first show, rotation frames and hover work per event, in Chromium, WebKit and Firefox. Record go or no-go in the handover. On no-go, draw the same payloads with three.js before stopping. *Closed as partial 2026-09-26, by the maintainer's choice:* go on the software drivers of GitHub's Windows and Linux runners, with no vendor GPU (§ Where it will bite). The timings were not repeated there, since a software rasteriser's times measure the rasteriser, so the Mac's paired runs stand.
 - [x] The renderer: instanced atom and bond-half impostors, D9's line quads for the cell frame, the a/b/c overlay, the orthographic camera, the trackball, the light on the camera, theme colours, boundary images dimmed, D6's ellipses, D7's antialiasing, context loss, and release on unmount
 - [x] Interaction: hover on atoms and bond halves, legend toggles, the a/b/c and reset views, pan and zoom, the three knobs, the view kept across redraws, and `ResizeObserver` sizing
 - [x] Export (D5): the offscreen render at a 3000 px long side, multisampled, lines and labels scaled, on the screen's background and on a transparent one
 - [x] Leave plotly in the viewer: the trace builders, the tessellation, the camera read-back and the modebar. The `/plotly.js` route, `gui/src/lib/plotly.ts`, the `gui` extra's plotly, `viz/plotlyjs.py`, `lib/plot.ts:hoverLabel` and the `Plotly` stand-in in `test-setup.ts` go only if the Series panel has left plotly too. It had, so they went on 2026-09-25 and the `gui` extra is empty; `viz/plotlyjs.py` stays for `rietx compare`.
+- [ ] D6's rings on a tensor whose principal axes are not all fixed. The gate found four of NAC's six sites uniaxial by symmetry, and `eigh` places their two free axes per LAPACK build. The Mac draws Na1's rings as an X and an x86 runner as a +, while T·Tᵀ agrees to 2e-17 (`1462-spike/shots/gate-uniaxial-rings.png`). The maintainer asked for best practice before choosing.
 - [x] Rename this file to its title once WP-1461 has closed, with its ROADMAP row and WP-1461's two links
 - [x] Tests: `structure3d.test.ts` on the pure half and the instance data; a WebGL stand-in beside `test-uplot.ts`; a browser test that reads pixels at known atoms, finds a principal ellipse on an anisotropic site, and asserts a redraw keeps the view; a test that no page requests `/plotly.js`
 - [x] Docs: the structure viewer paragraphs in `gui/CLAUDE.md` (crystallography rules kept, plotly traps deleted), `using/install.md` for the `gui` extra, ATTRIBUTION.md, and the root CLAUDE.md's GUI lines if they name plotly. On the three.js fallback also: its row in `.github/dependabot.yml`'s allow list (WP-1461 created it) and its licence text in `LICENSE-3RD-PARTY.md`.

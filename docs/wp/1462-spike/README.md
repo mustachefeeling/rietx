@@ -57,6 +57,13 @@ for c in chromium firefox webkit; do .venv/bin/python docs/wp/1462-spike/gate.py
 .venv/bin/python docs/wp/1462-spike/gate.py compare /tmp/win /tmp/ref
 ```
 
+Add `--payload=docs/wp/1462-spike/results/gate_payload_mac.json` to `run` to
+draw the reference Mac's payload rather than this machine's. The CI runs used a
+one-off workflow that ran each configuration both ways on `windows-latest` and
+`ubuntu-latest`. It never reached `main`, and
+`git show 5f2f495c:.github/workflows/gpu-gate.yml` prints it.
+`results/gate_ci.txt` is its output.
+
 `driver.mjs` binds port 8823 and `shot.mjs` port 8824. Both expect
 playwright's browser builds in the playwright cache: chromium 1223, firefox
 1543 and webkit 2359, which playwright-core 1.63.0 names. Without `HEADED=1`
@@ -64,12 +71,13 @@ Chromium runs headless on SwiftShader, a CPU rasteriser, and its timings
 measure that. The machine was shared with other sessions, so compare runs
 taken side by side and quote ranges.
 
-The five kept screenshots are the ones the WP cites. `nac-rings.png` is NAC
+The six kept screenshots are the ones the WP cites. `nac-rings.png` is NAC
 at 2.5× exaggeration, and `engines-nac.png` is the same view in Chromium,
 Firefox and WebKit. `lab6-dpr1-edges.png` is a 3× nearest-neighbour crop at
 devicePixelRatio 1, showing the unsmoothed outlines D7 is about.
 `nac-poly.png` is NAC with its polyhedra, and `engines-nac-poly.png` is that
-view in the three engines.
+view in the three engines. `gate-uniaxial-rings.png` is NAC's Na1, uniaxial by
+symmetry, drawn from the Mac's payload and from an x86 runner's.
 
 `results/proto_run0.txt` to `proto_run2.txt` predate the polyhedra case.
 `proto_run3_poly.txt` has it.
