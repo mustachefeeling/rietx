@@ -267,6 +267,9 @@ class TopasSite:
     #: 1.58 and 1.80. A moment along b alone, where all three readings
     #: coincide, matches under all three, which is the control that the
     #: comparison can separate them. The same holds on the orthogonal cell.
+    #: TOPAS's table for the three-axis moment is vendored
+    #: (``tests/data/topas_moment_basis_A_mono3_mag_hkl.txt``) and the pair
+    #: check re-runs against it in ``tests/test_magcif.py``.
     #: Until WP-1328's review this reader took the crystal-axis reading
     #: (``mlx`` as μ_B along a unit vector), which made an imported moment too
     #: small by roughly the edge length and, wherever the edges differ and the

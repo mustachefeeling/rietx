@@ -1999,6 +1999,95 @@ def test_a_topas_moment_on_an_oblique_cell_is_a_per_axis_scale_not_a_rotation(
     assert moment_magnitude(stored, cell) == pytest.approx(3.2452, abs=1e-4)
 
 
+
+#: TOPAS-64 v6's own per-reflection table for the oblique-cell ``str`` below
+#: (run 2026-09-25 as a black-box oracle; ``tests/data/README.md`` has the row).
+#: Columns h k l M d Th I_no_scale_pks I_after_scale_pks, the magnetic term
+#: alone (``mag_only_for_mag_sites``); our input, TOPAS's output, verbatim.
+_TOPAS_MONO3 = Path(__file__).parent / "data" / "topas_moment_basis_A_mono3_mag_hkl.txt"
+
+#: The ``str`` that table was computed from, minus TOPAS's own peak-shape and
+#: output lines: one Mn²⁺ site in BNS 1.1 on a β = 115° cell, a moment on all
+#: three axes, ``mg 2`` so f = ⟨j₀⟩.
+_TOPAS_MONO3_STR = ('str\n phase_name "A_mono3_mag"\n mag_space_group 1.1\n'
+                    ' a 5.2 b 6.9 c 8.4 al 90 be 115 ga 90\n scale 1\n'
+                    ' site Mn1 x 0.13 y 0.27 z 0.41 occ Mn+2 1 beq 0\n'
+                    '    mlx 0.4 mly -0.3 mlz 0.3 mg 2\n')
+
+
+def _magnetic_f2_by_hkl(phase) -> dict:
+    """rietx's own |F_M⊥|² per reflection, keyed by the Friedel-canonical hkl,
+    on the constant-wavelength neutron grid the TOPAS run used."""
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
+
+    structure = rx.Structure(phases=[phase])
+    instrument = rx.Instrument.constant_wavelength_neutron(2.41)
+    tt = np.arange(5.0, 100.0 + 1e-9, 0.01)
+    pattern = rx.PatternData(two_theta=tt.tolist(),
+                             intensity=np.ones_like(tt).tolist())
+    model = compile_model(structure, instrument, pattern, mode="rietveld")
+    table = ParameterTable(structure, instrument)
+    values = table.decode(table.x0())
+    cell = tuple(values[f"phases.0.cell.{k}"]
+                 for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+    reflections = model.phases[0].reflections
+    d = np.asarray(reflections.d, dtype=float)
+    f2 = np.asarray(model._magnetic_f2(0, d, values, cell), dtype=float)
+    return {_friedel(tuple(int(v) for v in h)): f
+            for h, f in zip(reflections.hkl, f2)}
+
+
+def _friedel(hkl: tuple) -> tuple:
+    return max(hkl, tuple(-v for v in hkl))
+
+
+def test_topas_own_intensities_rerun_the_equal_d_pair_check(tmp_path):
+    """The 54-pair ratio check behind ``TOPAS_MOMENT_CONVENTION``, as an
+    artefact rather than a sentence (review of #478, follow-up).
+
+    On a b-unique monoclinic cell (h k l) and (h −k l) have the same d, so
+    their intensity ratio cancels the form factor, the Lorentz factor, the
+    multiplicity and the scale, and is |F_M⊥|² over |F_M⊥|² alone: a function
+    of the moment's *direction* only.  The moment is read through the TOPAS
+    reader itself, so the reading under test is the one a user gets.  All 60
+    strong pairs (both members ≥ 1 % of the table's strongest; the kit's 54
+    also asked every candidate reading to predict both strong) match TOPAS to
+    7e-10 in the log ratio under the fractional reading, the table printing ten
+    figures; the crystal-axis reading — the one this reader took before the
+    measurement — misses the median pair by ×1.58, past the 10 % the kit
+    pre-registered as "disagrees".
+    """
+    topas: dict = {}
+    for line in _TOPAS_MONO3.read_text(encoding="utf-8").splitlines():
+        *hkl, _m, _d, _th, i_no_scale, _i = line.split()
+        topas[_friedel(tuple(int(v) for v in hkl))] = float(i_no_scale)
+    strongest = max(topas.values())
+    strong = {key for key, i in topas.items() if i >= 1e-2 * strongest}
+    pairs = sorted({tuple(sorted((key, _friedel((key[0], -key[1], key[2])))))
+                    for key in strong if key[1] != 0
+                    and _friedel((key[0], -key[1], key[2])) in strong})
+    assert len(pairs) == 60, len(pairs)
+
+    (phase,) = topas_to_structure(read_topas_inp(
+        _inp(tmp_path, _TOPAS_MONO3_STR))).phases
+    fractional = _magnetic_f2_by_hkl(phase)
+    worst = max(abs(math.log((topas[p] / topas[q])
+                             / (fractional[p] / fractional[q])))
+                for p, q in pairs)
+    assert worst < 1e-8, worst
+
+    atom = phase.atoms[0]
+    crystal_axis = phase.model_copy(update={"atoms": [atom.model_copy(update={
+        "moment": atom.moment.model_copy(update={
+            n: rx.Parameter(value=v, unit="mu_B") for n, v in zip(
+                ("crystalaxis_x", "crystalaxis_y", "crystalaxis_z"),
+                (0.4, -0.3, 0.3))})})]})
+    old = _magnetic_f2_by_hkl(crystal_axis)
+    misses = sorted(abs(math.log((topas[p] / topas[q]) / (old[p] / old[q])))
+                    for p, q in pairs)
+    assert misses[len(misses) // 2] > math.log(1.10)
+
 def test_a_mag_space_group_only_phase_with_a_symbol_is_refused_by_name(
         tmp_path):
     """No ``space_group``, and a ``mag_space_group`` that is a *symbol*: there
