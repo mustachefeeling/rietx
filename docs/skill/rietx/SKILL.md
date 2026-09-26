@@ -454,9 +454,8 @@ protocol is not a measurement.
 
 ## The API
 
-**There is one integration surface and it is the Python API.** A caller runs a
-verb, reads the typed answer, and dumps it with `model_dump(mode="json")` when a
-file is wanted. A failure **raises**: there is no envelope and no error code.
+**There is one integration surface: the Python API.** Dump a typed answer with
+`model_dump(mode="json")`; a failure **raises**, with no envelope or error code.
 
 **A `RefinementCancelled` you did not request is not a bug in your call.** Every
 fit records itself, and a human watching one can stop it from `rietx watch`. The
