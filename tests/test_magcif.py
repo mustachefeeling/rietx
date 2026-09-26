@@ -1928,23 +1928,24 @@ str
    site O1_1  x 0.08120 y 0.48150 z 0.25000 occ O 1 beq 1.0
 """
 
-#: mlx·a, mly·b, mlz·c for Mn_1 to five decimals, crystal-axis mu_B. Our
-#: arithmetic, not a TOPAS output: the display line waits for a TOPAS run.
-_TUTORIAL_DISPLAY = (0.38220, 3.51302, 0.31983)
+#: The edges of the fixture's cell, in Å.
+_TUTORIAL_EDGES = (5.61240, 5.83170, 7.74410)
 
 
-def test_a_topas_moment_is_fractional_and_matches_the_tutorials_display(
-        tmp_path):
-    """``mlx mly mlz`` are fractional-basis components, so the stored
-    crystal-axis moment is each times its edge — and equals the
-    ``MM_CrystalAxis_Display`` values TOPAS printed beside them, to the
-    precision both were printed at.
+def test_a_topas_moment_in_the_tutorials_syntax_is_fractional(tmp_path):
+    """``mlx mly mlz`` reached through ``prm`` equations in a
+    ``mag_space_group``-only ``str`` are fractional-basis components, so the
+    stored crystal-axis moment is each times its edge.
 
     The Technical Reference § 13 states it twice (Fmagc = L·Fmag with
-    m = {mlx, mly, mlz}; ``MM_CrystalAxis_Display`` as mxc = mlx·a) and the
-    tutorial's numbers agree. The old crystal-axis reading stored
-    (0.06810, 0.60240, 0.04130) and is 2.9 μ_B off here. Five-decimal ``mlx``
-    times an edge is good to 0.5e-5·|edge|, the display to 0.5e-5 more.
+    m = {mlx, mly, mlz}; ``MM_CrystalAxis_Display`` as mxc = mlx·a), and the
+    oblique-cell test below pins the conversion against TOPAS's L·m. This one
+    pins the tutorial's *syntax*: the ``prm`` route, the ``;:`` values, and a
+    ``str`` with no ``space_group``. The old crystal-axis reading stored
+    (0.06810, 0.60240, 0.04130) and is 2.9 μ_B off here.  The
+    ``MM_CrystalAxis_Display`` line TOPAS prints for this ``str`` is not in
+    the fixture yet: it comes from a TOPAS run, and nothing here stands in
+    for it.
     """
     diagnostics: list = []
     model = read_topas_inp(_inp(tmp_path, _TOPAS_TUTORIAL_P1),
@@ -1957,9 +1958,9 @@ def test_a_topas_moment_is_fractional_and_matches_the_tutorials_display(
     assert out.magnetic_symmetry.bns_number == "1.1"
     assert out.space_group == "P 1"         # derived: the family group of 1.1
     mn = next(a for a in out.atoms if a.label == "Mn_1")
-    edges = (5.61240, 5.83170, 7.74410)
-    for got, shown, edge in zip(mn.moment.values(), _TUTORIAL_DISPLAY, edges):
-        assert abs(got - shown) <= 0.5e-5 * edge + 0.5e-5, (got, shown)
+    fractional = (0.06810, 0.60240, 0.04130)
+    assert mn.moment.values() == tuple(
+        m * edge for m, edge in zip(fractional, _TUTORIAL_EDGES))
     codes = {d.code: d for d in built}
     assert "TOPAS_MOMENT_CONVENTION" in codes
     assert "fractional" in codes["TOPAS_MOMENT_CONVENTION"].message
