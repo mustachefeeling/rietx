@@ -1,0 +1,50 @@
+name: WP-1462 GPU gate
+
+# One-off, and never on main: WP-1462's structure viewer drawn on the GL
+# drivers a Windows and a Linux runner have, by docs/wp/1462-spike/gate.py.
+# The branch deletes this file once the run is recorded; the WP names the
+# commit it ran from.
+
+on:
+  push:
+    branches: [wp1462-rename-gate]
+
+jobs:
+  gate:
+    name: gate (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            python: .venv/Scripts/python
+            display: ""
+            configs: chromium chromium-d3d11 firefox firefox-forced webkit
+          - os: ubuntu-latest
+            python: .venv/bin/python
+            display: xvfb-run -a
+            configs: chromium chromium-gl firefox firefox-forced webkit
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - run: uv venv --python 3.12
+      - run: uv pip install -e ".[dev]" playwright==1.63.0
+      - run: ${{ matrix.python }} -m playwright install --with-deps chromium firefox webkit
+      - name: Each browser, headed
+        run: |
+          for c in ${{ matrix.configs }}; do
+            echo "::group::$c"
+            ${{ matrix.display }} ${{ matrix.python }} docs/wp/1462-spike/gate.py run gate-out "$c" --headed \
+              || echo "::warning::$c did not finish"
+            echo "::endgroup::"
+          done
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: gate-${{ matrix.os }}
+          path: gate-out
