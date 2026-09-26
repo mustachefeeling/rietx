@@ -1240,7 +1240,10 @@ def write_magnetic_block(block, phase, *,
       neither ``value(su)`` nor a fixed number of decimals), and ``magnitude``
       computed **once**, from the components under the cosine metric
       ``cif_mag.dic`` defines, so the file cannot carry a magnitude that
-      disagrees with its own components;
+      disagrees with its own components — and computed on the cell **as this
+      block prints it** (:func:`_printed_cell`), never on the unrounded cell
+      in memory, so the file is consistent for any reader and not only for
+      one that knows the cell had more digits;
     * ``magnitude_su`` where ``magnitude_esds`` supplies it — the esd of the
       *modulus*, which is where WP-1327 puts a moment's uncertainty (the
       component ``stderr`` of a refined moment is ``None`` by design, because
@@ -1271,7 +1274,7 @@ def write_magnetic_block(block, phase, *,
     sites = [a for a in phase.atoms if a.moment is not None]
     if not sites:
         return
-    cell6 = phase.cell.lengths_angles()
+    cell6 = _printed_cell(block, phase)
     esds = magnitude_esds or {}
     loop = block.init_loop("_atom_site_moment.", [
         "label", "crystalaxis_x", "crystalaxis_y", "crystalaxis_z",
@@ -1291,6 +1294,31 @@ def write_magnetic_block(block, phase, *,
     for atom in sites:
         loop.add_row([atom.label, _quote(atom.moment.ion),
                       "." if atom.moment.g is None else repr(atom.moment.g)])
+
+
+def _printed_cell(block, phase) -> tuple[float, ...]:
+    """The cell as the block states it, which is the cell every reader sees.
+
+    ``write_structure_block`` prints a cell angle to four decimals, or to its
+    esd's precision, so a refined β = 100.123456789(12) goes out as
+    ``100.1235(12)``.  A magnitude computed on the unrounded angle then
+    disagrees with the components on the printed one: 1.8e-6 μ_B on a
+    (3.12, 0, 3.12) moment, where a ``repr``-precision magnitude and repr
+    components state a precision of 6e-11 μ_B, so the reader refused its own
+    writer's file (review of #478, item 1).  Reading the six numbers back off
+    the block through gemmi's own number parser — the one
+    ``read_small_structure`` uses — makes the magnitude exactly what a reader
+    recomputes, with no tolerance widened.  A block with no cell (a caller
+    writing the magnetic half alone) falls back on the phase's own.
+    """
+    import gemmi
+
+    tags = [f"_cell_length_{n}" for n in ("a", "b", "c")] + [
+        f"_cell_angle_{n}" for n in ("alpha", "beta", "gamma")]
+    values = [block.find_value(t) for t in tags]
+    if any(v is None for v in values):
+        return phase.cell.lengths_angles()
+    return tuple(gemmi.cif.as_number(v) for v in values)
 
 
 def _quote(text: str) -> str:

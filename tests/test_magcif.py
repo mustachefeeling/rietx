@@ -2171,6 +2171,147 @@ def test_a_tied_moment_round_trips_bit_and_byte_identically(tmp_path):
     assert out0.read_bytes() == out1.read_bytes() == out2.read_bytes()
 
 
+# ===========================================================================
+# 9b. a refined oblique cell: the magnitude is computed on the printed cell
+#     (review of #478, item 1)
+# ===========================================================================
+
+#: A refined angle carries more digits than the core writer prints: β goes out
+#: as ``100.1235(12)``.  Synthetic numbers, the reviewer's reproduction.
+_REFINED_BETA = 100.123456789
+_REFINED_BETA_ESD = 0.0012
+_OBLIQUE_MOMENT = 3.1234567891
+
+
+def _refined_oblique(tmp_path, *, sites, moments, cell, angle, esd, parent,
+                     it, bns, operations, name="oblique", ions=None):
+    """A magCIF read, then its one refinable angle set to a refined double."""
+    path = _magcif(tmp_path, name, parent=parent, it=it, bns=bns,
+                   symbol=parent, cell=cell, operations=operations,
+                   sites=sites, moment_loop=_moment_loop(moments))
+    phase = structure_from_cif(str(path), moment_ions=ions).phases[0]
+    update = {n: rx.Parameter(value=angle, stderr=esd)
+              for n in (("alpha", "beta", "gamma") if cell[3] == cell[4]
+                        == cell[5] else ("beta",))}
+    phase = phase.model_copy(update={
+        "cell": phase.cell.model_copy(update=update)})
+    return rx.Phase.model_validate(phase.model_dump())
+
+
+def _round_trip_twice(tmp_path, phase, esds=None, diagnostics=None):
+    """write -> read -> write -> read, the first write through the exporter's
+    own block writer so a ``magnitude_su`` can be supplied per site."""
+    import gemmi
+
+    from rietx.crystallography.cif import write_structure_block
+
+    doc = gemmi.cif.Document()
+    write_structure_block(doc.add_new_block("refined"), phase,
+                          moment_magnitude_esds=esds)
+    out0 = tmp_path / "refined.cif"
+    doc.write_file(str(out0))
+    first = structure_from_cif(str(out0), diagnostics=diagnostics)
+    out1 = tmp_path / "one.cif"
+    structure_to_cif(first, str(out1))
+    second = structure_from_cif(str(out1))
+    out2 = tmp_path / "two.cif"
+    structure_to_cif(second, str(out2))
+    third = structure_from_cif(str(out2))
+    return out0, first, second, third, (out1, out2)
+
+
+def test_a_refined_oblique_cell_reads_back_from_its_own_writer(tmp_path):
+    """The reviewer's reproduction: ``P -1``, Fe1's moment (3.1234567891, 0,
+    3.1234567891), β = 100.123456789(12).
+
+    The core writer prints β as ``100.1235(12)``; the magnitude used to be
+    computed on the unrounded β, 1.8e-6 μ_B away from what the reader
+    recomputes on the printed one, against a stated precision of 6e-11, and
+    the reader refused the file.  It is now computed on the printed cell, so
+    it is exactly the reader's number: the moment comes back bit for bit and
+    every field is a fixed point from the first read on.
+    """
+    phase = _refined_oblique(
+        tmp_path, parent="P -1", it=2, bns="2.4",
+        operations=("x,y,z,+1", "-x,-y,-z,+1"),
+        cell=(5.1, 6.2, 7.3, 90.0, 100.0, 90.0),
+        angle=_REFINED_BETA, esd=_REFINED_BETA_ESD,
+        sites=("Fe1 Fe 0.0 0.0 0.0 1",),
+        moments=[("Fe1", _OBLIQUE_MOMENT, "0", _OBLIQUE_MOMENT, "mx,my,mz")],
+        ions={"Fe1": "Fe3+"})
+    # the reproduction: the unrounded cell's |m| is not the printed cell's
+    printed = (5.1, 6.2, 7.3, 90.0, 100.1235, 90.0)
+    m = (_OBLIQUE_MOMENT, 0.0, _OBLIQUE_MOMENT)
+    assert abs(moment_magnitude(m, phase.cell.lengths_angles())
+               - moment_magnitude(m, printed)) > 1e-6
+    out0, first, second, third, (out1, out2) = _round_trip_twice(
+        tmp_path, phase)
+    assert "100.1235(12)" in out0.read_text(encoding="utf-8")
+    assert _stored(first.phases[0]) == _stored(phase)
+    assert first.phases[0].cell.beta.value == 100.1235
+    assert first.model_dump() == second.model_dump() == third.model_dump()
+    assert out1.read_bytes() == out2.read_bytes()
+
+
+def test_a_fixed_moment_beside_a_refined_one_reads_back(tmp_path):
+    """``write_refinement_cif``'s two rows: a refined site with a
+    ``magnitude_su`` and a **fixed** one with none.
+
+    The fixed site is the one the old writer could not escape — no su widens
+    its tolerance, so the magnitude has to be exactly the reader's number —
+    and both are written through the exporter's block writer.
+    """
+    phase = _refined_oblique(
+        tmp_path, parent="P -1", it=2, bns="2.4",
+        operations=("x,y,z,+1", "-x,-y,-z,+1"),
+        cell=(5.1, 6.2, 7.3, 90.0, 100.0, 90.0),
+        angle=_REFINED_BETA, esd=_REFINED_BETA_ESD,
+        sites=("Fe1 Fe 0.0 0.0 0.0 1", "Fe2 Fe 0.5 0.5 0.5 1"),
+        moments=[("Fe1", _OBLIQUE_MOMENT, "0", _OBLIQUE_MOMENT, "mx,my,mz"),
+                 ("Fe2", "-1.9876543219", "0.4321987654", "2.2468013579",
+                  "mx,my,mz")],
+        ions={"Fe1": "Fe3+", "Fe2": "Fe3+"})
+    diagnostics: list = []
+    out0, first, second, third, (out1, out2) = _round_trip_twice(
+        tmp_path, phase, {"Fe1": 0.0655}, diagnostics=diagnostics)
+    assert "_atom_site_moment.magnitude_su" in out0.read_text(encoding="utf-8")
+    for want, got in zip(phase.atoms, first.phases[0].atoms):
+        assert got.moment.values() == want.moment.values()
+    assert [d.where for d in diagnostics
+            if d.code == "CIF_MAGNETIC_MAGNITUDE_ESD_NOT_STORED"] == [
+        ["phases.0.atoms.0.moment"]]
+    assert _stored(first.phases[0]) == _stored(phase)
+    assert first.model_dump() == second.model_dump() == third.model_dump()
+    assert out1.read_bytes() == out2.read_bytes()
+
+
+def test_a_rhombohedral_cell_on_rhombohedral_axes_reads_back(tmp_path):
+    """R -3 on rhombohedral axes, α = β = γ refined to a double.
+
+    The third shape the reviewer named: all three angles are printed rounded,
+    and a moment along the three-fold, (m, m, m), has a magnitude that turns
+    on every one of them.
+    """
+    third = 1.2345678901
+    phase = _refined_oblique(
+        tmp_path, parent="R -3", it=148, bns="148.17",
+        operations=("x,y,z,+1", "z,x,y,+1", "y,z,x,+1",
+                    "-x,-y,-z,+1", "-z,-x,-y,+1", "-y,-z,-x,+1"),
+        cell=(5.4, 5.4, 5.4, 56.0, 56.0, 56.0),
+        angle=56.123456789, esd=0.0011,
+        sites=("Fe1 Fe 0.0 0.0 0.0 1",),
+        moments=[("Fe1", third, third, third, "mx,mx,mx")],
+        ions={"Fe1": "Fe3+"})
+    assert phase.space_group.endswith(":R")
+    out0, first, second, three, (out1, out2) = _round_trip_twice(
+        tmp_path, phase)
+    assert first.phases[0].cell.alpha.value == 56.1235
+    assert first.phases[0].atoms[0].moment.values() == (third, third, third)
+    assert _stored(first.phases[0]) == _stored(phase)
+    assert first.model_dump() == second.model_dump() == three.model_dump()
+    assert out1.read_bytes() == out2.read_bytes()
+
+
 def test_the_modulus_esd_comes_from_the_dof_row_and_nowhere_else(tmp_path):
     """``_moment_esds`` reads ``phases.i.atoms.j.moment.dof0`` and does not
     recompute anything (WP-1076: one writer per number).
