@@ -85,6 +85,17 @@ What an operator must know, all measured:
   from the last **accepted** pattern, a quarantined one seeding no successor
   here either.  *(Measured: WP-1441, issue #376 — before it, the tie holding
   pattern 1 together left `ref._ties` empty on pattern 2.)*
+- **Chart a chained coordinate by its `x`/`y`/`z` rows, never by its `dof`.**
+  `carry` moves a refined coordinate into the next pattern a whole site at a
+  time, but the `phases.*.atoms.*.dof.*` value a fit reports is measured from
+  where *that fit* began, which in a chain is the previous pattern's answer: its
+  trajectory is a step per pattern, not a position.  The coordinate rows carry
+  the same esd and are what the discontinuity and path-dependence checks judge.
+  A DOF your `constrain` hook ties to a variable follows the variable, so
+  leaving `vars.*` out of `carry` restarts the coordinate too.  *(Measured:
+  WP-1333 — before it the chain restarted a synthetic LaB6 ramp's boron `x` at
+  0.19 on every pattern, and once it carried, the DOF's steps fired both
+  checks on a clean both-way run until they skipped it.)*
 - **A Le Bail or Pawley chain carries its per-hkl intensities too, and
   `carry_hkl_intensities=False` turns that off.**  They live outside θ, so no
   `carry` glob reaches them; the constructor switch does, and `False` starts

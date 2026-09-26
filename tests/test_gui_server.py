@@ -3550,6 +3550,23 @@ def test_a_series_runs_and_its_trajectories_are_the_series_result(series):
     assert payload["curves"] == [True, True, True]
 
 
+def test_the_run_keeps_the_paths_its_fences_skipped(series):
+    """The disagreement column is handed the fences' own list (WP-1333).
+
+    Taken once from the models the run was handed and kept beside its result,
+    so ``result_payload`` abstains exactly where the fences did.  The ramp's
+    boron sits on a site with one DOF, so an empty set here is the wiring
+    dropped, not a model without one.
+    """
+    from rietx.sequential import _relative_paths
+
+    session, _, _ = series
+    entry = session._series_run
+    runner = entry["runner"]
+    assert entry["relative"] == _relative_paths(runner.structure, runner.instrument)
+    assert entry["relative"]
+
+
 def test_the_backward_chain_travels_as_a_number_not_a_footnote(series):
     """``direction="both"`` ran, so every trajectory carries the other chain.
 
@@ -3774,6 +3791,32 @@ def test_an_unjudgeable_parameter_gets_no_disagreement_rather_than_zero():
     assert row["n_sigma"] is None
     assert row["path_dependent"] is False       # no fence fired either
     assert row["backward"] == [4.156, 4.158, 4.171]
+
+
+def test_a_relative_path_gets_no_disagreement_since_the_fence_skips_it():
+    """The same abstention for a path the fence does not judge at all.
+
+    A coordinate DOF is the step from where each fit began, and the two chains
+    begin a pattern from opposite neighbours, so ``_path_dependence_diagnostics``
+    skips ``sequential._relative_paths`` (WP-1333).  Served anyway, its number
+    would rank top on a series whose coordinates agree.  The mechanism is pinned
+    on the helper's one path; its backward values are still served.
+    """
+    from rietx.gui import series as series_mod
+    from rietx.sequential import PATH_DEPENDENCE_SIGMA
+
+    forward, backward = _series_pair([4.156, 4.158, 4.160],
+                                     [4.156, 4.158, 4.171])
+    row, = series_mod.trajectories(forward, backward)
+    assert row["n_sigma"] > PATH_DEPENDENCE_SIGMA
+
+    relative = frozenset({"phases.0.cell.a"})
+    row, = series_mod.trajectories(forward, backward, relative)
+    assert row["n_sigma"] is None
+    assert row["backward"] == [4.156, 4.158, 4.171]
+    payload = series_mod.result_payload(forward, backward, running=False,
+                                        curves=[True] * 3, relative=relative)
+    assert payload["trajectories"][0]["n_sigma"] is None
 
 
 # --------------------------------------------------------------------------- #

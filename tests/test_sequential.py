@@ -24,11 +24,12 @@ import pytest
 import rietx as rx
 from rietx.model.forward import compile_model
 from rietx.optimize.cancel import CancelToken
-from rietx.params.vector import ParameterTable
+from rietx.params.vector import AffineTie, ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import BackgroundChebyshev
 from rietx.schemas.results import RefinedParameter, Statistics
 from rietx.schemas.sequential import SeriesEntry, SeriesResult
+from rietx.schemas.structure import Atom
 from rietx.sequential import (
     FIRST_RUNG_FACTOR,
     SequentialRefinement,
@@ -282,6 +283,168 @@ def test_carry_globs_move_only_matching_paths():
     assert cell.a.value == pytest.approx(A0 * 1.02)
     assert cell.b.value == pytest.approx(cell.a.value)
     assert cell.c.value == pytest.approx(cell.a.value)
+
+
+# -- a refined coordinate crosses the boundary (WP-1333) ------------------
+
+B_X = "phases.0.atoms.1.x"
+B_DOF = "phases.0.atoms.1.dof.0"
+
+
+def test_a_refined_coordinate_is_carried_as_its_sites_displacement():
+    """Copying a coordinate's DOF carries nothing: every build rederives it to 0.
+
+    The boron sits on 6f (x, ½, ½), one DOF reaching ``x``.  Until WP-1333 a
+    fitted 0.2100 came back as the start model's 0.1993 under ``carry=["*"]``,
+    while ``cell.a`` beside it carried: the DOF was copied at 0.0 and the
+    coordinate re-derived from this model's own anchor.
+    """
+    fitted_s, fitted_i = _start_models()
+    fitted_s.phases[0].atoms[1].x.value = 0.2100
+    for name in ("a", "b", "c"):
+        getattr(fitted_s.phases[0].cell, name).value = A0 * 1.02
+
+    start_s, start_i = _start_models()
+    assert _carry_into(start_s, start_i, (fitted_s, fitted_i), ["*"]) == [B_DOF]
+    boron = start_s.phases[0].atoms[1]
+    assert boron.x.value == pytest.approx(0.2100, abs=1e-15)
+    assert (boron.y.value, boron.z.value) == (0.5, 0.5)
+    assert start_s.phases[0].cell.a.value == pytest.approx(A0 * 1.02)
+
+    # the DOF's own path licenses the carry too: it is the name a plan frees
+    start_s, start_i = _start_models()
+    _carry_into(start_s, start_i, (fitted_s, fitted_i), ["phases.*.atoms.*.dof.*"])
+    assert start_s.phases[0].atoms[1].x.value == pytest.approx(0.2100, abs=1e-15)
+
+    # and a glob naming neither leaves the atom where the start model put it
+    start_s, start_i = _start_models()
+    assert _carry_into(start_s, start_i, (fitted_s, fitted_i),
+                       ["phases.*.cell.*"]) == []
+    assert start_s.phases[0].atoms[1].x.value == 0.1993
+
+
+def _with_an_8g_atom(x: float, y: float, z: float):
+    structure, instrument = _start_models()
+    structure.phases[0].atoms.append(Atom(
+        label="O", species="O", x=Parameter(value=x), y=Parameter(value=y),
+        z=Parameter(value=z)))
+    return structure, instrument
+
+
+def test_a_site_moves_as_a_site_whatever_the_glob_names():
+    """8g (x, x, x) in Pm-3m: one DOF, three rows, and they move together.
+
+    A glob naming ``x`` alone carries the DOF, so ``y`` and ``z`` follow as its
+    rows.  Carried row by row instead, the atom would leave the diagonal, and
+    the next build would find it on a general position with three DOFs: the
+    model changed, and nothing said so.  A fitted target that is off the site
+    is projected onto it, not followed off it.
+    """
+    start_s, start_i = _with_an_8g_atom(0.30, 0.30, 0.30)
+    _carry_into(start_s, start_i, _with_an_8g_atom(0.32, 0.32, 0.32),
+                ["phases.*.atoms.2.x"])
+    oxygen = start_s.phases[0].atoms[2]
+    assert [oxygen.x.value, oxygen.y.value, oxygen.z.value] == pytest.approx(
+        [0.32] * 3, abs=1e-15)
+
+    start_s, start_i = _with_an_8g_atom(0.30, 0.30, 0.30)
+    _carry_into(start_s, start_i, _with_an_8g_atom(0.32, 0.30, 0.34), ["*"])
+    oxygen = start_s.phases[0].atoms[2]
+    assert [oxygen.x.value, oxygen.y.value, oxygen.z.value] == pytest.approx(
+        [0.32] * 3, abs=1e-15)
+    dofs = [e.path for e in ParameterTable(start_s, start_i).entries
+            if e.path.startswith("phases.0.atoms.2.dof.")]
+    assert dofs == ["phases.0.atoms.2.dof.0"]
+
+
+def test_a_carried_anchor_is_reanchored_once_per_table():
+    """``reanchor_dofs`` subtracts from a stored constant, so it is guarded.
+
+    The stored 0.2100 was written while the variable driving the DOF held
+    0.0107, and this table declares it at 0.  The anchor moves back by that
+    contribution, so the coordinate reads 0.1993 now and 0.2100 once the
+    variable is warmed.  A second call would walk it back again, so the table
+    refuses it; a source the caller does not name contributed what it holds
+    now, which is nothing to correct.
+    """
+    structure, instrument = _start_models()
+    structure.phases[0].atoms[1].x.value = 0.2100
+    table = ParameterTable(structure, instrument)
+    table.add_parameter("vars.dx", 0.0, lo=-1.0, hi=1.0)
+    table.set_tie(B_DOF, AffineTie(terms=(("vars.dx", 1.0),), const=0.0))
+    table.rebase_anchored_dofs([B_DOF])
+    by_path = {e.path: e for e in table.entries}
+    assert by_path[B_X].value == pytest.approx(0.2100, abs=1e-15)
+
+    assert table.reanchor_dofs([B_DOF], {}) == []
+    assert table.reanchor_dofs([B_DOF], {"vars.dx": 0.0107}) == [B_DOF]
+    assert by_path[B_X].value == pytest.approx(0.1993, abs=1e-15)
+    assert table.reanchor_dofs([B_DOF], {"vars.dx": 0.0107}) == []
+    assert by_path[B_X].value == pytest.approx(0.1993, abs=1e-15)
+
+    by_path["vars.dx"].value = 0.0107
+    table.refresh_ties()
+    assert by_path[B_X].value == pytest.approx(0.2100, abs=1e-15)
+
+
+#: the boron's start, off the patterns' 0.1993 by enough that pattern 1's fit
+#: moves it measurably
+_B_START = 0.19
+
+
+def _coordinate_plan(glob: str) -> staged.RefinementPlan:
+    return staged.RefinementPlan(stages=[
+        *staged.RefinementPlan.mccusker_default().stages,
+        staged.Stage("xyz", [glob])])
+
+
+@pytest.mark.parametrize("tie, carry", [
+    (False, ["*"]),
+    (True, ["*"]),
+    (True, ["phases.*", "instrument.*"]),
+], ids=["free", "tied-to-a-variable", "variable-not-carried"])
+def test_a_refined_coordinate_starts_the_next_pattern(thermal_patterns, tie, carry):
+    """The chain half: pattern 2 starts where pattern 1's fit left the atom.
+
+    Free, the DOF's displacement is carried.  Tied by the hook to a variable,
+    the carried coordinate already holds that variable's fitted displacement,
+    and the warmed variable must not add it a second time: without
+    ``_reanchor_carried`` pattern 2 started the boron at 0.2092, not 0.1996.
+    The anchor carries what the fit put there and a tie carries what its
+    source says, so a variable the glob excludes restarts at its declaration
+    and takes the coordinate back to the start model with it, keeping one
+    anchor for the whole trajectory of ``vars.dx``.
+    """
+    started: list[tuple[float, float | None]] = []
+
+    def constrain(index, ref):
+        if tie:
+            ref.add_variable("dx", 0.0, min=-0.05, max=0.05)
+            ref.tie(B_DOF, "vars.dx")
+        inner = ref.fit
+
+        def fit(*args, **kwargs):     # after the carry, which runs on return
+            started.append((ref.structure.phases[0].atoms[1].x.value,
+                            ref._variables["dx"].value if tie else None))
+            return inner(*args, **kwargs)
+
+        ref.fit = fit
+
+    structure, instrument = _start_models()
+    structure.phases[0].atoms[1].x.value = _B_START
+    series = refine_sequential(
+        thermal_patterns[:2], structure, instrument, carry=carry,
+        plan=_coordinate_plan("vars.*" if tie else "phases.*.atoms.*.dof.*"),
+        constrain=constrain)
+    fitted = {p.path: p.value for p in series[0].parameters}
+    assert abs(fitted[B_X] - _B_START) > 5e-3     # the fit moved it
+
+    if carry == ["*"]:
+        assert started[1][0] == pytest.approx(fitted[B_X], abs=1e-12)
+        if tie:
+            assert started[1][1] == fitted["vars.dx"]
+    else:
+        assert started[1] == pytest.approx((_B_START, 0.0), abs=1e-12)
 
 
 # -- user constraints across the chain (WP-1441, issue #376) --------------
@@ -1266,6 +1429,47 @@ def test_an_inert_parameter_cannot_carry_a_discontinuity():
     assert [s.diagnostic.code for s in flagged] == ["SEQUENTIAL_DISCONTINUITY"]
     # the signed step the verification ratio divides by (WP-1305)
     assert flagged[0].step == pytest.approx(4.15962 - 4.15661)
+
+
+def test_a_relative_dof_is_judged_by_neither_fence():
+    """A coordinate DOF's value is the step its fit took, not a position.
+
+    Since WP-1333 each pattern starts where its predecessor ended, so a DOF's
+    trajectory is the first pattern's move from the model and then small steps
+    either way: a jump by construction.  The backward chain takes the same
+    steps from the other side, so the two differ in sign by construction too.
+    Both fences fired on exactly that, on a clean seven-pattern ramp whose
+    coordinate agreed between the chains to 1e-9.
+    """
+    steps = [0.0096, -0.0005, 0.0003, -0.0002, 0.0003, -0.0001]
+    forward = _synthetic_series(B_DOF, steps, [4e-4] * 6)
+    backward = _synthetic_series(B_DOF, [-s for s in steps], [4e-4] * 6)
+    assert [s.diagnostic.code for s in _discontinuity_steps(forward)] == [
+        "SEQUENTIAL_DISCONTINUITY"]
+    assert [d.code for d in _path_dependence_diagnostics(forward, backward)] == [
+        "SEQUENTIAL_PATH_DEPENDENT"]
+
+    relative = frozenset({B_DOF})
+    assert _discontinuity_steps(forward, relative) == []
+    assert _path_dependence_diagnostics(forward, backward, relative) == []
+
+
+def test_a_chained_coordinate_is_judged_on_its_coordinate(thermal_patterns):
+    """The fences are handed the model's displacement DOFs, and skip them.
+
+    Read off the table built from the models the chain was given
+    (``anchored_dof_paths``), since nothing in a ``SeriesEntry`` says a path
+    is relative.  The coordinate row stays in the series, and so does the DOF:
+    each is what its fits reported.
+    """
+    structure, instrument = _start_models()
+    structure.phases[0].atoms[1].x.value = _B_START
+    series = refine_sequential(
+        thermal_patterns[:5], structure, instrument, direction="both",
+        plan=_coordinate_plan("phases.*.atoms.*.dof.*"))
+    assert {B_X, B_DOF} <= set(series.paths(varied_only=False))
+    judged = {"SEQUENTIAL_DISCONTINUITY", "SEQUENTIAL_PATH_DEPENDENT"}
+    assert [d.where for d in series.diagnostics if d.code in judged] == []
 
 
 def test_path_dependence_ignores_numerically_identical_chains():

@@ -52,6 +52,12 @@ screenshots come from `docs/manual/make_screenshots.py`.
 
 ### Inherited
 
+- **From WP-1333 (2026-09-26): chart a coordinate, never its DOF.** A series
+  now carries refined coordinates, so a `phases.*.atoms.*.dof.*` value is each
+  pattern's step from where its fit began, not a position. A scrubber drawing
+  trajectories draws the coordinate rows. A disagreement or jump it computes
+  itself skips `sequential._relative_paths`, as both fences and
+  `gui/series.trajectories`' `n_sigma` do.
 - **From the 2026-09-01 triage's second batch (issue #207 →
   [1322](1322-events-aggregator.md))**: the headless counterpart is its own
   WP — a `rietx events` aggregator whose `termination` histogram and

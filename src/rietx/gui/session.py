@@ -1627,7 +1627,7 @@ class GuiSession:
             # ``SequentialRefinement`` already emits per-pattern events — since
             # WP-1016 it does, which is the half that charter assumed and the
             # library did not have.
-            from ..sequential import SequentialRefinement
+            from ..sequential import SequentialRefinement, _relative_paths
 
             setup = self._series
             if len(setup.members) < 2:
@@ -1672,7 +1672,12 @@ class GuiSession:
                                         # cannot be re-fitted without replacing
                                         # the whole answer, so its masked band
                                         # must not move when a setting does
-                                        "limits": limits}
+                                        "limits": limits,
+                                        # the paths the fences skipped, taken
+                                        # once from the models the run was
+                                        # handed rather than rebuilt per GET
+                                        "relative": _relative_paths(
+                                            runner.structure, runner.instrument)}
                 return result
 
             summarize = _summarize_series
@@ -2475,7 +2480,8 @@ class GuiSession:
         runner = entry["runner"]
         return series_mod.result_payload(
             entry["result"], entry["backward"], running=busy,
-            curves=[bool(r.two_theta) for r in runner.results_])
+            curves=[bool(r.two_theta) for r in runner.results_],
+            relative=entry["relative"])
 
     def _series_member_result(self, index: int):
         """The series entry and member ``index``'s result, which has curves, or a refusal."""

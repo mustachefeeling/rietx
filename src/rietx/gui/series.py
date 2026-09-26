@@ -314,7 +314,8 @@ def setup_payload(setup: SeriesSetup, *, running: bool, has_result: bool,
 # the answer
 # ----------------------------------------------------------------------
 def trajectories(series: SeriesResult,
-                 backward: SeriesResult | None = None) -> list[dict]:
+                 backward: SeriesResult | None = None,
+                 relative: frozenset[str] = frozenset()) -> list[dict]:
     """Every parameter's path across the series, plus the QPA fractions.
 
     One entry per dot-path in first-seen order, then one ``qpa.<phase>`` per
@@ -322,6 +323,12 @@ def trajectories(series: SeriesResult,
     read off the series' **own** diagnostics rather than recomputed — the fences
     are the library's judgement — while ``n_sigma`` is computed here because no
     diagnostic carries a magnitude (see the module docstring).
+
+    ``relative`` paths keep their backward values and get no ``n_sigma``,
+    because the fence abstains on them (``sequential._relative_paths``): a
+    coordinate DOF is the step from where each fit began, and the two chains
+    begin a pattern from opposite neighbours, so its disagreement would rank
+    top on a series whose coordinates agree (WP-1333).
     """
     unstable = {d.where[0] for d in series.diagnostics
                 if d.code == "SEQUENTIAL_PATH_DEPENDENT" and d.where}
@@ -360,7 +367,8 @@ def trajectories(series: SeriesResult,
             other = backward.trajectory(path)
             if len(other) == len(traj):
                 row["backward"] = list(other.value)
-                row["n_sigma"] = _disagreement(traj, other)
+                if path not in relative:
+                    row["n_sigma"] = _disagreement(traj, other)
         out.append(row)
     return out
 
@@ -388,7 +396,8 @@ def _disagreement(forward, backward) -> float | None:
 
 
 def result_payload(series: SeriesResult, backward: SeriesResult | None, *,
-                   running: bool, curves: list[bool]) -> dict:
+                   running: bool, curves: list[bool],
+                   relative: frozenset[str] = frozenset()) -> dict:
     """The series answer as a client needs it: entries, trajectories, fences.
 
     ``curves`` says per entry whether this session still holds that pattern's
@@ -402,10 +411,13 @@ def result_payload(series: SeriesResult, backward: SeriesResult | None, *,
     (WP-0505's measured lesson), so the one check that separates a measured
     trajectory from an ordering artefact cannot be something a user has to scroll
     to.
+
+    ``relative`` is the runner's ``sequential._relative_paths``, passed on to
+    :func:`trajectories`.
     """
     return {
         "result": series.model_dump(mode="json"),
-        "trajectories": trajectories(series, backward),
+        "trajectories": trajectories(series, backward, relative),
         "path_dependent": sorted({d.where[0] for d in series.diagnostics
                                   if d.code == "SEQUENTIAL_PATH_DEPENDENT"
                                   and d.where}),
