@@ -274,6 +274,22 @@ def test_the_payload_draws_the_same_ellipsoids_whatever_eigh_returned(nac, monke
     assert np.allclose(got, want, rtol=0, atol=1e-12)
 
 
+def test_an_images_rings_are_the_image_of_its_sites_rings(nac):
+    """Each image's T is the site's pinned T turned by that image's Cartesian
+    rotation, so equivalent atoms wear equivalent rings. Pinned image by image,
+    NAC's images drew their free rings up to 60° from the site's, turned."""
+    payload = s3.build(nac)
+    phase = nac.phases[0]
+    basis = s3.cartesian_basis(*phase.cell.lengths_angles())
+    turns = [basis @ (np.array(op.rot, dtype=float) / op.DEN) @ np.linalg.inv(basis)
+             for op in get_spacegroup(phase.space_group).operations()]
+    for site in payload["sites"]:
+        images = [np.array(a["ellipsoid"]) for a in payload["atoms"] if a["site"] == site["index"]]
+        own = images[0]
+        for image in images:
+            assert any(np.allclose(image, turn @ own, rtol=0, atol=1e-12) for turn in turns)
+
+
 def test_a_non_positive_definite_tensor_is_flagged_and_never_nan():
     """The ``ADP_NOT_POSITIVE_DEFINITE`` case, as geometry.
 

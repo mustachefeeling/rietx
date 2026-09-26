@@ -334,7 +334,8 @@ coordinate near zero since T's columns are the principal axes, and an isotropic
 site draws none, its axes pointing nowhere. **Where principal values are equal
 the server pins the free axes** (`structure3d._pin_axes`), because `eigh`
 chooses them per LAPACK build: a Mac and an x86 runner drew one uniaxial site's
-rings as an X and a + (WP-1462's gate).
+rings as an X and a + (WP-1462's gate). It pins a site once and turns that T by
+each image's M·R·M⁻¹, so equivalent atoms wear equivalent rings.
 
 The **renderer** (WP-1462) draws a `Scene` from a `View`, both built by pure
 functions in `structure3d.ts`, and knows nothing else. Seven rules.

@@ -95,8 +95,9 @@ BALL_FRACTION = 0.40
 DEGENERATE_RTOL = 1e-9
 
 #: The direction each principal axis is turned to face.  Its components are
-#: e, π and 1, so no crystal direction a tensor's symmetry fixes is orthogonal
-#: to it.
+#: 1, e and π, so an axis a site's symmetry fixes meets it at a right angle
+#: only for special cell parameters.  There the sign is the solver's again,
+#: which moves the payload's bytes and no drawn ring.
 _FACING = np.array([1.0, math.e, math.pi])
 
 #: How many drawn atoms (symmetry images and boundary duplicates included) the
@@ -597,7 +598,7 @@ def _ellipsoid(ustar: np.ndarray | None, uiso: float, rot: np.ndarray,
 
     ``T = V·diag(√λ)`` from the eigen-decomposition of U_cart, so its columns
     are the principal axes at one RMS displacement and the client's only job is
-    a matrix-vector product.  The rotation is applied in **fractional** space
+    a matrix-vector product.  The rotation is the **fractional** R
     (U\\* → R·U\\*·Rᵀ), which is the representation that transforms that way —
     see ``adp.py``.
 
@@ -606,20 +607,23 @@ def _ellipsoid(ustar: np.ndarray | None, uiso: float, rot: np.ndarray,
     image can rotate a sphere.
 
     ``V`` is pinned by :func:`_pin_axes`, since the client draws a principal
-    ellipse round each of T's columns (WP-1462's D6).
+    ellipse round each of T's columns (WP-1462's D6). The site's own tensor is
+    pinned, and an image turns that T by its Cartesian rotation M·R·M⁻¹, which
+    takes U_cart to the image's. So equivalent atoms wear equivalent rings.
+    Pinned image by image, NAC's images drew theirs up to 60° apart.
     """
     if ustar is None:
         rms = np.full(3, math.sqrt(max(uiso, 0.0)))
         return np.diag(rms), rms, False
-    rotated = rot @ ustar @ rot.T
-    u_cart = basis @ rotated @ basis.T
+    u_cart = basis @ ustar @ basis.T
     values, vectors = np.linalg.eigh(u_cart)
     npd = bool(values[0] <= 0.0)
     # √(negative) is NaN and one NaN vertex loses the whole mesh; zero is the
     # honest value — "no positive mean-square displacement along this axis" —
     # and it collapses the ellipsoid visibly instead
     rms = np.sqrt(np.clip(values, 0.0, None))
-    return _pin_axes(values, vectors, basis) * rms, rms, npd
+    turn = basis @ rot @ np.linalg.inv(basis)
+    return turn @ (_pin_axes(values, vectors, basis) * rms), rms, npd
 
 
 def _pin_axes(values: np.ndarray, vectors: np.ndarray, basis: np.ndarray) -> np.ndarray:

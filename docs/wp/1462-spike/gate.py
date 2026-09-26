@@ -192,9 +192,13 @@ def run(out: Path, config: str, headed: bool, payload: Path | None = None) -> di
             canvas = page.locator(".viewer canvas")
             canvas.wait_for()
             _settle(page, 8)
+            # the fetch can land after the settle on a slow machine
+            page.wait_for_function("() => ![...document.querySelectorAll('.viewer p.muted')]"
+                                   ".some((p) => p.textContent.startsWith('loading'))", timeout=60000)
             bad = page.locator(".viewer p.bad")
             record["viewer_error"] = bad.first.text_content() if bad.count() else None
-            (here / "payload.json").write_bytes(served[0].body())
+            if served:
+                (here / "payload.json").write_bytes(served[0].body())
             if record["viewer_error"]:
                 # the viewer's own answer to a browser with no WebGL2; nothing to draw
                 canvas.screenshot(path=here / "unsupported.png")
@@ -312,6 +316,10 @@ def compare(out: Path, ref: Path) -> bool:
         # the screenshots, and the two exports, alpha included
         for png in sorted(p for p in path.parent.glob("*.png") if p.stem != "unsupported"):
             name = png.stem
+            if not (base / png.name).exists():
+                print(f"  {name:18s} the reference has no such picture")
+                checks[f"{name} matches reference"] = False
+                continue
             mine = _image(png.read_bytes())
             theirs = _image((base / png.name).read_bytes())
             level = _levels(mine, theirs)
