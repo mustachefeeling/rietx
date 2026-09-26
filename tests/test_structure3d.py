@@ -670,6 +670,30 @@ def test_an_anion_is_never_a_centre():
     assert s3.build(cluster([("O", 1.0)], ligands))["polyhedra"] == []
 
 
+def test_a_metal_and_a_cation_share_no_stick():
+    """The metal–metal rule widened to metal–cation (WP-1466).
+
+    Forsterite drew 36 Mg–Si sticks at 2.69-2.79 Å, and they crossed the MgO₆
+    faces.  Two cationic non-metals keep theirs: a C bonded to O is a cation
+    and so is the H on it, and an organic without C–H sticks is no picture.
+    """
+    def pairs(payload: dict) -> set[frozenset]:
+        element = lambda i: payload["sites"][payload["atoms"][i]["site"]]["element"]  # noqa: E731
+        return {frozenset((element(b["i"]), element(b["j"]))) for b in payload["bonds"]}
+
+    row = next(r for r in MEASURED if r["name"] == "olivine forsterite")
+    forsterite = pairs(s3.build(measured(row)))
+    assert frozenset(("Mg", "Si")) not in forsterite
+    assert {frozenset(("Mg", "O")), frozenset(("O", "Si"))} <= forsterite
+
+    formate = pairs(s3.build(cluster([("C", 1.0)], [
+        ("O", (1.25, 0.0, 0.0), 1.0), ("H", (-0.6, 0.9, 0.0), 1.0),
+        # 2.6 Å, inside the radius-sum cutoff of 2.90
+        ("Ca", (0.0, 0.0, 2.6), 1.0)])))
+    assert {frozenset(("C", "O")), frozenset(("C", "H"))} <= formate
+    assert frozenset(("C", "Ca")) not in formate
+
+
 def test_a_shell_with_no_clear_gap_is_not_a_polyhedron():
     """P4: six O at 2.0 Å then eight at 2.2 Å, a gap of 1.10 against 1.15."""
     octahedron = [v * 2.0 for v in (*np.eye(3), *-np.eye(3))]

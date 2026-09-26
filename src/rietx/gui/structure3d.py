@@ -534,8 +534,12 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     radii = np.array([sites[a["site"]]["radius"] for a in atoms], dtype=np.float64)
     metal = np.array([sites[a["site"]]["metal"] for a in atoms], dtype=bool)
     alloy = bonds_between_metals(s["element"] for s in sites)
+    orbit = _orbit(sites, every, basis)
+    cations = _cation_sites(sites, orbit["frac"], orbit["elements"], orbit["owner"],
+                            orbit["cart"], orbit["source"], basis)
+    cation = np.array([a["site"] in cations for a in atoms], dtype=bool)
     bonds = _bonds(positions, radii, basis, bond_tolerance,
-                   None if alloy else metal)
+                   None if alloy else metal, cation)
     if len(bonds) > MAX_BONDS:
         notes.append(f"{len(bonds)} bond segments trimmed to {MAX_BONDS}; lower "
                      "the bond tolerance to see a picture rather than a cage")
@@ -547,8 +551,8 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
                      "are not drawn; their bonds end in mid-air")
         partners = partners[:room]
     atoms.extend(partners)
-    polyhedra, ligands, dropped = _polyhedra(sites, every, atoms, n_cell, bonds, basis,
-                                             max(max_atoms - len(atoms), 0))
+    polyhedra, ligands, dropped = _polyhedra(sites, orbit, cations, atoms, n_cell, bonds,
+                                             basis, max(max_atoms - len(atoms), 0))
     if dropped:
         notes.append(f"{dropped} coordination polyhedra not drawn: their ligands "
                      f"would take the drawing past {max_atoms} atoms")
@@ -802,7 +806,8 @@ def _pin_axes(values: np.ndarray, vectors: np.ndarray, basis: np.ndarray) -> np.
 
 def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
            tolerance: float = BOND_TOLERANCE,
-           metal: np.ndarray | None = None) -> list[dict]:
+           metal: np.ndarray | None = None,
+           cation: np.ndarray | None = None) -> list[dict]:
     """Bond **segments** between drawn atoms, over the 27 nearest translations.
 
     Segments rather than pairs, and the distinction is the design: a bond that
@@ -818,14 +823,19 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
     count of segments is only honest if the second case is collapsed.
 
     ``metal`` suppresses metal–metal sticks (see :func:`bonds_between_metals`);
-    ``None`` draws them, which is the alloy case.
+    ``None`` draws them, which is the alloy case.  ``cation`` widens that to
+    every stick between a metal and a cation (:func:`_cation_sites`), as
+    forsterite's 36 Mg–Si sticks at 2.69-2.79 Å and grossular's 90 Ca–Si
+    were (WP-1466).  Two cationic non-metals keep their stick, or an organic
+    would lose every C–C and C–H bond.
     """
     n = len(positions)
     if n == 0:
         return []
     cutoff = float(tolerance) * (radii[:, None] + radii[None, :])
     if metal is not None:
-        cutoff = np.where(metal[:, None] & metal[None, :], -1.0, cutoff)
+        pair = metal[:, None] & (metal if cation is None else cation)[None, :]
+        cutoff = np.where(pair | pair.T, -1.0, cutoff)
     shifts = np.array([[i - 1, j - 1, k - 1] for i in range(3) for j in range(3)
                        for k in range(3)], dtype=np.float64) @ basis.T
     out: list[dict] = []
@@ -851,14 +861,39 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
 # ----------------------------------------------------------------------
 # coordination polyhedra (WP-1466)
 # ----------------------------------------------------------------------
-def _polyhedra(sites: list[dict], every: list[dict], atoms: list[dict], n_cell: int,
-               bonds: list[dict], basis: np.ndarray,
+def _orbit(sites: list[dict], every: list[dict], basis: np.ndarray) -> dict[str, Any]:
+    """Each position of the orbit once, and its images out to :data:`SHELL_RADIUS`.
+
+    ``every`` is the untrimmed image list, and its ``boundary`` duplicates are
+    the same atoms again, so they are left out.  ``cart`` holds every image
+    under every translation that can bring it within the radius of a point
+    anywhere in the cell: |Δf_i| ≤ R·|a*_i|, and both lie in [0, 1].
+    ``source`` maps each row of ``cart`` back to its image.
+    """
+    orbit = [a for a in every if not a["boundary"]]
+    frac = np.array([a["frac"] for a in orbit], dtype=np.float64).reshape(-1, 3)
+    reach = np.ceil(SHELL_RADIUS * np.linalg.norm(np.linalg.inv(basis), axis=1))
+    grid = np.stack(np.meshgrid(*[np.arange(-r - 1, r + 2) for r in reach],
+                                indexing="ij"), axis=-1).reshape(-1, 3)
+    return {
+        "atoms": orbit,
+        "elements": [sites[a["site"]]["element"] for a in orbit],
+        "owner": [a["site"] for a in orbit],
+        "occupancy": np.array([sites[a["site"]]["occ"] for a in orbit], dtype=np.float64),
+        "frac": frac,
+        "cart": ((frac[None, :, :] + grid[:, None, :]) @ basis.T).reshape(-1, 3),
+        "source": np.tile(np.arange(len(orbit)), len(grid)),
+    }
+
+
+def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
+               atoms: list[dict], n_cell: int, bonds: list[dict], basis: np.ndarray,
                room: int) -> tuple[list[dict], list[dict], int]:
     """``(polyhedra, partners, dropped)`` for the first ``n_cell`` drawn atoms.
 
     A centre is a cation and its ligands are anions (:func:`_cation_sites`,
-    :func:`is_ligand`).  The ligands are searched over the whole orbit,
-    ``every`` untrimmed, out to :data:`SHELL_RADIUS`, and matched by
+    :func:`is_ligand`).  The ligands are searched over the whole orbit
+    (:func:`_orbit`), untrimmed, out to :data:`SHELL_RADIUS`, and matched by
     **position**: the server can find a contact from a translated copy of the
     centre, and a shell collected by atom index came out short on 6 of 18 Ca
     in NAC (WP-1462's spike).  The shell ends at :func:`shell_gap`, and it is
@@ -875,23 +910,12 @@ def _polyhedra(sites: list[dict], every: list[dict], atoms: list[dict], n_cell: 
     """
     from scipy.spatial import ConvexHull, QhullError
 
-    orbit = [a for a in every if not a["boundary"]]
-    if not orbit or n_cell == 0:
+    if not orbit["atoms"] or n_cell == 0:
         return [], [], 0
-    elements = [sites[a["site"]]["element"] for a in orbit]
-    occupancy = np.array([sites[a["site"]]["occ"] for a in orbit], dtype=np.float64)
-    frac = np.array([a["frac"] for a in orbit], dtype=np.float64)
-    # every translation that can bring an orbit image within SHELL_RADIUS of a
-    # centre anywhere in the cell: |Δf_i| ≤ R·|a*_i|, and both lie in [0, 1]
-    reach = np.ceil(SHELL_RADIUS * np.linalg.norm(np.linalg.inv(basis), axis=1))
-    grid = np.stack(np.meshgrid(*[np.arange(-r - 1, r + 2) for r in reach],
-                                indexing="ij"), axis=-1).reshape(-1, 3)
-    source = np.tile(np.arange(len(orbit)), len(grid))
-    cart = ((frac[None, :, :] + grid[:, None, :]) @ basis.T).reshape(-1, 3)
+    elements, occupancy = orbit["elements"], orbit["occupancy"]
+    cart, source = orbit["cart"], orbit["source"]
     # a centre is a cation and a ligand is an anion (P2)
-    owner = [a["site"] for a in orbit]
-    cations = _cation_sites(sites, frac, elements, owner, cart, source, basis)
-    anion = np.array([j not in cations for j in owner])
+    anion = np.array([j not in cations for j in orbit["owner"]])
 
     known ={tuple(np.round(a["pos"], 6)): k for k, a in enumerate(atoms)}
     segments: dict[tuple, list[int]] = {}
@@ -962,7 +986,7 @@ def _polyhedra(sites: list[dict], every: list[dict], atoms: list[dict], n_cell: 
             dropped += 1
             continue
         for k in needed:
-            origin = orbit[source[shell[k][0]]]
+            origin = orbit["atoms"][source[shell[k][0]]]
             known[tuple(np.round(vertices[k], 6))] = len(atoms) + len(partners)
             partners.append({**origin, "pos": vertices[k].tolist(), "boundary": True,
                              "frac": (inverse @ vertices[k]).tolist()})
