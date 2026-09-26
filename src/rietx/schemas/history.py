@@ -216,9 +216,13 @@ class ReflectionState(Base):
     hkl: list[list[int]] = Field(default_factory=list)  # (N, 3)
     #: m of Q = H + m·k per row, for a phase carrying a propagation vector
     #: (WP-1326).  ``None`` — every phase that declares no k — is not the same
-    #: as a list of zeros: it is what keeps a document written by a fit without
-    #: satellites byte for byte what it was, and ``hkl`` alone is then a
-    #: complete key.  With a k it is not: H + k and H − k share one H.
+    #: as a list of zeros: it says the phase has no satellites, so ``hkl``
+    #: alone is a complete key.  With a k it is not: H + k and H − k share one
+    #: H.  A node written without satellites is what it was **apart from the
+    #: new** ``"satellite_order": null``, as ``stderr`` beside it and every
+    #: other optional field in these schemas serialize: none is excluded when
+    #: ``None`` (pydantic's ``exclude_if`` postdates the ``pydantic>=2.6``
+    #: floor), and SCHEMA 0.32's paragraph says so.
     satellite_order: list[int] | None = None
     intensity: list[float] = Field(default_factory=list)  # (N,)
     kind: Literal["lebail_extracted", "pawley_refined"] = "lebail_extracted"

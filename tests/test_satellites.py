@@ -22,6 +22,7 @@ Everything is synthetic; nothing here reads a vendored pattern.
 from __future__ import annotations
 
 import hashlib
+import json
 from fractions import Fraction
 
 import numpy as np
@@ -584,6 +585,26 @@ def test_friedel_merging_makes_the_plus_and_minus_k_sets_one_list():
     assert len(plus) == len(minus)
     assert np.allclose(np.sort(plus.d), np.sort(minus.d))
     assert set(int(m) for m in plus.satellite_order) == {1}
+
+
+def test_a_no_k_le_bail_node_gains_exactly_one_null():
+    """Review item 6: what a no-k ``ReflectionState`` dump changed, and only that.
+
+    The pre-PR field set is written out literally (``origin/main`` at
+    ``b16772f0``), so a new field cannot slip in beside this one unseen.  The
+    null is kept rather than excluded, as every optional field here is.
+    """
+    from rietx.refine import _extract_reflections
+
+    instrument = _neutron()
+    structure = rx.Structure(phases=[_phase(None)])
+    model = compile_model(structure, instrument, _pattern(), mode="lebail")
+    model.phases[0].hkl_intensity = np.ones(len(model.phases[0].reflections))
+    (state,) = _extract_reflections(model)
+    dumped = json.loads(state.model_dump_json())
+    assert dumped.pop("satellite_order") is None
+    assert list(dumped) == ["phase_index", "hkl", "intensity", "kind",
+                            "stderr", "varied"]
 
 
 def test_a_le_bail_intensity_is_keyed_by_h_and_the_satellite_order():

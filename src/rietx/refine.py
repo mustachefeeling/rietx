@@ -4813,8 +4813,8 @@ def _extract_reflections(model: CompiledModel | None) -> list[ReflectionState]:
             # WP-1326: the parent H alone does not identify a row — a phase
             # with a propagation vector has up to two satellites sharing one
             # H — so the key a checkout matches on is (H, m).  ``None`` for a
-            # phase with no k keeps the stored document byte for byte what it
-            # was, which is what makes the version bump additive.
+            # phase with no k: the document gains that one null and nothing
+            # else, which is what makes the version bump additive.
             satellite_order=(None if order is None
                              else [int(v) for v in order]),
             intensity=[float(v) for v in cp.hkl_intensity],
