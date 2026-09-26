@@ -274,6 +274,19 @@ _KVEC_BLOCK = re.compile(
     r"[\s\S])*)")
 _BRACKETED = re.compile(r"\[([^\]]*)\]")
 _RATIONAL = re.compile(r"^[+-]?\d+(?:/\d+)?$")
+#: A decimal that is exactly an integer — ``0.0``, ``1.00``, ``-0.`` — which a
+#: producer writing k in floating point uses for a Γ component.  Only an
+#: all-zero fraction qualifies: ``0.5`` is a rational *written* as a decimal and
+#: ``0.128`` an incommensurate component, and telling those two apart from a
+#: decimal is a judgement this reader does not make (review of #478).
+_INTEGER_DECIMAL = re.compile(r"^[+-]?\d+\.0*$")
+
+
+def _integer_component(text: str) -> bool:
+    """A k component that is an exact integer, as a rational or a decimal."""
+    if _INTEGER_DECIMAL.match(text):
+        return True
+    return bool(_RATIONAL.match(text)) and eval_rational(text) % 1.0 == 0.0
 
 
 def propagation_vectors(text: str) -> tuple[tuple[str, str, str], ...]:
@@ -304,12 +317,12 @@ def is_commensurate_zero(k: tuple[str, str, str]) -> bool:
     identically, not a distinct nonzero vector — comparing a component's
     value against literal ``0.0`` (the previous behaviour) wrongly read every
     such file as stating a genuine k ≠ 0 supercell.  A component is read as Γ
-    when it is an exact integer; any non-integer rational (including a
-    negative one) is a genuine nonzero component.
+    when it is an exact integer — a rational (``1``, ``2/2``) or a decimal
+    whose fraction is all zeros (``0.0``, ``1.0``); any non-integer rational
+    (including a negative one) is a genuine nonzero component, and any other
+    decimal is left to the caller's refusal.
     """
-    if not all(_RATIONAL.match(c) for c in k):
-        return False
-    return all(eval_rational(c) % 1.0 == 0.0 for c in k)
+    return all(_integer_component(c) for c in k)
 
 
 def eval_rational(text: str) -> float:
@@ -542,7 +555,8 @@ def refuse_a_magnetic_supercell(block, text: str, path: str) -> None:
         reason.append("_parent_propagation_vector.kxkykz "
                       + ", ".join("[" + " ".join(k) + "]" for k in nonzero))
     incommensurate = [k for k in nonzero
-                      if any(not _RATIONAL.match(c) for c in k)]
+                      if any(not (_RATIONAL.match(c) or _INTEGER_DECIMAL.match(c))
+                             for c in k)]
     fence = (" The k stated here is not a rational, so this is an "
              "incommensurate structure and no commensurate cell exists to read "
              "it in."
