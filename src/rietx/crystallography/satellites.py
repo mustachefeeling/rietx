@@ -118,9 +118,14 @@ def _resolve(space_group):
     """A group object from a symbol, a number-as-string, or a group itself.
 
     Passes an :class:`~rietx.crystallography.symmetry.OperatorGroup` through
-    unchanged, so a phase whose group has no symbol reaches the centring-aware
-    k test through its own operation list rather than through a label the
-    tables do not hold.
+    unchanged.  That is what lets the report arm score candidate k on an
+    operation-list phase (it passes ``reflections.operations``); it does
+    **not** make a *declared* k on such a phase supported.  A bracketed label
+    with a k is refused at the schema, and three places would need the list
+    before it could be served: ``_k_is_usable`` in ``schemas/structure.py``,
+    ``compile_model``'s ``satellite_reflections(phase.space_group, …)``, and
+    :func:`merge_satellites`, which rebuilds the set without ``operations``
+    (review follow-up on #468).
     """
     if isinstance(space_group, (gemmi.SpaceGroup, OperatorGroup)):
         return space_group
