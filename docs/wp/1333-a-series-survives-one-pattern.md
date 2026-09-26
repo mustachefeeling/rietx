@@ -1,6 +1,6 @@
 # WP-1333 — a series survives one pattern, and says which one it lost
 
-Milestone: unscheduled · Status: 🔄 2026-09-23 — seven of eight tasks landed, PR #420 open and green; the coordinate carry remains
+Milestone: unscheduled · Status: 🔄 2026-09-26 — claimed by @yue-here for the coordinate carry; the other seven tasks merged in PR #420
 Depends on: — (1317 soft: #218's forward-pass exposure is the sibling ask)
 Priority: P1 2026-09-23 — a chain of hundreds lost to one raise, and a check that died reading as passed
 
