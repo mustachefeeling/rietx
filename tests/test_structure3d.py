@@ -255,6 +255,25 @@ def test_a_distinct_axis_only_ever_flips_to_face_one_way(nac):
                        rtol=0, atol=0)
 
 
+def test_the_payload_draws_the_same_ellipsoids_whatever_eigh_returned(nac, monkeypatch):
+    """The tests above hold ``_pin_axes`` to one answer; this one holds the
+    payload to it. Every image of every NAC site is built again under an
+    ``eigh`` that flips every column and turns every equal pair, which is what
+    another LAPACK may do. Four of the six sites have such a pair."""
+    want = [atom["ellipsoid"] for atom in s3.build(nac)["atoms"]]
+    eigh = np.linalg.eigh
+
+    def other_lapack(u):
+        values, vectors = eigh(u)
+        close = np.diff(values) < 1e-12 * np.abs(values).max()
+        pair = [int(np.argmax(close)), int(np.argmax(close)) + 1] if close.any() else None
+        return values, (_turned(vectors, pair, 0.7) if pair else -vectors)
+
+    monkeypatch.setattr(np.linalg, "eigh", other_lapack)
+    got = [atom["ellipsoid"] for atom in s3.build(nac)["atoms"]]
+    assert np.allclose(got, want, rtol=0, atol=1e-12)
+
+
 def test_a_non_positive_definite_tensor_is_flagged_and_never_nan():
     """The ``ADP_NOT_POSITIVE_DEFINITE`` case, as geometry.
 

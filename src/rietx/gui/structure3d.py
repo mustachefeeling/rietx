@@ -90,8 +90,8 @@ BALL_FRACTION = 0.40
 
 #: Two principal values closer than this, relative to the largest, are one.
 #: A site on a 3-, 4- or 6-fold axis has an exactly uniaxial tensor whose equal
-#: pair differs by rounding: at most 2e-16 relative on NAC, whose nearest real
-#: gap is 14 % (WP-1462's gate).
+#: pair differs by rounding: at most 4.5e-16 relative on NAC, whose nearest real
+#: gap is 7.8 % (Al1; WP-1462's gate).
 DEGENERATE_RTOL = 1e-9
 
 #: The direction each principal axis is turned to face.  Its components are
