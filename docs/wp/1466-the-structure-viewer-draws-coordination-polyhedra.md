@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: 🔄 2026-09-26 — claimed by @yue-here
 Depends on: 1462
-Priority: P3 2026-09-26 — WP-1462 closed, so its one blocker is gone; the first task waits on the maintainer for P1-P8 and Brunner & Schwarzenbach (1971), and VESTA covers it until then
+Priority: P3 2026-09-26 — WP-1462 closed, so its one blocker is gone; P1-P9 are confirmed, and only P3's gap measure waits on Brunner & Schwarzenbach (1971)
 
 ## Goal
 
@@ -98,19 +98,25 @@ survey could not confirm a default from a primary source, it is left out.
 
 ## Decisions this WP takes
 
-Each carries the recommended answer, for the maintainer to confirm or
-overturn in the first task.
+The maintainer confirmed P1-P8 on 2026-09-26, with three amendments from
+a critical pass that day (in P2, P5 and P7), and chose the recommended P9.
 
 - **P1. The server builds the polyhedra.** `/api/structure3d` gains a
   `polyhedra` arm: the centre's atom index, the vertex positions, outward
   triangles and edges. It is chemistry and geometry, and WP-1015's founding
   rule keeps both on the server.
-- **P2. A ligand is a non-metal neighbour of another element.** This is
+- **P2. A ligand is a non-metal neighbour of another element, other than
+  hydrogen.** This is
   Mercury's ligand list derived rather than declared, and CrystalNN's "no
   cation-cation bonds". An intermetallic therefore gets no polyhedra by
   default, where Daams & Villars would draw every atom's environment.
   Showing one atom's environment on request is the intermetallic answer,
-  and is out of scope.
+  and is out of scope. The non-metal test is gemmi's `Element.is_metal`,
+  which `structure3d.is_metal` already reads.
+  *Amended 2026-09-26: hydrogen is never a ligand.* It is a non-metal, so a
+  hydroxide's cation reaches it. On brucite from textbook coordinates, Mg
+  has 6 O at 2.10 Å and then 6 H at 2.68 Å, and counting H drops the gap
+  ratio from 1.80 to 1.28. That is inside P4's undecided window.
 - **P3. The shell ends at the largest gap in the ligand distances,** as
   Daams & Villars apply Brunner & Schwarzenbach. The gap is measured the way
   Brunner & Schwarzenbach measure it once that paper is read. The spike's
@@ -121,10 +127,12 @@ overturn in the first task.
   gap threshold lies between 1.15 and 1.41 on three phases and is measured
   on more before it is fixed.
 - **P5. By default, shells of 4 to 6 ligands are drawn.** Tetrahedra and
-  octahedra are the framework a chemist reads first. Shells of 7 and 8
+  octahedra are the framework a chemist reads first. Shells of 7 or more
   qualify and start hidden, because with them NAC's cell fills with
   overlapping polyhedra. On the three phases the default draws PO₄ and AlF₆
   and hides CaF₈ and NaF₇. The legend switches polyhedra per centre species.
+  *Amended 2026-09-26 from "7 and 8"*, so a perovskite's 12-coordinate A
+  site is covered.
 - **P6. The look follows VESTA, except inside a polyhedron.** Faces take the
   centre's colour at alpha 0.55, and edges a darker ink as WP-1462's D9
   quads. The centre atom stays. The sticks from the centre to its ligands
@@ -133,10 +141,19 @@ overturn in the first task.
   contradiction.
 - **P7. A polyhedron is never cut off.** Its ligands are drawn as atoms even
   outside the cell, as VESTA's default boundary mode does. The server adds
-  them as partners.
+  them as partners. *Amended 2026-09-26:* the viewer draws at most
+  `MAX_ATOMS` (400) atoms and trims partners past it, so a polyhedron that
+  loses a vertex to that cap is not drawn, and the payload's note counts it.
 - **P8. Polyhedra show in ball mode and hide in ellipsoid mode.** Faces
   would cover the ADPs the ellipsoid mode exists to show. One toggle
   overrides either.
+- **P9. A split site draws no polyhedron.** *Added 2026-09-26.* Atoms at one
+  position count once, so a mixed site draws one polyhedron in the first
+  species' colour. A shell holding two ligands closer to each other than to
+  the centre is a split site, and it is not drawn. A site with vacancies
+  and no split still draws. Daams & Villars excluded every partly occupied
+  point set, which would lose each BO₆ of an oxygen-deficient perovskite.
+  None of the four test CIFs is disordered, so task 3 measures P9 on one.
 
 ## Where it will bite
 
@@ -146,9 +163,11 @@ overturn in the first task.
 - **Two nearly equal gaps.** Daams & Villars resolve a tie by the fewest
   environment types. A display default can decline to draw instead, and
   the margin that counts as a tie is measured.
-- **Disorder.** Daams & Villars excluded partly occupied point sets. A shell
-  built from both positions of a split site is wrong, so a centre or ligand
-  below full occupancy needs a rule.
+- **Disorder.** P9 is a rule without a measurement yet.
+- **An anion can centre anions.** P2 admits a non-metal centre with
+  non-metal ligands of another element. Fluorapatite's F gets 6 O at
+  3.13 Å, and only P4's threshold rejects it, at a ratio of 1.15. Task 3
+  checks whether the threshold alone holds that line on the wider set.
 - **Translucency ordering** holds while polyhedra do not interpenetrate
   (WP-1462 § Polyhedra).
 
@@ -162,9 +181,9 @@ overturn in the first task.
 
 ## Tasks
 
-- [ ] The maintainer confirms P1-P8, and this file records which
+- [x] The maintainer confirms P1-P8, and this file records which (2026-09-26: all, with amendments to P2, P5 and P7, and P9 added)
 - [ ] Read Brunner & Schwarzenbach (1971) (the maintainer supplies it) and set P3's gap measure to theirs
-- [ ] Measure P4 and P5 on the wider phase set and record the threshold and the table
+- [ ] Measure P4, P5 and P9 on the wider phase set, a disordered phase among it, and record the threshold and the table
 - [ ] Server: the `polyhedra` arm, the ligand rule, the gap shell, the polyhedron conditions and the vertex partners, with tests in `tests/test_structure3d.py`
 - [ ] Renderer: the translucent pass, the edges, and hover on a polyhedron (centre, ligand count, mean distance); a polyhedra case in `1462-spike/gate.py`'s script
 - [ ] GUI: the per-species toggles, P5's and P8's defaults, and the caption saying what is drawn
