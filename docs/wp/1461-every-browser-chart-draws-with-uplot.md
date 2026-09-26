@@ -1,8 +1,7 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-26 — tasks 1-12 and 15 done: no chart loads plotly and every chart exports; task 13, the docs, next, then task 14's acceptance run
+Milestone: unscheduled · Status: ✅ 2026-09-26 — every browser chart draws with the chart module over uPlot and the docs follow it; the acceptance run against plotly holds, hover aside in one call of eight
 Depends on: —
-Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
 ## Goal
 
@@ -248,8 +247,8 @@ Single runs, so no range (`results/proto_run2.txt`, `proto_dpr2.txt`,
     against a phantom move Chrome on Windows sends after a mouse-down. So in
     that WebKit the select box stays zero wide, even under uPlot's default
     options. A real mouse in Safari reports the movement. The pilot probe
-    fills it in from `clientX` for WebKit only (`pilot.mjs`), and a drag in
-    real Safari is still for a person to try.
+    fills it in from `clientX` for WebKit only (`pilot.mjs`). A drag in
+    real Safari works: the maintainer tried it in the GUI on 2026-09-26.
 16. **uPlot leaves its last series' dash on the canvas**, into the next frame
     as well. A layer drawn after the background's dashed line drew the peak
     markers dashed, and a layer under the series starts with the previous
@@ -682,9 +681,10 @@ with the plotly renderer.
 
 ### Where it will bite
 
-- **Real Safari is untried.** The pilot drove playwright's Firefox and
-  WebKit builds, and a drag works in that WebKit only because the probe
-  supplies the mouse movement it leaves out (finding 15). `rietx gui` opens
+- **Real Safari was untried until 2026-09-26.** The pilot drove
+  playwright's Firefox and WebKit builds, and a drag works in that WebKit
+  only because the probe supplies the mouse movement it leaves out
+  (finding 15). The maintainer then dragged in real Safari, and it worked. `rietx gui` opens
   the default browser, which on a Mac is often Safari. WebKit also caps
   canvas size below Chromium, so the 2D map's 22 003-wide base level may
   need tiling.
@@ -723,8 +723,8 @@ with the plotly renderer.
 - [x] Exports: copy PNG, download PNG, copy TSV, SVG through svgcanvas with its notices. Pin svgcanvas exactly in `gui/package.json` and add it to `.github/dependabot.yml`'s allow list. (The group's `png`, `copyImage`, `svg(load)` and `tsv` in `rxplot.mjs`, each figure giving its rows through `group.table`; `exportButtons` for the three plain pages, `panels/Exports.svelte` in the GUI's pattern and Series panels. svgcanvas 2.6.0 is vendored by `vendor.py`, which now records both versions in `VENDORED.json`, served as `/svgcanvas.esm.js`, inlined in the written file, and a lazy `vendor-svgcanvas` chunk in the GUI. Found on the way: the export row's static import put the chart module on the GUI's boot path, so `test_gui_dist.py` now holds all three chart chunks off it.)
 - [x] Structure3D loads plotly when first shown. A test asserts no other page requests `/plotly.js`. Record the first-show cost. (Overtaken by WP-1462: the viewer loads no plotly. `test_the_built_app_is_served_and_plotly_is_not`, `test_gui_dist.py` and `test_the_viewer_draws_the_structure_and_asks_for_no_plotly` assert it, and the first show is measured in `1462-spike/results/first_show.txt`.)
 - [x] Remove the flag and the pattern panel's plotly renderer (in task 6)
-- [ ] Docs: the `gui/CLAUDE.md` rules as § What changes sorts them, the manual's GUI chapters with regenerated screenshots, `using/cli.md`, `install.md` and `files.md`, root CLAUDE.md, `tests/CLAUDE.md`, README
-- [ ] Tests: the suites in § Acceptance green, the fast count's movement stated, and every test listed in § What changes updated
+- [x] Docs: the `gui/CLAUDE.md` rules as § What changes sorts them, the manual's GUI chapters with regenerated screenshots, `using/cli.md`, `install.md` and `files.md`, root CLAUDE.md, `tests/CLAUDE.md`, README (`gui-guide.md` § Saving the picture and the Series table; `cli.md` for the watcher's menu, compare's Export and what `rietx html` writes; every screenshot retaken. `resize.ts:coalesce` went with plotly, and a DESIGN.md amendment. Found on the way: every x title touched its tick labels, fixed in `rxplot.axes` with a guard. `install.md`, `files.md` and the README had moved with task 10.)
+- [x] Tests: the suites in § Acceptance green, the fast count's movement stated, and every test listed in § What changes updated (the measurements are `results/acceptance_*.txt`, paired against a build of `58f7dbce`, and the 9th session's entry. The coverage audit found four behaviours no test named, and each now has one.)
 - [x] Skill: regenerate `references/api.md` with `make_api_index.py` when D7 lands, then `rietx skill --install . --copy`. Nothing else in the skill draws a browser chart. (With task 10, `4e65cc9a`: `write_html`'s row lost `include_plotlyjs` and gained `max_points: int | None`. No other skill file names plotly.)
 
 ## Acceptance
@@ -781,6 +781,181 @@ npm --prefix gui test && npm --prefix gui run check
 - Long Animation Frames API (W3C draft): what counts as a long frame here.
 
 ## Handover log
+
+### 2026-09-26 (9th session) — the docs, the acceptance run, and the WP closes
+
+Every browser chart rietx draws now runs on one module over uPlot, and the
+acceptance run says the move paid. Paired against the last plotly build on
+the same machine, opening the GUI no longer blocks on a 306-564 ms frame, and
+every gesture but hover costs the page about half of plotly's work or less. A
+resize costs the chart 1.6-3.1 ms against plotly's 11-15. Firefox and WebKit
+work gesture for gesture. The manual now documents the exports and the page
+`rietx html` writes, and its screenshots show the new chart. The run found an
+axis title that touched its tick labels on every chart, now fixed, and four
+behaviours no test named, now tested. Hover is the one clause that does not
+hold in every pair: one call in eight was 0.87 ms over plotly, as the pilot
+also found once.
+
+*Done:*
+- The stranded PR. #476 merged into its base, `wp1461-compare`, 16 s after
+  #474 had merged that branch into `main`, so tasks 10, 11 and 15 reached
+  nothing. They are re-landed as #479, the same branch at the same tip
+  (`ca1a4f3a`), based on `main`. This session's branch is `wp1461-docs`,
+  PR #480, also based on `main`. `/wp-start` step 4b now says a claim PR's
+  base is `main` even when its branch is cut from an unmerged one.
+- Real Safari. The maintainer dragged in the GUI in Safari on 2026-09-26 and
+  it worked, which answers finding 15 for the 2D charts (`9cc45433`).
+- Task 13 (`399b50d7`, `f28cebc7`, `30caffe8`, `fe87a1b1`).
+  - `gui/CLAUDE.md`: the jsdom paragraph names uPlot's stand-in instead of a
+    plotly emitter no test patched any more; a chart is sized by the chart
+    module's own `ResizeObserver`; the trailing-canvas rule keeps its
+    measurement and drops the queue; the whisker cap says what an uncapped
+    one does now.
+  - `resize.ts:coalesce` queued `Plotly.Plots.resize` and had no caller. It
+    went with its four vitest cases.
+  - Root CLAUDE.md defines "the chart module" in the four lines that used it.
+    `tests/CLAUDE.md`'s instrument bullet gains the colour case: read
+    `RECORD`, never a series' `stroke`. Both files stay at their caps.
+  - The manual: `gui-guide.md` § Saving the picture and the Series table;
+    `cli.md` for the watcher's `export` menu, compare's Export section and
+    what `rietx html` writes; `gui-power.md`'s html export route. Every
+    screenshot is retaken; the last set was WP-1438's and drew with plotly.
+  - A dated amendment in DESIGN.md's GUI stack section. Three comments that
+    still named plotly as a dependency.
+  - `install.md`, `files.md` and the README had moved with task 10.
+- Found on the way (`10f81eb0`): uPlot puts an x title's top where the axis's
+  size ends, and the tick labels ended 0.6-1.1 px above it. On the GUI shot
+  `2θ (°)` ran into `70`, and in a written page into `12`. `X_TITLE_GAP`
+  moves the title 4 px down, inside the 18 px already reserved, so no pane
+  changes size. A browser case records every `fillText` with its measured
+  glyph box.
+- Task 14 (`63d3bab0`, `d4d74d6a`).
+  - `pilot.mjs` takes `RIETX_PLOTLY`, a second server running a build of
+    `58f7dbce` (its `src` from `git archive`, run under this `.venv` through
+    `PYTHONPATH`, plotly 7.1.0 serving `/plotly.js`). `pilot_matrix.mjs` and
+    `pilot_summary.mjs` take `PILOT_PREFIX`; the logs are
+    `results/acceptance_*.txt`.
+  - Acceptance 6 was audited by a Sonnet agent against § Every feature and
+    § Behaviours the spike did not rebuild. I checked each gap it reported.
+    Four were real and each now has a test: a click adds a line, a drag
+    moves one and a shift-click toggles one through the chart (never tested,
+    under plotly either); the 3×FWHM whisker cap; `copy image`, which the
+    written file's export test never pressed; and the written file's
+    palette. One was wrong: the Series member's own excluded arm is
+    `test_gui_server.py::test_a_series_member_has_curves_of_its_own`.
+- `/code-review high --fix` over this session's commits made nine findings,
+  and none was a code defect. Seven were fixed (`d401bdea`): copy data keeps a
+  hidden curve's column, DESIGN.md's size now says when it was measured,
+  compare's copy data starts with `two_theta`, the probe's plotly server is
+  ten ports up and its `PYTHONPATH` belongs in the wrapper, a dead constant,
+  and a comment's pixel count. The Status line finding is this entry's. I
+  declined one: the text-box probe ignores a scale transform and keeps
+  earlier frames' draws. That is a robustness point in a passing test, and no
+  chart draws under a scale today.
+
+*Measured:*
+- The acceptance matrix, NAC, chart against plotly from a `58f7dbce` build,
+  renderer order alternating per call. Chrome for Testing (build 1223) at
+  dpr 1 (five calls) and 2 (three), playwright's Firefox 1543 and WebKit
+  2359 (three calls each), load 2.5-8.6 at each call's start. My vitest
+  runs overlapped dpr 1 calls 1 and 2, so calls 3 and 4 were added.
+  1. Opening, chromium: plotly's long frames were 306-564 ms in `plotly.js`,
+     then 123-230 ms in `app.js`. The chart had none at dpr 1 or 2. Firefox
+     and WebKit have no long-animation-frame entry, so this clause is
+     chromium's.
+  2. Gestures, CDP work per event in ms, chart against plotly:
+
+     | Gesture | dpr 1 chart | dpr 1 plotly | dpr 2 chart | dpr 2 plotly |
+     |---|---|---|---|---|
+     | hover | 1.14-2.93 | 1.79-3.55 | 1.87-3.04 | 2.17-4.95 |
+     | drag-zoom | 1.46-3.57 | 5.19-7.09 | 2.50-4.03 | 4.68-8.34 |
+     | exclude drag | 3.53-5.33 | 7.12-9.75 | 4.39-4.85 | 6.83-10.93 |
+     | peak drag | ≤1.61 | 6.12-8.21 | ≤4.00 | 7.56-8.90 |
+     | wheel zoom | 1.92-5.02 | none | 2.20-7.72 | none |
+     | shift-wheel pan | 2.19-4.22 | none | 4.81-6.99 | none |
+     | alt-drag pan | 1.48-3.94 | none | 1.74-4.08 | none |
+
+     - Hover was at or under plotly's in 7 of 8 paired calls. dpr 2 call 1
+       read 3.04 against 2.17.
+     - A peak drag's low end is negative (−0.50), the idle-rate subtraction
+       overshooting a small figure, so the table gives its ceiling.
+     - Zero long animation frames in every gesture, both renderers. The p95
+       frame was 16.7-18.7 ms for both, headless chromium's frame clock, so
+       the 17.7 ms clause cannot separate them, as the pilot found.
+     - A chart zoom fetched nothing. plotly fetched its window nine times
+       over five drags. An exclude refetches the curves on both, three times,
+       because the protocol changed.
+  3. Resizing: the chart's own time 1.7-3.1 ms at dpr 1 and 1.6-3.0 at dpr 2,
+     against plotly's 11.0-15.3 and 11.5-14.6.
+  4. `write_html`: the 8th session's 1.23 against 6.49 MB and 80-87 against
+     521-601 ms stand. `rietx html` on this session's NAC result wrote
+     1.36 MB, from a 1.41 MB result JSON.
+  5. No plotly: `test_gui_server.py::test_the_built_app_is_served_and_plotly_is_not`,
+     `test_gui_dist.py`, `test_structure3d_browser.py`, `test_watch_app.py`,
+     `test_compare_ui.py`, `test_compare_browser.py` and
+     `test_events_viz_history.py` each hold a surface to it.
+  7. Firefox and WebKit: every gesture worked, no page threw, and every peak
+     drag moved its line. Callback time per event in ms, chart against plotly:
+
+     | Gesture | Firefox chart | Firefox plotly | WebKit chart | WebKit plotly |
+     |---|---|---|---|---|
+     | hover | 0.38-0.93 | 0.23-0.27 | 0.75-0.82 | 0.13-0.28 |
+     | drag-zoom | 1.03-2.60 | 2.64-3.54 | 1.07-1.49 | 2.01-3.26 |
+     | exclude drag | 2.24-3.50 | 5.45-6.14 | 1.50-1.83 | 4.98-5.43 |
+     | peak drag | 0.57-0.93 | 4.43-6.36 | 0.57-0.93 | 4.43-6.14 |
+     | wheel zoom | 3.80-9.30 | none | 3.90-5.70 | none |
+     | shift-wheel pan | 2.95-6.90 | none | 1.20-3.35 | none |
+     | alt-drag pan | 2.71-5.57 | none | 1.71-2.71 | none |
+     | resize | 4-13 | 15-53 | 2-9 | 15-38 |
+
+     plotly's hover reads lower on this figure. In chromium, where both
+     figures exist, the wrapped callbacks held 0.06-0.20 ms of plotly's
+     1.79-3.55 ms of hover work, so this figure does not see most of it, and
+     the chart's hover is the smaller total there. The longest frame in
+     Firefox was 33.3-51.0 ms, in an exclude, where its refetched payload
+     lands (plotly 49.4-50.0). In WebKit the chart's longest was 31 ms and
+     plotly's 69.
+- The x title: 0.62 px at dpr 1 and 0.83 at dpr 2 before the fix, 4.62-5.10
+  after, on the pattern, the overlay and the trajectory. The guard fails at
+  0.62 with the gap set back to 0.
+- Fast suite on the final tree: 6265 passed, 140 skipped, 6405 in all, in
+  3:17. That is the `[dev]` venv plus playwright on macOS arm64. Against the
+  8th session's 6400 that is +5: three x-title cases and the palette case's
+  two. No new skip. The acceptance block's named suites: 298 passed.
+  `sphinx -W` clean, ruff clean.
+- Vitest 563 to 561: four `coalesce` cases out, the peak gestures and the
+  whisker cap in. svelte-check clean.
+- Every new guard was broken on purpose once: shift ignored, the cap
+  removed (the whisker read 22 200 px), the dark palette, the title gap at 0.
+- The full selection did not run. No refined number moves.
+
+*Deliberately not generalised:*
+- The 132 992-channel LaB6 rows were not re-run. The pilot measured them on
+  the same chart path, and D5's ceiling did not move.
+- The `/api/peaks` payload still carries a 4000-point copy of the pattern
+  that the page reads only as a boolean (the 5th session's Next 4). No open
+  WP owns the GUI's payload costs, so it is left here, named.
+- `uv.lock` still names plotly. It has not been re-locked since WP-1109, and
+  the setup commands never read it.
+
+*Gotchas:*
+- GitHub retargets a stacked PR only when its base branch is deleted, and
+  this repository keeps merged branches.
+- A written page's single-phase ticks take the observed points' ink, and
+  several phases take the phase colours (`rxplot.phaseInk`), as the
+  matplotlib figure does.
+- The worktree guard refuses a long heredoc and a python call with a computed
+  argument. Scratch scripts did the edits and the runs.
+- The spike directory has no lockfile ignore: install with
+  `npm install --no-package-lock --no-save playwright-core@1.63.0`.
+
+*Next:*
+1. Merge #479, then #480. Both are based on `main`, and #480's diff narrows
+   once #479 lands.
+2. WP-1462: its rename is due now, and its GPU gate waits on a Windows or
+   Linux machine.
+3. Whether the `/api/peaks` pattern arm deserves a WP of its own is the
+   maintainer's call.
 
 ### 2026-09-26 (8th session) — write_html and the exports draw with the chart module
 

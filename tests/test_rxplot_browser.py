@@ -431,6 +431,49 @@ def test_a_one_phase_band_gives_its_row_the_room_it_was_sized_for(page):
     assert got[0] == got[1]
 
 
+#: Every text a canvas draws from here on, with the box the browser measures for
+#: its glyphs, in canvas pixels.
+TEXTS = """() => {
+  window.texts = [];
+  const fill = CanvasRenderingContext2D.prototype.fillText;
+  CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+    const m = this.measureText(text), t = this.getTransform();
+    window.texts.push({ canvas: this.canvas, text: String(text), rotated: t.b !== 0,
+                        top: t.f + y - m.actualBoundingBoxAscent,
+                        bottom: t.f + y + m.actualBoundingBoxDescent });
+    return fill.call(this, text, x, y, ...rest);
+  };
+}"""
+
+
+@pytest.mark.parametrize(("mount", "title"), [("mountPattern()", "2θ (°)"),
+                                              ("mountOverlay()", "2θ (°)"),
+                                              ("mountTrajectory()", "T")])
+def test_an_x_title_sits_clear_below_every_tick_label(page, mount, title):
+    """uPlot puts an x title's top where the axis's size ends, and the tick
+    labels ended 0.6-1.1 px above it, so the title ran into whichever label sat
+    near the middle: ``70`` under ``2θ (°)`` in the GUI's screenshot. Found
+    regenerating the manual's screenshots."""
+    page.evaluate(TEXTS)
+    page.evaluate(mount)
+    _frames(page)
+    found = page.evaluate("""(title) => {
+        const by = new Map();
+        for (const t of window.texts) by.set(t.canvas, [...(by.get(t.canvas) ?? []), t]);
+        return [...by].filter(([, ts]) => ts.some(t => t.text === title)).map(([c, ts]) => {
+          const flat = ts.filter(t => !t.rotated && t.text.trim());
+          const above = flat.filter(t => t.text !== title).map(t => t.bottom);
+          const titles = flat.filter(t => t.text === title);
+          return { gap: (Math.min(...titles.map(t => t.top)) - Math.max(...above)) / devicePixelRatio,
+                   spare: (c.height - Math.max(...titles.map(t => t.bottom))) / devicePixelRatio };
+        });
+    }""", title)
+    assert found
+    for pane in found:
+        assert pane["gap"] >= 3, pane
+        assert pane["spare"] >= 0, pane
+
+
 def test_a_line_rings_none_of_its_points_however_far_the_view_zooms(page):
     """uPlot rings each point of a series once its points sit far enough apart,
     which a zoom always reaches, and a ringed calculated curve reads as

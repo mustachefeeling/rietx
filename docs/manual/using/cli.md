@@ -176,7 +176,10 @@ The plot is the GUI's pattern chart, and it takes the GUI's gestures. Drag to
 zoom, or scroll to zoom about the pointer. Shift-scroll or Alt-drag pans, and a
 double-click shows the whole pattern again. Clicking an entry in the legend
 hides that curve until you click it again, and a stage landing leaves it
-hidden. The shaded band on the Δ/σ panel runs from −3 to +3.
+hidden. The shaded band on the Δ/σ panel runs from −3 to +3. The `export`
+menu in the bar holds the four exports of [the GUI's plot](gui-guide.md): a
+PNG, an SVG, the picture on the clipboard, and the channels in view as
+tab-separated columns.
 
 The status line shows what the run panel is wide enough to hold, and it drops
 slots rather than cutting each of them a little. The GUI command and the
@@ -392,6 +395,16 @@ arguments exactly, and anything else exits 2. Because a `RefinementResult`
 round-trips through JSON, this is the reporting path for a fit that ran
 somewhere else: on a cluster, in CI, or in a notebook you have since closed.
 
+The page is the GUI's pattern plot with the fit inside it. The chart library
+and the curves are in the file, so it opens from a disk with no network and no
+server. The NAC example's page is 1.36 MB. It takes the GUI's gestures, a
+legend entry hides its curve, and the header holds the four exports of
+[the GUI's plot](gui-guide.md). Past 150 000 channels the file carries a
+min/max sample, as the GUI does.
+
+`viz.html.write_html` writes the same page from Python. Its `weighted=True`
+draws Δ/σ with its ±3σ band instead of the raw difference.
+
 ## `rietx compare`: did that correction help?
 
 ```console
@@ -410,7 +423,9 @@ every pane, scrolling zooms about the pointer, and a double-click shows the
 whole pattern again. The variant list is the legend: each variant shows the
 colour it is drawn in, and unticking one hides it in every pane. The line above
 the panes reads each variant's value at the pointer. Over the tick band it names
-the reflection instead.
+the reflection instead. The Export section saves or copies the three panes as
+the GUI's plot does ([](gui-guide.md)). Its `copy data` gives `two_theta` and `y_obs`, then
+each shown variant's `y_calc`, Δ/σ and Δχ² over the channels in view.
 
 It needs the standards, which are test data rather than package data, so
 `--data` points it at a checkout's `tests/data`. Started without them it says so

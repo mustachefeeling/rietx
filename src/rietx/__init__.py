@@ -269,7 +269,7 @@ def __getattr__(name: str) -> object:
     plain ``ImportError``-shaped message untouched.
 
     A submodule that exists but fails to import for its own reason — ``viz``
-    pulls in optional dependencies (``matplotlib``, ``plotly``) that a
+    pulls in an optional dependency (``matplotlib``) that a
     minimal install does not have — raises
     ``AttributeError`` rather than letting the underlying
     ``ModuleNotFoundError`` escape: the two look identical from outside

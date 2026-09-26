@@ -113,6 +113,13 @@ Run the session-start ritual. The SessionStart hook's report
    `gh pr ready` at the handover. Skip it only for a session that will not
    commit — say so in a line if you do.
 
+   **Its base is `main`, even when the branch is cut from an unmerged one.**
+   GitHub retargets a stacked PR only when its base branch is deleted, and
+   this repository keeps merged branches. On 2026-09-25 #476 merged into its
+   base branch 16 s after that branch had merged into `main`, and its seven
+   commits reached nothing (WP-1461, re-landed as #479). Based on `main`, the
+   diff shows the other PR's commits until that one merges, and nothing strands.
+
    **Everyone does this, not only contributors.** A maintainer working locally
    is exactly as invisible to a contributor as the reverse, and a one-sided
    claim leaves half the clash open.
