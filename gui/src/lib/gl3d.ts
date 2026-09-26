@@ -29,6 +29,7 @@
 
 import {
   pixelsPerAngstrom,
+  POLY_ALPHA,
   type Scene,
   type View,
 } from "./structure3d";
@@ -197,6 +198,32 @@ void main() {
   frag = vec4(vColor, coverage);
 }`;
 
+/** A polyhedron's faces (WP-1466): flat triangles lit from both sides, so a
+ *  back face seen through a front one is shaded as the side it shows. */
+const FACE_VS = `#version 300 es
+in vec3 aPos; in vec3 aNormal; in vec3 aColor;
+${COMMON}
+out vec3 vN;
+flat out vec3 vColor;
+void main() {
+  vec3 p = toView(aPos);
+  vN = uR * aNormal;
+  vColor = aColor;
+  gl_Position = vec4(p.xy * uScale, -p.z / uDepth, 1.0);
+}`;
+
+const FACE_FS = `#version 300 es
+precision highp float;
+in vec3 vN;
+flat in vec3 vColor;
+uniform float uAlpha;
+const vec3 LIGHT = vec3(-0.40, 0.55, 0.73);
+out vec4 frag;
+void main() {
+  vec3 n = normalize(gl_FrontFacing ? vN : -vN);
+  frag = vec4(vColor * (0.45 + 0.55 * max(dot(n, normalize(LIGHT)), 0.0)), uAlpha);
+}`;
+
 /** The long side of an exported PNG, in pixels (D5): a 17 cm figure at
  *  300 dpi is 2008 px, and this leaves room to crop. */
 export const EXPORT_LONG_SIDE = 3000;
@@ -257,6 +284,29 @@ function columns(m: number[]): number[] {
   return [m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]];
 }
 
+/** The polyhedra as one vertex array, nine numbers a vertex (position,
+ *  normal, colour), and each polyhedron's range of it — pure, so a test can
+ *  read them. */
+export function faceData(scene: Scene): { vertices: Float32Array;
+                                          ranges: Array<{ first: number; count: number;
+                                                          centroid: number[] }> } {
+  const total = scene.faces.reduce((n, f) => n + f.triangles.length / 3, 0);
+  const vertices = new Float32Array(total * 9);
+  const ranges: Array<{ first: number; count: number; centroid: number[] }> = [];
+  let at = 0;
+  for (const polyhedron of scene.faces) {
+    const first = at;
+    const t = polyhedron.triangles;
+    for (let k = 0; k < t.length / 3; k += 1) {
+      const n = polyhedron.normals.slice(3 * Math.floor(k / 3), 3 * Math.floor(k / 3) + 3);
+      vertices.set([t[3 * k], t[3 * k + 1], t[3 * k + 2], ...n, ...polyhedron.color], 9 * at);
+      at += 1;
+    }
+    ranges.push({ first, count: at - first, centroid: polyhedron.centroid });
+  }
+  return { vertices, ranges };
+}
+
 /** The scene's per-instance arrays — pure, so a test can read them. */
 export function instanceData(scene: Scene): { atoms: Float32Array; halves: Float32Array;
                                               lines: Float32Array } {
@@ -292,8 +342,9 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer | null {
   if (!gl || gl.isContextLost()) return null;
   const context: WebGL2RenderingContext = gl;
 
-  let programs: { atom: Program; half: Program; line: Program } | null = null;
-  let batches: { atoms: Batch; halves: Batch; lines: Batch } | null = null;
+  let programs: { atom: Program; half: Program; line: Program; face: Program } | null = null;
+  let batches: { atoms: Batch; halves: Batch; lines: Batch; faces: Batch } | null = null;
+  let faceRanges: Array<{ first: number; count: number; centroid: number[] }> = [];
   let corner: { atom: WebGLBuffer; strip: WebGLBuffer } | null = null;
   let scene: Scene | null = null;
   let last: { view: View; background: number[] } | null = null;
@@ -329,6 +380,7 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer | null {
       atom: compile(ATOM_VS, ATOM_FS),
       half: compile(HALF_VS, HALF_FS),
       line: compile(LINE_VS, LINE_FS),
+      face: compile(FACE_VS, FACE_FS),
     };
     const buffer = (data: number[]) => {
       const b = context.createBuffer()!;
@@ -364,6 +416,26 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer | null {
     return { vao, buffers: [instances], count: data.length / width };
   }
 
+  /** The polyhedra's triangles, one vertex each, drawn without instancing. */
+  function faceBatch(program: Program, data: Float32Array): Batch {
+    const vao = context.createVertexArray()!;
+    context.bindVertexArray(vao);
+    const buffer = context.createBuffer()!;
+    context.bindBuffer(context.ARRAY_BUFFER, buffer);
+    context.bufferData(context.ARRAY_BUFFER, data, context.STATIC_DRAW);
+    let offset = 0;
+    for (const [name, size] of [["aPos", 3], ["aNormal", 3], ["aColor", 3]] as const) {
+      const location = context.getAttribLocation(program.program, name);
+      if (location >= 0) {
+        context.enableVertexAttribArray(location);
+        context.vertexAttribPointer(location, size, context.FLOAT, false, 9 * 4, offset);
+      }
+      offset += size * 4;
+    }
+    context.bindVertexArray(null);
+    return { vao, buffers: [buffer], count: data.length / 9 };
+  }
+
   function release() {
     if (!batches) return;
     for (const b of Object.values(batches)) {
@@ -377,10 +449,13 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer | null {
     release();
     if (!scene || !programs || !corner) return;
     const data = instanceData(scene);
+    const faces = faceData(scene);
+    faceRanges = faces.ranges;
     batches = {
       atoms: batch(programs.atom, corner.atom, ATOM_LAYOUT, data.atoms, 25),
       halves: batch(programs.half, corner.strip, HALF_LAYOUT, data.halves, 10),
       lines: batch(programs.line, corner.strip, LINE_LAYOUT, data.lines, 10),
+      faces: faceBatch(programs.face, faces.vertices),
     };
   }
 
@@ -423,8 +498,34 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer | null {
     context.uniform1f(programs.line.uniforms.uPxScale, pxScale);
     context.bindVertexArray(batches.lines.vao);
     context.drawArraysInstanced(context.TRIANGLE_STRIP, 0, 4, batches.lines.count);
-    context.bindVertexArray(null);
     context.disable(context.SAMPLE_ALPHA_TO_COVERAGE);
+    if (faceRanges.length) {
+      // Translucent faces last, blended rather than through coverage: tested
+      // against the depth of everything opaque and writing none, the farthest
+      // polyhedron first and each one's back faces before its front.  Whole
+      // polyhedra can be ordered because coordination polyhedra share
+      // corners, edges or faces and never overlap in volume (WP-1462
+      // § Polyhedra).
+      common(programs.face);
+      context.uniform1f(programs.face.uniforms.uAlpha, POLY_ALPHA);
+      context.enable(context.BLEND);
+      context.blendFunc(context.SRC_ALPHA, context.ONE_MINUS_SRC_ALPHA);
+      context.depthMask(false);
+      context.enable(context.CULL_FACE);
+      context.bindVertexArray(batches.faces.vao);
+      const r = view.rotation, c = scene.center;
+      const depth = (p: number[]) => r[6] * (p[0] - c[0]) + r[7] * (p[1] - c[1]) + r[8] * (p[2] - c[2]);
+      for (const range of [...faceRanges].sort((p, q) => depth(p.centroid) - depth(q.centroid))) {
+        context.cullFace(context.FRONT);
+        context.drawArrays(context.TRIANGLES, range.first, range.count);
+        context.cullFace(context.BACK);
+        context.drawArrays(context.TRIANGLES, range.first, range.count);
+      }
+      context.disable(context.CULL_FACE);
+      context.depthMask(true);
+      context.disable(context.BLEND);
+    }
+    context.bindVertexArray(null);
   }
 
   function draw(view: View, background: number[]) {

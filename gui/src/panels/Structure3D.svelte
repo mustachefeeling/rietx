@@ -42,11 +42,15 @@
     legend,
     openingView,
     pickAtom,
+    pickFace,
     pickHalf,
     pixelsPerAngstrom,
+    polyhedraLegend,
+    polyhedronLabel,
     project,
     rgb,
     rotateBy,
+    shownPolyhedra,
     type Geometry,
     type Mode,
     type Scene,
@@ -79,7 +83,7 @@
    *  and making them reactive would re-render the panel on every frame of a
    *  drag. */
   let scene: Scene | null = null;
-  const EMPTY: Scene = { atoms: [], halves: [], lines: [], labels: [],
+  const EMPTY: Scene = { atoms: [], halves: [], lines: [], faces: [], labels: [],
                          center: [0, 0, 0], radius: 1, depth: 1 };
   let view: View = openingView();
   let frame = 0;
@@ -116,6 +120,13 @@
    *  under a 300 px plot in a 380 px column; mode and the view buttons stay in
    *  the open because they are the two anyone reaches for. */
   let knobsOpen = $state(false);
+  /** Coordination polyhedra on or off, held per mode (WP-1466, P8): on in
+   *  ball mode and off in ellipsoid mode, where faces would cover the ADPs
+   *  that mode exists to show.  One switch changes the mode it is pressed in. */
+  let polyhedraIn = $state<Record<Mode, boolean>>({ ball: true, ellipsoid: false });
+  /** The legend's switch per centre species (P5).  A species this does not
+   *  name takes the server's default, which draws shells of four to six. */
+  let polySpecies = $state(new Map<string, boolean>());
   /** Export the PNG on a transparent background rather than the panel's. */
   let transparent = $state(false);
   /** What is under the pointer: the readout strip's one line (WP-1213's rule —
@@ -127,6 +138,9 @@
 
   const entries = $derived(geo ? legend(geo) : []);
   const levels = $derived(geo ? Object.keys(geo.probability_levels) : []);
+  const shown = $derived(geo ? shownPolyhedra(geo, polyhedraIn[mode], polySpecies,
+                                               hidden, showBoundary) : []);
+  const polyEntries = $derived(geo ? polyhedraLegend(geo) : []);
 
   /** Refetch whenever the model pane re-reads, and whenever a knob the *server*
    *  owns moves.
@@ -180,6 +194,7 @@
     void showBoundary;
     void exaggeration;
     void theme;
+    void shown;
     rebuild();
   });
 
@@ -248,7 +263,8 @@
     // scene, and the first browser run drew a box nobody could see.  The a/b/c
     // letters take the same colour, so frame and labels read as one object.
     const cell = style.getPropertyValue("--accent").trim() || "#1f5fa8";
-    scene = buildScene(geometry, { mode, hidden, showBoundary, exaggeration, cell });
+    scene = buildScene(geometry, { mode, hidden, showBoundary, exaggeration, cell,
+                                   polyhedra: shown });
     renderer?.setScene(scene);
     paint();
   }
@@ -363,8 +379,20 @@
     } else if (half) {
       reading = bondLabel(geo, geo.bonds[scene.halves[half.half].bond]);
     } else {
-      reading = "";
+      // a face only where no atom or stick is under the pointer: the faces
+      // are translucent, and the centre atom inside them stays readable
+      const face = pickFace(scene, view, width, height, x, y);
+      reading = face ? polyhedronLabel(geo, geo.polyhedra[scene.faces[face.faces].index]) : "";
     }
+  }
+
+  /** Whether the legend shows a centre species' polyhedra as on. */
+  function polyOn(species: string, byDefault: boolean): boolean {
+    return polyhedraIn[mode] && (polySpecies.get(species) ?? byDefault);
+  }
+
+  function togglePolyhedra(species: string, byDefault: boolean) {
+    polySpecies = new Map(polySpecies).set(species, !(polySpecies.get(species) ?? byDefault));
   }
 
   function toggleSpecies(species: string) {
@@ -485,6 +513,25 @@
         </button>
       {/each}
     </div>
+    {#if polyEntries.length}
+      <!-- one switch for the mode it is pressed in, then one per centre
+           species: shells of four to six start on, larger ones off (P5) -->
+      <div class="legend">
+        <button class="ghost" class:on={polyhedraIn[mode]}
+          onclick={() => (polyhedraIn[mode] = !polyhedraIn[mode])}
+          title="coordination polyhedra: on in ball mode and off in ellipsoid mode
+                 until switched, since faces would cover the ellipsoids">polyhedra</button>
+        {#each polyEntries as entry (entry.species)}
+          <button class="ghost" class:off={!polyOn(entry.species, entry.byDefault)}
+            disabled={!polyhedraIn[mode]}
+            onclick={() => togglePolyhedra(entry.species, entry.byDefault)}
+            title="the {entry.species} polyhedra: the shell ends at the largest gap
+                   in its ligand distances">
+            <span class="dot" style="background:{entry.color}"></span>{entry.formulas.join(" ")}
+          </button>
+        {/each}
+      </div>
+    {/if}
 
     <div class="knobs">
       <span class="inline" title="look straight down a lattice vector: down a
@@ -559,7 +606,7 @@
       </div>
     {/if}
 
-    <p class="muted">{caption(geo, mode, exaggeration)}</p>
+    <p class="muted">{caption(geo, mode, exaggeration, shown)}</p>
     {#if geo.note}<p class="warn">{geo.note}</p>{/if}
     <p class="muted mono">{geo.space_group} · V = {geo.volume.toFixed(2)} Å³</p>
   {/if}
