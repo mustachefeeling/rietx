@@ -349,13 +349,14 @@ one, never as the gate.
     rule added to the coordinate-DOF bullet at an unchanged line count, by
     compressing WP-1432's example numbers to its pointer. The numbers are in
     that WP's file.
-  - **Tests**: +9 fast items, none slow, no new skip. That is 8 in
+  - **Tests**: +10 fast items, none slow, no new skip. That is 8 in
     `test_sequential.py` (the carry, a site moving as a site, the re-anchor
     guard, the chain start over three configurations, both fences' `relative`,
-    and the chain's wiring) and 1 in `test_gui_server.py`. Collection of the
-    two files is 242 on `main` and 251 here. Each was confirmed to fail
-    without the piece it guards, by stubbing `displace_anchored_dofs`,
-    `_reanchor_carried` or `anchored_dof_paths`.
+    and the chain's wiring) and 2 in `test_gui_server.py` (the abstention, and
+    the session's list, which the review asked for). Collection of the two
+    files is 242 on `main` and 252 here. The `test_sequential.py` tests were
+    each confirmed to fail without the piece they guard, by stubbing
+    `displace_anchored_dofs`, `_reanchor_carried` or `anchored_dof_paths`.
 
   *Measured* (`[dev]` venv, Linux x86-64, py3.12, 4 cores).
   - **Fast selection** on `3efc2d8`, which is all but the GUI commit: 1
