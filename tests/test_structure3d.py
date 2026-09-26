@@ -15,6 +15,7 @@ mesh with it rather than an atom that looks odd.
 
 from __future__ import annotations
 
+import json
 import math
 from pathlib import Path
 
@@ -678,13 +679,45 @@ def test_a_shell_with_no_clear_gap_is_not_a_polyhedron():
     assert payload["polyhedra"] == []
 
 
+#: WP-1466's measured phase set, written by ``docs/wp/1466-measure/measure.py``
+#: with the picture a chemist draws first beside each phase
+MEASURED = json.loads((DATA / "polyhedra_phases.json").read_text())
+
+
+def measured(row: dict) -> Structure:
+    a, b, c, alpha, beta, gamma = row["cell"]
+    cell = Cell(a=_p(a), b=_p(b), c=_p(c), alpha=_p(alpha), beta=_p(beta), gamma=_p(gamma))
+    atoms = [Atom(label=label, species=species, x=_p(x), y=_p(y), z=_p(z), occ=_p(occ))
+             for label, species, x, y, z, occ in row["atoms"]]
+    return Structure(phases=[Phase(name=row["name"], space_group=row["space_group"],
+                                   symmetry_operations=row["symmetry_operations"],
+                                   cell=cell, atoms=atoms)])
+
+
+@pytest.mark.parametrize("row", MEASURED, ids=[row["name"] for row in MEASURED])
+def test_the_default_picture_on_the_measured_phases(row):
+    """Acceptance 1: each phase draws what its row expects by default, and no more."""
+    drawn: dict[str, set[int]] = {}
+    payload = s3.build(measured(row))
+    for p in payload["polyhedra"]:
+        if p["drawn_by_default"]:
+            element = payload["sites"][p["site"]]["element"]
+            drawn.setdefault(element, set()).add(p["coordination"])
+    assert {e: sorted(v) for e, v in drawn.items()} == row["expected"]
+    _every_polyhedron_is_one(payload)
+
+
 @pytest.mark.parametrize("name", ["nac", "fap", "brucite"])
 def test_every_drawn_polyhedron_is_one(name, nac, fap):
     """P4, checked from the payload alone, as a client would draw it."""
     structure = {"nac": nac, "fap": fap, "brucite": brucite()}[name]
     payload = s3.build(structure)
-    atoms = payload["atoms"]
     assert payload["polyhedra"]
+    _every_polyhedron_is_one(payload)
+
+
+def _every_polyhedron_is_one(payload: dict) -> None:
+    atoms = payload["atoms"]
     for p in payload["polyhedra"]:
         centre = np.array(atoms[p["center"]]["pos"])
         element = payload["sites"][p["site"]]["element"]

@@ -1,6 +1,6 @@
 """WP-1466 task 3: the polyhedra defaults, measured on a wider phase set.
 
-    .venv/bin/python docs/wp/1466-measure/measure.py [CACHE]
+    .venv/bin/python docs/wp/1466-measure/measure.py [CACHE] [--fixture=PATH]
 
 Run from the repository root.  Each phase is a Crystallography Open Database
 entry, fetched once into CACHE (default: ``rietx-1466-cod`` in the system
@@ -10,11 +10,14 @@ second-largest gap ratios, what the server draws with the gap threshold
 lowered to 1.0 (so only the geometric conditions turn a shell away), and what
 it draws by default.  ``EXPECTED`` is the picture a solid-state chemist would
 draw first, written down before the run; the script says where the default
-departs from it.
+departs from it.  ``--fixture`` writes the phases and ``EXPECTED`` as the JSON
+``tests/test_structure3d.py`` holds the default picture to, so the test needs
+no network.
 """
 
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import urllib.request
@@ -54,30 +57,31 @@ PHASES: dict[str, tuple[str, str]] = {
     "olivine (Mg0.9Fe0.1)2SiO4": ("9007377", "forsterite with Fe beside Mg on M1 and M2"),
 }
 
-#: The picture drawn first, by centre element: the coordination a chemist
-#: draws by default, and ``None`` where no polyhedron is drawn by default.
-EXPECTED: dict[str, dict[str, int | None]] = {
-    "LaB6": {"La": None},
-    "NAC": {"Al": 6, "Ca": None, "Na": None},
-    "fluorapatite": {"P": 4, "Ca": None},
-    "spinel MgAl2O4": {"Mg": 4, "Al": 6},
-    "perovskite SrTiO3": {"Ti": 6, "Sr": None},
-    "garnet grossular": {"Si": 4, "Al": 6, "Ca": None},
-    "rutile TiO2": {"Ti": 6},
-    "olivine forsterite": {"Si": 4, "Mg": 6},
-    "zircon ZrSiO4": {"Si": 4, "Zr": None},
-    "corundum Al2O3": {"Al": 6},
-    "fluorite CaF2": {"Ca": None},
-    "wurtzite ZnO": {"Zn": 4},
-    "quartz SiO2": {"Si": 4},
-    "calcite CaCO3": {"Ca": 6, "C": None},
-    "gypsum CaSO4.2H2O": {"S": 4, "Ca": None},
-    "pyrite FeS2": {"Fe": 6},
-    "baryte BaSO4": {"S": 4, "Ba": None},
-    "andalusite Al2SiO5": {"Si": 4, "Al": 6},
-    "CsCl": {"Cs": None},
-    "high cristobalite SiO2": {"Si": None},
-    "olivine (Mg0.9Fe0.1)2SiO4": {"Si": 4, "Mg": 6},
+#: The picture drawn first, written down before the run: for each centre
+#: element, the shell sizes a chemist draws by default, empty where none is.
+EXPECTED: dict[str, dict[str, list[int]]] = {
+    "LaB6": {"La": []},
+    "NAC": {"Al": [6], "Ca": [], "Na": []},
+    "fluorapatite": {"P": [4], "Ca": []},
+    "spinel MgAl2O4": {"Mg": [4], "Al": [6]},
+    "perovskite SrTiO3": {"Ti": [6], "Sr": []},
+    "garnet grossular": {"Si": [4], "Al": [6], "Ca": []},
+    "rutile TiO2": {"Ti": [6]},
+    "olivine forsterite": {"Si": [4], "Mg": [6]},
+    "zircon ZrSiO4": {"Si": [4], "Zr": []},
+    "corundum Al2O3": {"Al": [6]},
+    "fluorite CaF2": {"Ca": []},
+    "wurtzite ZnO": {"Zn": [4]},
+    "quartz SiO2": {"Si": [4]},
+    "calcite CaCO3": {"Ca": [6], "C": []},
+    "gypsum CaSO4.2H2O": {"S": [4], "Ca": []},
+    "pyrite FeS2": {"Fe": [6]},
+    "baryte BaSO4": {"S": [4], "Ba": []},
+    # Al1 is octahedral and Al2 a trigonal bipyramid
+    "andalusite Al2SiO5": {"Si": [4], "Al": [5, 6]},
+    "CsCl": {"Cs": []},
+    "high cristobalite SiO2": {"Si": []},
+    "olivine (Mg0.9Fe0.1)2SiO4": {"Si": [4], "Mg": [6]},
 }
 
 
@@ -143,8 +147,9 @@ def shells(payload: dict) -> dict[str, tuple[int, float, int, float]]:
     return out
 
 
-def main(cache: Path) -> None:
+def main(cache: Path, fixture_path: Path | None = None) -> None:
     cache.mkdir(parents=True, exist_ok=True)
+    fixture: list | None = [] if fixture_path else None
     default = s3.POLYHEDRON_GAP
     for name, (ref, remark) in PHASES.items():
         structure = load(name, cache)
@@ -152,7 +157,8 @@ def main(cache: Path) -> None:
         loose = s3.build(structure)
         s3.POLYHEDRON_GAP = default
         drawn = s3.build(structure)
-        print(f"\n{name} (COD {ref}{', ' + remark if remark else ''})")
+        where = ref if ref.startswith("tests/") else f"COD {ref}"
+        print(f"\n{name} ({where}{', ' + remark if remark else ''})")
         geometric = {loose["sites"][p["site"]]["label"]: p for p in loose["polyhedra"]}
         chosen = {drawn["sites"][p["site"]]["label"]: p for p in drawn["polyhedra"]}
         for label, (n, gap, n2, gap2) in shells(loose).items():
@@ -163,14 +169,35 @@ def main(cache: Path) -> None:
                   f"gap after {n:2} ×{gap:.2f}, next after {n2:2} ×{gap2:.2f}  "
                   f"{'polyhedron' if ok else 'not a polyhedron':16} "
                   f"{'drawn' if got and got['drawn_by_default'] else 'hidden' if got else '—'}")
-        for element, want in EXPECTED[name].items():
-            have = {p["coordination"] for p in drawn["polyhedra"]
-                    if drawn["sites"][p["site"]]["element"] == element
-                    and p["drawn_by_default"]}
-            if (want is None) != (not have) or (want is not None and have != {want}):
-                print(f"  ! {element}: expected {want}, default draws {sorted(have) or None}")
+        have = default_picture(drawn)
+        if have != {e: sorted(set(v)) for e, v in EXPECTED[name].items() if v}:
+            print(f"  ! expected {EXPECTED[name]}, the default draws {have}")
+        if fixture is not None:
+            phase = structure.phases[0]
+            fixture.append({
+                "name": name, "source": f"COD {ref}" if not ref.startswith("tests/")
+                else ref, "remark": remark, "space_group": phase.space_group,
+                "symmetry_operations": phase.symmetry_operations,
+                "cell": list(phase.cell.lengths_angles()),
+                "atoms": [[a.label, a.species, a.x.value, a.y.value, a.z.value, a.occ.value]
+                          for a in phase.atoms],
+                "expected": {e: v for e, v in EXPECTED[name].items() if v},
+            })
+    if fixture_path is not None:
+        fixture_path.write_text("[\n" + ",\n".join(json.dumps(row) for row in fixture) + "\n]\n")
+
+
+def default_picture(payload: dict) -> dict[str, list[int]]:
+    """For each centre element, the shell sizes the default draws."""
+    out: dict[str, set[int]] = {}
+    for p in payload["polyhedra"]:
+        if p["drawn_by_default"]:
+            out.setdefault(payload["sites"][p["site"]]["element"], set()).add(p["coordination"])
+    return {e: sorted(v) for e, v in out.items()}
 
 
 if __name__ == "__main__":
-    main(Path(sys.argv[1]) if len(sys.argv) > 1
-         else Path(tempfile.gettempdir()) / "rietx-1466-cod")
+    args = [a for a in sys.argv[1:] if not a.startswith("--fixture=")]
+    written = [Path(a.split("=", 1)[1]) for a in sys.argv[1:] if a.startswith("--fixture=")]
+    main(Path(args[0]) if args else Path(tempfile.gettempdir()) / "rietx-1466-cod",
+         written[0] if written else None)

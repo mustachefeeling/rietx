@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: 🔄 2026-09-26 — claimed by @yue-here
 Depends on: 1462
-Priority: P3 2026-09-26 — WP-1462 closed, so its one blocker is gone; P1-P9 are confirmed, and only P3's gap measure waits on Brunner & Schwarzenbach (1971)
+Priority: P3 2026-09-26 — WP-1462 closed, so its one blocker is gone; P1-P9 are confirmed, P3's gap measure waits on Brunner & Schwarzenbach (1971) and the electronegativities on Allred (1961)
 
 ## Goal
 
@@ -96,19 +96,60 @@ survey could not confirm a default from a primary source, it is left out.
   drawn as clusters. Their subject is intermetallics, so every species
   counts as a neighbour.
 
+### The phase-set measurement
+
+Measured 2026-09-26 on the stand-in gap measure, with P2 as amended that
+day. `1466-measure/measure.py` fetches each phase from the Crystallography
+Open Database, and `results.txt` beside it holds the run. Its `--fixture`
+writes `tests/data/polyhedra_phases.json`, which
+`test_the_default_picture_on_the_measured_phases` holds the default to. The
+expected picture was written down before the run. Each shell carries its
+gap ratio.
+
+| Phase (COD) | Drawn by default | Qualifies, hidden |
+|---|---|---|
+| LaB6 (test CIF) | none: La has 24 B at one distance | none |
+| NAC (test CIF) | AlF₆ 2.08 | CaF₈ 1.54, NaF₇ 1.41 |
+| fluorapatite (test CIF) | PO₄ 1.98 | CaO₉ 1.38, CaO₆F 1.24 |
+| spinel MgAl₂O₄ (5000120) | MgO₄ 1.78, AlO₆ 1.73 | none |
+| perovskite SrTiO₃ (1512124) | TiO₆ 2.24 | SrO₁₂ 1.73 |
+| grossular (9002677, at 103 K) | SiO₄ 1.96, AlO₆ 1.91 | CaO₈ 1.48 |
+| rutile (9015662) | TiO₆ 1.76 | none |
+| forsterite (9007377) | SiO₄ 1.90, MgO₆ 1.65 and 1.55 | none |
+| zircon (9002554) | SiO₄ 2.04 | ZrO₈ 1.78 |
+| corundum (1000032) | AlO₆ 1.63 | none |
+| fluorite (1000043) | none | CaF₈ 1.91 |
+| wurtzite ZnO (2300450) | ZnO₄ 1.63 | none |
+| quartz (5000035) | SiO₄ 2.18 | none |
+| calcite (2100992) | CaO₆ 1.47 | none; CO₃ is planar |
+| gypsum, with H (2300258) | SO₄ 2.37 | CaO₈ 1.61 |
+| pyrite (7700358) | FeS₆ 1.52 | none |
+| baryte (8107510) | SO₄ 2.31 | BaO₁₂ 1.21 |
+| andalusite (9003990) | SiO₄ 1.64, AlO₆ 1.63, AlO₅ 1.68 | none |
+| CsCl (9009743) | none | CsCl₈ 1.68 |
+| high cristobalite (9008230, at 221 °C) | none: Si has 24 split O at one distance | none |
+| olivine, Fe 0.1 beside Mg (built on 9007377) | as forsterite, one octahedron per mixed site | none |
+
 ## Decisions this WP takes
 
 The maintainer confirmed P1-P8 on 2026-09-26, with three amendments from
 a critical pass that day (in P2, P5 and P7), and chose the recommended P9.
+The phase-set measurement then changed P2 a second time, and the maintainer
+confirmed that too on the same day.
 
 - **P1. The server builds the polyhedra.** `/api/structure3d` gains a
   `polyhedra` arm: the centre's atom index, the vertex positions, outward
   triangles and edges. It is chemistry and geometry, and WP-1015's founding
   rule keeps both on the server.
-- **P2. A ligand is a non-metal neighbour of another element, other than
-  hydrogen.** This is
-  Mercury's ligand list derived rather than declared, and CrystalNN's "no
-  cation-cation bonds". An intermetallic therefore gets no polyhedra by
+- **P2. A centre is a cation and a ligand is an anion.** Every metal is a
+  cation. A non-metal bonded to a more electronegative non-metal is a
+  cation too, as Si is in SiO₄, and bonded means the viewer's radius-sum
+  rule at its default tolerance. Every other non-metal except hydrogen is
+  an anion, and a ligand is an anion of another element. The
+  electronegativities are 18 Pauling values, checked against Allred (1961)
+  once the maintainer supplies it. This is Mercury's two lists derived
+  rather than declared, and CrystalNN's "no cation-cation bonds" carried
+  from the metals to the non-metals. An intermetallic therefore gets no polyhedra by
   default, where Daams & Villars would draw every atom's environment.
   Showing one atom's environment on request is the intermetallic answer,
   and is out of scope. The non-metal test is gemmi's `Element.is_metal`,
@@ -117,6 +158,15 @@ a critical pass that day (in P2, P5 and P7), and chose the recommended P9.
   hydroxide's cation reaches it. On brucite from textbook coordinates, Mg
   has 6 O at 2.10 Å and then 6 H at 2.68 Å, and counting H drops the gap
   ratio from 1.80 to 1.28. That is inside P4's undecided window.
+  *Amended again 2026-09-26, after the phase-set measurement.* As first
+  confirmed, P2 took any non-metal of another element as a ligand, so Si, S
+  and P counted as ligands of the metals beside them, and O and F were
+  centres. Forsterite's MgO₆ gap fell to 1.26 (Si at 2.69 Å), grossular's
+  Ca took 2 Si into a shell of 10, and andalusite's OA and gypsum's water O
+  drew OSi₄ and OS₅ by default. Under the rule above these gaps are 1.55-1.65
+  and 1.48, and the anion-centred shells are gone. Its known miss is a
+  cyanide or carbonyl C, which bonds the metal and is itself bonded to a
+  more electronegative N or O, so Prussian blue's C-bonded Fe would get N.
 - **P3. The shell ends at the largest gap in the ligand distances,** as
   Daams & Villars apply Brunner & Schwarzenbach. The gap is measured the way
   Brunner & Schwarzenbach measure it once that paper is read. The spike's
@@ -124,13 +174,15 @@ a critical pass that day (in P2, P5 and P7), and chose the recommended P9.
 - **P4. A shell is drawn only when it is a polyhedron.** It needs 4 or more
   ligands, the centre strictly inside the hull, every ligand at a hull
   vertex (Daams & Villars' convex-volume condition), and a clear gap. The
-  gap threshold lies between 1.15 and 1.41 on three phases and is measured
-  on more before it is fixed.
+  gap threshold is 1.15, measured on 21 phases (§ The phase-set
+  measurement): every real shell's gap is 1.21 or more, and every site with
+  no shell scores 1.00. The default picture is the same for any threshold
+  from 1.01 to 1.47.
 - **P5. By default, shells of 4 to 6 ligands are drawn.** Tetrahedra and
   octahedra are the framework a chemist reads first. Shells of 7 or more
   qualify and start hidden, because with them NAC's cell fills with
-  overlapping polyhedra. On the three phases the default draws PO₄ and AlF₆
-  and hides CaF₈ and NaF₇. The legend switches polyhedra per centre species.
+  overlapping polyhedra. On the measured set the default draws the table in
+  § The phase-set measurement. The legend switches polyhedra per centre species.
   *Amended 2026-09-26 from "7 and 8"*, so a perovskite's 12-coordinate A
   site is covered.
 - **P6. The look follows VESTA, except inside a polyhedron.** Faces take the
@@ -153,21 +205,22 @@ a critical pass that day (in P2, P5 and P7), and chose the recommended P9.
   the centre is a split site, and it is not drawn. A site with vacancies
   and no split still draws. Daams & Villars excluded every partly occupied
   point set, which would lose each BO₆ of an oxygen-deficient perovskite.
-  None of the four test CIFs is disordered, so task 3 measures P9 on one.
+  Measured on two phases: high cristobalite's O is split six ways at 1/6,
+  and the gap turned Si away first, with 24 O positions at one distance.
+  An olivine with Fe beside Mg on both M sites drew one octahedron per site.
 
 ## Where it will bite
 
-- **Three phases are not a threshold.** P4's gap and P5's split need a
-  wider set, at least spinel, perovskite, garnet, rutile, olivine, zircon,
-  corundum, fluorite, wurtzite and quartz beside the three here.
+- **The threshold has few negatives.** On the measured set only two sites
+  have no shell, both at 1.00, so nothing places a real no-gap case between
+  1.00 and 1.21. The default picture does not depend on it.
 - **Two nearly equal gaps.** Daams & Villars resolve a tie by the fewest
-  environment types. A display default can decline to draw instead, and
-  the margin that counts as a tie is measured.
-- **Disorder.** P9 is a rule without a measurement yet.
-- **An anion can centre anions.** P2 admits a non-metal centre with
-  non-metal ligands of another element. Fluorapatite's F gets 6 O at
-  3.13 Å, and only P4's threshold rejects it, at a ratio of 1.15. Task 3
-  checks whether the threshold alone holds that line on the wider set.
+  environment types. None arose on the measured set: the closest is
+  fluorapatite's Ca2, whose largest gap is 1.24 against 1.14 for the next.
+- **P9's split rule has no measured case.** The one split phase measured
+  was turned away by the gap before the split rule was reached. The rule
+  is tested on a built cluster only.
+- **A cyanide or a carbonyl** draws the wrong shell (P2).
 - **Translucency ordering** holds while polyhedra do not interpenetrate
   (WP-1462 § Polyhedra).
 
@@ -182,8 +235,9 @@ a critical pass that day (in P2, P5 and P7), and chose the recommended P9.
 ## Tasks
 
 - [x] The maintainer confirms P1-P8, and this file records which (2026-09-26: all, with amendments to P2, P5 and P7, and P9 added)
-- [ ] Read Brunner & Schwarzenbach (1971) (the maintainer supplies it) and set P3's gap measure to theirs
-- [ ] Measure P4, P5 and P9 on the wider phase set, a disordered phase among it, and record the threshold and the table
+- [ ] Read Brunner & Schwarzenbach (1971) (the maintainer supplies it) and set P3's gap measure to theirs, then re-run `1466-measure/measure.py`
+- [ ] Read Allred (1961) (the maintainer supplies it) and check `structure3d.ELECTRONEGATIVITY`'s 18 values against it
+- [x] Measure P4, P5 and P9 on the wider phase set, a disordered phase among it, and record the threshold and the table (2026-09-26, on the stand-in gap measure: § The phase-set measurement)
 - [x] Server: the `polyhedra` arm, the ligand rule, the gap shell, the polyhedron conditions and the vertex partners, with tests in `tests/test_structure3d.py` (2026-09-26; the gap measure is the stand-in and `POLYHEDRON_GAP` provisional until tasks 2 and 3)
 - [ ] Renderer: the translucent pass, the edges, and hover on a polyhedron (centre, ligand count, mean distance); a polyhedra case in `1462-spike/gate.py`'s script
 - [ ] GUI: the per-species toggles, P5's and P8's defaults, and the caption saying what is drawn
