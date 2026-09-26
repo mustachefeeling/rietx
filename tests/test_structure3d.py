@@ -653,16 +653,28 @@ def test_a_non_metal_bonded_to_a_stronger_one_is_a_cation_and_no_ligand():
 
 
 def test_an_anion_is_never_a_centre():
-    """P2: an O among four SiO₄ groups draws no OSi₄, as andalusite's OA did.
+    """P2: an F among six O draws no FO₆, as fluorapatite's F4 nearly did.
 
-    Each Si is bonded to an O of its own, so it is a cation, and the O at the
-    centre is bonded to nothing that pulls harder, so it is an anion.
+    O is a non-metal of another element, so only the centre half of the rule
+    turns the shell away.  An O among four SiO₄ groups draws no OSi₄ either,
+    as andalusite's OA did: each Si is bonded to an O of its own.
     """
+    x, y, z = np.eye(3) * 3.13
+    fluorine = cluster([("F", 1.0)], [("O", v, 1.0) for v in (x, -x, y, -y, z, -z)])
+    assert s3.build(fluorine)["polyhedra"] == []
     ligands = []
     for corner in TETRAHEDRON:
         outward = corner / np.linalg.norm(corner)
         ligands += [("Si", 3.0 * outward, 1.0), ("O", 4.6 * outward, 1.0)]
-    payload = s3.build(cluster([("O", 1.0)], ligands))
+    assert s3.build(cluster([("O", 1.0)], ligands))["polyhedra"] == []
+
+
+def test_a_shell_with_no_clear_gap_is_not_a_polyhedron():
+    """P4: six O at 2.0 Å then eight at 2.2 Å, a gap of 1.10 against 1.15."""
+    octahedron = [v * 2.0 for v in (*np.eye(3), *-np.eye(3))]
+    cube = [2.2 * np.array(v) / math.sqrt(3.0)
+            for v in np.array(np.meshgrid(*[(-1, 1)] * 3)).reshape(3, -1).T]
+    payload = s3.build(cluster([("Al", 1.0)], [("O", v, 1.0) for v in octahedron + cube]))
     assert payload["polyhedra"] == []
 
 
