@@ -110,6 +110,36 @@ MAX_ATOMS = 400
 #: times in every textbook drawing of a unit cell.
 BOUNDARY_TOL = 1e-3
 
+#: A coordination shell ends at the largest gap in its ligand distances, and
+#: it is drawn only when that gap is at least this ratio (WP-1466, P3 and P4).
+#: Provisional: on WP-1462's three phases it lies between 1.15 (fluorapatite's
+#: Ca sites, and its F among O) and 1.41 (NAC's Na), and WP-1466 measures it
+#: on a wider set before it is fixed.
+POLYHEDRON_GAP = 1.25
+
+#: The gap is looked for among the first ``MAX_SHELL + 1`` ligands, so no
+#: shell is larger than a cuboctahedron.
+MAX_SHELL = 12
+
+#: How far a centre's ligands are searched for, in Å.  A shell whose next
+#: ligand lies beyond it takes this radius as that next distance, which can
+#: only understate the gap.
+SHELL_RADIUS = 6.0
+
+#: Shells of these sizes are drawn by default: the tetrahedra and octahedra a
+#: chemist reads first (WP-1466, P5).  Larger ones qualify and start hidden,
+#: because with NAC's CaF₈ and NaF₇ shown its cell fills with overlapping
+#: polyhedra.
+DEFAULT_SHELLS = range(4, 7)
+
+#: A centre this close to a face plane, in Å, is on it and not inside.  The
+#: scale is a CIF coordinate's rounding, 1e-4 of a 10 Å cell.
+INSIDE_TOL = 1e-3
+
+#: Atoms of two sites closer than this, in Å, share one position (a mixed
+#: site), and count once as a centre and once as a ligand (WP-1466, P9).
+SAME_POSITION = 0.01
+
 # ----------------------------------------------------------------------
 # species → element, colour, radius
 # ----------------------------------------------------------------------
@@ -359,6 +389,39 @@ def bonds_between_metals(elements) -> bool:
     return all(is_metal(element) for element in elements)
 
 
+def is_ligand(center: str, element: str) -> bool:
+    """Whether an atom of ``element`` can sit at a vertex of ``center``'s polyhedron.
+
+    A ligand is a non-metal of another element, other than hydrogen (WP-1466,
+    P2).  It is Mercury's ligand list derived rather than declared, and it
+    assigns no cation–cation contact, as CrystalNN does not (Pan et al., 2021,
+    Inorg. Chem., doi:10.1021/acs.inorgchem.0c02996).  The radius-sum bond
+    rule reaches both kinds:
+    fluorapatite's P has 4 Ca at 3.1-3.2 Å beside its 4 O.  Hydrogen is
+    excluded because a hydroxide's cation reaches it next: counting it drops
+    brucite's Mg gap ratio from 1.80 to 1.28.
+    """
+    info = gemmi.Element(element)
+    return element != center and not info.is_metal and not info.is_hydrogen
+
+
+def shell_gap(distances: np.ndarray) -> tuple[int, float]:
+    """``(n, ratio)``: the shell ends after ``n`` ligands, at a gap of ``ratio``.
+
+    The largest gap among the first ``MAX_SHELL + 1`` sorted distances, as
+    Daams & Villars (1993) apply Brunner & Schwarzenbach (1971, Z. Kristallogr.
+    133, 127).  The gap is the ratio of each distance to the one before it,
+    WP-1462's stand-in until that paper is read.  One ligand or none gives
+    ``(len, 1.0)``, a shell with no gap.
+    """
+    d = np.asarray(distances, dtype=np.float64)[:MAX_SHELL + 1]
+    if len(d) < 2:
+        return len(d), 1.0
+    ratios = d[1:] / d[:-1]
+    n = int(np.argmax(ratios)) + 1
+    return n, float(ratios[n - 1])
+
+
 def probability_scale(probability: float) -> float:
     """``k(p) = √χ²₃(p)`` — the ellipsoid's semi-axis scale at probability ``p``.
 
@@ -408,7 +471,8 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     # ``operations()``/``xhm()`` surface the two readers below use.
     sg = resolve_group(ph.space_group, ph.symmetry_operations)
 
-    sites, atoms, notes = _expand(ph, phase, sg, basis, astar, max_atoms)
+    sites, atoms, notes, every = _expand(ph, phase, sg, basis, astar, max_atoms)
+    n_cell = len(atoms)
     # the colours are decided *here*, over the phase's own element list, because
     # two of them being the same colour is a fact about this picture and not
     # about the element table (WP-1029)
@@ -432,6 +496,12 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
                      "are not drawn; their bonds end in mid-air")
         partners = partners[:room]
     atoms.extend(partners)
+    polyhedra, ligands, dropped = _polyhedra(sites, every, atoms, n_cell, bonds, basis,
+                                             max(max_atoms - len(atoms), 0))
+    if dropped:
+        notes.append(f"{dropped} coordination polyhedra not drawn: their ligands "
+                     f"would take the drawing past {max_atoms} atoms")
+    atoms.extend(ligands)
 
     corners = _corners(basis)
     return {
@@ -449,6 +519,9 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
         "sites": sites,
         "atoms": atoms,
         "bonds": bonds,
+        # vertices, bonds and the centre are indices into ``atoms`` and
+        # ``bonds``; faces and edges index the polyhedron's own vertices
+        "polyhedra": polyhedra,
         "probability": float(probability),
         "probability_levels": {f"{p:g}": probability_scale(p)
                                for p in PROBABILITY_LEVELS},
@@ -474,7 +547,7 @@ def _corners(basis: np.ndarray) -> np.ndarray:
 
 
 def _expand(ph, phase: int, sg, basis: np.ndarray, astar: np.ndarray,
-            max_atoms: int) -> tuple[list[dict], list[dict], list[str]]:
+            max_atoms: int) -> tuple[list[dict], list[dict], list[str], list[dict]]:
     """The asymmetric unit → per-site records and every drawn image of each.
 
     Two kinds of image are drawn and the payload distinguishes them, because
@@ -484,6 +557,9 @@ def _expand(ph, phase: int, sg, basis: np.ndarray, astar: np.ndarray,
     there so a corner atom appears at all eight corners.  :func:`_partners` adds
     a third kind under the same flag — a bonded neighbour just outside the cell —
     for the same reason: it is an image, not a cell member.
+
+    The last item returned is every image before the ``max_atoms`` trim, since
+    a polyhedron's ligands are searched over the whole orbit.
     """
     sites: list[dict] = []
     atoms: list[dict] = []
@@ -531,6 +607,7 @@ def _expand(ph, phase: int, sg, basis: np.ndarray, astar: np.ndarray,
                     "rms": rms.tolist(),
                     "npd": npd,
                 })
+    every = atoms
     if len(atoms) > max_atoms:
         notes.append(f"{len(atoms)} drawn atoms trimmed to {max_atoms}; "
                      "the cell is larger than this viewer draws")
@@ -539,7 +616,7 @@ def _expand(ph, phase: int, sg, basis: np.ndarray, astar: np.ndarray,
         notes.append("a displacement tensor is not positive definite — its "
                      "non-positive axes are drawn at zero, so that ellipsoid is "
                      "flat by construction")
-    return sites, atoms, notes
+    return sites, atoms, notes, every
 
 
 def _partners(atoms: list[dict], bonds: list[dict], basis: np.ndarray) -> list[dict]:
@@ -718,3 +795,148 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
             out.append({"i": int(i), "j": int(j), "a": a.tolist(), "b": b.tolist(),
                         "d": float(dist[i, j])})
     return out
+
+
+# ----------------------------------------------------------------------
+# coordination polyhedra (WP-1466)
+# ----------------------------------------------------------------------
+def _polyhedra(sites: list[dict], every: list[dict], atoms: list[dict], n_cell: int,
+               bonds: list[dict], basis: np.ndarray,
+               room: int) -> tuple[list[dict], list[dict], int]:
+    """``(polyhedra, partners, dropped)`` for the first ``n_cell`` drawn atoms.
+
+    A centre's ligands (:func:`is_ligand`) are searched over the whole orbit,
+    ``every`` untrimmed, out to :data:`SHELL_RADIUS`, and matched by
+    **position**: the server can find a contact from a translated copy of the
+    centre, and a shell collected by atom index came out short on 6 of 18 Ca
+    in NAC (WP-1462's spike).  The shell ends at :func:`shell_gap`, and it is
+    drawn only when it is a polyhedron (P4): at least four ligands, a gap of
+    :data:`POLYHEDRON_GAP` or more, every ligand at a vertex of the convex
+    hull and the centre strictly inside it.  That is Daams & Villars' (1993)
+    convex-volume condition, and it turns away a planar CO₃.  A shell holding
+    two partly occupied ligands closer to each other than to the centre is a
+    split site and is not drawn (P9).
+
+    A vertex outside the drawn atoms becomes a partner, flagged ``boundary``
+    as :func:`_partners`' are, so no polyhedron is cut off (P7).  One whose
+    partners would pass ``room`` is not drawn and is counted in ``dropped``.
+    """
+    from scipy.spatial import ConvexHull, QhullError
+
+    orbit = [a for a in every if not a["boundary"]]
+    if not orbit or n_cell == 0:
+        return [], [], 0
+    elements = [sites[a["site"]]["element"] for a in orbit]
+    occupancy = np.array([sites[a["site"]]["occ"] for a in orbit], dtype=np.float64)
+    frac = np.array([a["frac"] for a in orbit], dtype=np.float64)
+    # every translation that can bring an orbit image within SHELL_RADIUS of a
+    # centre anywhere in the cell: |Δf_i| ≤ R·|a*_i|, and both lie in [0, 1]
+    reach = np.ceil(SHELL_RADIUS * np.linalg.norm(np.linalg.inv(basis), axis=1))
+    grid = np.stack(np.meshgrid(*[np.arange(-r - 1, r + 2) for r in reach],
+                                indexing="ij"), axis=-1).reshape(-1, 3)
+    source = np.tile(np.arange(len(orbit)), len(grid))
+    cart = ((frac[None, :, :] + grid[:, None, :]) @ basis.T).reshape(-1, 3)
+
+    known = {tuple(np.round(a["pos"], 6)): k for k, a in enumerate(atoms)}
+    segments: dict[tuple, list[int]] = {}
+    for k, bond in enumerate(bonds):
+        key = tuple(sorted((tuple(np.round(bond["a"], 6)), tuple(np.round(bond["b"], 6)))))
+        segments.setdefault(key, []).append(k)
+    inverse = np.linalg.inv(basis)
+    ligand_of: dict[str, np.ndarray] = {}
+    centres: list[np.ndarray] = []
+    out: list[dict] = []
+    partners: list[dict] = []
+    dropped = 0
+    for c in range(n_cell):
+        atom = atoms[c]
+        element = sites[atom["site"]]["element"]
+        if element not in ligand_of:
+            ligand_of[element] = np.array([is_ligand(element, e) for e in elements])
+        eligible = ligand_of[element][source]
+        if not eligible.any():
+            continue
+        centre = np.asarray(atom["pos"], dtype=np.float64)
+        # a mixed site is one centre, drawn in its first site's colour (P9)
+        if any(np.linalg.norm(centre - p) < SAME_POSITION for p in centres):
+            continue
+        centres.append(centre)
+        index = np.nonzero(eligible)[0]
+        dist = np.linalg.norm(cart[index] - centre, axis=1)
+        near = (dist >= BOND_MIN) & (dist <= SHELL_RADIUS)
+        index, dist = index[near], dist[near]
+        order = np.argsort(dist, kind="stable")
+        index, dist = index[order], dist[order]
+        # atoms of two sites at one position are one ligand, their
+        # occupancies summed, so a mixed O/F site is full and a split one is not
+        kept: list[list] = []                      # [candidate, distance, occupancy]
+        for k in range(len(index)):
+            here = cart[index[k]]
+            twin = next((row for row in kept if dist[k] - row[1] < SAME_POSITION
+                         and np.linalg.norm(cart[row[0]] - here) < SAME_POSITION), None)
+            if twin is not None:
+                twin[2] += occupancy[source[index[k]]]
+                continue
+            if len(kept) > MAX_SHELL:
+                break
+            kept.append([index[k], dist[k], occupancy[source[index[k]]]])
+        distances = [row[1] for row in kept]
+        if len(distances) <= MAX_SHELL:
+            distances.append(SHELL_RADIUS)
+        n, gap = shell_gap(np.array(distances))
+        if n < 4 or gap < POLYHEDRON_GAP:
+            continue
+        shell = kept[:n]
+        vertices = np.array([cart[row[0]] for row in shell])
+        partial = [row[2] < 1.0 - 1e-6 for row in shell]
+        if any(partial[i] and partial[j]
+               and np.linalg.norm(vertices[i] - vertices[j]) < min(shell[i][1], shell[j][1])
+               for i in range(n) for j in range(i)):
+            continue
+        try:
+            hull = ConvexHull(vertices - centre)
+        except QhullError:                         # planar, or collinear
+            continue
+        if len(hull.vertices) < n or (hull.equations[:, 3] > -INSIDE_TOL).any():
+            continue
+        needed = [k for k in range(n) if tuple(np.round(vertices[k], 6)) not in known]
+        if len(partners) + len(needed) > room:
+            dropped += 1
+            continue
+        for k in needed:
+            origin = orbit[source[shell[k][0]]]
+            known[tuple(np.round(vertices[k], 6))] = len(atoms) + len(partners)
+            partners.append({**origin, "pos": vertices[k].tolist(), "boundary": True,
+                             "frac": (inverse @ vertices[k]).tolist()})
+        members = [known[tuple(np.round(v, 6))] for v in vertices]
+        simplices = hull.simplices.copy()
+        corner = vertices[simplices]
+        wound = np.cross(corner[:, 1] - corner[:, 0], corner[:, 2] - corner[:, 0])
+        inward = np.einsum("ij,ij->i", wound, hull.equations[:, :3]) < 0
+        simplices[inward] = simplices[inward][:, [0, 2, 1]]      # wind outward
+        # a square face comes out as two triangles, so an edge is drawn only
+        # where its two faces are not coplanar; the face opposite vertex m of
+        # a simplex shares the other two
+        folded = ~np.isclose(hull.equations[:, None, :], hull.equations[hull.neighbors],
+                             atol=1e-6).all(axis=2)
+        edges = {tuple(sorted((int(hull.simplices[f, (m + 1) % 3]),
+                               int(hull.simplices[f, (m + 2) % 3]))))
+                 for f, m in zip(*np.nonzero(folded))}
+        centre_key = tuple(np.round(centre, 6))
+        hidden = sorted(k for v in vertices for k in segments.get(
+            tuple(sorted((centre_key, tuple(np.round(v, 6))))), []))
+        out.append({
+            "center": c,
+            "site": atom["site"],
+            "vertices": members,
+            "faces": simplices.tolist(),
+            "edges": [list(e) for e in sorted(edges)],
+            # the centre's sticks to its own vertices, which the drawn
+            # polyhedron replaces (P6)
+            "bonds": hidden,
+            "coordination": n,
+            "mean_distance": float(np.mean([row[1] for row in shell])),
+            "gap": gap,
+            "drawn_by_default": n in DEFAULT_SHELLS,
+        })
+    return out, partners, dropped
