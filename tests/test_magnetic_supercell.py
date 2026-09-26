@@ -300,6 +300,8 @@ def test_a_half_translation_along_the_doubled_axis_is_stated_as_an_operator_list
     note, = statement.diagnostics
     assert note.code == "CHILD_GROUP_UNNAMED"
     assert note.level == "info"
+    # relative to the returned phase: the statement cannot know its index
+    assert note.where == ["space_group"]
     assert "2a,b,c" in note.message
     assert "quarter" in note.message
     assert "site orbits" in note.message

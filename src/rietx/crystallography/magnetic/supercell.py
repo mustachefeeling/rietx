@@ -169,6 +169,10 @@ class SupercellStatement:
     #: Info diagnostics about the statement itself, ``CHILD_GROUP_UNNAMED``
     #: among them.  Empty for every statement whose child group has a symbol,
     #: so a caller that ignores the field sees exactly what it saw before.
+    #: Each ``where`` is a path **relative to** :attr:`phase` (``space_group``,
+    #: not ``phases.0.space_group``): the statement cannot know which index its
+    #: phase will take in a structure, so a caller placing it at index ``i``
+    #: prefixes ``phases.i.``.
     diagnostics: tuple[Diagnostic, ...] = ()
     _cache: dict = field(default_factory=dict, repr=False, compare=False)
 
@@ -924,11 +928,15 @@ def anti_translation_residual(phase) -> float:
     """max |m(x) − ε·det(R)·R·m(x′)| over every operation of the phase's own group.
 
     A supercell statement puts the two cosets of a parent site on **independent**
-    moment DOFs (module docstring, "What is *not* enforced"), so a refinement
-    can leave the magnetic space group it declares.  This is the distance it
-    has travelled, in μ_B, and a report that quotes a refined moment from a
-    supercell statement should quote this beside it: zero means the refined
-    structure still has the symmetry it claims.
+    moment DOFs (module docstring, "The anti-centring has to be tied"), so a
+    refinement can leave the magnetic space group it declares.  This is the
+    distance it has travelled, in μ_B, and a report that quotes a refined moment
+    from a supercell statement should quote this beside it: zero means the
+    refined structure still has the symmetry it claims.
+
+    The law tested is the axial-vector one, M(R·r + t) = ε·det(R)·R·M(r):
+    Gallego, Tasci, de la Flor, Perez-Mato & Aroyo (2012), *J. Appl. Cryst.*
+    **45**, 1236 (MAGNEXT), eq. (3), p. 1239.
     """
     group = phase.magnetic_symmetry.group()
     sites = [(np.array([a.x.value, a.y.value, a.z.value], dtype=np.float64),
@@ -957,8 +965,11 @@ def anti_translation_ties(phase, ip: int = 0):
 
     The relation is affine in the DOFs, and it is affine because the operation
     is a pure translation.  An (anti)centring is {1 | t, ε}, so its axial action
-    is ε·det(I)·I = ±**I** — not a rotation — and ±I is exactly the case the
-    modulus-and-angles parameterisation carries linearly:
+    is ε·det(I)·I = ±**I** — not a rotation — by the axial-vector law
+    M(R·r + t) = ε·det(R)·R·M(r) of Gallego, Tasci, de la Flor, Perez-Mato &
+    Aroyo (2012), *J. Appl. Cryst.* **45**, 1236 (MAGNEXT), eq. (3), p. 1239;
+    and ±I is exactly the case the modulus-and-angles parameterisation carries
+    linearly:
 
     ==== ================================================================
     dim  m′ = −m in DOFs
@@ -1242,7 +1253,7 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     if not child_group.named:
         diagnostics = (Diagnostic(
             level="info", code="CHILD_GROUP_UNNAMED",
-            where=["phases.0.space_group"],
+            where=["space_group"],
             message=f"magnetic_supercell(): {child_group.reason}",
             suggestion=(
                 "nothing to fix — the statement is complete. Quote the child "
