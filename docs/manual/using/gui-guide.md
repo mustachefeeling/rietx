@@ -311,7 +311,10 @@ The line under the picture names the atom or bond under the pointer.
 
 In ellipsoid mode each anisotropic site also shows its three principal
 ellipses, the rings of an ORTEP drawing. An isotropic site shows none, because
-its axes point nowhere in particular.
+its axes point nowhere in particular. A site on a threefold or higher axis
+displaces equally in two directions, so two of its rings could sit at any angle
+round that axis. One of them is drawn through the lattice vector nearest their
+plane, so every machine draws the same picture.
 
 `PNG` renders the picture again, 3000 pixels on its long side, with the a, b, c
 letters drawn in. That is a 17 cm figure at 300 dpi with room to crop.

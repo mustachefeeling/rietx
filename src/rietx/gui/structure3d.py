@@ -88,6 +88,17 @@ BOND_MIN = 0.4
 #: hydrogen (r = 0.31 Å) would be a lump on a rod.
 BALL_FRACTION = 0.40
 
+#: Two principal values closer than this, relative to the largest, are one.
+#: A site on a 3-, 4- or 6-fold axis has an exactly uniaxial tensor whose equal
+#: pair differs by rounding: at most 2e-16 relative on NAC, whose nearest real
+#: gap is 14 % (WP-1462's gate).
+DEGENERATE_RTOL = 1e-9
+
+#: The direction each principal axis is turned to face.  Its components are
+#: e, π and 1, so no crystal direction a tensor's symmetry fixes is orthogonal
+#: to it.
+_FACING = np.array([1.0, math.e, math.pi])
+
 #: How many drawn atoms (symmetry images and boundary duplicates included) the
 #: payload will carry.  A cap rather than a promise: it is reported in ``note``
 #: when it bites, because a silently truncated cell reads as a wrong structure.
@@ -593,6 +604,9 @@ def _ellipsoid(ustar: np.ndarray | None, uiso: float, rot: np.ndarray,
     Isotropic sites take the closed form rather than the eigen path: U_cart is
     exactly Uiso·I there (module docstring), so ``T = √Uiso·I`` and no symmetry
     image can rotate a sphere.
+
+    ``V`` is pinned by :func:`_pin_axes`, since the client draws a principal
+    ellipse round each of T's columns (WP-1462's D6).
     """
     if ustar is None:
         rms = np.full(3, math.sqrt(max(uiso, 0.0)))
@@ -605,7 +619,53 @@ def _ellipsoid(ustar: np.ndarray | None, uiso: float, rot: np.ndarray,
     # honest value — "no positive mean-square displacement along this axis" —
     # and it collapses the ellipsoid visibly instead
     rms = np.sqrt(np.clip(values, 0.0, None))
-    return vectors * rms, rms, npd
+    return _pin_axes(values, vectors, basis) * rms, rms, npd
+
+
+def _pin_axes(values: np.ndarray, vectors: np.ndarray, basis: np.ndarray) -> np.ndarray:
+    """``vectors`` with each choice ``eigh`` was free to make, made one way.
+
+    Any column's sign is free, and so is any orthonormal basis of a plane of
+    equal principal values. Every such choice gives the same U = V·Λ·Vᵀ, so a
+    LAPACK build may return any of them. On NAC's Na1, which is uniaxial by
+    symmetry, a Mac and an x86 runner drew its free rings as an X and a +
+    (WP-1462's gate). ORTEP, PLATON and Jmol draw all three rings wherever
+    their solver puts them, and no manual or paper documents a tie-break, so
+    this one is ours:
+
+    * each lone axis faces :data:`_FACING`;
+    * an equal pair's first axis is the shadow on their plane of the lattice
+      vector nearest it (a ties before b before c), and the second completes
+      it about the lone axis, so one ring's plane holds that lattice vector;
+    * three equal values, a sphere, take a, b and c orthonormalised in turn.
+    """
+    scale = float(np.abs(values).max())
+    lattice = basis / np.linalg.norm(basis, axis=0)
+    out = np.array(vectors, dtype=float)
+    groups, start = [], 0
+    for k in range(1, 4):
+        if k == 3 or values[k] - values[k - 1] > DEGENERATE_RTOL * scale:
+            groups.append(list(range(start, k)))
+            start = k
+    for group in groups:
+        if len(group) == 1:
+            k = group[0]
+            out[:, k] *= 1.0 if out[:, k] @ _FACING >= 0.0 else -1.0
+    for group in groups:
+        if len(group) == 2:
+            plane = out[:, group]
+            shadows = plane @ (plane.T @ lattice)
+            reach = np.linalg.norm(shadows, axis=0)
+            first = int(np.argmax(reach >= reach.max() * (1.0 - DEGENERATE_RTOL)))
+            (lone,) = set(range(3)) - set(group)
+            out[:, group[0]] = shadows[:, first] / reach[first]
+            out[:, group[1]] = np.cross(out[:, lone], out[:, group[0]])
+        elif len(group) == 3:
+            a, b = lattice[:, 0], lattice[:, 1]
+            b = b - (b @ a) * a
+            b /= np.linalg.norm(b)
+            out = np.column_stack([a, b, np.cross(a, b)])
+    return out
 
 
 def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,

@@ -331,7 +331,10 @@ orthogonal cell, and a turntable's +z would make "view down c" degenerate — th
 free rotation and the a/b/c buttons are one decision. In ellipsoid mode an
 anisotropic site draws its **three principal ellipses**, one unit-frame
 coordinate near zero since T's columns are the principal axes, and an isotropic
-site draws none, its axes pointing nowhere.
+site draws none, its axes pointing nowhere. **Where principal values are equal
+the server pins the free axes** (`structure3d._pin_axes`), because `eigh`
+chooses them per LAPACK build: a Mac and an x86 runner drew one uniaxial site's
+rings as an X and a + (WP-1462's gate).
 
 The **renderer** (WP-1462) draws a `Scene` from a `View`, both built by pure
 functions in `structure3d.ts`, and knows nothing else. Seven rules.
