@@ -306,7 +306,8 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
             "states a magnetic construct and has no single data block")
         magcif.refuse_modulation(text, path)
         magcif.refuse_a_magnetic_supercell(block, text, path)
-        magnetic_symmetry = magcif.read_magnetic_symmetry(block, text, path)
+        magnetic_symmetry = magcif.read_magnetic_symmetry(
+            block, text, path, diagnostics=diagnostics)
 
     listed = None
     if split_group_label(small.spacegroup_hm or "") is not None and small.symops:

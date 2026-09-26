@@ -1367,6 +1367,30 @@ def test_a_moment_outside_the_allowed_span_is_refused_through_the_reader(tmp_pat
         _read(tmp_path, "Cr2WO6", moment_loop=loop)
 
 
+
+def test_a_missing_centring_loop_is_read_as_trivial_and_named(tmp_path):
+    """Review of #478, follow-up: a file with no centring loop was read as
+    ``x,y,z,+1`` in silence.  MAGNDATA always writes the loop, so this is a
+    hand-written file, where a forgotten anti-centring is a different group;
+    the reading is unchanged and now says what it assumed."""
+    path = _fixture(tmp_path, "LaMnO3")
+    text = path.read_text(encoding="utf-8")
+    loop = ("loop_\n_space_group_symop_magn_centering.id\n"
+            "_space_group_symop_magn_centering.xyz\n1 x,y,z,+1\n")
+    assert loop in text
+    path.write_text(text.replace(loop, ""), encoding="utf-8")
+    diagnostics: list = []
+    read = structure_from_cif(str(path), moment_ions=_IONS["LaMnO3"],
+                              diagnostics=diagnostics)
+    assert read.phases[0].magnetic_symmetry.centerings == ["x,y,z,+1"]
+    (named,) = [d for d in diagnostics
+                if d.code == "CIF_MAGNETIC_CENTERING_ASSUMED"]
+    assert named.where == ["phases.0.magnetic_symmetry.centerings"]
+    quiet: list = []
+    _ = structure_from_cif(str(_fixture(tmp_path, "LaMnO3")),
+                           moment_ions=_IONS["LaMnO3"], diagnostics=quiet)
+    assert "CIF_MAGNETIC_CENTERING_ASSUMED" not in {d.code for d in quiet}
+
 def test_a_moment_on_a_site_the_block_does_not_name_is_refused(tmp_path):
     """The whole magnetic contribution of a site, dropped because a label was
     misspelled, is the silent-drop failure in its purest form."""

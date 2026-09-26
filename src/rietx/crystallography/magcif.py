@@ -455,7 +455,8 @@ def refuse_modulation(text: str, path: str) -> None:
         f"chapter.")
 
 
-def read_magnetic_symmetry(block, text: str, path: str):
+def read_magnetic_symmetry(block, text: str, path: str, *,
+                           diagnostics: list[Diagnostic] | None = None):
     """The magnetic space group a magCIF block states, or ``None``.
 
     Returns a :class:`~rietx.schemas.structure.MagneticSymmetry` built from
@@ -474,6 +475,12 @@ def read_magnetic_symmetry(block, text: str, path: str):
     here makes the field the same on both sides of a round trip.  A group
     spglib cannot match to itself — there are three in its 2.7.0 database —
     leaves it ``None`` on both sides, which round-trips too.
+
+    A file with no ``_space_group_symop_magn_centering`` loop is read as the
+    trivial centring ``x,y,z,+1`` and ``CIF_MAGNETIC_CENTERING_ASSUMED`` says
+    so: MAGNDATA always writes the loop, so this is a hand-written file, and a
+    forgotten anti-centring (``x,y,z+1/2,-1``) would otherwise be a different
+    magnetic group read in silence (review of #478, follow-up).
     """
     from ..schemas.structure import MagneticSymmetry
     from .magnetic.operators import MagneticGroup, identify
@@ -487,6 +494,18 @@ def read_magnetic_symmetry(block, text: str, path: str):
         # omits it is stating the trivial one rather than nothing: the coset
         # representatives alone are already a group when the lattice is P.
         centerings = ["x,y,z,+1"]
+        if diagnostics is not None:
+            diagnostics.append(Diagnostic(
+                level="info", code="CIF_MAGNETIC_CENTERING_ASSUMED",
+                where=["phases.0.magnetic_symmetry.centerings"],
+                message=(f"{path} states no "
+                         f"_space_group_symop_magn_centering.xyz loop, so the "
+                         f"magnetic group is its operation list with the "
+                         f"trivial centring x,y,z,+1 alone"),
+                suggestion=("if the group has a centring or an anti-centring "
+                            "(a translation with time reversal, x,y,z+1/2,-1), "
+                            "add the loop: without it this is a different "
+                            "magnetic group")))
     uni = None
     try:
         uni = identify(MagneticGroup.from_xyz(operations, centerings)).uni_number
