@@ -25,17 +25,12 @@ Three measurements, each with the arm that could fail written down first:
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 
 import rietx as rx
 from rietx.model.forward import compile_model
 from rietx.params.vector import ParameterTable
-from rietx.schemas.common import Parameter
-
-DATA = Path(__file__).parent / "data"
 
 # ====================================================== synthetic, under noise
 
@@ -92,6 +87,7 @@ def _arm(instrument, plain, y):
     return arms[0]
 
 
+@pytest.mark.xdist_group("satellites-synthetic")
 @pytest.mark.parametrize("seed", [0, 1, 2])
 def test_a_k_00half_satellite_set_is_found_blind_under_noise(synthetic, seed):
     """Positive arm: (0, 0, ½) ranks first and the runner-up is far behind.
@@ -113,6 +109,7 @@ def test_a_k_00half_satellite_set_is_found_blind_under_noise(synthetic, seed):
     assert arm.excess_on_absent_lattice_lines == 0
 
 
+@pytest.mark.xdist_group("satellites-synthetic")
 @pytest.mark.parametrize("seed", [0, 1, 2])
 def test_the_null_abstains_under_noise(synthetic, seed):
     """Null arm: no satellite intensity, so nothing unexplained and nothing scored."""
@@ -125,70 +122,21 @@ def test_the_null_abstains_under_noise(synthetic, seed):
 
 
 # ============================================================ Cr₂WO₆, k = 0
-
-#: the tutorial's wavelength and a hand-seeded width, as in
-#: ``test_acceptance_magnetic.py`` (the tutorial's PNCR profile is refused)
-CR_LAMBDA = 2.4067
-FWHM_SEED_DEG = 0.35
-_B = ["phases.0.scale"] + [f"instrument.background.c{i}" for i in range(4)]
-_NUCLEAR = [
-    ("scale_bkg", _B),
-    ("zero", _B + ["instrument.zero_shift"]),
-    ("cell", _B + ["instrument.zero_shift", "phases.0.cell.*"]),
-    ("widths", _B + ["instrument.zero_shift", "phases.0.cell.*",
-                     *[f"instrument.profile.{k}" for k in "uvwx"]]),
-    ("coords", _B + ["instrument.zero_shift", "phases.0.cell.*",
-                     *[f"instrument.profile.{k}" for k in "uvwx"],
-                     "phases.0.atoms.*.dof.*"]),
-    ("biso", _B + ["instrument.zero_shift", "phases.0.cell.*",
-                   *[f"instrument.profile.{k}" for k in "uvwx"],
-                   "phases.0.atoms.*.dof.*", "phases.0.atoms.*.biso"]),
-]
-
-
-def _p(value: float, **kw) -> Parameter:
-    return Parameter(value=value, **kw)
-
-
-def _trirutile() -> rx.Structure:
-    """Ideal trirutile start (the tutorial's ICSD file is not redistributable)."""
-    def atom(label, species, xyz):
-        x, y, z = xyz
-        return rx.Atom(label=label, species=species, x=_p(x), y=_p(y), z=_p(z),
-                       occ=_p(1.0), biso=_p(0.5, unit="A^2"))
-
-    return rx.Structure(phases=[rx.Phase(
-        name="Cr2WO6", space_group="P 42/m n m",
-        cell=rx.Cell(a=_p(4.58), b=_p(4.58), c=_p(8.85),
-                     alpha=_p(90.0), beta=_p(90.0), gamma=_p(90.0)),
-        atoms=[atom("W1", "W", (0.0, 0.0, 0.0)),
-               atom("Cr1", "Cr", (0.0, 0.0, 1.0 / 3.0)),
-               atom("O1", "O", (0.3, 0.3, 0.0)),
-               atom("O2", "O", (0.3, 0.3, 1.0 / 3.0))])])
-
-
-def _fit(structure, instrument, data):
-    ref = rx.Refinement(structure, instrument, history=False)
-    ref.fit(data, plan=rx.RefinementPlan(
-        stages=[rx.Stage(name=n, turn_on=list(t), max_iter=200)
-                for n, t in _NUCLEAR],
-        intermediate_ftol=1e-6))
-    return ref
+#
+# Real data, so ``slow``; and the nuclear fits are the session's
+# (``conftest.cr2wo6_nuclear``), the same two files from the same trirutile
+# start that WP-1327's moment acceptance refines, so the test joins that
+# fixture's group rather than fitting them a second time.
 
 
 @pytest.fixture(scope="module")
-def cr2wo6():
-    inst = rx.Instrument.constant_wavelength_neutron(CR_LAMBDA)
-    inst.profile.w.value = (FWHM_SEED_DEG / 2.0) ** 2
-    inst.profile.x.value = FWHM_SEED_DEG
-    ref150 = _fit(_trirutile(), inst,
-                  rx.read_pattern(DATA / "gsas2_hb2a_cr2wo6_150K.dat"))
-    ref4 = _fit(ref150.structure.model_copy(deep=True),
-                ref150.instrument.model_copy(deep=True),
-                rx.read_pattern(DATA / "gsas2_hb2a_cr2wo6_4K.dat"))
-    return ref4.report().satellites[0], ref150.report().satellites[0]
+def cr2wo6(cr2wo6_nuclear):
+    return (cr2wo6_nuclear["ref4"].report().satellites[0],
+            cr2wo6_nuclear["ref150"].report().satellites[0])
 
 
+@pytest.mark.slow
+@pytest.mark.xdist_group("magnetic-cr2wo6")
 def test_cr2wo6_4k_shows_the_k_zero_signature_and_150k_does_not(cr2wo6):
     """The positive k = 0 statement at 4 K, and its absence above T_N.
 
