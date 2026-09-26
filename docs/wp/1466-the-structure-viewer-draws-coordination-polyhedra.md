@@ -1,6 +1,7 @@
 # WP-1466 — the structure viewer draws coordination polyhedra
 
-Milestone: unscheduled · Status: 🔄 2026-09-26 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-09-26 — built and measured; the gap measure and the
+electronegativities wait on two papers the maintainer supplies
 Depends on: 1462
 Priority: P3 2026-09-26 — WP-1462 closed, so its one blocker is gone; P1-P9 are confirmed, P3's gap measure waits on Brunner & Schwarzenbach (1971) and the electronegativities on Allred (1961)
 
@@ -221,6 +222,19 @@ confirmed that too on the same day.
   was turned away by the gap before the split rule was reached. The rule
   is tested on a built cluster only.
 - **A cyanide or a carbonyl** draws the wrong shell (P2).
+- **A split anion site can make a cation** (found by the 2026-09-26 review).
+  Fluorapatite with F at 0.5 and an OH oxygen 0.48 Å from it reads the O as
+  bonded to the more electronegative F, so the O is a cation: it leaves every
+  Ca shell and loses its Ca sticks. Skipping pairs that are both partly
+  occupied would break a disordered sulfate or perchlorate, whose partial S
+  and O really are bonded, so the rule is the maintainer's call.
+- **A species whose shells are only partly drawn by default** (a CaO₆ site
+  beside a CaO₈ one) has one legend button, and off then on draws every
+  shell with no way back to the default. One button per formula would fix
+  it; P5 says per species.
+- **Every fetch recomputes the polyhedra**, so each release of the bond
+  slider pays the search again: the review measured 75-85 ms on grossular.
+  The probability control does not refetch.
 - **Translucency ordering** holds while polyhedra do not interpenetrate
   (WP-1462 § Polyhedra).
 
@@ -271,6 +285,104 @@ npm --prefix gui test && npm --prefix gui run check
 - WP-1462 and its spike, `docs/wp/1462-spike/`.
 
 ## Handover log
+
+### 2026-09-26 — the viewer draws coordination polyhedra, and the ligand rule became cations and anions
+
+The structure viewer now draws coordination polyhedra. A user who never opens
+a setting sees the tetrahedra and octahedra a solid-state chemist draws first,
+and nothing else, on all 21 phases measured. The measurement also overturned
+part of the rule the maintainer had confirmed that morning. Counting every
+non-metal as a ligand let Si, S and P join the shells of the metals beside
+them, and let oxygen centre shapes of its own. The rule is now "a centre is a
+cation, a ligand is an anion", and the same test removed a sibling defect: the
+viewer's sticks joined Mg to Si and Ca to P. What is left is one small
+decision about the legend, and two papers the maintainer is supplying.
+
+*Decided.* The maintainer confirmed P1-P8 with three amendments (hydrogen is
+never a ligand, shells of 7 or more start hidden, a polyhedron that loses a
+vertex to the atom cap is not drawn), added P9 (split sites), and then
+confirmed the anion rule for P2 after the phase-set measurement. The
+electronegativity table and the gap measure are the two open items (Tasks).
+
+*Done.*
+
+- Server: `/api/structure3d` carries `polyhedra`, built by
+  `structure3d._polyhedra` over `_orbit`'s images, with `_cation_sites`,
+  `is_ligand`, `shell_gap` and `POLYHEDRON_GAP` = 1.15.
+- Measurement: `1466-measure/measure.py` fetches 17 COD entries, measures the
+  gaps, and writes `tests/data/polyhedra_phases.json` with the expected
+  picture written before the run (§ The phase-set measurement).
+- Client: a translucent face pass in `gl3d.ts`, edges as D9 quads, hover on a
+  face, one switch per mode and one legend button per centre species, and the
+  caption. The dist is rebuilt.
+- Sticks: no stick joins a metal to a cation, the metal–metal rule widened.
+- Acceptance 3: `gate.py` takes a polyhedra picture, and
+  `1466-measure/engines.py` compares the engines and times a drag.
+- Docs: the GUI guide's 3D view section and three rules in `gui/CLAUDE.md`.
+
+*Measured* (Apple M4, macOS; `[dev]` venv plus playwright 1.63 with
+Chromium 153, Firefox 155 and WebKit 26.6):
+
+- Before the anion rule, forsterite's MgO₆ passed at a gap of 1.26 because Si
+  sat at 2.69 Å, grossular's Ca took 2 Si into a 10-shell at 1.22, and
+  andalusite and gypsum drew OSi₄ and OS₅ by default. After it the gaps are
+  1.55-1.65 and 1.48, and no anion centres anything. Every real shell's gap
+  is 1.21 or more; the two sites with none score 1.00.
+- Hydrogen counted as a ligand drops brucite's Mg gap from 1.80 to 1.28.
+- The radius-sum sticks drew 36 Mg–Si in forsterite (2.69-2.79 Å), 38 Ca–P in
+  fluorapatite, 90 Ca–Si in grossular and 16 Ca–S in gypsum.
+- Build time for NAC, best of 7: 9.8 ms without polyhedra, 21.1 ms with.
+- Engines: the polyhedra picture differs from Chromium's by 0.00 levels in
+  Firefox and WebKit; the largest difference of any picture is 0.09 levels.
+- Drag frame gap p95 with all 34 of NAC's polyhedra on: Chromium 16.9-18.3 ms
+  over six runs, Firefox 17.0-18.0, WebKit 16.9-17.6 on 4-9 frames. With them
+  off: 16.8-17.4, 17.0-18.0 and 16.0-17.0. No long animation frame in
+  Chromium either way. Acceptance 3's 17.7 ms bar is met in Chromium in four
+  of six runs and in Firefox in one of six, with or without polyhedra, so it
+  measures the engines' pacing at 60 Hz rather than the face pass. WebKit's
+  drag ends in too few frames to read.
+- The transparent export: the switch adds 61 347 translucent pixels (1.15 %
+  of 5.3 Mpx) and 1 400 with the faces' alpha forced to 0.
+- Counts: `tests/test_structure3d.py` 37 passed and 1 skipped on main,
+  83 and 1 now (+46: seven ligand cases, 21 measured phases, and the rules
+  one test each); `tests/test_structure3d_browser.py` 4 to 5 passed (with
+  playwright in the venv; without it the module is one skip); GUI vitest 568
+  passed in 24 files under node 22.15.0, +7 (six unit, one component), the
+  561 before it derived from the first run. The fast selection on **main
+  merged into this branch** (main at `ee2a027a`) is 6362 passed and 140
+  skipped. The full selection did not run: the change is GUI and viewer
+  server code and moves no refinement number.
+
+*Gotchas.*
+
+- The screen cannot prove a face painted: the switch also moves the edges and
+  the sticks, and the picture changed by 1.42 levels with alpha 0. The
+  browser test reads translucent pixels in the transparent export instead.
+- `gate.py`'s pictures now include the default AlF₆ octahedra, so a gate run
+  compared with WP-1462's reference Mac pictures will differ on every ball
+  picture. Engine-against-engine on one machine is what `engines.py` reads.
+- Cyanide and carbonyl ligands are a known miss of the anion rule.
+- `/code-review high --fix` made six changes, landed as one commit:
+  deuterium takes hydrogen's electronegativity, an unparsed species (`X`) is
+  no ligand, a tighter translation grid in `_orbit` (checked: a centre in
+  [0, 1 + tol) needs at most 1 + ⌊R·|a*| + tol⌋), ligand rows cached per
+  element, `_cation_sites` taking the orbit whole, and a spacing fix. The
+  measurement's output is unchanged. It declined three, recorded under
+  § Where it will bite. Its claim that the probability control refetches is
+  wrong: the probability rescales on the client, and a vitest pins that.
+
+*Next.*
+
+1. Decide the legend's switch for a species whose shells are only partly
+   drawn by default (§ Where it will bite). One button per formula instead
+   of per species is the fix I would make.
+2. When Brunner & Schwarzenbach (1971) arrives, set `shell_gap` to their
+   measure and re-run `1466-measure/measure.py`. If the table moves, the
+   fixture's expected column stays and the threshold is re-read.
+3. When Allred (1961) arrives, check the 18 values in
+   `structure3d.ELECTRONEGATIVITY` and drop the "not yet checked" note.
+4. Then the WP closes, with the split-site and cyanide cases left as
+   recorded limits unless the maintainer wants either fixed.
 
 - **2026-09-25** — filed from WP-1462's session as its D8, after the
   maintainer asked for polyhedra and for good defaults. The spike's
