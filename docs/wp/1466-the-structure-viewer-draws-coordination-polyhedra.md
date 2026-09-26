@@ -12,18 +12,23 @@ others (`gui/CLAUDE.md` § Defaults).
 
 ## Context
 
-### Inherited
+### The renderer it extends
 
-- **From WP-1462, closed 2026-09-26.** The renderer this WP extends passed its
-  GPU gate as partial: Direct3D 11 over WARP, Mesa llvmpipe and SwiftShader on
-  GitHub's runners, with no vendor GPU. `1462-spike/gate.py` is the probe for
-  acceptance 3's "draw it the same". It pins the canvas at a fixed size, runs
-  one browser through a fixed script, and compares every picture with a
-  reference machine's. A polyhedra case added to its script would cover this
-  WP. Two things it found bear on a translucent pass. Firefox on WARP granted
-  no multisample buffer, so any coverage through alpha-to-coverage vanishes
-  there. And the server now pins an ellipsoid's free principal axes
-  (`structure3d._pin_axes`), so a payload from any machine draws the same.
+WP-1462 closed on 2026-09-26, and its renderer passed the GPU gate as
+partial. The gate ran Direct3D 11 over WARP, Mesa llvmpipe and SwiftShader on
+GitHub's runners, with no vendor GPU. Folded from that WP's inherited note
+on 2026-09-26.
+
+- **The gate is the probe for acceptance 3.** `1462-spike/gate.py` pins the
+  canvas at 720 × 540 CSS px, drives one browser through a fixed script, and
+  compares every picture with a reference machine's. A polyhedra case in
+  that script covers this WP.
+- **A context can come without a multisample buffer.** Firefox on WARP
+  granted none, so anything drawn through alpha-to-coverage loses its
+  coverage there. The spike's faces blend with ordinary alpha, which does
+  not depend on it.
+- **A payload draws the same on every machine.** The server pins an
+  ellipsoid's free principal axes (`structure3d._pin_axes`).
 
 ### Why
 
@@ -161,7 +166,7 @@ overturn in the first task.
 - [ ] Read Brunner & Schwarzenbach (1971) (the maintainer supplies it) and set P3's gap measure to theirs
 - [ ] Measure P4 and P5 on the wider phase set and record the threshold and the table
 - [ ] Server: the `polyhedra` arm, the ligand rule, the gap shell, the polyhedron conditions and the vertex partners, with tests in `tests/test_structure3d.py`
-- [ ] Renderer: the translucent pass, the edges, and hover on a polyhedron (centre, ligand count, mean distance)
+- [ ] Renderer: the translucent pass, the edges, and hover on a polyhedron (centre, ligand count, mean distance); a polyhedra case in `1462-spike/gate.py`'s script
 - [ ] GUI: the per-species toggles, P5's and P8's defaults, and the caption saying what is drawn
 - [ ] Docs: the structure viewer paragraphs in `gui/CLAUDE.md` and the GUI guide
 
