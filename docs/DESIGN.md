@@ -378,7 +378,8 @@ views of one stream.
 chart draws with one module, `viz/static/rxplot.mjs`, over a vendored uPlot
 (WP-1461), and the structure viewer with its own WebGL2 renderer (WP-1462).
 plotly's evaluation blocked every GUI open for 0.7-0.8 s, and the self-contained
-HTML it wrote was 6.49 MB against the module's 1.23 MB on NAC. The `gui` extra
+HTML it wrote was 6.49 MB against the module's 1.23 MB on NAC, measured
+before the exports joined the page. It is 1.36 MB with them. The `gui` extra
 is empty and the `viz` extra is matplotlib alone. The measurements and the
 decisions are in the two WP files.
 

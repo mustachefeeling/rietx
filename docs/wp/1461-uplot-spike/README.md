@@ -78,6 +78,9 @@ bind port 8799. `zoom_probe.mjs` drives Firefox from
 2359 builds, which `node node_modules/playwright-core/cli.js install firefox
 webkit` fetches. In WebKit it supplies the mouse movement playwright leaves at
 zero (the WP's finding 15). With `RIETX_PLOTLY` set, the plotly renderer comes
-from that command on the next port up, a second server with its own fit: the
-final tree has no plotly renderer, so task 14 paired it with a build of
+from that command ten ports up (8800-8808), a second server with its own fit:
+the final tree has no plotly renderer, so task 14 paired it with a build of
 `58f7dbce`, whose `src` ran under this repository's `.venv` through `PYTHONPATH`.
+Both servers inherit the caller's environment, so that `PYTHONPATH` belongs in
+the wrapper script `RIETX_PLOTLY` names. Exported in the shell, it reaches the
+chart's server too.

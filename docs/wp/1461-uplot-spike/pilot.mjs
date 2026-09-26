@@ -12,7 +12,7 @@
 // are measured side by side.
 //
 // With RIETX_PLOTLY set, the plotly renderer is served by that command, a second
-// server with a fit of its own on the next port up, and the chart by RIETX. That is
+// server with a fit of its own ten ports up, and the chart by RIETX. That is
 // task 14's pairing: the final tree has no plotly renderer, so plotly comes from a
 // build of 58f7dbce, the last commit that had one. Both servers stay up for the
 // call, so its renderers are still measured side by side.
@@ -33,7 +33,7 @@ const [ENGINE = "chromium", DATASET = "nac", DPR = "1", RUN = "0", ...RENDERERS]
 const renderers = RENDERERS.length ? RENDERERS : ["plotly", "chart"];
 const CFT = os.homedir() + "/Library/Caches/ms-playwright/chromium-1223/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
 const RIETX = process.env.RIETX ?? fileURLToPath(new URL("../../../.venv/bin/rietx", import.meta.url));
-const PORT = 8790 + Number(RUN) % 9, GUI = `http://127.0.0.1:${PORT}`;
+const PORT = 8790 + Number(RUN) % 9;
 const SPLIT = !!process.env.RIETX_PLOTLY;
 const QUERY = { plotly: "", chart: SPLIT ? "" : "?chart=uplot" };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -127,7 +127,7 @@ channels arrives as a min/max sample, and the line under the plot says so.
 ### Saving the picture
 
 Four buttons at the end of the knob strip save or copy what the plot shows
-now, at your zoom and with your hidden curves left out.
+now, at your zoom. The two pictures leave your hidden curves out.
 
 | Button | Gives |
 |---|---|
@@ -137,10 +137,10 @@ now, at your zoom and with your hidden curves left out.
 | `copy data` | every channel in view as tab-separated columns, which a spreadsheet pastes |
 
 The columns are `two_theta`, `y_obs`, `excluded` (1 for an excluded channel),
-`y_calc`, `y_background`, and the residual the selector shows. The legend is in
-neither picture, so name the curves in your caption. The line beside the
-buttons says what each press did, and says so when a browser refuses the
-clipboard.
+`y_calc`, `y_background`, and the residual the selector shows, and a hidden
+curve keeps its column. The legend is in neither picture, so name the curves
+in your caption. The line beside the buttons says what each press did, and
+says so when a browser refuses the clipboard.
 
 ## Parameters
 

@@ -424,7 +424,7 @@ whole pattern again. The variant list is the legend: each variant shows the
 colour it is drawn in, and unticking one hides it in every pane. The line above
 the panes reads each variant's value at the pointer. Over the tick band it names
 the reflection instead. The Export section saves or copies the three panes as
-the GUI's plot does ([](gui-guide.md)). Its `copy data` gives `y_obs`, then
+the GUI's plot does ([](gui-guide.md)). Its `copy data` gives `two_theta` and `y_obs`, then
 each shown variant's `y_calc`, Δ/σ and Δχ² over the channels in view.
 
 It needs the standards, which are test data rather than package data, so

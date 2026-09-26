@@ -4159,7 +4159,7 @@ describe("the peaks tab (WP-1027)", () => {
     await gesture(300, 300);               // 10.5°, clear of every line
     expect(sent("/api/peaks/add")).toEqual([{ two_theta: 10.5 }]);
 
-    await gesture(604, 604);               // 2 px from the 12° line: ambiguous
+    await gesture(604, 604);               // 4 px from the 12° line: ambiguous
     expect(sent("/api/peaks/add")).toHaveLength(1);
 
     await gesture(602, 700);               // grabs the 12° line and drops it at 12.5°
