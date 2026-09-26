@@ -1191,3 +1191,28 @@ def test_plus_k_and_minus_k_satellites_of_one_parent_carry_two_labels():
     # the nuclear spelling is what a diagnostic printed before
     assert reflection_label((1, 0, -2, 0)) == str((1, 0, -2))
     assert reflection_label_row((1, 0, -2, 0)) == [1, 0, -2]
+
+
+def test_the_shared_grid_gives_every_candidate_its_own_list_bit_for_bit():
+    """Review item 4: one parent grid per phase, and not one bit moves.
+
+    The arm scores positions, so it builds the k-independent parent grid once
+    and offsets it per candidate (``satellite_d_spacings``).  Each array must
+    be *exactly* ``satellite_reflections(…, k).d`` — same orbits, same
+    representative, same order — or the ranking would move with the speed-up.
+    """
+    from rietx.crystallography.satellites import satellite_d_spacings
+
+    cases = [("P 1 21/c 1", (15.0, 10.0, 20.0, 90, 95, 90)),
+             ("P -3", (5.0, 5.0, 6.0, 90, 90, 120)),
+             ("C 2/m", (5.0, 6.0, 7.0, 90, 92, 90))]
+    for symbol, cell in cases:
+        ks = [c.k for c in zone_boundary_candidates(symbol)]
+        shared = satellite_d_spacings(symbol, cell, 1.2, 70.0, ks,
+                                      two_theta_min=8.0)
+        assert len(shared) == len(ks)
+        for k, d in zip(ks, shared, strict=True):
+            one = satellite_reflections(symbol, cell, 1.2, 70.0, k,
+                                        two_theta_min=8.0).d
+            assert d.dtype == one.dtype and d.tobytes() == one.tobytes(), \
+                (symbol, k)

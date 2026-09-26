@@ -79,7 +79,7 @@ from ..crystallography.satellites import (
     check_candidate_denominators,
     lattice_two_theta,
     minus_k_is_k,
-    satellite_reflections,
+    satellite_d_spacings,
     zone_boundary_candidates,
 )
 from ..crystallography.symmetry import resolve_group
@@ -124,12 +124,16 @@ def _radius(tt: np.ndarray, pos: np.ndarray, fwhm: np.ndarray) -> np.ndarray:
     return VALIDITY_RADIUS_FWHM * local
 
 
-def _satellite_positions(model, values, ip: int, k) -> np.ndarray:
-    """Every emission line's apparent 2θ for the satellites of ``k``.
+def _satellite_positions(model, values, ip: int, ks) -> list[np.ndarray]:
+    """Every emission line's apparent 2θ for the satellites of each k in ``ks``.
 
     Generated at the *current* cell, over the fitted range, and shifted by the
     same zero the tick list carries, so a position here is comparable with a
-    peak found in the residual.
+    peak found in the residual.  One parent grid serves every candidate
+    (:func:`~rietx.crystallography.satellites.satellite_d_spacings`), so the
+    arm enumerates the reciprocal lattice once per phase rather than once per
+    candidate (review item 4 on #468), and each list is bit-identical to what
+    a per-candidate ``satellite_reflections`` call gave.
     """
     cp = model.phases[ip]
     cell = tuple(values[f"phases.{ip}.cell.{key}"]
@@ -139,21 +143,23 @@ def _satellite_positions(model, values, ip: int, k) -> np.ndarray:
     lo = max(model.tt_min - zero, 0.05)
     hi = min(model.tt_max - zero, 179.0)
     if hi <= lo:
-        return np.zeros(0)
-    refl = satellite_reflections(
+        return [np.zeros(0) for _ in ks]
+    ds = satellite_d_spacings(
         resolve_group(cp.reflections.spacegroup, cp.reflections.operations),
-        cell, min(lams), hi, k, two_theta_min=lo)
-    out: list[np.ndarray] = []
-    for lam in lams:
-        tt = np.asarray(two_theta_deg(refl.d, lam), dtype=np.float64) + zero
-        tt = tt[np.isfinite(tt)]
-        out.append(tt[(tt >= model.tt_min) & (tt <= model.tt_max)])
-    return np.concatenate(out) if out else np.zeros(0)
+        cell, min(lams), hi, ks, two_theta_min=lo)
+    positions: list[np.ndarray] = []
+    for d in ds:
+        out: list[np.ndarray] = []
+        for lam in lams:
+            tt = np.asarray(two_theta_deg(d, lam), dtype=np.float64) + zero
+            tt = tt[np.isfinite(tt)]
+            out.append(tt[(tt >= model.tt_min) & (tt <= model.tt_max)])
+        positions.append(np.concatenate(out) if out else np.zeros(0))
+    return positions
 
 
-def _score(candidate: KCandidate, model, values, ip: int,
+def _score(candidate: KCandidate, positions: np.ndarray, sg,
            peaks: np.ndarray, radius: np.ndarray) -> SatelliteCandidate:
-    positions = _satellite_positions(model, values, ip, candidate.k)
     matched = 0
     worst: float | None = None
     if len(positions) and len(peaks):
@@ -162,8 +168,6 @@ def _score(candidate: KCandidate, model, values, ip: int,
         matched = int(hit.sum())
         if matched:
             worst = float(delta[hit].max())
-    sg = resolve_group(model.phases[ip].reflections.spacegroup,
-                       model.phases[ip].reflections.operations)
     return SatelliteCandidate(
         k=[str(c) for c in candidate.k],
         name=candidate.name, vector=candidate.vector, cdml=candidate.cdml,
@@ -334,8 +338,13 @@ def analyse_satellites(model, values, *, residual_two_theta, ticks,
         radius = all_radius[left]
         candidates = tuple(generator(sg))
         check_candidate_denominators(candidates)
-        scored = [_score(c, model, values, ip, peaks, radius)
-                  for c in candidates] if len(peaks) else []
+        if len(peaks):
+            positions = _satellite_positions(model, values, ip,
+                                             [c.k for c in candidates])
+            scored = [_score(c, pos_c, sg, peaks, radius)
+                      for c, pos_c in zip(candidates, positions, strict=True)]
+        else:
+            scored = []
         # ranked, and published whole: the top row is a hypothesis worth
         # testing, never an answer (root CLAUDE.md, "never a confident wrong
         # singleton").  Ties break on the tighter fit and then on the name, so

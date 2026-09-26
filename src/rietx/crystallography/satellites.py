@@ -101,6 +101,7 @@ __all__ = [
     "minus_k_is_k",
     "reciprocal_lattice_mask",
     "satellite_reflections",
+    "satellite_d_spacings",
     "satellite_orbit",
     "merge_satellites",
     "zone_boundary_candidates",
@@ -312,6 +313,128 @@ def lattice_two_theta(space_group,
     return np.unique(np.round(tt, 9))
 
 
+def _d_min(wavelength: float, two_theta_max: float) -> float:
+    return wavelength / (2.0 * np.sin(np.radians(two_theta_max / 2.0)))
+
+
+def _parent_grid(sg, cell, wavelength: float, two_theta_max: float, *,
+                 apply_structure_absences: bool = False) -> np.ndarray:
+    """Every parent H a satellite in range can have, as an (n, 3) int array.
+
+    **Independent of k**: |Q_i| <= |a_i| / d_min bounds the satellite index,
+    and H = Q − m·k adds at most one to each component since |k_i| < 1 after
+    canonicalisation (a non-canonical k is caught by the d filter, which runs
+    on Q).  So one grid serves every candidate k of a phase, which is what
+    :func:`satellite_d_spacings` shares and why the report arm's cost does not
+    grow with the number of candidates it scores (review item 4 on #468).
+    """
+    d_min = _d_min(wavelength, two_theta_max)
+    a, b, c = cell[0], cell[1], cell[2]
+    hmax = int(np.floor(a / d_min)) + 2
+    kmax = int(np.floor(b / d_min)) + 2
+    lmax = int(np.floor(c / d_min)) + 2
+    n_grid = (2 * hmax + 1) * (2 * kmax + 1) * (2 * lmax + 1)
+    if n_grid > MAX_HKL_GRID_POINTS:
+        raise ValueError(
+            f"refusing to enumerate satellites for cell a={a:g}, b={b:g}, "
+            f"c={c:g} Å at d_min={d_min:.4g} Å (λ={wavelength:g} Å, "
+            f"2θ_max={two_theta_max:g}°): index ranges ±{hmax}, ±{kmax}, "
+            f"±{lmax} span {n_grid:.2e} grid points "
+            f"(limit {MAX_HKL_GRID_POINTS:.0e}).")
+
+    rng = [np.arange(-n, n + 1) for n in (hmax, kmax, lmax)]
+    H, K, L = np.meshgrid(*rng, indexing="ij")
+    parents = np.column_stack([H.ravel(), K.ravel(), L.ravel()]).astype(np.int64)
+    keep = reciprocal_lattice_mask(sg, parents)
+    if apply_structure_absences:
+        ops = sg.operations()
+        try:
+            absent = np.asarray(ops.systematic_absences(parents), dtype=bool)
+        except (AttributeError, TypeError):  # pragma: no cover - old gemmi
+            absent = np.array([ops.is_systematically_absent(list(map(int, h)))
+                               for h in parents])
+        keep &= ~absent
+    return parents[keep]
+
+
+#: the two satellite orders this rung enumerates, in the order they are tried
+#: when a representative is split back into (H, m)
+_ORDERS = (1, -1)
+
+
+def _satellite_orbits(sg, cell, parents: np.ndarray, kk: KVector,
+                      wavelength: float, two_theta_max: float,
+                      two_theta_min: float):
+    """One representative per Laue orbit of the satellites H ± k in range.
+
+    Returns ``(reps_q, mult, d_reps, q, k_int)`` with ``reps_q`` the q·Q rows,
+    in the order the orbits were first met; ``None`` when nothing is in range.
+    The orbit merge is exact integer arithmetic (module docstring).  Two
+    things make it cheap without changing a bit of it: the Laue images are
+    taken **once each** — a Laue group always contains −1, so the Friedel
+    half of ``_laue_images`` repeats the first and the max over images and the
+    count of distinct images are the same over the set — and an image's code
+    is one integer product per operation, ``q_rows @ (Rᵀᵀ·w)``, rather than a
+    materialised (ops, rows, 3) array.  Integer products are exact, so the
+    codes are the same integers either way.
+    """
+    q = _common_denominator(kk)
+    k_int = np.array([int(c * q) for c in kk], dtype=np.int64)
+    d_min = _d_min(wavelength, two_theta_max)
+    q_rows = np.concatenate([q * parents + m * k_int for m in _ORDERS], axis=0)
+    # (0, 0, 0) can never be reached — k is not a reciprocal-lattice vector
+    # (check_propagation_vector) — so no row needs dropping the way the
+    # nuclear enumeration drops the origin.
+    d = d_spacings(q_rows.astype(np.float64) / q, *cell)
+    in_range = d >= d_min * 0.999
+    if two_theta_min > 0.0:
+        d_max = wavelength / (2.0 * np.sin(np.radians(max(two_theta_min, 1e-3) / 2.0)))
+        in_range &= d <= d_max * 1.001
+    q_rows, d = q_rows[in_range], d[in_range]
+    if len(q_rows) == 0:
+        return None
+
+    images_op = _laue_images(sg)
+    base = (int(np.abs(images_op).sum(axis=2).max())
+            * int(np.abs(q_rows).max()) + 1)
+    radix = 2 * base + 1
+    ops = np.unique(images_op.reshape(len(images_op), 9), axis=0).reshape(-1, 3, 3)
+    # code(x) = ((x0 + base)·radix + (x1 + base))·radix + x2 + base, linear in
+    # x, so code(R·q) = q·(Rᵀ·w) + const with w = (radix², radix, 1)
+    w = np.array([radix * radix, radix, 1], dtype=np.int64)
+    offset = base * (radix * radix + radix + 1)
+    code = (np.transpose(ops, (0, 2, 1)) @ w) @ q_rows.T + offset
+    rep_code = code.max(axis=0)
+    ordered = np.sort(code, axis=0)
+    n_distinct = 1 + (np.diff(ordered, axis=0) != 0).sum(axis=0)
+
+    # One row per orbit.  The representative is the largest **enumerated** row
+    # of the orbit, not the largest image: unlike the nuclear case, only the
+    # enumerated rows are in H ± k form.  Rᵀ mixes the components, so the
+    # largest image of (2h, 2k, 2l+1) can be (2h', 2k'+1, 2l'), a satellite of
+    # a different parent along a different axis, which cannot be split back
+    # into (H, m) against the declared k.  Restricting the choice to the
+    # enumerated rows keeps it well defined and lexicographically canonical.
+    own_code = q_rows @ w + offset
+    by_own = np.argsort(-own_code, kind="stable")
+    first = np.sort(np.unique(rep_code[by_own], return_index=True)[1])
+    sel_idx = by_own[first]
+    # orbit-stabiliser, the invariant ``site_orbit`` asserts one rank over: an
+    # orbit under a group of order |G| has |G|/|stabiliser| members, so the
+    # count must divide |G|.  Unreachable by construction — these *are* the
+    # distinct images of one point — which is exactly why it is worth
+    # asserting: it is the invariant, not a defensive check.
+    bad = np.flatnonzero(len(ops) % n_distinct[sel_idx] != 0)
+    if len(bad):
+        raise ValueError(
+            f"ORBIT_NOT_A_MULTIPLICITY: satellite orbit of size "
+            f"{int(n_distinct[sel_idx][bad[0]])} under a Laue group of order "
+            f"{len(ops)} (Friedel included) in {sg.xhm()!r}; a "
+            "multiplicity is |G|/|stabiliser| and must divide |G|")
+    return (q_rows[sel_idx], n_distinct[sel_idx].astype(np.int64), d[sel_idx],
+            q, k_int)
+
+
 def satellite_reflections(sg_symbol,
                           cell: tuple[float, float, float, float, float, float],
                           wavelength: float,
@@ -345,120 +468,69 @@ def satellite_reflections(sg_symbol,
     """
     sg = _resolve(sg_symbol)
     kk = check_propagation_vector(sg, k)
-    q = _common_denominator(kk)
-    k_int = np.array([int(c * q) for c in kk], dtype=np.int64)
-
-    d_min = wavelength / (2.0 * np.sin(np.radians(two_theta_max / 2.0)))
-    a, b, c = cell[0], cell[1], cell[2]
-    # |Q_i| <= |a_i| / d_min bounds the *satellite* index; H = Q - m·k adds at
-    # most one to each component since |k_i| < 1 after canonicalisation, and a
-    # non-canonical k is reduced below.
-    hmax = int(np.floor(a / d_min)) + 2
-    kmax = int(np.floor(b / d_min)) + 2
-    lmax = int(np.floor(c / d_min)) + 2
-    n_grid = (2 * hmax + 1) * (2 * kmax + 1) * (2 * lmax + 1)
-    if n_grid > MAX_HKL_GRID_POINTS:
-        raise ValueError(
-            f"refusing to enumerate satellites for cell a={a:g}, b={b:g}, "
-            f"c={c:g} Å at d_min={d_min:.4g} Å (λ={wavelength:g} Å, "
-            f"2θ_max={two_theta_max:g}°): index ranges ±{hmax}, ±{kmax}, "
-            f"±{lmax} span {n_grid:.2e} grid points "
-            f"(limit {MAX_HKL_GRID_POINTS:.0e}).")
-
-    rng = [np.arange(-n, n + 1) for n in (hmax, kmax, lmax)]
-    H, K, L = np.meshgrid(*rng, indexing="ij")
-    parents = np.column_stack([H.ravel(), K.ravel(), L.ravel()]).astype(np.int64)
-    keep = reciprocal_lattice_mask(sg, parents)
-    if apply_structure_absences:
-        ops = sg.operations()
-        try:
-            absent = np.asarray(ops.systematic_absences(parents), dtype=bool)
-        except (AttributeError, TypeError):  # pragma: no cover - old gemmi
-            absent = np.array([ops.is_systematically_absent(list(map(int, h)))
-                               for h in parents])
-        keep &= ~absent
-    parents = parents[keep]
-
-    orders = (1, -1)
-    q_rows = np.concatenate([q * parents + m * k_int for m in orders], axis=0)
-    # (0, 0, 0) can never be reached — k is not a reciprocal-lattice vector
-    # (check_propagation_vector) — so no row needs dropping the way the
-    # nuclear enumeration drops the origin.
-    d = d_spacings(q_rows.astype(np.float64) / q, *cell)
-    in_range = d >= d_min * 0.999
-    if two_theta_min > 0.0:
-        d_max = wavelength / (2.0 * np.sin(np.radians(max(two_theta_min, 1e-3) / 2.0)))
-        in_range &= d <= d_max * 1.001
-    q_rows, d = q_rows[in_range], d[in_range]
-    if len(q_rows) == 0:
+    parents = _parent_grid(sg, cell, wavelength, two_theta_max,
+                           apply_structure_absences=apply_structure_absences)
+    orbits = _satellite_orbits(sg, cell, parents, kk, wavelength,
+                               two_theta_max, two_theta_min)
+    if orbits is None:
         return ReflectionSet(
             hkl=np.zeros((0, 3), dtype=np.int64),
             multiplicity=np.zeros(0, dtype=np.int64),
             d=np.zeros(0, dtype=np.float64), spacegroup=sg.xhm(),
             satellite_order=np.zeros(0, dtype=np.int64),
             propagation_vector=tuple(float(x) for x in kk))
-
-    images_op = _laue_images(sg)
-    base = (int(np.abs(images_op).sum(axis=2).max())
-            * int(np.abs(q_rows).max()) + 1)
-    radix = 2 * base + 1
-    images = np.einsum("mij,nj->mni", images_op, q_rows)
-    code = (((images[..., 0] + base) * radix
-             + (images[..., 1] + base)) * radix
-            + images[..., 2] + base)
-    rep_code = code.max(axis=0)
-    ordered = np.sort(code, axis=0)
-    n_distinct = 1 + (np.diff(ordered, axis=0) != 0).sum(axis=0)
-
-    # One row per orbit.  The representative is the largest **enumerated** row
-    # of the orbit, not the largest image: unlike the nuclear case, only the
-    # enumerated rows are in H ± k form.  Rᵀ mixes the components, so the
-    # largest image of (2h, 2k, 2l+1) can be (2h', 2k'+1, 2l'), a satellite of
-    # a different parent along a different axis, which cannot be split back
-    # into (H, m) against the declared k.  Restricting the choice to the
-    # enumerated rows keeps it well defined and lexicographically canonical.
-    own_code = (((q_rows[:, 0] + base) * radix
-                 + (q_rows[:, 1] + base)) * radix
-                + q_rows[:, 2] + base)
-    by_own = np.argsort(-own_code, kind="stable")
-    first = np.sort(np.unique(rep_code[by_own], return_index=True)[1])
-    sel_idx = by_own[first]
-    # orbit-stabiliser, the invariant ``site_orbit`` asserts one rank over: an
-    # orbit under a group of order |2M| has |2M|/|stabiliser| members, so the
-    # count must divide |2M|.  Unreachable by construction — these *are* the
-    # distinct images of one point — which is exactly why it is worth
-    # asserting: it is the invariant, not a defensive check.
-    bad = np.flatnonzero(len(images_op) % n_distinct[sel_idx] != 0)
-    if len(bad):
-        raise ValueError(
-            f"ORBIT_NOT_A_MULTIPLICITY: satellite orbit of size "
-            f"{int(n_distinct[sel_idx][bad[0]])} under a Laue group of order "
-            f"{len(images_op)} (Friedel included) in {sg.xhm()!r}; a "
-            "multiplicity is |G|/|stabiliser| and must divide |G|")
-    reps_q = q_rows[sel_idx]
-    mult = n_distinct[sel_idx].astype(np.int64)
+    reps_q, mult, d_reps, q, k_int = orbits
 
     # split each representative q·Q back into (H, m): prefer m = +1, so the
     # stored sign does not depend on which image won the max above
     hkl = np.zeros_like(reps_q)
     order = np.zeros(len(reps_q), dtype=np.int64)
-    for i, row in enumerate(reps_q):
-        for m in orders:
-            rest = row - m * k_int
-            if np.all(rest % q == 0):
-                hkl[i] = rest // q
-                order[i] = m
-                break
-        else:  # pragma: no cover - unreachable: every row was built as H ± k
-            raise RuntimeError(
-                f"satellite representative {row.tolist()} (in {q}ths) is not "
-                f"H ± k for the declared k {format_kvector(kk)}")
+    todo = np.ones(len(reps_q), dtype=bool)
+    for m in _ORDERS:
+        rest = reps_q - m * k_int
+        fits = todo & np.all(rest % q == 0, axis=1)
+        hkl[fits] = rest[fits] // q
+        order[fits] = m
+        todo &= ~fits
+    if todo.any():  # pragma: no cover - unreachable: every row was built as H ± k
+        row = reps_q[np.flatnonzero(todo)[0]]
+        raise RuntimeError(
+            f"satellite representative {row.tolist()} (in {q}ths) is not "
+            f"H ± k for the declared k {format_kvector(kk)}")
 
-    d_reps = d[sel_idx]
     sort = np.argsort(-d_reps)
     return ReflectionSet(hkl=hkl[sort], multiplicity=mult[sort], d=d_reps[sort],
                          spacegroup=sg.xhm(), satellite_order=order[sort],
                          propagation_vector=tuple(float(x) for x in kk))
+
+
+def satellite_d_spacings(space_group,
+                         cell: tuple[float, float, float, float, float, float],
+                         wavelength: float, two_theta_max: float,
+                         ks: Sequence, two_theta_min: float = 0.0
+                         ) -> list[np.ndarray]:
+    """``satellite_reflections(…, k).d`` for every k in ``ks``, sharing one grid.
+
+    The report arm scores positions, so it needs each candidate's orbit
+    d-spacings and nothing of the (H, m) split; and the parent grid is
+    independent of k (:func:`_parent_grid`), so it is built **once**.  Each
+    array is bit-identical to what :func:`satellite_reflections` returns for
+    that k — same grid, same orbit merge, same representative, same order —
+    which ``tests/test_satellites.py`` asserts.
+    """
+    sg = _resolve(space_group)
+    parents = _parent_grid(sg, cell, wavelength, two_theta_max)
+    out: list[np.ndarray] = []
+    for k in ks:
+        kk = check_propagation_vector(sg, k)
+        orbits = _satellite_orbits(sg, cell, parents, kk, wavelength,
+                                   two_theta_max, two_theta_min)
+        if orbits is None:
+            out.append(np.zeros(0, dtype=np.float64))
+            continue
+        d_reps = orbits[2]
+        out.append(d_reps[np.argsort(-d_reps)])
+    return out
 
 
 def merge_satellites(nuclear: ReflectionSet, sat: ReflectionSet) -> ReflectionSet:
