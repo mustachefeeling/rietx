@@ -756,3 +756,19 @@ def test_a_shell_the_centre_is_not_inside_is_not_a_polyhedron(shape):
     }[shape]
     payload = s3.build(cluster([("Cu", 1.0)], [("O", v, 1.0) for v in ligands]))
     assert payload["polyhedra"] == []
+
+
+def test_a_shell_enclosing_one_of_its_own_ligands_is_not_a_polyhedron():
+    """P4, Daams & Villars' convex-volume condition: every ligand at a vertex.
+
+    An octahedron at 2.0 Å with a seventh ligand at 1.9 Å on one vertex's
+    ray. The gap after all seven is clear and the centre is inside, so only
+    the vertex condition turns it away.
+    """
+    x, y, z = np.eye(3) * 2.0
+    octahedron = [x, -x, y, -y, z, -z]
+    assert len(s3.build(cluster([("Al", 1.0)], [("F", v, 1.0) for v in octahedron]))
+               ["polyhedra"]) == 1
+    enclosed = [*octahedron, 0.95 * x]
+    payload = s3.build(cluster([("Al", 1.0)], [("F", v, 1.0) for v in enclosed]))
+    assert payload["polyhedra"] == []
