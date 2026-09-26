@@ -96,6 +96,25 @@ def test_only_the_weighted_file_draws_the_3_sigma_band(page):
     assert ([band, 0.15] in resid) is page.weighted
 
 
+def test_the_file_paints_in_the_matplotlib_figures_colours(page, written):
+    """``viz.plots.PALETTES['light']``, so a written page and a figure saved from
+    the same result share their colours. Read from what the canvases painted,
+    since a series' own colour is only what it was handed."""
+    from rietx.viz.plots import PALETTES
+
+    hue = PALETTES["light"]
+    inks = page.evaluate("""() => Object.fromEntries(
+        Object.entries(document.getElementById('plot').__rx.panes).map(([k, u]) => {
+          const id = window.__canvasId(u.ctx.canvas);
+          return [k, [...new Set(window.__ink.filter(m => m.canvas === id).map(m => m.style))]]; }))""")
+    result, _ = written
+    assert hue["obs"] in inks["main"] and hue["calc"] in inks["main"]
+    assert hue["diff"] in inks["resid"]
+    # one phase ticks in the points' ink, and several in the phase colours
+    n = len(result.ticks)
+    assert ({hue["obs"]} if n == 1 else set(hue["phase"][:n])) <= set(inks["ticks"])
+
+
 def test_the_legend_hides_the_curve_it_names_and_brings_it_back(page):
     button = page.locator(".legend button", has_text="calculated")
     shown = "document.getElementById('plot').__rx.panes.main.series[3].show"
@@ -144,4 +163,8 @@ def test_the_four_exports_work_from_a_file_on_disk(page, written):
     page.wait_for_function("document.getElementById('readout').textContent.startsWith('copied')")
     text = page.evaluate("navigator.clipboard.readText()")
     assert text.split("\n")[0].endswith("delta_over_sigma" if page.weighted else "obs_minus_calc")
+    page.get_by_role("button", name="copy image").click()
+    page.wait_for_function("document.getElementById('readout').textContent.startsWith('copied the')")
+    assert page.evaluate("""async () => { const [item] = await navigator.clipboard.read();
+        return item.types; }""") == ["image/png"]
 

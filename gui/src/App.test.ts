@@ -4125,6 +4125,71 @@ describe("the peaks tab (WP-1027)", () => {
     expect(prompt).not.toHaveBeenCalled();
   });
 
+  it("adds a line on a click, moves one on a drag and toggles one on a shift-click",
+     async () => {
+    // The three pointer verbs through the chart, where WP-1461 moved them: each
+    // arrives as the 2θ under the pointer, read through the chart's own x.
+    const stub = server({
+      ...boot(),
+      ...RAW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/peaks/add": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/peaks/move": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/peaks/flag": () => ({ body: PEAKS_PAYLOAD }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    // 9-14° over the 1000-px plot area: 200 px a degree, and both radii are
+    // 10 px, since 1.5× the 0.08° FWHM is wider than 0.05°
+    const node = host.querySelector<HTMLElement>(".plot")!;
+    const at = (type: string, x: number, shiftKey = false) =>
+      node.dispatchEvent(new MouseEvent(type, { clientX: x, shiftKey, bubbles: true }));
+    const gesture = async (from: number, to: number, shiftKey = false) => {
+      at("pointerdown", from, shiftKey);
+      if (to !== from) at("pointermove", to, shiftKey);
+      at("pointerup", to, shiftKey);
+      await flush();
+    };
+    const sent = (path: string) => stub.calls.filter((c) => c.path === path).map((c) => c.body);
+
+    await gesture(300, 300);               // 10.5°, clear of every line
+    expect(sent("/api/peaks/add")).toEqual([{ two_theta: 10.5 }]);
+
+    await gesture(604, 604);               // 2 px from the 12° line: ambiguous
+    expect(sent("/api/peaks/add")).toHaveLength(1);
+
+    await gesture(602, 700);               // grabs the 12° line and drops it at 12.5°
+    expect(sent("/api/peaks/move")).toEqual([{ index: 1, two_theta: 12.5 }]);
+
+    await gesture(201, 201, true);         // the 10° line, which is in use
+    expect(sent("/api/peaks/flag")).toEqual([{ index: 0, use_for_indexing: false }]);
+    expect(sent("/api/peaks/add")).toHaveLength(1);
+  });
+
+  it("caps a line's σ whisker at 3×FWHM", async () => {
+    // WP-1027: a degenerate component reports σ in tens of degrees (111°
+    // measured), and an uncapped whisker would span the whole pattern
+    const payload = { ...PEAKS_PAYLOAD,
+      peaks: [PEAK(0, 10.0, { two_theta_esd: 111 }), PEAK(1, 12.0, { two_theta_esd: 0.02 })] };
+    const stub = server({ ...boot(), ...RAW, "/api/peaks": () => ({ body: payload }) });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    // a whisker is one stroke of six points, its bar and its two caps; at 200 px
+    // a degree the capped one reaches 3 × 0.08° each side, the other its own σ
+    const half = pane("main").marks
+      .filter((m) => m.op === "stroke" && m.style === INK.peak && m.points?.length === 6)
+      .map((m) => Math.round((m.points![1][0] - m.points![0][0]) / 2));
+    expect(half).toEqual([48, 4]);
+  });
+
   it("links the table and the plot by hover, through a DOM ring rather than a repaint",
      async () => {
     // Task 1 of WP-1032 measured what a repaint of this pattern cost under
