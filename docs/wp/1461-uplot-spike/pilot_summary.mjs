@@ -1,19 +1,21 @@
 // The pilot's logs as ranges: one row per engine, dataset, devicePixelRatio,
 // renderer and gesture, over every run. `node pilot_summary.mjs [since]` prints
 // what the WP quotes from `results/pilot_*.txt`; `since`, an ISO time, keeps the
-// runs from then on, so a change to the code starts a fresh set.
+// runs from then on, so a change to the code starts a fresh set. PILOT_PREFIX
+// reads another set of logs (`acceptance` for task 14's).
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import path from "node:path";
 
 const DIR = path.join(fileURLToPath(new URL(".", import.meta.url)), "results");
 const SINCE = process.argv[2] ?? "";
+const PREFIX = process.env.PILOT_PREFIX ?? "pilot";
 const rows = new Map(), notes = new Map();
 const get = (key) => { if (!rows.has(key)) rows.set(key, { work: [], wrapped: [], p95: [], max: [], loaf: [], fetch: [] }); return rows.get(key); };
 const note = (key, text) => { if (!notes.has(key)) notes.set(key, []); notes.get(key).push(text); };
 const nums = (s) => (s.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
 
-for (const file of fs.readdirSync(DIR).filter((f) => /^pilot_.*\.txt$/.test(f)).sort()) {
+for (const file of fs.readdirSync(DIR).filter((f) => f.startsWith(`${PREFIX}_`) && f.endsWith(".txt")).sort()) {
   let at = "";
   for (const line of fs.readFileSync(path.join(DIR, file), "utf8").split("\n")) {
     const h = line.match(/^# (\d{4}-\S+) run/);
@@ -31,7 +33,7 @@ for (const file of fs.readdirSync(DIR).filter((f) => /^pilot_.*\.txt$/.test(f)).
       r.fetch.push(JSON.parse(g[7]).filter((u) => /window|curves/.test(u)).length);
     } else if ((g = rest.match(/^boot long frames (\[.*\])$/))) {
       const frames = JSON.parse(g[1]);
-      const chart = frames.filter((l) => l.scripts.some((s) => /plotly|vendor-uplot|pattern\.js/.test(s)));
+      const chart = frames.filter((l) => l.scripts.some((s) => /plotly|vendor-uplot|pattern\.js|rxplot\.js/.test(s)));
       note(`${base} boot`, `${frames.map((l) => l.dur).join("/") || "none"} (chart library ${chart.map((l) => l.dur).join("/") || "none"})`);
     } else if ((g = rest.match(/^resize, the app's work (.*) ms; the chart's own (.*) ms; wrapped (.*) ms$/))) {
       const r = get(`${base} resize`);

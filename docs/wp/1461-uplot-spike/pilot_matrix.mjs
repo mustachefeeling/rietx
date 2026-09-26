@@ -4,6 +4,9 @@
 //
 //   node pilot_matrix.mjs <lab6 .rex path> [filter]
 //
+// PILOT_PREFIX names the logs (`pilot` by default; task 14's acceptance run is
+// `acceptance`). RIETX_PLOTLY reaches each call through the environment.
+//
 // `filter` keeps the rows whose name contains it ("chromium", "lab6", ...).
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
@@ -13,6 +16,7 @@ import path from "node:path";
 
 const DIR = fileURLToPath(new URL(".", import.meta.url));
 const [LAB6, FILTER = ""] = process.argv.slice(2);
+const PREFIX = process.env.PILOT_PREFIX ?? "pilot";
 const ORDERS = [["plotly", "chart"], ["chart", "plotly"]];
 const rows = [];
 for (const [engine, dataset, dpr, runs] of [
@@ -22,7 +26,7 @@ for (const [engine, dataset, dpr, runs] of [
   for (let run = 0; run < runs; run++) rows.push({ engine, dataset, dpr, run });
 }
 for (const r of rows) {
-  const name = `pilot_${r.engine}_${r.dataset}_dpr${r.dpr}`;
+  const name = `${PREFIX}_${r.engine}_${r.dataset}_dpr${r.dpr}`;
   if (!name.includes(FILTER)) continue;
   const log = path.join(DIR, "results", `${name}.txt`);
   fs.appendFileSync(log, `\n# ${new Date().toISOString()} run ${r.run}, load ${os.loadavg().map((v) => v.toFixed(1)).join(" ")}\n`);

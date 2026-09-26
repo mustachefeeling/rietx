@@ -1,0 +1,78 @@
+
+# 2026-09-26T00:13:49.632Z run 0, load 2.5 10.2 19.4
+[firefox nac dpr1 run0] plotly build fitted in 1 s; load 8.5 11.3 19.7
+[firefox nac dpr1 run0] plotly: boot long frames []
+[firefox nac dpr1 run0] plotly: hover        work — ms/event, wrapped 0.23; frame p95 17.1 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run0] plotly: the readout under the pointer reads "2θ\n—"
+[firefox nac dpr1 run0] plotly: drag-zoom    work — ms/event, wrapped 2.64; frame p95 17.2 max 33.3 ms; long frames []; fetches ["/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window"]
+[firefox nac dpr1 run0] plotly: exclude      work — ms/event, wrapped 5.45; frame p95 17.3 max 50.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve"]
+[firefox nac dpr1 run0] plotly: peak-drag    work — ms/event, wrapped 4.43; frame p95 16.7 max 50.0 ms; long frames []; fetches ["/api/peaks/move","/api/result/window"]
+[firefox nac dpr1 run0] plotly: the drag moved a line: true
+[firefox nac dpr1 run0] plotly: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 21.0, 26.0, 15.0, 31.0, 27.0, 24.0 ms
+[firefox nac dpr1 run0] plotly: page errors []; load 6.0 10.4 19.0
+[firefox nac dpr1 run0] chart build fitted in 1 s; load 6.0 10.4 19.0
+[firefox nac dpr1 run0] chart: boot long frames []
+[firefox nac dpr1 run0] chart: hover        work — ms/event, wrapped 0.38; frame p95 16.7 max 17.6 ms; long frames []; fetches []
+[firefox nac dpr1 run0] chart: the readout under the pointer reads "2θ\n58.7455°"
+[firefox nac dpr1 run0] chart: drag-zoom    work — ms/event, wrapped 1.03; frame p95 17.2 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run0] chart: exclude      work — ms/event, wrapped 2.24; frame p95 16.7 max 33.3 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve"]
+[firefox nac dpr1 run0] chart: wheel-zoom   work — ms/event, wrapped 3.80; frame p95 16.7 max 17.5 ms; long frames []; fetches []
+[firefox nac dpr1 run0] chart: wheel-pan    work — ms/event, wrapped 2.95; frame p95 16.7 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run0] chart: alt-pan      work — ms/event, wrapped 2.71; frame p95 16.9 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run0] chart: peak-drag    work — ms/event, wrapped 0.57; frame p95 17.2 max 17.7 ms; long frames []; fetches ["/api/peaks/move"]
+[firefox nac dpr1 run0] chart: the drag moved a line: true
+[firefox nac dpr1 run0] chart: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 4.0, 5.0, 6.0, 9.0, 4.0, 4.0 ms
+[firefox nac dpr1 run0] chart: page errors []; load 4.4 9.4 18.3
+# exit 0
+
+# 2026-09-26T00:15:08.732Z run 1, load 4.4 9.4 18.3
+[firefox nac dpr1 run1] chart build fitted in 1 s; load 4.3 9.3 18.2
+[firefox nac dpr1 run1] chart: boot long frames []
+[firefox nac dpr1 run1] chart: hover        work — ms/event, wrapped 0.71; frame p95 16.9 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run1] chart: the readout under the pointer reads "2θ\n58.7455°"
+[firefox nac dpr1 run1] chart: drag-zoom    work — ms/event, wrapped 2.01; frame p95 17.7 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run1] chart: exclude      work — ms/event, wrapped 3.50; frame p95 17.7 max 51.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve"]
+[firefox nac dpr1 run1] chart: wheel-zoom   work — ms/event, wrapped 8.50; frame p95 17.7 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run1] chart: wheel-pan    work — ms/event, wrapped 6.10; frame p95 17.7 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run1] chart: alt-pan      work — ms/event, wrapped 4.29; frame p95 17.2 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run1] chart: peak-drag    work — ms/event, wrapped 0.64; frame p95 17.7 max 33.4 ms; long frames []; fetches ["/api/peaks/move"]
+[firefox nac dpr1 run1] chart: the drag moved a line: true
+[firefox nac dpr1 run1] chart: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 6.0, 9.0, 13.0, 8.0, 11.0, 10.0 ms
+[firefox nac dpr1 run1] chart: page errors []; load 4.0 8.6 17.5
+[firefox nac dpr1 run1] plotly build fitted in 1 s; load 4.0 8.6 17.5
+[firefox nac dpr1 run1] plotly: boot long frames []
+[firefox nac dpr1 run1] plotly: hover        work — ms/event, wrapped 0.27; frame p95 17.6 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run1] plotly: the readout under the pointer reads "2θ\n—"
+[firefox nac dpr1 run1] plotly: drag-zoom    work — ms/event, wrapped 2.77; frame p95 17.7 max 33.3 ms; long frames []; fetches ["/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window"]
+[firefox nac dpr1 run1] plotly: exclude      work — ms/event, wrapped 5.86; frame p95 17.7 max 50.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve"]
+[firefox nac dpr1 run1] plotly: peak-drag    work — ms/event, wrapped 6.14; frame p95 17.7 max 50.0 ms; long frames []; fetches ["/api/peaks/move","/api/result/window"]
+[firefox nac dpr1 run1] plotly: the drag moved a line: true
+[firefox nac dpr1 run1] plotly: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 24.0, 32.0, 33.0, 23.0, 53.0, 42.0 ms
+[firefox nac dpr1 run1] plotly: page errors []; load 3.9 8.1 17.0
+# exit 0
+
+# 2026-09-26T00:16:28.383Z run 2, load 3.9 8.1 17.0
+[firefox nac dpr1 run2] plotly build fitted in 1 s; load 3.6 7.9 16.9
+[firefox nac dpr1 run2] plotly: boot long frames []
+[firefox nac dpr1 run2] plotly: hover        work — ms/event, wrapped 0.23; frame p95 17.7 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run2] plotly: the readout under the pointer reads "2θ\n—"
+[firefox nac dpr1 run2] plotly: drag-zoom    work — ms/event, wrapped 3.54; frame p95 17.7 max 34.1 ms; long frames []; fetches ["/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window"]
+[firefox nac dpr1 run2] plotly: exclude      work — ms/event, wrapped 6.14; frame p95 17.7 max 49.4 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve"]
+[firefox nac dpr1 run2] plotly: peak-drag    work — ms/event, wrapped 6.36; frame p95 17.7 max 33.3 ms; long frames []; fetches ["/api/peaks/move","/api/result/window"]
+[firefox nac dpr1 run2] plotly: the drag moved a line: true
+[firefox nac dpr1 run2] plotly: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 30.0, 18.0, 36.0, 37.0, 32.0, 33.0 ms
+[firefox nac dpr1 run2] plotly: page errors []; load 3.8 7.6 16.4
+[firefox nac dpr1 run2] chart build fitted in 1 s; load 4.0 7.6 16.4
+[firefox nac dpr1 run2] chart: boot long frames []
+[firefox nac dpr1 run2] chart: hover        work — ms/event, wrapped 0.93; frame p95 17.6 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run2] chart: the readout under the pointer reads "2θ\n58.7455°"
+[firefox nac dpr1 run2] chart: drag-zoom    work — ms/event, wrapped 2.60; frame p95 17.7 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run2] chart: exclude      work — ms/event, wrapped 3.19; frame p95 17.7 max 50.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve"]
+[firefox nac dpr1 run2] chart: wheel-zoom   work — ms/event, wrapped 9.30; frame p95 17.7 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run2] chart: wheel-pan    work — ms/event, wrapped 6.90; frame p95 17.6 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run2] chart: alt-pan      work — ms/event, wrapped 5.57; frame p95 17.6 max 17.7 ms; long frames []; fetches []
+[firefox nac dpr1 run2] chart: peak-drag    work — ms/event, wrapped 0.93; frame p95 17.7 max 17.7 ms; long frames []; fetches ["/api/peaks/move"]
+[firefox nac dpr1 run2] chart: the drag moved a line: true
+[firefox nac dpr1 run2] chart: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 8.0, 13.0, 11.0, 10.0, 13.0, 13.0 ms
+[firefox nac dpr1 run2] chart: page errors []; load 3.9 7.1 15.8
+# exit 0

@@ -22,7 +22,7 @@ or runs in the suite. The logs in `results/` are the runs the WP quotes.
 | `transport.py` | The real `/api/result/window` route timed with curl, beside the GUI's own `_send` serving the same bytes, so the server's work and the transfer separate. |
 | `make_exports.py`, `make_uplot_export.mjs` | Build today's `write_html` page and its uPlot equivalent from one set of arrays. |
 | `pilot.mjs` | The pilot's acceptance probe: the real GUI, plotly against the chart module on one server, every gesture as CDP work per event and as the time inside every callback the page registered. Chromium, Firefox and WebKit. |
-| `pilot_matrix.mjs`, `pilot_summary.mjs` | The pilot's runs, appended to `results/pilot_<engine>_<dataset>_dpr<n>.txt`, and those logs read back as ranges. Logs before the D5 decision name three renderers: `uplot` drew every marker, `thin` thinned per pixel column. After it, `chart` is the thinned module. |
+| `pilot_matrix.mjs`, `pilot_summary.mjs` | The pilot's runs, appended to `results/pilot_<engine>_<dataset>_dpr<n>.txt`, and those logs read back as ranges. Logs before the D5 decision name three renderers: `uplot` drew every marker, `thin` thinned per pixel column. After it, `chart` is the thinned module. Task 14's acceptance run is `results/acceptance_*.txt`, written with `PILOT_PREFIX=acceptance`. |
 | `hover_trace.mjs` | One chromium trace of a hover sweep per renderer, summed by trace event, with the rectangles repainted (the WP's finding 18). |
 | `make_lab6.py` | The `lab6_capillary` standard as a GUI project, for the 132 992-channel runs. |
 | `serve.mjs`, `index.html` | The demos for a person: `node serve.mjs [port]`, then <http://127.0.0.1:8810/>. `?demo` gives the prototype pages a toolbar that times each action, and the pattern page prints each frame's repaints. |
@@ -65,6 +65,8 @@ node serve.mjs 8811 & node payload_probe.mjs chrome     # or firefox
 node pilot.mjs chromium nac 1 0 plotly chart            # one call: engine, dataset or .rex path, dpr, run, renderers
 node pilot_matrix.mjs <dir>/lab6_capillary.rex [filter] # the whole matrix, or the rows naming `filter`
 node pilot_summary.mjs                                  # the logs as ranges
+RIETX_PLOTLY=<a rietx built at 58f7dbce> PILOT_PREFIX=acceptance node pilot_matrix.mjs none nac
+PILOT_PREFIX=acceptance node pilot_summary.mjs          # task 14's run, as ranges
 ```
 
 The drivers expect Chrome for Testing from playwright's chromium build 1223
@@ -75,4 +77,7 @@ bind port 8799. `zoom_probe.mjs` drives Firefox from
 `pilot.mjs` binds 8790-8798 and drives playwright's own Firefox 1543 and WebKit
 2359 builds, which `node node_modules/playwright-core/cli.js install firefox
 webkit` fetches. In WebKit it supplies the mouse movement playwright leaves at
-zero (the WP's finding 15).
+zero (the WP's finding 15). With `RIETX_PLOTLY` set, the plotly renderer comes
+from that command on the next port up, a second server with its own fit: the
+final tree has no plotly renderer, so task 14 paired it with a build of
+`58f7dbce`, whose `src` ran under this repository's `.venv` through `PYTHONPATH`.

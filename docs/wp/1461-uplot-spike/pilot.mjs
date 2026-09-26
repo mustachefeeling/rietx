@@ -11,6 +11,12 @@
 // and one fit per call, a fresh page per renderer, so the renderers of one call
 // are measured side by side.
 //
+// With RIETX_PLOTLY set, the plotly renderer is served by that command, a second
+// server with a fit of its own on the next port up, and the chart by RIETX. That is
+// task 14's pairing: the final tree has no plotly renderer, so plotly comes from a
+// build of 58f7dbce, the last commit that had one. Both servers stay up for the
+// call, so its renderers are still measured side by side.
+//
 // Work, per event: the change in CDP TaskDuration less the page's idle rate over
 // the same wall time (chromium), and the time inside every listener, microtask,
 // timer, frame and ResizeObserver callback the page registered (every engine;
@@ -28,7 +34,8 @@ const renderers = RENDERERS.length ? RENDERERS : ["plotly", "chart"];
 const CFT = os.homedir() + "/Library/Caches/ms-playwright/chromium-1223/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
 const RIETX = process.env.RIETX ?? fileURLToPath(new URL("../../../.venv/bin/rietx", import.meta.url));
 const PORT = 8790 + Number(RUN) % 9, GUI = `http://127.0.0.1:${PORT}`;
-const QUERY = { plotly: "", chart: "?chart=uplot" };
+const SPLIT = !!process.env.RIETX_PLOTLY;
+const QUERY = { plotly: "", chart: SPLIT ? "" : "?chart=uplot" };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const load = () => os.loadavg().map((v) => v.toFixed(1)).join(" ");
 const say = (line) => console.log(`[${ENGINE} ${DATASET.split("/").pop()} dpr${DPR} run${RUN}] ${line}`);
@@ -95,31 +102,42 @@ function instruments() {
 }
 
 // ------------------------------------------------------------------ server
-const state = path.join(DIR, "state", `pilot-${ENGINE}-${RUN}`);
-execSync(`rm -rf "${state}"`);
-const srv = spawn(RIETX, ["gui", "--no-open", "--machine", "--port", String(PORT), "--state-dir", state],
-                  { stdio: ["ignore", "pipe", "inherit"] });
-await new Promise((r) => srv.stdout.once("data", r));
-const api = async (p, body) => (await fetch(GUI + p, body === undefined ? {} : {
-  method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json();
+// One server per build, started and fitted before the first renderer it serves.
+const servers = {};
+async function serve(renderer) {
+  const key = SPLIT && renderer === "plotly" ? "plotly" : "chart";
+  if (servers[key]) return servers[key];
+  const port = PORT + (key === "plotly" ? 10 : 0), gui = `http://127.0.0.1:${port}`;
+  const state = path.join(DIR, "state", `pilot-${ENGINE}-${RUN}-${key}`);
+  execSync(`rm -rf "${state}"`);
+  const bin = key === "plotly" ? process.env.RIETX_PLOTLY : RIETX;
+  const srv = spawn(bin, ["gui", "--no-open", "--machine", "--port", String(port), "--state-dir", state],
+                    { stdio: ["ignore", "pipe", "inherit"] });
+  servers[key] = { srv };
+  await new Promise((r) => srv.stdout.once("data", r));
+  const api = async (p, body) => (await fetch(gui + p, body === undefined ? {} : {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json();
+  if (DATASET === "nac") await api("/api/examples/open", { name: "nac" });
+  else await api("/api/project/open", { path: path.resolve(DATASET) });
+  const t = Date.now();
+  await api("/api/run", { kind: "fit" });
+  for (;;) { const s = await api("/api/run/state"); if (s.state !== "running") break; await sleep(500); }
+  say(`${key} build fitted in ${((Date.now() - t) / 1000).toFixed(0)} s; load ${load()}`);
+  return Object.assign(servers[key], { gui, api });
+}
 const engines = { chromium, firefox, webkit };
 const browser = await engines[ENGINE].launch(ENGINE === "chromium" ? { executablePath: CFT, headless: true } : { headless: true });
 
 try {
-  if (DATASET === "nac") await api("/api/examples/open", { name: "nac" });
-  else await api("/api/project/open", { path: path.resolve(DATASET) });
-  let t = Date.now();
-  await api("/api/run", { kind: "fit" });
-  for (;;) { const s = await api("/api/run/state"); if (s.state !== "running") break; await sleep(500); }
-  say(`fitted in ${((Date.now() - t) / 1000).toFixed(0)} s; load ${load()}`);
   for (const r of renderers) await measure(r);
 } finally {
   await browser.close();
-  srv.kill();
+  for (const { srv } of Object.values(servers)) srv.kill();
 }
 
 // ------------------------------------------------------------------ one renderer
 async function measure(renderer) {
+  const { gui: GUI, api } = await serve(renderer);
   await api("/api/peaks", {});   // a fresh list: the last renderer's peak drags moved lines
   const peaks = (await (await fetch(GUI + "/api/peaks")).json()).peaks;
   const context = await browser.newContext({ viewport: { width: 1500, height: 1000 }, deviceScaleFactor: Number(DPR) });
@@ -140,7 +158,7 @@ async function measure(renderer) {
   await sleep(2500);
   out.boot = { shown_after_ms: null, loaf: await page.evaluate(() => window.__w.loaf.map((l) => ({
     dur: Math.round(l.dur), scripts: l.scripts.filter((s) => s.dur >= 5).map((s) => `${s.url}:${s.fn} ${s.dur}ms`) }))) };
-  out.boot.chartFrames = out.boot.loaf.filter((l) => l.scripts.some((s) => /plotly|vendor-uplot|pattern\.js/.test(s)));
+  out.boot.chartFrames = out.boot.loaf.filter((l) => l.scripts.some((s) => /plotly|vendor-uplot|pattern\.js|rxplot\.js/.test(s)));
   say(`${renderer}: boot long frames ${JSON.stringify(out.boot.loaf)}`);
 
   // idle rate, for the subtraction
@@ -304,7 +322,7 @@ async function measure(renderer) {
  * included. A sample's time is the gap to the next one.
  */
 function libraryTime(profile, renderer) {
-  const lib = renderer === "plotly" ? /plotly\.js/ : /vendor-uplot|pattern\.js/;
+  const lib = renderer === "plotly" ? /plotly\.js/ : /vendor-uplot|pattern\.js|rxplot\.js/;
   const parent = new Map(), byId = new Map();
   for (const node of profile.nodes) {
     byId.set(node.id, node);
