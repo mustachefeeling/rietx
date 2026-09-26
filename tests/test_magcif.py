@@ -714,6 +714,76 @@ def test_the_cartesian_form_converts_to_the_same_vector(tmp_path):
     assert np.allclose(moment_from_cartesian(cartesian, cell), (1.68, 3.36, 0.0))
 
 
+
+def test_a_cartesian_rows_su_propagates_through_the_linear_conversion(tmp_path):
+    """Review of #478, item 4: a Cartesian row's su used to be parsed and
+    dropped, leaving ``stderr=None`` on every component, which reads as "not
+    refined".
+
+    The conversion is linear, so the esds go through it exactly to first
+    order: σ_i² = Σ_j J_ij²·σ_j², J the inverse of the crystal-axis-to-
+    Cartesian matrix, built here from ``moment_to_cartesian`` rather than the
+    function under test.  A component whose Cartesian sources state no su gets
+    none — on 120° axes z draws on Cartn_z alone, so it stays ``None`` while
+    x and y, which both draw on Cartn_x and Cartn_y, carry an esd.
+    """
+    cell = _YMNO3["cell"]
+    loop = _moment_loop([("Mn1", "0.0000(3)", "2.9098(5)", "0.0000")],
+                        tags=("Cartn_x", "Cartn_y", "Cartn_z"))
+    diagnostics: list = []
+    read = structure_from_cif(str(_fixture(tmp_path, "YMnO3",
+                                           moment_loop=loop)),
+                              moment_ions=_IONS["YMnO3"],
+                              diagnostics=diagnostics)
+    got = [a.moment for a in read.phases[0].atoms if a.moment][0]
+    forward = np.column_stack([moment_to_cartesian(np.eye(3)[i], cell)
+                               for i in range(3)])
+    jac = np.linalg.inv(forward)
+    sigma = np.array([0.0003, 0.0005, 0.0])
+    want = np.sqrt((jac ** 2) @ sigma ** 2)
+    assert got.crystalaxis_x.stderr == pytest.approx(want[0], rel=1e-12)
+    assert got.crystalaxis_y.stderr == pytest.approx(want[1], rel=1e-12)
+    assert got.crystalaxis_z.stderr is None
+    assert got.crystalaxis_x.stderr > 0.0003     # cos 120° mixes y into x
+    assert not [d for d in diagnostics if d.code.endswith("_ESD_NOT_STORED")]
+
+
+def test_a_spherical_rows_su_is_named_where_it_is_not_carried(tmp_path):
+    """The other half of item 4: (modulus, polar, azimuth) → components is
+    nonlinear and singular on the pole, so the su is not propagated — and is
+    reported, ``CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED``, rather than left as a
+    ``None`` that says "not refined".  A row that also states the
+    crystal-axis form takes that form's su and raises nothing."""
+    loop = _moment_loop([("Mn1", "2.910(5)", "90.0(3)", "90.0")],
+                        tags=("spherical_modulus", "spherical_polar",
+                              "spherical_azimuthal"))
+    diagnostics: list = []
+    read = structure_from_cif(str(_fixture(tmp_path, "YMnO3",
+                                           moment_loop=loop)),
+                              moment_ions=_IONS["YMnO3"],
+                              diagnostics=diagnostics)
+    got = [a.moment for a in read.phases[0].atoms if a.moment][0]
+    assert [p.stderr for p in (got.crystalaxis_x, got.crystalaxis_y,
+                               got.crystalaxis_z)] == [None, None, None]
+    (named,) = [d for d in diagnostics
+                if d.code == "CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED"]
+    assert "Mn1" in named.message
+    assert "2.910(5)" in named.message and "90.0(3)" in named.message
+    assert "azimuthal = 90.0" not in named.message     # no su, nothing dropped
+    j = next(i for i, a in enumerate(read.phases[0].atoms) if a.moment)
+    assert named.where == [f"phases.0.atoms.{j}.moment"]
+
+    both = _moment_loop([("Mn1", "1.6801", "3.3602", "0.0",
+                          "2.910(5)", "90.0(3)", "90.0")],
+                        tags=("crystalaxis_x", "crystalaxis_y", "crystalaxis_z",
+                              "spherical_modulus", "spherical_polar",
+                              "spherical_azimuthal"))
+    quiet: list = []
+    structure_from_cif(str(_fixture(tmp_path, "YMnO3", moment_loop=both)),
+                       moment_ions=_IONS["YMnO3"], diagnostics=quiet)
+    assert not [d for d in quiet
+                if d.code == "CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED"]
+
 def test_two_forms_that_disagree_are_refused_naming_the_site(tmp_path):
     """Both are the same vector in ``cif_mag.dic``, so a file stating two
     different ones contradicts itself and this reader does not pick a side."""

@@ -973,6 +973,16 @@ def _components_from_row(row: dict[str, str], label: str, cell, path: str
       of (sinθcosφ, sinθsinφ, cosθ)·|m| and needs no second convention;
     * **Cartesian** — the same frame, converted the same way.
 
+    Standard uncertainties follow the form the moment is taken from.  The
+    crystal-axis ones are the components' own.  A Cartesian row's go through
+    the conversion, which is **linear**, so the propagation is exact to first
+    order and needs no point to linearise at (:func:`_cartesian_esds`).  A
+    spherical row's do not: (modulus, polar, azimuth) → components is
+    nonlinear and singular on the pole, so they are not propagated, the
+    components keep ``stderr=None``, and ``CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED``
+    says what was dropped (:func:`magnetic_diagnostics`) — the same stance the
+    modulus su takes (review of #478, item 4).
+
     Where a file states more than one they must agree to
     :data:`MOMENT_FORM_AGREEMENT_MU_B`; disagreement is refused naming the site,
     because choosing one of two contradictory statements of the same vector is
@@ -1019,9 +1029,11 @@ def _components_from_row(row: dict[str, str], label: str, cell, path: str
             math.cos(theta)], dtype=float)
         forms["spherical"] = moment_from_cartesian(cartesian, cell)
     if any(f"Cartn_{a}" in row for a in axes):
-        cartesian = np.array([parse_su(row.get(f"Cartn_{a}", "0"))[0]
-                              for a in axes], dtype=float)
+        parsed = [parse_su(row.get(f"Cartn_{a}", "0")) for a in axes]
+        cartesian = np.array([v for v, _s in parsed], dtype=float)
         forms["Cartesian"] = moment_from_cartesian(cartesian, cell)
+        if not forms.keys() - {"Cartesian"}:     # the form the moment is taken from
+            esds = _cartesian_esds([s for _v, s in parsed], cell)
     if not forms:
         raise MagCifError(
             f"{path}: site {label!r} has a row in the _atom_site_moment loop "
@@ -1097,6 +1109,49 @@ def _components_from_row(row: dict[str, str], label: str, cell, path: str
                 f"*not* the magnitude and quoting it here is the commonest "
                 f"way this line goes wrong.")
     return (tuple(float(c) for c in components), tuple(esds), names[0])
+
+
+def _cartesian_esds(sus, cell) -> list[float | None]:
+    """Cartesian component esds → crystal-axis component esds, through the
+    linear map :func:`~.magnetic.operators.moment_from_cartesian` applies.
+
+    m_axes = J·m_cart with J the inverse of the crystal-axis-to-Cartesian
+    matrix, so σ_i² = Σ_j J_ij²·σ_j² — the diagonal propagation, because a CIF
+    row states each component's su and no correlation between them.  A
+    crystal-axis component is given an esd only where every Cartesian
+    component it draws on has one: a component with no parenthesis states no
+    esd (as on the crystal-axis form), and treating it as exact would put a
+    known-exactly claim into the sum.
+    """
+    from .magnetic.operators import moment_from_cartesian
+
+    if all(s is None for s in sus):
+        return [None, None, None]
+    jac = np.column_stack([moment_from_cartesian(np.eye(3)[j], cell)
+                           for j in range(3)])
+    out: list[float | None] = []
+    for i in range(3):
+        reach = [j for j in range(3) if abs(jac[i, j]) > 1e-12]
+        if any(sus[j] is None for j in reach):
+            out.append(None)
+            continue
+        out.append(float(math.sqrt(sum((jac[i, j] * sus[j]) ** 2
+                                       for j in reach))))
+    return out
+
+
+def _spherical_su_dropped(row: dict[str, str]) -> list[str]:
+    """The spherical items of a row whose su is not carried: every one with an
+    inline su, where the spherical form is the one the moment was taken from
+    (no crystal-axis item in the row; the spherical form outranks a Cartesian
+    one in :func:`_components_from_row`)."""
+    if any(f"crystalaxis_{a}" in row for a in ("x", "y", "z")):
+        return []
+    names = ("modulus", "polar", "azimuthal")
+    if not all(f"spherical_{n}" in row for n in names):
+        return []
+    return [f"spherical_{n} = {row[f'spherical_{n}']}" for n in names
+            if parse_su(row[f"spherical_{n}"])[1] is not None]
 
 
 def _last_digit_half(text: str) -> float:
@@ -1388,8 +1443,7 @@ def magnetic_diagnostics(path: str, moments, magnetic, atoms_by_label,
                          ) -> list[Diagnostic]:
     """What the magnetic read did that the model cannot show on its own.
 
-    Five things, each a fact a caller would otherwise have to reconstruct from
-    the file:
+    Each a fact a caller would otherwise have to reconstruct from the file:
 
     * ``CIF_MAGNETIC_ION_UNCHARGED`` — the form-factor ion was taken from
       ``_atom_site_type_symbol`` and that symbol states no oxidation state.
@@ -1422,6 +1476,11 @@ def magnetic_diagnostics(path: str, moments, magnetic, atoms_by_label,
       this package's symmetry algebra disagreeing about the same site.
     * ``CIF_MAGNETIC_UNIDENTIFIED`` — the operator list did not resolve to one
       of spglib's 1651 groups, so ``uni_number`` is absent.
+    * ``CIF_MAGNETIC_MAGNITUDE_ESD_NOT_STORED`` and
+      ``CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED`` — a standard uncertainty the
+      file states and the ``Structure`` does not carry: the modulus su, which
+      has no field, and the spherical form's, which a nonlinear conversion
+      does not propagate (:func:`_components_from_row`).
     """
     from .magnetic.operators import allowed_moment_basis
 
@@ -1492,6 +1551,20 @@ def magnetic_diagnostics(path: str, moments, magnetic, atoms_by_label,
                            "keeps it in FitReport.magnetic[i].magnitude_esd, "
                            "written back into this tag by the refinement "
                            "exporter"))
+        dropped = _spherical_su_dropped(row)
+        if dropped:
+            out.append(Diagnostic(
+                level="info", code="CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED",
+                where=[f"phases.0.atoms.{index}.moment"],
+                message=(f"{path} states site {label!r}'s moment in the "
+                         f"spherical form only, with standard uncertainties "
+                         f"({'; '.join(dropped)}); the conversion to "
+                         f"crystal-axis components is nonlinear, so they are "
+                         f"not propagated and the components carry no esd"),
+                suggestion="a component's stderr of None here means the file's "
+                           "su was not carried, not that the moment was not "
+                           "refined; restate the row in the crystal-axis or "
+                           "Cartesian form, whose su this reader keeps"))
         symmform = row.get("symmform")
         if symmform:
             stated = symmform_rank(symmform)

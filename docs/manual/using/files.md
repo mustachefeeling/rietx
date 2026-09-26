@@ -268,6 +268,15 @@ propagated through the metric, since the derived norm is itself only as
 precise as the components it came from. A magnitude rounded to fewer
 figures than the components is read, not refused.
 
+Standard uncertainties follow the form the moment is taken from. A
+crystal-axis row keeps its own. A Cartesian row's go through the conversion,
+which is linear, so each crystal-axis esd is the Cartesian ones propagated
+through it, assuming no correlation between components, since a CIF row
+states none. A spherical row's are not propagated, because that conversion
+is nonlinear and singular on the pole, and `CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED`
+names each su that was dropped, so a component's `stderr=None` there is not
+read as "not refined".
+
 Two constructs are refused by name rather than half-read. A modulated
 structure (any `_atom_site_moment_Fourier` loop, special function, cell wave
 vector or superspace group), because reading its k = 0 amplitude alone would
