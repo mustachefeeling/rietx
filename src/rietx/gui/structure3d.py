@@ -157,6 +157,13 @@ INSIDE_TOL = 1e-3
 #: site), and count once as a centre and once as a ligand (WP-1466, P9).
 SAME_POSITION = 0.01
 
+#: What the viewer draws of a structure whose file states disorder groups:
+#: every alternative, or one, each assembly's most occupied group (WP-1468).
+#: A drawing choice, so it rides on the query string as the bond tolerance
+#: does.  Mercury hides a CSD entry's minor positions, and CrystalMaker shows
+#: each alternative as its own structure.
+DISORDER_VIEWS = ("all", "major")
+
 # ----------------------------------------------------------------------
 # species → element, colour, radius
 # ----------------------------------------------------------------------
@@ -440,7 +447,8 @@ ELECTRONEGATIVITY: dict[str, float] = {
 }
 
 
-def _cation_sites(sites: list[dict], orbit: dict[str, Any], basis: np.ndarray) -> set[int]:
+def _cation_sites(sites: list[dict], orbit: dict[str, Any], basis: np.ndarray,
+                  codes: tuple[np.ndarray, ...] | None = None) -> set[int]:
     """The sites whose atoms are cations: every metal, and every non-metal bonded
     to a more electronegative non-metal, as P is in PO₄ and Si in SiO₄.
 
@@ -459,7 +467,9 @@ def _cation_sites(sites: list[dict], orbit: dict[str, Any], basis: np.ndarray) -
     metal bonded to it keeps it a cation: fluorapatite's P has 4 Ca inside
     the bond cutoff.  Partners closer than :data:`BOND_MIN` to each other are
     one atom split, as Prussian blue's N and water O are, 0.10 Å apart.
-    Its known miss is a nitro group, whose N has two O.
+    Its known miss is a nitro group, whose N has two O.  ``codes`` is
+    :func:`_disorder_codes`', and a partner that is an alternative of the site
+    is not one.
 
     Bonded is the viewer's radius-sum rule at :data:`BOND_TOLERANCE`, the
     default rather than the query's, so the polyhedra do not move with the
@@ -480,6 +490,11 @@ def _cation_sites(sites: list[dict], orbit: dict[str, Any], basis: np.ndarray) -
         if j in cations or mine is None or j not in owner:
             continue
         rows = (strength > mine)[source]
+        if codes is not None:
+            # a partner the file's disorder groups keep from this site is none
+            me = np.array([j, orbit["turn"][owner.index(j)]])
+            them = np.stack([np.asarray(owner)[source], orbit["turn"][source]], axis=-1)
+            rows &= ~_apart(codes, me, them)
         if not rows.any():
             continue
         here = orbit["frac"][owner.index(j)] @ basis.T
@@ -553,13 +568,19 @@ def probability_scale(probability: float) -> float:
 # ----------------------------------------------------------------------
 def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY,
           bond_tolerance: float = BOND_TOLERANCE,
-          max_atoms: int = MAX_ATOMS) -> dict[str, Any]:
+          max_atoms: int = MAX_ATOMS, disorder: str = "all") -> dict[str, Any]:
     """Drawable geometry for one phase of ``structure``.
 
     The returned dict is the wire format of ``GET /api/structure3d``; its shape
     is documented field by field in the sections below, and every coordinate in
-    it is **Cartesian in Å** unless the name says ``frac``.
+    it is **Cartesian in Å** unless the name says ``frac``.  ``disorder`` is
+    one of :data:`DISORDER_VIEWS`; ``"major"`` draws no image of a site
+    :func:`minor_sites` names.  The payload lists those in ``minor_sites``
+    in either view, so a client knows whether there is a choice to offer.
     """
+    if disorder not in DISORDER_VIEWS:
+        raise ValueError(f"disorder must be one of {', '.join(DISORDER_VIEWS)}, "
+                         f"not {disorder!r}")
     phases = list(structure.phases)
     if not phases:
         # Phrased for the state, not for a bad index: a pattern-only project
@@ -582,7 +603,9 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     # ``operations()``/``xhm()`` surface the two readers below use.
     sg = resolve_group(ph.space_group, ph.symmetry_operations)
 
-    sites, atoms, notes, every = _expand(ph, phase, sg, basis, astar, max_atoms)
+    minor = minor_sites(ph)
+    left_out = minor if disorder == "major" else set()
+    sites, atoms, notes, every = _expand(ph, phase, sg, basis, astar, max_atoms, left_out)
     n_cell = len(atoms)
     # the colours are decided *here*, over the phase's own element list, because
     # two of them being the same colour is a fact about this picture and not
@@ -595,11 +618,14 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     metal = np.array([sites[a["site"]]["metal"] for a in atoms], dtype=bool)
     alloy = bonds_between_metals(s["element"] for s in sites)
     orbit = _orbit(sites, every, basis)
-    cations = _cation_sites(sites, orbit, basis)
+    codes = _disorder_codes(sites)
+    cations = _cation_sites(sites, orbit, basis, codes)
     cation = np.array([a["site"] in cations for a in atoms], dtype=bool)
     occupancy = np.array([sites[a["site"]]["occ"] for a in atoms], dtype=np.float64)
+    held = np.array([[a["site"], a["_turn"]] for a in atoms], dtype=int).reshape(-1, 2)
+    apart = None if codes is None else _apart(codes, held[:, None, :], held[None, :, :])
     bonds = _bonds(positions, radii, basis, bond_tolerance,
-                   None if alloy else metal, cation, occupancy)
+                   None if alloy else metal, cation, occupancy, apart)
     if len(bonds) > MAX_BONDS:
         notes.append(f"{len(bonds)} bond segments trimmed to {MAX_BONDS}; lower "
                      "the bond tolerance to see a picture rather than a cage")
@@ -612,7 +638,7 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
         partners = partners[:room]
     atoms.extend(partners)
     polyhedra, ligands, dropped = _polyhedra(sites, orbit, cations, atoms, n_cell, bonds,
-                                             basis, max(max_atoms - len(atoms), 0))
+                                             basis, max(max_atoms - len(atoms), 0), codes)
     if dropped:
         notes.append(f"{len(dropped)} coordination polyhedra not drawn: their ligands "
                      f"would take the drawing past {max_atoms} atoms")
@@ -632,7 +658,9 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
         # payload and not of whichever line convention the renderer happens to use
         "edges": _EDGES,
         "sites": sites,
-        "atoms": atoms,
+        # an image's symmetry operation is the server's own business (it says
+        # which images of a negative disorder group coexist), so it stays here
+        "atoms": [{k: v for k, v in a.items() if k != "_turn"} for a in atoms],
         "bonds": bonds,
         # vertices, bonds and the centre are indices into ``atoms`` and
         # ``bonds``; faces and edges index the polyhedron's own vertices
@@ -647,6 +675,9 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
         "ball_fraction": BALL_FRACTION,
         "bond_tolerance": float(bond_tolerance),
         "bond_metals": alloy,
+        "disorder": disorder,
+        # the sites ``disorder="major"`` draws no image of, in either view
+        "minor_sites": sorted(minor),
         "note": " · ".join(notes),
     }
 
@@ -665,25 +696,33 @@ def _corners(basis: np.ndarray) -> np.ndarray:
 
 
 def _expand(ph, phase: int, sg, basis: np.ndarray, astar: np.ndarray,
-            max_atoms: int) -> tuple[list[dict], list[dict], list[str], list[dict]]:
+            max_atoms: int, left_out: set[int] = frozenset(),
+            ) -> tuple[list[dict], list[dict], list[str], list[dict]]:
     """The asymmetric unit → per-site records and every drawn image of each.
 
     Two kinds of image are drawn and the payload distinguishes them, because
     only one of them counts: a **symmetry** image is a member of the orbit, so
     the number of non-``boundary`` atoms on a site *is* its multiplicity, while
     a **boundary** duplicate is the same atom seen at the opposite face and is
-    there so a corner atom appears at all eight corners.  :func:`_partners` adds
+    there so a corner atom appears at all eight corners.  Each image carries the
+    number of the rotation that made it under ``_turn``, which :func:`build`
+    keeps off the wire.  :func:`_partners` adds
     a third kind under the same flag — a bonded neighbour just outside the cell —
     for the same reason: it is an image, not a cell member.  :func:`_polyhedra`
     adds a fourth, a ligand no stick reached, flagged ``vertex_only`` as well,
     and the client draws it only while one of its polyhedra is drawn.
 
     The last item returned is every image before the ``max_atoms`` trim, since
-    a polyhedron's ligands are searched over the whole orbit.
+    a polyhedron's ligands are searched over the whole orbit.  A site in
+    ``left_out`` keeps its record, so every index into ``sites`` is still its
+    atom's, and draws no image.
     """
     sites: list[dict] = []
     atoms: list[dict] = []
     notes: list[str] = []
+    # each image's rotation, numbered: an image of a site and an image of
+    # another share one when one operation made both (WP-1468)
+    turns: dict[tuple, int] = {}
     for j, atom in enumerate(ph.atoms):
         element = element_symbol(atom.species)
         xyz = np.array([atom.x.value, atom.y.value, atom.z.value], dtype=np.float64)
@@ -711,9 +750,14 @@ def _expand(ph, phase: int, sg, basis: np.ndarray, astar: np.ndarray,
             "multiplicity": len(orbit),
             "special": len(orbit) < len(sg.operations()),
             "npd": False,
+            "disorder_assembly": atom.disorder_assembly,
+            "disorder_group": atom.disorder_group,
         }
         sites.append(site)
+        if j in left_out:
+            continue
         for frac, rot in orbit:
+            turn = turns.setdefault(tuple(int(v) for v in np.rint(rot).ravel()), len(turns))
             transform, rms, npd = _ellipsoid(ustar, uiso, rot, basis)
             site["npd"] = site["npd"] or npd
             for shift in _boundary_shifts(frac):
@@ -727,6 +771,7 @@ def _expand(ph, phase: int, sg, basis: np.ndarray, astar: np.ndarray,
                     "ellipsoid": transform.tolist(),
                     "rms": rms.tolist(),
                     "npd": npd,
+                    "_turn": turn,
                 })
     every = atoms
     if len(atoms) > max_atoms:
@@ -873,7 +918,8 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
            tolerance: float = BOND_TOLERANCE,
            metal: np.ndarray | None = None,
            cation: np.ndarray | None = None,
-           occupancy: np.ndarray | None = None) -> list[dict]:
+           occupancy: np.ndarray | None = None,
+           apart: np.ndarray | None = None) -> list[dict]:
     """Bond **segments** between drawn atoms, over the 27 nearest translations.
 
     Segments rather than pairs, and the distinction is the design: a bond that
@@ -897,7 +943,9 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
 
     Two partly occupied non-metals that are one atom split, by P9's test
     (:func:`one_atom`), get no stick (WP-1468).  ``occupancy`` is per atom,
-    and ``None`` reads every atom as full.
+    and ``None`` reads every atom as full.  Nor do two atoms the file's
+    disorder groups say are never occupied together (``apart``, per pair,
+    from :func:`_apart`).
     """
     n = len(positions)
     if n == 0:
@@ -909,6 +957,8 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
     if metal is not None:
         pair = metal[:, None] & (metal if cation is None else cation)[None, :]
         allowed = ~(pair | pair.T)
+    if apart is not None:
+        allowed &= ~apart
     shifts = np.array([[i - 1, j - 1, k - 1] for i in range(3) for j in range(3)
                        for k in range(3)], dtype=np.float64) @ basis.T
     out: list[dict] = []
@@ -935,6 +985,73 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
     cation = np.zeros(n, dtype=bool) if cation is None else cation
     return [bond for bond in out if not _split_stick(bond, positions, radii, metal, cation,
                                                      occupancy, shifts)]
+
+
+#: Disorder groups that mean an ordered site: the CIF's nulls, and SHELX's
+#: PART 0, which SHELXL writes as ``.`` and other programs as ``0``.
+ORDERED_GROUPS = frozenset({"", ".", "?", "0"})
+
+
+def _disorder_codes(sites: list[dict]) -> tuple[np.ndarray, ...] | None:
+    """Per site ``(ordered, assembly, group, negative)`` as arrays, or ``None``
+    when no site declares a group (WP-1468).
+
+    An absent assembly is the one assembly a file needs no name for (the CIF
+    core dictionary), so every site without one shares it.
+    """
+    groups = [(site.get("disorder_group") or "").strip() for site in sites]
+    if all(g in ORDERED_GROUPS for g in groups):
+        return None
+    assemblies = [(site.get("disorder_assembly") or "").strip() for site in sites]
+
+    def numbered(values: list[str]) -> np.ndarray:
+        index: dict[str, int] = {}
+        return np.array([index.setdefault(v, len(index)) for v in values], dtype=int)
+
+    return (np.array([g in ORDERED_GROUPS for g in groups]), numbered(assemblies),
+            numbered(groups), np.array([g.startswith("-") for g in groups]))
+
+
+def minor_sites(phase) -> set[int]:
+    """The atoms of ``phase`` that ``disorder="major"`` draws no image of.
+
+    Every site in a group of its assembly other than the most occupied one,
+    by the mean occupancy of the group's sites; a tie goes to the group the
+    file declares first.  A negative group is left alone: its alternatives
+    are one site's symmetry copies, and leaving a site out would hide both.
+    """
+    groups: dict[str, dict[str, list[int]]] = {}
+    for j, atom in enumerate(phase.atoms):
+        group = (atom.disorder_group or "").strip()
+        if group in ORDERED_GROUPS or group.startswith("-"):
+            continue
+        groups.setdefault((atom.disorder_assembly or "").strip(), {}).setdefault(
+            group, []).append(j)
+    out: set[int] = set()
+    for members in groups.values():
+        occupied = {g: float(np.mean([phase.atoms[j].occ.value for j in js]))
+                    for g, js in members.items()}
+        major = max(members, key=occupied.__getitem__)
+        out |= {j for g, js in members.items() if g != major for j in js}
+    return out
+
+
+def _apart(codes: tuple[np.ndarray, ...], one: np.ndarray, two: np.ndarray) -> np.ndarray:
+    """Whether two atoms are never occupied together, by the file's disorder
+    groups (the CIF core dictionary; WP-1468).
+
+    ``one`` and ``two`` hold ``(site, turn)`` in their last axis and broadcast
+    against each other, the turn being the image's rotation (:func:`_expand`).
+    Two sites in different groups of one assembly are alternatives.  So are
+    two images in one negative group made by different rotations: a minus
+    prefix marks a site disordered about a special position, which SHELX
+    writes as PART -n and draws no bond to its symmetry copies.  An ordered
+    site is an alternative of nothing.
+    """
+    ordered, assembly, group, negative = codes
+    s1, t1, s2, t2 = one[..., 0], one[..., 1], two[..., 0], two[..., 1]
+    return (~ordered[s1] & ~ordered[s2] & (assembly[s1] == assembly[s2])
+            & ((group[s1] != group[s2]) | (negative[s1] & (t1 != t2))))
 
 
 def one_atom(apart, near_one, near_two) -> np.ndarray:
@@ -1017,6 +1134,7 @@ def _orbit(sites: list[dict], every: list[dict], basis: np.ndarray,
         "radius": radius,
         "elements": [sites[a["site"]]["element"] for a in orbit],
         "owner": [a["site"] for a in orbit],
+        "turn": np.array([a.get("_turn", 0) for a in orbit], dtype=int),
         "occupancy": np.array([sites[a["site"]]["occ"] for a in orbit], dtype=np.float64),
         "frac": frac,
         "cart": ((frac[None, :, :] + grid[:, None, :]) @ basis.T).reshape(-1, 3),
@@ -1026,7 +1144,8 @@ def _orbit(sites: list[dict], every: list[dict], basis: np.ndarray,
 
 def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
                atoms: list[dict], n_cell: int, bonds: list[dict], basis: np.ndarray,
-               room: int) -> tuple[list[dict], list[dict], int]:
+               room: int, codes: tuple[np.ndarray, ...] | None = None,
+               ) -> tuple[list[dict], list[dict], list[dict]]:
     """``(polyhedra, partners, dropped)`` for the first ``n_cell`` drawn atoms.
 
     A centre is a cation and its ligands are anions (:func:`_cation_sites`,
@@ -1041,7 +1160,10 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
     at a vertex of the convex hull and the centre strictly inside it.  That is
     Daams & Villars' (1993) convex-volume condition, and it turns away a planar
     CO₃.  A shell holding two partly occupied ligands closer to each other than
-    to the centre is a split site and is not drawn (P9).
+    to the centre is a split site and is not drawn (P9).  So is one holding
+    two sites the file's disorder groups say are never occupied together
+    (``codes``, :func:`_disorder_codes`), and neither is a ligand of a centre
+    it is an alternative of (WP-1468).
 
     An atom bonded to a ligand the centre is bonded to, and behind it, is
     screened out before the gap is found (WP-1468).  Behind means the angle at
@@ -1094,6 +1216,9 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
         orbit = _orbit(sites, orbit["atoms"], basis, reach)
     occupancy, cart, source = orbit["occupancy"], orbit["cart"], orbit["source"]
     radius = np.array([element_radius(e) for e in elements], dtype=np.float64)[source]
+    # each row's ``(site, turn)``, for the file's disorder groups
+    held_by = np.stack([np.asarray(orbit["owner"], dtype=int)[source],
+                        orbit["turn"][source]], axis=-1)
 
     known = {key: k for k, key in enumerate(_keys([a["pos"] for a in atoms]))}
     segments: dict[tuple, list[int]] = {}
@@ -1127,6 +1252,10 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
         n_centres += 1
         dist = np.linalg.norm(cart[index] - centre, axis=1)
         index, dist = index[dist >= BOND_MIN], dist[dist >= BOND_MIN]
+        if codes is not None:
+            # the file's alternatives of this centre are none of its ligands
+            mine = ~_apart(codes, np.array([atom["site"], atom["_turn"]]), held_by[index])
+            index, dist = index[mine], dist[mine]
         if not len(dist):
             continue
         # Brunner & Schwarzenbach's window (P3)
@@ -1143,7 +1272,10 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
             near = np.linalg.norm(cart[held] - centre, axis=1)
             behind = (bonded(apart, radius[index][:, None] + radius[held][None, :],
                              nonmetals=True)
-                      & (dist[:, None] ** 2 > near[None, :] ** 2 + apart ** 2)).any(axis=1)
+                      & (dist[:, None] ** 2 > near[None, :] ** 2 + apart ** 2))
+            if codes is not None:
+                behind &= ~_apart(codes, held_by[index][:, None, :], held_by[held][None, :, :])
+            behind = behind.any(axis=1)
             index, dist = index[~behind], dist[~behind]
         # atoms of two sites at one position are one ligand, their
         # occupancies summed, so a mixed O/F site is full and a split one is not;
@@ -1157,6 +1289,11 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
         if n < 4 or gap < POLYHEDRON_GAP:
             continue
         shell = kept[:n]
+        if codes is not None:
+            # a shell holding two of the file's alternatives is split, as P9's is
+            members = held_by[[row[0] for row in shell]]
+            if _apart(codes, members[:, None, :], members[None, :, :]).any():
+                continue
         vertices = np.array([cart[row[0]] for row in shell])
         partial = [row[2] < 1.0 - 1e-6 for row in shell]
         if any(partial[i] and partial[j]

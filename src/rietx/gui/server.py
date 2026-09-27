@@ -148,14 +148,16 @@ def _compare(s: GuiSession, q: dict, _body: dict) -> dict:
 
 
 def _structure3d(s: GuiSession, q: dict, _body: dict) -> dict:
-    """Geometry for one phase.  Both knobs are *drawing* thresholds, not physics,
+    """Geometry for one phase.  The knobs are *drawing* thresholds, not physics,
     which is why they ride here rather than in a settings document: the
-    probability level an ellipsoid is drawn at and the radius-sum slack a bond is
-    drawn at say nothing about the model, and persisting either would make one
-    picture the project's opinion."""
+    probability level an ellipsoid is drawn at, the radius-sum slack a bond is
+    drawn at and which alternative of a disordered site is drawn say nothing
+    about the model, and persisting any would make one picture the project's
+    opinion."""
     return s.structure3d(_query_int(q, "phase", 0),
                          probability=_query_float(q, "probability") or 0.5,
-                         bond_tolerance=_query_float(q, "bond_tolerance"))
+                         bond_tolerance=_query_float(q, "bond_tolerance"),
+                         disorder=(q.get("disorder") or ["all"])[0])
 
 
 def _series_index(q: dict, what: str) -> int:

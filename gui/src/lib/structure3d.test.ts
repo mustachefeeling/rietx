@@ -420,6 +420,16 @@ describe("the caption", () => {
     expect(caption(geometry(), "ball")).toContain("0.40× the covalent radius");
   });
 
+  it("says which alternatives of a disordered structure it draws", () => {
+    // an ordered structure says nothing about it
+    expect(caption(geometry(), "ball")).not.toContain("alternative");
+    const every = { ...geometry(), disorder: "all" as const, minor_sites: [1] };
+    expect(caption(every, "ball"))
+      .toContain("every alternative drawn, with no stick between two of them");
+    expect(caption({ ...every, disorder: "major" as const, minor_sites: [1, 2] }, "ball"))
+      .toContain("the major alternative alone: 2 sites of the minor not drawn");
+  });
+
   it("marks an image whose tensor is not positive definite", () => {
     const geo = geometry();
     geo.atoms[2].npd = true;

@@ -1179,6 +1179,11 @@ def test_structure3d_serves_geometry_the_model_dump_cannot(blank, tmp_path,
 
     assert client.get("/api/structure3d?phase=4")[0] == 404
     assert client.get("/api/structure3d?probability=2")[0] == 400
+    # which alternative of a disordered site is drawn is the third knob
+    assert payload["disorder"] == "all" and payload["minor_sites"] == []
+    assert client.get("/api/structure3d?disorder=major")[1]["disorder"] == "major"
+    status, refused = client.get("/api/structure3d?disorder=minor")
+    assert status == 400 and refused["error"]["where"] == ["disorder"]
 
     # …and it follows the model rather than a cached read: an edit moves it
     before = payload["cell"][0]

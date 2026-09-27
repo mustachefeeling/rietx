@@ -21,15 +21,20 @@ DATA = Path(__file__).parent / "data"
 
 #: A perchlorate disordered over two orientations, as SHELXL writes PART 1 and
 #: PART 2 at 0.6 and 0.4, beside an ordered K.  The file's own numbers are
-#: built here: Cl–O 1.43 Å, the second orientation the first turned 60° about c.
+#: built here: Cl–O 1.43 Å, the second orientation the first turned 77° about
+#: c.  That puts each O 1.45 Å from its twin, inside the O–O bond cutoff and
+#: 61° apart round Cl, so only the groups can say the two never coexist.
 _CORNERS = np.array([(1, 1, 1), (1, -1, -1), (-1, 1, -1), (-1, -1, 1)]) / math.sqrt(3.0)
-_TURN = np.array([[0.5, -math.sqrt(3.0) / 2, 0.0], [math.sqrt(3.0) / 2, 0.5, 0.0],
-                  [0.0, 0.0, 1.0]])
+
+
+def _turn(degrees: float) -> np.ndarray:
+    c, s = math.cos(math.radians(degrees)), math.sin(math.radians(degrees))
+    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
 
 
 def perchlorate_cif() -> str:
     rows = ["K1 K 0.1 0.1 0.1 1 . .", "Cl1 Cl 0.5 0.5 0.5 1 . ."]
-    for group, occ, turn in (("1", 0.6, np.eye(3)), ("2", 0.4, _TURN)):
+    for group, occ, turn in (("1", 0.6, np.eye(3)), ("2", 0.4, _turn(77.0))):
         for k, corner in enumerate(_CORNERS):
             x, y, z = 0.5 + 1.43 * (turn @ corner) / 10.0
             label = f"O{k + 1}{'AB'[int(group) - 1]}"

@@ -314,9 +314,9 @@ zero** on the server (a √ of a negative is a NaN), and the client keeps such a
 column at `FLAT_AXIS` = 1 mÅ because the ray-caster solves through M⁻¹. And
 **bond segments complete their partners exactly one level** — a bond to a
 translated image is correct and *reads* as broken — which is the line between a
-coordination and the packing diagram this WP declined. `probability` and
-`bond_tolerance` are drawing thresholds on the query string, never in
-`ProjectDoc`. **Polyhedra are chemistry, so the server builds them** (WP-1466):
+coordination and the packing diagram this WP declined. `probability`,
+`bond_tolerance` and `disorder` are drawing thresholds on the query string, never
+in `ProjectDoc`. **Polyhedra are chemistry, so the server builds them** (WP-1466):
 cation centres, anion ligands (`_cation_sites`). A rule change re-runs
 `docs/wp/1466-measure/measure.py`, writing the default picture the tests hold.
 **A legend switch is as fine as the default it restores** (per formula, since

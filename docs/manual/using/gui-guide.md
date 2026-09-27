@@ -355,6 +355,14 @@ three cases:
   pair that meets neither test keeps its stick, as Prussian blue's C and a
   vacancy's water O do.
 
+A CIF that states disorder groups is drawn with every alternative, and the
+viewer reads the groups. It draws no stick between two sites the file says are
+never occupied together, and no polyhedron holding both.
+`major alternative only`, under `drawing`, draws each assembly's most occupied
+group alone, and the caption says how many sites it left out. A group with a
+minus prefix is a site disordered about a special position: its symmetry
+copies are its alternatives, and that button leaves them all drawn.
+
 `PNG` renders the picture again, 3000 pixels on its long side, with the a, b, c
 letters drawn in. That is a 17 cm figure at 300 dpi with room to crop.
 `transparent PNG`, under `drawing`, leaves the background out.

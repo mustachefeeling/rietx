@@ -778,6 +778,68 @@ def test_a_split_needs_a_neighbour_a_stick_could_join_to_both():
     assert sum(n for key, n in _stick_pairs(payload).items() if "S00" in key) == 4
 
 
+def _perchlorate() -> Structure:
+    """The two-orientation perchlorate of ``test_cif_disorder``, read from its CIF."""
+    import tempfile
+
+    from tests.test_cif_disorder import perchlorate_cif
+
+    path = Path(tempfile.mkdtemp()) / "perchlorate.cif"
+    path.write_text(perchlorate_cif(), encoding="utf-8")
+    return structure_from_cif(str(path))
+
+
+def test_two_groups_of_one_assembly_share_no_stick_and_no_shell():
+    """WP-1468: the file's disorder groups say which sites coexist.
+
+    Each O of the second orientation sits 1.45 Å from its twin in the first,
+    inside the O–O cutoff and 61° apart round Cl, where P9's angle test cannot
+    see it.  Read without the groups, the twins get a stick and the Cl a ClO₈.
+    """
+    structure = _perchlorate()
+    with_groups = s3.build(structure)
+    assert _stick_pairs(with_groups).keys() == {("Cl1", f"O{k}{g}") for k in range(1, 5)
+                                                for g in "AB"}
+    assert with_groups["polyhedra"] == []
+    for atom in structure.phases[0].atoms:
+        atom.disorder_group = atom.disorder_assembly = None
+    without = s3.build(structure)
+    assert ("O1A", "O1B") in _stick_pairs(without)
+    assert [p["coordination"] for p in without["polyhedra"]] == [8]
+
+
+def test_the_major_view_draws_one_alternative():
+    """``disorder="major"`` draws each assembly's most occupied group alone, so
+    the Cl gets its ClO₄; the minor sites stay in ``sites`` with no image."""
+    payload = s3.build(_perchlorate(), disorder="major")
+    minor = {j for j, site in enumerate(payload["sites"]) if site["label"].endswith("B")}
+    assert set(payload["minor_sites"]) == minor
+    assert not {a["site"] for a in payload["atoms"]} & minor
+    # listed in the default view too, where they are drawn
+    every = s3.build(_perchlorate())
+    assert set(every["minor_sites"]) == minor <= {a["site"] for a in every["atoms"]}
+    assert _formulas(payload) == {"Cl1": {"ClO4"}}
+    with pytest.raises(ValueError, match="disorder must be one of"):
+        s3.build(_perchlorate(), disorder="minor")
+
+
+def test_a_negative_group_is_an_alternative_of_its_own_symmetry_copies():
+    """A minus prefix is a site disordered about a special position (SHELX's
+    PART -1): an O 0.6 Å off an inversion centre, half occupied, whose copy
+    through it sits 1.2 Å away.  Neither P10's floor nor P9 reaches that pair;
+    the group does, and a group of +1 does not."""
+    def pair(group):
+        cell = Cell(a=_p(12.0), b=_p(12.0), c=_p(12.0),
+                    alpha=_p(90.0), beta=_p(90.0), gamma=_p(90.0))
+        oxygen = Atom(label="O1", species="O", x=_p(0.05), y=_p(0.0), z=_p(0.0),
+                      occ=_p(0.5), disorder_group=group)
+        return _stick_pairs(s3.build(Structure(phases=[Phase(
+            name="split", space_group="P -1", cell=cell, atoms=[oxygen])])))
+
+    assert pair("-1") == {}
+    assert ("O1", "O1") in pair("1")
+
+
 def test_the_split_floor_spares_a_metal_oxo_bond():
     """P10 holds only between non-metals: uranyl's U=O is 0.67 of the radius sum."""
     payload = s3.build(cluster([("U", 1.0)], [("O", (1.76, 0, 0), 1.0),

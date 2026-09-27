@@ -148,7 +148,7 @@ the file and run the test to refresh the payloads.
 
 Independent; take any.
 
-- [ ] Disorder groups: a schema field read from the CIF and SHELX, no stick or shell across two groups of one assembly, and a way to show one alternative
+- [x] Disorder groups: a schema field read from the CIF and SHELX, no stick or shell across two groups of one assembly, and a way to show one alternative (2026-09-28: `Atom.disorder_assembly`/`disorder_group` from the CIF, which is where SHELXL writes PART; no SHELX reader exists to read them from. `disorder=major` draws each assembly's most occupied group)
 - [ ] Split sites with a metal: measure a real case before choosing a rule, since uranyl's U=O sits under the non-metal floor
 - [x] The occupancy test for split pairs wider than the floor, with its bound measured against disordered sulfates and triple bonds (2026-09-28: measured, no bound exists; P9's angle test landed for the sticks instead, Context § Disorder)
 - [x] Cyanide and carbonyl ligands: find a rule that keeps SiO₄ and PO₄ and gives Prussian blue FeC₆, and measure it on the 21 phases (2026-09-28: a donor is a ligand, and an atom behind a bonded ligand is screened. The 21-phase default picture is unchanged; two hidden gaps moved, pyrite 1.52 → 1.60 and LaB6 1.45 → 1.90)

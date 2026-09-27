@@ -37,6 +37,9 @@ export interface Site {
   multiplicity: number;
   special: boolean;
   npd: boolean;
+  /** the CIF's disorder assembly and group, `null` for an ordered site */
+  disorder_assembly?: string | null;
+  disorder_group?: string | null;
 }
 
 export interface DrawnAtom {
@@ -112,8 +115,16 @@ export interface Geometry {
   ball_fraction: number;
   bond_tolerance: number;
   bond_metals: boolean;
+  /** which alternatives of a disordered structure are drawn (WP-1468) */
+  disorder?: Disorder;
+  /** the sites `"major"` draws no image of, listed in either view */
+  minor_sites?: number[];
   note: string;
 }
+
+/** Every alternative of a disordered structure, or each assembly's most
+ *  occupied group alone. */
+export type Disorder = "all" | "major";
 
 export type Mode = "ball" | "ellipsoid";
 
@@ -912,6 +923,12 @@ export function caption(geometry: Geometry, mode: Mode, exaggeration = 1,
     parts.push(`balls at ${geometry.ball_fraction.toFixed(2)}× the covalent radius`);
   }
   parts.push(`sticks ${stickRadius(geometry, mode, exaggeration).toFixed(3)} Å`);
+  const minor = geometry.minor_sites?.length ?? 0;
+  if (minor) {
+    parts.push(geometry.disorder === "major"
+      ? `the major alternative alone: ${minor} site${minor === 1 ? "" : "s"} of the minor not drawn`
+      : "every alternative drawn, with no stick between two of them");
+  }
   if (geometry.polyhedra.length) {
     const formula = (i: number) => polyhedronFormula(geometry, geometry.polyhedra[i]);
     const all = [...new Set(geometry.polyhedra.map((_p, i) => formula(i)))];

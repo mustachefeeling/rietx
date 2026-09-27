@@ -51,6 +51,7 @@
     rgb,
     rotateBy,
     shownPolyhedra,
+    type Disorder,
     type Geometry,
     type Mode,
     type Scene,
@@ -97,6 +98,9 @@
   let mode = $state<Mode>("ball");
   let phase = $state(0);
   let tolerance = $state(1.15);
+  /** Every alternative of a disordered structure, or the major one alone
+   *  (WP-1468): a drawing choice the server owns, so a refetch. */
+  let disorder = $state<Disorder>("all");
   /** The chosen ellipsoid level, held here rather than read off the payload:
    *  every reload brings the server's default back, so a level picked once was
    *  silently reset by the next cell edit (found in a browser). */
@@ -155,6 +159,7 @@
     void stamp;
     void phase;
     void tolerance;
+    void disorder;
     load();
   });
 
@@ -212,7 +217,7 @@
   async function load() {
     const mine = ++seq;
     try {
-      const payload = await api.structure3d(phase, tolerance);
+      const payload = await api.structure3d(phase, tolerance, disorder);
       if (mine !== seq) return;
       geo = at(payload, level);
       error = "";
@@ -598,6 +603,14 @@
               Number((e.currentTarget as HTMLInputElement).value))} />
           <span class="mono">{toleranceShown.toFixed(2)}×</span>
         </label>
+        {#if geo.minor_sites?.length}
+          <!-- the file's disorder groups: every alternative, with no stick
+               between two, or each assembly's most occupied group alone -->
+          <button class="ghost" class:on={disorder === "major"}
+            onclick={() => (disorder = disorder === "major" ? "all" : "major")}
+            title="draw each disordered site's most occupied alternative alone">major
+            alternative only</button>
+        {/if}
         <label class="inline" title="the same atom at the opposite face (a corner
           site drawn at all eight corners) and the bonded neighbours just outside —
           off leaves the cell's own contents and sticks that end in mid-air">
