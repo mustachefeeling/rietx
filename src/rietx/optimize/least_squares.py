@@ -1630,16 +1630,18 @@ def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,
     clipping a 2.75 to 1.0 would report a degeneracy that the arithmetic, not
     the data, invented.
     """
-    from .statistics import berar_lelann_factor, normal_factors
+    from .statistics import (
+        berar_lelann_factor,
+        covariance_from_factors,
+        normal_factors,
+    )
 
     data = fun if n_data is None else fun[:n_data]
+    # ``normal_covariance`` in its two factors, so the esd below can be taken
+    # where the product overflows
     k, inv_d, _chi2_red = normal_factors(jac, data, n_free)
     live = inv_d > 0.0
-    # ``normal_covariance``'s product, spelt out so the esd below can be taken
-    # where it overflows
-    with np.errstate(over="ignore", invalid="ignore"):
-        cov = k * np.outer(inv_d, inv_d)
-    cov[np.flatnonzero(~live), np.flatnonzero(~live)] = np.inf
+    cov = covariance_from_factors(k, inv_d)
     # Normalise the correlation by the *raw* (un-inflated) sqrt-diagonal so it is
     # a true Pearson matrix with unit diagonal; apply Bérar-Lelann only to the
     # returned esd diagonal.  Normalising by the inflated diagonal instead (the

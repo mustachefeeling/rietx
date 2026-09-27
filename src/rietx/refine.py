@@ -6232,8 +6232,9 @@ def _qpa_esd_unavailable_diagnostics(structure: Structure,
         suggestion=(
             "a scale at zero usually means the phase is not in this specimen, "
             "and removing it gives the other fractions their esds. For an "
-            "interval without an esd, Refinement.profile_fraction(data, "
-            f"{phase}) returns the admissible range of one fraction"),
+            "interval without an esd on a single-pattern fit, "
+            f"Refinement.profile_fraction(data, {phase}) returns the "
+            "admissible range of one fraction"),
     )]
 
 

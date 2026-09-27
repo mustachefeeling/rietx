@@ -594,7 +594,7 @@ class MultiHistogramRefinement:
             bounds, mt.free_paths, outcome.theta,
             cos=outcome.residual_cosine, esd=outcome.stderr_internal)
         # a row on its transform's asymptote reads None, as in the single fit
-        transforms = [""] * len(mt.free_paths)
+        transforms = ["identity"] * len(mt.free_paths)
         for h, sub in enumerate(mt.tables):
             for j, c in enumerate(mt.col_map(h)):
                 transforms[c] = sub.entries[sub._free_idx[j]].transform

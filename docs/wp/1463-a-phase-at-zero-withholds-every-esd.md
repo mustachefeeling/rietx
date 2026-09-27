@@ -201,10 +201,12 @@ tiny column as zero in `_residual_cosine` (which feeds `at_bound`),
 4. **`PHASE_UNCONSTRAINED` keeps its subject.** The comment in the QPA block
    is corrected, and the new finding names the phase instead.
 5. **Every site that squares a Jacobian column for its norm takes the same
-   rescaling**: `_residual_cosine`, `soft_modes`, `block_projection_r2` and
-   the single-column branch of `one_parameter_gains`. The exchangeability
-   loadings and the group branches are left. A tiny column there is cut by
-   `lstsq`'s relative cutoff, which a norm repair does not reach.
+   rescaling**: `_residual_cosine`, `soft_modes`, `block_projection_r2`, both
+   branches of `one_parameter_gains` and the exchangeability scan's norms (the
+   last two from the review pass). A tiny column inside an `lstsq` *matrix* is
+   still cut by its relative cutoff, which a norm repair does not reach.
+   `backend.linalg64.column_agreement` is left: it is a test metric that skips
+   columns below 1e-12 of the largest.
 
 ## Non-goals
 

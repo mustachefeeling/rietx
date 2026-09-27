@@ -68,7 +68,9 @@ def column_rescale(jac: np.ndarray) -> np.ndarray | None:
     jac = np.asarray(jac)
     if jac.shape[0] == 0:
         return None
-    m = np.max(np.abs(jac), axis=0)
+    # two reductions rather than ``abs``, which would copy the whole Jacobian
+    # on every call (each stage's residual cosine and covariance reach here)
+    m = np.maximum(np.max(jac, axis=0), -np.min(jac, axis=0))
     _, e = np.frexp(m)  # m = f·2**e with 0.5 <= f < 1; e = 0 where m = 0
     far = (m > 0.0) & (np.abs(e) > COLUMN_SAFE_EXPONENT)
     if not far.any():
@@ -216,6 +218,16 @@ def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     """
     k, inv_d, chi2_red = normal_factors(jac, resid, n_free,
                                         chi2_floor=chi2_floor, what=what)
+    return covariance_from_factors(k, inv_d), chi2_red
+
+
+def covariance_from_factors(k: np.ndarray, inv_d: np.ndarray) -> np.ndarray:
+    """``K · outer(1/d, 1/d)``, the product :func:`normal_factors` defers.
+
+    The one assembly both :func:`normal_covariance` and
+    :func:`~rietx.optimize.least_squares.covariance_estimates` use.  An entry
+    past the double range is ``inf``, silently (WP-1463).
+    """
     live = inv_d > 0.0
     with np.errstate(over="ignore", invalid="ignore"):
         cov = k * np.outer(inv_d, inv_d)
@@ -225,7 +237,7 @@ def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
         # column, which is the right off-diagonal answer and the wrong diagonal
         # one, so only the diagonal is overwritten.
         cov[np.flatnonzero(~live), np.flatnonzero(~live)] = np.inf
-    return cov, chi2_red
+    return cov
 
 
 def berar_lelann_factor(delta: np.ndarray) -> float:
@@ -599,6 +611,11 @@ def one_parameter_gains(jac: np.ndarray, resid: np.ndarray, block: list[int],
             out[key] = num * num / denom
         else:
             jg = jac[:, list(cols)]
+            # scale-free too: a tiny member squares to zero and would be
+            # dropped below as dead (WP-1463)
+            s = column_rescale(jg)
+            if s is not None:
+                jg = jg * s
             raw = np.einsum("ij,ij->j", jg, jg)
             if q is not None:
                 jg = _off_span(q, jg)

@@ -217,14 +217,16 @@ def exchangeability_scan(model, table) -> list[ExchangeRow]:
         r2 = block_projection_r2(
             J, free_idx, [(paths.index(c), c) for c in candidates])
         Jf = J[:, free_idx]
-        f_norms = np.linalg.norm(Jf, axis=0)
+        # ``block_projection_r2`` keeps a tiny target column (WP-1463), so its
+        # norm must not square to zero here either, or the loading divides by 0
+        f_norms = column_norms(Jf)
         rows = []
         for c in candidates:
             if c not in r2:      # zero-norm column: no information either way
                 continue
             jc = J[:, paths.index(c)]
             beta, *_ = np.linalg.lstsq(Jf, jc, rcond=None)
-            c_norm = float(np.linalg.norm(jc))
+            c_norm = float(column_norms(jc[:, None])[0])
             loading = beta * f_norms / c_norm
             partners = {free_before[i]: float(loading[i])
                         for i in range(len(free_before))
