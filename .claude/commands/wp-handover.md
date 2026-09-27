@@ -68,9 +68,10 @@ steps below run unchanged.
    **Give the fast run a junit file and quote what the added tests cost.**
    Add `--junitxml=<scratchpad>/junit.xml -o junit_duration_report=total` to
    the fast command, then run `.venv/bin/python -m tests.added_test_times
-   <scratchpad>/junit.xml`. The entry quotes its rows. A test that joins the
-   fast tier's slow tail says why it is not marked `slow` (`tests/CLAUDE.md`
-   § Budgets in tests).
+   <scratchpad>/junit.xml`. The entry quotes its rows as one run's figures on
+   the named machine. They rank a test against the tail and do not time it.
+   A test that joins the fast tier's slow tail says why it is not marked
+   `slow` (`tests/CLAUDE.md` § Budgets in tests).
 
    **Check nothing else is mid-suite before the full selection** — one `pgrep`,
    `tests/CLAUDE.md` § Running. A `/pr-review` or another WP session may be
