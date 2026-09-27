@@ -17,6 +17,11 @@ tokens while the package grows.
 
 ### Inherited
 
+- **2026-09-28, from WP-1332: one of the three row-adding WPs this file's
+  Context names (1332, 1336, 1340) spent nothing here.** Its four reader
+  codes went to `references/diagnostics-reading.md` (§7i, now 11 102 B),
+  under WP-1415's placement rule, and it added no sentence to
+  `diagnostics.md` (35 111 B) or to `SKILL.md` (32 998 B, unchanged).
 - **2026-09-27, folded at the maintainer's request after the drag review:
   the body stops being where features land.** rietx will keep adding
   features, and today each one adds to the body: a routing row, a

@@ -1,9 +1,8 @@
 # WP-1332 — what a reader hands back: the axis, the rows, the σ column
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-28 — a commented bank reads, an axis past 180° is refused, and a header row or a constant σ is reported (PR #512)
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P2 2026-09-24 — a GSAS axis 100× too large, a phantom point at 0° and a constant column adopted as σ, each in silence; WP-1416 folded in
 
 ## Goal
 
@@ -145,30 +144,21 @@ varying third. So neither `read_xy` check fires on it: re-run at `d02e3872`,
 it reads four points at 5000–8000° with no diagnostic. Each half keeps its own
 reproduction.
 
-Where each check lives is part of the work. The arity check can only live in
-`read_xy`, since only the reader sees lines. The axis check belongs on the
-post-dispatch hook below, since it is a property of the answer. The
+Where each check lives is part of the work. `read_pattern` has a
+post-dispatch hook (`_dead_channel_diagnostics`, `io/readers.py`), which runs
+after `fmt.read` and only when the caller passed a `diagnostics=` list. The
+arity check can only live in `read_xy`, since only the reader sees lines. The
+axis check belongs on that hook, since it is a property of the answer. The
 constant-σ check could live in either place. On the hook it would reach
 every format that reads a σ column, and that is the question the
 generalisation task asks.
 
-### Inherited
-
-- **2026-09-24, from the issue triage: #236 closed as a duplicate of #230**
-  (the same axis defect, reported from review of #233 and from an archive).
-  This file keeps citing both, and its skill task still revises the
-  `references/batch-operating.md` § 9c.14 clause #236 named.
-- **From WP-1415, 2026-09-21: a new reader diagnostic's row goes in §7i, not
-  §7.** The skill's `references/diagnostics.md` was 38 B under its cap, so the
-  eleven reader rows moved to `references/diagnostics-reading.md` (§7i) on the
-  maintainer's criterion: the main table carries what a fit is likely to say,
-  and a code conditional on a file quirk goes to a secondary doc. A reader code
-  this WP adds belongs there, and `test_every_engine_diagnostic_code_has_a_protocol_row`
-  accepts a row anywhere in the skill tree.
-- **`read_pattern` now has a post-dispatch hook** (`_dead_channel_diagnostics`,
-  `io/readers.py`), which runs after `fmt.read` and only when the caller passed
-  a `diagnostics=` list. A check that belongs to every format rather than to
-  one reader can hang there, which may suit this WP's axis-plausibility test.
+Two placement facts for the skill task. #236 was closed 2026-09-24 as a
+duplicate of #230, and this file keeps citing both. A new reader code's row
+goes in `references/diagnostics-reading.md` (§7i), never the main table: the
+main table carries what a fit is likely to say, and a code conditional on a
+file quirk goes to the secondary doc (WP-1415, whose move was forced by the
+main table sitting 38 B under its cap).
 
 ## Non-goals
 
@@ -182,28 +172,32 @@ generalisation task asks.
 
 ## Tasks
 
-- [ ] A commented `BANK` record is still a `BANK` record: `_SNIFF_BANK_RE`
+- [x] A commented `BANK` record is still a `BANK` record: `_SNIFF_BANK_RE`
       admits a leading comment marker, with a test on the two-byte-difference
       pair from #236.
-- [ ] `read_pattern` checks the axis it is about to return and reports an
+- [x] `read_pattern` checks the axis it is about to return and reports an
       implausible one by name, through `diagnostics=`; decide and record in
       the docstring which ranges refuse and which report.
-- [ ] The check runs for **every** format, not only GSAS — it is a property of
+- [x] The check runs for **every** format, not only GSAS — it is a property of
       the answer, not of one reader.
-- [ ] `read_xy` keeps per-line arity; rows disagreeing with the modal arity
+- [x] `read_xy` keeps per-line arity; rows disagreeing with the modal arity
       are dropped and reported by line number with the tokens seen, one
       diagnostic per file.
-- [ ] A constant adopted σ is reported, naming the column and the value; the
+- [x] A constant adopted σ is reported, naming the column and the value; the
       σ is kept. Decide whether the check runs in `read_xy` or on the
       post-dispatch hook for every format, and record the reason where it
       lands.
-- [ ] `help.py` entries for every new code; the format rows in
-      `src/rietx/io/CLAUDE.md` say what the readers now check.
-- [ ] Tests: the synthetic `good`/`bad` pair from #236 verbatim (no data file
+- [x] The format rows in `src/rietx/io/CLAUDE.md` say what the readers now
+      check. *Superseded in part, 2026-09-28:* the task first asked for
+      `help.py` entries too. `help.py` has no diagnostic-code arm (its arms
+      are parameters, peak flags, origins and peak diagnostics, stage fields,
+      reader options, instrument and search fields), and none of the io
+      layer's ~70 codes has an entry, so a reader code is described in §7i.
+- [x] Tests: the synthetic `good`/`bad` pair from #236 verbatim (no data file
       needed), plus one per-format smoke that the guard does not fire on the
       suite's real patterns; #266's two inline files, asserting the point
       count and the codes. All in `tests/test_readers_robust.py`.
-- [ ] Skill: one row per new code in `references/diagnostics-reading.md`
+- [x] Skill: one row per new code in `references/diagnostics-reading.md`
       (§7i), none in the body. PR #233 merged 2026-09-07, and its clause now
       sits in `references/batch-operating.md`: *"Assert a sanity bound on
       every parsed 2θ axis"*, beside the FXYE case this WP fixes. Once the
@@ -234,6 +228,81 @@ reported.
 
 ## Handover log
 
+- **2026-09-28** — closed. A pattern file that parses perfectly but comes
+  back wrong now says so, or is refused. Issue #230's GSAS copy with a
+  commented `BANK` line reads the same 0.5-44° as its twin, where it read
+  50-4400°. An axis running past 180° is refused for every format, because
+  no scattering angle exceeds it. A header row read as a data point, and a
+  constant column read as σ, are reported where they were silent. None of
+  the 42 real patterns under `tests/data` trips any of the four new codes,
+  so no measured number moved.
+
+  *Done.*
+  - Commented bank: the sniff admits `# BANK` only with the whole loose
+    header, so a passing mention in an ASCII comment stays `xy`. A live bank
+    outranks a commented one, since commenting a bank out is how a person
+    disables it. A bank line of either form ends the previous bank's rows.
+    `GSAS_BANK_COMMENTED` (info). Only `#` is admitted, the one marker a real
+    file has shown; `!`, `'` and `/` were deliberately not generalised.
+  - Axis: on `read_pattern`'s post-dispatch hook, so every format. The design
+    call, recorded in `read_pattern`'s docstring: past 180° raises, being a
+    contradiction under the io repair rule; at or below 0° reads and reports
+    `PATTERN_X_AXIS_IMPLAUSIBLE`, since a scan through zero is real on a
+    two-sided detector. The ÷100 hint is offered only when `xy` took the file.
+  - `read_xy`: each row keeps its token count, the most common count is the
+    file's (a tie goes to the last row's), and the rest are reported by line
+    as `PATTERN_ROWS_DROPPED`. Side effect: a three-column file with one row
+    cut short keeps its σ, which the old minimum-column rule stripped.
+  - Constant σ: on the hook, not in `read_xy`. The harm is the answer's, and
+    the hook also reaches GSAS, pdCIF and `.chi` esd columns. The trade is the
+    message, which names the reader and the value but no column number.
+  - `help.py` has no diagnostic-code arm, so that half of its task was
+    rewritten in place as superseded.
+  - Skill: four §7i rows, the `batch-operating.md` axis clause revised, both
+    copies synced. Staged in `releases/1.5.1.md` (Upgrading + a section).
+    `io/CLAUDE.md`: two rules and two table rows, cap 485 → 498.
+
+  *Measured.*
+  - A scale fit on an axis of 50-4399.6° or 100-250° converged with nothing
+    said about the axis (random data, so only `MODEL_FAR_FROM_DATA`). The
+    reader is the only place that can say it.
+  - Census of `tests/data`: 42 patterns read, 2θ 0.4995-167.75°, no constant
+    σ, no new code. The 47 files it refuses are parameter files, structure
+    CIFs, CSV tables and binary goldens.
+  - Fast suite on the final tree, `[dev]` venv, macOS arm64 (Darwin 25.6),
+    with no other suite running: 6604 passed, 151 skipped (6755). That is +26
+    cases from 12 test functions, all passes and no new skip. Wall clock
+    2:56-3:57 over two runs. `tests.added_test_times`: 0.35 s over the 12,
+    0.30 s of it the real-fixture smoke; none joins the slow tail.
+  - Full suite not run: no real fixture's parse changed, per the census.
+  - The skill-row gate, run on the tree before the rows landed, failed on
+    exactly the four new codes, so its collector sees them.
+
+  *Review* (`/code-review high --fix`): seven findings, four fixed in
+  `77e96f12`. The exclusion interval now widens outward and is never empty:
+  a lone point at 0° named (0.000, 0.000), which `check_interval` refuses,
+  and `PATTERN_DEAD_CHANNELS` shared the flaw and now the helper. The ÷100
+  hint was scoped to `xy`, the stale "only BANK" skill row fixed, and a test
+  added. Declined three: a data row with a trailing inline note now counts as
+  another column count and is dropped (the WP's chosen behaviour, reported
+  when `diagnostics=` is passed); `PATTERN_ROWS_DROPPED`'s `where` is one
+  entry per dropped line, uncapped by choice; and the `lo-hi` hyphen for a
+  negative bound stays, for parity with `PATTERN_DEAD_CHANNELS`, whose
+  `where` nothing parses.
+
+  *Gotchas.*
+  - A `.rex` project whose stored pattern now parses differently (a
+    commented-bank GSAS file, an `xy` with a dropped row) stops opening at
+    `Project.open`'s fingerprint gate, which calls it a reader change. The
+    1.5.1 Upgrading says so.
+  - Not generalised: a header row with the data's own column count is
+    invisible to the row check (the axis check sees one landing at or below
+    0°), and a `.sq` file's Q axis still reads as 2θ (PDF is fenced, #192).
+  - #236 was already closed as a duplicate; PR #512 closes #230 and #266.
+    WP-1338 was told its rows landed in §7i.
+
+  Next: the maintainer merges PR #512 once CI is green. Nothing depends on
+  this WP.
 - **2026-09-24** — WP-1416 folded in, from a review of the open WPs for
   overlap. Its Goal, Context, Non-goals, Tasks, Acceptance and References now
   live here, and its file is closed 🛑 pointing at this one. The skill task
