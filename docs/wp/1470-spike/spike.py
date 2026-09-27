@@ -4,7 +4,7 @@ Mirrors the GUI shader (gl3d.ts): exact ellipsoid/ball quadrics, bond halves as
 finite cylinders, one key light, principal rings in ellipsoid mode. No text, no
 polyhedra. Serial njit, primitive-major z-buffer, SSAA box filter.
 
-Run from the repo root: ``python docs/wp/1469-spike/spike.py OUT_DIR``.
+Run from the repo root: ``python docs/wp/1470-spike/spike.py OUT_DIR``.
 """
 import struct
 import sys

@@ -1,6 +1,6 @@
 """Baseline: the same scene drawn by matplotlib, painter's algorithm, flat fills.
 
-Run from the repo root: ``python docs/wp/1469-spike/mpl_baseline.py OUT_DIR``.
+Run from the repo root: ``python docs/wp/1470-spike/mpl_baseline.py OUT_DIR``.
 """
 import os
 import sys
