@@ -448,18 +448,17 @@ def test_the_corpus_gate_has_a_private_tag_to_gate():
         "is still doing work")
 
 
-@pytest.mark.parametrize("path", _evidence_tagged(), ids=lambda p: p.name)
-def test_every_measured_tag_names_this_repository_or_the_declared_corpus(
-        path: Path):
-    paras = _paragraphs(path.read_text(encoding="utf-8"))
+def _corpus_problems(name: str, text: str) -> list[str]:
+    """Every way a file's `Measured` tags fail the corpus rule, as messages."""
+    paras = _paragraphs(text)
     corpus = _declared_corpus(paras)
-    assert corpus is None or "\x00" not in corpus, (
-        f"{path.name}: the provenance paragraph holds "
-        f"{len(corpus.split(chr(0)))} bold spans "
-        f"({', '.join(repr(s) for s in corpus.split(chr(0)))}) — exactly one "
-        "is the corpus declaration, so a second is ambiguous. Bold the corpus "
-        "and nothing else there")
-
+    if corpus is not None and "\x00" in corpus:
+        spans = corpus.split("\x00")
+        return [f"{name}: the provenance paragraph holds {len(spans)} bold spans "
+                f"({', '.join(repr(s) for s in spans)}) — exactly one is the "
+                "corpus declaration, so a second is ambiguous. Bold the corpus "
+                "and nothing else there"]
+    problems = []
     for row in _rows(paras):
         sec, n = _ROW_HEAD.match(row[0]).groups()
         parts = _tag_parts(row[-1])
@@ -468,17 +467,44 @@ def test_every_measured_tag_names_this_repository_or_the_declared_corpus(
         body = parts[1]
         if body.startswith("WP-"):
             continue
-        assert corpus, (
-            f"{path.name}: row {sec}.{n} closes *(Measured: {body[:50]}…)*, "
-            "which names neither a WP nor a declared corpus — and this file "
-            "declares no corpus. Either name the run so a reader can open it, "
-            "or declare the corpus once in the provenance paragraph, in bold")
-        assert body.startswith(corpus), (
-            f"{path.name}: row {sec}.{n} closes *(Measured: {body[:60]}…)*. A "
-            f"row measured outside this repository names the declared corpus "
-            f"{corpus!r} first, spelled the same way every time — otherwise "
-            "the tag reads as a citation to something a reader could go and "
-            "find. Start it with that string, or with WP- if the run is here")
+        if not corpus:
+            problems.append(
+                f"{name}: row {sec}.{n} closes *(Measured: {body[:50]}…)*, "
+                "which names neither a WP nor a declared corpus — and this file "
+                "declares no corpus. Either name the run so a reader can open it, "
+                "or declare the corpus once in the provenance paragraph, in bold")
+        elif not body.startswith(corpus):
+            problems.append(
+                f"{name}: row {sec}.{n} closes *(Measured: {body[:60]}…)*. A "
+                f"row measured outside this repository names the declared corpus "
+                f"{corpus!r} first, spelled the same way every time — otherwise "
+                "the tag reads as a citation to something a reader could go and "
+                "find. Start it with that string, or with WP- if the run is here")
+    return problems
+
+
+@pytest.mark.parametrize("path", _evidence_tagged(), ids=lambda p: p.name)
+def test_every_measured_tag_names_this_repository_or_the_declared_corpus(
+        path: Path):
+    problems = _corpus_problems(path.name, path.read_text(encoding="utf-8"))
+    assert not problems, "\n".join(problems)
+
+
+def test_the_corpus_gate_fails_each_broken_shape():
+    """The three ways a private tag goes wrong, on a made-up file, and the
+    two tags that must pass."""
+    def doc(provenance: str, *tags: str) -> str:
+        rows = "\n\n".join(f"**9z.{i} A rule.** Text. *(Measured: {tag})*"
+                             for i, tag in enumerate(tags, 1))
+        return (f"# 9z. Title\n\nLoad it when.\n\n{REFERENCE_PROVENANCE_PREFIX} "
+                f"{provenance}\n\n{rows}\n")
+
+    declared = "Every row carries its evidence, runs on **corpus A**."
+    assert not _corpus_problems("x", doc(declared, "WP-1338, a round", "corpus A, run 4"))
+    assert _corpus_problems("x", doc(declared, "Corpus A, run 4"))          # misspelled
+    assert _corpus_problems("x", doc("Every row carries its evidence.",
+                                     "some runs I did"))                   # none declared
+    assert _corpus_problems("x", doc("**A** and **B**.", "A, run 1"))        # ambiguous
 
 
 def test_every_dotted_name_in_the_api_index_resolves():
@@ -709,6 +735,63 @@ def test_the_dotted_walk_visits_the_tree_and_fails_a_broken_name():
         "`entry.no_such_field` `report.magnetic.moment_pair_diagnostics`", roots)
     assert bad == ["SeriesResult.no_such_field: no 'no_such_field'",
                    "entry.no_such_field: no 'no_such_field'"], bad
+
+
+# --- a table cell ends at its first pipe (WP-1409) --------------------------
+#
+# GFM splits a table row on every unescaped `|`, code spans included, so
+# `scale × |F|² × profile` in a cell opens a span the cell never closes and
+# the backticks print literally.  The manual's HTML scan caught that one only
+# because `using/skill.md` includes the body whole; no reference file reaches
+# that build.  So the check runs on the Markdown: split each table row where
+# GFM does, and require every code span to close inside its own cell.
+
+_UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
+_BACKTICK_RUN = re.compile(r"`+")
+
+
+def _cells_with_an_open_span(line: str) -> list[str]:
+    """The cells of one table row in which a code span opens and never closes.
+
+    A span opens on a run of N backticks and closes on the next run of exactly
+    N, which is how a span can hold a backtick at all."""
+    bad = []
+    for cell in _UNESCAPED_PIPE.split(line.strip().strip("|")):
+        open_run = 0
+        for run in _BACKTICK_RUN.findall(cell):
+            if not open_run:
+                open_run = len(run)
+            elif len(run) == open_run:
+                open_run = 0
+        if open_run:
+            bad.append(cell.strip())
+    return bad
+
+
+def _broken_table_spans(text: str) -> list[str]:
+    bad, fenced = [], False
+    for n, line in enumerate(text.splitlines(), 1):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        elif not fenced and line.lstrip().startswith("|"):
+            bad += [f"line {n}: {cell[:60]!r}" for cell in _cells_with_an_open_span(line)]
+    return bad
+
+
+@pytest.mark.parametrize("path", [SKILL, *REFERENCES], ids=lambda p: p.name)
+def test_no_code_span_is_cut_by_a_table_cell(path: Path):
+    bad = _broken_table_spans(path.read_text(encoding="utf-8"))
+    assert not bad, (
+        f"{path.name}: a code span in a table cell holds an unescaped `|`, which "
+        f"ends the cell before the span closes: {bad}. Escape the pipe as `\\|`, "
+        "or drop the span as abstention.md's § 6 row does")
+
+
+def test_the_table_span_check_catches_the_row_it_was_written_for():
+    assert _broken_table_spans("| a | `scale × |F|² × profile` |")
+    assert not _broken_table_spans("| a | `scale × \\|F\\|² × profile` |")
+    assert not _broken_table_spans("| a | ``x`y`` and `z` |")
+    assert not _broken_table_spans("```\n| `open |\n```")
 
 
 RX_DOT_NAME = re.compile(r"`rx\.([A-Za-z_][A-Za-z0-9_]*)")

@@ -126,8 +126,8 @@ tokens; by size the candidates are §4 (6 806 B), §10's worked default
 - [x] The private-corpus check, per tag, with its liveness guard, and the
       reason the chosen classification rule was preferred written beside it.
       Landed 2026-09-08 in `e89c8b92`; its broken fixture is the next item's.
-- [ ] A deliberately broken fixture for each gate, the corpus gate included.
-- [ ] A code span opened inside a table cell fails, in every skill file
+- [x] A deliberately broken fixture for each gate, the corpus gate included.
+- [x] A code span opened inside a table cell fails, in every skill file
       (WP-1409's finding).
 - [x] Cap policy (replaces 2026-09-03's 95 % warning): a ceiling and a budget
       per capped file, the budget failing only a change that grows the file
