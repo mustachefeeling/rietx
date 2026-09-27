@@ -1,7 +1,7 @@
 # WP-1449 — rank on what the screen determined, not on what the peak list shows
 
-Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here (cloud session): the build,
-the chance-test function first
+Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here (cloud session): the check
+counts only uncancellable extras (amended seam); the build continues
 Depends on: — (1446 measured the refutation; 1025 built the screen)
 Priority: P2 2026-09-23 — a wrong cell ranked first on a surface every page calls provisional; 1446 already measured the refutation
 
@@ -199,14 +199,66 @@ since WP-1046, and moves one pair only. α = 0.01 is a convention. It falls
 between the truths (p ≤ 5.0e-4) and the refuted children (p ≥ 0.042) without
 being fitted to them.
 
-Two constraints bind the build. The screen runs under the manual's protocol,
-widths seeded from the peak list and a trimmed 2θ range, because without it
-the screen refutes corundum's own glide. The rule for that range inside
-`index_pattern` is not measured yet. A bare peak list has no pattern to
-screen, so it keeps today's order and says the check did not run. The
-lattice-level signal on corundum's truth is too marginal to stand in for the
-screen. The screen cost 0.1-1.3 s per candidate on these patterns, against
+*Superseded in part 2026-09-27, the same day: the paragraph below held until
+the amendment after it.* Two constraints bind the build. The screen runs under
+the manual's protocol, widths seeded from the peak list and a trimmed 2θ range,
+because without it the screen refutes corundum's own glide. The rule for that
+range inside `index_pattern` is not measured yet. A bare peak list has no
+pattern to screen, so it keeps today's order and says the check did not run.
+The lattice-level signal on corundum's truth is too marginal to stand in for
+the screen. The screen cost 0.1-1.3 s per candidate on these patterns, against
 searches of 220-480 s.
+
+**Amended by the maintainer on 2026-09-27: count only the extras no extinction
+can cancel, and run no screen.** Measuring the range rule showed that the
+screen's class moves with the range on every truth with extinctions. Each probe
+screened the certified or literature cell with widths seeded from the peak list
+(`[dev]`, Linux x86-64).
+
+| truth | right class | returned at | refuted at |
+|---|---|---|---|
+| corundum | `R - c -` | 5-90, 10-90, 15-90, 20-90, 20-100, 24-90° | 20-110, 24-80, 10-150, 15-150, 20-150°, whole pattern |
+| zircon | `I 41/a - d` | 24-80° | 15-90, 20-90, 20-120°, whole pattern |
+| fluorapatite | `P 63 - -` | 15-90, 20-90° | 20-120°, whole pattern |
+
+Seeding the widths made no difference to corundum's verdict at any of five
+ranges. The refuting positions sit at high angle or inside a neighbour's tail
+(corundum 44.4, 56.9, 97.1 and 97.4°; FAP 103.0°). When the class is wrong the
+test degrades to the lattice count, and that count reads corundum's certified
+cell as 9 of 34 extras seen at p0 = 0.152 (p = 0.062). That would move the
+certified cell below its own c/2 subcell.
+
+The fix needs no class. International Tables Vol. A (§2.2.13) sorts reflection
+conditions into three kinds. *Integral* conditions act on every hkl and come
+from centring. *Zonal* conditions come from glide planes and act only on a plane
+of reflections. *Serial* conditions come from screw axes and act only on a row.
+A reflection that lies on no mirror plane and no rotation axis of the child's
+lattice therefore cannot be extinguished, whatever the space group turns out to
+be. Counting only those extras asks the lattice question without the
+space-group question. It also removes both constraints above: no screen, no
+range rule, and a bare peak list is checked too.
+
+Measured on the finished searches (`[dev]`, Linux x86-64, each search's own
+`match_window`):
+
+| dataset | p0 | truth as the child | wrong children |
+|---|---|---|---|
+| brucite | 0.105 | none | 28 pairs, all refuted: a × 2 2/25, c × 2 1/4; p ≥ 0.36 |
+| corundum, and with the shift declared | 0.152 | R truth over its c/2 subcell: 8/18, p = 0.0029, supported | P descriptions of the R metric 0/6, the 8.24 Å cells 10/61; p ≥ 0.40 |
+| zircon | 0.127 | none | P cells of the I truth 1/40 and their supercells; p ≥ 0.27 |
+| fluorite | 0.008 | none | 0/3, 0/8 and 0/1, all refuted |
+| magnetite | 0.042 | none | the P description of the F truth, 0/33, refuted |
+| zincite | 0.007 | none | 20 pairs, 0 seen in each, refuted |
+| NAC | 0.034 | none | the P description of the I truth, 1/187, refuted |
+| LaB6 | 0.050 | cubic truth over its half-volume rival: 0 extras, undecided; pseudo-tetragonal truths 2/3 (p = 0.0072) and 3/5, supported | none |
+| FAP | — | — | no derivative pair among the candidates |
+
+On corundum the uncancellable extras are exactly the extras `R - c -` allows,
+8 of 18, so the class-free count reproduces the class result. Its cost is
+power: there are fewer extras to count, so more pairs come out *undecided*, and
+an undecided pair keeps today's order. NAC is the one dataset whose order
+changes besides brucite. Its finished search ranks the P description first,
+and the check moves it below the I truth.
 
 **The rank row read the machine, and now waits for a finished search.**
 `test_brucites_truth_is_not_ranked_first` turned the Linux nightly red five
@@ -301,18 +353,33 @@ search: a local run, or the nightly dispatched with `full_macos`.
       `undecided`, for a test that could not have rejected chance
       (p0ⁿ ≥ α). That case includes no extra line in range, which is the
       ambiguity partners' case, and it refutes nothing.*
-- [ ] Run the screen inside `index_pattern` under the manual's protocol:
-      widths seeded with `workflow.seed_widths`, and a 2θ range chosen by a
-      measured rule. The manual's 20-90° is a caller's choice for Cu Kα, and
-      NAC and FAP need their own reading. Screen only children that stand in a
-      derivative pair.
-- [ ] Wire the re-rank after validation. A refuted child moves directly below
-      its parent, and a new refuting `IndexCaveat` member carries the parent
-      and the counts. The member needs its writer, a place in
-      `INDEX_REFUTING_CAVEATS`, the skill's indexing rows and the manual's
-      caveat table (root CLAUDE.md: a declared name with no writer).
-- [ ] A bare peak list, or a run whose screen raised, keeps today's order and
-      says the check did not run.
+- [x] ~~Run the screen inside `index_pattern` under the manual's protocol,
+      with a 2θ range chosen by a measured rule.~~ *Measured and dropped
+      2026-09-27: no range rule recovers the right class on all three truths
+      with extinctions, and the maintainer amended the seam to count only the
+      uncancellable extras (Context, the amendment).*
+- [ ] The uncancellable extras. Find the child lattice's point symmetries from
+      its metric, as integer matrices in its reduced primitive basis, and mark
+      each reflection a symmetry element fixes. Default `supercell_chance` to
+      the child's lattice reflections that no element fixes. Test the
+      point-group orders over every lattice type, and that a reflection on a
+      glide plane or screw axis is never counted.
+- [ ] Wire the re-rank in consensus, after the panel ranks and before the
+      priors are appended. That covers the streamed per-system lists too, whose
+      grades are already `low` with ambiguity unasked, so none can fall. A
+      refuted child moves directly below its parent, and a new refuting
+      `IndexCaveat` member carries the parent and the counts. The member needs
+      its writer, a place in `INDEX_REFUTING_CAVEATS`, the skill's indexing rows
+      and the manual's caveat table (root CLAUDE.md: a declared name with no
+      writer). *Amended 2026-09-27: consensus rather than after validation,
+      since no screen needs the pattern.*
+- [ ] A check that could not run keeps today's order and says so. A bare peak
+      list is checked, since the count needs no pattern.
+- [ ] `test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing`
+      (NAC) pins the P-first order as a known defect, to be inverted "only with
+      a measured aggregate". The check inverts it with a measured reason rather
+      than an aggregate, so rewrite the row to assert the I truth first, citing
+      the pair's counts.
 - [ ] Measure on at least one monoclinic or lower-symmetry pattern with a known
       cell before claiming anything beyond high symmetry. The acceptance corpus
       has none: bethanechol is peak lists only.
