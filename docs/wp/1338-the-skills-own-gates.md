@@ -1,6 +1,6 @@
 # WP-1338 — the skill's own gates: the references, the private corpus, the cap race
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-28 — claimed by @yue-here
 Track: The repo's own process
 Depends on: —
 Priority: P2 2026-09-27 — was P4: the maintainer raised it with 1506 and 1507; `SKILL.md` has 2 B of headroom, so every body addition now races every other
