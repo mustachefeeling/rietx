@@ -158,3 +158,16 @@ def test_fap_example_writes_its_plot(fap_run):
         path = EXAMPLES / name
         assert path.exists(), f"fap_lab.py wrote no {name}"
         assert path.stat().st_mtime_ns != stamp, f"fap_lab.py left a stale {name}"
+
+
+def test_structure_figure_example_draws_its_pictures():
+    """The structure figure walkthrough (WP-1470), which needs no matplotlib:
+    three pictures written and the round trip through the rotation holding."""
+    pictures = ("nac_structure.png", "nac_ellipsoids.png", "nac_print.png")
+    before = _timestamps(*pictures)
+    out = _run("structure_figure.py").stdout
+    assert "draws the same picture: True" in out, out
+    for name, stamp in before.items():
+        path = EXAMPLES / name
+        assert path.exists(), f"structure_figure.py wrote no {name}"
+        assert path.stat().st_mtime_ns != stamp, f"structure_figure.py left a stale {name}"

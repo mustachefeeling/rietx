@@ -370,6 +370,10 @@ painted (WP-1466). Under test, `test-setup.ts` mocks
 `lib/gl3d`'s `createRenderer` with `test-gl3d.ts`, which records every scene
 and view; `--line` is invisible in a 3D scene, so the cell frame takes
 `--accent`; and pictures are compared, never a sha256 of one.
+**The scene rules have a Python twin** (WP-1470): `rietx.viz.figure3d.scene` ports
+`buildScene`, `shownPolyhedra`, the views and `LOOK`, held equal by
+`tests/data/gui/scene_cases.json`, which `test_render_structure.py` writes and
+`structure3d.test.ts` replays, so a rule changed here changes there in one commit.
 
 **Usability** (WP-1029, `gui/src/lib/{resize,theme,plot}.ts`,
 `panels/Splitter.svelte`, `gui/structure3d.py`) is the pass that made the eleven

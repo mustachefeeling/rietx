@@ -762,7 +762,7 @@ separability floor, and not scheduled here.
 | [1462](wp/1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md) | The structure viewer draws with its own WebGL2 renderer | ✅ 2026-09-26 | — | — (1461 soft) |
 | [1466](wp/1466-the-structure-viewer-draws-coordination-polyhedra.md) | The structure viewer draws coordination polyhedra | ✅ 2026-09-26 | — | 1462 |
 | [1468](wp/1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | ⬜ | P3 | 1466 |
-| [1470](wp/1470-a-structure-figure-without-a-browser.md) | A structure figure from Python, drawn without a browser | ⬜ | P3 | — |
+| [1470](wp/1470-a-structure-figure-without-a-browser.md) | A structure figure from Python, drawn without a browser | ✅ 2026-09-27 | — | — |
 
 #### The repo's own process
 

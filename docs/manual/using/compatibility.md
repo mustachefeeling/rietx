@@ -115,6 +115,9 @@ to move are declared rather than left to be inferred:
   (`Capabilities.indexing_thresholds_version`, and the engine and search-preset
   capability types), so a consumer that parses an answer sees a bump when the
   answer's shape or meaning moves.
+- `rietx.viz.render_structure` ([](exports.md)). It draws what the GUI's
+  structure viewer draws, so its look and its keywords move when the viewer's
+  do.
 - The run directory and the watcher's routes. Every fit writes a run directory
   ([](refining.md)) and `rietx watch` serves it over seven HTTP routes
   ([](cli.md)). Neither carries a version string, and the omission is a decision

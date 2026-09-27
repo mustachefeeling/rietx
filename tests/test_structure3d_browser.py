@@ -197,6 +197,61 @@ def test_the_polyhedra_are_painted_and_give_way_to_their_switch(page, tmp_path):
     assert float(np.abs(drawn - _picture(page)).mean() * 255) < 0.5
 
 
+#: The mean difference, in 8-bit levels, between the viewer's canvas and the
+#: Python renderer's picture of the same scene and view (WP-1470).  Measured
+#: 1.06 in three runs (headless chromium, SwiftShader, 507 × 300 canvas), 86 %
+#: of it on edges; a one-row misalignment of the two scored 4.49.  The bar is
+#: about twice the measurement, which that misalignment fails.
+PARITY_LEVELS = 2.0
+
+
+def test_the_python_renderer_draws_the_viewers_picture(page):
+    """WP-1470: one scene and one view drawn by both renderers.
+
+    The Python side takes the GUI's framing (``gui_frame``: its zoom-1 fit
+    and centre) and the canvas's clear colour, and the DOM letters are hidden
+    on the page, since their font is the browser's.  What is left differs
+    where the two antialias: 4 samples a pixel here against MSAA with
+    alpha-to-coverage there, and a ring's smoothstep against a threshold.
+    """
+    from rietx.gui import structure3d as s3
+    from rietx.viz.figure3d import raster
+    from rietx.viz.figure3d import scene as sc
+    from rietx.viz.figure3d.render import _png, gui_frame
+
+    page.add_style_tag(content=".viewer .letters { display: none; }")
+    _settle(page)
+    css_w, css_h, width, height = page.locator(".viewer canvas").evaluate(
+        "c => [c.clientWidth, c.clientHeight, c.width, c.height]")
+    # the canvas's box can sit at a fractional CSS position, where the
+    # element's screenshot gains a row on the side the canvas is not painted;
+    # chromium paints it at the rounded position, so clip exactly that
+    canvas = page.locator(".viewer canvas")
+    canvas.scroll_into_view_if_needed()
+    box = canvas.bounding_box()
+    png = page.screenshot(clip={"x": round(box["x"]), "y": round(box["y"]),
+                                "width": width, "height": height})
+    shown = np.asarray(imread(io.BytesIO(png)), dtype=float)[..., :3]
+    accent = page.evaluate("getComputedStyle(document.body).getPropertyValue('--accent').trim()")
+    geometry = s3.build(structure_from_cif(str(DATA / "cod_1000236.cif"), aniso=True))
+    scene = sc.build_scene(geometry, "ball", polyhedra=sc.shown_polyhedra(geometry, True),
+                           cell=accent)
+    rotation = np.asarray(sc.opening_view()).reshape(3, 3)
+    frame = gui_frame(scene, rotation, width, height, css_w)
+    ours = raster.draw(scene, rotation, frame, supersample=4,
+                       background=tuple(float(v) for v in shown[0, 0]))
+    out = Path(__file__).parent / "output" / "figure3d"
+    out.mkdir(parents=True, exist_ok=True)
+    _png(out / "parity_python.png", ours, None)
+    theirs = np.concatenate([np.round(shown * 255), np.full(shown.shape[:2] + (1,), 255)],
+                            axis=-1).astype(np.uint8)
+    _png(out / "parity_gui.png", theirs, None)
+    assert shown.shape[:2] == (height, width) == (css_h, css_w)
+    levels = float(np.abs(ours[..., :3] / 255 - shown).mean() * 255)
+    print(f"parity: canvas {css_w}x{css_h} css px, mean |Δ| {levels:.2f} levels")
+    assert levels < PARITY_LEVELS
+
+
 def test_the_png_is_rendered_again_at_3000_pixels(page, tmp_path):
     with page.expect_download() as download:
         # the viewer's own: the pattern panel beside it has a PNG export too (WP-1461)

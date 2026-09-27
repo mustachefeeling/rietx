@@ -28,11 +28,19 @@
  */
 
 import {
+  LOOK,
   pixelsPerAngstrom,
   POLY_ALPHA,
   type Scene,
   type View,
 } from "./structure3d";
+
+/** A number as a GLSL float literal, which needs its decimal point. */
+function f(x: number): string {
+  return Number.isInteger(x) ? x.toFixed(1) : String(x);
+}
+
+const LIGHT = `const vec3 LIGHT = vec3(${LOOK.light.map(f).join(", ")});`;
 
 const COMMON = `
 uniform mat3 uR; uniform vec3 uCenter; uniform vec2 uPan; uniform vec2 uScale;
@@ -42,12 +50,12 @@ vec3 toView(vec3 p) { vec3 v = uR * (p - uCenter); return vec3(v.xy - uPan, v.z)
 /** Shading shared by every solid: one key light up and to the left of the
  *  screen, fixed to the camera, so the lit side follows every rotation. */
 const SHADE = `
-const vec3 LIGHT = vec3(-0.40, 0.55, 0.73);
+${LIGHT}
 vec3 shade(vec3 base, vec3 n) {
   vec3 l = normalize(LIGHT);
   float diffuse = max(dot(n, l), 0.0);
-  float spec = pow(max(dot(reflect(-l, n), vec3(0.0, 0.0, 1.0)), 0.0), 40.0);
-  return base * (0.45 + 0.60 * diffuse) + 0.16 * spec;
+  float spec = pow(max(dot(reflect(-l, n), vec3(0.0, 0.0, 1.0)), 0.0), ${f(LOOK.shininess)});
+  return base * (${f(LOOK.ambient)} + ${f(LOOK.diffuse)} * diffuse) + ${f(LOOK.specular)} * spec;
 }`;
 
 const ATOM_VS = `#version 300 es
@@ -101,9 +109,10 @@ void main() {
     // ring is one unit-frame coordinate near zero; the ink is darker on a
     // light atom and lighter on a dark one, or a violet atom hides its rings
     float m = min(abs(u.x), min(abs(u.y), abs(u.z)));
-    float lum = dot(vColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-    vec3 ink = lum < 0.33 ? mix(col, vec3(1.0), 0.6) : col * 0.3;
-    col = mix(ink, col, smoothstep(0.035, 0.035 + fwidth(m), m));
+    float lum = dot(vColor.rgb, vec3(${LOOK.luma.map(f).join(", ")}));
+    vec3 ink = lum < ${f(LOOK.ring_dark)} ? mix(col, vec3(1.0), ${f(LOOK.ring_lighten)})
+                                          : col * ${f(LOOK.ring_darken)};
+    col = mix(ink, col, smoothstep(${f(LOOK.ring_width)}, ${f(LOOK.ring_width)} + fwidth(m), m));
   }
   frag = vec4(col, coverage);
 }`;
@@ -217,11 +226,12 @@ precision highp float;
 in vec3 vN;
 flat in vec3 vColor;
 uniform float uAlpha;
-const vec3 LIGHT = vec3(-0.40, 0.55, 0.73);
+${LIGHT}
 out vec4 frag;
 void main() {
   vec3 n = normalize(gl_FrontFacing ? vN : -vN);
-  frag = vec4(vColor * (0.45 + 0.55 * max(dot(n, normalize(LIGHT)), 0.0)), uAlpha);
+  frag = vec4(vColor * (${f(LOOK.ambient)} + ${f(LOOK.face_diffuse)}
+                        * max(dot(n, normalize(LIGHT)), 0.0)), uAlpha);
 }`;
 
 /** The long side of an exported PNG, in pixels (D5): a 17 cm figure at
