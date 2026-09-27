@@ -35,10 +35,12 @@ from rietx import IndexingResult, index_pattern
 from rietx.crystallography.symmetry import generate_reflections
 from rietx.indexing.consensus import (
     CONSENSUS_CHECK_TOP,
+    below_refuting_parents,
     caveats_for,
     checked_indices,
     consensus,
     grade,
+    supercell_checks,
 )
 from rietx.indexing.engines import (
     SearchSpec,
@@ -62,6 +64,7 @@ from rietx.schemas.indexing import (
     IndexCaveat,
     LeBailValidation,
     PeakList,
+    SupercellCheck,
 )
 
 pytestmark = pytest.mark.xdist_group("indexing-consensus")
@@ -431,6 +434,90 @@ def test_the_expensive_checks_cover_every_promotable_candidate():
     assert idx[:CONSENSUS_CHECK_TOP] == list(range(CONSENSUS_CHECK_TOP))
     assert 6 in idx, "a candidate both engines found must always be checked"
     assert 7 not in idx
+
+
+# ----------------------------------------------------------------------
+# the supercell re-rank (WP-1449)
+# ----------------------------------------------------------------------
+def _check(parent: CellCandidate, verdict: str) -> SupercellCheck:
+    return SupercellCheck(parent_cell=parent.cell, parent_system=parent.system,
+                          parent_centring=parent.centring, index=2, n_extra=10,
+                          n_seen=0, p0=0.1, p_value=1.0, verdict=verdict)
+
+
+def test_a_refuted_supercell_sits_directly_below_its_parent_and_nothing_else_moves():
+    """The whole ordering rule, on hand-built checks.
+
+    A refuted child waits for every parent that refutes it, so it lands below
+    the lowest-ranked of them; candidates between the two keep their places
+    above it; a child already below its parent stays put; and a supported or
+    undecided check moves nothing, being evidence *for* the larger cell or no
+    evidence at all.
+    """
+    a, b, c, d, e, f = (_candidate(4.0 + 0.1 * i) for i in range(6))
+    a.supercell_checks = [_check(c, "refuted"), _check(e, "refuted")]
+    b.supercell_checks = [_check(f, "supported")]
+    d.supercell_checks = [_check(c, "refuted")]
+    f.supercell_checks = []
+    e.supercell_checks = [_check(f, "undecided")]
+    assert below_refuting_parents([a, b, c, d, e, f]) == [b, c, d, e, a, f]
+    assert below_refuting_parents([b, c, d, e, f]) == [b, c, d, e, f]
+
+
+def test_a_phantom_supercell_is_refuted_graded_down_and_told_where_to_look(
+        cubic_peaks):
+    """The check on a list, the caveat it raises, and the message that names it.
+
+    The doubled cell indexes every observed line and adds lines nobody saw, so
+    it moves below the true cell, is refuted rather than capped, and says which
+    parent, how many extras, how many seen, and where the first missing one is.
+    The parent is asked too, and has no parent of its own: ``[]``, not ``None``.
+    """
+    from rietx.indexing.diagnostics import candidate_diagnostics
+
+    truth = _candidate(TRUE_A)
+    doubled = _candidate(TRUE_A, cell=(TRUE_A, TRUE_A, 2 * TRUE_A, 90.0, 90.0,
+                                       90.0),
+                         system="tetragonal", lattice_group="P 4/m m m",
+                         volume=2 * TRUE_A ** 3)
+    ranked = [doubled, truth]
+    supercell_checks(ranked, cubic_peaks, q_match=cubic_peaks.q_esd(),
+                     k_sigma=3.0)
+    assert truth.supercell_checks == []
+    (check,) = doubled.supercell_checks
+    assert check.verdict == "refuted" and check.index == 2
+    assert check.parent_cell == truth.cell and check.n_seen == 0
+    assert check.absent_two_theta == sorted(check.absent_two_theta)
+    assert below_refuting_parents(ranked) == [truth, doubled]
+
+    caveats, verdict = _gate(doubled)
+    assert caveats == ["supercell_refuted"] and verdict == "low"
+    assert "supercell_refuted" in INDEX_REFUTING_CAVEATS
+    (diag,) = [d for d in candidate_diagnostics(doubled)
+               if d.code == "INDEX_SUPERCELL_REFUTED"]
+    assert f"{check.n_extra} extra line(s)" in diag.message
+    assert f"{check.absent_two_theta[0]:.3f}°" in diag.where[-1]
+
+
+def test_consensus_asks_every_engine_candidate_and_orders_by_the_answer(
+        cubic_peaks):
+    """Wired where the order is made, so a streamed list agrees with the final.
+
+    Every engine candidate comes out of consensus asked (``[]`` or a list,
+    never ``None``), and no candidate the check refutes sits above a parent
+    that refutes it.
+    """
+    spec, result = _cubic_search(cubic_peaks)
+    outcome = consensus([result], cubic_peaks, spec=spec, ambiguity=False)
+    assert outcome.candidates
+    assert all(c.supercell_checks is not None for c in outcome.candidates)
+    keys = [(c.cell, c.system, c.centring) for c in outcome.candidates]
+    for rank, cand in enumerate(outcome.candidates):
+        for check in cand.supercell_checks:
+            if check.verdict == "refuted":
+                parent = (check.parent_cell, check.parent_system,
+                          check.parent_centring)
+                assert keys.index(parent) < rank
 
 
 # ----------------------------------------------------------------------

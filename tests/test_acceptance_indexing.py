@@ -1420,14 +1420,20 @@ def test_the_supercells_that_used_to_outrank_brucite_now_sit_below_it(
     engine or WP-1041's dedup key.
 
     What this row asserts is that the truth is **found**, that the supercells
-    are found beside it, and that the reversed panel member separates them.  It
-    does *not* assert the ranking: since WP-1442 an a × 2 supercell ranks above
-    the truth here, and
-    ``test_brucites_truth_is_not_ranked_first`` below carries that as a strict
-    xfail so it cannot pass unnoticed.  **WP-1449 owns restoring it**, WP-1446
-    having measured that the peak list cannot.  This row does not wait for a
-    finished search: a cut that loses a candidate it looks for fails it in
-    plain view.
+    are found beside it, that the reversed panel member separates them, and, on
+    a finished search, that the truth ranks first.  The found claims do not
+    wait for a finished search: a cut that loses a candidate fails them in plain
+    view.  The rank does (``_skip_unless_finished``).
+
+    **The rank came back through the supercell check** (WP-1449).  Since
+    WP-1442 an a × 2 supercell had ranked first here, on one extra indexed line
+    of the panel, 34 against 33, and WP-1446 measured that the peak list alone
+    cannot order the pair.  The added lines no extinction could remove can: the
+    a × 2 cell has 25 of them in range and 2 sit on an observed line, where
+    chance puts 2.6 (p = 0.76), so it now sits directly below the truth with
+    ``supercell_refuted``.  Measured on a finished search (900 s per unit,
+    `[dev]`, Linux x86-64): hexagonal and trigonal truth first and second, the
+    two a × 2 descriptions third and fourth.
 
     The member that answers a supercell is visible in the numbers: the truth
     shows **0.86** of its own predicted lines against the c × 2 cell's 0.43 and
@@ -1483,6 +1489,19 @@ def test_the_supercells_that_used_to_outrank_brucite_now_sit_below_it(
     assert best.confidence == "low"
     assert res.best_or_none() is None
 
+    # the rank, which reads the order and so waits for a finished search
+    _skip_unless_finished(res)
+    assert res.candidates[0] is best, (
+        "ranked first: "
+        + repr(tuple(round(x, 4) for x in res.candidates[0].cell[:3])))
+    doubled_a = [c for c in res.candidates
+                 if abs(c.cell[0] / (2.0 * best.cell[0]) - 1.0) < 5e-3
+                 and abs(c.cell[2] / best.cell[2] - 1.0) < 5e-3]
+    assert doubled_a, "the a × 2 supercell this rank was lost to is gone"
+    for cell in doubled_a:
+        assert "supercell_refuted" in cell.confidence_caveats
+        assert res.candidates.index(cell) > res.candidates.index(best)
+
 
 def _brucite_truth(res):
     """The certified brucite cell among the candidates, wherever it ranks."""
@@ -1492,47 +1511,6 @@ def _brucite_truth(res):
                 and abs(c.cell[2] / C_BRUCITE - 1.0) < 3e-3):
             return c
     return None
-
-
-@pytest.mark.slow
-@pytest.mark.xdist_group("indexing-acceptance-brucite")
-@pytest.mark.xfail(strict=True, reason="an a × 2 supercell outranks the truth "
-                                       "on one extra indexed line; WP-1446 "
-                                       "refuted the peak-list route, WP-1449 "
-                                       "owns the extinction-screen one")
-def test_brucites_truth_is_not_ranked_first(brucite_index):
-    """The rank the row above stopped asserting, carried where it cannot go quiet.
-
-    Measured 2026-09-22 (WP-1442): the first candidate is an a × 2 supercell at
-    a = 6.2950 against the certified 3.1475.  It predicts **90** reflections of
-    which 25 are present (0.28); the truth predicts 29 of which 25 are present
-    (0.86).  Both index the same 31 observed lines, and the supercell takes the
-    rank on one extra line of the fitted panel, 34 against 33.
-
-    WP-1442 did not cause this.  It stopped the Kβ/W Lα screen discarding two
-    real brucite lines as contamination on a specimen behind a graphite
-    monochromator, where neither line can reach the detector, and those two
-    discards were holding the supercell down.  Removing either one alone still
-    leaves the supercell first, so the margin is one line and always was.
-
-    ``strict=True`` deliberately: when WP-1449 makes the ranking read what the
-    extinction screen determined, this row goes **red**, and whoever is there
-    restores the assertion to the row above and deletes this one.
-
-    **Only on a finished search.**  The Linux nightly's 300 s budget cut this
-    search five nights running, and each put the truth first, reported as
-    ``XPASS(strict)``.  Measured 2026-09-26 on this Mac: finished, the two
-    dichotomy units take 139-232 s and the supercell leads.  Cut at 60 s, the
-    truth led one run and the supercell the next (WP-1449).
-    """
-    res = brucite_index
-    assert res.candidates
-    truth = _brucite_truth(res)
-    assert truth is not None
-    _skip_unless_finished(res)
-    assert res.candidates[0] is truth, (
-        "ranked first: "
-        + repr(tuple(round(x, 4) for x in res.candidates[0].cell[:3])))
 
 
 @pytest.mark.slow
@@ -1716,8 +1694,9 @@ def test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing(
         f"{by_centring['I'].lebail.n_reflections}")
     assert by_centring["P"].lebail.predicted_but_absent > 50
 
-    # **A known ranking defect, pinned rather than hidden**, and the whole panel
-    # is written out because the margins are the argument (measured WP-1041):
+    # **The panel's ranking defect, and what answers it** (WP-1041, WP-1449).
+    # The whole panel is written out because the margins are the argument
+    # (measured WP-1041, re-measured on the merged tree):
     #
     #   member                        P        I     wins by
     #   m20                       2.596   1.5664    P, 1.7x
@@ -1728,43 +1707,25 @@ def test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing(
     #   m_rev                    0.6907  356.131    I, 516x
     #   m_sym                    1.4524  446.264    I, 307x
     #
-    # **Re-measured on the merged tree** (WP-1041, task 6).  The first version of
-    # this table was measured before `main`'s WP-1035 was merged in and three of
-    # its seven rows had moved by up to 13 % — m20, f_n and m_sym, i.e. exactly
-    # the three that floor their discrepancy on sigma, and m20 and M-tilde by the
-    # *same* factor 1.130, which is what identifies the floor rather than the
-    # lattice as what moved.  The four window-dependent members did not move at
-    # all.  `tests/CLAUDE.md` says to re-measure after a merge and the counts were;
-    # a table inside a comment is a measurement too.  Nothing the table argues
-    # changed: still 4-3, still those two margins, still those two separations.
+    # `borda_scores` weighs every member alike, so P takes the panel 4-3, on
+    # two margins of 0.4 % and 0.01 % against separations of 516x and 307x the
+    # other way.  No aggregate of these seven numbers reads both this pattern
+    # and certified corundum right (`fom._log_sum_scores`, WP-1041), and the
+    # panel still ranks P first.
     #
-    # `borda_scores` weighs every member alike, so P takes it 4-3 — on two
-    # margins of 0.4 % and 0.01 %, against separations of 516x and 307x the
-    # other way.  A near-tie counting as a full win *is* the defect; the panel
-    # already holds the answer, which is the reversed-member behaviour
-    # Oishi-Tomiyasu was adopted for, and Le Bail confirms it (I predicts 0 of
-    # 837 absent, P predicts 92 of 1668).
-    #
-    # **The log-sum that was going to fix this has been measured, and it does
-    # not** (WP-1041).  Ranking on the panel's product is magnitude-aware and
-    # unit-invariant, and it does put the I description first here — but across
-    # six known-cell datasets it scores 5 of 6, exactly Borda's, because summing
-    # raw logs weights each member by its dynamic range: on certified corundum
-    # `m_rev` spans 2.5-356 where the coverage fractions span 0.78-0.99, and it
-    # promotes a half-volume subcell indexing 43 of 55 lines over the truth's 51.
-    # Standardising the logs cures corundum and degenerates exactly here, since
-    # with two candidates every z-score is +/-1 and NAC reverts to this answer.
-    # Down-weighting `m_rev` reaches 6 of 6 on a weight two datasets bracket only
-    # to 0.034-0.294 — one constant fitted on two points.
-    #
-    # So this row keeps its defect **and its reason**: the margin is comparable
-    # within a member, not across members, and no aggregate of these seven
-    # numbers has yet been shown to read both patterns right.  `_log_sum_scores`
-    # is in `fom.py`, tested and unwired, with the measurement in its docstring.
+    # The order no longer rests on the panel alone.  The P description is an
+    # index-2 superlattice of the I cell, and of the 187 lines it adds that no
+    # extinction could remove, 1 sits on an observed line at p0 = 0.034
+    # (p = 1.0).  So the supercell check refutes it, and it sits directly below
+    # the I cell with `supercell_refuted` (WP-1449).  Measured on a finished
+    # search (`[dev]`, Linux x86-64).
     _skip_unless_finished(res)
-    assert res.candidates[0].centring == "P", (
-        "the panel still leads with the centring Le Bail refutes; invert this "
-        "only with a measured aggregate, not a predicted one")
+    assert res.candidates[0].centring == "I", (
+        "the P description leads again: the supercell check did not refute it")
+    p_cell = by_centring["P"]
+    assert "supercell_refuted" in p_cell.confidence_caveats
+    (check,) = [k for k in p_cell.supercell_checks if k.parent_centring == "I"]
+    assert check.index == 2 and check.verdict == "refuted"
 
     # …and it is still not promoted, on caveats that name why
     best = res.candidates[0]
@@ -2648,11 +2609,15 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     assert best.confidence_caveats == []
     assert set(best.found_by) == set(res.engines_run)
 
-    # **And `best_or_none()` is None anyway, because two more cells also reach
+    # **And `best_or_none()` is None anyway, because another cell also reaches
     # `high` — a defect this row used to hide rather than one WP-1041 caused.**
     #
-    # Both are the a·√2 supercell (5.878564 = 4.156772 × 1.414214), in its I and
-    # P descriptions, and all three engines find all three cells.  They used to
+    # It is the a·√2 cell (5.878564 = 4.156772 × 1.414214), found by all three
+    # engines in its I and P descriptions.  Until WP-1449 both reached `high`.
+    # The P description is an index-2 superlattice of the I one, and the lines
+    # it adds that no extinction could remove are absent, so the supercell check
+    # refutes it (`supercell_refuted`) and it grades low.  The I description is
+    # no superlattice of any reported cell, so nothing moves it.  They used to
     # carry `engines_disagree` only because `trial_error`'s dedup key was
     # scale-invariant, so in a one-dimensional metric it could return **one**
     # cubic candidate per search and the supercells never got its vote.  The
@@ -2678,8 +2643,14 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     # says is what catches a wrong metric.  Both need one measured fix.
     # **When it lands, this block inverts back to `is not None`.**
     high = [c for c in res.candidates if c.confidence == "high"]
-    assert len(high) == 3, [(c.centring, round(c.cell[0], 6)) for c in high]
+    assert [c.centring for c in high] == ["P", "I"], [
+        (c.centring, round(c.cell[0], 6)) for c in high]
     assert res.best_or_none() is None
+    (p_root2,) = [c for c in res.candidates[1:] if c.centring == "P"]
+    assert p_root2.confidence == "low"
+    assert "supercell_refuted" in p_root2.confidence_caveats
+    assert any(k.parent_centring == "I" and k.verdict == "refuted"
+               for k in p_root2.supercell_checks)
     for rival in res.candidates[1:]:
         ratio = rival.cell[0] / best.cell[0]
         assert ratio == pytest.approx(np.sqrt(2.0), abs=1e-5), ratio
