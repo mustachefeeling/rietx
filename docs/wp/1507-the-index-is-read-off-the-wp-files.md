@@ -146,6 +146,9 @@ matrix. The freshness and merge tests live in `test_docs_consistency.py` and
       acceptance check below. The same script over `2026-08-15 2026-09-27`
       reproduces the baseline exactly: 398 merges, 25 conflicted (6.3 %),
       17 on ROADMAP. Compare rates, since the windows differ in length.
+      Scheduled: a one-time cloud routine, `trig_01GNHLhDTBxq3Z9oG2sNVRnB`,
+      runs both on 2026-10-11 at 01:00 UTC and opens a PR with the entry. It
+      stops without editing if #509 has not merged, and it never closes the WP.
 - [x] Skill: none. This is the repo's planning process.
 
 ## Acceptance
