@@ -387,9 +387,18 @@ and WP-1502 (#501) now sit on this branch as a stacked PR.
   name a site's colour or radius, say a colour is `#rrggbb`, and say a
   deletion raises. WP-1501's `keep()` stays the route to a cut.
 - **Measured.** darwin/arm64, `[dev]` venv plus `playwright`. Fast suite:
-  6622 passed, 145 skipped, 3:33, no other suite running. That is the
-  earlier count exactly, since no test was added. The full suite did not
+  6622 passed, 145 skipped, 3:05-3:33 over two runs, the second after the
+  review's fixes, no other suite running. That is the earlier count exactly,
+  since no test was added. The full suite did not
   run: no forward model, solver or statistic changed.
+- **Review.** `/code-review high` over `tests/test_render_structure.py`
+  found nine, and seven were taken (`8768a0fd`). A rule-only drift now
+  rewrites over the committed payloads. The coverage test asks both
+  monoclinic payloads for a floored axis. The PNG walk checks CRCs. The c
+  view is compared to [0, 0, 1] and (001) as rotations, since c* sits 6e-17
+  from c. Declined: pinning the compiled tier on the bit-identity renders,
+  which another test already holds equal, and a fixture read that races a
+  rewrite only when the test is already failing.
 - **Stacked.** #501's branch merged this one, and #501 now targets
   `wp1470-structure-figure`. The repo does not delete a merged branch by
   itself, and GitHub retargets a stacked PR to `main` only when its base is
