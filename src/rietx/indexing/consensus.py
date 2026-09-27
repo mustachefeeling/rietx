@@ -256,6 +256,17 @@ def below_refuting_parents(candidates: Sequence[CellCandidate]
         else:                           # unreachable for sublattice pairs
             order.extend(remaining)
             break
+    # a parent can itself move below another, so the checks are re-sorted into
+    # the parents' *final* order: the last refuting one is the parent the child
+    # now sits directly below, which is what its diagnostic names
+    rank = {cells[i]: r for r, i in enumerate(order)}
+    for child in candidates:
+        if child.supercell_checks:
+            child.supercell_checks = sorted(
+                child.supercell_checks,
+                key=lambda k: rank.get(tuple(k.parent_cell)
+                                       + (k.parent_system, k.parent_centring),
+                                       len(order)))
     return [candidates[i] for i in order]
 
 
