@@ -274,7 +274,9 @@ def main() -> int:
     for r in found:
         if github and (r.delta != 0 or r.before is None):
             level = "error" if r.over_budget else "notice"
-            left = "" if r.cap.budget is None else f", {r.cap.budget - r.now} B left in its budget"
+            room = None if r.cap.budget is None else r.cap.budget - r.now
+            left = ("" if room is None else f", {room} B left in its budget" if room >= 0
+                    else f", {-room} B over its budget")
             print(f"::{level} file={r.cap.rel}::{r.delta:+d} B to {r.now} B{left}")
     failures = budget_failures(found)
     for f in failures:
