@@ -185,8 +185,14 @@ def supercell_checks(candidates: Sequence[CellCandidate], peaks: PeakList, *,
     """
     from ..crystallography.lattice import cell_volume
     from ..schemas.indexing import SupercellCheck
-    from .ambiguity import MAX_AMBIGUITY_INDEX, MAX_DISCRIMINATING, supercell_chance
+    from .ambiguity import (
+        _DERIVATIVE_VOLUME_RTOL,
+        MAX_AMBIGUITY_INDEX,
+        MAX_DISCRIMINATING,
+        supercell_chance,
+    )
     from .engines import scored_positions
+    from .quality import shift_template_basis
 
     volume = [float(cell_volume(*c.cell)) / _LATTICE_POINTS.get(c.centring, 1)
               for c in candidates]
@@ -197,19 +203,30 @@ def supercell_checks(candidates: Sequence[CellCandidate], peaks: PeakList, *,
             ratio = volume[j] / volume[i] if i != j and volume[i] > 0 else 0.0
             index = round(ratio)
             if not 2 <= index <= MAX_AMBIGUITY_INDEX \
-                    or abs(ratio - index) > 1e-2 * index:
+                    or abs(ratio - index) > _DERIVATIVE_VOLUME_RTOL * index:
                 continue
             if q_obs is None:
                 q_obs, _tt = scored_positions(peaks, child)
-            ev = supercell_chance(parent.cell, parent.centring, child.cell,
-                                  child.centring, q_obs, q_match,
-                                  k_sigma=k_sigma)
+            try:
+                ev = supercell_chance(parent.cell, parent.centring, child.cell,
+                                      child.centring, q_obs, q_match,
+                                      k_sigma=k_sigma)
+            except (ValueError, RuntimeError, np.linalg.LinAlgError):
+                # an unanswered pair orders nothing, as ``_partners`` declines
+                ev = None
             if ev is None:
                 continue
             missing = np.array([q for q, seen in zip(ev.extra_q, ev.extra_seen)
                                 if not seen][:MAX_DISCRIMINATING])
             tt = np.degrees(2.0 * np.arcsin(np.clip(
                 peaks.wavelength * np.sqrt(missing) / 2.0, -1.0, 1.0)))
+            # the child was scored on its shift-corrected lines; say where to
+            # look on the pattern's own axis by undoing that correction
+            template = child.shift_template
+            if template is not None and child.shift_coefficient and len(tt):
+                basis = shift_template_basis(tt)
+                if template in basis:
+                    tt = tt + child.shift_coefficient * basis[template]
             child.supercell_checks.append(SupercellCheck(
                 parent_cell=tuple(parent.cell), parent_system=parent.system,
                 parent_centring=parent.centring, index=ev.index,
