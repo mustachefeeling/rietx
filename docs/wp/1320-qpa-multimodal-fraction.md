@@ -113,7 +113,7 @@ before anything asserts on it.
       and manual QPA chapter state that the QPA esd is a local quantity, with
       the pin-and-refit recipe — an improvement on silence that ships even if
       the detector slips.
-- [ ] Synthetic two-phase multi-modal fixture (scale×broadening ridge),
+- [x] Synthetic two-phase multi-modal fixture (scale×broadening ridge),
       verified to reproduce the three-basin shape; obs/calc/diff PNGs to
       `tests/output/`.
 - [ ] The probe: pin the correlated broadening term on a coarse grid, warm
