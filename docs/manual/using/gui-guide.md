@@ -375,7 +375,10 @@ for the atoms at its corners. Both start as the rule picks them. Any element
 may go in either row, so F round with Ca at the corners draws fluorite's
 anion-centred FCa₄. Cs round with Cs and Cl at the corners finds CsCl's
 14-atom environment, and its legend button starts off, as every shell of more
-than six does. An intermetallic's environments are asked for the same way. `chemistry` goes back to the rule, and so does a change of phase. The
+than six does. An intermetallic's environments are asked for the same way.
+A double-click on an atom draws that atom's environment alone: its shell
+among every element, as Daams and Villars (1993) draw an atomic environment.
+A double-click on empty space ends it. `chemistry` goes back to the rule, and so does a change of phase. The
 caption says when the lists are your own.
 
 `PNG` renders the picture again, 3000 pixels on its long side, with the a, b, c

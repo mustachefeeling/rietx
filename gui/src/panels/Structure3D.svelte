@@ -40,6 +40,7 @@
     buildScene,
     caption,
     elements,
+    focusedPolyhedra,
     legend,
     openingView,
     pickAtom,
@@ -108,6 +109,11 @@
    *  server owns, so a refetch, and a new phase starts from the chemistry. */
   let centres = $state<string[] | null>(null);
   let ligands = $state<string[] | null>(null);
+  /** One atom's environment (WP-1468), an index into the payload's atoms: a
+   *  double-click on an atom draws its shell among every element, alone, as
+   *  Daams & Villars draw an atomic environment.  A double-click elsewhere,
+   *  either list, a new phase or `chemistry` ends it. */
+  let focus = $state<number | null>(null);
   /** The chosen ellipsoid level, held here rather than read off the payload:
    *  every reload brings the server's default back, so a level picked once was
    *  silently reset by the next cell edit (found in a browser). */
@@ -149,8 +155,8 @@
 
   const entries = $derived(geo ? legend(geo) : []);
   const levels = $derived(geo ? Object.keys(geo.probability_levels) : []);
-  const shown = $derived(geo ? shownPolyhedra(geo, polyhedraIn[mode], polyFormulas,
-                                               hidden, showBoundary) : []);
+  const shown = $derived(!geo ? [] : focus !== null ? focusedPolyhedra(geo, focus)
+    : shownPolyhedra(geo, polyhedraIn[mode], polyFormulas, hidden, showBoundary));
   const polyEntries = $derived(geo ? polyhedraLegend(geo) : []);
 
   /** Refetch whenever the model pane re-reads, and whenever a knob the *server*
@@ -373,6 +379,28 @@
     canvas?.releasePointerCapture?.(event.pointerId);
   }
 
+  /** A double-click on an atom asks for its environment alone; one on
+   *  nothing goes back to the picture the lists drew before. */
+  function onDouble(event: MouseEvent) {
+    if (!scene || !canvas || !geo) return;
+    const box = canvas.getBoundingClientRect();
+    const atom = pickAtom(scene, view, canvas.clientWidth, canvas.clientHeight,
+                          event.clientX - box.left, event.clientY - box.top);
+    if (!atom) {
+      if (focus !== null) clearChemistry();
+      return;
+    }
+    focus = scene.atoms[atom.atom].index;
+    centres = [geo.sites[geo.atoms[focus].site].element];
+    ligands = elements(geo);
+  }
+
+  function clearChemistry() {
+    focus = null;
+    centres = null;
+    ligands = null;
+  }
+
   function onWheel(event: WheelEvent) {
     event.preventDefault();
     view = { ...view, zoom: Math.min(40, Math.max(0.1, view.zoom * Math.exp(-event.deltaY * 0.0015))) };
@@ -490,7 +518,7 @@
     </div>
     <span class="spacer"></span>
     {#if geo && geo.phases.length > 1}
-      <select bind:value={phase} onchange={() => { centres = null; ligands = null; }}>
+      <select bind:value={phase} onchange={clearChemistry}>
         {#each geo.phases as name, i (i)}<option value={i}>{name}</option>{/each}
       </select>
     {/if}
@@ -499,7 +527,7 @@
   <div class="plot">
     <!-- drag rotates, shift- or right-drag pans, the wheel zooms -->
     <canvas bind:this={canvas}
-      onpointerdown={onDown} onpointermove={onMove} onpointerup={onUp}
+      onpointerdown={onDown} onpointermove={onMove} onpointerup={onUp} ondblclick={onDouble}
       onpointercancel={onUp} onpointerleave={() => { if (!drag) reading = ""; }}
       onwheel={onWheel} oncontextmenu={(e) => e.preventDefault()}></canvas>
     <div class="letters" aria-hidden="true">
@@ -618,19 +646,19 @@
           <span class="inline">round
             {#each elements(geo) as el (el)}
               <button class="ghost" class:on={geo.centre_elements.includes(el)}
-                onclick={() => (centres = toggled(geo!.centre_elements ?? [], el))}
+                onclick={() => { focus = null; centres = toggled(geo!.centre_elements ?? [], el); }}
                 title="draw polyhedra round each {el}">{el}</button>
             {/each}
           </span>
           <span class="inline">corners
             {#each elements(geo) as el (el)}
               <button class="ghost" class:on={geo.ligand_elements.includes(el)}
-                onclick={() => (ligands = toggled(geo!.ligand_elements ?? [], el))}
+                onclick={() => { focus = null; ligands = toggled(geo!.ligand_elements ?? [], el); }}
                 title="put each {el} at a polyhedron's corners">{el}</button>
             {/each}
           </span>
           {#if centres !== null || ligands !== null}
-            <button class="ghost" onclick={() => { centres = null; ligands = null; }}
+            <button class="ghost" onclick={clearChemistry}
               title="go back to the centres and corners the chemistry picks">chemistry</button>
           {/if}
         {/if}

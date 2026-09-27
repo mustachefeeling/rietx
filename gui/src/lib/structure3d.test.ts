@@ -43,6 +43,7 @@ import {
   pickFace,
   pickHalf,
   elements,
+  focusedPolyhedra,
   polyhedraLegend,
   polyhedronFormula,
   polyhedronLabel,
@@ -399,6 +400,21 @@ describe("Mercury's two lists", () => {
     const geo = tetrahedron();
     geo.sites.push({ ...geo.sites[1], index: 2, label: "O2" });
     expect(elements(geo)).toEqual(["Si", "O"]);
+  });
+
+  it("draw one atom's environment alone, or nothing when it closes none", () => {
+    const geo = tetrahedron();
+    // a second Si in the cell at 8 Å with its own shell, and an image of the
+    // site outside the cell 1 Å past it
+    geo.atoms.push({ ...geo.atoms[0], pos: [8, 0, 0] });
+    geo.polyhedra.push({ ...geo.polyhedra[0], center: 5 });
+    geo.atoms.push({ ...geo.atoms[0], boundary: true, pos: [9, 0, 0] });
+    expect(focusedPolyhedra(geo, 0)).toEqual([0]);
+    expect(focusedPolyhedra(geo, 5)).toEqual([1]);
+    // the image takes its site's nearest polyhedron, the same environment
+    expect(focusedPolyhedra(geo, 6)).toEqual([1]);
+    // and an O, whose shell closes none, draws none
+    expect(focusedPolyhedra(geo, 2)).toEqual([]);
   });
 
   it("switch one element and come back sorted, as the server echoes them", () => {
