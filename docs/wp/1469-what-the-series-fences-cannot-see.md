@@ -129,12 +129,14 @@ same 0.1632. Then the chain was run under both settings:
 The staged column matches the reporter's to 0.0004. The collapsed one sits
 3-29 % above it (1.23-1.29× on six of seven), so it is further off than
 theirs. It shows the same silence: no `SEQUENTIAL_RESEED`, since the series
-median rose to 0.1493 with it. The collapse shows up differently here. No
-U/V/W `HIGH_CORRELATION` row is on any entry. Instead
-`SEQUENTIAL_PERSISTENT_FINDING` reports `RESOLUTION_NOT_POSITIVE` and
-`RESOLUTION_UNCONSTRAINED` on U, V and W in 6 of 8 patterns. That is a
-chain-level signal which already exists, and the staged chain does not
-carry it. Both chains carry the zero/displacement correlation on 8 of 8.
+median rose to 0.1493 with it. The collapse shows up differently here: no
+U/V/W `HIGH_CORRELATION` row is on any entry of either chain. What separates
+the two chains is `SEQUENTIAL_PERSISTENT_FINDING` on
+`RESOLUTION_UNCONSTRAINED` for U, V and W, which appears in 6 of 8 collapsed
+patterns and in none of the staged ones. `RESOLUTION_NOT_POSITIVE` on U, V
+and W does not separate them: it fires in 6 of 8 collapsed patterns and in
+7 of 8 staged ones. Both chains carry the zero/displacement correlation in
+8 of 8.
 
 `series.md` already says two neighbouring things: "`SEQUENTIAL_RESEED` is
 not the net for a wrong basin" (it needs a ~25 % jump) and "Sample the chain
@@ -178,9 +180,9 @@ correlation rows, and a few patterns refitted cold.
       same record.
 - [ ] #475: settle which chain-level signal separates the collapse. The
       triage's re-run found `SEQUENTIAL_PERSISTENT_FINDING` on
-      `RESOLUTION_NOT_POSITIVE`/`RESOLUTION_UNCONSTRAINED` for U, V and W
-      (6 of 8, absent from the staged chain), and the reporter found the
-      U/V/W correlation row. Check which one holds on the reporter's start
+      `RESOLUTION_UNCONSTRAINED` for U, V and W (6 of 8, absent from the
+      staged chain; `RESOLUTION_NOT_POSITIVE` fires in both), and the
+      reporter found the U/V/W correlation row. Check which one holds on the reporter's start
       (Le Bail first) as well as on this one. If one does, the skill names
       it. If neither holds on both starts, the skill names a cold-refit
       sample.
@@ -226,6 +228,7 @@ round-robin chain contradicts.
   `status` alone, `_discontinuity_steps`' `argmax`, `_FlaggedStep`
   private). #475 re-run on the same tree from a simpler first fit (table in
   Context): the staged chain matches the reporter's to 0.0004, and the
-  collapsed one is 3-29 % high with no reseed. It surfaces as persistent
-  `RESOLUTION_*` findings on U, V and W rather than as the reporter's
-  correlation row. Next: gap 1's quarantine decision, measured.
+  collapsed one is 3-29 % high with no reseed. It surfaces as a persistent
+  `RESOLUTION_UNCONSTRAINED` on U, V and W, which the staged chain does not
+  carry, rather than as the reporter's correlation row. Next: gap 1's
+  quarantine decision, measured.
