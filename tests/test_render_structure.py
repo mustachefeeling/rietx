@@ -6,7 +6,8 @@ viewer's scene rules equal to the TypeScript original: this module writes
 ``gui/src/lib/structure3d.test.ts`` replays every case against ``buildScene``,
 ``shownPolyhedra``, ``lookFrom`` and ``axisView``.  The fixture is committed
 because vitest runs where this package is not installed, so the check here is
-``test_gui_fnmatch.py``'s: regenerate, compare, and fail naming the file.
+``test_gui_fnmatch.py``'s one step removed: replay the rules over the committed
+payloads, compare, and fail naming the file.
 """
 
 from __future__ import annotations
@@ -142,8 +143,10 @@ def _views(payloads: dict[str, dict]) -> dict:
     }
 
 
-def _corpus() -> dict:
-    payloads = _payloads()
+def _corpus(payloads: dict[str, dict] | None = None) -> dict:
+    """The corpus over ``payloads``, or over fresh ones rounded as the file
+    holds them, so the scenes written are the scenes the file's payloads give."""
+    payloads = _round(_payloads()) if payloads is None else payloads
     scenes, shown = _cases(payloads)
     return _round({
         "note": ("Written by tests/test_render_structure.py from "
@@ -166,14 +169,59 @@ def _dump(corpus: dict) -> str:
     return json.dumps(corpus, separators=(",", ":"), ensure_ascii=False) + "\n"
 
 
+#: A tenth of the replay's bar: ``structure3d.test.ts`` compares at 1e-9 of
+#: max(1, |value|).  The committed file sits 5.5e-12 from its own replay, which
+#: is the rounding of its payloads to twelve figures.
+DRIFT = 1e-10
+
+
+def _fields(value, where: str = "") -> set[str]:
+    """Every field name ``value`` carries, by path, with a list's elements pooled."""
+    if isinstance(value, dict):
+        return {p for k, v in value.items()
+                for p in {f"{where}.{k}"} | _fields(v, f"{where}.{k}")}
+    if isinstance(value, list):
+        return {p for v in value for p in _fields(v, f"{where}[]")}
+    return set()
+
+
+def _drift(ours, theirs, where: str = "corpus") -> str | None:
+    """The first place two corpora differ, where floats within :data:`DRIFT` agree."""
+    if isinstance(theirs, float) and isinstance(ours, float):
+        if abs(ours - theirs) <= DRIFT * max(1.0, abs(theirs)):
+            return None
+    elif isinstance(theirs, list) and isinstance(ours, list) and len(ours) == len(theirs):
+        return next(filter(None, (_drift(a, b, f"{where}[{k}]")
+                                  for k, (a, b) in enumerate(zip(ours, theirs)))), None)
+    elif isinstance(theirs, dict) and isinstance(ours, dict) and ours.keys() == theirs.keys():
+        return next(filter(None, (_drift(ours[k], v, f"{where}.{k}")
+                                  for k, v in theirs.items())), None)
+    elif ours == theirs:
+        return None
+    return f"{where}: {str(ours)[:60]} against {str(theirs)[:60]}"
+
+
 def test_the_committed_scene_corpus_is_current():
-    """Regenerate and compare, the fnmatch corpus's rule one artefact over."""
-    text = _dump(_corpus())
-    if not FIXTURE.is_file() or FIXTURE.read_text(encoding="utf-8") != text:
-        FIXTURE.write_text(text, encoding="utf-8")
+    """The rules replayed over the committed payloads, never over rebuilt ones.
+
+    The payloads are the corpus's inputs.  ``structure3d.build`` breaks ties in
+    distance on the last bit, and rutile's octahedron is all ties, so its vertex
+    and face order moves with the platform while the picture does not.  Rebuilt,
+    the file matched on the Mac that wrote it and failed on every Linux job.
+    Over a fixed payload the rules are pure python.  A new case or a new payload
+    field still rewrites the file, through the field names, which do not move.
+    """
+    committed = json.loads(FIXTURE.read_text(encoding="utf-8")) if FIXTURE.is_file() else {}
+    payloads = committed.get("payloads", {})
+    if _fields(payloads) != _fields(_payloads()):
+        where = "corpus.payloads: a case or a field was added or removed"
+    else:
+        where = _drift(json.loads(_dump(_corpus(payloads))), committed)
+    if where:
+        FIXTURE.write_text(_dump(_corpus()), encoding="utf-8")
         raise AssertionError(
-            f"{FIXTURE.relative_to(DATA.parent.parent)} was stale and has been "
-            "rewritten; commit it, and run `npm --prefix gui test` (the vitest "
+            f"{FIXTURE.relative_to(DATA.parent.parent)} was stale at {where}, and has "
+            "been rewritten; commit it, and run `npm --prefix gui test` (the vitest "
             "replay reads the committed copy, and node never runs this suite)")
 
 
