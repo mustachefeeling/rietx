@@ -232,8 +232,10 @@ tiny column as zero in `_residual_cosine` (which feeds `at_bound`),
       of the 16.
 - [x] Tests: the reproduced state, both sides of the underflow edge, and a
       series in which one phase leaves.
-- [ ] Skill: `references/numbers.md`, the row on quoting a weight fraction's
-      esd, says what a `None` means and what the finding names.
+- [x] Skill: `references/numbers.md`, the row on quoting a weight fraction's
+      esd, says what a `None` means and what the finding names. *Placed
+      2026-09-28:* `numbers.md` has no such row. The fraction esd's guidance
+      is `judging.md` §4b, which now points at the new `diagnostics.md` row.
 
 ## Acceptance
 

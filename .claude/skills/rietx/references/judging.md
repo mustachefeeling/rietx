@@ -317,7 +317,8 @@ describes the basin the fit stopped in and no other. A weak phase's scale
 trades against its width: broadened far enough, its peaks become a hump the
 background shares, and its scale can then grow at almost no χ² cost. That ridge
 can hold separate basins, each with ordinary curvature and a tight esd, and the
-fit reports whichever it reached.
+fit reports whichever it reached. A `None` there beside `QPA_ESD_UNAVAILABLE`
+is different: one phase's scale sat at zero and could not be measured (§7).
 
 A lab Cu Kα in-situ pattern gave one phase at 1.41 ± 0.65 wt% with no
 diagnostic. Pinning its `lor_strain` on a grid and refitting everything else
