@@ -465,8 +465,24 @@ now supply it.
   `INDEXING_THRESHOLDS_VERSION` 1.5.
 - Two fixes the wiring needed. `_extra_mask` uses a sorted nearest search
   (NAC 12.7 s → 1.2 s). `_same_reduced_metric` bands a reduced metric's angles
-  on its own scale, since `same_lattice`'s component-wise test missed the cubic
-  F and I cells over a doubled P.
+  on the two axes each couples, since `same_lattice`'s component-wise test
+  missed the cubic F and I cells over a doubled P.
+- `/code-review high --fix` found nine, and five commits took seven of them.
+  - `lattice_point_group` scored each metric element on the largest diagonal,
+    which invented symmetries on elongated cells: 720 on a 5 × 5 × 40 Å
+    tetragonal cell, with out-of-memory kills beyond that. It now scores on
+    √(gᵢᵢgⱼⱼ).
+  - The pairing band had the same flaw, so it now uses the terms each angle
+    couples.
+  - `uncancellable` now runs on the in-range extras only.
+  - A pair that raises is left unasked.
+  - The diagnostic names the parent in the final order.
+  - `absent_two_theta` is on the raw 2θ axis.
+  - The volume tolerance is shared.
+  - Declined: the verdict rule, which is the maintainer's decision (see
+    Gotchas), and merging the pairing test into `same_lattice`, which dedup
+    keeps as it is.
+  - Every corpus verdict and count is unchanged after the review.
 - Docs: a Part 1 section and caveat row; the Part 2 equation
   `idx-supercell-chance` with α injected; the skill row, re-synced; the
   validation matrix; `releases/1.5.1.md`; the indexing CLAUDE.md rule.
@@ -480,8 +496,8 @@ now supply it.
 - The screen and corpus tables are in Context (the amendment). Seeding widths
   changed nothing on corundum at five ranges.
 - The replay over the ten finished searches (900 s a unit) moves three orders:
-  brucite's truth, zircon's second I cell, NAC's I cell. The check cost
-  0.03-1.2 s per consensus call.
+  brucite's truth, zircon's second I cell, NAC's I cell. After the review the
+  check costs 0.02-0.33 s per consensus call (NAC 0.26 s).
 - The finished searches here: brucite 710 s, with a slowest unit of 343 s;
   corundum 1408 s, with 696 s. The acceptance's 300 s budget cuts both on this
   machine.
@@ -508,6 +524,12 @@ now supply it.
   of 5. Both already sit below their parent.
 - `lattice_point_group`'s tolerance is sin 3°, so pseudo-symmetry is counted
   and extras shrink. Low-symmetry power is untested.
+- The review's declined finding stands as a limit. `refuted` means "not seen
+  more often than chance at α", so a small count can refute a cell whose
+  extras are seen well above chance. With 2 of 3 seen at p0 = 0.15, p = 0.061
+  and the cell is refuted. The power rule (`undecided` at p0ⁿ ≥ α) covers only
+  the degenerate end. The bethanechol run is where to see whether it
+  bites.
 - The corpus's `p0` differs from the earlier probe's table (corundum 0.152
   against 0.117), because each search's own `match_window` is used here.
 
