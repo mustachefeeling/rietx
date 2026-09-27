@@ -171,6 +171,54 @@ Two changes, and nothing else moves:
 difference between them is the noise floor of R1 and R3 at N = 3. They pool
 with no 1.1 cell.
 
-## Results
+## Results — round 1.1, run 2026-09-28
 
-Not yet run.
+Run at `d5a01df8` against the body registered at `db4a8582`, all 18 cells
+concurrently in waves of six, $3.84 in total. Every cell loaded the skill (R0),
+and every cell was handed its own condition's body.
+
+| cell | R1 reach (of 6), per run | R3 (of 4), per run | cost per run | turns |
+|---|---|---|---|---|
+| `grep-opus` | 5, 6, 6 | 4, 4, 4 | $0.31-0.33 | 5-6 |
+| `rows-opus` | 4, 0, 0 | 3, 4, 3 | $0.30-0.47 | 5-7 |
+| `grep-sonnet` | 0, 0, 0 | 4, 4, 4 | $0.20-0.25 | 6-7 |
+| `rows-sonnet` | 0, 0, 0 | 4, 4, 4 | $0.19-0.22 | 4-7 |
+| `grep-haiku` | 0, 0, 0 | 3, 4, 4 | $0.06 | 4 |
+| `rows-haiku` | 0, 0, 0 | 3, 4, 4 | $0.05-0.06 | 4 |
+
+**The decision rule holds on all three clauses, and the body ships the grep
+sentence.** Pooled R1 is 17 of 54 under `grep` against 4 under `rows`. No model
+reached fewer rows under `grep`: Opus rose by 13 of 18, the other two stayed at
+zero. Pooled R3 is 35 of 36 against 33.
+
+**R2, the route.** Every Opus cell under `grep` did what the sentence says. It
+looped over the six codes in `fit_output.txt` and ran `grep` for each in
+`references/`. Under `rows`, one Opus cell grepped the diagnostics files for
+three of the codes and reached four rows through the context lines. The other
+two grepped `references/` for words from their own plan (`hold`, `fix(`,
+`tie_equal`) and reached no row. No Haiku or Sonnet cell opened a reference
+file in either condition. They read `fit.py` and `fit_output.txt`, answered
+from the body and the printed suggestions, and scored as well as Opus did.
+
+**R3 did not separate the conditions**, and was not expected to. Each printed
+suggestion already carries its code's action, so an answer can be right
+without the row. The three misses under `rows` are one each on the cell, the
+Biso and the undersampling item; the one under `grep` is a Haiku answer on the
+undersampling item.
+
+**What this does not show.** One episode, whose six codes all have their row in
+`diagnostics.md`, the first file the dropped routing row named. A code whose row
+lives in a file the dropped row did not name (`series.md`, `magnetic.md`) is
+the case grep should win more clearly, and it was not measured. And the models
+that read no reference file here will not read material moved out of the body
+either, whatever routes to it. That bounds WP-1338's body moves to what does
+not hold for every fit.
+
+**Round 1.0, the A/A test.** All 18 cells loaded the `rows` body through the
+user-level symlink, so both arms read one body. They read identically: Opus
+6 of 6 in all six cells, Haiku and Sonnet 0 in all twelve, at $11.13 for the
+round. The noise floor of R1 at N = 3 is therefore small against the 13-row
+difference above. Opus under the user-level configuration (settings,
+`CLAUDE.md`, skills) read every row in every cell and cost about four times as
+much per cell ($1.26-2.07 against $0.30-0.47). Which part of that
+configuration did it was not measured.
