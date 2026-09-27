@@ -5,7 +5,10 @@ from __future__ import annotations
 import dataclasses
 import fnmatch
 import math
+import os
 import re
+import subprocess
+import tomllib
 import warnings
 from collections.abc import Iterable, Sequence
 from contextlib import contextmanager
@@ -125,20 +128,137 @@ from .strategy.staged import (
 #: results rather than merely reading oddly.
 _DEV_VERSION = "0.0.0+dev"
 
-try:
-    _VERSION = version(DIST_NAME)
-except PackageNotFoundError:  # a source tree on sys.path, or a stale install
-    # loud on purpose (WP-1062).  Asking for the *wrong* name is a successful
-    # lookup of nothing: nothing raises, and no audit for a stale name can
-    # catch it either, because nothing stale is left behind.  The rename's own
-    # reinstall window is exactly this — the package directory moves and
-    # ``import`` keeps working while the dist-info still holds the old name.
+
+def _source_version(package_dir: Path) -> str | None:
+    """``pyproject.version`` of the source tree ``package_dir`` is in, else ``None``.
+
+    ``src/rietx`` sits two levels below the tree's root.  Only that layout and
+    a pyproject naming this distribution count, so a wheel install beside
+    somebody else's project, or unpacked by ``pip install --target`` into a
+    directory of this one's checkout, reads nothing and stays on the metadata.
+    """
+    if package_dir.parent.name != "src":
+        return None
+    try:
+        text = (package_dir.parent.parent / "pyproject.toml").read_text(encoding="utf-8")
+        project = tomllib.loads(text).get("project")
+    except (OSError, ValueError):  # TOMLDecodeError and UnicodeDecodeError are both
+        return None
+    if not isinstance(project, dict) or project.get("name") != DIST_NAME:
+        return None
+    found = project.get("version")
+    return found if isinstance(found, str) else None
+
+
+#: The ``GIT_*`` variables that say *how* to run git, never *which* repository.
+_GIT_ENV_KEEP = frozenset({"GIT_EXEC_PATH", "GIT_SSH", "GIT_SSH_COMMAND"})
+
+
+def _git_env() -> dict[str, str]:
+    """``os.environ`` less every ``GIT_*`` outside :data:`_GIT_ENV_KEEP`.
+
+    setuptools-scm's ``no_git_env`` rule rather than a list of the variables
+    known to redirect: ``GIT_OBJECT_DIRECTORY``, ``GIT_NAMESPACE`` or a
+    ``GIT_CONFIG_PARAMETERS`` inherited from a parent ``git -c`` point git
+    elsewhere as surely as ``GIT_DIR`` does, and a list misses the next one.
+    """
+    return {key: value for key, value in os.environ.items()
+            if not key.startswith("GIT_") or key in _GIT_ENV_KEEP}
+
+
+def _same_version(source: str, installed: str) -> bool:
+    """Whether two version strings name one release, as the metadata spells it.
+
+    The build backend writes the PEP 440 *normal* form (``1.6.0-dev0`` becomes
+    ``1.6.0.dev0``), so string equality alone would call a fresh install of a
+    non-normal ``pyproject.version`` stale.  ``packaging`` is not a dependency,
+    so where it is absent the strings are compared as they stand.
+    """
+    if source == installed:
+        return True
+    try:
+        from packaging.version import InvalidVersion, Version
+    except ImportError:
+        return False
+    try:
+        return str(Version(source)) == str(Version(installed))
+    except InvalidVersion:
+        return False
+
+
+def _source_node(root: Path) -> str | None:
+    """HEAD of the git work tree rooted at ``root`` as a local label, else ``None``.
+
+    setuptools-scm's ``node-and-date`` node (``g`` + abbreviated hash) with its
+    ``dirty-tag`` word appended when a tracked file differs from HEAD (WP-1456
+    § The prior art).  The top level must be ``root`` itself: a source tree
+    unpacked inside somebody else's repository would otherwise be stamped with
+    that repository's commit.  For the same reason git runs under
+    :func:`_git_env` (a git hook running the suite exports ``GIT_DIR`` and its
+    kin).  ``status`` takes no optional lock, so an import never contends with
+    a git command another process is running in the same tree.
+    """
+    env = _git_env()
+    env["GIT_OPTIONAL_LOCKS"] = "0"
+
+    def git(*args: str) -> str:
+        proc = subprocess.run(["git", "-C", str(root), *args], env=env,
+                              capture_output=True, encoding="utf-8", timeout=10)
+        if proc.returncode != 0:
+            raise OSError(proc.stderr.strip())
+        return proc.stdout.strip()
+
+    try:
+        top, head = git("rev-parse", "--show-toplevel", "HEAD").splitlines()
+        dirty = git("status", "--porcelain", "--untracked-files=no")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    if Path(top).resolve() != root.resolve() or not re.fullmatch(r"[0-9a-f]{40,64}", head):
+        return None
+    return f"g{head[:12]}" + (".dirty" if dirty else "")
+
+
+def _resolve_version(package_dir: Path) -> str:
+    """The version every result is stamped with: the one authority (WP-1456).
+
+    The installed metadata, unless the package is imported from a source tree
+    whose ``pyproject.version`` disagrees with it.  An editable install writes
+    its metadata once, at install time, so a version bump without a reinstall
+    left 1.4.0 on results of 1.6.0.dev0 code, and on 887 run records, with
+    nothing raised.  On disagreement the stamp is the source version plus the
+    commit as a PEP 440 local label, or the bare source version when git
+    cannot say, and the warning says which.  The commit is read only on that
+    path, so a matching install is stamped byte for byte as before.
+    """
+    try:
+        installed = version(DIST_NAME)
+    except PackageNotFoundError:  # a source tree on sys.path, or a stale install
+        # loud on purpose (WP-1062).  Asking for the *wrong* name is a successful
+        # lookup of nothing: nothing raises, and no audit for a stale name can
+        # catch it either, because nothing stale is left behind.  The rename's own
+        # reinstall window is exactly this — the package directory moves and
+        # ``import`` keeps working while the dist-info still holds the old name.
+        warnings.warn(
+            f"no installed distribution named {DIST_NAME!r}: results will be "
+            f"stamped {_DEV_VERSION!r} instead of a real version.  Reinstall "
+            f'(uv pip install -e ".[dev]") if this is a checkout.',
+            RuntimeWarning, stacklevel=3)
+        return _DEV_VERSION
+    source = _source_version(package_dir)
+    if source is None or _same_version(source, installed):
+        return installed
+    node = _source_node(package_dir.parent.parent)
+    stamp = source if node is None else f"{source}{'.' if '+' in source else '+'}{node}"
     warnings.warn(
-        f"no installed distribution named {DIST_NAME!r}: results will be "
-        f"stamped {_DEV_VERSION!r} instead of a real version.  Reinstall "
-        f'(uv pip install -e ".[dev]") if this is a checkout.',
-        RuntimeWarning, stacklevel=2)
-    _VERSION = _DEV_VERSION
+        f"the installed {DIST_NAME} metadata says {installed!r} but the source "
+        f"tree it is imported from says {source!r}: results will be stamped "
+        f"{stamp!r}{' (its commit could not be read)' if node is None else ''}.  "
+        f'Reinstall (uv pip install -e ".[dev]") to make the two agree.',
+        RuntimeWarning, stacklevel=3)
+    return stamp
+
+
+_VERSION = _resolve_version(Path(__file__).resolve().parent)
 
 def _utcnow() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
