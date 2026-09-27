@@ -156,7 +156,17 @@ _UNIMPLEMENTED_FLAGS = {
 }
 
 
-_SNIFF_BANK_RE = re.compile(r"^BANK\s+\d+", re.M)
+#: A ``BANK`` record may sit behind a ``#`` (issue #230: two copies of one 2013
+#: measurement differed by two bytes, the ``#`` some tool prepended to the title
+#: and bank lines).  Missed, the file fell to ``xy`` and its centidegrees were
+#: read as degrees, 100× too large and in silence.  The commented form must
+#: carry the whole loose header — bank, channel count, record count, bintype —
+#: because a comment in an ASCII export may mention a bank in passing, and
+#: claiming that file would turn a readable ``.xy`` into a refusal.  Only ``#``:
+#: it is the one marker a real file has shown.
+_SNIFF_BANK_RE = re.compile(
+    r"^BANK\s+\d+|^#[ \t]*BANK[ \t]+\d+[ \t]+\d+[ \t]+\d+[ \t]+[A-Za-z]", re.M)
+_BANK_COMMENT_RE = re.compile(r"^#[ \t]*(?=BANK\s)")
 _SNIFF_TIME_MAP_RE = re.compile(r"^TIME_MAP", re.M)
 
 #: A ``TIME_MAP`` step table is written *before* the bank it feeds, and a long
@@ -216,15 +226,38 @@ def read_gsas(path: str | Path, *,
     head_m = None
     bank_line = None
     data_start = None
-    for i, line in enumerate(lines):
-        m = bank_head_re.match(line)
-        if m:
-            head_m = m
-            bank_line = line
-            data_start = i + 1
+    # A commented bank record is read only when the file has no live one,
+    # because commenting a bank out is also how a person disables it.
+    for commented in (False, True):
+        for i, line in enumerate(lines):
+            bare = _BANK_COMMENT_RE.sub("", line, count=1) if commented else line
+            if commented and bare == line:
+                continue
+            m = bank_head_re.match(bare)
+            if m:
+                head_m = m
+                bank_line = bare
+                data_start = i + 1
+                break
+        if head_m is not None:
             break
     if head_m is None:
         raise ValueError(f"no BANK record found in {p}")
+    if commented and diagnostics is not None:
+        diagnostics.append(Diagnostic(
+            level="info", code="GSAS_BANK_COMMENTED",
+            message=(
+                f"{p.name}: the file's only BANK record is commented out "
+                f"(line {data_start}: {lines[data_start - 1].strip()!r}). It "
+                "was read as the bank record anyway. GSAS writes 2θ in "
+                "centidegrees, so the same rows read as bare columns would "
+                "put the axis 100× too high."),
+            where=[f"line {data_start}"],
+            suggestion=(
+                "Nothing to do if this file is the measurement. If the bank "
+                "was commented out to disable it, the file holds no live "
+                "bank to read instead."),
+        ))
 
     nchan = int(head_m.group(2))
     # decision one: how the x axis is computed.  Refused before the data is
@@ -245,7 +278,9 @@ def read_gsas(path: str | Path, *,
 
     body: list[str] = []
     for line in lines[data_start:]:
-        if line.startswith("BANK"):
+        # the next bank ends this one, commented or not: a bank record is
+        # never data
+        if _BANK_COMMENT_RE.sub("", line, count=1).startswith("BANK"):
             break
         body.append(line)
 
@@ -454,7 +489,9 @@ GSAS = PatternFormat(
     sniff="a BANK record in the first 4 kB — by content, not by suffix — or, "
           "when a TIME_MAP step table (which is what pushes the first bank past "
           "that window) leaves its token there, one more bounded read further "
-          "in. Only a CONS/CONST (constant 2θ step) bank holding STD, ESD or "
+          "in. A bank record behind a '#' counts when it carries the whole "
+          "header, and is read only where the file has no live one "
+          "(GSAS_BANK_COMMENTED). Only a CONS/CONST (constant 2θ step) bank holding STD, ESD or "
           "FXYE records is then read, and every time-of-flight bintype "
           "(TIME_MAP included) and every other type flag (ALT, FXY) is named "
           "and refused",

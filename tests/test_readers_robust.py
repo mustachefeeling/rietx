@@ -361,3 +361,68 @@ def test_every_truncation_of_a_magnetic_inp_fails_as_a_named_value_error(tmp_pat
                 f"magnetic .inp cut at {cut} raised "
                 f"{type(exc).__module__}.{type(exc).__name__}, which is "
                 f"neither ValueError nor OSError: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
+# what a reader hands back: the axis, the rows, the σ column (WP-1332)
+#
+# The files above are *broken*.  These parse perfectly and came back wrong: a
+# GSAS file whose bank record lost its line to a comment, a header row read as
+# a data point, a constant column read as σ.  Every one was silent, so each
+# test asserts the code as well as the numbers.
+# ---------------------------------------------------------------------------
+
+#: Issue #236's pair, verbatim: two files differing by the ``#`` some tool
+#: prepended to the bank line (issue #230 met it as two archive copies of one
+#: measurement).  Missed by the sniff, the bad one fell to ``xy`` and read its
+#: centidegrees as degrees.
+_GOOD_FXYE = ("ZnCr2O4 test\n"
+              "BANK 1 4 4 CONST 5000.0 1000.0 0 0 FXYE\n"
+              "    5000.0     1000.0       31.6\n"
+              "    6000.0     1010.0       31.8\n"
+              "    7000.0      990.0       31.5\n"
+              "    8000.0     1005.0       31.7\n")
+_BAD_FXYE = _GOOD_FXYE.replace("BANK 1", "# BANK 1")
+
+
+def _read(path, text):
+    path.write_text(text, encoding="utf-8")
+    found = []
+    return rx.read_pattern(path, diagnostics=found), [d.code for d in found]
+
+
+def test_a_commented_bank_record_reads_the_same_axis_and_says_so(tmp_path):
+    good, good_codes = _read(tmp_path / "good.fxye", _GOOD_FXYE)
+    bad, bad_codes = _read(tmp_path / "bad.fxye", _BAD_FXYE)
+    assert good.two_theta == bad.two_theta == [50.0, 60.0, 70.0, 80.0]
+    assert bad.sigma == good.sigma
+    assert good_codes == []
+    assert bad_codes == ["GSAS_BANK_COMMENTED"]
+    assert identify_format(tmp_path / "bad.fxye").name == "gsas"
+
+
+def test_a_live_bank_outranks_a_commented_one(tmp_path):
+    """Commenting a bank out is also how a person disables it, so a file with
+    both reads the live one and reports nothing.  A commented bank on either
+    side of it is not read into its rows."""
+    text = ("two banks\n"
+            "# BANK 1 2 2 CONST 1000.0 1000.0 0 0 FXYE\n"
+            "    1000.0      500.0       22.4\n"
+            "    2000.0      510.0       22.6\n"
+            + _GOOD_FXYE.split("\n", 1)[1]
+            + "# BANK 3 2 2 CONST 9000.0 1000.0 0 0 FXYE\n"
+            "    9000.0      700.0       26.5\n"
+            "   10000.0      710.0       26.6\n")
+    pat, codes = _read(tmp_path / "two.fxye", text)
+    assert pat.two_theta == [50.0, 60.0, 70.0, 80.0]
+    assert codes == []
+
+
+def test_a_comment_that_mentions_a_bank_does_not_claim_an_ascii_file(tmp_path):
+    """The commented form must carry the whole loose header.  A passing mention
+    claimed as GSAS would turn a readable ``.xy`` into a refusal."""
+    path = tmp_path / "detector.xy"
+    path.write_text("# BANK 1 of the detector\n10.0 100.0\n10.1 110.0\n",
+                    encoding="utf-8")
+    assert identify_format(path).name == "xy"
+    assert rx.read_pattern(path).two_theta == [10.0, 10.1]

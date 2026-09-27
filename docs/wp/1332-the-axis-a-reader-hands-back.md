@@ -173,7 +173,7 @@ main table sitting 38 B under its cap).
 
 ## Tasks
 
-- [ ] A commented `BANK` record is still a `BANK` record: `_SNIFF_BANK_RE`
+- [x] A commented `BANK` record is still a `BANK` record: `_SNIFF_BANK_RE`
       admits a leading comment marker, with a test on the two-byte-difference
       pair from #236.
 - [ ] `read_pattern` checks the axis it is about to return and reports an
