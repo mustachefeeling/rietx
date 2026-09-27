@@ -204,10 +204,16 @@ and PNG metadata. Each decision says what it takes and what it declines.
   names the direction kept up. `turn=` takes ASE's rotation string
   (`"30y,-15x"`), with ASE's signs and its rule that the order matters
   (`ase.utils.rotate`), because agents already know it from
-  `ase.io.write`. `up=` defaults to the GUI's rule for the lattice axis
-  nearest the view direction: c up down a, a up down b, b up down c. So
-  down [001] with no `up=` is `"c"`, and the default is never parallel to
-  the view. The result carries the rotation it
+  `ase.io.write`. `up=` defaults to the convention: c up, unless c is the
+  lattice axis nearest the view direction, and then b. VESTA's standard
+  orientation keeps +c up the screen, and megane's VESTA-derived axis
+  buttons keep c upright for the a and b views and b for the c view, with
+  the named end of the axis toward the viewer (megane PR #694,
+  `cameraOrientation.ts`). The maintainer chose the convention on
+  2026-09-27. The GUI's b button put a up, so it moves to c up in this WP,
+  and the corpus holds the two renderers equal on all three. So down [001]
+  with no `up=` is `"c"`, and the default is never parallel to the view.
+  The result carries the rotation it
   drew, so passing it back as `view=` reproduces the picture. Every view is
   fitted to the frame, as ChimeraX's `view` and OVITO's `zoom_all` are, so
   a caller never chooses a camera distance. Projection is parallel. Every
@@ -242,7 +248,8 @@ and PNG metadata. Each decision says what it takes and what it declines.
   (`-export_img`) or JmolData draws a refined structure today. It lands
   first and stands on its own.
 - [ ] `build_scene` in Python, the corpus, and the vitest that replays it
-  against `buildScene` (D3). `npm --prefix gui test` and a rebuilt dist.
+  against `buildScene` (D3). The GUI's b button moves to c up (D12).
+  `npm --prefix gui test` and a rebuilt dist.
 - [ ] The kernel and its numpy oracle: balls, ellipsoids with rings, bond
   halves, the cell frame as lines with a width in pixels, the `FLAT_AXIS`
   floor, row bands on the shared pool, the box filter inside the kernel
@@ -313,6 +320,8 @@ npm --prefix gui test && npm --prefix gui run check
 - Johnson, C. K. (1965). ORTEP: a Fortran thermal-ellipsoid plot program.
   Report ORNL-3794, Oak Ridge National Laboratory. Burnett, M. N. &
   Johnson, C. K. (1996), ORTEP-III, ORNL-6895.
+- megane's axis views, VESTA-derived:
+  <https://github.com/megane-labs/megane/pull/694>
 - VESTA, Momma, K. & Izumi, F. (2011). *J. Appl. Cryst.* 44, 1272-1276. Its
   command line: <https://jp-minerals.org/vesta/en/doc/VESTAch17.html>
 - Jmol headless rendering: <http://wiki.jmol.org/index.php/Jmol_Application>
