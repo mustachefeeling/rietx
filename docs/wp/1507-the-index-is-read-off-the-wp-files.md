@@ -268,9 +268,9 @@ is the replay two weeks after landing.
 - The driver cannot see the merged WP files. So a clean index merge can
   still be stale when a new WP number falls inside a range some Depends line
   names. The freshness test catches it, and rerunning the script fixes it.
-- A new `####` track needs its ROADMAP heading, its prose and one line,
-  `The WPs are in [the index](wp/README.md#<anchor>).` The test's failure
-  message names the anchor.
+- A new `####` track needs its ROADMAP heading, its prose, and the one-line
+  sentence every other heading carries, linking its anchor in
+  `wp/README.md`. The test's failure message names the anchor.
 
 Next: the maintainer reviews and merges PR #509. After it lands, check the
 acceptance on the first three WPs filed, started or closed: none should
