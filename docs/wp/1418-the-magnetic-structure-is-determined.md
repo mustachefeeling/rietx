@@ -161,8 +161,12 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   matches 47 of 60 cells to four decimals). This measures decision (2) as
   the default, with (iv) the fallback. Four residuals survive an unbiased
   reference (the 1.370 control, one entry ~6 % low, one ~2.5 % low, one
-  site swap with the right sum), so they sit in the magnetic step. Where the
-  gate fix lands went to the maintainer in this round's batch.
+  site swap with the right sum), so they sit in the magnetic step.
+  **Decided 2026-09-27** (issue triage, on #458): the gate fix is its own
+  first commit in the M-9 PR, and the recipe ((2)-(5)) follows as a separate
+  PR once M-9 is in. The held reference, **with its scale held** (R), is the
+  default when a reference exists, and (iv) is the fallback. The four
+  residuals are M-9's to report, not the recipe PR's to fix.
 - **2026-09-25, from the issue triage (issue #455): M-7's class count is a
   random variable of the platform and the seed.** `isotropy.equivalence_classes`
   calls a pair *distinguishable* when any one of its draws has every restart

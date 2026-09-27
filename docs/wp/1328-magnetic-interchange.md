@@ -84,7 +84,12 @@ is still named in the result.
   guards the same writers), and they offered it as a small PR off `main`.
   The TOPAS writer could instead *write* `mlx mly mlz`, now that #478
   measured their basis on the reader's side; that is a larger change than
-  the refusal. The offer went to the maintainer in this round's batch.
+  the refusal. **Decided 2026-09-27** (issue triage, on #470): yes to the
+  reporter's refusal PR off `main`, separate from this WP, with its shared
+  helper beside `refuse_operation_list` and a call in `topas`, `gsas` and
+  `fullprof`. The PR states whether `gsas2` keeps writing the loops, on
+  what GSAS-II's import does with them. Writing TOPAS `mlx mly mlz` records
+  stays with this WP, after the refusal.
 - **2026-09-25, from the issue triage (issue #457, with #286's comments of
   2026-09-24): which group a magCIF's nuclear positions refine under.** A
   magCIF states the magnetic group only. The nuclear symmetry (positions,
