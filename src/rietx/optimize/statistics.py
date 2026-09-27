@@ -39,6 +39,98 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 #: cell, profile, background and scale are outside it.
 STRUCTURAL_PARAMETER_GLOB = "phases.*.atoms.*"
 
+#: A Jacobian column whose largest entry has a binary exponent beyond ±this is
+#: rescaled by :func:`column_rescale` before anything squares it.  Inside the
+#: window the arithmetic is left exactly as it was, so an ordinary fit is
+#: bit-identical; outside it, 2⁻⁴⁰⁰ ≈ 4e-121 squared is still a normal double,
+#: and 1/d² stays below 1e+241 (WP-1463).
+COLUMN_SAFE_EXPONENT = 400
+
+
+def column_rescale(jac: np.ndarray) -> np.ndarray | None:
+    """Exact power-of-two factors bringing out-of-range columns back, or ``None``.
+
+    A column built as ``dp/du · ∂r/∂p`` is as small as its transform's slope,
+    and a softplus scale at 1e-170 has one of 1e-170 (WP-1463).  Squared, its
+    entries underflow, so a norm reads it as zero and a variance as infinite,
+    although the physical esd ``dp/du · esd`` is an ordinary number.  Every
+    quantity read off a normalised column is unchanged by rescaling it, and a
+    power of two is the rescaling that rounds nothing: it moves the exponent
+    and leaves the significand alone.
+
+    Returns ``None`` when every column is inside
+    :data:`COLUMN_SAFE_EXPONENT`, so a caller keeps its original arithmetic
+    and its bits.  Otherwise the factor is 1 for the in-range columns and
+    brings each far one's largest entry to [0.5, 1), capped at 2¹⁰²³ so that a
+    subnormal column is lifted rather than sent to ``inf``.  A zero column has
+    no scale to fix and keeps 1.
+    """
+    jac = np.asarray(jac)
+    if jac.shape[0] == 0:
+        return None
+    m = np.max(np.abs(jac), axis=0)
+    _, e = np.frexp(m)  # m = f·2**e with 0.5 <= f < 1; e = 0 where m = 0
+    far = (m > 0.0) & (np.abs(e) > COLUMN_SAFE_EXPONENT)
+    if not far.any():
+        return None
+    s = np.ones(len(m), dtype=np.float64)
+    s[far] = np.ldexp(1.0, np.clip(-e[far], -1023, 1023))
+    return s
+
+
+def column_norms(jac: np.ndarray) -> np.ndarray:
+    """``np.linalg.norm(jac, axis=0)`` that a column of 1e-170 does not zero.
+
+    Bit-identical to the plain norm whenever :func:`column_rescale` has nothing
+    to do.  Otherwise each far column is normed after its power-of-two rescale
+    and divided back, which is exact.
+    """
+    s = column_rescale(jac)
+    if s is None:
+        return np.linalg.norm(jac, axis=0)
+    return np.linalg.norm(jac * s, axis=0) / s
+
+
+def _column_in_range(col: np.ndarray) -> np.ndarray:
+    """One column after :func:`column_rescale`, for a scale-free statistic."""
+    s = column_rescale(col[:, None])
+    return col if s is None else col * s[0]
+
+
+def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
+                   chi2_floor: bool = False,
+                   what: str = "residual entering the covariance solve",
+                   ) -> tuple[np.ndarray, np.ndarray, float]:
+    """The equilibrated inverse ``K`` and the column scales ``1/d``.
+
+    ``Cov = K · outer(1/d, 1/d)``, and :func:`normal_covariance` is exactly
+    that product.  It is returned in two factors because the product can
+    overflow where each factor does not (WP-1463): a live column of 1e-160
+    has ``1/d ≈ 1e+160``, a variance of 1e+320 and an esd of 1e+160, so a
+    caller wanting the esd forms ``(1/d)·√K`` and never the variance.
+    ``1/d`` is 0 on a gradient-free column, and ``chi2_red`` is the raw
+    Σr²/(N−P).  See :func:`normal_covariance` for everything else.
+    """
+    require_fp64(resid, what)
+    jac = to_host_fp64(jac)
+    s = column_rescale(jac)
+    if s is not None:
+        # exact, and only on the far columns: E = D·JᵀJ·D is unchanged by a
+        # column scale, so only the returned 1/d carries it back
+        jac = jac * s
+    JTJ = jac.T @ jac
+    JTJ = 0.5 * (JTJ + JTJ.T)  # kill the fp asymmetry before the eigensolve
+    chi2_red = float(resid @ resid) / max(len(resid) - n_free, 1)
+    scale = max(chi2_red, 1.0) if chi2_floor else chi2_red
+
+    d = np.sqrt(np.diag(JTJ))
+    live = d > 0.0
+    inv_d = np.where(live, 1.0 / np.where(live, d, 1.0), 0.0)
+    k = np.linalg.pinv(JTJ * np.outer(inv_d, inv_d), hermitian=True) * scale
+    if s is not None:
+        inv_d = inv_d * s
+    return k, inv_d, chi2_red
+
 
 def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
                       chi2_floor: bool = False,
@@ -106,23 +198,27 @@ def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     is correct — a direction the residual does not move is uncorrelated with
     everything.
 
+    A column that is **tiny but not zero** is live, and before WP-1463 the
+    arithmetic said otherwise.  A softplus scale at 1e-166 has a column of
+    1e-158: its variance K·(1/d)² overflowed to ``inf`` and read as
+    unmeasured, and below about 1e-170 its d² underflowed to zero and read as
+    gradient-free.  Its physical esd was 7.66e-9 at every value in between.
+    :func:`column_rescale` removes the underflow, exactly and only where it
+    acts.  The overflow is the variance's own, since 1e+330 has no double, so
+    this function still returns ``inf`` there.  A caller that wants the esd
+    takes :func:`normal_factors` and never forms the variance, as
+    :func:`~rietx.optimize.least_squares.covariance_estimates` does.
+
     This lives here, rather than inside :func:`covariance_estimates`, because
     two surfaces now need it — the whole-pattern fit and the per-peak profile
     fits of :mod:`rietx.indexing.peakfit` — and they must not be able to
     disagree about the pinv guarding.
     """
-    require_fp64(resid, what)
-    jac = to_host_fp64(jac)
-    JTJ = jac.T @ jac
-    JTJ = 0.5 * (JTJ + JTJ.T)  # kill the fp asymmetry before the eigensolve
-    chi2_red = float(resid @ resid) / max(len(resid) - n_free, 1)
-    scale = max(chi2_red, 1.0) if chi2_floor else chi2_red
-
-    d = np.sqrt(np.diag(JTJ))
-    live = d > 0.0
-    inv_d = np.where(live, 1.0 / np.where(live, d, 1.0), 0.0)
-    cov = np.linalg.pinv(JTJ * np.outer(inv_d, inv_d), hermitian=True) * scale
-    cov = cov * np.outer(inv_d, inv_d)
+    k, inv_d, chi2_red = normal_factors(jac, resid, n_free,
+                                        chi2_floor=chi2_floor, what=what)
+    live = inv_d > 0.0
+    with np.errstate(over="ignore", invalid="ignore"):
+        cov = k * np.outer(inv_d, inv_d)
     if not live.all():
         # a gradient-free column: unmeasured, so infinite variance and no
         # correlation with anything.  `cov` already holds zeros in its row and
@@ -427,7 +523,8 @@ def block_projection_r2(jac: np.ndarray, block: list[int],
     q = _span_basis(jac, block)
     out: dict[str, float] = {}
     for k, path in targets:
-        j = jac[:, k]
+        # R² is scale-free, and a column of 1e-170 squares to zero (WP-1463)
+        j = _column_in_range(jac[:, k])
         denom = float(j @ j)
         if not (denom > 0.0 and np.isfinite(denom)):
             continue
@@ -488,7 +585,8 @@ def one_parameter_gains(jac: np.ndarray, resid: np.ndarray, block: list[int],
     out: dict[str, float] = {}
     for cols, key in targets:
         if isinstance(cols, (int, np.integer)):
-            j = jac[:, cols]
+            # the gain is scale-free, and a column of 1e-170 squares to zero
+            j = _column_in_range(jac[:, cols])
             raw = float(j @ j)
             if raw <= 0.0:
                 continue

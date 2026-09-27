@@ -44,7 +44,7 @@ import fnmatch
 import numpy as np
 
 from ..schemas.results import CorrelationPair, ExchangeRow, SoftMode
-from .statistics import block_projection_r2
+from .statistics import block_projection_r2, column_norms
 
 #: how many worst-|ρ| pairs the carrier keeps — a size cap, not a judgment
 #: threshold (the report decides where comment starts)
@@ -143,7 +143,8 @@ def soft_modes(jac: np.ndarray, free_paths: list[str],
     J = np.asarray(jac, dtype=np.float64)
     if J.ndim != 2 or J.shape[1] != len(free_paths):
         return []
-    norms = np.linalg.norm(J, axis=0)
+    # a tiny column is live, and squaring it would call it zero (WP-1463)
+    norms = column_norms(J)
     keep = np.nonzero(norms > 0.0)[0]
     if len(keep) < 2:
         return []

@@ -270,8 +270,10 @@ def test_a_fit_whose_covariance_raises_returns_its_values(monkeypatch,
     from rietx.optimize import statistics
 
     # the esd path only: the report's own region fits call ``pinv`` too, and
-    # a global patch would fail those for a reason this test is not about
-    monkeypatch.setattr(statistics, "normal_covariance", _eigh_fails)
+    # a global patch would fail those for a reason this test is not about.
+    # ``normal_factors`` since WP-1463, which both ``normal_covariance`` and
+    # ``covariance_estimates`` reach
+    monkeypatch.setattr(statistics, "normal_factors", _eigh_fails)
     result = _fit(_lab6_pattern)
 
     assert result.status == reference.status
@@ -301,7 +303,7 @@ def test_the_soft_mode_screen_does_not_re_raise_the_same_failure(
     formed, the same raise stays loud."""
     from rietx.optimize import identifiability, statistics
 
-    monkeypatch.setattr(statistics, "normal_covariance", _eigh_fails)
+    monkeypatch.setattr(statistics, "normal_factors", _eigh_fails)
     monkeypatch.setattr(identifiability, "soft_modes", _eigh_fails)
     result = _fit(_lab6_pattern)
     assert any(d.code == "COVARIANCE_UNAVAILABLE" for d in result.diagnostics)
@@ -317,7 +319,7 @@ def test_an_intermediate_failure_leaves_the_answer_its_esds(monkeypatch,
     """Only the first stage's eigensolve fails: the result keeps every esd."""
     from rietx.optimize import statistics
 
-    real = statistics.normal_covariance
+    real = statistics.normal_factors
     calls = {"n": 0}
 
     def first_fails(*args, **kwargs):
@@ -327,7 +329,7 @@ def test_an_intermediate_failure_leaves_the_answer_its_esds(monkeypatch,
         return real(*args, **kwargs)
 
     reference = _fit(_lab6_pattern)
-    monkeypatch.setattr(statistics, "normal_covariance", first_fails)
+    monkeypatch.setattr(statistics, "normal_factors", first_fails)
     result = _fit(_lab6_pattern)
 
     fired = [d for d in result.diagnostics if d.code == "COVARIANCE_UNAVAILABLE"]
@@ -335,3 +337,160 @@ def test_an_intermediate_failure_leaves_the_answer_its_esds(monkeypatch,
     assert "intermediate stage" in fired[0].message
     assert [(p.path, p.value, p.stderr) for p in result.parameters] == \
         [(p.path, p.value, p.stderr) for p in reference.parameters]
+
+
+# ----------------------------------------------------------------------
+# A tiny column is live (WP-1463)
+# ----------------------------------------------------------------------
+# A softplus scale at 1e-166 has a column of about 1e-158.  Before WP-1463 its
+# variance K·(1/d)² overflowed and read as unmeasured, and below about 1e-170
+# its d² underflowed and read as gradient-free, while its physical esd was an
+# ordinary 7.66e-9 throughout.  Every test here asks one question: does a
+# column's magnitude change anything a magnitude cannot change?
+
+def _pre_1463(jac, resid):
+    """The covariance_estimates arithmetic as it stood, for the bit-identity pin."""
+    jtj = jac.T @ jac
+    jtj = 0.5 * (jtj + jtj.T)
+    chi2 = float(resid @ resid) / max(len(resid) - jac.shape[1], 1)
+    d = np.sqrt(np.diag(jtj))
+    live = d > 0.0
+    inv_d = np.where(live, 1.0 / np.where(live, d, 1.0), 0.0)
+    cov = np.linalg.pinv(jtj * np.outer(inv_d, inv_d), hermitian=True) * chi2
+    cov = cov * np.outer(inv_d, inv_d)
+    sqrt = np.sqrt(np.maximum(np.diag(cov), 0.0))
+    corr = np.clip(np.where(np.outer(sqrt, sqrt) > 0,
+                            cov / np.outer(sqrt, sqrt), 0.0), -1.0, 1.0)
+    np.fill_diagonal(corr, np.where(sqrt > 0.0, 1.0, 0.0))
+    return sqrt, corr
+
+
+def test_an_ordinary_problem_keeps_every_bit():
+    """No column outside the rescale window, so nothing may move at all.
+
+    ``_problem`` carries a column at 1e-7 already, so the equilibration path
+    is exercised; the rescale must be inert there to the last bit.
+    """
+    from rietx.optimize.statistics import berar_lelann_factor, column_rescale
+
+    jac, resid = _problem(seed=11)
+    assert column_rescale(jac) is None
+    stderr, corr = covariance_estimates(jac, resid, jac.shape[1])
+    sqrt, corr0 = _pre_1463(jac, resid)
+    assert np.array_equal(stderr, sqrt * berar_lelann_factor(resid))
+    assert np.array_equal(corr, corr0)
+
+
+@pytest.mark.parametrize("factor", [2.0 ** -600, 1e-158, 1e-170, 1e-300])
+def test_a_tiny_column_keeps_the_esd_its_physical_parameter_has(factor):
+    """Scale one column down by ``factor``: its esd scales up by the same.
+
+    ``2**-600`` is a pure exponent move, so the other columns' esds and
+    correlations must not change by a bit.  The decimal factors round the
+    column once, so they are held to 1e-12.  1e-158 sits in the band where
+    only the variance overflowed, and 1e-170 and 1e-300 below the one where
+    d² underflowed too.
+    """
+    jac, resid = _problem(seed=11)
+    base_s, base_c = covariance_estimates(jac, resid, jac.shape[1])
+    tiny = jac.copy()
+    tiny[:, 1] *= factor
+    s, c = covariance_estimates(tiny, resid, jac.shape[1])
+
+    assert np.isfinite(s[1])
+    assert s[1] * factor == pytest.approx(base_s[1], rel=1e-12)
+    others = [0, 2, 3]
+    if factor == 2.0 ** -600:
+        assert np.array_equal(s[others], base_s[others])
+        assert np.array_equal(c[np.ix_(others, others)],
+                              base_c[np.ix_(others, others)])
+    else:
+        assert np.allclose(s[others], base_s[others], rtol=1e-12, atol=0)
+    assert np.allclose(c, base_c, rtol=1e-12, atol=1e-14)
+
+
+def test_two_tiny_columns_keep_their_correlation():
+    """Where both columns are tiny, the product form divides inf by inf.
+
+    Their correlation then comes from the scale-free inverse, and it must be
+    the one the unscaled problem has, never a clipped 1.
+    """
+    jac, resid = _problem(seed=11)
+    jac[:, 2] += 0.9 * jac[:, 1]  # a real correlation to preserve
+    base_s, base_c = covariance_estimates(jac, resid, jac.shape[1])
+    tiny = jac.copy()
+    tiny[:, 1] *= 1e-170
+    tiny[:, 2] *= 1e-165
+    s, c = covariance_estimates(tiny, resid, jac.shape[1])
+    assert abs(base_c[1, 2]) > 0.5
+    assert c[1, 2] == pytest.approx(base_c[1, 2], rel=1e-12)
+    assert s[1] * 1e-170 == pytest.approx(base_s[1], rel=1e-12)
+    assert s[2] * 1e-165 == pytest.approx(base_s[2], rel=1e-12)
+
+
+def test_a_zero_column_is_still_unmeasured():
+    """The rescale leaves a zero column alone: that one really measured nothing."""
+    from rietx.optimize.statistics import column_rescale
+
+    jac, resid = _problem(seed=11)
+    jac[:, 1] = 0.0
+    jac[:, 2] *= 1e-170
+    assert column_rescale(jac)[1] == 1.0
+    stderr, corr = covariance_estimates(jac, resid, jac.shape[1])
+    assert np.isinf(stderr[1]) and np.isfinite(stderr[2])
+    assert np.all(corr[1, [0, 2, 3]] == 0.0)
+
+
+@pytest.mark.parametrize("factor", [2.0 ** -600, 1e-170])
+def test_every_scale_free_reading_of_a_column_ignores_its_magnitude(factor):
+    """The squared-norm siblings: a cosine, a soft mode, an R², a score gain.
+
+    Each is invariant under rescaling one column, and each read a column of
+    1e-170 as zero before WP-1463 (the cosine fed ``at_bound``).
+    """
+    from rietx.optimize.identifiability import soft_modes
+    from rietx.optimize.least_squares import _residual_cosine
+    from rietx.optimize.statistics import (
+        block_projection_r2,
+        column_norms,
+        one_parameter_gains,
+    )
+
+    jac, resid = _problem(seed=11)
+    tiny = jac.copy()
+    tiny[:, 1] *= factor
+    paths = ["a", "b", "c", "d"]
+
+    assert column_norms(tiny)[1] == pytest.approx(
+        np.linalg.norm(jac[:, 1]) * factor, rel=1e-12)
+    assert np.array_equal(column_norms(jac), np.linalg.norm(jac, axis=0))
+    assert np.allclose(_residual_cosine(tiny, resid),
+                       _residual_cosine(jac, resid), rtol=1e-12, atol=0)
+    base_modes, modes = soft_modes(jac, paths), soft_modes(tiny, paths)
+    assert [m.eigenvalue for m in modes] == pytest.approx(
+        [m.eigenvalue for m in base_modes], rel=1e-10)
+    for block, target in (([0, 2], 1), ([1, 3], 0)):
+        r2 = block_projection_r2(tiny, block, [(target, "t")])
+        assert r2["t"] == pytest.approx(
+            block_projection_r2(jac, block, [(target, "t")])["t"], rel=1e-10)
+    gains = one_parameter_gains(tiny, resid, [0, 2], [(1, "b")])
+    assert gains["b"] == pytest.approx(
+        one_parameter_gains(jac, resid, [0, 2], [(1, "b")])["b"], rel=1e-10)
+
+
+def test_an_esd_whose_variance_has_no_double_is_absent_not_infinite():
+    """The price of keeping a tiny column's esd is one more way to overflow.
+
+    A free cell of a phase whose scale sits at 1e-160 has an internal esd near
+    1e+160, and ``_cov_free`` squares the physical one.  Before the cap that
+    row reported ``inf``; WP-1072 wants it absent, as it was before WP-1463.
+    """
+    table = _table()
+    theta = table.x0()
+    stderr = np.array([1e160, 1e-7, 1e-6])  # cell.a, scale, profile.w
+
+    assert list(table.unmeasured_free(theta, stderr)) == [True, False, False]
+    for corr in (None, np.eye(3)):
+        esd = table.stderr_physical(theta, stderr, corr)
+        assert not {"phases.0.cell.a", "phases.0.cell.b"} & set(esd)
+        assert np.isfinite(esd["phases.0.scale"])
