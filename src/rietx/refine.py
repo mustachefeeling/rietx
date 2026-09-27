@@ -132,10 +132,13 @@ _DEV_VERSION = "0.0.0+dev"
 def _source_version(package_dir: Path) -> str | None:
     """``pyproject.version`` of the source tree ``package_dir`` is in, else ``None``.
 
-    ``src/rietx`` sits two levels below the tree's root.  Only a pyproject
-    naming this distribution counts, so a wheel install beside somebody
-    else's project reads nothing and stays on the metadata.
+    ``src/rietx`` sits two levels below the tree's root.  Only that layout and
+    a pyproject naming this distribution count, so a wheel install beside
+    somebody else's project, or unpacked by ``pip install --target`` into a
+    directory of this one's checkout, reads nothing and stays on the metadata.
     """
+    if package_dir.parent.name != "src":
+        return None
     try:
         text = (package_dir.parent.parent / "pyproject.toml").read_text(encoding="utf-8")
         project = tomllib.loads(text).get("project")
@@ -147,6 +150,42 @@ def _source_version(package_dir: Path) -> str | None:
     return found if isinstance(found, str) else None
 
 
+#: The ``GIT_*`` variables that say *how* to run git, never *which* repository.
+_GIT_ENV_KEEP = frozenset({"GIT_EXEC_PATH", "GIT_SSH", "GIT_SSH_COMMAND"})
+
+
+def _git_env() -> dict[str, str]:
+    """``os.environ`` less every ``GIT_*`` outside :data:`_GIT_ENV_KEEP`.
+
+    setuptools-scm's ``no_git_env`` rule rather than a list of the variables
+    known to redirect: ``GIT_OBJECT_DIRECTORY``, ``GIT_NAMESPACE`` or a
+    ``GIT_CONFIG_PARAMETERS`` inherited from a parent ``git -c`` point git
+    elsewhere as surely as ``GIT_DIR`` does, and a list misses the next one.
+    """
+    return {key: value for key, value in os.environ.items()
+            if not key.startswith("GIT_") or key in _GIT_ENV_KEEP}
+
+
+def _same_version(source: str, installed: str) -> bool:
+    """Whether two version strings name one release, as the metadata spells it.
+
+    The build backend writes the PEP 440 *normal* form (``1.6.0-dev0`` becomes
+    ``1.6.0.dev0``), so string equality alone would call a fresh install of a
+    non-normal ``pyproject.version`` stale.  ``packaging`` is not a dependency,
+    so where it is absent the strings are compared as they stand.
+    """
+    if source == installed:
+        return True
+    try:
+        from packaging.version import InvalidVersion, Version
+    except ImportError:
+        return False
+    try:
+        return str(Version(source)) == str(Version(installed))
+    except InvalidVersion:
+        return False
+
+
 def _source_node(root: Path) -> str | None:
     """HEAD of the git work tree rooted at ``root`` as a local label, else ``None``.
 
@@ -154,13 +193,12 @@ def _source_node(root: Path) -> str | None:
     ``dirty-tag`` word appended when a tracked file differs from HEAD (WP-1456
     § The prior art).  The top level must be ``root`` itself: a source tree
     unpacked inside somebody else's repository would otherwise be stamped with
-    that repository's commit.  For the same reason the variables that point
-    git at another repository or index are dropped (a git hook running the
-    suite sets them).  ``status`` takes no optional lock, so an import never
-    contends with a git command another process is running in the same tree.
+    that repository's commit.  For the same reason git runs under
+    :func:`_git_env` (a git hook running the suite exports ``GIT_DIR`` and its
+    kin).  ``status`` takes no optional lock, so an import never contends with
+    a git command another process is running in the same tree.
     """
-    env = {key: value for key, value in os.environ.items() if key not in
-           ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")}
+    env = _git_env()
     env["GIT_OPTIONAL_LOCKS"] = "0"
 
     def git(*args: str) -> str:
@@ -207,7 +245,7 @@ def _resolve_version(package_dir: Path) -> str:
             RuntimeWarning, stacklevel=3)
         return _DEV_VERSION
     source = _source_version(package_dir)
-    if source is None or source == installed:
+    if source is None or _same_version(source, installed):
         return installed
     node = _source_node(package_dir.parent.parent)
     stamp = source if node is None else f"{source}{'.' if '+' in source else '+'}{node}"

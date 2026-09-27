@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import importlib
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -350,8 +349,7 @@ def _commit(root: Path) -> str:
     empty = root.parent / f"{root.name}.gitconfig"  # not os.devnull: "nul" on Windows
     empty.write_text("", encoding="utf-8")
     # a hook running the suite exports GIT_DIR: left in, `add -A` stages into it
-    env = {key: value for key, value in os.environ.items() if key not in
-           ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")}
+    env = _refine._git_env()
     env.update(GIT_CONFIG_GLOBAL=str(empty), GIT_CONFIG_NOSYSTEM="1")
     config = ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
     for args in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "c"]):
@@ -366,7 +364,7 @@ def _installed(monkeypatch, found: str) -> None:
 
 
 @pytest.mark.parametrize("layout", ["matching", "no pyproject", "another project",
-                                    "unreadable pyproject"])
+                                    "unreadable pyproject", "not a src layout"])
 def test_the_metadata_is_stamped_unchanged_unless_the_source_disagrees(
         layout, tmp_path, monkeypatch):
     """Every wheel install and every fresh editable install stays byte for byte.
@@ -384,10 +382,24 @@ def test_the_metadata_is_stamped_unchanged_unless_the_source_disagrees(
                              encoding="utf-8")
     elif layout == "unreadable pyproject":
         pyproject.write_text("[project\n", encoding="utf-8")
+    elif layout == "not a src layout":  # `pip install --target vendor` in a checkout
+        (tmp_path / "vendor").mkdir()
+        package = package.rename(tmp_path / "vendor" / DIST_NAME)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         stamp = _refine._resolve_version(package)
     assert stamp == ("1.6.0.dev0" if layout == "matching" else "1.4.0")
+
+
+def test_a_non_normal_source_spelling_of_the_installed_version_is_not_stale(
+        tmp_path, monkeypatch):
+    """The build backend writes the PEP 440 normal form into the metadata."""
+    pytest.importorskip("packaging")
+    _installed(monkeypatch, "1.6.0.dev0")
+    package = _source_tree(tmp_path, declared="1.6.0-dev0")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert _refine._resolve_version(package) == "1.6.0.dev0"
 
 
 def test_a_stale_install_outside_git_stamps_the_bare_source_version(
@@ -410,8 +422,10 @@ def test_a_stale_install_in_git_stamps_the_source_version_and_its_commit(
         stamp = _refine._resolve_version(package)
     assert stamp == f"1.6.0.dev0+g{head[:12]}"
     assert "could not be read" not in str(caught[0].message)
+    (package / "untracked.py").write_text("", encoding="utf-8")  # not an edit
+    with pytest.warns(RuntimeWarning):
+        assert _refine._resolve_version(package) == f"1.6.0.dev0+g{head[:12]}"
     (package / "__init__.py").write_text("x = 1\n", encoding="utf-8")
-    (package / "untracked.py").write_text("", encoding="utf-8")
     with pytest.warns(RuntimeWarning):
         assert _refine._resolve_version(package) == f"1.6.0.dev0+g{head[:12]}.dirty"
 
@@ -439,6 +453,7 @@ def test_a_git_dir_pointing_elsewhere_does_not_rename_the_commit(tmp_path, monke
     assert other != head
     monkeypatch.setenv("GIT_DIR", str(tmp_path / "other" / ".git"))
     monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "other" / ".git" / "index"))
+    monkeypatch.setenv("GIT_OBJECT_DIRECTORY", str(tmp_path / "other" / ".git" / "objects"))
     with pytest.warns(RuntimeWarning):
         assert _refine._resolve_version(package) == f"1.6.0.dev0+g{head[:12]}"
 
@@ -465,10 +480,12 @@ def test_the_run_record_is_stamped_from_the_same_authority():
 def test_only_refine_asks_the_metadata_for_this_distribution():
     """A third reader would be a third authority free to disagree (WP-1456).
 
-    The pattern is the call's shape, a ``version(`` taking this distribution's
-    name, spelled or imported, so a renamed alias still matches.
+    The pattern is the call's shape: ``version(``, ``metadata(`` or
+    ``distribution(`` taking this distribution's name, spelled, imported or
+    reached through ``_about``, so a renamed alias still matches.
     """
-    shape = re.compile(rf"version\(\s*(?:DIST_NAME|[\"']{re.escape(DIST_NAME)}[\"'])\s*\)")
+    shape = re.compile(r"(?:version|metadata|distribution)\(\s*(?:(?:_about\.)?DIST_NAME|"
+                       rf"[\"']{re.escape(DIST_NAME)}[\"'])\s*\)")
     package = Path(_refine.__file__).parent
     readers = {path.relative_to(package).as_posix() for path in package.rglob("*.py")
                if shape.search(path.read_text(encoding="utf-8"))}
