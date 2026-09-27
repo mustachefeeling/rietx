@@ -134,7 +134,7 @@ tokens; by size the candidates are §4 (6 806 B), §10's worked default
       past it. Buffer size chosen from the measured concurrency of additions.
 - [x] Every PR that changes a capped file reports its delta and headroom, so
       the near-full state is visible before CI fails.
-- [ ] The placement eval: the keyed routing rows replaced by one grep
+- [x] The placement eval: the keyed routing rows replaced by one grep
       sentence, real agents on tasks where a diagnostic fires, against
       today's body. Registered before it runs (tests/CLAUDE.md § Three eval
       protocols).
@@ -145,7 +145,7 @@ tokens; by size the candidates are §4 (6 806 B), §10's worked default
 - [ ] Tests: every gate lands as a test, expected **green on the tree as it
       stands**. These close gaps rather than fixing breaks, so a red run means
       the gate found something real, to be reported, not accommodated.
-- [ ] Skill: the gates change no row. The placement eval may replace the
+- [x] Skill: the gates change no row. The placement eval may replace the
       keyed routing rows with one grep sentence, and only if it supports it.
 
 ## Acceptance

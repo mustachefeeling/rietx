@@ -173,6 +173,9 @@ with no 1.1 cell.
 
 ## Results — round 1.1, run 2026-09-28
 
+The body now carries the sentence and not the two rows, so `runner.grep_body`
+refuses it; a re-run builds from a checkout of `db4a8582`.
+
 Run at `d5a01df8` against the body registered at `db4a8582`, all 18 cells
 concurrently in waves of six, $3.84 in total. Every cell loaded the skill (R0),
 and every cell was handed its own condition's body.

@@ -32,26 +32,29 @@ specific to running it with no human at the plot.
 
 This file is the judgement core: what holds for every fit. Lookup tables and
 the rules one task *shape* needs live beside it, one file each. The user manual
-holds the object model this protocol drives; a page named `x` below is
-`https://rietx.org/using/x.html`.
+holds the object model this protocol drives, one page per topic under
+`https://rietx.org/using/`.
 
-| When | Load | Manual page |
-|---|---|---|
-| you are about to call rietx: entry points, constructors, the four answer types and their fields, the report | [`references/api.md`](references/api.md) | `quickstart`, `model`, `refining`, `results`, `agents` |
-| you were handed another program's input file, not a pattern | [`references/api.md`](references/api.md) § In | `recipe`, `files` |
-| a `Diagnostic` fired and you need its row — §7 the engine's own, §7g another program's project file, §7h a file you wrote back, §7i your own file as read | [`references/diagnostics.md`](references/diagnostics.md), [`references/diagnostics-projects.md`](references/diagnostics-projects.md), [`references/diagnostics-gsas.md`](references/diagnostics-gsas.md), [`references/diagnostics-reading.md`](references/diagnostics-reading.md) | `results` |
-| §7j — a magnetic `Diagnostic` fired, or `FitReport.satellites` ranked a k, or you were handed a magnetic structure (magCIF, TOPAS moments) | [`references/magnetic.md`](references/magnetic.md) | `results`, `files` |
-| §6 — something declined to answer: abstentions, caveats, gate failures, `best_or_none()` returning `None` | [`references/abstention.md`](references/abstention.md) | `report` |
-| §5 — you are about to quote a number: which field carries which fact, and read numbers rather than pixels | [`references/numbers.md`](references/numbers.md) | `report`, `results` |
-| §4/§4b — a judging or deliverable rule needs its measurement, before you override one | [`references/judging.md`](references/judging.md) | `report`, `qpa`, `constraints` |
-| §8 — the fit did something that makes no sense: measured results that contradict an intuition | [`references/surprises.md`](references/surprises.md) | `refining` |
-| §7b-7f — the phase is unknown, or you want the peaks themselves and no cell: peak picking, fitting peaks you name, indexing, the closed loop, the extinction screen | [`references/diagnostics-indexing.md`](references/diagnostics-indexing.md) | `indexing` |
-| §9 — one fit is not the answer: the trajectory, and the history DAG as a search structure | [`references/history.md`](references/history.md) | `history` |
-| §9b — an in-situ ramp, a sweep or a tray: chaining N patterns, and checking the chain both ways | [`references/series.md`](references/series.md) | `series` |
-| §9c, deciding: ranking, differencing, auditing, identifiability | [`references/batch.md`](references/batch.md) | `history`, `series` |
-| §9c, operating: budget, cost, timing, the log, inventory, fault tolerance | [`references/batch-operating.md`](references/batch-operating.md) | `history`, `series` |
-| §9d — a human may be watching this fit, or you want to hand one a window onto a long run; also reading a finished run off disk | [`references/watching.md`](references/watching.md) | `cli`, `refining`, `files` |
-| writing the answer out: CIF, QPA and reflection tables, plots, a structure figure | [`references/api.md`](references/api.md) § Out, [`api-figure.md`](references/api-figure.md) | `exports` |
+**A name in front of you is its own index.** A `Diagnostic` code, a field or a
+verb has its row in one of these files, and `grep -rn NAME references/` finds it
+wherever it lives. A code's row says what it means, what to do and what you must
+not do.
+
+| When | Load |
+|---|---|
+| you are about to call rietx: entry points, constructors, the four answer types and their fields, the report | [`references/api.md`](references/api.md) |
+| you were handed another program's input file, not a pattern | [`references/api.md`](references/api.md) § In |
+| §7j — a magnetic `Diagnostic` fired, or `FitReport.satellites` ranked a k, or you were handed a magnetic structure (magCIF, TOPAS moments) | [`references/magnetic.md`](references/magnetic.md) |
+| §5 — you are about to quote a number: which field carries which fact, and read numbers rather than pixels | [`references/numbers.md`](references/numbers.md) |
+| §4/§4b — a judging or deliverable rule needs its measurement, before you override one | [`references/judging.md`](references/judging.md) |
+| §8 — the fit did something that makes no sense: measured results that contradict an intuition | [`references/surprises.md`](references/surprises.md) |
+| §7b-7f — the phase is unknown, or you want the peaks themselves and no cell: peak picking, fitting peaks you name, indexing, the closed loop, the extinction screen | [`references/diagnostics-indexing.md`](references/diagnostics-indexing.md) |
+| §9 — one fit is not the answer: the trajectory, and the history DAG as a search structure | [`references/history.md`](references/history.md) |
+| §9b — an in-situ ramp, a sweep or a tray: chaining N patterns, and checking the chain both ways | [`references/series.md`](references/series.md) |
+| §9c, deciding: ranking, differencing, auditing, identifiability | [`references/batch.md`](references/batch.md) |
+| §9c, operating: budget, cost, timing, the log, inventory, fault tolerance | [`references/batch-operating.md`](references/batch-operating.md) |
+| §9d — a human may be watching this fit, or you want to hand one a window onto a long run; also reading a finished run off disk | [`references/watching.md`](references/watching.md) |
+| writing the answer out: CIF, QPA and reflection tables, plots, a structure figure | [`references/api.md`](references/api.md) § Out, [`api-figure.md`](references/api-figure.md) |
 
 ---
 

@@ -233,14 +233,26 @@ def test_every_relative_link_in_the_tree_resolves():
             assert resolved.exists(), f"{path.name}: dead link {target}"
 
 
+#: The body's standing instruction to look up a name the agent holds.  It
+#: replaced the routing rows for a fired code: under it Opus reached 17 of 18
+#: fired codes' rows against 4 (tests/eval_skill_placement/PROTOCOL.md).
+GREP_INSTRUCTION = "`grep -rn NAME references/`"
+
+
 def test_every_reference_file_is_reachable_from_the_body():
-    """A reference nothing points at is a file no agent will open."""
+    """A reference nothing points at is a file no agent will open.
+
+    A file of code rows is reached by grepping for the code, once the body
+    says to, so it needs no routing row of its own."""
     text = SKILL.read_text(encoding="utf-8")
+    greppable = GREP_INSTRUCTION in text
     unreferenced = [p.name for p in REFERENCES
-                    if f"references/{p.name}" not in text]
+                    if f"references/{p.name}" not in text
+                    and not (greppable and _code_tables(p.read_text(encoding="utf-8")))]
     assert not unreferenced, (
         f"reference files the body never names: {unreferenced} — add a row to "
-        "the body's index table"
+        "the body's index table, or key the file's rows by a name an agent "
+        "holds so the body's grep instruction reaches it"
     )
 
 
