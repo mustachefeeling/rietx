@@ -58,7 +58,8 @@ class FractionProfilePoint(Base):
     range, degrees 2θ, which is what makes axes of different units comparable.
     ``chi2`` is the data's own Σ w·Δ², never the reduced figure, and
     ``delta_chi2`` is measured from :attr:`FractionProfile.chi2_best`.  A refit
-    that raised records ``error`` and leaves the numbers ``None``: a point that
+    that raised records ``error`` and leaves the numbers ``None``, and one whose
+    scales could form no fraction records ``error`` beside its χ²: a point that
     could not be measured is absent, never admissible.
     """
 

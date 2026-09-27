@@ -70,7 +70,10 @@ def width_value(term: str, fwhm: float, theta_deg: float) -> float:
     Inverts ``model.profiles.caglioti``: the Lorentzian terms add FWHM
     (``lor_size/cosθ``, ``lor_strain·tanθ``), the Gaussian ones add FWHM²
     (``gauss_size/cos²θ``, ``gauss_strain·tan²θ``).  ``theta_deg`` is θ, not
-    2θ.
+    2θ.  The laws are Scherrer size ∝ 1/cosθ and strain ∝ tanθ in the
+    Thompson-Cox-Hastings split (Thompson, Cox & Hastings, 1987, J. Appl.
+    Cryst. 20, 79), the Gaussian size term GSAS's ``P`` (Larson & Von Dreele,
+    2004, GSAS manual).
     """
     th = math.radians(theta_deg)
     if term == "lor_strain":
@@ -150,6 +153,17 @@ def profile_fraction(refinement, data, phase: int | str, *,
             if not axis.startswith(prefix) or axis[len(prefix):] not in WIDTH_TERMS:
                 raise ValueError(f"{axis!r} is not a width term of phase {index}; "
                                  f"axes are {prefix}{{{', '.join(WIDTH_TERMS)}}}")
+    # an axis ``set_values`` would refuse at every grid point is refused here:
+    # caught per point, it left no point measured and the profile read as a
+    # silent confirmation of the esd
+    entries = {e.path: e for e in refinement._working_table().entries}
+    for axis in axes:
+        e = entries.get(axis)
+        if e is not None and (e.locked or e.tie is not None):
+            why = ("structurally fixed (a Stephens block owns lor_strain, or "
+                   "symmetry)" if e.locked else "tied to another parameter")
+            raise ValueError(f"{axis!r} is {why}, so it cannot be pinned on a "
+                             "grid; profile a width term the phase owns")
 
     tt = np.asarray(result.two_theta, dtype=np.float64)
     if not tt.size:
@@ -158,8 +172,10 @@ def profile_fraction(refinement, data, phase: int | str, *,
     lo, hi = float(tt.min()), float(tt.max())
     theta_mid = 0.25 * (lo + hi)
     grid = default_fwhm_grid(hi - lo) if fwhm is None else [float(f) for f in fwhm]
-    if any(f < 0.0 for f in grid):
-        raise ValueError("a FWHM grid is non-negative")
+    if not grid:
+        raise ValueError("an empty FWHM grid measures nothing")
+    if any(not (math.isfinite(f) and f >= 0.0) for f in grid):
+        raise ValueError("a FWHM grid is finite and non-negative")
     grid = sorted(grid)      # ascending: each refit warm from a narrower width
 
     row = result.qpa.phases[index]
@@ -168,29 +184,46 @@ def profile_fraction(refinement, data, phase: int | str, *,
     cut = FRACTION_PROFILE_DCHI2 * stats.chi2 * inflation ** 2
     chi2_fit = data_chi2(stats)
 
+    # a branch shares the caller's tree, and every node it commits advances the
+    # tree's HEAD — which a project reopens at as its working state — so the
+    # head the caller stood on is put back however the scan ends
+    tree = refinement.history
+    head = tree.head if tree is not None else None
     points: list[FractionProfilePoint] = []
-    for axis in axes:
-        term = axis.rsplit(".", 1)[1]
-        trial = refinement._trial()
-        trial.set_vary([axis], False)
-        for f in grid:
-            value = width_value(term, f, theta_mid)
-            point = dict(axis=axis, value=value, fwhm=f, admissible=False)
-            try:
-                trial.set_values({axis: value})
-                r = trial.run_stage(data, Stage(f"profile:{axis}", []),
-                                    telemetry=False)
-            except Exception as exc:  # an unmeasurable point, not a crash
-                points.append(FractionProfilePoint(**point, error=str(exc)))
-                continue
-            w = r.qpa.phases[index].weight_fraction if r.qpa is not None else None
-            points.append(FractionProfilePoint(
-                **point, weight_fraction=w, chi2=data_chi2(r.statistics),
-                rwp=r.statistics.rwp,
-                status=r.stages[-1].status if r.stages else r.status,
-                node_id=r.node_id))
+    try:
+        for axis in axes:
+            term = axis.rsplit(".", 1)[1]
+            trial = refinement._trial()
+            trial.set_vary([axis], False)
+            for f in grid:
+                value = width_value(term, f, theta_mid)
+                point = dict(axis=axis, value=value, fwhm=f, admissible=False)
+                try:
+                    trial.set_values({axis: value})
+                    r = trial.run_stage(data, Stage(f"profile:{axis}", []),
+                                        telemetry=False)
+                except Exception as exc:  # an unmeasurable point, not a crash
+                    points.append(FractionProfilePoint(**point, error=str(exc)))
+                    continue
+                w = r.qpa.phases[index].weight_fraction if r.qpa is not None else None
+                points.append(FractionProfilePoint(
+                    **point, weight_fraction=w, chi2=data_chi2(r.statistics),
+                    rwp=r.statistics.rwp,
+                    error=None if w is not None else "no QPA at this point: the "
+                    "refit left the scales unable to form fractions",
+                    status=r.stages[-1].status if r.stages else r.status,
+                    node_id=r.node_id))
+    finally:
+        if tree is not None and head is not None and tree.head != head:
+            tree.set_head(head)
 
     measured = [p for p in points if p.chi2 is not None and p.weight_fraction is not None]
+    if not measured:
+        # nothing measured is no evidence either way; a range of the fit alone
+        # would read as a profile that confirmed the esd
+        errors = sorted({p.error for p in points if p.error})
+        raise RuntimeError("no grid point of the width profile could be "
+                           f"measured: {'; '.join(errors) or 'no fraction at any point'}")
     best = min([chi2_fit, *(p.chi2 for p in measured)])
     for p in measured:
         p.delta_chi2 = p.chi2 - best

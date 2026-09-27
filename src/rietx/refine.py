@@ -2231,7 +2231,8 @@ class Refinement:
 
         Opt-in and read-only: it costs one refit per grid point per axis (12
         each by default), all on a branch with ``telemetry=False``, so the
-        working state and ``result_`` are untouched.  Rietveld mode only, and
+        working state and ``result_`` are untouched and the history's HEAD is
+        put back where it stood.  Rietveld mode only, and
         a fit must have run.  Why the axis is the width and not the scale is
         :mod:`rietx.strategy.fraction_profile`'s docstring.
         """

@@ -198,7 +198,8 @@ def _basins(profile) -> int:
 def multimodal_profile(multimodal):
     ref, _, data = multimodal
     before = {row.path: row.value for row in ref.parameters()}
-    return ref.profile_fraction(data, "CaF2"), before
+    head = ref.history.head
+    return ref.profile_fraction(data, "CaF2"), (before, head)
 
 
 def test_the_profile_spans_both_basins_and_says_so(multimodal_profile):
@@ -232,9 +233,11 @@ def test_the_control_profile_confirms_the_esd_and_stays_silent(control):
 def test_the_profile_moves_nothing(multimodal, multimodal_profile):
     """No accepted value moves anywhere the probe merely reports."""
     ref, result, _ = multimodal
-    _, before = multimodal_profile
+    _, (before, head) = multimodal_profile
     assert ref.result_ is result
     assert {row.path: row.value for row in ref.parameters()} == before
+    # the branch shares the tree, and a project reopens at its HEAD
+    assert ref.history.head == head
 
 
 def test_a_trial_carries_the_callers_declarations_with_or_without_history():
@@ -282,6 +285,15 @@ def test_the_profile_refuses_what_it_cannot_answer(control):
         stages=[Stage("bkg", ["instrument.background.*"])]))
     with pytest.raises(ValueError, match="'lebail' fit has none"):
         lebail.profile_fraction(data, "CaF2", axes=["phases.1.lor_strain"])
+    with pytest.raises(ValueError, match="empty FWHM grid"):
+        ref.profile_fraction(data, "CaF2", fwhm=[])
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        ref.profile_fraction(data, "CaF2", fwhm=[0.0, float("inf")])
+    tied = rx.Refinement(*_models(CONTROL_SCALE, FITTED_BACKGROUND_TERMS))
+    tied.tie("phases.1.lor_size", "phases.0.lor_size")
+    tied.fit(data, plan=RefinementPlan(stages=[PLAN.stages[0]]), telemetry=False)
+    with pytest.raises(ValueError, match="tied to another parameter"):
+        tied.profile_fraction(data, "CaF2", axes=["phases.1.lor_size"])
 
 
 @pytest.mark.parametrize("term", WIDTH_TERMS)
