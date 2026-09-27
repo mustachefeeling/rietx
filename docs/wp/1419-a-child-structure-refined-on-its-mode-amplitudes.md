@@ -249,7 +249,20 @@ on `main` at `84eddb17` against a fork integration branch measured at
   `tof-cleanroom-20260923`, and the fence holds until v1.6 closes. The
   decision is then taken on that branch in the reporter's cuts, with the
   legacy-layer location and the NPDF fixtures' provenance decided alongside
-  the first cut.
+  the first cut. *2026-09-27 (issue triage):* the reporter's comment of
+  2026-09-25 acknowledges that ruling and adds two items for the T-2/T-3
+  cut. (7) TOPAS v6, run as a black box, reproduces the branch's type-3
+  back-to-back exponential ⊗ Gaussian, Lorentzian and Voigt peaks in shape,
+  area, centre and tail side; the one residual, ~1.5e-3 of peak height, is
+  TOPAS's own 1e-3 exponential cut-off and renormalisation (a numerical
+  model with that cut matches TOPAS to 4e-5). (8) A staged window tolerance:
+  `TOF_WINDOW_AREA_TOL` = 1e-4 makes a Lorentzian-branch evaluation 12-24×
+  slower, so the proposal is a coarser, renormalised tolerance in early
+  stages and 1e-4 in the last, each stage's recorded, passing only if every
+  final parameter sits within 0.1 esd of the all-1e-4 fit on every seed.
+  Changing the window between stages and never inside one is what the
+  frozen-per-stage invariant allows, and recording what a stage ran at is
+  WP-1123's `StageResult.ftol` rule. Both ride with that cut, not before it.
 - **2026-09-18, second ruling: magnetic entry points do not enter `api.md`.**
   This supersedes the § In / § Out split below, which is parked rather than
   done. The maintainer's call is that magnetic refinement is uncommon enough

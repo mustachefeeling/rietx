@@ -526,7 +526,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # fit already knows, the further work 1466's automatic polyhedra leave, at
     # the maintainer's request.  No prose: the evidence stays in the WP file.
     # Landed 853, +1 headroom.
-    "docs/ROADMAP.md": 854,
+    # 854 -> 856 (2026-09-27): two rows from two sessions, each within the
+    # one line of headroom alone and merged together unchecked: 1469, filed
+    # by /issue-review for #475 and #481, and 1470, the structure figure the
+    # maintainer asked for, which had also taken 1469 and moved.  No prose:
+    # the evidence stays in the WP files.  Landed 855, +1 headroom.
+    "docs/ROADMAP.md": 856,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
@@ -681,6 +686,11 @@ def test_every_wp_status_line_is_controlled():
 
 def test_wp_files_and_roadmap_rows_are_a_bijection():
     rows = _index_rows()
+    numbers = [p.name[:4] for p in _wp_files()]
+    # Keyed by number, a second file of one number vanishes from the dict below
+    # (two sessions both took 1469 on 2026-09-27).
+    shared = sorted({n for n in numbers if numbers.count(n) > 1})
+    assert not shared, f"WP numbers used by more than one file: {shared}"
     files = {p.name[:4]: p for p in _wp_files()}
     missing_rows = sorted(set(files) - set(rows))
     missing_files = sorted(set(rows) - set(files))

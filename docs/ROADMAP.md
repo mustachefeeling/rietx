@@ -101,8 +101,8 @@ forward-model contact. The order continues with 1327's verb, then 1419 as its ow
 two-lists decision it carries gets waved through in a diff about something
 else. **Neutron TOF stays at [§ v2+](#v2--fenced)** behind issue #193.
 
-**Eight silent-answer fixes have landed since the ship** (1434, 1435, 1432,
-1342, 1415, 1442, 1414, 1454), staged in [releases/1.5.1.md](releases/1.5.1.md), narrated
+**Nine silent-answer fixes have landed since the ship** (1434, 1435, 1432,
+1342, 1415, 1442, 1414, 1454, 1456), staged in [releases/1.5.1.md](releases/1.5.1.md), narrated
 in the [v1.6 record](milestones/v1.6.md). 1432 unblocks 1419's amplitudes; so
 is the `.inp` grammar 1118 refuses,
 [1433](wp/1433-the-inp-grammar-still-refused.md).
@@ -118,7 +118,7 @@ and [1448](wp/1448-a-number-somebody-chose.md) block nothing.
 WinXPOW export, and a blank for a `rietx compare` standard.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
-triage's 1312-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341 less
+triage's 1312-1322 plus 1323 and 1325, less 1320; the 2026-09-03 triage's 1332-1341 less
 1333 and 1342; 1133; the **2026-09-15 triage**'s 1415-1421, less the two in v1.6, 1432 and 1417.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
@@ -658,7 +658,7 @@ could not answer closed 2026-09-18 as **1434** (the bound flag) and **1435**
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1320](wp/1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ⬜ | P2 | — (1310 soft) |
+| [1320](wp/1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ✅ 2026-09-27 | — | — (1310 soft) |
 | [1321](wp/1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | P2 | — (PR #206 first) |
 | [1323](wp/1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | P2 | — |
 | [1324](wp/1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, a setting nobody chose | ✅ 2026-09-02 | — | — |
@@ -679,7 +679,7 @@ could not answer closed 2026-09-18 as **1434** (the bound flag) and **1435**
 | [1447](wp/1447-a-threshold-each-pattern-sets-for-itself.md) | A threshold each pattern sets for itself | ⬜ | P3 | — (1442 soft) |
 | [1449](wp/1449-rank-on-what-the-screen-determined.md) | Rank on what the screen determined, not on what the peak list shows | 🔄 2026-09-27 | P2 | — (1446 refuted the peak-list route) |
 | [1454](wp/1454-auto-background-choices-survive-the-fit.md) | `auto_background`'s choices survive the fit | ✅ 2026-09-24 | — | — |
-| [1456](wp/1456-an-editable-install-stamps-what-it-runs.md) | An editable install stamps what it runs | ⬜ | P2 | — |
+| [1456](wp/1456-an-editable-install-stamps-what-it-runs.md) | An editable install stamps what it runs | ✅ 2026-09-27 | — | — |
 | [1457](wp/1457-the-stage-rwp-leaves-out-the-declared-peaks.md) | The stage Rwp leaves out the declared peaks | ⬜ | P2 | — |
 | [1458](wp/1458-a-tick-with-nothing-behind-it.md) | A tick with nothing behind it moves the low-angle boundary | ✅ 2026-09-24 | — | — (1327 soft) |
 | [1460](wp/1460-one-degeneracy-one-finding.md) | One degeneracy, one finding | ⬜ | P3 | — (1454, 1302 soft) |
@@ -709,6 +709,7 @@ the chain says nothing (issue #267).
 | [1453](wp/1453-both-directions-name-the-lower-cost.md) | Both directions name the lower cost | ⬜ | P3 | — (1420 soft) |
 | [1459](wp/1459-a-pawley-intensity-past-the-data.md) | A Pawley intensity past the end of the data | ✅ 2026-09-25 | — | — (1336 soft) |
 | [1464](wp/1464-a-screen-reads-the-batch-references-first.md) | A screen reads the batch references first | ⬜ | P3 | — (PR #385 soft) |
+| [1469](wp/1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | ⬜ | P2 | — (1420 soft) |
 
 #### One file, many patterns
 
@@ -761,6 +762,7 @@ separability floor, and not scheduled here.
 | [1462](wp/1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md) | The structure viewer draws with its own WebGL2 renderer | ✅ 2026-09-26 | — | — (1461 soft) |
 | [1466](wp/1466-the-structure-viewer-draws-coordination-polyhedra.md) | The structure viewer draws coordination polyhedra | ✅ 2026-09-26 | — | 1462 |
 | [1468](wp/1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | ⬜ | P3 | 1466 |
+| [1470](wp/1470-a-structure-figure-without-a-browser.md) | A structure figure from Python, drawn without a browser | ⬜ | P3 | — |
 
 #### The repo's own process
 

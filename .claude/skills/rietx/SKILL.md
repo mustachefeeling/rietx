@@ -328,7 +328,7 @@ purpose-neutral and will not infer yours.
 | Deliverable | The rows that decide it | Stop when |
 |---|---|---|
 | **Phase ID** — which phases are present? | `report.unmatched` (`unmatched_obs`), `report.lebail_gap.ratio`: ≫ 1 → every line indexed, safe **at any Rwp** | no strong unmatched observed peaks and the gap readable, whatever Rwp says. An `abstained_kind="resolution_limited"` does not block this deliverable |
-| **QPA** — how much of each? | `report.background.absorption`, then absorption geometry, then impossible values. `lebail_gap` inverted: large ratio → **wrong fractions** | fractions stable under a background-flexibility change, `worst_absorption` below its threshold, and no unresolved scale- or ZMV-family diagnostic. **Never** "Rwp stopped falling", which here points the wrong way |
+| **QPA** — how much of each? | `report.background.absorption`, then absorption geometry, then impossible values. `lebail_gap` inverted: large ratio → **wrong fractions** | fractions stable under a background-flexibility change, `worst_absorption` below its threshold, and no unresolved scale- or ZMV-family diagnostic or trace-phase `ref.profile_fraction` finding. **Never** "Rwp stopped falling", which here points the wrong way |
 | **Trajectory** — a parameter against T, t, p or composition | `SeriesResult.summary(deliverable="series")`: `SEQUENTIAL_PATH_DEPENDENT`, `SEQUENTIAL_PERSISTENT_FINDING`, `SEQUENTIAL_DISCONTINUITY`, `PHASE_UNCONSTRAINED`; **2θ anchor**, **precision/accuracy split**, QPA check **every point** | every number you quote names the one thing that would have to be wrong for it to be wrong, and that thing has been checked |
 | **Microstructure** — how big are the domains, how strained? | `result.microstructure`: domain size (Å), Δd/d, esd or `MicrostructureTerm.unavailable`; `separable`, `size_agreement` (1 = one), `SIZE_UNUSUALLY_SMALL`/`STRAIN_UNUSUALLY_LARGE`/`BOUND_HIT` | `separable` is True, both readings agree, and you quote the size as an order of magnitude with the `scherrer_k` the block carries. A `separable=False` is not a smaller number to quote, it is a wider 2θ range to collect |
 | **Structure** — where are the atoms? | Above, plus `report.texture`, `report.strain`, restraint tension, ADP positive-definiteness, `report.identifiability.exchanges`/`.soft_modes`. Le Bail gap: **blocker**, intensity model carries the claim | §10's full ladder, with no `exchangeable` row unaddressed. Addressed means the swap was run and either **won** (adopt the winner and quote it without caveat) or **tied** (resolve by protocol). Never by freeing the rival into the same fit |
@@ -336,7 +336,7 @@ purpose-neutral and will not infer yours.
 **The QPA row outranks every statistic beside it**: an over-flexible background
 wins on *every* agreement index while biasing displacement parameters to 0.958
 and 0.000 Å² against a truth of 0.5, and `worst_absorption` (0.46 against 0.08)
-is the only row separating the two fits — the plot does not either.
+is the only row separating the two fits; the plot does not.
 
 **`resolution_limited` is a stopping point, not a failure**: the edit directions
 are indistinguishable on merged peaks, not the model wrong — a legitimate end

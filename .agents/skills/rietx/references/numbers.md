@@ -75,6 +75,16 @@ Nothing was hidden; only the last state was ever delivered. So take the
 trajectory (§9), and treat a rung's high-confidence action as evidence about
 the specimen even when the final report is silent.
 
+**And an esd is a number about one basin.** Every esd, and every Layer-1
+term's, is the curvature of χ² where the fit stopped. It cannot see a second
+basin at the same χ², and a trace phase's weight fraction is where one appears:
+its scale trades against its width until its peaks are background. 1.41 ± 0.65
+wt% was reported on a pattern that admitted 0 %, 1.5 % and 98.7 % within
+0.011 pp of Rwp. Before quoting a trace fraction, run
+`ref.profile_fraction(data, phase)` and read its range
+(`judging.md` § "a trace phase's esd describes one basin"). It is a scan,
+because nothing read at the converged point can see this.
+
 Images are secondary evidence. `plot_for_vlm()` exists and renders what VLMs
 *can* read (annotated multi-panel montage, worst regions auto-zoomed, Δ/σ panel,
 high contrast, never JPEG) — use it to sanity-check a conclusion you already

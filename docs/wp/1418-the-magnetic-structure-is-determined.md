@@ -134,6 +134,39 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   takes each χ² back to the sum first. `report.compare_freed` covers a
   nested pair only, with each freed parameter's t beside the ΔBIC.
 
+- **2026-09-27, from the issue triage (issue #458): the zero-moment arm is in,
+  and the gate fix cannot be a PR off `main`.** Two reporter comments after
+  the 2026-09-25 decision below. *Checked at `ebc45b9`*: `solve_magnetic`,
+  `strategy/magnetic.py`, `_rank` and `MomentRow` are still not on `main`.
+  So decision (1)'s "its own PR" has no base. The reporter proposes the gate
+  fix (`pair_supported`, the Q5 fold reading the stored findings) as its own
+  first commit in the M-9 PR, and the recipe ((2)-(5)) as a separate PR
+  after M-9. A standalone PR right after M-9 is offered as the alternative.
+  **The arm asked for**, simulated on the fork's `magnetic-v16` with the gate
+  fix, on the same 20 MAGNDATA entries × 3 seeds. A second pattern at the
+  same scale with every moment zero was fitted blind (Le Bail
+  `profile_only`, then `mccusker_structural`). Its models were the parent
+  for `solve_magnetic`, whose ranked stage was restricted through `plan=`.
+  Median recovered/published moment, first-site / site-averaged:
+  blind 0.943 / 0.943 (58/60 exact group); **R**, reference held with the
+  scale held, 0.997 / 0.997 (59/60) at 0.46× the blind arm's wall clock;
+  **R′**, scale free, 0.998 / 1.001 (59/60) at 0.43×; the 2-round
+  alternation (iv) 0.995 / 0.998 at 3.0×. R − (iv) per entry is
+  +0.001 ± 0.022. The gain is carried by holding Biso, extinction, profile,
+  cell and coordinates; a freed scale stays at 1.000 of truth once Biso is
+  held. R′ lands one three-site entry 6-7 % low on two seeds (its reference
+  fit carries `BACKGROUND_ABSORPTION` on the scale, untraced), so R is the
+  steadier. The reference fit stopped at `max_iter` on 5 of 60 cells, and R
+  and R′ ran on macOS against the earlier arms' Linux (the blind re-run
+  matches 47 of 60 cells to four decimals). This measures decision (2) as
+  the default, with (iv) the fallback. Four residuals survive an unbiased
+  reference (the 1.370 control, one entry ~6 % low, one ~2.5 % low, one
+  site swap with the right sum), so they sit in the magnetic step.
+  **Decided 2026-09-27** (issue triage, on #458): the gate fix is its own
+  first commit in the M-9 PR, and the recipe ((2)-(5)) follows as a separate
+  PR once M-9 is in. The held reference, **with its scale held** (R), is the
+  default when a reference exists, and (iv) is the fallback. The four
+  residuals are M-9's to report, not the recipe PR's to fix.
 - **2026-09-25, from the issue triage (issue #455): M-7's class count is a
   random variable of the platform and the seed.** `isotropy.equivalence_classes`
   calls a pair *distinguishable* when any one of its draws has every restart

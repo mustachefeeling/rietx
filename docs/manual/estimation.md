@@ -192,6 +192,48 @@ evaluated at $\sigma = w = 1$. A geometry row is a restraint row, so the two
 cannot drift apart, and the weight scale of {eq}`par-restraint-weight` is kept
 out of them for the same reason.
 
+## A derived esd describes one basin
+
+Every esd of {eq}`est-cov` and {eq}`est-derived` is built from the curvature of
+χ² at the converged point, so it describes the basin the fit stopped in. A
+trace phase's weight fraction is where that stops being enough. The phase's
+scale trades against its width: broadened far enough, its peaks become a hump
+the background shares, and the scale can then grow at almost no cost in χ².
+That ridge can hold several basins at one χ², each with ordinary curvature and
+a tight esd.
+
+The width profile finds them. It pins one width parameter $p$ of the phase on a
+grid, refits every other parameter at each value, and admits a point when
+
+```{math}
+:label: est-profile
+
+\chi^2(p) - \chi^2_{\min} \;\le\; c \cdot \chi^2_{\mathrm{red}} \cdot
+\chi'^2 / \chi^2,
+```
+
+{source}`rietx.strategy.fraction_profile.profile_fraction`
+
+with $\chi^2$ the data's own weighted sum, $\chi^2_{\min}$ the lowest found
+(the fit's included), and the reduced χ² and Bérar-Lelann factor those of the
+fit. Each pinned refit is the constrained hypothesis of Hamilton's test with a
+single constraint {cite}`hamilton1965`, whose statistic is asymptotically
+$\chi^2_1$, and $c$ = {{ FRACTION_PROFILE_DCHI2 }} is its 95 % point. The two
+factors put the cut on the
+scale of the esds themselves, so on a single quadratic basin the admissible
+fractions reproduce $W \pm 1.96\,\sigma_W$. Every admissible point's fraction
+lies inside the 95 % profile interval for $W$, so the range the profile reports
+is an inner bound, and a finer grid can only widen it. The profile is reported
+as undetermined when an admissible fraction lies more than
+{{ FRACTION_PROFILE_EXCESS }} times $1.96\,\sigma_W$ from the fit's.
+
+The pinned parameter is the width rather than the scale. At a pinned scale the
+refit can reach the hump basin only by broadening the phase below the noise,
+and there the stage holds the phase's structure (a phase the data cannot see
+is held rather than bounded), so the scan would stop short of the basin it is
+looking for. At a pinned width the rest of the problem is close to linear in
+the scale, and each refit has one answer.
+
 ## Staged strategy and series
 
 Parameter groups are freed cumulatively in the IUCr-guideline order
