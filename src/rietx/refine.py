@@ -137,7 +137,7 @@ def _source_version(package_dir: Path) -> str | None:
     else's project reads nothing and stays on the metadata.
     """
     try:
-        text = (package_dir.parent.parent / "pyproject.toml").read_text("utf-8")
+        text = (package_dir.parent.parent / "pyproject.toml").read_text(encoding="utf-8")
         project = tomllib.loads(text).get("project")
     except (OSError, ValueError):  # TOMLDecodeError and UnicodeDecodeError are both
         return None
@@ -165,7 +165,7 @@ def _source_node(root: Path) -> str | None:
 
     def git(*args: str) -> str:
         proc = subprocess.run(["git", "-C", str(root), *args], env=env,
-                              capture_output=True, text=True, timeout=10)
+                              capture_output=True, encoding="utf-8", timeout=10)
         if proc.returncode != 0:
             raise OSError(proc.stderr.strip())
         return proc.stdout.strip()
