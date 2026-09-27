@@ -23,8 +23,12 @@ of the phase is an axis, each pinned in turn on its own branch.
 
 **Admissibility is the profile-likelihood cut, calibrated as the esds are**:
 Δχ² ≤ :data:`~rietx.schemas.fraction.FRACTION_PROFILE_DCHI2` × χ²_red × f²
-against the lowest χ² found, f the fit's Bérar-Lelann factor
-(:func:`~rietx.optimize.statistics.berar_lelann_factor`).  Every admissible
+against the lowest χ² found, f the fit's Bérar-Lelann factor (Bérar &
+Lelann, 1991, J. Appl. Cryst. 24, 1;
+:func:`~rietx.optimize.statistics.berar_lelann_factor`).  A pinned refit is
+the constrained hypothesis of Hamilton's test with one constraint (Hamilton,
+1965, Acta Cryst. 18, 502), whose statistic is asymptotically χ²₁, and 3.84
+is that distribution's 95 % point; the manual's eq. ``est-profile``.  Every admissible
 point's fraction lies in the 95 % profile set for W, so the range is an inner
 bound on it.  The χ² is the data's own Σ w·Δ², the quantity that calibration
 is about; penalty rows (a P-spline's, restraints) are not in it.
