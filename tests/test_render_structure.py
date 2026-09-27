@@ -12,16 +12,25 @@ because vitest runs where this package is not installed, so the check here is
 from __future__ import annotations
 
 import json
+import struct
+import zlib
 from pathlib import Path
 
+import numpy as np
 import pytest
 
+from rietx.crystallography.cif import structure_from_cif
 from rietx.gui import structure3d as s3
+from rietx.model import compiled
 from rietx.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
+from rietx.viz import render_structure
+from rietx.viz.figure3d import raster, views
 from rietx.viz.figure3d import scene as sc
+from rietx.viz.figure3d.render import _png
 
 DATA = Path(__file__).parent / "data"
 FIXTURE = DATA / "gui" / "scene_cases.json"
+OUTPUT = Path(__file__).parent / "output" / "figure3d"
 
 
 def _p(value: float) -> dict:
@@ -200,3 +209,289 @@ def test_an_axis_view_keeps_c_up_unless_it_looks_down_c(axis, up):
     norm = sum(v * v for v in lattice[axis]) ** 0.5
     assert all(abs(toward[i] - lattice[axis][i] / norm) < 1e-12 for i in range(3))
     assert sum(screen_y[i] * lattice[up][i] for i in range(3)) > 0
+
+
+# ----------------------------------------------------------------------
+# the renderer
+# ----------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def nac():
+    return structure_from_cif(str(DATA / "cod_1000236.cif"), aniso=True)
+
+
+def _save(fig, name):
+    """Every picture a test draws is written for looking at (tests/CLAUDE.md)."""
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    _png(OUTPUT / f"{name}.png", fig.image, None)
+
+
+def _one_atom(payload: dict) -> dict:
+    """A payload's first atom alone: no bonds, no frame, no polyhedra.  A dict
+    edited and handed back is the customisation route D10 promises."""
+    geo = dict(payload)
+    geo["atoms"] = [dict(payload["atoms"][0], boundary=False)]
+    geo["bonds"], geo["polyhedra"], geo["edges"] = [], [], []
+    return geo
+
+
+def _general_ellipsoid() -> dict:
+    return s3.build(_monoclinic(
+        aniso=AnisoU.from_values([0.03, 0.012, 0.02, 0.004, -0.003, 0.006])))
+
+
+@pytest.mark.skipif(not compiled.available(), reason="numba does not import here")
+@pytest.mark.parametrize("kw", [
+    {"mode": "ball", "polyhedra": True, "atom_labels": True},
+    {"mode": "ellipsoid", "background": None, "outline": True},
+])
+def test_the_two_paths_draw_the_same_bits_in_any_banding(nac, kw, monkeypatch):
+    """The kernel and its numpy oracle call no library function, so the bar
+    between them is the bit (D1), and a band boundary moves nothing: the
+    outline reads across one through its halo."""
+    was = compiled.set_enabled(True)
+    try:
+        whole = render_structure(nac, size=240, **kw).image
+        monkeypatch.setattr(raster, "BAND_SAMPLES", 2000)      # dozens of bands
+        banded = render_structure(nac, size=240, **kw).image
+        compiled.set_enabled(False)
+        oracle = render_structure(nac, size=240, **kw).image
+    finally:
+        compiled.set_enabled(was)
+    assert np.array_equal(whole, banded)
+    assert np.array_equal(whole, oracle)
+    assert (whole[..., 3] > 0).sum() > 5000
+
+
+def test_the_numpy_path_is_what_runs_with_the_tier_switched_off(nac):
+    was = compiled.set_enabled(False)
+    try:
+        fig = render_structure(nac, size=160)
+    finally:
+        compiled.set_enabled(was)
+    assert (fig.image[..., 3] > 0).sum() > 1000
+
+
+def test_two_renders_are_identical(nac):
+    a = render_structure(nac, size=200, mode="ellipsoid").image
+    b = render_structure(nac, size=200, mode="ellipsoid").image
+    assert np.array_equal(a, b)
+
+
+def test_a_balls_silhouette_is_its_radius_in_pixels():
+    geo = _one_atom(_general_ellipsoid())
+    fig = render_structure(geo, size=400, axis_labels=False, background=None)
+    _save(fig, "one_ball")
+    r = geo["ball_fraction"] * geo["sites"][0]["radius"] * fig.pixels_per_angstrom
+    area = (fig.image[..., 3] >= 128).sum()
+    assert abs(np.sqrt(area / np.pi) - r) < 0.5
+
+
+def test_an_ellipsoids_silhouette_is_the_exact_projected_ellipse():
+    """Its half-extents are the norms of the first two rows of R·k·T, and its
+    area π·√det of that 2 × 3 block times its transpose."""
+    geo = _one_atom(_general_ellipsoid())
+    fig = render_structure(geo, mode="ellipsoid", view=[1, 2, 3], size=400,
+                           axis_labels=False, background=None)
+    _save(fig, "one_ellipsoid")
+    M = np.asarray(fig.rotation) @ (np.asarray(geo["atoms"][0]["ellipsoid"]) * geo["scale"])
+    ppa = fig.pixels_per_angstrom
+    inside = fig.image[..., 3] >= 128
+    ys, xs = np.nonzero(inside)
+    assert abs((xs.max() - xs.min() + 1) - 2 * np.linalg.norm(M[0]) * ppa) < 1.5
+    assert abs((ys.max() - ys.min() + 1) - 2 * np.linalg.norm(M[1]) * ppa) < 1.5
+    A = M[:2]
+    assert abs(inside.sum() / (np.pi * np.sqrt(np.linalg.det(A @ A.T)) * ppa ** 2) - 1) < 0.01
+
+
+def test_a_cubic_cell_seen_down_c_is_a_square():
+    lab6 = structure_from_cif(str(DATA / "cod_1000055.cif"))
+    fig = render_structure(lab6, view="c", hidden=["La", "B"], axis_labels=False,
+                           size=300, background=None)
+    _save(fig, "lab6_frame_down_c")
+    ys, xs = np.nonzero(fig.image[..., 3] > 0)
+    assert abs((xs.max() - xs.min()) - (ys.max() - ys.min())) <= 1
+    h, w = fig.image.shape[:2]
+    assert fig.image[h // 2, w // 2, 3] == 0            # a frame, not a filled square
+
+
+def test_a_transparent_background_is_straight_alpha_with_no_fringe(nac):
+    """Alpha is zero outside the structure, and the transparent picture
+    composited over white is the white picture, to a level (D7)."""
+    clear = render_structure(nac, size=240, background=None, polyhedra=True).image
+    white = render_structure(nac, size=240, polyhedra=True).image
+    assert clear[0, 0, 3] == 0 and clear[-1, -1, 3] == 0
+    assert (clear[..., :3][clear[..., 3] == 0] == 0).all()
+    a = clear[..., 3:].astype(float) / 255
+    over = clear[..., :3].astype(float) * a + 255 * (1 - a)
+    # the straight colour and the alpha each round to a level, and the white
+    # picture rounds once more
+    assert np.abs(over - white[..., :3]).max() <= 1.5
+    assert (white[..., 3] == 255).all()
+
+
+def test_a_polyhedron_leaves_a_translucent_pixel():
+    fig = render_structure(s3.build(_rutile()), hidden=["O"], size=300, background=None,
+                           axis_labels=False)
+    _save(fig, "rutile_faces")
+    # a pixel inside a closed polyhedron sees a back face and a front face
+    alpha = fig.image[..., 3].astype(int)
+    level = round((1 - (1 - sc.POLY_ALPHA) ** 2) * 255)
+    assert ((alpha > level - 3) & (alpha < level + 3)).sum() > 500
+
+
+def test_a_non_positive_tensor_draws_no_nan():
+    geo = s3.build(_monoclinic(aniso=AnisoU.from_values([0.02, -0.01, -0.01, 0.0, 0.0, 0.0])))
+    was = compiled.set_enabled(False)
+    try:
+        with np.errstate(invalid="raise", divide="raise"):
+            fig = render_structure(geo, mode="ellipsoid", size=200, background=None)
+    finally:
+        compiled.set_enabled(was)
+    assert (fig.image[..., 3] > 0).sum() > 200
+
+
+def test_the_png_carries_its_chunks_and_the_array(tmp_path, nac):
+    fig = render_structure(nac, size=120, background=None, path=tmp_path / "nac.png", dpi=300)
+    data = (tmp_path / "nac.png").read_bytes()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    chunks, at = {}, 8
+    while at < len(data):
+        n = struct.unpack(">I", data[at:at + 4])[0]
+        kind = data[at + 4:at + 8]
+        chunks[kind] = chunks.get(kind, b"") + data[at + 8:at + 8 + n]
+        at += 12 + n
+    w, h, depth, colour = struct.unpack(">IIBB", chunks[b"IHDR"][:10])
+    assert (w, h, depth, colour) == (fig.image.shape[1], fig.image.shape[0], 8, 6)
+    assert chunks[b"sRGB"] == b"\x00"
+    assert struct.unpack(">IIB", chunks[b"pHYs"]) == (11811, 11811, 1)   # 300 dpi
+    rows = np.frombuffer(zlib.decompress(chunks[b"IDAT"]), dtype=np.uint8).reshape(h, 1 + 4 * w)
+    assert (rows[:, 0] == 0).all()
+    assert np.array_equal(rows[:, 1:].reshape(h, w, 4), fig.image)
+    assert fig.path == str(tmp_path / "nac.png")
+
+
+def test_a_jpeg_is_refused(tmp_path, nac):
+    with pytest.raises(ValueError, match="PNG only"):
+        render_structure(nac, path=tmp_path / "nac.jpg")
+
+
+# ----------------------------------------------------------------------
+# views (D12)
+# ----------------------------------------------------------------------
+
+def test_the_rotation_drawn_round_trips(nac):
+    fig = render_structure(nac, view=[1, 2, 0], turn="20y,-10x", size=160)
+    again = render_structure(nac, view=fig.rotation, size=160)
+    assert np.array_equal(fig.image, again.image)
+
+
+def test_down_001_and_the_001_normal_on_a_cubic_cell_are_the_c_view(nac):
+    c = render_structure(nac, view="c", size=160).image
+    assert np.array_equal(render_structure(nac, view=[0, 0, 1], size=160).image, c)
+    assert np.array_equal(render_structure(nac, view={"hkl": (0, 0, 1)}, size=160).image, c)
+
+
+def test_a_turn_is_ases_rotation_about_the_screen():
+    """'90x' tips the top toward the viewer: down c with b up becomes b toward
+    the viewer with c down (``ase.utils.rotate``'s signs)."""
+    geo = _payloads()["rutile"]
+    R = views.resolve(geo, "c", turn="90x")
+    b = np.asarray(geo["lattice"][1]) / np.linalg.norm(geo["lattice"][1])
+    c = np.asarray(geo["lattice"][2]) / np.linalg.norm(geo["lattice"][2])
+    assert np.allclose(R @ b, [0, 0, 1], atol=1e-12)
+    assert np.allclose(R @ c, [0, -1, 0], atol=1e-12)
+    assert not np.allclose(views.ase_rotation("50x,40z"), views.ase_rotation("40z,50x"))
+
+
+def test_the_default_up_is_c_and_never_the_view():
+    geo = _payloads()["mono_one_flat"]
+    R = views.resolve(geo, [1, 1, 0])
+    assert R[1] @ np.asarray(geo["lattice"][2]) > 0
+    R = views.resolve(geo, [0.1, 0, 1])                   # nearest c: b up
+    assert R[1] @ np.asarray(geo["lattice"][1]) > 0
+    with pytest.raises(ValueError, match="parallel"):
+        views.resolve(geo, "a", up=[2, 0, 0])
+    with pytest.raises(ValueError, match="view= takes"):
+        views.resolve(geo, "down the middle")
+    with pytest.raises(ValueError, match="rotation"):
+        views.resolve(geo, [[1, 0, 0], [0, 1, 0], [0, 0, -1]])
+
+
+# ----------------------------------------------------------------------
+# output and options
+# ----------------------------------------------------------------------
+
+def test_size_is_the_long_side_or_the_frame(nac):
+    assert max(render_structure(nac, size=300).image.shape[:2]) == 300
+    assert render_structure(nac, size=(320, 180)).image.shape[:2] == (180, 320)
+    with pytest.raises(ValueError):
+        render_structure(nac, supersample=5)
+    with pytest.raises(ValueError):
+        render_structure(nac, mode="wireframe")
+
+
+def test_the_anchors_say_where_each_atom_and_letter_landed(nac):
+    fig = render_structure(_one_atom(_general_ellipsoid()), size=300, background=None)
+    (atom,) = fig.atoms
+    assert fig.image[round(atom["y"]), round(atom["x"]), 3] == 255
+    fig = render_structure(nac, size=300)
+    assert [letter["text"] for letter in fig.letters] == ["a", "b", "c"]
+    h, w = fig.image.shape[:2]
+    assert all(0 <= t["x"] < w and 0 <= t["y"] < h for t in fig.letters)
+
+
+def test_the_options_reach_the_picture(nac):
+    base = render_structure(nac, size=200)
+    no_na = render_structure(nac, size=200, hidden=["Na"]).atoms
+    assert no_na and not any(a["species"].startswith("Na") for a in no_na)
+    assert render_structure(nac, size=200, hidden="Na1+").atoms == no_na
+    with pytest.raises(ValueError, match="no such species"):
+        render_structure(nac, size=200, hidden=["Nb"])
+    assert not any(a["boundary"] for a in render_structure(nac, size=200,
+                                                           boundary=False).atoms)
+    off = render_structure(nac, size=200, polyhedra=False)
+    assert not np.array_equal(off.image, base.image)
+    assert np.array_equal(render_structure(nac, size=200, polyhedra={"AlF₆": False}).image,
+                          off.image)
+    assert tuple(render_structure(nac, size=200, background="black").image[0, 0]) \
+        == (0, 0, 0, 255)
+    outlined = render_structure(nac, size=200, outline=True)
+    assert (outlined.image[..., :3].sum(-1) < base.image[..., :3].sum(-1)).sum() > 500
+    # a larger surface covers more of the frame, whether by probability or by
+    # a drawing scale
+    ink = [(render_structure(nac, size=200, mode="ellipsoid", axis_labels=False,
+                             background=None, **kw).image[..., 3] > 0).sum()
+           for kw in ({}, {"probability": 0.9}, {"exaggeration": 1.5})]
+    assert ink[1] > ink[0] and ink[2] > ink[0]
+    with pytest.raises(ValueError, match="build the geometry"):
+        render_structure(s3.build(nac), probability=0.9)
+
+
+# ----------------------------------------------------------------------
+# letters (D8)
+# ----------------------------------------------------------------------
+
+def test_the_font_ships_with_its_acknowledgement():
+    from importlib import resources
+
+    doc = json.loads(resources.files("rietx.data").joinpath("hershey_simplex.json")
+                     .read_text("utf-8"))
+    assert "Hershey" in doc["acknowledgement"] and "NTIS" in doc["licence"]
+    assert len(doc["glyphs"]) == 95
+
+
+def test_the_letters_are_drawn_in_the_accent_at_their_anchors(nac):
+    from rietx.viz.theme import TOKENS
+
+    fig = render_structure(nac, size=600)
+    accent = np.asarray(sc.rgb(TOKENS["light"]["--accent"])) * 255
+    for letter in fig.letters:
+        x, y = round(letter["x"]), round(letter["y"])
+        patch = fig.image[y - 8:y + 9, x - 8:x + 9, :3].reshape(-1, 3).astype(float)
+        assert (np.abs(patch - accent).max(axis=1) < 12).any(), letter
+    bare = render_structure(nac, size=600, axis_labels=False)
+    assert bare.letters == [] and not np.array_equal(bare.image, fig.image)
+    labelled = render_structure(nac, size=600, atom_labels=True)
+    assert (labelled.image != fig.image).any(axis=-1).sum() > 2000
+    _save(labelled, "nac_atom_labels")

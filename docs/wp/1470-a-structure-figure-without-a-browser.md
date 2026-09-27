@@ -250,21 +250,21 @@ and PNG metadata. Each decision says what it takes and what it declines.
 - [x] `build_scene` in Python, the corpus, and the vitest that replays it
   against `buildScene` (D3). The GUI's b button moves to c up (D12).
   `npm --prefix gui test` and a rebuilt dist.
-- [ ] The kernel and its numpy oracle: balls, ellipsoids with rings, bond
+- [x] The kernel and its numpy oracle: balls, ellipsoids with rings, bond
   halves, the cell frame as lines with a width in pixels, the `FLAT_AXIS`
   floor, row bands on the shared pool, the box filter inside the kernel
   (D1, D5). State and assert the equivalence bar between the two paths.
-- [ ] Polyhedra: faces and edges after the opaque pass (D6).
-- [ ] Views (D12): the named views, `[u, v, w]`, `{"hkl": ...}`, a 3×3
+- [x] Polyhedra: faces and edges after the opaque pass (D6).
+- [x] Views (D12): the named views, `[u, v, w]`, `{"hkl": ...}`, a 3×3
   rotation, `up=`, ASE's `turn=` string; the rotation drawn carried in the
   result; always fitted to the frame. Test that a round trip reproduces the
   picture, and that down [001] on a cubic cell equals `"c"`.
-- [ ] Output: the array, the anchors, the PNG writer with `pHYs` and `sRGB`,
+- [x] Output: the array, the anchors, the PNG writer with `pHYs` and `sRGB`,
   the transparent background (D7).
-- [ ] Letters: the Hershey subset with its acknowledgement beside it in the
+- [x] Letters: the Hershey subset with its acknowledgement beside it in the
   wheel, an `ATTRIBUTION.md` row, a, b, c by default and atom labels on
   request (D8).
-- [ ] Options: phase, mode, probability, exaggeration, hidden species, boundary
+- [x] Options: phase, mode, probability, exaggeration, hidden species, boundary
   images, polyhedra on or off or by formula, background, size, supersampling,
   `outline=` (D9).
 - [ ] Public surface: `rietx.viz.render_structure` through `__getattr__`, a
