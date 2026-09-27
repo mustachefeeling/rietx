@@ -63,7 +63,8 @@ under `src/rietx/gui/static/` (32 to `build-info.json`, 27 to
 3 conflicted on the dist. WP-1506 moves the required checks to `lint` and a
 `ci-ok` summary job, which is a branch-protection change by hand. This WP's
 write path to main is another. Both are the maintainer's, and both are
-cheapest done in one sitting.
+cheapest done in one sitting. Later the same day `ci-ok` landed on PR #504,
+and 1506 § By hand: branch protection holds the exact `gh api` call.
 
 **From WP-1438 (2026-09-17).** The dist went stale twice in one session and
 the gate caught it both times, which is a cost this WP has not counted.
