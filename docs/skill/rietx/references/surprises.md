@@ -1,4 +1,4 @@
-# 8. Twenty-seven things that will surprise you, all measured
+# 8. Twenty-nine things that will surprise you, all measured
 
 Load it when something the fit did makes no sense. Every entry is a measured result that contradicts an intuition.
 
@@ -485,3 +485,14 @@ constant-wavelength histogram and nothing on the fork's time-of-flight banks,
 and the fit converged at Rwp 0.115 against 0.066 with the right globs. That is
 §7 `STAGE_FREED_NOTHING`.
 (Measured: WP-1414, issue #265.)
+
+**8.29 More background terms make a measured blank's scale worse while Rwp
+improves.** `BackgroundFixedPlusChebyshev.from_pattern(blank)` carries the
+blank's esds. Free `…background.scale` against a **low-order** polynomial,
+because the blank is never on the specimen's scale and enough Chebyshev terms
+describe the curve themselves: a 0.85 truth came back as 0.838 on 1 term and
+0.648 on 6, Rwp falling throughout. `HIGH_CORRELATION` against `c0` there is
+the correct report. Judge the scale by **its own esd**, never by Rwp: the
+blank's esds enter the weight as σ² + s²·σ_f², so two fits declaring different
+scales are not scored on one statistic.
+(Measured: WP-1309.)

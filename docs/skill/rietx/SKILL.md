@@ -78,14 +78,8 @@ counting-statistics weights and can make intensities negative. Hold an estimated
 background *additively* (`BackgroundFixedPlusChebyshev`) or co-refine it under a
 smoothness penalty (`BackgroundPSpline`); `rx.auto_background(data,
 two_theta_limits=…)` sizes one to the range you fit. A **measured blank** (empty can, blank capillary, matrix-only scan)
-is `BackgroundFixedPlusChebyshev.from_pattern(blank)`, which carries its esds;
-free `…background.scale` against a **low-order** polynomial, because the blank is
-never on the specimen's scale and enough Chebyshev terms describe the curve
-themselves (0.85 truth recovered as 0.838 on 1 term, 0.648 on 6, Rwp falling
-throughout). `HIGH_CORRELATION` against `c0` there is the correct report. Judge
-the scale by **its own esd**, never by Rwp: the blank's esds enter the weight as
-σ² + s²·σ_f², so two fits declaring different scales are not scored on one
-statistic.
+is `BackgroundFixedPlusChebyshev.from_pattern(blank)`, its scale freed against a
+low-order polynomial and judged by its own esd (§8.29).
 
 ---
 
@@ -192,22 +186,9 @@ bugs; they are the geometry of the problem.
    than refining both.** `ref.tie_equal([paths])` makes an equality group,
    `ref.tie(path, source, scale=, offset=)` the general affine form (`occ₁ =
    1 − occ₀` on a mixed site is `scale=-1, offset=1`), `ref.untie` releases them.
-
-   A constraint *removes* a parameter, unlike a restraint, which adds a weighted
-   observation and leaves the count alone, so it is the one move that raises the
-   observation-to-parameter ratio. The two cases worth reaching for are
-   McCusker's: equal displacement parameters across atoms in the same
-   environment, and occupancies summing to a known total. Measured on
-   fluorapatite's three phosphate oxygens, tying them gives a B(O) tighter than
-   the best free value.
-
-   **Check the premise before you tie, and not with Rwp** — it moved by 0.05 % of
-   itself there. The check is in the free refinement: if each free value lies
-   within its own esd of the others, the data does not contradict the claim that
-   they are one parameter. Where they disagree by more than their esds, the atoms
-   are saying they are *not* in the same environment, and tying them replaces a
-   measurement with an assumption. Symmetry always outranks a user tie, and a
-   refused tie says so by name.
+   **Check the premise first, in the free refinement and never with Rwp**: tie
+   only values that lie within their own esds of each other. Why, and what a tie
+   bought on fluorapatite: [`references/judging.md`](references/judging.md).
 
 ---
 
@@ -305,12 +286,9 @@ measured evidence behind each rule is
 residual is serially correlated, so at raw N both ΔBIC and Hamilton's test
 bless any χ² gain. `rx.report.compare_freed(ref, trial)` returns the pair.
 
-**Comparing against another code means adopting its protocol, not just reading
-its numbers.** Mirror its refined-parameter set, its held parameters and its
-excluded regions, then *check the channel count matches* before believing any Rwp
-comparison. Measured: guessing a plausible protocol on the GSAS-II fluorapatite
-tutorial gave Rwp 16 % and a +390 ppm cell, while mirroring the converged `.EXP`
-gave 9.73 % against GSAS's 10.05 % on an identical 5750 channels.
+**Comparing against another code means adopting its protocol**: its refined
+set, held parameters and excluded regions, then a matching channel count, before
+any Rwp comparison ([`references/judging.md`](references/judging.md)).
 
 ---
 
@@ -456,12 +434,6 @@ protocol is not a measurement.
 
 **There is one integration surface: the Python API.** Dump a typed answer with
 `model_dump(mode="json")`; a failure **raises**, with no envelope or error code.
-
-**A `RefinementCancelled` you did not request is not a bug in your call.** Every
-fit records itself, and a human watching one can stop it from `rietx watch`. The
-stages that finished are kept. `.completed_stages` and `.node_id` say where the
-work stands, and that node id is a checkout target. Report where you got to. Do
-not re-run the fit as though it had failed.
 
 **Do not quote a signature from memory.** `rx.capabilities()` says what this
 build supports, `rx.help_for(path)` says what a parameter is, and
