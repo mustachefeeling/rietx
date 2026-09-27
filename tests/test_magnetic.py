@@ -1769,8 +1769,9 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # WP-1327, on the rung after #431's 0.27.  WP-1454 took the next, 0.29;
     # ``Phase.symmetry_operations`` (the operation-list phase, #448) took 0.30;
     # the supercell's ``MagneticSymmetry.propagation_vector_parent`` took 0.31,
-    # and WP-1326's ``Phase.propagation_vector`` the one after, 0.32.
-    assert caps.schema_version == "0.32"
+    # and WP-1326's ``Phase.propagation_vector`` the one after, 0.32;
+    # WP-1320's ``FractionProfile``, a new answer type, took 0.33.
+    assert caps.schema_version == "0.33"
 
 
 def test_every_moment_dof_has_a_help_entry():

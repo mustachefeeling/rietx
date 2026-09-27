@@ -103,6 +103,17 @@ row in `references/diagnostics.md`, a file that had **86 B of headroom**
 until PR #111 split it (see 1338). That is planned here rather than discovered at the cap. Against that, this adds
 no new physics and no new dependency.
 
+### Inherited
+
+- **2026-09-27, from [1320](1320-qpa-multimodal-fraction.md).** 1320 touched
+  no `PhaseQuantity` field. Its answer is a separate `FractionProfile`
+  (`schemas/fraction.py`), weight fractions only, and `SCHEMA_VERSION` is now
+  0.33. A molar basis on `PhaseQuantity` should decide whether the profile
+  reports a molar range too, and if it does, convert per grid point from each
+  refit's own QPA row, never the range afterwards (W is nonlinear in every
+  scale). 1320's diagnostic row is `QPA_FRACTION_UNDETERMINED`, beside
+  `QPA_UNAVAILABLE` in `references/diagnostics.md`.
+
 ## Non-goals
 
 - The multi-modal fraction and the profile-likelihood limit — 1320. That WP
