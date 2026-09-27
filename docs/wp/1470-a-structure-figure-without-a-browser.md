@@ -292,8 +292,11 @@ and PNG metadata. Each decision says what it takes and what it declines.
   (`buildScene`'s orientation-free `radius`), because D12's fit to the
   frame is tighter and would otherwise be what the row measures. Set its
   bar from that measurement and say so. It skips in CI.
-- [ ] Skill: the entry point in the generated `api-<shape>.md`, and a
+- [x] Skill: the entry point in the generated `api-<shape>.md`, and a
   routing row keyed by the situation "a figure of the structure".
+  (Done 2026-09-27 as `api-figure.md`, the generator's first technique index.
+  The situation joined the existing "writing the answer out" row, since the
+  body had 52 bytes left; a 21-byte cut elsewhere in the body paid for it.)
 - [ ] The addition staged in the open milestone's record.
 
 ## Acceptance

@@ -488,32 +488,40 @@ def test_every_dotted_name_in_the_api_index_resolves():
         resolve_dotted(dotted, API_INDEX.name)
 
 
-def test_the_api_index_is_what_the_generator_renders():
-    """`references/api.md` is generated and committed (it ships in the wheel
-    with no build step), so the committed bytes must be what the generator
-    renders from *this* package — a rename, a new keyword or a changed default
-    fails here until the file is regenerated."""
-    import difflib
+def _generator():
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(
         "make_api_index", ROOT / "docs" / "skill" / "make_api_index.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    return mod
 
-    rendered = mod.render()
-    committed = API_INDEX.read_text(encoding="utf-8")
-    if rendered != committed:
-        diff = list(difflib.unified_diff(
-            committed.splitlines(), rendered.splitlines(),
-            "committed", "rendered", lineterm="", n=0))
-        pytest.fail(
-            "references/api.md is stale — regenerate with\n"
-            "  .venv/bin/python docs/skill/make_api_index.py && "
-            "rietx skill --install . --copy\n"
-            + "\n".join(diff[:40]))
-    # the selection cannot be wider than what a reader can reach
-    assert " at 0x" not in rendered
+
+def test_the_api_indexes_are_what_the_generator_renders():
+    """`references/api.md` and every `api-<technique>.md` are generated and
+    committed (they ship in the wheel with no build step), so the committed
+    bytes must be what the generator renders from *this* package — a rename, a
+    new keyword or a changed default fails here until the file is regenerated.
+    Both directions: an index the generator no longer writes fails too."""
+    import difflib
+
+    rendered = _generator().targets()
+    assert {p.name for p in rendered} == {p.name for p in API_INDEXES}, (
+        "the committed api*.md files are not the ones make_api_index.py writes")
+    for path, text in rendered.items():
+        committed = (REFERENCE_DIR / path.name).read_text(encoding="utf-8")
+        if text != committed:
+            diff = list(difflib.unified_diff(
+                committed.splitlines(), text.splitlines(),
+                "committed", "rendered", lineterm="", n=0))
+            pytest.fail(
+                f"references/{path.name} is stale — regenerate with\n"
+                "  .venv/bin/python docs/skill/make_api_index.py && "
+                "rietx skill --install . --copy\n"
+                + "\n".join(diff[:40]))
+        # the selection cannot be wider than what a reader can reach
+        assert " at 0x" not in text
 
 
 #: `report.regions`, `result.statistics.rwp`, `statistics.esd_inflation`,
