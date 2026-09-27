@@ -360,6 +360,34 @@ export interface SceneLabel {
  *  (WP-1466, P6: VESTA's look). */
 export const POLY_ALPHA = 0.55;
 
+/**
+ * How every solid is lit and inked; `gl3d.ts`'s shaders read it, and the
+ * Python renderer's copy (`rietx.viz.figure3d.scene.LOOK`) is held equal to it
+ * by the scene corpus (WP-1470).
+ *
+ * One key light fixed to the camera, in view space (x right, y up, z toward
+ * the viewer), so the lit side follows every rotation.  An atom or a stick is
+ * `base·(ambient + diffuse·d) + specular·s^shininess`; a polyhedron face is
+ * `base·(ambient + face_diffuse·d)`, lit from the side it shows.  A principal
+ * ring is where the smallest unit-frame coordinate is under `ring_width`,
+ * inked `ring_lighten` of the way to white on an atom whose luminance is under
+ * `ring_dark` and at `ring_darken` of its colour on the rest, or a violet atom
+ * hides its rings.  The keys are Python's, because Python owns the corpus.
+ */
+export const LOOK = {
+  light: [-0.40, 0.55, 0.73],
+  ambient: 0.45,
+  diffuse: 0.60,
+  specular: 0.16,
+  shininess: 40,
+  face_diffuse: 0.55,
+  ring_width: 0.035,
+  ring_dark: 0.33,
+  ring_lighten: 0.6,
+  ring_darken: 0.3,
+  luma: [0.2126, 0.7152, 0.0722],
+} as const;
+
 /** A polyhedron's edges, in CSS pixels, drawn as the cell frame's quads (D9). */
 export const EDGE_WIDTH_PX = 1.25;
 
@@ -649,19 +677,21 @@ export function openingView(): View {
 /**
  * The view looking straight down one lattice vector.
  *
- * The lattice vector points at the viewer and the next one but one is up:
- * down **a** puts **c** up and **b** right, down **b** puts **a** up and **c**
- * right, down **c** puts **b** up and **a** right, since `right = up × toward`
- * on a right-handed a, b, c.  Those are the three projections a
- * crystallographer draws.  `up` is Gram-Schmidted against the view direction
- * because in a triclinic cell no two lattice vectors are perpendicular.
+ * The lattice vector points at the viewer and **c** is up, unless the view is
+ * down c, and then **b** (WP-1470 D12): down **a** puts **b** right, down
+ * **b** puts **a** left, down **c** puts **a** right, since `right = up ×
+ * toward` on a right-handed a, b, c.  That is the convention VESTA's standard
+ * orientation sets and megane's VESTA-derived axis buttons keep, and
+ * `rietx.viz.figure3d.scene.up_axis` states it for the Python renderer.
+ * `up` is Gram-Schmidted against the view direction because in a triclinic
+ * cell no two lattice vectors are perpendicular.
  *
  * The zoom comes from the view passed in, so choosing a projection keeps the
  * zoom the user had; the pan goes, because a pan is relative to a direction.
  */
 export function axisView(geometry: Geometry, axis: number, view: View = openingView()): View {
   return {
-    rotation: lookFrom(geometry.lattice[axis], geometry.lattice[(axis + 2) % 3]),
+    rotation: lookFrom(geometry.lattice[axis], geometry.lattice[axis === 2 ? 1 : 2]),
     zoom: view.zoom,
     pan: [0, 0],
   };

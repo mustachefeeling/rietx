@@ -1,8 +1,7 @@
 # WP-1470 — a structure figure from Python, drawn without a browser
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-27 — render_structure landed; the GUI's b button keeps c up
 Depends on: — (1462, 1466 shipped)
-Priority: P3 2026-09-27 — a view over what the fit already knows, asked for by the maintainer; `Refinement.write_cif` into VESTA or Jmol is the workaround; nothing blocks it
 
 ## Goal
 
@@ -75,9 +74,9 @@ This WP takes the last route.
   of `0.35 + ball_fraction × largest radius` Å. `shownPolyhedra` turns
   polyhedra on in ball mode and off in ellipsoid mode by default.
 - **The views**, in the same file. `lookFrom(eye, up)`; `openingView()` is
-  `lookFrom([1.35, 1.35, 0.95], [0, 0, 1])`; `axisView` looks down a with c
-  up, down b with a up, down c with b up, so the next vector is to the
-  right. Projection is parallel.
+  `lookFrom([1.35, 1.35, 0.95], [0, 0, 1])`; `axisView` looked down a with c
+  up, down b with a up, down c with b up, so the next vector was to the
+  right, until D12 moved down b to c up. Projection is parallel.
 - **The look**, in `gui/src/lib/gl3d.ts`. One key light fixed to the camera
   at `(-0.40, 0.55, 0.73)`; atoms and sticks take `shade = base × (0.45 +
   0.60 × diffuse) + 0.16 × spec⁴⁰`. Polyhedron faces take their own rule,
@@ -193,6 +192,13 @@ and PNG metadata. Each decision says what it takes and what it declines.
   nothing more.
 - **D11. The module is provisional by declaration.** Its look and its
   arguments follow the structure viewer, which WP-1468 is still changing.
+  Superseded in part 2026-09-27: the declaration cannot be a
+  `PROVISIONAL_MODULES` entry. That table must cover a name on the derived
+  surface (`test_provisional_modules_are_live_and_reasoned`), and nothing in
+  `rietx.viz` is on it: `rietx.viz` is not in `rietx.__all__`, and none of
+  its functions are among the 1800 derived names. So the declaration is a
+  bullet in `compatibility.md` § Provisional by declaration, which the
+  manual section links.
 - **D12. A view is named in crystallographic terms, and round-trips.** No
   program surveyed takes a zone axis or a plane normal. PyMOL's `set_view`
   takes 18 numbers and ChimeraX's `view matrix` 12, which an agent cannot
@@ -204,10 +210,16 @@ and PNG metadata. Each decision says what it takes and what it declines.
   names the direction kept up. `turn=` takes ASE's rotation string
   (`"30y,-15x"`), with ASE's signs and its rule that the order matters
   (`ase.utils.rotate`), because agents already know it from
-  `ase.io.write`. `up=` defaults to the GUI's rule for the lattice axis
-  nearest the view direction: c up down a, a up down b, b up down c. So
-  down [001] with no `up=` is `"c"`, and the default is never parallel to
-  the view. The result carries the rotation it
+  `ase.io.write`. `up=` defaults to the convention: c up, unless c is the
+  lattice axis nearest the view direction, and then b. VESTA's standard
+  orientation keeps +c up the screen, and megane's VESTA-derived axis
+  buttons keep c upright for the a and b views and b for the c view, with
+  the named end of the axis toward the viewer (megane PR #694,
+  `cameraOrientation.ts`). The maintainer chose the convention on
+  2026-09-27. The GUI's b button put a up, so it moves to c up in this WP,
+  and the corpus holds the two renderers equal on all three. So down [001]
+  with no `up=` is `"c"`, and the default is never parallel to the view.
+  The result carries the rotation it
   drew, so passing it back as `view=` reproduces the picture. Every view is
   fitted to the frame, as ChimeraX's `view` and OVITO's `zoom_all` are, so
   a caller never chooses a camera distance. Projection is parallel. Every
@@ -238,33 +250,34 @@ and PNG metadata. Each decision says what it takes and what it declines.
 
 ## Tasks
 
-- [ ] Skill: a row saying that `Refinement.write_cif` into VESTA
+- [x] Skill: a row saying that `Refinement.write_cif` into VESTA
   (`-export_img`) or JmolData draws a refined structure today. It lands
   first and stands on its own.
-- [ ] `build_scene` in Python, the corpus, and the vitest that replays it
-  against `buildScene` (D3). `npm --prefix gui test` and a rebuilt dist.
-- [ ] The kernel and its numpy oracle: balls, ellipsoids with rings, bond
+- [x] `build_scene` in Python, the corpus, and the vitest that replays it
+  against `buildScene` (D3). The GUI's b button moves to c up (D12).
+  `npm --prefix gui test` and a rebuilt dist.
+- [x] The kernel and its numpy oracle: balls, ellipsoids with rings, bond
   halves, the cell frame as lines with a width in pixels, the `FLAT_AXIS`
   floor, row bands on the shared pool, the box filter inside the kernel
   (D1, D5). State and assert the equivalence bar between the two paths.
-- [ ] Polyhedra: faces and edges after the opaque pass (D6).
-- [ ] Views (D12): the named views, `[u, v, w]`, `{"hkl": ...}`, a 3×3
+- [x] Polyhedra: faces and edges after the opaque pass (D6).
+- [x] Views (D12): the named views, `[u, v, w]`, `{"hkl": ...}`, a 3×3
   rotation, `up=`, ASE's `turn=` string; the rotation drawn carried in the
   result; always fitted to the frame. Test that a round trip reproduces the
   picture, and that down [001] on a cubic cell equals `"c"`.
-- [ ] Output: the array, the anchors, the PNG writer with `pHYs` and `sRGB`,
+- [x] Output: the array, the anchors, the PNG writer with `pHYs` and `sRGB`,
   the transparent background (D7).
-- [ ] Letters: the Hershey subset with its acknowledgement beside it in the
+- [x] Letters: the Hershey subset with its acknowledgement beside it in the
   wheel, an `ATTRIBUTION.md` row, a, b, c by default and atom labels on
   request (D8).
-- [ ] Options: phase, mode, probability, exaggeration, hidden species, boundary
+- [x] Options: phase, mode, probability, exaggeration, hidden species, boundary
   images, polyhedra on or off or by formula, background, size, supersampling,
   `outline=` (D9).
-- [ ] Public surface: `rietx.viz.render_structure` through `__getattr__`, a
+- [x] Public surface: `rietx.viz.render_structure` through `__getattr__`, a
   `PROVISIONAL_MODULES` entry (D11), a section in
   `docs/manual/using/exports.md`, and `examples/structure_figure.py`, which
   the manual includes and `tests/test_examples.py` runs.
-- [ ] Tests: a ball's silhouette radius against `r ×` pixels per Å; an
+- [x] Tests: a ball's silhouette radius against `r ×` pixels per Å; an
   ellipsoid's silhouette against the exact projected ellipse (the norms of
   the first two rows of R·k·T); a cubic cell viewed down c projects to a
   square; alpha zero outside the structure on a transparent background; the
@@ -272,15 +285,18 @@ and PNG metadata. Each decision says what it takes and what it declines.
   are identical; a polyhedron leaves a translucent pixel; a non-positive
   tensor draws no NaN; the numpy path runs under `RIETX_COMPILED=0`.
   Pictures to `tests/output/`.
-- [ ] A browser parity row in `tests/test_structure3d_browser.py`: one
+- [x] A browser parity row in `tests/test_structure3d_browser.py`: one
   scene and one view drawn by both renderers, and the mean difference
   measured. The Python side takes the GUI's framing for this row
   (`buildScene`'s orientation-free `radius`), because D12's fit to the
   frame is tighter and would otherwise be what the row measures. Set its
   bar from that measurement and say so. It skips in CI.
-- [ ] Skill: the entry point in the generated `api-<shape>.md`, and a
+- [x] Skill: the entry point in the generated `api-<shape>.md`, and a
   routing row keyed by the situation "a figure of the structure".
-- [ ] The addition staged in the open milestone's record.
+  (Done 2026-09-27 as `api-figure.md`, the generator's first technique index.
+  The situation joined the existing "writing the answer out" row, since the
+  body had 52 bytes left; a 21-byte cut elsewhere in the body paid for it.)
+- [x] The addition staged in the open milestone's record.
 
 ## Acceptance
 
@@ -313,6 +329,8 @@ npm --prefix gui test && npm --prefix gui run check
 - Johnson, C. K. (1965). ORTEP: a Fortran thermal-ellipsoid plot program.
   Report ORNL-3794, Oak Ridge National Laboratory. Burnett, M. N. &
   Johnson, C. K. (1996), ORTEP-III, ORNL-6895.
+- megane's axis views, VESTA-derived:
+  <https://github.com/megane-labs/megane/pull/694>
 - VESTA, Momma, K. & Izumi, F. (2011). *J. Appl. Cryst.* 44, 1272-1276. Its
   command line: <https://jp-minerals.org/vesta/en/doc/VESTAch17.html>
 - Jmol headless rendering: <http://wiki.jmol.org/index.php/Jmol_Application>
@@ -334,6 +352,104 @@ npm --prefix gui test && npm --prefix gui run check
   <https://fedoraproject.org/wiki/Licensing:HersheyFontLicense>
 
 ## Handover log
+
+### 2026-09-27 (3rd session) — CI
+
+PR #498's fast suite failed on every Linux job, on one test. The per-push run
+skips that suite, so only the PR run reached it. The fix is in the test.
+
+- **Cause.** `test_the_committed_scene_corpus_is_current` rebuilt the
+  payloads and compared the file byte for byte. `structure3d.build` breaks
+  ties in distance on the last bit, and rutile's octahedron is all ties.
+  Four ulps of noise on the linear algebra reorder its vertices and hull
+  faces, so the file depends on the platform while the picture does not.
+- **Fix.** The check replays the scene rules over the committed payloads,
+  which are pure python. Floats agree within 1e-10 of max(1, |v|), a tenth
+  of vitest's bar. The committed file sits 5.5e-12 from its own replay. A
+  new case or payload field still rewrites the file, through field names that
+  16 ulps of noise leave alone on four seeds. Made to fail on purpose three
+  ways, each naming where: `POLY_ALPHA` moved, the stick radius nudged 1e-8
+  (below vitest's bar), and a field added. WP-1468's inherited note says
+  how to refresh the payloads after a change to `build()`.
+- **Siblings.** `test_gui_fnmatch.py` and `test_gui_palette.py`'s
+  `tokens.css` regenerate strings from constants, so they hold on any
+  platform. The scene corpus was the only float fixture compared by bytes.
+- **The manual** offered "an atom removed" as a dict edit, and the skill's
+  figure index "a site to leave out". Both raise (WP-1501's probe). Both now
+  name a site's colour or radius, say a colour is `#rrggbb`, and say a
+  deletion raises. WP-1501's `keep()` stays the route to a cut.
+- **Measured.** darwin/arm64, `[dev]` venv plus `playwright`. The touched
+  files: 142 passed, and 21 in `test_manual.py`. No test was added.
+
+### 2026-09-27 (2nd session) — closed
+
+An agent can now make a 3D figure of a refined structure from Python.
+`render_structure` draws what the GUI's structure viewer draws, as an array or
+a PNG, with no browser and no new dependency. It takes about 35 ms at 1000 px.
+A committed test corpus keeps the two copies of the viewer's scene rules
+equal. The picture sits within about one 8-bit level of the browser's on
+average. The cost is that second copy: a change to how the viewer draws now
+edits Python too, and a red vitest says so when it does not.
+
+- **Done.** All thirteen tasks. The WP arrived numbered 1469, which another
+  WP filed the same morning also used. Both merged unchecked, and together
+  they put ROADMAP one line over its cap. So this session first repaired
+  `main` in #497 (merged): this file moved to 1470 with its spike, the cap
+  rose to 856, and the bijection test now refuses two WP files of one number.
+- **Decisions taken.** D12's default up follows the convention, as the
+  maintainer asked: c up, or b up when looking down c. VESTA's standard
+  orientation sets it, and megane's VESTA-derived axis buttons keep it
+  (PR #694). The GUI's `b` button moved from a-up to c-up to match, and its
+  tooltip says so. D11 cannot be a `PROVISIONAL_MODULES` entry: nothing in
+  `rietx.viz` is on the derived surface (0 of 1800 names), so the declaration
+  is a bullet in `compatibility.md`. The skill routing row joined the
+  existing "writing the answer out" row, paid for by wording cuts in the
+  body, because `SKILL.md` had 52 bytes left and WP-1320 then took most of
+  those.
+- **Measured.** Apple M4, `[dev]` venv plus `playwright`, darwin/arm64.
+  - Warm render of NAC from a `Structure`: 33-40 ms at 1000 px and 71-94 ms
+    at 3000 px, 2 × 2. From a built geometry: 13-22 ms and 52-84 ms, over two
+    runs of five. The spike measured 85-108 ms and 0.73-0.96 s. `build()`
+    takes 19-22 ms, and 3000 px at 4 × 4 takes 239-247 ms. The first render
+    in a process compiled in 1.5 s, and 0.15-0.16 s from numba's cache.
+  - The kernel and the numpy oracle agree to the bit, whole and in dozens of
+    bands.
+  - Parity with the viewer: 1.06 levels mean difference in three runs
+    (headless chromium, SwiftShader, 507 × 300 canvas), 86 % of it on edges.
+    The bar is 2.0. A one-row crop misalignment scored 4.49. That was the
+    first reading, until the row clipped the page at the canvas's rounded box.
+  - `CANVAS_CSS_PX` is that measured 507, where it was a placeholder 600.
+  - Scene corpus: 234 kB. Nudging one Python constant turned the vitest red.
+  - Fast suite on this branch with current `main` merged (WP-1320
+    included): 6622 passed, 145 skipped, 3:25, no other suite running. This
+    branch adds 29 tests to that selection (27 in `test_render_structure.py`,
+    one example, one browser row), all passes. The first fast run found one
+    real failure, a positional `encoding` argument, fixed in `e239a0e1`. The
+    full suite did not run: no forward model, solver or statistic changed.
+  - vitest 575 passed (4 new in the scene-parity block); `svelte-check`
+    clean; the manual builds under `-W`.
+- **Review.** `/code-review high --fix` found nine and all were taken
+  (`5ac12f77`). The notable ones: atom labels could run off the frame; an
+  unknown `polyhedra=` formula switched nothing silently; `__array__` handed
+  out its own buffer on `copy=True`; and bands left the pool idle at 1000 px.
+  I reworded its tooltip to drop an em dash. Declined: a float `supersample`
+  truncates, a negative `exaggeration` passes, and `phase=` beside a geometry
+  dict is ignored. My own browser look found the outline inking the cell
+  frame black, fixed in `06856541` with a guard that fails on the old order.
+- **Filed elsewhere.** WP-1468 inherits what a scene-rule edit now owes.
+  `gui/CLAUDE.md` names the Python twin, its cap rising by the four lines.
+- **Gotchas.** The worktree guard refuses long heredocs and `&&` chains that
+  end in a commit, so messages go through a scratchpad file and `git commit
+  -F`. `npm --prefix gui exec` run from the repo root leaves a
+  `node_modules/.vite` there. BSD `sed` ignores `\b`. An element screenshot
+  of the canvas gains a row at a fractional CSS position, so the parity row
+  clips the page instead.
+
+Next: nothing owed here. Two follow-ups are worth a WP if anyone asks. A
+magnetic moment drawn as a cylinder and a cone, once WP-1326/1327's model
+lands (a Non-goal here). And a vector export, which D1 declines until a
+picture shows the need. WP-1468's first task that changes the default picture
+should re-run the parity row.
 
 ### 2026-09-27 — filed
 

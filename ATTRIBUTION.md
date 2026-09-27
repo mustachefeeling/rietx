@@ -328,6 +328,17 @@ they were built from. Their licence texts ship in the wheel and sdist as
 
 ## Data tables
 
+- `src/rietx/data/hershey_simplex.json` — the 95 printable ASCII characters of
+  the Hershey Roman simplex font, the strokes `rietx.viz.render_structure`
+  draws its letters with (WP-1470). The Hershey fonts were created by
+  Dr. A. V. Hershey at the U.S. National Bureau of Standards. The coordinates
+  were converted from Paul Bourke's C table of the simplex set
+  (http://paulbourke.net/dataformats/hershey/, 1997; retrieved 2026-09-27)
+  into JSON; no coordinate was changed. The licence
+  (https://fedoraproject.org/wiki/Licensing:HersheyFontLicense) permits any
+  use on two conditions: the acknowledgement accompanies the data, which the
+  file's own `acknowledgement` and `licence` fields do, and the data is never
+  distributed in the original NTIS format, which this file is not in.
 - `src/rietx/data/b_Sears.dat` — bound coherent neutron scattering lengths and
   cross sections, obtained from the NIST Center for Neutron Research's
   machine-readable copy (https://www.ncnr.nist.gov/resources/n-lengths/list.html,
