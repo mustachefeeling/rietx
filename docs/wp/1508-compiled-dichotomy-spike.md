@@ -1,6 +1,7 @@
 # WP-1508 — compiled dichotomy spike (gated: build only if the box traversal is the unit's cost)
 
-Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-09-27 — gate read split: a kernel for the 4-D traversal in progress;
+the 2-D rows' leaves go to their own WP
 Track: A long run is not one fit
 Depends on: — (1115 built the tier; 1030 measured the box counts; 1449 measured the cut)
 Priority: P3 2026-09-27 — cost-only with a workaround (a bigger budget); what it buys beyond cost is a search that finishes, where 1449's rows now skip on a cut one
@@ -80,6 +81,46 @@ per kernel, stated and asserted; **one path per process**. `model/_kernels_numba
 is paid by every refinement process (~0.28 s cold), so indexing kernels must not
 join it — they build lazily on first dichotomy use.
 
+## Gate reading (2026-09-27) — split by the search's dimension
+
+**The gate reads open for a 4-D search and shut for a 2-D one, so the kernel is
+built for the regime it serves and the rows the budget cuts get a different fix.**
+Measured by replaying each unit exactly as `index_pattern` hands it to the engine
+(inputs captured by stubbing the registry), serial, to completion, under a 50 Hz
+`py-spy` sample; `[dev]` venv, Linux x86-64, 4 cores, py3.12, numba 0.67.0, numpy
+2.5.3, nothing else running. Shares are of the unit's samples.
+
+| unit | wall | boxes | rows/box | box traversal | leaves (`_accept` / centred replay) |
+|---|---|---|---|---|---|
+| brucite hexagonal | 241 s | 75 475 | 2074 | 12 % | 85 % (50 / 35) |
+| brucite trigonal | 275 s | 75 475 | 2074 | 10 % | 87 % (46 / 41) |
+| corundum hexagonal | 204 s | 59 886 | 1983 | 11 % | 85 % (56 / 28) |
+| corundum trigonal | 221 s | 59 886 | 1983 | 10 % | 87 % (51 / 36) |
+| synthetic monoclinic | 206 s | 1 309 957 | 107 | **94 %** | 0.6 % |
+
+- **The cost model this WP opened with was wrong for the rows it was written
+  about** — the third time for this engine (WP-1030's ranking, and `_test_box`'s own
+  "20 µs once the set collapses"). On a 2-parameter metric the box set never
+  collapses: ~2000 rows survive to every box, the traversal is ~3 ms a box of
+  already-vectorised numpy, and ~900 leaves each pay the expensive part.
+- **Where a 2-D unit's time goes is the leaves, and neither leaf cost is
+  dispatch.** `_accept` is `assign_lines` over the whole trial set (the `dm @ af`
+  gemv and the in-window mask over up to `MAX_TRIAL_HKL` rows, per anneal pass, per
+  centring, per leaf) plus `refine_candidate`'s LAPACK. The centred replay re-tests
+  the centring's *entire* search set — ~2000 rows — at every leaf, where only the
+  leaf's own survivors can reach a line (every prune is monotone, so a row that
+  reaches no line over an ancestor reaches none here). That second one has an exact
+  numpy fix and is filed as its own WP, not built here (the maintainer's call).
+- **Where a 4-D unit's time goes is the traversal, and it is dispatch.** 157 µs a
+  box at 107 rows: `_q_bounds` 26 %, `_det_interval`'s scalar interval arithmetic
+  11 %, `_assignment_possible` 7 %, `_af_interval` 7 %, and the loop body 8 %. This
+  is the regime `quick` never reaches today (bethanechol's default mode stops at
+  orthorhombic) and the one `test_dichotomy_recovers_a_monoclinic_cell` spends
+  411 s in on the nightly.
+- **Pinned for bit-identity**: numpy 2.5.3's `.sum(axis=1)` over ≤ 6 columns is
+  plain left-to-right addition at every row count tried (1-200 003), probed with
+  `[1e16, 1, 1]`; a sequential kernel loop reproduces it.
+
 ## Non-goals
 
 A kernel for svd or trial_error (not bit-identical; profiled, not built). Raising or
@@ -88,7 +129,9 @@ numpy fixes. Any change to what a finished search reports.
 
 ## Tasks
 
-- [ ] **Profile gate.** Current tree, numba installed, serial, machine checked idle.
+- [x] **Profile gate** — read **split** (§ Gate reading): open for the 4-D traversal,
+      shut for the 2-D rows, whose leaves go to a follow-on WP.
+      Current tree, numba installed, serial, machine checked idle.
       Finished (large-budget) dichotomy units on brucite and corundum — the rows the
       budget cuts — and the synthetic monoclinic row of `tests/test_indexing_engines.py`,
       under `cProfile`. Split each unit into phase 1 grid / phase 2 box work

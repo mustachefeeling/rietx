@@ -445,6 +445,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1464](1464-a-screen-reads-the-batch-references-first.md) | A screen reads the batch references first | ⬜ | P3 | — (#385 soft) |
 | [1469](1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | ⬜ | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) |
 | [1508](1508-compiled-dichotomy-spike.md) | Compiled dichotomy spike (gated: build only if the box traversal is the unit's cost) | 🔄 2026-09-27 | P3 | — |
+| [1509](1509-dichotomy-leaves-pay-for-the-whole-trial-set.md) | A dichotomy leaf pays for the whole trial set | ⬜ | P3 | — ([1508](1508-compiled-dichotomy-spike.md) soft) |
 
 ### <a id="unscheduled-one-file-many-patterns"></a>One file, many patterns
 
