@@ -2609,11 +2609,15 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     assert best.confidence_caveats == []
     assert set(best.found_by) == set(res.engines_run)
 
-    # **And `best_or_none()` is None anyway, because two more cells also reach
+    # **And `best_or_none()` is None anyway, because another cell also reaches
     # `high` — a defect this row used to hide rather than one WP-1041 caused.**
     #
-    # Both are the a·√2 supercell (5.878564 = 4.156772 × 1.414214), in its I and
-    # P descriptions, and all three engines find all three cells.  They used to
+    # It is the a·√2 cell (5.878564 = 4.156772 × 1.414214), found by all three
+    # engines in its I and P descriptions.  Until WP-1449 both reached `high`.
+    # The P description is an index-2 superlattice of the I one, and the lines
+    # it adds that no extinction could remove are absent, so the supercell check
+    # refutes it (`supercell_refuted`) and it grades low.  The I description is
+    # no superlattice of any reported cell, so nothing moves it.  They used to
     # carry `engines_disagree` only because `trial_error`'s dedup key was
     # scale-invariant, so in a one-dimensional metric it could return **one**
     # cubic candidate per search and the supercells never got its vote.  The
@@ -2639,8 +2643,14 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     # says is what catches a wrong metric.  Both need one measured fix.
     # **When it lands, this block inverts back to `is not None`.**
     high = [c for c in res.candidates if c.confidence == "high"]
-    assert len(high) == 3, [(c.centring, round(c.cell[0], 6)) for c in high]
+    assert [c.centring for c in high] == ["P", "I"], [
+        (c.centring, round(c.cell[0], 6)) for c in high]
     assert res.best_or_none() is None
+    (p_root2,) = [c for c in res.candidates[1:] if c.centring == "P"]
+    assert p_root2.confidence == "low"
+    assert "supercell_refuted" in p_root2.confidence_caveats
+    assert any(k.parent_centring == "I" and k.verdict == "refuted"
+               for k in p_root2.supercell_checks)
     for rival in res.candidates[1:]:
         ratio = rival.cell[0] / best.cell[0]
         assert ratio == pytest.approx(np.sqrt(2.0), abs=1e-5), ratio

@@ -408,9 +408,16 @@ search: a local run, or the nightly dispatched with `full_macos`.
       `*Source:*` line, and Part 1's indexing chapter describes the re-rank.
       *Done 2026-09-27: `idx-supercell-chance`, with α injected from
       `SUPERCELL_CHANCE_ALPHA`.*
-- [ ] Re-measure the brucite and corundum rows, and fold
+- [x] Re-measure the brucite and corundum rows, and fold
       `test_brucites_truth_is_not_ranked_first` back into the row above when it
-      goes red.
+      goes red. *Folded 2026-09-27 on the replay over a finished search (900 s
+      a unit): truth first. The acceptance run here skipped the rows that read
+      an order, brucite's and corundum's, because the 300 s budget cut their
+      searches on this 4-core container. So a finished run, a Mac or the
+      nightly with `full_macos`, is still the confirmation. It also moved
+      `test_what_the_unflagged_tail_components_cost_the_certified_cell`: the
+      P description of LaB6's a·√2 cell is refuted over its I description,
+      so two cells reach `high` where three did.*
 
 ## Acceptance
 
