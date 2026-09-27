@@ -1,7 +1,7 @@
 # WP-1449 — rank on what the screen determined, not on what the peak list shows
 
-Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here (cloud session): the check
-counts only uncancellable extras (amended seam); the build continues
+Milestone: unscheduled · Status: 🔄 2026-09-27 — the re-rank landed on uncancellable extras; the
+bethanechol measurement and a finished-run confirmation remain
 Depends on: — (1446 measured the refutation; 1025 built the screen)
 Priority: P2 2026-09-23 — a wrong cell ranked first on a surface every page calls provisional; 1446 already measured the refutation
 
@@ -434,6 +434,90 @@ search: a local run, or the nightly dispatched with `full_macos`.
   candidates.
 
 ## Handover log
+
+### 2026-09-27 (3rd session) — the check counts only uncancellable extras, and the re-rank is wired
+
+Indexing now moves a too-big cell below the smaller cell it contains when the
+pattern does not show the lines the larger cell adds. It judges this on
+evidence symmetry cannot fake: only the added lines no space group could
+extinguish are counted, and they are compared with how often chance puts a line
+there. The decided design asked the extinction screen for the symmetry first.
+Measured today, that screen's answer moves with the 2θ range on every truth
+with extinctions, and a wrong answer would have demoted corundum's certified
+cell, so the maintainer amended the seam to the class-free count. On the
+finished acceptance searches it puts brucite's and 11-BM NAC's certified cells
+first. It keeps corundum's above its own half-height cell, and refutes every
+wrong supercell tested. It needs no pattern, so a bare peak list is checked too.
+One measurement below high symmetry remains, and the bethanechol peak lists can
+now supply it.
+
+**Done.**
+
+- `ambiguity.supercell_chance` (the test), `chance_rate` (p0),
+  `SupercellEvidence` with three verdicts (`undecided` where even every extra
+  seen could not reach α), `lattice_point_group` and `uncancellable`. The pair
+  is found on primitive reduced cells, so the P descriptions of I, R and F
+  truths are found at index 2, 3 and 4.
+- `consensus.supercell_checks` and `below_refuting_parents`, run in consensus
+  on the engines' list, so streamed and final lists agree.
+  `CellCandidate.supercell_checks` is `None` until asked. There is a new
+  refuting caveat `supercell_refuted`, `INDEX_SUPERCELL_REFUTED`, and
+  `INDEXING_THRESHOLDS_VERSION` 1.5.
+- Two fixes the wiring needed. `_extra_mask` uses a sorted nearest search
+  (NAC 12.7 s → 1.2 s). `_same_reduced_metric` bands a reduced metric's angles
+  on its own scale, since `same_lattice`'s component-wise test missed the cubic
+  F and I cells over a doubled P.
+- Docs: a Part 1 section and caveat row; the Part 2 equation
+  `idx-supercell-chance` with α injected; the skill row, re-synced; the
+  validation matrix; `releases/1.5.1.md`; the indexing CLAUDE.md rule.
+- Acceptance rows. Brucite's xfail is folded back into its row. NAC's row
+  asserts the I cell first. The calibrated-LaB6 row now counts two `high`
+  cells where it counted three, because the P description of the a·√2 cell is
+  refuted over its I description.
+
+**Measured** (`[dev]`, Linux x86-64, 4 cores, py3.12).
+
+- The screen and corpus tables are in Context (the amendment). Seeding widths
+  changed nothing on corundum at five ranges.
+- The replay over the ten finished searches (900 s a unit) moves three orders:
+  brucite's truth, zircon's second I cell, NAC's I cell. The check cost
+  0.03-1.2 s per consensus call.
+- The finished searches here: brucite 710 s, with a slowest unit of 343 s;
+  corundum 1408 s, with 696 s. The acceptance's 300 s budget cuts both on this
+  machine.
+- Fast suite, alone: 6460 passed, 163 skipped, 1 failed, 19:22. The failure
+  is `test_telemetry`'s unwritable-directory case, which fails because the
+  container runs as root and `chmod` does not stop root. Neither file differs
+  from main. This session added 38 fast items (`test_indexing_reduce` 26 → 61,
+  `test_indexing_consensus` 33 → 36) and removed one slow row (45 → 44). The
+  base count was not measured on this platform.
+- `tests/test_acceptance_indexing.py`, alone, `-n auto`: 39 passed, 1 failed
+  (the LaB6 row, updated and passing alone), 4 skipped, 49:16. The skips are
+  three corundum-family order rows and brucite's rank, all cut searches.
+  Brucite's found claims and NAC's I-first rank ran and passed. The full
+  selection did not run: nothing outside indexing moved.
+
+**In flight.** Nothing uncommitted.
+
+**Gotchas.**
+
+- A cut search skips every row that reads an order, so the brucite rank and
+  corundum's rows are confirmed only by the replay until a finished run.
+- The truth side of α is the close one. Two pseudo-tetragonal LaB6 truths
+  read 2 of 3 extras at p = 0.0072; the pairing fix moved one of them from 3
+  of 5. Both already sit below their parent.
+- `lattice_point_group`'s tolerance is sin 3°, so pseudo-symmetry is counted
+  and extras shrink. Low-symmetry power is untested.
+- The corpus's `p0` differs from the earlier probe's table (corundum 0.152
+  against 0.117), because each search's own `match_window` is used here.
+
+**Next.** Run the bethanechol benchmark first
+(`.venv/bin/python -m tests.bethanechol_benchmark --modes manual`, alone),
+since the check now runs on peak lists. Read the truth's rank and whether any
+monoclinic truth is refuted or left undecided. That answers the last task, and
+it decides whether sin 3° costs too much power below high symmetry. Then
+confirm the brucite and corundum rows on a finished run (a Mac, or the nightly
+with `full_macos`) and close.
 
 - **2026-09-27** — The maintainer chose the re-rank. A supercell the chance
   test refutes moves directly below its parent with a refuting caveat, at
