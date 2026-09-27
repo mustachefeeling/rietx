@@ -17,7 +17,8 @@ reference file that a session might `cat` stays under it.
 
 Raising a cap is a decision about every future session's fixed cost.  Make it
 in a commit that says so; the fix for a full body is to move a lookup into a
-reference file, which is what the tree is for.
+reference file, which is what the tree is for.  The numbers, and the budget
+below each that fails only growth (WP-1338), are `tests/skill_caps.py`'s.
 
 **The frontmatter.**  Fields outside the specification are ignored by some
 harnesses and rejected by others, so the field *set* is asserted rather than

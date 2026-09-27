@@ -138,7 +138,7 @@ tokens; by size the candidates are §4 (6 806 B), §10's worked default
       sentence, real agents on tasks where a diagnostic fires, against
       today's body. Registered before it runs (tests/CLAUDE.md § Three eval
       protocols).
-- [ ] The placement rule written where WP-1330's lives: CONTRIBUTING.md
+- [x] The placement rule written where WP-1330's lives: CONTRIBUTING.md
       § The agent skill and root CLAUDE.md's skill bullet.
 - [ ] After the eval, body material moved into references toward 5 000
       tokens, each move recorded with the bytes it freed.
