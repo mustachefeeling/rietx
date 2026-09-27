@@ -188,13 +188,17 @@ main table sitting 38 B under its cap).
       σ is kept. Decide whether the check runs in `read_xy` or on the
       post-dispatch hook for every format, and record the reason where it
       lands.
-- [ ] `help.py` entries for every new code; the format rows in
-      `src/rietx/io/CLAUDE.md` say what the readers now check.
-- [ ] Tests: the synthetic `good`/`bad` pair from #236 verbatim (no data file
+- [x] The format rows in `src/rietx/io/CLAUDE.md` say what the readers now
+      check. *Superseded in part, 2026-09-28:* the task first asked for
+      `help.py` entries too. `help.py` has no diagnostic-code arm (its arms
+      are parameters, peak flags, origins and peak diagnostics, stage fields,
+      reader options, instrument and search fields), and none of the io
+      layer's ~70 codes has an entry, so a reader code is described in §7i.
+- [x] Tests: the synthetic `good`/`bad` pair from #236 verbatim (no data file
       needed), plus one per-format smoke that the guard does not fire on the
       suite's real patterns; #266's two inline files, asserting the point
       count and the codes. All in `tests/test_readers_robust.py`.
-- [ ] Skill: one row per new code in `references/diagnostics-reading.md`
+- [x] Skill: one row per new code in `references/diagnostics-reading.md`
       (§7i), none in the body. PR #233 merged 2026-09-07, and its clause now
       sits in `references/batch-operating.md`: *"Assert a sanity bound on
       every parsed 2θ axis"*, beside the FXYE case this WP fixes. Once the

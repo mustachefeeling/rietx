@@ -660,7 +660,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # 473 -> 485 (WP-1118, 2026-09-16): the GSAS-II pair added the one rule a
     # writer cannot derive from the four before it — two programs reading one
     # string opposite ways, so the fact goes in the channel the target reads.
-    "src/rietx/io/CLAUDE.md": 485,
+    # 485 -> 498 (WP-1332): two rules for the next pattern reader, each a check
+    # it inherits and must not re-implement.  The 2θ range is checked once on
+    # read_pattern's hook (past 180° raises, at or below 0° reports), because
+    # no per-format axis classifier can see a unit; a constant σ is reported on
+    # the same hook.  The two row additions (gsas, xy) cost no line.  Landed at
+    # 497; the +1 is headroom.  Raised rather than shaved, per the message.
+    "src/rietx/io/CLAUDE.md": 498,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs
