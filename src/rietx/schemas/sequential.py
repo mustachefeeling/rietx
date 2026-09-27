@@ -701,6 +701,13 @@ class SeriesResult(Base):
         for d in persistent[:5]:
             lines.append(f"      {d.message}")
 
+        # a width that grew while the fit got worse (WP-1465): the one reading
+        # of a trajectory that says a phase stood in for something missing
+        growth = by_code.get("SEQUENTIAL_WIDTH_GROWTH", [])
+        lines.append(f"    widths grown with a worsening fit: {len(growth)}")
+        for d in growth:
+            lines.append(f"      {d.message}")
+
         steps = by_code.get("SEQUENTIAL_DISCONTINUITY", [])
         lines.append(f"    steps: {len(steps)}")
         for d in steps:

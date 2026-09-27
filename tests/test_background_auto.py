@@ -1427,6 +1427,7 @@ def test_an_absorption_screen_with_nothing_to_screen_reads_not_measured(arm):
     if mode == "rietveld":
         assert ("background.absorption: not measured"
                 in ref.summary(deliverable="qpa", report=report))
+    _plot(result, f"wp1465_unscreened_{arm}")
 
 
 def test_off_region_durbin_watson_is_pooled_within_runs():

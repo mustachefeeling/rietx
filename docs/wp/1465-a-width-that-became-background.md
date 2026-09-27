@@ -141,6 +141,42 @@ The series trigger is what sees it: ε_L/ε_L(first) reads 2.4, 3.7, 5.3, 7.0
 over the first four steps while Rwp rises 1.56 → 7.97 %, and the control's
 reads 1.0 ± 0.05 throughout.
 
+### Finding 2 — the trigger, and where each of its halves was measured (2026-09-27)
+
+**As a chain the synthetic behaves as it did cold.** Through
+`SequentialRefinement`, ε_L/ε_L(first) reads 2.32, 3.65, 5.15, 6.83 over the
+four soaked patterns, and GoF/GoF(first) reads 1.87, 3.05, 4.20, 5.12 (Pawley;
+the Rietveld chain's width and Rwp ratios sit within 0.02 of these). The two-phase control stays
+within 0.96-1.00 on the width and 1.00-1.04 on GoF. `SEQUENTIAL_RESEED` does
+fire on the soaked chain, since Rwp passes 1.25× the running median, but it
+says "refitted from the initial model" and never names the width.
+
+**The suite's series, surveyed** (a probe plugin logging every `SeriesResult`
+the series-building test files produce, slow acceptance included; `[dev]`,
+Linux). There are 79 series. Two free a width: the round-robin QPA chain,
+built twice, with 24 width trajectories between them. Its widths wander
+4-946× from the first pattern, because a minor phase's width sits at the
+floor with an esd of 3e3. Its Rwp **falls** along the chain (≤ 0.81×), and
+its GoF peaks at 1.14×.
+
+- Width ≥ 3× the first value alone would fire on 11 of the 24.
+- Against the first value measured past 3σ, it fires on none.
+- GoF ≥ 1.5× at the same pattern: the suite has no series that reaches it.
+
+So on the suite, the measured-reference rule is what keeps the clean chain
+silent. The GoF half is what keeps a width that really grows silent, and no
+series in the suite has one. The test builds it: a correct one-phase model
+over a strain growing 0.02 → 0.10 reaches a width of 5.13× at a GoF of
+≤ 1.00, and fires nothing.
+
+**GoF, not Rwp.** Rwp follows Rexp, which rises as counts fall, so a series
+losing intensity raises Rwp under a correct model. GoF divides that out, and
+on the synthetic, whose counts are constant, the two ratios are the same
+number.
+
+**Not screened:** a Stephens block, which has no single width and locks
+`lor_strain` while declared, and the instrument's own widths.
+
 ## Non-goals
 
 - The instrument-profile-versus-measured-width census and the meaning of
@@ -168,24 +204,32 @@ reads 1.0 ± 0.05 throughout.
       "not measured" with the reason. `THRESHOLDS_VERSION` 1.8 → 1.9, staged
       in `releases/1.5.1.md`, manual rows in `using/report.md`. The
       parametrised test fails 4/4 on the unfixed tree.
-- [ ] The series trigger: a finding when a phase width exceeds k× its
+- [x] The series trigger: a finding when a phase width exceeds k× its
       early-pattern value while Rwp rises over the same patterns. Choose k
       and "early" from the synthetic (15× at f_B 0.5) and the operando
       numbers (3.4× at onset), and measure its firing rate on the series the
-      suite already runs, where the widths are right.
+      suite already runs, where the widths are right. —
+      `SEQUENTIAL_WIDTH_GROWTH` (warning), Finding 2: k = 3; "early" is the
+      first width the series **measured** (> 3σ); the misfit half reads
+      **GoF**, not Rwp, at 1.5×. Fires on 0 of the suite's 79 series.
 - [x] ~~Gap 2, only if the first task's R² separates the soak from a clean fit:
       widths as absorption targets, either in `_structural_targets` or as a
       second target list, with the effect on `BACKGROUND_ABSORPTION` counted
       on the acceptance standards before and after.~~ — **does not land: its
       gate failed.** The width R² reads 0.049 clean and 0.053 at a 15× soak
       (Finding 1), so a screen on it would fire on neither.
-- [ ] Tests: the synthetic (slow-marked if it stays near 25 s), a Le Bail
+- [x] Tests: the synthetic (slow-marked if it stays near 25 s), a Le Bail
       and a Pawley report asserting `None`, and a clean series asserting
-      silence. Obs/calc/diff PNGs to `tests/output/`.
-- [ ] Skill: the `BACKGROUND_ABSORPTION` row in `references/diagnostics.md`
+      silence. Obs/calc/diff PNGs to `tests/output/`. — The synthetic's first
+      five patterns as a Pawley chain, 9.7 s with its PNGs, so not
+      slow-marked; the clean series is a correct model whose strain grows 5×
+      at a flat GoF (none in the suite frees a width that really grows);
+      six hand-built series pin each branch of the rule.
+- [x] Skill: the `BACKGROUND_ABSORPTION` row in `references/diagnostics.md`
       says "not measured" for Le Bail and Pawley; a row in
       `references/series.md` for the new finding, beside the "microstrain
-      evolves" rule.
+      evolves" rule. — Both, plus a sentence in that rule pointing at the
+      row.
 
 ## Acceptance
 
