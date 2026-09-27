@@ -145,30 +145,21 @@ varying third. So neither `read_xy` check fires on it: re-run at `d02e3872`,
 it reads four points at 5000–8000° with no diagnostic. Each half keeps its own
 reproduction.
 
-Where each check lives is part of the work. The arity check can only live in
-`read_xy`, since only the reader sees lines. The axis check belongs on the
-post-dispatch hook below, since it is a property of the answer. The
+Where each check lives is part of the work. `read_pattern` has a
+post-dispatch hook (`_dead_channel_diagnostics`, `io/readers.py`), which runs
+after `fmt.read` and only when the caller passed a `diagnostics=` list. The
+arity check can only live in `read_xy`, since only the reader sees lines. The
+axis check belongs on that hook, since it is a property of the answer. The
 constant-σ check could live in either place. On the hook it would reach
 every format that reads a σ column, and that is the question the
 generalisation task asks.
 
-### Inherited
-
-- **2026-09-24, from the issue triage: #236 closed as a duplicate of #230**
-  (the same axis defect, reported from review of #233 and from an archive).
-  This file keeps citing both, and its skill task still revises the
-  `references/batch-operating.md` § 9c.14 clause #236 named.
-- **From WP-1415, 2026-09-21: a new reader diagnostic's row goes in §7i, not
-  §7.** The skill's `references/diagnostics.md` was 38 B under its cap, so the
-  eleven reader rows moved to `references/diagnostics-reading.md` (§7i) on the
-  maintainer's criterion: the main table carries what a fit is likely to say,
-  and a code conditional on a file quirk goes to a secondary doc. A reader code
-  this WP adds belongs there, and `test_every_engine_diagnostic_code_has_a_protocol_row`
-  accepts a row anywhere in the skill tree.
-- **`read_pattern` now has a post-dispatch hook** (`_dead_channel_diagnostics`,
-  `io/readers.py`), which runs after `fmt.read` and only when the caller passed
-  a `diagnostics=` list. A check that belongs to every format rather than to
-  one reader can hang there, which may suit this WP's axis-plausibility test.
+Two placement facts for the skill task. #236 was closed 2026-09-24 as a
+duplicate of #230, and this file keeps citing both. A new reader code's row
+goes in `references/diagnostics-reading.md` (§7i), never the main table: the
+main table carries what a fit is likely to say, and a code conditional on a
+file quirk goes to the secondary doc (WP-1415, whose move was forced by the
+main table sitting 38 B under its cap).
 
 ## Non-goals
 
