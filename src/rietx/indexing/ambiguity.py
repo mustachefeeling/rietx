@@ -755,16 +755,21 @@ def supercell_chance(parent_cell: tuple[float, ...], parent_centring: str,
     q_parent = q_lattice[parent_line]
 
     if child_hkl is None:
-        hkl = lattice[uncancellable(child_cell, child_centring, lattice)]
+        hkl, q = lattice, q_lattice
     else:
         hkl = np.asarray(child_hkl, dtype=np.int64).reshape(-1, 3)
         hkl = hkl[~np.all(hkl == 0, axis=1)]
         hkl = hkl[centring_allows(hkl, child_centring)]
-    q = design_matrix(hkl) @ af if len(hkl) else np.zeros(0)
+        q = design_matrix(hkl) @ af if len(hkl) else np.zeros(0)
     slack = LINE_COINCIDENCE_RTOL
     keep = ((~_integral(hkl @ t.T)) & (q >= q_lo * (1.0 - slack))
             & (q <= q_hi * (1.0 + slack)))
     hkl, q = hkl[keep], q[keep]
+    if child_hkl is None and len(hkl):
+        # asked of the in-range extras only: the lattice is the whole cube of
+        # indices, and the symmetry test is operators × reflections
+        free = uncancellable(child_cell, child_centring, hkl)
+        hkl, q = hkl[free], q[free]
     if len(q):
         apart = _extra_mask(q, q_parent, tol)
         hkl, q = hkl[apart], q[apart]
