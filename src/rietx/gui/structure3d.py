@@ -597,8 +597,9 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     orbit = _orbit(sites, every, basis)
     cations = _cation_sites(sites, orbit, basis)
     cation = np.array([a["site"] in cations for a in atoms], dtype=bool)
+    occupancy = np.array([sites[a["site"]]["occ"] for a in atoms], dtype=np.float64)
     bonds = _bonds(positions, radii, basis, bond_tolerance,
-                   None if alloy else metal, cation)
+                   None if alloy else metal, cation, occupancy)
     if len(bonds) > MAX_BONDS:
         notes.append(f"{len(bonds)} bond segments trimmed to {MAX_BONDS}; lower "
                      "the bond tolerance to see a picture rather than a cage")
@@ -868,7 +869,8 @@ def _pin_axes(values: np.ndarray, vectors: np.ndarray, basis: np.ndarray) -> np.
 def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
            tolerance: float = BOND_TOLERANCE,
            metal: np.ndarray | None = None,
-           cation: np.ndarray | None = None) -> list[dict]:
+           cation: np.ndarray | None = None,
+           occupancy: np.ndarray | None = None) -> list[dict]:
     """Bond **segments** between drawn atoms, over the 27 nearest translations.
 
     Segments rather than pairs, and the distinction is the design: a bond that
@@ -889,6 +891,10 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
     forsterite's 36 Mg–Si sticks at 2.69-2.79 Å and grossular's 90 Ca–Si
     were (WP-1466).  Two cationic non-metals keep their stick, or an organic
     would lose every C–C and C–H bond.  The distance test is :func:`bonded`.
+
+    Two partly occupied non-metals that are one atom split, by P9's test
+    (:func:`one_atom`), get no stick (WP-1468).  ``occupancy`` is per atom,
+    and ``None`` reads every atom as full.
     """
     n = len(positions)
     if n == 0:
@@ -921,7 +927,57 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
             seen.add(key)
             out.append({"i": int(i), "j": int(j), "a": positions[i].tolist(), "b": b.tolist(),
                         "d": float(dist[i, j])})
-    return out
+    if occupancy is None or metal is None:
+        return out
+    cation = np.zeros(n, dtype=bool) if cation is None else cation
+    return [bond for bond in out if not _split_stick(bond, positions, radii, metal, cation,
+                                                     occupancy, shifts)]
+
+
+def one_atom(apart, near_one, near_two) -> np.ndarray:
+    """Whether two partly occupied atoms ``apart`` Å from each other are one
+    atom over two positions, given their distances to a neighbour they share.
+
+    P9 (WP-1466): they are when they sit closer to each other than either
+    does to that neighbour, so the angle between them there is under 60°.
+    The polyhedra ask it of two ligands and their centre, and the sticks of
+    two bonded non-metals and any atom a stick could join to both (WP-1468).
+    A real three-membered ring meets its apex at 60°.  Measured split pairs
+    sit at half that: α-K₂SO₄'s split O (COD 1000049) at 19.6° round K, and
+    orientationally disordered NaNO₃'s (COD 8103616, 9007558-9007567) at
+    27-32° round Na.  No bound on the distance alone separates them: those
+    pairs sit 0.787 and 0.89-0.99 of their radius sum apart, while real bonds
+    reach down to N≡N at 0.773.  Every argument broadcasts, and the occupancy
+    test is the caller's.
+    """
+    return np.asarray(apart) < np.minimum(near_one, near_two)
+
+
+def _split_stick(bond: dict, positions: np.ndarray, radii: np.ndarray, metal: np.ndarray,
+                 cation: np.ndarray, occupancy: np.ndarray, shifts: np.ndarray) -> bool:
+    """Whether ``bond`` joins two positions of one split non-metal
+    (:func:`one_atom`), judged over every image within one translation.
+
+    The shared neighbour is bonded to both at :data:`BOND_TOLERANCE`, the
+    default rather than the slider's, so a split does not come and go with
+    the slider.  It is one a stick could join to both, so a metal shares no
+    pair with a cation in it: a partly occupied SO₄ whose S and O a K sits
+    beside would otherwise lose its S–O stick at a thin angle round the K.
+    Metals are left out of the pair itself, since a split site with a metal
+    in it is measured before it is ruled on (WP-1468).
+    """
+    i, j = bond["i"], bond["j"]
+    if metal[i] or metal[j] or occupancy[i] >= 1.0 - 1e-6 or occupancy[j] >= 1.0 - 1e-6:
+        return False
+    images = (positions[None, :, :] + shifts[:, None, :]).reshape(-1, 3)
+    radius = np.tile(radii, len(shifts))
+    nonmetal = ~np.tile(metal, len(shifts))
+    near_a = np.linalg.norm(images - np.asarray(bond["a"]), axis=1)
+    near_b = np.linalg.norm(images - np.asarray(bond["b"]), axis=1)
+    shared = ((nonmetal | ~(cation[i] | cation[j]))
+              & bonded(near_a, radii[i] + radius, nonmetal)
+              & bonded(near_b, radii[j] + radius, nonmetal))
+    return bool(one_atom(bond["d"], near_a[shared], near_b[shared]).any())
 
 
 def _keys(points) -> list[tuple]:
@@ -1099,7 +1155,7 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
         vertices = np.array([cart[row[0]] for row in shell])
         partial = [row[2] < 1.0 - 1e-6 for row in shell]
         if any(partial[i] and partial[j]
-               and np.linalg.norm(vertices[i] - vertices[j]) < min(shell[i][1], shell[j][1])
+               and one_atom(np.linalg.norm(vertices[i] - vertices[j]), shell[i][1], shell[j][1])
                for i in range(n) for j in range(i)):
             continue
         try:

@@ -732,6 +732,52 @@ def test_the_sticks_and_the_cation_test_ask_one_bonded_rule(monkeypatch):
     assert s3._cation_sites(payload["sites"], orbit, np.array(payload["lattice"]).T) == set()
 
 
+def _stick_pairs(payload: dict) -> dict[tuple, int]:
+    """``{(label, label): count}`` over the drawn sticks."""
+    out: dict[tuple, int] = {}
+    for b in payload["bonds"]:
+        key = tuple(sorted(payload["sites"][payload["atoms"][k]["site"]]["label"]
+                           for k in (b["i"], b["j"])))
+        out[key] = out.get(key, 0) + 1
+    return out
+
+
+def test_a_split_oxyanion_draws_no_stick_between_its_positions():
+    """α-K₂SO₄ (Miyake 1980, COD 1000049): each basal O is split three ways at
+    1/3, 1.04 Å apart, 0.787 of the radius sum and over the P10 floor.
+
+    The pair sits 19.6° apart round K, closer to each other than to it, so it
+    is one atom (P9's test, WP-1468).  The S–O sticks stay.
+    """
+    cell = Cell(a=_p(5.947), b=_p(5.947), c=_p(8.375),
+                alpha=_p(90.0), beta=_p(90.0), gamma=_p(120.0))
+    atoms = [Atom(label=label, species=species, x=_p(x), y=_p(y), z=_p(z), occ=_p(occ))
+             for label, species, x, y, z, occ in [
+                 ("K1", "K", 0.0, 0.0, 0.0, 1.0), ("K2", "K", 0.6667, 0.3333, 0.25, 1.0),
+                 ("S1", "S", 0.3333, 0.6667, 0.25, 1.0), ("O1", "O", 0.3333, 0.6667, 0.41, 1.0),
+                 ("O2", "O", 0.212, -0.212, 0.188, 0.333)]]
+    sticks = _stick_pairs(s3.build(Structure(phases=[Phase(
+        name="alpha-K2SO4", space_group="P 63/m m c", cell=cell, atoms=atoms)])))
+    assert ("O2", "O2") not in sticks
+    assert sticks[("O2", "S1")] > 0 and sticks[("O1", "S1")] > 0
+
+
+def test_a_split_needs_a_neighbour_a_stick_could_join_to_both():
+    """A half-occupied SO₄ keeps its S–O sticks beside a K bonded to one O
+    and within the cutoff of the S.  Round the K, S and O sit 1.47 Å apart and
+    closer than either is to it; the K is no shared neighbour, since no stick
+    joins a metal to the cation S."""
+    corners = [v / np.linalg.norm(v) for v in TETRAHEDRON]
+    side = np.cross(corners[0], [0.0, 0.0, 1.0])
+    side /= np.linalg.norm(side)
+    turn = math.radians(54.0)
+    potassium = 3.4 * (math.cos(turn) * corners[0] + math.sin(turn) * side)
+    payload = s3.build(cluster([("S", 0.5)], [*[("O", 1.47 * v, 0.5) for v in corners],
+                                              ("K", potassium, 1.0)]))
+    assert np.linalg.norm(potassium - 1.47 * corners[0]) < 2.85
+    assert sum(n for key, n in _stick_pairs(payload).items() if "S00" in key) == 4
+
+
 def test_the_split_floor_spares_a_metal_oxo_bond():
     """P10 holds only between non-metals: uranyl's U=O is 0.67 of the radius sum."""
     payload = s3.build(cluster([("U", 1.0)], [("O", (1.76, 0, 0), 1.0),
