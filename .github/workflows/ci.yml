@@ -77,6 +77,69 @@ jobs:
       - run: uv pip install -e ".[dev]"
       - run: .venv/bin/python -m ruff check src tests examples
 
+  changes:
+    # Which suite this run needs, as `scope`: `docs` when every file the PR
+    # changes is in the planning set, `code` otherwise.  HEAD is GitHub's
+    # merge of the PR into its base, so HEAD^1 is the base and the diff is the
+    # whole PR, whichever push this run is for.  --no-renames lists both sides
+    # of a rename, so a file moved into docs/wp/ still counts where it came
+    # from.  A push or a manual run is always `code`: 51 of main's 240 runs in
+    # the month to 2026-09-27 were cancelled by the next push, and a docs-only
+    # successor that skipped the matrix would leave the cancelled merge
+    # untested.
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      scope: ${{ steps.scope.outputs.scope }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          PLANNING: '^(docs/(wp|milestones|releases)/|docs/(ROADMAP|DESIGN)\.md$|tests/test_docs_consistency\.py$)'
+        run: |
+          scope=code
+          if [ "$EVENT" = pull_request ]; then
+            files=$(git diff --no-renames --name-only HEAD^1 HEAD) || files=
+            printf '%s\n' "$files"
+            if [ -n "$files" ] && ! grep -qvE "$PLANNING" <<< "$files"; then
+              scope=docs
+            fi
+          fi
+          echo "scope=$scope" | tee -a "$GITHUB_OUTPUT"
+
+  docs:
+    # Every test file that reads the planning set, measured 2026-09-27 over
+    # one fast run: an audit hook (sys.addaudithook, events `open`,
+    # `os.listdir`, `os.scandir` and `subprocess.Popen`, in the pytest
+    # process and every Python child) listed the files that open a planning
+    # path.  test_docs_consistency and test_workflow_hooks read the documents,
+    # the second through the hooks it runs.  test_portability parses every .py,
+    # test_docs_consistency among them.  test_no_stale_name reads through
+    # `git grep`, which only the Popen record showed.  A test that
+    # reads the planning set from a new file joins this list, or a docs-only
+    # PR skips it and the nightly finds it.
+    needs: changes
+    if: needs.changes.outputs.scope == 'docs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
+      - run: uv venv --python 3.13
+      - run: uv pip install -e ".[dev]"
+      - name: The tests that read the planning set
+        run: >-
+          .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+          tests/test_docs_consistency.py tests/test_workflow_hooks.py
+          tests/test_no_stale_name.py tests/test_portability.py
+
   fast:
     name: fast py${{ matrix.python }}
     if: github.event.pull_request.draft == false
@@ -120,3 +183,27 @@ jobs:
         # not to help (8:18 warm against 8:12 cold — weekly.yml's note, kept
         # with the job it explains), so there is no cache step.
         run: .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+
+  ci-ok:
+    # The one check branch protection names beside lint.  It fails when a
+    # needed job failed or was cancelled, and when the suite `changes` chose
+    # did not pass: the matrix for `code`, the docs job for `docs`.  A job
+    # that skipped where it should have run is red here, not a quiet pass.
+    # A draft skips this too, and a skipped check reports success, which is
+    # safe because a draft cannot merge.
+    if: always() && github.event.pull_request.draft != true
+    needs: [lint, changes, docs, fast, fast-jax]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key)\t\(.value.result)\t\(.value.outputs)"' <<< "$NEEDS"
+          jq -e '
+            def ok($job): .[$job].result == "success";
+            ok("lint") and ok("changes")
+            and (if .changes.outputs.scope == "docs" then ok("docs")
+                 else ok("fast") and ok("fast-jax") end)
+            and all(.[]; .result == "success" or .result == "skipped")
+          ' <<< "$NEEDS"

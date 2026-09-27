@@ -113,10 +113,10 @@ the tail today, in local serial seconds:
 
 ## Tasks
 
-- [ ] Measure which test files open a planning-set path, with the audit hook
-      over one fast run. Record the planning set and the list in `ci.yml`'s
-      header.
-- [ ] `ci.yml`: a `changes` job, using `git diff --name-only` against the PR
+- [x] Measure which test files open a planning-set path, with the audit hook
+      over one fast run. Record the planning set and the list in `ci.yml`,
+      beside the jobs that use them.
+- [x] `ci.yml`: a `changes` job, using `git diff --name-only` against the PR
       base, or against `github.event.before` on a push. Add a `docs` job
       running the measured list, gate the matrix jobs on `changes`, and add
       the `ci-ok` summary job. In this commit the matrix still runs on every
@@ -127,7 +127,12 @@ the tail today, in local serial seconds:
       minutes) and a code PR (`ci-ok` waits for every leg). Make one leg fail
       on purpose once and confirm `ci-ok` goes red (tests/CLAUDE.md § Guards
       that go quiet instead of red).
-- [ ] Main pushes: a planning-only merge skips the matrix the same way.
+- [x] ~~Main pushes: a planning-only merge skips the matrix the same way.~~
+      Not taken, 2026-09-27. `ci.yml` cancels a run when the next push to
+      its ref arrives. 51 of main's 240 runs in the month to 2026-09-27 were
+      cancelled that way. A docs-only merge that skipped the matrix would then
+      leave the cancelled code merge untested. Nobody waits on a main run, so
+      the skip there would save runner minutes only.
 - [ ] The fast jobs upload their junit timings (`--junitxml`,
       `-o junit_duration_report=total`). `/wp-handover` reads the rows for
       the tests the branch added. The rule goes in tests/CLAUDE.md § Budgets
