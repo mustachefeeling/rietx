@@ -140,9 +140,12 @@ tokens; by size the candidates are §4 (6 806 B), §10's worked default
       protocols).
 - [x] The placement rule written where WP-1330's lives: CONTRIBUTING.md
       § The agent skill and root CLAUDE.md's skill bullet.
-- [ ] After the eval, body material moved into references toward 5 000
-      tokens, each move recorded with the bytes it freed.
-- [ ] Tests: every gate lands as a test, expected **green on the tree as it
+- [x] After the eval, body material moved into references toward 5 000
+      tokens, each move recorded with the bytes it freed. 32 998 → 30 509 B,
+      situational material only: the round saw Haiku and Sonnet open no
+      reference file, so an every-fit rule moved out is a rule they lose. The
+      budget's ratchet takes the body the rest of the way.
+- [x] Tests: every gate lands as a test, expected **green on the tree as it
       stands**. These close gaps rather than fixing breaks, so a red run means
       the gate found something real, to be reported, not accommodated.
 - [x] Skill: the gates change no row. The placement eval may replace the
