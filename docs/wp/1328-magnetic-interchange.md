@@ -67,6 +67,29 @@ is still named in the result.
 
 ### Inherited
 
+- **2026-09-27, from the issue triage (issue #470): three of the four
+  foreign writers still drop a magnetic phase in silence.** The handover
+  below lists #470 as not done; PR #478 says it "does not fix the writer".
+  *Checked at `91deebbb`* with the reporter's own snippet (MnF₂ from
+  `tests/test_magnetic.py`'s `_mnf2()`, BNS 136.499): `topas`, `gsas` and
+  `fullprof`'s `from_structure` write the phase as a nuclear one, with no
+  moment record, no magnetic group, no exception and no warning. `gsas2`
+  now carries both, because its writer goes through
+  `crystallography.cif.write_structure_block`, which #478 taught the magCIF
+  loops (`_space_group_magn.number_BNS 136.499` and the
+  `_atom_site_moment` loop appear). Whether GSAS-II's own CIF import reads
+  those loops is not measured. The reporter's smallest fix is a refusal by
+  name in each of the three, one shared helper beside
+  `symmetry.refuse_operation_list` (#448's follow-up 2, which already
+  guards the same writers), and they offered it as a small PR off `main`.
+  The TOPAS writer could instead *write* `mlx mly mlz`, now that #478
+  measured their basis on the reader's side; that is a larger change than
+  the refusal. **Decided 2026-09-27** (issue triage, on #470): yes to the
+  reporter's refusal PR off `main`, separate from this WP, with its shared
+  helper beside `refuse_operation_list` and a call in `topas`, `gsas` and
+  `fullprof`. The PR states whether `gsas2` keeps writing the loops, on
+  what GSAS-II's import does with them. Writing TOPAS `mlx mly mlz` records
+  stays with this WP, after the refusal.
 - **2026-09-25, from the issue triage (issue #457, with #286's comments of
   2026-09-24): which group a magCIF's nuclear positions refine under.** A
   magCIF states the magnetic group only. The nuclear symmetry (positions,

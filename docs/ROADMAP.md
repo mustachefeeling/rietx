@@ -709,6 +709,7 @@ the chain says nothing (issue #267).
 | [1453](wp/1453-both-directions-name-the-lower-cost.md) | Both directions name the lower cost | ⬜ | P3 | — (1420 soft) |
 | [1459](wp/1459-a-pawley-intensity-past-the-data.md) | A Pawley intensity past the end of the data | ✅ 2026-09-25 | — | — (1336 soft) |
 | [1464](wp/1464-a-screen-reads-the-batch-references-first.md) | A screen reads the batch references first | ⬜ | P3 | — (PR #385 soft) |
+| [1469](wp/1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | ⬜ | P2 | — (1420 soft) |
 
 #### One file, many patterns
 
@@ -761,6 +762,7 @@ separability floor, and not scheduled here.
 | [1462](wp/1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md) | The structure viewer draws with its own WebGL2 renderer | ✅ 2026-09-26 | — | — (1461 soft) |
 | [1466](wp/1466-the-structure-viewer-draws-coordination-polyhedra.md) | The structure viewer draws coordination polyhedra | ✅ 2026-09-26 | — | 1462 |
 | [1468](wp/1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | ⬜ | P3 | 1466 |
+| [1469](wp/1469-a-structure-figure-without-a-browser.md) | A structure figure from Python, drawn without a browser | ⬜ | P3 | — |
 
 #### The repo's own process
 
