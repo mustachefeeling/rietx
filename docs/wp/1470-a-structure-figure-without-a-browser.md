@@ -353,6 +353,34 @@ npm --prefix gui test && npm --prefix gui run check
 
 ## Handover log
 
+### 2026-09-27 (3rd session) — CI
+
+PR #498's fast suite failed on every Linux job, on one test. The per-push run
+skips that suite, so only the PR run reached it. The fix is in the test.
+
+- **Cause.** `test_the_committed_scene_corpus_is_current` rebuilt the
+  payloads and compared the file byte for byte. `structure3d.build` breaks
+  ties in distance on the last bit, and rutile's octahedron is all ties.
+  Four ulps of noise on the linear algebra reorder its vertices and hull
+  faces, so the file depends on the platform while the picture does not.
+- **Fix.** The check replays the scene rules over the committed payloads,
+  which are pure python. Floats agree within 1e-10 of max(1, |v|), a tenth
+  of vitest's bar. The committed file sits 5.5e-12 from its own replay. A
+  new case or payload field still rewrites the file, through field names that
+  16 ulps of noise leave alone on four seeds. Made to fail on purpose three
+  ways, each naming where: `POLY_ALPHA` moved, the stick radius nudged 1e-8
+  (below vitest's bar), and a field added. WP-1468's inherited note says
+  how to refresh the payloads after a change to `build()`.
+- **Siblings.** `test_gui_fnmatch.py` and `test_gui_palette.py`'s
+  `tokens.css` regenerate strings from constants, so they hold on any
+  platform. The scene corpus was the only float fixture compared by bytes.
+- **The manual** offered "an atom removed" as a dict edit, and the skill's
+  figure index "a site to leave out". Both raise (WP-1501's probe). Both now
+  name a site's colour or radius, say a colour is `#rrggbb`, and say a
+  deletion raises. WP-1501's `keep()` stays the route to a cut.
+- **Measured.** darwin/arm64, `[dev]` venv plus `playwright`. The touched
+  files: 142 passed, and 21 in `test_manual.py`. No test was added.
+
 ### 2026-09-27 (2nd session) — closed
 
 An agent can now make a 3D figure of a refined structure from Python.

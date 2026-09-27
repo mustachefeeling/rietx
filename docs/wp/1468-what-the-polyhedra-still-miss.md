@@ -139,6 +139,10 @@ Independent; take any.
   `npm --prefix gui test`. A rule that moves the default picture also moves
   `render_structure`'s, and `test_structure3d_browser.py`'s parity row
   (bar 2.0 levels, measured 1.06) is where the two pictures are compared.
+  The corpus test replays the rules over the committed payloads and never
+  rebuilds them, since `build()`'s order moves with the platform. A new
+  payload field rewrites the file by itself. A change to `build()` that adds
+  no field does not, so delete the file and run the test to refresh them.
 
 ## Acceptance
 
