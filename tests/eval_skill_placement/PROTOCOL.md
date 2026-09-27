@@ -1,6 +1,6 @@
 # Runner protocol — the skill-placement round (WP-1338)
 
-**Protocol version: 1.0**, registered 2026-09-28 **before any run**. Bump it on
+**Protocol version: 1.0**, registered 2026-09-28 **before any run**; **1.1** by the amendment below, before any 1.1 run. Bump it on
 any change that alters comparability: the episode, the workspace contents, the
 prompt, the condition set, the models, N, the read-outs or the decision rule.
 Results are appended below the registration and the registration is not
@@ -141,6 +141,35 @@ Whether the answers are right about fluorapatite beyond the four rubric items;
 how the agent writes; whether it re-ran the fit. The row an agent reached and
 the answer it gave are scored separately, so an answer that was right without
 the row is not credited to either condition's routing.
+
+## Amendment 1.1, 2026-09-28, made before any 1.1 run
+
+**Protocol version: 1.1.** Round 1.0 ran with its condition unapplied. On the
+registration machine `~/.claude/skills/rietx` is a symlink to the maintainer's
+checkout (made 2026-09-21), and a user-level skill shadows a project skill of
+the same name. Every 1.0 cell that loaded the skill was handed the `rows` body
+from that checkout, whatever its condition: the `Skill` result named
+`/Users/yue/.claude/skills/rietx` as its base directory in the three grep cells
+checked, and the grep sentence appears in none of their transcripts. The
+workspace was never read.
+
+Two changes, and nothing else moves:
+
+1. **`launch` passes `--setting-sources project,local`**, so the user-level
+   settings, `CLAUDE.md` and skills are not loaded. Checked once in a 1.0
+   workspace before any 1.1 cell: the `Skill` call then named the workspace's
+   `.claude/skills/rietx` and delivered the grep sentence. This also removes the
+   user-level `CLAUDE.md` and prose skills that § N, the models, and what every
+   cell inherits declared, for both conditions alike.
+2. **`score` reads which body each cell was handed** (`runner.condition_held`):
+   the base directory the harness names must be the cell's workspace, and the
+   grep sentence must be present exactly in the `grep` cells. A cell that fails
+   is **void**, reported and excluded from the decision rule. A cell that
+   never loaded the skill is reported under R0 as before.
+
+**The 1.0 cells are kept as an A/A test.** Both arms read one body, so any
+difference between them is the noise floor of R1 and R3 at N = 3. They pool
+with no 1.1 cell.
 
 ## Results
 

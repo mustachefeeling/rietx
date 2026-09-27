@@ -222,9 +222,13 @@ def launch(root: Path, cell: str) -> None:
     session = str(uuid.uuid4())
     prompt = PROMPT + "\n\n" + PREAMBLE.format(
         python=venv_python(root, condition), workspace=ws)
+    # `project,local` leaves the user's own settings, CLAUDE.md and skills out
+    # (PROTOCOL.md § Amendment 1.1): a user-level `rietx` skill shadows the
+    # workspace's, and on the registration machine it points at a checkout.
     proc = subprocess.run(
         ["claude", "-p", prompt, "--model", MODELS[model],
          "--session-id", session, "--permission-mode", "bypassPermissions",
+         "--setting-sources", "project,local",
          "--output-format", "json", "--max-budget-usd", str(BUDGET_USD)],
         cwd=ws, capture_output=True, text=True)
     record = {"cell": cell, "session_id": session, "returncode": proc.returncode,
@@ -279,8 +283,25 @@ def read_out(rows: list[dict]) -> dict:
                 for code in SCORED_CODES:
                     if code not in reached and f"| `{code}` |" in text:
                         reached[code] = use.get("name", "?")
+    # Which body the Skill tool actually delivered: the harness names the
+    # directory it loaded from, and only the grep body carries the sentence.
+    everything = "\n".join(_text((r.get("message") or {}).get("content"))
+                           for r in rows)
+    base = re.search(r"Base directory for this skill: (\S+)", everything)
     return {"skill_loaded": skill_loaded, "reached": reached,
-            "opened": sorted(opened), "leaks": leaks}
+            "opened": sorted(opened), "leaks": leaks,
+            "skill_dir": base.group(1) if base else None,
+            "grep_body": GREP_SENTENCE[:40] in everything}
+
+
+def condition_held(cell: str, out: dict, ws: Path) -> bool | None:
+    """Whether the body the agent was handed is its cell's: ``None`` where no
+    body was loaded, so there is nothing to hold (R0)."""
+    if out["skill_dir"] is None:
+        return None
+    condition, _, _ = split(cell)
+    return (out["skill_dir"].startswith(str(ws))
+            and out["grep_body"] == (condition == "grep"))
 
 
 def score(root: Path) -> None:
@@ -294,6 +315,8 @@ def score(root: Path) -> None:
         bill = trail.usage(rows)
         table.append({
             "cell": record["cell"], **out,
+            "condition_held": condition_held(record["cell"], out,
+                                             workspace(root, record["cell"])),
             "answer": result.get("result", ""),
             "cost": result.get("total_cost_usd"), "turns": result.get("num_turns"),
             "minutes": round((result.get("duration_ms") or 0) / 60000, 2),
@@ -302,12 +325,13 @@ def score(root: Path) -> None:
         })
     (root / "scores.json").write_text(json.dumps(table, indent=1), encoding="utf-8")
     grades = _load_grades(root)
-    print(f"{'cell':16s} skill reach  how                         $     turns  R3")
+    print(f"{'cell':16s} held  reach  how                         $     turns  R3")
     for t in table:
         how = ",".join(sorted(set(t["reached"].values())))
         g = grades.get(t["cell"])
         r3 = "-" if g is None else str(sum(g.values()))
-        print(f"{t['cell']:16s} {'y' if t['skill_loaded'] else 'n':5s} "
+        held = {True: "y", False: "VOID", None: "-"}[t["condition_held"]]
+        print(f"{t['cell']:16s} {held:5s} "
               f"{len(t['reached'])}/{len(SCORED_CODES)}   {how:26s} "
               f"{(t['cost'] or 0):5.2f} {t['turns'] or 0:6d}  {r3}"
               + ("  LEAK" if t["leaks"] else ""))

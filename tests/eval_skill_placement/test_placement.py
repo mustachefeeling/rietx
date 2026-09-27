@@ -68,3 +68,16 @@ def test_reach_is_read_off_what_came_back():
     assert out["skill_loaded"]
     assert out["reached"] == {"BACKGROUND_ABSORPTION": "Grep"}
     assert len(out["leaks"]) == 1
+
+
+def test_a_cell_whose_body_came_from_elsewhere_is_void():
+    """Round 1.0's defect: a user-level skill of the same name shadowed the
+    workspace's, so every cell read the rows body whatever its condition."""
+    loaded = [{"type": "user", "message": {"content": [{"type": "text", "text":
+              "Base directory for this skill: /ws/.claude/skills/rietx\n"
+              + runner.GREP_SENTENCE}]}}]
+    out = runner.read_out(loaded)
+    assert runner.condition_held("grep-haiku-1", out, Path("/ws")) is True
+    assert runner.condition_held("rows-haiku-1", out, Path("/ws")) is False
+    assert runner.condition_held("grep-haiku-1", out, Path("/elsewhere")) is False
+    assert runner.condition_held("grep-haiku-1", runner.read_out([]), Path("/ws")) is None
