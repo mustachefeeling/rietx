@@ -37,13 +37,21 @@ the tree is really exported — the WP-1037 bug's shape, one document over.
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
 import pytest
 import yaml
 
+from tests import skill_caps
 from tests.api_surface import attr_step, resolve_dotted
+from tests.skill_caps import (
+    API_INDEX_MAX_BYTES,
+    REFERENCE_MAX_BYTES,
+    SKILL_MAX_BYTES,
+    SKILL_MAX_LINES,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL_DIR = ROOT / "docs" / "skill" / "rietx"
@@ -60,67 +68,8 @@ API_INDEX = REFERENCE_DIR / "api.md"
 #: creating PR has to remember to edit.
 API_INDEXES = sorted(REFERENCE_DIR.glob("api*.md"))
 
-#: A skill body is read whole on activation; the Read tool returned 66 kB on
-#: the document this replaced, so the body is capped at half of it.
-# Half the Read tool's ~66 kB cap, the derivation this module's docstring
-# states; 32_000 was that halving rounded down and WP-1131 rounded it up, in
-# the commit that needed the 941 B — a fifth deliverable class (microstructure)
-# in the body's own deliverable table, with its worked measurement in
-# references/judging.md where the other four keep theirs.  The cost this cap
-# governs — the fixed bytes every session that loads the skill pays — moves by
-# 3 %, and the alternative was a deliverable whose row lived outside the table
-# its peers are in, which is what the cap exists to protect against.
-SKILL_MAX_BYTES = 33_000
-#: agentskills.io/specification: "Keep your main SKILL.md under 500 lines."
-SKILL_MAX_LINES = 500
-#: Bash output above 40 kB is truncated to a ~2 kB preview, so a reference file
-#: stays comfortably under that even when a session cats it rather than Reads.
-#: 36_000 → 36_600 in the commit that needed the 571 B, on WP-1131's precedent
-#: for ``SKILL_MAX_BYTES``: ``HOLD_BLOCKED_PLAN``'s row, which
-#: ``test_docs_consistency.test_every_engine_diagnostic_code_has_a_protocol_row``
-#: requires of every engine code, and ``diagnostics.md`` had 9 B of headroom.
-#: The two tests are in tension and one had to give, and deleting another
-#: code's measured guidance to fit a new one is the wrong direction.
-#:
-#: **That split happened** (WP-1415, 2026-09-21), so the cap has not moved
-#: again and this note records the seam rather than asking for one. The
-#: criterion was not size: the main table carries what a **fit** is likely to
-#: say, and a code conditional on a quirk of the file you read goes to a
-#: secondary doc. The eleven reader rows became §7i,
-#: ``references/diagnostics-reading.md``, taking ``diagnostics.md`` from
-#: 36 562 to 30 953 B. ``diagnostics-projects.md`` had recorded that those rows
-#: stay in §7 on a different criterion, and that paragraph was corrected in the
-#: same commit.
-#:
-#: So the next addition has room, and the rule for the one after it is the
-#: criterion above rather than a byte count: ask which file a reader meets the
-#: code in, and whether a fit is likely to say it. ``SKILL.md`` is now the
-#: tighter of the two (68 B under :data:`SKILL_MAX_BYTES`), and a routing row
-#: is what a new reference file costs there.
-#:
-#: **The second split** (PR #385, 2026-09-25) applied that criterion when
-#: ``CELL_RUNAWAY``'s row and main's growth took ``diagnostics.md`` to
-#: 37 008 B. Seven of the eight series codes (``SERIES_PATTERN_FAILED``
-#: and every ``SEQUENTIAL_*`` but ``SEQUENTIAL_PERSISTENT_FINDING``, whose
-#: row was already in ``abstention.md``; 3 423 B) arrive on a ``SeriesResult`` and a
-#: single fit never emits one, so they moved to a code table at the end of
-#: §9b, ``references/series.md``, which already had its routing row, so
-#: ``SKILL.md`` did not grow. ``diagnostics.md`` went to 33 789 B and
-#: ``series.md`` from 25 685 to 29 545 B; one pointer row stays where the
-#: rows stood.
-REFERENCE_MAX_BYTES = 36_600
-#: `api.md` is **generated** from the installed package, so its size is a fact
-#: about the public API and not a thing an author chose.  The authored cap says
-#: "stop writing, split the file", which is advice this file cannot take: the
-#: whole of it is one signature per public name, and cutting a signature is
-#: cutting the document three "explore the library" runs needed.  A public
-#: keyword therefore pushes it over a bar that has nothing to do with the
-#: decision that added the keyword — WP-1431's `label=` did, at 58 B of
-#: headroom.  Raising `REFERENCE_MAX_BYTES` instead would hand
-#: `diagnostics.md` the room WP-1338 deliberately denied it (20 B free, and
-#: PR #291 is the split that buys the next diagnostic row), so the generated
-#: file gets its own bar against the same 40 kB truncation.
-API_INDEX_MAX_BYTES = 39_000
+# The ceilings and budgets, with the history of every move, live in
+# `tests/skill_caps.py`, which CI's lint job runs as a report before the suite.
 
 #: Every field the specification defines, and whether it is required.
 #: agentskills.io/specification, verified 2026-08-29.
@@ -150,7 +99,7 @@ def test_the_body_is_within_its_caps():
     lines = len(SKILL.read_text(encoding="utf-8").splitlines())
     assert size <= SKILL_MAX_BYTES, (
         f"SKILL.md is {size} B (cap {SKILL_MAX_BYTES}). Move a lookup table "
-        "into references/ — see this module's docstring on raising a cap."
+        "into references/ — see tests/skill_caps.py on raising a cap."
     )
     assert lines < SKILL_MAX_LINES, (
         f"SKILL.md is {lines} lines (cap {SKILL_MAX_LINES}, the spec's own)."
@@ -169,6 +118,60 @@ def test_every_reference_file_is_within_its_cap(path: Path):
            "make_api_index.py renders, or split the index."
            if generated else "split it.")
     )
+
+
+# --- the budgets (#247) -----------------------------------------------------
+#
+# A ceiling fails on any tree; a budget fails only a change that grows a file
+# past it, so two pull requests that merge together land in the gap between
+# the two instead of failing each other.  `tests/skill_caps.py` has the numbers
+# and why; CI's lint job runs the same check as a report on every pull request,
+# drafts included, which is where it gates.  Here it gates the author, locally,
+# against the merge-base with origin/main.
+
+
+def test_no_change_grows_a_capped_file_past_its_budget():
+    rev, how = skill_caps.base()
+    if os.environ.get("GITHUB_ACTIONS"):
+        pytest.skip("CI gates this in the lint job, against the pull request's base")
+    if rev is None or not skill_caps.rev_exists(rev):
+        pytest.skip(f"nothing to measure against: {how}")
+    failures = skill_caps.budget_failures(skill_caps.rows(rev))
+    assert not failures, "\n".join(failures)
+
+
+def test_the_budget_fails_growth_past_it_and_nothing_else():
+    """The rule's four cases, on made-up sizes: only growth that ends past the
+    budget fails, and a new file counts from zero."""
+    cap = skill_caps.Cap(REFERENCE_DIR / "x.md", 1000, 900)
+    row = skill_caps.Row
+    cases = {
+        "grows past": row(cap, 880, 950, 950),
+        "shrinks while over": row(cap, 990, 950, 950),
+        "grows under": row(cap, 500, 890, 890),
+        "new and over": row(cap, None, 950, 950),
+    }
+    failing = {k for k, r in cases.items() if skill_caps.budget_failures([r])}
+    assert failing == {"grows past", "new and over"}
+    assert cases["grows past"].cut_needed() == 50
+    assert cases["new and over"].cut_needed() == 50
+
+
+def test_every_capped_file_has_a_budget_under_its_ceiling_unless_generated():
+    for cap in skill_caps.caps():
+        generated = cap.path in API_INDEXES
+        assert (cap.budget is None) == generated, cap.rel
+        assert generated or cap.budget < cap.ceiling, cap.rel
+
+
+def test_a_version_bump_is_not_growth():
+    """The body's budget counts the Markdown below its frontmatter, so the
+    release bump of `metadata.version` never trips it."""
+    cap = next(c for c in skill_caps.caps() if c.path == SKILL)
+    text = SKILL.read_text(encoding="utf-8")
+    bumped = text.replace('version: "', 'version: "99.99.99.dev0+', 1)
+    assert bumped != text
+    assert cap.budgeted_bytes(bumped) == cap.budgeted_bytes(text)
 
 
 def test_the_frontmatter_is_the_specs_and_nothing_else():

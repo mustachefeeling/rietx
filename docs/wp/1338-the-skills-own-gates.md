@@ -129,10 +129,10 @@ tokens; by size the candidates are §4 (6 806 B), §10's worked default
 - [ ] A deliberately broken fixture for each gate, the corpus gate included.
 - [ ] A code span opened inside a table cell fails, in every skill file
       (WP-1409's finding).
-- [ ] Cap policy (replaces 2026-09-03's 95 % warning): a ceiling and a budget
+- [x] Cap policy (replaces 2026-09-03's 95 % warning): a ceiling and a budget
       per capped file, the budget failing only a change that grows the file
       past it. Buffer size chosen from the measured concurrency of additions.
-- [ ] Every PR that changes a capped file reports its delta and headroom, so
+- [x] Every PR that changes a capped file reports its delta and headroom, so
       the near-full state is visible before CI fails.
 - [ ] The placement eval: the keyed routing rows replaced by one grep
       sentence, real agents on tasks where a diagnostic fires, against
