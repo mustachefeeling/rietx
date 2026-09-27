@@ -1,7 +1,7 @@
 # WP-1320 — a phase fraction the pattern cannot fix
 
 Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here
-Depends on: — (1310 soft: how findings arrive on the result affects how this one reads)
+Depends on: — (1310 soft, closed 2026-09-16: how findings arrive on the result affects how this one reads)
 Priority: P2 2026-09-23 — a confident esd on a fraction the pattern cannot fix, on QPA's rarer path
 
 ## Goal
@@ -62,49 +62,40 @@ the standing "assumed numbers must not look measured" discipline; and the
 diagnostic's name (`QPA_FRACTION_MULTIMODAL` or similar — an open-vocabulary
 `GuardFinding`-style code carrying the admissible range, not a point).
 
+**A second candidate for the pin axis: the scale itself** (the reporter's
+design, posted on #203 on 2026-09-01, after this file was written; still
+the thread's last word on 2026-09-27). Profile the **phase scale**, not a
+broadening term: pin `phases.i.scale` on a grid rising from 0, refit the
+nuisances warm point to point, and report a one-sided 95 % limit at
+Δχ² ≤ 2.71, inflated by the Bérar-Lelann factor the esds already carry so
+the limit and the esds share one calibration. Convert to wt% **per grid
+point**, never after, since W is nonlinear in every scale. Three caveats
+come with it. The linear-block screen is a *lower* bound on the limit, so it
+may trigger the scan and is never reported as the limit. On a real
+six-phase fit no local statistic singled the phase out
+(`background_absorption` 0.183 against another phase's 0.208; absent from
+`top_correlations` and from the one scale-bearing soft mode). And the limit
+bounds the modelled crystalline form only, never amorphous material of the
+same composition. It also suggests a `remove_phase` action at
+`execution="advice"` beside `add_impurity_phase`. Checked at `ebc45b9`:
+`ActionKind` (`report/schemas.py`) has no `remove_phase`, and no
+pinned-scale profile exists.
+
+**The fraction's other silent error is ZMV, and it is not this one**
+(from 1324, 2026-09-02). A fraction rides on `scale × ZMV`; 1324 closed two
+ways the ZMV half was wrong at identical Rwp (a non-transitive multiplicity
+dedup; a bare origin-ambiguous symbol silently resolving to a setting that
+inverts a composition). The codes to know are
+`SITE_SNAPPED_TO_SPECIAL_POSITION` and `SPACE_GROUP_SETTING_ASSUMED`, which
+SKILL.md's QPA row calls the *ZMV family* beside the scale family. That
+error is a **multiplicative, systematic offset** on one phase's k (boron:
+cell mass 3.81 % at identical Rwp), not multimodality, so wherever the
+fraction's uncertainty is described the two get one sentence apart.
+
 **The filer's data is not in the repo**, so the fixture is synthetic: a
 two-phase model where one phase's `scale × broadening` ridge admits distinct
 basins at indistinguishable Rwp, verified multi-modal by the probe itself
 before anything asserts on it.
-
-### Inherited
-
-- **2026-09-23, from the issue triage (issue #203).** The reporter posted a
-  design on the thread on 2026-09-01, after this file was written, and
-  nothing here names it. It differs from § The detector is the probe on the
-  axis. It profiles the **phase scale**, not a broadening term: pin
-  `phases.i.scale` on a grid rising from 0, refit warm, and report a
-  one-sided 95 % limit at Δχ² ≤ 2.71, inflated by the Bérar-Lelann factor
-  the esds already carry. Convert to wt% per grid point, never after. Three
-  caveats come with it. The linear-block screen is a lower bound, so it may
-  trigger the scan and never be reported as the limit. On a real six-phase
-  fit no local statistic singled the phase out (`background_absorption`
-  0.183 against another phase's 0.208; absent from `top_correlations` and
-  from the one scale-bearing soft mode). And the limit bounds the modelled
-  crystalline form only, never amorphous material of the same composition.
-  It also suggests a `remove_phase` action at `execution="advice"` beside
-  `add_impurity_phase`. Checked against the tree at `644dff84`:
-  `ActionKind` has no `remove_phase`, and no pinned-scale profile exists.
-  The pin axis is one of this WP's in-WP decisions, and this is a second
-  candidate for it.
-- **2026-09-02, from [1324](1324-symmetry-silences.md): two ways a weight
-  fraction was wrong that no residual could see, both now closed and both
-  reported.** A fraction rides on `scale × ZMV`, and 1324 was about the ZMV
-  half: site multiplicities were counted by a greedy pairwise dedup that is not
-  transitive, so an orbit length could fail to divide the group order (22 and 30
-  under |G| = 36), and a bare origin-ambiguous H-M symbol resolved silently to a
-  setting whose multiplicities can *invert* a composition (spinel's origin-2
-  coordinates under a bare `F d -3 m` give A₂BO₄). Multiplicity is now
-  `|G|/|stabiliser|` from `symmetry.site_orbit`, the one authority the forward
-  model, the Wyckoff bases and `phase_zmv` all read.
-  Two consequences for the work here. (1) The **codes to know** are
-  `SITE_SNAPPED_TO_SPECIAL_POSITION` and `SPACE_GROUP_SETTING_ASSUMED`; SKILL.md
-  now calls them the *ZMV family*, against the scale family this WP's background
-  and absorption checks cover, and a QPA judgement that reads only the scale
-  side is half a judgement. (2) The **error is multiplicative and silent** — the
-  boron case moved cell mass 3.81 % at identical Rwp — so it is a systematic
-  offset on one phase's k, not the multimodality this WP is about; separating
-  the two is worth a sentence wherever the fraction's uncertainty is described.
 
 ## Non-goals
 
