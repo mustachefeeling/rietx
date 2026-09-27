@@ -227,7 +227,11 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   Biso, occupancy or ADP, or no background term.  It read 0.0 there, a
 #   measurement nobody made.  ``too_flexible`` cannot fire on ``None``, which
 #   it could not on 0.0 either, so no emission moved; a consumer comparing
-#   the field against a number sees the change.
+#   the field against a number sees the change.  The same version brings the
+#   series its ``SEQUENTIAL_WIDTH_GROWTH`` finding, whose three thresholds are
+#   ``sequential.WIDTH_GROWTH_*``.  A series stamped below 1.9 never ran it, and
+#   ``SeriesResult.summary(deliverable="series")`` says "NOT measured" there
+#   rather than a count of zero.
 THRESHOLDS_VERSION = "1.9"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past

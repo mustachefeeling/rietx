@@ -332,6 +332,21 @@ def test_series_deliverable_quotes_a_width_that_grew_with_the_misfit():
             in _series_result().summary(deliverable="series"))
 
 
+def test_a_series_that_predates_the_width_check_says_not_measured():
+    """A series stamped before thresholds 1.9 never ran the check, so its zero
+    would read as "checked, none" — the ordering-artefact row's rule."""
+    from rietx.schemas.common import Provenance
+
+    old = _series_result(provenance=Provenance(
+        package_version="1.5.0", report_thresholds_version="1.8"))
+    text = old.summary(deliverable="series")
+    assert "widths grown with a worsening fit: NOT measured" in text
+    new = _series_result(provenance=Provenance(
+        package_version="1.6.0", report_thresholds_version="1.9"))
+    assert ("widths grown with a worsening fit: 0"
+            in new.summary(deliverable="series"))
+
+
 def test_series_deliverable_says_a_one_way_chain_did_not_measure_ordering():
     """The absence of a SEQUENTIAL_PATH_DEPENDENT row is not evidence: a
     forward-only chain never ran the comparison that produces one."""

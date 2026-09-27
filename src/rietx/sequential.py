@@ -249,13 +249,18 @@ WIDTH_GROWTH_FACTOR = 3.0
 #: Rexp, which rises as the counts fall, so a series losing intensity raises
 #: Rwp under a model that is right.  GoF divides that out, and on the
 #: synthetic, whose counts are constant, the two ratios are the same number.
-#: The value is set for margin.  Over the 79 series the suite runs, GoF over
-#: the first pattern reaches at most 1.14 (the round-robin chain); the
-#: synthetic soak reads 1.9 on its first soaked pattern and 3.0 where its
-#: width crosses 3×.  This half is what keeps a width that grows *for real*
-#: silent, and the suite has no such chain, so ``tests/test_sequential.py``
-#: builds one: a correct model over a specimen whose strain grows 5×, GoF flat.
-WIDTH_GROWTH_GOF_FACTOR = 1.5
+#: The value is set for margin, against the denominator it is applied to: the
+#: reference can be any pattern, so the clean bound is the largest GoF_j/GoF_i
+#: over every ordered pair of one chain.  Over the 75 multi-pattern series the
+#: suite runs that is **1.52**, on the thermal ramp's bounded-first-rung
+#: fixtures, whose model is right and some of whose fits stopped early (1.14
+#: on the round-robin chain, the one that frees widths).  1.5 would have had
+#: no margin.  The synthetic soak reads 3.05 where its width crosses 3×, so 2
+#: sits 1.3× clear of the one and 1.5× under the other.  This half is also what
+#: keeps a width that grows *for real* silent, and the suite has no such chain,
+#: so ``tests/test_sequential.py`` builds one: a correct model over a specimen
+#: whose strain grows 5×, GoF flat to within 2 %.
+WIDTH_GROWTH_GOF_FACTOR = 2.0
 
 #: How many of its own esds a width must be to serve as the reference, and how
 #: many combined esds its growth must be.  The first half is what keeps the
@@ -2110,13 +2115,19 @@ def _width_growth_diagnostics(series: SeriesResult) -> list[Diagnostic]:
     GoF.  So the finding reports and never judges, and its suggestion points
     at the skill's "microstrain evolves" rule rather than past it.
 
-    One finding per path, at its onset, the first pattern where the
-    conjunction holds; the message carries the largest ratio after it.
+    One finding per trajectory, at its onset, the first pattern where the
+    conjunction holds; the message carries the largest ratio after it.  Widths
+    tied to one another (``tie_equal("phases.*.lor_strain")``) are one column
+    with one trajectory, so they share a finding whose ``where`` lists every
+    path, rather than one finding each about the same fact.  Grouped on the
+    trajectory itself, since a width driven by a ``vars.`` name is not
+    ``vary`` and ``paths(varied_only=True)`` would lose it.
     Quarantined (``"diverged"``) entries are skipped, as they are by every
     other fence here.  A width no pattern measured has no reference and is
     not judged.
     """
     out: list[Diagnostic] = []
+    by_trajectory: dict[tuple, Diagnostic] = {}
     entries = series.entries
     for path in series.paths():
         if not path.startswith("phases."):
@@ -2159,14 +2170,20 @@ def _width_growth_diagnostics(series: SeriesResult) -> list[Diagnostic]:
                 flagged.append((k, pos, ratio))
         if not flagged:
             continue
+        key = (suffix, tuple(traj.positions), tuple(value.tolist()))
+        if key in by_trajectory:
+            by_trajectory[key].where.append(path)
+            continue
         k1, p1, ratio1 = flagged[0]
         kmax, _, ratio_max = max(flagged, key=lambda f: f[2])
-        later = sum(1 for _, pos in points if pos > p1)
+        # the patterns the conjunction could be tested on: one without an esd
+        # is skipped by the loop above, so it cannot count against it here
+        later = sum(1 for k, pos in points if pos > p1 and np.isfinite(sd[k]))
         s0, s1 = entries[p0].statistics, entries[p1].statistics
         as_width = " (as a width, the square root of the variance)" if variance else ""
         peak = ("" if kmax == k1 else
                 f", reaching {ratio_max:.1f}× at {traj.labels[kmax]}")
-        out.append(Diagnostic(
+        by_trajectory[key] = finding = Diagnostic(
             level="warning", code="SEQUENTIAL_WIDTH_GROWTH", where=[path],
             value=ratio1,
             message=(f"{path} grew {ratio1:.1f}×{as_width} from "
@@ -2185,7 +2202,8 @@ def _width_growth_diagnostics(series: SeriesResult) -> list[Diagnostic]:
                         "reading this width, or this phase's scale and cell, "
                         "as physics. A width may grow for real; if the model "
                         "had kept up, GoF would not have risen with it"),
-        ))
+        )
+        out.append(finding)
     return out
 
 

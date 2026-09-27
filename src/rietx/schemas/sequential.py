@@ -704,8 +704,23 @@ class SeriesResult(Base):
         # a width that grew while the fit got worse (WP-1465): the one reading
         # of a trajectory that says a phase stood in for something missing
         growth = by_code.get("SEQUENTIAL_WIDTH_GROWTH", [])
-        lines.append(f"    widths grown with a worsening fit: {len(growth)}")
-        for d in growth:
+        # a series stamped before thresholds 1.9 never ran the check, and its
+        # zero would read as "checked, none" — the row the ordering artefact
+        # above already refuses to print for a comparison that did not run
+        stamped = (None if self.provenance is None
+                   else self.provenance.report_thresholds_version)
+        try:
+            predates = (stamped is not None and tuple(
+                int(p) for p in stamped.split(".")[:2]) < (1, 9))
+        except ValueError:
+            predates = False
+        if predates and not growth:
+            lines.append(f"    widths grown with a worsening fit: NOT measured "
+                         f"— this series was stamped at thresholds {stamped}, "
+                         f"before SEQUENTIAL_WIDTH_GROWTH existed (1.9)")
+        else:
+            lines.append(f"    widths grown with a worsening fit: {len(growth)}")
+        for d in growth[:5]:
             lines.append(f"      {d.message}")
 
         steps = by_code.get("SEQUENTIAL_DISCONTINUITY", [])

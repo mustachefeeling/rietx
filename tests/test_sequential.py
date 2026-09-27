@@ -2405,6 +2405,18 @@ def test_a_quarantined_pattern_neither_references_nor_fires():
     assert "from p1 to p3" in d.message
 
 
+def test_widths_tied_to_one_column_share_one_finding():
+    """``tie_equal("phases.*.lor_strain")`` makes two paths one trajectory; a
+    finding each would say one fact twice (the code review's catch)."""
+    one = _width_series("phases.0.lor_strain", _GROWING, [1e-3] * 5, _WORSENING)
+    for entry in one.entries:
+        (row,) = entry.parameters
+        entry.parameters.append(row.model_copy(
+            update={"path": "phases.1.lor_strain"}))
+    (d,) = _width_growth_diagnostics(one)
+    assert d.where == ["phases.0.lor_strain", "phases.1.lor_strain"]
+
+
 def test_a_path_that_is_not_a_phase_width_is_never_judged():
     """The instrument's own widths and a Stephens block are not screened (the
     constant's docstring says why)."""

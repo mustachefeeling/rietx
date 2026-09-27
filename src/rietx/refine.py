@@ -3712,10 +3712,16 @@ class Refinement:
             elif bg is not None:
                 # said, because this row is the one that tells the two fits
                 # apart (the docstring above) and its silence read as clean
+                # an empty table has more causes than a missing target: a
+                # non-finite block withholds it (WP-1130), a zero-norm or
+                # non-finite target is skipped, and a scale driven through a
+                # ``vars.`` name is not a target by spelling — so the line
+                # names the one cause it can see and does not pick among them
                 why = ("nothing on this result measured it"
                        if result.identifiability is None
-                       else "no scale, Biso, occupancy or ADP was free "
-                            "beside a background term")
+                       else "the answer stage screened no scale, Biso, "
+                            "occupancy or ADP column against a background "
+                            "term")
                 lines.append(f"    background.absorption: not measured ({why})")
             if result.qpa is not None:
                 for row in result.qpa.phases:

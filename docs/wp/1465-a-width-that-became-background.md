@@ -161,7 +161,12 @@ its GoF peaks at 1.14×.
 
 - Width ≥ 3× the first value alone would fire on 11 of the 24.
 - Against the first value measured past 3σ, it fires on none.
-- GoF ≥ 1.5× at the same pattern: the suite has no series that reaches it.
+- GoF: against the first pattern, no series in the suite passes 1.14.
+  Against **any** earlier pattern, which is what the reference can be, the
+  thermal ramp's bounded-first-rung fixtures reach **1.52**. The model there
+  is right and some fits stopped early. That put a first choice of 1.5 inside
+  the clean range, so the factor is 2: 1.3× over 1.52 and 1.5× under the
+  synthetic's 3.05.
 
 So on the suite, the measured-reference rule is what keeps the clean chain
 silent. The GoF half is what keeps a width that really grows silent, and no
@@ -211,7 +216,9 @@ number.
       suite already runs, where the widths are right. —
       `SEQUENTIAL_WIDTH_GROWTH` (warning), Finding 2: k = 3; "early" is the
       first width the series **measured** (> 3σ); the misfit half reads
-      **GoF**, not Rwp, at 1.5×. Fires on 0 of the suite's 79 series.
+      **GoF**, not Rwp, at 2× (1.5× until the review measured a clean chain
+      at 1.52 between two of its own patterns). Fires on 0 of the suite's 79
+      series.
 - [x] ~~Gap 2, only if the first task's R² separates the soak from a clean fit:
       widths as absorption targets, either in `_structural_targets` or as a
       second target list, with the effect on `BACKGROUND_ABSORPTION` counted
