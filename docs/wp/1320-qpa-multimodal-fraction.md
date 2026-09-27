@@ -1,8 +1,7 @@
 # WP-1320 — a phase fraction the pattern cannot fix
 
-Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-27 — `Refinement.profile_fraction` and `QPA_FRACTION_UNDETERMINED`, the docs first, a synthetic two-basin fixture
 Depends on: — (1310 soft, closed 2026-09-16: how findings arrive on the result affects how this one reads)
-Priority: P2 2026-09-23 — a confident esd on a fraction the pattern cannot fix, on QPA's rarer path
 
 ## Goal
 
@@ -177,6 +176,65 @@ The shipping PR carries `Closes #203`.
 
 ## Handover log
 
+- **2026-09-27** — closed. A trace phase's weight fraction can now be checked
+  instead of trusted. Its esd describes only the basin the fit stopped in, and
+  one call now scans the phase's peak width and reports every fraction the
+  pattern admits, with a warning when that range is far wider than the esd
+  claims. A synthetic pattern reproduces #203's shape: a fit reporting
+  1.19 ± 0.53 wt% where the data admit 0.86 % to 77 %. Profiling the scale
+  directly, the reporter's design, is refuted as an axis for this package:
+  WP-1301's hold stops it short of the second basin.
+
+  *Done.* Inherited pruned on arrival: the reporter's scale-profile design and
+  the 1324 ZMV note, both still true at `ebc45b9`, folded into Context. Five
+  tasks: the docs (`judging.md` §4b, `numbers.md`, the manual's QPA chapter),
+  `tests/test_qpa_multimodal.py` (the fixture verified by a hand scan first),
+  `Refinement.profile_fraction` → `FractionProfile` in `strategy/` and
+  `schemas/fraction.py`, `QPA_FRACTION_UNDETERMINED`, the skill row, and Part 2
+  eq. `est-profile` (Hamilton's one-constraint test). `Refinement._trial` is now
+  the one trial builder, and `report.layer2._rival_trial` calls it, so
+  `compare_rivals` without a history keeps the caller's ties, variables and
+  holds. `SCHEMA_VERSION` 0.32 → 0.33, staged in `releases/1.5.1.md`. Decisions
+  are in Context § "Decided 2026-09-27".
+
+  *Measured* (`[dev]` venv, Linux container as root, 4 cores). Fixture: fit
+  1.19 ± 0.53 wt%, profile 0.86-77.3 %, two basins, barrier Δχ² 14.7 against a
+  cut of 9.39, `excess` 73.9. Control: 3.93 ± 0.54 %, range 3.29-4.42 %,
+  `excess` 0.61, silent. The three recipe-grid controls reached 0.46, 0.67 and
+  0.79. The module takes 14 tests in about 14 s serial. Fast selection, run
+  once on `002d567` before the review pass: 6442 passed, 163 skipped, 1 failed
+  in 19:22 with `-n auto`. The failure is
+  `test_telemetry::…[unwritable-directory]`: as root `chmod 0o500` refuses
+  nothing, and its `skipif` covers Windows only, so this is the environment,
+  not this branch. The branch adds 14 tests. No main baseline was taken (the
+  rule), and the nightly log needs `gh`, which this container lacks, so the
+  +14 is by construction and not measured. The touched-file suites were re-run
+  on the final tree: 59 passed. The full selection did not run, because
+  nothing measured can move: the verb is opt-in, and the trial builder changes
+  only `compare_rivals` without a history, which no acceptance suite calls.
+
+  *Review* (`/code-review high --fix`). Five accepted, in `b7b7c6b`. The scan
+  moved the shared tree's HEAD, so a project would have reopened on the last
+  pinned width. Locked or tied axes, empty or non-finite grids and a scan with
+  nothing measured were silent "confirmations". A point with no QPA now says
+  why, and `width_value` cites its source. Three declined. The stage-scoped
+  `_held` is not carried by `_trial`, since carrying it would change `branch()`
+  for every caller. `compare_rivals`/`predict_then_verify` move HEAD the same
+  way; that predates this branch and no WP owns it. The API index has 369 bytes
+  of room, so the verb is named in the skill body's QPA row and in
+  `judging.md`, not in `api.md`.
+
+  *Gotchas and unfiled findings.* (1) A plan stage with `seed=0.01` reseeded
+  the widths and ended at cost 2998 against the previous stage's 2217 while
+  reporting `converged`; an unseeded rerun reached χ²_red 1.046. Nothing flags
+  a stage ending worse than its predecessor, and no WP owns this, so it is a
+  candidate for `/issue-review`. (2) The telemetry root skip above: queuing it
+  as a task timed out, so it is a one-line `skipif` for anyone. (3)
+  `ActionKind` gained no `remove_phase` (Context says why).
+
+  Next: none on this WP. #203 closes when the PR merges. 1463, whose soft
+  dependency this was, and 1465, the same ridge on the series path, each carry
+  an Inherited note.
 - **2026-09-01** — created, from issue #203 (2026-09-01 triage, second
   batch). Settled: two stages, docs truth before detector; probe opt-in,
   never default; the fixture is synthetic because the filer's series is not

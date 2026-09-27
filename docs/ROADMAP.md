@@ -118,7 +118,7 @@ and [1448](wp/1448-a-number-somebody-chose.md) block nothing.
 WinXPOW export, and a blank for a `rietx compare` standard.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
-triage's 1312-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341 less
+triage's 1312-1322 plus 1323 and 1325, less 1320; the 2026-09-03 triage's 1332-1341 less
 1333 and 1342; 1133; the **2026-09-15 triage**'s 1415-1421, less the two in v1.6, 1432 and 1417.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
@@ -658,7 +658,7 @@ could not answer closed 2026-09-18 as **1434** (the bound flag) and **1435**
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1320](wp/1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | 🔄 2026-09-27 | P2 | — (1310 soft) |
+| [1320](wp/1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ✅ 2026-09-27 | — | — (1310 soft) |
 | [1321](wp/1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | P2 | — (PR #206 first) |
 | [1323](wp/1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | P2 | — |
 | [1324](wp/1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, a setting nobody chose | ✅ 2026-09-02 | — | — |
