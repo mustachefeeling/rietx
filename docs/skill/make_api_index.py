@@ -270,8 +270,10 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "w]`, `{\"hkl\": (h, k, l)}` or a rotation; `.rotation` is the "
                 "view drawn, and passing it back redraws the same picture. "
                 "`.atoms` and `.letters` give pixel positions for labels you add "
-                "yourself. For a colour, a radius or a site to leave out, edit "
-                "the dict `rietx.gui.structure3d.build` returns and pass that. "
+                "yourself. For a site's colour (`#rrggbb`) or radius, edit the "
+                "dict `rietx.gui.structure3d.build` returns and pass that. "
+                "Deleting an atom from it raises, since bonds and polyhedra "
+                "hold its index. "
                 "Another program's picture: `Structure.to_cif` writes the "
                 "anisotropic loop, and VESTA or JmolData draws it (Hypothesis: "
                 "WP-1470, from each program's manual; neither was run).",

@@ -175,9 +175,11 @@ pass `True`, `False` or a formula switch such as `{"AlF₆": False}`.
 `background=None` is transparent.
 `outline=True` inks the silhouettes, off by default because the GUI draws
 none.
-For anything the keywords do not cover, edit the dict
-`rietx.gui.structure3d.build` returns (a colour, a radius, an atom removed)
-and pass the dict in place of the structure.
+For a site's colour or radius, edit the dict `rietx.gui.structure3d.build`
+returns and pass the dict in place of the structure.
+A colour is `#rrggbb`, and any other spelling draws grey.
+Deleting an atom from the dict raises, because its bonds and polyhedra hold
+atoms by index.
 
 On an Apple M4 in September 2026, a warm render of this NAC cell took
 33-40 ms at 1000 px and 71-94 ms at 3000 px.
