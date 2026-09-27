@@ -3,6 +3,7 @@
 Milestone: v1.0 · Status: ✅ 2026-08-05 — all nine tasks landed. Every acceptance row
 leaves PNGs, the scoreboard is generated and re-measured (9 datasets: 6/2/1/0), the
 contamination curve is measured, and the aggregate was measured and refuted
+Track: Indexing
 Depends on: WP-1026
 
 ## Goal

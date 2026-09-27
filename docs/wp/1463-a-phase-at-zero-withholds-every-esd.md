@@ -1,6 +1,7 @@
 # WP-1463 — a phase at zero withholds every esd
 
 Milestone: unscheduled · Status: ⬜
+Track: What fires, and what stays silent
 Depends on: — (1320 soft: the other QPA esd question, a trace phase with a confident esd)
 Priority: P2 2026-09-25 — 16 of 48 patterns of a real series lost every weight-fraction esd with no finding naming why, and the agent's hand propagation reached its deliverable
 

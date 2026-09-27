@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ✅ 2026-09-02 — built, reviewed and closed in one
 session; the batch rows are the contributor's to write
+Track: The repo's own process
 Depends on: 1304 (the skill), 1308 (the derived verb gate)
 
 ## Goal

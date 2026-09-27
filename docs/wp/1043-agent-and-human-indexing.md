@@ -1,6 +1,7 @@
 # WP-1043 — Indexing for an agent and for a human: report, don't refuse
 
 Milestone: v1.0 · Status: ✅ 2026-08-07
+Track: Indexing
 Depends on: 1041 (closed), 1026 (closed) · 1028 soft (peak-picking edge artifact)
 
 ## Goal

@@ -1,6 +1,7 @@
 # WP-1005 — Project container
 
 Milestone: v1.0 · Status: ✅ 2026-07-30
+Track: The human GUI
 Depends on: WP-1004
 
 ## Goal

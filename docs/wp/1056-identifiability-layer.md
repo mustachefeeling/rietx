@@ -4,6 +4,7 @@ Milestone: v1.0 · Status: ✅ 2026-08-12 — a converged report names the
 zero↔displacement exchange under the two-condition discriminator (R² is
 design-matrix-identical on the clean control; the partner's 128σ-vs-1.6σ
 discriminates); soft modes, the esd trio and δR beside it; THRESHOLDS_VERSION 0.7
+Track: Report evidence, agent evals, and the rename
 Depends on: —
 
 ## Goal

@@ -870,10 +870,10 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
 
 Planning docs are split so a session loads only what it needs; do not read all:
 
-- `docs/ROADMAP.md` — the index: session protocol, a "Current focus" capped by `CURRENT_FOCUS_CAP`
-  (tests/test_docs_consistency.py), milestones, WP index.
+- `docs/ROADMAP.md` — session protocol, a "Current focus" capped by `CURRENT_FOCUS_CAP`, milestones, and
+  each WP section's prose. The WP index is `docs/wp/README.md`, **generated** (`wp_index.py`, WP-1507).
 - `docs/wp/NNNN-*.md` — one **self-contained** WP per task (context, commit-sized checklist,
-  acceptance command, handover log).
+  acceptance command, handover log); its header lines are what the index reads, never hand-copied.
 - `docs/DESIGN.md` — design record; read only the section a WP links.
 - `docs/milestones/vX.Y.md` — one record per milestone: measured acceptance at ship, plus (while in
   flight) the running "How vX.Y is getting here" narrative and the dated appendices. `v1.0.md` is

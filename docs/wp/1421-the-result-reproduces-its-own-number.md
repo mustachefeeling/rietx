@@ -1,6 +1,7 @@
 # WP-1421 — the result reproduces its own number
 
 Milestone: unscheduled · Status: ⬜ — tasks 1 and 3-5 landed from outside under shape (a) (PR #432); tasks 2 and 6 open in part
+Track: What fires, and what stays silent
 Depends on: — (1310 soft: it owns which vector reaches the final diagnostics)
 Priority: P3 2026-09-23 — a number a reader cannot reproduce by a margin the record already calls staleness
 

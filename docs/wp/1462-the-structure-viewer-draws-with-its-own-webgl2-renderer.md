@@ -1,6 +1,7 @@
 # WP-1462 — the structure viewer draws with its own WebGL2 renderer
 
 Milestone: unscheduled · Status: ✅ 2026-09-26 — the viewer draws with its own renderer; the GPU gate passed as partial, on software drivers
+Track: Render what the fit already knows
 Depends on: 1461 (soft)
 
 ## Goal

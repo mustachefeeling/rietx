@@ -28,3 +28,13 @@
 # branch's — so main rebuilds after a merge and PR branches carry sources only —
 # is issue #159.
 src/rietx/gui/static/** -merge -diff
+
+# The WP index is generated from the WP files (WP-1507), and git's line merge
+# conflicts on two branches that each add a row next to the other's.  The
+# `wpindex` driver merges the index row by row, keyed by WP number.  Git reads
+# a driver only from config, so the SessionStart hook sets it
+# (`.claude/hooks/session_start.py`, MERGE_DRIVER).  Where it is unset, git
+# falls back to its line merge, and rerunning `python3
+# .claude/hooks/wp_index.py` resolves the markers.  GitHub's web merge runs no
+# custom driver, so a PR it cannot merge is synced locally.
+docs/wp/README.md merge=wpindex

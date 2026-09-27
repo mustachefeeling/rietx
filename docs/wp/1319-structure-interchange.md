@@ -1,6 +1,7 @@
 # WP-1319 — structure interchange: checkCIF conformance, and a bare XYZ importer
 
 Milestone: unscheduled · Status: ⬜
+Track: Coming from another code
 Depends on: —
 Priority: P3 2026-09-23 — a workaround covers both: edit the CIF, convert the XYZ
 

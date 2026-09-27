@@ -1,6 +1,7 @@
 # WP-1454 — `auto_background`'s choices survive the fit
 
 Milestone: unscheduled · Status: ✅ 2026-09-24 — all three choices hold through the fit; the flood a declared air term still raises is WP-1460
+Track: What fires, and what stays silent
 Depends on: —
 
 ## Goal

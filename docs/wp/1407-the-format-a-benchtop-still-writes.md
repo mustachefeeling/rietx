@@ -1,6 +1,7 @@
 # WP-1407 — The format a benchtop still writes: PANalytical `.udf`/`.rd`, and three named refusals
 
 Milestone: unscheduled · Status: ✅ 2026-09-13 — both readers, three refusals; `.rd` reproduces a committed `.prn` oracle bit for bit
+Track: The formats a lab still has
 Depends on: — (1047 is the seam this extends, and is closed)
 
 ## Goal

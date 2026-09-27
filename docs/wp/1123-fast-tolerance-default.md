@@ -2,6 +2,7 @@
 
 Milestone: v1.1 · Status: ✅ 2026-08-22 — flipped on; one plan field, one
 authority, and the trade stated in measured numbers
+Track: Speed
 Depends on: 1113 (its § Findings priced this flip; closed 2026-08-21)
 
 ## Goal

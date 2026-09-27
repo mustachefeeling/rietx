@@ -2,6 +2,7 @@
 
 Milestone: v1.0 · Status: ✅ 2026-08-06 — all four landed, each against a browser
 measurement; three of the four reports named a cause and only one was right
+Track: The human GUI
 Depends on: 1029 (theming), 1032–1033 (`Plot.svelte`, the armed gesture), 1027 (peaks)
 
 ## Goal

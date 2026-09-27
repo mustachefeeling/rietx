@@ -2,6 +2,7 @@
 
 Milestone: v1.1 · Status: ✅ 2026-08-19 — all four fields/writers landed by
 measurement; thresholds 1.2
+Track: The agentic report
 Depends on: —
 
 ## Goal

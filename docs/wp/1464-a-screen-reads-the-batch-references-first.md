@@ -1,6 +1,7 @@
 # WP-1464 — a screen reads the batch references first
 
 Milestone: unscheduled · Status: ⬜
+Track: A long run is not one fit
 Depends on: — (PR #385 soft: once it lands, a runaway cell stops raising in a screen)
 Priority: P3 2026-09-25 — the references exist and a reader who finds them is covered; one session waited 78 idle minutes on a screen they describe
 

@@ -4,6 +4,7 @@ Milestone: v1.0 · Status: ✅ 2026-08-14 — `rietx` everywhere (363 files), th
 three format tokens unmoved through a second rename, the audit retargeted, and
 counts identical either side (2257 passed / 108 skipped). The brand token is out
 of the WP *filenames* too, which is what the audit found.
+Track: Report evidence, agent evals, and the rename
 Depends on: [1062](1062-rename.md) (blocked [1003](1003-api-freeze-pypi.md))
 
 <!--

@@ -1,6 +1,7 @@
 # WP-1025 — Extinction symbol / space-group determination
 
 Milestone: v1.0 · Status: ✅ 2026-07-30
+Track: Indexing
 Depends on: 1024
 
 ## Goal

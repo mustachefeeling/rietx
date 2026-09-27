@@ -1,6 +1,7 @@
 # WP-1045 — Indexing search controls: one surface for the GUI and the agent
 
 Milestone: v1.0 · Status: ✅ 2026-08-08
+Track: Indexing
 Depends on: 1027, 1042 (1043 soft)
 
 ## Goal

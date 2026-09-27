@@ -1,6 +1,7 @@
 # WP-1015 — Structure viewer, zero new dependencies
 
 Milestone: v1.0 · Status: ✅ 2026-07-30 — scene pass landed the same day
+Track: The human GUI
 Depends on: WP-1010 (WP-1014 soft — the viewer is richer once editing exists)
 
 ## Goal

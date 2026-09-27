@@ -1,6 +1,7 @@
 # WP-1031 — Planning-doc consolidation & handoff mechanization
 
 Milestone: v1.0 · Status: ✅ 2026-07-31 — closed the session it opened; measured shrink in the handover log
+Track: Platform, release and the repo's own process
 Depends on: — (touches CLAUDE.md/ROADMAP.md; land while no other WP is in flight)
 
 ## Goal

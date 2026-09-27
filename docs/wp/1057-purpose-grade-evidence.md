@@ -3,6 +3,7 @@
 Milestone: v1.0 · Status: ✅ 2026-08-12 — closed; the report answers "good
 enough for what I need": `lebail_gap`, `abstained_kind`, the contents-type
 clause, AGENT_PROTOCOL §4b
+Track: Report evidence, agent evals, and the rename
 Depends on: —
 
 ## Goal

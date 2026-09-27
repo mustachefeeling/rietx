@@ -1,6 +1,7 @@
 # WP-1442 — a ghost search at chance: the Kβ flag fires where Kβ cannot exist
 
 Milestone: unscheduled · Status: ✅ 2026-09-22 — the finding is joint; task 5 split to WP-1445, and the brucite ranking it unmasked to WP-1446
+Track: What fires, and what stays silent
 Depends on: — (1415 soft)
 
 ## Goal

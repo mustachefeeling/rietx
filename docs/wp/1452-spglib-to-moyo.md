@@ -1,6 +1,7 @@
 # WP-1452 — spglib to moyo, once
 
 Milestone: unscheduled · Status: ⬜
+Track: The repo's own process
 Depends on: 1327, 1418, 1419 (the v1.6 magnetic PRs carry most of the call sites)
 Priority: P3 2026-09-23 — spglib misidentifies three of 1651 magnetic groups in silence, on a path few fits run (P2); down a rung, since it waits on the magnetic PRs
 

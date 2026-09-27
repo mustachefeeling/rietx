@@ -1,6 +1,7 @@
 # WP-1042 — Anytime results, and `quick` as the default
 
 Milestone: v1.0 · Status: ✅ 2026-08-07
+Track: Indexing
 Depends on: WP-1037
 
 ## Goal

@@ -1,6 +1,7 @@
 # WP-1458 — a tick with nothing behind it moves the low-angle boundary
 
 Milestone: unscheduled · Status: ✅ 2026-09-24 — all four tasks landed from outside in PR #456; the boundary is the first reflection the data sees, judged over all its line images
+Track: What fires, and what stays silent
 Depends on: — (1327 soft: its magnetic tick row is the case that found it)
 
 ## Goal

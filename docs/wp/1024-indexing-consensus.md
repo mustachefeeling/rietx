@@ -1,6 +1,7 @@
 # WP-1024 — Consensus, `index_pattern`, Le Bail validation, agent & CLI surface
 
 Milestone: v1.0 · Status: ✅ 2026-07-30
+Track: Indexing
 Depends on: 1021, 1022, 1023
 
 ## Goal

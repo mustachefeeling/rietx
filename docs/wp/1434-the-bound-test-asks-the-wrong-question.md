@@ -3,6 +3,7 @@
 Milestone: unscheduled · Status: ✅ 2026-09-18 — the flag asks whether
 the limit carried load; issue #273's nine silent cases all speak, at every `ftol`,
 and no fitted value moved
+Track: What fires, and what stays silent
 Depends on: — (1310 landed the vector half; this is the tolerance half)
 
 ## Goal

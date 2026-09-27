@@ -3,6 +3,7 @@
 Milestone: unscheduled · Status: ✅ 2026-09-26 — polyhedra drawn by Brunner &
 Schwarzenbach's gap on 21 measured phases, the legend per formula, a split pair
 no bond; the further work is WP-1468
+Track: Render what the fit already knows
 Depends on: 1462
 
 ## Goal

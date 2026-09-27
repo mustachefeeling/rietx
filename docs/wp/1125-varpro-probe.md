@@ -1,6 +1,7 @@
 # WP-1125 — variable-projection probe: profile the background, measure the tail
 
 Milestone: v1.1 · Status: ✅ 2026-08-22
+Track: Speed
 Depends on: WP-1113 (the mechanism this probe attacks), WP-1111 (counting
 scaffold)
 

@@ -2,6 +2,7 @@
 
 Milestone: v1.0 · Status: ✅ 2026-08-08 — reopened for criterion 1, which is now
 generated: global **−8** of ±20, ties DICVOL91
+Track: Indexing
 Depends on: 1024 (1025 soft)
 
 ## Goal

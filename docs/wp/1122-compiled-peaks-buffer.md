@@ -1,6 +1,7 @@
 # WP-1122 — compiled peaks buffer: the declared-tolerance tier
 
 Milestone: v1.1 · Status: 🛑 2026-08-22 — NO-GO on v1.1's terms; deferred to be built **with FPA**, which is what moves the break-even
+Track: Speed
 Depends on: 1115 (the substrate and its rules), 1121 (the gate: its closing
 remainder prices this WP)
 

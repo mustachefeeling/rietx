@@ -1,6 +1,7 @@
 # WP-1038 — Pre-indexing 2θ shift from reflection pairs
 
 Milestone: v1.0 · Status: ✅ 2026-08-04
+Track: Indexing
 Depends on: WP-1019, WP-1024
 
 ## Goal

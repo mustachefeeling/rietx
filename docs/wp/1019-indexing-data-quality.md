@@ -1,6 +1,7 @@
 # WP-1019 — Data-quality gate and the systematic-error model
 
 Milestone: v1.0 · Status: ✅ 2026-07-30
+Track: Indexing
 Depends on: 1018
 
 ## Goal

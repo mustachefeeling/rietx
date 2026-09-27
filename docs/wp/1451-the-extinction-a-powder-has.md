@@ -1,6 +1,7 @@
 # WP-1451 — the extinction a powder has
 
 Milestone: unscheduled · Status: ⬜
+Track: The repo's own process
 Depends on: —
 Priority: P4 2026-09-23 — a label that contradicts its cited paper; the physics is right and no number moves
 

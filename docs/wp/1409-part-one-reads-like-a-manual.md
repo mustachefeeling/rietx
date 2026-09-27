@@ -3,6 +3,7 @@
 Milestone: unscheduled · Status: ✅ 2026-09-14 — all 24 chapters swept, 363 em
 dashes and 400 bold marks to 0, the register guard extended to both parts, and
 three reader-visible defects fixed with the guard that closes each class
+Track: The repo's own process
 Depends on: 1408 (Part 2; the guard this extends)
 
 ## Goal

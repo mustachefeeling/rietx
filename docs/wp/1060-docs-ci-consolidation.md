@@ -1,6 +1,7 @@
 # WP-1060 — Docs/CI consolidation: trim what the evidence indicts
 
 Milestone: v1.0 · Status: ✅ 2026-08-06 — closed at eleven of eleven, acceptance green (close entry below)
+Track: Platform, release and the repo's own process
 Depends on: — (touches `.claude/commands/wp-handover.md`, as does 1061; different
 steps, lands in either order)
 

@@ -1,6 +1,7 @@
 # WP-1324 — symmetry silences: an orbit that is not a multiplicity, and a setting nobody chose
 
 Milestone: unscheduled · Status: ✅ 2026-09-02
+Track: What fires, and what stays silent
 Depends on: —
 
 ## Goal

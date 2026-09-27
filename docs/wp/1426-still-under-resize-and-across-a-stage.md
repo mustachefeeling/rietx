@@ -1,6 +1,7 @@
 # WP-1426 — still under resize, and across a stage
 
 Milestone: v1.5 · Status: ✅ 2026-09-16 — the legend no longer moves the picture, the console no longer follows it, the list holds the reader's place
+Track: The live-watcher track
 Depends on: 1430 (the page as files), 1423 (the rules and the browser harness this extends)
 
 ## Goal

@@ -3,6 +3,7 @@
 Milestone: v1.0 · Status: ✅ 2026-08-15 — `tie`/`tie_equal`/`untie` on the
 `Refinement` surface, recorded as a `set_tie` node and restored by checkout and
 `Project.open`; the analytic Jacobian gated on the reach each branch covers
+Track: The McCusker (1999) compliance set
 Depends on: WP-1004 (the parameter surface this extends) — recommended
 **before 1003**: recording a tie edit adds a member to the closed `NodeKind`
 literal, which is free before the freeze and a versioned history-format

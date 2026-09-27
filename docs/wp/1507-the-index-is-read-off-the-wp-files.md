@@ -1,8 +1,10 @@
 # WP-1507 — the WP index is read off the WP files
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-27 — the index is generated and the merge
+driver set (PR #509); the merge replay remains, from 2026-10-11
+Track: The repo's own process
 Depends on: — (1506 soft: the docs job it adds runs this WP's tests)
-Priority: P2 2026-09-27 — was P4: the maintainer raised it the day it was filed; 17 of 25 conflicted syncs in six weeks hit ROADMAP.md, and 46 PRs in a month edited only its cap
+Priority: P3 2026-09-27 — was P2: the index and its merge driver landed in PR #509; what remains is the merge replay, which waits until 2026-10-11
 
 ## Goal
 
@@ -95,19 +97,15 @@ per-row bump gone, it is written only when prose grows.
 sync. A touchpoint that writes a row stops writing it. One that reads a row
 reads the index.
 
-### Inherited
-
-**From [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) (2026-09-27).**
-PR #504 gives `ci.yml` a `changes` job. A PR whose files all match its
-`PLANNING` pattern (`docs/wp/`, `docs/milestones/`, `docs/releases/`,
-`ROADMAP.md`, `DESIGN.md`, `tests/test_docs_consistency.py`) runs only the
-`docs` job. That job runs the four test files an audit hook saw reading those
-paths. Three consequences reach this WP. A regenerated `docs/wp/README.md` on
-its own stays a docs-only PR. The generator is code unless it sits inside the
-pattern, so a PR that changes it runs the full matrix. And the freshness test
-must live in one of the docs job's four files, or a docs-only PR skips it
-until the nightly. `test_docs_consistency.py` and `test_workflow_hooks.py`
-are both on the list.
+**CI (from [1506](1506-a-planning-doc-pr-runs-what-reads-it.md), folded
+2026-09-27).** A PR whose files all match `ci.yml`'s `PLANNING` pattern
+(`docs/wp/`, `docs/milestones/`, `docs/releases/`, `ROADMAP.md`,
+`DESIGN.md`, `tests/test_docs_consistency.py`) runs only the `docs` job,
+which runs the four test files that read those paths. So a regenerated
+`docs/wp/README.md` on its own stays a docs-only PR. The generator sits in
+`.claude/hooks/`, outside the pattern, so a PR that changes it runs the full
+matrix. The freshness and merge tests live in `test_docs_consistency.py` and
+`test_workflow_hooks.py`, both on the docs job's list.
 
 ## Non-goals
 
@@ -128,23 +126,30 @@ are both on the list.
 
 - [x] The decision above, taken with the maintainer and recorded here:
       (a), committed as `docs/wp/README.md`, 2026-09-27.
-- [ ] A generator, stdlib only, sharing one header parser with
+- [x] A generator, stdlib only, sharing one header parser with
       `test_docs_consistency.py`. It writes the per-milestone tables and the
       in-flight and next-by-priority lists from the WP files.
-- [ ] ROADMAP.md: each table replaced by a link to its place in the index.
+- [x] ROADMAP.md: each table replaced by a link to its place in the index.
       Section prose stays under its milestone heading. Current focus keeps
       milestone prose only.
-- [ ] `test_docs_consistency.py`: the five mirror tests become one freshness
+- [x] `test_docs_consistency.py`: the five mirror tests become one freshness
       test on the index. The ROADMAP cap counts what is left and is set once,
       with its diary entry. The Current focus caps are unchanged.
-- [ ] If (a): the merge driver and its SessionStart setup, tested in
+- [x] If (a): the merge driver and its SessionStart setup, tested in
       `test_workflow_hooks.py`. Two branches adding adjacent rows merge
       locally with no conflict markers.
-- [ ] The touchpoints above: commands, hook, issue-review skill,
+- [x] The touchpoints above: commands, hook, issue-review skill,
       pr-conformance agent, Session protocol, TEMPLATE comment.
 - [ ] Two weeks after landing, rerun the merge replay and report ROADMAP
       conflicts against this WP's baseline of 17 in six weeks.
-- [ ] Skill: none. This is the repo's planning process.
+      `python -m tests.merge_replay <landing date>` prints both this and the
+      acceptance check below. The same script over `2026-08-15 2026-09-27`
+      reproduces the baseline exactly: 398 merges, 25 conflicted (6.3 %),
+      17 on ROADMAP. Compare rates, since the windows differ in length.
+      Scheduled: a one-time cloud routine, `trig_01GNHLhDTBxq3Z9oG2sNVRnB`,
+      runs both on 2026-10-11 at 01:00 UTC and opens a PR with the entry. It
+      stops without editing if #509 has not merged, and it never closes the WP.
+- [x] Skill: none. This is the repo's planning process.
 
 ## Acceptance
 
@@ -168,9 +173,122 @@ are both on the list.
 
 ## Handover log
 
-- **2026-09-27** — Created by a session the maintainer asked to find where
-  the repo's merge drag comes from. Most ROADMAP conflicts come from a
-  hand-kept copy of the WP headers and from rewriting Current focus at every
-  close, and both can stop. The numbers above are that session's merge
-  replay. Next: the maintainer's answer on where the index lives, then the
-  generator.
+### 2026-09-27 (2nd session) — the index is generated; the replay waits two weeks
+
+The WP tables no longer live in ROADMAP. A script reads each WP file's
+header and writes `docs/wp/README.md`: what is in flight, what is next by
+priority, and one table per ROADMAP section and track. Starting, closing or
+re-rating a WP now edits that WP's file and the regenerated index, and
+ROADMAP not at all. When two branches both add rows, a local merge resolves
+the index by itself. A real merge in the tests conflicts without the driver
+and merges clean with it. The cost: every WP under a ROADMAP track gained a
+`Track:` line (200 files), and the index takes titles and dependencies from
+the files, so 58 titles and 51 dependency cells read differently from the
+hand-written rows. Whether conflicts actually fall is not measured yet. That
+is the replay two weeks after landing.
+
+**Done.**
+
+- `.claude/hooks/wp_index.py`, stdlib only. `read_header` is the one header
+  parser, and `test_docs_consistency.py` reads headers through it.
+  `generate` writes the index; `render` and `parse` are exact inverses
+  (tested on all 278 rows); `merge` is three-way per WP number. CLI: bare
+  writes, `--check` exits 1 when stale, `--merge %O %A %B` is the driver.
+- ROADMAP: its 34 tables became one sentence each, linking the table's
+  anchor in the index. Current focus kept milestone prose. Its WP-level
+  paragraphs (1442's four WPs, the triage queue list, 1432 and 1433) moved
+  verbatim to the v1.6 record § How v1.6 is getting here. Session protocol
+  steps 1, 3 and 5 read or regenerate the index, and a close no longer edits
+  Current focus. v1.2's prose now states the order its table had carried.
+- Tests: the five row-mirror tests became four. The index equals the
+  generator's output; it parses back to the rows that wrote it; every WP
+  names a heading ROADMAP has; every heading with rows links them. The
+  duplicate-number check is its own test. The three new guards were each made
+  to fail once, with the intended message (a status edited without
+  regenerating, a removed link, a bogus track).
+- Merge driver: `.gitattributes` marks `docs/wp/README.md merge=wpindex`, and
+  `session_start.ensure_merge_driver` writes one config line, `python3
+  .claude/hooks/wp_index.py --merge %O %A %B || git merge-file %A %O %B`. It
+  is the hook's only write, and its docstring says so. Real-git tests: two
+  branches adding adjacent rows (the control conflicts, the driven merge is
+  clean and equals the generator's output), and one row both branches
+  changed (the driver declines, and git writes its own markers).
+- Touchpoints: `/wp-start` step 2 reads the index head (`sed -n '/^## In
+  flight/,/^## <a id/p' docs/wp/README.md`) and step 4b regenerates;
+  `/wp-handover` steps 4, 5 and 7; the issue-review skill (a `Track:` line,
+  then regenerate); TEMPLATE (the Track line, how Depends on is read);
+  CONTRIBUTING; the design-proposal template; root CLAUDE.md, rewritten
+  within its cap; `test_no_stale_name.py`'s allowlist, where 1062's row moved
+  to the index. Unchanged on purpose: `/pr-review` and the pr-conformance
+  agent already cover `docs/wp/**`; `handover_owed.py`'s mention is history;
+  `backlog.py`'s issue numbers from the old Depends cells come from WP files
+  it already reads.
+- `/code-review high --fix` found ten issues and fixed eight, in one
+  commit. The one that mattered: a merge where one side renumbered a WP
+  another side's Depends cell links now declines, where it had reported a
+  clean merge the freshness test then failed. Also a non-⬜ glyph without a
+  date is refused at parse, where render had crashed on it. Declined: both
+  branches opening a first row under two different empty tracks still
+  conflicts (it fails safe to git's line merge, and an ordered merge of the
+  heading lists could hide a rename), and `session_start.py` keeps its own
+  lenient Status parse (the hook must survive a malformed file).
+- ROADMAP's cap 880 -> 571, with the diary in the test ledger, the per-cap
+  comment and `milestones/process.md`.
+- Three closed headings now carry the fate only their rows had: 0408 (was
+  0603), 0602 (deleted by 1303), 1062 (superseded by 1066). Three Depends
+  lines reworded: 1036 ("blocks 1035" read as a dependency), 1337 (the 1311
+  and 1321 soft order only its row had), 1460 (soft markers).
+
+**Measured.**
+
+- Fast selection on the final tree, `[dev]`, darwin/arm64, no other suite
+  running: 6556 passed, 151 skipped (6707). The run before the review's fix
+  was 6555 + 151, so the review's one test moved it by exactly one. Wall
+  clock 2:16-3:05 over the two runs. Net +4 tests: five removed, nine added.
+  The full selection was not run, since no package code changed and no
+  measured number can move (tests/CLAUDE.md, rung 3).
+- Added tests, one run's figures on this machine: 1.57 s (adjacent-rows
+  merge), 0.83 s (a row both changed), 0.33 s (driver setup), and six more
+  at 0.06 s or less; 2.86 s in all. None joins the slow tail.
+- The index is 500 lines and 56 kB, and its head is 35 lines (4.7 kB).
+  ROADMAP went from 879 to 570 lines. The SessionStart hook's added config
+  read is 13 ms.
+- Titles: 58 of 278 differ from the old rows, all but two on closed WPs. The
+  index sentence-cases a first word made of letters and hyphens.
+- Depends: 51 of 278 differ. The open ones: 1132 (#108 merged) and 1321
+  (#206 merged); 1133 and 1312, whose files say `—`; 1443 and 1449, whose
+  old cells held notes; 1464 (#385 soft); and 1418, whose file names #290,
+  1326 and 1327 as hard. 1418 is held by another session and was left alone.
+- Git runs a merge driver from the top of the tree while the tree still
+  holds the pre-merge files (probed in a scratch repo). So the driver merges
+  the index text and never regenerates from the tree.
+
+**Gotchas.**
+
+- Transition: a branch open when this lands conflicts once if it edited a
+  ROADMAP row, or the header of a WP that now carries a Track line (in
+  flight: 1449, 1450, 1506). Take main's ROADMAP and rerun `python3
+  .claude/hooks/wp_index.py`. In a WP header keep both the Track line and
+  the branch's edit.
+- GitHub's web merge runs no custom driver. A PR whose index conflicts with
+  main is synced locally, where the driver resolves it.
+- The driver cannot see the merged WP files. So a clean index merge can
+  still be stale when a new WP number falls inside a range some Depends line
+  names. The freshness test catches it, and rerunning the script fixes it.
+- A new `####` track needs its ROADMAP heading, its prose, and the one-line
+  sentence every other heading carries, linking its anchor in
+  `wp/README.md`. The test's failure message names the anchor.
+
+Next: the maintainer reviews and merges PR #509. After it lands, check the
+acceptance on the first three WPs filed, started or closed: none should
+touch ROADMAP or `test_docs_consistency.py`. Then, from 2026-10-11, rerun
+the merge replay against the baseline of 17 ROADMAP conflicts in six weeks.
+That is the last task, and the WP closes on it.
+
+### 2026-09-27 — created
+
+Created by a session the maintainer asked to find where the repo's merge
+drag comes from. Most ROADMAP conflicts come from a hand-kept copy of the WP
+headers and from rewriting Current focus at every close, and both can stop.
+The numbers above are that session's merge replay. Next: the maintainer's
+answer on where the index lives, then the generator.

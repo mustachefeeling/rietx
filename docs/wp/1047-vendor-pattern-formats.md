@@ -6,6 +6,7 @@ fuzz), `.chi`, the `.dif` refusal, and **seven vendor formats** — Rigaku `.ras
 and `.rasx`, Bruker `.uxd`, `.brml` and the binary `.raw` (v3/v4; **v1 and v2
 refused**, see task 14), PANalytical `.xrdml` — plus the instrument hint, the
 scan picker and the docs.
+Track: Found by use
 Depends on: 1005, 1007, 1014 (1009, 1028 soft) — landed before 1003, whose
 `### Inherited` carries twelve points for the freeze
 

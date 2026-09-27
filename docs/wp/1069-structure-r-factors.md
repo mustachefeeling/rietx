@@ -3,6 +3,7 @@
 Milestone: v1.0 · Status: ✅ 2026-08-15 — R_Bragg/R_F per phase from an
 evaluate-only structure-model partition, the two core-dictionary CIF tags on
 each phase's own block, and the esd method stated in full
+Track: The McCusker (1999) compliance set
 Depends on: — (recommended **before 1003**: adds public statistics fields and
 CIF tags the freeze should cover; the grounds are in 1003's Inherited)
 

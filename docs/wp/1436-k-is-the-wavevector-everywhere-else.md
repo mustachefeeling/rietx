@@ -1,6 +1,7 @@
 # WP-1436 — `k` is the wavevector everywhere else
 
 Milestone: v1.5 · Status: ✅ 2026-09-17 — every symbol renamed, every refined number bit-identical
+Track: What the package says about itself
 Depends on: 1437, **merged 2026-09-17** (PR #371). This branch is cut from
 `main` above it, so the rebase is done and its edit to `docs/manual/intensities.md`
 is in the tree. No line of `help.py` writes sinθ/λ, and none of the names renamed

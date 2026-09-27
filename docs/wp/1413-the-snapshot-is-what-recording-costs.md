@@ -3,6 +3,7 @@
 Milestone: v1.5 · Status: ✅ 2026-09-15 — decimation 8.8-11.9× faster at
 a bit-identical index set; `cpd-2` and `trigger` under 1.05×, `nac` at 1.23× and
 unreachable without thinning the snapshot, which is the maintainer's call
+Track: The live-watcher track
 Depends on: 1404 (the measurement that names this); 1402 (the code, and its one
 binding constraint)
 

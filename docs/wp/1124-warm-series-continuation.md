@@ -2,6 +2,7 @@
 
 Milestone: v1.1 · Status: ✅ 2026-08-22 — clean negative: B8 retires for series
 speed, and the band it was aimed at turns out to be discarded ladder rungs
+Track: Speed
 Depends on: WP-1111 (harness + counting scaffold), WP-1123 (the schedule the
 baseline runs)
 

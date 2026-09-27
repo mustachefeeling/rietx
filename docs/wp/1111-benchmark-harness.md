@@ -3,6 +3,7 @@
 Milestone: v1.1 · Status: ✅ 2026-08-20 — seven cases, and the opening
 baseline: 50 s cold and 4.5–22.4 s warm/pattern on the trigger-shaped case,
 against low-single-digit and ~1 s targets
+Track: Speed
 Depends on: — (1109's remaining tasks quote it once it exists, but do not wait on it)
 
 ## Goal

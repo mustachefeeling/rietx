@@ -1,6 +1,7 @@
 # WP-1456 — an editable install stamps what it runs
 
 Milestone: unscheduled · Status: ✅ 2026-09-27 — a checkout whose `pyproject.version` has moved past its editable install stamps the source version and its git node, and warns; the run recorder stamps from the same authority
+Track: What fires, and what stays silent
 Depends on: —
 
 ## Goal

@@ -1,6 +1,7 @@
 # WP-1002 — CI matrix
 
 Milestone: v1.0 · Status: ✅ 2026-07-29
+Track: Platform, release and the repo's own process
 Depends on: —
 
 ## Goal

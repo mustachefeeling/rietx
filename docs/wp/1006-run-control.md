@@ -1,6 +1,7 @@
 # WP-1006 — Run control: streaming, progress, cancellation
 
 Milestone: v1.0 · Status: ✅ 2026-07-30
+Track: The human GUI
 Depends on: —
 
 ## Goal

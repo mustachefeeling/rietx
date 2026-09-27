@@ -3,6 +3,7 @@
 Milestone: v1.0 · Status: ✅ 2026-08-12 — `FitReport.background` carries both
 failure modes; the two flexibility actions finally have an emitter; the
 over-flexible fixture wins on Rwp *and* GoF and lands 2.6× further from truth
+Track: Report evidence, agent evals, and the rename
 Depends on: —
 
 ## Goal

@@ -1,6 +1,7 @@
 # WP-1034 — Model and Text in the right panel
 
 Milestone: v1.0 · Status: ✅ 2026-08-05
+Track: The human GUI
 Depends on: 1013, 1014, 1029 (all landed) · soft: 1032
 
 ## Goal

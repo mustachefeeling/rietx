@@ -3,6 +3,7 @@
 Milestone: unscheduled · Status: ✅ 2026-09-03 — page and payload both in the
 repository; the payload is decimated to the unrefinable side of rietx's own
 guideline, which is what let it in
+Track: The repo's own process
 Depends on: — (1003 soft: `DOCS_URL` and the Pages workflow are its)
 
 ## Goal

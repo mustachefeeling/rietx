@@ -1,6 +1,7 @@
 # WP-1001 — Validation matrix + tolerance policy
 
 Milestone: v1.0 · Status: ✅ 2026-07-29
+Track: Platform, release and the repo's own process
 Depends on: —
 
 ## Goal

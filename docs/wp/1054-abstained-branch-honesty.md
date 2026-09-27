@@ -1,6 +1,7 @@
 # WP-1054 — Layer-2 honesty on the abstained branch: the phantom-phase invitation
 
 Milestone: v1.0 · Status: ✅ 2026-08-12 — shipped: reindex survives abstention, impurity and texture verdicts capped to their evidence, `best_axis` always populated; THRESHOLDS_VERSION 0.4
+Track: Report evidence, agent evals, and the rename
 Depends on: —
 
 ## Goal

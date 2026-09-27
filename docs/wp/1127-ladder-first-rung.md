@@ -3,6 +3,7 @@
 Milestone: v1.1 · Status: ✅ 2026-08-23 — the first rung bounded from what
 converged ones cost: 1603 → 1395 evaluations on the trigger chain, identical on
 the small-cell one, answers bit-identical on both; default flipped
+Track: Speed
 Depends on: WP-1111 (harness + counting scaffold), WP-1124 (the decomposition
 that names this front), WP-1051 (the ladder itself)
 

@@ -1,6 +1,7 @@
 # WP-1412 — the theme nobody chose
 
 Milestone: v1.5 · Status: ✅ 2026-09-14
+Track: What the package says about itself
 Depends on: 1411
 
 ## Goal

@@ -3,6 +3,7 @@
 Milestone: v1.0 · Status: ✅ 2026-08-15 — `DataSupport` (raw and Altomare
 effective counts, the structural split, both ratios), the sampling number on
 `PatternDiagnostics`, and two diagnostics that report and gate nothing
+Track: The McCusker (1999) compliance set
 Depends on: — (recommended **before 1003**: two small additive evidence
 fields the freeze may as well cover; the grounds are in 1003's Inherited)
 

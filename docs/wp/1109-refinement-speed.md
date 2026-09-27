@@ -7,6 +7,7 @@ repriced), **bit-identical throughout**; the hkl cache and the tolerance
 hygiene both retired on measurement, and the heavier avenues left to
 WP-1111–1115 (the v1.1 series)
 
+Track: Speed
 Depends on: —
 
 ## Goal

@@ -1,6 +1,7 @@
 # WP-1431 — a caller names its run
 
 Milestone: v1.5 · Status: ✅ 2026-09-16 — `label=` on every verb that records a run; the page needed no change
+Track: The live-watcher track
 Depends on: 1424 (the column that shows the name)
 
 ## Goal

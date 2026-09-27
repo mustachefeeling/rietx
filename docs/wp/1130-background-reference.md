@@ -4,6 +4,7 @@ Milestone: unscheduled · Status: 🛑 2026-09-04 — closed on its own gate. Th
 trigger no longer reproduces and no model-free estimate separates a correct fit
 from a bad one, so the selector and the diagnostic are refused; the record and
 two shipped fixes are what this WP leaves. The panel goes to 1133
+Track: The fit has no reference
 Depends on: — (nothing; WP-1131 closed 2026-09-02 and the width check this WP
 needed had in fact shipped in v1.2 — see § What this reads rather than computes)
 

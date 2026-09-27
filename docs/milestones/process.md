@@ -590,6 +590,15 @@ fires, and what stays silent, and four lines in § v1.6 recording the order
 runs: one row, 1467, under § What fires, and what stays silent.  No prose.
 Landed 851, +1 headroom.
 
+880 -> 571 for WP-1507 (2026-09-27): the cap goes down, and its rule
+changes.  The 34 WP tables left for `docs/wp/README.md`, which
+`.claude/hooks/wp_index.py` generates from the WP files' headers, and Current
+focus kept milestone prose, its WP-level paragraphs moved to the v1.6 record.
+The rule above, that a row is not narrative and the cap grows with the WP
+count, has no rows left to apply to.  Filing, starting or closing a WP no
+longer touches ROADMAP, so the cap now moves only when prose does.  Landed
+570, +1 headroom.
+
 ### `gui/CLAUDE.md`
 
 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer

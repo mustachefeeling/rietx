@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ✅ 2026-09-14 — scoped to the session's own
 checkout, covered in the hook suite, and the fail-open now says when it fired
+Track: The repo's own process
 Depends on: —
 
 ## Goal

@@ -1,6 +1,7 @@
 # WP-1108 — The license beside the numbers: shipping the statistics placement
 
 Milestone: v1.1 · Status: ✅ 2026-08-19 — shipped: `Statistics.identifiability_clause` written by `build_report` beside the summary's copy, `report_thresholds_version` 1.3, shim projection a checked no-op, documented in the manual, the protocol and the 1.0.2 notes
+Track: The agentic report
 Depends on: 1107 (the grid that chose the placement)
 
 ## Goal
