@@ -1,6 +1,6 @@
 # WP-1468 — what the polyhedra still miss, and the controls a chemist would reach for
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-28 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: 1466
 Priority: P3 2026-09-26 — a view over what the fit already knows; each miss is a drawing, never a number, and switching the polyhedron off works around it; 1466 closed, so nothing blocks it
