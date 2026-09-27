@@ -1,9 +1,9 @@
 # WP-1468 — what the polyhedra still miss, and the controls a chemist would reach for
 
-Milestone: unscheduled · Status: 🔄 2026-09-28 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-09-28 — ten of twelve tasks landed; the electronegativity sources wait on two papers
 Track: Render what the fit already knows
 Depends on: 1466
-Priority: P3 2026-09-26 — a view over what the fit already knows; each miss is a drawing, never a number, and switching the polyhedron off works around it; 1466 closed, so nothing blocks it
+Priority: P4 2026-09-28 — was P3: WP-1468's first session landed ten of twelve tasks; left is a source for four constants, which waits on Pauling (1960) and Allen & Huheey (1980), and cluster polyhedra nobody has asked for
 
 ## Goal
 
@@ -61,7 +61,9 @@ Read 2026-09-26 from each program's manual.
 - **rietx's structure schema has no disorder group.** The CIF carries one
   (`_atom_site_disorder_assembly`, `_atom_site_disorder_group`), and SHELX
   its PART numbers. That is how Mercury and CrystalMaker separate
-  alternatives without guessing from distance.
+  alternatives without guessing from distance. *Resolved 2026-09-28:*
+  `Atom.disorder_assembly` and `Atom.disorder_group`, read and written with
+  the CIF (SCHEMA_VERSION 0.34), and read by the viewer.
 - **An occupancy test is the cheaper half.** Two partly occupied non-metals
   closer than a second, looser bound would be split too. Its bound has to
   sit below a disordered sulfate's S–O at 0.86, and the 0.77-0.81 band
@@ -86,20 +88,29 @@ Read 2026-09-26 from each program's manual.
   phase was measured.
 - **Four electronegativities are unchecked.** Allred (1961, Table 3) has
   none for Te, At, Kr or Xe. The values in `ELECTRONEGATIVITY` are the ones
-  usually tabulated, from sources not read here.
+  usually tabulated, from sources not read here. Checked 2026-09-28: the
+  synced Zotero library and `~/Code/rietx-refs-misc/` hold neither Pauling
+  (1960, *The Nature of the Chemical Bond*, 3rd ed.), where Te 2.1 and At
+  2.2 are usually cited from, nor Allen & Huheey (1980, *J. Inorg. Nucl.
+  Chem.* 42, 1523) for Kr 3.0 and Xe 2.6. The citations are from memory
+  and unread.
 
 ### Controls
 
 - **No centre or ligand override.** Mercury's two lists and VESTA's pair
   ranges are how a user fixes the misses above. Here the rule is fixed. A
   control would be a drawing threshold on the query string, like the bond
-  tolerance, never in `ProjectDoc` (`gui/CLAUDE.md`).
+  tolerance, never in `ProjectDoc` (`gui/CLAUDE.md`). *Resolved
+  2026-09-28:* `centres=` and `ligands=`.
 - **An intermetallic draws nothing** (P2). Daams & Villars (1993) draw every
   atom's environment. Showing one atom's environment on request was WP-1466's
-  stated answer, left out of its scope.
+  stated answer, left out of its scope. *Resolved 2026-09-28:* through the
+  lists, and a double-click for one atom.
 - **Anion-centred and cluster polyhedra** (OCa₄, B₆, B₁₂) are WP-1466
   non-goals. An antiperovskite or an oxynitride is read by its anion-centred
-  shapes.
+  shapes. *Resolved in part 2026-09-28:* anion-centred ones come through the
+  lists. A cluster polyhedron has no atom at its centre, which the payload's
+  `center` index cannot say.
 
 ### Ties, the cap and the cost
 
@@ -118,14 +129,17 @@ Read 2026-09-26 from each program's manual.
 - **A large hidden shell can lose its room at the atom cap** (WP-1466, P7).
   The default shells claim room first, and a hidden one that does not fit
   leaves the legend, counted in the payload's note. None did on the measured
-  set, where grossular's payload is 383 of 400 atoms.
+  set, where grossular's payload is 383 of 400 atoms. *Resolved 2026-09-28:*
+  `polyhedra_dropped`, and a greyed legend button.
 - **Two rules are written more than once** (WP-1466's second review).
   "Bonded" is tested in `_bonds` for the sticks and again in
   `_cation_sites`, and P10's floor went into both by hand. The client's
   "which atoms are drawn" rule has three copies: `buildScene`, `caption` and
   the zoom fit. The copies agree today; a change to one that misses another
   is how the caption came to count undrawn atoms. Since WP-1470
-  (2026-09-27), `scene.py`'s `build_scene` holds two more copies.
+  (2026-09-27), `scene.py`'s `build_scene` holds two more copies. *Resolved
+  2026-09-28:* `structure3d.bonded`, and `drawnWith` with its twin
+  `drawn_with`.
 - **Every bond-slider release recomputes the polyhedra.** They read the
   default bond tolerance, never the slider's, so only the sticks need the
   new value. Grossular's whole payload takes 62 ms best of 7 (Apple M4); the
