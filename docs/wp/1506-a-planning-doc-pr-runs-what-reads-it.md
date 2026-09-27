@@ -204,7 +204,8 @@ The maintainer merged PR #504 at 13:55 UTC and moved branch protection to
 The merge's own run on main took the code path: `changes` chose code, the
 docs job skipped and the full matrix ran. The PR carrying this entry changes
 only this file, so it is the first docs-only PR under the new protection.
-Its `ci-ok` time is the acceptance check.
+Its first run (36324259032) went green 47 s after it was created, with the
+matrix skipped, and GitHub reported the PR mergeable (`CLEAN`).
 
 *Open.* #450's branch predates `ci-ok`, so it waits on that check until
 main is merged into it. Task 7 waits for two weeks of timings, from about
