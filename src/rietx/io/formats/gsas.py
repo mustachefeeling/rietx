@@ -247,9 +247,9 @@ def read_gsas(path: str | Path, *,
         diagnostics.append(Diagnostic(
             level="info", code="GSAS_BANK_COMMENTED",
             message=(
-                f"{p.name}: the file's only BANK record is commented out "
-                f"(line {data_start}: {lines[data_start - 1].strip()!r}). It "
-                "was read as the bank record anyway. GSAS writes 2θ in "
+                f"{p.name} has no live BANK record, and its first commented "
+                f"one (line {data_start}: {lines[data_start - 1].strip()!r}) "
+                "was read as the bank record. GSAS writes 2θ in "
                 "centidegrees, so the same rows read as bare columns would "
                 "put the axis 100× too high."),
             where=[f"line {data_start}"],
@@ -491,8 +491,9 @@ GSAS = PatternFormat(
           "that window) leaves its token there, one more bounded read further "
           "in. A bank record behind a '#' counts when it carries the whole "
           "header, and is read only where the file has no live one "
-          "(GSAS_BANK_COMMENTED). Only a CONS/CONST (constant 2θ step) bank holding STD, ESD or "
-          "FXYE records is then read, and every time-of-flight bintype "
+          "(GSAS_BANK_COMMENTED). Only a CONS/CONST (constant 2θ step) bank "
+          "holding STD, ESD or FXYE records is then read, and every "
+          "time-of-flight bintype "
           "(TIME_MAP included) and every other type flag (ALT, FXY) is named "
           "and refused",
     sigma=("the third column (FXYE) or second (ESD); an STD bank — which is "
