@@ -123,7 +123,7 @@ the tail today, in local serial seconds:
       PR, so nothing is skipped while protection still names the matrix.
 - [ ] By hand, maintainer: branch protection requires `lint` and `ci-ok`.
       This WP carries the written instruction, as WP-1313 does.
-- [ ] Turn the skip on. Check a planning-only PR (`ci-ok` green in about two
+- [x] Turn the skip on. Check a planning-only PR (`ci-ok` green in about two
       minutes) and a code PR (`ci-ok` waits for every leg). Make one leg fail
       on purpose once and confirm `ci-ok` goes red (tests/CLAUDE.md § Guards
       that go quiet instead of red).
