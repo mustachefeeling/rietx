@@ -1,6 +1,6 @@
 # WP-1456 — an editable install stamps what it runs
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here
 Depends on: —
 Priority: P2 2026-09-25 — was P3: a second session's deliverable quoted the stale version with no commit beside it, so nothing a reader holds names the code; reinstalling is the workaround
 
