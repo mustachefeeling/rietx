@@ -463,7 +463,7 @@ def lattice_point_group(cell: tuple[float, ...], centring: str = "P", *,
     reduced** basis, and ``M`` takes the conventional cell to that basis
     (reduced rows = ``M`` · conventional rows), so a reflection's primitive
     indices are ``M·hkl``.  A matrix is a symmetry when it preserves the metric,
-    ``W·G·Wᵀ = G``, to ``rtol`` of the largest diagonal element.  The centring
+    ``W·G·Wᵀ = G``, each element to ``rtol`` of √(Gᵢᵢ·Gⱼⱼ).  The centring
     is consumed by the reduction, so a centred lattice's group comes out in its
     primitive frame.
 
@@ -480,7 +480,12 @@ def lattice_point_group(cell: tuple[float, ...], centring: str = "P", *,
     g = np.asarray(direct_metric_tensor(*reduced.cell), dtype=np.float64)
     w = _unit_unimodular()
     moved = np.einsum("nij,jk,nlk->nil", w, g, w)
-    dev = np.max(np.abs(moved - g), axis=(1, 2)) / float(np.max(np.diag(g)))
+    # each element against the lengths it couples, √(g_ii·g_jj): normalised by
+    # the largest diagonal alone, a long axis swamps the short ones and every
+    # {−1, 0, 1} mixing of them passes (720 "symmetries" on a 5 × 5 × 40 Å
+    # tetragonal cell, 16 on a monoclinic 6 × 7 × 20 Å one)
+    d = np.sqrt(np.diag(g))
+    dev = np.max(np.abs(moved - g) / np.outer(d, d), axis=(1, 2))
     return w[dev <= rtol], _basis_change(reduced.change_of_basis)
 
 
