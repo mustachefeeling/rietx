@@ -421,9 +421,9 @@ def _band_numpy(r0, r1, s, frame, pk, alpha, bg, outline, out):
         zb[rows, cols] = np.where(hit, z, zb[rows, cols])
         pm[rows, cols] = np.where(hit[..., None], col, pm[rows, cols])
         al[rows, cols] = np.where(hit, 1.0, al[rows, cols])
-    _flat_numpy(pk["line"], True, ext0, he, zb, pm, al)
     if ow > 0:
         _outline_numpy(ext0, sr0, hs, ws, total, ow, otau, ocol, zb, pm)
+    _flat_numpy(pk["line"], True, ext0, he, zb, pm, al)
     tri_v, tri_area, tri_tie, tri_col, tri_box = pk["tri"]
     for i in range(len(tri_v)):
         g = _grid(tri_box[i], ext0, he)

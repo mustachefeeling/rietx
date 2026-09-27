@@ -100,7 +100,8 @@ def _flat(prim_p, prim_half, prim_dir, prim_len, prim_z, prim_col, prim_box, dep
 def _outline(ext0, sr0, hs, ws, total, ow, otau, ocol, zb, pm):
     """Ink a covered sample whose depth stands more than ``otau`` in front of
     any sample within ``ow`` samples of it: the silhouette from the depth
-    buffer's discontinuities (D9).  The band carries ``ow`` rows of halo, so a
+    buffer's discontinuities (D9), read after the atoms and bond halves and
+    before anything else.  The band carries ``ow`` rows of halo, so a
     silhouette crossing a band boundary is found from both sides."""
     for iy in range(sr0, sr0 + hs):
         row = iy - ext0
@@ -265,10 +266,11 @@ def render_rows(r0, r1, s, height, x0, y0, pxs, width, look, alpha, bg, has_bg,
                 pm[row, ix, 1] = _clamp(col[1])
                 pm[row, ix, 2] = _clamp(col[2])
                 al[row, ix] = 1.0
-    _flat(line_p, line_half, line_dir, line_len, line_z, line_col, line_box, True,
-          ext0, he, ws, zb, pm, al)
+    # the outline reads the surfaces alone, so a line is never inked as one
     if ow > 0:
         _outline(ext0, sr0, hs, ws, total, ow, otau, ocol, zb, pm)
+    _flat(line_p, line_half, line_dir, line_len, line_z, line_col, line_box, True,
+          ext0, he, ws, zb, pm, al)
     # polyhedron faces, already in drawing order: blended, depth-tested, and
     # writing no depth
     for i in range(tri_v.shape[0]):

@@ -27,6 +27,7 @@ from rietx.viz import render_structure
 from rietx.viz.figure3d import raster, views
 from rietx.viz.figure3d import scene as sc
 from rietx.viz.figure3d.render import _png
+from rietx.viz.theme import TOKENS
 
 DATA = Path(__file__).parent / "data"
 FIXTURE = DATA / "gui" / "scene_cases.json"
@@ -458,6 +459,13 @@ def test_the_options_reach_the_picture(nac):
         == (0, 0, 0, 255)
     outlined = render_structure(nac, size=200, outline=True)
     assert (outlined.image[..., :3].sum(-1) < base.image[..., :3].sum(-1)).sum() > 500
+    # the outline marks surfaces: the frame keeps its accent (it once went black)
+    accent = np.asarray(sc.rgb(TOKENS["light"]["--accent"])) * 255
+
+    def framed(img):
+        return (np.abs(img[..., :3].astype(float) - accent).max(-1) < 10).sum()
+
+    assert framed(outlined.image) > 0.9 * framed(base.image) > 50
     # a larger surface covers more of the frame, whether by probability or by
     # a drawing scale
     ink = [(render_structure(nac, size=200, mode="ellipsoid", axis_labels=False,
@@ -482,7 +490,6 @@ def test_the_font_ships_with_its_acknowledgement():
 
 
 def test_the_letters_are_drawn_in_the_accent_at_their_anchors(nac):
-    from rietx.viz.theme import TOKENS
 
     fig = render_structure(nac, size=600)
     accent = np.asarray(sc.rgb(TOKENS["light"]["--accent"])) * 255
