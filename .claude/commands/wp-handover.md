@@ -65,6 +65,13 @@ steps below run unchanged.
    this session added, in both the fast and full selections, and any new
    skip is named as a skip, not a pass.
 
+   **Give the fast run a junit file and quote what the added tests cost.**
+   Add `--junitxml=<scratchpad>/junit.xml -o junit_duration_report=total` to
+   the fast command, then run `.venv/bin/python -m tests.added_test_times
+   <scratchpad>/junit.xml`. The entry quotes its rows. A test that joins the
+   fast tier's slow tail says why it is not marked `slow` (`tests/CLAUDE.md`
+   § Budgets in tests).
+
    **Check nothing else is mid-suite before the full selection** — one `pgrep`,
    `tests/CLAUDE.md` § Running. A `/pr-review` or another WP session may be
    running one, and a count measured beside it is not a count this handover can

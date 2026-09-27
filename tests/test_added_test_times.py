@@ -1,0 +1,42 @@
+"""The handover's report on added tests (``tests/added_test_times.py``, WP-1506)."""
+
+from tests.added_test_times import added_tests, times
+
+DIFF = """\
+diff --git a/tests/test_a.py b/tests/test_a.py
+@@ -10,0 +11,4 @@
++def test_new(x):
++    pass
++def helper():
++    pass
+diff --git a/src/rietx/x.py b/src/rietx/x.py
+@@ -1,0 +2 @@
++def test_in_the_package():
+diff --git a/tests/sub/test_b.py b/tests/sub/test_b.py
+@@ -3,0 +4,2 @@
++    async def test_method(self):
++diff --git a/tests/test_c.py b/tests/test_c.py
+diff --git a/tests/test_d.py b/tests/test_d.py
+@@ -5 +4,0 @@
+-def test_removed():
+"""
+
+
+def test_a_def_counts_only_when_added_under_tests():
+    assert added_tests(DIFF) == {("tests.test_a", "test_new"),
+                                 ("tests.sub.test_b", "test_method")}
+
+
+def test_cases_sum_by_function_and_a_class_member_matches_its_module(tmp_path):
+    junit = tmp_path / "junit.xml"
+    junit.write_text(
+        "<testsuites><testsuite>"
+        '<testcase classname="tests.test_a" name="test_new[1]" time="1.5"/>'
+        '<testcase classname="tests.test_a" name="test_new[2]" time="2.0"/>'
+        '<testcase classname="tests.test_a" name="test_newer" time="9"/>'
+        '<testcase classname="tests.test_ab" name="test_new" time="7"/>'
+        '<testcase classname="tests.sub.test_b.TestK" name="test_method" time="0.25"/>'
+        "</testsuite></testsuites>", encoding="utf-8")
+    assert times(str(junit), added_tests(DIFF)) == {
+        ("tests.test_a", "test_new"): [1.5, 2.0],
+        ("tests.sub.test_b", "test_method"): [0.25]}

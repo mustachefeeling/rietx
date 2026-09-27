@@ -7,16 +7,22 @@ name: CI
 # of the shaped version and its measured arithmetic is in git, and the story
 # in docs/wp/1003-api-freeze-pypi.md.
 #
-# What runs per push, and per PR once it is out of draft, all in parallel:
+# What runs per push, and per PR once it is out of draft:
 #
 #   lint                          ruff over src/tests/examples; the one job a
-#                                 draft PR runs too (~40 s)
-#   fast py3.11 .. py3.14         the "not slow" suite across the support
-#                                 window (3.14 is claimed in the classifiers,
-#                                 so it gates like the rest)
-#   fast jax                      the same selection with [dev,jax] — the jax
-#                                 rows are jit-compile bound, so this is the
-#                                 slowest job here (20-21 min, 2026-09-25)
+#                                 draft PR runs (~40 s)
+#   changes                       `scope`: docs when a PR changes only the
+#                                 planning set, else code; a push is code
+#   docs                          scope docs: the tests that read the planning
+#                                 set (the job says how that list was measured)
+#   fast py3.11 .. py3.14         scope code: the "not slow" suite across the
+#                                 support window (3.14 is claimed in the
+#                                 classifiers, so it gates like the rest)
+#   fast jax                      scope code: the same selection with
+#                                 [dev,jax], jit-compile bound, so the slowest
+#                                 job here (20-21 min, 2026-09-25)
+#   ci-ok                         whether the chosen suite passed; with lint,
+#                                 the one check branch protection requires
 #
 # The timeouts are runaway guards, never timers (tests/CLAUDE.md § Budgets in
 # tests).  On 2026-09-25, over main's last ten runs, the fast legs took
@@ -24,9 +30,13 @@ name: CI
 # caps cancelled py3.11 at 96 % on main (07952d4e) and twice on PR #463 with no
 # test failing, so they are 30 and 40.
 #
-# No paths-ignore: these jobs are branch-protection required checks, and a
-# path filter would leave a docs-only PR with required checks that never
-# report.  The docs-consistency test rides inside the fast suite.
+# A docs-only PR skips the matrix through `changes`, never a path filter.  A
+# workflow a filter skips reports nothing, so a required check it carries
+# never appears, and a skipped matrix reports once under its literal name
+# (below).  So branch protection names `lint` and `ci-ok` and no matrix leg;
+# WP-1506 holds that by-hand change.  ci-ok is red when a job that should have
+# run was skipped.  The legs upload their junit timings, which tests/CLAUDE.md
+# § Budgets in tests reads.
 #
 # The draft guard is that same question answered the other way round.  A job
 # skipped by a conditional reports success to branch protection, while a
@@ -45,6 +55,8 @@ name: CI
 # not expand — it reports once, under the literal name `fast py${{
 # matrix.python }}`.  So the four per-version contexts exist only from the
 # ready_for_review run onwards, which is the run that gates the merge anyway.
+# Since WP-1506 the guard sits on `changes` and `ci-ok`, and every job that
+# needs `changes` skips with it.
 #
 # The full suite (slow real-data acceptance included), macOS, Windows and
 # torch run in nightly.yml.
@@ -163,8 +175,21 @@ jobs:
       - name: Fast suite
         # --dist loadgroup is not optional: it honours the xdist_group marks
         # that pin a shared expensive fixture to one worker.  Plain --dist load
-        # still passes, but silently refits.
-        run: .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+        # still passes, but silently refits.  The junit file carries each
+        # test's setup, call and teardown time, uploaded below: the numbers the
+        # next cut to this job's time is chosen from (tests/CLAUDE.md § Budgets
+        # in tests).
+        run: >-
+          .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+          --junitxml=junit.xml -o junit_duration_report=total
+      - name: Upload per-test timings
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-py${{ matrix.python }}
+          path: junit.xml
+          if-no-files-found: warn
+          retention-days: 30
 
   fast-jax:
     name: fast jax
@@ -184,7 +209,17 @@ jobs:
         # jit-compile bound; an actions/cache of tests/.jax_cache was measured
         # not to help (8:18 warm against 8:12 cold — weekly.yml's note, kept
         # with the job it explains), so there is no cache step.
-        run: .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+        run: >-
+          .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+          --junitxml=junit.xml -o junit_duration_report=total
+      - name: Upload per-test timings
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-jax
+          path: junit.xml
+          if-no-files-found: warn
+          retention-days: 30
 
   ci-ok:
     # The one check branch protection names beside lint.  It fails when a

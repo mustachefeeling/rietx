@@ -133,7 +133,7 @@ the tail today, in local serial seconds:
       cancelled that way. A docs-only merge that skipped the matrix would then
       leave the cancelled code merge untested. Nobody waits on a main run, so
       the skip there would save runner minutes only.
-- [ ] The fast jobs upload their junit timings (`--junitxml`,
+- [x] The fast jobs upload their junit timings (`--junitxml`,
       `-o junit_duration_report=total`). `/wp-handover` reads the rows for
       the tests the branch added. The rule goes in tests/CLAUDE.md § Budgets
       in tests.
@@ -142,8 +142,8 @@ the tail today, in local serial seconds:
       Pythons on a PR. Sharding must keep each `xdist_group` whole. Five legs
       times N shards meets the 20-job limit when two PRs are readied
       together, so sharding probably comes with a smaller PR matrix.
-- [ ] tests/CLAUDE.md § CI and `ci.yml`'s header say what gates now.
-- [ ] Skill: none. This changes how the repo is tested, not how rietx is
+- [x] tests/CLAUDE.md § CI and `ci.yml`'s header say what gates now.
+- [x] Skill: none. This changes how the repo is tested, not how rietx is
       driven.
 
 ## By hand: branch protection
