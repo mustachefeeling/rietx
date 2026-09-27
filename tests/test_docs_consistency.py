@@ -531,7 +531,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # by /issue-review for #475 and #481, and 1470, the structure figure the
     # maintainer asked for, which had also taken 1469 and moved.  No prose:
     # the evidence stays in the WP files.  Landed 855, +1 headroom.
-    "docs/ROADMAP.md": 856,
+    # 856 -> 878 (2026-09-27): the queued v1.7 block, 1501-1505, filed the
+    # day 1470 closed: one milestone row, a section paragraph and five rows.
+    # A section carries the paragraph every other queued block has had (v1.3,
+    # 1301-1307), so this is the shape and not an exception; the design and
+    # the survey stay in the WP files.  Landed 877, +1 headroom.
+    "docs/ROADMAP.md": 878,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
