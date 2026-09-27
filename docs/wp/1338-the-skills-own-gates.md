@@ -15,295 +15,100 @@ warning beforehand. A new feature's guidance lands outside the body unless
 every fit needs it, so the body can shrink toward the specification's 5 000
 tokens while the package grows.
 
-### Inherited
-
-- **2026-09-27, folded at the maintainer's request after the drag review:
-  the body stops being where features land.** rietx will keep adding
-  features, and today each one adds to the body: a routing row, a
-  precondition, a turn-on rule. The cap race is that growth meeting a fixed
-  number. The measurements:
-  - The body is 32 998 B and 479 lines, about 8 200 tokens at 4 B a token.
-    The Agent Skills specification recommends under 5 000 tokens and under
-    500 lines (agentskills.io/specification, § Progressive disclosure). The
-    line cap matches it; the byte cap is a truncation ceiling, not that
-    budget.
-  - The references are 358 kB across 17 files and cost nothing until read.
-    Anthropic's best-practices guide says to bundle comprehensive resources
-    for that reason. Only the body has a size problem.
-  - The body sat within about 150 B of the cap for most of the month. PR
-    #292 cut 2 kB on 2026-09-10, and main refilled it by 2026-09-17. Growth
-    since 2026-09-10 is spread: the routing table +619 B (two rows), §1
-    +669 B, §2 +309 B. So a raised cap refills in about a week.
-
-  **A placement rule, cheapest first.** A new feature's guidance goes to the
-  first of these that can hold it.
-  1. The package's own output: `Diagnostic.suggestion`, an entry in
-     `help.py`. It costs nothing until the output appears, and it matches
-     the installed version. The installed skill is a copy made by
-     `rietx skill --install`, so after an upgrade it can be stale, and the
-     package cannot. Measured evidence too long for a suggestion stays in a
-     reference row keyed by the same code.
-  2. A reference row keyed by an identifier the agent already holds: a
-     diagnostic code, a verb it is about to call, a file extension, a result
-     type. One standing sentence in the body ("grep `references/` for the
-     code or name in front of you") replaces a routing row per feature. The
-     guide shows this pattern under "Quick search". About 6 of today's 16
-     routing rows are situations of this kind: `api.md`, another program's
-     input file, a diagnostic that fired, a magnetic diagnostic, an
-     abstention, writing the answer out.
-  3. A routing row, only for a new task shape that no identifier names (a
-     ramp, a batch, "you are about to quote a number").
-  4. The body, only for a rule every fit needs, paid for by a cut.
-
-  **Why references stay one level deep, and what relaxes it.** The guide's
-  reason is observed behaviour: from a file referenced by another referenced
-  file, Claude may preview with `head -100` rather than read the whole file.
-  It names two mitigations. A reference over 100 lines opens with a table of
-  contents, so a partial read still shows its scope. And lookup by grep lands
-  on the section directly instead of following a chain. Whether a second
-  level loses reads for rietx is measurable with the repo's real-agent eval
-  protocol (`tests/eval_agent_surface/`).
-
-  **Held in reserve: one skill per whole task shape** (indexing, magnetic,
-  series and batch, figures), routed by the harness from each description.
-  That mechanism is built to choose among 100+ skills. Its costs are about
-  100 tokens a description, loaded into every session in the project, and a
-  shape skill that can activate without the core. Take it when the shapes
-  outgrow one routing table.
-
-  **The mechanical guard: a ceiling and a budget per capped file.** The
-  ceiling keeps its truncation derivation (33 000 for the body, the 40 kB
-  Bash truncation for references) and fails on any tree. The budget sits
-  below it and fails only a PR that makes the file larger than at the PR's
-  base and leaves it over budget. The gap absorbs PRs that merge together,
-  and the cut falls on the author while writing, in their own text, which
-  answers this WP's point that the cheapest pass is deleting someone else's
-  prose. The buffer is open: 2 kB (a one-time 2 kB cut; recent additions ran
-  100-600 B) or 1 kB (half the cut, about three concurrent additions). With
-  the placement rule holding, 1 kB is probably enough. The references raced
-  the same way (#346 and #291 together reached 37 641 B). This replaces the
-  2026-09-03 decision to warn at 95 %, which is always on at 99.99 %.
-
-  **Order.** The eval first, as the guide says: replace the keyed routing
-  rows with the grep sentence and run real agents (Haiku, Sonnet, Opus) on
-  tasks where a diagnostic fires, against today's body. Then write the
-  placement rule where WP-1330's rule lives (CONTRIBUTING.md § The agent
-  skill, root CLAUDE.md's skill bullet). Then move body material into
-  references toward 5 000 tokens. By size the candidates are §4 (6 806 B),
-  §10's worked default (2 500 B) and the routing table's manual-page column.
-
-- **2026-09-27, from [1507](1507-the-index-is-read-off-the-wp-files.md)'s
-  filing session: the race fired again on `SKILL.md`, and a 95 % warning
-  would not have fired first.** In 603b7ca5, merging main put `SKILL.md` at
-  33 027 of 33 000 B. WP-1320's addition had used the headroom WP-1470's
-  routing row counted on, and WP-1470 trimmed two commas and a clause to
-  reach 32 998. Main now has 2 B of headroom, 99.99 % of the cap. So the
-  2026-09-03 decision below (warn at 95 % first) would be a warning that is
-  always on, and it would not have told either author anything. Two facts in
-  this file are stale: `REFERENCE_MAX_BYTES` is 36 600 now, not 36 000, and
-  `diagnostics.md` is 34 918 B. The maintainer named merge drag on the skill
-  files on 2026-09-27. WP-1507 removes the ROADMAP's version of this race
-  (a per-row cap bump) by generating the tables. A skill file cannot be
-  generated, so the policy question stays here.
-
-- **2026-09-23, from the issue triage: #284 and #287 are closed.** #284 as
-  landed in PR #292, and #287 as answered, its `RECIPE_*` half landed in
-  PR #291. Neither ruling's gate is built. Whether one should be is still
-  this WP's question.
-- **2026-09-16, from [1431](1431-a-caller-names-its-run.md): the api.md half
-  of the cap race is settled, and `REFERENCE_MAX_BYTES` is untouched.**
-  `references/api.md` is generated from the installed package, one signature
-  per public name, so its size is a fact about the API rather than an
-  authoring choice, and the authored cap's advice ("split it") is advice it
-  cannot take. It sat at 35 942 B against 36 000 and a single new public
-  keyword took it 20 B over. Raising the shared constant would have handed
-  `diagnostics.md` the room this WP deliberately denied it, so the generated
-  file now has its own `API_INDEX_MAX_BYTES` = 39 000 against the same 40 kB
-  Bash truncation, and `test_every_reference_file_is_within_its_cap` picks
-  the bar by whether the file is `API_INDEX`. **What this WP still owns is
-  unchanged**: `diagnostics.md` at ~20 B free, PR #291 as the split that buys
-  the next diagnostic row, and whether a per-cell byte gate belongs on the
-  §4b table. What it no longer has to decide is whether a generated file
-  should share an authored file's cap.
-
-From **WP-1409** (2026-09-14), which swept the manual's register and found a
-skill defect on the way.
-
-`docs/skill/rietx/references/abstention.md` wrote `scale × |F|² × profile` as a
-code span **inside a Markdown table cell**. The first `|` ends the cell, so the
-span never closed and the backticks rendered literally wherever the file is
-rendered as Markdown. It is fixed (the pipes are escaped and the span dropped,
-which is what the manual's own tables do), but the gate that caught it is the
-*manual's*: `tests/test_manual.py::test_no_unrendered_markup_survives_the_build`
-scans the built HTML, and the skill body reaches that build only because
-`using/skill.md` includes it whole.
-
-So the class is covered for the skill body by accident of where it is rendered,
-and not by `tests/test_skill.py`. That is this WP's own shape one file over: a
-gate named after the thing it does cover. Whether the skill wants its own check
-(a code span opened inside a table cell, in every reference file) is a question
-for whoever works these gates; the manual's version is a build-time HTML scan
-and cannot be lifted directly.
-
-- **2026-09-15, from the issue triage (issues #284, #287): the cap race
-  fired twice, one ruling each, and the numbers this WP's gates now guard.**
-  #284 (`SKILL.md` at 7 B of headroom) was ruled 2026-09-08 and landed as
-  PR #292 (2026-09-10). The ruling: a body table cell is a lookup and never
-  an argument. §4b's middle column went from 417–815 B a cell to 116–232 B
-  with the reasoning moved to `references/judging.md`, and `batch.md` split
-  by situation into `batch.md` (deciding, 18 rows) and `batch-operating.md`
-  (operating, 14 rows) behind two routing rows keyed by situation. Measured
-  on this tree: `SKILL.md` 31 951 B of 33 000, `batch.md` 23 255,
-  `batch-operating.md` 17 174, `judging.md` 22 873. The ruling is a rule a
-  gate can hold (a per-cell byte bar on the §4b table), and whether it
-  should is this WP's to decide. **#284 can close.** #287 (`diagnostics.md`
-  at 34 B of headroom) was ruled 2026-09-09: the magnetic codes get one
-  gated `references/magnetic.md` under § 2b (1327's Inherited has the
-  shape); `RECIPE_*` moves to `diagnostics-projects.md` § 7g with that
-  section's membership rule restated as *whose file you are reading*
-  (PR #291, open); `REFERENCE_MAX_BYTES` stays at 36 000;
-  `DISTORTION_MODE_UNSUPPORTED` is a § 7 row. Measured on this tree
-  `diagnostics.md` is at 35 980 B, 20 B free, so PR #291 is what makes the
-  next diagnostic row possible, and #247's merge-result race now points at
-  it. Whatever gate looks for a code's row in `diagnostics.md` alone must
-  learn `magnetic.md`.
-- **From WP-1434, 2026-09-18: `diagnostics.md` now sits 9 bytes under
-  `REFERENCE_MAX_BYTES`, so the merge-result hazard is live on that file
-  rather than hypothetical.** The `BOUND_HIT` row grew by about 600 B, and
-  the file carried only 615 B of headroom before it. The headroom table in
-  § #247 was measured at `c79fb5df` and no longer describes that row.
-  Re-measure it before acting on it, and expect the next PR adding a
-  diagnostic code there to collide.
-
 ## Context
 
 Three issues, all about `tests/test_skill.py` and the process around it
-(#238, #241, #247). None has cost a wrong answer; each is a gate that reads as
-covering the tree and does not. That is the WP-1037 shape — a check named
-after the thing it does cover, silently not covering the rest — one document
-over.
+(#238, #241, #247). None has cost a wrong answer. Each is a gate that reads as
+covering the tree and does not: the WP-1037 shape, one document over. The
+maintainer added a fourth concern on 2026-09-27 after the merge-drag review:
+every feature adds to the body, so the cap race is growth meeting a fixed
+number.
 
-**#238 — the dotted-name walk runs on the body only.**
+**Superseded in part, 2026-09-28.** #241's gate landed on 2026-09-08
+(`e89c8b92`, "a Measured tag names this repository or the declared corpus")
+with its liveness guard and the classification reason written beside it, so
+this file's claim that it was blocked on #233 was stale. What it lacked was a
+deliberately broken fixture, which the acceptance line asks for. #284 and #287
+are closed (the 2026-09-23 triage): #284 landed as PR #292, #287's `RECIPE_*`
+half as PR #291. The 2026-09-03 decision to warn at 95 % is replaced below:
+with `SKILL.md` at 99.99 % of its cap it would be a warning that is always on.
 
-```python
-def test_every_dotted_name_in_the_body_resolves():
-    text = SKILL.read_text(encoding="utf-8")
-    for root, chain in BODY_DOTTED.findall(text):
-```
+**#238 — the dotted-name walk ran on the body only.** `RX_DOT_NAME` (`rx.X`)
+was checked across the whole tree and the generated `api*.md` byte for byte.
+Between them sat the hand-written reference files, whose `report.x` /
+`result.x` / type-level names were checked by hand at review. Two decisions
+come with widening it: which roots (the body's four instance names reach no
+`StageResult.x`), and what to do about a **negative** claim (*"`StageResult`
+carries no `rwp`"*), which a walk cannot check and which WP-1334 proposes to
+falsify.
 
-`RX_DOT_NAME` (`rx.X`) is checked across the whole tree, and
-`test_every_dotted_name_in_the_api_index_resolves` covers the generated
-`references/api.md`. Between them sit the **hand-written** reference files,
-whose `report.x` / `result.x` / bare field names are not walked at all. It has
-cost nothing yet; #233 adds a large number of such names to `batch.md` and
-`series.md` (`entry.diagnostics`, `SeriesResult.diagnostics`,
-`weight_fraction_stderr`, `background.worst_absorption`, `soft_modes`, and the
-claim that `StageResult` carries no `rwp` field). All check out — checked **by
-hand at review**, which does not scale and will not happen next time.
+**#241 — a private tag names its declared corpus.** Landed (above). The chosen
+rule requires every `Measured` tag to open with `WP-` or with the file's
+declared corpus, per tag and never per file, because a repo-shaped tag has no
+fixed spelling.
 
-The fix is to run the walk over `[SKILL, *REFERENCES]`, parametrised per file
-the way the cap and header tests already are. The `> 15` liveness assertion on
-the regex needs re-siting, being a statement about the body's density. Two
-decisions come with it, and they are real rather than oversights: the
-reference files name **types** as well as attributes (*"`StageResult` carries
-no `rwp`"*), which `BODY_DOTTED`'s four roots do not reach — widen the roots
-or leave type-level claims unpinned; and a **negative** claim is the one a
-walk cannot check and exactly the kind that rots when a field is added. The
-gate would not catch it. (Note that 1334 proposes adding `rwp`, which would
-falsify that very row.)
-
-**#241 — nothing checks that a private tag names its declared corpus.** #239
-admitted a row measured on data the project cannot ship, and put two
-obligations on the private case in `CONTRIBUTING.md` § The agent skill and
-`references/batch.md` § Writing a row: a file using a private tag **declares
-the corpus once in its provenance line**, and every such tag **spells it the
-same way**. Both are prose; neither is checked. The gate stops at the tag:
-
-```python
-_EVIDENCE_TAG = re.compile(r"\*\((Measured|Hypothesis): .+\)\*\Z", re.S)
-```
-
-`.+` is the whole contract. A row closing `*(Measured: some runs I did)*`
-passes, naming nothing. A file naming one corpus three ways across
-twenty-nine rows passes. A file using a private tag while declaring **no**
-corpus at all passes, which is the case the rule was written to stop, since
-that tag reads exactly like a citation. The header test next door is
-`startswith` on the provenance paragraph plus `EVIDENCE_DECLARATION in
-paras[2]`, so it does not see a corpus sentence either way.
-
-**Blocked on #233, deliberately.** The check cannot be written before a corpus
-exists: written today it would run, find no file declaring one, and pass —
-the failure `test_the_evidence_gate_has_a_file_to_gate` exists to name one
-document over. The new check wants a liveness guard in that same idiom.
-
-The real decision is how a tag is sorted into "names something in this
-repository" and "names the declared private corpus", and it should be taken
-rather than reached for. Recognising a repo-shaped tag by pattern is the
-obvious route and the weak one: `WP-\d+` is reliable, but "an eval round" and
-"a dataset in `tests/data/README.md`" have no fixed spelling, so the pattern
-either grows to fit each new phrasing or starts refusing honest tags.
-**Requiring the complement is narrower and probably right**: every `Measured`
-tag begins with `WP-` or with the declared corpus string exactly. It gives up
-on validating repo tags — which the dotted-name walk and the WP files already
-cover from the other side — and spends its whole budget on the case with no
-other guard. A per-row marker would make this trivial and **#239 ruled it
-out**, on the grounds that declaring once costs no row an edit; that is why
-the classification cannot be designed away, and the reason belongs next to
-whatever is chosen. Two smaller points: a file may legitimately hold both
-kinds (#233 has two `WP-` tags among 29 private ones), so the check is **per
-tag, never per file**; and `Hypothesis` tags name what *would* decide a
-question rather than a run, so they are outside this gate entirely.
+**WP-1409's finding, 2026-09-14: a code span inside a table cell.**
+`references/abstention.md` wrote `scale × |F|² × profile` as a code span in a
+table cell. The first `|` ends the cell, the span never closes, and the
+backticks render literally. The manual's HTML scan caught it only because
+`using/skill.md` includes the body whole; no skill test covers a reference
+file.
 
 **#247 — the byte caps are checked on the merge result, so two passing PRs can
-fail together.** Each PR's CI sees only its own merge with `main` as it stood
-at push time. Measured on this worktree at `c79fb5df`:
+fail together.** Each PR's CI sees its own merge with `main` as it stood at push
+time. It fired on `batch.md` (#233 green at 35 570 B, the merge 36 599 B against
+36 000), on `diagnostics-projects.md` (#346 and #291 together 37 641 B), and on
+`SKILL.md` on 2026-09-27 (`603b7ca5`: 33 027 of 33 000 after merging main,
+WP-1470 trimming two commas and a clause to reach 32 998). A cap failure names
+only a total, so the second author has to find bytes in a file they may not
+have written, and the cheapest pass is deleting someone else's prose. Three
+attempts to absorb 599 B once produced 36 209, 36 136, then 37 083.
 
-| file | cap | size on main | headroom |
-|---|---|---|---|
-| `SKILL.md` | 33 000 | **32 978** | **+22 B** |
-| `references/diagnostics.md` | 36 000 | **35 914** | **+86 B** |
-| `references/diagnostics-indexing.md` | 36 000 | 30 809 | +5 191 B |
-| `references/api.md` | 36 000 | 29 193 | +6 807 B |
-| `references/surprises.md` | 36 000 | 20 916 | +15 084 B |
+**Where the pressure is, measured 2026-09-28 on `3b3a9dc5`.** The body is
+32 998 B and 479 lines against caps of 33 000 B and 500 lines, about 8 200
+tokens at 4 B a token. The Agent Skills specification recommends under 5 000
+tokens and 500 lines for the body (agentskills.io/specification, § Progressive
+disclosure); the line cap matches it, and the byte cap is a truncation ceiling,
+not that budget. The references are 358 kB across 17 files and cost nothing
+until read. Anthropic's best-practices guide says to bundle comprehensive
+resources for that reason. The body sat within about 150 B of its cap for most
+of September: PR #292 cut 2 kB on 2026-09-10 and main refilled it by
+2026-09-17 (routing table +619 B for two rows, §1 +669 B, §2 +309 B).
 
-**Re-measured on `main` at `b717cc98`, after PR #111 merged (2026-09-03):**
-`SKILL.md` 32 989 B (**+11 B**); `references/diagnostics.md` 32 125 B
-(+3 875 B) beside the new `diagnostics-projects.md` at 10 273 B. The split
-this WP names below has happened, and the whole of the pressure now sits on
-`SKILL.md`, which cannot be split the same way.
+**Direction, 2026-09-27: a placement rule, cheapest first.** A new feature's
+guidance goes to the first of these that can hold it.
 
-**Two files were within 100 bytes of their cap** at `c79fb5df`, and one
-still is, so almost any addition to
-either is a merge conflict against any other addition to the same file,
-including two that are individually one sentence. It already happened: #233
-was green with `batch.md` at 35 570 B, `main` then grew it ~1 kB (`e06a8f54`),
-and the merge came to 36 599 B against the 36 000 cap.
+1. The package's own output: `Diagnostic.suggestion`, an entry in `help.py`.
+   It costs nothing until the output appears and it matches the installed
+   version, while the installed skill is a copy that can be stale after an
+   upgrade.
+2. A reference row keyed by an identifier the agent already holds: a
+   diagnostic code, a verb, a file extension, a result type. One standing
+   sentence in the body ("grep `references/` for the name in front of you")
+   replaces a routing row per feature. About 6 of the 15 routing rows are of
+   this kind.
+3. A routing row, only for a task shape no identifier names (a ramp, a batch,
+   "you are about to quote a number").
+4. The body, only for a rule every fit needs, paid for by a cut.
 
-**The failure mode is worse than a textual conflict**, which names its lines
-and either author can resolve. A cap failure names only a total, so the second
-author has to find bytes somewhere in a file they may not have written — three
-attempts to absorb 599 bytes produced 36 209, 36 136, then **37 083**, larger
-than the start, because the author was correcting a row while trimming it.
-What worked was noticing that one row was in the wrong file and moving it,
-which will not always be available. **And the incentive runs the wrong way:
-the cheapest way to pass is to delete someone else's prose.**
+References stay one level deep. Anthropic's guide reports that from a file
+referenced by another referenced file an agent may preview with `head -100`
+rather than read it whole, and names two mitigations: a reference over 100
+lines opens with a table of contents, and lookup by grep lands on the section
+directly. Held in reserve: one skill per whole task shape, routed by the
+harness from each description, at about 100 tokens a description in every
+session and with the risk of a shape activating without the core.
 
-Four options; **decided 2026-09-03: warn first**, the rest when the next row
-lands in a near-full file. Split the largest files, as
-#111 does for `diagnostics.md` (35 914 → 32 125 + a 9 736 B
-`diagnostics-projects.md`) on a real seam, import-time versus fit-time codes —
-but `SKILL.md` cannot be split that way, being the routing body. Raise the
-caps: they exist so an agent can read the file, and whether 36 000 is still
-right for a file loaded on demand is a judgement only the maintainer can make.
-**Warn before the cap binds** — a CI note at, say, 95 % — is the cheapest and
-does not require deciding the others; it would have made `main`'s two near-full
-files visible before anyone wrote a word. Budget per PR is probably more
-machinery than the problem deserves. **Note that several other WPs in this
-triage round each add a `references/diagnostics.md` row** (1332, 1336, 1340).
-Until #111's split that was the 86 B spent several times over; after it the
-rows fit, and the critical path runs through `SKILL.md`'s 11 B instead — any
-body sentence a WP adds meets this WP first, even though none depends on it
-formally.
+**The mechanical guard: a ceiling and a budget per capped file.** The ceiling
+keeps its truncation derivation and fails on any tree. The budget sits below
+it and fails only a change that grows the file past it, measured against the
+change's base. The gap absorbs PRs that merge together, and the cut falls on
+the author while writing, in their own text.
+
+**Order.** The eval first, as the guide says. Then the placement rule where
+WP-1330's rule lives. Then body material moved into references toward 5 000
+tokens; by size the candidates are §4 (6 806 B), §10's worked default
+(2 500 B) and the routing table's manual-page column.
 
 ## Non-goals
 
@@ -315,15 +120,18 @@ formally.
 
 ## Tasks
 
-- [ ] Run the dotted-name walk over `[SKILL, *REFERENCES]`, parametrised per
+- [ ] Run the dotted-name walk over every authored file, parametrised per
       file; re-site the `> 15` liveness assertion; decide and record whether
       type-level roots widen.
-- [ ] The private-corpus check, per tag, with its liveness guard, and the
+- [x] The private-corpus check, per tag, with its liveness guard, and the
       reason the chosen classification rule was preferred written beside it.
-- [ ] Cap policy, 2026-09-27 (replaces 2026-09-03's 95 % warning): a ceiling
-      and a budget per capped file, the budget failing only a PR that grows
-      the file past it. Buffer size, 1 or 2 kB, chosen with the maintainer.
-      Design in Inherited.
+      Landed 2026-09-08 in `e89c8b92`; its broken fixture is the next item's.
+- [ ] A deliberately broken fixture for each gate, the corpus gate included.
+- [ ] A code span opened inside a table cell fails, in every skill file
+      (WP-1409's finding).
+- [ ] Cap policy (replaces 2026-09-03's 95 % warning): a ceiling and a budget
+      per capped file, the budget failing only a change that grows the file
+      past it. Buffer size chosen from the measured concurrency of additions.
 - [ ] Every PR that changes a capped file reports its delta and headroom, so
       the near-full state is visible before CI fails.
 - [ ] The placement eval: the keyed routing rows replaced by one grep
@@ -334,16 +142,15 @@ formally.
       § The agent skill and root CLAUDE.md's skill bullet.
 - [ ] After the eval, body material moved into references toward 5 000
       tokens, each move recorded with the bytes it freed.
-- [ ] Tests: all three land as tests, and are expected **green on the tree as
-      it stands** — these close gaps rather than fixing breaks, so a red run
-      means the gate found something real and it should be reported, not
-      accommodated.
+- [ ] Tests: every gate lands as a test, expected **green on the tree as it
+      stands**. These close gaps rather than fixing breaks, so a red run means
+      the gate found something real, to be reported, not accommodated.
 - [ ] Skill: the gates change no row. The placement eval may replace the
       keyed routing rows with one grep sentence, and only if it supports it.
 
 ## Acceptance
 
-The three gates run over every reference file and pass on the tree; a
+The gates run over every authored skill file and pass on the tree; a
 deliberately broken fixture of each kind fails.
 
 ```sh
@@ -354,9 +161,10 @@ deliberately broken fixture of each kind fails.
 ## References
 
 - Issues #238, #241, #247. Caps read from `tests/test_skill.py`:
-  `SKILL_MAX_BYTES = 33_000`, `REFERENCE_MAX_BYTES = 36_000`; sizes re-measured
-  on `main` at `c79fb5df` (the table above is this worktree's measurement, not
-  the issue's — `SKILL.md` had moved from 32 966 to 32 978 in between).
+  `SKILL_MAX_BYTES = 33_000`, `REFERENCE_MAX_BYTES = 36_600`,
+  `API_INDEX_MAX_BYTES = 39_000`.
+- agentskills.io/specification § Progressive disclosure; Anthropic's skill
+  authoring best practices (bundled resources, one level deep, grep lookup).
 - `CONTRIBUTING.md` § The agent skill — the two prose obligations #241 gates.
 
 ## Handover log
