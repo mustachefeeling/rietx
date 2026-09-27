@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import re
 import sys
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -100,6 +101,8 @@ def read_header(path: Path) -> Header:
     status = STATUS_RE.search(head)
     if not status:
         raise ValueError(f"{path.name}: no Status line matching the TEMPLATE format")
+    if status.group("glyph") != "⬜" and not status.group("date"):
+        raise ValueError(f"{path.name}: {status.group('glyph')} requires a YYYY-MM-DD date")
     depends = DEPENDS_RE.search(head)
     if not depends:
         raise ValueError(f"{path.name}: no 'Depends on:' line")
@@ -233,17 +236,17 @@ def _sentence_case(title: str) -> str:
     """A heading's first word capitalised when it is a plain word.
 
     A WP file's heading is a lowercase phrase and a table row starts with a
-    capital.  A first word holding anything but letters and hyphens (a name
-    such as ``rietview:``, ``fit_peaks``, ``v0.3``, code in backticks) is
-    left as written.
+    capital.  A first word holding anything but letters, hyphens and
+    apostrophes (a name such as ``rietview:``, ``fit_peaks``, ``v0.3``, code
+    in backticks) is left as written.
     """
-    return title[0].upper() + title[1:] if re.match(r"[a-z][a-z-]* ", title) else title
+    return title[0].upper() + title[1:] if re.match(r"[a-z][a-z'’-]* ", title) else title
 
 
 def rows_from_headers(hs: list[Header], groups: list[Group]) -> dict[str, Row]:
     """Place each header under its ROADMAP group; a group ROADMAP lacks raises."""
     numbers = {h.number: h.file for h in hs}
-    shared = sorted({n for n in (h.number for h in hs) if [x.number for x in hs].count(n) > 1})
+    shared = sorted(n for n, k in Counter(h.number for h in hs).items() if k > 1)
     if shared:
         raise ValueError(f"WP numbers used by more than one file: {shared}")
     by_key = {(g.token.lower(), g.track): g for g in groups}
@@ -353,6 +356,7 @@ def render(groups: list[Group], rows: dict[str, Row]) -> str:
 
 _HEADING_RE = re.compile(r'^(#{2,3}) <a id="[^"]*"></a>(.+)$')
 _ROW_RE = re.compile(r"^\| \[(\d{4})\]\(([^)]+)\) \| ")
+_LINK_RE = re.compile(r"\]\(([^)#]+\.md)\)")
 
 
 def parse(text: str) -> tuple[list[Group], dict[str, Row]]:
@@ -421,6 +425,15 @@ def merge(base: str, ours: str, theirs: str) -> str:
     stray = sorted(n for n, r in rows.items() if (r.token, r.track) not in known)
     if stray:
         raise Conflict(f"rows under headings the merged index lacks: {stray}")
+    # A Depends cell was rendered against one side's WP files.  A link to a
+    # file the other side removed or renumbered would merge in unchanged, a
+    # clean-looking row that regenerating would not write.
+    files = {r.file for r in rows.values()}
+    dangling = sorted(
+        n for n, r in rows.items() if any(f not in files for f in _LINK_RE.findall(r.depends))
+    )
+    if dangling:
+        raise Conflict(f"Depends cells link WP files the merge removed: {dangling}")
     return render(groups, rows)
 
 
@@ -451,6 +464,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     if args[:1] == ["--merge"] and len(args) == 4:
         return _merge_driver(*args[1:])
+    if args not in ([], ["--check"]):
+        print(__doc__.split("\n\n")[2], file=sys.stderr)
+        return 2
     text = generate()
     path = ROOT / INDEX
     current = path.read_text(encoding="utf-8") if path.is_file() else None
@@ -459,9 +475,6 @@ def main(argv: Optional[list[str]] = None) -> int:
             print(f"{INDEX} is stale: run {COMMAND}", file=sys.stderr)
             return 1
         return 0
-    if args:
-        print(__doc__.split("\n\n")[1], file=sys.stderr)
-        return 2
     if current != text:
         path.write_text(text, encoding="utf-8")
         print(f"wrote {INDEX}")

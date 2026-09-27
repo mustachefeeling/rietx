@@ -7,7 +7,8 @@ labels: proposal
 
 <!--
 Write the design here rather than in a WP file. The maintainer opens the work
-package when the work is scheduled, and links back to this issue. See CONTRIBUTING.md, "Proposing something that is not scheduled".
+package when the work is scheduled, and links back to this issue. See
+CONTRIBUTING.md, "Proposing something that is not scheduled".
 
 Bugs, questions and "does rietx do X" go in a blank issue instead.
 

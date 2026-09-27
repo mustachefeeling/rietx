@@ -1374,3 +1374,21 @@ def test_a_row_both_branches_changed_gets_gits_markers(tmp_path: Path) -> None:
     merged = _two_branches(root, rated("P1"), rated("P3"))
     assert merged.returncode != 0
     assert "<<<<<<<" in (root / "docs" / "wp" / "README.md").read_text(encoding="utf-8")
+
+
+def test_a_depends_link_the_other_branch_renumbered_is_declined() -> None:
+    """One branch renumbers a WP, the other files a row depending on it.  The
+    row merges in unchanged, linking a file the merged tree lacks, so the
+    driver declines rather than write a row regenerating would not."""
+    groups = wp_index.roadmap_groups(_ROADMAP_FIXTURE)
+
+    def text(*specs: tuple[str, str]) -> str:
+        hs = [wp_index.Header(n, f"{n}-x.md", f"t {n}", "unscheduled", None, "⬜", None,
+                              "P2", dep) for n, dep in specs]
+        return wp_index.render(groups, wp_index.rows_from_headers(hs, groups))
+
+    base = text(("0001", "—"))
+    ours = text(("0001", "—"), ("0002", "0001"))
+    theirs = text(("0009", "—"))
+    with pytest.raises(wp_index.Conflict, match="0002"):
+        wp_index.merge(base, ours, theirs)
