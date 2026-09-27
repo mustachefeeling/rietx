@@ -181,7 +181,7 @@ main table sitting 38 B under its cap).
       the docstring which ranges refuse and which report.
 - [x] The check runs for **every** format, not only GSAS — it is a property of
       the answer, not of one reader.
-- [ ] `read_xy` keeps per-line arity; rows disagreeing with the modal arity
+- [x] `read_xy` keeps per-line arity; rows disagreeing with the modal arity
       are dropped and reported by line number with the tokens seen, one
       diagnostic per file.
 - [ ] A constant adopted σ is reported, naming the column and the value; the

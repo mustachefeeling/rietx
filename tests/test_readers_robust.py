@@ -485,6 +485,49 @@ def test_an_axis_reaching_zero_is_read_and_reported(reader, tmp_path):
     assert "3 of its 4 points" in axis[0].message
 
 
+#: Issue #266's first file, verbatim: a six-token numeric header row above four
+#: two-token data rows.  Read on its first three tokens it was a point at (0, 1).
+_HEADER_ROW_XY = ("title=my pattern\n"
+                  "det#  used  xcol detcol  xmin  xmax\n"
+                  "  0    1    0    1    5.0   50.0\n"
+                  "10.0  100.0\n"
+                  "10.1  110.0\n"
+                  "10.2  120.0\n"
+                  "10.3  130.0\n")
+
+
+def test_a_numeric_header_row_is_dropped_and_reported_by_line(tmp_path):
+    path = tmp_path / "header_row.xy"
+    path.write_text(_HEADER_ROW_XY, encoding="utf-8")
+    found = []
+    pat = rx.read_pattern(path, diagnostics=found)
+    assert pat.two_theta == [10.0, 10.1, 10.2, 10.3]
+    assert pat.intensity == [100.0, 110.0, 120.0, 130.0]
+    assert [d.code for d in found] == ["PATTERN_ROWS_DROPPED"]
+    assert found[0].where == ["line 3"]
+    assert "'0 1 0 1 5.0 50.0'" in found[0].message
+
+
+def test_a_row_cut_short_is_dropped_and_the_file_keeps_its_sigma(tmp_path):
+    """The column count used to be the *minimum* over rows, so one row that
+    lost its σ took σ away from every other row."""
+    path = tmp_path / "cut.xye"
+    path.write_text("10.0 100.0 10.0\n10.1 110.0 10.5\n10.2 120.0 11.0\n"
+                    "10.3 130.0\n", encoding="utf-8")
+    found = []
+    pat = rx.read_pattern(path, diagnostics=found)
+    assert pat.sigma == [10.0, 10.5, 11.0]
+    assert [d.where for d in found] == [["line 4"]]
+
+
+def test_a_tied_column_count_goes_to_the_last_row(tmp_path):
+    """A header sits above its data, so on a tie the data's count wins."""
+    path = tmp_path / "tie.xy"
+    path.write_text("1 2 3 4 5 6\n1 2 3 4 5 6\n10.0 100.0\n10.1 110.0\n",
+                    encoding="utf-8")
+    assert rx.read_pattern(path).two_theta == [10.0, 10.1]
+
+
 #: Every code WP-1332 added.  A real fixture raising any of them is a false
 #: alarm on a file somebody measured.
 _WP1332_CODES = {"GSAS_BANK_COMMENTED", "PATTERN_X_AXIS_IMPLAUSIBLE",
