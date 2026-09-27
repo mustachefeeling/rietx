@@ -19,15 +19,19 @@ diff --git a/tests/sub/test_b.py b/tests/sub/test_b.py
 diff --git a/tests/test_d.py b/tests/test_d.py
 @@ -5 +4,0 @@
 -def test_removed():
+@@ -9 +9 @@
+-def test_resigned(a):
++def test_resigned(a, b):
 """
 
 
-def test_a_def_counts_only_when_added_under_tests():
+def test_a_def_counts_only_when_added_under_tests_and_not_also_removed():
     assert added_tests(DIFF) == {("tests.test_a", "test_new"),
                                  ("tests.sub.test_b", "test_method")}
 
 
 def test_cases_sum_by_function_and_a_class_member_matches_its_module(tmp_path):
+    """``@grp`` is the suffix xdist's loadgroup appends to a grouped test."""
     junit = tmp_path / "junit.xml"
     junit.write_text(
         "<testsuites><testsuite>"
@@ -36,7 +40,8 @@ def test_cases_sum_by_function_and_a_class_member_matches_its_module(tmp_path):
         '<testcase classname="tests.test_a" name="test_newer" time="9"/>'
         '<testcase classname="tests.test_ab" name="test_new" time="7"/>'
         '<testcase classname="tests.sub.test_b.TestK" name="test_method" time="0.25"/>'
+        '<testcase classname="tests.sub.test_b.TestK" name="test_method@grp" time="0.5"/>'
         "</testsuite></testsuites>", encoding="utf-8")
     assert times(str(junit), added_tests(DIFF)) == {
         ("tests.test_a", "test_new"): [1.5, 2.0],
-        ("tests.sub.test_b", "test_method"): [0.25]}
+        ("tests.sub.test_b", "test_method"): [0.25, 0.5]}

@@ -10,9 +10,11 @@ of its worker-seconds (WP-1506).  A wall-clock assertion would be a load sensor
 JUNIT comes from a run with ``--junitxml=JUNIT -o junit_duration_report=total``:
 the handover's own fast run, or a CI leg's ``junit-*`` artifact.  BASE defaults
 to ``origin/main``.  A test counts as added when the working tree adds its
-``def`` line since the fork from BASE, so a renamed test is listed too.  Each row sums setup, call and teardown
-over the test's parameter cases.  A shared fixture's setup lands on whichever
-test used it first, on that worker.
+``def`` line since the fork from BASE and removes none of that name in that
+module, so a renamed test is listed and one whose signature changed is not.  An
+untracked test file counts whole.  Each row sums setup, call and teardown over
+the test's parameter cases.  A shared fixture's setup lands on whichever test
+used it first, on that worker.
 """
 
 from __future__ import annotations
@@ -22,34 +24,53 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from collections import defaultdict
+from pathlib import Path
 
 _FILE = re.compile(r"^diff --git a/\S+ b/(tests/\S+)\.py$")
-_DEF = re.compile(r"^\+\s*(?:async\s+)?def (test_\w+)\(")
+_DEF = re.compile(r"^([+-])\s*(?:async\s+)?def (test_\w+)\(")
+#: A junit case name is the function, then ``[params]`` for a parametrised
+#: case, then ``@group`` when xdist's loadgroup appended the ``xdist_group``.
+_CASE_SUFFIX = re.compile(r"[\[@]")
 
 
 def added_tests(diff: str) -> set[tuple[str, str]]:
     """``(module, name)`` for each test function whose ``def`` line a diff adds."""
-    out: set[tuple[str, str]] = set()
+    added: set[tuple[str, str]] = set()
+    removed: set[tuple[str, str]] = set()
     module = None
     for line in diff.splitlines():
         if line.startswith("diff --git "):
             m = _FILE.match(line)
             module = m.group(1).replace("/", ".") if m else None
         elif module and (m := _DEF.match(line)):
-            out.add((module, m.group(1)))
-    return out
+            (added if m.group(1) == "+" else removed).add((module, m.group(2)))
+    return added - removed
 
 
 def times(junit: str, added: set[tuple[str, str]]) -> dict[tuple[str, str], list[float]]:
     """Each added test's per-case seconds in a junit file, keyed as ``added`` is."""
+    modules_of: dict[str, list[str]] = defaultdict(list)
+    for module, test in added:
+        modules_of[test].append(module)
     rows: dict[tuple[str, str], list[float]] = defaultdict(list)
     for case in ET.parse(junit).iter("testcase"):
-        name = case.get("name", "").split("[", 1)[0]
+        name = _CASE_SUFFIX.split(case.get("name", ""), maxsplit=1)[0]
         classname = case.get("classname", "")
-        for module, test in added:
-            if name == test and (classname == module or classname.startswith(module + ".")):
-                rows[(module, test)].append(float(case.get("time", "0")))
+        for module in modules_of.get(name, ()):
+            if classname == module or classname.startswith(module + "."):
+                rows[(module, name)].append(float(case.get("time", "0")))
     return dict(rows)
+
+
+def _untracked_as_diff() -> str:
+    """Untracked test files as a diff adding every line, which ``git diff`` omits."""
+    paths = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard", "--", "tests/"],
+        capture_output=True, encoding="utf-8", check=True).stdout.split()
+    return "".join(
+        f"diff --git a/{p} b/{p}\n"
+        + "".join(f"+{line}\n" for line in Path(p).read_text(encoding="utf-8").splitlines())
+        for p in paths if p.endswith(".py"))
 
 
 def main(argv: list[str]) -> int:
@@ -61,7 +82,7 @@ def main(argv: list[str]) -> int:
                           capture_output=True, encoding="utf-8", check=True).stdout.strip()
     diff = subprocess.run(["git", "diff", "--no-renames", "-U0", fork, "--", "tests/"],
                           capture_output=True, encoding="utf-8", check=True).stdout
-    added = added_tests(diff)
+    added = added_tests(diff + _untracked_as_diff())
     rows = times(argv[0], added)
     for (module, test), ts in sorted(rows.items(), key=lambda kv: -sum(kv[1])):
         where = f"{module.replace('.', '/')}.py::{test}"
