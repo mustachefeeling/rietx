@@ -31,7 +31,7 @@ STROKE_EM = 0.1
 
 @cache
 def _font() -> dict:
-    text = resources.files("rietx.data").joinpath("hershey_simplex.json").read_text("utf-8")
+    text = resources.files("rietx.data").joinpath("hershey_simplex.json").read_text(encoding="utf-8")
     return json.loads(text)["glyphs"]
 
 

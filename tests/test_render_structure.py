@@ -484,7 +484,7 @@ def test_the_font_ships_with_its_acknowledgement():
     from importlib import resources
 
     doc = json.loads(resources.files("rietx.data").joinpath("hershey_simplex.json")
-                     .read_text("utf-8"))
+                     .read_text(encoding="utf-8"))
     assert "Hershey" in doc["acknowledgement"] and "NTIS" in doc["licence"]
     assert len(doc["glyphs"]) == 95
 
