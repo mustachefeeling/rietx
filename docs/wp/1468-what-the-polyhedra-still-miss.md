@@ -62,7 +62,9 @@ Read 2026-09-26 from each program's manual.
 
 - **A cyanide or carbonyl C** bonds the metal and is itself bonded to a more
   electronegative N or O. So it is a cation, and Prussian blue's C-bonded Fe
-  gets a shell of N (WP-1466, P2).
+  gets a shell of N (WP-1466, P2). *Resolved 2026-09-28* by a donor rule and
+  a screen (Tasks). Measured on COD 4002391, the miss was worse than this
+  said: Cu₃[Co(CN)₆]₂ drew CoN₆ by default, from the N 3.03 Å out.
 - **An arsenic telluride inverts.** On the Pauling scale Te (2.10) is less
   electronegative than As (2.18), so As₂Te₃'s Te would be the cation. No such
   phase was measured.
@@ -138,7 +140,7 @@ Independent; take any.
 - [ ] Disorder groups: a schema field read from the CIF and SHELX, no stick or shell across two groups of one assembly, and a way to show one alternative
 - [ ] Split sites with a metal: measure a real case before choosing a rule, since uranyl's U=O sits under the non-metal floor
 - [ ] The occupancy test for split pairs wider than the floor, with its bound measured against disordered sulfates and triple bonds
-- [ ] Cyanide and carbonyl ligands: find a rule that keeps SiO₄ and PO₄ and gives Prussian blue FeC₆, and measure it on the 21 phases
+- [x] Cyanide and carbonyl ligands: find a rule that keeps SiO₄ and PO₄ and gives Prussian blue FeC₆, and measure it on the 21 phases (2026-09-28: a donor is a ligand, and an atom behind a bonded ligand is screened. The 21-phase default picture is unchanged; two hidden gaps moved, pyrite 1.52 → 1.60 and LaB6 1.45 → 1.90)
 - [ ] Centre and ligand overrides on the query string, as Mercury's two lists
 - [ ] One atom's environment on request, for an intermetallic
 - [ ] Anion-centred and cluster polyhedra, if a user asks for them

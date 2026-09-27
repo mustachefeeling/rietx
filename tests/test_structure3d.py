@@ -772,6 +772,97 @@ def test_an_anion_is_never_a_centre():
     assert s3.build(cluster([("O", 1.0)], ligands))["polyhedra"] == []
 
 
+def _formulas(payload: dict) -> dict[str, set[str]]:
+    """Per centre label, the formulas its polyhedra are drawn as by default."""
+    out: dict[str, set[str]] = {}
+    for p in payload["polyhedra"]:
+        counts: dict[str, int] = {}
+        for v in p["vertices"]:
+            element = payload["sites"][payload["atoms"][v]["site"]]["element"]
+            counts[element] = counts.get(element, 0) + 1
+        label = payload["sites"][p["site"]]["label"]
+        formula = payload["sites"][p["site"]]["element"] + "".join(
+            f"{e}{n}" for e, n in sorted(counts.items()))
+        if p["drawn_by_default"]:
+            out.setdefault(label, set()).add(formula)
+    return out
+
+
+def cubic(a: float, group: str, atoms: list[tuple]) -> Structure:
+    """A cubic phase from ``(label, species, x, y, z, occ)`` rows."""
+    cell = Cell(a=_p(a), b=_p(a), c=_p(a), alpha=_p(90.0), beta=_p(90.0), gamma=_p(90.0))
+    return Structure(phases=[Phase(name=group, space_group=group, cell=cell, atoms=[
+        Atom(label=label, species=species, x=_p(x), y=_p(y), z=_p(z), occ=_p(occ))
+        for label, species, x, y, z, occ in atoms])])
+
+
+#: Cu₃[Co(CN)₆]₂, COD 4002391 (Fm-3m): Co–C 1.89 Å, and the N 3.03 Å behind it
+COPPER_HEXACYANOCOBALTATE = cubic(10.0003, "F m -3 m", [
+    ("Cu1", "Cu", 0.5, 0.0, 0.0, 0.75), ("N1", "N", 0.303, 0.0, 0.0, 0.5),
+    ("C1", "C", 0.189, 0.0, 0.0, 0.5), ("Co1", "Co", 0.0, 0.0, 0.0, 0.5)])
+
+#: Prussian blue, Buser et al. (1977), COD 4343748 (Pm-3m): the Fe(II) sites
+#: Fe3 and Fe4 hold C, and a vacancy's water O sits 0.10 Å from each N
+PRUSSIAN_BLUE = cubic(10.166, "P m -3 m", [
+    ("O2", "O", 0.21, 0.5, 0.5, 0.733), ("O4", "O", 0.2608, 0.2608, 0.2608, 1.0),
+    ("Fe4", "Fe", 0.5, 0.0, 0.0, 0.911), ("C1", "C", 0.3108, 0.0, 0.0, 0.911),
+    ("C3", "C", 0.1887, 0.5, 0.0, 0.911), ("O3", "O", 0.29, 0.5, 0.0, 0.089),
+    ("O1", "O", 0.21, 0.0, 0.0, 0.089), ("Fe2", "Fe", 0.0, 0.5, 0.5, 1.0),
+    ("Fe3", "Fe", 0.5, 0.5, 0.5, 0.267), ("Fe1", "Fe", 0.0, 0.0, 0.0, 1.0),
+    ("N2", "N", 0.2005, 0.5, 0.5, 0.267), ("N3", "N", 0.2995, 0.5, 0.0, 0.911),
+    ("C2", "C", 0.3108, 0.5, 0.5, 0.267), ("N1", "N", 0.2005, 0.0, 0.0, 0.911)])
+
+
+def test_a_carbonyls_c_is_its_metals_ligand():
+    """A donor (WP-1468): a C whose one stronger partner is its O, and which the
+    metal is bonded to, is a ligand, so Cr(CO)₆ draws CrC₆ with its sticks.
+
+    As a cation, the C had left Cr with a shell of the six O behind it.
+    """
+    axes = [*np.eye(3), *-np.eye(3)]
+    payload = s3.build(cluster([("Cr", 1.0)], [*[("C", 1.92 * v, 1.0) for v in axes],
+                                               *[("O", 3.06 * v, 1.0) for v in axes]]))
+    assert _formulas(payload) == {"Cr00": {"CrC6"}}
+    (only,) = payload["polyhedra"]
+    assert len(only["bonds"]) == 6              # the Cr–C sticks it replaces
+
+
+def test_an_oxyanion_stays_a_cation_beside_a_bonded_metal():
+    """The donor test asks for one stronger partner: fluorapatite's P has 4 Ca
+    inside the bond cutoff, and its four O keep it a cation and PO₄ a shape."""
+    ligands = [("O", 1.54 * v / np.linalg.norm(v), 1.0) for v in TETRAHEDRON]
+    payload = s3.build(cluster([("P", 1.0)], [*ligands, ("Ca", (3.06, 0.0, 0.0), 1.0)]))
+    assert _formulas(payload) == {"P00": {"PO4"}}
+
+
+def test_a_cyanide_framework_draws_each_metal_with_its_own_end():
+    """Cu₃[Co(CN)₆]₂ draws CoC₆ and CuN₆.
+
+    The C is a donor, and the N behind it is screened from Co's shell.  Before
+    WP-1468 the C was a cation and Co drew CoN₆ from the N at 3.03 Å; with
+    the donor alone, the N joined the C in a shell of 12.
+    """
+    assert _formulas(s3.build(COPPER_HEXACYANOCOBALTATE)) == {"Co1": {"CoC6"},
+                                                              "Cu1": {"CuN6"}}
+
+
+def test_prussian_blues_c_bonded_iron_draws_fec6():
+    """Buser et al.'s Prussian blue: each C has a stronger partner split two
+    ways, N or a vacancy's water O 0.10 Å apart, and is still one donor."""
+    drawn = _formulas(s3.build(PRUSSIAN_BLUE))
+    assert drawn["Fe3"] == {"FeC6"} and drawn["Fe4"] == {"FeC6"}
+
+
+def test_a_side_on_ligand_is_not_screened():
+    """Screening takes an atom behind a ligand, never one beside it: a side-on
+    peroxide's two O meet the Ti at acute angles, so both are corners."""
+    eq = [(1.95, 0, 0), (-1.95, 0, 0), (0, 1.95, 0), (0, -1.95, 0), (0, 0, -1.95)]
+    peroxide = [(0.725, 0.0, 1.756), (-0.725, 0.0, 1.756)]      # 1.90 Å from Ti
+    payload = s3.build(cluster([("Ti", 1.0)], [("O", v, 1.0) for v in eq + peroxide]))
+    (only,) = payload["polyhedra"]
+    assert only["coordination"] == 7
+
+
 def test_a_metal_and_a_cation_share_no_stick():
     """The metal–metal rule widened to metal–cation (WP-1466).
 
@@ -788,8 +879,11 @@ def test_a_metal_and_a_cation_share_no_stick():
     assert frozenset(("Mg", "Si")) not in forsterite
     assert {frozenset(("Mg", "O")), frozenset(("O", "Si"))} <= forsterite
 
+    # HCO₂⁻ with both of its O: with one, the C is a formyl the Ca is bonded
+    # to, and so a donor and the Ca's ligand (WP-1468)
     formate = pairs(s3.build(cluster([("C", 1.0)], [
-        ("O", (1.25, 0.0, 0.0), 1.0), ("H", (-0.6, 0.9, 0.0), 1.0),
+        ("O", (1.25, 0.0, 0.0), 1.0), ("O", (-0.717, 1.024, 0.0), 1.0),
+        ("H", (-0.503, -0.967, 0.0), 1.0),
         # 2.6 Å, inside the radius-sum cutoff of 2.90
         ("Ca", (0.0, 0.0, 2.6), 1.0)])))
     assert {frozenset(("C", "O")), frozenset(("C", "H"))} <= formate

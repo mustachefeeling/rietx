@@ -331,12 +331,16 @@ its ligand count, its mean distance and its gap. The caption lists what is
 drawn and what is off.
 
 A centre is a metal, or a non-metal bonded to a more electronegative one, as P
-is in PO₄. A ligand is any other non-metal except hydrogen. The ligands are
-searched out to three times the nearest one's distance, and the shell ends at
-the largest jump in their sorted distances. It is drawn only when that
-jump is at least 1.15 times, every ligand is a corner, and the centre is
-inside. On 21 test phases, from spinel to gypsum, this draws the picture a
-chemist would. It does not cover four cases:
+is in PO₄. A ligand is any other non-metal except hydrogen. A non-metal bonded
+to a metal and to one more electronegative atom is a ligand too, as the C of a
+cyanide or a carbonyl is. The ligands are searched out to three times the
+nearest one's distance. An atom bonded to one of the centre's own ligands, and
+lying behind it, is part of that ligand and is left out, as a cyanide's N is.
+The shell ends at the largest jump in the sorted distances. It is drawn only
+when that jump is at least 1.15 times, every ligand is a corner, and the centre
+is inside. On 21 test phases, from spinel to gypsum, this draws the picture a
+chemist would, and Prussian blue's C-bonded iron draws FeC₆. It does not cover
+three cases:
 
 - An intermetallic has no anions, so it draws no polyhedra.
 - A split site draws none. That is a shell holding two partly occupied ligands
@@ -344,9 +348,6 @@ chemist would. It does not cover four cases:
 - A split pair of non-metals more than 0.7 times their radius sum apart gets a
   stick. Closer than that, the two are read as one atom over two positions:
   no stick joins them, and neither makes the other a cation.
-- A cyanide or carbonyl ligand is misread. Its C bonds the metal and is itself
-  bonded to a more electronegative N or O, so Prussian blue's C-bonded iron
-  gets a larger shape made of N.
 
 `PNG` renders the picture again, 3000 pixels on its long side, with the a, b, c
 letters drawn in. That is a 17 cm figure at 300 dpi with room to crop.

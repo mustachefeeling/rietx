@@ -449,9 +449,17 @@ def _cation_sites(sites: list[dict], orbit: dict[str, Any], basis: np.ndarray) -
     Chem., doi:10.1021/acs.inorgchem.0c02996) carried from the metals to the
     non-metals.  Counted as ligands, forsterite's Si at 2.69 Å cut Mg's gap to
     1.26 and grossular's Ca took 2 Si into a shell of 10.  Counted as
-    centres, gypsum's water O drew five S and andalusite's OA four Si.  Its
-    known miss is a cyanide or a carbonyl, whose C bonds the metal and is
-    itself bonded to a more electronegative N or O.
+    centres, gypsum's water O drew five S and andalusite's OA four Si.
+
+    A **donor** is the exception (WP-1468): a non-metal whose stronger
+    partners are one atom, and which a metal is bonded to, is that metal's
+    ligand.  A cyanide's or a carbonyl's C is one.  As a cation it had made
+    Cu₃[Co(CN)₆]₂ (COD 4002391) draw CoN₆ from the N at 3.03 Å, past the C at
+    1.89.  An oxyanion's centre has three or four stronger partners, so a
+    metal bonded to it keeps it a cation: fluorapatite's P has 4 Ca inside
+    the bond cutoff.  Partners closer than :data:`BOND_MIN` to each other are
+    one atom split, as Prussian blue's N and water O are, 0.10 Å apart.
+    Its known miss is a nitro group, whose N has two O.
 
     Bonded is the viewer's radius-sum rule at :data:`BOND_TOLERANCE`, the
     default rather than the query's, so the polyhedra do not move with the
@@ -466,6 +474,7 @@ def _cation_sites(sites: list[dict], orbit: dict[str, Any], basis: np.ndarray) -
     radius = np.array([element_radius(e) for e in elements], dtype=np.float64)
     strength = np.array([ELECTRONEGATIVITY.get(e, 0.0) for e in elements],
                         dtype=np.float64)
+    metal = np.array([is_metal(e) for e in elements], dtype=bool)[source]
     for j, site in enumerate(sites):
         mine = ELECTRONEGATIVITY.get(site["element"])
         if j in cations or mine is None or j not in owner:
@@ -473,12 +482,20 @@ def _cation_sites(sites: list[dict], orbit: dict[str, Any], basis: np.ndarray) -
         rows = (strength > mine)[source]
         if not rows.any():
             continue
-        pair = site["radius"] + radius[source[rows]]
-        reach = np.linalg.norm(orbit["cart"][rows] - orbit["frac"][owner.index(j)] @ basis.T,
-                               axis=1)
+        here = orbit["frac"][owner.index(j)] @ basis.T
+        reach = np.linalg.norm(orbit["cart"][rows] - here, axis=1)
         # both are non-metals, so a split partner is no bond (P10)
-        if bonded(reach, pair, nonmetals=True).any():
-            cations.add(j)
+        partners = orbit["cart"][rows][bonded(reach, site["radius"] + radius[source[rows]],
+                                              nonmetals=True)]
+        if not len(partners):
+            continue
+        # a donor atom: its stronger partners are one atom, perhaps split, and a
+        # metal is bonded to it, as cyanide's C is to Fe (WP-1468)
+        if (np.linalg.norm(partners - partners[0], axis=1) < BOND_MIN).all():
+            near = np.linalg.norm(orbit["cart"][metal] - here, axis=1)
+            if bonded(near, site["radius"] + radius[source[metal]], nonmetals=False).any():
+                continue
+        cations.add(j)
     return cations
 
 
@@ -967,6 +984,15 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
     CO₃.  A shell holding two partly occupied ligands closer to each other than
     to the centre is a split site and is not drawn (P9).
 
+    An atom bonded to a ligand the centre is bonded to, and behind it, is
+    screened out before the gap is found (WP-1468).  Behind means the angle at
+    that ligand is obtuse, so |MX|² > |MY|² + |XY|².  A cyanide's N, 3.03 Å
+    from Co behind its C at 1.89, had closed Co's shell after 12, C₆N₆.  An
+    η²-peroxide or a Cp ring is not screened, since its ligands meet the
+    centre at acute angles.  One step only: through LaB6's boron framework
+    every B would screen the next.  On the 21 phases it moves two gaps and no
+    shell: pyrite's Fe from 1.52 to 1.60 and LaB6's La from 1.45 to 1.90.
+
     A vertex outside the drawn atoms becomes a partner, flagged ``boundary``
     as :func:`_partners`' are, so no polyhedron is cut off (P7).  It is also
     flagged ``vertex_only``, and the client draws it only while one of its
@@ -1006,6 +1032,7 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
     if reach > orbit["radius"]:
         orbit = _orbit(sites, orbit["atoms"], basis, reach)
     occupancy, cart, source = orbit["occupancy"], orbit["cart"], orbit["source"]
+    radius = np.array([element_radius(e) for e in elements], dtype=np.float64)[source]
 
     known = {key: k for k, key in enumerate(_keys([a["pos"] for a in atoms]))}
     segments: dict[tuple, list[int]] = {}
@@ -1031,6 +1058,7 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
         if not len(index):
             continue
         centre = np.asarray(atom["pos"], dtype=np.float64)
+        own, metallic = sites[atom["site"]]["radius"], sites[atom["site"]]["metal"]
         # a mixed site is one centre, drawn in its first site's colour (P9)
         if (np.linalg.norm(centres[:n_centres] - centre, axis=1) < SAME_POSITION).any():
             continue
@@ -1045,6 +1073,17 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
         index, dist = index[dist <= window], dist[dist <= window]
         order = np.argsort(dist, kind="stable")
         index, dist = index[order], dist[order]
+        # an atom bonded to one of the centre's own ligands, and beyond it as
+        # the centre sees them (the angle there obtuse), belongs to that
+        # ligand: cyanide's N behind the C a metal holds, or pyrite's second S
+        held = index[bonded(dist, own + radius[index], nonmetals=not metallic)]
+        if len(held):
+            apart = np.linalg.norm(cart[index][:, None, :] - cart[held][None, :, :], axis=2)
+            near = np.linalg.norm(cart[held] - centre, axis=1)
+            behind = (bonded(apart, radius[index][:, None] + radius[held][None, :],
+                             nonmetals=True)
+                      & (dist[:, None] ** 2 > near[None, :] ** 2 + apart ** 2)).any(axis=1)
+            index, dist = index[~behind], dist[~behind]
         # atoms of two sites at one position are one ligand, their
         # occupancies summed, so a mixed O/F site is full and a split one is not;
         # each joins its twin nearest the centre, the rows being sorted by distance
