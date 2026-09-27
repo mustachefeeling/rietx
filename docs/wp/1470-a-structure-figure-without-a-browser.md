@@ -193,6 +193,13 @@ and PNG metadata. Each decision says what it takes and what it declines.
   nothing more.
 - **D11. The module is provisional by declaration.** Its look and its
   arguments follow the structure viewer, which WP-1468 is still changing.
+  Superseded in part 2026-09-27: the declaration cannot be a
+  `PROVISIONAL_MODULES` entry. That table must cover a name on the derived
+  surface (`test_provisional_modules_are_live_and_reasoned`), and nothing in
+  `rietx.viz` is on it: `rietx.viz` is not in `rietx.__all__`, and none of
+  its functions are among the 1800 derived names. So the declaration is a
+  bullet in `compatibility.md` § Provisional by declaration, which the
+  manual section links.
 - **D12. A view is named in crystallographic terms, and round-trips.** No
   program surveyed takes a zone axis or a plane normal. PyMOL's `set_view`
   takes 18 numbers and ChimeraX's `view matrix` 12, which an agent cannot
@@ -267,7 +274,7 @@ and PNG metadata. Each decision says what it takes and what it declines.
 - [x] Options: phase, mode, probability, exaggeration, hidden species, boundary
   images, polyhedra on or off or by formula, background, size, supersampling,
   `outline=` (D9).
-- [ ] Public surface: `rietx.viz.render_structure` through `__getattr__`, a
+- [x] Public surface: `rietx.viz.render_structure` through `__getattr__`, a
   `PROVISIONAL_MODULES` entry (D11), a section in
   `docs/manual/using/exports.md`, and `examples/structure_figure.py`, which
   the manual includes and `tests/test_examples.py` runs.

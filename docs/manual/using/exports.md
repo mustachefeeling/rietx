@@ -114,6 +114,85 @@ cannot draw it.
 `font_size=` are the exposure surface: build the figure at the width it will be
 read at, and do not scale it in the document afterwards.
 
+## A figure of the structure
+
+`rietx.viz.render_structure` draws one phase as the GUI's structure viewer
+draws it, to an RGBA array or a PNG.
+It needs no browser, no display and nothing beyond the base install.
+The geometry, the scene rules and the lighting are the viewer's own, so a
+picture drawn from a script matches one exported from the GUI.
+
+```{literalinclude} ../../../examples/structure_figure.py
+:language: python
+:start-at: structure = rx.Structure
+```
+
+```text
+wrote nac_structure.png: 1000 x 963 px, 173 atoms, 47.0 px/Å
+wrote nac_ellipsoids.png: rotation drawn [[-0.707, 0.707, 0.0], [-0.408, -0.408, 0.816], [0.577, 0.577, 0.577]]
+a round trip through the rotation draws the same picture: True
+  letter a at (1749, 1622) px
+  letter b at (386, 259) px
+  letter c at (386, 1622) px
+wrote nac_print.png
+```
+
+The call returns a `StructureFigure`.
+`image` is the picture, height × width × 4 bytes with straight alpha.
+`np.asarray(fig)` and `plt.imshow(fig)` both take the figure itself.
+`atoms` and `letters` give each atom's and each axis letter's position in
+pixels from the top-left corner, so a caller can annotate in matplotlib
+without projecting anything.
+`rotation` is the view drawn, and passing it back as `view=` draws the same
+picture.
+
+`view=` takes `"opening"` (the GUI's first picture), `"a"`, `"b"` or `"c"`
+(its buttons), a lattice direction `[u, v, w]`, a plane normal
+`{"hkl": (h, k, l)}`, or a rotation.
+The named direction points at you.
+`up=` takes the same forms.
+By default c is up, or b when you look down c, as in VESTA's standard
+orientation.
+`turn=` is ASE's rotation string (`"30y,-15x"`), turning about the screen's
+axes in the order written.
+Every view is fitted to the frame, and the projection is parallel.
+
+`size=` is the long side in pixels, or `(width, height)`.
+Line widths and letters grow with it, as they do in the GUI's export, so a
+larger picture is the same figure at a higher resolution.
+`dpi=` goes only into the PNG's `pHYs` chunk.
+A 17 cm figure at 300 dpi is `size=2008, dpi=300`.
+`supersample=` sets the antialiasing, 2 × 2 samples a pixel by default and up
+to 4 × 4.
+
+`mode=` is `"ball"` or `"ellipsoid"`, with `probability=` (50 % by default)
+and `exaggeration=` meaning what they mean in the GUI.
+`hidden=` takes elements or species, and a name the phase does not have
+raises.
+`boundary=False` drops the images outside the cell.
+`polyhedra=` follows the mode (on for balls, off for ellipsoids) unless you
+pass `True`, `False` or a formula switch such as `{"AlF₆": False}`.
+`background=None` is transparent.
+`outline=True` inks the silhouettes, off by default because the GUI draws
+none.
+For anything the keywords do not cover, edit the dict
+`rietx.gui.structure3d.build` returns (a colour, a radius, an atom removed)
+and pass the dict in place of the structure.
+
+On an Apple M4 in September 2026, a warm render of this NAC cell took
+35-108 ms at 1000 px and 75-123 ms at 3000 px.
+The first render in a process compiled the kernel in about 1.5 s; after that
+numba loads it from its cache.
+
+There is no SVG or PDF output.
+A ray-caster has no shapes to write.
+Perspective, shadows and ambient occlusion are not drawn either.
+The function follows the GUI's viewer, and the viewer is still changing.
+Its look and keywords are {ref}`provisional <provisional-by-declaration>`.
+For a picture in another program's style, `Structure.to_cif` writes each
+phase with its anisotropic displacement loop.
+VESTA and Jmol both read it.
+
 ## The reflection list
 
 `Refinement.reflection_table` returns one row per (emission line, reflection) of
