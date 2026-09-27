@@ -1026,6 +1026,14 @@ def test_a_polyhedron_is_never_cut_off(nac):
     assert f"{full - len(small['polyhedra'])} coordination polyhedra not drawn" in small["note"]
     for p in small["polyhedra"]:
         assert max(p["vertices"]) < len(small["atoms"])
+    # and each is listed by centre and ligands, for the legend (WP-1468)
+    assert len(small["polyhedra_dropped"]) == full - len(small["polyhedra"])
+    assert payload["polyhedra_dropped"] == []
+    drawn = {(p["site"], p["coordination"]) for p in payload["polyhedra"]}
+    for p in small["polyhedra_dropped"]:
+        assert (p["site"], len(p["ligands"])) in drawn
+        assert p["drawn_by_default"] == (len(p["ligands"]) in s3.DEFAULT_SHELLS)
+        assert set(p["ligands"]) == {"F"}
 
 
 def test_the_centres_sticks_give_way_to_its_polyhedron(nac):

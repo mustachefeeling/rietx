@@ -322,7 +322,9 @@ around a cation, such as SiO₄ or AlF₆. Shells of four to six ligands are dra
 by default, which are the tetrahedra and octahedra of a framework. Larger
 shells, such as NAC's CaF₈, start switched off. The row under the species
 legend holds a `polyhedra` switch and one button per formula. A species with
-two shapes, such as a CaO₆ site beside a CaO₈ one, has two buttons. The switch
+two shapes, such as a CaO₆ site beside a CaO₈ one, has two buttons. A formula
+whose ligands would take the picture past the 400 atoms the viewer draws keeps
+its button, greyed out, and the note under the picture counts it. The switch
 is held per mode, so polyhedra start on in ball mode and off in ellipsoid mode,
 where the faces would cover the ellipsoids. A drawn polyhedron takes the place
 of its centre's sticks. It also brings the ligands it needs outside the cell,

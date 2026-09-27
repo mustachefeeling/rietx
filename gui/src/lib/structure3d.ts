@@ -81,6 +81,14 @@ export interface Polyhedron {
   drawn_by_default: boolean;
 }
 
+/** A polyhedron the server found and could not draw: its ligands would have
+ *  taken the payload past its atom cap. */
+export interface DroppedPolyhedron {
+  site: number;
+  ligands: string[];
+  drawn_by_default: boolean;
+}
+
 export interface Geometry {
   phase: number;
   phases: string[];
@@ -95,6 +103,9 @@ export interface Geometry {
   atoms: DrawnAtom[];
   bonds: Bond[];
   polyhedra: Polyhedron[];
+  /** the polyhedra the atom cap turned away, by centre site and ligand
+   *  elements (WP-1468); absent reads as none */
+  polyhedra_dropped?: DroppedPolyhedron[];
   probability: number;
   probability_levels: Record<string, number>;
   scale: number;
@@ -183,17 +194,20 @@ export function bondLabel(geometry: Geometry, bond: Bond): string {
 
 const SUBSCRIPT = "₀₁₂₃₄₅₆₇₈₉";
 
-/** A polyhedron as a chemist writes it: the centre, then its ligands by count,
+/** A formula as a chemist writes it: the centre, then its ligands by count,
  *  most first — `AlF₆`, `CaO₆F`. */
-export function polyhedronFormula(geometry: Geometry, polyhedron: Polyhedron): string {
+export function formula(centre: string, ligands: readonly string[]): string {
   const counts = new Map<string, number>();
-  for (const v of polyhedron.vertices) {
-    const element = geometry.sites[geometry.atoms[v].site].element;
-    counts.set(element, (counts.get(element) ?? 0) + 1);
-  }
-  const ligands = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  for (const element of ligands) counts.set(element, (counts.get(element) ?? 0) + 1);
+  const written = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([element, n]) => element + (n > 1 ? [...String(n)].map((d) => SUBSCRIPT[+d]).join("") : ""));
-  return geometry.sites[polyhedron.site].element + ligands.join("");
+  return centre + written.join("");
+}
+
+/** A polyhedron's `formula`, read off its drawn vertices. */
+export function polyhedronFormula(geometry: Geometry, polyhedron: Polyhedron): string {
+  return formula(geometry.sites[polyhedron.site].element,
+                 polyhedron.vertices.map((v) => geometry.sites[geometry.atoms[v].site].element));
 }
 
 /** One hover line per polyhedron: what it is, around which site, and its shell. */
@@ -238,16 +252,26 @@ export function shownPolyhedra(geometry: Geometry, on: boolean,
  * a CaO₈ hidden would read as on, and off then on would draw both, with no
  * way back to the default.  A two-state switch per formula also reaches the
  * one a three-state species switch cannot: the CaO₈ alone.
+ *
+ * A formula the atom cap turned away in every instance comes last, marked
+ * unavailable, so the legend still names it (WP-1468).  Left out, it had
+ * vanished with only the note under the picture to say so.
  */
 export function polyhedraLegend(geometry: Geometry): Array<{
-  formula: string; color: string; byDefault: boolean }> {
-  const out: Array<{ formula: string; color: string; byDefault: boolean }> = [];
-  for (const p of geometry.polyhedra) {
-    const formula = polyhedronFormula(geometry, p);
-    if (!out.some((e) => e.formula === formula)) {
-      out.push({ formula, color: geometry.sites[p.site].color, byDefault: p.drawn_by_default });
+  formula: string; color: string; byDefault: boolean; available: boolean }> {
+  const out: Array<{ formula: string; color: string; byDefault: boolean;
+                     available: boolean }> = [];
+  const add = (site: number, ligands: string[], byDefault: boolean, available: boolean) => {
+    const written = formula(geometry.sites[site].element, ligands);
+    if (!out.some((e) => e.formula === written)) {
+      out.push({ formula: written, color: geometry.sites[site].color, byDefault, available });
     }
+  };
+  for (const p of geometry.polyhedra) {
+    add(p.site, p.vertices.map((v) => geometry.sites[geometry.atoms[v].site].element),
+        p.drawn_by_default, true);
   }
+  for (const p of geometry.polyhedra_dropped ?? []) add(p.site, p.ligands, p.drawn_by_default, false);
   return out;
 }
 

@@ -614,7 +614,7 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     polyhedra, ligands, dropped = _polyhedra(sites, orbit, cations, atoms, n_cell, bonds,
                                              basis, max(max_atoms - len(atoms), 0))
     if dropped:
-        notes.append(f"{dropped} coordination polyhedra not drawn: their ligands "
+        notes.append(f"{len(dropped)} coordination polyhedra not drawn: their ligands "
                      f"would take the drawing past {max_atoms} atoms")
     atoms.extend(ligands)
 
@@ -637,6 +637,9 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
         # vertices, bonds and the centre are indices into ``atoms`` and
         # ``bonds``; faces and edges index the polyhedron's own vertices
         "polyhedra": polyhedra,
+        # the polyhedra the atom cap turned away, each its centre's site and
+        # its ligands' elements, so the legend can name what it cannot draw
+        "polyhedra_dropped": dropped,
         "probability": float(probability),
         "probability_levels": {f"{p:g}": probability_scale(p)
                                for p in PROBABILITY_LEVELS},
@@ -1054,8 +1057,10 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
     flagged ``vertex_only``, and the client draws it only while one of its
     polyhedra is drawn: at the default bond tolerance NAC's hidden NaF₇ and
     CaF₈ put 12 F in the picture with no stick and no face.  One whose partners
-    would pass ``room`` is not drawn and is counted in ``dropped``, and the
-    shells drawn by default claim the room first.
+    would pass ``room`` is not drawn, and the shells drawn by default claim
+    the room first.  It is listed in ``dropped`` by its centre's site and its
+    ligands' elements, which is what the legend needs to show its formula as
+    unavailable (WP-1468).
     """
     from scipy.spatial import ConvexHull, QhullError, cKDTree
 
@@ -1102,7 +1107,7 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
     found: list[tuple] = []
     out: list[dict] = []
     partners: list[dict] = []
-    dropped = 0
+    dropped: list[dict] = []
     for c in range(n_cell):
         atom = atoms[c]
         if atom["site"] not in cations:
@@ -1172,7 +1177,8 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
         corners = _keys(vertices)
         needed = [k for k in range(n) if corners[k] not in known]
         if len(partners) + len(needed) > room:
-            dropped += 1
+            dropped.append({"site": site, "drawn_by_default": n in DEFAULT_SHELLS,
+                            "ligands": [elements[source[row[0]]] for row in shell]})
             continue
         for k in needed:
             origin = orbit["atoms"][source[shell[k][0]]]

@@ -463,7 +463,7 @@ describe("the polyhedra", () => {
     expect(polyhedronLabel(geo, geo.polyhedra[0]))
       .toBe("SiO₄ around Si1  ·  4 ligands  ·  mean 1.600 Å  ·  gap ×2.00");
     expect(polyhedraLegend(geo)).toEqual([
-      { formula: "SiO₄", color: "#f0c8a0", byDefault: true }]);
+      { formula: "SiO₄", color: "#f0c8a0", byDefault: true, available: true }]);
   });
 
   it("show by the server's default, until a switch or a legend says otherwise", () => {
@@ -487,14 +487,29 @@ describe("the polyhedra", () => {
     geo.polyhedra.push({ ...geo.polyhedra[0], vertices: [1, 2, 3], coordination: 3,
                          drawn_by_default: false });
     expect(polyhedraLegend(geo)).toEqual([
-      { formula: "SiO₄", color: "#f0c8a0", byDefault: true },
-      { formula: "SiO₃", color: "#f0c8a0", byDefault: false }]);
+      { formula: "SiO₄", color: "#f0c8a0", byDefault: true, available: true },
+      { formula: "SiO₃", color: "#f0c8a0", byDefault: false, available: true }]);
     expect(shownPolyhedra(geo, true, new Map())).toEqual([0]);
     // off and on again is the default, not every shell of the species
     expect(shownPolyhedra(geo, true, new Map([["SiO₄", true]]))).toEqual([0]);
     // and the hidden shell alone is reachable
     expect(shownPolyhedra(geo, true, new Map([["SiO₄", false], ["SiO₃", true]])))
       .toEqual([1]);
+  });
+
+  it("keep a formula the atom cap turned away in the legend, as unavailable", () => {
+    const geo = tetrahedron();
+    geo.polyhedra_dropped = [
+      // another SiO₄ that did not fit: its formula is drawn elsewhere
+      { site: 0, ligands: ["O", "O", "O", "O"], drawn_by_default: true },
+      // a shell that fitted nowhere
+      { site: 0, ligands: ["O", "O", "O", "O", "O", "O", "O", "O"], drawn_by_default: false },
+    ];
+    expect(polyhedraLegend(geo)).toEqual([
+      { formula: "SiO₄", color: "#f0c8a0", byDefault: true, available: true },
+      { formula: "SiO₈", color: "#f0c8a0", byDefault: false, available: false }]);
+    // it switches nothing on, having nothing to draw
+    expect(shownPolyhedra(geo, true, new Map([["SiO₈", true]]))).toEqual([0]);
   });
 
   it("bring the atoms only they need, and no hidden one does", () => {

@@ -522,13 +522,21 @@
           title="coordination polyhedra: on in ball mode and off in ellipsoid mode
                  until switched, since faces would cover the ellipsoids">polyhedra</button>
         {#each polyEntries as entry (entry.formula)}
-          <button class="ghost" class:off={!polyOn(entry.formula, entry.byDefault)}
-            disabled={!polyhedraIn[mode]}
-            onclick={() => togglePolyhedra(entry.formula, entry.byDefault)}
-            title="the {entry.formula} polyhedra: the shell ends at the largest gap
-                   in its ligand distances">
-            <span class="dot" style="background:{entry.color}"></span>{entry.formula}
-          </button>
+          {#if entry.available}
+            <button class="ghost" class:off={!polyOn(entry.formula, entry.byDefault)}
+              disabled={!polyhedraIn[mode]}
+              onclick={() => togglePolyhedra(entry.formula, entry.byDefault)}
+              title="the {entry.formula} polyhedra: the shell ends at the largest gap
+                     in its ligand distances">
+              <span class="dot" style="background:{entry.color}"></span>{entry.formula}
+            </button>
+          {:else}
+            <button class="ghost off" disabled
+              title="the {entry.formula} polyhedra are not drawn: their ligands would take
+                     the picture past the atoms this viewer draws">
+              <span class="dot" style="background:{entry.color}"></span>{entry.formula}
+            </button>
+          {/if}
         {/each}
       </div>
     {/if}

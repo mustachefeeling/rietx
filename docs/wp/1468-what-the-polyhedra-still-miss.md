@@ -156,7 +156,7 @@ Independent; take any.
 - [ ] One atom's environment on request, for an intermetallic
 - [ ] Anion-centred and cluster polyhedra, if a user asks for them
 - [ ] The two-gap tie: find a real case, then decide whether to apply Daams & Villars' rule
-- [ ] A hidden shell dropped at the atom cap stays in the legend as unavailable, or the cap stops counting it
+- [x] A hidden shell dropped at the atom cap stays in the legend as unavailable, or the cap stops counting it (2026-09-28: the payload's `polyhedra_dropped` lists each by site and ligands, and the legend greys a formula that has nothing else to draw. The cap still counts every shell: it bounds what the viewer draws)
 - [x] The polyhedra stop recomputing on a bond-slider release — declined on the record 2026-09-28. The recompute is kept and made cheaper (Context). A memo would be keyed on the phase and on every rule constant, and one left out of the key serves a stale picture
 - [x] One authority for "bonded" on the server and one for "drawn" on the client (2026-09-28: `structure3d.bonded`, `drawnWith` and its twin `drawn_with`)
 - [ ] A source for the Te, At, Kr and Xe electronegativities
