@@ -125,6 +125,19 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **From [1506](1506-a-planning-doc-pr-runs-what-reads-it.md), 2026-09-27:
+  `isotropy.analyse` on F m -3 m takes 26 s, and the fast suite pays it
+  twice.** `isotropy.analyse(isotropy.candidates("F m -3 m", (0, 0, 0),
+  GAMMA), d_min=2.0)` measured 26.4 s alone for 6 candidates, about 4.4 s
+  each. `candidates` took 0.7 s, and P 4/m m m took 0.5 s for 4. Under a
+  loaded fast run the call took about 70 s.
+  `test_a_cubic_collinear_site_gives_one_powder_equivalence_class` and
+  `test_the_cubic_and_tetragonal_arms_differ_for_the_reason_claimed` each
+  compute it, the two slowest tests in the fast selection (68.8 and 71.3 s,
+  10% of its 1 372 worker-seconds). A module fixture halves the suite's cost.
+  A faster `analyse` would fix the tests and every caller, since the function
+  is public. Which one is this WP's call.
+
 - **From WP-1417, 2026-09-27: M-9's "1417's caveat on N" is settled.**
   ΔBIC is charged at N/f², `optimize.statistics.effective_sample_size`
   of the restricted fit's `esd_inflation`, and both statistics want the

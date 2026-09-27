@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
-Priority: P4 2026-09-23 — gates on the skill's own files; a merge that fails late is the cost
+Priority: P2 2026-09-27 — was P4: the maintainer raised it with 1506 and 1507; `SKILL.md` has 2 B of headroom, so every body addition now races every other
 
 ## Goal
 
@@ -10,9 +10,100 @@ The three gates protecting the agent skill cover what they are named after: a
 dotted name in a reference file is walked like one in the body, a private
 `(Measured: …)` tag names the corpus its file declares, and two contributors
 adding a sentence each to the same skill file do not fail on the merge with no
-warning beforehand.
+warning beforehand. A new feature's guidance lands outside the body unless
+every fit needs it, so the body can shrink toward the specification's 5 000
+tokens while the package grows.
 
 ### Inherited
+
+- **2026-09-27, folded at the maintainer's request after the drag review:
+  the body stops being where features land.** rietx will keep adding
+  features, and today each one adds to the body: a routing row, a
+  precondition, a turn-on rule. The cap race is that growth meeting a fixed
+  number. The measurements:
+  - The body is 32 998 B and 479 lines, about 8 200 tokens at 4 B a token.
+    The Agent Skills specification recommends under 5 000 tokens and under
+    500 lines (agentskills.io/specification, § Progressive disclosure). The
+    line cap matches it; the byte cap is a truncation ceiling, not that
+    budget.
+  - The references are 358 kB across 17 files and cost nothing until read.
+    Anthropic's best-practices guide says to bundle comprehensive resources
+    for that reason. Only the body has a size problem.
+  - The body sat within about 150 B of the cap for most of the month. PR
+    #292 cut 2 kB on 2026-09-10, and main refilled it by 2026-09-17. Growth
+    since 2026-09-10 is spread: the routing table +619 B (two rows), §1
+    +669 B, §2 +309 B. So a raised cap refills in about a week.
+
+  **A placement rule, cheapest first.** A new feature's guidance goes to the
+  first of these that can hold it.
+  1. The package's own output: `Diagnostic.suggestion`, an entry in
+     `help.py`. It costs nothing until the output appears, and it matches
+     the installed version. The installed skill is a copy made by
+     `rietx skill --install`, so after an upgrade it can be stale, and the
+     package cannot. Measured evidence too long for a suggestion stays in a
+     reference row keyed by the same code.
+  2. A reference row keyed by an identifier the agent already holds: a
+     diagnostic code, a verb it is about to call, a file extension, a result
+     type. One standing sentence in the body ("grep `references/` for the
+     code or name in front of you") replaces a routing row per feature. The
+     guide shows this pattern under "Quick search". About 6 of today's 16
+     routing rows are situations of this kind: `api.md`, another program's
+     input file, a diagnostic that fired, a magnetic diagnostic, an
+     abstention, writing the answer out.
+  3. A routing row, only for a new task shape that no identifier names (a
+     ramp, a batch, "you are about to quote a number").
+  4. The body, only for a rule every fit needs, paid for by a cut.
+
+  **Why references stay one level deep, and what relaxes it.** The guide's
+  reason is observed behaviour: from a file referenced by another referenced
+  file, Claude may preview with `head -100` rather than read the whole file.
+  It names two mitigations. A reference over 100 lines opens with a table of
+  contents, so a partial read still shows its scope. And lookup by grep lands
+  on the section directly instead of following a chain. Whether a second
+  level loses reads for rietx is measurable with the repo's real-agent eval
+  protocol (`tests/eval_agent_surface/`).
+
+  **Held in reserve: one skill per whole task shape** (indexing, magnetic,
+  series and batch, figures), routed by the harness from each description.
+  That mechanism is built to choose among 100+ skills. Its costs are about
+  100 tokens a description, loaded into every session in the project, and a
+  shape skill that can activate without the core. Take it when the shapes
+  outgrow one routing table.
+
+  **The mechanical guard: a ceiling and a budget per capped file.** The
+  ceiling keeps its truncation derivation (33 000 for the body, the 40 kB
+  Bash truncation for references) and fails on any tree. The budget sits
+  below it and fails only a PR that makes the file larger than at the PR's
+  base and leaves it over budget. The gap absorbs PRs that merge together,
+  and the cut falls on the author while writing, in their own text, which
+  answers this WP's point that the cheapest pass is deleting someone else's
+  prose. The buffer is open: 2 kB (a one-time 2 kB cut; recent additions ran
+  100-600 B) or 1 kB (half the cut, about three concurrent additions). With
+  the placement rule holding, 1 kB is probably enough. The references raced
+  the same way (#346 and #291 together reached 37 641 B). This replaces the
+  2026-09-03 decision to warn at 95 %, which is always on at 99.99 %.
+
+  **Order.** The eval first, as the guide says: replace the keyed routing
+  rows with the grep sentence and run real agents (Haiku, Sonnet, Opus) on
+  tasks where a diagnostic fires, against today's body. Then write the
+  placement rule where WP-1330's rule lives (CONTRIBUTING.md § The agent
+  skill, root CLAUDE.md's skill bullet). Then move body material into
+  references toward 5 000 tokens. By size the candidates are §4 (6 806 B),
+  §10's worked default (2 500 B) and the routing table's manual-page column.
+
+- **2026-09-27, from [1507](1507-the-index-is-read-off-the-wp-files.md)'s
+  filing session: the race fired again on `SKILL.md`, and a 95 % warning
+  would not have fired first.** In 603b7ca5, merging main put `SKILL.md` at
+  33 027 of 33 000 B. WP-1320's addition had used the headroom WP-1470's
+  routing row counted on, and WP-1470 trimmed two commas and a clause to
+  reach 32 998. Main now has 2 B of headroom, 99.99 % of the cap. So the
+  2026-09-03 decision below (warn at 95 % first) would be a warning that is
+  always on, and it would not have told either author anything. Two facts in
+  this file are stale: `REFERENCE_MAX_BYTES` is 36 600 now, not 36 000, and
+  `diagnostics.md` is 34 918 B. The maintainer named merge drag on the skill
+  files on 2026-09-27. WP-1507 removes the ROADMAP's version of this race
+  (a per-row cap bump) by generating the tables. A skill file cannot be
+  generated, so the policy question stays here.
 
 - **2026-09-23, from the issue triage: #284 and #287 are closed.** #284 as
   landed in PR #292, and #287 as answered, its `RECIPE_*` half landed in
@@ -216,7 +307,8 @@ formally.
 ## Non-goals
 
 - Cutting skill content to make room. The caps question is decided here as
-  policy; individual rows are their own WPs' business.
+  policy; individual rows are their own WPs' business. Moving body material
+  into references under the placement rule is in scope, after the eval.
 - The skill's routing structure and the per-shape references — WP-1330, closed.
 - Anything in `references/api.md`, which is generated and already gated.
 
@@ -227,17 +319,26 @@ formally.
       type-level roots widen.
 - [ ] The private-corpus check, per tag, with its liveness guard, and the
       reason the chosen classification rule was preferred written beside it.
-- [ ] Cap policy, decided 2026-09-03: a CI warning at 95 % of each cap lands
-      now; split versus raise is decided when the next row lands in a
-      near-full file, and recorded where the caps live.
-- [ ] Whatever is chosen, make the near-full state visible to a contributor
-      before they write, not after CI.
+- [ ] Cap policy, 2026-09-27 (replaces 2026-09-03's 95 % warning): a ceiling
+      and a budget per capped file, the budget failing only a PR that grows
+      the file past it. Buffer size, 1 or 2 kB, chosen with the maintainer.
+      Design in Inherited.
+- [ ] Every PR that changes a capped file reports its delta and headroom, so
+      the near-full state is visible before CI fails.
+- [ ] The placement eval: the keyed routing rows replaced by one grep
+      sentence, real agents on tasks where a diagnostic fires, against
+      today's body. Registered before it runs (tests/CLAUDE.md § Two eval
+      protocols).
+- [ ] The placement rule written where WP-1330's lives: CONTRIBUTING.md
+      § The agent skill and root CLAUDE.md's skill bullet.
+- [ ] After the eval, body material moved into references toward 5 000
+      tokens, each move recorded with the bytes it freed.
 - [ ] Tests: all three land as tests, and are expected **green on the tree as
       it stands** — these close gaps rather than fixing breaks, so a red run
       means the gate found something real and it should be reported, not
       accommodated.
-- [ ] Skill: no row changes. These protect the skill rather than being
-      described by it.
+- [ ] Skill: the gates change no row. The placement eval may replace the
+      keyed routing rows with one grep sentence, and only if it supports it.
 
 ## Acceptance
 
@@ -259,6 +360,13 @@ deliberately broken fixture of each kind fails.
 
 ## Handover log
 
+- **2026-09-27** — Folded, not worked: the maintainer re-rated this to P2
+  and asked for the skill-scaling review to land here. The cap race now has
+  a cause, a body that every feature adds to, and a direction: a placement
+  rule that keeps feature guidance out of the body, tested by an eval first,
+  with a ceiling and budget per capped file as the guard. Tasks rewritten to
+  match; the reasoning and numbers are the first Inherited entry. Status
+  stays ⬜. Next: the maintainer's pick of a 1 or 2 kB buffer, then the eval.
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issues #238,
   #241, #247). The cap table was re-measured rather than copied: `SKILL.md`
   now has 22 B of headroom, not the 34 the issue reported. Decided the same

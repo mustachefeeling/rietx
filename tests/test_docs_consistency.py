@@ -536,7 +536,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # A section carries the paragraph every other queued block has had (v1.3,
     # 1301-1307), so this is the shape and not an exception; the design and
     # the survey stay in the WP files.  Landed 877, +1 headroom.
-    "docs/ROADMAP.md": 878,
+    # 878 -> 880 (2026-09-27): two rows, 1506 and 1507, under § The repo's
+    # own process, for the CI and merge drag the maintainer named.  1507 is
+    # the WP that retires this per-row bump.  No prose: the evidence stays in
+    # the WP files.  Landed 879, +1 headroom.
+    "docs/ROADMAP.md": 880,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
