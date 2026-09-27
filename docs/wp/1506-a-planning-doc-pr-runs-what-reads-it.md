@@ -1,8 +1,8 @@
 # WP-1506 — a planning-doc PR runs the tests that read it, and CI gates on one check
 
-Milestone: unscheduled · Status: 🔄 2026-09-27 — the skip, `ci-ok` and the junit upload are on PR #504, checked on two probe PRs; the by-hand protection change and the cut chosen from two weeks of timings remain
+Milestone: unscheduled · Status: 🔄 2026-09-27 — live on main since PR #504 merged and branch protection moved to `lint` and `ci-ok`; the cut chosen from two weeks of junit timings remains, from about 2026-10-11
 Depends on: — (the branch-protection change is the maintainer's, by hand)
-Priority: P3 2026-09-27 — was P2: the skip is written and checked on PR #504; what remains is a five-minute change at its merge and a cost-only cut that waits two weeks for data
+Priority: P3 2026-09-27 — was P2: the skip is live; what remains is a cost-only cut that waits two weeks for data
 
 ## Goal
 
@@ -121,8 +121,9 @@ the tail today, in local serial seconds:
       running the measured list, gate the matrix jobs on `changes`, and add
       the `ci-ok` summary job. In this commit the matrix still runs on every
       PR, so nothing is skipped while protection still names the matrix.
-- [ ] By hand, maintainer: branch protection requires `lint` and `ci-ok`.
-      This WP carries the written instruction, as WP-1313 does.
+- [x] By hand, maintainer: branch protection requires `lint` and `ci-ok`.
+      This WP carries the written instruction, as WP-1313 does. Done
+      2026-09-27, after PR #504 merged.
 - [x] Turn the skip on. Check a planning-only PR (`ci-ok` green in about two
       minutes) and a code PR (`ci-ok` waits for every leg). Make one leg fail
       on purpose once and confirm `ci-ok` goes red (tests/CLAUDE.md § Guards
@@ -195,6 +196,20 @@ gh run list --workflow ci.yml --limit 10 --json headBranch,conclusion,createdAt,
   reports).
 
 ## Handover log
+
+### 2026-09-27 (2nd session, after the merge) — the skip is live
+
+The maintainer merged PR #504 at 13:55 UTC and moved branch protection to
+`lint` and `ci-ok`. The protection endpoint now returns `["lint","ci-ok"]`.
+The merge's own run on main took the code path: `changes` chose code, the
+docs job skipped and the full matrix ran. The PR carrying this entry changes
+only this file, so it is the first docs-only PR under the new protection.
+Its first run (36324259032) went green 47 s after it was created, with the
+matrix skipped, and GitHub reported the PR mergeable (`CLEAN`).
+
+*Open.* #450's branch predates `ci-ok`, so it waits on that check until
+main is merged into it. Task 7 waits for two weeks of timings, from about
+2026-10-11.
 
 ### 2026-09-27 (2nd session) — the docs-only skip, written and checked live
 
