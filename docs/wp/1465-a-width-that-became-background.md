@@ -1,6 +1,6 @@
 # WP-1465 — a phase width that became background, and an absorption screen that never ran
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here
 Depends on: —
 Priority: P2 2026-09-25 — a width grows 15× and Rwp 7.5× with no warning, on the series path; every Le Bail and Pawley report reads 0.0 for a screen that never ran
 
