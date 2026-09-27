@@ -12,6 +12,7 @@ payloads, compare, and fail naming the file.
 
 from __future__ import annotations
 
+import functools
 import json
 import struct
 import zlib
@@ -61,8 +62,10 @@ def _rutile() -> Structure:
                                    cell=cell, atoms=atoms)])
 
 
+@functools.cache
 def _payloads() -> dict[str, dict]:
     """Four payloads, chosen for the rules each one reaches, and small.
+    Built once a process and shared, so a caller reads them and never edits.
 
     Rutile has images outside the cell, anisotropic rings and polyhedra drawn
     by default; at a bond tolerance of 0.8 it has no bonds and 34 atoms that
@@ -215,10 +218,14 @@ def test_the_committed_scene_corpus_is_current():
     payloads = committed.get("payloads", {})
     if _fields(payloads) != _fields(_payloads()):
         where = "corpus.payloads: a case or a field was added or removed"
+        rewrite = _corpus()
     else:
-        where = _drift(json.loads(_dump(_corpus(payloads))), committed)
+        # a rule moved and the payloads did not: keep the committed ones, or
+        # the rewrite carries this platform's vertex order as well
+        rewrite = _corpus(payloads)
+        where = _drift(json.loads(_dump(rewrite)), committed)
     if where:
-        FIXTURE.write_text(_dump(_corpus()), encoding="utf-8")
+        FIXTURE.write_text(_dump(rewrite), encoding="utf-8")
         raise AssertionError(
             f"{FIXTURE.relative_to(DATA.parent.parent)} was stale at {where}, and has "
             "been rewritten; commit it, and run `npm --prefix gui test` (the vitest "
@@ -233,10 +240,13 @@ def test_the_corpus_reaches_every_rule_it_exists_for():
     payloads = corpus["payloads"]
     assert any(a.get("vertex_only") for g in payloads.values() for a in g["atoms"])
     assert any(a["npd"] for g in payloads.values() for a in g["atoms"])
-    # a floored axis is FLAT_AXIS long, in both of drawable's branches
-    lengths = [sum(a["shape"][3 * r + c] ** 2 for r in range(3)) ** 0.5
-               for s in scenes for a in s["atoms"] for c in range(3)]
-    assert any(abs(v - sc.FLAT_AXIS) < 1e-12 for v in lengths)
+    # a floored axis is FLAT_AXIS long, in both of drawable's branches: one
+    # flat axis (mono_one_flat) and two (mono_two_flat)
+    floored = {case["payload"] for case in corpus["scenes"] for a in case["scene"]["atoms"]
+               for c in range(3)
+               if abs(sum(a["shape"][3 * r + c] ** 2 for r in range(3)) ** 0.5
+                      - sc.FLAT_AXIS) < 1e-12}
+    assert {"mono_one_flat", "mono_two_flat"} <= floored
     assert any(s["faces"] for s in scenes)
     assert any(a["rings"] for s in scenes for a in s["atoms"])
     shown = [c["shown"] for c in corpus["shown"] if c["on"]]
@@ -404,12 +414,18 @@ def test_the_png_carries_its_chunks_and_the_array(tmp_path, nac):
     fig = render_structure(nac, size=120, background=None, path=tmp_path / "nac.png", dpi=300)
     data = (tmp_path / "nac.png").read_bytes()
     assert data[:8] == b"\x89PNG\r\n\x1a\n"
-    chunks, at = {}, 8
+    chunks, at, order = {}, 8, []
     while at < len(data):
         n = struct.unpack(">I", data[at:at + 4])[0]
         kind = data[at + 4:at + 8]
-        chunks[kind] = chunks.get(kind, b"") + data[at + 8:at + 8 + n]
+        body = data[at + 8:at + 8 + n]
+        # a wrong CRC is a file every decoder refuses
+        assert struct.unpack(">I", data[at + 8 + n:at + 12 + n])[0] \
+            == zlib.crc32(kind + body) & 0xFFFFFFFF, kind
+        chunks[kind] = chunks.get(kind, b"") + body
+        order.append(kind)
         at += 12 + n
+    assert order[0] == b"IHDR" and order[-1] == b"IEND"
     w, h, depth, colour = struct.unpack(">IIBB", chunks[b"IHDR"][:10])
     assert (w, h, depth, colour) == (fig.image.shape[1], fig.image.shape[0], 8, 6)
     assert chunks[b"sRGB"] == b"\x00"
@@ -445,9 +461,12 @@ def test_the_rotation_drawn_round_trips(nac):
 
 
 def test_down_001_and_the_001_normal_on_a_cubic_cell_are_the_c_view(nac):
-    c = render_structure(nac, view="c", size=160).image
-    assert np.array_equal(render_structure(nac, view=[0, 0, 1], size=160).image, c)
-    assert np.array_equal(render_structure(nac, view={"hkl": (0, 0, 1)}, size=160).image, c)
+    """Compared as rotations: NAC's lattice carries 6e-16 Å off the diagonal,
+    so c* leans 6e-17 from c and a bit-identical image would be luck."""
+    c = render_structure(nac, view="c", size=160).rotation
+    for view in ([0, 0, 1], {"hkl": (0, 0, 1)}):
+        assert np.allclose(render_structure(nac, view=view, size=160).rotation, c,
+                           rtol=0, atol=1e-12)
 
 
 def test_a_turn_is_ases_rotation_about_the_screen():
@@ -483,9 +502,9 @@ def test_the_default_up_is_c_and_never_the_view():
 def test_size_is_the_long_side_or_the_frame(nac):
     assert max(render_structure(nac, size=300).image.shape[:2]) == 300
     assert render_structure(nac, size=(320, 180)).image.shape[:2] == (180, 320)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="supersample"):
         render_structure(nac, supersample=5)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="mode"):
         render_structure(nac, mode="wireframe")
 
 
@@ -547,12 +566,13 @@ def test_the_font_ships_with_its_acknowledgement():
 
 
 def test_the_letters_are_drawn_in_the_accent_at_their_anchors(nac):
-
     fig = render_structure(nac, size=600)
     accent = np.asarray(sc.rgb(TOKENS["light"]["--accent"])) * 255
     for letter in fig.letters:
         x, y = round(letter["x"]), round(letter["y"])
-        patch = fig.image[y - 8:y + 9, x - 8:x + 9, :3].reshape(-1, 3).astype(float)
+        # a negative start would wrap to the far edge
+        patch = fig.image[max(y - 8, 0):y + 9, max(x - 8, 0):x + 9, :3]
+        patch = patch.reshape(-1, 3).astype(float)
         assert (np.abs(patch - accent).max(axis=1) < 12).any(), letter
     bare = render_structure(nac, size=600, axis_labels=False)
     assert bare.letters == [] and not np.array_equal(bare.image, fig.image)
