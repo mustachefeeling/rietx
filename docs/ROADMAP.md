@@ -146,6 +146,7 @@ covers (1119 § Gotchas).
 | v1.4 | Free-standing peaks: fit_peaks + the extra-components seam | ✅ **shipped 2026-09-13** ([record](milestones/v1.4.md), [notes](releases/1.4.0.md)) | seventeen rows, **every one written before the work rather than at the ship** — 1101's five at the open, 1102's and 1103's sharpened by the sessions that had read them — and all seventeen met on the release tree (record § Appendix). The measured half: `fit_peaks` answers a named position that fits nothing and flags the unnamed neighbour beside one; the union's second member costs no new field and its landing is read from data, not from a class name; and the operando case is reported against its own alternative rather than flattered — declaring two injected holder lines recovers the SRM 660c cell to −1.0 ppm where ignoring them costs +7.6 ppm and inflates the cell esd 7.5×, while **excluding** the regions recovers it too, to +0.6 ppm, for 4.8 % of the channels |
 | v1.5 | A window into a run: the live watcher, foreign model files, a measured background | ✅ **shipped 2026-09-18** ([record](milestones/v1.5.md), [notes](releases/1.5.0.md)) | nine rows, **none of them written at the open**, because the milestone was opened 496 commits behind its own work — the record says plainly that this is weaker evidence than v1.3's at-ship rows and reads as an inventory. The measured half: the live view at 180-329 kB a stage against the replaced page's 4.51-6.03 MB; a default-on recorder costing 1.03-1.28×, which **fails** its own 1.05× gate on two cases of three and was kept anyway with the reason recorded; a console that froze the main thread for 997 ms on a 60 000-event run, capped at the route; four foreign formats read and written; and `help.py`'s Lp corrected from 0.508× of the one the code computes |
 | v1.6 | The magnetic structure: the satellite, the moment, the determination, the mode amplitude — [§ v1.6](#v16--the-magnetic-structure) | 🔄 **opened 2026-09-18** ([record](milestones/v1.6.md)) | eleven rows written at the open, the record's § Acceptance; the measured half is still to come |
+| v1.7 | rietview: the structure figure an agent composes — cuts, extents, a figure that reports on itself, a real-agent measurement, the split — [§ v1.7](#v17--rietview-the-structure-figure-an-agent-composes) | ⬜ **queued 2026-09-27** | written at the open |
 | v2+ | FPA (with the peaks buffer), neutron TOF, texture, modulated structures, PDF, MCP server — [§ v2+](#v2--fenced) | ⬜ fenced | — |
 
 ## Work packages
@@ -156,7 +157,7 @@ moves — 1101–1103 opened for v1.1 and are queued for v1.4, 1069–1078 ran p
 v1.0's ship — so the **`Milestone:` line in the WP file is the authority** on
 where a WP stands, and the section it sits under here mirrors that line (a
 test asserts it). An unscheduled WP takes the next number in the newest
-block (14xx today). A retired number is never recycled: 0603 moved to v0.4 as
+block (15xx today, claimed 2026-09-27 for the queued v1.7). A retired number is never recycled: 0603 moved to v0.4 as
 0408 and stays empty. Status cells here carry the glyph and the date, nothing
 else; the WP file's own Status line carries the summary.
 
@@ -597,6 +598,27 @@ existing.
 | [1343](wp/1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | ⬜ | P3 | 1327 (1326 soft) |
 | [1418](wp/1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 🔄 2026-09-25 | P2 | 1327 (1326 soft) |
 | [1419](wp/1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | ⬜ | P3 | 1418 (1327 soft) |
+
+### v1.7 — rietview: the structure figure an agent composes
+
+Queued 2026-09-27, the block claimed the day WP-1470 closed, as 1301-1307
+were filed for v1.3 before it opened. 1470 drew one cell of one phase as the
+GUI draws it. This track makes the figure something an agent composes: a
+part of the structure kept by a mask (1501), an extent beyond one cell
+(1502), a figure that reports the numbers a look would give and picks its
+own view (1503), the surface measured with real agents before more is added
+(1504), and the code leaving as `rietview` when a named trigger fires
+(1505). The name was chosen on 2026-09-27; the survey and the trigger are in
+1505. Nothing here touches the GUI's controls. The milestone opens when
+1504's first round is costed, or earlier by the maintainer's word.
+
+| WP | Title | Status | Priority | Depends on |
+|---|---|---|---|---|
+| [1501](wp/1501-cut-and-keep.md) | Cut and keep: a figure of part of the structure | ⬜ | P2 | 1470 |
+| [1502](wp/1502-an-extent-beyond-one-cell.md) | An extent beyond one cell | ⬜ | P3 | 1470 (1501 soft) |
+| [1503](wp/1503-the-figure-reports-on-itself.md) | The figure reports on itself, and picks a view | ⬜ | P3 | 1470 (1501 soft) |
+| [1504](wp/1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | ⬜ | P4 | 1501, 1502, 1503 |
+| [1505](wp/1505-rietview-the-figure-leaves-the-package.md) | rietview: the figure leaves the package | ⬜ | P4 | 1504 |
 
 ### Unscheduled
 
