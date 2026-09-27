@@ -184,7 +184,7 @@ main table sitting 38 B under its cap).
 - [x] `read_xy` keeps per-line arity; rows disagreeing with the modal arity
       are dropped and reported by line number with the tokens seen, one
       diagnostic per file.
-- [ ] A constant adopted σ is reported, naming the column and the value; the
+- [x] A constant adopted σ is reported, naming the column and the value; the
       σ is kept. Decide whether the check runs in `read_xy` or on the
       post-dispatch hook for every format, and record the reason where it
       lands.

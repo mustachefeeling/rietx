@@ -528,6 +528,33 @@ def test_a_tied_column_count_goes_to_the_last_row(tmp_path):
     assert rx.read_pattern(path).two_theta == [10.0, 10.1]
 
 
+#: Issue #266's second file, and the same constant σ under a reader whose
+#: format *declares* the column.  The check is on the hook, so both say it.
+_CONSTANT_SIGMA = {
+    "xy": ("constant_third.xy",
+           "10.0  100.0  1.0\n10.1  110.0  1.0\n"
+           "10.2  120.0  1.0\n10.3  130.0  1.0\n"),
+    "gsas": ("constant.fxye",
+             "flat esd\nBANK 1 4 4 CONST 1000.0 10.0 0 0 FXYE\n"
+             "  1000.0  100.0  1.0\n  1010.0  110.0  1.0\n"
+             "  1020.0  120.0  1.0\n  1030.0  130.0  1.0\n"),
+}
+
+
+@pytest.mark.parametrize("reader", sorted(_CONSTANT_SIGMA))
+def test_a_constant_sigma_is_kept_and_reported(reader, tmp_path):
+    name, text = _CONSTANT_SIGMA[reader]
+    path = tmp_path / name
+    path.write_text(text, encoding="utf-8")
+    assert identify_format(path).name == reader
+    found = []
+    pat = rx.read_pattern(path, diagnostics=found)
+    assert pat.sigma == [1.0, 1.0, 1.0, 1.0]
+    assert [d.code for d in found] == ["PATTERN_SIGMA_CONSTANT"]
+    assert found[0].value == 1.0
+    assert "every one of its 4 points" in found[0].message
+
+
 #: Every code WP-1332 added.  A real fixture raising any of them is a false
 #: alarm on a file somebody measured.
 _WP1332_CODES = {"GSAS_BANK_COMMENTED", "PATTERN_X_AXIS_IMPLAUSIBLE",

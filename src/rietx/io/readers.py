@@ -18,6 +18,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from ..schemas.common import Diagnostic
 from ..schemas.pattern import PatternData
 from .formats import (
@@ -95,6 +97,13 @@ def read_pattern(path: str | Path, *, diagnostics: list[Diagnostic] | None = Non
 
     The refusal runs on every call; the report, like the two below, only when
     a caller passed the list.
+
+    ``PATTERN_SIGMA_CONSTANT`` is here for the dead-channel reason: a σ
+    identical on every point makes the fit unweighted whichever reader
+    produced it, so it is a property of the answer and not of one format.
+    Issue #266 met it in ``xy``, which adopts any positive third column; on
+    this hook it also reaches a GSAS esd column, a pdCIF weight loop and a
+    ``.chi`` third column.  The σ is kept, because a uniform σ is legal.
     """
     p = Path(path)
     fmt = identify_format(p)
@@ -103,8 +112,35 @@ def read_pattern(path: str | Path, *, diagnostics: list[Diagnostic] | None = Non
     axis = _axis_diagnostics(data, fmt, p.name)
     if diagnostics is not None:
         diagnostics.extend(axis)
+        diagnostics.extend(_constant_sigma_diagnostics(data, fmt, p.name))
         diagnostics.extend(_dead_channel_diagnostics(data, p.name))
     return data
+
+
+def _constant_sigma_diagnostics(data: PatternData, fmt: PatternFormat,
+                                name: str) -> list[Diagnostic]:
+    """``PATTERN_SIGMA_CONSTANT`` — :func:`read_pattern` says why it is here."""
+    if data.sigma is None:
+        return []
+    sigma = np.asarray(data.sigma, dtype=np.float64)
+    if not np.all(sigma == sigma[0]):
+        return []
+    v = float(sigma[0])
+    return [Diagnostic(
+        level="warning", code="PATTERN_SIGMA_CONSTANT",
+        message=(
+            f"{name}: σ is {v:g} on every one of its {sigma.size} points, as "
+            f"{fmt.title} read it. An esd identical on every point weights "
+            "every point equally, so the fit is unweighted. Its χ² and "
+            f"goodness of fit mean something only if every point's error "
+            f"really is {v:g}."),
+        suggestion=(
+            "Nothing was changed, and the σ is kept. If the column is a "
+            "placeholder or a flag, set pattern.sigma = None to fall back to "
+            "Poisson weights √max(y, 1), or re-export the file with its esd "
+            "where this reader looks for it."),
+        value=v,
+    )]
 
 
 #: No scattering angle exceeds this, so an axis running past it is not 2θ.
