@@ -109,7 +109,7 @@ before anything asserts on it.
 
 ## Tasks
 
-- [ ] Docs first: the skill (`references/judging.md`, `references/numbers.md`)
+- [x] Docs first: the skill (`references/judging.md`, `references/numbers.md`)
       and manual QPA chapter state that the QPA esd is a local quantity, with
       the pin-and-refit recipe — an improvement on silence that ships even if
       the detector slips.

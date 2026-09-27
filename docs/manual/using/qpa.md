@@ -75,6 +75,50 @@ the first thing to understand about a QPA esd. It measures how well the scales
 are determined by this model against this pattern, and not how close the answer
 is to the truth.
 
+## An esd describes one basin
+
+`PhaseQuantity.weight_fraction_stderr` comes from the curvature of χ² at the
+point the fit converged to. It describes the basin the fit stopped in, and it
+cannot see any other. For most fractions that is the whole story. For a trace
+phase it may not be.
+
+A phase's scale and its peak width trade against each other. Broaden a weak
+phase far enough and its peaks turn into a hump the background can share, and
+then its scale can grow with almost no change in χ². Along that ridge the χ²
+surface can hold separate basins at nearly the same χ². Each basin has ordinary
+curvature, so each gives a tight esd, and the fit reports whichever basin it
+reached.
+
+This was measured on a lab Cu Kα in-situ series. At one pattern the fit
+reported a phase at 1.41 ± 0.65 wt% with no diagnostic. Pinning that phase's
+`lor_strain` at a series of values and refitting everything else found three
+reproducible basins, at 0 %, about 1.5 % and 98.7 %. All three lay within
+0.011 percentage points of Rwp of each other, and the lowest Rwp of the scan
+belonged to the 98.7 % basin. Another program reported the same pattern at
+25.3 ± 0.5 wt%, just as confidently. At the pattern taken 100 °C lower the same
+scan spanned 0.636 percentage points of Rwp around a single minimum, 58 times as
+much, so the problem belongs to that pattern and not to the setup.
+
+No local quantity sees this, because every basin looks healthy from inside. The
+check is the scan itself, a width profile:
+
+1. Pin the phase's width term at a series of values, from no sample broadening
+   at all up to a peak width comparable with the fitted range.
+2. At each value, refit everything else, starting from where the previous value
+   finished.
+3. Read the phase's weight fraction and χ² at every point.
+
+A fraction whose χ² stays within the noise over a wide range of widths is not
+determined by this pattern, whatever its esd says. Quote the range rather than
+the point, and say which widths produced it.
+
+This is a different failure from a wrong ZMV. A fraction is proportional to
+scale × Z·M·V, and a wrong site multiplicity or a wrong space-group setting
+(`SITE_SNAPPED_TO_SPECIAL_POSITION`, `SPACE_GROUP_SETTING_ASSUMED`) moves the
+Z·M·V half. That error is a fixed multiplicative offset on one phase, at an
+unchanged Rwp, and a width profile cannot see it. A width profile finds the
+case where the pattern admits several fractions at once.
+
 ## What the fractions are fractions of
 
 `QuantitativePhaseAnalysis.crystalline_only` is `True`, and it is not a caveat
