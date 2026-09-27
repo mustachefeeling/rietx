@@ -176,10 +176,10 @@ main table sitting 38 B under its cap).
 - [x] A commented `BANK` record is still a `BANK` record: `_SNIFF_BANK_RE`
       admits a leading comment marker, with a test on the two-byte-difference
       pair from #236.
-- [ ] `read_pattern` checks the axis it is about to return and reports an
+- [x] `read_pattern` checks the axis it is about to return and reports an
       implausible one by name, through `diagnostics=`; decide and record in
       the docstring which ranges refuse and which report.
-- [ ] The check runs for **every** format, not only GSAS — it is a property of
+- [x] The check runs for **every** format, not only GSAS — it is a property of
       the answer, not of one reader.
 - [ ] `read_xy` keeps per-line arity; rows disagreeing with the modal arity
       are dropped and reported by line number with the tokens seen, one

@@ -426,3 +426,74 @@ def test_a_comment_that_mentions_a_bank_does_not_claim_an_ascii_file(tmp_path):
                     encoding="utf-8")
     assert identify_format(path).name == "xy"
     assert rx.read_pattern(path).two_theta == [10.0, 10.1]
+
+
+#: One axis per band, each written for two readers, because the check belongs
+#: to the answer and not to one reader.  The ``xy`` file past 180° is the #230
+#: file's failure without the sniff fix: centidegrees read as degrees.
+_PAST_180 = {
+    "xy": "5000.0 1000.0\n6000.0 1010.0\n7000.0 990.0\n8000.0 1005.0\n",
+    "gsas": "past\nBANK 1 8 1 CONST 17000.0 200.0 0 0 STD\n"
+            "  100  110  120  130  140  150  160  170\n",
+}
+_AT_OR_BELOW_0 = {
+    "xy": "-2.0 100.0\n-1.0 110.0\n0.0 120.0\n1.0 130.0\n",
+    "gsas": "through zero\nBANK 1 4 1 CONST -200.0 100.0 0 0 STD\n"
+            "  100  110  120  130\n",
+}
+_SUFFIX = {"xy": ".xy", "gsas": ".gsas"}
+
+
+@pytest.mark.parametrize("reader", sorted(_PAST_180))
+def test_an_axis_past_180_degrees_is_refused_naming_the_file_and_reader(
+        reader, tmp_path):
+    path = tmp_path / f"past{_SUFFIX[reader]}"
+    path.write_text(_PAST_180[reader], encoding="utf-8")
+    assert identify_format(path).name == reader
+    with pytest.raises(ValueError, match="No scattering angle exceeds 180") as exc:
+        rx.read_pattern(path)
+    assert path.name in str(exc.value)
+    assert identify_format(path).title in str(exc.value)
+
+
+def test_the_centidegree_hint_is_offered_only_where_division_lands_in_range(
+        tmp_path):
+    """The hint is evidence only where division by 100 puts the axis inside
+    (0, 180].  A time-of-flight axis in µs does not, and gets no hint."""
+    cdeg = tmp_path / "cdeg.xy"
+    cdeg.write_text(_PAST_180["xy"], encoding="utf-8")
+    with pytest.raises(ValueError, match="Divided by 100 it would run 50° to 80°"):
+        rx.read_pattern(cdeg)
+    tof = tmp_path / "tof.xy"
+    tof.write_text("5000.0 1.0\n19000.0 2.0\n", encoding="utf-8")
+    with pytest.raises(ValueError) as exc:
+        rx.read_pattern(tof)
+    assert "Divided by 100" not in str(exc.value)
+
+
+@pytest.mark.parametrize("reader", sorted(_AT_OR_BELOW_0))
+def test_an_axis_reaching_zero_is_read_and_reported(reader, tmp_path):
+    path = tmp_path / f"zero{_SUFFIX[reader]}"
+    path.write_text(_AT_OR_BELOW_0[reader], encoding="utf-8")
+    found = []
+    pat = rx.read_pattern(path, diagnostics=found)
+    axis = [d for d in found if d.code == "PATTERN_X_AXIS_IMPLAUSIBLE"]
+    assert pat.two_theta == [-2.0, -1.0, 0.0, 1.0]
+    assert len(axis) == 1
+    assert axis[0].where == ["-2.000-0.000"]
+    assert axis[0].value == -2.0
+    assert "3 of its 4 points" in axis[0].message
+
+
+#: Every code WP-1332 added.  A real fixture raising any of them is a false
+#: alarm on a file somebody measured.
+_WP1332_CODES = {"GSAS_BANK_COMMENTED", "PATTERN_X_AXIS_IMPLAUSIBLE",
+                 "PATTERN_ROWS_DROPPED", "PATTERN_SIGMA_CONSTANT"}
+
+
+@pytest.mark.parametrize("fixture,_reader", REAL_FIXTURES)
+def test_no_real_fixture_trips_a_check_on_what_its_reader_hands_back(
+        fixture, _reader):
+    found = []
+    rx.read_pattern(DATA / fixture, diagnostics=found)
+    assert not {d.code for d in found} & _WP1332_CODES

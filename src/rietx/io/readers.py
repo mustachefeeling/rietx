@@ -78,14 +78,76 @@ def read_pattern(path: str | Path, *, diagnostics: list[Diagnostic] | None = Non
     is a property of the measurement and not of the file — so it is raised
     once here rather than in each reader, and only when a caller passed the
     list, which keeps it off the path of everyone who did not ask.
+
+    **The axis every reader hands back is checked here**, whatever the format,
+    because a wrong one parses perfectly: a GSAS file whose ``BANK`` record is
+    missing falls to the ASCII reader and comes back in centidegrees, 100× too
+    large (issue #230).  Two bands, split by the rule a reader's repairs
+    follow (a contradiction raises, a report says so):
+
+    - **past 180° raises**, naming the file, the reader and the range.  No
+      scattering angle exceeds 180°, so the axis contradicts the claim that it
+      is 2θ, and no exotic geometry makes it real;
+    - **at or below 0° reports** ``PATTERN_X_AXIS_IMPLAUSIBLE`` and reads.  A
+      scan through zero is geometrically real on a detector covering both
+      sides, but no Bragg reflection lies there, and a header row read as data
+      lands there too (issue #266's lands at exactly 0).
+
+    The refusal runs on every call; the report, like the two below, only when
+    a caller passed the list.
     """
     p = Path(path)
     fmt = identify_format(p)
     kwargs = reader_options_for(fmt, options, diagnostics=diagnostics)
     data = fmt.read(p, diagnostics=diagnostics, **kwargs)
+    axis = _axis_diagnostics(data, fmt, p.name)
     if diagnostics is not None:
+        diagnostics.extend(axis)
         diagnostics.extend(_dead_channel_diagnostics(data, p.name))
     return data
+
+
+#: No scattering angle exceeds this, so an axis running past it is not 2θ.
+TWO_THETA_MAX_DEG = 180.0
+
+
+def _axis_diagnostics(data: PatternData, fmt: PatternFormat,
+                      name: str) -> list[Diagnostic]:
+    """Refuse an axis past 180°, report one reaching 0° — :func:`read_pattern`
+    says why each band gets which answer."""
+    tt = data.tt()
+    lo, hi = float(tt[0]), float(tt[-1])
+    if hi > TWO_THETA_MAX_DEG:
+        hint = ""
+        # checked before it is offered: only a range that division by 100
+        # puts inside (0, 180] is evidence of centidegrees
+        if 0.0 < lo and hi / 100.0 <= TWO_THETA_MAX_DEG:
+            hint = (f" Divided by 100 it would run {lo / 100:g}° to "
+                    f"{hi / 100:g}°. GSAS writes 2θ in centidegrees, and a "
+                    "GSAS file whose BANK record is missing reads this way.")
+        raise ValueError(
+            f"{name} was read as {fmt.title}, and its x axis runs {lo:g}° to "
+            f"{hi:g}°. No scattering angle exceeds 180°, so this axis is not "
+            f"2θ in degrees.{hint}")
+    if lo > 0.0:
+        return []
+    at_or_below = tt[tt <= 0.0]
+    edge = float(at_or_below[-1])
+    return [Diagnostic(
+        level="warning", code="PATTERN_X_AXIS_IMPLAUSIBLE",
+        message=(
+            f"{name}: the x axis starts at {lo:g}°, and {at_or_below.size} of "
+            f"its {tt.size} points sit at or below 0°. No Bragg reflection "
+            f"lies there. The file was read as {fmt.title}, which takes the "
+            "axis to be 2θ in degrees."),
+        where=[f"{lo:.3f}-{edge:.3f}"],
+        suggestion=(
+            "Check that the axis is 2θ in degrees. If it is, exclude the "
+            f"interval ({lo:.3f}, {edge:.3f}) before fitting. A point there is "
+            "the direct beam, the far side of the detector, or a header row "
+            "read as data."),
+        value=lo,
+    )]
 
 
 def _dead_channel_diagnostics(data: PatternData, name: str) -> list[Diagnostic]:
