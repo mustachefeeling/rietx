@@ -119,8 +119,10 @@ and PNG metadata. Each decision says what it takes and what it declines.
   builder would touch the server, its tests and `gui/CLAUDE.md` for no
   change in behaviour. A package boundary drawn for tidiness is declined.
 - **D3. The scene rules are ported, and held equal to `buildScene` by a
-  committed corpus.** A second copy of 100 lines of rules is the risk this
-  WP carries; the root CLAUDE.md's warning about a second builder applies.
+  committed corpus.** A second copy of the scene rules and the view
+  arithmetic is the risk this WP carries: 171 lines of code in eleven
+  functions of `structure3d.ts`, counted without comments. The root
+  CLAUDE.md's warning about a second builder applies.
   Serving the scene from the server instead would cost the GUI a round trip
   on every legend click. So Python gets `build_scene(geometry, mode, hidden,
   show_boundary, exaggeration, polyhedra)`, writes
@@ -146,7 +148,11 @@ and PNG metadata. Each decision says what it takes and what it declines.
   edges but never overlap in volume, so this is exact. Order-independent
   transparency (McGuire & Bavoil 2013) solves a problem this scene lacks.
 - **D7. The output is an array first, and a PNG on request.** The call
-  returns an RGBA `uint8` array with the anchors below. `path=` writes a
+  returns an RGBA `uint8` array with the anchors below, so an agent
+  composing a figure never reads a file back. The survey found PyMOL,
+  ChimeraX, VMD and ASE writing files only. The background is opaque white
+  by default, as in PyMOL
+  and ChimeraX, and `background=None` is transparent. `path=` writes a
   PNG with `zlib`, straight alpha as the PNG standard has it, a `pHYs`
   chunk for the resolution and an `sRGB` chunk. A transparent background
   comes straight from the coverage, so the GUI's second render on black is
@@ -155,9 +161,9 @@ and PNG metadata. Each decision says what it takes and what it declines.
 - **D8. The renderer draws its own letters, and returns where everything
   landed.** The a, b, c labels are in every picture the GUI exports, so a
   figure without them is a step back. They are drawn from a bundled subset
-  of the Hershey Roman simplex font, public domain on condition that its
-  acknowledgement ships with the data, through the same line path as the
-  cell frame. Atom labels are optional. The result also carries each
+  of the Hershey Roman simplex font through the same line path as the cell
+  frame. Its licence allows any use, on condition that its acknowledgement
+  ships with the font data. Atom labels are optional. The result also carries each
   atom's and each letter's position in pixels, so a caller can annotate in
   matplotlib. Pillow and FreeType are declined, being a dependency for
   three letters.
@@ -175,6 +181,29 @@ and PNG metadata. Each decision says what it takes and what it declines.
   nothing more.
 - **D11. The module is provisional by declaration.** Its look and its
   arguments follow the structure viewer, which WP-1468 is still changing.
+- **D12. A view is named in crystallographic terms, and round-trips.** No
+  program surveyed takes a zone axis or a plane normal. PyMOL's `set_view`
+  takes 18 numbers and ChimeraX's `view matrix` 12, which an agent cannot
+  write without first capturing one. OVITO's `camera_dir` and `camera_up`
+  are the primitive underneath, and a direction [uvw] or a plane normal
+  (hkl) converts to one through the metric. So `view=` takes `"opening"`
+  (the GUI's), `"a"`, `"b"` or `"c"` (the GUI's buttons), a direction
+  `[u, v, w]`, a normal `{"hkl": (h, k, l)}`, or a 3×3 rotation. `up=`
+  names the direction kept up. `turn=` takes ASE's rotation string
+  (`"30y,-15x"`), with ASE's signs and its rule that the order matters
+  (`ase.utils.rotate`), because agents already know it from
+  `ase.io.write`. The result carries the rotation it
+  drew, so passing it back as `view=` reproduces the picture. Every view is
+  fitted to the frame, as ChimeraX's `view` and OVITO's `zoom_all` are, so
+  a caller never chooses a camera distance. Projection is parallel. Every
+  program surveyed defaults to perspective, and the GUI chose parallel
+  because perspective converges a cell's far edges (`gui/CLAUDE.md`).
+- **D13. Size is pixels; resolution is metadata.** `size=` is the long side
+  in pixels, or `(width, height)` with the structure fitted inside.
+  Supersampling is a separate knob, as in PyMOL and ChimeraX. `dpi=` only
+  fills the PNG's `pHYs` chunk. The manual gives the recipe for a journal
+  column. The default size suits an agent looking at its own picture, and a
+  figure for print passes its size.
 
 ## Non-goals
 
@@ -204,15 +233,16 @@ and PNG metadata. Each decision says what it takes and what it declines.
   floor, row bands on the shared pool, the box filter inside the kernel
   (D1, D5). State and assert the equivalence bar between the two paths.
 - [ ] Polyhedra: faces and edges after the opaque pass (D6).
-- [ ] Views: `"opening"`, `"a"`, `"b"`, `"c"`, a direction `[u, v, w]`, a
-  plane normal `(h, k, l)`, an optional `up`, and turns in degrees about
-  the screen axes; always fitted to the frame.
+- [ ] Views (D12): the named views, `[u, v, w]`, `{"hkl": ...}`, a 3×3
+  rotation, `up=`, ASE's `turn=` string; the rotation drawn carried in the
+  result; always fitted to the frame. Test that a round trip reproduces the
+  picture, and that down [001] on a cubic cell equals `"c"`.
 - [ ] Output: the array, the anchors, the PNG writer with `pHYs` and `sRGB`,
   the transparent background (D7).
 - [ ] Letters: the Hershey subset with its acknowledgement beside it in the
   wheel, an `ATTRIBUTION.md` row, a, b, c by default and atom labels on
   request (D8).
-- [ ] Options: mode, probability, exaggeration, hidden species, boundary
+- [ ] Options: phase, mode, probability, exaggeration, hidden species, boundary
   images, polyhedra on or off or by formula, background, size, supersampling,
   `outline=` (D9).
 - [ ] Public surface: `rietx.viz.render_structure` through `__getattr__`, a
@@ -271,8 +301,16 @@ npm --prefix gui test && npm --prefix gui run check
 - PyMOL `antialias` and `ray_trace_mode`:
   <https://pymolwiki.org/Antialias>,
   <https://wiki.pymol.org/index.php/Ray_trace_mode>
-- ChimeraX `lighting`:
-  <https://www.cgl.ucsf.edu/chimerax/docs/user/commands/lighting.html>
+- ChimeraX `lighting`, `view` and `save`:
+  <https://www.cgl.ucsf.edu/chimerax/docs/user/commands/lighting.html>,
+  <https://www.cgl.ucsf.edu/chimerax/docs/user/commands/view.html>,
+  <https://www.rbvi.ucsf.edu/chimerax/docs/user/commands/save.html>
+- PyMOL `set_view` and `png`:
+  <https://pymol.org/dokuwiki/doku.php?id=command:set_view>,
+  <https://pymolwiki.org/index.php/Png>
+- OVITO `Viewport`: <https://docs.ovito.org/python/modules/ovito_vis.html>
+- ASE `ase.io.write` and `ase.utils.rotate`:
+  <https://docs.ase-lib.org/ase/io/io.html>
 - PNG, `pHYs` and `sRGB` chunks: <https://w3c.github.io/png/>
 - Hershey fonts and their licence:
   <https://fedoraproject.org/wiki/Licensing:HersheyFontLicense>
@@ -289,5 +327,12 @@ cheapest one that is correct. Nothing is built.
 - Two survey agents read the other programs' documentation. Their claims
   about journal resolution requirements were not verified: iucr.org refused
   the fetch. The Hershey licence condition was read from the Fedora page.
+  The API survey marked these unverified: ChimeraX's lighting and
+  silhouette defaults at launch, VMD's image size and antialiasing
+  defaults, VESTA's default projection, Jmol's ellipsoid syntax, and
+  whether pymatgen's VTK renderer works without a display. OVITO's
+  documentation did not confirm what `render_image` returns. No decision
+  here rests on any of them. ASE's rotation string was read from
+  `ase/utils/__init__.py`.
 - Next: the skill row, then D3's corpus, because every later task draws
   from the ported scene.
