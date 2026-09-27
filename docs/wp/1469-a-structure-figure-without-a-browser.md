@@ -44,7 +44,7 @@ them.
   pycairo has a wheel only for Windows. moderngl and vispy need an OpenGL
   context, which headless Linux often lacks. vtk is 80-140 MB. pyrender's
   last release was 2021.
-- **Our own ray-caster.** `1469-spike/spike.py` (230 lines, numba and
+- **Our own ray-caster.** `1469-spike/spike.py` (219 lines, numba and
   `zlib`) draws NAC in 85-108 ms at 1000 px with 2×2 supersampling. The first
   render compiles, in 0.64-0.76 s. At 3000 px and 2× it takes 0.73-0.96 s,
   of which 514-521 ms is the numpy box filter, so a filter inside the kernel
@@ -79,11 +79,14 @@ This WP takes the last route.
   up, down b with a up, down c with b up, so the next vector is to the
   right. Projection is parallel.
 - **The look**, in `gui/src/lib/gl3d.ts`. One key light fixed to the camera
-  at `(-0.40, 0.55, 0.73)`; `shade = base × (0.45 + 0.60 × diffuse) + 0.16 ×
-  spec⁴⁰`. A principal ring is `min |uᵢ| < 0.035` in the unit frame, inked
-  lighter on a dark atom (luminance < 0.33) and darker on a light one.
-  `POLY_ALPHA` = 0.55. Lines have widths in CSS px: `CELL_WIDTH_PX` = 2,
-  `EDGE_WIDTH_PX` = 1.25. The cell frame takes the theme's `--accent`.
+  at `(-0.40, 0.55, 0.73)`; atoms and sticks take `shade = base × (0.45 +
+  0.60 × diffuse) + 0.16 × spec⁴⁰`. Polyhedron faces take their own rule,
+  `base × (0.45 + 0.55 × diffuse)` with no specular term. A principal ring
+  is `min |uᵢ| < 0.035` in the unit frame, inked lighter on a dark atom
+  (luminance < 0.33) and darker on a light one. The constants beside it
+  live in `structure3d.ts`: `POLY_ALPHA` = 0.55, and line widths in CSS px,
+  `CELL_WIDTH_PX` = 2 and `EDGE_WIDTH_PX` = 1.25. The cell frame takes the
+  theme's `--accent`.
 - **The compiled tier's rules** apply to a new kernel (root CLAUDE.md
   § compiled tier): a soft numba import with a numpy fallback that stays
   exercised; serial `njit(cache=True, nogil=True)` over a row range on the
@@ -114,10 +117,11 @@ and PNG metadata. Each decision says what it takes and what it declines.
   into row bands on the shared pool, and each band draws every primitive
   that reaches it, so no two threads write one pixel.
 - **D2. The geometry stays where it is.** `render_structure` calls
-  `rietx.gui.structure3d.build()`. Importing `rietx.gui` costs 26 ms on top
-  of `import rietx`'s 635 ms (measured, `-X importtime`), and moving the
-  builder would touch the server, its tests and `gui/CLAUDE.md` for no
-  change in behaviour. A package boundary drawn for tidiness is declined.
+  `rietx.gui.structure3d.build()`. Importing `rietx.gui` costs 21-26 ms on
+  top of `import rietx`'s 0.60-0.85 s (measured, `-X importtime`, four
+  runs), and moving the builder would touch the server, its tests and
+  `gui/CLAUDE.md` for no change in behaviour. A package boundary drawn for
+  tidiness is declined.
 - **D3. The scene rules are ported, and held equal to `buildScene` by a
   committed corpus.** A second copy of the scene rules and the view
   arithmetic is the risk this WP carries: 171 lines of code in eleven
@@ -141,29 +145,37 @@ and PNG metadata. Each decision says what it takes and what it declines.
   Tachyon do the same. The GUI's analytic edge coverage is declined here:
   it does not compose in a z-buffer, where the surface behind an edge may
   be drawn later. The filter runs inside the kernel, band by band, so a
-  3000 px 4×4 render never holds a 12000 px buffer.
+  3000 px 4×4 render never holds a 12000 px buffer. It rounds to the
+  nearest level; the spike truncates, which darkens every filtered pixel
+  by up to one level.
 - **D6. Polyhedra are sorted whole, back to front.** By centroid, back
   faces then front, blended at `POLY_ALPHA` over the opaque z-buffer and
   writing no depth, as the GUI does. Coordination polyhedra share faces and
-  edges but never overlap in volume, so this is exact. Order-independent
-  transparency (McGuire & Bavoil 2013) solves a problem this scene lacks.
+  edges but never overlap in volume (WP-1462 § Polyhedra). A centroid order
+  is still not exact: it can put a large polyhedron behind a small
+  neighbour that it partly covers, and the GUI has the same fault.
+  Order-independent transparency (McGuire & Bavoil 2013) is declined until
+  a picture shows that fault.
 - **D7. The output is an array first, and a PNG on request.** The call
   returns an RGBA `uint8` array with the anchors below, so an agent
   composing a figure never reads a file back. The survey found PyMOL,
   ChimeraX, VMD and ASE writing files only. The background is opaque white
-  by default, as in PyMOL
-  and ChimeraX, and `background=None` is transparent. `path=` writes a
-  PNG with `zlib`, straight alpha as the PNG standard has it, a `pHYs`
-  chunk for the resolution and an `sRGB` chunk. A transparent background
-  comes straight from the coverage, so the GUI's second render on black is
-  not needed. JPEG is refused, as `plot_for_vlm` refuses it. There is no
-  SVG or PDF (Non-goals).
+  by default, as in PyMOL and ChimeraX, and `background=None` is
+  transparent. `path=` writes a PNG with `zlib`, straight alpha as the PNG
+  standard has it, a `pHYs` chunk for the resolution and an `sRGB` chunk.
+  On a transparent background a pixel's alpha is its opaque sample
+  coverage, composited with the polyhedron faces by the over operator, and
+  its colour is the mean over the samples that hit, never over the
+  background. So the GUI's second render on black is not needed, and edges
+  carry no white fringe. JPEG is refused, as `plot_for_vlm` refuses it.
+  There is no SVG or PDF (Non-goals).
 - **D8. The renderer draws its own letters, and returns where everything
   landed.** The a, b, c labels are in every picture the GUI exports, so a
   figure without them is a step back. They are drawn from a bundled subset
   of the Hershey Roman simplex font through the same line path as the cell
-  frame. Its licence allows any use, on condition that its acknowledgement
-  ships with the font data. Atom labels are optional. The result also carries each
+  frame. Its licence allows any use on two conditions: its acknowledgement
+  ships with the font data, and the data is never distributed in the NTIS
+  format. Atom labels are optional. The result also carries each
   atom's and each letter's position in pixels, so a caller can annotate in
   matplotlib. Pillow and FreeType are declined, being a dependency for
   three letters.
@@ -192,7 +204,10 @@ and PNG metadata. Each decision says what it takes and what it declines.
   names the direction kept up. `turn=` takes ASE's rotation string
   (`"30y,-15x"`), with ASE's signs and its rule that the order matters
   (`ase.utils.rotate`), because agents already know it from
-  `ase.io.write`. The result carries the rotation it
+  `ase.io.write`. `up=` defaults to the GUI's rule for the lattice axis
+  nearest the view direction: c up down a, a up down b, b up down c. So
+  down [001] with no `up=` is `"c"`, and the default is never parallel to
+  the view. The result carries the rotation it
   drew, so passing it back as `view=` reproduces the picture. Every view is
   fitted to the frame, as ChimeraX's `view` and OVITO's `zoom_all` are, so
   a caller never chooses a camera distance. Projection is parallel. Every
@@ -259,7 +274,10 @@ and PNG metadata. Each decision says what it takes and what it declines.
   Pictures to `tests/output/`.
 - [ ] A browser parity row in `tests/test_structure3d_browser.py`: one
   scene and one view drawn by both renderers, and the mean difference
-  measured. Set its bar from that measurement and say so. It skips in CI.
+  measured. The Python side takes the GUI's framing for this row
+  (`buildScene`'s orientation-free `radius`), because D12's fit to the
+  frame is tighter and would otherwise be what the row measures. Set its
+  bar from that measurement and say so. It skips in CI.
 - [ ] Skill: the entry point in the generated `api-<shape>.md`, and a
   routing row keyed by the situation "a figure of the structure".
 - [ ] The addition staged in the open milestone's record.
@@ -319,20 +337,47 @@ npm --prefix gui test && npm --prefix gui run check
 
 ### 2026-09-27 — filed
 
-The maintainer asked whether rietx could make 3D figures from Python for
-agents. This session measured four routes and filed this WP for the
-cheapest one that is correct. Nothing is built.
+The maintainer asked whether rietx could make 3D figures of a structure
+from Python, for agents. Today only the GUI draws one, in a browser. This
+session showed that a CPU ray-caster of the GUI's own geometry draws a
+185-atom cell in about 0.1 s and needs no new dependency. It also showed
+that the obvious alternative, matplotlib, draws bonds over atoms they pass
+behind. The cost is a second copy of the GUI's scene rules, and the plan
+holds the two equal with a shared test corpus. Nothing is built.
 
-- `1469-spike/` holds the three scripts and their numbers.
-- Two survey agents read the other programs' documentation. Their claims
-  about journal resolution requirements were not verified: iucr.org refused
-  the fetch. The Hershey licence condition was read from the Fedora page.
-  The API survey marked these unverified: ChimeraX's lighting and
-  silhouette defaults at launch, VMD's image size and antialiasing
-  defaults, VESTA's default projection, Jmol's ellipsoid syntax, and
-  whether pymatgen's VTK renderer works without a display. OVITO's
-  documentation did not confirm what `render_image` returns. No decision
-  here rests on any of them. ASE's rotation string was read from
-  `ase/utils/__init__.py`.
-- Next: the skill row, then D3's corpus, because every later task draws
-  from the ported scene.
+- **Done.** This file, the ROADMAP row, and `1469-spike/` with three
+  scripts and their numbers.
+- **Measured.** The spike's timings and the PyPI survey are in
+  `1469-spike/README.md`, on an Apple M4, `[dev]` venv. No test count moved:
+  the branch adds no test, and the suite did not run, since nothing under
+  `src/` or `tests/` changed.
+- **Research.** Two survey agents read the other programs' documentation.
+  The journal resolution requirements they reported are unverified, because
+  iucr.org refused the fetch. The API survey also marked these unverified:
+  ChimeraX's lighting and silhouette defaults at launch, VMD's image size
+  and antialiasing defaults, VESTA's default projection, Jmol's ellipsoid
+  syntax, and whether pymatgen's VTK renderer works without a display.
+  OVITO's documentation did not confirm what `render_image` returns. No
+  decision here rests on any of them. ASE's rotation string was read from
+  `ase/utils/__init__.py`, and the Hershey licence from the Fedora page.
+- **Review.** `/code-review high --fix` made nine fixes, landed as one
+  commit because they interleave in two files. It corrected where
+  `POLY_ALPHA` and the line widths live, added the faces' own shading rule,
+  made D7's transparent alpha composite the faces, quoted import time as a
+  range, corrected the spike's line count, listed the scene rules the spike
+  skips, added the Hershey licence's second condition, noted that the
+  spike's filter truncates, and made the browser row use the GUI's framing.
+  It also chose D12's default `up=`, which the maintainer should confirm. I
+  restored D6's "never overlap in volume", which it had weakened to
+  "rarely", and kept its point that a centroid order is still not exact.
+  Declined: `spike.py` keeps its truncating filter, because its timings are
+  the record; its 13 ruff style errors stay, because `docs/` is outside the
+  lint command, as for the other spike folders.
+- **Gotchas.** Running the spike leaves numba's `__pycache__` in
+  `1469-spike/`, which git ignores. This worktree's guard refuses compound
+  shell such as `awk -v` inside loops, so measure through a scratchpad
+  script.
+
+Next: the skill row first, because it helps agents today and needs nothing
+else. Then D3's corpus, because every later task draws from the ported
+scene. Confirm D12's default `up=` before the view task starts.

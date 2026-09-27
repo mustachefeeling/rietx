@@ -32,11 +32,15 @@ pure-python wheel per platform, in MB.
 
 ## The ray-caster
 
-`spike.py` is 230 lines. It draws balls or ellipsoids as exact quadrics,
+`spike.py` is 219 lines. It draws balls or ellipsoids as exact quadrics,
 bond halves as finite cylinders and the cell edges as thin cylinders, with
 the GUI shader's light, shading and ring rule (`gui/src/lib/gl3d.ts`). It
-has no polyhedra, no text and no FLAT_AXIS floor. It antialiases by box
-filtering a supersampled z-buffer, and writes the PNG with `zlib`.
+has no polyhedra, no text and no FLAT_AXIS floor. It applies none of
+`buildScene`'s rules either. It draws all 185 atoms, the 12 `vertex_only`
+atoms the GUI draws only with a polyhedron among them, and it does not dim
+the 101 boundary images. It antialiases by box filtering a supersampled
+z-buffer, truncating to a level where it should round, and writes the PNG
+with `zlib`.
 
 Measured 2026-09-27 on NAC (`tests/data/cod_1000236.cif`, `aniso=True`: 185
 atoms, 255 bonds), an Apple M4 at load average 4, `[dev]` venv, numba 0.67.
