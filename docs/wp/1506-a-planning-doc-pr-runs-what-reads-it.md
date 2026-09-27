@@ -1,8 +1,8 @@
 # WP-1506 — a planning-doc PR runs the tests that read it, and CI gates on one check
 
-Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-09-27 — the skip, `ci-ok` and the junit upload are on PR #504, checked on two probe PRs; the by-hand protection change and the cut chosen from two weeks of timings remain
 Depends on: — (the branch-protection change is the maintainer's, by hand)
-Priority: P2 2026-09-27 — was P4: the maintainer raised it the day it was filed; a planning-doc PR waits 20-22 min for a suite that cannot see its diff
+Priority: P3 2026-09-27 — was P2: the skip is written and checked on PR #504; what remains is a five-minute change at its merge and a cost-only cut that waits two weeks for data
 
 ## Goal
 
@@ -195,6 +195,92 @@ gh run list --workflow ci.yml --limit 10 --json headBranch,conclusion,createdAt,
   reports).
 
 ## Handover log
+
+### 2026-09-27 (2nd session) — the docs-only skip, written and checked live
+
+A PR that changes only planning documents can now report green in under two
+minutes. Before this it waited 20 minutes. It runs the four test files that
+read those documents, and one summary check says whether the suite chosen for
+the PR passed. Two throwaway PRs against this branch showed both halves. The
+docs-only one went green in 79 s. The one with a failing leg waited for every
+leg and then went red. Nothing changes for anyone until the maintainer merges
+PR #504 and swaps the five matrix contexts in branch protection for `ci-ok`.
+Pushes to main still run the whole matrix. A skip there would leave a
+cancelled code run untested, and that happens often.
+
+*Done.*
+
+- The audit hook. A `sitecustomize.py` on `PYTHONPATH` chained to Homebrew's
+  own and hooked `open`, `os.listdir`, `os.scandir` and `subprocess.Popen`.
+  A pytest plugin put the current test id in the environment, so child
+  Pythons inherited it. Readers found: `test_docs_consistency.py` (310
+  planning paths), `test_workflow_hooks.py` (279, through the hooks it
+  runs) and `test_portability.py` (it parses `test_docs_consistency.py`).
+  `test_no_stale_name.py` reads through `git grep`, and only the Popen record
+  showed it. The other grep hits for planning words are comments, docstrings
+  and strings, checked one by one. The manual build opens no planning path.
+- `ci.yml`: `changes`, `docs` and `ci-ok`, with the matrix gated on
+  `scope == 'code'` and the draft guard moved onto `changes` and `ci-ok`.
+  `changes` diffs GitHub's merge commit against its first parent with
+  `--no-renames`. Twelve `ci-ok` cases and ten classifier cases were checked
+  locally, and actionlint is clean (it caught a planted typo).
+- Task 5 not taken, with its reason in the checklist.
+- The junit upload per leg, `tests/added_test_times.py` with two tests,
+  handover step 6, and the rule in `tests/CLAUDE.md`. That file's cap went
+  from 296 to 302, with the reason beside the number.
+- § By hand: branch protection, with the exact `gh api` call.
+- Forward references in 1313's and 1507's Inherited.
+- The `/code-review high --fix` pass found three bugs in the report and fixed
+  them. An xdist-grouped case is named `name@group` (539 such cases on the
+  CI py3.13 leg). A re-signed `def` counted as added. An untracked file was
+  invisible. It also flagged that one run's per-test seconds are a figure
+  where root CLAUDE.md asks for a range. The handover step now says the
+  rows rank a test and do not time it. Two findings were declined. The
+  explicit `-o junit_duration_report=total` is pytest's default and stays as
+  a pin. `always()` on `ci-ok` stays, because a skipped required check reads
+  as success.
+
+*Measured* (`[dev]` venv, darwin arm64, unless the line says CI):
+
+- Fast selection on the final tree: 6536 passed, 151 skipped. The claim
+  commit gave 6534 and 151. The +2 are the two added tests (0.01 s and
+  0.00 s), and there is no new skip. Main had not moved, so this is the tree
+  that lands. The full selection was not run, because nothing here moves a
+  measured number.
+- The docs job's four files locally: 119 passed, 9.5 s wall.
+- CI, probe #506 (docs only, run 36311608127): 79 s from creation to a green
+  `ci-ok`. `changes` waited 36 s in the queue and ran for 6 s. `docs` took
+  28 s, with 119 passed in 15.5 s.
+- CI, probe #507 (py3.14 fails at collection, run 36311617692): the legs ran
+  17:58 to 21:19. py3.14 finished with 6524 passed, 163 skipped and 4 errors.
+  `ci-ok` started 2 s after the last leg and went red, reading
+  `fast: failure` and `fast-jax: success`. Five junit artifacts of about
+  126 KB each expire after 30 days.
+- CI py3.13 junit: 4428 worker-seconds over 4202 test functions, parameter
+  cases summed. The slowest 50 take 60 %, the 50th takes 16.5 s and the top
+  10 take 1349 s. The same measure locally gives 1659 worker-seconds and
+  57 %, with the 50th at 5.8 s.
+
+*Gotchas.*
+
+- Under xdist a collection error does not stop the run. The other tests
+  still run and the exit code is 1 at the end, so a probe that fails at
+  collection costs a full leg.
+- A job whose `needs` was skipped is skipped too. `ci-ok` carries its own
+  draft condition because `always()` would otherwise run it on a draft.
+- The worktree guard refuses `PYTHONPATH=… python`. Run it from a
+  scratchpad script.
+
+*Next.*
+
+1. The maintainer merges #504 and runs the § By hand call in the same
+   sitting, in either order. An open PR whose branch predates `ci-ok` needs
+   main merged into it. Then check the acceptance: `contexts` reads `lint`
+   and `ci-ok`, and the first real docs-only PR shows `ci-ok` in about two
+   minutes. Tick task 3.
+2. From about 2026-10-11, do task 7. Download two weeks of `junit-*`
+   artifacts with `gh run download <id> -n junit-py3.13` and choose the cut.
+   The named sweeps are the first candidates. The WP closes with task 7.
 
 - **2026-09-27** — Created by a session the maintainer asked to find where
   the repo's CI and merge drag comes from. The docs-only skip was a
