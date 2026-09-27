@@ -1,6 +1,6 @@
 # WP-1332 — what a reader hands back: the axis, the rows, the σ column
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-28 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-09-24 — a GSAS axis 100× too large, a phantom point at 0° and a constant column adopted as σ, each in silence; WP-1416 folded in
