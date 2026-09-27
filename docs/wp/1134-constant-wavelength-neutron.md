@@ -1,6 +1,7 @@
 # WP-1134 — constant-wavelength neutron: b, λ/n harmonics, and a refinable λ
 
 Milestone: v1.1 · Status: ✅ 2026-08-25 — b, λ/n harmonics and a refinable λ shipped; PR #108 + #127 merged
+Track: The promise, the manual, the process, and neutron
 Depends on: —
 
 ## Goal

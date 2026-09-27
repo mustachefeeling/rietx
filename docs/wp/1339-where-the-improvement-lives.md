@@ -1,6 +1,7 @@
 # WP-1339 — where the improvement lives
 
 Milestone: unscheduled · Status: ⬜
+Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-09-23 — a statistic compare already computes, reached as a function
 

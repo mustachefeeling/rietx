@@ -1,6 +1,7 @@
 # WP-1131 — Sample broadening is a specimen property, not an angular coefficient
 
 Milestone: unscheduled · Status: ✅ 2026-09-02
+Track: The specimen is not an angle, and the neutron follow-through
 Depends on: — (WP-0308 owns the sharing map this corrects; WP-1072 is the esd
 precedent the reporting half copies)
 

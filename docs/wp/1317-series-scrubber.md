@@ -1,6 +1,7 @@
 # WP-1317 — scrub the series along its own trace
 
 Milestone: unscheduled · Status: ⬜
+Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-09-23 — a view over what the series already knows
 

@@ -1,6 +1,7 @@
 # WP-1117 — the compatibility promise, rewritten for the users there are
 
 Milestone: v1.1 · Status: ✅ 2026-08-21 — the promise is a preview; the bump rule is one sentence, six times; the bump comments are the changelog
+Track: The promise, the manual, the process, and neutron
 Depends on: —
 
 ## Goal

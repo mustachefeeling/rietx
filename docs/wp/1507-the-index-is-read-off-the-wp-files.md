@@ -1,6 +1,7 @@
 # WP-1507 — the WP index is read off the WP files
 
 Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here
+Track: The repo's own process
 Depends on: — (1506 soft: the docs job it adds runs this WP's tests)
 Priority: P2 2026-09-27 — was P4: the maintainer raised it the day it was filed; 17 of 25 conflicted syncs in six weeks hit ROADMAP.md, and 46 PRs in a month edited only its cap
 
@@ -128,7 +129,7 @@ are both on the list.
 
 - [x] The decision above, taken with the maintainer and recorded here:
       (a), committed as `docs/wp/README.md`, 2026-09-27.
-- [ ] A generator, stdlib only, sharing one header parser with
+- [x] A generator, stdlib only, sharing one header parser with
       `test_docs_consistency.py`. It writes the per-milestone tables and the
       in-flight and next-by-priority lists from the WP files.
 - [ ] ROADMAP.md: each table replaced by a link to its place in the index.

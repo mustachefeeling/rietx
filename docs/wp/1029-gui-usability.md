@@ -3,6 +3,7 @@
 Milestone: v1.0 · Status: ✅ 2026-07-31 — first pass 2026-07-30, reopened the
 same day (items p–t, two were regressions), second pass closed 2026-07-31;
 nothing open.
+Track: The human GUI
 Depends on: 1010–1015 (all landed) · soft: 1016, 1017
 
 ## Goal

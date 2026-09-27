@@ -10,6 +10,7 @@ and the `.EXP` protocol now reaches `tests/test_acceptance_fap.py` from the
 reader instead of from transcribed constants. What outlived the WP is the
 `.inp` grammar the reader refuses, `STR(...)` (#107) and `#if`, which is
 WP-1433; #196 (Rietica/XND) stays this family's recorded boundary
+Track: Coming from another code
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal

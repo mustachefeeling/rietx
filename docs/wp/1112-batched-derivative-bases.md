@@ -5,6 +5,7 @@ Milestone: v1.1 · Status: ✅ 2026-08-21 — bases + accumulation batched
 measured discarded-area bound; trigger cold 50 → 28.3-28.9 s, warm series
 4.5-22.4 → 2.1-15.0 s/pattern, QPA protocol fits ~halved at fractions within
 0.25 wt % of shipped
+Track: Speed
 Depends on: 1111 (the FCJ-padding go/no-go is judged on its trigger-shaped case)
 
 ## Goal

@@ -3,6 +3,7 @@
 Milestone: unscheduled · Status: ✅ 2026-09-19 — the anchor is corrected where
 the tie is known, so a rebuild reproduces the coordinate; `replay` carried the
 same defect alone and now rebases too
+Track: What fires, and what stays silent
 Depends on: — (1119 soft — it is that WP's surface this breaks)
 
 ## Goal

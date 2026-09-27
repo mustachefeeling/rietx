@@ -3,7 +3,8 @@
 Milestone: v1.0 · Status: ✅ 2026-08-04 — the three defects fixed, the reach
 measured (zero live inputs, all three CIF-reachable), and the cell ties now
 derive from the *setting*; 1035 is unblocked
-Depends on: — · **blocks** 1035
+Track: Found by use
+Depends on: — (it blocks 1035)
 
 ## Goal
 

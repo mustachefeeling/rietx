@@ -1,6 +1,7 @@
 # WP-1333 — a series survives one pattern, and says which one it lost
 
 Milestone: unscheduled · Status: ✅ 2026-09-26 — all eight tasks landed: seven in PR #420, the coordinate carry in PR #484
+Track: A long run is not one fit
 Depends on: — (1317 soft: #218's forward-pass exposure is the sibling ask)
 
 ## Goal

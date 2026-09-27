@@ -3,6 +3,7 @@
 Milestone: v1.0 · Status: ✅ 2026-08-05 — **built and landed**, every task done;
 the scoreboard was re-measured in WP-1041 behind the two `trial_error` dedup fixes
 measured here, and both of the failures this WP inherited now rank the truth first
+Track: Indexing
 Depends on: WP-1020, WP-1024 (1038 soft)
 
 ## Goal

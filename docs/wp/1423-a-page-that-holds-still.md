@@ -1,6 +1,7 @@
 # WP-1423 — a page that holds still
 
 Milestone: v1.5 · Status: ✅ 2026-09-16 — the page is two panels and holds still: one state for every geometry over a live series job, the Δ/σ axis on rungs, and the status file says which pattern a series is on
+Track: The live-watcher track
 Depends on: 1405 (the page this reworks), 1402 (the snapshot it draws)
 
 ## Goal

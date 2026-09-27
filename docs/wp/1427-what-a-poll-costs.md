@@ -1,6 +1,7 @@
 # WP-1427 — what a poll costs
 
 Milestone: v1.5 · Status: ✅ 2026-09-17 — the poll is measured; the walk is 1.7× and the console no longer freezes the page
+Track: The live-watcher track
 Depends on: 1430 (the page as files); 1426 soft (both rewrite `drawRun`)
 
 ## Goal

@@ -1,6 +1,7 @@
 # WP-1318 — the Stephens strain surface, rendered
 
 Milestone: unscheduled · Status: ⬜
+Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-09-23 — a view over coefficients already refined
 

@@ -1,6 +1,7 @@
 # WP-1104 — Literature-grounding audit of AGENT_PROTOCOL.md
 
 Milestone: v1.1 · Status: ✅ 2026-08-18 — audit landed; grid + reconciliation in milestones/v1.1.md § Appendix
+Track: The agentic report
 Depends on: — (first of the agentic-report set; docs-only, may run before the
 v1.1 version flip)
 

@@ -1,6 +1,7 @@
 # WP-1050 — `Refinement.suggest()`: which parameter to free next
 
 Milestone: v1.0 · Status: ✅ 2026-08-08 — shipped: gains proven against lstsq, both negative controls hold, the probe residual never seeded (the session's measured redesign), agent task + manual landed
+Track: Report evidence, agent evals, and the rename
 Depends on: — (1004 landed). Must land **before** 1003 if `suggest()` ships in
 the frozen API.
 

@@ -1,6 +1,7 @@
 # WP-1322 — the run is instrumentable, and nothing says so
 
 Milestone: unscheduled · Status: ⬜
+Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-09-23 — a view over events already written
 

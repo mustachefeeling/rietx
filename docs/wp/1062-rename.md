@@ -1,10 +1,11 @@
-# WP-1062 — Rename the project to `anatase`
+# WP-1062 — Rename the project to `anatase` (superseded by 1066)
 
 Milestone: v1.0 · Status: ✅ 2026-08-12 — `anatase` everywhere (~300 files),
 with the on-disk formats deliberately decoupled from the brand (`.rex`, `.rxt`
 / `rxt N`, plain `instrument_profile`) and `tests/test_no_stale_name.py`
 auditing against the **old** token. Counts moved 2162 → 2166 passed / 108
 skipped, exactly the four tests added.
+Track: Report evidence, agent evals, and the rename
 Depends on: — (blocked [1003](1003-api-freeze-pypi.md))
 
 <!--

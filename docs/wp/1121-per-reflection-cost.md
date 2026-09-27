@@ -1,6 +1,7 @@
 # WP-1121 — the per-reflection front: what a compiled tier does not reach
 
 Milestone: v1.1 · Status: ✅ 2026-08-22 — the front is measured and named: per-reflection work is dispatch-bound, 20 % of the fit; two changes landed (1.02–1.08×), cold target still missed at 8.7 s and said so
+Track: Speed
 Depends on: 1115 (its gate reading is the decomposition this attacks)
 
 ## Goal

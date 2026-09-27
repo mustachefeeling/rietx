@@ -1,6 +1,7 @@
 # WP-1035 — Symmetry, surfaced and editable
 
 Milestone: v1.0 · Status: ✅ 2026-08-05
+Track: The human GUI
 Depends on: **1036** (its tables are what a preview would encode), 1014 (landed)
 · soft: 1004
 

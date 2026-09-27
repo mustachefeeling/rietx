@@ -1,6 +1,7 @@
 # WP-1063 — Fit-level exchange clause + `compare_rivals`: name the swap, ship the experiment
 
 Milestone: v1.0 · Status: ✅ 2026-08-13 — clause at fit level (THRESHOLDS_VERSION 0.8), `compare_rivals` shipped, the round-2 transcripts mined
+Track: Report evidence, agent evals, and the rename
 Depends on: WP-1056, WP-1059 (both closed — their findings are restated below);
 before WP-1003 (the clause is public report text, and 1003 § Inherited carries
 it as a freeze question)

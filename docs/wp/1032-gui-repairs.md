@@ -1,6 +1,7 @@
 # WP-1032 — GUI repairs found by use
 
 Milestone: v1.0 · Status: ✅ 2026-08-05
+Track: The human GUI
 Depends on: 1010-1015, 1027, 1029 (all landed) · **blocks** 1033 (same file)
 
 ## Goal

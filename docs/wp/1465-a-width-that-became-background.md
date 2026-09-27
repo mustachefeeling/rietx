@@ -1,6 +1,7 @@
 # WP-1465 — a phase width that became background, and an absorption screen that never ran
 
 Milestone: unscheduled · Status: ✅ 2026-09-27 — an unscreened background absorption reads `None`, not 0.0; `SEQUENTIAL_WIDTH_GROWTH` names a width that grew while GoF did; the width-onto-background projection measured and not built
+Track: What fires, and what stays silent
 Depends on: —
 
 ## Goal

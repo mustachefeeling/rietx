@@ -1,6 +1,7 @@
 # WP-1469 — what the series fences cannot see
 
 Milestone: unscheduled · Status: ⬜
+Track: A long run is not one fit
 Depends on: — (1333 landed the ladder and quarantine this extends; 1420 soft)
 Priority: P2 2026-09-27 — a blank frame reads as a good fit and a real step goes unreported, silently, on the series path; `series.md` calls the default refit safe where it is not
 

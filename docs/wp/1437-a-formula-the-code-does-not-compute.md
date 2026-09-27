@@ -2,6 +2,7 @@
 
 Milestone: v1.5 · Status: ✅ 2026-09-17 — three entries corrected, 41
 audited, the thresholds pinned and the formulas given a review rule
+Track: What the package says about itself
 Depends on: —
 
 ## Goal

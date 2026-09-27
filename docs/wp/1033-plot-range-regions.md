@@ -2,6 +2,7 @@
 
 Milestone: v1.0 · Status: ✅ 2026-08-05 — shaded, selectable, and pinned to the
 channel count
+Track: The human GUI
 Depends on: **1032** (strictly — both edit `Plot.svelte`; see below) · 1005,
 1008, 1009 (landed)
 

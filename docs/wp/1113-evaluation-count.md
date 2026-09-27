@@ -3,6 +3,7 @@
 Milestone: v1.1 · Status: ✅ 2026-08-21 — mechanism named (ftol-bound GN
 degeneracy tails, not crawls); `Stage.ftol` landed opt-in; x_scale and
 seeding retired with numbers; LM basin proven a local minimum and fenced
+Track: Speed
 Depends on: 1111 (soft — its iteration columns are this WP's before/after)
 
 ## Goal

@@ -1,6 +1,7 @@
 # WP-1027 — GUI peak picker and indexing panel
 
 Milestone: v1.0 · Status: ✅ 2026-08-01 — browser pass done (two measured pointer defects fixed), extinction screen served and rendered; the indexing line ends in pixels
+Track: Indexing
 Depends on: 1010, 1011, 1018-1024 (1009 touched)
 
 ## Goal

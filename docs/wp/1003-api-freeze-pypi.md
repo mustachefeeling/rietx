@@ -3,6 +3,7 @@
 Milestone: v1.0 · Status: ✅ 2026-08-16 — shipped: repo public + CI gating +
 un-shaping as one change, manual + protocol hosted, 1.0.0 on PyPI after the
 Windows gate and the fresh-venv smoke test each caught real defects
+Track: Platform, release and the repo's own process
 Depends on: every other v1.0 row, all closed. The release-gating half of the
 manual is [1067](1067-user-api-manual.md) § Floor (landed); 1067's remaining
 chapters, the GUI and indexing continue *after* this WP ships, and the freeze

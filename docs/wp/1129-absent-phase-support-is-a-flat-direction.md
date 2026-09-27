@@ -5,6 +5,7 @@ diagnosed: `test_a_trace_phase_that_is_really_there_does_not_fire_it` pinned
 the landing point of a flat direction against a fixed `1.0`, and that quantity
 spans six orders across settings and platforms. Re-asserted as the ordering
 its own docstring said it was.
+Track: Speed
 Depends on: —
 
 ## Goal

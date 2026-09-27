@@ -1,6 +1,7 @@
 # WP-1053 — Agent-in-the-loop FitReport eval (refine_json only)
 
 Milestone: v1.0 · Status: ✅ 2026-08-11 — protocol + scorer shipped (17 fast tests), 48/48-run pilot grid recorded here and in the v1.0 appendix; outcomes move with models, so the grid is a dated record, never a CI assertion
+Track: Report evidence, agent evals, and the rename
 Depends on: WP-1052
 
 ## Goal

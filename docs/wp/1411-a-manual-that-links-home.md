@@ -2,6 +2,7 @@
 
 Milestone: v1.5 · Status: ✅ 2026-09-14 — landing copy published, and
 every manual page carries a brand linked to rietx.org
+Track: What the package says about itself
 Depends on: —
 
 ## Goal

@@ -1,6 +1,7 @@
 # WP-1010 — Frontend scaffold: build, committed dist, shell, plot, console
 
 Milestone: v1.0 · Status: ✅ 2026-07-30
+Track: The human GUI
 Depends on: WP-1008
 
 ## Goal

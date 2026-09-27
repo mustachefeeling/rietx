@@ -1,6 +1,7 @@
 # WP-1415 — a σ column smaller than √y
 
 Milestone: unscheduled · Status: ✅ 2026-09-24 — all seven tasks landed; the last, the edge-dropout change, from outside in PR #425
+Track: What fires, and what stays silent
 Depends on: —
 
 ## Goal

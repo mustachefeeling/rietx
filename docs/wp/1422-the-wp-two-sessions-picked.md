@@ -4,6 +4,7 @@ Milestone: v1.5 · Status: ✅ 2026-09-15 — both directions: a local claim
 with an `EnterWorktree` refusal, the contributor half through open PRs and the
 issues WPs cite, and a draft claim PR that announces. 36 tests; it found a live
 overlap (WP-1311 against PR #289) on its first run
+Track: What the package says about itself
 Depends on: —
 
 ## Goal

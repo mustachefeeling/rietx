@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜ — **the maintainer is handling this one** (stated
 2026-08-24); this file is the specification, not a claim on the work
+Track: The specimen is not an angle, and the neutron follow-through
 Depends on: the CW neutron source (PR #108, open) — `NeutronSource` and
 `crystallography/neutron.py` are both prerequisites and both land there
 Priority: P3 2026-09-23 — a hand-measured µR covers it, and no neutron user is at the wall

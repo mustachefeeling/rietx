@@ -2,6 +2,7 @@
 
 Milestone: v1.0 · Status: ✅ 2026-08-16 — layout, palette, axes and scales; the
 raw difference is the default and the rows moved below it
+Track: The human GUI
 Depends on: — (touches the frozen surface, so before [1003](1003-api-freeze-pypi.md))
 
 ## Goal

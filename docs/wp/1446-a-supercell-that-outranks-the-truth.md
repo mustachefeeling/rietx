@@ -1,6 +1,7 @@
 # WP-1446 — a supercell that outranks the truth, on evidence the panel already has
 
 Milestone: unscheduled · Status: 🛑 2026-09-22 — premise measured false; WP-1449 inherits the question
+Track: What fires, and what stays silent
 Depends on: — (1442 soft)
 
 ## Goal

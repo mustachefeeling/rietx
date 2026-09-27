@@ -1,6 +1,7 @@
 # WP-1126 — Manual Part 1: the style pass the review asked for
 
 Milestone: v1.1 · Status: ✅ 2026-08-22 — every review item landed; Part 1 rebuilt, re-measured and looked at
+Track: The promise, the manual, the process, and neutron
 Depends on: WP-1067 (Part 1 exists), WP-1068 (the committed figures)
 
 ## Goal

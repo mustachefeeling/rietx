@@ -3,6 +3,7 @@
 Milestone: v1.1 · Status: ✅ 2026-08-22 — gate read **open**, tier shipped
 **as the default install** (trigger 17.6 → 8.9 s, cpd-1a 4.2 → 2.2 s); numba
 is a core dependency with a soft import and a runtime switch
+Track: Speed
 Depends on: 1112, 1114, 1120 (the gate reads their measured outcomes)
 
 ## Goal

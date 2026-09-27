@@ -1,6 +1,7 @@
 # WP-1416 — `read_xy` reads the file's shape
 
 Milestone: unscheduled · Status: 🛑 2026-09-24 — folded into [WP-1332](1332-the-axis-a-reader-hands-back.md), which carries this file's context and tasks; nothing was built here
+Track: The formats a lab still has
 Depends on: —
 
 ## Goal

@@ -3,6 +3,7 @@
 Milestone: v1.1 · Status: ✅ 2026-08-19 — 2.2 registered before any run;
 22/22 cells valid; all three questions answered in the v1.1 appendix; the
 winning placement filed as 1108
+Track: The agentic report
 Depends on: 1105 (the python arm ships a verbatim AGENT_PROTOCOL copy — it
 must not carry §9's stale claims into the cells), 1106 (the `execution` field
 must exist to be measured)

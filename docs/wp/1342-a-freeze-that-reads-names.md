@@ -1,6 +1,7 @@
 # WP-1342 — A structural freeze that reads names, and the tie it cannot see
 
 Milestone: unscheduled · Status: ✅ 2026-09-19 — every freeze that rested on a name now asks what the column moves
+Track: What fires, and what stays silent
 Depends on: — (1119 found it; 1301 owns the freeze it disarms)
 
 ## Goal

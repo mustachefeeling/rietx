@@ -2,6 +2,7 @@
 
 Milestone: v1.0 · Status: ✅ 2026-08-06 — all six tasks landed; the hook's first
 live run found a real missed handover (WP-1043) before it was even wired in
+Track: Platform, release and the repo's own process
 Depends on: — (touches `.claude/commands/wp-handover.md`, as does 1060; different
 steps, lands in either order)
 

@@ -1,6 +1,7 @@
 # WP-1052 — Closed-loop FitReport usefulness eval (mechanical)
 
 Milestone: v1.0 · Status: ✅ 2026-08-11 — 14 tests close the §9 loop, `src/` untouched
+Track: Report evidence, agent evals, and the rename
 Depends on: —
 
 ## Goal

@@ -1,6 +1,7 @@
 # WP-1020 — Indexing core: Q-space, reduced cells, Bravais, FoM panel, ambiguity
 
 Milestone: v1.0 · Status: ✅ 2026-07-30
+Track: Indexing
 Depends on: 1018 (1019 soft)
 
 ## Goal

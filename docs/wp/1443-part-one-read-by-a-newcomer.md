@@ -1,6 +1,7 @@
 # WP-1443 — Part 1 read by a newcomer: eleven passages, one word, and the version the manual describes
 
 Milestone: unscheduled · Status: ⬜
+Track: The repo's own process
 Depends on: — (1409 is the shape)
 Priority: P3 2026-09-23 — twelve passages a newcomer stopped on; the text is wrong in words, never in a number
 

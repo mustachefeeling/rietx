@@ -1,6 +1,7 @@
 # WP-1459 — a Pawley intensity past the end of the data
 
 Milestone: unscheduled · Status: ✅ 2026-09-25 — all five tasks landed from outside in PR #453; an off-data reflection is ridged rather than dropped, and `carry_hkl_intensities` is the switch
+Track: A long run is not one fit
 Depends on: — (1336 soft: its status channel is where "converged at 2494× the cleared Rwp" belongs)
 
 ## Goal

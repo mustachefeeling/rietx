@@ -1,6 +1,7 @@
 # WP-1022 — Engine B: index-heuristic trial and error
 
 Milestone: v1.0 · Status: ✅ 2026-07-30
+Track: Indexing
 Depends on: 1020
 
 ## Goal

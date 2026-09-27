@@ -6,6 +6,7 @@ author-year and every doubled bracket gone; ten new guards, one measurement
 script, the TCH attribution corrected from the paper itself, and
 Part 2 rewritten out of the rulebook's register and its
 self-references checked against the tree
+Track: The repo's own process
 Depends on: — (0604 built Part 2; 1067 built Part 1)
 
 ## Goal

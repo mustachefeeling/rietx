@@ -1,6 +1,7 @@
 # WP-1008 — GUI server, session model, `rietx gui`
 
 Milestone: v1.0 · Status: ✅ 2026-07-30
+Track: The human GUI
 Depends on: WP-1004, WP-1005, WP-1006, WP-1007
 
 ## Goal

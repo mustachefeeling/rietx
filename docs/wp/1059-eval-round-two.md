@@ -1,6 +1,7 @@
 # WP-1059 — Agent eval round 2: protocol v1.1 and the post-fix re-A/B
 
 Milestone: v1.0 · Status: ✅ 2026-08-13
+Track: Report evidence, agent evals, and the rename
 Depends on: WP-1054, WP-1056, WP-1057, WP-1058
 
 ## Goal

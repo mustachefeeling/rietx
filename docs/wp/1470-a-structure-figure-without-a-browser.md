@@ -1,6 +1,7 @@
 # WP-1470 — a structure figure from Python, drawn without a browser
 
 Milestone: unscheduled · Status: ✅ 2026-09-27 — render_structure landed; the GUI's b button keeps c up
+Track: Render what the fit already knows
 Depends on: — (1462, 1466 shipped)
 
 ## Goal

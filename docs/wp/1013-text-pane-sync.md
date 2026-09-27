@@ -1,6 +1,7 @@
 # WP-1013 — Text pane (CodeMirror 6) + two-way sync
 
 Milestone: v1.0 · Status: ✅ 2026-07-30
+Track: The human GUI
 Depends on: WP-1009, WP-1010
 
 ## Goal

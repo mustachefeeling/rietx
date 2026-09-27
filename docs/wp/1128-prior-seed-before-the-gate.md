@@ -5,6 +5,7 @@ as a load sensor, not a regression: `volume_window`'s κ probes sat between the
 budget's start and its first check, so a loaded worker spent the whole budget
 before the caller's stated cell got its one call. Reordered (bit-identical),
 and the test that caught it stops using the clock as its starvation mechanism.
+Track: Speed
 Depends on: —
 
 ## Goal

@@ -1,6 +1,7 @@
 # WP-1039 — How many lines a search enumerates on
 
 Milestone: v1.0 · Status: ✅ 2026-08-05
+Track: Indexing
 Depends on: WP-1037 (1038 soft)
 
 ## Goal

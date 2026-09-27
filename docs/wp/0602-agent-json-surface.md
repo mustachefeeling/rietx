@@ -1,4 +1,4 @@
-# WP-0602 — Agent JSON surface hardened
+# WP-0602 — Agent JSON surface hardened (deleted by 1303)
 
 Milestone: v0.6 · Status: ✅ 2026-07-29
 Depends on: —

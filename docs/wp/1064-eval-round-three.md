@@ -3,6 +3,7 @@
 Milestone: v1.0 · Status: ✅ 2026-08-13 — protocol 2.0 registered and run
 (28/28, two cells audit-invalidated), the three kill/keep decisions in
 1003's Inherited, the dated grid in the v1.0 record
+Track: Report evidence, agent evals, and the rename
 Depends on: WP-1063 (the 0.8 clause must be the one measured; a mid-round
 content change is forbidden by the round's own rules); feeds WP-1003 (the
 trajectory default, the Layer-2 posture and the refine_json pull surface are

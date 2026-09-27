@@ -1,6 +1,7 @@
 # WP-1417 — ΔBIC at powder channel counts
 
 Milestone: unscheduled · Status: ✅ 2026-09-27 — all five tasks landed: 3-5 and the `suggest()` half of 2 in PR #431, 1 and the layer-2 half of 2 in PR #488
+Track: What fires, and what stays silent
 Depends on: — (1339 soft: the same family, where the improvement lives)
 
 ## Goal

@@ -1,6 +1,7 @@
 # WP-1110 — the agent surface, measured against an agent that used it
 
 Milestone: v1.1 · Status: ✅ 2026-08-21 — shaped by a real-agent round, which found the WP's own premise false: `refine_json` is reached once an agent is told, and it is the **schema export** that has no consumers, so the investment went to the python surface and its diagnostics. Eleven task lines ticked; items 3/5/7 answered as findings rather than code; item 19 left as [1118](1118-foreign-model-files.md). Item 5's one open decision was taken by the maintainer on 2026-08-21: **`Parameter.expr` stays**, because it is the carrier for the nonlinear half of [1119](1119-named-variables.md)
+Track: The agentic report
 Depends on: —
 
 ## Goal

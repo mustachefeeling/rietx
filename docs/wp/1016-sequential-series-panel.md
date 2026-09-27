@@ -1,6 +1,7 @@
 # WP-1016 — Sequential series panel
 
 Milestone: v1.0 · Status: ✅ 2026-08-05
+Track: The human GUI
 Depends on: WP-1008, WP-1010, WP-1011
 
 ## Goal

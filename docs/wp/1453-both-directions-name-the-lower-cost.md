@@ -1,6 +1,7 @@
 # WP-1453 — both directions name the lower cost
 
 Milestone: unscheduled · Status: ⬜
+Track: A long run is not one fit
 Depends on: — (1420 soft: its fixture may serve this one)
 Priority: P3 2026-09-24 — `SEQUENTIAL_PATH_DEPENDENT` already fires but does not say which answer to quote; whether the package's own passes disagree in cost is unmeasured
 

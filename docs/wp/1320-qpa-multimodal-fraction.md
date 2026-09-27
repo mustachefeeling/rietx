@@ -1,6 +1,7 @@
 # WP-1320 — a phase fraction the pattern cannot fix
 
 Milestone: unscheduled · Status: ✅ 2026-09-27 — `Refinement.profile_fraction` and `QPA_FRACTION_UNDETERMINED`, the docs first, a synthetic two-basin fixture
+Track: What fires, and what stays silent
 Depends on: — (1310 soft, closed 2026-09-16: how findings arrive on the result affects how this one reads)
 
 ## Goal

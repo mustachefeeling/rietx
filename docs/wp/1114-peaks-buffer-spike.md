@@ -5,6 +5,7 @@ Milestone: v1.1 · Status: ✅ 2026-08-21 — the spike delivered its decision:
 1e-4, § Findings 2) but the substrate doesn't pay (§ Findings 3-5); the
 salvage is [1120](1120-batched-residual.md), and the design note stands for
 a compiled substrate (1115).
+Track: Speed
 Depends on: 1112 (batching changes the denominator this spike is judged against)
 
 ## Goal

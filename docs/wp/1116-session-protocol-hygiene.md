@@ -2,6 +2,7 @@
 
 Milestone: v1.1 · Status: ✅ 2026-08-20 — the scan reads both entry forms and
 sees a same-day miss; the handover entry now opens on meaning
+Track: The promise, the manual, the process, and neutron
 Depends on: —
 
 ## Goal

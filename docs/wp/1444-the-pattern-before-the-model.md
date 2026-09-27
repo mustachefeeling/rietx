@@ -1,6 +1,7 @@
 # WP-1444 — The pattern before the model, and a title on the figure
 
 Milestone: unscheduled · Status: ⬜
+Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-09-23 — a figure the user draws by hand today
 

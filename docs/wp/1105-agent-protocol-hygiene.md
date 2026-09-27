@@ -1,6 +1,7 @@
 # WP-1105 — AGENT_PROTOCOL hygiene: stale claims out, vocabularies covered
 
 Milestone: v1.1 · Status: ✅ 2026-08-19
+Track: The agentic report
 Depends on: 1104 (same document; the audit decides which claims stay before
 the tables document them). Docs + tests only — no contract change, no version
 event; may land before the v1.1 version flip.

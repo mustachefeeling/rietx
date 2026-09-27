@@ -1,6 +1,7 @@
 # WP-1414 — a `turn_on` that reached nothing says so
 
 Milestone: unscheduled · Status: ✅ 2026-09-22 — a literal that names nothing warns with the nearest path; a joint stage that reached one histogram says which it missed
+Track: What fires, and what stays silent
 Depends on: — (1341 soft: the joint fit's report is where the per-histogram
 finding is rendered)
 

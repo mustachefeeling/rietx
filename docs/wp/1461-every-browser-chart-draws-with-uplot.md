@@ -1,6 +1,7 @@
 # WP-1461 — every browser chart draws with uPlot
 
 Milestone: unscheduled · Status: ✅ 2026-09-26 — every browser chart draws with the chart module over uPlot and the docs follow it; the acceptance run against plotly holds, hover aside in one call of eight
+Track: Render what the fit already knows
 Depends on: —
 
 ## Goal

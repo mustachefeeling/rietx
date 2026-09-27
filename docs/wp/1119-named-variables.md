@@ -3,6 +3,7 @@
 Milestone: unscheduled · Status: ✅ 2026-09-04 — named variables ship; the
 equivalence bar caught the Jacobian dispatching on a name, and the TOPAS
 comparison closed the tie-bounds hole
+Track: Coming from another code
 Depends on: — (WP-1070 built the affine block this extends; 1118 is its first
 non-human consumer, and needs this to land in)
 

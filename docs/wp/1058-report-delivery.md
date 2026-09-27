@@ -3,6 +3,7 @@
 Milestone: v1.0 · Status: ✅ 2026-08-13 — the per-stage trajectory ships,
 default-on at the agent surface; the diagnose ladder was declined on
 measurement (every preset already opens on the rung it would have added)
+Track: Report evidence, agent evals, and the rename
 Depends on: —
 
 ## Goal

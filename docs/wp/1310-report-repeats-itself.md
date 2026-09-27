@@ -1,6 +1,7 @@
 # WP-1310 — the report repeats itself: stage dedup, the declared wavelength, the empty column
 
 Milestone: v1.5 · Status: ✅ 2026-09-16 — four of six landed; the bound test is 1434 and the caller's hold is 1435
+Track: What the package says about itself
 Depends on: —
 
 ## Goal

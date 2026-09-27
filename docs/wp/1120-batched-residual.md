@@ -1,6 +1,7 @@
 # WP-1120 — batch the residual: the forward's un-taken WP-1112 win
 
 Milestone: v1.1 · Status: ✅ 2026-08-22 — batched numpy forward, 1.65× on the trigger cold fit and 1.11–1.15× on the four lab/synchrotron cases; bit-identical wherever the rows are symmetric
+Track: Speed
 Depends on: 1112 (the batched kernel and its bit-identity discipline)
 
 ## Goal

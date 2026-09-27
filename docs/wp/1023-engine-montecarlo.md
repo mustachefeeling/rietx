@@ -3,6 +3,7 @@
 Milestone: v1.0 · Status: 🛑 2026-07-30 — **no-go**; task 0 complete, engine not built.
 **Narrowed 2026-08-05 by [WP-1040](1040-engine-svd-index.md), which built a third
 engine that is Monte Carlo** — see "What this no-go does and does not say" below.
+Track: Indexing
 Depends on: 1020
 
 ## What this no-go does and does not say

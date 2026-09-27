@@ -1,6 +1,7 @@
 # WP-1037 — Indexing: a stated time ceiling and honest progress
 
 Milestone: v1.0 · Status: ✅ 2026-08-04
+Track: Indexing
 Depends on: WP-1024 (1021, 1022 soft)
 
 ## Goal
