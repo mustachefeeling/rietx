@@ -734,11 +734,10 @@ def _partners(atoms: list[dict], bonds: list[dict], basis: np.ndarray) -> list[d
     the property that matters — every atom of the cell shows its full
     coordination.
     """
-    known = {tuple(np.round(a["pos"], 6)) for a in atoms}
+    known = set(_keys([a["pos"] for a in atoms]))
     inverse = np.linalg.inv(basis)
     out: list[dict] = []
-    for bond in bonds:
-        key = tuple(np.round(bond["b"], 6))
+    for bond, key in zip(bonds, _keys([b["b"] for b in bonds])):
         if key in known:
             continue
         known.add(key)
@@ -888,6 +887,7 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
                        for k in range(3)], dtype=np.float64) @ basis.T
     out: list[dict] = []
     seen: set[tuple] = set()
+    near = _keys(positions)
     for shift in shifts:
         home = not shift.any()
         delta = (positions[None, :, :] + shift) - positions[:, None, :]
@@ -895,15 +895,25 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
         hit = allowed & bonded(dist, reach, nonmetals, tolerance)
         if home:
             hit &= np.triu(np.ones_like(hit, dtype=bool), 1)  # each pair once
-        for i, j in zip(*np.nonzero(hit)):
-            a, b = positions[i], positions[j] + shift
-            key = tuple(sorted((tuple(np.round(a, 6)), tuple(np.round(b, 6)))))
+        rows, cols = np.nonzero(hit)
+        far = positions[cols] + shift
+        for i, j, b, end in zip(rows, cols, far, _keys(far)):
+            key = tuple(sorted((near[i], end)))
             if key in seen:
                 continue
             seen.add(key)
-            out.append({"i": int(i), "j": int(j), "a": a.tolist(), "b": b.tolist(),
+            out.append({"i": int(i), "j": int(j), "a": positions[i].tolist(), "b": b.tolist(),
                         "d": float(dist[i, j])})
     return out
+
+
+def _keys(points) -> list[tuple]:
+    """Each point rounded to 1e-6 Å, the key two drawn positions are matched by.
+
+    Rounded as one array rather than point by point, which is the same
+    arithmetic at a fraction of the cost (WP-1468).
+    """
+    return [tuple(row) for row in np.round(np.asarray(points, dtype=np.float64).reshape(-1, 3), 6)]
 
 
 # ----------------------------------------------------------------------
@@ -997,15 +1007,15 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
         orbit = _orbit(sites, orbit["atoms"], basis, reach)
     occupancy, cart, source = orbit["occupancy"], orbit["cart"], orbit["source"]
 
-    known = {tuple(np.round(a["pos"], 6)): k for k, a in enumerate(atoms)}
+    known = {key: k for k, key in enumerate(_keys([a["pos"] for a in atoms]))}
     segments: dict[tuple, list[int]] = {}
-    for k, bond in enumerate(bonds):
-        key = tuple(sorted((tuple(np.round(bond["a"], 6)), tuple(np.round(bond["b"], 6)))))
-        segments.setdefault(key, []).append(k)
+    for k, ends in enumerate(zip(_keys([b["a"] for b in bonds]), _keys([b["b"] for b in bonds]))):
+        segments.setdefault(tuple(sorted(ends)), []).append(k)
     inverse = np.linalg.inv(basis)
     # rows of ``cart`` an element's centre may take as ligands, found once
     ligand_of: dict[str, np.ndarray] = {}
-    centres: list[np.ndarray] = []
+    centres = np.empty((n_cell, 3))
+    n_centres = 0
     found: list[tuple] = []
     out: list[dict] = []
     partners: list[dict] = []
@@ -1022,9 +1032,10 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
             continue
         centre = np.asarray(atom["pos"], dtype=np.float64)
         # a mixed site is one centre, drawn in its first site's colour (P9)
-        if any(np.linalg.norm(centre - p) < SAME_POSITION for p in centres):
+        if (np.linalg.norm(centres[:n_centres] - centre, axis=1) < SAME_POSITION).any():
             continue
-        centres.append(centre)
+        centres[n_centres] = centre
+        n_centres += 1
         dist = np.linalg.norm(cart[index] - centre, axis=1)
         index, dist = index[dist >= BOND_MIN], dist[dist >= BOND_MIN]
         if not len(dist):
@@ -1063,16 +1074,17 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
     # hidden one never costs the default picture a polyhedron
     for c, site, centre, n, gap, shell, vertices, hull in sorted(
             found, key=lambda f: f[3] not in DEFAULT_SHELLS):
-        needed = [k for k in range(n) if tuple(np.round(vertices[k], 6)) not in known]
+        corners = _keys(vertices)
+        needed = [k for k in range(n) if corners[k] not in known]
         if len(partners) + len(needed) > room:
             dropped += 1
             continue
         for k in needed:
             origin = orbit["atoms"][source[shell[k][0]]]
-            known[tuple(np.round(vertices[k], 6))] = len(atoms) + len(partners)
+            known[corners[k]] = len(atoms) + len(partners)
             partners.append({**origin, "pos": vertices[k].tolist(), "boundary": True,
                              "frac": (inverse @ vertices[k]).tolist(), "vertex_only": True})
-        members = [known[tuple(np.round(v, 6))] for v in vertices]
+        members = [known[key] for key in corners]
         simplices = hull.simplices.copy()
         corner = vertices[simplices]
         wound = np.cross(corner[:, 1] - corner[:, 0], corner[:, 2] - corner[:, 0])
@@ -1086,9 +1098,9 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
         edges = {tuple(sorted((int(hull.simplices[f, (m + 1) % 3]),
                                int(hull.simplices[f, (m + 2) % 3]))))
                  for f, m in zip(*np.nonzero(folded))}
-        centre_key = tuple(np.round(centre, 6))
-        hidden = sorted(k for v in vertices for k in segments.get(
-            tuple(sorted((centre_key, tuple(np.round(v, 6))))), []))
+        (centre_key,) = _keys(centre)
+        hidden = sorted(k for key in corners
+                        for k in segments.get(tuple(sorted((centre_key, key))), []))
         out.append({
             "center": c,
             "site": site,

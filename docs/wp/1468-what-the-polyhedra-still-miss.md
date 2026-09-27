@@ -103,7 +103,9 @@ Read 2026-09-26 from each program's manual.
 - **Every bond-slider release recomputes the polyhedra.** They read the
   default bond tolerance, never the slider's, so only the sticks need the
   new value. Grossular's whole payload takes 62 ms best of 7 (Apple M4); the
-  polyhedra's share of it is not measured.
+  polyhedra's share of it is not measured. *Measured 2026-09-28:* 25.9 of
+  62.7 ms, best of 7, and 17.8 of 51.5 ms once the position keys were rounded
+  as arrays. Every other measured phase builds in 28 ms or less.
 
 ### The scene rules have a Python twin
 
@@ -142,7 +144,7 @@ Independent; take any.
 - [ ] Anion-centred and cluster polyhedra, if a user asks for them
 - [ ] The two-gap tie: find a real case, then decide whether to apply Daams & Villars' rule
 - [ ] A hidden shell dropped at the atom cap stays in the legend as unavailable, or the cap stops counting it
-- [ ] The polyhedra stop recomputing on a bond-slider release
+- [x] The polyhedra stop recomputing on a bond-slider release — declined on the record 2026-09-28. The recompute is kept and made cheaper (Context). A memo would be keyed on the phase and on every rule constant, and one left out of the key serves a stale picture
 - [x] One authority for "bonded" on the server and one for "drawn" on the client (2026-09-28: `structure3d.bonded`, `drawnWith` and its twin `drawn_with`)
 - [ ] A source for the Te, At, Kr and Xe electronegativities
 
