@@ -1,8 +1,7 @@
 # WP-1470 — a structure figure from Python, drawn without a browser
 
-Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-27 — render_structure landed; the GUI's b button keeps c up
 Depends on: — (1462, 1466 shipped)
-Priority: P3 2026-09-27 — a view over what the fit already knows, asked for by the maintainer; `Refinement.write_cif` into VESTA or Jmol is the workaround; nothing blocks it
 
 ## Goal
 
@@ -353,6 +352,76 @@ npm --prefix gui test && npm --prefix gui run check
   <https://fedoraproject.org/wiki/Licensing:HersheyFontLicense>
 
 ## Handover log
+
+### 2026-09-27 (2nd session) — closed
+
+An agent can now make a 3D figure of a refined structure from Python.
+`render_structure` draws what the GUI's structure viewer draws, as an array or
+a PNG, with no browser and no new dependency. It takes about 35 ms at 1000 px.
+A committed test corpus keeps the two copies of the viewer's scene rules
+equal. The picture sits within about one 8-bit level of the browser's on
+average. The cost is that second copy: a change to how the viewer draws now
+edits Python too, and a red vitest says so when it does not.
+
+- **Done.** All thirteen tasks. The WP arrived numbered 1469, which another
+  WP filed the same morning also used. Both merged unchecked, and together
+  they put ROADMAP one line over its cap. So this session first repaired
+  `main` in #497 (merged): this file moved to 1470 with its spike, the cap
+  rose to 856, and the bijection test now refuses two WP files of one number.
+- **Decisions taken.** D12's default up follows the convention, as the
+  maintainer asked: c up, or b up when looking down c. VESTA's standard
+  orientation sets it, and megane's VESTA-derived axis buttons keep it
+  (PR #694). The GUI's `b` button moved from a-up to c-up to match, and its
+  tooltip says so. D11 cannot be a `PROVISIONAL_MODULES` entry: nothing in
+  `rietx.viz` is on the derived surface (0 of 1800 names), so the declaration
+  is a bullet in `compatibility.md`. The skill routing row joined the
+  existing "writing the answer out" row, paid for by wording cuts in the
+  body, because `SKILL.md` had 52 bytes left and WP-1320 then took most of
+  those.
+- **Measured.** Apple M4, `[dev]` venv plus `playwright`, darwin/arm64.
+  - Warm render of NAC from a `Structure`: 33-40 ms at 1000 px and 71-94 ms
+    at 3000 px, 2 × 2. From a built geometry: 13-22 ms and 52-84 ms, over two
+    runs of five. The spike measured 85-108 ms and 0.73-0.96 s. `build()`
+    takes 19-22 ms, and 3000 px at 4 × 4 takes 239-247 ms. The first render
+    in a process compiled in 1.5 s, and 0.15-0.16 s from numba's cache.
+  - The kernel and the numpy oracle agree to the bit, whole and in dozens of
+    bands.
+  - Parity with the viewer: 1.06 levels mean difference in three runs
+    (headless chromium, SwiftShader, 507 × 300 canvas), 86 % of it on edges.
+    The bar is 2.0. A one-row crop misalignment scored 4.49. That was the
+    first reading, until the row clipped the page at the canvas's rounded box.
+  - `CANVAS_CSS_PX` is that measured 507, where it was a placeholder 600.
+  - Scene corpus: 234 kB. Nudging one Python constant turned the vitest red.
+  - Fast suite on this branch with current `main` merged (WP-1320
+    included): 6622 passed, 145 skipped, 3:25, no other suite running. This
+    branch adds 29 tests to that selection (27 in `test_render_structure.py`,
+    one example, one browser row), all passes. The first fast run found one
+    real failure, a positional `encoding` argument, fixed in `e239a0e1`. The
+    full suite did not run: no forward model, solver or statistic changed.
+  - vitest 575 passed (4 new in the scene-parity block); `svelte-check`
+    clean; the manual builds under `-W`.
+- **Review.** `/code-review high --fix` found nine and all were taken
+  (`5ac12f77`). The notable ones: atom labels could run off the frame; an
+  unknown `polyhedra=` formula switched nothing silently; `__array__` handed
+  out its own buffer on `copy=True`; and bands left the pool idle at 1000 px.
+  I reworded its tooltip to drop an em dash. Declined: a float `supersample`
+  truncates, a negative `exaggeration` passes, and `phase=` beside a geometry
+  dict is ignored. My own browser look found the outline inking the cell
+  frame black, fixed in `06856541` with a guard that fails on the old order.
+- **Filed elsewhere.** WP-1468 inherits what a scene-rule edit now owes.
+  `gui/CLAUDE.md` names the Python twin, its cap rising by the four lines.
+- **Gotchas.** The worktree guard refuses long heredocs and `&&` chains that
+  end in a commit, so messages go through a scratchpad file and `git commit
+  -F`. `npm --prefix gui exec` run from the repo root leaves a
+  `node_modules/.vite` there. BSD `sed` ignores `\b`. An element screenshot
+  of the canvas gains a row at a fractional CSS position, so the parity row
+  clips the page instead.
+
+Next: nothing owed here. Two follow-ups are worth a WP if anyone asks. A
+magnetic moment drawn as a cylinder and a cone, once WP-1326/1327's model
+lands (a Non-goal here). And a vector export, which D1 declines until a
+picture shows the need. WP-1468's first task that changes the default picture
+should re-run the parity row.
 
 ### 2026-09-27 — filed
 
