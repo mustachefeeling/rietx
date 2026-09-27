@@ -524,32 +524,188 @@ def test_the_api_indexes_are_what_the_generator_renders():
         assert " at 0x" not in text
 
 
-#: `report.regions`, `result.statistics.rwp`, `statistics.esd_inflation`,
-#: `d.suggestion` — the body's own field names, which no generator writes.
-BODY_DOTTED = re.compile(
-    r"`(report|result|statistics|d)((?:\.[A-Za-z_][A-Za-z0-9_]*)+)(?:\(|`)")
+# --- the hand-written names (#238) ------------------------------------------
+#
+# `report.regions`, `result.statistics.rwp`, `entry.rungs_tried`,
+# `StageResult.held_reach`: field names an author typed, which no generator
+# writes.  A rule written against a field that has moved is a rule nobody can
+# follow, so each is walked through the types the way the manual's names are.
+# Until WP-1338 the walk read the body alone, and the reference files, which
+# hold four times its names, were checked by hand at review.
+#
+# **A root is a variable name or an exported class**, and the two are read
+# differently.  A class in `rietx.__all__` is its own root, so a type-level
+# claim (`SeriesResult.diagnostics`) is walked with no list to maintain.  A
+# variable name is a convention, and some stand for more than one type: in
+# `series.md` a `result` is a `SeriesResult`, and in `magnetic.md`
+# `report.magnetic` is the module `rietx.report.magnetic`.  So a variable root
+# names every type it stands for, and a chain passes when it resolves on one.
+# That can pass a field named on the wrong answer type; it cannot pass a field
+# that no longer exists on any of them, which is the rot this gate is for.
+#
+# **What the walk cannot see, left unpinned on purpose.**  A negative claim
+# (`StageResult` carries no `rwp`) names nothing to resolve, and a field added
+# later falsifies it silently.  An attribute a plain class assigns in its own
+# `__init__` (`SequentialRefinement.results_`) has no class-level trace but the
+# source line, so the walk accepts it there and stops, the attribute's type
+# being unknown.  A variable name outside `DOTTED_VARIABLE_ROOTS` is not walked:
+# `background.` is a report block in one file and a module in another, and
+# `phases.0.cell.a` is a parameter path, which `rx.help_for` owns.
+
+#: A span that is a dotted name and nothing else, possibly called.
+DOTTED_NAME = re.compile(
+    r"`([A-Za-z_][A-Za-z0-9_]*)((?:\.[A-Za-z_][A-Za-z0-9_]*)+)(?:\(|`)")
 
 
-def test_every_dotted_name_in_the_body_resolves():
-    """The judgement core names result and report fields by hand (`report.
-    identifiability.exchanges`, `statistics.max_shift_over_esd`), and a rule
-    written against a field that has moved is a rule nobody can follow.
-    Each is walked through the types the way the manual's names are."""
+def _format_models() -> tuple:
+    """What a `read_<format>` verb returns for another program's file.
+
+    A `model.` in the foreign-file rows is one of these (`TopasModel`,
+    `GsasModel`, …), none exported, so they are read off the readers'
+    return annotations rather than listed: a new format's model joins by
+    shipping its reader."""
+    import inspect
+    import sys
+
     import rietx as rx
 
-    roots = {"report": rx.FitReport, "result": rx.RefinementResult,
-             "statistics": rx.Statistics, "d": rx.Diagnostic}
-    text = SKILL.read_text(encoding="utf-8")
-    bad = []
-    for root, chain in BODY_DOTTED.findall(text):
-        obj = roots[root]
-        for step in chain.lstrip(".").split("."):
-            ok, obj = attr_step(obj, step)
-            if not ok:
-                bad.append(f"{root}{chain}: no {step!r}")
-                break
-    assert not bad, bad
-    assert len(BODY_DOTTED.findall(text)) > 15, "the regex found too little"
+    found = [rx.ProjectModel]
+    for name in rx.__all__:
+        fn = getattr(rx, name)
+        if not (name.startswith("read_") and inspect.isroutine(fn)):
+            continue
+        # Only the return annotation: `get_type_hints` would evaluate every
+        # parameter's too, and some name a type imported for checking only.
+        ret = inspect.unwrap(fn).__annotations__.get("return")
+        if isinstance(ret, str):
+            ret = getattr(sys.modules[fn.__module__], ret, None)
+        if isinstance(ret, type) and ret.__name__.endswith("Model"):
+            found.append(ret)
+    return tuple(found)
+
+
+def _variable_roots() -> dict[str, tuple]:
+    """The variable names the skill uses for an object in hand, and every type
+    each one stands for somewhere in the tree."""
+    import rietx as rx
+    import rietx.report
+
+    return {
+        "report": (rx.FitReport, rietx.report),
+        "result": (rx.RefinementResult, rx.SeriesResult, rx.IndexingResult,
+                   rx.SuggestionResult),
+        "statistics": (rx.Statistics,),
+        "d": (rx.Diagnostic,),
+        "ref": (rx.Refinement,),
+        "series": (rx.SeriesResult,),
+        "entry": (rx.SeriesEntry,),
+        "model": _format_models(),
+        "instrument": (rx.Instrument,),
+    }
+
+
+def _roots() -> dict[str, tuple]:
+    import inspect
+
+    import rietx as rx
+
+    classes = {name: (getattr(rx, name),) for name in rx.__all__
+               if inspect.isclass(getattr(rx, name))}
+    return {**classes, **_variable_roots()}
+
+
+def _assigned_in_init(cls: type, name: str) -> bool:
+    import inspect
+
+    try:
+        source = inspect.getsource(cls)
+    except (OSError, TypeError):
+        return False
+    return re.search(rf"self\.{re.escape(name)}\s*[:=]", source) is not None
+
+
+def _first_missing_step(obj: object, steps: list[str]) -> str | None:
+    for step in steps:
+        ok, nxt = attr_step(obj, step)
+        if ok:
+            obj = nxt
+        elif isinstance(obj, type) and _assigned_in_init(obj, step):
+            return None
+        else:
+            return step
+    return None
+
+
+def _unresolved_names(text: str, roots: dict[str, tuple]) -> tuple[int, list[str]]:
+    """How many dotted names the walk visited, and the ones resolving on none
+    of their root's types."""
+    walked, bad = 0, []
+    for root, chain in DOTTED_NAME.findall(text):
+        if root not in roots:
+            continue
+        walked += 1
+        steps = chain.lstrip(".").split(".")
+        missing = [_first_missing_step(t, steps) for t in roots[root]]
+        if all(m is not None for m in missing):
+            bad.append(f"{root}{chain}: no {missing[0]!r}")
+    return walked, bad
+
+
+#: Every file an author writes by hand; the generated indexes have their own
+#: byte-for-byte pin above.
+AUTHORED = [SKILL, *(p for p in REFERENCES if p not in API_INDEXES)]
+
+
+@pytest.mark.parametrize("path", AUTHORED, ids=lambda p: p.name)
+def test_every_dotted_name_in_an_authored_file_resolves(path: Path):
+    _, bad = _unresolved_names(path.read_text(encoding="utf-8"), _roots())
+    assert not bad, (
+        f"{path.name} names fields the package does not have: {bad}. Rename "
+        "them to what the type carries now, or delete the claim")
+
+
+#: ```StageResult` carries no `rwp` `` — the one negative claim the tree makes
+#: about a field, and the kind a walk cannot see: nothing resolves, so a field
+#: added later falsifies it silently (WP-1334 proposes exactly that one).  This
+#: is a phrasing, not a grammar, so a claim worded another way is unpinned.
+NEGATIVE_FIELD_CLAIM = re.compile(r"`([A-Z][A-Za-z0-9_]*)` (?:carries|has) no `([a-z_][a-z0-9_]*)`")
+
+
+def _stale_negative_claims(text: str, roots: dict[str, tuple]) -> tuple[int, list[str]]:
+    found, stale = 0, []
+    for cls, field in NEGATIVE_FIELD_CLAIM.findall(text):
+        if cls not in roots:
+            continue
+        found += 1
+        if any(attr_step(t, field)[0] for t in roots[cls]):
+            stale.append(f"`{cls}` now has `{field}`")
+    return found, stale
+
+
+def test_every_negative_field_claim_is_still_true():
+    roots, found = _roots(), 0
+    for path in AUTHORED:
+        n, stale = _stale_negative_claims(path.read_text(encoding="utf-8"), roots)
+        found += n
+        assert not stale, f"{path.name}: {stale} — the claim is false now; rewrite it"
+    assert found, "no negative claim matched — the phrasing moved, and this pins nothing"
+    assert _stale_negative_claims("`StageResult` carries no `status`", roots)[1], (
+        "a claim the type contradicts must fail")
+
+
+def test_the_dotted_walk_visits_the_tree_and_fails_a_broken_name():
+    """Liveness, re-sited from the body's own density to the tree's: the body
+    held 40 walkable names and the references 194 more when the walk widened,
+    and a regex that stopped matching would pass every file above."""
+    roots = _roots()
+    walked = sum(_unresolved_names(p.read_text(encoding="utf-8"), roots)[0]
+                 for p in AUTHORED)
+    assert walked > 150, f"the walk visited only {walked} names — the regex broke"
+    _, bad = _unresolved_names(
+        "`result.statistics.rwp` `SeriesResult.no_such_field` "
+        "`entry.no_such_field` `report.magnetic.moment_pair_diagnostics`", roots)
+    assert bad == ["SeriesResult.no_such_field: no 'no_such_field'",
+                   "entry.no_such_field: no 'no_such_field'"], bad
 
 
 RX_DOT_NAME = re.compile(r"`rx\.([A-Za-z_][A-Za-z0-9_]*)")

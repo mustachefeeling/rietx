@@ -120,7 +120,7 @@ tokens; by size the candidates are §4 (6 806 B), §10's worked default
 
 ## Tasks
 
-- [ ] Run the dotted-name walk over every authored file, parametrised per
+- [x] Run the dotted-name walk over every authored file, parametrised per
       file; re-site the `> 15` liveness assertion; decide and record whether
       type-level roots widen.
 - [x] The private-corpus check, per tag, with its liveness guard, and the
