@@ -2,7 +2,7 @@
 
 Milestone: v1.7 · Status: ⬜
 Depends on: 1470
-Priority: P2 2026-09-27 — the manual's own edit example raises; a workaround exists (re-index the dict by hand) but the docs send every agent into the error first
+Priority: P2 2026-09-27 — a cut is the first edit a figure needs, and today it means re-indexing the dict by hand; #498 stopped the manual offering the deletion that raised
 
 ## Goal
 
@@ -10,7 +10,8 @@ Priority: P2 2026-09-27 — the manual's own edit example raises; a workaround e
 atoms the mask keeps, with its bonds and polyhedra consistent. Four mask
 builders name atoms in crystallographic terms: `select`, `plane`, `sphere`
 and `component`. `recolour` changes the colour of chosen atoms without
-touching the scene rules. The manual's example of an atom removed works.
+touching the scene rules. An atom can be removed, which the manual stopped
+offering in #498 because the dict edit raised.
 
 ## Context
 
@@ -31,10 +32,11 @@ passing it to `render_structure`:
 
 The dict's `bonds` (`i`, `j`) and `polyhedra` (`center`, `vertices`,
 `bonds`) index into `atoms`. Deleting an entry breaks every later index.
-`docs/manual/using/exports.md` § A figure of the structure names "an atom
-removed" as an example edit, and WP-1470's D10 promises customisation
-through data. Removing one atom by hand took ten lines and a reading of
-`structure3d.py`: an index map, the bonds rewritten, the polyhedra dropped.
+`docs/manual/using/exports.md` § A figure of the structure named "an atom
+removed" as an example edit until #498 took it out, with the skill's "a
+site to leave out". WP-1470's D10 promises customisation through data.
+Removing one atom by hand took ten lines and a reading of `structure3d.py`:
+an index map, the bonds rewritten, the polyhedra dropped.
 
 Two further facts decide the shape:
 
@@ -105,10 +107,10 @@ since an agent says "the plane through the origin and the next one at d".
   are untouched. A per-atom colour in the scene would touch both. The
   figure gains `palette`, site label to colour drawn, so a caller can draw
   a legend in matplotlib.
-- **The three fixes.** A site colour that is not `#rrggbb`, `white` or
+- **The two fixes.** A site colour that is not `#rrggbb`, `white` or
   `black` raises at `render_structure`'s entry. `hidden=`'s refusal for a
-  label says `keep(g, ~select(g, label=...))`. `exports.md` loses the
-  example that raises.
+  label says `keep(g, ~select(g, label=...))`. The third, the manual's
+  example that raised, landed with #498.
 - **An import-boundary pin.** A test lists the rietx modules that
   `viz/figure3d` and `gui/structure3d` import (`_about`, `viz.theme`,
   `model.compiled`, `crystallography.adp`, `crystallography.symmetry`) and
@@ -185,3 +187,7 @@ RIETX_COMPILED=0 .venv/bin/python -m pytest tests/test_render_structure.py
 - **2026-09-27** — filed from the session that closed WP-1470, after the
   probe in Context and a survey of five programs' cut and select verbs.
   Next: land `keep` first, since the documented route raises today.
+- **2026-09-27** — synced with #498, which took the manual's raising example
+  and the skill's "a site to leave out" out before it merged. Two of the
+  three fixes remain here. `keep` is still first, since nothing else removes
+  an atom.

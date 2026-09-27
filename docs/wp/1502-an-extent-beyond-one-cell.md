@@ -54,8 +54,11 @@ the same box with the same duplication.
   n3]]`. `boundary` becomes "outside the extent's half-open box", with
   duplicates at the extent's faces by today's rule. `extent=None` means
   (0, 1)³ and the dict is bit-identical to today's on the 21 phases of
-  `tests/data/polyhedra_phases.json`; the scene corpus
-  (`tests/data/gui/scene_cases.json`) pins it a second way.
+  `tests/data/polyhedra_phases.json`. A committed snapshot of the dict cannot
+  carry that check. `build()` breaks ties in distance on the last bit, so its
+  order moves with the platform (#498's CI). The scene corpus
+  (`tests/data/gui/scene_cases.json`) replays committed payloads and pins
+  the scene rules, not the builder. The new `image` field rewrites it once.
 - **Polyhedra follow their centres.** A centre inside the extent draws its
   polyhedron whole, ligands wherever they lie. VESTA never truncates one.
 - **The cap stays the GUI's.** `max_atoms` keeps its default of 400 for
@@ -136,3 +139,7 @@ npm --prefix gui test
 - **2026-09-27** — filed from the session that closed WP-1470, with the
   timings in Context. Next: the bond graph over the orbit, since the
   default's bit-identity is the test everything else rests on.
+- **2026-09-27** — synced with #498's CI fix. The scene corpus no longer
+  rebuilds its payloads, so it pins the scene rules and not `build()`. The
+  default's bit-identity needs a check that survives the platform's tie
+  order, and Design says so.
