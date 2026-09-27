@@ -347,7 +347,12 @@ def _source_tree(root: Path, *, name: str = DIST_NAME,
 
 def _commit(root: Path) -> str:
     """``git init`` + one commit of everything, isolated from any user config."""
-    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+    empty = root.parent / f"{root.name}.gitconfig"  # not os.devnull: "nul" on Windows
+    empty.write_text("", encoding="utf-8")
+    # a hook running the suite exports GIT_DIR: left in, `add -A` stages into it
+    env = {key: value for key, value in os.environ.items() if key not in
+           ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")}
+    env.update(GIT_CONFIG_GLOBAL=str(empty), GIT_CONFIG_NOSYSTEM="1")
     config = ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
     for args in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "c"]):
         subprocess.run(["git", "-C", str(root), *config, *args],
@@ -420,6 +425,22 @@ def test_a_source_tree_inside_another_repository_is_not_stamped_with_its_commit(
     _commit(tmp_path)
     with pytest.warns(RuntimeWarning, match="could not be read"):
         assert _refine._resolve_version(package) == "1.6.0.dev0"
+
+
+@_needs_git
+def test_a_git_dir_pointing_elsewhere_does_not_rename_the_commit(tmp_path, monkeypatch):
+    """A git hook running the suite exports ``GIT_DIR``; the stamp ignores it."""
+    _installed(monkeypatch, "1.4.0")
+    package = _source_tree(tmp_path / "tree")
+    head = _commit(tmp_path / "tree")
+    (tmp_path / "other").mkdir()
+    (tmp_path / "other" / "README").write_text("another repository\n", encoding="utf-8")
+    other = _commit(tmp_path / "other")
+    assert other != head
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "other" / ".git"))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "other" / ".git" / "index"))
+    with pytest.warns(RuntimeWarning):
+        assert _refine._resolve_version(package) == f"1.6.0.dev0+g{head[:12]}"
 
 
 def test_a_missing_distribution_keeps_its_wp1062_stamp(tmp_path, monkeypatch):

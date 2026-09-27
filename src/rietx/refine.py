@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import fnmatch
 import math
+import os
 import re
 import subprocess
 import tomllib
@@ -153,10 +154,17 @@ def _source_node(root: Path) -> str | None:
     ``dirty-tag`` word appended when a tracked file differs from HEAD (WP-1456
     § The prior art).  The top level must be ``root`` itself: a source tree
     unpacked inside somebody else's repository would otherwise be stamped with
-    that repository's commit.
+    that repository's commit.  For the same reason the variables that point
+    git at another repository or index are dropped (a git hook running the
+    suite sets them).  ``status`` takes no optional lock, so an import never
+    contends with a git command another process is running in the same tree.
     """
+    env = {key: value for key, value in os.environ.items() if key not in
+           ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")}
+    env["GIT_OPTIONAL_LOCKS"] = "0"
+
     def git(*args: str) -> str:
-        proc = subprocess.run(["git", "-C", str(root), *args],
+        proc = subprocess.run(["git", "-C", str(root), *args], env=env,
                               capture_output=True, text=True, timeout=10)
         if proc.returncode != 0:
             raise OSError(proc.stderr.strip())
