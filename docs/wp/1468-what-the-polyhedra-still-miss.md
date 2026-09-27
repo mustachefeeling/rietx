@@ -43,7 +43,11 @@ Read 2026-09-26 from each program's manual.
 - **A split pair wider than the floor still bonds.** Two O more than
   0.92 Å apart (0.7 × 1.32 Å) get a stick. Hydroxyfluorapatite with its OH
   oxygen 0.48 Å from F has its two mirror O positions 0.96 Å apart, so they
-  do.
+  do. *Superseded in part 2026-09-28:* a pair of partly occupied non-metals
+  closer to each other than to an atom both are bonded to gets no stick
+  (`structure3d.one_atom`, P9's test). A pair with no such neighbour still
+  bonds: Prussian blue's C and a vacancy's water O (COD 4343748), 1.025 Å
+  apart.
 - **The floor spares every pair with a metal.** On gemmi's covalent radii
   uranyl's U=O is 0.67 of the radius sum, and vanadyl's V=O and titanyl's
   Ti=O 0.72, from literature bond lengths. A partly occupied cation close to
@@ -56,7 +60,14 @@ Read 2026-09-26 from each program's manual.
 - **An occupancy test is the cheaper half.** Two partly occupied non-metals
   closer than a second, looser bound would be split too. Its bound has to
   sit below a disordered sulfate's S–O at 0.86, and the 0.77-0.81 band
-  holds real triple bonds (N≡N, cyanide's C≡N, CO).
+  holds real triple bonds (N≡N, cyanide's C≡N, CO). *Measured 2026-09-28:
+  no such bound exists.* Split O pairs sit 0.787 of their radius sum apart
+  in α-K₂SO₄ (COD 1000049) and 0.89-0.99 in orientationally disordered
+  NaNO₃ (COD 8103616, 9007558-9007567), so every bound that spares the
+  triple bonds misses them. Occupancy cannot separate them either: a
+  sulfate at half occupancy sums to 1 as two alternatives do. Each of those
+  pairs sits 19.6-32° apart round a metal both are bonded to, against 60°
+  in a real three-membered ring, and that test is what landed.
 
 ### The chemistry the rules miss
 
@@ -139,7 +150,7 @@ Independent; take any.
 
 - [ ] Disorder groups: a schema field read from the CIF and SHELX, no stick or shell across two groups of one assembly, and a way to show one alternative
 - [ ] Split sites with a metal: measure a real case before choosing a rule, since uranyl's U=O sits under the non-metal floor
-- [ ] The occupancy test for split pairs wider than the floor, with its bound measured against disordered sulfates and triple bonds
+- [x] The occupancy test for split pairs wider than the floor, with its bound measured against disordered sulfates and triple bonds (2026-09-28: measured, no bound exists; P9's angle test landed for the sticks instead, Context § Disorder)
 - [x] Cyanide and carbonyl ligands: find a rule that keeps SiO₄ and PO₄ and gives Prussian blue FeC₆, and measure it on the 21 phases (2026-09-28: a donor is a ligand, and an atom behind a bonded ligand is screened. The 21-phase default picture is unchanged; two hidden gaps moved, pyrite 1.52 → 1.60 and LaB6 1.45 → 1.90)
 - [ ] Centre and ligand overrides on the query string, as Mercury's two lists
 - [ ] One atom's environment on request, for an intermetallic

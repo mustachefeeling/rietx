@@ -345,9 +345,13 @@ three cases:
 - An intermetallic has no anions, so it draws no polyhedra.
 - A split site draws none. That is a shell holding two partly occupied ligands
   closer to each other than to the centre.
-- A split pair of non-metals more than 0.7 times their radius sum apart gets a
-  stick. Closer than that, the two are read as one atom over two positions:
-  no stick joins them, and neither makes the other a cation.
+- A split pair of non-metals can still get a stick. Two non-metals closer
+  than 0.7 times their radius sum are read as one atom over two positions: no
+  stick joins them, and neither makes the other a cation. Two partly occupied
+  ones further apart lose their stick when they sit closer to each other than
+  to an atom both are bonded to, as a disordered nitrate's O do round Na. A
+  pair that meets neither test keeps its stick, as Prussian blue's C and a
+  vacancy's water O do.
 
 `PNG` renders the picture again, 3000 pixels on its long side, with the a, b, c
 letters drawn in. That is a 17 cm figure at 300 dpi with room to crop.
