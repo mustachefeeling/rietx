@@ -146,6 +146,29 @@ the tail today, in local serial seconds:
 - [ ] Skill: none. This changes how the repo is tested, not how rietx is
       driven.
 
+## By hand: branch protection
+
+The maintainer makes this change once, by hand. It replaces the five matrix
+contexts with `ci-ok` and keeps `lint`. App 15368 is GitHub Actions, and
+naming it stops another app's status from satisfying the check.
+
+```sh
+gh api -X PATCH repos/yue-here/rietx/branches/main/protection/required_status_checks \
+  --input - <<'EOF'
+{"strict": false, "checks": [{"context": "lint", "app_id": 15368},
+                             {"context": "ci-ok", "app_id": 15368}]}
+EOF
+```
+
+In the web UI it is Settings → Branches → `main` → "Require status checks to
+pass": remove the four `fast py3.x` rows and `fast jax`, then add `ci-ok`.
+
+Do it in the same sitting as the merge that turns the skip on, in either
+order. Between the two acts a docs-only PR waits for contexts that never
+report, and nothing else is harmed. After the change, an open PR whose
+branch predates `ci-ok` reports no such check. It can merge once `main` is
+merged into it.
+
 ## Acceptance
 
 - A PR touching only `docs/wp/**` shows `ci-ok` green within about two

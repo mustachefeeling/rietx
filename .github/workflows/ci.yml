@@ -142,7 +142,8 @@ jobs:
 
   fast:
     name: fast py${{ matrix.python }}
-    if: github.event.pull_request.draft == false
+    needs: changes
+    if: needs.changes.outputs.scope == 'code'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -167,7 +168,8 @@ jobs:
 
   fast-jax:
     name: fast jax
-    if: github.event.pull_request.draft == false
+    needs: changes
+    if: needs.changes.outputs.scope == 'code'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
