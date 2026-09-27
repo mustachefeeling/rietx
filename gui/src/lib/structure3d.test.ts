@@ -409,12 +409,12 @@ describe("Mercury's two lists", () => {
     geo.atoms.push({ ...geo.atoms[0], pos: [8, 0, 0] });
     geo.polyhedra.push({ ...geo.polyhedra[0], center: 5 });
     geo.atoms.push({ ...geo.atoms[0], boundary: true, pos: [9, 0, 0] });
-    expect(focusedPolyhedra(geo, 0)).toEqual([0]);
-    expect(focusedPolyhedra(geo, 5)).toEqual([1]);
+    expect(focusedPolyhedra(geo, geo.atoms[0])).toEqual([0]);
+    expect(focusedPolyhedra(geo, geo.atoms[5])).toEqual([1]);
     // the image takes its site's nearest polyhedron, the same environment
-    expect(focusedPolyhedra(geo, 6)).toEqual([1]);
+    expect(focusedPolyhedra(geo, geo.atoms[6])).toEqual([1]);
     // and an O, whose shell closes none, draws none
-    expect(focusedPolyhedra(geo, 2)).toEqual([]);
+    expect(focusedPolyhedra(geo, geo.atoms[2])).toEqual([]);
   });
 
   it("switch one element and come back sorted, as the server echoes them", () => {

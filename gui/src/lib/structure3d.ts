@@ -269,15 +269,16 @@ export function shownPolyhedra(geometry: Geometry, on: boolean,
 
 /**
  * The polyhedron round one atom, as indices into `geometry.polyhedra`: one
- * atom's environment, drawn alone (WP-1468).  `focus` is an index into
- * `geometry.atoms`.  Only an atom of the cell is a centre, so an image
- * outside it takes the polyhedron of its site's atom nearest to it, the same
- * environment one lattice step away.  Empty when the site closes none.
+ * atom's environment, drawn alone (WP-1468).  `focus` is the atom by its
+ * site and position, never by its index: a refetch appends a different set
+ * of partners and corners, so an index held across one names another atom
+ * or none.  Only an atom of the cell is a centre, so an image outside it
+ * takes the polyhedron of its site's atom nearest to it, the same
+ * environment one lattice step away; an atom of the cell is nearest its own.
+ * Empty when the site closes none.
  */
-export function focusedPolyhedra(geometry: Geometry, focus: number): number[] {
-  const own = geometry.polyhedra.flatMap((p, i) => (p.center === focus ? [i] : []));
-  if (own.length) return own;
-  const atom = geometry.atoms[focus];
+export function focusedPolyhedra(geometry: Geometry,
+                                 atom: Pick<DrawnAtom, "site" | "pos">): number[] {
   let best = -1, nearest = Infinity;
   geometry.polyhedra.forEach((p, i) => {
     const centre = geometry.atoms[p.center];

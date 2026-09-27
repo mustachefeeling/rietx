@@ -516,6 +516,9 @@ def _cation_sites(sites: list[dict], orbit: dict[str, Any], basis: np.ndarray,
     strength = np.array([ELECTRONEGATIVITY.get(e, 0.0) for e in elements],
                         dtype=np.float64)
     metal = np.array([is_metal(e) for e in elements], dtype=bool)[source]
+    # each row's ``(site, turn)``, for the file's disorder groups
+    them = (None if codes is None
+            else np.stack([np.asarray(owner)[source], orbit["turn"][source]], axis=-1))
     for j, site in enumerate(sites):
         mine = ELECTRONEGATIVITY.get(site["element"])
         if j in cations or mine is None or j not in owner:
@@ -524,7 +527,6 @@ def _cation_sites(sites: list[dict], orbit: dict[str, Any], basis: np.ndarray,
         if codes is not None:
             # a partner the file's disorder groups keep from this site is none
             me = np.array([j, orbit["turn"][owner.index(j)]])
-            them = np.stack([np.asarray(owner)[source], orbit["turn"][source]], axis=-1)
             rows &= ~_apart(codes, me, them)
         if not rows.any():
             continue
@@ -762,10 +764,11 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
         # elements in use either way
         "centres": centres,
         "ligands": ligands,
-        "centre_elements": (sorted({sites[j]["element"] for j in cations})
+        "centre_elements": (sorted({sites[j]["element"] for j in cations - left_out})
                             if centres is None else centres),
         "ligand_elements": (sorted({s["element"] for j, s in enumerate(sites)
-                                    if j not in cations and is_ligand("", s["element"])})
+                                    if j not in cations and j not in left_out
+                                    and is_ligand("", s["element"])})
                             if ligands is None else ligands),
         "note": " · ".join(notes),
     }
@@ -1072,8 +1075,12 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
     if occupancy is None or metal is None:
         return out
     cation = np.zeros(n, dtype=bool) if cation is None else cation
-    return [bond for bond in out if not _split_stick(bond, positions, radii, metal, cation,
-                                                     occupancy, shifts)]
+    # every image within one translation, built once for all the bonds
+    images = (positions[None, :, :] + shifts[:, None, :]).reshape(-1, 3)
+    radius = np.tile(radii, len(shifts))
+    nonmetal = ~np.tile(metal, len(shifts))
+    return [bond for bond in out if not _split_stick(bond, radii, metal, cation, occupancy,
+                                                     images, radius, nonmetal)]
 
 
 #: Disorder groups that mean an ordered site: the CIF's nulls, and SHELX's
@@ -1162,8 +1169,9 @@ def one_atom(apart, near_one, near_two) -> np.ndarray:
     return np.asarray(apart) < np.minimum(near_one, near_two)
 
 
-def _split_stick(bond: dict, positions: np.ndarray, radii: np.ndarray, metal: np.ndarray,
-                 cation: np.ndarray, occupancy: np.ndarray, shifts: np.ndarray) -> bool:
+def _split_stick(bond: dict, radii: np.ndarray, metal: np.ndarray, cation: np.ndarray,
+                 occupancy: np.ndarray, images: np.ndarray, radius: np.ndarray,
+                 nonmetal: np.ndarray) -> bool:
     """Whether ``bond`` joins two positions of one split non-metal
     (:func:`one_atom`), judged over every image within one translation.
 
@@ -1173,14 +1181,13 @@ def _split_stick(bond: dict, positions: np.ndarray, radii: np.ndarray, metal: np
     pair with a cation in it: a partly occupied SO₄ whose S and O a K sits
     beside would otherwise lose its S–O stick at a thin angle round the K.
     Metals are left out of the pair itself, since a split site with a metal
-    in it is measured before it is ruled on (WP-1468).
+    in it is measured before it is ruled on (WP-1468).  ``images``, ``radius``
+    and ``nonmetal`` are every atom under every shift, tiled once by
+    :func:`_bonds` for all its bonds.
     """
     i, j = bond["i"], bond["j"]
     if metal[i] or metal[j] or occupancy[i] >= 1.0 - 1e-6 or occupancy[j] >= 1.0 - 1e-6:
         return False
-    images = (positions[None, :, :] + shifts[:, None, :]).reshape(-1, 3)
-    radius = np.tile(radii, len(shifts))
-    nonmetal = ~np.tile(metal, len(shifts))
     near_a = np.linalg.norm(images - np.asarray(bond["a"]), axis=1)
     near_b = np.linalg.norm(images - np.asarray(bond["b"]), axis=1)
     shared = ((nonmetal | ~(cation[i] | cation[j]))
@@ -1284,7 +1291,7 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
     from scipy.spatial import ConvexHull, QhullError, cKDTree
 
     if not orbit["atoms"] or n_cell == 0:
-        return [], [], 0
+        return [], [], []
     # a centre is a cation and a ligand is an anion (P2), unless the caller's
     # lists say otherwise (WP-1468)
     anion = np.array([j not in cations for j in orbit["owner"]])

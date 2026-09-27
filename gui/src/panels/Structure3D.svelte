@@ -109,11 +109,12 @@
    *  server owns, so a refetch, and a new phase starts from the chemistry. */
   let centres = $state<string[] | null>(null);
   let ligands = $state<string[] | null>(null);
-  /** One atom's environment (WP-1468), an index into the payload's atoms: a
+  /** One atom's environment (WP-1468), by its site and position rather than
+   *  its index, which the refetch the double-click itself asks for moves: a
    *  double-click on an atom draws its shell among every element, alone, as
    *  Daams & Villars draw an atomic environment.  A double-click elsewhere,
    *  either list, a new phase or `chemistry` ends it. */
-  let focus = $state<number | null>(null);
+  let focus = $state<{ site: number; pos: number[] } | null>(null);
   /** The chosen ellipsoid level, held here rather than read off the payload:
    *  every reload brings the server's default back, so a level picked once was
    *  silently reset by the next cell edit (found in a browser). */
@@ -390,8 +391,9 @@
       if (focus !== null) clearChemistry();
       return;
     }
-    focus = scene.atoms[atom.atom].index;
-    centres = [geo.sites[geo.atoms[focus].site].element];
+    const { site, pos } = geo.atoms[scene.atoms[atom.atom].index];
+    focus = { site, pos };
+    centres = [geo.sites[site].element];
     ligands = elements(geo);
   }
 
@@ -646,14 +648,14 @@
           <span class="inline">round
             {#each elements(geo) as el (el)}
               <button class="ghost" class:on={geo.centre_elements.includes(el)}
-                onclick={() => { focus = null; centres = toggled(geo!.centre_elements ?? [], el); }}
+                onclick={() => { focus = null; centres = toggled(centres ?? geo!.centre_elements ?? [], el); }}
                 title="draw polyhedra round each {el}">{el}</button>
             {/each}
           </span>
           <span class="inline">corners
             {#each elements(geo) as el (el)}
               <button class="ghost" class:on={geo.ligand_elements.includes(el)}
-                onclick={() => { focus = null; ligands = toggled(geo!.ligand_elements ?? [], el); }}
+                onclick={() => { focus = null; ligands = toggled(ligands ?? geo!.ligand_elements ?? [], el); }}
                 title="put each {el} at a polyhedron's corners">{el}</button>
             {/each}
           </span>
