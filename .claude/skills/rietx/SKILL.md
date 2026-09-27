@@ -30,9 +30,10 @@ specific to running it with no human at the plot.
 
 ## Load these when the task calls for them
 
-This file is the judgement core: what holds for every fit. Lookup tables, and
-the rules one task *shape* needs, live beside it, one file each. The user manual holds the object model this protocol drives and is not
-restated here; a page named `x` below is `https://rietx.org/using/x.html`.
+This file is the judgement core: what holds for every fit. Lookup tables and
+the rules one task *shape* needs live beside it, one file each. The user manual
+holds the object model this protocol drives; a page named `x` below is
+`https://rietx.org/using/x.html`.
 
 | When | Load | Manual page |
 |---|---|---|
@@ -50,7 +51,7 @@ restated here; a page named `x` below is `https://rietx.org/using/x.html`.
 | §9c, deciding: ranking, differencing, auditing, identifiability | [`references/batch.md`](references/batch.md) | `history`, `series` |
 | §9c, operating: budget, cost, timing, the log, inventory, fault tolerance | [`references/batch-operating.md`](references/batch-operating.md) | `history`, `series` |
 | §9d — a human may be watching this fit, or you want to hand one a window onto a long run; also reading a finished run off disk | [`references/watching.md`](references/watching.md) | `cli`, `refining`, `files` |
-| writing the answer out: CIF, QPA table, reflection table, plots, a structure figure | [`references/api.md`](references/api.md) § Out, [`api-figure.md`](references/api-figure.md) | `exports` |
+| writing the answer out: CIF, QPA and reflection tables, plots, a structure figure | [`references/api.md`](references/api.md) § Out, [`api-figure.md`](references/api-figure.md) | `exports` |
 
 ---
 
