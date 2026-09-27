@@ -49,7 +49,8 @@ column dead where `d == 0`. A softplus scale's internal column is
 smallest double is 4.9·10⁻³²⁴), so the column is declared dead although it is
 not. At S = 0.0 exactly, u has passed −745 and `log1p(exp(u))` has underflowed
 (the softplus clause in root CLAUDE.md), so σ(u) is zero too. All 17 dead
-scales in the table sit below that edge.
+scales in the table sit below that edge. *Superseded in part 2026-09-28:* the
+first edge is an overflow, not this underflow (§ Findings).
 
 **On current main the trigger is narrower than "a scale at the floor".** The
 block and `normal_covariance` are unchanged since `2d42303a` (diff checked
@@ -93,18 +94,117 @@ with the rest.
 
 Whichever lands, a withheld QPA esd never goes silent again.
 
-### Inherited
+**An interval without an esd exists since WP-1320.**
+`Refinement.profile_fraction(data, phase)` profiles one phase's weight fraction
+along its width and returns the admissible range
+(`FractionProfile.range_low`/`range_high`). Where the fit carries no esd it
+still returns the range, while `excess` is `None` and
+`QPA_FRACTION_UNDETERMINED` stays silent by design. A finding this WP adds may
+point at it.
 
-- **2026-09-27, from [1320](1320-qpa-multimodal-fraction.md): the soft
-  dependency is discharged.** `Refinement.profile_fraction(data, phase)` now
-  profiles one phase's weight fraction along its width and returns the
-  admissible range beside the answer (`FractionProfile.range_low`/`range_high`).
-  Where the fit carries no esd, this WP's 16-of-48 case, the profile still
-  returns the range, but `excess` is `None` and `QPA_FRACTION_UNDETERMINED`
-  stays silent by design, since there is no confident claim to contradict. So a
-  pattern that lost every esd here can still get an honest interval from the
-  profile, and a finding this WP adds may point at it. Priority unmoved: 1320
-  was never a blocker.
+### Findings (2026-09-28, at `154c33da`)
+
+**The state reproduces on main.** The fixture is `_absent_phase_inputs` on
+`synthesize()`. A wrapper lets TRF finish, then moves the absent scale's
+internal value u and re-evaluates the residual and Jacobian there, so every
+post-fit step runs as in production. Two plans were used: `mccusker_default`,
+and a two-stage plan freeing only the scales, background, phase 0's cell and
+the zero.
+
+| u | S | σ(S) | QPA esds | `at_bound` |
+|---|---|---|---|---|
+| natural | 4.2e-135 / 1.6e-39 | 7.66e-9 / 2.83e-7 | present | False |
+| −300 | 5.1e-131 | 7.66e-9 / 2.83e-7 | present | False |
+| −370 | 2.0e-161 | 7.66e-9 / 2.83e-7 | present | False |
+| −380 | 9.3e-166 | None | None | False |
+| −400 | 1.9e-174 | None | None | False |
+| −700 | 9.9e-305 | None | None | False |
+| −800 | 0.0 | None | None | False |
+
+Values separated by a slash are the two plans. The other phase's esd is
+2.99e-5 under `mccusker_default` and 3.06e-3 under the scale-only plan,
+identical to four figures wherever it is present. No finding names the loss
+under either plan.
+
+**Two edges, and the WP's reading had the second one.** Measured on the
+captured Jacobians:
+
+| u | max \|column\| | d² as computed | 1/d² |
+|---|---|---|---|
+| −370 | 1.8e-153 | 1.8e-305 | 5.6e+304 |
+| −375 | 1.2e-155 | 8.0e-310 (subnormal) | overflows |
+| −380 | 8.3e-158 | 3.6e-314 (subnormal) | overflows |
+| −400 | 1.7e-166 | 0.0 | — |
+| −800 | 0.0 | 0.0 | — |
+
+`normal_covariance` forms the internal variance as K·(1/d)², where K is the
+inverse of the equilibrated matrix. That product leaves the double range once
+d falls below about 7.5e-155. So the esd is lost at u ≈ −375, where d² is still
+nonzero. The `d == 0` underflow the WP named arrives about seven orders later,
+near u = −400. A scaled norm alone (option 1 as written) would therefore
+change nothing. The internal variance at u = −380 is about 1e+330 and has no
+double. The internal esd, about 1e+165, does. So does the physical esd
+σ(u)·esd, which is 7.66e-9 as at u = −300.
+
+**At S = 0.0 the column is zero by every route.** u has passed −745, so
+dS/du = σ(u) is exactly 0. The analytic scale branch declines a zero scale and
+the column falls to the finite-difference path. That perturbs u by 8e-4 and
+decodes S = 0.0 again, so it returns zeros too. No numerical repair recovers a
+direction the parameterisation has lost. 13 of the 16 real cases sit here.
+
+**Option 2 measured: a solver floor moves every fit and does not stop the
+loss.** An internal lower bound of −700 on every softplus entry changes TRF's
+Coleman-Li scaling for every column with a positive gradient. The synthetic
+LaB₆ fit moved by up to 4.5e-6 esd (`instrument.profile.w`), with Rwp equal to
+six figures. The absent scale went *deeper*, to 1.1e-189, and its esd was still
+lost.
+
+**Option 3 on its own arithmetic.** With the absent scale held at zero,
+W₀ = S₀·(ZMV)₀ / S₀·(ZMV)₀ ≡ 1 on the two-phase fixture, so σ(W₀) = 0. That is
+the confident wrong singleton root CLAUDE.md forbids. The option was rejected
+on this alone, so GSAS-II and TOPAS were not read.
+
+**Why `PHASE_UNCONSTRAINED` stays quiet.** `_phase_support_diagnostics` skips
+a phase that has no free non-scale parameter, no hold and a line in range. The
+scale-only plan reaches the answer that way and emits no `PHASE_UNCONSTRAINED`,
+even at S = 0.0. That fits the series, but its plan was not re-read. The
+diagnostic's docstring says deliberately that a free scale alone is not its
+subject.
+
+**`at_bound` on the absent scale.** Its residual cosine is 0.030 at every u
+down to −400, above `BOUND_HIT_COS_MIN` and pushing outward. So the WP-1434
+conjunction, if asked in physical space, would say True. `BOUND_HIT`'s advice
+is "widen the bound or fix the parameter", which is wrong for a scale that
+cannot go negative. A zero width, a common state, would get the same advice.
+
+**Siblings of the squared norm.** The same `norm(J, axis=0)` underflow reads a
+tiny column as zero in `_residual_cosine` (which feeds `at_bound`),
+`identifiability.soft_modes`, the exchangeability scan and
+`statistics.background_absorption`.
+
+### Decision (2026-09-28)
+
+1. **The esd is computed wherever a double can hold it.** Columns whose
+   largest entry leaves [2⁻⁴⁰⁰, 2⁴⁰⁰] are rescaled by an exact power of two
+   before the normal matrix is formed. A live column whose internal variance
+   overflows takes its esd as (1/d)·√K rather than √(K·(1/d)²), and its
+   correlations from K. Every other column's arithmetic is unchanged, so an
+   ordinary fit's esds and correlations stay bit-identical. This carries the
+   10⁻¹³⁵ answer down to about 10⁻³⁰⁰.
+2. **Where the column is exactly zero, the QPA esds stay `None` and a new
+   warning, `QPA_ESD_UNAVAILABLE`, names the phase.** It points at
+   `profile_fraction` for an interval.
+3. **`at_bound` is `None` on a free column sitting on its transform's
+   asymptote.** A softplus floor is not a limit the solver sees, so the
+   conjunction cannot be asked there. A value further than a hundredth of an
+   esd from it still reads `False`.
+4. **`PHASE_UNCONSTRAINED` keeps its subject.** The comment in the QPA block
+   is corrected, and the new finding names the phase instead.
+5. **Every site that squares a Jacobian column for its norm takes the same
+   rescaling**: `_residual_cosine`, `soft_modes` and `background_absorption`'s
+   single-column branch. The exchangeability loadings and the group branch are
+   left. A tiny column there is cut by `lstsq`'s relative cutoff, which a norm
+   repair does not reach.
 
 ## Non-goals
 
@@ -114,13 +214,13 @@ Whichever lands, a withheld QPA esd never goes silent again.
 
 ## Tasks
 
-- [ ] Reproduce on main. Drive a synthetic absent scale below 10⁻¹⁶² and to
+- [x] Reproduce on main. Drive a synthetic absent scale below 10⁻¹⁶² and to
       0.0: a longer flat-direction stage, or the internal value set on a table
       in a unit test. Record which esds go `None` and which findings fire. If
       no plan reaches the state, write that here and re-rate this WP.
-- [ ] Confirm or refute the underflow reading: the dead-column test with and
+- [x] Confirm or refute the underflow reading: the dead-column test with and
       without a scaled norm, on the reproduced state.
-- [ ] Decide between options 1, 2 and 3 with those numbers, and write the
+- [x] Decide between options 1, 2 and 3 with those numbers, and write the
       decision and its evidence here.
 - [ ] A withheld weight-fraction esd emits a finding naming the phase whose
       scale withheld it. Check `SEQUENTIAL_PERSISTENT_FINDING` aggregates it
