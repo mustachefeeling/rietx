@@ -1,6 +1,6 @@
 # WP-1470 — a structure figure from Python, drawn without a browser
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here
 Depends on: — (1462, 1466 shipped)
 Priority: P3 2026-09-27 — a view over what the fit already knows, asked for by the maintainer; `Refinement.write_cif` into VESTA or Jmol is the workaround; nothing blocks it
 
