@@ -152,9 +152,9 @@ Independent; take any.
 - [ ] Split sites with a metal: measure a real case before choosing a rule, since uranyl's U=O sits under the non-metal floor
 - [x] The occupancy test for split pairs wider than the floor, with its bound measured against disordered sulfates and triple bonds (2026-09-28: measured, no bound exists; P9's angle test landed for the sticks instead, Context § Disorder)
 - [x] Cyanide and carbonyl ligands: find a rule that keeps SiO₄ and PO₄ and gives Prussian blue FeC₆, and measure it on the 21 phases (2026-09-28: a donor is a ligand, and an atom behind a bonded ligand is screened. The 21-phase default picture is unchanged; two hidden gaps moved, pyrite 1.52 → 1.60 and LaB6 1.45 → 1.90)
-- [ ] Centre and ligand overrides on the query string, as Mercury's two lists
-- [ ] One atom's environment on request, for an intermetallic
-- [ ] Anion-centred and cluster polyhedra, if a user asks for them
+- [x] Centre and ligand overrides on the query string, as Mercury's two lists (2026-09-28: `centres=` and `ligands=`, element lists that replace the rule, and the `round` and `corners` rows under `drawing`)
+- [~] One atom's environment on request, for an intermetallic (2026-09-28: an element's environments come through the lists, and Cu₃Au draws AuCu₁₂ and CuAu₄Cu₈. One atom's alone is not offered)
+- [~] Anion-centred and cluster polyhedra, if a user asks for them (2026-09-28: anion-centred ones come through the lists, as fluorite's FCa₄. A cluster polyhedron round no atom, B₆, does not)
 - [ ] The two-gap tie: find a real case, then decide whether to apply Daams & Villars' rule
 - [x] A hidden shell dropped at the atom cap stays in the legend as unavailable, or the cap stops counting it (2026-09-28: the payload's `polyhedra_dropped` lists each by site and ligands, and the legend greys a formula that has nothing else to draw. The cap still counts every shell: it bounds what the viewer draws)
 - [x] The polyhedra stop recomputing on a bond-slider release — declined on the record 2026-09-28. The recompute is kept and made cheaper (Context). A memo would be keyed on the phase and on every rule constant, and one left out of the key serves a stale picture

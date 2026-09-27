@@ -196,12 +196,16 @@ export const api = {
    *  translations, and the cell frame — none of which a `Structure` dump says.
    *  The arguments are drawing thresholds, not settings, which is why they ride
    *  on the query string and are never persisted. */
-  structure3d: (phase = 0, bondTolerance?: number, disorder?: "all" | "major") => {
+  structure3d: (phase = 0, bondTolerance?: number, disorder?: "all" | "major",
+                centres?: string[] | null, ligands?: string[] | null) => {
     const query = new URLSearchParams({ phase: String(phase) });
     if (bondTolerance !== undefined) {
       query.set("bond_tolerance", String(bondTolerance));
     }
     if (disorder !== undefined) query.set("disorder", disorder);
+    // present and empty asks for none, so only null leaves the chemistry's
+    if (centres != null) query.set("centres", centres.join(","));
+    if (ligands != null) query.set("ligands", ligands.join(","));
     return call("GET", `/api/structure3d?${query}`);
   },
   instrument: () => call("GET", "/api/instrument"),

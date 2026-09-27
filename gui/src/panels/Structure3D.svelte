@@ -39,6 +39,7 @@
     bondLabel,
     buildScene,
     caption,
+    elements,
     legend,
     openingView,
     pickAtom,
@@ -51,6 +52,7 @@
     rgb,
     rotateBy,
     shownPolyhedra,
+    toggled,
     type Disorder,
     type Geometry,
     type Mode,
@@ -101,6 +103,11 @@
   /** Every alternative of a disordered structure, or the major one alone
    *  (WP-1468): a drawing choice the server owns, so a refetch. */
   let disorder = $state<Disorder>("all");
+  /** Mercury's two lists (WP-1468): the elements a polyhedron is drawn round
+   *  and at its corners, `null` for the chemistry's own.  A drawing choice the
+   *  server owns, so a refetch, and a new phase starts from the chemistry. */
+  let centres = $state<string[] | null>(null);
+  let ligands = $state<string[] | null>(null);
   /** The chosen ellipsoid level, held here rather than read off the payload:
    *  every reload brings the server's default back, so a level picked once was
    *  silently reset by the next cell edit (found in a browser). */
@@ -160,6 +167,8 @@
     void phase;
     void tolerance;
     void disorder;
+    void centres;
+    void ligands;
     load();
   });
 
@@ -217,7 +226,7 @@
   async function load() {
     const mine = ++seq;
     try {
-      const payload = await api.structure3d(phase, tolerance, disorder);
+      const payload = await api.structure3d(phase, tolerance, disorder, centres, ligands);
       if (mine !== seq) return;
       geo = at(payload, level);
       error = "";
@@ -481,7 +490,7 @@
     </div>
     <span class="spacer"></span>
     {#if geo && geo.phases.length > 1}
-      <select bind:value={phase}>
+      <select bind:value={phase} onchange={() => { centres = null; ligands = null; }}>
         {#each geo.phases as name, i (i)}<option value={i}>{name}</option>{/each}
       </select>
     {/if}
@@ -603,6 +612,28 @@
               Number((e.currentTarget as HTMLInputElement).value))} />
           <span class="mono">{toleranceShown.toFixed(2)}×</span>
         </label>
+        {#if geo.centre_elements && geo.ligand_elements}
+          <!-- Mercury's two lists: which elements a polyhedron is drawn round
+               and which sit at its corners, the chemistry's until one is pressed -->
+          <span class="inline">round
+            {#each elements(geo) as el (el)}
+              <button class="ghost" class:on={geo.centre_elements.includes(el)}
+                onclick={() => (centres = toggled(geo!.centre_elements ?? [], el))}
+                title="draw polyhedra round each {el}">{el}</button>
+            {/each}
+          </span>
+          <span class="inline">corners
+            {#each elements(geo) as el (el)}
+              <button class="ghost" class:on={geo.ligand_elements.includes(el)}
+                onclick={() => (ligands = toggled(geo!.ligand_elements ?? [], el))}
+                title="put each {el} at a polyhedron's corners">{el}</button>
+            {/each}
+          </span>
+          {#if centres !== null || ligands !== null}
+            <button class="ghost" onclick={() => { centres = null; ligands = null; }}
+              title="go back to the centres and corners the chemistry picks">chemistry</button>
+          {/if}
+        {/if}
         {#if geo.minor_sites?.length}
           <!-- the file's disorder groups: every alternative, with no stick
                between two, or each assembly's most occupied group alone -->

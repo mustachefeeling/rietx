@@ -151,13 +151,23 @@ def _structure3d(s: GuiSession, q: dict, _body: dict) -> dict:
     """Geometry for one phase.  The knobs are *drawing* thresholds, not physics,
     which is why they ride here rather than in a settings document: the
     probability level an ellipsoid is drawn at, the radius-sum slack a bond is
-    drawn at and which alternative of a disordered site is drawn say nothing
-    about the model, and persisting any would make one picture the project's
-    opinion."""
+    drawn at, which alternative of a disordered site is drawn and which elements
+    a polyhedron is drawn round say nothing about the model, and persisting any
+    would make one picture the project's opinion."""
     return s.structure3d(_query_int(q, "phase", 0),
                          probability=_query_float(q, "probability") or 0.5,
                          bond_tolerance=_query_float(q, "bond_tolerance"),
-                         disorder=(q.get("disorder") or ["all"])[0])
+                         disorder=(q.get("disorder") or ["all"])[0],
+                         centres=_query_list(q, "centres"),
+                         ligands=_query_list(q, "ligands"))
+
+
+def _query_list(q: dict, name: str) -> list[str] | None:
+    """A comma-separated list, ``None`` when the name is absent.  Present and
+    empty is an empty list, which is a request for none."""
+    if name not in q:
+        return None
+    return [v.strip() for part in q[name] for v in part.split(",") if v.strip()]
 
 
 def _series_index(q: dict, what: str) -> int:

@@ -1184,6 +1184,11 @@ def test_structure3d_serves_geometry_the_model_dump_cannot(blank, tmp_path,
     assert client.get("/api/structure3d?disorder=major")[1]["disorder"] == "major"
     status, refused = client.get("/api/structure3d?disorder=minor")
     assert status == 400 and refused["error"]["where"] == ["disorder"]
+    # and the fourth and fifth, Mercury's two lists: present and empty is none
+    assert payload["centres"] is None and payload["centre_elements"]
+    assert client.get("/api/structure3d?centres=")[1]["polyhedra"] == []
+    status, refused = client.get("/api/structure3d?ligands=O,Xx")
+    assert status == 400 and refused["error"]["where"] == ["ligands"]
 
     # …and it follows the model rather than a cached read: an edit moves it
     before = payload["cell"][0]

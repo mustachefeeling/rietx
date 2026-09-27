@@ -1035,6 +1035,50 @@ def test_the_default_picture_on_the_measured_phases(row):
     _every_polyhedron_is_one(payload)
 
 
+def test_the_centre_and_ligand_lists_replace_the_rule():
+    """Mercury's two lists (WP-1468).  Asked for F round Ca, fluorite draws the
+    anion-centred FCa₄ tetrahedra; asked for Cs among Cs and Cl, CsCl draws
+    the body-centred cubic environment, 8 Cl and then 6 Cs."""
+    fluorite = measured(next(r for r in MEASURED if r["name"] == "fluorite CaF2"))
+    default = s3.build(fluorite)
+    assert (default["centres"], default["ligands"]) == (None, None)
+    assert (default["centre_elements"], default["ligand_elements"]) == (["Ca"], ["F"])
+    asked = s3.build(fluorite, centres=["F"], ligands=["Ca2+"])
+    assert _formulas(asked) == {"F1": {"FCa4"}}
+    assert (asked["centres"], asked["ligand_elements"]) == (["F"], ["Ca"])
+    assert s3.build(fluorite, centres=[])["polyhedra"] == []
+
+    cscl = measured(next(r for r in MEASURED if r["name"] == "CsCl"))
+    environments = s3.build(cscl, centres=["Cs"], ligands=["Cs", "Cl"])["polyhedra"]
+    assert {p["coordination"] for p in environments} == {14}
+    with pytest.raises(ValueError, match="'Xx' names no element"):
+        s3.build(cscl, centres=["Xx"])
+
+
+def test_an_intermetallics_environments_come_through_the_lists():
+    """Cu₃Au (L1₂) draws nothing by the rule, having no anion.  Asked for both
+    elements round and at the corners, every Au draws AuCu₁₂ and every Cu
+    CuAu₄Cu₈, the cuboctahedra, at a gap of √2.
+
+    The Au 3.748 Å out sits at exactly 90° past a Cu 2.650 Å out, and before
+    the screen asked for more than rounding it had screened that Au round
+    some of the Au and not the others: two drew 14 ligands and six drew 12.
+    """
+    cell = Cell(a=_p(3.748), b=_p(3.748), c=_p(3.748),
+                alpha=_p(90.0), beta=_p(90.0), gamma=_p(90.0))
+    atoms = [Atom(label="Au1", species="Au", x=_p(0.0), y=_p(0.0), z=_p(0.0)),
+             Atom(label="Cu1", species="Cu", x=_p(0.0), y=_p(0.5), z=_p(0.5))]
+    alloy = Structure(phases=[Phase(name="Cu3Au", space_group="P m -3 m", cell=cell,
+                                    atoms=atoms)])
+    assert s3.build(alloy)["polyhedra"] == []
+    payload = s3.build(alloy, centres=["Au", "Cu"], ligands=["Au", "Cu"])
+    shells = {(payload["sites"][p["site"]]["label"], p["coordination"],
+               tuple(sorted(payload["sites"][payload["atoms"][v]["site"]]["element"]
+                            for v in p["vertices"]))) for p in payload["polyhedra"]}
+    assert shells == {("Au1", 12, ("Cu",) * 12), ("Cu1", 12, ("Au",) * 4 + ("Cu",) * 8)}
+    assert {round(p["gap"], 4) for p in payload["polyhedra"]} == {round(math.sqrt(2), 4)}
+
+
 @pytest.mark.parametrize("name", ["nac", "fap", "brucite"])
 def test_every_drawn_polyhedron_is_one(name, nac, fap):
     """P4, checked from the payload alone, as a client would draw it."""

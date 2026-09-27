@@ -363,6 +363,16 @@ group alone, and the caption says how many sites it left out. A group with a
 minus prefix is a site disordered about a special position: its symmetry
 copies are its alternatives, and that button leaves them all drawn.
 
+The rule can be overridden, as Mercury's central and ligand element lists
+override its own. Under `drawing`, the `round` row holds one button per element
+for the atoms a polyhedron is drawn round, and the `corners` row one per element
+for the atoms at its corners. Both start as the rule picks them. Any element
+may go in either row, so F round with Ca at the corners draws fluorite's
+anion-centred FCa₄. Cs round with Cs and Cl at the corners finds CsCl's
+14-atom environment, and its legend button starts off, as every shell of more
+than six does. An intermetallic's environments are asked for the same way. `chemistry` goes back to the rule, and so does a change of phase. The
+caption says when the lists are your own.
+
 `PNG` renders the picture again, 3000 pixels on its long side, with the a, b, c
 letters drawn in. That is a 17 cm figure at 300 dpi with room to crop.
 `transparent PNG`, under `drawing`, leaves the background out.

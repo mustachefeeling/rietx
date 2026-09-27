@@ -119,6 +119,12 @@ export interface Geometry {
   disorder?: Disorder;
   /** the sites `"major"` draws no image of, listed in either view */
   minor_sites?: number[];
+  /** Mercury's two lists as asked for, `null` for the chemistry's (WP-1468) */
+  centres?: string[] | null;
+  ligands?: string[] | null;
+  /** the elements a polyhedron is drawn round, and at its corners, either way */
+  centre_elements?: string[];
+  ligand_elements?: string[];
   note: string;
 }
 
@@ -284,6 +290,19 @@ export function polyhedraLegend(geometry: Geometry): Array<{
   }
   for (const p of geometry.polyhedra_dropped ?? []) add(p.site, p.ligands, p.drawn_by_default, false);
   return out;
+}
+
+/** The phase's elements, once each, in the order the sites declare them: the
+ *  buttons Mercury's two lists are chosen with. */
+export function elements(geometry: Geometry): string[] {
+  return [...new Set(geometry.sites.map((s) => s.element))];
+}
+
+/** `list` with `element` switched: in if it was out, out if it was in, sorted
+ *  as the server echoes it. */
+export function toggled(list: readonly string[], element: string): string[] {
+  return (list.includes(element) ? list.filter((e) => e !== element) : [...list, element])
+    .sort();
 }
 
 /** Species → its legend entry, in the order the sites are declared. */
@@ -923,6 +942,11 @@ export function caption(geometry: Geometry, mode: Mode, exaggeration = 1,
     parts.push(`balls at ${geometry.ball_fraction.toFixed(2)}× the covalent radius`);
   }
   parts.push(`sticks ${stickRadius(geometry, mode, exaggeration).toFixed(3)} Å`);
+  if (geometry.centres != null || geometry.ligands != null) {
+    const named = (list?: string[]) => (list?.length ? list.join(", ") : "none");
+    parts.push(`polyhedra round ${named(geometry.centre_elements)} with`
+      + ` ${named(geometry.ligand_elements)} at the corners, as chosen`);
+  }
   const minor = geometry.minor_sites?.length ?? 0;
   if (minor) {
     parts.push(geometry.disorder === "major"

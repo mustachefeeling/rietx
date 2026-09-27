@@ -430,6 +430,19 @@ def is_ligand(center: str, element: str) -> bool:
             and not info.is_hydrogen)
 
 
+def element_list(values: Sequence[str], what: str = "elements") -> list[str]:
+    """``values`` as sorted, unique element symbols, or ``ValueError`` naming
+    the one that is none.  A charge is dropped, as :func:`element_symbol` drops
+    it, so ``"O2-"`` asks for O."""
+    out = set()
+    for value in values:
+        symbol = element_symbol(str(value))
+        if symbol == "X":
+            raise ValueError(f"{what}: {value!r} names no element")
+        out.add(symbol)
+    return sorted(out)
+
+
 #: Pauling electronegativities of gemmi's non-metals, for the one question the
 #: polyhedra ask of them: which of two bonded non-metals is the cation.  An
 #: element with no value (He, Ne, Ar, Rn, Ts, Og) is never the more
@@ -568,7 +581,9 @@ def probability_scale(probability: float) -> float:
 # ----------------------------------------------------------------------
 def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY,
           bond_tolerance: float = BOND_TOLERANCE,
-          max_atoms: int = MAX_ATOMS, disorder: str = "all") -> dict[str, Any]:
+          max_atoms: int = MAX_ATOMS, disorder: str = "all",
+          centres: Sequence[str] | None = None,
+          ligands: Sequence[str] | None = None) -> dict[str, Any]:
     """Drawable geometry for one phase of ``structure``.
 
     The returned dict is the wire format of ``GET /api/structure3d``; its shape
@@ -577,10 +592,21 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     one of :data:`DISORDER_VIEWS`; ``"major"`` draws no image of a site
     :func:`minor_sites` names.  The payload lists those in ``minor_sites``
     in either view, so a client knows whether there is a choice to offer.
+
+    ``centres`` and ``ligands`` are Mercury's two lists (WP-1468): element
+    symbols that replace the chemistry's choice of which atoms a polyhedron
+    is drawn round and which sit at its corners.  ``None`` keeps the rule
+    (:func:`_cation_sites`, :func:`is_ligand`).  A list may name a metal as a
+    ligand or an anion as a centre, which is how an intermetallic's
+    environments and an anion-centred OCa₄ are asked for.  The payload
+    echoes both and lists the elements in use as ``centre_elements`` and
+    ``ligand_elements``.
     """
     if disorder not in DISORDER_VIEWS:
         raise ValueError(f"disorder must be one of {', '.join(DISORDER_VIEWS)}, "
                          f"not {disorder!r}")
+    centres = None if centres is None else element_list(centres, "centres")
+    ligands = None if ligands is None else element_list(ligands, "ligands")
     phases = list(structure.phases)
     if not phases:
         # Phrased for the state, not for a bad index: a pattern-only project
@@ -637,12 +663,13 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
                      "are not drawn; their bonds end in mid-air")
         partners = partners[:room]
     atoms.extend(partners)
-    polyhedra, ligands, dropped = _polyhedra(sites, orbit, cations, atoms, n_cell, bonds,
-                                             basis, max(max_atoms - len(atoms), 0), codes)
+    polyhedra, corners, dropped = _polyhedra(sites, orbit, cations, atoms, n_cell, bonds,
+                                             basis, max(max_atoms - len(atoms), 0), codes,
+                                             centres, ligands)
     if dropped:
         notes.append(f"{len(dropped)} coordination polyhedra not drawn: their ligands "
                      f"would take the drawing past {max_atoms} atoms")
-    atoms.extend(ligands)
+    atoms.extend(corners)
 
     corners = _corners(basis)
     return {
@@ -678,6 +705,15 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
         "disorder": disorder,
         # the sites ``disorder="major"`` draws no image of, in either view
         "minor_sites": sorted(minor),
+        # the two lists as asked for (``None`` is the chemistry's), and the
+        # elements in use either way
+        "centres": centres,
+        "ligands": ligands,
+        "centre_elements": (sorted({sites[j]["element"] for j in cations})
+                            if centres is None else centres),
+        "ligand_elements": (sorted({s["element"] for j, s in enumerate(sites)
+                                    if j not in cations and is_ligand("", s["element"])})
+                            if ligands is None else ligands),
         "note": " · ".join(notes),
     }
 
@@ -1145,6 +1181,7 @@ def _orbit(sites: list[dict], every: list[dict], basis: np.ndarray,
 def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
                atoms: list[dict], n_cell: int, bonds: list[dict], basis: np.ndarray,
                room: int, codes: tuple[np.ndarray, ...] | None = None,
+               centres: Sequence[str] | None = None, ligands: Sequence[str] | None = None,
                ) -> tuple[list[dict], list[dict], list[dict]]:
     """``(polyhedra, partners, dropped)`` for the first ``n_cell`` drawn atoms.
 
@@ -1165,14 +1202,21 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
     (``codes``, :func:`_disorder_codes`), and neither is a ligand of a centre
     it is an alternative of (WP-1468).
 
-    An atom bonded to a ligand the centre is bonded to, and behind it, is
-    screened out before the gap is found (WP-1468).  Behind means the angle at
-    that ligand is obtuse, so |MX|² > |MY|² + |XY|².  A cyanide's N, 3.03 Å
+    A non-metal bonded to a non-metal ligand the centre is bonded to, and
+    behind it, is screened out before the gap is found (WP-1468).  Behind
+    means the angle at that ligand is obtuse, so |MX|² > |MY|² + |XY|², by
+    more than rounding: Cu₃Au's Au sits at exactly 90° past a Cu, and noise
+    had screened it round some Au and not others.  A cyanide's N, 3.03 Å
     from Co behind its C at 1.89, had closed Co's shell after 12, C₆N₆.  An
     η²-peroxide or a Cp ring is not screened, since its ligands meet the
-    centre at acute angles.  One step only: through LaB6's boron framework
-    every B would screen the next.  On the 21 phases it moves two gaps and no
-    shell: pyrite's Fe from 1.52 to 1.60 and LaB6's La from 1.45 to 1.90.
+    centre at acute angles, and metals form no ligand unit to screen with.
+    One step only: through LaB6's boron framework every B would screen the
+    next.  On the 21 phases it moves two gaps and no shell: pyrite's Fe from
+    1.52 to 1.60 and LaB6's La from 1.45 to 1.90.
+
+    ``centres`` and ``ligands`` replace the rule by element (:func:`build`):
+    a centre is then any site of a listed element, and a ligand any atom of
+    one, metals and the centre's own element included.
 
     A vertex outside the drawn atoms becomes a partner, flagged ``boundary``
     as :func:`_partners`' are, so no polyhedron is cut off (P7).  It is also
@@ -1188,9 +1232,12 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
 
     if not orbit["atoms"] or n_cell == 0:
         return [], [], 0
-    # a centre is a cation and a ligand is an anion (P2)
+    # a centre is a cation and a ligand is an anion (P2), unless the caller's
+    # lists say otherwise (WP-1468)
     anion = np.array([j not in cations for j in orbit["owner"]])
     elements = orbit["elements"]
+    centre_sites = (cations if centres is None
+                    else {j for j, site in enumerate(sites) if site["element"] in centres})
 
     # per orbit atom and per centre element, found once: the orbit's atoms
     # outlive its rebuild, so only ``source`` differs between the two readers
@@ -1198,14 +1245,15 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
 
     def ligand_rows(element: str, orbit: dict[str, Any]) -> np.ndarray:
         if element not in eligible:
-            eligible[element] = anion & np.array([is_ligand(element, e) for e in elements],
-                                                 dtype=bool)
+            eligible[element] = (
+                anion & np.array([is_ligand(element, e) for e in elements], dtype=bool)
+                if ligands is None else np.array([e in ligands for e in elements], dtype=bool))
         return np.nonzero(eligible[element][orbit["source"]])[0]
 
     # every centre's window must lie inside the orbit, and the images of one
     # site all see the same shortest distance
     reach = 0.0
-    for j in sorted(cations & set(orbit["owner"])):
+    for j in sorted(centre_sites & set(orbit["owner"])):
         here = orbit["frac"][orbit["owner"].index(j)] @ basis.T
         dist = np.linalg.norm(orbit["cart"][ligand_rows(sites[j]["element"], orbit)] - here,
                               axis=1)
@@ -1216,6 +1264,8 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
         orbit = _orbit(sites, orbit["atoms"], basis, reach)
     occupancy, cart, source = orbit["occupancy"], orbit["cart"], orbit["source"]
     radius = np.array([element_radius(e) for e in elements], dtype=np.float64)[source]
+    # a metal is a ligand only on a caller's list, so the P10 floor is per pair
+    nonmetal = ~np.array([is_metal(e) for e in elements], dtype=bool)[source]
     # each row's ``(site, turn)``, for the file's disorder groups
     held_by = np.stack([np.asarray(orbit["owner"], dtype=int)[source],
                         orbit["turn"][source]], axis=-1)
@@ -1235,7 +1285,7 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
     dropped: list[dict] = []
     for c in range(n_cell):
         atom = atoms[c]
-        if atom["site"] not in cations:
+        if atom["site"] not in centre_sites:
             continue
         element = sites[atom["site"]]["element"]
         if element not in ligand_of:
@@ -1263,16 +1313,22 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
         index, dist = index[dist <= window], dist[dist <= window]
         order = np.argsort(dist, kind="stable")
         index, dist = index[order], dist[order]
-        # an atom bonded to one of the centre's own ligands, and beyond it as
-        # the centre sees them (the angle there obtuse), belongs to that
-        # ligand: cyanide's N behind the C a metal holds, or pyrite's second S
-        held = index[bonded(dist, own + radius[index], nonmetals=not metallic)]
+        # a non-metal bonded to one of the centre's own non-metal ligands, and
+        # beyond it as the centre sees them (the angle there obtuse, by more
+        # than rounding), belongs to that ligand: cyanide's N behind the C a
+        # metal holds, or pyrite's second S.  Metals form no such unit, and a
+        # right angle is beside: Cu₃Au's Au sits at exactly 90° past a Cu,
+        # and rounding had screened it round some of the Au and not others
+        held = index[nonmetal[index]
+                     & bonded(dist, own + radius[index], nonmetals=nonmetal[index] & (not metallic))]
         if len(held):
             apart = np.linalg.norm(cart[index][:, None, :] - cart[held][None, :, :], axis=2)
             near = np.linalg.norm(cart[held] - centre, axis=1)
-            behind = (bonded(apart, radius[index][:, None] + radius[held][None, :],
-                             nonmetals=True)
-                      & (dist[:, None] ** 2 > near[None, :] ** 2 + apart ** 2))
+            obtuse = dist[:, None] ** 2 - near[None, :] ** 2 - apart ** 2
+            behind = (nonmetal[index][:, None]
+                      & bonded(apart, radius[index][:, None] + radius[held][None, :],
+                               nonmetals=True)
+                      & (obtuse > 1e-9 * dist[:, None] ** 2))
             if codes is not None:
                 behind &= ~_apart(codes, held_by[index][:, None, :], held_by[held][None, :, :])
             behind = behind.any(axis=1)
