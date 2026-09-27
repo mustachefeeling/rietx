@@ -244,7 +244,7 @@ and PNG metadata. Each decision says what it takes and what it declines.
 
 ## Tasks
 
-- [ ] Skill: a row saying that `Refinement.write_cif` into VESTA
+- [x] Skill: a row saying that `Refinement.write_cif` into VESTA
   (`-export_img`) or JmolData draws a refined structure today. It lands
   first and stands on its own.
 - [ ] `build_scene` in Python, the corpus, and the vitest that replays it

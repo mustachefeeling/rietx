@@ -199,7 +199,7 @@ Peaks, then a cell, then the extinction symbol — the closed loop of §7b-7f, e
 
 ## Out
 
-Files and figures. `rx.format_su` renders a value with its esd as `1.2345(12)`; `plot_for_vlm` is the montage §5 allows as a check on a conclusion already reached from numbers. `rx.write_recipe_tables` is the return leg of `rx.read_recipe` — a finished refinement as PowderLine's four tables, for a pipeline that dispatched the job here.
+Files and figures. `rx.format_su` renders a value with its esd as `1.2345(12)`; `plot_for_vlm` is the montage §5 allows as a check on a conclusion already reached from numbers. `rx.write_recipe_tables` is the return leg of `rx.read_recipe` — a finished refinement as PowderLine's four tables, for a pipeline that dispatched the job here. **A picture of the refined structure** comes from another program: `Structure.to_cif` writes each phase with its `_atom_site_aniso_` loop, and VESTA draws it (`VESTA -open phase.cif -export_img scale=2 phase.png`, which opens a window), as does JmolData without a display (Hypothesis: WP-1470, from each program's manual; neither was run).
 
 - `rx.write_refinement_cif(result: RefinementResult, structure: Structure, instrument: Instrument, path: str | Path)` — Write a refinement CIF: structure (values + esds), R-factors, wavelength, profile/background description, and the observed/calculated pattern loop.
 - `rx.write_qpa_table(qpa: QuantitativePhaseAnalysis, path: str | Path, *, delimiter: str | None = None)` — Write the QPA table to CSV/TSV (delimiter inferred from suffix).
