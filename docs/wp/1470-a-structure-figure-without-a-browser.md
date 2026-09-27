@@ -389,7 +389,11 @@ and WP-1502 (#501) now sit on this branch as a stacked PR.
 - **Measured.** darwin/arm64, `[dev]` venv plus `playwright`. Fast suite:
   6622 passed, 145 skipped, 3:05-3:33 over two runs, the second after the
   review's fixes, no other suite running. That is the earlier count exactly,
-  since no test was added. The full suite did not
+  since no test was added. With `main` merged (#492, WP-1449): 6656 passed,
+  145 skipped, 4:00. The 34 extra arrive with that merge. One
+  `test_watch_browser.py` row failed in that run and passed alone (53 of 53),
+  the load flake `tests/CLAUDE.md` names. PR #498's Linux run on `37c2d966`
+  passed all six jobs, so the fix holds where it failed. The full suite did not
   run: no forward model, solver or statistic changed.
 - **Review.** `/code-review high` over `tests/test_render_structure.py`
   found nine, and seven were taken (`8768a0fd`). A rule-only drift now
