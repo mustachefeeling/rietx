@@ -469,6 +469,12 @@ def test_the_centidegree_hint_is_offered_only_where_division_lands_in_range(
     with pytest.raises(ValueError) as exc:
         rx.read_pattern(tof)
     assert "Divided by 100" not in str(exc.value)
+    # a GSAS reader has already divided by 100, so the lead would be wrong
+    gsas = tmp_path / "past.gsas"
+    gsas.write_text(_PAST_180["gsas"], encoding="utf-8")
+    with pytest.raises(ValueError) as exc:
+        rx.read_pattern(gsas)
+    assert "Divided by 100" not in str(exc.value)
 
 
 @pytest.mark.parametrize("reader", sorted(_AT_OR_BELOW_0))
@@ -483,6 +489,20 @@ def test_an_axis_reaching_zero_is_read_and_reported(reader, tmp_path):
     assert axis[0].where == ["-2.000-0.000"]
     assert axis[0].value == -2.0
     assert "3 of its 4 points" in axis[0].message
+
+
+def test_a_lone_point_at_zero_names_an_interval_a_project_accepts(tmp_path):
+    """Printed to nearest, one point at exactly 0° named (0.000, 0.000), an
+    interval ``check_interval`` refuses as empty."""
+    from rietx.schemas.project import check_interval
+
+    path = tmp_path / "zero_point.xy"
+    path.write_text("0.0 5.0\n10.0 100.0\n10.1 110.0\n", encoding="utf-8")
+    found = []
+    rx.read_pattern(path, diagnostics=found)
+    axis = [d for d in found if d.code == "PATTERN_X_AXIS_IMPLAUSIBLE"]
+    assert axis[0].where == ["0.000-0.001"]
+    check_interval("excluded_regions", 0.0, 0.001)
 
 
 #: Issue #266's first file, verbatim: a six-token numeric header row above four

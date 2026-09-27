@@ -156,8 +156,11 @@ def _axis_diagnostics(data: PatternData, fmt: PatternFormat,
     if hi > TWO_THETA_MAX_DEG:
         hint = ""
         # checked before it is offered: only a range that division by 100
-        # puts inside (0, 180] is evidence of centidegrees
-        if 0.0 < lo and hi / 100.0 <= TWO_THETA_MAX_DEG:
+        # puts inside (0, 180] is evidence of centidegrees, and only the
+        # two/three-column reader is where a GSAS file lands unconverted.
+        # Every other reader knows its unit, so ÷100 would be a wrong lead.
+        if (fmt.name == "xy" and 0.0 < lo
+                and hi / 100.0 <= TWO_THETA_MAX_DEG):
             hint = (f" Divided by 100 it would run {lo / 100:g}° to "
                     f"{hi / 100:g}°. GSAS writes 2θ in centidegrees, and a "
                     "GSAS file whose BANK record is missing reads this way.")
@@ -167,8 +170,14 @@ def _axis_diagnostics(data: PatternData, fmt: PatternFormat,
             f"2θ in degrees.{hint}")
     if lo > 0.0:
         return []
+    from ..background.diagnostics import _exclusion_interval
+
     at_or_below = tt[tt <= 0.0]
-    edge = float(at_or_below[-1])
+    # widened outward and never empty, so the interval the message asks the
+    # caller to exclude contains every point it counted: a lone point at
+    # exactly 0° (#266's header row) would otherwise print as (0.000, 0.000),
+    # which check_interval refuses
+    ex_lo, ex_hi = _exclusion_interval(lo, float(at_or_below[-1]))
     return [Diagnostic(
         level="warning", code="PATTERN_X_AXIS_IMPLAUSIBLE",
         message=(
@@ -176,10 +185,10 @@ def _axis_diagnostics(data: PatternData, fmt: PatternFormat,
             f"its {tt.size} points sit at or below 0°. No Bragg reflection "
             f"lies there. The file was read as {fmt.title}, which takes the "
             "axis to be 2θ in degrees."),
-        where=[f"{lo:.3f}-{edge:.3f}"],
+        where=[f"{ex_lo:.3f}-{ex_hi:.3f}"],
         suggestion=(
             "Check that the axis is 2θ in degrees. If it is, exclude the "
-            f"interval ({lo:.3f}, {edge:.3f}) before fitting. A point there is "
+            f"interval ({ex_lo:.3f}, {ex_hi:.3f}) before fitting. A point there is "
             "the direct beam, the far side of the detector, or a header row "
             "read as data."),
         value=lo,
