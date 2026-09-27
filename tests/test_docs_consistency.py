@@ -570,7 +570,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # 4's test.  Raised rather than shaved, per the failure message's own
     # instruction not to delete facts to fit.  Landed at 295; the +1 is
     # headroom, per this file's docstring.
-    "tests/CLAUDE.md": 296,
+    # 296 -> 302 (WP-1506): one standing rule, that a handover quotes what its
+    # added tests cost because the fast tier grows by its tail.  It governs
+    # every WP that adds a test.  § CI's rewrite for the docs job came out even
+    # by dropping the free-tier history, which ci.yml's header and WP-1003
+    # already hold.  Landed at 301; the +1 is headroom.
+    "tests/CLAUDE.md": 302,
     # 300 -> 306 (WP-1446): one standing rule, on the bullet that already owns
     # the question.  A space-group absence and an oversized cell are not
     # separable by the reversed members either, measured rather than reasoned,

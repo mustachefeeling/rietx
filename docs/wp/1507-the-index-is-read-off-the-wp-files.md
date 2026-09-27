@@ -95,6 +95,20 @@ per-row bump gone, it is written only when prose grows.
 sync. A touchpoint that writes a row stops writing it. One that reads a row
 reads the index.
 
+### Inherited
+
+**From [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) (2026-09-27).**
+PR #504 gives `ci.yml` a `changes` job. A PR whose files all match its
+`PLANNING` pattern (`docs/wp/`, `docs/milestones/`, `docs/releases/`,
+`ROADMAP.md`, `DESIGN.md`, `tests/test_docs_consistency.py`) runs only the
+`docs` job. That job runs the four test files an audit hook saw reading those
+paths. Three consequences reach this WP. A regenerated `docs/wp/README.md` on
+its own stays a docs-only PR. The generator is code unless it sits inside the
+pattern, so a PR that changes it runs the full matrix. And the freshness test
+must live in one of the docs job's four files, or a docs-only PR skips it
+until the nightly. `test_docs_consistency.py` and `test_workflow_hooks.py`
+are both on the list.
+
 ## Non-goals
 
 - The skill's byte caps race the same way (WP-1338, issue #247). A skill file
