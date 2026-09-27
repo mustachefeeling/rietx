@@ -369,7 +369,10 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
     cell = small.cell
     atoms: list[Atom] = []
     rewrites: dict[str, tuple[str, str, list[str]]] = {}
-    disorder = _disorder_columns(path, small.name) if "_atom_site_disorder" in text else {}
+    # CIF tags are case-insensitive, so the gate that spares an ordered file its
+    # second parse is too
+    disorder = (_disorder_columns(path, small.name)
+                if re.search(r"(?i)_atom_site_disorder", text) else {})
     for j, site in enumerate(small.sites):
         has_aniso = site.aniso.nonzero()
         u_iso = site.u_iso

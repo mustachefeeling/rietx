@@ -85,3 +85,15 @@ def test_an_ordered_structure_is_written_without_the_columns(tmp_path):
 def test_the_json_round_trip_keeps_them(perchlorate):
     again = Structure.model_validate_json(perchlorate.model_dump_json())
     assert again == perchlorate
+
+
+def test_a_tag_spelt_in_another_case_is_still_read(tmp_path):
+    """CIF tags are case-insensitive, and a gate matching one spelling had let
+    ``_atom_site_Disorder_Group`` drop every group without a word."""
+    path = tmp_path / "mixed.cif"
+    path.write_text(perchlorate_cif()
+                    .replace("_atom_site_disorder_assembly", "_Atom_Site_Disorder_Assembly")
+                    .replace("_atom_site_disorder_group", "_atom_site_Disorder_Group"),
+                    encoding="utf-8")
+    atoms = {a.label: a for a in structure_from_cif(str(path)).phases[0].atoms}
+    assert (atoms["O1A"].disorder_assembly, atoms["O1A"].disorder_group) == ("A", "1")
