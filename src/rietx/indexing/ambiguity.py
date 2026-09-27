@@ -417,14 +417,18 @@ def _same_reduced_metric(red_a: np.ndarray, red_b: np.ndarray) -> bool:
     (``indexing/CLAUDE.md``: near 90° that test is arbitrarily tight).  Here the
     pairing missed every orthogonal parent a transformation had written with
     noise, the cubic F and I cells over a doubled P among them (WP-1449).  So
-    the off-diagonal terms are held to the same relative bound on the size of
-    the largest diagonal one.  Dedup keeps ``same_lattice`` as it is.
+    each off-diagonal term is held to the same relative bound on the two
+    diagonal terms it couples, √(G*ᵢᵢ·G*ⱼⱼ) — never on the largest diagonal,
+    which on an elongated cell lets a short-axis pair's angle drift by a degree
+    and still pair.  Dedup keeps ``same_lattice`` as it is.
     """
+    from .qspace import _AF_INDEX
     from .reduce import CELL_EQUALITY_RELATIVE
 
     a, b = np.asarray(red_a, dtype=np.float64), np.asarray(red_b, dtype=np.float64)
     scale = np.maximum(np.abs(a), np.abs(b))
-    scale[3:] = np.maximum(scale[3:], float(np.max(scale[:3])))
+    for p, (i, j) in enumerate(_AF_INDEX[3:], start=3):
+        scale[p] = max(scale[p], float(np.sqrt(scale[i] * scale[j])))
     return bool(np.all(np.abs(a - b) <= CELL_EQUALITY_RELATIVE * scale))
 
 
