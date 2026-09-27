@@ -1,0 +1,138 @@
+# WP-1508 — compiled dichotomy spike (gated: build only if the box traversal is the unit's cost)
+
+Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here
+Track: A long run is not one fit
+Depends on: — (1115 built the tier; 1030 measured the box counts; 1449 measured the cut)
+Priority: P3 2026-09-27 — cost-only with a workaround (a bigger budget); what it buys beyond cost is a search that finishes, where 1449's rows now skip on a cut one
+
+## Goal
+
+Answer "would a compiled kernel improve indexing performance?" with a profile rather
+than a cost model, and — **only if the profile says the box traversal is where a
+dichotomy unit spends its time** — move that traversal onto the compiled tier,
+bit-identically, so the searches the 300 s budget cuts today finish inside it.
+
+## Context
+
+**The question came from the maintainer (2026-09-27), and the pre-profile answer is
+"yes for one engine, no elsewhere".** The research behind that answer is below; the
+rule it must still pass is `indexing/CLAUDE.md`'s *profile an engine before ranking
+what to fix in it* — WP-1030's reasoned ranking came out nearly inverted. **No
+function-level profile of indexing exists in the repo**, and every engine timing
+before 1446/1449 predates the compiled tier (2026-08-22).
+
+**Why it matters: the clock binds answers, not just patience.**
+
+- Nightly `full` job, 2026-09-27 (Linux, `[dev,jax]`, `-n auto`): the slowest items
+  of the whole suite are indexing acceptance fixtures — 1349, 1246, 1121, 871, 768,
+  708, 597, 584 s setup — plus `test_trial_error_recovers_a_monoclinic_cell` 512 s
+  and `test_dichotomy_recovers_a_monoclinic_cell` 411 s (call). Job 1:23:50 against
+  a 150-minute limit.
+- `REAL_DATA_BUDGET_SECONDS = 300` still binds (WP-1449): on 2026-09-26 six real-data
+  searches came back cut on the nightly. Brucite's **two dichotomy units** take
+  139–232 s (Mac arm64); finished on Linux x86-64 4-core, brucite 710 s (slowest unit
+  343 s) and corundum 1408 s (696 s). A cut search's *order* is a reading of machine
+  load, so every order-reading row now calls `_skip_unless_finished`.
+- `quick` (120 s ceiling) cuts trailing low-symmetry systems; bethanechol's default
+  mode reaches orthorhombic inside its budget and not monoclinic (v1.0 record).
+
+**Why dichotomy's box traversal is the numba-shaped part**
+(`src/rietx/indexing/dichotomy.py`):
+
+- Phase 2 of `_search_one` is a Python LIFO stack holding 97.6 % of the boxes
+  (WP-1030, bethanechol monoclinic); units run 10⁵–10⁶+ boxes at a measured
+  ~52 µs/box, "20 µs once the set collapses" (`_test_box`'s comment).
+- Per box, `_test_box` + `_push_children` make ~70–80 numpy calls on ~20 lines ×
+  ~15–20 surviving rows × ≤ 6 metric dimensions: `_q_bounds`, `_af_interval`,
+  `_det_interval` (scalar `np.sqrt`), a lines × rows `hit` matrix and its
+  reductions, `_assignment_possible` (`np.unique` of an argmax). The comment above
+  `hit` already records the mechanism: a per-line loop with early exit lost to the
+  vectorised form **only because of numpy's call overhead** — the thing a compiled
+  loop does not pay.
+- The arithmetic is `+ − × ÷`, comparisons, min/max and `sqrt` (correctly rounded):
+  **no libm, no LAPACK**. So the tier's strictest bar — **bit-identity** — is
+  reachable: same boxes, same order, same leaves, same candidates on any *finished*
+  search. A *cut* search stops at a different box, and that is already machine load.
+- Estimate, **not a measurement**: a per-box kernel called from the Python loop
+  ≈ 5×; the whole traversal in-kernel ≈ 20–50× on collapsed boxes, much less on
+  phase 1's wide boxes (thousands of rows, already vectorised).
+
+**Where a kernel does not pay** — fences, each with its reason:
+
+- `search_svd`: `lstsq`/`eigvalsh`/`inv`/`arcsin`/`argsort` per iteration, and
+  numba's `argsort` breaks Q-tie order, which decides the merge and the convergence
+  key → not bit-identical, moderate gain.
+- `search_trial_error`: batched LAPACK solve + per-solution `_score`
+  (`lstsq`/`eigvalsh`/`pinv`); not bit-identical; which half dominates is
+  unmeasured — profiled here, not built.
+- The FoM panel (~1 ms/candidate: BLAS, `rankdata`), dedup/Niggli/Bravais (gemmi,
+  spglib), peak picking (scipy TRF): foreign-library bound.
+- Le Bail validation already runs on the compiled tier (`Refinement.fit` →
+  `compile_model`).
+- The ambiguity enumeration (once 45 s of a 105 s corundum run, WP-1037) and
+  `rank_candidates` recomputing panels are caching / per-axis-bound numpy fixes.
+
+**The compiled tier's rules** (root CLAUDE.md, `model/compiled.py`), which a new
+kernel inherits: mandatory, exercised numpy fallback (soft import; entry points
+decline, never raise; `RIETX_COMPILED=0` / `compiled.set_enabled`); serial
+`njit(cache=True, nogil=True, fastmath=False)`, never `prange`; an equivalence bar
+per kernel, stated and asserted; **one path per process**. `model/_kernels_numba.build()`
+is paid by every refinement process (~0.28 s cold), so indexing kernels must not
+join it — they build lazily on first dichotomy use.
+
+## Non-goals
+
+A kernel for svd or trial_error (not bit-identical; profiled, not built). Raising or
+lowering `REAL_DATA_BUDGET_SECONDS`. The ambiguity-enumeration and panel-caching
+numpy fixes. Any change to what a finished search reports.
+
+## Tasks
+
+- [ ] **Profile gate.** Current tree, numba installed, serial, machine checked idle.
+      Finished (large-budget) dichotomy units on brucite and corundum — the rows the
+      budget cuts — and the synthetic monoclinic row of `tests/test_indexing_engines.py`,
+      under `cProfile`. Split each unit into phase 1 grid / phase 2 box work
+      (`_test_box`, `_push_children`) / leaves (`_box_key`, `_accept`) / other; record
+      boxes, rows and µs per box. Same profile for trial_error's monoclinic unit,
+      recorded only. **Gate:** build if phase-2 box work is ≥ ~60 % of the slowest
+      dichotomy units; otherwise close 🛑 with the profile as the outcome.
+- [ ] **Per-box kernel**, bit-identical: one fused `_test_box` (+ the child tests of
+      `_push_children`) in `src/rietx/indexing/_kernels_numba.py`, dispatched from
+      `dichotomy.py` behind `compiled.enabled()`, the numpy path kept as oracle and
+      fallback. Measure.
+- [ ] **In-kernel traversal**, only if the per-box kernel leaves ≥ 2× on the table:
+      the stack as flat arrays; the kernel runs to a leaf or N boxes and returns, so
+      Python keeps `Budget.expired()`, `_box_key` and `_accept`. Visit order equal to
+      the Python loop's.
+- [ ] Tests: kernel vs numpy on randomized boxes (bit-identical, pinning numpy's
+      `.sum(axis=1)` order for n_dof ≤ 6); `search_dichotomy` with
+      `compiled.set_enabled(True/False)` on the synthetic cases → identical
+      `n_boxes`, `n_rows` and candidate list.
+- [ ] Before/after timings of the gate's units; `tests/test_acceptance_indexing.py`
+      once on the final tree; `tests.bethanechol_benchmark` alone.
+- [ ] Skill: none expected — a faster engine changes no call an agent makes; say so
+      at close, or name the row if the `quick` preset's reach changes what the skill
+      promises.
+
+## Acceptance
+
+Gate reading recorded with its profile. If built: bit-identical `n_boxes`/`n_rows`
+and candidates with the kernel on and off; the gate's units faster by a stated,
+measured range; the acceptance file green with no finished-search row changed.
+
+```sh
+.venv/bin/python -m pytest tests/test_indexing_kernels.py tests/test_indexing_engines.py -n auto --dist loadgroup
+RIETX_COMPILED=0 .venv/bin/python -m pytest tests/test_indexing_kernels.py tests/test_indexing_engines.py -n auto --dist loadgroup
+.venv/bin/python -m pytest tests/test_acceptance_indexing.py -n auto --dist loadgroup
+.venv/bin/python -m ruff check src tests examples
+```
+
+## References
+
+Louër & Louër (1972, *J. Appl. Cryst.* **5**, 271-275) and Boultif & Louër (1991, *J. Appl.
+Cryst.* **24**, 987-993) — the dichotomy method, as `dichotomy.py` cites them;
+WP-1030 (box-death profile), WP-1115 (the tier), WP-1449 (the cut searches).
+
+## Handover log
+
+- **2026-09-27** — created from the maintainer's question; gate not yet read.
