@@ -369,6 +369,10 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
     cell = small.cell
     atoms: list[Atom] = []
     rewrites: dict[str, tuple[str, str, list[str]]] = {}
+    # CIF tags are case-insensitive, so the gate that spares an ordered file its
+    # second parse is too
+    disorder = (_disorder_columns(path, small.name)
+                if re.search(r"(?i)_atom_site_disorder", text) else {})
     for j, site in enumerate(small.sites):
         has_aniso = site.aniso.nonzero()
         u_iso = site.u_iso
@@ -395,6 +399,8 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
             aniso=(AnisoU.from_values([site.aniso.u11, site.aniso.u22, site.aniso.u33,
                                        site.aniso.u12, site.aniso.u13, site.aniso.u23])
                    if aniso and has_aniso else None),
+            disorder_assembly=disorder.get(site.label, (None, None))[0],
+            disorder_group=disorder.get(site.label, (None, None))[1],
         ))
 
     if diagnostics is not None:
@@ -558,6 +564,24 @@ def format_su(value: float, esd: float | None, *, decimals: int = 6) -> str:
     return f"{round(value / scale) * scale:.0f}({su * scale})"
 
 
+def _disorder_columns(path: str, name: str) -> dict[str, tuple[str | None, str | None]]:
+    """Each site label's ``(_atom_site_disorder_assembly, _atom_site_disorder_group)``.
+
+    Read from the block itself, since gemmi's small-structure site keeps the
+    group as an integer and the assembly not at all, and the dictionary types
+    both as a ``Word``.  A null (``.`` or ``?``) is ``None``, an ordered site.
+    """
+    doc = gemmi.cif.read(path)
+    block = doc.find_block(name) or doc[0]
+    table = block.find("_atom_site_", ["label", "?disorder_assembly", "?disorder_group"])
+    out: dict[str, tuple[str | None, str | None]] = {}
+    for row in table:
+        values = tuple(None if not row.has(k) or gemmi.cif.is_null(row[k])
+                       else gemmi.cif.as_string(row[k]) for k in (1, 2))
+        out.setdefault(gemmi.cif.as_string(row[0]), values)
+    return out
+
+
 def _fmt(p: Parameter, decimals: int) -> str:
     """A CIF number from a :class:`Parameter`, su included when known."""
     return format_su(p.value, p.stderr, decimals=decimals)
@@ -598,9 +622,13 @@ def write_structure_block(block, phase: Phase, *,
         ops = block.init_loop("_space_group_symop_", ["id", "operation_xyz"])
         for idx, triplet in enumerate(phase.symmetry_operations):
             ops.add_row([str(idx + 1), gemmi.cif.quote(triplet)])
+    # the two disorder columns only when a site declares one, so a file of an
+    # ordered structure is byte-identical to what this writer wrote before
+    disorder = [k for k in ("disorder_assembly", "disorder_group")
+                if any(getattr(a, k) is not None for a in phase.atoms)]
     loop = block.init_loop("_atom_site_", [
         "label", "type_symbol", "fract_x", "fract_y", "fract_z",
-        "occupancy", "B_iso_or_equiv", "adp_type",
+        "occupancy", "B_iso_or_equiv", "adp_type", *disorder,
     ])
     for a in phase.atoms:
         if a.aniso is None:
@@ -612,6 +640,8 @@ def write_structure_block(block, phase: Phase, *,
             a.label, a.species,
             _fmt(a.x, 6), _fmt(a.y, 6), _fmt(a.z, 6),
             _fmt(a.occ, 4), b_eq, kind,
+            *("." if getattr(a, k) is None else gemmi.cif.quote(getattr(a, k))
+              for k in disorder),
         ])
     aniso = [a for a in phase.atoms if a.aniso is not None]
     if aniso:

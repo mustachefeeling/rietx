@@ -194,13 +194,18 @@ export const api = {
   /** The same model as *drawable geometry*: the symmetry orbit with each image's
    *  rotated displacement tensor, bonds over the 27 nearest lattice
    *  translations, and the cell frame — none of which a `Structure` dump says.
-   *  Both arguments are drawing thresholds, not settings, which is why they ride
+   *  The arguments are drawing thresholds, not settings, which is why they ride
    *  on the query string and are never persisted. */
-  structure3d: (phase = 0, bondTolerance?: number) => {
+  structure3d: (phase = 0, bondTolerance?: number, disorder?: "all" | "major",
+                centres?: string[] | null, ligands?: string[] | null) => {
     const query = new URLSearchParams({ phase: String(phase) });
     if (bondTolerance !== undefined) {
       query.set("bond_tolerance", String(bondTolerance));
     }
+    if (disorder !== undefined) query.set("disorder", disorder);
+    // present and empty asks for none, so only null leaves the chemistry's
+    if (centres != null) query.set("centres", centres.join(","));
+    if (ligands != null) query.set("ligands", ligands.join(","));
     return call("GET", `/api/structure3d?${query}`);
   },
   instrument: () => call("GET", "/api/instrument"),

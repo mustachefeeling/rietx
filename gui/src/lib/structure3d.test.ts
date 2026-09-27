@@ -42,6 +42,8 @@ import {
   pickAtom,
   pickFace,
   pickHalf,
+  elements,
+  focusedPolyhedra,
   polyhedraLegend,
   polyhedronFormula,
   polyhedronLabel,
@@ -49,6 +51,7 @@ import {
   rgb,
   rotateBy,
   shownPolyhedra,
+  toggled,
   stickRadius,
   transform,
   type Geometry,
@@ -392,6 +395,35 @@ describe("the pick", () => {
   });
 });
 
+describe("Mercury's two lists", () => {
+  it("offer each element once, in the order the sites declare them", () => {
+    const geo = tetrahedron();
+    geo.sites.push({ ...geo.sites[1], index: 2, label: "O2" });
+    expect(elements(geo)).toEqual(["Si", "O"]);
+  });
+
+  it("draw one atom's environment alone, or nothing when it closes none", () => {
+    const geo = tetrahedron();
+    // a second Si in the cell at 8 Å with its own shell, and an image of the
+    // site outside the cell 1 Å past it
+    geo.atoms.push({ ...geo.atoms[0], pos: [8, 0, 0] });
+    geo.polyhedra.push({ ...geo.polyhedra[0], center: 5 });
+    geo.atoms.push({ ...geo.atoms[0], boundary: true, pos: [9, 0, 0] });
+    expect(focusedPolyhedra(geo, geo.atoms[0])).toEqual([0]);
+    expect(focusedPolyhedra(geo, geo.atoms[5])).toEqual([1]);
+    // the image takes its site's nearest polyhedron, the same environment
+    expect(focusedPolyhedra(geo, geo.atoms[6])).toEqual([1]);
+    // and an O, whose shell closes none, draws none
+    expect(focusedPolyhedra(geo, geo.atoms[2])).toEqual([]);
+  });
+
+  it("switch one element and come back sorted, as the server echoes them", () => {
+    expect(toggled(["O"], "F")).toEqual(["F", "O"]);
+    expect(toggled(["F", "O"], "F")).toEqual(["O"]);
+    expect(toggled([], "Ca")).toEqual(["Ca"]);
+  });
+});
+
 describe("the legend", () => {
   it("merges the sites that share a species and keeps declaration order", () => {
     const geo = geometry({
@@ -418,6 +450,26 @@ describe("the caption", () => {
     expect(text).toContain("metal–metal and metal–cation contacts not bonded");
     expect(text).toContain("ellipsoids at 50 %");
     expect(caption(geometry(), "ball")).toContain("0.40× the covalent radius");
+  });
+
+  it("says which alternatives of a disordered structure it draws", () => {
+    // an ordered structure says nothing about it
+    expect(caption(geometry(), "ball")).not.toContain("alternative");
+    const every = { ...geometry(), disorder: "all" as const, minor_sites: [1] };
+    expect(caption(every, "ball"))
+      .toContain("every alternative drawn, with no stick between two of them");
+    expect(caption({ ...every, disorder: "major" as const, minor_sites: [1, 2] }, "ball"))
+      .toContain("the major alternative alone: 2 sites of the minor not drawn");
+  });
+
+  it("says when the centres and corners are the reader's own lists", () => {
+    expect(caption(geometry(), "ball")).not.toContain("as chosen");
+    const chosen = { ...geometry(), centres: ["F"], ligands: null,
+                     centre_elements: ["F"], ligand_elements: ["Ca"] };
+    expect(caption(chosen, "ball"))
+      .toContain("polyhedra round F with Ca at the corners, as chosen");
+    expect(caption({ ...chosen, centres: [], centre_elements: [] }, "ball"))
+      .toContain("polyhedra round none with Ca at the corners");
   });
 
   it("marks an image whose tensor is not positive definite", () => {
@@ -462,8 +514,11 @@ describe("the polyhedra", () => {
     expect(polyhedronFormula(geo, geo.polyhedra[0])).toBe("SiO₄");
     expect(polyhedronLabel(geo, geo.polyhedra[0]))
       .toBe("SiO₄ around Si1  ·  4 ligands  ·  mean 1.600 Å  ·  gap ×2.00");
+    // a rival gap, when one would close a shell too, is named beside it
+    geo.polyhedra[0].rival = [6, 1.9];
+    expect(polyhedronLabel(geo, geo.polyhedra[0])).toContain("gap ×2.00  ·  next gap ×1.90 after 6");
     expect(polyhedraLegend(geo)).toEqual([
-      { formula: "SiO₄", color: "#f0c8a0", byDefault: true }]);
+      { formula: "SiO₄", color: "#f0c8a0", byDefault: true, available: true }]);
   });
 
   it("show by the server's default, until a switch or a legend says otherwise", () => {
@@ -487,14 +542,29 @@ describe("the polyhedra", () => {
     geo.polyhedra.push({ ...geo.polyhedra[0], vertices: [1, 2, 3], coordination: 3,
                          drawn_by_default: false });
     expect(polyhedraLegend(geo)).toEqual([
-      { formula: "SiO₄", color: "#f0c8a0", byDefault: true },
-      { formula: "SiO₃", color: "#f0c8a0", byDefault: false }]);
+      { formula: "SiO₄", color: "#f0c8a0", byDefault: true, available: true },
+      { formula: "SiO₃", color: "#f0c8a0", byDefault: false, available: true }]);
     expect(shownPolyhedra(geo, true, new Map())).toEqual([0]);
     // off and on again is the default, not every shell of the species
     expect(shownPolyhedra(geo, true, new Map([["SiO₄", true]]))).toEqual([0]);
     // and the hidden shell alone is reachable
     expect(shownPolyhedra(geo, true, new Map([["SiO₄", false], ["SiO₃", true]])))
       .toEqual([1]);
+  });
+
+  it("keep a formula the atom cap turned away in the legend, as unavailable", () => {
+    const geo = tetrahedron();
+    geo.polyhedra_dropped = [
+      // another SiO₄ that did not fit: its formula is drawn elsewhere
+      { site: 0, ligands: ["O", "O", "O", "O"], drawn_by_default: true },
+      // a shell that fitted nowhere
+      { site: 0, ligands: ["O", "O", "O", "O", "O", "O", "O", "O"], drawn_by_default: false },
+    ];
+    expect(polyhedraLegend(geo)).toEqual([
+      { formula: "SiO₄", color: "#f0c8a0", byDefault: true, available: true },
+      { formula: "SiO₈", color: "#f0c8a0", byDefault: false, available: false }]);
+    // it switches nothing on, having nothing to draw
+    expect(shownPolyhedra(geo, true, new Map([["SiO₈", true]]))).toEqual([0]);
   });
 
   it("bring the atoms only they need, and no hidden one does", () => {

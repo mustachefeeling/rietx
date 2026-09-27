@@ -638,6 +638,26 @@ def test_the_shell_ends_at_the_largest_gap_of_the_whole_sequence():
     assert s3.shell_gap([]) == (0, 1.0)
 
 
+def test_a_rival_gap_is_one_brunner_and_schwarzenbach_would_call_equal():
+    """WP-1468: Brunner & Schwarzenbach (1971, Table 1) call Ni₂In's gaps
+    approximately equal at 1.22 against 1.15, and α-Mn's Mn(3) one clear gap at
+    1.23 against 1.11.  A second gap is reported as a rival from their least
+    tie up, and only when it would close a polyhedron itself.  None of the 21
+    measured phases has one."""
+    # four ligands, a gap of 1.15, three more, a gap of 1.22, the next shell
+    ni2in = np.array([1.0] * 4 + [1.15] * 3 + [1.403] * 4 + [1.473])
+    assert s3.shell_gap(ni2in) == (7, pytest.approx(1.22, abs=1e-3))
+    assert s3.rival_gap(ni2in, 7) == (4, pytest.approx(1.15))
+    # the same, at 1.20 against 1.40: ln 1.20 / ln 1.40 = 0.54
+    clear = np.array([1.0] * 4 + [1.2] * 3 + [1.68] * 4 + [1.764])
+    assert s3.shell_gap(clear)[0] == 7 and s3.rival_gap(clear, 7) is None
+    # a rival after two ligands closes no polyhedron
+    small = np.array([1.0] * 2 + [1.3] * 4 + [1.703] * 4 + [1.788])
+    assert s3.shell_gap(small)[0] == 6 and s3.rival_gap(small, 6) is None
+    for row in MEASURED:
+        assert all(p["rival"] is None for p in s3.build(measured(row))["polyhedra"])
+
+
 def test_the_window_reaches_three_times_the_shortest_distance(lab6):
     """P3: CsCl's Cs has 8 Cl at 3.56 Å and the next at 6.8 Å, past the 6 Å
     the images first reach, so the orbit grows to the 10.7 Å window."""
@@ -706,11 +726,161 @@ def test_no_stick_joins_two_non_metals_closer_than_the_split_floor():
             assert ("O", "O") not in pairs
 
 
+def test_the_sticks_and_the_cation_test_ask_one_bonded_rule(monkeypatch):
+    """``bonded`` is the one distance test (WP-1468): its floor rises to
+    :data:`~rietx.gui.structure3d.SPLIT_FLOOR` between non-metals alone, and
+    both of its readers move with it.
+
+    P10's floor had gone into ``_bonds`` and ``_cation_sites`` by hand.
+    """
+    reach = np.array([1.32, 1.32])                         # O + O
+    assert list(s3.bonded(np.array([0.90, 0.95]), reach, nonmetals=True)) == [False, True]
+    assert list(s3.bonded(np.array([0.90, 0.95]), reach, nonmetals=False)) == [True, True]
+    assert not s3.bonded(0.39, 1.0, nonmetals=False)       # under BOND_MIN: one atom
+    assert not s3.bonded(1.16, 1.0, nonmetals=False)       # past the tolerance
+    assert s3.bonded(1.16, 1.0, nonmetals=False, tolerance=1.2)
+    # a P–O pair at 0.75 of its radius sum: a stick and a cation, then neither
+    po = 0.75 * (s3.element_radius("P") + s3.element_radius("O"))
+    structure = cluster([("P", 1.0)], [("O", (po, 0, 0), 1.0)])
+    payload = s3.build(structure)
+    assert len(payload["bonds"]) == 1 and payload["sites"][0]["label"] == "P00"
+    orbit = s3._orbit(payload["sites"], payload["atoms"], np.array(payload["lattice"]).T)
+    assert s3._cation_sites(payload["sites"], orbit, np.array(payload["lattice"]).T) == {0}
+    monkeypatch.setattr(s3, "SPLIT_FLOOR", 0.8)
+    payload = s3.build(structure)
+    assert payload["bonds"] == []
+    assert s3._cation_sites(payload["sites"], orbit, np.array(payload["lattice"]).T) == set()
+
+
+def _stick_pairs(payload: dict) -> dict[tuple, int]:
+    """``{(label, label): count}`` over the drawn sticks."""
+    out: dict[tuple, int] = {}
+    for b in payload["bonds"]:
+        key = tuple(sorted(payload["sites"][payload["atoms"][k]["site"]]["label"]
+                           for k in (b["i"], b["j"])))
+        out[key] = out.get(key, 0) + 1
+    return out
+
+
+def test_a_split_oxyanion_draws_no_stick_between_its_positions():
+    """α-K₂SO₄ (Miyake 1980, COD 1000049): each basal O is split three ways at
+    1/3, 1.04 Å apart, 0.787 of the radius sum and over the P10 floor.
+
+    The pair sits 19.6° apart round K, closer to each other than to it, so it
+    is one atom (P9's test, WP-1468).  The S–O sticks stay.
+    """
+    cell = Cell(a=_p(5.947), b=_p(5.947), c=_p(8.375),
+                alpha=_p(90.0), beta=_p(90.0), gamma=_p(120.0))
+    atoms = [Atom(label=label, species=species, x=_p(x), y=_p(y), z=_p(z), occ=_p(occ))
+             for label, species, x, y, z, occ in [
+                 ("K1", "K", 0.0, 0.0, 0.0, 1.0), ("K2", "K", 0.6667, 0.3333, 0.25, 1.0),
+                 ("S1", "S", 0.3333, 0.6667, 0.25, 1.0), ("O1", "O", 0.3333, 0.6667, 0.41, 1.0),
+                 ("O2", "O", 0.212, -0.212, 0.188, 0.333)]]
+    sticks = _stick_pairs(s3.build(Structure(phases=[Phase(
+        name="alpha-K2SO4", space_group="P 63/m m c", cell=cell, atoms=atoms)])))
+    assert ("O2", "O2") not in sticks
+    assert sticks[("O2", "S1")] > 0 and sticks[("O1", "S1")] > 0
+
+
+def test_a_split_needs_a_neighbour_a_stick_could_join_to_both():
+    """A half-occupied SO₄ keeps its S–O sticks beside a K bonded to one O
+    and within the cutoff of the S.  Round the K, S and O sit 1.47 Å apart and
+    closer than either is to it; the K is no shared neighbour, since no stick
+    joins a metal to the cation S."""
+    corners = [v / np.linalg.norm(v) for v in TETRAHEDRON]
+    side = np.cross(corners[0], [0.0, 0.0, 1.0])
+    side /= np.linalg.norm(side)
+    turn = math.radians(54.0)
+    potassium = 3.4 * (math.cos(turn) * corners[0] + math.sin(turn) * side)
+    payload = s3.build(cluster([("S", 0.5)], [*[("O", 1.47 * v, 0.5) for v in corners],
+                                              ("K", potassium, 1.0)]))
+    assert np.linalg.norm(potassium - 1.47 * corners[0]) < 2.85
+    assert sum(n for key, n in _stick_pairs(payload).items() if "S00" in key) == 4
+
+
+def _perchlorate() -> Structure:
+    """The two-orientation perchlorate of ``test_cif_disorder``, read from its CIF."""
+    import tempfile
+
+    from tests.test_cif_disorder import perchlorate_cif
+
+    path = Path(tempfile.mkdtemp()) / "perchlorate.cif"
+    path.write_text(perchlorate_cif(), encoding="utf-8")
+    return structure_from_cif(str(path))
+
+
+def test_two_groups_of_one_assembly_share_no_stick_and_no_shell():
+    """WP-1468: the file's disorder groups say which sites coexist.
+
+    Each O of the second orientation sits 1.45 Å from its twin in the first,
+    inside the O–O cutoff and 61° apart round Cl, where P9's angle test cannot
+    see it.  Read without the groups, the twins get a stick and the Cl a ClO₈.
+    """
+    structure = _perchlorate()
+    with_groups = s3.build(structure)
+    assert _stick_pairs(with_groups).keys() == {("Cl1", f"O{k}{g}") for k in range(1, 5)
+                                                for g in "AB"}
+    assert with_groups["polyhedra"] == []
+    for atom in structure.phases[0].atoms:
+        atom.disorder_group = atom.disorder_assembly = None
+    without = s3.build(structure)
+    assert ("O1A", "O1B") in _stick_pairs(without)
+    assert [p["coordination"] for p in without["polyhedra"]] == [8]
+
+
+def test_the_major_view_draws_one_alternative():
+    """``disorder="major"`` draws each assembly's most occupied group alone, so
+    the Cl gets its ClO₄; the minor sites stay in ``sites`` with no image."""
+    payload = s3.build(_perchlorate(), disorder="major")
+    minor = {j for j, site in enumerate(payload["sites"]) if site["label"].endswith("B")}
+    assert set(payload["minor_sites"]) == minor
+    assert not {a["site"] for a in payload["atoms"]} & minor
+    # listed in the default view too, where they are drawn
+    every = s3.build(_perchlorate())
+    assert set(every["minor_sites"]) == minor <= {a["site"] for a in every["atoms"]}
+    assert _formulas(payload) == {"Cl1": {"ClO4"}}
+    with pytest.raises(ValueError, match="disorder must be one of"):
+        s3.build(_perchlorate(), disorder="minor")
+
+
+def test_a_negative_group_is_an_alternative_of_its_own_symmetry_copies():
+    """A minus prefix is a site disordered about a special position (SHELX's
+    PART -1): an O 0.6 Å off an inversion centre, half occupied, whose copy
+    through it sits 1.2 Å away.  Neither P10's floor nor P9 reaches that pair;
+    the group does, and a group of +1 does not."""
+    def pair(group):
+        cell = Cell(a=_p(12.0), b=_p(12.0), c=_p(12.0),
+                    alpha=_p(90.0), beta=_p(90.0), gamma=_p(90.0))
+        oxygen = Atom(label="O1", species="O", x=_p(0.05), y=_p(0.0), z=_p(0.0),
+                      occ=_p(0.5), disorder_group=group)
+        return _stick_pairs(s3.build(Structure(phases=[Phase(
+            name="split", space_group="P -1", cell=cell, atoms=[oxygen])])))
+
+    assert pair("-1") == {}
+    assert ("O1", "O1") in pair("1")
+
+
 def test_the_split_floor_spares_a_metal_oxo_bond():
-    """P10 holds only between non-metals: uranyl's U=O is 0.67 of the radius sum."""
+    """P10's 0.7 holds only between non-metals: uranyl's U=O is 0.67 of the
+    radius sum, over the 0.5 a pair with a metal has."""
     payload = s3.build(cluster([("U", 1.0)], [("O", (1.76, 0, 0), 1.0),
                                               ("O", (-1.76, 0, 0), 1.0)]))
     assert sorted(round(b["d"], 2) for b in payload["bonds"]) == [1.76, 1.76]
+
+
+def test_a_metal_and_a_non_metal_closer_than_half_their_radius_sum_are_one_atom():
+    """WP-1468: hydrated β-alumina's partial Li sits 0.625 Å from a partial water
+    O (COD 1529595), 0.32 of the radius sum.  It had drawn a stick, and as a
+    ligand it set Li's window at 1.9 Å, short of the four O at 1.95.  Under
+    :data:`~rietx.gui.structure3d.METAL_SPLIT_FLOOR` it is the Li's own
+    alternative: no stick, and LiO₄ is drawn."""
+    assert not s3.bonded(0.625, 1.94, nonmetals=False)
+    assert s3.bonded(1.76, s3.element_radius("U") + s3.element_radius("O"), nonmetals=False)
+    corners = [1.95 * v / np.linalg.norm(v) for v in TETRAHEDRON]
+    payload = s3.build(cluster([("Li", 0.5)], [*[("O", v, 1.0) for v in corners],
+                                               ("O", (0.0, 0.0, 0.625), 0.3)]))
+    assert _formulas(payload) == {"Li00": {"LiO4"}}
+    assert sorted(round(b["d"], 2) for b in payload["bonds"]) == [1.95] * 4
 
 
 def test_a_non_metal_bonded_to_a_stronger_one_is_a_cation_and_no_ligand():
@@ -746,6 +916,97 @@ def test_an_anion_is_never_a_centre():
     assert s3.build(cluster([("O", 1.0)], ligands))["polyhedra"] == []
 
 
+def _formulas(payload: dict) -> dict[str, set[str]]:
+    """Per centre label, the formulas its polyhedra are drawn as by default."""
+    out: dict[str, set[str]] = {}
+    for p in payload["polyhedra"]:
+        counts: dict[str, int] = {}
+        for v in p["vertices"]:
+            element = payload["sites"][payload["atoms"][v]["site"]]["element"]
+            counts[element] = counts.get(element, 0) + 1
+        label = payload["sites"][p["site"]]["label"]
+        formula = payload["sites"][p["site"]]["element"] + "".join(
+            f"{e}{n}" for e, n in sorted(counts.items()))
+        if p["drawn_by_default"]:
+            out.setdefault(label, set()).add(formula)
+    return out
+
+
+def cubic(a: float, group: str, atoms: list[tuple]) -> Structure:
+    """A cubic phase from ``(label, species, x, y, z, occ)`` rows."""
+    cell = Cell(a=_p(a), b=_p(a), c=_p(a), alpha=_p(90.0), beta=_p(90.0), gamma=_p(90.0))
+    return Structure(phases=[Phase(name=group, space_group=group, cell=cell, atoms=[
+        Atom(label=label, species=species, x=_p(x), y=_p(y), z=_p(z), occ=_p(occ))
+        for label, species, x, y, z, occ in atoms])])
+
+
+#: Cu₃[Co(CN)₆]₂, COD 4002391 (Fm-3m): Co–C 1.89 Å, and the N 3.03 Å behind it
+COPPER_HEXACYANOCOBALTATE = cubic(10.0003, "F m -3 m", [
+    ("Cu1", "Cu", 0.5, 0.0, 0.0, 0.75), ("N1", "N", 0.303, 0.0, 0.0, 0.5),
+    ("C1", "C", 0.189, 0.0, 0.0, 0.5), ("Co1", "Co", 0.0, 0.0, 0.0, 0.5)])
+
+#: Prussian blue, Buser et al. (1977), COD 4343748 (Pm-3m): the Fe(II) sites
+#: Fe3 and Fe4 hold C, and a vacancy's water O sits 0.10 Å from each N
+PRUSSIAN_BLUE = cubic(10.166, "P m -3 m", [
+    ("O2", "O", 0.21, 0.5, 0.5, 0.733), ("O4", "O", 0.2608, 0.2608, 0.2608, 1.0),
+    ("Fe4", "Fe", 0.5, 0.0, 0.0, 0.911), ("C1", "C", 0.3108, 0.0, 0.0, 0.911),
+    ("C3", "C", 0.1887, 0.5, 0.0, 0.911), ("O3", "O", 0.29, 0.5, 0.0, 0.089),
+    ("O1", "O", 0.21, 0.0, 0.0, 0.089), ("Fe2", "Fe", 0.0, 0.5, 0.5, 1.0),
+    ("Fe3", "Fe", 0.5, 0.5, 0.5, 0.267), ("Fe1", "Fe", 0.0, 0.0, 0.0, 1.0),
+    ("N2", "N", 0.2005, 0.5, 0.5, 0.267), ("N3", "N", 0.2995, 0.5, 0.0, 0.911),
+    ("C2", "C", 0.3108, 0.5, 0.5, 0.267), ("N1", "N", 0.2005, 0.0, 0.0, 0.911)])
+
+
+def test_a_carbonyls_c_is_its_metals_ligand():
+    """A donor (WP-1468): a C whose one stronger partner is its O, and which the
+    metal is bonded to, is a ligand, so Cr(CO)₆ draws CrC₆ with its sticks.
+
+    As a cation, the C had left Cr with a shell of the six O behind it.
+    """
+    axes = [*np.eye(3), *-np.eye(3)]
+    payload = s3.build(cluster([("Cr", 1.0)], [*[("C", 1.92 * v, 1.0) for v in axes],
+                                               *[("O", 3.06 * v, 1.0) for v in axes]]))
+    assert _formulas(payload) == {"Cr00": {"CrC6"}}
+    (only,) = payload["polyhedra"]
+    assert len(only["bonds"]) == 6              # the Cr–C sticks it replaces
+
+
+def test_an_oxyanion_stays_a_cation_beside_a_bonded_metal():
+    """The donor test asks for one stronger partner: fluorapatite's P has 4 Ca
+    inside the bond cutoff, and its four O keep it a cation and PO₄ a shape."""
+    ligands = [("O", 1.54 * v / np.linalg.norm(v), 1.0) for v in TETRAHEDRON]
+    payload = s3.build(cluster([("P", 1.0)], [*ligands, ("Ca", (3.06, 0.0, 0.0), 1.0)]))
+    assert _formulas(payload) == {"P00": {"PO4"}}
+
+
+def test_a_cyanide_framework_draws_each_metal_with_its_own_end():
+    """Cu₃[Co(CN)₆]₂ draws CoC₆ and CuN₆.
+
+    The C is a donor, and the N behind it is screened from Co's shell.  Before
+    WP-1468 the C was a cation and Co drew CoN₆ from the N at 3.03 Å; with
+    the donor alone, the N joined the C in a shell of 12.
+    """
+    assert _formulas(s3.build(COPPER_HEXACYANOCOBALTATE)) == {"Co1": {"CoC6"},
+                                                              "Cu1": {"CuN6"}}
+
+
+def test_prussian_blues_c_bonded_iron_draws_fec6():
+    """Buser et al.'s Prussian blue: each C has a stronger partner split two
+    ways, N or a vacancy's water O 0.10 Å apart, and is still one donor."""
+    drawn = _formulas(s3.build(PRUSSIAN_BLUE))
+    assert drawn["Fe3"] == {"FeC6"} and drawn["Fe4"] == {"FeC6"}
+
+
+def test_a_side_on_ligand_is_not_screened():
+    """Screening takes an atom behind a ligand, never one beside it: a side-on
+    peroxide's two O meet the Ti at acute angles, so both are corners."""
+    eq = [(1.95, 0, 0), (-1.95, 0, 0), (0, 1.95, 0), (0, -1.95, 0), (0, 0, -1.95)]
+    peroxide = [(0.725, 0.0, 1.756), (-0.725, 0.0, 1.756)]      # 1.90 Å from Ti
+    payload = s3.build(cluster([("Ti", 1.0)], [("O", v, 1.0) for v in eq + peroxide]))
+    (only,) = payload["polyhedra"]
+    assert only["coordination"] == 7
+
+
 def test_a_metal_and_a_cation_share_no_stick():
     """The metal–metal rule widened to metal–cation (WP-1466).
 
@@ -762,8 +1023,11 @@ def test_a_metal_and_a_cation_share_no_stick():
     assert frozenset(("Mg", "Si")) not in forsterite
     assert {frozenset(("Mg", "O")), frozenset(("O", "Si"))} <= forsterite
 
+    # HCO₂⁻ with both of its O: with one, the C is a formyl the Ca is bonded
+    # to, and so a donor and the Ca's ligand (WP-1468)
     formate = pairs(s3.build(cluster([("C", 1.0)], [
-        ("O", (1.25, 0.0, 0.0), 1.0), ("H", (-0.6, 0.9, 0.0), 1.0),
+        ("O", (1.25, 0.0, 0.0), 1.0), ("O", (-0.717, 1.024, 0.0), 1.0),
+        ("H", (-0.503, -0.967, 0.0), 1.0),
         # 2.6 Å, inside the radius-sum cutoff of 2.90
         ("Ca", (0.0, 0.0, 2.6), 1.0)])))
     assert {frozenset(("C", "O")), frozenset(("C", "H"))} <= formate
@@ -805,6 +1069,50 @@ def test_the_default_picture_on_the_measured_phases(row):
             drawn.setdefault(element, set()).add(p["coordination"])
     assert {e: sorted(v) for e, v in drawn.items()} == row["expected"]
     _every_polyhedron_is_one(payload)
+
+
+def test_the_centre_and_ligand_lists_replace_the_rule():
+    """Mercury's two lists (WP-1468).  Asked for F round Ca, fluorite draws the
+    anion-centred FCa₄ tetrahedra; asked for Cs among Cs and Cl, CsCl draws
+    the body-centred cubic environment, 8 Cl and then 6 Cs."""
+    fluorite = measured(next(r for r in MEASURED if r["name"] == "fluorite CaF2"))
+    default = s3.build(fluorite)
+    assert (default["centres"], default["ligands"]) == (None, None)
+    assert (default["centre_elements"], default["ligand_elements"]) == (["Ca"], ["F"])
+    asked = s3.build(fluorite, centres=["F"], ligands=["Ca2+"])
+    assert _formulas(asked) == {"F1": {"FCa4"}}
+    assert (asked["centres"], asked["ligand_elements"]) == (["F"], ["Ca"])
+    assert s3.build(fluorite, centres=[])["polyhedra"] == []
+
+    cscl = measured(next(r for r in MEASURED if r["name"] == "CsCl"))
+    environments = s3.build(cscl, centres=["Cs"], ligands=["Cs", "Cl"])["polyhedra"]
+    assert {p["coordination"] for p in environments} == {14}
+    with pytest.raises(ValueError, match="'Xx' names no element"):
+        s3.build(cscl, centres=["Xx"])
+
+
+def test_an_intermetallics_environments_come_through_the_lists():
+    """Cu₃Au (L1₂) draws nothing by the rule, having no anion.  Asked for both
+    elements round and at the corners, every Au draws AuCu₁₂ and every Cu
+    CuAu₄Cu₈, the cuboctahedra, at a gap of √2.
+
+    The Au 3.748 Å out sits at exactly 90° past a Cu 2.650 Å out, and before
+    the screen asked for more than rounding it had screened that Au round
+    some of the Au and not the others: two drew 14 ligands and six drew 12.
+    """
+    cell = Cell(a=_p(3.748), b=_p(3.748), c=_p(3.748),
+                alpha=_p(90.0), beta=_p(90.0), gamma=_p(90.0))
+    atoms = [Atom(label="Au1", species="Au", x=_p(0.0), y=_p(0.0), z=_p(0.0)),
+             Atom(label="Cu1", species="Cu", x=_p(0.0), y=_p(0.5), z=_p(0.5))]
+    alloy = Structure(phases=[Phase(name="Cu3Au", space_group="P m -3 m", cell=cell,
+                                    atoms=atoms)])
+    assert s3.build(alloy)["polyhedra"] == []
+    payload = s3.build(alloy, centres=["Au", "Cu"], ligands=["Au", "Cu"])
+    shells = {(payload["sites"][p["site"]]["label"], p["coordination"],
+               tuple(sorted(payload["sites"][payload["atoms"][v]["site"]]["element"]
+                            for v in p["vertices"]))) for p in payload["polyhedra"]}
+    assert shells == {("Au1", 12, ("Cu",) * 12), ("Cu1", 12, ("Au",) * 4 + ("Cu",) * 8)}
+    assert {round(p["gap"], 4) for p in payload["polyhedra"]} == {round(math.sqrt(2), 4)}
 
 
 @pytest.mark.parametrize("name", ["nac", "fap", "brucite"])
@@ -860,6 +1168,14 @@ def test_a_polyhedron_is_never_cut_off(nac):
     assert f"{full - len(small['polyhedra'])} coordination polyhedra not drawn" in small["note"]
     for p in small["polyhedra"]:
         assert max(p["vertices"]) < len(small["atoms"])
+    # and each is listed by centre and ligands, for the legend (WP-1468)
+    assert len(small["polyhedra_dropped"]) == full - len(small["polyhedra"])
+    assert payload["polyhedra_dropped"] == []
+    drawn = {(p["site"], p["coordination"]) for p in payload["polyhedra"]}
+    for p in small["polyhedra_dropped"]:
+        assert (p["site"], len(p["ligands"])) in drawn
+        assert p["drawn_by_default"] == (len(p["ligands"]) in s3.DEFAULT_SHELLS)
+        assert set(p["ligands"]) == {"F"}
 
 
 def test_the_centres_sticks_give_way_to_its_polyhedron(nac):

@@ -461,6 +461,19 @@ class Atom(Base):
     # no way to propagate the moment over the site's orbit; that is checked on
     # the phase, which is the object that carries both.
     moment: Moment | None = None
+    # Which alternative of a disordered structure this site belongs to, as the
+    # CIF core dictionary states it (WP-1468): ``_atom_site_disorder_assembly``
+    # names a cluster that is locally ordered, and ``_atom_site_disorder_group``
+    # the sites in it that are occupied together.  Two sites in different
+    # groups of one assembly are never occupied together; a group with a minus
+    # prefix is a site disordered about a special position, whose symmetry
+    # copies are alternatives of each other.  Strings, as the dictionary types
+    # both (``Word``).  ``None`` is an ordered site and the default, so a
+    # structure that declares none serializes apart from the new nulls, and
+    # refines, exactly as before.  Nothing in the forward model reads them:
+    # they tell a picture which atoms can coexist.
+    disorder_assembly: str | None = None
+    disorder_group: str | None = None
 
     @model_validator(mode="before")
     @classmethod
