@@ -21,7 +21,9 @@ destination, because the fix is to move narrative, never to delete facts.
 
 from __future__ import annotations
 
+import importlib.util
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -31,24 +33,25 @@ WP_DIR = ROOT / "docs" / "wp"
 ROADMAP = ROOT / "docs" / "ROADMAP.md"
 TEMPLATE = WP_DIR / "TEMPLATE.md"
 
-GLYPHS = {"⬜", "🔄", "✅", "🛑"}
-# ⬜ carries no date; every other glyph must say when.
-_STATUS_RE = re.compile(
-    r"Status: (?P<glyph>⬜|🔄|✅|🛑)"
-    r"(?: (?P<date>\d{4}-\d{2}-\d{2}))?"
-    r"(?: — |$)",
-    re.MULTILINE,
+# The WP header's vocabulary and its parser are the index generator's
+# (WP-1507), so the tests and the index cannot read one header two ways.  The
+# hook is stdlib-only and lives outside the package, so it is loaded by path.
+_spec = importlib.util.spec_from_file_location(
+    "wp_index", ROOT / ".claude" / "hooks" / "wp_index.py"
 )
+wp_index = importlib.util.module_from_spec(_spec)
+# A dataclass resolves its string annotations through sys.modules.
+sys.modules.setdefault("wp_index", wp_index)
+_spec.loader.exec_module(wp_index)
+
+GLYPHS = set(wp_index.GLYPHS)
 # The prune rule lands with WP-1031; WPs closed after this date must have
 # consumed (deleted) their ### Inherited mailbox on the way out.
 _INHERITED_PRUNE_EPOCH = "2026-07-31"
 # The priority rubric is TEMPLATE.md's: every ⬜ WP carries a `Priority:`
-# line, a closed one carries none (its priority is moot, and the cell reads
+# line, a closed one carries none (its priority is moot, and the index reads
 # `—`), and a 🔄 one may keep the line it had.  Backfilled 2026-09-23.
-PRIORITIES = ("P1", "P2", "P3", "P4")
-_PRIORITY_RE = re.compile(
-    r"^Priority: (?P<tier>P[1-4]) (?P<date>\d{4}-\d{2}-\d{2}) — \S", re.M
-)
+PRIORITIES = wp_index.PRIORITIES
 
 # Always-loaded documents: measured size + headroom, pinned by the pass that
 # achieved it.  Raising a cap is a decision about every future session's fixed
@@ -57,9 +60,9 @@ _PRIORITY_RE = re.compile(
 # record (the assertion message says where).  The admission rule the caps
 # enforce: a line enters one of these files only as a standing rule a
 # stranger needs in six months, evidence compressed to one clause plus a
-# pointer (protocol rule 4); an index row is the one line a new WP cannot
-# demote (the bijection test), so ROADMAP's cap grows with the WP count and
-# with nothing else.
+# pointer (protocol rule 4).  ROADMAP's cap counts prose only since WP-1507
+# moved its WP tables into the generated docs/wp/README.md, so filing a WP no
+# longer moves it.
 #
 # Every bump, one line: date, file, old -> new, what paid for it.  The
 # reasoning behind each is docs/milestones/process.md § The caps diary,
@@ -225,6 +228,8 @@ _PRIORITY_RE = re.compile(
 #                                                          and owed to every future freeze: four
 #                                                          consumers now read it and a fifth would
 #                                                          repeat the defect. Landed 972, +1 headroom
+#   2026-09-27  docs/ROADMAP.md               880 -> 571  for WP-1507: the WP tables left for the
+#                                                          generated docs/wp/README.md; prose only now
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -540,7 +545,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # own process, for the CI and merge drag the maintainer named.  1507 is
     # the WP that retires this per-row bump.  No prose: the evidence stays in
     # the WP files.  Landed 879, +1 headroom.
-    "docs/ROADMAP.md": 880,
+    # 880 -> 571 (WP-1507, 2026-09-27): the 34 WP tables left for the
+    # generated docs/wp/README.md, and Current focus kept milestone prose,
+    # its WP-level paragraphs moved to the v1.6 record.  From here the cap is
+    # a budget on prose alone, and the per-row bump above ends.  Landed 570,
+    # +1 headroom.
+    "docs/ROADMAP.md": 571,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
@@ -658,30 +668,19 @@ CURRENT_FOCUS_WORD_CAP: int | None = 300
 
 
 def _wp_files() -> list[Path]:
-    return sorted(p for p in WP_DIR.glob("[0-9]*.md"))
+    return wp_index.wp_files(ROOT)
+
+
+def _header(path: Path):
+    try:
+        return wp_index.read_header(path)
+    except ValueError as exc:
+        pytest.fail(str(exc))
 
 
 def _status_of(path: Path) -> tuple[str, str | None]:
-    text = path.read_text(encoding="utf-8")
-    m = _STATUS_RE.search(text)
-    assert m, f"{path.name}: no Status line matching the TEMPLATE format"
-    return m.group("glyph"), m.group("date")
-
-
-def _index_rows() -> dict[str, tuple[str, str]]:
-    """WP id -> (linked filename, status cell) from every ROADMAP index row."""
-    rows: dict[str, tuple[str, str]] = {}
-    row_re = re.compile(r"^\| \[(\d{4})\]\((wp/[^)]+\.md)\) \|")
-    for line in ROADMAP.read_text(encoding="utf-8").splitlines():
-        m = row_re.match(line)
-        if not m:
-            continue
-        cells = [c.strip() for c in line.split("|")]
-        # cells[0] is '' before the leading pipe; status is the third column
-        assert len(cells) >= 5, f"ROADMAP row for {m.group(1)} has too few cells"
-        assert m.group(1) not in rows, f"ROADMAP indexes WP {m.group(1)} twice"
-        rows[m.group(1)] = (m.group(2), cells[3])
-    return rows
+    header = _header(path)
+    return header.glyph, header.date
 
 
 def test_template_declares_the_vocabulary_this_file_enforces():
@@ -700,140 +699,94 @@ def test_every_wp_status_line_is_controlled():
             assert date, f"{path.name}: {glyph} requires a YYYY-MM-DD date"
 
 
-def test_wp_files_and_roadmap_rows_are_a_bijection():
-    rows = _index_rows()
+def test_no_two_wp_files_share_a_number():
+    """Keyed by number, a second file of one number vanishes from the index
+    (two sessions both took 1469 on 2026-09-27)."""
     numbers = [p.name[:4] for p in _wp_files()]
-    # Keyed by number, a second file of one number vanishes from the dict below
-    # (two sessions both took 1469 on 2026-09-27).
     shared = sorted({n for n in numbers if numbers.count(n) > 1})
     assert not shared, f"WP numbers used by more than one file: {shared}"
-    files = {p.name[:4]: p for p in _wp_files()}
-    missing_rows = sorted(set(files) - set(rows))
-    missing_files = sorted(set(rows) - set(files))
-    assert not missing_rows, f"WP files with no ROADMAP index row: {missing_rows}"
-    assert not missing_files, f"ROADMAP rows with no WP file: {missing_files}"
-    for wp_id, (link, _cell) in rows.items():
-        assert (ROOT / "docs" / link).is_file(), f"row {wp_id} links {link}, not a file"
-        assert link == f"wp/{files[wp_id].name}", (
-            f"row {wp_id} links {link}, file is wp/{files[wp_id].name}"
-        )
 
 
-def test_roadmap_glyph_mirrors_the_wp_status_line():
-    rows = _index_rows()
-    for wp_id, path in ((p.name[:4], p) for p in _wp_files()):
-        file_glyph, _ = _status_of(path)
-        cell = rows[wp_id][1]
-        cell_glyphs = [g for g in cell if g in GLYPHS]
-        assert cell_glyphs, f"ROADMAP row {wp_id}: status cell {cell!r} has no glyph"
-        assert cell_glyphs[0] == file_glyph, (
-            f"WP {wp_id}: file says {file_glyph}, ROADMAP row says {cell_glyphs[0]}"
-        )
+def _groups() -> list:
+    return wp_index.roadmap_groups(ROADMAP.read_text(encoding="utf-8"))
 
 
-_MILESTONE_LINE_RE = re.compile(r"^Milestone: (\S+) ·", re.M)
-_SECTION_RE = re.compile(r"^### (v\d+\.\d+(?:\.x)?|Unscheduled|v2\+)(?=\s|$)", re.M)
+def _rows(groups: list) -> dict:
+    try:
+        return wp_index.rows_from_headers([_header(p) for p in _wp_files()], groups)
+    except ValueError as exc:
+        pytest.fail(str(exc))
 
 
-def _index_sections() -> dict[str, str]:
-    """WP id -> the milestone token of the `###` section its row sits under.
-
-    Sub-headings (`####`) group rows inside a section and carry no token.
+def test_every_wp_names_a_heading_the_roadmap_has():
+    """The WP file's `Milestone:` line is the authority on where a WP stands,
+    and its `Track:` line on which `####` of that section it sits under.  The
+    number cannot carry this (1101-1103 opened for v1.1 and are queued for
+    v1.4), which is why it is a line and a test rather than a naming rule.
+    A heading the ROADMAP lacks would drop the row from the index, so the
+    generator raises, naming the file and the tracks that section has.
     """
-    text = ROADMAP.read_text(encoding="utf-8").split("## Work packages", 1)[1]
-    row_re = re.compile(r"^\| \[(\d{4})\]\(wp/")
-    sections: dict[str, str] = {}
-    current: str | None = None
-    for line in text.splitlines():
-        if line.startswith("### "):
-            m = _SECTION_RE.match(line)
-            assert m, (
-                f"ROADMAP section {line!r} does not open with a milestone token "
-                "(vN.N, vN.N.x, Unscheduled, v2+) — every section under Work "
-                "packages is one milestone's, so a row's section can be checked "
-                "against its WP file"
+    assert _rows(_groups())
+
+
+def test_the_wp_index_is_the_generators_output():
+    """docs/wp/README.md is output, not a hand-maintained table (WP-1507).
+
+    The rows used to be copied into ROADMAP by hand at every start, close and
+    re-rating, and 7 of 17 conflicted ROADMAP merges in six weeks were two
+    branches editing adjacent rows.  The same freshness rule as
+    docs/VALIDATION.md's (test_validation_matrix.py).
+    """
+    index = ROOT / wp_index.INDEX
+    assert index.read_text(encoding="utf-8") == wp_index.generate(ROOT), (
+        f"{wp_index.INDEX} is stale: run {wp_index.COMMAND}"
+    )
+
+
+def test_the_index_parses_back_to_the_rows_that_wrote_it():
+    """The merge driver's premise: `parse` inverts `render`.
+
+    Git runs the driver while the tree still holds the pre-merge WP files, so
+    the driver merges the three index texts row by row and renders the result
+    (wp_index.py's docstring).  A cell the parser reads differently from the
+    renderer would merge into a row no WP file says.
+    """
+    groups = _groups()
+    rows = _rows(groups)
+    text = wp_index.render(groups, rows)
+    parsed_groups, parsed_rows = wp_index.parse(text)
+    assert parsed_rows == rows
+    assert wp_index.render(parsed_groups, parsed_rows) == text
+
+
+_INDEX_LINK_RE = re.compile(r"\]\(wp/README\.md#([^)\s]+)\)")
+
+
+def test_every_roadmap_heading_with_rows_links_them():
+    """Each ROADMAP section or track with WPs links its table in the index,
+    and every such link names an anchor the index has.
+
+    The prose stayed in ROADMAP and the rows left, so the link is the only
+    way from a heading's paragraph to what it describes.  A new track is a
+    `####` heading, its prose, and this link.
+    """
+    text = ROADMAP.read_text(encoding="utf-8")
+    groups = _groups()
+    rows = _rows(groups)
+    anchors = {g.anchor for g in wp_index.parse(wp_index.render(groups, rows))[0]}
+    body = text.split("\n## Work packages", 1)[1]
+    body = re.split(r"^## ", body, maxsplit=1, flags=re.M)[0]
+    blocks = re.split(r"^#{3,4} ", body, flags=re.M)[1:]
+    assert len(blocks) == len(groups), "ROADMAP headings and the parsed groups disagree"
+    occupied = {(r.token, r.track) for r in rows.values()}
+    for group, block in zip(groups, blocks):
+        if (group.token, group.track) in occupied:
+            assert f"](wp/README.md#{group.anchor})" in block, (
+                f"ROADMAP § {group.track or group.heading} has WPs but no link to "
+                f"wp/README.md#{group.anchor}"
             )
-            current = m.group(1)
-            continue
-        m = row_re.match(line)
-        if m:
-            assert current, f"ROADMAP row {m.group(1)} sits above any section"
-            sections[m.group(1)] = current
-    return sections
-
-
-def test_index_section_mirrors_the_wp_milestone_line():
-    """The WP file's `Milestone:` line is the authority on where a WP stands;
-    the section its ROADMAP row sits under mirrors it.  The number cannot
-    carry this (1101-1103 opened for v1.1 and are queued for v1.4), which is
-    why it is a line and a test rather than a naming rule.
-    """
-    sections = _index_sections()
-    for path in _wp_files():
-        wp_id = path.name[:4]
-        m = _MILESTONE_LINE_RE.search(path.read_text(encoding="utf-8"))
-        assert m, f"{path.name}: no 'Milestone: <token> ·' line"
-        token = m.group(1)
-        section = sections[wp_id]
-        assert token.lower() == section.lower(), (
-            f"WP {wp_id}: file says Milestone: {token}, ROADMAP row sits under "
-            f"§ {section} — move the row or fix the line"
-        )
-
-
-_STATUS_CELL_RE = re.compile(r"^(?:⬜|(?:🔄|✅|🛑) \d{4}-\d{2}-\d{2})$")
-
-
-def test_roadmap_status_cell_is_a_glyph_and_a_date():
-    """An index row's status cell is the glyph and the date, nothing else.
-
-    The free text belongs on the WP file's own Status line (TEMPLATE.md);
-    ROADMAP's cells had grown six-line close narratives, which is how the
-    file reached 8600 words before the 2026-09-01 reorder.
-    """
-    for wp_id, (_link, cell) in _index_rows().items():
-        assert _STATUS_CELL_RE.match(cell), (
-            f"ROADMAP row {wp_id}: status cell {cell!r} is not '<glyph> <date>' "
-            "— put the summary on the WP file's Status line"
-        )
-
-
-def _priority_of(path: Path) -> tuple[str, str] | None:
-    """(tier, date) from the WP file's `Priority:` line, or None when unrated."""
-    m = _PRIORITY_RE.search(path.read_text(encoding="utf-8"))
-    return (m.group("tier"), m.group("date")) if m else None
-
-
-def _priority_cells() -> dict[str, str | None]:
-    """WP id -> the row's Priority cell, or None where its table has no column.
-
-    A header line names its columns, and the rows under it (to the next
-    blank line) are read against that header, so the column may sit on the
-    open sections' tables only.
-    """
-    cells: dict[str, str | None] = {}
-    columns: list[str] = []
-    row_re = re.compile(r"^\| \[(\d{4})\]\(wp/")
-    for line in ROADMAP.read_text(encoding="utf-8").splitlines():
-        if line.startswith("| WP |"):
-            columns = [c.strip() for c in line.strip("|").split("|")]
-            continue
-        if not line.startswith("|"):
-            columns = []
-            continue
-        m = row_re.match(line)
-        if not m:
-            continue
-        row = [c.strip() for c in line.strip("|").split("|")]
-        if "Priority" in columns:
-            assert len(row) == len(columns), (
-                f"ROADMAP row {m.group(1)}: {len(row)} cells under a "
-                f"{len(columns)}-column header"
-            )
-            cells[m.group(1)] = row[columns.index("Priority")]
-        else:
-            cells[m.group(1)] = None
-    return cells
+    dangling = sorted(set(_INDEX_LINK_RE.findall(text)) - anchors)
+    assert not dangling, f"ROADMAP links index anchors that do not exist: {dangling}"
 
 
 def test_template_declares_the_priority_vocabulary():
@@ -849,46 +802,19 @@ def test_every_not_started_wp_is_rated_and_no_closed_wp_is():
     """A ⬜ WP is rated at the write; a close deletes the line.
 
     A 🔄 WP may keep the line it had.  Any line present is held to the
-    format, because the ROADMAP cell is read off it.
+    format by the parser, because the index's cell is read off it.
     """
     for path in _wp_files():
-        text = path.read_text(encoding="utf-8")
-        glyph, _ = _status_of(path)
-        if "\nPriority:" in text:
-            assert _priority_of(path), (
-                f"{path.name}: Priority line is not 'Priority: P<n> YYYY-MM-DD — <why>'"
-            )
-            assert glyph not in {"✅", "🛑"}, (
-                f"{path.name}: closed ({glyph}) and still rated — delete the "
-                "Priority line and set the ROADMAP cell to '—' (protocol step 5)"
+        header = _header(path)
+        if header.tier:
+            assert header.glyph not in {"✅", "🛑"}, (
+                f"{path.name}: closed ({header.glyph}) and still rated — delete "
+                "the Priority line (protocol step 5)"
             )
         else:
-            assert glyph != "⬜", (
+            assert header.glyph != "⬜", (
                 f"{path.name}: not started and carries no Priority line (TEMPLATE.md)"
             )
-
-
-def test_roadmap_priority_cell_mirrors_the_wp_priority_line():
-    """The WP file's line is the authority; the index cell is its tier.
-
-    A rated WP whose row sits in a table without the column is a rating
-    nobody reading the index can see, so that fails too.
-    """
-    cells = _priority_cells()
-    for path in _wp_files():
-        wp_id = path.name[:4]
-        rated = _priority_of(path)
-        cell = cells[wp_id]
-        if cell is None:
-            assert rated is None, (
-                f"WP {wp_id}: file rates it {rated[0]} but its ROADMAP table has "
-                "no Priority column — add the column to that section's table"
-            )
-            continue
-        expected = rated[0] if rated else "—"
-        assert cell == expected, (
-            f"WP {wp_id}: ROADMAP Priority cell is {cell!r}, file says {expected!r}"
-        )
 
 
 def test_inherited_is_h3_and_closed_wps_have_consumed_theirs():

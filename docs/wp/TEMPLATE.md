@@ -1,6 +1,7 @@
 # WP-NNNN — <title>
 
 Milestone: v0.X · Status: ⬜
+Track: <a #### heading under the milestone's ROADMAP section; no line if none>
 Depends on: WP-MMMM (or —)
 Priority: P? YYYY-MM-DD — <the rubric row it meets, and the move if any>
 
@@ -8,21 +9,27 @@ Priority: P? YYYY-MM-DD — <the rubric row it meets, and the move if any>
 Numbering: MMNN — the block of the milestone this WP is OPENED for, then the
 next free sequence number (v1.1 → 11xx); an unscheduled WP takes the newest
 block. The number never changes when the WP moves, so it is not where the WP
-stands: the Milestone line is, and the ROADMAP section the row sits under
-mirrors it (tests/test_docs_consistency.py). Never recycle a retired number.
+stands: the Milestone line is, and the WP index (README.md here, generated)
+places the row by it. Never recycle a retired number.
 Milestone values: vN.N (a row of ROADMAP's table), vN.N.x (shipped after that
 milestone, in its patch releases), unscheduled.
+Track: the #### heading, verbatim, that the WP sits under in its milestone's
+ROADMAP section. A section without tracks takes no line. A heading ROADMAP
+lacks fails tests/test_docs_consistency.py.
+Depends on: the index reads WP numbers (and #N) off this line. A number
+outside brackets is hard, and one followed by "soft" is a preferred order:
+"1327 (the moment); 1326 soft (the satellites)" shows as "1327 (1326 soft)".
 Status values: ⬜ not started · 🔄 in progress · ✅ shipped · 🛑 no-go.
 Format: "Status: <glyph> <YYYY-MM-DD> — <free text>". The date is required
 for every glyph except ⬜; the free text is optional and may wrap.
-Keep the Status line here and the WP's row in ../ROADMAP.md in sync
-(tests/test_docs_consistency.py asserts both). The ROADMAP cell carries the
-glyph and the date only; the free text lives on this line.
+After editing any of these lines, run `python3 .claude/hooks/wp_index.py`
+to rewrite the index; a test fails while it is stale (WP-1507). The index
+shows the glyph and the date only; the free text lives on this line.
 Priority values: P1 · P2 · P3 · P4 — which WP the next session's tokens
 should go to, rated at the write and re-rated by whichever handover
 moves it. Every ⬜ WP carries one. A closing session deletes the line, so a
-✅/🛑 WP carries none and its ROADMAP cell reads `—`; a 🔄 WP may keep the
-one it had. The ROADMAP cell carries the tier only; the date and the one
+✅/🛑 WP carries none and its index cell reads `—`; a 🔄 WP may keep the
+one it had. The index carries the tier only; the date and the one
 clause of reason live on this line, and a re-rating rewrites it in place
 ("P1 2026-10-02 — was P2: 1442 landed, nothing blocks it").
 The rubric is weighted shortest job first (SAFe: cost of delay over size),

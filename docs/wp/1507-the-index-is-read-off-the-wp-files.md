@@ -132,10 +132,10 @@ are both on the list.
 - [x] A generator, stdlib only, sharing one header parser with
       `test_docs_consistency.py`. It writes the per-milestone tables and the
       in-flight and next-by-priority lists from the WP files.
-- [ ] ROADMAP.md: each table replaced by a link to its place in the index.
+- [x] ROADMAP.md: each table replaced by a link to its place in the index.
       Section prose stays under its milestone heading. Current focus keeps
       milestone prose only.
-- [ ] `test_docs_consistency.py`: the five mirror tests become one freshness
+- [x] `test_docs_consistency.py`: the five mirror tests become one freshness
       test on the index. The ROADMAP cap counts what is left and is set once,
       with its diary entry. The Current focus caps are unchanged.
 - [ ] If (a): the merge driver and its SessionStart setup, tested in
