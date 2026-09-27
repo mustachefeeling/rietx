@@ -127,6 +127,19 @@ Independent; take any.
 - [ ] One authority for "bonded" on the server and one for "drawn" on the client
 - [ ] A source for the Te, At, Kr and Xe electronegativities
 
+### Inherited
+
+- **From WP-1470 (2026-09-27).** The scene rules now exist twice.
+  `rietx.viz.figure3d.scene` ports `buildScene`, `shownPolyhedra`,
+  `lookFrom`/`axisView` and the shaders' `LOOK` to Python for
+  `rietx.viz.render_structure`, and `tests/data/gui/scene_cases.json` holds the
+  two equal. A task here that changes what `buildScene` draws (a vertex rule,
+  a new toggle, a changed default) edits `scene.py` in the same commit, then
+  runs `tests/test_render_structure.py` (which rewrites the corpus) and
+  `npm --prefix gui test`. A rule that moves the default picture also moves
+  `render_structure`'s, and `test_structure3d_browser.py`'s parity row
+  (bar 2.0 levels, measured 1.06) is where the two pictures are compared.
+
 ## Acceptance
 
 Per task. Any task that moves the default picture re-runs
