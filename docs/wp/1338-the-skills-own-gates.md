@@ -136,7 +136,7 @@ tokens; by size the candidates are §4 (6 806 B), §10's worked default
       the near-full state is visible before CI fails.
 - [ ] The placement eval: the keyed routing rows replaced by one grep
       sentence, real agents on tasks where a diagnostic fires, against
-      today's body. Registered before it runs (tests/CLAUDE.md § Two eval
+      today's body. Registered before it runs (tests/CLAUDE.md § Three eval
       protocols).
 - [ ] The placement rule written where WP-1330's lives: CONTRIBUTING.md
       § The agent skill and root CLAUDE.md's skill bullet.

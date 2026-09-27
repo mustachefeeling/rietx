@@ -125,13 +125,14 @@ green for months; the third WP-1426):
 The check all three share: make the guard fail on purpose once, and confirm the
 failure message is the one you expected.
 
-## Two eval protocols, and they pool with nothing of each other's
+## Three eval protocols, and they pool with nothing of each other's
 
 `tests/eval_report_agent/` asks whether an agent **reads** a FitReport it was
 handed; `tests/eval_agent_surface/` (WP-1110) asks which **surface** an agent
-reaches for when handed files and a job. Different episodes, answer contracts
-and scoring, so a cell in one is comparable to nothing in the other and neither
-version number governs both. What they share is the discipline, and it is the
+reaches for when handed files and a job; `tests/eval_skill_placement/`
+(WP-1338) asks whether a skill **routing** change loses the reads a row used to
+get. Different episodes, answer contracts and scoring, so a cell in one is
+comparable to nothing in another and no version number governs two. What they share is the discipline, and it is the
 part to copy into any third: **register the round before running it**, never
 rewritten afterwards; enforce the condition in a **shim** rather than in the
 prompt; fix the read-outs in advance. The second one earned that last rule
