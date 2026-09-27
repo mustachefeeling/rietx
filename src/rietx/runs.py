@@ -77,7 +77,6 @@ from typing import Literal
 from pydantic import ConfigDict
 
 from ._about import (
-    DIST_NAME,
     LIVE_DIR_NAME,
     PROJECT_SUFFIX,
     RUNS_DIR_NAME,
@@ -1146,11 +1145,18 @@ def new_run_dir(root: str | Path) -> Path:
 
 
 def _package_version() -> str | None:
+    """The version every result is stamped with, read from its one authority.
+
+    ``refine._VERSION``, never a second ``importlib.metadata`` lookup: this one
+    stamped 887 run records 1.4.0 over 1.6.0.dev0 code where the fix to
+    ``_VERSION`` alone would not have reached (WP-1456).  Imported late because
+    ``refine`` imports this module, and a recorder only exists inside a fit.
+    """
     try:
-        from importlib.metadata import version
-        return version(DIST_NAME)
+        from .refine import _VERSION
     except Exception:
         return None
+    return _VERSION
 
 
 def _warn_once(message: str) -> None:

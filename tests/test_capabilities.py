@@ -15,14 +15,22 @@ Two kinds of test here, and the second is the interesting one:
 
 from __future__ import annotations
 
+import importlib
 import json
-from importlib.metadata import version
+import os
+import re
+import shutil
+import subprocess
+import warnings
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 from typing import get_args
 
 import numpy as np
 import pytest
 
 import rietx as rx
+from rietx._about import DIST_NAME
 from rietx.backend.api import BACKEND_NAMES, EXPERIMENTAL_BACKENDS
 from rietx.background.diagnostics import _KBETA
 from rietx.capabilities import capabilities
@@ -315,6 +323,135 @@ def test_dunder_version_is_the_same_string_capabilities_reports(caps):
     assert rietx.__version__ is _VERSION
     assert rietx.__version__ == caps.package_version
     assert "__version__" in rietx.__all__
+
+
+# ------------------------------------------- the stamp of a stale install
+# WP-1456: an editable install writes its metadata once, so a version bump
+# without a reinstall stamped 1.4.0 on results of 1.6.0.dev0 code, in silence.
+# ``rietx.refine`` is the *function* as an attribute of the package, hence the
+# module is fetched by name.
+_refine = importlib.import_module("rietx.refine")
+_needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="no git here")
+
+
+def _source_tree(root: Path, *, name: str = DIST_NAME,
+                 declared: str = "1.6.0.dev0") -> Path:
+    """A source tree laid out like this one; returns its package directory."""
+    package = root / "src" / name
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (root / "pyproject.toml").write_text(
+        f'[project]\nname = "{name}"\nversion = "{declared}"\n', encoding="utf-8")
+    return package
+
+
+def _commit(root: Path) -> str:
+    """``git init`` + one commit of everything, isolated from any user config."""
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+    config = ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+    for args in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "c"]):
+        subprocess.run(["git", "-C", str(root), *config, *args],
+                       check=True, capture_output=True, env=env)
+    return subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=True,
+                          capture_output=True, text=True, env=env).stdout.strip()
+
+
+def _installed(monkeypatch, found: str) -> None:
+    monkeypatch.setattr(_refine, "version", lambda name: found)
+
+
+@pytest.mark.parametrize("layout", ["matching", "no pyproject", "another project",
+                                    "unreadable pyproject"])
+def test_the_metadata_is_stamped_unchanged_unless_the_source_disagrees(
+        layout, tmp_path, monkeypatch):
+    """Every wheel install and every fresh editable install stays byte for byte.
+
+    CI installs editable, so the matching row is the path every CI job takes,
+    and ``test_skill.py`` pins the skill's version to exactly that string.
+    """
+    _installed(monkeypatch, "1.6.0.dev0" if layout == "matching" else "1.4.0")
+    package = _source_tree(tmp_path)
+    pyproject = tmp_path / "pyproject.toml"
+    if layout == "no pyproject":
+        pyproject.unlink()
+    elif layout == "another project":  # keyed on the declared name, never the path
+        pyproject.write_text('[project]\nname = "somebody-else"\nversion = "9.9"\n',
+                             encoding="utf-8")
+    elif layout == "unreadable pyproject":
+        pyproject.write_text("[project\n", encoding="utf-8")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        stamp = _refine._resolve_version(package)
+    assert stamp == ("1.6.0.dev0" if layout == "matching" else "1.4.0")
+
+
+def test_a_stale_install_outside_git_stamps_the_bare_source_version(
+        tmp_path, monkeypatch):
+    _installed(monkeypatch, "1.4.0")
+    package = _source_tree(tmp_path)
+    with pytest.warns(RuntimeWarning, match=r"'1\.4\.0'.*'1\.6\.0\.dev0'.*could not be read"):
+        stamp = _refine._resolve_version(package)
+    assert stamp == "1.6.0.dev0"
+
+
+@_needs_git
+def test_a_stale_install_in_git_stamps_the_source_version_and_its_commit(
+        tmp_path, monkeypatch):
+    """setuptools-scm's node as the local label, and its dirty word on an edit."""
+    _installed(monkeypatch, "1.4.0")
+    package = _source_tree(tmp_path)
+    head = _commit(tmp_path)
+    with pytest.warns(RuntimeWarning, match=r"'1\.4\.0'.*results will be stamped") as caught:
+        stamp = _refine._resolve_version(package)
+    assert stamp == f"1.6.0.dev0+g{head[:12]}"
+    assert "could not be read" not in str(caught[0].message)
+    (package / "__init__.py").write_text("x = 1\n", encoding="utf-8")
+    (package / "untracked.py").write_text("", encoding="utf-8")
+    with pytest.warns(RuntimeWarning):
+        assert _refine._resolve_version(package) == f"1.6.0.dev0+g{head[:12]}.dirty"
+
+
+@_needs_git
+def test_a_source_tree_inside_another_repository_is_not_stamped_with_its_commit(
+        tmp_path, monkeypatch):
+    """The outer repository's HEAD says nothing about the code that ran."""
+    _installed(monkeypatch, "1.4.0")
+    package = _source_tree(tmp_path / "unpacked")
+    _commit(tmp_path)
+    with pytest.warns(RuntimeWarning, match="could not be read"):
+        assert _refine._resolve_version(package) == "1.6.0.dev0"
+
+
+def test_a_missing_distribution_keeps_its_wp1062_stamp(tmp_path, monkeypatch):
+    def missing(name):
+        raise PackageNotFoundError(name)
+
+    monkeypatch.setattr(_refine, "version", missing)
+    with pytest.warns(RuntimeWarning, match="no installed distribution"):
+        assert _refine._resolve_version(_source_tree(tmp_path)) == _refine._DEV_VERSION
+
+
+def test_the_run_record_is_stamped_from_the_same_authority():
+    """``meta.json`` asked ``importlib.metadata`` itself until WP-1456, and 887
+    run records carried the stale number where the fix to ``_VERSION`` alone
+    would never have reached them.
+    """
+    from rietx import runs
+
+    assert runs._package_version() is _refine._VERSION
+
+
+def test_only_refine_asks_the_metadata_for_this_distribution():
+    """A third reader would be a third authority free to disagree (WP-1456).
+
+    The pattern is the call's shape, a ``version(`` taking this distribution's
+    name, spelled or imported, so a renamed alias still matches.
+    """
+    shape = re.compile(rf"version\(\s*(?:DIST_NAME|[\"']{re.escape(DIST_NAME)}[\"'])\s*\)")
+    package = Path(_refine.__file__).parent
+    readers = {path.relative_to(package).as_posix() for path in package.rglob("*.py")
+               if shape.search(path.read_text(encoding="utf-8"))}
+    assert readers == {"refine.py"}
 
 
 def test_capabilities_survives_json(caps):

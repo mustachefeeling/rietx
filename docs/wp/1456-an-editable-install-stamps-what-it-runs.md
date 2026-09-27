@@ -108,12 +108,12 @@ non-goal, and `test_skill.py` pins the skill's `version` to
 ## Tasks
 
 - [x] Read the prior art above, and write the choice here.
-- [ ] Implement the comparison where `_VERSION` is set, and nowhere else;
+- [x] Implement the comparison where `_VERSION` is set, and nowhere else;
       the run recorder's `meta.json` reads `_VERSION` rather than asking
       `importlib.metadata` a second time (the second reader above).
-- [ ] Tests: a monkeypatched metadata version that disagrees with
+- [x] Tests: a monkeypatched metadata version that disagrees with
       `pyproject.toml` stamps the chosen form. A matching one is unchanged.
-- [ ] Skill: none. An agent reads the stamp and never sets it.
+- [x] Skill: none. An agent reads the stamp and never sets it.
 
 ## Acceptance
 
