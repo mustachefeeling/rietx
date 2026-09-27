@@ -13,6 +13,13 @@ can apply the keep-the-best-pass discipline the skill asks for without parsing
 the event log for a number the object was standing next to when it was
 computed.
 
+### Inherited
+
+- **2026-09-28, from [1338](1338-the-skills-own-gates.md): `StageResult.rwp` falsifies a skill sentence.**
+  `references/series.md` says `StageResult` carries no `rwp` field, and
+  `test_every_negative_field_claim_is_still_true` fails once it does.
+  Rewrite that sentence in the same change.
+
 ## Context
 
 From issue #222, measured over a 638-pattern laboratory-XRD chemical-looping
