@@ -638,6 +638,26 @@ def test_the_shell_ends_at_the_largest_gap_of_the_whole_sequence():
     assert s3.shell_gap([]) == (0, 1.0)
 
 
+def test_a_rival_gap_is_one_brunner_and_schwarzenbach_would_call_equal():
+    """WP-1468: Brunner & Schwarzenbach (1971, Table 1) call Ni₂In's gaps
+    approximately equal at 1.22 against 1.15, and α-Mn's Mn(3) one clear gap at
+    1.23 against 1.11.  A second gap is reported as a rival from their least
+    tie up, and only when it would close a polyhedron itself.  None of the 21
+    measured phases has one."""
+    # four ligands, a gap of 1.15, three more, a gap of 1.22, the next shell
+    ni2in = np.array([1.0] * 4 + [1.15] * 3 + [1.403] * 4 + [1.473])
+    assert s3.shell_gap(ni2in) == (7, pytest.approx(1.22, abs=1e-3))
+    assert s3.rival_gap(ni2in, 7) == (4, pytest.approx(1.15))
+    # the same, at 1.20 against 1.40: ln 1.20 / ln 1.40 = 0.54
+    clear = np.array([1.0] * 4 + [1.2] * 3 + [1.68] * 4 + [1.764])
+    assert s3.shell_gap(clear)[0] == 7 and s3.rival_gap(clear, 7) is None
+    # a rival after two ligands closes no polyhedron
+    small = np.array([1.0] * 2 + [1.3] * 4 + [1.703] * 4 + [1.788])
+    assert s3.shell_gap(small)[0] == 6 and s3.rival_gap(small, 6) is None
+    for row in MEASURED:
+        assert all(p["rival"] is None for p in s3.build(measured(row))["polyhedra"])
+
+
 def test_the_window_reaches_three_times_the_shortest_distance(lab6):
     """P3: CsCl's Cs has 8 Cl at 3.56 Å and the next at 6.8 Å, past the 6 Å
     the images first reach, so the orbit grows to the 10.7 Å window."""

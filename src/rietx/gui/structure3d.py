@@ -153,6 +153,14 @@ SHELL_REACH = 3.0
 #: grows when a large cation's window reaches further (Cs in CsCl, 10.7 Å).
 SHELL_RADIUS = 6.0
 
+#: A second gap is a rival to the largest when its logarithm is at least this
+#: fraction of the largest's (WP-1468).  Brunner & Schwarzenbach (1971, Table 1)
+#: call Ni₂In's gaps "approximately equal" at 1.22 against 1.15, where the
+#: fraction is 0.70, and β-Sn's at 1.18 against 1.17 (0.95).  α-Mn's Mn(3),
+#: 1.23 against 1.11 (0.50), they read as one clear gap.  A log, since equal
+#: quotients are equal gaps on the logarithmic histogram they read.
+RIVAL_GAP = 0.7
+
 #: Shells of these sizes are drawn by default: the tetrahedra and octahedra a
 #: chemist reads first (WP-1466, P5).  Larger ones qualify and start hidden,
 #: because with NAC's CaF₈ and NaF₇ shown its cell fills with overlapping
@@ -577,6 +585,33 @@ def shell_gap(distances: np.ndarray) -> tuple[int, float]:
     ratios = d[1:] / d[:-1]
     n = int(np.argmax(ratios)) + 1
     return n, float(ratios[n - 1])
+
+
+def rival_gap(distances: np.ndarray, n: int) -> tuple[int, float] | None:
+    """``(n2, ratio)``: the largest gap other than the one after ``n``, when it
+    rivals it (:data:`RIVAL_GAP`) and would close a polyhedron of its own, else
+    ``None`` (WP-1468).
+
+    Would close one means P4's size and gap: four ligands or more and a ratio of
+    :data:`POLYHEDRON_GAP` or more.  Daams & Villars (1993) broke a tie between
+    "equal or practically equal maximum gaps" by keeping a structure type's
+    number of environment types small.  That is a hand rule, for intermetallic
+    structure types, with no number for "practically"; the rival is reported
+    beside the shell instead.  Real ones: COD 1509685's Ag2 closes after 6 at
+    1.166 against 1.152 after 4, and a hollandite's Ba (1525610) after 8 at
+    1.225 against 1.220 after 12.
+    """
+    d = np.asarray(distances, dtype=np.float64)
+    if len(d) < 3:
+        return None
+    ratios = d[1:] / d[:-1]
+    largest = float(ratios[n - 1])
+    ratios[n - 1] = 0.0
+    k = int(np.argmax(ratios))
+    if (k + 1 < 4 or ratios[k] < POLYHEDRON_GAP
+            or math.log(ratios[k]) < RIVAL_GAP * math.log(largest)):
+        return None
+    return k + 1, float(ratios[k])
 
 
 def probability_scale(probability: float) -> float:
@@ -1368,9 +1403,11 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
             root[j] = min(root[j], root[i])
         total = np.bincount(root, weights=occupancy[source[index]], minlength=len(index))
         kept = [[index[k], dist[k], total[k]] for k in np.nonzero(root == np.arange(len(root)))[0]]
-        n, gap = shell_gap(np.array([row[1] for row in kept] + [window]))
+        sequence = np.array([row[1] for row in kept] + [window])
+        n, gap = shell_gap(sequence)
         if n < 4 or gap < POLYHEDRON_GAP:
             continue
+        rival = rival_gap(sequence, n)
         shell = kept[:n]
         if codes is not None:
             # a shell holding two of the file's alternatives is split, as P9's is
@@ -1389,10 +1426,10 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
             continue
         if len(hull.vertices) < n or (hull.equations[:, 3] > -INSIDE_TOL).any():
             continue
-        found.append((c, atom["site"], centre, n, gap, shell, vertices, hull))
+        found.append((c, atom["site"], centre, n, gap, shell, vertices, hull, rival))
     # a shell drawn by default claims room under the atom cap first, so a
     # hidden one never costs the default picture a polyhedron
-    for c, site, centre, n, gap, shell, vertices, hull in sorted(
+    for c, site, centre, n, gap, shell, vertices, hull, rival in sorted(
             found, key=lambda f: f[3] not in DEFAULT_SHELLS):
         corners = _keys(vertices)
         needed = [k for k in range(n) if corners[k] not in known]
@@ -1434,6 +1471,8 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
             "coordination": n,
             "mean_distance": float(np.mean([row[1] for row in shell])),
             "gap": gap,
+            # a second gap that would close a polyhedron too, ``[n2, ratio]``
+            "rival": None if rival is None else list(rival),
             "drawn_by_default": n in DEFAULT_SHELLS,
         })
     out.sort(key=lambda p: p["center"])

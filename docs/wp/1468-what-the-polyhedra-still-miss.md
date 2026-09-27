@@ -106,7 +106,15 @@ Read 2026-09-26 from each program's manual.
 - **Two nearly equal gaps.** Brunner & Schwarzenbach found six structures
   whose largest gap had a near-equal rival, and Daams & Villars resolve such
   a tie by the fewest environment types. Nothing does here. The closest on
-  the measured set is fluorapatite's Ca2, 1.24 against 1.14.
+  the measured set is fluorapatite's Ca2, 1.24 against 1.14. *Measured
+  2026-09-28:* over 159 COD files, 38 polyhedra have a second gap that
+  Brunner & Schwarzenbach's own Table 1 would call approximately equal
+  (logarithm at least 0.70 of the largest's, Ni₂In's least tie). COD
+  1509685's Ag2 closes after 6 at 1.166 against 1.152 after 4, both default
+  sizes. Daams & Villars' tie rule is declined: it is a hand rule for
+  intermetallic structure types, with no number for "practically equal",
+  and it chooses by the classification's economy. The rival is reported
+  instead (`structure3d.rival_gap`).
 - **A large hidden shell can lose its room at the atom cap** (WP-1466, P7).
   The default shells claim room first, and a hidden one that does not fit
   leaves the legend, counted in the payload's note. None did on the measured
@@ -160,7 +168,7 @@ Independent; take any.
 - [x] Centre and ligand overrides on the query string, as Mercury's two lists (2026-09-28: `centres=` and `ligands=`, element lists that replace the rule, and the `round` and `corners` rows under `drawing`)
 - [~] One atom's environment on request, for an intermetallic (2026-09-28: an element's environments come through the lists, and Cu₃Au draws AuCu₁₂ and CuAu₄Cu₈. One atom's alone is not offered)
 - [~] Anion-centred and cluster polyhedra, if a user asks for them (2026-09-28: anion-centred ones come through the lists, as fluorite's FCa₄. A cluster polyhedron round no atom, B₆, does not)
-- [ ] The two-gap tie: find a real case, then decide whether to apply Daams & Villars' rule
+- [x] The two-gap tie: find a real case, then decide whether to apply Daams & Villars' rule (2026-09-28: found, COD 1509685's Ag2 and 37 more; the rule declined and the rival reported in the hover, Context § Ties)
 - [x] A hidden shell dropped at the atom cap stays in the legend as unavailable, or the cap stops counting it (2026-09-28: the payload's `polyhedra_dropped` lists each by site and ligands, and the legend greys a formula that has nothing else to draw. The cap still counts every shell: it bounds what the viewer draws)
 - [x] The polyhedra stop recomputing on a bond-slider release — declined on the record 2026-09-28. The recompute is kept and made cheaper (Context). A memo would be keyed on the phase and on every rule constant, and one left out of the key serves a stale picture
 - [x] One authority for "bonded" on the server and one for "drawn" on the client (2026-09-28: `structure3d.bonded`, `drawnWith` and its twin `drawn_with`)

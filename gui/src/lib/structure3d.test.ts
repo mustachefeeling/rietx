@@ -498,6 +498,9 @@ describe("the polyhedra", () => {
     expect(polyhedronFormula(geo, geo.polyhedra[0])).toBe("SiO₄");
     expect(polyhedronLabel(geo, geo.polyhedra[0]))
       .toBe("SiO₄ around Si1  ·  4 ligands  ·  mean 1.600 Å  ·  gap ×2.00");
+    // a rival gap, when one would close a shell too, is named beside it
+    geo.polyhedra[0].rival = [6, 1.9];
+    expect(polyhedronLabel(geo, geo.polyhedra[0])).toContain("gap ×2.00  ·  next gap ×1.90 after 6");
     expect(polyhedraLegend(geo)).toEqual([
       { formula: "SiO₄", color: "#f0c8a0", byDefault: true, available: true }]);
   });

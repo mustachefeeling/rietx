@@ -329,8 +329,11 @@ is held per mode, so polyhedra start on in ball mode and off in ellipsoid mode,
 where the faces would cover the ellipsoids. A drawn polyhedron takes the place
 of its centre's sticks. It also brings the ligands it needs outside the cell,
 and they go when it is switched off. Pointing at a face names the polyhedron,
-its ligand count, its mean distance and its gap. The caption lists what is
-drawn and what is off.
+its ligand count, its mean distance and its gap. When a second gap is nearly as
+large and would close a shell of its own, the line names it too, as `next gap
+×1.15 after 4`. Brunner and Schwarzenbach (1971) call two such gaps
+approximately equal, and the shell drawn is then a choice the data barely
+makes. The caption lists what is drawn and what is off.
 
 A centre is a metal, or a non-metal bonded to a more electronegative one, as P
 is in PO₄. A ligand is any other non-metal except hydrogen. A non-metal bonded

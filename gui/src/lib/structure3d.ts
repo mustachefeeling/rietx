@@ -81,6 +81,9 @@ export interface Polyhedron {
   coordination: number;
   mean_distance: number;
   gap: number;
+  /** a second gap that would close a polyhedron too, `[ligands, ratio]`
+   *  (WP-1468); absent or null when there is none */
+  rival?: [number, number] | null;
   drawn_by_default: boolean;
 }
 
@@ -227,13 +230,18 @@ export function polyhedronFormula(geometry: Geometry, polyhedron: Polyhedron): s
                  polyhedron.vertices.map((v) => geometry.sites[geometry.atoms[v].site].element));
 }
 
-/** One hover line per polyhedron: what it is, around which site, and its shell. */
+/** One hover line per polyhedron: what it is, around which site, and its
+ *  shell, with a rival gap beside it when one would close a shell too. */
 export function polyhedronLabel(geometry: Geometry, polyhedron: Polyhedron): string {
   const site = geometry.sites[polyhedron.site];
-  return [`${polyhedronFormula(geometry, polyhedron)} around ${site.label}`,
-          `${polyhedron.coordination} ligands`,
-          `mean ${polyhedron.mean_distance.toFixed(3)} Å`,
-          `gap ×${polyhedron.gap.toFixed(2)}`].join("  ·  ");
+  const parts = [`${polyhedronFormula(geometry, polyhedron)} around ${site.label}`,
+                 `${polyhedron.coordination} ligands`,
+                 `mean ${polyhedron.mean_distance.toFixed(3)} Å`,
+                 `gap ×${polyhedron.gap.toFixed(2)}`];
+  if (polyhedron.rival) {
+    parts.push(`next gap ×${polyhedron.rival[1].toFixed(2)} after ${polyhedron.rival[0]}`);
+  }
+  return parts.join("  ·  ");
 }
 
 /**
