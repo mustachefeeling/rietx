@@ -32,8 +32,10 @@ from rietx.indexing.ambiguity import (
     chance_rate,
     derivative_cells,
     hnf_matrices,
+    lattice_point_group,
     supercell_chance,
     transform_cell,
+    uncancellable,
 )
 from rietx.indexing.qspace import af_from_cell
 from rietx.indexing.reduce import (
@@ -408,6 +410,90 @@ def _hkl(cell, centring="P", two_theta_max=95.0):
     return hkl
 
 
+#: One cell per Bravais lattice, its system and its holohedry's order.
+BRAVAIS_LATTICES = [
+    ((5.02, 6.13, 7.71, 81.0, 103.2, 95.5), "triclinic", "P", 2),
+    ((5.02, 6.13, 7.71, 90.0, 103.2, 90.0), "monoclinic", "P", 4),
+    ((9.02, 6.13, 7.71, 90.0, 113.2, 90.0), "monoclinic", "C", 4),
+    ((5.02, 6.13, 3.71, 90.0, 90.0, 90.0), "orthorhombic", "P", 8),
+    ((5.02, 6.13, 3.71, 90.0, 90.0, 90.0), "orthorhombic", "C", 8),
+    ((5.02, 6.13, 7.71, 90.0, 90.0, 90.0), "orthorhombic", "I", 8),
+    ((5.02, 6.13, 7.71, 90.0, 90.0, 90.0), "orthorhombic", "F", 8),
+    ((6.6, 6.6, 5.98, 90.0, 90.0, 90.0), "tetragonal", "P", 16),
+    ((6.6, 6.6, 5.98, 90.0, 90.0, 90.0), "tetragonal", "I", 16),
+    ((4.759, 4.759, 12.99, 90.0, 90.0, 120.0), "trigonal", "R", 12),
+    ((3.14, 3.14, 4.77, 90.0, 90.0, 120.0), "hexagonal", "P", 24),
+    ((4.1566,) * 3 + (90.0,) * 3, "cubic", "P", 48),
+    ((6.6,) * 3 + (90.0,) * 3, "cubic", "I", 48),
+    ((8.39,) * 3 + (90.0,) * 3, "cubic", "F", 48),
+]
+
+
+@pytest.mark.parametrize("cell, system, centring, order", BRAVAIS_LATTICES)
+def test_the_point_group_search_recovers_every_holohedry(cell, system,
+                                                          centring, order):
+    """The {−1, 0, 1} search on the reduced basis finds the whole group.
+
+    A self-check, the way :func:`hnf_matrices` checks its counts: a candidate
+    set too small for some lattice would show up here as a short group, and
+    reflections a glide could cancel would then be counted as extras.  The
+    group is closed, holds the identity, and preserves the metric exactly.
+    """
+    from rietx.crystallography.lattice import direct_metric_tensor
+    from rietx.indexing.reduce import reduce_cell
+
+    ops, _m = lattice_point_group(cell, centring, rtol=1e-6)
+    assert len(ops) == order
+    keys = {tuple(w.ravel()) for w in ops}
+    assert tuple(np.eye(3, dtype=int).ravel()) in keys
+    assert all(tuple((a @ b).ravel()) in keys for a in ops for b in ops)
+    g = np.asarray(direct_metric_tensor(*reduce_cell(cell, centring).cell))
+    assert all(np.allclose(w @ g @ w.T, g, rtol=1e-9, atol=1e-9) for w in ops)
+
+
+def test_a_pseudo_symmetric_metric_counts_the_symmetry_it_nearly_has():
+    """The default tolerance is the Bravais screen's loosest, on purpose.
+
+    A tetragonal cell with c/a = 1.002 could carry a cubic space group's
+    extinctions on reflections that are general for tetragonal, so they are set
+    aside too.  Tightened, the same metric has only its own group.
+    """
+    cell = (5.0, 5.0, 5.01, 90.0, 90.0, 90.0)
+    assert len(lattice_point_group(cell, "P")[0]) == 48
+    assert len(lattice_point_group(cell, "P", rtol=1e-6)[0]) == 16
+
+
+@pytest.mark.parametrize("cell, system, centring, _order", [
+    row for row in BRAVAIS_LATTICES if row[1] != "triclinic"])
+def test_no_space_group_extinguishes_an_uncancellable_reflection(
+        cell, system, centring, _order):
+    """Derived, never transcribed: every space group of every lattice asked.
+
+    ``compatible_groups`` enumerates each gemmi setting whose lattice is this
+    one, and none of them may forbid a reflection :func:`uncancellable` keeps.
+    Centring is the lattice's own condition and is decided first, so only
+    centring-allowed reflections are asked.  And the rule is not vacuous: some
+    group of each lattice does extinguish a reflection it sets aside.
+    """
+    from rietx.indexing.extinction import compatible_groups
+    from rietx.indexing.fom import lattice_reflections
+
+    hkl, _q, _m = lattice_reflections(cell, system, centring, LAM, 150.0)
+    keep = uncancellable(cell, centring, hkl)
+    assert keep.any() and not keep.all()
+    groups = [g for g in compatible_groups(system, centring, cell)
+              if g.crystal_system_str() == system
+              or (system, g.crystal_system_str()) == ("hexagonal", "trigonal")]
+    assert groups
+    extinguished_elsewhere = False
+    for sg in groups:
+        absent = np.asarray(sg.operations()
+                            .systematic_absences(hkl), dtype=bool)
+        assert not absent[keep].any(), (sg.xhm(), hkl[keep & absent][:3])
+        extinguished_elsewhere |= bool(absent[~keep].any())
+    assert extinguished_elsewhere
+
+
 def test_a_phantom_supercells_extras_sit_at_chance():
     """WP-1449: the pair question asked against chance rather than a bar.
 
@@ -425,9 +511,9 @@ def test_a_phantom_supercells_extras_sit_at_chance():
 
     assert ambiguity_partners(parent, "cubic", "P", q, esd, LAM, 90.0,
                               max_index=2) == []
-    ev = supercell_chance(parent, "P", child, "P", _hkl(child), q, esd)
+    ev = supercell_chance(parent, "P", child, "P", q, esd)
     assert ev is not None and ev.index == 2
-    assert ev.n_extra >= 10 and ev.n_seen <= ev.p0 * ev.n_extra + 1
+    assert ev.n_extra >= 5 and ev.n_seen <= ev.p0 * ev.n_extra + 1
     assert ev.p0 == chance_rate(q, esd, float(q.min()), float(q.max()))
     assert ev.p_value == pytest.approx(
         float(binom.sf(ev.n_seen - 1, ev.n_extra, ev.p0)), rel=1e-12)
@@ -449,22 +535,21 @@ def test_a_true_superstructures_extras_are_present():
     child = transform_cell(parent, np.diag([1, 1, 2]))
     q, esd = _lines(child, "triclinic", "P")     # the child's lines are there
 
-    ev = supercell_chance(parent, "P", child, "P", _hkl(child), q, esd)
-    assert ev.n_seen == ev.n_extra >= 10
-    assert ev.p_value < 1e-10
+    ev = supercell_chance(parent, "P", child, "P", q, esd)
+    assert ev.n_seen == ev.n_extra >= 5
+    assert ev.p_value < 1e-6
     assert ev.verdict() == "supported"
 
 
-def test_the_class_decides_what_counts_as_an_extra():
-    """WP-1446's failure, reproduced and then answered.
+def test_the_uncancellable_extras_answer_without_the_class():
+    """WP-1446's failure, reproduced, and answered without the extinction class.
 
     A superstructure whose class extinguishes some of its extras, and whose
     remaining ones are weak — eight observed, the rest below the floor, as on
-    certified corundum.  Asked of the lattice, the extinguished extras count as
-    absent and the true cell reads as chance.  Asked of the class, they are not
-    predicted, and the eight present lines stand out.  The numbers mirror
-    corundum's (p = 5.0e-4 under the class, marginal without), which is the
-    point: the class is the input, never an option.
+    certified corundum.  Asked of the whole lattice, the extinguished extras
+    count as absent and the true cell reads as chance.  The class removes them;
+    so does counting only the reflections no class could remove, and the two
+    counts agree here as they do on corundum (8 of 18 either way).
     """
     import gemmi
 
@@ -484,11 +569,16 @@ def test_the_class_decides_what_counts_as_an_extra():
     tt = np.degrees(2.0 * np.arcsin(LAM * np.sqrt(q) / 2.0))
     esd = q_esd_of_two_theta(tt, np.full_like(tt, 0.01), LAM)
 
-    by_class = supercell_chance(parent, "P", child, "P", allowed, q, esd)
-    by_lattice = supercell_chance(parent, "P", child, "P", lattice, q, esd)
-    assert by_class.n_extra < by_lattice.n_extra
-    assert set(by_class.extra_hkl) <= {tuple(h) for h in allowed.tolist()}
-    assert by_class.verdict() == "supported"
+    by_default = supercell_chance(parent, "P", child, "P", q, esd)
+    by_class = supercell_chance(parent, "P", child, "P", q, esd,
+                                child_hkl=allowed)
+    by_lattice = supercell_chance(parent, "P", child, "P", q, esd,
+                                  child_hkl=lattice)
+    assert by_default.extra_q == pytest.approx(by_class.extra_q, rel=1e-12)
+    # the eight present, and one more that chance puts inside a window
+    assert by_default.n_seen == by_class.n_seen == 9
+    assert all(h and k for h, k, _l in by_default.extra_hkl)   # off every zone
+    assert by_default.verdict() == "supported"
     assert by_lattice.verdict() == "refuted"
 
 
@@ -502,21 +592,20 @@ def test_a_primitive_description_of_a_centred_lattice_is_its_superlattice(
 
     Its conventional volume is the truth's, so a pair search on conventional
     cells finds no H at all; on the primitive reduced cells it is index 2 (I)
-    or 3 (R), which is how the corundum and zircon searches return them
-    (WP-1449's table).  Its extras are exactly the reflections the centring
-    forbids, and with only the truth's lines present it is refuted.
+    or 3 (R), which is how the corundum, zircon, magnetite and NAC searches
+    return them (WP-1449's table).  Its extras are exactly reflections the
+    centring forbids, and with only the truth's lines present it is refuted.
     """
     from rietx.indexing.qspace import centring_allows
 
     q, esd = _lines(cell, "triclinic", centring)
-    ev = supercell_chance(cell, centring, cell, "P", _hkl(cell), q, esd)
+    ev = supercell_chance(cell, centring, cell, "P", q, esd)
     assert ev is not None and ev.index == index
     assert ev.n_extra and not centring_allows(np.array(ev.extra_hkl),
                                               centring).any()
     assert ev.verdict() == "refuted"
     # the other way round is not a superlattice pair
-    assert supercell_chance(cell, "P", cell, centring, _hkl(cell, centring),
-                            q, esd) is None
+    assert supercell_chance(cell, "P", cell, centring, q, esd) is None
 
 
 def test_a_test_that_could_not_have_rejected_chance_refutes_nothing():
@@ -532,11 +621,9 @@ def test_a_test_that_could_not_have_rejected_chance_refutes_nothing():
     parent = (4.1566,) * 3 + (90.0,) * 3
     child = transform_cell(parent, np.diag([1, 1, 2]))
     q, esd = _lines(parent)
-    first_extra = min(supercell_chance(parent, "P", child, "P", _hkl(child),
-                                       q, esd).extra_q)
+    first_extra = min(supercell_chance(parent, "P", child, "P", q, esd).extra_q)
     below = (float(q.min()), first_extra * 0.99)
-    ev = supercell_chance(parent, "P", child, "P", _hkl(child), q, esd,
-                          q_range=below)
+    ev = supercell_chance(parent, "P", child, "P", q, esd, q_range=below)
     assert ev.n_extra == 0 and ev.p_value == 1.0 and ev.p_floor == 1.0
     assert ev.verdict() == "undecided"
 
@@ -583,7 +670,7 @@ def test_the_pair_form_does_not_turn_on_the_setting_the_engine_reported():
         recovered = transform_cell(
             child, np.linalg.inv(np.asarray(h, dtype=float)))
         assert np.allclose(recovered, parent)
-        ev = supercell_chance(parent, "P", child, "P", _hkl(child), q, esd)
+        ev = supercell_chance(parent, "P", child, "P", q, esd)
         assert ev.verdict() == "refuted"
         counts.append((ev.n_extra, ev.n_seen, ev.extra_q))
     assert counts[0][:2] == counts[1][:2]

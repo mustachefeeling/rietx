@@ -67,13 +67,14 @@ supercell is possible".
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from itertools import product
 
 import numpy as np
 
 from ..schemas.indexing import AmbiguityPartner, q_of_two_theta
 from .fom import MATCH_SIGMA, match_lines, predicted_lines
-from .reduce import reduce_cell, same_lattice
+from .reduce import BRAVAIS_OBLIQUITIES, reduce_cell, same_lattice
 
 #: Highest derivative-lattice index enumerated.  A fence, recorded rather than
 #: attempted: the HNF count grows (7, 13, 35 at index 2, 3, 4) and so does the
@@ -400,10 +401,89 @@ def _derivative_transform(parent_cell: tuple[float, ...],
 
 
 #: Significance level of :func:`supercell_chance`.  A convention, not a fit
-#: (WP-1449): over the acceptance corpus every correct cell tested as a child sat
-#: at p ≤ 5.0e-4 and every wrong one at p ≥ 0.042, and 0.01 falls between them
-#: without having been placed there.
+#: (WP-1449): over the acceptance corpus's finished searches every correct cell
+#: tested as a child sat at p ≤ 0.0072 and every wrong one at p ≥ 0.27, and 0.01
+#: falls between them without having been placed there.  The truth side is the
+#: close one — a pseudo-tetragonal description of LaB6 over its half-volume
+#: rival, 2 of 3 extras seen — and a truth read as refuted there would move
+#: below a cell it already sits below.
 SUPERCELL_CHANCE_ALPHA = 0.01
+#: Metric deviation up to which a lattice symmetry still counts when deciding
+#: which reflections an extinction could cancel (:func:`lattice_point_group`):
+#: the sine of the Bravais screen's loosest obliquity, 3°, so every symmetry that
+#: screen could report is counted.  Loose on purpose.  A pseudo-symmetric
+#: lattice's near-special reflections are set aside with the special ones, since
+#: a space group of the higher symmetry could extinguish them too.
+UNCANCELLABLE_METRIC_RTOL = float(np.sin(np.radians(max(BRAVAIS_OBLIQUITIES))))
+
+
+@lru_cache(maxsize=1)
+def _unit_unimodular() -> np.ndarray:
+    """Every 3 × 3 integer matrix with entries in {−1, 0, 1} and det ±1."""
+    w = np.array(list(product((-1, 0, 1), repeat=9)),
+                 dtype=np.int64).reshape(-1, 3, 3)
+    det = np.rint(np.linalg.det(w.astype(np.float64))).astype(np.int64)
+    return w[np.abs(det) == 1]
+
+
+def lattice_point_group(cell: tuple[float, ...], centring: str = "P", *,
+                        rtol: float = UNCANCELLABLE_METRIC_RTOL,
+                        ) -> tuple[np.ndarray, np.ndarray]:
+    """``(W, M)``: the lattice's point symmetries, and the basis they act on.
+
+    ``W`` holds integer matrices acting on the rows of the lattice's **primitive
+    reduced** basis, and ``M`` takes the conventional cell to that basis
+    (reduced rows = ``M`` · conventional rows), so a reflection's primitive
+    indices are ``M·hkl``.  A matrix is a symmetry when it preserves the metric,
+    ``W·G·Wᵀ = G``, to ``rtol`` of the largest diagonal element.  The centring
+    is consumed by the reduction, so a centred lattice's group comes out in its
+    primitive frame.
+
+    Found from the metric, not from the reported system, so a truth reported
+    in a lower system still has its whole group.  The candidates are the
+    {−1, 0, 1} matrices, searched on the Niggli-reduced basis.  That is enough
+    there, and it is checked rather than cited: ``tests/test_indexing_reduce.py``
+    recovers the order of every holohedry (2, 4, 8, 12, 16, 24, 48) over all
+    fourteen Bravais lattices, the way :func:`hnf_matrices` checks its counts.
+    """
+    from ..crystallography.lattice import direct_metric_tensor
+
+    reduced = reduce_cell(tuple(cell), centring)
+    g = np.asarray(direct_metric_tensor(*reduced.cell), dtype=np.float64)
+    w = _unit_unimodular()
+    moved = np.einsum("nij,jk,nlk->nil", w, g, w)
+    dev = np.max(np.abs(moved - g), axis=(1, 2)) / float(np.max(np.diag(g)))
+    return w[dev <= rtol], _basis_change(reduced.change_of_basis)
+
+
+def uncancellable(cell: tuple[float, ...], centring: str, hkl: np.ndarray, *,
+                  rtol: float = UNCANCELLABLE_METRIC_RTOL) -> np.ndarray:
+    """Which reflections no space-group extinction can remove.
+
+    International Tables sorts reflection conditions into three kinds.
+    *Integral* conditions come from the centring and act on every hkl.
+    *Zonal* conditions come from glide planes and act only on reflections in the
+    plane the glide's mirror fixes.  *Serial* conditions come from screw axes and
+    act only on the row the axis fixes (*International Tables for
+    Crystallography* Vol. A (2005), §2.2.13).  A space group's point group lies
+    inside its lattice's, so a reflection that **no** symmetry of the lattice
+    fixes can be extinguished by no space group of that lattice, whatever it
+    turns out to be.  The centring is the lattice's own and is decided before
+    this question: pass reflections the centring allows.
+
+    ``True`` where no element of :func:`lattice_point_group` other than the
+    identity fixes the reflection.  A symmetry ``W`` sends primitive indices
+    ``k`` to ``W⁻¹k``, so the test is ``W·k = k`` over the group.
+    """
+    ops, m = lattice_point_group(cell, centring, rtol=rtol)
+    identity = np.all(ops == np.eye(3, dtype=np.int64), axis=(1, 2))
+    ops = ops[~identity].astype(np.float64)
+    k = np.atleast_2d(np.asarray(hkl, dtype=np.float64)) @ m.T
+    if not len(k) or not len(ops):
+        return np.ones(len(k), dtype=bool)
+    image = np.einsum("nij,mj->mni", ops, k)
+    fixed = np.all(np.abs(image - k[:, None, :]) < 1e-6, axis=2)
+    return ~np.any(fixed, axis=1)
 
 
 def chance_rate(q_obs: np.ndarray, q_esd: np.ndarray, q_lo: float, q_hi: float,
@@ -417,8 +497,10 @@ def chance_rate(q_obs: np.ndarray, q_esd: np.ndarray, q_lo: float, q_hi: float,
     each observed line, so the null and the count ask one question.  Overlapping
     windows are counted once, and each is clipped to the range.
 
-    On a line-rich pattern the rate is high — 0.918 on 11-BM NAC, 0.352 on FAP
-    (WP-1449) — and a test against it has little power there by construction.
+    Over the acceptance corpus it runs from 0.007 (zincite) to 0.152
+    (corundum) under each search's own window (WP-1449).  The higher it is, the
+    less a seen line says, and a test against it has less power by
+    construction.
     """
     width = float(q_hi) - float(q_lo)
     if not width > 0.0:
@@ -550,8 +632,8 @@ def _integral(x: np.ndarray) -> np.ndarray:
 
 def supercell_chance(parent_cell: tuple[float, ...], parent_centring: str,
                      child_cell: tuple[float, ...], child_centring: str,
-                     child_hkl: np.ndarray,
                      q_obs: np.ndarray, q_esd: np.ndarray, *,
+                     child_hkl: np.ndarray | None = None,
                      q_range: tuple[float, float] | None = None,
                      k_sigma: float = MATCH_SIGMA,
                      max_index: int = MAX_AMBIGUITY_INDEX,
@@ -562,18 +644,19 @@ def supercell_chance(parent_cell: tuple[float, ...], parent_centring: str,
     ``max_index``, or there is no range to count in.  Otherwise the counts and
     p-value :meth:`SupercellEvidence.verdict` reads.
 
-    **``child_hkl`` is the child's class-allowed reflections, not its lattice.**
-    WP-1446 asked this question at lattice level and it cannot be answered there:
-    a space-group extinction removes a correct cell's lines exactly as an
+    **The extras are the ones no extinction can cancel.**  WP-1446 asked this
+    question of the child's whole lattice, and it cannot be answered there.  A
+    space-group extinction removes a correct cell's lines exactly as an
     oversized cell lacks them.  SRM 676a's own cell is an index-2 superlattice of
     a c/2 subcell the search returns beside it, and ``R -3 c``'s c-glide leaves
-    33 of its 35 in-range lattice extras absent — an absent-extra share of 0.943
-    against 0.931 and 0.983 for brucite's two wrong supercells.  Asked under the
-    child's extinction class the extras the glide removes are no longer
-    predicted, and the question separates.  Pass the reflections of the class
-    :func:`~rietx.indexing.extinction.determine_extinction_symbol` ranks first
-    for the child; its lattice's reflections give WP-1446's instrument, kept
-    reachable because it is the measurement that motivated this one.
+    most of its lattice extras absent, so the lattice count reads 9 of 34 seen
+    at p₀ = 0.152 (p = 0.062) and would demote the certified cell.  Asking under
+    the child's extinction class separates the two, but the screen's class moves
+    with the 2θ range on every truth with extinctions measured (WP-1449).  So by
+    default only :func:`uncancellable` reflections are counted, the ones no
+    space group of the child's lattice can extinguish: 8 of 18 on corundum
+    (p = 0.0029), the same count ``R - c -`` gives.  ``child_hkl`` overrides the
+    list; the child's lattice reflections reproduce WP-1446's instrument.
 
     **The count is judged against chance, never against a bar.**  An extra is
     *seen* when it sits inside some observed line's window, ``k_sigma`` × σ(Q),
@@ -584,26 +667,24 @@ def supercell_chance(parent_cell: tuple[float, ...], parent_centring: str,
     window the search matched with (``engines.match_window``): the question is
     whether a line would have been claimed as indexed.
 
-    **What counts as an extra.**  A class-allowed reflection whose parent
-    coordinates are not integral (:func:`_parent_coordinates`), inside
-    ``q_range`` (default: the observed lines' own span), and farther than the
-    median σ(Q) from every line of the parent's lattice — a prediction that
-    close to a parent line is the same line as far as these data resolve
-    (:func:`_extra_mask`).  The parent's lines are its **lattice**'s, never a
-    class's: a child line where the parent's lattice predicts one says nothing
-    about the larger cell, whatever the parent's own extinctions.  Reflections
-    the child's centring forbids are dropped rather than trusted.
+    **What counts as an extra.**  A counted reflection whose parent coordinates
+    are not integral (:func:`_parent_coordinates`), inside ``q_range``
+    (default: the observed lines' own span), and farther than the median σ(Q)
+    from every line of the parent's lattice — a prediction that close to a
+    parent line is the same line as far as these data resolve
+    (:func:`_extra_mask`).  The parent's lines are its **lattice**'s: a child
+    line where the parent's lattice predicts one says nothing about the larger
+    cell.  Reflections the child's centring forbids are dropped rather than
+    trusted.
 
-    Measured 2026-09-27 on the acceptance corpus, under the manual's screen
-    protocol (WP-1449's Context holds the table): the two correct cells tested
-    as a child read p = 5.0e-4 (corundum, 8 of 18 at p₀ = 0.117) and 2.1e-9
-    (LaB6 in a tetragonal setting, 9 of 12 at 0.061), and every wrong child
-    p ≥ 0.042, brucite's a × 2 supercell at 3 of 59.  The approach has a
-    precedent in EXPO's WRIP20, which scores each cell under its most probable
-    extinction symbol (Altomare, Cuocci, Moliterni & Rizzi (2019),
-    *International Tables* Vol. H ch. 3.4, eq. 3.4.5).
-
-    Unwired: the re-rank that reads it is WP-1449's next task.
+    Measured 2026-09-27 on ten finished acceptance searches (WP-1449's Context
+    holds the table): the correct cells tested as a child read p = 0.0029
+    (corundum), 0.0072 and 0.0012 (pseudo-tetragonal descriptions of LaB6),
+    and every wrong child p ≥ 0.27.  EXPO's WRIP20 is the precedent for
+    ordering on what extinctions can explain, scoring each cell under its most
+    probable extinction symbol (Altomare, Cuocci, Moliterni & Rizzi (2019),
+    *International Tables* Vol. H ch. 3.4, eq. 3.4.5); this asks the question
+    before any symbol is known.
     """
     from scipy.stats import binom
 
@@ -636,9 +717,12 @@ def supercell_chance(parent_cell: tuple[float, ...], parent_centring: str,
     parent_line = _integral(lattice @ t.T) & (q_lattice <= q_edge)
     q_parent = q_lattice[parent_line]
 
-    hkl = np.asarray(child_hkl, dtype=np.int64).reshape(-1, 3)
-    hkl = hkl[~np.all(hkl == 0, axis=1)]
-    hkl = hkl[centring_allows(hkl, child_centring)]
+    if child_hkl is None:
+        hkl = lattice[uncancellable(child_cell, child_centring, lattice)]
+    else:
+        hkl = np.asarray(child_hkl, dtype=np.int64).reshape(-1, 3)
+        hkl = hkl[~np.all(hkl == 0, axis=1)]
+        hkl = hkl[centring_allows(hkl, child_centring)]
     q = design_matrix(hkl) @ af if len(hkl) else np.zeros(0)
     slack = LINE_COINCIDENCE_RTOL
     keep = ((~_integral(hkl @ t.T)) & (q >= q_lo * (1.0 - slack))
@@ -673,6 +757,7 @@ def supercell_chance(parent_cell: tuple[float, ...], parent_centring: str,
 __all__ = ["AMBIGUITY_DISCREPANCY_SLACK", "AMBIGUITY_EXTEND_FACTOR",
            "MAX_AMBIGUITY_INDEX",
            "MAX_DISCRIMINATING", "SUPERCELL_CHANCE_ALPHA", "SupercellEvidence",
-           "ambiguity_partners", "chance_rate", "derivative_cells",
-           "extras_absent_in_range",
-           "hnf_matrices", "reduce_cell", "supercell_chance", "transform_cell"]
+           "UNCANCELLABLE_METRIC_RTOL", "ambiguity_partners", "chance_rate",
+           "derivative_cells", "extras_absent_in_range", "hnf_matrices",
+           "lattice_point_group", "reduce_cell", "supercell_chance",
+           "transform_cell", "uncancellable"]

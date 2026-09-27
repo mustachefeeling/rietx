@@ -247,10 +247,10 @@ roughly the shift (+1400 ppm).
   space group** — SRM 660c (P m -3 m) is the control that proved it. **So the
   reversed members cannot order two fitted candidates either**: asked pairwise the
   question demotes SRM 676a's own cell as readily as brucite's supercell, the two
-  populations interleaving (WP-1446). It separates only asked of the child's
-  **class**-allowed lines against **chance** (`ambiguity.supercell_chance`, a
-  binomial against the windowed share p₀), and a test that could not have
-  rejected chance is *undecided*, never a refutation (WP-1449).
+  populations interleaving (WP-1446). It separates when asked of the extras no
+  extinction can cancel, off every symmetry element of the child's lattice, and
+  judged against **chance** (`ambiguity.supercell_chance`). Never ask it of the
+  screen's class, which moves with the 2θ range (WP-1449).
 - The known-cell scoreboard is *never wrong, and silent more often than right* —
   **never round it up**, and **keep the found-but-not-first bucket** (collapsing it
   into right-or-wrong is how the old board named nine datasets under a total of

@@ -358,12 +358,19 @@ search: a local run, or the nightly dispatched with `full_macos`.
       2026-09-27: no range rule recovers the right class on all three truths
       with extinctions, and the maintainer amended the seam to count only the
       uncancellable extras (Context, the amendment).*
-- [ ] The uncancellable extras. Find the child lattice's point symmetries from
+- [x] The uncancellable extras. Find the child lattice's point symmetries from
       its metric, as integer matrices in its reduced primitive basis, and mark
       each reflection a symmetry element fixes. Default `supercell_chance` to
       the child's lattice reflections that no element fixes. Test the
       point-group orders over every lattice type, and that a reflection on a
       glide plane or screw axis is never counted.
+      *Done 2026-09-27: `ambiguity.lattice_point_group` and `uncancellable`.
+      The {−1, 0, 1} search recovers all fourteen Bravais lattices' orders. No
+      group `extinction.compatible_groups` offers for thirteen lattice types
+      forbids a kept reflection, and each lattice has some group that forbids
+      one it sets aside. The tolerance is sin 3°, the Bravais screen's loosest,
+      so pseudo-symmetry counts. Through the package, the ten finished searches
+      read exactly as the Context table.*
 - [ ] Wire the re-rank in consensus, after the panel ranks and before the
       priors are appended. That covers the streamed per-system lists too, whose
       grades are already `low` with ambiguity unasked, so none can fall. A
