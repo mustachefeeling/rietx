@@ -67,7 +67,10 @@ class StructureFigure:
     path: str | None = None
 
     def __array__(self, dtype=None, copy=None):
-        return self.image if dtype is None else self.image.astype(dtype)
+        image = self.image if dtype is None else self.image.astype(dtype, copy=False)
+        # numpy 2 trusts copy=True to have copied, so np.array(figure) must
+        # not hand out the figure's own buffer
+        return image.copy() if copy else image
 
 
 def _colour(value) -> tuple[float, float, float] | None:
@@ -104,8 +107,39 @@ def _species(geometry: Mapping, names) -> list[str]:
     return out
 
 
-def _extent(scene: dict, R: np.ndarray, with_labels: bool):
-    """The drawn content's box in view coordinates, Å: (x0, x1, y0, y1)."""
+def _formulas(geometry: Mapping, polyhedra: Mapping) -> dict:
+    """``polyhedra=`` as a formula switch, refused when it names a formula the
+    phase has no polyhedron for: switching nothing looks like success, as
+    ``hidden=`` has it, and ``"AlF6"`` for ``"AlF₆"`` is the easy slip."""
+    have = {sc.polyhedron_formula(geometry, p) for p in geometry["polyhedra"]}
+    unknown = sorted(set(polyhedra) - have)
+    if unknown:
+        raise ValueError(f"polyhedra {unknown}: this phase has no such polyhedron; "
+                         f"its formulas are {sorted(have)}")
+    return dict(polyhedra)
+
+
+def _label_reach(scene: dict, geometry: Mapping, R: np.ndarray):
+    """Where the atom labels are anchored, in Å, and how far past the anchor
+    the widest one reaches, in CSS px: a label sits up and to the right of its
+    atom (:func:`text_strokes`), outside the atom's own box."""
+    points, reach = [], 0.0
+    for a in scene["atoms"]:
+        record = geometry["atoms"][a["index"]]
+        if record["boundary"]:
+            continue
+        m = R @ np.asarray(a["shape"], dtype=np.float64).reshape(3, 3)
+        r = max(float(np.linalg.norm(m[0])), float(np.linalg.norm(m[1])))
+        c = R.T @ (R @ np.asarray(a["pos"], dtype=np.float64) + [0.72 * r, 0.72 * r, 0.0])
+        points.append(c)
+        text = geometry["sites"][record["site"]]["label"]
+        reach = max(reach, glyphs.width(text, LETTER_EM_CSS))
+    return points, reach
+
+
+def _extent(scene: dict, R: np.ndarray, with_labels: bool, extra=()):
+    """The drawn content's box in view coordinates, Å: (x0, x1, y0, y1).
+    ``extra`` is further points, in the structure's Å, the box must hold."""
     xs, ys = [], []
     for a in scene["atoms"]:
         c = R @ np.asarray(a["pos"], dtype=np.float64)
@@ -123,6 +157,7 @@ def _extent(scene: dict, R: np.ndarray, with_labels: bool):
                for k in range(0, len(f["triangles"]), 3)]
     if with_labels:
         points += [label["pos"] for label in scene["labels"]]
+    points += list(extra)
     for p in points:
         c = R @ np.asarray(p, dtype=np.float64)
         xs.append(c[0])
@@ -144,6 +179,8 @@ def _fit(extent, size, margin_css: float) -> raster.Frame:
     bw, bh = max(x1 - x0, 1e-6), max(y1 - y0, 1e-6)
     keep = 1.0 - 2.0 * FIT_PAD
     if isinstance(size, (tuple, list)):
+        if len(size) != 2:
+            raise ValueError(f"size {size!r}: the long side, or (width, height)")
         width, height = (int(v) for v in size)
         if width < 1 or height < 1:
             raise ValueError(f"size {size!r}: both sides at least one pixel")
@@ -275,6 +312,8 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     if path is not None and Path(path).suffix.lower() != ".png":
         raise ValueError("render_structure writes PNG only: JPEG's block artifacts "
                          "smear the thin rings and lines a structure figure is read by")
+    if dpi is not None and not 0 < float(dpi) < 1e6:
+        raise ValueError(f"dpi {dpi!r}: a positive resolution, in dots per inch")
     if isinstance(structure, Mapping):
         if probability is not None or bond_tolerance is not None:
             raise ValueError("probability= and bond_tolerance= build the geometry; "
@@ -292,7 +331,7 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     if polyhedra is None:
         on, formulas = mode == "ball", None
     elif isinstance(polyhedra, Mapping):
-        on, formulas = True, dict(polyhedra)
+        on, formulas = True, _formulas(geometry, polyhedra)
     else:
         on, formulas = bool(polyhedra), None
     shown = sc.shown_polyhedra(geometry, on, formulas, hidden, boundary)
@@ -303,7 +342,11 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     margin = max([0.5 * line["width"] for line in scene["lines"]] + [0.0])
     if axis_labels:
         margin = max(margin, 0.6 * LETTER_EM_CSS)
-    frame = _fit(_extent(scene, R, axis_labels), size, margin + 1.0)
+    extra = ()
+    if atom_labels:
+        extra, reach = _label_reach(scene, geometry, R)
+        margin = max(margin, reach, 0.6 * LETTER_EM_CSS)
+    frame = _fit(_extent(scene, R, axis_labels, extra), size, margin + 1.0)
     strokes, letters = text_strokes(scene, geometry, R, frame, axis_labels=axis_labels,
                                     atom_labels=atom_labels, accent=tokens["--accent"],
                                     ink=tokens["--fg"])

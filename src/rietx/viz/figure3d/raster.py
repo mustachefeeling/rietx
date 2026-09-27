@@ -88,7 +88,7 @@ def _box(lo_x, hi_x, lo_y, hi_y, hs, ws):
             max(math.floor(lo_x) - 1, 0), min(math.ceil(hi_x) + 1, ws))
 
 
-def _segments(points, halves, colors, depths, frame, s, hs, ws):
+def _segments(points, halves, colors, depths, hs, ws):
     """Pack segments given in sample coordinates (u right, v down)."""
     n = len(points)
     p = np.zeros((n, 4))
@@ -210,7 +210,7 @@ def _pack(scene: dict, rotation: np.ndarray, frame: Frame, s: int,
         widths.append(0.5 * line["width"] * frame.px_scale * s)
         colors.append(line["color"])
         depths.append((A[2], B[2]))
-    lines = _segments(points, widths, colors, depths, frame, s, hs, ws)
+    lines = _segments(points, widths, colors, depths, hs, ws)
 
     # faces: whole polyhedra back to front by centroid, each one's back faces
     # before its front, as the GUI orders them (a stable sort, like JS's)
@@ -249,7 +249,7 @@ def _pack(scene: dict, rotation: np.ndarray, frame: Frame, s: int,
 
     text = text or []
     letters = _segments([tuple(v * s for v in t[0]) for t in text], [t[1] * s for t in text],
-                        [t[2] for t in text], [(0.0, 0.0)] * len(text), frame, s, hs, ws)
+                        [t[2] for t in text], [(0.0, 0.0)] * len(text), hs, ws)
     return {
         "look": look,
         "atom": (atom_c, atom_m, atom_a, atom_col, atom_lum, atom_ring, atom_box),
@@ -490,9 +490,13 @@ def draw(scene: dict, rotation, frame: Frame, *, supersample: int = 2,
         ow = max(1, round(outline[0] * s))
         otau, ocol = float(outline[1]), np.asarray(outline[2], dtype=np.float64)
     rows = max(1, BAND_SAMPLES // (frame.width * s * s))
-    bands = [(r, min(frame.height, r + rows)) for r in range(0, frame.height, rows)]
     use = compiled.enabled() if compiled_path is None else compiled_path
     kernel = _kernel() if use else None
+    if kernel is not None:
+        # at least one band a worker, or a 1000 px render is four bands and
+        # leaves the rest of the pool idle; the bits do not depend on banding
+        rows = min(rows, max(1, -(-frame.height // compiled.n_threads())))
+    bands = [(r, min(frame.height, r + rows)) for r in range(0, frame.height, rows)]
     if kernel is None:
         for r0, r1 in bands:
             _band_numpy(r0, r1, s, frame, pk, POLY_ALPHA, background, (ow, otau, ocol), out)

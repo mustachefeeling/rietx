@@ -180,7 +180,7 @@ For anything the keywords do not cover, edit the dict
 and pass the dict in place of the structure.
 
 On an Apple M4 in September 2026, a warm render of this NAC cell took
-35-108 ms at 1000 px and 75-123 ms at 3000 px.
+33-40 ms at 1000 px and 71-94 ms at 3000 px.
 The first render in a process compiled the kernel in about 1.5 s; after that
 numba loads it from its cache.
 

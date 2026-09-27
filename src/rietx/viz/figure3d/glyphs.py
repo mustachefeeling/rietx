@@ -21,6 +21,8 @@ import json
 from functools import cache
 from importlib import resources
 
+from ..._about import DATA_PACKAGE
+
 #: Font units in an em: a capital is 21 units and 0.7 em.
 EM_UNITS = 30.0
 #: The vertical middle of the font's box, −7 to 25 units.
@@ -31,7 +33,7 @@ STROKE_EM = 0.1
 
 @cache
 def _font() -> dict:
-    text = resources.files("rietx.data").joinpath("hershey_simplex.json").read_text(encoding="utf-8")
+    text = resources.files(DATA_PACKAGE).joinpath("hershey_simplex.json").read_text(encoding="utf-8")
     return json.loads(text)["glyphs"]
 
 

@@ -534,9 +534,8 @@
     {/if}
 
     <div class="knobs">
-      <span class="inline" title="look straight down a lattice vector: down a
-        puts c up and b right, and so round — the projections a structure is
-        normally drawn in">view down
+      <span class="inline" title="look straight down a lattice vector with c up,
+        or b up when looking down c, as VESTA's standard orientation has it">view down
         <button class="ghost" onclick={() => look(0)}>a</button>
         <button class="ghost" onclick={() => look(1)}>b</button>
         <button class="ghost" onclick={() => look(2)}>c</button>

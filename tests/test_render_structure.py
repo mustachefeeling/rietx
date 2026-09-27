@@ -377,6 +377,15 @@ def test_a_jpeg_is_refused(tmp_path, nac):
         render_structure(nac, path=tmp_path / "nac.jpg")
 
 
+def test_a_switch_that_switches_nothing_is_refused(nac):
+    """A formula the phase lacks, like ``hidden=``'s unknown species, would
+    look like success; so would a dpi of zero in the file."""
+    with pytest.raises(ValueError, match="AlF₆"):
+        render_structure(nac, size=100, polyhedra={"AlF6": False})
+    with pytest.raises(ValueError, match="dpi"):
+        render_structure(nac, size=100, dpi=0)
+
+
 # ----------------------------------------------------------------------
 # views (D12)
 # ----------------------------------------------------------------------
@@ -499,6 +508,13 @@ def test_the_letters_are_drawn_in_the_accent_at_their_anchors(nac):
         assert (np.abs(patch - accent).max(axis=1) < 12).any(), letter
     bare = render_structure(nac, size=600, axis_labels=False)
     assert bare.letters == [] and not np.array_equal(bare.image, fig.image)
+    # the labels widen the frame to hold them, so count their ink rather than
+    # differencing two frames
     labelled = render_structure(nac, size=600, atom_labels=True)
-    assert (labelled.image != fig.image).any(axis=-1).sum() > 2000
+    ink = np.asarray(sc.rgb(TOKENS["light"]["--fg"])) * 255
+
+    def inked(image):
+        return int((np.abs(image[..., :3].astype(float) - ink).max(axis=-1) < 12).sum())
+
+    assert inked(labelled.image) - inked(fig.image) > 1000
     _save(labelled, "nac_atom_labels")
