@@ -1,8 +1,7 @@
 # WP-1449 — rank on what the screen determined, not on what the peak list shows
 
-Milestone: unscheduled · Status: 🔄 2026-09-27 — the rank rows wait for a finished search and
-INDEX_SEARCH_INCOMPLETE names its cause; the ranking seam is measured and
-proposed, awaiting the maintainer's decision
+Milestone: unscheduled · Status: 🔄 2026-09-27 — the seam is decided: a refuted supercell moves below
+its parent at α = 0.01; the build remains
 Depends on: — (1446 measured the refutation; 1025 built the screen)
 Priority: P2 2026-09-23 — a wrong cell ranked first on a surface every page calls provisional; 1446 already measured the refutation
 
@@ -174,14 +173,39 @@ under the manual's protocol, since without seeded widths it refutes corundum's
 own glide; and the window outside brucite and corundum is `match_window` under
 a default spec.
 
-**The proposed seam, awaiting the maintainer's decision.** After validation,
-screen each reported child that stands in such a pair, and order a refuted
-child directly below its parent with a caveat naming the parent and the counts.
-Every other candidate keeps today's order, and `best_or_none()` is unchanged.
-The screen cost 0.1-1.3 s per candidate on these patterns, against searches of
-220-480 s. Open: α; how `index_pattern` chooses the screen's 2θ range, since
-the manual's 20-90° is a caller's choice and no rule for it is measured; and
-what a bare peak list does, having no pattern to screen.
+**The seam, decided by the maintainer on 2026-09-27.** A candidate refuted as a
+supercell of another reported candidate moves directly below that parent. It
+stays in the list, and carries a refuting caveat that names the parent and the
+counts. Every other order is untouched, and `best_or_none()` is unchanged. The
+refutation is the chance test above, asked under the child's best extinction
+class, at α = 0.01.
+
+The literature supports that shape.
+
+- EXPO reorders on the extinction verdict, through WRIP20's RAT_Pres.
+- DICVOL and Conograph prefer the parent without consulting extinctions.
+  DICVOL searches the smallest volume first, and Conograph sorts on figures
+  that penalise predicted lines nobody observed.
+- All three list every derivative solution, and hiding a supercell stays a
+  non-goal here.
+
+Two alternatives were set aside. Reporting the verdict without reordering
+leaves the defect in place, because a caller reads `candidates[0]` first and
+the gate already declines to promote brucite. Folding a score into the panel
+repeats what WP-1041 measured: re-weighting the panel fixes one dataset and
+breaks another. A binary key sits beside corroboration, the first sort key
+since WP-1046, and moves one pair only. α = 0.01 is a convention. It falls
+between the truths (p ≤ 5.0e-4) and the refuted children (p ≥ 0.042) without
+being fitted to them.
+
+Two constraints bind the build. The screen runs under the manual's protocol,
+widths seeded from the peak list and a trimmed 2θ range, because without it
+the screen refutes corundum's own glide. The rule for that range inside
+`index_pattern` is not measured yet. A bare peak list has no pattern to
+screen, so it keeps today's order and says the check did not run. The
+lattice-level signal on corundum's truth is too marginal to stand in for the
+screen. The screen cost 0.1-1.3 s per candidate on these patterns, against
+searches of 220-480 s.
 
 **The rank row read the machine, and now waits for a finished search.**
 `test_brucites_truth_is_not_ranked_first` turned the Linux nightly red five
@@ -258,14 +282,34 @@ search: a local run, or the nightly dispatched with `full_macos`.
 - [x] Expand Context from the corpus, answering the questions above
       (2026-09-27). Eight papers read; Markvardsen *et al.* (2001) and
       Santoro & Mighell (1972) are not in the library.
-- [ ] Decide where the screen's verdict enters: a re-rank of the reported list
+- [x] Decide where the screen's verdict enters: a re-rank of the reported list
       after validation, or a caveat that reorders, or a reported field that
-      leaves the order alone. **Cost is the deciding input** — the screen is
-      priced per reported candidate, and WP-1446's pairwise test already cost a
-      corundum search 45-50 s → 5+ min before it was reverted.
-- [ ] Whether `best_or_none()`'s gate, not the order, is the right place. The
-      gate already declines to promote brucite; the complaint is only about what
-      a caller reads first.
+      leaves the order alone. *Decided 2026-09-27: the re-rank, with a caveat
+      (Context, "The seam").*
+- [x] Whether `best_or_none()`'s gate, not the order, is the right place.
+      *No, 2026-09-27: the gate is already right on brucite, and the order is
+      the defect.*
+- [ ] Make the chance test a function. Rework `ambiguity._refuted_supercell`
+      to take the child's class-allowed reflections and return the extras, the
+      seen count, p0 and p. Test it on synthetic lists: a real superstructure's
+      extras are present, a phantom supercell's sit at chance.
+- [ ] Run the screen inside `index_pattern` under the manual's protocol:
+      widths seeded with `workflow.seed_widths`, and a 2θ range chosen by a
+      measured rule. The manual's 20-90° is a caller's choice for Cu Kα, and
+      NAC and FAP need their own reading. Screen only children that stand in a
+      derivative pair.
+- [ ] Wire the re-rank after validation. A refuted child moves directly below
+      its parent, and a new refuting `IndexCaveat` member carries the parent
+      and the counts. The member needs its writer, a place in
+      `INDEX_REFUTING_CAVEATS`, the skill's indexing rows and the manual's
+      caveat table (root CLAUDE.md: a declared name with no writer).
+- [ ] A bare peak list, or a run whose screen raised, keeps today's order and
+      says the check did not run.
+- [ ] Measure on at least one monoclinic or lower-symmetry pattern with a known
+      cell before claiming anything beyond high symmetry. The acceptance corpus
+      has none: bethanechol is peak lists only.
+- [ ] Part 2 of the manual carries the chance test as an equation with its
+      `*Source:*` line, and Part 1's indexing chapter describes the re-rank.
 - [ ] Re-measure the brucite and corundum rows, and fold
       `test_brucites_truth_is_not_ranked_first` back into the row above when it
       goes red.
@@ -285,6 +329,12 @@ search: a local run, or the nightly dispatched with `full_macos`.
   candidates.
 
 ## Handover log
+
+- **2026-09-27** — The maintainer chose the re-rank. A supercell the chance
+  test refutes moves directly below its parent with a refuting caveat, at
+  α = 0.01, and the gate stays as it is. The reasons and the two constraints on
+  the build are in Context under "The seam", and the build is six tasks. Next:
+  the chance-test function first, since every later task reads its counts.
 
 ### 2026-09-27 — the rank rows wait for a finished search; the design is measured and proposed
 
