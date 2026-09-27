@@ -10,6 +10,9 @@
  * but wrong orientation), the view's handedness (a mirrored cell looks
  * right), and the pick, which must solve the same quadric the shader draws.
  */
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { faceData, instanceData } from "./gl3d";
@@ -17,7 +20,10 @@ import {
   CELL_WIDTH_PX,
   EDGE_WIDTH_PX,
   FLAT_AXIS,
+  LOOK,
+  POLY_ALPHA,
   STICK_FLOOR,
+  STICK_OF_SEMI_AXIS,
   STICK_RADIUS,
   apply3,
   atomLabel,
@@ -30,6 +36,7 @@ import {
   dim,
   invert3,
   legend,
+  lookFrom,
   mul3,
   openingView,
   pickAtom,
@@ -286,13 +293,13 @@ describe("the view", () => {
     expect(y[2]).toBeGreaterThan(0);          // Cartesian z up the screen
   });
 
-  it("looks down a lattice vector with the next one but one up", () => {
-    // down a puts c up and b right, and so round: the three projections a
-    // structure is normally drawn in
+  it("looks down a lattice vector with c up, or b up when it looks down c", () => {
+    // the convention VESTA's standard orientation sets (WP-1470 D12)
     const geo = geometry();
     const down = axisView(geo, 2).rotation;
     expectMatrix(down, [1, 0, 0, 0, 1, 0, 0, 0, 1]);           // a right, b up
     expectMatrix(axisView(geo, 0).rotation, [0, 1, 0, 0, 0, 1, 1, 0, 0]);
+    expectMatrix(axisView(geo, 1).rotation, [-1, 0, 0, 0, 0, 1, 0, 1, 0]);  // c up
     // monoclinic, β = 110°: up is c with its part along a taken out
     const beta = (110 * Math.PI) / 180;
     const mono = geometry({ lattice: [[5, 0, 0], [0, 9, 0],
@@ -576,5 +583,95 @@ describe("the polyhedra", () => {
     expect(caption(geo, "ball", 1, [0])).toContain("polyhedra SiO₄ ×1");
     expect(caption(geo, "ellipsoid", 1, [])).toContain("polyhedra off (SiO₄)");
     expect(caption(geometry(), "ball")).not.toContain("polyhedr");
+  });
+});
+
+/**
+ * Cross-language parity: `rietx.viz.figure3d.scene` against this module
+ * (WP-1470 D3).
+ *
+ * The Python renderer draws the GUI's picture without a browser, so it ports
+ * the scene rules and the views.  `tests/test_render_structure.py` writes the
+ * corpus from the Python copy over four payloads and their toggles, and it is
+ * committed so this suite runs where the package is not installed.  A failure
+ * here means the two renderers would draw different pictures of one model.
+ */
+describe("the Python renderer's scene rules", () => {
+  interface Case { payload: string; options: Record<string, unknown>; scene: unknown }
+  interface Shown { payload: string; on: boolean; formulas?: Record<string, boolean>;
+                    hidden?: string[]; showBoundary?: boolean; shown: number[] }
+  const corpus = JSON.parse(readFileSync(fileURLToPath(
+    new URL("../../../tests/data/gui/scene_cases.json", import.meta.url)), "utf-8")) as {
+    constants: Record<string, unknown>;
+    payloads: Record<string, Geometry>;
+    scenes: Case[];
+    shown: Shown[];
+    views: { look_from: Array<{ eye: number[]; up: number[]; rotation: number[] }>;
+             opening: number[];
+             axis: Array<{ payload: string; axis: number; rotation: number[] }> };
+  };
+
+  // the corpus carries twelve significant figures
+  function close(actual: unknown, expected: unknown, where: string): void {
+    if (typeof expected === "number") {
+      expect(typeof actual, where).toBe("number");
+      const tolerance = 1e-9 * Math.max(1, Math.abs(expected));
+      expect(Math.abs((actual as number) - expected), where).toBeLessThanOrEqual(tolerance);
+    } else if (Array.isArray(expected)) {
+      expect(Array.isArray(actual), where).toBe(true);
+      expect((actual as unknown[]).length, `${where}.length`).toBe(expected.length);
+      expected.forEach((v, i) => close((actual as unknown[])[i], v, `${where}[${i}]`));
+    } else if (expected !== null && typeof expected === "object") {
+      expect(Object.keys(actual as object).sort(), where)
+        .toEqual(Object.keys(expected).sort());
+      for (const [k, v] of Object.entries(expected)) {
+        close((actual as Record<string, unknown>)[k], v, `${where}.${k}`);
+      }
+    } else {
+      expect(actual, where).toEqual(expected);
+    }
+  }
+
+  it("draws with the same constants", () => {
+    const c = corpus.constants;
+    expect(LOOK).toEqual(c.LOOK);
+    expect({ STICK_RADIUS, STICK_OF_SEMI_AXIS, STICK_FLOOR, FLAT_AXIS, CELL_WIDTH_PX,
+             EDGE_WIDTH_PX, POLY_ALPHA })
+      .toEqual({ STICK_RADIUS: c.STICK_RADIUS, STICK_OF_SEMI_AXIS: c.STICK_OF_SEMI_AXIS,
+                 STICK_FLOOR: c.STICK_FLOOR, FLAT_AXIS: c.FLAT_AXIS,
+                 CELL_WIDTH_PX: c.CELL_WIDTH_PX, EDGE_WIDTH_PX: c.EDGE_WIDTH_PX,
+                 POLY_ALPHA: c.POLY_ALPHA });
+  });
+
+  it("builds every scene the Python copy builds", () => {
+    expect(corpus.scenes.length).toBeGreaterThan(8);
+    corpus.scenes.forEach((c, k) => {
+      const o = c.options as { mode: "ball" | "ellipsoid"; hidden?: string[];
+                               showBoundary?: boolean; exaggeration?: number;
+                               cell?: string; polyhedra?: number[] };
+      const scene = buildScene(corpus.payloads[c.payload], {
+        mode: o.mode, hidden: new Set(o.hidden ?? []), showBoundary: o.showBoundary,
+        exaggeration: o.exaggeration, cell: o.cell, polyhedra: o.polyhedra,
+      });
+      close(scene, c.scene, `scenes[${k}] ${c.payload} ${JSON.stringify(o)}`);
+    });
+  });
+
+  it("shows the polyhedra the Python copy shows", () => {
+    for (const c of corpus.shown) {
+      const shown = shownPolyhedra(corpus.payloads[c.payload], c.on,
+                                   new Map(Object.entries(c.formulas ?? {})),
+                                   new Set(c.hidden ?? []), c.showBoundary ?? true);
+      expect(shown, JSON.stringify(c)).toEqual(c.shown);
+    }
+  });
+
+  it("looks from where the Python copy looks", () => {
+    corpus.views.look_from.forEach((v, k) =>
+      close(lookFrom(v.eye, v.up), v.rotation, `look_from[${k}]`));
+    close(openingView().rotation, corpus.views.opening, "opening");
+    corpus.views.axis.forEach((v) =>
+      close(axisView(corpus.payloads[v.payload], v.axis).rotation, v.rotation,
+            `axis ${v.payload} ${v.axis}`));
   });
 });

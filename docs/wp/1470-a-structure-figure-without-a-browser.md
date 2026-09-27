@@ -75,9 +75,9 @@ This WP takes the last route.
   of `0.35 + ball_fraction × largest radius` Å. `shownPolyhedra` turns
   polyhedra on in ball mode and off in ellipsoid mode by default.
 - **The views**, in the same file. `lookFrom(eye, up)`; `openingView()` is
-  `lookFrom([1.35, 1.35, 0.95], [0, 0, 1])`; `axisView` looks down a with c
-  up, down b with a up, down c with b up, so the next vector is to the
-  right. Projection is parallel.
+  `lookFrom([1.35, 1.35, 0.95], [0, 0, 1])`; `axisView` looked down a with c
+  up, down b with a up, down c with b up, so the next vector was to the
+  right, until D12 moved down b to c up. Projection is parallel.
 - **The look**, in `gui/src/lib/gl3d.ts`. One key light fixed to the camera
   at `(-0.40, 0.55, 0.73)`; atoms and sticks take `shade = base × (0.45 +
   0.60 × diffuse) + 0.16 × spec⁴⁰`. Polyhedron faces take their own rule,
@@ -247,7 +247,7 @@ and PNG metadata. Each decision says what it takes and what it declines.
 - [x] Skill: a row saying that `Refinement.write_cif` into VESTA
   (`-export_img`) or JmolData draws a refined structure today. It lands
   first and stands on its own.
-- [ ] `build_scene` in Python, the corpus, and the vitest that replays it
+- [x] `build_scene` in Python, the corpus, and the vitest that replays it
   against `buildScene` (D3). The GUI's b button moves to c up (D12).
   `npm --prefix gui test` and a rebuilt dist.
 - [ ] The kernel and its numpy oracle: balls, ellipsoids with rings, bond
