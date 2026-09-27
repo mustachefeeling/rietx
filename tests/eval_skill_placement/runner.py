@@ -178,7 +178,10 @@ def build(root: Path) -> None:
         print(f"{condition}: {python}, skill at {where}")
 
     episode = root / "episode"
-    episode.mkdir(parents=True)
+    if (episode / "fit_output.txt").exists():  # every cell copies this one output
+        print(f"episode already built at {episode}")
+        return
+    episode.mkdir(parents=True, exist_ok=True)
     for name in DATA_FILES:
         shutil.copyfile(REPO / "tests" / "data" / name, episode / name)
     shutil.copyfile(HARNESS / "colleague_fit.py", episode / "fit.py")
@@ -300,7 +303,9 @@ def condition_held(cell: str, out: dict, ws: Path) -> bool | None:
     if out["skill_dir"] is None:
         return None
     condition, _, _ = split(cell)
-    return (out["skill_dir"].startswith(str(ws))
+    # A path test, not a string prefix: `cells/grep-haiku-1` prefixes
+    # `cells/grep-haiku-10`.
+    return (Path(out["skill_dir"]).is_relative_to(ws)
             and out["grep_body"] == (condition == "grep"))
 
 
@@ -368,10 +373,19 @@ def grade(root: Path) -> None:
         proc = subprocess.run(
             ["claude", "-p", prompt, "--model", "sonnet", "--output-format", "json",
              "--max-budget-usd", "1"], cwd=judge, capture_output=True, text=True)
-        text = json.loads(proc.stdout).get("result", "")
-        found = re.search(r"\{.*\}", text, re.S)
-        verdict = json.loads(found.group(0)) if found else {}
-        grades[t["cell"]] = {k: int(verdict.get(k, 0)) for k in RUBRIC}
+        # A grader call that failed, or replied without every key, is no
+        # verdict: recorded as zeros it would never be retried.
+        try:
+            text = json.loads(proc.stdout).get("result", "")
+            found = re.search(r"\{.*\}", text, re.S)
+            verdict = json.loads(found.group(0)) if found else {}
+        except json.JSONDecodeError:
+            verdict = {}
+        if proc.returncode != 0 or set(RUBRIC) - set(verdict):
+            print(f"{t['cell']}: no usable verdict (rc={proc.returncode}); "
+                  "left ungraded for the next call", file=sys.stderr)
+            continue
+        grades[t["cell"]] = {k: int(verdict[k]) for k in RUBRIC}
         (root / "grades.json").write_text(json.dumps(grades, indent=1), encoding="utf-8")
         print(t["cell"], grades[t["cell"]])
 

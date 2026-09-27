@@ -38,6 +38,7 @@ the tree is really exported — the WP-1037 bug's shape, one document over.
 
 from __future__ import annotations
 
+import functools
 import os
 import re
 from pathlib import Path
@@ -49,15 +50,15 @@ from tests import skill_caps
 from tests.api_surface import attr_step, resolve_dotted
 from tests.skill_caps import (
     API_INDEX_MAX_BYTES,
+    REFERENCE_DIR,
     REFERENCE_MAX_BYTES,
+    ROOT,
+    SKILL,
+    SKILL_DIR,
     SKILL_MAX_BYTES,
     SKILL_MAX_LINES,
 )
 
-ROOT = Path(__file__).resolve().parents[1]
-SKILL_DIR = ROOT / "docs" / "skill" / "rietx"
-SKILL = SKILL_DIR / "SKILL.md"
-REFERENCE_DIR = SKILL_DIR / "references"
 REFERENCES = sorted(REFERENCE_DIR.glob("*.md"))
 API_INDEX = REFERENCE_DIR / "api.md"
 #: The generated indexes, `api.md` and any `api-<technique>.md` beside it.
@@ -147,10 +148,10 @@ def test_the_budget_fails_growth_past_it_and_nothing_else():
     cap = skill_caps.Cap(REFERENCE_DIR / "x.md", 1000, 900)
     row = skill_caps.Row
     cases = {
-        "grows past": row(cap, 880, 950, 950),
-        "shrinks while over": row(cap, 990, 950, 950),
-        "grows under": row(cap, 500, 890, 890),
-        "new and over": row(cap, None, 950, 950),
+        "grows past": row(cap, 880, 950),
+        "shrinks while over": row(cap, 990, 950),
+        "grows under": row(cap, 500, 890),
+        "new and over": row(cap, None, 950),
     }
     failing = {k for k, r in cases.items() if skill_caps.budget_failures([r])}
     assert failing == {"grows past", "new and over"}
@@ -585,12 +586,13 @@ def test_the_api_indexes_are_what_the_generator_renders():
 # That can pass a field named on the wrong answer type; it cannot pass a field
 # that no longer exists on any of them, which is the rot this gate is for.
 #
-# **What the walk cannot see, left unpinned on purpose.**  A negative claim
-# (`StageResult` carries no `rwp`) names nothing to resolve, and a field added
-# later falsifies it silently.  An attribute a plain class assigns in its own
-# `__init__` (`SequentialRefinement.results_`) has no class-level trace but the
-# source line, so the walk accepts it there and stops, the attribute's type
-# being unknown.  A variable name outside `DOTTED_VARIABLE_ROOTS` is not walked:
+# **What the walk cannot see.**  A negative claim (`StageResult` carries no
+# `rwp`) names nothing to resolve, and a field added later falsifies it
+# silently; `NEGATIVE_FIELD_CLAIM` below pins the one phrasing the tree uses.
+# An attribute a plain class assigns on `self` (`SequentialRefinement.results_`,
+# set in `__init__`) has no class-level trace but the source line, so the walk
+# accepts it there and stops, the attribute's type being unknown.  A variable
+# name outside `_variable_roots()` is not walked:
 # `background.` is a report block in one file and a module in another, and
 # `phases.0.cell.a` is a parameter path, which `rx.help_for` owns.
 
@@ -623,7 +625,7 @@ def _format_models() -> tuple:
             ret = getattr(sys.modules[fn.__module__], ret, None)
         if isinstance(ret, type) and ret.__name__.endswith("Model"):
             found.append(ret)
-    return tuple(found)
+    return tuple(dict.fromkeys(found))  # read_project_model returns ProjectModel too
 
 
 def _variable_roots() -> dict[str, tuple]:
@@ -646,6 +648,7 @@ def _variable_roots() -> dict[str, tuple]:
     }
 
 
+@functools.cache
 def _roots() -> dict[str, tuple]:
     import inspect
 
@@ -656,7 +659,7 @@ def _roots() -> dict[str, tuple]:
     return {**classes, **_variable_roots()}
 
 
-def _assigned_in_init(cls: type, name: str) -> bool:
+def _assigned_on_self(cls: type, name: str) -> bool:
     import inspect
 
     try:
@@ -671,7 +674,7 @@ def _first_missing_step(obj: object, steps: list[str]) -> str | None:
         ok, nxt = attr_step(obj, step)
         if ok:
             obj = nxt
-        elif isinstance(obj, type) and _assigned_in_init(obj, step):
+        elif isinstance(obj, type) and _assigned_on_self(obj, step):
             return None
         else:
             return step

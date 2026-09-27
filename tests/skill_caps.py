@@ -58,8 +58,8 @@ REFERENCE_DIR = SKILL_DIR / "references"
 
 #: A skill body is read whole on activation; the Read tool returned 66 kB on
 #: the document this replaced, so the body is capped at half of it.
-# Half the Read tool's ~66 kB cap, the derivation this module's docstring
-# states; 32_000 was that halving rounded down and WP-1131 rounded it up, in
+# Half the Read tool's ~66 kB cap, the derivation the line above states;
+# 32_000 was that halving rounded down and WP-1131 rounded it up, in
 # the commit that needed the 941 B — a fifth deliverable class (microstructure)
 # in the body's own deliverable table, with its worked measurement in
 # references/judging.md where the other four keep theirs.  The cost this cap
@@ -158,8 +158,10 @@ def caps() -> list[Cap]:
 
 
 def _git(*args: str) -> subprocess.CompletedProcess:
+    # UTF-8 explicitly: the working tree is read as UTF-8, and a locale
+    # decode (cp1252 on Windows) would count the base's bytes differently.
     return subprocess.run(["git", "-C", str(ROOT), *args],
-                          capture_output=True, text=True)
+                          capture_output=True, encoding="utf-8")
 
 
 def base() -> tuple[str | None, str]:
@@ -199,11 +201,20 @@ class Row:
     cap: Cap
     before: int | None     # budgeted bytes at the base, None for a new file
     now: int               # budgeted bytes in the working tree
-    whole: int             # whole-file bytes, what the ceiling reads
 
     @property
     def delta(self) -> int:
         return self.now - (self.before or 0)
+
+    @property
+    def changed(self) -> bool:
+        return self.delta != 0 or self.before is None
+
+    @property
+    def room(self) -> int | None:
+        """The budget less what it counts, negative when over; ``None`` for a
+        generated file, which has no budget."""
+        return None if self.cap.budget is None else self.cap.budget - self.now
 
     @property
     def over_budget(self) -> bool:
@@ -222,7 +233,7 @@ def rows(rev: str) -> list[Row]:
         text = cap.path.read_text(encoding="utf-8")
         old = text_at(rev, cap)
         out.append(Row(cap, None if old is None else cap.budgeted_bytes(old),
-                       cap.budgeted_bytes(text), len(text.encode("utf-8"))))
+                       cap.budgeted_bytes(text)))
     return out
 
 
@@ -240,10 +251,11 @@ def table(found: list[Row], how: str) -> str:
     lines = [f"**Skill size limits**, measured against {how}.", "",
              "| file | before | now | change | budget | left | ceiling |",
              "|---|---:|---:|---:|---:|---:|---:|"]
-    changed = [r for r in found if r.delta != 0 or r.before is None]
+    changed = [r for r in found if r.changed]
     for r in changed:
         budget = "—" if r.cap.budget is None else f"{r.cap.budget}"
-        left = "—" if r.cap.budget is None else f"{r.cap.budget - r.now}"
+        left = ("—" if r.room is None else f"{r.room}" if r.room >= 0
+                else f"{-r.room} over")
         lines.append(f"| `{r.cap.rel.removeprefix('docs/skill/rietx/')}` | "
                      f"{'new' if r.before is None else r.before} | {r.now} | "
                      f"{r.delta:+d} | {budget} | {left} | {r.cap.ceiling} |")
@@ -272,11 +284,10 @@ def main() -> int:
             fh.write(report + "\n")
     github = bool(os.environ.get("GITHUB_ACTIONS"))
     for r in found:
-        if github and (r.delta != 0 or r.before is None):
+        if github and r.changed:
             level = "error" if r.over_budget else "notice"
-            room = None if r.cap.budget is None else r.cap.budget - r.now
-            left = ("" if room is None else f", {room} B left in its budget" if room >= 0
-                    else f", {-room} B over its budget")
+            left = ("" if r.room is None else f", {r.room} B left in its budget"
+                    if r.room >= 0 else f", {-r.room} B over its budget")
             print(f"::{level} file={r.cap.rel}::{r.delta:+d} B to {r.now} B{left}")
     failures = budget_failures(found)
     for f in failures:

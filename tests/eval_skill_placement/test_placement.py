@@ -9,6 +9,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 from tests.eval_skill_placement import runner
 
 PROTOCOL = Path(__file__).with_name("PROTOCOL.md")
@@ -35,12 +37,8 @@ def test_the_grep_body_drops_the_rows_and_refuses_a_body_without_them():
     out = runner.grep_body(body)
     assert runner.GREP_SENTENCE in out and "| kept | x | y |" in out
     assert not any(line.startswith(runner.REMOVED_ROWS) for line in out.split("\n"))
-    try:
+    with pytest.raises(SystemExit):  # a body without the rows is refused
         runner.grep_body(out)
-    except SystemExit:
-        pass
-    else:
-        raise AssertionError("a body without the rows must be refused")
 
 
 def _use(ident: str, name: str, **args) -> dict:
