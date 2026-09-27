@@ -925,11 +925,12 @@ GLOSSARY = (
      "these lines are weaker evidence, and their σ says so. In the picked-peak "
      "figures, faint ticks are flagged lines."),
     ("Caveat",
-     "A named reservation attached to a candidate cell. Six are "
+     "A named reservation attached to a candidate cell. Seven are "
      "<b>refuting</b> — they say something is wrong with this cell "
      "(<code>predicted_but_absent</code>, <code>indexed_fraction_low</code>, "
      "<code>geometric_ambiguity</code>, <code>fom_panel_disagrees</code>, "
-     "<code>volume_unphysical</code>, <code>validation_failed</code>) — and the "
+     "<code>volume_unphysical</code>, <code>validation_failed</code>, "
+     "<code>supercell_refuted</code>) — and the "
      "rest merely <b>cap</b>, meaning the evidence is incomplete rather than "
      "against you (<code>not_validated</code>, <code>search_incomplete</code>, "
      "<code>shift_allowance_assumed</code>, <code>engines_disagree</code>, "

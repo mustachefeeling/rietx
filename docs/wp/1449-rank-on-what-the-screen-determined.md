@@ -1,7 +1,7 @@
 # WP-1449 — rank on what the screen determined, not on what the peak list shows
 
-Milestone: unscheduled · Status: 🔄 2026-09-27 — the seam is decided: a refuted supercell moves below
-its parent at α = 0.01; the build remains
+Milestone: unscheduled · Status: 🔄 2026-09-27 — the re-rank landed on uncancellable extras; the
+bethanechol measurement and a finished-run confirmation remain
 Depends on: — (1446 measured the refutation; 1025 built the screen)
 Priority: P2 2026-09-23 — a wrong cell ranked first on a surface every page calls provisional; 1446 already measured the refutation
 
@@ -33,9 +33,10 @@ Wiring it cost four acceptance rows, two on corundum and two on LaB6.
 | **corundum truth (must not demote)** | **0.943** | **−1 … +15** |
 
 Three variants were measured and each fires on the correct cell: any absent
-extra; a share bound; a gain bounded by `n_unindexed`. The instrument is
-`ambiguity._refuted_supercell`, kept private and tested, unwired, with the
-numbers in its docstring.
+extra; a share bound; a gain bounded by `n_unindexed`. The instrument was
+`ambiguity._refuted_supercell`. *Superseded in part 2026-09-27: it is now
+`ambiguity.supercell_chance`, which takes the class's reflections and carries
+these numbers in its docstring.*
 
 **Re-measure the table before quoting it.** The shares above were taken before
 WP-1446's review pass moved `_derivative_transform`'s enumeration into the
@@ -198,14 +199,66 @@ since WP-1046, and moves one pair only. α = 0.01 is a convention. It falls
 between the truths (p ≤ 5.0e-4) and the refuted children (p ≥ 0.042) without
 being fitted to them.
 
-Two constraints bind the build. The screen runs under the manual's protocol,
-widths seeded from the peak list and a trimmed 2θ range, because without it
-the screen refutes corundum's own glide. The rule for that range inside
-`index_pattern` is not measured yet. A bare peak list has no pattern to
-screen, so it keeps today's order and says the check did not run. The
-lattice-level signal on corundum's truth is too marginal to stand in for the
-screen. The screen cost 0.1-1.3 s per candidate on these patterns, against
+*Superseded in part 2026-09-27, the same day: the paragraph below held until
+the amendment after it.* Two constraints bind the build. The screen runs under
+the manual's protocol, widths seeded from the peak list and a trimmed 2θ range,
+because without it the screen refutes corundum's own glide. The rule for that
+range inside `index_pattern` is not measured yet. A bare peak list has no
+pattern to screen, so it keeps today's order and says the check did not run.
+The lattice-level signal on corundum's truth is too marginal to stand in for
+the screen. The screen cost 0.1-1.3 s per candidate on these patterns, against
 searches of 220-480 s.
+
+**Amended by the maintainer on 2026-09-27: count only the extras no extinction
+can cancel, and run no screen.** Measuring the range rule showed that the
+screen's class moves with the range on every truth with extinctions. Each probe
+screened the certified or literature cell with widths seeded from the peak list
+(`[dev]`, Linux x86-64).
+
+| truth | right class | returned at | refuted at |
+|---|---|---|---|
+| corundum | `R - c -` | 5-90, 10-90, 15-90, 20-90, 20-100, 24-90° | 20-110, 24-80, 10-150, 15-150, 20-150°, whole pattern |
+| zircon | `I 41/a - d` | 24-80° | 15-90, 20-90, 20-120°, whole pattern |
+| fluorapatite | `P 63 - -` | 15-90, 20-90° | 20-120°, whole pattern |
+
+Seeding the widths made no difference to corundum's verdict at any of five
+ranges. The refuting positions sit at high angle or inside a neighbour's tail
+(corundum 44.4, 56.9, 97.1 and 97.4°; FAP 103.0°). When the class is wrong the
+test degrades to the lattice count, and that count reads corundum's certified
+cell as 9 of 34 extras seen at p0 = 0.152 (p = 0.062). That would move the
+certified cell below its own c/2 subcell.
+
+The fix needs no class. International Tables Vol. A (§2.2.13) sorts reflection
+conditions into three kinds. *Integral* conditions act on every hkl and come
+from centring. *Zonal* conditions come from glide planes and act only on a plane
+of reflections. *Serial* conditions come from screw axes and act only on a row.
+A reflection that lies on no mirror plane and no rotation axis of the child's
+lattice therefore cannot be extinguished, whatever the space group turns out to
+be. Counting only those extras asks the lattice question without the
+space-group question. It also removes both constraints above: no screen, no
+range rule, and a bare peak list is checked too.
+
+Measured on the finished searches (`[dev]`, Linux x86-64, each search's own
+`match_window`):
+
+| dataset | p0 | truth as the child | wrong children |
+|---|---|---|---|
+| brucite | 0.105 | none | 28 pairs, all refuted: a × 2 2/25, c × 2 1/4; p ≥ 0.36 |
+| corundum, and with the shift declared | 0.152 | R truth over its c/2 subcell: 8/18, p = 0.0029, supported | P descriptions of the R metric 0/6, the 8.24 Å cells 10/61; p ≥ 0.40 |
+| zircon | 0.127 | none | P cells of the I truth 1/40 and their supercells; p ≥ 0.27 |
+| fluorite | 0.008 | none | 0/3, 0/8 and 0/1, all refuted |
+| magnetite | 0.042 | none | the P description of the F truth, 0/33, refuted |
+| zincite | 0.007 | none | 20 pairs, 0 seen in each, refuted |
+| NAC | 0.034 | none | the P description of the I truth, 1/187, refuted |
+| LaB6 | 0.050 | cubic truth over its half-volume rival: 0 extras, undecided; pseudo-tetragonal truths 2/3 (p = 0.0072) and 3/5, supported | none |
+| FAP | — | — | no derivative pair among the candidates |
+
+On corundum the uncancellable extras are exactly the extras `R - c -` allows,
+8 of 18, so the class-free count reproduces the class result. Its cost is
+power: there are fewer extras to count, so more pairs come out *undecided*, and
+an undecided pair keeps today's order. NAC is the one dataset whose order
+changes besides brucite. Its finished search ranks the P description first,
+and the check moves it below the I truth.
 
 **The rank row read the machine, and now waits for a finished search.**
 `test_brucites_truth_is_not_ranked_first` turned the Linux nightly red five
@@ -289,30 +342,82 @@ search: a local run, or the nightly dispatched with `full_macos`.
 - [x] Whether `best_or_none()`'s gate, not the order, is the right place.
       *No, 2026-09-27: the gate is already right on brucite, and the order is
       the defect.*
-- [ ] Make the chance test a function. Rework `ambiguity._refuted_supercell`
+- [x] Make the chance test a function. Rework `ambiguity._refuted_supercell`
       to take the child's class-allowed reflections and return the extras, the
       seen count, p0 and p. Test it on synthetic lists: a real superstructure's
       extras are present, a phantom supercell's sit at chance.
-- [ ] Run the screen inside `index_pattern` under the manual's protocol:
-      widths seeded with `workflow.seed_widths`, and a 2θ range chosen by a
-      measured rule. The manual's 20-90° is a caller's choice for Cu Kα, and
-      NAC and FAP need their own reading. Screen only children that stand in a
-      derivative pair.
-- [ ] Wire the re-rank after validation. A refuted child moves directly below
-      its parent, and a new refuting `IndexCaveat` member carries the parent
-      and the counts. The member needs its writer, a place in
-      `INDEX_REFUTING_CAVEATS`, the skill's indexing rows and the manual's
-      caveat table (root CLAUDE.md: a declared name with no writer).
-- [ ] A bare peak list, or a run whose screen raised, keeps today's order and
-      says the check did not run.
+      *Done 2026-09-27: `ambiguity.supercell_chance` → `SupercellEvidence`,
+      `chance_rate` for p0. It pairs the primitive reduced cells, so a P
+      description of an I or R truth is found at index 2 or 3, which the
+      conventional-cell pairing could not find. It also has a third verdict,
+      `undecided`, for a test that could not have rejected chance
+      (p0ⁿ ≥ α). That case includes no extra line in range, which is the
+      ambiguity partners' case, and it refutes nothing.*
+- [x] ~~Run the screen inside `index_pattern` under the manual's protocol,
+      with a 2θ range chosen by a measured rule.~~ *Measured and dropped
+      2026-09-27: no range rule recovers the right class on all three truths
+      with extinctions, and the maintainer amended the seam to count only the
+      uncancellable extras (Context, the amendment).*
+- [x] The uncancellable extras. Find the child lattice's point symmetries from
+      its metric, as integer matrices in its reduced primitive basis, and mark
+      each reflection a symmetry element fixes. Default `supercell_chance` to
+      the child's lattice reflections that no element fixes. Test the
+      point-group orders over every lattice type, and that a reflection on a
+      glide plane or screw axis is never counted.
+      *Done 2026-09-27: `ambiguity.lattice_point_group` and `uncancellable`.
+      The {−1, 0, 1} search recovers all fourteen Bravais lattices' orders. No
+      group `extinction.compatible_groups` offers for thirteen lattice types
+      forbids a kept reflection, and each lattice has some group that forbids
+      one it sets aside. The tolerance is sin 3°, the Bravais screen's loosest,
+      so pseudo-symmetry counts. Through the package, the ten finished searches
+      read exactly as the Context table.*
+- [x] Wire the re-rank in consensus, after the panel ranks and before the
+      priors are appended. That covers the streamed per-system lists too, whose
+      grades are already `low` with ambiguity unasked, so none can fall. A
+      refuted child moves directly below its parent, and a new refuting
+      `IndexCaveat` member carries the parent and the counts. The member needs
+      its writer, a place in `INDEX_REFUTING_CAVEATS`, the skill's indexing rows
+      and the manual's caveat table (root CLAUDE.md: a declared name with no
+      writer). *Amended 2026-09-27: consensus rather than after validation,
+      since no screen needs the pattern.* *Done 2026-09-27:
+      `consensus.supercell_checks` and `below_refuting_parents`,
+      `CellCandidate.supercell_checks` (`SupercellCheck`), the caveat
+      `supercell_refuted` with `INDEX_SUPERCELL_REFUTED`,
+      `INDEXING_THRESHOLDS_VERSION` 1.5, the skill row, the manual's caveat
+      table and a Part 1 section, and `releases/1.5.1.md`. Two fixes it
+      needed. `_extra_mask` builds no distance matrix any more: at 0.41 Å NAC's
+      pair built ~10⁹ entries and took 12.7 s, now 1.2 s. And the pairing
+      compares reduced metrics with the angles banded on the metric's scale,
+      since `same_lattice`'s component-wise test missed every orthogonal parent
+      a transformation wrote with fp noise, the cubic F and I cells over a
+      doubled P among them.*
+- [x] A check that could not run keeps today's order and says so. A bare peak
+      list is checked, since the count needs no pattern. *Done 2026-09-27:
+      consensus asks every engine candidate, so `supercell_checks` is `None`
+      only where nothing asked (a prior-only candidate, or one built by hand),
+      and `[]` means asked with no parent in the list.*
+- [x] `test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing`
+      (NAC) pins the P-first order as a known defect, to be inverted "only with
+      a measured aggregate". The check inverts it with a measured reason rather
+      than an aggregate, so rewrite the row to assert the I truth first, citing
+      the pair's counts. *Done 2026-09-27, with its validation-matrix claim.*
 - [ ] Measure on at least one monoclinic or lower-symmetry pattern with a known
       cell before claiming anything beyond high symmetry. The acceptance corpus
       has none: bethanechol is peak lists only.
-- [ ] Part 2 of the manual carries the chance test as an equation with its
+- [x] Part 2 of the manual carries the chance test as an equation with its
       `*Source:*` line, and Part 1's indexing chapter describes the re-rank.
-- [ ] Re-measure the brucite and corundum rows, and fold
+      *Done 2026-09-27: `idx-supercell-chance`, with α injected from
+      `SUPERCELL_CHANCE_ALPHA`.*
+- [x] Re-measure the brucite and corundum rows, and fold
       `test_brucites_truth_is_not_ranked_first` back into the row above when it
-      goes red.
+      goes red. *Folded 2026-09-27 on the replay over a finished search (900 s
+      a unit): truth first. The acceptance run here skipped the rows that read
+      an order, brucite's and corundum's, because the 300 s budget cut their
+      searches on this 4-core container. So a finished run, a Mac or the
+      nightly with `full_macos`, is still the confirmation. It also moved
+      `test_what_the_unflagged_tail_components_cost_the_certified_cell`: the
+      P description of LaB6's a·√2 cell is refuted over its I description,
+      so two cells reach `high` where three did.*
 
 ## Acceptance
 
@@ -329,6 +434,115 @@ search: a local run, or the nightly dispatched with `full_macos`.
   candidates.
 
 ## Handover log
+
+### 2026-09-27 (3rd session) — the check counts only uncancellable extras, and the re-rank is wired
+
+Indexing now moves a too-big cell below the smaller cell it contains when the
+pattern does not show the lines the larger cell adds. It judges this on
+evidence symmetry cannot fake: only the added lines no space group could
+extinguish are counted, and they are compared with how often chance puts a line
+there. The decided design asked the extinction screen for the symmetry first.
+Measured today, that screen's answer moves with the 2θ range on every truth
+with extinctions, and a wrong answer would have demoted corundum's certified
+cell, so the maintainer amended the seam to the class-free count. On the
+finished acceptance searches it puts brucite's and 11-BM NAC's certified cells
+first. It keeps corundum's above its own half-height cell, and refutes every
+wrong supercell tested. It needs no pattern, so a bare peak list is checked too.
+One measurement below high symmetry remains, and the bethanechol peak lists can
+now supply it.
+
+**Done.**
+
+- `ambiguity.supercell_chance` (the test), `chance_rate` (p0),
+  `SupercellEvidence` with three verdicts (`undecided` where even every extra
+  seen could not reach α), `lattice_point_group` and `uncancellable`. The pair
+  is found on primitive reduced cells, so the P descriptions of I, R and F
+  truths are found at index 2, 3 and 4.
+- `consensus.supercell_checks` and `below_refuting_parents`, run in consensus
+  on the engines' list, so streamed and final lists agree.
+  `CellCandidate.supercell_checks` is `None` until asked. There is a new
+  refuting caveat `supercell_refuted`, `INDEX_SUPERCELL_REFUTED`, and
+  `INDEXING_THRESHOLDS_VERSION` 1.5.
+- Two fixes the wiring needed. `_extra_mask` uses a sorted nearest search
+  (NAC 12.7 s → 1.2 s). `_same_reduced_metric` bands a reduced metric's angles
+  on the two axes each couples, since `same_lattice`'s component-wise test
+  missed the cubic F and I cells over a doubled P.
+- `/code-review high --fix` found nine, and five commits took seven of them.
+  - `lattice_point_group` scored each metric element on the largest diagonal,
+    which invented symmetries on elongated cells: 720 on a 5 × 5 × 40 Å
+    tetragonal cell, with out-of-memory kills beyond that. It now scores on
+    √(gᵢᵢgⱼⱼ).
+  - The pairing band had the same flaw, so it now uses the terms each angle
+    couples.
+  - `uncancellable` now runs on the in-range extras only.
+  - A pair that raises is left unasked.
+  - The diagnostic names the parent in the final order.
+  - `absent_two_theta` is on the raw 2θ axis.
+  - The volume tolerance is shared.
+  - Declined: the verdict rule, which is the maintainer's decision (see
+    Gotchas), and merging the pairing test into `same_lattice`, which dedup
+    keeps as it is.
+  - Every corpus verdict and count is unchanged after the review.
+- Docs: a Part 1 section and caveat row; the Part 2 equation
+  `idx-supercell-chance` with α injected; the skill row, re-synced; the
+  validation matrix; `releases/1.5.1.md`; the indexing CLAUDE.md rule.
+- Acceptance rows. Brucite's xfail is folded back into its row. NAC's row
+  asserts the I cell first. The calibrated-LaB6 row now counts two `high`
+  cells where it counted three, because the P description of the a·√2 cell is
+  refuted over its I description.
+
+**Measured** (`[dev]`, Linux x86-64, 4 cores, py3.12).
+
+- The screen and corpus tables are in Context (the amendment). Seeding widths
+  changed nothing on corundum at five ranges.
+- The replay over the ten finished searches (900 s a unit) moves three orders:
+  brucite's truth, zircon's second I cell, NAC's I cell. After the review the
+  check costs 0.02-0.33 s per consensus call (NAC 0.26 s).
+- The finished searches here: brucite 710 s, with a slowest unit of 343 s;
+  corundum 1408 s, with 696 s. The acceptance's 300 s budget cuts both on this
+  machine.
+- Fast suite, alone: 6460 passed, 163 skipped, 1 failed, 19:22. The failure
+  is `test_telemetry`'s unwritable-directory case, which fails because the
+  container runs as root and `chmod` does not stop root. Neither file differs
+  from main. This session added 38 fast items (`test_indexing_reduce` 26 → 61,
+  `test_indexing_consensus` 33 → 36) and removed one slow row (45 → 44). The
+  base count was not measured on this platform. On the merged tree, with
+  `origin/main` at `24da4e2` merged in after the review: 6489 passed,
+  163 skipped, the same one failure, 19:09. That is 29 items more than the
+  branch alone, and main's merge brought them.
+- `tests/test_acceptance_indexing.py`, alone, `-n auto`: 39 passed, 1 failed
+  (the LaB6 row, updated and passing alone), 4 skipped, 49:16. The skips are
+  three corundum-family order rows and brucite's rank, all cut searches.
+  Brucite's found claims and NAC's I-first rank ran and passed. The full
+  selection did not run: nothing outside indexing moved.
+
+**In flight.** Nothing uncommitted.
+
+**Gotchas.**
+
+- A cut search skips every row that reads an order, so the brucite rank and
+  corundum's rows are confirmed only by the replay until a finished run.
+- The truth side of α is the close one. Two pseudo-tetragonal LaB6 truths
+  read 2 of 3 extras at p = 0.0072; the pairing fix moved one of them from 3
+  of 5. Both already sit below their parent.
+- `lattice_point_group`'s tolerance is sin 3°, so pseudo-symmetry is counted
+  and extras shrink. Low-symmetry power is untested.
+- The review's declined finding stands as a limit. `refuted` means "not seen
+  more often than chance at α", so a small count can refute a cell whose
+  extras are seen well above chance. With 2 of 3 seen at p0 = 0.15, p = 0.061
+  and the cell is refuted. The power rule (`undecided` at p0ⁿ ≥ α) covers only
+  the degenerate end. The bethanechol run is where to see whether it
+  bites.
+- The corpus's `p0` differs from the earlier probe's table (corundum 0.152
+  against 0.117), because each search's own `match_window` is used here.
+
+**Next.** Run the bethanechol benchmark first
+(`.venv/bin/python -m tests.bethanechol_benchmark --modes manual`, alone),
+since the check now runs on peak lists. Read the truth's rank and whether any
+monoclinic truth is refuted or left undecided. That answers the last task, and
+it decides whether sin 3° costs too much power below high symmetry. Then
+confirm the brucite and corundum rows on a finished run (a Mac, or the nightly
+with `full_macos`) and close.
 
 - **2026-09-27** — The maintainer chose the re-rank. A supercell the chance
   test refutes moves directly below its parent with a refuting caveat, at

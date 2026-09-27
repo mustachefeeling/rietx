@@ -60,7 +60,15 @@ from .common import Base, Diagnostic, Provenance
 #: larger half of the move: 20 flags over the 17 bundled monochromated patterns
 #: became none, so a ``ghost_kbeta`` or ``ghost_tungsten`` flag — and the
 #: ``usable()`` list under it — is not comparable across the two versions.
-INDEXING_THRESHOLDS_VERSION = "1.4"
+#: 1.5 (WP-1449): the ranking moves a candidate the data refute as a supercell
+#: of another reported candidate directly below that parent, and grades it down
+#: with the new refuting caveat ``supercell_refuted``.  The test is
+#: :func:`rietx.indexing.ambiguity.supercell_chance` at
+#: ``SUPERCELL_CHANCE_ALPHA``, and ``CellCandidate.supercell_checks`` records
+#: every pair it asked.  The same search now orders differently wherever such a
+#: pair was reported (brucite's a × 2 supercell, 11-BM NAC's P description of
+#: its I cell).
+INDEXING_THRESHOLDS_VERSION = "1.5"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.
@@ -403,6 +411,10 @@ Confidence = Literal["high", "medium", "low"]
 #: ``validation_failed`` — the Le Bail fit raised or diverged, which is evidence
 #: about the candidate and is kept distinct from ``not_validated`` (no fit was
 #: attempted): absence of a test and a failed test are not the same statement.
+#: ``supercell_refuted`` — another reported candidate is a sublattice of this
+#: one, and the lines this one adds that no extinction could remove are seen no
+#: more often than chance (``CellCandidate.supercell_checks``); the candidate is
+#: ranked directly below that parent.
 #: ``fom_panel_reduced`` — the list is below :data:`PEAK_MIN_USABLE_LINES`, so
 #: the panel that ranked this candidate lacks the classical figures
 #: (``DataQualityReport.fom_undefined`` names them with reasons); the ranking
@@ -422,6 +434,7 @@ IndexCaveat = Literal[
     "shift_allowance_assumed",
     "bravais_ambiguous",
     "volume_unphysical",
+    "supercell_refuted",
 ]
 #: Caveats that **refute** a candidate rather than merely qualifying it: each is
 #: positive evidence against the cell, or evidence that the data cannot choose,
@@ -431,7 +444,8 @@ IndexCaveat = Literal[
 #: a chain of conditions.
 INDEX_REFUTING_CAVEATS: frozenset[str] = frozenset({
     "geometric_ambiguity", "fom_panel_disagrees", "predicted_but_absent",
-    "indexed_fraction_low", "volume_unphysical", "validation_failed"})
+    "indexed_fraction_low", "volume_unphysical", "validation_failed",
+    "supercell_refuted"})
 
 #: σ(2θ) in degrees assumed by :meth:`PeakList.from_positions`, which receives
 #: bare positions from a publication or another program.  A typical
@@ -797,6 +811,43 @@ class AmbiguityPartner(Base):
     discriminating_two_theta: list[float] = Field(default_factory=list)
 
 
+class SupercellCheck(Base):
+    """This candidate asked as a superlattice of another reported candidate.
+
+    Written by the consensus ranking for every pair in which another reported
+    candidate is a sublattice of this one, of index 2 to 4 (WP-1449).  The
+    extras are this lattice's lines that the parent's lattice does not predict,
+    counted only where no space-group extinction could remove them
+    (:func:`rietx.indexing.ambiguity.uncancellable`), and each is *seen* when it
+    falls inside an observed line's matching window.  ``p0`` is the chance of
+    that for a position no line is at, and ``p_value`` the one-sided binomial
+    chance of at least ``n_seen`` of ``n_extra``.
+
+    ``verdict`` is ``"refuted"`` when the extras are seen no more often than
+    chance and the test had the power to say otherwise, and the candidate then
+    sits directly below this parent, with the refuting ``supercell_refuted``
+    caveat.  ``"supported"`` means the extras are present beyond chance, so the
+    larger cell is a lattice statement the data make.  ``"undecided"`` means
+    not even every extra seen could have reached the significance level, which
+    includes a parent whose lines this one only repeats.  An undecided check
+    moves nothing.
+    """
+
+    parent_cell: tuple[float, float, float, float, float, float]
+    parent_system: str
+    parent_centring: str
+    #: how many of the parent's primitive cells one of this lattice's holds
+    index: int
+    n_extra: int
+    n_seen: int
+    p0: float
+    p_value: float
+    verdict: Literal["supported", "refuted", "undecided"]
+    #: ° 2θ of the extras nothing was seen at, lowest first and at most six:
+    #: where to look in the pattern for the lines the larger cell needs
+    absent_two_theta: list[float] = Field(default_factory=list)
+
+
 class BravaisOpinion(Base):
     """What gemmi and spglib each say about a candidate's lattice symmetry.
 
@@ -903,6 +954,10 @@ class CellCandidate(Base):
     fom: list[FigureOfMerit] = Field(default_factory=list)
     found_by: list[str] = Field(default_factory=list)
     ambiguity: list[AmbiguityPartner] = Field(default_factory=list)
+    #: one :class:`SupercellCheck` per reported candidate this one is a
+    #: superlattice of.  ``None`` until the consensus ranking has asked, so an
+    #: unasked question never reads as "no parent"; ``[]`` is asked, and none.
+    supercell_checks: list[SupercellCheck] | None = None
     #: the two independent opinions on the lattice symmetry (WP-1020's screen)
     bravais: BravaisOpinion | None = None
     #: the whole-profile test; ``None`` means no pattern was supplied, which caps

@@ -26,12 +26,16 @@ from rietx.crystallography.lattice import cell_volume
 from rietx.indexing.ambiguity import (
     AMBIGUITY_EXTEND_FACTOR,
     MAX_AMBIGUITY_INDEX,
+    SUPERCELL_CHANCE_ALPHA,
     _derivative_transform,
-    _refuted_supercell,
     ambiguity_partners,
+    chance_rate,
     derivative_cells,
     hnf_matrices,
+    lattice_point_group,
+    supercell_chance,
     transform_cell,
+    uncancellable,
 )
 from rietx.indexing.qspace import af_from_cell
 from rietx.indexing.reduce import (
@@ -397,69 +401,308 @@ def test_a_surviving_partner_says_where_to_measure_to_break_the_tie():
         np.array(p.transformation))))) == p.index
 
 
-def test_the_pair_form_refutes_the_supercell_the_partner_form_refutes():
-    """WP-1446: the same exclusion, asked of two candidates already in hand.
+def _hkl(cell, centring="P", two_theta_max=95.0):
+    """Every reflection a lattice allows, unmerged — the list a class filters."""
+    from rietx.indexing.fom import lattice_reflections
 
-    :func:`ambiguity_partners` asks it of a partner it enumerated from the
-    parent; the pair form asks it of two lattices already in the list.  One test
-    rather than two because the claim is that they agree: the supercell the
-    partner form drops is the one the pair form refutes.
+    hkl, _q, _m = lattice_reflections(cell, "triclinic", centring, LAM,
+                                      two_theta_max)
+    return hkl
 
-    The pair form is **unwired** — it demotes correct cells whose absences are
-    space-group extinctions, and its docstring carries the numbers.  These rows
-    pin the instrument, never a ranking.
+
+#: One cell per Bravais lattice, its system and its holohedry's order.
+BRAVAIS_LATTICES = [
+    ((5.02, 6.13, 7.71, 81.0, 103.2, 95.5), "triclinic", "P", 2),
+    ((5.02, 6.13, 7.71, 90.0, 103.2, 90.0), "monoclinic", "P", 4),
+    ((9.02, 6.13, 7.71, 90.0, 113.2, 90.0), "monoclinic", "C", 4),
+    ((5.02, 6.13, 3.71, 90.0, 90.0, 90.0), "orthorhombic", "P", 8),
+    ((5.02, 6.13, 3.71, 90.0, 90.0, 90.0), "orthorhombic", "C", 8),
+    ((5.02, 6.13, 7.71, 90.0, 90.0, 90.0), "orthorhombic", "I", 8),
+    ((5.02, 6.13, 7.71, 90.0, 90.0, 90.0), "orthorhombic", "F", 8),
+    ((6.6, 6.6, 5.98, 90.0, 90.0, 90.0), "tetragonal", "P", 16),
+    ((6.6, 6.6, 5.98, 90.0, 90.0, 90.0), "tetragonal", "I", 16),
+    ((4.759, 4.759, 12.99, 90.0, 90.0, 120.0), "trigonal", "R", 12),
+    ((3.14, 3.14, 4.77, 90.0, 90.0, 120.0), "hexagonal", "P", 24),
+    ((4.1566,) * 3 + (90.0,) * 3, "cubic", "P", 48),
+    ((6.6,) * 3 + (90.0,) * 3, "cubic", "I", 48),
+    ((8.39,) * 3 + (90.0,) * 3, "cubic", "F", 48),
+]
+
+
+@pytest.mark.parametrize("cell, system, centring, order", BRAVAIS_LATTICES)
+def test_the_point_group_search_recovers_every_holohedry(cell, system,
+                                                          centring, order):
+    """The {−1, 0, 1} search on the reduced basis finds the whole group.
+
+    A self-check, the way :func:`hnf_matrices` checks its counts: a candidate
+    set too small for some lattice would show up here as a short group, and
+    reflections a glide could cancel would then be counted as extras.  The
+    group is closed, holds the identity, and preserves the metric exactly.
     """
+    from rietx.crystallography.lattice import direct_metric_tensor
+    from rietx.indexing.reduce import reduce_cell
+
+    ops, _m = lattice_point_group(cell, centring, rtol=1e-6)
+    assert len(ops) == order
+    keys = {tuple(w.ravel()) for w in ops}
+    assert tuple(np.eye(3, dtype=int).ravel()) in keys
+    assert all(tuple((a @ b).ravel()) in keys for a in ops for b in ops)
+    g = np.asarray(direct_metric_tensor(*reduce_cell(cell, centring).cell))
+    assert all(np.allclose(w @ g @ w.T, g, rtol=1e-9, atol=1e-9) for w in ops)
+
+
+def test_a_pseudo_symmetric_metric_counts_the_symmetry_it_nearly_has():
+    """The default tolerance is the Bravais screen's loosest, on purpose.
+
+    A tetragonal cell with c/a = 1.002 could carry a cubic space group's
+    extinctions on reflections that are general for tetragonal, so they are set
+    aside too.  Tightened, the same metric has only its own group.
+    """
+    cell = (5.0, 5.0, 5.01, 90.0, 90.0, 90.0)
+    assert len(lattice_point_group(cell, "P")[0]) == 48
+    assert len(lattice_point_group(cell, "P", rtol=1e-6)[0]) == 16
+
+
+@pytest.mark.parametrize("cell, system, centring, _order", [
+    row for row in BRAVAIS_LATTICES if row[1] != "triclinic"])
+def test_no_space_group_extinguishes_an_uncancellable_reflection(
+        cell, system, centring, _order):
+    """Derived, never transcribed: every space group of every lattice asked.
+
+    ``compatible_groups`` enumerates each gemmi setting whose lattice is this
+    one, and none of them may forbid a reflection :func:`uncancellable` keeps.
+    Centring is the lattice's own condition and is decided first, so only
+    centring-allowed reflections are asked.  And the rule is not vacuous: some
+    group of each lattice does extinguish a reflection it sets aside.
+    """
+    from rietx.indexing.extinction import compatible_groups
+    from rietx.indexing.fom import lattice_reflections
+
+    hkl, _q, _m = lattice_reflections(cell, system, centring, LAM, 150.0)
+    keep = uncancellable(cell, centring, hkl)
+    assert keep.any() and not keep.all()
+    groups = [g for g in compatible_groups(system, centring, cell)
+              if g.crystal_system_str() == system
+              or (system, g.crystal_system_str()) == ("hexagonal", "trigonal")]
+    assert groups
+    extinguished_elsewhere = False
+    for sg in groups:
+        absent = np.asarray(sg.operations()
+                            .systematic_absences(hkl), dtype=bool)
+        assert not absent[keep].any(), (sg.xhm(), hkl[keep & absent][:3])
+        extinguished_elsewhere |= bool(absent[~keep].any())
+    assert extinguished_elsewhere
+
+
+def test_a_phantom_supercells_extras_sit_at_chance():
+    """WP-1449: the pair question asked against chance rather than a bar.
+
+    Only the parent's lines exist, so the doubled cell's extra lines are seen
+    no more often than a position nothing is at — here not at all — and the
+    test, powerful enough to have said otherwise, refutes it.  The partner form
+    drops the same supercell, which is the claim that the two agree.  The
+    p-value is the binomial one over the recorded counts, nothing else.
+    """
+    from scipy.stats import binom
+
     parent = (4.1566,) * 3 + (90.0,) * 3
     child = transform_cell(parent, np.diag([1, 1, 2]))
     q, esd = _lines(parent)                      # only the parent's lines exist
 
     assert ambiguity_partners(parent, "cubic", "P", q, esd, LAM, 90.0,
                               max_index=2) == []
-    assert _refuted_supercell(parent, "cubic", "P", child, "triclinic", "P",
-                              q, esd, LAM, 90.0)
+    ev = supercell_chance(parent, "P", child, "P", q, esd)
+    assert ev is not None and ev.index == 2
+    assert ev.n_extra >= 5 and ev.n_seen <= ev.p0 * ev.n_extra + 1
+    assert ev.p0 == chance_rate(q, esd, float(q.min()), float(q.max()))
+    assert ev.p_value == pytest.approx(
+        float(binom.sf(ev.n_seen - 1, ev.n_extra, ev.p0)), rel=1e-12)
+    assert ev.p_floor < SUPERCELL_CHANCE_ALPHA <= ev.p_value
+    assert ev.verdict() == "refuted"
+    # every extra is off the parent's lattice: an odd l in the doubled axis
+    assert all(hkl[2] % 2 for hkl in ev.extra_hkl)
 
 
-def test_a_true_superstructure_is_not_refuted():
-    """The test is self-correcting, and this is what makes it a signature.
+def test_a_true_superstructures_extras_are_present():
+    """The test is self-correcting, and that is what makes it a signature.
 
-    An exact supercell whose extra reflections are *present* has no absent
-    extras to count, so the rule declines to demote it — the doubled cell is
-    then a lattice statement rather than a cell choice, and the reader should
-    see it ranked where the panel put it.  The blind spot that remains is the
-    module docstring's: superlattice intensity below the picker's floor, which
-    moves to the Le Bail validation rather than being lost here.
+    An exact supercell whose extra lines are *present* is seen far beyond
+    chance, so the rule declines to demote it: the doubled cell is then a
+    lattice statement rather than a cell choice.  The blind spot that remains is
+    the module docstring's, superlattice intensity below the picker's floor.
     """
     parent = (4.1566,) * 3 + (90.0,) * 3
     child = transform_cell(parent, np.diag([1, 1, 2]))
     q, esd = _lines(child, "triclinic", "P")     # the child's lines are there
 
-    assert not _refuted_supercell(parent, "cubic", "P", child, "triclinic",
-                                  "P", q, esd, LAM, 90.0)
+    ev = supercell_chance(parent, "P", child, "P", q, esd)
+    assert ev.n_seen == ev.n_extra >= 5
+    assert ev.p_value < 1e-6
+    assert ev.verdict() == "supported"
+
+
+def test_the_uncancellable_extras_answer_without_the_class():
+    """WP-1446's failure, reproduced, and answered without the extinction class.
+
+    A superstructure whose class extinguishes some of its extras, and whose
+    remaining ones are weak — eight observed, the rest below the floor, as on
+    certified corundum.  Asked of the whole lattice, the extinguished extras
+    count as absent and the true cell reads as chance.  The class removes them;
+    so does counting only the reflections no class could remove, and the two
+    counts agree here as they do on corundum (8 of 18 either way).
+    """
+    import gemmi
+
+    from rietx.indexing.qspace import af_from_cell, design_matrix
+
+    parent = (5.02, 6.13, 3.71, 90.0, 90.0, 90.0)
+    child = transform_cell(parent, np.diag([1, 1, 2]))
+    lattice = _hkl(child)
+    absent = np.asarray(gemmi.find_spacegroup_by_name("P c c n").operations()
+                        .systematic_absences(lattice), dtype=bool)
+    allowed = lattice[~absent]
+
+    q_parent, _esd = _lines(parent, "orthorhombic", "P")
+    q_allowed = design_matrix(allowed) @ af_from_cell(child)
+    weak = np.unique(np.round(q_allowed[allowed[:, 2] % 2 == 1], 12))[:8]
+    q = np.sort(np.concatenate([q_parent, weak]))
+    tt = np.degrees(2.0 * np.arcsin(LAM * np.sqrt(q) / 2.0))
+    esd = q_esd_of_two_theta(tt, np.full_like(tt, 0.01), LAM)
+
+    by_default = supercell_chance(parent, "P", child, "P", q, esd)
+    by_class = supercell_chance(parent, "P", child, "P", q, esd,
+                                child_hkl=allowed)
+    by_lattice = supercell_chance(parent, "P", child, "P", q, esd,
+                                  child_hkl=lattice)
+    assert by_default.extra_q == pytest.approx(by_class.extra_q, rel=1e-12)
+    # the eight present, and one more that chance puts inside a window
+    assert by_default.n_seen == by_class.n_seen == 9
+    assert all(h and k for h, k, _l in by_default.extra_hkl)   # off every zone
+    assert by_default.verdict() == "supported"
+    assert by_lattice.verdict() == "refuted"
+
+
+@pytest.mark.parametrize("cell, centring, index", [
+    ((6.6, 6.6, 6.6, 90.0, 90.0, 90.0), "I", 2),
+    ((4.759, 4.759, 12.99, 90.0, 90.0, 120.0), "R", 3),
+])
+def test_a_primitive_description_of_a_centred_lattice_is_its_superlattice(
+        cell, centring, index):
+    """A P cell with a centred truth's own axes is a superlattice of it.
+
+    Its conventional volume is the truth's, so a pair search on conventional
+    cells finds no H at all; on the primitive reduced cells it is index 2 (I)
+    or 3 (R), which is how the corundum, zircon, magnetite and NAC searches
+    return them (WP-1449's table).  Its extras are exactly reflections the
+    centring forbids, and with only the truth's lines present it is refuted.
+    """
+    from rietx.indexing.qspace import centring_allows
+
+    q, esd = _lines(cell, "triclinic", centring)
+    ev = supercell_chance(cell, centring, cell, "P", q, esd)
+    assert ev is not None and ev.index == index
+    assert ev.n_extra and not centring_allows(np.array(ev.extra_hkl),
+                                              centring).any()
+    assert ev.verdict() == "refuted"
+    # the other way round is not a superlattice pair
+    assert supercell_chance(cell, "P", cell, centring, q, esd) is None
+
+
+@pytest.mark.parametrize("centring, index", [("F", 2), ("I", 4)])
+def test_a_centred_supercell_of_an_orthogonal_lattice_is_paired(centring,
+                                                                index):
+    """The pairing is not fooled by a right angle written with noise.
+
+    A cubic F or I cell of edge 2a is a superlattice of the P cell of edge a,
+    at primitive index 2 and 4.  The transformed parent comes back with its
+    right angles as fp noise, and a component-wise relative comparison, which
+    is ``same_lattice``'s, calls that a different lattice: the dichotomy search
+    returns both cells beside the truth, and before WP-1449 neither was paired.
+
+    To 150° rather than 90°, and that is the power cost of counting only what
+    no extinction can remove: to 90° the F cell's one uncancellable extra is
+    531, and one extra reads *undecided*.
+    """
+    a = 4.1566
+    parent = (a,) * 3 + (90.0,) * 3
+    child = (2 * a,) * 3 + (90.0,) * 3
+    q, esd = _lines(parent, two_theta_max=150.0)
+    ev = supercell_chance(parent, "P", child, centring, q, esd)
+    assert ev is not None and ev.index == index
+    assert ev.verdict() == "refuted"
+    short = _lines(parent)
+    if centring == "F":
+        assert supercell_chance(parent, "P", child, "F",
+                                *short).verdict() == "undecided"
+
+
+def test_a_test_that_could_not_have_rejected_chance_refutes_nothing():
+    """No extra in range, or too few against the chance rate, is *undecided*.
+
+    Even every extra seen could not reach α, so the outcome is not measured:
+    a child whose extra lines all lie outside the range is the geometrical
+    ambiguity :func:`ambiguity_partners` reports, and one extra seen against
+    p₀ = 0.1 is what chance gives one time in ten.
+    """
+    from rietx.indexing.ambiguity import SupercellEvidence
+
+    parent = (4.1566,) * 3 + (90.0,) * 3
+    child = transform_cell(parent, np.diag([1, 1, 2]))
+    q, esd = _lines(parent)
+    first_extra = min(supercell_chance(parent, "P", child, "P", q, esd).extra_q)
+    below = (float(q.min()), first_extra * 0.99)
+    ev = supercell_chance(parent, "P", child, "P", q, esd, q_range=below)
+    assert ev.n_extra == 0 and ev.p_value == 1.0 and ev.p_floor == 1.0
+    assert ev.verdict() == "undecided"
+
+    one = SupercellEvidence(index=2, extra_hkl=((0, 0, 1),), extra_q=(0.01,),
+                            extra_seen=(True,), p0=0.1, p_value=0.1)
+    assert one.verdict() == "undecided"
+    assert one.verdict(alpha=0.2) == "supported"
+
+
+def test_the_chance_rate_counts_overlapping_windows_once():
+    """p₀ is the measure of the union of the windows, clipped to the range."""
+    q = np.array([1.0, 1.5, 4.0, 9.8])
+    esd = np.array([0.1, 0.1, 0.2, 0.2]) / 3.0     # half-widths 0.1, 0.1, 0.2, 0.2
+    # [0.9, 1.1] ∪ [1.4, 1.6] ∪ [3.8, 4.2] ∪ [9.6, 10.0] ∩ [1.0, 10.0]
+    assert chance_rate(q, esd, 1.0, 10.0) == pytest.approx(
+        (0.1 + 0.2 + 0.4 + 0.4) / 9.0)
+    overlap = np.array([2.0, 2.15])                # [1.9, 2.1] ∪ [2.05, 2.25]
+    assert chance_rate(overlap, np.full(2, 0.1 / 3.0), 0.0, 10.0) == (
+        pytest.approx(0.35 / 10.0))
+    with pytest.raises(ValueError):
+        chance_rate(q, esd, 2.0, 2.0)
 
 
 def test_the_pair_form_does_not_turn_on_the_setting_the_engine_reported():
     """Two engines report the same doubled cubic lattice in different settings.
 
-    The verdict has to be the same one.  ``same_lattice`` compares *reduced*
-    forms, so an H found from the parent's side says nothing about the child's
-    own basis, and ``H`` inverted onto a permuted basis gives a lattice of the
-    parent's volume that is not the parent's — ``(2a, a, a/2)`` here, whose
-    extras are a different set.  Measured before the enumeration moved into the
-    child's frame, ``(a, a, 2a)`` was refuted and ``(2a, a, a)`` cleared.
+    The verdict has to be the same one, and so do the counts.  ``same_lattice``
+    compares *reduced* forms, so an H found from the parent's side says nothing
+    about the child's own basis, and ``H`` inverted onto a permuted basis gives
+    a lattice of the parent's volume that is not the parent's — ``(2a, a,
+    a/2)`` here, whose extras are a different set.  Measured before the
+    enumeration moved into the child's frame, ``(a, a, 2a)`` was refuted and
+    ``(2a, a, a)`` cleared (WP-1446).
     """
     parent = (4.1566,) * 3 + (90.0,) * 3
     natural = transform_cell(parent, np.diag([1, 1, 2]))
     permuted = (natural[2], natural[0], natural[1]) + (90.0,) * 3
     q, esd = _lines(parent)                      # only the parent's lines exist
 
+    counts = []
     for child in (natural, permuted):
         h = _derivative_transform(parent, child)
         assert h is not None
         recovered = transform_cell(
             child, np.linalg.inv(np.asarray(h, dtype=float)))
         assert np.allclose(recovered, parent)
-        assert _refuted_supercell(parent, "cubic", "P", child, "triclinic",
-                                  "P", q, esd, LAM, 90.0)
+        ev = supercell_chance(parent, "P", child, "P", q, esd)
+        assert ev.verdict() == "refuted"
+        counts.append((ev.n_extra, ev.n_seen, ev.extra_q))
+    assert counts[0][:2] == counts[1][:2]
+    assert np.allclose(counts[0][2], counts[1][2], rtol=1e-12)
 
 
 def test_a_derivative_transform_is_found_by_the_lattice_and_not_by_the_lines():

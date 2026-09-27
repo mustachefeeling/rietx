@@ -740,6 +740,7 @@ lives in that candidate's own `CellCandidate.diagnostics` and
 | `CellCandidate.fom` | the figure-of-merit panel, as `FigureOfMerit` entries |
 | `CellCandidate.found_by` | which engines produced this lattice |
 | `CellCandidate.ambiguity` | geometrically indistinguishable partners |
+| `CellCandidate.supercell_checks` | each reported candidate this cell is a supercell of, and whether the pattern supports the larger cell; `None` if never asked |
 | `CellCandidate.bravais` | the two independent opinions on the lattice symmetry |
 | `CellCandidate.lebail` | the whole-profile test, or `None` if it never ran |
 | `CellCandidate.confidence` | `high`, `medium` or `low` |
@@ -817,6 +818,48 @@ The discriminating reflections are what make an ambiguity actionable rather
 than merely honest: they say which part of the pattern to measure again, or
 further.
 
+### A supercell and the cell inside it
+
+A cell twice as long along one axis explains every line the smaller cell
+explains, and predicts more. The search often returns both, and the panel can
+rank the larger one first: on the round-robin brucite pattern it did, above the
+certified cell. So every pair in which one reported candidate is a supercell of
+another, of index 2 to 4, is asked whether the pattern shows the extra lines
+the larger cell needs.
+
+Missing lines alone cannot answer that. A correct cell can predict lines the
+pattern lacks, because its symmetry extinguishes them, and the certified
+corundum cell is that case. But an extinction only ever acts on a line that
+sits on a mirror plane or a rotation axis of the lattice. So only the extra
+lines lying on neither are counted, since no symmetry could have removed them.
+A line is *seen* when it falls inside an observed line's matching window, and
+the count is compared with chance. It is the share of the measured range
+covered by those windows, which is how often a position with no line at all
+would still read as seen {eq}`idx-supercell-chance`.
+
+When the extra lines are seen no more often than chance, the larger cell is
+*refuted*. It moves to directly below the cell inside it, stays in the list,
+and carries the refuting caveat `supercell_refuted`, with a message naming the
+parent and the counts. Nothing else in the order changes, and a check that
+cannot decide changes nothing. That happens when there are too few such lines
+in range, as when the smaller cell's lines are all the larger one adds. The
+check needs only the peak list, so it runs on a bare list too. Each pair asked
+is a `SupercellCheck` on the larger cell's `CellCandidate.supercell_checks`.
+
+| Field | Holds |
+|---|---|
+| `SupercellCheck.parent_cell`, `SupercellCheck.parent_system`, `SupercellCheck.parent_centring` | the smaller candidate this cell contains |
+| `SupercellCheck.index` | how many of the parent's primitive cells one of this cell's holds |
+| `SupercellCheck.n_extra`, `SupercellCheck.n_seen` | extra lines no extinction could remove, and how many sit on an observed line |
+| `SupercellCheck.p0` | the chance that a position with no line reads as seen |
+| `SupercellCheck.p_value` | the chance of seeing at least that many, had the extra lines not existed |
+| `SupercellCheck.verdict` | `refuted`, `supported` or `undecided` |
+| `SupercellCheck.absent_two_theta` | where the first extra lines nothing was seen at would be, ° |
+
+A real superstructure whose extra lines are too weak to pick is what this
+cannot see. Before discarding a refuted cell whose chemistry makes it likely,
+look at the pattern at `SupercellCheck.absent_two_theta`.
+
 ### The whole-profile test
 
 The figure-of-merit panel sees at most twenty lines. A Le Bail fit against the
@@ -860,9 +903,9 @@ separates the two.
 `CellCandidate.confidence` is `high`, `medium` or `low`. The top level is
 agreement between independent engines rather than a threshold on any statistic,
 and every reason a candidate falls short is a member of a closed vocabulary in
-`CellCandidate.confidence_caveats`. Six of the twelve refute the candidate and
-drop it to `low`, each being positive evidence against the cell or evidence that
-the data cannot choose. The other six cap it at `medium`.
+`CellCandidate.confidence_caveats`. Seven of the thirteen refute the candidate
+and drop it to `low`, each being positive evidence against the cell or evidence
+that the data cannot choose. The other six cap it at `medium`.
 
 | Caveat | Means | Effect |
 |---|---|---|
@@ -872,6 +915,7 @@ the data cannot choose. The other six cap it at `medium`.
 | `indexed_fraction_low` | the cell explains less than 90 % of the usable lines | refutes |
 | `volume_unphysical` | the volume is outside what the data can support | refutes |
 | `validation_failed` | the Le Bail fit raised or diverged | refutes |
+| `supercell_refuted` | a smaller reported cell explains the lines, and the extra ones this cell needs are seen no more often than chance | refutes |
 | `engines_disagree` | fewer than every engine that ran found this lattice | caps |
 | `not_validated` | this candidate has no Le Bail fit behind it | caps |
 | `search_incomplete` | a budget expired, so a negative result elsewhere means nothing | caps |

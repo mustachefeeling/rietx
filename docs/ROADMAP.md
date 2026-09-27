@@ -109,8 +109,8 @@ is the `.inp` grammar 1118 refuses,
 
 **1442 filed four WPs. [1446](wp/1446-a-supercell-that-outranks-the-truth.md)
 measured its premise false**: the reversed members cannot order two fitted
-candidates, so [1449](wp/1449-rank-on-what-the-screen-determined.md) inherits it
-and brucite's xfail stands. Then [1445](wp/1445-the-optics-nobody-declared.md), needing a
+candidates, so [1449](wp/1449-rank-on-what-the-screen-determined.md) inherits it;
+its supercell check now ranks brucite's truth first. Then [1445](wp/1445-the-optics-nobody-declared.md), needing a
 schema decision first; [1447](wp/1447-a-threshold-each-pattern-sets-for-itself.md)
 and [1448](wp/1448-a-number-somebody-chose.md) block nothing.
 
