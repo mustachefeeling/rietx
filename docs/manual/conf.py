@@ -28,7 +28,7 @@ from rietx.examples import list_examples
 from rietx.gui.textdoc import FORMAT_VERSION as RXT_FORMAT_VERSION
 from rietx.gui.textdoc import VALUE_DIGITS as RXT_VALUE_DIGITS
 from rietx.help import help_registry
-from rietx.indexing.ambiguity import MAX_AMBIGUITY_INDEX
+from rietx.indexing.ambiguity import MAX_AMBIGUITY_INDEX, SUPERCELL_CHANCE_ALPHA
 from rietx.indexing.dichotomy import ANGLE_STEP_DEG, AXIS_STEP
 from rietx.indexing.engines import (
     DEFAULT_N_UNINDEXED,
@@ -192,6 +192,7 @@ myst_substitutions = {
     "SIZE_CAP_MIN_SIZE_NM": SIZE_CAP_MIN_SIZE_A / 10.0,
     "SIZE_FLAG_SIZE_NM": SIZE_FLAG_SIZE_A / 10.0,
     "SUGGEST_MIN_GAIN": SUGGEST_MIN_GAIN,
+    "SUPERCELL_CHANCE_ALPHA": SUPERCELL_CHANCE_ALPHA,
     "SYMMETRY_ANGLE_TOL_DEG": SYMMETRY_ANGLE_TOL_DEG,
     "THRESHOLDS_VERSION": THRESHOLDS_VERSION,
     "VALIDITY_RADIUS_FWHM": VALIDITY_RADIUS_FWHM,

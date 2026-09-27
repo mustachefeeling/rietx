@@ -247,9 +247,10 @@ roughly the shift (+1400 ppm).
   space group** — SRM 660c (P m -3 m) is the control that proved it. **So the
   reversed members cannot order two fitted candidates either**: asked pairwise the
   question demotes SRM 676a's own cell as readily as brucite's supercell, the two
-  populations interleaving (WP-1446). `ambiguity._refuted_supercell` is that
-  instrument, unwired and private as `fom._log_sum_scores` is; WP-1449 owns the
-  screen-based successor.
+  populations interleaving (WP-1446). Asked of the extras no extinction can
+  cancel and judged against **chance** it separates (`supercell_chance`; never
+  the screen's class, which moves with 2θ range), and a refuted child sits below
+  its parent **across corroboration tiers**, being refuted, not outscored (1449).
 - The known-cell scoreboard is *never wrong, and silent more often than right* —
   **never round it up**, and **keep the found-but-not-first bucket** (collapsing it
   into right-or-wrong is how the old board named nine datasets under a total of

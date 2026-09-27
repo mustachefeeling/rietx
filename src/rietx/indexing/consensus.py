@@ -166,6 +166,127 @@ def bravais_opinion(cell: Sequence[float], centring: str,
         reduced_cell=tuple(float(v) for v in screen.reduced.cell))
 
 
+#: Lattice points per conventional cell, by centring — the volume a reduced
+#: primitive cell has is the conventional one over this.
+_LATTICE_POINTS = {"P": 1, "A": 2, "B": 2, "C": 2, "I": 2, "F": 4, "R": 3}
+
+
+def supercell_checks(candidates: Sequence[CellCandidate], peaks: PeakList, *,
+                     q_match: np.ndarray, k_sigma: float) -> None:
+    """Ask each candidate as a superlattice of every other, in place (WP-1449).
+
+    Fills ``supercell_checks`` on every candidate, ``[]`` where no other is a
+    sublattice of it, one entry per parent in the parents' rank order
+    otherwise.  A pair is tried only when the primitive volumes stand in a
+    ratio of 2 to 4, which is what :func:`~.ambiguity.supercell_chance`
+    enumerates; it decides the rest.  The child is scored on
+    :func:`~.engines.scored_positions` — its own shift-corrected lines, the ones
+    the panel scored it on — and in the window the search matched with.
+    """
+    from ..crystallography.lattice import cell_volume
+    from ..schemas.indexing import SupercellCheck
+    from .ambiguity import (
+        _DERIVATIVE_VOLUME_RTOL,
+        MAX_AMBIGUITY_INDEX,
+        MAX_DISCRIMINATING,
+        supercell_chance,
+    )
+    from .engines import scored_positions
+    from .quality import shift_template_basis
+
+    volume = [float(cell_volume(*c.cell)) / _LATTICE_POINTS.get(c.centring, 1)
+              for c in candidates]
+    for j, child in enumerate(candidates):
+        child.supercell_checks = []
+        q_obs = None
+        for i, parent in enumerate(candidates):
+            ratio = volume[j] / volume[i] if i != j and volume[i] > 0 else 0.0
+            index = round(ratio)
+            if not 2 <= index <= MAX_AMBIGUITY_INDEX \
+                    or abs(ratio - index) > _DERIVATIVE_VOLUME_RTOL * index:
+                continue
+            if q_obs is None:
+                q_obs, _tt = scored_positions(peaks, child)
+            try:
+                ev = supercell_chance(parent.cell, parent.centring, child.cell,
+                                      child.centring, q_obs, q_match,
+                                      k_sigma=k_sigma)
+            except (ValueError, RuntimeError, np.linalg.LinAlgError):
+                # an unanswered pair orders nothing, as ``_partners`` declines
+                ev = None
+            if ev is None:
+                continue
+            missing = np.array([q for q, seen in zip(ev.extra_q, ev.extra_seen)
+                                if not seen][:MAX_DISCRIMINATING])
+            tt = np.degrees(2.0 * np.arcsin(np.clip(
+                peaks.wavelength * np.sqrt(missing) / 2.0, -1.0, 1.0)))
+            # the child was scored on its shift-corrected lines; say where to
+            # look on the pattern's own axis by undoing that correction
+            template = child.shift_template
+            if template is not None and child.shift_coefficient and len(tt):
+                basis = shift_template_basis(tt)
+                if template in basis:
+                    tt = tt + child.shift_coefficient * basis[template]
+            child.supercell_checks.append(SupercellCheck(
+                parent_cell=tuple(parent.cell), parent_system=parent.system,
+                parent_centring=parent.centring, index=ev.index,
+                n_extra=ev.n_extra, n_seen=ev.n_seen, p0=ev.p0,
+                p_value=ev.p_value, verdict=ev.verdict(),
+                absent_two_theta=[float(t) for t in tt]))
+
+
+def below_refuting_parents(candidates: Sequence[CellCandidate]
+                           ) -> list[CellCandidate]:
+    """The ranked list with every refuted supercell directly below its parent.
+
+    A candidate whose :class:`~rietx.schemas.indexing.SupercellCheck` against a
+    parent reads ``"refuted"`` waits until every parent refuting it is placed,
+    and the list is otherwise taken in its given order.  So a refuted child
+    lands directly below the lowest-ranked parent that refutes it, candidates
+    between them keep their places above it, and nothing else moves.  A parent
+    is strictly smaller than its child, so the waits cannot form a cycle.
+
+    Why an order and not only a caveat (WP-1449): a caller reads
+    ``candidates[0]`` first, and on brucite a supercell the data refute stood
+    there above the certified cell, which the gate was already declining to
+    promote.  Why this and not a score: re-weighting the panel mends one
+    dataset and breaks another (WP-1041).  The check is binary, like
+    corroboration, and moves only the pairs it refutes.
+    """
+    cells = [tuple(c.cell) + (c.system, c.centring) for c in candidates]
+    waits = []
+    for child in candidates:
+        refuting = {tuple(k.parent_cell) + (k.parent_system, k.parent_centring)
+                    for k in child.supercell_checks or []
+                    if k.verdict == "refuted"}
+        waits.append({i for i, key in enumerate(cells) if key in refuting})
+    order: list[int] = []
+    placed: set[int] = set()
+    remaining = list(range(len(candidates)))
+    while remaining:
+        for pos, i in enumerate(remaining):
+            if waits[i] <= placed:
+                order.append(i)
+                placed.add(i)
+                del remaining[pos]
+                break
+        else:                           # unreachable for sublattice pairs
+            order.extend(remaining)
+            break
+    # a parent can itself move below another, so the checks are re-sorted into
+    # the parents' *final* order: the last refuting one is the parent the child
+    # now sits directly below, which is what its diagnostic names
+    rank = {cells[i]: r for r, i in enumerate(order)}
+    for child in candidates:
+        if child.supercell_checks:
+            child.supercell_checks = sorted(
+                child.supercell_checks,
+                key=lambda k: rank.get(tuple(k.parent_cell)
+                                       + (k.parent_system, k.parent_centring),
+                                       len(order)))
+    return [candidates[i] for i in order]
+
+
 def checked_indices(candidates: Sequence[CellCandidate],
                     engines_run: Sequence[str], *,
                     top: int = CONSENSUS_CHECK_TOP) -> list[int]:
@@ -310,6 +431,12 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
         to_cell_candidate(c, peaks, k_sigma=spec.k_sigma,
                           n_unindexed=spec.n_unindexed, q_match=q_match)
         for c in ranked]
+    # a supercell the data refute sits below its parent (WP-1449).  Here, on
+    # the engines' list, so every streamed per-system list orders the same way
+    # as the final one; a prior-only tail is appended after and never asked
+    supercell_checks(out.candidates, peaks, q_match=q_match,
+                     k_sigma=spec.k_sigma)
+    out.candidates = below_refuting_parents(out.candidates)
     if prior_only:
         # ranked among their own kind only, appended after every engine
         # candidate: a prior may not displace what the engines found
@@ -433,6 +560,8 @@ def caveats_for(cand: CellCandidate, *, engines_run: Sequence[str],
             volume_max is not None
             and cand.volume > VOLUME_ENVELOPE_SLACK * volume_max):
         out.append("volume_unphysical")
+    if any(c.verdict == "refuted" for c in cand.supercell_checks or []):
+        out.append("supercell_refuted")
     return out
 
 
@@ -506,5 +635,6 @@ def apply_gate(candidates: Sequence[CellCandidate], *,
 
 
 __all__ = ["CONSENSUS_CHECK_TOP", "VOLUME_ENVELOPE_SLACK", "ConsensusOutcome",
-           "apply_gate", "bravais_opinion", "caveats_for", "checked_indices",
-           "consensus", "grade", "merge_engine_candidates"]
+           "apply_gate", "below_refuting_parents", "bravais_opinion",
+           "caveats_for", "checked_indices", "consensus", "grade",
+           "merge_engine_candidates", "supercell_checks"]

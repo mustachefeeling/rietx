@@ -355,9 +355,17 @@ npm --prefix gui test && npm --prefix gui run check
 
 ### 2026-09-27 (3rd session) — CI
 
-PR #498's fast suite failed on every Linux job, on one test. The per-push run
-skips that suite, so only the PR run reached it. The fix is in the test.
+PR #498 failed on every Linux job, and the renderer was never at fault. The
+check that keeps the Python and browser copies of the scene rules equal
+depended on the machine that ran it, because the order of a polyhedron's
+corners is decided by rounding noise. The check now compares the rules over
+fixed inputs, so it holds on any machine and still catches a changed rule.
+The manual and the skill also stopped offering an edit that raised. WP-1501
+and WP-1502 (#501) now sit on this branch as a stacked PR.
 
+- **Why CI saw it late.** A draft PR runs ruff alone. The fast suite first
+  ran when the PR was marked ready, at 04:51:43, and that run failed. The
+  green run on the same commit, 21 s earlier, was the draft's.
 - **Cause.** `test_the_committed_scene_corpus_is_current` rebuilt the
   payloads and compared the file byte for byte. `structure3d.build` breaks
   ties in distance on the last bit, and rutile's octahedron is all ties.
@@ -378,8 +386,31 @@ skips that suite, so only the PR run reached it. The fix is in the test.
   figure index "a site to leave out". Both raise (WP-1501's probe). Both now
   name a site's colour or radius, say a colour is `#rrggbb`, and say a
   deletion raises. WP-1501's `keep()` stays the route to a cut.
-- **Measured.** darwin/arm64, `[dev]` venv plus `playwright`. The touched
-  files: 142 passed, and 21 in `test_manual.py`. No test was added.
+- **Measured.** darwin/arm64, `[dev]` venv plus `playwright`. Fast suite:
+  6622 passed, 145 skipped, 3:05-3:33 over two runs, the second after the
+  review's fixes, no other suite running. That is the earlier count exactly,
+  since no test was added. With `main` merged (#492, WP-1449): 6656 passed,
+  145 skipped, 4:00. The 34 extra arrive with that merge. One
+  `test_watch_browser.py` row failed in that run and passed alone (53 of 53),
+  the load flake `tests/CLAUDE.md` names. PR #498's Linux run on `37c2d966`
+  passed all six jobs, so the fix holds where it failed. The full suite did not
+  run: no forward model, solver or statistic changed.
+- **Review.** `/code-review high` over `tests/test_render_structure.py`
+  found nine, and seven were taken (`8768a0fd`). A rule-only drift now
+  rewrites over the committed payloads. The coverage test asks both
+  monoclinic payloads for a floored axis. The PNG walk checks CRCs. The c
+  view is compared to [0, 0, 1] and (001) as rotations, since c* sits 6e-17
+  from c. Declined: pinning the compiled tier on the bit-identity renders,
+  which another test already holds equal, and a fixture read that races a
+  rewrite only when the test is already failing.
+- **Stacked.** #501's branch merged this one, and #501 now targets
+  `wp1470-structure-figure`. The repo does not delete a merged branch by
+  itself, and GitHub retargets a stacked PR to `main` only when its base is
+  deleted.
+
+Next: merge #498 once its Linux run is green, and delete its branch so #501
+retargets to `main`. If the branch stays, run `gh pr edit 501 --base main`
+before merging #501. Then WP-1468 and WP-1501 are the 3D track's open work.
 
 ### 2026-09-27 (2nd session) — closed
 

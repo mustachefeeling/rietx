@@ -326,3 +326,39 @@ tolerances, the answer is the symmetry stable across the sweep, and anything
 appearing only at the loosest tolerance is reported as ambiguous. Agreement
 between independent methods is the confidence. Disagreement is reported rather
 than averaged.
+
+## A supercell and the lattice inside it
+
+A superlattice explains every line its sublattice explains and predicts more,
+so when the search reports both, the question is whether the pattern shows the
+lines the larger cell adds. Asked of every line it adds, the question cannot
+separate an oversized cell from a correct one whose space group extinguishes
+most of them: the certified corundum cell over its own $c/2$ subcell reads like
+a phantom. International Tables classifies the reflection conditions
+{cite}`itc-a`. Integral conditions come from centring and act on every
+$\mathbf{h}$. Zonal conditions come from glide planes and act on the plane the
+glide's mirror fixes. Serial conditions come from screw axes and act on the row
+the axis fixes. So a reflection that no point symmetry $W$ of the lattice fixes,
+$W\mathbf{k} \ne \mathbf{k}$ for every $W \ne I$ in primitive indices
+$\mathbf{k}$, can be extinguished by no space group of that lattice. The count
+runs over those alone. The lattice's point symmetries are found from its metric,
+as the integer matrices on the reduced basis that preserve it, $WGW^\top = G$.
+
+Of the $n$ such lines the larger cell adds inside the measured range, $k$ fall
+inside an observed line's matching window. A position with no line at all falls
+inside one with probability $p_0$, the share of the range those windows cover.
+The chance of seeing at least $k$, had the added lines not existed, is the
+binomial tail
+
+```{math}
+:label: idx-supercell-chance
+
+p \;=\; \sum_{j=k}^{n} \binom{n}{j}\, p_0^{\,j}\,(1-p_0)^{\,n-j},
+```
+
+{source}`rietx.indexing.ambiguity.supercell_chance`
+
+and at $p \ge \alpha$ = {{ SUPERCELL_CHANCE_ALPHA }} the larger cell is ranked
+directly below the smaller. The test cannot refute where it could not have
+confirmed. When even $k = n$ gives $p_0^{\,n} \ge \alpha$, too few lines or
+too many windows, the verdict is undecided and the order stays as it was.
