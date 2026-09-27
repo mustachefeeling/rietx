@@ -803,7 +803,7 @@ separability floor, and not scheduled here.
 | [1451](wp/1451-the-extinction-a-powder-has.md) | The extinction a powder has: primary, not secondary | ⬜ | P4 | — |
 | [1452](wp/1452-spglib-to-moyo.md) | spglib to moyo, once | ⬜ | P3 | 1327, 1418, 1419 |
 | [1506](wp/1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 🔄 2026-09-27 | P3 | — |
-| [1507](wp/1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | ⬜ | P2 | — (1506 soft) |
+| [1507](wp/1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 🔄 2026-09-27 | P2 | — (1506 soft) |
 
 #### Candidates — named on a use case, not yet on a measurement
 

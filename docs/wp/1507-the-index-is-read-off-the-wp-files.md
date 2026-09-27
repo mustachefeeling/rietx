@@ -1,6 +1,6 @@
 # WP-1507 — the WP index is read off the WP files
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here
 Depends on: — (1506 soft: the docs job it adds runs this WP's tests)
 Priority: P2 2026-09-27 — was P4: the maintainer raised it the day it was filed; 17 of 25 conflicted syncs in six weeks hit ROADMAP.md, and 46 PRs in a month edited only its cap
 
