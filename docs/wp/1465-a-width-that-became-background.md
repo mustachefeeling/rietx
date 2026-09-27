@@ -94,18 +94,19 @@ measured that a binding cap moves the background the right way and Rwp the
 wrong way, so it cannot be calibrated from Rwp. No change to
 `STRAIN_UNUSUALLY_LARGE`: its text is right, and it fires late.
 
-### Inherited
+**The same ridge on one pattern** ([1320](1320-qpa-multimodal-fraction.md),
+2026-09-27). A trace phase broadened into a hump the background shares can
+grow its scale at almost no χ² cost. Two facts bear on this WP. (1) A refit
+that broadens a phase below `PHASE_SUPPORT_SIGMA` trips WP-1301's collapse
+rule, which restores and holds its structure. That is why 1320's probe pins
+the width rather than the scale, and a fix here that pins or bounds a scale
+will meet the same hold. (2) In the hump basin the report does fire
+`BACKGROUND_ABSORPTION` and `STRAIN_UNUSUALLY_LARGE`, while the fit that stops
+in the sharp basin fires neither (synthetic LaB₆ + trace CaF₂,
+`tests/test_qpa_multimodal.py`). `Refinement.profile_fraction` sees both.
 
-- **2026-09-27, from [1320](1320-qpa-multimodal-fraction.md): the same ridge,
-  measured on one pattern.** A trace phase broadened into a hump the background
-  shares can grow its scale at almost no χ² cost. Two facts carry over. (1) A
-  refit that broadens a phase below `PHASE_SUPPORT_SIGMA` trips WP-1301's
-  collapse rule, which restores and holds its structure. That is why 1320's
-  probe pins the width rather than the scale, and a fix here that pins or
-  bounds a scale will meet the same hold. (2) In the hump basin the report does
-  fire `BACKGROUND_ABSORPTION` and `STRAIN_UNUSUALLY_LARGE`, while the fit that
-  stops in the sharp basin fires neither (synthetic LaB₆ + trace CaF₂,
-  `tests/test_qpa_multimodal.py`). `Refinement.profile_fraction` sees both.
+Both gaps re-read at `e11898d` (2026-09-27): `_structural_targets` and
+`report/background.py`'s `worst = 0.0` are unchanged since `07952d4e`.
 
 ## Non-goals
 
