@@ -1,7 +1,7 @@
 # WP-1449 — rank on what the screen determined, not on what the peak list shows
 
-Milestone: unscheduled · Status: 🔄 2026-09-27 — the seam is decided: a refuted supercell moves below
-its parent at α = 0.01; the build remains
+Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here (cloud session): the build,
+the chance-test function first
 Depends on: — (1446 measured the refutation; 1025 built the screen)
 Priority: P2 2026-09-23 — a wrong cell ranked first on a surface every page calls provisional; 1446 already measured the refutation
 
