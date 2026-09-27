@@ -98,11 +98,29 @@ Read 2026-09-26 from each program's manual.
   `_cation_sites`, and P10's floor went into both by hand. The client's
   "which atoms are drawn" rule has three copies: `buildScene`, `caption` and
   the zoom fit. The copies agree today; a change to one that misses another
-  is how the caption came to count undrawn atoms.
+  is how the caption came to count undrawn atoms. Since WP-1470
+  (2026-09-27), `scene.py`'s `build_scene` holds two more copies.
 - **Every bond-slider release recomputes the polyhedra.** They read the
   default bond tolerance, never the slider's, so only the sticks need the
   new value. Grossular's whole payload takes 62 ms best of 7 (Apple M4); the
   polyhedra's share of it is not measured.
+
+### The scene rules have a Python twin
+
+WP-1470 (2026-09-27) ported `buildScene`, `shownPolyhedra`,
+`lookFrom`/`axisView` and the shaders' `LOOK` to
+`rietx.viz.figure3d.scene`, for `rietx.viz.render_structure`.
+`tests/data/gui/scene_cases.json` holds the two equal. A task that changes
+what `buildScene` draws (a vertex rule, a new toggle, a changed default)
+edits `scene.py` in the same commit. It then runs
+`tests/test_render_structure.py`, which rewrites the corpus, and
+`npm --prefix gui test`. A rule that moves the default picture also moves
+`render_structure`'s, and `test_structure3d_browser.py`'s parity row (bar
+2.0 levels, measured 1.06) compares the two pictures. The corpus test
+replays the rules over the committed payloads and never rebuilds them, since
+`build()`'s order moves with the platform. A new payload field rewrites the
+file by itself. A change to `build()` that adds no field does not, so delete
+the file and run the test to refresh the payloads.
 
 ## Non-goals
 
@@ -127,23 +145,6 @@ Independent; take any.
 - [ ] The polyhedra stop recomputing on a bond-slider release
 - [ ] One authority for "bonded" on the server and one for "drawn" on the client
 - [ ] A source for the Te, At, Kr and Xe electronegativities
-
-### Inherited
-
-- **From WP-1470 (2026-09-27).** The scene rules now exist twice.
-  `rietx.viz.figure3d.scene` ports `buildScene`, `shownPolyhedra`,
-  `lookFrom`/`axisView` and the shaders' `LOOK` to Python for
-  `rietx.viz.render_structure`, and `tests/data/gui/scene_cases.json` holds the
-  two equal. A task here that changes what `buildScene` draws (a vertex rule,
-  a new toggle, a changed default) edits `scene.py` in the same commit, then
-  runs `tests/test_render_structure.py` (which rewrites the corpus) and
-  `npm --prefix gui test`. A rule that moves the default picture also moves
-  `render_structure`'s, and `test_structure3d_browser.py`'s parity row
-  (bar 2.0 levels, measured 1.06) is where the two pictures are compared.
-  The corpus test replays the rules over the committed payloads and never
-  rebuilds them, since `build()`'s order moves with the platform. A new
-  payload field rewrites the file by itself. A change to `build()` that adds
-  no field does not, so delete the file and run the test to refresh them.
 
 ## Acceptance
 
