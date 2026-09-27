@@ -1,4 +1,4 @@
-# WP-1469 — a structure figure from Python, drawn without a browser
+# WP-1470 — a structure figure from Python, drawn without a browser
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1462, 1466 shipped)
@@ -24,7 +24,7 @@ structure viewer draws it in the browser with its own WebGL2 renderer
 
 ### The routes, measured
 
-`1469-spike/README.md` has every number below and the scripts that made
+`1470-spike/README.md` has every number below and the scripts that made
 them.
 
 - **Drive the GUI's renderer in headless Chromium.** The picture would match
@@ -44,7 +44,7 @@ them.
   pycairo has a wheel only for Windows. moderngl and vispy need an OpenGL
   context, which headless Linux often lacks. vtk is 80-140 MB. pyrender's
   last release was 2021.
-- **Our own ray-caster.** `1469-spike/spike.py` (219 lines, numba and
+- **Our own ray-caster.** `1470-spike/spike.py` (219 lines, numba and
   `zlib`) draws NAC in 85-108 ms at 1000 px with 2×2 supersampling. The first
   render compiles, in 0.64-0.76 s. At 3000 px and 2× it takes 0.73-0.96 s,
   of which 514-521 ms is the numpy box filter, so a filter inside the kernel
@@ -345,10 +345,10 @@ that the obvious alternative, matplotlib, draws bonds over atoms they pass
 behind. The cost is a second copy of the GUI's scene rules, and the plan
 holds the two equal with a shared test corpus. Nothing is built.
 
-- **Done.** This file, the ROADMAP row, and `1469-spike/` with three
+- **Done.** This file, the ROADMAP row, and `1470-spike/` with three
   scripts and their numbers.
 - **Measured.** The spike's timings and the PyPI survey are in
-  `1469-spike/README.md`, on an Apple M4, `[dev]` venv. No test count moved:
+  `1470-spike/README.md`, on an Apple M4, `[dev]` venv. No test count moved:
   the branch adds no test, and the suite did not run, since nothing under
   `src/` or `tests/` changed.
 - **Research.** Two survey agents read the other programs' documentation.
@@ -374,7 +374,7 @@ holds the two equal with a shared test corpus. Nothing is built.
   the record; its 13 ruff style errors stay, because `docs/` is outside the
   lint command, as for the other spike folders.
 - **Gotchas.** Running the spike leaves numba's `__pycache__` in
-  `1469-spike/`, which git ignores. This worktree's guard refuses compound
+  `1470-spike/`, which git ignores. This worktree's guard refuses compound
   shell such as `awk -v` inside loops, so measure through a scratchpad
   script.
 
