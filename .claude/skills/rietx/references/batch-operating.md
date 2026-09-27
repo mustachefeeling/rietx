@@ -171,12 +171,13 @@ class silently zeroed and **no diagnostic firing**), a unit conversion made
 once in a shared calibration and therefore wrong in every pattern that uses
 it, and a mis-parsed axis (**a GSAS FXYE with its `BANK` line commented out
 returned `[50.0, 4399.6]°` instead of `[0.5, 43.996]°`** — same point count,
-no exception, `provenance` `None`). Total cost is near-linear in length, so a
+no exception, `provenance` `None`; the reader now reads such a file as GSAS and says so, `GSAS_BANK_COMMENTED`). Total cost is near-linear in length, so a
 dozen patterns is a few per cent of a long run and tests all of it;
 per-pattern cost is *sub*-linear in model size (**1.489 s → 4.170 s, 2.80× for
 a 5.35× increase in reflections**), so the pilot's per-pattern time is an
-upper bound — time it as well as reading it (9c.31). Assert a sanity bound on
-every parsed 2θ axis, check a transcribed phase's cell mass against the source
+upper bound — time it as well as reading it (9c.31). Pass `diagnostics=[]` to
+every `read_pattern` and act on what comes back (it refuses an axis past 180° and
+reports one at or below 0°), check a transcribed phase's cell mass against the source
 file's own (**286.182 against 286.184, 7 ppm**, settled an ambiguous Cu₂O
 setting whose origin-1 alternative was a 1:2 Cu:O compound — though mass
 balance cannot catch the origin error above, so the two checks complement
