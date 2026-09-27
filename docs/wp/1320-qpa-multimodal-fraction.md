@@ -1,6 +1,6 @@
 # WP-1320 — a phase fraction the pattern cannot fix
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-27 — claimed by @yue-here
 Depends on: — (1310 soft: how findings arrive on the result affects how this one reads)
 Priority: P2 2026-09-23 — a confident esd on a fraction the pattern cannot fix, on QPA's rarer path
 
