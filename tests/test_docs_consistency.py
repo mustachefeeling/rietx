@@ -41,7 +41,7 @@ _spec = importlib.util.spec_from_file_location(
 )
 wp_index = importlib.util.module_from_spec(_spec)
 # A dataclass resolves its string annotations through sys.modules.
-sys.modules.setdefault("wp_index", wp_index)
+sys.modules["wp_index"] = wp_index
 _spec.loader.exec_module(wp_index)
 
 GLYPHS = set(wp_index.GLYPHS)

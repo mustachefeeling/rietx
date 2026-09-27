@@ -138,7 +138,7 @@ are both on the list.
 - [x] `test_docs_consistency.py`: the five mirror tests become one freshness
       test on the index. The ROADMAP cap counts what is left and is set once,
       with its diary entry. The Current focus caps are unchanged.
-- [ ] If (a): the merge driver and its SessionStart setup, tested in
+- [x] If (a): the merge driver and its SessionStart setup, tested in
       `test_workflow_hooks.py`. Two branches adding adjacent rows merge
       locally with no conflict markers.
 - [ ] The touchpoints above: commands, hook, issue-review skill,

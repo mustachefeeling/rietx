@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """SessionStart scan: surface stale session-workflow state at the next session.
 
-Read-only, stdlib-only, and deliberately independent of the project venv —
+Read-only but for one git config line (``ensure_merge_driver``), stdlib-only,
+and deliberately independent of the project venv —
 a missing or wrong-tree venv is one of the conditions it must survive to
 report.  Run with ``python3`` from PATH; it imports nothing from the package,
 touches no network, and always exits 0: the report is a *prompt to the
@@ -78,6 +79,13 @@ VENV_FIX = 'uv venv --python 3.12 && uv pip install --python .venv/bin/python -e
 REPAIR_HINT = "repair first (/wp-handover, repair mode)"
 SHARED_HINT = "one session per tree: EnterWorktree before editing (/wp-start step 3)"
 CLAIM_HINT = "pick another WP, or /wp-start step 2 to see the whole table"
+# The WP index's merge driver (WP-1507).  Git reads a driver from config and
+# never from the tree, so this line in .git/config is the scan's one write.
+# The second half gives git its own conflict markers when the script declines
+# a merge, or when the checkout predates the script.
+MERGE_DRIVER = (
+    "python3 .claude/hooks/wp_index.py --merge %O %A %B || git merge-file %A %O %B"
+)
 
 _WP_COMMIT_RE = re.compile(r"^WP-(\d{4}):")
 _STATUS_RE = re.compile(r"Status:\s*(⬜|🔄|✅|🛑)")
@@ -388,6 +396,13 @@ def handover_findings(root: Path, limit: int = 50) -> list[Finding]:
     return findings
 
 
+def ensure_merge_driver(root: Path) -> None:
+    """Point `merge=wpindex` (.gitattributes) at the index's row merge."""
+    if _git(root, "config", "--get", "merge.wpindex.driver") != MERGE_DRIVER:
+        _git(root, "config", "merge.wpindex.name", "the WP index, merged row by row")
+        _git(root, "config", "merge.wpindex.driver", MERGE_DRIVER)
+
+
 def in_flight_wps(root: Path) -> list[str]:
     flying = []
     for path in sorted((root / "docs" / "wp").glob("[0-9]*.md")):
@@ -492,6 +507,7 @@ def main() -> int:
         print("session-start scan: not inside a git repository")
         return 0
     try:
+        ensure_merge_driver(Path(root))
         print(render(Path(root)))
     except Exception as exc:  # a broken scan must inform, never block the session
         print(f"session-start scan failed ({exc.__class__.__name__}: {exc})")

@@ -1251,3 +1251,126 @@ def test_the_issue_file_carries_body_comments_and_both_reference_kinds() -> None
     for needle in ("# #390 — issue 390", "body of 390", "### them · 2026-09-18T20:31:01Z", "a reply",
                    "cited by: WP-1418 ⬜", "PR #391 (2026-09-18)", "PR #326 (2026-09-15)"):
         assert needle in text
+
+
+# --------------------------------------------------------------------------- #
+# The WP index's merge driver (.claude/hooks/wp_index.py, WP-1507): two
+# branches filing a WP each append adjacent rows, which git's line merge
+# reports as a conflict.  Driven through a real `git merge` in a tmp repo,
+# because what matters is what git does with the driver, not the function.
+# --------------------------------------------------------------------------- #
+
+_index_spec = importlib.util.spec_from_file_location(
+    "wp_index", ROOT / ".claude" / "hooks" / "wp_index.py"
+)
+wp_index = importlib.util.module_from_spec(_index_spec)
+sys.modules["wp_index"] = wp_index  # a dataclass resolves annotations through it
+_index_spec.loader.exec_module(wp_index)
+
+_ROADMAP_FIXTURE = (
+    "# Roadmap\n\n## Work packages\n\n### Unscheduled\n\n"
+    "The WPs are in [the index](wp/README.md#unscheduled).\n"
+)
+
+
+def _file_wp(root: Path, num: str, status: str = "⬜", tier: str = "P2") -> None:
+    (root / "docs" / "wp" / f"{num}-fixture.md").write_text(
+        f"# WP-{num} — fixture {num}\n\nMilestone: unscheduled · Status: {status}\n"
+        f"Depends on: —\nPriority: {tier} 2026-09-27 — a fixture\n\n## Goal\n\nx.\n\n"
+        "## Handover log\n\n- **2026-09-27** — made.\n",
+        encoding="utf-8",
+    )
+    index = root / "docs" / "wp" / "README.md"
+    index.write_text(wp_index.generate(root), encoding="utf-8")
+
+
+def _two_branches(root: Path, ours, theirs) -> subprocess.CompletedProcess:
+    """A base with two WPs, `ours` and `theirs` applied on two branches, merged."""
+    (root / "docs" / "ROADMAP.md").write_text(_ROADMAP_FIXTURE, encoding="utf-8")
+    (root / ".gitattributes").write_text("docs/wp/README.md merge=wpindex\n", encoding="utf-8")
+    _file_wp(root, "0001")
+    _file_wp(root, "0002")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "base")
+    _git(root, "checkout", "-qb", "theirs")
+    theirs(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "theirs")
+    _git(root, "checkout", "-q", "main")
+    ours(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "ours")
+    return subprocess.run(
+        ["git", "-c", "user.email=wp@test", "-c", "user.name=wp", "-c", "commit.gpgsign=false",
+         "merge", "-q", "theirs", "-m", "merge"],
+        cwd=root, capture_output=True, text=True, check=False,
+    )
+
+
+def _set_driver(root: Path) -> None:
+    command = hook.MERGE_DRIVER.replace(
+        "python3 .claude/hooks/wp_index.py",
+        f'"{sys.executable}" "{ROOT / ".claude" / "hooks" / "wp_index.py"}"',
+    )
+    _git(root, "config", "merge.wpindex.driver", command)
+
+
+def test_session_start_sets_the_index_merge_driver_once(repo: Path) -> None:
+    hook.ensure_merge_driver(repo)
+    got = subprocess.run(["git", "config", "--get", "merge.wpindex.driver"],
+                         cwd=repo, capture_output=True, text=True, check=True)
+    assert got.stdout.strip() == hook.MERGE_DRIVER
+    config = (repo / ".git" / "config").read_text(encoding="utf-8")
+    hook.ensure_merge_driver(repo)
+    assert (repo / ".git" / "config").read_text(encoding="utf-8") == config
+
+
+def test_two_branches_filing_adjacent_rows_merge_clean(tmp_path: Path) -> None:
+    """The control first: without the driver, git conflicts on the index."""
+    def ours(root: Path) -> None:
+        _file_wp(root, "0003")
+
+    def theirs(root: Path) -> None:
+        _file_wp(root, "0004", tier="P1")
+        (root / "docs" / "wp" / "0001-fixture.md").write_text(
+            (root / "docs" / "wp" / "0001-fixture.md").read_text(encoding="utf-8")
+            .replace("Status: ⬜", "Status: 🔄 2026-09-27"),
+            encoding="utf-8",
+        )
+        (root / "docs" / "wp" / "README.md").write_text(wp_index.generate(root), encoding="utf-8")
+
+    control = tmp_path / "control"
+    control.mkdir()
+    _git(control, "init", "-q", "-b", "main")
+    (control / "docs" / "wp").mkdir(parents=True)
+    assert _two_branches(control, ours, theirs).returncode != 0
+    assert "<<<<<<<" in (control / "docs" / "wp" / "README.md").read_text(encoding="utf-8")
+
+    root = tmp_path / "driven"
+    root.mkdir()
+    _git(root, "init", "-q", "-b", "main")
+    (root / "docs" / "wp").mkdir(parents=True)
+    _set_driver(root)
+    merged = _two_branches(root, ours, theirs)
+    assert merged.returncode == 0, merged.stdout + merged.stderr
+    index = (root / "docs" / "wp" / "README.md").read_text(encoding="utf-8")
+    assert "<<<<<<<" not in index
+    assert index == wp_index.generate(root)
+    assert all(f"[{n}](" in index for n in ("0001", "0002", "0003", "0004"))
+
+
+def test_a_row_both_branches_changed_gets_gits_markers(tmp_path: Path) -> None:
+    """The driver declines, and the `|| git merge-file` half writes markers."""
+    def rated(tier: str):
+        def edit(root: Path) -> None:
+            _file_wp(root, "0002", tier=tier)
+        return edit
+
+    root = tmp_path / "driven"
+    root.mkdir()
+    _git(root, "init", "-q", "-b", "main")
+    (root / "docs" / "wp").mkdir(parents=True)
+    _set_driver(root)
+    merged = _two_branches(root, rated("P1"), rated("P3"))
+    assert merged.returncode != 0
+    assert "<<<<<<<" in (root / "docs" / "wp" / "README.md").read_text(encoding="utf-8")

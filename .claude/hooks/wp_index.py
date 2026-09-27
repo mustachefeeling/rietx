@@ -27,7 +27,6 @@ SessionStart hook sets the driver, and a merge must not need the venv.
 from __future__ import annotations
 
 import re
-import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -431,16 +430,21 @@ def generate(root: Path = ROOT) -> str:
 
 
 def _merge_driver(base: str, ours: str, theirs: str) -> int:
-    """Write the merge into `ours`, git's %A; on a conflict, git's own markers."""
+    """Write the merge into `ours`, git's %A, or leave it untouched and exit 1.
+
+    The configured command is `<this> --merge %O %A %B || git merge-file %A %O
+    %B`, so a conflict here, or a branch too old to have this script, gets
+    git's own markers from the second half.
+    """
     read = [Path(p).read_text(encoding="utf-8") for p in (base, ours, theirs)]
     try:
-        Path(ours).write_text(merge(*read), encoding="utf-8")
-        return 0
+        merged = merge(*read)
     except (Conflict, ValueError) as exc:
-        print(f"wp_index: {exc}; leaving conflict markers, then rerun {COMMAND}",
+        print(f"wp_index: {exc}; resolve the markers by rerunning {COMMAND}",
               file=sys.stderr)
-        done = subprocess.run(["git", "merge-file", ours, base, theirs], check=False)
-        return 1 if done.returncode else 0
+        return 1
+    Path(ours).write_text(merged, encoding="utf-8")
+    return 0
 
 
 def main(argv: Optional[list[str]] = None) -> int:
