@@ -142,6 +142,10 @@ matrix. The freshness and merge tests live in `test_docs_consistency.py` and
       pr-conformance agent, Session protocol, TEMPLATE comment.
 - [ ] Two weeks after landing, rerun the merge replay and report ROADMAP
       conflicts against this WP's baseline of 17 in six weeks.
+      `python -m tests.merge_replay <landing date>` prints both this and the
+      acceptance check below. The same script over `2026-08-15 2026-09-27`
+      reproduces the baseline exactly: 398 merges, 25 conflicted (6.3 %),
+      17 on ROADMAP. Compare rates, since the windows differ in length.
 - [x] Skill: none. This is the repo's planning process.
 
 ## Acceptance
