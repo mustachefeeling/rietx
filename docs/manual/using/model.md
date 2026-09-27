@@ -518,11 +518,16 @@ That is what `at_bound` is for, and it has three states rather than two:
 | `False` | tested, and interior |
 | `None` | not tested, so no answer either way |
 
-`None` covers two cases. A tied row is never tested. It is not in the free
+`None` covers three cases. A tied row is never tested. It is not in the free
 vector the fit solves, so nothing looked at it, and its value can sit on its own
-declared bound while every source is interior. And a result built without a fit
+declared bound while every source is interior. A result built without a fit
 behind it has nothing to report: [`replay`](history.md) recomputes a recorded
 node's curves without running the guard, so every one of its rows is `None`.
+And a free row can sit on a floor the solver cannot see. A scale or width
+declared with `min=0` refines through a softplus transform, whose limit is at
+minus infinity in the solver's coordinates, so a scale that ends at 0 has no
+bound there to test against. An absent phase's scale is the usual case, and
+`QPA_ESD_UNAVAILABLE` names it when its esd goes too.
 
 What counts as being on a bound is the solver's own test rather than a second
 one. A value is on a bound when it sits within 1e-10 of that bound's own
