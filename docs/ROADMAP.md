@@ -709,6 +709,7 @@ the chain says nothing (issue #267).
 | [1453](wp/1453-both-directions-name-the-lower-cost.md) | Both directions name the lower cost | ⬜ | P3 | — (1420 soft) |
 | [1459](wp/1459-a-pawley-intensity-past-the-data.md) | A Pawley intensity past the end of the data | ✅ 2026-09-25 | — | — (1336 soft) |
 | [1464](wp/1464-a-screen-reads-the-batch-references-first.md) | A screen reads the batch references first | ⬜ | P3 | — (PR #385 soft) |
+| [1469](wp/1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | ⬜ | P2 | — (1420 soft) |
 
 #### One file, many patterns
 
