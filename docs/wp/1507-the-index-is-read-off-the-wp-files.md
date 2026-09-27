@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1506 soft: the docs job it adds runs this WP's tests)
-Priority: P4 2026-09-27 — process: 17 of 25 conflicted syncs in six weeks hit ROADMAP.md, and 46 PRs in a month edited only its cap; the maintainer named the drag 2026-09-27
+Priority: P2 2026-09-27 — was P4: the maintainer raised it the day it was filed; 17 of 25 conflicted syncs in six weeks hit ROADMAP.md, and 46 PRs in a month edited only its cap
 
 ## Goal
 
@@ -55,8 +55,8 @@ authority.
 - GitHub renders a directory's `README.md` in its listing. A generated
   `docs/wp/README.md` would show the index to anyone browsing `docs/wp/`.
 
-**The decision this WP takes first, with the maintainer: where the index
-lives.**
+**Where the index lives: decided 2026-09-27 by the maintainer, option (a).**
+The two options as they were put:
 
 - (a) Committed, as `docs/wp/README.md`, asserted fresh like VALIDATION.md.
   Adjacent-row conflicts still happen, and they resolve by rerunning the
@@ -112,7 +112,8 @@ reads the index.
 
 ## Tasks
 
-- [ ] The decision above, taken with the maintainer and recorded here.
+- [x] The decision above, taken with the maintainer and recorded here:
+      (a), committed as `docs/wp/README.md`, 2026-09-27.
 - [ ] A generator, stdlib only, sharing one header parser with
       `test_docs_consistency.py`. It writes the per-milestone tables and the
       in-flight and next-by-priority lists from the WP files.

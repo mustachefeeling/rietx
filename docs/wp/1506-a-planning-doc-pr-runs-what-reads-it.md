@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (the branch-protection change is the maintainer's, by hand)
-Priority: P4 2026-09-27 — process: a planning-doc PR waits 20-22 min for a suite that cannot see its diff; the maintainer named the drag 2026-09-27
+Priority: P2 2026-09-27 — was P4: the maintainer raised it the day it was filed; a planning-doc PR waits 20-22 min for a suite that cannot see its diff
 
 ## Goal
 

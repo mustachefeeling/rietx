@@ -793,7 +793,7 @@ separability floor, and not scheduled here.
 | [1313](wp/1313-dist-belongs-to-main.md) | The GUI dist belongs to main | ⬜ | P4 | — |
 | [1330](wp/1330-skill-references-by-shape.md) | The skill grows by reference: one file per task shape, and the row an agent can write | ✅ 2026-09-02 | — | 1304, 1308 |
 | [1331](wp/1331-landing-page-in-repo.md) | The landing page enters the repository, and the data comes redacted | ✅ 2026-09-03 | — | — (1003 soft) |
-| [1338](wp/1338-the-skills-own-gates.md) | The skill's own gates: the references, the private corpus, the cap race | ⬜ | P4 | — |
+| [1338](wp/1338-the-skills-own-gates.md) | The skill's own gates: the references, the private corpus, the cap race | ⬜ | P2 | — |
 | [1408](wp/1408-the-manual-reads-like-a-manual.md) | The theory manual reads like a manual | ✅ 2026-09-14 | — | — |
 | [1409](wp/1409-part-one-reads-like-a-manual.md) | Part 1 reads like a manual | ✅ 2026-09-14 | — | 1408 |
 | [1410](wp/1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — | — |
@@ -802,8 +802,8 @@ separability floor, and not scheduled here.
 | [1450](wp/1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 🔄 2026-09-24 | P1 | — |
 | [1451](wp/1451-the-extinction-a-powder-has.md) | The extinction a powder has: primary, not secondary | ⬜ | P4 | — |
 | [1452](wp/1452-spglib-to-moyo.md) | spglib to moyo, once | ⬜ | P3 | 1327, 1418, 1419 |
-| [1506](wp/1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | ⬜ | P4 | — |
-| [1507](wp/1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | ⬜ | P4 | — (1506 soft) |
+| [1506](wp/1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | ⬜ | P2 | — |
+| [1507](wp/1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | ⬜ | P2 | — (1506 soft) |
 
 #### Candidates — named on a use case, not yet on a measurement
 
