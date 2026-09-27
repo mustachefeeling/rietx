@@ -214,6 +214,89 @@ npm --prefix gui test && npm --prefix gui run check
 
 ## Handover log
 
+- **2026-09-28** — the structure viewer now reads chemistry it used to get
+  wrong. A cyanide's or a carbonyl's C is its metal's ligand, so Prussian blue
+  draws FeC₆, and Cu₃[Co(CN)₆]₂ draws CoC₆ where it had drawn a confident,
+  wrong CoN₆. A CIF's disorder groups now reach the model and the picture. A
+  chemist can choose which elements are centres and which are corners, and
+  double-click one atom for its environment. The hover also says when a
+  shell's gap has a near-equal rival. Two proposed rules were measured and
+  ruled out: no distance bound separates split pairs from real bonds, and a
+  memo for the bond slider would have to be keyed on every rule constant. The
+  default picture on the 21 measured phases is unchanged.
+
+  *Done*, one commit each: one `bonded` test and one `drawnWith` rule (with
+  `drawn_with` in `scene.py`); position keys rounded as arrays; the donor rule
+  and a one-step screen (non-metals only, obtuse by more than rounding); P9's
+  angle test for sticks (`one_atom`), with a shared neighbour a stick could
+  join to both; `polyhedra_dropped` and a greyed legend button;
+  `Atom.disorder_assembly`/`disorder_group` (SCHEMA_VERSION 0.34), read from
+  and written to CIF; the viewer's group rules, a negative group judged by
+  each image's rotation, and `disorder=major`; Mercury's two lists as
+  `centres=`/`ligands=`; the double-click; `METAL_SPLIT_FLOOR` = 0.5; the
+  rival gap (`RIVAL_GAP` = 0.7); the skill's `api.md` regenerated.
+
+  *Measured.* `measure.py`'s 21-phase output was byte-identical after every
+  commit. Against the pre-session module, only two hidden gaps moved on those
+  phases and the bundled CIFs: LaB6's La 1.45 → 1.90 and pyrite's Fe
+  1.52 → 1.60, both from the screen. Payload build, best of 7 on an Apple M4:
+  grossular 62.7 → 51.5 ms, the polyhedra 25.9 → 17.8 of it. Real cases,
+  all public COD entries:
+  - Cu₃[Co(CN)₆]₂ 4002391, Prussian blue 4343748 (Buser 1977), 1516492.
+  - α-K₂SO₄ 1000049: split O at 0.787 of the radius sum, 19.6° round K.
+  - NaNO₃ 8103616 and 9007558-9007567: 0.89-0.99, 27-32° round Na.
+  - hydrated β-alumina 1529595: Li–O at 0.32.
+  - Ag β-alumina 2105331-2105335: 0.35 and 0.59-0.70.
+  - partial uranyl 1508149: 0.70 and 0.72, with groups declared.
+  - rival gaps: 38 of 159 COD files' polyhedra, none on the 21 phases.
+  COD 7223699 (NaClO₄) has Na and Cl swapped and was dropped from the
+  measurement. Browser passes (chromium 1223, headless) on four probe
+  projects: the perchlorate's toggle, Prussian blue's FeC₆, fluorite's FCa₄
+  through the lists, and Cu₃Au's double-click.
+
+  *Counts*, on the worktree's `[dev]` venv, macOS arm64, with `main`
+  unmoved under the branch: the fast suite 6578 passed, 151 skipped, one
+  other pytest process running beside it (4:14, a loaded figure). Twenty
+  tests were added, fifteen in `test_structure3d.py` and five in
+  `test_cif_disorder.py`, all passing and none skipped. The run before the
+  review pass had 6577 with nineteen added. The twenty cost 1.50 s together
+  in that run, the rival-gap test 0.86 s of it, since it builds the 21
+  phases.
+  vitest 575 → 581, svelte-check clean, and the manual builds under `-W`.
+
+  *Review.* `/code-review high --fix` found seven. Six were fixed in one
+  commit. The double-click held its atom by index, which its own refetch
+  renumbers, and now holds it by site and position. The early exit returned
+  `polyhedra_dropped` as 0. A toggle started from the stale payload's list.
+  The major view listed elements it did not draw. Two arrays were rebuilt in
+  loops. The seventh it skipped, and I fixed: the disorder-tag gate was
+  case-sensitive, so a mixed-case tag dropped every group silently.
+
+  *Gotchas.* The scene corpus (`tests/data/gui/scene_cases.json`) rewrites
+  itself whenever the payload gains a field. It did so four times here, and
+  the first rewrite moved its scenes in the twelfth digit, since it now
+  computes them from the dumped payloads. Commit the rewrite and rerun.
+  `gui/CLAUDE.md` sits at its 1060-line cap. `help.test.ts` budgets an
+  authored `title=` everywhere but on a `<button>`, so a new control is a
+  button with a verb-phrase title. `_orbit` reads a missing `_turn` as 0, so
+  an orbit rebuilt from payload atoms, which carry none, cannot judge a
+  negative group. `measure.py`'s `shells()` reads Brunner & Schwarzenbach
+  without the screen, so its pyrite and LaB6 gaps differ from the server's
+  by design.
+
+  *Not done.* The Te, At, Kr and Xe sources: neither paper is on this
+  machine (Context). Cluster polyhedra: nobody asked, and a centre with no
+  atom does not fit the payload's `center` index. `render_structure` takes no
+  new keywords, since the dict `build(…)` returns carries every new control.
+  No SHELX reader exists, so disorder groups arrive only through a CIF. The
+  skill gets no row: the controls are the GUI's, and an agent's figure
+  reaches them through the dict `render_structure` already takes.
+
+  *Next:* 1. The maintainer supplies Pauling (1960) and Allen & Huheey
+  (1980). Check the four values against them, and the WP can close with
+  clusters left to a request. 2. Otherwise close it as it stands, moving the
+  sources to a P4 of their own.
+
 - **2026-09-26** — filed from WP-1466's second session, at the maintainer's
   request, as the further work its automatic polyhedra leave. The survey of
   VESTA, Mercury and CrystalMaker was read from their manuals that day.
