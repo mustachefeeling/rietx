@@ -141,11 +141,11 @@ are both on the list.
 - [x] If (a): the merge driver and its SessionStart setup, tested in
       `test_workflow_hooks.py`. Two branches adding adjacent rows merge
       locally with no conflict markers.
-- [ ] The touchpoints above: commands, hook, issue-review skill,
+- [x] The touchpoints above: commands, hook, issue-review skill,
       pr-conformance agent, Session protocol, TEMPLATE comment.
 - [ ] Two weeks after landing, rerun the merge replay and report ROADMAP
       conflicts against this WP's baseline of 17 in six weeks.
-- [ ] Skill: none. This is the repo's planning process.
+- [x] Skill: none. This is the repo's planning process.
 
 ## Acceptance
 

@@ -27,8 +27,11 @@ Run the session-start ritual. The SessionStart hook's report
    self-contained. **§ Session protocol is read for its step 3**, which is
    the only statement of the handover trigger that stays in context after
    this command scrolls away; narrowing this read to Current focus alone
-   (2026-09-01) cost the next two sessions their handover. Read that one WP
-   file only (plus the DESIGN.md sections it links); do not read other WP
+   (2026-09-01) cost the next two sessions their handover. Current focus holds
+   milestone prose; what is in flight and what is next by priority are the
+   index's first two lists, generated from the WP files (WP-1507):
+   `sed -n '/^## In flight/,/^## <a id/p' docs/wp/README.md`. Read that one
+   WP file only (plus the DESIGN.md sections it links); do not read other WP
    files.
 
    **Then check nobody else has it**, before committing to the choice:
@@ -99,10 +102,11 @@ Run the session-start ritual. The SessionStart hook's report
    Three commands, and they are the whole claim:
 
    - Set the WP file's `Status:` line to `🔄 <today> — claimed by @<you>`, and
-     mirror the glyph and date in its ROADMAP index row. The cell carries the
-     glyph and the date and nothing else (`tests/test_docs_consistency.py`).
-   - Commit it alone, `WP-NNNN: claimed`. A commit touching only its own WP file
-     is *ritual*, so it owes no handover entry and trips no hook.
+     run `python3 .claude/hooks/wp_index.py`, which rewrites its row in
+     `docs/wp/README.md` (a test fails on a stale index).
+   - Commit the two alone, `WP-NNNN: claimed`. A commit touching only its own
+     WP file and the index is *ritual*, so it owes no handover entry and trips
+     no hook.
    - `git push origin HEAD` and `gh pr create --draft --title "WP-NNNN: <the
      WP's title>"`, body one line saying what you are starting.
 

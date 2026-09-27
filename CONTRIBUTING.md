@@ -154,10 +154,10 @@ file's history), say so in the PR rather than guessing around it.
 Two of those files are the maintainer's to write:
 
 - `docs/ROADMAP.md`, which says what is scheduled and in what order.
-- `docs/wp/NNNN-*.md`, a work package. Every WP file needs a matching
-  ROADMAP index row, enforced by
-  `test_wp_files_and_roadmap_rows_are_a_bijection`, so a new WP file cannot
-  land without also scheduling the work.
+- `docs/wp/NNNN-*.md`, a work package. Its header lines place it in
+  `docs/wp/README.md`, the WP index, which
+  `python3 .claude/hooks/wp_index.py` generates. A test fails while the index
+  is stale, so a WP file lands together with its row.
 
 Adding to the handover log of a WP whose work you did is welcome. That log
 is the record of what you measured and where you stopped, and it belongs in
@@ -166,7 +166,7 @@ the same change as the code.
 **Claiming one is welcome too, and is the one other edit to those files that
 is yours to make.** Before starting scheduled work, open a draft pull request
 that sets that WP's `Status:` line to `🔄 <date> — claimed by @you` and
-mirrors the glyph and date in its ROADMAP index row, and nothing else. It
+regenerates the index with `python3 .claude/hooks/wp_index.py`. It
 stops two people spending a week on the same work: nobody can see a claim that
 lives only on your own machine, so a draft PR is the announcement. Mark it
 ready when the work is. If you find a WP already at 🔄, or a draft PR open on
@@ -176,8 +176,8 @@ it, ask in the issue before starting rather than racing.
 
 Open a [design proposal][proposal] and write the design there. A proposal
 does not need an implementation, and unscheduled design does not go into a
-WP file: the maintainer opens the work package and the ROADMAP row when the
-work is scheduled, and links back to the proposal. The design then exists in
+WP file: the maintainer opens the work package when the work is scheduled,
+and links back to the proposal. The design then exists in
 one place at each stage instead of two that drift apart.
 
 Proposals are read and answered, not queued silently. The answer may be that

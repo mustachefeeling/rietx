@@ -46,16 +46,14 @@ steps below run unchanged.
      *Measured* / *In flight* / *Gotchas*, written for someone who has read
      only this WP file and CLAUDE.md.
 4. **Sync the Status line** (`glyph date — free text`, vocabulary in
-   `docs/wp/TEMPLATE.md`) and mirror the glyph in the WP's ROADMAP index
-   row.
+   `docs/wp/TEMPLATE.md`). The index row follows at the end of step 7.
 5. **Push forward references**: anything learned that changes work in a WP
    that is not closed and not this one goes into *that* WP's `### Inherited`
    section, naming this WP as the source. **Re-rate what this close moved**:
    a WP whose last blocker was this one, or whose trigger this work mooted,
    gets its `Priority:` line rewritten (tier, today's date, one clause naming
-   this WP; rubric in `docs/wp/TEMPLATE.md`) and its ROADMAP cell set to the
-   new tier. An unrated WP (`—`) stays unrated unless the move is the reason
-   to rate it.
+   this WP; rubric in `docs/wp/TEMPLATE.md`). An unrated WP (`—`) stays
+   unrated unless the move is the reason to rate it.
 6. **Audit this session's CLAUDE.md edits** (root, `gui/`, `tests/`,
    `src/rietx/indexing/`): every added line must be a standing rule
    (protocol rule 4 — evidence compressed to a clause plus a pointer), never
@@ -104,12 +102,15 @@ steps below run unchanged.
    name the trigger rather than scanning: this is a checklist against what
    the session *added*, not a re-review of it.
 7. **If the WP is closing** (✅/🛑): delete its consumed `### Inherited`
-   section and its `Priority:` line (the ROADMAP cell to `—`; a closed WP's
-   priority is moot), rewrite ROADMAP's "Current focus" for the successor (within
-   `CURRENT_FOCUS_CAP`, tests/test_docs_consistency.py), and MOVE the
-   outgoing focus narrative to the in-flight milestone record
-   (the in-flight `docs/milestones/vX.Y.md` § "How vX.Y is getting here";
-   the last shipped record's when no milestone is open).
+   section and its `Priority:` line (a closed WP's priority is moot), and
+   MOVE its narrative to the in-flight milestone record (the in-flight
+   `docs/milestones/vX.Y.md` § "How vX.Y is getting here"; the last shipped
+   record's when no milestone is open). Leave ROADMAP's Current focus alone:
+   it holds milestone prose, and the index lists what is in flight and next
+   (WP-1507).
+   **Then, closing or not, run `python3 .claude/hooks/wp_index.py`**, once,
+   after every header edit of steps 4, 5 and 7. It rewrites
+   `docs/wp/README.md`, and a test fails while the index is stale.
 8. **Sweep session memory notes**: anything in the assistant memory
    directory that corrects or extends the repo record gets ported into the
    repo now — a memory note is not a channel to the next session's repo

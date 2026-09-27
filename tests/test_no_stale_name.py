@@ -71,8 +71,9 @@ ALLOWED = {
     # the milestone record's paragraph on each rename, whose subject is the
     # name that was left behind
     "docs/milestones/v1.0.md",
-    # the roadmap's index row and prose for WP-1062, whose title is its subject
-    "docs/ROADMAP.md",
+    # the WP index's row for WP-1062, whose title is its subject; generated
+    # from that file's heading since WP-1507 moved the rows out of ROADMAP
+    "docs/wp/README.md",
 }
 
 

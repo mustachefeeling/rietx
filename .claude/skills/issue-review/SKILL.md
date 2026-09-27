@@ -112,10 +112,11 @@ a file and held for the batch.
   Batch.
 - **New WP** where the work has a shape of its own: `docs/wp/TEMPLATE.md`
   whole, `Milestone: unscheduled`, a `Priority:` line rated by the
-  template's rubric (the test refuses a ⬜ WP without one), a ROADMAP row
-  under `### Unscheduled` with the tier in its Priority cell (the file's cap
-  in `tests/test_docs_consistency.py` moves with a comment saying why), the
-  Skill task line, and a first handover bullet:
+  template's rubric (the test refuses a ⬜ WP without one), a `Track:` line
+  naming the `####` of ROADMAP § Unscheduled it belongs under, the Skill task
+  line, and a first handover bullet. Then `python3 .claude/hooks/wp_index.py`
+  writes its row into `docs/wp/README.md`; ROADMAP changes only when the WP
+  needs a new track or a sentence of prose (WP-1507). The bullet:
   `created, from the YYYY-MM-DD issue triage (issue #N). Checked against the
   tree at <sha>: …`. **Pick the number in the same breath as the file**:
   `git fetch origin main && git ls-tree --name-only origin/main docs/wp/ | tail -3`.
@@ -125,7 +126,7 @@ a file and held for the batch.
   `### Inherited`, the section other sessions write for the one that will
   work it, with the check-against-the-tree line. A fold that moves the
   WP's rubric row (a second reporter, a number now shown wrong) re-rates its
-  `Priority:` line and cell in the same edit. Never into a closed WP: a
+  `Priority:` line in the same edit, and the index is regenerated. Never into a closed WP: a
   defect a ✅ WP's fix did not cover is a new WP or a landed close.
 - **Fence**: a `v2+` proposal is named by issue in ROADMAP § v2+, so the
   audit sees it, and the reporter is told. Batch.

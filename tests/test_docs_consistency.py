@@ -1,9 +1,10 @@
 """The planning docs' mechanical contract (WP-1031).
 
 The session protocol (docs/ROADMAP.md § Session protocol) asks every session
-for the same bookkeeping: a controlled Status line, a ROADMAP index row that
-mirrors it, `### Inherited` as a mailbox that closed WPs no longer carry, and
-links that resolve.  Prose asked for it for four milestones; this file asserts
+for the same bookkeeping: a controlled WP header, a WP index generated from
+the headers (WP-1507; it was a hand-copied ROADMAP row until then), `###
+Inherited` as a mailbox that closed WPs no longer carry, and links that
+resolve.  Prose asked for it for four milestones; this file asserts
 it, in the same spirit as test_manual.py (the manual cannot drift from the
 code) and test_compare_ui.py (the compare registry cannot drift from the
 acceptance protocols).
