@@ -143,7 +143,7 @@ Independent; take any.
 - [ ] The two-gap tie: find a real case, then decide whether to apply Daams & Villars' rule
 - [ ] A hidden shell dropped at the atom cap stays in the legend as unavailable, or the cap stops counting it
 - [ ] The polyhedra stop recomputing on a bond-slider release
-- [ ] One authority for "bonded" on the server and one for "drawn" on the client
+- [x] One authority for "bonded" on the server and one for "drawn" on the client (2026-09-28: `structure3d.bonded`, `drawnWith` and its twin `drawn_with`)
 - [ ] A source for the Te, At, Kr and Xe electronegativities
 
 ## Acceptance

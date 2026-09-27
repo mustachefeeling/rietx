@@ -476,10 +476,27 @@ def _cation_sites(sites: list[dict], orbit: dict[str, Any], basis: np.ndarray) -
         pair = site["radius"] + radius[source[rows]]
         reach = np.linalg.norm(orbit["cart"][rows] - orbit["frac"][owner.index(j)] @ basis.T,
                                axis=1)
-        # a split partner is no bond, however electronegative (P10)
-        if ((reach >= SPLIT_FLOOR * pair) & (reach <= BOND_TOLERANCE * pair)).any():
+        # both are non-metals, so a split partner is no bond (P10)
+        if bonded(reach, pair, nonmetals=True).any():
             cations.add(j)
     return cations
+
+
+def bonded(distance, radius_sum, nonmetals, tolerance: float = BOND_TOLERANCE) -> np.ndarray:
+    """Whether two atoms ``distance`` Å apart are bonded, by the viewer's one test.
+
+    Bonded is ``distance ≤ tolerance·radius_sum`` on gemmi's covalent radii,
+    and at least :data:`BOND_MIN`, below which two atoms are one.  Between two
+    non-metals (``nonmetals``) the floor rises to :data:`SPLIT_FLOOR` of the
+    radius sum, since a closer pair is one atom split over two positions
+    (P10).  The sticks (:func:`_bonds`) and the cation test
+    (:func:`_cation_sites`) both ask here, so a change to either bound
+    reaches both.  Which *pairs* may bond at all is chemistry, and
+    :func:`_bonds` decides it.  Every argument broadcasts.
+    """
+    radius_sum = np.asarray(radius_sum, dtype=np.float64)
+    floor = np.where(nonmetals, np.maximum(SPLIT_FLOOR * radius_sum, BOND_MIN), BOND_MIN)
+    return (distance >= floor) & (distance <= float(tolerance) * radius_sum)
 
 
 def shell_gap(distances: np.ndarray) -> tuple[int, float]:
@@ -855,21 +872,18 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
     every stick between a metal and a cation (:func:`_cation_sites`), as
     forsterite's 36 Mg–Si sticks at 2.69-2.79 Å and grossular's 90 Ca–Si
     were (WP-1466).  Two cationic non-metals keep their stick, or an organic
-    would lose every C–C and C–H bond.  Two non-metals closer than
-    :data:`SPLIT_FLOOR` of their radius sum get none: they are a split site.
+    would lose every C–C and C–H bond.  The distance test is :func:`bonded`.
     """
     n = len(positions)
     if n == 0:
         return []
     reach = radii[:, None] + radii[None, :]
-    cutoff = float(tolerance) * reach
-    floor = np.full_like(cutoff, BOND_MIN)
     # ``metal`` is None only for a phase with no non-metal in it
+    nonmetals = False if metal is None else ~metal[:, None] & ~metal[None, :]
+    allowed = np.ones((n, n), dtype=bool)
     if metal is not None:
         pair = metal[:, None] & (metal if cation is None else cation)[None, :]
-        cutoff = np.where(pair | pair.T, -1.0, cutoff)
-        floor = np.where(~metal[:, None] & ~metal[None, :],
-                         np.maximum(SPLIT_FLOOR * reach, BOND_MIN), floor)
+        allowed = ~(pair | pair.T)
     shifts = np.array([[i - 1, j - 1, k - 1] for i in range(3) for j in range(3)
                        for k in range(3)], dtype=np.float64) @ basis.T
     out: list[dict] = []
@@ -878,7 +892,7 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
         home = not shift.any()
         delta = (positions[None, :, :] + shift) - positions[:, None, :]
         dist = np.sqrt((delta ** 2).sum(axis=2))
-        hit = (dist <= cutoff) & (dist >= floor)
+        hit = allowed & bonded(dist, reach, nonmetals, tolerance)
         if home:
             hit &= np.triu(np.ones_like(hit, dtype=bool), 1)  # each pair once
         for i, j in zip(*np.nonzero(hit)):

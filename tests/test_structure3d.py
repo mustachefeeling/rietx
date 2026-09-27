@@ -706,6 +706,32 @@ def test_no_stick_joins_two_non_metals_closer_than_the_split_floor():
             assert ("O", "O") not in pairs
 
 
+def test_the_sticks_and_the_cation_test_ask_one_bonded_rule(monkeypatch):
+    """``bonded`` is the one distance test (WP-1468): its floor rises to
+    :data:`~rietx.gui.structure3d.SPLIT_FLOOR` between non-metals alone, and
+    both of its readers move with it.
+
+    P10's floor had gone into ``_bonds`` and ``_cation_sites`` by hand.
+    """
+    reach = np.array([1.32, 1.32])                         # O + O
+    assert list(s3.bonded(np.array([0.90, 0.95]), reach, nonmetals=True)) == [False, True]
+    assert list(s3.bonded(np.array([0.90, 0.95]), reach, nonmetals=False)) == [True, True]
+    assert not s3.bonded(0.39, 1.0, nonmetals=False)       # under BOND_MIN: one atom
+    assert not s3.bonded(1.16, 1.0, nonmetals=False)       # past the tolerance
+    assert s3.bonded(1.16, 1.0, nonmetals=False, tolerance=1.2)
+    # a P–O pair at 0.75 of its radius sum: a stick and a cation, then neither
+    po = 0.75 * (s3.element_radius("P") + s3.element_radius("O"))
+    structure = cluster([("P", 1.0)], [("O", (po, 0, 0), 1.0)])
+    payload = s3.build(structure)
+    assert len(payload["bonds"]) == 1 and payload["sites"][0]["label"] == "P00"
+    orbit = s3._orbit(payload["sites"], payload["atoms"], np.array(payload["lattice"]).T)
+    assert s3._cation_sites(payload["sites"], orbit, np.array(payload["lattice"]).T) == {0}
+    monkeypatch.setattr(s3, "SPLIT_FLOOR", 0.8)
+    payload = s3.build(structure)
+    assert payload["bonds"] == []
+    assert s3._cation_sites(payload["sites"], orbit, np.array(payload["lattice"]).T) == set()
+
+
 def test_the_split_floor_spares_a_metal_oxo_bond():
     """P10 holds only between non-metals: uranyl's U=O is 0.67 of the radius sum."""
     payload = s3.build(cluster([("U", 1.0)], [("O", (1.76, 0, 0), 1.0),

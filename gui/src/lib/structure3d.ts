@@ -498,6 +498,23 @@ function drawable(m: number[][]): Mat3 {
 }
 
 /**
+ * Whether a payload atom is drawn while the polyhedra `polyhedra` are, as a
+ * test on its index into `geometry.atoms`.
+ *
+ * An atom in the payload only as a polyhedron's vertex (`vertex_only`) is
+ * drawn only while one of its polyhedra is: at the default bond tolerance,
+ * NAC's hidden NaF₇ and CaF₈ would leave 12 F with no stick and no face.  The
+ * one statement of that rule: `buildScene` draws by it, its zoom fit reads it
+ * over the default polyhedra, and `caption` counts by it.  A copy of it is how
+ * the caption came to count atoms that were not drawn (WP-1468).
+ */
+export function drawnWith(geometry: Geometry,
+                          polyhedra: readonly number[]): (index: number) => boolean {
+  const corners = new Set(polyhedra.flatMap((i) => geometry.polyhedra[i].vertices));
+  return (index) => !geometry.atoms[index].vertex_only || corners.has(index);
+}
+
+/**
  * The scene for one payload, in the given mode.
  *
  * `hidden` is the set of species the legend has switched off, and **a half
@@ -513,11 +530,9 @@ function drawable(m: number[][]): Mat3 {
  * A drawn polyhedron (WP-1466) brings its faces and its edges, the edges as
  * lines in a darker ink of the centre's colour, and takes away its centre's
  * sticks to its own vertices.  An atom in the payload only as a polyhedron's
- * vertex is drawn only while one of its polyhedra is: at the default bond
- * tolerance, NAC's hidden NaF₇ and CaF₈ would leave 12 F with no stick and no
- * face.  The gap shell and the bond rule can disagree
- * (NAC's Na: 4 sticks, 7 vertices), and drawing both would show the
- * contradiction rather than the shell.
+ * vertex is drawn only while one of its polyhedra is (`drawnWith`).  The gap
+ * shell and the bond rule can disagree (NAC's Na: 4 sticks, 7 vertices), and
+ * drawing both would show the contradiction rather than the shell.
  */
 export function buildScene(geometry: Geometry, options: SceneOptions): Scene {
   const { mode, hidden = new Set<string>(), showBoundary = true,
@@ -525,13 +540,13 @@ export function buildScene(geometry: Geometry, options: SceneOptions): Scene {
   // a drawn polyhedron replaces its centre's sticks to its own vertices (P6)
   const replaced = new Set(polyhedra.flatMap((i) => geometry.polyhedra[i].bonds));
   // and brings the atoms only a polyhedron needs, which come with no other
-  const corners = new Set(polyhedra.flatMap((i) => geometry.polyhedra[i].vertices));
+  const drawn = drawnWith(geometry, polyhedra);
   const atoms: SceneAtom[] = [];
   geometry.atoms.forEach((atom, index) => {
     const site = geometry.sites[atom.site];
     if (hidden.has(site.species)) return;
     if (atom.boundary && !showBoundary) return;
-    if (atom.vertex_only && !corners.has(index)) return;
+    if (!drawn(index)) return;
     const shape = drawable(atomTransform(geometry, atom, mode, exaggeration));
     atoms.push({
       index,
@@ -585,10 +600,10 @@ export function buildScene(geometry: Geometry, options: SceneOptions): Scene {
   // legend click moves the zoom.  The fit takes the atoms the default picture
   // can draw: a hidden polyhedron's own atoms would halve LaB6's picture at a
   // bond tolerance of 1.00
-  const byDefault = new Set(geometry.polyhedra.filter((p) => p.drawn_by_default)
-    .flatMap((p) => p.vertices));
+  const byDefault = drawnWith(geometry, geometry.polyhedra
+    .flatMap((p, i) => (p.drawn_by_default ? [i] : [])));
   const points = [...geometry.corners, ...geometry.atoms
-    .filter((a, k) => !a.vertex_only || byDefault.has(k)).map((a) => a.pos)];
+    .filter((_a, k) => byDefault(k)).map((a) => a.pos)];
   const lo = [0, 1, 2].map((k) => Math.min(...points.map((p) => p[k])));
   const hi = [0, 1, 2].map((k) => Math.max(...points.map((p) => p[k])));
   const center = [0, 1, 2].map((k) => (lo[k] + hi[k]) / 2);
@@ -843,10 +858,9 @@ export function pickFace(scene: Scene, view: View, width: number, height: number
 /** The sentence under the plot: what is drawn, at what thresholds. */
 export function caption(geometry: Geometry, mode: Mode, exaggeration = 1,
                         shown: readonly number[] = []): string {
-  // an atom only a polyhedron needs is counted while one of its polyhedra is
-  // drawn, as `buildScene` draws it
-  const corners = new Set(shown.flatMap((i) => geometry.polyhedra[i].vertices));
-  const counted = geometry.atoms.filter((a, k) => !a.vertex_only || corners.has(k));
+  // counted as `buildScene` draws them
+  const drawn = drawnWith(geometry, shown);
+  const counted = geometry.atoms.filter((_a, k) => drawn(k));
   const real = counted.filter((a) => !a.boundary).length;
   const ghosts = counted.length - real;
   const parts = [
