@@ -148,7 +148,18 @@ correlation rows, and a few patterns refitted cold.
 
 ### Inherited
 
-(none yet)
+- **From WP-1465, 2026-09-27: a third series fence now reads the trajectory,
+  and it skips only `"diverged"` entries.** `SEQUENTIAL_WIDTH_GROWTH`
+  (`sequential._width_growth_diagnostics`) fires when a phase width reaches
+  3× the first value the series measured (> 3σ) and GoF reaches 2× that
+  pattern's GoF, at the same pattern. It compares against that reference
+  pattern, not a running median, so the median drift this WP is about does
+  not reach it. A **kept pattern that still fails the Rwp fence** does reach
+  it, though. Issue #481's blank ramp_007 is fitted cold with a high GoF;
+  were a width free and measured there, that frame could be the point where
+  the trigger fires. Whatever marker this WP gives such an entry, add it to
+  the trigger's skip beside `"diverged"`. The trigger's hand-built tests in
+  `tests/test_sequential.py` (`_width_series`) are the place to pin that.
 
 ## Non-goals
 
