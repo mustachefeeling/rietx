@@ -108,6 +108,39 @@ in the sharp basin fires neither (synthetic LaB₆ + trace CaF₂,
 Both gaps re-read at `e11898d` (2026-09-27): `_structural_targets` and
 `report/background.py`'s `worst = 0.0` are unchanged since `07952d4e`.
 
+### Finding 1 — the synthetic reproduces, and a width's R² does not see it (2026-09-27)
+
+The issue's script re-run at `e11898d` (Linux, `[dev]`, 43 s for the 33
+fits), with one addition: the answer stage's Jacobian captured at the guard
+and each `lor_strain` column projected onto the background block by
+`block_projection_r2`. Every column the reporter published reproduces to
+every printed digit.
+
+| f_B | 1-phase Pawley ε_L | Pawley Rwp | Rietveld Rwp | max absorption R² (Rietveld) | width R² Pawley / Rietveld | control Rwp / ε_L / worst width R² |
+|---|---|---|---|---|---|---|
+| 0.00 | 0.020 | 1.56 % | 1.56 % | 0.064 | 0.049 / 0.047 | 1.55 % / 0.020 / 0.048 |
+| 0.05 | 0.047 | 2.91 % | 2.91 % | 0.080 | 0.046 / 0.048 | 1.58 % / 0.020 / 0.043 |
+| 0.10 | 0.074 | 4.75 % | 4.75 % | 0.095 | 0.048 / 0.048 | 1.57 % / 0.021 / 0.039 |
+| 0.20 | 0.139 | 7.97 % | 7.98 % | 0.130 | 0.049 / 0.049 | 1.57 % / 0.020 / 0.033 |
+| 0.30 | 0.219 | 10.17 % | 10.22 % | 0.168 | 0.051 / 0.050 | 1.62 % / 0.021 / 0.028 |
+| 0.40 | 0.283 | 11.37 % | 11.47 % | 0.197 | 0.052 / 0.052 | 1.58 % / 0.020 / 0.023 |
+| 0.50 | 0.305 | 11.74 % | 11.87 % | 0.207 | 0.053 / 0.053 | 1.57 % / 0.020 / 0.019 |
+
+(0.15, 0.25, 0.35, 0.45 fall between their neighbours on every column.)
+No warning-level code fires on any fit, in either arm; Pawley's absorption
+table is `{}` throughout.
+
+**The width's R² is a fact about the geometry, not the soak.** It moves
+0.047 → 0.053 while ε_L grows 15×, sits at 0.048 on the clean two-phase
+control, and never approaches the 0.25 guard. The background here barely
+moves (median −1 % in the upper third): the *width* absorbs phase B, and
+nothing absorbs the width. So a width-onto-background projection cannot
+separate this soak from a clean fit, and the reporter's operando follow-up
+says it would not have fired there either. Gap 2 does not land (task 4).
+The series trigger is what sees it: ε_L/ε_L(first) reads 2.4, 3.7, 5.3, 7.0
+over the first four steps while Rwp rises 1.56 → 7.97 %, and the control's
+reads 1.0 ± 0.05 throughout.
+
 ## Non-goals
 
 - The instrument-profile-versus-measured-width census and the meaning of
@@ -118,10 +151,11 @@ Both gaps re-read at `e11898d` (2026-09-27): `_structural_targets` and
 
 ## Tasks
 
-- [ ] Re-run the issue's synthetic on this tree, and record the ε_L, Rwp and
+- [x] Re-run the issue's synthetic on this tree, and record the ε_L, Rwp and
       code table beside the reporter's. Add the per-phase width R² against
       the background block for both modes (the Jacobian is on the fit;
-      the reporter could not serialize it).
+      the reporter could not serialize it). — Finding 1: reproduces to
+      every digit; the width R² stays 0.046-0.053.
 - [ ] Gap 1: `worst_absorption` and `absorption` take `None` where no target
       was screened, and the layer-0/layer-2 readers and the report text say
       "not measured". Decide whether a Rietveld stage with no structural
@@ -131,10 +165,12 @@ Both gaps re-read at `e11898d` (2026-09-27): `_structural_targets` and
       and "early" from the synthetic (15× at f_B 0.5) and the operando
       numbers (3.4× at onset), and measure its firing rate on the series the
       suite already runs, where the widths are right.
-- [ ] Gap 2, only if the first task's R² separates the soak from a clean fit:
+- [x] ~~Gap 2, only if the first task's R² separates the soak from a clean fit:
       widths as absorption targets, either in `_structural_targets` or as a
       second target list, with the effect on `BACKGROUND_ABSORPTION` counted
-      on the acceptance standards before and after.
+      on the acceptance standards before and after.~~ — **does not land: its
+      gate failed.** The width R² reads 0.049 clean and 0.053 at a 15× soak
+      (Finding 1), so a screen on it would fire on neither.
 - [ ] Tests: the synthetic (slow-marked if it stays near 25 s), a Le Bail
       and a Pawley report asserting `None`, and a clean series asserting
       silence. Obs/calc/diff PNGs to `tests/output/`.
