@@ -128,21 +128,21 @@ failure message is the one you expected.
 ## Three eval protocols, and they pool with nothing of each other's
 
 `tests/eval_report_agent/` asks whether an agent **reads** a FitReport it was
-handed; `tests/eval_agent_surface/` (WP-1110) asks which **surface** an agent
-reaches for when handed files and a job; `tests/eval_skill_placement/`
-(WP-1338) asks whether a skill **routing** change loses the reads a row used to
-get. Different episodes, answer contracts and scoring, so a cell in one is
-comparable to nothing in another and no version number governs two. What they share is the discipline, and it is the
-part to copy into any third: **register the round before running it**, never
-rewritten afterwards; enforce the condition in a **shim** rather than in the
-prompt; fix the read-outs in advance. The second one earned that last rule
-twice over: its headline result (no cell called the JSON surface it was about,
-deleted in WP-1303) was not one of its read-outs, and its `pointed` cell came
-back **split** at N = 2, reported as split, not resolved.
+handed; `tests/eval_agent_surface/` (WP-1110) which **surface** it reaches for
+when handed files and a job; `tests/eval_skill_placement/` (WP-1338) whether a
+skill **routing** change loses reads. Different episodes, answer contracts and
+scoring, so a cell in one is comparable to nothing in another. What they share
+is the discipline, the part to copy into a fourth: **register the round before
+running it**, never rewritten afterwards; enforce the condition in a **shim**
+rather than in the prompt; fix the read-outs in advance. The second earned that
+last rule twice: its headline result (no cell called the JSON surface it was
+about, deleted in WP-1303) was not one of its read-outs, and its `pointed` cell
+came back **split** at N = 2, reported as split, not resolved.
 
-A shim also has to be **invisible to its subject**. Round 1.0's tracer wrapped
-without `functools.wraps`, so `inspect.signature` showed the wrapper and an
-agent went reading source to recover a signature.
+A shim has to be **invisible to its subject**: the surface round's first tracer
+lacked `functools.wraps`, and an agent went reading source for a signature.
+And **check the condition reached each cell**, off its transcript: a user-level
+skill shadows a workspace one of the same name (WP-1338's § Amendment 1.1).
 
 ## An eval's expected answer is a measurement, not a definition
 
