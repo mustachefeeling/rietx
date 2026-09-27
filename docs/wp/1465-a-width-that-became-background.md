@@ -1,8 +1,7 @@
 # WP-1465 — a phase width that became background, and an absorption screen that never ran
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-27 — an unscreened background absorption reads `None`, not 0.0; `SEQUENTIAL_WIDTH_GROWTH` names a width that grew while GoF did; the width-onto-background projection measured and not built
 Depends on: —
-Priority: P2 2026-09-25 — a width grows 15× and Rwp 7.5× with no warning, on the series path; every Le Bail and Pawley report reads 0.0 for a screen that never ran
 
 ## Goal
 
@@ -94,18 +93,93 @@ measured that a binding cap moves the background the right way and Rwp the
 wrong way, so it cannot be calibrated from Rwp. No change to
 `STRAIN_UNUSUALLY_LARGE`: its text is right, and it fires late.
 
-### Inherited
+**The same ridge on one pattern** ([1320](1320-qpa-multimodal-fraction.md),
+2026-09-27). A trace phase broadened into a hump the background shares can
+grow its scale at almost no χ² cost. Two facts bear on this WP. (1) A refit
+that broadens a phase below `PHASE_SUPPORT_SIGMA` trips WP-1301's collapse
+rule, which restores and holds its structure. That is why 1320's probe pins
+the width rather than the scale, and a fix here that pins or bounds a scale
+will meet the same hold. (2) In the hump basin the report does fire
+`BACKGROUND_ABSORPTION` and `STRAIN_UNUSUALLY_LARGE`, while the fit that stops
+in the sharp basin fires neither (synthetic LaB₆ + trace CaF₂,
+`tests/test_qpa_multimodal.py`). `Refinement.profile_fraction` sees both.
 
-- **2026-09-27, from [1320](1320-qpa-multimodal-fraction.md): the same ridge,
-  measured on one pattern.** A trace phase broadened into a hump the background
-  shares can grow its scale at almost no χ² cost. Two facts carry over. (1) A
-  refit that broadens a phase below `PHASE_SUPPORT_SIGMA` trips WP-1301's
-  collapse rule, which restores and holds its structure. That is why 1320's
-  probe pins the width rather than the scale, and a fix here that pins or
-  bounds a scale will meet the same hold. (2) In the hump basin the report does
-  fire `BACKGROUND_ABSORPTION` and `STRAIN_UNUSUALLY_LARGE`, while the fit that
-  stops in the sharp basin fires neither (synthetic LaB₆ + trace CaF₂,
-  `tests/test_qpa_multimodal.py`). `Refinement.profile_fraction` sees both.
+Both gaps re-read at `e11898d` (2026-09-27): `_structural_targets` and
+`report/background.py`'s `worst = 0.0` are unchanged since `07952d4e`.
+
+### Finding 1 — the synthetic reproduces, and a width's R² does not see it (2026-09-27)
+
+The issue's script re-run at `e11898d` (Linux, `[dev]`, 43 s for the 33
+fits), with one addition: the answer stage's Jacobian captured at the guard
+and each `lor_strain` column projected onto the background block by
+`block_projection_r2`. Every column the reporter published reproduces to
+every printed digit.
+
+| f_B | 1-phase Pawley ε_L | Pawley Rwp | Rietveld Rwp | max absorption R² (Rietveld) | width R² Pawley / Rietveld | control Rwp / ε_L / worst width R² |
+|---|---|---|---|---|---|---|
+| 0.00 | 0.020 | 1.56 % | 1.56 % | 0.064 | 0.049 / 0.047 | 1.55 % / 0.020 / 0.048 |
+| 0.05 | 0.047 | 2.91 % | 2.91 % | 0.080 | 0.046 / 0.048 | 1.58 % / 0.020 / 0.043 |
+| 0.10 | 0.074 | 4.75 % | 4.75 % | 0.095 | 0.048 / 0.048 | 1.57 % / 0.021 / 0.039 |
+| 0.20 | 0.139 | 7.97 % | 7.98 % | 0.130 | 0.049 / 0.049 | 1.57 % / 0.020 / 0.033 |
+| 0.30 | 0.219 | 10.17 % | 10.22 % | 0.168 | 0.051 / 0.050 | 1.62 % / 0.021 / 0.028 |
+| 0.40 | 0.283 | 11.37 % | 11.47 % | 0.197 | 0.052 / 0.052 | 1.58 % / 0.020 / 0.023 |
+| 0.50 | 0.305 | 11.74 % | 11.87 % | 0.207 | 0.053 / 0.053 | 1.57 % / 0.020 / 0.019 |
+
+(0.15, 0.25, 0.35, 0.45 fall between their neighbours on every column.)
+No warning-level code fires on any fit, in either arm; Pawley's absorption
+table is `{}` throughout.
+
+**The width's R² is a fact about the geometry, not the soak.** It moves
+0.047 → 0.053 while ε_L grows 15×, sits at 0.048 on the clean two-phase
+control, and never approaches the 0.25 guard. The background here barely
+moves (median −1 % in the upper third): the *width* absorbs phase B, and
+nothing absorbs the width. So a width-onto-background projection cannot
+separate this soak from a clean fit, and the reporter's operando follow-up
+says it would not have fired there either. Gap 2 does not land (task 4).
+The series trigger is what sees it: ε_L/ε_L(first) reads 2.4, 3.7, 5.3, 7.0
+over the first four steps while Rwp rises 1.56 → 7.97 %, and the control's
+reads 1.0 ± 0.05 throughout.
+
+### Finding 2 — the trigger, and where each of its halves was measured (2026-09-27)
+
+**As a chain the synthetic behaves as it did cold.** Through
+`SequentialRefinement`, ε_L/ε_L(first) reads 2.32, 3.65, 5.15, 6.83 over the
+four soaked patterns, and GoF/GoF(first) reads 1.87, 3.05, 4.20, 5.12 (Pawley;
+the Rietveld chain's width and Rwp ratios sit within 0.02 of these). The two-phase control stays
+within 0.96-1.00 on the width and 1.00-1.04 on GoF. `SEQUENTIAL_RESEED` does
+fire on the soaked chain, since Rwp passes 1.25× the running median, but it
+says "refitted from the initial model" and never names the width.
+
+**The suite's series, surveyed** (a probe plugin logging every `SeriesResult`
+the series-building test files produce, slow acceptance included; `[dev]`,
+Linux). There are 79 series. Two free a width: the round-robin QPA chain,
+built twice, with 24 width trajectories between them. Its widths wander
+4-946× from the first pattern, because a minor phase's width sits at the
+floor with an esd of 3e3. Its Rwp **falls** along the chain (≤ 0.81×), and
+its GoF peaks at 1.14×.
+
+- Width ≥ 3× the first value alone would fire on 11 of the 24.
+- Against the first value measured past 3σ, it fires on none.
+- GoF: against the first pattern, no series in the suite passes 1.14.
+  Against **any** earlier pattern, which is what the reference can be, the
+  thermal ramp's bounded-first-rung fixtures reach **1.52**. The model there
+  is right and some fits stopped early. That put a first choice of 1.5 inside
+  the clean range, so the factor is 2: 1.3× over 1.52 and 1.5× under the
+  synthetic's 3.05.
+
+So on the suite, the measured-reference rule is what keeps the clean chain
+silent. The GoF half is what keeps a width that really grows silent, and no
+series in the suite has one. The test builds it: a correct one-phase model
+over a strain growing 0.02 → 0.10 reaches a width of 5.13× at a GoF of
+≤ 1.00, and fires nothing.
+
+**GoF, not Rwp.** Rwp follows Rexp, which rises as counts fall, so a series
+losing intensity raises Rwp under a correct model. GoF divides that out, and
+on the synthetic, whose counts are constant, the two ratios are the same
+number.
+
+**Not screened:** a Stephens block, which has no single width and locks
+`lor_strain` while declared, and the instrument's own widths.
 
 ## Non-goals
 
@@ -117,30 +191,51 @@ wrong way, so it cannot be calibrated from Rwp. No change to
 
 ## Tasks
 
-- [ ] Re-run the issue's synthetic on this tree, and record the ε_L, Rwp and
+- [x] Re-run the issue's synthetic on this tree, and record the ε_L, Rwp and
       code table beside the reporter's. Add the per-phase width R² against
       the background block for both modes (the Jacobian is on the fit;
-      the reporter could not serialize it).
-- [ ] Gap 1: `worst_absorption` and `absorption` take `None` where no target
+      the reporter could not serialize it). — Finding 1: reproduces to
+      every digit; the width R² stays 0.046-0.053.
+- [x] Gap 1: `worst_absorption` and `absorption` take `None` where no target
       was screened, and the layer-0/layer-2 readers and the report text say
       "not measured". Decide whether a Rietveld stage with no structural
-      target free is the same case, and measure it.
-- [ ] The series trigger: a finding when a phase width exceeds k× its
+      target free is the same case, and measure it. — **The same case, and
+      so is its mirror.** Measured on the synthetic's clean pattern: a
+      Rietveld answer stage freeing background, cell and width only, and one
+      freeing scale and Biso over a held background, both come back `{}` and
+      0.0, as Pawley and Le Bail do. All four now read `None`;
+      `too_flexible` cannot fire on it; `summary(deliverable="qpa")` prints
+      "not measured" with the reason. `THRESHOLDS_VERSION` 1.8 → 1.9, staged
+      in `releases/1.5.1.md`, manual rows in `using/report.md`. The
+      parametrised test fails 4/4 on the unfixed tree.
+- [x] The series trigger: a finding when a phase width exceeds k× its
       early-pattern value while Rwp rises over the same patterns. Choose k
       and "early" from the synthetic (15× at f_B 0.5) and the operando
       numbers (3.4× at onset), and measure its firing rate on the series the
-      suite already runs, where the widths are right.
-- [ ] Gap 2, only if the first task's R² separates the soak from a clean fit:
+      suite already runs, where the widths are right. —
+      `SEQUENTIAL_WIDTH_GROWTH` (warning), Finding 2: k = 3; "early" is the
+      first width the series **measured** (> 3σ); the misfit half reads
+      **GoF**, not Rwp, at 2× (1.5× until the review measured a clean chain
+      at 1.52 between two of its own patterns). Fires on 0 of the suite's 79
+      series.
+- [x] ~~Gap 2, only if the first task's R² separates the soak from a clean fit:
       widths as absorption targets, either in `_structural_targets` or as a
       second target list, with the effect on `BACKGROUND_ABSORPTION` counted
-      on the acceptance standards before and after.
-- [ ] Tests: the synthetic (slow-marked if it stays near 25 s), a Le Bail
+      on the acceptance standards before and after.~~ — **does not land: its
+      gate failed.** The width R² reads 0.049 clean and 0.053 at a 15× soak
+      (Finding 1), so a screen on it would fire on neither.
+- [x] Tests: the synthetic (slow-marked if it stays near 25 s), a Le Bail
       and a Pawley report asserting `None`, and a clean series asserting
-      silence. Obs/calc/diff PNGs to `tests/output/`.
-- [ ] Skill: the `BACKGROUND_ABSORPTION` row in `references/diagnostics.md`
+      silence. Obs/calc/diff PNGs to `tests/output/`. — The synthetic's first
+      five patterns as a Pawley chain, 9.7 s with its PNGs, so not
+      slow-marked; the clean series is a correct model whose strain grows 5×
+      at a flat GoF (none in the suite frees a width that really grows);
+      six hand-built series pin each branch of the rule.
+- [x] Skill: the `BACKGROUND_ABSORPTION` row in `references/diagnostics.md`
       says "not measured" for Le Bail and Pawley; a row in
       `references/series.md` for the new finding, beside the "microstrain
-      evolves" rule.
+      evolves" rule. — Both, plus a sentence in that rule pointing at the
+      row.
 
 ## Acceptance
 
@@ -163,6 +258,96 @@ onset and the two-phase control does not. A Le Bail and a Pawley fit report
 
 ## Handover log
 
+- **2026-09-27** — closed ✅, one session (claim, prune, three tasks, review).
+  A report on a Le Bail or Pawley fit no longer tells its reader that the
+  background absorbs nothing, when in fact nothing was checked: that headline
+  is now "not measured". A series now says when a phase's peaks broaden while
+  the fit gets worse, which is the usual sign that the phase is standing in
+  for something the model lacks. On the issue's synthetic it fires at the
+  second soaked pattern, and it fires on none of the series the suite runs.
+  The third idea, screening a width against the background the way scales
+  and Biso are screened, is refuted: that number reads the same (≈0.05) on a
+  clean fit and on a 15× soak, so it was not built.
+
+  *Done.* Inherited pruned: 1320's entry folded into Context. Finding 1 (task
+  1): the issue's synthetic reproduces to every printed digit, and the width
+  R² stays at 0.046-0.053 throughout, so gap 2 does not land (task 4 struck).
+  Gap 1 (task 2): `BackgroundEvidence.worst_absorption` is `float | None`, and
+  it and `absorption` read `None` wherever nothing was screened. That covers
+  Le Bail, Pawley, a Rietveld answer stage freeing no scale, Biso, occupancy
+  or ADP, and one freeing no background term (both measured `{}`/0.0 before).
+  `too_flexible` cannot fire on it, `summary(deliverable="qpa")` prints "not
+  measured", and `THRESHOLDS_VERSION` goes 1.8 → 1.9. Task 3:
+  `SEQUENTIAL_WIDTH_GROWTH` (warning, `sequential._width_growth_diagnostics`),
+  Finding 2. It fires when a width reaches 3× the first value the series
+  **measured** (> 3σ), grown past 3 combined σ, **and** GoF reaches 2× the
+  reference's GoF, at the same pattern. It appears in
+  `summary(deliverable="series")`, with "NOT measured" on a series stamped
+  below 1.9. Tests, skill rows, manual rows and `releases/1.5.1.md` are
+  written.
+
+  *Measured* (Linux x86_64, `[dev]`, this worktree's venv).
+  - The chain synthetic: width 2.32/3.65/5.15/6.83× and GoF 1.87/3.05/4.20/5.12×
+    over the soaked patterns; the control stays ≤ 1.00× on width and ≤ 1.04×
+    on GoF.
+  - A probe over every series-building test file (slow ones included): 79
+    series, two of them freeing widths (the round-robin chain, 24
+    trajectories). Width alone against the first value would fire on 11 of
+    the 24, and against a measured reference on 0. GoF against the first
+    pattern peaks at 1.14. Against any earlier pattern it peaks at 1.52, on
+    the thermal ramp's bounded-first-rung fixtures.
+  - The real-growth chain: width 5.13× at GoF ≤ 1.00, silent.
+  - Fast selection collected 6677 → 6693 (+16 = 4 + 10 + 2 added, none a
+    skip), with 233 deselected either side. Fast suite on the final tree
+    (main had not moved, so this is the merged tree): 6537 passed, 163
+    skipped, 1 failed in 21:05, alone on the machine. The failure is
+    `test_telemetry`'s unwritable-directory case, which fails as uid 0
+    (chmod cannot bar root) and which this branch does not touch. It is
+    queued as its own task.
+  - The full selection did not run. No fitted value or statistic moves; the
+    change is a report field's empty state and a series diagnostic. The
+    series acceptance files, slow ones included, ran green under the probe
+    with the trigger live, apart from three failures that are the probe's
+    own: a signature-inspecting test, a telemetry root check, and a
+    held-phase row that passes alone.
+
+  *Review* (`/code-review high --fix`). Fixed:
+  - the qpa line names only the cause it can see;
+  - a pre-1.9 series prints NOT measured, and the 1.9 changelog names the
+    code;
+  - the "of N after it" denominator counts testable patterns only;
+  - growth lines are capped at five;
+  - tied widths share one finding;
+  - the GoF factor goes 1.5 → 2, because the review asked which denominator
+    the margin was measured on, and against any reference a clean chain
+    reaches 1.52.
+  Declined:
+  - `Identifiability.background_absorption` stays `{}`. Its docstring already
+    reads empty as "nothing measurable", and the report is where a headline
+    turned it into a number.
+  - `SKILL.md`'s QPA stop row keeps "below its threshold". The body is 2
+    bytes under its 33 000 cap; `diagnostics.md` carries the `None` rule; and
+    `worst_absorption < x` on `None` raises rather than passing.
+
+  *Gotchas.*
+  - The finding fires one pattern **after** the synthetic's first soaked
+    one: at fB 0.05 the width is 2.3×, under k. So "from the onset" in the
+    Acceptance holds from the second soaked pattern. k = 2 would catch the
+    first. The suite cannot price that: replayed on its two width-bearing
+    series, the trigger gives 0 findings at every k from 1.5 to 3, even with
+    the GoF half at 1.0, because that chain's GoF falls. The reporter's
+    operando onset was 3.4×.
+  - `SEQUENTIAL_RESEED` does fire on the soaked chain, but it never names the
+    width.
+  - A Stephens block and the instrument's widths are not screened.
+  - A kept pattern that failed the Rwp fence (WP-1469's subject) is still
+    read by the trigger; only `"diverged"` entries are skipped.
+
+  *Next.* Nothing on this WP. Two forward notes went out. WP-1469 should make
+  the trigger skip whatever marker it gives a kept-but-failed entry. WP-1341
+  should give a joint report the same `None`. If the maintainer reads "from
+  the onset" as the first soaked pattern, the one-line change is
+  `WIDTH_GROWTH_FACTOR = 2.0`, re-measured against the probe first.
 - **2026-09-25** — created, from the 2026-09-25 issue triage (issue #451).
   Checked against the tree at `07952d4e`: gap 1 reproduced in Pawley and
   also in Le Bail (both `{}` and 0.0; Rietveld 0.052 on the same pattern),

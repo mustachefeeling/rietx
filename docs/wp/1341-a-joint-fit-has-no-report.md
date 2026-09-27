@@ -106,6 +106,15 @@ Some constraints that shape (1) and (3):
   joint fits, with its suggestion naming the `mtable` listing because
   `MultiHistogramRefinement` has no `parameters()`, and that absence is this
   WP's to close.
+- **From WP-1465, 2026-09-27: `worst_absorption` has an honest empty state
+  now, and a joint report should use it.** `BackgroundEvidence.worst_absorption`
+  is `float | None`. It and `absorption` read `None` wherever the screen had
+  nothing to screen: Le Bail, Pawley, or an answer stage freeing no scale,
+  Biso, occupancy or ADP, or no background term (`THRESHOLDS_VERSION` 1.9).
+  They read 0.0 there before, which every reader took for "clean". A
+  per-histogram background section built here should carry `None` for a
+  histogram whose screen found no target, never 0.0, and
+  `report/background.py`'s `assess_background` is the one builder to reuse.
 
 ## Non-goals
 

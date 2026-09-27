@@ -104,11 +104,17 @@ def assess_background(result: RefinementResult,
     obs_sum = float(np.abs(y_obs).sum())
     share = float(y_bkg.sum() / obs_sum) if obs_sum > 0 else 0.0
 
-    absorption = (dict(result.identifiability.background_absorption)
+    # An empty table is "nothing was screened", never "nothing absorbs"
+    # (WP-1465): Le Bail and Pawley force-fix every target the screen asks
+    # about, and a Rietveld answer stage freeing no scale, Biso, occupancy or
+    # ADP — or no background term — leaves it the same ``{}``.  Its headline
+    # was 0.0 there, which every reader took for a measurement.
+    absorption = (dict(result.identifiability.background_absorption) or None
                   if result.identifiability is not None else None)
-    worst_path, worst = None, 0.0
+    worst_path, worst = None, None
     if absorption:
         worst_path, worst = max(absorption.items(), key=lambda kv: kv[1])
+        worst = float(worst)
 
     return BackgroundEvidence(
         rwp=result.statistics.rwp,
@@ -119,7 +125,7 @@ def assess_background(result: RefinementResult,
         off_region_durbin_watson=dw,
         off_region_points=int(off.sum()),
         absorption=absorption,
-        worst_absorption=float(worst),
+        worst_absorption=worst,
         worst_absorption_path=worst_path,
         # Carried verbatim, including its None: the result is the one
         # authority for every declared count and this section never recounts

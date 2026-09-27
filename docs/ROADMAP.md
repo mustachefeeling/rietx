@@ -101,8 +101,8 @@ forward-model contact. The order continues with 1327's verb, then 1419 as its ow
 two-lists decision it carries gets waved through in a diff about something
 else. **Neutron TOF stays at [§ v2+](#v2--fenced)** behind issue #193.
 
-**Nine silent-answer fixes have landed since the ship** (1434, 1435, 1432,
-1342, 1415, 1442, 1414, 1454, 1456), staged in [releases/1.5.1.md](releases/1.5.1.md), narrated
+**Ten silent-answer fixes have landed since the ship** (1434, 1435, 1432,
+1342, 1415, 1442, 1414, 1454, 1456, 1465), staged in [releases/1.5.1.md](releases/1.5.1.md), narrated
 in the [v1.6 record](milestones/v1.6.md). 1432 unblocks 1419's amplitudes; so
 is the `.inp` grammar 1118 refuses,
 [1433](wp/1433-the-inp-grammar-still-refused.md).
@@ -706,7 +706,7 @@ could not answer closed 2026-09-18 as **1434** (the bound flag) and **1435**
 | [1458](wp/1458-a-tick-with-nothing-behind-it.md) | A tick with nothing behind it moves the low-angle boundary | ✅ 2026-09-24 | — | — (1327 soft) |
 | [1460](wp/1460-one-degeneracy-one-finding.md) | One degeneracy, one finding | ⬜ | P3 | — (1454, 1302 soft) |
 | [1463](wp/1463-a-phase-at-zero-withholds-every-esd.md) | A phase at zero withholds every esd | ⬜ | P2 | — (1320 soft) |
-| [1465](wp/1465-a-width-that-became-background.md) | A phase width that became background, and an absorption screen that never ran | ⬜ | P2 | — |
+| [1465](wp/1465-a-width-that-became-background.md) | A phase width that became background, and an absorption screen that never ran | ✅ 2026-09-27 | — | — |
 | [1467](wp/1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | ⬜ | P2 | — (1318 soft) |
 
 #### A long run is not one fit

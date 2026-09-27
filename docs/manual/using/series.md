@@ -409,7 +409,7 @@ an axis title for a series with no coordinate but would be the header's second
 A sequential fit is path-dependent by construction. Every pattern's answer
 depends on its neighbour's, so the method can imprint a trend the data do not
 carry: one bad pattern's error is inherited by all its successors, and the
-result is a smooth-looking curve. Six diagnostics fence that, and none of them
+result is a smooth-looking curve. Seven diagnostics fence that, and none of them
 alters a fitted value.
 
 | Code | Says |
@@ -419,6 +419,7 @@ alters a fitted value.
 | `SEQUENTIAL_DISCONTINUITY` | a step much larger than the local trend: the science, or a chain failure, and the diagnostic says both |
 | `SEQUENTIAL_PATH_DEPENDENT` | with `direction="both"`, forward and backward disagree by more than their esds allow |
 | `SEQUENTIAL_PATH_CHECK_INCOMPLETE` | with `direction="both"`, the comparison did not run, or ran on fewer patterns or paths than the series has |
+| `SEQUENTIAL_WIDTH_GROWTH` | a phase width reached 3× the first value the series measured while GoF reached 2× its own at the same pattern: the phase is standing in for something the model lacks. A width that grows at a flat GoF is a real broadening and fires nothing |
 | `SEQUENTIAL_PERSISTENT_FINDING` | one of the per-pattern codes fired in more than half the patterns, so it is about the model rather than about a pattern; a code about how a pattern was *measured* (`FROZEN_COMPILE_STALE`, listed in `sequential.NOT_A_SERIES_FINDING`) is never counted |
 
 The last one exists because of an arithmetic problem the others do not have. A
