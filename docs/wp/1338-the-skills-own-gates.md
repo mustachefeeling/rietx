@@ -14,6 +14,20 @@ warning beforehand.
 
 ### Inherited
 
+- **2026-09-27, from [1507](1507-the-index-is-read-off-the-wp-files.md)'s
+  filing session: the race fired again on `SKILL.md`, and a 95 % warning
+  would not have fired first.** In 603b7ca5, merging main put `SKILL.md` at
+  33 027 of 33 000 B. WP-1320's addition had used the headroom WP-1470's
+  routing row counted on, and WP-1470 trimmed two commas and a clause to
+  reach 32 998. Main now has 2 B of headroom, 99.99 % of the cap. So the
+  2026-09-03 decision below (warn at 95 % first) would be a warning that is
+  always on, and it would not have told either author anything. Two facts in
+  this file are stale: `REFERENCE_MAX_BYTES` is 36 600 now, not 36 000, and
+  `diagnostics.md` is 34 918 B. The maintainer named merge drag on the skill
+  files on 2026-09-27. WP-1507 removes the ROADMAP's version of this race
+  (a per-row cap bump) by generating the tables. A skill file cannot be
+  generated, so the policy question stays here.
+
 - **2026-09-23, from the issue triage: #284 and #287 are closed.** #284 as
   landed in PR #292, and #287 as answered, its `RECIPE_*` half landed in
   PR #291. Neither ruling's gate is built. Whether one should be is still

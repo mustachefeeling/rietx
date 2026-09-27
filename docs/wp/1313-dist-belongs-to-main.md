@@ -56,6 +56,15 @@ instruction for the by-hand half, not an automation of it.
 
 ### Inherited
 
+**From [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) (2026-09-27).**
+Measured over the PRs merged 2026-08-27 to 2026-09-27: 91 changes to files
+under `src/rietx/gui/static/` (32 to `build-info.json`, 27 to
+`assets/app.js`). A replay of every two-parent merge since 2026-08-15 found
+3 conflicted on the dist. WP-1506 moves the required checks to `lint` and a
+`ci-ok` summary job, which is a branch-protection change by hand. This WP's
+write path to main is another. Both are the maintainer's, and both are
+cheapest done in one sitting.
+
 **From WP-1438 (2026-09-17).** The dist went stale twice in one session and
 the gate caught it both times, which is a cost this WP has not counted.
 `build-info.json`'s `source_hash` covers **all 74 source files under
