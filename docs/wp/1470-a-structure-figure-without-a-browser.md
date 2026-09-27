@@ -355,9 +355,17 @@ npm --prefix gui test && npm --prefix gui run check
 
 ### 2026-09-27 (3rd session) — CI
 
-PR #498's fast suite failed on every Linux job, on one test. The per-push run
-skips that suite, so only the PR run reached it. The fix is in the test.
+PR #498 failed on every Linux job, and the renderer was never at fault. The
+check that keeps the Python and browser copies of the scene rules equal
+depended on the machine that ran it, because the order of a polyhedron's
+corners is decided by rounding noise. The check now compares the rules over
+fixed inputs, so it holds on any machine and still catches a changed rule.
+The manual and the skill also stopped offering an edit that raised. WP-1501
+and WP-1502 (#501) now sit on this branch as a stacked PR.
 
+- **Why CI saw it late.** A draft PR runs ruff alone. The fast suite first
+  ran when the PR was marked ready, at 04:51:43, and that run failed. The
+  green run on the same commit, 21 s earlier, was the draft's.
 - **Cause.** `test_the_committed_scene_corpus_is_current` rebuilt the
   payloads and compared the file byte for byte. `structure3d.build` breaks
   ties in distance on the last bit, and rutile's octahedron is all ties.
@@ -378,8 +386,18 @@ skips that suite, so only the PR run reached it. The fix is in the test.
   figure index "a site to leave out". Both raise (WP-1501's probe). Both now
   name a site's colour or radius, say a colour is `#rrggbb`, and say a
   deletion raises. WP-1501's `keep()` stays the route to a cut.
-- **Measured.** darwin/arm64, `[dev]` venv plus `playwright`. The touched
-  files: 142 passed, and 21 in `test_manual.py`. No test was added.
+- **Measured.** darwin/arm64, `[dev]` venv plus `playwright`. Fast suite:
+  6622 passed, 145 skipped, 3:33, no other suite running. That is the
+  earlier count exactly, since no test was added. The full suite did not
+  run: no forward model, solver or statistic changed.
+- **Stacked.** #501's branch merged this one, and #501 now targets
+  `wp1470-structure-figure`. The repo does not delete a merged branch by
+  itself, and GitHub retargets a stacked PR to `main` only when its base is
+  deleted.
+
+Next: merge #498 once its Linux run is green, and delete its branch so #501
+retargets to `main`. If the branch stays, run `gh pr edit 501 --base main`
+before merging #501. Then WP-1468 and WP-1501 are the 3D track's open work.
 
 ### 2026-09-27 (2nd session) — closed
 
