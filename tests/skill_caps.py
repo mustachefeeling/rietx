@@ -268,7 +268,7 @@ def main() -> int:
     print(report)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
-        with open(summary, "a", encoding="utf-8") as fh:
+        with open(summary, "a", encoding="utf-8", newline="\n") as fh:
             fh.write(report + "\n")
     github = bool(os.environ.get("GITHUB_ACTIONS"))
     for r in found:
