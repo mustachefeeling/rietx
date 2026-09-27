@@ -201,10 +201,10 @@ tiny column as zero in `_residual_cosine` (which feeds `at_bound`),
 4. **`PHASE_UNCONSTRAINED` keeps its subject.** The comment in the QPA block
    is corrected, and the new finding names the phase instead.
 5. **Every site that squares a Jacobian column for its norm takes the same
-   rescaling**: `_residual_cosine`, `soft_modes` and `background_absorption`'s
-   single-column branch. The exchangeability loadings and the group branch are
-   left. A tiny column there is cut by `lstsq`'s relative cutoff, which a norm
-   repair does not reach.
+   rescaling**: `_residual_cosine`, `soft_modes`, `block_projection_r2` and
+   the single-column branch of `one_parameter_gains`. The exchangeability
+   loadings and the group branches are left. A tiny column there is cut by
+   `lstsq`'s relative cutoff, which a norm repair does not reach.
 
 ## Non-goals
 
@@ -222,15 +222,15 @@ tiny column as zero in `_residual_cosine` (which feeds `at_bound`),
       without a scaled norm, on the reproduced state.
 - [x] Decide between options 1, 2 and 3 with those numbers, and write the
       decision and its evidence here.
-- [ ] A withheld weight-fraction esd emits a finding naming the phase whose
+- [x] A withheld weight-fraction esd emits a finding naming the phase whose
       scale withheld it. Check `SEQUENTIAL_PERSISTENT_FINDING` aggregates it
       across a series.
-- [ ] `at_bound` on a softplus entry at its floor: `True` with the pinned
+- [x] `at_bound` on a softplus entry at its floor: `True` with the pinned
       `BOUND_HIT` consequence, or `None`. Never an untested `False`.
-- [ ] Correct the comment in the QPA block that says `PHASE_UNCONSTRAINED`
+- [x] Correct the comment in the QPA block that says `PHASE_UNCONSTRAINED`
       names the phase, or make it true. First find why it stayed quiet on 15
       of the 16.
-- [ ] Tests: the reproduced state, both sides of the underflow edge, and a
+- [x] Tests: the reproduced state, both sides of the underflow edge, and a
       series in which one phase leaves.
 - [ ] Skill: `references/numbers.md`, the row on quoting a weight fraction's
       esd, says what a `None` means and what the finding names.

@@ -102,8 +102,13 @@ def test_at_bound_names_exactly_the_paths_bound_hit_names():
 
     flagged = {p.path for p in result.parameters if p.at_bound is True}
     assert flagged == _bound_hit_paths(result) == {"phases.0.cell.a"}
-    # and the rest of the free rows are a measured False, not a default one
-    assert sum(1 for p in result.parameters if p.at_bound is False) == 12
+    # and the rest of the free rows are a measured False, not a default one,
+    # except a row on its transform's floor, which nothing could test
+    # (WP-1463).  Here that is ``instrument.profile.y``, at exactly 0.0.
+    assert sum(1 for p in result.parameters if p.at_bound is False) == 11
+    floor = [p for p in result.parameters if p.vary and p.at_bound is None]
+    assert [p.path for p in floor] == ["instrument.profile.y"]
+    assert floor[0].value == 0.0
 
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
