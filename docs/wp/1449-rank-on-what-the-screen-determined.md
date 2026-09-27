@@ -506,7 +506,10 @@ now supply it.
   container runs as root and `chmod` does not stop root. Neither file differs
   from main. This session added 38 fast items (`test_indexing_reduce` 26 → 61,
   `test_indexing_consensus` 33 → 36) and removed one slow row (45 → 44). The
-  base count was not measured on this platform.
+  base count was not measured on this platform. On the merged tree, with
+  `origin/main` at `24da4e2` merged in after the review: 6489 passed,
+  163 skipped, the same one failure, 19:09. That is 29 items more than the
+  branch alone, and main's merge brought them.
 - `tests/test_acceptance_indexing.py`, alone, `-n auto`: 39 passed, 1 failed
   (the LaB6 row, updated and passing alone), 4 skipped, 49:16. The skips are
   three corundum-family order rows and brucite's rank, all cut searches.
