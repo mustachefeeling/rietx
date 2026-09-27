@@ -29,7 +29,11 @@ from . import scene as sc
 
 #: The CSS width the GUI's pixel sizes are drawn against: an image whose long
 #: side is this many pixels has the GUI's on-screen line widths and letters.
-CANVAS_CSS_PX = 600.0
+#: It is the structure canvas's long side in the GUI's default layout at a
+#: 1400 × 900 window (measured 507 × 300 by ``test_structure3d_browser.py``),
+#: so a render at ``size=N`` matches the GUI's own export at long side N from
+#: that window.  The canvas follows the window, so this is a choice of window.
+CANVAS_CSS_PX = 507.0
 #: The fitted content leaves this fraction of the frame's width and height on
 #: each side, ChimeraX ``view``'s default ``pad``.
 FIT_PAD = 0.05

@@ -128,12 +128,12 @@ picture drawn from a script matches one exported from the GUI.
 ```
 
 ```text
-wrote nac_structure.png: 1000 x 963 px, 173 atoms, 47.0 px/Å
+wrote nac_structure.png: 1000 x 963 px, 173 atoms, 46.7 px/Å
 wrote nac_ellipsoids.png: rotation drawn [[-0.707, 0.707, 0.0], [-0.408, -0.408, 0.816], [0.577, 0.577, 0.577]]
 a round trip through the rotation draws the same picture: True
-  letter a at (1749, 1622) px
-  letter b at (386, 259) px
-  letter c at (386, 1622) px
+  letter a at (1745, 1619) px
+  letter b at (389, 263) px
+  letter c at (389, 1619) px
 wrote nac_print.png
 ```
 

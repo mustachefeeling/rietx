@@ -278,7 +278,7 @@ and PNG metadata. Each decision says what it takes and what it declines.
   `PROVISIONAL_MODULES` entry (D11), a section in
   `docs/manual/using/exports.md`, and `examples/structure_figure.py`, which
   the manual includes and `tests/test_examples.py` runs.
-- [ ] Tests: a ball's silhouette radius against `r ×` pixels per Å; an
+- [x] Tests: a ball's silhouette radius against `r ×` pixels per Å; an
   ellipsoid's silhouette against the exact projected ellipse (the norms of
   the first two rows of R·k·T); a cubic cell viewed down c projects to a
   square; alpha zero outside the structure on a transparent background; the
@@ -286,7 +286,7 @@ and PNG metadata. Each decision says what it takes and what it declines.
   are identical; a polyhedron leaves a translucent pixel; a non-positive
   tensor draws no NaN; the numpy path runs under `RIETX_COMPILED=0`.
   Pictures to `tests/output/`.
-- [ ] A browser parity row in `tests/test_structure3d_browser.py`: one
+- [x] A browser parity row in `tests/test_structure3d_browser.py`: one
   scene and one view drawn by both renderers, and the mean difference
   measured. The Python side takes the GUI's framing for this row
   (`buildScene`'s orientation-free `radius`), because D12's fit to the
