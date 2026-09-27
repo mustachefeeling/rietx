@@ -16,7 +16,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1326](1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | 2026-09-26 | P2 | [v1.6](#v1-6) |
 | [1327](1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 2026-09-26 | P2 | [v1.6](#v1-6) |
 | [1328](1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | 2026-09-27 | P3 | [v1.6](#v1-6) |
-| [1338](1338-the-skills-own-gates.md) | The skill's own gates: the references, the private corpus, the cap race | 2026-09-28 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-09-25 | P2 | [v1.6](#v1-6) |
 | [1449](1449-rank-on-what-the-screen-determined.md) | Rank on what the screen determined, not on what the peak list shows | 2026-09-27 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 2026-09-24 | P1 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
@@ -482,7 +481,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1313](1313-dist-belongs-to-main.md) | The GUI dist belongs to main | ⬜ | P4 | — |
 | [1330](1330-skill-references-by-shape.md) | The skill grows by reference: one file per task shape, and the row an agent can write | ✅ 2026-09-02 | — | [1304](1304-protocol-as-skill.md), [1308](1308-skill-documents-its-doors.md) |
 | [1331](1331-landing-page-in-repo.md) | The landing page enters the repository, and the data comes redacted | ✅ 2026-09-03 | — | — ([1003](1003-api-freeze-pypi.md) soft) |
-| [1338](1338-the-skills-own-gates.md) | The skill's own gates: the references, the private corpus, the cap race | 🔄 2026-09-28 | P2 | — |
+| [1338](1338-the-skills-own-gates.md) | The skill's own gates: the references, the private corpus, the cap race | ✅ 2026-09-28 | — | — |
 | [1408](1408-the-manual-reads-like-a-manual.md) | The theory manual reads like a manual | ✅ 2026-09-14 | — | — |
 | [1409](1409-part-one-reads-like-a-manual.md) | Part 1 reads like a manual | ✅ 2026-09-14 | — | [1408](1408-the-manual-reads-like-a-manual.md) |
 | [1410](1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — | — |

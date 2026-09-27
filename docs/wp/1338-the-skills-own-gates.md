@@ -1,9 +1,8 @@
 # WP-1338 — the skill's own gates: the references, the private corpus, the cap race
 
-Milestone: unscheduled · Status: 🔄 2026-09-28 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-28 — every gate covers the tree; ceilings and budgets; the grep sentence shipped on a registered round
 Track: The repo's own process
 Depends on: —
-Priority: P2 2026-09-27 — was P4: the maintainer raised it with 1506 and 1507; `SKILL.md` has 2 B of headroom, so every body addition now races every other
 
 ## Goal
 
@@ -171,6 +170,94 @@ deliberately broken fixture of each kind fails.
 - `CONTRIBUTING.md` § The agent skill — the two prose obligations #241 gates.
 
 ## Handover log
+
+- **2026-09-28** — Closed. The tests guarding the agent skill now cover what
+  they are named after, and the skill has a rule for where new guidance goes.
+  A field name in any hand-written skill file must still exist; a code span a
+  table cell cuts fails; a private evidence tag must name its file's corpus,
+  with a broken fixture proving each gate can fail. Two pull requests that each
+  pass no longer fail each other on a byte cap unless together they outgrow a
+  2 kB gap: a budget that only growth breaches sits below each ceiling. The body's
+  budget is the specification's 5 000 tokens, so it only shrinks from here. One
+  body change was decided by a registered real-agent round: a grep sentence
+  replaced the routing rows for a fired code, and Opus found 17 of 18 rows with
+  it against 4 without.
+
+  *Done.*
+  - #238: the dotted-name walk runs over the body and all 15 authored
+    references (234 names, 194 of them outside the body). A root is a variable
+    name or an exported class; a variable lists every type it stands for
+    (`result` the four answer types, `report` `FitReport` or `rietx.report`,
+    `model` the readers' format models off their return annotations). An
+    attribute a plain class assigns in `__init__` is accepted there. The one
+    negative field claim (`StageResult` carries no `rwp`) gets its own check.
+  - #241: found landed on 2026-09-08 (`e89c8b92`); this session added its
+    broken fixture, three failing shapes and two passing tags.
+  - WP-1409's finding: a code span cut by an unescaped `|` in a table cell
+    fails, in every skill file, split where GFM splits.
+  - #247: `tests/skill_caps.py` owns the ceilings (moved unchanged) and a
+    budget per authored file. A reference file's budget is 2 kB under its
+    ceiling, twice the most any 24 hours added near a cap over main's September
+    merges (990 B to `SKILL.md`, 2026-09-02). The body's is 17 000 B: 5 000
+    tokens at the 3.4 B a token its arrival measured in the haiku cells. The
+    base is the PR's `HEAD^1` in CI and the merge-base with origin/main
+    locally. CI's lint job, which drafts run alone, prints each changed capped
+    file's delta and headroom and fails growth past a budget; the pytest twin
+    gates locally and skips in CI.
+  - The placement rule, in CONTRIBUTING.md § The agent skill and the root
+    CLAUDE.md skill bullet (rewritten within its own 16 lines).
+  - The placement round, `tests/eval_skill_placement/`, registered at
+    `db4a8582` before any run, amended to 1.1 before its re-run.
+  - Body 32 998 → 30 509 B. Moved or dropped, each hunk's net: the measured
+    blank to surprises §8.29 (−431), rule 8's why to judging.md (−758), the
+    comparison with another code to judging.md (−237), the cancelled-fit
+    paragraph that watching.md §9d.9 already held (−367), the two keyed
+    routing rows for the grep sentence (−384), the manual-page column (−312).
+
+  *Measured.*
+  - Round 1.1 (18 cells, $3.84): reach under grep 17 of 54 against 4; Opus
+    5, 6, 6 against 4, 0, 0; Haiku and Sonnet 0 in all 12 cells, opening no
+    reference file. Blind R3 35 of 36 against 33. No manual page fetched in
+    either round's 36 cells.
+  - Round 1.0 (18 cells, $11.13) was void and serves as an A/A test: arms
+    identical (Opus 6 of 6 everywhere, the rest 0).
+  - Tests, `[dev]` venv, darwin/arm64, on main (`154c33da`) merged in: fast
+    selection 6623 passed, 151 skipped, 0 failed. By collection this branch
+    adds 45: `tests/test_skill.py` 91 → 132 (the body-only walk replaced by
+    16 per-file cases and a liveness test; 18 table-span cases; the budget,
+    negative-claim and fixture tests) and 4 in the round's harness, all
+    passes, no new skip. Wall clock not quoted: another session's pytest
+    was running. The full selection did not run: no `src/` line changed,
+    so no measured number can move.
+  - Added tests' cost, one run's `added_test_times` on this machine: 7.84 s
+    over the 14 functions; the per-file walk 3.49 s over 16 cases, its
+    liveness test 3.13 s (the first root-map build), the local budget test
+    1.12 s (git), the rest under 0.1 s. None joins the slow tail.
+
+  *Gotchas.*
+  - `~/.claude/skills/rietx` is a symlink to the main checkout. A user-level
+    skill shadows a workspace skill of the same name, so a `claude -p` eval on
+    this machine needs `--setting-sources project,local`, and a `bare` cell
+    of `tests/eval_agent_surface/` would not be bare without it.
+  - `diagnostics.md` and `diagnostics-indexing.md` are over their new budget,
+    so the next row in either needs a cut or a split; six WPs carry the note.
+  - The round's runner refuses today's body (the rows are gone); a re-run
+    builds from a checkout of `db4a8582`.
+  - Not generalised: `BACKGROUND_ABSORPTION` prints twice with one `where` in
+    the episode's own output (`guard.background_correlations` is not deduped
+    across stages the way `HIGH_CORRELATION` is). No open WP owns it; it needs
+    one.
+  - `/code-review high --fix`: ten findings, eight applied (UTF-8 base
+    reads, one `room` figure for table and annotation, a failed grade left
+    ungraded, a path-based condition check, a re-runnable build, the layout
+    imported once, the root map cached, `pytest.raises`), two of its four
+    minor notes taken; a `~~~` fence (no skill file uses one) and the leak
+    check's machine path (the round's own instrument) declined.
+
+  Next: file a WP for the duplicated `BACKGROUND_ABSORPTION` rows and audit the
+  other `GuardReport` lists for the same missing dedup. Then, if the body is to
+  approach 5 000 tokens faster than the ratchet takes it, run a round that
+  moves an every-fit section out and measures what Haiku and Sonnet lose.
 
 - **2026-09-27** — Folded, not worked: the maintainer re-rated this to P2
   and asked for the skill-scaling review to land here. The cap race now has
