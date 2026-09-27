@@ -19,6 +19,22 @@ shipping PR closes **#209 and #204**.
 
 ### Inherited
 
+- **2026-09-28, from [1463](1463-a-phase-at-zero-withholds-every-esd.md): a
+  softplus field at its floor now reads `at_bound=None`, and it can lose its
+  esd a second way.** The "Recorded, no action here" note in Context still
+  holds: `BOUND_HIT` never fires at a softplus floor, now by decision, because
+  its advice to widen the bound is wrong for a quantity that cannot be
+  negative. The row reads `None` where it read `False`
+  (`staged.bound_untested`). For task group 2's sorting, the zero-is-off-state
+  fields carry a cost the transform's floor does not remove. A width near
+  zero whose column goes through the peak chain is finite-differenced in θ,
+  and once σ(u)·h moves the width by less than an ulp of the total the column
+  is exactly zero, so the esd is `None`. Measured: the joint-fit fixture of
+  `test_multi_histogram` leaves `instrument.profile.y` at 4.5e-69 and 4.0e-24
+  with no esd, on main as well. 1463 left it alone, since a physical-space
+  step changes every softplus column the solver sees and moves every
+  converged fit.
+
 - **2026-09-18, from [1311](1311-walking-parameter-bounds.md): PR #206 landed,
   and the ceiling it made universal turns out to bound nothing physical.**
   `Atom.biso`'s `default_factory` has carried `min=0.0, max=25.0` since v0.1;

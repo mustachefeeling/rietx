@@ -374,7 +374,10 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   parameter's units. A gradient-free column is then infinite variance, true and unpropagatable,
   so `_cov_free` drops it and `ParameterTable.unmeasured_rows` names what it reached — and
   **consumers mark, never clamp**: a tie inherits its source's blindness, a geometry row only if
-  its own partials touch one, QPA the *whole* block since W normalises by a sum.
+  its own partials touch one, QPA the *whole* block since W normalises by a sum, naming the
+  phase (`QPA_ESD_UNAVAILABLE`). **A tiny column is live** (WP-1463): anything that squares a
+  Jacobian column goes through `statistics.column_rescale`/`column_norms` (exact powers of two,
+  inert in range), or a softplus scale at 1e-170 reads as dead while its physical esd is 7.7e-9.
 - **A declared name is a claim, and an absent writer fails no test** (WP-1076, the rule above one
   rank up). Two shapes: a field whose empty state reads as an *answer*
   (`RefinedParameter.at_bound` was `bool = False`, so every result said "not at a bound" about

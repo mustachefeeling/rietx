@@ -542,9 +542,9 @@ test. Read whichever suits the shape of your code: the diagnostic when you want
 the list, the flag when you are already iterating rows.
 
 The two views differ in size, and the difference is the point. A single-phase
-NAC refinement over 2 to 24° measured here gives 72 rows from
+NAC refinement over 2 to 24° measured here gives 73 rows from
 `Refinement.parameters` and 32 from `RefinementResult.parameters`: 14 free, 18
-tied, and 40 fixed rows that the result omits entirely. Use the result to report
+tied, and 41 fixed rows that the result omits entirely. Use the result to report
 a fit and the table to decide what to do next.
 
 That split is the one `at_bound` reports against. In this fit all 14 free rows
