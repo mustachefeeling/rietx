@@ -1374,6 +1374,61 @@ def test_background_pair_is_published_and_never_a_summary_trigger():
     assert bg.off_region_chi2_reduced == pytest.approx(1.0, abs=0.3), bg
 
 
+_UNSCREENED = {
+    # Le Bail and Pawley force-fix every target the screen asks about
+    "lebail": ("lebail", ["instrument.background.c*", "phases.*.cell.*"]),
+    "pawley": ("pawley", ["instrument.background.c*", "phases.*.cell.*"]),
+    # a Rietveld answer stage with a block and no target, then the reverse
+    "rietveld_no_target": ("rietveld", ["instrument.background.c*",
+                                        "phases.*.cell.*"]),
+    "rietveld_no_background": ("rietveld", ["phases.*.scale",
+                                            "phases.*.atoms.*.biso"]),
+}
+
+
+@pytest.mark.parametrize("arm", sorted(_UNSCREENED))
+def test_an_absorption_screen_with_nothing_to_screen_reads_not_measured(arm):
+    """``None``, never 0.0, wherever the screen had no target or no block.
+
+    WP-1465 (issue #451): the table came back ``{}`` in all four arms and its
+    headline read ``worst_absorption = 0.0`` — "the background absorbs
+    nothing", a measurement nobody made, on every Le Bail and Pawley report.
+    The same data as ``_absorption_fit``, so the Rietveld arm that *does*
+    screen (the pair test above) is the control.
+    """
+    mode, paths = _UNSCREENED[arm]
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    ins.profile.w.value = 3e-3
+    ins.profile.x.value = 5e-3
+    data = _peaky_pattern(background=_flat_bkg, lo=15.0, hi=70.0, seed=4,
+                          structure=structure.model_copy(deep=True),
+                          instrument=ins.model_copy(deep=True))
+    ins.background = BackgroundChebyshev.with_terms(6)
+    ins.background.coefficients[0].value = 120.0
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(data, mode=mode,
+                     plan=rx.RefinementPlan(stages=[rx.Stage("all", paths)]))
+
+    # the result's own record: measured, and empty
+    assert result.identifiability is not None
+    assert result.identifiability.background_absorption == {}
+
+    report = ref.report()
+    bg = report.background
+    assert bg.absorption is None, bg
+    assert bg.worst_absorption is None and bg.worst_absorption_path is None
+    assert "decrease_background_flexibility" not in {
+        a.kind for a in report.suggested_actions}
+    assert "block projection R²" not in report.summary
+    # the trajectory rung projects the same None
+    assert report.for_stage("all").worst_absorption is None
+    if mode == "rietveld":
+        assert ("background.absorption: not measured"
+                in ref.summary(deliverable="qpa", report=report))
+
+
 def test_off_region_durbin_watson_is_pooled_within_runs():
     """Never differenced across an excised peak region.
 

@@ -3709,6 +3709,14 @@ class Refinement:
                 worst_path, worst_r2 = max(bg.absorption.items(), key=lambda kv: kv[1])
                 lines.append(f"    background.absorption worst: "
                              f"{worst_path} R²={worst_r2:.2f}")
+            elif bg is not None:
+                # said, because this row is the one that tells the two fits
+                # apart (the docstring above) and its silence read as clean
+                why = ("nothing on this result measured it"
+                       if result.identifiability is None
+                       else "no scale, Biso, occupancy or ADP was free "
+                            "beside a background term")
+                lines.append(f"    background.absorption: not measured ({why})")
             if result.qpa is not None:
                 for row in result.qpa.phases:
                     esd = (f" ± {row.weight_fraction_stderr:.3f}"

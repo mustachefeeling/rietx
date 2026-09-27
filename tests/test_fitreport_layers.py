@@ -1045,7 +1045,7 @@ def test_converged_reference_publishes_the_background_section_and_stays_quiet(
     bg = report.background
 
     assert bg is not None
-    assert bg.absorption is None and bg.worst_absorption == 0.0
+    assert bg.absorption is None and bg.worst_absorption is None
     assert bg.rwp == pytest.approx(report.rwp)
     assert bg.rwp_background_subtracted > bg.rwp        # measured 0.049 vs 0.014
     assert bg.background_share > 0.5                    # measured 0.89

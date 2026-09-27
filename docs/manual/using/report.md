@@ -357,8 +357,8 @@ region and no attribution can reach it.
 
 | Field | Is | Reads as |
 |---|---|---|
-| `BackgroundEvidence.absorption` | per structural parameter, the block projection R² of its Jacobian column onto the background column span | the too-flexible detector. A pairwise ρ cannot see it: measured ~0.2 per coefficient while the block absorbed ~46 %. Every screened parameter is reported, not only the notable ones, because the number is the evidence. Null rather than empty when the fit carried no Jacobian-time measurement |
-| `BackgroundEvidence.worst_absorption` | the largest of those | one number to threshold |
+| `BackgroundEvidence.absorption` | per structural parameter, the block projection R² of its Jacobian column onto the background column span | the too-flexible detector. A pairwise ρ cannot see it: measured ~0.2 per coefficient while the block absorbed ~46 %. Every screened parameter is reported, not only the notable ones, because the number is the evidence. Null, never empty, when nothing was screened: the fit carried no Jacobian-time measurement, or its answer stage had no scale, Biso, occupancy or ADP free beside a background term. Every Le Bail and Pawley fit is that case |
+| `BackgroundEvidence.worst_absorption` | the largest of those | one number to threshold. Null exactly when `absorption` is: not measured, which is not the same as clean |
 | `BackgroundEvidence.worst_absorption_path` | which parameter | null when nothing was measured |
 | `BackgroundEvidence.n_peaks` | explicit `HumpComponent` terms the fit declared | how much of the background's flexibility was localised humps rather than a smooth curve. A projection of `RefinementResult.n_background_components` and never a second count, its null included, which means nothing counted, against 0, which means none was declared. It reads that field rather than `n_extra_components`, which also counts declared sharp peaks: those are not background flexibility, and the absorption column beside this one excludes them for the same reason |
 | `BackgroundEvidence.off_region_chi2_share` | share of χ² lying outside every region | the too-stiff remainder, made explicit |

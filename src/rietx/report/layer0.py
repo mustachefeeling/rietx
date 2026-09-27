@@ -119,9 +119,11 @@ def too_flexible(bg: BackgroundEvidence) -> bool:
 
     One predicate, consulted by the summary clause here and by the Layer-2
     emitter, so the sentence and the action cannot disagree about what the
-    evidence says.
+    evidence says.  An unmeasured screen (``None``, WP-1465) says nothing
+    either way, so it cannot fire.
     """
-    return bg.worst_absorption >= BACKGROUND_ABSORPTION_NOTABLE
+    return (bg.worst_absorption is not None
+            and bg.worst_absorption >= BACKGROUND_ABSORPTION_NOTABLE)
 
 
 def too_stiff(bg: BackgroundEvidence) -> bool:

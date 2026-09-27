@@ -156,10 +156,18 @@ reads 1.0 ± 0.05 throughout.
       the background block for both modes (the Jacobian is on the fit;
       the reporter could not serialize it). — Finding 1: reproduces to
       every digit; the width R² stays 0.046-0.053.
-- [ ] Gap 1: `worst_absorption` and `absorption` take `None` where no target
+- [x] Gap 1: `worst_absorption` and `absorption` take `None` where no target
       was screened, and the layer-0/layer-2 readers and the report text say
       "not measured". Decide whether a Rietveld stage with no structural
-      target free is the same case, and measure it.
+      target free is the same case, and measure it. — **The same case, and
+      so is its mirror.** Measured on the synthetic's clean pattern: a
+      Rietveld answer stage freeing background, cell and width only, and one
+      freeing scale and Biso over a held background, both come back `{}` and
+      0.0, as Pawley and Le Bail do. All four now read `None`;
+      `too_flexible` cannot fire on it; `summary(deliverable="qpa")` prints
+      "not measured" with the reason. `THRESHOLDS_VERSION` 1.8 → 1.9, staged
+      in `releases/1.5.1.md`, manual rows in `using/report.md`. The
+      parametrised test fails 4/4 on the unfixed tree.
 - [ ] The series trigger: a finding when a phase width exceeds k× its
       early-pattern value while Rwp rises over the same patterns. Choose k
       and "early" from the synthetic (15× at f_B 0.5) and the operando

@@ -220,7 +220,15 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   charged at N/f² (``optimize.statistics.effective_sample_size``), the count
 #   ``suggest`` has predicted at since #431.  Additive, defaulted to ``None``,
 #   and no verdict field, on 0.8's precedent.  No threshold moved.
-THRESHOLDS_VERSION = "1.8"
+# 1.8 → 1.9 (WP-1465, issue #451): ``BackgroundEvidence.worst_absorption``
+#   becomes ``float | None`` and reads ``None`` — with ``absorption`` ``None``
+#   beside it, never ``{}`` — whenever the screen had nothing to screen: every
+#   Le Bail and Pawley fit, and a Rietveld answer stage freeing no scale,
+#   Biso, occupancy or ADP, or no background term.  It read 0.0 there, a
+#   measurement nobody made.  ``too_flexible`` cannot fire on ``None``, which
+#   it could not on 0.0 either, so no emission moved; a consumer comparing
+#   the field against a number sees the change.
+THRESHOLDS_VERSION = "1.9"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"
@@ -618,8 +626,14 @@ class BackgroundEvidence(Base):
     it — measured ~0.2 per coefficient while the block absorbed ~46 %.  Every
     screened pair is reported, not just the ones over
     :data:`BACKGROUND_ABSORPTION_NOTABLE`, because the number is the evidence
-    and the threshold is only where the comment starts.  ``None`` (rather than
-    empty) when the result carried no Jacobian-time measurement at all.
+    and the threshold is only where the comment starts.  ``None`` — never an
+    empty table, never a zero headline — whenever nothing was screened
+    (WP-1465): the result carried no Jacobian-time measurement at all, or the
+    answer stage had no target or no block to screen it against.  Le Bail and
+    Pawley are always that case, since they force-fix every scale, Biso,
+    occupancy and ADP; so is a Rietveld stage freeing none of those, or no
+    background term.  ``worst_absorption`` read 0.0 there until 1465, which
+    every reader took for "the background absorbs nothing".
 
     **Too stiff** — smooth between-peak misfit, which Layer 0 is *structurally*
     blind to: its regions are peak clusters cut from ticks ∪ residual peaks, so
@@ -668,11 +682,13 @@ class BackgroundEvidence(Base):
     off_region_durbin_watson: float | None = None
     off_region_points: int = 0
     #: path → block-projection R² for every screened structural parameter;
-    #: None when nothing measured it (see the class docstring)
+    #: None when nothing was screened (see the class docstring)
     absorption: dict[str, float] | None = None
     #: the largest ``absorption`` entry and whose it is — the headline, so a
-    #: consumer need not sort the table to branch on it
-    worst_absorption: float = 0.0
+    #: consumer need not sort the table to branch on it.  None exactly when
+    #: ``absorption`` is: "not measured", which a 0.0 would have read as
+    #: "measured, and clean"
+    worst_absorption: float | None = None
     worst_absorption_path: str | None = None
     #: explicit :class:`~rietx.schemas.instrument.HumpComponent` terms this fit
     #: declared — a **projection** of
