@@ -1,0 +1,293 @@
+# WP-1469 — a structure figure from Python, drawn without a browser
+
+Milestone: unscheduled · Status: ⬜
+Depends on: — (1462, 1466 shipped)
+Priority: P3 2026-09-27 — a view over what the fit already knows, asked for by the maintainer; `Refinement.write_cif` into VESTA or Jmol is the workaround; nothing blocks it
+
+## Goal
+
+`rietx.viz.render_structure` draws one phase of a structure to an RGBA array
+or a PNG. It needs no browser, no display and no new dependency. It draws the
+structure viewer's geometry with the viewer's look. It is fast enough for an
+agent to call in a loop: the spike drew a 185-atom cell at 1000 px in about
+0.1 s.
+
+## Context
+
+### Why
+
+The maintainer asked on 2026-09-27 for agents to be able to make 3D figures
+of refined structures. Today the picture exists only in the GUI. The
+structure viewer draws it in the browser with its own WebGL2 renderer
+(WP-1462) and exports a PNG from a button. A script can get the geometry,
+`structure3d.build()`, but no picture.
+
+### The routes, measured
+
+`1469-spike/README.md` has every number below and the scripts that made
+them.
+
+- **Drive the GUI's renderer in headless Chromium.** The picture would match
+  the GUI pixel for pixel, and `tests/test_structure3d_browser.py` shows
+  SwiftShader draws the same scenes. But playwright is no dependency, a
+  Chromium download is a large ask of an agent's sandbox, and no CI workflow
+  installs a browser (WP-1462), so CI would never run the feature.
+- **Hand the CIF to another program.** `Refinement.write_cif` writes the
+  `_atom_site_aniso_` loop (`crystallography/cif.py`,
+  `write_structure_block`). VESTA exports an image from its command line
+  (`-export_img scale=2`), and JmolData renders headless with ellipsoids.
+  This needs no rietx code and is the skill row this WP adds first. It loses
+  rietx's bond rules, polyhedra and colours, and needs VESTA or Java.
+- **A Python rendering library.** None is both light and correct in 3D
+  without a display. matplotlib and skia-python draw in 2D, back to front,
+  and the matplotlib baseline draws bonds over balls they pass behind.
+  pycairo has a wheel only for Windows. moderngl and vispy need an OpenGL
+  context, which headless Linux often lacks. vtk is 80-140 MB. pyrender's
+  last release was 2021.
+- **Our own ray-caster.** `1469-spike/spike.py` (230 lines, numba and
+  `zlib`) draws NAC in 85-108 ms at 1000 px with 2×2 supersampling. The first
+  render compiles, in 0.64-0.76 s. At 3000 px and 2× it takes 0.73-0.96 s,
+  of which 514-521 ms is the numpy box filter, so a filter inside the kernel
+  removes most of it.
+
+This WP takes the last route.
+
+### What exists
+
+- **The geometry.** `src/rietx/gui/structure3d.py`'s
+  `build(structure, phase, *, probability, bond_tolerance, max_atoms)`
+  returns a JSON-ready dict, Cartesian in Å: `atoms` (`pos`, the 3×3
+  `ellipsoid` matrix T, `rms`, `boundary`, `vertex_only`, `npd`), `sites`
+  (`color`, `radius`, `aniso`, `species`, `label`), `bonds` (`i`, `j`, `a`,
+  `b`), `polyhedra` (`center`, `vertices`, `faces`, `edges`, `bonds`,
+  `drawn_by_default`), `lattice`, `corners`, `edges`, `scale` (k(p)) and
+  `ball_fraction`. Everything chemical is decided here (root CLAUDE.md
+  § GUI, `gui/CLAUDE.md` § structure viewer).
+- **The scene rules**, in `gui/src/lib/structure3d.ts`. `buildScene` turns
+  the geometry and the toggles into what the renderer draws: a species the
+  legend hides takes its bond halves with it; a boundary image is dimmed
+  (`dim`, factor 0.62); a drawn polyhedron hides its centre's sticks to its
+  own vertices; a `vertex_only` atom is drawn only while one of its
+  polyhedra is; a polyhedron's edges take `dim(colour, 0.5)`. `drawable`
+  floors a zero semi-axis at `FLAT_AXIS` = 1 mÅ. `stickRadius` is 0.08 Å in
+  ball mode and `max(0.02, min(0.08, 0.5 × smallest drawn semi-axis))` in
+  ellipsoid mode. `axisLabels` puts a, b, c beyond each edge at a clearance
+  of `0.35 + ball_fraction × largest radius` Å. `shownPolyhedra` turns
+  polyhedra on in ball mode and off in ellipsoid mode by default.
+- **The views**, in the same file. `lookFrom(eye, up)`; `openingView()` is
+  `lookFrom([1.35, 1.35, 0.95], [0, 0, 1])`; `axisView` looks down a with c
+  up, down b with a up, down c with b up, so the next vector is to the
+  right. Projection is parallel.
+- **The look**, in `gui/src/lib/gl3d.ts`. One key light fixed to the camera
+  at `(-0.40, 0.55, 0.73)`; `shade = base × (0.45 + 0.60 × diffuse) + 0.16 ×
+  spec⁴⁰`. A principal ring is `min |uᵢ| < 0.035` in the unit frame, inked
+  lighter on a dark atom (luminance < 0.33) and darker on a light one.
+  `POLY_ALPHA` = 0.55. Lines have widths in CSS px: `CELL_WIDTH_PX` = 2,
+  `EDGE_WIDTH_PX` = 1.25. The cell frame takes the theme's `--accent`.
+- **The compiled tier's rules** apply to a new kernel (root CLAUDE.md
+  § compiled tier): a soft numba import with a numpy fallback that stays
+  exercised; serial `njit(cache=True, nogil=True)` over a row range on the
+  shared pool, never `prange`; a stated equivalence bar; one path per
+  process, switched by `RIETX_COMPILED=0`.
+- **The public surface.** `rietx.viz` imports matplotlib lazily and reaches
+  `write_html` and `LiveSession` through `__getattr__`. A public name fails
+  `tests/test_manual_api.py`'s partition until documented;
+  `PROVISIONAL_MODULES` in `tests/api_surface.py` declares a module
+  provisional. The plotting chapter is `docs/manual/using/exports.md`
+  § Plotting the fit.
+- **The parity mechanism.** Python writes a committed corpus and a vitest
+  replays it: `tests/data/gui/fnmatch_cases.json` and
+  `tests/data/gui/index_controls.json` (`gui/CLAUDE.md`). Python owns the
+  model and the TypeScript proves it states the same.
+
+## Decisions
+
+Read against two surveys run on 2026-09-27: how PyMOL, ChimeraX, VMD, OVITO,
+VESTA, Jmol and ASE render stills without a display, and what molecular
+graphics and journals do about antialiasing, depth cues, transparency, text
+and PNG metadata. Each decision says what it takes and what it declines.
+
+- **D1. The renderer ray-casts on the CPU in numba, with a numpy fallback.**
+  Atoms and bond halves are exact quadrics, the practice of Mol\*, NGL and
+  the GUI (WP-1462). The numpy path works per primitive over its bounding
+  box and is the oracle the kernel is measured against. The image is split
+  into row bands on the shared pool, and each band draws every primitive
+  that reaches it, so no two threads write one pixel.
+- **D2. The geometry stays where it is.** `render_structure` calls
+  `rietx.gui.structure3d.build()`. Importing `rietx.gui` costs 26 ms on top
+  of `import rietx`'s 635 ms (measured, `-X importtime`), and moving the
+  builder would touch the server, its tests and `gui/CLAUDE.md` for no
+  change in behaviour. A package boundary drawn for tidiness is declined.
+- **D3. The scene rules are ported, and held equal to `buildScene` by a
+  committed corpus.** A second copy of 100 lines of rules is the risk this
+  WP carries; the root CLAUDE.md's warning about a second builder applies.
+  Serving the scene from the server instead would cost the GUI a round trip
+  on every legend click. So Python gets `build_scene(geometry, mode, hidden,
+  show_boundary, exaggeration, polyhedra)`, writes
+  `tests/data/gui/scene_cases.json` over several payloads and toggles, and
+  `structure3d.test.ts` replays it against `buildScene`. The constants both
+  renderers draw with (the light, the shading coefficients, the ring width
+  and ink rule, `POLY_ALPHA`, `FLAT_AXIS`, the stick and label rules, the
+  views) are in the corpus too.
+- **D4. The look is the GUI's, and shading stays in sRGB.** The survey
+  recommends shading and filtering in linear light. It is declined: the
+  palette's separability floor (`structure3d._oklab_distance`) was measured
+  on colours shaded the way the GUI shades them, and linear light would
+  change both that and the match with the GUI's picture.
+- **D5. Antialiasing is supersampling with a box filter**, 2×2 by default
+  and up to 4×4, with a depth test per sample. PyMOL (`antialias`) and
+  Tachyon do the same. The GUI's analytic edge coverage is declined here:
+  it does not compose in a z-buffer, where the surface behind an edge may
+  be drawn later. The filter runs inside the kernel, band by band, so a
+  3000 px 4×4 render never holds a 12000 px buffer.
+- **D6. Polyhedra are sorted whole, back to front.** By centroid, back
+  faces then front, blended at `POLY_ALPHA` over the opaque z-buffer and
+  writing no depth, as the GUI does. Coordination polyhedra share faces and
+  edges but never overlap in volume, so this is exact. Order-independent
+  transparency (McGuire & Bavoil 2013) solves a problem this scene lacks.
+- **D7. The output is an array first, and a PNG on request.** The call
+  returns an RGBA `uint8` array with the anchors below. `path=` writes a
+  PNG with `zlib`, straight alpha as the PNG standard has it, a `pHYs`
+  chunk for the resolution and an `sRGB` chunk. A transparent background
+  comes straight from the coverage, so the GUI's second render on black is
+  not needed. JPEG is refused, as `plot_for_vlm` refuses it. There is no
+  SVG or PDF (Non-goals).
+- **D8. The renderer draws its own letters, and returns where everything
+  landed.** The a, b, c labels are in every picture the GUI exports, so a
+  figure without them is a step back. They are drawn from a bundled subset
+  of the Hershey Roman simplex font, public domain on condition that its
+  acknowledgement ships with the data, through the same line path as the
+  cell frame. Atom labels are optional. The result also carries each
+  atom's and each letter's position in pixels, so a caller can annotate in
+  matplotlib. Pillow and FreeType are declined, being a dependency for
+  three letters.
+- **D9. Depth cues are optional and off by default.** A silhouette outline
+  from the z-buffer's depth discontinuities gives the most legibility for
+  its cost (PyMOL `ray_trace_mode 1`; Tarini, Cignoni & Montani 2006) and
+  is offered as `outline=`. It is off because the GUI draws none, and an
+  agent's figure should look like what the person sees in the GUI. Fog is
+  declined for the same reason. Ambient occlusion is declined as a cost the
+  figure does not need.
+- **D10. An agent customises through data.** `render_structure` takes a
+  `Structure`, or the dict `build()` returns. An agent that wants a
+  different colour, a hidden site or a larger ellipsoid edits the dict and
+  renders it. The keyword arguments cover what the GUI's controls cover and
+  nothing more.
+- **D11. The module is provisional by declaration.** Its look and its
+  arguments follow the structure viewer, which WP-1468 is still changing.
+
+## Non-goals
+
+- **Vector output.** WP-1462 D1 declined it for the GUI, and a ray-caster
+  has no primitives to write. A vector export would project ellipses and
+  cylinders back to front, and must solve the crossing fault the matplotlib
+  baseline shows.
+- **A new look for the GUI.** An outline here is an option; the GUI gaining
+  one is its own WP.
+- **Ambient occlusion, shadows, perspective, a packing diagram.** The
+  payload's rules decide what is drawn (WP-1462 § Non-goals).
+- **Magnetic moments.** When WP-1326/1327's model lands, a moment is a
+  cylinder and a cone in this renderer. Not here.
+- **A CLI verb.** The python API is the one integration surface (root
+  CLAUDE.md, WP-1303).
+- **Replacing the GUI's renderer**, or moving `build()` out of `rietx.gui`.
+
+## Tasks
+
+- [ ] Skill: a row saying that `Refinement.write_cif` into VESTA
+  (`-export_img`) or JmolData draws a refined structure today. It lands
+  first and stands on its own.
+- [ ] `build_scene` in Python, the corpus, and the vitest that replays it
+  against `buildScene` (D3). `npm --prefix gui test` and a rebuilt dist.
+- [ ] The kernel and its numpy oracle: balls, ellipsoids with rings, bond
+  halves, the cell frame as lines with a width in pixels, the `FLAT_AXIS`
+  floor, row bands on the shared pool, the box filter inside the kernel
+  (D1, D5). State and assert the equivalence bar between the two paths.
+- [ ] Polyhedra: faces and edges after the opaque pass (D6).
+- [ ] Views: `"opening"`, `"a"`, `"b"`, `"c"`, a direction `[u, v, w]`, a
+  plane normal `(h, k, l)`, an optional `up`, and turns in degrees about
+  the screen axes; always fitted to the frame.
+- [ ] Output: the array, the anchors, the PNG writer with `pHYs` and `sRGB`,
+  the transparent background (D7).
+- [ ] Letters: the Hershey subset with its acknowledgement beside it in the
+  wheel, an `ATTRIBUTION.md` row, a, b, c by default and atom labels on
+  request (D8).
+- [ ] Options: mode, probability, exaggeration, hidden species, boundary
+  images, polyhedra on or off or by formula, background, size, supersampling,
+  `outline=` (D9).
+- [ ] Public surface: `rietx.viz.render_structure` through `__getattr__`, a
+  `PROVISIONAL_MODULES` entry (D11), a section in
+  `docs/manual/using/exports.md`, and `examples/structure_figure.py`, which
+  the manual includes and `tests/test_examples.py` runs.
+- [ ] Tests: a ball's silhouette radius against `r ×` pixels per Å; an
+  ellipsoid's silhouette against the exact projected ellipse (the norms of
+  the first two rows of R·k·T); a cubic cell viewed down c projects to a
+  square; alpha zero outside the structure on a transparent background; the
+  PNG chunks read back; the two paths agree to the stated bar; two renders
+  are identical; a polyhedron leaves a translucent pixel; a non-positive
+  tensor draws no NaN; the numpy path runs under `RIETX_COMPILED=0`.
+  Pictures to `tests/output/`.
+- [ ] A browser parity row in `tests/test_structure3d_browser.py`: one
+  scene and one view drawn by both renderers, and the mean difference
+  measured. Set its bar from that measurement and say so. It skips in CI.
+- [ ] Skill: the entry point in the generated `api-<shape>.md`, and a
+  routing row keyed by the situation "a figure of the structure".
+- [ ] The addition staged in the open milestone's record.
+
+## Acceptance
+
+- `render_structure` draws NAC in ball mode, ellipsoid mode and with
+  polyhedra on, at 1000 px and 2×2, with no browser, and each picture is
+  checked by looking at it.
+- The handover quotes the warm render time on NAC at 1000 px and 3000 px as
+  ranges, beside the spike's.
+- The browser parity row passes locally at the bar its measurement set.
+
+```sh
+.venv/bin/python -m pytest tests/test_render_structure.py tests/test_structure3d.py
+.venv/bin/python -m pytest tests/test_structure3d_browser.py   # local; skips without playwright
+RIETX_COMPILED=0 .venv/bin/python -m pytest tests/test_render_structure.py
+npm --prefix gui test && npm --prefix gui run check
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+.venv/bin/python -m ruff check src tests examples
+```
+
+## References
+
+- Sigg, C., Weyrich, T., Botsch, M. & Gross, M. (2006). GPU-based
+  ray-casting of quadratic surfaces. *Eurographics Symposium on
+  Point-Based Graphics*. The quadric the GUI and this renderer both solve.
+- Tarini, M., Cignoni, P. & Montani, C. (2006). Ambient occlusion and edge
+  cueing for enhancing real time molecular visualization. *IEEE Trans.
+  Vis. Comput. Graph.* 12, 1237-1244.
+- McGuire, M. & Bavoil, L. (2013). Weighted blended order-independent
+  transparency. *Journal of Computer Graphics Techniques* 2(2).
+- Johnson, C. K. (1965). ORTEP: a Fortran thermal-ellipsoid plot program.
+  Report ORNL-3794, Oak Ridge National Laboratory. Burnett, M. N. &
+  Johnson, C. K. (1996), ORTEP-III, ORNL-6895.
+- VESTA, Momma, K. & Izumi, F. (2011). *J. Appl. Cryst.* 44, 1272-1276. Its
+  command line: <https://jp-minerals.org/vesta/en/doc/VESTAch17.html>
+- Jmol headless rendering: <http://wiki.jmol.org/index.php/Jmol_Application>
+- PyMOL `antialias` and `ray_trace_mode`:
+  <https://pymolwiki.org/Antialias>,
+  <https://wiki.pymol.org/index.php/Ray_trace_mode>
+- ChimeraX `lighting`:
+  <https://www.cgl.ucsf.edu/chimerax/docs/user/commands/lighting.html>
+- PNG, `pHYs` and `sRGB` chunks: <https://w3c.github.io/png/>
+- Hershey fonts and their licence:
+  <https://fedoraproject.org/wiki/Licensing:HersheyFontLicense>
+
+## Handover log
+
+### 2026-09-27 — filed
+
+The maintainer asked whether rietx could make 3D figures from Python for
+agents. This session measured four routes and filed this WP for the
+cheapest one that is correct. Nothing is built.
+
+- `1469-spike/` holds the three scripts and their numbers.
+- Two survey agents read the other programs' documentation. Their claims
+  about journal resolution requirements were not verified: iucr.org refused
+  the fetch. The Hershey licence condition was read from the Fedora page.
+- Next: the skill row, then D3's corpus, because every later task draws
+  from the ported scene.
