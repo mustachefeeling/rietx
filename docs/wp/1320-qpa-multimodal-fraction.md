@@ -62,6 +62,32 @@ the standing "assumed numbers must not look measured" discipline; and the
 diagnostic's name (`QPA_FRACTION_MULTIMODAL` or similar — an open-vocabulary
 `GuardFinding`-style code carrying the admissible range, not a point).
 
+**Decided 2026-09-27, each measured on `tests/test_qpa_multimodal.py`'s
+fixtures.** *Surface*: a standalone verb, `Refinement.profile_fraction(data,
+phase, *, axes=None, fwhm=None) -> FractionProfile`, delegating to
+`strategy/fraction_profile.py` the way `suggest` delegates to
+`strategy/suggest.py`; the answer rides beside the result, never inside it, and
+every refit runs on `Refinement._trial()` (a branch) with `telemetry=False`.
+*Axis*: every free isotropic width term of the phase (`lor_strain`,
+`lor_size`, `gauss_strain`, `gauss_size`), each pinned in turn — **not the
+scale**, and not a correlation-ranked single term. The scale was tried first
+(the reporter's design): a refit at a pinned scale reaches the hump basin only
+by broadening the phase under `PHASE_SUPPORT_SIGMA`, where WP-1301's collapse
+rule restores and holds its structure, so at 4× and 8× the fitted scale the
+width stayed held and χ² ran away. At a pinned width the rest is near-linear in
+the scale and each refit has one answer. *Grid*: 0, then 11 FWHMs log-spaced
+from 0.01° to half the fitted span, converted per term at mid-range; the full
+span fires `FROZEN_COMPILE_STALE` (85° on an 85° range, not 60°). *Cut*:
+Δχ² ≤ 3.84·χ²_red·f² on the data's own χ², the esds' calibration, so one
+quadratic basin reproduces W ± 1.96 esd (controls: every admissible W within
+0.46-0.79 of that half-width). *Name and threshold*: `QPA_FRACTION_UNDETERMINED`
+(a claim, not a mechanism: a wide flat ridge fires it too), when an admissible
+W lies more than `FRACTION_PROFILE_EXCESS` = 2 half-widths from the fit's —
+chosen, between the controls' ≤ 0.79 and the fixture's ≈ 74. *Not taken*: the
+reporter's `remove_phase` advice action. Presence is
+`SEQUENTIAL_PERSISTENT_FINDING`'s and the agent's (1301's non-goal), and a range reaching 0 % already
+says presence is not established; the skill row says so.
+
 **A second candidate for the pin axis: the scale itself** (the reporter's
 design, posted on #203 on 2026-09-01, after this file was written; still
 the thread's last word on 2026-09-27). Profile the **phase scale**, not a
@@ -116,12 +142,12 @@ before anything asserts on it.
 - [x] Synthetic two-phase multi-modal fixture (scale×broadening ridge),
       verified to reproduce the three-basin shape; obs/calc/diff PNGs to
       `tests/output/`.
-- [ ] The probe: pin the correlated broadening term on a coarse grid, warm
+- [x] The probe: pin the correlated broadening term on a coarse grid, warm
       refits, fraction span vs Rwp span; surface and pin-axis rule decided
       and recorded.
-- [ ] The diagnostic carrying the admissible range; thresholds stated with
+- [x] The diagnostic carrying the admissible range; thresholds stated with
       evidence; silent on the 200 °C-shaped control.
-- [ ] Skill diagnostics row (all committed copies) + `help.py`/manual
+- [x] Skill diagnostics row (all committed copies) + `help.py`/manual
       coverage per standing gates + tests per item.
 
 ## Acceptance

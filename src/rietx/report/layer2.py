@@ -1099,24 +1099,16 @@ def predict_then_verify(refinement, data, action: SuggestedAction, *,
 def _rival_trial(refinement):
     """A private working tree for one rival fit — never the caller's own.
 
-    ``branch()`` where there is a history to branch (the default once a fit has
-    run), and a fresh :class:`~rietx.refine.Refinement` over copies of the
-    same models where the caller disabled history.  :func:`predict_then_verify`
-    can fall back to running in place because it runs *one* trial and judges it
-    by χ²; two rivals run in place would start the second from the first's
-    converged state and leave the caller standing on it.
+    :meth:`~rietx.refine.Refinement._trial`: ``branch()`` where there is a
+    history to branch (the default once a fit has run), and a fresh
+    ``Refinement`` over copies of the same models, carrying the same ties,
+    variables and holds, where the caller disabled history.
+    :func:`predict_then_verify` can fall back to running in place because it
+    runs *one* trial and judges it by χ²; two rivals run in place would start
+    the second from the first's converged state and leave the caller standing
+    on it.
     """
-    from ..refine import Refinement
-
-    if refinement.history is not None:
-        return refinement.branch()
-    trial = Refinement(refinement.structure, refinement.instrument,
-                       backend=refinement._backend, solver=refinement._solver,
-                       history=False)
-    trial._mode = refinement._mode
-    trial._two_theta_limits = refinement._two_theta_limits
-    trial._free_paths = list(refinement._free_paths)
-    return trial
+    return refinement._trial()
 
 
 def _rival_pair(finding) -> tuple[str, str]:

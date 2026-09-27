@@ -18,6 +18,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from .io.exporters import ReflectionRow
+    from .schemas.fraction import FractionProfile
     from .schemas.suggest import SuggestionResult
 
 from . import runs
@@ -1103,6 +1104,31 @@ class Refinement:
         tree = self._require_history()
         ref = Refinement(self.structure, self.instrument,
                          backend=self._backend, solver=self._solver, history=tree)
+        self._carry_into(ref)
+        ref._head_id = self._head_id
+        if node_id is not None:
+            ref.checkout(node_id)
+        return ref
+
+    def _trial(self) -> "Refinement":
+        """A private working tree for a fit the *package* runs, never the caller's.
+
+        :meth:`branch` where there is a history to branch, and otherwise a
+        history-free ``Refinement`` over copies of the same models carrying the
+        same declarations — the one builder both paths share, so a trial run
+        on a caller who disabled history answers the caller's question and not
+        a looser one (before WP-1320 that path copied only the free set, and a
+        user tie or a named variable fell off it).
+        """
+        if self.history is not None:
+            return self.branch()
+        ref = Refinement(self.structure, self.instrument,
+                         backend=self._backend, solver=self._solver, history=False)
+        self._carry_into(ref)
+        return ref
+
+    def _carry_into(self, ref: "Refinement") -> None:
+        """Copy this working tree's declarations onto a fresh ``ref``."""
         ref._mode = self._mode
         ref._two_theta_limits = self._two_theta_limits
         ref._free_paths = list(self._free_paths)
@@ -1113,7 +1139,6 @@ class Refinement:
         # the ties: a branch is a second working tree, and a hold the branch
         # dropped would make the two rivals answer different questions
         ref._user_holds = set(self._user_holds)
-        ref._head_id = self._head_id
         ref._pending_reflections = [r.model_copy(deep=True) for r in self._pending_reflections]
         # The branch is built from ``self.instrument``, which carries the last
         # stage's *refined* λ — so its own ``__init__`` snapshot would declare a
@@ -1130,9 +1155,6 @@ class Refinement:
         # rather than aliased so a later ``edit`` on either side cannot mutate
         # the other's reference.
         ref._declared_wavelengths = list(self._declared_wavelengths)
-        if node_id is not None:
-            ref.checkout(node_id)
-        return ref
 
     def edit(self, *, structure: Structure | None = None,
              instrument: Instrument | None = None, label: str = "") -> str | None:
@@ -2178,6 +2200,44 @@ class Refinement:
         return build_suggestion(jac, resid, free_idx, candidates,
                                 chi2_red=chi2_red, top_n=top_n,
                                 actions=actions, esd_inflation=inflation)
+
+    def profile_fraction(self, data: PatternData, phase: int | str, *,
+                         axes: "list[str] | None" = None,
+                         fwhm: "list[float] | None" = None) -> "FractionProfile":
+        """Every weight fraction of ``phase`` the pattern admits along its width.
+
+        The QPA esd is the curvature of χ² where the fit stopped, so it
+        describes one basin.  A trace phase's scale trades against its width
+        until its peaks are background, and that ridge can hold several basins
+        at one χ²: issue #203 measured 1.41 ± 0.65 wt% on a pattern admitting
+        0 %, ~1.5 % and 98.7 % within 0.011 pp of Rwp, with nothing flagged.
+        This pins each of the phase's width terms (``axes``; by default every
+        one of ``lor_strain``, ``lor_size``, ``gauss_strain``, ``gauss_size``
+        free in the last fit) on a grid of FWHM, refits everything else from
+        the previous point, and reads the fraction and the data's χ² at each.
+
+        ``fwhm`` is the grid as the phase's own FWHM contribution in degrees 2θ
+        at the middle of the fitted range; the default is 0 and then
+        :data:`~rietx.schemas.fraction.FRACTION_PROFILE_N_FWHM` log-spaced
+        values up to half the fitted span.  A point is admissible within
+        Δχ² = 3.84 × χ²_red × f² of the lowest χ² found, f the fit's
+        ``esd_inflation`` — the calibration every esd carries, so on one
+        quadratic basin the range reproduces W ± 1.96 esd.  The answer
+        (:class:`~rietx.schemas.fraction.FractionProfile`) carries the grid,
+        the admissible range, and ``QPA_FRACTION_UNDETERMINED`` when an
+        admissible fraction lies more than
+        :data:`~rietx.schemas.fraction.FRACTION_PROFILE_EXCESS` times the
+        esd's 95 % half-width from the fit's.
+
+        Opt-in and read-only: it costs one refit per grid point per axis (12
+        each by default), all on a branch with ``telemetry=False``, so the
+        working state and ``result_`` are untouched.  Rietveld mode only, and
+        a fit must have run.  Why the axis is the width and not the scale is
+        :mod:`rietx.strategy.fraction_profile`'s docstring.
+        """
+        from .strategy.fraction_profile import profile_fraction
+
+        return profile_fraction(self, data, phase, axes=axes, fwhm=fwhm)
 
     @classmethod
     def from_node(cls, tree: RefinementTree, node_id: str, *,

@@ -83,6 +83,7 @@ from .schemas import (
     RefinementResult,
     Structure,
 )
+from .schemas.fraction import FractionProfile, FractionProfilePoint
 from .schemas.history import HistoryNode, NodeAction, RefinementState
 from .schemas.indexing import (
     CellCandidate,
@@ -117,6 +118,8 @@ __all__ = [
     "CellCandidate",
     "DataRef",
     "FitReport",
+    "FractionProfile",
+    "FractionProfilePoint",
     "GuardFinding",
     "HelpEntry",
     "HistoryNode",

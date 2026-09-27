@@ -16,10 +16,13 @@ which is what puts the absurd basin at the same χ² as the true one.  The
 **control** drops the hump and carries five times the CaF₂, the shape of
 #203's 200 °C pattern: one minimum.
 
-**Verified before anything asserts on it** — the width profile is run by hand,
-at a sharp width, a barrier width and a hump-sized width, with the docs'
-recipe (``docs/skill/rietx/references/judging.md`` § "a trace phase's esd
-describes one basin"), whose numbers are this module's.
+**Verified before anything asserts on it** — the width profile is first run by
+hand, with public verbs only (``branch``, ``set_vary``, ``set_values``,
+``run_stage``), at a sharp width, a barrier width and a hump-sized width, so
+the fixture's two basins are established independently of the probe that the
+second half of the module tests (``Refinement.profile_fraction``).  The
+numbers ``docs/skill/rietx/references/judging.md`` § "a trace phase's esd
+describes one basin" and the manual's QPA chapter quote are this module's.
 """
 
 from pathlib import Path
@@ -30,10 +33,13 @@ import pytest
 import rietx as rx
 from rietx import Instrument, PatternData
 from rietx.model.forward import compile_model
+from rietx.model.profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
+from rietx.schemas.fraction import FRACTION_PROFILE_EXCESS, FractionProfile
 from rietx.schemas.instrument import BackgroundChebyshev
 from rietx.schemas.structure import Atom, Cell, Phase, Structure
+from rietx.strategy.fraction_profile import WIDTH_TERMS, width_value
 from rietx.strategy.staged import RefinementPlan, Stage
 
 pytestmark = pytest.mark.xdist_group("qpa-multimodal")
@@ -174,3 +180,125 @@ def test_the_control_has_one_basin(control):
     assert hump[2] - best > 10 * cut
     OUT.mkdir(exist_ok=True)
     result.plot(path=str(OUT / "qpa_multimodal_control_fit.png"))
+
+
+# -- the probe: Refinement.profile_fraction ----------------------------------
+
+
+def _basins(profile) -> int:
+    """Runs of admissible grid points separated by inadmissible ones, per axis."""
+    runs = 0
+    for axis in profile.axes:
+        flags = [p.admissible for p in profile.points if p.axis == axis]
+        runs += sum(1 for i, a in enumerate(flags) if a and (i == 0 or not flags[i - 1]))
+    return runs
+
+
+@pytest.fixture(scope="module")
+def multimodal_profile(multimodal):
+    ref, _, data = multimodal
+    before = {row.path: row.value for row in ref.parameters()}
+    return ref.profile_fraction(data, "CaF2"), before
+
+
+def test_the_profile_spans_both_basins_and_says_so(multimodal_profile):
+    profile, _ = multimodal_profile
+    assert profile.axes == [AXIS]
+    assert _basins(profile) == 2
+    assert profile.range_low < 0.02 and profile.range_high > 0.5
+    assert profile.fit_admissible
+    [finding] = profile.diagnostics
+    assert finding.code == "QPA_FRACTION_UNDETERMINED"
+    assert finding.level == "warning"
+    assert finding.where == ["phases.1.scale", AXIS]
+    assert finding.value == profile.excess > 10 * FRACTION_PROFILE_EXCESS
+    assert f"{100 * profile.range_high:.3g} %" in finding.message
+
+
+def test_the_control_profile_confirms_the_esd_and_stays_silent(control):
+    """One basin, and every admissible fraction inside W ± 1.96 esd.
+
+    The second half is the calibration claim: Δχ² scaled by χ²_red·f² is the
+    esd's own scale, so a profile along a healthy minimum lands inside the
+    interval the esd already quotes (0.61 of its half-width here).
+    """
+    ref, _, data = control
+    profile = ref.profile_fraction(data, "CaF2")
+    assert _basins(profile) == 1
+    assert profile.excess < 1.0
+    assert profile.diagnostics == []
+
+
+def test_the_profile_moves_nothing(multimodal, multimodal_profile):
+    """No accepted value moves anywhere the probe merely reports."""
+    ref, result, _ = multimodal
+    _, before = multimodal_profile
+    assert ref.result_ is result
+    assert {row.path: row.value for row in ref.parameters()} == before
+
+
+def test_a_trial_carries_the_callers_declarations_with_or_without_history():
+    """``_trial`` is ``branch`` without a history too — ties, variables, holds."""
+    for history in (True, False):
+        ref = rx.Refinement(*_models(CONTROL_SCALE, 3), history=history)
+        ref.add_variable("w", 0.05)
+        ref.tie("phases.1.lor_size", "phases.0.lor_size")
+        ref.hold(["phases.0.cell.a"])
+        trial = ref._trial()
+        assert trial is not ref and trial.structure is not ref.structure
+        assert set(trial._ties) == set(ref._ties) == {"phases.1.lor_size"}
+        assert set(trial._variables) == set(ref._variables) == {"w"}
+        assert trial._user_holds == ref._user_holds
+
+
+def test_without_history_the_profile_still_moves_nothing(control):
+    _, _, data = control
+    ref = rx.Refinement(*_models(CONTROL_SCALE, FITTED_BACKGROUND_TERMS),
+                        history=False)
+    result = ref.fit(data, plan=PLAN, telemetry=False)
+    before = {row.path: row.value for row in ref.parameters()}
+    profile = ref.profile_fraction(data, "CaF2", fwhm=[0.0, 40.0])
+    assert [p.fwhm for p in profile.points] == [0.0, 40.0]
+    assert ref.result_ is result
+    assert {row.path: row.value for row in ref.parameters()} == before
+
+
+def test_the_profile_refuses_what_it_cannot_answer(control):
+    ref, _, data = control
+    with pytest.raises(ValueError, match="no phase named"):
+        ref.profile_fraction(data, "CaF3")
+    with pytest.raises(ValueError, match="not a width term"):
+        ref.profile_fraction(data, 1, axes=["phases.1.scale"])
+    with pytest.raises(ValueError, match="not a width term"):
+        ref.profile_fraction(data, 1, axes=["phases.0.lor_strain"])
+    with pytest.raises(RuntimeError, match="run a fit"):
+        rx.Refinement(*_models(CONTROL_SCALE, 3)).profile_fraction(data, 1)
+    narrow = rx.Refinement(*_models(CONTROL_SCALE, FITTED_BACKGROUND_TERMS))
+    narrow.fit(data, plan=RefinementPlan(stages=[PLAN.stages[0]]), telemetry=False)
+    with pytest.raises(ValueError, match="no width term of 'CaF2' is free"):
+        narrow.profile_fraction(data, "CaF2")
+    lebail = rx.Refinement(*_models(CONTROL_SCALE, FITTED_BACKGROUND_TERMS))
+    lebail.fit(data, mode="lebail", telemetry=False, plan=RefinementPlan(
+        stages=[Stage("bkg", ["instrument.background.*"])]))
+    with pytest.raises(ValueError, match="'lebail' fit has none"):
+        lebail.profile_fraction(data, "CaF2", axes=["phases.1.lor_strain"])
+
+
+@pytest.mark.parametrize("term", WIDTH_TERMS)
+def test_a_grid_width_is_the_phases_own_fwhm_at_the_mid_angle(term):
+    """``width_value`` inverts the width laws the forward model evaluates."""
+    theta, fwhm = 28.75, 0.7
+    value = width_value(term, fwhm, theta)
+    if term.startswith("lor_"):
+        got = lorentzian_fwhm(theta, value if term == "lor_size" else 0.0,
+                              value if term == "lor_strain" else 0.0)
+    else:
+        got = gaussian_fwhm(theta, 0.0, 0.0, 0.0,
+                            gauss_size=value if term == "gauss_size" else 0.0,
+                            gauss_strain=value if term == "gauss_strain" else 0.0)
+    assert float(got) == pytest.approx(fwhm, rel=1e-12)
+
+
+def test_the_profile_round_trips_through_json(multimodal_profile):
+    profile, _ = multimodal_profile
+    assert FractionProfile.model_validate_json(profile.model_dump_json()) == profile

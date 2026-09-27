@@ -285,7 +285,14 @@ from .._nearmiss import did_you_mean
 #: since H alone does not identify it; a nuclear row keeps its three.  0.31 is
 #: the magnetic supercell's (#477), which landed first; this is the rung after
 #: it.
-SCHEMA_VERSION = "0.32"
+#: 0.32 → 0.33 (WP-1320): ``FractionProfile`` and ``FractionProfilePoint``
+#: (``schemas/fraction.py``), the answer ``Refinement.profile_fraction``
+#: returns — every weight fraction of one phase the pattern admits along its
+#: width, beside the QPA rather than inside it.  Additive: no existing model
+#: gains or loses a field and every stored document loads unchanged, but a
+#: new answer type is a new shape a consumer parses, which since WP-1117 is
+#: the whole test.
+SCHEMA_VERSION = "0.33"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

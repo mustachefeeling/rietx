@@ -330,40 +330,38 @@ offending phase's `background_absorption` read 0.183 against another phase's
 0.208, it was absent from `top_correlations`, and it was absent from the one
 scale-bearing soft mode.
 
-The check is a width profile. It pins the phase's width term, refits the rest
-warm from point to point on a branch, and reads the fraction and χ² at each
-point:
+The check is a width profile, and `ref.profile_fraction(data, phase)` runs it.
+It pins each of the phase's free width terms (`lor_strain`, `lor_size`,
+`gauss_strain`, `gauss_size`; `axes=` to name one) at 12 FWHMs, 0 and then
+log-spaced to half the fitted range, refits the rest warm on a branch, and
+reads the fraction and the data's χ² at each:
 
 ```python
-axis = "phases.1.lor_strain"      # FWHM = value·tanθ, in degrees
-trial = ref.branch()
-trial.set_vary([axis], False)
-rows = []
-for value in [0.0, 0.01, 0.03, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0, 80.0]:
-    trial.set_values({axis: value})
-    r = trial.run_stage(data, rx.Stage("width_pin", []), telemetry=False)
-    st = r.statistics
-    rows.append((value, r.qpa.phases[1].weight_fraction,
-                 st.chi2 * (st.n_points - st.n_free_parameters)))
-best = min(x2 for *_, x2 in rows)
-st = ref.result_.statistics
-cut = 3.84 * st.chi2 * st.esd_inflation ** 2
-admissible = [w for _, w, x2 in rows if x2 - best <= cut]
+profile = ref.profile_fraction(data, "CaF2")   # 12 refits per free width term
+profile.range_low, profile.range_high, profile.excess, profile.fit_admissible
+[(p.fwhm, p.weight_fraction, p.delta_chi2, p.admissible) for p in profile.points]
 ```
 
-`st.chi2` is reduced, hence the multiplication by N − P. The cut is the 95 %
-Δχ² for one parameter, scaled by the same χ²_red and Bérar-Lelann factor
-every esd already carries, so on a single quadratic basin it reproduces
-W ± 1.96 esd. The largest value should make the FWHM comparable with half the
-fitted range. On the full range the frozen peak windows no longer cover the
-profile, and `FROZEN_COMPILE_STALE` fires. A wide `admissible` means the
-pattern does not fix the fraction. Quote the range and the widths that produced
-it, never the point.
+The cut, `profile.delta_chi2_cut`, is the 95 % Δχ² for one parameter (3.84)
+scaled by the same χ²_red and Bérar-Lelann factor every esd already carries,
+so on a single quadratic basin it reproduces W ± 1.96 esd. `excess` is the
+farthest admissible fraction from the fit's in units of that half-width, and
+`QPA_FRACTION_UNDETERMINED` fires past 2. The axis is the width, never the
+scale: at a pinned scale the refit reaches the hump basin only by broadening
+the phase under 1σ, where WP-1301 holds its structure, so the scan stops short.
+The grid stops at half the range because on the full range the frozen peak
+windows no longer cover the profile and `FROZEN_COMPILE_STALE` fires.
+`fit_admissible=False` means a pinned refit beat the fit by more than the cut,
+so the fit is not in the lowest basin along the ridge.
 
 A synthetic trace of CaF₂ in LaB₆ (lab Cu Kα, a 10-count amorphous hump under a
-six-term Chebyshev) reproduces the shape. The fit gave 1.19 ± 0.53 wt%, while
-the grid above found two admissible basins, 0.9-2.5 % and 79 %, separated by a
-Δχ² of 15 against a cut of 9.4.
+six-term Chebyshev) reproduces the shape. The fit gives 1.19 ± 0.53 wt%. The
+profile admits 0.86 % to 77 % in two basins separated by a barrier the data sees
+(Δχ² 15 against a cut of 9.4), `excess` 74, and fires. Without the hump and with
+five times the CaF₂, one basin at 3.3-4.4 % and `excess` 0.61: silent. By hand
+the same scan is `ref.branch()`, `trial.set_vary([axis], False)`, then per value
+`set_values` and `run_stage(data, rx.Stage("width_pin", []))`, with χ² taken as
+`chi2 · (n_points − n_free_parameters)` because `statistics.chi2` is reduced.
 
 This is not the ZMV family. A wrong multiplicity or setting
 (`SITE_SNAPPED_TO_SPECIAL_POSITION`, `SPACE_GROUP_SETTING_ASSUMED`) is a fixed
