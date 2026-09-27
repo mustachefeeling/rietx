@@ -297,7 +297,7 @@ and PNG metadata. Each decision says what it takes and what it declines.
   (Done 2026-09-27 as `api-figure.md`, the generator's first technique index.
   The situation joined the existing "writing the answer out" row, since the
   body had 52 bytes left; a 21-byte cut elsewhere in the body paid for it.)
-- [ ] The addition staged in the open milestone's record.
+- [x] The addition staged in the open milestone's record.
 
 ## Acceptance
 
