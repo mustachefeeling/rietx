@@ -205,7 +205,10 @@ here), `BackendCapability.requires` (the distribution to install) and
 `rietx.__version__` is the version of the installed distribution, the same
 string `capabilities().package_version` reports and every `Provenance`,
 `TreeHeader` and `project.json` is stamped with, so a result and the package
-that produced it can never disagree about it.
+that produced it can never disagree about it. A source checkout is the one
+exception. If its `pyproject.toml` has moved on since its editable install,
+the source's version is stamped instead, with the commit as a local label (see
+Troubleshooting).
 
 ## Installing from source
 
@@ -242,6 +245,14 @@ installed, and what you imported is a source checkout sitting on `sys.path`
 ahead of its own install. Install it (`uv pip install -e .`) before refining
 anything: that string is stamped into the provenance of every result, every
 history tree and every project file the session writes.
+
+`RuntimeWarning: the installed rietx metadata says '1.4.0' but the source tree
+it is imported from says '1.6.0.dev0'`. The checkout's version was bumped after
+its editable install, which writes its metadata once, when it is installed.
+Results are stamped with the source version and the commit
+(`1.6.0.dev0+g` and twelve hex digits, `.dirty` if a tracked file was edited),
+so they still name the code that ran. Reinstall (`uv pip install -e ".[dev]"`)
+to make the two agree.
 
 `pip` cannot find a version of `numba` for your `numpy`. `numba` carries an
 upper bound on `numpy` (`numpy<2.6` as of `numba` 0.63), so a very new numpy has

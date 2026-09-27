@@ -1,4 +1,4 @@
-# WP-1469 spike
+# WP-1470 spike
 
 Three scripts measured the question the WP answers: can a Python renderer
 with no new dependency draw the structure viewer's geometry fast enough for
