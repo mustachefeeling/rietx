@@ -75,6 +75,126 @@ the first thing to understand about a QPA esd. It measures how well the scales
 are determined by this model against this pattern, and not how close the answer
 is to the truth.
 
+## An esd describes one basin
+
+`PhaseQuantity.weight_fraction_stderr` comes from the curvature of χ² at the
+point the fit converged to. It describes the basin the fit stopped in, and it
+cannot see any other. For most fractions that is the whole story. For a trace
+phase it may not be.
+
+A phase's scale and its peak width trade against each other. Broaden a weak
+phase far enough and its peaks turn into a hump the background can share, and
+then its scale can grow with almost no change in χ². Along that ridge the χ²
+surface can hold separate basins at nearly the same χ². Each basin has ordinary
+curvature, so each gives a tight esd, and the fit reports whichever basin it
+reached.
+
+This was measured on a lab Cu Kα in-situ series. At one pattern the fit
+reported a phase at 1.41 ± 0.65 wt% with no diagnostic. Pinning that phase's
+`lor_strain` at a series of values and refitting everything else found three
+reproducible basins, at 0 %, about 1.5 % and 98.7 %. All three lay within
+0.011 percentage points of Rwp of each other, and the lowest Rwp of the scan
+belonged to the 98.7 % basin. Another program reported the same pattern at
+25.3 ± 0.5 wt%, just as confidently. At the pattern taken 100 °C lower the same
+scan spanned 0.636 percentage points of Rwp around a single minimum, 58 times as
+much, so the problem belongs to that pattern and not to the setup.
+
+No local quantity sees this, because every basin looks healthy from inside. The
+check is the scan itself, a width profile, and `Refinement.profile_fraction`
+runs it:
+
+1. It pins one of the phase's width terms at a series of values, from no sample
+   broadening at all up to a peak width of half the fitted range.
+2. At each value it refits everything else, starting from where the previous
+   value finished.
+3. It reads the phase's weight fraction and the data's χ² at every point.
+
+<!-- api-doc: no-exec — needs a fitted multi-phase refinement; tests/test_qpa_multimodal.py runs this call -->
+```python
+profile = ref.profile_fraction(data, "CaF2")
+print(profile.range_low, profile.range_high, profile.excess)
+for d in profile.diagnostics:
+    print(d.code, d.message)
+```
+
+It is opt-in, because it costs one refit per point: twelve points for each
+width term of the phase that was free in the last fit. Every refit runs on a
+branch, so the working state and `Refinement.result_` are left as they were.
+The axes are the phase's own `lor_strain`, `lor_size`, `gauss_strain` and
+`gauss_size`, and never its scale. A refit at a pinned scale can reach the hump
+basin only by broadening the phase until it drops below the noise, and at that
+point the package holds the phase's structure for the stage, so the scan would
+stop short of the basin it was looking for.
+
+A point is admissible when its χ² is within
+{{ FRACTION_PROFILE_DCHI2 }} × χ²_red × f² of the lowest χ²
+the profile found, with f the fit's `Statistics.esd_inflation`. That is the 95 %
+Δχ² for one parameter, scaled by the same two factors every esd already carries.
+On a single well-behaved minimum it therefore reproduces W ± 1.96 esd. On the
+test suite's control patterns every admissible fraction stayed inside that
+interval, at most 0.79 of the way to its edge.
+
+`FractionProfile` is the answer.
+
+| Field | Holds |
+|---|---|
+| `FractionProfile.phase` | the phase's name |
+| `FractionProfile.phase_index` | its position in the structure |
+| `FractionProfile.axes` | the width paths that were pinned |
+| `FractionProfile.weight_fraction` | the fit's fraction, copied from its QPA row |
+| `FractionProfile.weight_fraction_stderr` | the fit's esd, or `None` |
+| `FractionProfile.points` | one `FractionProfilePoint` per pinned value |
+| `FractionProfile.chi2_fit` | the fit's own data χ², not reduced |
+| `FractionProfile.chi2_best` | the lowest data χ² found, the fit's included |
+| `FractionProfile.delta_chi2_cut` | the admissibility cut, in χ² |
+| `FractionProfile.fit_admissible` | whether the fit's own point is within the cut |
+| `FractionProfile.range_low` | the smallest admissible fraction |
+| `FractionProfile.range_high` | the largest admissible fraction |
+| `FractionProfile.excess` | the farthest admissible fraction from the fit's, in units of 1.96 esd |
+| `FractionProfile.diagnostics` | the finding below, when it fires |
+
+| Field | Holds |
+|---|---|
+| `FractionProfilePoint.axis` | the width path pinned |
+| `FractionProfilePoint.value` | its value, in its own units |
+| `FractionProfilePoint.fwhm` | that value as the phase's FWHM at mid-range, degrees 2θ |
+| `FractionProfilePoint.admissible` | whether the point is within the cut |
+| `FractionProfilePoint.weight_fraction` | the fraction the refit reached |
+| `FractionProfilePoint.chi2` | its data χ² |
+| `FractionProfilePoint.delta_chi2` | its distance above `FractionProfile.chi2_best` |
+| `FractionProfilePoint.rwp` | its Rwp |
+| `FractionProfilePoint.status` | how the refit's stage ended |
+| `FractionProfilePoint.error` | why a refit raised, with the numbers left `None` |
+| `FractionProfilePoint.node_id` | the history node the refit recorded |
+
+The range is an inner bound. Each admissible point's fraction is inside the 95 %
+profile interval for W, so a finer grid can only widen it. When
+`FractionProfile.fit_admissible` is `False`, a pinned refit found χ² lower than
+the fit's by more than the cut, which means the fit did not reach the lowest
+basin along this ridge.
+
+`QPA_FRACTION_UNDETERMINED` fires when an admissible fraction lies more than
+{{ FRACTION_PROFILE_EXCESS }} times the esd's 95 % half-width from the fit's
+fraction. That factor is a choice, not a measurement. The controls reached at most 0.79 and the synthetic
+trace fixture reached about 75, so it sits well clear of both. The warning names
+the range and the widths that produced it. A fraction it fires on is not
+determined by this pattern, whatever its esd says, so quote the range rather
+than the point. The basins separate only on information the fit does not have:
+a width held at a value the specimen justifies, a background that can take the
+hump itself, or more counts on the phase's strongest lines.
+
+On that synthetic fixture, LaB₆ with a trace of CaF₂ and a small amorphous hump
+under a six-term Chebyshev background, the fit reports CaF₂ at 1.19 ± 0.53 wt%.
+The profile admits everything from 0.86 % to 77 %, in two basins separated by a
+barrier the data can see.
+
+This is a different failure from a wrong ZMV. A fraction is proportional to
+scale × Z·M·V, and a wrong site multiplicity or a wrong space-group setting
+(`SITE_SNAPPED_TO_SPECIAL_POSITION`, `SPACE_GROUP_SETTING_ASSUMED`) moves the
+Z·M·V half. That error is a fixed multiplicative offset on one phase, at an
+unchanged Rwp, and a width profile cannot see it. A width profile finds the
+case where the pattern admits several fractions at once.
+
 ## What the fractions are fractions of
 
 `QuantitativePhaseAnalysis.crystalline_only` is `True`, and it is not a caveat

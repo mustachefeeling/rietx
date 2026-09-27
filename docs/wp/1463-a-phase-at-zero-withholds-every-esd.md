@@ -92,6 +92,19 @@ with the rest.
 
 Whichever lands, a withheld QPA esd never goes silent again.
 
+### Inherited
+
+- **2026-09-27, from [1320](1320-qpa-multimodal-fraction.md): the soft
+  dependency is discharged.** `Refinement.profile_fraction(data, phase)` now
+  profiles one phase's weight fraction along its width and returns the
+  admissible range beside the answer (`FractionProfile.range_low`/`range_high`).
+  Where the fit carries no esd, this WP's 16-of-48 case, the profile still
+  returns the range, but `excess` is `None` and `QPA_FRACTION_UNDETERMINED`
+  stays silent by design, since there is no confident claim to contradict. So a
+  pattern that lost every esd here can still get an honest interval from the
+  profile, and a finding this WP adds may point at it. Priority unmoved: 1320
+  was never a blocker.
+
 ## Non-goals
 
 - A trace phase's confident esd across several basins. That is WP-1320's

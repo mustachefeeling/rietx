@@ -310,6 +310,64 @@ Appl. Cryst.* **35**, 383.
   where none is needed *reduces* accuracy (their sample 1 and synthetic bauxite;
   `BRINDLEY_OUTSIDE_REGIME`).
 
+## §4b — a trace phase's esd describes one basin
+
+`weight_fraction_stderr` is the curvature of χ² at the converged point, so it
+describes the basin the fit stopped in and no other. A weak phase's scale
+trades against its width: broadened far enough, its peaks become a hump the
+background shares, and its scale can then grow at almost no χ² cost. That ridge
+can hold separate basins, each with ordinary curvature and a tight esd, and the
+fit reports whichever it reached.
+
+A lab Cu Kα in-situ pattern gave one phase at 1.41 ± 0.65 wt% with no
+diagnostic. Pinning its `lor_strain` on a grid and refitting everything else
+warm found three reproducible basins, at 0 %, ~1.5 % and 98.7 %, within 0.011 pp
+of Rwp, and the lowest Rwp belonged to 98.7 %. The pattern 100 °C lower spanned
+0.636 pp around one minimum, so the case is per pattern. Another program gave
+25.3 ± 0.5 wt% on the same data, so no cross-code reference exists and the scan
+is the evidence. No local statistic flagged it. On a real six-phase fit the
+offending phase's `background_absorption` read 0.183 against another phase's
+0.208, it was absent from `top_correlations`, and it was absent from the one
+scale-bearing soft mode.
+
+The check is a width profile, and `ref.profile_fraction(data, phase)` runs it.
+It pins each of the phase's free width terms (`lor_strain`, `lor_size`,
+`gauss_strain`, `gauss_size`; `axes=` to name one) at 12 FWHMs, 0 and then
+log-spaced to half the fitted range, refits the rest warm on a branch, and
+reads the fraction and the data's χ² at each:
+
+```python
+profile = ref.profile_fraction(data, "CaF2")   # 12 refits per free width term
+profile.range_low, profile.range_high, profile.excess, profile.fit_admissible
+[(p.fwhm, p.weight_fraction, p.delta_chi2, p.admissible) for p in profile.points]
+```
+
+The cut, `profile.delta_chi2_cut`, is the 95 % Δχ² for one parameter (3.84)
+scaled by the same χ²_red and Bérar-Lelann factor every esd already carries,
+so on a single quadratic basin it reproduces W ± 1.96 esd. `excess` is the
+farthest admissible fraction from the fit's in units of that half-width, and
+`QPA_FRACTION_UNDETERMINED` fires past 2. The axis is the width, never the
+scale: at a pinned scale the refit reaches the hump basin only by broadening
+the phase under 1σ, where WP-1301 holds its structure, so the scan stops short.
+The grid stops at half the range because on the full range the frozen peak
+windows no longer cover the profile and `FROZEN_COMPILE_STALE` fires.
+`fit_admissible=False` means a pinned refit beat the fit by more than the cut,
+so the fit is not in the lowest basin along the ridge.
+
+A synthetic trace of CaF₂ in LaB₆ (lab Cu Kα, a 10-count amorphous hump under a
+six-term Chebyshev) reproduces the shape. The fit gives 1.19 ± 0.53 wt%. The
+profile admits 0.86 % to 77 % in two basins separated by a barrier the data sees
+(Δχ² 15 against a cut of 9.4), `excess` 74, and fires. Without the hump and with
+five times the CaF₂, one basin at 3.3-4.4 % and `excess` 0.61: silent. By hand
+the same scan is `ref.branch()`, `trial.set_vary([axis], False)`, then per value
+`set_values` and `run_stage(data, rx.Stage("width_pin", []))`, with χ² taken as
+`chi2 · (n_points − n_free_parameters)` because `statistics.chi2` is reduced.
+
+This is not the ZMV family. A wrong multiplicity or setting
+(`SITE_SNAPPED_TO_SPECIAL_POSITION`, `SPACE_GROUP_SETTING_ASSUMED`) is a fixed
+multiplicative offset on one phase at an unchanged Rwp, and a width profile
+cannot see it.
+
 ## §4b — the worked example that stops at GoF 2.97
 
 LaB₆ pore proxy: a guest scatterer at the 1b site in the data only, host model
