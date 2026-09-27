@@ -33,9 +33,10 @@ Wiring it cost four acceptance rows, two on corundum and two on LaB6.
 | **corundum truth (must not demote)** | **0.943** | **−1 … +15** |
 
 Three variants were measured and each fires on the correct cell: any absent
-extra; a share bound; a gain bounded by `n_unindexed`. The instrument is
-`ambiguity._refuted_supercell`, kept private and tested, unwired, with the
-numbers in its docstring.
+extra; a share bound; a gain bounded by `n_unindexed`. The instrument was
+`ambiguity._refuted_supercell`. *Superseded in part 2026-09-27: it is now
+`ambiguity.supercell_chance`, which takes the class's reflections and carries
+these numbers in its docstring.*
 
 **Re-measure the table before quoting it.** The shares above were taken before
 WP-1446's review pass moved `_derivative_transform`'s enumeration into the
@@ -289,10 +290,17 @@ search: a local run, or the nightly dispatched with `full_macos`.
 - [x] Whether `best_or_none()`'s gate, not the order, is the right place.
       *No, 2026-09-27: the gate is already right on brucite, and the order is
       the defect.*
-- [ ] Make the chance test a function. Rework `ambiguity._refuted_supercell`
+- [x] Make the chance test a function. Rework `ambiguity._refuted_supercell`
       to take the child's class-allowed reflections and return the extras, the
       seen count, p0 and p. Test it on synthetic lists: a real superstructure's
       extras are present, a phantom supercell's sit at chance.
+      *Done 2026-09-27: `ambiguity.supercell_chance` → `SupercellEvidence`,
+      `chance_rate` for p0. It pairs the primitive reduced cells, so a P
+      description of an I or R truth is found at index 2 or 3, which the
+      conventional-cell pairing could not find. It also has a third verdict,
+      `undecided`, for a test that could not have rejected chance
+      (p0ⁿ ≥ α). That case includes no extra line in range, which is the
+      ambiguity partners' case, and it refutes nothing.*
 - [ ] Run the screen inside `index_pattern` under the manual's protocol:
       widths seeded with `workflow.seed_widths`, and a 2θ range chosen by a
       measured rule. The manual's 20-90° is a caller's choice for Cu Kα, and
