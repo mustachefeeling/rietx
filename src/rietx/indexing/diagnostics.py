@@ -358,7 +358,7 @@ BRAGG_BRENTANO_CELL_PPM = 85.0
 #: duplicating the text would let the two copies disagree.
 _PER_CANDIDATE_CODES = ("INDEX_GEOMETRIC_AMBIGUITY", "INDEX_BRAVAIS_AMBIGUOUS",
                         "INDEX_PREDICTED_BUT_ABSENT", "INDEX_IMPURITY_LINES",
-                        "INDEX_VOLUME_UNPHYSICAL")
+                        "INDEX_VOLUME_UNPHYSICAL", "INDEX_SUPERCELL_REFUTED")
 
 
 def candidate_diagnostics(cand) -> list[Diagnostic]:
@@ -429,6 +429,32 @@ def candidate_diagnostics(cand) -> list[Diagnostic]:
                         "sublattice.  Read this beside lebail.rwp — Rwp is nearly "
                         "silent on an oversized cell (measured 0.389 against a "
                         "correct 0.200) and this count is what sees it")))
+
+    refuting = [c for c in cand.supercell_checks or [] if c.verdict == "refuted"]
+    if refuting:
+        # the checks run in the parents' rank order and the candidate sits
+        # below the lowest-ranked parent that refutes it, which is the last
+        check = refuting[-1]
+        chance = check.p0 * check.n_extra
+        others = (f"  {len(refuting) - 1} other candidate(s) refute it the same "
+                  "way" if len(refuting) > 1 else "")
+        out.append(Diagnostic(
+            level="warning", code="INDEX_SUPERCELL_REFUTED",
+            message=(f"this lattice is an index-{check.index} superlattice of the "
+                     f"{check.parent_system} {check.parent_centring} candidate "
+                     f"{_cell_str(check.parent_cell)}, and of the "
+                     f"{check.n_extra} extra line(s) it predicts that no "
+                     f"extinction could remove, {check.n_seen} sit on an "
+                     f"observed line, where chance alone puts {chance:.1f} "
+                     f"(p = {check.p_value:.2g}).  So it is ranked directly below "
+                     "that candidate." + others),
+            where=where + ([f"first missing extra at {check.absent_two_theta[0]:.3f}°"]
+                           if check.absent_two_theta else []),
+            suggestion=("read the smaller cell as the lattice: this one repeats "
+                        "its lines and adds ones the pattern does not show.  A "
+                        "real superstructure whose extra lines are too weak to "
+                        "pick is the case this cannot see — look at the pattern "
+                        "at absent_two_theta before discarding it")))
 
     if lebail is not None and lebail.unmatched_observed:
         tt = lebail.unmatched_observed_two_theta
@@ -512,7 +538,8 @@ def index_diagnostics(result, instrument=None) -> list[Diagnostic]:
                         "confidence_caveats and act on the refuting ones first "
                         "(geometric_ambiguity, predicted_but_absent, "
                         "fom_panel_disagrees, indexed_fraction_low, "
-                        "volume_unphysical) — the others cap confidence rather "
+                        "volume_unphysical, validation_failed, "
+                        "supercell_refuted) — the others cap confidence rather "
                         "than arguing against the cell, and most of them are "
                         "closed by better data rather than by a different search")))
 

@@ -295,7 +295,15 @@ def _extra_mask(q_child: np.ndarray, q_parent: np.ndarray,
     """
     if not len(q_parent):
         return np.ones(len(q_child), dtype=bool)
-    d = np.min(np.abs(q_child[:, None] - q_parent[None, :]), axis=1)
+    # the nearest parent line by binary search, as ``fom.match_lines`` does: a
+    # full distance matrix is extras × parent lines, which at 0.41 Å on a 10 Å
+    # cell is ~10⁹ entries (WP-1449, 11-BM NAC)
+    ref = np.sort(np.asarray(q_parent, dtype=np.float64))
+    child = np.asarray(q_child, dtype=np.float64)
+    right = np.searchsorted(ref, child)
+    left = np.clip(right - 1, 0, len(ref) - 1)
+    right = np.clip(right, 0, len(ref) - 1)
+    d = np.minimum(np.abs(child - ref[left]), np.abs(child - ref[right]))
     return d > max(tol, 1e-12)
 
 
@@ -327,8 +335,8 @@ def _discriminating(hkl_extra: np.ndarray, q_extra: np.ndarray, q_lo: float,
 
 #: How far two candidates' fitted volumes may sit from an exact integer ratio
 #: and still be tried as parent and derivative.  A **prefilter on a pair**, not a
-#: verdict: :func:`_derivative_transform` decides, and it decides on
-#: :func:`~rietx.indexing.reduce.same_lattice`.  One per cent because the two
+#: verdict: :func:`_derivative_transform` decides, and it decides on the
+#: reduced metrics (:func:`_same_reduced_metric`).  One per cent because the two
 #: cells are independent fits of the same lattice — measured on the round-robin
 #: brucite pattern (WP-1446), the a × 2 supercell's volume sits 6 ppm from 4×
 #: the truth's, so a per cent is four orders of slack on what it has to admit
@@ -343,9 +351,8 @@ def _derivative_transform(parent_cell: tuple[float, ...],
     """``H`` with ``child`` = the index-n superlattice ``H`` makes of ``parent``.
 
     ``None`` when no such H exists at or below ``max_index``.  The two cells are
-    **independent fits**, so the comparison is
-    :func:`~rietx.indexing.reduce.same_lattice` on the reduced forms rather than
-    a band in Q — measured on brucite (WP-1446), the parent's predicted lines sit
+    **independent fits**, so the comparison is between the reduced forms
+    (:func:`_same_reduced_metric`) rather than a band in Q — measured on brucite (WP-1446), the parent's predicted lines sit
     a median 7.0e-5 in Q from the supercell's against a median σ(Q) of 6.8e-5, so
     a line-position test is not separable at this data's own precision while the
     lattice test is exact to the fitting difference.
@@ -355,7 +362,7 @@ def _derivative_transform(parent_cell: tuple[float, ...],
     proportion cannot be related by any H and needs no enumeration.
 
     **The enumeration runs in the child's frame, and that is not a detail.**
-    ``same_lattice`` compares *reduced* forms, so an H passing it says only that
+    The comparison is between *reduced* forms, so an H passing it says only that
     ``lattice(H·parent)`` and ``lattice(child)`` are the same lattice — the
     child's own fitted basis is then ``U·H·parent`` for some unimodular ``U``,
     and ``H⁻¹`` applied to *that* basis gives ``H⁻¹UH·parent``, a lattice of the
@@ -374,7 +381,7 @@ def _derivative_transform(parent_cell: tuple[float, ...],
     """
     from ..crystallography.lattice import cell_volume
     from .qspace import af_from_cell
-    from .reduce import same_lattice
+    from .reduce import reduced_af
 
     v_parent = float(cell_volume(*parent_cell))
     v_child = float(cell_volume(*child_cell))
@@ -386,18 +393,39 @@ def _derivative_transform(parent_cell: tuple[float, ...],
         return None
     if abs(ratio - index) > _DERIVATIVE_VOLUME_RTOL * index:
         return None
+    target = reduced_af(af_from_cell(parent_cell))
     for h in hnf_matrices(index):
         ht = np.ascontiguousarray(h.T)
         try:
             candidate = transform_cell(
                 child_cell, np.linalg.inv(np.asarray(ht, dtype=np.float64)))
-            equal, _chi2 = same_lattice(af_from_cell(candidate),
-                                        af_from_cell(parent_cell))
+            equal = _same_reduced_metric(reduced_af(af_from_cell(candidate)),
+                                         target)
         except (ValueError, np.linalg.LinAlgError):
             continue
         if equal:
             return ht
     return None
+
+
+def _same_reduced_metric(red_a: np.ndarray, red_b: np.ndarray) -> bool:
+    """``same_lattice``'s relative test, with the angles banded on the metric.
+
+    :func:`~rietx.indexing.reduce.equal_reduced` compares A..F component by
+    component, so an off-diagonal term at a right angle compares fp noise with
+    fp noise (1e-16 against −7e-18) and calls the same lattice two
+    (``indexing/CLAUDE.md``: near 90° that test is arbitrarily tight).  Here the
+    pairing missed every orthogonal parent a transformation had written with
+    noise, the cubic F and I cells over a doubled P among them (WP-1449).  So
+    the off-diagonal terms are held to the same relative bound on the size of
+    the largest diagonal one.  Dedup keeps ``same_lattice`` as it is.
+    """
+    from .reduce import CELL_EQUALITY_RELATIVE
+
+    a, b = np.asarray(red_a, dtype=np.float64), np.asarray(red_b, dtype=np.float64)
+    scale = np.maximum(np.abs(a), np.abs(b))
+    scale[3:] = np.maximum(scale[3:], float(np.max(scale[:3])))
+    return bool(np.all(np.abs(a - b) <= CELL_EQUALITY_RELATIVE * scale))
 
 
 #: Significance level of :func:`supercell_chance`.  A convention, not a fit
@@ -465,7 +493,7 @@ def uncancellable(cell: tuple[float, ...], centring: str, hkl: np.ndarray, *,
     *Zonal* conditions come from glide planes and act only on reflections in the
     plane the glide's mirror fixes.  *Serial* conditions come from screw axes and
     act only on the row the axis fixes (*International Tables for
-    Crystallography* Vol. A (2005), §2.2.13).  A space group's point group lies
+    Crystallography* Vol. A (2002), §2.2.13).  A space group's point group lies
     inside its lattice's, so a reflection that **no** symmetry of the lattice
     fixes can be extinguished by no space group of that lattice, whatever it
     turns out to be.  The centring is the lattice's own and is decided before

@@ -608,6 +608,34 @@ def test_a_primitive_description_of_a_centred_lattice_is_its_superlattice(
     assert supercell_chance(cell, "P", cell, centring, q, esd) is None
 
 
+@pytest.mark.parametrize("centring, index", [("F", 2), ("I", 4)])
+def test_a_centred_supercell_of_an_orthogonal_lattice_is_paired(centring,
+                                                                index):
+    """The pairing is not fooled by a right angle written with noise.
+
+    A cubic F or I cell of edge 2a is a superlattice of the P cell of edge a,
+    at primitive index 2 and 4.  The transformed parent comes back with its
+    right angles as fp noise, and a component-wise relative comparison, which
+    is ``same_lattice``'s, calls that a different lattice: the dichotomy search
+    returns both cells beside the truth, and before WP-1449 neither was paired.
+
+    To 150° rather than 90°, and that is the power cost of counting only what
+    no extinction can remove: to 90° the F cell's one uncancellable extra is
+    531, and one extra reads *undecided*.
+    """
+    a = 4.1566
+    parent = (a,) * 3 + (90.0,) * 3
+    child = (2 * a,) * 3 + (90.0,) * 3
+    q, esd = _lines(parent, two_theta_max=150.0)
+    ev = supercell_chance(parent, "P", child, centring, q, esd)
+    assert ev is not None and ev.index == index
+    assert ev.verdict() == "refuted"
+    short = _lines(parent)
+    if centring == "F":
+        assert supercell_chance(parent, "P", child, "F",
+                                *short).verdict() == "undecided"
+
+
 def test_a_test_that_could_not_have_rejected_chance_refutes_nothing():
     """No extra in range, or too few against the chance rate, is *undecided*.
 

@@ -371,7 +371,7 @@ search: a local run, or the nightly dispatched with `full_macos`.
       one it sets aside. The tolerance is sin 3°, the Bravais screen's loosest,
       so pseudo-symmetry counts. Through the package, the ten finished searches
       read exactly as the Context table.*
-- [ ] Wire the re-rank in consensus, after the panel ranks and before the
+- [x] Wire the re-rank in consensus, after the panel ranks and before the
       priors are appended. That covers the streamed per-system lists too, whose
       grades are already `low` with ambiguity unasked, so none can fall. A
       refuted child moves directly below its parent, and a new refuting
@@ -379,19 +379,35 @@ search: a local run, or the nightly dispatched with `full_macos`.
       its writer, a place in `INDEX_REFUTING_CAVEATS`, the skill's indexing rows
       and the manual's caveat table (root CLAUDE.md: a declared name with no
       writer). *Amended 2026-09-27: consensus rather than after validation,
-      since no screen needs the pattern.*
-- [ ] A check that could not run keeps today's order and says so. A bare peak
-      list is checked, since the count needs no pattern.
-- [ ] `test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing`
+      since no screen needs the pattern.* *Done 2026-09-27:
+      `consensus.supercell_checks` and `below_refuting_parents`,
+      `CellCandidate.supercell_checks` (`SupercellCheck`), the caveat
+      `supercell_refuted` with `INDEX_SUPERCELL_REFUTED`,
+      `INDEXING_THRESHOLDS_VERSION` 1.5, the skill row, the manual's caveat
+      table and a Part 1 section, and `releases/1.5.1.md`. Two fixes it
+      needed. `_extra_mask` builds no distance matrix any more: at 0.41 Å NAC's
+      pair built ~10⁹ entries and took 12.7 s, now 1.2 s. And the pairing
+      compares reduced metrics with the angles banded on the metric's scale,
+      since `same_lattice`'s component-wise test missed every orthogonal parent
+      a transformation wrote with fp noise, the cubic F and I cells over a
+      doubled P among them.*
+- [x] A check that could not run keeps today's order and says so. A bare peak
+      list is checked, since the count needs no pattern. *Done 2026-09-27:
+      consensus asks every engine candidate, so `supercell_checks` is `None`
+      only where nothing asked (a prior-only candidate, or one built by hand),
+      and `[]` means asked with no parent in the list.*
+- [x] `test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing`
       (NAC) pins the P-first order as a known defect, to be inverted "only with
       a measured aggregate". The check inverts it with a measured reason rather
       than an aggregate, so rewrite the row to assert the I truth first, citing
-      the pair's counts.
+      the pair's counts. *Done 2026-09-27, with its validation-matrix claim.*
 - [ ] Measure on at least one monoclinic or lower-symmetry pattern with a known
       cell before claiming anything beyond high symmetry. The acceptance corpus
       has none: bethanechol is peak lists only.
-- [ ] Part 2 of the manual carries the chance test as an equation with its
+- [x] Part 2 of the manual carries the chance test as an equation with its
       `*Source:*` line, and Part 1's indexing chapter describes the re-rank.
+      *Done 2026-09-27: `idx-supercell-chance`, with α injected from
+      `SUPERCELL_CHANCE_ALPHA`.*
 - [ ] Re-measure the brucite and corundum rows, and fold
       `test_brucites_truth_is_not_ranked_first` back into the row above when it
       goes red.
