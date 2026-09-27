@@ -347,13 +347,15 @@ three cases:
 - An intermetallic has no anions, so it draws no polyhedra.
 - A split site draws none. That is a shell holding two partly occupied ligands
   closer to each other than to the centre.
-- A split pair of non-metals can still get a stick. Two non-metals closer
-  than 0.7 times their radius sum are read as one atom over two positions: no
-  stick joins them, and neither makes the other a cation. Two partly occupied
-  ones further apart lose their stick when they sit closer to each other than
-  to an atom both are bonded to, as a disordered nitrate's O do round Na. A
-  pair that meets neither test keeps its stick, as Prussian blue's C and a
-  vacancy's water O do.
+- A split pair can still get a stick. Two non-metals closer than 0.7 times
+  their radius sum are read as one atom over two positions: no stick joins
+  them, and neither makes the other a cation. With a metal in the pair, the
+  bound is 0.5, since uranyl's U=O sits at 0.67. Two partly occupied non-metals
+  further apart lose their stick when they sit closer to each other than to an
+  atom both are bonded to, as a disordered nitrate's O do round Na. A pair that
+  meets no test keeps its stick, as Prussian blue's C and a vacancy's water O
+  do, and Ag β-alumina's Ag and O4 do at 0.6 to 0.7 of their radius sum. A
+  file's disorder groups settle those, where it has them.
 
 A CIF that states disorder groups is drawn with every alternative, and the
 viewer reads the groups. It draws no stick between two sites the file says are

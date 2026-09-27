@@ -52,7 +52,12 @@ Read 2026-09-26 from each program's manual.
   uranyl's U=O is 0.67 of the radius sum, and vanadyl's V=O and titanyl's
   Ti=O 0.72, from literature bond lengths. A partly occupied cation close to
   a partly occupied anion therefore keeps its stick and can enter a shell. No
-  measured case.
+  measured case. *Measured 2026-09-28:* hydrated β-alumina's Li and a water O
+  (COD 1529595) at 0.32 of the radius sum, and Ag β-alumina's Ag and O4
+  (2105331-2105335) at 0.35 and 0.59-0.70. Real bonds start at 0.65 (U≡N)
+  and 0.67 (uranyl), and a disordered uranyl's minor part (1508149) sits at
+  0.70. A floor at 0.5 landed for pairs with a metal; the rest need the
+  file's disorder groups, which 1508149 declares.
 - **rietx's structure schema has no disorder group.** The CIF carries one
   (`_atom_site_disorder_assembly`, `_atom_site_disorder_group`), and SHELX
   its PART numbers. That is how Mercury and CrystalMaker separate
@@ -149,7 +154,7 @@ the file and run the test to refresh the payloads.
 Independent; take any.
 
 - [x] Disorder groups: a schema field read from the CIF and SHELX, no stick or shell across two groups of one assembly, and a way to show one alternative (2026-09-28: `Atom.disorder_assembly`/`disorder_group` from the CIF, which is where SHELXL writes PART; no SHELX reader exists to read them from. `disorder=major` draws each assembly's most occupied group)
-- [ ] Split sites with a metal: measure a real case before choosing a rule, since uranyl's U=O sits under the non-metal floor
+- [x] Split sites with a metal: measure a real case before choosing a rule, since uranyl's U=O sits under the non-metal floor (2026-09-28: measured on four COD families, Context § Disorder; `METAL_SPLIT_FLOOR` = 0.5, a quarter below the shortest real bond)
 - [x] The occupancy test for split pairs wider than the floor, with its bound measured against disordered sulfates and triple bonds (2026-09-28: measured, no bound exists; P9's angle test landed for the sticks instead, Context § Disorder)
 - [x] Cyanide and carbonyl ligands: find a rule that keeps SiO₄ and PO₄ and gives Prussian blue FeC₆, and measure it on the 21 phases (2026-09-28: a donor is a ligand, and an atom behind a bonded ligand is screened. The 21-phase default picture is unchanged; two hidden gaps moved, pyrite 1.52 → 1.60 and LaB6 1.45 → 1.90)
 - [x] Centre and ligand overrides on the query string, as Mercury's two lists (2026-09-28: `centres=` and `ligands=`, element lists that replace the rule, and the `round` and `corners` rows under `drawing`)

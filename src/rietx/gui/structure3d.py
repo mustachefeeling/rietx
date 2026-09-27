@@ -81,10 +81,20 @@ BOND_MIN = 0.4
 #: split over two positions, and never bonded (WP-1466, P10).  The shortest real
 #: bonds between non-metals, N≡N and NO⁺, are 0.77 of it; hydroxyfluorapatite's
 #: split O/F pair is 0.39 and high cristobalite's split O pairs 0.34-0.68.  A
-#: pair with a metal keeps :data:`BOND_MIN` alone, since uranyl's U=O is 0.67.
+#: pair with a metal has :data:`METAL_SPLIT_FLOOR`, since uranyl's U=O is 0.67.
 #: It is VESTA's positive minimum bond length for a split-atom model, set from
 #: the radii rather than by hand.
 SPLIT_FLOOR = 0.7
+
+#: The same floor for a pair with a metal in it (WP-1468).  Measured on COD,
+#: the shortest real bonds to a metal are U≡N at 0.65 of the radius sum and
+#: uranyl's U=O at 0.67, and a disordered uranyl's minor part (COD 1508149)
+#: at 0.70.  Split pairs span that: hydrated β-alumina's Li and a water O
+#: (1529595) at 0.32, Ag β-alumina's Ag and O4 (2105331-2105335) at 0.35 and
+#: from 0.59 to 0.70.  So no floor separates them, and this one sits a quarter
+#: below the shortest bond, taking the two closest pairs.  The file's
+#: disorder groups are what separates the rest.
+METAL_SPLIT_FLOOR = 0.5
 
 #: Ball-and-stick spheres are drawn at this fraction of the covalent radius.
 #: 0.4 is VESTA's ball-and-stick fraction, and the number is only comparable
@@ -531,17 +541,25 @@ def bonded(distance, radius_sum, nonmetals, tolerance: float = BOND_TOLERANCE) -
     """Whether two atoms ``distance`` Å apart are bonded, by the viewer's one test.
 
     Bonded is ``distance ≤ tolerance·radius_sum`` on gemmi's covalent radii,
-    and at least :data:`BOND_MIN`, below which two atoms are one.  Between two
-    non-metals (``nonmetals``) the floor rises to :data:`SPLIT_FLOOR` of the
-    radius sum, since a closer pair is one atom split over two positions
-    (P10).  The sticks (:func:`_bonds`) and the cation test
+    and at least :func:`split_floor`, below which two atoms are one split over
+    two positions (P10).  The sticks (:func:`_bonds`) and the cation test
     (:func:`_cation_sites`) both ask here, so a change to either bound
     reaches both.  Which *pairs* may bond at all is chemistry, and
     :func:`_bonds` decides it.  Every argument broadcasts.
     """
     radius_sum = np.asarray(radius_sum, dtype=np.float64)
-    floor = np.where(nonmetals, np.maximum(SPLIT_FLOOR * radius_sum, BOND_MIN), BOND_MIN)
-    return (distance >= floor) & (distance <= float(tolerance) * radius_sum)
+    return ((distance >= split_floor(radius_sum, nonmetals))
+            & (distance <= float(tolerance) * radius_sum))
+
+
+def split_floor(radius_sum, nonmetals) -> np.ndarray:
+    """The distance under which two atoms are one split over two positions:
+    :data:`SPLIT_FLOOR` of the radius sum between two non-metals,
+    :data:`METAL_SPLIT_FLOOR` of it with a metal, and never under
+    :data:`BOND_MIN`.  The sticks and the shells both read it."""
+    radius_sum = np.asarray(radius_sum, dtype=np.float64)
+    fraction = np.where(nonmetals, SPLIT_FLOOR, METAL_SPLIT_FLOOR)
+    return np.maximum(fraction * radius_sum, BOND_MIN)
 
 
 def shell_gap(distances: np.ndarray) -> tuple[int, float]:
@@ -1250,22 +1268,29 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
                 if ligands is None else np.array([e in ligands for e in elements], dtype=bool))
         return np.nonzero(eligible[element][orbit["source"]])[0]
 
+    # per orbit atom, read through ``source``: a metal is a ligand only on a
+    # caller's list, so the P10 floor is per pair
+    radius_of = np.array([element_radius(e) for e in elements], dtype=np.float64)
+    nonmetal_of = ~np.array([is_metal(e) for e in elements], dtype=bool)
+
+    def floor(site: dict, rows: np.ndarray, orbit: dict[str, Any]) -> np.ndarray:
+        return split_floor(site["radius"] + radius_of[orbit["source"][rows]],
+                           nonmetal_of[orbit["source"][rows]] & (not site["metal"]))
+
     # every centre's window must lie inside the orbit, and the images of one
     # site all see the same shortest distance
     reach = 0.0
     for j in sorted(centre_sites & set(orbit["owner"])):
         here = orbit["frac"][orbit["owner"].index(j)] @ basis.T
-        dist = np.linalg.norm(orbit["cart"][ligand_rows(sites[j]["element"], orbit)] - here,
-                              axis=1)
-        dist = dist[dist >= BOND_MIN]
+        rows = ligand_rows(sites[j]["element"], orbit)
+        dist = np.linalg.norm(orbit["cart"][rows] - here, axis=1)
+        dist = dist[dist >= floor(sites[j], rows, orbit)]
         if len(dist):
             reach = max(reach, SHELL_REACH * float(dist.min()))
     if reach > orbit["radius"]:
         orbit = _orbit(sites, orbit["atoms"], basis, reach)
     occupancy, cart, source = orbit["occupancy"], orbit["cart"], orbit["source"]
-    radius = np.array([element_radius(e) for e in elements], dtype=np.float64)[source]
-    # a metal is a ligand only on a caller's list, so the P10 floor is per pair
-    nonmetal = ~np.array([is_metal(e) for e in elements], dtype=bool)[source]
+    radius, nonmetal = radius_of[source], nonmetal_of[source]
     # each row's ``(site, turn)``, for the file's disorder groups
     held_by = np.stack([np.asarray(orbit["owner"], dtype=int)[source],
                         orbit["turn"][source]], axis=-1)
@@ -1301,7 +1326,9 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
         centres[n_centres] = centre
         n_centres += 1
         dist = np.linalg.norm(cart[index] - centre, axis=1)
-        index, dist = index[dist >= BOND_MIN], dist[dist >= BOND_MIN]
+        # a ligand closer than the split floor is the centre itself, split
+        kept = dist >= floor(sites[atom["site"]], index, orbit)
+        index, dist = index[kept], dist[kept]
         if codes is not None:
             # the file's alternatives of this centre are none of its ligands
             mine = ~_apart(codes, np.array([atom["site"], atom["_turn"]]), held_by[index])

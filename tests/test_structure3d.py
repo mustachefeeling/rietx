@@ -841,10 +841,26 @@ def test_a_negative_group_is_an_alternative_of_its_own_symmetry_copies():
 
 
 def test_the_split_floor_spares_a_metal_oxo_bond():
-    """P10 holds only between non-metals: uranyl's U=O is 0.67 of the radius sum."""
+    """P10's 0.7 holds only between non-metals: uranyl's U=O is 0.67 of the
+    radius sum, over the 0.5 a pair with a metal has."""
     payload = s3.build(cluster([("U", 1.0)], [("O", (1.76, 0, 0), 1.0),
                                               ("O", (-1.76, 0, 0), 1.0)]))
     assert sorted(round(b["d"], 2) for b in payload["bonds"]) == [1.76, 1.76]
+
+
+def test_a_metal_and_a_non_metal_closer_than_half_their_radius_sum_are_one_atom():
+    """WP-1468: hydrated β-alumina's partial Li sits 0.625 Å from a partial water
+    O (COD 1529595), 0.32 of the radius sum.  It had drawn a stick, and as a
+    ligand it set Li's window at 1.9 Å, short of the four O at 1.95.  Under
+    :data:`~rietx.gui.structure3d.METAL_SPLIT_FLOOR` it is the Li's own
+    alternative: no stick, and LiO₄ is drawn."""
+    assert not s3.bonded(0.625, 1.94, nonmetals=False)
+    assert s3.bonded(1.76, s3.element_radius("U") + s3.element_radius("O"), nonmetals=False)
+    corners = [1.95 * v / np.linalg.norm(v) for v in TETRAHEDRON]
+    payload = s3.build(cluster([("Li", 0.5)], [*[("O", v, 1.0) for v in corners],
+                                               ("O", (0.0, 0.0, 0.625), 0.3)]))
+    assert _formulas(payload) == {"Li00": {"LiO4"}}
+    assert sorted(round(b["d"], 2) for b in payload["bonds"]) == [1.95] * 4
 
 
 def test_a_non_metal_bonded_to_a_stronger_one_is_a_cation_and_no_ligand():
