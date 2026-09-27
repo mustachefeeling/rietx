@@ -1311,7 +1311,9 @@ class GuiSession:
             raise GuiError(str(exc), where=["space_group"]) from None
 
     def structure3d(self, phase: int = 0, *, probability: float = 0.5,
-                    bond_tolerance: float | None = None) -> dict:
+                    bond_tolerance: float | None = None, disorder: str = "all",
+                    centres: list[str] | None = None,
+                    ligands: list[str] | None = None) -> dict:
         """The current model as drawable geometry (WP-1015).
 
         A route beside ``/api/structure`` rather than an arm of it, on WP-1008's
@@ -1328,12 +1330,22 @@ class GuiSession:
         """
         from . import structure3d as geometry
 
+        if disorder not in geometry.DISORDER_VIEWS:
+            raise GuiError(f"disorder must be one of {', '.join(geometry.DISORDER_VIEWS)}, "
+                           f"not {disorder!r}", where=["disorder"])
+        for what, values in (("centres", centres), ("ligands", ligands)):
+            try:
+                if values is not None:
+                    geometry.element_list(values, what)
+            except ValueError as exc:
+                raise GuiError(str(exc), where=[what]) from None
         structure = self._need_project().refinement.structure
         try:
             return geometry.build(
                 structure, int(phase), probability=float(probability),
                 bond_tolerance=(geometry.BOND_TOLERANCE if bond_tolerance is None
-                                else float(bond_tolerance)))
+                                else float(bond_tolerance)), disorder=disorder,
+                centres=centres, ligands=ligands)
         except IndexError as exc:
             raise GuiError(str(exc), code="NOT_FOUND", status=404,
                            where=["phase"]) from None

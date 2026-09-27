@@ -228,6 +228,18 @@ def axis_labels(geometry: Mapping) -> list[dict]:
     return out
 
 
+def drawn_with(geometry: Mapping, polyhedra: Iterable[int]):
+    """``drawnWith``: whether a payload atom is drawn while ``polyhedra`` are.
+
+    An atom in the payload only as a polyhedron's vertex is drawn only while
+    one of its polyhedra is.  Returns a test on an index into ``atoms``, and
+    :func:`build_scene` reads it for the atoms it draws and for its zoom fit.
+    """
+    atoms = geometry["atoms"]
+    corners = {v for i in polyhedra for v in geometry["polyhedra"][i]["vertices"]}
+    return lambda index: not atoms[index].get("vertex_only") or index in corners
+
+
 def build_scene(geometry: Mapping, mode: str = "ball", *,
                 hidden: Iterable[str] = (), show_boundary: bool = True,
                 exaggeration: float = 1.0, polyhedra: Sequence[int] = (),
@@ -245,7 +257,7 @@ def build_scene(geometry: Mapping, mode: str = "ball", *,
     sites = geometry["sites"]
     payload_atoms = geometry["atoms"]
     replaced = {b for i in polyhedra for b in polys[i]["bonds"]}
-    corners = {v for i in polyhedra for v in polys[i]["vertices"]}
+    drawn = drawn_with(geometry, polyhedra)
     atoms = []
     for index, atom in enumerate(payload_atoms):
         site = sites[atom["site"]]
@@ -253,7 +265,7 @@ def build_scene(geometry: Mapping, mode: str = "ball", *,
             continue
         if atom["boundary"] and not show_boundary:
             continue
-        if atom.get("vertex_only") and index not in corners:
+        if not drawn(index):
             continue
         shape = _drawable(atom_transform(geometry, atom, mode, exaggeration))
         atoms.append({
@@ -303,10 +315,9 @@ def build_scene(geometry: Mapping, mode: str = "ball", *,
                       "color": rgb(color), "centroid": centroid})
     # the fit reads positions and ball sizes only, over the atoms the default
     # picture can draw
-    by_default = {v for p in polys if p["drawn_by_default"] for v in p["vertices"]}
+    by_default = drawn_with(geometry, [i for i, p in enumerate(polys) if p["drawn_by_default"]])
     points = [*geometry["corners"],
-              *(a["pos"] for k, a in enumerate(payload_atoms)
-                if not a.get("vertex_only") or k in by_default)]
+              *(a["pos"] for k, a in enumerate(payload_atoms) if by_default(k))]
     lo = [min(p[k] for p in points) for k in range(3)]
     hi = [max(p[k] for p in points) for k in range(3)]
     center = [(lo[k] + hi[k]) / 2 for k in range(3)]

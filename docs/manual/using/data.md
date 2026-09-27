@@ -271,6 +271,8 @@ the six values as a tuple.
 | `Atom.biso` | `Parameter` | 0.5 Å², in [0, 25] | isotropic displacement, B = 8π²·U |
 | `Atom.aniso` | `AnisoU` or None | `None` | anisotropic displacement, CIF U^ij, {eq}`int-dw-aniso` |
 | `Atom.moment` | `Moment` or None | `None` | a magnetic moment in crystal-axis components, μ_B, {eq}`int-Fmag`; needs `Phase.magnetic_symmetry` beside it |
+| `Atom.disorder_assembly` | str or None | `None` | the CIF's `_atom_site_disorder_assembly`: a cluster of disordered sites that is locally ordered |
+| `Atom.disorder_group` | str or None | `None` | the CIF's `_atom_site_disorder_group`: the sites of one assembly occupied together; a minus prefix marks a site disordered about a special position |
 
 `species` is validated when the model compiles rather than when the object is
 built, so an unknown symbol fails with a crystallographic message instead of a
@@ -283,6 +285,13 @@ paths and what a tied row looks like.
 An atom has one displacement model. Set `aniso` and `biso` becomes an inert
 record of the starting estimate; asking to refine both raises rather than
 leaving a dead parameter in the vector.
+
+The two disorder fields say which sites can be occupied at the same time. Two
+sites in different groups of one assembly never are. A site with no group is
+ordered and sits beside every other. `structure_from_cif` reads both from the
+file and `Structure.to_cif` writes them back. The fit does not read them: the
+structure factor already weights each site by its occupancy. The structure
+viewer does, to draw no bond between two alternatives.
 
 ```python
 from rietx import Atom, Cell, Parameter, Phase, Structure

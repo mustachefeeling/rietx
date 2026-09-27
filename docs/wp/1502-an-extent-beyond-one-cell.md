@@ -81,6 +81,18 @@ row and `test_structure3d.py` read `atoms`, `bonds` and `polyhedra`. A new
 field is additive. A changed meaning of `boundary` is not, so the default
 extent must leave it as it is.
 
+### Inherited
+
+- **From WP-1468 (2026-09-28).** Only an atom among the first `n_cell` of
+  `atoms` (the cell's own images and their boundary duplicates) is a
+  polyhedron centre; a bond partner or a vertex outside is not. The GUI's
+  double-click on such an image falls back to its site's nearest centred
+  polyhedron (`focusedPolyhedra`), which an extent that makes more atoms
+  centres changes. Each image also carries the number of the rotation that
+  made it, server-side only (`_turn`, stripped from the dict), because two
+  images of a negative disorder group coexist only when one rotation made
+  both. An image the extent adds by a lattice translation keeps its parent's.
+
 ## Non-goals
 
 - A GUI control for the extent.

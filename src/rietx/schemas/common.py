@@ -292,7 +292,13 @@ from .._nearmiss import did_you_mean
 #: gains or loses a field and every stored document loads unchanged, but a
 #: new answer type is a new shape a consumer parses, which since WP-1117 is
 #: the whole test.
-SCHEMA_VERSION = "0.33"
+#: 0.33 → 0.34 (WP-1468): ``Atom.disorder_assembly`` and
+#: ``Atom.disorder_group``, the CIF core dictionary's two disorder items as
+#: strings.  Additive and defaulted to ``None``, an ordered site, which is the
+#: honest empty state and the bit-identical one: a structure that declares
+#: none serializes apart from the new nulls, and refines, exactly as before.
+#: No forward model reads them; the structure viewer does.
+SCHEMA_VERSION = "0.34"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

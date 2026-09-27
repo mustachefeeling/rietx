@@ -124,6 +124,23 @@ since an agent says "the plane through the origin and the next one at d".
   regenerated. Every verb lands on the derived surface, so the manual
   partition (`tests/test_manual_api.py`) fails until each is documented.
 
+### Inherited
+
+- **From WP-1468 (2026-09-28).** The dict `structure3d.build` returns grew
+  arms, all additive. Each site has `disorder_assembly` and
+  `disorder_group`, and each polyhedron a `rival` (`[ligands, ratio]` or
+  null). The top level has `polyhedra_dropped` (a site index and ligand
+  elements, no atom index), `disorder`, `minor_sites` (site indices),
+  `centres`, `ligands`, `centre_elements` and `ligand_elements`. A cut that
+  remaps `atoms` indices still touches only `bonds` (`i`, `j`) and
+  `polyhedra` (`center`, `vertices`, `bonds`); the new arms hold site indices
+  or none. `build(disorder="major")` keeps a minor site in `sites` with no
+  image, so a mask can meet a site with no atom. `build(centres=…,
+  ligands=…)` rebuilds the polyhedra before any cut: an anion-centred FCa₄,
+  or an intermetallic's environments. The GUI's double-click draws one
+  atom's polyhedron alone by filtering what is shown (`focusedPolyhedra` in
+  `gui/src/lib/structure3d.ts`), a client-side keep.
+
 ## Non-goals
 
 - An extent beyond one cell, and a motif's periodicity (WP-1502).

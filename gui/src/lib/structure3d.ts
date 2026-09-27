@@ -37,6 +37,9 @@ export interface Site {
   multiplicity: number;
   special: boolean;
   npd: boolean;
+  /** the CIF's disorder assembly and group, `null` for an ordered site */
+  disorder_assembly?: string | null;
+  disorder_group?: string | null;
 }
 
 export interface DrawnAtom {
@@ -78,6 +81,17 @@ export interface Polyhedron {
   coordination: number;
   mean_distance: number;
   gap: number;
+  /** a second gap that would close a polyhedron too, `[ligands, ratio]`
+   *  (WP-1468); absent or null when there is none */
+  rival?: [number, number] | null;
+  drawn_by_default: boolean;
+}
+
+/** A polyhedron the server found and could not draw: its ligands would have
+ *  taken the payload past its atom cap. */
+export interface DroppedPolyhedron {
+  site: number;
+  ligands: string[];
   drawn_by_default: boolean;
 }
 
@@ -95,14 +109,31 @@ export interface Geometry {
   atoms: DrawnAtom[];
   bonds: Bond[];
   polyhedra: Polyhedron[];
+  /** the polyhedra the atom cap turned away, by centre site and ligand
+   *  elements (WP-1468); absent reads as none */
+  polyhedra_dropped?: DroppedPolyhedron[];
   probability: number;
   probability_levels: Record<string, number>;
   scale: number;
   ball_fraction: number;
   bond_tolerance: number;
   bond_metals: boolean;
+  /** which alternatives of a disordered structure are drawn (WP-1468) */
+  disorder?: Disorder;
+  /** the sites `"major"` draws no image of, listed in either view */
+  minor_sites?: number[];
+  /** Mercury's two lists as asked for, `null` for the chemistry's (WP-1468) */
+  centres?: string[] | null;
+  ligands?: string[] | null;
+  /** the elements a polyhedron is drawn round, and at its corners, either way */
+  centre_elements?: string[];
+  ligand_elements?: string[];
   note: string;
 }
+
+/** Every alternative of a disordered structure, or each assembly's most
+ *  occupied group alone. */
+export type Disorder = "all" | "major";
 
 export type Mode = "ball" | "ellipsoid";
 
@@ -183,26 +214,34 @@ export function bondLabel(geometry: Geometry, bond: Bond): string {
 
 const SUBSCRIPT = "₀₁₂₃₄₅₆₇₈₉";
 
-/** A polyhedron as a chemist writes it: the centre, then its ligands by count,
+/** A formula as a chemist writes it: the centre, then its ligands by count,
  *  most first — `AlF₆`, `CaO₆F`. */
-export function polyhedronFormula(geometry: Geometry, polyhedron: Polyhedron): string {
+export function formula(centre: string, ligands: readonly string[]): string {
   const counts = new Map<string, number>();
-  for (const v of polyhedron.vertices) {
-    const element = geometry.sites[geometry.atoms[v].site].element;
-    counts.set(element, (counts.get(element) ?? 0) + 1);
-  }
-  const ligands = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  for (const element of ligands) counts.set(element, (counts.get(element) ?? 0) + 1);
+  const written = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([element, n]) => element + (n > 1 ? [...String(n)].map((d) => SUBSCRIPT[+d]).join("") : ""));
-  return geometry.sites[polyhedron.site].element + ligands.join("");
+  return centre + written.join("");
 }
 
-/** One hover line per polyhedron: what it is, around which site, and its shell. */
+/** A polyhedron's `formula`, read off its drawn vertices. */
+export function polyhedronFormula(geometry: Geometry, polyhedron: Polyhedron): string {
+  return formula(geometry.sites[polyhedron.site].element,
+                 polyhedron.vertices.map((v) => geometry.sites[geometry.atoms[v].site].element));
+}
+
+/** One hover line per polyhedron: what it is, around which site, and its
+ *  shell, with a rival gap beside it when one would close a shell too. */
 export function polyhedronLabel(geometry: Geometry, polyhedron: Polyhedron): string {
   const site = geometry.sites[polyhedron.site];
-  return [`${polyhedronFormula(geometry, polyhedron)} around ${site.label}`,
-          `${polyhedron.coordination} ligands`,
-          `mean ${polyhedron.mean_distance.toFixed(3)} Å`,
-          `gap ×${polyhedron.gap.toFixed(2)}`].join("  ·  ");
+  const parts = [`${polyhedronFormula(geometry, polyhedron)} around ${site.label}`,
+                 `${polyhedron.coordination} ligands`,
+                 `mean ${polyhedron.mean_distance.toFixed(3)} Å`,
+                 `gap ×${polyhedron.gap.toFixed(2)}`];
+  if (polyhedron.rival) {
+    parts.push(`next gap ×${polyhedron.rival[1].toFixed(2)} after ${polyhedron.rival[0]}`);
+  }
+  return parts.join("  ·  ");
 }
 
 /**
@@ -229,6 +268,28 @@ export function shownPolyhedra(geometry: Geometry, on: boolean,
 }
 
 /**
+ * The polyhedron round one atom, as indices into `geometry.polyhedra`: one
+ * atom's environment, drawn alone (WP-1468).  `focus` is the atom by its
+ * site and position, never by its index: a refetch appends a different set
+ * of partners and corners, so an index held across one names another atom
+ * or none.  Only an atom of the cell is a centre, so an image outside it
+ * takes the polyhedron of its site's atom nearest to it, the same
+ * environment one lattice step away; an atom of the cell is nearest its own.
+ * Empty when the site closes none.
+ */
+export function focusedPolyhedra(geometry: Geometry,
+                                 atom: Pick<DrawnAtom, "site" | "pos">): number[] {
+  let best = -1, nearest = Infinity;
+  geometry.polyhedra.forEach((p, i) => {
+    const centre = geometry.atoms[p.center];
+    if (centre.site !== atom.site) return;
+    const d = Math.hypot(...[0, 1, 2].map((k) => centre.pos[k] - atom.pos[k]));
+    if (d < nearest) { nearest = d; best = i; }
+  });
+  return best < 0 ? [] : [best];
+}
+
+/**
  * One legend switch per formula, in the order the server lists the
  * polyhedra, coloured by the centre.
  *
@@ -238,17 +299,40 @@ export function shownPolyhedra(geometry: Geometry, on: boolean,
  * a CaO₈ hidden would read as on, and off then on would draw both, with no
  * way back to the default.  A two-state switch per formula also reaches the
  * one a three-state species switch cannot: the CaO₈ alone.
+ *
+ * A formula the atom cap turned away in every instance comes last, marked
+ * unavailable, so the legend still names it (WP-1468).  Left out, it had
+ * vanished with only the note under the picture to say so.
  */
 export function polyhedraLegend(geometry: Geometry): Array<{
-  formula: string; color: string; byDefault: boolean }> {
-  const out: Array<{ formula: string; color: string; byDefault: boolean }> = [];
-  for (const p of geometry.polyhedra) {
-    const formula = polyhedronFormula(geometry, p);
-    if (!out.some((e) => e.formula === formula)) {
-      out.push({ formula, color: geometry.sites[p.site].color, byDefault: p.drawn_by_default });
+  formula: string; color: string; byDefault: boolean; available: boolean }> {
+  const out: Array<{ formula: string; color: string; byDefault: boolean;
+                     available: boolean }> = [];
+  const add = (site: number, ligands: string[], byDefault: boolean, available: boolean) => {
+    const written = formula(geometry.sites[site].element, ligands);
+    if (!out.some((e) => e.formula === written)) {
+      out.push({ formula: written, color: geometry.sites[site].color, byDefault, available });
     }
+  };
+  for (const p of geometry.polyhedra) {
+    add(p.site, p.vertices.map((v) => geometry.sites[geometry.atoms[v].site].element),
+        p.drawn_by_default, true);
   }
+  for (const p of geometry.polyhedra_dropped ?? []) add(p.site, p.ligands, p.drawn_by_default, false);
   return out;
+}
+
+/** The phase's elements, once each, in the order the sites declare them: the
+ *  buttons Mercury's two lists are chosen with. */
+export function elements(geometry: Geometry): string[] {
+  return [...new Set(geometry.sites.map((s) => s.element))];
+}
+
+/** `list` with `element` switched: in if it was out, out if it was in, sorted
+ *  as the server echoes it. */
+export function toggled(list: readonly string[], element: string): string[] {
+  return (list.includes(element) ? list.filter((e) => e !== element) : [...list, element])
+    .sort();
 }
 
 /** Species → its legend entry, in the order the sites are declared. */
@@ -498,6 +582,23 @@ function drawable(m: number[][]): Mat3 {
 }
 
 /**
+ * Whether a payload atom is drawn while the polyhedra `polyhedra` are, as a
+ * test on its index into `geometry.atoms`.
+ *
+ * An atom in the payload only as a polyhedron's vertex (`vertex_only`) is
+ * drawn only while one of its polyhedra is: at the default bond tolerance,
+ * NAC's hidden NaF₇ and CaF₈ would leave 12 F with no stick and no face.  The
+ * one statement of that rule: `buildScene` draws by it, its zoom fit reads it
+ * over the default polyhedra, and `caption` counts by it.  A copy of it is how
+ * the caption came to count atoms that were not drawn (WP-1468).
+ */
+export function drawnWith(geometry: Geometry,
+                          polyhedra: readonly number[]): (index: number) => boolean {
+  const corners = new Set(polyhedra.flatMap((i) => geometry.polyhedra[i].vertices));
+  return (index) => !geometry.atoms[index].vertex_only || corners.has(index);
+}
+
+/**
  * The scene for one payload, in the given mode.
  *
  * `hidden` is the set of species the legend has switched off, and **a half
@@ -513,11 +614,9 @@ function drawable(m: number[][]): Mat3 {
  * A drawn polyhedron (WP-1466) brings its faces and its edges, the edges as
  * lines in a darker ink of the centre's colour, and takes away its centre's
  * sticks to its own vertices.  An atom in the payload only as a polyhedron's
- * vertex is drawn only while one of its polyhedra is: at the default bond
- * tolerance, NAC's hidden NaF₇ and CaF₈ would leave 12 F with no stick and no
- * face.  The gap shell and the bond rule can disagree
- * (NAC's Na: 4 sticks, 7 vertices), and drawing both would show the
- * contradiction rather than the shell.
+ * vertex is drawn only while one of its polyhedra is (`drawnWith`).  The gap
+ * shell and the bond rule can disagree (NAC's Na: 4 sticks, 7 vertices), and
+ * drawing both would show the contradiction rather than the shell.
  */
 export function buildScene(geometry: Geometry, options: SceneOptions): Scene {
   const { mode, hidden = new Set<string>(), showBoundary = true,
@@ -525,13 +624,13 @@ export function buildScene(geometry: Geometry, options: SceneOptions): Scene {
   // a drawn polyhedron replaces its centre's sticks to its own vertices (P6)
   const replaced = new Set(polyhedra.flatMap((i) => geometry.polyhedra[i].bonds));
   // and brings the atoms only a polyhedron needs, which come with no other
-  const corners = new Set(polyhedra.flatMap((i) => geometry.polyhedra[i].vertices));
+  const drawn = drawnWith(geometry, polyhedra);
   const atoms: SceneAtom[] = [];
   geometry.atoms.forEach((atom, index) => {
     const site = geometry.sites[atom.site];
     if (hidden.has(site.species)) return;
     if (atom.boundary && !showBoundary) return;
-    if (atom.vertex_only && !corners.has(index)) return;
+    if (!drawn(index)) return;
     const shape = drawable(atomTransform(geometry, atom, mode, exaggeration));
     atoms.push({
       index,
@@ -585,10 +684,10 @@ export function buildScene(geometry: Geometry, options: SceneOptions): Scene {
   // legend click moves the zoom.  The fit takes the atoms the default picture
   // can draw: a hidden polyhedron's own atoms would halve LaB6's picture at a
   // bond tolerance of 1.00
-  const byDefault = new Set(geometry.polyhedra.filter((p) => p.drawn_by_default)
-    .flatMap((p) => p.vertices));
+  const byDefault = drawnWith(geometry, geometry.polyhedra
+    .flatMap((p, i) => (p.drawn_by_default ? [i] : [])));
   const points = [...geometry.corners, ...geometry.atoms
-    .filter((a, k) => !a.vertex_only || byDefault.has(k)).map((a) => a.pos)];
+    .filter((_a, k) => byDefault(k)).map((a) => a.pos)];
   const lo = [0, 1, 2].map((k) => Math.min(...points.map((p) => p[k])));
   const hi = [0, 1, 2].map((k) => Math.max(...points.map((p) => p[k])));
   const center = [0, 1, 2].map((k) => (lo[k] + hi[k]) / 2);
@@ -843,10 +942,9 @@ export function pickFace(scene: Scene, view: View, width: number, height: number
 /** The sentence under the plot: what is drawn, at what thresholds. */
 export function caption(geometry: Geometry, mode: Mode, exaggeration = 1,
                         shown: readonly number[] = []): string {
-  // an atom only a polyhedron needs is counted while one of its polyhedra is
-  // drawn, as `buildScene` draws it
-  const corners = new Set(shown.flatMap((i) => geometry.polyhedra[i].vertices));
-  const counted = geometry.atoms.filter((a, k) => !a.vertex_only || corners.has(k));
+  // counted as `buildScene` draws them
+  const drawn = drawnWith(geometry, shown);
+  const counted = geometry.atoms.filter((_a, k) => drawn(k));
   const real = counted.filter((a) => !a.boundary).length;
   const ghosts = counted.length - real;
   const parts = [
@@ -874,6 +972,17 @@ export function caption(geometry: Geometry, mode: Mode, exaggeration = 1,
     parts.push(`balls at ${geometry.ball_fraction.toFixed(2)}× the covalent radius`);
   }
   parts.push(`sticks ${stickRadius(geometry, mode, exaggeration).toFixed(3)} Å`);
+  if (geometry.centres != null || geometry.ligands != null) {
+    const named = (list?: string[]) => (list?.length ? list.join(", ") : "none");
+    parts.push(`polyhedra round ${named(geometry.centre_elements)} with`
+      + ` ${named(geometry.ligand_elements)} at the corners, as chosen`);
+  }
+  const minor = geometry.minor_sites?.length ?? 0;
+  if (minor) {
+    parts.push(geometry.disorder === "major"
+      ? `the major alternative alone: ${minor} site${minor === 1 ? "" : "s"} of the minor not drawn`
+      : "every alternative drawn, with no stick between two of them");
+  }
   if (geometry.polyhedra.length) {
     const formula = (i: number) => polyhedronFormula(geometry, geometry.polyhedra[i]);
     const all = [...new Set(geometry.polyhedra.map((_p, i) => formula(i)))];
