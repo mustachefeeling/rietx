@@ -268,6 +268,9 @@ nothing else running unless named):
   the new file, `-n auto`: 135 passed, 4 skipped, 48:45 — the skips are the order
   rows whose 2-D dichotomy units the 300 s budget cut, as before. The full selection
   was not run; the nightly is its measurement.
+- The same three files again after the review pass, on the tree merged with main at
+  `40820ff`: 135 passed, 4 skipped, 0 failed, 48:51 — identical to the first run,
+  the same four order rows skipped.
 
 *Review* (`/code-review high --fix`, eight findings). Taken: the kernels build after
 the cancel check, so a stopped run does not wait on a cold compile; a singular
