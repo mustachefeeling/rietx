@@ -9,8 +9,9 @@ name: CI
 #
 # What runs per push, and per PR once it is out of draft:
 #
-#   lint                          ruff over src/tests/examples; the one job a
-#                                 draft PR runs (~40 s)
+#   lint                          ruff over src/tests/examples, and on a PR
+#                                 the skill size limits against its base; the
+#                                 one job a draft PR runs (~40 s)
 #   changes                       `scope`: docs when a PR changes only the
 #                                 planning set, else code; a push is code
 #   docs                          scope docs: the tests that read the planning
@@ -81,6 +82,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
@@ -88,6 +91,14 @@ jobs:
       - run: uv venv --python 3.13
       - run: uv pip install -e ".[dev]"
       - run: .venv/bin/python -m ruff check src tests examples
+      - name: Skill size limits
+        # Here rather than in the suite because a draft runs this job alone,
+        # and a WP branch lives as a draft: the author sees each capped file's
+        # change and headroom in the run summary while still writing, and a
+        # change growing one past its budget fails now, not at the merge.
+        # HEAD^1 is the base, as in `changes`, hence fetch-depth 2.
+        if: github.event_name == 'pull_request'
+        run: .venv/bin/python -m tests.skill_caps
 
   changes:
     # Which suite this run needs, as `scope`: `docs` when every file the PR

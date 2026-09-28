@@ -161,6 +161,15 @@ the transposed rotation set is a group too and passes any dimension count.
 
 ### Inherited
 
+- **2026-09-28, from [1338](1338-the-skills-own-gates.md): `references/diagnostics.md` is closed to growth.**
+  Every skill file now has a ceiling and a budget below it
+  (`tests/skill_caps.py`), and the budget fails a change that grows a file
+  past it. `diagnostics.md` (35 111 B) and `diagnostics-indexing.md`
+  (35 124 B) sit over their 34 600 B budget, so a row this WP adds there
+  comes with an equal cut in the same change, or goes to the file a reader
+  meets the code in (the criterion in the `REFERENCE_MAX_BYTES` comment).
+  CI's lint job reports each changed file's headroom on the draft PR.
+
 **From WP-1417, 2026-09-27: read § The problem's ΔBIC figures at N/f²
 before building on them.** They come from #286 and do not say which N
 they were charged at. At raw N a serially correlated powder residual

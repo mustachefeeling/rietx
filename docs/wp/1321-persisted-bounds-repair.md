@@ -19,6 +19,14 @@ shipping PR closes **#209 and #204**.
 
 ### Inherited
 
+- **2026-09-28, from [1338](1338-the-skills-own-gates.md): a body sentence is paid for by a cut.** The
+  body's budget is the specification's 5 000 tokens, 17 000 B, and it is at
+  30 509 B, so a change may not grow it (`tests/skill_caps.py`). Guidance
+  for one kind of fit goes in a reference row keyed by a name the agent
+  holds, which the body's grep sentence reaches (CONTRIBUTING.md § The
+  agent skill). The placement round saw Haiku and Sonnet open no reference
+  file in 12 cells, so a rule every fit needs stays in the body.
+
 - **2026-09-18, from [1311](1311-walking-parameter-bounds.md): PR #206 landed,
   and the ceiling it made universal turns out to bound nothing physical.**
   `Atom.biso`'s `default_factory` has carried `min=0.0, max=25.0` since v0.1;
