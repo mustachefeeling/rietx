@@ -1,6 +1,6 @@
 # WP-1519 — the distinct-lattice χ² tests run as one stacked solve
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-28 — claimed by @yue-here
 Track: A long run is not one fit
 Depends on: — (1509 fenced this; 1518 soft: batch the test it settles, not the one it replaces)
 Priority: P3 2026-09-28 — cost only: since 1509 no acceptance search is cut at 300 s, and this is ~45 s of corundum's 236 s tetragonal unit; 1518 closed, so the test it batches is settled
