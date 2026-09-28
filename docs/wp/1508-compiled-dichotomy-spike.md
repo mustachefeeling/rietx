@@ -139,18 +139,28 @@ numpy fixes. Any change to what a finished search reports.
       boxes, rows and µs per box. Same profile for trial_error's monoclinic unit,
       recorded only. **Gate:** build if phase-2 box work is ≥ ~60 % of the slowest
       dichotomy units; otherwise close 🛑 with the profile as the outcome.
-- [ ] **Per-box kernel**, bit-identical: one fused `_test_box` (+ the child tests of
-      `_push_children`) in `src/rietx/indexing/_kernels_numba.py`, dispatched from
-      `dichotomy.py` behind `compiled.enabled()`, the numpy path kept as oracle and
-      fallback. Measure.
-- [ ] **In-kernel traversal**, only if the per-box kernel leaves ≥ 2× on the table:
-      the stack as flat arrays; the kernel runs to a leaf or N boxes and returns, so
-      Python keeps `Budget.expired()`, `_box_key` and `_accept`. Visit order equal to
-      the Python loop's.
-- [ ] Tests: kernel vs numpy on randomized boxes (bit-identical, pinning numpy's
-      `.sum(axis=1)` order for n_dof ≤ 6); `search_dichotomy` with
-      `compiled.set_enabled(True/False)` on the synthetic cases → identical
-      `n_boxes`, `n_rows` and candidate list.
+- [x] **Per-box kernel**, bit-identical: `_kernels_numba._box_test` (`_test_box`,
+      with `_push_children`'s child test beside it as `_child_key`), exposed as
+      `test_rows` for the grid pass and the tests, dispatched from `dichotomy.py`
+      behind `compiled.enabled()`, the numpy path kept as oracle and fallback.
+      **Not measured on its own** — the traversal below was built directly on it,
+      which departs from the plan's step order; the gate's own numbers (the loop
+      body alone is 8 % at 157 µs a box) said the python loop would cap it.
+- [x] **In-kernel traversal**: `_kernels_numba.traverse`, the stack as flat arrays
+      and the survivors as `(start, length)` into one index pool used as a stack;
+      it hands back at a full leaf buffer, a row-test chunk or a pool that must
+      grow, so python keeps `Budget.expired()`, `_box_key` and `_accept`. Visit
+      order equal to the numpy loop's, asserted leaf by leaf. Synthetic monoclinic
+      194.8 → 17.7 s with the profile queue on another core (idle re-time below).
+- [x] Tests: `tests/test_indexing_kernels.py` — one box against `_test_box` on the
+      bit at every metric dimension (1-4 and 6), 400 boxes each with both verdicts
+      asserted to occur; whole searches with the switch on and off on the five fast
+      synthetic cases (counts, candidates *and* the leaf sequence); every handback
+      forced on every box; an expired budget; the switch; and numpy's left-to-right
+      reduction pinned by name. Each failure was made once on purpose: re-associating
+      one Q-bound sum fails the width bits; flipping the children's tie rule passed
+      every counts-and-candidates assertion and is caught only by the leaf sequence,
+      which is why that assertion exists.
 - [ ] Before/after timings of the gate's units; `tests/test_acceptance_indexing.py`
       once on the final tree; `tests.bethanechol_benchmark` alone.
 - [ ] Skill: none expected — a faster engine changes no call an agent makes; say so
