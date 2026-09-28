@@ -17,7 +17,8 @@ reference file that a session might `cat` stays under it.
 
 Raising a cap is a decision about every future session's fixed cost.  Make it
 in a commit that says so; the fix for a full body is to move a lookup into a
-reference file, which is what the tree is for.
+reference file, which is what the tree is for.  The numbers, and the budget
+below each that fails only growth (WP-1338), are `tests/skill_caps.py`'s.
 
 **The frontmatter.**  Fields outside the specification are ignored by some
 harnesses and rejected by others, so the field *set* is asserted rather than
@@ -37,18 +38,27 @@ the tree is really exported — the WP-1037 bug's shape, one document over.
 
 from __future__ import annotations
 
+import functools
+import os
 import re
 from pathlib import Path
 
 import pytest
 import yaml
 
+from tests import skill_caps
 from tests.api_surface import attr_step, resolve_dotted
+from tests.skill_caps import (
+    API_INDEX_MAX_BYTES,
+    REFERENCE_DIR,
+    REFERENCE_MAX_BYTES,
+    ROOT,
+    SKILL,
+    SKILL_DIR,
+    SKILL_MAX_BYTES,
+    SKILL_MAX_LINES,
+)
 
-ROOT = Path(__file__).resolve().parents[1]
-SKILL_DIR = ROOT / "docs" / "skill" / "rietx"
-SKILL = SKILL_DIR / "SKILL.md"
-REFERENCE_DIR = SKILL_DIR / "references"
 REFERENCES = sorted(REFERENCE_DIR.glob("*.md"))
 API_INDEX = REFERENCE_DIR / "api.md"
 #: The generated indexes, `api.md` and any `api-<technique>.md` beside it.
@@ -60,67 +70,8 @@ API_INDEX = REFERENCE_DIR / "api.md"
 #: creating PR has to remember to edit.
 API_INDEXES = sorted(REFERENCE_DIR.glob("api*.md"))
 
-#: A skill body is read whole on activation; the Read tool returned 66 kB on
-#: the document this replaced, so the body is capped at half of it.
-# Half the Read tool's ~66 kB cap, the derivation this module's docstring
-# states; 32_000 was that halving rounded down and WP-1131 rounded it up, in
-# the commit that needed the 941 B — a fifth deliverable class (microstructure)
-# in the body's own deliverable table, with its worked measurement in
-# references/judging.md where the other four keep theirs.  The cost this cap
-# governs — the fixed bytes every session that loads the skill pays — moves by
-# 3 %, and the alternative was a deliverable whose row lived outside the table
-# its peers are in, which is what the cap exists to protect against.
-SKILL_MAX_BYTES = 33_000
-#: agentskills.io/specification: "Keep your main SKILL.md under 500 lines."
-SKILL_MAX_LINES = 500
-#: Bash output above 40 kB is truncated to a ~2 kB preview, so a reference file
-#: stays comfortably under that even when a session cats it rather than Reads.
-#: 36_000 → 36_600 in the commit that needed the 571 B, on WP-1131's precedent
-#: for ``SKILL_MAX_BYTES``: ``HOLD_BLOCKED_PLAN``'s row, which
-#: ``test_docs_consistency.test_every_engine_diagnostic_code_has_a_protocol_row``
-#: requires of every engine code, and ``diagnostics.md`` had 9 B of headroom.
-#: The two tests are in tension and one had to give, and deleting another
-#: code's measured guidance to fit a new one is the wrong direction.
-#:
-#: **That split happened** (WP-1415, 2026-09-21), so the cap has not moved
-#: again and this note records the seam rather than asking for one. The
-#: criterion was not size: the main table carries what a **fit** is likely to
-#: say, and a code conditional on a quirk of the file you read goes to a
-#: secondary doc. The eleven reader rows became §7i,
-#: ``references/diagnostics-reading.md``, taking ``diagnostics.md`` from
-#: 36 562 to 30 953 B. ``diagnostics-projects.md`` had recorded that those rows
-#: stay in §7 on a different criterion, and that paragraph was corrected in the
-#: same commit.
-#:
-#: So the next addition has room, and the rule for the one after it is the
-#: criterion above rather than a byte count: ask which file a reader meets the
-#: code in, and whether a fit is likely to say it. ``SKILL.md`` is now the
-#: tighter of the two (68 B under :data:`SKILL_MAX_BYTES`), and a routing row
-#: is what a new reference file costs there.
-#:
-#: **The second split** (PR #385, 2026-09-25) applied that criterion when
-#: ``CELL_RUNAWAY``'s row and main's growth took ``diagnostics.md`` to
-#: 37 008 B. Seven of the eight series codes (``SERIES_PATTERN_FAILED``
-#: and every ``SEQUENTIAL_*`` but ``SEQUENTIAL_PERSISTENT_FINDING``, whose
-#: row was already in ``abstention.md``; 3 423 B) arrive on a ``SeriesResult`` and a
-#: single fit never emits one, so they moved to a code table at the end of
-#: §9b, ``references/series.md``, which already had its routing row, so
-#: ``SKILL.md`` did not grow. ``diagnostics.md`` went to 33 789 B and
-#: ``series.md`` from 25 685 to 29 545 B; one pointer row stays where the
-#: rows stood.
-REFERENCE_MAX_BYTES = 36_600
-#: `api.md` is **generated** from the installed package, so its size is a fact
-#: about the public API and not a thing an author chose.  The authored cap says
-#: "stop writing, split the file", which is advice this file cannot take: the
-#: whole of it is one signature per public name, and cutting a signature is
-#: cutting the document three "explore the library" runs needed.  A public
-#: keyword therefore pushes it over a bar that has nothing to do with the
-#: decision that added the keyword — WP-1431's `label=` did, at 58 B of
-#: headroom.  Raising `REFERENCE_MAX_BYTES` instead would hand
-#: `diagnostics.md` the room WP-1338 deliberately denied it (20 B free, and
-#: PR #291 is the split that buys the next diagnostic row), so the generated
-#: file gets its own bar against the same 40 kB truncation.
-API_INDEX_MAX_BYTES = 39_000
+# The ceilings and budgets, with the history of every move, live in
+# `tests/skill_caps.py`, which CI's lint job runs as a report before the suite.
 
 #: Every field the specification defines, and whether it is required.
 #: agentskills.io/specification, verified 2026-08-29.
@@ -150,7 +101,7 @@ def test_the_body_is_within_its_caps():
     lines = len(SKILL.read_text(encoding="utf-8").splitlines())
     assert size <= SKILL_MAX_BYTES, (
         f"SKILL.md is {size} B (cap {SKILL_MAX_BYTES}). Move a lookup table "
-        "into references/ — see this module's docstring on raising a cap."
+        "into references/ — see tests/skill_caps.py on raising a cap."
     )
     assert lines < SKILL_MAX_LINES, (
         f"SKILL.md is {lines} lines (cap {SKILL_MAX_LINES}, the spec's own)."
@@ -169,6 +120,60 @@ def test_every_reference_file_is_within_its_cap(path: Path):
            "make_api_index.py renders, or split the index."
            if generated else "split it.")
     )
+
+
+# --- the budgets (#247) -----------------------------------------------------
+#
+# A ceiling fails on any tree; a budget fails only a change that grows a file
+# past it, so two pull requests that merge together land in the gap between
+# the two instead of failing each other.  `tests/skill_caps.py` has the numbers
+# and why; CI's lint job runs the same check as a report on every pull request,
+# drafts included, which is where it gates.  Here it gates the author, locally,
+# against the merge-base with origin/main.
+
+
+def test_no_change_grows_a_capped_file_past_its_budget():
+    rev, how = skill_caps.base()
+    if os.environ.get("GITHUB_ACTIONS"):
+        pytest.skip("CI gates this in the lint job, against the pull request's base")
+    if rev is None or not skill_caps.rev_exists(rev):
+        pytest.skip(f"nothing to measure against: {how}")
+    failures = skill_caps.budget_failures(skill_caps.rows(rev))
+    assert not failures, "\n".join(failures)
+
+
+def test_the_budget_fails_growth_past_it_and_nothing_else():
+    """The rule's four cases, on made-up sizes: only growth that ends past the
+    budget fails, and a new file counts from zero."""
+    cap = skill_caps.Cap(REFERENCE_DIR / "x.md", 1000, 900)
+    row = skill_caps.Row
+    cases = {
+        "grows past": row(cap, 880, 950),
+        "shrinks while over": row(cap, 990, 950),
+        "grows under": row(cap, 500, 890),
+        "new and over": row(cap, None, 950),
+    }
+    failing = {k for k, r in cases.items() if skill_caps.budget_failures([r])}
+    assert failing == {"grows past", "new and over"}
+    assert cases["grows past"].cut_needed() == 50
+    assert cases["new and over"].cut_needed() == 50
+
+
+def test_every_capped_file_has_a_budget_under_its_ceiling_unless_generated():
+    for cap in skill_caps.caps():
+        generated = cap.path in API_INDEXES
+        assert (cap.budget is None) == generated, cap.rel
+        assert generated or cap.budget < cap.ceiling, cap.rel
+
+
+def test_a_version_bump_is_not_growth():
+    """The body's budget counts the Markdown below its frontmatter, so the
+    release bump of `metadata.version` never trips it."""
+    cap = next(c for c in skill_caps.caps() if c.path == SKILL)
+    text = SKILL.read_text(encoding="utf-8")
+    bumped = text.replace('version: "', 'version: "99.99.99.dev0+', 1)
+    assert bumped != text
+    assert cap.budgeted_bytes(bumped) == cap.budgeted_bytes(text)
 
 
 def test_the_frontmatter_is_the_specs_and_nothing_else():
@@ -229,14 +234,26 @@ def test_every_relative_link_in_the_tree_resolves():
             assert resolved.exists(), f"{path.name}: dead link {target}"
 
 
+#: The body's standing instruction to look up a name the agent holds.  It
+#: replaced the routing rows for a fired code: under it Opus reached 17 of 18
+#: fired codes' rows against 4 (tests/eval_skill_placement/PROTOCOL.md).
+GREP_INSTRUCTION = "`grep -rn NAME references/`"
+
+
 def test_every_reference_file_is_reachable_from_the_body():
-    """A reference nothing points at is a file no agent will open."""
+    """A reference nothing points at is a file no agent will open.
+
+    A file of code rows is reached by grepping for the code, once the body
+    says to, so it needs no routing row of its own."""
     text = SKILL.read_text(encoding="utf-8")
+    greppable = GREP_INSTRUCTION in text
     unreferenced = [p.name for p in REFERENCES
-                    if f"references/{p.name}" not in text]
+                    if f"references/{p.name}" not in text
+                    and not (greppable and _code_tables(p.read_text(encoding="utf-8")))]
     assert not unreferenced, (
         f"reference files the body never names: {unreferenced} — add a row to "
-        "the body's index table"
+        "the body's index table, or key the file's rows by a name an agent "
+        "holds so the body's grep instruction reaches it"
     )
 
 
@@ -445,18 +462,17 @@ def test_the_corpus_gate_has_a_private_tag_to_gate():
         "is still doing work")
 
 
-@pytest.mark.parametrize("path", _evidence_tagged(), ids=lambda p: p.name)
-def test_every_measured_tag_names_this_repository_or_the_declared_corpus(
-        path: Path):
-    paras = _paragraphs(path.read_text(encoding="utf-8"))
+def _corpus_problems(name: str, text: str) -> list[str]:
+    """Every way a file's `Measured` tags fail the corpus rule, as messages."""
+    paras = _paragraphs(text)
     corpus = _declared_corpus(paras)
-    assert corpus is None or "\x00" not in corpus, (
-        f"{path.name}: the provenance paragraph holds "
-        f"{len(corpus.split(chr(0)))} bold spans "
-        f"({', '.join(repr(s) for s in corpus.split(chr(0)))}) — exactly one "
-        "is the corpus declaration, so a second is ambiguous. Bold the corpus "
-        "and nothing else there")
-
+    if corpus is not None and "\x00" in corpus:
+        spans = corpus.split("\x00")
+        return [f"{name}: the provenance paragraph holds {len(spans)} bold spans "
+                f"({', '.join(repr(s) for s in spans)}) — exactly one is the "
+                "corpus declaration, so a second is ambiguous. Bold the corpus "
+                "and nothing else there"]
+    problems = []
     for row in _rows(paras):
         sec, n = _ROW_HEAD.match(row[0]).groups()
         parts = _tag_parts(row[-1])
@@ -465,17 +481,44 @@ def test_every_measured_tag_names_this_repository_or_the_declared_corpus(
         body = parts[1]
         if body.startswith("WP-"):
             continue
-        assert corpus, (
-            f"{path.name}: row {sec}.{n} closes *(Measured: {body[:50]}…)*, "
-            "which names neither a WP nor a declared corpus — and this file "
-            "declares no corpus. Either name the run so a reader can open it, "
-            "or declare the corpus once in the provenance paragraph, in bold")
-        assert body.startswith(corpus), (
-            f"{path.name}: row {sec}.{n} closes *(Measured: {body[:60]}…)*. A "
-            f"row measured outside this repository names the declared corpus "
-            f"{corpus!r} first, spelled the same way every time — otherwise "
-            "the tag reads as a citation to something a reader could go and "
-            "find. Start it with that string, or with WP- if the run is here")
+        if not corpus:
+            problems.append(
+                f"{name}: row {sec}.{n} closes *(Measured: {body[:50]}…)*, "
+                "which names neither a WP nor a declared corpus — and this file "
+                "declares no corpus. Either name the run so a reader can open it, "
+                "or declare the corpus once in the provenance paragraph, in bold")
+        elif not body.startswith(corpus):
+            problems.append(
+                f"{name}: row {sec}.{n} closes *(Measured: {body[:60]}…)*. A "
+                f"row measured outside this repository names the declared corpus "
+                f"{corpus!r} first, spelled the same way every time — otherwise "
+                "the tag reads as a citation to something a reader could go and "
+                "find. Start it with that string, or with WP- if the run is here")
+    return problems
+
+
+@pytest.mark.parametrize("path", _evidence_tagged(), ids=lambda p: p.name)
+def test_every_measured_tag_names_this_repository_or_the_declared_corpus(
+        path: Path):
+    problems = _corpus_problems(path.name, path.read_text(encoding="utf-8"))
+    assert not problems, "\n".join(problems)
+
+
+def test_the_corpus_gate_fails_each_broken_shape():
+    """The three ways a private tag goes wrong, on a made-up file, and the
+    two tags that must pass."""
+    def doc(provenance: str, *tags: str) -> str:
+        rows = "\n\n".join(f"**9z.{i} A rule.** Text. *(Measured: {tag})*"
+                             for i, tag in enumerate(tags, 1))
+        return (f"# 9z. Title\n\nLoad it when.\n\n{REFERENCE_PROVENANCE_PREFIX} "
+                f"{provenance}\n\n{rows}\n")
+
+    declared = "Every row carries its evidence, runs on **corpus A**."
+    assert not _corpus_problems("x", doc(declared, "WP-1338, a round", "corpus A, run 4"))
+    assert _corpus_problems("x", doc(declared, "Corpus A, run 4"))          # misspelled
+    assert _corpus_problems("x", doc("Every row carries its evidence.",
+                                     "some runs I did"))                   # none declared
+    assert _corpus_problems("x", doc("**A** and **B**.", "A, run 1"))        # ambiguous
 
 
 def test_every_dotted_name_in_the_api_index_resolves():
@@ -524,32 +567,247 @@ def test_the_api_indexes_are_what_the_generator_renders():
         assert " at 0x" not in text
 
 
-#: `report.regions`, `result.statistics.rwp`, `statistics.esd_inflation`,
-#: `d.suggestion` — the body's own field names, which no generator writes.
-BODY_DOTTED = re.compile(
-    r"`(report|result|statistics|d)((?:\.[A-Za-z_][A-Za-z0-9_]*)+)(?:\(|`)")
+# --- the hand-written names (#238) ------------------------------------------
+#
+# `report.regions`, `result.statistics.rwp`, `entry.rungs_tried`,
+# `StageResult.held_reach`: field names an author typed, which no generator
+# writes.  A rule written against a field that has moved is a rule nobody can
+# follow, so each is walked through the types the way the manual's names are.
+# Until WP-1338 the walk read the body alone, and the reference files, which
+# hold four times its names, were checked by hand at review.
+#
+# **A root is a variable name or an exported class**, and the two are read
+# differently.  A class in `rietx.__all__` is its own root, so a type-level
+# claim (`SeriesResult.diagnostics`) is walked with no list to maintain.  A
+# variable name is a convention, and some stand for more than one type: in
+# `series.md` a `result` is a `SeriesResult`, and in `magnetic.md`
+# `report.magnetic` is the module `rietx.report.magnetic`.  So a variable root
+# names every type it stands for, and a chain passes when it resolves on one.
+# That can pass a field named on the wrong answer type; it cannot pass a field
+# that no longer exists on any of them, which is the rot this gate is for.
+#
+# **What the walk cannot see.**  A negative claim (`StageResult` carries no
+# `rwp`) names nothing to resolve, and a field added later falsifies it
+# silently; `NEGATIVE_FIELD_CLAIM` below pins the one phrasing the tree uses.
+# An attribute a plain class assigns on `self` (`SequentialRefinement.results_`,
+# set in `__init__`) has no class-level trace but the source line, so the walk
+# accepts it there and stops, the attribute's type being unknown.  A variable
+# name outside `_variable_roots()` is not walked:
+# `background.` is a report block in one file and a module in another, and
+# `phases.0.cell.a` is a parameter path, which `rx.help_for` owns.
+
+#: A span that is a dotted name and nothing else, possibly called.
+DOTTED_NAME = re.compile(
+    r"`([A-Za-z_][A-Za-z0-9_]*)((?:\.[A-Za-z_][A-Za-z0-9_]*)+)(?:\(|`)")
 
 
-def test_every_dotted_name_in_the_body_resolves():
-    """The judgement core names result and report fields by hand (`report.
-    identifiability.exchanges`, `statistics.max_shift_over_esd`), and a rule
-    written against a field that has moved is a rule nobody can follow.
-    Each is walked through the types the way the manual's names are."""
+def _format_models() -> tuple:
+    """What a `read_<format>` verb returns for another program's file.
+
+    A `model.` in the foreign-file rows is one of these (`TopasModel`,
+    `GsasModel`, …), none exported, so they are read off the readers'
+    return annotations rather than listed: a new format's model joins by
+    shipping its reader."""
+    import inspect
+    import sys
+
     import rietx as rx
 
-    roots = {"report": rx.FitReport, "result": rx.RefinementResult,
-             "statistics": rx.Statistics, "d": rx.Diagnostic}
-    text = SKILL.read_text(encoding="utf-8")
+    found = [rx.ProjectModel]
+    for name in rx.__all__:
+        fn = getattr(rx, name)
+        if not (name.startswith("read_") and inspect.isroutine(fn)):
+            continue
+        # Only the return annotation: `get_type_hints` would evaluate every
+        # parameter's too, and some name a type imported for checking only.
+        ret = inspect.unwrap(fn).__annotations__.get("return")
+        if isinstance(ret, str):
+            ret = getattr(sys.modules[fn.__module__], ret, None)
+        if isinstance(ret, type) and ret.__name__.endswith("Model"):
+            found.append(ret)
+    return tuple(dict.fromkeys(found))  # read_project_model returns ProjectModel too
+
+
+def _variable_roots() -> dict[str, tuple]:
+    """The variable names the skill uses for an object in hand, and every type
+    each one stands for somewhere in the tree."""
+    import rietx as rx
+    import rietx.report
+
+    return {
+        "report": (rx.FitReport, rietx.report),
+        "result": (rx.RefinementResult, rx.SeriesResult, rx.IndexingResult,
+                   rx.SuggestionResult),
+        "statistics": (rx.Statistics,),
+        "d": (rx.Diagnostic,),
+        "ref": (rx.Refinement,),
+        "series": (rx.SeriesResult,),
+        "entry": (rx.SeriesEntry,),
+        "model": _format_models(),
+        "instrument": (rx.Instrument,),
+    }
+
+
+@functools.cache
+def _roots() -> dict[str, tuple]:
+    import inspect
+
+    import rietx as rx
+
+    classes = {name: (getattr(rx, name),) for name in rx.__all__
+               if inspect.isclass(getattr(rx, name))}
+    return {**classes, **_variable_roots()}
+
+
+def _assigned_on_self(cls: type, name: str) -> bool:
+    import inspect
+
+    try:
+        source = inspect.getsource(cls)
+    except (OSError, TypeError):
+        return False
+    return re.search(rf"self\.{re.escape(name)}\s*[:=]", source) is not None
+
+
+def _first_missing_step(obj: object, steps: list[str]) -> str | None:
+    for step in steps:
+        ok, nxt = attr_step(obj, step)
+        if ok:
+            obj = nxt
+        elif isinstance(obj, type) and _assigned_on_self(obj, step):
+            return None
+        else:
+            return step
+    return None
+
+
+def _unresolved_names(text: str, roots: dict[str, tuple]) -> tuple[int, list[str]]:
+    """How many dotted names the walk visited, and the ones resolving on none
+    of their root's types."""
+    walked, bad = 0, []
+    for root, chain in DOTTED_NAME.findall(text):
+        if root not in roots:
+            continue
+        walked += 1
+        steps = chain.lstrip(".").split(".")
+        missing = [_first_missing_step(t, steps) for t in roots[root]]
+        if all(m is not None for m in missing):
+            bad.append(f"{root}{chain}: no {missing[0]!r}")
+    return walked, bad
+
+
+#: Every file an author writes by hand; the generated indexes have their own
+#: byte-for-byte pin above.
+AUTHORED = [SKILL, *(p for p in REFERENCES if p not in API_INDEXES)]
+
+
+@pytest.mark.parametrize("path", AUTHORED, ids=lambda p: p.name)
+def test_every_dotted_name_in_an_authored_file_resolves(path: Path):
+    _, bad = _unresolved_names(path.read_text(encoding="utf-8"), _roots())
+    assert not bad, (
+        f"{path.name} names fields the package does not have: {bad}. Rename "
+        "them to what the type carries now, or delete the claim")
+
+
+#: ```StageResult` carries no `rwp` `` — the one negative claim the tree makes
+#: about a field, and the kind a walk cannot see: nothing resolves, so a field
+#: added later falsifies it silently (WP-1334 proposes exactly that one).  This
+#: is a phrasing, not a grammar, so a claim worded another way is unpinned.
+NEGATIVE_FIELD_CLAIM = re.compile(r"`([A-Z][A-Za-z0-9_]*)` (?:carries|has) no `([a-z_][a-z0-9_]*)`")
+
+
+def _stale_negative_claims(text: str, roots: dict[str, tuple]) -> tuple[int, list[str]]:
+    found, stale = 0, []
+    for cls, field in NEGATIVE_FIELD_CLAIM.findall(text):
+        if cls not in roots:
+            continue
+        found += 1
+        if any(attr_step(t, field)[0] for t in roots[cls]):
+            stale.append(f"`{cls}` now has `{field}`")
+    return found, stale
+
+
+def test_every_negative_field_claim_is_still_true():
+    roots, found = _roots(), 0
+    for path in AUTHORED:
+        n, stale = _stale_negative_claims(path.read_text(encoding="utf-8"), roots)
+        found += n
+        assert not stale, f"{path.name}: {stale} — the claim is false now; rewrite it"
+    assert found, "no negative claim matched — the phrasing moved, and this pins nothing"
+    assert _stale_negative_claims("`StageResult` carries no `status`", roots)[1], (
+        "a claim the type contradicts must fail")
+
+
+def test_the_dotted_walk_visits_the_tree_and_fails_a_broken_name():
+    """Liveness, re-sited from the body's own density to the tree's: the body
+    held 40 walkable names and the references 194 more when the walk widened,
+    and a regex that stopped matching would pass every file above."""
+    roots = _roots()
+    walked = sum(_unresolved_names(p.read_text(encoding="utf-8"), roots)[0]
+                 for p in AUTHORED)
+    assert walked > 150, f"the walk visited only {walked} names — the regex broke"
+    _, bad = _unresolved_names(
+        "`result.statistics.rwp` `SeriesResult.no_such_field` "
+        "`entry.no_such_field` `report.magnetic.moment_pair_diagnostics`", roots)
+    assert bad == ["SeriesResult.no_such_field: no 'no_such_field'",
+                   "entry.no_such_field: no 'no_such_field'"], bad
+
+
+# --- a table cell ends at its first pipe (WP-1409) --------------------------
+#
+# GFM splits a table row on every unescaped `|`, code spans included, so
+# `scale × |F|² × profile` in a cell opens a span the cell never closes and
+# the backticks print literally.  The manual's HTML scan caught that one only
+# because `using/skill.md` includes the body whole; no reference file reaches
+# that build.  So the check runs on the Markdown: split each table row where
+# GFM does, and require every code span to close inside its own cell.
+
+_UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
+_BACKTICK_RUN = re.compile(r"`+")
+
+
+def _cells_with_an_open_span(line: str) -> list[str]:
+    """The cells of one table row in which a code span opens and never closes.
+
+    A span opens on a run of N backticks and closes on the next run of exactly
+    N, which is how a span can hold a backtick at all."""
     bad = []
-    for root, chain in BODY_DOTTED.findall(text):
-        obj = roots[root]
-        for step in chain.lstrip(".").split("."):
-            ok, obj = attr_step(obj, step)
-            if not ok:
-                bad.append(f"{root}{chain}: no {step!r}")
-                break
-    assert not bad, bad
-    assert len(BODY_DOTTED.findall(text)) > 15, "the regex found too little"
+    for cell in _UNESCAPED_PIPE.split(line.strip().strip("|")):
+        open_run = 0
+        for run in _BACKTICK_RUN.findall(cell):
+            if not open_run:
+                open_run = len(run)
+            elif len(run) == open_run:
+                open_run = 0
+        if open_run:
+            bad.append(cell.strip())
+    return bad
+
+
+def _broken_table_spans(text: str) -> list[str]:
+    bad, fenced = [], False
+    for n, line in enumerate(text.splitlines(), 1):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        elif not fenced and line.lstrip().startswith("|"):
+            bad += [f"line {n}: {cell[:60]!r}" for cell in _cells_with_an_open_span(line)]
+    return bad
+
+
+@pytest.mark.parametrize("path", [SKILL, *REFERENCES], ids=lambda p: p.name)
+def test_no_code_span_is_cut_by_a_table_cell(path: Path):
+    bad = _broken_table_spans(path.read_text(encoding="utf-8"))
+    assert not bad, (
+        f"{path.name}: a code span in a table cell holds an unescaped `|`, which "
+        f"ends the cell before the span closes: {bad}. Escape the pipe as `\\|`, "
+        "or drop the span as abstention.md's § 6 row does")
+
+
+def test_the_table_span_check_catches_the_row_it_was_written_for():
+    assert _broken_table_spans("| a | `scale × |F|² × profile` |")
+    assert not _broken_table_spans("| a | `scale × \\|F\\|² × profile` |")
+    assert not _broken_table_spans("| a | ``x`y`` and `z` |")
+    assert not _broken_table_spans("```\n| `open |\n```")
 
 
 RX_DOT_NAME = re.compile(r"`rx\.([A-Za-z_][A-Za-z0-9_]*)")

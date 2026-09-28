@@ -236,7 +236,8 @@ tiny column as zero in `_residual_cosine` (which feeds `at_bound`),
 - [x] Skill: `references/numbers.md`, the row on quoting a weight fraction's
       esd, says what a `None` means and what the finding names. *Placed
       2026-09-28:* `numbers.md` has no such row. The fraction esd's guidance
-      is `judging.md` §4b, which now points at the new `diagnostics.md` row.
+      is `judging.md` §4b, which now carries the code's row. It moved there
+      from `diagnostics.md` when WP-1338's budget closed that file to growth.
 
 ## Acceptance
 
@@ -286,8 +287,8 @@ naming the absent phase. `at_bound` on that scale is not `False`.
   is the one QPA builder for the single fit and each joint histogram, and
   emits `QPA_ESD_UNAVAILABLE`. `staged.bound_untested` (on `GuardReport`, and
   called by `multi.py`) makes `at_bound` `None` on a free row sitting on its
-  transform's asymptote. The skill row, the BOUND_HIT row, `judging.md` §4b,
-  the manual's third `None` (and its NAC row count, re-measured at 73), a
+  transform's asymptote. The skill's row for the code (in `judging.md` §4b,
+  since `diagnostics.md` is over its WP-1338 budget), the manual's third `None` (and its NAC row count, re-measured at 73), a
   `releases/1.5.1.md` section and one root CLAUDE.md clause landed with it.
   The WP-1333 failure-injection tests now patch `normal_factors`.
 

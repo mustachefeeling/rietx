@@ -19,6 +19,14 @@ shipping PR closes **#209 and #204**.
 
 ### Inherited
 
+- **2026-09-28, from [1338](1338-the-skills-own-gates.md): a body sentence is paid for by a cut.** The
+  body's budget is the specification's 5 000 tokens, 17 000 B, and it is at
+  30 509 B, so a change may not grow it (`tests/skill_caps.py`). Guidance
+  for one kind of fit goes in a reference row keyed by a name the agent
+  holds, which the body's grep sentence reaches (CONTRIBUTING.md § The
+  agent skill). The placement round saw Haiku and Sonnet open no reference
+  file in 12 cells, so a rule every fit needs stays in the body.
+
 - **2026-09-28, from [1463](1463-a-phase-at-zero-withholds-every-esd.md): a
   softplus field at its floor now reads `at_bound=None`, and it can lose its
   esd a second way.** The "Recorded, no action here" note in Context still

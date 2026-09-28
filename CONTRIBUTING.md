@@ -74,21 +74,40 @@ that takes what you *learned running the package* rather than what you
 changed in it. Two committed copies, `.agents/skills/rietx/` and
 `.claude/skills/rietx/`, are regenerated from it and must stay byte-identical.
 
-Where a rule goes:
+**Where a rule goes, cheapest first.** Every feature so far added to the body,
+and the body is read whole by every session that loads the skill. So a
+feature's guidance goes to the first of these that can hold it.
 
-- It holds for every fit: the body. The body is at its byte cap, so a new
-  sentence there is paid for by a cut (`tests/test_skill.py` states the cap
-  and why).
-- It holds for a task *shape* — a series, a batch of candidates, a magnetic
-  phase: that shape's file under `references/`, numbered under the body
-  section it specialises (`9b` series, `9c` batch), reached by one routing
-  row whose *When* column names the situation and never the feature. A new
-  shape is a new file: copy the three-paragraph header of an existing one
-  (the title, "Load it when …", the provenance line), which the tests pin.
-- It is a measured surprise about one fit: `references/surprises.md`.
-- A diagnostic code, a gate or an action: its row in the diagnostics or
-  abstention tables; `tests/test_docs_consistency.py` fails until it exists.
-- It is a rule for changing the package, not for running it: a `CLAUDE.md`.
+1. **The package's own output.** The `suggestion` of the `Diagnostic` that
+   fires, or the entry in `src/rietx/help.py` for a name. It costs nothing
+   until the output appears, and it matches the installed version. The
+   installed skill is a copy, and an upgrade can leave it stale.
+2. **A reference row keyed by a name the agent already holds**: a diagnostic
+   code, a verb it is about to call, a file extension, a result type. A
+   diagnostic code, a gate or an action needs its row in a diagnostics or
+   abstention table, and `tests/test_docs_consistency.py` fails until it
+   exists. Evidence too long for a suggestion goes in the code's row. A
+   measured surprise about one fit goes in `references/surprises.md`.
+3. **A routing row**, only for a task *shape* that no name identifies: a
+   series, a batch of candidates, a magnetic phase. The shape gets its own
+   file under `references/`, numbered under the body section it specialises
+   (`9b` series, `9c` batch). One routing row reaches it, and its *When*
+   column names the situation, never the feature. A new shape is a new file:
+   copy the three-paragraph header of an existing one (the title, "Load it
+   when …", the provenance line), which the tests pin.
+4. **The body**, only for a rule every fit needs, and paid for by a cut in
+   the same change.
+
+A rule for changing the package, not for running it, goes in a `CLAUDE.md`.
+
+**Sizes.** `tests/skill_caps.py` gives every skill file two limits. The
+*ceiling* is where an agent stops being able to read the file in one call. The
+*budget* sits below it and fails only a change that grows the file past it. The
+body's budget is the specification's 5 000 tokens, and the body is over it, so
+any body sentence is paid for by a cut. A reference file over its budget takes
+no growth either: split it on the criterion its cap comment records. CI prints
+each changed file's delta and headroom on every pull request, drafts included,
+and `python -m tests.skill_caps` prints the same table locally.
 
 **Writing a row from runs.** A reference that collects rules from runs
 declares in its provenance line that every row carries its evidence, and each
@@ -123,9 +142,11 @@ Then, in the same change:
 .venv/bin/rietx skill --install . --copy      # re-sync the two committed copies
 ```
 
-The first refuses a row without its tag, a reference without its header, a
-link that does not resolve, a name the package does not export and a body
-over its cap; the second regenerates the two copies.
+The first refuses a row without its tag, a private tag that does not name its
+file's corpus, a reference without its header, a link that does not resolve, a
+field name no type carries, a code span a table cell cuts, a file over its
+ceiling, and a change that grows a file past its budget. The second
+regenerates the two copies.
 
 ## Licensing
 

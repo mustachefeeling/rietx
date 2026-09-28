@@ -72,6 +72,14 @@ variables, and no pooling across rounds.
 
 ### Inherited
 
+- **2026-09-28, from [1338](1338-the-skills-own-gates.md): a real-agent round here launches with
+  `--setting-sources project,local`.** `~/.claude/skills/rietx` is a
+  symlink to the maintainer's checkout, and a user-level skill shadows a
+  workspace one of the same name, so without the flag every cell reads the
+  checkout's body and a `bare` cell is not bare. Check which body each
+  cell was handed off its transcript (`tests/eval_skill_placement/
+  runner.condition_held`).
+
 - **2026-09-24, from a review of the open WPs: task 2's target file is
   gone.** `docs/AGENT_PROTOCOL.md` became the agent skill in v1.3 (WPs 1304
   and 1308; v1.3 record, § Acceptance), and its last pointer was deleted in
