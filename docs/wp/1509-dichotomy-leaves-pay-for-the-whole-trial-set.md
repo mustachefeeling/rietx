@@ -207,7 +207,9 @@ OpenBLAS 0.3.34's Haswell kernel, py-spy 0.4.2 installed in the worktree venv):
   candidates, 761 distinct: 18.8 → 2.6 s. Corundum tetragonal's finished unit held
   5037 → 4942: first pass 53.2 → 49.7 s, and the second pass (52.5 s) is gone.
 - **Fast suite**, `-m "not slow"`, `-n auto`: 6690 passed, 163 skipped, 1 failed,
-  21:34, on the tree that merges (main had not moved from `3b04eef`). The failure
+  21:34-22:01 over two runs. The second ran on the final tree, after the review
+  fix, with identical counts, and main had not moved from `3b04eef`, so that is
+  the tree that merges. The failure
   is `test_telemetry`'s unwritable-directory case, which a root container cannot
   fail, as WP-1508 and WP-1449 recorded. This session added 14 cases (8 kernel, 6
   engine), 3.21 s in all (`tests.added_test_times`: the replay test 2.39 s over 8
