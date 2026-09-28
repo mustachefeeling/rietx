@@ -1,6 +1,6 @@
 # WP-1518 — the dedup χ² test weighs a difference in the frame it was taken in
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-28 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: — (1020 built the test; 1509 built the caches it reads)
 Priority: P2 2026-09-28 — a silent wrong answer on the path consensus builds agreement from, shown on synthetic covariances and not yet on a real harvest; P1 if task 1 finds a corpus grade that moves
