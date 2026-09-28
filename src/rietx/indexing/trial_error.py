@@ -46,6 +46,7 @@ from .engines import (
     EngineCandidate,
     EngineResult,
     SearchSpec,
+    TrialIndex,
     assign_lines,
     dedup_candidates,
     effective_shift_allowance,
@@ -401,6 +402,7 @@ def _search_system(peaks: PeakList, system: str, basis: np.ndarray,
                                           theta_hi) for i in pool}
         hkl_full = trial_hkl(_scoring_index(spec, q_all, sigma), centring)
         dm_full = design_matrix(hkl_full)
+        index_full = TrialIndex.build(hkl_full)
         for base in combinations(range(len(pool)), n_dof):
             if budget.expired():
                 # the clock rides the cut return too: a reader telling a clock
@@ -423,7 +425,8 @@ def _search_system(peaks: PeakList, system: str, basis: np.ndarray,
                     continue
                 seen.add(key)
                 cand = _score(basis, system, centring, spec, af, hkl_full,
-                              dm_full, q_all, sigma, peaks.wavelength, tt_max,
+                              dm_full, index_full, q_all, sigma,
+                              peaks.wavelength, tt_max,
                               vol_max, hkl_tab[combo], search_lines, tt_all)
                 if cand is not None:
                     found.append(cand)
@@ -444,7 +447,8 @@ def _scoring_index(spec: SearchSpec, q_all: np.ndarray,
 
 
 def _score(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
-           af: np.ndarray, hkl: np.ndarray, dm: np.ndarray, q_all: np.ndarray,
+           af: np.ndarray, hkl: np.ndarray, dm: np.ndarray,
+           index: TrialIndex | None, q_all: np.ndarray,
            sigma: np.ndarray, wavelength: float, tt_max: float, vol_max: float,
            base_hkl: np.ndarray, search_lines: np.ndarray,
            two_theta: np.ndarray) -> EngineCandidate | None:
@@ -466,7 +470,8 @@ def _score(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
     previous: bytes | None = None
     for _pass in range(3):
         line_index, assigned = assign_lines(q_all, sigma, hkl, af,
-                                            k_sigma=spec.k_sigma, design=dm)
+                                            k_sigma=spec.k_sigma, design=dm,
+                                            index=index)
         if len(line_index) < basis.shape[0] + 1:
             return None
         key = line_index.tobytes()

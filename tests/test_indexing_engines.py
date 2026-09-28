@@ -305,6 +305,112 @@ def test_every_centring_is_a_subset_of_the_primitive_trial_set():
                               for h in primitive[allowed]}, (system, centring)
 
 
+def _random_cell(rng: np.random.Generator, system: str) -> tuple:
+    """A cell of ``system`` with axes over 2-25 Å, obliquity up to 30°."""
+    a, b, c = (float(v) for v in rng.uniform(2.0, 25.0, 3))
+    al, be, ga = (float(v) for v in rng.uniform(62.0, 118.0, 3))
+    return {"cubic": (a, a, a, 90.0, 90.0, 90.0),
+            "hexagonal": (a, a, c, 90.0, 90.0, 120.0),
+            "tetragonal": (a, a, c, 90.0, 90.0, 90.0),
+            "orthorhombic": (a, b, c, 90.0, 90.0, 90.0),
+            "monoclinic": (a, b, c, 90.0, be, 90.0),
+            "triclinic": (a, b, c, al, be, ga)}[system]
+
+
+def test_the_trial_index_keeps_every_row_a_cell_can_put_in_range_in_order():
+    """``TrialIndex.rows_within`` is a superset of the in-range rows, in order.
+
+    WP-1509's restriction of ``assign_lines`` rests on it: a row it leaves out
+    must be one the whole-set product puts above the range, and the rows it
+    keeps must stay in the set's own order, since equivalent reflections tie
+    and the tie is broken by position.  Drawn over every metric shape, three
+    centrings and the union mask the dichotomy engine builds, against the
+    product the unrestricted path computes.  The last lines are the vacuity
+    guard: most draws must actually restrict.
+    """
+    from rietx.indexing.engines import TrialIndex
+    from rietx.indexing.qspace import centring_allows
+
+    rng = np.random.default_rng(1509)
+    full = trial_hkl(14, "P")
+    sets = {"P": full, "I": full[centring_allows(full, "I")],
+            "R": full[centring_allows(full, "R")],
+            "I|F": full[centring_allows(full, "I") | centring_allows(full, "F")]}
+    restricted = 0
+    for name, hkl in sets.items():
+        index = TrialIndex.build(hkl, min_rows=0)
+        assert index is not None, name
+        dm = design_matrix(hkl)
+        for system in ("cubic", "hexagonal", "tetragonal", "orthorhombic",
+                       "monoclinic", "triclinic"):
+            for _ in range(20):
+                af = af_from_cell(_random_cell(rng, system))
+                q_top = float(rng.uniform(0.05, 1.5))
+                rows = index.rows_within(af, q_top)
+                if rows is None:
+                    continue
+                restricted += 1
+                assert np.all(np.diff(rows) > 0), (name, system)
+                needed = np.flatnonzero(dm @ af <= q_top)
+                assert np.isin(needed, rows).all(), (name, system)
+    assert restricted >= 300, restricted
+    # an unordered set is refused rather than indexed wrongly
+    assert TrialIndex.build(full[::-1], min_rows=0) is None
+    # and a set too small for the bound to pay is scanned whole, as before
+    assert len(full) < 30_000 and TrialIndex.build(full) is None
+
+
+def test_a_subset_product_is_the_whole_products_rows_where_the_probe_says_so():
+    """``engines.row_local_product`` decides once a process whether the index
+    may also shrink the gemv, and this asks the same question harder: every
+    subset size from 2 to 40 and larger ones, over a trial set the size of
+    corundum's hexagonal unit (150 381 rows).  A skip is the report that this
+    platform's BLAS keeps the whole product — slower, never different."""
+    from rietx.indexing.engines import row_local_product
+
+    if not row_local_product():
+        pytest.skip("this BLAS rounds a row differently inside a subset, so "
+                    "the trial index saves the gathers but not the product")
+    rng = np.random.default_rng(15092)
+    dm = design_matrix(trial_hkl(33, "P"))
+    for system in ("hexagonal", "monoclinic", "triclinic"):
+        af = af_from_cell(_random_cell(rng, system))
+        whole = dm @ af
+        for size in [*range(2, 41), 97, 1024, 5000, 20011]:
+            rows = np.sort(rng.choice(len(dm), size, replace=False))
+            assert np.array_equal(dm[rows] @ af, whole[rows]), (system, size)
+
+
+@pytest.mark.parametrize("system", ["hexagonal", "monoclinic", "triclinic"])
+def test_assign_lines_answers_the_same_through_the_index(system):
+    """The whole restriction, asked where it is used: bit for bit, with it and
+    without it, over the windows ``_accept``'s anneal passes open."""
+    from rietx.indexing.engines import TrialIndex, assign_lines
+
+    rng = np.random.default_rng(15091)
+    hkl = trial_hkl(18, "P")
+    dm = design_matrix(hkl)
+    index = TrialIndex.build(hkl, min_rows=0)
+    used = 0
+    for _ in range(40):
+        cell = _random_cell(rng, system)
+        af = af_from_cell(cell)
+        q_pred = np.sort(dm @ af)
+        q_pred = q_pred[(q_pred > 0.01) & (q_pred < 0.8)]
+        q_obs = np.sort(rng.choice(q_pred, min(40, len(q_pred)), replace=False)
+                        * (1.0 + 2e-4 * rng.standard_normal()))
+        for floor in (0.0, 1e-4, 1e-2):
+            sigma = np.maximum(np.full(len(q_obs), 2e-4), floor)
+            want = assign_lines(q_obs, sigma, hkl, af, design=dm)
+            got = assign_lines(q_obs, sigma, hkl, af, design=dm, index=index)
+            for w, g in zip(want, got):
+                assert w.dtype == g.dtype and w.shape == g.shape
+                assert np.array_equal(w, g)
+            used += index.rows_within(af, float(q_obs.max()) + 3 * float(
+                sigma.max())) is not None
+    assert used >= 60, used
+
+
 def test_a_centring_that_fits_the_trial_cap_keeps_its_search():
     """One shared pass means one shared trial set, and the cap now sees the union.
 

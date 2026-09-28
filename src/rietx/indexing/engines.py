@@ -660,9 +660,187 @@ def reflection_ceiling_ok(cell: Sequence[float], wavelength: float,
 # ----------------------------------------------------------------------
 # Shared scoring / assignment
 # ----------------------------------------------------------------------
+#: Largest ``Σ|A..F| / λ_min(G*)`` a cell may have for :class:`TrialIndex` to
+#: bound its rows.  The bound's soundness needs the rounding in a 6-term dot to
+#: stay far below its margin (:data:`_INDEX_MARGIN`): the error is at most
+#: ~6.7e-16 of ``Σ|mⱼ·afⱼ|`` ≤ ``‖h‖²·Σ|af|``, while Q ≥ ``λ_min·‖h‖²``, so it
+#: is a fraction ``6.7e-16 × this`` of Q — 6.7e-10 here against a 1e-6 margin.
+#: A cell past it (a near-singular metric) takes the whole set, as before.
+_INDEX_MAX_CONDITION = 1e6
+#: Relative slack on each per-axis index bound.  Covers the rounding above and
+#: the inverse's (relative error ≲ condition × 1.1e-16 = 1.1e-10) with four
+#: orders to spare; a looser bound costs rows, never correctness.
+_INDEX_MARGIN = 1e-6
+#: Fraction of the trial set above which a bounded row list is not worth
+#: building: gathering most of a set costs what scanning it does.
+_INDEX_MAX_SHARE = 0.5
+#: Rows below which a trial set is not indexed at all.  The bound costs a
+#: fixed ~120-190 µs a call (an eigen-decomposition, an inverse, the
+#: searches), against ~7 ns a row for the scan it replaces: measured, the index
+#: lost below ~18 000 rows and won above ~34 000, 1115 → 211 µs at 150 381
+#: (one BLAS thread, WP-1509).  trial_error's monoclinic unit scores against
+#: 2456 rows, where indexing made it 19 % slower before this floor.
+_INDEX_MIN_ROWS = 30_000
+
+
+class TrialIndex:
+    """Where each (h, k) run of a trial set sits, so the rows a cell can put
+    inside the observed range are found without scanning the set (WP-1509).
+
+    ``assign_lines`` scanned its whole trial set on every call — up to
+    ``MAX_TRIAL_HKL`` rows through a gemv, an in-range mask and two gathers, per
+    anneal pass, per centring, per dichotomy leaf — to keep the ~1 % of rows a
+    cell puts inside the observed range: 1039 of 150 381 on corundum's
+    hexagonal unit.  The measured 12.7 % (gemv) + 17.5 % (mask and gathers) of
+    that unit was spent on rows no line could be matched to.  With an index the
+    mask and gathers run over the bounded rows everywhere, and the product too
+    wherever :func:`row_local_product` measured that it may.
+
+    **The bound is exact, not a heuristic.**  For a positive-definite G* the
+    least Q over every h with a given hᵢ is ``hᵢ² / (G*⁻¹)ᵢᵢ = hᵢ²/aᵢ²`` (aᵢ the
+    direct axis), so a row with ``|hᵢ| > aᵢ·√Q_top`` for any i has Q > Q_top and
+    is outside the range whatever the rest of its indices are.  The margins
+    (:data:`_INDEX_MARGIN`, :data:`_INDEX_MAX_CONDITION`) carry that from exact
+    arithmetic to the product ``assign_lines`` actually computes; a cell outside
+    them gets ``None`` and the whole set.
+
+    **Rows come back in their original order**, which is the other half of
+    exactness: symmetry-equivalent reflections tie in Q, the in-range sort
+    breaks ties by position, and a reordered set assigns another equivalent.  A
+    trial set is indexed only if its rows are in strictly increasing
+    lexicographic (h, k, l) order — :func:`~rietx.indexing.qspace.trial_hkl`'s
+    own, and any mask of it — because that is what makes every (h, k) run and
+    every |l| ≤ L slice of one contiguous; :meth:`build` returns ``None``
+    otherwise.
+    """
+
+    def __init__(self, key: np.ndarray, width: int, offset: int,
+                 pair_hk: np.ndarray) -> None:
+        self.n = len(key)
+        #: each row's (h, k, l) as one integer, strictly increasing
+        self._key = key
+        self._width = width
+        self._offset = offset
+        #: the distinct (h, k) present, in row order
+        self._pair_hk = pair_hk
+
+    @classmethod
+    def build(cls, hkl: np.ndarray, *,
+              min_rows: int = _INDEX_MIN_ROWS) -> TrialIndex | None:
+        """Index ``hkl``, or ``None`` if its rows are not in (h, k, l) order
+        or it is too small for a bound to pay (:data:`_INDEX_MIN_ROWS`)."""
+        h = np.asarray(hkl, dtype=np.int64)
+        if h.ndim != 2 or h.shape[1] != 3 or len(h) < max(min_rows, 2):
+            return None
+        offset = int(np.max(np.abs(h)))
+        width = 2 * offset + 1
+        shifted = h + offset
+        key = (shifted[:, 0] * width + shifted[:, 1]) * width + shifted[:, 2]
+        if not np.all(np.diff(key) > 0):
+            return None
+        pair = key // width
+        starts = np.flatnonzero(np.r_[True, pair[1:] != pair[:-1]])
+        return cls(key, width, offset, h[starts, :2])
+
+    def rows_within(self, af: np.ndarray, q_top: float) -> np.ndarray | None:
+        """Every row whose Q under ``af`` can be ≤ ``q_top``, in order.
+
+        A superset of them — rows whose index bound admits them — and never a
+        row fewer.  ``None`` when no bound is safe (a metric that is not
+        positive definite, or too ill-conditioned for the margins) or when the
+        bound would keep most of the set anyway.
+        """
+        from .qspace import gstar_from_af
+
+        if not q_top > 0.0:
+            return None
+        a = np.asarray(af, dtype=np.float64)
+        gstar = gstar_from_af(a)
+        try:
+            lam = np.linalg.eigvalsh(gstar)
+            if not lam[0] > 0.0 or np.sum(np.abs(a)) > (
+                    _INDEX_MAX_CONDITION * lam[0]):
+                return None
+            direct = np.diag(np.linalg.inv(gstar))
+        except np.linalg.LinAlgError:
+            return None
+        if not np.all(direct > 0.0):
+            return None
+        bound = np.floor(np.sqrt(q_top * direct) * (1.0 + _INDEX_MARGIN))
+        if not np.all(np.isfinite(bound)):
+            return None
+        big_h, big_k, big_l = (int(min(b, self._offset)) for b in bound)
+        hk = self._pair_hk
+        take = (np.abs(hk[:, 0]) <= big_h) & (np.abs(hk[:, 1]) <= big_k)
+        if not take.any():
+            return np.zeros(0, dtype=np.int64)
+        base = ((hk[take] + self._offset) * np.array([self._width, 1])).sum(
+            axis=1) * self._width + self._offset
+        start = np.searchsorted(self._key, base - big_l, side="left")
+        stop = np.searchsorted(self._key, base + big_l, side="right")
+        lens = stop - start
+        total = int(lens.sum())
+        if total > _INDEX_MAX_SHARE * self.n:
+            return None
+        return (np.arange(total, dtype=np.int64)
+                + np.repeat(start - (np.cumsum(lens) - lens), lens))
+
+
+_ROW_LOCAL: bool | None = None
+
+
+def row_local_product() -> bool:
+    """Does a product over *some* rows of a design matrix give those rows of
+    the whole product, bit for bit, on this machine?  Asked once a process.
+
+    :class:`TrialIndex` saves the gathers either way; whether it may also save
+    the product — ``dm[rows] @ af`` rather than ``(dm @ af)[rows]`` — depends
+    on the BLAS, because the whole-set product is what an unrestricted search
+    computes and a subset's rows must round the same.  They do wherever a
+    kernel's association inside a row does not depend on the row's position,
+    thread chunk or neighbours: measured on OpenBLAS 0.3.34's Haswell kernel
+    (numpy 2.5.3, Linux x86-64), 0 mismatches over 12 000 subsets of 2-5000
+    rows of a 113 490-row product, which itself differs from a left-to-right
+    sum on a third of its rows (WP-1509).  A single row is the exception —
+    numpy hands a (1, 6) product to ``dot`` rather than gemv — so it is never
+    asked of a subset.  Nothing promises this of every BLAS, so the answer is
+    **measured here** on the shapes the search uses, and a machine where any
+    row differs keeps the whole product; the result is then exactly what it
+    always was, only slower.
+    """
+    global _ROW_LOCAL
+    if _ROW_LOCAL is None:
+        rng = np.random.default_rng(1509)
+        dm = design_matrix(trial_hkl(26, "P"))
+        cells = (np.array([0.0441, 0.0441, 0.00592, 0.0, 0.0, 0.0441]),
+                 np.array([0.0127, 0.00371, 0.0196, 0.0, -0.00288, 0.0]),
+                 rng.uniform(0.002, 0.05, 6) * np.array([1, 1, 1, -1, 1, -1]))
+        ok = True
+        for af in cells:
+            whole = dm @ af
+            for size in (2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 33, 64, 257,
+                         1000, 4099):
+                for _ in range(3):
+                    rows = np.sort(rng.choice(len(dm), size, replace=False))
+                    ok = ok and np.array_equal(dm[rows] @ af, whole[rows])
+        _ROW_LOCAL = bool(ok)
+    return _ROW_LOCAL
+
+
+def _product_on(dm: np.ndarray, af: np.ndarray, rows: np.ndarray) -> np.ndarray:
+    """``(dm @ af)[rows]``, computed over ``rows`` alone where that is the same
+    bits (:func:`row_local_product`)."""
+    if not len(rows):
+        return np.zeros(0)
+    if len(rows) > 1 and dm.flags.c_contiguous and row_local_product():
+        return dm[rows] @ af
+    return (dm @ af)[rows]
+
+
 def assign_lines(q_obs: np.ndarray, sigma: np.ndarray, hkl: np.ndarray,
                  af: np.ndarray, *, k_sigma: float = MATCH_SIGMA,
                  design: np.ndarray | None = None,
+                 index: TrialIndex | None = None,
                  ) -> tuple[np.ndarray, np.ndarray]:
     """Give each observed line the hkl whose Q is nearest, within k·σ.
 
@@ -674,25 +852,38 @@ def assign_lines(q_obs: np.ndarray, sigma: np.ndarray, hkl: np.ndarray,
     ``design`` is ``design_matrix(hkl)`` when the caller already has it — a
     search calls this once per accepted cell over the same trial set, and
     rebuilding the (N, 6) matrix each time is the difference between a matvec and
-    a matrix build in the engine's warm path.
+    a matrix build in the engine's warm path.  ``index`` is
+    ``TrialIndex.build(hkl)`` for the same reason, and with it only the rows the
+    cell can put in range are handled (:class:`TrialIndex`); the answer is the
+    same either way.
     """
     dm = design_matrix(hkl) if design is None else design
-    q_pred = dm @ np.asarray(af, dtype=np.float64)
+    af = np.asarray(af, dtype=np.float64)
     # Drop predictions outside the observed Q range **before** matching.  The
     # trial set is sized for the whole search domain, so on any one cell most of
     # it is far out of range, and ``match_lines`` costs an (observed × predicted)
     # matrix: measured on an orthorhombic search, filtering first took a rejected
     # leaf from ~30 ms to well under one, and leaf rejection was 90 % of the run.
     window = k_sigma * float(np.max(sigma)) if len(sigma) else 0.0
-    inside = ((q_pred >= float(np.min(q_obs)) - window)
-              & (q_pred <= float(np.max(q_obs)) + window))
-    q_pred, hkl_in = q_pred[inside], np.asarray(hkl)[inside]
+    q_lo = float(np.min(q_obs)) - window
+    q_top = float(np.max(q_obs)) + window
+    rows = None if index is None else index.rows_within(af, q_top)
+    if rows is None:
+        q_pred = dm @ af
+        inside = np.flatnonzero((q_pred >= q_lo) & (q_pred <= q_top))
+        q_pred = q_pred[inside]
+    else:
+        q_rows = _product_on(dm, af, rows)
+        keep = (q_rows >= q_lo) & (q_rows <= q_top)
+        inside, q_pred = rows[keep], q_rows[keep]
     if not len(q_pred):
         return np.zeros(0, dtype=np.int64), np.zeros((0, 3), dtype=np.int64)
     order = np.argsort(q_pred)
     idx, _ = match_lines(q_obs, sigma, q_pred[order], k_sigma=k_sigma)
     hit = idx >= 0
-    return np.flatnonzero(hit), hkl_in[order][idx[hit]]
+    # only the matched rows' hkl are gathered: the in-range set is ~20× the
+    # lines, and gathering all of it was the costliest step after the product
+    return np.flatnonzero(hit), np.asarray(hkl)[inside[order[idx[hit]]]]
 
 
 def search_line_order(peaks: PeakList, spec: SearchSpec) -> np.ndarray:

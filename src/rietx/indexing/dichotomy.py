@@ -66,6 +66,7 @@ from .engines import (
     EngineCandidate,
     EngineResult,
     SearchSpec,
+    TrialIndex,
     assign_lines,
     dedup_candidates,
     effective_shift_allowance,
@@ -929,6 +930,10 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     # first written this way
     per_centring = {c: (hkl_all[mask[union]], dm_all[mask[union]])
                     for c, mask in masks.items()}
+    # and indexed once, so a leaf's assignment handles only the rows its cell
+    # can put inside the observed range (``engines.TrialIndex``, WP-1509)
+    indices = {c: TrialIndex.build(hkl_c) for c, (hkl_c, _dm) in
+               per_centring.items()}
     centring_rows = {c: mask[union] for c, mask in masks.items()}
     m_all = dm_all @ basis.T
     root_min, _root_max = _q_bounds(m_all, lo0, hi0)
@@ -996,7 +1001,7 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
                                    hi_search, spec.n_unindexed):
                 continue
             cand = _accept(basis, system, centring, spec, theta,
-                           hkl_c, dm_c, q_all, sigma,
+                           hkl_c, dm_c, indices[centring], q_all, sigma,
                            wavelength, tt_max, vol_min, vol_max, width,
                            search_lines, tt_all)
             if cand is not None:
@@ -1268,6 +1273,7 @@ def _inside_domain(af: np.ndarray, spec: SearchSpec) -> bool:
 
 def _accept(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
             theta: np.ndarray, hkl: np.ndarray, dm: np.ndarray,
+            index: TrialIndex | None,
             q_all: np.ndarray, sigma: np.ndarray, wavelength: float,
             tt_max: float, vol_min: float, vol_max: float,
             width: float, search_lines: np.ndarray,
@@ -1311,7 +1317,7 @@ def _accept(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
             return None
         line_index, assigned = assign_lines(
             q_all, np.maximum(sigma, floor), hkl, af, k_sigma=spec.k_sigma,
-            design=dm)
+            design=dm, index=index)
         if len(line_index) < basis.shape[0] + 1:
             return None
         key = line_index.tobytes()
