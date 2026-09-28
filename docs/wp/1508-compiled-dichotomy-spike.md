@@ -252,11 +252,18 @@ nothing else running unless named):
 - The manual-mode benchmark, both paths, alone: −2 of +10, identical ranks and
   nearest-cell ppm, 115.8-121.4 s a set, every set incomplete.
 - Kernel build 4.4-4.6 s cold (three fresh caches), 0.23-0.27 s from the numba cache.
-- Fast suite (`-m "not slow"`, `-n auto`, branch before the main merge): 6583
-  passed, 163 skipped, 1 failed, 21:03 — the failure is `test_telemetry`'s
-  unwritable-directory case, which a root container cannot fail (WP-1449 recorded
-  the same). The seven added tests cost 4.75 s over their 18 cases
-  (`tests.added_test_times`), none in the slow tail.
+- After the review pass made the grid pass one shared function (so the on/off tests
+  can no longer see a grid bug), synthetic monoclinic was replayed again on both
+  paths against the digest recorded before it: 1 309 957 boxes, 107.4 rows a box,
+  `fc4d2b0b`, identical; 10.07 s compiled, 193.4 s numpy.
+- Fast suite (`-m "not slow"`, `-n auto`) on this branch merged with main at
+  `40820ff`: 6676 passed, 163 skipped, 1 failed, 20:54 — the failure is
+  `test_telemetry`'s unwritable-directory case, which a root container cannot fail
+  (WP-1449 recorded the same). Before the merge the branch read 6583 + 163 + 1; the
+  +93 is main's merge, and this session's own addition is the 18 cases of the new
+  file, all passing. Main's own count at `40820ff` was not measured (CI's job), so
+  the exact baseline check could not be closed. The seven added tests cost 5.46 s
+  over their 18 cases (`tests.added_test_times`), none in the slow tail.
 - `test_acceptance_indexing.py` + `test_indexing_engines.py` (slow rows included) +
   the new file, `-n auto`: 135 passed, 4 skipped, 48:45 — the skips are the order
   rows whose 2-D dichotomy units the 300 s budget cut, as before. The full selection
