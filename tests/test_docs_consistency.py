@@ -232,6 +232,9 @@ PRIORITIES = wp_index.PRIORITIES
 #                                                          repeat the defect. Landed 972, +1 headroom
 #   2026-09-27  docs/ROADMAP.md               880 -> 571  for WP-1507: the WP tables left for the
 #                                                          generated docs/wp/README.md; prose only now
+#   2026-09-28  docs/ROADMAP.md               571 -> 579  for the structure track (1510-1517): one new
+#                                                          Unscheduled group and its blurb, the fence
+#                                                          paragraph saying what left it; landed 578
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -552,7 +555,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # its WP-level paragraphs moved to the v1.6 record.  From here the cap is
     # a budget on prose alone, and the per-row bump above ends.  Landed 570,
     # +1 headroom.
-    "docs/ROADMAP.md": 571,
+    "docs/ROADMAP.md": 579,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
@@ -666,7 +669,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # 473 -> 485 (WP-1118, 2026-09-16): the GSAS-II pair added the one rule a
     # writer cannot derive from the four before it — two programs reading one
     # string opposite ways, so the fact goes in the channel the target reads.
-    "src/rietx/io/CLAUDE.md": 485,
+    # 485 -> 498 (WP-1332): two rules for the next pattern reader, each a check
+    # it inherits and must not re-implement.  The 2θ range is checked once on
+    # read_pattern's hook (past 180° raises, at or below 0° reports), because
+    # no per-format axis classifier can see a unit; a constant σ is reported on
+    # the same hook.  The two row additions (gsas, xy) cost no line.  Landed at
+    # 497; the +1 is headroom.  Raised rather than shaved, per the message.
+    "src/rietx/io/CLAUDE.md": 498,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs

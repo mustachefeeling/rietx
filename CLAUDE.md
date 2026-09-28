@@ -365,16 +365,16 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   Two rules for anything built on it: a geometry row **is** a restraint row (σ = weight = 1), so
   `model/restraints.py` stays the one derivative chain; and a neighbour search is proved complete
   by **orbit counting** (|A_ij|·m_i = |A_ji|·m_j), never by the distances looking right.
-- **The normal matrix is equilibrated before inversion, and a direction the data does not move
-  has no esd rather than a small one** (WP-1110 item 14;
-  `optimize.statistics.normal_covariance`'s docstring). `pinv` cuts every eigenvalue under
-  `rcond × |λ|max`, so the *largest* column sets the cutoff for all of them and a flat direction
-  returns at **zero** variance — the confident wrong singleton wearing an esd. Jacobi-scale first
-  (van der Sluis 1969); the test needs no dataset, since an esd must not depend on another
-  parameter's units. A gradient-free column is then infinite variance, true and unpropagatable,
-  so `_cov_free` drops it and `ParameterTable.unmeasured_rows` names what it reached — and
-  **consumers mark, never clamp**: a tie inherits its source's blindness, a geometry row only if
-  its own partials touch one, QPA the *whole* block since W normalises by a sum.
+- **The normal matrix is equilibrated before inversion, and a direction the data does not move has
+  no esd rather than a small one** (WP-1110 item 14; `statistics.normal_covariance`'s docstring).
+  `pinv` cuts every eigenvalue under `rcond × |λ|max`, so the *largest* column sets the cutoff for
+  all of them and a flat direction returns at **zero** variance — the confident wrong singleton
+  wearing an esd. Jacobi-scale first (van der Sluis 1969); the test needs no dataset, since an esd
+  must not depend on another parameter's units. A gradient-free column is then infinite variance,
+  true and unpropagatable, so `_cov_free` drops it and `ParameterTable.unmeasured_rows` names what
+  it reached — and **consumers mark, never clamp**: a tie inherits its source's blindness, a
+  geometry row only if its own partials touch one, QPA the *whole* block since W normalises by a
+  sum. **A tiny column is live** (WP-1463): square one only via `statistics.column_rescale`.
 - **A declared name is a claim, and an absent writer fails no test** (WP-1076, the rule above one
   rank up). Two shapes: a field whose empty state reads as an *answer*
   (`RefinedParameter.at_bound` was `bool = False`, so every result said "not at a bound" about
@@ -884,19 +884,19 @@ Planning docs are split so a session loads only what it needs; do not read all:
 - `docs/skill/rietx/` — the **agent skill** (agentskills.io), consumer-facing: `SKILL.md` the
   judgement core read whole, `references/` the lookups read on demand. **What a session learns has
   three destinations** (WP-1330): a rule an agent *driving* rietx needs goes in the skill, a rule for
-  *changing* the package in a CLAUDE.md, a measurement in the WP handover. Inside the skill the body
-  takes only what holds for **every** fit; a rule for a task *shape* (a series, a batch, a magnetic
-  phase) lives in one `references/` file per shape, numbered under the body section it specialises
-  (`9b` series, `9c` batch), reached by a routing row keyed by the situation and never the feature,
-  citing the body by § rather than restating it. **Its entry points render to a generated
-  `api-<shape>.md`, never into `api.md`**, which every session about to call rietx loads whole, so a
-  verb only that shape reaches costs every other session nothing (the gate reads the union of
-  `api*.md`; `make_api_index.py`'s docstring). A reference written from runs tags every row
-  `(Measured: …)` or `(Hypothesis: …)`; `tests/test_skill.py` pins the header every reference opens
-  with and those tags. A routing row is paid for by a cut in the body, whose cap moves only in a
-  commit that says so. A diagnostic code or a correction adds its row; `rietx skill --install .
-  --copy` re-syncs the two committed copies; the contributor's recipe is `CONTRIBUTING.md` § The
-  agent skill.
+  *changing* the package in a CLAUDE.md, a measurement in the WP handover. **Inside the skill a
+  feature's guidance takes the cheapest place that holds it** (WP-1338): the package's own output
+  (`Diagnostic.suggestion`, `help.py`), which no upgrade leaves stale; a reference row keyed by a name
+  the agent already holds (a code, a verb, a suffix); a routing row only for a task *shape* no name
+  identifies, one `references/` file per shape numbered under the body section it specialises (`9b`,
+  `9c`) and citing it by §; the body last, for what **every** fit needs. **A shape's entry points
+  render to a generated `api-<shape>.md`, never `api.md`**, which every session about to call rietx
+  loads whole (`make_api_index.py`'s docstring). A reference written from runs tags every row
+  `(Measured: …)` or `(Hypothesis: …)`. **Sizes are `tests/skill_caps.py`'s**: a ceiling per file and
+  a budget below it that fails only growth, so concurrent PRs land in the gap; the body's budget is
+  the spec's 5 000 tokens, so while over it a body sentence is paid for by a cut. A diagnostic code
+  adds its row; `rietx skill --install . --copy` re-syncs the two committed copies; the recipe is
+  `CONTRIBUTING.md` § The agent skill.
 - `docs/RELEASING.md` — how a version reaches PyPI, and the one rule governing it: never
   `twine upload` by hand, because the workflow builds from the tag and a by-hand build cannot be
   held to it (measured on 1.0.1).

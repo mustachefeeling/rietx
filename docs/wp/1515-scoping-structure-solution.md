@@ -1,0 +1,151 @@
+# WP-1515 — Scoping structure solution: which routes, which corpus, how many milestones
+
+Milestone: unscheduled · Status: ⬜
+Track: Data and metadata in, a structure out
+Depends on: — (1514 soft, the rigid bodies direct space needs; 1511 and 1513 soft, the verified cell and the contact census a search reads)
+Priority: P2 2026-09-28 — a scoping WP: the track's aim, a structure out, waits on its route decision
+
+## Goal
+
+A queued milestone draft, or two, for solving a structure from a verified
+cell. The draft decides which routes the package takes (direct space,
+charge flipping, completion by difference Fourier), what corpus proves
+each, and what a solution run looks like to an agent driving it: its inputs,
+its anytime answer, and the evidence beside every candidate. This WP builds
+nothing.
+
+## Context
+
+**Unfenced 2026-09-28.** "Structure solution from an indexed cell" sat in
+ROADMAP § v2+ beside charge flipping (#198) and difference Fourier maps
+(#197). The grounds are in DESIGN.md § Locked decisions, *Structure fence
+revised*. The same day this WP was re-scoped from an implementation WP to a
+scoping one, because it measured at milestone size or larger.
+
+**Why it is milestone-sized.** The closest precedent is indexing: 30 WPs
+numbered 1018–1049, 23 of them on engines, candidates and extinction.
+Solution has the same parts: engines, a cost, a candidate list that must
+never be a confident singleton, an acceptance corpus, an anytime answer on
+the event ladder, a GUI panel and a skill shape. It also depends on 1514's
+milestone.
+
+**The routes.** The source run used direct space, which suits molecular and
+metal-organic structures with known fragments. An inorganic unknown usually
+goes through charge flipping on extracted intensities (#198). Any route ends
+in completion by difference Fourier maps (#197). The track's aim covers both
+classes of structure. So this scoping decides whether #197 and #198 leave
+the fence with direct space, and in what order. The input they need already
+exists: Le Bail extraction (`lebail_update`), and Pawley intensities with
+their overlap flags (`PAWLEY_OVERLAP_UNRESOLVED`).
+
+**What the source run measured.** `solution case 1` (private corpus map
+§ 5; WP-1510 has the source).
+- **Engine.** Parallel tempering with six replicas, temperatures geometric
+  from 3 to 300 in χ² units, and neighbour swaps every 50 steps. One
+  compiled `Refinement` was held for the run, with `predict()` per
+  evaluation: 20-35 ms each. An earlier multistart calling `fit()` per trial
+  took 10-20 s a trial.
+- **Cost.** χ² plus a clash penalty plus a soft coordination prior built
+  from what the person knew. Annealing on the profile alone reached a low χ²
+  with chemically absurd coordination, so the prior was necessary.
+- **Evidence.** Four independent runs from random starts converged on one
+  chemistry class, their Rwp within 2 % of each other. Transplanting the
+  analogue structure's coordinates did worse than a blind start.
+- **Wall clock.** Batches ran 30-80 min each. Six Monitor watches expired
+  with no events, and the person had to ask to see the leader.
+- **The host.** The agent proposed GSAS-II and the person approved it. Its
+  notes recorded an earlier pyobjcryst pipeline with untrustworthy results
+  (a stale cached cost, a clash term the least-squares step ignored). It
+  built on rietx's `predict()` instead. An agent with a fast evaluate path
+  in the package it is already driving stays in that package.
+
+**The cost function is the first measured choice.** The run used the full
+profile χ² through `predict()`. DASH fits correlated integrated intensities
+from a Pawley extraction, which is far cheaper per evaluation. Measure both
+on one case.
+
+**The corpus is the first gate.** That is indexing's lesson: its
+low-symmetry real-data corpus is still fenced, and every scoreboard says
+"high-symmetry" out loud. Candidate sources: the SDPD round robins; public
+powder data deposited with published structures (pdCIF supplements); and
+patterns simulated from COD entries. The COD search API finds structures by
+formula, and some of its entries are wrong, so look at each before citing
+it.
+
+**The agent surface.** The person's knowledge goes in as declared data:
+contents and Z, fragments, expected coordination, and contacts they rule
+out. The answer is anytime, with a ceiling, in the shape WP-1042 gave
+indexing. Progress streams on the event ladder so `rietx watch` draws the
+leader. The answer is distinct solutions, ranked, with agreement across
+seeds beside each. The winner is handed to a Rietveld plan. WP-1517 measures
+the whole surface with real agents.
+
+## What the scoping decides
+
+1. The routes and their order.
+2. The cost function or functions, by measurement.
+3. The engines. Parallel tempering first, and a second only after a
+   measurement says the first falls short.
+4. The corpus.
+5. The answer type and its evidence.
+6. The vocabulary of priors.
+7. How many milestones, and their placement against 1514's.
+
+## Non-goals
+
+- Building any of it. A throwaway spike to measure the cost function is
+  allowed, and nothing from it merges.
+- Rigid bodies themselves (1514).
+
+## Tasks
+
+- [ ] Prior art with licences, searching the maintainer-local paper corpus
+      first (root CLAUDE.md § Roadmap; its location is in the
+      maintainer's memory).
+- [ ] Measure the two cost functions on one public case: time per
+      evaluation, and whether each finds the published structure.
+- [ ] The corpus, with provenance for `tests/data/README.md`.
+- [ ] The route decision for #197 and #198, and the fence line in ROADMAP
+      that records it.
+- [ ] The milestone draft or drafts: WP files, a ROADMAP section with the
+      rows' order, and a DESIGN.md entry if a locked decision moves. **Open
+      the milestone's WPs in the next unused number block, checked against
+      `origin/main` and the open PRs on the day you file.** A sibling
+      scoping may be filing at the same time.
+- [ ] The maintainer's decision recorded here. This WP closes on it.
+
+## Acceptance
+
+The draft's WP files exist and are self-contained, ROADMAP carries the
+queued section and the fence line for #197 and #198, and the index is
+regenerated. The maintainer's route decision is recorded in this file.
+
+```sh
+python3 .claude/hooks/wp_index.py
+.venv/bin/python -m pytest tests/test_docs_consistency.py -n auto --dist loadgroup
+```
+
+## References
+
+Verify each citation before quoting it in code.
+
+- Earl, D. J. & Deem, M. W. (2005). *Phys. Chem. Chem. Phys.* 7,
+  3910–3916. Parallel tempering.
+- David, W. I. F. et al. (2006). *J. Appl. Cryst.* 39, 910–915. DASH
+  (commercial; papers only).
+- Coelho, A. A. (2000). *J. Appl. Cryst.* 33, 899–908. TOPAS whole-profile
+  annealing (closed; papers only).
+- Favre-Nicolin, V. & Černý, R. (2002). *J. Appl. Cryst.* 35, 734–743. FOX
+  (licence unverified).
+- Oszlányi, G. & Sütő, A. (2004). *Acta Cryst.* A60, 134–141. Charge
+  flipping.
+- Palatinus, L. & Chapuis, G. (2007). *J. Appl. Cryst.* 40, 786–790.
+  Superflip (licence unverified).
+- Baerlocher, Ch., McCusker, L. B. & Palatinus, L. (2007). *Z. Kristallogr.*
+  222, 47–53. Charge flipping on powder data.
+
+## Handover log
+
+- **2026-09-28** — created as an implementation WP and re-scoped the same
+  day into this scoping WP, after indexing's size and the route question put
+  it at milestone size or larger. Nothing started.

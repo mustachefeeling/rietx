@@ -81,6 +81,18 @@ seeding above.
 
 ## §3 rule 8 — what tying three oxygens actually bought
 
+A constraint *removes* a parameter, unlike a restraint, which adds a weighted
+observation and leaves the count alone, so it is the one move that raises the
+observation-to-parameter ratio. The two cases worth reaching for are
+McCusker's: equal displacement parameters across atoms in the same
+environment, and occupancies summing to a known total.
+
+**Check the premise before you tie, and not with Rwp.** The check is in the
+free refinement: if each free value lies within its own esd of the others, the
+data does not contradict the claim that they are one parameter. Where they
+disagree by more than their esds, the atoms are saying they are *not* in the
+same environment, and tying them replaces a measurement with an assumption.
+
 Fluorapatite's three phosphate oxygens, tied as one displacement parameter: 20 →
 18 free parameters, 287.5 → 319.4 observations per parameter, and B(O)
 0.2763(1810) / 0.5279(1911) / 0.4149(1282) Å² free against 0.4138(899) Å² tied —
@@ -228,6 +240,15 @@ By hand, for a pair `compare_freed` refuses as not nested, remember that
 `rx.report.delta_bic`, and pass `n_effective=`. The reduced pair costs about
 one unit of raw-N ΔBIC per added parameter.
 
+## §4 — comparing against another code
+
+Adopting another code's protocol means mirroring its refined-parameter set, its
+held parameters and its excluded regions, then checking that the channel count
+matches before believing any Rwp comparison. Reading its numbers is not enough.
+Measured on the GSAS-II fluorapatite tutorial: guessing a plausible protocol
+gave Rwp 16 % and a +390 ppm cell, while mirroring the converged `.EXP` gave
+9.73 % against GSAS's 10.05 % on an identical 5750 channels.
+
 ## §4b — Phase ID: the unmatched list and the Le Bail-gap read
 
 `report.unmatched`'s `kind="unmatched_obs"` entries are the strong lines your
@@ -318,6 +339,18 @@ trades against its width: broadened far enough, its peaks become a hump the
 background shares, and its scale can then grow at almost no χ² cost. That ridge
 can hold separate basins, each with ordinary curvature and a tight esd, and the
 fit reports whichever it reached.
+
+`QPA_ESD_UNAVAILABLE` (warning) is a different `None`: every
+`weight_fraction_stderr` is absent because the scale `where` names refined to
+exactly 0.0 and could not be measured there. Do not propagate the scale esds by
+hand. Every fraction divides by Σ S·ZMV, so a propagation without that term
+quotes each fraction as if the phase were known, which an agent did on 16 of 48
+patterns of a real series. The fractions themselves are the fit's. A scale at 0
+usually means the phase is absent: remove it and refit for esds, or run
+`ref.profile_fraction(data, phase)` for a range. `PHASE_UNCONSTRAINED` is silent
+when the scale is the phase's only free parameter, so this code is what names
+it. That scale's row reads `at_bound=None`, since a softplus floor is not a
+limit the solver can test.
 
 A lab Cu Kα in-situ pattern gave one phase at 1.41 ± 0.65 wt% with no
 diagnostic. Pinning its `lor_strain` on a grid and refitting everything else

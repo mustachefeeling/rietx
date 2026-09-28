@@ -58,6 +58,14 @@ stated here so no later WP builds bond perception on geometry alone.
 
 ### Inherited
 
+- **2026-09-28, from the review of `solution case 1` (WP-1510 has the
+  source): the XYZ slice has its consumer.** This file's Context says the
+  XYZ importer waits if its only consumer is the fenced rigid-body
+  machinery. Rigid bodies left the v2+ fence that day, and
+  [1514](1514-scoping-rigid-bodies.md) scopes their milestone. The run
+  needed an ideal aromatic ring as a template and built it by hand, and
+  wrote its CIFs with hydrogens by hand too. Decide the fragment type with
+  that milestone's design, not before it.
 - **2026-09-16 (2nd), from [1118](1118-foreign-model-files.md): a CIF can
   state its setting in three places, and this build's own reader uses only one
   of them.** Measured while writing the GSAS-II phase CIF: gemmi's

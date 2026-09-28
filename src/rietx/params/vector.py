@@ -58,6 +58,11 @@ from .transforms import dphys_dinternal, internal_bounds, to_internal, to_physic
 #: with the joint path in ``multi.py``).
 WAVELENGTH_SUFFIX = ".wavelength"
 
+#: The largest esd whose square is still a double (≈ 1.3e+154).  Past it a
+#: physical esd is read as unmeasured, as an infinite one is (WP-1463,
+#: ``ParameterTable._phys_sigma_free``).
+_SIGMA_MAX = float(np.sqrt(np.finfo(np.float64).max))
+
 
 def _is_wavelength(path: str) -> bool:
     return (path.startswith("instrument.source.lines.")
@@ -2366,23 +2371,39 @@ class ParameterTable:
             # a Pawley table's dense n×n would be tens of MB for a number that
             # never leaves the diagonal
             s = self._sigma_free_measured(theta, stderr_internal)
-            var = np.asarray(self._C.multiply(self._C) @ (s * s)).ravel()
+            with np.errstate(over="ignore", invalid="ignore"):
+                var = np.asarray(self._C.multiply(self._C) @ (s * s)).ravel()
         else:
             cov = self._cov_free(theta, stderr_internal, correlation)
-            var = np.asarray(self._C.multiply(self._C @ cov).sum(axis=1)).ravel()
+            with np.errstate(over="ignore", invalid="ignore"):
+                var = np.asarray(self._C.multiply(self._C @ cov).sum(axis=1)).ravel()
         var = np.maximum(var, 0.0)
         touched = np.diff(self._C.indptr) > 0  # rows with any free source
-        blind = self.unmeasured_rows(theta, stderr_internal)
+        # a propagated variance past the double range is an infinite one, and
+        # absent for the same reason (WP-1463; ``_phys_sigma_free``)
+        blind = self.unmeasured_rows(theta, stderr_internal) | ~np.isfinite(var)
         return {e.path: float(np.sqrt(var[i]))
                 for i, e in enumerate(self.entries) if touched[i] and not blind[i]}
 
     def _phys_sigma_free(self, theta: np.ndarray, stderr_internal: np.ndarray
                          ) -> np.ndarray:
-        """Chain-ruled physical esd of each free parameter (θ-column order)."""
-        return np.array(
-            [abs(dphys_dinternal(float(t), self.entries[i].transform)) * float(sd)
-             for t, sd, i in zip(theta, stderr_internal, self._free_idx, strict=True)],
-            dtype=np.float64)
+        """Chain-ruled physical esd of each free parameter (θ-column order).
+
+        **An esd whose variance has no double is returned as ``inf``**, the
+        value every consumer already reads as unmeasured (WP-1463).  Since the
+        covariance takes a tiny column's esd without forming its variance, a
+        free cell of a phase whose scale sits at 1e-160 comes back with an esd
+        near 1e+160 Å.  Squared in :meth:`_cov_free` that is ``inf`` again, and
+        a row would then report an infinite esd where WP-1072 wants an absent
+        one.  Nothing measured sits within a hundred orders of this cap.
+        """
+        with np.errstate(invalid="ignore", over="ignore"):
+            s = np.array(
+                [abs(dphys_dinternal(float(t), self.entries[i].transform)) * float(sd)
+                 for t, sd, i in zip(theta, stderr_internal, self._free_idx,
+                                     strict=True)],
+                dtype=np.float64)
+        return np.where(np.isnan(s) | (s < _SIGMA_MAX), s, np.inf)
 
     def _cov_free(self, theta: np.ndarray, stderr_internal: np.ndarray,
                   correlation: np.ndarray | None) -> np.ndarray:

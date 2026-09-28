@@ -33,18 +33,18 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1312](1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | P2 | — | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
 | [1321](1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1323](1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1332](1332-the-axis-a-reader-hands-back.md) | What a reader hands back: the axis, the rows, the σ column | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1336](1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | P2 | — ([1310](1310-report-repeats-itself.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1338](1338-the-skills-own-gates.md) | The skill's own gates: the references, the private corpus, the cap race | P2 | — | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | P2 | — ([1312](1312-neutron-followthrough.md), [1335](1335-the-report-costs-more-than-the-fit.md), [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) soft) | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | P2 | — ([1333](1333-a-series-survives-one-pattern.md), [1342](1342-a-freeze-that-reads-names.md), [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1445](1445-the-optics-nobody-declared.md) | The optics nobody declared: a source that cannot emit the line | P2 | — ([1442](1442-a-ghost-search-at-chance.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1457](1457-the-stage-rwp-leaves-out-the-declared-peaks.md) | The stage Rwp leaves out the declared peaks | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1463](1463-a-phase-at-zero-withholds-every-esd.md) | A phase at zero withholds every esd | P2 | — ([1320](1320-qpa-multimodal-fraction.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1467](1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | P2 | — ([1318](1318-strain-surface.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1469](1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1501](1501-cut-and-keep.md) | Cut and keep: a figure of part of the structure | P2 | [1470](1470-a-structure-figure-without-a-browser.md) | [v1.7](#v1-7) |
 | [1509](1509-dichotomy-leaves-pay-for-the-whole-trial-set.md) | A dichotomy leaf pays for the whole trial set | P2 | — ([1508](1508-compiled-dichotomy-spike.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
+| [1510](1510-what-the-chemist-knows-reaches-the-search.md) | What the chemist knows reaches the indexing search | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
+| [1514](1514-scoping-rigid-bodies.md) | Scoping rigid bodies: the milestone that makes the parameter map nonlinear | P2 | — ([1319](1319-structure-interchange.md), [1515](1515-scoping-structure-solution.md), [1516](1516-scoping-stacking-faults.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
+| [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -408,7 +408,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1321](1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | P2 | — |
 | [1323](1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | P2 | — |
 | [1324](1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, and a setting nobody chose | ✅ 2026-09-02 | — | — |
-| [1332](1332-the-axis-a-reader-hands-back.md) | What a reader hands back: the axis, the rows, the σ column | ⬜ | P2 | — |
+| [1332](1332-the-axis-a-reader-hands-back.md) | What a reader hands back: the axis, the rows, the σ column | ✅ 2026-09-28 | — | — |
 | [1336](1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | ⬜ | P2 | — ([1310](1310-report-repeats-itself.md) soft) |
 | [1337](1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | ⬜ | P3 | — ([1311](1311-walking-parameter-bounds.md), [1321](1321-persisted-bounds-repair.md) soft) |
 | [1342](1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ✅ 2026-09-19 | — | — |
@@ -429,7 +429,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1457](1457-the-stage-rwp-leaves-out-the-declared-peaks.md) | The stage Rwp leaves out the declared peaks | ⬜ | P2 | — |
 | [1458](1458-a-tick-with-nothing-behind-it.md) | A tick with nothing behind it moves the low-angle boundary | ✅ 2026-09-24 | — | — ([1327](1327-magnetic-structure.md) soft) |
 | [1460](1460-one-degeneracy-one-finding.md) | One degeneracy, one finding | ⬜ | P3 | — ([1454](1454-auto-background-choices-survive-the-fit.md), [1302](1302-error-is-documentation.md) soft) |
-| [1463](1463-a-phase-at-zero-withholds-every-esd.md) | A phase at zero withholds every esd | ⬜ | P2 | — ([1320](1320-qpa-multimodal-fraction.md) soft) |
+| [1463](1463-a-phase-at-zero-withholds-every-esd.md) | A phase at zero withholds every esd | ✅ 2026-09-28 | — | — ([1320](1320-qpa-multimodal-fraction.md) soft) |
 | [1465](1465-a-width-that-became-background.md) | A phase width that became background, and an absorption screen that never ran | ✅ 2026-09-27 | — | — |
 | [1467](1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | ⬜ | P2 | — ([1318](1318-strain-surface.md) soft) |
 
@@ -479,6 +479,19 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 🔄 2026-09-28 | P4 | [1466](1466-the-structure-viewer-draws-coordination-polyhedra.md) |
 | [1470](1470-a-structure-figure-without-a-browser.md) | A structure figure from Python, drawn without a browser | ✅ 2026-09-27 | — | — |
 
+### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
+
+| WP | Title | Status | Priority | Depends on |
+|---|---|---|---|---|
+| [1510](1510-what-the-chemist-knows-reaches-the-search.md) | What the chemist knows reaches the indexing search | ⬜ | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md) soft) |
+| [1511](1511-which-cell-does-this-powder-support.md) | Which of these cells does this powder support? | ⬜ | P3 | — ([1323](1323-lebail-stop-rule.md), [1510](1510-what-the-chemist-knows-reaches-the-search.md) soft) |
+| [1512](1512-a-simulated-diffuse-curve-is-a-component.md) | A simulated diffuse curve is a component, and its amplitude rides on the phase scale | ⬜ | P3 | — |
+| [1513](1513-the-contacts-a-chemist-checks-by-eye.md) | The contacts a chemist checks by eye | ⬜ | P3 | — |
+| [1514](1514-scoping-rigid-bodies.md) | Scoping rigid bodies: the milestone that makes the parameter map nonlinear | ⬜ | P2 | — ([1319](1319-structure-interchange.md), [1515](1515-scoping-structure-solution.md), [1516](1516-scoping-stacking-faults.md) soft) |
+| [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | ⬜ | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) |
+| [1516](1516-scoping-stacking-faults.md) | Scoping stacking faults: DIFFaX files first, a native model when it earns one | ⬜ | P3 | [1512](1512-a-simulated-diffuse-curve-is-a-component.md) ([1514](1514-scoping-rigid-bodies.md), [1515](1515-scoping-structure-solution.md) soft) |
+| [1517](1517-the-eight-steers-replayed.md) | The eight steers, replayed: does the package raise what the person caught? | ⬜ | P3 | — |
+
 ### <a id="unscheduled-the-repo-s-own-process"></a>The repo's own process
 
 | WP | Title | Status | Priority | Depends on |
@@ -486,7 +499,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1313](1313-dist-belongs-to-main.md) | The GUI dist belongs to main | ⬜ | P4 | — |
 | [1330](1330-skill-references-by-shape.md) | The skill grows by reference: one file per task shape, and the row an agent can write | ✅ 2026-09-02 | — | [1304](1304-protocol-as-skill.md), [1308](1308-skill-documents-its-doors.md) |
 | [1331](1331-landing-page-in-repo.md) | The landing page enters the repository, and the data comes redacted | ✅ 2026-09-03 | — | — ([1003](1003-api-freeze-pypi.md) soft) |
-| [1338](1338-the-skills-own-gates.md) | The skill's own gates: the references, the private corpus, the cap race | ⬜ | P2 | — |
+| [1338](1338-the-skills-own-gates.md) | The skill's own gates: the references, the private corpus, the cap race | ✅ 2026-09-28 | — | — |
 | [1408](1408-the-manual-reads-like-a-manual.md) | The theory manual reads like a manual | ✅ 2026-09-14 | — | — |
 | [1409](1409-part-one-reads-like-a-manual.md) | Part 1 reads like a manual | ✅ 2026-09-14 | — | [1408](1408-the-manual-reads-like-a-manual.md) |
 | [1410](1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — | — |

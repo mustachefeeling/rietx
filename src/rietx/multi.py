@@ -31,7 +31,6 @@ from .optimize.least_squares import (
     _longest_line_wavelength,
     run_multi_least_squares,
 )
-from .optimize.qpa import compute_qpa, microabsorption_diagnostics
 from .optimize.statistics import background_absorption, compute_statistics
 from .params.multi import (
     SIZE_LAMBDA_POWER,
@@ -55,7 +54,7 @@ from .refine import (
     _guard_diagnostics,
     _phase_agreement,
     _phase_support_diagnostics,
-    _qpa_unavailable_diagnostics,
+    _quantify_phases,
     _refuse_without_phases,
     _resolve_specimen_absorption,
     _size_flag_diagnostics,
@@ -83,6 +82,7 @@ from .strategy.staged import (
     GuardReport,
     RefinementPlan,
     bound_findings,
+    bound_untested,
     check_adp_positive_definite,
     check_hump_width,
 )
@@ -491,7 +491,12 @@ class MultiHistogramRefinement:
             n_free_h = mt.n_shared + len(mt.per_hist_paths[h])
             stats = compute_statistics(model.y_obs, y_calc, model.sigma,
                                        n_free=n_free_h, y_background=y_bkg)
-            qpa = self._histogram_qpa(h, model, struct, values, thetas[h], s_h, corr_h)
+            # the single fit's builder, blind-scale rule and finding included
+            # (WP-1463); rows are addressed as this surface spells them
+            qpa, qpa_diags = _quantify_phases(
+                table, thetas[h], s_h, corr_h, struct, values, model,
+                where_of=lambda p, h=h: (p if mt.sharing.is_shared(p)
+                                         else f"hist.{h}.{p}"))
 
             diags: list[Diagnostic] = []
             j0, j1 = data_off[h], data_off[h] + n_data[h]
@@ -511,10 +516,7 @@ class MultiHistogramRefinement:
                         top_bg.append(finding)
                         diags.extend(_guard_diagnostics(
                             GuardReport(background_correlations=[finding])))
-            if qpa is not None:
-                diags.extend(microabsorption_diagnostics(qpa))
-            else:
-                diags.extend(_qpa_unavailable_diagnostics(struct, values))
+            diags.extend(qpa_diags)
             # specimen absorption, per histogram — each may sit at its own
             # wavelength and geometry, hence its own µR/µt.  Only the failure
             # modes are surfaced here; the applied value lives on
@@ -587,9 +589,19 @@ class MultiHistogramRefinement:
 
         # one bound test, two consumers: the rows' at_bound flag and the
         # BOUND_HIT diagnostics (WP-1076)
+        bounds = mt.bounds()
+        # a row on its transform's asymptote reads None, as in the single fit,
+        # and the bound test skips it (WP-1463)
+        transforms = ["identity"] * len(mt.free_paths)
+        for h, sub in enumerate(mt.tables):
+            for j, c in enumerate(mt.col_map(h)):
+                transforms[c] = sub.entries[sub._free_idx[j]].transform
+        untested = bound_untested(bounds, mt.free_paths, outcome.theta,
+                                  transforms, esd=outcome.stderr_internal)
         at_bounds = bound_findings(
-            mt.bounds(), mt.free_paths, outcome.theta,
-            cos=outcome.residual_cosine, esd=outcome.stderr_internal)
+            bounds, mt.free_paths, outcome.theta,
+            cos=outcome.residual_cosine, esd=outcome.stderr_internal,
+            untested=untested)
         # Histogram 0's physical esds, built once in the loop above and read by
         # two consumers (WP-1131): the shared rows of ``_parameters``, and the
         # microstructure block, which reads histogram 0 because its value scale
@@ -597,7 +609,7 @@ class MultiHistogramRefinement:
         # a second build here would double the cost for the same dict.
         esd_hist0 = per_esds[0] if per_esds else {}
         parameters = self._parameters(thetas, stderr, corr, at_bounds, esd_hist0,
-                                      answer_runaway)
+                                      answer_runaway, untested)
         diagnostics = self._top_diagnostics(outcome, correlation_guard, top_bg,
                                             at_bounds)
         if stage_results:
@@ -678,17 +690,8 @@ class MultiHistogramRefinement:
                 esds=esd_hist0),
             histograms=histograms)
 
-    def _histogram_qpa(self, h, model, struct, values, theta_h, s_h, corr_h):
-        scale_paths = [f"phases.{ip}.scale" for ip in range(len(struct.phases))]
-        scale_cov = (self.mtable.tables[h].physical_covariance(theta_h, s_h, corr_h,
-                                                               scale_paths)
-                     if s_h is not None else None)
-        mult = [[len(op[0]) for op in cp.sites.ops] for cp in model.phases]
-        wavelength = model.line_wavelengths[0] if model.line_wavelengths else None
-        return compute_qpa(struct, values, scale_cov, mult, wavelength=wavelength)
-
     def _parameters(self, thetas, stderr, corr, at_bounds, esd0,
-                    answer_runaway=()) -> list[RefinedParameter]:
+                    answer_runaway=(), untested=()) -> list[RefinedParameter]:
         mt = self.mtable
         params: list[RefinedParameter] = []
         # The single-histogram rule (``refine._build_result``): a cell the
@@ -708,7 +711,7 @@ class MultiHistogramRefinement:
         # per-histogram rows `hist.h.…` — which is exactly how
         # `MultiParameterTable.free_paths` spells them, so the projection keys
         # on the row path and needs no second naming convention (WP-1076).
-        tested = set(mt.free_paths)
+        tested = set(mt.free_paths) - set(untested)
         on_bound = {p for f in at_bounds for p in f.paths}
         # shared parameters reported once, from histogram 0's covariance (its
         # diagonal esd is the true combined marginal — cross-terms with the

@@ -67,6 +67,12 @@ def test_a_free_row_is_measured_and_a_tied_row_is_not(lebail):
     source is interior, so ``False`` there would be the original defect wearing
     a different cause.  Measured on this fit: 31 rows, 13 free and 13 measured,
     18 symmetry-tied and 18 unmeasured.
+
+    Since WP-1463 a free row on its transform's zero floor is unmeasured too,
+    since nothing could test it.  Whether this fit's ``instrument.profile.y``
+    ends there is a function of where TRF stopped on a flat direction: on
+    py3.11 Linux it did, on macOS arm64 it did not.  So the floor rows are
+    identified by value and the partition is asserted around them.
     """
     _, ref, result = lebail
     assert result.status == "converged"
@@ -74,13 +80,20 @@ def test_a_free_row_is_measured_and_a_tied_row_is_not(lebail):
     rows = {p.path for p in result.parameters}
     tied = {r.path for r in ref.parameters() if r.tie is not None}
     free = {r.path for r in ref.parameters() if r.vary and r.tie is None}
+    # "on its floor" as ``staged.bound_untested`` reads it: within a
+    # hundredth of its own esd of zero, or within 1e-10 where it has none
+    floor = {p.path for p in result.parameters
+             if p.path in free and p.value >= 0.0
+             and (p.value <= 1e-10
+                  or (p.stderr is not None and p.value <= 0.01 * p.stderr))}
     measured = {p.path for p in result.parameters if p.at_bound is not None}
     unmeasured = {p.path for p in result.parameters if p.at_bound is None}
 
-    assert unmeasured == tied & rows
-    assert measured == free & rows
+    assert unmeasured == (tied & rows) | floor
+    assert measured == (free & rows) - floor
     # not a vacuous partition in either direction
-    assert len(measured) == 13 and len(unmeasured) == 18
+    assert len(tied & rows) == 18 and len(free & rows) == 13
+    assert len(floor) <= 1 and len(measured) >= 12
 
 
 def test_at_bound_names_exactly_the_paths_bound_hit_names():
@@ -102,8 +115,13 @@ def test_at_bound_names_exactly_the_paths_bound_hit_names():
 
     flagged = {p.path for p in result.parameters if p.at_bound is True}
     assert flagged == _bound_hit_paths(result) == {"phases.0.cell.a"}
-    # and the rest of the free rows are a measured False, not a default one
-    assert sum(1 for p in result.parameters if p.at_bound is False) == 12
+    # and the rest of the free rows are a measured False, not a default one,
+    # except a row on its transform's floor, which nothing could test
+    # (WP-1463).  Here that is ``instrument.profile.y``, at exactly 0.0.
+    assert sum(1 for p in result.parameters if p.at_bound is False) == 11
+    floor = [p for p in result.parameters if p.vary and p.at_bound is None]
+    assert [p.path for p in floor] == ["instrument.profile.y"]
+    assert 0.0 <= floor[0].value <= 1e-10  # exactly 0.0 on macOS arm64
 
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)

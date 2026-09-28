@@ -254,6 +254,15 @@ the cheaper of the two at the time; the skill row is required either way.
 
 ### Inherited
 
+- **2026-09-28, from [1338](1338-the-skills-own-gates.md): `references/diagnostics.md` is closed to growth.**
+  Every skill file now has a ceiling and a budget below it
+  (`tests/skill_caps.py`), and the budget fails a change that grows a file
+  past it. `diagnostics.md` (35 111 B) and `diagnostics-indexing.md`
+  (35 124 B) sit over their 34 600 B budget, so a row this WP adds there
+  comes with an equal cut in the same change, or goes to the file a reader
+  meets the code in (the criterion in the `REFERENCE_MAX_BYTES` comment).
+  CI's lint job reports each changed file's headroom on the draft PR.
+
 - **2026-09-15, from the issue triage (issue #287): this WP's four codes go
   to `references/magnetic.md`, never to `diagnostics.md`.** The ruling of
   2026-09-09 gives the magnetic family (1326–1329 and this WP) one gated

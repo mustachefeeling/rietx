@@ -1250,9 +1250,22 @@ def _dead_interval(run: DeadChannelRun) -> tuple[float, float]:
     exclusion the finding asked for).  Widening costs at most one extra
     channel a side, and a live channel beside a dead one is worth nothing.
     """
+    return _exclusion_interval(run.two_theta_min, run.two_theta_max)
+
+
+def _exclusion_interval(lo: float, hi: float) -> tuple[float, float]:
+    """``(lo, hi)`` widened outward to :data:`_DEAD_INTERVAL_DECIMALS`, and
+    never empty.
+
+    :func:`_dead_interval` says why outward.  A single point prints as
+    ``(x, x)``, which ``schemas.project.check_interval`` refuses as empty, so
+    the upper bound then moves one printed step up and the interval still
+    contains the point.
+    """
     scale = 10.0 ** _DEAD_INTERVAL_DECIMALS
-    return (float(np.floor(run.two_theta_min * scale) / scale),
-            float(np.ceil(run.two_theta_max * scale) / scale))
+    a = float(np.floor(lo * scale))
+    b = max(float(np.ceil(hi * scale)), a + 1.0)
+    return a / scale, b / scale
 
 
 def counting_coverage(

@@ -124,6 +124,24 @@ down.
 
 ### Inherited
 
+- **2026-09-28, from [1338](1338-the-skills-own-gates.md): `references/diagnostics.md` is closed to growth.**
+  Every skill file now has a ceiling and a budget below it
+  (`tests/skill_caps.py`), and the budget fails a change that grows a file
+  past it. `diagnostics.md` (35 111 B) and `diagnostics-indexing.md`
+  (35 124 B) sit over their 34 600 B budget, so a row this WP adds there
+  comes with an equal cut in the same change, or goes to the file a reader
+  meets the code in (the criterion in the `REFERENCE_MAX_BYTES` comment).
+  CI's lint job reports each changed file's headroom on the draft PR.
+
+**From WP-1463 (2026-09-28): the 16-of-48 side effect below is resolved.** A
+leaving phase whose scale ends anywhere down to about 1e-300 now keeps every
+weight-fraction esd, equal to the 1e-135 answer. At exactly 0.0 the esds stay
+`None` and `QPA_ESD_UNAVAILABLE` names the phase, which `PHASE_UNCONSTRAINED`
+never did when the scale was the phase's only free parameter. Its scale row
+reads `at_bound=None`. So the presence-window recipe this WP writes can tell a
+reader to expect that code on patterns where the phase has left, and to take
+`profile_fraction` for an interval there.
+
 **From WP-1333 (2026-09-26): 1333 closed, so the soft dependency is
 discharged, and a refined coordinate now crosses the pattern boundary.** Three
 facts this WP's chain work meets. (1) `_carry_into` carries a site's

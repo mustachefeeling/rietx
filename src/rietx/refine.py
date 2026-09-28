@@ -10,7 +10,7 @@ import re
 import subprocess
 import tomllib
 import warnings
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
@@ -22,6 +22,7 @@ import numpy as np
 if TYPE_CHECKING:
     from .io.exporters import ReflectionRow
     from .schemas.fraction import FractionProfile
+    from .schemas.results import QuantitativePhaseAnalysis
     from .schemas.suggest import SuggestionResult
 
 from . import runs
@@ -4658,8 +4659,10 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # at_bound is the BOUND_HIT findings projected onto the rows, never a
     # second bound test (WP-1076).  Only the free set was tested, so a tied
     # row — in `parameters`, absent from the free vector — reports None, and
-    # so does every row when no guard ran at all (`replay`).
-    tested = set(table.free_paths) if guard is not None else set()
+    # so does every row when no guard ran at all (`replay`), and a free row
+    # sitting on its transform's asymptote (`bound_untested`, WP-1463).
+    tested = (set(table.free_paths) - set(guard.bound_untested)
+              if guard is not None else set())
     on_bound = {p for f in guard.at_bounds for p in f.paths} if guard is not None else set()
     # A CELL_RUNAWAY finding's own message says the named cell's value is
     # "not a measurement", so its esd is withheld while the row stays (it is
@@ -4794,37 +4797,9 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # reuses the same Cov_free as stderr_physical → consistent conditioning).
     qpa = None
     if mode == "rietveld":
-        scale_paths = [f"phases.{ip}.scale" for ip in range(len(structure.phases))]
-        scale_cov = None
-        if stderr_internal is not None:
-            # A scale the data carries no gradient in makes *every* fraction
-            # unquotable, not only its own (WP-1110 item 14): W_i normalises by
-            # Σ S_j M_j V_j, so one unmeasured term is an unmeasured sum.  Its
-            # column is zeroed in Cov_free rather than infinite (see
-            # ``ParameterTable._cov_free``), so propagating it anyway would
-            # report each *other* phase's fraction to the precision it would
-            # have had if this phase were known — which is the confident wrong
-            # number.  `None` is the block-level absence `compute_qpa` already
-            # takes, and is the same phase `PHASE_UNCONSTRAINED` names.
-            blind = table.unmeasured_rows(theta, stderr_internal,
-                                          [table._paths[q] for q in scale_paths])
-            if not blind.any():
-                scale_cov = table.physical_covariance(theta, stderr_internal,
-                                                      correlation, scale_paths)
-        # Site multiplicities frozen on the compiled model (never re-derived
-        # from refined coordinates, which could have drifted near a special
-        # position and collapsed an orbit).  The primary emission line feeds
-        # the Brindley microabsorption attenuation (µ ∝ λ³ makes the Kα₂
-        # offset sub-percent in µ, far smaller in τ).
-        multiplicities = [[len(op[0]) for op in cp.sites.ops] for cp in model.phases]
-        wavelength = model.line_wavelengths[0] if model.line_wavelengths else None
-        qpa = compute_qpa(structure, values, scale_cov, multiplicities,
-                          wavelength=wavelength)
-        if qpa is None:
-            diagnostics = diagnostics + _qpa_unavailable_diagnostics(
-                structure, values)
-        else:
-            diagnostics = diagnostics + microabsorption_diagnostics(qpa)
+        qpa, qpa_diagnostics = _quantify_phases(
+            table, theta, stderr_internal, correlation, structure, values, model)
+        diagnostics = diagnostics + qpa_diagnostics
 
     # Soft-restraint summary (bond/angle/value deviations).  Rietveld-only, so
     # model.restraints is None outside it and this is naturally skipped.  A
@@ -6168,6 +6143,98 @@ def _low_angle_diagnostics(model: CompiledModel, values: dict[str, float],
             "the background's air-scatter term; this diagnostic does not "
             "choose between them"),
         value=ratio,
+    )]
+
+
+def _quantify_phases(table: ParameterTable, theta: np.ndarray,
+                     stderr_internal: np.ndarray | None,
+                     correlation: np.ndarray | None, structure: Structure,
+                     values: dict[str, float], model: CompiledModel, *,
+                     where_of: Callable[[str], str] | None = None,
+                     ) -> tuple[QuantitativePhaseAnalysis | None, list[Diagnostic]]:
+    """Weight fractions from the refined scales, and the findings they carry.
+
+    One builder for the single fit and for each histogram of a joint one
+    (:mod:`rietx.multi`), which had its own until WP-1463 and skipped the
+    blind-scale rule below.  ``where_of`` maps a table path to the row path a
+    client holds (``hist.h.…`` for a per-histogram row); identity by default.
+
+    **A scale the data carries no gradient in makes every fraction's esd
+    unquotable, not only its own** (WP-1110 item 14).  W_i normalises by
+    Σ S_j M_j V_j, so one unmeasured term is an unmeasured sum.  Its column is
+    zeroed in Cov_free rather than infinite (``ParameterTable._cov_free``), so
+    propagating it anyway would report each *other* phase's fraction to the
+    precision it would have had if this phase were known, which is the
+    confident wrong number.  So the whole block is withheld, and
+    ``QPA_ESD_UNAVAILABLE`` names the phase that withheld it.
+    ``PHASE_UNCONSTRAINED`` does not: it is about a phase's *other* free
+    parameters, and a plan freeing only the scale gives it nothing to say
+    (WP-1463 measured it silent at S = 0.0).
+
+    Since WP-1463 a scale is blind only where its column is exactly zero.  A
+    tiny scale (the absent phase at 1e-170) now has the esd it had at 1e-135.
+    The zero column that remains is a softplus scale at S = 0.0, whose slope
+    dS/du has underflowed, or a phase with no gradient at any scale.
+    """
+    scale_paths = [f"phases.{ip}.scale" for ip in range(len(structure.phases))]
+    scale_cov = None
+    blind_paths: list[str] = []
+    if stderr_internal is not None:
+        blind = table.unmeasured_rows(theta, stderr_internal,
+                                      [table._paths[q] for q in scale_paths])
+        blind_paths = [q for q, b in zip(scale_paths, blind, strict=True) if b]
+        if not blind_paths:
+            scale_cov = table.physical_covariance(theta, stderr_internal,
+                                                  correlation, scale_paths)
+    # Site multiplicities frozen on the compiled model (never re-derived
+    # from refined coordinates, which could have drifted near a special
+    # position and collapsed an orbit).  The primary emission line feeds
+    # the Brindley microabsorption attenuation (µ ∝ λ³ makes the Kα₂
+    # offset sub-percent in µ, far smaller in τ).
+    multiplicities = [[len(op[0]) for op in cp.sites.ops] for cp in model.phases]
+    wavelength = model.line_wavelengths[0] if model.line_wavelengths else None
+    qpa = compute_qpa(structure, values, scale_cov, multiplicities,
+                      wavelength=wavelength)
+    if qpa is None:
+        return None, _qpa_unavailable_diagnostics(structure, values)
+    diagnostics = microabsorption_diagnostics(qpa)
+    if blind_paths:
+        diagnostics = diagnostics + _qpa_esd_unavailable_diagnostics(
+            structure, values, blind_paths, where_of or (lambda p: p))
+    return qpa, diagnostics
+
+
+def _qpa_esd_unavailable_diagnostics(structure: Structure,
+                                     values: dict[str, float],
+                                     blind: list[str],
+                                     where_of: Callable[[str], str],
+                                     ) -> list[Diagnostic]:
+    """``QPA_ESD_UNAVAILABLE``: every fraction is quoted, none carries an esd.
+
+    Before WP-1463 this was silent.  16 of 48 patterns of a real series came
+    back with every ``weight_fraction_stderr`` at ``None`` and no finding, and
+    the agent propagated the scale esds by hand, without the covariance.
+    """
+    named = []
+    for path in blind:
+        ip = int(path.split(".")[1])
+        named.append(f"the scale of phase {ip} ({structure.phases[ip].name}) "
+                     f"refined to {values.get(path, 0.0):.3g}")
+    phase = int(blind[0].split(".")[1])
+    return [Diagnostic(
+        level="warning", code="QPA_ESD_UNAVAILABLE",
+        where=[where_of(p) for p in blind],
+        message=("no weight fraction carries an esd: " + "; ".join(named)
+                 + (" and could not be measured there" if len(named) == 1
+                    else ", and none could be measured there")
+                 + ", and every fraction divides by a sum that includes "
+                 + ("it" if len(named) == 1 else "them")),
+        suggestion=(
+            "a scale at zero usually means the phase is not in this specimen, "
+            "and removing it gives the other fractions their esds. For an "
+            "interval without an esd on a single-pattern fit, "
+            f"Refinement.profile_fraction(data, {phase}) returns the "
+            "admissible range of one fraction"),
     )]
 
 
