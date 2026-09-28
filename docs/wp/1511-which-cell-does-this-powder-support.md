@@ -63,7 +63,8 @@ accepted cell is tested as the explanation of the leftovers.
 ## Non-goals
 
 - The blind search itself (1449, 1508).
-- A structure-dependent superlattice test (that needs 1515's models).
+- A structure-dependent superlattice test (that needs models from the
+  solution milestone 1515 scopes).
 
 ## Tasks
 

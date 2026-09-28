@@ -220,11 +220,12 @@ differentiable from day one.
     stage, and a diffuse lock that breaks on a later release. It also did not
     use FOX or GSAS-II, having found an earlier FOX pipeline untrustworthy,
     so the host an agent picks is the package it is already driving. The
-    track is ROADMAP § Unscheduled, WPs 1510-1517, with the physics rungs
-    1514-1516 each opening on a design note the maintainer decides. **What
-    stays fenced**: charge flipping (#198), difference Fourier and
-    maximum-entropy maps (#197), modulated structures, and total
-    scattering (#192).
+    track is ROADMAP § Unscheduled, WPs 1510-1517. Each of the three
+    measured larger than one WP, so 1514-1516 each scope a milestone and the
+    maintainer decides each draft. **What stays fenced**: charge flipping
+    (#198) and difference Fourier and maximum-entropy maps (#197), until
+    1515 decides whether they follow direct space; modulated structures;
+    and total scattering (#192).
 
 ## Architecture invariants
 

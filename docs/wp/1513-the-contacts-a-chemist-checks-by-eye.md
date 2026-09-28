@@ -45,8 +45,8 @@ half-occupied sites overlap on purpose, and the run's clash was invisible in
 the average structure. It showed only in an ordered configuration's CIF. So
 the diagnostic must know which atoms coexist. The first cut can skip pairs
 whose occupancies sum to at most 1 and say that it did. A configuration-aware
-check waits for a representation of configurations (WP-1514 carries the
-disorder copies).
+check waits for a representation of configurations. The rigid-body
+milestone WP-1514 scopes carries the disorder copies.
 
 **The skill gap beside it.** The agent wrote its own SNIP background,
 although `rietx.background.snip` ships (WP-1323's fold carries that half),
@@ -57,10 +57,11 @@ neither pattern.
 
 ## Non-goals
 
-- Hydrogen placement, and restraint kinds such as a tether (WP-1514).
+- Hydrogen placement, and restraint kinds such as a tether (the milestone
+  WP-1514 scopes).
 - Figures of contacts. The person's asks (metal···metal contacts drawn, a longer
   bond cutoff, one picture per configuration) belong to WP-1468's controls.
-- A configuration-aware clash check (after WP-1514).
+- A configuration-aware clash check (after that milestone).
 
 ## Tasks
 

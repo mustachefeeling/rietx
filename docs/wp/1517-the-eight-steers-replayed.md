@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Track: Data and metadata in, a structure out
-Depends on: — (reads 1323, 1510-1516 as each lands)
+Depends on: — (reads 1323, 1510-1513 and the milestones 1514-1516 scope, as each lands)
 Priority: P3 2026-09-28 — a measurement, not a fix; it becomes the acceptance other WPs in this track quote
 
 ## Goal
@@ -20,7 +20,7 @@ baseline, then after each WP of this track lands.
 WP-1510. Over two days the person sent 32 messages. Eight of them caught
 something no diagnostic had raised:
 
-| # | What the person caught | Where a fix lives |
+| # | What the person caught | Where a fix lives (1514-1516 scope milestones) |
 |---|---|---|
 | 1 | The background was flat. A Le Bail fit had absorbed a diffuse hump, and two hours of annealing ran against it. | 1323's fold |
 | 2 | A metal-heteroatom bond class they believed absent, which became the chemistry prior | 1515 (priors as data) |

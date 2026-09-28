@@ -74,7 +74,7 @@ The outer loop's fixed point should then come out of one fit.
 
 ## Non-goals
 
-- Computing any diffuse term (WP-1516).
+- Computing any diffuse term (WP-1516 scopes it).
 - The measured-blank background's semantics (WP-1309).
 
 ## Tasks

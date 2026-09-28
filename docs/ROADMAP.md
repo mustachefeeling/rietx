@@ -497,8 +497,8 @@ The WPs are in [the index](wp/README.md#unscheduled-render-what-the-fit-already-
 #### Data and metadata in, a structure out
 
 A pattern and what the person knows, in; a structure an agent can defend, out.
-Opened 2026-09-28 by the review of `solution case 1`. 1514-1516 left § v2+
-that day, and 1517 counts the eight steers no diagnostic raised.
+Opened 2026-09-28 by the review of `solution case 1`. 1514-1516 each scope a
+milestone for what left § v2+ that day; 1517 counts the eight steers.
 
 The WPs are in [the index](wp/README.md#unscheduled-data-and-metadata-in-a-structure-out).
 
@@ -538,10 +538,10 @@ scope creep. Each item names what fenced it.
   2026-09-02** for § Unscheduled's track (1326–1329); the incommensurate
   case, polarised neutrons and magnetic X-rays stay fenced (1327's non-goals).
   **Rigid bodies (#195), direct-space solution and stacking faults left it
-  2026-09-28** for § Unscheduled's track (1514–1516; DESIGN.md has why).
-- **Solution.** Charge flipping (#198); search-match phase identification
-  (prior art: the 36-cell screen at
-  `guillemot-study:studies/guillemot/match_hl2.py`).
+  2026-09-28** for scoping in § Unscheduled (1514–1516; DESIGN.md has why).
+- **Solution.** Charge flipping (#198; 1515 decides whether it follows, and
+  #197 with it); search-match phase identification (prior art: the 36-cell
+  screen at `guillemot-study:studies/guillemot/match_hl2.py`).
 - **Indexing, fenced by 1018–1027.** Multi-phase indexing (index the residual
   after subtracting a solved phase); the full Bayesian extinction-symbol
   posterior (Markvardsen et al. 2001 — ΔBIC/Hamilton is the v1.0 form); a
