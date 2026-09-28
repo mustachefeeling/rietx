@@ -82,6 +82,20 @@ this closes 🛑 with the numbers, as WP-1508's gate did for the 2-D traversal.
   leaves' small products slower than one thread (1509: 82-94 s against 91-112 s
   on the same tree).
 
+### Inherited
+
+- **From WP-1518 (closed 2026-09-28): a digest belongs to a platform, and 1518
+  moved five of the six.** The digest hashes the cells' bits. On macOS arm64
+  (system BLAS) not one of 1509's six Linux x86-64 digests reproduced on the
+  unchanged path. On that Mac, 1518's covariance fix moved brucite hexagonal
+  `2b9bc538` → `40752146` and trigonal `e2117cb2` → `867bb1f5`, corundum
+  hexagonal `3190bee2` → `f6b582ba` and trigonal `2d3b0c80` → `3e5ac067`, and
+  synthetic monoclinic through `index_pattern` `a9f00c79` → `57a6a9e3`.
+  Corundum tetragonal held at `8a5fd6cd`. On any other platform, take the
+  post-1518 digests from the current tree before holding anything. Dedup
+  groups moved, so a unit's candidate list moves from the first pool rank a
+  changed group reaches (rank 4-16 of 60 on these units).
+
 ## Non-goals
 
 A faster solve for the same system. A closed-form 2×2 normal equation would beat
