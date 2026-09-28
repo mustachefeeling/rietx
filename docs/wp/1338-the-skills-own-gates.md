@@ -243,6 +243,9 @@ deliberately broken fixture of each kind fails.
     so the next row in either needs a cut or a split; six WPs carry the note.
   - The round's runner refuses today's body (the rows are gone); a re-run
     builds from a checkout of `db4a8582`.
+  - WP-1332's note reached this mailbox at the merge, after the close:
+    its four reader codes went to `diagnostics-reading.md` (§7i), so it
+    spent nothing of `diagnostics.md` or `SKILL.md`. Read and consumed.
   - Not generalised: `BACKGROUND_ABSORPTION` prints twice with one `where` in
     the episode's own output (`guard.background_correlations` is not deduped
     across stages the way `HIGH_CORRELATION` is). No open WP owns it; it needs

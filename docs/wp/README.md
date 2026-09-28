@@ -32,7 +32,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1312](1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | P2 | — | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
 | [1321](1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1323](1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1332](1332-the-axis-a-reader-hands-back.md) | What a reader hands back: the axis, the rows, the σ column | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1336](1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | P2 | — ([1310](1310-report-repeats-itself.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | P2 | — ([1312](1312-neutron-followthrough.md), [1335](1335-the-report-costs-more-than-the-fit.md), [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) soft) | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | P2 | — ([1333](1333-a-series-survives-one-pattern.md), [1342](1342-a-freeze-that-reads-names.md), [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
@@ -405,7 +404,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1321](1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | P2 | — |
 | [1323](1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | P2 | — |
 | [1324](1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, and a setting nobody chose | ✅ 2026-09-02 | — | — |
-| [1332](1332-the-axis-a-reader-hands-back.md) | What a reader hands back: the axis, the rows, the σ column | ⬜ | P2 | — |
+| [1332](1332-the-axis-a-reader-hands-back.md) | What a reader hands back: the axis, the rows, the σ column | ✅ 2026-09-28 | — | — |
 | [1336](1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | ⬜ | P2 | — ([1310](1310-report-repeats-itself.md) soft) |
 | [1337](1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | ⬜ | P3 | — ([1311](1311-walking-parameter-bounds.md), [1321](1321-persisted-bounds-repair.md) soft) |
 | [1342](1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ✅ 2026-09-19 | — | — |

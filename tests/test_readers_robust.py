@@ -361,3 +361,229 @@ def test_every_truncation_of_a_magnetic_inp_fails_as_a_named_value_error(tmp_pat
                 f"magnetic .inp cut at {cut} raised "
                 f"{type(exc).__module__}.{type(exc).__name__}, which is "
                 f"neither ValueError nor OSError: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
+# what a reader hands back: the axis, the rows, the σ column (WP-1332)
+#
+# The files above are *broken*.  These parse perfectly and came back wrong: a
+# GSAS file whose bank record lost its line to a comment, a header row read as
+# a data point, a constant column read as σ.  Every one was silent, so each
+# test asserts the code as well as the numbers.
+# ---------------------------------------------------------------------------
+
+#: Issue #236's pair, verbatim: two files differing by the ``#`` some tool
+#: prepended to the bank line (issue #230 met it as two archive copies of one
+#: measurement).  Missed by the sniff, the bad one fell to ``xy`` and read its
+#: centidegrees as degrees.
+_GOOD_FXYE = ("ZnCr2O4 test\n"
+              "BANK 1 4 4 CONST 5000.0 1000.0 0 0 FXYE\n"
+              "    5000.0     1000.0       31.6\n"
+              "    6000.0     1010.0       31.8\n"
+              "    7000.0      990.0       31.5\n"
+              "    8000.0     1005.0       31.7\n")
+_BAD_FXYE = _GOOD_FXYE.replace("BANK 1", "# BANK 1")
+
+
+def _read(path, text):
+    path.write_text(text, encoding="utf-8")
+    found = []
+    return rx.read_pattern(path, diagnostics=found), [d.code for d in found]
+
+
+def test_a_commented_bank_record_reads_the_same_axis_and_says_so(tmp_path):
+    good, good_codes = _read(tmp_path / "good.fxye", _GOOD_FXYE)
+    bad, bad_codes = _read(tmp_path / "bad.fxye", _BAD_FXYE)
+    assert good.two_theta == bad.two_theta == [50.0, 60.0, 70.0, 80.0]
+    assert bad.sigma == good.sigma
+    assert good_codes == []
+    assert bad_codes == ["GSAS_BANK_COMMENTED"]
+    assert identify_format(tmp_path / "bad.fxye").name == "gsas"
+
+
+def test_a_live_bank_outranks_a_commented_one(tmp_path):
+    """Commenting a bank out is also how a person disables it, so a file with
+    both reads the live one and reports nothing.  A commented bank on either
+    side of it is not read into its rows."""
+    text = ("two banks\n"
+            "# BANK 1 2 2 CONST 1000.0 1000.0 0 0 FXYE\n"
+            "    1000.0      500.0       22.4\n"
+            "    2000.0      510.0       22.6\n"
+            + _GOOD_FXYE.split("\n", 1)[1]
+            + "# BANK 3 2 2 CONST 9000.0 1000.0 0 0 FXYE\n"
+            "    9000.0      700.0       26.5\n"
+            "   10000.0      710.0       26.6\n")
+    pat, codes = _read(tmp_path / "two.fxye", text)
+    assert pat.two_theta == [50.0, 60.0, 70.0, 80.0]
+    assert codes == []
+
+
+def test_a_comment_that_mentions_a_bank_does_not_claim_an_ascii_file(tmp_path):
+    """The commented form must carry the whole loose header.  A passing mention
+    claimed as GSAS would turn a readable ``.xy`` into a refusal."""
+    path = tmp_path / "detector.xy"
+    path.write_text("# BANK 1 of the detector\n10.0 100.0\n10.1 110.0\n",
+                    encoding="utf-8")
+    assert identify_format(path).name == "xy"
+    assert rx.read_pattern(path).two_theta == [10.0, 10.1]
+
+
+#: One axis per band, each written for two readers, because the check belongs
+#: to the answer and not to one reader.  The ``xy`` file past 180° is the #230
+#: file's failure without the sniff fix: centidegrees read as degrees.
+_PAST_180 = {
+    "xy": "5000.0 1000.0\n6000.0 1010.0\n7000.0 990.0\n8000.0 1005.0\n",
+    "gsas": "past\nBANK 1 8 1 CONST 17000.0 200.0 0 0 STD\n"
+            "  100  110  120  130  140  150  160  170\n",
+}
+_AT_OR_BELOW_0 = {
+    "xy": "-2.0 100.0\n-1.0 110.0\n0.0 120.0\n1.0 130.0\n",
+    "gsas": "through zero\nBANK 1 4 1 CONST -200.0 100.0 0 0 STD\n"
+            "  100  110  120  130\n",
+}
+_SUFFIX = {"xy": ".xy", "gsas": ".gsas"}
+
+
+@pytest.mark.parametrize("reader", sorted(_PAST_180))
+def test_an_axis_past_180_degrees_is_refused_naming_the_file_and_reader(
+        reader, tmp_path):
+    path = tmp_path / f"past{_SUFFIX[reader]}"
+    path.write_text(_PAST_180[reader], encoding="utf-8")
+    assert identify_format(path).name == reader
+    with pytest.raises(ValueError, match="No scattering angle exceeds 180") as exc:
+        rx.read_pattern(path)
+    assert path.name in str(exc.value)
+    assert identify_format(path).title in str(exc.value)
+
+
+def test_the_centidegree_hint_is_offered_only_where_division_lands_in_range(
+        tmp_path):
+    """The hint is evidence only where division by 100 puts the axis inside
+    (0, 180].  A time-of-flight axis in µs does not, and gets no hint."""
+    cdeg = tmp_path / "cdeg.xy"
+    cdeg.write_text(_PAST_180["xy"], encoding="utf-8")
+    with pytest.raises(ValueError, match="Divided by 100 it would run 50° to 80°"):
+        rx.read_pattern(cdeg)
+    tof = tmp_path / "tof.xy"
+    tof.write_text("5000.0 1.0\n19000.0 2.0\n", encoding="utf-8")
+    with pytest.raises(ValueError) as exc:
+        rx.read_pattern(tof)
+    assert "Divided by 100" not in str(exc.value)
+    # a GSAS reader has already divided by 100, so the lead would be wrong
+    gsas = tmp_path / "past.gsas"
+    gsas.write_text(_PAST_180["gsas"], encoding="utf-8")
+    with pytest.raises(ValueError) as exc:
+        rx.read_pattern(gsas)
+    assert "Divided by 100" not in str(exc.value)
+
+
+@pytest.mark.parametrize("reader", sorted(_AT_OR_BELOW_0))
+def test_an_axis_reaching_zero_is_read_and_reported(reader, tmp_path):
+    path = tmp_path / f"zero{_SUFFIX[reader]}"
+    path.write_text(_AT_OR_BELOW_0[reader], encoding="utf-8")
+    found = []
+    pat = rx.read_pattern(path, diagnostics=found)
+    axis = [d for d in found if d.code == "PATTERN_X_AXIS_IMPLAUSIBLE"]
+    assert pat.two_theta == [-2.0, -1.0, 0.0, 1.0]
+    assert len(axis) == 1
+    assert axis[0].where == ["-2.000-0.000"]
+    assert axis[0].value == -2.0
+    assert "3 of its 4 points" in axis[0].message
+
+
+def test_a_lone_point_at_zero_names_an_interval_a_project_accepts(tmp_path):
+    """Printed to nearest, one point at exactly 0° named (0.000, 0.000), an
+    interval ``check_interval`` refuses as empty."""
+    from rietx.schemas.project import check_interval
+
+    path = tmp_path / "zero_point.xy"
+    path.write_text("0.0 5.0\n10.0 100.0\n10.1 110.0\n", encoding="utf-8")
+    found = []
+    rx.read_pattern(path, diagnostics=found)
+    axis = [d for d in found if d.code == "PATTERN_X_AXIS_IMPLAUSIBLE"]
+    assert axis[0].where == ["0.000-0.001"]
+    check_interval("excluded_regions", 0.0, 0.001)
+
+
+#: Issue #266's first file, verbatim: a six-token numeric header row above four
+#: two-token data rows.  Read on its first three tokens it was a point at (0, 1).
+_HEADER_ROW_XY = ("title=my pattern\n"
+                  "det#  used  xcol detcol  xmin  xmax\n"
+                  "  0    1    0    1    5.0   50.0\n"
+                  "10.0  100.0\n"
+                  "10.1  110.0\n"
+                  "10.2  120.0\n"
+                  "10.3  130.0\n")
+
+
+def test_a_numeric_header_row_is_dropped_and_reported_by_line(tmp_path):
+    path = tmp_path / "header_row.xy"
+    path.write_text(_HEADER_ROW_XY, encoding="utf-8")
+    found = []
+    pat = rx.read_pattern(path, diagnostics=found)
+    assert pat.two_theta == [10.0, 10.1, 10.2, 10.3]
+    assert pat.intensity == [100.0, 110.0, 120.0, 130.0]
+    assert [d.code for d in found] == ["PATTERN_ROWS_DROPPED"]
+    assert found[0].where == ["line 3"]
+    assert "'0 1 0 1 5.0 50.0'" in found[0].message
+
+
+def test_a_row_cut_short_is_dropped_and_the_file_keeps_its_sigma(tmp_path):
+    """The column count used to be the *minimum* over rows, so one row that
+    lost its σ took σ away from every other row."""
+    path = tmp_path / "cut.xye"
+    path.write_text("10.0 100.0 10.0\n10.1 110.0 10.5\n10.2 120.0 11.0\n"
+                    "10.3 130.0\n", encoding="utf-8")
+    found = []
+    pat = rx.read_pattern(path, diagnostics=found)
+    assert pat.sigma == [10.0, 10.5, 11.0]
+    assert [d.where for d in found] == [["line 4"]]
+
+
+def test_a_tied_column_count_goes_to_the_last_row(tmp_path):
+    """A header sits above its data, so on a tie the data's count wins."""
+    path = tmp_path / "tie.xy"
+    path.write_text("1 2 3 4 5 6\n1 2 3 4 5 6\n10.0 100.0\n10.1 110.0\n",
+                    encoding="utf-8")
+    assert rx.read_pattern(path).two_theta == [10.0, 10.1]
+
+
+#: Issue #266's second file, and the same constant σ under a reader whose
+#: format *declares* the column.  The check is on the hook, so both say it.
+_CONSTANT_SIGMA = {
+    "xy": ("constant_third.xy",
+           "10.0  100.0  1.0\n10.1  110.0  1.0\n"
+           "10.2  120.0  1.0\n10.3  130.0  1.0\n"),
+    "gsas": ("constant.fxye",
+             "flat esd\nBANK 1 4 4 CONST 1000.0 10.0 0 0 FXYE\n"
+             "  1000.0  100.0  1.0\n  1010.0  110.0  1.0\n"
+             "  1020.0  120.0  1.0\n  1030.0  130.0  1.0\n"),
+}
+
+
+@pytest.mark.parametrize("reader", sorted(_CONSTANT_SIGMA))
+def test_a_constant_sigma_is_kept_and_reported(reader, tmp_path):
+    name, text = _CONSTANT_SIGMA[reader]
+    path = tmp_path / name
+    path.write_text(text, encoding="utf-8")
+    assert identify_format(path).name == reader
+    found = []
+    pat = rx.read_pattern(path, diagnostics=found)
+    assert pat.sigma == [1.0, 1.0, 1.0, 1.0]
+    assert [d.code for d in found] == ["PATTERN_SIGMA_CONSTANT"]
+    assert found[0].value == 1.0
+    assert "every one of its 4 points" in found[0].message
+
+
+#: Every code WP-1332 added.  A real fixture raising any of them is a false
+#: alarm on a file somebody measured.
+_WP1332_CODES = {"GSAS_BANK_COMMENTED", "PATTERN_X_AXIS_IMPLAUSIBLE",
+                 "PATTERN_ROWS_DROPPED", "PATTERN_SIGMA_CONSTANT"}
+
+
+@pytest.mark.parametrize("fixture,_reader", REAL_FIXTURES)
+def test_no_real_fixture_trips_a_check_on_what_its_reader_hands_back(
+        fixture, _reader):
+    found = []
+    rx.read_pattern(DATA / fixture, diagnostics=found)
+    assert not {d.code for d in found} & _WP1332_CODES
