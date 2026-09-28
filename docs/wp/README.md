@@ -19,7 +19,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-09-25 | P2 | [v1.6](#v1-6) |
 | [1449](1449-rank-on-what-the-screen-determined.md) | Rank on what the screen determined, not on what the peak list shows | 2026-09-27 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 2026-09-24 | P1 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [1463](1463-a-phase-at-zero-withholds-every-esd.md) | A phase at zero withholds every esd | 2026-09-28 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-09-28 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
@@ -426,7 +425,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1457](1457-the-stage-rwp-leaves-out-the-declared-peaks.md) | The stage Rwp leaves out the declared peaks | ⬜ | P2 | — |
 | [1458](1458-a-tick-with-nothing-behind-it.md) | A tick with nothing behind it moves the low-angle boundary | ✅ 2026-09-24 | — | — ([1327](1327-magnetic-structure.md) soft) |
 | [1460](1460-one-degeneracy-one-finding.md) | One degeneracy, one finding | ⬜ | P3 | — ([1454](1454-auto-background-choices-survive-the-fit.md), [1302](1302-error-is-documentation.md) soft) |
-| [1463](1463-a-phase-at-zero-withholds-every-esd.md) | A phase at zero withholds every esd | 🔄 2026-09-28 | P2 | — ([1320](1320-qpa-multimodal-fraction.md) soft) |
+| [1463](1463-a-phase-at-zero-withholds-every-esd.md) | A phase at zero withholds every esd | ✅ 2026-09-28 | — | — ([1320](1320-qpa-multimodal-fraction.md) soft) |
 | [1465](1465-a-width-that-became-background.md) | A phase width that became background, and an absorption screen that never ran | ✅ 2026-09-27 | — | — |
 | [1467](1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | ⬜ | P2 | — ([1318](1318-strain-surface.md) soft) |
 
