@@ -1,6 +1,6 @@
 # WP-1509 — a dichotomy leaf pays for the whole trial set
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-28 — claimed by @yue-here (Claude Code session)
 Track: A long run is not one fit
 Depends on: — (1508 soft: both edit `_search_one`'s phase 2)
 Priority: P2 2026-09-28 — was P3: 1508 measured real monoclinic data leaf-bound too (every bethanechol manual set is cut at its 30 s budget on either path), so this is the lever for every real search, not only the 2-D acceptance rows 1449 skips

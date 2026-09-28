@@ -22,6 +22,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-09-28 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1509](1509-dichotomy-leaves-pay-for-the-whole-trial-set.md) | A dichotomy leaf pays for the whole trial set | 2026-09-28 | P2 | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 
 ## Next, by priority
 
@@ -40,7 +41,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1467](1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | P2 | — ([1318](1318-strain-surface.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1469](1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1501](1501-cut-and-keep.md) | Cut and keep: a figure of part of the structure | P2 | [1470](1470-a-structure-figure-without-a-browser.md) | [v1.7](#v1-7) |
-| [1509](1509-dichotomy-leaves-pay-for-the-whole-trial-set.md) | A dichotomy leaf pays for the whole trial set | P2 | — ([1508](1508-compiled-dichotomy-spike.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1510](1510-what-the-chemist-knows-reaches-the-search.md) | What the chemist knows reaches the indexing search | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md), [1508](1508-compiled-dichotomy-spike.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1514](1514-scoping-rigid-bodies.md) | Scoping rigid bodies: the milestone that makes the parameter map nonlinear | P2 | — ([1319](1319-structure-interchange.md), [1515](1515-scoping-structure-solution.md), [1516](1516-scoping-stacking-faults.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
@@ -445,7 +445,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1464](1464-a-screen-reads-the-batch-references-first.md) | A screen reads the batch references first | ⬜ | P3 | — (#385 soft) |
 | [1469](1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | ⬜ | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) |
 | [1508](1508-compiled-dichotomy-spike.md) | Compiled dichotomy spike (gated: build only if the box traversal is the unit's cost) | ✅ 2026-09-28 | — | — |
-| [1509](1509-dichotomy-leaves-pay-for-the-whole-trial-set.md) | A dichotomy leaf pays for the whole trial set | ⬜ | P2 | — ([1508](1508-compiled-dichotomy-spike.md) soft) |
+| [1509](1509-dichotomy-leaves-pay-for-the-whole-trial-set.md) | A dichotomy leaf pays for the whole trial set | 🔄 2026-09-28 | P2 | — ([1508](1508-compiled-dichotomy-spike.md) soft) |
 
 ### <a id="unscheduled-one-file-many-patterns"></a>One file, many patterns
 
