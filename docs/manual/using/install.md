@@ -149,7 +149,9 @@ how many free metric parameters the crystal system has. On a synthetic
 monoclinic list (four) the engine takes 10 s where it took 195-206 s. On the
 round-robin brucite and corundum patterns (hexagonal, trigonal and tetragonal,
 two each) it saves 3-8 %, because most of their time goes to refining the cells
-the search finds rather than to the search. That kernel is compiled the first
+the search finds rather than to the search. Real monoclinic data is the same
+once the search is fast: a bethanechol search cut at its 30 s budget tests 13 %
+more boxes and reaches the same answer. That kernel is compiled the first
 time an indexing search needs it, 4.4 s on the first run on a machine and
 0.25 s after that, before any crystal system's time budget starts.
 
