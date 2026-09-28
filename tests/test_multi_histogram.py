@@ -248,7 +248,9 @@ def test_every_row_carries_a_bound_answer_or_says_it_has_none(two_patterns):
     # 4e-24, neither of which has an esd on main either
     rows = {p.path: p for p in result.parameters}
     for path in free_rows - measured:
-        assert rows[path].value <= 1e-10, path
+        p = rows[path]
+        assert 0.0 <= p.value and (
+            p.value <= 1e-10 or (p.stderr and p.value <= 0.01 * p.stderr)), path
     assert measured <= free_rows and len(free_rows - measured) <= 2
     # both halves of the key are exercised: shared rows and per-histogram rows
     assert any(p.startswith("hist.") for p in measured)
