@@ -251,7 +251,7 @@ nothing else running unless named):
   35 minutes, and was stopped: a finished real 4-D search is long even compiled.
 - The manual-mode benchmark, both paths, alone: −2 of +10, identical ranks and
   nearest-cell ppm, 115.8-121.4 s a set, every set incomplete.
-- Kernel build 4.4 s cold, 0.23-0.27 s from the numba cache.
+- Kernel build 4.4-4.6 s cold (three fresh caches), 0.23-0.27 s from the numba cache.
 - Fast suite (`-m "not slow"`, `-n auto`, branch before the main merge): 6583
   passed, 163 skipped, 1 failed, 21:03 — the failure is `test_telemetry`'s
   unwritable-directory case, which a root container cannot fail (WP-1449 recorded
@@ -261,6 +261,16 @@ nothing else running unless named):
   the new file, `-n auto`: 135 passed, 4 skipped, 48:45 — the skips are the order
   rows whose 2-D dichotomy units the 300 s budget cut, as before. The full selection
   was not run; the nightly is its measurement.
+
+*Review* (`/code-review high --fix`, eight findings). Taken: the kernels build after
+the cancel check, so a stopped run does not wait on a cold compile; a singular
+matrix in the stacked inverse falls back to the scalar key rather than taking the
+unit down; the grid pass is one function both paths call; wall clock quoted as
+ranges (the cold build re-measured twice for it); a dead counter, a docstring, a
+wrap. Declined: `compiled_kernels_active` stays `True` when the indexing kernels'
+build fails and latches off — the model tier's flag has the same gap (`enabled()`
+never learns of a failed `build`), and fixing it means a signal both tiers report,
+not a branch here.
 
 *Gotchas.*
 - **The cost model was wrong three times for this engine**, twice in this WP: the
