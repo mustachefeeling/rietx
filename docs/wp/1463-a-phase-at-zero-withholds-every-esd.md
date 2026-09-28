@@ -311,6 +311,12 @@ naming the absent phase. `at_bound` on that scale is not `False`.
   Le Bail fixture's `profile.y` ended on the zero floor there, and not on
   macOS arm64. The row pins now identify floor rows by `bound_untested`'s
   criterion, and the absent-phase reference asks only for a nonzero scale.
+  The next py3.11 run failed the joint pin the other way: `BOUND_HIT` named
+  `hist.0.instrument.profile.y` while its row said `None`. At the floor the
+  internal esd is the physical one over σ(u), so the esd window reached the
+  width's *upper* limit and a negative cosine fired. `bound_findings` now
+  skips the rows `bound_untested` names (both callers pass them), pinned by a
+  synthetic in `test_bound_hit_at_convergence.py`.
 
   *Review* (`/code-review high --fix`). Eight findings, six fixed in
   `d25bf360`: the exchangeability norms and the grouped gain took the

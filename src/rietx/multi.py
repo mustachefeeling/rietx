@@ -590,16 +590,18 @@ class MultiHistogramRefinement:
         # one bound test, two consumers: the rows' at_bound flag and the
         # BOUND_HIT diagnostics (WP-1076)
         bounds = mt.bounds()
-        at_bounds = bound_findings(
-            bounds, mt.free_paths, outcome.theta,
-            cos=outcome.residual_cosine, esd=outcome.stderr_internal)
-        # a row on its transform's asymptote reads None, as in the single fit
+        # a row on its transform's asymptote reads None, as in the single fit,
+        # and the bound test skips it (WP-1463)
         transforms = ["identity"] * len(mt.free_paths)
         for h, sub in enumerate(mt.tables):
             for j, c in enumerate(mt.col_map(h)):
                 transforms[c] = sub.entries[sub._free_idx[j]].transform
         untested = bound_untested(bounds, mt.free_paths, outcome.theta,
                                   transforms, esd=outcome.stderr_internal)
+        at_bounds = bound_findings(
+            bounds, mt.free_paths, outcome.theta,
+            cos=outcome.residual_cosine, esd=outcome.stderr_internal,
+            untested=untested)
         # Histogram 0's physical esds, built once in the loop above and read by
         # two consumers (WP-1131): the shared rows of ``_parameters``, and the
         # microstructure block, which reads histogram 0 because its value scale

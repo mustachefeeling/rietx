@@ -356,3 +356,27 @@ def test_the_rows_render(data):
         plot_result(result, path=str(out / f"bound_hit_{name}.png"))
         plot_result(result, path=str(out / f"bound_hit_{name}_zoom.png"),
                     two_theta_range=(20.0, 35.0))
+
+
+def test_a_width_on_its_floor_is_not_read_against_its_far_limit():
+    """The esd window cannot be asked of a row sitting on its transform's floor.
+
+    There the internal esd is the physical one over σ(u).  Here that is 1e64
+    for a physical 0.07, so the window of a hundredth of an esd admits an upper
+    limit 150 internal units away, and a cosine pushing up fired ``BOUND_HIT``
+    on a width at zero.  CI's py3.11 Linux leg met exactly this on
+    ``instrument.profile.y`` in a joint fit (WP-1463), where the row said
+    ``None`` and the diagnostic said it was at its bound.
+    """
+    from rietx.strategy.staged import bound_findings, bound_untested
+
+    bounds = (np.array([-np.inf]), np.array([0.0]))
+    free, theta = ["instrument.profile.y"], np.array([-150.0])
+    esd, cos = np.array([1e64]), np.array([-0.03])
+
+    unskipped = bound_findings(bounds, free, theta, cos=cos, esd=esd)
+    assert {p for f in unskipped for p in f.paths} == set(free)
+    untested = bound_untested(bounds, free, theta, ["softplus"], esd=esd)
+    assert untested == free
+    assert bound_findings(bounds, free, theta, cos=cos, esd=esd,
+                          untested=untested) == []
