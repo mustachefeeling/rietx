@@ -357,7 +357,8 @@ def test_the_trial_index_keeps_every_row_a_cell_can_put_in_range_in_order():
     # an unordered set is refused rather than indexed wrongly
     assert TrialIndex.build(full[::-1], min_rows=0) is None
     # and a set too small for the bound to pay is scanned whole, as before
-    assert len(full) < 30_000 and TrialIndex.build(full) is None
+    from rietx.indexing.engines import _INDEX_MIN_ROWS
+    assert len(full) < _INDEX_MIN_ROWS and TrialIndex.build(full) is None
 
 
 def test_a_subset_product_is_the_whole_products_rows_where_the_probe_says_so():

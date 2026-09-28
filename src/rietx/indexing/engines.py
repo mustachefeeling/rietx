@@ -31,6 +31,7 @@ from a trial cell goes through :func:`reflection_ceiling_ok` first.
 
 from __future__ import annotations
 
+import math
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -665,22 +666,30 @@ def reflection_ceiling_ok(cell: Sequence[float], wavelength: float,
 #: stay far below its margin (:data:`_INDEX_MARGIN`): the error is at most
 #: ~6.7e-16 of ``Σ|mⱼ·afⱼ|`` ≤ ``‖h‖²·Σ|af|``, while Q ≥ ``λ_min·‖h‖²``, so it
 #: is a fraction ``6.7e-16 × this`` of Q — 6.7e-10 here against a 1e-6 margin.
-#: A cell past it (a near-singular metric) takes the whole set, as before.
+#: λ_min is bounded below by ``4·det/trace²`` (λ_mid·λ_max ≤ (trace/2)²), so the
+#: test is conservative.  A cell past it takes the whole set, as before.
 _INDEX_MAX_CONDITION = 1e6
-#: Relative slack on each per-axis index bound.  Covers the rounding above and
-#: the inverse's (relative error ≲ condition × 1.1e-16 = 1.1e-10) with four
-#: orders to spare; a looser bound costs rows, never correctness.
+#: Smallest ``det G* / ΠG*ᵢᵢ`` (and leading 2×2 minor over its diagonal) the
+#: closed-form inverse is trusted at.  Every term of the 3×3 determinant is at
+#: most ``ΠG*ᵢᵢ`` for a positive-definite metric, so its rounding is ≲ 1.3e-14 of
+#: that product and, above this floor, ≲ 1.3e-8 of the determinant; the axis
+#: lengths it gives inherit that.  A real reduced cell sits near 1 (its
+#: orthogonality defect); a metric below the floor takes the whole set.
+_INDEX_MIN_DEFECT = 1e-6
+#: Relative slack on each per-axis index bound.  Covers the product's rounding
+#: above and the inverse's (≲ 1.7e-8) with fifty-fold room to spare; a looser
+#: bound costs rows, never correctness.
 _INDEX_MARGIN = 1e-6
 #: Fraction of the trial set above which a bounded row list is not worth
 #: building: gathering most of a set costs what scanning it does.
 _INDEX_MAX_SHARE = 0.5
-#: Rows below which a trial set is not indexed at all.  The bound costs a
-#: fixed ~120-190 µs a call (an eigen-decomposition, an inverse, the
-#: searches), against ~7 ns a row for the scan it replaces: measured, the index
-#: lost below ~18 000 rows and won above ~34 000, 1115 → 211 µs at 150 381
-#: (one BLAS thread, WP-1509).  trial_error's monoclinic unit scores against
-#: 2456 rows, where indexing made it 19 % slower before this floor.
-_INDEX_MIN_ROWS = 30_000
+#: Rows below which a trial set is not indexed at all: the bound's fixed cost
+#: per call is paid whatever the set's size, the scan it replaces costs ~8 ns a
+#: row.  Measured with the reuse defeated (two cells alternating, one BLAS
+#: thread, WP-1509): even at ~12 000 rows, ahead from ~18 000, 1188 → 138 µs at
+#: 150 381.  trial_error's monoclinic unit scores against 2456 rows, where an
+#: earlier, LAPACK-bound index made it 19 % slower before there was a floor.
+_INDEX_MIN_ROWS = 15_000
 
 
 class TrialIndex:
@@ -723,6 +732,8 @@ class TrialIndex:
         self._offset = offset
         #: the distinct (h, k) present, in row order
         self._pair_hk = pair_hk
+        #: the last (H, K, L) bound asked and its rows
+        self._last: tuple[tuple[int, ...], np.ndarray | None] | None = None
 
     @classmethod
     def build(cls, hkl: np.ndarray, *,
@@ -748,28 +759,52 @@ class TrialIndex:
         A superset of them — rows whose index bound admits them — and never a
         row fewer.  ``None`` when no bound is safe (a metric that is not
         positive definite, or too ill-conditioned for the margins) or when the
-        bound would keep most of the set anyway.
-        """
-        from .qspace import gstar_from_af
+        bound would keep most of the set anyway.  The anneal passes of one leaf
+        mostly land on the same integer bounds, so the last answer is kept and
+        handed back (read-only) when they repeat.
 
+        The 3×3 arithmetic is closed-form in python floats rather than two
+        LAPACK calls, which were most of this function's ~120-190 µs (WP-1509's
+        re-profile put it at 15 % of a 2-D unit); the guards and margins above
+        are what that arithmetic is trusted within.
+        """
         if not q_top > 0.0:
             return None
-        a = np.asarray(af, dtype=np.float64)
-        gstar = gstar_from_af(a)
-        try:
-            lam = np.linalg.eigvalsh(gstar)
-            if not lam[0] > 0.0 or np.sum(np.abs(a)) > (
-                    _INDEX_MAX_CONDITION * lam[0]):
+        a0, a1, a2, a3, a4, a5 = (float(v) for v in af)
+        g00, g11, g22 = a0, a1, a2
+        g12, g02, g01 = 0.5 * a3, 0.5 * a4, 0.5 * a5      # D, E, F = 2·G*ᵢⱼ
+        c00 = g11 * g22 - g12 * g12
+        c11 = g00 * g22 - g02 * g02
+        c22 = g00 * g11 - g01 * g01
+        det = (g00 * c00 - g01 * (g01 * g22 - g12 * g02)
+               + g02 * (g01 * g12 - g11 * g02))
+        # Sylvester's criterion, each minor with room above its own rounding
+        if not (g00 > 0.0 and g11 > 0.0 and g22 > 0.0
+                and c22 >= _INDEX_MIN_DEFECT * g00 * g11
+                and det >= _INDEX_MIN_DEFECT * g00 * g11 * g22):
+            return None
+        trace = g00 + g11 + g22
+        if (abs(a0) + abs(a1) + abs(a2) + abs(a3) + abs(a4) + abs(a5)) * trace \
+                * trace > _INDEX_MAX_CONDITION * 4.0 * det:
+            return None
+        bound = []
+        for cof in (c00, c11, c22):              # aᵢ² = (G*⁻¹)ᵢᵢ = cofactor/det
+            reach = math.sqrt(q_top * cof / det) * (1.0 + _INDEX_MARGIN)
+            if not math.isfinite(reach):
                 return None
-            direct = np.diag(np.linalg.inv(gstar))
-        except np.linalg.LinAlgError:
-            return None
-        if not np.all(direct > 0.0):
-            return None
-        bound = np.floor(np.sqrt(q_top * direct) * (1.0 + _INDEX_MARGIN))
-        if not np.all(np.isfinite(bound)):
-            return None
-        big_h, big_k, big_l = (int(min(b, self._offset)) for b in bound)
+            bound.append(min(math.floor(reach), self._offset))
+        key = tuple(bound)
+        last = self._last             # one read: a tuple swap is atomic
+        if last is not None and last[0] == key:
+            return last[1]
+        rows = self._rows_in(*key)
+        if rows is not None:
+            rows.flags.writeable = False
+        self._last = (key, rows)
+        return rows
+
+    def _rows_in(self, big_h: int, big_k: int, big_l: int) -> np.ndarray | None:
+        """The rows with |h| ≤ H, |k| ≤ K and |l| ≤ L, in order."""
         hk = self._pair_hk
         take = (np.abs(hk[:, 0]) <= big_h) & (np.abs(hk[:, 1]) <= big_k)
         if not take.any():
