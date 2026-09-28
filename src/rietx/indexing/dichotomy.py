@@ -77,6 +77,7 @@ from .engines import (
     refine_with_shift,
     reflection_ceiling_ok,
     register_engine,
+    row_local_product,
     search_line_order,
     search_volume_ceiling,
     shift_allowance_diagnostic,
@@ -708,6 +709,8 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
         # machine is seconds, it is not search time, and a stopped run should
         # not pay it; every later call is a flag test
         _traversal_kernels()
+        # the trial index's once-a-process BLAS probe, for the same reason
+        row_local_product()
         result.systems_searched += (system,)
         if progress is not None:
             progress.start(f"dichotomy:{system}", engine="dichotomy",
@@ -1020,8 +1023,15 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
         return found, (n_boxes, n_rows), complete and complete_union
 
     # ---- phase 1: the grid, breadth-first, one dimension at a time ----
+    # a parent's survivors are handed to every child, and ``_grid_pass`` tests
+    # siblings back to back, so their rows are gathered once per parent rather
+    # than once per child; holding ``ids`` keeps the identity test sound
+    gathered: list = [None, None]
+
     def grid_test(ids: np.ndarray, lo: np.ndarray, hi: np.ndarray):
-        kept = _test_box(m_full[ids], lo, hi, basis, q_hi, det_band, swaps,
+        if gathered[0] is not ids:
+            gathered[0], gathered[1] = ids, m_full[ids]
+        kept = _test_box(gathered[1], lo, hi, basis, q_hi, det_band, swaps,
                          lo_search, hi_search, spec.n_unindexed, ids=ids)
         return None if kept is None else kept[3]
 
@@ -1040,7 +1050,12 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     # the shell containing the answer last.  Ordering the survivors by volume gives
     # the same "cheap answers first" property for one grid pass.
     volumes = _centre_volumes(basis, frontier)
-    stack = [(lo, hi, m_full[ids], ids, 0)
+    # siblings share one survivor list, and so share one gathered copy of its
+    # rows, as they did when the frontier carried the rows themselves: a copy
+    # per cell would multiply the frontier's memory by the grid's fan-out
+    rows_of: dict[int, np.ndarray] = {id(ids): m_full[ids]
+                                      for _lo, _hi, ids in frontier}
+    stack = [(lo, hi, rows_of[id(ids)], ids, 0)
              for _v, _i, lo, hi, ids in sorted(
                  ((volumes[i], i, lo, hi, ids)
                   for i, (lo, hi, ids) in enumerate(frontier)), reverse=True)]

@@ -57,6 +57,7 @@ from .engines import (
     refine_with_shift,
     reflection_ceiling_ok,
     register_engine,
+    row_local_product,
     search_line_order,
     search_volume_ceiling,
     shift_allowance_diagnostic,
@@ -300,6 +301,9 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
         # and what keeps "not reached" distinct from "truncated" (WP-1037)
         if cancel is not None and bool(cancel):
             break
+        # the trial index's once-a-process BLAS probe, asked before the unit's
+        # clock starts: it is set-up, not search time (a flag test after)
+        row_local_product()
         result.systems_searched += (system,)
         if progress is not None:
             progress.start(f"trial_error:{system}", engine="trial_error",
