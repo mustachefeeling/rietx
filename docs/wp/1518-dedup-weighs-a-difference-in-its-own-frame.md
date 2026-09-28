@@ -105,7 +105,7 @@ Batching the χ² tests (WP-1519). The choice of `CELL_EQUALITY_CHI2` or of
 
 ## Tasks
 
-- [ ] **Measure first.** On the harvests consensus pools for the acceptance
+- [x] **Measure first.** On the harvests consensus pools for the acceptance
       corpus (`tests/test_acceptance_indexing.py`'s datasets) and bethanechol's
       ten sets, count candidate pairs the test compares whose reduction is not
       the identity, and the groups that change when Σ is carried into the
@@ -115,12 +115,12 @@ Batching the χ² tests (WP-1519). The choice of `CELL_EQUALITY_CHI2` or of
       per distinct af. Unit tests: the false merge and the false split above,
       each asserted to come out right, and an identity-frame pair (c > a)
       whose verdict and χ² are unchanged to the bit.
-- [ ] `tests/test_acceptance_indexing.py` and `tests.bethanechol_benchmark`
+- [x] `tests/test_acceptance_indexing.py` and `tests.bethanechol_benchmark`
       (manual mode, run alone) on the final tree, with every changed group
       named. Add a rule to `indexing/CLAUDE.md` if the measurement shows a
       stranger needs one; the candidate wording is "a χ² takes its difference
       and its covariance in one frame".
-- [ ] Skill: none unless a grade moves on the corpus; if one does, the
+- [x] Skill: none unless a grade moves on the corpus; if one does, the
       agreement row in the indexing reference says what changed.
 
 ## Acceptance
