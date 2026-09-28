@@ -54,7 +54,11 @@ distinctness and the width are all unmoved; the `q_min ≤ q_hi` filter only eve
 drops such rows). So the replay can run on survivors ∩ centring. The stack carries
 row *values* (`m`), not row identities, so the fix needs the centring membership to
 ride with the rows — a per-row centring bitmask filtered by the same masks, or row
-indices. WP-1508's kernel, if it has landed, carries indices already.
+indices. *Superseded in part 2026-09-28:* WP-1508's kernel has landed (PR #514) and
+its pool carries row indices into `m_full`, but a leaf leaves the kernel as
+`(lo, hi, width)` only — its survivors sit at `pool[pool_top:pool_top + k]` and are
+overwritten by the next box, so the kernel must copy them out beside the leaf. The
+numpy loop still stacks values.
 
 **Cost 2 — `assign_lines` scans the whole centred trial set per anneal pass.**
 `_accept` calls it up to `MAX_ASSIGN_PASSES + 2` times per leaf per centring, and each
@@ -72,26 +76,23 @@ hexagonal: the gemv is 12.7 % of the unit and the in-window mask/fancy-index 17.
 A bound that is exact across the anneal passes has to hold for every af the passes
 visit, not only the leaf's box (refinement moves af out of it).
 
+**trial_error pays the same leaf cost** (WP-1508, 2026-09-28). Its synthetic
+monoclinic unit (270.5 s) spends 82 % in `_score` — `assign_lines` over the trial
+set plus `refine_candidate` and `refine_with_shift`, once per surviving solution —
+and 13 % in the batched solve. An exact restriction of `assign_lines` lands in both
+engines, so measure trial_error beside dichotomy when it does.
+
 **What a fix must not do**: change any finished search's `n_boxes`, `rows_per_box`,
-candidate list or digest. WP-1508's replay harness (inputs captured by stubbing the
-engine registry) is the way to check; its digests are below (`### Inherited`).
+candidate list or digest. WP-1508's replay harness is the way to check: each unit's
+inputs captured by swapping the engine registry (`engines._REGISTRY`) for recorders
+and running `index_pattern` once, then replayed to completion per unit; the per-unit
+digest is sha256 of every candidate's cell and `n_indexed`. Its scripts were session
+scratch. Digests (first 8 hex; `SearchSpec` as `index_pattern` builds it at a 1e5 s
+budget): brucite hexagonal `c82630be`, trigonal `719d4e0b`; corundum hexagonal
+`6a060c83`, trigonal `e8466d7f`, tetragonal `f610fbdc`; synthetic monoclinic
+`fc4d2b0b` — each identical on both paths on 2026-09-28.
 
 ### Inherited
-
-- **From WP-1508 (2026-09-28): trial_error pays the same leaf cost.** Its synthetic
-  monoclinic unit (270.5 s) spends 82 % in `_score` — `assign_lines` over the trial
-  set plus `refine_candidate` and `refine_with_shift`, once per surviving solution —
-  and 13 % in the batched solve. An exact restriction of `assign_lines` lands in both
-  engines, so measure trial_error beside dichotomy when it does.
-- **From WP-1508: the replay harness.** Each unit's inputs were captured by swapping
-  the engine registry (`engines._REGISTRY`) for recorders and running
-  `index_pattern` once, then replayed to completion per unit; the per-unit digests
-  (sha256 of every candidate's cell and `n_indexed`) are what "unchanged" was
-  checked against. Rebuilding it takes minutes; the scripts were session scratch.
-  Digests (first 8 hex; `SearchSpec` as `index_pattern` builds it at a 1e5 s
-  budget): brucite hexagonal `c82630be`, trigonal `719d4e0b`; corundum hexagonal
-  `6a060c83`, trigonal `e8466d7f`, tetragonal `f610fbdc`; synthetic monoclinic
-  `fc4d2b0b` — each identical on both paths on 2026-09-28.
 
 ## Non-goals
 
