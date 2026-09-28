@@ -45,8 +45,11 @@ from rietx.indexing.reduce import (
     bravais_screen,
     cell_from_vectors,
     conventional_cell,
+    equal_reduced,
     lattice_vectors,
     reduce_cell,
+    reduced_af,
+    reduction,
     same_lattice,
 )
 from rietx.schemas.indexing import q_esd_of_two_theta
@@ -289,6 +292,93 @@ def test_cell_equality_respects_the_measured_precision():
                                         cov_b=synchrotron)
     assert same_lab and chi2_lab <= CELL_EQUALITY_CHI2
     assert not same_sync and chi2_sync > CELL_EQUALITY_CHI2
+
+
+@settings(max_examples=60, deadline=None,
+          suppress_health_check=[HealthCheck.filter_too_much])
+@given(lengths, lengths, lengths, angles, angles, angles)
+def test_the_reduction_map_takes_a_to_f_where_the_reduction_does(a, b, c, al,
+                                                                  be, ga):
+    """WP-1518: T·af is the reduced A..F, so T·cov·Tᵀ is its covariance.
+
+    The map is built from gemmi's change-of-basis triplet, whose convention
+    (R⁻¹, not R, Rᵀ or R⁻ᵀ) is exactly what a wrong reading would get wrong on
+    every non-trivial reduction while leaving the identity ones right.
+    """
+    cell = (a, b, c, al, be, ga)
+    assume(_valid(cell))
+    af = af_from_cell(cell)
+    red, t = reduction(af)
+    assert np.array_equal(red, reduced_af(af))
+    if t is None:
+        assert np.allclose(red, af, rtol=1e-9, atol=1e-12 * np.max(np.abs(af)))
+    else:
+        assert np.array_equal(t, np.rint(t))
+        assert np.allclose(t @ af, red, rtol=1e-9,
+                           atol=1e-12 * np.max(np.abs(red)))
+
+
+def _own_frame_covariance(af: np.ndarray, rel: float, slots) -> np.ndarray:
+    """A diagonal covariance in the setting an engine refined in."""
+    return np.diag([(rel * af[s]) ** 2 if s in slots else 0.0
+                    for s in range(6)])
+
+
+def test_a_monoclinic_pair_apart_in_beta_is_two_lattices():
+    """WP-1518's false merge: a covariance read in the wrong frame.
+
+    Two b-unique cells 0.1° apart in β, each measured to 1e-4 on A, B, C and E.
+    Near 90° their difference is almost all E, and the reduction moves E into
+    the F slot, where an own-frame covariance has no variance.  Weighed there,
+    χ² was 1.3 and the two merged; the second assert is that witness.
+    """
+    af_a = af_from_cell((7.1, 9.3, 5.2, 90.0, 91.0, 90.0))
+    af_b = af_from_cell((7.1, 9.3, 5.2, 90.0, 91.1, 90.0))
+    cov_a = _own_frame_covariance(af_a, 1e-4, (0, 1, 2, 4))
+    cov_b = _own_frame_covariance(af_b, 1e-4, (0, 1, 2, 4))
+    assert reduction(af_a)[1] is not None
+    assert equal_reduced(reduced_af(af_a), reduced_af(af_b),
+                         cov_a=cov_a, cov_b=cov_b)[0]
+    same, chi2 = same_lattice(af_a, af_b, cov_a=cov_a, cov_b=cov_b)
+    assert not same and chi2 > 1e5, chi2
+
+
+def test_one_tetragonal_lattice_measured_twice_is_one_lattice():
+    """WP-1518's false split, the other direction of the same defect.
+
+    One (6, 6, 4) lattice measured with σ_A = 1e-6 (B tied to it) and
+    σ_C = 1e-5, the second copy 2σ away in C.  The reduction moves C into the A
+    slot, where the own-frame variance is a hundred times smaller.  Weighed
+    there, χ² was 50 and one lattice split in two; weighed in one frame it is 2.
+    """
+    af_a = af_from_cell((6.0, 6.0, 4.0, 90.0, 90.0, 90.0))
+    af_b = af_a + np.array([0.0, 0.0, 2e-5, 0.0, 0.0, 0.0])
+    cov = np.zeros((6, 6))
+    cov[:2, :2] = 1e-12
+    cov[2, 2] = 1e-10
+    assert reduction(af_a)[1] is not None
+    assert not equal_reduced(reduced_af(af_a), reduced_af(af_b),
+                             cov_a=cov, cov_b=cov)[0]
+    same, chi2 = same_lattice(af_a, af_b, cov_a=cov, cov_b=cov)
+    assert same and chi2 == pytest.approx(2.0, rel=1e-6)
+
+
+@pytest.mark.parametrize("cell", [
+    (4.0, 4.0, 6.0, 90.0, 90.0, 90.0),
+    (4.759, 4.759, 12.99, 90.0, 90.0, 120.0),
+])
+def test_a_pair_already_in_its_reduced_setting_is_unchanged_to_the_bit(cell):
+    """c > a keeps the setting, so no covariance is carried and χ² is the
+    pre-WP-1518 number exactly (corundum's own hexagonal cell is one)."""
+    af_a = af_from_cell(cell)
+    af_b = af_a * (1.0 + np.array([3e-6, 3e-6, -2e-6, 0.0, 0.0, 1e-6]))
+    rng = np.random.default_rng(1518)
+    root = rng.standard_normal((6, 6)) * 1e-6 * np.max(np.abs(af_a))
+    cov_a, cov_b = root @ root.T, 0.5 * root @ root.T
+    assert reduction(af_a)[1] is None and reduction(af_b)[1] is None
+    before = equal_reduced(reduced_af(af_a), reduced_af(af_b),
+                           cov_a=cov_a, cov_b=cov_b)
+    assert same_lattice(af_a, af_b, cov_a=cov_a, cov_b=cov_b) == before
 
 
 # ----------------------------------------------------------------------

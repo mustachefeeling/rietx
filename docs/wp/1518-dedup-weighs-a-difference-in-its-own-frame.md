@@ -111,7 +111,7 @@ Batching the χ² tests (WP-1519). The choice of `CELL_EQUALITY_CHI2` or of
       the identity, and the groups that change when Σ is carried into the
       reduced frame. Record every rank and grade that moves. Re-rate this WP
       from the result.
-- [ ] Carry each candidate's covariance through its own change of basis, once
+- [x] Carry each candidate's covariance through its own change of basis, once
       per distinct af. Unit tests: the false merge and the false split above,
       each asserted to come out right, and an identity-frame pair (c > a)
       whose verdict and χ² are unchanged to the bit.

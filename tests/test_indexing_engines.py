@@ -1108,6 +1108,68 @@ def test_the_fast_dedup_groups_exactly_as_the_plain_pass(monkeypatch):
                                                                for c in once]
 
 
+def _fitted(cell: tuple, cov: np.ndarray, system: str, engine: str):
+    """An engine candidate carrying exactly this cell and own-frame covariance."""
+    from rietx.indexing.engines import EngineCandidate
+    from rietx.indexing.qspace import CandidateFit, cell_from_af
+
+    af = af_from_cell(cell)
+    fit = CandidateFit(af=af, cov_af=cov, cell=cell_from_af(af),
+                       cell_esd=np.zeros(6), system=system, n_lines=20,
+                       chi2_red=1.0, residual_q=np.zeros(20))
+    return EngineCandidate(fit=fit, system=system, centring="P", engine=engine,
+                           hkl=np.zeros((20, 3)), line_index=np.arange(20),
+                           n_lines=20)
+
+
+def test_dedup_weighs_each_covariance_in_the_reduced_frame():
+    """WP-1518: which engines found a lattice depends on the frame Σ is read in.
+
+    Both of ``reduce``'s cases, as two engines' candidates.  The monoclinic pair
+    is two lattices 0.1° apart in β, and the own-frame covariance merged them,
+    faking an agreement.  The tetragonal pair is one lattice 2σ apart in C, and
+    the own-frame covariance split it, denying one.  Both passes must answer
+    the same, and the merge must credit exactly the engines of each group.
+    """
+    from rietx.indexing import engines
+    from rietx.indexing.consensus import merge_engine_candidates
+    from rietx.indexing.engines import EngineResult
+    from rietx.indexing.qspace import cell_from_af
+
+    mono = [(7.1, 9.3, 5.2, 90.0, beta, 90.0) for beta in (91.0, 91.1)]
+    covs = [np.diag([(1e-4 * af_from_cell(c)[s]) ** 2 if s in (0, 1, 2, 4)
+                     else 0.0 for s in range(6)]) for c in mono]
+    tetragonal = (6.0, 6.0, 4.0, 90.0, 90.0, 90.0)
+    cov = np.zeros((6, 6))
+    cov[:2, :2] = 1e-12
+    cov[2, 2] = 1e-10
+    shifted = cell_from_af(af_from_cell(tetragonal)
+                           + np.array([0, 0, 2e-5, 0, 0, 0]))
+
+    def cands():
+        return [_fitted(mono[0], covs[0], "monoclinic", "dichotomy"),
+                _fitted(mono[1], covs[1], "monoclinic", "trial_error"),
+                _fitted(tetragonal, cov, "tetragonal", "dichotomy"),
+                _fitted(shifted, cov, "tetragonal", "trial_error")]
+
+    for fast in (True, False):
+        groups = engines._dedup_groups(cands(), fast=fast)
+        sizes = sorted((g[0].system, len(g)) for g in groups)
+        assert sizes == [("monoclinic", 1), ("monoclinic", 1),
+                         ("tetragonal", 2)], (fast, sizes)
+
+    results = []
+    for engine in ("dichotomy", "trial_error"):
+        result = EngineResult(engine=engine)
+        result.candidates = [c for c in cands() if c.engine == engine]
+        results.append(result)
+    found_by = sorted((c.system, tuple(c.found_by))
+                      for c in merge_engine_candidates(results))
+    assert found_by == [("monoclinic", ("dichotomy",)),
+                        ("monoclinic", ("trial_error",)),
+                        ("tetragonal", ("dichotomy", "trial_error"))]
+
+
 def test_the_within_engine_dedup_key_carries_the_scale_and_the_centring():
     """``engines.solution_key`` — the two ways a lazier key loses a real answer.
 

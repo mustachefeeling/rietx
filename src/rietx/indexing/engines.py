@@ -1368,7 +1368,9 @@ def dedup_groups(cands: Sequence[EngineCandidate],
     """Group candidates that are the same lattice, best-fitting member first.
 
     WP-1020's χ² equality on the **Niggli-reduced** A..F, so a setting change is
-    equality rather than an ambiguity — but keyed within a centring, because the
+    equality rather than an ambiguity, with each candidate's covariance carried
+    into that frame by its own change of basis (WP-1518, ``reduce.reduction``)
+    — but keyed within a centring, because the
     same metric with two different centrings is two different *lattices* (one
     predicts half the lines of the other) and merging them would silently drop a
     hypothesis the figures of merit are there to choose between.
@@ -1404,36 +1406,41 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
     """:func:`dedup_groups`, with its caches and volume index switchable."""
     from bisect import bisect_left, bisect_right
 
-    from .reduce import equal_reduced, reduced_af
+    from .reduce import equal_reduced, reduced_covariance, reduction
 
-    #: reduce **once** per candidate, not once per comparison
-    reduced: dict[bytes, tuple[np.ndarray, float] | None] = {}
-    prepared: list[tuple[EngineCandidate, np.ndarray, float, tuple]] = []
+    #: reduce **once** per candidate, not once per comparison, and keep the map
+    #: that carries the candidate's covariance into the same reduced frame
+    #: (WP-1518: ``cov_af`` is in the setting the engine refined in)
+    reduced: dict[bytes, tuple[np.ndarray, float, np.ndarray | None] | None] = {}
+    prepared: list[tuple[EngineCandidate, np.ndarray, float, tuple,
+                         np.ndarray | None]] = []
     for cand in sorted(cands, key=lambda c: (-c.n_indexed, c.fit.chi2_red)):
         af_key = np.asarray(cand.fit.af, dtype=np.float64).tobytes()
         if not fast or af_key not in reduced:
             try:
-                red = reduced_af(cand.fit.af)
+                red, t = reduction(cand.fit.af)
             except (ValueError, np.linalg.LinAlgError, RuntimeError):
                 reduced[af_key] = None
             else:
-                reduced[af_key] = (red, _reduced_volume(red))
+                reduced[af_key] = (red, _reduced_volume(red), t)
         if reduced[af_key] is None:
             continue
-        red, volume = reduced[af_key]
+        red, volume, t = reduced[af_key]
         cov = cand.fit.cov_af
         cov_key = (None if cov is None
                    else np.asarray(cov, dtype=np.float64).tobytes())
         prepared.append((cand, red, volume,
-                         (af_key, cov_key, cand.system, cand.centring)))
+                         (af_key, cov_key, cand.system, cand.centring),
+                         reduced_covariance(cov, t)))
 
-    kept: list[tuple[list[EngineCandidate], np.ndarray, float]] = []
+    kept: list[tuple[list[EngineCandidate], np.ndarray, float,
+                     np.ndarray | None]] = []
     tested: dict[tuple[tuple, int], bool] = {}
     # per (system, centring): finite volumes sorted, their groups beside them,
     # and the groups whose volume is not finite
     by_volume: dict[tuple[str, str], tuple[list[float], list[int], list[int]]] = {}
     rtol = DEDUP_VOLUME_RTOL
-    for cand, red, volume, key in prepared:
+    for cand, red, volume, key, cov in prepared:
         if fast:
             vols, ids, unbounded = by_volume.setdefault(
                 (cand.system, cand.centring), ([], [], []))
@@ -1448,7 +1455,7 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
         else:
             order = range(len(kept))
         for g in order:
-            group, other_red, other_volume = kept[g]
+            group, other_red, other_volume, other_cov = kept[g]
             # volume gate first: two lattices whose reduced volumes differ by more
             # than a per-cent cannot pass a χ² test on their metrics, and this is
             # what keeps the pass from being N² pinv solves as well as N² reductions
@@ -1461,9 +1468,8 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
             same = tested.get((key, g)) if fast else None
             if same is None:
                 try:
-                    same, _chi2 = equal_reduced(red, other_red,
-                                                cov_a=cand.fit.cov_af,
-                                                cov_b=other.fit.cov_af)
+                    same, _chi2 = equal_reduced(red, other_red, cov_a=cov,
+                                                cov_b=other_cov)
                 except (ValueError, np.linalg.LinAlgError):
                     same = False
                 if fast:
@@ -1479,8 +1485,8 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
                     ids.insert(at, len(kept))
                 else:
                     unbounded.append(len(kept))
-            kept.append(([cand], red, volume))
-    return [group for group, _red, _vol in kept]
+            kept.append(([cand], red, volume, cov))
+    return [group for group, _red, _vol, _cov in kept]
 
 
 def dedup_candidates(cands: Sequence[EngineCandidate],

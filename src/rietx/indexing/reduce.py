@@ -38,11 +38,21 @@ using their joint covariance.  A fixed percentage merges distinct synchrotron
 cells (whose esds are 100× smaller than the bound) and splits noisy lab ones —
 per-line σ doing work again.  The relative fallback exists only for candidates
 that arrive with no covariance at all.
+
+**The difference and the covariance are taken in one frame** (WP-1518).  An
+engine's covariance is in the setting it refined in, and the reduction permutes
+and mixes A..F: a b-unique monoclinic cell's E lands in the F slot, and a c < a
+cell's C lands in the A slot.  So :func:`reduction` returns the linear map beside
+the reduced vector, and each covariance is carried through its own map.  Weighed
+in the engine's frame instead, the difference met other components' variances.
+Two b-unique cells 0.1° apart in β merged at χ² 1.3, and 41 % of pairs drawn
+from one tetragonal lattice's covariance were split.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 import numpy as np
 
@@ -321,14 +331,65 @@ def reduced_af(af: np.ndarray) -> np.ndarray:
     do.  Measured on a monoclinic search that accepted ~5 000 raw candidates, that
     was the single largest cost in the engine.
     """
+    return reduction(af)[0]
+
+
+def reduction(af: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
+    """(A..F) of the Niggli-reduced form, and the 6×6 map T that took ``af`` there.
+
+    red = T·af, so a covariance of ``af`` is T·cov·Tᵀ in the reduced frame
+    (:func:`reduced_covariance`).  T is ``None`` when the reduction kept the
+    setting, which is what keeps a pair already in its reduced setting
+    bit-identical to the test before WP-1518.
+    """
     from .qspace import af_from_cell, cell_from_af
-    return af_from_cell(reduce_cell(cell_from_af(af)).cell)
+    reduced = reduce_cell(cell_from_af(af))
+    return af_from_cell(reduced.cell), _af_map(reduced.change_of_basis)
+
+
+@lru_cache(maxsize=256)
+def _af_map(change_of_basis: str) -> np.ndarray | None:
+    """The linear map on A..F of a primitive change of basis, a gemmi triplet.
+
+    gemmi's operator R takes the reciprocal metric to R⁻¹·G*·R⁻ᵀ.  That
+    convention was measured, since the inverse and the transpose are each a
+    plausible reading.  Over 28 reductions of cubic to triclinic cells in five
+    centrings, R⁻¹ matched the reduced metric to ≤ 1e-15 relative every time.
+    R, Rᵀ and R⁻ᵀ each missed some by 0.3 or more, and a permutation, where
+    Rᵀ = R⁻¹, hides the difference.  A..F is linear in G*
+    (:func:`~.qspace.gstar_from_af`), so column p of T is that congruence
+    applied to the p-th unit vector.  R⁻¹ of a primitive reduction is
+    unimodular, and rounding it makes T exact.
+    """
+    if change_of_basis == "x,y,z":
+        return None
+    import gemmi
+
+    from .qspace import af_from_gstar, gstar_from_af
+    rot = np.array(gemmi.Op(change_of_basis).rot, dtype=np.float64) / gemmi.Op.DEN
+    m = np.rint(np.linalg.inv(rot))
+    t = np.column_stack([af_from_gstar(m @ gstar_from_af(e) @ m.T)
+                         for e in np.eye(6)])
+    t.setflags(write=False)
+    return t
+
+
+def reduced_covariance(cov: np.ndarray | None, t: np.ndarray | None
+                       ) -> np.ndarray | None:
+    """A covariance of A..F carried into the frame :func:`reduction`'s T maps to."""
+    if cov is None or t is None:
+        return cov
+    return t @ np.asarray(cov, dtype=np.float64) @ t.T
 
 
 def equal_reduced(red_a: np.ndarray, red_b: np.ndarray, *,
                   cov_a: np.ndarray | None = None,
                   cov_b: np.ndarray | None = None) -> tuple[bool, float]:
-    """The χ² equality test on **already reduced** A..F vectors."""
+    """The χ² equality test on **already reduced** A..F vectors.
+
+    The covariances must be in the reduced frame too.  An engine's ``cov_af`` is
+    in the setting it refined in, so carry it with :func:`reduced_covariance`.
+    """
     delta = np.asarray(red_a) - np.asarray(red_b)
     if cov_a is None or cov_b is None:
         scale = np.maximum(np.abs(red_a), np.abs(red_b))
@@ -347,16 +408,20 @@ def same_lattice(af_a: np.ndarray, af_b: np.ndarray, *,
     Both are Niggli-reduced first, so a *setting* change is equality rather than
     ambiguity — which is the whole reason dedup and geometrical ambiguity
     (WP-1020's ``ambiguity.py``) are different questions.  With covariances the
-    test is χ² = ΔᵀΣ⁻¹Δ against :data:`CELL_EQUALITY_CHI2`; without, it falls back
-    to :data:`CELL_EQUALITY_RELATIVE` on the reduced cell parameters and the
-    returned χ² is NaN so a caller can see which test ran.
+    test is χ² = ΔᵀΣ⁻¹Δ against :data:`CELL_EQUALITY_CHI2`, each covariance
+    given in its own vector's frame and carried through its own reduction;
+    without, it falls back to :data:`CELL_EQUALITY_RELATIVE` on the reduced cell
+    parameters and the returned χ² is NaN so a caller can see which test ran.
     """
-    return equal_reduced(reduced_af(af_a), reduced_af(af_b),
-                         cov_a=cov_a, cov_b=cov_b)
+    red_a, t_a = reduction(af_a)
+    red_b, t_b = reduction(af_b)
+    return equal_reduced(red_a, red_b, cov_a=reduced_covariance(cov_a, t_a),
+                         cov_b=reduced_covariance(cov_b, t_b))
 
 
 __all__ = ["BRAVAIS_OBLIQUITIES", "BRAVAIS_SYMPREC_SIGMAS",
            "CELL_EQUALITY_CHI2", "CELL_EQUALITY_RELATIVE", "SYSTEM_RANK",
            "BravaisScreen", "ReducedCell", "bravais_screen", "cell_from_vectors",
            "conventional_cell", "equal_reduced", "lattice_vectors",
-           "reduce_cell", "reduced_af", "same_lattice"]
+           "reduce_cell", "reduced_af", "reduced_covariance", "reduction",
+           "same_lattice"]
