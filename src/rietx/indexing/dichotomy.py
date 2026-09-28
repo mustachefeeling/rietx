@@ -647,6 +647,9 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
     capped: list[str] = []
     stopped: list[str] = []
     raw: list[EngineCandidate] = []
+    # built (or loaded from the disk cache) before any unit's clock starts: a
+    # first compile on a machine is ~4 s, and it is not search time
+    _traversal_kernels()
     for system in systems:
         # a system this engine never *started* is not claimed: it stays out of
         # ``systems_searched`` and ``search_complete``, which is what lets the
@@ -721,6 +724,36 @@ def _centre_volume(basis: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> float:
     except ValueError:
         return float("inf")
 
+
+def _centre_volumes(basis: np.ndarray, boxes) -> list[float]:
+    """:func:`_centre_volume` for every ``(lo, hi, ...)`` box, on the same bits.
+
+    Ordering the grid's survivors called the scalar one per cell, and once the
+    traversal was compiled that loop was a quarter of a 4-D unit (WP-1508).
+    Each box's A..F is still its own ``basis.T @ θ`` — a batched product may
+    round differently, and the key only has to break a near-tie differently to
+    reorder the search — while the eigenvalue test and the inverse run as one
+    stacked LAPACK call each, which loops the same routine over the stack.
+    ``tests/test_indexing_kernels.py`` holds the two equal on the bit, cells
+    that are not lattices included.
+    """
+    from .qspace import _AF_FACTOR, _AF_INDEX
+
+    if not boxes:
+        return []
+    af = np.array([basis.T @ (0.5 * (box[0] + box[1])) for box in boxes])
+    g = np.zeros((len(af), 3, 3))
+    for p, (i, j) in enumerate(_AF_INDEX):
+        v = af[:, p] / _AF_FACTOR[p]
+        g[:, i, j] = v
+        g[:, j, i] = v
+    ok = np.all(np.linalg.eigvalsh(g) > 0.0, axis=1)
+    out = np.full(len(af), np.inf)
+    if ok.any():
+        inv = np.linalg.inv(g[ok])
+        a, b, c = (np.sqrt(inv[:, i, i]) for i in range(3))
+        out[ok] = a * b * c
+    return [float(v) for v in out]
 
 def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
                 spec: SearchSpec,
@@ -919,9 +952,10 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     # again per shell — eight shells × ~70 s of grid on a monoclinic domain, with
     # the shell containing the answer last.  Ordering the survivors by volume gives
     # the same "cheap answers first" property for one grid pass.
+    volumes = _centre_volumes(basis, frontier)
     stack = [(lo, hi, m, 0)
              for _v, _i, lo, hi, m in sorted(
-                 ((_centre_volume(basis, lo, hi), i, lo, hi, m)
+                 ((volumes[i], i, lo, hi, m)
                   for i, (lo, hi, m) in enumerate(frontier)), reverse=True)]
     while stack:
         if budget.expired():
@@ -1032,7 +1066,8 @@ def _traverse_compiled(kernels: dict, basis: np.ndarray, lo0: np.ndarray,
             break
 
     # ---- phase 2: the traversal, smallest cell first as in the numpy path ----
-    order = sorted(((_centre_volume(basis, lo, hi), i, lo, hi, rows)
+    volumes = _centre_volumes(basis, frontier)
+    order = sorted(((volumes[i], i, lo, hi, rows)
                     for i, (lo, hi, rows) in enumerate(frontier)), reverse=True)
     n_dim = len(lo0)
     n_entries = len(order)

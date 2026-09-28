@@ -96,6 +96,7 @@ Measured by replaying each unit exactly as `index_pattern` hands it to the engin
 | brucite trigonal | 275 s | 75 475 | 2074 | 10 % | 87 % (46 / 41) |
 | corundum hexagonal | 204 s | 59 886 | 1983 | 11 % | 85 % (56 / 28) |
 | corundum trigonal | 221 s | 59 886 | 1983 | 10 % | 87 % (51 / 36) |
+| corundum tetragonal | 555 s | 103 255 | 492 | 4 % | 82 % (50 / 32), + 13 % ranking and dedup |
 | synthetic monoclinic | 206 s | 1 309 957 | 107 | **94 %** | 0.6 % |
 
 - **The cost model this WP opened with was wrong for the rows it was written
@@ -161,8 +162,25 @@ numpy fixes. Any change to what a finished search reports.
       one Q-bound sum fails the width bits; flipping the children's tie rule passed
       every counts-and-candidates assertion and is caught only by the leaf sequence,
       which is why that assertion exists.
-- [ ] Before/after timings of the gate's units; `tests/test_acceptance_indexing.py`
-      once on the final tree; `tests.bethanechol_benchmark` alone.
+- [x] Before/after timings of the gate's units — replayed from the captured inputs,
+      serial, idle machine, same venv and platform as § Gate reading; every unit's
+      boxes, rows per box and candidate digest identical to its numpy baseline:
+
+      | unit | numpy | compiled | ratio |
+      |---|---|---|---|
+      | synthetic monoclinic | 194.8-205.6 s | 10.0 s (9.995, 10.023) | ~20× |
+      | brucite hexagonal | 241.1 s | 226.0 s | 1.07× |
+      | brucite trigonal | 274.6 s | 253.0 s | 1.09× |
+      | corundum trigonal | 220.5 s | 203.3 s | 1.08× |
+      | corundum tetragonal | 554.6 s | 536.6 s | 1.03× |
+
+      The monoclinic figure includes `_centre_volumes`: once the traversal was
+      compiled, ordering the grid's survivors (`_centre_volume` per cell) was 24 %
+      of the unit, 14.0 s → 10.0 s when batched on the same bits. The kernels
+      build before any unit's clock starts: 4.4 s cold, 0.23-0.27 s from the
+      numba cache.
+- [ ] `tests/test_acceptance_indexing.py` once on the final tree;
+      `tests.bethanechol_benchmark` alone.
 - [ ] Skill: none expected — a faster engine changes no call an agent makes; say so
       at close, or name the row if the `quick` preset's reach changes what the skill
       promises.

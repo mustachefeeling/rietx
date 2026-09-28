@@ -142,9 +142,20 @@ The first process on a machine pays a 0.6 s compile, and every later one pays
 the compile starts on a background thread when the model is compiled, and runs
 while the file is read and the parameter table is built.
 
+The dichotomy indexing engine's box search runs on a compiled kernel too. It
+searches the same boxes in the same order as the numpy loop, so it finds the
+same candidates, bit for bit, and only the time changes. How much depends on
+how many free metric parameters the crystal system has. On a synthetic
+monoclinic list (four) the engine takes 10 s where it took 195-206 s. On the
+round-robin brucite and corundum patterns (hexagonal, trigonal and tetragonal,
+two each) it saves 3-8 %, because most of their time goes to refining the cells
+the search finds rather than to the search. That kernel is compiled the first
+time an indexing search needs it, 4.4 s on the first run on a machine and
+0.25 s after that, before any crystal system's time budget starts.
+
 Turn the kernels off with `RIETX_COMPILED=0`, which needs no reinstall. Every
 kernel has the numpy expression it replaces standing behind it, so refinements
-run correctly, only slower. Use it on a machine where the compiler misbehaves,
+and indexing searches run correctly, only slower. Use it on a machine where the compiler misbehaves,
 or for a run that has to reproduce another one exactly.
 
 ```sh

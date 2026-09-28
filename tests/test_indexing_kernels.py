@@ -25,6 +25,8 @@ import pytest
 from rietx.indexing import dichotomy
 from rietx.indexing.dichotomy import (
     MAX_ANGLE_COSINE,
+    _centre_volume,
+    _centre_volumes,
     _initial_box,
     _max_index,
     _pivot_of,
@@ -43,7 +45,9 @@ from rietx.indexing.qspace import af_from_cell, design_matrix, metric_basis, sig
 from rietx.model import compiled
 from tests.test_indexing_engines import CASES, spec_for, synthetic_peaks
 
-pytestmark = pytest.mark.skipif(
+#: every test that builds a kernel; the ordering-key test below needs none,
+#: because the numpy loop reads that key too
+needs_numba = pytest.mark.skipif(
     not compiled.available(), reason="no numba in this venv")
 
 #: the fast synthetic cases, one per metric dimension up to three
@@ -123,6 +127,7 @@ def _box_setup(peaks_system: str, basis_system: str):
     # swap without a triclinic search
     ("orthorhombic", "triclinic"),
 ])
+@needs_numba
 def test_one_box_is_the_numpy_box_bit_for_bit(peaks_system, basis_system):
     """Verdict, survivors, width and uniqueness of ``_test_box``, on the bit.
 
@@ -214,6 +219,7 @@ def _both(system: str, monkeypatch, **spec_kw) -> tuple:
     return tuple(out)
 
 
+@needs_numba
 @pytest.mark.parametrize("system", FAST_SYSTEMS)
 def test_a_whole_search_reports_the_same_boxes_and_candidates(system, monkeypatch):
     (numpy_result, numpy_leaves), (compiled_result, compiled_leaves) = _both(
@@ -223,6 +229,7 @@ def test_a_whole_search_reports_the_same_boxes_and_candidates(system, monkeypatc
     assert compiled_leaves == numpy_leaves, "the leaves arrived in another order"
 
 
+@needs_numba
 @pytest.mark.parametrize("system", ("tetragonal", "orthorhombic"))
 def test_every_handback_resumes_where_the_traversal_stopped(system, monkeypatch):
     """Hand back after every box, every leaf, and on every pool write.
@@ -242,6 +249,7 @@ def test_every_handback_resumes_where_the_traversal_stopped(system, monkeypatch)
     assert compiled_leaves == numpy_leaves
 
 
+@needs_numba
 def test_an_expired_budget_stops_the_compiled_search_and_says_so(monkeypatch):
     """A cut search is incomplete on both paths — never silently finished."""
     (numpy_result, _), (compiled_result, _) = _both(
@@ -250,9 +258,37 @@ def test_an_expired_budget_stops_the_compiled_search_and_says_so(monkeypatch):
     assert compiled_result.search_complete == {"orthorhombic": False}
 
 
+@needs_numba
 def test_the_switch_turns_the_compiled_traversal_off():
     """``RIETX_COMPILED``'s switch is the one knob: off means the numpy loop."""
     compiled.set_enabled(False)
     assert dichotomy._traversal_kernels() is None
     compiled.set_enabled(True)
     assert dichotomy._traversal_kernels() is not None
+
+
+def test_the_ordering_key_is_the_scalar_one_on_the_bit():
+    """``_centre_volumes`` orders the grid's survivors for both paths.
+
+    It replaced a per-cell loop that became a quarter of a compiled 4-D unit, and
+    it may not move a single bit of the key: two cells whose keys differ in the
+    last place would swap, and the search would visit them in another order.
+    Boxes are drawn over the whole triclinic domain, where most centres are not
+    lattices at all, so the ``inf`` branch is exercised beside the finite one.
+    """
+    rng = np.random.default_rng(15081)
+    for system in ("cubic", "hexagonal", "orthorhombic", "monoclinic", "triclinic"):
+        basis = metric_basis(system)
+        spec = spec_for("monoclinic")
+        lo0, hi0 = _initial_box(basis, spec)
+        boxes = []
+        for _ in range(300):
+            a = lo0 + rng.random(len(lo0)) * (hi0 - lo0)
+            b = lo0 + rng.random(len(lo0)) * (hi0 - lo0)
+            boxes.append((np.minimum(a, b), np.maximum(a, b), None))
+        want = [_centre_volume(basis, lo, hi) for lo, hi, _ in boxes]
+        got = _centre_volumes(basis, boxes)
+        assert _bits(got) == _bits(want), system
+        if system == "triclinic":
+            assert np.isinf(want).any() and np.isfinite(want).any()
+    assert _centre_volumes(metric_basis("cubic"), []) == []
