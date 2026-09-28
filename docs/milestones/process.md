@@ -599,6 +599,13 @@ count, has no rows left to apply to.  Filing, starting or closing a WP no
 longer touches ROADMAP, so the cap now moves only when prose does.  Landed
 570, +1 headroom.
 
+571 -> 579 for the structure track (2026-09-28, WPs 1510-1517): prose, so
+the new rule applies.  One new § Unscheduled group with the three-line blurb
+the other groups carry, and the fence paragraph rewritten to say what left
+it and when.  The blurb was cut from five lines to three before the cap was
+touched; the evidence behind it is DESIGN.md's *Structure fence revised* and
+the WP files.  Landed 578, +1 headroom.
+
 ### `gui/CLAUDE.md`
 
 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer

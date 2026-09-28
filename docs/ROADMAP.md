@@ -494,6 +494,14 @@ separability floor, and not scheduled here.
 
 The WPs are in [the index](wp/README.md#unscheduled-render-what-the-fit-already-knows).
 
+#### Data and metadata in, a structure out
+
+A pattern and what the person knows, in; a structure an agent can defend, out.
+Opened 2026-09-28 by the review of `solution case 1`. 1514-1516 each scope a
+milestone for what left § v2+ that day; 1517 counts the eight steers.
+
+The WPs are in [the index](wp/README.md#unscheduled-data-and-metadata-in-a-structure-out).
+
 #### The repo's own process
 
 The WPs are in [the index](wp/README.md#unscheduled-the-repo-s-own-process).
@@ -521,19 +529,19 @@ scope creep. Each item names what fenced it.
   (`CompiledModel.tt`, `line_wavelengths`, `sigma_measured`; `viz/snapshot.py`
   and 23 more sites) a second compiled-model class meets, so the accessor seam
   it proposes waits for that class rather than preceding it; spherical-harmonics
-  texture (Von Dreele 1997; #131); Z-matrices and rigid bodies (#195);
+  texture (Von Dreele 1997; #131);
   difference Fourier / maximum-entropy maps (McCusker §6; the partition input
   exists in `lebail_update`, the consumer is structure completion; #197);
   internal-standard and amorphous QPA; **modulated structures** (superspace —
   1314 reads Jana's files without them; issue #258 holds the shared design
-  for the nuclear and magnetic cases); **stacking faults** (DIFFaX-style
-  recursion). Both were named 2026-09-01 as gaps a neutron-capable Rietveld
-  code is asked for; no issue yet. **Magnetic structures left this fence
+  for the nuclear and magnetic cases). **Magnetic structures left this fence
   2026-09-02** for § Unscheduled's track (1326–1329); the incommensurate
   case, polarised neutrons and magnetic X-rays stay fenced (1327's non-goals).
-- **Solution.** Structure solution from an indexed cell; charge flipping
-  (#198); search-match phase identification (prior art: the 36-cell screen at
-  `guillemot-study:studies/guillemot/match_hl2.py`).
+  **Rigid bodies (#195), direct-space solution and stacking faults left it
+  2026-09-28** for scoping in § Unscheduled (1514–1516; DESIGN.md has why).
+- **Solution.** Charge flipping (#198; 1515 decides whether it follows, and
+  #197 with it); search-match phase identification (prior art: the 36-cell
+  screen at `guillemot-study:studies/guillemot/match_hl2.py`).
 - **Indexing, fenced by 1018–1027.** Multi-phase indexing (index the residual
   after subtracting a solved phase); the full Bayesian extinction-symbol
   posterior (Markvardsen et al. 2001 — ΔBIC/Hamilton is the v1.0 form); a

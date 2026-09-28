@@ -66,6 +66,26 @@ does not change it.
 
 ### Inherited
 
+- **2026-09-28, from the review of `solution case 1` (private corpus map
+  § 5; WP-1510 has the source).** A third way a Le Bail answer goes wrong,
+  this time on the background. The agent followed SKILL.md §2 rule 5 and
+  seeded every coefficient of an `auto_background` P-spline at a low
+  percentile. The pattern carried a broad diffuse hump over several degrees.
+  The free per-reflection intensities absorbed it, the background stayed at
+  its seed, and the Lorentzian width term grew to carry the hump's tails (it
+  fell 4× once the background was corrected). The cell was unaffected, so
+  nothing looked wrong. Every structure fit after it inherited a background
+  that was too low, with light-atom Biso at bounds and strong peaks
+  under-predicted, for about two hours, until the person saw the flat line
+  in a plot. What worked was a SNIP estimate held fixed under a 4-term
+  Chebyshev: Le Bail Rwp fell to 0.74× its first value. A fully free
+  background went the other way (`BACKGROUND_ABSORPTION`, R² 0.70 against
+  the scale). The agent wrote its own SNIP although `rietx.background.snip`
+  ships, and the skill names neither it nor this failure. For this WP's
+  scope clause: the Le Bail call owns a background protocol, and a width
+  term that grows while the background sits at its seed is the tell to
+  report. The too-stiff side has no guard (root CLAUDE.md § Background
+  flexibility).
 - **2026-09-23, from the issue triage (issue #210).** The reporter's two
   later comments (2026-09-01 and 2026-09-02) revise the Context's framing,
   and no session had folded them. The time cost does not transfer: on a

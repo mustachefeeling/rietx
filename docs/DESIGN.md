@@ -206,6 +206,26 @@ differentiable from day one.
     the proposal left open taken in 1327. **What stays fenced**: the
     incommensurate case (superspace, with modulated structures), polarised
     neutrons, magnetic X-ray scattering, and TOF.
+  - *Structure fence revised (2026-09-28).* Rigid bodies and Z-matrices
+    (#195), structure solution from an indexed cell, and stacking faults were
+    v2+ line items. The grounds changed with one run: `solution case 1` in
+    the private corpus map, a collaborator's agent that took a lab pattern to
+    a disordered, faulted structure in two days on rietx 1.4.0. It built each
+    of the three for itself, and every one of them sat on a seam the package
+    already has. Its annealing ran on `Refinement.predict()` at 20-35 ms an
+    evaluation. Its ring shape went back in as `BondRestraint` rows across
+    symmetry images, and its diffuse term as a tabulated additive curve.
+    Where it wrote its own code, that code carried the defects the package
+    already guards against: periodic images missed through every annealing
+    stage, and a diffuse lock that breaks on a later release. It also did not
+    use FOX or GSAS-II, having found an earlier FOX pipeline untrustworthy,
+    so the host an agent picks is the package it is already driving. The
+    track is ROADMAP § Unscheduled, WPs 1510-1517. Each of the three
+    measured larger than one WP, so 1514-1516 each scope a milestone and the
+    maintainer decides each draft. **What stays fenced**: charge flipping
+    (#198) and difference Fourier and maximum-entropy maps (#197), until
+    1515 decides whether they follow direct space; modulated structures;
+    and total scattering (#192).
 
 ## Architecture invariants
 

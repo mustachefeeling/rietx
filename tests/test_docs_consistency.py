@@ -231,6 +231,9 @@ PRIORITIES = wp_index.PRIORITIES
 #                                                          repeat the defect. Landed 972, +1 headroom
 #   2026-09-27  docs/ROADMAP.md               880 -> 571  for WP-1507: the WP tables left for the
 #                                                          generated docs/wp/README.md; prose only now
+#   2026-09-28  docs/ROADMAP.md               571 -> 579  for the structure track (1510-1517): one new
+#                                                          Unscheduled group and its blurb, the fence
+#                                                          paragraph saying what left it; landed 578
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -551,7 +554,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # its WP-level paragraphs moved to the v1.6 record.  From here the cap is
     # a budget on prose alone, and the per-row bump above ends.  Landed 570,
     # +1 headroom.
-    "docs/ROADMAP.md": 571,
+    "docs/ROADMAP.md": 579,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
