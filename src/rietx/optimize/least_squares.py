@@ -298,8 +298,11 @@ def _residual_cosine(jac, fun) -> np.ndarray | None:
     """
     if jac is None:
         return None
+    from .statistics import column_norms
+
     j, f = np.asarray(jac), np.asarray(fun)
-    denom = np.linalg.norm(j, axis=0) * np.linalg.norm(f)
+    # a column of 1e-170 squares to zero and would read as "not held" (WP-1463)
+    denom = column_norms(j) * np.linalg.norm(f)
     return np.divide(j.T @ f, denom, out=np.zeros(j.shape[1]), where=denom > 0)
 
 
@@ -1620,17 +1623,25 @@ def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,
     residual is *required* to have been fp64 all along.
 
     The pinv guarding, the symmetrisation and the fp64 boundary live in
-    :func:`statistics.normal_covariance`, shared with the per-peak profile fits
+    :func:`statistics.normal_factors`, shared with the per-peak profile fits
     (WP-1018) so the two surfaces cannot disagree about them; the final clip
     below removes the 1-ulp overshoot ``eigh`` can leave, so a reported
     correlation is always a valid one.  Note the clip is *not* the fix —
     clipping a 2.75 to 1.0 would report a degeneracy that the arithmetic, not
     the data, invented.
     """
-    from .statistics import berar_lelann_factor, normal_covariance
+    from .statistics import (
+        berar_lelann_factor,
+        covariance_from_factors,
+        normal_factors,
+    )
 
     data = fun if n_data is None else fun[:n_data]
-    cov, _chi2_red = normal_covariance(jac, data, n_free)
+    # ``normal_covariance`` in its two factors, so the esd below can be taken
+    # where the product overflows
+    k, inv_d, _chi2_red = normal_factors(jac, data, n_free)
+    live = inv_d > 0.0
+    cov = covariance_from_factors(k, inv_d)
     # Normalise the correlation by the *raw* (un-inflated) sqrt-diagonal so it is
     # a true Pearson matrix with unit diagonal; apply Bérar-Lelann only to the
     # returned esd diagonal.  Normalising by the inflated diagonal instead (the
@@ -1639,15 +1650,32 @@ def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,
     # reported physical esds effectively raw) and deflated every off-diagonal by
     # BL² (killing the 0.98 high-correlation guard).
     sqrt = np.sqrt(np.maximum(np.diag(cov), 0.0))
+    # A live column whose variance has no double can still have an esd that
+    # does: a softplus scale at 1e-166 has a variance of ~1e+330 and an esd of
+    # ~1e+165, and its physical esd is an ordinary 7.66e-9 (WP-1463).  So the
+    # root is taken before the product there, and its correlations come from
+    # the scale-free K, where the product form would divide inf by inf.
+    wide = live & ~np.isfinite(sqrt)
+    if wide.any():
+        # masked on ``live``: ``pinv`` leaves rounding-level entries in a dead
+        # column's row of K (1e-35 measured), which the product form zeroes
+        # through 1/d = 0 and a ratio of K entries would read as a correlation
+        kd = np.where(live, np.sqrt(np.maximum(np.diag(k), 0.0)), 0.0)
+        sqrt[wide] = inv_d[wide] * kd[wide]
     # the outer product is inside the errstate, not before it: with WP-1110's
     # infinite variance on a gradient-free column and an exactly-zero one on a
     # direction the pinv dropped, ``denom`` has a genuine 0 × inf.  The NaN is
     # then *discarded* correctly — ``nan > 0`` is False, so that pair's
     # correlation is 0, which is what it should be — but a RuntimeWarning
     # raised from a covariance path is noise that hides the next real one.
-    with np.errstate(invalid="ignore", divide="ignore"):
+    with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
         denom = np.outer(sqrt, sqrt)
         corr = np.where(denom > 0, cov / denom, 0.0)
+        if wide.any():
+            kk = np.outer(kd, kd)
+            k_corr = np.where(kk > 0, k / kk, 0.0)
+            corr[wide, :] = k_corr[wide, :]
+            corr[:, wide] = k_corr[:, wide]
     corr = np.clip(corr, -1.0, 1.0)
     np.fill_diagonal(corr, np.where(sqrt > 0.0, 1.0, 0.0))
     diag = sqrt * berar_lelann_factor(data)

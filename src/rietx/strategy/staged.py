@@ -851,6 +851,10 @@ class GuardReport:
     measured_top_correlations: list = field(default_factory=list)
     measured_soft_modes: list = field(default_factory=list)
     measured_exchangeability: list = field(default_factory=list)
+    #: free paths sitting on their transform's asymptote, where the bound test
+    #: cannot be asked (:func:`bound_untested`, WP-1463).  Not findings: the
+    #: rows' ``at_bound`` reads ``None`` for these instead of ``False``.
+    bound_untested: list[str] = field(default_factory=list)
 
     def findings(self) -> list[GuardFinding]:
         """Every finding, in the order the diagnostics are emitted in
@@ -1418,7 +1422,7 @@ BOUND_HIT_COS_MIN = 1e-4
 
 
 def bound_findings(bounds, free: list[str], theta, *,
-                   cos=None, esd=None) -> list[GuardFinding]:
+                   cos=None, esd=None, untested=()) -> list[GuardFinding]:
     """Free paths whose bound **carried load** — the one place this happens.
 
     ``bounds`` is the ``(lo, hi)`` pair from a
@@ -1473,12 +1477,24 @@ def bound_findings(bounds, free: list[str], theta, *,
     **nearer** of the two: on a narrow interval both thresholds can cover the
     whole span, and without it which bound gets reported is decided by the
     order the branches are written in rather than by where the value sits.
+
+    **A row on its transform's floor is skipped** (``untested``, the list
+    :func:`bound_untested` returns, WP-1463).  There the internal esd is the
+    physical one divided by σ(u), so it grows without limit, and the esd
+    window above admits a *finite* limit many decades away.  A width at zero
+    then read as pressing on its upper bound whenever the cosine came out
+    negative: ``BOUND_HIT`` fired on ``instrument.profile.y`` at its floor on
+    CI's py3.11 Linux leg while the row said ``None``.  Skipping it keeps the
+    two channels one list.
     """
     import numpy as np
 
     lo, hi = bounds
+    skip = set(untested)
     out: list[GuardFinding] = []
     for k, path in enumerate(free):
+        if path in skip:
+            continue
         t = theta[k]
         below, above = t - lo[k], hi[k] - t
         # the nearer limit is the only candidate; ``None`` where it is infinite
@@ -1510,6 +1526,57 @@ def bound_findings(bounds, free: list[str], theta, *,
         # outward would be *lowering* θ, i.e. g > 0; −1 at an upper one
         if sign * c > 0.0 and abs(c) >= BOUND_HIT_COS_MIN:
             out.append(GuardFinding.at_bound(path, c, scaled))
+    return out
+
+
+def bound_untested(bounds, free: list[str], theta, transforms: list[str], *,
+                   esd=None) -> list[str]:
+    """Free paths on a limit :func:`bound_findings` cannot see (WP-1463).
+
+    A softplus entry declared ``min=0`` has an internal lower limit of −∞, so
+    :func:`bound_findings` skips it.  Its physical floor is still 0, and a
+    scale can sit there to within 1e-300.  Reporting ``at_bound=False`` for it
+    would be an answer to a question nobody asked (WP-1076).  Asking it would
+    say ``True`` for an absent phase, whose residual cosine is 0.030 and
+    pushes outward. ``BOUND_HIT`` would then advise widening a bound on a
+    quantity that cannot be negative, and do the same for every width
+    that refines to zero.  So the answer is ``None``, and this function names
+    the rows it applies to.
+
+    The asymptote is the physical image of the infinite internal limit, so
+    softplus and ``exp`` give 0 and ``logit`` gives 0 and 1, with no list of
+    transforms kept here.  "On it" is :func:`bound_findings`' distance half
+    asked in physical space: within :data:`BOUND_HIT_ESD_FRAC` of the physical
+    esd, or within :data:`BOUND_HIT_RTOL` where the esd is absent, as it is at
+    exactly 0.0.  Everything else is left to :func:`bound_findings`, so a
+    value an esd or more away from its floor still reads ``False``.
+    """
+    import numpy as np
+
+    from ..params.transforms import dphys_dinternal, to_physical
+
+    lo, hi = bounds
+    out: list[str] = []
+    for k, path in enumerate(free):
+        kind = transforms[k]
+        value = to_physical(float(theta[k]), kind)
+        e = None if esd is None else float(esd[k])
+        with np.errstate(invalid="ignore", over="ignore"):
+            sigma = abs(dphys_dinternal(float(theta[k]), kind)) * e if e else None
+        for limit in (lo[k], hi[k]):
+            if np.isfinite(limit):
+                continue
+            asymptote = to_physical(float(limit), kind)
+            if not np.isfinite(asymptote):
+                continue
+            gap = abs(value - asymptote)
+            if sigma is not None and np.isfinite(sigma) and sigma > 0.0:
+                near = gap <= BOUND_HIT_ESD_FRAC * sigma
+            else:
+                near = gap <= BOUND_HIT_RTOL * max(1.0, abs(asymptote))
+            if near:
+                out.append(path)
+                break
     return out
 
 
@@ -1596,8 +1663,13 @@ def check_guards(table, outcome, threshold: float,
                 report.roughness_correlations.append(
                     GuardFinding.roughness_absorption(path, r2))
 
+    bounds = table.bounds()
+    esd = getattr(outcome, "stderr_internal", None)
+    report.bound_untested = bound_untested(
+        bounds, free, outcome.theta,
+        [table.entries[table._paths[p]].transform for p in free], esd=esd)
     report.at_bounds = bound_findings(
-        table.bounds(), free, outcome.theta,
-        cos=getattr(outcome, "residual_cosine", None),
-        esd=getattr(outcome, "stderr_internal", None))
+        bounds, free, outcome.theta,
+        cos=getattr(outcome, "residual_cosine", None), esd=esd,
+        untested=report.bound_untested)
     return report

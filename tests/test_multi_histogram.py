@@ -242,7 +242,16 @@ def test_every_row_carries_a_bound_answer_or_says_it_has_none(two_patterns):
     assert {p.path for p in result.parameters if p.at_bound is True} == named
 
     measured = {p.path for p in result.parameters if p.at_bound is not None}
-    assert measured == set(ref.mtable.free_paths) & {p.path for p in result.parameters}
+    free_rows = set(ref.mtable.free_paths) & {p.path for p in result.parameters}
+    # a free row goes unmeasured only on its transform's floor, where nothing
+    # could test it (WP-1463): here both histograms' profile.y, at 4e-69 and
+    # 4e-24, neither of which has an esd on main either
+    rows = {p.path: p for p in result.parameters}
+    for path in free_rows - measured:
+        p = rows[path]
+        assert 0.0 <= p.value and (
+            p.value <= 1e-10 or (p.stderr and p.value <= 0.01 * p.stderr)), path
+    assert measured <= free_rows and len(free_rows - measured) <= 2
     # both halves of the key are exercised: shared rows and per-histogram rows
     assert any(p.startswith("hist.") for p in measured)
     assert any(not p.startswith("hist.") for p in measured)

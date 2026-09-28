@@ -44,7 +44,7 @@ import fnmatch
 import numpy as np
 
 from ..schemas.results import CorrelationPair, ExchangeRow, SoftMode
-from .statistics import block_projection_r2
+from .statistics import block_projection_r2, column_norms
 
 #: how many worst-|ρ| pairs the carrier keeps — a size cap, not a judgment
 #: threshold (the report decides where comment starts)
@@ -143,7 +143,8 @@ def soft_modes(jac: np.ndarray, free_paths: list[str],
     J = np.asarray(jac, dtype=np.float64)
     if J.ndim != 2 or J.shape[1] != len(free_paths):
         return []
-    norms = np.linalg.norm(J, axis=0)
+    # a tiny column is live, and squaring it would call it zero (WP-1463)
+    norms = column_norms(J)
     keep = np.nonzero(norms > 0.0)[0]
     if len(keep) < 2:
         return []
@@ -216,14 +217,16 @@ def exchangeability_scan(model, table) -> list[ExchangeRow]:
         r2 = block_projection_r2(
             J, free_idx, [(paths.index(c), c) for c in candidates])
         Jf = J[:, free_idx]
-        f_norms = np.linalg.norm(Jf, axis=0)
+        # ``block_projection_r2`` keeps a tiny target column (WP-1463), so its
+        # norm must not square to zero here either, or the loading divides by 0
+        f_norms = column_norms(Jf)
         rows = []
         for c in candidates:
             if c not in r2:      # zero-norm column: no information either way
                 continue
             jc = J[:, paths.index(c)]
             beta, *_ = np.linalg.lstsq(Jf, jc, rcond=None)
-            c_norm = float(np.linalg.norm(jc))
+            c_norm = float(column_norms(jc[:, None])[0])
             loading = beta * f_norms / c_norm
             partners = {free_before[i]: float(loading[i])
                         for i in range(len(free_before))
