@@ -306,6 +306,11 @@ naming the absent phase. `at_bound` on that scale is not `False`.
   `test_covariance_scaling.py` 15 → 25) and no skip. The 21 cost 4.88 s in
   one run here, the largest 1.77 s for three cases, so none joins the slow
   tail. The full selection on the same merged tree: 6846 passed, 163 skipped, 0 failed, in 29:11 (`f1cc5751` over `537f343d`).
+  After the handover, CI's py3.11 leg failed
+  `test_result_rows::test_a_free_row_is_measured_and_a_tied_row_is_not`: its
+  Le Bail fixture's `profile.y` ended on the zero floor there, and not on
+  macOS arm64. The row pins now identify floor rows by `bound_untested`'s
+  criterion, and the absent-phase reference asks only for a nonzero scale.
 
   *Review* (`/code-review high --fix`). Eight findings, six fixed in
   `d25bf360`: the exchangeability norms and the grouped gain took the

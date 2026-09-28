@@ -574,7 +574,9 @@ def test_a_tiny_scale_keeps_the_esds_it_had_at_1e_135(fit_absent_at, u):
     reference = fit_absent_at(None)
     moved = fit_absent_at(u)
     s_ref, s = _row(reference, "phases.1.scale"), _row(moved, "phases.1.scale")
-    assert 0.0 < s.value < 1e-160 and s_ref.value > 1e-140
+    # where TRF leaves the natural scale moves with platform libm, and since
+    # WP-1463 any nonzero value is a valid reference
+    assert 0.0 < s.value < 1e-160 and s_ref.value > 0.0
     assert s.stderr == pytest.approx(s_ref.stderr, rel=1e-9)
     assert _fraction_esds(moved) == pytest.approx(_fraction_esds(reference),
                                                   rel=1e-9)
