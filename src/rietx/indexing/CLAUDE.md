@@ -196,7 +196,7 @@ candidate survives, because the shift's *shape* needs reference positions,
 which a candidate cell supplies — a cell never shift-refined is biased by
 roughly the shift (+1400 ppm).
 
-## Fourteen more rules, each learned the hard way
+## Fifteen more rules, each learned the hard way
 
 - **A component that refines onto its zero intensity bound is not a line, and
   nothing before WP-1110 could see one.** A peak reaches its window only through
@@ -222,9 +222,15 @@ roughly the shift (+1400 ppm).
   fired `INDEX_DOMINANT_ZONE` for two years on a fixture the base table could solve
   (WP-1041); the peak list blocked the certified pattern twice the same way (fitted
   satellites, then `_box_key` skipping unrefined leaves).
+- **The dichotomy traversal has a compiled twin, and the numpy loop is its oracle**
+  (WP-1508, `_kernels_numba.py`, under the model tier's `RIETX_COMPILED` switch). A
+  prune, the split or the push order changes in both, bit for bit;
+  `tests/test_indexing_kernels.py` compares one box on the bit and a whole search
+  *leaf by leaf* — the order, which box and candidate counts cannot see.
 - **Profile an engine before ranking what to fix in it: a cost model reasoned from
   the algorithm's structure is not a profile** (WP-1030's ranking came out nearly
-  inverted). Corollary: **a candidate cell is a lattice, not a tuple** — reduce both
+  inverted; WP-1508's "a unit is box-bound" held on a synthetic 4-D list and on no
+  real pattern: their leaves dominate once the search is fast). Corollary: **a candidate cell is a lattice, not a tuple** — reduce both
   sides, then compare the **centring** and the **dataset's own band** on the *reduced*
   cell (`indexing_gallery.rank_of_lattice`, the one implementation). Each weaker form
   has read a right answer as wrong or a wrong one as right: sorted axes miss another

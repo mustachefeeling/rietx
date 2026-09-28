@@ -584,8 +584,9 @@ def _features() -> dict[str, bool]:
         # they answer different questions and can disagree: *can* the compiled
         # kernels be built here — numba is a required dependency, but a
         # ``--no-deps`` or distro install legitimately has none — and *will*
-        # the next residual use them, which ``RIETX_COMPILED=0`` decides.  A
-        # client reporting "why is this build slow" needs the second.
+        # the next residual (and, since WP-1508, the next dichotomy search) use
+        # them, which ``RIETX_COMPILED=0`` decides.  A client reporting "why is
+        # this build slow" needs the second.
         "compiled_kernels": compiled.available(),
         "compiled_kernels_active": compiled.enabled(),
         # delivery (WP-1058): whether a fit can hand back the report at every

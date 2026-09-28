@@ -289,6 +289,16 @@ need to finish there is unmeasured. Every row that reads an order now calls
 the result recorded. The fold-back task below therefore needs a finished
 search: a local run, or the nightly dispatched with `full_macos`.
 
+### Inherited
+
+- **From WP-1508 (2026-09-28): the compiled dichotomy traversal will not un-skip the
+  order rows.** Brucite's and corundum's units are 2-D searches, and a 2-D unit
+  spends 85-87 % of its time in its leaves (`_accept`, the centred replay), so the
+  kernel buys them 3-8 %. On 2026-09-28 the acceptance file under `-n auto` still
+  skipped four order rows, their dichotomy units cut at 300 s. What would let those
+  searches finish is WP-1509 (the leaf costs); the "finished-run confirmation" task
+  here waits on that or on a local run, not on 1508.
+
 ## Questions for the corpus
 
 - Does Oishi-Tomiyasu (2013, *J. Appl. Cryst.* **46**, 1277-1282) address the
