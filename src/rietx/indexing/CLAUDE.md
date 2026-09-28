@@ -229,8 +229,8 @@ roughly the shift (+1400 ppm).
   *leaf by leaf* — the order, which box and candidate counts cannot see.
 - **Profile an engine before ranking what to fix in it: a cost model reasoned from
   the algorithm's structure is not a profile** (WP-1030's ranking came out nearly
-  inverted; WP-1508's "a unit is box-bound" held in 4-D and not in 2-D, whose units
-  keep ~2000 rows a box and spend 85 % in their leaves). Corollary: **a candidate cell is a lattice, not a tuple** — reduce both
+  inverted; WP-1508's "a unit is box-bound" held on a synthetic 4-D list and on no
+  real pattern: their leaves dominate once the search is fast). Corollary: **a candidate cell is a lattice, not a tuple** — reduce both
   sides, then compare the **centring** and the **dataset's own band** on the *reduced*
   cell (`indexing_gallery.rank_of_lattice`, the one implementation). Each weaker form
   has read a right answer as wrong or a wrong one as right: sorted axes miss another

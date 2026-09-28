@@ -34,7 +34,7 @@ everything above its own list, which LIFO order guarantees is dead.
 
 **It stops and hands back to python** when its leaf buffer fills (a leaf needs
 ``_accept``, which is LAPACK and stays in python), after a chunk of row-tests
-(so ``Budget.expired`` is still asked every few tens of milliseconds), or when
+(so ``Budget.expired`` is still asked about every 0.09 s), or when
 the pool needs to grow.  A finished search is therefore bit-identical; a *cut*
 one may stop up to a chunk later than the numpy loop, which is machine load
 either way.

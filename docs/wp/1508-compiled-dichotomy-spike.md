@@ -1,12 +1,16 @@
 # WP-1508 — compiled dichotomy spike (gated: build only if the box traversal is the unit's cost)
 
-Milestone: unscheduled · Status: 🔄 2026-09-27 — gate read split: a kernel for the 4-D traversal in progress;
-the 2-D rows' leaves go to their own WP
+Milestone: unscheduled · Status: ✅ 2026-09-28 — the traversal compiled, bit-identical (synthetic
+monoclinic ~20×); every real pattern measured is bound by its leaves instead (2-D 3-8 %, bethanechol's
+cut sets 13 % further), which are WP-1509's
 Track: A long run is not one fit
 Depends on: — (1115 built the tier; 1030 measured the box counts; 1449 measured the cut)
-Priority: P3 2026-09-27 — cost-only with a workaround (a bigger budget); what it buys beyond cost is a search that finishes, where 1449's rows now skip on a cut one
 
 ## Goal
+
+**Done** (2026-09-28): the gate read split, the traversal is compiled and
+bit-identical, and the searches the budget cuts are cut by their leaves, not their
+traversal — § Gate reading and the handover log say which is which.
 
 Answer "would a compiled kernel improve indexing performance?" with a profile rather
 than a cost model, and — **only if the profile says the box traversal is where a
@@ -135,10 +139,12 @@ numpy fixes. Any change to what a finished search reports.
       Current tree, numba installed, serial, machine checked idle.
       Finished (large-budget) dichotomy units on brucite and corundum — the rows the
       budget cuts — and the synthetic monoclinic row of `tests/test_indexing_engines.py`,
-      under `cProfile`. Split each unit into phase 1 grid / phase 2 box work
+      under a 50 Hz `py-spy` sample (`cProfile` would weight the many small calls it
+      was measuring). Split each unit into phase 1 grid / phase 2 box work
       (`_test_box`, `_push_children`) / leaves (`_box_key`, `_accept`) / other; record
       boxes, rows and µs per box. Same profile for trial_error's monoclinic unit,
-      recorded only. **Gate:** build if phase-2 box work is ≥ ~60 % of the slowest
+      recorded only: 270.5 s, `_score` 82 %, the batched solve 13 % — leaf-shaped
+      again, and carried to WP-1509. **Gate:** build if phase-2 box work is ≥ ~60 % of the slowest
       dichotomy units; otherwise close 🛑 with the profile as the outcome.
 - [x] **Per-box kernel**, bit-identical: `_kernels_numba._box_test` (`_test_box`,
       with `_push_children`'s child test beside it as `_child_key`), exposed as
@@ -179,11 +185,14 @@ numpy fixes. Any change to what a finished search reports.
       of the unit, 14.0 s → 10.0 s when batched on the same bits. The kernels
       build before any unit's clock starts: 4.4 s cold, 0.23-0.27 s from the
       numba cache.
-- [ ] `tests/test_acceptance_indexing.py` once on the final tree;
-      `tests.bethanechol_benchmark` alone.
-- [ ] Skill: none expected — a faster engine changes no call an agent makes; say so
-      at close, or name the row if the `quick` preset's reach changes what the skill
-      promises.
+- [x] `tests/test_acceptance_indexing.py` once on the final tree (with the engine
+      and kernel files, `-n auto`): 135 passed, 4 skipped — the four order rows
+      `_skip_unless_finished` still skips, the 2-D units cut at 300 s — nothing
+      failed. `tests.bethanechol_benchmark --modes manual` alone, both paths: the same
+      −2 of +10 and the same ranks, every set cut at its 30 s budget either way.
+- [x] Skill: no routing row (a faster engine changes no call an agent makes, and the
+      `quick` preset's reach did not move on real data); the reference's speed-flag
+      paragraph now names the dichotomy search, at one byte under main's size.
 
 ## Acceptance
 
@@ -205,5 +214,72 @@ Cryst.* **24**, 987-993) — the dichotomy method, as `dichotomy.py` cites them;
 WP-1030 (box-death profile), WP-1115 (the tier), WP-1449 (the cut searches).
 
 ## Handover log
+
+### 2026-09-28 — closed: the search is compiled and bit-identical; real indexing is bound by its leaves
+
+Would a compiled kernel improve indexing? For the dichotomy engine's box search,
+yes, and it is built: the same boxes in the same order and the same answers, bit for
+bit, about twenty times faster on a synthetic monoclinic list. But on every real
+pattern measured the search was not where the time went. Brucite and corundum (two
+free metric parameters) spend 85-87 % of a unit refining the cells the search
+reaches and gain 3-8 %; the bethanechol benchmark's real monoclinic sets, cut at
+their 30 s budgets, score the same on both paths and get 13 % further. So the kernel
+answers the question asked and not the one the budget poses: whether a real search
+finishes is decided by its leaves, which are now WP-1509's.
+
+*Done.* The profile gate (§ Gate reading), read split and put to the maintainer, who
+chose the kernel here and the leaves as a new WP. `src/rietx/indexing/_kernels_numba.py`
+(`test_rows`, `traverse`) behind `dichotomy._traversal_kernels`, under the model
+tier's switch, built before any unit's clock starts; `_search_one`'s leaf body moved
+into one closure both paths call; `_centre_volumes` orders the grid for both paths
+on the scalar key's bits. `tests/test_indexing_kernels.py`, seven tests, eighteen
+cases, two made to fail on purpose (§ Tasks). A rule in `indexing/CLAUDE.md` (cap
+306 → 312), the skill's speed-flag paragraph, the manual's compiled-kernels section,
+a 1.5.1 release-note section, and WP-1509 filed and re-rated P2.
+
+*Measured* (`[dev]`, Linux x86-64, 4 cores, py3.12, numba 0.67.0, numpy 2.5.3,
+nothing else running unless named):
+- The gate table and the before/after table are in § Gate reading and § Tasks. Every
+  unit replayed from the inputs `index_pattern` hands the engine, captured by
+  stubbing the engine registry: boxes, rows per box and candidate digest identical
+  on both paths for all five, and for corundum hexagonal.
+- Bethanechol set F, manual mode, its 30 s dichotomy unit: numpy 93 082-95 451
+  boxes, compiled 105 357-107 799. Numpy spends 21 % in the grid, 15 % in the
+  bisection, 45 % in leaves and 9 % ranking; compiled, the grid and traversal are
+  3.7 %, leaves 67 % and `dedup_candidates` 20 % (the unit crossed `DEDUP_EVERY`).
+  Run to completion with a 3600 s budget, the compiled unit had not finished after
+  35 minutes, and was stopped: a finished real 4-D search is long even compiled.
+- The manual-mode benchmark, both paths, alone: −2 of +10, identical ranks and
+  nearest-cell ppm, 115.8-121.4 s a set, every set incomplete.
+- Kernel build 4.4 s cold, 0.23-0.27 s from the numba cache.
+- Fast suite (`-m "not slow"`, `-n auto`, branch before the main merge): 6583
+  passed, 163 skipped, 1 failed, 21:03 — the failure is `test_telemetry`'s
+  unwritable-directory case, which a root container cannot fail (WP-1449 recorded
+  the same). The seven added tests cost 4.75 s over their 18 cases
+  (`tests.added_test_times`), none in the slow tail.
+- `test_acceptance_indexing.py` + `test_indexing_engines.py` (slow rows included) +
+  the new file, `-n auto`: 135 passed, 4 skipped, 48:45 — the skips are the order
+  rows whose 2-D dichotomy units the 300 s budget cut, as before. The full selection
+  was not run; the nightly is its measurement.
+
+*Gotchas.*
+- **The cost model was wrong three times for this engine**, twice in this WP: the
+  plan read 2-D units as box-bound (they keep ~2000 rows a box), and the synthetic
+  4-D unit as representative of real 4-D data (real monoclinic data tolerates 8
+  unindexed lines and wider windows, and its leaves dominate once the search is fast).
+- **Only the leaf-sequence assertion sees a traversal-order bug**: a finished search
+  tests the same set of boxes in any order, so counts and candidates cannot.
+- **A cut search stops later on the compiled path** — by up to one
+  `TRAVERSAL_ROW_CHUNK` (about 0.1 s) or one leaf — which is machine load either way.
+- The leaves' BLAS is multithreaded, so a "serial" replay uses several cores;
+  compare runs on one machine, never across.
+
+*Next.*
+1. WP-1509, in its task order: the centred replay on survivors first (exact, and
+   28-41 % of a 2-D unit, 8 % of bethanechol F's compiled one), then an
+   order-preserving restriction of `assign_lines`' trial set, which also reaches
+   trial_error's `_score` (82 % of its monoclinic unit), then `dedup_candidates`.
+2. After 1509, the acceptance file again: whether the 2-D rows now finish inside
+   300 s is what lets 1449's order rows stop skipping.
 
 - **2026-09-27** — created from the maintainer's question; gate not yet read.

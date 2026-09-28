@@ -74,7 +74,24 @@ visit, not only the leaf's box (refinement moves af out of it).
 
 **What a fix must not do**: change any finished search's `n_boxes`, `rows_per_box`,
 candidate list or digest. WP-1508's replay harness (inputs captured by stubbing the
-engine registry) is the way to check; its digests are in 1508's handover.
+engine registry) is the way to check; its digests are below (`### Inherited`).
+
+### Inherited
+
+- **From WP-1508 (2026-09-28): trial_error pays the same leaf cost.** Its synthetic
+  monoclinic unit (270.5 s) spends 82 % in `_score` — `assign_lines` over the trial
+  set plus `refine_candidate` and `refine_with_shift`, once per surviving solution —
+  and 13 % in the batched solve. An exact restriction of `assign_lines` lands in both
+  engines, so measure trial_error beside dichotomy when it does.
+- **From WP-1508: the replay harness.** Each unit's inputs were captured by swapping
+  the engine registry (`engines._REGISTRY`) for recorders and running
+  `index_pattern` once, then replayed to completion per unit; the per-unit digests
+  (sha256 of every candidate's cell and `n_indexed`) are what "unchanged" was
+  checked against. Rebuilding it takes minutes; the scripts were session scratch.
+  Digests (first 8 hex; `SearchSpec` as `index_pattern` builds it at a 1e5 s
+  budget): brucite hexagonal `c82630be`, trigonal `719d4e0b`; corundum hexagonal
+  `6a060c83`, trigonal `e8466d7f`, tetragonal `f610fbdc`; synthetic monoclinic
+  `fc4d2b0b` — each identical on both paths on 2026-09-28.
 
 ## Non-goals
 

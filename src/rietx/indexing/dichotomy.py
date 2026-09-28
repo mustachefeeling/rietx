@@ -135,7 +135,8 @@ MAX_GRID_CELLS = 400_000
 #: near-identical boxes) without changing the answer.
 DEDUP_EVERY = 2_000
 #: Row-tests the compiled traversal runs before handing back to python, so
-#: ``Budget.expired`` is still asked every few tens of milliseconds.  The chunk
+#: ``Budget.expired`` is still asked about every 0.09 s (measured: ~23 million
+#: row-tests a second on the synthetic monoclinic unit, WP-1508).  The chunk
 #: is counted in rows rather than boxes because a box costs its row count: ~100
 #: rows on a 4-D search, ~2000 on a 2-D one.
 TRAVERSAL_ROW_CHUNK = 2_000_000
