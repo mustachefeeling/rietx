@@ -227,6 +227,12 @@ roughly the shift (+1400 ppm).
   prune, the split or the push order changes in both, bit for bit;
   `tests/test_indexing_kernels.py` compares one box on the bit and a whole search
   *leaf by leaf* — the order, which box and candidate counts cannot see.
+- **An exact restriction keeps a superset of the rows in the set's own order, and
+  rounds them as the whole computation did** (WP-1509). Equivalent reflections tie
+  in Q and position breaks the tie, so a restriction is a mask, never a sort
+  (`engines.TrialIndex`); and a BLAS product over some rows need not round as the
+  whole product does, so `engines.row_local_product` measures that once a process.
+  "Unchanged" means finished units replayed to their digests, never a green suite.
 - **Profile an engine before ranking what to fix in it: a cost model reasoned from
   the algorithm's structure is not a profile** (WP-1030's ranking came out nearly
   inverted; WP-1508's "a unit is box-bound" held on a synthetic 4-D list and on no
