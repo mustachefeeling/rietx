@@ -312,13 +312,11 @@ ones to read before reporting that a refinement is slow.
 `features["compiled_kernels"]` says whether the compiled peak kernels can be
 built here (`numba` is a required dependency, but an install may legitimately
 omit it), and `features["compiled_kernels_active"]` says whether the next
-refinement, and the next dichotomy indexing search, will use them —
-`RIETX_COMPILED=0` in the environment switches them off without a reinstall.
-Both false on a slow fit, or on a monoclinic or triclinic search that stops on
-its budget, is an explanation; both true is not, and the answer is somewhere in
-the stage plan or the search domain. Nothing else changes: the numbers agree to
-one or two units in the last place either way, and the accumulation and the
-dichotomy search are bit-for-bit identical.
+refinement or dichotomy search will use them — `RIETX_COMPILED=0` switches them
+off without a reinstall. Both false on a slow fit is an explanation; both true
+is not, and the answer is somewhere in the stage plan. Nothing else changes:
+numbers agree to the last place or two, and the accumulation and the dichotomy
+search are bit-for-bit identical.
 
 ---
 

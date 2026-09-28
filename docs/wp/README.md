@@ -42,7 +42,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1469](1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1501](1501-cut-and-keep.md) | Cut and keep: a figure of part of the structure | P2 | [1470](1470-a-structure-figure-without-a-browser.md) | [v1.7](#v1-7) |
 | [1509](1509-dichotomy-leaves-pay-for-the-whole-trial-set.md) | A dichotomy leaf pays for the whole trial set | P2 | — ([1508](1508-compiled-dichotomy-spike.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
-| [1510](1510-what-the-chemist-knows-reaches-the-search.md) | What the chemist knows reaches the indexing search | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
+| [1510](1510-what-the-chemist-knows-reaches-the-search.md) | What the chemist knows reaches the indexing search | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md), [1508](1508-compiled-dichotomy-spike.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1514](1514-scoping-rigid-bodies.md) | Scoping rigid bodies: the milestone that makes the parameter map nonlinear | P2 | — ([1319](1319-structure-interchange.md), [1515](1515-scoping-structure-solution.md), [1516](1516-scoping-stacking-faults.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 
@@ -483,7 +483,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1510](1510-what-the-chemist-knows-reaches-the-search.md) | What the chemist knows reaches the indexing search | ⬜ | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md) soft) |
+| [1510](1510-what-the-chemist-knows-reaches-the-search.md) | What the chemist knows reaches the indexing search | ⬜ | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md), [1508](1508-compiled-dichotomy-spike.md) soft) |
 | [1511](1511-which-cell-does-this-powder-support.md) | Which of these cells does this powder support? | ⬜ | P3 | — ([1323](1323-lebail-stop-rule.md), [1510](1510-what-the-chemist-knows-reaches-the-search.md) soft) |
 | [1512](1512-a-simulated-diffuse-curve-is-a-component.md) | A simulated diffuse curve is a component, and its amplitude rides on the phase scale | ⬜ | P3 | — |
 | [1513](1513-the-contacts-a-chemist-checks-by-eye.md) | The contacts a chemist checks by eye | ⬜ | P3 | — |
