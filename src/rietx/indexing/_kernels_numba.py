@@ -33,7 +33,8 @@ live region and referenced by both children, and popping an entry frees
 everything above its own list, which LIFO order guarantees is dead.
 
 **It stops and hands back to python** when its leaf buffer fills (a leaf needs
-``_accept``, which is LAPACK and stays in python), after a chunk of row-tests
+``_accept``, which is LAPACK and stays in python, and hands it the leaf's
+surviving rows for the centred replay — WP-1509), after a chunk of row-tests
 (so ``Budget.expired`` is still asked about every 0.09 s), or when
 the pool needs to grow.  A finished search is therefore bit-identical; a *cut*
 one may stop up to a chunk later than the numpy loop, which is machine load
@@ -345,18 +346,25 @@ def traverse(m, basis_t, q_hi, band_lo, band_hi, swaps, lo_s, hi_s,
              n_unindexed, cos_max, tol_accept, max_depth,
              st_lo, st_hi, st_depth, st_start, st_len,
              pool, base_top, state,
-             leaf_lo, leaf_hi, leaf_width, row_chunk,
+             leaf_lo, leaf_hi, leaf_width, leaf_rows, leaf_start, leaf_len,
+             row_chunk,
              q_min_buf, q_max_buf, counts, first, af_lo, af_hi, line_hit):
     """Phase 2 of ``_search_one``: depth-first bisection until a handback.
 
-    ``state`` is ``[top, pool_top, n_leaves, n_boxes, n_rows]``, read and
-    written in place so a call resumes exactly where the last one stopped.
-    Returns :data:`DONE`, :data:`LEAVES`, :data:`CHUNK` or :data:`GROW`.
+    ``state`` is ``[top, pool_top, n_leaves, n_boxes, n_rows, leaf_top]``,
+    read and written in place so a call resumes exactly where the last one
+    stopped.  A leaf's surviving rows are copied to
+    ``leaf_rows[leaf_start[i]:leaf_start[i] + leaf_len[i]]`` (WP-1509), since
+    the pool region holding them is the next box's scratch; the call hands
+    back before that buffer could fail to hold another leaf's.  Returns
+    :data:`DONE`, :data:`LEAVES`, :data:`CHUNK` or :data:`GROW`.
     """
     n = st_lo.shape[1]
+    n_all = m.shape[0]
     top = state[0]
     pool_top = state[1]
     n_leaves = state[2]
+    leaf_top = state[5]
     work = 0
     lo = np.empty(n)
     hi = np.empty(n)
@@ -367,6 +375,7 @@ def traverse(m, basis_t, q_hi, band_lo, band_hi, swaps, lo_s, hi_s,
             state[0] = top
             state[1] = pool_top
             state[2] = n_leaves
+            state[5] = leaf_top
             return CHUNK
         e = top - 1
         s = st_start[e]
@@ -378,6 +387,7 @@ def traverse(m, basis_t, q_hi, band_lo, band_hi, swaps, lo_s, hi_s,
             state[0] = top
             state[1] = pool_top
             state[2] = n_leaves
+            state[5] = leaf_top
             return GROW
         top = e
         pool_top = live
@@ -401,11 +411,20 @@ def traverse(m, basis_t, q_hi, band_lo, band_hi, swaps, lo_s, hi_s,
                 leaf_lo[n_leaves, j] = lo[j]
                 leaf_hi[n_leaves, j] = hi[j]
             leaf_width[n_leaves] = width
+            leaf_start[n_leaves] = leaf_top
+            leaf_len[n_leaves] = k
+            for i in range(k):
+                leaf_rows[leaf_top + i] = pool[pool_top + i]
+            leaf_top += k
             n_leaves += 1
-            if n_leaves == leaf_width.shape[0]:
+            # a leaf keeps at most every row, so ``n_all`` of room is enough
+            # for the next one
+            if (n_leaves == leaf_width.shape[0]
+                    or leaf_top + n_all > leaf_rows.shape[0]):
                 state[0] = top
                 state[1] = pool_top
                 state[2] = n_leaves
+                state[5] = leaf_top
                 return LEAVES
             continue
         if k == 0:
@@ -469,6 +488,7 @@ def traverse(m, basis_t, q_hi, band_lo, band_hi, swaps, lo_s, hi_s,
     state[0] = top
     state[1] = pool_top
     state[2] = n_leaves
+    state[5] = leaf_top
     return DONE
 
 
@@ -484,10 +504,11 @@ def build() -> dict:
     test_rows(m, rows, np.zeros(1), one, basis_t, 1.0, 0.0, 1.0, swaps, one,
               one, 0, 0.5, ints.copy(), np.zeros(1), np.zeros(1), ints.copy(),
               ints.copy(), f6.copy(), f6.copy())
-    state = np.zeros(5, dtype=np.int64)
+    state = np.zeros(6, dtype=np.int64)
     traverse(m, basis_t, 1.0, 0.0, 1.0, swaps, one, one, 0, 0.5, 1.0, 1,
              np.zeros((1, 1)), np.zeros((1, 1)), ints.copy(), ints.copy(),
              ints.copy(), ints.copy(), 0, state, np.zeros((1, 1)),
-             np.zeros((1, 1)), np.zeros(1), 1, np.zeros(1), np.zeros(1),
+             np.zeros((1, 1)), np.zeros(1), ints.copy(), ints.copy(),
+             ints.copy(), 1, np.zeros(1), np.zeros(1),
              ints.copy(), ints.copy(), f6.copy(), f6.copy(), ints.copy())
     return {"test_rows": test_rows, "traverse": traverse}

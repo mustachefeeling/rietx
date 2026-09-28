@@ -31,6 +31,7 @@ from a trial cell goes through :func:`reflection_ceiling_ok` first.
 
 from __future__ import annotations
 
+import math
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -660,9 +661,221 @@ def reflection_ceiling_ok(cell: Sequence[float], wavelength: float,
 # ----------------------------------------------------------------------
 # Shared scoring / assignment
 # ----------------------------------------------------------------------
+#: Largest ``Σ|A..F| / λ_min(G*)`` a cell may have for :class:`TrialIndex` to
+#: bound its rows.  The bound's soundness needs the rounding in a 6-term dot to
+#: stay far below its margin (:data:`_INDEX_MARGIN`): the error is at most
+#: ~6.7e-16 of ``Σ|mⱼ·afⱼ|`` ≤ ``‖h‖²·Σ|af|``, while Q ≥ ``λ_min·‖h‖²``, so it
+#: is a fraction ``6.7e-16 × this`` of Q — 6.7e-10 here against a 1e-6 margin.
+#: λ_min is bounded below by ``4·det/trace²`` (λ_mid·λ_max ≤ (trace/2)²), so the
+#: test is conservative.  A cell past it takes the whole set, as before.
+_INDEX_MAX_CONDITION = 1e6
+#: Smallest ``det G* / ΠG*ᵢᵢ`` (and leading 2×2 minor over its diagonal) the
+#: closed-form inverse is trusted at.  Every term of the 3×3 determinant is at
+#: most ``ΠG*ᵢᵢ`` for a positive-definite metric, so its rounding is ≲ 1.3e-14 of
+#: that product and, above this floor, ≲ 1.3e-8 of the determinant; the axis
+#: lengths it gives inherit that.  A real reduced cell sits near 1 (its
+#: orthogonality defect); a metric below the floor takes the whole set.
+_INDEX_MIN_DEFECT = 1e-6
+#: Relative slack on each per-axis index bound.  Covers the product's rounding
+#: above and the inverse's (≲ 1.7e-8) with fifty-fold room to spare; a looser
+#: bound costs rows, never correctness.
+_INDEX_MARGIN = 1e-6
+#: Fraction of the trial set above which a bounded row list is not worth
+#: building: gathering most of a set costs what scanning it does.
+_INDEX_MAX_SHARE = 0.5
+#: Rows below which a trial set is not indexed at all: the bound's fixed cost
+#: per call is paid whatever the set's size, the scan it replaces costs ~8 ns a
+#: row.  Measured with the reuse defeated (two cells alternating, one BLAS
+#: thread, WP-1509): even at ~12 000 rows, ahead from ~18 000, 1188 → 138 µs at
+#: 150 381.  trial_error's monoclinic unit scores against 2456 rows, where an
+#: earlier, LAPACK-bound index made it 19 % slower before there was a floor.
+_INDEX_MIN_ROWS = 15_000
+
+
+class TrialIndex:
+    """Where each (h, k) run of a trial set sits, so the rows a cell can put
+    inside the observed range are found without scanning the set (WP-1509).
+
+    ``assign_lines`` scanned its whole trial set on every call — up to
+    ``MAX_TRIAL_HKL`` rows through a gemv, an in-range mask and two gathers, per
+    anneal pass, per centring, per dichotomy leaf — to keep the ~1 % of rows a
+    cell puts inside the observed range: 1039 of 150 381 on corundum's
+    hexagonal unit.  The measured 12.7 % (gemv) + 17.5 % (mask and gathers) of
+    that unit was spent on rows no line could be matched to.  With an index the
+    mask and gathers run over the bounded rows everywhere, and the product too
+    wherever :func:`row_local_product` measured that it may.
+
+    **The bound is exact, not a heuristic.**  For a positive-definite G* the
+    least Q over every h with a given hᵢ is ``hᵢ² / (G*⁻¹)ᵢᵢ = hᵢ²/aᵢ²`` (aᵢ the
+    direct axis), so a row with ``|hᵢ| > aᵢ·√Q_top`` for any i has Q > Q_top and
+    is outside the range whatever the rest of its indices are.  The margins
+    (:data:`_INDEX_MARGIN`, :data:`_INDEX_MAX_CONDITION`) carry that from exact
+    arithmetic to the product ``assign_lines`` actually computes; a cell outside
+    them gets ``None`` and the whole set.
+
+    **Rows come back in their original order**, which is the other half of
+    exactness: symmetry-equivalent reflections tie in Q, the in-range sort
+    breaks ties by position, and a reordered set assigns another equivalent.  A
+    trial set is indexed only if its rows are in strictly increasing
+    lexicographic (h, k, l) order — :func:`~rietx.indexing.qspace.trial_hkl`'s
+    own, and any mask of it — because that is what makes every (h, k) run and
+    every |l| ≤ L slice of one contiguous; :meth:`build` returns ``None``
+    otherwise.
+    """
+
+    def __init__(self, key: np.ndarray, width: int, offset: int,
+                 pair_hk: np.ndarray) -> None:
+        self.n = len(key)
+        #: each row's (h, k, l) as one integer, strictly increasing
+        self._key = key
+        self._width = width
+        self._offset = offset
+        #: the distinct (h, k) present, in row order
+        self._pair_hk = pair_hk
+        #: the last (H, K, L) bound asked and its rows
+        self._last: tuple[tuple[int, ...], np.ndarray | None] | None = None
+
+    @classmethod
+    def build(cls, hkl: np.ndarray, *,
+              min_rows: int = _INDEX_MIN_ROWS) -> TrialIndex | None:
+        """Index ``hkl``, or ``None`` if its rows are not in (h, k, l) order
+        or it is too small for a bound to pay (:data:`_INDEX_MIN_ROWS`)."""
+        h = np.asarray(hkl, dtype=np.int64)
+        if h.ndim != 2 or h.shape[1] != 3 or len(h) < max(min_rows, 2):
+            return None
+        offset = int(np.max(np.abs(h)))
+        width = 2 * offset + 1
+        shifted = h + offset
+        key = (shifted[:, 0] * width + shifted[:, 1]) * width + shifted[:, 2]
+        if not np.all(np.diff(key) > 0):
+            return None
+        pair = key // width
+        starts = np.flatnonzero(np.r_[True, pair[1:] != pair[:-1]])
+        return cls(key, width, offset, h[starts, :2])
+
+    def rows_within(self, af: np.ndarray, q_top: float) -> np.ndarray | None:
+        """Every row whose Q under ``af`` can be ≤ ``q_top``, in order.
+
+        A superset of them — rows whose index bound admits them — and never a
+        row fewer.  ``None`` when no bound is safe (a metric that is not
+        positive definite, or too ill-conditioned for the margins) or when the
+        bound would keep most of the set anyway.  The anneal passes of one leaf
+        mostly land on the same integer bounds, so the last answer is kept and
+        handed back (read-only) when they repeat.
+
+        The 3×3 arithmetic is closed-form in python floats rather than two
+        LAPACK calls, which were most of this function's ~120-190 µs (WP-1509's
+        re-profile put it at 15 % of a 2-D unit); the guards and margins above
+        are what that arithmetic is trusted within.
+        """
+        if not q_top > 0.0:
+            return None
+        a0, a1, a2, a3, a4, a5 = (float(v) for v in af)
+        g00, g11, g22 = a0, a1, a2
+        g12, g02, g01 = 0.5 * a3, 0.5 * a4, 0.5 * a5      # D, E, F = 2·G*ᵢⱼ
+        c00 = g11 * g22 - g12 * g12
+        c11 = g00 * g22 - g02 * g02
+        c22 = g00 * g11 - g01 * g01
+        det = (g00 * c00 - g01 * (g01 * g22 - g12 * g02)
+               + g02 * (g01 * g12 - g11 * g02))
+        # Sylvester's criterion, each minor with room above its own rounding
+        if not (g00 > 0.0 and g11 > 0.0 and g22 > 0.0
+                and c22 >= _INDEX_MIN_DEFECT * g00 * g11
+                and det >= _INDEX_MIN_DEFECT * g00 * g11 * g22):
+            return None
+        trace = g00 + g11 + g22
+        if (abs(a0) + abs(a1) + abs(a2) + abs(a3) + abs(a4) + abs(a5)) * trace \
+                * trace > _INDEX_MAX_CONDITION * 4.0 * det:
+            return None
+        bound = []
+        for cof in (c00, c11, c22):              # aᵢ² = (G*⁻¹)ᵢᵢ = cofactor/det
+            reach = math.sqrt(q_top * cof / det) * (1.0 + _INDEX_MARGIN)
+            if not math.isfinite(reach):
+                return None
+            bound.append(min(math.floor(reach), self._offset))
+        key = tuple(bound)
+        last = self._last             # one read: a tuple swap is atomic
+        if last is not None and last[0] == key:
+            return last[1]
+        rows = self._rows_in(*key)
+        if rows is not None:
+            rows.flags.writeable = False
+        self._last = (key, rows)
+        return rows
+
+    def _rows_in(self, big_h: int, big_k: int, big_l: int) -> np.ndarray | None:
+        """The rows with |h| ≤ H, |k| ≤ K and |l| ≤ L, in order."""
+        hk = self._pair_hk
+        take = (np.abs(hk[:, 0]) <= big_h) & (np.abs(hk[:, 1]) <= big_k)
+        if not take.any():
+            return np.zeros(0, dtype=np.int64)
+        base = ((hk[take] + self._offset) * np.array([self._width, 1])).sum(
+            axis=1) * self._width + self._offset
+        start = np.searchsorted(self._key, base - big_l, side="left")
+        stop = np.searchsorted(self._key, base + big_l, side="right")
+        lens = stop - start
+        total = int(lens.sum())
+        if total > _INDEX_MAX_SHARE * self.n:
+            return None
+        return (np.arange(total, dtype=np.int64)
+                + np.repeat(start - (np.cumsum(lens) - lens), lens))
+
+
+_ROW_LOCAL: bool | None = None
+
+
+def row_local_product() -> bool:
+    """Does a product over *some* rows of a design matrix give those rows of
+    the whole product, bit for bit, on this machine?  Asked once a process.
+
+    :class:`TrialIndex` saves the gathers either way; whether it may also save
+    the product — ``dm[rows] @ af`` rather than ``(dm @ af)[rows]`` — depends
+    on the BLAS, because the whole-set product is what an unrestricted search
+    computes and a subset's rows must round the same.  They do wherever a
+    kernel's association inside a row does not depend on the row's position,
+    thread chunk or neighbours: measured on OpenBLAS 0.3.34's Haswell kernel
+    (numpy 2.5.3, Linux x86-64), 0 mismatches over 12 000 subsets of 2-5000
+    rows of a 113 490-row product, which itself differs from a left-to-right
+    sum on a third of its rows (WP-1509).  A single row is the exception —
+    numpy hands a (1, 6) product to ``dot`` rather than gemv — so it is never
+    asked of a subset.  Nothing promises this of every BLAS, so the answer is
+    **measured here** on the shapes the search uses, and a machine where any
+    row differs keeps the whole product; the result is then exactly what it
+    always was, only slower.
+    """
+    global _ROW_LOCAL
+    if _ROW_LOCAL is None:
+        rng = np.random.default_rng(1509)
+        dm = design_matrix(trial_hkl(26, "P"))
+        cells = (np.array([0.0441, 0.0441, 0.00592, 0.0, 0.0, 0.0441]),
+                 np.array([0.0127, 0.00371, 0.0196, 0.0, -0.00288, 0.0]),
+                 rng.uniform(0.002, 0.05, 6) * np.array([1, 1, 1, -1, 1, -1]))
+        ok = True
+        for af in cells:
+            whole = dm @ af
+            for size in (2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 33, 64, 257,
+                         1000, 4099):
+                for _ in range(3):
+                    rows = np.sort(rng.choice(len(dm), size, replace=False))
+                    ok = ok and np.array_equal(dm[rows] @ af, whole[rows])
+        _ROW_LOCAL = bool(ok)
+    return _ROW_LOCAL
+
+
+def _product_on(dm: np.ndarray, af: np.ndarray, rows: np.ndarray) -> np.ndarray:
+    """``(dm @ af)[rows]``, computed over ``rows`` alone where that is the same
+    bits (:func:`row_local_product`)."""
+    if not len(rows):
+        return np.zeros(0)
+    if len(rows) > 1 and dm.flags.c_contiguous and row_local_product():
+        return dm[rows] @ af
+    return (dm @ af)[rows]
+
+
 def assign_lines(q_obs: np.ndarray, sigma: np.ndarray, hkl: np.ndarray,
                  af: np.ndarray, *, k_sigma: float = MATCH_SIGMA,
                  design: np.ndarray | None = None,
+                 index: TrialIndex | None = None,
                  ) -> tuple[np.ndarray, np.ndarray]:
     """Give each observed line the hkl whose Q is nearest, within k·σ.
 
@@ -674,25 +887,38 @@ def assign_lines(q_obs: np.ndarray, sigma: np.ndarray, hkl: np.ndarray,
     ``design`` is ``design_matrix(hkl)`` when the caller already has it — a
     search calls this once per accepted cell over the same trial set, and
     rebuilding the (N, 6) matrix each time is the difference between a matvec and
-    a matrix build in the engine's warm path.
+    a matrix build in the engine's warm path.  ``index`` is
+    ``TrialIndex.build(hkl)`` for the same reason, and with it only the rows the
+    cell can put in range are handled (:class:`TrialIndex`); the answer is the
+    same either way.
     """
     dm = design_matrix(hkl) if design is None else design
-    q_pred = dm @ np.asarray(af, dtype=np.float64)
+    af = np.asarray(af, dtype=np.float64)
     # Drop predictions outside the observed Q range **before** matching.  The
     # trial set is sized for the whole search domain, so on any one cell most of
     # it is far out of range, and ``match_lines`` costs an (observed × predicted)
     # matrix: measured on an orthorhombic search, filtering first took a rejected
     # leaf from ~30 ms to well under one, and leaf rejection was 90 % of the run.
     window = k_sigma * float(np.max(sigma)) if len(sigma) else 0.0
-    inside = ((q_pred >= float(np.min(q_obs)) - window)
-              & (q_pred <= float(np.max(q_obs)) + window))
-    q_pred, hkl_in = q_pred[inside], np.asarray(hkl)[inside]
+    q_lo = float(np.min(q_obs)) - window
+    q_top = float(np.max(q_obs)) + window
+    rows = None if index is None else index.rows_within(af, q_top)
+    if rows is None:
+        q_pred = dm @ af
+        inside = np.flatnonzero((q_pred >= q_lo) & (q_pred <= q_top))
+        q_pred = q_pred[inside]
+    else:
+        q_rows = _product_on(dm, af, rows)
+        keep = (q_rows >= q_lo) & (q_rows <= q_top)
+        inside, q_pred = rows[keep], q_rows[keep]
     if not len(q_pred):
         return np.zeros(0, dtype=np.int64), np.zeros((0, 3), dtype=np.int64)
     order = np.argsort(q_pred)
     idx, _ = match_lines(q_obs, sigma, q_pred[order], k_sigma=k_sigma)
     hit = idx >= 0
-    return np.flatnonzero(hit), hkl_in[order][idx[hit]]
+    # only the matched rows' hkl are gathered: the in-range set is ~20× the
+    # lines, and gathering all of it was the costliest step after the product
+    return np.flatnonzero(hit), np.asarray(hkl)[inside[order[idx[hit]]]]
 
 
 def search_line_order(peaks: PeakList, spec: SearchSpec) -> np.ndarray:
@@ -1151,21 +1377,78 @@ def dedup_groups(cands: Sequence[EngineCandidate],
     know **which engines** produced one lattice: agreement is the confidence, so
     the membership is the answer and not a by-product.  :func:`dedup_candidates`
     is this function's first column.
+
+    **Two things a large harvest made expensive, and neither changes a group**
+    (WP-1509; ``fast=False`` is the plain pass, held equal to this by test):
+
+    * *A raw harvest is mostly copies, and a copy is answered once.*  Sibling
+      leaves refine onto the same cell bit for bit — a bethanechol dichotomy
+      unit's 7000 raw candidates held 761 distinct ones and spent 18 s in
+      204 634 χ² tests, a 6×6 pseudo-inverse each.  Every input a test reads is
+      a function of the candidate's A..F, covariance, system and centring and
+      of the group's first member, which never changes, so each (distinct
+      candidate, group) verdict is computed once; the reduction likewise, once
+      per distinct A..F.
+    * *The volume gate is asked of the groups inside the band, not of all of
+      them.*  On corundum's tetragonal unit, 5037 candidates of 4942 lattices,
+      the plain loop asked it ~12 million times.  Groups are kept per (system,
+      centring) sorted by volume, the band's superset is found by bisection,
+      and the gate itself is still the one that decides, in creation order; a
+      group of infinite volume, which the gate never refuses, is always asked.
     """
+    return _dedup_groups(cands, fast=True)
+
+
+def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
+                  ) -> list[list[EngineCandidate]]:
+    """:func:`dedup_groups`, with its caches and volume index switchable."""
+    from bisect import bisect_left, bisect_right
+
     from .reduce import equal_reduced, reduced_af
 
     #: reduce **once** per candidate, not once per comparison
-    prepared: list[tuple[EngineCandidate, np.ndarray, float]] = []
+    reduced: dict[bytes, tuple[np.ndarray, float] | None] = {}
+    prepared: list[tuple[EngineCandidate, np.ndarray, float, tuple]] = []
     for cand in sorted(cands, key=lambda c: (-c.n_indexed, c.fit.chi2_red)):
-        try:
-            red = reduced_af(cand.fit.af)
-        except (ValueError, np.linalg.LinAlgError, RuntimeError):
+        af_key = np.asarray(cand.fit.af, dtype=np.float64).tobytes()
+        if not fast or af_key not in reduced:
+            try:
+                red = reduced_af(cand.fit.af)
+            except (ValueError, np.linalg.LinAlgError, RuntimeError):
+                reduced[af_key] = None
+            else:
+                reduced[af_key] = (red, _reduced_volume(red))
+        if reduced[af_key] is None:
             continue
-        prepared.append((cand, red, _reduced_volume(red)))
+        red, volume = reduced[af_key]
+        cov = cand.fit.cov_af
+        cov_key = (None if cov is None
+                   else np.asarray(cov, dtype=np.float64).tobytes())
+        prepared.append((cand, red, volume,
+                         (af_key, cov_key, cand.system, cand.centring)))
 
     kept: list[tuple[list[EngineCandidate], np.ndarray, float]] = []
-    for cand, red, volume in prepared:
-        for group, other_red, other_volume in kept:
+    tested: dict[tuple[tuple, int], bool] = {}
+    # per (system, centring): finite volumes sorted, their groups beside them,
+    # and the groups whose volume is not finite
+    by_volume: dict[tuple[str, str], tuple[list[float], list[int], list[int]]] = {}
+    rtol = DEDUP_VOLUME_RTOL
+    for cand, red, volume, key in prepared:
+        if fast:
+            vols, ids, unbounded = by_volume.setdefault(
+                (cand.system, cand.centring), ([], [], []))
+            if np.isfinite(volume) and rtol < 1.0:
+                # |v − o| ≤ rtol·max(v, o) ⇔ v(1 − rtol) ≤ o ≤ v/(1 − rtol),
+                # widened so rounding at either edge is left to the gate
+                lo = bisect_left(vols, volume * (1.0 - rtol) * (1.0 - 1e-9))
+                hi = bisect_right(vols, volume / (1.0 - rtol) * (1.0 + 1e-9))
+                order = sorted(ids[lo:hi] + unbounded)
+            else:
+                order = sorted(ids + unbounded)
+        else:
+            order = range(len(kept))
+        for g in order:
+            group, other_red, other_volume = kept[g]
             # volume gate first: two lattices whose reduced volumes differ by more
             # than a per-cent cannot pass a χ² test on their metrics, and this is
             # what keeps the pass from being N² pinv solves as well as N² reductions
@@ -1175,16 +1458,27 @@ def dedup_groups(cands: Sequence[EngineCandidate],
             other = group[0]
             if other.centring != cand.centring or other.system != cand.system:
                 continue
-            try:
-                same, _chi2 = equal_reduced(red, other_red,
-                                            cov_a=cand.fit.cov_af,
-                                            cov_b=other.fit.cov_af)
-            except (ValueError, np.linalg.LinAlgError):
-                same = False
+            same = tested.get((key, g)) if fast else None
+            if same is None:
+                try:
+                    same, _chi2 = equal_reduced(red, other_red,
+                                                cov_a=cand.fit.cov_af,
+                                                cov_b=other.fit.cov_af)
+                except (ValueError, np.linalg.LinAlgError):
+                    same = False
+                if fast:
+                    tested[(key, g)] = same
             if same:
                 group.append(cand)
                 break
         else:
+            if fast:
+                if np.isfinite(volume):
+                    at = bisect_right(vols, volume)
+                    vols.insert(at, volume)
+                    ids.insert(at, len(kept))
+                else:
+                    unbounded.append(len(kept))
             kept.append(([cand], red, volume))
     return [group for group, _red, _vol in kept]
 
@@ -1208,6 +1502,7 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
                     max_candidates: int = DEFAULT_MAX_CANDIDATES,
                     shortlist: int | None = 4,
                     q_match: np.ndarray | None = None,
+                    deduped: bool = False,
                     ) -> list[EngineCandidate]:
     """Dedup, score with the FoM panel, and rank by **agreement, then** Borda.
 
@@ -1261,7 +1556,12 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
     engine assigned lines with, or the panel judges these candidates by a window
     they were never selected under (:func:`~rietx.indexing.fom.fom_panel`).
     """
-    kept = dedup_candidates(cands)
+    # ``deduped``: the caller's list is exactly what :func:`dedup_candidates`
+    # just returned, and a second pass over that is the identity — the survivors
+    # come back in the same (stable) order, each meets the same first members in
+    # the same deterministic tests, and none matched one then.  Measured on
+    # corundum's tetragonal unit, the repeat was 53.6 s of a 303 s unit (WP-1509)
+    kept = list(cands) if deduped else dedup_candidates(cands)
     # agreement leads the cheap pre-rank too: a candidate cut here never reaches
     # the panel, so applying the key only to the final sort would leave the same
     # truncation deciding an order it is not entitled to decide
