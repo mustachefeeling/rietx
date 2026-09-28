@@ -692,6 +692,9 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
     capped: list[str] = []
     stopped: list[str] = []
     raw: list[EngineCandidate] = []
+    #: ``raw`` is exactly the last ``dedup_candidates`` output, so the ranking
+    #: need not dedup it again (``rank_candidates``' ``deduped``)
+    raw_deduped = False
     for system in systems:
         # a system this engine never *started* is not claimed: it stays out of
         # ``systems_searched`` and ``search_complete``, which is what lets the
@@ -717,8 +720,10 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
             sigma, q_search, tol_search, peaks.wavelength, tt_max,
             spec.min_volume, vol_max, search, tt_all)
         raw.extend(found)
+        raw_deduped = raw_deduped and not found
         if len(raw) > DEDUP_EVERY:
             raw = dedup_candidates(raw)
+            raw_deduped = True
         result.search_complete[system] = complete
         result.stats[f"{system}.seconds"] = round(budget.elapsed, 3)
         result.stats[f"{system}.boxes"] = float(n_boxes)
@@ -745,7 +750,7 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
     result.candidates = rank_candidates(raw, peaks, k_sigma=spec.k_sigma,
                                         n_unindexed=spec.n_unindexed,
                                         max_candidates=spec.engine_pool(),
-                                        q_match=sigma)
+                                        q_match=sigma, deduped=raw_deduped)
     result.stats["candidates.raw"] = float(len(raw))
     if len(result.candidates) >= spec.engine_pool():
         for system in result.systems_searched:

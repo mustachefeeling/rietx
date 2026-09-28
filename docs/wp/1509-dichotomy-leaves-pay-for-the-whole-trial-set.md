@@ -105,7 +105,7 @@ The traversal kernel (WP-1508). svd and trial_error. The budget constant
       the four 2-D units (identical `n_boxes`, `rows_per_box`, candidate digest).
 - [x] An exact, order-preserving restriction of `assign_lines`' trial set at the
       leaves, or a measured statement of why none is exact.
-- [ ] `dedup_candidates` on a harvest past `DEDUP_EVERY`: 20 % of bethanechol F's
+- [x] `dedup_candidates` on a harvest past `DEDUP_EVERY`: 20 % of bethanechol F's
       compiled 30 s unit (1508); measure it on a finished search and fix or fence it.
 - [ ] Re-profile the four units; `tests/test_acceptance_indexing.py` once on the final
       tree, reporting which searches now finish inside 300 s.

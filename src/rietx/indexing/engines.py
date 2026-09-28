@@ -1342,21 +1342,78 @@ def dedup_groups(cands: Sequence[EngineCandidate],
     know **which engines** produced one lattice: agreement is the confidence, so
     the membership is the answer and not a by-product.  :func:`dedup_candidates`
     is this function's first column.
+
+    **Two things a large harvest made expensive, and neither changes a group**
+    (WP-1509; ``fast=False`` is the plain pass, held equal to this by test):
+
+    * *A raw harvest is mostly copies, and a copy is answered once.*  Sibling
+      leaves refine onto the same cell bit for bit — a bethanechol dichotomy
+      unit's 7000 raw candidates held 761 distinct ones and spent 18 s in
+      204 634 χ² tests, a 6×6 pseudo-inverse each.  Every input a test reads is
+      a function of the candidate's A..F, covariance, system and centring and
+      of the group's first member, which never changes, so each (distinct
+      candidate, group) verdict is computed once; the reduction likewise, once
+      per distinct A..F.
+    * *The volume gate is asked of the groups inside the band, not of all of
+      them.*  On corundum's tetragonal unit, 5037 candidates of 4942 lattices,
+      the plain loop asked it ~12 million times.  Groups are kept per (system,
+      centring) sorted by volume, the band's superset is found by bisection,
+      and the gate itself is still the one that decides, in creation order; a
+      group of infinite volume, which the gate never refuses, is always asked.
     """
+    return _dedup_groups(cands, fast=True)
+
+
+def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
+                  ) -> list[list[EngineCandidate]]:
+    """:func:`dedup_groups`, with its caches and volume index switchable."""
+    from bisect import bisect_left, bisect_right
+
     from .reduce import equal_reduced, reduced_af
 
     #: reduce **once** per candidate, not once per comparison
-    prepared: list[tuple[EngineCandidate, np.ndarray, float]] = []
+    reduced: dict[bytes, tuple[np.ndarray, float] | None] = {}
+    prepared: list[tuple[EngineCandidate, np.ndarray, float, tuple]] = []
     for cand in sorted(cands, key=lambda c: (-c.n_indexed, c.fit.chi2_red)):
-        try:
-            red = reduced_af(cand.fit.af)
-        except (ValueError, np.linalg.LinAlgError, RuntimeError):
+        af_key = np.asarray(cand.fit.af, dtype=np.float64).tobytes()
+        if not fast or af_key not in reduced:
+            try:
+                red = reduced_af(cand.fit.af)
+            except (ValueError, np.linalg.LinAlgError, RuntimeError):
+                reduced[af_key] = None
+            else:
+                reduced[af_key] = (red, _reduced_volume(red))
+        if reduced[af_key] is None:
             continue
-        prepared.append((cand, red, _reduced_volume(red)))
+        red, volume = reduced[af_key]
+        cov = cand.fit.cov_af
+        cov_key = (None if cov is None
+                   else np.asarray(cov, dtype=np.float64).tobytes())
+        prepared.append((cand, red, volume,
+                         (af_key, cov_key, cand.system, cand.centring)))
 
     kept: list[tuple[list[EngineCandidate], np.ndarray, float]] = []
-    for cand, red, volume in prepared:
-        for group, other_red, other_volume in kept:
+    tested: dict[tuple[tuple, int], bool] = {}
+    # per (system, centring): finite volumes sorted, their groups beside them,
+    # and the groups whose volume is not finite
+    by_volume: dict[tuple[str, str], tuple[list[float], list[int], list[int]]] = {}
+    rtol = DEDUP_VOLUME_RTOL
+    for cand, red, volume, key in prepared:
+        if fast:
+            vols, ids, unbounded = by_volume.setdefault(
+                (cand.system, cand.centring), ([], [], []))
+            if np.isfinite(volume) and rtol < 1.0:
+                # |v − o| ≤ rtol·max(v, o) ⇔ v(1 − rtol) ≤ o ≤ v/(1 − rtol),
+                # widened so rounding at either edge is left to the gate
+                lo = bisect_left(vols, volume * (1.0 - rtol) * (1.0 - 1e-9))
+                hi = bisect_right(vols, volume / (1.0 - rtol) * (1.0 + 1e-9))
+                order = sorted(ids[lo:hi] + unbounded)
+            else:
+                order = sorted(ids + unbounded)
+        else:
+            order = range(len(kept))
+        for g in order:
+            group, other_red, other_volume = kept[g]
             # volume gate first: two lattices whose reduced volumes differ by more
             # than a per-cent cannot pass a χ² test on their metrics, and this is
             # what keeps the pass from being N² pinv solves as well as N² reductions
@@ -1366,16 +1423,27 @@ def dedup_groups(cands: Sequence[EngineCandidate],
             other = group[0]
             if other.centring != cand.centring or other.system != cand.system:
                 continue
-            try:
-                same, _chi2 = equal_reduced(red, other_red,
-                                            cov_a=cand.fit.cov_af,
-                                            cov_b=other.fit.cov_af)
-            except (ValueError, np.linalg.LinAlgError):
-                same = False
+            same = tested.get((key, g)) if fast else None
+            if same is None:
+                try:
+                    same, _chi2 = equal_reduced(red, other_red,
+                                                cov_a=cand.fit.cov_af,
+                                                cov_b=other.fit.cov_af)
+                except (ValueError, np.linalg.LinAlgError):
+                    same = False
+                if fast:
+                    tested[(key, g)] = same
             if same:
                 group.append(cand)
                 break
         else:
+            if fast:
+                if np.isfinite(volume):
+                    at = bisect_right(vols, volume)
+                    vols.insert(at, volume)
+                    ids.insert(at, len(kept))
+                else:
+                    unbounded.append(len(kept))
             kept.append(([cand], red, volume))
     return [group for group, _red, _vol in kept]
 
@@ -1399,6 +1467,7 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
                     max_candidates: int = DEFAULT_MAX_CANDIDATES,
                     shortlist: int | None = 4,
                     q_match: np.ndarray | None = None,
+                    deduped: bool = False,
                     ) -> list[EngineCandidate]:
     """Dedup, score with the FoM panel, and rank by **agreement, then** Borda.
 
@@ -1452,7 +1521,12 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
     engine assigned lines with, or the panel judges these candidates by a window
     they were never selected under (:func:`~rietx.indexing.fom.fom_panel`).
     """
-    kept = dedup_candidates(cands)
+    # ``deduped``: the caller's list is exactly what :func:`dedup_candidates`
+    # just returned, and a second pass over that is the identity — the survivors
+    # come back in the same (stable) order, each meets the same first members in
+    # the same deterministic tests, and none matched one then.  Measured on
+    # corundum's tetragonal unit, the repeat was 53.6 s of a 303 s unit (WP-1509)
+    kept = list(cands) if deduped else dedup_candidates(cands)
     # agreement leads the cheap pre-rank too: a candidate cut here never reaches
     # the panel, so applying the key only to the final sort would leave the same
     # truncation deciding an order it is not entitled to decide
