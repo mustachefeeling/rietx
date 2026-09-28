@@ -74,7 +74,12 @@ import numpy as np
 
 from ..schemas.indexing import AmbiguityPartner, q_of_two_theta
 from .fom import MATCH_SIGMA, match_lines, predicted_lines
-from .reduce import BRAVAIS_OBLIQUITIES, reduce_cell, same_lattice
+from .reduce import (
+    BRAVAIS_OBLIQUITIES,
+    _basis_change,
+    reduce_cell,
+    same_lattice,
+)
 
 #: Highest derivative-lattice index enumerated.  A fence, recorded rather than
 #: attempted: the HNF count grows (7, 13, 35 at index 2, 3, 4) and so does the
@@ -617,19 +622,6 @@ class SupercellEvidence:
         if self.p_floor >= alpha:
             return "undecided"
         return "refuted"
-
-
-def _basis_change(triplet: str) -> np.ndarray:
-    """M with (reduced basis rows) = M · (input basis rows), from
-    :attr:`~rietx.indexing.reduce.ReducedCell.change_of_basis`.
-
-    gemmi's triplet is the transpose of that matrix — checked on P, C, I and R
-    cells by ``transform_cell(cell, M)`` reproducing the reduced cell.
-    """
-    import gemmi
-
-    op = gemmi.Op(triplet)
-    return np.asarray(op.rot, dtype=np.float64).T / gemmi.Op.DEN
 
 
 def _parent_coordinates(parent_cell: tuple[float, ...], parent_centring: str,

@@ -329,45 +329,73 @@ def reduced_af(af: np.ndarray) -> np.ndarray:
     (a gemmi call) and a dedup pass compares every candidate against every kept
     one: reducing inside the comparison makes it O(N²) reductions where O(N) will
     do.  Measured on a monoclinic search that accepted ~5 000 raw candidates, that
-    was the single largest cost in the engine.
+    was the single largest cost in the engine.  It builds no covariance map:
+    :func:`reduction` does, for a caller that has a covariance to carry.
     """
-    return reduction(af)[0]
+    from .qspace import af_from_cell, cell_from_af
+    return af_from_cell(reduce_cell(cell_from_af(af)).cell)
 
 
 def reduction(af: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
     """(A..F) of the Niggli-reduced form, and the 6×6 map T that took ``af`` there.
 
     red = T·af, so a covariance of ``af`` is T·cov·Tᵀ in the reduced frame
-    (:func:`reduced_covariance`).  T is ``None`` when the reduction kept the
-    setting, which is what keeps a pair already in its reduced setting
+    (:func:`reduced_covariance`).  T is ``None`` when red = af component for
+    component, which is what keeps a pair already in its reduced setting
     bit-identical to the test before WP-1518.
+
+    **The triplet alone is not the whole map.**  Within the reduction's ε,
+    gemmi's normalisation can flip the sign of a near-zero D, E or F without
+    recording it in the change of basis.  Measured on 2000 cells with an angle
+    within 1e-3° of 90°, 909 disagreed with the triplet's map, every one by the
+    sign of one or two components.  Those rows of T are flipped, so the
+    covariance's cross terms keep the sign of the vector they describe.
     """
     from .qspace import af_from_cell, cell_from_af
     reduced = reduce_cell(cell_from_af(af))
-    return af_from_cell(reduced.cell), _af_map(reduced.change_of_basis)
+    red = af_from_cell(reduced.cell)
+    t = _af_map(reduced.change_of_basis)
+    mapped = np.asarray(af, dtype=np.float64) if t is None else t @ af
+    flip = mapped * red < 0.0
+    if flip.any():
+        t = (np.eye(6) if t is None else t) * np.where(flip, -1.0, 1.0)[:, None]
+    return red, t
 
 
-@lru_cache(maxsize=256)
+def _basis_change(triplet: str) -> np.ndarray:
+    """M with (reduced basis rows) = M · (input basis rows), from
+    :attr:`ReducedCell.change_of_basis`.
+
+    gemmi's triplet is the transpose of that matrix — checked on P, C, I and R
+    cells by ``transform_cell(cell, M)`` reproducing the reduced cell.
+    """
+    import gemmi
+
+    op = gemmi.Op(triplet)
+    return np.asarray(op.rot, dtype=np.float64).T / gemmi.Op.DEN
+
+
+#: sized past the distinct triplets a triclinic harvest reaches (840 in 3000
+#: random triclinic reductions), so a pass does not rebuild the map it just built
+@lru_cache(maxsize=4096)
 def _af_map(change_of_basis: str) -> np.ndarray | None:
     """The linear map on A..F of a primitive change of basis, a gemmi triplet.
 
-    gemmi's operator R takes the reciprocal metric to R⁻¹·G*·R⁻ᵀ.  That
-    convention was measured, since the inverse and the transpose are each a
-    plausible reading.  Over 28 reductions of cubic to triclinic cells in five
-    centrings, R⁻¹ matched the reduced metric to ≤ 1e-15 relative every time.
-    R, Rᵀ and R⁻ᵀ each missed some by 0.3 or more, and a permutation, where
-    Rᵀ = R⁻¹, hides the difference.  A..F is linear in G*
+    With M from :func:`_basis_change`, the direct metric goes to M·G·Mᵀ, so the
+    reciprocal metric goes to M⁻ᵀ·G*·M⁻¹.  That convention was measured, since
+    the inverse and the transpose are each a plausible reading.  Over 28
+    reductions of cubic to triclinic cells in five centrings, M⁻ᵀ matched the
+    reduced metric to ≤ 1e-15 relative every time.  M, Mᵀ and M⁻¹ each missed
+    some by 0.3 or more, and a permutation, where Mᵀ = M⁻¹, hides the
+    difference.  A..F is linear in G*
     (:func:`~.qspace.gstar_from_af`), so column p of T is that congruence
-    applied to the p-th unit vector.  R⁻¹ of a primitive reduction is
-    unimodular, and rounding it makes T exact.
+    applied to the p-th unit vector.  M of a primitive reduction is
+    unimodular, and rounding its inverse makes T exact.
     """
     if change_of_basis == "x,y,z":
         return None
-    import gemmi
-
     from .qspace import af_from_gstar, gstar_from_af
-    rot = np.array(gemmi.Op(change_of_basis).rot, dtype=np.float64) / gemmi.Op.DEN
-    m = np.rint(np.linalg.inv(rot))
+    m = np.rint(np.linalg.inv(_basis_change(change_of_basis))).T
     t = np.column_stack([af_from_gstar(m @ gstar_from_af(e) @ m.T)
                          for e in np.eye(6)])
     t.setflags(write=False)
@@ -413,6 +441,8 @@ def same_lattice(af_a: np.ndarray, af_b: np.ndarray, *,
     without, it falls back to :data:`CELL_EQUALITY_RELATIVE` on the reduced cell
     parameters and the returned χ² is NaN so a caller can see which test ran.
     """
+    if cov_a is None or cov_b is None:
+        return equal_reduced(reduced_af(af_a), reduced_af(af_b))
     red_a, t_a = reduction(af_a)
     red_b, t_b = reduction(af_b)
     return equal_reduced(red_a, red_b, cov_a=reduced_covariance(cov_a, t_a),

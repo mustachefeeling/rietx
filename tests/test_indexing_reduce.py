@@ -318,6 +318,22 @@ def test_the_reduction_map_takes_a_to_f_where_the_reduction_does(a, b, c, al,
                            atol=1e-12 * np.max(np.abs(red)))
 
 
+@pytest.mark.parametrize("cell", [
+    (3.4481, 3.4481, 7.9668, 90.0, 89.9999997, 90.0),
+    (10.1736, 10.1736, 7.2114, 90.0, 89.99999996617657, 90.0),
+    (4.9378, 3.3955, 4.4419, 90.0, 89.99999877161947, 90.0),
+    (11.2545, 7.4719, 8.663, 90.0, 89.99999996944449, 89.99998580312608),
+])
+def test_the_map_carries_a_sign_the_reduction_snapped(cell):
+    """Within ε of 90° gemmi flips a near-zero D, E or F's sign and the triplet
+    does not say so.  Hypothesis's generic cells never land there, and without
+    the flip these four disagreed with red by 1.7e-9 to 6.6e-7 of its scale."""
+    af = af_from_cell(cell)
+    red, t = reduction(af)
+    mapped = af if t is None else t @ af
+    assert np.allclose(mapped, red, rtol=0.0, atol=1e-14 * np.max(np.abs(red)))
+
+
 def _own_frame_covariance(af: np.ndarray, rel: float, slots) -> np.ndarray:
     """A diagonal covariance in the setting an engine refined in."""
     return np.diag([(rel * af[s]) ** 2 if s in slots else 0.0
