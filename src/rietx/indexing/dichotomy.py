@@ -290,18 +290,24 @@ def _test_box(m: np.ndarray, lo: np.ndarray, hi: np.ndarray, basis: np.ndarray,
               q_hi: float, det_band: tuple[float, float],
               swaps: list[tuple[int, int]], lo_search: np.ndarray,
               hi_search: np.ndarray, n_unindexed: int,
-              ) -> tuple[np.ndarray, float, bool] | None:
+              ids: np.ndarray | None = None,
+              ) -> tuple[np.ndarray, float, bool, np.ndarray | None] | None:
     """Every prune, in cost order.  ``None`` if the box is impossible.
 
-    Returns ``(surviving trial rows, induced Q width, assignment is unique)``.
-    Shared by the grid pass and the dichotomy so the two phases cannot come to
-    different conclusions about the same box — which is the whole reason the
-    prunes live in a function rather than inline in each loop.
+    Returns ``(surviving trial rows, induced Q width, assignment is unique,
+    their ids)``.  ``ids`` names ``m``'s rows (indices into the search set) and
+    is filtered by the same masks, so a leaf knows *which* rows survived and not
+    only their values (WP-1509); ``None`` in gives ``None`` out.  Shared by the
+    grid pass and the dichotomy so the two phases cannot come to different
+    conclusions about the same box — which is the whole reason the prunes live
+    in a function rather than inline in each loop.
     """
     q_min, q_max = _q_bounds(m, lo, hi)
     keep = q_min <= q_hi
     if not keep.all():
         m, q_min, q_max = m[keep], q_min[keep], q_max[keep]
+        if ids is not None:
+            ids = ids[keep]
     if not len(q_min):
         return None
 
@@ -352,7 +358,44 @@ def _test_box(m: np.ndarray, lo: np.ndarray, hi: np.ndarray, basis: np.ndarray,
     # has a large ‖m‖, so its Q interval stays wide long after the assignment has
     # stopped being ambiguous, and the search bisects past its own depth cap.
     unique = bool(len(hit)) and int(np.max(counts)) <= 1
-    return m[relevant], width, unique
+    return (m[relevant], width, unique,
+            None if ids is None else ids[relevant])
+
+
+def _centred_replay(m_full: np.ndarray, rows: np.ndarray, member: np.ndarray,
+                    lo: np.ndarray, hi: np.ndarray, basis: np.ndarray,
+                    q_hi: float, det_band: tuple[float, float],
+                    swaps: list[tuple[int, int]], lo_search: np.ndarray,
+                    hi_search: np.ndarray, n_unindexed: int) -> bool:
+    """Would one centring's own search have reached this leaf?
+
+    ``_test_box`` over that centring's whole search set (``m_full[member]``)
+    answers it, and a leaf used to ask exactly that: ~2000 rows on a 2-D unit,
+    28-41 % of the unit (WP-1508's profile).  **Only the leaf's survivors can
+    change the answer** (WP-1509), so the replay runs on ``rows`` ∩ ``member``.
+    A row that is not a survivor reached no line over some box containing this
+    one; every child box lies inside its parent, and ``_q_bounds``' corner sums
+    are monotone in each edge in floating point too (a multiplication by a
+    constant and a left-to-right sum both preserve order), so it reaches none
+    here.  Such a row sets no column of ``hit``: the misses, the reachable
+    count, the per-line counts, the forced lines' distinctness and the width are
+    all unmoved, and the ``q_min ≤ q_hi`` filter only ever drops rows that reach
+    nothing.  The argument does not reach an **empty** intersection, which
+    ``_test_box`` refuses for being empty: the whole set then reaches no line,
+    which refuses it too when there are more lines than may go unindexed, and
+    in the other case the whole set is tested, as it always was.
+
+    ``tests/test_indexing_kernels.py`` holds this equal to the whole-set test
+    at every leaf of the synthetic searches.
+    """
+    sub = rows[member[rows]]
+    if len(sub):
+        return _test_box(m_full[sub], lo, hi, basis, q_hi, det_band, swaps,
+                         lo_search, hi_search, n_unindexed) is not None
+    if len(lo_search) > n_unindexed:
+        return False
+    return _test_box(m_full[member], lo, hi, basis, q_hi, det_band, swaps,
+                     lo_search, hi_search, n_unindexed) is not None
 
 
 def _assignment_possible(hit: np.ndarray, n_reachable: int, counts: np.ndarray,
@@ -395,7 +438,7 @@ def _assignment_possible(hit: np.ndarray, n_reachable: int, counts: np.ndarray,
     return True
 
 
-def _push_children(stack: list, children: list, m: np.ndarray,
+def _push_children(stack: list, children: list, m: np.ndarray, ids: np.ndarray,
                    lo_search: np.ndarray, hi_search: np.ndarray,
                    n_unindexed: int, depth: int) -> None:
     """Test each child, drop the impossible ones, and push **best last**.
@@ -430,7 +473,7 @@ def _push_children(stack: list, children: list, m: np.ndarray,
         scored.append((misses, int(hit.sum()), child_lo, child_hi))
     scored.sort(key=lambda entry: (entry[0], entry[1]), reverse=True)
     for _misses, _pairs, child_lo, child_hi in scored:
-        stack.append((child_lo, child_hi, m, depth))
+        stack.append((child_lo, child_hi, m, ids, depth))
 
 
 def _pivot_of(basis: np.ndarray, af_index: int) -> int | None:
@@ -770,8 +813,8 @@ def _grid_pass(basis: np.ndarray, lo0: np.ndarray, hi0: np.ndarray, rows0,
                test, budget: Budget) -> tuple[list | None, int, int, bool]:
     """Phase 1 of :func:`_search_one`, shared by the numpy and compiled paths.
 
-    ``rows0`` is whatever a box carries for its trial set (the rows themselves
-    on the numpy path, indices into them on the compiled one), and
+    ``rows0`` is the box's trial set as indices into the search set — on both
+    paths since WP-1509, because a leaf needs to know which rows survived — and
     ``test(rows, lo, hi)`` returns the survivors a box's children inherit, or
     ``None`` for an impossible box.  One loop, so the two paths cannot come to
     different grids.  Returns ``(frontier, n_boxes, n_rows, complete)``;
@@ -891,9 +934,9 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     root_min, _root_max = _q_bounds(m_all, lo0, hi0)
     search_set = np.flatnonzero(root_min <= q_hi_search)
     m_full = m_all[search_set]
-    # each centring's own view of the *recursion* set, for the leaf-level replay
-    # of the pass it no longer gets — see the loop in phase 2
-    m_search = {c: m_full[rows[search_set]] for c, rows in centring_rows.items()}
+    # each centring's membership of the *recursion* set, for the leaf-level
+    # replay of the pass it no longer gets — see ``leaf``
+    in_search = {c: rows[search_set] for c, rows in centring_rows.items()}
     q_hi = q_hi_search
 
     det_band = (1.0 / max(vol_max, 1e-6) ** 2, 1.0 / max(vol_min, 1e-6) ** 2)
@@ -911,8 +954,8 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
                if len(q_search) > 1 else 0.0)
     tol_accept = max(float(np.min(tol_search)), ACCEPT_SPACING_FRAC * spacing)
 
-    # the stack holds the box's *surviving trial rows*, not indices into the
-    # parent set: a child that filters nothing then reuses its parent's array
+    # the stack holds the box's *surviving trial rows* beside their ids, not the
+    # ids alone: a child that filters nothing then reuses its parent's array
     # instead of paying a fancy-index copy, and the copy was 30 % of the loop
     lo_search = q_search - tol_search
     hi_search = q_search + tol_search
@@ -922,8 +965,13 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     found: list[EngineCandidate] = []
     seen: set[tuple[int, ...]] = set()
 
-    def leaf(lo: np.ndarray, hi: np.ndarray, width: float) -> None:
-        """A converged box: dedup it, replay the centred passes, refine."""
+    def leaf(lo: np.ndarray, hi: np.ndarray, width: float,
+             rows: np.ndarray) -> None:
+        """A converged box: dedup it, replay the centred passes, refine.
+
+        ``rows`` are the box's surviving trial rows, as indices into
+        ``m_full``.
+        """
         theta = 0.5 * (lo + hi)
         key = _box_key(basis.T @ theta)
         if key in seen:
@@ -943,9 +991,9 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
             # monotone under bisection, so a box that survives implies
             # every ancestor survived, and leaf survival is exactly "the
             # centred search would have reached here".
-            if _test_box(m_search[centring], lo, hi, basis, q_hi, det_band,
-                         swaps, lo_search, hi_search,
-                         spec.n_unindexed) is None:
+            if not _centred_replay(m_full, rows, in_search[centring], lo, hi,
+                                   basis, q_hi, det_band, swaps, lo_search,
+                                   hi_search, spec.n_unindexed):
                 continue
             cand = _accept(basis, system, centring, spec, theta,
                            hkl_c, dm_c, q_all, sigma,
@@ -962,13 +1010,13 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
         return found, (n_boxes, n_rows), complete and complete_union
 
     # ---- phase 1: the grid, breadth-first, one dimension at a time ----
-    def grid_test(m: np.ndarray, lo: np.ndarray, hi: np.ndarray):
-        kept = _test_box(m, lo, hi, basis, q_hi, det_band, swaps, lo_search,
-                         hi_search, spec.n_unindexed)
-        return None if kept is None else kept[0]
+    def grid_test(ids: np.ndarray, lo: np.ndarray, hi: np.ndarray):
+        kept = _test_box(m_full[ids], lo, hi, basis, q_hi, det_band, swaps,
+                         lo_search, hi_search, spec.n_unindexed, ids=ids)
+        return None if kept is None else kept[3]
 
     frontier, n_boxes, n_rows, complete = _grid_pass(
-        basis, lo0, hi0, m_full, grid_test, budget)
+        basis, lo0, hi0, np.arange(len(m_full)), grid_test, budget)
     if frontier is None:
         return found, (n_boxes, n_rows), False
 
@@ -982,24 +1030,24 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     # the shell containing the answer last.  Ordering the survivors by volume gives
     # the same "cheap answers first" property for one grid pass.
     volumes = _centre_volumes(basis, frontier)
-    stack = [(lo, hi, m, 0)
-             for _v, _i, lo, hi, m in sorted(
-                 ((volumes[i], i, lo, hi, m)
-                  for i, (lo, hi, m) in enumerate(frontier)), reverse=True)]
+    stack = [(lo, hi, m_full[ids], ids, 0)
+             for _v, _i, lo, hi, ids in sorted(
+                 ((volumes[i], i, lo, hi, ids)
+                  for i, (lo, hi, ids) in enumerate(frontier)), reverse=True)]
     while stack:
         if budget.expired():
             return found, (n_boxes, n_rows), False
-        lo, hi, m, depth = stack.pop()
+        lo, hi, m, ids, depth = stack.pop()
         n_boxes += 1
         n_rows += len(m)
         kept = _test_box(m, lo, hi, basis, q_hi, det_band, swaps, lo_search,
-                         hi_search, spec.n_unindexed)
+                         hi_search, spec.n_unindexed, ids=ids)
         if kept is None:
             continue
-        m, width, unique = kept
+        m, width, unique, ids = kept
 
         if unique or width <= tol_accept or depth >= MAX_DEPTH:
-            leaf(lo, hi, width)
+            leaf(lo, hi, width, ids)
             continue
 
         # bisect the dimension that moves Q most — the one whose own width, times
@@ -1014,8 +1062,8 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
         left_hi, right_lo = hi.copy(), lo.copy()
         left_hi[j] = mid
         right_lo[j] = mid
-        _push_children(stack, [(lo, left_hi), (right_lo, hi)], m, lo_search,
-                       hi_search, spec.n_unindexed, depth + 1)
+        _push_children(stack, [(lo, left_hi), (right_lo, hi)], m, ids,
+                       lo_search, hi_search, spec.n_unindexed, depth + 1)
     return found, (n_boxes, n_rows), complete and complete_union
 
 
@@ -1031,9 +1079,10 @@ def _traverse_compiled(kernels: dict, basis: np.ndarray, lo0: np.ndarray,
     **The same search, box for box** — the grid pass is the numpy one with its box
     test swapped for the kernel's, and phase 2 is ``_kernels_numba.traverse``,
     which pops, tests, splits and pushes in the numpy loop's order.  Rows travel
-    as indices into ``m_full`` rather than as copies, which is the only
-    representational difference, and ``leaf`` is the numpy path's own closure,
-    handed each leaf in the order the traversal met it.  So a finished search
+    as indices into ``m_full`` alone, where the numpy loop stacks their values
+    beside the indices, which is the only representational difference, and
+    ``leaf`` is the numpy path's own closure, handed each leaf and its
+    surviving rows in the order the traversal met it.  So a finished search
     reports the same boxes, rows and candidates; a cut one stops at most one
     :data:`TRAVERSAL_ROW_CHUNK` or one leaf later than the numpy loop would.
 
@@ -1104,10 +1153,16 @@ def _traverse_compiled(kernels: dict, basis: np.ndarray, lo0: np.ndarray,
     pool = np.zeros(base_top + _POOL_HEADROOM * max(widest, 1), dtype=np.int64)
     if chunks:
         pool[:base_top] = np.concatenate(chunks)
-    state = np.array([n_entries, base_top, 0, 0, 0], dtype=np.int64)
+    state = np.array([n_entries, base_top, 0, 0, 0, 0], dtype=np.int64)
     leaf_lo = np.empty((TRAVERSAL_LEAF_BUFFER, n_dim))
     leaf_hi = np.empty((TRAVERSAL_LEAF_BUFFER, n_dim))
     leaf_width = np.empty(TRAVERSAL_LEAF_BUFFER)
+    # each buffered leaf's surviving rows; the kernel hands back before this
+    # could fail to hold one more leaf's, so twice the search set always fits
+    # one and, at a 2-D leaf's few dozen rows, holds the whole leaf buffer
+    leaf_rows = np.empty(max(2 * n_all, 1), dtype=np.int64)
+    leaf_start = np.empty(TRAVERSAL_LEAF_BUFFER, dtype=np.int64)
+    leaf_len = np.empty(TRAVERSAL_LEAF_BUFFER, dtype=np.int64)
     line_hit = np.empty(n_lines, dtype=np.int64)
 
     def counted() -> tuple[int, int]:
@@ -1121,13 +1176,17 @@ def _traverse_compiled(kernels: dict, basis: np.ndarray, lo0: np.ndarray,
             n_unindexed, cos_max, tol_accept, MAX_DEPTH,
             st_lo, st_hi, st_depth, st_start, st_len,
             pool, base_top, state,
-            leaf_lo, leaf_hi, leaf_width, TRAVERSAL_ROW_CHUNK,
+            leaf_lo, leaf_hi, leaf_width, leaf_rows, leaf_start, leaf_len,
+            TRAVERSAL_ROW_CHUNK,
             q_min_buf, q_max_buf, counts, first, af_lo, af_hi, line_hit)
         for i in range(int(state[2])):
             if budget.expired():
                 return (*counted(), False)
-            leaf(leaf_lo[i].copy(), leaf_hi[i].copy(), float(leaf_width[i]))
+            s = int(leaf_start[i])
+            leaf(leaf_lo[i].copy(), leaf_hi[i].copy(), float(leaf_width[i]),
+                 leaf_rows[s:s + int(leaf_len[i])].copy())
         state[2] = 0
+        state[5] = 0
         if status == kn.DONE:
             return (*counted(), complete)
         if status == kn.GROW:

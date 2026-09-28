@@ -101,7 +101,7 @@ The traversal kernel (WP-1508). svd and trial_error. The budget constant
 
 ## Tasks
 
-- [ ] Centred replay on survivors ∩ centring; equivalence on the synthetic suite and
+- [x] Centred replay on survivors ∩ centring; equivalence on the synthetic suite and
       the four 2-D units (identical `n_boxes`, `rows_per_box`, candidate digest).
 - [ ] An exact, order-preserving restriction of `assign_lines`' trial set at the
       leaves, or a measured statement of why none is exact.

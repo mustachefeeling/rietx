@@ -160,7 +160,8 @@ def test_one_box_is_the_numpy_box_bit_for_bit(peaks_system, basis_system):
         keep = rng.random(len(m)) < (1.0, 0.5, 0.05)[trial % 3]
         rows = np.flatnonzero(keep).astype(np.int64)
         want = _test_box(m[rows], lo, hi, basis, s["q_hi"], s["det_band"],
-                         s["swaps"], s["lo_s"], s["hi_s"], s["n_unindexed"])
+                         s["swaps"], s["lo_s"], s["hi_s"], s["n_unindexed"],
+                         ids=rows)
         ok, n_out, width, unique = k(
             m, rows, lo, hi, basis_t, s["q_hi"], s["det_band"][0],
             s["det_band"][1], swaps, s["lo_s"], s["hi_s"], s["n_unindexed"],
@@ -169,8 +170,9 @@ def test_one_box_is_the_numpy_box_bit_for_bit(peaks_system, basis_system):
         outcomes[ok] += 1
         if want is None:
             continue
-        m_kept, w_want, u_want = want
+        m_kept, w_want, u_want, ids_want = want
         assert np.array_equal(m[out[:n_out]], m_kept), f"trial {trial}: survivors"
+        assert np.array_equal(out[:n_out], ids_want), f"trial {trial}: their ids"
         assert np.all(np.isin(out[:n_out], rows))
         assert np.all(np.diff(out[:n_out]) > 0), "survivors keep their order"
         assert _bits(width) == _bits(w_want), f"trial {trial}: width bits"
@@ -247,6 +249,42 @@ def test_every_handback_resumes_where_the_traversal_stopped(system, monkeypatch)
         system, monkeypatch)
     assert _signature(compiled_result) == _signature(numpy_result)
     assert compiled_leaves == numpy_leaves
+
+
+@pytest.mark.parametrize("system", ("cubic", "tetragonal", "trigonal",
+                                    "orthorhombic"))
+@pytest.mark.parametrize("flag", [
+    False, pytest.param(True, marks=needs_numba)], ids=["numpy", "compiled"])
+def test_the_centred_replay_on_survivors_is_the_whole_set_replay(
+        system, flag, monkeypatch):
+    """WP-1509: at every leaf, each centring's verdict on the leaf's survivors
+    is its verdict on the centring's whole search set, which is what the leaf
+    asked before.
+
+    The replay's only output is that verdict, so this is the whole equivalence
+    claim, asked on both paths because each hands the leaf its survivors its
+    own way.  The four systems are the ones with more than one centring, and a
+    P lattice's list refuses most centred replays, so both verdicts occur —
+    the last assertion is the vacuity guard.
+    """
+    original = dichotomy._centred_replay
+    verdicts = {True: 0, False: 0}
+
+    def checking(m_full, rows, member, lo, hi, basis, q_hi, det_band, swaps,
+                 lo_search, hi_search, n_unindexed):
+        got = original(m_full, rows, member, lo, hi, basis, q_hi, det_band,
+                       swaps, lo_search, hi_search, n_unindexed)
+        want = _test_box(m_full[member], lo, hi, basis, q_hi, det_band, swaps,
+                         lo_search, hi_search, n_unindexed) is not None
+        assert got == want
+        verdicts[got] += 1
+        return got
+
+    monkeypatch.setattr(dichotomy, "_centred_replay", checking)
+    compiled.set_enabled(flag)
+    peaks, _cell = synthetic_peaks(system)
+    search_dichotomy(peaks, spec=spec_for(system))
+    assert verdicts[True] and verdicts[False], verdicts
 
 
 @needs_numba
