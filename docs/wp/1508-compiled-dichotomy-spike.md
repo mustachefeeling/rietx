@@ -215,6 +215,10 @@ WP-1030 (box-death profile), WP-1115 (the tier), WP-1449 (the cut searches).
 
 ## Handover log
 
+- **2026-09-28** — the review finding declined here, that
+  `compiled_kernels_active` stays `True` after a failed build in either tier,
+  is filed as WP-1521.
+
 ### 2026-09-28 — closed: the search is compiled and bit-identical; real indexing is bound by its leaves
 
 Would a compiled kernel improve indexing? For the dichotomy engine's box search,

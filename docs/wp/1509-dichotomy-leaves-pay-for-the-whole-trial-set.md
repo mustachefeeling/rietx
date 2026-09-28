@@ -128,6 +128,12 @@ the leaf, and why only real data showed it); WP-1449 (the cut searches).
 
 ## Handover log
 
+- **2026-09-28** — *Next* item 3 filed after the merge (#516): WP-1519 batches
+  the distinct-lattice χ² tests and carries the macOS/Windows probe check;
+  WP-1520 counts repeated cell refinements before memoising them, and fences
+  the index in svd and priors. Reading dedup for 1519 showed its χ² weighing a
+  reduced Δ with an unreduced covariance, which is WP-1518.
+
 ### 2026-09-28 — closed: a real indexing search spends its time on the cells it finds
 
 Brucite's and corundum's indexing searches now finish about three times faster

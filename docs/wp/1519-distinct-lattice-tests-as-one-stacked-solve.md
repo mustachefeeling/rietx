@@ -1,0 +1,115 @@
+# WP-1519 — the distinct-lattice χ² tests run as one stacked solve
+
+Milestone: unscheduled · Status: ⬜
+Track: A long run is not one fit
+Depends on: — (1509 fenced this; 1518 soft: batch the test it settles, not the one it replaces)
+Priority: P3 2026-09-28 — cost only: since 1509 no acceptance search is cut at 300 s, and this is ~45 s of corundum's 236 s tetragonal unit
+
+## Goal
+
+A dedup pass over many *distinct* lattices spends its χ² tests in one stacked
+pseudo-inverse per candidate rather than one LAPACK call per pair, and every
+group, and so every finished search, comes out bit-identical. Where stacking is
+not proven identical on a platform, the pass keeps its per-pair loop there.
+
+## Context
+
+**What is left after WP-1509.** 1509 made dedup answer each copy once and ask
+the volume gate only inside the band. Copies were most of a raw harvest
+(bethanechol F's cut unit: 7000 raw, 761 distinct, 18.8 → 2.6 s). A harvest of
+genuinely distinct lattices is not helped by either change. Corundum's
+tetragonal unit (5037 candidates, 4942 lattices) still spends ~45 s on
+**567 535 χ² tests** between distinct lattices, a 6×6 `pinv` each.
+Dedup is 24 % of that unit's 236.5 s after 1509 (`[dev]`, Linux x86-64,
+4 cores, py3.12, numpy 2.5.3 on OpenBLAS 0.3.34, one BLAS thread). The same
+pass runs in consensus over every engine's pool and inside svd and trial_error
+at their own `DEDUP_EVERY`.
+
+**The loop** (`engines._dedup_groups`). For each candidate, in `(-n_indexed,
+chi2_red)` order, walk the groups in the volume band in creation order, and
+join the **first** whose `reduce.equal_reduced` verdict is true; a miss opens a
+group. `equal_reduced` computes Δᵀ·`np.linalg.pinv(Σ, hermitian=True)`·Δ with
+Σ = cov_a + cov_b, one call per pair, and the pass caches each (distinct
+candidate, group) verdict.
+
+**Stacking keeps the semantics if each χ² is the same double.** Compute every
+band group's χ² for one candidate in one `pinv` over a (k, 6, 6) stack, then
+take the first passing group in creation order. The extra tests past the first
+match are wasted work, not changed answers. Whether it is the same double is a
+**platform claim**. `pinv(hermitian=True)` goes through numpy's `svd(...,
+hermitian=True)`, which calls `eigh`, and a stack goes through the gufunc loop.
+That loop should call the same LAPACK routine once per matrix, but WP-1509
+learnt not to assume this: numpy sends a (1, 6) product to `dot` rather than
+`gemv`, and 1378 of 4054 single-row products then differed. So measure, the way
+`engines.row_local_product` does. Probe once a process on a witness stack, and
+use the stacked form only where it reproduces the per-matrix one bit for bit.
+
+**The same platform question is still open for 1509's own probe.** Its
+`test_a_subset_product_is_the_whole_products_rows_where_the_probe_says_so`
+skips where `row_local_product()` says the BLAS is not row-local. Whether it
+skips on the macOS and Windows nightly jobs was not read at close. Read both
+on the same logs this WP measures on.
+
+**An exact prefilter is the other route, and it is harder than it looks.**
+χ² ≥ |Δ|²/λ_max(Σ) would reject most pairs without a solve, but `pinv`
+truncates eigenvalues under its cutoff, so the part of Δ in Σ's truncated
+directions contributes nothing. The bound holds only for Δ projected onto the
+kept subspace, which needs the eigendecomposition it was meant to avoid.
+WP-1518 found that this truncation hides real differences today. Try the
+prefilter only after 1518, and only with an argument that survives truncation.
+
+**The bar is WP-1509's.** Finished units replayed to their digests, never a
+green suite. Brucite hexagonal `c82630be`, trigonal `719d4e0b`; corundum
+hexagonal `6a060c83`, trigonal `e8466d7f`, tetragonal `f610fbdc`; synthetic
+monoclinic `fc4d2b0b`. Each unit's inputs are captured by swapping
+`engines._REGISTRY` for recorders and running `index_pattern` once, then
+replayed to completion. The digest is sha256 of `np.array([[*cell, n_indexed]
+…], float64).tobytes()`. 1509's scripts were session scratch, so rebuild the
+harness first and reproduce the six digests on the unchanged tree. If WP-1518
+has landed, its handover names the digests it moved, and those are the ones
+to hold.
+
+## Non-goals
+
+The frame the test reads its covariance in (WP-1518). `CELL_EQUALITY_CHI2`,
+`DEDUP_VOLUME_RTOL`, `DEDUP_EVERY`. The per-assignment refinement (WP-1520).
+A compiled kernel: `pinv` is LAPACK, the tier's bit-identity bar does not reach
+it (WP-1508 § Context).
+
+## Tasks
+
+- [ ] Rebuild the replay harness; reproduce the six digests; time corundum
+      tetragonal's dedup (first pass and consensus) at one BLAS thread.
+- [ ] Measure stacked against per-matrix `pinv(hermitian=True)` on 6×6 stacks
+      of real dedup Σ (captured from the tetragonal unit): the count that
+      differ, on Linux here, and on macOS and Windows through the nightly or a
+      probe the suite runs. Read `test_a_subset_product_…`'s skip state on
+      the same logs.
+- [ ] If stacking reproduces the per-matrix χ²: a probe once a process
+      (`row_local_product`'s pattern), the stacked walk where it says yes, the
+      per-pair loop elsewhere. A test holding the two equal on a harvest that
+      has a first match in the middle of the band. Otherwise close 🛑 with the
+      counts.
+- [ ] Re-time the unit; `tests/test_acceptance_indexing.py` once on the final
+      tree.
+- [ ] Skill: none expected (no call an agent makes changes); say so at close.
+
+## Acceptance
+
+Every finished unit's digest unchanged; the tetragonal unit's dedup re-timed.
+
+```sh
+.venv/bin/python -m pytest tests/test_indexing_engines.py tests/test_indexing_consensus.py -n auto --dist loadgroup
+.venv/bin/python -m pytest tests/test_acceptance_indexing.py -n auto --dist loadgroup
+.venv/bin/python -m ruff check src tests examples
+```
+
+## References
+
+WP-1509 (the fence, the caches, the harness, the row-locality probe);
+WP-1508 (the tier's reach); WP-1518 (the test being batched).
+
+## Handover log
+
+- **2026-09-28** — filed from WP-1509's *Fenced* and *Next* (item 3), with
+  the platform check its handover left for the nightly logs.
