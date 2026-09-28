@@ -648,9 +648,6 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
     capped: list[str] = []
     stopped: list[str] = []
     raw: list[EngineCandidate] = []
-    # built (or loaded from the disk cache) before any unit's clock starts: a
-    # first compile on a machine is ~4 s, and it is not search time
-    _traversal_kernels()
     for system in systems:
         # a system this engine never *started* is not claimed: it stays out of
         # ``systems_searched`` and ``search_complete``, which is what lets the
@@ -659,6 +656,11 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
         # otherwise record 0 s of work as if it had been searched
         if cancel is not None and bool(cancel):
             break
+        # built (or loaded from the disk cache) before this unit's clock
+        # starts, and only once a system is entered — a first compile on a
+        # machine is seconds, it is not search time, and a stopped run should
+        # not pay it; every later call is a flag test
+        _traversal_kernels()
         result.systems_searched += (system,)
         if progress is not None:
             progress.start(f"dichotomy:{system}", engine="dichotomy",
@@ -717,8 +719,10 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
 def _centre_volume(basis: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> float:
     """Unit-cell volume at a box's centre, or ``inf`` if that is not a lattice.
 
-    Used only to *order* the search (smallest cell first), so a box whose centre
-    happens to fall outside the metric cone sorts last rather than raising.
+    The scalar reference :func:`_centre_volumes` is held to on the bit, and its
+    fallback when a stacked inverse refuses; the search itself orders through
+    the batched one.  A box whose centre falls outside the metric cone sorts
+    last rather than raising.
     """
     try:
         return float(np.prod(cell_from_af(basis.T @ (0.5 * (lo + hi)))[:3]))
@@ -751,10 +755,53 @@ def _centre_volumes(basis: np.ndarray, boxes) -> list[float]:
     ok = np.all(np.linalg.eigvalsh(g) > 0.0, axis=1)
     out = np.full(len(af), np.inf)
     if ok.any():
-        inv = np.linalg.inv(g[ok])
+        try:
+            inv = np.linalg.inv(g[ok])
+        except np.linalg.LinAlgError:
+            # one singular matrix refuses the whole stack, where the scalar
+            # form catches it (a ``ValueError``) and sorts that cell last
+            return [_centre_volume(basis, box[0], box[1]) for box in boxes]
         a, b, c = (np.sqrt(inv[:, i, i]) for i in range(3))
         out[ok] = a * b * c
     return [float(v) for v in out]
+
+
+def _grid_pass(basis: np.ndarray, lo0: np.ndarray, hi0: np.ndarray, rows0,
+               test, budget: Budget) -> tuple[list | None, int, int, bool]:
+    """Phase 1 of :func:`_search_one`, shared by the numpy and compiled paths.
+
+    ``rows0`` is whatever a box carries for its trial set (the rows themselves
+    on the numpy path, indices into them on the compiled one), and
+    ``test(rows, lo, hi)`` returns the survivors a box's children inherit, or
+    ``None`` for an impossible box.  One loop, so the two paths cannot come to
+    different grids.  Returns ``(frontier, n_boxes, n_rows, complete)``;
+    ``frontier`` is ``None`` when the budget expired, and ``complete`` is
+    ``False`` for that or for an overflowed grid (:data:`MAX_GRID_CELLS`).
+    """
+    piv = _pivots(basis)
+    frontier = [(lo0, hi0, rows0)]
+    n_boxes = 0
+    n_rows = 0
+    for stage in range(len(piv)):
+        nxt: list = []
+        for lo, hi, rows in frontier:
+            if budget.expired():
+                return None, n_boxes, n_rows, False
+            n_boxes += 1
+            n_rows += len(rows)
+            kept = test(rows, lo, hi)
+            if kept is None:
+                continue
+            edges = _stage_edges(basis, piv, lo, hi, stage)
+            for a, b in zip(edges[:-1], edges[1:]):
+                child_lo, child_hi = lo.copy(), hi.copy()
+                child_lo[stage], child_hi[stage] = a, b
+                nxt.append((child_lo, child_hi, kept))
+            if len(nxt) > MAX_GRID_CELLS:
+                return nxt, n_boxes, n_rows, False
+        frontier = nxt
+    return frontier, n_boxes, n_rows, True
+
 
 def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
                 spec: SearchSpec,
@@ -874,9 +921,6 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     swaps = [(a, b) for a, b in swaps if a is not None and b is not None]
     found: list[EngineCandidate] = []
     seen: set[tuple[int, ...]] = set()
-    n_boxes = 0
-    n_rows = 0
-    complete = True
 
     def leaf(lo: np.ndarray, hi: np.ndarray, width: float) -> None:
         """A converged box: dedup it, replay the centred passes, refine."""
@@ -918,31 +962,15 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
         return found, (n_boxes, n_rows), complete and complete_union
 
     # ---- phase 1: the grid, breadth-first, one dimension at a time ----
-    piv = _pivots(basis)
-    frontier = [(lo0, hi0, m_full)]
-    for stage in range(len(piv)):
-        nxt: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
-        for lo, hi, m in frontier:
-            if budget.expired():
-                return found, (n_boxes, n_rows), False
-            n_boxes += 1
-            n_rows += len(m)
-            kept = _test_box(m, lo, hi, basis, q_hi, det_band, swaps, lo_search,
-                             hi_search, spec.n_unindexed)
-            if kept is None:
-                continue
-            m_kept, _width, _unique = kept
-            edges = _stage_edges(basis, piv, lo, hi, stage)
-            for a, b in zip(edges[:-1], edges[1:]):
-                child_lo, child_hi = lo.copy(), hi.copy()
-                child_lo[stage], child_hi[stage] = a, b
-                nxt.append((child_lo, child_hi, m_kept))
-            if len(nxt) > MAX_GRID_CELLS:
-                complete = False
-                break
-        frontier = nxt
-        if not complete:
-            break
+    def grid_test(m: np.ndarray, lo: np.ndarray, hi: np.ndarray):
+        kept = _test_box(m, lo, hi, basis, q_hi, det_band, swaps, lo_search,
+                         hi_search, spec.n_unindexed)
+        return None if kept is None else kept[0]
+
+    frontier, n_boxes, n_rows, complete = _grid_pass(
+        basis, lo0, hi0, m_full, grid_test, budget)
+    if frontier is None:
+        return found, (n_boxes, n_rows), False
 
     # ---- phase 2: dichotomy inside each surviving grid cell ----
     # **Smallest cell first, and that is the volume-shell idea done once.**  The
@@ -1031,40 +1059,21 @@ def _traverse_compiled(kernels: dict, basis: np.ndarray, lo0: np.ndarray,
     af_lo = np.empty(6)
     af_hi = np.empty(6)
     test_rows = kernels["test_rows"]
-    n_boxes = 0
-    n_rows = 0
-    complete = True
 
-    # ---- phase 1: the numpy grid pass, box test compiled ----
-    piv = _pivots(basis)
-    frontier = [(np.asarray(lo0, dtype=np.float64),
-                 np.asarray(hi0, dtype=np.float64),
-                 np.arange(n_all, dtype=np.int64))]
-    for stage in range(len(piv)):
-        nxt: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
-        for lo, hi, rows in frontier:
-            if budget.expired():
-                return n_boxes, n_rows, False
-            n_boxes += 1
-            n_rows += len(rows)
-            ok, k, _width, _unique = test_rows(
-                m, rows, lo, hi, basis_t, q_hi, band_lo, band_hi, swaps_a, lo_s,
-                hi_s, n_unindexed, cos_max, out, q_min_buf, q_max_buf, counts,
-                first, af_lo, af_hi)
-            if not ok:
-                continue
-            kept = out[:k].copy()
-            edges = _stage_edges(basis, piv, lo, hi, stage)
-            for a, b in zip(edges[:-1], edges[1:]):
-                child_lo, child_hi = lo.copy(), hi.copy()
-                child_lo[stage], child_hi[stage] = a, b
-                nxt.append((child_lo, child_hi, kept))
-            if len(nxt) > MAX_GRID_CELLS:
-                complete = False
-                break
-        frontier = nxt
-        if not complete:
-            break
+    # ---- phase 1: the shared grid pass, box test compiled ----
+    def grid_test(rows: np.ndarray, lo: np.ndarray, hi: np.ndarray):
+        ok, k, _width, _unique = test_rows(
+            m, rows, lo, hi, basis_t, q_hi, band_lo, band_hi, swaps_a, lo_s,
+            hi_s, n_unindexed, cos_max, out, q_min_buf, q_max_buf, counts,
+            first, af_lo, af_hi)
+        return out[:k].copy() if ok else None
+
+    frontier, n_boxes, n_rows, complete = _grid_pass(
+        basis, np.asarray(lo0, dtype=np.float64),
+        np.asarray(hi0, dtype=np.float64), np.arange(n_all, dtype=np.int64),
+        grid_test, budget)
+    if frontier is None:
+        return n_boxes, n_rows, False
 
     # ---- phase 2: the traversal, smallest cell first as in the numpy path ----
     volumes = _centre_volumes(basis, frontier)
