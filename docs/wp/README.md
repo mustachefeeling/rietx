@@ -41,6 +41,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1467](1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | P2 | — ([1318](1318-strain-surface.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1469](1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1501](1501-cut-and-keep.md) | Cut and keep: a figure of part of the structure | P2 | [1470](1470-a-structure-figure-without-a-browser.md) | [v1.7](#v1-7) |
+| [1510](1510-what-the-chemist-knows-reaches-the-search.md) | What the chemist knows reaches the indexing search | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -472,6 +473,19 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1466](1466-the-structure-viewer-draws-coordination-polyhedra.md) | The structure viewer draws coordination polyhedra | ✅ 2026-09-26 | — | [1462](1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 🔄 2026-09-28 | P4 | [1466](1466-the-structure-viewer-draws-coordination-polyhedra.md) |
 | [1470](1470-a-structure-figure-without-a-browser.md) | A structure figure from Python, drawn without a browser | ✅ 2026-09-27 | — | — |
+
+### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
+
+| WP | Title | Status | Priority | Depends on |
+|---|---|---|---|---|
+| [1510](1510-what-the-chemist-knows-reaches-the-search.md) | What the chemist knows reaches the indexing search | ⬜ | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md) soft) |
+| [1511](1511-which-cell-does-this-powder-support.md) | Which of these cells does this powder support? | ⬜ | P3 | — ([1323](1323-lebail-stop-rule.md), [1510](1510-what-the-chemist-knows-reaches-the-search.md) soft) |
+| [1512](1512-a-simulated-diffuse-curve-is-a-component.md) | A simulated diffuse curve is a component, and its amplitude rides on the phase scale | ⬜ | P3 | — |
+| [1513](1513-the-contacts-a-chemist-checks-by-eye.md) | The contacts a chemist checks by eye | ⬜ | P3 | — |
+| [1514](1514-rigid-bodies.md) | Rigid bodies: a fragment refined by position, orientation and torsion | ⬜ | P3 | — ([1319](1319-structure-interchange.md) soft) |
+| [1515](1515-direct-space-solution.md) | Direct-space solution: from a verified cell to ranked structures | ⬜ | P3 | [1514](1514-rigid-bodies.md) ([1513](1513-the-contacts-a-chemist-checks-by-eye.md), [1511](1511-which-cell-does-this-powder-support.md) soft) |
+| [1516](1516-stacking-faults.md) | Stacking faults: DIFFaX in and out, then the recursion | ⬜ | P3 | [1512](1512-a-simulated-diffuse-curve-is-a-component.md) |
+| [1517](1517-the-eight-steers-replayed.md) | The eight steers, replayed: does the package raise what the person caught? | ⬜ | P3 | — |
 
 ### <a id="unscheduled-the-repo-s-own-process"></a>The repo's own process
 
