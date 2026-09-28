@@ -141,6 +141,7 @@ PRIORITIES = wp_index.PRIORITIES
 #   2026-09-01  gui/CLAUDE.md                1019 -> 1028 for the placement pass
 #   2026-09-01  src/rietx/indexing/CLAUDE.md  296 -> 300  for the placement pass
 #   2026-09-22  src/rietx/indexing/CLAUDE.md  300 -> 306  for WP-1446
+#   2026-09-28  src/rietx/indexing/CLAUDE.md  306 -> 312  for WP-1508
 #   2026-09-01  tests/CLAUDE.md               253 -> 275  for the placement pass
 #   2026-09-01  docs/ROADMAP.md               589 -> 597  for the roadmap reorder: landed 573, cap landed + 24
 #   2026-09-02  docs/ROADMAP.md               597 -> 621  for the magnetic scattering track (1326-1329, out of
@@ -593,7 +594,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # so the next person to reach for that ranking finds the refutation instead
     # of re-running it.  Raised rather than shaved, per the failure message's
     # own instruction not to delete facts to fit; the numbers stayed in the WP.
-    "src/rietx/indexing/CLAUDE.md": 306,
+    # 306 -> 312 (WP-1508): one standing rule — the dichotomy traversal now has
+    # a compiled twin, so a prune, the split or the push order changes in both,
+    # and the leaf-by-leaf test is what says one was missed — plus one clause on
+    # the profile rule saying where "a unit is box-bound" stops holding.  The
+    # profile table stayed in the WP.  Landed at 312, no headroom.
+    "src/rietx/indexing/CLAUDE.md": 312,
     # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
     # Philips √ encoding taught — that a format may encode its counts rather
     # than store them, that the *permissive* description can be the defective
