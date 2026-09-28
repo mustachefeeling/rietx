@@ -228,6 +228,17 @@ like `row_local_product`'s, so it was not built here. `refine_candidate`'s
 `lstsq` (40-46 % of a 2-D unit) is now the largest leaf cost, and it is work a
 leaf needs.
 
+*Review* (`/code-review high --fix`, five findings, no correctness bug). Three
+were taken (b072098). The numpy fallback's grid gathered a parent's rows once per
+child and its phase-2 stack once per frontier cell, both costs the ids this WP
+added. And the BLAS probe ran inside the first unit's clock. The fix was
+replayed to the digests: synthetic monoclinic and corundum hexagonal on the numpy
+path, corundum trigonal compiled. Two were declined. Re-probing per product size
+or thread setting would change the probe's design, and the WP records the answer
+as a per-machine measurement. Wiring the index into svd and priors is a non-goal
+here and needs its own measurement, since small sets were measured slower. That
+one goes to Next.
+
 *Gotchas.*
 - The index made trial_error slower before it made anything faster: a fixed
   per-call cost against a scan of a few thousand rows. Measure the small sets
@@ -247,7 +258,9 @@ leaf needs.
 2. WP-1449 can read its finished-run confirmation off the acceptance file once
    #516 merges (pushed into its `### Inherited`).
 3. If indexing speed comes back: batching the distinct-lattice χ² tests (with its
-   own equivalence argument), or `refine_candidate`'s per-pass `lstsq`. The macOS
+   own equivalence argument), `refine_candidate`'s per-pass `lstsq`, or the index
+   in svd's assign-and-refine loop and `priors`, which still scan whole sets
+   (measure the set sizes first, since the floor exists for small ones). The macOS
    and Windows nightly logs show whether
    `test_a_subset_product_is_the_whole_products_rows_where_the_probe_says_so`
    skips there, which is where the index keeps the whole product.
