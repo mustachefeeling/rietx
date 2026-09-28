@@ -44,6 +44,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1467](1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | P2 | — ([1318](1318-strain-surface.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1469](1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1501](1501-cut-and-keep.md) | Cut and keep: a figure of part of the structure | P2 | [1470](1470-a-structure-figure-without-a-browser.md) | [v1.7](#v1-7) |
+| [1509](1509-dichotomy-leaves-pay-for-the-whole-trial-set.md) | A dichotomy leaf pays for the whole trial set | P2 | — ([1508](1508-compiled-dichotomy-spike.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -445,7 +446,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1464](1464-a-screen-reads-the-batch-references-first.md) | A screen reads the batch references first | ⬜ | P3 | — (#385 soft) |
 | [1469](1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | ⬜ | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) |
 | [1508](1508-compiled-dichotomy-spike.md) | Compiled dichotomy spike (gated: build only if the box traversal is the unit's cost) | 🔄 2026-09-27 | P3 | — |
-| [1509](1509-dichotomy-leaves-pay-for-the-whole-trial-set.md) | A dichotomy leaf pays for the whole trial set | ⬜ | P3 | — ([1508](1508-compiled-dichotomy-spike.md) soft) |
+| [1509](1509-dichotomy-leaves-pay-for-the-whole-trial-set.md) | A dichotomy leaf pays for the whole trial set | ⬜ | P2 | — ([1508](1508-compiled-dichotomy-spike.md) soft) |
 
 ### <a id="unscheduled-one-file-many-patterns"></a>One file, many patterns
 

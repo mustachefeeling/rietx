@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: A long run is not one fit
 Depends on: — (1508 soft: both edit `_search_one`'s phase 2)
-Priority: P3 2026-09-27 — cost-only, but the cost is what cuts the 2-D acceptance searches at 300 s, so a fix here is what lets 1449's order rows stop skipping on the nightly
+Priority: P2 2026-09-28 — was P3: 1508 measured real monoclinic data leaf-bound too (every bethanechol manual set is cut at its 30 s budget on either path), so this is the lever for every real search, not only the 2-D acceptance rows 1449 skips
 
 ## Goal
 
@@ -27,6 +27,19 @@ traversal is 10-12 % and the **leaves are 85-87 %**:
 
 ~900 raw candidates a unit, so ~900+ leaves, each paying both costs once per
 admissible centring (trigonal has two, which is why its replay share is larger).
+
+**Real 4-D data is leaf-bound too, once the traversal is compiled** (WP-1508,
+2026-09-28). 1508's gate read a *synthetic* monoclinic unit as 94 % traversal; the
+bethanechol benchmark's set F in manual mode (monoclinic, 8 unindexed lines
+tolerated, a 30 s unit) is not that. On the numpy path it spends 21 % in the grid,
+15 % in the bisection, **45 % in leaves** and 9 % ranking; with the traversal
+compiled those two fall to 3.7 % and the budget-bound unit spends the freed time
+in leaves (`_accept` 59 %, centred replay 8 %) and in `dedup_candidates` (20 %),
+which ran because the unit now found more than `DEDUP_EVERY` = 2000 raw
+candidates. The manual-mode benchmark scored the same on both paths (−2 of +10,
+all ten sets incomplete at ~118 s a set). So this WP is the lever for real data in
+**both** regimes, and `dedup_candidates` (a python O(N·K) loop over the raw
+harvest) is a third leaf-side cost to measure.
 
 **Cost 1 — the centred replay re-tests the centring's *whole* search set.** At a
 leaf, `_search_one` (phase 2, the `for centring … _test_box(m_search[centring], …)`
@@ -74,6 +87,8 @@ The traversal kernel (WP-1508). svd and trial_error. The budget constant
       the four 2-D units (identical `n_boxes`, `rows_per_box`, candidate digest).
 - [ ] An exact, order-preserving restriction of `assign_lines`' trial set at the
       leaves, or a measured statement of why none is exact.
+- [ ] `dedup_candidates` on a harvest past `DEDUP_EVERY`: 20 % of bethanechol F's
+      compiled 30 s unit (1508); measure it on a finished search and fix or fence it.
 - [ ] Re-profile the four units; `tests/test_acceptance_indexing.py` once on the final
       tree, reporting which searches now finish inside 300 s.
 - [ ] Skill: none expected (no call an agent makes changes); say so at close.
