@@ -143,6 +143,7 @@ PRIORITIES = wp_index.PRIORITIES
 #   2026-09-22  src/rietx/indexing/CLAUDE.md  300 -> 306  for WP-1446
 #   2026-09-28  src/rietx/indexing/CLAUDE.md  306 -> 312  for WP-1508
 #   2026-09-28  src/rietx/indexing/CLAUDE.md  312 -> 318  for WP-1509
+#   2026-09-28  src/rietx/indexing/CLAUDE.md  318 -> 321  for WP-1518
 #   2026-09-01  tests/CLAUDE.md               253 -> 275  for the placement pass
 #   2026-09-01  docs/ROADMAP.md               589 -> 597  for the roadmap reorder: landed 573, cap landed + 24
 #   2026-09-02  docs/ROADMAP.md               597 -> 621  for the magnetic scattering track (1326-1329, out of
@@ -608,7 +609,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # position) and round it as the whole scan did (a BLAS subset need not), and
     # call it unchanged only after replaying finished units to their digests.
     # The numbers stayed in the WP.  Landed at 318, no headroom.
-    "src/rietx/indexing/CLAUDE.md": 318,
+    # 318 -> 321 (WP-1518): one standing rule on the bullet that already owns
+    # reduction's failure modes — a χ² takes its difference and its covariance
+    # in one frame, the covariance carried by ``reduce.reduction``'s map.  The
+    # corpus counts stayed in the WP.  Landed at 321, no headroom.
+    "src/rietx/indexing/CLAUDE.md": 321,
     # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
     # Philips √ encoding taught — that a format may encode its counts rather
     # than store them, that the *permissive* description can be the defective

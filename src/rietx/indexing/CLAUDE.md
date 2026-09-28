@@ -279,6 +279,9 @@ roughly the shift (+1400 ppm).
 - **A Niggli-reduced cell is primitive**: `ReducedCell.centring` is provenance about the
   input, never handed to anything that applies a centring. Reduction needs the *relative*
   ε (`NIGGLI_EPS_RELATIVE`) or one lattice splits into two and denies the gate agreement.
+  And **a χ² takes its difference and its covariance in one frame**: an engine's
+  `cov_af` is in the setting it refined in, so it meets a reduced A..F only through
+  `reduce.reduction`'s map. Unmapped, it moved groups in all 99 bethanechol dedups (1518).
 - **An assumed precision may never refuse to index** (`from_positions` lists get no
   `MAX_RELATIVE_SIGMA_Q` vote; the shift-allowance half is above).
 - **This package is not slow at indexing, it is silent** — DICVOL04 reaches 3770 s

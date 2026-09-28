@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: A long run is not one fit
 Depends on: — (1509 fenced this; 1518 soft: batch the test it settles, not the one it replaces)
-Priority: P3 2026-09-28 — cost only: since 1509 no acceptance search is cut at 300 s, and this is ~45 s of corundum's 236 s tetragonal unit
+Priority: P3 2026-09-28 — cost only: since 1509 no acceptance search is cut at 300 s, and this is ~45 s of corundum's 236 s tetragonal unit; 1518 closed, so the test it batches is settled
 
 ## Goal
 
@@ -68,6 +68,28 @@ replayed to completion. The digest is sha256 of `np.array([[*cell, n_indexed]
 harness first and reproduce the six digests on the unchanged tree. If WP-1518
 has landed, its handover names the digests it moved, and those are the ones
 to hold.
+
+### Inherited
+
+- **From WP-1518 (closed 2026-09-28): the test you batch takes reduced-frame
+  covariances.** `engines._dedup_groups` carries each candidate's `fit.cov_af`
+  through `reduce.reduction`'s map (`reduce.reduced_covariance`) and keeps the
+  carried covariance beside the reduced vector, in `prepared` and in `kept`.
+  Stack those, never `fit.cov_af`. The map is `None` wherever the reduction
+  kept the setting, so a stack must accept both. A zero-variance component
+  (a structurally fixed D, E or F, now in whatever slot the reduction moved it
+  to) is still truncated by `pinv`, so the prefilter above still needs its
+  argument.
+- **From WP-1518: a digest belongs to a platform.** It hashes the cells' bits,
+  and on macOS arm64 (system BLAS) not one of 1509's six Linux x86-64 digests
+  reproduced on the unchanged path. On that Mac, 1518 moved five of the six
+  units (written test → fixed): brucite hexagonal `2b9bc538` → `40752146`,
+  trigonal `e2117cb2` → `867bb1f5`; corundum hexagonal `3190bee2` →
+  `f6b582ba`, trigonal `2d3b0c80` → `3e5ac067`; synthetic monoclinic through
+  `index_pattern` `a9f00c79` → `57a6a9e3`. Corundum tetragonal held at
+  `8a5fd6cd`. On any other platform, take the post-1518 digests from the
+  current tree before holding anything. The harness was rebuilt a third time
+  in session scratch and is not committed.
 
 ## Non-goals
 

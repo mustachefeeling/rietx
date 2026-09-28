@@ -68,7 +68,13 @@ from .common import Base, Diagnostic, Provenance
 #: every pair it asked.  The same search now orders differently wherever such a
 #: pair was reported (brucite's a × 2 supercell, 11-BM NAC's P description of
 #: its I cell).
-INDEXING_THRESHOLDS_VERSION = "1.5"
+#: 1.6 (WP-1518): the dedup χ² reads each candidate's covariance in the reduced
+#: frame its A..F difference is taken in (``reduce.reduction``), so which
+#: candidates are one lattice, their ``found_by`` and the order change wherever a
+#: reduction moved the setting.  ``CELL_EQUALITY_CHI2`` did not move.  Two runs
+#: with identical spec notes now answer differently: bethanechol set Db's truth
+#: went from rank 1 to 2 behind a wrong cell two engines had found in two settings.
+INDEXING_THRESHOLDS_VERSION = "1.6"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.
