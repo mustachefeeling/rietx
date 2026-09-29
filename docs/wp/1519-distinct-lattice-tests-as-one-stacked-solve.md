@@ -141,8 +141,10 @@ WP-1508 (the tier's reach); WP-1518 (the test being batched).
   Stacked per candidate, **0 of 573 605** `pinv` differ from per-matrix and
   0 χ² differ; `pinv` alone 24.7 → 2.4 s. The whole-array matmul chain was
   also exact here, einsum was not (291 782 differ); the code keeps each
-  pair's own product. Dedup inside the unit 43 → 6.8 s, under a parallel
-  load (not quotable; the alone re-time is pending). macOS and Windows:
-  nightly legs now print both probes; not yet read.
+  pair's own product. Final code (the stack filled lazily from the walk):
+  every digest above held, and every corundum svd and trial_error unit is
+  identical to `main`'s (4 systems each). Dedup times so far were under a
+  parallel load (not quotable; the alone re-time is running). macOS and
+  Windows: nightly legs now print both probes; not yet read.
 - **2026-09-28** — filed from WP-1509's *Fenced* and *Next* (item 3), with
   the platform check its handover left for the nightly logs.
