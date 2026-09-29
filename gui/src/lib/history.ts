@@ -389,6 +389,10 @@ export const PLACES: Readonly<Record<string, Format>> = {
   "phases.*.gauss_strain": 6,
   "phases.*.lor_size": 5,
   "phases.*.lor_strain": 5,
+  // WP-1343: the magnetic component's own Lorentzian pair, in the same deg 2θ
+  // as the nuclear one above, so the same five places
+  "phases.*.magnetic_lor_size": 5,
+  "phases.*.magnetic_lor_strain": 5,
   "phases.*.microstrain.dof.*": 3,
   "phases.*.microstrain.s*": 3,
   "phases.*.preferred_orientation.r": 4,
