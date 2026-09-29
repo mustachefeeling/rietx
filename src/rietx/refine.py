@@ -4212,24 +4212,27 @@ def _stage_order_diagnostics(plan, table) -> list[Diagnostic]:
     a moment that has already converged is the third step, which is fine.  The
     globs are expanded against the table's real paths rather than matched as
     text, so a plan written with ``phases.*.…`` is read exactly as the stage
-    runner will read it.
+    runner will read it.  What ``table`` already has free counts as freed
+    before the first stage: ``fit`` hands it a table with everything held,
+    ``run_stage`` one carrying the working state's free set.
 
     ``warning`` rather than ``error``: the plan is a caller's to write, the fit
     will run, and what this owes them is the name of the confound and the
     order that avoids it — not a refusal.
     """
-    import fnmatch
-
     out: list[Diagnostic] = []
-    seen: set[str] = set()
+    # **What is already free is not being first freed.**  ``fit`` prepares its
+    # table with everything held, so this is empty there; ``run_stage``
+    # restores the free set the working state carries, so a hand-driven third
+    # stage — the moment and the widths together after the moment's own stage
+    # converged — reads as the step the order prescribes, not as a cold start.
+    seen: set[str] = set(table.free_paths)
     for stage in plan.stages:
-        # the stage runner's own matching rule, read off the table's entries:
-        # ``fnmatchcase`` on the dot path, with tied and locked rows skipped
-        # exactly as ``ParameterTable.set_vary`` skips them, so this cannot
-        # report a stage that will in fact free nothing
-        freed = [e.path for e in table.entries
-                 if e.tie is None and not e.locked
-                 and any(fnmatch.fnmatchcase(e.path, g) for g in stage.turn_on)]
+        # asked of the table, never restated here: ``would_free`` is
+        # ``set_vary``'s own matcher, so a tied, locked or **held** row
+        # (WP-1435) is skipped by the same predicate the stage runner uses,
+        # and this cannot report a stage that will in fact free nothing
+        freed = table.would_free(stage.turn_on)
         new = [p for p in freed if p not in seen]
         seen.update(freed)
         widths = {m.group(1): p for p in new

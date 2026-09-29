@@ -1917,8 +1917,6 @@ class ParameterTable:
         ``StageResult.blocked_by_hold``, and ``Refinement.set_vary`` refuses a
         literal path outright.
         """
-        import fnmatch
-
         # A wavelength is freeable only while the cell is held, and that is a
         # *dynamic* fact, so it cannot be an ``Entry.locked`` flag.  Skipping it
         # by glob rather than raising is the same treatment a symmetry-fixed
@@ -1931,23 +1929,49 @@ class ParameterTable:
         lam_paths = self._wavelength_paths()
         hits = []
         for e in self.entries:
-            if any(fnmatch.fnmatchcase(e.path, g) for g in path_globs):
-                if e.tie is None and not e.locked and not (vary and e.held):
-                    # Asked per row rather than once before the loop.  Computed
-                    # once, the contract was order-dependent: two calls freeing
-                    # the cell then λ skipped λ, while ONE call carrying both
-                    # globs froze the skip set before the cell was free and so
-                    # freed both, deferring the refusal to the solve.  Nothing
-                    # shipped hits it, and a contract that reads differently
-                    # depending on how a caller batched its globs is not one.
-                    if (vary and e.path in lam_paths
-                            and not getattr(self, "_joint", False)
-                            and self._cell_is_free()):
-                        continue
-                    e.vary = vary
-                    hits.append(e.path)
+            if self._glob_reaches(e, path_globs, vary):
+                # Asked per row rather than once before the loop.  Computed
+                # once, the contract was order-dependent: two calls freeing
+                # the cell then λ skipped λ, while ONE call carrying both
+                # globs froze the skip set before the cell was free and so
+                # freed both, deferring the refusal to the solve.  Nothing
+                # shipped hits it, and a contract that reads differently
+                # depending on how a caller batched its globs is not one.
+                if (vary and e.path in lam_paths
+                        and not getattr(self, "_joint", False)
+                        and self._cell_is_free()):
+                    continue
+                e.vary = vary
+                hits.append(e.path)
         self._rebuild()
         return hits
+
+    @staticmethod
+    def _glob_reaches(e: Entry, path_globs: list[str], vary: bool) -> bool:
+        """``set_vary``'s matching rule for one row, and nothing else.
+
+        Tied and locked rows never match, and a held one never matches a
+        *freeing* call.  One predicate, so :meth:`would_free` cannot drift
+        from what ``set_vary`` does (WP-1343: a restated copy at a call site
+        left the hold out).
+        """
+        import fnmatch
+
+        return (any(fnmatch.fnmatchcase(e.path, g) for g in path_globs)
+                and e.tie is None and not e.locked
+                and not (vary and e.held))
+
+    def would_free(self, path_globs: list[str]) -> list[str]:
+        """The paths ``set_vary(path_globs, True)`` would match — a dry run.
+
+        Entry order, and the table is not touched.  The one thing it does not
+        replay is ``set_vary``'s *dynamic* wavelength skip, which depends on
+        the order the cell and λ are freed in the same call; a caller asking
+        about any other family gets exactly ``set_vary``'s answer (WP-1343,
+        for a plan check that runs before the stage does).
+        """
+        return [e.path for e in self.entries
+                if self._glob_reaches(e, path_globs, True)]
 
     def unknown_literals(self, path_globs: list[str]) -> list[str]:
         """The literal paths among ``path_globs`` that name no entry (WP-1414).

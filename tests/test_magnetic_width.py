@@ -471,6 +471,7 @@ def test_a_plan_that_frees_the_width_beside_a_cold_moment_is_reported():
     st = rx.Structure(phases=[_mnf2()])
     ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
     table = ParameterTable(st, ins)
+    table.set_vary(["*"], False)      # as ``fit`` prepares it: nothing free yet
     bad = rx.RefinementPlan(stages=[rx.Stage(
         "everything", ["phases.*.atoms.*.moment.dof*",
                        "phases.*.magnetic_lor_size", "phases.*.scale"])])
@@ -480,6 +481,48 @@ def test_a_plan_that_frees_the_width_beside_a_cold_moment_is_reported():
     assert "magnetic_width" in got[0].suggestion
     # the preset itself is silent, and so is a width freed after the moment
     assert not _stage_order_diagnostics(PLAN_PRESETS["magnetic_width"](), table)
+
+
+def test_a_held_moment_is_not_counted_as_freed_by_the_ordering_check():
+    """The check asks the table which rows a stage frees, and a **held** row
+    is one ``set_vary`` never frees (WP-1435).  A restated filter at the call
+    site left the hold out and reported a stage that freed no moment at all
+    (review item 2) — so the answer here is ``set_vary``'s own, compared
+    against what the stage runner then actually frees."""
+    from rietx.refine import _stage_order_diagnostics
+
+    st = rx.Structure(phases=[_mnf2()])
+    ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
+    table = ParameterTable(st, ins)
+    table.set_vary(["*"], False)
+    moments = [e.path for e in table.entries if ".moment.dof" in e.path]
+    assert moments and table.set_held(moments, True)
+    stage = rx.Stage("everything", ["phases.*.atoms.*.moment.dof*",
+                                    "phases.*.magnetic_lor_size"])
+    assert _stage_order_diagnostics(
+        rx.RefinementPlan(stages=[stage]), table) == []
+    # the dry run is the stage runner's answer, row for row
+    assert table.would_free(stage.turn_on) == ["phases.0.magnetic_lor_size"]
+    assert table.set_vary(stage.turn_on, True) == ["phases.0.magnetic_lor_size"]
+
+
+def test_a_moment_already_free_is_not_a_first_freeing():
+    """``run_stage`` restores the working state's free set, and a moment that
+    set carries has had its own stage.  Seeded from nothing, the check read
+    step 3 of its own prescribed order as a cold start (review item 3); seeded
+    from ``table.free_paths`` it stays silent there and still fires where the
+    moment really is cold."""
+    from rietx.refine import _stage_order_diagnostics
+
+    st = rx.Structure(phases=[_mnf2()])
+    ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
+    table = ParameterTable(st, ins)
+    step3 = rx.RefinementPlan(stages=[PLAN_PRESETS["magnetic_width"]().stages[2]])
+    table.set_vary(["*"], False)
+    cold = _stage_order_diagnostics(step3, table)
+    assert [d.code for d in cold] == ["STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT"]
+    table.set_vary(["phases.*.atoms.*.moment.dof*"], True)
+    assert _stage_order_diagnostics(step3, table) == []
 
 
 def test_the_ordering_check_is_silent_on_a_plan_with_no_magnetic_width():
@@ -747,6 +790,29 @@ def _shifted(off, released, widths):
     from rietx.refine import _moved_moment_diagnostics
 
     return _moved_moment_diagnostics("moment_and_width", off, released, widths)
+
+
+def test_run_stage_over_the_preset_order_warns_on_none_of_its_steps():
+    """Yue's reproduction of review item 3, end to end: the three preset
+    stages driven by hand through ``run_stage`` are the prescribed order, so
+    none of them may carry the ordering warning."""
+    ph = _mnf2()
+    ph.scale.value = 0.02
+    ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
+    ins.profile.u.value, ins.profile.w.value = 0.05, 0.03
+    tt = np.arange(8.0, 140.0, 0.1)
+    blank = rx.PatternData(two_theta=tt.tolist(),
+                           intensity=np.zeros_like(tt).tolist())
+    y = np.asarray(rx.Refinement(rx.Structure(phases=[ph]),
+                                 ins.model_copy(deep=True)).predict(blank))
+    data = rx.PatternData(two_theta=tt.tolist(), intensity=(y + 1.0).tolist())
+    ref = rx.Refinement(rx.Structure(phases=[_mnf2()]),
+                        ins.model_copy(deep=True))
+    ref.structure.phases[0].scale.value = 0.02
+    for stage in PLAN_PRESETS["magnetic_width"]().stages:
+        res = ref.run_stage(data, stage)
+        assert "STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT" not in {
+            d.code for d in res.diagnostics}, stage.name
 
 
 def test_the_moved_moment_bar_reads_the_tighter_of_the_two_esds():
