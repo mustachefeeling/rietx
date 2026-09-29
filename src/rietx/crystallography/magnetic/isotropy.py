@@ -94,8 +94,12 @@ Conventions a caller can get wrong silently
    *cell vectors*, not the unit vectors of magCIF's ``crystalaxis``.  The two
    differ by diag(a, b, c), which matters here and only here in the magnetic
    package, because a candidate is stated in a **supercell** whose axis lengths
-   are not the parent's.  :func:`~.operators.moment_to_cartesian` takes the
-   ``crystalaxis`` form, so :func:`moment_cartesian` converts first.
+   are not the parent's.  Their Cartesian vector is Aᵀ·m in **the lattice's
+   own frame** (:func:`moment_cartesian`), the frame :func:`reflections` puts
+   ĥ in — never :func:`~.operators.moment_to_cartesian`'s, which rebuilds the
+   cell from its six parameters in a standard orientation.  The two frames
+   agree only for an axis-aligned cell, and a k ≠ 0 child cell is usually
+   rotated or left-handed; M⊥ needs both vectors in one frame (issue #534).
 
 What a powder measures, and the domains
 ---------------------------------------
@@ -169,7 +173,6 @@ from .operators import (
     format_transform,
     identify,
     in_span,
-    moment_to_cartesian,
 )
 
 #: What :func:`~.operators.identify` can raise when spglib declines a group.
@@ -437,32 +440,28 @@ def magnetic_lattice(cell: MagneticCell, parent_lattice) -> np.ndarray:
 
 
 def moment_cartesian(moments, lattice) -> np.ndarray:
-    """Contravariant fractional moment components → Cartesian, through M-5's conversion.
+    """Contravariant fractional moment components → Cartesian, in **the lattice's own frame**.
 
-    :func:`~.operators.moment_to_cartesian` speaks magCIF's ``crystalaxis``
-    basis — *unit* vectors along a, b, c — and this module carries contravariant
-    components on the cell vectors themselves (module docstring, convention 5),
-    so the components are multiplied by the axis lengths first.  Going through
-    M-5 rather than writing Aᵀ·m here is deliberate: one conversion in the
-    package is what keeps the magnitude convention (|m| = √(mᵀGm) on unit axes)
-    from drifting between the two rungs.
+    m = Σᵢ mᵢ·**a**ᵢ = Aᵀ·m with A the row-vector ``lattice`` (module docstring,
+    convention 5), so a row of components times the lattice.  The frame is the
+    one :func:`reflections` puts q = A⁻¹·h in, and M⊥ = M − (M·ĥ)ĥ takes an
+    angle between the two, which needs one frame.
+
+    It used to go through M-5's :func:`~.operators.moment_to_cartesian`, which
+    takes only the six cell *parameters* and so places the cell in the
+    Cholesky frame of ``adp.cartesian_basis`` (a ∥ x, b in the xy plane).
+    That frame and the lattice's differ by an orthogonal matrix, improper when
+    the magnetic basis is left-handed, for every k ≠ 0 child cell that is not
+    axis-aligned — the MnO-type F m -3 m (½, ½, ½) cell is rotated by 140° —
+    and there M⊥ was projected against the wrong ĥ (issue #534).  An
+    orthogonal map leaves a norm alone, so the magnitude convention the M-5
+    route was kept for (|m| = √(mᵀGm) on unit axes,
+    :func:`~.operators.moment_magnitude`) is unchanged, and ``tests/test_magnetic_isotropy.py`` pins the two equal.  The
+    refinement path (:mod:`.scattering`) is unaffected: it builds Q and the
+    moment from the same cell parameters, so both sit in the Cholesky frame.
     """
     a = np.asarray(lattice, dtype=np.float64)
-    lengths = np.linalg.norm(a, axis=1)
-    cell = _cell_parameters(a)
-    m = np.atleast_2d(np.asarray(moments, dtype=np.float64))
-    return np.array([moment_to_cartesian(row * lengths, cell) for row in m])
-
-
-def _cell_parameters(lattice) -> tuple[float, ...]:
-    """(a, b, c, α, β, γ) in Å and degrees from a row-vector lattice."""
-    a = np.asarray(lattice, dtype=np.float64)
-    lengths = np.linalg.norm(a, axis=1)
-    angles = []
-    for i, j in ((1, 2), (0, 2), (0, 1)):
-        cosine = float(a[i] @ a[j] / (lengths[i] * lengths[j]))
-        angles.append(float(np.degrees(np.arccos(np.clip(cosine, -1.0, 1.0)))))
-    return (float(lengths[0]), float(lengths[1]), float(lengths[2]), *angles)
+    return np.atleast_2d(np.asarray(moments, dtype=np.float64)) @ a
 
 
 # --------------------------------------------------------------------------
