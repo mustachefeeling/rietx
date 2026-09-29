@@ -174,11 +174,26 @@ def test_a_real_x_ray_calibration_is_refused_for_its_negative_x():
         read_gsas2_instprm(BNL)
 
 
-def test_a_time_of_flight_bank_is_refused_by_name(tmp_path):
+def test_a_time_of_flight_bank_dispatches_on_its_type(tmp_path):
+    """One reader on ``Type``: a ``PNT`` bank comes back as a ``neutron_tof``
+    source, and one stating no bank angle is refused naming the key it lacks."""
+    head = "#GSAS-II instrument parameter file; do not add/delete items!\n"
     path = tmp_path / "tof.instprm"
+    path.write_text(head + "Type:PNT\ndifC:22583.9\n2-theta:90.0\n",
+                    encoding="utf-8")
+    source = read_gsas2_instprm(path).source
+    assert source.kind == "neutron_tof"
+    assert source.difc.value == 22583.9 and not source.difc.vary
+    path.write_text(head + "Type:PNT\ndifC:22583.9\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="'2-theta'"):
+        read_gsas2_instprm(path)
+
+
+def test_an_energy_dispersive_bank_is_refused_by_name(tmp_path):
+    path = tmp_path / "ed.instprm"
     path.write_text("#GSAS-II instrument parameter file; do not add/delete items!\n"
-                    "Type:PNT\ndifC:22583.9\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="time-of-flight"):
+                    "Type:PXE\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="energy-dispersive"):
         read_gsas2_instprm(path)
 
 
