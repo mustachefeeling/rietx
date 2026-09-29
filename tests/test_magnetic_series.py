@@ -1042,6 +1042,7 @@ def test_the_cr2wo6_pair_as_a_series_gives_the_single_pattern_verdicts(
     above T_N the modulus is a flat direction and its value is wherever the
     optimiser stopped in the valley.
     """
+    from rietx.model import compiled
     from tests.test_acceptance_magnetic import (
         MAGNETIC_STAGES,
         _fit,
@@ -1052,14 +1053,22 @@ def test_the_cr2wo6_pair_as_a_series_gives_the_single_pattern_verdicts(
     d4, d150 = cr2wo6_nuclear["d4"], cr2wo6_nuclear["d150"]
     ref4 = cr2wo6_nuclear["ref4"]
     start = _with_moment(ref4.structure, (2.0, 0.0, 0.0))
-    single, _ = _fit(start.model_copy(deep=True),
-                     ref4.instrument.model_copy(deep=True), d4, MAGNETIC_STAGES)
-    (alone,) = single.report().magnetic
+    # a bit-identity assertion declares its kernel path rather than inheriting
+    # whatever an earlier test on this worker, or RIETX_COMPILED, left behind
+    # (tests/CLAUDE.md § Quoting numbers); numpy is the tier's own oracle
+    was = compiled.set_enabled(False)
+    try:
+        single, _ = _fit(start.model_copy(deep=True),
+                         ref4.instrument.model_copy(deep=True), d4,
+                         MAGNETIC_STAGES)
+        (alone,) = single.report().magnetic
 
-    series = rx.refine_sequential(
-        [d4, d150], start, ref4.instrument.model_copy(deep=True),
-        plan=_plan(MAGNETIC_STAGES), x=[4.0, 150.0], x_label="T (K)",
-        labels=["4K", "150K"])
+        series = rx.refine_sequential(
+            [d4, d150], start, ref4.instrument.model_copy(deep=True),
+            plan=_plan(MAGNETIC_STAGES), x=[4.0, 150.0], x_label="T (K)",
+            labels=["4K", "150K"])
+    finally:
+        compiled.set_enabled(was)
     cold, hot = (e.moment() for e in series.entries)
 
     assert cold == alone, "the released pattern is the single fit, bit for bit"
