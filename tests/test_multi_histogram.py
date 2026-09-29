@@ -315,6 +315,30 @@ def test_a_glob_that_reached_one_histogram_is_told_apart_from_the_rest():
            "hist.1.instrument.extra_components.0.fwhm"]
 
 
+def test_a_shared_parameter_is_freed_once_however_many_histograms_carry_it():
+    """``StageResult.freed`` is a record of columns, not of table copies (WP-1312).
+
+    Each histogram's table holds its own copy of a shared entry, and until
+    this test the joint ``set_vary`` returned one name per copy: a stage
+    freeing a two-histogram fit's cubic cell recorded ``phases.0.cell.a``
+    twice, so every shared parameter in a joint fit's record was counted once
+    per histogram.  Per-histogram paths are scoped, so each histogram's is
+    its own name and stays.
+    """
+    structure, instruments = perturbed_inputs()
+    mt = MultiParameterTable(structure, instruments)
+    mt.set_vary(["*"], False)
+
+    freed = mt.set_vary(["phases.*.cell.*", "phases.*.scale",
+                         "instrument.zero_shift"], True)
+    assert freed == ["phases.0.cell.a", "hist.0.phases.0.scale",
+                     "hist.0.instrument.zero_shift", "hist.1.phases.0.scale",
+                     "hist.1.instrument.zero_shift"]
+    assert len(freed) == len(set(freed))
+    # the record and the solver agree on how many columns were freed
+    assert len(freed) == len(mt.free_paths)
+
+
 def test_a_joint_plan_that_reaches_one_histogram_says_which_it_missed(two_patterns):
     """Issue #265's comment, on the fixture ``main`` can build.
 

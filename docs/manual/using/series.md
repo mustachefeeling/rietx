@@ -748,8 +748,76 @@ occupancies together. The scale, background and profile widths are
 per-histogram, because they belong to the instrument rather than the specimen.
 Whether the cell is one number or several is a claim about the specimens: one
 number if the histograms are one material state, separate numbers if they
-genuinely differ. That choice has a consequence for wavelengths, in the next
-section.
+genuinely differ. That choice has a consequence for wavelengths, in
+{ref}`a-refinable-wavelength-jointly`.
+
+### Two radiations in one fit
+
+A joint fit may mix radiations. An X-ray histogram and a constant-wavelength
+neutron histogram of one specimen refine one structure, which is the combined
+refinement {cite}`vondreele1997` was written for. There is nothing extra to
+declare: each `Instrument` carries its own source, and every correction that
+depends on the radiation reads the source of the histogram it is computing.
+
+```python
+import rietx as rx
+
+xray = rx.Instrument.debye_scherrer(wavelength=0.4132950)
+neutron = rx.Instrument.constant_wavelength_neutron(1.54040, fwhm_deg=0.30)
+assert (xray.source.kind, neutron.source.kind) == ("xray_cw", "neutron_cw")
+assert xray.source.dispersion is not None and neutron.source.dispersion is None
+```
+
+The split between shared and per-histogram parameters is the one above, with
+nothing radiation-specific in it. The specimen's parameters are shared: the
+cell, the coordinates, the occupancies, the displacement parameters and a
+magnetic moment. Each histogram keeps its own scale, background, zero shift,
+profile and wavelength.
+
+What the second radiation adds is a different *weighting* of the same
+structure factor. X-rays scatter off electrons, so the heavier atoms dominate
+f(s), while a nucleus's scattering length b follows no such order. Corundum
+ranks its two sites oppositely: f(0) is 13 electrons for Al and 8 for O, while
+b is 3.449 fm for Al and 5.803 fm for O (Sears's table, which is what
+`b_Sears.dat` holds). On synthetic corundum patterns with a known answer, the
+X-ray pattern alone determined z(Al) about three times better than the neutron
+pattern alone, and x(O) about as well. Refined jointly, the esd of z(Al) was
+0.94 to 0.97 of the X-ray pattern's own, and the esd of x(O) 0.64 to 0.68 of it.
+The neutron histogram bought the oxygen and left the aluminium to the X-rays.
+In the same fits the two scales, 3.5 times apart, and two zero shifts of
+opposite sign each came back on their own histogram's value.
+
+| Correction | On an X-ray histogram (`xray_cw`) | On a neutron histogram (`neutron_cw`) |
+|---|---|---|
+| Scattering amplitude | f₀(s) of the species, plus f′ + i·f″ | b of the species, one number at every s |
+| Anomalous dispersion | `Source.dispersion`, on by default | none: `NeutronSource.dispersion` is always `None` |
+| Polarisation, `instrument.polarization` | refinable | pinned at K = 1 and locked |
+| Magnetic structure factor | never built | built for a phase that declares a moment |
+| µR estimated from composition | when the geometry declares a capillary radius | never: declare `Geometry.mu_r` yourself |
+
+A magnetic moment is shared like any other structural parameter, so the X-ray
+histogram carries its column and adds no gradient to it: the term is never
+built there (`rietx.model.forward.magnetic_wanted` decides, from
+`rietx.crystallography.magnetic.scattering.MAGNETIC_SOURCE_KINDS`). The moment
+is measured by the neutron histogram alone, against a structure both
+histograms constrain. A size coefficient is the one shared quantity that is a
+different number per histogram, and that is a matter of wavelength rather
+than radiation (`SIZE_NORMALISED_ACROSS_WAVELENGTHS`, and the size section of
+[](results.md)).
+
+A joint fit does not yet tell you two things. Three diagnostics that key on
+the radiation are computed by `Refinement` and by nothing in the joint path, on
+either histogram: `DISPERSION_NEGLECTED`, `NEUTRON_RESONANT_ABSORBER` and
+`SPECIES_FALLBACK_NEUTRAL`. Their absence from a joint result is therefore not
+a clean bill. Each is computed when a fit starts, so fitting each pattern alone
+with one short stage is enough to read them. And the result does not say which
+radiation each histogram was, because `HistogramResult` carries no instrument.
+Read `MultiHistogramRefinement.fitted_instruments` instead, whose entry for
+each histogram carries its `source.kind`.
+
+The real-data joint fit this package is tested against is one Nd₂Ru₂O₇
+specimen measured on an APS 11-BM synchrotron and an NCNR BT-1
+constant-wavelength neutron diffractometer, refined in the next section.
 
 (a-refinable-wavelength-jointly)=
 ### A refinable wavelength
