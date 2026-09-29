@@ -411,7 +411,11 @@ is not what did it.
       the pair's counts. *Done 2026-09-27, with its validation-matrix claim.*
 - [ ] Measure on at least one monoclinic or lower-symmetry pattern with a known
       cell before claiming anything beyond high symmetry. The acceptance corpus
-      has none: bethanechol is peak lists only.
+      has none: bethanechol is peak lists only. *Manual mode, 2026-09-29: the
+      check cannot fire there. The paper's protocol confines the search to
+      800-1200 Å³, and a parent of index 2-4 needs a volume ratio of at least
+      2, so all 120 reported candidates were asked and none had a parent.
+      Default mode, whose ceiling admits both, is the measurement.*
 - [x] Part 2 of the manual carries the chance test as an equation with its
       `*Source:*` line, and Part 1's indexing chapter describes the re-rank.
       *Done 2026-09-27: `idx-supercell-chance`, with α injected from
