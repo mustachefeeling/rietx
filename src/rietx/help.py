@@ -1581,6 +1581,21 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
 #: enumerating what a reader accepts.  These entries are the text a person
 #: reads beside the control.
 READER_OPTION_HELP: dict[str, HelpEntry] = {
+    "bank": HelpEntry(
+        title="Detector bank",
+        description=(
+            "Which detector bank of a GSAS file to read, by the number its "
+            "own `BANK` record declares — the same number the "
+            "instrument-parameter file's per-bank records use. A bank is a "
+            "detector, not a scan: it has its own scattering angle, its own "
+            "DIFC/DIFA/zero calibration and its own resolution, and a "
+            "time-of-flight diffractometer is several of them (ISIS GEM "
+            "writes six). A file holding more than one bank is refused until "
+            "one is named, because answering with the first would choose "
+            "silently."
+        ),
+        typical="unset for a single-bank file; the bank's own number otherwise",
+    ),
     "block": HelpEntry(
         title="Data block",
         description=(

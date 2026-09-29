@@ -134,6 +134,7 @@
   "plans:mccusker_structural",
   "plans:pawley_default",
   "plans:profile_only",
+  "reader_options:bank",
   "reader_options:block",
   "reader_options:scan",
   "search_fields:budget_seconds",
