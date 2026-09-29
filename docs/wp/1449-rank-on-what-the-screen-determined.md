@@ -289,22 +289,12 @@ need to finish there is unmeasured. Every row that reads an order now calls
 the result recorded. The fold-back task below therefore needs a finished
 search: a local run, or the nightly dispatched with `full_macos`.
 
-### Inherited
-
-- **From WP-1509 (2026-09-28): the order rows run now.** With 1509's leaf fixes
-  (PR #516, on main `3b04eef`), `test_indexing_engines.py` +
-  `test_acceptance_indexing.py` under `-n auto` ran 127 passed and **0 skipped**
-  (Linux x86-64, 4 cores, `[dev]`): every `_skip_unless_finished` row read a
-  finished search. Brucite's and corundum's 2-D units take 81-107 s alone, where
-  they took 255-363 s. So once #516 merges, the finished-run confirmation can be
-  read off the acceptance file itself, and the WP-1508 entry below is superseded.
-- **From WP-1508 (2026-09-28): the compiled dichotomy traversal will not un-skip the
-  order rows.** Brucite's and corundum's units are 2-D searches, and a 2-D unit
-  spends 85-87 % of its time in its leaves (`_accept`, the centred replay), so the
-  kernel buys them 3-8 %. On 2026-09-28 the acceptance file under `-n auto` still
-  skipped four order rows, their dichotomy units cut at 300 s. What would let those
-  searches finish is WP-1509 (the leaf costs); the "finished-run confirmation" task
-  here waits on that or on a local run, not on 1508.
+*Since WP-1509 (folded from Inherited, 2026-09-29), the searches finish
+here.* Its leaf fixes (PR #516) took brucite's and corundum's 2-D units from
+255-363 s to 81-107 s alone. After them, the acceptance file under `-n auto`
+on a 4-core Linux box (`[dev]`) skips no order row, so the confirmation can be
+read off that file. WP-1508's compiled traversal, which bought those units 3-8 %,
+is not what did it.
 
 ## Questions for the corpus
 
