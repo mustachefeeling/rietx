@@ -425,6 +425,92 @@ Once a candidate looks worth testing, declare it (`Phase.propagation_vector`,
 [](data.md)) and refine in Le Bail or Pawley mode: the satellites become rows
 the extraction can put intensity on, and whether it does is the measurement.
 
+(sec-magnetic-width)=
+## When the magnetic peaks are broader than the nuclear ones
+
+A phase's nuclear and magnetic contributions share one `Phase.scale` and one
+peak, so if the observed magnetic reflections are *broader* than the
+calculated ones the residual under them has exactly one route down: shrink the
+moment until the narrow calculated peak's height matches the broad observed
+peak's. |F_m|² ∝ m², so the moment comes back low by roughly the ratio of the
+two widths, the fit converges, and no number in the result says what happened.
+
+`Phase.magnetic_lor_size` and `Phase.magnetic_lor_strain` close that route.
+Both are extra Lorentzian FWHM coefficients applied to the magnetic component
+alone (1/cosθ and tanθ, the two laws `Phase.lor_size` and `Phase.lor_strain`
+carry), so the magnetic peak is drawn broader than its nuclear neighbour at the
+same position, with the same scale and every other correction unchanged. The
+size term is Scherrer's with the *magnetic coherence length* in place of the
+crystallite size: antiphase and domain-wall boundaries, an incompletely grown
+order parameter near T_N and disorder that couples to the exchange all cut it
+below the structural one. Both default to exactly zero, which is off, and exist
+only on a phase that declares `Phase.magnetic_symmetry`.
+
+The turn-on order is not optional. The moment and the width both lower the
+calculated magnetic peak's height, so freed together from a cold start they
+trade against each other. The order is the moment with the widths held at
+zero, then the widths with the moment held, then both together, and it ships
+as a plan:
+
+<!-- api-doc: no-exec — it needs a converged magnetic structure -->
+```python
+result = ref.fit(data, plan="magnetic_width")   # RefinementPlan.magnetic_width()
+```
+
+A stage list that frees a magnetic width in the same stage that first frees the
+moment is reported as `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` before the first
+stage runs, by `Refinement.fit` and by `Refinement.run_stage` alike. The middle
+stage seeds the two widths off their zero floor and reaches nothing else.
+
+While the terms are held at zero, `MAGNETIC_WIDTH_UNMODELLED` says whether they
+are needed. It reads the *shape* of the converged residual, not an observed
+width (the package measures none): a calculated peak that is too narrow under a
+broad observed one leaves a residual that is negative at the centre and
+positive in both tails, and that centre-versus-tails split at the magnetic-only
+reflections is compared against the same statistic at the nuclear-only ones. A
+wrong instrument profile, a wrong `Phase.lor_size` or a wrong background moves
+both sets together and cancels, so only a width belonging to the magnetic
+component survives. The message names the reflections it read and says the
+moment is biased low.
+
+On a synthetic k = (½, 0, 0) supercell of a Pbcm parent (Fe³⁺, λ = 2.4 Å, three
+noise draws) with a planted `magnetic_lor_size` of 0.25° and a 3.6 μ_B moment,
+the plan returns 0.2466-0.2471° with esds of 0.0025-0.0027° and the moment
+3.590-3.592 μ_B with esds near 0.011. Held at zero, the same patterns return
+the moment at 2.66 ± 0.11 μ_B, nine esds low, and `MAGNETIC_WIDTH_UNMODELLED`
+fires. On the same supercell with no planted width it stays silent.
+
+When the terms are freed, the report says whether the data could see them.
+They enter the magnetic component alone, so they are identifiable exactly to
+the extent that the magnetic-to-nuclear intensity ratio *differs across
+reflections*: a k ≠ 0 structure with magnetic-only reflections measures them, a
+k = 0 collinear one whose magnetic and nuclear intensities track each other
+generally cannot, and a paramagnetic pattern has no magnetic component for them
+to broaden. Both terms are freed, because which one carries an excess is a
+property of the dataset; expect the other back unmeasured.
+`MAGNETIC_WIDTH_UNMEASURED` names a freed width that is below three of its own
+esds (the ratio `MomentEvidence.supported` uses for a moment), and one that came
+back with no esd at all, on its floor. On the Cr₂WO₆ tutorial pattern at 4 K
+(k = 0, with magnetic-only intensity on the parent's absences) the size term
+comes back 0.034 ± 0.016°, two esds and so unmeasured, the strain term on its
+floor with no esd, and the moment moves 2.125 ± 0.060 → 2.171 ± 0.054 μ_B. On
+the 150 K pattern, which has no order, both terms come back with esds hundreds
+of times their values.
+
+"Unmeasured" is not the same statement as "droppable". The plan fits the
+moment twice, at the off state in step 1 and with the widths free in step 3, and
+`MAGNETIC_WIDTH_MOVED_MOMENT` fires when releasing the widths moved the moment
+by more than the tighter of the two esds. It can fire beside
+`MAGNETIC_WIDTH_UNMEASURED` on the same term: then the width is correlated with
+the moment rather than absent, and holding it at zero puts the moment back
+where step 1 had it. Quote the released moment and report the width as an upper
+bound (value + esd), not as a coherence length.
+
+There is no Gaussian partner (magnetic coherence broadening is Lorentzian in
+shape, and a field nothing frees is a claim nothing tests), and no magnetic
+lattice *offset*: magnetic peaks in the wrong place are a different freedom,
+which rietx answers with two nuclear phases.
+
 ## How hard each stage is converged
 
 `RefinementPlan.intermediate_ftol` is the termination tolerance every stage but

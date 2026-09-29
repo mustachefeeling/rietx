@@ -6,7 +6,7 @@ Load it when a magnetic `Diagnostic` fired — from `analyse_moments` on a fit's
 
 The magnetic diagnostic family lives in this one file rather than in §7's tables (`references/diagnostics.md`; maintainer ruling, issue #286): one order-parameter question, one file. **The channel varies by table**, and each row says which:
 
-* **Moment codes** are about a refined moment (WP-1327) and ride on the report's `MomentEvidence` rows (`analyse_moments`, `FitReport.magnetic`).
+* **Moment codes** are about a refined moment (WP-1327) and ride on the report's `MomentEvidence` rows (`analyse_moments`, `FitReport.magnetic`); the **magnetic-width codes** (WP-1343) ride on `result.diagnostics`.
 * **Candidate codes** are not on `result.diagnostics` at all: they are on the `SupercellStatement` `magnetic_supercell` returns, because the question — does a Hermann-Mauguin symbol name the child group this cell carries — is settled before a fit exists, the same way a project reader's own codes are.
 * The **satellite arm** (WP-1326, `FitReport.satellites`) emits no code at all; its readings are in the next section.
 * **Interchange codes** are about a magnetic structure read from a file (WP-1328) and fire at *import* — pass `diagnostics=[]` to the reader to collect them; they never reach `result.diagnostics`.
@@ -25,6 +25,17 @@ The magnetic diagnostic family lives in this one file rather than in §7's table
 | code | what you must not assume, and what to do |
 |---|---|
 | `MOMENT_PAIR_DEGENERATE` | (info — from `report.magnetic.moment_pair_diagnostics` over `analyse_moments`' rows) Read either site's own `MomentEvidence.magnitude` for a paired row. The powder measures only the pair's quadrature sum, `sqrt(m_a^2 + m_b^2)` (`MomentEvidence.paired_magnitude` and `.paired_magnitude_esd`, `paired_with` naming the other site) — the two moduli are correlated in the fit and not separately determined, so either one's raw magnitude is an artefact of that correlation rather than a measurement |
+
+## Magnetic-width codes
+
+On `result.diagnostics`, from a fit (WP-1343). The terms are `Phase.magnetic_lor_size`/`_strain`, the magnetic component's own Lorentzian width; the turn-on order is `plan="magnetic_width"` (moment with widths at zero → widths with moment held → both).
+
+| code | what you must not assume, and what to do |
+|---|---|
+| `MAGNETIC_WIDTH_UNMODELLED` | (**warning**) Quote the refined moment. The magnetic reflections are drawn too **narrow** and the fit took the moment **down** to match their height (\|F_m\|² ∝ m²). The evidence is the residual's centre-vs-tails sign split at the magnetic-only reflections minus the same split at the nuclear-only ones, `value` in units of its own noise; a wrong instrument profile or background moves both sets and cancels. Fires only while both widths are held at zero. Run `plan="magnetic_width"` |
+| `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` | (**warning**, from the *plan*, before the first stage runs) Read either number as a measurement of its own quantity: a stage frees a magnetic width in the stage that first frees the moment, and both lower the magnetic peak height, so they trade. Use the three-step order (`strategy.staged.MAGNETIC_WIDTH_STAGE_PATHS`) |
+| `MAGNETIC_WIDTH_UNMEASURED` | (info) Quote a freed width as a magnetic coherence length. It is below three of its own esds (`value` = value/esd, the moment's own bar) or back on its floor with **no esd** (`value` `None`: not measured, never "zero"). Identifiable only where the magnetic/nuclear intensity ratio differs across reflections: k ≠ 0 with magnetic-only reflections, not a k = 0 structure whose two intensities track. Expect one of the two terms back this way. Read `MAGNETIC_WIDTH_MOVED_MOMENT` before dropping it |
+| `MAGNETIC_WIDTH_MOVED_MOMENT` | (**warning**, from the plan's step-1 and step-3 rungs) Drop a width because it is unmeasured. Releasing it moved the moment by more than the tighter of the two esds, so it is *correlated with the moment*, not absent; holding it at zero restores the bias. Quote the released moment and give the width as an upper bound (value + esd) |
 
 ## Candidate codes
 

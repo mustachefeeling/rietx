@@ -325,6 +325,76 @@ one measures only the angle to its unique axis {cite}`shirane1959`; those are
 moment direction a flat direction of the least-squares problem
 ({ref}`sec-moment-dofs`).
 
+### The magnetic component's own width
+
+Everything above adds $p^2\langle|F_\perp|^2\rangle$ to
+$\langle|F_N|^2\rangle$ and draws the sum once, which is right whenever the
+two contributions have the same profile. They need not. A crystallite's
+magnetic order need not be coherent across the whole crystallite: antiphase
+and domain-wall boundaries, an incompletely grown order parameter near $T_N$,
+and chemical disorder that couples to the exchange all cut the magnetic
+coherence length below the structural one while leaving the nuclear peaks
+untouched. The broadening that follows is Scherrer's, applied to the magnetic
+domain ($\approx K\lambda/(L_{\text{mag}}\cos\theta)$, the same
+$1/\cos\theta$ law {eq}`ms-scherrer` already reads), and a magnetic
+order parameter that varies across the specimen adds the $\tan\theta$ law
+instead.
+
+So a phase carries two more coefficients, `magnetic_lor_size` and
+`magnetic_lor_strain`, and the intensity is drawn as two components:
+
+```{math}
+:label: int-two-component
+
+y(2\theta) \;=\; \sum_k C_k \Big[
+  \langle|F_N|^2\rangle_k\,\Omega\big(2\theta - 2\theta_k;\,
+  \Gamma_k\big)
+  \;+\;
+  p^2\langle|F_\perp|^2\rangle_k\,\Omega\big(2\theta - 2\theta_k;\,
+  \Gamma^{\text{mag}}_k\big)\Big],
+```
+
+with one shared $C_k$ (the phase's single scale, the multiplicity, the
+line weight, the Lorentz-polarization factor, the March-Dollase multiplier,
+Sabine extinction, specimen absorption and surface roughness, every one of
+them a function of $(\text{line}, hkl)$ and of nothing about which
+contribution it scales) and one shared position $2\theta_k$. Only the width
+differs, and it differs by the composition law the package already uses:
+Lorentzian FWHMs add, so
+
+```{math}
+:label: int-two-component-width
+
+\Gamma^{\text{mag}}_L \;=\;
+\frac{X + \texttt{lor\_size} + \texttt{magnetic\_lor\_size}}
+      {\cos\theta}
+\;+\;
+\big(Y + \texttt{lor\_strain} + \texttt{magnetic\_lor\_strain}\big)
+\tan\theta .
+```
+
+There is no second scale and no second phase. That is the point: with a single
+scale a magnetic peak that is broader than the calculated one has exactly one
+way to reduce its residual, and it is to shrink the moment until the narrow
+calculated peak's *height* matches the broad observed peak's. Since
+$|F_m|^2 \propto m^2$, the moment then comes back low by about the ratio of
+the two widths, the fit converges, and nothing in the profile says so.
+{eq}`int-two-component` is what stops that; `MAGNETIC_WIDTH_UNMODELLED` is
+what says the term is needed while it is still held at zero, read off the
+centre-versus-tails sign structure of the residual at the magnetic-only
+reflections against the same statistic at the nuclear-only ones.
+
+Both coefficients default to exactly zero, which is the off state: the two
+components then have identical widths, the second draw is not built at all,
+and the arithmetic is {eq}`int-Fmag`'s single pass. They are only
+*identifiable* where the magnetic-to-nuclear intensity ratio differs across
+reflections, so a $\mathbf{k} \neq 0$ structure with magnetic-only
+satellites measures them and a $\mathbf{k} = 0$ collinear one generally
+cannot; the report says which happened rather than quoting a number for both
+({ref}`sec-magnetic-width`).
+
+{source}`rietx.model.forward` (`phase_peaks`, `_width_block`)
+
 ### The dipole approximation
 
 ```{math}
