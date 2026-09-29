@@ -39,7 +39,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from .._about import PROFILE_FORMAT_KEY
-from ..schemas.common import Diagnostic
+from ..schemas.common import SCHEMA_VERSION, Diagnostic
 from ..schemas.instrument import (
     BackgroundChebyshev,
     EmissionLine,
@@ -56,6 +56,13 @@ from ..schemas.instrument import (
 # in this package take them from one place (WP-1118).  `projects/gsas.py` is
 # where the "read by column" doctrine is written down, which is why the grammar
 # lives beside it; the registry it stays out of is about dispatch, not parsing.
+from ..schemas.migrate import (
+    UNSTAMPED_SCHEMA,
+    declared_range_repairs,
+    newest_declared_since,
+    restore_declared_ranges,
+    schema_key,
+)
 from .projects.gsas import (
     CW_PROFILE_COEFFICIENTS,
     KEY_BYTES,
@@ -123,6 +130,8 @@ def save_instrument_profile(instrument: Instrument, path: str | Path) -> None:
     ins.geometry.mu_t = ins.geometry.thickness_mm = None
     doc = {
         FORMAT_KEY: FORMAT_VERSION,
+        # what the reader's declared-range repair is gated on (WP-1321)
+        "schema_version": SCHEMA_VERSION,
         "created_utc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "instrument": ins.model_dump(mode="json",
                                      exclude={"background", "extra_components"}),
@@ -130,7 +139,8 @@ def save_instrument_profile(instrument: Instrument, path: str | Path) -> None:
     Path(path).write_text(json.dumps(doc, indent=1), encoding="utf-8")
 
 
-def load_instrument_profile(path: str | Path) -> Instrument:
+def load_instrument_profile(path: str | Path, *,
+                            diagnostics: list[Diagnostic] | None = None) -> Instrument:
     """Read a profile file back as a **frozen** instrument.
 
     Every stored parameter comes back with ``vary=False`` — the calibration
@@ -139,6 +149,14 @@ def load_instrument_profile(path: str | Path) -> Instrument:
     transparency are 0 and refinable per the sample plan, and surface roughness
     and specimen absorption are absent (declare them per specimen if the fit
     needs them).
+
+    ``diagnostics``, when a list is passed, collects what the read repaired:
+    a profile saved before a class inherited its declared ranges (issue #204)
+    stores a caller's own ``Parameter`` at ``(-inf, inf)``, and it gets its
+    field's range back as ``DECLARED_RANGE_RESTORED``, or is left as stored
+    where its value lies outside that range, as ``DECLARED_RANGE_NOT_RESTORED``
+    (:func:`~rietx.schemas.migrate.restore_declared_ranges`).  A profile with
+    no ``schema_version`` predates the stamp and is read as the oldest.
     """
     doc = json.loads(Path(path).read_text(encoding="utf-8"))
     if doc.get(FORMAT_KEY) != FORMAT_VERSION:
@@ -147,6 +165,14 @@ def load_instrument_profile(path: str | Path) -> Instrument:
             f"(missing/unknown {FORMAT_KEY!r} tag)")
     ins = Instrument.model_validate({**doc["instrument"],
                                      "background": BackgroundChebyshev().model_dump(mode="json")})
+    written = doc.get("schema_version", UNSTAMPED_SCHEMA)
+    if schema_key(written) < newest_declared_since():
+        where = f"the profile {Path(path).name}"
+        found = {c["path"]: [(where, c)]
+                 for c in declared_range_repairs(ins, written, "instrument.")}
+        notes = restore_declared_ranges(found, where)
+        if diagnostics is not None:
+            diagnostics.extend(notes)
     for p in _iter_parameters(ins):
         p.vary = False
     return ins

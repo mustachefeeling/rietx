@@ -183,10 +183,13 @@ Inherited for its flat-direction item.
       bounds; the load path's diagnostics channel decided and, if new,
       minimal. *2026-09-29: `RefinementTree.load(..., diagnostics=[])`, the
       `read_pattern` channel's shape, surfaced as `Project.history_diagnostics`;
-      `HISTORY_BOUNDS_RESTORED`, one per parameter over every node; gated on
+      `DECLARED_RANGE_RESTORED`, one per parameter over every node; gated on
       the header's `schema_version` against each class's `declared_since`
       (the "wider" clause superseded, § Findings); every class, not only
-      `Atom`; a value outside raises naming the node.*
+      `Atom`. A value outside the declared range leaves the parameter as
+      stored in every node, reported as `DECLARED_RANGE_NOT_RESTORED`,
+      where the WP settled "values raise" (review, 2026-09-29: a coarse
+      instrument's width is a real value outside the default box).*
 - [x] Test: a document written before #206 loads repaired *and* reports; a
       document already within the declared bounds is untouched byte-for-byte.
       *Six in `tests/test_project.py`, with the version gate both ways, an

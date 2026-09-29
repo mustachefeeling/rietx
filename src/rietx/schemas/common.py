@@ -314,9 +314,13 @@ from .._nearmiss import did_you_mean
 #: softplus from zero, where it was an unbounded identity, so a fit built that
 #: way walks a different path to its answer.  **Documents already written are
 #: repaired at read** where they carry the defect
-#: (``RefinementTree.load``, ``HISTORY_BOUNDS_RESTORED``), gated on the
-#: version the tree's header stamped, which is why this bump is load-bearing:
-#: a log whose header says 0.35 or later is never walked.
+#: (``RefinementTree.load``, ``DECLARED_RANGE_RESTORED``), gated on the
+#: version each node was written under, which is why this bump is
+#: load-bearing.  That needs ``HistoryNode.schema_version``, additive and
+#: defaulted to ``None`` (a node written before it, read at its header's
+#: version): the header stamps a log's creation, and a node appended to an
+#: old log by this release would otherwise be read as old.  A log whose
+#: header says 0.35 or later is never walked.
 SCHEMA_VERSION = "0.35"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
@@ -565,7 +569,7 @@ class _InheritsDeclaredDefaults(Base):
     inherits.  Before it, an explicit bare attribute and an omission were the
     same thing, so a stored bare attribute in a document written earlier is
     read as an omission and repaired at read
-    (:func:`rietx.history.tree.repair_declared_defaults`); from it on, an
+    (:func:`rietx.history.tree.declared_range_repairs`); from it on, an
     explicit ``min=-inf`` is a choice and wins.
 
     **Filled before any ``Parameter`` exists for the field**, so nothing about

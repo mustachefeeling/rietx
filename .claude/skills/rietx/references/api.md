@@ -46,7 +46,7 @@ Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities(
 - `rx.estimate_mu_r(structure: Structure, instrument: Instrument) -> float | None` — Starting µR for a packed capillary, from composition and geometry.
 - `rx.auto_background(data: PatternData, *, kind: str = 'pspline', diagnostics: PatternDiagnostics | None = None, wavelength: float | None = None, two_theta_limits: tuple[float, float] | None = None) -> Background` — Build a background model sized to the pattern.
 - `rx.diagnose(data: PatternData, *, wavelength: float | None = None, baseline_lambda: float | None = None) -> PatternDiagnostics` — Compute `PatternDiagnostics` for a raw pattern.
-- `rx.load_instrument_profile(path: str | Path) -> Instrument` — Read a profile file back as a **frozen** instrument.
+- `rx.load_instrument_profile(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> Instrument` — Read a profile file back as a **frozen** instrument.
 - `rx.save_instrument_profile(instrument: Instrument, path: str | Path)` — Write the instrument's calibrated state to a JSON profile file.
 - `rx.capabilities() -> Capabilities` — Everything this build can do — see the module docstring.
 - `rx.help_for(path: str) -> HelpEntry | None` — The entry for a parameter dot-path, or `None` if no family claims it.

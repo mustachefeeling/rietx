@@ -364,6 +364,13 @@ decorrelates the zero shift from the sample displacement from the cell, and it
 is why `lab_sample_refine` is the only plan whose size and strain numbers mean
 what they say.
 
+A profile saved by an earlier release can carry a parameter whose declared
+range that release dropped, and reading one restores it. That is the repair the
+history log gets (§ The history log below), and it reports on the same
+`diagnostics=` list, which `load_instrument_profile` takes too. A profile
+stamps the schema version it was written under, and one with no stamp is read
+as the oldest.
+
 The GUI writes and reads the same file from the Model panel, with `Save
 profile…` and `Load profile…`. Saving lands it in the project's `exports/`
 directory. It needs a model and not a fit, unlike everything else written
@@ -1324,14 +1331,21 @@ with the bounds it then carried: (−inf, inf), no unit, the identity
 transform. Such a log would reopen unbounded, because every key it stores is
 present and nothing is inherited from a key that is there.
 `RefinementTree.load` restores the declared range in every node that stored
-one, when the tree's header says the log predates that class's inheritance.
-Each restored parameter is reported once, as a `HISTORY_BOUNDS_RESTORED`
+one, where the node was written before that class's inheritance. Each node
+carries the schema version it was written under (`HistoryNode.schema_version`),
+and one written before that field is read at its log header's version. Each
+restored parameter is reported once, as a `DECLARED_RANGE_RESTORED`
 diagnostic naming its dot-path, the atom where there is one, and both ranges.
-Pass `diagnostics=[]` to collect them; `Project.open` passes one for you. No
-value moves. A stored value outside the declared range raises instead, naming
-the node, and `rietx.history.read_records` still reads that log as it was
-stored. A range that is merely wider than the declared one is a choice and is
-left alone, and so is an unbounded one written after the class inherited.
+Pass `diagnostics=[]` to collect them; `Project.open` passes one for you.
+
+No value moves. Where any node's value lies outside the declared range, the
+parameter is left as stored in every node and reported as
+`DECLARED_RANGE_NOT_RESTORED`, naming the node and the value. It still refines
+unbounded. The declared box is not physics for every instrument: a coarse
+neutron line's Caglioti `u` sits well outside the X-ray one. A range that
+refused the record would lose the one value it holds. A range that is merely
+wider than the declared one is a choice and is left alone, and so is an
+unbounded one written after the class inherited.
 
 Each line is a `HistoryRecord`, a tagged union of the three things the log
 carries. The tag is what keeps the file append-only: a reader branches on it

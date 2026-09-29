@@ -103,7 +103,7 @@ class Project:
         #: "a reader change, not a corrupt project" message.
         self.data_diagnostics: list[Diagnostic] = list(data_diagnostics or [])
         #: what :meth:`RefinementTree.load` repaired on the last open of the
-        #: history log — today only ``HISTORY_BOUNDS_RESTORED``, a caller's own
+        #: history log — today only ``DECLARED_RANGE_RESTORED``, a caller's own
         #: ``Parameter`` a release before its class inherited left unbounded
         #: (issue #204).  In memory only, for ``data_diagnostics``' reason: a
         #: deterministic function of the log and this release, so storing it
