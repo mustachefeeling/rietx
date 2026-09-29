@@ -1,6 +1,6 @@
 # WP-1321 — the bounds a Parameter field declared: repair and audit
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: — (PR #206 merges first: its validator and `model_fields_set`
 discriminator are this WP's reference behaviour)
