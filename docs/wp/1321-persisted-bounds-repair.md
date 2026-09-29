@@ -318,9 +318,13 @@ box for `Cell`, which declares no bound, and so is new policy and the
 maintainer's (§ Findings).
 
 **Measured** (`[dev]`, Linux x86-64, 4 cores, py3.12.3, alone on the machine):
-the fast selection on the final tree is running; its counts are the next commit.
-The added tests cost 0.61 s together on the first eleven (one run on this
-machine; `tests.added_test_times`), none near the slow tail. The full
+fast selection on the final tree (= merged main; `origin/main` had not moved)
+6719 passed, 163 skipped, 2 failed, 22:47. Before this session's tests the
+first run read 6701 / 163 / 4 failed = 6868; the total moved by exactly the
+16 tests added (11, then 5 from the review), none a skip. The two failures
+are not this WP's (Gotchas).
+The 16 added tests cost 1.42 s together (one run on this machine;
+`tests.added_test_times`), the slowest 0.26 s, none near the slow tail. The full
 selection did not run. Every slow suite states its bounds and transform
 explicitly (grep of the 41 `slow` modules), so at most a unit label fills
 there and no measured number can move.
@@ -328,6 +332,15 @@ there and no measured number can move.
 **Gotchas.**
 - `test_telemetry.py::…[unwritable-directory]` fails in any container running
   as root. That is #500, and PR #523 is open for it; it is not this WP's.
+- `test_compiled_kernels.py::test_the_disk_cache_lands_in_the_state_dir…`
+  failed once, on numba cache files dated 07:15 in
+  `src/rietx/model/__pycache__`, left by an out-of-band process in this
+  worktree (the forked review's, most likely). The test globs that directory,
+  so any leftover fails it. It passed with the files cleared, and replaying
+  every command this session ran leaked nothing.
+- The rule "a new reader of stored models joins
+  `DECLARED_RANGE_READ_POINTS`" is in that tuple's comment and not in root
+  CLAUDE.md, which sits at its 978-line cap.
 - `migrate_document_text` is textual and `restore_declared_ranges` structural.
   A new persisted document carrying models joins
   `DECLARED_RANGE_READ_POINTS`, or it does not repair.
