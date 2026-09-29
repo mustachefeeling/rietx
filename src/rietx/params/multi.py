@@ -216,8 +216,15 @@ class MultiParameterTable:
 
         A glob matches an entry when it matches either the scoped canonical name
         or the bare path, so single-histogram plans keep working verbatim.
+
+        A **shared** path is one column however many histograms carry it, so
+        it is returned once, at its first histogram's place (WP-1312): every
+        histogram's table holds its own copy of the entry and sets it, but the
+        record is of what the joint fit freed, and one shared cell listed once
+        per histogram claimed twice the parameters a two-histogram fit had.
         """
         freed: list[str] = []
+        seen: set[str] = set()
         for h, table in enumerate(self.tables):
             matched = []
             for e in table.entries:
@@ -229,7 +236,10 @@ class MultiParameterTable:
                     matched.append(e.path)
             if matched:
                 for p in table.set_vary(matched, vary):
-                    freed.append(self._canonical(h, p))
+                    canon = self._canonical(h, p)
+                    if canon not in seen:
+                        seen.add(canon)
+                        freed.append(canon)
         self._rebuild_columns()
         return freed
 
@@ -329,7 +339,9 @@ class MultiParameterTable:
             want = [self._unscope(h, p) for p in scoped_paths
                     if self._owner(p) in (None, h)]
             for p in table.seed_softplus([w for w in want if w is not None], value):
-                seeded.append(self._canonical(h, p))
+                # once per shared column, as :meth:`set_vary` returns it
+                if self._canonical(h, p) not in seeded:
+                    seeded.append(self._canonical(h, p))
         if seeded:
             self._rebuild_columns()
         return seeded
