@@ -1641,9 +1641,11 @@ def _rank(trials: list[MagneticTrial], tie_width: float, tie_r: float):
                     f"floor or below MOMENT_SUPPORT_SIGMA of its own esd, "
                     f"which is what an unmagnetised pattern looks like under a "
                     f"magnetic model")
+        n_supported = sum(1 for t in refined if t.supported)
         return (tuple(ordered), (), "nothing to solve",
-                f"{len(refined)} candidate(s) refined with a supported moment "
-                f"but none improved on the nuclear model (every ΔBIC ≤ 0), so "
+                f"{n_supported} of {len(refined)} refined candidate(s) came back "
+                f"with a supported moment but none improved on the nuclear "
+                f"model (every ΔBIC ≤ 0), so "
                 f"the moment is buying no agreement and there is nothing here "
                 f"a magnetic model explains")
     best = eligible[0]

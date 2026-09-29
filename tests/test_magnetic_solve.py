@@ -1427,6 +1427,23 @@ def test_a_pair_whose_quadrature_sum_is_inside_its_esd_stays_unsupported():
     assert "quadrature sum" in reason
 
 
+def test_nothing_to_solve_counts_the_supported_classes_not_the_refined_ones():
+    """The sentence says how many trials carried a supported moment.
+
+    Measured on Cr₂WO₆ at 150 K (``test_magnetic_solve_acceptance.py``): two
+    classes refined, one of them with a degenerate pair whose quadrature sum
+    clears the null test, both at ΔBIC < 0.  The verdict is right, and the
+    sentence beside it used to say both had a supported moment.
+    """
+    supported = _trial(0, delta_bic=-33.0, r_mag=0.14, free=2, bns="1.1")
+    unsupported = _trial(1, delta_bic=-46.0, r_mag=0.14, free=2, bns="2.2",
+                         supported=False)
+    _o, tied, verdict, reason = _rank([supported, unsupported],
+                                      SOLVE_TIE_DELTA_BIC, 0.02)
+    assert verdict == "nothing to solve" and tied == ()
+    assert reason.startswith("1 of 2 refined candidate(s)"), reason
+
+
 def test_an_ordinary_row_is_not_pair_supported():
     row = MomentRow(label="Mn1", ion="Mn3+", magnitude=3.0, esd=0.1,
                     crystalaxis=(3.0, 0.0, 0.0), supported=True)
