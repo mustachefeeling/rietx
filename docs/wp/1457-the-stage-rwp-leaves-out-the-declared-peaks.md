@@ -1,6 +1,6 @@
 # WP-1457 — the stage Rwp leaves out the declared peaks
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #450)
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-09-24 — a wrong Rwp on every stage of any fit that declares a `PeakComponent`, in the progress line and the watcher, and nothing flags it; the result's own Rwp is right

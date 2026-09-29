@@ -71,7 +71,9 @@ The derivative is the content of the equation. An X-ray form factor falls off
 with $s$ because the electron cloud has spatial extent comparable to $1/s$; a
 nucleus is a point scatterer on this scale, so the bound coherent scattering
 length carries no angular dependence at all. There is no five-Gaussian
-expansion, no $f'/f''$, and $b$ is real for every nuclide this table covers.
+expansion and no $f'/f''$, and every value this table stores is real. For the
+resonant absorbers $b$ is complex, and the table carries its real part (see the
+thermal-table note below).
 
 Values are the Sears tabulation {cite}`sears1992`, reproduced as {cite}`itc-c`
 §4.4.4 Table 4.4.4.1. That is the same volume this package already relies on for

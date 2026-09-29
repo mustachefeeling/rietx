@@ -1650,12 +1650,16 @@ def from_structure(structure, *,
     What does not cross is named in the diagnostics rather than dropped in
     silence: a CIF states no refine flags, no phase scale and no sample
     broadening, so a GSAS-II project built from this file starts with its own.
+    A magnetic phase is refused instead (issue #470): the file would carry
+    the magCIF loops, but GSAS-II's import drops them without a word, so a
+    diagnostic here would be too quiet.
     """
     import gemmi
 
     from ...crystallography.cif import write_structure_block
     from ...crystallography.symmetry import (
         get_spacegroup,
+        refuse_magnetic_phase,
         refuse_operation_list,
         setting_alternatives,
     )
@@ -1667,6 +1671,15 @@ def from_structure(structure, *,
         _refuse_non_finite(phase, index)
         _refuse_unquotable(phase, index)
         refuse_operation_list(phase, "a GSAS-II phase CIF")
+        # The block writer below does write the magCIF loops, but GSAS-II's
+        # own CIF import (v5.6.3, scriptable `add_phase`, measured on MnF2)
+        # reads that file back as a nuclear phase — no magnetic group, every
+        # spin +1 — and says nothing, so writing it is the same silent drop
+        # one program later.
+        refuse_magnetic_phase(
+            phase, "a GSAS-II phase CIF",
+            why="GSAS-II's CIF import drops the file's magnetic loops without "
+                "a warning (measured on GSAS-II 5.6.3)")
         block = doc.add_new_block(_block_name(phase.name, index, taken_names))
         sg = get_spacegroup(phase.space_group)
         resolved = sg.xhm()
