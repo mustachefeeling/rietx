@@ -374,17 +374,26 @@ round-robin chain contradicts.
   field took it to 39 078, paid for by two trims of the index's own authored
   prose (`make_api_index.py`), 38 961 B now. `series.md` is 33 150 of its
   34 600 B budget, and PR #522 adds to it too. The GUI's series panel does
-  not box an outlier point as `plot_trajectory` now does; nobody owns that
-  and no WP was filed for it.
+  not box an outlier point as `plot_trajectory` now does (filed as 1525).
 
   *Forward.* Into 1329's Inherited: the field PR #522 named as its hook, and
-  the `SCHEMA_VERSION` collision (both PRs step off 0.35). Into 1420's: the
-  blank's held cell released after its `cell` stage inside the chain.
+  the `SCHEMA_VERSION` collision (both PRs step off 0.35). Into 1420's: a
+  pointer to 1523, the hold's release rule it relies on.
+
+  *Filed* (2026-09-29, at the user's request after the handover): **1523**
+  (P2), a phase fitted to noise passes the support test — #481's blank,
+  fitted alone from pattern 0's models, releases its held cell at 2.14σ
+  support on a scale 1.3σ from zero and fires no `PHASE_UNCONSTRAINED`,
+  while the same frame from the issue's unfitted start holds it and fires;
+  **1524** (P3), the step scan's last two blind spots, the review's declined
+  bridge over a `SeriesFailure` and the one-flag-per-path limit of decision
+  2; **1525** (P3), the GUI outlier mark; **1526** (P4), the held-phase
+  runaway guard at 3.5× its serial time.
 
   Next: nothing on this WP. Issues #481 and #475 close with the PR. The
   reporter's driver treats `SEQUENTIAL_UNRECOVERED` as a gap and needs one
   line to treat `SEQUENTIAL_RWP_OUTLIER` the same way, which is the
-  maintainer's to relay. A GUI outlier mark is the one follow-up this left.
+  maintainer's to relay.
 - **2026-09-27** — created, from the 2026-09-27 issue triage (issues #475,
   #481). Checked against the tree at `91deebbb`: #481's script reproduced
   every number in its table to the digit on Linux x86_64, and the three

@@ -1,0 +1,83 @@
+# WP-1524 — The step scan's last two blind spots
+
+Milestone: unscheduled · Status: ⬜
+Track: A long run is not one fit
+Depends on: — (1469 landed the rule this extends)
+Priority: P3 2026-09-29 — a false flag on a run of failed patterns, and a second real step on one path goes unreported; both on paths few series run
+
+## Goal
+
+`SEQUENTIAL_DISCONTINUITY` never bridges a gap it did not measure, and a path
+with two real steps reports both.
+
+## Context
+
+`sequential._discontinuity_steps` flags a step that is over
+`DISCONTINUITY_FACTOR` (5) × the path's median step **and** over
+`DISCONTINUITY_SIGMA` (3) × the two points' combined esd, one flag per path.
+WP-1469 left out the steps into and out of a pattern the fence rejected
+(`"diverged"`, or above the Rwp fence). It drops those steps rather than
+bridging them, because a bridge over a run of k patterns spans k of the
+series' steps and reads as k medians: a clean ramp flagged "8×" across seven
+rejected patterns (1469's *Decisions taken*, item 2). Two shapes survive.
+
+1. **A pattern with no entry is still bridged.** Under `on_error="carry"` or
+   `"skip"`, a pattern on which every rung raised is a `SeriesFailure` and has
+   no `SeriesEntry`, so `SeriesResult.trajectory` steps straight from its
+   predecessor to its successor. A run of such failures on a ramp reads as one
+   step of that many medians. This predates 1469; its review declined it as
+   out of scope. The positions are in `Trajectory.positions` and the gaps are
+   the missing `SeriesEntry.index` values between two consecutive points, so
+   the scan can tell a bridge from a step.
+2. **One flag per path.** `argmax` over the steps that pass both legs keeps
+   the largest, so a path with two real steps (two transitions in one ramp)
+   reports one. 1469 fixed the case where the other step was a rejected
+   frame's. No issue has reported this shape yet, and the WP should measure
+   whether it appears on the suite's real series before changing it.
+
+Two consumers read the flag and must move with it: `SeriesResult.discontinuities`
+(one `SeriesStep` per diagnostic, `path` the key — which stops being a key if
+a path can carry two) and the verification pass, which refits each flagged
+pair once. `plot_trajectory` shades each recorded pair.
+
+## Non-goals
+
+- The fences' thresholds; neither shape is a threshold problem.
+- A pattern above the Rwp fence or diverged: 1469 settled those.
+
+## Tasks
+
+- [ ] Shape 1: drop the steps that span a missing index, as 1469 did for
+      rejected patterns, with a test built from `SeriesFailure`s on a ramp.
+- [ ] Shape 2: measure how many paths on the suite's real series (round
+      robin, the thermal and held-phase ramps) have a second step passing
+      both legs; decide, and record here, whether to flag every such step.
+      If they are flagged, `SeriesStep` needs a key other than `path`, and
+      the verification and the plot follow.
+- [ ] Tests: both shapes, and the suite's clean series firing nothing new
+      (1469's counting wrapper, `SequentialRefinement._run`, is the recipe).
+- [ ] Skill: the `SEQUENTIAL_DISCONTINUITY` row in `references/series.md` if
+      a path can carry two flags; otherwise "none".
+
+## Acceptance
+
+A ramp with three consecutive failed patterns flags nothing; a ramp with two
+planted steps on one path flags both, if task 2 decides so; the suite's
+existing series fire nothing new.
+
+```sh
+.venv/bin/python -m pytest tests/test_sequential.py tests/test_series_error_policy.py -q
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+.venv/bin/python -m ruff check src tests examples
+```
+
+## References
+
+- WP-1469 (the drop-not-bridge rule and its measurement), issue #481.
+- WP-1333 (`SeriesFailure`, `on_error`), WP-1305 (the verification pass).
+
+## Handover log
+
+- **2026-09-29** — created, from WP-1469's session: shape 1 was the review's
+  declined finding, shape 2 the limit its decision 2 recorded. Next: task 1,
+  which is small; task 2 is a measurement first.

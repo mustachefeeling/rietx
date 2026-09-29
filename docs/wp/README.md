@@ -39,6 +39,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1510](1510-what-the-chemist-knows-reaches-the-search.md) | What the chemist knows reaches the indexing search | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md), [1508](1508-compiled-dichotomy-spike.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1514](1514-scoping-rigid-bodies.md) | Scoping rigid bodies: the milestone that makes the parameter map nonlinear | P2 | — ([1319](1319-structure-interchange.md), [1515](1515-scoping-structure-solution.md), [1516](1516-scoping-stacking-faults.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
+| [1523](1523-a-phase-fitted-to-noise-passes-the-support-test.md) | A phase fitted to noise passes the support test | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -428,6 +429,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1467](1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | ⬜ | P2 | — ([1318](1318-strain-surface.md) soft) |
 | [1518](1518-dedup-weighs-a-difference-in-its-own-frame.md) | The dedup χ² test weighs a difference in the frame it was taken in | ✅ 2026-09-28 | — | — |
 | [1521](1521-compiled-kernels-active-means-they-ran.md) | `compiled_kernels_active` says the kernels ran, per tier, or says it does not know | ⬜ | P4 | — |
+| [1523](1523-a-phase-fitted-to-noise-passes-the-support-test.md) | A phase fitted to noise passes the support test | ⬜ | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 
@@ -445,6 +447,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1509](1509-dichotomy-leaves-pay-for-the-whole-trial-set.md) | A dichotomy leaf pays for the whole trial set | ✅ 2026-09-28 | — | — ([1508](1508-compiled-dichotomy-spike.md) soft) |
 | [1519](1519-distinct-lattice-tests-as-one-stacked-solve.md) | The distinct-lattice χ² tests run as one stacked solve | ✅ 2026-09-29 | — | — ([1518](1518-dedup-weighs-a-difference-in-its-own-frame.md) soft) |
 | [1520](1520-a-search-refines-each-assignment-once.md) | A search refines each line assignment once (gated: build only if assignments repeat) | ⬜ | P3 | — |
+| [1524](1524-the-step-scans-last-two-blind-spots.md) | The step scan's last two blind spots | ⬜ | P3 | — |
 
 ### <a id="unscheduled-one-file-many-patterns"></a>One file, many patterns
 
@@ -477,6 +480,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 🔄 2026-09-28 | P4 | [1466](1466-the-structure-viewer-draws-coordination-polyhedra.md) |
 | [1470](1470-a-structure-figure-without-a-browser.md) | A structure figure from Python, drawn without a browser | ✅ 2026-09-27 | — | — |
 | [1522](1522-the-gui-says-what-the-read-repaired.md) | The GUI says what reading the project repaired | ⬜ | P3 | — |
+| [1525](1525-the-series-panel-marks-an-outlier.md) | The series panel marks an outlier | ⬜ | P3 | — |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
 
@@ -509,6 +513,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1452](1452-spglib-to-moyo.md) | Spglib to moyo, once | ⬜ | P3 | [1327](1327-magnetic-structure.md), [1418](1418-the-magnetic-structure-is-determined.md), [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) |
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 🔄 2026-09-27 | P3 | — |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 🔄 2026-09-27 | P3 | — ([1506](1506-a-planning-doc-pr-runs-what-reads-it.md) soft) |
+| [1526](1526-a-runaway-guard-sized-to-the-runaway.md) | A runaway guard sized to the runaway | ⬜ | P4 | — |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement
 
