@@ -1,6 +1,6 @@
 # WP-1329 — the moment in a series: the onset, the hold, the trajectory
 
-Milestone: v1.6 · Status: ⬜
+Milestone: v1.6 · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #522)
 Depends on: 1327 (the moment); 1326 soft (the satellite arm per pattern)
 Priority: P3 2026-09-23 — waits on 1327's moment; P2 when it lands
 
