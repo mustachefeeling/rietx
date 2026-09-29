@@ -399,6 +399,183 @@ def test_the_cubic_and_tetragonal_arms_differ_for_the_reason_claimed():
 
 
 # --------------------------------------------------------------------------
+# C′. The frame M⊥ is taken in, on the k ≠ 0 cells that are not axis-aligned
+# --------------------------------------------------------------------------
+# Every case above is at Γ or on an axis-aligned child cell, where the Cholesky
+# frame of the cell parameters and the lattice's own frame coincide; issue #534
+# was invisible there.  The MnO-type child cell of F m -3 m at (½, ½, ½) is
+# rotated by 140° against the parent axes and the G-type P m -3 m one is
+# left-handed, so these are the cases that see which frame ĥ and m share.
+
+def _rotation(axis, angle):
+    """Rodrigues' rotation matrix about ``axis`` by ``angle`` radians."""
+    u = np.asarray(axis, dtype=np.float64) / np.linalg.norm(axis)
+    k = np.array([[0.0, -u[2], u[1]], [u[2], 0.0, -u[0]], [-u[1], u[0], 0.0]])
+    return np.eye(3) + np.sin(angle) * k + (1.0 - np.cos(angle)) * (k @ k)
+
+
+#: One proper rotation and one improper map (the same rotation times a mirror),
+#: so a left-handed re-expression of the same crystal is covered too.
+RIGID_MAPS = {"rotation": _rotation((1, 2, 3), 0.7),
+              "rotoreflection": _rotation((1, 2, 3), 0.7) @ np.diag([1.0, 1.0, -1.0])}
+
+
+def _unit_intensity(candidate, refl):
+    """Per-reflection Σ_dom |M⊥|² at every amplitude one."""
+    f = isotropy.structure_factors(candidate, refl)
+    total = np.tensordot(np.ones(candidate.free_amplitudes), f, axes=(0, 1))
+    return np.sum(np.abs(total) ** 2, axis=(0, 2))
+
+
+def _is_along(moments, direction):
+    """Every non-zero Cartesian moment of the configuration is parallel to ``direction``."""
+    u = np.asarray(direction, dtype=np.float64) / np.linalg.norm(direction)
+    live = moments[np.linalg.norm(moments, axis=1) > 1e-9]
+    return live.size > 0 and np.allclose(np.abs(live @ u), np.linalg.norm(live, axis=1))
+
+
+def test_the_mno_type_cell_splits_the_111_moment_from_the_in_plane_ones():
+    """Shirane's own example: MnO, F m -3 m 4a at k = (½, ½, ½), gives two classes.
+
+    The configurational symmetry is rhombohedral, so the angle a collinear
+    moment makes with [111] is measurable and its azimuth is not (Shirane,
+    1959, *Acta Cryst.* **12**, 282, p. 285): the τ₃ candidate with m ∥ [111]
+    is one class and the three in-plane candidates are the other.  And the
+    (½ ½ ½) reflection, the magnetic cell's first, vanishes for m ∥ [111]
+    because there M ∥ Q — the reflection Roth (1958, *Phys. Rev.* **110**,
+    1333) used to put MnO's moments in the (111) planes.  On main before #534
+    the moment and ĥ were in frames 140° apart and all four candidates came out
+    one class, with 1.1e2 at (½ ½ ½) for the [111] one.
+    """
+    found = isotropy.candidates("F m -3 m", (0, 0, 0), HALF)
+    lattice = np.asarray(found.lattice, dtype=np.float64)
+    refl = isotropy.reflections(lattice, 1.5)
+    along = [i for i, candidate in enumerate(found)
+             if _is_along(isotropy.moment_cartesian(candidate.configurations[0], lattice),
+                          (1, 1, 1))]
+    assert len(along) == 1
+    in_plane = tuple(i for i in range(len(found)) if i not in along)
+    assert isotropy.equivalence_classes(found, refl) == ((along[0],), in_plane)
+    first = list(refl.shells[0])
+    assert refl.d[first[0]] == pytest.approx(5.0 * np.sqrt(3.0) / 1.5, rel=1e-12)
+    for i, candidate in enumerate(found):
+        intensity = _unit_intensity(candidate, refl)
+        at_first = float(np.sum(intensity[first]))
+        if i == along[0]:
+            assert at_first <= 1e-20 * float(np.max(intensity))
+        else:
+            assert at_first > 1e-3 * float(np.max(intensity))
+
+
+def test_the_type_i_fcc_cell_splits_the_moment_along_c_from_the_in_plane_ones():
+    """F m -3 m 4a at k = (0, 0, 1): two classes, m ∥ c against m ⊥ c.
+
+    One arm picks out an axis, so the configurational symmetry is tetragonal
+    and Shirane's rule makes the angle to c measurable (Shirane, 1959, p. 284).
+    The child cell is rotated by 45°.
+    """
+    found = isotropy.candidates("F m -3 m", (0, 0, 0), (0, 0, 1))
+    lattice = np.asarray(found.lattice, dtype=np.float64)
+    along = [i for i, candidate in enumerate(found)
+             if _is_along(isotropy.moment_cartesian(candidate.configurations[0], lattice),
+                          (0, 0, 1))]
+    assert len(along) == 1
+    in_plane = tuple(i for i in range(len(found)) if i not in along)
+    classes = isotropy.equivalence_classes(found, isotropy.reflections(lattice, 1.5))
+    assert classes == ((along[0],), in_plane)
+
+
+@pytest.mark.slow
+def test_the_g_type_perovskite_cell_is_one_class():
+    """P m -3 m 1a at k = (½, ½, ½): one class, every moment direction.
+
+    The ± arrangement of a G-type antiferromagnet has cubic configurational
+    symmetry, so the powder intensity does not depend on the moment direction
+    at all (Shirane, 1959, p. 284).  The child cell is left-handed, which is
+    why it is here.  About 6-8 s, most of it the six candidates' construction,
+    so it is marked slow.
+    """
+    found = isotropy.candidates("P m -3 m", (0, 0, 0), HALF)
+    lattice = np.asarray(found.lattice, dtype=np.float64)
+    assert np.linalg.det(lattice) < 0
+    classes = isotropy.equivalence_classes(found, isotropy.reflections(lattice, 2.0))
+    assert classes == (tuple(range(len(found))),)
+
+
+@pytest.mark.parametrize("name", sorted(RIGID_MAPS))
+def test_the_same_crystal_in_a_rotated_frame_gives_the_same_intensities_and_classes(name):
+    """The frame is a choice, and nothing a powder measures may depend on it.
+
+    The MnO-type candidates, with the reflection set built on the same lattice
+    re-expressed in a rigidly rotated (or rotated and mirrored) Cartesian
+    frame: every shell's intensity and every class must come back unchanged.
+    This is the test that would have caught #534, where the moment was rebuilt
+    from the cell parameters in a fixed frame and ĥ followed the lattice.
+    """
+    q = RIGID_MAPS[name]
+    found = isotropy.candidates("F m -3 m", (0, 0, 0), HALF)
+    lattice = np.asarray(found.lattice, dtype=np.float64)
+    here = isotropy.reflections(lattice, 1.5)
+    there = isotropy.reflections(lattice @ q.T, 1.5)
+    assert np.allclose(here.shell_d, there.shell_d, rtol=1e-12)
+    rng = np.random.default_rng(534)
+    for candidate in found:
+        amplitudes = rng.normal(size=candidate.free_amplitudes)
+        a = isotropy.powder_intensities(candidate, amplitudes, here)
+        b = isotropy.powder_intensities(candidate, amplitudes, there)
+        assert np.allclose(a, b, rtol=1e-10, atol=1e-10 * float(np.max(a)))
+    assert isotropy.equivalence_classes(found, here) == \
+        isotropy.equivalence_classes(found, there)
+
+
+@pytest.mark.parametrize("case", [("F m -3 m", HALF), ("P m -3 m", HALF)],
+                         ids=["MnO-type rotated", "G-type left-handed"])
+def test_the_refinements_m_perp_agrees_with_the_isotropy_rung_on_a_rotated_cell(case):
+    """WP-1327's forward model against M-7's, reflection by reflection.
+
+    ``scattering.magnetic_f2`` builds Q and the moment from the cell
+    *parameters*, both in the Cholesky frame, so it never had #534's defect;
+    this pins that the fixed :func:`isotropy.structure_factors` now agrees with
+    it on a cell that is rotated (MnO type) and one that is left-handed (G
+    type).  Each candidate's first configuration is put on every atom of the
+    magnetic cell in P1 with a unit form factor (s = 0), so the two must give
+    p²·|M⊥|² and |M⊥|² for the same reflections.
+    """
+    from rietx.crystallography.magnetic import scattering
+    from rietx.crystallography.magnetic.moments import dofs_from_moment, moment_frame
+
+    group, k = case
+    found = isotropy.candidates(group, (0, 0, 0), k)
+    lattice = np.asarray(found.lattice, dtype=np.float64)
+    lengths = np.linalg.norm(lattice, axis=1)
+    angles = [float(np.degrees(np.arccos(lattice[i] @ lattice[j]
+                                         / (lengths[i] * lengths[j]))))
+              for i, j in ((1, 2), (0, 2), (0, 1))]
+    cell = (*lengths.tolist(), *angles)
+    refl = isotropy.reflections(lattice, 2.0)
+    frame = moment_frame(np.eye(3), cell)                          # a free moment
+    for candidate in found:
+        n = len(candidate.positions)
+        sites = scattering.MagneticSites(
+            mom_mat=[np.eye(3)[None]] * n,
+            ops=[(np.eye(3)[None], np.zeros((1, 3)))] * n,
+            frames=[frame] * n, ions=["Mn2+"] * n, g_factors=[2.0] * n,
+            approximations=[None] * n)
+        crystal_axis = candidate.configurations[0] * lengths      # magCIF unit axes
+        dofs = [dofs_from_moment(frame, cell, m) for m in crystal_axis]
+        stol = np.zeros(len(refl))
+        refined = scattering.magnetic_f2(
+            refl.hkl, np.arange(len(refl)), np.ones(len(refl)), stol, sites, cell,
+            candidate.positions, np.ones(n), np.zeros(n), dofs)
+        f0 = float(scattering._form_factor(sites, 0, np.zeros(1))[0])
+        refined = refined / (scattering.P_MAGNETIC_FM * f0) ** 2
+        f = isotropy.structure_factors(candidate, refl, domains=False)
+        isotropic = np.sum(np.abs(f[0, 0]) ** 2, axis=1)
+        assert np.allclose(refined, isotropic, rtol=1e-10,
+                           atol=1e-10 * float(np.max(isotropic))), candidate.label
+
+
+# --------------------------------------------------------------------------
 # D. The two halves of the engine agreeing
 # --------------------------------------------------------------------------
 
@@ -815,16 +992,28 @@ def test_the_magnetic_cell_has_the_right_lattice_cosets(case):
 
 
 def test_moment_cartesian_is_the_row_vector_lattice_transpose():
-    """The convention pin: contravariant fractional components times Aᵀ.
+    """The convention pin: contravariant fractional components times Aᵀ, in A's frame.
 
-    :func:`isotropy.moment_cartesian` goes through M-5's ``moment_to_cartesian``,
-    which speaks magCIF's unit-vector ``crystalaxis`` basis; that it comes back
-    equal to Aᵀ·m is the statement that the two conventions were reconciled and
-    not merely both used.
+    On a lattice that is **not** in the standard orientation — the hexagonal
+    compatible cell rigidly rotated — since on a standard one the Cholesky
+    frame of M-5's ``moment_to_cartesian`` and the lattice's own coincide and
+    the pin cannot tell them apart (issue #534).  The magnitude is M-5's
+    either way: |Aᵀ·m| equals :func:`~.operators.moment_magnitude` of the same
+    moment in magCIF's unit-vector ``crystalaxis`` basis, which is the
+    statement that the two conventions were reconciled and not merely both used.
     """
-    lattice = isotropy.compatible_cell("P 6_3 c m")
+    from rietx.crystallography.magnetic.operators import moment_magnitude
+
+    standard = np.asarray(isotropy.compatible_cell("P 6_3 c m"), dtype=np.float64)
+    lengths = np.linalg.norm(standard, axis=1)
+    cell = (*lengths.tolist(), 90.0, 90.0, 120.0)
     moments = np.array([[0.3, -0.7, 1.1], [1.0, 1.0, 0.0]])
-    assert np.allclose(isotropy.moment_cartesian(moments, lattice), moments @ lattice)
+    for q in RIGID_MAPS.values():
+        lattice = standard @ q.T
+        got = isotropy.moment_cartesian(moments, lattice)
+        assert np.allclose(got, moments @ lattice)
+        assert np.allclose(np.linalg.norm(got, axis=1),
+                           [moment_magnitude(m * lengths, cell) for m in moments])
 
 
 def test_the_reflection_shells_are_complete_to_d_min():

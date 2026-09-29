@@ -260,7 +260,14 @@ M_\perp = M - (M\cdot\hat{\mathbf{h}})\,\hat{\mathbf{h}},
 
 {source}`rietx.crystallography.magnetic.isotropy.structure_factors`
 
-{cite}`halpern1939` over the atoms of the magnetic cell. That average
+{cite}`halpern1939` over the atoms of the magnetic cell, with the moment and
+$\hat{\mathbf{h}}$ in one Cartesian frame, the magnetic lattice's own:
+$\mathbf{m} = \sum_i m_i \mathbf{a}_i$ for the contravariant components on the
+cell vectors, and $\mathbf{h}$ taken through the inverse of the same row-vector
+lattice. A $\mathbf{k} \neq 0$ child cell is usually rotated or left-handed
+against the parent axes, so rebuilding either vector from the six cell
+parameters alone, in a standard orientation, measures the angle between
+them in two different frames. That average
 destroys some of the information the model carries: two candidate families
 are powder-equivalent when each can reproduce the other's powder intensity
 at every shell to within a stated tolerance, over the whole range of its
@@ -286,3 +293,10 @@ fitting one family's amplitudes against the other's intensities. LaMnO₃'s
 four Pnma candidates above are the opposite case: each is told apart from
 every other by the reflections it does or does not extinguish, so all four
 stay in separate classes and a ranked refinement has to try them all.
+Shirane's MnO case itself, `F m -3 m` site 4a at
+$\mathbf{k} = (\tfrac12, \tfrac12, \tfrac12)$, comes out two classes: the
+candidate with its moment along [111] on its own, and the three with moments in
+the (111) plane together. For the [111] candidate the
+$(\tfrac12\,\tfrac12\,\tfrac12)$ reflection is absent, because there the
+moment is parallel to $\mathbf{Q}$. This is the reflection that places MnO's
+moments in the (111) planes {cite}`roth1958`.
