@@ -1,10 +1,9 @@
 # WP-1449 — rank on what the screen determined, not on what the peak list shows
 
-Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @yue-here; the bethanechol
-measurement and a finished-run confirmation remain
+Milestone: unscheduled · Status: ✅ 2026-09-29 — the re-rank on uncancellable extras landed;
+measured safe on monoclinic lists, and the order rows run on finished searches
 Track: What fires, and what stays silent
 Depends on: — (1446 measured the refutation; 1025 built the screen)
-Priority: P2 2026-09-23 — a wrong cell ranked first on a surface every page calls provisional; 1446 already measured the refutation
 
 ## Goal
 
@@ -463,6 +462,80 @@ is not what did it.
   candidates.
 
 ## Handover log
+
+### 2026-09-29 — closed: the check is safe below high symmetry, and the order rows run finished
+
+The supercell check was proven only on high-symmetry cells, and it now has a
+low-symmetry measurement: on real monoclinic peak lists it never mistakes a
+phantom supercell for a real one. It refuted 545 of the 550 wrong supercells
+it was asked about, and left five undecided where chance alone fills most
+matching windows. An undecided check moves nothing. The bethanechol benchmark
+could not have shown this through a search. Its volume windows never admit the
+truth beside a supercell of it, and with the window raised the ranking still
+keeps every supercell out of the reported list. So on this data the check
+neither helps nor harms, and the direct asking is what shows it has the power.
+The brucite and corundum order rows now run on finished searches here, and
+they pass, which was the confirmation the last session could not get.
+
+**Done.**
+
+- Inherited pruned on arrival: WP-1509's entry still held and moved into
+  Context (the acceptance searches finish here since PR #516); WP-1508's said
+  itself that 1509's superseded it.
+- Measured the chance test below high symmetry, first through the benchmark and
+  then directly (Measured below). A fast test pins it on the three sets that
+  span the chance rate:
+  `test_a_monoclinic_truths_phantom_supercells_are_never_supported`. It asserts
+  that none is ever supported, and that an undecided one is one the test had
+  no power to refute. Made to fail once on purpose: with every window 50×
+  wide, all 550 read undecided and the 95 %-refuted line fires.
+- The finished-run confirmation, read off the acceptance file.
+
+**Measured** (`[dev]`, Linux x86-64, 4 cores, py3.12, numpy 2.5.3, each run
+alone).
+
+- Benchmark, manual mode: score −3, the truth first on Bb, E and F and second
+  on Db, 95-113 s a set, as WP-1518 left it. All 120 reported candidates were
+  asked and none had a parent. The protocol's 800-1200 Å³ window cannot hold a
+  pair of index 2-4.
+- Benchmark, default mode: score −6, the truth first on Bb and E, 272-577 s a
+  set. All 120 asked, none a sublattice of another. The truth's smallest
+  supercell (index 2, 2074 Å³) sits above the 2000 Å³ ceiling.
+- Manual protocol with the ceiling at 4200 Å³, on the four sets manual mode
+  solves (F, E, Bb, Db): the truth ranks first on all four, Db rising from
+  second. The searches were cut (404-768 s), the reported volumes 804-2036 Å³,
+  and no pair appeared.
+- Direct, with the published P 2₁/n cell as parent and its 55 superlattices of
+  index 2-4 (7 + 13 + 35, `ambiguity.derivative_cells`) against each set's
+  twenty lines in the manual window: 545 refuted, 5 undecided, 0 supported.
+  p0 is 0.299-0.429 on nine sets and 0.738 on F. The five are F's index-2
+  cells, four at 11 of 12 extras seen (p = 0.137) and one at 4 of 6. The
+  cells the searches found on Bb, Db, E and F give the same verdicts.
+- `tests/test_acceptance_indexing.py`, `-n auto -rs`: 44 passed, 0 skipped,
+  21:42. All 14 rows that call `_skip_unless_finished` read finished searches.
+- Fast selection: 6704 passed, 163 skipped, 1 failed (6868), 23:01. That is +1
+  on WP-1519's final tree, which differs from this base in docs only. The
+  failure is `test_telemetry`'s unwritable-directory case, which fails because
+  this container runs as root (contributor PR #523 skips it there). The run
+  held the ten-set version of the new test, 13.57 s under the suite's load
+  (`tests.added_test_times`, one run). Trimmed afterwards to three sets, it
+  takes 2.32 s alone.
+
+**Gotchas.**
+
+- The benchmark as the paper states it cannot ask the pair question, in either
+  mode. A future claim about the check on bethanechol needs the direct form
+  or a raised ceiling.
+- "Undecided" is where power runs out, and on F it runs out at index 2 because
+  its matching windows cover 74 % of the range. The declared limit from the
+  3rd session (a small count can refute a cell whose extras are above chance)
+  did not bite: nothing supported was refuted, because nothing was supported.
+- What this cannot reach is a *real* low-symmetry superstructure, the case
+  where the truth is the child. No dataset here has one.
+- `rank_of_lattice` reads each row's `af`, not its `cell`.
+
+**Next.** Nothing on this WP. The one open question is the real low-symmetry
+superstructure above. It needs data, and WP-1511 holds the nearest question.
 
 ### 2026-09-27 (3rd session) — the check counts only uncancellable extras, and the re-rank is wired
 

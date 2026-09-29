@@ -60,6 +60,17 @@ accepted cell is tested as the explanation of the leftovers.
   not have.
 - Two settings of one lattice are one row.
 
+### Inherited
+
+- **From WP-1449 (closed 2026-09-29): the supercell check's power below high
+  symmetry.** Asked directly of the published bethanechol cell's 55
+  superlattices of index 2-4 on all ten sets (`ambiguity.supercell_chance`),
+  it refuted 545 and left 5 undecided, all on set F, where a chance hit is
+  0.738 likely and an index-2 cell adds 6-12 extras. None was supported. The
+  benchmark's own protocol cannot ask this: neither mode's volume window
+  admits the truth beside a supercell of it. Untested is a *real* low-symmetry
+  superstructure, where the truth is the child; no dataset here has one.
+
 ## Non-goals
 
 - The blind search itself (1449, 1508).
