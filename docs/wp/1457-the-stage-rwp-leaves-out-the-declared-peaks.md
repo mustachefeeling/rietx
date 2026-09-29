@@ -1,9 +1,8 @@
 # WP-1457 — the stage Rwp leaves out the declared peaks
 
-Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #450)
+Milestone: unscheduled · Status: ✅ 2026-09-29 — the stage Rwp counts the declared peaks, and `fit_start` carries `n_fitted` beside the file's count (PR #450)
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P2 2026-09-24 — a wrong Rwp on every stage of any fit that declares a `PeakComponent`, in the progress line and the watcher, and nothing flags it; the result's own Rwp is right
 
 ## Goal
 
@@ -93,15 +92,17 @@ rides beside it as `n_fitted`, the name the GUI's project data already uses.
 
 ## Tasks
 
-- [ ] `refine.py`'s stage block adds `extra_peak_curve` when the model
+- [x] `refine.py`'s stage block adds `extra_peak_curve` when the model
       declares peaks, in `evaluate`'s association order.
-- [ ] `fit_start` gains the fitted count as `n_fitted`, and `n_points`
+- [x] `fit_start` gains the fitted count as `n_fitted`, and `n_points`
       keeps the file count (decided 2026-09-25; see Context).
-- [ ] Tests: `stage_end.rwp == fit_end.rwp` on a one-stage fit declaring a
+- [x] Tests: `stage_end.rwp == fit_end.rwp` on a one-stage fit declaring a
       `PeakComponent` (fails on `8fbafe5`); a no-peak fit's `stage_end.rwp`
       bit-identical to `8fbafe5`'s; `tests/test_telemetry.py` and the
-      `runs` tests still pass.
-- [ ] Skill: none. An agent reads `result.statistics.rwp`, which was right;
+      `runs` tests still pass. (The no-peak value is pinned at rel 1e-12
+      against the pre-fix bits, with exact equality to `fit_end.rwp` as the
+      bit-level bar; handover 2026-09-29.)
+- [x] Skill: none. An agent reads `result.statistics.rwp`, which was right;
       the progress line is what a person watches.
 
 ## Acceptance
@@ -117,6 +118,43 @@ None beyond the issue: no physics changes.
 
 ## Handover log
 
+- **2026-09-29** — closed. Every `stage_end` event now reports the Rwp of
+  the model the stage actually fitted, declared peaks included. So the
+  progress line, `status.json` and `rietx watch` show the number the result
+  shows, and a fit that declares a `PeakComponent` no longer reads 1.4-2.9×
+  worse on every stage than it is (the issue's variants). `fit_start` also
+  carries the fitted channel count beside the file's own count, so a reader
+  of the event stream no longer has to know that the two differ. It arrived
+  as PR #450 (`mustachefeeling`), reviewed over two rounds in the
+  `/pr-review all` runs of 2026-09-25 and 2026-09-29, and merged as
+  `b76671a2`. It closed #441.
+  - *Done*: the stage block in `refine.py` sums `background +
+    extra_peak_curve + bragg_component` in `CompiledModel.evaluate`'s own
+    association when the model declares peaks. It keeps the two-term sum
+    when none are declared, so a no-peak stage Rwp keeps its last bit.
+    `fit_start.n_points` stays the file's count and `n_fitted` rides beside
+    it, from `project.fitted_mask`. It is a new key on an existing kind, so
+    `EVENT_SCHEMA_VERSION` is not bumped. `history/events.py`'s docstring
+    says which count each key is. Three tests in
+    `tests/test_events_viz_history.py`: the stage Rwp equals `fit_end.rwp`
+    on a one-stage fit declaring a peak; a no-peak fit's stage Rwp is pinned
+    at rel 1e-12 with each kernel path declared (`[numpy]`/`[compiled]`);
+    and `n_points`/`n_fitted` hold their meanings.
+  - *Measured* (review, Linux x86_64, 4 cores, Python 3.12.3, `[dev,jax]`
+    bench venv, run as root, on `f1b89d63` with #523, #450 and #521 merged
+    together, which touch disjoint files): full suite, slow included, 7013
+    passed, 118 skipped, 1 failed in 1:15:44. The failure was
+    `test_held_phase.py::test_the_ramp_reproduction_no_longer_runs_away`'s
+    wall-clock runaway guard, at 76.2 s against 60 s under a load average of
+    9-11 on 4 cores. It passes alone on the same tree in 18.85 s. Main after
+    the three merges is content-identical to that tree.
+  - *Gotchas*: round 1 changed `n_points`' meaning under this WP's own
+    advice. `events.py` says a changed meaning is what the schema version is
+    for, so the Context's first option was wrong, and the review said so.
+    The GUI console prints event `data` generically, so `n_fitted` shows up
+    there with no JS change.
+  - *Next*: none. The skill line stands as written: an agent reads
+    `result.statistics.rwp`, which was always right.
 - **2026-09-24** — created, from the 2026-09-24 issue triage (issue #441).
   Checked against the tree at `8fbafe5`: the mechanism is at the lines
   cited, the issue's figures reproduce to the digit, and the stage block is
