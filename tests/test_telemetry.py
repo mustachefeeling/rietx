@@ -456,9 +456,15 @@ def _a_root_whose_parent_is_a_file(tmp_path):
 
 @pytest.mark.parametrize("provoke", [
     pytest.param(_a_directory_this_user_cannot_write, id="unwritable-directory",
-                 marks=pytest.mark.skipif(
-                     os.name == "nt",
-                     reason="chmod does not make a directory unwritable here")),
+                 marks=[
+                     pytest.mark.skipif(
+                         os.name == "nt",
+                         reason="chmod does not make a directory unwritable here"),
+                     pytest.mark.skipif(
+                         hasattr(os, "geteuid") and os.geteuid() == 0,
+                         reason="root is not refused by a directory's mode; "
+                                "parent-is-a-file covers this boundary for every user"),
+                 ]),
     pytest.param(_a_root_whose_parent_is_a_file, id="parent-is-a-file"),
 ])
 def test_a_root_it_cannot_create_declines_and_the_fit_still_returns(
