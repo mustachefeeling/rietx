@@ -1,10 +1,10 @@
 # WP-1321 — the bounds a Parameter field declared: repair and audit
 
-Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-29 — every declared range passes to a
+caller's Parameter; old logs and profiles repaired at read (PR #527)
 Track: What fires, and what stays silent
 Depends on: — (PR #206 landed 2026-09-01: its validator and `model_fields_set`
 discriminator are this WP's reference behaviour)
-Priority: P2 2026-09-23 — bounds dropped in silence on documents already saved, and the sibling hazard unmeasured
 
 ## Goal
 
@@ -172,7 +172,9 @@ Inherited for its flat-direction item.
 - **Not the construction-time fix** — PR #206's, merged before this runs.
 - **Not a repair of values** — only bounds/unit are healed; a stored −165
   then *raises* through `Parameter._check_bounds` exactly as a fresh one
-  would, and choosing a replacement value is the caller's.
+  would, and choosing a replacement value is the caller's. *Superseded in
+  part 2026-09-29: such a parameter is left as stored and reported rather
+  than raised (handover entry of that date); values still never move.*
 - **Not new bounds policy** — the declared defaults are the reference;
   inventing tighter ranges is WP-1311's flags-not-caps territory.
 
@@ -233,6 +235,107 @@ The shipping PR carries `Closes #209` and `Closes #204`.
   Biso low-side premise now rests on #206.
 
 ## Handover log
+
+### 2026-09-29 — closed: every declared range passes on, and old documents get theirs back
+
+A parameter a person builds by hand now keeps the physical range its field
+declares, on every class and not only an atom's occupancy and displacement.
+Before, a phase scale or a peak width passed as `Parameter(value=...)` could
+refine negative with nothing said. History logs and saved instrument profiles
+written before this are repaired when opened, and a note says what moved. No
+stored value is ever changed. Where a stored value lies outside the declared
+range, the parameter is left as it was and reported, so no project stops
+opening. The audit's premise that half the fields were a milder case is
+refuted: a hand-built `Parameter` dropped the softplus floor along with the
+bound. And the skill no longer tells an agent that a converged solve has
+necessarily met McCusker's shift band, the sentence that hid issue #204 for
+a session.
+
+**Done** (commits `77ec4b0`…, PR #527):
+- *Audit.* 57 `Parameter` fields on 17 classes declare a min, max, unit or
+  transform in their `default_factory` (§ The audit, the table). Every one
+  now inherits through `schemas.common._InheritsDeclaredDefaults`, PR #206's
+  validator moved out of `Atom`, and none is excluded. A transform travels
+  only with the bounds it enforces (`_TRANSFORM_ENFORCES`). A value outside
+  the inherited range is refused naming the field, the range and the escape
+  (`ProfileTCHZ.coarse` via `_declared_escape`). `SCHEMA_VERSION` 0.34 → 0.35.
+- *Read repair.* `schemas/migrate.py` now holds a second authority beside the
+  textual rename: `declared_range_repairs` finds, and `restore_declared_ranges`
+  applies, per dot-path and in every place or none.
+  `DECLARED_RANGE_READ_POINTS` lists `RefinementTree.load` and
+  `load_instrument_profile`, and a meta-test checks each exists and calls the
+  repair. Each node carries its own stamp in `HistoryNode.schema_version`,
+  written by `RefinementTree.add`, its only writer. `save_instrument_profile`
+  stamps `schema_version`. The codes are `DECLARED_RANGE_RESTORED` (warning,
+  or info for a unit alone) and `DECLARED_RANGE_NOT_RESTORED`. They arrive on
+  a `diagnostics=` list on both readers, and on `Project.history_diagnostics`.
+- *Skill.* Step 9 and `judging.md` now say to read `max_shift_over_esd` on
+  every solve (the body is 8 B shorter). Both codes have §7i rows. The API
+  index is regenerated and both copies re-synced.
+- *Manual and notes.* `using/model.md` has the rule, `using/files.md` the two
+  read points and `Project.history_diagnostics`, and `releases/1.5.1.md` stages
+  it, in Upgrading too.
+
+**Deviations from the WP as filed.**
+- *"Wider than the declared default" is not the signature.* WP-1311 made an
+  explicit wider bound the documented escape. The gate is a bare attribute in
+  a document older than its class's `_declared_since` (§ Findings).
+- *"Values raise" became "left and reported".* The review's case was a coarse
+  instrument's Caglioti `u`, a real value outside the X-ray box, which would
+  have locked its project on every open. The rule is now every node or none,
+  never a raise.
+- *Scope widened to every class and to profiles.* The task named `occ`/`biso`,
+  but the same documents carry the other 55 fields, and a profile is the other
+  persisted `Instrument`.
+
+**Review** (`/code-review high --fix`, 8 findings). Accepted:
+1. The header-only version gate would repair a node that this release
+   appended to an old log. Fixed by the per-node stamp.
+2. The out-of-range raise, as above.
+3. A regression of my own: one `Parameter` passed to every atom's `occ` was
+   stored by reference in all of them, so the write-back left the last site's
+   value everywhere. #206's copy rule is restored, and `Harmonic.weight`'s
+   default now states every attribute, so its derived emission line shares
+   it on purpose. `test_harmonics` had caught the other side of this.
+4. Instrument profiles were not repaired. Now the second read point.
+5. Skip the inheritance when all four attributes are stated.
+6. An empty-range message that blamed the value. I also coerce its bounds
+   with `float()`, since the review's version compared a JSON string with a
+   float.
+7. The node-span wording.
+
+Declined and forwarded: the GUI discards both diagnostic lists (it never
+showed `data_diagnostics` either), filed as
+[1522](1522-the-gui-says-what-the-read-repaired.md), P3.
+
+**Forward references.**
+[1337](1337-an-authored-refusal-not-a-traceback.md) Inherited: ties now meet
+declared bounds on 55 more fields; match the mixin's refusal voice.
+[1327](1327-magnetic-structure.md) Inherited: the supercell builder copies
+values only, so a parent's own range and `vary` do not cross. Not re-rated:
+1337's link is soft and 1522 is new. **#283 stays open.** Its bounds half is a
+box for `Cell`, which declares no bound, and so is new policy and the
+maintainer's (§ Findings).
+
+**Measured** (`[dev]`, Linux x86-64, 4 cores, py3.12.3, alone on the machine):
+the fast selection on the final tree is running; its counts are the next commit.
+The added tests cost 0.61 s together on the first eleven (one run on this
+machine; `tests.added_test_times`), none near the slow tail. The full
+selection did not run. Every slow suite states its bounds and transform
+explicitly (grep of the 41 `slow` modules), so at most a unit label fills
+there and no measured number can move.
+
+**Gotchas.**
+- `test_telemetry.py::…[unwritable-directory]` fails in any container running
+  as root. That is #500, and PR #523 is open for it; it is not this WP's.
+- `migrate_document_text` is textual and `restore_declared_ranges` structural.
+  A new persisted document carrying models joins
+  `DECLARED_RANGE_READ_POINTS`, or it does not repair.
+- A class opting out of sharing-by-copy must state every attribute on the
+  default it shares, as `Harmonic.weight` does.
+
+**Next:** none on this WP. 1522 is the follow-up. The two magnetic notes go to
+whoever takes 1327's verb.
 
 - **2026-09-01** — created, from issues #204/#209 and PR #206's review
   (2026-09-01 triage, second batch). Settled: repair in the reader with a
