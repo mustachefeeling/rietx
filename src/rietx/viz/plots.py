@@ -749,7 +749,13 @@ def plot_pattern(data, *, path: str | None = None,
     mean on :func:`plot_result`; the default size is the result panel's own,
     so a before-and-after pair lines up.  A :class:`PatternData` carries no
     wavelength either, so λ on the 2θ axis, and Q or d, need ``wavelength=``.
+
+    2θ only: every axis this draws (2θ, Q, d) is reached through an angle, and
+    a time-of-flight pattern is refused by name rather than drawn as degrees.
     """
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(data, "plot_pattern()")
     _check_panel_args(style, x_axis, y_scale, wavelength)
     plt = _pyplot()
     from matplotlib.ticker import MaxNLocator

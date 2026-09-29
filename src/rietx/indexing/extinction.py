@@ -121,7 +121,7 @@ from ..schemas.indexing import (
     PeakList,
 )
 from ..schemas.instrument import Instrument
-from ..schemas.pattern import PatternData
+from ..schemas.pattern import PatternData, require_two_theta
 from .fom import LINE_COINCIDENCE_RTOL, lattice_group
 from .workflow import (
     ABSENT_SIGMA,
@@ -660,6 +660,8 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
                                 cancel=None) -> ExtinctionScreen:
     """Rank the extinction classes compatible with an indexed lattice.
 
+    2θ only: every step below is a Le Bail fit, which is the forward model.
+
     The pipeline, and the reason for each step:
 
     1. **one shared profile fit** of the absence-free lattice group
@@ -693,6 +695,12 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     from .peaks import predicted_fwhm
     from .workflow import seed_widths, validation_plan
 
+    # Before the try below, deliberately: that block turns a raise into an
+    # EXTINCTION_SCREEN_FAILED diagnostic, which is right for a fit that would
+    # not converge and wrong for a pattern this whole function cannot read.
+    require_two_theta(data, "determine_extinction_symbol()",
+                      instrument=instrument)
+
     symbol = candidate.lattice_group or lattice_group(candidate.system,
                                                       candidate.centring)
     wavelength = float(instrument.source.lines[0].wavelength.value)
@@ -712,7 +720,7 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     try:
         pre = Refinement(structure_from_candidate(candidate, space_group=symbol),
                          ins, history=False)
-        tt_max = float(np.max(np.asarray(data.two_theta)))
+        tt_max = float(np.max(data.tt()))
         if two_theta_limits is not None:
             tt_max = min(tt_max, float(two_theta_limits[1]))
         profile = pre.fit(data, mode="lebail",

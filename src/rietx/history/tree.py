@@ -53,13 +53,19 @@ class RefinementTree:
     def for_data(cls, data: PatternData, *, path: str | Path | None = None,
                  plan: Any = None, package_version: str = "") -> "RefinementTree":
         created = _utcnow()
-        fp = fingerprint(data.two_theta, data.intensity)
+        # The pattern's abscissa **as measured** — ``x()`` rather than
+        # ``two_theta``, which is ``None`` on a time-of-flight histogram.  The
+        # fingerprint is a hash of the bytes and the count is a channel count,
+        # so neither is a statement about the quantity: what a tree pins is
+        # *this data*, and it pins it the same way on either axis.
+        x = data.x()
+        fp = fingerprint(x, data.intensity)
         header = TreeHeader(
             tree_id=f"t{fp[:8]}",
             created_utc=created,
             data_fingerprint=fp,
             data_source=data.metadata.get("source_file", ""),
-            n_points=len(data.two_theta),
+            n_points=len(x),
             plan=PlanSpec.from_plan(plan) if plan is not None else None,
             package_version=package_version,
         )

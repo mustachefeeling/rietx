@@ -150,7 +150,15 @@ TWO_THETA_MAX_DEG = 180.0
 def _axis_diagnostics(data: PatternData, fmt: PatternFormat,
                       name: str) -> list[Diagnostic]:
     """Refuse an axis past 180°, report one reaching 0° — :func:`read_pattern`
-    says why each band gets which answer."""
+    says why each band gets which answer.
+
+    A statement about **an angle**, so it abstains on a time-of-flight axis: a
+    flight time in µs violates the [0, 180] bound by construction, and the
+    reader that put it on ``pattern.tof`` did so off a declaration (a GSAS
+    bintype, a Mantid unit line), which is the evidence this range check
+    exists to stand in for when a format gives none."""
+    if data.axis != "two_theta":
+        return []
     tt = data.tt()
     lo, hi = float(tt[0]), float(tt[-1])
     if hi > TWO_THETA_MAX_DEG:
@@ -201,8 +209,8 @@ def _dead_channel_diagnostics(data: PatternData, name: str) -> list[Diagnostic]:
     authority and answers nothing without the file's own σ column."""
     from ..background.diagnostics import _dead_interval, dead_channels
 
-    if data.sigma is None:
-        return []
+    if data.sigma is None or data.axis != "two_theta":
+        return []  # the run and window lengths are degrees of 2θ
     out = []
     for run in dead_channels(data.tt(), data.y(), data.sig()):
         lo, hi = _dead_interval(run)

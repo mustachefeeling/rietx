@@ -298,7 +298,18 @@ from .._nearmiss import did_you_mean
 #: honest empty state and the bit-identical one: a structure that declares
 #: none serializes apart from the new nulls, and refines, exactly as before.
 #: No forward model reads them; the structure viewer does.
-SCHEMA_VERSION = "0.34"
+#: 0.34 → 0.35 (yue-here/rietx issue #193, the time-of-flight readers and
+#: axis): ``PatternData.two_theta`` becomes ``list[float] | None`` beside a new
+#: ``PatternData.tof`` (µs), exactly one of the two set; ``Instrument.source``
+#: gains a third arm, ``TOFSource`` (``kind="neutron_tof"``: DIFC/DIFA/TZERO/
+#: DIFB, the bank angle, ``ProfileTOF`` and ``IncidentSpectrum``).  Not purely additive: a
+#: consumer that read ``two_theta`` as always present must now ask
+#: ``PatternData.axis``.  Every stored document loads unchanged — each has a
+#: ``two_theta`` — and a 2θ pattern serializes apart from the new nulls, and
+#: refines, exactly as before.  A ``neutron_tof`` source is read and never
+#: refined in this build.  Whichever of this and a sibling PR claiming 0.35
+#: lands last renumbers.
+SCHEMA_VERSION = "0.35"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

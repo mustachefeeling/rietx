@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from ..schemas.common import Parameter
 from ..schemas.instrument import Background, BackgroundChebyshev, BackgroundPSpline
-from ..schemas.pattern import PatternData
+from ..schemas.pattern import PatternData, require_two_theta
 from ..schemas.project import check_interval
 from .diagnostics import PatternDiagnostics, diagnose
 from .select import select_chebyshev_order
@@ -49,6 +49,7 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
     series, negative from 75° past a 40° limit).  ``diagnostics`` supplied by the
     caller are used as given, and the knots are still confined to the limits.
     """
+    require_two_theta(data, "auto_background()")
     if two_theta_limits is not None:
         lo, hi = (float(v) for v in two_theta_limits)
         check_interval("two_theta_limits", lo, hi)

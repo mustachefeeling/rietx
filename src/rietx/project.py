@@ -46,7 +46,7 @@ from .schemas.common import Diagnostic, Mode
 from .schemas.history import NodeAction
 from .schemas.instrument import Instrument
 from .schemas.migrate import migrate_document_text
-from .schemas.pattern import PatternData
+from .schemas.pattern import PatternData, require_two_theta
 from .schemas.plan import PlanSpec
 from .schemas.project import PROJECT_FORMAT_VERSION, DataRef, ProjectDoc
 from .schemas.structure import Structure
@@ -159,6 +159,10 @@ class Project:
         notes: list[Diagnostic] = []
         options = reader_options_for(fmt, reader_options or {}, diagnostics=notes)
         data = read_pattern(copied, diagnostics=notes, **options)
+        # A project is a refinement's durable form, so a pattern it cannot
+        # refine has nothing to be one of — and DataRef records a
+        # ``two_theta_range``, which is a 2θ by its name.
+        require_two_theta(data, "Project.create()")
         if excluded_regions:
             data.excluded_regions = [tuple(r) for r in excluded_regions]
 
@@ -250,7 +254,12 @@ class Project:
         notes: list[Diagnostic] = []
         data = read_pattern(pattern_path, diagnostics=notes,
                             **_reader_options(ref_doc))
-        actual_fp = fingerprint(data.two_theta, data.intensity)
+        # ``Project.create`` refuses a TOF pattern, so a project on disk should
+        # never point at one — but the file it points at is on disk beside it
+        # and the document is editable, so the reopen asks again rather than
+        # inheriting the create's answer.
+        require_two_theta(data, "Project.open()")
+        actual_fp = fingerprint(data.x(), data.intensity)
         if actual_fp != ref_doc.fingerprint:
             raise ValueError(
                 f"{pattern_path}: the bytes match but this version parses them "
@@ -405,6 +414,7 @@ def fitted_mask(data: PatternData,
     """
     import numpy as np
 
+    require_two_theta(data, "project.fitted_mask()")
     mask = data.in_range_mask()
     if two_theta_limits is not None:
         lo, hi = two_theta_limits
