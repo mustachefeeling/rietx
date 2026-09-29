@@ -1805,6 +1805,20 @@ def test_plot_trajectory_writes_a_png(thermal_series, tmp_path):
     assert out.exists() and out.stat().st_size > 5_000
 
 
+def test_plot_trajectory_titles_the_figure_only_when_asked(thermal_series):
+    """WP-1444: ``title=`` names the whole stack, above the panels' own
+    parameter titles, and without it no figure title is drawn at all."""
+    import matplotlib.pyplot as plt
+
+    paths = ["phases.0.cell.a", "instrument.profile.w"]
+    plain = thermal_series.plot(paths)
+    assert plain.get_suptitle() == ""
+    titled = thermal_series.plot(paths, title="thermal ramp")
+    assert titled.get_suptitle() == "thermal ramp"
+    assert [ax.get_title(loc="left") for ax in titled.get_axes()] == paths
+    plt.close("all")
+
+
 def test_qpa_trajectory(thermal_series):
     traj = thermal_series.qpa_trajectory("LaB6")
     assert len(traj) == len(thermal_series)

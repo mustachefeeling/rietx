@@ -4,10 +4,10 @@ from .indexing import (
     plot_peak_list,
     plot_validation,
 )
-from .plots import plot_for_vlm, plot_result, plot_trajectory
+from .plots import plot_for_vlm, plot_pattern, plot_result, plot_trajectory
 
 __all__ = ["LiveSession", "plot_candidates", "plot_for_vlm", "plot_indexing",
-           "plot_peak_list", "plot_result", "plot_trajectory",
+           "plot_pattern", "plot_peak_list", "plot_result", "plot_trajectory",
            "plot_validation", "render_structure", "write_html"]
 
 

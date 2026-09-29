@@ -284,6 +284,134 @@ def _nice_ticks(forward, inverse, lo: float, hi: float, n: int = 4):
     return out
 
 
+def _check_panel_args(style: str, x_axis: str, y_scale: str,
+                      wavelength: float | None) -> None:
+    """The keyword checks every panel shares, raised before anything is drawn."""
+    if style not in PALETTES:
+        raise ValueError(f"style must be one of {sorted(PALETTES)}, not {style!r}")
+    if x_axis not in X_AXES:
+        raise ValueError(f"x_axis must be one of {list(X_AXES)}, not {x_axis!r}")
+    if y_scale not in Y_SCALES:
+        raise ValueError(f"y_scale must be one of {list(Y_SCALES)}, not {y_scale!r}")
+    if x_axis != "two_theta" and wavelength is None:
+        raise ValueError(f"x_axis={x_axis!r} is derived from 2θ through the "
+                         "wavelength; pass wavelength=")
+
+
+def _pyplot():
+    """``matplotlib.pyplot`` on the Agg canvas, or an error naming the extra."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg", force=False)
+        import matplotlib.pyplot as plt
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError(f"plotting needs matplotlib: pip install '{DIST_NAME}[viz]'") from exc
+    return plt
+
+
+def _style_context(plt, style: str, font_size: float):
+    """The panel's style context: the house rc, and on dark the page's ground."""
+    hue = PALETTES[style]
+    return plt.style.context([_rc(font_size)] if style == "light"
+                             else ["dark_background", _rc(font_size), _ground_rc(hue)])
+
+
+def _title(ax, title: str | None, font_size: float) -> None:
+    """A caller's title, in the panel's own type, or nothing at all.
+
+    Absent by default: the caption is a paper figure's title, and a panel bound
+    for a report should not arrive carrying a second one (the module rule).  A
+    notebook cell or a batch of thirty patterns has no caption, so ``title=``
+    names the figure there — at the body size, since one size for the whole
+    figure is the rule a larger title would be the first exception to.
+    """
+    if title is not None:
+        ax.set_title(title, fontsize=font_size, pad=0.6 * font_size)
+
+
+def _intensity_axis(ax, y_scale: str, forward, inverse, base: float, top: float,
+                    u_top: float, u_head: float) -> float:
+    """Ticks, formatter, spine and label of the intensity axis; the drawn floor.
+
+    One function for every figure that draws an intensity, so a pattern read
+    from a file and the fit of it carry the same axis.  It runs *after*
+    ``set_ylim``, because the label is placed over the region it names as a
+    fraction of the drawn range, and it returns that range's floor in display
+    space for the gutter arithmetic that follows it.
+    """
+    from matplotlib.ticker import (
+        FuncFormatter,
+        MaxNLocator,
+        NullLocator,
+        ScalarFormatter,
+    )
+
+    # y ticks and the left spine cover only the intensity being read; the
+    # spine spans the data rather than stopping at the last tick, so no
+    # peak escapes above the end of the axis
+    if y_scale == "log":
+        # the decades inside the measured range, and no others: matplotlib's
+        # locator happily puts a labelled tick a whole decade above the
+        # tallest peak, where the spine has already stopped
+        lo_k = int(np.ceil(np.log10(base)))
+        hi_k = int(np.floor(np.log10(top)))
+        if hi_k < lo_k:
+            # a pattern that lives inside one decade has no decade to label,
+            # and asking for the ones inside its range returns none at all
+            ax.set_yticks(_nice_ticks(forward, inverse, base, top))
+            ax.yaxis.set_minor_locator(NullLocator())
+            fmt = ScalarFormatter(useMathText=True)
+            fmt.set_useOffset(False)
+            ax.yaxis.set_major_formatter(fmt)
+        else:
+            step = max(1, (hi_k - lo_k) // 5 + 1)
+            ax.set_yticks([10.0 ** k for k in range(lo_k, hi_k + 1, step)])
+            ax.set_yticks([m * 10.0 ** k for k in range(lo_k - 1, hi_k + 1)
+                           for m in range(2, 10)
+                           if base <= m * 10.0 ** k <= top], minor=True)
+    elif y_scale == "linear":
+        ax.set_yticks([t for t in MaxNLocator(nbins=4).tick_values(base, top)
+                       if base <= t <= top])
+    else:
+        ax.set_yticks(_nice_ticks(forward, inverse, base, top))
+        # the asinh scale keeps its own minor locator, which puts a mark
+        # above the tallest peak where the spine has already stopped
+        ax.yaxis.set_minor_locator(NullLocator())
+    y_label = "Intensity (arb. units)"
+    if y_scale != "log":
+        # a shared power of ten, carried in the axis *label*: six-digit
+        # counts eat the left margin, and the exponent is the same for every
+        # tick.  matplotlib's own offset text says the same thing, but it
+        # floats above the axes a whole headroom away from the numbers it
+        # multiplies — the reader meets the multiplier where they meet the
+        # quantity instead.  An additive offset is refused outright: it
+        # moves the origin without saying so, which a multiplier does not.
+        k = int(np.floor(np.log10(abs(top)))) if top != 0.0 else 0
+        if k >= 4 or k <= -3:
+            scale_10 = 10.0 ** k
+            ax.yaxis.set_major_formatter(
+                FuncFormatter(lambda v, _p, m=scale_10: f"{v / m:g}"))
+            y_label = f"Intensity ($10^{{{k}}}$ arb. units)"
+        else:
+            fmt = ScalarFormatter(useMathText=True)
+            fmt.set_useOffset(False)
+            ax.yaxis.set_major_formatter(fmt)
+    ax.spines["left"].set_bounds(base, top)
+    # the label belongs over the region it labels, not centred on an axis
+    # most of which carries no numbers.  ``y=`` moves it there and leaves
+    # matplotlib's own horizontal placement alone, which is what keeps it
+    # clear of a six-digit tick label.
+    u_bottom = float(forward(ax.get_ylim()[0]))
+    # ``ha`` is what centres a rotated label *vertically*, so ``y=`` alone
+    # moves it over the region it names; ``va`` would push it sideways into
+    # the tick numbers, which is exactly the collision this avoids
+    ax.set_ylabel(y_label, labelpad=6,
+                  y=(0.5 * (float(forward(base)) + u_top) - u_bottom)
+                  / (u_head - u_bottom))
+
+    return u_bottom
+
+
 def plot_result(result: RefinementResult, *, path: str | None = None,
                 two_theta_range: tuple[float, float] | None = None,
                 show_background: bool = True, weighted: bool = False,
@@ -291,7 +419,8 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
                 x_axis: str = "two_theta", y_scale: str = "linear",
                 label_align: str = "bottom",
                 figsize: tuple[float, float] | None = None,
-                font_size: float = BASE, dpi: int = 300):
+                font_size: float = BASE, dpi: int = 300,
+                title: str | None = None):
     """Standard Rietveld panel: observed, calculated, difference, tick rows.
 
     The difference is the classic ``obs − calc`` on the intensity axis, at the
@@ -346,31 +475,18 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
 
     ``style="dark"`` picks the dark-ground palette above and draws through
     matplotlib's ``dark_background`` style, for a figure going onto a dark page.
+
+    ``title`` names the figure above the data panel, in the panel's own type.
+    It is off by default and the default figure is unchanged by it: a panel for
+    a report takes its title from the caption, and the fit statistics stay a
+    corner annotation either way.
     """
-    if style not in PALETTES:
-        raise ValueError(f"style must be one of {sorted(PALETTES)}, not {style!r}")
-    if x_axis not in X_AXES:
-        raise ValueError(f"x_axis must be one of {list(X_AXES)}, not {x_axis!r}")
-    if y_scale not in Y_SCALES:
-        raise ValueError(f"y_scale must be one of {list(Y_SCALES)}, not {y_scale!r}")
+    _check_panel_args(style, x_axis, y_scale, wavelength)
     if label_align not in ("bottom", "curve"):
         raise ValueError("label_align must be 'bottom' or 'curve', not "
                          f"{label_align!r}")
-    if x_axis != "two_theta" and wavelength is None:
-        raise ValueError(f"x_axis={x_axis!r} is derived from 2θ through the "
-                         "wavelength; pass wavelength=")
-    try:
-        import matplotlib
-        matplotlib.use("Agg", force=False)
-        import matplotlib.pyplot as plt
-        from matplotlib.ticker import (
-            FuncFormatter,
-            MaxNLocator,
-            NullLocator,
-            ScalarFormatter,
-        )
-    except ImportError as exc:  # pragma: no cover
-        raise ImportError(f"plotting needs matplotlib: pip install '{DIST_NAME}[viz]'") from exc
+    plt = _pyplot()
+    from matplotlib.ticker import MaxNLocator
 
     tt = np.asarray(result.two_theta, dtype=float)
     y_obs = np.asarray(result.y_obs, dtype=float)
@@ -405,8 +521,7 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
     # intensity axis only while that axis is linear
     inline = not weighted and y_scale == "linear"
 
-    with plt.style.context([_rc(font_size)] if style == "light"
-                           else ["dark_background", _rc(font_size), _ground_rc(hue)]):
+    with _style_context(plt, style, font_size):
         line_in = 1.35 * font_size / 72.0
         if figsize is None:
             figsize = (7.6, 4.4) if inline else (7.6, 5.6)
@@ -520,70 +635,8 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
         ax.set_ylim(row_floor if inline else floor, head)
         ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
 
-        # y ticks and the left spine cover only the intensity being read; the
-        # spine spans the data rather than stopping at the last tick, so no
-        # peak escapes above the end of the axis
-        log_sub_decade = False
-        if y_scale == "log":
-            # the decades inside the measured range, and no others: matplotlib's
-            # locator happily puts a labelled tick a whole decade above the
-            # tallest peak, where the spine has already stopped
-            lo_k = int(np.ceil(np.log10(base)))
-            hi_k = int(np.floor(np.log10(top)))
-            log_sub_decade = hi_k < lo_k
-            if log_sub_decade:
-                # a pattern that lives inside one decade has no decade to label,
-                # and asking for the ones inside its range returns none at all
-                ax.set_yticks(_nice_ticks(forward, inverse, base, top))
-                ax.yaxis.set_minor_locator(NullLocator())
-                fmt = ScalarFormatter(useMathText=True)
-                fmt.set_useOffset(False)
-                ax.yaxis.set_major_formatter(fmt)
-            else:
-                step = max(1, (hi_k - lo_k) // 5 + 1)
-                ax.set_yticks([10.0 ** k for k in range(lo_k, hi_k + 1, step)])
-                ax.set_yticks([m * 10.0 ** k for k in range(lo_k - 1, hi_k + 1)
-                               for m in range(2, 10)
-                               if base <= m * 10.0 ** k <= top], minor=True)
-        elif y_scale == "linear":
-            ax.set_yticks([t for t in MaxNLocator(nbins=4).tick_values(base, top)
-                           if base <= t <= top])
-        else:
-            ax.set_yticks(_nice_ticks(forward, inverse, base, top))
-            # the asinh scale keeps its own minor locator, which puts a mark
-            # above the tallest peak where the spine has already stopped
-            ax.yaxis.set_minor_locator(NullLocator())
-        y_label = "Intensity (arb. units)"
-        if y_scale != "log":
-            # a shared power of ten, carried in the axis *label*: six-digit
-            # counts eat the left margin, and the exponent is the same for every
-            # tick.  matplotlib's own offset text says the same thing, but it
-            # floats above the axes a whole headroom away from the numbers it
-            # multiplies — the reader meets the multiplier where they meet the
-            # quantity instead.  An additive offset is refused outright: it
-            # moves the origin without saying so, which a multiplier does not.
-            k = int(np.floor(np.log10(abs(top)))) if top != 0.0 else 0
-            if k >= 4 or k <= -3:
-                scale_10 = 10.0 ** k
-                ax.yaxis.set_major_formatter(
-                    FuncFormatter(lambda v, _p, m=scale_10: f"{v / m:g}"))
-                y_label = f"Intensity ($10^{{{k}}}$ arb. units)"
-            else:
-                fmt = ScalarFormatter(useMathText=True)
-                fmt.set_useOffset(False)
-                ax.yaxis.set_major_formatter(fmt)
-        ax.spines["left"].set_bounds(base, top)
-        # the label belongs over the region it labels, not centred on an axis
-        # most of which carries no numbers.  ``y=`` moves it there and leaves
-        # matplotlib's own horizontal placement alone, which is what keeps it
-        # clear of a six-digit tick label.
-        u_bottom = float(forward(ax.get_ylim()[0]))
-        # ``ha`` is what centres a rotated label *vertically*, so ``y=`` alone
-        # moves it over the region it names; ``va`` would push it sideways into
-        # the tick numbers, which is exactly the collision this avoids
-        ax.set_ylabel(y_label, labelpad=6,
-                      y=(0.5 * (float(forward(base)) + u_top) - u_bottom)
-                      / (u_head - u_bottom))
+        u_bottom = _intensity_axis(ax, y_scale, forward, inverse, base, top,
+                                   u_top, u_head)
 
         # fit statistics as a corner annotation, above the data ceiling so it
         # can never collide with a peak
@@ -660,6 +713,118 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
             ax.spines["bottom"].set_visible(False)
             ax.tick_params(axis="x", bottom=False, labelbottom=False)
             axd.tick_params(axis="x", direction="out")
+        _title(ax, title, font_size)
+
+        if path is not None:
+            fig.savefig(path)
+    return fig
+
+
+def plot_pattern(data, *, path: str | None = None,
+                 two_theta_range: tuple[float, float] | None = None,
+                 x_axis: str = "two_theta", wavelength: float | None = None,
+                 y_scale: str = "linear", style: str = "light",
+                 figsize: tuple[float, float] | None = None,
+                 font_size: float = BASE, dpi: int = 300,
+                 title: str | None = None):
+    """A measured pattern on its own, before any model exists.
+
+    The data panel of :func:`plot_result` with nothing modelled in it: the same
+    margins, gutter, intensity axis and keywords, built from the same helpers,
+    so the pattern read from a file and the fit of it are one style and the
+    peaks sit at the same height in both.  ``data`` is a
+    :class:`~rietx.schemas.pattern.PatternData`; :meth:`PatternData.plot` is
+    the peer of :meth:`RefinementResult.plot` and forwards here (WP-1444).
+
+    The observed channels are markers, as in the result panel, because they are
+    discrete counts.  σ is **not** drawn even when the file carried it: a √y
+    band on a log axis is a different figure.  ``data.excluded_regions`` are
+    shaded as bands over the channels they hold back, and those channels are
+    still drawn — a result drops them, leaving a gap where the fit saw nothing,
+    but here they are a measurement the next fit will not use, and hiding them
+    would say they were never collected.
+
+    ``two_theta_range``, ``x_axis``/``wavelength``, ``y_scale``, ``style``,
+    ``figsize``/``font_size``/``dpi`` and ``title`` mean exactly what they
+    mean on :func:`plot_result`; the default size is the result panel's own,
+    so a before-and-after pair lines up.  A :class:`PatternData` carries no
+    wavelength either, so λ on the 2θ axis, and Q or d, need ``wavelength=``.
+    """
+    _check_panel_args(style, x_axis, y_scale, wavelength)
+    plt = _pyplot()
+    from matplotlib.ticker import MaxNLocator
+
+    tt = np.asarray(data.two_theta, dtype=float)
+    y_obs = np.asarray(data.intensity, dtype=float)
+    if two_theta_range is not None:
+        keep = (tt >= two_theta_range[0]) & (tt <= two_theta_range[1])
+        if not keep.any():
+            raise ValueError(f"two_theta_range {two_theta_range} contains no points")
+        tt, y_obs = tt[keep], y_obs[keep]
+    hue = PALETTES[style]
+
+    x, x_label = _x_values(tt, x_axis, wavelength)
+    if x.size > 1 and x[0] > x[-1]:
+        # mirrored rather than reversed, as the result panel does it
+        x, y_obs = x[::-1], y_obs[::-1]
+
+    with _style_context(plt, style, font_size):
+        if figsize is None:
+            figsize = (7.6, 4.4)
+        fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+        fig.subplots_adjust(left=0.13, right=0.805, top=0.965, bottom=0.125)
+
+        x0, x1 = float(x.min()), float(x.max())
+        t0, t1 = float(tt.min()), float(tt.max())
+        for lo, hi in data.excluded_regions:
+            # a region is in 2θ like the window, and is clipped to the drawn
+            # 2θ span *before* it is converted: a beamstop region from 2θ = 0
+            # has no d or Q edge, and only its drawn part is shaded.  Its edges
+            # then follow x_axis, and on a d axis they arrive in the other order
+            lo, hi = max(float(lo), t0), min(float(hi), t1)
+            if hi <= lo:
+                continue
+            ends = _x_values(np.array([lo, hi], dtype=float), x_axis, wavelength)[0]
+            a, b = sorted(float(e) for e in ends)
+            ax.axvspan(a, b, color=hue["zero"], alpha=0.5, lw=0, zorder=0)
+        ax.plot(x, y_obs, marker="x", ms=0.24 * font_size, mew=0.6,
+                color=hue["obs"], ls="none", zorder=2)
+
+        top = float(y_obs.max())
+        if y_scale == "log":
+            if top <= 0.0:
+                raise ValueError("y_scale='log' needs at least one positive "
+                                 "intensity channel")
+            floor = float(y_obs[y_obs > 0.0].min())
+        else:
+            floor = min(float(y_obs.min()), 0.0)
+        forward, inverse, setter, floor = _y_scale(y_scale, floor, top)
+        if setter is not None:
+            ax.set_yscale(setter[0], **setter[1])
+        u_top, u_floor = float(forward(top)), float(forward(floor))
+        u_span = (u_top - u_floor) or 1.0
+        # the result panel's headroom, kept though nothing is annotated in it:
+        # the same data then reaches the same height in both figures
+        u_head = u_top + 0.20 * u_span
+        base = floor if y_scale == "log" else min(floor, 0.0)
+
+        ax.set_xlim(x0, x1)
+        ax.set_ylim(floor, float(inverse(u_head)))
+        ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
+        u_bottom = _intensity_axis(ax, y_scale, forward, inverse, base, top,
+                                   u_top, u_head)
+        ax.set_xlabel(x_label)
+
+        # the gutter convention, with one name in it: at the foot of the data,
+        # where the result panel's block starts
+        fig_h = fig.get_size_inches()[1]
+        ax_h_in = ax.get_position().height * fig_h
+        min_gap = 1.15 * font_size * (u_head - u_bottom) / (ax_h_in * 72.0)
+        ax.text(x1 + 0.012 * (x1 - x0),
+                float(inverse(max(u_bottom, float(forward(floor))) + 0.55 * min_gap)),
+                "observed", color=hue["obs"], ha="left", va="center",
+                clip_on=False)
+        _title(ax, title, font_size)
 
         if path is not None:
             fig.savefig(path)
@@ -681,6 +846,13 @@ def plot_for_vlm(result: RefinementResult, report=None, *,
     PNG only, high contrast — JPEG's block artifacts shred one-pixel peak
     outlines and difference curves, which is precisely the evidence a VLM is
     asked to judge.
+
+    There is no ``title=`` here, and a call passing one is refused by name
+    (WP-1444).  Every panel title in the montage is already evidence the model
+    reads as text — the overview's carries Rwp, GoF and the legend of the
+    shading — so a caller's words prefixed to it would push those numbers
+    further from the start of the line or across a wrap, the one place this
+    figure cannot afford to lose them.  A batch keys its montages by ``path``.
     """
     if not str(path).lower().endswith(".png"):
         raise ValueError("plot_for_vlm writes PNG only (JPEG artifacts destroy "
@@ -759,7 +931,8 @@ def plot_for_vlm(result: RefinementResult, report=None, *,
 
 
 def plot_trajectory(series, paths, *, path: str | None = None,
-                    dpi: int = 150, mark_diagnostics: bool = True):
+                    dpi: int = 150, mark_diagnostics: bool = True,
+                    title: str | None = None):
     """Parameter trajectories across a sequential series (WP-0505).
 
     One stacked panel per requested display path, resolved through
@@ -781,6 +954,10 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     different starting model, while a crossed one is a diverged fit whose value
     is not a measurement at all.  It is still plotted, because a gap in a
     trajectory reads as data that was never collected.
+
+    ``title`` names the whole figure above its stacked panels, whose own
+    left-hand titles stay the parameter each one draws; absent by default,
+    and the default figure is unchanged by it.
     """
     try:
         import matplotlib
@@ -825,6 +1002,8 @@ def plot_trajectory(series, paths, *, path: str | None = None,
         ax.set_title(f"{name}{flag}", fontsize=9, loc="left")
         ax.tick_params(labelsize=8)
     axes[-1, 0].set_xlabel(series.x_label)
+    if title is not None:
+        fig.suptitle(title, fontsize=10)
     fig.tight_layout()
     if path is not None:
         fig.savefig(path)

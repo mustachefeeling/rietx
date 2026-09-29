@@ -1,6 +1,6 @@
 # WP-1444 — The pattern before the model, and a title on the figure
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #529)
 Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-09-23 — a figure the user draws by hand today

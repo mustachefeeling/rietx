@@ -806,6 +806,24 @@ indices" above, say what each row means:
 print(ref.summary(deliverable="qpa"))
 ```
 
+A figure takes a title only when you ask for one. `RefinementResult.plot`
+(`rietx.viz.plots.plot_result`), `PatternData.plot` and `SeriesResult.plot`
+(`rietx.viz.plots.plot_trajectory`) accept `title=`, which draws the caller's
+words above the figure in the panel's own type. Without it no title is drawn
+and the figure is byte for byte the one it was before the keyword existed. For
+a paper the caption is the title, and the fit statistics stay a corner
+annotation either way. A notebook cell or a batch of thirty patterns has no
+caption, and that is where the keyword belongs:
+
+<!-- api-doc: no-exec — continues the earlier session, needs a completed fit -->
+```python
+result.plot(path="p03.png", title="pattern 3 of 30, 250 °C")
+```
+
+`plot_for_vlm` refuses `title=` by name. Its panel titles are the evidence the
+vision model reads, and a caller's words prefixed to them would push those
+numbers further along the line.
+
 `plot=` writes `plot_for_vlm` to that path and names it on the last line. It
 draws the same regions the text names, with their numbers in the panel titles,
 so the picture confirms the text rather than standing in for it:

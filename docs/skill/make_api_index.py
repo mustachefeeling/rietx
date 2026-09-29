@@ -243,7 +243,8 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "conclusion already reached from numbers. `rx.write_recipe_tables` is "
         "the return leg of `rx.read_recipe` — a finished refinement as "
         "PowderLine's four tables, for a pipeline that dispatched the job here. "
-        "A picture of the structure is `rx.viz.render_structure`, in "
+        "A picture of the structure is `rx.viz.render_structure`, and of a "
+        "pattern before any model `rx.viz.plot_pattern`, both in "
         "`api-figure.md`.",
         ("rx.write_refinement_cif", "rx.write_qpa_table",
          "rx.write_reflection_table", "rx.reflection_table",
@@ -257,9 +258,10 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 #: condition the body's routing row names, and its sections, as above.
 TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ...]]] = {
     "figure": (
-        "The structure figure index",
+        "The figure index",
         "Load it when you want a picture of a structure: a refined model to "
-        "look at, a figure for a report, or a view down a zone axis.",
+        "look at, a figure for a report, or a view down a zone axis; or a "
+        "pattern drawn before any model exists.",
         (
             (
                 "Drawing it",
@@ -278,6 +280,15 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "anisotropic loop, and VESTA or JmolData draws it (Hypothesis: "
                 "WP-1470, from each program's manual; neither was run).",
                 ("rx.viz.render_structure", "rietx.viz.figure3d.StructureFigure"),
+            ),
+            (
+                "The pattern before a model",
+                "`data.plot()` on a `PatternData` just read draws it in the "
+                "result panel's style, keywords shared with `result.plot()`. "
+                "It shows the file, not a fit: judge a fit from the result's "
+                "figure and its numbers. `title=` names either figure; the "
+                "default draws none.",
+                ("rx.viz.plot_pattern",),
             ),
         ),
     ),
