@@ -97,3 +97,13 @@ def test_a_tag_spelt_in_another_case_is_still_read(tmp_path):
                     encoding="utf-8")
     atoms = {a.label: a for a in structure_from_cif(str(path)).phases[0].atoms}
     assert (atoms["O1A"].disorder_assembly, atoms["O1A"].disorder_group) == ("A", "1")
+
+
+def test_a_cif_reads_from_a_pathlib_path_as_from_a_str():
+    """gemmi's readers take a ``str`` only; ``Structure.from_cif`` took a
+    ``pathlib.Path`` into a bare ``TypeError`` wrapped as "could not be read"."""
+    import rietx as rx
+    path = Path(__file__).parent / "data" / "cod_1000055.cif"
+    from_path = rx.Structure.from_cif(path)
+    from_str = rx.Structure.from_cif(str(path))
+    assert from_path.model_dump() == from_str.model_dump()

@@ -17,6 +17,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1327](1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 2026-09-26 | P2 | [v1.6](#v1-6) |
 | [1328](1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | 2026-09-27 | P3 | [v1.6](#v1-6) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-09-25 | P2 | [v1.6](#v1-6) |
+| [1444](1444-the-pattern-before-the-model.md) | The pattern before the model, and a title on the figure | 2026-09-29 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 2026-09-24 | P1 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1457](1457-the-stage-rwp-leaves-out-the-declared-peaks.md) | The stage Rwp leaves out the declared peaks | 2026-09-29 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-09-28 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
@@ -473,7 +474,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1339](1339-where-the-improvement-lives.md) | Where the improvement lives | ⬜ | P3 | — |
 | [1340](1340-qpa-on-a-molar-basis.md) | QPA on a molar basis, and the basis travels with the number | ⬜ | P3 | — ([1320](1320-qpa-multimodal-fraction.md) soft) |
 | [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | P2 | — ([1312](1312-neutron-followthrough.md), [1335](1335-the-report-costs-more-than-the-fit.md), [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) soft) |
-| [1444](1444-the-pattern-before-the-model.md) | The pattern before the model, and a title on the figure | ⬜ | P3 | — |
+| [1444](1444-the-pattern-before-the-model.md) | The pattern before the model, and a title on the figure | 🔄 2026-09-29 | P3 | — |
 | [1461](1461-every-browser-chart-draws-with-uplot.md) | Every browser chart draws with uPlot | ✅ 2026-09-26 | — | — |
 | [1462](1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md) | The structure viewer draws with its own WebGL2 renderer | ✅ 2026-09-26 | — | — ([1461](1461-every-browser-chart-draws-with-uplot.md) soft) |
 | [1466](1466-the-structure-viewer-draws-coordination-polyhedra.md) | The structure viewer draws coordination polyhedra | ✅ 2026-09-26 | — | [1462](1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md) |

@@ -109,6 +109,41 @@ the count that a statistic quotes still describes the file. A project records
 its excluded regions in its own document rather than in the pattern, for a
 reason [](files.md) gives.
 
+`PatternData.plot` draws the pattern as read, before any model exists. It
+forwards to `rietx.viz.plots.plot_pattern`, which is the data panel of
+`RefinementResult.plot` with nothing modelled in it: the same margins, gutter
+and intensity axis, and the same `two_theta_range=`, `x_axis=`/`wavelength=`,
+`y_scale=`, `style=` and `title=` keywords. The data and its fit are therefore
+one style, and a peak reaches the same height in both figures. An excluded
+region is shaded over channels that are still drawn, since they are measured
+counts the next fit will leave out. σ is not drawn, even when the file carried
+it.
+
+```python
+from rietx import PatternData
+
+data = PatternData(two_theta=[10.0, 10.02, 10.04, 10.06],
+                   intensity=[120.0, 480.0, 200.0, 90.0],
+                   excluded_regions=[(10.03, 10.05)])
+fig = data.plot(title="as read")      # path="pattern.png" writes it
+assert fig.get_axes()[0].get_title() == "as read"
+```
+
+```{image} figures/nac-pattern-light.png
+:class: only-light
+:alt: The 11-BM NAC pattern as read: observed intensity as markers against 2θ, with the wavelength on the axis and no model
+```
+
+```{image} figures/nac-pattern-dark.png
+:class: only-dark
+:alt: The 11-BM NAC pattern as read: observed intensity as markers against 2θ, with the wavelength on the axis and no model
+```
+
+The figure is the 11-BM NAC pattern of the [](quickstart.md), drawn with
+`data.plot(wavelength=0.4139090)` and no model. It is the quickstart's fit
+figure with the fit taken out. A `PatternData` carries no wavelength, so λ on
+the 2θ axis, and a Q or d axis, need `wavelength=`.
+
 Never subtract an estimated background from `intensity`. Hold it additively
 with `BackgroundFixedPlusChebyshev` or co-refine it under the smoothness penalty
 of `BackgroundPSpline`. Subtracting changes the counting statistics that
