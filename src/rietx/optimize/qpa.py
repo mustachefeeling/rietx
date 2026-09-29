@@ -40,6 +40,7 @@ from ..crystallography.attenuation import (
     packed_mu_t,
 )
 from ..crystallography.lattice import cell_volume
+from ..crystallography.neutron import linear_attenuation_neutron
 from ..crystallography.symmetry import as_group, expand_positions, resolve_group
 from ..schemas.common import Diagnostic
 from ..schemas.results import (
@@ -413,14 +414,33 @@ def compute_qpa(structure: Structure, values: dict[str, float],
     return qpa
 
 
+#: The linear-attenuation function that answers for each ``Source.kind`` —
+#: the **one** place radiation enters the specimen-absorption estimate
+#: (WP-1132).  Everything around it — the composition, the volume fractions
+#: from the refined scales, the packing fraction and which length µ_bulk
+#: multiplies — is radiation-blind and shared.  A kind missing here has no
+#: table, and the estimators decline for it with a reason rather than borrow
+#: another radiation's: X-ray and neutron µ are different quantities, not
+#: coarse and fine versions of one.
+LINEAR_ATTENUATION_BY_SOURCE = {
+    "xray_cw": linear_attenuation,
+    "neutron_cw": linear_attenuation_neutron,
+}
+
+
 def estimate_capillary_mu_r(structure: Structure, values: dict[str, float],
                             wavelength: float, radius_mm: float,
                             packing_fraction: float,
-                            multiplicities=None) -> tuple[float | None, str | None]:
+                            multiplicities=None, *,
+                            source_kind: str = "xray_cw",
+                            ) -> tuple[float | None, str | None]:
     """(µR estimate, reason it was skipped) for a packed capillary.
 
     Composition → per-phase linear attenuation → volume-fraction-weighted bulk
-    µ → µR, reusing exactly the machinery WP-0305 built for Brindley.  Volume
+    µ → µR, reusing exactly the machinery WP-0305 built for Brindley.  µ per
+    phase comes from the table ``source_kind`` names
+    (:data:`LINEAR_ATTENUATION_BY_SOURCE`): McMaster for X-rays, Sears (1992)
+    for constant-wavelength neutrons.  Volume
     fractions come from the refined phase scales via the Hill-Howard weight
     fractions and the X-ray densities; when the scales are not yet meaningful
     every phase contributes equally, which is stated in the reason string
@@ -430,11 +450,12 @@ def estimate_capillary_mu_r(structure: Structure, values: dict[str, float],
     interval straddles an absorption edge, refuse outside 2-120 keV, and have
     gaps at seven elements — all of which are ordinary situations for a real
     specimen, not programming errors, so they come back as a reason string the
-    caller can surface as a diagnostic.  Same contract as
+    caller can surface as a diagnostic.  The neutron table refuses a species it
+    does not tabulate and a resonant absorber the same way.  Same contract as
     :func:`_apply_microabsorption`.
     """
     mus_vols, note = _specimen_mu_and_volumes(structure, values, wavelength,
-                                              multiplicities)
+                                              multiplicities, source_kind)
     if mus_vols is None:
         return None, note
     mus, vols = mus_vols
@@ -448,7 +469,9 @@ def estimate_capillary_mu_r(structure: Structure, values: dict[str, float],
 def estimate_flat_plate_mu_t(structure: Structure, values: dict[str, float],
                              wavelength: float, thickness_mm: float,
                              packing_fraction: float,
-                             multiplicities=None) -> tuple[float | None, str | None]:
+                             multiplicities=None, *,
+                             source_kind: str = "xray_cw",
+                             ) -> tuple[float | None, str | None]:
     """(µt estimate, reason it was skipped) for a packed flat specimen.
 
     The flat-plate twin of :func:`estimate_capillary_mu_r`, sharing everything
@@ -456,10 +479,11 @@ def estimate_flat_plate_mu_t(structure: Structure, values: dict[str, float],
     contract: an absorption edge inside a tabulation interval, an element
     outside the McMaster compilation or an energy outside 2-120 keV are all
     ordinary properties of a real specimen, so they come back as a reason
-    string the caller surfaces as a diagnostic.
+    string the caller surfaces as a diagnostic.  ``source_kind`` selects the
+    table exactly as it does there.
     """
     mus_vols, note = _specimen_mu_and_volumes(structure, values, wavelength,
-                                              multiplicities)
+                                              multiplicities, source_kind)
     if mus_vols is None:
         return None, note
     mus, vols = mus_vols
@@ -471,7 +495,8 @@ def estimate_flat_plate_mu_t(structure: Structure, values: dict[str, float],
 
 
 def _specimen_mu_and_volumes(structure: Structure, values: dict[str, float],
-                             wavelength: float, multiplicities
+                             wavelength: float, multiplicities,
+                             source_kind: str = "xray_cw",
                              ) -> tuple[tuple[list[float], list[float]] | None,
                                         str | None]:
     """((per-phase µ, volume fractions), note) or (None, reason it failed).
@@ -480,8 +505,14 @@ def _specimen_mu_and_volumes(structure: Structure, values: dict[str, float],
     refined scales via the Hill-Howard weight fractions and the X-ray densities.
     When the scales are not yet meaningful every phase contributes equally,
     which is stated in the note rather than hidden.  Shape-independent: what the
-    two estimators above add is only which length µ_bulk multiplies.
+    two estimators above add is only which length µ_bulk multiplies.  The
+    densities are mass densities and radiation-blind; only µ per phase reads
+    ``source_kind``.
     """
+    attenuation = LINEAR_ATTENUATION_BY_SOURCE.get(source_kind)
+    if attenuation is None:
+        return None, (f"attenuation unavailable — no attenuation table for a "
+                      f"{source_kind!r} source")
     try:
         zmvs, scales = [], []
         for ip, phase in enumerate(structure.phases):
@@ -497,7 +528,7 @@ def _specimen_mu_and_volumes(structure: Structure, values: dict[str, float],
                 resolve_group(phase.space_group, phase.symmetry_operations),
                 cell, atoms, multiplicities=mult))
             scales.append(values[f"{base}.scale"])
-        mus = [linear_attenuation(z.element_counts, z.cell_volume, wavelength)
+        mus = [attenuation(z.element_counts, z.cell_volume, wavelength)
                for z in zmvs]
     except (KeyError, ValueError) as exc:
         return None, f"attenuation unavailable — {exc}"
