@@ -100,6 +100,37 @@ def refuse_operation_list(phase, fmt: str) -> None:
             f"(Structure.to_cif) carries the list")
 
 
+def refuse_magnetic_phase(phase, fmt: str, why: str | None = None) -> None:
+    """Refuse, by name, a phase carrying a magnetic group or a site moment.
+
+    For a writer that writes no magnetic records (issue #470).  Without this
+    the phase went out as a nuclear one — moments and magnetic group gone, no
+    exception and no warning — and the file refined as a paramagnet in the
+    program it was written for.  Both fields are tested, not only
+    ``magnetic_symmetry``: the schema refuses a moment without a group, but a
+    writer should not rest a silent drop on another layer's refusal.
+
+    ``why`` replaces the default reason — that ``fmt`` is written without its
+    magnetic records — for a format whose file does carry them but whose
+    target program is measured to drop them on import.
+    """
+    moments = [a.label for a in phase.atoms if a.moment is not None]
+    if phase.magnetic_symmetry is None and not moments:
+        return
+    mag = phase.magnetic_symmetry
+    group = ("no magnetic group" if mag is None else
+             f"magnetic group BNS {mag.bns_number}" if mag.bns_number else
+             f"a magnetic group of {len(mag.operations)} operations")
+    if why is None:
+        why = f"{fmt} is written without its magnetic records"
+    raise ValueError(
+        f"phase {phase.name!r} cannot be written to {fmt}: it is a magnetic "
+        f"phase ({group}; moments on {len(moments)} of {len(phase.atoms)} "
+        f"sites), and {why}, so the file would refine it as a nuclear phase. "
+        f"A magCIF (Structure.to_cif) carries the moments and the magnetic "
+        f"group")
+
+
 def unnamed_label(closest: str | None, note: str) -> str:
     """The bracketed label for a group no symbol reproduces in its cell."""
     head = (closest or "").strip()

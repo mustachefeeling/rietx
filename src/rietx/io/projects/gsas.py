@@ -1821,6 +1821,7 @@ def from_structure(structure: Structure, *, title: str = "",
     from ...crystallography.symmetry import (
         expand_positions,
         get_spacegroup,
+        refuse_magnetic_phase,
         refuse_operation_list,
     )
 
@@ -1855,6 +1856,7 @@ def from_structure(structure: Structure, *, title: str = "",
                 f"ATmmmA record numbers a site in three columns — site "
                 f"{_WRITE_MAX_ATOMS + 1} has no key")
         refuse_operation_list(phase, "a GSAS `.EXP`")
+        refuse_magnetic_phase(phase, "a GSAS `.EXP`")
         sg = get_spacegroup(phase.space_group)
         cell = phase.cell
         edges = (cell.a, cell.b, cell.c)

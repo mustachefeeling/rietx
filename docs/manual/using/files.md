@@ -616,7 +616,11 @@ TOPAS and GSAS can both spell every setting, so neither owes that refusal. An
 anisotropic site is refused by the FullProf and GSAS writers, because
 `to_structure` refuses to assume a displacement-tensor convention on the way
 in and writing one out would assume the very thing the reader declines to
-read back.
+read back. A magnetic phase, one carrying `magnetic_symmetry` or a site
+moment, is refused by name by all four writers, `write_gsas2_phase_cif`
+included, because none of their target programs would read the moments back
+(GSAS-II 5.6.3's CIF import, measured, drops the magCIF loops without a
+warning); `Structure.to_cif` writes the magCIF.
 
 A `.EXP` is the one target read by column rather than by token, and two
 things follow from that. A number is worth as many characters as its field
