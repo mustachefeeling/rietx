@@ -441,6 +441,8 @@ def equal_reduced_many(red_a: np.ndarray, reds_b: Sequence[np.ndarray], *,
     A caller asks it first.  One Σ that makes the stack raise raises for all
     of them, so a caller that catches it re-asks the pairs one at a time.
     """
+    if not len(reds_b):
+        return []
     red_a, cov_a = np.asarray(red_a), np.asarray(cov_a)
     deltas = [red_a - np.asarray(red_b) for red_b in reds_b]
     sigmas = np.stack([cov_a + np.asarray(cov_b) for cov_b in covs_b])
@@ -475,17 +477,20 @@ def stacked_pinv_exact() -> bool:
     if _STACKED_PINV is None:
         rng = np.random.default_rng(1519)
         ok = True
-        for size in (1, 2, 3, 5, 8, 17, 64, 129):
+        # dedup's own stack sizes among them: ``engines.DEDUP_STACK_FIRST``,
+        # then four times the last, through 1024
+        for size in (1, 2, 3, 5, 8, 16, 17, 64, 129, 256, 1024):
             red_a = rng.uniform(0.002, 0.05, 6)
             cov_a = _witness_covariance(rng)
             reds_b = [red_a + rng.normal(0.0, 1e-6, 6) for _ in range(size)]
             covs_b = [_witness_covariance(rng) for _ in range(size)]
             stacked = equal_reduced_many(red_a, reds_b, cov_a=cov_a,
                                          covs_b=covs_b)
-            ok = ok and stacked == [
-                equal_reduced(red_a, red_b, cov_a=cov_a, cov_b=cov_b)
-                for red_b, cov_b in zip(reds_b, covs_b)]
-        _STACKED_PINV = bool(ok)
+            if stacked != [equal_reduced(red_a, red_b, cov_a=cov_a, cov_b=cov_b)
+                           for red_b, cov_b in zip(reds_b, covs_b)]:
+                ok = False
+                break
+        _STACKED_PINV = ok
     return _STACKED_PINV
 
 

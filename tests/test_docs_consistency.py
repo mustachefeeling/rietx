@@ -614,6 +614,10 @@ SIZE_CAPS: dict[str, int | None] = {
     # reduction's failure modes — a χ² takes its difference and its covariance
     # in one frame, the covariance carried by ``reduce.reduction``'s map.  The
     # corpus counts stayed in the WP.  Landed at 321, no headroom.
+    # 321 -> 323 (WP-1519): one clause on the WP-1509 bullet — a stack need
+    # not round as each matrix alone, so ``reduce.stacked_pinv_exact`` measures
+    # it and the nightly prints both probes — and the replay harness named.
+    # The timings stayed in the WP.  Landed at 323, no headroom.
     "src/rietx/indexing/CLAUDE.md": 323,
     # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
     # Philips √ encoding taught — that a format may encode its counts rather

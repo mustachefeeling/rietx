@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import math
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -1418,6 +1418,7 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
                   ) -> list[list[EngineCandidate]]:
     """:func:`dedup_groups`, with its caches and volume index switchable."""
     from bisect import bisect_left, bisect_right
+    from itertools import islice
 
     from .reduce import equal_reduced, reduced_covariance, reduction, stacked_pinv_exact
 
@@ -1475,8 +1476,8 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
                 continue
             same = tested.get((key, g)) if fast else None
             if same is None and size and other_cov is not None:
-                size = _ask_stacked(cand, red, volume, key, cov, order[at:], kept,
-                                    tested, size)
+                size = _ask_stacked(cand, red, volume, key, cov,
+                                    islice(order, at, None), kept, tested, size)
                 same = tested.get((key, g))
             if same is None:
                 try:
@@ -1514,7 +1515,7 @@ def _dedup_admits(cand: EngineCandidate, volume: float, entry: tuple) -> bool:
 
 
 def _ask_stacked(cand: EngineCandidate, red: np.ndarray, volume: float,
-                 key: tuple, cov: np.ndarray, ahead: Sequence[int],
+                 key: tuple, cov: np.ndarray, ahead: Iterable[int],
                  kept: list, tested: dict, size: int) -> int:
     """Cache the verdicts of the next ``size`` tests dedup's walk would ask
     of ``cand``, from one stacked solve (WP-1519).  Returns the next stack's

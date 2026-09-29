@@ -1115,7 +1115,6 @@ def test_a_stacked_chi2_is_the_pairs_own_where_the_probe_says_so():
     reduction's own map.  A skip is the report that this platform's LAPACK
     answers a matrix differently inside a stack, and dedup asks one pair at a
     time there — slower, never different (WP-1519)."""
-    from rietx.indexing.qspace import metric_basis
     from rietx.indexing.reduce import (
         equal_reduced,
         equal_reduced_many,

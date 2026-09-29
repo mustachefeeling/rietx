@@ -34,9 +34,12 @@ from __future__ import annotations
 
 import os
 
-for _var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
-    os.environ.setdefault(_var, "1")
-os.environ.setdefault("RIETX_TELEMETRY", "0")
+if __name__ == "__main__":
+    # only when run, never when a test imports it: a pytest worker has numpy
+    # loaded already, and would hand these to every subprocess it spawns
+    for _var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+        os.environ.setdefault(_var, "1")
+    os.environ.setdefault("RIETX_TELEMETRY", "0")
 
 import argparse  # noqa: E402
 import hashlib  # noqa: E402
@@ -173,8 +176,11 @@ class _DedupClock:
         self._real_many = getattr(reduce, "equal_reduced_many", None)
 
         def counted_many(red_a, reds_b, **kwargs):
+            # counted once answered: a stack that raises is re-asked one pair
+            # at a time, and those pairs count through ``counted``
+            answers = self._real_many(red_a, reds_b, **kwargs)
             self.tests += len(reds_b)
-            return self._real_many(red_a, reds_b, **kwargs)
+            return answers
 
         engines._dedup_groups = timed
         if self._count:
@@ -211,7 +217,12 @@ def replay(out: Path, key: str, *, save: bool, count: bool) -> dict:
 
 
 def pool(out: Path, dataset: str, *, count: bool) -> dict:
-    from rietx.indexing.engines import dedup_groups, merge_engine_units
+    from rietx.indexing.engines import (
+        SYSTEM_ORDER,
+        dedup_groups,
+        engine_names,
+        merge_engine_units,
+    )
 
     by_engine: dict[str, list] = {}
     for path in sorted(out.glob(f"{dataset}.*.unit.pkl")):
@@ -222,10 +233,9 @@ def pool(out: Path, dataset: str, *, count: bool) -> dict:
             raise SystemExit(f"{key} has no saved result: replay it with --save")
         by_engine.setdefault(unit["engine"], []).append(
             (unit["spec"].systems[0], pickle.loads(result.read_bytes())))
-    from rietx.indexing.engines import SYSTEM_ORDER
-
     cands = []
-    for engine in by_engine:  # capture order is index_pattern's engine order
+    # index_pattern pools engines in registry order, and the files sort by name
+    for engine in sorted(by_engine, key=engine_names().index):
         units = [r for _s, r in sorted(by_engine[engine],
                                        key=lambda sr: SYSTEM_ORDER.index(sr[0]))]
         cands.extend(merge_engine_units(units).candidates)
