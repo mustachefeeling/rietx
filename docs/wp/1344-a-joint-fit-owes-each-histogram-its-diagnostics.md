@@ -1,6 +1,6 @@
 # WP-1344 — a joint fit owes each histogram the diagnostics its own radiation earns
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @mustachefeeling
 Track: What fires, and what stays silent
 Depends on: — (WP-1341 owns the neighbouring "a joint fit has no report" gap,
 and goes after this one: its report renders the sorting this WP writes)
