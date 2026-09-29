@@ -441,6 +441,60 @@ def test_a_free_width_against_an_unclaimed_compile_is_refused_by_name():
         run_least_squares(model, table, max_iter=1)
 
 
+def _neutron_data(ph, ins):
+    tt = np.arange(8.0, 140.0, 0.1)
+    blank = rx.PatternData(two_theta=tt.tolist(),
+                           intensity=np.zeros_like(tt).tolist())
+    y = np.asarray(rx.Refinement(rx.Structure(phases=[ph]),
+                                 ins.model_copy(deep=True)).predict(blank))
+    return rx.PatternData(two_theta=tt.tolist(), intensity=(y + 1.0).tolist())
+
+
+def test_an_x_ray_histogram_force_fixes_the_width_it_cannot_draw():
+    """Review item 5, first half: on an X-ray source the magnetic term is
+    never drawn, so the width is a dead column and the table force-fixes it
+    (WP-1073) rather than letting the preset reach the unclaimed-compile
+    refusal, whose advice ``fit`` has already taken."""
+    ph = _mnf2()
+    ph.scale.value = 0.02
+    ins = rx.Instrument.debye_scherrer(wavelength=1.5406)
+    table = ParameterTable(rx.Structure(phases=[ph]), ins)
+    rows = {e.path: e for e in table.entries}
+    for name in ("magnetic_lor_size", "magnetic_lor_strain"):
+        assert rows[f"phases.0.{name}"].locked, name
+    # and the neutron table leaves them freeable
+    neu = ParameterTable(rx.Structure(phases=[_mnf2()]),
+                         rx.Instrument.constant_wavelength_neutron(LAMBDA_CW))
+    assert not {e.path: e for e in neu.entries}[
+        "phases.0.magnetic_lor_size"].locked
+
+    data = _neutron_data(ph, ins)
+    ref = rx.Refinement(rx.Structure(phases=[_mnf2()]), ins.model_copy(deep=True))
+    ref.structure.phases[0].scale.value = 0.02
+    res = ref.fit(data, plan=PLAN_PRESETS["magnetic_width"]())
+    assert not any("magnetic_lor" in p.path for p in res.parameters)
+
+
+@pytest.mark.parametrize("mode", ["lebail", "pawley"])
+def test_an_intensity_model_force_fixes_the_width(mode):
+    """Review item 5, second half: Le Bail and Pawley never split the draw, so
+    ``mode_fixed_path`` drops the width beside the moment it broadens."""
+    from rietx.refine import mode_fixed_path
+
+    for name in ("magnetic_lor_size", "magnetic_lor_strain"):
+        assert mode_fixed_path(f"phases.0.{name}", mode)
+        assert not mode_fixed_path(f"phases.0.{name}", "rietveld")
+    ph = _mnf2()
+    ph.scale.value = 0.02
+    ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
+    ins.profile.u.value, ins.profile.w.value = 0.05, 0.03
+    data = _neutron_data(ph, ins)
+    ref = rx.Refinement(rx.Structure(phases=[_mnf2()]), ins.model_copy(deep=True))
+    res = ref.fit(data, mode=mode, plan=rx.RefinementPlan(stages=[rx.Stage(
+        "widths", ["instrument.profile.w", "phases.*.magnetic_lor_size"])]))
+    assert not any("magnetic_lor" in p.path for p in res.parameters)
+
+
 # ================================================ the staging rule
 
 def test_the_preset_is_the_three_step_order():

@@ -776,7 +776,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "magnetic-only satellites measures it, a k = 0 collinear one "
             "generally cannot, and then it comes back with an esd larger than "
             "its value and MAGNETIC_WIDTH_UNMEASURED names it. Exists only on a phase that declares "
-            "magnetic_symmetry."
+            "magnetic_symmetry, and is held fixed wherever no magnetic "
+            "component is drawn: an X-ray histogram, and Le Bail or Pawley."
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg; 0.1 deg is roughly a 100 nm magnetic domain at 2.4 Å",
@@ -795,7 +796,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "k != 0 dataset it can be this term rather than the size one that "
             "carries the effect, which is why the magnetic_width plan frees "
             "both and lets the report say which was measured. Exists only "
-            "on a phase that declares magnetic_symmetry."
+            "on a phase that declares magnetic_symmetry, and is held fixed "
+            "on an X-ray histogram and under Le Bail or Pawley."
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg",

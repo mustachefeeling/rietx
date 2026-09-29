@@ -278,10 +278,11 @@ def mode_fixed_path(path: str, mode: Mode) -> bool:
     """Whether ``mode`` force-fixes ``path`` whatever the table says.
 
     Against an intensity model that partitions or refines the per-hkl
-    intensities, three families of parameter cannot be refined at all: the
+    intensities, four families of parameter cannot be refined at all: the
     structural parameters (there is no |F|² to fit), the phase scale (degenerate
     with those intensities) and the emission-line weights (which the intensities
-    absorb pairwise).  ``_run_stage`` drops them from the freed set; exported
+    absorb pairwise) — and a magnetic width, whose component only a Rietveld
+    draw separates.  ``_run_stage`` drops them from the freed set; exported
     once so :meth:`Refinement.parameters` reports the same set rather than a
     second opinion about it.
     """
@@ -295,9 +296,14 @@ def mode_fixed_path(path: str, mode: Mode) -> bool:
     # That one must stay free here: a measured background is scaled against the
     # data, and Le Bail extracts intensities rather than absorbing a background
     # level.
+    # And the magnetic component's own widths (WP-1343): the second frozen
+    # family is drawn only in Rietveld, so under an intensity model a free
+    # width would be a dead column, as the moment it broadens (``.atoms.``)
+    # already is here.
     return (".atoms." in path
             or (path.startswith("phases.") and path.endswith(".scale"))
-            or ".source.lines." in path)
+            or ".source.lines." in path
+            or _MAGNETIC_WIDTH_PATH.match(path) is not None)
 
 
 def mode_fixed_column(reached: list[str], mode: Mode) -> bool:

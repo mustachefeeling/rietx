@@ -928,6 +928,23 @@ def tie_window(lo: float, hi: float, coeff: float,
     return (a, b) if coeff > 0.0 else (b, a)
 
 
+
+def _magnetic_component_drawn(phase, instrument) -> bool:
+    """Whether a histogram on ``instrument`` draws ``phase``'s magnetic term.
+
+    :func:`rietx.model.forward.magnetic_wanted` is the one authority on that
+    dispatch and this only asks it.  A source it refuses by name is refused
+    again, by the same words, at compile — so here it reads as "not drawn"
+    rather than raising from a table build.
+    """
+    from ..model.forward import magnetic_wanted
+
+    try:
+        return magnetic_wanted(phase, instrument.source)
+    except ValueError:
+        return False
+
+
 class ParameterTable:
     """The tree-to-flat-θ machinery behind a fit — internal, not the agent surface.
 
@@ -1045,9 +1062,20 @@ class ParameterTable:
             # schema refuses a non-zero *value* there for the same reason,
             # which is the half a table cannot state.
             if phase.magnetic_symmetry is not None:
-                self._add(f"{base}.magnetic_lor_size", phase.magnetic_lor_size)
+                # **Force-fixed where this histogram carries no magnetic
+                # component**, the WP-1073 rule: on an X-ray source (or a
+                # phase declaring no moment) the forward model never draws
+                # the second family, so a free width would be a dead column —
+                # and ``run_least_squares`` refuses one by name, which a plan
+                # freeing ``phases.*.magnetic_lor_*`` would hit with advice
+                # it cannot take.  Not in a joint table: there a neutron
+                # histogram shares the entry and does see it.
+                off = (not self._joint
+                       and not _magnetic_component_drawn(phase, instrument))
+                self._add(f"{base}.magnetic_lor_size", phase.magnetic_lor_size,
+                          force_fixed=off)
                 self._add(f"{base}.magnetic_lor_strain",
-                          phase.magnetic_lor_strain)
+                          phase.magnetic_lor_strain, force_fixed=off)
             self._collect_microstrain(base, sg, phase)
             for j, atom in enumerate(phase.atoms):
                 self._collect_atom_coords(f"{base}.atoms.{j}", sg, atom)
