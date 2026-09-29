@@ -57,6 +57,7 @@ import pytest
 
 import rietx as rx
 from rietx.crystallography.magnetic.scattering import MAGNETIC_SOURCE_KINDS
+from rietx.schemas.instrument import Dispersion
 from rietx.schemas.structure import Moment
 
 CORUNDUM_CELL = (4.758877, 4.758877, 12.992880)
@@ -118,7 +119,11 @@ def mnf2() -> rx.Phase:
 
 
 def _xray() -> rx.Instrument:
-    return rx.Instrument.debye_scherrer(LAM_X)
+    # declared, not inherited: the pinned bars below and the table's
+    # "dispersion: yes for xray_cw" row must not ride on today's default
+    ins = rx.Instrument.debye_scherrer(LAM_X)
+    ins.source.dispersion = Dispersion()
+    return ins
 
 
 def _neutron() -> rx.Instrument:
@@ -476,7 +481,8 @@ def test_one_structure_answers_to_both_weightings(two_weightings):
     shared parameter must land on the one truth, and every per-histogram
     one on its own histogram's truth — two scales 3.5× apart and two zero
     shifts of opposite sign, none of them leaking into the other histogram.
-    Measured over seeds 1-3: the largest |Δ|/esd was 1.21.
+    Measured over seeds 1-3 on macOS arm64: the largest |Δ|/esd was 1.21;
+    on Linux x86_64 (seed 1) it was 0.91.
     """
     joint, _alone, per_histogram = two_weightings
     assert joint.status == "converged"
@@ -494,7 +500,10 @@ def test_the_neutron_histogram_buys_the_oxygen_and_not_the_aluminium(
     Alone, the neutron pattern determines z(Al) about 3× worse than the
     X-ray pattern does and x(O) about as well, so jointly the X-ray keeps
     the aluminium (esd ×0.94-0.97 of its own) while the oxygen gains
-    (×0.64-0.68).  Seeds 1-3; the bars sit well outside that spread.  A
+    (×0.64-0.68).  Seeds 1-3 on macOS arm64; Linux x86_64 (seed 1) gives
+    0.955 and 0.660, and neutron/X-ray 3.62 and 0.993 (ratio 3.64).  The
+    tightest bar, ``joint_al > 0.9``, clears the cross-platform spread by
+    about 0.05; the others sit well outside it.  A
     stack that handed both histograms one amplitude could not produce this
     asymmetry: the two sensitivities would be one.
     """
