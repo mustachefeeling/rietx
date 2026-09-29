@@ -44,7 +44,7 @@ not do.
 |---|---|
 | you are about to call rietx: entry points, constructors, the four answer types and their fields, the report | [`references/api.md`](references/api.md) |
 | you were handed another program's input file, not a pattern | [`references/api.md`](references/api.md) § In |
-| §7j — a magnetic `Diagnostic` fired, `FitReport.satellites` ranked a k, or you were handed a magnetic structure (magCIF/`.inp`/`.pcr`) | [`references/magnetic.md`](references/magnetic.md) |
+| §7j — a magnetic code, `FitReport.satellites` ranked a k, a magCIF/`.inp`/`.pcr` to read, moments to solve | [`magnetic.md`](references/magnetic.md), [`api`](references/api-magnetic.md) |
 | §5 — you are about to quote a number: which field carries which fact, and read numbers rather than pixels | [`references/numbers.md`](references/numbers.md) |
 | §4/§4b — a judging or deliverable rule needs its measurement, before you override one | [`references/judging.md`](references/judging.md) |
 | §8 — the fit did something that makes no sense: measured results that contradict an intuition | [`references/surprises.md`](references/surprises.md) |

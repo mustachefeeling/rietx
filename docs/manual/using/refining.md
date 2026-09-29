@@ -513,6 +513,184 @@ shape, and a field nothing frees is a claim nothing tests), and no magnetic
 lattice *offset*: magnetic peaks in the wrong place are a different freedom,
 which rietx answers with two nuclear phases.
 
+## Determining a magnetic structure: `solve_magnetic`
+
+The magnetic sections above are the halves of a determination done by hand:
+the satellite arm says *whether* there is something magnetic and roughly where,
+and a stated `Phase.magnetic_symmetry` refines one model you already chose.
+`solve_magnetic` is the call that does the middle: enumerate the models, refine
+one per class the powder cannot separate, rank them by a criterion that is not
+Rwp, and abstain when the top ones tie.
+
+It is {ref}`provisional by declaration <provisional-by-declaration>`: the chain
+is settled and the ranking criterion is expected to move.
+
+<!-- api-doc: no-exec — it needs a converged neutron refinement -->
+```python
+import rietx as rx
+
+ref = rx.Refinement(nuclear, instrument)
+ref.fit(data, plan="mccusker_structural")
+
+solution = rx.solve_magnetic(ref, data, sites=["Mn1"], ion="Mn3+")
+print(solution)                       # the classic table
+if solution.verdict == "solved":
+    print(solution.best.bns_number, solution.best.moments[0].magnitude)
+solution.write_magcifs("candidates/")  # one magCIF per class, on request
+```
+
+What it does, in order.
+
+1. k: WP-1326's arm sorts the positive residual peaks. Peaks on a
+   reciprocal-lattice point the nuclear structure factor *forbids* are the
+   k = 0 signature and short-circuit everything else: they are never scored
+   against a candidate vector, because that excess is not evidence about a k.
+   Otherwise the unexplained peaks are scored against the enumerated candidate
+   set and the top vector is taken, with the rest kept in
+   `MagneticSolution.k_candidates` as the hypotheses this call did not test.
+   `MagneticSolution.k_route` records which of the routes it was. Pass `k=` to
+   state the vector instead when it is known from a single crystal.
+2. candidates: for each named site, every order-parameter direction of
+   every small irrep with a non-zero multiplicity, as a magnetic space group in
+   its own cell. A k ≠ 0 candidate is stated through its magnetic supercell,
+   with the anti-centring applied as a *constraint* on the moment DOFs and not
+   only as a seed; `MagneticTrial.anti_translation_drift` is how far the
+   refined structure travelled from the group it declares, and it should read
+   zero.
+3. one trial refinement per powder-equivalence class: never one per
+   candidate. The members of a class are models this pattern, to
+   `MagneticSolution.d_min`, cannot tell apart; refining each of them would
+   produce N copies of one answer and invite you to rank them. They are named
+   instead, in `MagneticTrial.members`, and the inability to separate them is
+   the finding.
+4. ranking: the answer is a `MagneticSolution`; its
+   `MagneticSolution.criterion` states the rule in full and the fields below
+   carry every number the rule reads.
+
+The criterion, and why not Rwp. A candidate with more free amplitudes
+always reaches a lower Rwp, so ordering by Rwp orders by freedom. The primary
+key is `MagneticTrial.delta_bic` against a nuclear reference refined under the
+*same* stage list minus the moment paths, so the only difference between the
+two models is the moment block and `n_added` is exactly
+`MagneticTrial.n_moment_parameters`. That is where parsimony enters: the
+`−n_added·ln N` term charges every extra amplitude, which is why a nested
+triple of groups reaching one profile comes out smallest-group-first. Behind it
+is `MagneticTrial.r_magnetic`, a profile R over only the channels the
+nuclear model puts nothing on, where 1 means "explains none of the intensity
+there" and 0 means "explains all of it", a number a whole-pattern Rwp,
+dominated by the nuclear lines, cannot give you. Behind that, parsimony as a
+literal tiebreak. A supported moment is a precondition, not a column: a trial
+whose every moment fails WP-1327's null test cannot win however good its ΔBIC,
+and neither can one whose ΔBIC is not positive, however well supported its
+moment. When no trial passes both, the verdict is that there is nothing to
+solve, and `MagneticSolution.reason` says which half failed.
+
+Several magnetic sites means several starts. A moment stage over more than
+one site is not convex, and the flat equal-magnitude seed can land in a minimum
+that is *provably* not the optimum: a three-amplitude fit reaching a worse Rwp
+than its own one-amplitude submodel, which cannot happen at a true minimum.
+Released from the one-site solution the same model reaches a better point, on a
+different site. That is fatal to a ranking and not merely to a fit: candidates
+compared at such points are compared at whatever minimum their seed fell into,
+so the ΔBIC ordering would measure the seed. Every class with more than one
+magnetic site is therefore refined from each one-site start (the other sites'
+moments absent, not small, because seeding them small does not escape)
+and then released, with the best converged minimum reported.
+`MagneticTrial.n_starts`, `MagneticTrial.n_minima` and `MagneticTrial.start`
+are that sweep made visible, and a multimodal class says so in
+`MagneticSolution.caveats`.
+
+A stage entry that frees nothing is reported. `Stage` accepts a free-list
+glob matching no parameter silently, and a term this histogram's forward model
+does not read returns the same Rwp to ten digits and the same parameter count
+either way. In a ranking that
+makes the compared models differ from the ones the plan describes, so
+`solve_magnetic` checks what the stages actually froze and puts any dead glob
+in the caveats. Its own defaults are axis-shaped and produce none.
+
+The abstention is a result. Classes whose ΔBIC lies within
+`MagneticSolution.tie_width` of the leader's are tied; `MagneticSolution.tied`
+names them and `MagneticSolution.verdict` reads `"abstained"`. The default
+width is 6.0, "strong" on the Kass & Raftery scale, the same bar peak fitting
+uses to keep an added component. So is the other abstention this workflow
+makes: a cubic collinear structure has one class and a modulus the data
+measures well, and a direction the powder average cannot determine at all,
+which comes back as a held DOF in `MomentRow.unmeasured_directions`. That is
+the answer, not a failure to find one.
+
+One refusal: a non-neutron histogram, by name. Everything else is reported.
+
+| Field | Is | Reads as |
+|---|---|---|
+| `MagneticSolution.verdict` | `"solved"`, `"abstained"` or `"nothing to solve"` | the third is an answer about the specimen |
+| `MagneticSolution.reason` | why, in a sentence | always non-empty |
+| `MagneticSolution.criterion` | the ranking rule, stated | the same string every run |
+| `MagneticSolution.best` | the winning `MagneticTrial`, or `None` | `None` for every verdict but `"solved"` (an abstention has no winner) |
+| `MagneticSolution.phase`, `MagneticSolution.space_group` | which phase was solved | |
+| `MagneticSolution.k` | the propagation vector used, as three rationals | `None` when the workflow abstained before choosing one |
+| `MagneticSolution.k_route` | how it was chosen | `"forbidden lattice points"`, `"satellite ranking"`, `"given by the caller"`, or the abstention's own name |
+| `MagneticSolution.k_reason` | why, in a sentence | separate from `MagneticSolution.reason`, which is the *verdict's* (a solved determination still has to say how it got its k) |
+| `MagneticSolution.k_candidates` | the ranked vectors, `(spelling, matched, satellites in range)` | empty when the arm did not run |
+| `MagneticSolution.sites` | the sites that were given a moment | |
+| `MagneticSolution.n_residual_peaks` | positive residual peaks of the nuclear fit | before any sorting |
+| `MagneticSolution.n_on_nuclear_lines` | those on a calculated reflection | a nuclear misfit or a k = 0 structure; deliberately not scored |
+| `MagneticSolution.n_on_forbidden_lattice_points` | those at a systematic absence | the k = 0 signature, stated positively |
+| `MagneticSolution.n_unexplained` | those at neither | the only ones a propagation vector is needed for |
+| `MagneticSolution.trials` | the ranked list, one `MagneticTrial` per class | published whole: refusals and unsupported models included |
+| `MagneticSolution.tied` | the class indices inside the tie width | one entry when the verdict is `"solved"` |
+| `MagneticSolution.tie_width` | the ΔBIC below which two classes are not ranked | 6.0 by default |
+| `MagneticSolution.d_min` | the d limit the equivalence classes are a statement about | a class is a claim about *a powder pattern to a limit* |
+| `MagneticSolution.nuclear_rwp`, `MagneticSolution.nuclear_gof` | the reference fit every ΔBIC is against | |
+| `MagneticSolution.nuclear_r_magnetic` | the reference's own magnetic-only R | ≈1 on a nuclear model that explains none of it: the scale every `MagneticTrial.r_magnetic` is read against |
+| `MagneticSolution.n_magnetic_channels` | how many channels that region has | zero makes `r_magnetic` `None`, not 0 |
+| `MagneticSolution.caveats` | what the run wants you to know | includes ΔBIC's raw-channel-count N |
+| `MagneticSolution.write_magcifs` | writes one magCIF per refined class and returns the paths | nothing is written unless you call it or pass `cif_dir=` |
+| `MagneticSolution.k_trials` | one `KTrialSummary` per propagation vector actually refined | length 1 unless a runner-up k was within the satellite step's own offset margin of the winner (`k_trials=` option, default 2) |
+| `MagneticSolution.diagnostics` | structured diagnostics beside `MagneticSolution.caveats` | `K_VECTOR_UNSEPARATED` (info) and `MAGNETIC_SUBGROUP_PREFERRED` (warning) among them |
+| `MagneticSolution.margin` | the winner's ΔBIC over the best *other eligible* class | `None` on an abstention or when there is no second eligible class (never negative). Diffing `trials[0]` against `trials[1]` by hand can be negative, when `trials[1]` is not itself eligible |
+| `MagneticSolution.subgroup_audit` | the winner's own maximal magnetic subgroups at its k, each refit from its solution and compared by ΔBIC (one `SubgroupAudit` per subgroup found) | empty when the k was not zero (not warm-started yet) or none of the classes already enumerated is a genuine subgroup |
+| `MagneticSolution.subgroup_note` | one sentence: which subgroup beat the winner and by how much, that none did, or why the audit was not attempted | always set on a solved verdict |
+| `SubgroupAudit.bns_number`, `SubgroupAudit.label` | which subgroup this row is | |
+| `SubgroupAudit.n_moment_parameters` | its own moment DOF count | more than the winner's, since it is a subgroup |
+| `SubgroupAudit.delta_bic_over_winner` | ΔBIC with the *winner* as the restricted model | positive favours the subgroup; `None` when it refused |
+| `SubgroupAudit.status`, `SubgroupAudit.refusal` | `"refined"` or `"refused"`, and why | mirrors `MagneticTrial.status`/`.refusal` |
+| `KTrialSummary.k` | the propagation vector this row is about | as three rationals |
+| `KTrialSummary.matched`, `KTrialSummary.worst_offset_deg` | the satellite step's own score for this k | `None` on a route with no such scoring (a given `k=`, or the k = 0 signature) |
+| `KTrialSummary.best_delta_bic` | the best eligible class's ΔBIC for this k | `None` if this k reached no eligible class |
+| `KTrialSummary.n_refined` | how many of this k's classes reached `"refined"` | |
+| `MagneticTrial.class_index` | which powder-equivalence class | stable within one run |
+| `MagneticTrial.representative` | the irrep and direction that was refined | the smallest family of the class |
+| `MagneticTrial.members` | every candidate in it | the models the powder cannot separate; more than one is the finding |
+| `MagneticTrial.site` | the site whose representation produced it | |
+| `MagneticTrial.irrep`, `MagneticTrial.direction` | the labels | e.g. `S2`, `(a)` |
+| `MagneticTrial.bns_number`, `MagneticTrial.uni_number`, `MagneticTrial.msg_type` | what spglib recognised the operator list as | `"unidentified"` and `None` are honest, not errors |
+| `MagneticTrial.free_amplitudes` | amplitudes the representative site's family has before any data is looked at | per site: on a parent with several magnetic sites this is not the model's parameter count, and the ranking's parsimony key reads `MagneticTrial.n_moment_parameters` instead |
+| `MagneticTrial.determinable_amplitudes` | how many of them a powder to `d_min` can determine | the deficit is the flat directions |
+| `MagneticTrial.status` | `"refined"` or `"refused"` | |
+| `MagneticTrial.refusal` | the message, when refused | e.g. a magnetic orbit that cannot cover the nuclear one |
+| `MagneticTrial.rwp`, `MagneticTrial.gof` | the trial's own agreement | context, never the ranking key |
+| `MagneticTrial.delta_bic` | the primary key | positive favours the magnetic model |
+| `MagneticTrial.r_magnetic` | the magnetic-only R | compare against `MagneticSolution.nuclear_r_magnetic` |
+| `MagneticTrial.n_moment_parameters` | moment DOFs left free, ΔBIC's `n_added` | |
+| `MagneticTrial.n_free_parameters` | the whole free count | |
+| `MagneticTrial.moments` | one `MomentRow` per site that carries one | |
+| `MagneticTrial.held` | the DOFs the stage held | a direction here was not measured |
+| `MagneticTrial.supported` | whether any site's moment, or any degenerate pair's quadrature sum, survived the null test | false disqualifies the trial from winning |
+| `MagneticTrial.anti_translation_drift` | how far a supercell refinement left its own group, μ_B | zero is the pass; `None` for k = 0, where there is no anti-centring |
+| `MagneticTrial.n_starts` | how many seeds the moment stage was started from | one per magnetic site plus the flat one; 1 when the class has a single site |
+| `MagneticTrial.n_minima` | how many distinct minima those starts found | more than one is a fact about the candidate: its moment problem is multimodal and one seed would have reported another answer |
+| `MagneticTrial.start` | which start won, named | `"flat"` or `"<site> only, then released"` |
+| `MagneticTrial.label` | what the table prints | BNS plus irrep and direction |
+| `MomentRow.label`, `MomentRow.ion` | the site and its form-factor key | |
+| `MomentRow.magnitude`, `MomentRow.esd` | \|m\| in μ_B and the esd of the modulus | the components carry none by design |
+| `MomentRow.sigma` | \|m\| in units of its own esd | WP-1327's ratio; `None` without an esd |
+| `MomentRow.crystalaxis` | the three components the DOFs imply | |
+| `MomentRow.supported` | the null test's verdict for this site | |
+| `MomentRow.unmeasured_directions` | direction DOFs the powder average did not determine | non-empty is a result about the measurement |
+| `MomentRow.paired_with` | the other site's path this modulus is powder-degenerate with | non-empty when the fit's own correlation showed the two are not separately determined |
+| `MomentRow.paired_magnitude`, `MomentRow.paired_magnitude_esd` | the quadrature sum sqrt(sum m^2) over the pair and its esd from the measured covariance | this, not `MomentRow.magnitude`, is the number the powder measures for the pair; `None` when `paired_with` is empty |
+| `MomentRow.pair_supported` | the null test applied to the pair's quadrature sum | each modulus of a degenerate pair fails the test alone (its esd is the length of the flat direction), so the solve's gate reads this; false for an ordinary row |
+
 ## How hard each stage is converged
 
 `RefinementPlan.intermediate_ftol` is the termination tolerance every stage but
