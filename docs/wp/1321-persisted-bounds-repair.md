@@ -83,6 +83,27 @@ mail.
   (`tests/skill_caps.py`), and a body sentence is paid for by a cut. Task 4's
   rewording is therefore a replacement of equal or smaller size.
 
+### The audit, field by field (2026-09-29)
+
+Found by walking the whole `Base` family for a `Parameter` field whose
+`default_factory` carries a `min`, `max`, `unit` or `transform` a bare
+`Parameter` does not: **57 fields on 17 classes**, every one now inheriting
+through `schemas.common._InheritsDeclaredDefaults`, none excluded. What a
+caller's bare `Parameter` lost, by the loss:
+
+| Loss when bare | Fields | What unbounded does |
+|---|---|---|
+| a zero floor, carried by softplus | `Phase.scale`, `.extinction`, `.lor_size`, `.lor_strain`, `.gauss_size`, `.gauss_strain`; `ProfileTCHZ.w/x/y`; `BackgroundFixedPlusChebyshev.scale`; `HumpComponent.height`; `PeakComponent.area`; `RoughnessPitschke.c`; `RoughnessSuortti.b` | negative intensity; a Gaussian variance under the instrument's (floored at `_MIN_GAMMA_G2`, so flat); a Lorentzian FWHM sum with no floor at all; extinction's E_B = 1/√(1+x) above 1, then NaN below x = −1 |
+| a floor at a pole | `PreferredOrientation.r` (0.15), `HumpComponent.fwhm`, `PeakComponent.fwhm` | already repaired or refused by their own after-validators on every path; inheriting adds the softplus and the box |
+| a two-sided physical range | `Atom.occ`, `.biso`; `Instrument.zero_shift`; `Geometry.sample_displacement`, `.sample_transparency`, `.capillary_offset_*`, `.axial_sl/hl`; `ProfileTCHZ.u/v`; `Source.polarization`; `EmissionLine.weight`; `Harmonic.weight`; `RoughnessSuortti.a`; `RoughnessPitschke.tau`; `PeakComponent.eta` (logit) | a walk out of the physics: a zero shift the displacement absorbs, a polarization past 1, a Caglioti U a neutron line needs `coarse` for |
+| a unit only | `AnisoU.u12/u13/u23`, `Moment.crystalaxis_*`, `StephensStrain.s*`, `HumpComponent.position`, `PeakComponent.center` | a label; no number moves |
+
+So the Context's first class does not exist as a milder one: the softplus
+fields lost their floor with their bound. `Cell` declares no bound and is out
+of this shape (above).
+
+### As filed, 2026-09-01
+
 From issues #204 and #209 (the maintainer's follow-up filed from PR #206's
 review), 2026-09-01 benchmarking campaign.
 
@@ -163,10 +184,12 @@ Inherited for its flat-direction item.
       minimal.
 - [ ] Test: a document written before #206 loads repaired *and* reports; a
       document already within the declared bounds is untouched byte-for-byte.
-- [ ] The audit: every bound-carrying `default_factory` field on `Phase`,
+- [x] The audit: every bound-carrying `default_factory` field on `Phase`,
       `PreferredOrientation`, `Instrument` sorted into the two classes with
       the sorting recorded; inheritance extended where the bound is real;
-      per-class generic discovery tests on #206's template.
+      per-class generic discovery tests on #206's template. *57 fields on 17
+      classes, all real (§ The audit); one discovery test over the whole
+      `Base` family rather than one per class, so a new class is covered too.*
 - [ ] `max_shift_over_esd` rewording in `SKILL.md` §9 and
       `references/judging.md` (all committed skill copies re-synced).
 - [ ] Skill diagnostics row for the new code (all committed copies) +

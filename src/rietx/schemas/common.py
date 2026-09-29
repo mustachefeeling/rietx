@@ -298,7 +298,26 @@ from .._nearmiss import did_you_mean
 #: honest empty state and the bit-identical one: a structure that declares
 #: none serializes apart from the new nulls, and refines, exactly as before.
 #: No forward model reads them; the structure viewer does.
-SCHEMA_VERSION = "0.34"
+#: 0.34 → 0.35 (WP-1321, issues #204 and #209): every class whose
+#: ``Parameter`` fields declare a range in their ``default_factory`` now does
+#: what ``Atom`` has done since 0.17 — ``Phase``, ``PreferredOrientation``,
+#: ``AnisoU``, ``Moment``, ``StephensStrain`` and eleven instrument classes
+#: (:class:`_InheritsDeclaredDefaults`).  A caller's own ``Parameter``
+#: inherits the ``min``/``max``/``unit`` it left out, and the ``transform``
+#: together with the bounds that transform enforces.  No field changed shape;
+#: the 0.16 → 0.17 shape again, stated in the direction it bites.  **Legal
+#: constructions shrank**: ``ProfileTCHZ(u=Parameter(value=1.576))``, storable
+#: before, raises naming ``ProfileTCHZ.coarse``.  **One grew**: a
+#: ``PeakComponent`` width leaving ``max`` unset takes the declared box rather
+#: than being refused.  **What moves without a refusal is the
+#: parameterisation**: ``Phase(scale=Parameter(value=5e-3, vary=True))`` is
+#: softplus from zero, where it was an unbounded identity, so a fit built that
+#: way walks a different path to its answer.  **Documents already written are
+#: repaired at read** where they carry the defect
+#: (``RefinementTree.load``, ``HISTORY_BOUNDS_RESTORED``), gated on the
+#: version the tree's header stamped, which is why this bump is load-bearing:
+#: a log whose header says 0.35 or later is never walked.
+SCHEMA_VERSION = "0.35"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
@@ -482,6 +501,143 @@ class Parameter(Base):
 def P(value: float, **kw) -> Parameter:  # noqa: N802 - deliberate short helper
     """Shorthand constructor used throughout the default instrument presets."""
     return Parameter(value=value, **kw)
+
+
+#: What a bare ``Parameter`` holds for each attribute a field's declared
+#: default can carry.  In a document written before a class inherited
+#: (:class:`_InheritsDeclaredDefaults`), an attribute holding this value is the
+#: only trace an omission left once it was serialized.
+BARE_PARAMETER_ATTRS: dict[str, object] = {
+    "min": -math.inf, "max": math.inf, "unit": None, "transform": "identity"}
+
+#: The bounds each transform enforces by construction: softplus and exp keep a
+#: value above zero, logit inside (0, 1), whatever ``min``/``max`` say.  So a
+#: transform is part of how its field's declared *range* is enforced, and it is
+#: inherited only together with every bound it enforces — softplus arriving
+#: under a caller's own ``min=-1`` would clamp their value to 1e-12 at the
+#: first decode (``params.transforms.to_internal``), silently.
+_TRANSFORM_ENFORCES: dict[str, tuple[str, ...]] = {
+    "identity": (), "softplus": ("min",), "exp": ("min",), "logit": ("min", "max")}
+
+
+def declared_fills(declared: Parameter, present) -> dict[str, object]:
+    """The attributes a ``Parameter`` inherits from its field's declared default.
+
+    ``present`` names the attributes the caller stated.  ``min``, ``max`` and
+    ``unit`` are inherited one by one wherever the caller left them out, the
+    rule PR #206 set for ``Atom`` (issue #204): an explicit bound always wins,
+    in either direction, and only a true omission inherits.  ``transform``
+    travels with the bounds it enforces (:data:`_TRANSFORM_ENFORCES`), never
+    alone.  **One rule, two readers**: construction (a key absent from the
+    caller's input) and the history reader's repair (an attribute holding the
+    bare value in a document written before its class inherited) ask the same
+    question with a different notion of absence, and neither restates it.
+    """
+    fills: dict[str, object] = {attr: getattr(declared, attr)
+                                for attr in ("min", "max", "unit")
+                                if attr not in present}
+    if ("transform" not in present
+            and all(b in fills for b in _TRANSFORM_ENFORCES[declared.transform])):
+        fills["transform"] = declared.transform
+    return fills
+
+
+class _InheritsDeclaredDefaults(Base):
+    """A schema whose ``Parameter`` fields declare a range: a caller's own
+    ``Parameter`` inherits what it left out.
+
+    A field declares its physical range, unit and transform in its
+    ``default_factory`` (``Atom.biso``: min 0, max 25, Å²; ``Phase.lor_size``:
+    min 0, degrees, softplus) rather than as a field constraint, so before
+    this the range applied only when the field was omitted entirely.  A caller
+    supplying ``Parameter(value=..., vary=...)`` — the natural way to set a
+    start or hold one — silently got ``(-inf, inf)``, no unit and ``identity``
+    instead (issue #204: a refined Biso of −165 Å² and an 81-point QPA error
+    at unchanged Rwp, invisible at the call site).  PR #206 closed it for
+    ``Atom``; WP-1321 audited every other class carrying such a field and
+    moved the validator here, so a class opts in by inheriting and a field
+    added later is covered without naming it.  The sort, field by field, is in
+    ``docs/wp/1321-persisted-bounds-repair.md``; every class
+    ``tests/test_schemas.py`` finds with a declared attribute inherits this or
+    is excluded there with a reason.
+
+    ``_declared_since`` is the :data:`SCHEMA_VERSION` from which the class
+    inherits.  Before it, an explicit bare attribute and an omission were the
+    same thing, so a stored bare attribute in a document written earlier is
+    read as an omission and repaired at read
+    (:func:`rietx.history.tree.repair_declared_defaults`); from it on, an
+    explicit ``min=-inf`` is a choice and wins.
+
+    **Filled before any ``Parameter`` exists for the field**, so nothing about
+    the caller's own object is read *or written*.  PR #206 first tried a
+    ``mode="after"`` validator: pydantic stores a passed-in ``Parameter`` by
+    reference, and ``Base``'s ``validate_assignment=True`` meant the
+    ``setattr`` that filled the gaps wrote to the caller's object and grew
+    *its own* ``model_fields_set`` — so one ``Parameter`` reused for two fields
+    leaked the first field's range into the second.  ``data`` is copied once
+    for the same reason (``model_validate`` may be handed the caller's dict).
+
+    **The replacement is a ``Parameter``, never the merged dict**:
+    ``validate_assignment=True`` re-runs this validator on every assignment to
+    an already-built model, with ``data`` built from its current field values,
+    so this branch fires for fields the assignment never touched; pydantic
+    does not re-validate those, so a dict placed here would reach the model as
+    a dict (measured on ``Atom`` after ``atom.aniso = AnisoU(...)``).
+
+    Detected with ``model_fields_set`` (for a raw dict, its keys) rather than
+    by comparing with the bare defaults, since an explicit ``min=-inf`` is
+    indistinguishable from an omission by value alone and must still win.
+    Anything but a ``Parameter`` or a dict — ``None``, a bare number — is left
+    to the field's own validation, so this only ever *adds* missing keys.  A
+    value outside the inherited range raises here, naming the field and the
+    two escapes, rather than as ``Parameter``'s anonymous bounds error.
+    """
+
+    _declared_since: ClassVar[str] = "0.35"
+    #: A class-specific way out, appended to the out-of-range refusal.
+    _declared_escape: ClassVar[str] = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _inherit_declared_bounds(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        for name, info in cls.model_fields.items():
+            if info.annotation is not Parameter or info.default_factory is None:
+                continue
+            if name not in data:
+                continue  # omitted: default_factory already carries the range
+            raw = data[name]
+            if isinstance(raw, Parameter):
+                present, base = raw.model_fields_set, raw.model_dump()
+            elif isinstance(raw, dict):
+                present, base = raw.keys(), raw
+            else:
+                continue  # not a shape that carries attribute presence
+            declared = info.default_factory()
+            fills = declared_fills(declared, set(present))
+            if not fills:
+                continue
+            try:
+                data[name] = Parameter(**{**base, **fills})
+            except ValueError as exc:
+                try:
+                    Parameter(**base)
+                except ValueError:
+                    raise exc from None  # broken without the fills too: not ours to name
+                value = base.get("value")
+                lo = fills.get("min", base.get("min", -math.inf))
+                hi = fills.get("max", base.get("max", math.inf))
+                raise ValueError(
+                    f"{cls.__name__}.{name}: value {value!r} lies outside bounds "
+                    f"[{lo}, {hi}], the range this field declares, which a "
+                    f"Parameter leaving min or max unset inherits (issue #204). "
+                    f"State the range you mean on the Parameter itself, e.g. "
+                    f"Parameter(value={value!r}, min=..., max=...)"
+                    + (f", or {cls._declared_escape}" if cls._declared_escape else "")
+                ) from exc
+        return data
 
 
 Fraction = Annotated[float, Field(ge=0.0, le=1.0)]

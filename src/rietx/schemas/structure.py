@@ -17,11 +17,11 @@ from __future__ import annotations
 import functools
 import math
 from collections.abc import Sequence
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from .common import Base, Parameter
+from .common import Base, Parameter, _InheritsDeclaredDefaults
 
 #: the lower bound below which ``params.transforms.internal_bounds`` treats a
 #: softplus parameter as *unbounded* below, which is what lets its physical
@@ -167,7 +167,7 @@ class Cell(Base):
                 self.alpha.value, self.beta.value, self.gamma.value)
 
 
-class AnisoU(Base):
+class AnisoU(_InheritsDeclaredDefaults):
     """Anisotropic displacement tensor in the CIF U^ij convention (Å²).
 
     The Debye-Waller factor is T(h) = exp(−2π² Σ_ij U^ij h_i h_j a*_i a*_j)
@@ -215,7 +215,7 @@ class AnisoU(Base):
         return cls.from_values(isotropic_u6(uiso, cell.lengths_angles()), vary=vary)
 
 
-class PreferredOrientation(Base):
+class PreferredOrientation(_InheritsDeclaredDefaults):
     """Single-axis March-Dollase preferred-orientation correction (Dollase 1986).
 
     Multiplies each reflection's intensity by the March factor averaged over
@@ -279,7 +279,7 @@ def _s() -> Parameter:
     return Parameter(value=0.0, unit="1e-12 A^-4")
 
 
-class StephensStrain(Base):
+class StephensStrain(_InheritsDeclaredDefaults):
     """Anisotropic strain broadening coefficients S_HKL (Stephens, 1999).
 
     The variance of M = 1/d² across the crystallites is a homogeneous quartic
@@ -360,7 +360,7 @@ class StephensStrain(Base):
 MOMENT_FLOOR_MU_B = 1e-3
 
 
-class Moment(Base):
+class Moment(_InheritsDeclaredDefaults):
     """A magnetic moment on a site, in crystal-axis components (μ_B).
 
     The components are the magCIF ``_atom_site_moment.crystalaxis_*``
@@ -426,7 +426,7 @@ class Moment(Base):
 MOMENT_COMPONENTS = ("crystalaxis_x", "crystalaxis_y", "crystalaxis_z")
 
 
-class Atom(Base):
+class Atom(_InheritsDeclaredDefaults):
     """One site in the asymmetric unit.
 
     Displacement is isotropic (``biso``) unless ``aniso`` is set, which is an
@@ -475,140 +475,23 @@ class Atom(Base):
     disorder_assembly: str | None = None
     disorder_group: str | None = None
 
-    @model_validator(mode="before")
-    @classmethod
-    def _inherit_declared_bounds(cls, data: object) -> object:
-        """Fill a caller-supplied Parameter's min/max/unit from the field's
-        own declared default, wherever the caller left that attribute unset —
-        **before** a ``Parameter`` is ever constructed for that field, so
-        nothing about the caller's own object is read *or written*.
-
-        ``occ``/``biso`` declare their physical range in a ``default_factory``
-        (min=0, max=1.5 for occ; min=0, max=25, unit="A^2" for biso) rather
-        than as a field constraint, so the range only ever applied when the
-        field was omitted entirely — a caller supplying their own
-        ``Parameter(value=..., vary=...)``, the natural way to set a starting
-        value or hold one, silently got ``(-inf, +inf)`` and no unit instead
-        (issue #204). Measured cost: a refined Biso of -165 A^2 and an
-        81-point QPA error at unchanged Rwp, invisible at the call site.
-
-        **The 25 A^2 ceiling is this package's own, and it is not common
-        practice** (WP-1311, measured 2026-09-18).  FullProf's hard limits are
-        opt-in, one user-supplied ``[LowLIMIT, HighLIMIT]`` line per parameter
-        (its manual's "Hard limits for parameters"), and TOPAS's bounding
-        constraints are declared per parameter in the input (Coelho, 2018);
-        neither ships a default ceiling on a displacement parameter.  It has
-        been here since v0.1 and the validator above is what made it bind a
-        caller's own ``Parameter``, so it is kept rather than widened.  A
-        specimen that genuinely runs hotter than 25 A^2 is served by supplying
-        the bound explicitly --- ``Atom(..., biso=Parameter(value=8.0,
-        vary=True, max=60.0))`` --- which wins over the declared one in either
-        direction, by the rule two paragraphs down.
-
-        Detected with ``model_fields_set`` (or, for a raw dict, its keys —
-        the same "was this key present" question one representation down)
-        rather than by comparing against ``Parameter``'s own bare defaults:
-        an *explicit* ``min=-inf`` is indistinguishable from an omission by
-        value alone, and must still win — an explicit bound always beats a
-        declared one, in either direction.
-
-        **A ``mode="after"`` validator was tried first and rejected.**
-        Pydantic stores a passed-in ``Parameter`` *by reference*
-        (``revalidate_instances="never"``), so ``getattr(self, name)`` in an
-        after-validator hands back the caller's own object, not a copy; and
-        ``Base``'s ``validate_assignment=True`` means the ``setattr`` that
-        filled the missing attributes both wrote to that object and added the
-        names to *its own* ``model_fields_set`` — the very signal the next
-        ``Atom`` built from the same object would consult. Reusing one
-        ``Parameter`` for two fields (a plausible pattern — "start both at
-        the field default") leaked the first field's bounds and unit into
-        the second, the same defect class as the one this validator exists to
-        close, reopened through a different door. Filling the *raw* input
-        before a ``Parameter`` object exists at all has no object to mutate:
-        the replacement is a brand-new ``Parameter``, built from a dict of
-        the caller's own values, never their instance. ``data`` itself is
-        copied once up front for the same reason — ``model_validate`` may be
-        handed the caller's own dict directly, unlike keyword construction
-        where Python already built a fresh one.
-
-        **Why the replacement is a ``Parameter``, not the merged dict
-        itself**: ``validate_assignment=True`` (``Base``) re-runs *this*
-        validator on every attribute assignment to an already-built
-        ``Atom`` — ``atom.aniso = ...`` included — not only on the field
-        being assigned, with ``data`` built from the model's current,
-        already-valid field values. So this branch can fire for ``occ`` on
-        an assignment that never touched it, wherever ``occ``'s own
-        ``model_fields_set`` legitimately never grew a ``unit`` key (it was
-        never given one because it never needed one — a bare ``Parameter``
-        has no unit already). Pydantic does not re-run core validation on a
-        field that is not itself the assignment target, so a bare ``dict``
-        placed in ``data`` there reaches ``self.occ`` as a ``dict``, not a
-        ``Parameter``, breaking every later ``.occ.value`` — measured via
-        ``ParameterTable`` construction after ``atom.aniso = AnisoU(...)``.
-        A real ``Parameter`` is a legal value however pydantic treats it.
-
-        Generalised over every ``Parameter`` field on this class carrying a
-        ``default_factory`` (today: ``occ`` and ``biso`` — not ``x``/``y``/
-        ``z``, which are required with no factory and default to (-inf, inf)
-        regardless, so they lose nothing), rather than naming the two fields,
-        so a field added later the same way is covered without touching this
-        validator. See ``test_every_bounds_carrying_atom_field_is_inherited``
-        in ``tests/test_schemas.py``, which fails if a new such field is
-        added and *not* covered by this loop.
-
-        Inherits rather than refuses a bound-less ``Parameter``: requiring
-        every caller to restate the physical range on every construction
-        would break existing ones (the recipe and CIF readers already pass
-        their own explicit bounds and are unaffected either way — checked
-        against this repo's own call sites before landing this). If the
-        caller's value falls outside the inherited bound,
-        ``Parameter._check_bounds`` still raises once the merged dict is
-        validated below — that is this fix doing its job, not a new refusal.
-
-        A field's raw value may be a ``Parameter`` instance, a plain
-        ``dict`` (the JSON-round-trip / ``model_validate`` shape), or absent
-        entirely (the field omitted, where the ``default_factory`` already
-        carries the declared bounds and there is nothing to fill). Anything
-        else — ``None``, a bare number, a wrong type — is left untouched and
-        falls through to whatever error normal field validation already
-        raises for it; this validator only ever *adds* missing keys, never
-        changes which construction is legal.
-        """
-        if not isinstance(data, dict):
-            return data
-        data = dict(data)
-        for name, info in cls.model_fields.items():
-            if info.annotation is not Parameter or info.default_factory is None:
-                continue
-            if name not in data:
-                continue  # omitted: default_factory already carries the bounds
-            raw = data[name]
-            if isinstance(raw, Parameter):
-                present = raw.model_fields_set
-                base = raw.model_dump()
-            elif isinstance(raw, dict):
-                present = raw.keys()
-                base = raw
-            else:
-                continue  # not a shape that carries min/max/unit presence
-            missing = {"min", "max", "unit"} - set(present)
-            if not missing:
-                continue
-            default = info.default_factory()
-            fills = {attr: getattr(default, attr) for attr in missing}
-            # A real Parameter, not the merged dict itself: validate_assignment
-            # re-runs this validator on every attribute assignment to the
-            # Atom (not only the field being assigned), with `data` built
-            # from the model's *current*, already-validated field values —
-            # so this branch also fires reassigning e.g. `atom.aniso = ...`
-            # on an Atom whose `occ` has always been fine (model_fields_set
-            # legitimately missing "unit", never given because it never
-            # needed giving). Pydantic does not re-run core validation on a
-            # field that is not itself being assigned, so a bare dict placed
-            # here would reach `self.occ` as a dict, not a Parameter — it
-            # must already be the right type.
-            data[name] = Parameter(**{**base, **fills})
-        return data
+    # A caller's own ``Parameter`` for ``occ``/``biso`` inherits the range and
+    # unit these factories declare wherever it left them out (issue #204, PR
+    # #206; the rule and its history are ``_InheritsDeclaredDefaults``').
+    #
+    # **The 25 A^2 ceiling is this package's own, and it is not common
+    # practice** (WP-1311, measured 2026-09-18).  FullProf's hard limits are
+    # opt-in, one user-supplied ``[LowLIMIT, HighLIMIT]`` line per parameter
+    # (its manual's "Hard limits for parameters"), and TOPAS's bounding
+    # constraints are declared per parameter in the input (Coelho, 2018);
+    # neither ships a default ceiling on a displacement parameter.  It has
+    # been here since v0.1 and the inheritance is what made it bind a
+    # caller's own ``Parameter``, so it is kept rather than widened.  A
+    # specimen that genuinely runs hotter than 25 A^2 is served by supplying
+    # the bound explicitly --- ``Atom(..., biso=Parameter(value=8.0,
+    # vary=True, max=60.0))`` --- which wins over the declared one in either
+    # direction.
+    _declared_since: ClassVar[str] = "0.17"
 
     @model_validator(mode="after")
     def _one_displacement_model(self) -> "Atom":
@@ -828,7 +711,7 @@ def refuse_moment_model_with_k(phase_name: str, present: Sequence[str]) -> None:
             "or drop the moment model to test the k")
 
 
-class Phase(Base):
+class Phase(_InheritsDeclaredDefaults):
     """A crystalline phase: symmetry, cell, atoms, scale, sample broadening."""
 
     name: str

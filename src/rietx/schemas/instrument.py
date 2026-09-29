@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from .common import Base, Parameter
+from .common import Base, Parameter, _InheritsDeclaredDefaults
 
 if TYPE_CHECKING:  # the blank a measured background is built from
     from .pattern import PatternData
@@ -55,7 +55,7 @@ def _as_wavelength(v):
     return v
 
 
-class EmissionLine(Base):
+class EmissionLine(_InheritsDeclaredDefaults):
     """One wavelength component of the incident spectrum.
 
     ``wavelength`` is in Å and **defaults to fixed**, because for a *single*
@@ -126,7 +126,7 @@ HARMONIC_WEIGHT_SEED = 0.01
 HARMONIC_WEIGHT_MAX = 0.5
 
 
-class Harmonic(Base):
+class Harmonic(_InheritsDeclaredDefaults):
     """An nth-order contribution at λ/n from a monochromator that passes order.
 
     Named for the mechanism rather than the symptom: it is the **nth-order
@@ -454,7 +454,7 @@ class Dispersion(Base):
         return self
 
 
-class Source(Base):
+class Source(_InheritsDeclaredDefaults):
     """Constant-wavelength X-ray source.
 
     ``polarization`` is the fraction K of the beam polarised *perpendicular*
@@ -526,7 +526,7 @@ class Source(Base):
         return self.lines[0].wavelength.value
 
 
-class RoughnessSuortti(Base):
+class RoughnessSuortti(_InheritsDeclaredDefaults):
     """Surface-roughness intensity correction, Suortti (1972) form.
 
         R(θ) = [a + (1 − a)·exp(−b/sinθ)] / [a + (1 − a)·exp(−b)]
@@ -594,7 +594,7 @@ class RoughnessSuortti(Base):
     )
 
 
-class RoughnessPitschke(Base):
+class RoughnessPitschke(_InheritsDeclaredDefaults):
     """Surface-roughness intensity correction, Pitschke *et al.* (1993) form.
 
         R(θ) = 1 − c·u·(1 − u),      u = τ/sinθ
@@ -645,7 +645,7 @@ class RoughnessPitschke(Base):
 SurfaceRoughness = RoughnessSuortti | RoughnessPitschke
 
 
-class Geometry(Base):
+class Geometry(_InheritsDeclaredDefaults):
     """Diffraction geometry.
 
     ``debye_scherrer``: spinning capillary (synchrotron or lab).  Two things
@@ -912,7 +912,7 @@ class Geometry(Base):
         return self
 
 
-class ProfileTCHZ(Base):
+class ProfileTCHZ(_InheritsDeclaredDefaults):
     """Thompson-Cox-Hastings pseudo-Voigt width parameters.
 
     Gaussian variance (in centidegrees², GSAS convention is *not* used —
@@ -937,6 +937,11 @@ class ProfileTCHZ(Base):
     U,V,W,X,Y widths, so switching shapes never touches the parameter table.
     """
 
+    #: WP-1312's escape for a coarser instrument, which a ``Parameter`` leaving
+    #: its bounds unset (it inherits :data:`TCHZ_BOUNDS`) is offered too.
+    _declared_escape: ClassVar[str] = (
+        "build ProfileTCHZ.coarse(...), every width in TCHZ_BOUNDS_COARSE")
+
     shape: Literal["tchz_pv", "voigt"] = "tchz_pv"
     u: Parameter = Field(default_factory=lambda: _tchz_width("u"))
     v: Parameter = Field(default_factory=lambda: _tchz_width("v"))
@@ -959,7 +964,10 @@ class ProfileTCHZ(Base):
         the box and the two escapes: :meth:`ProfileTCHZ.coarse`, which builds
         *all five* widths in :data:`TCHZ_BOUNDS_COARSE` from bare values, or
         an explicit ``Parameter(value, min, max)`` carrying the caller's own
-        bound.  A :class:`Parameter` or a dict passes through untouched.
+        bound.  A :class:`Parameter` or a dict passes through untouched *here*;
+        one leaving its bounds unset inherits the default box from
+        :class:`~rietx.schemas.common._InheritsDeclaredDefaults` (WP-1321), and
+        a value outside it is refused there, naming :meth:`coarse` the same way.
         """
         if not isinstance(data, dict):
             return data
@@ -1122,7 +1130,7 @@ class BackgroundPSpline(Base):
         )
 
 
-class BackgroundFixedPlusChebyshev(Base):
+class BackgroundFixedPlusChebyshev(_InheritsDeclaredDefaults):
     """A fixed curve (never subtracted; held additively) plus a small refinable
     Chebyshev correction on top, and a scale on the curve itself.
 
@@ -1351,7 +1359,7 @@ _SOFTPLUS_FLOOR = 1e-12
 _LEGACY_COMPONENT_FIELD = "background_peaks"
 
 
-class HumpComponent(Base):
+class HumpComponent(_InheritsDeclaredDefaults):
     """One explicit broad Gaussian added on top of whatever background is in use.
 
     A localised background feature — a diffuse/amorphous hump, an unmodelled
@@ -1505,7 +1513,7 @@ class HumpComponent(Base):
 
 
 
-class PeakComponent(Base):
+class PeakComponent(_InheritsDeclaredDefaults):
     """One declared sharp pseudo-Voigt peak the phases cannot account for.
 
     A sample holder reflecting at its own specimen distance, a mount, a window,
@@ -1758,7 +1766,7 @@ class PeakComponent(Base):
 ExtraComponent = HumpComponent | PeakComponent
 
 
-class Instrument(Base):
+class Instrument(_InheritsDeclaredDefaults):
     """Everything about the measurement except the sample.
 
     A declaration, not an output: the number an agent usually wants first is
