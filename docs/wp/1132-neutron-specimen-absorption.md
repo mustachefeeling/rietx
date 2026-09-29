@@ -1,7 +1,6 @@
 # WP-1132 — a neutron µR, from the table this package already ships
 
-Milestone: unscheduled · Status: ⬜ — **the maintainer is handling this one** (stated
-2026-08-24); this file is the specification, not a claim on the work
+Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #541)
 Track: The specimen is not an angle, and the neutron follow-through
 Depends on: the CW neutron source (PR #108, open) — `NeutronSource` and
 `crystallography/neutron.py` are both prerequisites and both land there
