@@ -87,7 +87,8 @@ class Project:
 
     def __init__(self, path: str | Path, doc: ProjectDoc, data: PatternData,
                  refinement: Refinement,
-                 data_diagnostics: list[Diagnostic] | None = None):
+                 data_diagnostics: list[Diagnostic] | None = None,
+                 history_diagnostics: list[Diagnostic] | None = None):
         self.path = Path(path)
         self.doc = doc
         self.data = data
@@ -101,6 +102,13 @@ class Project:
         #: under the fingerprint check, so changing one later fires the existing
         #: "a reader change, not a corrupt project" message.
         self.data_diagnostics: list[Diagnostic] = list(data_diagnostics or [])
+        #: what :meth:`RefinementTree.load` repaired on the last open of the
+        #: history log — today only ``HISTORY_BOUNDS_RESTORED``, a caller's own
+        #: ``Parameter`` a release before its class inherited left unbounded
+        #: (issue #204).  In memory only, for ``data_diagnostics``' reason: a
+        #: deterministic function of the log and this release, so storing it
+        #: would be a second authority.  Empty for a project this release made.
+        self.history_diagnostics: list[Diagnostic] = list(history_diagnostics or [])
 
     # ------------------------------------------------------------------
     # construction
@@ -265,7 +273,8 @@ class Project:
             raise FileNotFoundError(
                 f"{doc_path}: history log {doc.history_file} is missing; it holds "
                 "the model state (project.json holds only the settings)")
-        tree = RefinementTree.load(history_path)
+        history_notes: list[Diagnostic] = []
+        tree = RefinementTree.load(history_path, diagnostics=history_notes)
         if tree.header.data_fingerprint and tree.header.data_fingerprint != actual_fp:
             raise ValueError(
                 f"{history_path}: this history was recorded against a different "
@@ -276,7 +285,7 @@ class Project:
                 f"{history_path}: no node to resume from; the log has no records")
 
         ref = Refinement.from_node(tree, "head", backend=backend, solver=solver)
-        return cls(root, doc, data, ref, notes)
+        return cls(root, doc, data, ref, notes, history_notes)
 
     # ------------------------------------------------------------------
     # persistence

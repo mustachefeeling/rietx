@@ -178,12 +178,19 @@ Inherited for its flat-direction item.
 
 ## Tasks
 
-- [ ] Reader-side repair for persisted `occ`/`biso` wider than the declared
+- [x] Reader-side repair for persisted `occ`/`biso` wider than the declared
       default, emitting a new diagnostic code naming the atom and both
       bounds; the load path's diagnostics channel decided and, if new,
-      minimal.
-- [ ] Test: a document written before #206 loads repaired *and* reports; a
+      minimal. *2026-09-29: `RefinementTree.load(..., diagnostics=[])`, the
+      `read_pattern` channel's shape, surfaced as `Project.history_diagnostics`;
+      `HISTORY_BOUNDS_RESTORED`, one per parameter over every node; gated on
+      the header's `schema_version` against each class's `declared_since`
+      (the "wider" clause superseded, § Findings); every class, not only
+      `Atom`; a value outside raises naming the node.*
+- [x] Test: a document written before #206 loads repaired *and* reports; a
       document already within the declared bounds is untouched byte-for-byte.
+      *Six in `tests/test_project.py`, with the version gate both ways, an
+      unstamped header, a per-class version and the raise.*
 - [x] The audit: every bound-carrying `default_factory` field on `Phase`,
       `PreferredOrientation`, `Instrument` sorted into the two classes with
       the sorting recorded; inheritance extended where the bound is real;

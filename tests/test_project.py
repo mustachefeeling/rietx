@@ -289,6 +289,147 @@ def test_missing_history_log_is_refused(tmp_path, pattern_file):
         rx.Project.open(project.path)
 
 
+#: What ``model_dump_json`` wrote for a caller's ``Parameter(value=...)`` on a
+#: field that declared a range, before its class inherited it (issue #204).
+_BARE = {"min": "-Infinity", "max": "Infinity", "unit": None, "transform": "identity"}
+
+
+def _age_log(project: rx.Project, schema: str | None, edit=None) -> Path:
+    """Rewrite a project's log as a release at ``schema`` would have left it.
+
+    ``edit`` touches each node's state dict; ``schema=None`` drops the header's
+    stamp altogether.  The shape is the one issue #209 verified on the #206
+    tree: every key present, the bounds spelled as JSON strings.
+    """
+    log = project.path / project.doc.history_file
+    lines = []
+    for line in log.read_text(encoding="utf-8").splitlines():
+        rec = json.loads(line)
+        if rec["record"] == "header":
+            if schema is None:
+                rec["header"].pop("schema_version")
+            else:
+                rec["header"]["schema_version"] = schema
+        elif rec["record"] == "node" and edit is not None:
+            edit(rec["node"]["state"])
+        lines.append(json.dumps(rec))
+    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return log
+
+
+def _bare_biso(value: float | None = None):
+    def edit(state):
+        biso = state["structure"]["phases"][0]["atoms"][1]["biso"]
+        biso.update(_BARE)
+        if value is not None:
+            biso["value"] = value
+    return edit
+
+
+def test_a_log_written_before_206_opens_with_its_declared_bounds_back(
+        tmp_path, pattern_file):
+    """Issue #209's fixture: a pre-#206 document carrying an unbounded biso.
+
+    ``model_dump`` wrote the dropped bounds out explicitly, so on load the
+    keys are all present, construction inherits nothing, and the fit would run
+    unbounded again.  The reader restores the declared range and says so once
+    per parameter, naming the atom and both ranges; the value stays put.
+    """
+    project = _create(tmp_path / "s.rex", pattern_file)
+    project.refinement.set_values({"phases.0.atoms.1.biso": 0.7})   # a second node
+    _age_log(project, "0.16", _bare_biso())
+
+    reopened = rx.Project.open(project.path)
+    biso = reopened.refinement.structure.phases[0].atoms[1].biso
+    assert (biso.value, biso.min, biso.max, biso.unit) == (0.7, 0.0, 25.0, "A^2")
+    for node in reopened.history.nodes.values():
+        stored = node.state.structure.phases[0].atoms[1].biso
+        assert (stored.min, stored.max, stored.unit) == (0.0, 25.0, "A^2")
+
+    [note] = reopened.history_diagnostics
+    assert (note.code, note.level, note.where) == (
+        "HISTORY_BOUNDS_RESTORED", "warning", ["phases.0.atoms.1.biso"])
+    assert "(atom B)" in note.message
+    assert "[-inf, inf], no unit" in note.message
+    assert "[0.0, 25.0] A^2" in note.message
+    assert "in 2 nodes" in note.message and "schema 0.17" in note.message
+    assert reopened.data_diagnostics == []   # the pattern's channel stays the pattern's
+
+
+def test_a_log_within_its_declared_bounds_is_untouched_byte_for_byte(
+        tmp_path, pattern_file):
+    """The repair walks an old log and finds nothing: no note, and every node
+    re-serialises to the very line it was read from.  A log this release
+    wrote is not walked at all."""
+    project = _create(tmp_path / "s.rex", pattern_file)
+    project.refinement.set_values({"phases.0.scale": 1e-3})
+    for schema in ("0.16", rx.schemas.common.SCHEMA_VERSION):
+        log = _age_log(project, schema)
+        notes: list = []
+        tree = rx.RefinementTree.load(log, diagnostics=notes)
+        assert notes == []
+        lines = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+        nodes = [rec["node"] for rec in lines if rec["record"] == "node"]
+        assert len(nodes) == len(tree.order) == 2
+        for stored, nid in zip(nodes, tree.order):
+            assert json.loads(tree.nodes[nid].model_dump_json()) == stored
+
+
+def test_an_unbounded_biso_written_after_206_is_a_choice_and_kept(
+        tmp_path, pattern_file):
+    """From 0.17 on, an explicit ``min=-inf`` wins at construction, so a bare
+    attribute in a log written then was meant: no repair, no note."""
+    project = _create(tmp_path / "s.rex", pattern_file)
+    _age_log(project, "0.17", _bare_biso())
+    reopened = rx.Project.open(project.path)
+    biso = reopened.refinement.structure.phases[0].atoms[1].biso
+    assert (biso.min, biso.max, biso.unit) == (float("-inf"), float("inf"), None)
+    assert reopened.history_diagnostics == []
+
+
+def test_a_log_that_never_stamped_its_schema_reads_as_the_oldest(
+        tmp_path, pattern_file):
+    project = _create(tmp_path / "s.rex", pattern_file)
+    _age_log(project, None, _bare_biso())
+    notes: list = []
+    rx.RefinementTree.load(project.path / project.doc.history_file, diagnostics=notes)
+    assert [n.code for n in notes] == ["HISTORY_BOUNDS_RESTORED"]
+
+
+def test_each_class_is_repaired_from_its_own_version(tmp_path, pattern_file):
+    """``Phase`` inherited at 0.35, ``Atom`` at 0.17.  A log written at 0.34
+    with both left bare holds one defect and one choice: the scale gets its
+    softplus floor back, the biso is left as it was declared."""
+    project = _create(tmp_path / "s.rex", pattern_file)
+
+    def edit(state):
+        _bare_biso()(state)
+        state["structure"]["phases"][0]["scale"].update(_BARE)
+
+    _age_log(project, "0.34", edit)
+    reopened = rx.Project.open(project.path)
+    phase = reopened.refinement.structure.phases[0]
+    assert (phase.scale.min, phase.scale.transform) == (0.0, "softplus")
+    assert phase.atoms[1].biso.min == float("-inf")
+    [note] = reopened.history_diagnostics
+    assert note.where == ["phases.0.scale"] and "schema 0.35" in note.message
+
+
+def test_a_stored_value_outside_the_declared_range_refuses_to_open(
+        tmp_path, pattern_file):
+    """Bounds heal, values never move: the defect's -165 cannot be put back
+    under [0, 25], and it is not a measurement to keep, so the open raises
+    naming the log, the node, the atom and both ranges — exactly as a fresh
+    construction of that value would.  The raw reader still reads it."""
+    project = _create(tmp_path / "s.rex", pattern_file)
+    log = _age_log(project, "0.16", _bare_biso(-165.0))
+    with pytest.raises(ValueError, match=r"node n0000: phases\.0\.atoms\.1\.biso "
+                       r"\(atom B\) = -165\.0 .*\[0\.0, 25\.0\] A\^2"):
+        rx.Project.open(project.path)
+    nodes = [r.node for r in rx.history.read_records(log) if r.node is not None]
+    assert nodes[0].state.structure.phases[0].atoms[1].biso.value == -165.0
+
+
 def test_a_future_format_version_is_refused_by_name(tmp_path, pattern_file):
     project = _create(tmp_path / "s.rex", pattern_file)
     doc_path = project.path / PROJECT_JSON
