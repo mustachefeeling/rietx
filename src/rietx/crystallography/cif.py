@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import os
 import re
 from pathlib import Path
 
@@ -211,7 +212,7 @@ def _magnetic_content(text: str) -> bool:
     return bool(re.search(r"(?m)^\s*_space_group\.magn_", text))
 
 
-def structure_from_cif(path: str, *, phase_name: str | None = None,
+def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None = None,
                        aniso: bool = False,
                        moment_ions: dict[str, str] | None = None,
                        moment_g: dict[str, float] | None = None,
@@ -284,6 +285,9 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
     with no magnetic block ignores it
     (:func:`~rietx.crystallography.magcif.resolve_nuclear_symmetry`).
     """
+    # gemmi's readers take a str only, so a pathlib.Path is turned into one
+    # here, once, before any reader or message sees it.
+    path = os.fspath(path)
     if nuclear_group not in magcif.NUCLEAR_GROUP_CHOICES:
         raise ValueError(
             f"nuclear_group={nuclear_group!r}: expected one of "

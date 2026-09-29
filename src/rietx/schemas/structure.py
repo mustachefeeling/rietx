@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import functools
 import math
+import os
 from collections.abc import Sequence
 from typing import Literal
 
@@ -1262,7 +1263,7 @@ class Structure(Base):
     phases: list[Phase]
 
     @classmethod
-    def from_cif(cls, path: str, *, phase_name: str | None = None,
+    def from_cif(cls, path: str | os.PathLike[str], *, phase_name: str | None = None,
                  aniso: bool = False,
                  moment_ions: dict[str, str] | None = None,
                  moment_g: dict[str, float] | None = None,
