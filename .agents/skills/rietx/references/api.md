@@ -182,7 +182,7 @@ A refinement, a series, an indexing run and a suggestion each return their own t
 - `rx.Refinement.merge(other: str, *, prefer: str = 'theirs', label: str = '') -> str` — Three-way merge of another branch into the current state.
 - `rx.Refinement.cherry_pick(node_id: str, data: PatternData) -> RefinementResult` — Re-run another node's *stage action* on top of the current state.
 - `rx.replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementResult` — Recompute the curves and statistics of a recorded node.
-- `rx.Project(path: str | Path, doc: ProjectDoc, data: PatternData, refinement: Refinement, data_diagnostics: list[Diagnostic] | None = None)` — An openable, savable refinement session on disk.
+- `rx.Project(path: str | Path, doc: ProjectDoc, data: PatternData, refinement: Refinement, data_diagnostics: list[Diagnostic] | None = None, history_diagnostics: list[Diagnostic] | None = None)` — An openable, savable refinement session on disk.
 - `rx.Project.create(path: str | Path, *, pattern: str | Path, structure: Structure | None = None, instrument: Instrument, mode: Mode = 'rietveld', plan: Any = None, two_theta_limits: tuple[float, float] | None = None, excluded_regions: list[tuple[float, float]] | None = None, reader_options: dict[str, Any] | None = None, ui: dict[str, Any] | None = None, backend: str = 'numpy', solver: str = 'trf') -> Project` — Create a project directory around a pattern file and a model.
 - `rx.Project.open(path: str | Path, *, backend: str = 'numpy', solver: str = 'trf') -> Project` — Open an existing project, resuming at the history head.
 - `rx.Project.save()` — Rewrite `project.json`.
