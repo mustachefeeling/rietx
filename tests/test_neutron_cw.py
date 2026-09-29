@@ -9,6 +9,7 @@ an absent dispersion channel — rather than merely checking that a fit runs.
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -1003,3 +1004,76 @@ def test_the_resonant_refusal_reaches_a_real_refinement_result():
     hits = [d for d in result.diagnostics
             if d.code == "ABSORPTION_ESTIMATE_UNAVAILABLE"]
     assert len(hits) == 1 and "resonant neutron absorber" in hits[0].message
+
+
+# ------------------------------------ the Cr₂WO₆ HB-2A specimen (WP-1132) ---
+DATA = Path(__file__).parent / "data"
+
+
+def _cr2wo6_trirutile() -> rx.Structure:
+    """Cr₂WO₆ on the ideal trirutile start ``test_acceptance_magnetic`` uses
+    (P4₂/mnm, a = 4.58, c = 8.85 Å; W 2a, Cr 4e, O 4f + 8j: Cr₄W₂O₁₂ per
+    cell) — the tutorial's CIF is an ICSD entry and is not vendored."""
+    P = rx.Parameter
+
+    def atom(label, species, x, y, z):
+        return rx.Atom(label=label, species=species, x=P(value=x),
+                       y=P(value=y), z=P(value=z), biso=P(value=0.5))
+
+    return rx.Structure(phases=[rx.Phase(
+        name="Cr2WO6", space_group="P 42/m n m",
+        cell=rx.Cell(a=P(value=4.58), b=P(value=4.58), c=P(value=8.85),
+                     alpha=P(value=90.0), beta=P(value=90.0),
+                     gamma=P(value=90.0)),
+        atoms=[atom("W1", "W", 0.0, 0.0, 0.0),
+               atom("Cr1", "Cr", 0.0, 0.0, 1.0 / 3.0),
+               atom("O1", "O", 0.3, 0.3, 0.0),
+               atom("O2", "O", 0.3, 0.3, 1.0 / 3.0)])])
+
+
+#: **Assumed**, not measured: neither the vendored HB-2A files
+#: (``gsas2_hb2a_cr2wo6.prm``, ``gsas2_hb2a_cr2wo6_{4K,150K}.dat``) nor their
+#: provenance rows state a can or a sample radius, so this is a round number
+#: for a neutron powder can, and the packing is ``Geometry``'s default 0.6.
+CR2WO6_ASSUMED_RADIUS_MM = 3.0
+
+
+def test_the_cr2wo6_hb2a_estimate_matches_the_sears_table_by_hand():
+    """WP-1132 item 5, as far as the tree can take it honestly.
+
+    λ = 2.4067 Å is read from the vendored GSAS ``.prm`` (``ICONS``), so the
+    instrument half is the real diffractometer's; the radius is the
+    **assumption** above.  By hand, from ``b_Sears.dat`` (barn: σ_abs, σ_coh,
+    σ_inc — Cr 3.05, 1.66, 1.83; W 18.3, 2.97, 1.63; O 0.00019, 4.232,
+    0.0008), λ/1.798 = 1.3385428:
+
+        Cr  4 × (3.05 × 1.3385428 + 1.66 + 1.83)     =  30.290222
+        W   2 × (18.3 × 1.3385428 + 2.97 + 1.63)     =  58.190668
+        O  12 × (0.00019 × 1.3385428 + 4.232 + 0.0008) = 50.796652
+        Σ = 139.277542 barn,  V = 4.58² × 8.85 = 185.641140 Å³
+        µ  = 139.277542 / 185.641140 = 0.750251 cm⁻¹
+        µR = 0.6 × 0.750251 × 0.30 cm = 0.135045
+
+    What this does **not** do is validate µR against a measurement.  No
+    measured µR or radius is in the tree, and a fit cannot supply one: the
+    Rouse factor is exactly a reparameterisation of scale ⊗ Biso
+    (``model/absorption.py``), so Rwp on this pattern cannot move with µR.
+    The number's consequence is the ΔBiso it implies, ≈ 0.034 Å² here.
+    """
+    from rietx.model.absorption import equivalent_delta_biso
+    from rietx.refine import _resolve_specimen_absorption, estimate_mu_r
+
+    inst = rx.read_gsas_prm(DATA / "gsas2_hb2a_cr2wo6.prm")
+    assert inst.source.kind == "neutron_cw"
+    assert inst.source.primary_wavelength == pytest.approx(2.4067)
+    inst.geometry.capillary_radius_mm = CR2WO6_ASSUMED_RADIUS_MM
+
+    structure = _cr2wo6_trirutile()
+    mu_r = estimate_mu_r(structure, inst)
+    assert mu_r == pytest.approx(0.135045, abs=2e-6)
+
+    # the fit-time path writes the same number onto the geometry
+    source, reason = _resolve_specimen_absorption(structure, inst)
+    assert (source, reason) == ("estimated", None)
+    assert inst.geometry.mu_r == pytest.approx(mu_r, rel=1e-12)
+    assert equivalent_delta_biso(mu_r, 2.4067) == pytest.approx(0.0342, abs=5e-4)
