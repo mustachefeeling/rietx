@@ -1,8 +1,8 @@
 # WP-1312 — CW neutron follow-through: the seed, the resonant flag, the joint fit
 
-Milestone: unscheduled · Status: ⬜ — tasks 1-2 and the #268, #271, #276 and #437 rows landed from outside (PRs #280, #282, #427, #429, #452, #526); tasks 3-4 🔄 2026-09-29 — claimed by @mustachefeeling (PR #530)
+Milestone: unscheduled · Status: ⬜ — tasks 1-4 and the #268, #271, #276 and #437 rows landed from outside (PRs #280, #282, #427, #429, #452, #526, #530); left: a cited resonance energy per `RESONANT_ABSORBERS` member (task 2) and the #113 comment
 Track: The specimen is not an angle, and the neutron follow-through
-Depends on: — (WP-1132 is the maintainer's and does not gate any task here)
+Depends on: — (WP-1132, claimed by @mustachefeeling in PR #541, does not gate any task here)
 Priority: P2 2026-09-23 — a resonant absorber's b is mis-tabulated in silence, on a path few fits run
 
 ## Goal
@@ -191,11 +191,13 @@ exercising this combination.
       skill row~~ — landed from outside, PR #282 (`8c39a02c`). **Left: a
       cited resonance energy per member**, which that PR deliberately
       declined for want of a citation (2026-09-11 entry).
-- [ ] The mixed-fit acceptance/example (public dual dataset, provenance row)
+- [x] The mixed-fit acceptance/example (public dual dataset, provenance row)
       + the radiation-kind audit, any fix it forces landing as its own
       commit; obs/calc/diff PNGs for both histograms to `tests/output/`.
-- [ ] Manual: the joint-refinement section states what is shared, what is
-      per-histogram, and which corrections key on radiation kind.
+      Landed from outside as PR #530 (`406667ed`, 2026-09-29); see that
+      day's second entry.
+- [x] Manual: the joint-refinement section states what is shared, what is
+      per-histogram, and which corrections key on radiation kind. Same PR.
 
 ## Acceptance
 
@@ -225,6 +227,55 @@ issue #113 saying its (a) slice landed — #113 stays open for the fenced
 - Sears, V. F. (1992), *Neutron News* **3**(3), 26 — the shipped table.
 
 ## Handover log
+
+### 2026-09-29 (2nd session) — tasks 3 and 4 landed from outside; #194 closes
+
+A joint fit of an X-ray and a neutron histogram now has an audit that says
+which corrections key on each histogram's own radiation, and the manual says
+what such a fit shares. It arrived as the contributor's PR #530, reviewed over
+two rounds and merged as `406667ed` in a `/pr-review` run, closing #194. It was
+gated in one stack with #536, which shares no file with it.
+
+- *Done*:
+  - **The audit is a table keyed on the source kind.** It is
+    `RADIATION_KEYED` in `tests/test_joint_xray_neutron.py`, with five rows:
+    b against f₀(s), dispersion, polarisation K, the magnetic structure
+    factor, and the capillary µR estimate. Each row reads the joint fit's own
+    compiled models. A new member of `Instrument.source`'s union fails
+    `test_every_row_answers_for_every_source_kind` until every row answers for
+    it.
+  - **The fix the audit forced landed in its own commit.**
+    `MultiParameterTable.set_vary` and `seed_softplus` had returned a shared
+    path once per histogram, so `StageResult.freed` listed each shared column
+    twice. No number moved, because the vary flags were always right.
+  - **The weighting split.** One corundum structure against a synthetic
+    X-ray and a synthetic neutron pattern. Neutron sharpens x(O) (joint esd
+    ×0.66 of X-ray alone) and adds almost nothing on z(Al) (×0.955).
+  - **Task 4.** `using/series.md` § "Two radiations in one fit", and the
+    agent skill's `surprises.md` §8.30.
+  - **The real-data mixed fit was already here.** It is
+    `test_acceptance_wavelength.py::_joint` (Nd₂Ru₂O₇, 11-BM + BT-1, the
+    `mg090.*` files, with its PNGs). The PR adds no data.
+- *Review round 1* asked for one change. The pinned bars inherited
+  `Source.dispersion`'s default, so `_xray()` now declares `Dispersion()`
+  explicitly. The Linux x86_64 numbers now sit beside the macOS seed spread in
+  both docstrings, and `joint_al > 0.9` is the bar with the least margin,
+  about 0.05.
+- *Measured* (review, Linux x86_64, 4 cores, Python 3.12.3, `[dev,jax]`
+  bench venv, run as root, on `origin/main` `5ac3fc0` + #536 + #530): fast
+  6842 passed, 111 skipped. The fast run was on `a332029b`; #542 then moved
+  main by four markdown files, and the docs, skill and hook tests were re-run
+  on the rebuilt tree, 275 passed. `-m slow`: 229 passed, 14 skipped, and 1
+  failed, `test_held_phase.py`'s ramp runaway guard (137.9 s against 60 s;
+  it passes alone in 18.6 s; WP-1420's). `-W` build clean.
+- *Not done*: the diagnostics gap is only pinned, not wired.
+  `DISPERSION_NEGLECTED`, `NEUTRON_RESONANT_ABSORBER` and
+  `SPECIES_FALLBACK_NEUTRAL` are never raised on a joint fit. That wiring is
+  WP-1344's, and the manual section and §8.30 say so. `HistogramResult`
+  names no radiation (#252, WP-1341). No neutron µR is built: WP-1132, now
+  claimed by @mustachefeeling in #541.
+- *Next*: task 2's cited resonance energy per `RESONANT_ABSORBERS` member.
+  The comment on #113 saying its (a) slice landed is still unposted.
 
 ### 2026-09-29 — the #268 row landed from outside
 

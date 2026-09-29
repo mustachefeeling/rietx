@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: v1.6 · Status: 🔄 2026-09-25 — M-6 and M-7 landed (PR #389), and the #439 row (PR #449); M-8, M-9, the Part 1 chapter and the skill rows remain
+Milestone: v1.6 · Status: 🔄 2026-09-29 — M-6 and M-7 landed (PR #389), the #439 row (PR #449) and M-7's frame fix (PR #536); #455's class-count fixes are open (PRs #532, #535); M-8, M-9, the Part 1 chapter and the skill rows remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -493,3 +493,51 @@ no magnetic model declared.
     first: fast 6094 passed, 89 skipped; `test_magnetic_irreps.py` 46 passed;
     `-m slow` 197 passed, 7 skipped, 1 xfailed. This Mac still declines
     `P n -3 m:1` at (½, ½, ½), checked directly.
+- **2026-09-29** — M-7's frame fix landed from outside: PR #536
+  (`mustachefeeling`), merged as `291dee9e` in a `/pr-review` run, closing
+  #534. It was gated in one stack with #530, which shares no file with it.
+  - **What it fixes.** `isotropy.moment_cartesian` rebuilt the magnetic cell
+    from its six parameters through `operators.moment_to_cartesian`, which
+    puts the cell in the Cholesky frame. `reflections()` puts ĥ in the
+    lattice's own frame, q = A⁻¹h. The two frames agree only for an
+    axis-aligned cell, so on a rotated or left-handed k ≠ 0 child cell
+    M⊥ = M − (M·ĥ)ĥ was taken against the wrong ĥ. It now returns
+    `moments @ lattice`, Σ mᵢ**a**ᵢ in A's frame. That fixes every M-7
+    output on such a cell: intensities, M⊥ absences, `determinable_amplitudes`
+    and the classes. MnO type (`F m -3 m` 4a, k = (½,½,½), a cell rotated
+    140°) now gives two classes, {∥ [111]} and {in the (111) plane}, with the
+    [111] candidate absent at (½½½), as Shirane (1959) and Roth (1958) have
+    it. Before the fix it gave one class. The refinement path
+    (`scattering.magnetic_f2`) builds Q and the moment from the same cell
+    parameters and was never affected. A new test holds the two paths equal
+    reflection by reflection, on a rotated cell and on a left-handed one.
+  - **What it makes possible.** Class counts on rotated cells mean something
+    now. **Every count measured on one before `291dee9e` is unreliable**,
+    and that includes the cubic k-sweep counts and three of the six cases in
+    the #455 note under Inherited (`P m m a` (½,0,½), `P 4/n:1` (½,½,0) and
+    `P a -3` (½,½,½)). #534 reports that `P n -3 m:1` at (0,0,½) goes from 4
+    classes to 3 with the frame fixed. That number is not re-measured here.
+  - **What it does not do.** It leaves #455's seed and basis dependence
+    alone. That is #532, and #535 changes how the fit's residual is
+    evaluated. Both were measured before this fix and are still open. On
+    their PRs the author said they would re-measure on top of it.
+    `P b c m` (0.308, 0.114, 0.07) at (½,0,0) has a magnetic cell (b, c, 2a),
+    a proper rotation of the parent axes, and its per-shell intensities move
+    by up to 1.3× their maximum under this fix. It is one of #535's pinned
+    partitions, so that pin has to be re-checked on the new frame.
+  - **Gotchas the review found.** (1) A frame test on a standard-orientation
+    cell cannot see this class of defect. The old `moment_cartesian` pin
+    passed with the bug in place, and the new one rotates and rotoreflects
+    the lattice first. (2) `INTENSITY_RTOL` is declared as a tolerance on
+    |M⊥|², but `systematic_absences` applies it to |M⊥|. That predates this
+    PR and was not changed by it.
+  - **Measured on the merged tree** (Linux x86_64, 4 cores, py3.12.3,
+    `[dev,jax]`, run as root, `origin/main` `5ac3fc0` + #536 + #530): fast
+    6842 passed, 111 skipped. The fast run was on `a332029b`. #542 then
+    moved main by four markdown files, and the docs, skill and hook tests
+    were re-run on the rebuilt tree: 275 passed. `-m slow`: 229 passed, 14
+    skipped, and 1 failed, `test_held_phase`'s ramp runaway guard (137.9 s
+    against 60 s under load; it passes alone in 18.6 s; WP-1420's). The
+    eight isotropy-importing files, `-m slow`, gave 35 passed. The positive
+    arm reproduces the PR's table: with `main`'s `isotropy.py`, 6 of the 8
+    new cases fail and the two controls pass. `-W` build clean.
