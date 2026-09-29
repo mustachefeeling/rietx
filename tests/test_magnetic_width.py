@@ -1000,3 +1000,45 @@ def test_a_freed_width_with_no_esd_is_named_not_measured():
         if d.code == "MAGNETIC_WIDTH_UNMEASURED"]
     assert len(got) == 1 and got[0].value is None
     assert "not measured" in got[0].message
+
+
+def _no_esd_row(ph, v_edit=None):
+    model, _t, v = _state(ph, moving=["phases.0.magnetic_lor_size"])
+    if v_edit:
+        v = {**v, **v_edit}
+    got = [d for d in magnetic_width_findings(
+        model, v, esds={"phases.0.magnetic_lor_strain": 0.01},
+        free=["phases.0.magnetic_lor_size"])
+        if d.code == "MAGNETIC_WIDTH_UNMEASURED"]
+    assert len(got) == 1 and got[0].value is None
+    return got[0].message
+
+
+def test_the_no_esd_row_names_only_a_cause_it_has_checked():
+    """Two things drop a width's column as gradient-free and the message used
+    to assert one of them unchecked (review item 6).  Each arm is now built on
+    the evidence that separates it: a zero moment leaves the magnetic
+    component no intensity at **any** width, the floor is a value test, and
+    with neither true no cause is named."""
+    moments = [p for p in _state(_mnf2())[2] if ".moment.dof" in p]
+    at_zero = _no_esd_row(_mnf2(size=0.05), {p: 0.0 for p in moments})
+    assert "carries no intensity" in at_zero and "floor" not in at_zero
+
+    on_floor = _no_esd_row(_mnf2())                 # the width at exactly 0
+    assert "zero floor" in on_floor and "no intensity" not in on_floor
+
+    neither = _no_esd_row(_mnf2(size=0.05))
+    assert "zero floor" not in neither and "no intensity" not in neither
+    assert "not identified" in neither
+
+
+def test_a_fit_with_no_magnetic_component_pays_no_forward_evaluation():
+    """``_build_result`` calls the arm on every fit, so a non-magnetic model
+    must return before the residual is built (review item 7)."""
+    model, _t, v = _state(_mnf2(magnetic=False))
+
+    def _refuse(*_a, **_k):
+        raise AssertionError("evaluated a model with no magnetic component")
+
+    model.evaluate = _refuse
+    assert magnetic_width_findings(model, v, esds={"x": 1.0}) == []

@@ -366,6 +366,23 @@ def _sign_split(r: np.ndarray, tt: np.ndarray, rows, pos, fwhm,
     return c_sum, t_sum, c_n, t_n, used
 
 
+#: A magnetic width at or below this (deg 2θ) is on its softplus floor: the
+#: slope there is ≈ the value itself, so a column dropped as gradient-free
+#: with the value this small is the floor's doing and nothing else's.
+_MAGNETIC_WIDTH_FLOOR_DEG = 1e-12
+
+
+def _magnetic_intensity(model, ip: int, values) -> float:
+    """Σ p²⟨|F_⊥|²⟩ over phase ``ip``'s reflections — zero exactly when the
+    magnetic component has nothing for a width to broaden (WP-1343)."""
+    cp = model.phases[ip]
+    cell = tuple(values[f"phases.{ip}.cell.{k}"]
+                 for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+    d = np.asarray(cp.reflections.d, dtype=np.float64)
+    return float(np.sum(np.asarray(model._magnetic_f2(ip, d, values, cell),
+                                   dtype=np.float64)))
+
+
 def _width_support_findings(model, values, esds, free,
                             moved=()) -> list[Diagnostic]:
     """``MAGNETIC_WIDTH_UNMEASURED`` — the freed width the data cannot see.
@@ -421,23 +438,40 @@ def _width_support_findings(model, values, esds, free,
             esd = esds.get(path)
             if esd is None:
                 # freed, and back with no esd at all: the covariance dropped
-                # its column as gradient-free, which for a softplus term is
-                # the floor.  The honest statement is "not measured", and a
-                # reader holding only the value would read it as zero
+                # its column as gradient-free.  Two causes do that and they
+                # need different advice, so each is **checked** before it is
+                # named (WP-1118): the component the term broadens carrying no
+                # intensity (a zero moment zeroes the column at any width),
+                # and the softplus sitting on its floor.  Neither checked
+                # true, the message names no cause rather than guess one
+                if _magnetic_intensity(model, ip, values) <= 0.0:
+                    cause = ("the magnetic component carries no intensity "
+                             "here — every p^2|F_perp|^2 is zero, so the "
+                             "width broadens nothing at any value")
+                    advice = (f"report {path} as not measured; a width needs "
+                              f"a nonzero moment to broaden, so refine the "
+                              f"moment first (plan=\"magnetic_width\")")
+                elif val <= _MAGNETIC_WIDTH_FLOOR_DEG:
+                    cause = ("this softplus term sits on its zero floor, "
+                             "where its slope underflows")
+                    advice = (f"report {path} as not measured; hold it at "
+                              f"zero if the partner term carries the "
+                              f"broadening")
+                else:
+                    cause = ("the magnetic component carries intensity and "
+                             "the value is off its floor, so the data is "
+                             "flat in this direction for a reason this "
+                             "report has not identified")
+                    advice = f"report {path} as not measured"
                 out.append(Diagnostic(
                     level="info", code="MAGNETIC_WIDTH_UNMEASURED",
                     where=[path], value=None,
                     message=(
                         f"{path} was free and came back at {val:.3g} deg with "
                         f"**no esd**: its column carried no gradient at the "
-                        f"answer, which for this softplus term means it sits "
-                        f"on its zero floor. It is **not measured** — not "
-                        f"measured to be zero. The term enters the magnetic "
-                        f"component alone, so the data could not tell it "
-                        f"from the other width terms here"),
-                    suggestion=(
-                        f"report {path} as not measured; hold it at zero if "
-                        f"the partner term carries the broadening")))
+                        f"answer — {cause}. It is **not measured** — not "
+                        f"measured to be zero"),
+                    suggestion=advice))
                 continue
             if esd <= 0.0 or val >= MOMENT_SUPPORT_SIGMA * esd:
                 continue
@@ -526,6 +560,10 @@ def magnetic_width_findings(model, values, *, esds=None, free=(),
     """
     out: list[Diagnostic] = []
     if getattr(model, "phases", None) is None or getattr(model, "tt", None) is None:
+        return out
+    # every result build calls this, so a fit with no magnetic component must
+    # not pay the forward evaluation below for an arm with nothing to read
+    if not any(cp.magnetic is not None for cp in model.phases):
         return out
     out.extend(_width_support_findings(model, values, esds or {}, set(free),
                                        set(moved)))
