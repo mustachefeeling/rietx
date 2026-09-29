@@ -1,4 +1,4 @@
-# 8. Twenty-nine things that will surprise you, all measured
+# 8. Thirty things that will surprise you, all measured
 
 Load it when something the fit did makes no sense. Every entry is a measured result that contradicts an intuition.
 
@@ -496,3 +496,14 @@ the correct report. Judge the scale by **its own esd**, never by Rwp: the
 blank's esds enter the weight as σ² + s²·σ_f², so two fits declaring different
 scales are not scored on one statistic.
 (Measured: WP-1309.)
+
+**8.30 A joint X-ray + neutron fit keys every correction on its own histogram,
+and raises none of the radiation-keyed diagnostics.** f₀ with f′/f″ on the
+X-ray histogram, b on the neutron one, polarisation locked there and the
+magnetic term built there only: nothing to declare. But
+`DISPERSION_NEGLECTED`, `NEUTRON_RESONANT_ABSORBER` and
+`SPECIES_FALLBACK_NEUTRAL` come from `Refinement` alone, so a joint result
+without them is unchecked, not clean. Fit each pattern alone with one short
+stage and read them there. `HistogramResult` names no radiation;
+`MultiHistogramRefinement.fitted_instruments[h].source.kind` does.
+(Measured: WP-1312.)
