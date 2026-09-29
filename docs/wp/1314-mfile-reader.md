@@ -44,8 +44,13 @@ published Jana refinements. Weaker than the siblings', and the WP says so.
 **The refusal is the deliverable for Jana's speciality.** Modulated and
 composite structures are what Jana is *for*, and superspace groups are a
 schema rietx does not have — so an `.m50` declaring modulation is refused by
-name, exactly as the TOPAS reader refuses magnetic space groups. A user with
-such a file is told what they have, not handed a truncated model.
+name, exactly as the `.pcr` reader refuses a Fourier-component magnetic phase
+(WP-1328). A user with such a file is told what they have, not handed a
+truncated model. A *commensurate* magnetic phase is no longer on that list:
+WP-1327 gave the package a moment model, and the TOPAS and `.pcr` readers now
+read one into it (1328), so an `.m50` magnetic phase stated in its magnetic
+cell with an operator list is read the same way. An incommensurate one is
+modulation and stays refused.
 
 **The writer rides the reader's tables, later.** Issue #148 pairs each
 writer with its reader so both land against one spec table; Jana's writer is
@@ -187,7 +192,9 @@ flipping).
 
 - [ ] Spec tables for `.m50`/`.m40`/`.m41` from the Jana documentation
       (source files closed; `ATTRIBUTION.md` row), with the refusal list
-      (modulation, composites, magnetic) written first.
+      (modulation, composites, an incommensurate magnetic phase) written
+      first; a commensurate magnetic phase reads through 1327's model, as
+      the TOPAS and `.pcr` readers do (1328).
 - [ ] The reader: triplet → model + refine flags under the 1118 contract,
       every uncarried construct named in diagnostics.
 - [ ] Fixtures: Jana-distributed examples licence-checked per file, else

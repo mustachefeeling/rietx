@@ -307,6 +307,7 @@ trip would lose which form factor the refinement used. A refinement CIF also
 carries `_atom_site_moment.magnitude_su`, the esd of the modulus, which is
 where a moment's uncertainty lives.
 
+(a-magnetic-phase-from-a-topas-inp)=
 ### A magnetic phase from a TOPAS `.inp`
 
 A TOPAS `.inp` states a magnetic phase as `mag_space_group` on a `str`, with
@@ -343,6 +344,64 @@ coincide, all three match, which shows the comparison can tell them apart.
 The file that uses them typically restates the magnetic sites in a second
 `str`. Building that without the switch would count those sites' nuclear
 scattering twice, so it is refused by name rather than dropped.
+
+`rx.write_topas_inp` writes a magnetic phase back in the same form. The `str`
+states `mag_space_group` with the BNS number and no `space_group`, and each
+moment-bearing site states `mlx mly mlz`, the stored μ_B divided by the edge,
+plus `mg` where a Landé g is set. Read back, each component is within one ulp
+of the one written. On 180 random moments over an orthorhombic, a monoclinic and
+an oblique triclinic cell, most come back bit for bit. Whatever the `str`
+cannot state is refused by name:
+
+- a group in a setting other than its number's standard one, since TOPAS
+  generates the standard operators;
+- a nuclear group larger than the magnetic group's own family group, since
+  TOPAS would generate only part of each parent orbit;
+- a magnetic group on a phase with no moment;
+- a moment ion that differs from the site's species, since TOPAS takes both
+  from the one `occ`;
+- a propagation vector, either the parent k of a supercell or a phase's own.
+
+The group's symbol rides as a comment and is not read back.
+
+### A magnetic phase from a FullProf `.pcr`
+
+FullProf states a magnetic structure as a separate *pure magnetic* phase
+(`Jbt = 1`, or `-1` with the moment as (M, φ, θ)). The phase lists only the
+magnetic atoms and has its own `Scale`. FullProf's manual requires that phase's
+scale and structural parameters to be constrained to those of its
+crystallographic counterpart. So `to_structure` reads it as the moments of that
+counterpart, one `Jbt = 0` phase of the same file, and only when all of the
+following hold:
+
+- the magnetic phase is stated in the counterpart's own cell, with k = 0
+  (the magnetic cell, where the manual says the Fourier term *is* the
+  moment);
+- its symmetry is `Isy = -1` SYMM/MSYM pairs, each moment matrix
+  ±det(R)·R with phase 0, so each pair is a Shubnikov operation;
+- each magnetic atom sits on one of the counterpart's sites, with the same
+  Biso and the same number of images;
+- the two phases' `Scale × f²` agree, f being the `Occ` factor, because one
+  scale is all the built phase has.
+
+The moments are μ_B on unit vectors along the cell axes. That is magCIF's
+basis, so the numbers carry over as written. `FULLPROF_MAGNETIC_PHASE_READ`
+reports the merge.
+
+Every other magnetic phase is refused by name, with its reason:
+
+- the Fourier-component form, meaning a k other than 0, an imaginary part,
+  or a `MagPh` or MSYM phase;
+- basis functions of an irreducible representation (`Isy = -2`);
+- a moment matrix that is not an axial action;
+- a counterpart stated in a different cell, as when the nuclear phase is in
+  the chemical cell and the magnetic one in the supercell;
+- `Jbt = -1` on a cell that is not orthogonal, where the manual leaves the
+  in-plane frame of φ open.
+
+`rietx.io.projects.fullprof.magnetic_reading(model, phase)` returns that
+reason as a string, so you can ask before building. `nuclear_only=True` still
+omits every magnetic phase, and says so.
 
 ## Instrument profiles
 
@@ -629,10 +688,12 @@ anisotropic site is refused by the FullProf and GSAS writers, because
 `to_structure` refuses to assume a displacement-tensor convention on the way
 in and writing one out would assume the very thing the reader declines to
 read back. A magnetic phase, one carrying `magnetic_symmetry` or a site
-moment, is refused by name by all four writers, `write_gsas2_phase_cif`
-included, because none of their target programs would read the moments back
-(GSAS-II 5.6.3's CIF import, measured, drops the magCIF loops without a
-warning); `Structure.to_cif` writes the magCIF.
+moment, is written by `write_topas_inp` (see
+[](#a-magnetic-phase-from-a-topas-inp)) and refused by name by
+the other three writers, `write_gsas2_phase_cif` included, because none of
+their target programs would read the moments back (GSAS-II 5.6.3's CIF import,
+measured, drops the magCIF loops without a warning); `Structure.to_cif` writes
+the magCIF.
 
 A `.EXP` is the one target read by column rather than by token, and two
 things follow from that. A number is worth as many characters as its field
@@ -739,7 +800,7 @@ do.
 |---|---|
 | `FullProfModel.path`, `FullProfModel.title`, `FullProfModel.pcr_name` | the file, and the names it gives itself |
 | `FullProfModel.phases` | every phase, nuclear and magnetic |
-| `FullProfModel.nuclear_phases`, `FullProfModel.magnetic_phases` | the same, split; a magnetic phase reads but cannot build |
+| `FullProfModel.nuclear_phases`, `FullProfModel.magnetic_phases` | the same, split; a magnetic phase always reads, and builds only as the moments of the nuclear phase it restates |
 | `FullProfModel.chi2` | the converged figure, from the comments FullProf rewrites each cycle |
 | `FullProfModel.control` | the Job/Npr/Nph control line, field by field |
 | `FullProfModel.job` | which diffraction experiment the file declares |
