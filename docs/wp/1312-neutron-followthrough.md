@@ -1,6 +1,6 @@
 # WP-1312 — CW neutron follow-through: the seed, the resonant flag, the joint fit
 
-Milestone: unscheduled · Status: ⬜ — tasks 1-2 and the #271, #276 and #437 rows landed from outside (PRs #280, #282, #427, #429, #452); tasks 3-4 and the #268 row open
+Milestone: unscheduled · Status: ⬜ — tasks 1-2 and the #268, #271, #276 and #437 rows landed from outside (PRs #280, #282, #427, #429, #452, #526); tasks 3-4 open
 Track: The specimen is not an angle, and the neutron follow-through
 Depends on: — (WP-1132 is the maintainer's and does not gate any task here)
 Priority: P2 2026-09-23 — a resonant absorber's b is mis-tabulated in silence, on a path few fits run
@@ -225,6 +225,36 @@ issue #113 saying its (a) slice landed — #113 stays open for the fenced
 - Sears, V. F. (1992), *Neutron News* **3**(3), 26 — the shipped table.
 
 ## Handover log
+
+### 2026-09-29 — the #268 row landed from outside
+
+The manual no longer contradicts itself about whether a neutron scattering
+length can be complex. `intensities.md` now says what is true of the stored
+table, that every value in it is real. It then says that for the resonant
+absorbers b is complex and the table carries its real part, which is what
+the thermal-table bullet below it already said. A reader who looks up
+whether b can be complex gets one answer instead of two. It arrived as the
+contributor's PR #526, reviewed and merged as `677fbb13` in the
+`/pr-review all` run of 2026-09-29. It closed #268, and it is the manual
+half of task 2 as the 2026-09-15 triage placed it.
+
+- *Done*: one clause under the b = b_coh equation, #268's suggested text in
+  two sentences. It is prose only: no fenced constant, substitution or
+  *Source* line moves.
+- *Measured* (review, Linux x86_64, 4 cores, Python 3.12.3, `[dev,jax]`
+  bench venv, run as root, on the merged tree): `test_docs_consistency`,
+  `test_manual` and `test_manual_api` gave 63 passed. The `-W` Sphinx build
+  exits 0 and the built `intensities.html` carries the clause. `-m slow`
+  gave 226 passed, 15 skipped and 1 failed in 52:30. The one failure was
+  `test_held_phase.py`'s wall-clock runaway guard (138.3 s against 60 s on
+  a loaded 4-core box). It failed on the base tree too and passes alone in
+  18.85 s.
+- *Not done*: the triage note's suggestion to point the clause at
+  `NEUTRON_RESONANT_ABSORBER`. The manual names that code nowhere, and the
+  PR followed the issue's text. Optional. Task 2's other half, a cited
+  resonance energy per member, is unchanged.
+- *Next*: tasks 3 and 4, the mixed-fit acceptance and the joint-refinement
+  manual section, both still unclaimed.
 
 ### 2026-09-24 — the #437 row landed from outside; a type-3 PNCR `.prm` reads
 
