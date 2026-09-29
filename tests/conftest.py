@@ -193,7 +193,9 @@ def cr2wo6_nuclear():
     the same six stages: WP-1327's moment acceptance
     (``test_acceptance_magnetic``), which seeds its moment fits from them, and
     WP-1326's satellite arm (``test_satellites_acceptance``), which reads
-    ``report().satellites`` off them.  The 4 K fit starts from the 150 K one.
+    ``report().satellites`` off them.  WP-1418's ``solve_magnetic`` acceptance
+    (``test_magnetic_solve_acceptance``) solves both.  The 4 K fit starts from
+    the 150 K one.
 
     Both ``ref`` objects are live (``report()`` works); do not ``fit()`` them
     again, and copy a model before editing it.
