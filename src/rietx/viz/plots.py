@@ -996,16 +996,25 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     for ax, name in zip(axes[:, 0], paths, strict=True):
         traj = series.resolve_trajectory(name)
         x, value, sd = traj.arrays()
-        ax.errorbar(x, value, yerr=np.where(np.isfinite(sd), sd, 0.0),
-                    fmt="o-", ms=4, lw=1.0, capsize=2, color="#1f5fa8")
+        yerr = np.where(np.isfinite(sd), sd, 0.0)
         # A magnetic trajectory carries a per-point verdict, and the whole
         # point of WP-1329 is that a held point must not look like a small
         # measured moment: it is drawn hollow, with no bar (``stderr`` is
         # already ``None`` there, so ``arrays()`` handed us NaN), and the onset
-        # bracket is shaded between the two patterns that straddle it.  Guarded
-        # on the attribute rather than on the type so an ordinary Trajectory
-        # takes exactly the path it took before.
+        # bracket is shaded between the two patterns that straddle it.  The
+        # line runs through every point, while the filled marker is drawn only
+        # where the verdict is "supported" — otherwise the hollow square sits
+        # over a filled measurement mark.  Guarded on the attribute rather than
+        # on the type so an ordinary Trajectory takes exactly the path it took
+        # before.
         supported = getattr(traj, "supported", None)
+        if supported:
+            ax.plot(x, value, "-", lw=1.0, color="#1f5fa8")
+            ax.errorbar(x, np.where(supported, value, np.nan), yerr=yerr,
+                        fmt="o", ms=4, capsize=2, color="#1f5fa8")
+        else:
+            ax.errorbar(x, value, yerr=yerr,
+                        fmt="o-", ms=4, lw=1.0, capsize=2, color="#1f5fa8")
         if supported:
             measured = getattr(traj, "measured", None) or [True] * len(supported)
             held_ix = [i for i, ok in enumerate(supported)

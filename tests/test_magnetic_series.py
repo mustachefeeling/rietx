@@ -522,6 +522,16 @@ def test_the_trajectory_plots_and_marks_the_held_points():
     # the hollow-square series and the shaded onset bracket are both drawn
     assert any(line.get_marker() == "s" for line in ax.lines)
     assert (OUT / "wp1329_trajectory.png").exists()
+    # and no filled measurement marker sits under a held point's square: the
+    # filled circles are drawn at the supported points and nowhere else
+    filled = [(float(px), float(py)) for line in ax.lines
+              if line.get_marker() == "o" and line.get_markerfacecolor() != "none"
+              for px, py in zip(line.get_xdata(), line.get_ydata(), strict=True)
+              if np.isfinite(py)]
+    assert sorted(filled) == [(15.0, 4.6), (35.0, 3.9), (55.0, 2.7)]
+    # while the line still runs through every point, held ones included
+    assert any(line.get_marker() in ("None", "", None) and len(line.get_xdata()) == 5
+               for line in ax.lines)
 
 
 # ============================================== the carry rule, on its mechanics
