@@ -321,7 +321,8 @@ round-robin chain contradicts.
 
   *Done.* All six tasks, in commits `cdaac9e` (gaps 1-3, one commit since
   each needs the others), `dc6c673` (#475, the skill/manual text, the hostile
-  acceptance accounting), `b0c2a64` (a missed schema-version pin). Decisions
+  acceptance accounting), `b0c2a64` (a missed schema-version pin), and
+  `2bd6433` (the review below). Decisions
   and their measurements are in *Decisions taken (2026-09-29)* above. The
   `### Inherited` entry from WP-1465 was consumed there (item 4, declined
   with a measurement) and the section deleted. Release notes staged in
@@ -338,7 +339,7 @@ round-robin chain contradicts.
     here plus one new case of `test_schemas.py::test_every_base_subclass_survives_the_new_getattr`
     (`[SeriesStep]`), found by diffing the two trees' per-file collection
     counts. No new skip.
-  - Added tests, one run's junit (`tests.added_test_times`): 1.30 s over the
+  - Added tests, one run's junit (`tests.added_test_times`), before the review: 1.30 s over the
     seven, the largest 1.21 s (`test_a_pattern_every_rung_left_above_the_fence_says_so`),
     far from the fast tier's tail. One slow test added
     (`test_a_blank_frame_no_longer_reads_as_a_point_or_hides_a_step`, #481's
@@ -351,6 +352,23 @@ round-robin chain contradicts.
     60 s runaway guard that read 112 s while I ran a second selection beside
     it and 17 s alone: a load sensor at 3.5× headroom, not this change. The
     hostile round-robin acceptance (8 cases) passed after its edit.
+  - After the review (two more fast tests, so +10 against `bbe553b`'s
+    6915 expected), the touched files re-ran rather than the whole fast
+    suite: `test_sequential.py`, `test_series_error_policy.py`, the skill,
+    docs-consistency and manual suites, slow included, 342 passed.
+
+  *Review* (`/code-review high --fix`, seven findings). Fixed five in
+  `2bd6433`: the scan's `argmax(step * big)` let a rejected pattern's NaN
+  value take the flag (NaN × False is NaN), now `where(big, step, -inf)`;
+  `SEQUENTIAL_RESEED` still called a *diverged* cold rung a good fit; the
+  outlier message claimed every start was tried when `reseed=False` or a
+  cancel stopped the ladder short of its cold rung; its ratio printed `1.0×`
+  just over the fence (now two decimals); a zero fence would have divided by
+  zero (now `value=None`). Declined two: the GUI's series panel has no
+  outlier mark (a payload, Svelte, vitest and dist change, see *Gotchas*),
+  and a pattern with **no entry** (a `SeriesFailure`) is still bridged by the
+  step scan, which predates this WP and was not asked of it. The second is
+  the same false-flag shape measured here, and no open WP owns it.
 
   *Gotchas.* `api.md` sat at 38 993 of 39 000 B; the new `SeriesResult`
   field took it to 39 078, paid for by two trims of the index's own authored
