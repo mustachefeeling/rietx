@@ -850,11 +850,14 @@ def test_a_control_line_of_the_wrong_width_is_refused(tmp_path):
         read_fullprof_pcr(pcr)
 
 
-@pytest.mark.parametrize("jbt", [2, 10, -1, -3])
+@pytest.mark.parametrize("jbt", [2, 10, -3])
 def test_an_unknown_jbt_is_refused_naming_it(tmp_path, jbt):
-    """Only ``Jbt`` 0 (nuclear) and 1 (magnetic) are evidenced. The others select
+    """Only ``Jbt`` 0 (nuclear) and ±1 (magnetic) are read. The others select
     Le Bail intensity extraction, a combined nuclear+magnetic phase or a
-    form-factor phase, each of which changes the *atom block's* own layout."""
+    form-factor phase, each of which changes the *atom block's* own layout.
+    ``Jbt = -1`` left this list with WP-1328: the manual states its atom block
+    is Jbt = 1's with the moment as (M, phi, theta), same positions
+    (``test_projects_fullprof_magnetic``)."""
     pcr = _pcr(tmp_path, "jbt.pcr", _phase(jbt=jbt))
     with pytest.raises(FullProfPcrError, match=f"Jbt = {jbt}"):
         read_fullprof_pcr(pcr)
