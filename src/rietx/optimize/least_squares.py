@@ -578,9 +578,10 @@ def _po_column(model: CompiledModel, bases: DerivativeBases,
     # is applied to **both** components identically (``phase_peaks``), so
     # ∂intensity/∂r is P's derivative times each component's own base.  The
     # analytic branch therefore covers only the split-free case, where
-    # ``components`` has one entry; a magnetic phase with texture falls to the
-    # whole-model FD column (declared in ``_make_jacobian``'s dispatch), which
-    # is exact because it decodes through C like the residual.
+    # ``components`` has one entry; a split phase with texture falls through
+    # ``_make_jacobian``'s dispatch to ``_peak_chain_column``, which
+    # ``scalar_chain_supported`` claims for every ``phases.*`` path and which
+    # finite-differences ``phase_peaks`` over every drawn component.
     pp = bases.planes[ip]
     coef = np.where(pp.finite, _gather_per_line(pp.layout, dint), 0.0)
     terms = [(coef, pp.omega)] if np.any(coef != 0.0) else []
