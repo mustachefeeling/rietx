@@ -133,7 +133,7 @@ WP-1508 (the tier's reach); WP-1518 (the test being batched).
   the groups are provably the ones it built before. A once-a-process probe
   switches the stack on only where every stacked χ² equals the pair's own, bit
   for bit. On Linux x86-64 all 573 605 real tests of corundum's tetragonal unit
-  came back identical, that unit's dedup fell from ~29 s to ~6.5 s alone, and
+  came back identical, that unit's dedup fell from ~29 s to ~7 s alone, and
   every replayed unit's digest held. The replay harness three WPs had rebuilt
   in scratch is now committed. On the tree before WP-1518 it reproduces all
   six of 1509's digests, which is the check that it measures what they
@@ -142,9 +142,10 @@ WP-1508 (the tier's reach); WP-1518 (the test being batched).
 
   *Done.* `reduce.equal_reduced_many` (Δ, Σ and the final product per pair
   exactly as `equal_reduced`, only `pinv` over the stack) and
-  `reduce.stacked_pinv_exact`. The probe runs 8 stacks of 1-129 sums of two
-  rank-1-6 covariances, whose near-zero eigenvalues sit at `pinv`'s cutoff;
-  15.6 ms, True here. `engines._dedup_groups`: where the probe says yes, the
+  `reduce.stacked_pinv_exact`. The probe runs 11 stacks of 1-1024 (the walk's
+  own sizes among them) of sums of two rank-1-6 covariances, whose near-zero
+  eigenvalues sit at `pinv`'s cutoff, and stops at a first mismatch; ~95 ms
+  cold, once a process, True here. `engines._dedup_groups`: where the probe says yes, the
   walk fills its verdict cache from the group it is at (`_ask_stacked`,
   stacks of `DEDUP_STACK_FIRST` = 16, then ×4), reads it back in creation
   order and stops at the first match as before. A group without a covariance
@@ -176,8 +177,10 @@ WP-1508 (the tier's reach); WP-1518 (the test being batched).
     Corundum's svd and trial_error units, four systems each, identical to
     `main`'s. The consensus pool (308 → 296 groups) digests `c3dd2095` on
     both trees.
-  - Tetragonal unit alone, `main` then final, twice interleaved: wall 160.5,
-    164.6 → 141.1, 140.1 s; dedup 28.7, 29.2 → 6.55, 6.51 s. χ² tests
+  - Tetragonal unit alone, `main` then final, interleaved, four runs each
+    side over two sittings (the second after the review's fixes, `main`'s
+    runner then confirmed at one BLAS thread): wall 160.5-164.6 →
+    140.1-142.8 s; dedup 28.4-29.7 → 6.51-7.38 s. χ² tests
     573 605 → 575 112, so 1 507 (0.26 %) are asked past a first match and
     wasted. The consensus pool's dedup is 0.05-0.07 s either way (687 → 1 147
     tests). Engines hand it their ranked output, not the raw harvest.
@@ -189,7 +192,8 @@ WP-1508 (the tier's reach); WP-1518 (the test being batched).
     differ). `pinv` alone 24.7 → 2.4 s.
   - Acceptance (`tests/test_acceptance_indexing.py`, final tree, alone): 44
     passed in 18:02. Engines + consensus + harness files: 123 passed.
-  - Fast selection, final tree: 6703 passed, 163 skipped, 1 failed (6867).
+  - Fast selection, before the review's fixes: 6703 passed, 163 skipped, 1
+    failed (6867).
     The failure is `test_telemetry`'s unwritable-directory case, which
     `chmod`s a directory 0o500. This container runs as root, and root writes
     anyway. The diff touches no telemetry. +3 tests, all passing. There is no
@@ -217,6 +221,16 @@ WP-1508 (the tier's reach); WP-1518 (the test being batched).
   - Inherited pruned on arrival: both of 1518's entries still held (reduced-
     frame covariances; a digest belongs to a platform) and went into Context.
   - Skill: none, no call an agent makes changed.
+  - `/code-review high --fix` found 10, fixed 9 (one commit). The probe now
+    covers the walk's stack sizes (16, 256, 1024) and stops at a first
+    mismatch. An empty batch answers `[]`. The walk passes an `islice`, not a
+    copy of the band. The harness sets its BLAS threads only when run (a test
+    importing it no longer leaks one thread into a worker's subprocesses). It
+    counts a stack once answered and pools engines in registry order. The cap
+    raise has its rationale, and a duplicate import went. Declined: folding
+    the nightly's probe line (now in three legs) into one place, which needs
+    a YAML anchor or a shared script, a CI restructure beyond this diff.
+    Every digest re-held on the post-review code.
 
   *Next.* (1) After merge, read the first nightly's "Record the environment"
   step on the macOS and Windows legs (and Linux `full`): the line
@@ -224,7 +238,7 @@ WP-1508 (the tier's reach); WP-1518 (the test being batched).
   task 2 and close ✅, whatever they say. A False means that platform runs the
   per-pair path, slower but never different, which is the design working. A
   new WP only if that platform's dedup time matters to someone. (3) The
-  exact prefilter in Context stays unbuilt: the 6.5 s left is ~5 % of the
-  unit.
+  exact prefilter in Context stays unbuilt: the 6.5-7.4 s left is ~5 % of
+  the unit.
 - **2026-09-28** — filed from WP-1509's *Fenced* and *Next* (item 3), with
   the platform check its handover left for the nightly logs.

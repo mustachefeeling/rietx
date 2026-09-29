@@ -1404,10 +1404,10 @@ def dedup_groups(cands: Sequence[EngineCandidate],
       and the gate itself is still the one that decides, in creation order; a
       group of infinite volume, which the gate never refuses, is always asked.
     * *A harvest of distinct lattices still asks every band group, so the
-      tests are stacked.*  That unit still spent 43 s on 573 605 χ² tests, a
+      tests are stacked.*  That unit still spent ~29 s on 573 605 χ² tests, a
       6×6 ``pinv`` each.  One ``pinv`` over a stack of a candidate's Σ
-      (``_ask_stacked``) costs a tenth of that, and fills the verdict cache
-      the walk then reads.  Only where ``reduce.stacked_pinv_exact`` measures
+      (``_ask_stacked``) costs a tenth of theirs, fills the verdict cache the
+      walk then reads, and leaves the pass at ~7 s.  Only where ``reduce.stacked_pinv_exact`` measures
       every stacked χ² equal to the pair's own, bit for bit; elsewhere the
       pass asks one pair at a time, as before.
     """
