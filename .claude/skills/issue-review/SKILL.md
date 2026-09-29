@@ -110,7 +110,14 @@ a file and held for the batch.
 
 - **Landed** → close, with a one-line comment naming the PR or commit.
   Batch.
-- **New WP** where the work has a shape of its own: `docs/wp/TEMPLATE.md`
+- **Fold**, checked before filing: into the open WP (⬜ or 🔄) that owns
+  the work (`docs/wp/TEMPLATE.md`'s fold-first rule), as a dated entry in its
+  `### Inherited`, the section other sessions write for the one that will
+  work it, with the check-against-the-tree line. A fold that moves the
+  WP's rubric row (a second reporter, a number now shown wrong) re-rates its
+  `Priority:` line in the same edit, and the index is regenerated. Never into a closed WP: a
+  defect a ✅ WP's fix did not cover is a new WP or a landed close.
+- **New WP** only where no open WP owns the work: `docs/wp/TEMPLATE.md`
   whole, `Milestone: unscheduled`, a `Priority:` line rated by the
   template's rubric (the test refuses a ⬜ WP without one), a `Track:` line
   naming the `####` of ROADMAP § Unscheduled it belongs under, the Skill task
@@ -118,16 +125,10 @@ a file and held for the batch.
   writes its row into `docs/wp/README.md`; ROADMAP changes only when the WP
   needs a new track or a sentence of prose (WP-1507). The bullet:
   `created, from the YYYY-MM-DD issue triage (issue #N). Checked against the
-  tree at <sha>: …`. **Pick the number in the same breath as the file**:
-  `git fetch origin main && git ls-tree --name-only origin/main docs/wp/ | tail -3`.
+  tree at <sha>: …; no open WP owns it: …`. **Pick the number in the same
+  breath as the file**: `git fetch origin main && git ls-tree --name-only origin/main docs/wp/ | tail -3`.
   A number is claimed by nothing, two sessions took 1436 on 2026-09-17, and
   a round filing several takes consecutive numbers, so re-check before each.
-- **Fold** into an open WP (⬜ or 🔄) as a dated entry in its
-  `### Inherited`, the section other sessions write for the one that will
-  work it, with the check-against-the-tree line. A fold that moves the
-  WP's rubric row (a second reporter, a number now shown wrong) re-rates its
-  `Priority:` line in the same edit, and the index is regenerated. Never into a closed WP: a
-  defect a ✅ WP's fix did not cover is a new WP or a landed close.
 - **Fence**: a `v2+` proposal is named by issue in ROADMAP § v2+, so the
   audit sees it, and the reporter is told. Batch.
 - **Comment**, for a question answered, a proposal answered (CONTRIBUTING

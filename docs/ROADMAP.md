@@ -28,9 +28,9 @@ so a session loads only what it needs:
 
 1. **Start** from "Current focus" below and the In flight and Next lists at
    the top of [the WP index](wp/README.md), or from the WP the user names.
-   Read that one WP file — self-contained on top of CLAUDE.md. Open DESIGN.md only at
-   sections the WP links; do not read other WP files. `/wp-start` encodes
-   this.
+   Read that one WP file — self-contained on top of CLAUDE.md. Open DESIGN.md
+   only at sections the WP links; do not read other WP files, except to find
+   an owner before filing one (`wp/TEMPLATE.md`). `/wp-start` encodes this.
    **On arrival at a WP, prune its `### Inherited` first**: fold still-true
    entries into Context or Tasks, delete stale ones (say why in your handover
    entry). The section is a mailbox, emptied on every visit and deleted —
