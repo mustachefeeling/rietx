@@ -330,7 +330,18 @@ from .._nearmiss import did_you_mean
 #: an outlier or a flagged step, so an empty default would claim what nobody
 #: checked.  Opened, it reports neither code's new half, which is true — no
 #: fence recorded one.
-SCHEMA_VERSION = "0.36"
+#: 0.36 → 0.37 (WP-1343): ``Phase.magnetic_lor_size`` and
+#: ``Phase.magnetic_lor_strain``, the magnetic component's own extra
+#: Lorentzian size (1/cosθ) and strain (tanθ) broadening in deg 2θ
+#: (``min = 0.0``, softplus, default 0.0, refused non-zero or free on a phase
+#: with no ``magnetic_symmetry``).  Both are exactly off at that default, so
+#: every document written before loads unchanged and no fit's number moves;
+#: what a consumer notices is two new keys in every serialized phase, two new
+#: parameter paths on a phase that declares a magnetic structure, and the
+#: reflection table's new ``component`` column.  WP-1469 took 0.36 first; a
+#: sibling PR (WP-1329) also claims 0.37, and whichever of the two lands
+#: second takes 0.38.
+SCHEMA_VERSION = "0.37"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

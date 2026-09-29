@@ -1036,6 +1036,18 @@ class ParameterTable:
                       force_fixed=phase.microstrain is not None)
             self._add(f"{base}.gauss_size", phase.gauss_size)
             self._add(f"{base}.gauss_strain", phase.gauss_strain)
+            # **The magnetic pair exists only on a phase that has a magnetic
+            # component to broaden** (WP-1343).  Registering them on every
+            # phase would put two rows in every table in the package for a
+            # term whose forward model is `None` there — the declared-name
+            # trap — so a phase with no ``magnetic_symmetry`` carries neither
+            # path at all and no stage can free what it does not have.  The
+            # schema refuses a non-zero *value* there for the same reason,
+            # which is the half a table cannot state.
+            if phase.magnetic_symmetry is not None:
+                self._add(f"{base}.magnetic_lor_size", phase.magnetic_lor_size)
+                self._add(f"{base}.magnetic_lor_strain",
+                          phase.magnetic_lor_strain)
             self._collect_microstrain(base, sg, phase)
             for j, atom in enumerate(phase.atoms):
                 self._collect_atom_coords(f"{base}.atoms.{j}", sg, atom)
@@ -2561,6 +2573,9 @@ class ParameterTable:
             put(phase.lor_strain, f"{base}.lor_strain")
             put(phase.gauss_size, f"{base}.gauss_size")
             put(phase.gauss_strain, f"{base}.gauss_strain")
+            if phase.magnetic_symmetry is not None:
+                put(phase.magnetic_lor_size, f"{base}.magnetic_lor_size")
+                put(phase.magnetic_lor_strain, f"{base}.magnetic_lor_strain")
             if phase.microstrain is not None:
                 for name in S_NAMES:
                     put(getattr(phase.microstrain, name), f"{base}.microstrain.{name}")
