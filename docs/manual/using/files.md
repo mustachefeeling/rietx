@@ -86,8 +86,109 @@ withholds σ and says so with `PATTERN_INTENSITY_SCALED`, because the Poisson
 fallback is wrong by √t on a rate.
 
 The scanned axis is never assumed. Most vendor files are not powder scans at
-all, so a file whose axis is something other than 2θ is refused by name, and an
-axis the reader cannot identify says so.
+all, so a file whose axis is something other than 2θ or a neutron flight time is
+refused by name, and an axis the reader cannot identify says so.
+
+(reading-a-time-of-flight-bank)=
+### Reading a time-of-flight bank
+
+Two of the readers produce a time-of-flight pattern (`PatternData.tof` in
+microseconds instead of `PatternData.two_theta` in degrees), and both do it
+because the file stated the unit, never because the numbers looked like one.
+
+| file | what makes it a flight time |
+|---|---|
+| GSAS bank, `TIME_MAP` bintype | the bintype. Its steps are tabulated in a separate `TIME_MAP` record (triples of (first channel, flight time, step) in clock ticks), so the axis is exact and every record layout (`STD`, `ESD`, `FXYE`) is read |
+| GSAS bank, `RALF` or `SLOG` bintype | the bintype, and an `FXYE` record layout, which writes its own x column. This is what Mantid's `SaveGSS` emits (its default format is `RALF`). Under `ESD` or `STD` the axis would have to be integrated from the four bank coefficients and the bank is refused by name instead: the manual says a `RALF` step "varies (irregularly) in pseudoconstant Δt/t steps", and reconstructing a real ISIS GEM bank's axis from its own coefficients reproduces that bank's explicit column only to ~9 × 10⁻³ µs, a near miss, which is the one error shape nothing downstream can see |
+| `.xy` / `.xye` with a Mantid header | the line `' The X-axis unit is: Time-of-flight`. A *stated unit* only: "tof" also turns up in file names and provenance comments, and flipping a pattern's abscissa on a substring would change what every number in the file means on the strength of a coincidence. A file that mentions a flight time and states no unit is read as 2θ and says so (`PATTERN_X_AXIS_ASSUMED`) |
+
+The same header line is how a `dSpacing`, `MomentumTransfer` or `Wavelength`
+export is refused by name rather than read as an angle.
+
+One file, one quantity. A GSAS file holding both a `CONS` bank and a
+`TIME_MAP` bank is refused naming both axes: this reader returns the first
+bank, and which one that was would otherwise decide what the pattern's abscissa
+*means*. Several banks of one quantity are a choice, and it is yours: a file
+holding more than one is refused until `bank=` names one by the number its
+`BANK` record declares, and `rietx.io.formats.gsas.gsas_banks` lists what each
+bank is (its bintype, layout, channel count and range, or the reason it cannot
+be read).
+
+The calibration is not in the data file. A GSAS `BANK` record carries
+binning constants and nothing else, so a TOF pattern without its
+instrument-parameter file is an axis in microseconds with no way back to a
+d-spacing. `read_gsas_tof_iparm` reads a GSAS-I `.iparm`/`.prm` (`HTYPE PNTR`)
+and returns one frozen `Instrument` per bank, keyed by bank number;
+`read_gsas2_instprm` reads a GSAS-II `.instprm` whose bank states `Type: PNT`
+as one such `Instrument`: the file states which quantity it holds, so the one
+reader dispatches on that line and the source's `kind` says which arm came
+back.
+
+<!-- api-doc: no-exec — it reads instrument files the user supplies -->
+```python
+import rietx as rx
+
+banks = rx.read_gsas_tof_iparm("bank_calibration.iparm")        # {1: Instrument, ...}
+bank = rx.read_gsas2_instprm("Bank 2.instprm")                  # source.kind "neutron_tof"
+d = bank.source.d_from_tof(pattern.tof_us())
+```
+
+Both come back with every parameter `vary=False`, for the reason
+`load_instrument_profile` does: an instrument-parameter file is a beamline
+calibration refined against a standard, and freeing DIFC beside a free cell
+re-opens the same flat direction a free wavelength does. This build reads a
+bank and refines none: no flight-time forward model exists here yet, so
+`Refinement` and every other entry that would compute a pattern refuse a
+`neutron_tof` instrument by name.
+
+The GSAS-I reader holds to the layout the GSAS manual documents and refuses
+anything else by name. The first `PRCF` set is the default whatever its
+profile function; a type-1 or type-3 default set must carry the documented 12
+or 21 coefficients, read in the manual's listed order, and the
+`GSAS_IPARM_PROFILE_READ` diagnostic says that the order is an assumption,
+since the manual lists the names but never states the record order. A block
+of any other length is refused, never padded or truncated. A default set of a
+function this package does not evaluate (types 2, 4 and 5) is refused, while
+a later set of any type is skipped with `GSAS_IPARM_PROFILE_DECLINED`. A
+non-zero anisotropic or peak-shift coefficient is refused rather than dropped,
+and so is a non-zero fifth pair of an ITYP 1 or 2 incident spectrum, which
+the documented layout stops short of. A bank with no `PRCF` set at all keeps its
+calibration and gets an all-zero `ProfileTOF`, which says plainly that no
+profile was read. A GSAS-II `.instprm` names each coefficient, so its profile is read; a
+key with no published time-of-flight law is accepted only at exactly zero.
+
+Legacy instrument files. A *legacy layout* is a file that departs from a
+published format in a way the format's documentation does not describe, but
+that a facility actually wrote. The strict reader refuses one, and a legacy
+reader accepts exactly the departures it names, and only when you call it by
+name. `rietx.io.legacy.read_lansce_iparm` is that reader for `.iparm` files
+written at LANSCE, which depart from the GSAS manual in three ways, each
+reported as `GSAS_IPARM_LEGACY_LAYOUT`. The first is a type-1 `PRCF` set with
+8 coefficients instead of the documented 12, read as the first eight of the
+twelve and named by the manual's order. The second is a non-zero fifth pair in
+an ITYP 1 or 2 incident spectrum, carried as written. The third is a `BNKPAR`
+value written one field too wide: that one record, and no other, is re-read by
+whitespace tokens, and the report quotes its raw text and the value taken. The
+slot order was checked against GSAS-II v5.8.2 run as a black box, one sentinel
+at a time; no GSAS-II source was read. A file carrying none of the three
+departures is handed to `read_gsas_tof_iparm` and comes back unchanged. The two
+readers do not dispatch to each other, so you opt in by calling it.
+
+The GSAS-I file is read by column, so a value written one field too wide
+would be cut short: `61.20` placed in columns 30–34 leaves `61.` in TTHETA's
+columns 23–32. Every record the reader parses is therefore checked at each
+field boundary. Where the last column of one field and the first column of
+the next are both occupied and the next field still has a blank in it, a
+number has run across the boundary. No right-aligned file produces that, so
+the record is refused with its key, both fields' columns and the raw text.
+A blank field still reads as zero. Two misalignments cannot be seen this way.
+One is an overrun that ends exactly on a field boundary: `       61.` then
+`6000000000` is the same text as two full-width fields. The other is a value
+moved wholly into the wrong field, which reads as a well-formed number in the
+wrong slot. The price of the check is that a full field followed directly by
+a *left*-aligned one (`      2.5061.20`) is refused, although FORTRAN would
+read it; right-align the second value. A `.instprm` is `key:value` lines, not
+columns, and is not affected.
 
 Weights follow from all this. The package uses the file's esd column when the
 file has one, and Poisson σ = √max(y, 1) only as the fallback. It never
