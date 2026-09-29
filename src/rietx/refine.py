@@ -130,7 +130,7 @@ from .schemas.history import NodeAction, NodeMetrics, RefinementState, Reflectio
 from .schemas.instrument import CAPILLARY_OFFSETS, Instrument
 from .schemas.interval import PARAMETER_INTERVAL_LEVEL, PARAMETER_INTERVAL_MAX_REFITS
 from .schemas.params import ParameterRow, TieSpec
-from .schemas.pattern import PatternData
+from .schemas.pattern import PatternData, require_two_theta
 from .schemas.results import (
     DELIVERABLES,
     AbsorptionCorrection,
@@ -1808,6 +1808,12 @@ class Refinement:
         if solver not in SOLVERS:
             raise ValueError(f"unknown solver {solver!r}; "
                              f"available: {', '.join(SOLVERS)}")
+        # Before the copies below, because what this constructor goes on to
+        # read (the declared wavelengths, the specimen absorption) is a
+        # wavelength a TOF bank does not carry — so without this the refusal
+        # is an AttributeError about a missing attribute rather than a
+        # statement about the radiation.
+        require_two_theta(None, "Refinement()", instrument=instrument)
         self._backend = backend
         self._solver = solver
         self.structure = structure.model_copy(deep=True)
@@ -2207,6 +2213,7 @@ class Refinement:
         if structure is not None:
             self.structure = structure.model_copy(deep=True)
         if instrument is not None:
+            require_two_theta(None, "Refinement.edit()", instrument=instrument)
             self.instrument = instrument.model_copy(deep=True)
             # An instrument edit is a deliberate redefinition of the instrument
             # this Refinement is built with — swapping the anode changes the
@@ -4357,6 +4364,7 @@ class Refinement:
                 f"({', '.join(sorted(PLAN_PRESETS))}) or list at least one "
                 "stage.")
 
+        require_two_theta(data, "Refinement.fit()", instrument=self.instrument)
         self._mode = mode
         self._two_theta_limits = two_theta_limits
         self._free_paths = []
@@ -4401,7 +4409,7 @@ class Refinement:
                 # authority ``compile_model`` is pinned to (WP-1033)
                 stream.emit("fit_start", mode=mode,
                             stages=[s.name for s in plan.stages],
-                            n_points=len(data.two_theta),
+                            n_points=len(data.x()),
                             n_fitted=int(fitted_mask(data, two_theta_limits).sum()),
                             **stamp)
 
@@ -4847,6 +4855,8 @@ class Refinement:
         one job.
         """
         _refuse_without_phases(self.structure, "run_stage")
+        require_two_theta(data, "Refinement.run_stage()",
+                          instrument=self.instrument)
         mode = mode or self._mode
         ttl = two_theta_limits if two_theta_limits is not None else self._two_theta_limits
         self._mode = mode
@@ -5047,6 +5057,8 @@ class Refinement:
             table.pull_moment_frames(self._model)
             return self._model.evaluate(table.decode(table.x0()))
         if isinstance(two_theta, PatternData):
+            require_two_theta(two_theta, "Refinement.predict()",
+                              instrument=self.instrument)
             two_theta = two_theta.two_theta
         tt = np.asarray(two_theta, dtype=np.float64)
         grid = PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
@@ -9282,7 +9294,7 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
     node = tree[node_id]
     expected = tree.header.data_fingerprint
     if expected:
-        actual = fingerprint(data.two_theta, data.intensity)
+        actual = fingerprint(data.x(), data.intensity)
         if actual != expected:
             raise ValueError(
                 f"pattern does not match this history: fingerprint {actual[:8]} "

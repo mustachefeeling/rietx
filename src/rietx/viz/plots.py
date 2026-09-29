@@ -887,7 +887,13 @@ def plot_pattern(data, *, path: str | None = None,
     cell is close and λ is right before a fit is asked to find either. The
     positions are :func:`rietx.viz.snapshot.stage_ticks`', every emission line
     included. A row sits below the data floor, so it needs the linear axis.
+
+    2θ only: every axis this draws (2θ, Q, d) is reached through an angle, and
+    a time-of-flight pattern is refused by name rather than drawn as degrees.
     """
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(data, "plot_pattern()")
     _check_panel_args(style, x_axis, y_scale, wavelength)
     if model is not None and y_scale != "linear":
         raise ValueError("model= draws its tick rows below the data floor, "
