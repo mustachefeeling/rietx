@@ -1,7 +1,7 @@
 # WP-1449 — rank on what the screen determined, not on what the peak list shows
 
-Milestone: unscheduled · Status: 🔄 2026-09-27 — the re-rank landed on uncancellable extras; the
-bethanechol measurement and a finished-run confirmation remain
+Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @yue-here; the bethanechol
+measurement and a finished-run confirmation remain
 Track: What fires, and what stays silent
 Depends on: — (1446 measured the refutation; 1025 built the screen)
 Priority: P2 2026-09-23 — a wrong cell ranked first on a surface every page calls provisional; 1446 already measured the refutation
