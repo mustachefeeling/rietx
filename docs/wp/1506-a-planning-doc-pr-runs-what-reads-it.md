@@ -122,7 +122,8 @@ the tail today, in local serial seconds:
   That test hands every linked file to `git check-ignore` as argv, and the
   WP files' links have outgrown Windows' 32 767-character limit. The helper
   just above it already passes its paths on `--stdin -z`, and doing the same
-  here keeps `--no-index`. Linux and macOS were green.
+  here keeps `--no-index`. Linux and macOS were green. It failed again on
+  2026-09-29 (run 36563538187), the Windows leg's only failure.
 
 ## Non-goals
 
