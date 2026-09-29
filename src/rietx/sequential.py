@@ -2612,17 +2612,18 @@ def _moment_diagnostics(series: SeriesResult,
             spans = onset.note.partition(". The bracket spans ")[2]
             if spans:
                 message += ". The bracket spans " + spans.partition(". ")[0]
-            if not onset.bracket_verdicts_final:
+            unquotable = onset.bracket_verdicts_final is False
+            if unquotable:
                 message += (". Do not quote it: "
                             + onset.note.split(". Do not quote it: ")[-1])
             out.append(Diagnostic(
-                level=("info" if onset.bracket_verdicts_final else "warning"),
+                level="warning" if unquotable else "info",
                 code="SEQUENTIAL_MOMENT_ONSET", where=[site],
                 value=float(onset.x), message=message,
                 suggestion=(
                     "raise the moment stage's max_iter and re-run: a bracket "
                     "whose supported side stopped early is not a measurement "
-                    "of an onset" if not onset.bracket_verdicts_final else
+                    "of an onset" if unquotable else
                     "run the series direction='both': one chain's onset is "
                     "the boundary its own warm start reached, and the two "
                     "together are the only check that it is the data's")))

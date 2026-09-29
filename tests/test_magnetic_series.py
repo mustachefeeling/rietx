@@ -47,6 +47,7 @@ import rietx as rx
 from rietx.report.schemas import MOMENT_SUPPORT_SIGMA, MomentEvidence
 from rietx.schemas.common import Parameter
 from rietx.schemas.sequential import (
+    MagneticOnset,
     MagneticTrajectory,
     SeriesEntry,
     SeriesResult,
@@ -226,7 +227,7 @@ def test_the_onset_is_a_bracket_and_its_esd_is_half_the_gap():
     assert onset.x == pytest.approx(40.0)
     assert onset.x_esd == pytest.approx(10.0)
     assert onset.sense == "falls"
-    assert onset.monotone and onset.bracket_verdicts_final
+    assert onset.monotone and onset.bracket_verdicts_final is True
     assert (onset.n_supported, onset.n_held) == (2, 2)
     assert "WP-1325" in onset.note, "the ± must say what it is not"
 
@@ -295,6 +296,39 @@ def test_an_interleaved_verdict_withholds_the_bracket_and_lists_the_switches():
     assert "switches 3 times" in onset.note
 
 
+def test_no_bracket_means_no_claim_about_the_bracket_verdicts():
+    """``bracket_verdicts_final`` is ``None`` in every state without a bracket.
+
+    Root ``CLAUDE.md`` § "A declared name is a claim": a defaulted ``True``
+    said "verdicts final" about a bracket that does not exist.  The five
+    states are no rows, no verdict, supported everywhere, supported nowhere
+    and interleaved; ``str`` must not call any of them unquotable.
+    """
+    onsets = {
+        "no rows": locate_onset(MagneticTrajectory(path="")),
+        "no verdict": _hand_built([(10.0, 4.0, None, None),
+                                   (30.0, 3.0, None, None)]),
+        "everywhere": _hand_built([(10.0, 4.0, 0.05, True),
+                                   (30.0, 3.0, 0.05, True)]),
+        "nowhere": _hand_built([(10.0, 0.02, 0.4, False),
+                                (30.0, 0.01, 0.5, False)]),
+        "interleaved": _hand_built([(10.0, 4.0, 0.05, True),
+                                    (30.0, 0.02, 0.4, False),
+                                    (50.0, 3.0, 0.05, True),
+                                    (70.0, 0.01, 0.4, False)]),
+    }
+    for name, got in onsets.items():
+        onset = (got if isinstance(got, MagneticOnset)
+                 else got.magnetic_trajectory().onset)
+        assert onset.x is None, name
+        assert onset.bracket_verdicts_final is None, name
+        assert "NOT QUOTABLE" not in str(onset), name
+    # round-trips as the absent state, not as a coerced False
+    back = MagneticOnset.model_validate(
+        onsets["everywhere"].magnetic_trajectory().onset.model_dump(mode="json"))
+    assert back.bracket_verdicts_final is None
+
+
 def test_the_onset_is_ordered_by_the_axis_and_not_by_the_walk():
     """A cooling chain reports its onset on the temperature axis.
 
@@ -341,7 +375,7 @@ def test_a_supported_verdict_from_a_truncated_fit_makes_the_bracket_unquotable()
     onset = series.magnetic_trajectory().onset
 
     assert onset.x == pytest.approx(40.0), "the bracket is still located"
-    assert not onset.bracket_verdicts_final
+    assert onset.bracket_verdicts_final is False
     assert onset.n_unconverged == 1
     assert "Do not quote it" in onset.note and "p1" in onset.note
     assert "NOT QUOTABLE" in str(onset)
@@ -365,7 +399,7 @@ def test_a_held_verdict_from_a_truncated_fit_does_not_invalidate_the_bracket():
         statuses=["converged", "converged", "max_iter"])
     onset = series.magnetic_trajectory().onset
 
-    assert onset.bracket_verdicts_final, "a held truncation is not a doubt"
+    assert onset.bracket_verdicts_final is True, "a held truncation is not a doubt"
     assert onset.n_unconverged == 1, "and it is still reported"
     assert "Do not quote it" not in onset.note
 
@@ -611,7 +645,7 @@ def test_the_ramp_recovers_the_declared_onset_and_holds_above_it(ramp):
     onset = traj.onset
     assert tuple(onset.bracket) == RAMP_BRACKET
     assert onset.monotone and onset.sense == "falls"
-    assert onset.bracket_verdicts_final, onset.note
+    assert onset.bracket_verdicts_final is True, onset.note
     assert abs(onset.x - T_N_K) <= onset.x_esd, (onset.x, onset.x_esd)
 
     # the released magnitudes track the declared order parameter, and every
@@ -823,7 +857,7 @@ def test_a_starved_chain_reports_a_supported_moment_above_the_transition_and_is_
     assert starved_traj.supported[1] is True, starved_traj.value
     assert starved_traj.value[1] > 0.1
     assert tuple(starved_traj.onset.bracket) != (10.0, 70.0)
-    assert not starved_traj.onset.bracket_verdicts_final
+    assert starved_traj.onset.bracket_verdicts_final is False
     starved_row = next(d for d in starved.diagnostics
                        if d.code == "SEQUENTIAL_MOMENT_ONSET")
     assert starved_row.level == "warning"
@@ -832,7 +866,7 @@ def test_a_starved_chain_reports_a_supported_moment_above_the_transition_and_is_
     # fed: the boundary is at the first pattern above the transition, and quiet
     assert fed_traj.supported == [True, False, False, False], fed_traj.value
     assert tuple(fed_traj.onset.bracket) == (10.0, 70.0)
-    assert fed_traj.onset.bracket_verdicts_final
+    assert fed_traj.onset.bracket_verdicts_final is True
     fed_row = next(d for d in fed.diagnostics
                    if d.code == "SEQUENTIAL_MOMENT_ONSET")
     assert fed_row.level == "info"
@@ -1035,7 +1069,7 @@ def test_the_cr2wo6_pair_as_a_series_gives_the_single_pattern_verdicts(
     traj = series.magnetic_trajectory()
     assert traj.stderr[1] is None and traj.measured == [True, True]
     assert tuple(traj.onset.bracket) == (4.0, 150.0)
-    assert traj.onset.sense == "falls" and traj.onset.bracket_verdicts_final
+    assert traj.onset.sense == "falls" and traj.onset.bracket_verdicts_final is True
 
 
 def test_a_trajectory_with_a_no_verdict_point_plots(tmp_path):

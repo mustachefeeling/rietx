@@ -434,7 +434,12 @@ class MagneticOnset(Base):
     #:   pattern ever came back unsupported
     #:   (``test_a_starved_chain_reports_a_supported_moment_above_the_``
     #:   ``transition_and_is_flagged``).
-    bracket_verdicts_final: bool = True
+    #:
+    #: ``None`` wherever there is no bracket to judge — no rows, no verdict,
+    #: every pattern supported, none supported, or not monotone — so consumers
+    #: ask ``is False``: a defaulted ``True`` there would say "verdicts final"
+    #: about a bracket that does not exist.
+    bracket_verdicts_final: bool | None = None
     note: str = ""
 
     def __str__(self) -> str:
@@ -443,7 +448,7 @@ class MagneticOnset(Base):
         return (f"onset: {self.x:g} ± {self.x_esd:g} (bracket "
                 f"{self.bracket[0]:g} … {self.bracket[1]:g}, {self.sense}), "
                 f"{self.n_supported} supported / {self.n_held} held"
-                + ("" if self.bracket_verdicts_final else
+                + ("" if self.bracket_verdicts_final is not False else
                    " — NOT QUOTABLE: a bracket pattern's supported verdict "
                    "came from a fit that stopped early"))
 
@@ -614,7 +619,7 @@ def locate_onset(traj: MagneticTrajectory) -> MagneticOnset:
         onset.note += (
             f". The bracket spans {', '.join(inside)}, which gives no verdict "
             f"(held or diverged) and is left out rather than read as held")
-    if not onset.bracket_verdicts_final:
+    if onset.bracket_verdicts_final is False:
         bad = [labels[j] for j in (i, i + 1)
                if ok[j] and states[j] != "converged"]
         onset.note += (

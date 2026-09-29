@@ -479,7 +479,7 @@ the data stops carrying a moment.
 | `MagneticOnset.monotone`, `MagneticOnset.boundaries` | whether there is one boundary, and every switch if not |
 | `MagneticOnset.n_supported`, `MagneticOnset.n_held`, `MagneticOnset.n_unconverged` | the counts over the patterns that gave a verdict |
 | `MagneticOnset.n_unmeasured`, `MagneticOnset.unmeasured_labels` | the patterns that gave none, left out of the bracket |
-| `MagneticOnset.bracket_verdicts_final` | whether either bracket pattern owes a *supported* verdict to a fit that stopped early |
+| `MagneticOnset.bracket_verdicts_final` | whether either bracket pattern owes a *supported* verdict to a fit that stopped early; `None` where there is no bracket, so ask `is False` |
 | `MagneticOnset.path`, `MagneticOnset.atom` | which site it is about |
 | `MagneticOnset.note` | the reading in words, including why it is not quotable when it is not |
 
@@ -530,7 +530,8 @@ necessarily warm-started from a supported neighbour: whether that pattern comes
 back unsupported is a measurement, not a mechanism. Two things check it, and
 you have to ask for both. `direction="both"` refines the chain each way and
 `SEQUENTIAL_MOMENT_ONSET` then carries the other chain's bracket and says
-whether the two overlap. A moment carried across the transition by one chain's
+whether the two overlap, and a bracket only one chain found is a `warning` row
+even where the other chain wrote none. A moment carried across the transition by one chain's
 warm start and not the other's is exactly what a single pass cannot see.
 `MagneticOnset.bracket_verdicts_final` catches the other half: a *supported*
 verdict from a fit that stopped at its iteration cap may just be a modulus that
