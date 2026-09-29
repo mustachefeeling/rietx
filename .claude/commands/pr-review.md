@@ -58,7 +58,12 @@ whether a maintainer has commented — **and the reason for its rank**:
 2. **Outside PR edits `docs/ROADMAP.md` or `docs/wp/**`** — a governance
    question for the user (`CONTRIBUTING.md` § Maintainer-only machinery), cheap
    and blocking nothing. Author-conditional: on the maintainer's own PR it is
-   the work.
+   the work. **The two edits CONTRIBUTING hands a contributor are not the
+   question**: a claim (the WP's `Status:` line set to `🔄 <date> — claimed by
+   @…`, with `docs/wp/README.md` regenerated) and a handover-log entry for the
+   work the PR does. Read the hunk; only what goes beyond those two ranks here.
+   A claim that merges leaves `Status:` reading "claimed" on main, so the step 9
+   handover entry is what rewrites it.
 3. **`DIRTY`** — not a review: post a one-line rebase request and move on.
    GitHub computes the field lazily; once main has moved since the call,
    `git merge-tree --write-tree origin/main refs/pr/N` (nonzero = conflict) is
@@ -83,9 +88,14 @@ beyond them.
 - `DIRTY` → rebase request; out of the queue.
 - Maintainer's own → one line (gated by `/wp-handover`); out.
 - Touches an in-flight WP → **batch, do not review** (a live session's files
-  are that person's call).
-- Outside edit to `docs/ROADMAP.md` / `docs/wp/**` → question to the batch; the
-  PR **stays** (its code half is reviewable).
+  are that person's call). The batch item carries the evidence: what the 🔄
+  records (a session's claim, or only work that "landed from outside") and the
+  WP file's last touch (`git log -1 -- docs/wp/NNNN-*.md`). A 🔄 kept open by
+  the same contributor's earlier PRs is usually free, and the user answers in
+  a word.
+- Outside edit to `docs/ROADMAP.md` / `docs/wp/**` beyond a claim or its own
+  handover entry (rank 2) → question to the batch; the PR **stays** (its code
+  half is reviewable).
 - Touches an execution-shaped path (step 4's list) → batch.
 - Already reviewed and nothing since → skip, naming the sha. Test:
   `latestReviews[].commit == headRefOid` **and** `updatedAt` no later than that
@@ -103,12 +113,30 @@ continue"; the per-PR report shrinks to its decision line.
 with `git merge-tree --write-tree origin/main refs/pr/N` — the field is stale
 from the first merge on. The order is not recomputed, only the conflicts.
 
-**Context checkpoint — between PRs only.** You cannot see your context, and
-compaction mid-diff loses the reading. Measure this session's transcript
-(`wc -c ~/.claude/projects/-Users-yue-Code-rietx/<session-id>.jsonl`, the id
-being the scratchpad's directory) before the first PR and at every boundary;
-stop when the next PR's projected delta would carry the total past **2 MB**
-(≈500 K tokens; uncalibrated — replace with what the first run measures).
+**Context checkpoint — between PRs only.** Compaction mid-diff loses the
+reading, so stop at a PR boundary once the context nears **500 K tokens**. Read
+the context off the transcript itself, whose assistant entries carry the
+API's `usage`. The last one's `input_tokens + cache_creation_input_tokens +
+cache_read_input_tokens` is the context that call saw:
+
+```sh
+python3 -c 'import json,sys
+u=None
+for l in open(sys.argv[1]):
+    try: m=json.loads(l).get("message")
+    except ValueError: continue
+    if isinstance(m,dict) and isinstance(m.get("usage"),dict): u=m["usage"]
+print(sum(u.get(k,0) for k in ("input_tokens","cache_creation_input_tokens","cache_read_input_tokens")))' \
+  ~/.claude/projects/<cwd-slug>/<session-id>.jsonl
+```
+
+The id is the scratchpad's directory, and the slug is the directory the
+session *started* in (the bench's own slug when it started there). Measure
+before the first PR and at every boundary. Stop when the next PR's projected
+delta would carry the total past 500 K. Without the usage field, `wc -c` is
+the fallback: **500 K tokens was 4.3 MB** of transcript on 2026-09-29, when
+the old 2 MB mark was only about 300 K. The ratio drifts from 5 to 9 bytes a
+token as tool output accumulates, so give the fallback a PR's margin.
 Ending means: ask the batch, apply the answers, write the report, kill this
 run's waiters (step 5), and name the resume command (`/pr-review all` after
 the user's `/compact` or `/clear`). Nothing is carried in a file.
@@ -120,7 +148,9 @@ recommendation. Group: governance calls, then held reviews, then held merges.
 pass — post, merge, close — with a step-10 line each. **A gate main has moved
 under is void**: before merging a freed PR compare `origin/main` with the sha
 its ladder ran on; moved → rebuild the merged tree and re-run step 5 and the
-slow suite, or defer to the next run, and say which.
+slow suite, or defer to the next run, and say which. A stack's own merges
+are the one exception: they move main toward the gated tree, not away from
+it (step 9).
 
 **Report** once for the run (step 10's shape), then the batch, then the resume
 line if the checkpoint ended it. Close with
@@ -201,8 +231,12 @@ line if the checkpoint ended it. Close with
 6. **Conformance against `CLAUDE.md`, sized to the PR.** Under ~400 reviewable
    lines read the diff yourself; above it (the usual case) write the reviewable
    diff to `$SCRATCH` once and dispatch one `pr-conformance` agent per touched
-   subtree, pointed at that file and the subtree's `CLAUDE.md`. **Verify every
-   finding yourself before posting.** Do not restate invariants here; the
+   subtree, pointed at that file and the subtree's `CLAUDE.md`. Give each agent
+   the PR's tree as files, `git -C "$BENCH" archive refs/pr/N | tar -x -C
+   "$SCRATCH/tree-N"`, never the bench: the bench holds whichever tree step 5
+   is testing, and a PR based on current main is its own merged tree.
+   **Verify every finding yourself before posting.** Do not restate invariants
+   here; the
    classes outsiders miss most: a `Literal` member or defaulted field with no
    writer, physics without a citation, a correction offering an Rwp comparison
    as evidence, a reader repairing a file without a diagnostic, GPL-derived
@@ -210,7 +244,13 @@ line if the checkpoint ended it. Close with
    row (root CLAUDE.md § skill: the body, or the task shape's reference),
    physics with Part 1 prose but no Part 2 equation.
 7. **`/code-review medium N`** for `src/` changes above the step-6 threshold;
-   name the level (unnamed, it reuses whatever was typed last).
+   name the level (unnamed, it reuses whatever was typed last). **Never while a
+   suite holds the bench**: the review forks into the session's working
+   directory and checks the PR head out there. On 2026-09-29 that swapped the
+   tree under a running full suite and voided it (`pgrep -f "[p]ytest"` first,
+   and `git -C "$BENCH" log -1` after, back to the tree step 5 wants). Run it
+   before step 5 starts, or between suites. Verify its findings as you do the
+   agents', by reading the code and, where it is cheap, by running it.
 8. **Two audiences.** *Public*, posted **as a review, from a file** (so the sha
    lands in `latestReviews[].commit`): what you checked independently and what
    it produced; a numbered "before merge" list; follow-ups kept separate; then
@@ -235,6 +275,18 @@ line if the checkpoint ended it. Close with
    you merged**: `origin/main` moves under every live WP session. Close only
    when the contributor asked or the work was folded into another PR.
    Anything else stops and asks (`all`: defers).
+
+   **Stack the clear-cut PRs that share no file, and gate the stack once.** A
+   full `-m slow` run costs 50-75 min on a 4-core box, so when several PRs
+   have passed steps 1-8 and touch disjoint files, merge them together onto
+   the bench (`git merge refs/pr/A refs/pr/B …`). Run step 5's suites and the
+   slow gate once on that tree, then merge them one after another. The last
+   merge leaves `origin/main` content-identical to the tree the gate ran on:
+   check it with `git diff <stack-sha> origin/main`, which must be empty, and
+   say so in each review's "what ran". A PR that shares a file with another
+   in the stack, or whose review is still open, stays out. A red stack is
+   bisected before anything in it merges. On 2026-09-29 three PRs went in on
+   one 76-minute full run instead of three.
 
    **And say which issues the merge closed.** Read
    `gh pr view N --json closingIssuesReferences` before merging. A PR that

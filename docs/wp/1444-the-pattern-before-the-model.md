@@ -1,9 +1,8 @@
 # WP-1444 — The pattern before the model, and a title on the figure
 
-Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #529)
+Milestone: unscheduled · Status: ✅ 2026-09-29 — `plot_pattern` / `PatternData.plot` draw a pattern before any model, and the figures take `title=` (PR #529)
 Track: Render what the fit already knows
 Depends on: —
-Priority: P3 2026-09-23 — a figure the user draws by hand today
 
 ## Goal
 
@@ -56,10 +55,6 @@ two installed copies re-synced with `rietx skill --install . --copy`;
 Figures for the manual come from `docs/manual/make_figures.py`, the one
 authority, as a committed light/dark pair.
 
-### Inherited
-
-(none yet)
-
 ## Non-goals
 
 - A peaks overlay or a peak-finding view: `plot_peak_list` is that, in
@@ -71,20 +66,21 @@ authority, as a committed light/dark pair.
 
 ## Tasks
 
-- [ ] `plot_pattern` in `viz/plots.py` on the result panel's helpers, and
+- [x] `plot_pattern` in `viz/plots.py` on the result panel's helpers, and
       `PatternData.plot`; a test that the axes, scale and excluded-region
       shading match `plot_result`'s on the same data.
-- [ ] `title=` on `plot_result`, `plot_pattern`, `plot_trajectory`; the
+- [x] `title=` on `plot_result`, `plot_pattern`, `plot_trajectory`; the
       default figure pinned byte-identical against a pre-change render;
       `plot_for_vlm`'s ruling recorded in its docstring.
-- [ ] Part 1: `using/data.md` gains the pattern plot beside `read_pattern`,
+- [x] Part 1: `using/data.md` gains the pattern plot beside `read_pattern`,
       `using/results.md` the title; `make_figures.py` draws the manual's
       example; `tests/test_manual_api.py` green.
-- [ ] Tests + obs/calc/diff PNGs to `tests/output/`, and the new pattern
+- [x] Tests + obs/calc/diff PNGs to `tests/output/`, and the new pattern
       figure beside them.
-- [ ] Skill: `references/api.md` regenerated (a new public verb enters the
+- [x] Skill: `references/api.md` regenerated (a new public verb enters the
       index by construction); no body rule, since an agent judging a fit
-      draws the result, not the data.
+      draws the result, not the data. (`plot_pattern` went to
+      `api-figure.md`, `api.md` being at its cap; handover 2026-09-29.)
 
 ## Acceptance
 
@@ -104,6 +100,49 @@ Issues #394, #405. `viz/plots.py`'s module docstring (the figure rules),
 
 ## Handover log
 
+- **2026-09-29** — closed. A pattern can now be drawn the moment it is read,
+  before any model exists: `data.plot()` / `rx.viz.plot_pattern`. It is the
+  result figure's data panel with nothing modelled in it, so the file and the
+  fit of it are one style and the peaks sit at the same height in both.
+  Every result figure, and the trajectory, can carry a `title=`, and
+  `plot_for_vlm` refuses one by name, because its panel titles are the
+  evidence the vision model reads. It arrived as PR #529 (`mustachefeeling`),
+  reviewed over two rounds in the `/pr-review all` run of 2026-09-29, and
+  merged as `3d1a6feb`. It closed #394 and #405.
+  - *Done*: `plot_result`'s intensity-axis block moves unchanged into
+    `_intensity_axis`, beside `_check_panel_args` / `_pyplot` /
+    `_style_context` / `_title`, and both figures call them, so they share
+    one axis by construction. `title=None` is byte-equal to the keyword
+    omitted on every platform. The pre-title render is pinned by sha256 on
+    its capture platform only (darwin/arm64, matplotlib 3.11.1, the
+    `GOLDEN_PLATFORM` precedent), so it skips on Linux. The manual has
+    `using/data.md` § The pattern with a committed light/dark NAC pair from
+    `make_figures.pattern_figure`, and `using/results.md` for the title.
+    `plot_pattern` is indexed in the skill's `api-figure.md`, not `api.md`.
+  - *Deviations* (the PR's own list, accepted in review):
+    - The result panel shades no excluded region, because a result carries
+      only the fitted channels. So the pattern figure shades each region as
+      a band and still draws the channels inside it, and the test matches
+      the band to the gap in `plot_result`'s drawn data.
+    - `tests/test_viz.py` is new.
+    - `api.md` was 215 B under its cap, so the verb went to `api-figure.md`,
+      which SKILL.md's "plots" row already routes to.
+  - *Round 2*: a beamstop exclusion from 2θ = 0 raised on a d or Q axis,
+    because the region went through `_x_values` before any overlap test.
+    Each region is now clipped to the drawn 2θ span first and skipped when
+    empty (`7520e4eb`, with a test).
+  - *Measured* (review, Linux x86_64, 4 cores, Python 3.12.3, matplotlib
+    3.11.2, `[dev,jax]` bench venv, run as root, on the merged tree):
+    - The viz, sequential, events, manual, skill and docs selection gave 347
+      passed and 1 skipped, the platform-pinned hash.
+    - `-m slow` gave 225 passed, 16 skipped and 1 failed in 50:33. The one
+      failure is `test_held_phase.py`'s wall-clock runaway guard (135.1 s
+      against 60 s on a loaded 4-core box). It failed the same way on every
+      loaded run that day and passes alone in 18.85 s.
+    - The WP's acceptance one-liner runs, and the titled Si 640c figure was
+      looked at.
+  - *Next*: none. The non-goals stand: peak overlays, multi-pattern stacks
+    and HTML/GUI.
 - **2026-09-21** — created, from the 2026-09-21 issue triage (issues #394,
   #405). Checked against the tree at `4ee4e7f5`: no function draws a bare
   `PatternData`, no figure function takes a title, and `plots.py:51` carries
