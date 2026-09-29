@@ -1,24 +1,28 @@
 # 7g. The project and recipe readers: what an imported file does not carry
 
-Load it when you read another program's *project* file — a TOPAS `.inp` or a FullProf `.pcr` — or its *recipe* file — a PowderLine recipe — and a `Diagnostic` came with it.
+Load it when you read another program's *project* file — a TOPAS `.inp` or a FullProf `.pcr` — a time-of-flight *instrument-parameter* file — a GSAS-I `.iparm`/`.prm` or a GSAS-II `.instprm` — or its *recipe* file — a PowderLine recipe — and a `Diagnostic` came back from the import.
 
 *A reference file of the `rietx` skill. The body it belongs to is [`SKILL.md`](../SKILL.md); section numbers are the ones the body cites.*
 
 These are the codes of `rietx.io.projects` — one module per foreign format,
-governed by WP-1118 — and of the PowderLine recipe reader. They are a different
+governed by WP-1118 — together with `rietx.io.instrument_tof`'s, which read a
+foreign *instrument* rather than a foreign model and emit on the same channel
+for the same reason, and of the PowderLine recipe reader. They are a different
 channel from every other family in §7, but not because none of them ever
 appears on `result.diagnostics`. The criterion that separates them is
-**whose file you are reading**: another program's project or recipe file — a TOPAS `.inp`,
-a FullProf `.pcr`, a PowderLine recipe — against your own data and structure
+**whose file you are reading**: another program's project, instrument-parameter
+or recipe file — a TOPAS `.inp`, a FullProf `.pcr`, a GSAS-I `.iparm`/`.prm`, a
+GSAS-II `.instprm`, a PowderLine recipe — against your own data and structure
 files, which every fit reads whether or not another program was ever involved.
 Those own-file codes were in §7 when this was written and are now §7i,
 [`diagnostics-reading.md`](diagnostics-reading.md), moved on a second
 criterion rather than this one: how often you meet one (WP-1415).
 A project reader emits its codes at *import*, into a list you pass in
 (`read_topas_inp(..., diagnostics=[])`,
-`rietx.io.projects.fullprof.to_structure(..., diagnostics=[])`); the recipe
-reader emits its own at the read (`read_recipe`, `Recipe.diagnostics`). If you
-do not pass a list the finding for a project import is still on the model —
+`rietx.io.projects.fullprof.to_structure(..., diagnostics=[])`,
+`rx.read_gsas_tof_iparm(..., diagnostics=[])`); the recipe reader emits its own
+at the read (`read_recipe`, `Recipe.diagnostics`). If you do not pass a list
+the finding for a project import is still on the model —
 `model.coverage.reported`, `model.skipped_blocks`, `species_raw` — but nothing
 is raised. The two writers take the same list (`write_topas_inp(...,
 diagnostics=[])`) for the one `_SPECIES_WRITTEN_NEUTRAL` row each emits.
@@ -65,6 +69,29 @@ arrives by moving its row rather than by growing a reader.
 | `FULLPROF_SPECIES_WRITTEN_NEUTRAL` | (warning — from the FullProf `.pcr` **writer**, X-ray files only: pass `write_fullprof_pcr(..., diagnostics=[])`) The `.pcr` twin of `TOPAS_SPECIES_WRITTEN_NEUTRAL`: the `Typ` is the neutral element (`FE` for `Fe+`). A neutron file keys b on the element for every ion, so it substitutes nothing and never fires |
 | `FULLPROF_RHOMBOHEDRAL_RESTATED` | (warning — from the `.pcr` **writer**: pass `write_fullprof_pcr(..., diagnostics=[])`) Assume the phase was already in hexagonal axes. It was on rhombohedral axes, which FullProf cannot state (it reads `R -3 c` as hexagonal whatever the cell says), so the file has the hexagonal cell of the same lattice, every cell edge and coordinate held and the scale divided by 9. Same crystal, same pattern; free what you mean to refine, the ties between the old parameters are not stated |
 
+## The time-of-flight instrument-parameter readers
+
+`rietx.io.instrument_tof`'s two readers open a bank's *calibration*, never a
+model — no phase, no structure, so `rietx.io.projects.coverage` has nothing to
+classify — which is why their codes sit here rather than beside the project
+families above: they answer the same question ("is what I just imported the
+file I meant to import"), about a bank instead of a phase. This build reads
+a bank and refines none.
+
+| code | what you must not assume, and what to do |
+|---|---|
+| `GSAS_IPARM_PROFILE_DECLINED` | (info — from `rx.read_gsas_tof_iparm`, same channel) **Do not assume the returned bank carries the file's peak shape.** Emitted for a `PRCF` set that was *not* read: a non-default set (set 1 is the default whatever its type, and is the only one read), or a bank with no `PRCF` set at all, which then carries its calibration and an all-zero `ProfileTOF`, which says no profile was read. A default set the package cannot read (wrong `NCOF`, profile type 2/4/5, a non-zero anisotropic term) is **refused** at read rather than declined. Declare `instrument.source.profile_tof` by hand, or read the bank's `.instprm`, whose keys are named and whose profile *is* read |
+| `GSAS_IPARM_PROFILE_READ` | (info — from `rx.read_gsas_tof_iparm`, same channel) **Check the coefficients before you refine on them: the record order is an assumption.** The default `PRCF` set (type 1 with 12 coefficients, or type 3 with 21) was read onto `instrument.source.profile_tof` in the order the GSAS manual lists the names; the manual never states that this is the record order. `CTOF` is quoted and not used. Everything read arrives `vary=False`, like the calibration beside it |
+| `GSAS_IPARM_FIELD_DROPPED` | (info — from `rx.read_gsas_tof_iparm`, same channel) Assume the returned banks carry everything the file states. They carry `ICONS` (DIFC/DIFA/ZERO) and `BNKPAR` (DIST as L₂, TTHETA as the bank's 2θ); this names the records and fields that did not come across, among them `FPATH1` (not a record the GSAS manual lists, so L₁ stays unset) and `ITYP`'s `CHKSUM` (its algorithm is unpublished). `ITYP`/`ICOFF`/`IECOF` are the incident-spectrum function, its coefficients and their esds, and those **are** read onto `instrument.source.incident_spectrum`. What is dropped beside them is `IECOR`, the coefficients' correlation matrix, which has no slot. `BNKNAM`, `MFIL` and `HEAD` are labels. Fires once per file, `where` listing the records |
+| `GSAS_IPARM_LEGACY_LAYOUT` | (info — from `rietx.io.legacy.read_lansce_iparm`, same channel) **Do not assume the file met the GSAS manual's layout; it met the legacy LANSCE one.** Each report names one of three deviations by its last `where` entry. `PRCF1`: the default set was a type-1 block of 8 coefficients, read as the first eight of the documented twelve (slots 9-12 zero) and then through the strict reader, so the `GSAS_IPARM_PROFILE_READ` beside it describes that restated block; slots 1, 5, 8 are `alp-0`, `sig-0`, `s1ec` by the manual's order, which GSAS-II leaves unnamed. `ICOFF3`: a non-zero ITYP 1/2 fifth pair, carried as written. `BNKPAR`: that one record ran a value across a field boundary and was re-read by tokens; the message quotes the raw text and the value taken, so check the angle. Only this reader emits it, and only when called by name: `rx.read_gsas_tof_iparm` refuses the same file |
+| `GSAS2_INSTPRM_FIELD_DROPPED` | (info — from `rx.read_gsas2_instprm` on a `Type: PNT` bank, same channel) Assume every key of the `.instprm` reached the `Instrument`. `difC`/`difA`/`difB`/`Zero`/`2-theta` and the nine named profile keys did; this names the rest. `beta-q` and `sig-q` are GSAS-II width terms `ProfileTOF` has no slot for and are dropped **only at 0** — a non-zero one raises, the same refuse-at-drift rule the other readers use. `fltPath` is the *total* flight path L₁ + L₂ and the file does not say where the sample sits, so it is reported rather than assigned to either leg. `Bank` is reported and not used: the GSAS-II Magnetic-V tutorial ships two different banks both declaring `Bank:1.0`, so the key is not an identifier and the file name is not the file's to promise |
+
+## The PowderLine recipe reader
+
+Moved here from §7 unchanged, because it meets this file's own
+membership rule and the other file's cap: a `RECIPE_*` code fires at import and
+never reaches `result.diagnostics`.
+
 The `RECIPE_*` family is the reader of the **PowderLine interchange format**
 (`read_recipe`, `Recipe.diagnostics`) rather than `result.diagnostics`, and it
 answers a question the others do not: *how does the fit I am about to run
@@ -82,7 +109,7 @@ each.
 | `RECIPE_FLAG_TRANSLATED` | (info) Look for a mixing parameter in the result. GSAS-II carries one magnitude per broadening effect plus a Lorentzian share `LG_eta`; this package carries a Lorentzian and a Gaussian coefficient and no share, so a freed `LG_eta` became two free coefficients. Same two degrees of freedom, different names — `where` gives them |
 | `RECIPE_ENGINE_DEFAULT_DECLINED` | (info) Read a difference from the reference engine's broadening as a disagreement about the data. The recipe left a size or strain magnitude **null**, which GSAS-II fills with its own project default (1 µm, 1000 × 10⁻⁶ Δd/d — measured off its committed output, not read from a manual) and this package reads as silence. On a synchrotron pattern the strain default alone is 0.057°·tanθ, a quarter of the peak width at the top of the range, so the instrument terms will differ by however much that was. Another engine's project default is not physics; if you want it, state it in the recipe |
 | `RECIPE_BACKGROUND_RESEEDED` / `RECIPE_SCALE_RESEEDED` | (info) Compare a background coefficient or a phase scale against the recipe's own number, or against another engine's. Neither is transferable: the two codes scale the Chebyshev domain differently, and a scale factor's normalisation is each code's own (on one committed specimen GSAS-II converges to 3.77e-2 and TOPAS to 2.61e-6). The term count and the refine flag are carried; the values are re-seeded, the scale by matching the summed calculated intensity to the data. **Phase scale *ratios* are comparable and the absolute values are not** — which is what a recipe quantifying phase fractions actually needs |
-| `RECIPE_BACKGROUND_PEAK_DEGENERATE` | (warning) Quote the background-peak parameters, or expect the fit to converge. The recipe declares a peak whose FWHM reaches the fitted range, so it never falls to half height inside the window and carries no curvature the Chebyshev terms have not got — it will correlate with the low-order background at \|ρ\| = 1 and the stage will spend its budget walking that valley. Both reference engines confirm it from opposite ends on the one committed instance: one let the peak run to 8.77e10 °2θ at esd 0, the other kept it at 1.63° with an esd 188× its own value. A hump substitutes for polynomial terms; it never adds to them (§`HUMP_TOO_NARROW` is the same lesson from the narrow end) |
+| `RECIPE_BACKGROUND_PEAK_DEGENERATE` | (warning) Quote the hump parameters, or expect the fit to converge. The recipe declares a hump whose FWHM reaches the fitted range, so it never falls to half height inside the window and carries no curvature the Chebyshev terms have not got — it will correlate with the low-order background at \|ρ\| = 1 and the stage will spend its budget walking that valley. Both reference engines confirm it from opposite ends on the one committed instance: one let the peak run to 8.77e10 °2θ at esd 0, the other kept it at 1.63° with an esd 188× its own value. A hump substitutes for polynomial terms; it never adds to them (§`HUMP_TOO_NARROW` is the same lesson from the narrow end) |
 | `RECIPE_CONVENTION_ASSUMED` | (info) Treat the split as measured. GSAS-II's `SH/L` is a **combined** (S+H)/L and this package's axial divergence is two parameters, so it was halved evenly — the symmetric Finger-Cox-Jephcoat reading, and the only one a single number admits. No committed recipe can distinguish it from an uneven split; if your specimen's slit and detector heights differ, set `axial_sl` and `axial_hl` yourself |
 | `RECIPE_PLAN_STAGED` | (info) Read the stage list as a change to what the recipe asked to refine. PowderLine runs one pass over everything flagged; `Recipe.plan` frees the same set over several stages in McCusker order, because a single cold step walked a monoclinic cell to a = 4231 Å on a real fixture. Staging here is **cumulative**, so the last stage *is* the recipe's single pass — the free set at the end is the recipe's and only the route differs |
 | `RECIPE_DISPERSION_DECLINED` | (info) Read it as an approximation you are choosing. The recipe's wavelength is outside the bundled Cromer-Liberman table's 3-70 keV band — a PDF-beamline λ = 0.1665 Å is 74.5 keV — so f = f₀ is used. Every edge of every element in such a recipe is more than an order of magnitude below that energy, so it is the correct limit rather than a concession; what would be wrong is extrapolating the table. The result still carries `DISPERSION_NEGLECTED`, as any `dispersion=None` fit does |

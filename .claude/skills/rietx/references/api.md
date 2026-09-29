@@ -75,7 +75,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
   Fields: `source: Source | NeutronSource | TOFSource`, `geometry: Geometry = Geometry(…)`, `zero_shift: Parameter = Parameter(0.0, min=-0.5, max=0.5)`, `profile: ProfileTCHZ = ProfileTCHZ(…)`, `background: BackgroundChebyshev | BackgroundFixedPlusChebyshev | BackgroundPSpline = BackgroundChebyshev(…)`, `extra_components: list[HumpComponent | PeakComponent] = []`
 - `rx.Source` — Constant-wavelength X-ray source.
   Fields: `kind: Literal['xray_cw'] = 'xray_cw'`, `lines: list[EmissionLine]`, `polarization: Parameter = Parameter(0.5, min=0.0, max=1.0)`, `kbeta: Literal['filter', 'monochromator', 'mirror'] | None = None`, `dispersion: Dispersion | None = Dispersion(…)`, `harmonics: list[Harmonic] = []`
-- `rx.NeutronSource` — Constant-wavelength **neutron** source.
+- `rx.NeutronSource` — Constant-wavelength **neutron** source: one wavelength, nuclear scattering.
   Fields: `kind: Literal['neutron_cw'] = 'neutron_cw'`, `wavelength: Parameter`, `harmonics: list[Harmonic] = []`
 - `rx.Geometry` — Diffraction geometry.
   Fields: `kind: Literal['debye_scherrer', 'bragg_brentano', 'flat_plate_transmission'] = 'debye_scherrer'`, `goniometer_radius_mm: float | None = None`, `surface_roughness: RoughnessSuortti | RoughnessPitschke | None = None`, `sample_displacement: Parameter = Parameter(0.0, min=-1.0, max=1.0)`, `sample_transparency: Parameter = Parameter(0.0, min=0.0, max=0.05)`, `capillary_offset_along_beam: Parameter = Parameter(0.0, min=-1.0, max=1.0)`, `capillary_offset_across_beam: Parameter = Parameter(0.0, min=-1.0, max=1.0)`, `axial_sl: Parameter = Parameter(0.0, min=0.0, max=0.2)`, `axial_hl: Parameter = Parameter(0.0, min=0.0, max=0.2)`, `mu_r: float | None = None`, `capillary_radius_mm: float | None = None`, `mu_t: float | None = None`, `thickness_mm: float | None = None`, `packing_fraction: float = 0.6`
@@ -89,7 +89,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
   Fields: `kind: Literal['fixed_plus_chebyshev'] = 'fixed_plus_chebyshev'`, `fixed_two_theta: list[float]`, `fixed_intensity: list[float]`, `fixed_sigma: list[float] | None = None`, `fixed_source: str | None = None`, `scale: Parameter = Parameter(1.0, min=0.0)`, `chebyshev: BackgroundChebyshev = BackgroundChebyshev(…)`
 - `rx.Dispersion` — Anomalous scattering corrections f′, f″ at the source wavelengths.
   Fields: `table: Literal['cromer_liberman'] = 'cromer_liberman'`, `overrides: dict[str, tuple[float, float]] = {}`
-- `rx.PatternData` — A 1-D powder pattern.
+- `rx.PatternData` — A powder pattern.
   Fields: `two_theta: list[float] | None = None`, `tof: list[float] | None = None`, `intensity: list[float]`, `sigma: list[float] | None = None`, `excluded_regions: list[tuple[float, float]] = []`, `metadata: dict[str, str] = {}`
 
 ## Refining
