@@ -16,6 +16,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1326](1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | 2026-09-26 | P2 | [v1.6](#v1-6) |
 | [1327](1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 2026-09-26 | P2 | [v1.6](#v1-6) |
 | [1328](1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | 2026-09-29 | P3 | [v1.6](#v1-6) |
+| [1337](1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | 2026-09-29 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-09-29 | P2 | [v1.6](#v1-6) |
 | [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 2026-09-24 | P1 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-09-28 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
@@ -405,7 +406,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1324](1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, and a setting nobody chose | ✅ 2026-09-02 | — | — |
 | [1332](1332-the-axis-a-reader-hands-back.md) | What a reader hands back: the axis, the rows, the σ column | ✅ 2026-09-28 | — | — |
 | [1336](1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | ⬜ | P2 | — ([1310](1310-report-repeats-itself.md) soft) |
-| [1337](1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | ⬜ | P3 | — ([1311](1311-walking-parameter-bounds.md), [1321](1321-persisted-bounds-repair.md) soft) |
+| [1337](1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | 🔄 2026-09-29 | P3 | — ([1311](1311-walking-parameter-bounds.md), [1321](1321-persisted-bounds-repair.md) soft) |
 | [1342](1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ✅ 2026-09-19 | — | — |
 | [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | ⬜ | P3 | — |
 | [1414](1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ✅ 2026-09-22 | — | — ([1341](1341-a-joint-fit-has-no-report.md) soft) |
