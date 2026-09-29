@@ -18,8 +18,8 @@ its engine skips ``index_pattern`` (:data:`DATASETS`).
 **replay** runs a captured unit's engine to completion (no token, no progress)
 and prints its digest, the sha256 of ``np.array([[*cell, n_indexed] …],
 float64).tobytes()`` (first 8 hex), its wall, and the wall spent inside
-``engines._dedup_groups``.  ``--count`` also counts the χ² tests dedup asked of
-``reduce.equal_reduced``, at the cost of a wrapper on every one.  ``--save``
+``engines._dedup_groups``.  ``--count`` also counts the χ² tests dedup asked,
+one pair at a time or stacked, at the cost of a wrapper on every call.  ``--save``
 keeps the result for **pool**, which folds a dataset's saved units per engine
 (``merge_engine_units``), pools them as ``consensus.merge_engine_candidates``
 does, times ``dedup_groups`` over the pool and digests its groups.
@@ -169,14 +169,25 @@ class _DedupClock:
             self.tests += 1
             return self._real_test(*args, **kwargs)
 
+        # WP-1519's stacked tests, where the tree has them
+        self._real_many = getattr(reduce, "equal_reduced_many", None)
+
+        def counted_many(red_a, reds_b, **kwargs):
+            self.tests += len(reds_b)
+            return self._real_many(red_a, reds_b, **kwargs)
+
         engines._dedup_groups = timed
         if self._count:
             reduce.equal_reduced = counted
+            if self._real_many is not None:
+                reduce.equal_reduced_many = counted_many
         return self
 
     def __exit__(self, *exc):
         self._engines._dedup_groups = self._real
         self._reduce.equal_reduced = self._real_test
+        if self._real_many is not None:
+            self._reduce.equal_reduced_many = self._real_many
 
 
 def replay(out: Path, key: str, *, save: bool, count: bool) -> dict:
