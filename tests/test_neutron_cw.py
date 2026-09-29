@@ -929,3 +929,77 @@ def test_neutron_attenuation_names_an_untabulated_species():
         total_cross_section_neutron("83Kr", 1.798)
     with pytest.raises(ValueError, match="positive"):
         total_cross_section_neutron("O", 0.0)
+
+
+@pytest.mark.parametrize("species", ["Gd", "Yb", "Cd", "Sm", "Eu"])
+def test_a_resonant_absorber_refuses_the_neutron_estimate(species):
+    """The neutron twin of the X-ray "straddles an edge" refusal (WP-1132
+    item 4): the thermal σ_abs scaled by 1/v is wrong in principle near a
+    resonance, and with no resonance energies in the tree every listed
+    absorber refuses — Yb, whose element absorbs only 34.8 barn, included.
+
+    A mass-numbered nuclide (``157Gd``) refuses at the cross-section too, but
+    a *structure* carrying one never reaches it: the QPA composition cannot
+    read a mass number (``qpa.element_symbol``) and declines first, with its
+    own reason — asserted here so the two refusals are not confused.
+    """
+    from rietx.crystallography.neutron import total_cross_section_neutron
+    from rietx.refine import _resolve_specimen_absorption
+
+    with pytest.raises(ValueError, match="resonant neutron absorber"):
+        total_cross_section_neutron(species, 2.4067)
+
+    inst = rx.Instrument.constant_wavelength_neutron(
+        2.4067, capillary_radius_mm=2.5)
+    source, reason = _resolve_specimen_absorption(_one_species(species), inst)
+    assert source == "estimated"
+    assert reason is not None and "resonant neutron absorber" in reason
+    assert inst.geometry.mu_r is None       # declined, not guessed
+
+
+def test_a_resonant_nuclide_refuses_and_its_structure_declines_earlier():
+    from rietx.crystallography.neutron import total_cross_section_neutron
+    from rietx.refine import _resolve_specimen_absorption
+
+    with pytest.raises(ValueError, match="resonant neutron absorber"):
+        total_cross_section_neutron("157Gd", 2.4067)
+    inst = rx.Instrument.constant_wavelength_neutron(
+        2.4067, capillary_radius_mm=2.5)
+    _, reason = _resolve_specimen_absorption(_one_species("157Gd"), inst)
+    assert reason is not None and "157Gd" in reason
+    assert inst.geometry.mu_r is None
+
+
+def test_the_resonant_refusal_is_about_resonance_not_about_absorbing():
+    """Nd and B absorb strongly (50.5 and 767 barn) and are not resonant,
+    so they estimate; an explicit µR on a Gd specimen is still honoured."""
+    from rietx.refine import _resolve_specimen_absorption
+
+    for species in ("Nd", "B"):
+        inst = rx.Instrument.constant_wavelength_neutron(
+            2.4067, capillary_radius_mm=2.5)
+        assert _resolve_specimen_absorption(_one_species(species), inst) == \
+            ("estimated", None)
+        assert inst.geometry.mu_r > 0.0
+    given = rx.Instrument.constant_wavelength_neutron(
+        2.4067, capillary_radius_mm=2.5, mu_r=1.2)
+    assert _resolve_specimen_absorption(_one_species("Gd"), given) == \
+        ("given", None)
+
+
+def test_the_resonant_refusal_reaches_a_real_refinement_result():
+    """The refusal is surfaced as ``ABSORPTION_ESTIMATE_UNAVAILABLE`` with the
+    resonance named in the message — the same channel the X-ray edge refusal
+    uses — and the fit runs with no absorption correction rather than a
+    wrong one."""
+    tt = np.arange(20.0, 60.0, 0.2)
+    data = rx.PatternData(two_theta=tt.tolist(),
+                          intensity=np.ones_like(tt).tolist())
+    inst = rx.Instrument.constant_wavelength_neutron(
+        1.5406, fwhm_deg=0.3, capillary_radius_mm=2.5)
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage(name="bkg", turn_on=["instrument.background.*"])])
+    result = rx.Refinement(_one_species("Gd"), inst).fit(data, plan=plan)
+    hits = [d for d in result.diagnostics
+            if d.code == "ABSORPTION_ESTIMATE_UNAVAILABLE"]
+    assert len(hits) == 1 and "resonant neutron absorber" in hits[0].message

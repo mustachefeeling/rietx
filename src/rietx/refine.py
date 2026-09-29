@@ -4584,8 +4584,12 @@ def _absorption_diagnostics(record) -> list[Diagnostic]:
                      + ("µt" if flat else "µR")
                      + f" could not be estimated ({record.skipped}); the "
                      "pattern was fitted with NO absorption correction"),
-            suggestion=(f"set {where[0]} explicitly, or use a wavelength away "
-                        "from an absorption edge of the specimen")))
+            suggestion=(f"set {where[0]} explicitly (measured, or computed "
+                        "by hand for this specimen); on an X-ray source a "
+                        "wavelength away from an absorption edge of the "
+                        "specimen also lets the estimate run, while a neutron "
+                        "resonant absorber (Cd, Sm, Eu, Gd, Yb) is refused at "
+                        "every wavelength")))
     if record.out_of_range:
         out.append(Diagnostic(
             level="warning", code="ABSORPTION_MU_R_OUT_OF_RANGE", where=where,

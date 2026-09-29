@@ -752,7 +752,9 @@ divides by R.
 
 `estimate_mu_r` computes a starting µR from a structure's composition and the
 geometry, and returns `None` rather than raising when it cannot: an element
-outside the tabulation, a wavelength straddling an edge, or no capillary radius.
+outside the tabulation, a wavelength straddling an edge, a neutron resonant
+absorber (Cd, Sm, Eu, Gd or Yb, refused at every wavelength since no resonance
+energies are tabulated), or no capillary radius.
 A refinement does the same calculation itself when `mu_r` is left `None`.
 
 `RoughnessSuortti` carries `RoughnessSuortti.a` and `RoughnessSuortti.b`;

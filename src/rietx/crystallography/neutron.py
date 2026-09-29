@@ -199,7 +199,17 @@ def total_cross_section_neutron(species: str, wavelength: float) -> float:
     against ¹H's 80.26), as :func:`b_coh` does.
 
     Raises :class:`KeyError` naming the species when it is untabulated or a
-    needed column reads ``---``.
+    needed column reads ``---``, and :class:`ValueError` for a **resonant
+    absorber** (:data:`RESONANT_ABSORBERS`): near a nuclear resonance σ_abs
+    leaves the 1/v law, so the thermal value scaled by λ is wrong in
+    principle rather than imprecise — the neutron twin of an X-ray wavelength
+    whose tabulation interval straddles an absorption edge, and refused for
+    the same reason.  "Near" would need each nuclide's resonance energies,
+    which this package does not carry (the reason
+    ``refine._resonant_absorber_diagnostics`` gives for not quoting them), so
+    the refusal covers **every** listed absorber at every wavelength rather
+    than guess which are far enough away.  An explicit ``Geometry.mu_r`` /
+    ``mu_t`` is how such a specimen gets its correction.
 
         >>> round(total_cross_section_neutron("V", 1.798), 4)   # abs + coh + inc
         10.1784
@@ -208,6 +218,13 @@ def total_cross_section_neutron(species: str, wavelength: float) -> float:
         raise ValueError(f"wavelength must be positive, got {wavelength}")
     row = properties(species)
     key = row["symbol"]
+    if key in RESONANT_ABSORBERS:
+        raise ValueError(
+            f"{species!r} (read as {key!r}) is a resonant neutron absorber, "
+            f"whose absorption leaves the 1/v law near a nuclear resonance; "
+            f"the thermal cross-section scaled to {wavelength:g} A is not an "
+            f"estimate there, and no resonance energies are tabulated to say "
+            f"whether this wavelength is near one")
     parts = (row["xs_abs_barn"], row["xs_coh_barn"], row["xs_inc_barn"])
     if not all(np.isfinite(v) for v in parts):
         raise KeyError(
@@ -235,7 +252,8 @@ def linear_attenuation_neutron(element_counts: dict[str, float], volume: float,
     :func:`total_cross_section_neutron` (Sears 1992).  1 barn = 10⁻²⁴ cm² and
     1 Å³ = 10⁻²⁴ cm³, so barn/Å³ is exactly 1/cm.
 
-    Raises what :func:`total_cross_section_neutron` raises.
+    Raises what :func:`total_cross_section_neutron` raises, for the reasons it
+    gives — a caller that must not raise catches both.
     """
     if volume <= 0.0:
         raise ValueError(f"cell volume must be positive, got {volume}")
