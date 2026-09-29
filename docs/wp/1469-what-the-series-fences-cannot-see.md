@@ -147,20 +147,69 @@ same way when the offset is shared, and that a width-freeing plan is where
 it was measured. The reporter's two cheap reads: the per-pattern Caglioti
 correlation rows, and a few patterns refitted cold.
 
-### Inherited
+### Decisions taken (2026-09-29)
 
-- **From WP-1465, 2026-09-27: a third series fence now reads the trajectory,
-  and it skips only `"diverged"` entries.** `SEQUENTIAL_WIDTH_GROWTH`
-  (`sequential._width_growth_diagnostics`) fires when a phase width reaches
-  3× the first value the series measured (> 3σ) and GoF reaches 2× that
-  pattern's GoF, at the same pattern. It compares against that reference
-  pattern, not a running median, so the median drift this WP is about does
-  not reach it. A **kept pattern that still fails the Rwp fence** does reach
-  it, though. Issue #481's blank ramp_007 is fitted cold with a high GoF;
-  were a width free and measured there, that frame could be the point where
-  the trigger fires. Whatever marker this WP gives such an entry, add it to
-  the trigger's skip beside `"diverged"`. The trigger's hand-built tests in
-  `tests/test_sequential.py` (`_width_series`) are the place to pin that.
+All measured on this tree (Linux x86_64, Python 3.12, `[dev]`) with #481's
+script and two variants of it: the same 24-pattern ramp, no blank and no
+planted step, with a change from pattern 6 — the counts ÷4 under a correct
+model, or an unmodelled second phase (GoF 16.7). `refit="stages"` unless
+said.
+
+1. **Gap 1: a sibling code, `SEQUENTIAL_RWP_OUTLIER`, and no quarantine.**
+   The Rwp fence cannot say why Rwp rose: #481's blank has **GoF 0.998**
+   against its neighbour's 1.06 and Rexp 0.159 against 0.040 (its scale
+   3.1e-8 ± 2.4e-8, background and noise fitted perfectly), exactly the
+   signature of a count drop under a correct model (GoF 1.08 against 1.04,
+   Rexp doubled). Quarantine keyed on the Rwp verdict therefore punishes
+   sound measurements, and it never lets a lasting change become the new
+   normal:
+
+   | series | chain iterations, no quarantine / quarantined | patterns flagged | values |
+   |---|---|---|---|
+   | #481 blank, `"stages"` | 1217 / 1191 | 1 / 1 | identical |
+   | #481 blank, `"single"` | 1016 / 938 | 1 / 1 | identical |
+   | counts ÷4 from 6 | 811 / 1260 (+55 %) | 7 / 18 | identical |
+   | unmodelled phase from 6 | 698 / 1446 (+107 %) | 7 / 18 | identical |
+
+   Quarantine buys 2-8 % on a blank and costs 55-107 % on a lasting change,
+   with no value moving in any row. So the new state is not
+   `SEQUENTIAL_UNRECOVERED` widened (whose text says "seeded no successor,
+   left out of the median"), and it does not claim the values are not a
+   measurement: it quotes GoF and Rexp against the last pattern before it
+   inside the fence, the reading that separates the three causes. The fence
+   is recorded on the entry (`SeriesEntry.rwp_fence`), so the verdict
+   (`SeriesEntry.above_fence`) is derived like every other fence here.
+   `SEQUENTIAL_RESEED` stops calling such a pattern a good fit.
+2. **Gap 2: leave the rejected pattern out of the step scan, and drop its
+   steps rather than bridge them.** "Flag every step" would keep the blank's
+   two steps, each verified at 1.00 because two cold fits reproduce the same
+   noise, beside the real one: a confirmed false step. Leaving the pattern
+   out (diverged ones too, which were scanned before) fixes #481 in both of
+   the reporter's runs. Bridging the gap was measured wrong: across the
+   count-drop run's seven rejected patterns the bridge spanned eight ramp
+   steps and flagged a clean ramp at 8×. The argmax per path stays, so two
+   real steps on one path still report one; no issue has reported that shape.
+   **The suite's clean series fire nothing new**, counted by wrapping
+   `SequentialRefinement._run` over every series the suite fits (83 series,
+   76 tests, eleven files, slow included): the discontinuity flags are 22
+   before and 22 after with no series' flags moved, and
+   `SEQUENTIAL_RWP_OUTLIER` fires on four — three fixtures that dictate the
+   fence (`_dictate`, or `reseed_factor=1.0`) and WP-1465's soak chain, a
+   model missing a phase, where it should.
+3. **Gap 3: a `SeriesResult`-level record, not a `Diagnostic` field.**
+   `SeriesResult.discontinuities: list[SeriesStep] | None` (path, labels,
+   indices, signed step), one per `SEQUENTIAL_DISCONTINUITY` in the same
+   order, written by `fit`. A field on `Diagnostic` would add a key to every
+   diagnostic of every producer for one of them. The verification pass reads
+   the record's indices, and `plot_trajectory` shades the record's pair — it
+   had re-derived the step as the largest one, which shaded the blank's.
+4. **WP-1465's Inherited ask is declined, measured.** It asked for the new
+   marker to join `SEQUENTIAL_WIDTH_GROWTH`'s skip. Every soaked pattern of
+   WP-1465's own fixture (`test_a_phase_standing_in_for_a_missing_one_...`)
+   is above the Rwp fence (GoF 1.85-5.08 against 0.99), since a phase
+   standing in for a missing one is what lifts a pattern there; the skip
+   would leave the finding nothing to fire on. Pinned by
+   `test_a_pattern_above_the_rwp_fence_is_still_read`.
 
 ## Non-goals
 
@@ -174,18 +223,18 @@ correlation rows, and a few patterns refitted cold.
 
 ## Tasks
 
-- [ ] Gap 1: a pattern whose kept rung still fails `_reseed_needed`'s Rwp
+- [x] Gap 1: a pattern whose kept rung still fails `_reseed_needed`'s Rwp
       leg carries a warning-level code (`SEQUENTIAL_UNRECOVERED` widened,
       or a sibling), and `_reseed_diagnostics` no longer calls it a good
       fit. Decide, and record in this file, whether it is also quarantined
       (no successor seeded, out of the median), measuring both on #481's
       ramp and on a series with a real specimen change.
-- [ ] Gap 2: every step passing both legs is flagged, or a pattern the
+- [x] Gap 2: every step passing both legs is flagged, or a pattern the
       fence rejected on every rung is left out of the step scan; pick one
       and say why. On #481's ramp the planted ramp_011 → ramp_012 step is
       flagged. Count the new flags on the suite's clean series, which must
       stay at zero.
-- [ ] Gap 3: the pair is a field. `Diagnostic` is shared by every
+- [x] Gap 3: the pair is a field. `Diagnostic` is shared by every
       producer, so either a new optional field there (with its writer named,
       WP-1076) or a `SeriesResult`-level record beside the diagnostics, as
       `_FlaggedStep` already is privately. The verification pass reads the

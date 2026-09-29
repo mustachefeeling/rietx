@@ -382,16 +382,17 @@ coexistence figures are Kemei et al., J. Phys.: Condens. Matter 25, 326001
 
 ## The series codes: what each one means you must not do
 
-These eight arrive on a `SeriesResult` — the series' own `diagnostics`, or a
+These nine arrive on a `SeriesResult` — the series' own `diagnostics`, or a
 pattern's entry — and a single `fit()` never emits one, so their rows live
 here rather than in §7's table, which carries what a fit is likely to say.
 Branch on the code, as §7 says; the manual's *Refining many patterns* chapter explains each.
-The ninth series code, `SEQUENTIAL_PERSISTENT_FINDING`, is an abstention, so its row is in §6, [`abstention.md`](abstention.md).
+The tenth series code, `SEQUENTIAL_PERSISTENT_FINDING`, is an abstention, so its row is in §6, [`abstention.md`](abstention.md).
 
 | Code | What it means you must not do |
 |---|---|
-| `SEQUENTIAL_RESEED` | Read this point of a series as evidence that the trajectory is continuous — its starting values did not come from its neighbour |
-| `SEQUENTIAL_DISCONTINUITY` | Report the jump as physics without opening that pattern's own fit; it is equally the signature of a chain failure. `fit(verify_discontinuities=True)` opens it for you — both patterns refitted cold and independently, and `value` is what that pair reproduces (1.0 in the data, 0 the chain's own); measured cost 5 % of a 68-pattern chain |
+| `SEQUENTIAL_RESEED` | Read this point of a series as evidence that the trajectory is continuous — its starting values did not come from its neighbour. With `SEQUENTIAL_RWP_OUTLIER` on the same pattern the cold rung was only the best of the rejected rungs, not a good fit |
+| `SEQUENTIAL_RWP_OUTLIER` | Read that point as a measurement before opening its fit: every rung left it above the Rwp fence (`value` = Rwp over `entry.rwp_fence`). The message quotes GoF and Rexp against the last pattern inside the fence, which says why. **GoF up** means a model the pattern outgrew (a phase it lacks, a bad frame). **GoF level, Rexp up** means fewer counts: a blank frame, fitted perfectly with its scales at their esds (#481: GoF 1.00 against 1.06, Rexp 0.159 against 0.040), or a shorter frame whose fit is sound. It is not quarantined, so a run that stops is the median catching up with a lasting change (WP-1469) |
+| `SEQUENTIAL_DISCONTINUITY` | Report the jump as physics without opening that pattern's own fit; it is equally the signature of a chain failure. `fit(verify_discontinuities=True)` opens it for you — both patterns refitted cold and independently, and `value` is what that pair reproduces (1.0 in the data, 0 the chain's own); measured cost 5 % of a 68-pattern chain. The pair is `series.discontinuities` (a `SeriesStep` per flag, key `path`), not the prose. Steps into or out of an outlier or unrecovered pattern are not scanned |
 | `SEQUENTIAL_PATH_DEPENDENT` | Quote that parameter's per-pattern esd as its uncertainty — the between-chain spread is larger and is the honest one |
 | `SEQUENTIAL_CANCELLED` | Read the shortened `entries` list as the series — it is where the chain stopped, not where the ramp ended |
 | `SEQUENTIAL_UNRECOVERED` | Read that point's values as a measurement, or its failure as evidence about its neighbours — nothing was chained through it |

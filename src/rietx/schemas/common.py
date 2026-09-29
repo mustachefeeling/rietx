@@ -321,7 +321,16 @@ from .._nearmiss import did_you_mean
 #: version): the header stamps a log's creation, and a node appended to an
 #: old log by this release would otherwise be read as old.  A log whose
 #: header says 0.35 or later is never walked.
-SCHEMA_VERSION = "0.35"
+#: 0.35 → 0.36 (WP-1469, issue #481): ``SeriesEntry.rwp_fence`` — the Rwp
+#: limit the chain's fence set at the pattern, so the verdict on a kept
+#: attempt still above it (``SEQUENTIAL_RWP_OUTLIER``) is read off the entry —
+#: and ``SeriesResult.discontinuities`` (``list[SeriesStep]``), the pair each
+#: ``SEQUENTIAL_DISCONTINUITY`` names in prose.  Both additive and defaulted to
+#: ``None``, the rule of 0.25 → 0.26: a series from before this may have had
+#: an outlier or a flagged step, so an empty default would claim what nobody
+#: checked.  Opened, it reports neither code's new half, which is true — no
+#: fence recorded one.
+SCHEMA_VERSION = "0.36"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

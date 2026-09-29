@@ -28,7 +28,7 @@ from rietx.params.vector import AffineTie, ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import BackgroundChebyshev
 from rietx.schemas.results import RefinedParameter, Statistics
-from rietx.schemas.sequential import SeriesEntry, SeriesResult
+from rietx.schemas.sequential import SeriesEntry, SeriesResult, SeriesStep
 from rietx.schemas.structure import Atom
 from rietx.sequential import (
     FIRST_RUNG_FACTOR,
@@ -63,14 +63,16 @@ RAMP = 5e-4
 TEMPERATURES = [300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0]
 
 
-def _simulate(a: float, *, seed: int, biso: float = 0.4) -> rx.PatternData:
-    """One pattern of the series at cell edge ``a``, with Poisson noise."""
+def _simulate(a: float, *, seed: int, biso: float = 0.4,
+              scale: float = TRUE_SCALE) -> rx.PatternData:
+    """One pattern of the series at cell edge ``a``, with Poisson noise.
+    ``scale=0`` is a blank frame: the background and its noise alone."""
     structure = make_lab6()
     for name in ("a", "b", "c"):
         getattr(structure.phases[0].cell, name).value = a
     for atom in structure.phases[0].atoms:
         atom.biso.value = biso
-    structure.phases[0].scale.value = TRUE_SCALE
+    structure.phases[0].scale.value = scale
     ins = rx.Instrument.debye_scherrer(wavelength=WAVELENGTH)
     ins.zero_shift.value = TRUE_ZERO
     ins.profile.w.value = TRUE_W
@@ -769,7 +771,15 @@ def test_reseed_records_both_fits_and_emits_a_diagnostic(thermal_patterns):
 
 def test_a_well_behaved_series_reseeds_nothing(thermal_series):
     assert not any(e.reseeded for e in thermal_series)
-    assert "SEQUENTIAL_RESEED" not in [d.code for d in thermal_series.diagnostics]
+    codes = [d.code for d in thermal_series.diagnostics]
+    assert "SEQUENTIAL_RESEED" not in codes
+    # WP-1469's new half fires nothing on it: every fence recorded, none left
+    # a pattern above it, and the record of flagged steps is empty, not absent
+    assert "SEQUENTIAL_RWP_OUTLIER" not in codes
+    assert thermal_series[0].rwp_fence is None
+    assert all(e.rwp_fence is not None and not e.above_fence
+               for e in thermal_series.entries[1:])
+    assert thermal_series.discontinuities == []
     # ... and no pattern climbed past its first rung: the first is cold because
     # it has no predecessor, every other one is the collapsed warm refit
     assert [e.rung for e in thermal_series] == ["cold"] + ["warm"] * 6
@@ -1118,6 +1128,118 @@ def test_an_unrecovered_pattern_seeds_nothing_and_joins_no_median(
     assert len(series) == 3 and failed.statistics is not None
 
 
+# -- a kept rung still above the fence (WP-1469, issue #481) ---------------
+
+def test_a_pattern_every_rung_left_above_the_fence_says_so(thermal_patterns,
+                                                           tmp_path):
+    """Gap 1: the Rwp leg of the fence was a trigger and never a verdict.
+
+    Pattern 1 is dictated above the fence on every rung, the cold one least
+    so, which is issue #481's blank frame: kept cold, reseeded, and until
+    WP-1469 reported only by a ``SEQUENTIAL_RESEED`` calling it a good fit.
+    """
+    structure, ins = _start_models()
+    runner = _dictate(
+        SequentialRefinement(structure, ins, history=tmp_path / "h"),
+        {"p000": [("converged", 0.10)],
+         "p001": [("converged", 0.30), ("converged", 0.29), ("converged", 0.28)],
+         "p002": [("converged", 0.10)]})
+    series = runner.fit(thermal_patterns[:3], plan=_CHEAP)
+
+    kept = series[1]
+    assert kept.rungs_tried == ["warm", "warm_staged", "cold"]
+    assert kept.rung == "cold" and kept.reseeded
+    assert series[0].rwp_fence is None               # no median yet
+    assert kept.rwp_fence == pytest.approx(1.25 * 0.10)
+    assert kept.above_fence
+    (outlier,) = [d for d in series.diagnostics
+                  if d.code == "SEQUENTIAL_RWP_OUTLIER"]
+    assert outlier.level == "warning" and outlier.where == ["p001"]
+    assert outlier.value == pytest.approx(0.28 / 0.125)
+    # the evidence that separates the causes, against the pattern before it
+    assert "against p000, the last pattern before it inside the fence: GoF " in \
+        outlier.message
+    assert "Rexp" in outlier.message
+    # …and the reseed text stops calling it a good fit
+    (reseed,) = [d for d in series.diagnostics if d.code == "SEQUENTIAL_RESEED"]
+    assert "good fit" not in reseed.suggestion
+    assert "SEQUENTIAL_RWP_OUTLIER" in reseed.suggestion
+    assert "SEQUENTIAL_UNRECOVERED" not in [d.code for d in series.diagnostics]
+
+    # not quarantined: it seeds its successor and joins the median, so a
+    # lasting change can become the chain's new normal (the WP's measurement)
+    roots = [t.root for t in runner.trees_]
+    assert roots[2].notes["series_warm_start_node"] == kept.node_id
+    assert series[2].rwp_fence == pytest.approx(1.25 * np.median([0.10, 0.28]))
+    assert not series[2].above_fence
+
+
+@pytest.mark.slow
+def test_a_blank_frame_no_longer_reads_as_a_point_or_hides_a_step():
+    """Issue #481 as a fixture, all three gaps at once.
+
+    Twenty-four patterns of a ramp growing 6.4e-5 a pattern, pattern 7 blank
+    (every scale 0: background and noise), a 2e-3 Å step planted from pattern
+    12, the first pattern fitted with ``mccusker_default`` and the chain run
+    as the issue ran it.  Before WP-1469 the blank read as a good fit and its
+    cell, fitted to noise, took the one flag on a, b and c, verified at 1.00,
+    while the planted step went unreported.
+    """
+    ramp, step, blank, stepped = 6.4e-5, 2e-3, 7, 12
+    patterns = [_simulate(A0 * (1 + ramp * k) + (step if k >= stepped else 0.0),
+                          seed=500 + k, scale=0.0 if k == blank else TRUE_SCALE)
+                for k in range(24)]
+    first = rx.Refinement(*_start_models())
+    first.fit(patterns[0], plan="mccusker_default")
+    series = SequentialRefinement(first.fitted_structure,
+                                  first.fitted_instrument).fit(
+        patterns, labels=[f"ramp_{k:03d}" for k in range(24)],
+        plan="mccusker_default", refit="stages", on_error="carry",
+        verify_discontinuities=True)
+
+    # gap 1: the blank carries a warning that does not call it a good fit,
+    # and it is the only pattern that does
+    outliers = [d for d in series.diagnostics
+                if d.code == "SEQUENTIAL_RWP_OUTLIER"]
+    assert [d.where for d in outliers] == [["ramp_007"]]
+    assert outliers[0].level == "warning"
+    assert all("good fit" not in d.suggestion for d in series.diagnostics
+               if d.where == ["ramp_007"])
+    # gap 2: the planted step is flagged, verified, and nothing touches the blank
+    jumps = {d.where[0]: d for d in series.diagnostics
+             if d.code == "SEQUENTIAL_DISCONTINUITY"}
+    assert jumps["phases.0.cell.a"].value == pytest.approx(1.0, abs=0.05)
+    # gap 3: …and the pair is read from a field
+    pairs = {s.path: s.labels for s in series.discontinuities}
+    assert pairs["phases.0.cell.a"] == ("ramp_011", "ramp_012")
+    assert not [p for p in pairs.values() if "ramp_007" in p]
+
+
+def test_the_outlier_verdict_is_read_off_the_entry():
+    """Derived, like every fence here, so a reloaded series says the same."""
+    from rietx.sequential import _inside_before, _rwp_outlier_diagnostics
+
+    def entry(k, rwp, fence, status="converged"):
+        return SeriesEntry(index=k, label=f"p{k}", status=status, rwp_fence=fence,
+                           statistics=Statistics(rwp=rwp, rp=rwp, rexp=0.04,
+                                                 chi2=1.0, gof=rwp / 0.04,
+                                                 n_points=100,
+                                                 n_free_parameters=3))
+
+    assert not entry(0, 0.30, None).above_fence          # no fence applied
+    assert not entry(0, 0.05, 0.0625).above_fence        # inside it
+    assert not entry(0, 0.30, 0.0625, "diverged").above_fence   # UNRECOVERED's
+    assert entry(0, 0.30, 0.0625).above_fence
+    assert _rwp_outlier_diagnostics(entry(0, 0.05, 0.0625), None) == []
+
+    # "before" is in walk order: a backward chain reached p1 from p2
+    chain = [entry(0, 0.04, None), entry(1, 0.30, 0.05), entry(2, 0.04, 0.05)]
+    assert _inside_before(chain, "forward")[1].label == "p0"
+    assert _inside_before(chain, "backward")[1].label == "p2"
+    reloaded = SeriesEntry.model_validate_json(chain[1].model_dump_json())
+    assert reloaded.above_fence and reloaded.rwp_fence == 0.05
+
+
 def test_every_rung_writes_its_own_history_log(thermal_patterns, tmp_path):
     """One header per file, which the cold restart used to break.
 
@@ -1319,10 +1441,11 @@ class _StubColdFits(SequentialRefinement):
 def _flagged(path: str, step: float, labels=("p2", "p3")):
     from rietx.sequential import _FlaggedStep
 
-    return _FlaggedStep(path=path, labels=labels, step=step,
-                        diagnostic=rx.Diagnostic(
-                            level="info", code="SEQUENTIAL_DISCONTINUITY",
-                            where=[path], message="m", suggestion="s"))
+    return _FlaggedStep(
+        record=SeriesStep(path=path, labels=labels, step=step,
+                          indices=tuple(int(label[1:]) for label in labels)),
+        diagnostic=rx.Diagnostic(level="info", code="SEQUENTIAL_DISCONTINUITY",
+                                 where=[path], message="m", suggestion="s"))
 
 
 def test_verification_reports_a_chain_made_step_as_a_small_ratio():
@@ -1429,7 +1552,101 @@ def test_an_inert_parameter_cannot_carry_a_discontinuity():
     flagged = _discontinuity_steps(real)
     assert [s.diagnostic.code for s in flagged] == ["SEQUENTIAL_DISCONTINUITY"]
     # the signed step the verification ratio divides by (WP-1305)
-    assert flagged[0].step == pytest.approx(4.15962 - 4.15661)
+    assert flagged[0].record.step == pytest.approx(4.15962 - 4.15661)
+    # …and the pair it is between, as fields (WP-1469, issue #481)
+    assert flagged[0].record.labels == ("p1", "p2")
+    assert flagged[0].record.indices == (1, 2)
+
+
+def _fenced_series(path: str, values, stderr, *, above=(), diverged=()):
+    """A hand-built chain whose ``above`` patterns sit over a fence of 0.05
+    and whose ``diverged`` ones diverged; every other one is inside it."""
+    def stats(rwp):
+        return Statistics(rwp=rwp, rp=rwp, rexp=0.04, chi2=1.0, gof=rwp / 0.04,
+                          n_points=100, n_free_parameters=3)
+
+    return SeriesResult(entries=[
+        SeriesEntry(index=k, label=f"p{k}",
+                    status="diverged" if k in diverged else "converged",
+                    rwp_fence=None if k == 0 else 0.05,
+                    statistics=stats(0.16 if k in above else 0.04),
+                    parameters=[RefinedParameter(path=path, value=v, stderr=s)])
+        for k, (v, s) in enumerate(zip(values, stderr, strict=True))])
+
+
+#: issue #481's shape on one path: a ramp of 2.7e-4 a step, pattern 3 a blank
+#: frame whose cell was fitted to noise, and a 2e-3 step planted from pattern 6
+_RAMP_A = [4.1566 + 2.7e-4 * k + (2e-3 if k >= 6 else 0.0) for k in range(10)]
+_RAMP_A[3] = 4.1499
+_RAMP_SD = [6.6e-6] * 10
+_RAMP_SD[3] = 1.6e-3
+
+
+def test_a_rejected_frame_no_longer_takes_the_paths_one_flag():
+    """Gap 2: the blank's step was the largest passing both legs, so the
+    argmax kept it and the planted step behind it went unreported."""
+    path = "phases.0.cell.a"
+    # as a measurement (the pre-WP-1469 reading), the blank takes the flag
+    (s,) = _discontinuity_steps(_fenced_series(path, _RAMP_A, _RAMP_SD))
+    assert set(s.record.labels) & {"p3"}
+    # above the fence, its two steps are left out and the planted one is found
+    for rejected in ({"above": {3}}, {"diverged": {3}}):
+        (s,) = _discontinuity_steps(_fenced_series(path, _RAMP_A, _RAMP_SD,
+                                                   **rejected))
+        assert s.record.labels == ("p5", "p6")
+        assert s.record.indices == (5, 6)
+        assert s.record.step == pytest.approx(2.27e-3)
+        assert "between p5 and p6" in s.diagnostic.message
+
+
+def test_a_run_of_rejected_patterns_is_never_bridged():
+    """A clean ramp whose counts fell for four patterns: those four sit over
+    the fence with good values.  Bridged, the step from p1 to p6 spans five of
+    the ramp's steps and read as a 5× discontinuity; dropped, nothing fires."""
+    ramp = [4.1566 + 2.7e-4 * k for k in range(10)]
+    assert _discontinuity_steps(_fenced_series(
+        "phases.0.cell.a", ramp, [6.6e-6] * 10, above={2, 3, 4, 5})) == []
+
+
+def test_the_flagged_pair_is_a_field_beside_the_diagnostic():
+    """Gap 3: one record per SEQUENTIAL_DISCONTINUITY, in the same order, the
+    path its key, and it survives JSON."""
+    series = _fenced_series("phases.0.cell.a", _RAMP_A, _RAMP_SD, above={3})
+    steps = _discontinuity_steps(series)
+    series.diagnostics = [s.diagnostic for s in steps]
+    series.discontinuities = [s.record for s in steps]
+    reloaded = SeriesResult.model_validate_json(series.model_dump_json())
+    flagged = [d for d in reloaded.diagnostics
+               if d.code == "SEQUENTIAL_DISCONTINUITY"]
+    assert [s.path for s in reloaded.discontinuities] == \
+        [d.where[0] for d in flagged]
+    assert reloaded.discontinuities[0].labels == ("p5", "p6")
+    # a document written before the record says "not recorded", not "none"
+    assert SeriesResult().discontinuities is None
+
+
+def test_the_plot_shades_the_step_the_record_names():
+    """The trajectory plot re-derived the flagged step as the largest one,
+    which is the blank's here: it shaded a step no diagnostic named."""
+    import matplotlib.pyplot as plt
+
+    from rietx.viz.plots import plot_trajectory
+
+    path = "phases.0.cell.a"
+    series = _fenced_series(path, _RAMP_A, _RAMP_SD, above={3})
+    steps = _discontinuity_steps(series)
+    series.diagnostics = [s.diagnostic for s in steps]
+    series.discontinuities = [s.record for s in steps]
+    fig = plot_trajectory(series, [path])
+    (ax,) = fig.get_axes()
+    (span,) = ax.patches
+    xs = ax.transData.inverted().transform(
+        span.get_transform().transform(span.get_path().vertices))[:, 0]
+    assert (xs.min(), xs.max()) == pytest.approx((5.0, 6.0))
+    # …and the pattern above the fence is boxed, the one mark it carries
+    boxed = [line for line in ax.get_lines() if line.get_marker() == "s"]
+    assert [tuple(line.get_xdata()) for line in boxed] == [(3.0,)]
+    plt.close(fig)
 
 
 def test_a_relative_dof_is_judged_by_neither_fence():
@@ -2417,6 +2634,20 @@ def test_a_quarantined_pattern_neither_references_nor_fires():
         path, [0.001, 0.02, 0.03, 0.08], [1e-4, 1e-3, 1e-3, 1e-3],
         [0.5, 1.0, 1.2, 2.0], diverged={0}))
     assert "from p1 to p3" in d.message
+
+
+def test_a_pattern_above_the_rwp_fence_is_still_read():
+    """WP-1465's handover asked for such a pattern to join the quarantine skip.
+    Declined, measured: every soaked pattern of the chain below is over the
+    fence, since a phase standing in for a missing one is what lifts it there,
+    so the skip would leave the finding nothing to fire on (WP-1469)."""
+    series = _width_series("phases.0.lor_strain", _GROWING, [1e-3] * 5,
+                           _WORSENING)
+    for entry in series.entries[1:]:
+        entry.rwp_fence = 0.0125
+    assert [e.above_fence for e in series.entries][2:] == [True] * 3
+    (d,) = _width_growth_diagnostics(series)
+    assert "from p0 to p2" in d.message
 
 
 def test_widths_tied_to_one_column_share_one_finding():

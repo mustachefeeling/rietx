@@ -953,7 +953,10 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     point of drawing it: a ringed point is a **good fit** reached from a
     different starting model, while a crossed one is a diverged fit whose value
     is not a measurement at all.  It is still plotted, because a gap in a
-    trajectory reads as data that was never collected.
+    trajectory reads as data that was never collected.  A point every rung
+    left above the Rwp fence (``SEQUENTIAL_RWP_OUTLIER``, WP-1469) is boxed:
+    a fit unlike its neighbours', whose values need that pattern's own fit
+    opened before they are read.
 
     ``title`` names the whole figure above its stacked panels, whose own
     left-hand titles stay the parameter each one draws; absent by default,
@@ -974,10 +977,15 @@ def plot_trajectory(series, paths, *, path: str | None = None,
 
     jumps = {d.where[0] for d in series.diagnostics
              if d.code == "SEQUENTIAL_DISCONTINUITY" and d.where}
+    # the pair each flag names, read off its record (WP-1469) — re-deriving it
+    # here as the largest step shaded a different step whenever the scan had
+    # left a pattern out, or the largest step failed the σ leg
+    flagged = {s.path: s.labels for s in (series.discontinuities or [])}
     unstable = {d.where[0] for d in series.diagnostics
                 if d.code == "SEQUENTIAL_PATH_DEPENDENT" and d.where}
     reseeded = {e.label for e in series.entries if e.reseeded}
     unrecovered = {e.label for e in series.entries if e.status == "diverged"}
+    outliers = {e.label for e in series.entries if e.above_fence}
 
     fig, axes = plt.subplots(len(paths), 1, figsize=(8, 2.4 * len(paths)),
                              dpi=dpi, sharex=True, squeeze=False)
@@ -994,7 +1002,17 @@ def plot_trajectory(series, paths, *, path: str | None = None,
                 if label in unrecovered:
                     ax.plot(x[i], value[i], "x", ms=11, color="#8b1a1a",
                             mew=2.0)
-            if name in jumps and len(x) > 1:
+                if label in outliers:
+                    ax.plot(x[i], value[i], "s", ms=11, mfc="none",
+                            mec="#b8860b", mew=1.4)
+            if name in flagged:
+                first, last = flagged[name]
+                if first in traj.labels and last in traj.labels:
+                    ax.axvspan(x[traj.labels.index(first)],
+                               x[traj.labels.index(last)],
+                               color="#c23b22", alpha=0.10, lw=0)
+            elif name in jumps and len(x) > 1 and series.discontinuities is None:
+                # a document written before the record: what older versions drew
                 k = int(np.argmax(np.abs(np.diff(value))))
                 ax.axvspan(x[k], x[k + 1], color="#c23b22", alpha=0.10, lw=0)
         flag = "  [path-dependent]" if name in unstable else ""
