@@ -192,9 +192,15 @@ class Harmonic(_InheritsDeclaredDefaults):
     #: would be a second copy of line 0, degenerate with the phase scales) and
     #: n ≤ 0 is not a diffraction order at all.
     order: int = Field(default=DEFAULT_HARMONIC_ORDER, ge=2)
+    # Every attribute stated, ``unit`` and ``transform`` included: the derived
+    # emission line takes this object by reference (:attr:`NeutronSource.lines`)
+    # so a refined weight writes back here, and a Parameter leaving any
+    # attribute unset is copied on the way into a class that inherits declared
+    # ranges (``_InheritsDeclaredDefaults``), which would cut that link.
     weight: Parameter = Field(
         default_factory=lambda: Parameter(
-            value=HARMONIC_WEIGHT_SEED, min=0.0, max=HARMONIC_WEIGHT_MAX)
+            value=HARMONIC_WEIGHT_SEED, min=0.0, max=HARMONIC_WEIGHT_MAX,
+            unit=None, transform="identity")
     )
 
     @property

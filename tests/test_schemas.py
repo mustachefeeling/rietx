@@ -368,6 +368,19 @@ def test_inheriting_does_not_touch_the_callers_parameter_on_any_class():
             geo.sample_displacement.unit) == (-1.0, 1.0, "mm")
 
 
+def test_one_parameter_handed_to_many_atoms_becomes_one_per_atom():
+    """PR #206 copied a ``Parameter`` whenever it left an attribute unset, and
+    the shared rule keeps that even where the declared value is the one it
+    already holds: shared, the write-back would leave the last site's refined
+    occupancy in every site.  Sharing on purpose states every attribute, as
+    ``Harmonic.weight``'s default does for its derived emission line."""
+    p = Parameter(value=1.0, min=0.0, max=1.5)
+    a, b = _atom(occ=p), _atom(occ=p)
+    assert a.occ is not b.occ and a.occ is not p
+    whole = Parameter(value=1.0, min=0.0, max=1.5, unit=None, transform="identity")
+    assert _atom(occ=whole).occ is whole
+
+
 def test_structure_json_round_trip():
     s = make_lab6()
     s2 = Structure.model_validate_json(s.model_dump_json())

@@ -615,13 +615,15 @@ class _InheritsDeclaredDefaults(Base):
                 present, base = raw.keys(), raw
             else:
                 continue  # not a shape that carries attribute presence
-            declared = info.default_factory()
-            # only a fill that changes something replaces the caller's object:
-            # a Parameter shared by reference stays shared where the declared
-            # value is the one it holds anyway (a harmonic's weight *is* its
-            # derived emission line's, so write-back reaches the declaration)
-            fills = {attr: v for attr, v in declared_fills(declared, set(present)).items()
-                     if base.get(attr, BARE_PARAMETER_ATTRS[attr]) != v}
+            if BARE_PARAMETER_ATTRS.keys() <= set(present):
+                continue  # every attribute stated (every reload): nothing to inherit
+            # an attribute left unset replaces the caller's object even where
+            # the declared value is the one it holds anyway: one Parameter passed
+            # to every atom's ``occ`` must become one Parameter per atom, or the
+            # write-back leaves the last site's value in all of them (PR #206's
+            # behaviour, kept).  Sharing *on purpose* states every attribute —
+            # ``Harmonic.weight``'s default does, being its line's by reference
+            fills = declared_fills(info.default_factory(), set(present))
             if not fills:
                 continue
             try:
@@ -632,11 +634,15 @@ class _InheritsDeclaredDefaults(Base):
                 except ValueError:
                     raise exc from None  # broken without the fills too: not ours to name
                 value = base.get("value")
-                lo = fills.get("min", base.get("min", -math.inf))
-                hi = fills.get("max", base.get("max", math.inf))
+                # a JSON-mode dict spells an infinite bound "-Infinity"
+                lo = float(fills.get("min", base.get("min", -math.inf)))
+                hi = float(fills.get("max", base.get("max", math.inf)))
+                what = (f"bounds [{lo}, {hi}] are empty: one is yours and the other "
+                        f"is the one this field declares" if lo > hi else
+                        f"value {value!r} lies outside bounds [{lo}, {hi}], the "
+                        f"range this field declares")
                 raise ValueError(
-                    f"{cls.__name__}.{name}: value {value!r} lies outside bounds "
-                    f"[{lo}, {hi}], the range this field declares, which a "
+                    f"{cls.__name__}.{name}: {what}, which a "
                     f"Parameter leaving min or max unset inherits (issue #204). "
                     f"State the range you mean on the Parameter itself, e.g. "
                     f"Parameter(value={value!r}, min=..., max=...)"
