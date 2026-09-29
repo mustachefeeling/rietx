@@ -516,13 +516,15 @@ alone).
   more coincident line would read it supported (p = 0.0036).
 - `tests/test_acceptance_indexing.py`, `-n auto -rs`: 44 passed, 0 skipped,
   21:42. All 14 rows that call `_skip_unless_finished` read finished searches.
-- Fast selection: 6704 passed, 163 skipped, 1 failed (6868), 23:01. That is +1
-  on WP-1519's final tree, which differs from this base in docs only. The
-  failure is `test_telemetry`'s unwritable-directory case, which fails because
-  this container runs as root (contributor PR #523 skips it there). The run
-  held the ten-set version of the new test, 13.57 s under the suite's load
-  (`tests.added_test_times`, one run). Trimmed afterwards to three sets, it
-  takes 2.32 s alone.
+- Fast selection, on this branch with `main` (677fbb1) merged in: 6723
+  passed, 164 skipped, 0 failed (6887), 22:16. The figures include `main`'s
+  own additions, so no exact per-branch delta is claimed from them. Before the
+  merge the branch read 6704 passed, 163 skipped, 1 failed (6868): +1 on
+  WP-1519's final tree, for the one added test. That failure was
+  `test_telemetry`'s unwritable-directory case, which fails because this
+  container runs as root; `main`'s #523 now skips it there, which is the one
+  new skip. The added test, as committed, costs 2.81 s under the suite's load
+  (`tests.added_test_times`, one run), outside the slow tail.
 
 **Gotchas.**
 
