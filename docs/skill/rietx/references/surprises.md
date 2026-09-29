@@ -381,7 +381,7 @@ nothing, so the corrected retry goes through: *"tying phases.0.atoms.1.dof.0 to
 X), outside its bounds [0, 1]; loosen that bound or change the tie"*. The offset reaches
 the coordinate through the symmetry map (in P 1 it adds to it directly: 0.2482 + 3
 = 3.2482), so check the offset against the coordinate before widening anything.
-(WP-1337, #246.)
+(Measured: WP-1337, #246.)
 
 
 **8.23 Declaring an intruding peak is not more *accurate* than excluding the
