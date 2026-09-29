@@ -1,9 +1,9 @@
 # WP-1519 — the distinct-lattice χ² tests run as one stacked solve
 
-Milestone: unscheduled · Status: 🔄 2026-09-28 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-09-29 — stacked dedup landed (#519); macOS and Windows probe answers await the first nightly after merge
 Track: A long run is not one fit
 Depends on: — (1509 fenced this; 1518 soft: batch the test it settles, not the one it replaces)
-Priority: P3 2026-09-28 — cost only: since 1509 no acceptance search is cut at 300 s, and this is ~45 s of corundum's 236 s tetragonal unit; 1518 closed, so the test it batches is settled
+Priority: P3 2026-09-29 — the code landed; what is left is reading two nightly lines after merge, minutes of work
 
 ## Goal
 
@@ -108,7 +108,8 @@ it (WP-1508 § Context).
       counts.
 - [x] Re-time the unit; `tests/test_acceptance_indexing.py` once on the final
       tree.
-- [ ] Skill: none expected (no call an agent makes changes); say so at close.
+- [x] Skill: none expected (no call an agent makes changes); say so at close.
+      *None: no call an agent makes changed (2026-09-29).*
 
 ## Acceptance
 
@@ -127,25 +128,103 @@ WP-1508 (the tier's reach); WP-1518 (the test being batched).
 
 ## Handover log
 
-- **2026-09-29 (in progress; `/wp-handover` rewrites this)** — `[dev]`, Linux
-  x86-64, 4 cores, py3.12, numpy 2.5.3 on OpenBLAS 0.3.34, one BLAS thread.
-  Harness committed as `tests/unit_replay.py`. On the pre-1518 tree
-  (09c9486) it reproduces all six of 1509's digests; 1509's synthetic
-  monoclinic `fc4d2b0b` is the engine called directly with `spec_for`, not
-  a unit captured through `index_pattern` (`50f61135` there). Post-1518
-  digests on this platform, held by the stacked code: brucite hexagonal
-  `56677409`, trigonal `816c0422`; corundum hexagonal `605772e8`, trigonal
-  `aa4fd3f9`, tetragonal `f610fbdc` (unmoved by 1518, as on macOS);
-  synthetic monoclinic `ac68ad82` direct, `c6acb64f` through
-  `index_pattern`. Tetragonal unit: 573 605 χ² tests in 4970 candidate runs
-  (median 91 a candidate, 71 ending in a match, at band positions 1-336).
-  Stacked per candidate, **0 of 573 605** `pinv` differ from per-matrix and
-  0 χ² differ; `pinv` alone 24.7 → 2.4 s. The whole-array matmul chain was
-  also exact here, einsum was not (291 782 differ); the code keeps each
-  pair's own product. Final code (the stack filled lazily from the walk):
-  every digest above held, and every corundum svd and trial_error unit is
-  identical to `main`'s (4 systems each). Dedup times so far were under a
-  parallel load (not quotable; the alone re-time is running). macOS and
-  Windows: nightly legs now print both probes; not yet read.
+- **2026-09-29** — Dedup now asks its χ² tests between distinct lattices a
+  stack at a time, one pseudo-inverse per stack instead of one per pair, and
+  the groups are provably the ones it built before. A once-a-process probe
+  switches the stack on only where every stacked χ² equals the pair's own, bit
+  for bit. On Linux x86-64 all 573 605 real tests of corundum's tetragonal unit
+  came back identical, that unit's dedup fell from ~29 s to ~6.5 s alone, and
+  every replayed unit's digest held. The replay harness three WPs had rebuilt
+  in scratch is now committed. On the tree before WP-1518 it reproduces all
+  six of 1509's digests, which is the check that it measures what they
+  measured. Still open: whether macOS and Windows keep the stacked path. The
+  nightly legs now print both indexing probes, and no one has read them yet.
+
+  *Done.* `reduce.equal_reduced_many` (Δ, Σ and the final product per pair
+  exactly as `equal_reduced`, only `pinv` over the stack) and
+  `reduce.stacked_pinv_exact`. The probe runs 8 stacks of 1-129 sums of two
+  rank-1-6 covariances, whose near-zero eigenvalues sit at `pinv`'s cutoff;
+  15.6 ms, True here. `engines._dedup_groups`: where the probe says yes, the
+  walk fills its verdict cache from the group it is at (`_ask_stacked`,
+  stacks of `DEDUP_STACK_FIRST` = 16, then ×4), reads it back in creation
+  order and stops at the first match as before. A group without a covariance
+  and anything after a stack raises go one pair at a time. The gate is
+  `_dedup_admits`, shared by walk and stack. `tests/unit_replay.py`
+  (capture/replay/pool, `--count` counts stacked tests too) + its test. The
+  nightly's three environment steps print `row_local_product` and
+  `stacked_pinv_exact`: the suite runs at `-q` without `-rs`, so no log could
+  say whether 1509's probe skips on macOS or Windows. Indexing CLAUDE.md: one
+  clause on the exact-restriction rule (cap 321 → 323). Tests: the stacked χ²
+  equals the pair's own on covariances built from each system's metric basis
+  and carried through the reduction (skips where the probe says no). And the
+  stacked groups equal the per-pair and plain ones on a band of 81 lattices,
+  with a covariance-less group first and probes matching at position 2,
+  mid-band (second stack, answering past the match), nowhere, and by copy,
+  plus a stack that raises. Both mutations checked red: verdicts cached
+  against the wrong groups; a first stack swallowing the band (vacuity).
+
+  *Measured* (`[dev]`, Linux x86-64, 4 cores, py3.12, numpy 2.5.3 on OpenBLAS
+  0.3.34, one BLAS thread):
+  - Harness validation, tree 09c9486 (before 1518): brucite hexagonal
+    `c82630be`, trigonal `719d4e0b`; corundum hexagonal `6a060c83`, trigonal
+    `e8466d7f`, tetragonal `f610fbdc`; synthetic monoclinic `fc4d2b0b`, all
+    six of 1509's.
+  - Post-1518 digests to hold on this platform, identical on `main` (ebdc2ab)
+    and the final tree: brucite hexagonal `56677409`, trigonal `816c0422`;
+    corundum hexagonal `605772e8`, trigonal `aa4fd3f9`, tetragonal `f610fbdc`;
+    synthetic monoclinic `ac68ad82` (`c6acb64f` through `index_pattern`).
+    Corundum's svd and trial_error units, four systems each, identical to
+    `main`'s. The consensus pool (308 → 296 groups) digests `c3dd2095` on
+    both trees.
+  - Tetragonal unit alone, `main` then final, twice interleaved: wall 160.5,
+    164.6 → 141.1, 140.1 s; dedup 28.7, 29.2 → 6.55, 6.51 s. χ² tests
+    573 605 → 575 112, so 1 507 (0.26 %) are asked past a first match and
+    wasted. The consensus pool's dedup is 0.05-0.07 s either way (687 → 1 147
+    tests). Engines hand it their ranked output, not the raw harvest.
+  - Every Σ and Δ of that unit captured: 573 605 tests in 4970 candidate runs
+    (median 91 a candidate). 71 runs end in a match, at band positions 1-336
+    (median 35). Stacked per candidate: **0** `pinv` differ from the
+    per-matrix ones, and 0 χ² differ with each pair's product on a row view.
+    The whole-array matmul chain also matched, einsum did not (291 782
+    differ). `pinv` alone 24.7 → 2.4 s.
+  - Acceptance (`tests/test_acceptance_indexing.py`, final tree, alone): 44
+    passed in 18:02. Engines + consensus + harness files: 123 passed.
+  - Fast selection, final tree: 6703 passed, 163 skipped, 1 failed (6867).
+    The failure is `test_telemetry`'s unwritable-directory case, which
+    `chmod`s a directory 0o500. This container runs as root, and root writes
+    anyway. The diff touches no telemetry. +3 tests, all passing. There is no
+    `main` count on this machine, so CI's fast legs are the comparison.
+    `tests.added_test_times` on that run (call time only, since
+    `junit_duration_report` was not set): 3.45 s the harness test, 0.64 s and
+    0.53 s the two dedup tests.
+  - Full selection not run. The only slow suite the change can move is the
+    indexing acceptance, which ran above.
+
+  *Gotchas.*
+  - 1509's synthetic monoclinic digest is the engine called **directly**
+    with `spec_for("monoclinic")`, no `quality`. Through `index_pattern` the
+    engine gets the workflow's quality report and a different harvest (10
+    candidates against 14 before 1518). The harness keeps both
+    (`synthmono`, `synthmono_ip`).
+  - A first draft stacked every uncached band group before the walk. That
+    wastes a stack per copy in a copy-heavy harvest, because the walk would
+    have stopped at a cached match first. So the stack is filled from inside
+    the walk.
+  - This environment's worktree guard refuses a python command beside a
+    `PYTHONPATH=` or a shell variable. To run another tree's `rietx`, use a
+    runner script that inserts its `src` into `sys.path` and `runpy`s
+    `tests.unit_replay`.
+  - Inherited pruned on arrival: both of 1518's entries still held (reduced-
+    frame covariances; a digest belongs to a platform) and went into Context.
+  - Skill: none, no call an agent makes changed.
+
+  *Next.* (1) After merge, read the first nightly's "Record the environment"
+  step on the macOS and Windows legs (and Linux `full`): the line
+  `row_local_product … stacked_pinv_exact …`. (2) Record both answers in
+  task 2 and close ✅, whatever they say. A False means that platform runs the
+  per-pair path, slower but never different, which is the design working. A
+  new WP only if that platform's dedup time matters to someone. (3) The
+  exact prefilter in Context stays unbuilt: the 6.5 s left is ~5 % of the
+  unit.
 - **2026-09-28** — filed from WP-1509's *Fenced* and *Next* (item 3), with
   the platform check its handover left for the nightly logs.

@@ -95,6 +95,17 @@ this closes 🛑 with the numbers, as WP-1508's gate did for the 2-D traversal.
   post-1518 digests from the current tree before holding anything. Dedup
   groups moved, so a unit's candidate list moves from the first pool rank a
   changed group reaches (rank 4-16 of 60 on these units).
+- **From WP-1519 (2026-09-29): the harness is committed, and here are the Linux
+  digests.** `python -m tests.unit_replay capture DIR`, then `replay DIR UNIT`
+  (`--count` counts dedup's χ² tests, `--save` keeps a result for `pool`). On
+  Linux x86-64 (numpy 2.5.3, OpenBLAS 0.3.34) the post-1518 digests, unchanged
+  by 1519's stacked dedup, are brucite hexagonal `56677409`, trigonal
+  `816c0422`; corundum hexagonal `605772e8`, trigonal `aa4fd3f9`, tetragonal
+  `f610fbdc`; synthetic monoclinic `ac68ad82`. 1509's synthetic monoclinic
+  (`fc4d2b0b`) is the engine called directly with `spec_for`, not a unit
+  captured through `index_pattern` (`c6acb64f` now); the harness carries both.
+  Dedup no longer dominates the tetragonal unit's non-leaf time (6.5 s of
+  ~140 s alone), so a leaf profile there reads cleaner than 1509's.
 
 ## Non-goals
 
