@@ -93,13 +93,14 @@ it (WP-1508 § Context).
 
 ## Tasks
 
-- [ ] Rebuild the replay harness; reproduce the six digests; time corundum
+- [x] Rebuild the replay harness; reproduce the six digests; time corundum
       tetragonal's dedup (first pass and consensus) at one BLAS thread.
 - [ ] Measure stacked against per-matrix `pinv(hermitian=True)` on 6×6 stacks
       of real dedup Σ (captured from the tetragonal unit): the count that
       differ, on Linux here, and on macOS and Windows through the nightly or a
       probe the suite runs. Read `test_a_subset_product_…`'s skip state on
-      the same logs.
+      the same logs. *Linux done 2026-09-29; macOS and Windows are read off
+      the first nightly after merge, whose legs now print both probes.*
 - [x] If stacking reproduces the per-matrix χ²: a probe once a process
       (`row_local_product`'s pattern), the stacked walk where it says yes, the
       per-pair loop elsewhere. A test holding the two equal on a harvest that
