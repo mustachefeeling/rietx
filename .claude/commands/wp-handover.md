@@ -49,7 +49,10 @@ steps below run unchanged.
    `docs/wp/TEMPLATE.md`). The index row follows at the end of step 7.
 5. **Push forward references**: anything learned that changes work in a WP
    that is not closed and not this one goes into *that* WP's `### Inherited`
-   section, naming this WP as the source. **Re-rate what this close moved**:
+   section, naming this WP as the source. **A follow-up with no obvious owner
+   is checked for one before it becomes a new WP** — fold first, the rule in
+   `docs/wp/TEMPLATE.md`'s header; WP-1469 filed four and withdrew two as
+   folds the same day. **Re-rate what this close moved**:
    a WP whose last blocker was this one, or whose trigger this work mooted,
    gets its `Priority:` line rewritten (tier, today's date, one clause naming
    this WP; rubric in `docs/wp/TEMPLATE.md`). An unrated WP (`—`) stays

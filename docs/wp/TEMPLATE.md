@@ -6,6 +6,18 @@ Depends on: WP-MMMM (or —)
 Priority: P? YYYY-MM-DD — <the rubric row it meets, and the move if any>
 
 <!--
+Before filing, fold first: a new WP is the answer only when no open WP (⬜ or
+🔄) owns the work. A follow-up often belongs to one already queued, and a
+second WP for the same work splits its evidence between two files — two of
+WP-1469's four follow-ups (1525, 1526) were withdrawn the day they were filed,
+as folds into 1317 and 1420. So read the index's open rows, then the Goal and
+Tasks of every WP a title makes plausible (protocol step 1's exception to
+reading one WP file), and fold into the owner as a dated `### Inherited` entry,
+re-rating its Priority line if the evidence moves its row. Never into a ✅/🛑
+WP: what a closed WP's fix did not cover is a new WP. File only when none
+owns it, and write why into the first handover bullet ("no open WP owns the
+step scan"; "1420 fences the threshold out"), because a check that leaves no
+trace cannot be told apart from one that never ran.
 Numbering: MMNN — the block of the milestone this WP is OPENED for, then the
 next free sequence number (v1.1 → 11xx); an unscheduled WP takes the newest
 block. The number never changes when the WP moves, so it is not where the WP
