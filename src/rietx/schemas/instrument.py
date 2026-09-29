@@ -410,6 +410,413 @@ class NeutronSource(Base):
         return None
 
 
+#: µs/Å.  Floor for :attr:`TOFSource.difc`, and a fence rather than a claim.
+#: DIFC = (m_N/h)·(L₁ + L₂)·2 sin θ is a *geometry*: a positive flight path and
+#: a positive Bragg angle, so it is strictly positive on every instrument that
+#: exists, and d = TOF/DIFC at the leading order divides by it.  1.0 µs/Å is
+#: nearly three orders below the smallest real bank found (GEM bank 1,
+#: DIFC ≈ 740 µs/Å at 2θ = 8.67°).
+_DIFC_MIN = 1.0
+
+#: :class:`TOFSource`'s four calibration constants, in the order the four-term
+#: relation writes them.  One authority for the names, the ``CAPILLARY_OFFSETS``
+#: idiom: the field validator below coerces them and ``params.vector``
+#: registers them as ``instrument.source.<name>`` and writes them back — so a
+#: fifth term (or a rename) is one edit rather than several that can drift.
+TOF_CONSTANTS: tuple[str, ...] = ("difc", "difa", "tzero", "difb")
+
+
+def _as_parameter(v, **defaults):
+    """Coerce a bare number into a :class:`Parameter`, the ``_as_wavelength`` way.
+
+    A calibration constant arrives from an instrument-parameter file as a plain
+    float far more often than as a refinement declaration, and typing
+    ``Parameter(value=..., vary=False)`` four times at every construction site
+    is the kind of ceremony that gets skipped.  Fixed by default, because a
+    DIFC read from a `.iparm` is a *calibration*: it was refined against a
+    standard, and freeing it against an unknown re-opens the flat direction
+    between the constants and the cell.
+    """
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return Parameter(value=float(v), vary=False, **defaults)
+    return v
+
+
+class ProfileTOF(_InheritsDeclaredDefaults):
+    """GSAS **type-3** time-of-flight profile coefficients.
+
+    Two back-to-back exponentials convoluted with a pseudo-Voigt (Von Dreele,
+    Jorgensen & Windsor, 1982, *J. Appl. Cryst.* **15**, 581; the
+    moderator-pulse form is Ikeda & Carpenter, 1985, *Nucl. Instrum. Methods A*
+    **239**, 536), with every coefficient a polynomial in the reflection's
+    **d-spacing** rather than in an angle — which is the whole structural
+    difference from :class:`ProfileTCHZ` and the reason this is a separate
+    container rather than five more fields on that one:
+
+        α(d) = α₀ + α₁/d
+        β(d) = β₀ + β₁/d⁴
+        σ²(d) = σ₀² + σ₁²·d² + σ₂²·d⁴
+        γ(d)  = γ₀ + γ₁·d + γ₂·d²
+
+    The names are GSAS's own (``alp-0``, ``bet-1``, ``sig-2``, …) with the
+    punctuation dropped, so an ``.iparm`` or ``.instprm`` maps onto them without
+    a translation table anyone has to remember.  GSAS-II spells the first term
+    of α as a lone ``alpha`` and adds ``beta-q``/``sig-q`` terms this container
+    does not carry; the readers in :mod:`rietx.io.instrument_tof` record what
+    they dropped rather than dropping it silently.
+
+    **A container, and in this build nothing evaluates it.**  Reading a
+    calibration losslessly is what it is for: ``params.vector`` registers all
+    ten as ``instrument.source.profile_tof.*`` — fixed by default, like the
+    calibration constants beside them — so a bank's table lists them, and no
+    forward model reads them until the time-of-flight profile lands
+    (yue-here/rietx issue #193).  They are the rows a stage freeing a bank's
+    widths will address, which is why the constant-wavelength
+    ``instrument.profile.*`` rows are not registered on a bank at all
+    (:meth:`rietx.params.vector.ParameterTable._collect_instrument`).
+    """
+
+    #: µs⁻¹.  The d-independent part of the rise constant α.  A *rate*, like
+    #: every α and β term here.
+    alpha0: Parameter = Field(default_factory=lambda: Parameter(value=0.0, unit="1/us"))
+    #: µs⁻¹·Å.  The 1/d term of α — GSAS-II's lone ``alpha``.
+    alpha1: Parameter = Field(default_factory=lambda: Parameter(value=0.0, unit="A/us"))
+    #: µs⁻¹.  The d-independent part of the decay constant β.
+    beta0: Parameter = Field(default_factory=lambda: Parameter(value=0.0, unit="1/us"))
+    #: The 1/d⁴ term of β.
+    beta1: Parameter = Field(default_factory=lambda: Parameter(value=0.0, unit="A^4/us"))
+    #: µs².  Gaussian **variance** terms, in d⁰, d² and d⁴ — variances, not
+    #: FWHMs, which is why they are squares in the law above and why a value
+    #: read from a file is used as written.
+    #:
+    #: **Softplus-floored at zero.**  ``sig-*`` are variance coefficients
+    #: (GSAS Technical Manual p. 144), so each is floored at zero rather than
+    #: only their sum at a given d; σ²(d) ≥ 0 is a *cone* coupling all three,
+    #: which a box cannot express, so the whole polynomial is checked where
+    #: it is evaluated.  Softplus rather than a bound at zero under the
+    #: identity transform, because :func:`~rietx.params.transforms.internal_bounds`
+    #: maps a lower bound at zero to −∞: the value cannot go negative and the
+    #: solver has **no active bound** to sit on.  The dead gradient at exactly
+    #: zero is what ``Stage(seed=…)`` is for.  Zero stays the default: it is a
+    #: physical statement (no Gaussian broadening), and a negative value read
+    #: from a file is refused by name at read.
+    sig0: Parameter = Field(default_factory=lambda: Parameter(
+        value=0.0, min=0.0, unit="us^2", transform="softplus"))
+    sig1: Parameter = Field(default_factory=lambda: Parameter(
+        value=0.0, min=0.0, unit="us^2/A^2", transform="softplus"))
+    sig2: Parameter = Field(default_factory=lambda: Parameter(
+        value=0.0, min=0.0, unit="us^2/A^4", transform="softplus"))
+    #: µs.  Lorentzian FWHM terms, in d⁰, d¹ and d² (GSAS's ``gam-0``…``gam-2``,
+    #: profile function 3).  GSAS-II's ``.instprm`` names Lorentzian terms
+    #: ``X``, ``Y``, ``Z`` for a TOF bank without publishing their d-laws, so
+    #: that reader accepts them only at zero rather than map them here.
+    gam0: Parameter = Field(default_factory=lambda: Parameter(value=0.0, unit="us"))
+    gam1: Parameter = Field(default_factory=lambda: Parameter(value=0.0, unit="us/A"))
+    gam2: Parameter = Field(default_factory=lambda: Parameter(value=0.0, unit="us/A^2"))
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def _coerce_coefficients(cls, v, info):
+        """A bare number is a fixed :class:`Parameter`, as on :class:`TOFSource`.
+
+        The same coercion the calibration constants beside these get, and for
+        the same reason one rank up (:func:`_as_parameter`): a profile
+        coefficient arrives from a ``.iparm`` ``PRCF`` block or from a
+        seed table as a plain float far more often than as a refinement
+        declaration, and ``ProfileTOF(alpha1=0.45)`` reading as a validation
+        error is a papercut every harness on this track has hit.
+
+        The **unit, bounds and transform come from the field's own default**
+        rather than from a table retyped here: a second spelling of ten units
+        is a second thing to keep in step, and this way
+        ``ProfileTOF(alpha1=0.45).alpha1.unit`` cannot disagree with
+        ``ProfileTOF().alpha1.unit``.  Carrying the *bounds* and the
+        *transform* is what makes the σ floor above real: a bare
+        ``ProfileTOF(sig1=300.0)`` is how every harness on this track builds
+        one, and coercing it to a plain unbounded identity parameter would
+        have left the floor reachable only by callers who typed the whole
+        ``Parameter`` out.  A ``Parameter`` passed in explicitly is left
+        exactly as written — including a ``unit`` of ``None`` and bounds of
+        its own — which is what :meth:`TOFSource._coerce_constants` does too:
+        the caller who built one has said what they meant.
+        """
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
+            return v
+        default = cls.model_fields[info.field_name].get_default(
+            call_default_factory=True)
+        return _as_parameter(v, unit=default.unit, min=default.min,
+                             max=default.max, transform=default.transform)
+
+
+class IncidentSpectrum(_InheritsDeclaredDefaults):
+    """The moderator spectrum a time-of-flight bank still carries, or none.
+
+    A white beam delivers a different number of neutrons at every flight time,
+    so a histogram that has **not** been divided by a vanadium measurement
+    carries the source's own output as a smooth envelope over its Bragg peaks.
+    GSAS measures that envelope, fits it with one of five functions and writes
+    the choice into an instrument-parameter file's ``ITYP`` record with the
+    coefficients in ``ICOFF``; this container is that record.
+
+    **Whether a file carries one is a fact about the file, not an assumption**,
+    and real TOF ``.iparm`` files disagree: ISIS GEM writes ``ITYP 0`` on all
+    six banks and no ``ICOFF`` at all, while the LANSCE files in the legacy
+    layout (:mod:`rietx.io.legacy`) write ``ITYP 1`` with a full ``ICOFF``
+    block beside it.  The default
+    here is :attr:`itype` 0 — no spectrum, no coefficients, the identity — so a
+    bank constructed by hand, and every reduction that already normalised
+    (GEM, NOMAD, POWGEN), carries the identity.
+
+    Fixed by default, for :func:`_as_parameter`'s reason one class up: these
+    are a *calibration*, refined by GSAS against a vanadium run, and freeing
+    them against an unknown structure re-opens a flat direction — a smooth
+    envelope in λ and an isotropic displacement parameter are degenerate, which
+    is the whole reason the correction has to be right rather than merely
+    flexible.  Freeing them anyway is legitimate on a standard, and is how the
+    transcription gets checked.
+
+    The functions and their millisecond argument are tabulated in
+    :mod:`rietx.model.tof_spectrum`; nothing in this build evaluates them.
+    Larson & Von Dreele (2004), *GSAS — General Structure Analysis System*,
+    LAUR 86-748, GSAS Technical Manual p. 127-129.
+    """
+
+    #: Which of the manual's functions, 0 for none.  Validated against
+    #: :data:`rietx.model.tof_spectrum.SPECTRUM_TYPES`, so an ``ITYP`` the
+    #: manual does not define is refused **by number** at construction rather
+    #: than read as 0 — "a function this build cannot evaluate" and "no
+    #: spectrum at all" differ by two orders of magnitude across a bank.
+    itype: int = 0
+    #: P₁…P_N in the file's order, exactly as many as the type uses (11 for
+    #: types 1-2, 12 for types 3-5, none for type 0).  A count that disagrees
+    #: with the type is refused, not padded.
+    coefficients: list[Parameter] = Field(default_factory=list)
+    #: µs.  The flight-time window the spectrum was fitted over, from the
+    #: ``ITYP`` record's second and third fields — which are in **milli**
+    #: seconds in the file (manual p. 223) and are converted on the way in.
+    #: Metadata: nothing clips to it, because a fit window is the caller's
+    #: choice and a spectrum evaluated a little outside its fitted range is an
+    #: extrapolation the Rwp will report.  Carried so a caller can ask.
+    tof_min_us: float | None = None
+    tof_max_us: float | None = None
+
+    @model_validator(mode="after")
+    def _type_and_count_agree(self) -> "IncidentSpectrum":
+        # imported here rather than at module scope: ``model.tof_spectrum``
+        # imports ``crystallography.neutron``, and the schemas are what the
+        # model layer imports, not the other way round.
+        from ..model.tof_spectrum import (
+            COEFFICIENT_COUNTS,
+            _type_zero_message,
+            _unknown_type_message,
+        )
+
+        want = COEFFICIENT_COUNTS.get(self.itype)
+        if want is None:
+            raise ValueError(_unknown_type_message(self.itype))
+        if want == 0 and self.coefficients:
+            raise ValueError(_type_zero_message(len(self.coefficients)))
+        if len(self.coefficients) != want:
+            raise ValueError(
+                f"IncidentSpectrum: ITYP {self.itype} uses {want} coefficients "
+                f"and {len(self.coefficients)} were given. GSAS writes ICOFF as "
+                f"three records of four numbers whatever the type, so a file "
+                f"using fewer writes zeros into the rest; a list of the wrong "
+                f"length is refused rather than padded, because which end the "
+                f"missing ones belong to is not stated anywhere.")
+        lo, hi = self.tof_min_us, self.tof_max_us
+        if lo is not None and hi is not None and not lo < hi:
+            raise ValueError(
+                f"IncidentSpectrum: the fitted window is "
+                f"({lo}, {hi}) µs, which is not increasing")
+        for name in ("tof_min_us", "tof_max_us"):
+            v = getattr(self, name)
+            if v is not None and v <= 0.0:
+                raise ValueError(f"{name} is a flight time in microseconds and "
+                                 f"must be positive, got {v}")
+        return self
+
+
+class TOFSource(_InheritsDeclaredDefaults):
+    """Neutron **time-of-flight** bank: a white beam, a fixed detector angle.
+
+    A third arm of the :class:`Instrument` source union, and a separate class
+    for the reason :class:`NeutronSource` is one — almost nothing it would
+    share is meaningful here.  What differs from both constant-wavelength arms:
+
+    * **There is no wavelength.**  The bank sees the whole moderator spectrum
+      and separates reflections by arrival time, so ``λ`` is a property of the
+      *channel*, not of the source.  Every reflection's position comes from its
+      d-spacing through the bank's calibration instead:
+
+          TOF = DIFC·d + DIFA·d² + TZERO + DIFB/d
+
+      (Larson & Von Dreele, 2004, LAUR 86-748, GSAS Technical Manual p. 141,
+      which gives the first three terms and spells the third ``ZERO``; the
+      fourth is the ``difB``/d term GSAS-II's published documentation gives
+      beside them.)  All four are
+      carried, and DIFB defaults to 0 so a project that does not use it is
+      bit-identical to a three-term one — but a project that *does* set it is
+      never silently truncated, which is what a three-term reader would do.
+    * **The scattering angle is a constant of the bank, not a coordinate.**
+      ``two_theta_bank_deg`` is a plain float and deliberately not a
+      :class:`Parameter`: it is the detector's placement, it is already folded
+      into the refined DIFC, and freeing both would be a flat direction.
+    * **The Lorentz factor is d⁴·sin θ**, not 1/(sin²θ·cos θ) (manual p. 140),
+      and the absorption varies *within* one histogram because λ does.
+
+    **This build reads such a bank and refines none.**  The readers
+    (:mod:`rietx.io.instrument_tof`, :mod:`rietx.io.legacy`) return one
+    ``Instrument`` per bank carrying this source, and
+    :class:`rietx.params.vector.ParameterTable` lists its calibration and
+    profile rows; no time-of-flight forward model exists here yet, so
+    :meth:`rietx.Refinement.fit` and every other entry that would compute a
+    pattern refuse a ``neutron_tof`` source by name
+    (:func:`rietx.schemas.pattern.require_two_theta`).  Widening them is
+    tracked on yue-here/rietx issue #193.
+    """
+
+    kind: Literal["neutron_tof"] = "neutron_tof"
+
+    #: µs/Å.  The linear term, and the one every instrument has.  **Fixed by
+    #: default**: it is a calibration refined against a standard (the manual,
+    #: p. 141-142: *"Precise values for constants DIFC, DIFA and ZERO must be
+    #: obtained by fitting to a powder diffraction pattern of a standard
+    #: material"*), and freeing it beside a free cell is the TOF spelling of
+    #: the λ-vs-cell degeneracy :class:`EmissionLine` describes.
+    difc: Parameter
+    #: µs/Å².  The quadratic term, usually small and often negative.  Zero is
+    #: a legitimate value and the common one on a well-behaved bank.
+    difa: Parameter = Field(default_factory=lambda: Parameter(value=0.0, unit="us/A^2"))
+    #: µs.  The constant offset.  **Three spellings, one quantity**: the GSAS
+    #: manual writes ``ZERO``, GSAS-II writes ``Zero``, Mantid writes
+    #: ``TZERO``.  The field is Mantid's, because it is the only one of the
+    #: three that cannot be confused with :attr:`Instrument.zero_shift` (a 2θ
+    #: offset in degrees, a different quantity in a different unit); the
+    #: readers map all three.
+    tzero: Parameter = Field(default_factory=lambda: Parameter(value=0.0, unit="us"))
+    #: µs·Å.  GSAS-II's fourth term, ``DIFB/d``.  Neither the GSAS manual nor
+    #: Mantid's documented relation carries it, and it is 0 in most projects —
+    #: it is here because a reader built to the three-term relation would drop
+    #: a non-zero one **silently**, turning a GSAS-II project into a pattern
+    #: whose peaks are in the wrong place with nothing said.
+    difb: Parameter = Field(default_factory=lambda: Parameter(value=0.0, unit="us*A"))
+
+    #: Degrees.  The bank's fixed scattering angle — a float, not a
+    #: :class:`Parameter`: see the class docstring.
+    two_theta_bank_deg: float
+    #: m.  Primary flight path (moderator to sample).  Metadata: DIFC is the
+    #: refined authority on the geometry, and these two are what the file said.
+    l1_m: float | None = None
+    #: m.  Secondary flight path (sample to detector centre).
+    l2_m: float | None = None
+
+    #: The GSAS type-3 coefficients (:class:`ProfileTOF`).  Always present, all
+    #: zero by default — a bank whose profile was never calibrated is a real
+    #: thing, and an empty container says that more plainly than ``None``.
+    profile_tof: ProfileTOF = Field(default_factory=ProfileTOF)
+
+    #: The moderator spectrum this bank's data still carries
+    #: (:class:`IncidentSpectrum`).  Always present, ``ITYP 0`` by default —
+    #: i.e. **no** spectrum, which is what a reduction that already divided by
+    #: a vanadium measurement leaves behind and what ISIS GEM, SNS NOMAD and
+    #: POWGEN all write.  Present rather than ``None`` for ``profile_tof``'s
+    #: reason: "this file says there is none" is an answer, and it is the one
+    #: an ``ITYP 0`` record actually gives.
+    incident_spectrum: IncidentSpectrum = Field(default_factory=IncidentSpectrum)
+
+    #: A white beam is a *continuum*, not a line list.  Read by
+    #: ``capabilities._radiation`` so the arm does not report
+    #: ``max_emission_lines = 1`` — which would be the one wrong statement a
+    #: derived-predicate table could make about this source.
+    continuous_spectrum: ClassVar[bool] = True
+
+    #: No monochromator, so no λ/n order to declare: the harmonic question does
+    #: not arise here rather than being answered "no".
+    harmonics_supported: ClassVar[bool] = False
+
+    @field_validator(*TOF_CONSTANTS, mode="before")
+    @classmethod
+    def _coerce_constants(cls, v, info):
+        units = {"difc": "us/A", "difa": "us/A^2", "tzero": "us", "difb": "us*A"}
+        extra = {"min": _DIFC_MIN} if info.field_name == "difc" else {}
+        return _as_parameter(v, unit=units[info.field_name], **extra)
+
+    @model_validator(mode="after")
+    def _bank_is_a_real_bank(self) -> "TOFSource":
+        if self.difc.value <= 0.0:
+            raise ValueError(
+                f"difc must be positive, got {self.difc.value}: DIFC = "
+                f"(m_N/h)(L1 + L2)·2 sin(theta) is a flight path times an "
+                f"angle, and d = TOF/DIFC divides by it")
+        if not 0.0 < self.two_theta_bank_deg < 180.0:
+            raise ValueError(
+                f"two_theta_bank_deg is the detector bank's fixed scattering "
+                f"angle in degrees and must lie in (0, 180); got "
+                f"{self.two_theta_bank_deg}")
+        for name in ("l1_m", "l2_m"):
+            v = getattr(self, name)
+            if v is not None and v <= 0.0:
+                raise ValueError(f"{name} is a flight path in metres and must "
+                                 f"be positive, got {v}")
+        return self
+
+    @property
+    def polarization(self) -> Parameter:
+        """K = 1, force-fixed — neutrons, exactly as :class:`NeutronSource`."""
+        return Parameter(value=1.0, vary=False, min=1.0, max=1.0)
+
+    @property
+    def dispersion(self) -> None:
+        """Always ``None``; the X-ray path tests this to decide f′/f″."""
+        return None
+
+    def tof_from_d(self, d):
+        """Flight time in µs for a d-spacing in Å — the four-term relation.
+
+        The one place the relation is written, so the readers, the tests and
+        (later) the forward model cannot each carry their own version of it.
+        Accepts a scalar or an array.
+        """
+        import numpy as _np
+
+        dd = _np.asarray(d, dtype=_np.float64)
+        return (self.difc.value * dd + self.difa.value * dd ** 2
+                + self.tzero.value + self.difb.value / dd)
+
+    def d_from_tof(self, tof, *, tol: float = 1e-10, max_iter: int = 50):
+        """d-spacing in Å for a flight time in µs — by successive substitution.
+
+        With DIFA or DIFB non-zero the relation is a cubic in d and has no
+        useful closed form, so it is inverted by fixed-point iteration,
+        d ← (TOF − DIFA·d² − TZERO − DIFB/d)/DIFC from d₀ = TOF/DIFC.  Converged to ``tol`` in Å rather than to a fixed
+        iteration count, and it **raises** rather than returning the last
+        iterate if it has not: a silently unconverged d is a peak in the wrong
+        place.  On real calibrations (a small DIFA against a DIFC of
+        thousands) the iteration contracts by |2·DIFA·d/DIFC| ≪ 1 a step and
+        converges in a handful of iterations.
+        """
+        import numpy as _np
+
+        t = _np.asarray(tof, dtype=_np.float64)
+        d = (t - self.tzero.value) / self.difc.value
+        if self.difa.value == 0.0 and self.difb.value == 0.0:
+            return d
+        for _ in range(max_iter):
+            nxt = (t - self.difa.value * d ** 2 - self.tzero.value
+                   - self.difb.value / d) / self.difc.value
+            if _np.all(_np.abs(nxt - d) < tol):
+                return nxt
+            d = nxt
+        raise ValueError(
+            f"d_from_tof did not converge in {max_iter} iterations for "
+            f"difc={self.difc.value}, difa={self.difa.value}, "
+            f"tzero={self.tzero.value}, difb={self.difb.value}: the four-term "
+            f"relation is not invertible over this range, which usually means "
+            f"a sign or a unit is wrong in the calibration rather than that "
+            f"the solver needs more iterations")
+
+
 class Dispersion(Base):
     """Anomalous scattering corrections f′, f″ at the source wavelengths.
 
@@ -1800,9 +2207,13 @@ class Instrument(_InheritsDeclaredDefaults):
     """
 
     #: Discriminated on ``kind``: ``"xray_cw"`` is :class:`Source`,
-    #: ``"neutron_cw"`` is :class:`NeutronSource`.  A union rather than one
-    #: class with inert fields — see :class:`NeutronSource`.
-    source: Source | NeutronSource = Field(discriminator="kind")
+    #: ``"neutron_cw"`` is :class:`NeutronSource`, ``"neutron_tof"`` is
+    #: :class:`TOFSource`.  A union rather than one class with inert fields —
+    #: see :class:`NeutronSource`.  A ``neutron_tof`` source puts a flight time
+    #: on the pattern's abscissa and is **read, never refined**, in this build:
+    #: every entry that would compute a pattern refuses it by name through
+    #: :func:`rietx.schemas.pattern.require_two_theta`.
+    source: Source | NeutronSource | TOFSource = Field(discriminator="kind")
     geometry: Geometry = Field(default_factory=Geometry)
     zero_shift: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, min=-0.5, max=0.5, unit="deg")
@@ -1979,6 +2390,42 @@ class Instrument(_InheritsDeclaredDefaults):
                 )
             inst.profile.w.value = w_seed
         return inst
+
+    @classmethod
+    def tof_neutron_bank(cls, difc: float, *, two_theta_bank_deg: float,
+                         difa: float = 0.0, tzero: float = 0.0,
+                         difb: float = 0.0,
+                         l1_m: float | None = None, l2_m: float | None = None,
+                         capillary_radius_mm: float | None = None,
+                         mu_r: float | None = None,
+                         profile: ProfileTOF | None = None) -> "Instrument":
+        """One detector bank of a neutron time-of-flight diffractometer.
+
+        Beside :meth:`constant_wavelength_neutron`, and the same shape of
+        preset: Debye-Scherrer geometry, because that is what a TOF
+        diffractometer is — a can of powder in a white beam with banks of
+        detectors at fixed angles.  ``difc`` is the only required constant; a
+        bank with no measured DIFA or TZERO is the ordinary starting point and
+        the three-term relation with two zeros is exactly the two-term one.
+
+        **A multi-bank experiment is several instruments, not one.**  DIFC,
+        DIFA, TZERO and the whole profile differ per bank — that is what a bank
+        *is* — so each bank gets its own ``Instrument`` and they meet in a
+        multi-histogram fit once a time-of-flight forward model exists, the
+        way several wavelengths meet today
+        (:class:`rietx.multi.MultiHistogramRefinement`).
+
+        This build builds and reads such a bank and refines none; see
+        :class:`TOFSource`.
+        """
+        source = TOFSource(difc=difc, difa=difa, tzero=tzero, difb=difb,
+                           two_theta_bank_deg=two_theta_bank_deg,
+                           l1_m=l1_m, l2_m=l2_m,
+                           profile_tof=profile or ProfileTOF())
+        return cls(source=source,
+                   geometry=Geometry(kind="debye_scherrer",
+                                     capillary_radius_mm=capillary_radius_mm,
+                                     mu_r=mu_r))
 
     @classmethod
     def debye_scherrer(cls, wavelength: float, *, polarization: float = 0.99,

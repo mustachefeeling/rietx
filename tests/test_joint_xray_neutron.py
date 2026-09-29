@@ -262,10 +262,20 @@ def test_each_histogram_scatters_off_its_own_amplitude():
 
 
 # ------------------------------------------------------- the audit table ---
+#: Source kinds an ``Instrument`` can carry that no fit takes in this build: a
+#: time-of-flight bank is read and never refined (issue #193's first cut), so
+#: there is no joint fit for the table to probe.  Held to that by
+#: :func:`test_a_kind_left_out_of_the_table_is_one_no_fit_takes`, which fails
+#: the day a fit accepts it, and the kind then needs its line below.
+NOT_REFINED_KINDS = {"neutron_tof"}
+
+
 def _source_kinds() -> set[str]:
-    """Every radiation an ``Instrument`` can carry, read off its union."""
+    """Every radiation an ``Instrument`` can carry and a fit takes, read off
+    its union."""
     union = rx.Instrument.model_fields["source"].annotation
-    return {arm.model_fields["kind"].default for arm in typing.get_args(union)}
+    return ({arm.model_fields["kind"].default for arm in typing.get_args(union)}
+            - NOT_REFINED_KINDS)
 
 
 #: One instrument per source kind, each declaring a capillary so the
@@ -427,6 +437,17 @@ def test_every_row_answers_for_every_source_kind():
     assert set(INSTRUMENT_FOR_KIND) == kinds
     for row in RADIATION_KEYED:
         assert set(row.expect) == kinds, row.name
+
+
+def test_a_kind_left_out_of_the_table_is_one_no_fit_takes():
+    """``NOT_REFINED_KINDS`` is an exemption only while it is true: a joint
+    fit refuses a bank by name, so the table has nothing to ask it yet."""
+    assert NOT_REFINED_KINDS == {"neutron_tof"}
+    with pytest.raises(ValueError, match="time-of-flight"):
+        rx.MultiHistogramRefinement(
+            rx.Structure(phases=[corundum()]),
+            [INSTRUMENT_FOR_KIND["xray_cw"](),
+             rx.Instrument.tof_neutron_bank(5000.0, two_theta_bank_deg=90.0)])
 
 
 def test_the_magnetic_row_is_the_forward_models_own_dispatch():
