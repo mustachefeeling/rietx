@@ -3043,6 +3043,7 @@ class DerivativeBases:
     planes_mag: list = field(default_factory=list)
     peaks_mag: list = field(default_factory=list)
     _entries: list[list[tuple]] | None = field(default=None, repr=False)
+    _entries_mag: dict[int, list[tuple]] | None = field(default=None, repr=False)
 
     def components(self, ip: int) -> list[PhasePlanes]:
         """Phase ip's planes, one per drawn component (WP-1343).
@@ -3060,31 +3061,55 @@ class DerivativeBases:
         mag = self.peaks_mag[ip] if ip < len(self.peaks_mag) else None
         return [self.peaks[ip]] if mag is None else [self.peaks[ip], mag]
 
+    @staticmethod
+    def _rows(pp: PhasePlanes) -> list[tuple]:
+        """The ragged ``entries`` tuples of one component's planes."""
+        lay = pp.layout
+        rows: list[tuple] = []
+        for j in np.nonzero(pp.finite)[0]:
+            w = int(lay.width[j])
+            is_fcj = lay.fcj[j] > 0
+            rows.append((
+                int(lay.il[j]), int(lay.k[j]),
+                int(lay.i0[j]), int(lay.i1[j]),
+                pp.omega[j, :w],
+                None if pp.d_pos is None else pp.d_pos[j, :w],
+                None if pp.d_gamma is None else pp.d_gamma[j, :w],
+                None if pp.d_eta is None else pp.d_eta[j, :w],
+                pp.d_sl[j, :w] if (is_fcj and pp.d_sl is not None)
+                else None,
+                pp.d_hl[j, :w] if (is_fcj and pp.d_hl is not None)
+                else None,
+            ))
+        return rows
+
     @property
     def entries(self) -> list[list[tuple]]:
+        """Per phase, the **nuclear** component's rows — the whole draw on a
+        phase with no second family.  A reader that must see every peak a
+        split phase draws takes :meth:`component_entries` instead."""
         if self._entries is None:
-            out: list[list[tuple]] = []
-            for pp in self.planes:
-                lay = pp.layout
-                rows: list[tuple] = []
-                for j in np.nonzero(pp.finite)[0]:
-                    w = int(lay.width[j])
-                    is_fcj = lay.fcj[j] > 0
-                    rows.append((
-                        int(lay.il[j]), int(lay.k[j]),
-                        int(lay.i0[j]), int(lay.i1[j]),
-                        pp.omega[j, :w],
-                        None if pp.d_pos is None else pp.d_pos[j, :w],
-                        None if pp.d_gamma is None else pp.d_gamma[j, :w],
-                        None if pp.d_eta is None else pp.d_eta[j, :w],
-                        pp.d_sl[j, :w] if (is_fcj and pp.d_sl is not None)
-                        else None,
-                        pp.d_hl[j, :w] if (is_fcj and pp.d_hl is not None)
-                        else None,
-                    ))
-                out.append(rows)
-            self._entries = out
+            self._entries = [self._rows(pp) for pp in self.planes]
         return self._entries
+
+    def component_entries(self, ip: int) -> list[tuple[list[tuple], list]]:
+        """``(rows, peaks)`` per drawn component of phase ip (WP-1343).
+
+        The ``entries``/``peaks`` pair once at the default and twice where
+        the magnetic component has its own frozen family, in
+        :meth:`components` order, so a report reading ``entries[ip]`` beside
+        ``peaks[ip]`` can loop here and cover the magnetic peaks too — the
+        same move the column builders made onto :meth:`components`.
+        """
+        out = [(self.entries[ip], self.peaks[ip])]
+        mag = self.planes_mag[ip] if ip < len(self.planes_mag) else None
+        if mag is not None:
+            if self._entries_mag is None:
+                self._entries_mag = {}
+            if ip not in self._entries_mag:
+                self._entries_mag[ip] = self._rows(mag)
+            out.append((self._entries_mag[ip], self.peaks_mag[ip]))
+        return out
 
 
 def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):

@@ -358,6 +358,41 @@ def test_structure_intensity_partition_includes_the_magnetic_component():
     assert np.allclose(ratio, 1.0, atol=0.05), ratio
 
 
+def test_layer1_and_the_texture_partition_see_the_magnetic_component():
+    """Review item 4.  Both read ``DerivativeBases`` beside its peaks, and
+    ``entries`` walks the nuclear planes only — so on a split phase a
+    magnetic-only reflection (nuclear |F|² exactly zero) had **zero**
+    amplitude in Layer 1's region basis and zero weight in the texture
+    partition, and its misfit went to whatever nuclear template was left.
+    ``component_entries`` walks both, as the column builders do."""
+    from rietx.report.layer1 import _region_columns
+    from rietx.report.texture import _extracted_corrections
+
+    model, _t, v = _state(_mnf2(strain=0.15), moving=None)
+    assert model.mag_split(0)
+    _ip, mag_rows, _nuc, pos, fwhm = next(iter(_classified_reflections(model, v)))
+    assert len(mag_rows)
+    bases = model.derivative_bases(v)
+    for k in mag_rows:
+        lo, hi = pos[k] - 0.25 * fwhm[k], pos[k] + 0.25 * fwhm[k]
+        cols, _idx, _tt, _w, n_refl = _region_columns(model, bases, lo, hi)
+        assert n_refl and np.abs(cols[0]).max() > 0.0, k
+    # the rows cover exactly what the model draws: Σ I·Ω over every component
+    # is the Bragg part of the evaluated pattern
+    drawn = np.zeros_like(model.tt)
+    for rows, peaks in bases.component_entries(0):
+        for (il, k, i0, i1, omega, *_r) in rows:
+            drawn[i0:i1] += peaks[il][3][k] * omega
+    bragg = (np.asarray(model.evaluate(v), dtype=np.float64)
+             - np.asarray(model.background(v), dtype=np.float64))
+    assert np.allclose(drawn, bragg, rtol=1e-9, atol=1e-9 * bragg.max())
+
+    model.y_obs[:] = np.asarray(model.evaluate(v), dtype=np.float64)
+    f, w = _extracted_corrections(model, v)[0]
+    assert np.all(w[mag_rows] > 0.0)
+    assert np.allclose(f[mag_rows], 1.0, atol=1e-6)
+
+
 @pytest.mark.parametrize("kernels", [False, True], ids=["numpy", "compiled"])
 def test_the_scalar_and_batched_draws_agree_on_the_split_path(kernels):
     """The per-reflection loop is the oracle every batched claim is measured
