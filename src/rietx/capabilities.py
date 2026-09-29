@@ -417,6 +417,18 @@ _RADIATION_NOTES: dict[str, tuple[str, str]] = {
                 "the electron density, so f falls off with Q"),
     "neutron_cw": ("Constant-wavelength neutron",
                    "the nucleus, a point scatterer, so b is independent of Q"),
+    # What a client reads to decide whether to hand the build a bank, so it
+    # may not overstate the answer: this build reads one and refines none.
+    "neutron_tof": ("Neutron time-of-flight",
+                    "the nucleus, as for CW neutron — but the bank sees the "
+                    "whole moderator spectrum and separates reflections by "
+                    "arrival time, so the abscissa is a flight time in µs and "
+                    "the positions come from the bank's DIFC/DIFA/TZERO/DIFB. "
+                    "This build reads a bank (GSAS TIME_MAP/RALF/SLOG and "
+                    "Mantid pattern files, GSAS-I .iparm and GSAS-II .instprm "
+                    "calibrations) and refines none: there is no flight-time "
+                    "forward model yet, and every entry that would compute a "
+                    "pattern refuses a bank by name"),
 }
 
 
@@ -469,8 +481,14 @@ def _radiation(cls: type) -> RadiationCapability:
         # dispersion channel flips its own flag
         anomalous_dispersion="dispersion" in cls.model_fields,
         # a declared spectrum *or* a harmonic declaration lifts the cap: a
-        # single-wavelength source that can carry λ/n is not a one-line source
-        max_emission_lines=None if (lines_field is not None or harmonics) else 1,
+        # single-wavelength source that can carry λ/n is not a one-line source.
+        # So does a *continuum*: a white beam has no line list to declare and
+        # would otherwise report 1 — "the spectrum is one wavelength and can be
+        # nothing else" — which is the one statement a derived predicate must
+        # not make about a time-of-flight bank.
+        max_emission_lines=None if (lines_field is not None or harmonics
+                                    or getattr(cls, "continuous_spectrum",
+                                               False)) else 1,
         polarization_refinable="polarization" in cls.model_fields,
         harmonic_contamination=harmonics,
         magnetic_scattering=kind in MAGNETIC_SOURCE_KINDS,

@@ -72,7 +72,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.StephensStrain` — Anisotropic strain broadening coefficients S_HKL (Stephens, 1999).
   Fields: `s400: Parameter = Parameter(0.0)`, `s310: Parameter = Parameter(0.0)`, `s301: Parameter = Parameter(0.0)`, `s220: Parameter = Parameter(0.0)`, `s211: Parameter = Parameter(0.0)`, `s202: Parameter = Parameter(0.0)`, `s130: Parameter = Parameter(0.0)`, `s121: Parameter = Parameter(0.0)`, `s112: Parameter = Parameter(0.0)`, `s103: Parameter = Parameter(0.0)`, `s040: Parameter = Parameter(0.0)`, `s031: Parameter = Parameter(0.0)`, `s022: Parameter = Parameter(0.0)`, `s013: Parameter = Parameter(0.0)`, `s004: Parameter = Parameter(0.0)`
 - `rx.Instrument` — Everything about the measurement except the sample.
-  Fields: `source: Source | NeutronSource`, `geometry: Geometry = Geometry(…)`, `zero_shift: Parameter = Parameter(0.0, min=-0.5, max=0.5)`, `profile: ProfileTCHZ = ProfileTCHZ(…)`, `background: BackgroundChebyshev | BackgroundFixedPlusChebyshev | BackgroundPSpline = BackgroundChebyshev(…)`, `extra_components: list[HumpComponent | PeakComponent] = []`
+  Fields: `source: Source | NeutronSource | TOFSource`, `geometry: Geometry = Geometry(…)`, `zero_shift: Parameter = Parameter(0.0, min=-0.5, max=0.5)`, `profile: ProfileTCHZ = ProfileTCHZ(…)`, `background: BackgroundChebyshev | BackgroundFixedPlusChebyshev | BackgroundPSpline = BackgroundChebyshev(…)`, `extra_components: list[HumpComponent | PeakComponent] = []`
 - `rx.Source` — Constant-wavelength X-ray source.
   Fields: `kind: Literal['xray_cw'] = 'xray_cw'`, `lines: list[EmissionLine]`, `polarization: Parameter = Parameter(0.5, min=0.0, max=1.0)`, `dispersion: Dispersion | None = Dispersion(…)`, `harmonics: list[Harmonic] = []`
 - `rx.NeutronSource` — Constant-wavelength **neutron** source: one wavelength, nuclear scattering.
@@ -89,8 +89,8 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
   Fields: `kind: Literal['fixed_plus_chebyshev'] = 'fixed_plus_chebyshev'`, `fixed_two_theta: list[float]`, `fixed_intensity: list[float]`, `fixed_sigma: list[float] | None = None`, `fixed_source: str | None = None`, `scale: Parameter = Parameter(1.0, min=0.0)`, `chebyshev: BackgroundChebyshev = BackgroundChebyshev(…)`
 - `rx.Dispersion` — Anomalous scattering corrections f′, f″ at the source wavelengths.
   Fields: `table: Literal['cromer_liberman'] = 'cromer_liberman'`, `overrides: dict[str, tuple[float, float]] = {}`
-- `rx.PatternData` — A 1-D constant-wavelength powder pattern.
-  Fields: `two_theta: list[float]`, `intensity: list[float]`, `sigma: list[float] | None = None`, `excluded_regions: list[tuple[float, float]] = []`, `metadata: dict[str, str] = {}`
+- `rx.PatternData` — A 1-D powder pattern, in 2θ **or** in time of flight.
+  Fields: `two_theta: list[float] | None = None`, `tof: list[float] | None = None`, `intensity: list[float]`, `sigma: list[float] | None = None`, `excluded_regions: list[tuple[float, float]] = []`, `metadata: dict[str, str] = {}`
 
 ## Refining
 
