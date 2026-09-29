@@ -157,6 +157,29 @@ def test_an_excluded_region_is_shaded_over_channels_the_fit_left_out(fitted):
     assert not plot_pattern(pattern, two_theta_range=(10.0, 14.0)).get_axes()[0].patches
 
 
+def test_a_region_from_two_theta_zero_is_clipped_before_it_becomes_d_or_q(fitted):
+    """A beamstop exclusion from 2θ = 0 has no d or Q edge; only the part of it
+    inside the drawn span is converted and shaded (review of #529)."""
+    pattern, _ = fitted
+    tt = pattern.tt()
+    start = float(tt.min())
+    beamstop = pattern.model_copy(deep=True)
+    beamstop.excluded_regions = [(0.0, start + 0.5)]
+    lam = 1.54
+    for axis in ("d", "q"):
+        ax = plot_pattern(beamstop, x_axis=axis, wavelength=lam).get_axes()[0]
+        (band,) = ax.patches
+        if axis == "d":
+            ends = [lam / (2 * np.sin(np.radians(t) / 2)) for t in (start, start + 0.5)]
+        else:
+            ends = [4 * np.pi * np.sin(np.radians(t) / 2) / lam for t in (start, start + 0.5)]
+        assert _span(band) == pytest.approx(sorted(ends))
+    # a region wholly below the drawn span draws nothing and does not raise
+    below = pattern.model_copy(deep=True)
+    below.excluded_regions = [(0.0, start / 2)]
+    assert not plot_pattern(below, x_axis="d", wavelength=lam).get_axes()[0].patches
+
+
 def test_pattern_data_plot_forwards_and_refuses_what_the_result_refuses(fitted):
     pattern, _ = fitted
     OUT.mkdir(exist_ok=True)

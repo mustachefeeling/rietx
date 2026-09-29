@@ -775,14 +775,18 @@ def plot_pattern(data, *, path: str | None = None,
         fig.subplots_adjust(left=0.13, right=0.805, top=0.965, bottom=0.125)
 
         x0, x1 = float(x.min()), float(x.max())
+        t0, t1 = float(tt.min()), float(tt.max())
         for lo, hi in data.excluded_regions:
-            # a region is in 2θ like the window; its drawn edges follow x_axis,
-            # and on a d axis they arrive in the other order
+            # a region is in 2θ like the window, and is clipped to the drawn
+            # 2θ span *before* it is converted: a beamstop region from 2θ = 0
+            # has no d or Q edge, and only its drawn part is shaded.  Its edges
+            # then follow x_axis, and on a d axis they arrive in the other order
+            lo, hi = max(float(lo), t0), min(float(hi), t1)
+            if hi <= lo:
+                continue
             ends = _x_values(np.array([lo, hi], dtype=float), x_axis, wavelength)[0]
             a, b = sorted(float(e) for e in ends)
-            if b > x0 and a < x1:
-                ax.axvspan(max(a, x0), min(b, x1), color=hue["zero"], alpha=0.5,
-                           lw=0, zorder=0)
+            ax.axvspan(a, b, color=hue["zero"], alpha=0.5, lw=0, zorder=0)
         ax.plot(x, y_obs, marker="x", ms=0.24 * font_size, mew=0.6,
                 color=hue["obs"], ls="none", zorder=2)
 
