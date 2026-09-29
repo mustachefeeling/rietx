@@ -1,9 +1,8 @@
 # WP-1469 — what the series fences cannot see
 
-Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @yue-here (cloud session)
+Milestone: unscheduled · Status: ✅ 2026-09-29 — a frame every rung left above the Rwp fence says so (`SEQUENTIAL_RWP_OUTLIER`, not quarantined), its steps leave the discontinuity scan, the flagged pair is a field; the skill names the signal for a shared `refit="single"` collapse
 Track: A long run is not one fit
 Depends on: — (1333 landed the ladder and quarantine this extends; 1420 soft)
-Priority: P2 2026-09-27 — a blank frame reads as a good fit and a real step goes unreported, silently, on the series path; `series.md` calls the default refit safe where it is not
 
 ## Goal
 
@@ -305,6 +304,69 @@ round-robin chain contradicts.
 
 ## Handover log
 
+- **2026-09-29** — closed ✅, one cloud session (claim, three gaps, #475,
+  review).
+
+  A series now tells you when one of its frames is not like the others,
+  instead of reporting a blank frame as a good fit, and that frame can no
+  longer hide a real step elsewhere on the same parameter. The warning does
+  not claim the frame is bad. It turns out a blank frame fits its own noise
+  perfectly, so Rwp alone cannot tell it from a frame that merely had fewer
+  counts. The warning therefore quotes the two numbers that separate the
+  causes. Quarantining such a frame was measured and rejected: it barely
+  helps a blank and doubles the cost of a series whose specimen really
+  changed. The other issue's promise, that the default fast refit is caught
+  when it collapses, was false for a collapse every pattern shares; the skill
+  now says so and names the diagnostic that does catch it.
+
+  *Done.* All six tasks, in commits `cdaac9e` (gaps 1-3, one commit since
+  each needs the others), `dc6c673` (#475, the skill/manual text, the hostile
+  acceptance accounting), `b0c2a64` (a missed schema-version pin). Decisions
+  and their measurements are in *Decisions taken (2026-09-29)* above. The
+  `### Inherited` entry from WP-1465 was consumed there (item 4, declined
+  with a measurement) and the section deleted. Release notes staged in
+  `docs/releases/1.5.1.md`; narrative in `docs/milestones/v1.6.md`.
+
+  *Measured* (this container: Linux x86_64, 4 cores, Python 3.12.3, `[dev]`
+  venv built by the worktree hook):
+  - Fast suite, once, on this branch merged with `origin/main` `bbe553b`,
+    nothing else running: 6757 passed, 165 skipped, 1 failed in 21:18. The
+    failure was `test_magnetic.py::test_the_capability_flag_is_derived_from_the_fields`,
+    a schema-version literal this change moves; re-pinned in `b0c2a64` and
+    passing, so the tree reads 6758 + 165 = 6923. CI's py3.12 `[dev]` fast
+    job on `bbe553b` read 6750 + 165 = 6915. The +8 is the seven tests added
+    here plus one new case of `test_schemas.py::test_every_base_subclass_survives_the_new_getattr`
+    (`[SeriesStep]`), found by diffing the two trees' per-file collection
+    counts. No new skip.
+  - Added tests, one run's junit (`tests.added_test_times`): 1.30 s over the
+    seven, the largest 1.21 s (`test_a_pattern_every_rung_left_above_the_fence_says_so`),
+    far from the fast tier's tail. One slow test added
+    (`test_a_blank_frame_no_longer_reads_as_a_point_or_hides_a_step`, #481's
+    ramp end to end, ~20-35 s).
+  - The full selection did **not** run as one. No fitted value can move (the
+    change adds diagnostics, two fields and a scan rule), and every
+    series-fitting file ran whole instead, slow included (11 files, 83
+    series): 378 passed, 1 skipped, 1 failed. The failure was
+    `test_held_phase.py::test_the_ramp_reproduction_no_longer_runs_away`, a
+    60 s runaway guard that read 112 s while I ran a second selection beside
+    it and 17 s alone: a load sensor at 3.5× headroom, not this change. The
+    hostile round-robin acceptance (8 cases) passed after its edit.
+
+  *Gotchas.* `api.md` sat at 38 993 of 39 000 B; the new `SeriesResult`
+  field took it to 39 078, paid for by two trims of the index's own authored
+  prose (`make_api_index.py`), 38 961 B now. `series.md` is 33 150 of its
+  34 600 B budget, and PR #522 adds to it too. The GUI's series panel does
+  not box an outlier point as `plot_trajectory` now does; nobody owns that
+  and no WP was filed for it.
+
+  *Forward.* Into 1329's Inherited: the field PR #522 named as its hook, and
+  the `SCHEMA_VERSION` collision (both PRs step off 0.35). Into 1420's: the
+  blank's held cell released after its `cell` stage inside the chain.
+
+  Next: nothing on this WP. Issues #481 and #475 close with the PR. The
+  reporter's driver treats `SEQUENTIAL_UNRECOVERED` as a gap and needs one
+  line to treat `SEQUENTIAL_RWP_OUTLIER` the same way, which is the
+  maintainer's to relay. A GUI outlier mark is the one follow-up this left.
 - **2026-09-27** — created, from the 2026-09-27 issue triage (issues #475,
   #481). Checked against the tree at `91deebbb`: #481's script reproduced
   every number in its table to the digit on Linux x86_64, and the three

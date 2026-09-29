@@ -124,6 +124,18 @@ down.
 
 ### Inherited
 
+- **2026-09-29, from [1469](1469-what-the-series-fences-cannot-see.md): a
+  held phase released inside one fit, on a frame with no phase in it.** Issue
+  #481's blank frame (every scale 0) kept its cold rung in the chain with the
+  cell **held in the `cell` stage and released after it**: the later stages
+  refined it (esd 1.6e-3), the scale ended 3.1e-8 ± 2.4e-8 (1.3σ), and no
+  `PHASE_UNCONSTRAINED` fired. A standalone cold fit of a blank from
+  `tests/test_sequential.py`'s `_simulate(A0, seed=507, scale=0.0)` holds the
+  cell through every stage and fires it. So the support test flickers on a
+  phase at about 1σ, and which way depends on the noise. Reproduce with #481's
+  script and `seq.results_[7].stages[i].held`. 1469 did not chase it: the
+  blank now carries `SEQUENTIAL_RWP_OUTLIER` and is left out of the step
+  scan, so it no longer reaches a trajectory finding either way.
 - **2026-09-28, from [1338](1338-the-skills-own-gates.md): `references/diagnostics.md` is closed to growth.**
   Every skill file now has a ceiling and a budget below it
   (`tests/skill_caps.py`), and the budget fails a change that grows a file

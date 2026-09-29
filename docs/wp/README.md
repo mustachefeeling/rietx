@@ -19,7 +19,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-09-25 | P2 | [v1.6](#v1-6) |
 | [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 2026-09-24 | P1 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-09-28 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
-| [1469](1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | 2026-09-29 | P2 | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 
@@ -441,7 +440,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1453](1453-both-directions-name-the-lower-cost.md) | Both directions name the lower cost | ⬜ | P3 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) |
 | [1459](1459-a-pawley-intensity-past-the-data.md) | A Pawley intensity past the end of the data | ✅ 2026-09-25 | — | — ([1336](1336-the-fit-does-not-say-it-is-unusable.md) soft) |
 | [1464](1464-a-screen-reads-the-batch-references-first.md) | A screen reads the batch references first | ⬜ | P3 | — (#385 soft) |
-| [1469](1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | 🔄 2026-09-29 | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) |
+| [1469](1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | ✅ 2026-09-29 | — | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) |
 | [1508](1508-compiled-dichotomy-spike.md) | Compiled dichotomy spike (gated: build only if the box traversal is the unit's cost) | ✅ 2026-09-28 | — | — |
 | [1509](1509-dichotomy-leaves-pay-for-the-whole-trial-set.md) | A dichotomy leaf pays for the whole trial set | ✅ 2026-09-28 | — | — ([1508](1508-compiled-dichotomy-spike.md) soft) |
 | [1519](1519-distinct-lattice-tests-as-one-stacked-solve.md) | The distinct-lattice χ² tests run as one stacked solve | ✅ 2026-09-29 | — | — ([1518](1518-dedup-weighs-a-difference-in-its-own-frame.md) soft) |
