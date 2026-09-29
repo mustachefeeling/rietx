@@ -756,6 +756,11 @@ outside the tabulation, a wavelength straddling an edge, a neutron resonant
 absorber (Cd, Sm, Eu, Gd or Yb, refused at every wavelength since no resonance
 energies are tabulated), or no capillary radius.
 A refinement does the same calculation itself when `mu_r` is left `None`.
+The table follows the source. An X-ray source reads the McMaster cross-sections,
+and a `NeutronSource` reads the Sears neutron ones of {eq}`corr-mu-neutron`,
+which weigh hydrogen and the light elements very differently. A source kind
+with neither table still declines with a reason, and a declared `mu_r` or
+`mu_t` is honoured on every source.
 
 `RoughnessSuortti` carries `RoughnessSuortti.a` and `RoughnessSuortti.b`;
 `RoughnessPitschke` carries `RoughnessPitschke.c` and `RoughnessPitschke.tau`.
