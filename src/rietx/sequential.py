@@ -1759,9 +1759,17 @@ def _reseed_diagnostics(entry: SeriesEntry) -> list[Diagnostic]:
     # a cold rung kept only as the best of several rejected ones is not "a
     # good fit", and calling it one contradicted SEQUENTIAL_RWP_OUTLIER on the
     # same pattern — issue #481's blank frame read exactly that (WP-1469)
-    fit = ("the cold fit is kept only as the best attempt and is still above "
-           "the fence — read SEQUENTIAL_RWP_OUTLIER on this pattern first — and"
-           if entry.above_fence else "this point is a good fit but")
+    # …and neither is a cold rung kept only as the least diverged of several,
+    # which SEQUENTIAL_UNRECOVERED calls a failed fit on the same pattern
+    if entry.status == "diverged":
+        fit = ("the cold fit is kept only as the best attempt and diverged "
+               "too — read SEQUENTIAL_UNRECOVERED on this pattern first — and")
+    elif entry.above_fence:
+        fit = ("the cold fit is kept only as the best attempt and is still "
+               "above the fence — read SEQUENTIAL_RWP_OUTLIER on this pattern "
+               "first — and")
+    else:
+        fit = "this point is a good fit but"
     return [Diagnostic(
         level="warning", code="SEQUENTIAL_RESEED",
         where=[entry.label or str(entry.index)],
@@ -1818,6 +1826,13 @@ def _rwp_outlier_diagnostics(entry: SeriesEntry,
         return []
     rwp, fence = entry.statistics.rwp, entry.rwp_fence
     tried = ", ".join(entry.rungs_tried) or entry.rung
+    # the cold rung is always the ladder's last, so without it the ladder was
+    # not climbed to the end — ``reseed=False``, or a cancel mid-ladder — and
+    # "no starting point brought it near" would claim starts nobody tried
+    climbed = "cold" in entry.rungs_tried or entry.rung == "cold"
+    ratio = rwp / fence if fence > 0 else None
+    times = (", above the fence" if ratio is None
+             else f", {ratio:.2f}× the fence")
     against = ""
     if before is not None and before.statistics is not None:
         s, r = entry.statistics, before.statistics
@@ -1826,14 +1841,23 @@ def _rwp_outlier_diagnostics(entry: SeriesEntry,
                    f"{r.gof:.2f}, Rexp {s.rexp:.4f} to its {r.rexp:.4f}")
     return [Diagnostic(
         level="warning", code="SEQUENTIAL_RWP_OUTLIER",
-        where=[entry.label or str(entry.index)], value=rwp / fence,
+        where=[entry.label or str(entry.index)], value=ratio,
         message=(f"pattern {entry.index} ({entry.label}) reached Rwp {rwp:.4f} "
-                 f"on its best rung, {rwp / fence:.1f}× the fence at {fence:.4f} "
+                 f"on its best rung{times} at {fence:.4f} "
                  f"(the reseed factor × the median Rwp of the patterns accepted "
-                 f"before it), after every rung the chain tried ({tried})"
-                 f"{against}"),
-        suggestion=("no starting point brought this fit near its neighbours', "
-                    "so the pattern itself differs from them; open its own fit "
+                 f"before it), after "
+                 + ("every rung the chain tried" if climbed else
+                    "the rungs the chain tried before stopping short of its "
+                    "cold rung (reseed off, or a cancel)")
+                 + f" ({tried}){against}"),
+        suggestion=(("no starting point brought this fit near its neighbours', "
+                     "so the pattern itself differs from them"
+                     if climbed else
+                     "the ladder was not climbed, so a cold start may still "
+                     "bring this fit near its neighbours'; refit it with "
+                     "reseed on before reading it as a difference in the "
+                     "pattern")
+                    + "; open its own fit "
                     "before reading its values.  GoF says which way: well above "
                     "theirs is a model the pattern has outgrown — a specimen "
                     "change the model lacks, or a bad frame; like theirs, with a "
@@ -2127,7 +2151,9 @@ def _discontinuity_steps(series: SeriesResult,
             step > DISCONTINUITY_SIGMA * combined)
         if not big.any():
             continue
-        k = int(np.argmax(step * big))
+        # ``where``, never ``step * big``: a rejected pattern's value may be
+        # non-finite, and NaN × False is NaN, which argmax would pick
+        k = int(np.argmax(np.where(big, step, -np.inf)))
         pair = (series.entries[traj.positions[k]],
                 series.entries[traj.positions[k + 1]])
         out.append(_FlaggedStep(

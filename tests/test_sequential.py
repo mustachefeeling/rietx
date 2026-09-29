@@ -1239,6 +1239,37 @@ def test_the_outlier_verdict_is_read_off_the_entry():
     reloaded = SeriesEntry.model_validate_json(chain[1].model_dump_json())
     assert reloaded.above_fence and reloaded.rwp_fence == 0.05
 
+    # a ladder stopped short of its cold rung (reseed=False, or a cancel)
+    # does not claim every start was tried
+    climbed = entry(1, 0.30, 0.05)
+    climbed.rungs_tried, climbed.rung = ["warm", "warm_staged", "cold"], "cold"
+    (d,) = _rwp_outlier_diagnostics(climbed, None)
+    assert "every rung the chain tried" in d.message
+    assert "no starting point" in d.suggestion
+    short = entry(1, 0.30, 0.05)
+    short.rungs_tried, short.rung = ["warm"], "warm"
+    (d,) = _rwp_outlier_diagnostics(short, None)
+    assert "every rung" not in d.message and "cold rung" in d.message
+    assert "no starting point" not in d.suggestion
+    assert d.value == pytest.approx(6.0) and "6.00× the fence" in d.message
+
+
+def test_a_diverged_cold_rung_is_not_called_a_good_fit():
+    """Every rung diverged and the cold one was the least bad: reseeded, and
+    SEQUENTIAL_UNRECOVERED calls it a failed fit, so the reseed text must not
+    call it a good one."""
+    from rietx.sequential import _reseed_diagnostics
+
+    e = SeriesEntry(index=1, label="p1", status="diverged", reseeded=True,
+                    rung="cold", rungs_tried=["warm", "warm_staged", "cold"],
+                    rwp_warm=0.5, rwp_fence=0.05,
+                    statistics=Statistics(rwp=0.3, rp=0.3, rexp=0.04, chi2=1.0,
+                                          gof=7.5, n_points=100,
+                                          n_free_parameters=3))
+    (d,) = _reseed_diagnostics(e)
+    assert "good fit" not in d.suggestion
+    assert "SEQUENTIAL_UNRECOVERED" in d.suggestion
+
 
 def test_every_rung_writes_its_own_history_log(thermal_patterns, tmp_path):
     """One header per file, which the cold restart used to break.
@@ -1597,6 +1628,17 @@ def test_a_rejected_frame_no_longer_takes_the_paths_one_flag():
         assert s.record.indices == (5, 6)
         assert s.record.step == pytest.approx(2.27e-3)
         assert "between p5 and p6" in s.diagnostic.message
+
+
+def test_a_non_finite_rejected_value_does_not_take_the_flag():
+    """A diverged pattern whose value is NaN: its steps are dropped, and the
+    argmax must not pick them back up (NaN × False is NaN, not 0)."""
+    values = list(_RAMP_A)
+    values[3] = float("nan")
+    (s,) = _discontinuity_steps(_fenced_series("phases.0.cell.a", values,
+                                               _RAMP_SD, diverged={3}))
+    assert s.record.labels == ("p5", "p6")
+    assert np.isfinite(s.record.step)
 
 
 def test_a_run_of_rejected_patterns_is_never_bridged():

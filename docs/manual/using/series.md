@@ -425,7 +425,7 @@ alters a fitted value.
 |---|---|
 | `SEQUENTIAL_RESEED` | the warm start was rejected and the pattern was refitted cold, so the chain was not poisoned silently |
 | `SEQUENTIAL_UNRECOVERED` | the pattern diverged and stayed diverged after every rung; it seeded no successor and joined no median |
-| `SEQUENTIAL_RWP_OUTLIER` | every rung left the pattern above the Rwp fence, so the fit kept is not like its neighbours'; the message quotes its GoF and Rexp against the last pattern inside the fence, which say why |
+| `SEQUENTIAL_RWP_OUTLIER` | every rung the chain tried left the pattern above the Rwp fence (with `reseed=False` only the first, and the message says so), so the fit kept is not like its neighbours'; the message quotes its GoF and Rexp against the last pattern inside the fence, which say why |
 | `SEQUENTIAL_DISCONTINUITY` | a step much larger than the local trend: the science, or a chain failure, and the diagnostic says both |
 | `SEQUENTIAL_PATH_DEPENDENT` | with `direction="both"`, forward and backward disagree by more than their esds allow |
 | `SEQUENTIAL_PATH_CHECK_INCOMPLETE` | with `direction="both"`, the comparison did not run, or ran on fewer patterns or paths than the series has |
