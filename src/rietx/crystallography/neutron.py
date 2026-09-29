@@ -166,3 +166,79 @@ def is_resonant_absorber(species: str) -> bool:
     the thermal value; a caller spanning a range of wavelengths may not.
     """
     return normalize_species(species) in RESONANT_ABSORBERS
+
+
+#: Wavelength (Å) at which the table's ``xs_abs_barn`` is quoted: neutrons at
+#: the conventional thermal velocity of 2200 m/s, the velocity Sears (1992)
+#: quotes absorption cross-sections for.  The absorption cross-section of a nucleus far from a resonance
+#: follows the **1/v law** — the time the neutron spends near the nucleus —
+#: so σ_abs(λ) = σ_abs(1.798 Å) · λ / 1.798: *linear* in λ, where an X-ray
+#: µ/ρ falls roughly as λ⁻³ between edges.
+SIGMA_ABS_REFERENCE_WAVELENGTH = 1.798
+
+
+def total_cross_section_neutron(species: str, wavelength: float) -> float:
+    """Total neutron cross-section (barn/atom) of one species at ``wavelength`` (Å).
+
+    σ_tot(λ) = σ_abs · λ / 1.798 + σ_coh + σ_inc, from Sears (1992),
+    *Neutron News* **3**(3), 26–37 / *International Tables* C Table 4.4.4.1:
+    absorption scaled by the 1/v law from its 2200 m/s value
+    (:data:`SIGMA_ABS_REFERENCE_WAVELENGTH`), both scattering cross-sections
+    wavelength-independent, since b is a point-nucleus constant.
+
+    Attenuation here means beam **removal**, so both scattering terms count,
+    as the X-ray total in :mod:`rietx.crystallography.attenuation` does.  They
+    are the *free-atom* cross-sections: in a polycrystal the coherent part is
+    Bragg scattering, whose removal of the beam depends on λ against the
+    largest d-spacing, and that dependence is not modelled.  For hydrogen the
+    incoherent term dominates everything else in the table (80.26 barn), which
+    is why a hydrous specimen X-rays call transparent is the one a neutron
+    beam struggles through.
+
+    An isotope resolves to its own row (``"D"`` is ²H, 2.05 barn incoherent
+    against ¹H's 80.26), as :func:`b_coh` does.
+
+    Raises :class:`KeyError` naming the species when it is untabulated or a
+    needed column reads ``---``.
+
+        >>> round(total_cross_section_neutron("V", 1.798), 4)   # abs + coh + inc
+        10.1784
+    """
+    if not wavelength > 0.0:
+        raise ValueError(f"wavelength must be positive, got {wavelength}")
+    row = properties(species)
+    key = row["symbol"]
+    parts = (row["xs_abs_barn"], row["xs_coh_barn"], row["xs_inc_barn"])
+    if not all(np.isfinite(v) for v in parts):
+        raise KeyError(
+            f"neutron cross-sections for {species!r} (read as {key!r}) are "
+            f"not all tabulated in Sears (1992) — the source records '---' "
+            f"for one of sigma_abs, sigma_coh, sigma_inc")
+    sigma_abs, sigma_coh, sigma_inc = parts
+    return (sigma_abs * wavelength / SIGMA_ABS_REFERENCE_WAVELENGTH
+            + sigma_coh + sigma_inc)
+
+
+def linear_attenuation_neutron(element_counts: dict[str, float], volume: float,
+                               wavelength: float) -> float:
+    """Linear attenuation coefficient µ (1/cm) of one crystalline phase, neutrons.
+
+    The neutron twin of
+    :func:`rietx.crystallography.attenuation.linear_attenuation`, same
+    arguments and same unit, so the packing and geometry half
+    (:func:`~rietx.crystallography.attenuation.packed_mu_r`,
+    ``packed_mu_t``) is shared unchanged:
+
+        µ [1/cm] = Σ_i n_i · σ_tot,i(λ) [barn] / V [Å³]
+
+    with n_i the occupancy-weighted count of species i per cell and σ_tot from
+    :func:`total_cross_section_neutron` (Sears 1992).  1 barn = 10⁻²⁴ cm² and
+    1 Å³ = 10⁻²⁴ cm³, so barn/Å³ is exactly 1/cm.
+
+    Raises what :func:`total_cross_section_neutron` raises.
+    """
+    if volume <= 0.0:
+        raise ValueError(f"cell volume must be positive, got {volume}")
+    sigma = sum(count * total_cross_section_neutron(sym, wavelength)
+                for sym, count in element_counts.items())
+    return sigma / volume
