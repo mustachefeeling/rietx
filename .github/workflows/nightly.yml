@@ -63,6 +63,10 @@ jobs:
         run: |
           .venv/bin/python -c "import sys, numpy, scipy; print(sys.version); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
           .venv/bin/python -c "import numpy; numpy.show_config()"
+          # the two probes an indexing speed-up is gated on (WP-1509, 1519):
+          # False is the slower exact path, and the tests that ask them
+          # harder skip, which -q never names
+          .venv/bin/python -c "from rietx.indexing.engines import row_local_product as r; from rietx.indexing.reduce import stacked_pinv_exact as p; print('row_local_product', r(), 'stacked_pinv_exact', p())"
       - name: Full suite
         # the bit-identity goldens skip here — pinned to darwin/arm64
         # (tests/test_backend_shim.py, GOLDEN_PLATFORM); the macos job reports
@@ -98,7 +102,12 @@ jobs:
       - run: uv venv --python 3.13
       - run: uv pip install -e ".[dev]"
       - name: Record the environment
-        run: .venv/Scripts/python -c "import sys, platform, numpy, scipy; print(sys.version, sys.platform, platform.machine()); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
+        run: |
+          .venv/Scripts/python -c "import sys, platform, numpy, scipy; print(sys.version, sys.platform, platform.machine()); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
+          # the two probes an indexing speed-up is gated on (WP-1509, 1519):
+          # False is the slower exact path, and the tests that ask them
+          # harder skip, which -q never names
+          .venv/Scripts/python -c "from rietx.indexing.engines import row_local_product as r; from rietx.indexing.reduce import stacked_pinv_exact as p; print('row_local_product', r(), 'stacked_pinv_exact', p())"
       - name: Fast suite
         run: .venv/Scripts/python -m pytest -n auto --dist loadgroup -m "not slow"
 
@@ -118,6 +127,10 @@ jobs:
         run: |
           .venv/bin/python -c "import sys, platform, numpy, scipy; print(sys.version, sys.platform, platform.machine()); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
           .venv/bin/python -c "import numpy; numpy.show_config()"
+          # the two probes an indexing speed-up is gated on (WP-1509, 1519):
+          # False is the slower exact path, and the tests that ask them
+          # harder skip, which -q never names
+          .venv/bin/python -c "from rietx.indexing.engines import row_local_product as r; from rietx.indexing.reduce import stacked_pinv_exact as p; print('row_local_product', r(), 'stacked_pinv_exact', p())"
       - name: Suite
         # the bit-identity gate is deselected and run as its own step below.
         # Measured 2026-07-29: this runner does *not* reproduce the capture
