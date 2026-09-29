@@ -409,7 +409,7 @@ is not what did it.
       a measured aggregate". The check inverts it with a measured reason rather
       than an aggregate, so rewrite the row to assert the I truth first, citing
       the pair's counts. *Done 2026-09-27, with its validation-matrix claim.*
-- [ ] Measure on at least one monoclinic or lower-symmetry pattern with a known
+- [x] Measure on at least one monoclinic or lower-symmetry pattern with a known
       cell before claiming anything beyond high symmetry. The acceptance corpus
       has none: bethanechol is peak lists only. *Manual mode, 2026-09-29: the
       check cannot fire there. The paper's protocol confines the search to
@@ -419,7 +419,15 @@ is not what did it.
       another, and the truth's smallest supercell (index 2, 2074 Å³) sits
       above its 2000 Å³ ceiling. So the benchmark as the paper states it
       never puts the truth beside a supercell of it, and the measurement
-      needs the ceiling raised.*
+      needs the ceiling raised.* *Done 2026-09-29. Raised to 4200 Å³ on the
+      four sets manual mode solves, the truth ranks first on all four (Db
+      rises from second) and still no pair is reported: the ranking keeps
+      every supercell out of the top 12. So the check neither helps nor
+      harms a monoclinic truth there. Asked directly, the published cell's
+      55 superlattices of index 2-4 on all ten sets give 545 refuted, 5
+      undecided and none supported. The five are set F's index-2 cells,
+      where p0 = 0.738 and each adds 6-12 extras. Pinned by
+      `test_a_monoclinic_truths_phantom_supercells_are_never_supported`.*
 - [x] Part 2 of the manual carries the chance test as an equation with its
       `*Source:*` line, and Part 1's indexing chapter describes the re-rank.
       *Done 2026-09-27: `idx-supercell-chance`, with α injected from
