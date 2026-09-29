@@ -10,11 +10,18 @@ trustworthiness the rule decides.
 ## Step 9 — what `max_shift_over_esd` separates
 
 McCusker et al. (1999) §7 calls a refinement converged when max|Δθ|/esd ≤ 0.1.
-The band is quoted from the paper and gates nothing here. A converged solve
-satisfies it a fortiori, so the number earns its keep on the other branch: where
-a stage stopped on `STAGE_MAX_ITER`, its magnitude says *how far* the solve was
-still moving in esd units, which separates "nearly there" (just over the band)
-from a fit that stopped mid-flight — measured ≈14 on one starved iteration.
+The band is quoted from the paper and gates nothing here, but read the number
+on **every** solve, `converged` included. The solver stops on the cost, and a
+cost that has stopped falling says nothing about a parameter walking a flat
+direction: on a 25–50° four-phase QPA scan all six stages reported `converged`
+with the number at 70.1, Fe's Biso at −165 Å² along a scale·exp(−2Bs²) ridge,
+and 4.02e-05 once that Biso was bounded (issue #204). So a large value on a
+converged stage is the signature of an unbounded or degenerate direction: look
+for a parameter without the range its field declares, or for a
+`HIGH_CORRELATION` pair. Where a stage stopped on `STAGE_MAX_ITER`, its
+magnitude says *how far* the solve was still moving in esd units, which
+separates "nearly there" (just over the band) from a fit that stopped
+mid-flight — measured ≈14 on one starved iteration.
 
 ## Step 12 — the geometry table's esds
 

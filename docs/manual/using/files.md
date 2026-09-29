@@ -1173,7 +1173,7 @@ NO_PHASES
 `Refinement.predict` still works, because evaluating the background as it stands
 is not a refinement.
 
-An open project holds the session as six attributes.
+An open project holds the session as seven attributes.
 
 | Attribute | Holds |
 |---|---|
@@ -1183,10 +1183,13 @@ An open project holds the session as six attributes.
 | `Project.refinement` | the `Refinement`, positioned at the history head |
 | `Project.history` | that refinement's `RefinementTree` |
 | `Project.data_diagnostics` | what the reader repaired or assumed on the last read |
+| `Project.history_diagnostics` | what reading the history log repaired, on the last open |
 
 `Project.data_diagnostics` is held in memory and is not a `project.json` field.
 The repairs are a function of the bytes, the reader and its options, and the
-data reference below already records all three.
+data reference below already records all three. `Project.history_diagnostics`
+is held the same way, for the same reason: it is a function of the log and of
+the release reading it. The history log below says what it can hold.
 
 Every verb that changes a project writes into its directory as it runs, and
 `Project.open` appends a line to the log before any verb is called. There is
@@ -1314,6 +1317,21 @@ per line. `RefinementTree.save` and `RefinementTree.load` are the file
 interface, `RefinementTree.records` is what gets written, and
 `RefinementTree.summary` prints the tree. [](history.md) is the DAG itself: what
 a node holds, and the verbs that restore, fork and merge one.
+
+One repair is made when a log is read. A release before a class inherited
+its fields' declared ranges ([](model.md)) wrote a `Parameter` you had supplied
+with the bounds it then carried: (−inf, inf), no unit, the identity
+transform. Such a log would reopen unbounded, because every key it stores is
+present and nothing is inherited from a key that is there.
+`RefinementTree.load` restores the declared range in every node that stored
+one, when the tree's header says the log predates that class's inheritance.
+Each restored parameter is reported once, as a `HISTORY_BOUNDS_RESTORED`
+diagnostic naming its dot-path, the atom where there is one, and both ranges.
+Pass `diagnostics=[]` to collect them; `Project.open` passes one for you. No
+value moves. A stored value outside the declared range raises instead, naming
+the node, and `rietx.history.read_records` still reads that log as it was
+stored. A range that is merely wider than the declared one is a choice and is
+left alone, and so is an unbounded one written after the class inherited.
 
 Each line is a `HistoryRecord`, a tagged union of the three things the log
 carries. The tag is what keeps the file append-only: a reader branches on it

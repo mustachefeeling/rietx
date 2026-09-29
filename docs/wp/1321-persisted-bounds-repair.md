@@ -197,10 +197,13 @@ Inherited for its flat-direction item.
       per-class generic discovery tests on #206's template. *57 fields on 17
       classes, all real (§ The audit); one discovery test over the whole
       `Base` family rather than one per class, so a new class is covered too.*
-- [ ] `max_shift_over_esd` rewording in `SKILL.md` §9 and
-      `references/judging.md` (all committed skill copies re-synced).
-- [ ] Skill diagnostics row for the new code (all committed copies) +
-      `help.py`/manual coverage per standing gates.
+- [x] `max_shift_over_esd` rewording in `SKILL.md` §9 and
+      `references/judging.md` (all committed skill copies re-synced). *The
+      body 8 B shorter.*
+- [x] Skill diagnostics row for the new code (all committed copies) +
+      `help.py`/manual coverage per standing gates. *§7i row; `help.py`
+      describes no diagnostic code, so nothing there; `using/model.md` and
+      `using/files.md`; staged in `releases/1.5.1.md`.*
 
 ## Acceptance
 
