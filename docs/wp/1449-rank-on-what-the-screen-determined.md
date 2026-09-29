@@ -415,7 +415,11 @@ is not what did it.
       check cannot fire there. The paper's protocol confines the search to
       800-1200 Å³, and a parent of index 2-4 needs a volume ratio of at least
       2, so all 120 reported candidates were asked and none had a parent.
-      Default mode, whose ceiling admits both, is the measurement.*
+      Default mode cannot either: all 120 asked, none a sublattice of
+      another, and the truth's smallest supercell (index 2, 2074 Å³) sits
+      above its 2000 Å³ ceiling. So the benchmark as the paper states it
+      never puts the truth beside a supercell of it, and the measurement
+      needs the ceiling raised.*
 - [x] Part 2 of the manual carries the chance test as an equation with its
       `*Source:*` line, and Part 1's indexing chapter describes the re-rank.
       *Done 2026-09-27: `idx-supercell-chance`, with α injected from
