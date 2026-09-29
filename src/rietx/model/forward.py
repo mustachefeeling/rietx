@@ -103,7 +103,7 @@ from ..schemas.instrument import (
     BackgroundPSpline,
     Instrument,
 )
-from ..schemas.pattern import PatternData
+from ..schemas.pattern import PatternData, require_two_theta
 from ..schemas.structure import Structure
 from . import compiled
 from .absorption import (
@@ -3418,7 +3418,14 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     ``window_slack_deg`` overrides ``WINDOW_MIN_DEG`` as the absolute capture
     slack added to every window half-width (``Stage.window_slack_deg`` has
     the two-jobs story); ``None`` — every ordinary caller — is the default.
+
+    The pattern must be in 2θ and the instrument a constant-wavelength one:
+    this is the backstop for :func:`rietx.schemas.pattern.require_two_theta`,
+    below every public entry that calls it, so a caller who assembled a compile
+    by hand gets the same authored refusal rather than an ``arcsin`` of a
+    microsecond.
     """
+    require_two_theta(pattern, "compile_model()", instrument=instrument)
     if restraint_weight_scale < 0.0:
         raise ValueError(
             f"restraint_weight_scale must be >= 0 (got {restraint_weight_scale})")
