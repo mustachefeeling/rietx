@@ -115,6 +115,15 @@ the tail today, in local serial seconds:
   WP-1519 declined the fold as a CI restructure (a YAML anchor, or one
   script every leg calls). Low stakes, and yours if the nightly is ever
   reshaped.
+- **From WP-1449 (2026-09-29): the Windows nightly fails on a command line
+  too long.** On 2026-09-28 (run 36420472550) the Windows fast suite's one
+  failure was `test_docs_consistency::test_no_planning_doc_links_something_gitignored`,
+  `FileNotFoundError: [WinError 206] The filename or extension is too long`.
+  That test hands every linked file to `git check-ignore` as argv, and the
+  WP files' links have outgrown Windows' 32 767-character limit. The helper
+  just above it already passes its paths on `--stdin -z`, and doing the same
+  here keeps `--no-index`. Linux and macOS were green. It failed again on
+  2026-09-29 (run 36563538187), the Windows leg's only failure.
 
 ## Non-goals
 
