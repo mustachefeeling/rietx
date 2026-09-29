@@ -261,7 +261,7 @@ The absolute lab anchor. NIST's own SRM 660c certification measurement, refined 
 
 `characterisation` `ceiling` · dataset `srm660c`
 
-**Claims:** secondary extinction freed on a specimen that has none refines to zero and does not move the anchor
+**Claims:** primary extinction freed on a specimen that has none refines to zero and does not move the anchor
 
 **Referenced to:** the cell must return to its own unextinguished value within the same 2e-4 A band; the extinction parameter itself is one-sided (< 1e-2 from a 1e-3 seed)
 

@@ -424,7 +424,7 @@ CLAIMS: tuple[Claim, ...] = (
     Claim(
         "test_acceptance_srm660c", "test_srm660c_extinction_does_no_harm",
         "srm660c", ("characterisation", "ceiling"),
-        "secondary extinction freed on a specimen that has none refines to "
+        "primary extinction freed on a specimen that has none refines to "
         "zero and does not move the anchor",
         reference="the cell must return to its own unextinguished value "
                   "within the same 2e-4 A band; the extinction parameter "
