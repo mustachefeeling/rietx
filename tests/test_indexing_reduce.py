@@ -629,6 +629,54 @@ def test_a_phantom_supercells_extras_sit_at_chance():
     assert all(hkl[2] % 2 for hkl in ev.extra_hkl)
 
 
+def test_a_monoclinic_truths_phantom_supercells_are_never_supported():
+    """WP-1449's measurement below high symmetry, on real monoclinic lists.
+
+    Bethanechol's benchmark cannot ask it through a search: both of the
+    paper's modes cap the volume under the truth's smallest supercell, and
+    with the cap raised the ranking keeps every supercell out of the reported
+    list. So each superlattice of the published P 2₁/n cell of index 2-4 is
+    asked directly, against every set's twenty lines and the manual mode's
+    window. All are phantoms. The test may lack the power to refute one,
+    and then it moves nothing, but it must never call one supported.
+    Measured 2026-09-29 on all ten sets: 544 refuted, and 6 undecided on set F
+    alone, where a chance hit is 0.738 likely and an index-2 cell adds 9-14
+    extras. Three sets span that range of p0 (Ba 0.299, E 0.429, F 0.738); Aa
+    is the fourth because it is the nearest miss: an index-3 cell at 18 of 29
+    extras seen, p = 0.0105 against α = 0.01, one coincident line from a false
+    "supported".
+    """
+    from collections import Counter
+
+    from rietx.indexing.ambiguity import derivative_cells
+    from rietx.indexing.engines import match_window
+    from rietx.schemas.indexing import PeakList
+    from tests import bethanechol_benchmark as bench_mod
+
+    bench = bench_mod.load()
+    truth = tuple(bench_mod.truth_cell(bench))
+    spec = bench_mod.spec_for(bench, "manual")
+    children = derivative_cells(truth, max_index=4)
+    assert len(children) == 7 + 13 + 35
+    verdicts: Counter = Counter()
+    for name in ("Aa", "Ba", "E", "F"):
+        tt, lam = bench_mod.positions(bench, name)
+        peaks = PeakList.from_positions(tt, wavelength=lam)
+        q_obs, q_match = np.asarray(peaks.q()), match_window(peaks, spec)
+        for index, _h, child in children:
+            ev = supercell_chance(truth, "P", child, "P", q_obs, q_match,
+                                  k_sigma=spec.k_sigma)
+            assert ev is not None and ev.index == index, (name, child)
+            verdict = ev.verdict()
+            verdicts[verdict] += 1
+            assert verdict != "supported", (name, child, ev.n_seen, ev.n_extra)
+            if verdict == "undecided":
+                # power runs out only where chance fills most windows, and
+                # only for the smallest supercells, which add the fewest extras
+                assert ev.p0 > 0.5 and index == 2, (name, child, ev.p0)
+    assert verdicts["refuted"] >= 0.95 * sum(verdicts.values()), verdicts
+
+
 def test_a_true_superstructures_extras_are_present():
     """The test is self-correcting, and that is what makes it a signature.
 

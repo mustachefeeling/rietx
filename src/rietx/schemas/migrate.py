@@ -1,6 +1,12 @@
 """Read-side repairs for documents written by an earlier release.
 
-**One authority, and it is textual on purpose.**  A dot-path is not confined to
+Two repairs, each one authority with its own list of the places it is
+applied: a renamed dot-path, repaired on the document *text*
+(:func:`migrate_document_text`, :data:`READ_POINTS`), and a declared range a
+release dropped from a caller's own ``Parameter``, repaired on the parsed
+models (:func:`restore_declared_ranges`, :data:`DECLARED_RANGE_READ_POINTS`).
+
+**The rename is textual on purpose.**  A dot-path is not confined to
 one schema field: it is a value in a history node's ``free_paths``, a glob in a
 saved plan's ``turn_on``, a key in a tie table, a row label in an ``.rxt``.
 Enumerating the fields that may hold one is how a migration misses the fifth
@@ -21,7 +27,16 @@ from __future__ import annotations
 
 import re
 
+from .common import (
+    BARE_PARAMETER_ATTRS,
+    Base,
+    Diagnostic,
+    Parameter,
+    _InheritsDeclaredDefaults,
+    declared_fills,
+)
 from .instrument import _LEGACY_COMPONENT_FIELD
+from .structure import Atom
 
 #: Where a stored document is read and this repair is applied.  Listed so a
 #: fourth read point is an edit here rather than a silent gap; a reader that
@@ -94,3 +109,221 @@ def migrate_document_text(text: str) -> tuple[str, bool]:
     """
     out = _LEGACY_NAME.sub("extra_components", text)
     return out, out != text
+
+
+
+# ---------------------------------------------------------------------------
+# The declared ranges a release dropped (issue #204, the read half #209)
+# ---------------------------------------------------------------------------
+
+#: Where a stored document carrying model ``Parameter`` s is read and
+#: :func:`restore_declared_ranges` is applied.  A structural repair, unlike the
+#: textual one above, because what it needs is the class a ``Parameter`` sits
+#: in and the version its document was written under.  A reader of stored
+#: models that does not appear here does not repair.
+#:
+#: **One reader of stored models is outside it on purpose**:
+#: ``RefinementResult``, whose models record a finished fit that nothing
+#: refines from, so a range on them bounds nothing.  Its ``parameters`` rows
+#: are a copy of the fit's own and read back as they were written.
+DECLARED_RANGE_READ_POINTS: tuple[str, ...] = (
+    "rietx.history.tree.RefinementTree.load",
+    "rietx.io.instrument_profile.load_instrument_profile",
+)
+
+#: The version a document that never stamped one is read as: older than every
+#: class's ``_declared_since``, which is what such a document is.
+UNSTAMPED_SCHEMA = "0.0"
+
+
+def schema_key(version: str) -> tuple[int, ...]:
+    """``"0.9"`` < ``"0.17"``: schema versions compare as integers, never text."""
+    return tuple(int(part) for part in version.split("."))
+
+
+def newest_declared_since() -> tuple[int, ...]:
+    """The latest ``_declared_since`` of any class, read off the classes: a
+    document written at or after it holds nothing to repair, so it is not
+    walked."""
+    newest, stack = (0,), list(_InheritsDeclaredDefaults.__subclasses__())
+    while stack:
+        cls = stack.pop()
+        newest = max(newest, schema_key(cls._declared_since))
+        stack.extend(cls.__subclasses__())
+    return newest
+
+
+def declared_range_repairs(model: Base, written: str, prefix: str = "") -> list[dict]:
+    """What restoring the declared ranges would change in ``model``, read from
+    a document written at schema ``written``; ``model`` is not touched.
+
+    **The defect** (issue #204, the read half #209): until a class inherited
+    (:class:`~rietx.schemas.common._InheritsDeclaredDefaults`, from its
+    ``_declared_since``), a caller's ``Parameter(value=..., vary=...)`` for a
+    field that declares a range got ``(-inf, inf)``, no unit and ``identity``,
+    and ``model_dump`` wrote those out explicitly.  So such a document reloads
+    with every key present, inherits nothing at construction, and refines
+    unbounded again.  Fixed at construction for ``Atom`` by PR #206, for every
+    other class by WP-1321; this is what reaches the documents already written.
+
+    **The signature is a bare attribute in a document older than its class's
+    inheritance**, per attribute and by :func:`declared_fills` — the same rule
+    construction applies, with absence read as "holds the bare value" because
+    serialization left no other trace.  Before ``_declared_since`` an explicit
+    bare attribute and an omission were the same thing, so reading one as the
+    other loses nothing a caller could have meant; from it on, an explicit
+    ``min=-inf`` is a choice, and a document written then is left alone.  A
+    bound that is merely *wider* than the declared one is never touched:
+    WP-1311 made ``max=60`` on a hot specimen's ``biso`` the documented escape.
+
+    **In the reader, with a diagnostic, never in a schema validator** (root
+    CLAUDE.md: a silent correction is a reader's to make, because only the read
+    path has a channel to say it did).  ``PreferredOrientation``'s silent
+    floor repair is not the precedent: its licence is a pole feeding the solver
+    NaNs, which a merely loose bound is not.
+
+    One record per parameter the restore would change: its dot-path (under
+    ``prefix``), the atom label where there is one, the ``Parameter`` itself,
+    the attributes to fill, the stored and the restored attributes, and the
+    class's ``_declared_since``.  :func:`restore_declared_ranges` decides which
+    to apply.
+    """
+    written_key = schema_key(written)
+    out: list[dict] = []
+
+    def visit(obj: object, at: str, label: str | None) -> None:
+        if isinstance(obj, (list, tuple)):
+            for i, item in enumerate(obj):
+                visit(item, f"{at}{i}.", label)
+            return
+        if not isinstance(obj, Base) or isinstance(obj, Parameter):
+            return
+        cls = type(obj)
+        if isinstance(obj, Atom):
+            label = obj.label  # the name a person knows the site by
+        stale = (issubclass(cls, _InheritsDeclaredDefaults)
+                 and written_key < schema_key(cls._declared_since))
+        for name, info in cls.model_fields.items():
+            value = getattr(obj, name)
+            if (stale and isinstance(value, Parameter)
+                    and info.annotation is Parameter and info.default_factory is not None):
+                found = _candidate(value, info.default_factory())
+                if found is not None:
+                    out.append({"path": f"{at}{name}", "label": label,
+                                "since": cls._declared_since, **found})
+            else:
+                visit(value, f"{at}{name}.", label)
+
+    visit(model, prefix, None)
+    return out
+
+
+def _candidate(param: Parameter, declared: Parameter) -> dict | None:
+    present = {attr for attr, bare in BARE_PARAMETER_ATTRS.items()
+               if getattr(param, attr) != bare}
+    fills = {attr: v for attr, v in declared_fills(declared, present).items()
+             if getattr(param, attr) != v}
+    if not fills:
+        return None
+    before = {attr: getattr(param, attr) for attr in BARE_PARAMETER_ATTRS}
+    return {"param": param, "fills": fills, "before": before,
+            "after": {**before, **fills}}
+
+
+def restore_declared_ranges(found: dict[str, list[tuple[str, dict]]],
+                            document: str) -> list[Diagnostic]:
+    """Apply :func:`declared_range_repairs`' records, per dot-path, and say so.
+
+    ``found`` maps each dot-path to its records, one per place it was stored
+    (a history node's id; the one profile), and ``document`` names what was
+    read.  **A parameter is restored in every place or in none**: where any
+    stored value lies outside the declared range, restoring the others would
+    hand a checkout of them a range that value refutes, and restoring that one
+    would refuse the record.  The default box is not physics for every
+    instrument — a coarse neutron line's Caglioti ``u`` sits well outside the
+    X-ray one — so the parameter is left as stored everywhere and reported.
+    **No value ever moves.**  One ``DECLARED_RANGE_RESTORED`` or
+    ``DECLARED_RANGE_NOT_RESTORED`` per dot-path.
+    """
+    notes: list[Diagnostic] = []
+    for places in found.values():
+        ids = [pid for pid, _ in places]
+        outside = [(pid, c["param"].value) for pid, c in places
+                   if not c["after"]["min"] <= c["param"].value <= c["after"]["max"]]
+        first = places[0][1]
+        if outside:
+            notes.append(_not_restored_note(first, document, ids, outside))
+            continue
+        for _, c in places:
+            # min before max is always legal: the old pair held the value and
+            # the new pair does, so [new min, old max] holds it on the way
+            for attr in ("min", "max", "unit", "transform"):
+                if attr in c["fills"]:
+                    setattr(c["param"], attr, c["fills"][attr])
+        notes.append(_restored_note(first, document, ids))
+    return notes
+
+
+def _describe(attrs: dict) -> str:
+    text = f"[{attrs['min']}, {attrs['max']}]"
+    text += f" {attrs['unit']}" if attrs["unit"] else ", no unit"
+    if attrs["transform"] != "identity":
+        text += f", {attrs['transform']}"
+    return text
+
+
+def _in(document: str, ids: list[str]) -> str:
+    if not ids or ids == [document]:
+        return document
+    if len(ids) == 1:
+        return f"{document} ({ids[0]})"
+    if len(ids) <= 3:
+        return f"{document} ({len(ids)}: {', '.join(ids)})"
+    return f"{document} ({len(ids)}, {ids[0]} to {ids[-1]}, not all between)"
+
+
+def _where(candidate: dict) -> str:
+    label = candidate["label"]
+    return candidate["path"] + (f" (atom {label})" if label else "")
+
+
+def _restored_note(candidate: dict, document: str, ids: list[str]) -> Diagnostic:
+    before, after = candidate["before"], candidate["after"]
+    bound = any(before[a] != after[a] for a in ("min", "max", "transform"))
+    return Diagnostic(
+        level="warning" if bound else "info",
+        code="DECLARED_RANGE_RESTORED",
+        message=(
+            f"{_where(candidate)}: stored as {_describe(before)} — the range a "
+            f"caller's own Parameter was left with before schema "
+            f"{candidate['since']} (issue #204) — and restored to the declared "
+            f"{_describe(after)} in {_in(document, ids)}. No value moved."),
+        where=[candidate["path"]],
+        suggestion=(
+            "Nothing to do if the declared range is what you meant. A range of "
+            "your own goes on the Parameter explicitly (e.g. max=60 for a hot "
+            "specimen's biso), and wins."))
+
+
+def _not_restored_note(candidate: dict, document: str, ids: list[str],
+                       outside: list) -> Diagnostic:
+    place, value = outside[0]
+    more = f" and {len(outside) - 1} more" if len(outside) > 1 else ""
+    return Diagnostic(
+        level="warning",
+        code="DECLARED_RANGE_NOT_RESTORED",
+        message=(
+            f"{_where(candidate)}: stored as {_describe(candidate['before'])} — "
+            f"the range a caller's own Parameter was left with before schema "
+            f"{candidate['since']} (issue #204) — and left so in "
+            f"{_in(document, ids)}: {value!r} in {place}{more} lies outside the "
+            f"declared {_describe(candidate['after'])}, and a range that "
+            "refused the record would lose it. This parameter still refines "
+            "unbounded."),
+        where=[candidate["path"]],
+        value=float(value),
+        suggestion=(
+            "If the value is right, give the Parameter a range that holds it "
+            "before the next fit (a coarse instrument's widths: the box "
+            "ProfileTCHZ.coarse builds). If it is not, it is the walk issue "
+            "#204 describes and not a measurement to quote."))

@@ -46,7 +46,7 @@ Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities(
 - `rx.estimate_mu_r(structure: Structure, instrument: Instrument) -> float | None` — Starting µR for a packed capillary, from composition and geometry.
 - `rx.auto_background(data: PatternData, *, kind: str = 'pspline', diagnostics: PatternDiagnostics | None = None, wavelength: float | None = None, two_theta_limits: tuple[float, float] | None = None) -> Background` — Build a background model sized to the pattern.
 - `rx.diagnose(data: PatternData, *, wavelength: float | None = None, baseline_lambda: float | None = None) -> PatternDiagnostics` — Compute `PatternDiagnostics` for a raw pattern.
-- `rx.load_instrument_profile(path: str | Path) -> Instrument` — Read a profile file back as a **frozen** instrument.
+- `rx.load_instrument_profile(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> Instrument` — Read a profile file back as a **frozen** instrument.
 - `rx.save_instrument_profile(instrument: Instrument, path: str | Path)` — Write the instrument's calibrated state to a JSON profile file.
 - `rx.capabilities() -> Capabilities` — Everything this build can do — see the module docstring.
 - `rx.help_for(path: str) -> HelpEntry | None` — The entry for a parameter dot-path, or `None` if no family claims it.
@@ -182,7 +182,7 @@ A refinement, a series, an indexing run and a suggestion each return their own t
 - `rx.Refinement.merge(other: str, *, prefer: str = 'theirs', label: str = '') -> str` — Three-way merge of another branch into the current state.
 - `rx.Refinement.cherry_pick(node_id: str, data: PatternData) -> RefinementResult` — Re-run another node's *stage action* on top of the current state.
 - `rx.replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementResult` — Recompute the curves and statistics of a recorded node.
-- `rx.Project(path: str | Path, doc: ProjectDoc, data: PatternData, refinement: Refinement, data_diagnostics: list[Diagnostic] | None = None)` — An openable, savable refinement session on disk.
+- `rx.Project(path: str | Path, doc: ProjectDoc, data: PatternData, refinement: Refinement, data_diagnostics: list[Diagnostic] | None = None, history_diagnostics: list[Diagnostic] | None = None)` — An openable, savable refinement session on disk.
 - `rx.Project.create(path: str | Path, *, pattern: str | Path, structure: Structure | None = None, instrument: Instrument, mode: Mode = 'rietveld', plan: Any = None, two_theta_limits: tuple[float, float] | None = None, excluded_regions: list[tuple[float, float]] | None = None, reader_options: dict[str, Any] | None = None, ui: dict[str, Any] | None = None, backend: str = 'numpy', solver: str = 'trf') -> Project` — Create a project directory around a pattern file and a model.
 - `rx.Project.open(path: str | Path, *, backend: str = 'numpy', solver: str = 'trf') -> Project` — Open an existing project, resuming at the history head.
 - `rx.Project.save()` — Rewrite `project.json`.

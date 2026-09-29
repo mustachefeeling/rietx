@@ -309,6 +309,14 @@ class HistoryNode(Base):
     created_utc: str = ""
     scores: dict[str, float] = Field(default_factory=dict)  # agent bookkeeping
     notes: dict[str, str] = Field(default_factory=dict)
+    #: The :data:`SCHEMA_VERSION` of the release that committed this node,
+    #: stamped by :meth:`RefinementTree.add`, its only writer (WP-1321).  The
+    #: header's own stamp is the log's *creation* and a log outlives the
+    #: release that began it, so a node appended to an old log would otherwise
+    #: be read as old — and a caller's explicit choice in it as the defect
+    #: ``RefinementTree.load`` repairs.  ``None`` is a node written before this
+    #: field, which is read at the header's version: what it was written under.
+    schema_version: str | None = None
 
     @property
     def parent(self) -> str | None:

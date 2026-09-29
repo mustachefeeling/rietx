@@ -1152,9 +1152,14 @@ def test_a_centre_or_width_with_no_finite_bound_is_refused_and_suggests_one():
     """
     with pytest.raises(ValidationError, match=r"center needs finite min and max"):
         PeakComponent()
+    # an unbounded width has to be *stated* now: one that leaves ``max`` unset
+    # inherits the declared box, as an omitted field always did (WP-1321)
     with pytest.raises(ValidationError, match=r"fwhm needs finite min and max"):
-        make_peak(fwhm=Parameter(value=0.1, min=EXTRA_PEAK_FWHM_MIN,
+        make_peak(fwhm=Parameter(value=0.1, min=EXTRA_PEAK_FWHM_MIN, max=float("inf"),
                                  unit="deg", transform="softplus"))
+    inherited = make_peak(fwhm=Parameter(value=0.1, min=EXTRA_PEAK_FWHM_MIN,
+                                         unit="deg", transform="softplus"))
+    assert inherited.fwhm.max == PeakComponent.model_fields["fwhm"].default_factory().max
     with pytest.raises(ValidationError) as excinfo:
         PeakComponent()
     assert "Parameter(value=" in str(excinfo.value)

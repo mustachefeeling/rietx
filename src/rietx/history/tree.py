@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from ..schemas.common import SCHEMA_VERSION, Diagnostic
 from ..schemas.history import (
     Annotation,
     HistoryNode,
@@ -23,11 +24,17 @@ from ..schemas.history import (
     RefinementState,
     TreeHeader,
 )
+from ..schemas.migrate import (
+    UNSTAMPED_SCHEMA,
+    declared_range_repairs,
+    newest_declared_since,
+    restore_declared_ranges,
+    schema_key,
+)
 from ..schemas.pattern import PatternData
 from .store import append_record, fingerprint, read_records, write_records
 
 HEAD = "head"
-
 
 def _utcnow() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -69,8 +76,21 @@ class RefinementTree:
         return tree
 
     @classmethod
-    def load(cls, path: str | Path) -> "RefinementTree":
+    def load(cls, path: str | Path, *,
+             diagnostics: list[Diagnostic] | None = None) -> "RefinementTree":
         """Rebuild a tree from its JSONL log.
+
+        ``diagnostics``, when a list is passed, collects what the load
+        **repaired** — the channel :func:`~rietx.io.readers.read_pattern` and
+        :func:`~rietx.crystallography.cif.structure_from_cif` take, for the
+        same reason: a reader may correct a document only where it can say that
+        it did.  Today that is one repair: a caller's own ``Parameter`` that a
+        release before its class inherited left unbounded (issue #204) gets
+        its field's declared range back in every node that stored it, one
+        ``DECLARED_RANGE_RESTORED`` per parameter; where any node's value lies
+        outside that range the parameter is left as stored in all of them, as
+        ``DECLARED_RANGE_NOT_RESTORED``.  No value ever moves
+        (:func:`~rietx.schemas.migrate.restore_declared_ranges`).
 
         Records are applied **in file order**, replaying exactly what the
         in-memory tree did as each was appended: a node record advances HEAD
@@ -95,6 +115,25 @@ class RefinementTree:
         if header is None:
             raise ValueError(f"{path}: no header record; not a history log")
 
+        # a header that never stamped its schema is older than any inheritance;
+        # a node carries its own stamp once one exists, since a log outlives
+        # the release that began it (``HistoryNode.schema_version``)
+        written = (header.schema_version if "schema_version" in header.model_fields_set
+                   else UNSTAMPED_SCHEMA)
+        found: dict[str, list[tuple[str, dict]]] = {}
+        if schema_key(written) < newest_declared_since():
+            for item in pending:
+                if not isinstance(item, HistoryNode):
+                    continue
+                at = item.schema_version or written
+                for model, prefix in ((item.state.structure, ""),
+                                      (item.state.instrument, "instrument.")):
+                    for c in declared_range_repairs(model, at, prefix):
+                        found.setdefault(c["path"], []).append((item.id, c))
+        notes = restore_declared_ranges(found, "this history")
+        if diagnostics is not None:
+            diagnostics.extend(notes)
+
         tree = cls(header, path=path)
         for item in pending:
             if isinstance(item, HistoryNode):
@@ -110,6 +149,7 @@ class RefinementTree:
             state: RefinementState, metrics: NodeMetrics | None = None,
             diagnostics: Iterable = (), label: str = "") -> HistoryNode:
         node = HistoryNode(
+            schema_version=SCHEMA_VERSION,
             id=f"n{len(self.order):04d}",
             parents=list(parents),
             action=action,

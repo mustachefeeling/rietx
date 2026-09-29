@@ -203,6 +203,27 @@ pressing a hard zero. That is why a width or a scale can descend smoothly to
 its off state rather than stalling against a wall, and why [](data.md)'s
 warning about reaching exactly zero is a consequence rather than a bug.
 
+### A `Parameter` you supply keeps what its field declares
+
+A field with a physical range declares it in its default: `Atom.biso` is
+[0, 25] Å², `Phase.scale` is [0, inf] under `softplus`, `ProfileTCHZ.u` is
+[−0.05, 1.0] deg². A `Parameter` you pass for such a field inherits each of
+`min`, `max` and `unit` that you left unset, and the `transform` together with
+the bounds it enforces. So `Parameter(value=5e-3, vary=True)` passed as a phase
+scale arrives softplus from zero, as the default would. The same value passed
+as `Phase.lor_size` with `min=-1.0` keeps your bound and the identity
+transform, because softplus under a lower bound of −1 would move a negative
+value to zero at the first step. Whatever you state wins, in either direction.
+
+A value outside the inherited range is refused when the model is built, naming
+the field and the range. State the range you mean on the `Parameter`, or, for a
+coarse instrument's widths, build them with `ProfileTCHZ.coarse`.
+
+Until schema 0.17 for `Atom`, and 0.35 for every other class, a `Parameter`
+you supplied came out unbounded, with no unit and the identity transform. In
+issue #204 that let an iron Biso refine to −165 Å² at unchanged Rwp. A history
+log written by such a release is repaired when it is read ([](files.md)).
+
 ### A cell the data cannot see gets a bound you did not set
 
 One case reverses the direction. Every structural parameter of a phase reaches

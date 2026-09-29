@@ -1,10 +1,9 @@
 # WP-1449 — rank on what the screen determined, not on what the peak list shows
 
-Milestone: unscheduled · Status: 🔄 2026-09-27 — the re-rank landed on uncancellable extras; the
-bethanechol measurement and a finished-run confirmation remain
+Milestone: unscheduled · Status: ✅ 2026-09-29 — the re-rank on uncancellable extras landed;
+measured safe on monoclinic lists, and the order rows run on finished searches
 Track: What fires, and what stays silent
 Depends on: — (1446 measured the refutation; 1025 built the screen)
-Priority: P2 2026-09-23 — a wrong cell ranked first on a surface every page calls provisional; 1446 already measured the refutation
 
 ## Goal
 
@@ -289,22 +288,12 @@ need to finish there is unmeasured. Every row that reads an order now calls
 the result recorded. The fold-back task below therefore needs a finished
 search: a local run, or the nightly dispatched with `full_macos`.
 
-### Inherited
-
-- **From WP-1509 (2026-09-28): the order rows run now.** With 1509's leaf fixes
-  (PR #516, on main `3b04eef`), `test_indexing_engines.py` +
-  `test_acceptance_indexing.py` under `-n auto` ran 127 passed and **0 skipped**
-  (Linux x86-64, 4 cores, `[dev]`): every `_skip_unless_finished` row read a
-  finished search. Brucite's and corundum's 2-D units take 81-107 s alone, where
-  they took 255-363 s. So once #516 merges, the finished-run confirmation can be
-  read off the acceptance file itself, and the WP-1508 entry below is superseded.
-- **From WP-1508 (2026-09-28): the compiled dichotomy traversal will not un-skip the
-  order rows.** Brucite's and corundum's units are 2-D searches, and a 2-D unit
-  spends 85-87 % of its time in its leaves (`_accept`, the centred replay), so the
-  kernel buys them 3-8 %. On 2026-09-28 the acceptance file under `-n auto` still
-  skipped four order rows, their dichotomy units cut at 300 s. What would let those
-  searches finish is WP-1509 (the leaf costs); the "finished-run confirmation" task
-  here waits on that or on a local run, not on 1508.
+*Since WP-1509 (folded from Inherited, 2026-09-29), the searches finish
+here.* Its leaf fixes (PR #516) took brucite's and corundum's 2-D units from
+255-363 s to 81-107 s alone. After them, the acceptance file under `-n auto`
+on a 4-core Linux box (`[dev]`) skips no order row, so the confirmation can be
+read off that file. WP-1508's compiled traversal, which bought those units 3-8 %,
+is not what did it.
 
 ## Questions for the corpus
 
@@ -419,9 +408,27 @@ search: a local run, or the nightly dispatched with `full_macos`.
       a measured aggregate". The check inverts it with a measured reason rather
       than an aggregate, so rewrite the row to assert the I truth first, citing
       the pair's counts. *Done 2026-09-27, with its validation-matrix claim.*
-- [ ] Measure on at least one monoclinic or lower-symmetry pattern with a known
+- [x] Measure on at least one monoclinic or lower-symmetry pattern with a known
       cell before claiming anything beyond high symmetry. The acceptance corpus
-      has none: bethanechol is peak lists only.
+      has none: bethanechol is peak lists only. *Manual mode, 2026-09-29: the
+      check cannot fire there. The paper's protocol confines the search to
+      800-1200 Å³, and a parent of index 2-4 needs a volume ratio of at least
+      2, so all 120 reported candidates were asked and none had a parent.
+      Default mode cannot either: all 120 asked, none a sublattice of
+      another, and the truth's smallest supercell (index 2, 2074 Å³) sits
+      above its 2000 Å³ ceiling. So the benchmark as the paper states it
+      never puts the truth beside a supercell of it, and the measurement
+      needs the ceiling raised.* *Done 2026-09-29. Raised to 4200 Å³ on the
+      four sets manual mode solves, the truth ranks first on all four (Db
+      rises from second) and still no pair is reported: the ranking keeps
+      every supercell out of the top 12. So the check neither helps nor
+      harms a monoclinic truth there. Asked directly, the published cell's
+      55 superlattices of index 2-4 on all ten sets give 544 refuted, 6
+      undecided and none supported. The six are set F's index-2 cells,
+      where p0 = 0.738 and each adds 9-14 extras. Pinned by
+      `test_a_monoclinic_truths_phantom_supercells_are_never_supported`, on
+      the three sets that span p0 (Ba 0.299, E 0.429, F 0.738) and Aa, the
+      nearest miss (p = 0.0105 against α = 0.01), 2.6 s alone.*
 - [x] Part 2 of the manual carries the chance test as an equation with its
       `*Source:*` line, and Part 1's indexing chapter describes the re-rank.
       *Done 2026-09-27: `idx-supercell-chance`, with α injected from
@@ -435,7 +442,11 @@ search: a local run, or the nightly dispatched with `full_macos`.
       nightly with `full_macos`, is still the confirmation. It also moved
       `test_what_the_unflagged_tail_components_cost_the_certified_cell`: the
       P description of LaB6's a·√2 cell is refuted over its I description,
-      so two cells reach `high` where three did.*
+      so two cells reach `high` where three did.* *Confirmed on a finished
+      run 2026-09-29: the acceptance file, alone under `-n auto` on this
+      4-core Linux box, 44 passed and 0 skipped (`-rs`), so all 14 rows that
+      read an order ran on finished searches, brucite's and corundum's among
+      them.*
 
 ## Acceptance
 
@@ -452,6 +463,101 @@ search: a local run, or the nightly dispatched with `full_macos`.
   candidates.
 
 ## Handover log
+
+### 2026-09-29 — closed: the check is safe below high symmetry, and the order rows run finished
+
+The supercell check was proven only on high-symmetry cells, and it now has a
+low-symmetry measurement: on real monoclinic peak lists it never mistakes a
+phantom supercell for a real one. It refuted 544 of the 550 wrong supercells
+it was asked about, and left six undecided where chance alone fills most
+matching windows. An undecided check moves nothing. The bethanechol benchmark
+could not have shown this through a search. Its volume windows never admit the
+truth beside a supercell of it, and with the window raised the ranking still
+keeps every supercell out of the reported list. So on this data the check
+neither helps nor harms, and the direct asking is what shows it has the power.
+The brucite and corundum order rows now run on finished searches here, and
+they pass, which was the confirmation the last session could not get.
+
+**Done.**
+
+- Inherited pruned on arrival: WP-1509's entry still held and moved into
+  Context (the acceptance searches finish here since PR #516); WP-1508's said
+  itself that 1509's superseded it.
+- Measured the chance test below high symmetry, first through the benchmark and
+  then directly (Measured below). A fast test pins it on the three sets that
+  span the chance rate, plus Aa, the nearest miss:
+  `test_a_monoclinic_truths_phantom_supercells_are_never_supported`. It asserts
+  that none is ever supported, and that an undecided one is an index-2 cell
+  where p0 > 0.5. Made to fail once on purpose: with every window 50×
+  wide, all 550 read undecided and the 95 %-refuted line fires.
+- The finished-run confirmation, read off the acceptance file.
+
+**Measured** (`[dev]`, Linux x86-64, 4 cores, py3.12, numpy 2.5.3, each run
+alone).
+
+- Benchmark, manual mode: score −3, the truth first on Bb, E and F and second
+  on Db, 95-113 s a set, as WP-1518 left it. All 120 reported candidates were
+  asked and none had a parent. The protocol's 800-1200 Å³ window cannot hold a
+  pair of index 2-4.
+- Benchmark, default mode: score −6, the truth first on Bb and E, 272-577 s a
+  set. All 120 asked, none a sublattice of another. The truth's smallest
+  supercell (index 2, 2074 Å³) sits above the 2000 Å³ ceiling.
+- Manual protocol with the ceiling at 4200 Å³, on the four sets manual mode
+  solves (F, E, Bb, Db): the truth ranks first on all four, Db rising from
+  second. The searches were cut (404-768 s), the reported volumes 804-2036 Å³,
+  and no pair appeared.
+- Direct, with the published P 2₁/n cell as parent and its 55 superlattices of
+  index 2-4 (7 + 13 + 35, `ambiguity.derivative_cells`) against each set's
+  twenty lines in the manual window: 544 refuted, 6 undecided, 0 supported.
+  p0 is 0.299-0.429 on nine sets and 0.738 on F. The six are F's index-2
+  cells, at 4-11 of 9-14 extras seen (p = 0.30-0.995; re-measured at review
+  on the committed tree, where the first count read 545/5). The nearest miss
+  is Aa's index-3 cell at 18 of 29 seen, p = 0.0105 against α = 0.01: one
+  more coincident line would read it supported (p = 0.0036).
+- `tests/test_acceptance_indexing.py`, `-n auto -rs`: 44 passed, 0 skipped,
+  21:42. All 14 rows that call `_skip_unless_finished` read finished searches.
+- Fast selection, on this branch with `main` (677fbb1) merged in: 6723
+  passed, 164 skipped, 0 failed (6887), 22:16. The figures include `main`'s
+  own additions, so no exact per-branch delta is claimed from them. Before the
+  merge the branch read 6704 passed, 163 skipped, 1 failed (6868): +1 on
+  WP-1519's final tree, for the one added test. That failure was
+  `test_telemetry`'s unwritable-directory case, which fails because this
+  container runs as root; `main`'s #523 now skips it there, which is the one
+  new skip. The added test, as committed, costs 2.81 s under the suite's load
+  (`tests.added_test_times`, one run), outside the slow tail.
+
+**Gotchas.**
+
+- The benchmark as the paper states it cannot ask the pair question, in either
+  mode. A future claim about the check on bethanechol needs the direct form
+  or a raised ceiling.
+- "Undecided" is where power runs out, and on F it runs out at index 2 because
+  its matching windows cover 74 % of the range. The declared limit from the
+  3rd session (a small count can refute a cell whose extras are above chance)
+  did not bite: nothing supported was refuted, because nothing was supported.
+- What this cannot reach is a *real* low-symmetry superstructure, the case
+  where the truth is the child. No dataset here has one.
+- `rank_of_lattice` reads each row's `af`, not its `cell`.
+- The first count (545/5) came from a scratch superlattice enumeration that
+  reduced each off-diagonal entry modulo the wrong diagonal, so at index 2 it
+  held one lattice twice and missed another. On every lattice both lists
+  hold, the verdicts agree, so the test does not depend on the setting it is
+  handed. Enumerate with `ambiguity.derivative_cells`, as the test does.
+- `/code-review high --fix` found five issues and fixed three, in one commit.
+  It corrected the counts everywhere they were quoted. It added Aa, the
+  nearest miss, to the test's sets, because a change that tipped it would
+  otherwise pass unseen. And it replaced an `undecided` assertion that only
+  restated the verdict's own condition with the measured claim: index 2
+  where p0 > 0.5. Declined: quoting the final test from a fast run's junit
+  file, done at the handover instead (Measured); and scoring on
+  `scored_positions`, which needs a candidate and gives the same answer for
+  a shift-free cell's superlattices. Only an engine-found cell with a fitted
+  shift would differ.
+- Skill: nothing new. What `undecided` means is in `SupercellCheck`'s own
+  docstring, which is what an agent reads.
+
+**Next.** Nothing on this WP. The one open question is the real low-symmetry
+superstructure above. It needs data, and WP-1511 holds the nearest question.
 
 ### 2026-09-27 (3rd session) — the check counts only uncancellable extras, and the re-rank is wired
 

@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 
 import rietx as rx
+from rietx import Parameter
 from rietx.project import PROJECT_JSON
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -287,6 +288,253 @@ def test_missing_history_log_is_refused(tmp_path, pattern_file):
     (project.path / "history.jsonl").unlink()
     with pytest.raises(FileNotFoundError, match="holds the model state"):
         rx.Project.open(project.path)
+
+
+#: What ``model_dump_json`` wrote for a caller's ``Parameter(value=...)`` on a
+#: field that declared a range, before its class inherited it (issue #204).
+_BARE = {"min": "-Infinity", "max": "Infinity", "unit": None, "transform": "identity"}
+
+
+def _age_log(project: rx.Project, schema: str | None, edit=None) -> Path:
+    """Rewrite a project's log as a release at ``schema`` would have left it.
+
+    ``edit`` touches each node's state dict; ``schema=None`` drops the header's
+    stamp altogether.  Every node loses its own stamp, which no release before
+    0.35 wrote.  The shape is the one issue #209 verified on the #206
+    tree: every key present, the bounds spelled as JSON strings.
+    """
+    log = project.path / project.doc.history_file
+    lines = []
+    for line in log.read_text(encoding="utf-8").splitlines():
+        rec = json.loads(line)
+        if rec["record"] == "header":
+            if schema is None:
+                rec["header"].pop("schema_version")
+            else:
+                rec["header"]["schema_version"] = schema
+        elif rec["record"] == "node":
+            rec["node"].pop("schema_version", None)   # no release before 0.35 wrote one
+            if edit is not None:
+                edit(rec["node"]["state"])
+        lines.append(json.dumps(rec))
+    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return log
+
+
+def _bare_biso(value: float | None = None):
+    def edit(state):
+        biso = state["structure"]["phases"][0]["atoms"][1]["biso"]
+        biso.update(_BARE)
+        if value is not None:
+            biso["value"] = value
+    return edit
+
+
+def test_a_log_written_before_206_opens_with_its_declared_bounds_back(
+        tmp_path, pattern_file):
+    """Issue #209's fixture: a pre-#206 document carrying an unbounded biso.
+
+    ``model_dump`` wrote the dropped bounds out explicitly, so on load the
+    keys are all present, construction inherits nothing, and the fit would run
+    unbounded again.  The reader restores the declared range and says so once
+    per parameter, naming the atom and both ranges; the value stays put.
+    """
+    project = _create(tmp_path / "s.rex", pattern_file)
+    project.refinement.set_values({"phases.0.atoms.1.biso": 0.7})   # a second node
+    _age_log(project, "0.16", _bare_biso())
+
+    reopened = rx.Project.open(project.path)
+    biso = reopened.refinement.structure.phases[0].atoms[1].biso
+    assert (biso.value, biso.min, biso.max, biso.unit) == (0.7, 0.0, 25.0, "A^2")
+    for node in reopened.history.nodes.values():
+        stored = node.state.structure.phases[0].atoms[1].biso
+        assert (stored.min, stored.max, stored.unit) == (0.0, 25.0, "A^2")
+
+    [note] = reopened.history_diagnostics
+    assert (note.code, note.level, note.where) == (
+        "DECLARED_RANGE_RESTORED", "warning", ["phases.0.atoms.1.biso"])
+    assert "(atom B)" in note.message
+    assert "[-inf, inf], no unit" in note.message
+    assert "[0.0, 25.0] A^2" in note.message
+    assert "this history (2: n0000, n0001)" in note.message and "schema 0.17" in note.message
+    assert reopened.data_diagnostics == []   # the pattern's channel stays the pattern's
+
+
+def test_a_log_within_its_declared_bounds_is_untouched_byte_for_byte(
+        tmp_path, pattern_file):
+    """The repair walks an old log and finds nothing: no note, and every node
+    re-serialises to the very line it was read from.  A log this release
+    wrote is not walked at all."""
+    project = _create(tmp_path / "s.rex", pattern_file)
+    project.refinement.set_values({"phases.0.scale": 1e-3})
+    for schema in ("0.16", rx.schemas.common.SCHEMA_VERSION):
+        log = _age_log(project, schema)
+        notes: list = []
+        tree = rx.RefinementTree.load(log, diagnostics=notes)
+        assert notes == []
+        lines = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+        nodes = [rec["node"] for rec in lines if rec["record"] == "node"]
+        assert len(nodes) == len(tree.order) == 2
+        for stored, nid in zip(nodes, tree.order):
+            # exclude_unset: an aged line has no node stamp, and the field's
+            # default re-serialising as null is not a change the reader made
+            assert json.loads(tree.nodes[nid].model_dump_json(exclude_unset=True)) == stored
+
+
+def test_an_unbounded_biso_written_after_206_is_a_choice_and_kept(
+        tmp_path, pattern_file):
+    """From 0.17 on, an explicit ``min=-inf`` wins at construction, so a bare
+    attribute in a log written then was meant: no repair, no note."""
+    project = _create(tmp_path / "s.rex", pattern_file)
+    _age_log(project, "0.17", _bare_biso())
+    reopened = rx.Project.open(project.path)
+    biso = reopened.refinement.structure.phases[0].atoms[1].biso
+    assert (biso.min, biso.max, biso.unit) == (float("-inf"), float("inf"), None)
+    assert reopened.history_diagnostics == []
+
+
+def test_a_log_that_never_stamped_its_schema_reads_as_the_oldest(
+        tmp_path, pattern_file):
+    project = _create(tmp_path / "s.rex", pattern_file)
+    _age_log(project, None, _bare_biso())
+    notes: list = []
+    rx.RefinementTree.load(project.path / project.doc.history_file, diagnostics=notes)
+    assert [n.code for n in notes] == ["DECLARED_RANGE_RESTORED"]
+
+
+def test_each_class_is_repaired_from_its_own_version(tmp_path, pattern_file):
+    """``Phase`` inherited at 0.35, ``Atom`` at 0.17.  A log written at 0.34
+    with both left bare holds one defect and one choice: the scale gets its
+    softplus floor back, the biso is left as it was declared."""
+    project = _create(tmp_path / "s.rex", pattern_file)
+
+    def edit(state):
+        _bare_biso()(state)
+        state["structure"]["phases"][0]["scale"].update(_BARE)
+
+    _age_log(project, "0.34", edit)
+    reopened = rx.Project.open(project.path)
+    phase = reopened.refinement.structure.phases[0]
+    assert (phase.scale.min, phase.scale.transform) == (0.0, "softplus")
+    assert phase.atoms[1].biso.min == float("-inf")
+    [note] = reopened.history_diagnostics
+    assert note.where == ["phases.0.scale"] and "schema 0.35" in note.message
+
+
+def test_a_stored_value_outside_the_declared_range_is_left_and_reported(
+        tmp_path, pattern_file):
+    """No value ever moves, and no record is refused: a range restored under a
+    value it does not hold would refuse the log, and the declared box is not
+    physics for every instrument (a coarse neutron line's Caglioti ``u`` sits
+    far outside the X-ray one).  So the parameter is left as stored, still
+    unbounded, and the note says so, naming the node and the value."""
+    project = _create(tmp_path / "s.rex", pattern_file)
+    _age_log(project, "0.16", _bare_biso(-165.0))
+    reopened = rx.Project.open(project.path)
+    biso = reopened.refinement.structure.phases[0].atoms[1].biso
+    assert (biso.value, biso.min, biso.max, biso.unit) == (
+        -165.0, float("-inf"), float("inf"), None)
+    [note] = reopened.history_diagnostics
+    assert (note.code, note.level, note.where, note.value) == (
+        "DECLARED_RANGE_NOT_RESTORED", "warning", ["phases.0.atoms.1.biso"], -165.0)
+    assert "-165.0 in n0000" in note.message and "[0.0, 25.0] A^2" in note.message
+
+
+def test_a_parameter_is_restored_in_every_node_or_in_none(tmp_path, pattern_file):
+    """One node inside the declared range and one outside it: restoring the
+    first alone would hand a checkout of it a range the other refutes, so
+    neither is restored and the note counts both."""
+    project = _create(tmp_path / "s.rex", pattern_file)
+    project.refinement.set_values({"phases.0.atoms.1.biso": 0.7})
+    values = iter([0.5, -3.0])
+
+    def edit(state):
+        _bare_biso(next(values))(state)
+
+    _age_log(project, "0.16", edit)
+    notes: list = []
+    tree = rx.RefinementTree.load(project.path / project.doc.history_file,
+                                  diagnostics=notes)
+    for node in tree.nodes.values():
+        assert node.state.structure.phases[0].atoms[1].biso.min == float("-inf")
+    [note] = notes
+    assert note.code == "DECLARED_RANGE_NOT_RESTORED"
+    assert "this history (2: n0000, n0001)" in note.message and "-3.0 in n0001" in note.message
+
+
+def test_a_node_this_release_appends_to_an_old_log_is_read_at_its_own_version(
+        tmp_path, pattern_file):
+    """The header stamps a log's creation, and a log outlives the release that
+    began it.  A node appended now carries its own stamp, so an explicit
+    unbounded biso chosen today is a choice tomorrow, while the old node
+    beside it is still repaired."""
+    project = _create(tmp_path / "s.rex", pattern_file)
+    _age_log(project, "0.16", _bare_biso())
+    reopened = rx.Project.open(project.path)
+    reopened.refinement.structure.phases[0].atoms[1].biso = Parameter(
+        value=0.6, min=float("-inf"), max=float("inf"), unit=None,
+        transform="identity")
+    reopened.refinement.set_values({"phases.0.atoms.1.biso": 0.6})
+
+    again = rx.Project.open(project.path)
+    old, new = (again.history.nodes[n] for n in again.history.order)
+    assert new.schema_version == rx.schemas.common.SCHEMA_VERSION
+    assert old.schema_version is None
+    assert old.state.structure.phases[0].atoms[1].biso.max == 25.0
+    assert new.state.structure.phases[0].atoms[1].biso.max == float("inf")
+    [note] = again.history_diagnostics
+    assert "this history (n0000)" in note.message
+
+
+def test_an_instrument_profile_is_the_other_read_point(tmp_path):
+    """A saved profile carries an instrument too, so it is repaired by the
+    same rule, gated on the stamp the writer now adds, restored or left per
+    parameter.  A profile this release writes loads with nothing to say."""
+    ins = rx.Instrument.debye_scherrer(wavelength=0.4139)
+    path = tmp_path / "cal.json"
+    rx.save_instrument_profile(ins, path)
+    notes: list = []
+    rx.load_instrument_profile(path, diagnostics=notes)
+    assert notes == []
+
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    doc.pop("schema_version")
+    doc["instrument"]["zero_shift"].update(_BARE)
+    doc["instrument"]["profile"]["u"].update({**_BARE, "value": 1.576})
+    path.write_text(json.dumps(doc), encoding="utf-8")
+    loaded = rx.load_instrument_profile(path, diagnostics=notes)
+    assert (loaded.zero_shift.min, loaded.zero_shift.max, loaded.zero_shift.unit) == (
+        -0.5, 0.5, "deg")
+    assert loaded.profile.u.max == float("inf") and loaded.profile.u.value == 1.576
+    by_code = {n.code: n for n in notes}
+    assert by_code["DECLARED_RANGE_RESTORED"].where == ["instrument.zero_shift"]
+    left = by_code["DECLARED_RANGE_NOT_RESTORED"]
+    assert (left.where, left.value) == (["instrument.profile.u"], 1.576)
+    assert "the profile cal.json" in left.message
+
+
+def test_every_declared_range_read_point_exists_and_repairs():
+    """``DECLARED_RANGE_READ_POINTS`` is a claim, checked the way
+    ``READ_POINTS`` is (WP-1076): each names a reader that exists and that
+    calls the one repair, so a moved reader cannot leave the tuple describing
+    a reader that is gone or one that stopped repairing."""
+    import importlib
+    import inspect
+
+    from rietx.schemas.migrate import DECLARED_RANGE_READ_POINTS
+
+    assert len(DECLARED_RANGE_READ_POINTS) >= 2
+    for dotted in DECLARED_RANGE_READ_POINTS:
+        parts = dotted.split(".")
+        for i in range(len(parts), 1, -1):
+            try:
+                target = importlib.import_module(".".join(parts[:i]))
+            except ModuleNotFoundError:
+                continue
+            break
+        for part in parts[i:]:
+            target = getattr(target, part)
+        assert "restore_declared_ranges(" in inspect.getsource(target), dotted
 
 
 def test_a_future_format_version_is_refused_by_name(tmp_path, pattern_file):

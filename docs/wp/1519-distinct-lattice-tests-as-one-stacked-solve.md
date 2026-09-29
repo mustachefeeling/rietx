@@ -1,9 +1,8 @@
 # WP-1519 — the distinct-lattice χ² tests run as one stacked solve
 
-Milestone: unscheduled · Status: 🔄 2026-09-29 — stacked dedup landed (#519); macOS and Windows probe answers await the first nightly after merge
+Milestone: unscheduled · Status: ✅ 2026-09-29 — stacked dedup landed (#519); both probes hold on Linux, macOS and Windows
 Track: A long run is not one fit
 Depends on: — (1509 fenced this; 1518 soft: batch the test it settles, not the one it replaces)
-Priority: P3 2026-09-29 — the code landed; what is left is reading two nightly lines after merge, minutes of work
 
 ## Goal
 
@@ -95,12 +94,16 @@ it (WP-1508 § Context).
 
 - [x] Rebuild the replay harness; reproduce the six digests; time corundum
       tetragonal's dedup (first pass and consensus) at one BLAS thread.
-- [ ] Measure stacked against per-matrix `pinv(hermitian=True)` on 6×6 stacks
+- [x] Measure stacked against per-matrix `pinv(hermitian=True)` on 6×6 stacks
       of real dedup Σ (captured from the tetragonal unit): the count that
       differ, on Linux here, and on macOS and Windows through the nightly or a
       probe the suite runs. Read `test_a_subset_product_…`'s skip state on
       the same logs. *Linux done 2026-09-29; macOS and Windows are read off
-      the first nightly after merge, whose legs now print both probes.*
+      the first nightly after merge, whose legs now print both probes.* *Read
+      2026-09-29 (run 36563538187): macOS arm64 on Accelerate and Windows
+      AMD64 both print `row_local_product True stacked_pinv_exact True`, so
+      the stacked walk runs there and 1509's subset-product test does not
+      skip there either.*
 - [x] If stacking reproduces the per-matrix χ²: a probe once a process
       (`row_local_product`'s pattern), the stacked walk where it says yes, the
       per-pair loop elsewhere. A test holding the two equal on a harvest that
@@ -127,6 +130,34 @@ WP-1509 (the fence, the caches, the harness, the row-locality probe);
 WP-1508 (the tier's reach); WP-1518 (the test being batched).
 
 ## Handover log
+
+### 2026-09-29 (2nd session) — closed: both probes hold on macOS and Windows
+
+The stacked dedup now has its platform answer: the first nightly after the
+merge printed both indexing probes, and they hold on macOS and Windows as they
+do on Linux. So every platform the project tests runs the faster stacked
+comparison, bit for bit the same as before. WP-1509's faster row-subset product
+also runs everywhere. Its open question, whether that probe's test skips on
+macOS or Windows, is answered: it does not. Nothing is left on this WP.
+
+**Measured** (nightly run 36563538187 on `main` 3d1a6fe, read through the
+GitHub job logs):
+
+- macOS, arm64, Python 3.13.15, numpy 2.5.3 on Accelerate: `row_local_product
+  True stacked_pinv_exact True`. Suite 6801 passed, 99 skipped, 13:44.
+- Windows, AMD64, Python 3.13.15, numpy 2.5.3: `row_local_product True
+  stacked_pinv_exact True`. Fast suite 1 failed, 6725 passed, 171 skipped,
+  13:59. The failure is the `WinError 206` row WP-1506 already inherits,
+  failing a second night.
+- Linux `full`: still running at the read. Linux was measured locally in the
+  first session (0 of 573 605 differ).
+
+**Gotchas.** This container's egress policy denies the job-log download host,
+`productionresultssa17.blob.core.windows.net`. The log came back through the
+GitHub tool's `return_content` instead, which returns a whole log to whoever
+asks for it.
+
+**Next.** None; closed.
 
 - **2026-09-29** — Dedup now asks its χ² tests between distinct lattices a
   stack at a time, one pseudo-inverse per stack instead of one per pair, and

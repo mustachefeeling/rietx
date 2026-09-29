@@ -17,12 +17,10 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1327](1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 2026-09-26 | P2 | [v1.6](#v1-6) |
 | [1328](1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | 2026-09-29 | P3 | [v1.6](#v1-6) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-09-25 | P2 | [v1.6](#v1-6) |
-| [1449](1449-rank-on-what-the-screen-determined.md) | Rank on what the screen determined, not on what the peak list shows | 2026-09-27 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 2026-09-24 | P1 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-09-28 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [1519](1519-distinct-lattice-tests-as-one-stacked-solve.md) | The distinct-lattice χ² tests run as one stacked solve | 2026-09-29 | P3 | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 
 ## Next, by priority
 
@@ -31,7 +29,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | WP | Title | Priority | Depends on | Section |
 |---|---|---|---|---|
 | [1312](1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | P2 | — | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
-| [1321](1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1323](1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1336](1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | P2 | — ([1310](1310-report-repeats-itself.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | P2 | — ([1312](1312-neutron-followthrough.md), [1335](1335-the-report-costs-more-than-the-fit.md), [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) soft) | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
@@ -403,7 +400,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1320](1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ✅ 2026-09-27 | — | — ([1310](1310-report-repeats-itself.md) soft) |
-| [1321](1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | P2 | — |
+| [1321](1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ✅ 2026-09-29 | — | — |
 | [1323](1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | P2 | — |
 | [1324](1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, and a setting nobody chose | ✅ 2026-09-02 | — | — |
 | [1332](1332-the-axis-a-reader-hands-back.md) | What a reader hands back: the axis, the rows, the σ column | ✅ 2026-09-28 | — | — |
@@ -421,7 +418,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1445](1445-the-optics-nobody-declared.md) | The optics nobody declared: a source that cannot emit the line | ⬜ | P2 | — ([1442](1442-a-ghost-search-at-chance.md) soft) |
 | [1446](1446-a-supercell-that-outranks-the-truth.md) | A supercell that outranks the truth, on evidence the panel already has | 🛑 2026-09-22 | — | — ([1442](1442-a-ghost-search-at-chance.md) soft) |
 | [1447](1447-a-threshold-each-pattern-sets-for-itself.md) | A threshold each pattern sets for itself | ⬜ | P3 | — ([1442](1442-a-ghost-search-at-chance.md) soft) |
-| [1449](1449-rank-on-what-the-screen-determined.md) | Rank on what the screen determined, not on what the peak list shows | 🔄 2026-09-27 | P2 | — |
+| [1449](1449-rank-on-what-the-screen-determined.md) | Rank on what the screen determined, not on what the peak list shows | ✅ 2026-09-29 | — | — |
 | [1454](1454-auto-background-choices-survive-the-fit.md) | `auto_background`'s choices survive the fit | ✅ 2026-09-24 | — | — |
 | [1456](1456-an-editable-install-stamps-what-it-runs.md) | An editable install stamps what it runs | ✅ 2026-09-27 | — | — |
 | [1457](1457-the-stage-rwp-leaves-out-the-declared-peaks.md) | The stage Rwp leaves out the declared peaks | ✅ 2026-09-29 | — | — |
@@ -447,7 +444,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1469](1469-what-the-series-fences-cannot-see.md) | What the series fences cannot see | ⬜ | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) |
 | [1508](1508-compiled-dichotomy-spike.md) | Compiled dichotomy spike (gated: build only if the box traversal is the unit's cost) | ✅ 2026-09-28 | — | — |
 | [1509](1509-dichotomy-leaves-pay-for-the-whole-trial-set.md) | A dichotomy leaf pays for the whole trial set | ✅ 2026-09-28 | — | — ([1508](1508-compiled-dichotomy-spike.md) soft) |
-| [1519](1519-distinct-lattice-tests-as-one-stacked-solve.md) | The distinct-lattice χ² tests run as one stacked solve | 🔄 2026-09-29 | P3 | — ([1518](1518-dedup-weighs-a-difference-in-its-own-frame.md) soft) |
+| [1519](1519-distinct-lattice-tests-as-one-stacked-solve.md) | The distinct-lattice χ² tests run as one stacked solve | ✅ 2026-09-29 | — | — ([1518](1518-dedup-weighs-a-difference-in-its-own-frame.md) soft) |
 | [1520](1520-a-search-refines-each-assignment-once.md) | A search refines each line assignment once (gated: build only if assignments repeat) | ⬜ | P3 | — |
 
 ### <a id="unscheduled-one-file-many-patterns"></a>One file, many patterns
@@ -480,6 +477,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1466](1466-the-structure-viewer-draws-coordination-polyhedra.md) | The structure viewer draws coordination polyhedra | ✅ 2026-09-26 | — | [1462](1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 🔄 2026-09-28 | P4 | [1466](1466-the-structure-viewer-draws-coordination-polyhedra.md) |
 | [1470](1470-a-structure-figure-without-a-browser.md) | A structure figure from Python, drawn without a browser | ✅ 2026-09-27 | — | — |
+| [1522](1522-the-gui-says-what-the-read-repaired.md) | The GUI says what reading the project repaired | ⬜ | P3 | — |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
 

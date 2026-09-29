@@ -364,6 +364,13 @@ decorrelates the zero shift from the sample displacement from the cell, and it
 is why `lab_sample_refine` is the only plan whose size and strain numbers mean
 what they say.
 
+A profile saved by an earlier release can carry a parameter whose declared
+range that release dropped, and reading one restores it. That is the repair the
+history log gets (§ The history log below), and it reports on the same
+`diagnostics=` list, which `load_instrument_profile` takes too. A profile
+stamps the schema version it was written under, and one with no stamp is read
+as the oldest.
+
 The GUI writes and reads the same file from the Model panel, with `Save
 profile…` and `Load profile…`. Saving lands it in the project's `exports/`
 directory. It needs a model and not a fit, unlike everything else written
@@ -1177,7 +1184,7 @@ NO_PHASES
 `Refinement.predict` still works, because evaluating the background as it stands
 is not a refinement.
 
-An open project holds the session as six attributes.
+An open project holds the session as seven attributes.
 
 | Attribute | Holds |
 |---|---|
@@ -1187,10 +1194,13 @@ An open project holds the session as six attributes.
 | `Project.refinement` | the `Refinement`, positioned at the history head |
 | `Project.history` | that refinement's `RefinementTree` |
 | `Project.data_diagnostics` | what the reader repaired or assumed on the last read |
+| `Project.history_diagnostics` | what reading the history log repaired, on the last open |
 
 `Project.data_diagnostics` is held in memory and is not a `project.json` field.
 The repairs are a function of the bytes, the reader and its options, and the
-data reference below already records all three.
+data reference below already records all three. `Project.history_diagnostics`
+is held the same way, for the same reason: it is a function of the log and of
+the release reading it. The history log below says what it can hold.
 
 Every verb that changes a project writes into its directory as it runs, and
 `Project.open` appends a line to the log before any verb is called. There is
@@ -1318,6 +1328,28 @@ per line. `RefinementTree.save` and `RefinementTree.load` are the file
 interface, `RefinementTree.records` is what gets written, and
 `RefinementTree.summary` prints the tree. [](history.md) is the DAG itself: what
 a node holds, and the verbs that restore, fork and merge one.
+
+One repair is made when a log is read. A release before a class inherited
+its fields' declared ranges ([](model.md)) wrote a `Parameter` you had supplied
+with the bounds it then carried: (−inf, inf), no unit, the identity
+transform. Such a log would reopen unbounded, because every key it stores is
+present and nothing is inherited from a key that is there.
+`RefinementTree.load` restores the declared range in every node that stored
+one, where the node was written before that class's inheritance. Each node
+carries the schema version it was written under (`HistoryNode.schema_version`),
+and one written before that field is read at its log header's version. Each
+restored parameter is reported once, as a `DECLARED_RANGE_RESTORED`
+diagnostic naming its dot-path, the atom where there is one, and both ranges.
+Pass `diagnostics=[]` to collect them; `Project.open` passes one for you.
+
+No value moves. Where any node's value lies outside the declared range, the
+parameter is left as stored in every node and reported as
+`DECLARED_RANGE_NOT_RESTORED`, naming the node and the value. It still refines
+unbounded. The declared box is not physics for every instrument: a coarse
+neutron line's Caglioti `u` sits well outside the X-ray one. A range that
+refused the record would lose the one value it holds. A range that is merely
+wider than the declared one is a choice and is left alone, and so is an
+unbounded one written after the class inherited.
 
 Each line is a `HistoryRecord`, a tagged union of the three things the log
 carries. The tag is what keeps the file append-only: a reader branches on it

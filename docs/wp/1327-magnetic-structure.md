@@ -140,6 +140,18 @@ rule above applies to the form factors.
 
 ### Inherited
 
+- **2026-09-29, from [1321](1321-persisted-bounds-repair.md): the supercell
+  builder copies values only, so a parent's own stated range does not
+  cross.** `crystallography/magnetic/supercell.py` builds the child phase
+  from `Parameter(value=...)` for `scale`, each site's `occ`/`biso` and the
+  cell. Since 1321 a `Parameter` leaving its bounds unset inherits its
+  field's declared range, so the child scale is softplus from zero where it
+  was an unbounded identity, which is a fix. But a caller's *own* range on
+  the parent, such as `biso` `max=60` for a hot specimen (WP-1311's escape)
+  or a scale they bounded, is still replaced by the declared default, and
+  `vary` is dropped too. Carry the parent `Parameter` whole
+  (`model_copy()`), or say why not, when the verb work next touches the builder.
+
 - **2026-09-21, from the issue triage: #361, a multi-irrep *moment*
   statement has no primitive, and the intersection-group route is the wrong
   shape for it.** Checked against the tree at `4ee4e7f5`: the fork's
