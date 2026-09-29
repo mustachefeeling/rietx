@@ -326,6 +326,42 @@ def test_a_tie_refuses_a_chain_naming_what_to_tie_to_instead(ref):
         ref.tie("phases.0.atoms.1.biso", "phases.0.atoms.0.occ")
 
 
+def test_a_tie_past_a_coordinates_bound_refuses_in_ties_voice_and_leaves_nothing():
+    """#246: a displacement DOF has no bounds of its own, so the bound a tie on
+    one breaks is on the coordinate its symmetry tie reaches.  The refusal
+    names what the caller wrote (target, source, offset), the coordinate, the
+    atom and the bound; and a refused tie is not left in the register, where
+    the corrected retry used to meet "already follows ... untie it first".
+
+    Made-up triclinic cell, so every coordinate has a free DOF.
+    """
+    P = rx.Parameter
+    s = rx.Structure(phases=[rx.Phase(
+        name="X", space_group="P 1",
+        cell=rx.Cell(a=P(value=5.1), b=P(value=5.2), c=P(value=5.3),
+                     alpha=P(value=91.0), beta=P(value=92.0), gamma=P(value=93.0)),
+        atoms=[rx.Atom(label="Al1", species="Al", x=P(value=0.1), y=P(value=0.2),
+                       z=P(value=0.3)),
+               rx.Atom(label="O1", species="O", x=P(value=0.2482), y=P(value=0.6),
+                       z=P(value=0.7))])])
+    for atom in s.phases[0].atoms:
+        for name in ("x", "y", "z"):
+            getattr(atom, name).min, getattr(atom, name).max = 0.0, 1.0
+    ref = rx.Refinement(s, rx.Instrument.debye_scherrer(wavelength=1.5406))
+    with pytest.raises(ValueError) as refused:
+        ref.tie("phases.0.atoms.1.dof.0", "phases.0.atoms.0.dof.0", offset=3.0)
+    message = str(refused.value)
+    assert message.startswith("tying phases.0.atoms.1.dof.0 to "
+                              "1\u00b7phases.0.atoms.0.dof.0 + 3 implies ")
+    assert "phases.0.atoms.1.x=3.2482" in message
+    assert "atom O1 of phase X" in message
+    assert "outside its bounds [0, 1]" in message
+    assert ref._ties == {}
+    assert {r.path: r for r in ref.parameters()}["phases.0.atoms.1.dof.0"].tie is None
+    assert ref.structure.phases[0].atoms[1].x.value == 0.2482
+    ref.tie("phases.0.atoms.1.dof.0", "phases.0.atoms.0.dof.0")   # the corrected retry
+
+
 def test_tie_equal_is_all_or_nothing(ref):
     """A glob that sweeps in a row it cannot tie is a glob to narrow.
 

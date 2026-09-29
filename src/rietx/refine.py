@@ -92,6 +92,7 @@ from .params.vector import (
     ParameterTable,
     _cell_parameter_name,
     _is_wavelength,
+    _tie_text,
     cell_window,
     is_literal_path,
     is_variable_path,
@@ -2140,11 +2141,48 @@ class Refinement:
         # table: half a ``tie_equal``, applied by a call that reported failure.
         # The table is thrown away on the raise, so writing it first costs
         # nothing and makes the declaration the single move it says it is.
+        before = {e.path: e.value for e in table.entries}
         for path, (terms, offset) in spec.items():
             table.set_tie(path, AffineTie(terms=tuple(terms), const=offset))
+        # The target's own bounds are checked above; a displacement DOF has
+        # none, and the bound it breaks is on the coordinate its symmetry
+        # tie reaches.  Found here, in this verb's voice and naming what the
+        # caller wrote, rather than at the model write-back (#246).
+        table.refresh_ties()
+        broken = [e for e in table.entries if e.value != before[e.path]
+                  and not (e.lo <= e.value <= e.hi)]
+        if broken:
+            e = broken[0]
+            wrote = "; ".join(
+                f"{p} to {_tie_text(AffineTie(terms=tuple(t), const=o))}"
+                for p, (t, o) in spec.items())
+            more = f" ({len(broken)} parameters in all)" if len(broken) > 1 else ""
+            raise ValueError(
+                f"tying {wrote} implies {e.path}={e.value:g}"
+                f"{self._owner_label(e.path)}, outside its bounds "
+                f"[{e.lo:g}, {e.hi:g}]{more}; loosen that bound or change "
+                "the tie")
+        previous = dict(self._ties)
         self._ties.update(specs)
-        self._commit_tie_edit(table, ties=specs, untied=[])
+        try:
+            self._commit_tie_edit(table, ties=specs, untied=[])
+        except BaseException:
+            # a refused tie must not stay registered: the call reported
+            # failure, and a retry would meet "already follows" (#246)
+            self._ties = previous
+            raise
         return list(spec)
+
+    def _owner_label(self, path: str) -> str:
+        """`` (atom O1 of phase X)`` for an atom's path, else ``""``."""
+        parts = path.split(".")
+        if len(parts) > 3 and parts[0] == "phases" and parts[2] == "atoms":
+            try:
+                phase = self.structure.phases[int(parts[1])]
+                return f" (atom {phase.atoms[int(parts[3])].label} of phase {phase.name})"
+            except (ValueError, IndexError):
+                pass
+        return ""
 
     def _commit_tie_edit(self, table: ParameterTable, *,
                          ties: dict[str, TieSpec], untied: list[str]) -> None:
