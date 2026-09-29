@@ -318,11 +318,14 @@ box for `Cell`, which declares no bound, and so is new policy and the
 maintainer's (§ Findings).
 
 **Measured** (`[dev]`, Linux x86-64, 4 cores, py3.12.3, alone on the machine):
-fast selection on the final tree (= merged main; `origin/main` had not moved)
-6719 passed, 163 skipped, 2 failed, 22:47. Before this session's tests the
-first run read 6701 / 163 / 4 failed = 6868; the total moved by exactly the
-16 tests added (11, then 5 from the review), none a skip. The two failures
-are not this WP's (Gotchas).
+fast selection on the branch's final tree 6719 passed, 163 skipped, 2 failed
+(22:47). Before this session's tests the first run read 6701 / 163 / 4
+failed = 6868, so the total moved by exactly the 16 tests added (11, then 5
+from the review), none a skip. The two failures are not this WP's (Gotchas).
+`origin/main` then moved seven commits (#450, #521, #523), merged in at
+`50da638`. **On the merged tree: 6739 passed, 164 skipped, 0 failed**
+(22:16), which is the tree that lands. #523 turned the root-only telemetry
+case into that one extra skip.
 The 16 added tests cost 1.42 s together (one run on this machine;
 `tests.added_test_times`), the slowest 0.26 s, none near the slow tail. The full
 selection did not run. Every slow suite states its bounds and transform
