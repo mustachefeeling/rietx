@@ -432,10 +432,25 @@ def refinement_figures():
     return data, ref
 
 
+def pattern_figure(data) -> None:
+    """The NAC pattern as read, before any model: `plot_pattern` (WP-1444).
+
+    The same `data` the fit figures are drawn from, so it is the quickstart's
+    panel with the model taken out and the two can be read as a pair.  No
+    title: in the manual the caption is the title, as for every other figure.
+    """
+    from nac_11bm import WAVELENGTH
+
+    print("nac-pattern")
+    for style in STYLES:
+        _save(data.plot(style=style, wavelength=WAVELENGTH), "nac-pattern", style)
+
+
 if __name__ == "__main__":
     angular_signatures()
     hump()
     data, ref = refinement_figures()
+    pattern_figure(data)
     geometry_esds(data, ref)
     effective_observations()
     restraint_schedule()
