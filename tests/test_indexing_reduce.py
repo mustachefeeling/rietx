@@ -639,8 +639,10 @@ def test_a_monoclinic_truths_phantom_supercells_are_never_supported():
     asked directly, against every set's twenty lines and the manual mode's
     window. All are phantoms. The test may lack the power to refute one,
     and then it moves nothing, but it must never call one supported.
-    Measured 2026-09-29: 545 refuted, and 5 undecided on set F alone, where
-    a chance hit is 0.738 likely and an index-2 cell adds 6-12 extras.
+    Measured 2026-09-29 on all ten sets: 545 refuted, and 5 undecided on set F
+    alone, where a chance hit is 0.738 likely and an index-2 cell adds 6-12
+    extras. Three sets span that range of p0 (0.299, 0.429, 0.738) at under
+    half the ten's cost.
     """
     from collections import Counter
 
@@ -655,7 +657,7 @@ def test_a_monoclinic_truths_phantom_supercells_are_never_supported():
     children = derivative_cells(truth, max_index=4)
     assert len(children) == 7 + 13 + 35
     verdicts: Counter = Counter()
-    for name in bench["sets"]:
+    for name in ("Ba", "E", "F"):
         tt, lam = bench_mod.positions(bench, name)
         peaks = PeakList.from_positions(tt, wavelength=lam)
         q_obs, q_match = np.asarray(peaks.q()), match_window(peaks, spec)

@@ -427,7 +427,8 @@ is not what did it.
       55 superlattices of index 2-4 on all ten sets give 545 refuted, 5
       undecided and none supported. The five are set F's index-2 cells,
       where p0 = 0.738 and each adds 6-12 extras. Pinned by
-      `test_a_monoclinic_truths_phantom_supercells_are_never_supported`.*
+      `test_a_monoclinic_truths_phantom_supercells_are_never_supported`, on
+      the three sets that span p0 (Ba 0.299, E 0.429, F 0.738), 2.3 s.*
 - [x] Part 2 of the manual carries the chance test as an equation with its
       `*Source:*` line, and Part 1's indexing chapter describes the re-rank.
       *Done 2026-09-27: `idx-supercell-chance`, with α injected from
