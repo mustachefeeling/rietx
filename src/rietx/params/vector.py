@@ -45,9 +45,11 @@ from ..schemas.common import Parameter
 from ..schemas.instrument import (
     CAPILLARY_OFFSETS,
     COMPONENT_FIELDS,
+    TOF_CONSTANTS,
     BackgroundFixedPlusChebyshev,
     BackgroundPSpline,
     Instrument,
+    ProfileTOF,
 )
 from ..schemas.structure import MOMENT_COMPONENTS, Structure
 from .transforms import dphys_dinternal, internal_bounds, to_internal, to_physical
@@ -174,6 +176,81 @@ def background_parameters(bkg) -> list[tuple[str, Parameter]]:
         out.append(("scale", bkg.scale))
         return out
     return [(f"c{n}", p) for n, p in enumerate(bkg.coefficients)]
+
+
+def tof_source_parameters(source) -> list[tuple[str, Parameter]]:
+    """(sub-path, Parameter) pairs for a ``neutron_tof`` bank, or [].
+
+    The third member of the :func:`roughness_parameters` /
+    :func:`extra_component_parameters` family, and here for exactly their
+    reason: the collector and :meth:`ParameterTable.apply_to_models` must walk
+    one list, or a value written into θ is silently dropped at the next
+    rebuild — the half-wired-parameter failure this module's docstring names.
+
+    :data:`~rietx.schemas.instrument.TOF_CONSTANTS` under ``instrument.source.``
+    (``difc``, ``difa``, ``tzero``, ``difb``, the four-term flight-time
+    relation), then :class:`ProfileTOF`'s ten coefficients under
+    ``instrument.source.profile_tof.``, then the incident spectrum's.  The name
+    lists are **read off their own authority** — the constants tuple the schema
+    validator uses, and the pydantic field order of ``ProfileTOF`` — rather
+    than typed here, so a coefficient added to the container reaches the table
+    without a second edit.
+
+    ``[]`` for every constant-wavelength source, so a table built from one is
+    byte-for-byte the table it was.
+    """
+    if getattr(source, "kind", None) != "neutron_tof":
+        return []
+    return ([(name, getattr(source, name)) for name in TOF_CONSTANTS]
+            + [(f"profile_tof.{name}", getattr(source.profile_tof, name))
+               for name in ProfileTOF.model_fields]
+            + incident_spectrum_parameters(source.incident_spectrum))
+
+
+def incident_spectrum_parameters(spectrum) -> list[tuple[str, Parameter]]:
+    """(sub-path, Parameter) pairs for the incident spectrum, or [].
+
+    **Numbered from 1, as the manual numbers them.**  GSAS calls the
+    coefficients P₁…P_N (Larson & Von Dreele, 2004, LAUR 86-748, GSAS Technical
+    Manual p. 128-129) and the file writes them in that order, so the path is
+    ``…incident_spectrum.p1``.  The background's ``c0`` is 0-based because its
+    T₀ genuinely is the zeroth Chebyshev term; here a 0-based path would put an
+    off-by-one between a parameter's name and the manual a reader is holding.
+
+    ``[]`` when the bank declares ``ITYP 0`` — no coefficients, no rows — which
+    is the default.
+    """
+    return [(f"incident_spectrum.p{i}", p)
+            for i, p in enumerate(spectrum.coefficients, start=1)]
+
+
+#: The constant-wavelength instrument rows a ``neutron_tof`` bank **does not
+#: carry** (yue-here/rietx issue #442), each beside the bank's own row that
+#: plays its part.  A bank has widths, a zero and a position calibration, under
+#: other names: ``instrument.source.profile_tof.*`` for the Caglioti terms,
+#: ``instrument.source.tzero`` for the degree ``zero_shift``, and
+#: ``instrument.source.difc``/``difa`` for the two 2θ position aberrations.
+#: Registering the constant-wavelength rows force-fixed would make a glob like
+#: ``instrument.profile.*`` *match* on a bank and free nothing — silent under
+#: ``MultiParameterTable.unreached_histograms``' "matched, not freed" rule, which
+#: is right for a row with nothing to refine (a capillary's
+#: ``sample_displacement``) and wrong for one whose role the bank fills under
+#: another name.  Absent, the glob matches nothing on the bank and the
+#: existing ``STAGE_FREED_NOTHING`` says so, with no new rule.  The geometry
+#: rows with nothing to refine on a bank (axial divergence, the capillary
+#: offsets) stay registered and force-fixed, which is the capillary case.
+BANK_ABSENT_PATHS: tuple[str, ...] = (
+    "instrument.zero_shift",
+    "instrument.geometry.sample_displacement",
+    "instrument.geometry.sample_transparency",
+    *(f"instrument.profile.{name}" for name in ("u", "v", "w", "x", "y")),
+)
+
+
+def _bank_absent(instrument: Instrument, path: str) -> bool:
+    """Whether ``path`` is one of :data:`BANK_ABSENT_PATHS` on a bank."""
+    return (instrument.source.kind == "neutron_tof"
+            and path in BANK_ABSENT_PATHS)
 
 
 def extra_component_parameters(components) -> list[tuple[str, Parameter]]:
@@ -1043,7 +1120,8 @@ class ParameterTable:
                 self._collect_atom_adps(f"{base}.atoms.{j}", sg, atom)
                 self._collect_atom_moment(f"{base}.atoms.{j}", phase, atom)
 
-        self._add("instrument.zero_shift", instrument.zero_shift)
+        self._add_instrument_row(instrument, "instrument.zero_shift",
+                                 instrument.zero_shift)
         self._collect_instrument(instrument)
 
     def _collect_microstrain(self, base: str, sg, phase) -> None:
@@ -1285,7 +1363,101 @@ class ParameterTable:
         # ``set_vary`` frees it and nothing objects.
         self._add("instrument.polarization", instrument.source.polarization,
                   force_fixed=instrument.source.kind != "xray_cw")
-        for il, line in enumerate(instrument.source.lines):
+        tof = instrument.source.kind == "neutron_tof"
+        if tof:
+            # A white beam is a continuum, so there is no line list and no
+            # wavelength to register: ``TOFSource`` carries neither.  What it
+            # carries instead is the bank's calibration, its d-polynomial
+            # profile and its incident spectrum — **fixed by default**, because
+            # a DIFC read from a `.iparm` is a calibration refined against a
+            # standard.  Not force-fixed: freeing one constant against a *held*
+            # certified cell is exactly how a bank is calibrated, so "can never
+            # legitimately move" would be false — the distinction line 0's
+            # wavelength draws below.
+            for sub, cp in tof_source_parameters(instrument.source):
+                self._add(f"instrument.source.{sub}", cp)
+        else:
+            self._collect_cw_source(instrument.source)
+        geom = instrument.geometry
+        for name in ("sample_displacement", "sample_transparency",
+                     "axial_sl", "axial_hl"):
+            self._add_instrument_row(
+                instrument, f"instrument.geometry.{name}", getattr(geom, name),
+                force_fixed=(tof or (geom.kind != "bragg_brentano"
+                                     and name.startswith("sample_"))))
+        for name in CAPILLARY_OFFSETS:
+            offset = getattr(geom, name)
+            # eq (4) divides by R.  Geometry's validator refuses a *stored*
+            # free offset without one, but ``vary`` set after construction
+            # re-runs no validator, and this is the last gate before a solve —
+            # so refuse here too, naming the field rather than quietly holding
+            # the parameter (a held aberration reads as "measured zero").
+            usable = bool(not tof and geom.kind == "debye_scherrer"
+                          and geom.goniometer_radius_mm)
+            if offset.vary and not usable:
+                raise ValueError(
+                    f"instrument.geometry.{name} cannot vary without "
+                    f"goniometer_radius_mm: eq (4) is "
+                    f"Δ2θ = (−a·sin2θ + b·cos2θ)/R and R is unset"
+                    if not tof else
+                    f"instrument.geometry.{name} cannot vary on a neutron_tof "
+                    f"bank: eq (4) is Δ2θ = (−a·sin2θ + b·cos2θ)/R, a shift in "
+                    f"degrees 2θ, and this histogram's abscissa is a flight "
+                    f"time in microseconds. A bank's position calibration is "
+                    f"instrument.source.difc/difa/tzero/difb")
+            # force-fixed rather than merely unfree when R is missing, because
+            # ``_position_shift_deg`` skips the term without one: a free entry
+            # there would be a dead column — a parameter the solver moves and
+            # the model does not read.
+            self._add(f"instrument.geometry.{name}", offset,
+                      force_fixed=not usable)
+        # surface roughness is opt-in, so it is *skipped* when absent rather
+        # than added locked: a table built from an instrument without the block
+        # is byte-for-byte the pre-WP-0502 table.  No geometry gate needed —
+        # Geometry's validator already refuses the block on non-flat specimens.
+        for sub, cp in roughness_parameters(geom.surface_roughness):
+            self._add(f"instrument.geometry.surface_roughness.{sub}", cp)
+        for name in ("u", "v", "w", "x", "y"):
+            self._add_instrument_row(instrument, f"instrument.profile.{name}",
+                                     getattr(instrument.profile, name))
+        for sub, cp in background_parameters(instrument.background):
+            self._add(f"instrument.background.{sub}", cp)
+        # Additive broad peaks: skipped when none is declared rather than added
+        # locked, the surface-roughness idiom one loop up.  No gate — a peak
+        # composes with every background model and every geometry, which is the
+        # whole reason it lives beside ``background`` rather than inside its
+        # union.
+        for sub, cp in extra_component_parameters(instrument.extra_components):
+            self._add(f"instrument.extra_components.{sub}", cp)
+
+    def _add_instrument_row(self, instrument: Instrument, path: str,
+                            p: Parameter, *, force_fixed: bool = False) -> None:
+        """``_add``, except for a :data:`BANK_ABSENT_PATHS` row on a bank.
+
+        That row is not registered, and a *declared* ``vary=True`` on it is
+        refused by name rather than quietly dropped, because it is a claim the
+        caller made about a parameter the bank does not have.
+        """
+        if not _bank_absent(instrument, path):
+            self._add(path, p, force_fixed=force_fixed)
+            return
+        if p.vary:
+            raise ValueError(
+                f"{path} cannot vary on a neutron_tof bank: it is a "
+                f"constant-wavelength parameter, and a bank carries its role "
+                f"under its own name (widths in instrument.source.profile_tof.*, "
+                f"the zero in instrument.source.tzero, the position "
+                f"calibration in instrument.source.difc/difa). A bank's table "
+                f"has no {path} row (issue #442)")
+
+    def _collect_cw_source(self, source) -> None:
+        """The emission lines and their wavelengths — constant-wavelength only.
+
+        Split out of :meth:`_collect_instrument` unchanged when the
+        time-of-flight arm arrived: a white beam has neither list, and the
+        reasoning below is entirely about a *line*.
+        """
+        for il, line in enumerate(source.lines):
             # line 0 defines the intensity scale: its weight is degenerate with
             # the phase scale factors, so it is always held fixed
             self._add(f"instrument.source.lines.{il}.weight", line.weight,
@@ -1309,7 +1481,7 @@ class ParameterTable:
         # fourth held-reason, and what stops a glob freeing it by accident.  And
         # a *declared* ``vary=True`` there is refused by name rather than
         # quietly swallowed, because it is a claim the caller made.
-        wl_params = list(instrument.source.wavelength_parameters)
+        wl_params = list(source.wavelength_parameters)
         # No single-histogram check here: ``_rebuild`` runs at the end of
         # ``__init__`` and at every stage boundary, and it is the only place
         # that sees both free sets at once.  Checking here as well would be a
@@ -1326,49 +1498,6 @@ class ParameterTable:
             # physical constant, not a calibration target.
             self._add(f"instrument.source.lines.{il}.wavelength", wl,
                       force_fixed=il > 0)
-        geom = instrument.geometry
-        for name in ("sample_displacement", "sample_transparency",
-                     "axial_sl", "axial_hl"):
-            self._add(f"instrument.geometry.{name}", getattr(geom, name),
-                      force_fixed=(geom.kind != "bragg_brentano"
-                                   and name.startswith("sample_")))
-        for name in CAPILLARY_OFFSETS:
-            offset = getattr(geom, name)
-            # eq (4) divides by R.  Geometry's validator refuses a *stored*
-            # free offset without one, but ``vary`` set after construction
-            # re-runs no validator, and this is the last gate before a solve —
-            # so refuse here too, naming the field rather than quietly holding
-            # the parameter (a held aberration reads as "measured zero").
-            usable = bool(geom.kind == "debye_scherrer"
-                          and geom.goniometer_radius_mm)
-            if offset.vary and not usable:
-                raise ValueError(
-                    f"instrument.geometry.{name} cannot vary without "
-                    f"goniometer_radius_mm: eq (4) is "
-                    f"Δ2θ = (−a·sin2θ + b·cos2θ)/R and R is unset")
-            # force-fixed rather than merely unfree when R is missing, because
-            # ``_position_shift_deg`` skips the term without one: a free entry
-            # there would be a dead column — a parameter the solver moves and
-            # the model does not read.
-            self._add(f"instrument.geometry.{name}", offset,
-                      force_fixed=not usable)
-        # surface roughness is opt-in, so it is *skipped* when absent rather
-        # than added locked: a table built from an instrument without the block
-        # is byte-for-byte the pre-WP-0502 table.  No geometry gate needed —
-        # Geometry's validator already refuses the block on non-flat specimens.
-        for sub, cp in roughness_parameters(geom.surface_roughness):
-            self._add(f"instrument.geometry.surface_roughness.{sub}", cp)
-        for name in ("u", "v", "w", "x", "y"):
-            self._add(f"instrument.profile.{name}", getattr(instrument.profile, name))
-        for sub, cp in background_parameters(instrument.background):
-            self._add(f"instrument.background.{sub}", cp)
-        # Additive broad peaks: skipped when none is declared rather than added
-        # locked, the surface-roughness idiom one loop up.  No gate — a peak
-        # composes with every background model and every geometry, which is the
-        # whole reason it lives beside ``background`` rather than inside its
-        # union.
-        for sub, cp in extra_component_parameters(instrument.extra_components):
-            self._add(f"instrument.extra_components.{sub}", cp)
 
     # -- the affine constraint block -----------------------------------
     def _flatten(self, tie: AffineTie, _seen: tuple[str, ...] = ()
@@ -2520,6 +2649,11 @@ class ParameterTable:
         def put(p: Parameter, path: str) -> None:
             pending.append((p, path))
 
+        def put_row(p: Parameter, path: str) -> None:
+            # the registration's own exception, asked of the same predicate
+            if not _bank_absent(instrument, path):
+                put(p, path)
+
         def _refuse(path: str, value: float, exc: Exception | None = None):
             # A bound broken *here* is one the solver never saw: the box
             # covers free columns, and this is where a tied value first
@@ -2579,24 +2713,33 @@ class ParameterTable:
                     for name in MOMENT_COMPONENTS:
                         put(getattr(atom.moment, name),
                             f"{base}.atoms.{j}.moment.{name}")
-        put(instrument.zero_shift, "instrument.zero_shift")
+        put_row(instrument.zero_shift, "instrument.zero_shift")
         put(instrument.source.polarization, "instrument.polarization")
-        for il, line in enumerate(instrument.source.lines):
-            put(line.weight, f"instrument.source.lines.{il}.weight")
-        # …and the wavelength through ``wavelength_parameters``, never through
-        # ``lines``: a neutron source's ``lines`` is a *property* that builds a
-        # fresh EmissionLine per access, so a write there lands on a throwaway
-        # and the refined λ is silently lost at the next recompile — exactly the
-        # half-wired-parameter failure this file's docstring warns about.
-        for il, wl in enumerate(instrument.source.wavelength_parameters):
-            put(wl, f"instrument.source.lines.{il}.wavelength")
+        # The mirror of ``_collect_instrument``'s source branch: a
+        # ``TOFSource`` has no ``lines`` and no ``wavelength_parameters``, and
+        # ``tof_source_parameters`` is the one list both walk.
+        tof_pairs = tof_source_parameters(instrument.source)
+        for sub, cp in tof_pairs:
+            put(cp, f"instrument.source.{sub}")
+        if not tof_pairs:
+            for il, line in enumerate(instrument.source.lines):
+                put(line.weight, f"instrument.source.lines.{il}.weight")
+            # …and the wavelength through ``wavelength_parameters``, never
+            # through ``lines``: a neutron source's ``lines`` is a *property*
+            # that builds a fresh EmissionLine per access, so a write there
+            # lands on a throwaway and the refined λ is silently lost at the
+            # next recompile — exactly the half-wired-parameter failure this
+            # file's docstring warns about.
+            for il, wl in enumerate(instrument.source.wavelength_parameters):
+                put(wl, f"instrument.source.lines.{il}.wavelength")
         for name in ("sample_displacement", "sample_transparency",
                      "axial_sl", "axial_hl", *CAPILLARY_OFFSETS):
-            put(getattr(instrument.geometry, name), f"instrument.geometry.{name}")
+            put_row(getattr(instrument.geometry, name),
+                    f"instrument.geometry.{name}")
         for sub, cp in roughness_parameters(instrument.geometry.surface_roughness):
             put(cp, f"instrument.geometry.surface_roughness.{sub}")
         for name in ("u", "v", "w", "x", "y"):
-            put(getattr(instrument.profile, name), f"instrument.profile.{name}")
+            put_row(getattr(instrument.profile, name), f"instrument.profile.{name}")
         for sub, cp in background_parameters(instrument.background):
             put(cp, f"instrument.background.{sub}")
         # the other half of the pair the helper exists for (see

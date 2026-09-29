@@ -60,11 +60,13 @@ from rietx.schemas.instrument import (
     EmissionLine,
     Geometry,
     HumpComponent,
+    IncidentSpectrum,
     Instrument,
     PeakComponent,
     RoughnessPitschke,
     RoughnessSuortti,
     Source,
+    TOFSource,
 )
 from rietx.schemas.plan import StageSpec
 from rietx.schemas.structure import (
@@ -147,11 +149,21 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
     spell ``c*`` the same way, so before the scale existed this member declared
     no family of its own and the corpus could not lose anything by omitting it.
 
-    Every ``Parameter`` here sits at its schema default **except** the peak's
-    ``center``, which has no usable default: finite bounds are what size its
-    frozen window, so :class:`PeakComponent` refuses one without them.  The
-    numbers below are arbitrary and only have to be finite.  The P-spline's
-    air term is the other exception, having no default but absence.
+    The fourth entry is a **time-of-flight bank**, and it is here for the same
+    reason as the others rather than as an extra: a ``TOFSource`` is a third
+    arm of the source union, so its four calibration constants and its ten
+    ``ProfileTOF`` coefficients are fourteen live parameter families that no
+    constant-wavelength instrument can produce.  Without it the corpus could
+    describe a DIFC nothing checks, and ten of ``UNIT_DISPLAY``'s spellings
+    would belong to units no model in this file declares.
+
+    Every ``Parameter`` here sits at its schema default **except** two: a
+    bank's ``difc`` is the schema's own exception (required, no default,
+    ``default=None`` in its entry for that reason), and the peak's ``center``
+    has no usable default either — finite bounds are what size its frozen
+    window, so :class:`PeakComponent` refuses one without them.  The numbers
+    given for ``center`` are arbitrary and only have to be finite.  The
+    P-spline's air term is the other exception, having no default but absence.
     """
     structure, _ = _default_models()
     # The air term is absent by default (WP-1454), so the family is declared
@@ -209,6 +221,22 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
             magnetic_symmetry=MagneticSymmetry.model_validate("136.499"),
         )]),
          Instrument(source=Source(lines=[EmissionLine(wavelength=1.540598)]))),
+        (structure, Instrument(
+            source=TOFSource(
+                difc=5123.45, two_theta_bank_deg=90.0,
+                # A bank that declares an incident spectrum, because ITYP 0 —
+                # the default, and what an already-normalised reduction writes
+                # — produces no coefficient rows at all, and a family glob
+                # matching nothing is what test_every_family_glob_describes_a_
+                # real_path exists to catch.  P10/P11 are zero, which
+                # is the documented layout's reading (GSAS Technical Manual
+                # p. 128); a non-zero pair is legal too.
+                incident_spectrum=IncidentSpectrum(
+                    itype=1,
+                    coefficients=[Parameter(value=float(n))
+                                  for n in range(1, 10)]
+                    + [Parameter(value=0.0), Parameter(value=0.0)])),
+            geometry=Geometry(kind="debye_scherrer"))),
     ]
 
 
@@ -479,6 +507,13 @@ _PATH_RENAMES = {
     "instrument.background.air_scatter": "instrument.background.air",
 }
 _COEFFICIENT = re.compile(r"^instrument\.background\.(?:chebyshev\.)?coefficients\.(\d+)$")
+#: The incident spectrum's coefficients are a list on the schema and are
+#: numbered **from 1** in the table, as the GSAS manual numbers them, so the
+#: crossing is an increment as well as a rename — see
+#: ``params.vector.incident_spectrum_parameters`` for why the two disagree on
+#: purpose.
+_SPECTRUM = re.compile(
+    r"^instrument\.source\.incident_spectrum\.coefficients\.(\d+)$")
 _ANISO = re.compile(r"^(phases\.\d+\.atoms\.\d+)\.aniso\.(u\d\d)$")
 
 
@@ -510,6 +545,10 @@ def _schema_parameters() -> dict[str, Parameter]:
         coefficient = _COEFFICIENT.match(path)
         if coefficient:
             path = f"instrument.background.c{coefficient.group(1)}"
+        spectrum = _SPECTRUM.match(path)
+        if spectrum:
+            path = ("instrument.source.incident_spectrum."
+                    f"p{int(spectrum.group(1)) + 1}")
         aniso = _ANISO.match(path)
         if aniso:
             path = f"{aniso.group(1)}.{aniso.group(2)}"
@@ -659,6 +698,14 @@ def test_every_row_of_a_real_model_carries_its_family_key():
     same ``None`` and mean something else entirely.
     """
     for structure, instrument in _all_models():
+        if instrument.source.kind == "neutron_tof":
+            # a bank has a table and no Refinement in this build (no
+            # flight-time forward model), so its paths are asked of the key
+            # function directly — the one ``parameters()`` fills from
+            for path in (e.path for e in ParameterTable(structure,
+                                                        instrument).entries):
+                assert help_key_for(path) in PARAMETER_HELP, path
+            continue
         rows = rx.Refinement(structure, instrument).parameters()
         assert rows
         missing = [r.path for r in rows if r.help_key is None]
