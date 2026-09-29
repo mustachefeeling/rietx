@@ -441,7 +441,11 @@ is not what did it.
       nightly with `full_macos`, is still the confirmation. It also moved
       `test_what_the_unflagged_tail_components_cost_the_certified_cell`: the
       P description of LaB6's a·√2 cell is refuted over its I description,
-      so two cells reach `high` where three did.*
+      so two cells reach `high` where three did.* *Confirmed on a finished
+      run 2026-09-29: the acceptance file, alone under `-n auto` on this
+      4-core Linux box, 44 passed and 0 skipped (`-rs`), so all 14 rows that
+      read an order ran on finished searches, brucite's and corundum's among
+      them.*
 
 ## Acceptance
 
