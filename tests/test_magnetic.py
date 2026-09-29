@@ -1771,9 +1771,10 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # the supercell's ``MagneticSymmetry.propagation_vector_parent`` took 0.31,
     # and WP-1326's ``Phase.propagation_vector`` the one after, 0.32;
     # WP-1320's ``FractionProfile``, a new answer type, took 0.33, and
-    # WP-1468's two ``Atom`` disorder fields 0.34, and WP-1321's declared
-    # ranges on every class beyond ``Atom`` 0.35.
-    assert caps.schema_version == "0.35"
+    # WP-1468's two ``Atom`` disorder fields 0.34, WP-1321's declared
+    # ranges on every class beyond ``Atom`` 0.35, and WP-1469's
+    # ``SeriesEntry.rwp_fence`` and ``SeriesResult.discontinuities`` 0.36.
+    assert caps.schema_version == "0.36"
 
 
 def test_every_moment_dof_has_a_help_entry():

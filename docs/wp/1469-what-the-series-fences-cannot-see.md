@@ -1,9 +1,8 @@
 # WP-1469 — what the series fences cannot see
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-29 — a frame every rung left above the Rwp fence says so (`SEQUENTIAL_RWP_OUTLIER`, not quarantined), its steps leave the discontinuity scan, the flagged pair is a field; the skill names the signal for a shared `refit="single"` collapse
 Track: A long run is not one fit
 Depends on: — (1333 landed the ladder and quarantine this extends; 1420 soft)
-Priority: P2 2026-09-27 — a blank frame reads as a good fit and a real step goes unreported, silently, on the series path; `series.md` calls the default refit safe where it is not
 
 ## Goal
 
@@ -147,20 +146,92 @@ same way when the offset is shared, and that a width-freeing plan is where
 it was measured. The reporter's two cheap reads: the per-pattern Caglioti
 correlation rows, and a few patterns refitted cold.
 
-### Inherited
+### Decisions taken (2026-09-29)
 
-- **From WP-1465, 2026-09-27: a third series fence now reads the trajectory,
-  and it skips only `"diverged"` entries.** `SEQUENTIAL_WIDTH_GROWTH`
-  (`sequential._width_growth_diagnostics`) fires when a phase width reaches
-  3× the first value the series measured (> 3σ) and GoF reaches 2× that
-  pattern's GoF, at the same pattern. It compares against that reference
-  pattern, not a running median, so the median drift this WP is about does
-  not reach it. A **kept pattern that still fails the Rwp fence** does reach
-  it, though. Issue #481's blank ramp_007 is fitted cold with a high GoF;
-  were a width free and measured there, that frame could be the point where
-  the trigger fires. Whatever marker this WP gives such an entry, add it to
-  the trigger's skip beside `"diverged"`. The trigger's hand-built tests in
-  `tests/test_sequential.py` (`_width_series`) are the place to pin that.
+All measured on this tree (Linux x86_64, Python 3.12, `[dev]`) with #481's
+script and two variants of it: the same 24-pattern ramp, no blank and no
+planted step, with a change from pattern 6 — the counts ÷4 under a correct
+model, or an unmodelled second phase (GoF 16.7). `refit="stages"` unless
+said.
+
+1. **Gap 1: a sibling code, `SEQUENTIAL_RWP_OUTLIER`, and no quarantine.**
+   The Rwp fence cannot say why Rwp rose: #481's blank has **GoF 0.998**
+   against its neighbour's 1.06 and Rexp 0.159 against 0.040 (its scale
+   3.1e-8 ± 2.4e-8, background and noise fitted perfectly), exactly the
+   signature of a count drop under a correct model (GoF 1.08 against 1.04,
+   Rexp doubled). Quarantine keyed on the Rwp verdict therefore punishes
+   sound measurements, and it never lets a lasting change become the new
+   normal:
+
+   | series | chain iterations, no quarantine / quarantined | patterns flagged | values |
+   |---|---|---|---|
+   | #481 blank, `"stages"` | 1217 / 1191 | 1 / 1 | identical |
+   | #481 blank, `"single"` | 1016 / 938 | 1 / 1 | identical |
+   | counts ÷4 from 6 | 811 / 1260 (+55 %) | 7 / 18 | identical |
+   | unmodelled phase from 6 | 698 / 1446 (+107 %) | 7 / 18 | identical |
+
+   Quarantine buys 2-8 % on a blank and costs 55-107 % on a lasting change,
+   with no value moving in any row. So the new state is not
+   `SEQUENTIAL_UNRECOVERED` widened (whose text says "seeded no successor,
+   left out of the median"), and it does not claim the values are not a
+   measurement: it quotes GoF and Rexp against the last pattern before it
+   inside the fence, the reading that separates the three causes. The fence
+   is recorded on the entry (`SeriesEntry.rwp_fence`), so the verdict
+   (`SeriesEntry.above_fence`) is derived like every other fence here.
+   `SEQUENTIAL_RESEED` stops calling such a pattern a good fit.
+2. **Gap 2: leave the rejected pattern out of the step scan, and drop its
+   steps rather than bridge them.** "Flag every step" would keep the blank's
+   two steps, each verified at 1.00 because two cold fits reproduce the same
+   noise, beside the real one: a confirmed false step. Leaving the pattern
+   out (diverged ones too, which were scanned before) fixes #481 in both of
+   the reporter's runs. Bridging the gap was measured wrong: across the
+   count-drop run's seven rejected patterns the bridge spanned eight ramp
+   steps and flagged a clean ramp at 8×. The argmax per path stays, so two
+   real steps on one path still report one; no issue has reported that shape.
+   **The suite's clean series fire nothing new**, counted by wrapping
+   `SequentialRefinement._run` over every series the suite fits (83 series,
+   76 tests, eleven files, slow included): the discontinuity flags are 22
+   before and 22 after with no series' flags moved, and
+   `SEQUENTIAL_RWP_OUTLIER` fires on four — three fixtures that dictate the
+   fence (`_dictate`, or `reseed_factor=1.0`) and WP-1465's soak chain, a
+   model missing a phase, where it should.
+3. **Gap 3: a `SeriesResult`-level record, not a `Diagnostic` field.**
+   `SeriesResult.discontinuities: list[SeriesStep] | None` (path, labels,
+   indices, signed step), one per `SEQUENTIAL_DISCONTINUITY` in the same
+   order, written by `fit`. A field on `Diagnostic` would add a key to every
+   diagnostic of every producer for one of them. The verification pass reads
+   the record's indices, and `plot_trajectory` shades the record's pair — it
+   had re-derived the step as the largest one, which shaded the blank's.
+4. **WP-1465's Inherited ask is declined, measured.** It asked for the new
+   marker to join `SEQUENTIAL_WIDTH_GROWTH`'s skip. Every soaked pattern of
+   WP-1465's own fixture (`test_a_phase_standing_in_for_a_missing_one_...`)
+   is above the Rwp fence (GoF 1.85-5.08 against 0.99), since a phase
+   standing in for a missing one is what lifts a pattern there; the skip
+   would leave the finding nothing to fire on. Pinned by
+   `test_a_pattern_above_the_rwp_fence_is_still_read`.
+5. **#475: the persistent `RESOLUTION_UNCONSTRAINED` holds on both starts;
+   the correlation row does not.** Round-robin sample 1, `rx.Dispersion()`,
+   `lab_bragg_brentano`, carrying everything, from cpd-1a fitted two ways:
+   directly after `seed_scales` (the triage's start), and Le Bail first with
+   the same preset, then Rietveld (the reporter's, without their driver's
+   report loop, which is not public API).
+
+   | start, refit | Rwp after the first, single / stages | U, V, W `RESOLUTION_UNCONSTRAINED` persistent | U/V `HIGH_CORRELATION` persistent | iterations | wall |
+   |---|---|---|---|---|---|
+   | direct, `"single"` | 1.04-1.29× | 6 of 8 | none | 634 | 223 s |
+   | direct, `"stages"` | — | none | none | 2198 | 274 s |
+   | Le Bail, `"single"` | 1.16-1.26× | 7 of 8 | 5 of 8 | 378 | 127 s |
+   | Le Bail, `"stages"` | — | none | none | 2292 | 202 s |
+
+   The direct rows reproduce the triage's table to the digit; the staged
+   Le Bail row matches the reporter's to 0.0001. `RESOLUTION_NOT_POSITIVE`
+   fires 6-7 of 8 in every chain, so it separates nothing, and no chain
+   reseeded or carried an outlier. The skill (`series.md`'s `refit` bullet),
+   the manual and `fit`'s docstring stop promising that the fence catches the
+   collapse and name the persistent finding, with a cold-refit sample
+   beside it. No code changed for #475: the signal already existed, so the
+   task's "round-robin chain under `"single"` if a signal is added" has
+   nothing to pin. Walls ran two chains at a time on four cores.
 
 ## Non-goals
 
@@ -174,23 +245,23 @@ correlation rows, and a few patterns refitted cold.
 
 ## Tasks
 
-- [ ] Gap 1: a pattern whose kept rung still fails `_reseed_needed`'s Rwp
+- [x] Gap 1: a pattern whose kept rung still fails `_reseed_needed`'s Rwp
       leg carries a warning-level code (`SEQUENTIAL_UNRECOVERED` widened,
       or a sibling), and `_reseed_diagnostics` no longer calls it a good
       fit. Decide, and record in this file, whether it is also quarantined
       (no successor seeded, out of the median), measuring both on #481's
       ramp and on a series with a real specimen change.
-- [ ] Gap 2: every step passing both legs is flagged, or a pattern the
+- [x] Gap 2: every step passing both legs is flagged, or a pattern the
       fence rejected on every rung is left out of the step scan; pick one
       and say why. On #481's ramp the planted ramp_011 → ramp_012 step is
       flagged. Count the new flags on the suite's clean series, which must
       stay at zero.
-- [ ] Gap 3: the pair is a field. `Diagnostic` is shared by every
+- [x] Gap 3: the pair is a field. `Diagnostic` is shared by every
       producer, so either a new optional field there (with its writer named,
       WP-1076) or a `SeriesResult`-level record beside the diagnostics, as
       `_FlaggedStep` already is privately. The verification pass reads the
       same record.
-- [ ] #475: settle which chain-level signal separates the collapse. The
+- [x] #475: settle which chain-level signal separates the collapse. The
       triage's re-run found `SEQUENTIAL_PERSISTENT_FINDING` on
       `RESOLUTION_UNCONSTRAINED` for U, V and W (6 of 8, absent from the
       staged chain; `RESOLUTION_NOT_POSITIVE` fires in both), and the
@@ -198,10 +269,10 @@ correlation rows, and a few patterns refitted cold.
       (Le Bail first) as well as on this one. If one does, the skill names
       it. If neither holds on both starts, the skill names a cold-refit
       sample.
-- [ ] Tests: #481's ramp as a slow-marked fixture asserting all three gaps
+- [x] Tests: #481's ramp as a slow-marked fixture asserting all three gaps
       closed; a clean ramp asserting no new code; the round-robin chain
       under `"single"` if a signal is added.
-- [ ] Skill: `references/series.md`'s `refit="single"` bullet stops
+- [x] Skill: `references/series.md`'s `refit="single"` bullet stops
       promising the reseed fence catches a shared offset, names the
       width-freeing case and the two cheap reads; the `SEQUENTIAL_RESEED`
       and `SEQUENTIAL_UNRECOVERED` rows in its code table say what a kept
@@ -233,6 +304,102 @@ round-robin chain contradicts.
 
 ## Handover log
 
+- **2026-09-29** — closed ✅, one cloud session (claim, three gaps, #475,
+  review).
+
+  A series now tells you when one of its frames is not like the others,
+  instead of reporting a blank frame as a good fit, and that frame can no
+  longer hide a real step elsewhere on the same parameter. The warning does
+  not claim the frame is bad. It turns out a blank frame fits its own noise
+  perfectly, so Rwp alone cannot tell it from a frame that merely had fewer
+  counts. The warning therefore quotes the two numbers that separate the
+  causes. Quarantining such a frame was measured and rejected: it barely
+  helps a blank and doubles the cost of a series whose specimen really
+  changed. The other issue's promise, that the default fast refit is caught
+  when it collapses, was false for a collapse every pattern shares; the skill
+  now says so and names the diagnostic that does catch it.
+
+  *Done.* All six tasks, in commits `cdaac9e` (gaps 1-3, one commit since
+  each needs the others), `dc6c673` (#475, the skill/manual text, the hostile
+  acceptance accounting), `b0c2a64` (a missed schema-version pin), and
+  `2bd6433` (the review below). Decisions
+  and their measurements are in *Decisions taken (2026-09-29)* above. The
+  `### Inherited` entry from WP-1465 was consumed there (item 4, declined
+  with a measurement) and the section deleted. Release notes staged in
+  `docs/releases/1.5.1.md`; narrative in `docs/milestones/v1.6.md`.
+
+  *Measured* (this container: Linux x86_64, 4 cores, Python 3.12.3, `[dev]`
+  venv built by the worktree hook):
+  - Fast suite, once, on this branch merged with `origin/main` `bbe553b`,
+    nothing else running: 6757 passed, 165 skipped, 1 failed in 21:18. The
+    failure was `test_magnetic.py::test_the_capability_flag_is_derived_from_the_fields`,
+    a schema-version literal this change moves; re-pinned in `b0c2a64` and
+    passing, so the tree reads 6758 + 165 = 6923. CI's py3.12 `[dev]` fast
+    job on `bbe553b` read 6750 + 165 = 6915. The +8 is the seven tests added
+    here plus one new case of `test_schemas.py::test_every_base_subclass_survives_the_new_getattr`
+    (`[SeriesStep]`), found by diffing the two trees' per-file collection
+    counts. No new skip.
+  - Added tests, one run's junit (`tests.added_test_times`), before the review: 1.30 s over the
+    seven, the largest 1.21 s (`test_a_pattern_every_rung_left_above_the_fence_says_so`),
+    far from the fast tier's tail. One slow test added
+    (`test_a_blank_frame_no_longer_reads_as_a_point_or_hides_a_step`, #481's
+    ramp end to end, ~20-35 s).
+  - The full selection did **not** run as one. No fitted value can move (the
+    change adds diagnostics, two fields and a scan rule), and every
+    series-fitting file ran whole instead, slow included (11 files, 83
+    series): 378 passed, 1 skipped, 1 failed. The failure was
+    `test_held_phase.py::test_the_ramp_reproduction_no_longer_runs_away`, a
+    60 s runaway guard that read 112 s while I ran a second selection beside
+    it and 17 s alone: a load sensor at 3.5× headroom, not this change. The
+    hostile round-robin acceptance (8 cases) passed after its edit.
+  - After the review (two more fast tests, so +10 against `bbe553b`'s
+    6915 expected), the touched files re-ran rather than the whole fast
+    suite: `test_sequential.py`, `test_series_error_policy.py`, the skill,
+    docs-consistency and manual suites, slow included, 342 passed.
+
+  *Review* (`/code-review high --fix`, seven findings). Fixed five in
+  `2bd6433`: the scan's `argmax(step * big)` let a rejected pattern's NaN
+  value take the flag (NaN × False is NaN), now `where(big, step, -inf)`;
+  `SEQUENTIAL_RESEED` still called a *diverged* cold rung a good fit; the
+  outlier message claimed every start was tried when `reseed=False` or a
+  cancel stopped the ladder short of its cold rung; its ratio printed `1.0×`
+  just over the fence (now two decimals); a zero fence would have divided by
+  zero (now `value=None`). Declined two: the GUI's series panel has no
+  outlier mark (a payload, Svelte, vitest and dist change, see *Gotchas*),
+  and a pattern with **no entry** (a `SeriesFailure`) is still bridged by the
+  step scan, which predates this WP and was not asked of it. The second is
+  the same false-flag shape measured here, and no open WP owns it.
+
+  *Gotchas.* `api.md` sat at 38 993 of 39 000 B; the new `SeriesResult`
+  field took it to 39 078, paid for by two trims of the index's own authored
+  prose (`make_api_index.py`), 38 961 B now. `series.md` is 33 150 of its
+  34 600 B budget, and PR #522 adds to it too. The GUI's series panel does
+  not box an outlier point as `plot_trajectory` now does (folded into 1317).
+
+  *Forward.* Into 1329's Inherited: the field PR #522 named as its hook, and
+  the `SCHEMA_VERSION` collision (both PRs step off 0.35). Into 1420's: a
+  pointer to 1523, and the ramp guard's third trip under load (112 s against
+  60 s, 17.1 s alone), which 1420 already owns. Into 1317's: the outlier
+  marker, served rather than re-derived, for its marker vocabulary. Into
+  1339's: a pointer to 1523 beside its #219 support finding.
+
+  *Filed* (2026-09-29, at the user's request after the handover), each
+  checked against every open WP for a fold first: **1523** (P2), a phase
+  fitted to noise passes the support test — #481's blank, fitted alone from
+  pattern 0's models, releases its held cell at 2.14σ support on a scale
+  1.3σ from zero and fires no `PHASE_UNCONSTRAINED`, while the same frame
+  from the issue's unfitted start holds it and fires; new because 1420
+  fences the support threshold out and 1339 only carries a sibling finding.
+  **1524** (P3), the step scan's last two blind spots, the review's declined
+  bridge over a `SeriesFailure` and the one-flag-per-path limit of decision
+  2; new because no open WP owns the scan. The GUI mark and the guard were
+  first filed as 1525 and 1526 and then folded into 1317 and 1420, which
+  already own them; neither number reached `main`.
+
+  Next: nothing on this WP. Issues #481 and #475 close with the PR. The
+  reporter's driver treats `SEQUENTIAL_UNRECOVERED` as a gap and needs one
+  line to treat `SEQUENTIAL_RWP_OUTLIER` the same way, which is the
+  maintainer's to relay.
 - **2026-09-27** — created, from the 2026-09-27 issue triage (issues #475,
   #481). Checked against the tree at `91deebbb`: #481's script reproduced
   every number in its table to the digit on Linux x86_64, and the three

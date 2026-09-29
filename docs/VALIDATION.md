@@ -705,9 +705,9 @@ A warm-started chain over the round robin: what changes when only the starting p
 
 **Referenced to:** internal consistency: the SEQUENTIAL_RESEED diagnostic count must equal the number of entries flagged reseeded, exactly; every entry's rungs_tried must be a prefix of the ladder and contain the rung it kept.  The fence never fired on the hostile series — the collapsed refit recovers a bad warm start within the fit — so it is insurance, pinned by unit tests rather than by this suite
 
-**Measured:** exact accounting; zero reseeds on the hostile series
+**Measured:** exact accounting; zero reseeds on the hostile series, and no kept rung above the Rwp fence
 
-**Diagnostics:** `SEQUENTIAL_RESEED`, `SEQUENTIAL_UNRECOVERED`
+**Diagnostics:** `SEQUENTIAL_RESEED`, `SEQUENTIAL_UNRECOVERED`, `SEQUENTIAL_RWP_OUTLIER`
 
 #### `test_series_exports`
 

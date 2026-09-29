@@ -124,6 +124,15 @@ and (2) is accepted.
 
 ### Inherited
 
+- **From WP-1469, 2026-09-29: the support statistic now has an owner.** The
+  #219 entry below found `phase_support` reading 0.65-197σ on one phantom
+  phase depending only on its seed. WP-1469 found its noise twin: a frame
+  with no phase in it, fitted alone, released its held cell at 2.14σ support
+  on a scale 1.3σ from zero, or held it, depending on the start. Both are
+  filed as [1523](1523-a-phase-fitted-to-noise-passes-the-support-test.md),
+  which owns what "the data can see this phase" means. The #219 numbers stay
+  here as this WP's evidence; a fix there changes which phases read
+  supported in any comparison this WP builds.
 - **From WP-1417, 2026-09-27: `references/judging.md` now has a § 4
   section on adding a parameter** (the t-ratio before ΔBIC at N/f²,
   `report.compare_freed`). This WP's routing row, that ΔBIC and a

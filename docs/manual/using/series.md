@@ -118,7 +118,13 @@ recorded instead as annotation notes on each tree's root node. The default is
 be fitted with. The staged order exists to keep early stages well conditioned
 from a poor starting model, and a converged neighbour is not one, so the default
 collapses it. When the neighbour turns out not to be a good starting point
-either, the fence below catches it.
+either, the fence below catches the pattern whose Rwp jumps past the median.
+It does not catch a collapse every pattern shares, because the median rises with
+it. With a plan that frees U, V and W, `"single"` settled 1.04-1.29 times above
+`"stages"` in Rwp on every round-robin mixture after the first, and nothing was
+reseeded. What named it was `SEQUENTIAL_PERSISTENT_FINDING` on
+`RESOLUTION_UNCONSTRAINED` for U, V and W, in six or seven of the eight
+patterns and in none under `"stages"`.
 
 ### What crosses a pattern boundary
 
@@ -223,6 +229,7 @@ a few kB. The curves stay reachable on `SequentialRefinement.results_`.
 | `SeriesResult.backward` | the reverse chain's own `SeriesResult` under `"both"`, else None |
 | `SeriesResult.x_label` | the axis name |
 | `SeriesResult.diagnostics` | the series-level fences below |
+| `SeriesResult.discontinuities` | one `SeriesStep` per `SEQUENTIAL_DISCONTINUITY`, in the same order: the pair the diagnostic names in prose. `None` in a document written before the field existed |
 | `SeriesResult.provenance` | package version, timestamp and settings, as for a single fit |
 | `SeriesResult.x` | the axis: the coordinate given, or the pattern index |
 | `SeriesResult.labels` | one label per entry |
@@ -253,6 +260,8 @@ patterns in order.
 | `SeriesEntry.rung` | which attempt produced these values: `"warm"`, `"warm_staged"` or `"cold"` |
 | `SeriesEntry.rungs_tried` | every rung attempted, in ladder order |
 | `SeriesEntry.rungs_raised` | the rungs among those whose fit raised rather than returned, each with `repr` of the exception |
+| `SeriesEntry.rwp_fence` | the Rwp limit the fence set at this pattern: `reseed_factor` times the median Rwp of the patterns accepted before it. `None` on the first pattern walked |
+| `SeriesEntry.above_fence` | the kept attempt is still above `rwp_fence`, so `SEQUENTIAL_RWP_OUTLIER` names it |
 | `SeriesEntry.node_id`, `SeriesEntry.tree_id` | where this pattern's history lives |
 
 `SeriesEntry.value` and `SeriesEntry.stderr` look a path up in that entry's
@@ -409,13 +418,14 @@ an axis title for a series with no coordinate but would be the header's second
 A sequential fit is path-dependent by construction. Every pattern's answer
 depends on its neighbour's, so the method can imprint a trend the data do not
 carry: one bad pattern's error is inherited by all its successors, and the
-result is a smooth-looking curve. Seven diagnostics fence that, and none of them
+result is a smooth-looking curve. Eight diagnostics fence that, and none of them
 alters a fitted value.
 
 | Code | Says |
 |---|---|
 | `SEQUENTIAL_RESEED` | the warm start was rejected and the pattern was refitted cold, so the chain was not poisoned silently |
 | `SEQUENTIAL_UNRECOVERED` | the pattern diverged and stayed diverged after every rung; it seeded no successor and joined no median |
+| `SEQUENTIAL_RWP_OUTLIER` | every rung the chain tried left the pattern above the Rwp fence (with `reseed=False` only the first, and the message says so), so the fit kept is not like its neighbours'; the message quotes its GoF and Rexp against the last pattern inside the fence, which say why |
 | `SEQUENTIAL_DISCONTINUITY` | a step much larger than the local trend: the science, or a chain failure, and the diagnostic says both |
 | `SEQUENTIAL_PATH_DEPENDENT` | with `direction="both"`, forward and backward disagree by more than their esds allow |
 | `SEQUENTIAL_PATH_CHECK_INCOMPLETE` | with `direction="both"`, the comparison did not run, or ran on fewer patterns or paths than the series has |
@@ -472,6 +482,23 @@ of them, once per pattern, since two paths flagged at the same step share a
 refit. Measured on a 68-pattern thermal ramp flagging four steps over four
 patterns: 11.6-12.0 s for the chain and 12.1-12.2 s with the check, `+5 %`.
 The cost scales with the patterns flagged, not with the series length.
+
+Which two patterns a step is between is a field, not only prose.
+`SeriesResult.discontinuities` holds one `SeriesStep` per flagged step, in the
+diagnostics' order, and `SeriesStep.path` is that diagnostic's `where[0]`.
+`SeriesStep.labels` and `SeriesStep.indices` name the pair, earlier first, and
+`SeriesStep.step` is the signed change, later minus earlier. The check refits
+exactly this pair, and the trajectory plot shades it.
+
+Each path carries at most one flag, the largest step that passes both tests.
+A step into or out of a pattern the fence rejected, `SEQUENTIAL_UNRECOVERED` or
+`SEQUENTIAL_RWP_OUTLIER`, is left out of that scan, because the pattern already
+has its own code. Otherwise its step takes the flag. In a 24-pattern ramp with
+one blank frame, the blank's cell was fitted to noise and stepped 33 times the
+median. The check confirmed that step at 1.00, because two cold fits reproduce
+the same noise, and the real step five patterns later went unreported. The
+steps are dropped, never bridged: a bridge over several rejected patterns spans
+that many of the series' steps, and on a clean ramp it read as an 8× jump.
 
 ### The ladder, and quarantine
 
@@ -530,6 +557,29 @@ starting point nor a scale, so its successor warm-starts from the last accepted
 pattern and the reseed median never sees the failure. Otherwise one failure
 would seed its neighbour with rubbish and drag the median that decides every
 later trigger, quietly raising the bar for the rest of the series.
+
+A pattern that converged but stayed above the Rwp fence on every rung is
+reported and not quarantined. `SEQUENTIAL_RWP_OUTLIER` names it, and it seeds its
+successor and joins the median like any accepted pattern. Rwp cannot say why it
+rose, and quarantine is the wrong answer for one of the reasons. Near a
+converged fit Rwp is GoF times Rexp, and three measured causes divide between
+the two factors:
+
+- A blank frame has a GoF like its neighbours' (1.00 against 1.06) and an Rexp
+  four times theirs, because it is background and noise, fitted perfectly.
+- A correct model over counts that fell 4× also keeps its GoF and doubles its
+  Rexp. It is a sound measurement.
+- An unmodelled phase raises the GoF: 16.7 against 1.04.
+
+Quarantined, a lasting change can never become the chain's new normal. On a
+24-pattern ramp whose counts fell from pattern 6, every later pattern climbed
+the ladder, costing 55 % more iterations, and all 18 were flagged rather than
+7. With an unmodelled phase from pattern 6 the cost was 107 % more. On the blank
+frame, quarantine saved 2-8 % of the chain, and the values were identical either
+way. The message quotes the GoF and Rexp against the last pattern before it
+inside the fence, which is the reading that tells the causes apart. The fence
+follows the median, so a run of these that stops is a lasting change the median
+caught up with, not one that went away.
 
 What triggers the ladder is deliberately narrow: divergence, or an Rwp above
 `reseed_factor` times the median of the accepted patterns. Two candidates were

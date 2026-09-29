@@ -49,6 +49,19 @@ chain on the same data is reported as a range, never gated.
 
 ### Inherited
 
+- **2026-09-29, from [1469](1469-what-the-series-fences-cannot-see.md): a
+  frame the Rwp fence rejected on every rung now has a code, and PR #522
+  named the hook.** `SeriesEntry.above_fence` (derived from the new
+  `SeriesEntry.rwp_fence`) is true where `SEQUENTIAL_RWP_OUTLIER` fires. Such
+  a pattern is **not** quarantined: it seeds its successor and joins the
+  median, because the fence cannot tell a blank frame from a lasting change
+  (#481's blank had GoF 1.00 against 1.06). PR #522 said a frame "whose kept
+  rung still trips the reseed fence, but whose phase is still visible, gets a
+  verdict like any other" and that treating the new code as "no verdict" is
+  the natural hook; `above_fence` is the field to read, and the step scan
+  already leaves such a pattern out. Both PRs bump `SCHEMA_VERSION`: 1469
+  takes 0.35 → 0.36, so whichever lands second renumbers, and
+  `tests/test_magnetic.py`'s capability pin moves with it.
 - **2026-09-17, from [1436](1436-k-is-the-wavevector-everywhere-else.md):
   `k` is free for the propagation vector.** The earlier note here warned that
   `scattering.py`, `structure_factor.py` and `dispersion.py` all spent `k` on

@@ -27,6 +27,10 @@ none of which alters a fitted value:
 ``SEQUENTIAL_UNRECOVERED``
     the pattern diverged and stayed diverged after every rung of the ladder
     below; it is reported, but it seeded no successor and joined no median.
+``SEQUENTIAL_RWP_OUTLIER``
+    every rung came back above the Rwp fence, so the kept fit is not like its
+    neighbours (WP-1469); the pattern is not quarantined, and the steps either
+    side of it are left out of the discontinuity scan.
 ``SEQUENTIAL_DISCONTINUITY``
     a step much larger than the local trend — the science (a phase transition)
     or a chain failure, and the diagnostic says both.  ``fit(...,
@@ -127,7 +131,7 @@ from .schemas.history import ReflectionState
 from .schemas.instrument import Instrument
 from .schemas.pattern import PatternData
 from .schemas.results import RefinementResult
-from .schemas.sequential import SeriesEntry, SeriesFailure, SeriesResult
+from .schemas.sequential import SeriesEntry, SeriesFailure, SeriesResult, SeriesStep
 from .schemas.structure import Structure
 from .strategy.staged import RefinementPlan, Stage, resolve_plan
 
@@ -856,11 +860,16 @@ class SequentialRefinement:
             error identical to three decimals (RMS |ΔW| 2.26 vs 2.27 wt %).
             The staged order exists to keep early stages well conditioned from
             a *poor* starting model, and a converged neighbour is not one —
-            when it turns out not to be a good one either, the reseed fence
-            catches it and escalates one rung at a time (:func:`_ladder`),
-            re-walking the staged plan from the warm state before giving the
-            warm state up.  ``refit`` therefore sets the ladder's *first* rung,
-            not the only plan a pattern can be fitted with.
+            when it turns out not to be a good one either and the pattern's Rwp
+            jumps past the chain's median, the reseed fence escalates one rung
+            at a time (:func:`_ladder`), re-walking the staged plan from the
+            warm state before giving the warm state up.  ``refit`` therefore
+            sets the ladder's *first* rung, not the only plan a pattern can be
+            fitted with.  **A collapse every pattern shares is not caught**,
+            since the median rises with it: under a plan freeing U, V and W the
+            round-robin chain sat 1.04-1.29× above ``"stages"`` with no reseed,
+            and what named it was ``SEQUENTIAL_PERSISTENT_FINDING`` on
+            ``RESOLUTION_UNCONSTRAINED`` for U, V and W (issue #475, WP-1469).
         direction:
             ``"forward"``, ``"backward"`` (chain from the last pattern), or
             ``"both"``, which runs it each way and reports where the two
@@ -1103,8 +1112,10 @@ class SequentialRefinement:
         self._instruments = [i for _, i in models]
         self.failures_ = failures
 
+        before = _inside_before(entries, direction)
         diagnostics = [d for e in entries
-                       for d in _reseed_diagnostics(e) + _unrecovered_diagnostics(e)]
+                       for d in (_reseed_diagnostics(e) + _unrecovered_diagnostics(e)
+                                 + _rwp_outlier_diagnostics(e, before.get(e.index)))]
         diagnostics += [_series_pattern_failed_diagnostic(f) for f in failures]
         cancelled = cancel is not None and bool(cancel)
         if cancelled:
@@ -1120,6 +1131,7 @@ class SequentialRefinement:
         relative = _relative_paths(self.structure, self.instrument)
         steps = _discontinuity_steps(series, relative)
         diagnostics += [s.diagnostic for s in steps]
+        series.discontinuities = [s.record for s in steps]
         # WP-1305 (c): the check the diagnostic asks the reader for, run here.
         # A cancelled chain gets none — it starts new fits, and a chain that
         # stopped early is not the trajectory the steps were measured on.
@@ -1412,6 +1424,9 @@ class SequentialRefinement:
                 # only the *cold* rung breaks the chain — a staged refit from
                 # the warm state still started at the neighbour's answer
                 entry.reseeded = best_rung == "cold"
+            # the limit this pattern was judged against, so the verdict on the
+            # kept attempt is readable off the entry (WP-1469)
+            entry.rwp_fence = _rwp_fence(accepted_rwp, reseed_factor)
 
             entries[k] = entry
             results[k] = best
@@ -1422,6 +1437,15 @@ class SequentialRefinement:
             # a scale, so the chain steps over it.  Its successor warm-starts
             # from the last accepted pattern and the median that decides every
             # later trigger never sees it.
+            # A pattern above the fence is *not* quarantined (WP-1469): the
+            # fence cannot tell a blank frame from a lasting change, and
+            # quarantine is the wrong answer for the second.  Measured on a
+            # 24-pattern ramp whose counts fall 4× at pattern 6, the model
+            # right: quarantined, the median never follows the drop, and every
+            # later pattern climbs the ladder (+55 % iterations) and is flagged
+            # (18 of 18, not 7); an unmodelled phase from pattern 6, +107 %.
+            # What quarantine buys on #481's blank is 2-8 % of the chain, the
+            # values identical to the digit either way.
             if entry.status != "diverged":
                 previous = models[k]
                 previous_hkl = _extract_reflections(best_ref._model)
@@ -1557,7 +1581,6 @@ class SequentialRefinement:
         absent-for-cause state — so a stopped check reports nothing about a
         step rather than a half-measured something.
         """
-        index_of = {name: i for i, name in enumerate(names)}
         cold: dict[int, RefinementResult | _PatternRaised] = {}
 
         def refit(k: int) -> RefinementResult:
@@ -1579,11 +1602,12 @@ class SequentialRefinement:
         for s in steps:
             if cancel is not None and bool(cancel):
                 return
-            a, b = index_of[s.labels[0]], index_of[s.labels[1]]
-            d = s.diagnostic
+            # the record's own pair, by SeriesEntry.index — the position in
+            # ``patterns`` — rather than looked up again from its labels
+            (a, b), path, d = s.record.indices, s.record.path, s.diagnostic
             try:
-                va = _value_of(refit(a), s.path)
-                vb = _value_of(refit(b), s.path)
+                va = _value_of(refit(a), path)
+                vb = _value_of(refit(b), path)
             except RefinementCancelled:
                 return
             except _PatternRaised as exc:
@@ -1594,16 +1618,16 @@ class SequentialRefinement:
                               f"{exc.original!r}, so the step could not be "
                               f"re-measured")
                 continue
-            if va is None or vb is None or not s.step:
+            if va is None or vb is None or not s.record.step:
                 d.message += ("; an independent cold refit of both patterns "
                               "does not determine this parameter, so the step "
                               "could not be re-measured")
                 continue
             # signed, both sides: a cold pair stepping as far the *other* way
             # is not a reproduction, and two magnitudes divided would call it
-            # one (see _FlaggedStep.step)
+            # one (see SeriesStep.step)
             cold_step = vb - va
-            d.value = cold_step / s.step
+            d.value = cold_step / s.record.step
             d.message += (f"; refitted cold and independently the two patterns "
                           f"step by {cold_step:.4g}, {d.value:.2f}× the "
                           f"chain's")
@@ -1701,14 +1725,24 @@ def _prefer(result: RefinementResult, truncated: bool,
     return _better(result, best)
 
 
+def _rwp_fence(accepted_rwp: list[float], factor: float) -> float | None:
+    """The Rwp above which the fence rejects an attempt, or ``None``.
+
+    ``factor`` × the median of the accepted patterns: a median rather than
+    the previous value so one bad pattern cannot ratchet the limit up
+    (:data:`RESEED_FACTOR`).  ``None`` until one pattern has been accepted.
+    """
+    if not accepted_rwp:
+        return None
+    return factor * float(np.median(accepted_rwp))
+
+
 def _reseed_needed(result: RefinementResult, accepted_rwp: list[float],
                    factor: float) -> bool:
     if result.status == "diverged":
         return True
-    if not accepted_rwp:
-        return False
-    reference = float(np.median(accepted_rwp))
-    return result.statistics.rwp > factor * reference
+    fence = _rwp_fence(accepted_rwp, factor)
+    return fence is not None and result.statistics.rwp > fence
 
 
 def _reseed_diagnostics(entry: SeriesEntry) -> list[Diagnostic]:
@@ -1722,15 +1756,119 @@ def _reseed_diagnostics(entry: SeriesEntry) -> list[Diagnostic]:
     # pattern could not use (WP-1333)
     how = (f"raised {entry.rungs_raised[first]}" if first in entry.rungs_raised
            else f"reached Rwp {warm:.4f} against {now:.4f} cold")
+    # a cold rung kept only as the best of several rejected ones is not "a
+    # good fit", and calling it one contradicted SEQUENTIAL_RWP_OUTLIER on the
+    # same pattern — issue #481's blank frame read exactly that (WP-1469)
+    # …and neither is a cold rung kept only as the least diverged of several,
+    # which SEQUENTIAL_UNRECOVERED calls a failed fit on the same pattern
+    if entry.status == "diverged":
+        fit = ("the cold fit is kept only as the best attempt and diverged "
+               "too — read SEQUENTIAL_UNRECOVERED on this pattern first — and")
+    elif entry.above_fence:
+        fit = ("the cold fit is kept only as the best attempt and is still "
+               "above the fence — read SEQUENTIAL_RWP_OUTLIER on this pattern "
+               "first — and")
+    else:
+        fit = "this point is a good fit but"
     return [Diagnostic(
         level="warning", code="SEQUENTIAL_RESEED",
         where=[entry.label or str(entry.index)],
         message=(f"pattern {entry.index} ({entry.label}) was refitted from the "
                  f"initial model: warm-starting from its neighbour {how}"),
-        suggestion=("this point is a good fit but its starting values did not "
+        suggestion=(f"{fit} its starting values did not "
                     "come from its neighbour, so it is not evidence that the "
                     "trajectory is continuous here; check whether the specimen "
                     "or the model changed at this point of the series"),
+    )]
+
+
+def _inside_before(entries: Sequence[SeriesEntry],
+                   direction: str) -> dict[int, SeriesEntry]:
+    """For each entry above the fence, the last one before it that was inside.
+
+    "Before" in the order the chain walked, which is what the fence's median
+    was taken over.  The comparison :func:`_rwp_outlier_diagnostics` quotes,
+    derived from the entries so a reloaded series says the same thing.
+    """
+    walk = sorted(entries, key=lambda e: e.index,
+                  reverse=direction == "backward")
+    out: dict[int, SeriesEntry] = {}
+    last: SeriesEntry | None = None
+    for e in walk:
+        if e.above_fence and last is not None:
+            out[e.index] = last
+        elif e.status != "diverged" and not e.above_fence:
+            last = e
+    return out
+
+
+def _rwp_outlier_diagnostics(entry: SeriesEntry,
+                             before: SeriesEntry | None) -> list[Diagnostic]:
+    """``SEQUENTIAL_RWP_OUTLIER``: every rung came back above the fence (WP-1469).
+
+    The Rwp leg of the fence triggers the ladder, and until issue #481 it was
+    never a verdict: the best rung was kept and said nothing, so a blank frame
+    fitted to noise read as a point of the trajectory.  Derived from the entry,
+    like every fence here (:attr:`SeriesEntry.above_fence`).
+
+    **It reports and does not judge**, because Rwp cannot say why it rose.
+    Rwp is GoF × Rexp near a converged fit, and the three measured causes
+    split between the two: #481's blank frame had GoF 1.00 against its
+    neighbour's 1.06 and Rexp 0.159 against 0.040 (background and noise
+    alone, fitted perfectly); a correct model over counts that fell 4× had
+    GoF 1.08 against 1.04 and Rexp twice its neighbour's, a sound
+    measurement; an unmodelled phase had GoF 16.7 against 1.04.  So the
+    message quotes both against ``before``, the last pattern the fence
+    accepted, which is the reading that separates them, and calls the point
+    neither good nor bad.
+    """
+    if not entry.above_fence:
+        return []
+    rwp, fence = entry.statistics.rwp, entry.rwp_fence
+    tried = ", ".join(entry.rungs_tried) or entry.rung
+    # the cold rung is always the ladder's last, so without it the ladder was
+    # not climbed to the end — ``reseed=False``, or a cancel mid-ladder — and
+    # "no starting point brought it near" would claim starts nobody tried
+    climbed = "cold" in entry.rungs_tried or entry.rung == "cold"
+    ratio = rwp / fence if fence > 0 else None
+    times = (", above the fence" if ratio is None
+             else f", {ratio:.2f}× the fence")
+    against = ""
+    if before is not None and before.statistics is not None:
+        s, r = entry.statistics, before.statistics
+        against = (f"; against {before.label or before.index}, the last pattern "
+                   f"before it inside the fence: GoF {s.gof:.2f} to its "
+                   f"{r.gof:.2f}, Rexp {s.rexp:.4f} to its {r.rexp:.4f}")
+    return [Diagnostic(
+        level="warning", code="SEQUENTIAL_RWP_OUTLIER",
+        where=[entry.label or str(entry.index)], value=ratio,
+        message=(f"pattern {entry.index} ({entry.label}) reached Rwp {rwp:.4f} "
+                 f"on its best rung{times} at {fence:.4f} "
+                 f"(the reseed factor × the median Rwp of the patterns accepted "
+                 f"before it), after "
+                 + ("every rung the chain tried" if climbed else
+                    "the rungs the chain tried before stopping short of its "
+                    "cold rung (reseed off, or a cancel)")
+                 + f" ({tried}){against}"),
+        suggestion=(("no starting point brought this fit near its neighbours', "
+                     "so the pattern itself differs from them"
+                     if climbed else
+                     "the ladder was not climbed, so a cold start may still "
+                     "bring this fit near its neighbours'; refit it with "
+                     "reseed on before reading it as a difference in the "
+                     "pattern")
+                    + "; open its own fit "
+                    "before reading its values.  GoF says which way: well above "
+                    "theirs is a model the pattern has outgrown — a specimen "
+                    "change the model lacks, or a bad frame; like theirs, with a "
+                    "higher Rexp, is fewer counts — a short or blank frame, a "
+                    "weaker beam — where the fit may be sound, so check that each "
+                    "phase is still in the pattern (a scale within a few esds of "
+                    "zero is one it does not contain).  The fence follows the "
+                    "median of the accepted patterns, so a run of these that "
+                    "stops is a lasting change the median caught up with, not "
+                    "one that went away.  The steps into and out of this pattern "
+                    "are left out of the discontinuity scan"),
     )]
 
 
@@ -1925,25 +2063,19 @@ def _noise_floor(*values) -> float:
 
 @dataclass(frozen=True)
 class _FlaggedStep:
-    """One flagged step, in the form the optional verification pass needs.
+    """One flagged step: its public record and the diagnostic it explains.
 
-    The diagnostic says it in prose; this says *which two patterns* and *how
-    big*, so :meth:`SequentialRefinement._verify_discontinuities` re-measures
-    the same step rather than re-deriving which one was meant from the
-    message (the one-authority rule: the flagging code is the only place that
-    knows which pair it flagged).
-
-    ``step`` is the **signed** difference, later minus earlier, and the
-    verification ratio is signed with it: two magnitudes divided would report a
-    cold pair that stepped the *other way* as 1.00, which reads as the one
-    thing the check exists to distinguish it from.  The diagnostic's own
-    message keeps the magnitude, which is what a reader compares with the
-    median step.
+    The diagnostic says it in prose; ``record`` (a
+    :class:`~rietx.schemas.sequential.SeriesStep`, on
+    ``SeriesResult.discontinuities``) says *which two patterns* and *how big*,
+    so :meth:`SequentialRefinement._verify_discontinuities` re-measures the
+    same step, and the plot shades it, rather than either re-deriving which
+    one was meant (the one-authority rule: the flagging code is the only place
+    that knows which pair it flagged).  Until WP-1469 the pair was private
+    here, and a caller found it by parsing the message (issue #481).
     """
 
-    path: str
-    labels: tuple[str, str]
-    step: float
+    record: SeriesStep
     diagnostic: Diagnostic
 
 
@@ -1980,30 +2112,55 @@ def _discontinuity_steps(series: SeriesResult,
     position, and its first step (from the model, not from a neighbour) read
     as a jump on every clean series.  The coordinate rows it drives are
     absolute, carry the same esd, and are judged instead.
+
+    **A step into or out of a pattern the fence rejected is not scanned**
+    (WP-1469): a ``"diverged"`` entry (``SEQUENTIAL_UNRECOVERED``) or one
+    whose best rung is still above the fence (``SEQUENTIAL_RWP_OUTLIER``).
+    Each already has its own code naming the pattern, and a step against it
+    cannot be read apart from that code.  Scanned, it took the path's one
+    flag: on issue #481's ramp a blank frame's cell, fitted to noise, stepped
+    33× the median, the verification confirmed it at 1.00 because both cold
+    fits reproduce the same noise, and the planted step behind it went
+    unreported.  The steps are dropped, **never bridged**: a bridge over a run
+    of such patterns spans that many of the series' steps and reads as one
+    step of that many medians — a clean ramp flagged "8×" across seven
+    patterns whose counts had fallen (measured).
     """
     if len(series) < MIN_POINTS_FOR_DISCONTINUITY:
         return []
+    rejected = {i for i, e in enumerate(series.entries)
+                if e.status == "diverged" or e.above_fence}
     out: list[_FlaggedStep] = []
     for path in series.paths(varied_only=False):
         if path in relative:
             continue
         traj = series.trajectory(path)
-        if len(traj) < MIN_POINTS_FOR_DISCONTINUITY:
+        kept = [pos not in rejected for pos in traj.positions]
+        if sum(kept) < MIN_POINTS_FOR_DISCONTINUITY:
             continue
         xv, value, sd = traj.arrays()
         step = np.abs(np.diff(value))
-        scale = float(np.median(step))
-        if not np.isfinite(scale) or scale <= _noise_floor(value):
+        judged = np.asarray(kept[:-1]) & np.asarray(kept[1:])
+        if not judged.any():
+            continue
+        scale = float(np.median(step[judged]))
+        if not np.isfinite(scale) or scale <= _noise_floor(value[kept]):
             continue
         combined = np.sqrt(np.nan_to_num(sd[:-1]) ** 2 + np.nan_to_num(sd[1:]) ** 2)
-        big = (step > DISCONTINUITY_FACTOR * scale) & (
+        big = judged & (step > DISCONTINUITY_FACTOR * scale) & (
             step > DISCONTINUITY_SIGMA * combined)
         if not big.any():
             continue
-        k = int(np.argmax(step * big))
+        # ``where``, never ``step * big``: a rejected pattern's value may be
+        # non-finite, and NaN × False is NaN, which argmax would pick
+        k = int(np.argmax(np.where(big, step, -np.inf)))
+        pair = (series.entries[traj.positions[k]],
+                series.entries[traj.positions[k + 1]])
         out.append(_FlaggedStep(
-            path=path, labels=(traj.labels[k], traj.labels[k + 1]),
-            step=float(value[k + 1] - value[k]),
+            record=SeriesStep(
+                path=path, labels=(traj.labels[k], traj.labels[k + 1]),
+                indices=(pair[0].index, pair[1].index),
+                step=float(value[k + 1] - value[k])),
             diagnostic=Diagnostic(
                 level="info", code="SEQUENTIAL_DISCONTINUITY", where=[path],
                 message=(f"{path} steps by {step[k]:.4g} between "
@@ -2123,8 +2280,12 @@ def _width_growth_diagnostics(series: SeriesResult) -> list[Diagnostic]:
     trajectory itself, since a width driven by a ``vars.`` name is not
     ``vary`` and ``paths(varied_only=True)`` would lose it.
     Quarantined (``"diverged"``) entries are skipped, as they are by every
-    other fence here.  A width no pattern measured has no reference and is
-    not judged.
+    other fence here.  An entry above the Rwp fence (``SEQUENTIAL_RWP_OUTLIER``)
+    is **read**, although the discontinuity scan leaves it out: a phase
+    standing in for a missing one is what lifts a pattern over that fence, and
+    every soaked pattern of the fixture in ``tests/test_sequential.py`` is
+    above it (WP-1469), so skipping them would leave the finding nothing to
+    fire on.  A width no pattern measured has no reference and is not judged.
     """
     out: list[Diagnostic] = []
     by_trajectory: dict[tuple, Diagnostic] = {}

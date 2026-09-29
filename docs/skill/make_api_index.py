@@ -190,8 +190,7 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ),
     (
         "The four answers are four different types",
-        "A refinement, a series, an indexing run and a suggestion each return "
-        "their own type, and none nests inside another. An `rx.IndexingResult` "
+        "None nests inside another. An `rx.IndexingResult` "
         "carries no `cell` key by design: `best_or_none()` is the only way to "
         "one cell, and it returns `None` more often than not (§6). "
         "`RefinedParameter.at_bound` is three-valued — test `is True`.",
@@ -216,8 +215,8 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     (
         "Series, history, projects",
         "`refine_sequential` chains N patterns by warm start (§9b); "
-        "`refine_multi` stacks them into one joint residual, which is a "
-        "different thing. The history verbs work the DAG every fit commits to "
+        "`refine_multi` stacks them into one joint residual. The history verbs "
+        "work the DAG every fit commits to "
         "(§9); a `Project` owns a `.rex` directory; a `CancelToken` cancels "
         "cooperatively, between residual evaluations.",
         ("rx.refine_sequential", "rx.SequentialRefinement", "rx.refine_multi",

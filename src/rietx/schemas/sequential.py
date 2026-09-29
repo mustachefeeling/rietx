@@ -138,11 +138,41 @@ class SeriesEntry(Base):
     #: ``SequentialRefinement._chain``; empty — which is true — wherever no
     #: rung raised.
     rungs_raised: dict[str, str] = Field(default_factory=dict)
+    #: The Rwp limit the chain's fence set at this pattern: ``reseed_factor`` ×
+    #: the median Rwp of the patterns accepted before it (WP-1469).  Recorded
+    #: rather than re-derived because the median is the *chain's* state, and
+    #: every fence here is read off the entry so a reloaded
+    #: :class:`SeriesResult` reports what the run did; :attr:`above_fence` is
+    #: the verdict.  Recorded whatever ``reseed`` says, as the quarantine is:
+    #: the limit is a fact about the pattern, not about how hard the chain
+    #: tried.  ``None`` where no median existed — the first pattern walked, or
+    #: every pattern before it quarantined — and in a document written before
+    #: the field: no fence judged it.  Written by
+    #: ``SequentialRefinement._chain``.
+    rwp_fence: float | None = None
 
     #: Where this pattern's own history lives (one tree per pattern — a tree is
     #: pinned to one pattern by its data fingerprint).
     node_id: str | None = None
     tree_id: str | None = None
+
+    @property
+    def above_fence(self) -> bool:
+        """The kept attempt is still above :attr:`rwp_fence` (WP-1469).
+
+        Every rung the chain tried came back above the limit, so the best of
+        them is kept but is not like its neighbours: a specimen change the
+        model lacks, a bad frame, or fewer counts (a blank frame is the last,
+        its Rwp risen with its Rexp).  ``SEQUENTIAL_RWP_OUTLIER`` says so and
+        quotes the GoF and Rexp that tell them apart.  The pattern is not
+        quarantined — it seeds its successor and joins the median, since a
+        lasting change must be able to become the new normal.  False on a
+        ``"diverged"`` entry, which ``SEQUENTIAL_UNRECOVERED`` already covers,
+        and wherever no fence applied.
+        """
+        return (self.status != "diverged" and self.rwp_fence is not None
+                and self.statistics is not None
+                and self.statistics.rwp > self.rwp_fence)
 
     def value(self, path: str) -> float | None:
         for p in self.parameters:
@@ -224,6 +254,28 @@ def _unservable(series: "SeriesResult", path: str) -> str:
                f" — no phase in this series carries a {prefix!r} curve at all"))
 
 
+class SeriesStep(Base):
+    """One step ``SEQUENTIAL_DISCONTINUITY`` flagged, as fields (WP-1469).
+
+    The diagnostic says it in prose and names the parameter in ``where``;
+    this says between *which two patterns* and *how far*, so a caller never
+    parses the message for the pair.  One per diagnostic, in the same order,
+    and ``path`` is that diagnostic's ``where[0]`` — the scan flags at most
+    one step per path, so the path is the key.  The verification pass
+    re-measures exactly this pair, and the trajectory plot shades it.
+    """
+
+    path: str
+    #: the two patterns' labels, earlier first
+    labels: tuple[str, str]
+    #: their :attr:`SeriesEntry.index`, earlier first
+    indices: tuple[int, int]
+    #: later minus earlier, **signed**: the verification ratio divides by it,
+    #: and two magnitudes divided would call a cold pair that stepped the other
+    #: way a reproduction.  The message keeps the magnitude.
+    step: float
+
+
 class SeriesFailure(Base):
     """One pattern the chain could not fit at all — an uncaught exception out
     of :meth:`~rietx.refine.Refinement.fit` on **every** rung of the ladder
@@ -272,6 +324,13 @@ class SeriesResult(Base):
     #: returns.
     backward: "SeriesResult | None" = None
     diagnostics: list[Diagnostic] = Field(default_factory=list)
+    #: Every ``SEQUENTIAL_DISCONTINUITY`` in :attr:`diagnostics` as a
+    #: :class:`SeriesStep`, in the same order (WP-1469): the pair the
+    #: diagnostic names in prose.  ``None`` in a document written before the
+    #: field, which may carry the diagnostics without them — "not recorded",
+    #: never "no step".  Written by ``SequentialRefinement.fit``; ``[]`` on a
+    #: series that flagged nothing.
+    discontinuities: list[SeriesStep] | None = None
     #: every pattern on which every rung of the ladder raised, so the chain
     #: has no entry for it — see :class:`SeriesFailure`.  Populated under the
     #: default ``on_error="carry"`` and under ``"skip"``; under ``"raise"``
