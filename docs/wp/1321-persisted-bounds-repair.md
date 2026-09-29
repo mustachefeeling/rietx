@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @yue-here
 Track: What fires, and what stays silent
-Depends on: — (PR #206 merges first: its validator and `model_fields_set`
+Depends on: — (PR #206 landed 2026-09-01: its validator and `model_fields_set`
 discriminator are this WP's reference behaviour)
 Priority: P2 2026-09-23 — bounds dropped in silence on documents already saved, and the sibling hazard unmeasured
 
@@ -17,65 +17,71 @@ shipping PR closes **#209 and #204**.
 
 ## Context
 
-### Inherited
+### Findings re-checked 2026-09-29, and the Inherited folded
 
-- **2026-09-28, from [1338](1338-the-skills-own-gates.md): a body sentence is paid for by a cut.** The
-  body's budget is the specification's 5 000 tokens, 17 000 B, and it is at
-  30 509 B, so a change may not grow it (`tests/skill_caps.py`). Guidance
-  for one kind of fit goes in a reference row keyed by a name the agent
-  holds, which the body's grep sentence reaches (CONTRIBUTING.md § The
-  agent skill). The placement round saw Haiku and Sonnet open no reference
-  file in 12 cells, so a rule every fit needs stays in the body.
+The WP was written on 2026-09-01. Against `f1b89d6`, five things it assumed
+have moved, and four Inherited entries are folded here rather than kept as
+mail.
 
-- **2026-09-28, from [1463](1463-a-phase-at-zero-withholds-every-esd.md): a
-  softplus field at its floor now reads `at_bound=None`, and it can lose its
-  esd a second way.** The "Recorded, no action here" note in Context still
-  holds: `BOUND_HIT` never fires at a softplus floor, now by decision, because
-  its advice to widen the bound is wrong for a quantity that cannot be
-  negative. The row reads `None` where it read `False`
-  (`staged.bound_untested`). For task group 2's sorting, the zero-is-off-state
-  fields carry a cost the transform's floor does not remove. A width near
-  zero whose column goes through the peak chain is finite-differenced in θ,
-  and once σ(u)·h moves the width by less than an ulp of the total the column
-  is exactly zero, so the esd is `None`. Measured: the joint-fit fixture of
-  `test_multi_histogram` leaves `instrument.profile.y` at 4.5e-69 and 4.0e-24
-  with no esd, on main as well. 1463 left it alone, since a physical-space
-  step changes every softplus column the solver sees and moves every
-  converged fit.
-
-- **2026-09-18, from [1311](1311-walking-parameter-bounds.md): PR #206 landed,
-  and the ceiling it made universal turns out to bound nothing physical.**
-  `Atom.biso`'s `default_factory` has carried `min=0.0, max=25.0` since v0.1;
-  `ce538dd3` made those bounds bind a caller-supplied `Parameter` too, so a
-  cap that was escapable before 2026-09-01 is universal after it. Measured
-  against the Lindemann melting bound (Gilvarry 1956, via
-  `strategy.staged.biso_melting_bound`), 25 Å² needs 109–338 Å³ per atom to be
-  reachable below melting, which is five to twenty times any ordinary packing.
-  So the ceiling is not a physical limit and a `BOUND_HIT` on `biso` is not
-  one arriving. 1311 kept it and documented it rather than widening it, on the
-  maintainer's ruling that changing a v0.1 default is a user-facing break —
-  which is the same question this WP asks about documents persisted *without*
-  those bounds, and the same answer may not hold there, since a persisted
-  unbounded `biso` is a repair rather than a break.
-
-**2026-09-23, from the issue triage (issue #283).** The entry below is
-issue #283's open half, and it named only the PR, so the backlog read the
-issue as owned by three closed WPs. #283's degenerate-metric guard shipped
-in PR #289. Its bounds half is this WP's. The issue stays open until it lands.
-
-**From WP-1440 (the v1.5 notes audit, 2026-09-18).** PR #289 proposed physical
-bounds on `Cell`'s six parameters and the bounds half was **withdrawn** before
-merge, while its degenerate-metric guard shipped. The stated reason is this
-WP's own subject matter: `params/vector.py`'s cell-window machinery
-(`cell_window`, `freeze_cell_windows`, `_tie_windows`, `ParameterTable.bounds`)
-and the TOPAS reader's limit handling both read an infinite stored bound as
-"no claim made", so backfilling defaults broke that contract — measured as
-`test_absent_phase` ×3, `test_params` ×2, `test_projects_topas`, and the
-lab6/CBN correlation acceptance test, whose degenerate fit walked differently.
-"Where a physical box for the cell should live" was left open for the
-maintainer. Audit it here before repairing any other declared bound: the same
-infinite-bound-means-no-claim reading may govern more fields than `Cell`.
-
+- **PR #206 landed**, and so did WP-1311's rider on it (2026-09-18,
+  `Atom._inherit_declared_bounds`' docstring): the 25 Å² `biso` ceiling is
+  this package's own and not a physical limit (25 Å² needs 109–338 Å³ per
+  atom to be reachable below melting, Gilvarry 1956 via
+  `strategy.staged.biso_melting_bound`), and it was **kept** on the
+  maintainer's ruling that changing a v0.1 default is a user-facing break.
+  A persisted unbounded `biso` is a repair, not that break: the repair
+  restores the default that was always declared.
+- **Superseded in part: the scope clause "a stored bound wider than the
+  declared default is repaired".** WP-1311 made an explicit *wider* bound the
+  documented escape for a hot specimen (`biso=Parameter(value=8.0, max=60.0)`),
+  so width is no longer the defect's signature. The signature is an attribute
+  holding the bare `Parameter`'s own default (±∞, no unit, `identity`) in a
+  document written **before** its class inherited, the only trace an omission
+  leaves once serialized. After that version an explicit `min=-inf` is a
+  deliberate choice, and #206 says it wins, so the gate is the tree header's
+  `schema_version`.
+- **Superseded in part: the audit's two classes.** Context below sorts fields
+  into zero-is-off-state ("the transform already floors") and the rest. A
+  caller's bare `Parameter` carries `transform="identity"`, so it drops the
+  softplus floor together with the bound, and `ParameterTable` takes the
+  transform from the `Parameter` (`params/vector.py`), never from the path.
+  The floor exists only where the transform is inherited, and a transform may
+  travel only with the bounds it enforces: softplus inherited under a
+  caller's explicit `min=-1` would clamp their value to 1e-12 at the first
+  decode.
+- **The instrument profile already has a stance** (WP-1312, 2026-09-11):
+  `ProfileTCHZ._refuse_bare_widths` refuses a bare *number* by name, and a
+  `Parameter` passes untouched, so `ProfileTCHZ(u=Parameter(value=1.576))`
+  is still the #204 shape. `PreferredOrientation._r_bound_is_reachable` and
+  `HumpComponent._fwhm_floor_is_reachable` repair a floor softplus cannot
+  enforce on every path, silently, licensed by the pole; the reader-side
+  repair here is not that precedent (Context below).
+- **The infinite-bound-means-no-claim readers, audited first** as WP-1440
+  asked, since that reading is why PR #289's `Cell` bounds were withdrawn
+  (issue #283's bounds half, which the 2026-09-23 triage placed here).
+  `cell_window`/`freeze_cell_windows` and the TOPAS reader's
+  `cell_limits` read only `Cell`, whose fields declare no bound and so are
+  not this hazard's shape; a physical box for the cell is new bounds policy,
+  this WP's non-goal, and stays the maintainer's, so **#283 stays open**.
+  `strain_cap_hi`/`size_cap_hi` read an infinite `max` on the four `Phase`
+  widths as no claim, and those fields declare `max=inf`, so inheriting
+  their declared `min`/`transform`/`unit` leaves the cap's reading alone.
+  `_tie_windows` builds a window from any finite bound on a tied entry, so a
+  bare `Parameter` newly inheriting one also windows its tie source, which is
+  the declared range doing its job. `PeakComponent._window_bounds_are_finite`
+  refuses a non-finite window bound, which an inherited `fwhm` box then
+  satisfies; `center` declares no bound and stays refused.
+- **Recorded, no action here** (from WP-1463, 2026-09-28): a softplus field at
+  its floor reads `at_bound=None` (`staged.bound_untested`), and a width near
+  zero whose column goes through the peak chain can lose its esd outright,
+  since once σ(u)·h moves it by less than an ulp the finite-differenced column
+  is exactly zero (`test_multi_histogram`'s joint fit leaves
+  `instrument.profile.y` at 4.5e-69 with no esd, on main too). Inheriting the
+  softplus floor does not remove that cost.
+- **The skill body is over budget** (from WP-1338, 2026-09-28): 30 509 B
+  against the specification's 17 000, so a change may not grow it
+  (`tests/skill_caps.py`), and a body sentence is paid for by a cut. Task 4's
+  rewording is therefore a replacement of equal or smaller size.
 
 From issues #204 and #209 (the maintainer's follow-up filed from PR #206's
 review), 2026-09-01 benchmarking campaign.
