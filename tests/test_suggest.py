@@ -487,6 +487,50 @@ def test_lebail_mode_fixed_paths_never_enumerate(truth):
     assert res.n_evaluated + len(res.skipped) == len(held)
 
 
+def test_pawley_floor_seed_that_changes_the_overlap_groups_still_suggests():
+    """#244: in Pawley mode a floored width is probed from its seed, and the
+    seed can change which reflections count as overlapped, so the seeded
+    build's equal-split restraint block has a different row count from the
+    current state's.  The seeded column is carried block by block; before,
+    a whole-column copy died in a numpy broadcast (``summary()`` included).
+
+    Made-up pseudo-tetragonal monoclinic cell (a ≈ b, so many reflection
+    pairs sit at the overlap threshold) under a narrow synchrotron-like
+    profile; the pattern is flat because only the row layout is under test.
+    """
+    from rietx.model.forward import compile_model
+    from rietx.model.rows import block
+    from rietx.schemas.structure import lebail_scaffold
+
+    ins = rx.Instrument.debye_scherrer(wavelength=0.4139)
+    ins.profile.w.value = 2.0e-6
+    ins.profile.x.value = 1.0e-3
+    tt = np.arange(10.0, 13.0, 0.002)
+    data = rx.PatternData(two_theta=tt.tolist(), intensity=np.full_like(tt, 100.0).tolist())
+    cell = (5.310, 5.327, 9.20, 90.0, 90.0, 90.0)
+
+    def restraint_rows(width):
+        s = lebail_scaffold("P 1 21/c 1", cell)
+        for name in ("lor_size", "lor_strain", "gauss_size", "gauss_strain"):
+            getattr(s.phases[0], name).value = width
+        model = compile_model(s, ins, data, mode="pawley")
+        model.build_pawley_restraint()
+        return block(model, "pawley_restraint").n
+
+    # the precondition, or the test proves nothing: the seeds suggest() puts
+    # on the four floored sample widths move the block
+    assert restraint_rows(0.0) != restraint_rows(SUGGEST_SEED_SOFTPLUS)
+
+    r = rx.Refinement(lebail_scaffold("P 1 21/c 1", cell), ins)
+    res = r.suggest(data, mode="pawley")
+    assert res.n_evaluated > 0
+    reported = {m.path: m for g in res.groups for m in g.members}
+    reported.update({c.path: c for c in res.non_separable})
+    for path in ("phases.0.lor_size", "phases.0.gauss_size"):
+        if path in reported:
+            assert reported[path].seeded
+
+
 # ----------------------------------------------------------------------
 # ΔBIC (WP-1305 b).  The gain ranks; ΔBIC says whether the ranking's winner
 # pays for the parameter it costs — the two are different questions and the

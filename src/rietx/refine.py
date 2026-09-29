@@ -63,6 +63,7 @@ from .model.profiles.caglioti import (
     lorentzian_fwhm,
 )
 from .model.restraints import summarise_restraints
+from .model.rows import layout as row_layout
 from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import (
     SOLVERS,
@@ -2241,6 +2242,7 @@ class Refinement:
         from .optimize.least_squares import _jacobian_for, _make_residual
 
         n_data = [0]
+        blocks = [()]
 
         def probe():
             """Compile the table's state on model copies; return (jac, resid, x0)."""
@@ -2272,12 +2274,14 @@ class Refinement:
             if model.pawley is not None:
                 x0 = np.concatenate([x0, model.pawley_x0()])
             n_data[0] = len(model.tt)
+            blocks[0] = row_layout(model)
             return (_jacobian_for(model, table, self._backend)(x0),
                     _make_residual(model, table)(x0), x0)
 
         # build 1 — the honest current state: residual, free block, and every
         # candidate column whose physical derivative is quotable there
         jac, resid, x0 = probe()
+        blocks_now = blocks[0]
         fp = table.free_paths
 
         # build 2 — floor candidates only.  A softplus column at its floor is
@@ -2301,7 +2305,7 @@ class Refinement:
             jac2, _, x2 = probe()
             for i, p in enumerate(fp):
                 if p in seeded:
-                    jac[:, i] = jac2[:, i]
+                    _copy_seeded_column(jac, jac2, i, blocks_now, blocks[0], p)
                     x0[i] = x2[i]  # dp/du is the seeded point's too
         free_idx = [i for i, p in enumerate(fp) if p in free_before]
         # in Pawley mode the intensity block co-refines with anything, so it
@@ -5038,6 +5042,32 @@ def _scatter_lebail(lookup: dict[tuple, float], cp_new) -> None:
         value = lookup.get(key)
         if value is not None:
             cp_new.hkl_intensity[i] = value
+
+
+def _copy_seeded_column(jac: np.ndarray, jac2: np.ndarray, i: int,
+                        blocks_now, blocks_seeded, path: str) -> None:
+    """Carry candidate column ``i`` from :meth:`Refinement.suggest`'s seeded
+    build into the current state's Jacobian, one row block at a time.
+
+    The two builds share the data rows but not always every penalty block:
+    a seeded width decides which Pawley reflections count as overlapped, so
+    the equal-split restraint block can differ in length and a whole-column
+    copy dies in a numpy broadcast (#244).  A block of equal length is
+    copied; one whose length differs keeps the current state's rows, which
+    is exact only where the column is zero in both builds — true of every
+    table column against the Pawley restraint, whose rows read the intensity
+    tail alone — and that is checked where it is used rather than assumed.
+    """
+    for now, seeded in zip(blocks_now, blocks_seeded):
+        if now.n == seeded.n:
+            jac[now.rows, i] = jac2[seeded.rows, i]
+        elif np.any(jac[now.rows, i]) or np.any(jac2[seeded.rows, i]):
+            raise ValueError(
+                f"suggest(): seeding {path!r} off its floor changed the "
+                f"{now.name} block from {now.n} to {seeded.n} rows, and "
+                f"{path!r} reaches that block, so its seeded column cannot be "
+                f"carried into the current state; seed {path!r} off its floor "
+                f"yourself (set_values) and ask again")
 
 
 def _carry_lebail(old: CompiledModel, new: CompiledModel) -> None:
