@@ -162,6 +162,7 @@ from typing import TYPE_CHECKING
 from ...crystallography.symmetry import (
     OperatorGroup,
     get_spacegroup,
+    refuse_magnetic_phase,
     refuse_operation_list,
     setting_diagnostics,
 )
@@ -3319,6 +3320,7 @@ def from_structure(structure: Structure) -> str:
                 f"a keyword line of its own.  The same accident the `.EXP` "
                 f"writer's `write_record` refuses one format over")
         refuse_operation_list(phase, "a TOPAS `.inp`")
+        refuse_magnetic_phase(phase, "a TOPAS `.inp`")
         sg = get_spacegroup(phase.space_group).xhm()
         lines.append("str")
         lines.append(f'  phase_name "{phase.name}"')
