@@ -53,6 +53,21 @@ screenshots come from `docs/manual/make_screenshots.py`.
 
 ### Inherited
 
+- **From WP-1469 (2026-09-29): a new marker for the vocabulary, and the
+  panel does not draw it yet.** `SEQUENTIAL_RWP_OUTLIER` names a pattern
+  every rung left above the Rwp fence (#481's blank frame is the case). Its
+  verdict is `SeriesEntry.above_fence`, a **property** derived from the stored
+  `SeriesEntry.rwp_fence`, so it is not in the entry's JSON: the route has to
+  serve it rather than the page re-deriving it from `rwp_fence`, or the panel
+  is a second authority on the fence. `plot_trajectory` boxes such a point
+  (hollow square) beside the reseeded ring and the unrecovered cross, while
+  `gui/src/lib/series.ts` draws only those two, so today the same series
+  reads differently in the two renderers. 1469's review declined the GUI half
+  as outside that diff and it was briefly filed on its own, then folded here,
+  since this WP's first task is that vocabulary. The flagged step's pair is
+  also a field now (`SeriesResult.discontinuities`, a `SeriesStep` per
+  `SEQUENTIAL_DISCONTINUITY`, `path` its key), which is what a step marker
+  should read rather than the prose.
 - **From WP-1333 (2026-09-26): chart a coordinate, never its DOF.** A series
   now carries refined coordinates, so a `phases.*.atoms.*.dof.*` value is each
   pattern's step from where its fit began, not a position. A scrubber drawing

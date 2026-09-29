@@ -35,6 +35,10 @@ rejected patterns (1469's *Decisions taken*, item 2). Two shapes survive.
    frame's. No issue has reported this shape yet, and the WP should measure
    whether it appears on the suite's real series before changing it.
 
+**Why a new WP rather than a fold.** No open WP owns the step scan: 1420
+owns a held phase re-entering a chain and 1453 the cost of running it both
+ways, and 1469, which set the rule, is closed.
+
 Two consumers read the flag and must move with it: `SeriesResult.discontinuities`
 (one `SeriesStep` per diagnostic, `path` the key — which stops being a key if
 a path can carry two) and the verification pass, which refits each flagged

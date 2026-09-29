@@ -374,21 +374,27 @@ round-robin chain contradicts.
   field took it to 39 078, paid for by two trims of the index's own authored
   prose (`make_api_index.py`), 38 961 B now. `series.md` is 33 150 of its
   34 600 B budget, and PR #522 adds to it too. The GUI's series panel does
-  not box an outlier point as `plot_trajectory` now does (filed as 1525).
+  not box an outlier point as `plot_trajectory` now does (folded into 1317).
 
   *Forward.* Into 1329's Inherited: the field PR #522 named as its hook, and
   the `SCHEMA_VERSION` collision (both PRs step off 0.35). Into 1420's: a
-  pointer to 1523, the hold's release rule it relies on.
+  pointer to 1523, and the ramp guard's third trip under load (112 s against
+  60 s, 17.1 s alone), which 1420 already owns. Into 1317's: the outlier
+  marker, served rather than re-derived, for its marker vocabulary. Into
+  1339's: a pointer to 1523 beside its #219 support finding.
 
-  *Filed* (2026-09-29, at the user's request after the handover): **1523**
-  (P2), a phase fitted to noise passes the support test — #481's blank,
-  fitted alone from pattern 0's models, releases its held cell at 2.14σ
-  support on a scale 1.3σ from zero and fires no `PHASE_UNCONSTRAINED`,
-  while the same frame from the issue's unfitted start holds it and fires;
+  *Filed* (2026-09-29, at the user's request after the handover), each
+  checked against every open WP for a fold first: **1523** (P2), a phase
+  fitted to noise passes the support test — #481's blank, fitted alone from
+  pattern 0's models, releases its held cell at 2.14σ support on a scale
+  1.3σ from zero and fires no `PHASE_UNCONSTRAINED`, while the same frame
+  from the issue's unfitted start holds it and fires; new because 1420
+  fences the support threshold out and 1339 only carries a sibling finding.
   **1524** (P3), the step scan's last two blind spots, the review's declined
   bridge over a `SeriesFailure` and the one-flag-per-path limit of decision
-  2; **1525** (P3), the GUI outlier mark; **1526** (P4), the held-phase
-  runaway guard at 3.5× its serial time.
+  2; new because no open WP owns the scan. The GUI mark and the guard were
+  first filed as 1525 and 1526 and then folded into 1317 and 1420, which
+  already own them; neither number reached `main`.
 
   Next: nothing on this WP. Issues #481 and #475 close with the PR. The
   reporter's driver treats `SEQUENTIAL_UNRECOVERED` as a gap and needs one

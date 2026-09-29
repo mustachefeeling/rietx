@@ -132,7 +132,13 @@ down.
   chain, so it is filed as
   [1523](1523-a-phase-fitted-to-noise-passes-the-support-test.md); read it
   before relying on the hold's release rule here, since a fix there changes
-  which phases this WP sees held.
+  which phases this WP sees held. **And the ramp guard below tripped a third
+  time**: 112 s against its 60 s `RAMP_RUNAWAY_GUARD_S` while a second
+  selection ran beside a `-n 4` run on four cores, 17.1 s alone (`[dev]`,
+  Linux x86-64). The runaway it guards ran past 13 minutes, so a guard of
+  300-600 s still separates the two; this WP remains the one to widen it or
+  move the claim to the iteration count, as the WP-1333 note says. (Briefly
+  filed as its own WP from 1469's session, then folded back here.)
 - **2026-09-28, from [1338](1338-the-skills-own-gates.md): `references/diagnostics.md` is closed to growth.**
   Every skill file now has a ceiling and a budget below it
   (`tests/skill_caps.py`), and the budget fails a change that grows a file

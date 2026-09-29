@@ -52,6 +52,18 @@ Relevant rules, restated:
   scale's own significance, a multi-point measure, or the strongest point
   judged against what noise alone produces.
 
+**A second failure mode of the same statistic is already on record**, in
+WP-1339's Inherited (issue #219): a phase collinear with another, absent from
+the specimen, read 0.65σ, 197σ or 54-56σ support depending only on its seed,
+and at 57σ took the misfit with no `PHASE_UNCONSTRAINED`. That is the ridge
+case; this one is the noise case. Both say `phase_support` depends on where
+the fit landed, and a replacement statistic should be checked against both.
+
+**Why a new WP rather than a fold.** 1420 owns the hold inside a chain and
+fences out "`PHASE_SUPPORT_SIGMA`, or the package deciding whether a phase is
+present" in its Non-goals, which is this WP's whole subject. 1339 owns the
+localisation statistic and carries the #219 finding only as context.
+
 ## Non-goals
 
 - The chain-level consequences. 1469 already leaves a pattern above the Rwp
