@@ -60,7 +60,11 @@ from rietx.schemas.structure import (
     Phase,
     Structure,
 )
-from rietx.sequential import _floor_unsupported_moments
+from rietx.sequential import (
+    _floor_unsupported_moments,
+    _moment_diagnostics,
+    _with_onset_agreement,
+)
 
 OUT = Path(__file__).resolve().parent / "output"
 
@@ -678,6 +682,76 @@ def test_both_directions_agree_on_the_onset_and_the_row_says_so():
     # the reverse pass carries its own reading, not the forward one's
     assert any(d.code == "SEQUENTIAL_MOMENT_ONSET"
                for d in series.backward.diagnostics)
+
+
+# Verdict columns for the two-chain comparison, on the ramp's own axis.  The
+# backward chain is hand-built in axis order: ``locate_onset`` orders by x, so
+# the walk direction does not enter the bracket.
+_AXIS = (15.0, 45.0, 60.0, 75.0, 90.0)
+_BRACKETED = (True, True, True, False, False)        # 60 → 75
+_EVERYWHERE = (True, True, True, True, True)         # a carried moment
+_INTERLEAVED = (True, False, True, False, False)     # three switches
+
+
+def _verdicts(flags) -> SeriesResult:
+    return _hand_built([(x, 4.0 if ok else 0.01, 0.05 if ok else 0.4, ok)
+                        for x, ok in zip(_AXIS, flags, strict=True)])
+
+
+def _agreement(forward_flags, backward_flags):
+    forward, back = _verdicts(forward_flags), _verdicts(backward_flags)
+    rows = _with_onset_agreement(_moment_diagnostics(forward, {}), forward,
+                                 back)
+    return [d for d in rows if d.code == "SEQUENTIAL_MOMENT_ONSET"]
+
+
+def test_a_backward_bracket_is_reported_when_the_forward_chain_wrote_no_onset():
+    """Forward "supported everywhere", backward 60 → 75: the case ``both`` is for.
+
+    The forward pass writes no onset row when every pattern supports the
+    moment, so a fold over the forward rows alone had nothing to fold the
+    backward bracket into and the disagreement vanished.
+    """
+    (row,) = _agreement(_EVERYWHERE, _BRACKETED)
+    assert row.level == "warning"
+    assert row.value == pytest.approx(67.5)
+    assert "the backward chain brackets the onset 60 → 75" in row.message
+    assert "the forward chain located none" in row.message
+    assert "every one of the 5 pattern(s) supports a moment" in row.message
+
+    # and an interleaved backward verdict is a disagreement too
+    (row,) = _agreement(_EVERYWHERE, _INTERLEAVED)
+    assert row.level == "warning" and row.value is None
+    assert "has no single onset" in row.message
+
+    # while two chains that both read "supported everywhere" say nothing
+    assert _agreement(_EVERYWHERE, _EVERYWHERE) == []
+
+
+def test_the_mixed_onset_row_blames_the_chain_that_located_none():
+    """Each of the three ways of lacking an onset names the chain lacking it.
+
+    Forward interleaved against a backward bracket used to read "the backward
+    chain located no onset at all", quoting the backward chain's own
+    successful-bracket sentence as the reason.
+    """
+    (row,) = _agreement(_INTERLEAVED, _BRACKETED)
+    assert row.level == "warning"
+    assert "located no onset" not in row.message
+    assert "the backward chain brackets it 60 → 75 (67.5 ± 7.5)" in row.message
+    assert "switches 3 times" in row.message
+
+    (row,) = _agreement(_BRACKETED, _EVERYWHERE)
+    assert row.level == "warning"
+    assert "the backward chain located no onset at all" in row.message
+    assert "every one of the 5 pattern(s) supports a moment" in row.message
+
+    (row,) = _agreement(_INTERLEAVED, _INTERLEAVED)
+    assert row.level == "warning"
+    assert "the backward chain located no single onset either" in row.message
+
+    (row,) = _agreement(_BRACKETED, _BRACKETED)
+    assert row.level == "info" and "not the ordering's" in row.message
 
 
 # ================================================== the negative controls, refined
