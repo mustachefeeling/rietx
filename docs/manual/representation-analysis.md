@@ -300,3 +300,26 @@ the (111) plane together. For the [111] candidate the
 $(\tfrac12\,\tfrac12\,\tfrac12)$ reflection is absent, because there the
 moment is parallel to $\mathbf{Q}$. This is the reflection that places MnO's
 moments in the (111) planes {cite}`roth1958`.
+
+The fit itself never goes back to the reflections. Because $M_\perp$ is
+linear in a family's real amplitudes $\mathbf{b}$, the powder intensity of
+shell $s$ is a quadratic form,
+
+```{math}
+:label: rep-gram
+
+I_s(\mathbf{b}) = \mathbf{b}^{\mathsf T} G_s\, \mathbf{b},
+\qquad
+(G_s)_{qr} = \operatorname{Re} \sum_{\text{domains}} \sum_{\mathbf{h}\in s}
+\overline{M_{\perp,q}(\mathbf{h})}\cdot M_{\perp,r}(\mathbf{h}),
+```
+
+{source}`rietx.crystallography.magnetic.isotropy.gram`
+
+with $M_{\perp,q}$ the perpendicular structure factor of amplitude $q$ alone,
+so each candidate is reduced once to one small positive semi-definite matrix
+per shell and the least-squares fit, and its exact Jacobian
+$2G_s\mathbf{b}$, work on those. A shell where $G_s$ vanishes is one the
+family can never light: if the other family's intensity is zero there too
+the shell carries no information and is left out, and if it is not, the
+pair is distinguishable without a fit.
