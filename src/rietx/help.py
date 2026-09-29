@@ -124,6 +124,20 @@ UNIT_DISPLAY: dict[str, str] = {
     "1e-12 A^-4": "10⁻¹² Å⁻⁴",
     "mu_B": "μ_B",
     "um^2": "µm²",
+    # The time-of-flight arm.  Ten spellings for fourteen parameters, because
+    # a flight time is µs and every coefficient is a polynomial in d, so each
+    # power of Å rides along: ``TOFSource``'s four constants and
+    # ``ProfileTOF``'s ten coefficients between them use all of these.
+    "us": "µs",
+    "us/A": "µs/Å",
+    "us/A^2": "µs/Å²",
+    "us*A": "µs·Å",
+    "1/us": "µs⁻¹",
+    "A/us": "Å/µs",
+    "A^4/us": "Å⁴/µs",
+    "us^2": "µs²",
+    "us^2/A^2": "µs²/Å²",
+    "us^2/A^4": "µs²/Å⁴",
 }
 
 
@@ -492,6 +506,218 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit="deg 2θ", default="0.0",
         typical="0-0.05 on a laboratory diffractometer",
         anchor="profiles.html#thompson-cox-hastings-pseudo-voigt",
+    ),
+    # ------------------------------------------------------------------
+    # The time-of-flight bank.  Fourteen families, one per field, for the
+    # reason the five Caglioti terms are five: each carries its own unit —
+    # every coefficient is a polynomial in d, so no two powers of Å agree —
+    # and `test_units_are_the_schemas_own` compares an entry's unit against
+    # the schema's per path.  All fourteen appear on a `neutron_tof` source
+    # and on no other; a constant-wavelength table produces none of them.
+    # ------------------------------------------------------------------
+    "instrument.source.difc": HelpEntry(
+        title="TOF calibration DIFC",
+        description=(
+            "The linear term of the flight-time relation, "
+            "TOF = DIFC·d + DIFA·d² + TZERO + DIFB/d. Geometrically it is "
+            "(m_N/h)(L1 + L2)·2 sin θ_bank, so it holds the whole flight path "
+            "and the bank angle, and d = TOF/DIFC at leading order divides by "
+            "it. Fixed by default because it is a calibration refined against "
+            "a standard: freeing it beside a free cell is the time-of-flight "
+            "spelling of the wavelength-cell degeneracy, so free one or the "
+            "other and never both."
+        ),
+        unit="µs/Å", default=None,
+        typical="740 µs/Å on an 8.7° bank, 5000-13000 µs/Å at 90-150°",
+        anchor="peak-positions.html#time-of-flight",
+    ),
+    "instrument.source.difa": HelpEntry(
+        title="TOF calibration DIFA",
+        description=(
+            "The quadratic term of the flight-time relation. Small and often "
+            "negative, and zero is a legitimate value on a well-behaved bank. "
+            "It is the term that most nearly imitates a cell scale over a "
+            "limited d range, so refining it beside a free cell opens a flat "
+            "direction that a single bank cannot close — calibrate it on a "
+            "standard with the certified cell held."
+        ),
+        unit="µs/Å²", default="0.0",
+        typical="−20 to +2 µs/Å²; 0 on a bank that never needed one",
+        anchor="peak-positions.html#time-of-flight",
+    ),
+    "instrument.source.tzero": HelpEntry(
+        title="TOF calibration TZERO",
+        description=(
+            "The constant offset of the flight-time relation — the moderator "
+            "emission-time origin, in microseconds. It is **not** "
+            "`instrument.zero_shift`, which is an offset in degrees 2θ and "
+            "which a bank's table does not carry: the two are different "
+            "quantities in different units. Three codes spell this one quantity three ways "
+            "(GSAS ZERO, GSAS-II Zero, Mantid TZERO); the field is Mantid's, "
+            "because it is the only one that cannot be confused with the "
+            "angular offset."
+        ),
+        unit="µs", default="0.0",
+        typical="|TZERO| < 100 µs on a calibrated bank",
+        anchor="peak-positions.html#time-of-flight",
+    ),
+    "instrument.source.difb": HelpEntry(
+        title="TOF calibration DIFB",
+        description=(
+            "The 1/d term of the flight-time relation, GSAS-II's `difB`. "
+            "Neither the GSAS manual nor Mantid's documented relation carries "
+            "it and it is zero in most projects; it exists so that a reader "
+            "built to the three-term relation cannot drop a non-zero one "
+            "silently, which would move every peak with nothing said."
+        ),
+        unit="µs·Å", default="0.0",
+        typical="0 on almost every bank",
+        anchor="peak-positions.html#time-of-flight",
+    ),
+    "instrument.source.profile_tof.alpha0": HelpEntry(
+        title="TOF rise rate α₀",
+        description=(
+            "The d-independent part of the leading exponential's rate, "
+            "α(d) = α₀ + α₁/d. It is the *rise* of the back-to-back pair — the "
+            "short-flight-time side of the peak — so a larger α is a sharper "
+            "leading edge. A rate, not a width: the shape has amplitude "
+            "αβ/(α+β) and infinite width as either goes to zero, so an "
+            "all-zero block is a profile nobody calibrated."
+        ),
+        unit="µs⁻¹", default="0.0",
+        typical="0-1 µs⁻¹; often left at 0 with all of α in α₁",
+        anchor="using/data.html#a-time-of-flight-bank",
+    ),
+    "instrument.source.profile_tof.alpha1": HelpEntry(
+        title="TOF rise rate α₁",
+        description=(
+            "The 1/d term of the rise rate, and usually the whole of it — "
+            "GSAS-II spells this one `alpha` on its own. Because it enters as "
+            "α₁/d the leading edge sharpens toward short d, which is the "
+            "moderator pulse seen through the flight-time map rather than a "
+            "specimen effect."
+        ),
+        unit="Å/µs", default="0.0",
+        typical="0.1-2 Å/µs",
+        anchor="using/data.html#a-time-of-flight-bank",
+    ),
+    "instrument.source.profile_tof.beta0": HelpEntry(
+        title="TOF decay rate β₀",
+        description=(
+            "The d-independent part of the trailing exponential's rate, "
+            "β(d) = β₀ + β₁/d⁴. β < α is the normal case, and it is what makes "
+            "a time-of-flight peak lean toward long flight times — the "
+            "asymmetry here is the moderator's, not an axial-divergence "
+            "aberration, so it has no angular analogue to borrow from."
+        ),
+        unit="µs⁻¹", default="0.0",
+        typical="0.01-0.2 µs⁻¹",
+        anchor="using/data.html#a-time-of-flight-bank",
+    ),
+    "instrument.source.profile_tof.beta1": HelpEntry(
+        title="TOF decay rate β₁",
+        description=(
+            "The 1/d⁴ term of the decay rate. The fourth power makes it act "
+            "only at the short-d end of a bank, so on a range that does not "
+            "reach there the data cannot see it."
+        ),
+        unit="Å⁴/µs", default="0.0",
+        typical="0-0.05 Å⁴/µs",
+        anchor="using/data.html#a-time-of-flight-bank",
+    ),
+    "instrument.source.profile_tof.sig0": HelpEntry(
+        title="TOF Gaussian variance σ₀²",
+        description=(
+            "The constant term of the Gaussian **variance**, "
+            "σ²(d) = σ₀² + σ₁²·d² + σ₂²·d⁴. A variance, not a FWHM and not a "
+            "quantity to be squared again — a value read from a `.iparm` is "
+            "used as written. It is the flight-time counterpart of Caglioti W, "
+            "and like W it is the width the bank would show at the zero limit "
+            "of its own abscissa."
+        ),
+        unit="µs²", default="0.0",
+        typical="0-500 µs²",
+        anchor="using/data.html#a-time-of-flight-bank",
+    ),
+    "instrument.source.profile_tof.sig1": HelpEntry(
+        title="TOF Gaussian variance σ₁²",
+        description=(
+            "The d² term of the Gaussian variance, and normally the dominant "
+            "one: √σ₁² is a constant Δd/d, which is what a time-of-flight "
+            "bank's resolution is. Its square root reads directly as µs per Å, "
+            "so a bank's resolution improves — √σ₁² falls — as the bank angle "
+            "goes back toward 180°."
+        ),
+        unit="µs²/Å²", default="0.0",
+        typical="100-400 µs²/Å², i.e. √σ₁² ≈ 10-20 µs/Å",
+        anchor="using/data.html#a-time-of-flight-bank",
+    ),
+    "instrument.source.profile_tof.sig2": HelpEntry(
+        title="TOF Gaussian variance σ₂²",
+        description=(
+            "The d⁴ term of the Gaussian variance, the instrument's share of a "
+            "variance that grows as d⁴."
+        ),
+        unit="µs²/Å⁴", default="0.0",
+        typical="0-50 µs²/Å⁴",
+        anchor="using/data.html#a-time-of-flight-bank",
+    ),
+    "instrument.source.profile_tof.gam0": HelpEntry(
+        title="TOF Lorentzian FWHM γ₀",
+        description=(
+            "The constant term of the Lorentzian FWHM, γ(d) = γ₀ + γ₁·d + "
+            "γ₂·d². A FWHM, not a variance, unlike the σ terms beside it; all "
+            "three at zero is the pure-Gaussian (GSAS type 1) shape."
+        ),
+        unit="µs", default="0.0",
+        typical="0-20 µs; 0 on a type-1 bank",
+        anchor="using/data.html#a-time-of-flight-bank",
+    ),
+    "instrument.source.profile_tof.gam1": HelpEntry(
+        title="TOF Lorentzian FWHM γ₁",
+        description=(
+            "The d term of the Lorentzian FWHM — GSAS-II's `X` for a TOF bank, "
+            "its letters and not GSAS's. A FWHM linear in d is a constant "
+            "Δd/d, which is the shape Lorentzian strain-like broadening "
+            "takes on a bank."
+        ),
+        unit="µs/Å", default="0.0",
+        typical="0-30 µs/Å",
+        anchor="using/data.html#a-time-of-flight-bank",
+    ),
+    "instrument.source.profile_tof.gam2": HelpEntry(
+        title="TOF Lorentzian FWHM γ₂",
+        description=(
+            "The d² term of the Lorentzian FWHM — GSAS-II's `Y` for a TOF "
+            "bank: the extra curvature of the Lorentzian width across d that "
+            "γ₀ and γ₁ together do not follow."
+        ),
+        unit="µs/Å²", default="0.0",
+        typical="0-5 µs/Å²",
+        anchor="using/data.html#a-time-of-flight-bank",
+    ),
+    "instrument.source.incident_spectrum.p*": HelpEntry(
+        title="Incident-spectrum coefficient",
+        description=(
+            "One coefficient of the moderator spectrum a time-of-flight bank's "
+            "data still carries, numbered P1, P2, … as the GSAS manual numbers "
+            "them (p. 128-129). Which function they belong to is the source's "
+            "`incident_spectrum.itype`, read from the file's ITYP record: type "
+            "1 is a sum of exponentials of the flight time in milliseconds, "
+            "type 2 replaces its second term with a Maxwellian, types 3-5 are "
+            "Chebyshev polynomials. The units differ from coefficient to "
+            "coefficient — P1 is an intensity, the odd ones inside the "
+            "exponentials are reciprocal powers of milliseconds — which is why "
+            "no unit is declared for the family. "
+            "Held by default: the file's values were refined by GSAS against a "
+            "vanadium run, and a smooth envelope in wavelength is degenerate "
+            "with an isotropic displacement parameter."
+        ),
+        unit=None, default=None,
+        typical="whatever the instrument-parameter file states; a bank whose "
+                "reduction already divided by vanadium declares ITYP 0 and has "
+                "no coefficients at all",
+        anchor="using/data.html#a-time-of-flight-bank",
     ),
     "instrument.background.c*": HelpEntry(
         title="Background coefficient",
