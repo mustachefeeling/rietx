@@ -246,17 +246,27 @@ def _magnetic() -> tuple[object, object]:
         Instrument.constant_wavelength_neutron(2.4))
 
 
+from rietx.schemas.instrument import IncidentSpectrum  # noqa: E402
+
+
 def _parameter_paths() -> set[str]:
     """Every dot-path four representative models put on the table.
 
     LaB6 (cubic, tied cell, locked special positions), rutile with free
     coordinates — which is what puts `…atoms.*.dof.*` paths in reach — the
-    fully-declared LaB6 above for the optional correction blocks, and a
-    magnetic rutile for the moment DOFs.
+    fully-declared LaB6 above for the optional correction blocks, a magnetic
+    rutile for the moment DOFs, and a ``neutron_tof`` bank, whose calibration
+    and ``ProfileTOF`` coefficients (``instrument.source.difc``,
+    ``instrument.source.profile_tof.gam0`` …) exist on no constant-wavelength
+    table.
     """
     plain = Instrument.debye_scherrer(wavelength=0.4139)
+    bank = Instrument.tof_neutron_bank(difc=12000.0, two_theta_bank_deg=90.0)
+    # a declared spectrum, since ITYP 0 (the default) has no coefficient rows
+    bank.source.incident_spectrum = IncidentSpectrum(
+        itype=3, coefficients=[Parameter(value=1.0)] * 12)
     models = [(make_lab6(), plain), (make_rutile(vary_coords=True), plain),
-              _fully_declared(), _magnetic()]
+              _fully_declared(), _magnetic(), (make_lab6(), bank)]
     paths: set[str] = set()
     for structure, instrument in models:
         paths.update(entry.path for entry in ParameterTable(structure, instrument).entries)
