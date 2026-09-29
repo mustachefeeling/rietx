@@ -100,7 +100,7 @@ it (WP-1508 § Context).
       differ, on Linux here, and on macOS and Windows through the nightly or a
       probe the suite runs. Read `test_a_subset_product_…`'s skip state on
       the same logs.
-- [ ] If stacking reproduces the per-matrix χ²: a probe once a process
+- [x] If stacking reproduces the per-matrix χ²: a probe once a process
       (`row_local_product`'s pattern), the stacked walk where it says yes, the
       per-pair loop elsewhere. A test holding the two equal on a harvest that
       has a first match in the middle of the band. Otherwise close 🛑 with the
@@ -126,5 +126,23 @@ WP-1508 (the tier's reach); WP-1518 (the test being batched).
 
 ## Handover log
 
+- **2026-09-29 (in progress; `/wp-handover` rewrites this)** — `[dev]`, Linux
+  x86-64, 4 cores, py3.12, numpy 2.5.3 on OpenBLAS 0.3.34, one BLAS thread.
+  Harness committed as `tests/unit_replay.py`. On the pre-1518 tree
+  (09c9486) it reproduces all six of 1509's digests; 1509's synthetic
+  monoclinic `fc4d2b0b` is the engine called directly with `spec_for`, not
+  a unit captured through `index_pattern` (`50f61135` there). Post-1518
+  digests on this platform, held by the stacked code: brucite hexagonal
+  `56677409`, trigonal `816c0422`; corundum hexagonal `605772e8`, trigonal
+  `aa4fd3f9`, tetragonal `f610fbdc` (unmoved by 1518, as on macOS);
+  synthetic monoclinic `ac68ad82` direct, `c6acb64f` through
+  `index_pattern`. Tetragonal unit: 573 605 χ² tests in 4970 candidate runs
+  (median 91 a candidate, 71 ending in a match, at band positions 1-336).
+  Stacked per candidate, **0 of 573 605** `pinv` differ from per-matrix and
+  0 χ² differ; `pinv` alone 24.7 → 2.4 s. The whole-array matmul chain was
+  also exact here, einsum was not (291 782 differ); the code keeps each
+  pair's own product. Dedup inside the unit 43 → 6.8 s, under a parallel
+  load (not quotable; the alone re-time is pending). macOS and Windows:
+  nightly legs now print both probes; not yet read.
 - **2026-09-28** — filed from WP-1509's *Fenced* and *Next* (item 3), with
   the platform check its handover left for the nightly logs.
