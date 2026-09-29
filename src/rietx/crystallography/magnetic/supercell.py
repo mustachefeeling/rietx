@@ -1349,11 +1349,11 @@ def _refuse_a_nuclear_orbit_the_magnetic_group_cannot_cover(
     tolerance makes one.  It refuses at *compile*, which was invisible while
     ``resolve_child_group`` refused every such child one step earlier for the
     unrelated reason that no symbol named it — and that earlier refusal is what
-    a caller could read to take the documented remedy
-    (``nuclear_group="magnetic"``).  P2₁2₁2₁ at k = (½,0,0) is the case
-    (``test_the_parent_route_is_refused_when_the_magnetic_orbit_is_smaller``):
+    ``strategy.magnetic._supercell`` reads to take the documented remedy
+    (``nuclear_group="magnetic"``) by itself.  P2₁2₁2₁ at k = (½,0,0) is the
+    case (``test_the_parent_route_is_refused_when_the_magnetic_orbit_is_smaller``):
     with the child stated as an operation list the build would succeed and the
-    compile refuse, so a caller that used to fall back would abstain instead.
+    compile refuse, so a workflow that used to fall back would abstain instead.
 
     So the check moves here, where the remedy is still reachable.  It is the
     same arithmetic and the same verdict — nothing is loosened, and a statement

@@ -511,6 +511,12 @@ _SURFACE_FLAGS: dict[str, str] = {
     # open", and a recipe is a whole refinement rather than a pattern, so it
     # is a *feature* of the build and not a pattern format.
     "powderline_recipe": "read_recipe",
+    # magnetic structure *determination* (M-9), which ``magnetic_moments``
+    # does not answer: that flag says a stated moment model is expressible and
+    # refinable, this one says the package will go from a nuclear fit with
+    # unexplained intensity to a ranked list of candidate structures on its
+    # own.  A client offering "solve" as a button needs the second.
+    "magnetic_determination": "solve_magnetic",
     # foreign refinement files (WP-1118).  The flag reports the *front door*,
     # not a format: which formats there are is ``project_formats``, and a build
     # that grows one should not need this flag edited.
