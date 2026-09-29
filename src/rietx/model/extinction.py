@@ -7,10 +7,11 @@ only extinction mechanism that operates in a powder (Sabine, Von Dreele &
 Jørgensen 1988, p. 375); the powder counterpart of secondary extinction, the
 attenuation of the beam by other blocks of the same orientation, is multiple
 scattering, which this model does not describe.  ``ext`` is therefore a squared
-block size (K·D)², not a secondary-extinction (mosaic-spread) coefficient.  It
-is *not* a peak-shape effect: it removes intensity from the integrated area of
-the strongest (usually low-angle, large-|F|) reflections, so an uncorrected refinement compensates with a spuriously large
-Biso and a spuriously small scale.
+block size D², in µm², not a secondary-extinction (mosaic-spread) coefficient.
+It is *not* a peak-shape effect: it removes intensity from the integrated area
+of the strongest (usually low-angle, large-|F|) reflections, so an uncorrected
+refinement compensates with a spuriously large Biso and a spuriously small
+scale.
 
 Sabine (1988, eq. 17) gives the extinction factor at scattering angle 2θ as
 the average of the Laue (forward-scattering) and Bragg (backscattering)
