@@ -106,7 +106,7 @@ it (WP-1508 § Context).
       per-pair loop elsewhere. A test holding the two equal on a harvest that
       has a first match in the middle of the band. Otherwise close 🛑 with the
       counts.
-- [ ] Re-time the unit; `tests/test_acceptance_indexing.py` once on the final
+- [x] Re-time the unit; `tests/test_acceptance_indexing.py` once on the final
       tree.
 - [ ] Skill: none expected (no call an agent makes changes); say so at close.
 
