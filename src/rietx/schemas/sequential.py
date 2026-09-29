@@ -285,6 +285,13 @@ def _unservable(series: "SeriesResult", path: str) -> str:
         known = sorted({r.name for e in series.entries
                         if e.qpa is not None for r in e.qpa.phases})
         what = "carries a weight fraction"
+    elif path.startswith("magnetic."):
+        sites = series.magnetic_sites()
+        site = path[len("magnetic."):]
+        return (f"no pattern in this series carries {path!r}: no magnetic "
+                f"site {site!r} has a moment row here"
+                + (f" (available: {', '.join(sites)})" if sites else
+                   " — no pattern of this series carries a moment row at all"))
     elif series.is_derived_path(path):
         known = series.agreement_phases()
         what = "carries an agreement index"
@@ -848,7 +855,7 @@ class SeriesResult(Base):
                     f"({', '.join(sites)}); name one by its path or label")
             site = sites[0] if sites else ""
         traj = MagneticTrajectory(path=site, x_label=self.x_label)
-        for e, xv in zip(self.entries, self.x, strict=True):
+        for i, (e, xv) in enumerate(zip(self.entries, self.x, strict=True)):
             row = e.moment(site) if site else None
             if row is None:
                 continue
@@ -863,6 +870,7 @@ class SeriesResult(Base):
             traj.measured.append(measured)
             traj.status.append(e.status)
             traj.labels.append(e.label)
+            traj.positions.append(i)
         traj.onset = locate_onset(traj)
         return traj
 

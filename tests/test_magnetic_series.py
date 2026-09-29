@@ -467,6 +467,35 @@ def test_a_magnetic_display_path_resolves_through_the_one_dispatch():
                           MagneticTrajectory)
 
 
+def test_a_magnetic_path_exports_through_to_table_and_write_csv(tmp_path):
+    """``to_table`` aligns a derived curve by ``Trajectory.positions``.
+
+    A magnetic trajectory that left ``positions`` empty was refused as "no
+    pattern carries it" by every export, with every entry carrying the row.
+    The held point exports its value with a blank esd, as it plots; a pattern
+    without the site is a blank row, not a shifted one; and a site no pattern
+    has is refused naming the magnetic sites, not the agreement phases.
+    """
+    series = _hand_built([(10.0, 4.0, 0.1, True), (40.0, 3.0, 0.1, True),
+                          (55.0, 2.0, 0.1, True), (70.0, 0.001, 0.5, False)])
+    series.entries[2].magnetic = []
+    assert series.magnetic_trajectory().positions == [0, 1, 3]
+
+    header, rows = series.to_table(paths=["magnetic.Mn"])
+    assert header[-2:] == ["magnetic.Mn", "magnetic.Mn_esd"]
+    assert [r[-2:] for r in rows] == [[4.0, 0.1], [3.0, 0.1], [None, None],
+                                      [0.001, None]]
+
+    out = tmp_path / "moment.csv"
+    series.write_csv(out, paths=["magnetic.Mn"])
+    assert out.read_text().splitlines()[0].endswith("magnetic.Mn,magnetic.Mn_esd")
+
+    with pytest.raises(ValueError, match="no magnetic site 'Fe'") as err:
+        series.to_table(paths=["magnetic.Fe"])
+    assert "phases.0.atoms.0.moment.dof0" in str(err.value)
+    assert "agreement index" not in str(err.value)
+
+
 def test_the_moment_rows_survive_a_json_round_trip():
     """``SeriesEntry.magnetic`` is a stored field, so it has to reload."""
     series = _hand_built([(10.0, 4.0, 0.05, True), (70.0, 0.067, 0.395, False)])
