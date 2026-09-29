@@ -229,7 +229,8 @@ WP-1508 (the tier's reach); WP-1518 (the test being batched).
     counts a stack once answered and pools engines in registry order. The cap
     raise has its rationale, and a duplicate import went. Declined: folding
     the nightly's probe line (now in three legs) into one place, which needs
-    a YAML anchor or a shared script, a CI restructure beyond this diff.
+    a YAML anchor or a shared script, a CI restructure beyond this diff;
+    pushed to WP-1506's Inherited.
     Every digest re-held on the post-review code.
 
   *Next.* (1) After merge, read the first nightly's "Record the environment"

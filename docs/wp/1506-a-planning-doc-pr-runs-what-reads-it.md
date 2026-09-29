@@ -102,6 +102,20 @@ the tail today, in local serial seconds:
   fork's PR can run code on it, and contributors work from forks.
 - Workflow-level path filters. WP-1003 removed them for the reason above.
 
+### Inherited
+
+- **From WP-1519 (2026-09-29): one probe line is pasted into three nightly
+  legs.** Each "Record the environment" step (`full`, `windows`, `macos`)
+  prints `row_local_product` and `stacked_pinv_exact`, the two indexing
+  probes that pick an exact slower path on a platform whose BLAS or LAPACK
+  fails them. The suite runs at `-q` without `-rs`, so these lines are the
+  only way the nightly shows which path each OS took. `/code-review` flagged
+  the copies: a third probe, or a rename, needs three identical edits, and
+  missing one drops that platform's answer without anything going red.
+  WP-1519 declined the fold as a CI restructure (a YAML anchor, or one
+  script every leg calls). Low stakes, and yours if the nightly is ever
+  reshaped.
+
 ## Non-goals
 
 - The GUI dist and its write path to main: WP-1313. Its branch-protection
