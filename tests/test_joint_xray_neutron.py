@@ -35,8 +35,8 @@ answer each kind must give.  A new radiation-keyed term joins with one row
 (WP-1327's magnetic term is the row that proved the shape), and a new source
 kind fails :func:`test_every_row_answers_for_every_source_kind` until every row
 says what it does there.  Three things the table is not: the radiation-keyed
-*diagnostics*, which a joint fit does not compute at all yet (WP-1344, pinned
-below at their honest count); the λ-keyed size normalisation, which is
+*diagnostics*, which WP-1344 placed on the histogram that owns each (pinned
+below at their exact count, ``multi.DIAGNOSTIC_SCOPES`` the rule); the λ-keyed size normalisation, which is
 WP-1131's and tested in ``test_multi_histogram.py``; and anything a single
 histogram already tests, since the question here is only whether the stack
 keeps each histogram's answer its own.
@@ -572,7 +572,7 @@ def test_the_neutron_histogram_buys_the_oxygen_and_not_the_aluminium(
     assert joint_al / joint_o > 1.25, ratios
 
 
-# ------------------------------- the diagnostics a joint fit does not run ---
+# -------------------- the radiation-keyed diagnostics, on their own histogram ---
 def _yb_oxide() -> rx.Phase:
     """A rock-salt 'YbO' — a vehicle for one Yb site, not a real phase."""
     P = rx.Parameter
@@ -600,18 +600,17 @@ def _y3plus_corundum() -> rx.Phase:
     ("NEUTRON_RESONANT_ABSORBER", _yb_oxide, "neutron_cw"),
     ("SPECIES_FALLBACK_NEUTRAL", _y3plus_corundum, "xray_cw"),
 ])
-def test_the_other_radiation_keyed_diagnostics_are_not_wired_into_a_joint_fit_yet(
+def test_the_other_radiation_keyed_diagnostics_fire_on_their_own_histogram(
         code, phase, owner):
-    """The two siblings of ``DISPERSION_NEGLECTED`` above, same gap (WP-1344).
+    """The two siblings of ``DISPERSION_NEGLECTED`` above, placed by WP-1344.
 
     Each is raised by a single-histogram ``Refinement`` on the histogram
-    whose radiation it belongs to — measured here as the control — and at
-    no count by a joint fit over the same structure and both instruments,
-    because ``multi.py``'s diagnostics loop calls none of
-    ``refine._dispersion_diagnostics``, ``_resonant_absorber_diagnostics``
-    or ``_species_fallback_diagnostics``.  WP-1344 owns the rule deciding
-    where each belongs; when it lands this test is the one to re-point at
-    one count, on the ``owner`` histogram only.
+    whose radiation it belongs to — measured here as the control.  This test
+    used to pin a joint fit over the same structure and both instruments at
+    no count, because ``multi.py`` called none of the three radiation-keyed
+    helpers.  WP-1344 placed them (``multi.DIAGNOSTIC_SCOPES``): each asks
+    one histogram's source, so a joint fit raises it once, on the ``owner``
+    histogram only, and never at the top level.
     """
     structure = rx.Structure(phases=[phase()])
     by_kind = {"xray_cw": _xray, "neutron_cw": _neutron}
@@ -620,10 +619,10 @@ def test_the_other_radiation_keyed_diagnostics_are_not_wired_into_a_joint_fit_ye
                                              plan=_short_plan())
     assert [d.code for d in alone.diagnostics].count(code) == 1
 
+    instruments = [_xray(), _neutron()]
     joint = rx.refine_multi([_flat(20.0, 80.0), _flat(20.0, 80.0)],
-                            structure, [_xray(), _neutron()],
-                            plan=_short_plan())
-    seen = [d.code for d in joint.diagnostics]
-    for hist in joint.histograms:
-        seen += [d.code for d in hist.diagnostics]
-    assert seen.count(code) == 0
+                            structure, instruments, plan=_short_plan())
+    assert [d.code for d in joint.diagnostics].count(code) == 0
+    assert [[d.code for d in h.diagnostics].count(code)
+            for h in joint.histograms] == [
+        int(inst.source.kind == owner) for inst in instruments]
