@@ -639,10 +639,12 @@ def test_a_monoclinic_truths_phantom_supercells_are_never_supported():
     asked directly, against every set's twenty lines and the manual mode's
     window. All are phantoms. The test may lack the power to refute one,
     and then it moves nothing, but it must never call one supported.
-    Measured 2026-09-29 on all ten sets: 545 refuted, and 5 undecided on set F
-    alone, where a chance hit is 0.738 likely and an index-2 cell adds 6-12
-    extras. Three sets span that range of p0 (0.299, 0.429, 0.738) at under
-    half the ten's cost.
+    Measured 2026-09-29 on all ten sets: 544 refuted, and 6 undecided on set F
+    alone, where a chance hit is 0.738 likely and an index-2 cell adds 9-14
+    extras. Three sets span that range of p0 (Ba 0.299, E 0.429, F 0.738); Aa
+    is the fourth because it is the nearest miss: an index-3 cell at 18 of 29
+    extras seen, p = 0.0105 against α = 0.01, one coincident line from a false
+    "supported".
     """
     from collections import Counter
 
@@ -657,7 +659,7 @@ def test_a_monoclinic_truths_phantom_supercells_are_never_supported():
     children = derivative_cells(truth, max_index=4)
     assert len(children) == 7 + 13 + 35
     verdicts: Counter = Counter()
-    for name in ("Ba", "E", "F"):
+    for name in ("Aa", "Ba", "E", "F"):
         tt, lam = bench_mod.positions(bench, name)
         peaks = PeakList.from_positions(tt, wavelength=lam)
         q_obs, q_match = np.asarray(peaks.q()), match_window(peaks, spec)
@@ -669,7 +671,9 @@ def test_a_monoclinic_truths_phantom_supercells_are_never_supported():
             verdicts[verdict] += 1
             assert verdict != "supported", (name, child, ev.n_seen, ev.n_extra)
             if verdict == "undecided":
-                assert ev.p_floor >= SUPERCELL_CHANCE_ALPHA, (name, child)
+                # power runs out only where chance fills most windows, and
+                # only for the smallest supercells, which add the fewest extras
+                assert ev.p0 > 0.5 and index == 2, (name, child, ev.p0)
     assert verdicts["refuted"] >= 0.95 * sum(verdicts.values()), verdicts
 
 

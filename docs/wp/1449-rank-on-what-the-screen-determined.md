@@ -423,11 +423,12 @@ is not what did it.
       rises from second) and still no pair is reported: the ranking keeps
       every supercell out of the top 12. So the check neither helps nor
       harms a monoclinic truth there. Asked directly, the published cell's
-      55 superlattices of index 2-4 on all ten sets give 545 refuted, 5
-      undecided and none supported. The five are set F's index-2 cells,
-      where p0 = 0.738 and each adds 6-12 extras. Pinned by
+      55 superlattices of index 2-4 on all ten sets give 544 refuted, 6
+      undecided and none supported. The six are set F's index-2 cells,
+      where p0 = 0.738 and each adds 9-14 extras. Pinned by
       `test_a_monoclinic_truths_phantom_supercells_are_never_supported`, on
-      the three sets that span p0 (Ba 0.299, E 0.429, F 0.738), 2.3 s.*
+      the three sets that span p0 (Ba 0.299, E 0.429, F 0.738) and Aa, the
+      nearest miss (p = 0.0105 against α = 0.01), 2.6 s alone.*
 - [x] Part 2 of the manual carries the chance test as an equation with its
       `*Source:*` line, and Part 1's indexing chapter describes the re-rank.
       *Done 2026-09-27: `idx-supercell-chance`, with α injected from
@@ -467,8 +468,8 @@ is not what did it.
 
 The supercell check was proven only on high-symmetry cells, and it now has a
 low-symmetry measurement: on real monoclinic peak lists it never mistakes a
-phantom supercell for a real one. It refuted 545 of the 550 wrong supercells
-it was asked about, and left five undecided where chance alone fills most
+phantom supercell for a real one. It refuted 544 of the 550 wrong supercells
+it was asked about, and left six undecided where chance alone fills most
 matching windows. An undecided check moves nothing. The bethanechol benchmark
 could not have shown this through a search. Its volume windows never admit the
 truth beside a supercell of it, and with the window raised the ranking still
@@ -484,10 +485,10 @@ they pass, which was the confirmation the last session could not get.
   itself that 1509's superseded it.
 - Measured the chance test below high symmetry, first through the benchmark and
   then directly (Measured below). A fast test pins it on the three sets that
-  span the chance rate:
+  span the chance rate, plus Aa, the nearest miss:
   `test_a_monoclinic_truths_phantom_supercells_are_never_supported`. It asserts
-  that none is ever supported, and that an undecided one is one the test had
-  no power to refute. Made to fail once on purpose: with every window 50×
+  that none is ever supported, and that an undecided one is an index-2 cell
+  where p0 > 0.5. Made to fail once on purpose: with every window 50×
   wide, all 550 read undecided and the 95 %-refuted line fires.
 - The finished-run confirmation, read off the acceptance file.
 
@@ -507,10 +508,12 @@ alone).
   and no pair appeared.
 - Direct, with the published P 2₁/n cell as parent and its 55 superlattices of
   index 2-4 (7 + 13 + 35, `ambiguity.derivative_cells`) against each set's
-  twenty lines in the manual window: 545 refuted, 5 undecided, 0 supported.
-  p0 is 0.299-0.429 on nine sets and 0.738 on F. The five are F's index-2
-  cells, four at 11 of 12 extras seen (p = 0.137) and one at 4 of 6. The
-  cells the searches found on Bb, Db, E and F give the same verdicts.
+  twenty lines in the manual window: 544 refuted, 6 undecided, 0 supported.
+  p0 is 0.299-0.429 on nine sets and 0.738 on F. The six are F's index-2
+  cells, at 4-11 of 9-14 extras seen (p = 0.30-0.995; re-measured at review
+  on the committed tree, where the first count read 545/5). The nearest miss
+  is Aa's index-3 cell at 18 of 29 seen, p = 0.0105 against α = 0.01: one
+  more coincident line would read it supported (p = 0.0036).
 - `tests/test_acceptance_indexing.py`, `-n auto -rs`: 44 passed, 0 skipped,
   21:42. All 14 rows that call `_skip_unless_finished` read finished searches.
 - Fast selection: 6704 passed, 163 skipped, 1 failed (6868), 23:01. That is +1
@@ -533,6 +536,23 @@ alone).
 - What this cannot reach is a *real* low-symmetry superstructure, the case
   where the truth is the child. No dataset here has one.
 - `rank_of_lattice` reads each row's `af`, not its `cell`.
+- The first count (545/5) came from a scratch superlattice enumeration that
+  reduced each off-diagonal entry modulo the wrong diagonal, so at index 2 it
+  held one lattice twice and missed another. On every lattice both lists
+  hold, the verdicts agree, so the test does not depend on the setting it is
+  handed. Enumerate with `ambiguity.derivative_cells`, as the test does.
+- `/code-review high --fix` found five issues and fixed three, in one commit.
+  It corrected the counts everywhere they were quoted. It added Aa, the
+  nearest miss, to the test's sets, because a change that tipped it would
+  otherwise pass unseen. And it replaced an `undecided` assertion that only
+  restated the verdict's own condition with the measured claim: index 2
+  where p0 > 0.5. Declined: quoting the final test from a fast run's junit
+  file, done at the handover instead (Measured); and scoring on
+  `scored_positions`, which needs a candidate and gives the same answer for
+  a shift-free cell's superlattices. Only an engine-found cell with a fitted
+  shift would differ.
+- Skill: nothing new. What `undecided` means is in `SupercellCheck`'s own
+  docstring, which is what an agent reads.
 
 **Next.** Nothing on this WP. The one open question is the real low-symmetry
 superstructure above. It needs data, and WP-1511 holds the nearest question.

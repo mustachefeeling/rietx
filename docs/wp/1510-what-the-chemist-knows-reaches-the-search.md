@@ -95,7 +95,7 @@ orthorhombic searches here (`INDEX_SEARCH_INCOMPLETE`, then
   In consensus, a reported supercell whose uncancellable extras are seen no
   more often than chance moves directly below its parent, with the refuting
   caveat `supercell_refuted`. Measured on bethanechol's monoclinic lists, it
-  never supported a phantom supercell: 545 refuted, and 5 left undecided
+  never supported a phantom supercell: 544 refuted, and 6 left undecided
   where p0 = 0.738, which moves nothing. A prior that changes the reported list
   changes which pairs get asked, never the rule.
 
