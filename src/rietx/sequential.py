@@ -860,11 +860,16 @@ class SequentialRefinement:
             error identical to three decimals (RMS |ΔW| 2.26 vs 2.27 wt %).
             The staged order exists to keep early stages well conditioned from
             a *poor* starting model, and a converged neighbour is not one —
-            when it turns out not to be a good one either, the reseed fence
-            catches it and escalates one rung at a time (:func:`_ladder`),
-            re-walking the staged plan from the warm state before giving the
-            warm state up.  ``refit`` therefore sets the ladder's *first* rung,
-            not the only plan a pattern can be fitted with.
+            when it turns out not to be a good one either and the pattern's Rwp
+            jumps past the chain's median, the reseed fence escalates one rung
+            at a time (:func:`_ladder`), re-walking the staged plan from the
+            warm state before giving the warm state up.  ``refit`` therefore
+            sets the ladder's *first* rung, not the only plan a pattern can be
+            fitted with.  **A collapse every pattern shares is not caught**,
+            since the median rises with it: under a plan freeing U, V and W the
+            round-robin chain sat 1.04-1.29× above ``"stages"`` with no reseed,
+            and what named it was ``SEQUENTIAL_PERSISTENT_FINDING`` on
+            ``RESOLUTION_UNCONSTRAINED`` for U, V and W (issue #475, WP-1469).
         direction:
             ``"forward"``, ``"backward"`` (chain from the last pattern), or
             ``"both"``, which runs it each way and reports where the two

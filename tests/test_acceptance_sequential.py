@@ -272,6 +272,11 @@ def test_the_hostile_series_exercises_the_reseed_fence(chained_all):
                                                    for e in chained_all)
     # every pattern converged, so the quarantine has nothing to hold
     assert codes.count("SEQUENTIAL_UNRECOVERED") == 0
+    # …and every kept rung is inside the Rwp fence it recorded (WP-1469):
+    # the code is counted off the entries, exactly, and on this series is 0
+    assert codes.count("SEQUENTIAL_RWP_OUTLIER") == sum(
+        e.above_fence for e in chained_all) == 0
+    assert all(e.rwp_fence is not None for e in chained_all.entries[1:])
 
 
 @pytest.mark.slow

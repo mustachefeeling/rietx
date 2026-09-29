@@ -210,6 +210,29 @@ said.
    standing in for a missing one is what lifts a pattern there; the skip
    would leave the finding nothing to fire on. Pinned by
    `test_a_pattern_above_the_rwp_fence_is_still_read`.
+5. **#475: the persistent `RESOLUTION_UNCONSTRAINED` holds on both starts;
+   the correlation row does not.** Round-robin sample 1, `rx.Dispersion()`,
+   `lab_bragg_brentano`, carrying everything, from cpd-1a fitted two ways:
+   directly after `seed_scales` (the triage's start), and Le Bail first with
+   the same preset, then Rietveld (the reporter's, without their driver's
+   report loop, which is not public API).
+
+   | start, refit | Rwp after the first, single / stages | U, V, W `RESOLUTION_UNCONSTRAINED` persistent | U/V `HIGH_CORRELATION` persistent | iterations | wall |
+   |---|---|---|---|---|---|
+   | direct, `"single"` | 1.04-1.29× | 6 of 8 | none | 634 | 223 s |
+   | direct, `"stages"` | — | none | none | 2198 | 274 s |
+   | Le Bail, `"single"` | 1.16-1.26× | 7 of 8 | 5 of 8 | 378 | 127 s |
+   | Le Bail, `"stages"` | — | none | none | 2292 | 202 s |
+
+   The direct rows reproduce the triage's table to the digit; the staged
+   Le Bail row matches the reporter's to 0.0001. `RESOLUTION_NOT_POSITIVE`
+   fires 6-7 of 8 in every chain, so it separates nothing, and no chain
+   reseeded or carried an outlier. The skill (`series.md`'s `refit` bullet),
+   the manual and `fit`'s docstring stop promising that the fence catches the
+   collapse and name the persistent finding, with a cold-refit sample
+   beside it. No code changed for #475: the signal already existed, so the
+   task's "round-robin chain under `"single"` if a signal is added" has
+   nothing to pin. Walls ran two chains at a time on four cores.
 
 ## Non-goals
 
@@ -239,7 +262,7 @@ said.
       WP-1076) or a `SeriesResult`-level record beside the diagnostics, as
       `_FlaggedStep` already is privately. The verification pass reads the
       same record.
-- [ ] #475: settle which chain-level signal separates the collapse. The
+- [x] #475: settle which chain-level signal separates the collapse. The
       triage's re-run found `SEQUENTIAL_PERSISTENT_FINDING` on
       `RESOLUTION_UNCONSTRAINED` for U, V and W (6 of 8, absent from the
       staged chain; `RESOLUTION_NOT_POSITIVE` fires in both), and the
@@ -247,10 +270,10 @@ said.
       (Le Bail first) as well as on this one. If one does, the skill names
       it. If neither holds on both starts, the skill names a cold-refit
       sample.
-- [ ] Tests: #481's ramp as a slow-marked fixture asserting all three gaps
+- [x] Tests: #481's ramp as a slow-marked fixture asserting all three gaps
       closed; a clean ramp asserting no new code; the round-robin chain
       under `"single"` if a signal is added.
-- [ ] Skill: `references/series.md`'s `refit="single"` bullet stops
+- [x] Skill: `references/series.md`'s `refit="single"` bullet stops
       promising the reseed fence catches a shared offset, names the
       width-freeing case and the two cheap reads; the `SEQUENTIAL_RESEED`
       and `SEQUENTIAL_UNRECOVERED` rows in its code table say what a kept

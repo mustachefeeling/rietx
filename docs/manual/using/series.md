@@ -118,7 +118,13 @@ recorded instead as annotation notes on each tree's root node. The default is
 be fitted with. The staged order exists to keep early stages well conditioned
 from a poor starting model, and a converged neighbour is not one, so the default
 collapses it. When the neighbour turns out not to be a good starting point
-either, the fence below catches it.
+either, the fence below catches the pattern whose Rwp jumps past the median.
+It does not catch a collapse every pattern shares, because the median rises with
+it. With a plan that frees U, V and W, `"single"` settled 1.04-1.29 times above
+`"stages"` in Rwp on every round-robin mixture after the first, and nothing was
+reseeded. What named it was `SEQUENTIAL_PERSISTENT_FINDING` on
+`RESOLUTION_UNCONSTRAINED` for U, V and W, in six or seven of the eight
+patterns and in none under `"stages"`.
 
 ### What crosses a pattern boundary
 

@@ -1008,8 +1008,10 @@ CLAIMS: tuple[Claim, ...] = (
                   "on the hostile series — the collapsed refit recovers a bad "
                   "warm start within the fit — so it is insurance, pinned by "
                   "unit tests rather than by this suite",
-        measured="exact accounting; zero reseeds on the hostile series",
-        diagnostics=("SEQUENTIAL_RESEED", "SEQUENTIAL_UNRECOVERED"),
+        measured="exact accounting; zero reseeds on the hostile series, and "
+                 "no kept rung above the Rwp fence",
+        diagnostics=("SEQUENTIAL_RESEED", "SEQUENTIAL_UNRECOVERED",
+                     "SEQUENTIAL_RWP_OUTLIER"),
     ),
     Claim(
         "test_acceptance_sequential", "test_series_exports", "qarr",
