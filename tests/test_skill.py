@@ -956,6 +956,16 @@ SKILL_EXCLUDED_VERBS: dict[str, str] = {
         "already done by the time a caller holds a row. The index renders "
         "that field, so a caller has the key without making the call."
     ),
+    # The time-of-flight GSAS-I calibration reader (yue-here/rietx issue #193).
+    # This build reads a bank and refines none, so no fit an agent drives can
+    # use what it returns; it joins the index with the forward model that
+    # gives a bank somewhere to go.
+    "read_gsas_tof_iparm": (
+        "reads a time-of-flight bank's GSAS-I calibration, and this build "
+        "refines no bank: every entry an agent fits through refuses a "
+        "neutron_tof instrument by name. Documented in the manual's "
+        "files chapter; it joins the index with a flight-time forward model."
+    ),
 }
 
 
@@ -1019,7 +1029,7 @@ def test_the_verb_exclusions_are_live_and_reasoned():
 #: share, so its codes fire from either and carry neither suffix.
 FOREIGN_FILE_PREFIXES = ("RECIPE_", "TOPAS_", "FULLPROF_", "GSAS_PRM_",
                           "GSAS_EXP_", "GSAS_FIELD_", "GSAS2_GPX_",
-                          "GSAS2_INSTPRM_", "GSAS2_CIF_")
+                          "GSAS2_INSTPRM_", "GSAS2_CIF_", "GSAS_IPARM_")
 
 _CODE_ROW = re.compile(r"^\| `([A-Z][A-Z0-9_]+)`")
 

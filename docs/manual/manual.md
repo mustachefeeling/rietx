@@ -142,8 +142,10 @@ equation. Match the θ-law, the limit and the sign of the effect, not the symbol
 
 Constant-wavelength X-ray powder data. Fundamental-parameters profiles, neutron
 and time-of-flight data, and spherical-harmonics texture are not implemented
-today. They are planned for v2, behind seams the forward model already carries,
-and nothing in Part 2 describes them.
+today. They are planned for v2, behind seams the forward model already carries.
+The one exception is {ref}`sec-tof-positions`: the calibration relation a
+time-of-flight bank is read with, which puts a flight time on a d-spacing. No
+time-of-flight pattern is refined.
 
 (sec-units)=
 ### Symbols and units

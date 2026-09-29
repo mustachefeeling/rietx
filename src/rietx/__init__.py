@@ -39,6 +39,7 @@ from .io.instrument_profile import (
     write_gsas2_instprm,
     write_gsas_prm,
 )
+from .io.instrument_tof import read_gsas_tof_iparm
 from .io.projects import (
     ProjectFormat,
     ProjectModel,
@@ -184,6 +185,7 @@ __all__ = [
     "identify_project_format",
     "read_gsas2_instprm",
     "read_gsas_prm",
+    "read_gsas_tof_iparm",
     "read_pattern",
     "read_pdcif",
     "read_fullprof_pcr",

@@ -238,6 +238,10 @@ PRIORITIES = wp_index.PRIORITIES
 #   2026-09-28  docs/ROADMAP.md               571 -> 579  for the structure track (1510-1517): one new
 #                                                          Unscheduled group and its blurb, the fence
 #                                                          paragraph saying what left it; landed 578
+#   2026-09-29  src/rietx/io/CLAUDE.md        498 -> 557  for the time-of-flight readers and axis (issue
+#                                                          #193): the flight-time axis row, and the two
+#                                                          new reader kinds (a calibration reader and the
+#                                                          opt-in legacy layer); landed 556
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -691,7 +695,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # no per-format axis classifier can see a unit; a constant σ is reported on
     # the same hook.  The two row additions (gsas, xy) cost no line.  Landed at
     # 497; the +1 is headroom.  Raised rather than shaved, per the message.
-    "src/rietx/io/CLAUDE.md": 498,
+    # 498 -> 557 (yue-here/rietx issue #193, the time-of-flight readers and
+    # axis): a bank makes the axis a second *declared* quantity, so the
+    # declare-never-infer rule gains a flight-time row; `instrument_tof.py` is
+    # a reader whose product is a calibration and not a pattern; and `legacy/`
+    # is a reader accepting a named deviation only when asked.  The long form
+    # is in the module docstrings (`io/instrument_tof.py`, `io/formats/gsas.py`,
+    # `io/legacy/__init__.py`).  Landed at 556; the +1 is headroom.
+    "src/rietx/io/CLAUDE.md": 557,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs

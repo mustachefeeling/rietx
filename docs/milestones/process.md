@@ -923,3 +923,15 @@ rule, the 19-key `.udf` vocabulary — is `tests/data/README.md` § Philips,
 and which source each fact came from is `ATTRIBUTION.md`.  The blocks were
 cut by roughly a third before the cap was touched, per this comment's own
 instruction; 344 landed against the 350.
+
+498 -> 557 for the neutron time-of-flight readers and axis (yue-here/rietx
+issue #193): a bank turns one of this subtree's standing rules from one case
+into two, which is what a cap is for.  The **axis** is a second declared
+quantity — a flight time in µs beside 2θ in degrees — so the declare-never-infer
+rule gains the bintypes that state one and the reason a `RALF`/`SLOG` axis is
+read only from a written x column.  Beside it, `instrument_tof.py` is a reader
+whose product is an *instrument*, reached for `.instprm` through the one
+reader's `Type` dispatch, and `legacy/` a reader that accepts a named deviation
+only when called by name.  The operating detail went down a rank: the PRCF
+layout, the bintype table and every refusal's wording are the module
+docstrings'.  556 landed against the 557.
