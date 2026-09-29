@@ -232,7 +232,79 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   ``sequential.WIDTH_GROWTH_*``.  A series stamped below 1.9 never ran it, and
 #   ``SeriesResult.summary(deliverable="series")`` says "NOT measured" there
 #   rather than a count of zero.
-THRESHOLDS_VERSION = "1.9"
+# 1.9 → 1.10 (WP-1343): the magnetic-width family, five thresholds of its
+#   own, so this is a real bump and not an additive-field one.  Four gate
+#   ``MAGNETIC_WIDTH_UNMODELLED`` and the reason each is here rather than
+#   reused: :data:`MAGNETIC_WIDTH_TAIL_FWHM` (the outer edge of the tail ring;
+#   the *inner* edge is the existing ``VALIDITY_RADIUS_FWHM``, reused
+#   deliberately so the arm cannot be tuned independently of the layer whose
+#   peaks it reads), :data:`MAGNETIC_WIDTH_PURITY` (how magnetic a reflection
+#   may be and still serve as the nuclear control), :data:`MAGNETIC_WIDTH_SIGMA`
+#   (how many times its own measured noise the differential split must exceed)
+#   and :data:`MAGNETIC_WIDTH_MIN_REFLECTIONS` (how many magnetic-only
+#   reflections the statistic needs before it says anything).  The fifth,
+#   :data:`MAGNETIC_WIDTH_MOMENT_SHIFT_SIGMA`, gates
+#   ``MAGNETIC_WIDTH_MOVED_MOMENT`` and is **not** ``MOMENT_SUPPORT_SIGMA``
+#   re-used: that gate is about a *shift*, not about support.
+#   ``MAGNETIC_WIDTH_UNMEASURED`` takes no threshold of its own (it is
+#   ``MOMENT_SUPPORT_SIGMA``'s ratio), and neither does
+#   ``STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT``, which reads the plan.  No
+#   existing threshold, gate or emission condition moved, and no field was
+#   added to any report schema.
+THRESHOLDS_VERSION = "1.10"
+
+#: WP-1343.  How far the moment must move when a magnetic width is released
+#: before the release is called a *measurement of the correlation*, in units
+#: of the tighter of the two fits' own esds.
+#:
+#: **1.0, and the unit is the point.**  The question this answers is not "is
+#: the width significant" — that is ``MOMENT_SUPPORT_SIGMA``'s question one
+#: parameter over — but "did holding the width at zero bias the number a
+#: reader would have quoted".  So the bar is one error bar: a shift the
+#: off-state fit's own uncertainty does not cover is a shift that fit got
+#: wrong by more than it claimed.  The denominator is
+#: ``min(esd_off_state, esd_released)``: the off-state number is the one that
+#: would have been quoted, so its error bar is the honest yardstick, and
+#: taking the minimum keeps that without making the answer depend on which of
+#: the two fits happened to be looser.
+MAGNETIC_WIDTH_MOMENT_SHIFT_SIGMA = 1.0
+
+#: WP-1343 — the ``MAGNETIC_WIDTH_UNMODELLED`` family.  The statistic is the
+#: centre-versus-tails sign split of the *weighted* residual at a phase's
+#: magnetic-only reflections **minus** the same split at its nuclear-only
+#: ones, and these four numbers are its whole tuning surface.
+#:
+#: The tail ring runs from ``VALIDITY_RADIUS_FWHM`` (0.4 FWHM: the report's own
+#: linearisation radius, where a peak's misfit stops being a shift and starts
+#: being a shape) out to this multiple of the drawn FWHM.  2.0 because a
+#: Lorentzian's half-area sits inside ±0.5 FWHM and the excess of a
+#: *broader* observed peak is concentrated between 0.4 and 2 FWHM — further
+#: out the ring is background and dilutes the mean it contributes to.
+MAGNETIC_WIDTH_TAIL_FWHM = 2.0
+#: How far from pure a reflection may be and still serve as one of the two
+#: sets: the *nuclear* control needs a magnetic fraction
+#: p²⟨|F_⊥|²⟩/(⟨|F_N|²⟩ + p²⟨|F_⊥|²⟩) at or below this, the *magnetic* set one
+#: at or above 1 − this.  On a k = 0 structure most nuclear reflections carry
+#: some magnetic intensity, and a half-magnetic reflection belongs to neither
+#: set: putting it in the control would subtract part of the very signal being
+#: looked for.  Both sides read the fraction rather than
+#: ``CompiledPhase.nuclear_mask``, which marks only the rows a k = 0 magnetic
+#: group's absences added — on a k ≠ 0 supercell the strongest magnetic
+#: reflections are in the child's own list with the mask at 1.0 and ⟨|F_N|²⟩
+#: exactly zero (measured: 12 such rows against 3 masked ones on a Pnma →
+#: P2₁/m ``2a,b,a+c`` cell).
+MAGNETIC_WIDTH_PURITY = 0.05
+#: How many times its own noise the differential split must exceed before the
+#: diagnostic fires.  3.0 is this package's standing significance bar
+#: (``MIN_COEF_SIGNIFICANCE`` one layer over) and the noise is *measured* —
+#: the pooled scatter of the channels actually read — so a fit with GoF 3 is
+#: judged against its own residual rather than an assumed unit variance.
+MAGNETIC_WIDTH_SIGMA = 3.0
+#: Magnetic-only reflections needed before the statistic is quoted at all.
+#: Two, because one reflection's centre-vs-tails split is one number with no
+#: internal check and any local misfit — an unmodelled impurity line, a
+#: mis-placed background hump — would produce it.
+MAGNETIC_WIDTH_MIN_REFLECTIONS = 2
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"

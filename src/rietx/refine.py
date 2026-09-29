@@ -97,7 +97,13 @@ from .params.vector import (
     is_literal_path,
     is_variable_path,
 )
-from .report.schemas import THRESHOLDS_VERSION, FitReport, StageReport
+from .report.magnetic import magnetic_width_findings
+from .report.schemas import (
+    MAGNETIC_WIDTH_MOMENT_SHIFT_SIGMA,
+    THRESHOLDS_VERSION,
+    FitReport,
+    StageReport,
+)
 from .schemas.common import Diagnostic, Parameter, Provenance
 from .schemas.history import NodeAction, NodeMetrics, RefinementState, ReflectionState
 from .schemas.instrument import CAPILLARY_OFFSETS, Instrument
@@ -3063,7 +3069,14 @@ class Refinement:
                 + _dispersion_diagnostics(self.structure, self.instrument)
                 + _resonant_absorber_diagnostics(self.structure,
                                                  self.instrument)
-                + _species_fallback_diagnostics(self.structure, self.instrument))
+                + _species_fallback_diagnostics(self.structure, self.instrument)
+                # WP-1343: the one check in the package that reads a *plan*
+                # rather than a solved state, and it is here because that is
+                # the only place it can be true to its own claim — the
+                # confound it names is created by the stage list itself, so
+                # the report has to arrive before the first stage runs rather
+                # than after the answer it spoiled.
+                + _stage_order_diagnostics(plan, table))
             stage_results: list[StageResult] = []
             self.stage_reports_ = []
             outcome = None
@@ -3214,6 +3227,13 @@ class Refinement:
         correlation_hits: dict[tuple[str, frozenset],
                               list[tuple[str, Diagnostic]]] = {}
         answer_runaway: list[Diagnostic] = []
+        #: the moment's rung at the first stage that moved it with every
+        #: magnetic width still at its off state (WP-1343)
+        moment_off_state: dict[str, tuple[float, float | None]] = {}
+        #: (stage name, moment rung, width values) of the last stage that had a
+        #: magnetic width free — the released state the off state is compared
+        #: against, once, after the loop
+        moment_released: tuple | None = None
         for k, (stage, ftol) in enumerate(zip(plan.stages, ftols, strict=True),
                                           start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
@@ -3221,6 +3241,31 @@ class Refinement:
                     stage, data, mode, table, model, two_theta_limits,
                     plan.correlation_guard, events=stream, cancel=cancel,
                     stage_index=k, n_stages=len(plan.stages), ftol=ftol)
+            # WP-1343: the moment's rung at this boundary, and the shift the
+            # moment took when the widths were released.  Gated on what the
+            # stage actually freed, so an ordinary fit never pays for the
+            # physical-esd build ``_moment_rung`` needs.
+            width_paths = [q for q in freed if _MAGNETIC_WIDTH_PATH.match(q)]
+            if width_paths or any(_MOMENT_DOF.match(q) for q in freed):
+                rung = _moment_rung(table, outcome)
+                if width_paths:
+                    esds = (table.stderr_physical(
+                        outcome.theta, outcome.stderr_internal,
+                        outcome.correlation)
+                        if outcome.stderr_internal is not None else {})
+                    vals = table.decode(outcome.theta)
+                    # the *last* stage that had a width free is the released
+                    # state: one row per moment path in the result, not one
+                    # per (path, stage) — the shape ``_dedup_high_correlations``
+                    # exists to stop one rank over
+                    moment_released = (stage.name, rung, {
+                        q: (float(vals[q]), esds.get(q)) for q in width_paths})
+                elif rung:
+                    # the off state: a stage that moved the moment while no
+                    # magnetic width could move at all.  The *first* such rung
+                    # is the reference, because it is the number a reader who
+                    # stopped at the prescribed step 1 would have quoted.
+                    moment_off_state = moment_off_state or rung
             stage_diagnostics = _guard_diagnostics(guard) + _covariance_diagnostics(
                 stage.name, outcome, answer=k == len(plan.stages))
             for d in stage_diagnostics:
@@ -3279,6 +3324,10 @@ class Refinement:
             diagnostics.extend(d for d in _guard_diagnostics(guard)
                                if d.code in _REVISABLE_CODES)
         diagnostics.extend(_dedup_high_correlations(correlation_hits))
+        if moment_off_state and moment_released is not None:
+            name, rung, widths = moment_released
+            diagnostics.extend(_moved_moment_diagnostics(
+                name, moment_off_state, rung, widths))
         return model, outcome, guard, stage_results, diagnostics, answer_runaway
 
     def _final_compile(self, model: CompiledModel, table: ParameterTable,
@@ -3434,6 +3483,13 @@ class Refinement:
             # Copied, never aliased (see fit's call site) — the snapshot stays the
             # construction fact whatever a reader does with the list it is handed.
             declared_wavelengths = list(self._declared_wavelengths)
+            # WP-1343: asked here, before the solve, for the reason ``fit`` asks
+            # it before its first stage — a single stage freeing a magnetic
+            # width beside a cold moment is the same confound, and this is the
+            # entry point a caller reaches for when they are driving the order
+            # by hand.
+            order = _stage_order_diagnostics(
+                RefinementPlan(stages=[stage]), table)
             try:
                 with self._abandon_on_cancel(cancel, stage.name, [], stream):
                     model, outcome, guard, freed, hold = self._run_stage(
@@ -3452,7 +3508,7 @@ class Refinement:
                     # way out — or was cancelled, which reaches here with no
                     # ``fit_end`` to say so — recorded itself ``done``.
                     stream.close()  # we created it from a path/callable
-            diagnostics = _guard_diagnostics(guard)
+            diagnostics = order + _guard_diagnostics(guard)
             diagnostics.extend(_covariance_diagnostics(stage.name, outcome,
                                                        answer=True))
             if mode == "pawley":
@@ -4126,6 +4182,181 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                         "out nor freeing it blind is safe)"),
         ))
     return out
+
+
+_MAGNETIC_WIDTH_PATH = re.compile(
+    r"^phases\.(\d+)\.magnetic_lor_(?:size|strain)$")
+
+
+def _stage_order_diagnostics(plan, table) -> list[Diagnostic]:
+    """``STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT`` — the ordering rule, checked
+    against the plan **before the first stage runs** (WP-1343).
+
+    A magnetic width and the moment it belongs to both lower the calculated
+    peak's *height*: |F_m|² ∝ m² takes it down by shrinking the moment, and an
+    extra Lorentzian width takes it down by spreading the same area.  Freed
+    together from a cold start they trade against each other and the plan
+    converges on whichever pair the first step happened to like — the same
+    degeneracy the package already stages around for nuclear size/strain
+    against scale, and the discipline ``mccusker_structural`` encodes.
+
+    The order the package prescribes is **moment first with the widths held at
+    zero, then the widths with the moment held, then both together**
+    (``strategy.staged.MAGNETIC_WIDTH_STAGE_PATHS`` is that order as a stage
+    list, and ``RefinementPlan.magnetic_width`` builds it).
+
+    What is reported is precisely a stage that frees a magnetic width **in the
+    same stage in which a moment DOF of the same phase is first freed**.
+    Staging is cumulative, so a width freed after the moment's own stage does
+    not appear here — that is the prescribed order — and a width freed beside
+    a moment that has already converged is the third step, which is fine.  The
+    globs are expanded against the table's real paths rather than matched as
+    text, so a plan written with ``phases.*.…`` is read exactly as the stage
+    runner will read it.
+
+    ``warning`` rather than ``error``: the plan is a caller's to write, the fit
+    will run, and what this owes them is the name of the confound and the
+    order that avoids it — not a refusal.
+    """
+    import fnmatch
+
+    out: list[Diagnostic] = []
+    seen: set[str] = set()
+    for stage in plan.stages:
+        # the stage runner's own matching rule, read off the table's entries:
+        # ``fnmatchcase`` on the dot path, with tied and locked rows skipped
+        # exactly as ``ParameterTable.set_vary`` skips them, so this cannot
+        # report a stage that will in fact free nothing
+        freed = [e.path for e in table.entries
+                 if e.tie is None and not e.locked
+                 and any(fnmatch.fnmatchcase(e.path, g) for g in stage.turn_on)]
+        new = [p for p in freed if p not in seen]
+        seen.update(freed)
+        widths = {m.group(1): p for p in new
+                  if (m := _MAGNETIC_WIDTH_PATH.match(p))}
+        moments = {p.split(".")[1] for p in new if _MOMENT_DOF.match(p)}
+        for ip in sorted(set(widths) & moments):
+            out.append(Diagnostic(
+                level="warning", code="STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT",
+                where=[widths[ip], f"phases.{ip}.atoms.*.moment.dof*"],
+                message=(
+                    f"stage {stage.name!r} frees phase {ip}'s magnetic "
+                    f"broadening in the same stage that first frees its "
+                    f"moment. Both lower the calculated magnetic peak's "
+                    f"height — the moment because p^2|F_perp|^2 goes as m^2, "
+                    f"the width because it spreads the same integrated area — "
+                    f"so from a cold start they trade against each other and "
+                    f"the answer is whichever pair the first step happened to "
+                    f"like. Neither number that comes back is a measurement "
+                    f"of its own quantity"),
+                suggestion=(
+                    "use the three-step order: the moment with the widths "
+                    "held at zero, then the widths with the moment held, then "
+                    "both together — plan=\"magnetic_width\", or "
+                    "strategy.staged.MAGNETIC_WIDTH_STAGE_PATHS as stages")))
+    return out
+
+
+def _moment_rung(table, outcome) -> dict[str, tuple[float, float | None]]:
+    """Every moment **modulus** at this stage boundary: path → (|m|, esd).
+
+    WP-1343.  The trajectory is where a released width's evidence
+    lives (WP-1058, and WP-1073's rule that a correction's evidence is a rung
+    rather than the endpoint), and the modulus is the only moment quantity
+    with an esd — the crystal-axis components are derived and carry none
+    (WP-1327).  ``abs`` because the modulus DOF is signed and its sign is a
+    domain choice the powder cannot see.
+
+    ``stderr_physical`` is asked for **only** on a stage that touched a moment
+    or a magnetic width, which is why this costs an ordinary fit nothing: with
+    a correlation matrix that call builds a dense n x n, and a Pawley table
+    would make it large.
+    """
+    values = table.decode(outcome.theta)
+    # **Tied followers are excluded.**  The child asymmetric unit of a k != 0
+    # supercell lists each orbit twice (the anti-translation pair), and a
+    # caller tying two orbits equal (a published constraint is often exactly
+    # that) makes three of four modulus rows followers of one master.  All four
+    # carry the same value and the same esd, so keeping them would repeat one
+    # measurement four times in the diagnostics list; the untied row *is* the
+    # measurement, which is the same reading ``stderr_physical`` takes when it
+    # reports a tie's esd as its source's.
+    paths = [e.path for e in table.entries
+             if _MOMENT_DOF.match(e.path) and e.path.endswith(".dof0")
+             and e.tie is None]
+    if not paths:
+        return {}
+    esds: dict[str, float] = {}
+    if outcome.stderr_internal is not None:
+        esds = table.stderr_physical(outcome.theta, outcome.stderr_internal,
+                                     outcome.correlation)
+    return {q: (abs(float(values[q])), esds.get(q)) for q in paths}
+
+
+def _moved_moment_diagnostics(stage_name: str, off_state: dict, released: dict,
+                              widths: dict) -> list[Diagnostic]:
+    """``MAGNETIC_WIDTH_MOVED_MOMENT`` — the preset already holds the answer.
+
+    WP-1343's thesis is that **the moment pays for a missing width**, and the
+    three-step order measures exactly that twice: step 1 fits the moment with
+    the widths at their off state, step 3 fits it with them free.  The shift
+    between those two rungs is the measurement, and it is a different question
+    from whether the width is significant — which is why
+    ``MAGNETIC_WIDTH_UNMEASURED`` can be right and misleading at the same
+    time.
+
+    The two can disagree: a width that comes back at 1.3 of its own esd is
+    "unmeasured" by the support ratio, while releasing it can still move the
+    moment by more than the moment's esd.  Reading the ratio alone there
+    licenses dropping the term, and dropping it puts the moment back where the
+    off-state stage had it — the bias this rung exists to stop.
+
+    The shift is quoted in units of ``min(esd_off, esd_released)`` — see
+    :data:`~rietx.report.schemas.MAGNETIC_WIDTH_MOMENT_SHIFT_SIGMA` for why
+    the tighter of the two is the yardstick.
+    """
+    out: list[Diagnostic] = []
+    for path, (m1, e1) in sorted(off_state.items()):
+        if path not in released:
+            continue
+        m3, e3 = released[path]
+        bars = [e for e in (e1, e3) if e is not None and e > 0.0]
+        if not bars:
+            continue
+        z = abs(m3 - m1) / min(bars)
+        if z <= MAGNETIC_WIDTH_MOMENT_SHIFT_SIGMA:
+            continue
+        wtxt = ", ".join(
+            f"{q} = {v:.4g}" + ("" if e is None else f" +- {e:.4g}")
+            for q, (v, e) in sorted(widths.items()))
+        out.append(Diagnostic(
+            level="warning", code="MAGNETIC_WIDTH_MOVED_MOMENT",
+            where=[path, *sorted(widths)], value=float(z),
+            message=(
+                f"releasing this phase's magnetic broadening moved the moment: "
+                f"|m| = {m1:.4g}"
+                + ("" if e1 is None else f" +- {e1:.4g}")
+                + f" with the widths held at zero, {m3:.4g}"
+                + ("" if e3 is None else f" +- {e3:.4g}")
+                + f" with them free in stage {stage_name!r} — a shift of "
+                f"{z:.2f}x the tighter of the two esds. The widths are "
+                f"{wtxt}. **This is the measurement, and it is not the same "
+                f"question as whether the width is significant.** A width "
+                f"whose esd exceeds its value can still be strongly "
+                f"correlated with the moment, and a shift this size says it "
+                f"is: the term is correlated with the moment, not absent. So "
+                f"do not read MAGNETIC_WIDTH_UNMEASURED here as licence to "
+                f"drop it — holding it at zero puts the moment back where "
+                f"stage 1 had it, which is the bias this term exists to remove. "
+                f"Quote the released moment, and quote the width as bounded "
+                f"rather than measured"),
+            suggestion=(
+                "quote |m| from the stage that freed the widths, and report "
+                "the width as an upper bound (value + esd) rather than a "
+                "coherence length; a pattern carrying magnetic-only "
+                "reflections is what would separate the two")))
+    return out
+
 
 
 def _dedup_high_correlations(
@@ -4886,6 +5117,21 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     microstructure = microstructure_table(
         structure, values, wavelength=_longest_line_wavelength(model),
         esds=stderr_phys)
+
+    # WP-1343: whether the magnetic peaks are broader than the profile drew
+    # them, read off the converged residual's *shape* rather than from any
+    # observed-width measurement (there is none in this package).  Silent on
+    # a stage that freed the term — there the trajectory is the evidence.
+    #
+    # ``moved``: the width paths a MAGNETIC_WIDTH_MOVED_MOMENT rung already
+    # named, read off the accumulated list rather than recomputed — one writer
+    # per measurement (WP-1076), and it is what stops the support row being
+    # worded as licence to drop a term that is carrying the answer.
+    diagnostics = diagnostics + magnetic_width_findings(
+        model, values, esds=stderr_phys, free=table.free_paths,
+        moved={q for d in diagnostics
+               if d.code == "MAGNETIC_WIDTH_MOVED_MOMENT"
+               for q in d.where if "magnetic_lor" in q})
 
     # Specimen absorption: report what was applied and, crucially, the Biso
     # bias it removed — for a capillary Rwp is provably unchanged by it, so
