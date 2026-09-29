@@ -67,6 +67,13 @@ class PatternData(Base):
             mask &= ~((tt >= lo) & (tt <= hi))
         return mask
 
+    def plot(self, path: str | None = None, **kw):
+        """Draw the pattern with no model: :func:`rietx.viz.plots.plot_pattern`,
+        the peer of :meth:`RefinementResult.plot`, forwarding ``**kw``."""
+        from ..viz.plots import plot_pattern
+
+        return plot_pattern(self, path=path, **kw)
+
     def crop(self, lo: float, hi: float) -> "PatternData":
         tt = self.tt()
         keep = (tt >= lo) & (tt <= hi)
