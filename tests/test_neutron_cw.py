@@ -590,9 +590,9 @@ def test_hexagonal_cell_ties_survive_a_neutron_source():
 
 
 # ------------------------------------------------- specimen absorption ---
-# Three tests, none of which would pass for an X-ray source: the constructor
-# accepting a bare float, the estimator declining, and the X-ray control that
-# proves the fence is not simply "estimating never happens".
+# The constructor accepting a bare float, the neutron estimate reading the
+# neutron table (WP-1132), the fence still declining for a kind with no
+# table, and the X-ray control proving the X-ray path is unchanged.
 def test_a_declared_mu_r_reaches_the_geometry_as_a_plain_float():
     """``mu_r`` is a float on ``Geometry``, deliberately, and this constructor
     wrapped it in a ``Parameter`` — so *every* call passing one raised.
@@ -608,14 +608,18 @@ def test_a_declared_mu_r_reaches_the_geometry_as_a_plain_float():
     assert isinstance(inst.geometry.mu_r, float)
 
 
-def test_the_xray_composition_estimator_declines_on_a_neutron_source():
-    """It is the wrong *quantity*, not a coarse estimate, so it must not run.
+def test_a_neutron_capillary_is_estimated_from_the_neutron_table():
+    """Since WP-1132 a neutron capillary with a radius gets a µR — the
+    **neutron** one, never the X-ray number the fence used to keep out.
 
     ``crystallography.attenuation`` is X-ray photoabsorption; neutron σ_abs
-    scales as λ (1/v) where X-ray µ/ρ falls as ~λ⁻³ and has edges.  Writing an
-    X-ray µR onto a neutron capillary would be a confidently wrong correction
-    applied in silence.
+    scales as λ (1/v) where X-ray µ/ρ falls as ~λ⁻³ and has edges.  So the
+    value written onto the geometry is asserted equal to the Sears-table
+    estimate and **unequal** to the X-ray one for the same arguments: an
+    implementation that wired the X-ray table back in fails the second line.
     """
+    from rietx.optimize.qpa import estimate_capillary_mu_r
+    from rietx.params.vector import ParameterTable
     from rietx.refine import _resolve_specimen_absorption, estimate_mu_r
 
     struct = rx.Structure(phases=[corundum()])
@@ -623,13 +627,50 @@ def test_the_xray_composition_estimator_declines_on_a_neutron_source():
         2.0780, capillary_radius_mm=0.4)
     assert inst.geometry.mu_r is None
 
-    assert estimate_mu_r(struct, inst) is None
+    table = ParameterTable(struct, inst)
+    values = table.decode(table.x0())
+    neutron, _ = estimate_capillary_mu_r(struct, values, 2.0780, 0.4, 0.6,
+                                         source_kind="neutron_cw")
+    xray, _ = estimate_capillary_mu_r(struct, values, 2.0780, 0.4, 0.6)
+    assert neutron is not None and xray is not None
+    assert xray > 10.0 * neutron          # corundum: ≈ 0.0092 against ≈ 7.3
 
+    assert estimate_mu_r(struct, inst) == pytest.approx(neutron, rel=1e-12)
+    source, reason = _resolve_specimen_absorption(struct, inst)
+    assert (source, reason) == ("estimated", None)
+    assert inst.geometry.mu_r == pytest.approx(neutron, rel=1e-12)
+
+
+def test_a_source_kind_with_no_table_still_declines(monkeypatch):
+    """The fence stays for every source without a table (time-of-flight).
+
+    No such kind is constructible in this tree yet, so the table entry for
+    neutrons is removed for the duration of the test: what is asserted is the
+    *mechanism* — a kind missing from ``LINEAR_ATTENUATION_BY_SOURCE``
+    declines with the fence's reason and leaves the field untouched, in both
+    geometries and in ``estimate_mu_r`` — which is what a TOF source will
+    meet when it lands.
+    """
+    from rietx.optimize import qpa
+    from rietx.refine import _resolve_specimen_absorption, estimate_mu_r
+
+    monkeypatch.delitem(qpa.LINEAR_ATTENUATION_BY_SOURCE, "neutron_cw")
+    struct = rx.Structure(phases=[corundum()])
+    inst = rx.Instrument.constant_wavelength_neutron(
+        2.0780, capillary_radius_mm=0.4)
+    assert estimate_mu_r(struct, inst) is None
     source, reason = _resolve_specimen_absorption(struct, inst)
     assert source == "estimated"
-    assert reason is not None and "neutron" in reason
-    # and it declined rather than guessing: the field is untouched
+    assert reason is not None and "no attenuation table" in reason
     assert inst.geometry.mu_r is None
+
+    plate = rx.Instrument(
+        source=inst.source,
+        geometry=rx.Geometry(kind="bragg_brentano", goniometer_radius_mm=240.0,
+                             thickness_mm=1.0))
+    source, reason = _resolve_specimen_absorption(struct, plate)
+    assert reason is not None and "no attenuation table" in reason
+    assert plate.geometry.mu_t is None
 
 
 def test_declaring_mu_r_still_applies_the_correction_on_a_neutron_source():
