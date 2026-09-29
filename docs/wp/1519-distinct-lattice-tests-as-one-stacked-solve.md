@@ -192,15 +192,15 @@ WP-1508 (the tier's reach); WP-1518 (the test being batched).
     differ). `pinv` alone 24.7 → 2.4 s.
   - Acceptance (`tests/test_acceptance_indexing.py`, final tree, alone): 44
     passed in 18:02. Engines + consensus + harness files: 123 passed.
-  - Fast selection, before the review's fixes: 6703 passed, 163 skipped, 1
-    failed (6867).
-    The failure is `test_telemetry`'s unwritable-directory case, which
-    `chmod`s a directory 0o500. This container runs as root, and root writes
-    anyway. The diff touches no telemetry. +3 tests, all passing. There is no
-    `main` count on this machine, so CI's fast legs are the comparison.
-    `tests.added_test_times` on that run (call time only, since
-    `junit_duration_report` was not set): 3.45 s the harness test, 0.64 s and
-    0.53 s the two dedup tests.
+  - Fast selection, final tree (the same counts before the review's fixes):
+    6703 passed, 163 skipped, 1 failed (6867), 20:33. The failure is
+    `test_telemetry`'s unwritable-directory case, which `chmod`s a directory
+    0o500. This container runs as root, and root writes anyway. The diff
+    touches no telemetry. +3 tests, all passing. There is no `main` count on
+    this machine, so CI's fast legs are the comparison.
+    `tests.added_test_times` on that run (`junit_duration_report=total`, one
+    run under the suite's load): 3.48 s the harness test, 0.68 s and 0.48 s
+    the two dedup tests, none in the slow tail.
   - Full selection not run. The only slow suite the change can move is the
     indexing acceptance, which ran above.
 
