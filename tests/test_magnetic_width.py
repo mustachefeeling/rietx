@@ -46,6 +46,7 @@ import pytest
 from pydantic import ValidationError
 
 import rietx as rx
+from rietx.model import compiled
 from rietx.model.forward import MAGNETIC_SIZING_FLOOR, compile_model
 from rietx.params.multi import SIZE_LAMBDA_POWER
 from rietx.params.vector import ParameterTable
@@ -65,6 +66,21 @@ from tests.test_magnetic import LAMBDA_CW, MNF2_BNS, MNF2_CELL, atom, cell
 
 #: the size term used wherever a test needs the split path live
 SIZE = 0.30
+
+
+@pytest.fixture
+def numpy_path():
+    """The numpy builder, declared rather than inherited.
+
+    A bit-identity claim is the numpy path's (root ``CLAUDE.md``, compiled
+    tier rule 3); under the kernels an ``exp`` bounds it at 1e-13 relative,
+    and which side a process runs is set by the machine's numba, so a test
+    that inherits it passes on one CI row and fails on the next
+    (``tests/CLAUDE.md`` § Quoting numbers).
+    """
+    was = compiled.set_enabled(False)
+    yield
+    compiled.set_enabled(was)
 
 
 def _mnf2(*, size=0.0, strain=0.0, moment=(0.0, 0.0, 4.6), magnetic=True):
@@ -210,8 +226,9 @@ def test_at_the_default_no_second_family_is_built(moving):
         model.phase_peaks(0, values, component=1)
 
 
-def test_the_gated_and_ungated_off_states_are_bit_identical():
-    """Two reasons for one skip, and the same doubles out of both."""
+def test_the_gated_and_ungated_off_states_are_bit_identical(numpy_path):
+    """Two reasons for one skip, and the same doubles out of both — on the
+    numpy path, where bit-identity is the claim."""
     a = _state(_mnf2(), moving=None)
     b = _state(_mnf2(), moving=["phases.0.scale", "instrument.profile.u"])
     ya = np.asarray(a[0].evaluate(a[2]), dtype=np.float64)
@@ -278,7 +295,7 @@ def test_the_two_components_sum_to_the_unsplit_intensity():
         assert np.allclose(got, want, rtol=1e-14, atol=0.0), il
 
 
-def test_only_the_magnetic_component_carries_the_extra_width():
+def test_only_the_magnetic_component_carries_the_extra_width(numpy_path):
     """The composition law is the package's own — Lorentzian FWHMs add — so
     the magnetic component's width is ``x + lor_size + magnetic_lor_size``
     fed to the same ``lorentzian_fwhm``, and the nuclear component keeps the
@@ -341,13 +358,31 @@ def test_structure_intensity_partition_includes_the_magnetic_component():
     assert np.allclose(ratio, 1.0, atol=0.05), ratio
 
 
-def test_the_scalar_and_batched_draws_agree_on_the_split_path():
+@pytest.mark.parametrize("kernels", [False, True], ids=["numpy", "compiled"])
+def test_the_scalar_and_batched_draws_agree_on_the_split_path(kernels):
     """The per-reflection loop is the oracle every batched claim is measured
-    against, and it must walk the components in the same order."""
-    model, _t, v = _state(_mnf2(size=SIZE), moving=None)
-    a = np.asarray(model._phase_component_scalar(0, v), dtype=np.float64)
-    b = np.asarray(model._phase_component_batched(0, v), dtype=np.float64)
-    assert np.array_equal(a, b)
+    against, and it must walk the components in the same order.
+
+    Each tier at its own bar, declared rather than inherited: the numpy
+    builder to the bit, the compiled one to 1e-13 relative, the bar an ``exp``
+    in the kernel sets (root ``CLAUDE.md``, compiled tier rule 3).  Inherited,
+    this was bit-identity under the kernels and failed on the CI rows whose
+    numba rounds one ``exp`` differently (1.24e-16 relative, Linux x86_64).
+    """
+    if kernels and not compiled.available():
+        pytest.skip("this build has no numba; the compiled tier cannot run")
+    was = compiled.set_enabled(kernels)
+    try:
+        model, _t, v = _state(_mnf2(size=SIZE), moving=None)
+        a = np.asarray(model._phase_component_scalar(0, v), dtype=np.float64)
+        b = np.asarray(model._phase_component_batched(0, v), dtype=np.float64)
+    finally:
+        compiled.set_enabled(was)
+    if kernels:
+        # relative to the pattern's scale, as ``test_compiled_kernels`` does
+        assert np.abs(b - a).max() / np.abs(a).max() < 1e-13
+    else:
+        assert np.array_equal(a, b)
 
 
 def test_extinction_reads_the_total_structure_factor_on_both_components():
