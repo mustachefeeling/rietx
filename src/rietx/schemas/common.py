@@ -616,7 +616,12 @@ class _InheritsDeclaredDefaults(Base):
             else:
                 continue  # not a shape that carries attribute presence
             declared = info.default_factory()
-            fills = declared_fills(declared, set(present))
+            # only a fill that changes something replaces the caller's object:
+            # a Parameter shared by reference stays shared where the declared
+            # value is the one it holds anyway (a harmonic's weight *is* its
+            # derived emission line's, so write-back reaches the declaration)
+            fills = {attr: v for attr, v in declared_fills(declared, set(present)).items()
+                     if base.get(attr, BARE_PARAMETER_ATTRS[attr]) != v}
             if not fills:
                 continue
             try:
