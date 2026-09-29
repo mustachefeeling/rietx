@@ -156,6 +156,29 @@ def _degenerate_groups(d: np.ndarray, rtol: float = 1e-9) -> np.ndarray:
     return group
 
 
+def _magnetic_curve(model: CompiledModel, values: dict[str, float], ip: int,
+                    sl: float, hl: float) -> np.ndarray:
+    """Phase ip's magnetic component alone, on its own frozen windows.
+
+    WP-1343.  Only called for a phase whose magnetic component is drawn
+    separately (:meth:`~rietx.model.forward.CompiledModel.mag_split`); the
+    per-reflection loop is the one ``_phase_component_scalar`` runs, so the
+    two cannot disagree about the curve.
+    """
+    cp = model.phases[ip]
+    y = np.zeros(len(model.tt), dtype=np.float64)
+    for il, (pos, gamma, eta, intensity) in enumerate(
+            model.phase_peaks(ip, values, component=1)):
+        for k in range(len(pos)):
+            prof = model._reflection_profile(cp, il, k, pos[k], gamma[k],
+                                             eta[k], sl, hl, component=1)
+            if prof is None:
+                continue
+            i0, i1 = int(cp.win_mag[il, k, 0]), int(cp.win_mag[il, k, 1])
+            y[i0:i1] += np.asarray(intensity[k] * prof, dtype=np.float64)
+    return y
+
+
 def _strain_errors(model: CompiledModel, values: dict[str, float], ip: int,
                    n_iter: int = _GAUSS_NEWTON_ITERATIONS
                    ) -> tuple[np.ndarray, np.ndarray]:
@@ -198,6 +221,13 @@ def _strain_errors(model: CompiledModel, values: dict[str, float], ip: int,
     n_group = int(group.max()) + 1 if n else 0
     # everything this phase does not own stays fixed: background, other phases
     y_other = model.evaluate(values) - model.phase_component(ip, values)
+    if model.mag_split(ip):
+        # WP-1343: the loop below redraws the phase from ``peaks``, which is
+        # the nuclear component only where the magnetic one has its own
+        # frozen family.  That component is held here as drawn — the widths
+        # this arm infers are the nuclear reflections' — or every
+        # magnetic-only reflection would read as a missing peak.
+        y_other = y_other + _magnetic_curve(model, values, ip, sl, hl)
 
     d_lambda = np.zeros(n_group)
     amp_factor = np.ones(n_group)   # multiplicative: each step scales the current

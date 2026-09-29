@@ -925,6 +925,13 @@ def _reflection_peaks(model: "CompiledModel", values: dict[str, float]):
             # propagated, so a census is never the thing that fails.
             continue
         lines = model.phase_peaks(ip, values)
+        if model.mag_split(ip):
+            # WP-1343: a phase whose magnetic component has its own frozen
+            # family carries two images of each reflection at one position,
+            # nuclear and magnetic, with their own widths; the component-0
+            # peaks alone would give a magnetic-only reflection no intensity.
+            # They join as further images, exactly as an emission line does.
+            lines = [*lines, *model.phase_peaks(ip, values, component=1)]
         seen: np.ndarray | None = None
         cooked = []
         for pos, w1, w2, intensity in lines:

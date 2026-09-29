@@ -106,11 +106,19 @@ class ReflectionRow:
     #: reciprocal-lattice vector, so a satellite row is read as H and m
     #: together — the (3+1)-index spelling — and ``d`` is the satellite's own.
     satellite_order: int = 0
+    #: which contribution this row carries: ``"total"`` for a phase whose
+    #: magnetic width is at its off state (:meth:`CompiledModel.mag_split`
+    #: false — every phase before WP-1343, and every non-magnetic one since),
+    #: or ``"nuclear"``/``"magnetic"`` where the second frozen family is
+    #: built, one row of each per (line, reflection) rather than one row
+    #: silently carrying the nuclear share alone (WP-1343).
+    component: str = "total"
 
 
 REFLECTION_COLUMNS = (
     "phase", "line", "wavelength", "h", "k", "l", "d",
     "two_theta", "multiplicity", "f_squared", "intensity", "satellite_order",
+    "component",
 )
 
 
@@ -123,6 +131,16 @@ def reflection_table(model: CompiledModel, values: dict[str, float],
     parameter dict (see :meth:`rietx.Refinement.reflection_table`, which wires
     this up).  Reflections whose 2θ is non-physical at a given line's wavelength
     (``sinθ > 1``) are dropped for that line only.
+
+    A phase whose magnetic width is active (:meth:`CompiledModel.mag_split`,
+    WP-1343) draws its nuclear and magnetic contributions on two separate
+    frozen families with, in general, different widths — so this emits one
+    row of each, labelled by :attr:`ReflectionRow.component`, rather than a
+    single row that would read only the nuclear share — the component-0
+    default of :meth:`CompiledModel.phase_peaks`, which is the nuclear
+    component alone wherever the magnetic one is drawn separately.  A
+    phase with no second family — every phase before WP-1343 — still gets
+    exactly one ``"total"`` row per (line, reflection), unchanged.
     """
     rows: list[ReflectionRow] = []
     for ip, cp in enumerate(model.phases):
@@ -135,27 +153,43 @@ def reflection_table(model: CompiledModel, values: dict[str, float],
         # must be computed from
         order = cp.reflections.satellite_order
         d = d_spacings(cp.reflections.index, *cell)
-        if model.mode == "rietveld":
-            # a satellite carries no nuclear structure factor, and this is the
-            # same masked quantity the forward model folded into the intensity
-            f2 = model._nuclear_f2(ip, d, values, cell)
-        else:  # Le Bail / Pawley: intensity is extracted/refined, not from |F|²
-            f2 = None
-        peaks = model.phase_peaks(ip, values)
-        for il, (pos, _gamma, _eta, intensity) in enumerate(peaks):
-            lam = float(model.line_wavelengths[il])
-            for j in range(len(hkl)):
-                if not np.isfinite(pos[j]):
-                    continue
-                rows.append(ReflectionRow(
-                    phase=name, line=il, wavelength=lam,
-                    h=int(hkl[j][0]), k=int(hkl[j][1]), l=int(hkl[j][2]),
-                    d=float(d[j]), two_theta=float(pos[j]),
-                    multiplicity=int(mult[j]),
-                    f_squared=None if f2 is None else float(f2[j]),
-                    intensity=float(intensity[j]),
-                    satellite_order=0 if order is None else int(order[j]),
-                ))
+
+        def _emit(peaks, f2, component: str) -> None:
+            for il, (pos, _gamma, _eta, intensity) in enumerate(peaks):
+                lam = float(model.line_wavelengths[il])
+                for j in range(len(hkl)):
+                    if not np.isfinite(pos[j]):
+                        continue
+                    rows.append(ReflectionRow(
+                        phase=name, line=il, wavelength=lam,
+                        h=int(hkl[j][0]), k=int(hkl[j][1]), l=int(hkl[j][2]),
+                        d=float(d[j]), two_theta=float(pos[j]),
+                        multiplicity=int(mult[j]),
+                        f_squared=None if f2 is None else float(f2[j]),
+                        intensity=float(intensity[j]),
+                        satellite_order=0 if order is None else int(order[j]),
+                        component=component,
+                    ))
+
+        if model.mag_split(ip):
+            # WP-1343: two frozen families, one ``base`` each — the same
+            # split ``phase_peaks`` itself draws (component 0 = nuclear
+            # alone, component 1 = magnetic alone); a single default-argument
+            # call here is exactly the bug, silently keeping the nuclear share
+            # only.
+            f2_nuc = model._nuclear_f2(ip, d, values, cell)
+            f2_mag = model._magnetic_f2(ip, d, values, cell)
+            _emit(model.phase_peaks(ip, values, component=0), f2_nuc, "nuclear")
+            _emit(model.phase_peaks(ip, values, component=1), f2_mag, "magnetic")
+        else:
+            if model.mode == "rietveld":
+                # a satellite carries no nuclear structure factor, and this is
+                # the same masked quantity the forward model folded into the
+                # intensity
+                f2 = model._nuclear_f2(ip, d, values, cell)
+            else:  # Le Bail / Pawley: intensity is extracted/refined, not from |F|²
+                f2 = None
+            _emit(model.phase_peaks(ip, values), f2, "total")
     return rows
 
 
@@ -173,7 +207,7 @@ def write_reflection_table(rows: list[ReflectionRow], path: str | Path, *,
                 r.phase, r.line, _g(r.wavelength), r.h, r.k, r.l, _g(r.d),
                 _g(r.two_theta), r.multiplicity,
                 "" if r.f_squared is None else _g(r.f_squared), _g(r.intensity),
-                r.satellite_order,
+                r.satellite_order, r.component,
             ])
 
 
