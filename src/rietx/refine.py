@@ -2991,13 +2991,13 @@ class Refinement:
             if stream is not None:
                 from .project import fitted_mask
 
-                # the fitted count, as every ``stage_start``'s is, and the
-                # file's beside it (#441): ``fitted_mask`` is the authority
-                # ``compile_model`` is pinned to (WP-1033)
+                # the file's count, and beside it the fitted count every
+                # ``stage_start`` carries (#441): ``fitted_mask`` is the
+                # authority ``compile_model`` is pinned to (WP-1033)
                 stream.emit("fit_start", mode=mode,
                             stages=[s.name for s in plan.stages],
-                            n_points=int(fitted_mask(data, two_theta_limits).sum()),
-                            n_points_file=len(data.two_theta))
+                            n_points=len(data.two_theta),
+                            n_fitted=int(fitted_mask(data, two_theta_limits).sum()))
 
             # Stages are cumulative *within the plan*, and the plan drives the whole
             # turn-on sequence: `restore=False` holds everything first, so a fit

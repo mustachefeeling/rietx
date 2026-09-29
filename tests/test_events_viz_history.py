@@ -773,11 +773,14 @@ def test_stage_end_rwp_counts_the_declared_peaks():
     assert stage_end["rwp"] == fit_end["rwp"] == result.statistics.rwp
 
 
-# this fit's ``stage_end.rwp`` on ``54a049d2``, before the fix (macOS arm64)
+# this fit's ``stage_end.rwp`` on ``54a049d2``, before the fix (macOS arm64);
+# the compiled tier and the numpy path both gave these bits there
 PRE_FIX_NO_PEAK_RWP = float.fromhex("0x1.49dc04b678889p-5")
 
 
-def test_a_fit_without_peaks_keeps_its_stage_rwp_to_the_bit():
+@pytest.mark.parametrize("compiled_path", [False, True],
+                         ids=["numpy", "compiled"])
+def test_a_fit_without_peaks_keeps_its_stage_rwp_to_the_bit(compiled_path):
     """The fix adds a term only when a peak is declared (WP-1457).
 
     ``CompiledModel.evaluate`` keeps its no-peak arm's association on purpose,
@@ -787,21 +790,32 @@ def test_a_fit_without_peaks_keeps_its_stage_rwp_to_the_bit():
     ``background + bragg_component`` — the pre-fix sum.  The value measured
     before the fix is pinned beside it at 1e-12, which a change of association
     would still clear, so it guards the number rather than its last digit.
+    Each kernel path is declared, never inherited (``tests/CLAUDE.md`` §
+    Quoting numbers).
     """
-    _, result, of = _one_stage_fit(peak=False)
+    from rietx.model import compiled
+
+    was = compiled.set_enabled(compiled_path)
+    try:
+        _, result, of = _one_stage_fit(peak=False)
+    finally:
+        compiled.set_enabled(was)
     [stage_end] = of("stage_end")
     [fit_end] = of("fit_end")
     assert stage_end["rwp"] == fit_end["rwp"] == result.statistics.rwp
     assert stage_end["rwp"] == pytest.approx(PRE_FIX_NO_PEAK_RWP, rel=1e-12)
 
 
-def test_fit_start_counts_the_fitted_channels_and_names_the_file_count():
-    """``fit_start.n_points`` is the fitted count, as every ``stage_start``'s
-    is; the file's own count rides beside it as ``n_points_file`` (#441)."""
+def test_fit_start_keeps_the_file_count_and_adds_the_fitted_count():
+    """``fit_start.n_points`` stays the file's count, as it always was, and
+    the fitted count rides beside it as ``n_fitted``, the one every
+    ``stage_start`` carries (#441): a new key, where a changed meaning would
+    have been an ``EVENT_SCHEMA_VERSION`` bump."""
     data, result, of = _one_stage_fit(peak=False, two_theta_limits=(5.0, 20.0))
     [fit_start] = of("fit_start")
     [stage_start] = of("stage_start")
-    assert fit_start["n_points"] == stage_start["n_points"] \
+    assert fit_start["n_points"] == len(data.two_theta)
+    assert fit_start["n_fitted"] == stage_start["n_points"] \
         == result.statistics.n_points == len(result.two_theta)
-    assert fit_start["n_points_file"] == len(data.two_theta)
-    assert fit_start["n_points"] < fit_start["n_points_file"]
+    assert fit_start["n_fitted"] < fit_start["n_points"]
+    assert "n_points_file" not in fit_start

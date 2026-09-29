@@ -12,10 +12,10 @@ validation, never for writing.
 Event kinds (closed set, versioned with the schema):
 
 * ``fit_start`` / ``fit_end`` — one refinement run (mode, plan, statistics).
-  ``fit_start.n_points`` is the **fitted** channel count, the one every
-  ``stage_start`` carries (``project.fitted_mask``: in-range and inside
-  ``two_theta_limits``); since WP-1457 the file's own count rides beside it as
-  ``n_points_file``, where before it *was* ``n_points``.  Every
+  ``fit_start.n_points`` is the **file's** channel count; since WP-1457 the
+  **fitted** count, the one every ``stage_start`` carries as its
+  ``n_points`` (``project.fitted_mask``: in-range and inside
+  ``two_theta_limits``), rides beside it as ``n_fitted``.  Every
   ``stage_end.rwp`` is the Rwp of the model the stage fitted, declared peaks
   included — the same sum ``CompiledModel.evaluate`` makes — so the last one
   equals ``fit_end.rwp`` wherever the final compile rebuilds the stage's model;
