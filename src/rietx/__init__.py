@@ -97,7 +97,13 @@ from .schemas.indexing import (
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.plan import PlanSpec, StageSpec
 from .schemas.project import DataRef, ProjectDoc
-from .schemas.sequential import SeriesEntry, SeriesResult, Trajectory
+from .schemas.sequential import (
+    MagneticOnset,
+    MagneticTrajectory,
+    SeriesEntry,
+    SeriesResult,
+    Trajectory,
+)
 from .schemas.suggest import CandidateGroup, ParameterCandidate, SuggestionResult
 from .sequential import SequentialRefinement, refine_sequential
 from .strategy.staged import (
@@ -134,6 +140,8 @@ __all__ = [
     "PLAN_INFO",
     "PLAN_PRESETS",
     "LeBailValidation",
+    "MagneticOnset",
+    "MagneticTrajectory",
     "Parameter",
     "ParameterCandidate",
     "ParameterRow",

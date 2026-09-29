@@ -42,6 +42,29 @@ none of which alters a fitted value:
     than their esds allow: that parameter's trajectory is an artefact of the
     ordering, not a measurement.
 
+Two more belong to the magnetic arm (WP-1329), and they are fences of exactly
+the same kind — a series through an ordering transition is a series whose
+answer *changes character* part-way along, and warm-starting is how that gets
+hidden:
+
+``SEQUENTIAL_MOMENT_HOLD``
+    on how many patterns the moment came back unsupported (WP-1327's ratio,
+    |m| below :data:`~rietx.report.schemas.MOMENT_SUPPORT_SIGMA` of its own
+    esd), and on which of them the successor's modulus was therefore reseeded
+    to its floor instead of warm-started from the value before it.  A moment a
+    pattern does not support must not become the *starting point* of the next
+    pattern, because |F_m|² ∝ m² makes a stale modulus a local minimum the
+    next fit has no gradient to leave.
+``SEQUENTIAL_MOMENT_ONSET``
+    where along the axis the moment stops being supported, as a bracket
+    between the last released pattern and the first held one — read off the
+    per-pattern verdicts and never off the |m| column, which a warm-started
+    chain smooths straight through the transition.  Under ``direction="both"``
+    it also carries the other chain's bracket and says whether the two agree;
+    disagreement is the signature of a chain that carried a moment across the
+    transition in one direction and not the other, which is the one thing a
+    single chain cannot see.
+
 **The fallback is a ladder, and a pattern it cannot rescue is quarantined**
 (WP-1051).  A rejected warm fit escalates one rung at a time — collapsed warm
 refit → the full staged plan *from the warm state* → the full staged plan cold
@@ -103,6 +126,7 @@ exist partly so a sequential trajectory is never mistaken for one.
 from __future__ import annotations
 
 import fnmatch
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -125,14 +149,18 @@ from .refine import (
     _refuse_without_phases,
     _utcnow,
 )
-from .report.schemas import THRESHOLDS_VERSION
+from .report.schemas import THRESHOLDS_VERSION, MomentEvidence
 from .schemas.common import Diagnostic, Mode, Provenance
 from .schemas.history import ReflectionState
 from .schemas.instrument import Instrument
 from .schemas.pattern import PatternData
 from .schemas.results import RefinementResult
 from .schemas.sequential import SeriesEntry, SeriesFailure, SeriesResult, SeriesStep
-from .schemas.structure import Structure
+from .schemas.structure import (
+    MOMENT_COMPONENTS,
+    MOMENT_FLOOR_MU_B,
+    Structure,
+)
 from .strategy.staged import RefinementPlan, Stage, resolve_plan
 
 #: Rwp above this multiple of the accepted-so-far **median** triggers a cold
@@ -739,6 +767,112 @@ def _value_of(result: RefinementResult, path: str) -> float | None:
     return None
 
 
+#: The modulus DOF of a moment block, which is the only moment path this
+#: module reaches: the angles are WP-1327's business (held when the powder
+#: average cannot see them, and never carried across a pattern boundary by
+#: anything here), and the modulus is the one the series has an opinion about.
+_MOMENT_DOF0 = re.compile(r"^phases\.(\d+)\.atoms\.(\d+)\.moment\.dof0$")
+
+
+def _moment_evidence(ref, result: RefinementResult) -> list[MomentEvidence]:
+    """This pattern's moment arm, or ``[]`` when the model carries none.
+
+    :func:`rietx.report.magnetic.analyse_moments` rather than
+    ``ref.report()``: a whole Layer-0/1/2 report per pattern would cost more
+    than the fits do on a long chain, and this is the one arm a series needs.
+    WP-1327's own writer either way — nothing here re-decides ``supported``,
+    re-derives the crystal-axis components or re-reads an esd (WP-1076).
+
+    The guard is the compiled model's own frozen magnetic block, so a
+    non-magnetic series pays one ``any()`` over the phases and never builds a
+    :class:`~rietx.params.vector.ParameterTable` at all.
+    """
+    model = getattr(ref, "_model", None)
+    if model is None or not any(getattr(cp, "magnetic", None) is not None
+                                for cp in model.phases):
+        return []
+    from .report.magnetic import analyse_moments
+
+    table = ParameterTable(ref.structure, ref.instrument)
+    return analyse_moments(
+        model, table.decode(table.x0()), ref.structure,
+        held=list(result.stages[-1].held) if result.stages else [],
+        esd={p.path: p.stderr for p in result.parameters
+             if p.stderr is not None},
+        # the same worst-|rho| list ``build_report`` hands it, so a powder-
+        # degenerate pair is folded here exactly as on a single pattern
+        correlations=(result.identifiability.top_correlations
+                      if result.identifiability is not None else None))
+
+
+def _floor_unsupported_moments(structure: Structure,
+                               evidence: Sequence[MomentEvidence]
+                               ) -> tuple[Structure, list[str]]:
+    """The carry source with every **unsupported** modulus back at its floor.
+
+    WP-1301's rule along the series (WP-1329).  A pattern whose moment came
+    back below :data:`~rietx.report.schemas.MOMENT_SUPPORT_SIGMA` of its own
+    esd measured *no* moment, and handing that value to the next pattern as a
+    starting point is how an unsupported moment becomes a small confident one:
+    |F_m|² ∝ m², so a modulus sitting at a stale 2.5 μ_B is a place the next
+    fit can stay, and a warm-started chain then prints a smooth |m| column
+    straight through an ordering transition.
+
+    **What moves is the starting point, not the answer.**  The pattern's own
+    entry keeps the modulus the fit reached and the esd it was judged against
+    — that ratio *is* the evidence, and overwriting it with the floor would
+    delete the number a reader checks the verdict with.  The floor is applied
+    to a copy handed to the successor's warm start.
+
+    **The direction is preserved and the modulus stays free.**  The components
+    are scaled, not zeroed, so the angle DOFs the site allows are untouched;
+    and nothing here fixes the modulus, because it is the one direction that is
+    not flat and it is how a moment legitimately climbs back out on a cooling
+    ramp (the argument :func:`rietx.refine._flat_moment_paths` makes for never
+    holding it).  Returns the structure unchanged, and no copy, when every site
+    is supported.
+    """
+    from .crystallography.magnetic.operators import moment_magnitude
+
+    # The scan runs on the *incoming* models and decides before anything is
+    # copied, so a chain whose every site is supported — and a chain whose
+    # unsupported moduli are already at nothing — pays one pass over the
+    # evidence and no deep copy at all.
+    scales: list[tuple[str, int, int, float]] = []
+    for row in evidence:
+        # only a *measured* absence: ``None`` is no verdict — a modulus the
+        # caller stated and held, or one WP-1301 held with an unseen phase —
+        # and flooring it would overwrite a value no fit judged
+        if row.supported is not False or not row.path:
+            continue
+        m = _MOMENT_DOF0.match(row.path)
+        if m is None:                            # pragma: no cover - shape
+            continue
+        ip, ja = int(m.group(1)), int(m.group(2))
+        try:
+            atom = structure.phases[ip].atoms[ja]
+        except IndexError:                       # pragma: no cover - shape
+            continue
+        if atom.moment is None:
+            continue
+        magnitude = float(moment_magnitude(
+            atom.moment.values(), structure.phases[ip].cell.lengths_angles()))
+        # already at or below the floor: there is nothing stale to reseed, and
+        # a moment of nothing has no direction to preserve either
+        if magnitude <= MOMENT_FLOOR_MU_B:
+            continue
+        scales.append((row.path, ip, ja, MOMENT_FLOOR_MU_B / magnitude))
+    if not scales:
+        return structure, []
+    out = structure.model_copy(deep=True)
+    for _path, ip, ja, scale in scales:
+        moment = out.phases[ip].atoms[ja].moment
+        for name in MOMENT_COMPONENTS:
+            par = getattr(moment, name)
+            par.value = float(par.value) * scale
+    return out, [path for path, *_rest in scales]
+
+
 def _entry_from_result(index: int, label: str, x: float | None,
                        result: RefinementResult) -> SeriesEntry:
     return SeriesEntry(
@@ -1094,7 +1228,7 @@ class SequentialRefinement:
         # fit's answer beside its own partial ``results_``
         self.result_ = None
         self.backward_ = None
-        entries, results, trees, models, failures, _ = self._chain(
+        entries, results, trees, models, failures, _, floored = self._chain(
             order, patterns, names, xs, mode, base_plan, ladder,
             two_theta_limits, reseed, reseed_factor, prepare, constrain,
             on_result, stream=stream, cancel=cancel,
@@ -1143,6 +1277,10 @@ class SequentialRefinement:
         diagnostics += _persistent_diagnostics(series)
         # and a width that grew while the fit got worse (WP-1465)
         diagnostics += _width_growth_diagnostics(series)
+        # the moment along the chain: the hold, and the onset it locates.
+        # Empty on any series whose entries carry no moment row at all, which
+        # is every non-magnetic one (WP-1329).
+        diagnostics += _moment_diagnostics(series, floored)
 
         if direction == "both" and cancelled:
             # a cancelled forward chain gets no verification pass: the
@@ -1156,7 +1294,8 @@ class SequentialRefinement:
                 "started"))
         elif direction == "both":
             try:
-                back_entries, _, _, _, back_failures, back_stop = self._chain(
+                (back_entries, _, _, _, back_failures, back_stop,
+                 back_floored) = self._chain(
                     list(reversed(order)), patterns, names, xs, mode, base_plan,
                     ladder, two_theta_limits, reseed, reseed_factor, prepare,
                     constrain, None, history_suffix=".backward",
@@ -1183,6 +1322,7 @@ class SequentialRefinement:
                                 n_failed=len(back_failures))
             diagnostics += [_series_pattern_failed_diagnostic(f, pass_name="backward")
                             for f in back_failures]
+            back.diagnostics = _moment_diagnostics(back, back_floored)
             if cancel is not None and bool(cancel):
                 diagnostics.append(
                     _cancelled_diagnostic(len(back_entries), len(patterns),
@@ -1196,6 +1336,9 @@ class SequentialRefinement:
                     f"{in_flight}"))
             else:
                 diagnostics += _path_dependence_diagnostics(series, back, relative)
+                # the onset in *each direction of the chain*, compared: the one
+                # reading a single pass cannot produce (WP-1329)
+                diagnostics = _with_onset_agreement(diagnostics, series, back)
             self.backward_ = back
             # …and on the result, so `refine_sequential` — the one-shot API the
             # manual recommends — hands back the trajectory its
@@ -1251,14 +1394,25 @@ class SequentialRefinement:
         what already converged.
 
         Returns entries, results, trees, models and failures in series order,
-        and ``stopped_at``: the series index of the pattern in flight when a
-        cancel ended the walk, ``None`` when it ran to the end.
+        ``stopped_at``: the series index of the pattern in flight when a
+        cancel ended the walk, ``None`` when it ran to the end; and the floored
+        carries, ``{label: [modulus path, …]}`` for every pattern whose warm
+        start received a moment at its floor (WP-1329's hold).
         """
         entries: dict[int, SeriesEntry] = {}
         results: dict[int, RefinementResult] = {}
         trees: dict[int, RefinementTree | None] = {}
         models: dict[int, tuple[Structure, Instrument]] = {}
         failures: dict[int, SeriesFailure] = {}
+        #: pattern index → modulus paths whose warm start **this** pattern
+        #: received at the floor rather than at its predecessor's unsupported
+        #: value (WP-1329's hold).  Keyed by the pattern that was reseeded,
+        #: because that is the pattern whose starting point a reader is being
+        #: told about; ``pending_floor`` carries it one step through the walk,
+        #: so a quarantined pattern in between cannot make it look as though
+        #: the reseed came from its neighbour.
+        floored: dict[int, list[str]] = {}
+        pending_floor: list[str] = []
         previous: tuple[Structure, Instrument] | None = None
         previous_hkl: list = []
         #: the last accepted pattern's named-variable values, by bare name.
@@ -1286,6 +1440,8 @@ class SequentialRefinement:
         for position, k in enumerate(order):
             data = patterns[k]
             warm = previous is not None
+            if warm and pending_floor:
+                floored[k] = list(pending_floor)
             stamp = {"series_index": k, "series_label": names[k],
                      "series_n": n, "series_pass": pass_name}
             attempts = ladder if warm else [("cold", base_plan, False)]
@@ -1401,6 +1557,8 @@ class SequentialRefinement:
                     previous = None
                     previous_hkl = []
                     previous_tag = (None, None)
+                    # and no floored moment either: the next pattern is cold
+                    pending_floor = []
                 # "carry" leaves ``previous``/``previous_hkl``/``previous_tag``
                 # exactly as they were — the next pattern warm-starts from the
                 # last good state, precisely the WP-1051 quarantine's own
@@ -1413,6 +1571,10 @@ class SequentialRefinement:
                 stopped_at = k
                 break
             entry = _entry_from_result(k, names[k], xs[k], best)
+            # WP-1329: the moment arm, per pattern, from the fit that produced
+            # the values — the one place the compiled model and the fitted
+            # state are both in hand.  Empty and free on a non-magnetic chain.
+            entry.magnetic = _moment_evidence(best_ref, best)
             # every rung that returned is charged to the pattern, not only the
             # one kept; a rung that raised reports no count to charge
             entry.n_iterations = iterations
@@ -1447,7 +1609,15 @@ class SequentialRefinement:
             # What quarantine buys on #481's blank is 2-8 % of the chain, the
             # values identical to the digit either way.
             if entry.status != "diverged":
-                previous = models[k]
+                # WP-1329's hold along the series: a modulus this pattern did
+                # not support is reseeded to its floor before it becomes the
+                # next pattern's starting point.  ``models[k]`` — what the
+                # caller reads back as ``fitted_structures()`` — keeps the
+                # fitted value; only the *carry source* is floored, and on a
+                # chain with no unsupported moment it is the same object.
+                carried, pending_floor = _floor_unsupported_moments(
+                    models[k][0], entry.magnetic)
+                previous = (carried, models[k][1])
                 previous_hkl = _extract_reflections(best_ref._model)
                 previous_vars = {name: prm.value
                                  for name, prm in best_ref._variables.items()}
@@ -1485,7 +1655,8 @@ class SequentialRefinement:
         keys = sorted(entries)
         return ([entries[k] for k in keys], [results[k] for k in keys],
                 [trees[k] for k in keys], [models[k] for k in keys],
-                [failures[k] for k in sorted(failures)], stopped_at)
+                [failures[k] for k in sorted(failures)], stopped_at,
+                {names[k]: v for k, v in floored.items()})
 
     def _fit_one(self, data: PatternData, label: str,
                  previous: tuple[Structure, Instrument] | None,
@@ -2365,6 +2536,158 @@ def _width_growth_diagnostics(series: SeriesResult) -> list[Diagnostic]:
                         "had kept up, GoF would not have risen with it"),
         )
         out.append(finding)
+    return out
+
+
+def _moment_diagnostics(series: SeriesResult,
+                        floored: dict[str, list[str]]) -> list[Diagnostic]:
+    """``SEQUENTIAL_MOMENT_HOLD`` and ``SEQUENTIAL_MOMENT_ONSET``, per site.
+
+    Both read the per-pattern verdicts on
+    :attr:`~rietx.schemas.sequential.SeriesEntry.magnetic` and nothing else.
+    That is the WP-1329 rule and the reason it exists: the |m| column of a
+    warm-started chain is smooth by construction, since each pattern starts
+    from its neighbour's modulus, so a threshold on the values would locate the
+    onset wherever the chain happened to relax and a threshold on the verdicts
+    locates it where the data stops carrying a moment.
+
+    Empty for every series whose entries carry no moment row — which is every
+    non-magnetic one, and is absence for cause rather than "no moment found".
+    """
+    from .report.schemas import MOMENT_SUPPORT_SIGMA
+
+    out: list[Diagnostic] = []
+    for site in series.magnetic_sites():
+        traj = series.magnetic_trajectory(site)
+        n = len(traj.supported)
+        if n == 0:                               # pragma: no cover - shape
+            continue
+        measured = traj.measured or [True] * n
+        n_held = sum(1 for s, m in zip(traj.supported, measured, strict=True)
+                     if m and not s)
+        blind = [lab for lab, m in zip(traj.labels, measured, strict=True)
+                 if not m]
+        name = traj.atom or site
+        reseeded = [label for label, paths in floored.items() if site in paths]
+        if n_held or blind:
+            message = (
+                f"{name}: the moment is unsupported on {n_held} of {n} pattern(s) "
+                f"({100.0 * n_held / n:.0f}% of the series) — |m| at or below "
+                f"{MOMENT_SUPPORT_SIGMA:g}× its own esd, which reads as \"not "
+                f"distinguishable from none\" and never as \"a small moment\"")
+            if blind:
+                message += (
+                    f"; {len(blind)} more pattern(s) give no verdict at all "
+                    f"({', '.join(blind[:4])}{' …' if len(blind) > 4 else ''}"
+                    f") — the modulus has no esd there, because it was held "
+                    f"or the phase was not seen, or the fit diverged — and "
+                    f"are left out of the onset")
+            if reseeded:
+                message += (
+                    f"; the modulus was reseeded to its floor "
+                    f"({MOMENT_FLOOR_MU_B:g} μ_B) on {len(reseeded)} successor "
+                    f"pattern(s) ({', '.join(sorted(reseeded)[:4])}"
+                    f"{' …' if len(reseeded) > 4 else ''}) rather than "
+                    f"warm-started from a value the pattern before did not "
+                    f"support")
+            out.append(Diagnostic(
+                level="warning", code="SEQUENTIAL_MOMENT_HOLD", where=[site],
+                value=float(n_held), message=message,
+                suggestion=(
+                    "plot the trajectory from series.magnetic_trajectory(), "
+                    "which withholds the esd on exactly these points, and "
+                    "quote them as held rather than as small; a held point's "
+                    "value is the modulus the fit reached, not zero")))
+        onset = traj.onset
+        if onset is None:                        # pragma: no cover - shape
+            continue
+        if onset.x is not None:
+            message = (
+                f"{name}: the moment stops being supported between "
+                f"{onset.bracket_labels[0]} and {onset.bracket_labels[1]} "
+                f"({series.x_label} {onset.bracket[0]:g} → "
+                f"{onset.bracket[1]:g}), so the onset is "
+                f"{onset.x:g} ± {onset.x_esd:g} — a bracket set by the "
+                f"spacing of the patterns, not a fitted critical point")
+            spans = onset.note.partition(". The bracket spans ")[2]
+            if spans:
+                message += ". The bracket spans " + spans.partition(". ")[0]
+            if not onset.bracket_verdicts_final:
+                message += (". Do not quote it: "
+                            + onset.note.split(". Do not quote it: ")[-1])
+            out.append(Diagnostic(
+                level=("info" if onset.bracket_verdicts_final else "warning"),
+                code="SEQUENTIAL_MOMENT_ONSET", where=[site],
+                value=float(onset.x), message=message,
+                suggestion=(
+                    "raise the moment stage's max_iter and re-run: a bracket "
+                    "whose supported side stopped early is not a measurement "
+                    "of an onset" if not onset.bracket_verdicts_final else
+                    "run the series direction='both': one chain's onset is "
+                    "the boundary its own warm start reached, and the two "
+                    "together are the only check that it is the data's")))
+        elif not onset.monotone:
+            out.append(Diagnostic(
+                level="warning", code="SEQUENTIAL_MOMENT_ONSET", where=[site],
+                message=f"{name}: {onset.note}",
+                suggestion=(
+                    "open the patterns either side of each switch: an "
+                    "interleaved verdict is usually one pattern the ladder "
+                    "rescued cold, or a moment carried across the transition "
+                    "by a warm start, and both are visible in that entry's "
+                    "rung and its magnetic row")))
+    return out
+
+
+def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
+                          back: SeriesResult) -> list[Diagnostic]:
+    """Fold the backward chain's onset into the forward ``…_ONSET`` rows.
+
+    "The onset in each direction of the chain" (WP-1329) is one statement about
+    two passes, so it is one diagnostic carrying both brackets rather than two
+    diagnostics a reader has to notice are about the same thing.  The two
+    **agree** when their brackets overlap — which is the WP's "within one
+    pattern", since adjacent brackets share an endpoint — and a disagreement
+    raises the row to ``warning``: a moment carried across the transition by
+    one chain's warm start and not the other's is exactly what a single pass
+    cannot see, and it is the failure this whole comparison is for.
+    """
+    by_site = {}
+    for site in back.magnetic_sites():
+        by_site[site] = back.magnetic_trajectory(site).onset
+    out: list[Diagnostic] = []
+    for d in diagnostics:
+        other = by_site.get(d.where[0]) if d.where else None
+        if d.code != "SEQUENTIAL_MOMENT_ONSET" or other is None:
+            out.append(d)
+            continue
+        mine = forward.magnetic_trajectory(d.where[0]).onset
+        if mine is None or mine.x is None or other.x is None:
+            out.append(d.model_copy(update={
+                "level": "warning",
+                "message": (f"{d.message}; the backward chain located no "
+                            f"onset at all ({other.note}), so the two passes "
+                            f"do not agree on whether there is one")}))
+            continue
+        overlap = (max(mine.bracket[0], other.bracket[0])
+                   <= min(mine.bracket[1], other.bracket[1]))
+        text = (f"{d.message}; the backward chain brackets it "
+                f"{other.bracket[0]:g} → {other.bracket[1]:g} "
+                f"({other.x:g} ± {other.x_esd:g})")
+        # agreement can only *keep* the row at info: an unconverged bracket is
+        # a separate reason to warn and two chains agreeing about an
+        # unconverged bracket is two readings of the same intermediate state
+        agrees = (overlap and mine.bracket_verdicts_final
+                  and other.bracket_verdicts_final)
+        out.append(d.model_copy(update={
+            "level": "info" if agrees else "warning",
+            "message": text + (
+                ", which overlaps the forward bracket — the onset is the "
+                "data's, not the ordering's"
+                if overlap else
+                ". The two do NOT overlap: one chain carried a moment across "
+                "the transition that the other never found, so this onset is "
+                "path-dependent and neither bracket is a measurement of it")}))
     return out
 
 
