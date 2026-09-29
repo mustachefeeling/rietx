@@ -124,6 +124,18 @@ lands first.
 
 ### Inherited
 
+- **2026-09-29, from [1321](1321-persisted-bounds-repair.md): every class
+  that declares a range now passes it on, so a tie meets far more declared
+  bounds.** Until 1321 only `Atom.occ`/`biso` inherited their declared range
+  onto a caller's own `Parameter`; now 57 fields on 17 classes do
+  (`schemas.common._InheritsDeclaredDefaults`: a phase's scale and widths, the
+  instrument's zero shift, displacement and Caglioti widths, …), with the
+  transform travelling alongside the bounds it enforces. A tie whose implied value leaves
+  a declared bound is therefore reachable on those fields too, where before
+  their bounds were ±inf. The voice to match is the mixin's own refusal: it
+  names the class and field, the range the field declares, and the escape
+  (`ProfileTCHZ.coarse` for the Caglioti box).
+
 - **2026-09-04, from [1119](1119-named-variables.md): #246 no longer reproduces
   as written, task 4's computation now exists, and 1119 stopped one step short
   of using it for the refusal.** Check all three against the tree before

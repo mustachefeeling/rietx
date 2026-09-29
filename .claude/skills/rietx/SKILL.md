@@ -210,10 +210,10 @@ measured evidence behind each rule is
 [`references/judging.md`](references/judging.md).
 
 9. **Status and guards outrank every statistic.** `result.status`, then
-   `result.diagnostics`. `statistics.max_shift_over_esd` is the measured quantity
-   behind "converged" (McCusker §7 converges at ≤ 0.1). A converged solve
-   satisfies it a fortiori, so read it where a stage stopped on `STAGE_MAX_ITER`:
-   its magnitude says how far the solve was still moving, in esd units.
+   `result.diagnostics`. Read `statistics.max_shift_over_esd` on every solve
+   (McCusker §7 converges at ≤ 0.1): "converged" is the cost's verdict, and a
+   large value under it is an unbounded or degenerate direction still walking;
+   after `STAGE_MAX_ITER` it says how far the solve had left to go.
 10. **Read the shape of the difference curve region by region, not its size.**
     `report.regions` carries per-region local Rwp and χ² share, and
     `cumulative_chi2_breakpoints` locates where the model starts failing.

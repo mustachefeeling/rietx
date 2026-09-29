@@ -258,6 +258,129 @@ def test_schema_version_bumped_and_pre_fix_documents_still_load():
         -165.0, float("-inf"), float("inf"), None)
 
 
+def _declared_fields():
+    """Every (class, field, declared default) where a schema ``Parameter``
+    field's ``default_factory`` carries an attribute a bare ``Parameter``
+    does not — found by walking the whole ``Base`` family, never listed."""
+    bare = Parameter(value=0.0)
+    seen, stack, out = set(), list(Base.__subclasses__()), []
+    while stack:
+        cls = stack.pop()
+        if cls in seen:
+            continue
+        seen.add(cls)
+        stack.extend(cls.__subclasses__())
+        for name, info in cls.model_fields.items():
+            if info.annotation is not Parameter or info.default_factory is None:
+                continue
+            default = info.default_factory()
+            if any(getattr(default, a) != getattr(bare, a)
+                   for a in ("min", "max", "unit", "transform")):
+                out.append((cls, name, default))
+    return out
+
+
+def test_every_schema_field_that_declares_a_range_passes_it_on():
+    """WP-1321's audit, as the test #206's ``Atom`` template becomes one rank
+    up: not a list of the classes audited but every class the ``Base`` family
+    holds, so a field *or a class* added later with a declared range is
+    exercised with no edit here.  Each must inherit the shared rule, and a
+    bare ``Parameter`` at the declared value must come out carrying every
+    declared bound and unit, and the transform wherever it came with them.
+    The sort behind "every" is the WP file's; nothing is excluded."""
+    from rietx.schemas.common import _InheritsDeclaredDefaults
+
+    found = _declared_fields()
+    for cls, name, default in found:
+        assert issubclass(cls, _InheritsDeclaredDefaults), (cls.__name__, name)
+        got = cls._inherit_declared_bounds({name: Parameter(value=default.value)})[name]
+        for attr in ("min", "max", "unit", "transform"):
+            assert getattr(got, attr) == getattr(default, attr), (cls.__name__, name, attr)
+    # a guard against a loop that silently matched nothing, not a pin of the set
+    names = {cls.__name__ for cls, _, _ in found}
+    assert {"Atom", "Phase", "PreferredOrientation", "Instrument", "ProfileTCHZ",
+            "Geometry", "Source"} <= names
+
+
+def test_a_phase_scale_left_bare_is_softplus_from_zero():
+    """The class the WP's Context called milder, measured: a bare
+    ``Parameter`` dropped the softplus floor *with* the bound, so a scale or
+    a width could refine negative.  Both now arrive as declared."""
+    phase = make_lab6().phases[0]
+    got = Phase(**{**phase.model_dump(exclude={"scale", "lor_size"}),
+                   "scale": Parameter(value=5e-3, vary=True),
+                   "lor_size": Parameter(value=0.01, vary=True)})
+    assert (got.scale.min, got.scale.transform) == (0.0, "softplus")
+    assert (got.lor_size.min, got.lor_size.unit, got.lor_size.transform) == (
+        0.0, "deg", "softplus")
+    assert got.scale.vary and got.scale.value == 5e-3
+
+
+def test_a_transform_travels_only_with_the_bounds_it_enforces():
+    """Softplus under a caller's own ``min=-1`` would clamp their value to
+    1e-12 at the first decode, silently; so a caller who states the bound
+    keeps their own transform, and an explicit transform always wins.
+    Logit enforces both ends, so it needs both inherited."""
+    from rietx.schemas.instrument import PeakComponent
+
+    phase = make_lab6().phases[0]
+    base = phase.model_dump(exclude={"lor_size", "gauss_size"})
+    got = Phase(**base, lor_size=Parameter(value=-0.5, min=-1.0),
+                gauss_size=Parameter(value=0.01, transform="identity"))
+    assert (got.lor_size.min, got.lor_size.transform) == (-1.0, "identity")
+    assert (got.gauss_size.min, got.gauss_size.transform) == (0.0, "identity")
+
+    eta = PeakComponent._inherit_declared_bounds(
+        {"eta": Parameter(value=0.5, max=0.9)})["eta"]
+    assert (eta.min, eta.max, eta.transform) == (0.0, 0.9, "identity")
+    eta = PeakComponent._inherit_declared_bounds({"eta": Parameter(value=0.5)})["eta"]
+    assert (eta.min, eta.max, eta.transform) == (0.0, 1.0, "logit")
+
+
+def test_a_bare_width_outside_the_declared_box_is_refused_by_name():
+    """WP-1312's ruling reached a bare *number* and let a bound-less
+    ``Parameter`` through unbounded; inheriting the box closes that, and the
+    refusal names the field, the box and ``coarse`` rather than arriving as
+    ``Parameter``'s anonymous bounds error.  An explicit bound still wins."""
+    from rietx.schemas.instrument import ProfileTCHZ
+
+    with pytest.raises(ValidationError, match=r"ProfileTCHZ\.u: value 1\.576 lies "
+                       r"outside bounds \[-0\.05, 1\.0\].*ProfileTCHZ\.coarse"):
+        ProfileTCHZ(u=Parameter(value=1.576, vary=True))
+    wide = ProfileTCHZ(u=Parameter(value=1.576, vary=True, min=0.0, max=5.0))
+    assert (wide.u.min, wide.u.max, wide.u.unit) == (0.0, 5.0, "deg^2")
+
+
+def test_inheriting_does_not_touch_the_callers_parameter_on_any_class():
+    """PR #206's review item 1, re-asked of the shared rule: one
+    ``Parameter`` reused across two classes gets each field's own range and
+    is itself left exactly as handed in."""
+    from rietx.schemas.instrument import Geometry
+
+    p = Parameter(value=0.0)
+    before = (p.min, p.max, p.unit, p.transform, frozenset(p.model_fields_set))
+    phase = Phase(**make_lab6().phases[0].model_dump(exclude={"extinction"}),
+                  extinction=p)
+    geo = Geometry(kind="debye_scherrer", sample_displacement=p)
+    assert (p.min, p.max, p.unit, p.transform, frozenset(p.model_fields_set)) == before
+    assert (phase.extinction.min, phase.extinction.transform) == (0.0, "softplus")
+    assert (geo.sample_displacement.min, geo.sample_displacement.max,
+            geo.sample_displacement.unit) == (-1.0, 1.0, "mm")
+
+
+def test_one_parameter_handed_to_many_atoms_becomes_one_per_atom():
+    """PR #206 copied a ``Parameter`` whenever it left an attribute unset, and
+    the shared rule keeps that even where the declared value is the one it
+    already holds: shared, the write-back would leave the last site's refined
+    occupancy in every site.  Sharing on purpose states every attribute, as
+    ``Harmonic.weight``'s default does for its derived emission line."""
+    p = Parameter(value=1.0, min=0.0, max=1.5)
+    a, b = _atom(occ=p), _atom(occ=p)
+    assert a.occ is not b.occ and a.occ is not p
+    whole = Parameter(value=1.0, min=0.0, max=1.5, unit=None, transform="identity")
+    assert _atom(occ=whole).occ is whole
+
+
 def test_structure_json_round_trip():
     s = make_lab6()
     s2 = Structure.model_validate_json(s.model_dump_json())

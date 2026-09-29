@@ -31,7 +31,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | WP | Title | Priority | Depends on | Section |
 |---|---|---|---|---|
 | [1312](1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | P2 | — | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
-| [1321](1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1323](1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1336](1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | P2 | — ([1310](1310-report-repeats-itself.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | P2 | — ([1312](1312-neutron-followthrough.md), [1335](1335-the-report-costs-more-than-the-fit.md), [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) soft) | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
@@ -403,7 +402,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1320](1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ✅ 2026-09-27 | — | — ([1310](1310-report-repeats-itself.md) soft) |
-| [1321](1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | P2 | — |
+| [1321](1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ✅ 2026-09-29 | — | — |
 | [1323](1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | P2 | — |
 | [1324](1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, and a setting nobody chose | ✅ 2026-09-02 | — | — |
 | [1332](1332-the-axis-a-reader-hands-back.md) | What a reader hands back: the axis, the rows, the σ column | ✅ 2026-09-28 | — | — |
@@ -480,6 +479,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1466](1466-the-structure-viewer-draws-coordination-polyhedra.md) | The structure viewer draws coordination polyhedra | ✅ 2026-09-26 | — | [1462](1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 🔄 2026-09-28 | P4 | [1466](1466-the-structure-viewer-draws-coordination-polyhedra.md) |
 | [1470](1470-a-structure-figure-without-a-browser.md) | A structure figure from Python, drawn without a browser | ✅ 2026-09-27 | — | — |
+| [1522](1522-the-gui-says-what-the-read-repaired.md) | The GUI says what reading the project repaired | ⬜ | P3 | — |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
 
