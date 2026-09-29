@@ -1,6 +1,6 @@
 # WP-1328 — magnetic interchange: magCIF in and out, and the readers stop refusing
 
-Milestone: v1.6 · Status: 🔄 2026-09-27 — magCIF in and out and the TOPAS moments landed from outside (PR #478); the `.pcr` Jbt stance and 1314's refusal list remain
+Milestone: v1.6 · Status: 🔄 2026-09-29 — magCIF in and out and the TOPAS moments (PR #478), and the foreign writers' refusal of a magnetic phase (PR #521, #470), landed from outside; the `.pcr` Jbt stance, 1314's refusal list and a TOPAS `mlx mly mlz` writer remain
 Depends on: 1327 (the model the files describe); 1118 soft (the coverage
 registry the foreign readers report through)
 Priority: P3 2026-09-23 — waits on 1327's model; P2 when it lands
@@ -266,6 +266,54 @@ is still named in the result.
   [1319](1319-structure-interchange.md) the CIF writer's guard.
 
 ## Handover log
+
+### 2026-09-29 — the foreign writers' refusal landed from outside (#470)
+
+The four foreign-project writers no longer hand another program a magnetic
+phase with its moments stripped. `write_topas_inp`, `write_fullprof_pcr`,
+`write_gsas_exp` and `write_gsas2_phase_cif` now raise a `ValueError` that
+names the phase, its magnetic group and how many sites carry a moment. They
+point the caller to `Structure.to_cif`, the one writer that carries the
+moments. Before this, each wrote the phase as a nuclear one, with no
+exception and no warning, and the file refined as a paramagnet. This is the
+refusal issue #470 asked for, decided in this WP's `### Inherited` on
+2026-09-27 as a PR separate from this WP. It arrived as the contributor's PR #521 and merged
+as `18ae8eff` in the `/pr-review all` run of 2026-09-29. It closed #470.
+
+- *Done*: PR #521.
+  - `crystallography.symmetry.refuse_magnetic_phase(phase, fmt, why=None)`
+    sits beside `refuse_operation_list`, with one call in each writer where
+    that refusal already runs. It tests `magnetic_symmetry` and the site
+    moments separately, so neither half-magnetic state rests on the
+    schema's own refusal.
+  - **gsas2 refuses too, and on a measurement.** The GSAS-II phase CIF does
+    carry the magCIF loops (through `write_structure_block`, since #478).
+    But GSAS-II 5.6.3's scriptable `add_phase` reads that file back as
+    `General.Type` `nuclear`, with no magnetic group, every spin +1 and no
+    warning. That is the same silent drop, one program later, so the
+    refusal passes `why=` naming the importer. The contributor ran GSAS-II
+    as a black box and did not read its source. A hand-canonicalised magCIF
+    was read by no GSAS-II importer at all.
+  - `tests/test_writers_refuse_magnetic.py`, 15 tests: per writer, the
+    refusal message, no file left on disk, and a moment-free twin writing
+    with no magnetic token. Also the gsas2 reason and both half-magnetic
+    states at the helper.
+  - Docs: one sentence in `using/files.md`, and an "Exporting" line in the
+    skill's `references/magnetic.md` tagged `(Measured: GSAS-II 5.6.3,
+    issue #470)`, with all three copies synced.
+- *Measured* (review, Linux x86_64, 4 cores, Python 3.12.3, `[dev,jax]`
+  bench venv, run as root, on `f1b89d63` with #523, #450 and #521 merged
+  together, which touch disjoint files): full suite, slow included, 7013
+  passed, 118 skipped, 1 failed. The failure was a wall-clock runaway guard
+  in `test_held_phase.py`, 76.2 s against 60 s under a load average of 9-11
+  on 4 cores. It passes alone in 18.85 s.
+- *Not done*: writing magnetic records in any foreign format. That means
+  TOPAS `mlx mly mlz`, whose basis #478 measured on the reader's side, and
+  a GSAS-II-readable magnetic phase if a spelling exists. Both stay with
+  this WP, after the refusal, as decided on #470. The `.pcr` line and the
+  manual-and-skill line are unchanged.
+- *Next*: the `.pcr` Jbt stance, 1314's refusal list, and the TOPAS
+  moment writer.
 
 ### 2026-09-27 — magCIF in and out landed from outside
 
