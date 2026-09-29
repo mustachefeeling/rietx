@@ -433,32 +433,19 @@ def test_the_shared_moment_is_measured_by_the_neutron_histogram_alone():
     assert abs(row.value - 4.6) < 4 * row.stderr, (row.value, row.stderr)
 
 
-def test_the_dispersion_diagnostic_is_not_wired_into_a_joint_fit_yet():
-    """`DISPERSION_NEGLECTED` fires zero times here, and not because either
-    histogram behaves correctly.
+def test_the_dispersion_diagnostic_fires_on_the_xray_histogram_alone():
+    """`DISPERSION_NEGLECTED` fires once, on the X-ray histogram only.
 
-    The review on #281 asked for the exact count rather than `<= 1`, since
-    that bound cannot tell "fired once, correctly" from "never fired at
-    all". Measured: with the X-ray histogram's `dispersion` set to `None`
-    and corundum's Al at this wavelength well past
-    `DISPERSION_NEGLECT_FRAC` (fractional effect on scattering power ~3.3%,
-    `refine.py::_dispersion_diagnostics`), a single-histogram
-    `Refinement` on the same structure and instrument *does* raise it. A
-    joint fit through `refine_multi`/`MultiHistogramRefinement` does not,
-    on either histogram, at any count.
-
-    That is because `multi.py`'s per-histogram diagnostics loop —
-    `_absorption_diagnostics`, `_capillary_offset_diagnostics`,
-    `_wavelength_calibration_diagnostics`, `_strain_flag_diagnostics`,
-    `_size_flag_diagnostics` and the rest — never calls
-    `_dispersion_diagnostics` at all, for either histogram's diagnostics or
-    the fit's own. So `0` here is the honest count, and it is *not* the
-    "neutron correctly abstains, X-ray correctly fires" result this test
-    used to claim (`assert len(fired) <= 1`, which `0` also satisfies).
-    Wiring `_dispersion_diagnostics` per histogram into the joint path is
-    real follow-up work and a package-behaviour change, not done here —
-    flagged to @yue-here as this file's one open question rather than
-    fixed by this PR.
+    The exact count, as the review on #281 asked, since `<= 1` cannot tell
+    "fired once, correctly" from "never fired at all" — which is what this
+    test used to pin: `multi.py` never called `_dispersion_diagnostics`, so a
+    joint fit raised it at no count while a single-histogram `Refinement` on
+    the same structure and instrument raised it once (corundum's Al at this
+    wavelength carries ~3.3 % of its scattering power in f′, past
+    `DISPERSION_NEGLECT_FRAC`).  WP-1344 placed it: the code asks one
+    histogram's source, so it is that histogram's (`multi.DIAGNOSTIC_SCOPES`),
+    the neutron histogram abstains, and the top-level list stays clear of it.
+    `tests/test_multi_diagnostics.py` carries the siblings and the meta-test.
     """
     xray = _xray()
     xray = xray.model_copy(update={
@@ -466,12 +453,9 @@ def test_the_dispersion_diagnostic_is_not_wired_into_a_joint_fit_yet():
     xd, nd = _flat(20.0, 80.0), _flat(20.0, 80.0)
     result = rx.refine_multi([xd, nd], rx.Structure(phases=[corundum()]),
                              [xray, _neutron()], plan="profile_only")
-    fired = [d for d in result.diagnostics if d.code == "DISPERSION_NEGLECTED"]
-    assert len(fired) == 0, (
-        "DISPERSION_NEGLECTED now fires in a joint fit -- if `multi.py` was "
-        "changed to wire `_dispersion_diagnostics` in, this test's docstring "
-        "is the one that needs rewriting to state the intended per-histogram "
-        "count (1, on the X-ray histogram only) rather than the gap")
+    assert [d.code for d in result.diagnostics].count("DISPERSION_NEGLECTED") == 0
+    assert [[d.code for d in h.diagnostics].count("DISPERSION_NEGLECTED")
+            for h in result.histograms] == [1, 0]
 
 
 def test_the_structure_is_shared_and_the_instruments_are_not():

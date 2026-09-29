@@ -4953,6 +4953,36 @@ def _phase_agreement(model: CompiledModel, values: dict[str, float],
 
 
 
+def _reflection_tick_support(model: CompiledModel, ip: int,
+                             values: dict[str, float], n_rows: int) -> np.ndarray:
+    """Each tick's support in σ, for phase ``ip``'s ``n_rows`` emission-line
+    rows tiled in reflection order — the pairing ``tick_support`` carries.
+
+    A tick carries its *reflection's* support, the strongest modelled point
+    over every emission-line image of that hkl (WP-1458).  One authority for
+    both tick builders, this module's :func:`_build_result` and
+    ``multi.MultiHistogramRefinement._ticks`` (WP-1344), so the joint fit's
+    low-angle boundary asks the question the single fit's does.
+    """
+    if not n_rows:
+        return np.array([])
+    line_support = model.reflection_support(ip, values)
+    return np.tile(np.max(np.stack(line_support), axis=0), n_rows)
+
+
+def _extra_peak_tick_support(model: CompiledModel,
+                             values: dict[str, float]) -> list[float]:
+    """The support of each ``EXTRA_TICK_KEY`` tick, paired by index with
+    :meth:`CompiledModel.extra_peak_tick_positions` — a peak's images are
+    judged together, as a reflection's are (:func:`_reflection_tick_support`).
+    """
+    images = model.extra_peak_support(values)
+    best: dict[int, float] = {}
+    for _, j, s in images:
+        best[j] = max(best.get(j, 0.0), s)
+    return [best[j] for _, j, _ in images]
+
+
 def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray, *,
                   mode: Mode, status: str, stage_results: list[StageResult],
                   diagnostics: list[Diagnostic], structure: Structure,
@@ -5044,9 +5074,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         # (H, m), not H: a satellite is labelled by its order (WP-1326)
         hkl = (np.tile(cp.reflections.hklm, (len(rows), 1)) if rows
                else np.zeros((0, 4), dtype=np.int64))
-        line_support = model.reflection_support(ip, values)
-        sup = (np.tile(np.max(np.stack(line_support), axis=0), len(rows))
-               if rows else np.array([]))
+        sup = _reflection_tick_support(model, ip, values, len(rows))
         keep = np.isfinite(pos)
         if cp.magnetic is not None:
             # issue #278: a magnetic phase's reflections are drawn as their
@@ -5106,11 +5134,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     extra_ticks = model.extra_peak_tick_positions(values)
     if extra_ticks:
         ticks[EXTRA_TICK_KEY] = extra_ticks
-        images = model.extra_peak_support(values)
-        best = {}
-        for _, j, s in images:
-            best[j] = max(best.get(j, 0.0), s)
-        tick_support[EXTRA_TICK_KEY] = [best[j] for _, j, _ in images]
+        tick_support[EXTRA_TICK_KEY] = _extra_peak_tick_support(model, values)
 
     # Quantitative phase analysis from the refined scales.  Le Bail scales are
     # degenerate with the extracted intensities, so QPA is Rietveld-only.  σ(W)

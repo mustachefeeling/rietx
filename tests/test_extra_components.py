@@ -1605,7 +1605,7 @@ def test_a_joint_fit_writes_the_same_reserved_key_as_a_single_one():
                           moving_paths=set(table.moving_paths))
     values = table.decode(table.x0())
 
-    ticks, tick_hkl = MultiHistogramRefinement._ticks(
+    ticks, tick_hkl, tick_support = MultiHistogramRefinement._ticks(
         None, model, structure, values)
     assert EXTRA_TICK_KEY in ticks
     assert ticks[EXTRA_TICK_KEY] == model.extra_peak_tick_positions(values)
@@ -1615,6 +1615,10 @@ def test_a_joint_fit_writes_the_same_reserved_key_as_a_single_one():
     # (WP-1438). The phase beside it does, one per tick.
     assert EXTRA_TICK_KEY not in tick_hkl
     assert len(tick_hkl["LaB6"]) == len(ticks["LaB6"])
+    # support rides beside every row, the declared peak's included, paired by
+    # index as the single fit's is (WP-1344: the low-angle boundary reads it)
+    assert {k: len(v) for k, v in tick_support.items()} == {
+        k: len(v) for k, v in ticks.items()}
 
     # and nothing appears for a model that declares no peak
     plain = _instrument()

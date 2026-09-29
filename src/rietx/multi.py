@@ -31,7 +31,11 @@ from .optimize.least_squares import (
     _longest_line_wavelength,
     run_multi_least_squares,
 )
-from .optimize.statistics import background_absorption, compute_statistics
+from .optimize.statistics import (
+    background_absorption,
+    compute_statistics,
+    roughness_absorption,
+)
 from .params.multi import (
     SIZE_LAMBDA_POWER,
     MultiParameterTable,
@@ -49,16 +53,29 @@ from .refine import (
     _cell_runaway_withheld,
     _constraint_diagnostics,
     _covariance_diagnostics,
+    _data_support_diagnostics,
     _declared_wavelengths,
     _degenerate_cell_diagnostics,
+    _dispersion_diagnostics,
+    _extra_peak_diagnostics,
+    _extra_peak_tick_support,
+    _far_from_data_diagnostics,
     _guard_diagnostics,
+    _harmonic_diagnostics,
+    _low_angle_diagnostics,
+    _max_iter_diagnostics,
     _phase_agreement,
     _phase_support_diagnostics,
     _quantify_phases,
+    _reflection_tick_support,
     _refuse_without_phases,
     _resolve_specimen_absorption,
+    _resonant_absorber_diagnostics,
+    _roughness_regime_diagnostics,
     _size_flag_diagnostics,
+    _species_fallback_diagnostics,
     _strain_flag_diagnostics,
+    _symmetry_silence_diagnostics,
     _unknown_path_diagnostics,
     _utcnow,
     _wavelength_calibration_diagnostics,
@@ -77,17 +94,183 @@ from .schemas.results import (
 from .schemas.structure import Structure
 from .strategy.staged import (
     BACKGROUND_ABSORPTION_GUARD,
+    FLAT_DIRECTION_RHO,
     PLAN_PRESETS,
+    ROUGHNESS_ABSORPTION_GUARD,
     GuardFinding,
     GuardReport,
     RefinementPlan,
     bound_findings,
     bound_untested,
     check_adp_positive_definite,
+    check_biso_plausible,
     check_hump_width,
+    check_resolution_positive,
+    check_resolution_supported,
+    check_stephens_positive,
 )
 
 _CELL_KEYS = ("a", "b", "c", "alpha", "beta", "gamma")
+
+#: A diagnostic reported **once per histogram**, on
+#: :attr:`HistogramResult.diagnostics`: a fact about one pattern — its
+#: radiation, its instrument, its counts, or the fit's agreement with it.
+HISTOGRAM = "histogram"
+#: Reported **once, at top level**, and a fact about the shared structure:
+#: one specimen, one answer, whatever radiation looks at it.
+SPECIMEN = "specimen"
+#: Reported **once, at top level**, and a fact about the joint solve or the
+#: plan rather than about any one pattern or the structure alone.
+FIT = "fit"
+#: **Not computed** by a joint fit; the reason beside it says why.
+ABSENT = "absent"
+
+#: Which answer a joint fit gives each diagnostic helper (WP-1344) — the
+#: diagnostics twin of :data:`~rietx.params.multi.SIZE_LAMBDA_POWER`, and data
+#: for its reason: a helper added to ``refine.py`` without a row here fails
+#: ``tests/test_multi_diagnostics.py``, and so does a row this module's
+#: ``_build_result`` does not honour (a :data:`HISTOGRAM` helper must be called
+#: inside the per-histogram loop, a :data:`SPECIMEN` or :data:`FIT` one outside
+#: it, an :data:`ABSENT` one nowhere).  Keys are every ``_*_diagnostics``
+#: function defined in :mod:`rietx.refine` and in this module; a helper reached
+#: only through another (``_quantify_phases`` calls the two QPA ones) is
+#: placed by where its caller is.  ``_guard_diagnostics`` is a converter over a
+#: ``GuardReport`` and so sits at both levels, one report per level.
+#:
+#: The radiation-keyed rows are the reason this exists: before it the joint
+#: path named ``_dispersion_diagnostics``, ``_resonant_absorber_diagnostics`` and
+#: ``_species_fallback_diagnostics`` nowhere, so a mixed X-ray + neutron fit
+#: raised none of the three while the vocabulary claimed the checks (WP-1076's
+#: "a declared name is a claim", one rank up).  Each asks one histogram's
+#: source, so each belongs to the histogram, never to the fit.
+DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
+    # -- per histogram: the pattern's radiation -------------------------------
+    "_dispersion_diagnostics": (
+        (HISTOGRAM,), "f'/f'' is keyed on this histogram's source kind and λ"),
+    "_resonant_absorber_diagnostics": (
+        (HISTOGRAM,), "a complex b matters to a neutron histogram only"),
+    "_species_fallback_diagnostics": (
+        (HISTOGRAM,), "the Waasmaier-Kirfel lookup is the X-ray amplitude; a "
+                      "neutron histogram resolves species through another table"),
+    "_harmonic_diagnostics": (
+        (HISTOGRAM,), "a λ/n line is declared on one histogram's source"),
+    "_wavelength_calibration_diagnostics": (
+        (HISTOGRAM,), "each histogram declares and may free its own λ"),
+    # -- per histogram: the pattern's instrument and specimen mount ----------
+    "_absorption_diagnostics": (
+        (HISTOGRAM,), "µR/µt is per wavelength and geometry"),
+    "_capillary_offset_diagnostics": (
+        (HISTOGRAM,), "each histogram has its own geometry and locked entries"),
+    "_roughness_regime_diagnostics": (
+        (HISTOGRAM,), "a roughness model is declared on one instrument and "
+                      "judged over that histogram's range"),
+    "_extra_peak_diagnostics": (
+        (HISTOGRAM,), "a declared peak lives on one instrument's "
+                      "extra_components, against that histogram's ticks"),
+    "_strain_flag_diagnostics": (
+        (HISTOGRAM,), "read off each histogram's own copy (λ-free, repeated "
+                      "so a histogram's list is complete on its own)"),
+    "_size_flag_diagnostics": (
+        (HISTOGRAM,), "read against each histogram's own λ; a disagreement "
+                      "between rows would mean the WP-1131 scaling came undone"),
+    # -- per histogram: the pattern's counts and the fit's agreement with them
+    "_data_support_diagnostics": (
+        (HISTOGRAM,), "the sampling and dead-channel halves are facts about one "
+                      "measurement.  The ratio half (DATA_SUPPORT_LOW) is "
+                      "deliberately not asked: support=None is passed, because "
+                      "McCusker's observations-per-parameter has no agreed "
+                      "joint definition — one histogram's reflections against "
+                      "the shared columns would warn on a fit the other "
+                      "histograms support (WP-1341's territory)"),
+    "_far_from_data_diagnostics": (
+        (HISTOGRAM,), "Rwp against one pattern; a pooled Rwp can hide one "
+                      "histogram the model does not describe"),
+    "_low_angle_diagnostics": (
+        (HISTOGRAM,), "the region below one pattern's first reflection"),
+    "_qpa_esd_unavailable_diagnostics": (
+        (HISTOGRAM,), "through _quantify_phases, which partitions one "
+                      "histogram's scales"),
+    "_qpa_unavailable_diagnostics": (
+        (HISTOGRAM,), "through _quantify_phases, as above"),
+    # -- both: a converter ----------------------------------------------------
+    "_guard_diagnostics": (
+        (HISTOGRAM, FIT), "a GuardReport converter: background absorption and "
+                          "hump width per histogram, correlations, bounds and "
+                          "ADPs for the joint solve"),
+    # -- once: the shared structure ------------------------------------------
+    "_symmetry_silence_diagnostics": (
+        (SPECIMEN,), "a snapped site or an assumed setting is a fact about the "
+                     "one structure, asked of it as declared, before any stage"),
+    # -- once: the joint solve and the plan ------------------------------------
+    "_constraint_diagnostics": (
+        (FIT,), "the answer-producing stage's one joint solve"),
+    "_covariance_diagnostics": (
+        (FIT,), "one covariance, of the stacked residual"),
+    "_degenerate_cell_diagnostics": (
+        (FIT,), "a probe count summed over the joint search"),
+    "_unknown_path_diagnostics": (
+        (FIT,), "a stage's globs are the plan's, matched against every table"),
+    "_max_iter_diagnostics": (
+        (FIT,), "a stage's budget is spent by the one joint solve"),
+    "_phase_support_diagnostics": (
+        (FIT,), "a phase is unseen only when every histogram misses it, so the "
+                "statement is joint"),
+    "_size_sharing_diagnostics": (
+        (FIT,), "joint-only: what the sharing map did to a size across λ"),
+    "_unreached_histogram_diagnostics": (
+        (FIT,), "joint-only, and the plan's (WP-1414): a stage's reach is "
+                "decided before any histogram is compiled"),
+    # -- deliberately not computed ---------------------------------------------
+    "_hold_diagnostics": (
+        (ABSENT,), "a joint fit has no hold verb, so no StageResult here "
+                   "carries blocked_by_hold for HOLD_BLOCKED_PLAN to report"),
+    "_pawley_unresolved_diagnostics": (
+        (ABSENT,), "a joint fit is Rietveld-only (fit refuses pawley)"),
+    "_pawley_off_data_diagnostics": (
+        (ABSENT,), "a joint fit is Rietveld-only (fit refuses pawley)"),
+    "_restraint_tension_diagnostics": (
+        (ABSENT,), "soft restraints are refused in a joint fit "
+                   "(run_multi_least_squares), so there is no tension to report"),
+}
+
+#: The same rule one rank down, over :class:`~rietx.strategy.staged.GuardReport`'s
+#: finding lists — ``_guard_diagnostics`` sits at both levels above because it
+#: converts whatever report it is handed, so *which* guards a joint fit runs is
+#: decided here, per field.  Keys are every ``list[GuardFinding]`` field of the
+#: report; ``tests/test_multi_diagnostics.py`` holds the set equal and reads
+#: where ``multi.py`` fills each one.  Before WP-1344 five of the eleven were
+#: never filled on this path (strain cone, resolution sign and support, Biso
+#: plausibility, flat directions), and a sixth (roughness absorption) neither.
+GUARD_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
+    "background_correlations": (
+        (HISTOGRAM, FIT), "one histogram's Jacobian rows against its own "
+                          "background columns, scoped hist.h; the top-level "
+                          "report carries the same findings, as it did before "
+                          "this table"),
+    "roughness_correlations": (
+        (HISTOGRAM,), "a roughness model is one instrument's, screened on "
+                      "that histogram's Jacobian rows as the background is"),
+    "narrow_humps": (
+        (HISTOGRAM,), "a declared hump is one instrument's background"),
+    "nonpositive_resolution": (
+        (HISTOGRAM,), "Γ_G² is one instrument's quadratic over its own range"),
+    "unsupported_resolution": (
+        (HISTOGRAM,), "whether a pattern is predominantly Lorentzian is a fact "
+                      "about that pattern — the neutron case McCusker exempts "
+                      "is one histogram, not the fit"),
+    "nonpositive_adps": (
+        (SPECIMEN,), "one structure, one set of tensors"),
+    "large_biso": (
+        (SPECIMEN,), "the Lindemann bound is the cell's; asked once, of "
+                     "histogram 0's compile (every histogram's gives the same)"),
+    "nonpositive_strain": (
+        (SPECIMEN,), "one coefficient set, but each histogram measures its own "
+                     "directions: a phase is named once, from the first "
+                     "histogram whose reflections leave the cone"),
+    "high_correlations": ((FIT,), "one correlation matrix, of the joint solve"),
+    "flat_directions": ((FIT,), "read off the same matrix, beside the correlation"),
+    "at_bounds": ((FIT,), "the joint θ's bounds"),
+}
 
 
 def _normalize_limits(ttl, n: int) -> list[tuple[float, float] | None]:
@@ -297,6 +480,11 @@ class MultiHistogramRefinement:
         # staged plan, cumulative like the single-histogram runner: start all
         # fixed, free each stage's globs across every histogram, recompile each
         # histogram (⇒ per-histogram frozen discreteness) and joint-solve.
+        # the shared structure's own findings, asked of it as declared — the
+        # single-histogram path asks them before any stage for that reason
+        # (DIAGNOSTIC_SCOPES: SPECIMEN)
+        specimen_diags = _symmetry_silence_diagnostics(self.mtable.structures[0],
+                                                       mode)
         self.mtable.set_vary(["*"], False)
         stage_results: list[StageResult] = []
         # one CELL_RUNAWAY diagnostic per stage that fired, exactly as the
@@ -410,21 +598,27 @@ class MultiHistogramRefinement:
         self._models = models
         self.result_ = self._build_result(models, outcome, weights, plan.correlation_guard,
                                            stage_results, cell_runaway_diags,
-                                           answer_runaway)
+                                           answer_runaway, specimen_diags)
         return self.result_
 
     # ------------------------------------------------------------------
     def _ticks(self, model, structure, values
-               ) -> tuple[dict[str, list[float]], dict[str, list[list[int]]]]:
-        """Positions per phase, and which reflection each of them is.
+               ) -> tuple[dict[str, list[float]], dict[str, list[list[int]]],
+                          dict[str, list[float]]]:
+        """Positions per phase, which reflection each of them is, and its
+        support in σ.
 
-        Both, from one walk.  This is the second builder CLAUDE.md warns
+        All three, from one walk.  This is the second builder CLAUDE.md warns
         about — ``refine._build_result`` has the other — and a joint fit whose
         ticks carried no Miller indices would be the one surface where
-        pointing at a tick told the reader nothing (WP-1438).
+        pointing at a tick told the reader nothing (WP-1438).  The support is
+        not a result field: ``_low_angle_diagnostics`` is its one reader, and
+        its rule is ``refine``'s (``_reflection_tick_support``), so the two
+        builders cannot disagree about which tick has anything behind it.
         """
         ticks: dict[str, list[float]] = {}
         tick_hkl: dict[str, list[list[int]]] = {}
+        tick_support: dict[str, list[float]] = {}
         for ip, cp in enumerate(model.phases):
             name = structure.phases[ip].name
             cell = tuple(values[f"phases.{ip}.cell.{k}"] for k in _CELL_KEYS)
@@ -436,11 +630,13 @@ class MultiHistogramRefinement:
             # (H, m), not H: a satellite is labelled by its order (WP-1326)
             hkl = (np.tile(cp.reflections.hklm, (len(rows), 1)) if rows
                    else np.zeros((0, 4), dtype=np.int64))
+            sup = _reflection_tick_support(model, ip, values, len(rows))
             keep = np.isfinite(pos)
-            pos, hkl = pos[keep], hkl[keep]
+            pos, hkl, sup = pos[keep], hkl[keep], sup[keep]
             order = np.argsort(pos, kind="stable")
             ticks[name] = [float(v) for v in pos[order]]
             tick_hkl[name] = [reflection_label_row(r) for r in hkl[order]]
+            tick_support[name] = [float(v) for v in sup[order]]
         # Declared sharp peaks are ticks here too (WP-1103, the member
         # contract's clause 2).  A joint fit's Layer 0 reads *this* list, so
         # without the row every declared peak comes back as an unindexed
@@ -453,11 +649,12 @@ class MultiHistogramRefinement:
             # no `tick_hkl` row: a peak declared by centre has no Miller
             # index, and an empty list would claim it had none of its own
             ticks[EXTRA_TICK_KEY] = extra
-        return ticks, tick_hkl
+            tick_support[EXTRA_TICK_KEY] = _extra_peak_tick_support(model, values)
+        return ticks, tick_hkl, tick_support
 
     def _build_result(self, models, outcome, weights, correlation_guard,
                       stage_results, cell_runaway_diags=(),
-                      answer_runaway=()) -> RefinementResult:
+                      answer_runaway=(), specimen_diags=()) -> RefinementResult:
         mt = self.mtable
         n = mt.n_histograms
         thetas = mt.split(outcome.theta)
@@ -516,6 +713,16 @@ class MultiHistogramRefinement:
                         top_bg.append(finding)
                         diags.extend(_guard_diagnostics(
                             GuardReport(background_correlations=[finding])))
+                # the roughness twin, per histogram only (GUARD_SCOPES)
+                rough = [GuardFinding.roughness_absorption(f"hist.{h}.{path}", r2)
+                         for path, r2 in sorted(roughness_absorption(
+                             jh, table.free_paths,
+                             model.peak_component_prefixes()).items(),
+                                                key=lambda kv: -kv[1])
+                         if r2 > ROUGHNESS_ABSORPTION_GUARD]
+                if rough:
+                    diags.extend(_guard_diagnostics(
+                        GuardReport(roughness_correlations=rough)))
             diags.extend(qpa_diags)
             # specimen absorption, per histogram — each may sit at its own
             # wavelength and geometry, hence its own µR/µt.  Only the failure
@@ -542,6 +749,11 @@ class MultiHistogramRefinement:
             if narrow:
                 diags.extend(_guard_diagnostics(
                     GuardReport(narrow_humps=narrow)))
+            # this instrument's resolution function, over this histogram's
+            # range (GUARD_SCOPES: HISTOGRAM)
+            diags.extend(_guard_diagnostics(GuardReport(
+                nonpositive_resolution=check_resolution_positive(table, model),
+                unsupported_resolution=check_resolution_supported(table, model))))
             diags.extend(_wavelength_calibration_diagnostics(
                 self._declared_wavelengths[h], table, values, esd_h,
                 pinned_by=_WAVELENGTH_PINNED_BY_HELD_HISTOGRAM, h=h))
@@ -563,6 +775,25 @@ class MultiHistogramRefinement:
             # this one row lives somewhere else.
             diags.extend(_strain_flag_diagnostics(model, values, struct))
             diags.extend(_size_flag_diagnostics(model, values, struct))
+            # What this histogram's own radiation is owed (WP-1344): each of
+            # the three asks one source, so each is this histogram's, and a
+            # mixed fit raises it on the histogram it belongs to and nowhere
+            # else.  ``DIAGNOSTIC_SCOPES`` is the rule; these are its rows.
+            instrument = mt.instruments[h]
+            diags.extend(_dispersion_diagnostics(struct, instrument))
+            diags.extend(_resonant_absorber_diagnostics(struct, instrument))
+            diags.extend(_species_fallback_diagnostics(struct, instrument))
+            diags.extend(_harmonic_diagnostics(
+                model, values, set(table.free_paths), esd_h))
+            diags.extend(_roughness_regime_diagnostics(model, values))
+            ticks, tick_hkl, tick_support = self._ticks(model, struct, values)
+            diags.extend(_extra_peak_diagnostics(model, values, ticks, table))
+            diags.extend(_far_from_data_diagnostics(model, y_calc, y_bkg, stats))
+            # the measurement's half only: support=None withholds the ratio,
+            # which has no joint definition (DIAGNOSTIC_SCOPES says why)
+            diags.extend(_data_support_diagnostics(None, model))
+            diags.extend(_low_angle_diagnostics(model, values, y_calc, stats,
+                                                ticks, tick_support))
 
             histograms.append(HistogramResult(
                 label=model.meta.get("label", "") or f"hist{h}",
@@ -570,8 +801,7 @@ class MultiHistogramRefinement:
                 two_theta=model.tt.tolist(), y_obs=model.y_obs.tolist(),
                 y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
                 sigma=model.sigma.tolist(),
-                **dict(zip(("ticks", "tick_hkl"),
-                           self._ticks(model, struct, values))),
+                ticks=ticks, tick_hkl=tick_hkl,
                 qpa=qpa,
                 # per histogram, like the QPA and the absorption record above:
                 # the partition is of *this* pattern's counts, so a joint fit
@@ -610,8 +840,8 @@ class MultiHistogramRefinement:
         esd_hist0 = per_esds[0] if per_esds else {}
         parameters = self._parameters(thetas, stderr, corr, at_bounds, esd_hist0,
                                       answer_runaway, untested)
-        diagnostics = self._top_diagnostics(outcome, correlation_guard, top_bg,
-                                            at_bounds)
+        diagnostics = list(specimen_diags) + self._top_diagnostics(
+            outcome, correlation_guard, top_bg, at_bounds, models)
         if stage_results:
             diagnostics = diagnostics + _constraint_diagnostics(
                 stage_results[-1].name, outcome)
@@ -632,6 +862,8 @@ class MultiHistogramRefinement:
             listing="[e.path for t in ref.mtable.tables for e in t.entries]")
         diagnostics = diagnostics + _unreached_histogram_diagnostics(
             stage_results, [h.label for h in histograms])
+        # a stage's budget is spent by the one joint solve (FIT)
+        diagnostics = diagnostics + _max_iter_diagnostics(stage_results)
         # one CELL_RUNAWAY per stage that fired the joint clamp above,
         # collected during the loop since there is no per-stage StageReport
         # here to carry it on (review of #385 finding 2)
@@ -737,12 +969,15 @@ class MultiHistogramRefinement:
         return params
 
     def _top_diagnostics(self, outcome, correlation_guard, bg_scoped,
-                         at_bounds) -> list[Diagnostic]:
+                         at_bounds, models) -> list[Diagnostic]:
         mt = self.mtable
         free = mt.free_paths
         report = GuardReport(background_correlations=bg_scoped)
         # the shared structure is the same object across histograms → check once
         report.nonpositive_adps = check_adp_positive_definite(mt.tables[0])
+        # the specimen's two model-reading guards (GUARD_SCOPES: SPECIMEN)
+        report.large_biso = check_biso_plausible(mt.tables[0], models[0])
+        report.nonpositive_strain = _stephens_once(mt, models)
         if outcome.correlation is not None and len(free) > 1:
             c = np.asarray(outcome.correlation)
             for i in range(len(free)):
@@ -750,8 +985,28 @@ class MultiHistogramRefinement:
                     if abs(c[i, j]) > correlation_guard:
                         report.high_correlations.append(
                             GuardFinding.correlation(free[i], free[j], c[i, j]))
+                        # beside it, never instead (``check_guards``' rule)
+                        if abs(c[i, j]) >= FLAT_DIRECTION_RHO:
+                            report.flat_directions.append(
+                                GuardFinding.flat_direction(
+                                    free[i], free[j], c[i, j]))
         report.at_bounds = at_bounds
         return _guard_diagnostics(report) + _size_sharing_diagnostics(mt)
+
+
+def _stephens_once(mtable, models) -> list[GuardFinding]:
+    """``STEPHENS_STRAIN_NOT_POSITIVE`` for the joint fit, one per phase.
+
+    The coefficients are shared but the cone is tested on *measured*
+    directions (``check_stephens_positive``), and each histogram measures its
+    own; a phase is named from the first histogram whose reflections leave
+    the cone, so one specimen's one coefficient set is one finding.
+    """
+    seen: dict[tuple[str, ...], GuardFinding] = {}
+    for table, model in zip(mtable.tables, models, strict=True):
+        for finding in check_stephens_positive(table, model):
+            seen.setdefault(tuple(finding.paths), finding)
+    return list(seen.values())
 
 
 def _size_sharing_diagnostics(mtable) -> list[Diagnostic]:
