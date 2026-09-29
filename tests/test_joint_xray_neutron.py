@@ -24,21 +24,53 @@ scattering off electron counts still converges, and still reports a good Rwp.
 Synthetic throughout, so the assertions are about the machinery rather than
 about a specimen: corundum ranks its two sites in *opposite* order under the
 two radiations (f_Al(0) = 13 > f_O(0) = 8 electrons, while b_Al = 3.449 fm <
-b_O = 5.803 fm), which makes "did this histogram use the right amplitude?" a
-question about which peak is tallest rather than about a tolerance.
+b_O = 5.803 fm, Sears 1992 as gemmi's ``neutron92`` gives them), which makes
+"did this histogram use the right amplitude?" a question about which peak is
+tallest rather than about a tolerance.
+
+**The audit is a table, keyed on the source kind** (:data:`RADIATION_KEYED`):
+one row per correction that must key on a histogram's own radiation, a probe
+reading the *joint fit's own* compiled state for that histogram, and the
+answer each kind must give.  A new radiation-keyed term joins with one row
+(WP-1327's magnetic term is the row that proved the shape), and a new source
+kind fails :func:`test_every_row_answers_for_every_source_kind` until every row
+says what it does there.  Three things the table is not: the radiation-keyed
+*diagnostics*, which a joint fit does not compute at all yet (WP-1344, pinned
+below at their honest count); the λ-keyed size normalisation, which is
+WP-1131's and tested in ``test_multi_histogram.py``; and anything a single
+histogram already tests, since the question here is only whether the stack
+keeps each histogram's answer its own.
+
+#194's third ask, whether the shared-vs-per-histogram split holds when the two
+histograms weight the structure factor differently, is measured last: one
+corundum truth recovered through both weightings, and the esds showing which
+histogram bought which site.
 """
 from __future__ import annotations
+
+import typing
+from dataclasses import dataclass
+from typing import Callable
 
 import numpy as np
 import pytest
 
 import rietx as rx
+from rietx.crystallography.magnetic.scattering import MAGNETIC_SOURCE_KINDS
+from rietx.schemas.structure import Moment
 
 CORUNDUM_CELL = (4.758877, 4.758877, 12.992880)
 LAM_X, LAM_N = 1.5406, 2.0780
 
+#: corundum's two free coordinates and two ADPs as the synthetic truth; the
+#: coordinates are the room-temperature structure's, the Biso round numbers
+TRUTH = {"phases.0.atoms.0.z": 0.35216, "phases.0.atoms.1.x": 0.30642,
+         "phases.0.atoms.0.biso": 0.35, "phases.0.atoms.1.biso": 0.45}
 
-def corundum() -> rx.Phase:
+
+def corundum(z_al: float = 0.35216, x_o: float = 0.30642,
+             b_al: float = 0.3, b_o: float = 0.3,
+             scale: float = 1.0) -> rx.Phase:
     P = rx.Parameter
     a, _, c = CORUNDUM_CELL
     return rx.Phase(
@@ -46,13 +78,43 @@ def corundum() -> rx.Phase:
         cell=rx.Cell(a=P(value=a), b=P(value=a), c=P(value=c),
                      alpha=P(value=90.0), beta=P(value=90.0),
                      gamma=P(value=120.0)),
-        scale=P(value=1.0, min=0.0, transform="softplus"),
+        scale=P(value=scale, min=0.0, transform="softplus"),
         atoms=[
             rx.Atom(label="Al", species="Al", x=P(value=0.0), y=P(value=0.0),
-                    z=P(value=0.35216), biso=P(value=0.3)),
-            rx.Atom(label="O", species="O", x=P(value=0.30642),
-                    y=P(value=0.0), z=P(value=0.25), biso=P(value=0.3)),
+                    z=P(value=z_al), biso=P(value=b_al, min=0.0, max=5.0)),
+            rx.Atom(label="O", species="O", x=P(value=x_o),
+                    y=P(value=0.0), z=P(value=0.25),
+                    biso=P(value=b_o, min=0.0, max=5.0)),
         ])
+
+
+def mnf2() -> rx.Phase:
+    """MnF₂, rutile P 4₂/mnm, BNS 136.499, Mn on 2a with 4.6 μ_B along c.
+
+    Erickson (1953), *Phys. Rev.* **90**, 779 — the structure
+    ``test_magnetic.py`` already carries, repeated here so this file's one
+    magnetic row stands alone.  Its strongest magnetic line, (1 0 0), is
+    systematically absent in P 4₂/mnm, so the moment is visible only as a
+    line the nuclear model cannot make.
+    """
+    P = rx.Parameter
+    a, c = 4.8734, 3.3099
+
+    def atom(label, xyz, moment=None):
+        return rx.Atom(label=label, species=label, x=P(value=xyz[0]),
+                       y=P(value=xyz[1]), z=P(value=xyz[2]),
+                       biso=P(value=0.4, min=0.0, max=5.0), moment=moment)
+
+    return rx.Phase(
+        name="MnF2", space_group="P 42/m n m",
+        cell=rx.Cell(a=P(value=a), b=P(value=a), c=P(value=c),
+                     alpha=P(value=90.0), beta=P(value=90.0),
+                     gamma=P(value=90.0)),
+        scale=P(value=1.0, min=0.0, transform="softplus"),
+        atoms=[atom("Mn", (0.0, 0.0, 0.0),
+                    Moment.from_values((0.0, 0.0, 4.6), "Mn2+", vary=True)),
+               atom("F", (0.3050, 0.3050, 0.0))],
+        magnetic_symmetry="136.499")
 
 
 def _xray() -> rx.Instrument:
@@ -69,6 +131,14 @@ def _flat(lo: float, hi: float, step: float = 0.05) -> rx.PatternData:
                           intensity=np.ones_like(tt).tolist())
 
 
+def _short_plan():
+    """One three-iteration stage: enough to compile every histogram."""
+    from rietx.strategy.staged import RefinementPlan, Stage
+
+    return RefinementPlan(stages=[Stage("scale", ["phases.*.scale"],
+                                        max_iter=3)])
+
+
 def _y_calc(structure, instrument, data) -> np.ndarray:
     """y_calc at the stored values, through the seam a fit uses."""
     from rietx.model.forward import compile_model
@@ -77,6 +147,27 @@ def _y_calc(structure, instrument, data) -> np.ndarray:
     model = compile_model(structure, instrument, data)
     table = ParameterTable(structure, instrument)
     return model.evaluate(table.decode(table.x0()))
+
+
+def _synthetic(structure, instrument, lo: float, hi: float, step: float,
+               peak: float, *, seed: int, zero: float = 0.0
+               ) -> tuple[rx.PatternData, float]:
+    """Poisson counts from ``structure`` on ``instrument``, and the true scale.
+
+    The phase scale is set so the strongest channel holds ``peak`` counts
+    over a flat 50, and returned, so a fit's per-histogram scale has a truth
+    to be compared with.  ``structure`` is not modified.
+    """
+    grid = _flat(lo, hi, step)
+    instrument = instrument.model_copy(deep=True)
+    instrument.zero_shift.value = zero
+    scale = peak / _y_calc(structure, instrument, grid).max()
+    scaled = structure.model_copy(deep=True)
+    scaled.phases[0].scale.value = scale
+    y = _y_calc(scaled, instrument, grid) + 50.0
+    counts = np.random.default_rng(seed).poisson(y).astype(float)
+    return (rx.PatternData(two_theta=grid.two_theta, intensity=counts.tolist()),
+            scale)
 
 
 # --------------------------------------------------------------- the seam ---
@@ -126,24 +217,151 @@ def test_each_histogram_scatters_off_its_own_amplitude():
         "them is not using its own scattering amplitude")
 
 
-def test_anomalous_dispersion_is_on_for_xray_and_structurally_absent_for_neutron():
-    """#194 task 2, the correction the issue names first.
+# ------------------------------------------------------- the audit table ---
+def _source_kinds() -> set[str]:
+    """Every radiation an ``Instrument`` can carry, read off its union."""
+    union = rx.Instrument.model_fields["source"].annotation
+    return {arm.model_fields["kind"].default for arm in typing.get_args(union)}
 
-    `Source.dispersion` is on by default and is an X-ray core-level effect.
-    On the neutron source it is not merely disabled but **structurally None**,
-    so there is no state in which a mixed fit could apply f'/f'' to the
-    neutron histogram.
+
+#: One instrument per source kind, each declaring a capillary so the
+#: absorption row has something to estimate.  A new kind needs a line here
+#: before the table can ask it anything.
+INSTRUMENT_FOR_KIND: dict[str, Callable[[], rx.Instrument]] = {
+    "xray_cw": lambda: rx.Instrument.debye_scherrer(
+        LAM_X, capillary_radius_mm=0.15),
+    "neutron_cw": lambda: rx.Instrument.constant_wavelength_neutron(
+        LAM_N, fwhm_deg=0.3, capillary_radius_mm=3.0),
+}
+
+
+@dataclass(frozen=True)
+class Keyed:
+    """One correction that must key on the histogram's own radiation.
+
+    ``probe(joint, h)`` reads what the joint fit actually built for histogram
+    ``h`` (its compiled model, its table, its instrument) and returns whether
+    the correction is in force there; ``expect`` is the answer each source
+    kind must give.
     """
-    assert _xray().source.dispersion is not None
-    assert _neutron().source.dispersion is None
 
-    xd, nd = _flat(20.0, 80.0), _flat(20.0, 80.0)
-    ref = rx.MultiHistogramRefinement(rx.Structure(phases=[corundum()]),
-                                      [_xray(), _neutron()])
-    ref.fit([xd, nd], plan="profile_only")
-    by_kind = {i.source.kind: i for i in ref.fitted_instruments}
-    assert by_kind["xray_cw"].source.dispersion is not None
-    assert by_kind["neutron_cw"].source.dispersion is None
+    name: str
+    probe: Callable[[rx.MultiHistogramRefinement, int], bool]
+    expect: dict[str, bool]
+
+
+def _entry(joint, h: int, path: str):
+    return next(e for e in joint.mtable.tables[h].entries if e.path == path)
+
+
+RADIATION_KEYED = [
+    # b (fm, no s dependence) against f₀(s): the amplitude itself
+    Keyed("scattering amplitude is b, not f0(s)",
+          lambda j, h: all(cp.sites.b_coh is not None
+                           for cp in j._models[h].phases),
+          {"xray_cw": False, "neutron_cw": True}),
+    # f′ + i·f″ is an X-ray core-level effect, on by default since v1.0
+    Keyed("anomalous dispersion f' + i f''",
+          lambda j, h: any(cp.sites.f_anom is not None
+                           for cp in j._models[h].phases),
+          {"xray_cw": True, "neutron_cw": False}),
+    # K is the Thomson cross-section's; a neutron's is pinned at 1 and locked
+    Keyed("polarisation K refinable",
+          lambda j, h: not _entry(j, h, "instrument.polarization").locked,
+          {"xray_cw": True, "neutron_cw": False}),
+    # WP-1327: the moment couples to a neutron's own moment and nothing else's
+    Keyed("magnetic structure factor built",
+          lambda j, h: j._models[h].phases[1].magnetic is not None,
+          {"xray_cw": False, "neutron_cw": True}),
+    # McMaster photoabsorption is an X-ray table; a neutron µR is WP-1132's
+    Keyed("capillary muR estimated from composition",
+          lambda j, h: j.fitted_instruments[h].geometry.mu_r is not None,
+          {"xray_cw": True, "neutron_cw": False}),
+]
+
+
+@pytest.fixture(scope="module")
+def every_kind_jointly():
+    """One joint fit, one histogram per source kind, both phases shared.
+
+    Flat data and one short stage: the probes read what was *compiled* for
+    each histogram, which the fit builds whatever the data say, so solving
+    for longer would buy nothing (``profile_only`` spends 400 iterations
+    here fitting a constant).
+    """
+    kinds = sorted(INSTRUMENT_FOR_KIND)
+    joint = rx.MultiHistogramRefinement(
+        rx.Structure(phases=[corundum(), mnf2()]),
+        [INSTRUMENT_FOR_KIND[k]() for k in kinds])
+    joint.fit([_flat(20.0, 80.0) for _ in kinds], plan=_short_plan())
+    return joint, kinds
+
+
+def test_every_row_answers_for_every_source_kind():
+    """The table's columns are the package's radiations, both ways.
+
+    A new ``Source`` arm fails here until each row says what it does there,
+    which is the point of keying the audit on the kind rather than writing
+    one check per pair of radiations.
+    """
+    kinds = _source_kinds()
+    assert set(INSTRUMENT_FOR_KIND) == kinds
+    for row in RADIATION_KEYED:
+        assert set(row.expect) == kinds, row.name
+
+
+def test_the_magnetic_row_is_the_forward_models_own_dispatch():
+    """The row's column is ``MAGNETIC_SOURCE_KINDS``, not a second copy of it."""
+    row = next(r for r in RADIATION_KEYED if r.name.startswith("magnetic"))
+    assert {k for k, on in row.expect.items() if on} == MAGNETIC_SOURCE_KINDS
+
+
+@pytest.mark.xdist_group("joint-radiation-table")
+@pytest.mark.parametrize("row", RADIATION_KEYED, ids=lambda r: r.name)
+def test_each_histogram_of_a_joint_fit_keys_on_its_own_radiation(
+        every_kind_jointly, row):
+    """#194 task 2: each correction applies to one kind and no-ops on the rest.
+
+    Read off the joint fit's own compiled models and tables — never off an
+    instrument built beside it — because the failure this audits is the
+    stack handing one histogram another's physics.
+    """
+    joint, kinds = every_kind_jointly
+    got = {kind: row.probe(joint, h) for h, kind in enumerate(kinds)}
+    assert got == row.expect
+
+
+def test_the_shared_moment_is_measured_by_the_neutron_histogram_alone():
+    """The magnetic row, end to end: a joint fit refines a moment.
+
+    The moment is shared (it is the specimen's), so the X-ray histogram
+    carries the column too — and contributes no gradient to it, because its
+    model never builds the term.  Freed from 3.5 μ_B against synthetic
+    X-ray and neutron patterns of the 4.6 μ_B truth, it comes back at the
+    truth within its esd.
+    """
+    from rietx.strategy.staged import PLAN_PRESETS, Stage
+
+    truth = rx.Structure(phases=[mnf2()])
+    xd, _ = _synthetic(truth, _xray(), 15.0, 120.0, 0.02, 1e4, seed=1)
+    nd, _ = _synthetic(truth, rx.Instrument.constant_wavelength_neutron(
+        2.4, fwhm_deg=0.3), 10.0, 150.0, 0.05, 1e4, seed=2)
+    start = rx.Structure(phases=[mnf2()])
+    start.phases[0].atoms[0].moment = Moment.from_values(
+        (0.0, 0.0, 3.5), "Mn2+", vary=True)
+    plan = PLAN_PRESETS["mccusker_structural"]()
+    plan.stages.append(Stage("moment", ["phases.*.atoms.*.moment.*"]))
+    joint = rx.MultiHistogramRefinement(start, [
+        _xray(), rx.Instrument.constant_wavelength_neutron(2.4, fwhm_deg=0.3)])
+    result = joint.fit([xd, nd], plan=plan)
+
+    assert result.status == "converged"
+    assert [m.phases[0].magnetic is not None for m in joint._models] == [
+        False, True]
+    row = next(p for p in result.parameters if ".moment." in p.path)
+    assert not row.path.startswith("hist."), "the moment is the specimen's"
+    assert row.stderr is not None and row.stderr > 0
+    assert abs(row.value - 4.6) < 4 * row.stderr, (row.value, row.stderr)
 
 
 def test_the_dispersion_diagnostic_is_not_wired_into_a_joint_fit_yet():
@@ -187,30 +405,6 @@ def test_the_dispersion_diagnostic_is_not_wired_into_a_joint_fit_yet():
         "count (1, on the X-ray histogram only) rather than the gap")
 
 
-def test_polarization_belongs_to_the_xray_histogram_alone():
-    """Lorentz-polarization is an X-ray beam property.
-
-    The neutron source does carry a `polarization` field, but pinned: value
-    1.0 with `min == max == 1.0` and `vary=False`, so it is the unpolarized
-    limit and there is no state a mixed fit could refine it into. That is a
-    better design than omitting the field -- one `Source` shape, one LP
-    expression -- and it is worth an assertion precisely because "the field is
-    present" would otherwise read as "the correction applies".
-    """
-    xray_pol = _xray().source.polarization
-    neutron_pol = _neutron().source.polarization
-
-    # the neutron beam is pinned at the unpolarized limit and cannot leave it
-    assert neutron_pol.value == 1.0
-    assert neutron_pol.min == neutron_pol.max == 1.0
-    assert not neutron_pol.vary
-
-    # the X-ray beam is not pinned there: it carries a real monochromator
-    # value with room to move, which is what makes the pin above a decision
-    assert xray_pol.value != 1.0
-    assert xray_pol.min < xray_pol.max
-
-
 def test_the_structure_is_shared_and_the_instruments_are_not():
     """#194 task 3's other half: one crystal, two instruments.
 
@@ -233,3 +427,142 @@ def test_the_structure_is_shared_and_the_instruments_are_not():
     assert ws[0] != ws[1], (
         "both histograms carry the same profile width; the instruments are "
         "supposed to be per-histogram")
+
+
+# ----------------------------------------------- the weighting, measured ---
+def _value_esd(result, path: str) -> tuple[float, float]:
+    row = next(p for p in result.parameters if p.path == path)
+    return row.value, row.stderr
+
+
+@pytest.fixture(scope="module")
+def two_weightings():
+    """One corundum truth seen through f(Q) and through b, fitted three ways.
+
+    Synthetic X-ray (15-120°, 2·10⁴ counts) and neutron (10-150°, 5·10³)
+    patterns of one structure, each with its own scale and zero shift; the
+    fit starts with every coordinate and ADP off the truth.
+    """
+    truth = rx.Structure(phases=[corundum(
+        z_al=TRUTH["phases.0.atoms.0.z"], x_o=TRUTH["phases.0.atoms.1.x"],
+        b_al=TRUTH["phases.0.atoms.0.biso"],
+        b_o=TRUTH["phases.0.atoms.1.biso"])])
+    xd, s_x = _synthetic(truth, _xray(), 15.0, 120.0, 0.02, 2e4,
+                         seed=1, zero=0.01)
+    nd, s_n = _synthetic(truth, _neutron(), 10.0, 150.0, 0.05, 5e3,
+                         seed=11, zero=-0.03)
+
+    def start():
+        return rx.Structure(phases=[corundum(z_al=0.3530, x_o=0.3050,
+                                             b_al=0.6, b_o=0.7)])
+
+    plan = "mccusker_structural"
+    joint = rx.refine_multi([xd, nd], start(), [_xray(), _neutron()], plan=plan)
+    alone = [rx.Refinement(start(), ins, history=False).fit(d, plan=plan)
+             for ins, d in ((_xray(), xd), (_neutron(), nd))]
+    return joint, alone, {"hist.0.phases.0.scale": s_x,
+                          "hist.1.phases.0.scale": s_n,
+                          "hist.0.instrument.zero_shift": 0.01,
+                          "hist.1.instrument.zero_shift": -0.03}
+
+
+@pytest.mark.xdist_group("joint-two-weightings")
+def test_one_structure_answers_to_both_weightings(two_weightings):
+    """#194 task 3: the shared-vs-per-histogram split, where it can fail.
+
+    The two histograms weight the structure factor oppositely (corundum's
+    Al outscatters its O for X-rays and the reverse for neutrons), so a
+    shared coordinate is pulled by two different sensitivities.  Every
+    shared parameter must land on the one truth, and every per-histogram
+    one on its own histogram's truth — two scales 3.5× apart and two zero
+    shifts of opposite sign, none of them leaking into the other histogram.
+    Measured over seeds 1-3: the largest |Δ|/esd was 1.21.
+    """
+    joint, _alone, per_histogram = two_weightings
+    assert joint.status == "converged"
+    for path, truth in {**TRUTH, **per_histogram}.items():
+        value, esd = _value_esd(joint, path)
+        assert esd is not None and esd > 0, path
+        assert abs(value - truth) < 3 * esd, (path, value, truth, esd)
+
+
+@pytest.mark.xdist_group("joint-two-weightings")
+def test_the_neutron_histogram_buys_the_oxygen_and_not_the_aluminium(
+        two_weightings):
+    """What a joint X-ray + neutron fit is *for*, read off the esds.
+
+    Alone, the neutron pattern determines z(Al) about 3× worse than the
+    X-ray pattern does and x(O) about as well, so jointly the X-ray keeps
+    the aluminium (esd ×0.94-0.97 of its own) while the oxygen gains
+    (×0.64-0.68).  Seeds 1-3; the bars sit well outside that spread.  A
+    stack that handed both histograms one amplitude could not produce this
+    asymmetry: the two sensitivities would be one.
+    """
+    joint, (x_alone, n_alone), _ = two_weightings
+    ratios = {}
+    for path in ("phases.0.atoms.0.z", "phases.0.atoms.1.x"):
+        esd_j = _value_esd(joint, path)[1]
+        esd_x = _value_esd(x_alone, path)[1]
+        esd_n = _value_esd(n_alone, path)[1]
+        ratios[path] = (esd_j / esd_x, esd_n / esd_x)
+    (joint_al, n_al), (joint_o, n_o) = (ratios["phases.0.atoms.0.z"],
+                                        ratios["phases.0.atoms.1.x"])
+    assert n_al / n_o > 2.5, ratios
+    assert joint_al > 0.9 and joint_o < 0.8, ratios
+
+
+# ------------------------------- the diagnostics a joint fit does not run ---
+def _yb_oxide() -> rx.Phase:
+    """A rock-salt 'YbO' — a vehicle for one Yb site, not a real phase."""
+    P = rx.Parameter
+    a = 4.88
+    return rx.Phase(
+        name="YbO", space_group="F m -3 m",
+        cell=rx.Cell(a=P(value=a), b=P(value=a), c=P(value=a),
+                     alpha=P(value=90.0), beta=P(value=90.0),
+                     gamma=P(value=90.0)),
+        scale=P(value=1.0, min=0.0, transform="softplus"),
+        atoms=[rx.Atom(label="Yb", species="Yb", x=P(value=0.0),
+                       y=P(value=0.0), z=P(value=0.0), biso=P(value=0.3)),
+               rx.Atom(label="O", species="O", x=P(value=0.5),
+                       y=P(value=0.5), z=P(value=0.5), biso=P(value=0.3))])
+
+
+def _y3plus_corundum() -> rx.Phase:
+    """Corundum with its Al site labelled ``Y3+``, an ion the X-ray table lacks."""
+    phase = corundum()
+    phase.atoms[0].species = "Y3+"
+    return phase
+
+
+@pytest.mark.parametrize("code, phase, owner", [
+    ("NEUTRON_RESONANT_ABSORBER", _yb_oxide, "neutron_cw"),
+    ("SPECIES_FALLBACK_NEUTRAL", _y3plus_corundum, "xray_cw"),
+])
+def test_the_other_radiation_keyed_diagnostics_are_not_wired_into_a_joint_fit_yet(
+        code, phase, owner):
+    """The two siblings of ``DISPERSION_NEGLECTED`` above, same gap (WP-1344).
+
+    Each is raised by a single-histogram ``Refinement`` on the histogram
+    whose radiation it belongs to — measured here as the control — and at
+    no count by a joint fit over the same structure and both instruments,
+    because ``multi.py``'s diagnostics loop calls none of
+    ``refine._dispersion_diagnostics``, ``_resonant_absorber_diagnostics``
+    or ``_species_fallback_diagnostics``.  WP-1344 owns the rule deciding
+    where each belongs; when it lands this test is the one to re-point at
+    one count, on the ``owner`` histogram only.
+    """
+    structure = rx.Structure(phases=[phase()])
+    by_kind = {"xray_cw": _xray, "neutron_cw": _neutron}
+    alone = rx.Refinement(structure.model_copy(deep=True), by_kind[owner](),
+                          history=False).fit(_flat(20.0, 80.0),
+                                             plan=_short_plan())
+    assert [d.code for d in alone.diagnostics].count(code) == 1
+
+    joint = rx.refine_multi([_flat(20.0, 80.0), _flat(20.0, 80.0)],
+                            structure, [_xray(), _neutron()],
+                            plan=_short_plan())
+    seen = [d.code for d in joint.diagnostics]
+    for hist in joint.histograms:
+        seen += [d.code for d in hist.diagnostics]
+    assert seen.count(code) == 0
