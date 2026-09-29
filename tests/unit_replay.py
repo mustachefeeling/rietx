@@ -12,7 +12,8 @@ each rebuilt this in session scratch; this is the fourth build, committed.
 ``index_pattern`` once per dataset, its spec at a :data:`BUDGET` no unit
 reaches.  A recorder keeps (engine, peaks, spec, quality, kwargs) and returns
 an empty result, so a capture costs the peak pick and nothing else.  One
-pickle per (dataset, engine, system) unit lands in DIR.
+pickle per (dataset, engine, system) unit lands in DIR.  A dataset that names
+its engine skips ``index_pattern`` (:data:`DATASETS`).
 
 **replay** runs a captured unit's engine to completion (no token, no progress)
 and prints its digest, the sha256 of ``np.array([[*cell, n_indexed] …],
@@ -75,17 +76,21 @@ def _corundum() -> dict:
     return _qarr_dataset("corundum", REAL_DATA_SYSTEMS, 600.0)
 
 
-def _synthetic_monoclinic() -> dict:
-    # tests/test_indexing_engines.py: test_dichotomy_recovers_a_monoclinic_cell,
-    # handed to index_pattern rather than to the engine
+def _synthetic_monoclinic(engine: str | None) -> dict:
+    # tests/test_indexing_engines.py: test_dichotomy_recovers_a_monoclinic_cell
     from tests.test_indexing_engines import spec_for, synthetic_peaks
 
     peaks, _cell = synthetic_peaks("monoclinic")
-    return {"peaks": peaks, "spec": spec_for("monoclinic", budget_seconds=BUDGET)}
+    out = {"peaks": peaks, "spec": spec_for("monoclinic", budget_seconds=BUDGET)}
+    return out if engine is None else {**out, "engine": engine}
 
 
+#: A dataset naming an ``engine`` is that engine's unit called directly, with
+#: no ``quality`` (the engine assesses its own), which is what WP-1509's
+#: ``fc4d2b0b`` digested.  The others go through ``index_pattern``.
 DATASETS = {"brucite": _brucite, "corundum": _corundum,
-            "synthmono": _synthetic_monoclinic}
+            "synthmono": lambda: _synthetic_monoclinic("dichotomy"),
+            "synthmono_ip": lambda: _synthetic_monoclinic(None)}
 
 
 def digest(cands) -> str:
@@ -109,6 +114,13 @@ def capture(out: Path, datasets: list[str]) -> list[str]:
     written = []
     for name in datasets:
         kwargs = DATASETS[name]()
+        if "engine" in kwargs:
+            unit = {"engine": kwargs["engine"], "peaks": kwargs["peaks"],
+                    "spec": kwargs["spec"], "quality": None, "kwargs": {}}
+            key = f"{name}.{unit['engine']}.{unit['spec'].systems[0]}"
+            (out / f"{key}.unit.pkl").write_bytes(pickle.dumps(unit))
+            written.append(key)
+            continue
         sink: list[dict] = []
 
         def recorder(engine: str):
