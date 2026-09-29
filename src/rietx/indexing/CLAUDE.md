@@ -231,8 +231,10 @@ roughly the shift (+1400 ppm).
   rounds them as the whole computation did** (WP-1509). Equivalent reflections tie
   in Q and position breaks the tie, so a restriction is a mask, never a sort
   (`engines.TrialIndex`); and a BLAS product over some rows need not round as the
-  whole product does, so `engines.row_local_product` measures that once a process.
-  "Unchanged" means finished units replayed to their digests, never a green suite.
+  whole product does, so `engines.row_local_product` measures that once a process;
+  nor need a **stack** round as each matrix alone (`reduce.stacked_pinv_exact`,
+  WP-1519), and the nightly prints both. "Unchanged" means finished units replayed
+  to their digests (`python -m tests.unit_replay`), never a green suite.
 - **Profile an engine before ranking what to fix in it: a cost model reasoned from
   the algorithm's structure is not a profile** (WP-1030's ranking came out nearly
   inverted; WP-1508's "a unit is box-bound" held on a synthetic 4-D list and on no

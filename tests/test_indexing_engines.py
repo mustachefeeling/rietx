@@ -1108,6 +1108,117 @@ def test_the_fast_dedup_groups_exactly_as_the_plain_pass(monkeypatch):
                                                                for c in once]
 
 
+def test_a_stacked_chi2_is_the_pairs_own_where_the_probe_says_so():
+    """``reduce.stacked_pinv_exact`` decides once a process whether dedup may
+    stack its χ² tests, and this asks the same question on covariances built
+    the way an engine's are: a system's metric basis, carried through the
+    reduction's own map.  A skip is the report that this platform's LAPACK
+    answers a matrix differently inside a stack, and dedup asks one pair at a
+    time there — slower, never different (WP-1519)."""
+    from rietx.indexing.reduce import (
+        equal_reduced,
+        equal_reduced_many,
+        reduced_covariance,
+        reduction,
+        stacked_pinv_exact,
+    )
+
+    if not stacked_pinv_exact():
+        pytest.skip("this LAPACK answers a matrix differently inside a stack, "
+                    "so dedup keeps its per-pair loop")
+    rng = np.random.default_rng(15191)
+
+    def reduced(system, cell):
+        basis = np.asarray(metric_basis(system))
+        g = rng.normal(0.0, 1.0, (len(basis), len(basis)))
+        af = af_from_cell(cell)
+        cov = basis.T @ (g @ g.T) @ basis * (1e-5 * np.abs(af).max()) ** 2
+        red, t = reduction(af)
+        return red, reduced_covariance(cov, t)
+
+    for system in ("cubic", "tetragonal", "hexagonal", "orthorhombic",
+                   "monoclinic", "triclinic"):
+        cell = _random_cell(rng, system)
+        red_a, cov_a = reduced(system, cell)
+        for size in (1, 2, 7, 16, 64, 211):
+            others = [reduced(system, tuple(np.asarray(cell) * (1.0 + rng.normal(
+                0.0, 1e-5, 6) * [1, 1, 1, 0, 0, 0]))) for _ in range(size)]
+            stacked = equal_reduced_many(red_a, [r for r, _c in others], cov_a=cov_a,
+                                         covs_b=[c for _r, c in others])
+            assert stacked == [equal_reduced(red_a, r, cov_a=cov_a, cov_b=c)
+                               for r, c in others], (system, size)
+
+
+def test_the_stacked_dedup_groups_exactly_as_one_pair_at_a_time(monkeypatch):
+    """WP-1519: stacking the χ² tests changes no group, first match anywhere.
+
+    81 distinct tetragonal lattices share one volume band, each many σ from
+    its neighbours, and a group without a covariance sits first in it, which
+    the stack cannot take.  Probes then match the band's second group (the
+    first stack), its middle (the second, answering past the match), no group
+    at all (every stack), and a probe's own copy (the cache).  A stack that
+    raises is re-asked one pair at a time.  Every way must build the plain
+    pass's groups, and the stacks must have run and stopped mid-band.
+    """
+    import copy
+
+    from rietx.indexing import engines, reduce
+
+    cov = np.zeros((6, 6))
+    cov[:2, :2] = 1e-14
+    cov[2, 2] = 1e-14
+    base = [(6.0 * (1.0 + i * 5e-5),) * 2 + (4.0, 90.0, 90.0, 90.0)
+            for i in range(-40, 41)]
+
+    def near(cell, shift):
+        return (cell[0] * (1.0 + shift),) * 2 + cell[2:]
+
+    def harvest():
+        cands = [_fitted(near(base[40], 4.8e-3), None, "tetragonal", "svd")]
+        cands += [_fitted(cell, cov, "tetragonal", "dichotomy") for cell in base]
+        cands += [_fitted(near(base[1], 1e-9), cov, "tetragonal", "svd"),
+                  _fitted(near(base[40], 1e-9), cov, "tetragonal", "svd"),
+                  _fitted(near(base[40], 2.5e-5), cov, "tetragonal", "svd")]
+        cands.append(copy.copy(cands[83]))
+        return cands
+
+    def ids(groups):
+        return [[id(c) for c in g] for g in groups]
+
+    batches = []
+    real_many = reduce.equal_reduced_many
+
+    def recording(*args, **kw):
+        answers = real_many(*args, **kw)
+        batches.append([same for same, _chi2 in answers])
+        return answers
+
+    cands = harvest()
+    plain = ids(engines._dedup_groups(cands, fast=False))
+    assert len(plain) == 1 + 81 + 1, len(plain)
+    by_first = {g[0]: g for g in plain}
+    assert by_first[id(cands[2])][1:] == [id(cands[82])]
+    assert by_first[id(cands[41])][1:] == [id(cands[83]), id(cands[85])]
+
+    monkeypatch.setattr(reduce, "equal_reduced_many", recording)
+    monkeypatch.setattr(reduce, "stacked_pinv_exact", lambda: True)
+    assert ids(engines._dedup_groups(cands, fast=True)) == plain
+    first = engines.DEDUP_STACK_FIRST
+    # the mid-band probe: a first stack of misses, then a match inside the
+    # next one with admitted groups after it
+    assert any(not any(a) and len(a) == first and any(b[:-1]) and not b[0]
+               for a, b in zip(batches, batches[1:])), [
+        (len(b), b.index(True) if True in b else None) for b in batches]
+
+    def raising(*args, **kw):
+        raise np.linalg.LinAlgError("one Σ in the stack")
+
+    monkeypatch.setattr(reduce, "equal_reduced_many", raising)
+    assert ids(engines._dedup_groups(cands, fast=True)) == plain
+    monkeypatch.setattr(reduce, "stacked_pinv_exact", lambda: False)
+    assert ids(engines._dedup_groups(cands, fast=True)) == plain
+
+
 def _fitted(cell: tuple, cov: np.ndarray, system: str, engine: str):
     """An engine candidate carrying exactly this cell and own-frame covariance."""
     from rietx.indexing.engines import EngineCandidate

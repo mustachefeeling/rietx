@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import math
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -84,6 +84,11 @@ MAX_PREDICTED_REFLECTIONS = 2_000_000
 #: comparisons whose answer is already known — which is what keeps a dedup pass
 #: over thousands of raw candidates from being O(N²) pinv solves.
 DEDUP_VOLUME_RTOL = 0.01
+#: The first stack of a candidate's χ² tests, each later one four times the
+#: last (WP-1519).  A stack answers past the first match, so this bounds the
+#: waste when a match comes early, while a run of misses costs a few solves.
+#: It moves the clock, never a verdict.
+DEDUP_STACK_FIRST = 16
 
 #: Default shortest principal d-spacing (Å) a search will consider.  A bound on
 #: *d(100)*, not on *a*: for an oblique cell d(100) = a·sin β < a, so this is
@@ -1380,8 +1385,9 @@ def dedup_groups(cands: Sequence[EngineCandidate],
     the membership is the answer and not a by-product.  :func:`dedup_candidates`
     is this function's first column.
 
-    **Two things a large harvest made expensive, and neither changes a group**
-    (WP-1509; ``fast=False`` is the plain pass, held equal to this by test):
+    **Three things a large harvest made expensive, and none changes a group**
+    (WP-1509, 1519; ``fast=False`` is the plain pass, held equal to this by
+    test):
 
     * *A raw harvest is mostly copies, and a copy is answered once.*  Sibling
       leaves refine onto the same cell bit for bit — a bethanechol dichotomy
@@ -1397,6 +1403,13 @@ def dedup_groups(cands: Sequence[EngineCandidate],
       centring) sorted by volume, the band's superset is found by bisection,
       and the gate itself is still the one that decides, in creation order; a
       group of infinite volume, which the gate never refuses, is always asked.
+    * *A harvest of distinct lattices still asks every band group, so the
+      tests are stacked.*  That unit still spent ~29 s on 573 605 χ² tests, a
+      6×6 ``pinv`` each.  One ``pinv`` over a stack of a candidate's Σ
+      (``_ask_stacked``) costs a tenth of theirs, fills the verdict cache the
+      walk then reads, and leaves the pass at ~7 s.  Only where ``reduce.stacked_pinv_exact`` measures
+      every stacked χ² equal to the pair's own, bit for bit; elsewhere the
+      pass asks one pair at a time, as before.
     """
     return _dedup_groups(cands, fast=True)
 
@@ -1405,8 +1418,9 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
                   ) -> list[list[EngineCandidate]]:
     """:func:`dedup_groups`, with its caches and volume index switchable."""
     from bisect import bisect_left, bisect_right
+    from itertools import islice
 
-    from .reduce import equal_reduced, reduced_covariance, reduction
+    from .reduce import equal_reduced, reduced_covariance, reduction, stacked_pinv_exact
 
     #: reduce **once** per candidate, not once per comparison, and keep the map
     #: that carries the candidate's covariance into the same reduced frame
@@ -1440,6 +1454,7 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
     # and the groups whose volume is not finite
     by_volume: dict[tuple[str, str], tuple[list[float], list[int], list[int]]] = {}
     rtol = DEDUP_VOLUME_RTOL
+    stacked = fast and stacked_pinv_exact()
     for cand, red, volume, key, cov in prepared:
         if fast:
             vols, ids, unbounded = by_volume.setdefault(
@@ -1454,18 +1469,16 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
                 order = sorted(ids + unbounded)
         else:
             order = range(len(kept))
-        for g in order:
-            group, other_red, other_volume, other_cov = kept[g]
-            # volume gate first: two lattices whose reduced volumes differ by more
-            # than a per-cent cannot pass a χ² test on their metrics, and this is
-            # what keeps the pass from being N² pinv solves as well as N² reductions
-            if abs(volume - other_volume) > DEDUP_VOLUME_RTOL * max(volume,
-                                                                    other_volume):
-                continue
-            other = group[0]
-            if other.centring != cand.centring or other.system != cand.system:
+        size = DEDUP_STACK_FIRST if stacked and cov is not None else 0
+        for at, g in enumerate(order):
+            group, other_red, _other_volume, other_cov = kept[g]
+            if not _dedup_admits(cand, volume, kept[g]):
                 continue
             same = tested.get((key, g)) if fast else None
+            if same is None and size and other_cov is not None:
+                size = _ask_stacked(cand, red, volume, key, cov,
+                                    islice(order, at, None), kept, tested, size)
+                same = tested.get((key, g))
             if same is None:
                 try:
                     same, _chi2 = equal_reduced(red, other_red, cov_a=cov,
@@ -1487,6 +1500,52 @@ def _dedup_groups(cands: Sequence[EngineCandidate], *, fast: bool,
                     unbounded.append(len(kept))
             kept.append(([cand], red, volume, cov))
     return [group for group, _red, _vol, _cov in kept]
+
+
+def _dedup_admits(cand: EngineCandidate, volume: float, entry: tuple) -> bool:
+    """Whether dedup's walk asks the χ² test of ``cand`` against a kept group."""
+    group, _red, other_volume, _cov = entry
+    # volume gate first: two lattices whose reduced volumes differ by more
+    # than a per-cent cannot pass a χ² test on their metrics, and this is
+    # what keeps the pass from being N² pinv solves as well as N² reductions
+    if abs(volume - other_volume) > DEDUP_VOLUME_RTOL * max(volume, other_volume):
+        return False
+    other = group[0]
+    return other.centring == cand.centring and other.system == cand.system
+
+
+def _ask_stacked(cand: EngineCandidate, red: np.ndarray, volume: float,
+                 key: tuple, cov: np.ndarray, ahead: Iterable[int],
+                 kept: list, tested: dict, size: int) -> int:
+    """Cache the verdicts of the next ``size`` tests dedup's walk would ask
+    of ``cand``, from one stacked solve (WP-1519).  Returns the next stack's
+    size, four times this one, or 0 once a stack has raised.
+
+    ``ahead`` is the walk's order from the group it is at, so the stack takes
+    the tests the walk would ask next, one pair at a time, and the walk reads
+    them back and stops at the first match in creation order, as it did.
+    Tests past that match are wasted work, never changed answers, because the
+    walk calls this only where ``reduce.stacked_pinv_exact`` says each stacked
+    verdict is the pair's own.  A group without a covariance is not stacked,
+    and after a stack raises the walk asks the rest one pair at a time.
+    """
+    from .reduce import equal_reduced_many
+
+    batch = []
+    for g in ahead:
+        if len(batch) == size:
+            break
+        if (kept[g][3] is not None and (key, g) not in tested
+                and _dedup_admits(cand, volume, kept[g])):
+            batch.append(g)
+    try:
+        answers = equal_reduced_many(red, [kept[g][1] for g in batch], cov_a=cov,
+                                     covs_b=[kept[g][3] for g in batch])
+    except (ValueError, np.linalg.LinAlgError):
+        return 0
+    for g, (same, _chi2) in zip(batch, answers):
+        tested[(key, g)] = same
+    return 4 * size
 
 
 def dedup_candidates(cands: Sequence[EngineCandidate],

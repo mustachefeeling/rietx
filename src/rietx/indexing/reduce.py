@@ -51,6 +51,7 @@ from one tetragonal lattice's covariance were split.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from functools import lru_cache
 
@@ -426,6 +427,77 @@ def equal_reduced(red_a: np.ndarray, red_b: np.ndarray, *,
     sigma = np.asarray(cov_a) + np.asarray(cov_b)
     chi2 = float(delta @ np.linalg.pinv(sigma, hermitian=True) @ delta)
     return chi2 <= CELL_EQUALITY_CHI2, chi2
+
+
+def equal_reduced_many(red_a: np.ndarray, reds_b: Sequence[np.ndarray], *,
+                       cov_a: np.ndarray, covs_b: Sequence[np.ndarray],
+                       ) -> list[tuple[bool, float]]:
+    """:func:`equal_reduced` of one vector against many, the pseudo-inverses in
+    one stacked solve (WP-1519).  Covariances are required on both sides.
+
+    Each pair's Δ, Σ and final product are :func:`equal_reduced`'s own
+    expressions, and only ``pinv`` runs over the (k, 6, 6) stack, so each
+    answer is the pair's own **where** :func:`stacked_pinv_exact` **says so**.
+    A caller asks it first.  One Σ that makes the stack raise raises for all
+    of them, so a caller that catches it re-asks the pairs one at a time.
+    """
+    if not len(reds_b):
+        return []
+    red_a, cov_a = np.asarray(red_a), np.asarray(cov_a)
+    deltas = [red_a - np.asarray(red_b) for red_b in reds_b]
+    sigmas = np.stack([cov_a + np.asarray(cov_b) for cov_b in covs_b])
+    out = []
+    for delta, inverse in zip(deltas, np.linalg.pinv(sigmas, hermitian=True)):
+        chi2 = float(delta @ inverse @ delta)
+        out.append((chi2 <= CELL_EQUALITY_CHI2, chi2))
+    return out
+
+
+_STACKED_PINV: bool | None = None
+
+
+def stacked_pinv_exact() -> bool:
+    """Does :func:`equal_reduced_many` give every pair :func:`equal_reduced`'s
+    own χ², bit for bit, on this machine?  Asked once a process.
+
+    It should.  numpy sends a stack through the same gufunc loop, one LAPACK
+    ``syevd`` per matrix, and the rest of ``pinv`` is elementwise or one 6×6
+    product per matrix.  Measured on OpenBLAS 0.3.34 (numpy 2.5.3, Linux
+    x86-64), every one of the 573 605 χ² tests on corundum's tetragonal unit
+    came back the same double, stacked per candidate (WP-1519).  But nothing promises this of every
+    LAPACK and BLAS, and WP-1509 found numpy routing a (1, 6) product to a
+    different kernel than its neighbours took (``engines.row_local_product``).
+    So it is **measured here**, on witnesses shaped like dedup's own Σ: sums
+    of two rank-deficient covariances of A..F, whose near-zero eigenvalues sit
+    at ``pinv``'s cutoff, where a last-bit difference changes which directions
+    survive.  A machine where any χ² differs keeps the per-pair loop, and the
+    groups are exactly what they always were, only slower.
+    """
+    global _STACKED_PINV
+    if _STACKED_PINV is None:
+        rng = np.random.default_rng(1519)
+        ok = True
+        # dedup's own stack sizes among them: ``engines.DEDUP_STACK_FIRST``,
+        # then four times the last, through 1024
+        for size in (1, 2, 3, 5, 8, 16, 17, 64, 129, 256, 1024):
+            red_a = rng.uniform(0.002, 0.05, 6)
+            cov_a = _witness_covariance(rng)
+            reds_b = [red_a + rng.normal(0.0, 1e-6, 6) for _ in range(size)]
+            covs_b = [_witness_covariance(rng) for _ in range(size)]
+            stacked = equal_reduced_many(red_a, reds_b, cov_a=cov_a,
+                                         covs_b=covs_b)
+            if stacked != [equal_reduced(red_a, red_b, cov_a=cov_a, cov_b=cov_b)
+                           for red_b, cov_b in zip(reds_b, covs_b)]:
+                ok = False
+                break
+        _STACKED_PINV = ok
+    return _STACKED_PINV
+
+
+def _witness_covariance(rng: np.random.Generator) -> np.ndarray:
+    """A covariance of A..F of rank 1-6, as a tied or fixed metric leaves one."""
+    g = rng.normal(0.0, 1e-6, (6, int(rng.integers(1, 7))))
+    return g @ g.T
 
 
 def same_lattice(af_a: np.ndarray, af_b: np.ndarray, *,
