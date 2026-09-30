@@ -18,13 +18,13 @@ from __future__ import annotations
 import struct
 import zlib
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 
 from ..theme import TOKENS
-from . import glyphs, raster, views
+from . import cut, glyphs, raster, views
 from . import scene as sc
 
 #: The CSS width the GUI's pixel sizes are drawn against: an image whose long
@@ -58,6 +58,10 @@ class StructureFigure:
     same picture.  ``atoms`` has one entry per atom drawn, ``letters`` one per
     a, b, c: where each landed, in pixels from the top-left corner, so a caller
     can annotate without re-projecting.  ``path`` is the PNG written, if any.
+    ``palette`` is each site label drawn and the colour it is drawn in, as
+    ``#rrggbb`` before any dimming of the images outside the cell, for a legend
+    drawn beside the figure.  A site recoloured in part
+    (:func:`~rietx.viz.recolour`) appears again as ``"<label> (recoloured)"``.
     """
     image: np.ndarray
     rotation: list[list[float]]
@@ -65,6 +69,7 @@ class StructureFigure:
     atoms: list[dict]
     letters: list[dict]
     path: str | None = None
+    palette: dict[str, str] = field(default_factory=dict)
 
     def __array__(self, dtype=None, copy=None):
         image = self.image if dtype is None else self.image.astype(dtype, copy=False)
@@ -101,9 +106,44 @@ def _species(geometry: Mapping, names) -> list[str]:
         match = [s["species"] for s in sites if name in (s["species"], s["element"])]
         if not match:
             have = sorted({s["species"] for s in sites})
+            route = ""
+            if any(s["label"] == name for s in sites):
+                route = (f"; {name!r} is a site label, and one site is left out by a "
+                         f"mask: keep(g, ~select(g, label={name!r}))")
             raise ValueError(f"hidden {name!r}: this phase has no such species or "
-                             f"element; its species are {have}")
+                             f"element; its species are {have}{route}")
         out += [m for m in match if m not in out]
+    return out
+
+
+def _site_colours(geometry: Mapping) -> Mapping:
+    """The geometry with every site colour as ``#rrggbb``, refused otherwise.
+
+    ``scene.rgb`` draws anything else mid-grey, which is the GUI's rule and
+    stays.  Here an edited dict is being drawn, and a colour that changes
+    nothing on the screen looks like success, as ``hidden=`` has it.
+    """
+    colours = []
+    for k, site in enumerate(geometry["sites"]):
+        try:
+            colours.append(cut.site_colour(site["color"]))
+        except ValueError as e:
+            raise ValueError(f"sites[{k}] ({site['label']}): {e}") from None
+    if colours == [s["color"] for s in geometry["sites"]]:
+        return geometry
+    return {**geometry, "sites": [{**s, "color": c}
+                                  for s, c in zip(geometry["sites"], colours)]}
+
+
+def _palette(geometry: Mapping, scene: dict) -> dict[str, str]:
+    drawn = {geometry["atoms"][a["index"]]["site"] for a in scene["atoms"]}
+    out: dict[str, str] = {}
+    for k in sorted(drawn):
+        site = geometry["sites"][k]
+        name = site["label"]
+        if name in out and out[name] != site["color"]:
+            name += " (recoloured)"
+        out.setdefault(name, site["color"])
     return out
 
 
@@ -324,6 +364,7 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
             structure, phase,
             probability=s3.DEFAULT_PROBABILITY if probability is None else probability,
             bond_tolerance=s3.BOND_TOLERANCE if bond_tolerance is None else bond_tolerance)
+    geometry = _site_colours(geometry)
     bg = _colour(background)
     dark = bg is not None and sum(w * v for w, v in zip(sc.LOOK["luma"], bg)) < 0.5
     tokens = TOKENS["dark" if dark else "light"]
@@ -372,4 +413,4 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
         written = str(target)
     return StructureFigure(image=image, rotation=views.as_list(R),
                            pixels_per_angstrom=frame.ppa, atoms=atoms, letters=letters,
-                           path=written)
+                           path=written, palette=_palette(geometry, scene))

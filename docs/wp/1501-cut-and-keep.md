@@ -151,15 +151,15 @@ since an agent says "the plane through the origin and the next one at d".
 
 ## Tasks
 
-- [ ] `keep` with the re-indexing, the `note` counts and `complete=`; a
+- [x] `keep` with the re-indexing, the `note` counts and `complete=`; a
   test that every index in the result is in range on the 21 phases of
   `tests/data/polyhedra_phases.json`, and that `keep` under an all-true
   mask renders bit-identically.
-- [ ] `select`, `plane`, `sphere`, `component` with `via=`; a test that
+- [x] `select`, `plane`, `sphere`, `component` with `via=`; a test that
   `component(via="edges")` on rutile is a chain and on NAC by bonds is the
   whole cell, and that a plane through the origin at `distance=1` on a
   cubic cell keeps the atoms with `frac · hkl ≤ 1`.
-- [ ] `recolour` and `StructureFigure.palette`; the colour validation at
+- [x] `recolour` and `StructureFigure.palette`; the colour validation at
   entry; `hidden=`'s error names the mask route.
 - [ ] The import-boundary pin.
 - [ ] `exports.md` rewritten with a runnable example per verb, the
