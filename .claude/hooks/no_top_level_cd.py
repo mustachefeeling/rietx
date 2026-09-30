@@ -72,7 +72,7 @@ Put the target in the command instead:
 
 Or wrap it, where the tool has no flag and the cwd is genuinely load-bearing:
 
-  (cd DIR && uv venv --python 3.12 && uv pip install -e ".[dev,jax]")
+  (cd DIR && ./configure && make)
 
 A subshell's chdir dies with the subshell, so the next call still starts where
 this one did. The refused `cd` was: %s"""
