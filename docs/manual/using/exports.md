@@ -243,6 +243,8 @@ palette: {'Ca1': '#00c4b8', 'Al1': '#bc5c70', 'Na1': '#8040e0', 'F1': '#48d860',
 - `component(g, atom, via="bonds")` keeps the connected piece holding `atom`.
   `via="corners"`, `"edges"` or `"faces"` joins polyhedra sharing at least one,
   two or three vertices.
+  `"edges"` and `"faces"` start from a polyhedron's centre, since the polyhedra
+  round a shared vertex need not touch each other.
   Use them when bonds reach everything: by bonds every atom of NAC's cell is
   one piece.
 - `recolour(g, mask, colour)` returns a dict in which the masked atoms, and the

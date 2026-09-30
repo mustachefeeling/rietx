@@ -124,8 +124,11 @@ def plane(geometry: Mapping, hkl, distance: float, *, width: float | None = None
     lattice = np.asarray(geometry["lattice"], dtype=np.float64)          # rows a, b, c
     d_hkl = 1.0 / float(np.sqrt(h @ np.linalg.inv(lattice @ lattice.T) @ h))
     scale = 1.0 if units == "d" else 1.0 / d_hkl
+    if not np.isfinite(float(distance)):
+        raise ValueError(f"distance {distance!r}: a finite number, since a NaN keeps "
+                         "nothing and looks like success")
     lo = float(distance) * scale
-    if width is not None and not float(width) > 0:
+    if width is not None and not (np.isfinite(float(width)) and float(width) > 0):
         raise ValueError(f"width {width!r}: a positive thickness")
     frac = np.array([a["frac"] for a in geometry["atoms"]], dtype=np.float64).reshape(-1, 3)
     h_dot_x = frac @ h
@@ -165,7 +168,9 @@ def component(geometry: Mapping, atom: int, *, via: str = "bonds") -> np.ndarray
     piece is their centres and vertices.  The second kind is needed where the
     first reaches everything: rutile's TiO₆ chains are edge-sharing, and by
     bonds every Ti reaches every other through O.  An atom in no polyhedron has
-    no piece by those three, which raises.
+    no piece by ``"corners"``, and ``"edges"`` and ``"faces"`` start only from a
+    polyhedron's centre, since the polyhedra round a shared vertex need not
+    touch each other; both raise otherwise.
     """
     if via not in VIA:
         raise ValueError(f"via {via!r}: give one of {VIA}")
@@ -174,7 +179,6 @@ def component(geometry: Mapping, atom: int, *, via: str = "bonds") -> np.ndarray
             or not 0 <= atom < len(atoms)):
         raise ValueError(f"atom {atom!r}: an index into atoms, 0 to {len(atoms) - 1}")
     n = len(atoms)
-    out = np.zeros(n, dtype=bool)
     if via == "bonds":
         i = [b["i"] for b in geometry["bonds"]]
         j = [b["j"] for b in geometry["bonds"]]
@@ -183,10 +187,19 @@ def component(geometry: Mapping, atom: int, *, via: str = "bonds") -> np.ndarray
         return label == label[atom]
     polys = geometry["polyhedra"]
     members = [{p["center"], *p["vertices"]} for p in polys]
-    seeds = [k for k, m in enumerate(members) if atom in m]
+    if via == "corners":
+        seeds = [k for k, m in enumerate(members) if atom in m]
+    else:
+        # a vertex belongs to every polyhedron that shares it, and those need not
+        # share an edge or a face with each other, so only a centre starts a piece
+        seeds = [k for k, p in enumerate(polys) if p["center"] == atom]
     if not seeds:
-        raise ValueError(f"atom {atom}: in no polyhedron, so there is no piece joined "
-                         f"by {via}; via='bonds' walks the bonds")
+        raise ValueError(f"atom {atom}: " + (
+            f"in no polyhedron, so there is no piece joined by {via}"
+            if via == "corners" else
+            f"the centre of no polyhedron, so there is no piece joined by {via}; "
+            "give a polyhedron's centre")
+            + "; via='bonds' walks the bonds")
     need = SHARED[via]
     verts = [set(p["vertices"]) for p in polys]
     seen, todo = set(seeds), list(seeds)
@@ -196,6 +209,7 @@ def component(geometry: Mapping, atom: int, *, via: str = "bonds") -> np.ndarray
             if m not in seen and len(verts[k] & verts[m]) >= need:
                 seen.add(m)
                 todo.append(m)
+    out = np.zeros(n, dtype=bool)
     for k in seen:
         out[list(members[k])] = True
     return out

@@ -219,6 +219,28 @@ def test_a_site_colour_the_scene_would_grey_is_refused(nac):
         recolour(s3.build(nac), np.ones(len(g["atoms"]), dtype=bool), "red")
 
 
+def test_review_fixes_hold(nac):
+    """Found by the WP-1501 review: each was a wrong answer that looked like one."""
+    g = s3.build(nac)
+    with pytest.raises(ValueError):
+        plane(g, (1, 1, 0), float("nan"))
+    # a vertex is shared by octahedra that touch only at a corner, so by edges or
+    # faces it names no single piece; a centre does
+    vertex = next(v for p in g["polyhedra"] for v in p["vertices"])
+    centre = g["polyhedra"][0]["center"]
+    with pytest.raises(ValueError):
+        component(g, vertex, via="faces")
+    assert component(g, centre, via="faces")[centre]
+    # two recolours of one site in two colours are two legend entries
+    first = np.zeros(len(g["atoms"]), dtype=bool)
+    second = first.copy()
+    al = np.flatnonzero(select(g, element="Al") & ~select(g, boundary=True))
+    first[al[0]], second[al[1]] = True, True
+    out = recolour(recolour(g, first, "#ff0000"), second, "#0000ff")
+    colours = set(render_structure(out, size=100).palette.values())
+    assert {"#ff0000", "#0000ff"} <= colours
+
+
 def test_hidden_a_label_names_the_mask_route(nac):
     with pytest.raises(ValueError, match=r"keep\(g, ~select\(g, label='F2'\)\)"):
         render_structure(nac, hidden=["F2"], size=100)

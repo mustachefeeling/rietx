@@ -82,8 +82,7 @@ def _colour(value) -> tuple[float, float, float] | None:
     if value is None:
         return None
     if isinstance(value, str):
-        named = {"white": "#ffffff", "black": "#000000"}
-        hex_ = named.get(value.lower(), value)
+        hex_ = cut.NAMED_COLOURS.get(value.lower(), value)
         if not sc._HEX.match(hex_):
             raise ValueError(f"background {value!r}: give 'white', 'black', "
                              "'#rrggbb', three channels in 0..1, or None")
@@ -140,9 +139,11 @@ def _palette(geometry: Mapping, scene: dict) -> dict[str, str]:
     out: dict[str, str] = {}
     for k in sorted(drawn):
         site = geometry["sites"][k]
-        name = site["label"]
-        if name in out and out[name] != site["color"]:
-            name += " (recoloured)"
+        name = base = site["label"]
+        n = 1
+        while name in out and out[name] != site["color"]:
+            n += 1
+            name = f"{base} (recoloured)" if n == 2 else f"{base} (recoloured {n - 1})"
         out.setdefault(name, site["color"])
     return out
 
