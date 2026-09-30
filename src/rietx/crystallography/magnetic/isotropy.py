@@ -36,6 +36,7 @@ asserting it.
     compatible_cell(space_group)                      -> (3, 3) row-vector lattice, A
     reflections(lattice, d_min)                       -> ReflectionSet
     structure_factors(candidate, reflections)         -> (n_domains, n_free, n_hkl, 3) complex
+    gram(factors, shells)                             -> (n_shells, n_free, n_free) float
     powder_intensities(candidate, amplitudes, ...)    -> (n_shells,) float
     systematic_absences(candidate, ...)               -> AbsenceReport
     determinable_amplitudes(candidate, ...)           -> int
@@ -122,6 +123,16 @@ of k are domains too, and a domain related to another by a parent operation has
 an *identical* powder pattern because a powder average is already an average
 over orientations; only domains inside the grey little group are built here,
 and the reason is that one.
+
+Because M⊥ is linear in the real amplitudes b, a shell's powder intensity is
+the quadratic form bᵀ G_s b with one real positive semi-definite matrix per
+shell (:func:`gram`).  Every intensity this module evaluates — the ones
+:func:`powder_intensities` returns, the Jacobian :func:`determinable_amplitudes`
+ranks and the fits :func:`powder_equivalent` runs — goes through that stack,
+built from :func:`structure_factors` before any fit starts, so a fit touches
+n_shells matrices of n_free² and never the reflections.  It is the same sum
+contracted in another order, equal to round-off, and changes no verdict's
+definition.
 
 References
 ----------
@@ -1638,6 +1649,32 @@ def structure_factors(candidate: MagneticCandidate, refl: ReflectionSet, *,
     return out
 
 
+def gram(factors: np.ndarray, shells) -> np.ndarray:
+    """One real PSD matrix per shell, ``(n_shells, n_free, n_free)``: I_s(b) = bᵀ G_s b.
+
+    With f the :func:`structure_factors` tensor, the powder intensity of shell s
+    is Σ_{dom, h∈s, c} |Σ_q b_q f[dom, q, h, c]|², and expanding the square
+    gives G_s[q, r] = Re Σ_{dom, h∈s, c} conj(f[dom, q, h, c])·f[dom, r, h, c]
+    — real because b is real, symmetric and positive semi-definite because it
+    is a sum of outer products.  That is an exact reformulation, not an
+    approximation: the tensor path contracts the same sums in another order,
+    and the two agree to round-off (``tests/test_magnetic_isotropy.py`` holds
+    them to 1e-12 on the module's cases).  What it buys is that the tensor is
+    contracted **once** per candidate: an evaluation is then n_shells matrix
+    products of n_free², the gradient is 2·G_s·b, and nothing of size n_hkl is
+    touched inside a fit (a cubic ``P n -3 m:1`` candidate at d_min = 1.5 Å:
+    an (8, 36, 320, 3) complex tensor against 21 matrices of 36 × 36).
+    """
+    f = np.asarray(factors)
+    n = f.shape[1]
+    out = np.empty((len(shells), n, n), dtype=np.float64)
+    for s, members in enumerate(shells):
+        block = np.moveaxis(f[:, :, list(members), :], 1, 0).reshape(n, -1)
+        g = block.real @ block.real.T + block.imag @ block.imag.T
+        out[s] = 0.5 * (g + g.T)
+    return out
+
+
 def powder_intensities(candidate: MagneticCandidate, amplitudes,
                        refl: ReflectionSet, *, factors: np.ndarray | None = None,
                        little: LittleGroup | None = None,
@@ -1648,13 +1685,12 @@ def powder_intensities(candidate: MagneticCandidate, amplitudes,
     the multiplicity-weighted orbit average WP-1327's structure factor needs and
     the thing Shirane (1959) observed is blind to a cubic collinear structure's
     moment direction.  ``factors`` reuses a :func:`structure_factors` result.
+    Evaluated as the quadratic form bᵀ G_s b of :func:`gram`.
     """
     f = structure_factors(candidate, refl, little=little,
                           domains=domains) if factors is None else factors
     a = np.asarray(amplitudes, dtype=np.float64).reshape(-1)
-    total = np.tensordot(a, f, axes=(0, 1))                # (n_dom, n_hkl, 3)
-    per_hkl = np.sum(np.abs(total) ** 2, axis=(0, 2))
-    return np.array([float(np.sum(per_hkl[list(members)])) for members in refl.shells])
+    return (gram(f, refl.shells) @ a) @ a
 
 
 @dataclass(frozen=True, eq=False)
@@ -1774,16 +1810,12 @@ def determinable_amplitudes(candidate: MagneticCandidate, refl: ReflectionSet, *
     if little is None:
         little = _irreps.little_group(candidate.space_group, candidate.k)
     f = structure_factors(candidate, refl, little=little) if factors is None else factors
+    grams = gram(f, refl.shells)
     rng = np.random.default_rng(seed)
     best = 0
     for _ in range(draws):
         a = rng.normal(size=candidate.free_amplitudes)
-        total = np.tensordot(a, f, axes=(0, 1))            # (n_dom, n_hkl, 3)
-        # dI/da_q = 2 Re Σ_dom Σ_c conj(total)·f[dom, q]
-        grad = 2.0 * np.real(np.einsum("dhc,dqhc->qh", np.conj(total), f))
-        rows = np.array([[float(np.sum(grad[q, list(members)]))
-                          for members in refl.shells]
-                         for q in range(candidate.free_amplitudes)])
+        rows = 2.0 * (grams @ a).T                         # dI_s/da_q = 2 (G_s a)_q
         s = np.linalg.svd(rows, compute_uv=False)
         scale = float(s.max()) if s.size else 0.0
         best = max(best, int(np.sum(s > 1e-7 * max(scale, 1e-300))))
@@ -1810,16 +1842,32 @@ def _normalised_draw(candidate: MagneticCandidate, lattice, rng) -> np.ndarray:
     return a / total
 
 
-def _fit_residual(target: np.ndarray, factors: np.ndarray, shells,
-                  rng, *, restarts: int = 4) -> float:
+def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
+                  restarts: int = 4, rtol: float | None = None) -> float:
     """Smallest ‖I(b) − target‖∞ a family can reach, over several starts.
 
-    ``factors`` is that family's :func:`structure_factors`; the intensity is a
-    quadratic form in b, so the fit is a small non-linear least squares with an
-    exact Jacobian.  Several restarts because a quadratic-form fit has sign and
-    permutation symmetries and a single start can sit on a saddle.
+    ``grams`` is that family's :func:`gram` stack, so I_s(b) = bᵀ G_s b and the
+    fit is a small non-linear least squares with the exact Jacobian 2·G_s·b.
+    Several restarts because a quadratic-form fit has sign and permutation
+    symmetries and a single start can sit on a saddle.
 
-    The driver is ``"trf"`` whenever there are fewer shells than amplitudes,
+    **A shell the family cannot light is settled before the fit.**  Where
+    G_s is below :data:`INTENSITY_RTOL` of the stack's largest (the same
+    tolerance :func:`systematic_absences` calls absent), I_s(b) is zero for
+    every b.  If the target is zero there too, the row is identically zero
+    and is dropped: it moves neither the minimiser nor, beyond that
+    tolerance, the ∞-norm.  If
+    the target is *not* zero there, its residual is |t_s| whatever b is, so
+    with ``rtol`` given and |t_s| above it of the target's largest, the
+    family **provably** cannot reproduce the target and that floor is
+    returned without a fit — an absence the other family fills is the
+    strongest evidence of distinguishability there is.  "Provably" is exact
+    for G_s ≡ 0 only: a shell counted dark at the tolerance can still reach
+    |t_s| for a large enough ‖b‖, though every live shell then grows as
+    ‖b‖² too, which is why it is not expected to matter at ``rtol`` = 1e-4.
+    Below ``rtol`` the row stays in the fit, where it is a constant.
+
+    The driver is ``"trf"`` whenever there are fewer live shells than amplitudes,
     because ``"lm"`` *refuses* that problem rather than solving it badly
     (``ValueError: Method 'lm' doesn't work when the number of residuals is
     less than the number of variables``).  A refusal is not a measurement: a
@@ -1831,25 +1879,28 @@ def _fit_residual(target: np.ndarray, factors: np.ndarray, shells,
     """
     from scipy.optimize import least_squares
 
-    members = [list(m) for m in shells]
-
-    def model(b):
-        total = np.tensordot(b, factors, axes=(0, 1))      # (n_dom, n_hkl, 3)
-        per_hkl = np.sum(np.abs(total) ** 2, axis=(0, 2))
-        return np.array([float(np.sum(per_hkl[m])) for m in members]), total
+    target = np.asarray(target, dtype=np.float64)
+    scale = float(np.max(np.abs(target))) or 1.0
+    size = np.max(np.abs(grams), axis=(1, 2), initial=0.0)
+    dark = size <= INTENSITY_RTOL * max(float(np.max(size, initial=0.0)), 1.0)
+    if rtol is not None:
+        floor = float(np.max(np.abs(target[dark]), initial=0.0)) / scale
+        if floor > rtol:
+            return floor
+    keep = ~(dark & (np.abs(target) <= INTENSITY_RTOL * scale))
+    if not np.any(keep):
+        return 0.0
+    g, t = grams[keep], target[keep]
 
     def residual(b):
-        return model(b)[0] - target
+        return (g @ b) @ b - t
 
     def jacobian(b):
-        total = model(b)[1]
-        grad = 2.0 * np.real(np.einsum("dhc,dqhc->hq", np.conj(total), factors))
-        return np.array([grad[m].sum(axis=0) for m in members])
+        return 2.0 * (g @ b)
 
-    scale = float(np.max(np.abs(target))) or 1.0
     best = np.inf
-    n = factors.shape[1]
-    method = "lm" if len(members) >= n else "trf"
+    n = grams.shape[1]
+    method = "lm" if t.size >= n else "trf"
     for _ in range(restarts):
         start = rng.normal(size=n) * np.sqrt(scale / max(n, 1))
         fit = least_squares(residual, start, jac=jacobian, method=method,
@@ -1906,8 +1957,8 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
             target = powder_intensities(source, amplitudes, refl, factors=other)
             if float(np.max(np.abs(target))) <= 0.0:
                 continue
-            if _fit_residual(target, factors, refl.shells, rng,
-                             restarts=restarts) > rtol:
+            if _fit_residual(target, gram(factors, refl.shells), rng,
+                             restarts=restarts, rtol=rtol) > rtol:
                 return False
     return True
 

@@ -1344,6 +1344,135 @@ def test_the_jacobian_deficit_is_the_undeterminable_direction():
     assert isotropy.determinable_amplitudes(general, reflections) == 1
 
 
+# --------------------------------------------------------------------------
+# The Gram stack: I_s(b) = bᵀ G_s b, contracted once per candidate
+# --------------------------------------------------------------------------
+
+#: Two with real structure factors (sites on inversion-related positions at
+#: k = 0) and two with complex ones, since a conjugate dropped from G is
+#: invisible on the first kind.
+GRAM_CASES = [
+    ("P n m a", (0, 0, 0), GAMMA, 1.5),
+    ("P 4/m m m", (0, 0, 0), GAMMA, 2.0),
+    ("P b c m", (0.308, 0.114, 0.07), (Fraction(1, 2), Fraction(0), Fraction(0)), 2.5),
+    ("P 6_3 c m", (0.32080, 0, 0), GAMMA, 2.0),
+]
+
+
+def tensor_intensities(factors, amplitudes, shells):
+    """The contraction the module evaluated before the Gram stack, kept as the oracle.
+
+    Returns the per-shell intensity and its gradient in the amplitudes,
+    straight from the ``(n_dom, n_free, n_hkl, 3)`` tensor.
+    """
+    total = np.tensordot(amplitudes, factors, axes=(0, 1))       # (n_dom, n_hkl, 3)
+    per_hkl = np.sum(np.abs(total) ** 2, axis=(0, 2))
+    grad = 2.0 * np.real(np.einsum("dhc,dqhc->hq", np.conj(total), factors))
+    return (np.array([np.sum(per_hkl[list(m)]) for m in shells]),
+            np.array([grad[list(m)].sum(axis=0) for m in shells]))
+
+
+def unconjugated_gram(factors, shells):
+    """Re Σ f·fᵀ with the conjugate left out: the slip the oracle has to catch."""
+    n = factors.shape[1]
+    out = np.empty((len(shells), n, n))
+    for s, members in enumerate(shells):
+        block = np.moveaxis(factors[:, :, list(members), :], 1, 0).reshape(n, -1)
+        out[s] = np.real(block @ block.T)
+    return out
+
+
+def gram_error(grams, factors, shells, rng, draws=3):
+    """Largest error of bᵀG_s b and 2·G_s·b against the tensor, relative to its largest."""
+    worst = 0.0
+    for _ in range(draws):
+        b = rng.normal(size=factors.shape[1])
+        intensity, gradient = tensor_intensities(factors, b, shells)
+        worst = max(worst,
+                    float(np.max(np.abs((grams @ b) @ b - intensity)) / np.max(intensity)),
+                    float(np.max(np.abs(2.0 * (grams @ b) - gradient))
+                          / np.max(np.abs(gradient))))
+    return worst
+
+
+@pytest.mark.parametrize("case", GRAM_CASES, ids=[c[0] for c in GRAM_CASES])
+def test_the_gram_stack_is_the_tensor_contraction(case):
+    """Intensities and gradients equal the tensor path's to 1e-12, and a wrong G fails.
+
+    The Gram path is an exact reformulation, so the bar is round-off, not a
+    tolerance.  The positive arm leaves the conjugate out of G, which is
+    invisible exactly where the structure factors are real, so it is asserted
+    on the cases whose factors are complex, and which cases those are is
+    asserted too, so the arm cannot go quiet by the factors turning real.
+    """
+    group, site, k, d_min = case
+    found = isotropy.candidates(group, site, k)
+    reflections = isotropy.reflections(found.lattice, d_min)
+    rng = np.random.default_rng(11)
+    worst, wrong, complex_factors = 0.0, 0.0, False
+    for candidate in found:
+        f = isotropy.structure_factors(candidate, reflections)
+        grams = isotropy.gram(f, reflections.shells)
+        n = candidate.free_amplitudes
+        assert grams.shape == (len(reflections.shells), n, n)
+        assert np.array_equal(grams, np.transpose(grams, (0, 2, 1)))
+        assert np.min(np.linalg.eigvalsh(grams)) >= -1e-12 * max(float(np.max(grams)), 1.0)
+        worst = max(worst, gram_error(grams, f, reflections.shells, rng))
+        # the public entry point goes through the same stack
+        b = rng.normal(size=n)
+        expected = tensor_intensities(f, b, reflections.shells)[0]
+        got = isotropy.powder_intensities(candidate, b, reflections, factors=f)
+        worst = max(worst, float(np.max(np.abs(got - expected)) / np.max(expected)))
+        if np.max(np.abs(f.imag)) > 1e-6 * np.max(np.abs(f)):
+            complex_factors = True
+            wrong = max(wrong, gram_error(unconjugated_gram(f, reflections.shells),
+                                          f, reflections.shells, rng))
+    assert worst <= 1e-12, worst
+    assert complex_factors == (group in ("P b c m", "P 6_3 c m"))
+    if complex_factors:
+        assert wrong > 1e-3, wrong
+
+
+#: Classes measured on main at the default seed, draws and restarts, before
+#: the fit moved onto the Gram stack.  Statistical verdicts (see
+#: :func:`~rietx.crystallography.magnetic.isotropy.powder_equivalent`), so
+#: this pins the protocol, not a property of the groups.
+GRAM_PARTITIONS = [
+    ("P 4/m m m", (0, 0, 0), GAMMA, 2.0, ((0,), (1, 2, 3))),
+    ("P b c m", (0.308, 0.114, 0.07), (Fraction(1, 2), Fraction(0), Fraction(0)), 2.5,
+     tuple((i,) for i in range(8))),
+    ("P 6_3 c m", (0.32080, 0, 0), GAMMA, 2.0,
+     ((0,), (1,), (2,), (3,), (4, 5), (6,), (7, 8), (9,))),
+]
+
+
+@pytest.mark.parametrize("case", GRAM_PARTITIONS, ids=[c[0] for c in GRAM_PARTITIONS])
+def test_the_gram_path_leaves_the_modules_partitions_where_they_were(case):
+    group, site, k, d_min, expected = case
+    found = isotropy.candidates(group, site, k)
+    reflections = isotropy.reflections(found.lattice, d_min)
+    assert isotropy.equivalence_classes(found, reflections) == expected
+
+
+def test_a_shell_the_family_cannot_light_settles_the_fit_without_one():
+    """An absence the target fills is a proof; an absence it shares is dropped.
+
+    Synthetic stack, two amplitudes, three shells, the third dark.  A target
+    with intensity there is out of reach whatever b is, so the floor comes back
+    and no start is drawn; a target that is dark there too is fitted on the
+    two live shells and reached (b = (1, 1)/√2).
+    """
+    grams = np.zeros((3, 2, 2))
+    grams[0] = np.eye(2)
+    grams[1] = [[2.0, 1.0], [1.0, 2.0]]
+    rng = np.random.default_rng(0)
+    before = rng.bit_generator.state
+    floor = isotropy._fit_residual(np.array([1.0, 3.0, 0.5]), grams, rng, rtol=1e-4)
+    assert floor == pytest.approx(0.5 / 3.0)
+    assert rng.bit_generator.state == before
+    assert isotropy._fit_residual(np.array([1.0, 3.0, 0.0]), grams, rng) <= 1e-10
+
+
 def test_identify_refuses_the_same_way_in_both_spglib_error_modes():
     """``spgrep/__init__.py`` (0.7.0) sets ``spglib.error.OLD_ERROR_HANDLING =
     False`` at import, and in that mode spglib **raises** where it used to
