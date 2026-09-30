@@ -101,7 +101,38 @@ the whole surface with real agents.
   `schemas/indexing.py` line numbers are on `4de25284` and `5ac3fc03` and
   were not re-measured. Eight questions are open, and the reporter asks in
   the comment whether S0 may open as the first PR. Those are the
-  maintainer's. Decision pending (batch item, 2026-09-30). Companion: #561,
+  maintainer's. **Decided 2026-09-30:** the route is map, then direct space, then charge
+  flipping, as one milestone (v1.9, block 19xx); #197 and #198 leave the fence
+  (DESIGN.md § Structure fence revised, edited today; maximum-entropy maps stay
+  fenced). Filed: WP-1901 (the map) and WP-1902 (the cost, doublet spike first).
+  **Adversarial review the same day** (against `e3e6486a`): the χ² identity
+  holds to 4e-16 about S0's own least-squares answer and only 1e-7 about fitted
+  Pawley intensities and 2.4e-2 about Le Bail ones, so the floor is S0's own
+  solve; the proposed identity test is tautological and the failing test is
+  Ω·I against Rietveld `evaluate`; Le Bail and Pawley apply no per-line Lp, which
+  a lab doublet needs (−0.6 % to +1.4 % over 20-130°), and NAC, single-line,
+  hides it, so a FAP spike comes first. S2b and S7a are *not* free of v1.6 files
+  (a new answer type or `Capabilities` field moves `SCHEMA_VERSION`, contested by
+  WP-1343 and PR #522); S7b's constant is `PROJECT_FORMAT_VERSION`, not SCHEMA;
+  `solve_engines`/`solve_presets` are registry arms, not `features` booleans, and
+  the grade thresholds need a seventh versioned contract like
+  `indexing_thresholds_version`. The Kabova et al. (2025) 5× bar is "worthy of
+  close inspection", not a pass bar, and RMSD₁₅ < 0.35 Å compares with a
+  DFT-D-optimised structure for molecular organics, never with deposited
+  coordinates. The prototype's thresholds were tuned on about six negatives in a
+  private corpus nobody can rerun, and "15 high, none wrong" is in-sample (rule
+  of three: up to about 20 % false-high at 95 %), so grades ship provisional,
+  under a versioned contract, validated on a public held-out set frozen first.
+  The Wyckoff-class enumeration must reuse `symmetry.site_orbit` and
+  `wyckoff.site_constraints` (a second orbit authority is the risk) and compile
+  per assignment; it comes before S2a. Defer: S4 as a general kernel, S6a/b until
+  a public case defeats direct space, S7b and S9. ATTRIBUTION.md needs rows for
+  DASH (MIT), FOX (GPL-2), GALLOP (GPL-3), Superflip (no redistribution; clean
+  room means never opening the package), TOPAS TR § 10.23, Kabova and Earl &
+  Deem, plus README rows for COD (CC0) and IUCrData (CC-BY). Corpus files "at
+  test time only" imply network fetches in the suite; the precedent is that
+  no grant means not vendored. DASH is MIT (this file's References say
+  commercial and are stale). Companion: #561,
   under WP-1514. Private-corpus figures stay out of the public tree unless
   the corpus is cited by number (root CLAUDE.md § Licensing).
 

@@ -136,7 +136,7 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   complex-k ψ, so this is text and a field-side test, no number moves. Fix PR
   #564 is open. The reporter also asks whether a `moment_field(basis,
   amplitudes, translations)` builder is wanted; that is new public API and
-  waits on the maintainer (batch item, 2026-09-30).
+  **Decided 2026-09-30:** the sign text is fixed by PR #564 and the `moment_field` builder waits until a k ≠ 0 consumer exists.
 - **2026-09-30, from the issue triage (issue #565): M-7 as a certificate, a
   proposal, not code.** The reporter's scoping (Farkas dual, minimum-norm
   d = 1/‖y‖, isometry, transfers, a consistency rule) gives
@@ -150,8 +150,7 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   cross-irrep pairs), and the metric for d (unweighted L2 with a printed
   bracket). *Checked at `e3e6486a`*: #535 and #536 are merged and #532 is
   open, so the premise holds; the `isotropy.py` line numbers it quotes are on
-  `44eaa091` and were not re-measured. Decision pending (batch item,
-  2026-09-30).
+  `44eaa091` and were not re-measured. **Decided 2026-09-30:** all four suggestions taken (the split partition in `classes` with `merged_classes` beside it; the 1e-12 floor with the exact check as arbiter; 12 draws per direction on unsettled cross-irrep pairs with n printed; unweighted L2 with a printed bracket). Chunked as five PRs after #532, per the issue.
 - **2026-09-30, from the issue triage (issue #258, two comments of that
   day): the reporter proposes splitting M-11.** (1) A Fourier-form S_k model
   needs its sign and phase reference (cell origin R_l against full position
@@ -165,8 +164,7 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   (eqs. 16-19). Proposed: **M-11a** the forward model, S_k schema and
   `IrrepBasis` bridge; **M-11b** the k/−k coset and invariance equation,
   shared with N-1, whose acceptance is that it does not reproduce the
-  over-parameterisation. The maintainer's call on the split (batch item,
-  2026-09-30). The paper's table and equation numbers were not re-read here.
+  over-parameterisation. **Decided 2026-09-30: split it** into M-11a and M-11b as proposed. The paper's table and equation numbers were not re-read here.
 - **From [1506](1506-a-planning-doc-pr-runs-what-reads-it.md), 2026-09-27:
   `isotropy.analyse` on F m -3 m takes 26 s, and the fast suite pays it
   twice.** `isotropy.analyse(isotropy.candidates("F m -3 m", (0, 0, 0),

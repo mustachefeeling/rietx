@@ -222,10 +222,11 @@ differentiable from day one.
     so the host an agent picks is the package it is already driving. The
     track is ROADMAP § Unscheduled, WPs 1510-1517. Each of the three
     measured larger than one WP, so 1514-1516 each scope a milestone and the
-    maintainer decides each draft. **What stays fenced**: charge flipping
-    (#198) and difference Fourier and maximum-entropy maps (#197), until
-    1515 decides whether they follow direct space; modulated structures;
-    and total scattering (#192).
+    maintainer decides each draft. **What stays fenced**: maximum-entropy
+    maps (#197), modulated structures and total scattering (#192).
+    **Decided 2026-09-30:** difference Fourier (#197) and charge flipping
+    (#198) leave the fence with direct-space solution, in the order map,
+    direct space, charge flipping (milestone v1.9).
 
 ## Architecture invariants
 

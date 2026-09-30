@@ -238,6 +238,8 @@ PRIORITIES = wp_index.PRIORITIES
 #   2026-09-28  docs/ROADMAP.md               571 -> 579  for the structure track (1510-1517): one new
 #                                                          Unscheduled group and its blurb, the fence
 #                                                          paragraph saying what left it; landed 578
+#   2026-09-30  docs/ROADMAP.md               579 -> 588  for v1.8 and v1.9: two table rows, two headings
+#                                                          and blurbs; landed 588
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -558,7 +560,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # its WP-level paragraphs moved to the v1.6 record.  From here the cap is
     # a budget on prose alone, and the per-row bump above ends.  Landed 570,
     # +1 headroom.
-    "docs/ROADMAP.md": 579,
+    "docs/ROADMAP.md": 588,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a

@@ -45,6 +45,9 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1523](1523-a-phase-fitted-to-noise-passes-the-support-test.md) | A phase fitted to noise passes the support test | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1527](1527-foreign-files-spell-a-species-as-the-program-does.md) | Foreign files spell a species as the other program does | P2 | — | [Unscheduled](#unscheduled-coming-from-another-code) |
+| [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | P2 | — | [v1.8](#v1-8) |
+| [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | P2 | [1801](1801-rotation-mathematics.md) | [v1.8](#v1-8) |
+| [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | P2 | — | [v1.9](#v1-9) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -372,6 +375,21 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1503](1503-the-figure-reports-on-itself.md) | The figure reports on itself, and picks a view | ⬜ | P3 | [1470](1470-a-structure-figure-without-a-browser.md) ([1501](1501-cut-and-keep.md) soft) |
 | [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | ⬜ | P4 | [1501](1501-cut-and-keep.md), [1502](1502-an-extent-beyond-one-cell.md), [1503](1503-the-figure-reports-on-itself.md) |
 | [1505](1505-rietview-the-figure-leaves-the-package.md) | rietview: the figure leaves the package | ⬜ | P4 | [1504](1504-the-figure-surface-measured-with-real-agents.md) |
+
+## <a id="v1-8"></a>v1.8 — rigid bodies
+
+| WP | Title | Status | Priority | Depends on |
+|---|---|---|---|---|
+| [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | ⬜ | P2 | — |
+| [1802](1802-the-fragment-type.md) | The fragment: a body template with a frame and declared bonds | ⬜ | P3 | — ([1801](1801-rotation-mathematics.md) soft) |
+| [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | ⬜ | P2 | [1801](1801-rotation-mathematics.md) |
+
+## <a id="v1-9"></a>v1.9 — structure solution
+
+| WP | Title | Status | Priority | Depends on |
+|---|---|---|---|---|
+| [1901](1901-the-difference-fourier-map.md) | The difference-Fourier map: a missing atom shows as a peak | ⬜ | P3 | — |
+| [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | ⬜ | P2 | — |
 
 ## <a id="unscheduled"></a>Unscheduled
 

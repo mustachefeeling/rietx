@@ -142,6 +142,8 @@ covers (1119 § Gotchas).
 | v1.5 | A window into a run: the live watcher, foreign model files, a measured background | ✅ **shipped 2026-09-18** ([record](milestones/v1.5.md), [notes](releases/1.5.0.md)) | nine rows, **none of them written at the open**, because the milestone was opened 496 commits behind its own work — the record says plainly that this is weaker evidence than v1.3's at-ship rows and reads as an inventory. The measured half: the live view at 180-329 kB a stage against the replaced page's 4.51-6.03 MB; a default-on recorder costing 1.03-1.28×, which **fails** its own 1.05× gate on two cases of three and was kept anyway with the reason recorded; a console that froze the main thread for 997 ms on a 60 000-event run, capped at the route; four foreign formats read and written; and `help.py`'s Lp corrected from 0.508× of the one the code computes |
 | v1.6 | The magnetic structure: the satellite, the moment, the determination, the mode amplitude — [§ v1.6](#v16--the-magnetic-structure) | 🔄 **opened 2026-09-18** ([record](milestones/v1.6.md)) | eleven rows written at the open, the record's § Acceptance; the measured half is still to come |
 | v1.7 | rietview: the structure figure an agent composes — cuts, extents, a figure that reports on itself, a real-agent measurement, the split — [§ v1.7](#v17--rietview-the-structure-figure-an-agent-composes) | ⬜ **queued 2026-09-27** | written at the open |
+| v1.8 | Rigid bodies: a fragment refined as one body, its atoms reported with esds — [WPs](wp/README.md#v1-8): 1801-1803, the seam spike first, the rest cut from its record | ⬜ **queued 2026-09-30** | written at the open |
+| v1.9 | Structure solution: a difference-Fourier map, a cost from the Pawley intensities, direct-space search — [WPs](wp/README.md#v1-9): 1901-1902, the map then the cost; #197 and #198 left the fence 2026-09-30 | ⬜ **queued 2026-09-30** | written at the open |
 | v2+ | FPA (with the peaks buffer), neutron TOF, texture, modulated structures, PDF, MCP server — [§ v2+](#v2--fenced) | ⬜ fenced | — |
 
 ## Work packages
@@ -397,6 +399,14 @@ own view (1503), the surface measured with real agents before more is added
 1504's first round is costed, or earlier by the maintainer's word.
 
 The WPs are in [the index](wp/README.md#v1-7).
+
+### v1.8 — rigid bodies
+
+Queued 2026-09-30 from issue #561. The seam is measured first (1803); the order is in WP-1514. [The WPs](wp/README.md#v1-8).
+
+### v1.9 — structure solution
+
+Queued 2026-09-30 from issue #562. The map, then the cost, then a search (WP-1515). [The WPs](wp/README.md#v1-9).
 
 ### Unscheduled
 
