@@ -69,6 +69,47 @@ in the asymmetric unit.
 refinement wants them. So the first rung stands alone, and 1515's milestone
 builds on it.
 
+### Inherited
+
+- **2026-09-30, from the issue triage (issue #561): the reporter's scoping
+  proposal for this WP.** Thirteen independent chunks R0-R12 off `main`, each
+  with a test that can fail; R0 (rotation mathematics) and R1 (`Fragment`)
+  touch no v1.6 file. The design's one load-bearing move is a typed
+  `derived: list[DerivedBlock]` beside the affine block in
+  `params/vector.py`, with `decode`, `local_jacobian` and `reach_pattern()`
+  surfaces, so body-atom coordinates get esds (TOPAS's rule, Coelho 2015
+  § 10.22.8) while the moment keeps its "no C row, no esd" rule. Prior art is
+  clean-room (manuals and papers; FOX is GPL, concepts only). Two public
+  cases: acridine form IX (COD 2242872) and diacetylene at 5 K (COD 1577467).
+  *Checked at `e3e6486a`*: the `vector.py` lines it quotes (`:8-10`, `:1132`,
+  `:1218-1223`) are on `4de25284` and were not re-measured; a cost-only
+  proposal, no code. Seven questions are open and are the maintainer's: where
+  the map lives, orientation convention, the moment migrating later, the
+  anti-bump pair list, whether R0/R1 may start before v1.6 closes, chunk
+  numbering (the next unused number is 1527 here, and 1527 is now taken by
+  the species WP, so 1528), and the skill file. **Decided 2026-09-30:** R0 and R1 start now as WP-1801 and WP-1802, in the new
+  v1.8 block (18xx); 1803 is the seam spike that settles question 1 by
+  measurement before any table change. **Adversarial review the same day**
+  (against `e3e6486a`): the `vector.py` and `least_squares.py` line numbers in
+  #561 are stale (`:1218-1223` is now `:1259-1260`, `:1132-1136` is `:1175-1178`,
+  `:1252` is `:1292`, `_within_atom` is `least_squares.py:768`); the traced twin
+  cannot use `adp.cartesian_basis` (it calls `np.linalg.cholesky`); the
+  zero-rotation derivative is the failure a random test misses; an anchored
+  rotation composes where `rebase_anchored_dofs` subtracts; `_structural_column`
+  never sees a body column, so R5 buys speed and not correctness; the skill's
+  `api.md` headroom is 402 B, not 39 B; DASH is MIT and FOX GPL-2 (this file's
+  References say otherwise and are stale); open v1.6 PRs touching shared files
+  are #522, #564 and #571, #524 having merged. Amended chunk list: R0 tests at
+  zero, near π and the w = 0 tie-break; R1 unexported with declared bonds and
+  ideal-D6h benzene; R2 split into the spike (1803) and the chosen seam, sized
+  L; R3 sized L and carrying the anchored-rotation kind, tie refusals, `help.py`,
+  `gui/src/lib/history.ts` PLACES and the `ParameterRow` field pin; R5 collides
+  with WP-1327's analytic moment branch and WP-1419; R6 writes its own det(R)·R
+  basis and adds a monoclinic case; R8 freezes the pair list per plan and tests
+  at the kink; R11 needs `displace_anchored_dofs` for rotations. R2b onward is
+  cut into WPs from 1803's record. **Decided 2026-09-30: v1.6 ships whole** (every rung, 1419 included), so
+  every chunk after 1803 that edits `params/vector.py` waits for v1.6 to close. Its companion is #562, under WP-1515.
+
 ## What the scoping decides
 
 1. **Where the map lives.** (a) A C that depends on θ, rebuilt from the
