@@ -1842,14 +1842,57 @@ def _normalised_draw(candidate: MagneticCandidate, lattice, rng) -> np.ndarray:
     return a / total
 
 
+def _canonical_basis(candidate: MagneticCandidate) -> MagneticCandidate:
+    """The candidate with its amplitude basis replaced by one fixed by the span alone.
+
+    :attr:`MagneticCandidate.configurations` spans the family's moment
+    patterns, but for a multi-copy or multi-dimensional family the basis
+    *within* that span is whatever the linear algebra that built it returned,
+    and two LAPACKs return two bases an orthogonal rotation apart (issue #455:
+    span projectors agree to 1.5e-15 between Accelerate and OpenBLAS, basis
+    elements differ by up to 1.4).  :func:`powder_equivalent` draws amplitudes
+    in that basis, so one seeded stream meant different moment patterns on the
+    two machines.  Here the flattened patterns are reduced to row echelon form
+    with unit pivots — unique for a given row space, so the input basis no
+    longer matters — and then Gram-Schmidt orthonormalised in that order with
+    each row's component along its own echelon row positive, the treatment
+    :func:`_projector_rows` gives an order-parameter direction's subspace.
+    The family is unchanged; only which draw a seed picks is.
+    """
+    n = candidate.free_amplitudes
+    if n == 0:
+        return candidate
+    flat = candidate.configurations.reshape(n, -1)
+    # an orthonormal basis of the row space first, so the echelon form's
+    # pivot tolerance is on a unit scale whatever the input's
+    _, s, vt = np.linalg.svd(flat, full_matrices=False)
+    rank = int(np.sum(s > ISOTROPY_ATOL * max(float(s.max()), 1e-300)))
+    rows = _rref(vt[:rank])
+    q, r = np.linalg.qr(rows.T)
+    q = q * np.where(np.diag(r) < 0.0, -1.0, 1.0)
+    return replace(candidate, configurations=q.T.reshape(
+        (rows.shape[0],) + candidate.configurations.shape[1:]))
+
+
 def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
-                  restarts: int = 4, rtol: float | None = None) -> float:
-    """Smallest ‖I(b) − target‖∞ a family can reach, over several starts.
+                  restarts: int = 32, rtol: float | None = None) -> float:
+    """Smallest ‖I(b) − target‖∞ a family reaches over random starts, relative to max target.
 
     ``grams`` is that family's :func:`gram` stack, so I_s(b) = bᵀ G_s b and the
     fit is a small non-linear least squares with the exact Jacobian 2·G_s·b.
     Several restarts because a quadratic-form fit has sign and permutation
-    symmetries and a single start can sit on a saddle.
+    symmetries, and a start can sit on a saddle or roll into a
+    local minimum: on the five non-cubic cases of issue #455, measured with
+    #534's frame fix, 48 % of single restarts on a pair known to be
+    equivalent reached the global minimum (367 of 768), and the failures
+    cluster by draw: 34 of 192 draws had all of their first four restarts
+    fail, where independent restarts predict 14, and one draw reached it
+    only 6 times in 512 restarts.  With ``rtol`` the loop
+    **stops at the first restart that reaches it**, since the question asked
+    is "can B reproduce this?" and one reproduction answers it; so an
+    equivalent draw costs one or two fits and only a draw that *cannot* be
+    reproduced pays the whole ``restarts``.  Without ``rtol`` every restart
+    runs and the smallest residual is returned.
 
     **A shell the family cannot light is settled before the fit.**  Where
     G_s is below :data:`INTENSITY_RTOL` of the stack's largest (the same
@@ -1906,12 +1949,14 @@ def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
         fit = least_squares(residual, start, jac=jacobian, method=method,
                             xtol=1e-14, ftol=1e-14, gtol=1e-14, max_nfev=4000)
         best = min(best, float(np.max(np.abs(fit.fun))))
+        if rtol is not None and best / scale <= rtol:
+            break
     return best / scale
 
 
 def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
                       refl: ReflectionSet, *, draws: int = 3, seed: int = 20260906,
-                      rtol: float = 1e-4, restarts: int = 4,
+                      rtol: float = 1e-4, restarts: int = 32,
                       little: LittleGroup | None = None) -> bool:
     """Whether a powder pattern to ``refl``'s d limit can tell two candidates apart.
 
@@ -1933,14 +1978,71 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     rhombohedral in its configurational symmetry, where the direction **is**
     measurable.  This function computes the classes from the intensities and so
     never has to decide which group the rule is about.
+
+    **Both verdicts are statistical, for different reasons** (issue #455).
+    What is exact: a family with no powder pattern at this d limit is
+    equivalent to anything (below), and the verdict no longer depends on the
+    amplitude basis a candidate arrived in, beyond round-off, since
+    :func:`_canonical_basis` fixes it from the span before any draw.
+    Round-off is not always small here: on the cubic ``P n -3 m:1`` at
+    (0,0,½), canonical bases agreeing to 9.2e-16 across three rotations
+    still gave a partition that moved with the rotation at each of three
+    seeds (2 to 4 classes over the nine runs).  What is not exact:
+
+    * **"Distinguishable" can be a failure to fit** (mechanism A).  It is
+      returned when, for one draw, all ``restarts`` random starts of the
+      other family's fit stop above ``rtol``.  The fit's global minimum is
+      zero whenever the answer should be "equivalent", but a restart can
+      stop in a local minimum, and restarts on one draw are not independent
+      trials: they share the draw, and some draws have a dominant wrong
+      basin.  So no failure probability follows from ``restarts`` alone.
+      On the five non-cubic cases of issue #455, measured with #534's frame
+      fix, 21 of 32 equivalent pair-runs came out distinguishable at 4
+      restarts.  At 32 with the early stop in :func:`_fit_residual` each case
+      gives one partition across three seeds and three basis rotations, but
+      2 of the same 192 equivalent draws were still not reproduced in 32
+      restarts (both ``P 62 2 2``, pair 4-5), so 32 is usually enough there
+      and not a margin.  More ``draws`` make this error *more* likely, not
+      less.
+    * **"Equivalent" can be a lucky set of draws** (mechanism B).  It is
+      returned when every one of ``draws`` draws in each direction is
+      reproduced.  The draws are independent, so if B reproduces only a
+      fraction 1 − f of A's draws (it converges to a real non-zero minimum
+      on the rest), the pair passes with probability (1 − f)^draws: 0.42 at
+      f = ¼ and the default 3 draws.  More restarts do not help.  Issue
+      #455's example, ``P a -3`` at (½,½,½), was measured before #534's
+      frame fix; with it that case gives one partition in 9 of 9 seed and
+      basis runs, so no measured case shows B now.  Whether one does, how
+      small an f should still count as "distinguishable", and what the draws
+      to detect it cost, are open (WP-1418), and this function does not
+      settle them.
+
+    A class count built on these verdicts is therefore a function of
+    ``seed``, ``draws`` and ``restarts``, and across machines agrees only as
+    far as the fits' floating point does.
     """
     if little is None:
         little = _irreps.little_group(a.space_group, a.k)
+    a, b = _canonical_basis(a), _canonical_basis(b)
     fa = structure_factors(a, refl, little=little)
     fb = structure_factors(b, refl, little=little)
+    return _powder_equivalent(a, b, fa, fb, gram(fa, refl.shells), gram(fb, refl.shells),
+                              refl, draws=draws, seed=seed, rtol=rtol, restarts=restarts)
+
+
+def _powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
+                       fa: np.ndarray, fb: np.ndarray, ga: np.ndarray, gb: np.ndarray,
+                       refl: ReflectionSet, *,
+                       draws: int, seed: int, rtol: float, restarts: int) -> bool:
+    """:func:`powder_equivalent` on canonical candidates whose factors and grams are built.
+
+    ``ga``/``gb`` are ``gram(fa, refl.shells)``/``gram(fb, refl.shells)``, the
+    only form the draws and the fits read, so each is built once per candidate
+    rather than once per draw; the target is :func:`powder_intensities`'
+    own quadratic form on the same stack, so every number is the one it returns.
+    """
     rng = np.random.default_rng(seed)
-    for source, factors in ((a, fb), (b, fa)):
-        other = fa if factors is fb else fb
+    for source, other, own, fitted in ((a, fa, ga, gb), (b, fb, gb, ga)):
         # A family whose M⊥ vanishes at every reflection of this set has *no*
         # powder pattern to this d limit — every shell is a systematic absence
         # — so nothing here can be distinguished from it, and the draws below
@@ -1954,26 +2056,40 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
             continue
         for _ in range(draws):
             amplitudes = _normalised_draw(source, refl.lattice, rng)
-            target = powder_intensities(source, amplitudes, refl, factors=other)
+            target = (own @ amplitudes) @ amplitudes
             if float(np.max(np.abs(target))) <= 0.0:
                 continue
-            if _fit_residual(target, gram(factors, refl.shells), rng,
-                             restarts=restarts, rtol=rtol) > rtol:
+            if _fit_residual(target, fitted, rng, restarts=restarts, rtol=rtol) > rtol:
                 return False
     return True
 
 
 def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
                         draws: int = 3, seed: int = 20260906, rtol: float = 1e-4,
-                        restarts: int = 4) -> tuple[tuple[int, ...], ...]:
+                        restarts: int = 32) -> tuple[tuple[int, ...], ...]:
     """Connected components of :func:`powder_equivalent` over a candidate set.
 
     Members of one class are models a powder pattern to this d limit cannot
     separate; WP-1327's report names them, and M-9's workflow refines one
     representative per class rather than one per candidate.
+
+    The classes inherit both of :func:`powder_equivalent`'s statistical
+    verdicts, and union-find carries each one further: one false
+    "equivalent" joins two classes, and one false "distinguishable" splits a
+    class only if no other chain of pairs joins it.  Read the count as
+    measured at this ``seed``, ``draws`` and ``restarts``, not as a property
+    of the group.  Each candidate's basis is made canonical and its structure
+    factors and :func:`gram` stack built once, rather than once per pair or
+    per draw.  Cost: an equivalent pair mostly stops at its first restart,
+    while a distinguishable one pays the full ``restarts`` once, so a set
+    whose pairs are all distinguishable pays the cap in full (``P n m a`` at Γ, four classes: ×5 the wall time of
+    4 restarts).
     """
     little = _irreps.little_group(candidate_set.space_group, candidate_set.k)
     n = len(candidate_set)
+    canonical = [_canonical_basis(c) for c in candidate_set]
+    factors = [structure_factors(c, refl, little=little) for c in canonical]
+    grams = [gram(f, refl.shells) for f in factors]
     parent = list(range(n))
 
     def find(i: int) -> int:
@@ -1986,9 +2102,9 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
         for j in range(i + 1, n):
             if find(i) == find(j):
                 continue
-            if powder_equivalent(candidate_set[i], candidate_set[j], refl,
-                                 draws=draws, seed=seed, rtol=rtol,
-                                 restarts=restarts, little=little):
+            if _powder_equivalent(canonical[i], canonical[j], factors[i], factors[j],
+                                  grams[i], grams[j], refl, draws=draws, seed=seed, rtol=rtol,
+                                  restarts=restarts):
                 parent[find(j)] = find(i)
     groups: dict[int, list[int]] = {}
     for i in range(n):
@@ -1999,7 +2115,7 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
 
 def analyse(candidate_set: CandidateSet, *, d_min: float = 1.5,
             draws: int = 3, seed: int = 20260906, rtol: float = 1e-4,
-            restarts: int = 4) -> CandidateSet:
+            restarts: int = 32) -> CandidateSet:
     """Fill in the absences, the determinable amplitudes and the equivalence classes.
 
     Returns a new :class:`CandidateSet` whose ``__str__`` prints the whole

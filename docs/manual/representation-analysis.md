@@ -277,6 +277,17 @@ classes of that relation rather than a ranked list of individually
 distinguishable candidates, so a refinement need only try one representative
 per class.
 
+"The whole range" is sampled rather than proved: each direction is tested on
+a few random amplitude draws, each fitted from a few random starts, and both
+verdicts are statistical. "Distinguishable" can be a fit that stopped in a
+local minimum on every start, and "equivalent" can be a set of draws that
+all missed the part of one family the other cannot reach. The amplitude basis
+is made canonical before any draw, so the classes do not depend on which basis
+of the same family the linear algebra returned, but they remain a function of
+the seed and the number of draws and starts.
+The docstring of `rietx.crystallography.magnetic.isotropy.powder_equivalent`
+states what is measured about each failure and what is still open.
+
 Shirane's own example is mechanical here. His criterion is on the
 configurational symmetry (the symmetry of the signed moment arrangement, which
 he distinguishes from the chemical one; his MnO case is cubic in the chemical

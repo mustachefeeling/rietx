@@ -1,7 +1,6 @@
 # WP-1132 — a neutron µR, from the table this package already ships
 
-Milestone: unscheduled · Status: ⬜ — **the maintainer is handling this one** (stated
-2026-08-24); this file is the specification, not a claim on the work
+Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #541)
 Track: The specimen is not an angle, and the neutron follow-through
 Depends on: the CW neutron source (PR #108, open) — `NeutronSource` and
 `crystallography/neutron.py` are both prerequisites and both land there
@@ -112,7 +111,9 @@ estimation off.
   0.002, and the only warning blames the particle-size regime
   (`BRINDLEY_OUTSIDE_REGIME`). The neutron µ is about 1.5-2 cm⁻¹. The fix sits
   on this WP's seam (PR #541's `LINEAR_ATTENUATION_BY_SOURCE`, refusing where
-  no table exists). **Decided 2026-09-30 (maintainer's comment on #543):** a
+  no table exists). **PR #541 merged 2026-09-30**, and `_apply_microabsorption`
+  still calls the X-ray `linear_attenuation` (`qpa.py:568`), so the follow-up PR
+  is now unblocked. **Decided 2026-09-30 (maintainer's comment on #543):** a
   separate PR after #541 lands, with its own test built from the
   reproduction, not a fold into #541. Until then a neutron user leaves
   `particle_radius_um` unset. A silent wrong number in a shipped path on a
@@ -134,6 +135,30 @@ estimation off.
 
 ## Handover log
 
+- **2026-09-29** — Items 1–6 landed on PR #541, one commit each. Four places
+  where the tree differs from this file's text. (a) Step 5 and the Acceptance
+  line name a Cr₂WO₆ **BT-1** 60 K histogram at 2.078 Å. The tree has no BT-1
+  file, so the check runs on the vendored **HB-2A** instrument instead
+  (`gsas2_hb2a_cr2wo6.prm`, λ = 2.4067 Å), as Yue confirmed on the PR. No
+  vendored file states a sample radius, so R = 3.0 mm is an *assumption*,
+  named as one in the test. Estimate and hand value agree: µR = 0.135045 at
+  packing 0.6. That is arithmetic, not a validation against a measurement.
+  None is in the tree, and a capillary fit cannot supply one, since µR is
+  exactly scale ⊗ Biso. (b) "Far more attenuating than the X-ray estimator
+  says" is false in absolute terms at a common λ: brucite at 2.4067 Å gives
+  ≈ 206 cm⁻¹ X-ray against ≈ 4.35 neutron. The test therefore asserts the
+  *share* hydrogen carries: ≈ 93 % of the neutron µ against < 1 % of the
+  X-ray one. (c) The tree carries no resonance energies, so item 4 refuses
+  for every `RESONANT_ABSORBERS` species at every λ. A narrower "near the
+  resonance" rule needs cited energies. (d) The fence constant is renamed
+  `_NO_ATTENUATION_TABLE_ESTIMATE`, because `neutron_cw` now has a table.
+  No TOF source kind exists in the tree yet, so the fence is tested by
+  removing the neutron entry from `qpa.LINEAR_ATTENUATION_BY_SOURCE`. Not
+  done here: the Brindley microabsorption path (`qpa._apply_microabsorption`)
+  still reads the X-ray table whatever the source, and a mass-numbered
+  species (`157Gd`, `2H`) cannot enter the QPA composition
+  (`qpa.element_symbol`).
+
 - **2026-08-24** — Specified while fixing two defects found in PR #108's own
   code. First, `Instrument.constant_wavelength_neutron` wrapped `mu_r` in a
   `Parameter` where `Geometry.mu_r` is a plain float, so *every* call passing
@@ -142,3 +167,19 @@ estimation off.
   fit time, so a neutron capillary with a declared radius was silently having
   an X-ray µR computed and written onto it. Both fixed in PR #108; the fence
   and this WP are what the second one turned into.
+
+- **2026-09-30** — PR #541 merged (`fd8026a3`, closing issue #117) after three
+  review rounds, on a stacked gate with #532, #546 and #522 (fast 7156 passed /
+  101 skipped, slow 234 passed / 12 skipped; macOS arm64, `[dev,jax]`).
+  - **What the rounds changed.** Round 1 found #530's radiation-keyed pin
+    failing on merged main (the neutron histogram now gets a µR), so the row
+    is keyed on the table each histogram reads. It also found the X-ray µ/ρ
+    described as falling as λ⁻³ at five sites (it rises as λ³, measured
+    exponent 3.04 for O between 1 and 2 Å) and the Sears cross-sections
+    described as free-atom (they are the bound values, H 82.0 b against 20.5 b
+    free). Round 3 is a docstring: the bound-value test checks a *mixed*
+    table, not a self-consistent free-atom one.
+  - **What it does not do.** Step 5 remains a hand check at an assumed 3.0 mm
+    radius, not a validation against a measurement, so the WP stays open.
+    The Brindley path on neutron is #543. `Capabilities.radiations` reading
+    `LINEAR_ATTENUATION_BY_SOURCE` is unbuilt.

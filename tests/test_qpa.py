@@ -18,6 +18,7 @@ from rietx import (
     PatternData,
     Phase,
     Refinement,
+    Structure,
 )
 from rietx.crystallography.attenuation import (
     linear_attenuation,
@@ -560,3 +561,63 @@ def test_two_phase_synthetic_brindley_correction():
     fence = [d for d in result2.diagnostics if d.code == "BRINDLEY_OUTSIDE_REGIME"]
     assert fence and "LaB6" in fence[0].where
     assert {r.name: r for r in result2.qpa.phases}["LaB6"].mu_r > BRINDLEY_MU_R_FENCE
+
+
+# -- the radiation seam of the specimen-absorption estimate (WP-1132) -------
+def _vanadium_phase() -> Phase:
+    """A synthetic bcc V cell, a = 3.03 Å, one site at 2a (two atoms/cell)."""
+    P = Parameter
+    return Phase(
+        name="V", space_group="I m -3 m",
+        cell=Cell(a=P(value=3.03), b=P(value=3.03), c=P(value=3.03),
+                  alpha=P(value=90.0), beta=P(value=90.0), gamma=P(value=90.0)),
+        atoms=[Atom(label="V1", species="V", x=P(value=0.0), y=P(value=0.0),
+                    z=P(value=0.0), biso=P(value=0.4))])
+
+
+def test_the_estimator_reads_the_neutron_table_on_a_neutron_source():
+    """One seam: only µ per phase changes with ``source_kind``.
+
+    By hand, from Sears (V σ_abs 5.08, σ_coh 0.0184, σ_inc 5.08 barn) at
+    λ = 2.4067 Å: σ_tot = 5.08 × 2.4067/1.798 + 0.0184 + 5.08 = 11.898198
+    barn, µ = 2 × 11.898198 / 3.03³ = 0.855428 cm⁻¹, and with the default
+    packing 0.6 and R = 3 mm, µR = 0.6 × 0.855428 × 0.3 = 0.153977.
+
+    The X-ray answer for the same arguments is asserted to be a different
+    number by more than an order of magnitude, so a seam that ignored
+    ``source_kind`` cannot pass.
+    """
+    from rietx.optimize.qpa import (
+        estimate_capillary_mu_r,
+        estimate_flat_plate_mu_t,
+    )
+
+    structure = Structure(phases=[_vanadium_phase()])
+    inst = Instrument.constant_wavelength_neutron(2.4067)
+    table = ParameterTable(structure, inst)
+    values = table.decode(table.x0())
+
+    mu_r, note = estimate_capillary_mu_r(structure, values, 2.4067, 3.0, 0.6,
+                                         source_kind="neutron_cw")
+    assert note is None
+    assert mu_r == pytest.approx(0.153977, abs=2e-6)
+    # the flat-plate twin shares everything but the length: t = 2R here
+    mu_t, note = estimate_flat_plate_mu_t(structure, values, 2.4067, 6.0, 0.6,
+                                          source_kind="neutron_cw")
+    assert note is None and mu_t == pytest.approx(2.0 * mu_r, rel=1e-12)
+
+    xray, _ = estimate_capillary_mu_r(structure, values, 2.4067, 3.0, 0.6)
+    assert xray is not None and xray > 10.0 * mu_r
+
+
+def test_a_source_with_no_table_declines_by_name():
+    """A kind the seam does not know has no table, and says so."""
+    from rietx.optimize.qpa import estimate_capillary_mu_r
+
+    structure = Structure(phases=[_vanadium_phase()])
+    table = ParameterTable(structure, Instrument.constant_wavelength_neutron(2.4067))
+    mu_r, reason = estimate_capillary_mu_r(
+        structure, table.decode(table.x0()), 2.4067, 3.0, 0.6,
+        source_kind="neutron_tof")
+    assert mu_r is None
+    assert "attenuation unavailable" in reason and "neutron_tof" in reason

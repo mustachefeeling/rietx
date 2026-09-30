@@ -9,6 +9,7 @@ an absent dispersion channel — rather than merely checking that a fit runs.
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -590,9 +591,9 @@ def test_hexagonal_cell_ties_survive_a_neutron_source():
 
 
 # ------------------------------------------------- specimen absorption ---
-# Three tests, none of which would pass for an X-ray source: the constructor
-# accepting a bare float, the estimator declining, and the X-ray control that
-# proves the fence is not simply "estimating never happens".
+# The constructor accepting a bare float, the neutron estimate reading the
+# neutron table (WP-1132), the fence still declining for a kind with no
+# table, and the X-ray control proving the X-ray path is unchanged.
 def test_a_declared_mu_r_reaches_the_geometry_as_a_plain_float():
     """``mu_r`` is a float on ``Geometry``, deliberately, and this constructor
     wrapped it in a ``Parameter`` — so *every* call passing one raised.
@@ -608,14 +609,19 @@ def test_a_declared_mu_r_reaches_the_geometry_as_a_plain_float():
     assert isinstance(inst.geometry.mu_r, float)
 
 
-def test_the_xray_composition_estimator_declines_on_a_neutron_source():
-    """It is the wrong *quantity*, not a coarse estimate, so it must not run.
+def test_a_neutron_capillary_is_estimated_from_the_neutron_table():
+    """Since WP-1132 a neutron capillary with a radius gets a µR — the
+    **neutron** one, never the X-ray number the fence used to keep out.
 
     ``crystallography.attenuation`` is X-ray photoabsorption; neutron σ_abs
-    scales as λ (1/v) where X-ray µ/ρ falls as ~λ⁻³ and has edges.  Writing an
-    X-ray µR onto a neutron capillary would be a confidently wrong correction
-    applied in silence.
+    scales as λ (1/v) where X-ray µ/ρ rises roughly as λ³ (falls as E⁻³)
+    and has edges.  So the value written onto the geometry is asserted equal
+    to the Sears-table estimate and **unequal** to the X-ray one for the same
+    arguments: an implementation that wired the X-ray table back in fails the
+    second line.
     """
+    from rietx.optimize.qpa import estimate_capillary_mu_r
+    from rietx.params.vector import ParameterTable
     from rietx.refine import _resolve_specimen_absorption, estimate_mu_r
 
     struct = rx.Structure(phases=[corundum()])
@@ -623,13 +629,50 @@ def test_the_xray_composition_estimator_declines_on_a_neutron_source():
         2.0780, capillary_radius_mm=0.4)
     assert inst.geometry.mu_r is None
 
-    assert estimate_mu_r(struct, inst) is None
+    table = ParameterTable(struct, inst)
+    values = table.decode(table.x0())
+    neutron, _ = estimate_capillary_mu_r(struct, values, 2.0780, 0.4, 0.6,
+                                         source_kind="neutron_cw")
+    xray, _ = estimate_capillary_mu_r(struct, values, 2.0780, 0.4, 0.6)
+    assert neutron is not None and xray is not None
+    assert xray > 10.0 * neutron          # corundum: ≈ 0.0092 against ≈ 7.3
 
+    assert estimate_mu_r(struct, inst) == pytest.approx(neutron, rel=1e-12)
+    source, reason = _resolve_specimen_absorption(struct, inst)
+    assert (source, reason) == ("estimated", None)
+    assert inst.geometry.mu_r == pytest.approx(neutron, rel=1e-12)
+
+
+def test_a_source_kind_with_no_table_still_declines(monkeypatch):
+    """The fence stays for every source without a table (time-of-flight).
+
+    No such kind is constructible in this tree yet, so the table entry for
+    neutrons is removed for the duration of the test: what is asserted is the
+    *mechanism* — a kind missing from ``LINEAR_ATTENUATION_BY_SOURCE``
+    declines with the fence's reason and leaves the field untouched, in both
+    geometries and in ``estimate_mu_r`` — which is what a TOF source will
+    meet when it lands.
+    """
+    from rietx.optimize import qpa
+    from rietx.refine import _resolve_specimen_absorption, estimate_mu_r
+
+    monkeypatch.delitem(qpa.LINEAR_ATTENUATION_BY_SOURCE, "neutron_cw")
+    struct = rx.Structure(phases=[corundum()])
+    inst = rx.Instrument.constant_wavelength_neutron(
+        2.0780, capillary_radius_mm=0.4)
+    assert estimate_mu_r(struct, inst) is None
     source, reason = _resolve_specimen_absorption(struct, inst)
     assert source == "estimated"
-    assert reason is not None and "neutron" in reason
-    # and it declined rather than guessing: the field is untouched
+    assert reason is not None and "no attenuation table" in reason
     assert inst.geometry.mu_r is None
+
+    plate = rx.Instrument(
+        source=inst.source,
+        geometry=rx.Geometry(kind="bragg_brentano", goniometer_radius_mm=240.0,
+                             thickness_mm=1.0))
+    source, reason = _resolve_specimen_absorption(struct, plate)
+    assert reason is not None and "no attenuation table" in reason
+    assert plate.geometry.mu_t is None
 
 
 def test_declaring_mu_r_still_applies_the_correction_on_a_neutron_source():
@@ -760,3 +803,300 @@ def test_deuterium_and_hydrogen_differ_in_sign():
 
     assert b_coh("H") < 0.0 < b_coh("D")
     assert b_coh("D") == b_coh("2H")
+
+
+# ------------------------------------------ neutron attenuation (WP-1132) ---
+def test_neutron_attenuation_of_a_vanadium_cell_by_hand():
+    """µ from the Sears row for V, worked by hand, pinning the **unit**.
+
+    Sears (1992) / ITC C Table 4.4.4.1, as ``b_Sears.dat`` carries them:
+    V σ_abs = 5.08, σ_coh = 0.0184, σ_inc = 5.08 barn.  A synthetic bcc cell,
+    a = 3.03 Å, two atoms, V_cell = 3.03³ = 27.818127 Å³.
+
+    At λ = 1.798 Å (where σ_abs is quoted) the 1/v factor is 1:
+        σ_tot = 5.08 + 0.0184 + 5.08 = 10.1784 barn
+        µ     = 2 × 10.1784 / 27.818127 = 0.731782 cm⁻¹
+    At λ = 2.4067 Å, σ_abs × 2.4067/1.798 = 6.799798 barn:
+        σ_tot = 6.799798 + 0.0184 + 5.08 = 11.898198 barn
+        µ     = 2 × 11.898198 / 27.818127 = 0.855428 cm⁻¹
+
+    barn/Å³ = 10⁻²⁴ cm² / 10⁻²⁴ cm³ = 1/cm, the unit
+    ``attenuation.packed_mu_r`` takes; a factor of 10⁸ or 10⁻⁸ here would be
+    the Å/cm slip, and a result near 0.73 rules both out.
+    """
+    from rietx.crystallography.neutron import linear_attenuation_neutron
+
+    v_cell = 3.03 ** 3
+    assert linear_attenuation_neutron({"V": 2.0}, v_cell, 1.798) == \
+        pytest.approx(0.731782, abs=2e-6)
+    assert linear_attenuation_neutron({"V": 2.0}, v_cell, 2.4067) == \
+        pytest.approx(0.855428, abs=2e-6)
+
+
+@pytest.mark.parametrize("species", ["H", "D", "O", "Ni"])
+def test_the_scattering_cross_sections_are_the_bound_values(species):
+    """σ_coh = 4π·b_coh² with the table's own *bound* b, so the attenuation
+    reads bound-atom cross-sections, as the docstring and manual say.
+
+    The free-atom σ is (A/(A+1))² of the bound one — 0.25 for H, 0.44 for D —
+    so a *mixed* table, bound b beside free-atom σ, would fail this by a
+    factor of four on hydrogen (82.0 barn bound against 20.5 free).  A table
+    free-atom throughout is self-consistent and passes here; the bound values
+    themselves are pinned elsewhere: b_H = −3.739 fm by
+    ``test_an_isotope_label_survives_the_species_normaliser``, and H's σ_tot
+    at 1.798 Å (82.35 b) by
+    ``test_deuteration_is_an_isotope_not_an_element_for_attenuation``.
+    """
+    from rietx.crystallography.neutron import properties
+
+    row = properties(species)
+    assert row["xs_coh_barn"] == pytest.approx(
+        4.0 * np.pi * row["b_coh_fm"] ** 2 / 100.0, rel=5e-3)
+
+
+def test_neutron_absorption_scales_linearly_in_wavelength():
+    """The 1/v law is the whole difference from the X-ray case.
+
+    σ_tot(λ) − σ_scatt must be *proportional* to λ with slope σ_abs/1.798:
+    equal steps in λ give equal steps in σ, and doubling λ doubles the
+    absorption part.  An X-ray µ/ρ rises roughly as λ³ (falls as E⁻³)
+    between edges, so the X-ray total fails the same check — asserted too, so
+    this test cannot pass on a table that has the wrong λ dependence.
+    """
+    from rietx.crystallography.attenuation import total_cross_section
+    from rietx.crystallography.neutron import (
+        properties,
+        total_cross_section_neutron,
+    )
+
+    row = properties("W")
+    scatt = row["xs_coh_barn"] + row["xs_inc_barn"]
+    lams = [1.0, 1.5, 2.0, 2.5, 3.0]
+    absorbed = [total_cross_section_neutron("W", lam) - scatt for lam in lams]
+    for lam, a in zip(lams, absorbed):
+        assert a == pytest.approx(row["xs_abs_barn"] * lam / 1.798, rel=1e-12)
+    steps = np.diff(absorbed)
+    assert np.allclose(steps, steps[0], rtol=1e-12)
+    assert absorbed[2] == pytest.approx(2.0 * absorbed[0], rel=1e-12)
+
+    # the X-ray table rises with λ roughly as λ³, far faster than linearly
+    # (O: no edge in this range to confuse the ratio, which W's L edges near
+    # 1.1 Å would); the exponent is the one the docstring states
+    xray = [total_cross_section("O", lam) for lam in (1.0, 2.0)]
+    assert 2.5 < np.log2(xray[1] / xray[0]) < 3.5
+
+
+def _h_share(attenuation, lam: float) -> float:
+    """Fraction of brucite's µ that its hydrogen carries, under ``attenuation``.
+
+    Mg(OH)₂ on a synthetic P-3m1 cell (a = 3.142, c = 4.766 Å), one formula
+    unit per cell, compared with the same cell stripped of its H.
+    """
+    v = 3.142 ** 2 * math.sin(math.radians(120.0)) * 4.766
+    with_h = attenuation({"Mg": 1.0, "O": 2.0, "H": 2.0}, v, lam)
+    without = attenuation({"Mg": 1.0, "O": 2.0}, v, lam)
+    return (with_h - without) / with_h
+
+
+def test_hydrogen_dominates_neutron_attenuation_and_not_xray():
+    """The hydrogen row of WP-1132's table, with the arm that catches a
+    mis-wiring built in.
+
+    Sears: H σ_inc = 80.26 barn (the shipped table's digit; the WP's text says
+    80.27), σ_coh = 1.7568, σ_abs = 0.3326 — against Mg σ_coh 3.631,
+    σ_inc 0.08, σ_abs 0.063 and O 4.232, 0.0008, 0.00019.  Per brucite
+    formula unit at 2.4067 Å the two H carry 2 × (80.26 + 1.7568 + 0.4452)
+    = 164.9 barn of 177.2, so **≈ 93 %** of µ.  Under the X-ray table the
+    same two H carry well under 1 %: hydrogen has one electron.
+
+    The WP phrases this as "far more attenuating than the X-ray estimator
+    says for the same cell", which is not true in absolute terms at a common
+    wavelength — X-ray µ for brucite at 2.4067 Å is ≈ 206 cm⁻¹ against the
+    neutron ≈ 4.35 — so the claim is asserted as the **share hydrogen
+    carries**, which is the property that makes an X-ray number wrong in
+    kind.  The negative arm runs the identical predicate on the X-ray
+    function and requires it to fail, so wiring the X-ray table into the
+    neutron path cannot pass this test.
+    """
+    from rietx.crystallography.attenuation import linear_attenuation
+    from rietx.crystallography.neutron import linear_attenuation_neutron
+
+    for lam in (1.5406, 2.4067):
+        assert _h_share(linear_attenuation_neutron, lam) > 0.9
+        # the negative arm: the same predicate on the X-ray table must fail
+        assert _h_share(linear_attenuation, lam) < 0.01
+
+
+def test_deuteration_is_an_isotope_not_an_element_for_attenuation():
+    """``D`` resolves to ²H (σ_inc 2.05 barn), not to H (80.26).
+
+    The QPA composition keeps ``D`` as its own key, and the neutron path must
+    read it as the nuclide it names: a table that folded D into H would make
+    a deuterated specimen look ≈ 20× as attenuating as it is.
+    """
+    from rietx.crystallography.neutron import total_cross_section_neutron
+
+    h = total_cross_section_neutron("H", 1.798)
+    d = total_cross_section_neutron("D", 1.798)
+    assert h == pytest.approx(0.3326 + 1.7568 + 80.26, rel=1e-12)
+    assert d == pytest.approx(0.000519 + 5.592 + 2.05, rel=1e-12)
+    assert h / d > 10.0
+
+
+def test_neutron_attenuation_names_an_untabulated_species():
+    """A missing or ``---`` row raises naming the species, never returns 0."""
+    from rietx.crystallography.neutron import total_cross_section_neutron
+
+    with pytest.raises(KeyError, match="Xx"):
+        total_cross_section_neutron("Xx", 1.798)
+    with pytest.raises(KeyError, match="83Kr"):
+        total_cross_section_neutron("83Kr", 1.798)
+    with pytest.raises(ValueError, match="positive"):
+        total_cross_section_neutron("O", 0.0)
+
+
+@pytest.mark.parametrize("species", ["Gd", "Yb", "Cd", "Sm", "Eu"])
+def test_a_resonant_absorber_refuses_the_neutron_estimate(species):
+    """The neutron twin of the X-ray "straddles an edge" refusal (WP-1132
+    item 4): the thermal σ_abs scaled by 1/v is wrong in principle near a
+    resonance, and with no resonance energies in the tree every listed
+    absorber refuses — Yb, whose element absorbs only 34.8 barn, included.
+
+    A mass-numbered nuclide (``157Gd``) refuses at the cross-section too, but
+    a *structure* carrying one never reaches it: the QPA composition cannot
+    read a mass number (``qpa.element_symbol``) and declines first, with its
+    own reason — asserted here so the two refusals are not confused.
+    """
+    from rietx.crystallography.neutron import total_cross_section_neutron
+    from rietx.refine import _resolve_specimen_absorption
+
+    with pytest.raises(ValueError, match="resonant neutron absorber"):
+        total_cross_section_neutron(species, 2.4067)
+
+    inst = rx.Instrument.constant_wavelength_neutron(
+        2.4067, capillary_radius_mm=2.5)
+    source, reason = _resolve_specimen_absorption(_one_species(species), inst)
+    assert source == "estimated"
+    assert reason is not None and "resonant neutron absorber" in reason
+    assert inst.geometry.mu_r is None       # declined, not guessed
+
+
+def test_a_resonant_nuclide_refuses_and_its_structure_declines_earlier():
+    from rietx.crystallography.neutron import total_cross_section_neutron
+    from rietx.refine import _resolve_specimen_absorption
+
+    with pytest.raises(ValueError, match="resonant neutron absorber"):
+        total_cross_section_neutron("157Gd", 2.4067)
+    inst = rx.Instrument.constant_wavelength_neutron(
+        2.4067, capillary_radius_mm=2.5)
+    _, reason = _resolve_specimen_absorption(_one_species("157Gd"), inst)
+    assert reason is not None and "157Gd" in reason
+    assert inst.geometry.mu_r is None
+
+
+def test_the_resonant_refusal_is_about_resonance_not_about_absorbing():
+    """Nd and B absorb strongly (50.5 and 767 barn) and are not resonant,
+    so they estimate; an explicit µR on a Gd specimen is still honoured."""
+    from rietx.refine import _resolve_specimen_absorption
+
+    for species in ("Nd", "B"):
+        inst = rx.Instrument.constant_wavelength_neutron(
+            2.4067, capillary_radius_mm=2.5)
+        assert _resolve_specimen_absorption(_one_species(species), inst) == \
+            ("estimated", None)
+        assert inst.geometry.mu_r > 0.0
+    given = rx.Instrument.constant_wavelength_neutron(
+        2.4067, capillary_radius_mm=2.5, mu_r=1.2)
+    assert _resolve_specimen_absorption(_one_species("Gd"), given) == \
+        ("given", None)
+
+
+def test_the_resonant_refusal_reaches_a_real_refinement_result():
+    """The refusal is surfaced as ``ABSORPTION_ESTIMATE_UNAVAILABLE`` with the
+    resonance named in the message — the same channel the X-ray edge refusal
+    uses — and the fit runs with no absorption correction rather than a
+    wrong one."""
+    tt = np.arange(20.0, 60.0, 0.2)
+    data = rx.PatternData(two_theta=tt.tolist(),
+                          intensity=np.ones_like(tt).tolist())
+    inst = rx.Instrument.constant_wavelength_neutron(
+        1.5406, fwhm_deg=0.3, capillary_radius_mm=2.5)
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage(name="bkg", turn_on=["instrument.background.*"])])
+    result = rx.Refinement(_one_species("Gd"), inst).fit(data, plan=plan)
+    hits = [d for d in result.diagnostics
+            if d.code == "ABSORPTION_ESTIMATE_UNAVAILABLE"]
+    assert len(hits) == 1 and "resonant neutron absorber" in hits[0].message
+
+
+# ------------------------------------ the Cr₂WO₆ HB-2A specimen (WP-1132) ---
+DATA = Path(__file__).parent / "data"
+
+
+def _cr2wo6_trirutile() -> rx.Structure:
+    """Cr₂WO₆ on the ideal trirutile start ``test_acceptance_magnetic`` uses
+    (P4₂/mnm, a = 4.58, c = 8.85 Å; W 2a, Cr 4e, O 4f + 8j: Cr₄W₂O₁₂ per
+    cell) — the tutorial's CIF is an ICSD entry and is not vendored."""
+    P = rx.Parameter
+
+    def atom(label, species, x, y, z):
+        return rx.Atom(label=label, species=species, x=P(value=x),
+                       y=P(value=y), z=P(value=z), biso=P(value=0.5))
+
+    return rx.Structure(phases=[rx.Phase(
+        name="Cr2WO6", space_group="P 42/m n m",
+        cell=rx.Cell(a=P(value=4.58), b=P(value=4.58), c=P(value=8.85),
+                     alpha=P(value=90.0), beta=P(value=90.0),
+                     gamma=P(value=90.0)),
+        atoms=[atom("W1", "W", 0.0, 0.0, 0.0),
+               atom("Cr1", "Cr", 0.0, 0.0, 1.0 / 3.0),
+               atom("O1", "O", 0.3, 0.3, 0.0),
+               atom("O2", "O", 0.3, 0.3, 1.0 / 3.0)])])
+
+
+#: **Assumed**, not measured: neither the vendored HB-2A files
+#: (``gsas2_hb2a_cr2wo6.prm``, ``gsas2_hb2a_cr2wo6_{4K,150K}.dat``) nor their
+#: provenance rows state a can or a sample radius, so this is a round number
+#: for a neutron powder can, and the packing is ``Geometry``'s default 0.6.
+CR2WO6_ASSUMED_RADIUS_MM = 3.0
+
+
+def test_the_cr2wo6_hb2a_estimate_matches_the_sears_table_by_hand():
+    """WP-1132 item 5, as far as the tree can take it honestly.
+
+    λ = 2.4067 Å is read from the vendored GSAS ``.prm`` (``ICONS``), so the
+    instrument half is the real diffractometer's; the radius is the
+    **assumption** above.  By hand, from ``b_Sears.dat`` (barn: σ_abs, σ_coh,
+    σ_inc — Cr 3.05, 1.66, 1.83; W 18.3, 2.97, 1.63; O 0.00019, 4.232,
+    0.0008), λ/1.798 = 1.3385428:
+
+        Cr  4 × (3.05 × 1.3385428 + 1.66 + 1.83)     =  30.290222
+        W   2 × (18.3 × 1.3385428 + 2.97 + 1.63)     =  58.190668
+        O  12 × (0.00019 × 1.3385428 + 4.232 + 0.0008) = 50.796652
+        Σ = 139.277542 barn,  V = 4.58² × 8.85 = 185.641140 Å³
+        µ  = 139.277542 / 185.641140 = 0.750251 cm⁻¹
+        µR = 0.6 × 0.750251 × 0.30 cm = 0.135045
+
+    What this does **not** do is validate µR against a measurement.  No
+    measured µR or radius is in the tree, and a fit cannot supply one: the
+    Rouse factor is exactly a reparameterisation of scale ⊗ Biso
+    (``model/absorption.py``), so Rwp on this pattern cannot move with µR.
+    The number's consequence is the ΔBiso it implies, ≈ 0.034 Å² here.
+    """
+    from rietx.model.absorption import equivalent_delta_biso
+    from rietx.refine import _resolve_specimen_absorption, estimate_mu_r
+
+    inst = rx.read_gsas_prm(DATA / "gsas2_hb2a_cr2wo6.prm")
+    assert inst.source.kind == "neutron_cw"
+    assert inst.source.primary_wavelength == pytest.approx(2.4067)
+    inst.geometry.capillary_radius_mm = CR2WO6_ASSUMED_RADIUS_MM
+
+    structure = _cr2wo6_trirutile()
+    mu_r = estimate_mu_r(structure, inst)
+    assert mu_r == pytest.approx(0.135045, abs=2e-6)
+
+    # the fit-time path writes the same number onto the geometry
+    source, reason = _resolve_specimen_absorption(structure, inst)
+    assert (source, reason) == ("estimated", None)
+    assert inst.geometry.mu_r == pytest.approx(mu_r, rel=1e-12)
+    assert equivalent_delta_biso(mu_r, 2.4067) == pytest.approx(0.0342, abs=5e-4)
