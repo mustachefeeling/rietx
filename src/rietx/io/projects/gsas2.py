@@ -1661,6 +1661,7 @@ def from_structure(structure, *,
         get_spacegroup,
         refuse_magnetic_phase,
         refuse_operation_list,
+        refuse_propagation_vector,
         setting_alternatives,
     )
 
@@ -1670,6 +1671,11 @@ def from_structure(structure, *,
     for index, phase in enumerate(structure.phases):
         _refuse_non_finite(phase, index)
         _refuse_unquotable(phase, index)
+        refuse_propagation_vector(
+            phase, "a GSAS-II phase CIF",
+            why="the tag that states one (_parent_propagation_vector) belongs "
+                "to a magCIF, whose magnetic loops GSAS-II's CIF import drops "
+                "without a warning (measured on GSAS-II 5.6.3)")
         refuse_operation_list(phase, "a GSAS-II phase CIF")
         # The block writer below does write the magCIF loops, but GSAS-II's
         # own CIF import (v5.6.3, scriptable `add_phase`, measured on MnF2)

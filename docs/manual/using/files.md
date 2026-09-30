@@ -697,7 +697,10 @@ moment, is written by `write_topas_inp` (see
 the other three writers, `write_gsas2_phase_cif` included, because none of
 their target programs would read the moments back (GSAS-II 5.6.3's CIF import,
 measured, drops the magCIF loops without a warning); `Structure.to_cif` writes
-the magCIF.
+the magCIF. All four writers refuse a phase carrying a propagation vector
+(`Phase.propagation_vector`), since none of their files would read back with
+its k. No CIF this package writes carries a nuclear phase's k either, so
+the `Structure`'s own JSON (`Structure.model_dump_json`) is the export for one.
 
 A `.EXP` is the one target read by column rather than by token, and two
 things follow from that. A number is worth as many characters as its field

@@ -3336,8 +3336,9 @@ def _magnetic_group_line(phase) -> str | None:
         raise ValueError(
             f"{where}: it carries the propagation vector k = "
             f"({', '.join(phase.propagation_vector)}), and a TOPAS `str` has no "
-            f"keyword for one, so the file would read back as k = 0. A CIF "
-            f"(Structure.to_cif) is the export for a k hypothesis")
+            f"keyword for one, so the file would read back as k = 0. The "
+            f"Structure's own JSON (Structure.model_dump_json) carries a k "
+            f"hypothesis; no CIF this package writes does")
     mag = phase.magnetic_symmetry
     if mag is None:
         return None

@@ -131,6 +131,30 @@ def refuse_magnetic_phase(phase, fmt: str, why: str | None = None) -> None:
         f"group")
 
 
+def refuse_propagation_vector(phase, fmt: str, why: str) -> None:
+    """Refuse, by name, a phase carrying ``Phase.propagation_vector``.
+
+    For a writer whose format has no slot that means what rietx's k means
+    (issue #567).  A k hypothesis adds satellites at H ± k that Le Bail and
+    Pawley extract intensity on and a Rietveld stage gives exactly zero
+    (WP-1326); written without it, the file reads back as k = 0 with no
+    exception and no warning.  ``why`` says what the format lacks.  The TOPAS
+    writer makes the same refusal in its own words.  No CIF this package
+    writes carries a nuclear phase's k either (``Structure.to_cif`` reads back
+    with none, measured), so the message points at the ``Structure``'s own
+    JSON, which does.
+    """
+    k = getattr(phase, "propagation_vector", None)
+    if k is None:
+        return
+    raise ValueError(
+        f"phase {phase.name!r} cannot be written to {fmt}: it carries the "
+        f"propagation vector k = ({', '.join(k)}), and {why}, so the file "
+        f"would read back as k = 0. The Structure's own JSON "
+        f"(Structure.model_dump_json) carries a k hypothesis; no CIF this "
+        f"package writes does")
+
+
 def unnamed_label(closest: str | None, note: str) -> str:
     """The bracketed label for a group no symbol reproduces in its cell."""
     head = (closest or "").strip()
