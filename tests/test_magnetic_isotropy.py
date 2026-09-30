@@ -1779,7 +1779,7 @@ def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
     which holds sampled-contained directions (3 draws), sampled-not ones
     stopped early (2 draws at this seed), unresolved and proved ones
     (none), so a count that ignored the early stop or charged a proved pair
-    would show.
+    would show, and so would a draw spent on a pair already proved distinct.
     """
     from dataclasses import replace
 
@@ -1796,11 +1796,15 @@ def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
 
     monkeypatch.setattr(isotropy, "_normalised_draw", counting)
     result = isotropy.analyse(subset, d_min=1.5, restarts=4)
+    # the S1/S2 class rests on draws; S3 is proved apart from all four
+    assert _table_marks(result) == ["S", "S", "S", "S", "P"]
     statuses = {v.status for v in result.relations}
     assert {"sampled-contained", "sampled-not", "unresolved", "proved-not"} <= statuses
     assert any(v.status == "sampled-not" and v.draws < 3 for v in result.relations)
     expected = []
     for (i, j), pair in _pairs(result.relations, len(subset)).items():
+        if any(v.status == "proved-not" for v in pair):
+            assert all(v.draws == 0 for v in pair), pair   # settled: nothing drawn
         for v in pair:
             expected += [labels[v.a]] * v.draws
             assert (v.draws > 0) == v.status.startswith("sampled")

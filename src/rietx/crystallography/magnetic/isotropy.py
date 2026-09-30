@@ -2345,12 +2345,8 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int,
     for i in range(n):
         for j in range(i + 1, n):
             if find(i) == find(j):
-                # joined through other pairs: the certificates still cost
-                # nothing, and a proved separation inside a class is the
-                # thing a reader of the record most needs to see
-                for a, b in ((i, j), (j, i)):
-                    verdicts[(a, b)] = _certify(a, b, dark, spans, silent) or \
-                        PairVerdict(a, b, "unresolved")
+                verdicts[(i, j)] = PairVerdict(i, j, "unresolved")
+                verdicts[(j, i)] = PairVerdict(j, i, "unresolved")
                 continue
             there, back = _pair_verdicts(i, j, canonical, grams, silent, dark, spans, refl,
                                          draws=draws, seed=seed, rtol=rtol, restarts=restarts)
