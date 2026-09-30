@@ -289,8 +289,9 @@ intensity matrices as floating point builds them, to the module's
 tolerances, for almost every model of the first family. The certificates in
 this release prove no two families equal, except two that have no pattern at
 all to this $d$ limit. Every other "equivalent", and every
-"distinguishable" no certificate gives, is tested on a few random amplitude
-draws, each fitted from a few random starts, and is statistical.
+"distinguishable" no certificate gives, is tested on random amplitude draws
+(by default 12 per direction between two irreps and 3 inside one), each
+fitted from a few random starts, and is statistical.
 "Distinguishable" can then be a fit that stopped in a local minimum on every
 start, and "equivalent" can be a set of draws that all missed the part of one
 family the other cannot reach. The amplitude basis is made canonical before

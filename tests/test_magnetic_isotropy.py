@@ -1776,10 +1776,11 @@ def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
     relations claim: each tested pair in order, a → b then b → a, ``draws``
     of each.  The printed n must be those numbers.  The set is five families
     of the cubic known-answer case (two S1, two S2, one S3) at restarts 4,
-    which holds sampled-contained directions (3 draws), sampled-not ones
-    stopped early (2 draws at this seed), unresolved and proved ones
-    (none), so a count that ignored the early stop or charged a proved pair
-    would show, and so would a draw spent on a pair already proved distinct.
+    which holds sampled-contained directions (3 draws, within an irrep),
+    sampled-not ones stopped early (2 to 4 of 12 at this seed, across
+    irreps), unresolved and proved ones (none), so a count that ignored the
+    early stop or charged a proved pair would show, and so would a draw
+    spent on a pair already proved distinct.
     """
     from dataclasses import replace
 
@@ -1796,12 +1797,13 @@ def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
 
     monkeypatch.setattr(isotropy, "_normalised_draw", counting)
     result = isotropy.analyse(subset, d_min=1.5, restarts=4)
-    # the S1/S2 class rests on draws; S3 is proved apart from all four
+    # the S1 and S2 classes rest on draws; S3 is proved apart from all four
     assert _table_marks(result) == ["S", "S", "S", "S", "P"]
     statuses = {v.status for v in result.relations}
     assert {"sampled-contained", "sampled-not", "unresolved", "proved-not"} <= statuses
     assert all((v.reason is not None) == (v.status == "unresolved") for v in result.relations)
-    assert any(v.status == "sampled-not" and v.draws < 3 for v in result.relations)
+    assert any(v.status == "sampled-not" and v.draws < isotropy.CROSS_IRREP_DRAWS
+               for v in result.relations)
     expected = []
     for (i, j), pair in _pairs(result.relations, len(subset)).items():
         if any(v.status == "proved-not" for v in pair):
@@ -1823,6 +1825,51 @@ def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
         for v, shown in zip(pair, counts.split(", ")):
             assert shown.split()[0] == ("-" if v.status == "unresolved" else str(v.draws))
             assert ("not reproduced" in shown) == (v.undecided_draws > 0)
+
+
+def test_the_default_draws_are_twelve_across_irreps_and_three_within(monkeypatch):
+    """Issue #565's decision 3: 12 draws per direction between irreps, 3 inside one; a number overrides both.
+
+    Every fit is replaced by a perfect reproduction, so each sampled
+    direction runs its whole budget and ``draws`` *is* the budget.  The set
+    is the draw-count test's five cubic families: S1 → S2 pairs are across
+    irreps, S1 → S1 and S2 → S2 inside one, and S3 is proved apart, so it
+    is never drawn.
+    """
+    from dataclasses import replace
+
+    found = isotropy.candidates(*KNOWN_ANSWER)
+    labels = ["S1(rank 1)#1", "S1(rank 1)#2", "S2(rank 1)#1", "S2(rank 1)#2", "S3(rank 1)#1"]
+    subset = replace(found, candidates=tuple(c for c in found if c.label in labels))
+    reflections = isotropy.reflections(found.lattice, 1.5)
+    monkeypatch.setattr(isotropy, "_fit_residual", lambda *args, **kwargs: 0.0)
+    irrep = [c.irrep_label for c in subset]
+    for draws, across, within in ((None, 12, 3), (2, 2, 2)):
+        relations = isotropy.powder_relations(subset, reflections, draws=draws)
+        sampled = [v for v in relations if v.status.startswith("sampled")]
+        assert {irrep[v.a] == irrep[v.b] for v in sampled} == {True, False}
+        for v in sampled:
+            assert v.status == "sampled-contained"
+            assert v.draws == (within if irrep[v.a] == irrep[v.b] else across), v
+        assert all(v.draws == 0 for v in relations if "S3" in (irrep[v.a], irrep[v.b]))
+
+
+@pytest.mark.slow
+def test_the_cubic_known_answer_has_four_classes_at_the_default_draws():
+    """``P n -3 m:1`` at (0, 0, ½), general site: one class per irrep, as issue #565 proves.
+
+    At 3 draws everywhere the same set gave two classes, S1 ∪ S2 and
+    S3 ∪ S4, each joined by draws that happened to be reproduced; at the
+    default 12 across irreps some draw of every such pair is not.  A sampled
+    verdict at one seed, so this pins the protocol; the S1 ⊄ S2 proofs are a
+    later certificate's.  130-180 s on one core by machine load, hence slow.
+    """
+    found = isotropy.analyse(isotropy.candidates(*KNOWN_ANSWER), d_min=1.5)
+    by_irrep = {}
+    for i, candidate in enumerate(found):
+        by_irrep.setdefault(candidate.irrep_label, []).append(i)
+    assert found.classes == tuple(tuple(members) for members in by_irrep.values())
+    assert len(found.classes) == 4
 
 
 def test_the_certificates_run_on_a_pair_union_find_has_already_joined(monkeypatch):

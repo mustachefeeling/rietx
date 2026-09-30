@@ -218,6 +218,21 @@ ISOTROPY_ATOL = 1e-8
 #: on a singular value below which an amplitude counts as undeterminable.
 INTENSITY_RTOL = 1e-9
 
+#: Draws per direction on a pair no certificate settles, when the caller
+#: names none (issue #565, decision 3): 12 between two irreps, where 8 % of
+#: the cubic pairs that 3 draws called equivalent were refuted by a draw
+#: within 12 (0.2 % at 12), and 3 inside one irrep.  On the cubic
+#: ``P n -3 m:1`` at (0, 0, ½) the raise is what gives the four classes of
+#: the known answer rather than two.  The 3 within an irrep is not measured
+#: the same way: the 8 % was counted on cross-irrep pairs only, and the
+#: reason the issue gives for 3 — two directions of one irrep are isometric
+#: copies — is the isometry certificate of issue #565's part 3, not yet in
+#: this module.  It also applies to two different directions of one irrep,
+#: which are not copies; 12 there would cost about 4 min more on the known
+#: answer.
+CROSS_IRREP_DRAWS = 12
+WITHIN_IRREP_DRAWS = 3
+
 #: Shortest axis of the default compatible cell, Å.  Only ratios of intensities
 #: are ever compared, so the scale sets nothing but which reflections fall
 #: inside a given d_min.
@@ -2240,7 +2255,7 @@ def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
 
 
 def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
-                      refl: ReflectionSet, *, draws: int = 3, seed: int = 20260906,
+                      refl: ReflectionSet, *, draws: int | None = None, seed: int = 20260906,
                       rtol: float = 1e-4, restarts: int = 32,
                       little: LittleGroup | None = None) -> bool:
     """Whether a powder pattern to ``refl``'s d limit can tell two candidates apart.
@@ -2306,7 +2321,8 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
       reproduced.  The draws are independent, so if B reproduces only a
       fraction 1 − f of A's draws (it converges to a real non-zero minimum
       on the rest), the pair passes with probability (1 − f)^draws: 0.42 at
-      f = ¼ and the default 3 draws.  More restarts do not help.  Issue
+      f = ¼ and 3 draws, 0.03 at the 12 a pair across irreps now takes by
+      default.  More restarts do not help.  Issue
       #455's example, ``P a -3`` at (½,½,½), was measured before #534's
       frame fix; with it that case gives one partition in 9 of 9 seed and
       basis runs.  Issue #565 measured B on six cubic cases instead: 8 % of
@@ -2325,7 +2341,8 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     fa = structure_factors(a, refl, little=little)
     fb = structure_factors(b, refl, little=little)
     return _powder_equivalent(a, b, fa, fb, gram(fa, refl.shells), gram(fb, refl.shells),
-                              refl, draws=draws, seed=seed, rtol=rtol, restarts=restarts)
+                              refl, draws=_draws_for(a, b, draws), seed=seed, rtol=rtol,
+                              restarts=restarts)
 
 
 def _powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
@@ -2344,6 +2361,13 @@ def _powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     there, back = _pair_verdicts(0, 1, (a, b), (ga, gb), silent, dark, spans, refl,
                                  draws=draws, seed=seed, rtol=rtol, restarts=restarts)
     return bool(there.contained and back.contained)
+
+
+def _draws_for(a: MagneticCandidate, b: MagneticCandidate, draws: int | None) -> int:
+    """Draws per direction for one pair: the caller's, or :data:`CROSS_IRREP_DRAWS`/:data:`WITHIN_IRREP_DRAWS`."""
+    if draws is not None:
+        return draws
+    return WITHIN_IRREP_DRAWS if a.irrep_label == b.irrep_label else CROSS_IRREP_DRAWS
 
 
 def _silent(factors: np.ndarray) -> bool:
@@ -2407,7 +2431,7 @@ def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
     return out[0], out[1]
 
 
-def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int,
+def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | None,
               seed: int, rtol: float, restarts: int
               ) -> tuple[tuple[tuple[int, ...], ...], tuple[PairVerdict, ...]]:
     """:func:`equivalence_classes` and :func:`powder_relations` from one pass over the pairs."""
@@ -2442,7 +2466,8 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int,
                     verdicts[key] = v or PairVerdict(*key, "unresolved", reason=reason)
                 continue
             there, back = _pair_verdicts(i, j, canonical, grams, silent, dark, spans, refl,
-                                         draws=draws, seed=seed, rtol=rtol, restarts=restarts)
+                                         draws=_draws_for(canonical[i], canonical[j], draws),
+                                         seed=seed, rtol=rtol, restarts=restarts)
             verdicts[(i, j)], verdicts[(j, i)] = there, back
             if there.contained and back.contained:
                 parent[find(j)] = find(i)
@@ -2455,7 +2480,7 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int,
 
 
 def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
-                        draws: int = 3, seed: int = 20260906, rtol: float = 1e-4,
+                        draws: int | None = None, seed: int = 20260906, rtol: float = 1e-4,
                         restarts: int = 32) -> tuple[tuple[int, ...], ...]:
     """Connected components of :func:`powder_equivalent` over a candidate set.
 
@@ -2479,13 +2504,22 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
     Cost: an equivalent pair mostly stops at its first restart, while a
     distinguishable one no certificate settles pays the full ``restarts``
     once.
+
+    ``draws`` is per direction.  Left at ``None`` it is
+    :data:`CROSS_IRREP_DRAWS` for a pair of two irreps and
+    :data:`WITHIN_IRREP_DRAWS` for two directions of one; an integer applies
+    to every pair.  On the cubic ``P n -3 m:1`` at (0, 0, ½), general site,
+    3 draws everywhere gives two classes (S1 ∪ S2 and S3 ∪ S4, each joined by
+    lucky draws) and the default gives the four of the known answer, at
+    1.7× the wall time (78 s against 133-136 s, one Linux x86-64 core per
+    run, measured twice each).
     """
     return _classify(candidate_set, refl, draws=draws, seed=seed, rtol=rtol,
                      restarts=restarts)[0]
 
 
 def powder_relations(candidate_set: CandidateSet, refl: ReflectionSet, *,
-                     draws: int = 3, seed: int = 20260906, rtol: float = 1e-4,
+                     draws: int | None = None, seed: int = 20260906, rtol: float = 1e-4,
                      restarts: int = 32) -> tuple[PairVerdict, ...]:
     """Every directed verdict behind :func:`equivalence_classes`, with how each was decided.
 
@@ -2502,7 +2536,7 @@ def powder_relations(candidate_set: CandidateSet, refl: ReflectionSet, *,
 
 
 def analyse(candidate_set: CandidateSet, *, d_min: float = 1.5,
-            draws: int = 3, seed: int = 20260906, rtol: float = 1e-4,
+            draws: int | None = None, seed: int = 20260906, rtol: float = 1e-4,
             restarts: int = 32) -> CandidateSet:
     """Fill in the absences, the determinable amplitudes, the equivalence classes and their relations.
 
@@ -2535,7 +2569,9 @@ def analyse(candidate_set: CandidateSet, *, d_min: float = 1.5,
     for candidate in candidate_set:
         factors = structure_factors(candidate, refl, little=little)
         determinable.append(determinable_amplitudes(
-            candidate, refl, draws=draws, seed=seed, little=little, factors=factors))
+            # determinable_amplitudes' own default, not a pair budget
+            candidate, refl, draws=3 if draws is None else draws, seed=seed,
+            little=little, factors=factors))
         absences.append(systematic_absences(candidate, refl, little=little).total)
     classes, relations = _classify(candidate_set, refl, draws=draws, seed=seed,
                                    rtol=rtol, restarts=restarts)
