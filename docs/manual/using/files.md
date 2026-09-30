@@ -386,7 +386,9 @@ following hold:
 
 The moments are μ_B on unit vectors along the cell axes. That is magCIF's
 basis, so the numbers carry over as written. `FULLPROF_MAGNETIC_PHASE_READ`
-reports the merge.
+reports the merge. A moment carries one refine flag, so a site whose file
+frees only some of its three moment columns (`Jbt = -1` with only M coded,
+say) comes in with the whole moment free, and the message names the site.
 
 Every other magnetic phase is refused by name, with its reason:
 
@@ -395,7 +397,9 @@ Every other magnetic phase is refused by name, with its reason:
 - basis functions of an irreducible representation (`Isy = -2`);
 - a moment matrix that is not an axial action;
 - a counterpart stated in a different cell, as when the nuclear phase is in
-  the chemical cell and the magnetic one in the supercell;
+  the chemical cell and the magnetic one in the supercell, or one whose space
+  group does not build;
+- a magnetic phase with no sites;
 - `Jbt = -1` on a cell that is not orthogonal, where the manual leaves the
   in-plane frame of φ open.
 

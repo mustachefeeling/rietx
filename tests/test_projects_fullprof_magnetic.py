@@ -165,6 +165,52 @@ def test_a_jbt_minus1_phase_on_an_orthogonal_cell_converts_the_spherical_form(
                                  3 * math.cos(t)), abs=1e-12)
 
 
+def test_a_partly_freed_moment_is_said_to_come_in_whole(tmp_path):
+    """Jbt = −1 with only M coded — modulus refined, direction held — reads
+    with the whole moment free (a Moment carries one flag), and the read
+    diagnostic says so, naming the site and the columns the file freed."""
+    atom = _moment_atom(r=(3.0, 30.0, 60.0), codes=(81.0, 0.0, 0.0))
+    _, structure, diags = _build(
+        tmp_path, _nuclear(sg="P 21 21 21", cell=_ORTHO),
+        _magnetic(symmetry=_P212121, cell=_ORTHO, jbt=-1, atom=atom))
+    assert structure.phases[0].atoms[0].moment.vary
+    (read,) = [d for d in diags if d.code == "FULLPROF_MAGNETIC_PHASE_READ"]
+    assert "frees only part of the moment at 'Fe' (M free)" in read.message
+    assert "whole moment free" in read.message
+
+
+def test_a_fully_freed_or_held_moment_adds_no_partial_clause(tmp_path):
+    for codes in ((81.0, 91.0, 101.0), (0.0, 0.0, 0.0)):
+        _, _, diags = _build(tmp_path, _nuclear(),
+                             _magnetic(atom=_moment_atom(codes=codes)))
+        (read,) = [d for d in diags if d.code == "FULLPROF_MAGNETIC_PHASE_READ"]
+        assert "only part of the moment" not in read.message
+
+
+def test_the_read_diagnostic_names_the_bns_number_only_when_there_is_one(
+        tmp_path, monkeypatch):
+    """A named group prints its BNS number; an unnamed one (``identification``'s
+    ``named=False``, whose ``bns_number`` is the placeholder ``"unnamed"``)
+    prints spglib's reason instead of a number it does not have."""
+    from rietx.crystallography.magnetic import operators
+
+    _, _, diags = _build(tmp_path, _nuclear(), _magnetic())
+    (read,) = [d for d in diags if d.code == "FULLPROF_MAGNETIC_PHASE_READ"]
+    assert "(BNS 14." in read.message
+
+    def unnamed(group, *a, **kw):
+        return operators.MagneticIdentification(
+            named=False, group_id=None, operations=(), closest_type="P 1 21/c 1",
+            reason="spglib did not match the list")
+
+    monkeypatch.setattr(operators, "identification", unnamed)
+    _, _, diags = _build(tmp_path, _nuclear(), _magnetic())
+    (read,) = [d for d in diags if d.code == "FULLPROF_MAGNETIC_PHASE_READ"]
+    assert "BNS" not in read.message
+    assert ("not a tabulated magnetic space group: spglib did not match the "
+            "list") in read.message
+
+
 def test_nuclear_only_still_omits_a_readable_magnetic_phase(tmp_path):
     """The caller's declared choice outranks the reading."""
     _, structure, diags = _build(tmp_path, _nuclear(), _magnetic(),

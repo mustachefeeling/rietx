@@ -2632,6 +2632,22 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
         for structure_index, (ph, reading) in sorted(merged.items()):
             built = phases[structure_index]
             found = identification(built.magnetic_symmetry.group())
+            # `identification` answers `named=False` with no BNS number for a
+            # group spglib does not name; its reason is quoted instead, as the
+            # TOPAS writer's `_magnetic_group_line` does.
+            group = (f"BNS {found.bns_number}" if found.named
+                     else f"not a tabulated magnetic space group: {found.reason}")
+            # A Moment carries one refine flag, so a site freeing only some of
+            # its three moment columns comes in with the whole moment free
+            # (the `any` in `magnetic_reading`); said here, since the model
+            # has no narrower form to carry it in.
+            columns = ("M", "phi", "theta") if ph.jbt == -1 else ("Rx", "Ry", "Rz")
+            partial = []
+            for atom in ph.atoms:
+                free = [c for c, k in zip(columns, ("m1", "m2", "m3"), strict=True)
+                        if atom.values[k].vary]
+                if 0 < len(free) < 3:
+                    partial.append(f"{atom.label!r} ({', '.join(free)} free)")
             diagnostics.append(Diagnostic(
                 level="info", code="FULLPROF_MAGNETIC_PHASE_READ",
                 where=[f"phases.{structure_index}.magnetic_symmetry"] + [
@@ -2641,12 +2657,15 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                 message=(f"{named}: magnetic phase {ph.index} ({ph.name!r}, "
                          f"Jbt {ph.jbt}) read as the moments of nuclear phase "
                          f"{built.name!r}: {len(reading.operations)} SYMM/MSYM "
-                         f"pairs as a magnetic group (BNS "
-                         f"{found.bns_number}), moments on "
+                         f"pairs as a magnetic group ({group}), moments on "
                          f"{len(reading.moments)} of {len(built.atoms)} sites, "
                          f"in crystal-axis mu_B"
                          + (" converted from (M, phi, theta)"
-                            if ph.jbt == -1 else "")),
+                            if ph.jbt == -1 else "")
+                         + (f"; the file frees only part of the moment at "
+                            f"{', '.join(partial)}, read here with the whole "
+                            f"moment free, the one refine flag a moment carries"
+                            if partial else "")),
                 suggestion=("the file's two phases are one here: the magnetic "
                             "phase's own Scale, positions and Biso were checked "
                             "equal to its counterpart's and are not carried "
