@@ -752,12 +752,49 @@ def refuse_moved_attachment(active: str, path) -> None:
 
 
 def normalize_species(species: str) -> str:
-    """``Cu+1`` → ``Cu1+`` (rule 4). IUCr order is digit-first."""
+    """``Cu+1`` → ``Cu1+``, ``7Li+1`` → ``7Li1+`` (rule 4). IUCr order is digit-first.
+
+    A leading mass number is TOPAS's isotope spelling and rietx's alike
+    (``7Li``, ``60Ni``), so it is carried through unchanged.
+    """
     s = re.sub(r"[^A-Za-z0-9+-]", "", species)
-    if m := re.fullmatch(r"([A-Za-z]{1,2})([+-])(\d*)", s):
-        element, sign, magnitude = m.groups()
-        return f"{element}{magnitude or ''}{sign}"
+    if m := re.fullmatch(r"(\d*)([A-Za-z]{1,2})([+-])(\d*)", s):
+        mass, element, sign, magnitude = m.groups()
+        return f"{mass}{element}{magnitude or ''}{sign}"
     return s
+
+
+def topas_species(species: str) -> str:
+    """``Cu1+`` → ``Cu+1``: the inverse of :func:`normalize_species`, for writing.
+
+    TOPAS reads an ion sign-first and stops on the IUCr order rietx stores:
+    ``occ O2-`` ends the run with "Cannot find o2 in file isotopes.txt", for
+    X-ray and neutron data alike, and ``occ O-2`` runs (issue #550; TOPAS 6,
+    run as a black box). An isotope keeps its leading mass number, which is
+    TOPAS's order too: ``7Li1+`` → ``7Li+1`` (``7Li1+`` stops TOPAS with
+    "Cannot find 7li1 in file isotopes.txt"; ``7Li+1`` runs and gives ⁷Li's b).
+    A neutral atom or isotope, or any label that is not an element plus a
+    charge, is written as it is.
+
+    An ion with a sign but no magnitude (``Cu+``) is refused. rietx's own
+    scattering table has no ``Cu+`` and falls back to neutral Cu, while
+    TOPAS's X-ray table has no ``Cu+`` at all (it stops) and ``Cu+1`` is the
+    ion, so no spelling writes the model rietx computed.
+    """
+    if m := re.fullmatch(r"(\d*)([A-Za-z]{1,2})(\d*)([+-])", species):
+        mass, element, magnitude, sign = m.groups()
+        element = mass + element
+        if not magnitude:
+            raise ValueError(
+                f"species {species!r} has a sign but no charge magnitude: "
+                f"rietx's scattering table reads it as the neutral atom "
+                f"{element!r}, and TOPAS has no {species!r} (its X-ray table "
+                f"stops on it) and reads {element + sign + '1'!r} as the ion, "
+                f"so no TOPAS spelling states the model rietx computed. Write "
+                f"{element + '1' + sign!r} for the ion or {element!r} for the "
+                f"neutral atom")
+        return f"{element}{sign}{magnitude}"
+    return species
 
 
 def normalize_space_group(symbol: str) -> str:
@@ -3356,8 +3393,13 @@ def from_structure(structure: Structure) -> str:
                     f"in (it bounds biso at zero) — writing this file would "
                     f"only fail later, at the read, rather than here where "
                     f"the value is still in hand")
+            try:
+                species = topas_species(atom.species)
+            except ValueError as exc:
+                raise ValueError(f"phase {phase.name!r}: atom {atom.label!r}: "
+                                 f"{exc}") from None
             site = (f"  site {atom.label} x {_tail(atom.x)} y {_tail(atom.y)} "
-                    f"z {_tail(atom.z)} occ {atom.species} {_tail(atom.occ)}")
+                    f"z {_tail(atom.z)} occ {species} {_tail(atom.occ)}")
             if atom.aniso is not None:
                 # `to_structure` always builds an aniso site's `biso` held
                 # (`vary=False`) — it is the schema's inert record, not a
