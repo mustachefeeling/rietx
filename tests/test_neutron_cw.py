@@ -839,8 +839,13 @@ def test_the_scattering_cross_sections_are_the_bound_values(species):
     reads bound-atom cross-sections, as the docstring and manual say.
 
     The free-atom σ is (A/(A+1))² of the bound one — 0.25 for H, 0.44 for D —
-    so a table of free-atom values would fail this by a factor of four on
-    hydrogen (82.0 barn bound against 20.5 free).
+    so a *mixed* table, bound b beside free-atom σ, would fail this by a
+    factor of four on hydrogen (82.0 barn bound against 20.5 free).  A table
+    free-atom throughout is self-consistent and passes here; the bound values
+    themselves are pinned elsewhere: b_H = −3.739 fm by
+    ``test_an_isotope_label_survives_the_species_normaliser``, and H's σ_tot
+    at 1.798 Å (82.35 b) by
+    ``test_deuteration_is_an_isotope_not_an_element_for_attenuation``.
     """
     from rietx.crystallography.neutron import properties
 
