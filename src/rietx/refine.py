@@ -6884,14 +6884,17 @@ def estimate_mu_r(structure: Structure, instrument: Instrument) -> float | None:
     Combines each phase's linear attenuation coefficient — McMaster tables
     (:mod:`rietx.crystallography.attenuation`) on an X-ray source, Sears
     (1992) cross-sections (:mod:`rietx.crystallography.neutron`) on a
-    constant-wavelength neutron one — into a volume-fraction-weighted bulk µ, scales it by ``Geometry.packing_fraction`` — voids do not absorb —
-    and multiplies by ``Geometry.capillary_radius_mm``.
+    constant-wavelength neutron one — into a volume-fraction-weighted bulk µ,
+    scales it by ``Geometry.packing_fraction`` — voids do not absorb — and
+    multiplies by ``Geometry.capillary_radius_mm``.
 
     Returns ``None`` rather than raising when µ is unavailable (a wavelength
     whose tabulation interval straddles an absorption edge, an element outside
     the compilation, an energy outside 2-120 keV; on neutrons, a species the
-    Sears table lacks) or when the geometry carries no capillary radius.  Use it to *populate* ``Geometry.mu_r``; a refinement
-    will do the same thing itself at compile time if ``mu_r`` is left ``None``.
+    Sears table lacks or a resonant absorber — Cd, Sm, Eu, Gd, Yb — refused at
+    every wavelength) or when the geometry carries no capillary radius.  Use
+    it to *populate* ``Geometry.mu_r``; a refinement will do the same thing
+    itself at compile time if ``mu_r`` is left ``None``.
 
     ``None`` on a source kind with no table (time-of-flight among them) —
     each radiation's attenuation is its own quantity

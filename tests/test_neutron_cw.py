@@ -901,8 +901,8 @@ def test_hydrogen_dominates_neutron_attenuation_and_not_xray():
     80.27), σ_coh = 1.7568, σ_abs = 0.3326 — against Mg σ_coh 3.631,
     σ_inc 0.08, σ_abs 0.063 and O 4.232, 0.0008, 0.00019.  Per brucite
     formula unit at 2.4067 Å the two H carry 2 × (80.26 + 1.7568 + 0.4452)
-    = 164.9 barn of 177.2, so **≈ 93 %** of µ.  Under the X-ray table the same two H carry well under
-    1 %: hydrogen has one electron.
+    = 164.9 barn of 177.2, so **≈ 93 %** of µ.  Under the X-ray table the
+    same two H carry well under 1 %: hydrogen has one electron.
 
     The WP phrases this as "far more attenuating than the X-ray estimator
     says for the same cell", which is not true in absolute terms at a common
