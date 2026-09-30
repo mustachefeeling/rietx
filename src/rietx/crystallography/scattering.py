@@ -64,14 +64,54 @@ def _load_table() -> dict[str, np.ndarray]:
     return table
 
 
+#: The two isotope symbols that are not mass-number-first. Every other isotope
+#: label is written the way ``neutron.py``'s table writes it, ``"2H"``,
+#: ``"7Li"``, ``"157Gd"``.
+_ISOTOPE_SYMBOLS = frozenset({"D", "T"})
+
+
+def xray_scatterer(species: str) -> str:
+    """The X-ray scatterer behind an isotope label: ``"7Li1+"`` → ``"Li1+"``.
+
+    X-rays scatter from the electrons, which do not see the nucleus's mass, so
+    an isotope is its element to every X-ray lookup (f₀ here, f′/f″ in
+    :mod:`.dispersion`): a leading mass number is dropped and ``D``/``T``
+    read as ``H``, while a charge is kept, since it is the charge that changes
+    f₀. It is the mirror of ``neutron.normalize_species``, which keeps the mass
+    number and drops the charge (issue #552: without it a deuterated structure
+    could not go on an X-ray histogram, nor into a joint X-ray + neutron fit).
+    A mass number is dropped only where it names a nuclide the neutron table
+    carries, so the two radiations accept the same isotope labels and a
+    malformed ``"1Cu"`` still fails as it always did. Anything that is not an
+    isotope label is returned as it is.
+
+        >>> xray_scatterer("D"), xray_scatterer("2H"), xray_scatterer("7Li1+")
+        ('H', 'H', 'Li1+')
+    """
+    from .neutron import _load_table as _nuclides
+
+    s = species.strip()
+    if m := re.fullmatch(r"(\d+)([A-Za-z]{1,2})(\d*[+-])?", s):
+        mass, element, charge = m.groups()
+        if f"{mass}{element.capitalize()}" in _nuclides():
+            return element + (charge or "")
+        return s
+    if m := re.fullmatch(r"([A-Za-z])(\d*[+-])?", s):
+        if m.group(1) in _ISOTOPE_SYMBOLS:
+            return "H" + (m.group(2) or "")
+    return s
+
+
 def normalize_species(species: str) -> str:
     """Map a CIF type symbol to a table key, falling back to the neutral atom.
 
     ``"La3+"`` stays ``"La3+"`` if tabulated; ``"LA"`` → ``"La"``;
     ``"O2-"`` falls back to ``"O"`` only if the ion is missing from the table.
+    An isotope reads as its element (:func:`xray_scatterer`): ``"D"`` → ``"H"``,
+    ``"7Li1+"`` → ``"Li1+"``.
     """
     table = _load_table()
-    s = species.strip()
+    s = xray_scatterer(species)
     if s in table:
         return s
     m = re.match(r"^([A-Za-z]{1,2})(\d*[+-])?$", s)
@@ -147,7 +187,7 @@ def detect_fallback(species: str) -> SpeciesFallback | None:
     unknown species is a different, already-loud failure — this function's
     only job is the quiet one.
     """
-    s = species.strip()
+    s = xray_scatterer(species)
     m = _ION_RE.match(s)
     if not m:
         return None
@@ -163,7 +203,7 @@ def detect_fallback(species: str) -> SpeciesFallback | None:
     z = gemmi.Element(elem).atomic_number
     true_electrons = float(z - charge)
     returned_electrons = float(f0(elem, np.array([0.0]))[0])
-    return SpeciesFallback(species=s, element=elem, charge=charge,
+    return SpeciesFallback(species=species.strip(), element=elem, charge=charge,
                            true_electrons=true_electrons,
                            returned_electrons=returned_electrons)
 

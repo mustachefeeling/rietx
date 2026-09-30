@@ -102,8 +102,11 @@ def normalize_cif_species(species: str) -> tuple[str, str | None]:
     form, keeping the ion when one was written (``"O-2"`` → ``"O2-"``, so an
     ionic f₀ still resolves) and only when the result actually resolves in
     the Waasmaier-Kirfel table — a symbol this function cannot help
-    (``"Wat"``, ``"D"``) passes through verbatim to fail with the lookup's
-    own message rather than be half-rewritten.
+    (``"Wat"``, ``"Xx1"``) passes through verbatim to fail with the lookup's
+    own message rather than be half-rewritten. ``"D1"`` reads as deuterium
+    (an isotope is its element to X-rays, issue #552), but ``"T1"`` is never
+    read as tritium: ``T1``, ``T2`` are the tetrahedral-site labels of every
+    zeolite framework, so the rewrite would make a Si/Al site hydrogen.
 
     Returns ``(species, note)`` where ``note`` names the form that was
     rewritten, or is ``None`` when the input is untouched.  Lives here rather
@@ -121,6 +124,8 @@ def normalize_cif_species(species: str) -> tuple[str, str | None]:
         note = "sign-first charge"
     elif m := _SITE_LABEL.match(s):
         candidate = m.group(1).capitalize()
+        if candidate == "T":   # a zeolite T-site label, not tritium (above)
+            return species, None
         note = "site label in the type-symbol column"
     else:
         return species, None

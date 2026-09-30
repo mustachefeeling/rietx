@@ -199,6 +199,44 @@ def test_a_mixed_joint_fit_runs_at_all():
     # #252 lands, inside a test named for whether a mixed fit runs at all.
 
 
+def test_a_deuterated_structure_goes_on_both_histograms():
+    """Issue #552: one ``Structure`` carrying ``D`` compiles on an X-ray
+    histogram, which sees hydrogen, and on a neutron one, which sees ²H.
+
+    Before #552 the X-ray compile refused it ("no Waasmaier-Kirfel
+    coefficients for species 'D'"), so a deuterated sample could not be
+    refined jointly at all. The positive arm is the neutron pattern moving
+    (b flips sign, −3.739 → +6.671 fm); the negative arm is the X-ray pattern
+    **not** moving by a bit.
+    """
+    P = rx.Parameter
+
+    def nickel_hydride(h: str) -> rx.Structure:
+        return rx.Structure(phases=[rx.Phase(
+            name="NiH", space_group="F m -3 m", cell=rx.Cell.cubic(3.72),
+            scale=P(value=1.0, min=0.0, transform="softplus"),
+            atoms=[rx.Atom(label="Ni", species="Ni", x=P(value=0.0),
+                           y=P(value=0.0), z=P(value=0.0),
+                           biso=P(value=0.4, min=0.0, max=5.0)),
+                   rx.Atom(label="H", species=h, x=P(value=0.5),
+                           y=P(value=0.5), z=P(value=0.5),
+                           biso=P(value=0.9, min=0.0, max=5.0))])])
+
+    grid = _flat(20.0, 120.0)
+    xray = {h: _y_calc(nickel_hydride(h), _xray(), grid) for h in ("H", "D", "2H")}
+    neutron = {h: _y_calc(nickel_hydride(h), _neutron(), grid)
+               for h in ("H", "D", "2H")}
+    assert np.array_equal(xray["H"], xray["D"])
+    assert np.array_equal(xray["H"], xray["2H"])
+    assert np.array_equal(neutron["D"], neutron["2H"])
+    assert np.max(np.abs(neutron["D"] - neutron["H"])) > 0.1 * np.max(neutron["H"])
+
+    ref = rx.MultiHistogramRefinement(nickel_hydride("D"), [_xray(), _neutron()])
+    result = ref.fit([_flat(20.0, 120.0), _flat(20.0, 120.0)], plan=_short_plan())
+    assert result.status in {"converged", "max_iter"}
+    assert len(result.histograms) == 2
+
+
 def test_each_histogram_scatters_off_its_own_amplitude():
     """#194 task 3: f(Q) on the X-ray histogram, b on the neutron one.
 
