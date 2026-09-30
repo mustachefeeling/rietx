@@ -189,12 +189,15 @@ def total_cross_section_neutron(species: str, wavelength: float) -> float:
 
     Attenuation here means beam **removal**, so both scattering terms count,
     as the X-ray total in :mod:`rietx.crystallography.attenuation` does.  They
-    are the *free-atom* cross-sections: in a polycrystal the coherent part is
-    Bragg scattering, whose removal of the beam depends on λ against the
-    largest d-spacing, and that dependence is not modelled.  For hydrogen the
-    incoherent term dominates everything else in the table (80.26 barn), which
-    is why a hydrous specimen X-rays call transparent is the one a neutron
-    beam struggles through.
+    are the *bound* (Sears) values, taken as λ-independent — the free-atom
+    cross-section is (A/(A+1))² of the bound one, a quarter for hydrogen — and
+    for hydrogen the bound value approximates an effective cross-section that
+    in a real solid depends on λ and on the proton's dynamics.  In a
+    polycrystal the coherent part is Bragg scattering, whose removal of the
+    beam depends on λ against the largest d-spacing, and that dependence is
+    not modelled.  For hydrogen the incoherent term dominates everything else
+    in the table (80.26 barn), which is why a hydrous specimen X-rays call
+    transparent is the one a neutron beam struggles through.
 
     An isotope resolves to its own row (``"D"`` is ²H, 2.05 barn incoherent
     against ¹H's 80.26), as :func:`b_coh` does.

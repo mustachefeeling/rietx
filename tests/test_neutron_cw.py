@@ -833,6 +833,22 @@ def test_neutron_attenuation_of_a_vanadium_cell_by_hand():
         pytest.approx(0.855428, abs=2e-6)
 
 
+@pytest.mark.parametrize("species", ["H", "D", "O", "Ni"])
+def test_the_scattering_cross_sections_are_the_bound_values(species):
+    """σ_coh = 4π·b_coh² with the table's own *bound* b, so the attenuation
+    reads bound-atom cross-sections, as the docstring and manual say.
+
+    The free-atom σ is (A/(A+1))² of the bound one — 0.25 for H, 0.44 for D —
+    so a table of free-atom values would fail this by a factor of four on
+    hydrogen (82.0 barn bound against 20.5 free).
+    """
+    from rietx.crystallography.neutron import properties
+
+    row = properties(species)
+    assert row["xs_coh_barn"] == pytest.approx(
+        4.0 * np.pi * row["b_coh_fm"] ** 2 / 100.0, rel=5e-3)
+
+
 def test_neutron_absorption_scales_linearly_in_wavelength():
     """The 1/v law is the whole difference from the X-ray case.
 
