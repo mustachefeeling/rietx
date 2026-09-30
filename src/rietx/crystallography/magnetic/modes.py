@@ -42,7 +42,8 @@ Conventions, each of which a caller can get wrong silently:
    the conventional cell, so on a centred lattice its images come in centring
    families that are one atom repeated by a lattice translation.  Those are
    collapsed here, because a lattice translation is already carried by the
-   e^{−2πi k·R} factor and counting it twice would inflate 3N and every
+   Bloch factor e^{+2πi k·R} of the moment field (see *Which wave the vectors
+   belong to*, below) and counting it twice would inflate 3N and every
    multiplicity with it.  ``Σ n_ν·d_ν = 3N`` is asserted against the collapsed
    count.
 
@@ -78,6 +79,37 @@ Conventions, each of which a caller can get wrong silently:
    Cartesian, multiply by the transpose of the row-vector cell matrix
    (m_cart = Aᵀ·m); :func:`crystal_metric` returns G = A·Aᵀ, the metric that
    makes the fractional action orthogonal.
+
+**Which wave the vectors belong to.**  Because the vectors transform by the
+small irreps with D({E|t}) = exp(−2πi k·t), they are the coefficients of the
+Bloch wave exp(**+**2πi k·R), R the primitive-lattice vector of the cell the
+atom sits in:
+
+    m_j(R) = Σ_l C_l·ψ_lj·e^{+2πi k·R} + c.c.
+
+is the moment field whose active image under g ∈ G_k is Σ_m D(g)_{ml}·(field
+of row m); built on e^{−2πi k·R} instead, the same numbers make a field that
+transforms by D*(g), which for 2k ∉ L* is another irrep or no single irrep at
+all (``tests/test_magnetic_field_convention.py`` measures both).  This is the
+function side of the literature: Bradley & Cracknell (1972) § 3.4 p. 119, "the
+basis functions for Δ^k can be taken to be exp(ik.r)" with Δ^k({E|t}) =
+exp(−ik·t) (eqn 3.4.3); Izyumov, Naish & Ozerov (1991) § 16 p. 127, where the
+spins in the neighbouring cell are the basis vectors multiplied by exp(ik·t);
+and SARAh, Wills (2000) eq. (3) p. 681, S_n = S_0·e^{+ik·t_n} + c.c.  The
+amplitude side puts the coefficient on the other exponent: FullProf's
+m_j(R) = Σ_k S_kj·exp(−2πi k·R) (Rodríguez-Carvajal, 1993, eq. 5) and
+Perez-Mato et al. (2012) eq. (13), whose coefficients a translation multiplies
+by exp(**+**2πi k·t) — Bertaut (1968) eq. (5-3), Stokes, Campbell & Hatch
+(2007) eq. (20), Perez-Mato et al. (2012) eq. (15).  The two are complex
+conjugates, so in FullProf's form
+
+    S_{−k,j} = Σ_l C_l·ψ_lj,     S_kj = conj(Σ_l C_l·ψ_lj).
+
+A phase is conjugated only when it crosses from one side to the other; a
+SARAh output needs none.  A full-position reference, exp(−2πi k·(R + r_j)) —
+FullProf's T_kj, magCIF's and Jana's superspace x₄ — differs again by the
+per-atom phase exp(2πi k·r_j).  At k = 0 and wherever 2k ∈ L* every phase is
+±1 and none of this changes a number.
 
 **Why a metric enters at all.**  The fractional rotation R is an integer matrix
 of finite order but is *not* orthogonal — a hexagonal 3-fold is
@@ -129,7 +161,7 @@ pairing makes a real moment arrangement:
 
 * 2k ≢ 0 — D* is a small irrep at −k, not at k.  The physically irreducible
   representation is D_k ⊕ D*_{−k} and the moment is
-  m_j(R) = Σ C·ψ_j·e^{−2πi k·R} + c.c., with 2·n_ν·d_ν free real amplitudes.
+  m_j(R) = Σ C·ψ_j·e^{+2πi k·R} + c.c., with 2·n_ν·d_ν free real amplitudes.
 * 2k ≡ 0 with FS = 0 — D* is an inequivalent small irrep at the *same* k; the
   physically irreducible representation is D ⊕ D*, same amplitude count.
 * 2k ≡ 0 with FS = −1 (pseudoreal) — D ≅ D* but only through an antisymmetric
@@ -167,7 +199,8 @@ return-translation phase (§ 8 p. 60), and the physically irreducible pairing of
 an irrep with an *inequivalent* conjugate (p. 30).  **Not** cited for the
 pseudoreal case: the prose under his eqn (2.40) misstates it.
 Wills, A. S. (2000). *Physica B* **276–278**, 680 — SARAh: basis vectors as the
-refinable coordinates of a magnetic structure.
+refinable coordinates of a magnetic structure; eq. (3) p. 681 puts them on
+e^{+ik·t_n}, the same side as these vectors.
 Davies, Z. & Wills, A. S. (2016). *arXiv*:1610.00472 (preprint) — over- and
 under-generation of basis vectors, and the basis-set view of the projector's
 row and column indices.
@@ -179,8 +212,14 @@ Campbell, B. J., Stokes, H. T., Tanner, D. E. & Hatch, D. M. (2006). *J. Appl.
 Cryst.* **39**, 607 — the mode-amplitude view of a distorted structure, which
 is the displacive twin of the magnetic decomposition here.
 Rodríguez-Carvajal, J. (1993). *Physica B* **192**, 55 — BasIreps and the
-FullProf convention m_j(R) = Σ_k S_kj·exp(−2πi k·R) these vectors are the S_kj
-of.
+FullProf convention m_j(R) = Σ_k S_kj·exp(−2πi k·R) (eq. 5, p. 56), whose
+coefficients are the complex conjugates of these vectors' combinations:
+S_kj = conj(Σ_l C_l·ψ_lj).
+Bertaut, E. F. (1968), eq. (5-3) p. 224; Stokes, H. T., Campbell, B. J. &
+Hatch, D. M. (2007). *Acta Cryst.* A**63**, 365, eq. (20) p. 368; Perez-Mato,
+J. M., Ribeiro, J. L., Petříček, V. & Aroyo, M. I. (2012). *J. Phys.: Condens.
+Matter* **24**, 163201, eqs. (13) and (15) — the amplitude side of the same
+expansion, where a translation multiplies the coefficient by exp(+2πi k·t).
 """
 
 from __future__ import annotations
@@ -321,7 +360,7 @@ def orbit_positions(space_group, site_xyz) -> np.ndarray:
     :func:`~rietx.crystallography.symmetry.site_orbit` expands in the
     conventional cell, where a centred lattice repeats every atom once per
     centring vector.  Those repeats are the *same* atom seen through a lattice
-    translation — the phase factor e^{−2πi k·R} already carries them — so they
+    translation — the Bloch factor e^{+2πi k·R} already carries them — so they
     are collapsed here and the returned count is the conventional multiplicity
     divided by the number of centring vectors.  A lattice translation cannot
     fix a point, so the division is exact; it is asserted rather than assumed.
@@ -1075,12 +1114,15 @@ def _reality_and_pairing(rep: SiteRepresentation, irrep: SmallIrrep, real_gauge:
         return irrep.reality, (
             "2k is not a reciprocal lattice vector, so the conjugate small irrep lives at "
             "-k. The physically irreducible representation is D_k + D*_-k and the moment is "
-            "m_j(R) = sum_l C_l psi_lj exp(-2*pi*i*k.R) + c.c., with complex amplitudes C_l"
+            "m_j(R) = sum_l C_l psi_lj exp(+2*pi*i*k.R) + c.c., with complex amplitudes C_l. "
+            "In FullProf's form m_j(R) = sum_k S_kj exp(-2*pi*i*k.R) this makes "
+            "S_-k,j = sum_l C_l psi_lj and S_kj = conj(sum_l C_l psi_lj)"
         )
     if irrep.frobenius_schur == 1:
         return "real", (
             "2k is a reciprocal lattice vector and the irrep is real, so the amplitudes are "
-            "real and m_j(R) = sum_l C_l psi_lj exp(-2*pi*i*k.R) is already real"
+            "real and m_j(R) = sum_l C_l psi_lj exp(+2*pi*i*k.R) is already real (every "
+            "phase is +-1 here, so the exponent's sign does not matter)"
             + ("" if real_gauge else
                "; the vectors are still complex because no real gauge of the irrep was found")
         )
