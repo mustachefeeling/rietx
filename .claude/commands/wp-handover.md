@@ -15,6 +15,13 @@ what the commits show, not what the session might have known — where the
 diff does not say why, say so rather than inventing a rationale. All other
 steps below run unchanged.
 
+**The handover runs at the session's largest context, so every request and
+every read costs the most here** (`docs/milestones/process.md` § What a
+session's reading costs). So send independent calls in one response: step
+10's three checks are one. Read a long file by range rather than whole
+(steps 5 and 8). Answer step 7 from what the session knows, never by
+re-reading its own diff.
+
 1. **Identify the active WP** from this session's `git log` (`WP-NNNN:`
    prefixes). If more than one WP was touched, confirm with the user before
    proceeding. If the session made **no** commit and left no uncommitted work,
@@ -46,18 +53,46 @@ steps below run unchanged.
      *Measured* / *In flight* / *Gotchas*, written for someone who has read
      only this WP file and CLAUDE.md.
 4. **Sync the Status line** (`glyph date — free text`, vocabulary in
-   `docs/wp/TEMPLATE.md`). The index row follows at the end of step 7.
+   `docs/wp/TEMPLATE.md`). The index row follows at the end of step 8.
 5. **Push forward references**: anything learned that changes work in a WP
    that is not closed and not this one goes into *that* WP's `### Inherited`
    section, naming this WP as the source. **A follow-up with no obvious owner
    is checked for one before it becomes a new WP** — fold first, the rule in
    `docs/wp/TEMPLATE.md`'s header; WP-1469 filed four and withdrew two as
-   folds the same day. **Re-rate what this close moved**:
+   folds the same day. Look for an owner with `grep -rln` over `docs/wp/`.
+   Edit another WP's `### Inherited` or `Priority:` by range once the file
+   is over ~15 KB: `grep -n` for the heading, then `Read` with `offset`.
+   Below that size the extra round trip costs more than reading the whole
+   file. **Re-rate what this close moved**:
    a WP whose last blocker was this one, or whose trigger this work mooted,
    gets its `Priority:` line rewritten (tier, today's date, one clause naming
    this WP; rubric in `docs/wp/TEMPLATE.md`). An unrated WP (`—`) stays
    unrated unless the move is the reason to rate it.
-6. **Audit this session's CLAUDE.md edits** (root, `gui/`, `tests/`,
+6. **Review the diff before it becomes a PR.** Run `/code-review high
+   --fix` — it reads this session's work (a clean tree means the branch's own
+   diff against `origin/main`) and applies what it accepts to the working
+   tree. It belongs *here*, ahead of step 7's test runs and step 10's verify,
+   because a fix is a code change: one landed after the suite ran, or after
+   the PR was opened, leaves neither the quoted counts nor the review
+   describing the tree that merges. It is also ahead of `gh pr ready` (step
+   11), so its fixes ride pushes to the draft, which run lint alone. The full
+   matrix then runs once, on the tree this handover hands over.
+
+   **A prose-only branch skips it**, saying so in one line. `/code-review`
+   hunts correctness bugs in code, and a branch that touched only `docs/`,
+   the `CLAUDE.md`s and the markdown under `.claude/` gives it nothing to
+   read. A `.py` anywhere, hooks and skill scripts included, is code. The
+   review a prose branch gets is step 7's checklist against what it
+   declared, and step 10's `test_docs_consistency.py`.
+   - Each accepted fix lands as its own commit prefixed `WP-NNNN:` like any
+     other work; one left uncommitted fails step 10's clean-tree check.
+   - **A finding is advice, not a gate** — declining one is a line in the
+     handover entry, never silence. Say there what the pass changed, or that
+     it found nothing: a review that left no trace cannot be told apart from
+     one that never ran.
+   - A finding outside this WP goes into that WP's `### Inherited` (step 5),
+     not into this branch.
+7. **Audit this session's CLAUDE.md edits** (root, `gui/`, `tests/`,
    `src/rietx/indexing/`): every added line must be a standing rule
    (protocol rule 4 — evidence compressed to a clause plus a pointer), never
    a dated finding. Counts and timings this session measured go **in the
@@ -103,42 +138,25 @@ steps below run unchanged.
 
    Reading your own diff for these is weaker than reading someone else's, so
    name the trigger rather than scanning: this is a checklist against what
-   the session *added*, not a re-review of it.
-7. **If the WP is closing** (✅/🛑): delete its consumed `### Inherited`
+   the session *added*, not a re-review of it. Nor is it a re-read. At this
+   context, each line read here is paid again by every request left, and
+   step 6's review has already read the diff.
+8. **If the WP is closing** (✅/🛑): delete its consumed `### Inherited`
    section and its `Priority:` line (a closed WP's priority is moot), and
    MOVE its narrative to the in-flight milestone record (the in-flight
    `docs/milestones/vX.Y.md` § "How vX.Y is getting here"; the last shipped
-   record's when no milestone is open). Leave ROADMAP's Current focus alone:
+   record's when no milestone is open). Append to the record by range:
+   `grep -n '^##'` for the section, then `Read` only its last lines. Records
+   grow long; v1.0's reached 340 KB. Leave ROADMAP's Current focus alone:
    it holds milestone prose, and the index lists what is in flight and next
    (WP-1507).
    **Then, closing or not, run `python3 .claude/hooks/wp_index.py`**, once,
-   after every header edit of steps 4, 5 and 7. It rewrites
+   after every header edit of steps 4, 5 and 8. It rewrites
    `docs/wp/README.md`, and a test fails while the index is stale.
-8. **Sweep session memory notes**: anything in the assistant memory
+9. **Sweep session memory notes**: anything in the assistant memory
    directory that corrects or extends the repo record gets ported into the
    repo now — a memory note is not a channel to the next session's repo
    state.
-9. **Review the diff before it becomes a PR.** Run `/code-review high
-   --fix` — it reads this session's work (a clean tree means the branch's own
-   diff against `origin/main`) and applies what it accepts to the working
-   tree. It belongs *here*, ahead of Verify, because a fix is a code change:
-   one landed after the suite ran, or after the PR was opened, leaves neither
-   the quoted counts nor the review describing the tree that merges.
-
-   **A prose-only branch skips it**, saying so in one line. `/code-review`
-   hunts correctness bugs in code, and a branch that touched only `docs/`,
-   the `CLAUDE.md`s and the markdown under `.claude/` gives it nothing to
-   read. A `.py` anywhere, hooks and skill scripts included, is code. The
-   review a prose branch gets is step 6's checklist against what it
-   declared, and step 10's `test_docs_consistency.py`.
-   - Each accepted fix lands as its own commit prefixed `WP-NNNN:` like any
-     other work; one left uncommitted fails step 10's clean-tree check.
-   - **A finding is advice, not a gate** — declining one is a line in the
-     handover entry, never silence. Say there what the pass changed, or that
-     it found nothing: a review that left no trace cannot be told apart from
-     one that never ran.
-   - A finding outside this WP goes into that WP's `### Inherited` (step 5),
-     not into this branch.
 10. **Verify**: run `python3 .claude/hooks/session_start.py` — the scan the
     *next* session starts from. It must come back with no flag for this WP; a
     flag here means the entry was written in a form it cannot read, or that
@@ -154,7 +172,7 @@ steps below run unchanged.
     2026-08-18: `11ec1cd5` sat there until the next session's repair).
 
     **And green on this branch is not green on what lands.** Where the session
-    ran the full suite at all — step 6's rule, when the change could move a
+    ran the full suite at all — step 7's rule, when the change could move a
     measured number — run it on **current main merged into this branch**, not
     on the bare branch: `git fetch origin main` and merge it in first. Nothing
     else ever tests that tree. Branch protection is `strict: false`, so a PR
