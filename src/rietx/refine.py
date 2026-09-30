@@ -2630,6 +2630,22 @@ class Refinement:
             # need not name its cell again for it to keep refining
             table.set_vary(self._held, True)
             self._held = []
+        if mode in ("lebail", "pawley"):
+            # never refine structural parameters, the phase scale (degenerate
+            # with the per-hkl intensities) or the line-intensity ratio (which
+            # those intensities can absorb pairwise) against the intensity
+            # model; drop them from the reported freed list too — it must
+            # describe the set actually left free.  By what the column *moves*
+            # since WP-1342, so a tie cannot carry one past the drop.  Before
+            # the seeds, never after: a seed writes the value whether or not
+            # the path then refines, so a force-fixed path seeded first came
+            # back holding the seed (the magnetic_width preset's 0.05° under
+            # Le Bail, drawn split by the next Rietveld fit).
+            reach = table.column_reach()
+            for path in list(freed):
+                if mode_fixed_column(reach.get(path, [path]), mode):
+                    table.set_vary([path], False)
+                    freed.remove(path)
         if stage.seed:
             # lift softplus coefficients (e.g. extinction) off the zero floor
             # so TRF has a live gradient this stage
@@ -2638,18 +2654,6 @@ class Refinement:
             # the Stephens DOFs are identity-transform, so the softplus seed
             # above never sees them; put an all-zero block on the isotropic ray
             table.seed_stephens(freed, stage.strain_seed)
-        if mode in ("lebail", "pawley"):
-            # never refine structural parameters, the phase scale (degenerate
-            # with the per-hkl intensities) or the line-intensity ratio (which
-            # those intensities can absorb pairwise) against the intensity
-            # model; drop them from the reported freed list too — it must
-            # describe the set actually left free.  By what the column *moves*
-            # since WP-1342, so a tie cannot carry one past the drop.
-            reach = table.column_reach()
-            for path in list(freed):
-                if mode_fixed_column(reach.get(path, [path]), mode):
-                    table.set_vary([path], False)
-                    freed.remove(path)
 
         # regenerate reflection list/windows/FCJ nodes with current values
         # (between-stage refresh; frozen within the stage); the free-path

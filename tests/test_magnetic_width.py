@@ -530,6 +530,26 @@ def test_an_intensity_model_force_fixes_the_width(mode):
     assert not any("magnetic_lor" in p.path for p in res.parameters)
 
 
+@pytest.mark.parametrize("mode", ["lebail", "pawley"])
+def test_an_intensity_model_never_seeds_a_width_it_force_fixes(mode):
+    """Round 2, item 1: the preset's step 2 seeds both widths, and the stage
+    runner used to seed ``freed`` *before* dropping the paths the mode
+    force-fixes — so a Le Bail or Pawley run of ``plan="magnetic_width"``
+    left both at ``MAGNETIC_WIDTH_SEED_DEG``, unrefined, and the next
+    Rietveld fit's "widths held at zero" step drew them split at 0.05°."""
+    ph = _mnf2()
+    ph.scale.value = 0.02
+    ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
+    ins.profile.u.value, ins.profile.w.value = 0.05, 0.03
+    data = _neutron_data(ph, ins)
+    ref = rx.Refinement(rx.Structure(phases=[_mnf2()]), ins.model_copy(deep=True))
+    res = ref.fit(data, mode=mode, plan=PLAN_PRESETS["magnetic_width"]())
+    out = ref.structure.phases[0]
+    assert (out.magnetic_lor_size.value, out.magnetic_lor_strain.value) == (
+        0.0, 0.0)
+    assert not any("magnetic_lor" in p.path for p in res.parameters)
+
+
 # ================================================ the staging rule
 
 def test_the_preset_is_the_three_step_order():
