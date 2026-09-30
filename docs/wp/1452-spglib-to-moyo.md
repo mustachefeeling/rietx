@@ -87,6 +87,27 @@ spglib convention, as PRs against the migration branch once it exists.
 
 ### Inherited
 
+- **2026-09-30, from the issue triage (issue #426): the two rules only the
+  maintainer can set, with a recommendation each.** *Evidence is thin*: the
+  local paper corpus held no space-group, Wyckoff or Bilbao item, and no
+  International Tables text was read. What was read: moyo's `setting.rs`
+  (`Setting::Standard` is origin choice 2 for centrosymmetric groups;
+  `Setting::Spglib` is the smallest Hall number, which is origin choice 1 by
+  accident of numbering), and a gemmi 0.7.5 run (a bare `Fd-3m` resolves to `:1`).
+  The remaining tool defaults (GSAS-II, FullProf, TOPAS, VESTA, pymatgen) are
+  unchecked. **The recommendation, not yet a decision:** (1) origin choice 2 for
+  all 24 two-origin families on both the magnetic and nuclear paths, since it
+  matches Bilbao, the ISO-MAG and BNS tables and moyo with no transform, and
+  moves only goldens at hall 0 and 525; other Hall numbers follow the ITA
+  setting transformation, not the normalizer, which has 1 to 92 160 candidates
+  (median 64); (2) rietx writes its own Wyckoff-letter rule, matching a site's
+  orbit to ITA's listed coordinates in the chosen setting, because the two
+  libraries differ on 151 of 23 497 sites (spglib) and 215 of 136 416 (moyo) and
+  no tool documents its tie-break; check it against the printed Fd-3m tables for
+  `:1` and `:2` first, since the libraries disagree in opposite directions there.
+  Record one golden per family with the inversion centre at (0, 0, 0), and a
+  release-note line for the move.
+
 - **2026-09-23, from the issue triage.** Issue #418 proposes moving
   `irreps.py`, `modes.py` and half of `isotropy.py` out of
   `crystallography/magnetic/`. Both changes touch the same files and both
