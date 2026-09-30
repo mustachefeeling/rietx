@@ -1,6 +1,6 @@
 # WP-1328 — magnetic interchange: magCIF in and out, and the readers stop refusing
 
-Milestone: v1.6 · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #544): the TOPAS moment writer, the `.pcr` Jbt stance and 1314's refusal list
+Milestone: v1.6 · Status: 🔄 2026-09-30 — every task landed (PR #544 the last); the `### Inherited` items remain to prune before it closes
 Depends on: 1327 (the model the files describe); 1118 soft (the coverage
 registry the foreign readers report through)
 Priority: P3 2026-09-23 — waits on 1327's model; P2 when it lands
@@ -236,9 +236,9 @@ is still named in the result.
       *refused* (`mag_only`, `mag_only_for_mag_sites`), each with its
       sentence; the TOPAS reader's raise becomes the registry's stance.
       (`mag_atom_out` is *ignored*, not read; handover 2026-09-27.)
-- [ ] The `.pcr` magnetic rows: Jbt = ±1 in the magnetic cell read,
+- [x] The `.pcr` magnetic rows: Jbt = ±1 in the magnetic cell read,
       Fourier-component form refused by name; a fixture per stance.
-- [ ] Manual Part 1 (`using/data.md` and the interchange chapter), skill
+- [x] Manual Part 1 (`using/data.md` and the interchange chapter), skill
       routing row for "you were handed a magnetic structure", and 1314's
       refusal list amended.
 - [x] Tests: round trips, the coverage stances, perturbation fuzz in
@@ -270,6 +270,81 @@ is still named in the result.
   [1319](1319-structure-interchange.md) the CIF writer's guard.
 
 ## Handover log
+
+### 2026-09-30 — the TOPAS moment writer and the `.pcr` stance landed from outside
+
+A magnetic phase now travels both ways through the two foreign formats that
+can state one. `write_topas_inp` writes it the way TOPAS's own magnetic
+examples do: `mag_space_group <BNS number>`, `mlx mly mlz` on each moment-
+bearing site in TOPAS's fractional basis, and `mg` where a Landé g is set.
+What a `str` cannot state, it refuses by name. A FullProf `.pcr` with a `Jbt
+= ±1` phase in its own nuclear cell at k = 0 now reads onto that nuclear
+phase, and every other magnetic stance is refused by name. Both writer
+halves ran in TOPAS 6 as a black box, and on those three blocks TOPAS's
+intensities match rietx's to one constant factor. This landed as PR #544
+(`mustachefeeling`), merged as `fa3d0827` in a `/pr-review` run, with #551
+(#550's ion spelling) already on `main`, so the written files run unchanged.
+Every task is now ticked. The `### Inherited` items remain, including a new
+one from this review.
+
+- *Done*: PR #544, in three commits and three review fixes.
+  - **TOPAS writer.** `_magnetic_group_line` refuses a non-standard setting,
+    a group with no tabulated number, a nuclear group larger than the
+    magnetic family group (#457 tier 1), a group with no site moment, a
+    moment ion ≠ the site species, and a propagation vector (either
+    `MagneticSymmetry.propagation_vector_parent` or
+    `Phase.propagation_vector`, which used to be dropped from a `.inp` in
+    silence). The write → read round trip holds to one ulp on 60 moments per
+    cell class, orthorhombic, monoclinic and oblique triclinic. `(m/a)·a` is
+    not always `m`, and neither neighbouring double of the quotient does
+    better.
+  - **`.pcr` reader.** `magnetic_reading(model, phase)` returns a
+    `MagneticReading` or its refusal as a sentence. It reads a SYMM/MSYM
+    pair as a Shubnikov operation exactly when M = ±det(R)·R at phase 0 (the
+    FullProf manual's eq. 3.52). It requires the counterpart's cell, Biso,
+    multiplicity and `Scale × f²`. `FULLPROF_MAGNETIC_PHASE_READ` (info)
+    reports the merge. It refuses by name the Fourier form, `Isy = -2`, `Cen
+    = 2`, `MagMat > 1`, a non-axial MSYM, no nuclear phase in the cell, a
+    scale mismatch, `Jbt = -1` on a non-orthogonal cell, soft moment
+    constraints and moment ties.
+  - **Docs.** `using/files.md` and `using/data.md` in the manual, the
+    skill's §7j routing row (4 bytes shorter), `references/magnetic.md`'s
+    two code rows, and 1314's refusal list, which now drops the commensurate
+    phase. Both WP edits were accepted by the maintainer in the batch.
+- *Review fixes* (round 2, `2933d17`, `76a2cba`, `ea7dc19`). A `Jbt = ±1`
+  phase with no sites, and a counterpart symbol gemmi cannot parse, used to
+  escape as bare `ValueError`s naming no file (`max()` of an empty list;
+  gemmi's "Unknown space-group name"). Both now refuse by name. The read
+  message quoted `found.bns_number` without checking `found.named`, so an
+  unnamed group printed `(BNS unnamed)`, the property's placeholder. It now
+  quotes `found.reason`, as `_magnetic_group_line` does.
+- *Gotchas*:
+  - **A partly freed moment reads fully free.** A `Moment` carries one
+    refine flag (its three `vary` are one intent that frees the DOFs), so a
+    site whose `.pcr` frees only M under `Jbt = -1` comes in with the
+    direction free too. The TOPAS reader on `main` merges the same way. The
+    read message now names such a site.
+  - **Two conformance readings that were not findings.** The writer's single
+    `@`/`!` for `mlx mly mlz` is the io rulebook's "merges free, and the
+    group is named". "Kit 2" was not a private-corpus name: it is the
+    2026-09-25 TOPAS measurement cell, and the test comments now point at
+    `TopasSite.moment`'s moment-basis note.
+- *Next*: prune `### Inherited`. The 2026-09-30 item (the GSAS, FullProf and
+  GSAS-II writers drop `Phase.propagation_vector` silently) is the one this
+  review added. A `.pcr` *writer* for `Jbt = 1` was not attempted. Then
+  close this WP.
+- *Measured on the merged tree* (Linux x86_64, 4 cores, py3.12.3,
+  `[dev,jax]`, run as root). Round 1, on `4de2528` + #544: the area files
+  with slow tests (`test_projects_topas`, `_fullprof`, `_fullprof_magnetic`,
+  `test_writers_refuse_magnetic`, `test_magcif`, `_gsas`, `_gsas2`,
+  `test_portability`, `test_skill`, `test_manual`, `test_manual_api`,
+  `test_docs_consistency`), 969 passed, and both refusal reproductions as a
+  scratch script. The gate, in one stack with #556 and #537 (no shared file)
+  on `44eaa09`: 7143 passed, 119 skipped, 1 failed in 1:09:15. The failure
+  is `test_held_phase`'s ramp runaway guard (70.3 s against 60 s; 19.6 s
+  alone, WP-1420's load sensor). `main` after the three merges, `e8d15d0`,
+  is content-identical to the gated tree.
+
 
 ### 2026-09-29 — the foreign writers' refusal landed from outside (#470)
 

@@ -1,6 +1,6 @@
 # WP-1337 — an authored refusal, not a raw traceback
 
-Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #537)
+Milestone: unscheduled · Status: 🔄 2026-09-30 — all six tasks landed (PR #537); `### Inherited` to prune, then close
 Track: What fires, and what stays silent
 Depends on: — (1311, 1321 soft: they own the bounds this refusal inherits)
 Priority: P3 2026-09-23 — two loud failures made legible; the traceback names the wrong thing, never a wrong number
@@ -184,21 +184,21 @@ lands first.
 
 ## Tasks
 
-- [ ] A synthetic Pawley fixture that genuinely floors a width candidate —
+- [x] A synthetic Pawley fixture that genuinely floors a width candidate —
       without it #244 cannot be pinned. Decided 2026-09-03: take the
       reporter's offer to build it.
-- [ ] Establish whether the two builds' row-count disagreement is the Pawley
+- [x] Establish whether the two builds' row-count disagreement is the Pawley
       restraint block in `model/rows.py::layout()`; fix at the layout, not at
       the column copy, if so.
-- [ ] Whatever the mechanism, `suggest()` names the parameter whose seeded
+- [x] Whatever the mechanism, `suggest()` names the parameter whose seeded
       probe changed the row count rather than letting numpy speak.
-- [ ] `tie()`'s bound refusal checks the coordinates a DOF target reaches
+- [x] `tie()`'s bound refusal checks the coordinates a DOF target reaches
       (its symmetry affine ties), not only the target entry's own bounds —
       naming the tie, the implied value, the atom and the bound, in the voice
       of the existing six.
-- [ ] Tests: the #246 reproduction asserts the message's content, not just the
+- [x] Tests: the #246 reproduction asserts the message's content, not just the
       raise; the Pawley fixture asserts `summary()` returns.
-- [ ] Skill: `references/surprises.md` — the row that declaring bounds
+- [x] Skill: `references/surprises.md` — the row that declaring bounds
       everywhere (the #204 workaround) is what exposes the tie refusal, since
       an agent following one row should not be surprised by the other.
 
@@ -220,6 +220,60 @@ Pawley fixture's `summary()` returns.
 
 ## Handover log
 
+- **2026-09-30** — Both refusals landed from outside: PR #537
+  (`mustachefeeling`), merged as `e8d15d01` in a `/pr-review` run, closing
+  #244 and #246. All six tasks are ticked. `tie()` now refuses a tie that
+  pushes a coordinate out of its bounds in its own voice: it names the tie
+  as written, the implied value, the atom and the bound, and registers
+  nothing. `suggest()` and `summary()` no longer die in a numpy broadcast on
+  a Pawley fit. The PR also fixed a state bug nobody had reported: a `tie()`
+  that raised used to leave the tie registered, so the corrected retry was
+  refused with "already follows … untie it first". That predates #261.
+  - **#246.** `_declare_ties` refreshes the new ties on its throw-away
+    working table before registering them, and refuses any entry they moved
+    out of its bounds. If the commit fails for any other reason, the
+    register is restored. The post-solve write-back refusal stays, because
+    it is still the right message for the multi-source corner § 8.22
+    describes.
+  - **#244: the mechanism is the Pawley restraint block, but the fix sits at
+    the column copy, not in `layout()`.** This departs from task 2's
+    wording, and the PR argues it: the two builds really do have different
+    overlap groups, because their widths differ, so `layout()` is right for
+    each. `suggest()` is the only consumer that mixes them. It now copies a
+    seeded column one row block at a time. A block of equal length is copied
+    bit-identically. A block whose length differs keeps the current rows,
+    which is exact only where the column is zero in both builds, and that
+    condition is checked where it is used. If it fails, `suggest()` raises
+    naming the parameter and the block (task 3).
+  - **The fixture (task 1)** is synthetic: a pseudo-tetragonal P 1 21/c 1
+    cell (5.310 / 5.327 / 9.20 Å) with a narrow profile and a specimen width
+    the model does not carry. A background-only Pawley fit floors all four
+    sample widths, and on `main` `summary()` raised `could not broadcast …
+    (1533,) into (1528,)`. The test asserts that the seeds really move the
+    restraint block, that `summary()` returns a `next: free …` line, and
+    that the seeded column (not only the flag) reaches the result: it scores
+    in `{profile.y, lor_size, lor_strain}`. Disabling the block copy moves
+    it and fails the test.
+  - **Skill (task 6).** `surprises.md` § 8.22 gains the paragraph that
+    declaring bounds on every coordinate is what exposes the refusal
+    (`Measured: WP-1337, #246.`). Its wording reads for every space group,
+    not only P 1.
+  - **Gotcha for whoever lands #546 second: `surprises.md`'s budget.** This
+    PR takes the file to 34 558 B, leaving 42 B of its 34 600 B budget. #546
+    adds 398 B, so whichever lands second cuts on rebase. The hunks do not
+    overlap (§ 8.22's tail against § 8.30).
+  - **Next: prune `### Inherited` and close.** Both entries read as answered
+    by this PR. The 1119 entry asked for the atom label and the user's own
+    tie in the message. The 1321 entry notes that declared ranges now reach
+    57 fields, and the refusal checks every entry the new ties move, not
+    only coordinates. Confirm the second against the tree before deleting
+    it.
+  - **Measured on the merged tree** (Linux x86_64, 4 cores, py3.12.3,
+    `[dev,jax]`, run as root), in one stack with #556 and #544 (no shared
+    file) on `44eaa09`: 7143 passed, 119 skipped, 1 failed in 1:09:15. The
+    failure is `test_held_phase`'s ramp runaway guard (70.3 s against 60 s;
+    19.6 s alone, WP-1420's load sensor). `main` after the three merges,
+    `e8d15d0`, is content-identical to the gated tree.
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issues #244,
   #246). Grouped because both are loud failures in the wrong voice, and
   because #246's exposure is created by following #204's workaround.

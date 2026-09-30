@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: v1.6 · Status: 🔄 2026-09-29 — M-6 and M-7 landed (PR #389), the #439 row (PR #449) and M-7's frame fix (PR #536); #455's class-count fixes are open (PRs #532, #535); M-8, M-9, the Part 1 chapter and the skill rows remain
+Milestone: v1.6 · Status: 🔄 2026-09-30 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536) and #455's Gram path (PR #535); #455's basis fix is open (PR #532); M-8, M-9, the Part 1 chapter and the skill rows remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -541,3 +541,64 @@ no magnetic model declared.
     eight isotropy-importing files, `-m slow`, gave 35 passed. The positive
     arm reproduces the PR's table: with `main`'s `isotropy.py`, 6 of the 8
     new cases fail and the two controls pass. `-W` build clean.
+- **2026-09-30** — #455's Gram path landed from outside: PR #535
+  (`mustachefeeling`), merged as `44eaa091` in a `/pr-review` run. It
+  addresses #455 and does not close it. `powder_equivalent` answers the same
+  question as before, much faster: one evaluation is ×110-×180 cheaper and a
+  cubic `P n -3 m:1` `equivalence_classes` run takes 53 s where it took
+  920-2708 s. It changes no definition. #532, the seed and basis half of
+  #455, is still open and now has to rebase onto this.
+  - **What it does.** M⊥ is linear in a family's real amplitudes b, so a
+    shell's powder intensity is bᵀG_s b, with one real PSD matrix per shell
+    (`isotropy.gram`). `_fit_residual`, `powder_intensities(factors=…)` and
+    `determinable_amplitudes` evaluate through the stack, and the exact
+    Jacobian is 2G_s b. It agrees with the tensor path to 3e-15. That check
+    cannot see a frame error, since both contract the same structure
+    factors. #536's frame tests run through the Gram path and pass.
+  - **Dark shells.** A shell with G_s under `INTENSITY_RTOL` of the stack's
+    largest can never be lit by the fitted family. If the target is dark
+    there too, the row is dropped. If the target is lit there by more than
+    `rtol`, the fit returns that floor without drawing a start. This is
+    exact for G_s ≡ 0 only, and the docstring now says so: a shell counted
+    dark at the tolerance can still reach the target for a large enough ‖b‖.
+    The dark-shell rule settles 36 of 132 cubic ordered pairs, and 12 of 16
+    on each `P n m a` case.
+  - **The solver.** `lm` when the live shells are at least the amplitudes,
+    `trf` otherwise, since `lm` refuses fewer residuals than variables. On
+    the fixed frame, `trf` on the live rows hits as often as `lm` on all
+    rows, or more, on every pair measured (18→18 cubic: 11-16 of 16 against
+    2-11). That is #389's rule.
+  - **What it does not do.** The cubic partition is still statistical. On
+    the fixed frame, 3 seeds × 3 bases give 3 distinct partitions of 2-4
+    classes. S3 and S4 merge in all nine, and S1 against S2 moves. That
+    rotation dependence is #532's. The 11-against-5 comparison in the PR's
+    first description was measured in the wrong frame on both sides. At the
+    default seed, `main` and the branch now give the same 2 classes. The
+    test file does not get faster: 94.1 s of 94.3 s on an `F m -3 m`
+    `analyse` is `_domain_operations` closing the grey little group in exact
+    `Fraction` arithmetic once per `structure_factors` call. The PR names
+    that as a separate small fix.
+  - **Next, for whoever lands #532.** Its three `isotropy.py` hunks conflict
+    with this one. The resolution both PRs agreed: keep #532's canonical
+    basis, early stop and cap, and this PR's `grams` argument, so
+    `_fit_residual(target, grams, rng, *, restarts, rtol)`, where `rtol`
+    serves as both the dark-shell floor and the early stop. #532's
+    `test_the_fit_stops_at_the_first_restart_that_reproduces` moves from
+    `factors, shells` to `grams`. Hoist `gram(...)` beside #532's
+    once-per-case `structure_factors` in `equivalence_classes`. Here it is
+    built per draw, about 2.6 ms. Measure `test_magnetic_isotropy.py` once
+    on the combined tree: #532's raised cap cost that file ×12-17 on `main`,
+    and this path paid for most of it in round 1 (cubic tests 73-75 s
+    against 207-215 s).
+  - **Gotchas the review found.** `INTENSITY_RTOL` is declared on |M⊥|².
+    This PR applies it to G, which is |M⊥|²-scale, so it matches the
+    declaration. `systematic_absences` still applies it to |M⊥|. That
+    predates both PRs and is recorded in the 2026-09-29 entry above.
+  - **Measured on the merged tree** (Linux x86_64, 4 cores, py3.12.3,
+    `[dev,jax]`, run as root, nothing else running, on `origin/main`
+    `4de2528` with #535). Full suite with slow tests included: 7092 passed, 120 skipped,
+    1 failed in 1:09:14. The failure is `test_held_phase`'s ramp runaway
+    guard (81.7 s against 60 s; 18.8 s alone, WP-1420's load sensor). The
+    7092 is the previous gate's 7084 plus this PR's 8 tests. `main` then
+    moved by #560 (two WP files), and `test_docs_consistency` re-ran on the
+    rebuilt tree: 25 passed.
