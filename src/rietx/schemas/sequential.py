@@ -482,7 +482,17 @@ class MagneticTrajectory(Trajectory):
     #: the row has no esd to take the ratio against — the modulus was stated
     #: and held, or the pattern did not see the phase and WP-1301 held its
     #: structural paths for the stage, a closed-shutter frame being the plain
-    #: case — and where the fit ``"diverged"`` and was quarantined.  Such a
+    #: case — and where the fit ``"diverged"`` and was quarantined.  **Not**
+    #: where the kept fit stayed above the chain's Rwp fence
+    #: (:attr:`SeriesEntry.above_fence`): that fence reports and does not
+    #: judge (WP-1469), and on the starved-chain ramp of
+    #: ``tests/test_magnetic_series.py``, fed 20 iterations, it fires on a
+    #: converged, correct pattern — the first above the transition, Rwp 0.0166
+    #: against a limit of 0.0151 set by the one ordered pattern before it.
+    #: Withholding that verdict widened the right bracket, 10 → 70 K, to
+    #: 10 → 80 K.  A bad frame that still sees its phase keeps a verdict
+    #: against its own covariance, and ``SEQUENTIAL_RWP_OUTLIER`` names it on
+    #: the same series.  Such a
     #: point is neither released nor held by the data: it is plotted, its
     #: ``supported`` is False and its esd ``None``, and :func:`locate_onset`
     #: leaves it out.  Counting it as held put a confident bracket one

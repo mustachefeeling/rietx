@@ -46,6 +46,7 @@ import pytest
 import rietx as rx
 from rietx.report.schemas import MOMENT_SUPPORT_SIGMA, MomentEvidence
 from rietx.schemas.common import Parameter
+from rietx.schemas.results import Statistics
 from rietx.schemas.sequential import (
     MagneticOnset,
     MagneticTrajectory,
@@ -850,6 +851,29 @@ def test_a_folded_onset_row_never_asks_for_the_run_that_just_ran(
     assert "direction='both'" not in row.suggestion
     if row.level == "warning":
         assert "series.backward.magnetic_trajectory()" in row.suggestion
+
+
+def test_a_pattern_above_the_rwp_fence_keeps_its_verdict():
+    """WP-1469's fence is read, and deliberately not obeyed, by the onset.
+
+    The fence reports and does not judge: it cannot tell a blank frame from a
+    lasting change or a sound fit to fewer counts, and on the starved-chain
+    ramp below it fires on a converged, correct pattern (see
+    :attr:`MagneticTrajectory.measured`).  So an above-fence pattern that still
+    gives a verdict gives it here too; a blank frame gives none for its own
+    reason, the phase going unseen.
+    """
+    series = _verdicts(_BRACKETED)
+    series.entries[3] = series.entries[3].model_copy(update={
+        "rwp_fence": 0.0151, "statistics": Statistics(
+            rwp=0.0166, rp=0.01, rexp=0.015, chi2=1.2, gof=1.1, n_points=100,
+            n_free_parameters=5)})
+    assert series.entries[3].above_fence
+
+    traj = series.magnetic_trajectory()
+    assert traj.measured == [True] * 5
+    assert traj.onset.bracket == [60.0, 75.0]
+    assert traj.onset.unmeasured_labels == []
 
 
 # ================================================== the negative controls, refined
