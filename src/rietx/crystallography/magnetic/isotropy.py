@@ -1880,8 +1880,8 @@ def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
 
     ``grams`` is that family's :func:`gram` stack, so I_s(b) = bᵀ G_s b and the
     fit is a small non-linear least squares with the exact Jacobian 2·G_s·b.
-    Several restarts because a quadratic-form fit has sign and
-    permutation symmetries, and a start can sit on a saddle or roll into a
+    Several restarts because a quadratic-form fit has sign and permutation
+    symmetries, and a start can sit on a saddle or roll into a
     local minimum: on the five non-cubic cases of issue #455, measured with
     #534's frame fix, 48 % of single restarts on a pair known to be
     equivalent reached the global minimum (367 of 768), and the failures
@@ -2024,18 +2024,25 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     if little is None:
         little = _irreps.little_group(a.space_group, a.k)
     a, b = _canonical_basis(a), _canonical_basis(b)
-    return _powder_equivalent(a, b, structure_factors(a, refl, little=little),
-                              structure_factors(b, refl, little=little), refl,
-                              draws=draws, seed=seed, rtol=rtol, restarts=restarts)
+    fa = structure_factors(a, refl, little=little)
+    fb = structure_factors(b, refl, little=little)
+    return _powder_equivalent(a, b, fa, fb, gram(fa, refl.shells), gram(fb, refl.shells),
+                              refl, draws=draws, seed=seed, rtol=rtol, restarts=restarts)
 
 
 def _powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
-                       fa: np.ndarray, fb: np.ndarray, refl: ReflectionSet, *,
+                       fa: np.ndarray, fb: np.ndarray, ga: np.ndarray, gb: np.ndarray,
+                       refl: ReflectionSet, *,
                        draws: int, seed: int, rtol: float, restarts: int) -> bool:
-    """:func:`powder_equivalent` on canonical candidates whose factors are already built."""
+    """:func:`powder_equivalent` on canonical candidates whose factors and grams are built.
+
+    ``ga``/``gb`` are ``gram(fa, refl.shells)``/``gram(fb, refl.shells)``, the
+    only form the draws and the fits read, so each is built once per candidate
+    rather than once per draw; the target is :func:`powder_intensities`'
+    own quadratic form on the same stack, so every number is the one it returns.
+    """
     rng = np.random.default_rng(seed)
-    for source, factors in ((a, fb), (b, fa)):
-        other = fa if factors is fb else fb
+    for source, other, own, fitted in ((a, fa, ga, gb), (b, fb, gb, ga)):
         # A family whose M⊥ vanishes at every reflection of this set has *no*
         # powder pattern to this d limit — every shell is a systematic absence
         # — so nothing here can be distinguished from it, and the draws below
@@ -2049,11 +2056,10 @@ def _powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
             continue
         for _ in range(draws):
             amplitudes = _normalised_draw(source, refl.lattice, rng)
-            target = powder_intensities(source, amplitudes, refl, factors=other)
+            target = (own @ amplitudes) @ amplitudes
             if float(np.max(np.abs(target))) <= 0.0:
                 continue
-            if _fit_residual(target, gram(factors, refl.shells), rng,
-                             restarts=restarts, rtol=rtol) > rtol:
+            if _fit_residual(target, fitted, rng, restarts=restarts, rtol=rtol) > rtol:
                 return False
     return True
 
@@ -2073,16 +2079,17 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
     class only if no other chain of pairs joins it.  Read the count as
     measured at this ``seed``, ``draws`` and ``restarts``, not as a property
     of the group.  Each candidate's basis is made canonical and its structure
-    factors built once, rather than once per pair.  Cost: an equivalent pair
-    mostly stops at its first restart, while a distinguishable one pays the
-    full ``restarts`` once, so a set whose pairs are all distinguishable pays
-    the cap in full (``P n m a`` at Γ, four classes: ×5 the wall time of
+    factors and :func:`gram` stack built once, rather than once per pair or
+    per draw.  Cost: an equivalent pair mostly stops at its first restart,
+    while a distinguishable one pays the full ``restarts`` once, so a set
+    whose pairs are all distinguishable pays the cap in full (``P n m a`` at Γ, four classes: ×5 the wall time of
     4 restarts).
     """
     little = _irreps.little_group(candidate_set.space_group, candidate_set.k)
     n = len(candidate_set)
     canonical = [_canonical_basis(c) for c in candidate_set]
     factors = [structure_factors(c, refl, little=little) for c in canonical]
+    grams = [gram(f, refl.shells) for f in factors]
     parent = list(range(n))
 
     def find(i: int) -> int:
@@ -2096,7 +2103,7 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
             if find(i) == find(j):
                 continue
             if _powder_equivalent(canonical[i], canonical[j], factors[i], factors[j],
-                                  refl, draws=draws, seed=seed, rtol=rtol,
+                                  grams[i], grams[j], refl, draws=draws, seed=seed, rtol=rtol,
                                   restarts=restarts):
                 parent[find(j)] = find(i)
     groups: dict[int, list[int]] = {}
