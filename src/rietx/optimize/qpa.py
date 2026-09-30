@@ -50,41 +50,82 @@ from ..schemas.results import (
 )
 from ..schemas.structure import Structure
 
-_ELEMENT_RE = re.compile(r"^([A-Za-z]+)")
+_ELEMENT_RE = re.compile(r"^(\d*)([A-Za-z]+)")
+
+#: The two hydrogen nuclides with symbols of their own; every other nuclide is
+#: written mass-number-first (``"2H"``, ``"7Li"``, ``"157Gd"``), as the neutron
+#: table (:mod:`rietx.crystallography.neutron`) spells them.
+_HYDROGEN_NUCLIDE_MASS_NUMBER = {"D": 2, "T": 3}
+
+
+def _parse_species(species: str) -> tuple[str, int | None]:
+    """(element symbol, mass number or ``None``) of a scattering species.
+
+    The element is the leading alphabetic run resolved against gemmi's table,
+    trying the two-letter prefix before the one-letter one.  A plain greedy
+    two-letter parse mis-reads the valence-labelled species that are legal
+    Waasmaier-Kirfel keys — ``"Cval"`` would become the non-element ``"Cv"``;
+    here it falls back to ``"C"``, while ``"Siva"`` → ``"Si"`` and ``"Fe3+"``
+    → ``"Fe"`` resolve directly.  A leading mass number (``"7Li"``) names a
+    nuclide, and so do ``D`` and ``T``, which resolve to hydrogen.
+    """
+    m = _ELEMENT_RE.match(species.strip())
+    if m is None:
+        raise ValueError(f"cannot parse an element from species {species!r}")
+    digits, letters = m.groups()
+    mass_number = int(digits) if digits else None
+    for n in (2, 1):
+        if len(letters) >= n:
+            candidate = letters[:n].capitalize()
+            if candidate in _HYDROGEN_NUCLIDE_MASS_NUMBER:
+                if mass_number is not None:
+                    raise ValueError(f"species {species!r} gives a mass number "
+                                     f"to {candidate!r}, which already names one")
+                return "H", _HYDROGEN_NUCLIDE_MASS_NUMBER[candidate]
+            if gemmi.Element(candidate).atomic_number != 0:
+                return candidate, mass_number
+    raise ValueError(f"unrecognised element in species {species!r}")
 
 
 def element_symbol(species: str) -> str:
     """Element symbol from a scattering-species string (``"Fe3+"`` → ``"Fe"``).
 
-    Takes the leading alphabetic run, then resolves it to a real element by
-    trying the two-letter prefix before the one-letter one against gemmi's
-    table.  A plain greedy two-letter parse mis-reads the valence-labelled
-    species that are legal Waasmaier-Kirfel keys — ``"Cval"`` would become the
-    non-element ``"Cv"``; here it falls back to ``"C"``, while ``"Siva"`` →
-    ``"Si"`` and ``"Fe3+"`` → ``"Fe"`` resolve directly.  The ionic charge is
-    irrelevant to the atomic mass.
+    See :func:`_parse_species` for the grammar.  A nuclide resolves to its
+    **element** — ``"7Li"`` → ``"Li"``, ``"D"`` and ``"2H"`` → ``"H"`` —
+    because every caller of this function asks an element's question: the
+    X-ray attenuation (an electron-cloud property the nucleus's mass does not
+    change), a covalent radius, a formula.  The two questions whose answer
+    depends on the nucleus read the nuclide themselves: the mass
+    (:func:`atomic_weight`) and the neutron attenuation, which reads
+    :attr:`ZMV.species_counts`.  The ionic charge is dropped.
     """
-    m = _ELEMENT_RE.match(species.strip())
-    if m is None:
-        raise ValueError(f"cannot parse an element from species {species!r}")
-    letters = m.group(1)
-    for n in (2, 1):
-        if len(letters) >= n:
-            candidate = letters[:n].capitalize()
-            if gemmi.Element(candidate).atomic_number != 0:
-                return candidate
-    raise ValueError(f"unrecognised element in species {species!r}")
+    return _parse_species(species)[0]
 
 
 def atomic_weight(species: str) -> float:
-    """Standard atomic weight (g/mol) for a scattering species, via gemmi.
+    """Atomic weight (g/mol) for a scattering species, via gemmi.
 
-    gemmi carries the IUPAC standard atomic weights.  :func:`element_symbol`
-    has already rejected any symbol gemmi maps to its placeholder element "X"
-    (atomic number 0, weight 1.0), so a wrong-mass phase can never silently
-    poison the QPA ratio.
+    An element takes gemmi's IUPAC standard atomic weight.
+    :func:`element_symbol` has already rejected any symbol gemmi maps to its
+    placeholder element "X" (atomic number 0, weight 1.0), so a wrong-mass
+    phase can never silently poison the QPA ratio.
+
+    A **nuclide** is not the natural-abundance mixture, so it takes its own
+    mass: deuterium (``"D"``, ``"2H"``) gemmi's 2.0141, and every other
+    nuclide its mass number A.  gemmi carries no other nuclide mass.  A differs
+    from the nuclide's atomic mass by its mass excess: against the NIST masses
+    (``periodictable`` 2.1.0), over the 275 mass-numbered nuclides of the
+    Sears table the error is at most 0.78 % (¹H), 0.53 % (³H) and 0.26 %
+    (⁶Li) above A = 4, and at most 0.098 u (¹¹⁸Sn).  The natural-abundance
+    weight would be wrong by far more on exactly the nuclides a neutron
+    structure is written with: 1.008 for ²H, 6.94 for ⁷Li.
     """
-    return float(gemmi.Element(element_symbol(species)).weight)
+    element, mass_number = _parse_species(species)
+    if mass_number is None:
+        return float(gemmi.Element(element).weight)
+    if element == "H" and mass_number == 2:
+        return float(gemmi.Element("D").weight)
+    return float(mass_number)
 
 
 @dataclass(frozen=True)
@@ -102,9 +143,14 @@ class ZMV:
     zmv: float            # cell_mass · V
     z: int                # formula units per cell (>= 1)
     molar_mass: float     # M = cell_mass / z, g/mol per formula unit
-    # occupancy-weighted atom counts per cell, keyed by element symbol —
-    # feeds crystallography.attenuation.linear_attenuation for microabsorption
+    # occupancy-weighted atom counts per cell, keyed by element symbol — the
+    # composition an element's question reads (the formula units, and the
+    # X-ray attenuation: crystallography.attenuation.linear_attenuation)
     element_counts: dict[str, float] = field(default_factory=dict)
+    # the same counts keyed by the species *as written* ("D", "7Li", "Fe3+"),
+    # for a table that tells nuclides apart: the neutron attenuation reads
+    # these, where ²H scatters incoherently 2.05 barn against ¹H's 80.26
+    species_counts: dict[str, float] = field(default_factory=dict)
 
     @property
     def density(self) -> float:
@@ -154,6 +200,7 @@ def phase_zmv(space_group, cell: tuple[float, float, float, float, float, float]
     volume = cell_volume(*cell)
     cell_mass = 0.0
     element_counts: dict[str, float] = {}
+    species_counts: dict[str, float] = {}
     for idx, (species, x, y, z, occ) in enumerate(atoms):
         if multiplicities is not None:
             multiplicity = int(multiplicities[idx])
@@ -163,10 +210,12 @@ def phase_zmv(space_group, cell: tuple[float, float, float, float, float, float]
         cell_mass += count * atomic_weight(species)
         sym = element_symbol(species)
         element_counts[sym] = element_counts.get(sym, 0.0) + count
+        species_counts[species] = species_counts.get(species, 0.0) + count
     z_units = _formula_units(element_counts)
     molar_mass = cell_mass / z_units if z_units else cell_mass
     return ZMV(cell_mass=cell_mass, cell_volume=volume, zmv=cell_mass * volume,
-               z=z_units, molar_mass=molar_mass, element_counts=element_counts)
+               z=z_units, molar_mass=molar_mass, element_counts=element_counts,
+               species_counts=species_counts)
 
 
 def weight_fractions(zmv, scales, scale_cov=None):
@@ -334,7 +383,8 @@ def microabsorption_diagnostics(qpa: QuantitativePhaseAnalysis) -> list[Diagnost
 
 def compute_qpa(structure: Structure, values: dict[str, float],
                 scale_cov=None, multiplicities=None,
-                wavelength: float | None = None,
+                wavelength: float | None = None, *,
+                source_kind: str = "xray_cw",
                 ) -> QuantitativePhaseAnalysis | None:
     """Assemble the per-phase QPA rows from a decoded parameter dict.
 
@@ -347,7 +397,9 @@ def compute_qpa(structure: Structure, values: dict[str, float],
     coordinates that may have drifted near a special position.
 
     ``wavelength`` (Å, primary emission line) enables the Brindley
-    microabsorption correction for phases carrying ``particle_radius_um``.
+    microabsorption correction for phases carrying ``particle_radius_um``,
+    with µ from the table ``source_kind`` (the histogram's ``Source.kind``)
+    names in :data:`LINEAR_ATTENUATION_BY_SOURCE`.
     The correction needs *every* phase's radius (τ compares each phase to the
     mixture average µ̄, which a phase of unknown size would corrupt); partial
     input or an unavailable µ records ``microabsorption_skipped`` instead of
@@ -410,21 +462,36 @@ def compute_qpa(structure: Structure, values: dict[str, float],
         for ip, phase in enumerate(structure.phases)
     ]
     qpa = QuantitativePhaseAnalysis(phases=rows)
-    _apply_microabsorption(qpa, structure, zmvs, w, wavelength)
+    _apply_microabsorption(qpa, structure, zmvs, w, wavelength, source_kind)
     return qpa
 
 
-#: The linear-attenuation function that answers for each ``Source.kind`` —
-#: the **one** place radiation enters the specimen-absorption estimate
-#: (WP-1132).  Everything around it — the composition, the volume fractions
-#: from the refined scales, the packing fraction and which length µ_bulk
-#: multiplies — is radiation-blind and shared.  A kind missing here has no
-#: table, and the estimators decline for it with a reason rather than borrow
+def _phase_mu_xray(zmv: ZMV, wavelength: float) -> float:
+    """X-ray µ (1/cm) of one phase: McMaster, read by element."""
+    return linear_attenuation(zmv.element_counts, zmv.cell_volume, wavelength)
+
+
+def _phase_mu_neutron(zmv: ZMV, wavelength: float) -> float:
+    """Neutron µ (1/cm) of one phase: Sears (1992), read by nuclide."""
+    return linear_attenuation_neutron(zmv.species_counts, zmv.cell_volume,
+                                      wavelength)
+
+
+#: The per-phase linear attenuation µ (1/cm) that answers for each
+#: ``Source.kind`` — the **one** place radiation enters the specimen-absorption
+#: estimates (WP-1132) and the Brindley microabsorption correction (#543).
+#: Everything around it — the composition, the volume fractions from the
+#: refined scales, the packing fraction, which length µ_bulk multiplies, and
+#: Brindley's τ(µR) — is radiation-blind and shared.  Each entry also picks
+#: which identity its table reads: X-ray µ is an electron-cloud property and
+#: reads the composition by element, neutron µ is a nuclear one and reads it
+#: by nuclide (²H and ¹H differ forty-fold in σ_inc).  A kind missing here has
+#: no table, and every caller declines for it with a reason rather than borrow
 #: another radiation's: X-ray and neutron µ are different quantities, not
 #: coarse and fine versions of one.
 LINEAR_ATTENUATION_BY_SOURCE = {
-    "xray_cw": linear_attenuation,
-    "neutron_cw": linear_attenuation_neutron,
+    "xray_cw": _phase_mu_xray,
+    "neutron_cw": _phase_mu_neutron,
 }
 
 
@@ -528,8 +595,7 @@ def _specimen_mu_and_volumes(structure: Structure, values: dict[str, float],
                 resolve_group(phase.space_group, phase.symmetry_operations),
                 cell, atoms, multiplicities=mult))
             scales.append(values[f"{base}.scale"])
-        mus = [attenuation(z.element_counts, z.cell_volume, wavelength)
-               for z in zmvs]
+        mus = [attenuation(z, wavelength) for z in zmvs]
     except (KeyError, ValueError) as exc:
         return None, f"attenuation unavailable — {exc}"
 
@@ -541,13 +607,18 @@ def _specimen_mu_and_volumes(structure: Structure, values: dict[str, float],
 
 
 def _apply_microabsorption(qpa: QuantitativePhaseAnalysis, structure: Structure,
-                           zmvs: list[ZMV], w, wavelength: float | None) -> None:
+                           zmvs: list[ZMV], w, wavelength: float | None,
+                           source_kind: str = "xray_cw") -> None:
     """Attach the Brindley correction to assembled QPA rows, in place.
 
     Fills the per-phase τ / µ / µR / corrected-fraction fields and the
     mixture-level :class:`MicroabsorptionCorrection`, or records the reason in
     ``microabsorption_skipped`` — silence is reserved for "nobody asked"
-    (no phase has a radius).
+    (no phase has a radius).  µ comes from the table ``source_kind`` names
+    (:data:`LINEAR_ATTENUATION_BY_SOURCE`), and a kind with none skips with
+    that reason.  Until #543 this path read the X-ray table on every source,
+    so on a neutron histogram a correction of well under 1 % rewrote the
+    fractions by the X-ray µ, two to four orders of magnitude too large.
     """
     radii = [phase.particle_radius_um for phase in structure.phases]
     if all(r is None for r in radii):
@@ -564,9 +635,14 @@ def _apply_microabsorption(qpa: QuantitativePhaseAnalysis, structure: Structure,
             "Brindley correction skipped: no wavelength available to evaluate "
             "attenuation coefficients")
         return
+    attenuation = LINEAR_ATTENUATION_BY_SOURCE.get(source_kind)
+    if attenuation is None:
+        qpa.microabsorption_skipped = (
+            f"Brindley correction skipped: no attenuation table for a "
+            f"{source_kind!r} source")
+        return
     try:
-        mus = [linear_attenuation(z.element_counts, z.cell_volume, wavelength)
-               for z in zmvs]
+        mus = [attenuation(z, wavelength) for z in zmvs]
     except (KeyError, ValueError) as exc:
         qpa.microabsorption_skipped = (
             f"Brindley correction skipped: attenuation unavailable — {exc}")

@@ -325,7 +325,20 @@ RADIATION_KEYED = [
     Keyed("capillary muR read off the Sears (neutron) table",
           lambda j, h: _mu_r_is_from_table(j, h, "neutron_cw"),
           {"xray_cw": False, "neutron_cw": True}),
+    # #543: Brindley's µ read the X-ray table on every histogram, so on the
+    # neutron one a sub-percent correction moved the fractions by the X-ray µ
+    Keyed("Brindley mu read off the McMaster (X-ray) table",
+          lambda j, h: _brindley_mu_is_from_table(j, h, "xray_cw"),
+          {"xray_cw": True, "neutron_cw": False}),
+    Keyed("Brindley mu read off the Sears (neutron) table",
+          lambda j, h: _brindley_mu_is_from_table(j, h, "neutron_cw"),
+          {"xray_cw": False, "neutron_cw": True}),
 ]
+
+#: Every phase of the joint fixture carries a radius, so each histogram's QPA
+#: runs Brindley's correction (it needs all of them) and the rows above can ask
+#: which table it read.
+BRINDLEY_RADIUS_UM = 2.0
 
 
 def _mu_r_is_from_table(joint, h: int, table_kind: str) -> bool:
@@ -349,6 +362,39 @@ def _mu_r_is_from_table(joint, h: int, table_kind: str) -> bool:
     return want is not None and bool(np.isclose(got, want, rtol=1e-12))
 
 
+def _brindley_mu_is_from_table(joint, h: int, table_kind: str) -> bool:
+    """Whether histogram ``h``'s Brindley µ per phase is ``table_kind``'s.
+
+    The want side calls the two tables' own functions by name, not
+    ``LINEAR_ATTENUATION_BY_SOURCE``, so an entry filed under the wrong kind
+    fails here.  The fixture frees only the scales, so the cells and
+    compositions are the stored ones.
+    """
+    from rietx.crystallography.attenuation import linear_attenuation
+    from rietx.crystallography.neutron import linear_attenuation_neutron
+    from rietx.crystallography.symmetry import resolve_group
+    from rietx.optimize.qpa import phase_zmv
+
+    qpa = joint.result_.histograms[h].qpa
+    if qpa is None or qpa.microabsorption is None:
+        return False
+    lam = joint.mtable.instruments[h].source.primary_wavelength
+    for phase, row in zip(joint.mtable.structures[h].phases, qpa.phases,
+                          strict=True):
+        cell = tuple(getattr(phase.cell, n).value
+                     for n in ("a", "b", "c", "alpha", "beta", "gamma"))
+        zmv = phase_zmv(resolve_group(phase.space_group, phase.symmetry_operations),
+                        cell, [(a.species, a.x.value, a.y.value, a.z.value,
+                                a.occ.value) for a in phase.atoms])
+        want = (linear_attenuation(zmv.element_counts, zmv.cell_volume, lam)
+                if table_kind == "xray_cw" else
+                linear_attenuation_neutron(zmv.species_counts, zmv.cell_volume,
+                                           lam))
+        if not np.isclose(row.mu_cm, want, rtol=1e-9):
+            return False
+    return True
+
+
 @pytest.fixture(scope="module")
 def every_kind_jointly():
     """One joint fit, one histogram per source kind, both phases shared.
@@ -359,8 +405,11 @@ def every_kind_jointly():
     here fitting a constant).
     """
     kinds = sorted(INSTRUMENT_FOR_KIND)
+    phases = [corundum(), mnf2()]
+    for phase in phases:
+        phase.particle_radius_um = BRINDLEY_RADIUS_UM
     joint = rx.MultiHistogramRefinement(
-        rx.Structure(phases=[corundum(), mnf2()]),
+        rx.Structure(phases=phases),
         [INSTRUMENT_FOR_KIND[k]() for k in kinds])
     joint.fit([_flat(20.0, 80.0) for _ in kinds], plan=_short_plan())
     return joint, kinds

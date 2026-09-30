@@ -243,6 +243,15 @@ micrograph or a particle-size measurement, and [](data.md) says why profile
 broadening is not a substitute. Leave it `None` on any of them and the
 correction does not run.
 
+µ is the histogram's own radiation's. An X-ray histogram reads the McMaster
+photoabsorption table by element, and a constant-wavelength neutron one reads
+the Sears (1992) cross-sections by nuclide, the same two tables the capillary µR
+estimate uses. A source with neither skips the correction and says why. Before
+issue #543 a neutron fit was corrected with the X-ray µ, two to four orders of
+magnitude too large. A nuclide in the structure (`D`, `2H`, `7Li`) enters the
+cell mass at its own mass: 2.0141 for ²H, and the mass number otherwise, within
+0.26 % of the nuclide's mass above A = 4.
+
 When it does run, `QuantitativePhaseAnalysis.microabsorption` records what it
 assumed.
 

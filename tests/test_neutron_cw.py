@@ -962,10 +962,10 @@ def test_a_resonant_absorber_refuses_the_neutron_estimate(species):
     resonance, and with no resonance energies in the tree every listed
     absorber refuses — Yb, whose element absorbs only 34.8 barn, included.
 
-    A mass-numbered nuclide (``157Gd``) refuses at the cross-section too, but
-    a *structure* carrying one never reaches it: the QPA composition cannot
-    read a mass number (``qpa.element_symbol``) and declines first, with its
-    own reason — asserted here so the two refusals are not confused.
+    A mass-numbered nuclide (``157Gd``) refuses at the cross-section too, and
+    since #543 a *structure* carrying one reaches that refusal: the QPA
+    composition reads a mass number (``qpa.element_symbol``) instead of
+    declining first with a parse error of its own.
     """
     from rietx.crystallography.neutron import total_cross_section_neutron
     from rietx.refine import _resolve_specimen_absorption
@@ -981,7 +981,10 @@ def test_a_resonant_absorber_refuses_the_neutron_estimate(species):
     assert inst.geometry.mu_r is None       # declined, not guessed
 
 
-def test_a_resonant_nuclide_refuses_and_its_structure_declines_earlier():
+def test_a_resonant_nuclide_refuses_as_a_resonance_not_as_a_parse_error():
+    """Before #543 the composition could not read ``157Gd`` and declined with
+    "cannot parse an element"; now the nuclide reaches the Sears table and the
+    refusal is the resonance's, which is the reason that is true."""
     from rietx.crystallography.neutron import total_cross_section_neutron
     from rietx.refine import _resolve_specimen_absorption
 
@@ -991,6 +994,8 @@ def test_a_resonant_nuclide_refuses_and_its_structure_declines_earlier():
         2.4067, capillary_radius_mm=2.5)
     _, reason = _resolve_specimen_absorption(_one_species("157Gd"), inst)
     assert reason is not None and "157Gd" in reason
+    assert "resonant neutron absorber" in reason
+    assert "cannot parse" not in reason
     assert inst.geometry.mu_r is None
 
 
@@ -1027,6 +1032,169 @@ def test_the_resonant_refusal_reaches_a_real_refinement_result():
     hits = [d for d in result.diagnostics
             if d.code == "ABSORPTION_ESTIMATE_UNAVAILABLE"]
     assert len(hits) == 1 and "resonant neutron absorber" in hits[0].message
+
+
+# --------------------------- Brindley microabsorption on a neutron fit (#543) ---
+#: #543's synthetic specimen: NaCl + W, both at 5 µm, on HB-2A's λ.
+_BRINDLEY_LAM = 2.4067
+
+
+def _nacl_w(radius_um: float | None = 5.0, na: str = "Na") -> rx.Structure:
+    P = rx.Parameter
+
+    def atom(label, species, xyz, b=0.5):
+        return rx.Atom(label=label, species=species, x=P(value=xyz[0]),
+                       y=P(value=xyz[1]), z=P(value=xyz[2]), biso=P(value=b))
+
+    nacl = rx.Phase(name="NaCl", space_group="F m -3 m",
+                    cell=rx.Cell.cubic(5.6402, vary=True),
+                    atoms=[atom("Na", na, (0, 0, 0)),
+                           atom("Cl", "Cl", (0.5, 0.5, 0.5))],
+                    particle_radius_um=radius_um)
+    w = rx.Phase(name="W", space_group="I m -3 m",
+                 cell=rx.Cell.cubic(3.1652, vary=True),
+                 atoms=[atom("W", "W", (0, 0, 0), 0.3)],
+                 particle_radius_um=radius_um)
+    nacl.scale.value, w.scale.value = 3e-4, 2e-4
+    return rx.Structure(phases=[nacl, w])
+
+
+def _qpa_at_start(structure, source_kind, wavelength=_BRINDLEY_LAM):
+    """``compute_qpa`` at the stored values: the seam without a fit."""
+    from rietx.optimize.qpa import compute_qpa
+    from rietx.params.vector import ParameterTable
+
+    table = ParameterTable(structure, rx.Instrument.constant_wavelength_neutron(
+        wavelength, fwhm_deg=0.3))
+    return compute_qpa(structure, table.decode(table.x0()),
+                       wavelength=wavelength, source_kind=source_kind)
+
+
+#: µ (1/cm) by hand from the Sears (1992) rows in ``b_Sears.dat``
+#: (σ_abs·λ/1.798 + σ_coh + σ_inc, barn) at the stored cells.
+#: NaCl, 4 Na + 4 Cl in 5.6402³ Å³: Na 0.53, 1.66, 1.62; Cl 33.5, 11.5257, 5.3.
+#: W, 2 atoms in 3.1652³ Å³: 18.3, 2.97, 1.63.
+_NEUTRON_MU_BY_HAND = {
+    "NaCl": 4 * ((0.53 + 33.5) * _BRINDLEY_LAM / 1.798
+                 + 1.66 + 1.62 + 11.5257 + 5.3) / 5.6402 ** 3,
+    "W": 2 * (18.3 * _BRINDLEY_LAM / 1.798 + 2.97 + 1.63) / 3.1652 ** 3,
+}
+
+
+def test_brindley_on_a_neutron_fit_reads_the_neutron_table():
+    """Issue #543, its own reproduction: a negligible neutron correction.
+
+    At λ = 2.4067 Å and R = 5 µm the neutron µR is ≈ 1e-3, inside Brindley's
+    regime, so ``weight_fraction_corrected`` must sit on ``weight_fraction``.
+    Before the fix the path read the X-ray table on every source: µ = 578.6
+    and 10290 cm⁻¹, and NaCl moved from 0.887 to 0.002 under a
+    ``BRINDLEY_OUTSIDE_REGIME`` that blamed the particle size.
+
+    The positive arm: the X-ray µ of the same cells is more than 100× the
+    neutron one, so a path that read it would fail every assertion below.
+    """
+    from rietx.crystallography.attenuation import linear_attenuation
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
+
+    s = _nacl_w()
+    ins = rx.Instrument.constant_wavelength_neutron(_BRINDLEY_LAM, fwhm_deg=0.3)
+    tt = np.arange(10.0, 150.0, 0.05)
+    grid = rx.PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
+    m = compile_model(s, ins, grid, mode="rietveld")
+    t = ParameterTable(s, ins)
+    y = np.random.default_rng(3).poisson(
+        np.maximum(m.evaluate(t.decode(t.x0())), 1.0)).astype(float)
+    data = rx.PatternData(two_theta=m.tt.tolist(), intensity=y.tolist())
+    r = rx.Refinement(s, ins, history=False).fit(
+        data, plan=rx.RefinementPlan(stages=[rx.Stage("scale", ["phases.*.scale"])]))
+
+    assert r.qpa.microabsorption_skipped is None
+    assert r.qpa.microabsorption is not None
+    xray = {"NaCl": linear_attenuation({"Na": 4, "Cl": 4}, 5.6402 ** 3,
+                                       _BRINDLEY_LAM),
+            "W": linear_attenuation({"W": 2}, 3.1652 ** 3, _BRINDLEY_LAM)}
+    for p in r.qpa.phases:
+        assert p.mu_cm == pytest.approx(_NEUTRON_MU_BY_HAND[p.name], rel=1e-9)
+        assert xray[p.name] > 100.0 * p.mu_cm          # the arm that can fail
+        assert p.mu_r < 1e-2
+        assert abs(p.weight_fraction_corrected - p.weight_fraction) < 1e-3
+    assert "BRINDLEY_OUTSIDE_REGIME" not in {d.code for d in r.diagnostics}
+
+
+def test_brindley_on_an_xray_source_still_reads_mcmaster():
+    """The control: the same specimen on ``xray_cw`` keeps the X-ray µ, so the
+    fix routes the table rather than switching the correction off."""
+    from rietx.crystallography.attenuation import linear_attenuation
+
+    q = _qpa_at_start(_nacl_w(), "xray_cw")
+    mu = {p.name: p.mu_cm for p in q.phases}
+    assert mu["NaCl"] == pytest.approx(
+        linear_attenuation({"Na": 4, "Cl": 4}, 5.6402 ** 3, _BRINDLEY_LAM),
+        rel=1e-12)
+    assert mu["W"] == pytest.approx(
+        linear_attenuation({"W": 2}, 3.1652 ** 3, _BRINDLEY_LAM), rel=1e-12)
+    assert q.phases[0].weight_fraction_corrected < 0.01    # #543's X-ray number
+
+
+def test_brindley_declines_on_a_source_with_no_table():
+    """A kind missing from ``LINEAR_ATTENUATION_BY_SOURCE`` skips with that
+    reason, as the specimen-absorption estimators do, and never borrows."""
+    q = _qpa_at_start(_nacl_w(), "no_such_source")
+    assert q.microabsorption is None
+    assert "no attenuation table" in q.microabsorption_skipped
+    assert "no_such_source" in q.microabsorption_skipped
+    assert all(p.weight_fraction_corrected is None for p in q.phases)
+    assert all(p.weight_fraction is not None for p in q.phases)
+
+
+@pytest.mark.parametrize("species, element, weight", [
+    ("Fe3+", "Fe", 55.845), ("Cval", "C", 12.0107), ("Dy", "Dy", 162.5),
+    ("D", "H", 2.0141), ("2H", "H", 2.0141), ("D1", "H", 2.0141),
+    ("T", "H", 3.0), ("7Li", "Li", 7.0), ("157Gd", "Gd", 157.0),
+])
+def test_a_nuclide_reads_as_its_element_and_weighs_as_itself(
+        species, element, weight):
+    """#556 follow-up 1: ``qpa.element_symbol`` read ``D`` as its own symbol
+    (no McMaster row) and could not read ``7Li`` at all.  The element answers
+    an element's question; the mass is the nuclide's — gemmi's 2.0141 for ²H,
+    the mass number otherwise (within 0.26 % of the NIST mass above A = 4)."""
+    from rietx.optimize.qpa import atomic_weight, element_symbol
+
+    assert element_symbol(species) == element
+    assert atomic_weight(species) == pytest.approx(weight, abs=1e-4)
+
+
+def test_a_nuclide_in_the_structure_no_longer_breaks_the_fit():
+    """``7Li`` compiles on a neutron source (WP-1134), and until #543 the QPA
+    composition then raised "cannot parse an element" and took the whole
+    result with it."""
+    q = _qpa_at_start(_nacl_w(na="7Li"), "neutron_cw")
+    nacl = q.phases[0]
+    assert nacl.cell_mass == pytest.approx(4 * (7.0 + 35.453), rel=1e-6)
+    assert nacl.weight_fraction_corrected is not None
+
+
+def test_deuterium_is_hydrogen_to_xrays_and_itself_to_neutrons():
+    """The two tables read the composition by their own identity: an X-ray µ
+    is the same for ¹H and ²H (the McMaster estimate on a deuterated specimen
+    used to decline, "no attenuation data for element 'D'"), a neutron µ is
+    not (σ_inc 80.26 barn against 2.05)."""
+    from rietx.optimize.qpa import estimate_capillary_mu_r
+    from rietx.params.vector import ParameterTable
+
+    def mu_r(h, kind):
+        s = _one_species(h)
+        table = ParameterTable(s, rx.Instrument.constant_wavelength_neutron(1.5))
+        got, reason = estimate_capillary_mu_r(
+            s, table.decode(table.x0()), 1.5, 1.0, 0.6, source_kind=kind)
+        assert reason is None, reason
+        return got
+
+    assert mu_r("D", "xray_cw") == mu_r("H", "xray_cw")
+    assert mu_r("2H", "xray_cw") == mu_r("H", "xray_cw")
+    assert mu_r("D", "neutron_cw") == mu_r("2H", "neutron_cw")
+    assert mu_r("H", "neutron_cw") > 10.0 * mu_r("D", "neutron_cw")
 
 
 # ------------------------------------ the Cr₂WO₆ HB-2A specimen (WP-1132) ---

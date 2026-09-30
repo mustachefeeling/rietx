@@ -689,6 +689,12 @@ class CompiledModel:
     # special case), so it exists only for the post-fit HARMONIC_FRACTION
     # diagnostic, which has to name the order it is reporting.
     harmonic_orders: dict[int, int]
+    #: ``Source.kind`` of the histogram this model was compiled for.  Nothing
+    #: in the forward model reads it (the radiation's own arithmetic — form
+    #: factors or scattering lengths, polarisation — is compiled into the
+    #: phases); it is frozen here for the post-fit readers that must ask
+    #: *which* radiation, the Brindley microabsorption µ among them (#543).
+    source_kind: str
     geometry_kind: str
     radius_mm: float | None
     # dimensionless µ·R of a packed capillary, resolved once at compile from
@@ -3828,6 +3834,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         wavelength=instrument.source.primary_wavelength,
         line_wavelengths=lams,
         harmonic_orders=harmonic_orders,
+        source_kind=instrument.source.kind,
         geometry_kind=geom.kind, radius_mm=geom.goniometer_radius_mm,
         # frozen for the stage; None (nothing asked for) and 0.0 (asked for
         # and negligible) both mean the correction is the exact identity
