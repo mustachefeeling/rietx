@@ -42,6 +42,7 @@ asserting it.
     determinable_amplitudes(candidate, ...)           -> int
     powder_equivalent(a, b, ...)                      -> bool
     equivalence_classes(candidates, ...)              -> tuple[tuple[int, ...], ...]
+    powder_relations(candidates, ...)                 -> tuple[PairVerdict, ...]
 
 Scope: **k = 0 and 2k a reciprocal lattice vector**
 --------------------------------------------------
@@ -1203,13 +1204,102 @@ def _identify_in_a_reduced_cell(group: MagneticGroup, metric) -> MagneticSpaceGr
     return identify(group.transformed(spec))
 
 
+#: How a :class:`PairVerdict` was decided.  ``proved-*`` rests on a
+#: certificate that holds for every model of the family; ``sampled-*`` on a
+#: number of random models of it; ``unresolved`` on nothing at all.
+RELATION_STATUSES = ("proved-contained", "proved-not", "sampled-contained",
+                     "sampled-not", "unresolved")
+
+#: The certificates a ``proved-*`` :class:`PairVerdict` can rest on.
+RELATION_CERTIFICATES = ("absence", "subspace")
+
+
+@dataclass(frozen=True)
+class PairVerdict:
+    """Whether candidate ``b`` can reproduce every powder pattern of candidate ``a``, and how that is known.
+
+    One record per ordered pair of a :class:`CandidateSet`, ``a`` and ``b``
+    indexing its ``candidates``; :func:`powder_relations` builds them and
+    :func:`analyse` stores them as ``relations``.  A pair is
+    powder-equivalent when both of its directions are contained.
+
+    ``status`` is one of :data:`RELATION_STATUSES`:
+
+    * ``proved-contained`` — ``a`` has no powder pattern to this d limit
+      (every shell is a systematic absence), so ``b``'s zero model
+      reproduces all of it.  ``certificate`` is ``"absence"``.
+    * ``proved-not`` — no model of ``b`` reproduces ``a``'s, for a reason
+      that holds for the whole family (``certificate``, below).  No draw is
+      made.
+    * ``sampled-contained`` — every one of ``draws`` random models of ``a``
+      was reproduced by a fit of ``b`` to ``rtol``.  A statement about those
+      draws, not about the family (:func:`powder_equivalent`, mechanism B).
+    * ``sampled-not`` — a draw was not reproduced by any restart of the fit.
+      ``draws`` counts the draws made, that last one included, and
+      ``unresolved`` is 1: a fit's failure is not a proof (mechanism A).
+    * ``unresolved`` — nothing tested this direction: its pair was already
+      settled distinct by the other direction, or joined into one class
+      through other pairs before :func:`equivalence_classes` reached it
+      (``draws`` is 0).
+
+    ``certificate`` is one of :data:`RELATION_CERTIFICATES`, or ``None`` for
+    a status that is not proved:
+
+    * ``absence`` — ``a`` lights a shell ``b`` cannot: G_s of ``b`` is dark
+      on the tolerance :func:`systematic_absences` and :func:`_fit_residual`
+      use, while ``a``'s is not, so ``a``'s intensity there is non-zero for
+      almost every model and ``b``'s is zero for every one.  Exact for a G_s
+      identically zero, as :func:`_fit_residual`'s docstring says of the
+      same test.
+    * ``subspace`` — the linear span of ``a``'s shell-intensity vectors is
+      not inside ``b``'s.  I_s(x) = xᵀ G_s x = tr(G_s xxᵀ), and the rank-one
+      xxᵀ span the symmetric matrices, so the span of a family's image is
+      V = {(tr G_s X)_s : X symmetric}, the column space of the stack with
+      each G_s written as a vector.  ``b``'s image lies in V_b; if V_a ⊄ V_b
+      the models of ``a`` whose intensity vector falls in V_b are a proper
+      algebraic subset, of measure zero, and every other one is out of
+      ``b``'s reach.  The span test is an SVD rank and a principal angle, so
+      it holds to :data:`ISOTROPY_ATOL`: the measured gap on this module's
+      cases is in-span sines ≤ 1.3e-14 against separating ones ≥ 0.21.
+
+    Neither certificate says by how much two patterns differ, only that they
+    differ; the distance comes with the certificates that measure it
+    (issue #565).
+    """
+
+    a: int
+    b: int
+    status: str
+    certificate: str | None = None
+    draws: int = 0
+    unresolved: int = 0
+
+    @property
+    def proved(self) -> bool:
+        """Whether the verdict holds for every model, not only for the draws."""
+        return self.status.startswith("proved")
+
+    @property
+    def contained(self) -> bool | None:
+        """Whether ``b`` reproduces ``a``, or None if nothing decided it."""
+        if self.status == "unresolved":
+            return None
+        return self.status.endswith("contained")
+
+
 @dataclass(frozen=True, eq=False)
 class CandidateSet:
     """Every candidate magnetic model for one (parent, site, k), and their classes.
 
     ``__str__`` prints the classic table: irrep, direction, BNS number, magnetic
     cell, free amplitudes, the amplitudes a powder can determine, absences and
-    the powder-equivalence class.
+    the powder-equivalence class, marked **P** when every relation that
+    bounds the class is proved and **S** when one of them is sampled, followed
+    by every sampled pair with its draw counts.
+
+    ``relations`` holds one :class:`PairVerdict` per ordered pair of
+    candidates, as :func:`analyse` measured it; ``classes`` are the
+    connected components of its equivalent pairs.
 
     ``space_group`` is :func:`candidates`'s own resolved group object, exactly
     as :attr:`MagneticCandidate.space_group` — see that field's docstring
@@ -1227,6 +1317,7 @@ class CandidateSet:
     classes: tuple[tuple[int, ...], ...] = ()
     determinable: tuple[int, ...] = ()
     absences: tuple[int, ...] = ()
+    relations: tuple[PairVerdict, ...] = ()
 
     def __len__(self) -> int:
         return len(self.candidates)
@@ -1251,14 +1342,40 @@ class CandidateSet:
         direction lookup by label — filters here rather than re-deriving the
         same test.  A candidate with ``verified is None`` (``verify=False``
         was used to build this set) is kept: nothing has said it fails.
-        ``classes``/``determinable``/``absences`` are dropped rather than
-        reindexed, since they are computed by :func:`analyse` against the
-        *positions* of ``self.candidates`` and would silently point at the
-        wrong row once any candidate is removed; call :func:`analyse` again
-        on the filtered set if those are needed.
+        ``classes``/``determinable``/``absences``/``relations`` are dropped
+        rather than reindexed, since they are computed by :func:`analyse`
+        against the *positions* of ``self.candidates`` and would silently
+        point at the wrong row once any candidate is removed; call
+        :func:`analyse` again on the filtered set if those are needed.
         """
         kept = tuple(c for c in self.candidates if c.verified is not False)
-        return replace(self, candidates=kept, classes=(), determinable=(), absences=())
+        return replace(self, candidates=kept, classes=(), determinable=(), absences=(),
+                       relations=())
+
+    def _class_proved(self, index: int) -> bool | None:
+        """Whether a class's boundary is proved, or None if :func:`analyse` has not run.
+
+        True when every pair inside class ``index`` is proved contained both
+        ways and every pair between it and another class has a direction
+        proved not contained; one sampled or unresolved relation on either
+        side makes it False.
+        """
+        if not self.relations:
+            return None
+        members = set(self.classes[index])
+        verdicts: dict[tuple[int, int], PairVerdict] = {
+            (v.a, v.b): v for v in self.relations}
+        for i in members:
+            for j in range(len(self.candidates)):
+                if j == i:
+                    continue
+                there, back = verdicts[(i, j)], verdicts[(j, i)]
+                if j in members:
+                    if not (there.status == back.status == "proved-contained"):
+                        return False
+                elif "proved-not" not in (there.status, back.status):
+                    return False
+        return True
 
     def __str__(self) -> str:
         # ``space_group`` is the resolved group object (stage3 D2), not a
@@ -1277,8 +1394,11 @@ class CandidateSet:
                 "determinable", "absences", "class")
         widths = [7, 14, 10, 5, 8, 5, 13, 9, 6]
         lines.append("  ".join(name.ljust(w) for name, w in zip(cols, widths)))
+        marks = [self._class_proved(c) for c in range(len(self.classes))]
         for i, candidate in enumerate(self.candidates):
             klass = self.class_of(i)
+            mark = "" if klass is None or marks[klass] is None else \
+                (" P" if marks[klass] else " S")
             row = (candidate.irrep_label,
                    candidate.direction.label,
                    candidate.bns_number,
@@ -1287,9 +1407,44 @@ class CandidateSet:
                    str(candidate.free_amplitudes),
                    "-" if not self.determinable else str(self.determinable[i]),
                    "-" if not self.absences else str(self.absences[i]),
-                   "-" if klass is None else str(klass))
+                   "-" if klass is None else f"{klass}{mark}")
             lines.append("  ".join(str(v).ljust(w) for v, w in zip(row, widths)))
+        if self.relations:
+            lines.extend(self._relation_lines())
         return "\n".join(lines)
+
+    def _relation_lines(self) -> list[str]:
+        """The pair counts by provenance, then every sampled pair with its draws."""
+        verdicts = {(v.a, v.b): v for v in self.relations}
+        n = len(self.candidates)
+        pairs = [(verdicts[(i, j)], verdicts[(j, i)])
+                 for i in range(n) for j in range(i + 1, n)]
+        proved = [p for p in pairs if any(v.status == "proved-not" for v in p)
+                  or all(v.status == "proved-contained" for v in p)]
+        sampled = [p for p in pairs if p not in proved
+                   and any(v.status.startswith("sampled") for v in p)]
+        untested = len(pairs) - len(proved) - len(sampled)
+        # a pair is counted once, under the first certificate that settles it
+        first = [next((v.certificate for v in p if v.status == "proved-not"), p[0].certificate)
+                 for p in proved]
+        by = {c: first.count(c) for c in RELATION_CERTIFICATES}
+        lines = ["", f"pairs: {len(pairs)}; proved {len(proved)} ("
+                 + ", ".join(f"{c} {by[c]}" for c in RELATION_CERTIFICATES)
+                 + f"); sampled {len(sampled)}; joined untested {untested}"]
+        lines.append("class P: every relation bounding the class is proved; "
+                     "S: one rests on draws or on nothing")
+        if sampled:
+            lines.append("sampled pairs, n = draws a → b, b → a:")
+        for there, back in sampled:
+            equal = there.contained and back.contained
+            counts = ", ".join(
+                "-" if v.status == "unresolved" else
+                f"{v.draws}" + (f" ({v.unresolved} not reproduced)" if v.unresolved else "")
+                for v in (there, back))
+            lines.append(f"  {self.candidates[there.a].label} {'~' if equal else '|'} "
+                         f"{self.candidates[there.b].label}  "
+                         f"{'equal' if equal else 'distinct'}  n = {counts}")
+        return lines
 
 
 def candidates(space_group, site_xyz, k, *, kind: str = "magnetic", cell=None,
@@ -1874,6 +2029,57 @@ def _canonical_basis(candidate: MagneticCandidate) -> MagneticCandidate:
         (rows.shape[0],) + candidate.configurations.shape[1:]))
 
 
+def _dark_shells(grams: np.ndarray) -> np.ndarray:
+    """The shells a family can never light: G_s below :data:`INTENSITY_RTOL` of the stack's largest."""
+    size = np.max(np.abs(grams), axis=(1, 2), initial=0.0)
+    return size <= INTENSITY_RTOL * max(float(np.max(size, initial=0.0)), 1.0)
+
+
+def _intensity_span(grams: np.ndarray) -> np.ndarray:
+    """Orthonormal columns spanning V = {(tr G_s X)_s : X symmetric}, the span of a family's image.
+
+    Each G_s is written as its upper triangle with the off-diagonal entries
+    scaled by √2, which makes X ↦ (tr G_s X)_s an inner product with the same
+    vector, so V is the column space of that (n_shells, n(n+1)/2) matrix;
+    its rank is taken on :data:`INTENSITY_RTOL` of the largest singular
+    value, the tolerance an undeterminable amplitude is taken on.
+    """
+    n = grams.shape[1]
+    upper = np.triu_indices(n)
+    weight = np.where(upper[0] == upper[1], 1.0, np.sqrt(2.0))
+    rows = grams[:, upper[0], upper[1]] * weight
+    if rows.size == 0:
+        return np.zeros((grams.shape[0], 0))
+    u, s, _ = np.linalg.svd(rows, full_matrices=False)
+    rank = int(np.sum(s > INTENSITY_RTOL * max(float(s.max()), 1e-300)))
+    return u[:, :rank]
+
+
+def _span_leak(span_a: np.ndarray, span_b: np.ndarray) -> float:
+    """The largest sine between a direction of V_a and V_b; 0 when V_a ⊆ V_b."""
+    if span_a.shape[1] == 0:
+        return 0.0
+    rest = span_a - span_b @ (span_b.T @ span_a)
+    return float(np.linalg.norm(rest, 2))
+
+
+def _certify(a: int, b: int, dark: list[np.ndarray], spans: list[np.ndarray],
+             silent: list[bool]) -> PairVerdict | None:
+    """The proved verdict on ``a`` → ``b`` from the family-level certificates, or None.
+
+    In order: ``a`` with no pattern at all is contained in anything
+    (absence); ``a`` lighting a shell ``b`` is dark at is not (absence);
+    V_a ⊄ V_b is not (subspace).  :class:`PairVerdict` states each argument.
+    """
+    if silent[a]:
+        return PairVerdict(a, b, "proved-contained", "absence")
+    if bool(np.any(dark[b] & ~dark[a])):
+        return PairVerdict(a, b, "proved-not", "absence")
+    if _span_leak(spans[a], spans[b]) > ISOTROPY_ATOL:
+        return PairVerdict(a, b, "proved-not", "subspace")
+    return None
+
+
 def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
                   restarts: int = 32, rtol: float | None = None) -> float:
     """Smallest ‖I(b) − target‖∞ a family reaches over random starts, relative to max target.
@@ -1924,8 +2130,7 @@ def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
 
     target = np.asarray(target, dtype=np.float64)
     scale = float(np.max(np.abs(target))) or 1.0
-    size = np.max(np.abs(grams), axis=(1, 2), initial=0.0)
-    dark = size <= INTENSITY_RTOL * max(float(np.max(size, initial=0.0)), 1.0)
+    dark = _dark_shells(grams)
     if rtol is not None:
         floor = float(np.max(np.abs(target[dark]), initial=0.0)) / scale
         if floor > rtol:
@@ -1979,7 +2184,17 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     measurable.  This function computes the classes from the intensities and so
     never has to decide which group the rule is about.
 
-    **Both verdicts are statistical, for different reasons** (issue #455).
+    **The boolean does not say how it was decided, and "equivalent" is
+    always sampled.**  Before any draw the pair goes through the
+    certificates :class:`PairVerdict` states: a shell one family lights and
+    the other cannot, or an intensity span not inside the other's, proves
+    the pair *distinct* for every model, and then nothing is drawn.  No
+    certificate here proves two families *equal*, so a ``True`` rests on the
+    draws below, and so does a ``False`` no certificate gave;
+    :func:`powder_relations` returns which, direction by direction, with the
+    number of draws each made.
+
+    **Both sampled verdicts are statistical, for different reasons** (issue #455).
     What is exact: a family with no powder pattern at this d limit is
     equivalent to anything (below), and the verdict no longer depends on the
     amplitude basis a candidate arrived in, beyond round-off, since
@@ -2012,10 +2227,11 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
       f = ¼ and the default 3 draws.  More restarts do not help.  Issue
       #455's example, ``P a -3`` at (½,½,½), was measured before #534's
       frame fix; with it that case gives one partition in 9 of 9 seed and
-      basis runs, so no measured case shows B now.  Whether one does, how
-      small an f should still count as "distinguishable", and what the draws
-      to detect it cost, are open (WP-1418), and this function does not
-      settle them.
+      basis runs.  Issue #565 measured B on six cubic cases instead: 8 % of
+      their cross-irrep pairs were equivalent at 3 draws per direction and
+      refuted by a draw within 12.  How small an f should still count as
+      "distinguishable", and what the draws to detect it cost, are open
+      (WP-1418), and this function does not settle them.
 
     A class count built on these verdicts is therefore a function of
     ``seed``, ``draws`` and ``restarts``, and across machines agrees only as
@@ -2037,31 +2253,116 @@ def _powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     """:func:`powder_equivalent` on canonical candidates whose factors and grams are built.
 
     ``ga``/``gb`` are ``gram(fa, refl.shells)``/``gram(fb, refl.shells)``, the
-    only form the draws and the fits read, so each is built once per candidate
-    rather than once per draw; the target is :func:`powder_intensities`'
-    own quadratic form on the same stack, so every number is the one it returns.
+    only form the certificates, the draws and the fits read, so each is built
+    once per candidate rather than once per draw.
     """
+    silent = [_silent(fa), _silent(fb)]
+    dark = [_dark_shells(ga), _dark_shells(gb)]
+    spans = [_intensity_span(ga), _intensity_span(gb)]
+    there, back = _pair_verdicts(0, 1, (a, b), (ga, gb), silent, dark, spans, refl,
+                                 draws=draws, seed=seed, rtol=rtol, restarts=restarts)
+    return bool(there.contained and back.contained)
+
+
+def _silent(factors: np.ndarray) -> bool:
+    """Whether a family's M⊥ vanishes at every reflection of the set: no powder pattern at all.
+
+    Nothing can then be distinguished from it — every shell is a systematic
+    absence — and a draw would be fitting round-off (|F|max = 6.1e-16 for
+    S4(a) of ``candidates("P n m a", (0, 0, 0.5), (0, 0, 0))`` at d_min =
+    5.2).  Exact because M⊥ is linear in the amplitudes, and on the same
+    tolerance as :func:`systematic_absences`, the authority for "this
+    reflection is absent".  Yue's review of #389 found the coarse-d_min
+    failure through the ``lm`` refusal in :func:`_fit_residual`; this is its
+    second cause.
+    """
+    return float(np.max(np.abs(factors))) <= INTENSITY_RTOL
+
+
+def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
+                   refl: ReflectionSet, *, draws: int, seed: int, rtol: float,
+                   restarts: int) -> tuple[PairVerdict, PairVerdict]:
+    """The two directed verdicts of one pair: certificates first, then the draws.
+
+    A pair a certificate settles distinct is not drawn at all, and its other
+    direction is recorded ``unresolved`` unless a certificate settles that
+    too.  Otherwise each direction not proved contained is sampled, i → j
+    first, on one generator seeded with ``seed`` — the stream, draw for draw,
+    that this pair's test consumed before the certificates existed, so a
+    pair no certificate settles gets the verdict it always had.  The draws
+    stop at the first one not reproduced, as they always did.
+    """
+    proved = {(i, j): _certify(i, j, dark, spans, silent),
+              (j, i): _certify(j, i, dark, spans, silent)}
+    if any(v is not None and v.status == "proved-not" for v in proved.values()):
+        return tuple(proved[key] or PairVerdict(*key, "unresolved")
+                     for key in ((i, j), (j, i)))
     rng = np.random.default_rng(seed)
-    for source, other, own, fitted in ((a, fa, ga, gb), (b, fb, gb, ga)):
-        # A family whose M⊥ vanishes at every reflection of this set has *no*
-        # powder pattern to this d limit — every shell is a systematic absence
-        # — so nothing here can be distinguished from it, and the draws below
-        # would be fitting round-off (|F|max = 6.1e-16 for S4(a) of
-        # ``candidates("P n m a", (0, 0, 0.5), (0, 0, 0))`` at d_min = 5.2).
-        # Exact because M⊥ is linear in the amplitudes, and on the same
-        # tolerance as :func:`systematic_absences`, the authority for "this
-        # reflection is absent".  Yue's review of #389 found the coarse-d_min
-        # failure through the ``lm`` refusal above; this is its second cause.
-        if float(np.max(np.abs(other))) <= INTENSITY_RTOL:
+    out: list[PairVerdict] = []
+    for a, b in ((i, j), (j, i)):
+        if proved[(a, b)] is not None:
+            out.append(proved[(a, b)])
             continue
+        if out and out[0].status == "sampled-not":
+            out.append(PairVerdict(a, b, "unresolved"))
+            continue
+        made = 0
+        verdict = None
         for _ in range(draws):
-            amplitudes = _normalised_draw(source, refl.lattice, rng)
-            target = (own @ amplitudes) @ amplitudes
+            amplitudes = _normalised_draw(canonical[a], refl.lattice, rng)
+            made += 1
+            target = (grams[a] @ amplitudes) @ amplitudes
             if float(np.max(np.abs(target))) <= 0.0:
                 continue
-            if _fit_residual(target, fitted, rng, restarts=restarts, rtol=rtol) > rtol:
-                return False
-    return True
+            if _fit_residual(target, grams[b], rng, restarts=restarts, rtol=rtol) > rtol:
+                verdict = PairVerdict(a, b, "sampled-not", None, made, 1)
+                break
+        out.append(verdict or PairVerdict(a, b, "sampled-contained", None, made, 0))
+    return out[0], out[1]
+
+
+def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int,
+              seed: int, rtol: float, restarts: int
+              ) -> tuple[tuple[tuple[int, ...], ...], tuple[PairVerdict, ...]]:
+    """:func:`equivalence_classes` and :func:`powder_relations` from one pass over the pairs."""
+    little = _irreps.little_group(candidate_set.space_group, candidate_set.k)
+    n = len(candidate_set)
+    canonical = [_canonical_basis(c) for c in candidate_set]
+    factors = [structure_factors(c, refl, little=little) for c in canonical]
+    grams = [gram(f, refl.shells) for f in factors]
+    silent = [_silent(f) for f in factors]
+    dark = [_dark_shells(g) for g in grams]
+    spans = [_intensity_span(g) for g in grams]
+    parent = list(range(n))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    verdicts: dict[tuple[int, int], PairVerdict] = {}
+    for i in range(n):
+        for j in range(i + 1, n):
+            if find(i) == find(j):
+                # joined through other pairs: the certificates still cost
+                # nothing, and a proved separation inside a class is the
+                # thing a reader of the record most needs to see
+                for a, b in ((i, j), (j, i)):
+                    verdicts[(a, b)] = _certify(a, b, dark, spans, silent) or \
+                        PairVerdict(a, b, "unresolved")
+                continue
+            there, back = _pair_verdicts(i, j, canonical, grams, silent, dark, spans, refl,
+                                         draws=draws, seed=seed, rtol=rtol, restarts=restarts)
+            verdicts[(i, j)], verdicts[(j, i)] = there, back
+            if there.contained and back.contained:
+                parent[find(j)] = find(i)
+    groups: dict[int, list[int]] = {}
+    for i in range(n):
+        groups.setdefault(find(i), []).append(i)
+    classes = tuple(tuple(members) for members in
+                    sorted(groups.values(), key=lambda m: m[0]))
+    return classes, tuple(verdicts[key] for key in sorted(verdicts))
 
 
 def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
@@ -2073,50 +2374,45 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
     separate; WP-1327's report names them, and M-9's workflow refines one
     representative per class rather than one per candidate.
 
-    The classes inherit both of :func:`powder_equivalent`'s statistical
-    verdicts, and union-find carries each one further: one false
-    "equivalent" joins two classes, and one false "distinguishable" splits a
-    class only if no other chain of pairs joins it.  Read the count as
-    measured at this ``seed``, ``draws`` and ``restarts``, not as a property
-    of the group.  Each candidate's basis is made canonical and its structure
-    factors and :func:`gram` stack built once, rather than once per pair or
-    per draw.  Cost: an equivalent pair mostly stops at its first restart,
-    while a distinguishable one pays the full ``restarts`` once, so a set
-    whose pairs are all distinguishable pays the cap in full (``P n m a`` at Γ, four classes: ×5 the wall time of
-    4 restarts).
+    Each pair is settled by a certificate where one applies — a shell one
+    family lights and the other cannot, or an intensity span not inside the
+    other's (:class:`PairVerdict`) — and by :func:`powder_equivalent`'s
+    draws otherwise.  A certificate only ever proves two candidates
+    *distinct*, so every join here rests on draws, and union-find carries
+    each sampled verdict further: one false "equivalent" joins two classes,
+    and one false "distinguishable" splits a class only if no other chain of
+    pairs joins it.  Read the count as measured at this ``seed``, ``draws``
+    and ``restarts``, not as a property of the group;
+    :func:`powder_relations` says which pair rests on what.  Each
+    candidate's basis is made canonical and its structure factors and
+    :func:`gram` stack built once, rather than once per pair or per draw.
+    Cost: an equivalent pair mostly stops at its first restart, while a
+    distinguishable one no certificate settles pays the full ``restarts``
+    once.
     """
-    little = _irreps.little_group(candidate_set.space_group, candidate_set.k)
-    n = len(candidate_set)
-    canonical = [_canonical_basis(c) for c in candidate_set]
-    factors = [structure_factors(c, refl, little=little) for c in canonical]
-    grams = [gram(f, refl.shells) for f in factors]
-    parent = list(range(n))
+    return _classify(candidate_set, refl, draws=draws, seed=seed, rtol=rtol,
+                     restarts=restarts)[0]
 
-    def find(i: int) -> int:
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
 
-    for i in range(n):
-        for j in range(i + 1, n):
-            if find(i) == find(j):
-                continue
-            if _powder_equivalent(canonical[i], canonical[j], factors[i], factors[j],
-                                  grams[i], grams[j], refl, draws=draws, seed=seed, rtol=rtol,
-                                  restarts=restarts):
-                parent[find(j)] = find(i)
-    groups: dict[int, list[int]] = {}
-    for i in range(n):
-        groups.setdefault(find(i), []).append(i)
-    return tuple(tuple(members) for members in
-                 sorted(groups.values(), key=lambda m: m[0]))
+def powder_relations(candidate_set: CandidateSet, refl: ReflectionSet, *,
+                     draws: int = 3, seed: int = 20260906, rtol: float = 1e-4,
+                     restarts: int = 32) -> tuple[PairVerdict, ...]:
+    """Every directed verdict behind :func:`equivalence_classes`, with how each was decided.
+
+    One :class:`PairVerdict` per ordered pair (a, b), sorted: proved by a
+    certificate, sampled with the number of draws actually made, or
+    unresolved where nothing tested that direction.  The same pass, the same
+    generator streams and the same partition as :func:`equivalence_classes`
+    with these arguments.
+    """
+    return _classify(candidate_set, refl, draws=draws, seed=seed, rtol=rtol,
+                     restarts=restarts)[1]
 
 
 def analyse(candidate_set: CandidateSet, *, d_min: float = 1.5,
             draws: int = 3, seed: int = 20260906, rtol: float = 1e-4,
             restarts: int = 32) -> CandidateSet:
-    """Fill in the absences, the determinable amplitudes and the equivalence classes.
+    """Fill in the absences, the determinable amplitudes, the equivalence classes and their relations.
 
     Returns a new :class:`CandidateSet` whose ``__str__`` prints the whole
     classic table.  The reflection list is the magnetic cell's own to ``d_min``,
@@ -2149,11 +2445,12 @@ def analyse(candidate_set: CandidateSet, *, d_min: float = 1.5,
         determinable.append(determinable_amplitudes(
             candidate, refl, draws=draws, seed=seed, little=little, factors=factors))
         absences.append(systematic_absences(candidate, refl, little=little).total)
-    classes = equivalence_classes(candidate_set, refl, draws=draws, seed=seed,
-                                  rtol=rtol, restarts=restarts)
+    classes, relations = _classify(candidate_set, refl, draws=draws, seed=seed,
+                                   rtol=rtol, restarts=restarts)
     return CandidateSet(
         space_group=candidate_set.space_group, site=candidate_set.site,
         k=candidate_set.k, kind=candidate_set.kind, cell=candidate_set.cell,
         lattice=candidate_set.lattice, representation=candidate_set.representation,
         candidates=candidate_set.candidates, classes=classes,
-        determinable=tuple(determinable), absences=tuple(absences))
+        determinable=tuple(determinable), absences=tuple(absences),
+        relations=relations)
