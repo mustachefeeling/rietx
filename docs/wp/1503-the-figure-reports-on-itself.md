@@ -1,6 +1,6 @@
 # WP-1503 — the figure reports on itself, and picks a view
 
-Milestone: v1.7 · Status: ⬜
+Milestone: v1.7 · Status: 🔄 2026-09-30 — claimed by @yue-here
 Depends on: 1470 (1501 soft)
 Priority: P3 2026-09-27 — an agent can look at its picture today; this makes each look count, and nothing is wrong without it
 
