@@ -335,8 +335,13 @@ def keep(geometry: Mapping, mask, *, complete: bool = False) -> dict:
         for p, ok in zip(polys, poly_ok) if ok]
     lost = [f"{n} {what} cut" for n, what in ((cut_polys, "polyhedra"), (cut_bonds, "bonds"))
             if n]
+    # the same counts as numbers, running over successive cuts: the figure's
+    # report reads these and never parses ``note``
+    before = geometry.get("cut", {})
+    out["cut"] = {"polyhedra": before.get("polyhedra", 0) + cut_polys,
+                  "bonds": before.get("bonds", 0) + cut_bonds}
     if lost:
-        out["note"] = " · ".join([*([geometry["note"]] if geometry.get("note") else []), *lost])
+        out["note"] =" · ".join([*([geometry["note"]] if geometry.get("note") else []), *lost])
     return out
 
 

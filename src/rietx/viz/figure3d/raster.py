@@ -25,6 +25,12 @@ is the same arithmetic vectorised over each primitive's box, and the oracle the
 kernel is measured against.  Neither calls a library function, so the bar is
 the bit.  Which one runs is ``model.compiled.enabled()`` — one path a process,
 ``RIETX_COMPILED=0`` the switch — and a build without numba runs numpy.
+
+**An id pass** (:func:`id_plane`, WP-1503) runs the same two tests over a small
+frame and writes which atom or bond half is in front at each pixel, for the
+figure's report of what it hides.  It packs its own arrays, vectorised
+(:func:`pack_ids`), because ``_pack``'s per-primitive loop costs more than the
+pass and a view search runs the pass a hundred times.
 """
 
 from __future__ import annotations
@@ -44,28 +50,40 @@ BAND_SAMPLES = 1 << 20
 
 _LOCK = threading.Lock()
 _KERNEL = None
+_ID_KERNEL = None
 _UNAVAILABLE = False
 
 
-def _kernel():
-    """The compiled ``render_rows``, built once; ``None`` without numba.
+def _load() -> None:
+    """Build the compiled kernels once; a failed import leaves both ``None``.
 
     A caller that finds the build in progress waits for it, as the model's
     kernels do, so which path a render took never depends on machine speed.
     """
-    global _KERNEL, _UNAVAILABLE
+    global _KERNEL, _ID_KERNEL, _UNAVAILABLE
     if _KERNEL is not None or _UNAVAILABLE:
-        return _KERNEL
+        return
     with _LOCK:
         if _KERNEL is None and not _UNAVAILABLE:
             compiled._redirect_cache()
             try:
-                from ._kernels_numba import render_rows
+                from ._kernels_numba import id_plane, render_rows
             except Exception:  # pragma: no cover - depends on the install
                 _UNAVAILABLE = True
-                return None
-            _KERNEL = render_rows
+                return
+            _KERNEL, _ID_KERNEL = render_rows, id_plane
+
+
+def _kernel():
+    """The compiled ``render_rows``, built once; ``None`` without numba."""
+    _load()
     return _KERNEL
+
+
+def _id_kernel():
+    """The compiled ``id_plane``, built with :func:`_kernel`'s."""
+    _load()
+    return _ID_KERNEL
 
 
 @dataclass
@@ -509,3 +527,166 @@ def draw(scene: dict, rotation, frame: Frame, *, supersample: int = 2,
     for f in [pool.submit(kernel, r0, r1, *args) for r0, r1 in bands]:
         f.result()
     return out
+
+
+@dataclass
+class IdPlane:
+    """Which primitive is in front at each pixel of a small frame.
+
+    ``ids`` is ``height × width`` ``int32``: ``-1`` for nothing, ``k`` for the
+    ``k``-th packed atom, ``n_atoms + k`` for the ``k``-th bond half.  ``seen``
+    is each packed atom's samples it would cover were nothing in front of it,
+    and ``front`` the samples it does cover; ``index`` maps a packed atom to
+    its place in the scene's ``atoms``.
+    """
+    ids: np.ndarray
+    seen: np.ndarray
+    front: np.ndarray
+    index: np.ndarray
+
+
+def scene_arrays(scene: dict) -> dict:
+    """The scene's atoms and bond halves as arrays, in the structure's Å: what
+    :func:`pack_ids` rotates.  An atom with no inverse is left out, as
+    :func:`_pack` leaves it."""
+    atoms = [a for a in scene["atoms"] if a["inverse"] is not None]
+    halves = scene["halves"]
+    return {
+        "index": np.array([a["index"] for a in atoms], dtype=np.int64),
+        "pos": np.array([a["pos"] for a in atoms], dtype=np.float64).reshape(-1, 3),
+        "shape": np.array([a["shape"] for a in atoms], dtype=np.float64).reshape(-1, 3, 3),
+        "inverse": np.array([a["inverse"] for a in atoms], dtype=np.float64).reshape(-1, 3, 3),
+        "from": np.array([h["from"] for h in halves], dtype=np.float64).reshape(-1, 3),
+        "to": np.array([h["to"] for h in halves], dtype=np.float64).reshape(-1, 3),
+        "radius": np.array([h["radius"] for h in halves], dtype=np.float64),
+    }
+
+
+def pack_ids(arrays: dict, rotation) -> dict:
+    """:func:`_pack`'s atom and bond-half arrays for one view, vectorised.
+
+    The same quantities :func:`_pack` computes (its docstring names them) in
+    the same order of operations, to the last bit or one ulp off, which an id
+    pass does not see.  A half seen end on, or of no length, is dropped.
+    """
+    R = np.asarray(rotation, dtype=np.float64)
+    c = arrays["pos"] @ R.T
+    shape = np.einsum("ij,njk->nik", R, arrays["shape"])
+    hx = np.sqrt((shape[:, 0, :] ** 2).sum(axis=1))
+    hy = np.sqrt((shape[:, 1, :] ** 2).sum(axis=1))
+    minv = np.ascontiguousarray(arrays["inverse"] @ R.T)
+    e = minv[:, :, 2]
+    A = arrays["from"] @ R.T
+    B = arrays["to"] @ R.T
+    d = B - A
+    length = np.sqrt((d * d).sum(axis=1))
+    w = d / np.where(length > 0.0, length, 1.0)[:, None]
+    f = np.array([0.0, 0.0, 1.0]) - w[:, 2:3] * w
+    ea = (f * f).sum(axis=1)
+    keep = (length >= 1e-9) & (ea >= 1e-9)
+    r = arrays["radius"]
+    lo = np.minimum(A, B)
+    hi = np.maximum(A, B)
+    return {
+        "index": arrays["index"],
+        "atom_c": np.ascontiguousarray(c), "atom_m": minv,
+        "atom_a": np.ascontiguousarray((e * e).sum(axis=1)),
+        "atom_reach": np.stack([c[:, 0] - hx, c[:, 0] + hx, c[:, 1] - hy, c[:, 1] + hy], axis=1),
+        "half_a": np.ascontiguousarray(A[keep]), "half_w": np.ascontiguousarray(w[keep]),
+        "half_len": np.ascontiguousarray(length[keep]), "half_e": np.ascontiguousarray(f[keep]),
+        "half_ea": np.ascontiguousarray(ea[keep]), "half_r": np.ascontiguousarray(r[keep]),
+        "half_reach": np.stack([lo[:, 0] - r, hi[:, 0] + r, lo[:, 1] - r, hi[:, 1] + r],
+                               axis=1)[keep],
+    }
+
+
+def _boxes(reach: np.ndarray, frame: Frame) -> np.ndarray:
+    """:func:`_box` for every primitive at once, one sample a pixel."""
+    lo_x = (reach[:, 0] - frame.x0) * frame.ppa
+    hi_x = (reach[:, 1] - frame.x0) * frame.ppa
+    lo_y = (frame.y0 - reach[:, 3]) * frame.ppa
+    hi_y = (frame.y0 - reach[:, 2]) * frame.ppa
+    return np.stack([np.maximum(np.floor(lo_y) - 1, 0), np.minimum(np.ceil(hi_y) + 1, frame.height),
+                     np.maximum(np.floor(lo_x) - 1, 0), np.minimum(np.ceil(hi_x) + 1, frame.width)],
+                    axis=1).astype(np.int64)
+
+
+def _ids_numpy(pk: dict, frame: Frame, atom_box, half_box, ids, seen) -> None:
+    """:func:`id_plane`'s sample loop, in numpy: ``_band_numpy``'s atom and
+    half tests without the shading, writing an index where they win."""
+    pxs, x0, y0 = frame.ppa, frame.x0, frame.y0
+    zb = np.full(ids.shape, -np.inf)
+    atom_c, atom_m, atom_a = pk["atom_c"], pk["atom_m"], pk["atom_a"]
+    na = len(atom_c)
+    for i in range(na):
+        g = _grid(atom_box[i], 0, frame.height)
+        if g is None:
+            continue
+        iy0, iy1, iy, ix = g
+        m = atom_m[i]
+        e0, e1, e2 = m[0, 2], m[1, 2], m[2, 2]
+        y = y0 - (iy + 0.5) / pxs - atom_c[i, 1]
+        x = x0 + (ix + 0.5) / pxs - atom_c[i, 0]
+        q0 = m[0, 0] * x + m[0, 1] * y
+        q1 = m[1, 0] * x + m[1, 1] * y
+        q2 = m[2, 0] * x + m[2, 1] * y
+        b = q0 * e0 + q1 * e1 + q2 * e2
+        cc = q0 * q0 + q1 * q1 + q2 * q2 - 1.0
+        disc = b * b - atom_a[i] * cc
+        hit = ~(disc < 0.0)
+        z = atom_c[i, 2] + (-b + np.sqrt(np.where(hit, disc, 0.0))) / atom_a[i]
+        rows = slice(iy0, iy1)
+        cols = slice(atom_box[i, 2], atom_box[i, 3])
+        seen[i] = int(hit.sum())
+        hit &= ~(z < zb[rows, cols])
+        zb[rows, cols] = np.where(hit, z, zb[rows, cols])
+        ids[rows, cols] = np.where(hit, i, ids[rows, cols])
+    for i in range(len(pk["half_a"])):
+        g = _grid(half_box[i], 0, frame.height)
+        if g is None:
+            continue
+        iy0, iy1, iy, ix = g
+        w0, w1, w2 = pk["half_w"][i]
+        f0, f1, f2 = pk["half_e"][i]
+        a, r = pk["half_ea"][i], pk["half_r"][i]
+        o1 = y0 - (iy + 0.5) / pxs - pk["half_a"][i, 1]
+        o0 = x0 + (ix + 0.5) / pxs - pk["half_a"][i, 0]
+        o2 = -pk["half_a"][i, 2]
+        oa = o0 * w0 + o1 * w1 + o2 * w2
+        q0 = o0 - oa * w0
+        q1 = o1 - oa * w1
+        q2 = o2 - oa * w2
+        b = q0 * f0 + q1 * f1 + q2 * f2
+        disc = b * b - a * (q0 * q0 + q1 * q1 + q2 * q2 - r * r)
+        hit = ~(disc < 0.0)
+        z = (-b + np.sqrt(np.where(hit, disc, 0.0))) / a
+        along = oa + z * w2
+        hit &= ~((along < 0.0) | (along > pk["half_len"][i]))
+        rows = slice(iy0, iy1)
+        cols = slice(half_box[i, 2], half_box[i, 3])
+        hit &= ~(z < zb[rows, cols])
+        zb[rows, cols] = np.where(hit, z, zb[rows, cols])
+        ids[rows, cols] = np.where(hit, na + i, ids[rows, cols])
+
+
+def id_plane(pk: dict, frame: Frame, compiled_path: bool | None = None) -> IdPlane:
+    """Which atom or bond half is in front at each pixel of ``frame``, for the
+    arrays :func:`pack_ids` built (WP-1503).
+
+    One sample a pixel, atoms and bond halves only: a cell-frame line is a
+    pixel wide and a polyhedron face writes no depth, so neither hides an atom.
+    The depth test and the ray arithmetic are :func:`draw`'s.
+    """
+    atom_box, half_box = _boxes(pk["atom_reach"], frame), _boxes(pk["half_reach"], frame)
+    ids = np.full((frame.height, frame.width), -1, dtype=np.int32)
+    seen = np.zeros(len(atom_box), dtype=np.int64)
+    use = compiled.enabled() if compiled_path is None else compiled_path
+    kernel = _id_kernel() if use else None
+    if kernel is None:
+        _ids_numpy(pk, frame, atom_box, half_box, ids, seen)
+    else:
+        kernel(frame.y0, frame.x0, frame.ppa, frame.height, frame.width, pk["atom_c"],
+               pk["atom_m"], pk["atom_a"], atom_box, pk["half_a"], pk["half_w"],
+               pk["half_len"], pk["half_e"], pk["half_ea"], pk["half_r"], half_box, ids, seen)
+    front = np.bincount(ids[ids >= 0], minlength=len(atom_box) + len(half_box))[:len(atom_box)]
+    return IdPlane(ids=ids, seen=seen, front=front, index=pk["index"])

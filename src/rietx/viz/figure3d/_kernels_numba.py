@@ -348,3 +348,95 @@ def render_rows(r0, r1, s, height, x0, y0, pxs, width, look, alpha, bg, has_bg,
             out[r0 + oy, ox, 1] = np.uint8(math.floor(_clamp(c1) * 255.0 + 0.5))
             out[r0 + oy, ox, 2] = np.uint8(math.floor(_clamp(c2) * 255.0 + 0.5))
             out[r0 + oy, ox, 3] = np.uint8(math.floor(_clamp(ca) * 255.0 + 0.5))
+
+
+@njit(cache=True, nogil=True)
+def id_plane(y0, x0, pxs, height, width, atom_c, atom_m, atom_a, atom_box,
+             half_a, half_w, half_len, half_e, half_ea, half_r, half_box, ids, seen):
+    """Which atom or bond half is in front at each sample (WP-1503).
+
+    ``render_rows``' atom and half tests with the shading left out, one sample a
+    pixel and the whole frame in one call, written in the order
+    ``raster._ids_numpy`` writes it.  ``seen`` counts the samples each atom
+    would cover were nothing in front of it.
+    """
+    zb = np.full((height, width), -np.inf)
+    na = atom_c.shape[0]
+    for i in range(na):
+        iy0 = max(atom_box[i, 0], 0)
+        iy1 = min(atom_box[i, 1], height)
+        if iy0 >= iy1:
+            continue
+        ix0 = max(atom_box[i, 2], 0)
+        ix1 = min(atom_box[i, 3], width)
+        cx = atom_c[i, 0]
+        cy = atom_c[i, 1]
+        cz = atom_c[i, 2]
+        m00 = atom_m[i, 0, 0]
+        m01 = atom_m[i, 0, 1]
+        e0 = atom_m[i, 0, 2]
+        m10 = atom_m[i, 1, 0]
+        m11 = atom_m[i, 1, 1]
+        e1 = atom_m[i, 1, 2]
+        m20 = atom_m[i, 2, 0]
+        m21 = atom_m[i, 2, 1]
+        e2 = atom_m[i, 2, 2]
+        a = atom_a[i]
+        for iy in range(iy0, iy1):
+            y = y0 - (iy + 0.5) / pxs - cy
+            for ix in range(ix0, ix1):
+                x = x0 + (ix + 0.5) / pxs - cx
+                q0 = m00 * x + m01 * y
+                q1 = m10 * x + m11 * y
+                q2 = m20 * x + m21 * y
+                b = q0 * e0 + q1 * e1 + q2 * e2
+                cc = q0 * q0 + q1 * q1 + q2 * q2 - 1.0
+                disc = b * b - a * cc
+                if disc < 0.0:
+                    continue
+                seen[i] += 1
+                z = cz + (-b + math.sqrt(disc)) / a
+                if z < zb[iy, ix]:
+                    continue
+                zb[iy, ix] = z
+                ids[iy, ix] = i
+    for i in range(half_a.shape[0]):
+        iy0 = max(half_box[i, 0], 0)
+        iy1 = min(half_box[i, 1], height)
+        if iy0 >= iy1:
+            continue
+        ix0 = max(half_box[i, 2], 0)
+        ix1 = min(half_box[i, 3], width)
+        ax = half_a[i, 0]
+        ay = half_a[i, 1]
+        az = half_a[i, 2]
+        w0 = half_w[i, 0]
+        w1 = half_w[i, 1]
+        w2 = half_w[i, 2]
+        f0 = half_e[i, 0]
+        f1 = half_e[i, 1]
+        f2 = half_e[i, 2]
+        a = half_ea[i]
+        r = half_r[i]
+        length = half_len[i]
+        for iy in range(iy0, iy1):
+            o1 = y0 - (iy + 0.5) / pxs - ay
+            for ix in range(ix0, ix1):
+                o0 = x0 + (ix + 0.5) / pxs - ax
+                o2 = -az
+                oa = o0 * w0 + o1 * w1 + o2 * w2
+                q0 = o0 - oa * w0
+                q1 = o1 - oa * w1
+                q2 = o2 - oa * w2
+                b = q0 * f0 + q1 * f1 + q2 * f2
+                disc = b * b - a * (q0 * q0 + q1 * q1 + q2 * q2 - r * r)
+                if disc < 0.0:
+                    continue
+                z = (-b + math.sqrt(disc)) / a
+                along = oa + z * w2
+                if along < 0.0 or along > length:
+                    continue
+                if z < zb[iy, ix]:
+                    continue
+                zb[iy, ix] = z
+                ids[iy, ix] = na + i

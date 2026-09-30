@@ -87,14 +87,18 @@ adjust loop for charts with a multimodal model as the critic. The survey of
 
 ## Tasks
 
-- [ ] The id pass on the numpy path at a small long side, and its cost
-  quoted beside the render's on one cell and on 4995 atoms.
-- [ ] `report` with the five numbers and the warnings; a test on a
+- [x] The id pass on the numpy path at a small long side, and its cost
+  quoted beside the render's on one cell and on 4995 atoms. *Numpy alone is
+  11.8 ms on one NAC cell and 212 ms at 3143 atoms, against a render of
+  17-19 ms and 166-199 ms, so the kernel got the variant (`id_plane` in
+  `_kernels_numba.py`): 0.3-0.5 ms and 1.6-1.9 ms. Packing is its own
+  vectorised `pack_ids`, since `_pack`'s per-atom loop costs more than the pass.*
+- [x] `report` with the five numbers and the warnings; a test on a
   constructed scene where the hidden share and the empty share are known.
-- [ ] `view="auto"` and `candidates`; a test that the search is
+- [x] `view="auto"` and `candidates`; a test that the search is
   deterministic and that on the 21 phases the chosen view's hidden share
   is at most the opening view's.
-- [ ] `recipe` and its round trip, bit-identical.
+- [x] `recipe` and its round trip, bit-identical.
 - [ ] The skill checklist, and the token arithmetic for a look in the
   reference.
 - [ ] Docs in `exports.md`; `api-figure.md` regenerated; the manual
