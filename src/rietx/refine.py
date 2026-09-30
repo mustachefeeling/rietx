@@ -4357,10 +4357,10 @@ def _apply_esds(table: ParameterTable, result: RefinementResult,
 #:
 #: Attenuation is a property of the radiation, not a coarse or fine version of
 #: one number: X-ray µ/ρ (McMaster, :mod:`rietx.crystallography.attenuation`)
-#: falls roughly as λ⁻³ between edges and has edges at all, while neutron
-#: attenuation is σ_abs(λ) + σ_coh + σ_inc, σ_abs linear in λ (the 1/v law),
-#: and hydrogen is nearly transparent to one and among the strongest
-#: attenuators of the other.  So each source kind needs *its own* table
+#: rises roughly as λ³ (falls as E⁻³) between edges and has edges at all,
+#: while neutron attenuation is σ_abs(λ) + σ_coh + σ_inc, σ_abs linear in λ
+#: (the 1/v law), and hydrogen is nearly transparent to one and among the
+#: strongest attenuators of the other.  So each source kind needs *its own* table
 #: (:data:`rietx.optimize.qpa.LINEAR_ATTENUATION_BY_SOURCE`: X-ray, and
 #: constant-wavelength neutron from Sears 1992 since WP-1132), and a kind with
 #: none declines here rather than borrowing another radiation's — writing the

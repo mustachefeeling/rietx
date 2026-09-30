@@ -73,9 +73,9 @@ are different quantities and not two precisions of one:
 
 $\sigma_{\mathrm{abs}}$ is tabulated for 2200 m/s neutrons, $\lambda_0$, and
 away from a resonance it follows the $1/v$ law, so it grows linearly in
-$\lambda$ where an X-ray $\mu/\rho$ falls roughly as $\lambda^{-3}$. The
-scattering terms do not depend on $\lambda$. They are the free-atom values:
-in a polycrystal the coherent part is Bragg scattering, and how much of the
+$\lambda$ where an X-ray $\mu/\rho$ rises roughly as $\lambda^{3}$ (falls as
+$E^{-3}$). The scattering terms do not depend on $\lambda$. They are the
+free-atom values: in a polycrystal the coherent part is Bragg scattering, and how much of the
 beam that removes depends on $\lambda$ against the largest $d$-spacing, which
 is not modelled. Hydrogen is where the two radiations part most: its
 incoherent 80.26 barn makes it about 93 % of brucite's neutron $\mu$ and

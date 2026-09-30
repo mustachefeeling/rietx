@@ -170,10 +170,11 @@ def is_resonant_absorber(species: str) -> bool:
 
 #: Wavelength (Å) at which the table's ``xs_abs_barn`` is quoted: neutrons at
 #: the conventional thermal velocity of 2200 m/s, the velocity Sears (1992)
-#: quotes absorption cross-sections for.  The absorption cross-section of a nucleus far from a resonance
-#: follows the **1/v law** — the time the neutron spends near the nucleus —
-#: so σ_abs(λ) = σ_abs(1.798 Å) · λ / 1.798: *linear* in λ, where an X-ray
-#: µ/ρ falls roughly as λ⁻³ between edges.
+#: quotes absorption cross-sections for.  The absorption cross-section of a
+#: nucleus far from a resonance follows the **1/v law** — the time the neutron
+#: spends near the nucleus — so σ_abs(λ) = σ_abs(1.798 Å) · λ / 1.798:
+#: *linear* in λ, where an X-ray µ/ρ rises roughly as λ³ (falls as E⁻³)
+#: between edges.
 SIGMA_ABS_REFERENCE_WAVELENGTH = 1.798
 
 

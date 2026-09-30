@@ -614,10 +614,11 @@ def test_a_neutron_capillary_is_estimated_from_the_neutron_table():
     **neutron** one, never the X-ray number the fence used to keep out.
 
     ``crystallography.attenuation`` is X-ray photoabsorption; neutron σ_abs
-    scales as λ (1/v) where X-ray µ/ρ falls as ~λ⁻³ and has edges.  So the
-    value written onto the geometry is asserted equal to the Sears-table
-    estimate and **unequal** to the X-ray one for the same arguments: an
-    implementation that wired the X-ray table back in fails the second line.
+    scales as λ (1/v) where X-ray µ/ρ rises roughly as λ³ (falls as E⁻³)
+    and has edges.  So the value written onto the geometry is asserted equal
+    to the Sears-table estimate and **unequal** to the X-ray one for the same
+    arguments: an implementation that wired the X-ray table back in fails the
+    second line.
     """
     from rietx.optimize.qpa import estimate_capillary_mu_r
     from rietx.params.vector import ParameterTable
@@ -837,9 +838,9 @@ def test_neutron_absorption_scales_linearly_in_wavelength():
 
     σ_tot(λ) − σ_scatt must be *proportional* to λ with slope σ_abs/1.798:
     equal steps in λ give equal steps in σ, and doubling λ doubles the
-    absorption part.  An X-ray µ/ρ falls roughly as λ⁻³ between edges, so the
-    X-ray total fails the same check — asserted too, so this test cannot pass
-    on a table that has the wrong λ dependence.
+    absorption part.  An X-ray µ/ρ rises roughly as λ³ (falls as E⁻³)
+    between edges, so the X-ray total fails the same check — asserted too, so
+    this test cannot pass on a table that has the wrong λ dependence.
     """
     from rietx.crystallography.attenuation import total_cross_section
     from rietx.crystallography.neutron import (
@@ -857,10 +858,11 @@ def test_neutron_absorption_scales_linearly_in_wavelength():
     assert np.allclose(steps, steps[0], rtol=1e-12)
     assert absorbed[2] == pytest.approx(2.0 * absorbed[0], rel=1e-12)
 
-    # the X-ray table rises with λ far faster than linearly (O: no edge in
-    # this range to confuse the ratio, which W's L edges near 1.1 Å would)
+    # the X-ray table rises with λ roughly as λ³, far faster than linearly
+    # (O: no edge in this range to confuse the ratio, which W's L edges near
+    # 1.1 Å would); the exponent is the one the docstring states
     xray = [total_cross_section("O", lam) for lam in (1.0, 2.0)]
-    assert xray[1] / xray[0] > 4.0
+    assert 2.5 < np.log2(xray[1] / xray[0]) < 3.5
 
 
 def _h_share(attenuation, lam: float) -> float:
