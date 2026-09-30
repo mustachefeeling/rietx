@@ -554,6 +554,14 @@ def test_pawley_floor_seed_that_changes_the_overlap_groups_still_suggests():
     reported.update({c.path: c for c in res.non_separable})
     lor = reported["phases.0.lor_size"]
     assert lor.seeded and lor.seed_value == SUGGEST_SEED_SOFTPLUS
+    # and the column is the seeded one, not only the flag: on this fixture's
+    # 3° window a width is a 1/cosθ or tanθ column, near-collinear with the
+    # Lorentzian Y term and with each other, and that is the group it scores
+    # in.  The unseeded column is fp noise and lands nowhere near it.
+    (group,) = [g for g in res.groups
+                if "phases.0.lor_size" in {m.path for m in g.members}]
+    assert {m.path for m in group.members} == {
+        "instrument.profile.y", "phases.0.lor_size", "phases.0.lor_strain"}
 
 
 # ----------------------------------------------------------------------
