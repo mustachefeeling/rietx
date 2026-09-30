@@ -107,7 +107,8 @@ builds on it.
   with WP-1327's analytic moment branch and WP-1419; R6 writes its own det(R)·R
   basis and adds a monoclinic case; R8 freezes the pair list per plan and tests
   at the kink; R11 needs `displace_anchored_dofs` for rotations. R2b onward is
-  cut into WPs from 1803's record. Its companion is #562, under WP-1515.
+  cut into WPs from 1803's record. **Decided 2026-09-30: v1.6 ships whole** (every rung, 1419 included), so
+  every chunk after 1803 that edits `params/vector.py` waits for v1.6 to close. Its companion is #562, under WP-1515.
 
 ## What the scoping decides
 

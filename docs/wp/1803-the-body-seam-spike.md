@@ -52,6 +52,10 @@ Also measured or confirmed here: `_structural_column` never matches a body
 column (`_STRUCTURAL_PATH` accepts only `atoms.N.(dof|adp).N`), so body DOFs
 take the exact `_peak_chain_column` path and no Jacobian branch is needed.
 
+**Sequencing, decided 2026-09-30:** v1.6 ships whole, so the table change this
+spike licenses is cut as a WP but does not start until v1.6 closes. The spike
+itself edits no repo file but DESIGN.md and may run now.
+
 ## Non-goals
 
 - Shipping any table change. That is the WP this record licenses.
