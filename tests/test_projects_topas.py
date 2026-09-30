@@ -34,6 +34,7 @@ from rietx.io.projects.topas import (
     strip_comments,
     symbol_table,
     to_structure,
+    topas_species,
     write_topas_inp,
 )
 
@@ -88,6 +89,28 @@ def test_define_after_use_is_still_defined():
 ])
 def test_species_are_normalised_to_iucr_order(written, iucr):
     assert normalize_species(written) == iucr
+
+
+@pytest.mark.parametrize("iucr, written", [
+    ("Zr4+", "Zr+4"),   # TOPAS stops on `occ Zr4+` ("Cannot find zr4 in file isotopes.txt")
+    ("O2-", "O-2"),
+    ("Cu1+", "Cu+1"),
+    ("Cu+1", "Cu+1"),   # already TOPAS's order, left alone
+    ("Mn", "Mn"),
+    ("Wat", "Wat"),     # not an element plus a charge: written as it is
+])
+def test_species_are_written_in_topas_order(iucr, written):
+    """Issue #550: the inverse of rule 4, and a round trip through it."""
+    assert topas_species(iucr) == written
+    assert normalize_species(topas_species(iucr)) == normalize_species(iucr)
+
+
+def test_a_charge_with_no_magnitude_is_refused_rather_than_guessed():
+    """rietx reads `Cu+` as neutral Cu (its table has no `Cu+`); TOPAS's X-ray
+    table has no `Cu+` either and reads `Cu+1` as the ion. No spelling states
+    rietx's model, so the writer says so."""
+    with pytest.raises(ValueError, match=r"'Cu1\+' for the ion or 'Cu'"):
+        topas_species("Cu+")
 
 
 @pytest.mark.parametrize("written, expected", [
@@ -3125,6 +3148,36 @@ def test_write_topas_inp_round_trips_anisotropic_adps(tmp_path):
         _assert_parameter_equal(getattr(na.aniso, key), getattr(ba.aniso, key))
     assert ba.biso.value == na.biso.value
     assert ba.biso.vary is False
+
+
+def test_write_topas_inp_writes_ions_sign_first(tmp_path):
+    """Issue #550: `occ Zr4+` and `occ O2-` stop TOPAS, so the file carries
+    `Zr+4` and `O-2`. The token is pinned, not only the round trip, because
+    the reader accepts both orders and a round trip passes either way."""
+    def held(value):
+        return rx.Parameter(value=value, vary=False)
+
+    atoms = [rx.Atom(label=label, species=species, x=held(x), y=held(x), z=held(x),
+                     occ=held(1.0), biso=held(0.5))
+             for label, species, x in (("Zr1", "Zr4+", 0.0), ("O1", "O2-", 0.25))]
+    phase = rx.Phase(name="ZrO2", space_group="Fm-3m", cell=rx.Cell.cubic(5.07),
+                     atoms=atoms, scale=rx.Parameter(value=1e-3, vary=True, min=0.0))
+    out = tmp_path / "zro2.inp"
+    write_topas_inp(rx.Structure(phases=[phase]), out)
+
+    text = out.read_text(encoding="utf-8")
+    assert "occ Zr+4 " in text and "occ O-2 " in text
+    assert "Zr4+" not in text and "O2-" not in text
+    back = to_structure(read_topas_inp(out))
+    assert [a.species for a in back.phases[0].atoms] == ["Zr4+", "O2-"]
+
+
+def test_write_topas_inp_refuses_a_charge_with_no_magnitude(tmp_path):
+    phase = _cubic_al().phases[0]
+    phase = phase.model_copy(update={"atoms": [
+        phase.atoms[0].model_copy(update={"species": "Al+"})]})
+    with pytest.raises(ValueError, match=r"phase 'Al': atom 'Al1': species 'Al\+'"):
+        write_topas_inp(rx.Structure(phases=[phase]), tmp_path / "al.inp")
 
 
 def test_write_topas_inp_writes_the_resolved_setting_not_the_bare_symbol(tmp_path):

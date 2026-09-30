@@ -760,6 +760,35 @@ def normalize_species(species: str) -> str:
     return s
 
 
+def topas_species(species: str) -> str:
+    """``Cu1+`` → ``Cu+1``: the inverse of :func:`normalize_species`, for writing.
+
+    TOPAS reads an ion sign-first and stops on the IUCr order rietx stores:
+    ``occ O2-`` ends the run with "Cannot find o2 in file isotopes.txt", for
+    X-ray and neutron data alike, and ``occ O-2`` runs (issue #550; TOPAS 6,
+    run as a black box). A neutral atom, or any label that is not an element
+    plus a charge, is written as it is.
+
+    An ion with a sign but no magnitude (``Cu+``) is refused. rietx's own
+    scattering table has no ``Cu+`` and falls back to neutral Cu, while
+    TOPAS's X-ray table has no ``Cu+`` at all (it stops) and ``Cu+1`` is the
+    ion, so no spelling writes the model rietx computed.
+    """
+    if m := re.fullmatch(r"([A-Za-z]{1,2})(\d*)([+-])", species):
+        element, magnitude, sign = m.groups()
+        if not magnitude:
+            raise ValueError(
+                f"species {species!r} has a sign but no charge magnitude: "
+                f"rietx's scattering table reads it as the neutral atom "
+                f"{element!r}, and TOPAS has no {species!r} (its X-ray table "
+                f"stops on it) and reads {element + sign + '1'!r} as the ion, "
+                f"so no TOPAS spelling states the model rietx computed. Write "
+                f"{element + '1' + sign!r} for the ion or {element!r} for the "
+                f"neutral atom")
+        return f"{element}{sign}{magnitude}"
+    return species
+
+
 def normalize_space_group(symbol: str) -> str:
     """``Pn-3mZ`` → ``Pn-3m:2`` (rule 4, and see :data:`_SG_SUFFIX`)."""
     s = symbol.strip()
@@ -3356,8 +3385,13 @@ def from_structure(structure: Structure) -> str:
                     f"in (it bounds biso at zero) — writing this file would "
                     f"only fail later, at the read, rather than here where "
                     f"the value is still in hand")
+            try:
+                species = topas_species(atom.species)
+            except ValueError as exc:
+                raise ValueError(f"phase {phase.name!r}: atom {atom.label!r}: "
+                                 f"{exc}") from None
             site = (f"  site {atom.label} x {_tail(atom.x)} y {_tail(atom.y)} "
-                    f"z {_tail(atom.z)} occ {atom.species} {_tail(atom.occ)}")
+                    f"z {_tail(atom.z)} occ {species} {_tail(atom.occ)}")
             if atom.aniso is not None:
                 # `to_structure` always builds an aniso site's `biso` held
                 # (`vary=False`) — it is the schema's inert record, not a
