@@ -3086,7 +3086,7 @@ class Refinement:
                 # confound it names is created by the stage list itself, so
                 # the report has to arrive before the first stage runs rather
                 # than after the answer it spoiled.
-                + _stage_order_diagnostics(plan, table))
+                + _stage_order_diagnostics(plan, table, mode))
             stage_results: list[StageResult] = []
             self.stage_reports_ = []
             outcome = None
@@ -3499,7 +3499,7 @@ class Refinement:
             # entry point a caller reaches for when they are driving the order
             # by hand.
             order = _stage_order_diagnostics(
-                RefinementPlan(stages=[stage]), table)
+                RefinementPlan(stages=[stage]), table, mode)
             try:
                 with self._abandon_on_cancel(cancel, stage.name, [], stream):
                     model, outcome, guard, freed, hold = self._run_stage(
@@ -4198,7 +4198,8 @@ _MAGNETIC_WIDTH_PATH = re.compile(
     r"^phases\.(\d+)\.magnetic_lor_(?:size|strain)$")
 
 
-def _stage_order_diagnostics(plan, table) -> list[Diagnostic]:
+def _stage_order_diagnostics(plan, table,
+                             mode: Mode = "rietveld") -> list[Diagnostic]:
     """``STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT`` — the ordering rule, checked
     against the plan **before the first stage runs** (WP-1343).
 
@@ -4224,7 +4225,10 @@ def _stage_order_diagnostics(plan, table) -> list[Diagnostic]:
     text, so a plan written with ``phases.*.…`` is read exactly as the stage
     runner will read it.  What ``table`` already has free counts as freed
     before the first stage: ``fit`` hands it a table with everything held,
-    ``run_stage`` one carrying the working state's free set.
+    ``run_stage`` one carrying the working state's free set.  And ``mode``
+    is read as the stage runner reads it: under Le Bail and Pawley both the
+    moment (an ``.atoms.`` path) and the widths are force-fixed after
+    ``set_vary`` has matched them, so a stage naming both frees neither there.
 
     ``warning`` rather than ``error``: the plan is a caller's to write, the fit
     will run, and what this owes them is the name of the confound and the
@@ -4241,8 +4245,14 @@ def _stage_order_diagnostics(plan, table) -> list[Diagnostic]:
         # asked of the table, never restated here: ``would_free`` is
         # ``set_vary``'s own matcher, so a tied, locked or **held** row
         # (WP-1435) is skipped by the same predicate the stage runner uses,
-        # and this cannot report a stage that will in fact free nothing
+        # — and then the mode's force-fix, by the same column test
+        # ``_run_stage`` drops with — so this cannot report a stage that will
+        # in fact free nothing
         freed = table.would_free(stage.turn_on)
+        if mode in ("lebail", "pawley"):
+            reach = table.column_reach()
+            freed = [p for p in freed
+                     if not mode_fixed_column(reach.get(p, [p]), mode)]
         new = [p for p in freed if p not in seen]
         seen.update(freed)
         widths = {m.group(1): p for p in new

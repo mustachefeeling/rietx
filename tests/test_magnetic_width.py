@@ -550,6 +550,37 @@ def test_an_intensity_model_never_seeds_a_width_it_force_fixes(mode):
     assert not any("magnetic_lor" in p.path for p in res.parameters)
 
 
+@pytest.mark.parametrize("mode", ["lebail", "pawley"])
+def test_the_ordering_check_is_silent_where_the_mode_frees_neither(mode):
+    """Round 2, item 2: outside Rietveld the moment (an ``.atoms.`` path) and
+    the widths are both force-fixed, so a stage naming both frees neither and
+    the confound cannot happen — yet the check asked ``set_vary``'s matcher
+    alone, one filter short of what the stage runner frees."""
+    ph = _mnf2()
+    ph.scale.value = 0.02
+    ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
+    ins.profile.u.value, ins.profile.w.value = 0.05, 0.03
+    data = _neutron_data(ph, ins)
+    ref = rx.Refinement(rx.Structure(phases=[_mnf2()]), ins.model_copy(deep=True))
+    res = ref.fit(data, mode=mode, plan=rx.RefinementPlan(stages=[rx.Stage(
+        "everything", ["instrument.profile.w", "phases.*.atoms.*.moment.dof*",
+                       "phases.*.magnetic_lor_size"])]))
+    freed = {p.path for p in res.parameters}
+    assert not any("magnetic_lor" in p or ".moment." in p for p in freed)
+    assert not any(d.code == "STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT"
+                   for d in res.diagnostics)
+    # the control: the same stage list, read for a Rietveld fit, is the confound
+    from rietx.refine import _stage_order_diagnostics
+    table = ParameterTable(rx.Structure(phases=[_mnf2()]), ins)
+    table.set_vary(["*"], False)
+    plan = rx.RefinementPlan(stages=[rx.Stage(
+        "everything", ["phases.*.atoms.*.moment.dof*",
+                       "phases.*.magnetic_lor_size"])])
+    assert [d.code for d in _stage_order_diagnostics(plan, table)] == [
+        "STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT"]
+    assert _stage_order_diagnostics(plan, table, mode) == []
+
+
 # ================================================ the staging rule
 
 def test_the_preset_is_the_three_step_order():
