@@ -369,6 +369,15 @@ the model breaks its own bounds [0, 25]; it follows 2·phases.0.atoms.0.biso"*.
 Read that as a constraint to widen, never as a corrupt model or a bad CIF.
 (Measured: WP-1119.)
 
+**Declaring bounds on every coordinate is what makes a tie refuse.** CIF
+coordinates load unbounded, and a displacement DOF has no bounds of its own;
+give `x`/`y`/`z` a `[0, 1]` range and an offset tie can push the coordinate out.
+`tie()` then refuses at the call, naming the tie, the coordinate, its atom and
+the bound, and registers nothing, so the corrected retry goes through. The
+offset reaches the coordinate (directly in P 1, through the symmetry map
+elsewhere): check it before widening a bound.
+(Measured: WP-1337, #246.)
+
 
 **8.23 Declaring an intruding peak is not more *accurate* than excluding the
 region — it is cheaper, and on some patterns that is the whole difference.**

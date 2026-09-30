@@ -487,6 +487,83 @@ def test_lebail_mode_fixed_paths_never_enumerate(truth):
     assert res.n_evaluated + len(res.skipped) == len(held)
 
 
+def test_pawley_floor_seed_that_changes_the_overlap_groups_still_suggests():
+    """#244: in Pawley mode a floored width is probed from its seed, and the
+    seed can change which reflections count as overlapped, so the seeded
+    build's equal-split restraint block has a different row count from the
+    current state's.  The seeded column is carried block by block; before,
+    a whole-column copy died in a numpy broadcast, and ``summary()`` — the
+    path #244 was reported through — died with it.
+
+    Made-up pseudo-tetragonal monoclinic cell (a ≈ b, so many reflection
+    pairs sit at the overlap threshold) under a narrow synchrotron-like
+    profile.  The specimen carries a Lorentzian size width the model does
+    not, so a Pawley fit freeing only the background leaves the four sample
+    widths on their floor with real leverage for ``suggest()`` to report.
+    """
+    from rietx.model.forward import compile_model
+    from rietx.model.rows import block
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas.structure import lebail_scaffold
+    from rietx.strategy.staged import RefinementPlan, Stage
+
+    ins = rx.Instrument.debye_scherrer(wavelength=0.4139)
+    ins.profile.w.value = 2.0e-6
+    ins.profile.x.value = 1.0e-3
+    tt = np.arange(10.0, 13.0, 0.002)
+    grid = rx.PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
+    cell = (5.310, 5.327, 9.20, 90.0, 90.0, 90.0)
+    widths = ("lor_size", "lor_strain", "gauss_size", "gauss_strain")
+
+    def restraint_rows(width):
+        s = lebail_scaffold("P 1 21/c 1", cell)
+        for name in widths:
+            getattr(s.phases[0], name).value = width
+        model = compile_model(s, ins, grid, mode="pawley")
+        model.build_pawley_restraint()
+        return block(model, "pawley_restraint").n
+
+    # the precondition, or the test proves nothing: the seeds suggest() puts
+    # on the four floored sample widths move the block
+    assert restraint_rows(0.0) != restraint_rows(SUGGEST_SEED_SOFTPLUS)
+
+    specimen = lebail_scaffold("P 1 21/c 1", cell)
+    specimen.phases[0].lor_size.value = 5e-3
+    table = ParameterTable(specimen, ins)
+    y = compile_model(specimen, ins, grid, mode="rietveld").evaluate(
+        table.decode(table.x0()))
+    y = 1e4 * y / y.max() + 100.0
+    counts = np.random.default_rng(3).poisson(y).astype(float)
+    data = rx.PatternData(two_theta=tt.tolist(), intensity=counts.tolist())
+
+    r = rx.Refinement(lebail_scaffold("P 1 21/c 1", cell), ins)
+    r.set_vary(["*"], False)
+    r.fit(data, mode="pawley", plan=RefinementPlan(
+        stages=[Stage(name="background", turn_on=["instrument.background.*"])]))
+    assert all(getattr(r.structure.phases[0], n).value == 0.0 for n in widths)
+    assert "next: free" in r.summary()
+
+    # a seeded width reaches the result, not only the return: the probe on
+    # the fitted channels (the ones summary() asks about) reports the planted
+    # width, probed from its seed
+    m = r._model
+    res = r.suggest(rx.PatternData(two_theta=m.tt.tolist(),
+                                   intensity=m.y_obs.tolist(),
+                                   sigma=m.sigma.tolist()))
+    reported = {c.path: c for g in res.groups for c in g.members}
+    reported.update({c.path: c for c in res.non_separable})
+    lor = reported["phases.0.lor_size"]
+    assert lor.seeded and lor.seed_value == SUGGEST_SEED_SOFTPLUS
+    # and the column is the seeded one, not only the flag: on this fixture's
+    # 3° window a width is a 1/cosθ or tanθ column, near-collinear with the
+    # Lorentzian Y term and with each other, and that is the group it scores
+    # in.  The unseeded column is fp noise and lands nowhere near it.
+    (group,) = [g for g in res.groups
+                if "phases.0.lor_size" in {m.path for m in g.members}]
+    assert {m.path for m in group.members} == {
+        "instrument.profile.y", "phases.0.lor_size", "phases.0.lor_strain"}
+
+
 # ----------------------------------------------------------------------
 # ΔBIC (WP-1305 b).  The gain ranks; ΔBIC says whether the ranking's winner
 # pays for the parameter it costs — the two are different questions and the

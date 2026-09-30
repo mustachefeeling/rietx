@@ -63,6 +63,7 @@ from .model.profiles.caglioti import (
     lorentzian_fwhm,
 )
 from .model.restraints import summarise_restraints
+from .model.rows import layout as row_layout
 from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import (
     SOLVERS,
@@ -91,6 +92,7 @@ from .params.vector import (
     ParameterTable,
     _cell_parameter_name,
     _is_wavelength,
+    _tie_text,
     cell_window,
     is_literal_path,
     is_variable_path,
@@ -2139,11 +2141,48 @@ class Refinement:
         # table: half a ``tie_equal``, applied by a call that reported failure.
         # The table is thrown away on the raise, so writing it first costs
         # nothing and makes the declaration the single move it says it is.
+        before = {e.path: e.value for e in table.entries}
         for path, (terms, offset) in spec.items():
             table.set_tie(path, AffineTie(terms=tuple(terms), const=offset))
+        # The target's own bounds are checked above; a displacement DOF has
+        # none, and the bound it breaks is on the coordinate its symmetry
+        # tie reaches.  Found here, in this verb's voice and naming what the
+        # caller wrote, rather than at the model write-back (#246).
+        table.refresh_ties()
+        broken = [e for e in table.entries if e.value != before[e.path]
+                  and not (e.lo <= e.value <= e.hi)]
+        if broken:
+            e = broken[0]
+            wrote = "; ".join(
+                f"{p} to {_tie_text(AffineTie(terms=tuple(t), const=o))}"
+                for p, (t, o) in spec.items())
+            more = f" ({len(broken)} parameters in all)" if len(broken) > 1 else ""
+            raise ValueError(
+                f"tying {wrote} implies {e.path}={e.value:g}"
+                f"{self._owner_label(e.path)}, outside its bounds "
+                f"[{e.lo:g}, {e.hi:g}]{more}; loosen that bound or change "
+                "the tie")
+        previous = dict(self._ties)
         self._ties.update(specs)
-        self._commit_tie_edit(table, ties=specs, untied=[])
+        try:
+            self._commit_tie_edit(table, ties=specs, untied=[])
+        except BaseException:
+            # a refused tie must not stay registered: the call reported
+            # failure, and a retry would meet "already follows" (#246)
+            self._ties = previous
+            raise
         return list(spec)
+
+    def _owner_label(self, path: str) -> str:
+        """`` (atom O1 of phase X)`` for an atom's path, else ``""``."""
+        parts = path.split(".")
+        if len(parts) > 3 and parts[0] == "phases" and parts[2] == "atoms":
+            try:
+                phase = self.structure.phases[int(parts[1])]
+                return f" (atom {phase.atoms[int(parts[3])].label} of phase {phase.name})"
+            except (ValueError, IndexError):
+                pass
+        return ""
 
     def _commit_tie_edit(self, table: ParameterTable, *,
                          ties: dict[str, TieSpec], untied: list[str]) -> None:
@@ -2241,6 +2280,7 @@ class Refinement:
         from .optimize.least_squares import _jacobian_for, _make_residual
 
         n_data = [0]
+        blocks = [()]
 
         def probe():
             """Compile the table's state on model copies; return (jac, resid, x0)."""
@@ -2272,12 +2312,14 @@ class Refinement:
             if model.pawley is not None:
                 x0 = np.concatenate([x0, model.pawley_x0()])
             n_data[0] = len(model.tt)
+            blocks[0] = row_layout(model)
             return (_jacobian_for(model, table, self._backend)(x0),
                     _make_residual(model, table)(x0), x0)
 
         # build 1 — the honest current state: residual, free block, and every
         # candidate column whose physical derivative is quotable there
         jac, resid, x0 = probe()
+        blocks_now = blocks[0]
         fp = table.free_paths
 
         # build 2 — floor candidates only.  A softplus column at its floor is
@@ -2301,7 +2343,7 @@ class Refinement:
             jac2, _, x2 = probe()
             for i, p in enumerate(fp):
                 if p in seeded:
-                    jac[:, i] = jac2[:, i]
+                    _copy_seeded_column(jac, jac2, i, blocks_now, blocks[0], p)
                     x0[i] = x2[i]  # dp/du is the seeded point's too
         free_idx = [i for i, p in enumerate(fp) if p in free_before]
         # in Pawley mode the intensity block co-refines with anything, so it
@@ -5038,6 +5080,32 @@ def _scatter_lebail(lookup: dict[tuple, float], cp_new) -> None:
         value = lookup.get(key)
         if value is not None:
             cp_new.hkl_intensity[i] = value
+
+
+def _copy_seeded_column(jac: np.ndarray, jac2: np.ndarray, i: int,
+                        blocks_now, blocks_seeded, path: str) -> None:
+    """Carry candidate column ``i`` from :meth:`Refinement.suggest`'s seeded
+    build into the current state's Jacobian, one row block at a time.
+
+    The two builds share the data rows but not always every penalty block:
+    a seeded width decides which Pawley reflections count as overlapped, so
+    the equal-split restraint block can differ in length and a whole-column
+    copy dies in a numpy broadcast (#244).  A block of equal length is
+    copied; one whose length differs keeps the current state's rows, which
+    is exact only where the column is zero in both builds — true of every
+    table column against the Pawley restraint, whose rows read the intensity
+    tail alone — and that is checked where it is used rather than assumed.
+    """
+    for now, seeded in zip(blocks_now, blocks_seeded):
+        if now.n == seeded.n:
+            jac[now.rows, i] = jac2[seeded.rows, i]
+        elif np.any(jac[now.rows, i]) or np.any(jac2[seeded.rows, i]):
+            raise ValueError(
+                f"suggest(): seeding {path!r} off its floor changed the "
+                f"{now.name} block from {now.n} to {seeded.n} rows, and "
+                f"{path!r} reaches that block, so its seeded column cannot be "
+                f"carried into the current state; seed {path!r} off its floor "
+                f"yourself (set_values) and ask again")
 
 
 def _carry_lebail(old: CompiledModel, new: CompiledModel) -> None:
