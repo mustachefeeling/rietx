@@ -18,6 +18,7 @@ from __future__ import annotations
 import ast
 import importlib
 import inspect
+import re
 from pathlib import Path
 
 import numpy as np
@@ -199,9 +200,20 @@ def test_a_guard_on_both_lists_is_named_as_the_exception_in_the_prose():
         (diag,) = multi._guard_diagnostics(
             GuardReport(**{field: [finding()]}))
         for text in (manual, s830):
-            i = text.find(diag.code)
-            assert i >= 0 and "both lists" in text[max(0, i - 300):i + 300], (
-                field, diag.code)
+            assert _names_as_exception(text, diag.code), (field, diag.code)
+        # anchored on the paragraph, not on the code's first mention: an
+        # earlier passing mention elsewhere in the file must not hide the
+        # exception's own paragraph, and a paragraph without it still fails
+        decoy = f"`{diag.code}` is also mentioned here, in passing.\n\n"
+        assert _names_as_exception(decoy + manual, diag.code)
+        assert not _names_as_exception(
+            manual.replace("both lists", "two lists"), diag.code)
+
+
+def _names_as_exception(text: str, code: str) -> bool:
+    """Some one paragraph of ``text`` names ``code`` and says "both lists"."""
+    return any(code in para and "both lists" in para
+               for para in re.split(r"\n[ \t]*\n", text))
 
 
 # -------------------------------------------------------- the three codes ---
