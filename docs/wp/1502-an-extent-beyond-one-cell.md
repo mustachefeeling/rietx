@@ -92,6 +92,14 @@ extent must leave it as it is.
   made it, server-side only (`_turn`, stripped from the dict), because two
   images of a negative disorder group coexist only when one rotation made
   both. An image the extent adds by a lattice translation keeps its parent's.
+- **From WP-1501 (2026-09-30).** `keep`, `complete=` and `component` act on
+  the finite built graph, and `component(via="corners")` on NAC returns 168 of
+  185 atoms because two images of one atom are two atoms. A periodic identity
+  (which image is the same atom) is what makes a motif's piece finite, and only
+  this WP can supply it. `component` with `via="edges"`/`"faces"` starts only
+  from a polyhedron's centre. A polyhedron's `bonds` are found by position, so
+  their `i` and `j` can be periodic twins of its centre and vertices: an extent
+  that adds atoms must keep that, since `keep` renumbers them by index.
 
 ## Non-goals
 

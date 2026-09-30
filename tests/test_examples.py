@@ -171,3 +171,17 @@ def test_structure_figure_example_draws_its_pictures():
         path = EXAMPLES / name
         assert path.exists(), f"structure_figure.py wrote no {name}"
         assert path.stat().st_mtime_ns != stamp, f"structure_figure.py left a stale {name}"
+
+
+def test_structure_cut_example_draws_its_pictures():
+    """The cut walkthrough (WP-1501): the figure without F2 is the 113 atoms the
+    WP measured, and its manual output block is what the script prints."""
+    pictures = ("nac_without_f2.png", "nac_without_f2_completed.png", "nac_110_slab.png",
+                "nac_one_red.png")
+    before = _timestamps(*pictures)
+    out = _run("structure_cut.py").stdout
+    assert "without F2: 113 atoms drawn" in out, out
+    for name, stamp in before.items():
+        path = EXAMPLES / name
+        assert path.exists(), f"structure_cut.py wrote no {name}"
+        assert path.stat().st_mtime_ns != stamp, f"structure_cut.py left a stale {name}"
