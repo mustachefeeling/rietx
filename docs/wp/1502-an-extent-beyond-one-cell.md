@@ -1,6 +1,6 @@
 # WP-1502 — an extent beyond one cell
 
-Milestone: v1.7 · Status: ⬜
+Milestone: v1.7 · Status: 🔄 2026-09-30 — claimed by @yue-here
 Depends on: 1470 (1501 soft)
 Priority: P3 2026-09-27 — a view over what the model already knows; VESTA draws a supercell today, and a P1 expansion by hand is the workaround
 
