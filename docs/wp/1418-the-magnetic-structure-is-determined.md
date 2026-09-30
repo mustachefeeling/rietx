@@ -152,6 +152,21 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   open, so the premise holds; the `isotropy.py` line numbers it quotes are on
   `44eaa091` and were not re-measured. Decision pending (batch item,
   2026-09-30).
+- **2026-09-30, from the issue triage (issue #258, two comments of that
+  day): the reporter proposes splitting M-11.** (1) A Fourier-form S_k model
+  needs its sign and phase reference (cell origin R_l against full position
+  R_l + r_j; FullProf's S against T, Perez-Mato 2012 eq. 1) as a required
+  named field, since the two differ by exp(2πi k·r_j) per atom. This is the
+  same sign question as #563 above. (2) "Needs none of N-1's machinery"
+  does not hold: a Fourier model from G_k basis vectors alone leaves the
+  relative phases between orbits that k → −k splits free (CaFe₄As₃: 7
+  parameters where the superspace group allows 4; Perez-Mato 2012, Table 4).
+  The fix is the extended little group G_{k,−k} and the invariance equation
+  (eqs. 16-19). Proposed: **M-11a** the forward model, S_k schema and
+  `IrrepBasis` bridge; **M-11b** the k/−k coset and invariance equation,
+  shared with N-1, whose acceptance is that it does not reproduce the
+  over-parameterisation. The maintainer's call on the split (batch item,
+  2026-09-30). The paper's table and equation numbers were not re-read here.
 - **From [1506](1506-a-planning-doc-pr-runs-what-reads-it.md), 2026-09-27:
   `isotropy.analyse` on F m -3 m takes 26 s, and the fast suite pays it
   twice.** `isotropy.analyse(isotropy.candidates("F m -3 m", (0, 0, 0),
