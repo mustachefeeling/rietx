@@ -277,14 +277,28 @@ classes of that relation rather than a ranked list of individually
 distinguishable candidates, so a refinement need only try one representative
 per class.
 
-"The whole range" is sampled rather than proved: each direction is tested on
-a few random amplitude draws, each fitted from a few random starts, and both
-verdicts are statistical. "Distinguishable" can be a fit that stopped in a
-local minimum on every start, and "equivalent" can be a set of draws that
-all missed the part of one family the other cannot reach. The amplitude basis
-is made canonical before any draw, so the classes do not depend on which basis
-of the same family the linear algebra returned, but they remain a function of
-the seed and the number of draws and starts.
+"The whole range" is proved where one of two certificates applies, and
+sampled everywhere else. A family that lights a shell the other can never
+light is distinguishable whatever its amplitudes, and so is one whose shell
+intensities span a direction the other's cannot reach: each shell intensity is
+linear in the matrix $\mathbf{b}\mathbf{b}^{\mathsf T}$ (the quadratic form
+below), so a family's patterns all lie in one linear subspace, and when one
+family's subspace is not inside the other's, all but a measure-zero set of its
+patterns fall outside the other's reach. Neither certificate
+ever proves two families equal. Every "equivalent", and every
+"distinguishable" no certificate gives, is tested on a few random amplitude
+draws, each fitted from a few random starts, and is statistical.
+"Distinguishable" can then be a fit that stopped in a local minimum on every
+start, and "equivalent" can be a set of draws that all missed the part of one
+family the other cannot reach. The amplitude basis is made canonical before
+any draw, so the classes do not depend on which basis of the same family the
+linear algebra returned, but the sampled verdicts remain a function of the
+seed and the number of draws and starts. Each verdict says which kind it is:
+`rietx.crystallography.magnetic.isotropy.powder_relations` returns one record
+per ordered pair of candidates, proved with its certificate named, or sampled
+with the number of draws actually made. The printed table marks a class P when
+every relation bounding it is proved and S when one rests on draws, and lists
+each sampled pair with its draw counts.
 The docstring of `rietx.crystallography.magnetic.isotropy.powder_equivalent`
 states what is measured about each failure and what is still open.
 
@@ -303,7 +317,8 @@ does carry. Neither result is asserted; both are the measured outcome of
 fitting one family's amplitudes against the other's intensities. LaMnO₃'s
 four Pnma candidates above are the opposite case: each is told apart from
 every other by the reflections it does or does not extinguish, so all four
-stay in separate classes and a ranked refinement has to try them all.
+stay in separate classes, proved rather than sampled, and a ranked refinement
+has to try them all.
 Shirane's MnO case itself, `F m -3 m` site 4a at
 $\mathbf{k} = (\tfrac12, \tfrac12, \tfrac12)$, comes out two classes: the
 candidate with its moment along [111] on its own, and the three with moments in
