@@ -1,8 +1,7 @@
 # WP-1501 — cut and keep: a figure of part of the structure
 
-Milestone: v1.7 · Status: 🔄 2026-09-30 — claimed by @yue-here
+Milestone: v1.7 · Status: ✅ 2026-09-30 — keep, four masks and recolour landed in the v1.6 tree
 Depends on: 1470
-Priority: P2 2026-09-27 — a cut is the first edit a figure needs, and today it means re-indexing the dict by hand; #498 stopped the manual offering the deletion that raised
 
 ## Goal
 
@@ -124,23 +123,6 @@ since an agent says "the plane through the origin and the next one at d".
   regenerated. Every verb lands on the derived surface, so the manual
   partition (`tests/test_manual_api.py`) fails until each is documented.
 
-### Inherited
-
-- **From WP-1468 (2026-09-28).** The dict `structure3d.build` returns grew
-  arms, all additive. Each site has `disorder_assembly` and
-  `disorder_group`, and each polyhedron a `rival` (`[ligands, ratio]` or
-  null). The top level has `polyhedra_dropped` (a site index and ligand
-  elements, no atom index), `disorder`, `minor_sites` (site indices),
-  `centres`, `ligands`, `centre_elements` and `ligand_elements`. A cut that
-  remaps `atoms` indices still touches only `bonds` (`i`, `j`) and
-  `polyhedra` (`center`, `vertices`, `bonds`); the new arms hold site indices
-  or none. `build(disorder="major")` keeps a minor site in `sites` with no
-  image, so a mask can meet a site with no atom. `build(centres=…,
-  ligands=…)` rebuilds the polyhedra before any cut: an anion-centred FCa₄,
-  or an intermetallic's environments. The GUI's double-click draws one
-  atom's polyhedron alone by filtering what is shown (`focusedPolyhedra` in
-  `gui/src/lib/structure3d.ts`), a client-side keep.
-
 ## Non-goals
 
 - An extent beyond one cell, and a motif's periodicity (WP-1502).
@@ -201,6 +183,53 @@ RIETX_COMPILED=0 .venv/bin/python -m pytest tests/test_render_structure.py
 
 ## Handover log
 
+- **2026-09-30** — closed. A figure of part of a structure can now be drawn
+  from Python. An atom, a site, a slab, a sphere or a connected motif is kept or
+  left out by a mask, and the bonds and polyhedra stay consistent. Part of a
+  site can be painted, with a legend from the figure. The manual no longer
+  avoids removing an atom, because the way to do it exists. Two quiet failures
+  now speak: a site colour like `"red"` raises where it drew grey, and
+  `hidden="F2"` says how to leave one site out.
+  - **Done.** New `viz/figure3d/cut.py` (`keep`, `select`, `plane`, `sphere`,
+    `component`, `recolour`), exported through `rietx.viz`;
+    `StructureFigure.palette`; colour validation and the `hidden=` message in
+    `render.py`; `tests/test_figure_cut.py` (35 cases, 20 of them the measured
+    phases) and `tests/test_figure_boundary.py`; `examples/structure_cut.py` with
+    its `test_examples.py` row; `exports.md` § Drawing part of the structure; the
+    skill's `api-figure.md` (generator edited, three copies synced); the v1.6
+    record's entry. Pictures in `tests/output/figure3d/cut_*.png`, looked at.
+  - **Measured.** NAC without F2: 113 atoms, `26 polyhedra cut · 108 bonds cut`;
+    with `complete=True` 173 atoms and an empty note. NAC by bonds: all 84 cell
+    atoms are one piece (plus 6 images), the other 95 atoms are images no bond
+    reaches, so the WP's "whole cell" holds for the cell and not for every atom.
+    Rutile by edges is 12 atoms, by corners 49, by faces 7. Fast suite, `[dev]`
+    venv, darwin/arm64, nothing else running: 6984 passed, 157 skipped, 136 s
+    (150 s before the review's test). 17 added fast tests cost 4.7 s in
+    that run, one `test_examples` row included; none is in the slow tail.
+    `RIETX_COMPILED=0` on `test_render_structure.py` green. `-W` manual build and
+    `test_skill*.py` green. The full suite was not run: nothing here moves a
+    measured number.
+  - **Review.** `/code-review high --fix` fixed four and left four. Fixed:
+    `component` via edges or faces seeded from a *vertex* merged octahedra that
+    touch at a corner, so those two now start from a centre only and raise
+    otherwise; a non-finite `plane` distance or width raises; two recolours of a
+    site in different colours each keep a palette entry; one white/black table.
+    Declined, with reasons: `recoloured: True` is read only by a test
+    (the palette infers it from colours; changing that changes the contract),
+    the O(P²) scan in `component` (unmeasured), a local named `keep` inside
+    `select` (cosmetic), and `select(species=[])` selecting nothing (kept as a
+    caller's empty list; `keep(~mask)` then keeps everything).
+  - **Gotchas.** A polyhedron's `bonds` are found by position, so their `i`/`j`
+    can be periodic twins of its centre and vertices; a bond's `b` is the far
+    end's image, not atom `j`'s position. Both shaped the consistency test.
+    `StructureFigure.palette` gained a field, so a positional constructor call
+    would shift; none exists. The WP's Design named `viz/figure3d` a module and
+    it is a package.
+  - **Findings filed.** 1502's `### Inherited` (finite graph, periodic identity,
+    polyhedron bonds by position) and 1505's (the pinned boundary, scipy).
+  - Next: WP-1502, the extent beyond one cell, which is the only place a motif's
+    periodicity can be supplied; or WP-1503, which reads what `keep`'s `note` and
+    `palette` now carry. Neither is blocked.
 - **2026-09-27** — filed from the session that closed WP-1470, after the
   probe in Context and a survey of five programs' cut and select verbs.
   Next: land `keep` first, since the documented route raises today.

@@ -83,6 +83,16 @@ the list is rietx's by nature.
 - **The skill.** rietview's own `SKILL.md` carries the figure checklist;
   rietx's `api-figure.md` becomes a pointer to it.
 
+### Inherited
+
+- **From WP-1501 (2026-09-30).** The split's measured cost is pinned by
+  `tests/test_figure_boundary.py`: `_about`, `viz.theme`, `model.compiled`,
+  `crystallography.adp`, `crystallography.symmetry`, and the figure's one
+  upward import of `gui.structure3d`. The new `viz/figure3d/cut.py` adds none
+  but needs scipy (`scipy.sparse.csgraph`), so rietview's dependencies include
+  it. `StructureFigure` gained `palette`, and the skill's `api-figure.md`
+  carries the six cut verbs, so both move with the package.
+
 ## Non-goals
 
 - Moving the Svelte viewer or any GUI code.
