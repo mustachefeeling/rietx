@@ -95,7 +95,7 @@ spglib convention, as PRs against the migration branch once it exists.
   `Setting::Spglib` is the smallest Hall number, which is origin choice 1 by
   accident of numbering), and a gemmi 0.7.5 run (a bare `Fd-3m` resolves to `:1`).
   The remaining tool defaults (GSAS-II, FullProf, TOPAS, VESTA, pymatgen) are
-  unchecked. **The recommendation, not yet a decision:** (1) origin choice 2 for
+  unchecked. **Decided 2026-09-30 (the maintainer left it to judgement; evidence thin, so the Fd-3m check in (2) gates the code):** (1) origin choice 2 for
   all 24 two-origin families on both the magnetic and nuclear paths, since it
   matches Bilbao, the ISO-MAG and BNS tables and moyo with no transform, and
   moves only goldens at hall 0 and 525; other Hall numbers follow the ITA
