@@ -615,7 +615,8 @@ All three write space groups from `get_spacegroup(...).xhm()`, never a
 phase's own stored spelling, so a setting this build already resolved is not
 laundered back into an ambiguous symbol. The TOPAS writer spells an ion
 sign-first (`Zr4+` → `occ Zr+4`, `O2-` → `occ O-2`), because TOPAS stops on
-the IUCr order rietx stores. It refuses an ion with a sign and no magnitude
+the IUCr order rietx stores. An isotope keeps its leading mass number, which is
+TOPAS's order too (`7Li`, and `7Li1+` → `occ 7Li+1`). It refuses an ion with a sign and no magnitude
 (`Cu+`): rietx reads that as the neutral atom, and TOPAS reads `Cu+1` as the
 ion. FullProf's grammar has no origin or
 axis suffix at all, though, so it can only *state* a setting its own

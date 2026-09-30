@@ -752,11 +752,15 @@ def refuse_moved_attachment(active: str, path) -> None:
 
 
 def normalize_species(species: str) -> str:
-    """``Cu+1`` → ``Cu1+`` (rule 4). IUCr order is digit-first."""
+    """``Cu+1`` → ``Cu1+``, ``7Li+1`` → ``7Li1+`` (rule 4). IUCr order is digit-first.
+
+    A leading mass number is TOPAS's isotope spelling and rietx's alike
+    (``7Li``, ``60Ni``), so it is carried through unchanged.
+    """
     s = re.sub(r"[^A-Za-z0-9+-]", "", species)
-    if m := re.fullmatch(r"([A-Za-z]{1,2})([+-])(\d*)", s):
-        element, sign, magnitude = m.groups()
-        return f"{element}{magnitude or ''}{sign}"
+    if m := re.fullmatch(r"(\d*)([A-Za-z]{1,2})([+-])(\d*)", s):
+        mass, element, sign, magnitude = m.groups()
+        return f"{mass}{element}{magnitude or ''}{sign}"
     return s
 
 
@@ -766,16 +770,20 @@ def topas_species(species: str) -> str:
     TOPAS reads an ion sign-first and stops on the IUCr order rietx stores:
     ``occ O2-`` ends the run with "Cannot find o2 in file isotopes.txt", for
     X-ray and neutron data alike, and ``occ O-2`` runs (issue #550; TOPAS 6,
-    run as a black box). A neutral atom, or any label that is not an element
-    plus a charge, is written as it is.
+    run as a black box). An isotope keeps its leading mass number, which is
+    TOPAS's order too: ``7Li1+`` → ``7Li+1`` (``7Li1+`` stops TOPAS with
+    "Cannot find 7li1 in file isotopes.txt"; ``7Li+1`` runs and gives ⁷Li's b).
+    A neutral atom or isotope, or any label that is not an element plus a
+    charge, is written as it is.
 
     An ion with a sign but no magnitude (``Cu+``) is refused. rietx's own
     scattering table has no ``Cu+`` and falls back to neutral Cu, while
     TOPAS's X-ray table has no ``Cu+`` at all (it stops) and ``Cu+1`` is the
     ion, so no spelling writes the model rietx computed.
     """
-    if m := re.fullmatch(r"([A-Za-z]{1,2})(\d*)([+-])", species):
-        element, magnitude, sign = m.groups()
+    if m := re.fullmatch(r"(\d*)([A-Za-z]{1,2})(\d*)([+-])", species):
+        mass, element, magnitude, sign = m.groups()
+        element = mass + element
         if not magnitude:
             raise ValueError(
                 f"species {species!r} has a sign but no charge magnitude: "

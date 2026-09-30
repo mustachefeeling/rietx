@@ -86,6 +86,8 @@ def test_define_after_use_is_still_defined():
     ("Y+3", "Y3+"),
     ("Cu1+", "Cu1+"),   # already IUCr order, left alone
     ("Co", "Co"),
+    ("7Li+1", "7Li1+"),  # an isotope ion: the mass number stays in front
+    ("60Ni", "60Ni"),
 ])
 def test_species_are_normalised_to_iucr_order(written, iucr):
     assert normalize_species(written) == iucr
@@ -98,6 +100,10 @@ def test_species_are_normalised_to_iucr_order(written, iucr):
     ("Cu+1", "Cu+1"),   # already TOPAS's order, left alone
     ("Mn", "Mn"),
     ("Wat", "Wat"),     # not an element plus a charge: written as it is
+    ("7Li1+", "7Li+1"),  # TOPAS stops on `occ 7Li1+` ("Cannot find 7li1 in file isotopes.txt")
+    ("60Ni2+", "60Ni+2"),
+    ("7Li", "7Li"),     # an isotope is mass-number-first in TOPAS too
+    ("D", "D"),
 ])
 def test_species_are_written_in_topas_order(iucr, written):
     """Issue #550: the inverse of rule 4, and a round trip through it."""
@@ -111,6 +117,8 @@ def test_a_charge_with_no_magnitude_is_refused_rather_than_guessed():
     rietx's model, so the writer says so."""
     with pytest.raises(ValueError, match=r"'Cu1\+' for the ion or 'Cu'"):
         topas_species("Cu+")
+    with pytest.raises(ValueError, match=r"'7Li1\+' for the ion or '7Li'"):
+        topas_species("7Li+")
 
 
 @pytest.mark.parametrize("written, expected", [
