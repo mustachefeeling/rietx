@@ -928,6 +928,23 @@ def tie_window(lo: float, hi: float, coeff: float,
     return (a, b) if coeff > 0.0 else (b, a)
 
 
+
+def _magnetic_component_drawn(phase, instrument) -> bool:
+    """Whether a histogram on ``instrument`` draws ``phase``'s magnetic term.
+
+    :func:`rietx.model.forward.magnetic_wanted` is the one authority on that
+    dispatch and this only asks it.  A source it refuses by name is refused
+    again, by the same words, at compile — so here it reads as "not drawn"
+    rather than raising from a table build.
+    """
+    from ..model.forward import magnetic_wanted
+
+    try:
+        return magnetic_wanted(phase, instrument.source)
+    except ValueError:
+        return False
+
+
 class ParameterTable:
     """The tree-to-flat-θ machinery behind a fit — internal, not the agent surface.
 
@@ -1036,6 +1053,29 @@ class ParameterTable:
                       force_fixed=phase.microstrain is not None)
             self._add(f"{base}.gauss_size", phase.gauss_size)
             self._add(f"{base}.gauss_strain", phase.gauss_strain)
+            # **The magnetic pair exists only on a phase that has a magnetic
+            # component to broaden** (WP-1343).  Registering them on every
+            # phase would put two rows in every table in the package for a
+            # term whose forward model is `None` there — the declared-name
+            # trap — so a phase with no ``magnetic_symmetry`` carries neither
+            # path at all and no stage can free what it does not have.  The
+            # schema refuses a non-zero *value* there for the same reason,
+            # which is the half a table cannot state.
+            if phase.magnetic_symmetry is not None:
+                # **Force-fixed where this histogram carries no magnetic
+                # component**, the WP-1073 rule: on an X-ray source (or a
+                # phase declaring no moment) the forward model never draws
+                # the second family, so a free width would be a dead column —
+                # and ``run_least_squares`` refuses one by name, which a plan
+                # freeing ``phases.*.magnetic_lor_*`` would hit with advice
+                # it cannot take.  Not in a joint table: there a neutron
+                # histogram shares the entry and does see it.
+                off = (not self._joint
+                       and not _magnetic_component_drawn(phase, instrument))
+                self._add(f"{base}.magnetic_lor_size", phase.magnetic_lor_size,
+                          force_fixed=off)
+                self._add(f"{base}.magnetic_lor_strain",
+                          phase.magnetic_lor_strain, force_fixed=off)
             self._collect_microstrain(base, sg, phase)
             for j, atom in enumerate(phase.atoms):
                 self._collect_atom_coords(f"{base}.atoms.{j}", sg, atom)
@@ -1905,8 +1945,6 @@ class ParameterTable:
         ``StageResult.blocked_by_hold``, and ``Refinement.set_vary`` refuses a
         literal path outright.
         """
-        import fnmatch
-
         # A wavelength is freeable only while the cell is held, and that is a
         # *dynamic* fact, so it cannot be an ``Entry.locked`` flag.  Skipping it
         # by glob rather than raising is the same treatment a symmetry-fixed
@@ -1919,23 +1957,49 @@ class ParameterTable:
         lam_paths = self._wavelength_paths()
         hits = []
         for e in self.entries:
-            if any(fnmatch.fnmatchcase(e.path, g) for g in path_globs):
-                if e.tie is None and not e.locked and not (vary and e.held):
-                    # Asked per row rather than once before the loop.  Computed
-                    # once, the contract was order-dependent: two calls freeing
-                    # the cell then λ skipped λ, while ONE call carrying both
-                    # globs froze the skip set before the cell was free and so
-                    # freed both, deferring the refusal to the solve.  Nothing
-                    # shipped hits it, and a contract that reads differently
-                    # depending on how a caller batched its globs is not one.
-                    if (vary and e.path in lam_paths
-                            and not getattr(self, "_joint", False)
-                            and self._cell_is_free()):
-                        continue
-                    e.vary = vary
-                    hits.append(e.path)
+            if self._glob_reaches(e, path_globs, vary):
+                # Asked per row rather than once before the loop.  Computed
+                # once, the contract was order-dependent: two calls freeing
+                # the cell then λ skipped λ, while ONE call carrying both
+                # globs froze the skip set before the cell was free and so
+                # freed both, deferring the refusal to the solve.  Nothing
+                # shipped hits it, and a contract that reads differently
+                # depending on how a caller batched its globs is not one.
+                if (vary and e.path in lam_paths
+                        and not getattr(self, "_joint", False)
+                        and self._cell_is_free()):
+                    continue
+                e.vary = vary
+                hits.append(e.path)
         self._rebuild()
         return hits
+
+    @staticmethod
+    def _glob_reaches(e: Entry, path_globs: list[str], vary: bool) -> bool:
+        """``set_vary``'s matching rule for one row, and nothing else.
+
+        Tied and locked rows never match, and a held one never matches a
+        *freeing* call.  One predicate, so :meth:`would_free` cannot drift
+        from what ``set_vary`` does (WP-1343: a restated copy at a call site
+        left the hold out).
+        """
+        import fnmatch
+
+        return (any(fnmatch.fnmatchcase(e.path, g) for g in path_globs)
+                and e.tie is None and not e.locked
+                and not (vary and e.held))
+
+    def would_free(self, path_globs: list[str]) -> list[str]:
+        """The paths ``set_vary(path_globs, True)`` would match — a dry run.
+
+        Entry order, and the table is not touched.  The one thing it does not
+        replay is ``set_vary``'s *dynamic* wavelength skip, which depends on
+        the order the cell and λ are freed in the same call; a caller asking
+        about any other family gets exactly ``set_vary``'s answer (WP-1343,
+        for a plan check that runs before the stage does).
+        """
+        return [e.path for e in self.entries
+                if self._glob_reaches(e, path_globs, True)]
 
     def unknown_literals(self, path_globs: list[str]) -> list[str]:
         """The literal paths among ``path_globs`` that name no entry (WP-1414).
@@ -2561,6 +2625,9 @@ class ParameterTable:
             put(phase.lor_strain, f"{base}.lor_strain")
             put(phase.gauss_size, f"{base}.gauss_size")
             put(phase.gauss_strain, f"{base}.gauss_strain")
+            if phase.magnetic_symmetry is not None:
+                put(phase.magnetic_lor_size, f"{base}.magnetic_lor_size")
+                put(phase.magnetic_lor_strain, f"{base}.magnetic_lor_strain")
             if phase.microstrain is not None:
                 for name in S_NAMES:
                     put(getattr(phase.microstrain, name), f"{base}.microstrain.{name}")

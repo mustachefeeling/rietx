@@ -88,29 +88,37 @@ def _region_columns(model: CompiledModel, bases: DerivativeBases,
 
     n_refl = 0
     tt_sum = fwhm_sum = weight_sum = 0.0
-    for ip, rows in enumerate(bases.entries):
-        for (il, k, w0, w1, omega, d_pos, d_gamma, d_eta, d_sl, _d_hl) in rows:
-            pos, gamma, _eta, intensity = bases.peaks[ip][il]
-            centre = pos[k]
-            if not (lo <= centre <= hi):
-                continue
-            n_refl += 1
-            weight = abs(float(intensity[k]))
-            tt_sum += weight * float(centre)
-            fwhm_sum += weight * float(gamma[k])
-            weight_sum += weight
-            a, b = max(w0, i_start), min(w1, i_stop)
-            if b <= a:
-                continue
-            sl_a, sl_b = a - w0, b - w0
-            dst_a, dst_b = a - i_start, b - i_start
-            amp = float(intensity[k])
-            cols[0, dst_a:dst_b] += amp * omega[sl_a:sl_b]
-            cols[1, dst_a:dst_b] += amp * d_pos[sl_a:sl_b]
-            cols[2, dst_a:dst_b] += amp * d_gamma[sl_a:sl_b]
-            cols[3, dst_a:dst_b] += amp * d_eta[sl_a:sl_b]
-            if d_sl is not None:
-                cols[4, dst_a:dst_b] += amp * d_sl[sl_a:sl_b]
+    # every drawn component: on a phase whose magnetic peaks have their own
+    # width (WP-1343) the nuclear rows alone give a magnetic-only reflection
+    # zero amplitude here, and its misfit would be attributed elsewhere
+    counted: set[tuple[int, int, int]] = set()
+    for ip in range(len(bases.planes)):
+        for rows, peaks in bases.component_entries(ip):
+            for (il, k, w0, w1, omega, d_pos, d_gamma, d_eta, d_sl,
+                 _d_hl) in rows:
+                pos, gamma, _eta, intensity = peaks[il]
+                centre = pos[k]
+                if not (lo <= centre <= hi):
+                    continue
+                if (ip, il, k) not in counted:   # one reflection, not one draw
+                    counted.add((ip, il, k))
+                    n_refl += 1
+                weight = abs(float(intensity[k]))
+                tt_sum += weight * float(centre)
+                fwhm_sum += weight * float(gamma[k])
+                weight_sum += weight
+                a, b = max(w0, i_start), min(w1, i_stop)
+                if b <= a:
+                    continue
+                sl_a, sl_b = a - w0, b - w0
+                dst_a, dst_b = a - i_start, b - i_start
+                amp = float(intensity[k])
+                cols[0, dst_a:dst_b] += amp * omega[sl_a:sl_b]
+                cols[1, dst_a:dst_b] += amp * d_pos[sl_a:sl_b]
+                cols[2, dst_a:dst_b] += amp * d_gamma[sl_a:sl_b]
+                cols[3, dst_a:dst_b] += amp * d_eta[sl_a:sl_b]
+                if d_sl is not None:
+                    cols[4, dst_a:dst_b] += amp * d_sl[sl_a:sl_b]
 
     mean_tt = tt_sum / weight_sum if weight_sum > 0 else 0.5 * (lo + hi)
     mean_fwhm = fwhm_sum / weight_sum if weight_sum > 0 else 0.0

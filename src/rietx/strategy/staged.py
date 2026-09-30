@@ -236,6 +236,65 @@ _EXTRA_COMPONENT_STAGE = (
 )
 
 
+#: WP-1343.  **The turn-on order for a magnetic width, as a stage list.**
+#: Three steps, and the order is forced: a magnetic broadening term and the
+#: moment it belongs to both lower the calculated magnetic peak's *height* —
+#: the moment because p²|F_⊥|² goes as m², the width because it spreads the
+#: same integrated area over more channels — so freed together from a cold
+#: start they trade against each other and the fit converges on whichever pair
+#: the first step happened to like.  It is the same degeneracy the package
+#: already stages around for nuclear size/strain against scale, and the
+#: discipline ``mccusker_structural`` encodes one subject over.
+#:
+#: 1. the moment, with both widths held at zero (their default, which *is* the
+#:    off state — the second frozen family is not even built, so the widths
+#:    are not merely fixed but structurally absent from the draw);
+#: 2. the widths, with the moment held at the value step 1 reached;
+#: 3. both together, from a start where each is already near its own answer.
+#:
+#: **Both** width terms are freed, because which of the two carries an excess
+#: is a property of the dataset rather than of the physics, so the plan cannot
+#: choose: a planted 1/cosθ excess is taken by the size term with the strain
+#: term dead, and a pattern whose excess grows with angle the other way
+#: round.  Freeing both costs two things and both are reported rather than
+#: hidden: the live term's esd inflates, because the two widths are collinear
+#: over one pattern's θ range, and the last stage can come back ``max_iter``
+#: when one of them is dead, since a flat direction is what TRF walks until it
+#: runs out.  ``MAGNETIC_WIDTH_UNMEASURED`` names the dead term, so the status
+#: has its explanation in the same result.
+MAGNETIC_WIDTH_STAGE_PATHS: tuple[tuple[str, ...], ...] = (
+    ("phases.*.atoms.*.moment.dof*", "phases.*.scale",
+     "instrument.background.c*"),
+    ("phases.*.magnetic_lor_size", "phases.*.magnetic_lor_strain"),
+    ("phases.*.atoms.*.moment.dof*", "phases.*.magnetic_lor_size",
+     "phases.*.magnetic_lor_strain"),
+)
+
+#: The value a freed magnetic width is lifted to before step 2 solves, in
+#: deg 2θ.  **Not a claim about the specimen — a claim about softplus.**  Both
+#: terms are softplus-bounded at zero, where the map's slope is 1e-12, so a
+#: coefficient at its exact default has a column twelve orders below its
+#: neighbours.  TRF's Jacobi scaling keeps such a column live (WP-1463), and
+#: measured on the synthetic k ≠ 0 supercell and on Cr₂WO₆ the answer is the
+#: same to four digits unseeded and seeded at 0.02, 0.05 or 0.15; the seed is
+#: kept so the preset does not rest on a solver equilibrating the column, and
+#: it costs nothing.  It is ``Stage.seed``'s existing job (the extinction
+#: stage seeds 1e-3, the roughness stage 0.3), and 0.05 deg is inside the
+#: range the term is for and below
+#: :data:`~rietx.model.forward.MAGNETIC_SIZING_FLOOR`, which is what the
+#: windows were sized for.
+#:
+#: **The seed reaches the two widths and nothing else**, by construction:
+#: step 2's globs name only them, and after step 1 (which does not free them)
+#: they sit at their zero floor.  So the stage lifts exactly the entries at
+#: the floor — the reading ``Stage.seed``'s own comment gives — whether
+#: ``ParameterTable.seed_softplus`` lifts every softplus entry below the seed
+#: or only those at the floor (issue #499).  Steps 1 and 3 carry no seed: step
+#: 1's job is the moment at the off state, and on step 3 a seed would reach
+#: the moment and the scale beside the widths, which is #499's failure.
+MAGNETIC_WIDTH_SEED_DEG = 0.05
+
+
 @dataclass
 class RefinementPlan:
     stages: list[Stage]
@@ -423,6 +482,42 @@ class RefinementPlan:
         ])
 
     @classmethod
+    def magnetic_width(cls) -> "RefinementPlan":
+        """The three-step order for a **magnetic** broadening term (WP-1343).
+
+        The moment with the widths held at zero, then the width with the
+        moment held, then both together.  The stage list itself is
+        :data:`MAGNETIC_WIDTH_STAGE_PATHS` — one authority, so
+        this preset and the ``STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT`` check
+        that reports a plan violating the order cannot describe different
+        orders.
+
+        Continues from a converged nuclear fit rather than replacing one: it
+        frees no cell, no coordinate and no instrument width, because the
+        confound this order exists to avoid is between the moment and the
+        magnetic width and adding a third competitor for the same peak height
+        would not be staging.
+
+        Steps 2 and 3 free **both** width terms — see
+        ``MAGNETIC_WIDTH_STAGE_PATHS`` for why and for what freeing both
+        costs.
+        """
+        names = ("moment", "magnetic_width", "moment_and_width")
+        # Step 2 seeds the width off its exact-zero softplus floor, for the
+        # reason the extinction stage seeds 1e-3: the map's slope there is
+        # 1e-12, and the preset should not rest on the solver equilibrating
+        # that column (``MAGNETIC_WIDTH_SEED_DEG``).  Step 1 must NOT seed it — that stage's whole job is
+        # the moment with the widths at the off state, where the second frozen
+        # family is not even built — and step 3 need not, because step 2 has
+        # already lifted it (``MAGNETIC_WIDTH_SEED_DEG`` says why the seed is
+        # confined to step 2's two globs).
+        seeds = (0.0, MAGNETIC_WIDTH_SEED_DEG, 0.0)
+        return cls(stages=[Stage(name, list(paths), seed=seed)
+                           for name, paths, seed
+                           in zip(names, MAGNETIC_WIDTH_STAGE_PATHS, seeds,
+                                  strict=True)])
+
+    @classmethod
     def pawley_default(cls) -> "RefinementPlan":
         """Pawley whole-pattern plan: cell + profile, same order as
         :meth:`profile_only`.  The per-hkl intensities are *not* named globs —
@@ -487,6 +582,7 @@ PLAN_PRESETS = {
         "lab_sample_refine": RefinementPlan.lab_sample_refine,
         "profile_only": RefinementPlan.profile_only,
         "pawley_default": RefinementPlan.pawley_default,
+        "magnetic_width": RefinementPlan.magnetic_width,
     }.items()
 }
 
@@ -638,6 +734,26 @@ PLAN_INFO: dict[str, PlanInfo] = {
             "Extracted intensities that need uncertainties — feeding structure "
             "solution or a peak-shape study. Read PAWLEY_OVERLAP_UNRESOLVED "
             "before using an intensity from an overlapped group."),
+    ),
+    "magnetic_width": PlanInfo(
+        title="Magnetic broadening (three steps)",
+        description=(
+            "The turn-on order for a phase whose magnetic peaks are broader "
+            "than its nuclear ones: the moment with the magnetic width held "
+            "at zero, then the width with the moment held, then both "
+            "together. Frees nothing else — the confound it stages around is "
+            "between those two alone, since both lower the calculated "
+            "magnetic peak's height."),
+        modes=("rietveld",),
+        when_to_use=(
+            "After a magnetic structure has converged and "
+            "MAGNETIC_WIDTH_UNMODELLED says its magnetic reflections are "
+            "fitted too narrow. It frees both width terms, because which of "
+            "the two carries the effect is a property of the dataset; expect "
+            "the other one back unmeasured, and expect the last stage to "
+            "report max_iter when it is, since a dead direction is what the "
+            "solver walks. Read MAGNETIC_WIDTH_MOVED_MOMENT before dropping "
+            "an 'unmeasured' term: the shift it names is the measurement."),
     ),
 }
 

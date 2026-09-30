@@ -752,6 +752,57 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         typical="0-0.05 deg²",
         anchor="microstructure.html#isotropic-size-and-strain",
     ),
+    "phases.*.magnetic_lor_size": HelpEntry(
+        title="Magnetic Lorentzian size broadening",
+        description=(
+            "Extra 1/cosθ Lorentzian FWHM applied to the **magnetic** part of "
+            "this phase's intensity and to nothing else, so the magnetic peaks "
+            "can be broader than the nuclear ones. It is Scherrer broadening "
+            "with the magnetic coherence length in place of the crystallite "
+            "size: antiphase and domain-wall boundaries, an incompletely grown "
+            "order parameter near T_N, and disorder that couples to the "
+            "exchange all cut the magnetic coherence below the structural one. "
+            "Zero is exactly off. Refine it **after** the moment and hold the "
+            "moment while it settles: both lower the calculated peak height, "
+            "so freed together from a cold start they trade against each "
+            "other and STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT says so. "
+            "Read MAGNETIC_WIDTH_MOVED_MOMENT before dropping the term: a "
+            "width whose esd exceeds its value can still be correlated with "
+            "the moment, and if releasing it moved the moment by more than "
+            "the moment's own error bar then holding it at zero biases the "
+            "moment rather than simplifying the model. "
+            "Only identifiable where the magnetic/nuclear intensity ratio "
+            "differs across reflections — a k ≠ 0 structure with "
+            "magnetic-only satellites measures it, a k = 0 collinear one "
+            "generally cannot, and then it comes back with an esd larger than "
+            "its value and MAGNETIC_WIDTH_UNMEASURED names it. Exists only on a phase that declares "
+            "magnetic_symmetry, and is held fixed wherever no magnetic "
+            "component is drawn: an X-ray histogram, and Le Bail or Pawley."
+        ),
+        unit="deg 2θ", default="0.0",
+        typical="0-0.3 deg; 0.1 deg is roughly a 100 nm magnetic domain at 2.4 Å",
+        anchor="microstructure.html#isotropic-size-and-strain",
+    ),
+    "phases.*.magnetic_lor_strain": HelpEntry(
+        title="Magnetic Lorentzian strain broadening",
+        description=(
+            "Extra tanθ Lorentzian FWHM applied to the **magnetic** part of "
+            "this phase's intensity alone — the strain partner of "
+            "magnetic_lor_size, and what a magnetic order parameter that "
+            "varies across the specimen produces. Zero is exactly off. The "
+            "same turn-on order and the same identifiability limits apply: "
+            "moment first, then this, then both, and it is measurable only "
+            "where some reflection is more magnetic than another. On a real "
+            "k != 0 dataset it can be this term rather than the size one that "
+            "carries the effect, which is why the magnetic_width plan frees "
+            "both and lets the report say which was measured. Exists only "
+            "on a phase that declares magnetic_symmetry, and is held fixed "
+            "on an X-ray histogram and under Le Bail or Pawley."
+        ),
+        unit="deg 2θ", default="0.0",
+        typical="0-0.3 deg",
+        anchor="microstructure.html#isotropic-size-and-strain",
+    ),
     "phases.*.preferred_orientation.r": HelpEntry(
         title="March coefficient",
         description=(

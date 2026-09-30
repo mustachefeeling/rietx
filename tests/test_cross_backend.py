@@ -462,6 +462,62 @@ def _state_magnetic():
     return model, table, {}
 
 
+def _state_magnetic_width():
+    """WP-1343: the two magnetic broadening paths, on a phase with a moment.
+
+    The second magnetic config beside WP-1327's, and it exists because the
+    two new width terms are derivative paths no other row covers: they
+    move w₁ on the magnetic component's own frozen family and nothing at all
+    on the nuclear one, so a column built from the nuclear planes alone would
+    come back short rather than wrong — exactly the failure the matrix is for.
+
+    The autodiff rows **decline** on it rather than agreeing, and they say so
+    by name, as on ``magnetic``: the traced twin refuses any model carrying a
+    moment, so the comparison this config actually makes is the analytic
+    assembly against central differences.
+    ``test_the_magnetic_config_declines_the_traced_backends_by_name`` asserts
+    the decline for both configs, so the skip cannot go silent.
+    """
+    import rietx as rx
+    from rietx.schemas.instrument import BackgroundChebyshev
+    from rietx.schemas.pattern import PatternData
+    from tests.test_backend_shim import _free
+    from tests.test_magnetic_width import _mnf2
+
+    structure = rx.Structure(phases=[_mnf2(size=0.20, strain=0.08)])
+    structure.phases[0].scale.value = 0.05
+    ins = rx.Instrument.constant_wavelength_neutron(2.4)
+    ins.profile.u.value, ins.profile.w.value = 0.05, 0.03
+    ins.profile.x.value = 0.04
+    # FCJ on, off the S/L == H/L kink: the neutron default is 0/0, which built
+    # no FCJ row on either family and left the ``planes_mag`` half of the axial
+    # column loop and the ``fcj_n_mag`` sizing without a row (review round 2)
+    ins.geometry.axial_sl.value = 0.03
+    ins.geometry.axial_hl.value = 0.02
+    ins.background = BackgroundChebyshev.with_terms(2)
+    ins.background.coefficients[0].value = 20.0
+
+    grid = np.arange(8.0, 140.0, 0.05)
+    empty = PatternData(two_theta=grid.tolist(),
+                        intensity=np.zeros_like(grid).tolist())
+    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim_table = ParameterTable(structure, ins)
+    y = sim.evaluate(sim_table.decode(sim_table.x0()))
+    # off the expansion point, so no column is dead by construction
+    pattern = PatternData(two_theta=sim.tt.tolist(),
+                          intensity=(np.asarray(y) * 1.03 + 2.0).tolist())
+
+    table = ParameterTable(structure, ins)
+    _free(table, ["phases.0.magnetic_lor_size", "phases.0.magnetic_lor_strain",
+                  "phases.0.scale", "phases.0.lor_size",
+                  "phases.0.atoms.0.moment.dof0",
+                  "instrument.background.c0", "instrument.zero_shift",
+                  "instrument.geometry.axial_sl", "instrument.geometry.axial_hl"])
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    return model, table, {}
+
+
 def _state_satellites():
     """WP-1326: coordinate and ADP columns of a phase carrying a propagation vector.
 
@@ -531,6 +587,7 @@ CONFIGS = {"families": _state_families,
            "extra_components": _state_extra_components,
            "extra_peak": _state_extra_peak,
            "magnetic": _state_magnetic,
+           "magnetic_width": _state_magnetic_width,
            "satellites": _state_satellites, **STATES}
 
 #: the fast configs run everywhere; the two real-data ones are `slow`.
@@ -559,6 +616,7 @@ CONFIG_PARAMS = [
     _config("extra_components"),
     _config("extra_peak"),
     _config("magnetic"),
+    _config("magnetic_width"),
     _config("satellites"),
     _config("toy_lebail"),
     _config("toy_pawley"),
@@ -771,17 +829,21 @@ def test_jacobian_matches_analytic(method, config):
                     what=f"{config}/{method} ")
 
 
-def test_the_magnetic_config_declines_the_traced_backends_by_name():
+@pytest.mark.parametrize("config", ["magnetic", "magnetic_width"])
+def test_the_magnetic_config_declines_the_traced_backends_by_name(config):
     """The skip in ``_backend_jacobian`` above, made a measured fact.
 
-    WP-1327's config is the only magnetic model in this file, and its autodiff
-    rows are skipped rather than compared.  That is only honest if the twin
-    really refuses — a twin that silently dropped the magnetic term would
-    produce a Jacobian, agree with nothing, and the skip would be hiding it.
+    WP-1327's config and WP-1343's are the magnetic models in this file, and
+    their autodiff rows are skipped rather than compared.  That is only honest
+    if the twin really refuses — a twin that silently dropped the magnetic term
+    would produce a Jacobian, agree with nothing, and the skip would be hiding
+    it.  ``magnetic_width`` also asserts it is the split draw it claims to be.
     """
-    model, table = _state("magnetic")
+    model, table = _state(config)
     assert any(cp.magnetic is not None for cp in model.phases)
     assert not model.structural_grad_supported(0)
+    if config == "magnetic_width":
+        assert model.mag_split(0)
     asked = 0
     for name in ("jax", "torch"):
         try:

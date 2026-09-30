@@ -122,8 +122,11 @@ REFERENCE_BUDGET_BYTES = REFERENCE_MAX_BYTES - REFERENCE_GAP_BYTES
 #: decision that added the keyword — WP-1431's `label=` did, at 58 B of
 #: headroom.  Raising `REFERENCE_MAX_BYTES` instead would hand
 #: `diagnostics.md` room it had been denied, so the generated file gets its own
-#: bar against the same 40 kB truncation.
-API_INDEX_MAX_BYTES = 39_000
+#: bar against the same 40 kB truncation.  39 000 → 39 500 (WP-1343): main
+#: stood at 38 993 B, 7 B under, so any PR adding a public field failed here;
+#: #524 adds 137 B (two `Phase` fields, a preset key, `'1.10'`).  A technique
+#: split (`api-magnetic.md`) is the alternative, and the maintainer's call.
+API_INDEX_MAX_BYTES = 39_500
 
 
 @dataclass(frozen=True)

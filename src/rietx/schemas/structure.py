@@ -783,6 +783,43 @@ class Phase(_InheritsDeclaredDefaults):
     lor_strain: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg", transform="softplus")
     )
+    # WP-1343.  The **magnetic** component's own extra Lorentzian broadening,
+    # in the same deg-2θ units and under the same two laws as the pair above:
+    # ``magnetic_lor_size`` as 1/cosθ (Scherrer, with the magnetic coherence
+    # length in place of the crystallite size) and ``magnetic_lor_strain`` as
+    # tanθ (a magnetic order parameter that varies across the specimen).
+    #
+    # They enter *only* the magnetic part of the intensity, added to the
+    # nuclear widths under the package's own composition law (Lorentzian FWHMs
+    # add): the magnetic component is drawn at
+    # ``x + lor_size + magnetic_lor_size`` and ``y + lor_strain +
+    # magnetic_lor_strain`` while the nuclear one keeps the widths it had.
+    # That is the physics of an order that is coherent over a shorter length
+    # than the crystallite — antiphase and domain-wall boundaries, an
+    # incompletely grown order parameter near T_N — and it is what stops the
+    # fit paying for a too-narrow calculated magnetic peak the only other way
+    # it can: |F_m|² ∝ m², so shrinking the moment matches the broad peak's
+    # *height* and the moment comes back low by the ratio of the two widths.
+    #
+    # Zero **is** the off state (no extra magnetic broadening) and is the
+    # default, and the forward model divides by neither, so ``min = 0.0``
+    # under softplus is safe by root CLAUDE.md's rule.  The conversion to a
+    # coherence length does divide, and ``model.microstructure`` already
+    # answers a zero coefficient with no value at all rather than an infinite
+    # length — ``lor_size``'s existing ``unavailable="at_zero"`` case.
+    #
+    # **Refused on a phase with no moment block**: a width on a component that
+    # does not exist is a declared name nothing writes (WP-1076's trap).  The
+    # refusal is of a *non-zero* value, because the zero default is carried by
+    # every phase; and ``ParameterTable`` registers the two paths only where
+    # ``magnetic_symmetry`` is declared, so on every other phase they cannot
+    # be freed either.
+    magnetic_lor_size: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg", transform="softplus")
+    )
+    magnetic_lor_strain: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg", transform="softplus")
+    )
     # Sample contribution to Gaussian *variance* (deg² 2θ; variances add under
     # convolution): size term varies as 1/cos²θ (GSAS's P), strain term as
     # tan²θ (stacks on the instrument Caglioti U).  Together with lor_size /
@@ -1093,6 +1130,38 @@ class Phase(_InheritsDeclaredDefaults):
                 "isotropic direction is the same residual column as "
                 "lor_strain; refining both is exactly degenerate.  Set "
                 "lor_strain.vary=False and refine the S_HKL patterns instead")
+        return self
+
+    @model_validator(mode="after")
+    def _magnetic_width_needs_a_moment(self) -> "Phase":
+        """A magnetic broadening term on a phase with no magnetic component.
+
+        WP-1343.  The two widths multiply the magnetic part of the intensity
+        and nothing else, so on a phase that declares no ``magnetic_symmetry``
+        there is no component for them to broaden and any value they carry is
+        a number that reaches no residual row.  Refused by name here rather
+        than ignored in the forward model, which is the WP-1076 rule: a
+        declared field nothing writes fails no test.
+
+        Only a **non-zero** value is refused — zero is the off state and every
+        phase in the package carries it by default — or ``vary=True``, which
+        asks for a column no table would build: ``ParameterTable`` registers
+        the two paths only for a phase with a moment block.
+        """
+        if self.magnetic_symmetry is not None:
+            return self
+        for name in ("magnetic_lor_size", "magnetic_lor_strain"):
+            p = getattr(self, name)
+            if p.value != 0.0 or p.vary:
+                raise ValueError(
+                    f"phase {self.name!r} sets {name} = {p.value:g}"
+                    f"{' (vary=True)' if p.vary else ''} but declares no "
+                    f"magnetic_symmetry. That term broadens the **magnetic** "
+                    f"component of the intensity and nothing else, so with no "
+                    f"magnetic structure there is no component for it to "
+                    f"broaden and the number would reach no residual row. "
+                    f"Declare the magnetic space group and a moment, or leave "
+                    f"{name} at its zero default (which is exactly off)")
         return self
 
     @model_validator(mode="after")

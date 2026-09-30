@@ -216,8 +216,9 @@ the structure, for a caller that holds those instead of a `Refinement`.
 | `ReflectionRow.f_squared` | \|F\|², or `None` in Le Bail and Pawley mode |
 | `ReflectionRow.intensity` | the modelled integrated intensity of this row |
 | `ReflectionRow.satellite_order` | the m of Q = H + m·k, 0 on every nuclear reflection |
+| `ReflectionRow.component` | `"total"`, or `"nuclear"`/`"magnetic"` where a magnetic width is active |
 
-Three of those need care.
+Four of those need care.
 
 `ReflectionRow.two_theta` is where the model places the peak: the Bragg angle
 plus the zero shift plus the geometry's own position correction, so it matches
@@ -237,6 +238,16 @@ parent reciprocal-lattice vector H and the row is read as H and m together,
 the (3+1)-index spelling; `ReflectionRow.d` is the satellite's own d-spacing,
 not the parent's, and `ReflectionRow.f_squared` on such a row is exactly 0 in
 Rietveld mode because this rung computes no magnetic structure factor.
+
+`ReflectionRow.component` is `"total"` on every row unless a phase's magnetic
+component is drawn with its own width (`Phase.magnetic_lor_size` or
+`Phase.magnetic_lor_strain` non-zero, or free in the stage that compiled the
+model; {ref}`sec-magnetic-width`). Such a phase exports two rows per (line,
+reflection), one `"nuclear"` and one `"magnetic"`, because the two are drawn on
+different profiles; their `ReflectionRow.intensity` values add up to the
+reflection's total, and `ReflectionRow.f_squared` is each component's own
+structure factor. A table read as one row per reflection would otherwise carry
+the nuclear share alone and put every magnetic-only reflection at zero.
 
 `ReflectionRow.f_squared` is `None` in Le Bail and Pawley mode, where the
 per-reflection intensity is extracted or refined rather than computed from the

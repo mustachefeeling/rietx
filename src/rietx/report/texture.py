@@ -90,28 +90,32 @@ def _extracted_corrections(model: CompiledModel, values: dict[str, float]
     bases = model.derivative_bases(values)
     net = model.y_obs - model.background(values)
     # total calculated Bragg intensity at every point (all phases, all lines)
+    # every drawn component (WP-1343): a split phase's magnetic peaks are
+    # rows of their own, and reflection k's correction sums over both
+    n_phases = len(bases.planes)
     y_bragg = np.zeros_like(model.tt)
-    for ip, rows in enumerate(bases.entries):
-        for (il, k, i0, i1, omega, *_rest) in rows:
-            intensity = bases.peaks[ip][il][3][k]
-            y_bragg[i0:i1] += intensity * omega
+    for ip in range(n_phases):
+        for rows, peaks in bases.component_entries(ip):
+            for (il, k, i0, i1, omega, *_rest) in rows:
+                y_bragg[i0:i1] += peaks[il][3][k] * omega
 
     out: list[tuple[np.ndarray, np.ndarray]] = []
-    for ip, rows in enumerate(bases.entries):
+    for ip in range(n_phases):
         n = len(model.phases[ip].reflections)
         num = np.zeros(n)
         den = np.zeros(n)
-        for (il, k, i0, i1, omega, *_rest) in rows:
-            intensity = bases.peaks[ip][il][3][k]
-            if intensity == 0.0:
-                continue
-            denom = y_bragg[i0:i1]
-            good = denom > 1e-12
-            if not np.any(good):
-                continue
-            share = intensity * omega[good] / denom[good]
-            num[k] += float((share * net[i0:i1][good]).sum())
-            den[k] += intensity * float(omega.sum())
+        for rows, peaks in bases.component_entries(ip):
+            for (il, k, i0, i1, omega, *_rest) in rows:
+                intensity = peaks[il][3][k]
+                if intensity == 0.0:
+                    continue
+                denom = y_bragg[i0:i1]
+                good = denom > 1e-12
+                if not np.any(good):
+                    continue
+                share = intensity * omega[good] / denom[good]
+                num[k] += float((share * net[i0:i1][good]).sum())
+                den[k] += intensity * float(omega.sum())
         f = np.where(den > 0.0, num / np.where(den > 0.0, den, 1.0), 1.0)
         out.append((f, den))
     return out
