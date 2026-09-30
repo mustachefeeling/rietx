@@ -92,6 +92,13 @@ the list is rietx's by nature.
   but needs scipy (`scipy.sparse.csgraph`), so rietview's dependencies include
   it. `StructureFigure` gained `palette`, and the skill's `api-figure.md`
   carries the six cut verbs, so both move with the package.
+- **From WP-1502 (2026-09-30).** The geometry dict gained `image`, `n_cell` and
+  `extent`, and `build` gained `extent=` and its tiling (`_tile`), so the
+  boundary `gui.structure3d` import now carries a block builder that needs
+  nothing new. `cut.py` gained `periodicity` and reads `image` on every atom, so
+  a geometry from before WP-1502 (a saved payload) raises `KeyError` in `keep`
+  and `component`: rietview must either rebuild or say so. `test_figure_boundary.py`
+  still passes unchanged.
 
 ## Non-goals
 
