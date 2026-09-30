@@ -131,6 +131,62 @@ RIETX_COMPILED=0 .venv/bin/python -m pytest tests/test_render_structure.py
 
 ## Handover log
 
+- **2026-10-01** — an independent check of the closed work, asked for because
+  a smaller model built it. The core holds. The id pass agrees with the real
+  renderer, the search's numbers are the report's, and every figure the
+  2026-09-30 entry quotes reproduced. Three defects are fixed. The recipe
+  silently redrew the wrong picture from a structure. Ties between a
+  direction and its opposite went to the minus sign. The skill gave advice
+  for dangling bonds that does nothing.
+  - **Checked against an oracle.** Id pass against the renderer itself: I
+    recoloured one atom at a time at 256 px and counted the changed pixels
+    against the pass's `front`. Over 10 scenes (NAC in four views and modes,
+    six of the 21 phases), the median gap was 0 px and the largest 30 px,
+    where a cell line crosses an atom. The hidden verdict disagreed on 3 of
+    about 600 judged atoms, all at the 80 % line. `_dangling` matched a count
+    by position on six cases, and `_label_overlaps` matched a pairwise loop
+    on three. `empty` equalled the pixels matching the background on four
+    backgrounds, outline included. Every candidate passed back gave the
+    search's hidden share in its report. The 21 phases: fewer hidden on 14,
+    more on none, mean 0.181 to 0.061, as quoted. Id pass with packing: 0.70-0.89 ms
+    against a render of 28-30 ms at 1000 px on one NAC cell (`[dev]`, darwin
+    arm64, a busier machine than the 2026-09-30 figures).
+  - **Fixed.** (1) `recipe` omitted `phase`, `probability` and
+    `bond_tolerance`, so `render_structure(structure, **fig.recipe)` drew
+    phase 0 at the defaults. The example passes a structure. All three
+    arguments gave a different picture. The recipe now holds every argument
+    but the first and `path`, and a test covers each. This supersedes the
+    2026-09-30 entry's "leaves out `probability`, `bond_tolerance`, `phase`".
+    (2) `directions()` sorted opposites by `d`, so 10 of the 21 chosen views
+    were an exact tie won by the minus sign (`[-2, -2, -1]` over
+    `[2, 2, 1]`). A direction and its opposite always leave the same share
+    empty. Ties now go to fewer minus signs, then a positive first index. The
+    7 negative choices left hide strictly fewer atoms than their opposites.
+    No chosen hidden or empty share moved. (3) The skill said to widen
+    `extent=` or `keep(complete=True)` when a bond dangles. Measured on NAC,
+    the cell, a 2×2×1 block, a 60-atom cap and both `keep`s dangle 0; only
+    `boundary=False` dangles (158, and 430 on the block). `keep` drops the
+    bonds it cuts and counts them in `cut`. The skill row and the manual now
+    say so. Also: the dangling test restated `_dangling`'s formula and now
+    counts by position, failing 78 against 158 when the far end is read off
+    `j`; `candidates` is documented as passed back with the same `up=` and
+    `turn=`; and `hidden_atoms` is documented as indices into the dict's
+    `atoms`.
+  - **Not changed, for a decision.** The search prefers index-2 directions:
+    16 of 21 chosen, 4 index-1, 1 the opening view. On the 5 phases whose
+    opening view hides nothing (perovskite, zircon, corundum, wurtzite,
+    pyrite), auto still moves to an index-2 direction because it leaves less
+    of the frame empty. The WP specified exactly this order. The WP's "a
+    polyhedron count over the atom cap" warning is carried in `note`, which
+    `build` writes, and not in `warnings`, which the earlier entry did not
+    say.
+  - **Measured.** Fast suite 7067 passed, 157 skipped in 2:46, `[dev]`,
+    darwin arm64, nothing else running: +4 on the review's 7063, the three
+    recipe cases and the direction-order test.
+  - **Next.** Unchanged: 1504, from a costed menu. If agents dislike the
+    index-2 views, the place to change is `choose_view`'s sort key, such as
+    comparing hidden atoms as a count before comparing empty share.
+
 - **2026-09-30** — closed. A structure figure now says what a look would
   tell you. `StructureFigure.report` gives the share of atoms hidden behind
   others, bonds ending in mid-air, overlapping letters, the empty share of
@@ -173,7 +229,8 @@ RIETX_COMPILED=0 .venv/bin/python -m pytest tests/test_render_structure.py
     to a cleaner one. That is the place to soften if agents dislike it.
   - **Dropped.** The WP's "a component that crosses the frame" warning: the
     frame is fitted to what is drawn, so nothing crosses it, and I could not
-    find the case it meant. `recipe` leaves out `probability`,
+    find the case it meant. (Superseded 2026-10-01: the recipe now keeps
+    all three and leaves out only `path`.) `recipe` leaves out `probability`,
     `bond_tolerance`, `phase` and `path`, since they build the geometry or
     write a file and the geometry is the caller's.
   - **Review.** `/code-review high --fix` found and fixed a generator passed
