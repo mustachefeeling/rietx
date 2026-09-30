@@ -489,6 +489,11 @@ def _state_magnetic_width():
     ins = rx.Instrument.constant_wavelength_neutron(2.4)
     ins.profile.u.value, ins.profile.w.value = 0.05, 0.03
     ins.profile.x.value = 0.04
+    # FCJ on, off the S/L == H/L kink: the neutron default is 0/0, which built
+    # no FCJ row on either family and left the ``planes_mag`` half of the axial
+    # column loop and the ``fcj_n_mag`` sizing without a row (review round 2)
+    ins.geometry.axial_sl.value = 0.03
+    ins.geometry.axial_hl.value = 0.02
     ins.background = BackgroundChebyshev.with_terms(2)
     ins.background.coefficients[0].value = 20.0
 
@@ -506,7 +511,8 @@ def _state_magnetic_width():
     _free(table, ["phases.0.magnetic_lor_size", "phases.0.magnetic_lor_strain",
                   "phases.0.scale", "phases.0.lor_size",
                   "phases.0.atoms.0.moment.dof0",
-                  "instrument.background.c0", "instrument.zero_shift"])
+                  "instrument.background.c0", "instrument.zero_shift",
+                  "instrument.geometry.axial_sl", "instrument.geometry.axial_hl"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
                           moving_paths=set(table.moving_paths))
     return model, table, {}
