@@ -4199,7 +4199,7 @@ _MAGNETIC_WIDTH_PATH = re.compile(
 
 
 def _stage_order_diagnostics(plan, table,
-                             mode: Mode = "rietveld") -> list[Diagnostic]:
+                             mode: Mode) -> list[Diagnostic]:
     """``STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT`` — the ordering rule, checked
     against the plan **before the first stage runs** (WP-1343).
 

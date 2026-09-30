@@ -576,9 +576,14 @@ def test_the_ordering_check_is_silent_where_the_mode_frees_neither(mode):
     plan = rx.RefinementPlan(stages=[rx.Stage(
         "everything", ["phases.*.atoms.*.moment.dof*",
                        "phases.*.magnetic_lor_size"])])
-    assert [d.code for d in _stage_order_diagnostics(plan, table)] == [
+    assert [d.code for d in _stage_order_diagnostics(plan, table, "rietveld")] == [
         "STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT"]
     assert _stage_order_diagnostics(plan, table, mode) == []
+    # and ``mode`` has no default: a caller that leaves it out would read a
+    # Le Bail plan as Rietveld and bring the false report back silently
+    import inspect
+    param = inspect.signature(_stage_order_diagnostics).parameters["mode"]
+    assert param.default is inspect.Parameter.empty
 
 
 # ================================================ the staging rule
@@ -615,12 +620,13 @@ def test_a_plan_that_frees_the_width_beside_a_cold_moment_is_reported():
     bad = rx.RefinementPlan(stages=[rx.Stage(
         "everything", ["phases.*.atoms.*.moment.dof*",
                        "phases.*.magnetic_lor_size", "phases.*.scale"])])
-    got = _stage_order_diagnostics(bad, table)
+    got = _stage_order_diagnostics(bad, table, "rietveld")
     assert [d.code for d in got] == ["STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT"]
     assert "phases.0.magnetic_lor_size" in got[0].where
     assert "magnetic_width" in got[0].suggestion
     # the preset itself is silent, and so is a width freed after the moment
-    assert not _stage_order_diagnostics(PLAN_PRESETS["magnetic_width"](), table)
+    assert not _stage_order_diagnostics(PLAN_PRESETS["magnetic_width"](), table,
+                                    "rietveld")
 
 
 def test_a_held_moment_is_not_counted_as_freed_by_the_ordering_check():
@@ -640,7 +646,7 @@ def test_a_held_moment_is_not_counted_as_freed_by_the_ordering_check():
     stage = rx.Stage("everything", ["phases.*.atoms.*.moment.dof*",
                                     "phases.*.magnetic_lor_size"])
     assert _stage_order_diagnostics(
-        rx.RefinementPlan(stages=[stage]), table) == []
+        rx.RefinementPlan(stages=[stage]), table, "rietveld") == []
     # the dry run is the stage runner's answer, row for row
     assert table.would_free(stage.turn_on) == ["phases.0.magnetic_lor_size"]
     assert table.set_vary(stage.turn_on, True) == ["phases.0.magnetic_lor_size"]
@@ -659,10 +665,10 @@ def test_a_moment_already_free_is_not_a_first_freeing():
     table = ParameterTable(st, ins)
     step3 = rx.RefinementPlan(stages=[PLAN_PRESETS["magnetic_width"]().stages[2]])
     table.set_vary(["*"], False)
-    cold = _stage_order_diagnostics(step3, table)
+    cold = _stage_order_diagnostics(step3, table, "rietveld")
     assert [d.code for d in cold] == ["STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT"]
     table.set_vary(["phases.*.atoms.*.moment.dof*"], True)
-    assert _stage_order_diagnostics(step3, table) == []
+    assert _stage_order_diagnostics(step3, table, "rietveld") == []
 
 
 def test_the_ordering_check_is_silent_on_a_plan_with_no_magnetic_width():
@@ -674,7 +680,8 @@ def test_the_ordering_check_is_silent_on_a_plan_with_no_magnetic_width():
     for name in PLAN_PRESETS:
         if name in ("pawley_default",):
             continue
-        assert not _stage_order_diagnostics(PLAN_PRESETS[name](), table), name
+        assert not _stage_order_diagnostics(PLAN_PRESETS[name](), table,
+                                            "rietveld"), name
 
 
 # ================================================ the diagnostic's classifier
