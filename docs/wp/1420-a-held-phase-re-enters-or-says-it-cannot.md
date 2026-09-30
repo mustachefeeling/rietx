@@ -124,6 +124,21 @@ down.
 
 ### Inherited
 
+- **2026-09-30, from the issue triage (issue #539, which is this note's
+  fourth trip): the ramp guard fails on every loaded 4-core run.**
+  `RAMP_RUNAWAY_GUARD_S` is still 60 s at `tests/test_held_phase.py:685`
+  (*checked at `e3e6486a`*). The reporter's table: 76.2, 138.3, 96.9 and
+  135.1 s under `-n auto` (load 9-11) against 18.85 s alone, `[dev,jax]`,
+  Linux x86-64, 4 vCPU; every other assertion passed, `iterations <
+  RAMP_MAIN_UNBOUNDED_ITERATIONS` included. That is 3.2× serial, under
+  `tests/CLAUDE.md` § Budgets' "several times". The suggested fix is the one
+  already written below: keep the iteration bar, widen the guard to the
+  runaway (300-600 s, the `REAL_DATA_BUDGET_SECONDS` precedent). **One
+  caution from issue #538:** `n_iterations` holds scipy's `nfev`, so the
+  2164 bar is an evaluation count. It still separates 1609/1659 from a
+  runaway, but the name is wrong until #538 is settled (WP-1334 holds it).
+  Because it is a required-check-shaped flake on merges, consider taking the
+  guard change now rather than with the rest of this WP.
 - **2026-09-29, from [1469](1469-what-the-series-fences-cannot-see.md): a
   phase fitted to noise can pass the support test, which is this WP's hold.**
   Issue #481's blank frame, fitted alone, released its held cell after the

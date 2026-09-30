@@ -609,6 +609,13 @@ it and when.  The blurb was cut from five lines to three before the cap was
 touched; the evidence behind it is DESIGN.md's *Structure fence revised* and
 the WP files.  Landed 578, +1 headroom.
 
+579 -> 588 for v1.8 and v1.9 (2026-09-30, WPs 1801-1803 and 1901-1902): two
+milestone table rows and two headings the WP index needs, each with a
+one-line blurb, prose as the rule counts it.  The first draft's sections
+(31 lines) were cut to these before the cap was touched; the sequencing
+constraint lives in WP-1803 and WP-1514's `### Inherited`.  Landed 588, no
+headroom.
+
 ### `gui/CLAUDE.md`
 
 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer

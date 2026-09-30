@@ -13,7 +13,7 @@ names hard dependencies, and *soft* marks a preferred order.
 
 | WP | Title | Since | Priority | Section |
 |---|---|---|---|---|
-| [1132](1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | 2026-09-29 | P3 | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
+| [1132](1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | 2026-09-29 | P2 | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
 | [1326](1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | 2026-09-26 | P2 | [v1.6](#v1-6) |
 | [1327](1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 2026-09-26 | P2 | [v1.6](#v1-6) |
 | [1328](1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | 2026-09-30 | P3 | [v1.6](#v1-6) |
@@ -43,6 +43,10 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1514](1514-scoping-rigid-bodies.md) | Scoping rigid bodies: the milestone that makes the parameter map nonlinear | P2 | — ([1319](1319-structure-interchange.md), [1515](1515-scoping-structure-solution.md), [1516](1516-scoping-stacking-faults.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1523](1523-a-phase-fitted-to-noise-passes-the-support-test.md) | A phase fitted to noise passes the support test | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1527](1527-foreign-files-spell-a-species-as-the-program-does.md) | Foreign files spell a species as the other program does | P2 | — | [Unscheduled](#unscheduled-coming-from-another-code) |
+| [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | P2 | — | [v1.8](#v1-8) |
+| [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | P2 | [1801](1801-rotation-mathematics.md) | [v1.8](#v1-8) |
+| [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | P2 | — | [v1.9](#v1-9) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -371,6 +375,21 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | ⬜ | P4 | [1501](1501-cut-and-keep.md), [1502](1502-an-extent-beyond-one-cell.md), [1503](1503-the-figure-reports-on-itself.md) |
 | [1505](1505-rietview-the-figure-leaves-the-package.md) | rietview: the figure leaves the package | ⬜ | P4 | [1504](1504-the-figure-surface-measured-with-real-agents.md) |
 
+## <a id="v1-8"></a>v1.8 — rigid bodies
+
+| WP | Title | Status | Priority | Depends on |
+|---|---|---|---|---|
+| [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | ⬜ | P2 | — |
+| [1802](1802-the-fragment-type.md) | The fragment: a body template with a frame and declared bonds | ⬜ | P3 | — ([1801](1801-rotation-mathematics.md) soft) |
+| [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | ⬜ | P2 | [1801](1801-rotation-mathematics.md) |
+
+## <a id="v1-9"></a>v1.9 — structure solution
+
+| WP | Title | Status | Priority | Depends on |
+|---|---|---|---|---|
+| [1901](1901-the-difference-fourier-map.md) | The difference-Fourier map: a missing atom shows as a peak | ⬜ | P3 | — |
+| [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | ⬜ | P2 | — |
+
 ## <a id="unscheduled"></a>Unscheduled
 
 ### <a id="unscheduled-coming-from-another-code"></a>Coming from another code
@@ -382,6 +401,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1319](1319-structure-interchange.md) | Structure interchange: checkCIF conformance, and a bare XYZ importer | ⬜ | P3 | — |
 | [1433](1433-the-inp-grammar-still-refused.md) | The `.inp` grammar the reader still refuses: `STR(...)` and `#if` | ⬜ | P3 | — |
 | [1455](1455-a-topas-tchz-profile-reads-in.md) | A TOPAS TCHZ profile reads in | ⬜ | P3 | — ([1433](1433-the-inp-grammar-still-refused.md) soft) |
+| [1527](1527-foreign-files-spell-a-species-as-the-program-does.md) | Foreign files spell a species as the other program does | ⬜ | P2 | — |
 
 ### <a id="unscheduled-the-fit-has-no-reference"></a>The fit has no reference
 
@@ -394,7 +414,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1131](1131-sample-broadening-is-a-specimen-property.md) | Sample broadening is a specimen property, not an angular coefficient | ✅ 2026-09-02 | — | — |
-| [1132](1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | 🔄 2026-09-29 | P3 | — |
+| [1132](1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | 🔄 2026-09-29 | P2 | — |
 | [1133](1133-diagnostic-names-its-view.md) | A diagnostic names the view that shows it | ⬜ | P3 | — |
 | [1312](1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | ⬜ | P2 | — |
 
@@ -433,6 +453,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1518](1518-dedup-weighs-a-difference-in-its-own-frame.md) | The dedup χ² test weighs a difference in the frame it was taken in | ✅ 2026-09-28 | — | — |
 | [1521](1521-compiled-kernels-active-means-they-ran.md) | `compiled_kernels_active` says the kernels ran, per tier, or says it does not know | ⬜ | P4 | — |
 | [1523](1523-a-phase-fitted-to-noise-passes-the-support-test.md) | A phase fitted to noise passes the support test | ⬜ | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) |
+| [1528](1528-the-cell-box-is-declined-where-the-cell-is-declared.md) | The cell box is declined where the cell is declared | ⬜ | P4 | — |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 

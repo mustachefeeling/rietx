@@ -15,6 +15,19 @@ computed.
 
 ### Inherited
 
+- **2026-09-30, from the issue triage (issue #538): `StageResult.n_iterations`
+  is scipy's `nfev`, not an iteration count, and this WP's ε / p90 rule must
+  be stated in the unit the field holds.** *Reproduced at `e3e6486a`* with
+  the reporter's synthetic LaB6: `max_iter=1` reports `n_iterations=4` and a
+  stage that converged under `max_iter=3` reports 7 (`NFEV_PER_ITERATION = 4`
+  is the cap's exchange rate). Both solver paths do it, and
+  `SeriesEntry.n_iterations`' docstring ("least-squares iterations") and
+  `_stage_lines`' "N it" read as iterations. Every number already quoted as
+  an iteration count here, in #222 and in WP-0505 is an evaluation count; no
+  comparison changes, since each is like against like. The two ways out are
+  the reporter's: (1) document the field as evaluations and print "N ev"
+  (cheapest, no schema change), or (2) carry a real iteration count beside it
+  (TRF `njev`, `LMOutcome.njev`), a schema change. **Decided 2026-09-30: option (1).** Document `n_iterations` as residual evaluations on `StageResult` and `SeriesEntry` and print "N ev" in `_stage_lines`; no schema change. Task added below.
 - **2026-09-28, from [1338](1338-the-skills-own-gates.md): `StageResult.rwp` falsifies a skill sentence.**
   `references/series.md` says `StageResult` carries no `rwp` field, and
   `test_every_negative_field_claim_is_still_true` fails once it does.
@@ -122,6 +135,7 @@ minority that rescues a fit.
 
 ## Tasks
 
+- [ ] #538: `n_iterations` documented as evaluations, `_stage_lines` prints "N ev", the ε / p90 rule stated in that unit (decided 2026-09-30)
 - [ ] `StageResult.rwp` — the number `stage_end` already emits, on the object
       that was standing next to it. Name its writer at review (WP-1076: a
       declared field with no writer fails no test).

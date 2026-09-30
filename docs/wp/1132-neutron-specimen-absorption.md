@@ -4,7 +4,7 @@ Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @mustachefeelin
 Track: The specimen is not an angle, and the neutron follow-through
 Depends on: the CW neutron source (PR #108, open) — `NeutronSource` and
 `crystallography/neutron.py` are both prerequisites and both land there
-Priority: P3 2026-09-23 — a hand-measured µR covers it, and no neutron user is at the wall
+Priority: P2 2026-09-30 — was P3: issue #543 is a silent wrong weight fraction on a neutron fit that sets `particle_radius_um`, a path few fits run (one rung, not P1)
 
 ## Goal
 
@@ -102,6 +102,22 @@ estimation off.
 
 ### Inherited
 
+- **2026-09-30, from the issue triage (issue #543): Brindley microabsorption
+  reads the X-ray attenuation table on a neutron fit.** `qpa.py:537`
+  (`_apply_microabsorption`) calls `linear_attenuation(...)` whatever
+  `instrument.source.kind` is. *Reproduced at `e3e6486a`* with the reporter's
+  NaCl + W neutron snippet: `mu_cm` is the X-ray 578.6 and 1.029e4 cm⁻¹ to
+  every printed digit, `weight_fraction_corrected` moves NaCl from 0.887 to
+  0.002, and the only warning blames the particle-size regime
+  (`BRINDLEY_OUTSIDE_REGIME`). The neutron µ is about 1.5-2 cm⁻¹. The fix sits
+  on this WP's seam (PR #541's `LINEAR_ATTENUATION_BY_SOURCE`, refusing where
+  no table exists). **PR #541 merged 2026-09-30**, and `_apply_microabsorption`
+  still calls the X-ray `linear_attenuation` (`qpa.py:568`), so the follow-up PR
+  is now unblocked. **Decided 2026-09-30 (maintainer's comment on #543):** a
+  separate PR after #541 lands, with its own test built from the
+  reproduction, not a fold into #541. Until then a neutron user leaves
+  `particle_radius_um` unset. A silent wrong number in a shipped path on a
+  source kind few users run, so the Priority line above moved to P2.
 - **2026-09-23, from the issue triage (issue #117).** Issue #117 is this
   WP's issue. Its reporter filed it on 2026-08-24 as "WP-1132, owner is
   taking this one". Until today this file did not cite it, so the backlog

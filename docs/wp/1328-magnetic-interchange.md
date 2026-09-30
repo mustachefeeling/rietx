@@ -71,6 +71,14 @@ is still named in the result.
   by the TOPAS writer only.** Checked on #544's head: `gsas`, `fullprof` and
   `gsas2`'s `from_structure` write a phase carrying k = (0, 0, ½) with no k in
   the file, no exception and no warning, so it reads back as k = 0. A follow-up.
+  **Issue #567 is this entry (2026-09-30 triage); fix PR #571 is open.**
+  *Checked at `e3e6486a`* with the reporter's snippet: `gsas` and `gsas2`
+  read back `None`, and the TOPAS refusal fires. Two more findings there are
+  design choices left open: `fullprof.to_structure` drops a nuclear phase's
+  `Nvk` k (FullProf's nuclear k and rietx's k are not the same model), and
+  `Structure.to_cif` writes no k either, so the TOPAS message's "A CIF
+  (Structure.to_cif) is the export for a k hypothesis" points at the wrong
+  export. The PR points every refusal at the JSON.
 - **2026-09-27, from the issue triage (issue #470): three of the four
   foreign writers still drop a magnetic phase in silence.** The handover
   below lists #470 as not done; PR #478 says it "does not fix the writer".
