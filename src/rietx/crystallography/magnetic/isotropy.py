@@ -2188,9 +2188,10 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     always sampled.**  Before any draw the pair goes through the
     certificates :class:`PairVerdict` states: a shell one family lights and
     the other cannot, or an intensity span not inside the other's, proves
-    the pair *distinct* for every model, and then nothing is drawn.  No
-    certificate here proves two families *equal*, so a ``True`` rests on the
-    draws below, and so does a ``False`` no certificate gave;
+    the pair *distinct* for every model, and then nothing is drawn.  The
+    only equality a certificate proves is between two families with no
+    pattern at all, so any other ``True`` rests on the draws below, and so
+    does a ``False`` no certificate gave;
     :func:`powder_relations` returns which, direction by direction, with the
     number of draws each made.
 
@@ -2373,8 +2374,9 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
     Each pair is settled by a certificate where one applies — a shell one
     family lights and the other cannot, or an intensity span not inside the
     other's (:class:`PairVerdict`) — and by :func:`powder_equivalent`'s
-    draws otherwise.  A certificate only ever proves two candidates
-    *distinct*, so every join here rests on draws, and union-find carries
+    draws otherwise.  A certificate proves two candidates *distinct*, or
+    two with no pattern at all equal, so every other join here rests on
+    draws, and union-find carries
     each sampled verdict further: one false "equivalent" joins two classes,
     and one false "distinguishable" splits a class only if no other chain of
     pairs joins it.  Read the count as measured at this ``seed``, ``draws``

@@ -285,7 +285,8 @@ linear in the matrix $\mathbf{b}\mathbf{b}^{\mathsf T}$ (the quadratic form
 below), so a family's patterns all lie in one linear subspace, and when one
 family's subspace is not inside the other's, all but a measure-zero set of its
 patterns fall outside the other's reach. Neither certificate
-ever proves two families equal. Every "equivalent", and every
+proves two families equal, except two that have no pattern at all to this
+$d$ limit. Every other "equivalent", and every
 "distinguishable" no certificate gives, is tested on a few random amplitude
 draws, each fitted from a few random starts, and is statistical.
 "Distinguishable" can then be a fit that stopped in a local minimum on every
