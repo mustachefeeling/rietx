@@ -162,7 +162,6 @@ from typing import TYPE_CHECKING
 from ...crystallography.symmetry import (
     OperatorGroup,
     get_spacegroup,
-    refuse_magnetic_phase,
     refuse_operation_list,
     setting_diagnostics,
 )
@@ -3287,6 +3286,122 @@ def _number(value: float) -> str:
     return repr(value)
 
 
+def _operation_set(group) -> frozenset[str]:
+    """A nuclear group's operations as a set, translations wrapped into [0, 1).
+
+    ``gemmi.SpaceGroup`` and :class:`~...symmetry.OperatorGroup` both answer
+    ``operations()``, so a symbol and a list compare as the groups they are,
+    never by spelling.
+    """
+    return frozenset(op.wrap().triplet() for op in group.operations())
+
+
+def _magnetic_group_line(phase) -> str | None:
+    """The ``mag_space_group`` value to write for ``phase``, or a refusal.
+
+    ``None`` for a nuclear phase.  TOPAS names a magnetic group only by its
+    BNS number or symbol from its own table (Technical Reference § 13,
+    ``[mag_space_group $symbol]``; there is no operator-list form), and
+    :func:`to_structure` resolves a number to spglib's **standard-setting**
+    operators.  So the writer states the number exactly when the phase's
+    operator set *is* that number's standard setting, and refuses by name
+    otherwise, because the file would propagate the moments over a
+    different group than the one they refined under.  Three more things
+    TOPAS's ``str`` cannot state are refused rather than dropped:
+
+    * a phase whose **nuclear** group is not the magnetic group's family group
+      (its operations with time reversal dropped).  TOPAS generates a magnetic
+      ``str``'s atoms with the magnetic operators, and TOPAS's own magnetic
+      examples comment ``space_group`` out beside ``mag_space_group``, so the
+      writer states no ``space_group`` and the reader derives the family group
+      (tier 2 of :func:`~...magcif.resolve_nuclear_symmetry`).  A phase refined
+      under a larger parent (issue #457's tier 1, Cr₂WO₆'s ``Pn'nm`` in
+      ``P4₂/mnm``) lists one site per *parent* orbit, which the magnetic group
+      splits, so part of each such orbit would vanish from the file;
+    * a magnetic group on a phase with **no** site moment: the reader carries
+      no group back for it (:func:`_magnetic_specs`), so the write would lose
+      it — and a group with no moment constrains nothing;
+    * a **propagation vector** in either of its two forms: the parent k a
+      supercell records (``MagneticSymmetry.propagation_vector_parent``) and
+      a phase's own k hypothesis (``Phase.propagation_vector``).  A ``str``
+      states neither, and the file would read back as k = 0 in its cell.
+    """
+    from ...crystallography.magcif import MagCifError, resolve_nuclear_symmetry
+    from ...crystallography.magnetic.operators import identification
+    from ...crystallography.symmetry import resolve_group
+    from ...schemas.structure import MagneticSymmetry
+
+    where = f"phase {phase.name!r} cannot be written to a TOPAS `.inp`"
+    if getattr(phase, "propagation_vector", None) is not None:
+        raise ValueError(
+            f"{where}: it carries the propagation vector k = "
+            f"({', '.join(phase.propagation_vector)}), and a TOPAS `str` has no "
+            f"keyword for one, so the file would read back as k = 0. A CIF "
+            f"(Structure.to_cif) is the export for a k hypothesis")
+    mag = phase.magnetic_symmetry
+    if mag is None:
+        return None
+    moments = [a for a in phase.atoms if a.moment is not None]
+    if not moments:
+        raise ValueError(
+            f"{where}: it carries a magnetic group and no site moment, and a "
+            f"TOPAS reader builds no magnetic group for a phase whose sites "
+            f"state no mlx/mly/mlz, so the group would be lost on the way "
+            f"back. A group with no moment constrains nothing; drop "
+            f"magnetic_symmetry, or give the magnetic sites their moments")
+    if mag.propagation_vector_parent is not None:
+        raise ValueError(
+            f"{where}: it is a magnetic supercell built from the parent "
+            f"propagation vector k = ({', '.join(mag.propagation_vector_parent)}"
+            f"), and a TOPAS `str` has no keyword for the parent k, so the file "
+            f"would read back as a k = 0 structure in this cell. A magCIF "
+            f"(Structure.to_cif) is the export for it")
+    group = mag.group()
+    found = identification(group)
+    if not found.named:
+        raise ValueError(
+            f"{where}: its magnetic group ({group.order} operations) is not "
+            f"one of the tabulated magnetic space groups ({found.reason}), and "
+            f"TOPAS states a magnetic group only by its number or symbol. A "
+            f"magCIF (Structure.to_cif) carries the operator list")
+    number = found.bns_number
+    standard = MagneticSymmetry.model_validate(number)
+    if set(standard.group().all_operations()) != set(group.all_operations()):
+        raise ValueError(
+            f"{where}: its magnetic group is BNS {number} in a setting other "
+            f"than the standard one, and TOPAS's `mag_space_group {number}` "
+            f"generates the standard setting's operators, so the moments "
+            f"would be propagated over a different set of operations than the "
+            f"one they refined under. Transform the phase to the standard "
+            f"setting first, or export a magCIF (Structure.to_cif), which "
+            f"carries the operator list")
+    try:
+        family = resolve_nuclear_symmetry(None, standard, f"phase {phase.name!r}",
+                                          nuclear_group="file")
+    except MagCifError as exc:  # pragma: no cover - a named group has a family
+        raise ValueError(f"{where}: {exc}") from exc
+    nuclear = resolve_group(phase.space_group, phase.symmetry_operations)
+    if _operation_set(family) != _operation_set(nuclear):
+        raise ValueError(
+            f"{where}: its positions refine under {phase.space_group!r} and "
+            f"its moments under BNS {number}, whose family group (its "
+            f"operations with time reversal dropped) is {family.xhm()!r}. A "
+            f"TOPAS magnetic `str` generates its atoms with the magnetic "
+            f"operators alone, so the sites listed for the larger group would "
+            f"each generate only part of their orbit. Restate the phase under "
+            f"{family.xhm()!r} (a magCIF read with nuclear_group='file' does "
+            f"this), or export a magCIF (Structure.to_cif)")
+    for atom in moments:
+        if atom.moment.ion != atom.species:
+            raise ValueError(
+                f"{where}: site {atom.label!r} has species {atom.species!r} "
+                f"and magnetic ion {atom.moment.ion!r}, and TOPAS takes the "
+                f"magnetic form factor from the site's `occ` species, so the "
+                f"file cannot state the two apart. Set the species to the ion "
+                f"(or the ion to the species) first")
+    return number
+
+
 def from_structure(structure: Structure) -> str:
     """Serialise ``structure`` as TOPAS ``.inp`` text — the inverse of
     :func:`to_structure`.
@@ -3301,6 +3416,22 @@ def from_structure(structure: Structure) -> str:
     needs no symbol table to recover it (WP-1118's own finding: a *name* also
     means "free" in TOPAS's primary spelling, but that form ties the flag to
     a fresh symbol per parameter for no gain here).
+
+    **A magnetic phase** (WP-1328) is written the way TOPAS's own magnetic
+    examples state one: ``mag_space_group`` with the BNS number and no
+    ``space_group``, and on each moment-bearing site ``mlx mly mlz`` in
+    TOPAS's fractional basis (the stored crystal-axis μ_B divided by the
+    edge, :func:`_moment_tail`) plus ``mg`` where a Landé g is stated.  The
+    round trip returns each component within one ulp, most to the bit.
+    What such a ``str`` cannot state is refused by name
+    (:func:`_magnetic_group_line`): a group in a non-standard setting or with
+    no number, a nuclear group larger than the magnetic group's family group,
+    a group with no moment, a magnetic ion different from the site's species,
+    and a propagation vector in either form.  ``mag_only`` and
+    ``mag_only_for_mag_sites`` are never written, because the model has no
+    magnetic-only phase; nor is a Fourier-component moment, which the model
+    has no form for.  The group's ``symbol`` rides as a comment and its
+    ``setting``/``og_number``/``uni_number`` come back as the number's own.
 
     **What does not round-trip, because it is not built from a ``.inp`` at
     all**: the emission profile and instrument geometry TOPAS states are on
@@ -3357,11 +3488,23 @@ def from_structure(structure: Structure) -> str:
                 f"a keyword line of its own.  The same accident the `.EXP` "
                 f"writer's `write_record` refuses one format over")
         refuse_operation_list(phase, "a TOPAS `.inp`")
-        refuse_magnetic_phase(phase, "a TOPAS `.inp`")
-        sg = get_spacegroup(phase.space_group).xhm()
+        magnetic_number = _magnetic_group_line(phase)
         lines.append("str")
         lines.append(f'  phase_name "{phase.name}"')
-        lines.append(f'  space_group "{sg}"')
+        if magnetic_number is None:
+            sg = get_spacegroup(phase.space_group).xhm()
+            lines.append(f'  space_group "{sg}"')
+        else:
+            # No `space_group` beside it: TOPAS generates a magnetic `str`'s
+            # atoms with the magnetic operators, and the reader derives the
+            # nuclear group from the number (`_magnetic_group_line` checked
+            # that it is this phase's own). The symbol is metadata the number
+            # does not carry, so it rides as a comment, the way ISODISTORT's
+            # TOPAS export writes `'BNS:1.1 P1`, and is not read back.
+            lines.append(f"  mag_space_group {magnetic_number}")
+            symbol = phase.magnetic_symmetry.symbol
+            if symbol and "\n" not in symbol and "\r" not in symbol:
+                lines.append(f"  ' magnetic group symbol (not read): {symbol}")
         lines.append(f"  scale {_tail(phase.scale)}")
         cell = phase.cell
         for key, param in (("a", cell.a), ("b", cell.b), ("c", cell.c),
@@ -3409,10 +3552,41 @@ def from_structure(structure: Structure) -> str:
                 # which number the fit actually moved.
                 tensor = " ".join(f"{u} {_tail(getattr(atom.aniso, u))}"
                                   for u in _ADP_KEYS)
-                lines.append(f"{site} beq ! {_number(atom.biso.value)} {tensor}")
+                site = f"{site} beq ! {_number(atom.biso.value)} {tensor}"
             else:
-                lines.append(f"{site} beq {_tail(atom.biso)}")
+                site = f"{site} beq {_tail(atom.biso)}"
+            if atom.moment is not None:
+                site = f"{site} {_moment_tail(atom.moment, cell)}"
+            lines.append(site)
     return "\n".join(lines) + "\n"
+
+
+def _moment_tail(moment, cell) -> str:
+    """``mlx … mly … mlz … [mg …]`` for one site: :func:`to_structure` inverted.
+
+    The stored components are crystal-axis μ_B and ``mlx mly mlz`` are
+    fractional-basis ones (:attr:`TopasSite.moment`, measured against TOPAS),
+    so each is divided by its own edge.  ``(m / a) * a`` is not always ``m``
+    in floating point, and no neighbouring double does better: over 20 000
+    moments on real edges 88 % come back to the bit and every other one
+    within one ulp, and trying the quotient's two neighbours hit on none of
+    the misses (``test_projects_topas``'s
+    ``test_write_topas_inp_moment_round_trips_within_one_ulp``).  One
+    refine flag for all three, because the block is what refines — the
+    components' ``vary`` is the intent that frees the moment's DOFs
+    (:class:`~rietx.schemas.structure.Moment`) — and the reader gives all
+    three the flag any one of them carries.  ``mg`` is written only where the
+    model states a Landé g: ``None`` is the spin-only default, which TOPAS
+    takes from its own table.
+    """
+    flag = "@" if moment.vary else "!"
+    parts = [f"{key} {flag} {_number(value / edge)}"
+             for key, value, edge in zip(
+                 _MOMENT_COMPONENT_KEYS, moment.values(),
+                 (cell.a.value, cell.b.value, cell.c.value))]
+    if moment.g is not None:
+        parts.append(f"mg ! {_number(moment.g)}")
+    return " ".join(parts)
 
 
 def write_topas_inp(structure: Structure, path: str | Path) -> None:

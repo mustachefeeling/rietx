@@ -3316,3 +3316,202 @@ def test_write_topas_inp_refuses_a_line_break_in_a_phase_name():
     structure.phases[0].name = "apa\ntite"
     with pytest.raises(ValueError, match="line break"):
         from_structure(structure)
+
+
+# --------------------------------------------------------------------------
+# the magnetic writer (WP-1328): `mag_space_group`, `mlx mly mlz`, `mg`
+# --------------------------------------------------------------------------
+
+#: One cell per class the moment basis can tell apart: an orthorhombic cell
+#: (edges unequal, so the per-axis scale already turns a two-axis moment), a
+#: monoclinic one (β obtuse, the cell TOPAS was measured on — the moment-basis
+#: note on ``TopasSite.moment`` in ``io/projects/topas.py``) and an
+#: oblique triclinic one (no angle 90°). Each with a type-I group whose general
+#: position leaves the moment unconstrained, so any three components are legal.
+_MAGNETIC_CASES = {
+    "orthorhombic": ("62.441", "P n m a", (5.2, 6.9, 8.4, 90.0, 90.0, 90.0)),
+    "monoclinic": ("14.75", "P 1 21/c 1", (5.2, 6.9, 8.4, 90.0, 115.0, 90.0)),
+    "oblique": ("2.4", "P -1", (5.2, 6.9, 8.4, 81.3, 115.0, 97.7)),
+}
+
+
+def _magnetic_phase(case, moment=(2.08, -2.07, 2.52), *, vary=True, g=None,
+                    species="Fe3+", ion=None):
+    bns, sg, (a, b, c, al, be, ga) = _MAGNETIC_CASES[case]
+    cell = rx.Cell(a=rx.Parameter(value=a), b=rx.Parameter(value=b),
+                   c=rx.Parameter(value=c), alpha=rx.Parameter(value=al),
+                   beta=rx.Parameter(value=be), gamma=rx.Parameter(value=ga))
+    fe = rx.Atom(label="Fe1", species=species,
+                 x=rx.Parameter(value=0.13, vary=True),
+                 y=rx.Parameter(value=0.27), z=rx.Parameter(value=0.41),
+                 biso=rx.Parameter(value=0.4, min=0.0, max=25.0, unit="A^2"),
+                 moment=rx.Moment.from_values(moment, ion or species, g=g,
+                                              vary=vary))
+    o = rx.Atom(label="O1", species="O2-", x=rx.Parameter(value=0.31),
+                y=rx.Parameter(value=0.07), z=rx.Parameter(value=0.19))
+    return rx.Phase(name=f"Fe_{case}", space_group=sg, cell=cell,
+                    atoms=[fe, o], magnetic_symmetry=bns)
+
+
+def _round_trip(structure, tmp_path, diagnostics=None):
+    out = tmp_path / "magnetic.inp"
+    rx.write_topas_inp(structure, out)
+    return to_structure(read_topas_inp(out), diagnostics=diagnostics), out
+
+
+@pytest.mark.parametrize("case", sorted(_MAGNETIC_CASES))
+def test_write_topas_inp_round_trips_a_magnetic_phase(case, tmp_path):
+    """Written and read back, a magnetic phase is the same phase: the group
+    (operators, centrings and every metadata field the number carries), the
+    nuclear group, the moment within one ulp and its refine flag, and the Landé g.
+    The file states it the way TOPAS's own magnetic examples do —
+    `mag_space_group` and no `space_group` — with `mlx` in the fractional
+    basis TOPAS was measured to use, i.e. the stored μ_B over the edge."""
+    phase = _magnetic_phase(case, g=2.0)
+    diags: list = []
+    back, out = _round_trip(rx.Structure(phases=[phase]), tmp_path, diags)
+    text = out.read_text(encoding="utf-8")
+    assert f"mag_space_group {_MAGNETIC_CASES[case][0]}\n" in text
+    assert "space_group \"" not in text
+    assert "mag_only" not in text
+    (built,) = back.phases
+    assert built.magnetic_symmetry == phase.magnetic_symmetry
+    assert (get_spacegroup(built.space_group).xhm()
+            == get_spacegroup(phase.space_group).xhm())
+    got, want = built.atoms[0].moment, phase.atoms[0].moment
+    assert got.values() == pytest.approx(want.values(), rel=2.3e-16, abs=0)
+    assert got.vary and got.ion == want.ion and got.g == 2.0
+    assert built.atoms[1].moment is None
+    for key in ("x", "y", "z", "occ", "biso"):
+        _assert_parameter_equal(getattr(phase.atoms[0], key),
+                                getattr(built.atoms[0], key))
+    assert {d.code for d in diags} >= {"TOPAS_MAGNETIC_GROUP_READ",
+                                       "TOPAS_MOMENT_CONVENTION"}
+
+
+def test_write_topas_inp_writes_mlx_in_topas_fractional_basis(tmp_path):
+    """The measured numbers (the moment-basis note on ``TopasSite.moment`` in
+    ``io/projects/topas.py``): TOPAS's `mlx 0.4 mly -0.3 mlz 0.3` on the 5.2 /
+    6.9 / 8.4 Å cell is (2.08, -2.07, 2.52) μ_B crystal-axis — measured against
+    TOPAS 6's own intensities — so writing that moment gives those three
+    components back, and a held moment writes `!` on all three."""
+    phase = _magnetic_phase("monoclinic", vary=False)
+    text = from_structure(rx.Structure(phases=[phase]))
+    (site,) = [ln for ln in text.splitlines() if "site Fe1" in ln]
+    values = {k: float(v) for k, v in
+              re.findall(r"\b(ml[xyz]) ! (\S+)", site)}
+    assert values == pytest.approx({"mlx": 0.4, "mly": -0.3, "mlz": 0.3},
+                                   rel=1e-15)
+    assert "mg" not in site.split()        # no g stated, none written
+
+
+def test_write_topas_inp_moment_round_trips_within_one_ulp(tmp_path):
+    """The stated tolerance, measured through the file. The reader stores
+    `mlx * a` and the writer writes `m / a`, and `(m / a) * a` misses `m` by
+    one ulp for about one moment in eight; no neighbouring double of the
+    quotient hits where it misses (checked while writing this), so one ulp is
+    the bound and not a shortfall of the writer. 60 random moments on each
+    cell class, every component within one ulp."""
+    import math
+    import random
+
+    rng = random.Random(1328)
+    for case in sorted(_MAGNETIC_CASES):
+        phases = [_magnetic_phase(case, moment=[rng.uniform(-8, 8)
+                                                for _ in range(3)])
+                  .model_copy(update={"name": f"p{i}"}) for i in range(60)]
+        back, _ = _round_trip(rx.Structure(phases=phases), tmp_path)
+        exact = 0
+        for orig, built in zip(phases, back.phases):
+            for m, got in zip(orig.atoms[0].moment.values(),
+                              built.atoms[0].moment.values()):
+                assert abs(got - m) <= math.ulp(m)
+                exact += got == m
+        assert exact > 0.8 * 3 * len(phases), (case, exact)
+
+
+def test_write_topas_inp_flips_521s_refusal_for_mnf2(tmp_path):
+    """#521's refusal was the stopgap; TOPAS now writes MnF₂'s moment. The
+    fixture's species is set to its ion, which is the one TOPAS field both
+    come from (`occ Mn2+`)."""
+    from tests.test_magnetic import _mnf2
+
+    phase = _mnf2()
+    mn = phase.atoms[0].model_copy(update={"species": "Mn2+"})
+    phase = phase.model_copy(update={"atoms": [mn, phase.atoms[1]]})
+    back, _ = _round_trip(rx.Structure(phases=[phase]), tmp_path)
+    assert back.phases[0].magnetic_symmetry.bns_number == "136.499"
+    assert back.phases[0].atoms[0].moment.values() == (0.0, 0.0, 4.6)
+
+
+def _refused(phase, match):
+    with pytest.raises(ValueError, match=match) as err:
+        from_structure(rx.Structure(phases=[phase]))
+    assert repr(phase.name) in str(err.value)
+    assert "a TOPAS `.inp`" in str(err.value)
+
+
+def test_write_topas_inp_refuses_a_magnetic_ion_other_than_the_species():
+    """TOPAS keys both the X-ray f0 and the magnetic form factor on the site's
+    `occ` species, so a species and an ion that differ cannot both be stated —
+    `_mnf2()` as written (species "Mn", ion "Mn2+") is that case."""
+    from tests.test_magnetic import _mnf2
+
+    _refused(_mnf2(), r"species 'Mn' and magnetic ion 'Mn2\+'")
+
+
+def test_write_topas_inp_refuses_a_group_in_a_non_standard_setting():
+    """`mag_space_group N` generates N's standard-setting operators, so a
+    group stated in another setting would propagate the moments over other
+    operations: 14.75 with its origin moved by a quarter along a."""
+    from rietx.schemas.structure import MagneticSymmetry
+
+    phase = _magnetic_phase("monoclinic")
+    ops, cent = (MagneticSymmetry.model_validate("14.75").group()
+                 .transformed("a,b,c;1/4,0,0").xyz_strings())
+    other = phase.model_copy(update={
+        "magnetic_symmetry": MagneticSymmetry(operations=list(ops),
+                                              centerings=list(cent))})
+    _refused(other, r"BNS 14\.75 in a setting other than the standard one")
+
+
+def test_write_topas_inp_refuses_a_nuclear_group_above_the_family_group():
+    """A `str` with `mag_space_group` generates its atoms with the magnetic
+    operators, so a phase refined under a larger parent (issue #457's tier 1)
+    would lose part of each parent orbit: Pnma's positions under P2₁/c's
+    magnetic group."""
+    phase = _magnetic_phase("monoclinic").model_copy(update={
+        "space_group": "P n m a",
+        "cell": _magnetic_phase("orthorhombic").cell})
+    _refused(phase, r"family group .* is 'P 1 21/c 1'")
+
+
+def test_write_topas_inp_refuses_a_group_with_no_moment():
+    phase = _magnetic_phase("oblique")
+    bare = phase.model_copy(update={"atoms": [
+        a.model_copy(update={"moment": None}) for a in phase.atoms]})
+    _refused(bare, "a magnetic group and no site moment")
+
+
+def test_write_topas_inp_refuses_a_parent_propagation_vector():
+    phase = _magnetic_phase("oblique")
+    mag = phase.magnetic_symmetry.model_copy(
+        update={"propagation_vector_parent": ("0", "0", "1/2")})
+    _refused(phase.model_copy(update={"magnetic_symmetry": mag}),
+             r"parent propagation vector k = \(0, 0, 1/2\)")
+
+
+def test_write_topas_inp_refuses_a_k_hypothesis_on_a_nuclear_phase():
+    """`Phase.propagation_vector` used to be dropped from a `.inp` in silence."""
+    phase = _cubic_al().phases[0].model_copy(
+        update={"propagation_vector": ("1/2", "0", "0")})
+    _refused(phase, r"propagation vector k = \(1/2, 0, 0\)")
+
+
+def test_write_topas_inp_carries_the_group_symbol_as_a_comment(tmp_path):
+    phase = _magnetic_phase("orthorhombic")
+    mag = phase.magnetic_symmetry.model_copy(update={"symbol": "Pnma"})
+    phase = phase.model_copy(update={"magnetic_symmetry": mag})
+    back, out = _round_trip(rx.Structure(phases=[phase]), tmp_path)
+    assert "' magnetic group symbol (not read): Pnma" in out.read_text(encoding="utf-8")
+    assert back.phases[0].magnetic_symmetry.symbol is None

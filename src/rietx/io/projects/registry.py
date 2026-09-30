@@ -373,6 +373,8 @@ PROJECT_FORMATS: tuple[ProjectFormat, ...] = (
             extensions=(".pcr",),
             sniff="a COMM title line, which the format requires first",
             carries=("phases", "sites", "refine flags and their ties",
+                     "a Jbt = ±1 phase's moments and magnetic group, where it "
+                     "restates a nuclear phase in that phase's cell with k = 0",
                      "instrument resolution function", "the run's own chi2 "
                      "and per-phase R_Bragg", "the data file it points at"),
             reports_at="build",

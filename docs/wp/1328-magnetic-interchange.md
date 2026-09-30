@@ -1,6 +1,6 @@
 # WP-1328 — magnetic interchange: magCIF in and out, and the readers stop refusing
 
-Milestone: v1.6 · Status: 🔄 2026-09-29 — magCIF in and out and the TOPAS moments (PR #478), and the foreign writers' refusal of a magnetic phase (PR #521, #470), landed from outside; the `.pcr` Jbt stance, 1314's refusal list and a TOPAS `mlx mly mlz` writer remain
+Milestone: v1.6 · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #544): the TOPAS moment writer, the `.pcr` Jbt stance and 1314's refusal list
 Depends on: 1327 (the model the files describe); 1118 soft (the coverage
 registry the foreign readers report through)
 Priority: P3 2026-09-23 — waits on 1327's model; P2 when it lands
@@ -67,6 +67,10 @@ is still named in the result.
 
 ### Inherited
 
+- **2026-09-30, from the review of #544: `Phase.propagation_vector` is refused
+  by the TOPAS writer only.** Checked on #544's head: `gsas`, `fullprof` and
+  `gsas2`'s `from_structure` write a phase carrying k = (0, 0, ½) with no k in
+  the file, no exception and no warning, so it reads back as k = 0. A follow-up.
 - **2026-09-27, from the issue triage (issue #470): three of the four
   foreign writers still drop a magnetic phase in silence.** The handover
   below lists #470 as not done; PR #478 says it "does not fix the writer".

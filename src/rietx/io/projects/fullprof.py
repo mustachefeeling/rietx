@@ -28,19 +28,17 @@ value and every refinement codeword is read, the counts the file declares are
 asserted against the lines actually parsed, and :func:`to_structure` builds a
 :class:`~rietx.schemas.Structure`.
 
-**Read but not modelled: magnetic phases** (``Jbt = 1``, both ``Isy = -1`` and
-``Isy = -2`` sub-grammars). rietx *does* have a magnetic model since WP-1327 —
-a moment on a site of a nuclear phase, under a magnetic space group given as an
-operator list — and a ``Jbt = 1`` phase still does not fit it, for the two
-reasons :data:`MAGNETIC_PHASE_REFUSAL` states: it is a **pure magnetic** phase
-with its own scale and no nuclear half (FullProf's spelling of a TOPAS
-``mag_only``), and its symmetry is a magnetic *representation* whose matrices
-need not be the Shubnikov axial action. So a
-magnetic phase cannot become a :class:`~rietx.schemas.Phase`. It is neither
-dropped nor allowed to make the file unreadable: :func:`read_fullprof_pcr`
-returns it in full on :attr:`FullProfModel.phases`, and
-:func:`to_structure` **refuses**, naming every magnetic phase it would have
-had to omit. See the design note below — four of the six real files this
+**Magnetic phases** (``Jbt = ±1``, both ``Isy = -1`` and ``Isy = -2``
+sub-grammars) are read in full onto :attr:`FullProfModel.phases`, and **built**
+only in the one shape that maps onto rietx's model (WP-1328): a pure magnetic
+phase restating a nuclear phase of the same file in the same cell with k = 0,
+its SYMM/MSYM pairs a magnetic space group. :func:`to_structure` then puts the
+moments and the group on that nuclear phase (:func:`magnetic_reading`,
+``FULLPROF_MAGNETIC_PHASE_READ``). Every other magnetic phase — the
+Fourier-component forms, basis functions, a non-axial moment matrix, a phase
+with no nuclear counterpart in its cell — is **refused** by
+:func:`to_structure`, naming the phase and its reason
+(:data:`MAGNETIC_PHASE_REFUSAL`); nothing is dropped. See the design note below — four of the six real files this
 reader was written against have a magnetic phase, so silently returning their
 nuclear half is the single most damaging thing it could do.
 
@@ -171,8 +169,12 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 # --------------------------------------------------------------------- errors
 
 
-#: Why a ``Jbt = 1`` phase is refused, once, so the read-time report and the
-#: build-time refusal cannot drift apart (WP-1328).
+#: When a ``Jbt = ±1`` phase is refused, once, so the read-time report and the
+#: build-time refusal cannot drift apart (WP-1328). The history below is why
+#: the rule is narrow; :func:`magnetic_reading` is the rule, and settled the
+#: MSYM question from the FullProf manual's own formula (eq. 3.52: the matrix
+#: M_js carries the moment of the first atom to the s-th, so a pair is a
+#: Shubnikov operation exactly when M is ±det(R)·R).
 #:
 #: **The reason changed and the old one had gone stale**, which is the failure
 #: worth naming here: until WP-1327 the sentence was "rietx has no magnetic
@@ -202,20 +204,20 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 #: for a construct with no evidence: a wrong ε is a fit under the wrong magnetic
 #: group, reported with a confident esd.
 MAGNETIC_PHASE_REFUSAL = (
-    "A Jbt = 1 phase is a *pure magnetic* phase — no nuclear structure factor, "
-    "its own Scale, only the magnetic atoms listed, and a magnetic "
+    "A Jbt = ±1 phase is a *pure magnetic* phase — no nuclear structure "
+    "factor, its own Scale, only the magnetic atoms listed, and a magnetic "
     "form-factor label in the species column — and rietx's magnetic model is a "
-    "moment on a site of a nuclear phase sharing one scale (WP-1327), so the "
-    "file's own decomposition has nowhere to land. Its symmetry is a magnetic "
-    "*representation* besides (SYMM with magnetic matrices and a phase under "
-    "Isy = -1, basis vectors of an irrep under Isy = -2), and those matrices "
-    "need not be the Shubnikov axial action eps*det(R)*R that a magnetic space "
-    "group's operator list is, so converting them would be a guess about the "
-    "physics rather than a reading of the file. What would make this readable: "
-    "the phase restated as a nuclear phase carrying moments — which is what a "
-    "magCIF states, and `rietx.Structure.from_cif` reads one (WP-1328) — or a "
-    "file that settles FullProf's MSYM convention against a known magnetic "
-    "space group.")
+    "moment on a site of a nuclear phase sharing one scale (WP-1327). So it is "
+    "read only as the moments of the nuclear phase it restates: stated in that "
+    "phase's own cell with k = 0 (the magnetic cell), its symmetry as "
+    "SYMM/MSYM pairs (Isy = -1) whose moment matrices are the Shubnikov axial "
+    "action eps*det(R)*R, each atom on a site of that phase with its Biso, and "
+    "Scale x f^2 equal to that phase's. A magnetic *representation* whose "
+    "matrices are not that action, basis vectors of an irrep (Isy = -2) and "
+    "the Fourier-component form (a k other than 0, an imaginary part, a "
+    "magnetic phase) are outside it. What reads in every case: the structure "
+    "restated as a nuclear phase carrying moments, which is what a magCIF "
+    "states, and `rietx.Structure.from_cif` reads one (WP-1328).")
 
 
 class FullProfPcrError(ValueError):
@@ -592,10 +594,10 @@ class FullProfPhase:
 
     @property
     def is_magnetic(self) -> bool:
-        """``Jbt = 1``. A pure magnetic phase has no shape in rietx's magnetic
-        model (:data:`MAGNETIC_PHASE_REFUSAL`), so this phase can be reported
-        but not built — see the module docstring's decision 1."""
-        return self.jbt == 1
+        """``Jbt = ±1``, a pure magnetic phase: built only as the moments of
+        the nuclear phase it restates (:func:`magnetic_reading`), and
+        otherwise reported but not built — the module docstring's decision 1."""
+        return abs(self.jbt) == 1
 
     @property
     def isy(self) -> int:
@@ -1281,10 +1283,10 @@ def _read_phase(cur: _Cursor, path: Path, index: int) -> FullProfPhase:
                 f"every line after this one.")
 
     jbt = phase.jbt
-    if jbt not in (0, 1):
+    if jbt not in (0, 1, -1):
         raise FullProfPcrError(
-            f"{where}: Jbt = {jbt}. Only Jbt 0 (nuclear) and Jbt 1 (magnetic) "
-            f"are evidenced here; the others select Le Bail intensity "
+            f"{where}: Jbt = {jbt}. Only Jbt 0 (nuclear) and Jbt ±1 (magnetic, "
+            f"the moment in components or in spherical form) are read here; the others select Le Bail intensity "
             f"extraction, a combined nuclear+magnetic phase or a form-factor "
             f"phase, each of which changes the atom block's own layout. In "
             f"particular the **Fourier-component** magnetic forms — a phase "
@@ -1329,9 +1331,9 @@ def _read_phase(cur: _Cursor, path: Path, index: int) -> FullProfPhase:
     phase.space_group = normalize_space_group(sg_line.text)
 
     isy = phase.isy
-    if jbt == 1 and isy not in (-1, -2):
+    if abs(jbt) == 1 and isy not in (-1, -2):
         raise FullProfPcrError(
-            f"{where}: a magnetic phase (Jbt 1) with Isy = {isy}. The magnetic "
+            f"{where}: a magnetic phase (Jbt {jbt}) with Isy = {isy}. The magnetic "
             f"sub-grammar is selected by Isy and only -1 (SYMM/MSYM pairs) and "
             f"-2 (SYMM/BASR/BASI triples) are evidenced here")
     if jbt == 0 and isy != 0:
@@ -1351,7 +1353,7 @@ def _read_phase(cur: _Cursor, path: Path, index: int) -> FullProfPhase:
             f"negative")
     for i in range(nat):
         phase.atoms.append(
-            _read_magnetic_atom(cur, where, i + 1, nat) if jbt == 1
+            _read_magnetic_atom(cur, where, i + 1, nat) if abs(jbt) == 1
             else _read_nuclear_atom(cur, where, i + 1, nat))
     # A dropped site is a silently wrong structure factor, so the count is an
     # invariant rather than something the walk is trusted to get right — the
@@ -1722,6 +1724,271 @@ def occupancy_factor(phase: FullProfPhase, where: str | None = None) -> float:
     return reference
 
 
+#: How close two numbers the stance below compares must be, and why each is
+#: what it is. A cell, a coordinate and a Biso are the *same* stated number
+#: twice (FullProf's manual requires the magnetic phase's "scale factor and
+#: structural parameters" constrained to their crystallographic counterpart's),
+#: so they are compared at the precision a `.pcr` prints them. The scale
+#: product is a derived number and takes the occupancy tolerance above.
+_MAGNETIC_MATCH_ATOL = 1e-4
+
+
+@dataclass
+class MagneticReading:
+    """A ``Jbt = ±1`` phase read onto its nuclear partner (WP-1328).
+
+    ``partner`` indexes :attr:`FullProfModel.nuclear_phases`; ``operations``
+    is the magCIF ``x,y,z,±1`` list the SYMM/MSYM pairs state; ``moments``
+    maps an atom index of the partner to ``(components, ion, vary)`` in
+    crystal-axis μ_B.
+    """
+
+    partner: int
+    operations: list
+    moments: dict
+
+
+def _parse_msym(text: str) -> tuple[list[list[int]], float]:
+    """``MSYM -u, v,-w, 0.0`` → the integer moment matrix and the phase.
+
+    The manual: "The symbols U,V,W (lower or capital case) are used for the
+    Fourier components of the magnetic moments … along X,Y,Z. The numerical
+    value following the MSYM … operator is the magnetic … phase in units of
+    2π." So the three components are a linear map read as a triplet in
+    ``x,y,z`` with no translation.
+    """
+    import gemmi
+
+    body = text.strip()[4:].strip()
+    parts = [t.strip() for t in body.split(",")]
+    if len(parts) != 4:
+        raise ValueError(f"expected three components and a phase, found {text!r}")
+    triplet = ",".join(parts[:3]).lower().translate(str.maketrans("uvw", "xyz"))
+    op = gemmi.Op(triplet)
+    if any(op.tran):
+        raise ValueError(f"a moment matrix carries no translation: {text!r}")
+    return [[v // gemmi.Op.DEN for v in row] for row in op.rot], float(parts[3])
+
+
+def _orbit_size(ops, xyz) -> int:
+    """How many distinct images ``xyz`` has under ``ops`` (wrapped, 1e-4)."""
+    images = []
+    for op in ops:
+        image = [(op.apply_to_xyz(list(xyz))[i]) % 1.0 for i in range(3)]
+        if not any(all(min(abs(a - b), 1 - abs(a - b)) < _MAGNETIC_MATCH_ATOL
+                       for a, b in zip(image, seen)) for seen in images):
+            images.append(image)
+    return len(images)
+
+
+def magnetic_reading(model: FullProfModel, phase: FullProfPhase
+                     ) -> MagneticReading | str:
+    """A ``Jbt = ±1`` phase as moments on a nuclear phase, or why it is not one.
+
+    Returns a :class:`MagneticReading` or the **reason** it is refused, as one
+    sentence :func:`to_structure` quotes by phase. Everything here is read
+    from the FullProf manual's own statement of the format, never from a
+    program, and each condition is the manual's:
+
+    * **Jbt = ±1 is a pure magnetic phase** whose "scale factor and structural
+      parameters must be constrained to have the same values … that their
+      crystallographic counterpart", so it is read as the moments of a
+      nuclear phase *of this file*: the one ``Jbt = 0`` phase in **the same
+      cell**, every magnetic atom on one of its sites (same position, same
+      Biso), and the two phases' ``Scale × f²`` equal, f being the Occ factor
+      :func:`occupancy_factor` measures — the intensity of each is
+      Scale·f²·|orbit sum|², so that product is what must agree for the merged
+      model to predict the file's magnetic intensity. A nuclear phase in the
+      chemical cell beside a magnetic one in the supercell has no partner here.
+    * **In the magnetic cell, k = 0.** "If the propagation vector k is
+      commensurate one can use the magnetic unit cell and S_kj can be
+      identified with the magnetic moment at site j … with Ψ_kj = 0": so no
+      propagation vector other than (0, 0, 0), every MSYM phase and every
+      atom's MagPh zero, and the imaginary components Ix Iy Iz zero. Anything
+      else is the **Fourier-component** form (S_k = ½(R_k + i I_k)
+      exp(−2πi MagPh)), which rietx's model — one real moment per site — has
+      no shape for; refused by name.
+    * **Isy = −1, one matrix per operator, each an axial action.** A
+      SYMM/MSYM pair is a Shubnikov operation exactly when the moment matrix
+      is ε·det(R)·R with ε = ±1, ε being the time reversal. The manual allows
+      any matrix (a representation need not be a group), so one that is not
+      axial is refused rather than guessed at. ``Isy = −2`` states basis
+      functions of irreducible representations, not operators: refused. So is
+      ``Cen = 2``, under which the listed operators are half the group and the
+      inversion's moment action is not written.
+    * The moments are "components along the crystallographic axis …, in units
+      of Bohr magnetons", "with respect to a basis of unit vectors along the
+      crystallographic unit cell" — magCIF's crystal-axis basis, so they carry
+      over unchanged. ``Jbt = −1`` states them as (µ, φ, θ), "φ and θ …
+      spherical angles", φ from X and θ from Z, which "works only if the Z
+      axis is perpendicular to the XY plane"; the manual does not say whether
+      the in-plane frame is (a, b) or a Cartesian one, and the two differ
+      wherever γ ≠ 90°, so only an orthogonal cell is read.
+    * The species is a magnetic form-factor label, ``M`` + element + charge
+      (``MCR3``); it names the ion (``Cr3+``). Any other label is refused.
+    * A soft moment constraint, a diagonal β, and a tie between moment
+      columns are each something the built phase cannot carry, so each is a
+      refusal naming it.
+    """
+    import gemmi
+    import numpy as np
+
+    from ...crystallography.symmetry import expand_positions
+
+    if phase.isy != -1:
+        return (f"Isy = {phase.isy} states basis functions of irreducible "
+                f"representations (BASR/BASI), not symmetry operators, and a "
+                f"combination of basis functions is not a magnetic space group")
+    if not phase.atoms:
+        return ("it states no magnetic site, so there is no moment to put on a "
+                "nuclear phase, and a magnetic group with no moment constrains "
+                "nothing")
+    sym = phase.magnetic
+    if sym.cen != 1:
+        return (f"Cen = {sym.cen}: the listed operators are half the group, and "
+                f"the moment action of the inversion that completes it is not "
+                f"written in the file")
+    if sym.magmat != 1:
+        return (f"MagMat = {sym.magmat}: more than one moment matrix per "
+                f"operator is a representation, not one magnetic operation")
+    if any(any(abs(v) > 0 for v in k) for k, _ in phase.propagation_vectors):
+        ks = "; ".join(str(tuple(k)) for k, _ in phase.propagation_vectors)
+        return (f"propagation vector {ks}: a moment stated per k is the "
+                f"Fourier-component form, which rietx's magnetic model (one "
+                f"real moment per site, in the magnetic cell) has no shape for "
+                f"— restate the structure in its magnetic cell with k = 0")
+    operations: list[str] = []
+    ops = []
+    for symm, (msym,) in sym.operators:
+        try:
+            op = gemmi.Op(symm.strip()[4:].strip().lower().replace(" ", ""))
+            m, ph = _parse_msym(msym)
+        except (RuntimeError, ValueError) as exc:
+            return f"{symm!r} / {msym!r} cannot be read as an operator: {exc}"
+        if abs(ph) > 0:
+            return (f"{msym!r} carries the magnetic phase {ph}: a phase is the "
+                    f"Fourier-component form, not one real moment per site")
+        r = [[v // gemmi.Op.DEN for v in row] for row in op.rot]
+        det = round(float(np.linalg.det(np.array(r, dtype=float))))
+        axial = [[det * v for v in row] for row in r]
+        if m == axial:
+            eps = "+1"
+        elif m == [[-v for v in row] for row in axial]:
+            eps = "-1"
+        else:
+            return (f"{symm!r} with {msym!r}: the moment matrix is not "
+                    f"±det(R)·R, so the pair is not a Shubnikov operation — a "
+                    f"magnetic representation need not be a group, and reading "
+                    f"it as one would be a guess about the physics")
+        operations.append(f"{op.triplet()},{eps}")
+        ops.append(op)
+
+    nuclear = model.nuclear_phases
+    same_cell = [i for i, n in enumerate(nuclear)
+                 if all(abs(n.cell[k].value - phase.cell[k].value)
+                        <= _MAGNETIC_MATCH_ATOL for k in _CELL_COLUMNS)]
+    if len(same_cell) != 1:
+        return (f"{len(same_cell)} nuclear phases of this file share its cell "
+                f"({', '.join(f'{phase.cell[k].value:g}' for k in _CELL_COLUMNS)}), "
+                f"and exactly one is the counterpart a pure magnetic phase's "
+                f"moments belong to — a nuclear phase stated in the chemical "
+                f"cell beside a magnetic one in the supercell is refused here "
+                f"(build the supercell with magnetic_supercell, or read a magCIF)")
+    partner = nuclear[same_cell[0]]
+    orthogonal = all(abs(phase.cell[k].value - 90.0) <= _MAGNETIC_MATCH_ATOL
+                     for k in ("alpha", "beta", "gamma"))
+    if phase.jbt == -1 and not orthogonal:
+        return ("Jbt = -1 states each moment as (M, phi, theta) and the manual "
+                "does not say whether phi is measured in the (a, b) plane's own "
+                "axes or a Cartesian frame, which differ on a cell that is not "
+                "orthogonal")
+    try:
+        nuclear_sg = gemmi.SpaceGroup(partner.space_group)
+        f_n = occupancy_factor(partner)
+    except (FullProfPcrError, ValueError) as exc:
+        # gemmi raises ValueError on a symbol it cannot parse; returned as a
+        # reason, like every other refusal here, so to_structure names the file.
+        return f"its counterpart {partner.name!r} does not build: {exc}"
+    moments: dict = {}
+    reduced: list[float] = []
+    moment_codes: list[int] = []
+    for atom in phase.atoms:
+        v = atom.values
+        label = f"magnetic site {atom.label!r}"
+        ion = re.fullmatch(r"M([A-Z]{1,2})(\d)", atom.species_raw.strip().upper())
+        if ion is None:
+            return (f"{label} has the form-factor label {atom.species_raw!r}, "
+                    f"which is not M + element + charge (MCR3), so it names no "
+                    f"ion rietx's magnetic form factors carry")
+        for key, what in (("m4", "Ix"), ("m5", "Iy"), ("m6", "Iz")):
+            if abs(v[key].value) > 0:
+                return (f"{label} states the imaginary component {what} = "
+                        f"{v[key].value}: that is the Fourier-component form "
+                        f"S_k = (R_k + i I_k)/2, not one real moment per site")
+        if abs(v["magph"].value) > 0:
+            return (f"{label} states MagPh = {v['magph'].value}: a magnetic "
+                    f"phase is the Fourier-component form")
+        if any(abs(v[k].value) > 0 for k in ("m7", "m8", "m9")):
+            return (f"{label} states a diagonal beta, an anisotropic magnetic "
+                    f"Debye-Waller factor the nuclear site does not carry")
+        xyz = [v[k].value for k in ("x", "y", "z")]
+        hits = [j for j, a in enumerate(partner.atoms)
+                if all(min(abs(a.values[k].value - c) % 1.0,
+                           1 - abs(a.values[k].value - c) % 1.0)
+                       <= _MAGNETIC_MATCH_ATOL for k, c in zip("xyz", xyz))]
+        if len(hits) != 1:
+            return (f"{label} at {tuple(xyz)} sits on {len(hits)} sites of "
+                    f"{partner.name!r}, where its moment needs exactly one")
+        site = partner.atoms[hits[0]]
+        if abs(site.values["biso"].value - v["biso"].value) > _MAGNETIC_MATCH_ATOL:
+            return (f"{label} has Biso {v['biso'].value} and its site "
+                    f"{site.label!r} {site.values['biso'].value}; the manual "
+                    f"requires them constrained equal, and one Biso is all the "
+                    f"built site has")
+        m_mag = _orbit_size(ops, xyz)
+        m_nuc = len(expand_positions(nuclear_sg, np.array(xyz)))
+        if m_mag != m_nuc:
+            return (f"{label} has {m_mag} images under the listed operators and "
+                    f"{m_nuc} under {partner.space_group!r}: the file gives the "
+                    f"other {m_nuc - m_mag} no moment, which a magnetic space "
+                    f"group on the nuclear phase cannot state")
+        reduced.append(v["occ"].value * len(ops) / m_mag)
+        rx_, ry_, rz_ = (v[k].value for k in ("m1", "m2", "m3"))
+        if phase.jbt == -1:
+            mu, phi, theta = rx_, math.radians(ry_), math.radians(rz_)
+            rx_, ry_, rz_ = (mu * math.sin(theta) * math.cos(phi),
+                             mu * math.sin(theta) * math.sin(phi),
+                             mu * math.cos(theta))
+        element, charge = ion.groups()
+        moments[hits[0]] = ((rx_, ry_, rz_),
+                            f"{element.capitalize()}{charge}+",
+                            any(v[k].vary for k in ("m1", "m2", "m3")))
+        moment_codes += [v[k].code.number for k in ("m1", "m2", "m3")
+                         if v[k].code is not None]
+    if phase.soft_moment_constraints:
+        return (f"{len(phase.soft_moment_constraints)} soft moment constraint"
+                f"{'' if len(phase.soft_moment_constraints) == 1 else 's'}, "
+                f"a restraint the built phase does not carry")
+    tied = sorted({n for n in moment_codes if moment_codes.count(n) > 1})
+    if tied:
+        return (f"moment columns share refinement parameter"
+                f"{'' if len(tied) == 1 else 's'} {tied}, a tie the built "
+                f"phase's moment DOFs do not reproduce")
+    f_m = max(reduced, key=abs)
+    if any(abs(r - f_m) > _OCCUPANCY_RTOL * abs(f_m) for r in reduced):
+        return (f"its Occ column does not reduce to one factor "
+                f"({', '.join(f'{r:.4f}' for r in reduced)})")
+    s_m = phase.profile["scale"].value * f_m ** 2
+    s_n = partner.profile["scale"].value * f_n ** 2
+    if abs(s_m - s_n) > _OCCUPANCY_RTOL * max(abs(s_n), abs(s_m)):
+        return (f"its Scale x f^2 is {s_m:.6g} and {partner.name!r}'s is "
+                f"{s_n:.6g}; the manual requires the two constrained equal, and "
+                f"one scale is all the built phase has, so its moments would "
+                f"come out scaled by {math.sqrt(s_m / s_n) if s_n else float('inf'):.4g}")
+    return MagneticReading(partner=same_cell[0], operations=operations,
+                           moments=moments)
+
+
 #: The atom columns :func:`to_structure` puts on a :class:`~rietx.schemas.Atom`
 #: and whose codeword can therefore state a tie that has somewhere to go. The
 #: magnetic moment columns are deliberately absent: their phase is refused
@@ -2068,11 +2335,13 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
 
     Six refusals, each naming what it would otherwise have dropped:
 
-    * **A magnetic phase.** A ``Jbt = 1`` phase has no shape in rietx's
-      magnetic model (:data:`MAGNETIC_PHASE_REFUSAL`), so returning the nuclear
-      phases alone would hand back a structure that looks complete
-      while the file's magnetic contribution — and its R_Bragg — went
-      unmentioned. ``nuclear_only=True`` is how a caller *declares* it wants the
+    * **A magnetic phase that does not map.** A ``Jbt = ±1`` phase is read
+      onto its nuclear counterpart where :func:`magnetic_reading` says it
+      maps, and reported as ``FULLPROF_MAGNETIC_PHASE_READ``; any other is
+      refused with its reason (:data:`MAGNETIC_PHASE_REFUSAL`), since
+      returning the nuclear phases alone would hand back a structure that
+      looks complete while the file's magnetic contribution — and its
+      R_Bragg — went unmentioned. ``nuclear_only=True`` is how a caller *declares* it wants the
       nuclear subset; the omission is then the caller's, and named in the
       message this refusal replaces.
     * **A negative ``Biso``.** An oxygen site in ``corpus file 4`` refined to a
@@ -2119,18 +2388,37 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
     """
     import rietx as rx
 
+    from ...schemas.structure import MagneticSymmetry as MagneticSymmetry_
+
     magnetic = model.magnetic_phases
+    #: {index into model.nuclear_phases: (magnetic phase, MagneticReading)}
+    merged: dict = {}
     if magnetic and not nuclear_only:
-        named = ", ".join(f"{ph.index}:{ph.name!r} (Jbt {ph.jbt}, Isy {ph.isy}, "
-                          f"{len(ph.atoms)} sites)" for ph in magnetic)
-        raise FullProfPcrError(
-            f"{model.path or '<model>'}: {len(magnetic)} of {len(model.phases)} "
-            f"phases are magnetic: {named}. {MAGNETIC_PHASE_REFUSAL} Returning "
-            f"only the nuclear phases would hand back a structure that looks "
-            f"complete while those phases' contribution went unmentioned. Read "
-            f"`model.magnetic_phases` for what the file states about them, or "
-            f"pass nuclear_only=True to declare that the nuclear subset is "
-            f"what you want.")
+        refused = []
+        for ph in magnetic:
+            reading = magnetic_reading(model, ph)
+            if isinstance(reading, str):
+                refused.append((ph, reading))
+            elif reading.partner in merged:
+                refused.append((ph, (
+                    f"phase {merged[reading.partner][0].index} already states "
+                    f"the moments of the same nuclear phase, and one phase "
+                    f"carries one magnetic group")))
+            else:
+                merged[reading.partner] = (ph, reading)
+        if refused:
+            named = "; ".join(
+                f"{ph.index}:{ph.name!r} (Jbt {ph.jbt}, Isy {ph.isy}, "
+                f"{len(ph.atoms)} sites) — {why}" for ph, why in refused)
+            raise FullProfPcrError(
+                f"{model.path or '<model>'}: {len(refused)} of "
+                f"{len(model.phases)} phases are magnetic and cannot be read: "
+                f"{named}. {MAGNETIC_PHASE_REFUSAL} Returning only the nuclear "
+                f"phases would hand back a structure that looks complete while "
+                f"those phases' contribution went unmentioned. Read "
+                f"`model.magnetic_phases` for what the file states about them, "
+                f"or pass nuclear_only=True to declare that the nuclear subset "
+                f"is what you want.")
 
     phases = []
     # Keyed by the raw file token, so ``CR`` on two sites is one diagnostic
@@ -2288,6 +2576,14 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                 name: _p(ph.cell[key], f"the cell's {key}")
                 for name, key in zip(("a", "b", "c", "alpha", "beta", "gamma"),
                                      _CELL_COLUMNS, strict=True)})
+            magnetic_ph, reading = merged.get(structure_index, (None, None))
+
+            def _moment(atom_index: int):
+                if reading is None or atom_index not in reading.moments:
+                    return None
+                components, ion, free = reading.moments[atom_index]
+                return rx.Moment.from_values(components, ion, vary=free)
+
             atoms = [
                 rx.Atom(label=atom.label, species=atom.species,
                         x=_p(atom.values["x"], f"atom {atom.label!r}'s x"),
@@ -2298,10 +2594,14 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                         occ=rx.Parameter(value=1.0, min=0.0, max=1.5),
                         biso=_p(atom.values["biso"],
                                 f"atom {atom.label!r}'s Biso",
-                                min=0.0, max=25.0))
-                for atom in ph.atoms]
+                                min=0.0, max=25.0),
+                        moment=_moment(atom_index))
+                for atom_index, atom in enumerate(ph.atoms)]
             phases.append(rx.Phase(
                 name=ph.name, space_group=ph.space_group, cell=cell, atoms=atoms,
+                magnetic_symmetry=(None if reading is None else
+                                   MagneticSymmetry_(
+                                       operations=reading.operations)),
                 scale=(rx.Parameter(value=1e-4, min=0.0, transform="softplus")
                        if scale is None else
                        _p(scale, "the phase scale", min=0.0,
@@ -2325,12 +2625,57 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
             f"`model.magnetic_phases` for what it does say about them.")
     if diagnostics is not None:
         named = model.path or "<model>"
+        # A merged magnetic phase is a *derivation* — two phases of the file
+        # became one of the Structure's — so it is said, once per phase.
+        from ...crystallography.magnetic.operators import identification
+
+        for structure_index, (ph, reading) in sorted(merged.items()):
+            built = phases[structure_index]
+            found = identification(built.magnetic_symmetry.group())
+            # `identification` answers `named=False` with no BNS number for a
+            # group spglib does not name; its reason is quoted instead, as the
+            # TOPAS writer's `_magnetic_group_line` does.
+            group = (f"BNS {found.bns_number}" if found.named
+                     else f"not a tabulated magnetic space group: {found.reason}")
+            # A Moment carries one refine flag, so a site freeing only some of
+            # its three moment columns comes in with the whole moment free
+            # (the `any` in `magnetic_reading`); said here, since the model
+            # has no narrower form to carry it in.
+            columns = ("M", "phi", "theta") if ph.jbt == -1 else ("Rx", "Ry", "Rz")
+            partial = []
+            for atom in ph.atoms:
+                free = [c for c, k in zip(columns, ("m1", "m2", "m3"), strict=True)
+                        if atom.values[k].vary]
+                if 0 < len(free) < 3:
+                    partial.append(f"{atom.label!r} ({', '.join(free)} free)")
+            diagnostics.append(Diagnostic(
+                level="info", code="FULLPROF_MAGNETIC_PHASE_READ",
+                where=[f"phases.{structure_index}.magnetic_symmetry"] + [
+                    f"phases.{structure_index}.atoms.{j}.moment"
+                    for j in sorted(reading.moments)],
+                value=ph.r_bragg,
+                message=(f"{named}: magnetic phase {ph.index} ({ph.name!r}, "
+                         f"Jbt {ph.jbt}) read as the moments of nuclear phase "
+                         f"{built.name!r}: {len(reading.operations)} SYMM/MSYM "
+                         f"pairs as a magnetic group ({group}), moments on "
+                         f"{len(reading.moments)} of {len(built.atoms)} sites, "
+                         f"in crystal-axis mu_B"
+                         + (" converted from (M, phi, theta)"
+                            if ph.jbt == -1 else "")
+                         + (f"; the file frees only part of the moment at "
+                            f"{', '.join(partial)}, read here with the whole "
+                            f"moment free, the one refine flag a moment carries"
+                            if partial else "")),
+                suggestion=("the file's two phases are one here: the magnetic "
+                            "phase's own Scale, positions and Biso were checked "
+                            "equal to its counterpart's and are not carried "
+                            "separately, so refine the one phase")))
         # `nuclear_only=True` makes the omission the *caller's* declared choice,
         # which is not the same as the omission being invisible (WP-1328): the
         # channel still says which phases went, what each stated, and its
         # R_Bragg, so a caller who asked for the nuclear subset can still see
         # the size of what they asked to drop.
-        for ph in model.magnetic_phases:
+        for ph in (model.magnetic_phases if nuclear_only else ()):
             moment_columns = sorted(
                 {k for atom in ph.atoms for k in ("m1", "m2", "m3")
                  if atom.values.get(k)})
