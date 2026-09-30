@@ -148,7 +148,8 @@ picture.
 
 `view=` takes `"opening"` (the GUI's first picture), `"a"`, `"b"` or `"c"`
 (its buttons), a lattice direction `[u, v, w]`, a plane normal
-`{"hkl": (h, k, l)}`, or a rotation.
+`{"hkl": (h, k, l)}`, a rotation, or `"auto"`, which {ref}`picks the view that
+hides least <figure-report>`.
 The named direction points at you.
 `up=` takes the same forms.
 By default c is up, or b when you look down c, as in VESTA's standard
@@ -307,6 +308,68 @@ face copies, the only ones a polyhedron is centred on.
 atom 0 is [0, [0, 0, 0]], atom 351 is [11, [2, 1, 0]]
 periodicity: framework 3, one octahedron 0
 ```
+
+(figure-report)=
+### What the figure says about itself
+
+An image costs a reader about width × height / 750 tokens, 213 at 400 px and
+1333 at 1000 px, and each look is a turn.
+`StructureFigure.report` holds the numbers a look would give.
+`hidden` is the share of the atoms inside the cell that are covered over more
+than 80 % by an atom or a bond in front, and `hidden_atoms` lists them by index
+into `atoms`.
+It is read from a 256 px pass that records which atom or bond is in front at
+each pixel, so a stick that hides an atom counts and a translucent face does
+not.
+`dangling_bonds` counts bond halves whose far atom is not drawn, apart from
+those a `hidden=` species took away.
+`label_overlaps` counts pairs of letters whose boxes intersect, and `empty` is
+the share of pixels with nothing drawn.
+`cut` holds what `keep` dropped from an atom it kept, running over successive
+cuts, and `note` is the dict's own note, which says where `build` trimmed to the
+atom cap.
+`warnings` are sentences, such as an ellipsoid drawn flat because its tensor is
+not positive definite.
+There is no quality score: the report is evidence and the judgement is the
+reader's.
+
+`view="auto"` tries every primitive direction `[u, v, w]` with indices up to 2,
+each with the default up, and the opening view.
+It ranks them by `hidden`, then `empty`, then the smaller indices, so the search
+is deterministic, and it never draws a view that hides more than the opening
+view does.
+`candidates` holds the best five as dicts of `view`, `hidden` and `empty`, the
+first being the picture drawn, so the second choice is a lookup.
+Their numbers are the search's, from atoms and bonds alone at 256 px, and can
+differ slightly from the report's `empty`, which reads the image.
+An axis view of a cubic cell stacks atoms, and the report says how many.
+`turn=` works on what stays hidden.
+
+`recipe` is the call that draws the picture again.
+`render_structure(geometry, **fig.recipe)` gives `image` bit for bit, through
+JSON.
+It holds the keyword arguments as passed, with `view` the rotation drawn and
+`up` and `turn` folded into it.
+The geometry is the caller's, and so are `probability`, `bond_tolerance` and
+`path`.
+A geometry of 5000 atoms is megabytes of JSON, so save it with `json.dump`.
+To look small and keep large, draw at `size=400` while working and once at the
+size to keep: `render_structure(geometry, **{**fig.recipe, "size": 1000})`.
+
+```{literalinclude} ../../../examples/structure_figure.py
+:language: python
+:start-at: what the figure says about itself
+```
+
+```text
+opening view: 18% of atoms hidden, 0 bonds dangling, 70% of the frame empty
+auto view: 7% hidden, chose [0, 1, 2], then [[1, 2, 0], [2, 0, 1]]
+redrawn from the recipe with a long side of 1000 px, same view: True
+```
+
+On an Apple M4 in September 2026, the report added about 2 ms to a render of
+this cell, and `view="auto"` took 92 ms against a render of 19-21 ms.
+At 3143 atoms the search took 565 ms against a render of 213-221 ms.
 
 ## The reflection list
 

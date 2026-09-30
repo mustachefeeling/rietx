@@ -268,7 +268,7 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "GUI's structure viewer draws it, with no browser: an RGBA array "
                 "in `.image`, a PNG when `path=` is given. Look at the picture "
                 "you drew. `view=` takes `\"a\"`, `\"b\"`, `\"c\"`, `[u, v, "
-                "w]`, `{\"hkl\": (h, k, l)}` or a rotation; `.rotation` is the "
+                "w]`, `{\"hkl\": (h, k, l)}`, `\"auto\"` or a rotation; `.rotation` is the "
                 "view drawn, and passing it back redraws the same picture. "
                 "`.atoms` and `.letters` give pixel positions for labels you add "
                 "yourself. For a site's colour (`#rrggbb`, `white` or `black`; "
@@ -278,6 +278,31 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "anisotropic loop, and VESTA or JmolData draws it (Hypothesis: "
                 "WP-1470, from each program's manual; neither was run).",
                 ("rx.viz.render_structure", "rietx.viz.figure3d.StructureFigure"),
+            ),
+            (
+                "Reading the figure before looking",
+                "`fig.report` holds the numbers a look would give, so read it "
+                "first. `hidden` is the share of atoms covered over 80 % by one "
+                "in front, and `hidden_atoms` names them. `dangling_bonds` "
+                "counts bond halves that end in mid-air. `label_overlaps` "
+                "counts pairs of letters that collide. `empty` is the share of "
+                "the frame with nothing drawn. `cut` and `note` say what `keep` "
+                "and `build` dropped, and `warnings` names a tensor drawn flat. "
+                "There is no quality score, so the judgement is yours. Iterate "
+                "at `size=400` and render the final size once. A look costs "
+                "about width × height / 750 tokens, 213 at 400 px and 1333 at "
+                "1000 px, and a turn besides (Hypothesis: WP-1503, the usual "
+                "image-token rule; WP-1504 measures it with agents). When "
+                "`hidden` is high, draw `view=\"auto\"` or take another of "
+                "`.candidates`, then add `turn=` for what stays hidden. When a "
+                "bond dangles, widen `extent=` or pass `complete=True` to "
+                "`keep`. `outline=True` for print. `.recipe` is the call that "
+                "draws the picture again: `render_structure(g, **fig.recipe)`. "
+                "Save the geometry yourself with `json.dump`, since 5000 atoms "
+                "is megabytes. The search runs about a hundred id passes "
+                "(Measured: WP-1503, NAC cell 92 ms and 3143 atoms 565 ms, "
+                "against renders of 19-21 ms and 213-221 ms).",
+                ("rietx.viz.figure3d.FigureReport",),
             ),
             (
                 "Part of the structure",

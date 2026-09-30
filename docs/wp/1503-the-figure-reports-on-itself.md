@@ -99,13 +99,13 @@ adjust loop for charts with a multimodal model as the critic. The survey of
   deterministic and that on the 21 phases the chosen view's hidden share
   is at most the opening view's.
 - [x] `recipe` and its round trip, bit-identical.
-- [ ] The skill checklist, and the token arithmetic for a look in the
+- [x] The skill checklist, and the token arithmetic for a look in the
   reference.
-- [ ] Docs in `exports.md`; `api-figure.md` regenerated; the manual
+- [x] Docs in `exports.md`; `api-figure.md` regenerated; the manual
   partition green.
-- [ ] Tests, pictures to `tests/output/`: the automatic view on rutile,
+- [x] Tests, pictures to `tests/output/`: the automatic view on rutile,
   fluorapatite and NAC beside the opening view.
-- [ ] The addition staged in the open milestone's record.
+- [x] The addition staged in the open milestone's record.
 
 ## Acceptance
 

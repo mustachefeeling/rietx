@@ -4,7 +4,8 @@
 it, to an RGBA array or a PNG, with no browser, display or new dependency.
 :func:`keep` and the masks :func:`select`, :func:`plane`, :func:`sphere` and
 :func:`component` cut the geometry first, and :func:`recolour` paints part of
-it (WP-1501).
+it (WP-1501).  A figure's ``report`` (:class:`FigureReport`) carries the numbers
+a look would give, and ``view="auto"`` picks the view that hides least (WP-1503).
 
 Provisional by declaration: its look and its arguments follow the GUI's
 structure viewer, which is still changing (WP-1468).
@@ -12,6 +13,7 @@ structure viewer, which is still changing (WP-1468).
 
 from .cut import component, keep, periodicity, plane, recolour, select, sphere
 from .render import StructureFigure, render_structure
+from .report import FigureReport
 
-__all__ = ["StructureFigure", "component", "keep", "periodicity", "plane", "recolour",
-           "render_structure", "select", "sphere"]
+__all__ = ["FigureReport", "StructureFigure", "component", "keep", "periodicity", "plane",
+           "recolour", "render_structure", "select", "sphere"]
