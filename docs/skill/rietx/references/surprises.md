@@ -373,8 +373,9 @@ Read that as a constraint to widen, never as a corrupt model or a bad CIF.
 coordinates load unbounded, and a displacement DOF has no bounds of its own;
 give `x`/`y`/`z` a `[0, 1]` range and an offset tie can push the coordinate out.
 `tie()` then refuses at the call, naming the tie, the coordinate, its atom and
-the bound, and registers nothing, so the corrected retry goes through. In P 1
-the offset adds to the coordinate directly: check it before widening a bound.
+the bound, and registers nothing, so the corrected retry goes through. The
+offset reaches the coordinate (directly in P 1, through the symmetry map
+elsewhere): check it before widening a bound.
 (Measured: WP-1337, #246.)
 
 
