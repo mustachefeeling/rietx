@@ -1,6 +1,6 @@
 # WP-1343 — the magnetic peaks are broader, and the moment pays for it
 
-Milestone: v1.6 · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #524)
+Milestone: v1.6 · Status: 🔄 2026-09-30 — PR #524 merged: 9 of 11 tasks done; open: a synthetic k = 0 no-esd case, the PNGs, and acceptance 4 on real k ≠ 0 data
 Depends on: 1327 (the moment, the magnetic |F_⊥|², the shared scale);
 1326 soft (the satellites that make the term identifiable)
 Priority: P3 2026-09-23 — waits on 1327; P2 when it lands, the moment then reading low in silence
@@ -289,40 +289,40 @@ the cheaper of the two at the time; the skill row is required either way.
 
 ## Tasks
 
-- [ ] Schema: `Phase.magnetic_lor_size` and `Phase.magnetic_lor_strain`
+- [x] Schema: `Phase.magnetic_lor_size` and `Phase.magnetic_lor_strain`
       (deg, `min = 0.0`, default 0.0), refused on a phase with no moment
       block; `SCHEMA_VERSION` bump with its one-sentence comment;
       `help.py` entries with unit, default and typical range.
-- [ ] Forward model: `f2`/`f2_mag` kept separable through `phase_peaks`, the
+- [x] Forward model: `f2`/`f2_mag` kept separable through `phase_peaks`, the
       second width from `_width_block` via the existing addition law, the
       second frozen window and FCJ family on `CompiledPhase`, and the
       structural skip at the off state gated on `moving_paths`.
-- [ ] Bit-identity: every shipped fixture, and 1327's own magnetic
+- [x] Bit-identity: every shipped fixture, and 1327's own magnetic
       acceptance, unchanged with the new fields at their default — asserted
       as the *same code path*, not as two floats agreeing.
-- [ ] Jacobian: FD first, then the analytic branch with its `_column_extras`
+- [x] Jacobian: FD first, then the analytic branch with its `_column_extras`
       reach declared, the `test_cross_backend.py` rows that cover it, the
       traced twin.
-- [ ] Multi-histogram: rows in `params.multi.SIZE_LAMBDA_POWER` for the new
+- [x] Multi-histogram: rows in `params.multi.SIZE_LAMBDA_POWER` for the new
       size term (λ¹, as `lor_size`), or the joint fit shares a coefficient
       that is not one number across wavelengths (WP-1131's invariant), with
       the two-histogram test that catches it.
 - [ ] Identifiability: the unmeasured path named rather than quoted, on all
       three regimes above; a synthetic k = 0 case asserted to come back with
       no esd rather than a small one.
-- [ ] `MAGNETIC_WIDTH_UNMODELLED`: the differential centre-versus-tails
+- [x] `MAGNETIC_WIDTH_UNMODELLED`: the differential centre-versus-tails
       statistic on magnetic-only against nuclear-only reflections, its
       message naming the reflections and the direction the moment would
       move, and its row in `references/diagnostics.md`
       (`test_docs_consistency.py` looks for it there).
-- [ ] Staging: the three-step order in the magnetic plan preset, and the
+- [x] Staging: the three-step order in the magnetic plan preset, and the
       report for a stage list that frees the widths beside the moment —
       either the first `STAGE_FREES_*` check or a written skill row, decided
       on cost at the time.
-- [ ] Manual: Part 2 gains the two-component draw with its *Source* line
+- [x] Manual: Part 2 gains the two-component draw with its *Source* line
       beside 1327's structure factor; Part 1 gains the paragraph in the
       magnetic chapter.
-- [ ] Skill: rows in the magnetic `references/` file 1327 opens — the
+- [x] Skill: rows in the magnetic `references/` file 1327 opens — the
       turn-on order, what the diagnostic means, and when the width is not
       measurable. Paid for by a named cut if the body moves at all.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/`, magnetic-only
@@ -397,6 +397,153 @@ the cheaper of the two at the time; the skill row is required either way.
 
 ## Handover log
 
+- **2026-09-30** — A magnetic phase's magnetic peaks can now be broader
+  than its nuclear ones, so a specimen whose magnetic order is coherent over
+  a shorter length than its crystallites no longer has its moment shrunk to
+  pay for the width. `Phase.magnetic_lor_size` (1/cosθ) and
+  `Phase.magnetic_lor_strain` (tanθ) broaden the magnetic component alone,
+  under the phase's one scale. `plan="magnetic_width"` frees them in the
+  order that keeps them from trading against the moment, and the report
+  says when the width was needed but held, when it came back unmeasured,
+  when releasing it moved the moment, and when a hand-written plan frees it
+  beside a cold moment. At the zero defaults nothing moves: the second draw
+  is not built, and every existing fit runs WP-1327's code path. This
+  landed as PR #524 (`mustachefeeling`), merged as `e3e6486a` in a
+  `/pr-review` run after three review rounds. Nine of the eleven task lines
+  are done. Identifiability and the tests-plus-PNGs line are partial, and
+  acceptance 4's real k ≠ 0 dataset was not measured.
+  - **Schema and table.** Both terms are deg 2θ, softplus, `min = 0.0`,
+    default 0.0, refused by name when non-zero or free on a phase with no
+    `magnetic_symmetry`, and registered only on a phase that declares one.
+    Where no magnetic component is drawn they are force-fixed, not
+    refused: on a non-neutron source outside a joint table
+    (`_magnetic_component_drawn` asks `magnetic_wanted`), and under Le Bail
+    or Pawley through `mode_fixed_path`. `SCHEMA_VERSION` 0.36 → 0.37,
+    `THRESHOLDS_VERSION` 1.9 → 1.10, two `help.py` entries, and the GUI's
+    `PLACES` rows with the dist rebuilt.
+  - **Forward model, and bit-identity as a code path.**
+    `phase_peaks(component=0|1)` keeps ⟨|F_N|²⟩ and p²⟨|F_⊥|²⟩ as two
+    arrays with one `base` each, and every later factor multiplies both.
+    `_width_block(magnetic=True)` adds the pair under the Lorentzian-FWHM
+    law. `CompiledPhase` gains `win_mag`/`fcj_n_mag`/`batch_mag`, sized
+    from `moving_paths` with `MAGNETIC_SIZING_FLOOR`, and
+    `CompiledModel.mag_split` is the one reader of whether they exist. With
+    both terms zero and neither in `moving_paths` nothing is built;
+    `test_at_the_default_no_second_family_is_built` asserts that on the
+    gated and the ungated compile. The PR measured `predict()` bytes equal
+    to `f1b89d63`'s for MnF₂ and for Cr₂WO₆ with a moment.
+  - **Jacobian and multi-histogram.** No new branch: the peak-chain branch
+    already claims every `phases.*` name, so no new `_column_extras` reach;
+    the peak-chain, scale and axial builders now iterate
+    `DerivativeBases.components(ip)`, without which the columns came back
+    short. A free width against an unclaimed compile is refused by name in
+    `run_least_squares`. `test_cross_backend.py` gains a `magnetic_width`
+    row with axial S/L and H/L set, and jax and torch decline it by name,
+    as they decline any moment. `SIZE_LAMBDA_POWER["magnetic_lor_size"]`
+    is 1.0, the strain partner unlisted.
+  - **Report and staging.** `MAGNETIC_WIDTH_UNMODELLED` (warning) is the
+    centre-versus-tails sign split at the magnetic-only reflections minus
+    the same at the nuclear-only ones, read while both widths are held at
+    zero; it names the reflections and says the moment is biased low.
+    `MAGNETIC_WIDTH_UNMEASURED` (info) names a freed width below
+    `MOMENT_SUPPORT_SIGMA` of its esd or back with none.
+    `MAGNETIC_WIDTH_MOVED_MOMENT` (warning) compares the moment at step 1
+    against step 3. Both staging routes were taken: the preset (moment,
+    then the widths seeded to 0.05° with the moment held, then both) and
+    the first `STAGE_FREES_*` check,
+    `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT`, read off the plan in `fit`
+    and `run_stage` before the first stage runs.
+  - **Other readers of the draw.** Four took the component-0 default and
+    now read both: `structure_intensity_partition` (NaN on magnetic-only
+    reflections), `reflection_support` (scored them 0), the
+    `effective_observations` census and `report.strain`. Layer 1 and the
+    texture partition read both through `DerivativeBases.component_entries`.
+    `ReflectionRow.component` gives a split phase one `"nuclear"` and one
+    `"magnetic"` row per (line, reflection).
+  - **Docs and tests.** Manual Part 2's `int-two-component` equations with
+    their `{source}` line, Part 1's `sec-magnetic-width` in
+    `using/refining.md`, and a "Magnetic-width codes" table in the skill's
+    `references/magnetic.md` (copies identical, `SKILL.md` unchanged).
+    `tests/test_magnetic_width.py` holds 52 cases, none marked slow.
+  - **Deviations, argued and accepted.** The off-state gate reads the
+    values plus `moving_paths`, not `gate_off_states`, so a plot or replay
+    of a magnetic phase is not split. The magnetic-only set is a purity cut
+    on the intensities, not `nuclear_mask`, which misses a supercell's
+    strong magnetic rows. An unmeasurable width returns an esd larger than
+    its value, or none, never an absent esd from `unmeasured_rows`. The
+    code rows went to `references/magnetic.md`, per the #287 ruling this
+    WP inherited.
+  - **What the PR measured** (off-suite scratch script, macOS arm64). On a
+    synthetic Pbcm supercell, k = (½, 0, 0), three draws, a planted width
+    of 0.25° and moment of 3.6 μ_B: freed, the moment lands within
+    0.73-0.86σ and the width 1.2 % low (1.2-1.3σ, read as the fit's own
+    windows truncating tails the data carry); held, the moment is about
+    nine esds low and `MAGNETIC_WIDTH_UNMODELLED` fires; with no planted
+    width both warnings stay silent. Cr₂WO₆ (HB-2A, 4 K, k = 0) is not
+    separable, as the WP expected: size 0.0337 ± 0.0164, strain on its
+    floor, both declared unmeasured. The in-suite round trip is MnF₂ at 2σ
+    and 5 % bars rather than 1σ, and its docstring argues why.
+  - **What it deliberately does not do.** No real k ≠ 0 dataset
+    (Ba₂FeSbSe₅ is not vendored and its licence is unchecked), and no PNGs
+    to `tests/output/`. `multi.py`'s joint report emits none of the four
+    codes. No microstructure-table row for a magnetic coherence length.
+    `report/satellites._peak_widths` still reads the nuclear widths on a
+    split phase and needs the wider of the two, a separate change.
+  - **What the reviews found.** Ten defects over rounds 1 and 2, all fixed;
+    round 3 asked only for a merge of `main` (a CI flake #547 had fixed)
+    and restated the merge order. The ones worth remembering:
+    - Bit-level assertions inherited the compiled tier and failed on Linux
+      at 1.24e-16 relative. They now declare the numpy path through a
+      `numpy_path` fixture.
+    - The ordering check restated `set_vary`'s filter without the hold,
+      and fired under Le Bail and Pawley on a stage that freed neither
+      quantity. `ParameterTable._glob_reaches` is now the one predicate,
+      `would_free` its dry run, and `mode` a required argument.
+    - The preset's seed wrote 0.05° into both widths under Le Bail and
+      Pawley, because it ran before the mode's force-fix drop, and the
+      next Rietveld fit then drew a split and silenced
+      `MAGNETIC_WIDTH_UNMODELLED`. The drop now precedes both seeds.
+    - Also fixed: `run_stage` warning on step 3 of the preset, Layer 1 and
+      texture reading only the nuclear draw, the width raising rather than
+      being force-fixed where no split is drawn, a no-esd cause stated
+      unchecked, an extra forward evaluation per result, and no
+      cross-backend row on the magnetic FCJ family.
+  - **Gotchas for the successor.**
+    - **Seed, then hold.** `_hold_unsupported_phases` runs after the
+      stage's seeds, so a magnetic phase the data cannot see at step 2 of
+      `magnetic_width` gets both widths seeded to 0.05° and then held. They
+      return at 0.05°, unrefined and absent from `parameters`. This
+      predates WP-1343 and applies to every seeded parameter.
+    - **`resolve_plan` does not enforce `PLAN_INFO`'s modes**, so
+      `plan="magnetic_width"` resolves under Le Bail and Pawley; harmless
+      only because the force-fix drop now runs before the seeds.
+    - **`API_INDEX_MAX_BYTES` went 39 000 → 39 500** (maintainer's call):
+      main stood at 38 993 B and #524 renders 137 B more. A technique split
+      (`api-magnetic.md`) is the alternative when it next fills.
+    - **Two collisions, owned by the later PRs.** #522 takes
+      `SCHEMA_VERSION` 0.38 and drops its copy of the `API_INDEX_MAX_BYTES`
+      hunk. #546 adds `DIAGNOSTIC_SCOPES` rows for
+      `_stage_order_diagnostics` and `_moved_moment_diagnostics` as
+      `ABSENT` (neither helper is called from `multi.py`, so a joint
+      neutron fit gets no ordering warning today — wiring them in is a
+      separate change).
+  - **Next.** Root `CLAUDE.md`'s "exactly two of the six sample-broadening
+    quantities" is three of seven on a magnetic phase now; that edit is the
+    maintainer's, flagged in round 1. Then the two partial lines: a
+    synthetic k = 0 case in the suite whose intensities track, asserted
+    unmeasured (or a ruling that deviation 3 answers it), and the PNGs.
+    Acceptance 4 still wants real k ≠ 0 CW data: ask for Ba₂FeSbSe₅ and
+    check its licence before vendoring.
+  - **Measured on the merged tree** (Linux x86_64, 4 cores, py3.12.3,
+    `[dev,jax]`, run as root, on `origin/main` `e8d15d0` with #524). Full
+    suite with slow tests included: 7201 passed, 124 skipped, 1 failed in
+    1:07:35. The failure is `test_held_phase`'s ramp runaway guard (76.5 s
+    against 60 s; 19.7 s alone, WP-1420's load sensor). `main` then moved by
+    #566 (four WP files) and the head was rebased onto it. Its tree equals
+    the rebuilt merge, which differs from the gated one only there, and
+    `test_docs_consistency` passed on it. The GUI ladder: the rebuilt dist
+    is byte-identical to the committed one, vitest 581 passed in 24 files,
+    svelte-check 0 errors in 392 files.
 - **2026-09-08** — created, from the assessment of issue #277. The package
   now has a written answer to a gap that WP-1327 opens and does not close:
   a magnetic peak broader than the nuclear profile is fitted by shrinking
