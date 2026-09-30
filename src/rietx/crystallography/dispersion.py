@@ -111,9 +111,13 @@ def normalize_element(species: str) -> str:
     Deliberately *not* ``scattering.normalize_species``, which keeps the ion
     when an ionic f₀ is tabulated.  f′/f″ come from core levels that the
     valence electrons barely perturb, so every tabulation is per element; the
-    asymmetry between the two lookups is physical, not an oversight.
+    asymmetry between the two lookups is physical, not an oversight. An
+    isotope reads as its element (``scattering.xray_scatterer``), so ``"D"``
+    and ``"2H"`` → ``"H"``, and ``"7Li1+"`` → ``"Li"``.
     """
-    s = species.strip()
+    from .scattering import xray_scatterer
+
+    s = xray_scatterer(species)
     m = re.match(r"^([A-Za-z]{1,2})(\d*[+-])?$", s)
     if not m:
         raise KeyError(f"cannot read an element symbol from species {species!r}")

@@ -48,6 +48,8 @@ from rietx.crystallography.scattering import (
     _load_table,
     detect_fallback,
     f0,
+    normalize_species,
+    xray_scatterer,
 )
 from rietx.refine import SPECIES_FALLBACK_MIN_DELTA_FRAC, _species_fallback_diagnostics
 from rietx.schemas.common import Parameter
@@ -333,3 +335,51 @@ def test_raising_the_threshold_is_a_one_line_change(monkeypatch):
     diags = _species_fallback_diagnostics(structure, _xray_instrument())
     assert len(diags) == 1
     assert "phases.0.atoms.1.species" in diags[0].where   # C4+, not Te2-
+
+
+# ----------------------------------------------- an isotope is its element ---
+@pytest.mark.parametrize("species, scatterer", [
+    ("D", "H"), ("T", "H"), ("2H", "H"), ("D1+", "H1+"),
+    ("7Li", "Li"), ("7Li1+", "Li1+"), ("157Gd", "Gd"), ("60Ni2+", "Ni2+"),
+    # element symbols that start with D or T are not isotopes
+    ("Dy", "Dy"), ("Ti", "Ti"), ("Tb3+", "Tb3+"), ("Zr4+", "Zr4+"), ("H", "H"),
+])
+def test_an_isotope_is_its_element_to_every_xray_lookup(species, scatterer):
+    """Issue #552: X-rays scatter from the electrons, so ``2H`` is ``H``.
+
+    Every X-ray lookup has to agree, f₀ and f′/f″ alike: a structure that
+    resolves in one table and not the other fails at compile, whichever pass
+    reaches it first.
+    """
+    from rietx.crystallography.dispersion import normalize_element
+
+    assert xray_scatterer(species) == scatterer
+    assert normalize_species(species) == normalize_species(scatterer)
+    assert normalize_element(species) == normalize_element(scatterer)
+    stol = np.linspace(0.0, 1.5, 7)
+    assert np.array_equal(f0(species, stol), f0(scatterer, stol))
+
+
+@pytest.mark.parametrize("label", ["1Cu", "999Fe", "89Y"])
+def test_a_mass_number_no_nuclide_carries_is_not_stripped(label):
+    """The two radiations accept the same isotope labels: a mass number the
+    neutron table has no row for (``89Y`` included, yttrium being listed only
+    as the element) is left alone, and fails both X-ray lookups as before."""
+    from rietx.crystallography.dispersion import normalize_element
+
+    assert xray_scatterer(label) == label
+    with pytest.raises(KeyError):
+        normalize_species(label)
+    with pytest.raises(KeyError):
+        normalize_element(label)
+
+
+def test_an_isotope_ion_reports_the_fallback_its_element_would():
+    """``13C4+`` has no ionic row, exactly as ``C4+`` has none (#202), so the
+    fallback is reported, naming the label as written and the neutral element
+    substituted."""
+    plain, isotope = detect_fallback("C4+"), detect_fallback("13C4+")
+    assert plain is not None and isotope is not None
+    assert isotope.species == "13C4+"
+    assert (isotope.element, isotope.charge, isotope.true_electrons) == \
+        (plain.element, plain.charge, plain.true_electrons)

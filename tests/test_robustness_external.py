@@ -66,8 +66,11 @@ def test_normalize_cif_species_covers_both_wild_forms_and_only_them():
     # a symbol the table cannot help is never half-rewritten: it passes
     # through verbatim to fail with the lookup's own message
     assert normalize_cif_species("Wat") == ("Wat", None)
-    assert normalize_cif_species("D1") == ("D1", None)
     assert normalize_cif_species("Xx1") == ("Xx1", None)
+    # since #552 deuterium resolves (to hydrogen's f0), so `D1` is a site label
+    # like `O1`; `T1` is a zeolite T-site, never read as tritium
+    assert normalize_cif_species("D1") == ("D", label)
+    assert normalize_cif_species("T1") == ("T1", None)
 
 
 def test_the_spelling_hint_offers_only_a_rewrite_that_resolves():
@@ -320,14 +323,18 @@ def test_an_xray_compile_names_the_atom_its_own_lookup_choked_on():
 
     ``compile_model`` resolves dispersion over the *whole* phase first and only
     then compiles the sites (``normalize_species``); the two are separate
-    passes, dispersion first.  ``D`` reads as hydrogen for dispersion (zero, no
-    exception) but the Waasmaier-Kirfel table carries no ``D`` row, so a re-walk
-    that checked both lookups per atom would stop at atom 0 and blame ``D`` for
-    a form-factor row it never needed — while the real fault the compile raised
-    on is atom 1's ``Og`` (Z = 118), which has no dispersion data at all, so
-    ``resolve_dispersion`` never reached the site compile for *any* atom.  Same
-    misattribution the neutron round found, one table over.  The two-pass
-    re-walk names atom 1 (``Og1``) with the dispersion table's own reason.
+    passes, dispersion first.  ``D`` used to read as hydrogen for dispersion
+    (zero, no exception) while the Waasmaier-Kirfel table carried no ``D`` row,
+    so a re-walk that checked both lookups per atom stopped at atom 0 and blamed
+    ``D`` for a form-factor row it never needed — while the real fault the
+    compile raised on is atom 1's ``Og`` (Z = 118), which has no dispersion data
+    at all, so ``resolve_dispersion`` never reached the site compile for *any*
+    atom.  Same misattribution the neutron round found, one table over.  The
+    two-pass re-walk names atom 1 (``Og1``) with the dispersion table's own
+    reason.  Since #552 ``D`` resolves in both tables (an isotope is its element
+    to X-rays), and every element the dispersion table holds has a form-factor
+    row, so no species now separates the two passes; the test still pins that
+    the fault lands on ``Og1`` and not on ``D``.
 
     Dispersion-on only: with ``dispersion=None`` there is a single lookup and no
     pass to get out of order — ``D`` is then genuinely the first fault, and
