@@ -4245,9 +4245,10 @@ def _stage_order_diagnostics(plan, table,
         # asked of the table, never restated here: ``would_free`` is
         # ``set_vary``'s own matcher, so a tied, locked or **held** row
         # (WP-1435) is skipped by the same predicate the stage runner uses,
-        # — and then the mode's force-fix, by the same column test
-        # ``_run_stage`` drops with — so this cannot report a stage that will
-        # in fact free nothing
+        # and then the mode's force-fix, by the same column test
+        # ``_run_stage`` drops with, so this cannot report a stage the mode
+        # empties.  A hold the data decides later (``_hold_unsupported_phases``,
+        # the flat-moment hold) is not seen here.
         freed = table.would_free(stage.turn_on)
         if mode in ("lebail", "pawley"):
             reach = table.column_reach()
@@ -4379,7 +4380,6 @@ def _moved_moment_diagnostics(stage_name: str, off_state: dict, released: dict,
                 "coherence length; a pattern carrying magnetic-only "
                 "reflections is what would separate the two")))
     return out
-
 
 
 def _dedup_high_correlations(
