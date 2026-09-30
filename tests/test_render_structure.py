@@ -649,24 +649,21 @@ def test_a_bond_toward_an_atom_that_is_not_drawn_dangles(nac):
     geometry = s3.build(nac)
     assert render_structure(geometry, size=200).report.dangling_bonds == 0
     bare = render_structure(geometry, size=200, boundary=False)
-    # counted from the geometry: a half whose far end is an image outside the
-    # cell, which this figure leaves out
+    # counted by position, not by the bond's atom indices the report reads: a
+    # half whose bond's other end has no drawn atom on it
     scene = sc.build_scene(geometry, "ball", show_boundary=False,
                            polyhedra=sc.shown_polyhedra(geometry, True, None, [], False))
-    far = _far(geometry)
-    want = sum(1 for h in scene["halves"]
-               if geometry["atoms"][int(far[h["bond"]]) if list(geometry["bonds"][h["bond"]]["a"])
-                                    == h["from"] else geometry["bonds"][h["bond"]]["i"]]["boundary"])
+    drawn = np.array([a["pos"] for a in scene["atoms"]])
+    want = 0
+    for h in scene["halves"]:
+        bond = geometry["bonds"][h["bond"]]
+        other = bond["b"] if list(bond["a"]) == h["from"] else bond["a"]
+        want += bool(np.linalg.norm(drawn - np.asarray(other), axis=1).min() > 1e-6)
     assert want > 0 and bare.report.dangling_bonds == want
     # a species the caller took away is asked for, not dangling
     species = geometry["sites"][0]["species"]
     asked = render_structure(geometry, size=200, hidden=[species])
     assert asked.report.dangling_bonds == 0
-
-
-def _far(geometry):
-    from rietx.viz.figure3d import cut
-    return cut._far(geometry)
 
 
 def test_labels_that_share_a_place_overlap():
@@ -719,6 +716,17 @@ def test_the_search_is_deterministic_and_returns_what_it_drew(nac):
         views.resolve(geometry, "auto")
 
 
+def test_of_a_direction_and_its_opposite_the_plainer_is_tried_first():
+    """The two leave the same share empty and often hide the same atoms, so the
+    order decides: fewer minus signs, then the first index positive."""
+    order = [tuple(d) for d in rp.directions()]
+    assert len(order) == 98 and order[:3] == [(0, 0, 1), (0, 1, 0), (1, 0, 0)]
+    for k, d in enumerate(order):
+        minus, other = sum(x < 0 for x in d), sum(x > 0 for x in d)
+        plainer = minus < other or (minus == other and next(x for x in d if x) > 0)
+        assert (order.index(tuple(-x for x in d)) > k) == plainer, d
+
+
 @pytest.mark.parametrize("row", MEASURED, ids=[row["name"] for row in MEASURED])
 def test_auto_never_hides_more_than_the_opening_view(row):
     """The search includes the opening view, and reads the numbers the report
@@ -743,7 +751,22 @@ def test_the_recipe_draws_the_same_picture_through_json(nac, kw):
     again = render_structure(geometry, **recipe)
     assert np.array_equal(again.image, fig.image)
     assert again.recipe == fig.recipe and again.report == fig.report
-    assert "path" not in fig.recipe and "probability" not in fig.recipe
+    assert "path" not in fig.recipe
+
+
+@pytest.mark.parametrize("kw", [{"phase": 1}, {"mode": "ellipsoid", "probability": 0.9},
+                                {"bond_tolerance": 0.05}])
+def test_the_recipe_redraws_from_a_structure_what_its_arguments_built(nac, kw):
+    """From a structure, the phase and the geometry's two knobs are in the
+    call; left out, the recipe drew phase 0 at the defaults."""
+    rutile = _rutile()
+    two = Structure(phases=[rutile.phases[0], nac.phases[0]])
+    fig = render_structure(two, size=200, **kw)
+    # the argument matters: without it the picture is another
+    plain = render_structure(two, size=200, mode=kw.get("mode", "ball"))
+    assert not np.array_equal(plain.image, fig.image)
+    again = render_structure(two, **json.loads(json.dumps(fig.recipe)))
+    assert np.array_equal(again.image, fig.image)
 
 
 def test_the_automatic_view_beside_the_opening_view():

@@ -137,11 +137,18 @@ def look(p: Probe, R, compiled_path: bool | None = None) -> Look:
 
 def directions(limit: int = SEARCH_INDEX) -> list[list[int]]:
     """Every primitive [u, v, w] with indices of magnitude at most ``limit``,
-    smallest indices first."""
+    smallest indices first, then fewest minus signs, then the first index
+    positive.
+
+    A direction and its opposite leave the same share of the frame empty, and
+    often hide the same atoms, so the signs decide those ties: sorted by ``d``
+    alone, [-2, -2, -1] came before [2, 2, 1] and [-1, 1, 0] before [1, -1, 0].
+    """
     span = range(-limit, limit + 1)
     out = [[u, v, w] for u in span for v in span for w in span
            if (u, v, w) != (0, 0, 0) and math.gcd(math.gcd(abs(u), abs(v)), abs(w)) == 1]
-    return sorted(out, key=lambda d: (sum(abs(x) for x in d), max(abs(x) for x in d), d))
+    return sorted(out, key=lambda d: (sum(abs(x) for x in d), max(abs(x) for x in d),
+                                      sum(x < 0 for x in d), next(x for x in d if x) < 0, d))
 
 
 def choose_view(geometry: Mapping, p: Probe, up, turn, compiled_path: bool | None = None):

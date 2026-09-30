@@ -67,14 +67,14 @@ class StructureFigure:
 
     ``report`` is the numbers a look would give (:class:`~.report.FigureReport`).
     ``candidates`` is empty unless ``view="auto"``, and then the best few views
-    the search ranked, each a ``view`` to pass back, the ``hidden`` share and
-    the ``empty`` share it read at 256 px from atoms and bonds alone; the first
-    is the one drawn.  ``recipe`` is the call that draws this picture again:
-    ``render_structure(geometry, **figure.recipe)`` gives ``image`` bit for bit.
-    It holds the keyword arguments as passed, JSON-serialisable, with ``view``
-    the rotation drawn and ``up`` and ``turn`` folded into it.  The geometry is
-    the caller's, and so are ``probability`` and ``bond_tolerance``, which build
-    it, and ``path``.
+    the search ranked, each a ``view`` to pass back with the same ``up`` and
+    ``turn``, the ``hidden`` share and the ``empty`` share it read at 256 px
+    from atoms and bonds alone; the first is the one drawn.  ``recipe`` is the
+    call that draws this picture again: ``render_structure(structure,
+    **figure.recipe)``, with the same first argument, gives ``image`` bit for
+    bit.  It holds every other argument as passed but ``path``,
+    JSON-serialisable, with ``view`` the rotation drawn and ``up`` and ``turn``
+    folded into it.  The first argument is the caller's to keep.
     """
     image: np.ndarray
     rotation: list[list[float]]
@@ -520,7 +520,8 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
         warnings += [f"{label}: its displacement tensor is not positive definite, so its "
                      "ellipsoid is drawn flat" for label in flat]
     if seen.unjudged:
-        warnings.append(f"{seen.unjudged} atoms cover less than one sample at {max(probe.size) if isinstance(probe.size, tuple) else probe.size} px "
+        long_side = max(probe.size) if isinstance(probe.size, tuple) else probe.size
+        warnings.append(f"{seen.unjudged} atoms cover less than one sample at {long_side} px "
                         "and are not counted in hidden")
     report = rp.FigureReport(
         hidden=seen.hidden, hidden_atoms=seen.hidden_atoms,
@@ -528,11 +529,15 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
         label_overlaps=_label_overlaps(labels, frame), empty=_empty(image, bg),
         cut={"polyhedra": 0, "bonds": 0, **geometry.get("cut", {})},
         note=geometry.get("note", ""), warnings=warnings)
-    recipe = {"mode": mode, "view": views.as_list(R), "size": _plain(size),
-              "supersample": s, "exaggeration": exaggeration, "hidden": hidden_asked,
-              "boundary": boundary, "polyhedra": polyhedra, "axis_labels": axis_labels,
-              "atom_labels": atom_labels, "outline": outline, "background": _plain(background),
-              "dpi": dpi}
+    # every argument but the first and path: phase, probability and
+    # bond_tolerance pick and build the geometry from a structure, and left out
+    # they redraw phase 0 at the defaults with nothing said
+    recipe = {k: _plain(v) for k, v in {
+        "phase": phase, "mode": mode, "view": views.as_list(R), "size": size,
+        "supersample": s, "probability": probability, "bond_tolerance": bond_tolerance,
+        "exaggeration": exaggeration, "hidden": hidden_asked, "boundary": boundary,
+        "polyhedra": polyhedra, "axis_labels": axis_labels, "atom_labels": atom_labels,
+        "outline": outline, "background": background, "dpi": dpi}.items()}
     return StructureFigure(image=image, rotation=views.as_list(R),
                            pixels_per_angstrom=frame.ppa, atoms=atoms, letters=letters,
                            path=written, palette=_palette(geometry, scene), report=report,
