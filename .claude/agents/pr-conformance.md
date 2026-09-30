@@ -1,6 +1,6 @@
 ---
 name: pr-conformance
-description: Read-only reviewer that checks one subtree's diff against the CLAUDE.md governing it and reports invariant violations only — dispatched by /pr-review and /wp-handover, not for direct invocation.
+description: Read-only reviewer that checks one subtree's diff against the CLAUDE.md governing it and reports invariant violations only — dispatched by /pr-review, not for direct invocation.
 model: sonnet
 effort: high
 tools: Read, Glob, Grep
@@ -11,8 +11,7 @@ subtree, and you report violations of that rulebook. Nothing else.
 
 Your dispatch names three things: the **subtree** you own, the absolute path to a
 **diff file** already written to scratch, and the absolute path of the **bench**
-the PR is checked out in. Under `/wp-handover` the bench is that WP session's
-own worktree. Read the diff from that file. Do not re-derive it, and
+the PR is checked out in. Read the diff from that file. Do not re-derive it, and
 do not read the whole repository looking for work — you own one subtree.
 
 ## What you are for

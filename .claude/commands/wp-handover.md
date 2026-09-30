@@ -16,11 +16,11 @@ diff does not say why, say so rather than inventing a rationale. All other
 steps below run unchanged.
 
 **The handover runs at the session's largest context, so every request and
-every read costs the most here.** At 400K, a request costs $0.08 of cache
-reads before it does anything (`/wp-start` step 6b). So send independent calls
-in one response: step 10's three checks are one. Read another file by range,
-never whole (steps 5 and 7). Step 6 hands its diff audit to agents once the
-diff passes ~100 lines.
+every read costs the most here** (`docs/milestones/process.md` § What a
+session's reading costs). So send independent calls in one response: step
+10's three checks are one. Read a long file by range rather than whole
+(steps 5 and 7). Answer step 6 from what the session knows, never by
+re-reading its own diff.
 
 1. **Identify the active WP** from this session's `git log` (`WP-NNNN:`
    prefixes). If more than one WP was touched, confirm with the user before
@@ -60,9 +60,10 @@ diff passes ~100 lines.
    is checked for one before it becomes a new WP** — fold first, the rule in
    `docs/wp/TEMPLATE.md`'s header; WP-1469 filed four and withdrew two as
    folds the same day. Look for an owner with `grep -rln` over `docs/wp/`.
-   Edit another WP's `### Inherited` or `Priority:` by range: `grep -n` for
-   the heading, then `Read` with `offset`. Never read the whole file; the
-   largest WP files are over 100 KB. **Re-rate what this close moved**:
+   Edit another WP's `### Inherited` or `Priority:` by range once the file
+   is over ~15 KB: `grep -n` for the heading, then `Read` with `offset`.
+   Below that size the extra round trip costs more than reading the whole
+   file. **Re-rate what this close moved**:
    a WP whose last blocker was this one, or whose trigger this work mooted,
    gets its `Priority:` line rewritten (tier, today's date, one clause naming
    this WP; rubric in `docs/wp/TEMPLATE.md`). An unrated WP (`—`) stays
@@ -113,27 +114,16 @@ diff passes ~100 lines.
 
    Reading your own diff for these is weaker than reading someone else's, so
    name the trigger rather than scanning: this is a checklist against what
-   the session *added*, not a re-review of it.
-
-   **Past ~100 reviewable lines, have agents read the diff.** Count them with
-   `git diff --shortstat origin/main...HEAD -- . ':!tests/data' ':!src/rietx/data' ':!src/rietx/gui/static' ':!docs/wp/README.md'`.
-   Over the bar, write that diff to the scratchpad and dispatch one
-   `pr-conformance` agent per touched subtree, as `/pr-review` step 6 does.
-   Give each this worktree as its bench, say the author is this WP session,
-   and name the classes above as the ones to read for first. At handover
-   context a Sonnet reader pays for itself above ~6-9K tokens of reading,
-   about a hundred reviewed lines (`docs/milestones/process.md` § What a
-   session's reading costs). It is also the someone-else reading this step
-   asks for. Check every finding yourself before acting on it. One question
-   stays with you whatever the size: what this session *measured* that the
-   skill needs. No diff holds the answer.
+   the session *added*, not a re-review of it. Nor is it a re-read. At this
+   context, each line read here is paid again by every request left, and
+   step 9's review reads the diff anyway.
 7. **If the WP is closing** (✅/🛑): delete its consumed `### Inherited`
    section and its `Priority:` line (a closed WP's priority is moot), and
    MOVE its narrative to the in-flight milestone record (the in-flight
    `docs/milestones/vX.Y.md` § "How vX.Y is getting here"; the last shipped
    record's when no milestone is open). Append to the record by range:
-   `grep -n '^##'` for the section, then `Read` only its last lines. Never read
-   a record whole; v1.0's is 340 KB. Leave ROADMAP's Current focus alone:
+   `grep -n '^##'` for the section, then `Read` only its last lines. Records
+   grow long; v1.0's reached 340 KB. Leave ROADMAP's Current focus alone:
    it holds milestone prose, and the index lists what is in flight and next
    (WP-1507).
    **Then, closing or not, run `python3 .claude/hooks/wp_index.py`**, once,

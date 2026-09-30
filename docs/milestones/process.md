@@ -935,19 +935,23 @@ commands the same day. The rules are `/pr-review` step 6, `/wp-start` steps 2,
 5 and 6b, and `/wp-handover`'s opening note and steps 5-7. The numbers behind
 them are here.
 
-**The mechanism.** A session's bill is nearly all cache reads. Every request
-re-reads the whole context at $0.20/MTok, the same price on Opus 5.5 and Sonnet
-5.5, and output and cache writes are a rounding error beside it. So a token read
-into the main session is paid again by each request for the rest of the
-session: at a 400K context, a request costs $0.08 before it does anything. A
-subagent's reading ends with the agent. It starts from its own 38K-104K base,
-and it writes at the 5-minute cache TTL (1.25× base input) where the main
-session writes at the hour (2×).
+**The mechanism.** A token that enters the main session is paid for twice.
+It is written to the cache once, at the 1-hour TTL (2× base input: $8/MTok on
+Opus 5.5). It is then read again by every later request at $0.20/MTok, the
+same price on Opus 5.5 and Sonnet 5.5. At a 400K context, a request costs
+$0.08 of reads before it does anything. The write outweighs the reads until a
+token has been re-read 40 times, so the write dominates a short session's
+bill and the reads dominate a long one's. Both scale with what enters the
+context.
+
+A subagent's reading is written at the 5-minute TTL (1.25×) and ends with the
+agent. The agent starts from its own base context, 38K-104K in #548's runs.
 
 **#548's measurement**: three `/pr-review` runs, with per-request `usage` from
 the transcripts, de-duplicated by message id. The script is in #548's body.
+Output is excluded, because agent transcripts record it only partially.
 
-| run | requests | cache reads | cache writes | cost | per PR |
+| run | requests | cache reads | cache writes | cost (reads + writes) | per PR |
 |---|---|---|---|---|---|
 | 2026-09-29, 1 Opus agent, 6 PRs, read-only | 165 | 52.3M | 0.51M | $13.01 | $2.17 |
 | 2026-09-30, 4 Opus agents in parallel, 6 PRs | 364 | 63.6M | 1.04M | $17.90 | $2.98 |
@@ -955,7 +959,7 @@ the transcripts, de-duplicated by message id. The script is in #548's body.
 
 The Opus readers cost about half what the same reading costs mid-run in the
 main session. Six PRs read in-session would have taken a 306K context to
-~710K, past the 500K checkpoint. A reviewed line costs 100-130 tokens of
+~710K, past the 500K checkpoint. A reviewed line costs about 130 tokens of
 reading (404K over ~3000 lines).
 
 **The cost model**, #548's. Re-run here, it reproduces #548's breakeven table
@@ -1011,25 +1015,40 @@ A WP session differs from a review in two ways.
 - **It edits what it reads**, and delegating only pays for text the session
   needs a conclusion from. What it will edit it has to read anyway, so the
   saving there is reading by range.
-- **It is dearest to read at the two ends.** It starts small (this session's
-  first request carried 89K, root CLAUDE.md and tool schemas included) with
-  most of its requests still to come, so early on the carry term dominates. It
-  ends at its largest context. In the middle the bar is #548's ~20K tokens,
-  and it falls at both ends. At session start, with 200 requests to come, it
-  is ~12K for an Opus agent. At handover it is 14-16K for an Opus agent and
-  6-7K for a Sonnet one.
+- **Its bar moves with the requests still to come.** It starts small: the
+  measuring session's first request carried 89K, root CLAUDE.md and tool
+  schemas included. Most of its requests are then still ahead, so the carry
+  term dominates. For an Opus agent the bar is ~20K tokens with 100 requests
+  ahead and ~12K with 200. At handover (300-450K context, 20-50 requests
+  left) it is 14-20K for an Opus agent and 6-9K for a Sonnet one. So #548's
+  ~20K (~50 KB) is the commands' single bar. How many requests a WP session
+  makes was not measured (below), so the lower figures are left to the table
+  rather than stated as a rule.
+
+**Two corollaries used by `/wp-handover`.**
+
+- **A ranged read costs one dependent request**, since a `grep -n` comes
+  first. At a 400K context that request is $0.08. The same $0.08 buys ~5.7K
+  tokens (~14 KB) of whole-file read at the 1-hour write plus 30 later reads.
+  So a file under ~15 KB is read whole.
+- **An idle gap past the hour re-writes the whole context.** The measuring
+  session sat 3 hours between two user turns, and its next request wrote
+  188,925 tokens at 2×, $1.51. That is more than the 45 requests before it
+  had spent on reads, $1.28.
 
 **Bytes to tokens.** About 2.5 bytes per token through `Read`, line-number
-prefixes included. Measured on this session's own transcript: two command
+prefixes included. Measured on the measuring session's own transcript: two command
 files of 25.5 KB added ~10.5K tokens, a 10.2 KB python range ~4.1K, and a
 4.0 KB file through `cat` ~1.4K. So **1 KB ≈ 400 tokens**, and the ~20K /
 ~10K bars are ~50 KB / ~25 KB on `wc -c`.
 
 **What there is to read, on 2026-09-30.**
 
-- **WP files**: 295 of them, median 15.7 KB, p90 33 KB. Nine are over 50 KB,
-  and in those the handover log is half to three-quarters of the file. 1118 is
-  156 KB whole and 42 KB through its newest entry; 1067 is 113 KB and 32 KB.
+- **WP files**: 295 of them, median 15.7 KB, p90 33 KB. Nine are over 50 KB.
+  In five of those the handover log is half the file or more: 1118 is 156 KB
+  whole and 42 KB through its newest entry, and 1067 is 113 KB and 32 KB. In
+  1130 the log is a fifth, and its head alone is 60 KB, which is why
+  `/wp-start` step 2 falls back to reading by section.
 - **Modules**: `refine.py` is 377 KB, `model/forward.py` 195 KB,
   `params/vector.py` 144 KB and `sequential.py` 139 KB. Read whole, any one of
   them is 55-150K tokens.

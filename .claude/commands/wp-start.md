@@ -35,13 +35,16 @@ Run the session-start ritual. The SessionStart hook's report
    files.
 
    **Over ~50 KB (`wc -c`), read the WP file only through its newest handover
-   entry**:
-   `awk '/^## Handover log/{h=1} h && /^(- \*\*20[0-9][0-9]-|### 20[0-9][0-9]-)/ && ++n == 2 {exit} 1' docs/wp/NNNN-*.md`.
-   Then `grep -n` the older entries for the names your task touches. In the
-   largest WP files the log is half to three-quarters of the file (measured
-   2026-09-30: 1118 is 156 KB whole and 42 KB through its newest entry). Every token
-   read at this point is re-read by each later request of the session (step
-   6b).
+   entry**, which is the log's first under the template's newest-first order.
+   This prints the line that entry ends on, and prints nothing when there is at
+   most one entry:
+   `awk '/^## Handover log/{h=1} h && /^(- \*\*20[0-9][0-9]-|### 20[0-9][0-9]-)/ && ++n == 2 {print NR - 1; exit}' docs/wp/NNNN-*.md`.
+   `Read` the file with that number as `limit`, and never `cat` it: `Edit`
+   needs a `Read` of the file you will tick and write in, and Bash hides
+   output past 30,000 characters. If what you read is still over the bar,
+   read it by section (`grep -n '^## '`). Then `grep -n` the older entries for
+   the names your task touches, and for their dates if the log looks appended
+   out of order. Step 6b gives the reason.
 
    **Then check nobody else has it**, before committing to the choice:
    `python3 .claude/hooks/wp_claim.py status NNNN` for the WP in hand, or bare
@@ -154,10 +157,10 @@ Run the session-start ritual. The SessionStart hook's report
    its first handover bullet, so the range to read is `<that sha>..origin/main`
    on the files the WP names, and the issue's thread may have moved since:
    `gh issue view N --json comments` for anything newer than that bullet.
-   **Delegate this check if it means reading more than ~25 KB**, such as a
-   range diff or several files. That is the bar this early in a session (step
-   6b). Give one agent the findings and the range, ask which still hold with
-   `file:line`, and check each answer at its line before you rewrite anything.
+   **Delegate this check once it means reading past step 6b's bar**, such as
+   a long range diff or several files. Give one agent the findings and the
+   range, ask which still hold with `file:line`, and check each answer at its
+   line before you rewrite anything.
    Rewrite what has gone stale **in place** with a dated "superseded in part"
    note and commit that prune first, because the successor reads the WP file
    and not your session. Then check whether any WP depending on this one is
@@ -168,27 +171,28 @@ Run the session-start ritual. The SessionStart hook's report
    partial record on disk at every point, so an interrupted session leaves the
    successor something, and it is what keeps the hook's order rule quiet
    without a handover being owed.
-6b. **Read by what the rest of the session pays.** Cache reads are nearly all
-   of a session's bill. Every token read into this session is re-read by each
-   request after it, while an agent's reading ends with the agent. Delegating
-   also keeps the session further from compaction, which is one of step 7's
-   handover triggers. The numbers are in `docs/milestones/process.md` § What a
-   session's reading costs, measured for `/pr-review` in #548.
+6b. **Read by what the rest of the session pays.** Every token read into
+   this session is written to its cache once, at the 1-hour rate. It is then
+   re-read by each request after it. An agent's reading is written at the
+   cheaper 5-minute rate and ends with the agent. Delegating also keeps the
+   session further from compaction, which is one of step 7's handover
+   triggers. The measurement and the model are in `docs/milestones/process.md`
+   § What a session's reading costs, from #548.
    - **Read what you will edit by range.** `grep -n` for the symbol, then
      `Read` with `offset`/`limit`. Delegating that saves nothing, because the
-     edit needs the text here anyway. Never read a large module whole:
-     `refine.py` is 377 KB, about 150K tokens.
+     edit needs the text here anyway. Never read a large module whole: the
+     largest run to hundreds of KB.
    - **Delegate what you need only a conclusion from once it passes ~50 KB**
      (`wc -c`; 1 KB ≈ 400 tokens). Examples: a survey across modules, a long
-     WP's history, a milestone record, a range diff. Halve the bar to ~25 KB
-     at either end of the session: early, while a couple of hundred requests
-     are still to come, and once the context passes 300K. Use `Explore` to
-     locate something and a general-purpose agent to read and judge it. Ask for
-     the conclusion with `file:line` pointers, never excerpts, because the
-     agent's report is carried like any other read. Check what you build on.
-   - **Under the bar, read it yourself.** An agent starts from its own ~40-70K
-     context, so a small read costs more delegated. A median WP file (16 KB)
-     costs $0.34 to read at session start and $0.60 through an Opus agent.
+     WP's history, a range diff. The bar falls as the number of requests
+     still to come rises, and the record's table shows by how much. Use
+     `Explore` to locate something and a general-purpose agent to read and
+     judge it. Ask for the conclusion with `file:line` pointers, never
+     excerpts, because the agent's report is carried like any other read.
+     Check what you build on.
+   - **Under the bar, read it yourself.** An agent starts from its own base
+     context, so a small read saves little or nothing delegated, and checking
+     the agent's answer adds requests of its own.
 7. **Restate before starting**: the checklist item being started, the WP's
    acceptance command, and the session scope — this WP only; finish →
    `/wp-handover` → stop.
