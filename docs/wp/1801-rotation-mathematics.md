@@ -1,6 +1,6 @@
 # WP-1801 — rotation mathematics: the exponential map, its derivative, the canonical quaternion
 
-Milestone: v1.8 · Status: ⬜
+Milestone: v1.8 · Status: 🔄 2026-09-30 — claimed by @mustachefeeling
 Depends on: —
 Priority: P2 2026-09-30 — the first rung of the rigid-body milestone, touches no v1.6 file, nothing blocks it
 
