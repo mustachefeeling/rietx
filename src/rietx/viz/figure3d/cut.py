@@ -323,6 +323,8 @@ def keep(geometry: Mapping, mask, *, complete: bool = False) -> dict:
     out = dict(geometry)
     out["sites"] = copy.deepcopy(geometry["sites"])
     out["atoms"] = [dict(a) for a, k in zip(atoms, kept) if k]
+    if "n_cell" in geometry:          # the block's own atoms lead ``atoms``, still
+        out["n_cell"] = int(kept[:geometry["n_cell"]].sum())
     # ``j`` stays while its atom does, and is the far end's where it was cut
     out["bonds"] = [{**b, "i": int(new[b["i"]]), "j": int(new[b["j"] if kept[b["j"]] else j])}
                     for b, j, ok in zip(bonds, far, bond_ok) if ok]

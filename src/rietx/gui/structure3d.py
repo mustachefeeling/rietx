@@ -825,7 +825,7 @@ def _corners(basis: np.ndarray, box=DEFAULT_EXTENT) -> np.ndarray:
 _UNCAPPED = 1 << 40
 
 
-def _extent(extent) -> tuple[tuple[int, int], ...] | None:
+def _extent(extent) -> tuple[tuple[int, int], ...]:
     """``extent`` as three ``(lo, hi)`` whole-cell pairs, or a ``ValueError``."""
     if extent is None:
         return DEFAULT_EXTENT
@@ -879,6 +879,14 @@ def _tile(home: dict, box: tuple, max_atoms: int, started: float) -> dict:
         if o not in frac_of:
             frac_of[o] = np.asarray(a["frac"], dtype=np.float64) - n
             template[o] = a
+    real = [a for a in range(n_cell) if not atoms[a]["boundary"]]
+    copies = [a for a in range(n_cell) if atoms[a]["boundary"]]
+    # the block holds at least one image of every atom per cell, so the cap is
+    # known before any cell is built, and a large extent raises at once
+    n_cells = math.prod(hi - lo for lo, hi in box)
+    if n_cells * len(real) > max_atoms:
+        raise ValueError(f"extent {box}: at least {n_cells * len(real)} atoms in the block, "
+                         f"past max_atoms={max_atoms}; pass a larger max_atoms")
     cells = np.stack(np.meshgrid(*[np.arange(lo, hi) for lo, hi in box], indexing="ij"),
                      axis=-1).reshape(-1, 3)
     out: list[dict] = []
@@ -894,8 +902,6 @@ def _tile(home: dict, box: tuple, max_atoms: int, started: float) -> dict:
                         "image": [o, [int(v) for v in n]]})
         return at[key]
 
-    real = [a for a in range(n_cell) if not atoms[a]["boundary"]]
-    copies = [a for a in range(n_cell) if atoms[a]["boundary"]]
     for t in cells:
         for a in real:
             place(orbit_of[a], t + shift[a], boundary=False)

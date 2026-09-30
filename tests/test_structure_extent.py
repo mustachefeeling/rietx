@@ -149,6 +149,22 @@ def test_an_extent_is_three_pairs_of_whole_cells_and_the_block_obeys_the_cap(nac
         s3.build(nac, extent=((0, 2),) * 3)
 
 
+def test_a_cut_keeps_n_cell_naming_the_blocks_own_atoms(nac):
+    g = s3.build(nac, extent=((0, 2), (0, 1), (0, 1)), max_atoms=BIG)
+    mask = select(g, element="Na")
+    cut = keep(g, mask)
+    assert cut["n_cell"] == int(mask[:g["n_cell"]].sum()) < g["n_cell"]
+    assert cut["n_cell"] <= len(cut["atoms"])
+
+
+def test_an_extent_past_the_cap_raises_before_it_builds(nac):
+    import time
+    start = time.perf_counter()
+    with pytest.raises(ValueError, match="at least"):
+        s3.build(nac, extent=((0, 30),) * 3)
+    assert time.perf_counter() - start < 5.0
+
+
 def test_three_cells_a_side_build_in_no_more_than_a_moment(nac):
     """A runaway guard, not a timer: the dense search over 3143 atoms was 27
     matrices of 3143².  The measured range is in WP-1502's handover."""
