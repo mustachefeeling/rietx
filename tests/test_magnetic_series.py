@@ -842,15 +842,98 @@ def test_the_mixed_onset_row_blames_the_chain_that_located_none():
 ])
 def test_a_folded_onset_row_never_asks_for_the_run_that_just_ran(
         forward_flags, backward_flags):
-    """Every branch of the fold replaces the forward row's suggestion.
+    """Every branch of the fold replaces the forward row's advice to run
+    ``direction='both'``, and only that advice.
 
     The forward row, written before the backward chain existed, says "run the
-    series direction='both'"; folded, it is the answer to that run.
+    series direction='both'"; folded, it is the answer to that run.  An
+    interleaved forward row's advice never asked for it and is kept.
     """
     (row,) = _agreement(forward_flags, backward_flags)
     assert "direction='both'" not in row.suggestion
-    if row.level == "warning":
+    if forward_flags == _INTERLEAVED:     # its own advice, which never asked
+        assert row.suggestion.startswith(_OPEN_THE_SWITCHES)
+    elif row.level == "warning":
         assert "series.backward.magnetic_trajectory()" in row.suggestion
+
+
+def _quiet(flags) -> SeriesResult:
+    """Five patterns that each gave **no verdict**: every fit diverged."""
+    return _hand_built([(x, 0.3, 0.4, False) for x in _AXIS],
+                       statuses=["diverged"] * len(_AXIS))
+
+
+def _early(flags) -> SeriesResult:
+    """``flags``'s verdicts with the last supported pattern of the bracket
+    stopped at its cap, so that bracket is not quotable."""
+    last = max(i for i, ok in enumerate(flags) if ok)
+    return _hand_built([(x, 4.0 if ok else 0.01, 0.05 if ok else 0.4, ok)
+                        for x, ok in zip(_AXIS, flags, strict=True)],
+                       statuses=["max_iter" if i == last else "converged"
+                                 for i in range(len(_AXIS))])
+
+
+def _fold(forward: SeriesResult, back: SeriesResult):
+    rows = _with_onset_agreement(_moment_diagnostics(forward, {}), forward,
+                                 back)
+    return [d for d in rows if d.code == "SEQUENTIAL_MOMENT_ONSET"]
+
+
+@pytest.mark.parametrize("forward, back, silent", [
+    (lambda: _verdicts(_EVERYWHERE), lambda: _quiet(None), "backward"),
+    (lambda: _quiet(None), lambda: _verdicts(_EVERYWHERE), "forward"),
+    (lambda: _verdicts(_BRACKETED), lambda: _quiet(None), "backward"),
+    (lambda: _quiet(None), lambda: _verdicts(_BRACKETED), "forward"),
+], ids=["everywhere-vs-none", "none-vs-everywhere", "bracket-vs-none",
+        "none-vs-bracket"])
+def test_a_chain_that_gave_no_verdict_is_said_to_and_gets_no_cause(
+        forward, back, silent):
+    """A chain whose every pattern gave no verdict (all diverged, or all
+    held) has nothing to disagree with.  The rows used to say the chains
+    "disagree on every pattern they both judged", when they judged none in
+    common, and blamed a warm start or a floor that nothing checked (review
+    round 3, item 1)."""
+    (row,) = _fold(forward(), back())
+    assert f"the {silent} chain gave no verdict on any pattern" in row.message
+    for cause in ("warm start", "never climbed", "disagree on every pattern"):
+        assert cause not in row.message, cause
+    assert "series.backward.magnetic_trajectory()" not in row.suggestion
+    assert "direction='both'" not in row.suggestion
+
+
+def test_an_overlap_with_one_unquotable_bracket_names_it_and_asks_for_max_iter():
+    """Overlapping brackets, only the **backward** one from a fit stopped at
+    its cap: the row warns, and it used to say "the onset is the data's, not
+    the ordering's" and hand out the carried-moment advice.  The reason is
+    the stopped fit, and the fix is ``max_iter`` (review round 3, item 2)."""
+    (row,) = _fold(_verdicts(_BRACKETED), _early(_BRACKETED))
+    assert row.level == "warning"
+    assert "not the ordering's" not in row.message
+    assert "the backward bracket" in row.message
+    assert "stopped early" in row.message
+    assert "max_iter" in row.suggestion
+    assert "series.backward.magnetic_trajectory()" not in row.suggestion
+    # the forward one unquotable: its own max_iter advice stands, named too
+    (row,) = _fold(_early(_BRACKETED), _verdicts(_BRACKETED))
+    assert row.level == "warning" and "max_iter" in row.suggestion
+    assert "the forward bracket" in row.message
+    assert "not the ordering's" not in row.message
+
+
+_OPEN_THE_SWITCHES = "open the patterns either side of each switch"
+
+
+@pytest.mark.parametrize("backward_flags", [_INTERLEAVED, _BRACKETED])
+def test_an_interleaved_forward_row_keeps_its_own_advice(backward_flags):
+    """The interleaved forward row never asked for ``direction="both"``, so
+    the fold has nothing to replace there: with the same interleaved verdicts
+    on both chains, "the pattern one chain supports and the other holds" does
+    not exist (review round 3, item 3)."""
+    (forward_row,) = [d for d in _moment_diagnostics(_verdicts(_INTERLEAVED), {})
+                      if d.code == "SEQUENTIAL_MOMENT_ONSET"]
+    assert forward_row.suggestion.startswith(_OPEN_THE_SWITCHES)
+    (row,) = _agreement(_INTERLEAVED, backward_flags)
+    assert row.suggestion == forward_row.suggestion
 
 
 def test_a_pattern_above_the_rwp_fence_keeps_its_verdict():
