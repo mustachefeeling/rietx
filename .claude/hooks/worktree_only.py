@@ -45,8 +45,8 @@ MUTATING = re.compile(
 )
 
 REASON = """Refused: this would change the main checkout, which sessions share.
-Work in a worktree instead — call EnterWorktree (name it after the WP), or start
-the session with `claude -w <name>`; the venv is built for you. The main checkout
+Work in a worktree instead, set up the way this project's /wp-start sets one up
+(EnterWorktree, or start the session with `claude -w <name>`). The main checkout
 is read-only for a session: %s"""
 
 
