@@ -531,7 +531,8 @@ back unsupported is a measurement, not a mechanism. Two things check it, and
 you have to ask for both. `direction="both"` refines the chain each way and
 `SEQUENTIAL_MOMENT_ONSET` then carries the other chain's bracket and says
 whether the two overlap, and a bracket only one chain found is a `warning` row
-even where the other chain wrote none. A moment carried across the transition by one chain's
+even where the other chain wrote none — as is one chain supporting every
+pattern the other holds, where neither has a bracket at all. A moment carried across the transition by one chain's
 warm start and not the other's is exactly what a single pass cannot see.
 `MagneticOnset.bracket_verdicts_final` catches the other half: a *supported*
 verdict from a fit that stopped at its iteration cap may just be a modulus that

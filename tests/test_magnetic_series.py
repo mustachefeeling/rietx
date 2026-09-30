@@ -724,6 +724,9 @@ def test_both_directions_agree_on_the_onset_and_the_row_says_so():
     assert row.level == "info"
     assert "the backward chain brackets it 60 → 75" in row.message
     assert "not the ordering's" in row.message
+    # the comparison has been made, so the row no longer asks for it
+    assert "direction='both'" not in row.suggestion
+    assert "quote the bracket" in row.suggestion
     # the reverse pass carries its own reading, not the forward one's
     assert any(d.code == "SEQUENTIAL_MOMENT_ONSET"
                for d in series.backward.diagnostics)
@@ -736,6 +739,7 @@ _AXIS = (15.0, 45.0, 60.0, 75.0, 90.0)
 _BRACKETED = (True, True, True, False, False)        # 60 → 75
 _EVERYWHERE = (True, True, True, True, True)         # a carried moment
 _INTERLEAVED = (True, False, True, False, False)     # three switches
+_NOWHERE = (False, False, False, False, False)       # a floor never left
 
 
 def _verdicts(flags) -> SeriesResult:
@@ -771,6 +775,31 @@ def test_a_backward_bracket_is_reported_when_the_forward_chain_wrote_no_onset():
 
     # while two chains that both read "supported everywhere" say nothing
     assert _agreement(_EVERYWHERE, _EVERYWHERE) == []
+    assert _agreement(_NOWHERE, _NOWHERE) == []
+
+
+@pytest.mark.parametrize("forward_flags, backward_flags, first, second", [
+    (_EVERYWHERE, _NOWHERE, "supports none of the 5 pattern(s)",
+     "supports all 5"),
+    (_NOWHERE, _EVERYWHERE, "supports all 5", "supports none of the 5"),
+])
+def test_a_total_disagreement_between_the_chains_is_reported(
+        forward_flags, backward_flags, first, second):
+    """One chain supported on every pattern, the other on none: no bracket on
+    either side, and still the extreme of what ``direction="both"`` is for.
+
+    Skipping every monotone backward reading without a bracket wrote nothing
+    here, in both orderings — and neither the forward diagnostics nor
+    ``SEQUENTIAL_PATH_DEPENDENT`` (which divides by the held point's esd) said
+    it anywhere else.
+    """
+    (row,) = _agreement(forward_flags, backward_flags)
+    assert row.level == "warning" and row.value is None
+    assert f"the backward chain {first}" in row.message
+    assert f"the forward chain {second}" in row.message
+    # one side is a floor that never climbed, not only a carried moment
+    assert "never climbed out of the floor" in row.message
+    assert "direction='both'" not in row.suggestion
 
 
 def test_the_mixed_onset_row_blames_the_chain_that_located_none():
@@ -791,12 +820,36 @@ def test_the_mixed_onset_row_blames_the_chain_that_located_none():
     assert "the backward chain located no onset at all" in row.message
     assert "every one of the 5 pattern(s) supports a moment" in row.message
 
+    # an interleaved backward chain has boundaries, just not one of them
+    (row,) = _agreement(_BRACKETED, _INTERLEAVED)
+    assert "located no onset at all" not in row.message
+    assert "the backward chain located no single onset" in row.message
+
     (row,) = _agreement(_INTERLEAVED, _INTERLEAVED)
     assert row.level == "warning"
     assert "the backward chain located no single onset either" in row.message
 
     (row,) = _agreement(_BRACKETED, _BRACKETED)
     assert row.level == "info" and "not the ordering's" in row.message
+
+
+@pytest.mark.parametrize("forward_flags, backward_flags", [
+    (_BRACKETED, _BRACKETED), (_BRACKETED, _EVERYWHERE),
+    (_BRACKETED, _INTERLEAVED), (_INTERLEAVED, _BRACKETED),
+    (_INTERLEAVED, _INTERLEAVED), (_BRACKETED, (True, False, False, False,
+                                                False)),
+])
+def test_a_folded_onset_row_never_asks_for_the_run_that_just_ran(
+        forward_flags, backward_flags):
+    """Every branch of the fold replaces the forward row's suggestion.
+
+    The forward row, written before the backward chain existed, says "run the
+    series direction='both'"; folded, it is the answer to that run.
+    """
+    (row,) = _agreement(forward_flags, backward_flags)
+    assert "direction='both'" not in row.suggestion
+    if row.level == "warning":
+        assert "series.backward.magnetic_trajectory()" in row.suggestion
 
 
 # ================================================== the negative controls, refined

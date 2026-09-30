@@ -2640,6 +2640,23 @@ def _moment_diagnostics(series: SeriesResult,
     return out
 
 
+_COMPARE_CHAINS = (
+    "compare the two chains' magnetic rows pattern by pattern "
+    "(series.magnetic_trajectory() against "
+    "series.backward.magnetic_trajectory()): the pattern one chain supports "
+    "and the other holds is where a warm start carried a moment the data does "
+    "not, or where a floor never climbed out to a moment the data does carry")
+
+
+def _supported_kind(onset) -> tuple[bool, bool]:
+    """What a monotone reading with no bracket says: (any supported, any held).
+
+    Everywhere, nowhere, or no verdict at all — three readings that each lack
+    a bracket, and two chains disagreeing between them is a disagreement.
+    """
+    return (onset.n_supported > 0, onset.n_held > 0)
+
+
 def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
                           back: SeriesResult) -> list[Diagnostic]:
     """Fold the backward chain's onset into the forward ``…_ONSET`` rows.
@@ -2652,6 +2669,11 @@ def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
     raises the row to ``warning``: a moment carried across the transition by
     one chain's warm start and not the other's is exactly what a single pass
     cannot see, and it is the failure this whole comparison is for.
+
+    A folded row is the *answer* to ``direction="both"``, so it never keeps the
+    forward row's advice to run it; only an unquotable bracket keeps its own
+    ("raise the moment stage's max_iter"), which the comparison does not
+    address.
     """
     by_site = {}
     for site in back.magnetic_sites():
@@ -2666,13 +2688,15 @@ def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
         seen.add(d.where[0])
         other = back_traj.onset
         mine = forward.magnetic_trajectory(d.where[0]).onset
+        keep = mine.bracket_verdicts_final is False
+        compare = {} if keep else {"suggestion": _COMPARE_CHAINS}
         # three ways of lacking an onset, each blaming the chain that lacks it
         if mine.x is None and other.x is None:
             out.append(d.model_copy(update={
                 "level": "warning",
                 "message": (f"{d.message}; the backward chain located no "
                             f"single onset either ({other.note}), so neither "
-                            f"pass has a bracket to quote")}))
+                            f"pass has a bracket to quote"), **compare}))
             continue
         if mine.x is None:
             out.append(d.model_copy(update={
@@ -2681,14 +2705,15 @@ def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
                             f"{other.bracket[0]:g} → {other.bracket[1]:g} "
                             f"({other.x:g} ± {other.x_esd:g}), so the two "
                             f"passes do not agree on whether there is one "
-                            f"onset")}))
+                            f"onset"), **compare}))
             continue
         if other.x is None:
             out.append(d.model_copy(update={
                 "level": "warning",
                 "message": (f"{d.message}; the backward chain located no "
-                            f"onset at all ({other.note}), so the two passes "
-                            f"do not agree on whether there is one")}))
+                            f"{'onset at all' if other.monotone else 'single onset'}"
+                            f" ({other.note}), so the two passes do not agree "
+                            f"on whether there is one"), **compare}))
             continue
         overlap = (max(mine.bracket[0], other.bracket[0])
                    <= min(mine.bracket[1], other.bracket[1]))
@@ -2708,19 +2733,52 @@ def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
                 if overlap else
                 ". The two do NOT overlap: one chain carried a moment across "
                 "the transition that the other never found, so this onset is "
-                "path-dependent and neither bracket is a measurement of it")}))
+                "path-dependent and neither bracket is a measurement of it"),
+            **({} if keep else {"suggestion": (
+                "quote the bracket, with the pattern spacing as its "
+                "uncertainty: the two chains reaching it from opposite ends is "
+                "the check that it is the data's" if agrees else
+                _COMPARE_CHAINS)})}))
     # The forward pass writes an onset row only for a bracket or an interleaved
     # verdict, so a forward chain that reads "supported everywhere" (a warm
     # start carrying the moment past the transition) wrote nothing to fold the
     # backward bracket into — and that disagreement is the one this comparison
-    # exists to catch.  The backward chain's reading gets a row of its own.
+    # exists to catch.  The backward chain's reading gets a row of its own —
+    # including a monotone one with no bracket, whenever it is not the forward
+    # chain's own kind: "supported everywhere" against "supported nowhere" is
+    # the extreme of the disagreement, and no other row on the top level says
+    # it (the HOLD row sits on the chain that held; PATH_DEPENDENT divides by a
+    # held point's esd and cannot fire).
     for site, back_traj in by_site.items():
         other = back_traj.onset
-        if site in seen or other is None or (other.x is None
-                                             and other.monotone):
+        if site in seen or other is None:
             continue
         mine = forward.magnetic_trajectory(site).onset
         name = back_traj.atom or site
+        if other.x is None and other.monotone:
+            if _supported_kind(other) == _supported_kind(mine):
+                continue
+
+            def reading(o) -> str:
+                n = o.n_supported + o.n_held
+                if o.n_supported:
+                    return f"supports all {n} pattern(s) it gave a verdict on"
+                if o.n_held:
+                    return f"supports none of the {n} pattern(s)"
+                return "gave no verdict on any pattern"
+
+            out.append(Diagnostic(
+                level="warning", code="SEQUENTIAL_MOMENT_ONSET", where=[site],
+                message=(
+                    f"{name}: the backward chain {reading(other)}, while the "
+                    f"forward chain {reading(mine)}, so the two passes "
+                    f"disagree on every pattern they both judged and neither "
+                    f"has a bracket to quote — each chain's verdict followed "
+                    f"its own starting value: either one warm start carried "
+                    f"a moment the data does not hold, or the other never "
+                    f"climbed out of the floor to one the data does carry"),
+                suggestion=_COMPARE_CHAINS))
+            continue
         found = (f"brackets the onset {other.bracket[0]:g} → "
                  f"{other.bracket[1]:g} ({other.x:g} ± {other.x_esd:g})"
                  if other.x is not None else
@@ -2734,11 +2792,7 @@ def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
                 f"on whether there is an onset — a moment one chain's warm "
                 f"start carried across the transition reads as supported "
                 f"there"),
-            suggestion=(
-                "compare the two chains' magnetic rows either side of the "
-                "backward bracket (series.backward.magnetic_trajectory()): the "
-                "pattern one chain supports and the other holds is where a "
-                "warm start carried a moment the data does not")))
+            suggestion=_COMPARE_CHAINS))
     return out
 
 
