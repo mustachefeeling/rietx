@@ -125,7 +125,7 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "**All four formats write back**: `rx.write_topas_inp`, "
         "`rx.write_fullprof_pcr` and `rx.write_gsas_exp` are each format's "
         "`to_structure` inverse, a file "
-        "whose refine flags reproduce the `Structure`'s own `vary` exactly and "
+        "whose refine flags reproduce the `Structure`'s `vary` exactly and "
         "whose space group is `get_spacegroup(...).xhm()`, never the phase's "
         "stored spelling. FullProf's grammar has no origin/axis suffix at all, so "
         "`write_fullprof_pcr` refuses a phase whose resolved setting a bare "

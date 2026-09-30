@@ -702,7 +702,15 @@ sign-first (`Zr4+` → `occ Zr+4`, `O2-` → `occ O-2`), because TOPAS stops on
 the IUCr order rietx stores. An isotope keeps its leading mass number, which is
 TOPAS's order too (`7Li`, and `7Li1+` → `occ 7Li+1`). It refuses an ion with a sign and no magnitude
 (`Cu+`): rietx reads that as the neutral atom, and TOPAS reads `Cu+1` as the
-ion. FullProf's grammar has no origin or
+ion. The FullProf writer spells a species by the radiation, because FullProf
+looks the two tables up differently: X-rays key the form factor on element,
+sign and magnitude (`Zr4+` → `ZR+4`, `O2-` → `O-2`), and neutrons key b on
+the element alone, so the charge is not written (`O2-` → `O`; FullProf stops on
+`O-2` there). An isotope is written only on a neutron file, as a LINE-12 user
+scattering length (`7Li` → `Typ LI7` with `LI7 -0.222 0.0 0`), because a bare
+`LI7` runs at natural abundance with no message. An isotope on an X-ray file,
+`Cu+`, and an isotope whose name would not fit LINE 12's four characters
+(`157Gd`) are refused by name. FullProf's grammar has no origin or
 axis suffix at all, though, so it can only *state* a setting its own
 bare-symbol convention already prefers (root CLAUDE.md's "an R lattice on
 rhombohedral axes" and "choice 2 wherever the bare symbol lands on choice
@@ -747,12 +755,22 @@ reader takes GSAS's `NI+2_58` back as `58Ni2+`, the ⁵⁸Ni isotope of the ion.
 Some things do not travel, because no `to_structure` builds them from its
 file. Common to all three: the emission profile and instrument geometry
 (`Instrument` is not part of what any of these readers returns), and cell and
-site bound windows. FullProf-specific: the fitted 2θ range, the resolution
-function and every control/output switch on a `.pcr` are protocol
-`to_structure` never reads into a `Structure`. `write_fullprof_pcr` fills them
-with safe, inert placeholders purely to keep the file complete, since a
-`.pcr` is positional and every line the reader expects has to exist even
-where a `Structure` carries nothing for it. A written `.EXP` states no
+site bound windows. FullProf-specific: the fitted 2θ range, the background and
+every control/output switch on a `.pcr` are protocol `to_structure` never
+reads into a `Structure`. `write_fullprof_pcr` fills them with safe, inert
+placeholders purely to keep the file complete, since a `.pcr` is positional
+and every line the reader expects has to exist even where a `Structure`
+carries nothing for it. The widths and the radiation are the exception,
+because FullProf will not run a file without them: pass
+`write_fullprof_pcr(structure, path, instrument=instrument)` and the file
+states the instrument's wavelengths (`Job = 1` for a neutron source) and its
+widths as FullProf's TCH pseudo-Voigt (`Npr = 7`), each phase's own sample
+broadening added and FullProf's X/Y letters swapped onto rietx's strain/size
+terms. Without an instrument it writes Cu Kα1/Kα2 and a default
+`ProfileTCHZ()`'s widths; zero widths are a FullProf hard stop. A profile term
+FullProf's file would not state the same way is refused by name: an exact
+Voigt shape, a Stephens strain block, axial divergence, harmonics, and a third
+emission line. A written `.EXP` states no
 histograms at all, which is what a GSAS experiment file looks like before any
 data is loaded rather than an omission.
 
@@ -846,6 +864,7 @@ do.
 | `FullProfModel.zero_shift` | the zero correction, with its refine codeword decoded |
 | `FullProfModel.background` | the background the file declares |
 | `FullProfModel.excluded_regions`, `FullProfModel.fitted_range` | what the run fitted and what it left out |
+| `FullProfModel.user_scatterers` | a neutron file's LINE-12 user scattering lengths, each read as the isotope it is the Sears b of |
 | `FullProfModel.data_file`, `FullProfModel.pattern` | the pattern it points at |
 | `FullProfModel.cycles`, `FullProfModel.refined_parameter_count`, `FullProfModel.parameter_numbers` | how the run was driven, and which codeword numbered which parameter |
 | `FullProfModel.output` | the output options the file sets |

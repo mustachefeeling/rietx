@@ -2142,3 +2142,250 @@ def test_write_fullprof_pcr_refuses_a_line_break_in_a_phase_name():
         atoms=[atom])])
     with pytest.raises(ValueError, match="line break"):
         from_structure(structure)
+
+
+# ------------------------------------ what FullProf needs to run it (#557, #558)
+#
+# A round trip through this module's own reader cannot see either issue: the
+# reader needs neither the widths nor FullProf's species keys to build a
+# Structure. FullProf.2k 8.20, run as a black box on the writer's output, is
+# the oracle (issue #557's and #558's reproductions); these tests pin the lines
+# that run showed FullProf needs.
+
+def _site(label, species, xyz=(0.0, 0.0, 0.0)):
+    return rx.Atom(label=label, species=species, x=rx.Parameter(value=xyz[0]),
+                   y=rx.Parameter(value=xyz[1]), z=rx.Parameter(value=xyz[2]),
+                   biso=rx.Parameter(value=0.5, min=0.0, max=25.0, unit="A^2"))
+
+
+def _cubic(*species, **phase_fields):
+    atoms = [_site(f"A{i}", sp, (0.5 * i, 0.5 * i, 0.5 * i))
+             for i, sp in enumerate(species)]
+    return rx.Structure(phases=[rx.Phase(
+        name="syn", space_group="Pm-3m", cell=rx.Cell.cubic(4.0), atoms=atoms,
+        **phase_fields)])
+
+
+def _widths(**values):
+    from rietx.schemas.instrument import ProfileTCHZ
+    return ProfileTCHZ(**{k: rx.Parameter(value=v, min=-1.0, max=8.0)
+                          for k, v in values.items()})
+
+
+def _xray(*wavelengths, profile=None, **source):
+    from rietx.schemas.instrument import EmissionLine, Geometry, Source
+    lines = [EmissionLine(wavelength=wavelengths[0])] + [
+        EmissionLine(wavelength=w, weight=rx.Parameter(value=0.46, min=0.0, max=1.0))
+        for w in wavelengths[1:]]
+    return rx.Instrument(
+        source=Source(lines=lines, **source),
+        geometry=Geometry(kind="bragg_brentano", goniometer_radius_mm=217.5),
+        **({"profile": profile} if profile is not None else {}))
+
+
+def _lines(text):
+    return text.splitlines()
+
+
+def _width_line(text):
+    """LINE 27: the first line after the scale-codeword line of phase 1."""
+    lines = _lines(text)
+    scale = next(i for i, line in enumerate(lines) if line.endswith(" 0")
+                 and i > 12 and len(line.split()) == 7)
+    return [float(v) for v in lines[scale + 2].split()[:6]]
+
+
+def test_a_written_pcr_never_has_zero_widths():
+    """#557: U = V = W = 0 with no resolution file is a FullProf hard stop
+    ("Zero half-width parameters for phase 1 and NO resolution-file
+    provided!"), so the file this writer wrote before an instrument could be
+    passed must still carry widths — a default ProfileTCHZ()'s — and select
+    the TCH pseudo-Voigt they belong to (Npr = 7, control line and phase)."""
+    from rietx.schemas.instrument import ProfileTCHZ
+    text = from_structure(_cubic("Mn"))
+    u, v, w, x, y, gausiz = _width_line(text)
+    default = ProfileTCHZ()
+    assert (u, v, w) == (default.u.value, default.v.value, default.w.value)
+    assert w > 0.0
+    assert (x, y) == (default.y.value, default.x.value)
+    assert _lines(text)[1].split()[1] == "7"
+    assert _lines(text)[10].split()[13] == "7"
+
+
+def test_the_widths_are_the_instruments_plus_the_phases_under_fullprofs_letters():
+    """FullProf Npr = 7 (manual eqs 3.24-3.25): H_G^2 = U tan^2 + V tan + W +
+    IG/cos^2 and H_L = X tan + Y/cos — so FullProf's X is rietx's strain
+    ``y`` and its Y rietx's size ``x``, and each phase carries its own sample
+    terms. Checked by evaluating FullProf's own formulas on the written
+    numbers against rietx's width laws, at three angles."""
+    import math
+
+    from rietx.model.profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
+    sample = dict(gauss_size=0.002, lor_size=0.01, gauss_strain=0.01,
+                  lor_strain=0.02)
+    structure = _cubic("Mn", **{k: rx.Parameter(value=v, min=0.0)
+                                for k, v in sample.items()})
+    inst = _xray(1.5405929, profile=_widths(u=0.02, v=-0.01, w=0.005, x=0.01,
+                                            y=0.03))
+    u, v, w, x, y, ig = _width_line(from_structure(structure, instrument=inst))
+    assert (u, v, w, x, y, ig) == pytest.approx(
+        (0.03, -0.01, 0.005, 0.05, 0.02, 0.002), abs=1e-15)
+    p = inst.profile
+    for theta in (10.0, 35.0, 70.0):
+        t, c = math.tan(math.radians(theta)), math.cos(math.radians(theta))
+        h_g = math.sqrt(u * t * t + v * t + w + ig / (c * c))
+        h_l = x * t + y / c
+        assert h_g == pytest.approx(gaussian_fwhm(
+            theta, p.u.value, p.v.value, p.w.value, sample["gauss_size"],
+            sample["gauss_strain"]), rel=1e-12)
+        assert h_l == pytest.approx(lorentzian_fwhm(
+            theta, p.x.value + sample["lor_size"],
+            p.y.value + sample["lor_strain"]), rel=1e-12)
+
+
+@pytest.mark.parametrize("instrument, expected", [
+    (None, ("0", 1.5405929, 1.5444274, 0.5)),
+    ("ka1", ("0", 1.5405929, 1.5405929, 0.0)),
+    ("doublet", ("0", 1.5405929, 1.5444274, 0.46)),
+    ("neutron", ("1", 2.41, 2.41, 0.0)),
+])
+def test_the_radiation_is_the_instruments(instrument, expected):
+    """LINE 4's Job and LINE 8's Lambda1/Lambda2/Ratio: one X-ray line writes
+    Lambda2 = Lambda1 and Ratio 0 ("=lambda1 for monochromatic beam"), two write
+    the second line's relative weight, a CW neutron source is Job = 1."""
+    inst = {None: None, "ka1": _xray(1.5405929),
+            "doublet": _xray(1.5405929, 1.5444274),
+            "neutron": rx.Instrument.constant_wavelength_neutron(2.41)}[instrument]
+    lines = _lines(from_structure(_cubic("Mn"), instrument=inst))
+    job = lines[1].split()[0]
+    lam1, lam2, ratio = (float(v) for v in lines[3].split()[:3])
+    assert (job, lam1, lam2, ratio) == expected
+
+
+@pytest.mark.parametrize("change, match", [
+    ("voigt", "no exact Voigt"),
+    ("microstrain", "Stephens"),
+    ("axial", "axial divergence"),
+    ("harmonics", "harmonics"),
+    ("three_lines", "3 emission lines"),
+])
+def test_what_would_change_the_profile_fullprof_computes_is_refused(change, match):
+    """Each of these is a profile term the file has no slot for (or none this
+    writer maps), so writing without it would state narrower, symmetric or
+    single-line peaks where rietx computes others."""
+    structure, inst = _cubic("Mn"), _xray(1.5405929)
+    if change == "voigt":
+        inst.profile.shape = "voigt"
+    elif change == "microstrain":
+        structure.phases[0].microstrain = rx.StephensStrain()
+    elif change == "axial":
+        inst.geometry.axial_sl.value = 0.02
+    elif change == "harmonics":
+        inst = rx.Instrument.constant_wavelength_neutron(2.41, harmonics=True)
+    else:
+        inst = _xray(1.5405929, 1.5444274, 1.39222)
+    with pytest.raises(ValueError, match=match):
+        from_structure(structure, instrument=inst)
+
+
+def test_a_time_of_flight_or_foreign_instrument_is_refused_by_type():
+    with pytest.raises(TypeError, match="constant-wavelength"):
+        from_structure(_cubic("Mn"), instrument=object())
+
+
+@pytest.mark.parametrize("species, xray, neutron", [
+    # measured, FullProf.2k 8.20 (#558): the IUCr order stops an X-ray run
+    # ("Scattering coefficients NOT FOUND for * Zr4+ *"), the sign-first key
+    # runs; a neutron run keys b on the element and stops on `O-2`.
+    ("Zr4+", "ZR+4", "ZR"),
+    ("O2-", "O-2", "O"),
+    ("Cu1+", "CU+1", "CU"),
+    ("Mn", "MN", "MN"),
+])
+def test_a_species_is_written_in_fullprofs_key_for_the_radiation(species, xray,
+                                                                 neutron):
+    from rietx.io.projects.fullprof import fullprof_species
+    assert fullprof_species(species, neutron=False) == (xray, None)
+    assert fullprof_species(species, neutron=True) == (neutron, None)
+    assert normalize_species(xray) == species
+
+
+@pytest.mark.parametrize("species, nam, b_fm", [
+    ("7Li", "LI7", -2.22),
+    ("7Li1+", "LI7", -2.22),
+    ("D", "H2", 6.671),
+    ("2H", "H2", 6.671),
+    ("60Ni", "NI60", 2.8),
+])
+def test_an_isotope_goes_to_fullprof_as_a_line12_user_b(species, nam, b_fm):
+    """#558: FullProf keys b on the element, so a bare `LI7` runs at natural
+    abundance (b = -1.90 fm) with no message. The isotope is written only with
+    its LINE-12 b, which FullProf uses (measured -0.222 x 10^-12 cm)."""
+    from rietx.io.projects.fullprof import fullprof_species
+    assert fullprof_species(species, neutron=True) == (nam, pytest.approx(b_fm))
+    text = from_structure(_cubic(species, "O"),
+                          instrument=rx.Instrument.constant_wavelength_neutron(1.5406))
+    lines = _lines(text)
+    assert lines[1].split()[5] == "1"                   # Nsc
+    assert lines[7].split() == [nam, repr(round(b_fm / 10, 8)), "0.0", "0"]
+    assert lines[8] == "0"                              # then LINE 13, Maxs
+    assert any(line.startswith(f"A0 {nam} ") for line in lines)
+
+
+@pytest.mark.parametrize("species, neutron, match", [
+    ("7Li", False, "X-ray .pcr cannot state one"),
+    ("D", False, "X-ray .pcr cannot state one"),
+    ("Cu+", False, "sign but no charge magnitude"),
+    ("Cu+", True, "sign but no charge magnitude"),
+    ("157Gd", True, "A4"),
+])
+def test_a_species_fullprof_cannot_state_is_refused_by_name(species, neutron, match):
+    """An isotope on an X-ray file (no isotope label; LINE 12 there is
+    anomalous dispersion), a digitless ion (rietx's neutral atom, FullProf's
+    stop), and an isotope whose NAM exceeds four characters (`GD157` stops
+    FullProf's parse, measured). The refusal names the phase and the atom."""
+    inst = rx.Instrument.constant_wavelength_neutron(1.5406) if neutron else None
+    with pytest.raises(ValueError, match=match) as exc:
+        from_structure(_cubic(species), instrument=inst)
+    assert "phase 'syn': atom 'A0'" in str(exc.value)
+
+
+def test_an_isotope_round_trips_through_line12(tmp_path):
+    """The reader takes a LINE-12 b back as the isotope it is the Sears b of,
+    and says so; and the structure is otherwise the one written."""
+    structure = _cubic("7Li1+", "O2-")
+    out = tmp_path / "iso.pcr"
+    write_fullprof_pcr(structure, out,
+                       instrument=rx.Instrument.constant_wavelength_neutron(1.5406))
+    model = read_fullprof_pcr(out)
+    assert model.user_scatterers == {"LI7": (pytest.approx(-2.22), "7Li")}
+    diagnostics = []
+    back = to_structure(model, diagnostics=diagnostics)
+    assert [a.species for a in back.phases[0].atoms] == ["7Li", "O"]
+    said = [d.message for d in diagnostics if d.code == "FULLPROF_SPECIES_NORMALISED"]
+    assert any("'LI7'" in m and "Sears b" in m for m in said)
+
+
+def _with_line12(tmp_path, line, job="1"):
+    text = from_structure(_cubic("7Li", "O"),
+                          instrument=rx.Instrument.constant_wavelength_neutron(1.5406))
+    lines = _lines(text)
+    lines[7] = line
+    fields = lines[1].split()
+    fields[0] = job
+    lines[1] = " ".join(fields)
+    path = tmp_path / "line12.pcr"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("line, job, match", [
+    ("LI7 -0.19 0.0 0", "1", "neither"),            # natural Li's b under an isotope name
+    ("DEU 0.6671 0.0 0", "1", "neither"),           # a user name rietx cannot map
+    ("LI7 -0.222 0.0 1", "1", "ITY = 1"),           # a magnetic form factor
+    ("LI7 -0.222 0.0 0", "0", "Nsc = 1 on a Job = 0"),  # X-ray: f'/f'' plus a coefficient line
+])
+def test_a_line12_rietx_has_no_species_for_is_refused_at_read(tmp_path, line, job,
+                                                               match):
+    with pytest.raises(FullProfPcrError, match=match):
+        read_fullprof_pcr(_with_line12(tmp_path, line, job))
