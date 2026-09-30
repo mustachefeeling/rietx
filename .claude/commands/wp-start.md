@@ -34,6 +34,15 @@ Run the session-start ritual. The SessionStart hook's report
    WP file only (plus the DESIGN.md sections it links); do not read other WP
    files.
 
+   **Over ~50 KB (`wc -c`), read the WP file only through its newest handover
+   entry**:
+   `awk '/^## Handover log/{h=1} h && /^(- \*\*20[0-9][0-9]-|### 20[0-9][0-9]-)/ && ++n == 2 {exit} 1' docs/wp/NNNN-*.md`.
+   Then `grep -n` the older entries for the names your task touches. In the
+   largest WP files the log is half to three-quarters of the file (measured
+   2026-09-30: 1118 is 156 KB whole and 42 KB through its newest entry). Every token
+   read at this point is re-read by each later request of the session (step
+   6b).
+
    **Then check nobody else has it**, before committing to the choice:
    `python3 .claude/hooks/wp_claim.py status NNNN` for the WP in hand, or bare
    `status` for the whole picture. It answers in two parts, because a clash
@@ -145,6 +154,10 @@ Run the session-start ritual. The SessionStart hook's report
    its first handover bullet, so the range to read is `<that sha>..origin/main`
    on the files the WP names, and the issue's thread may have moved since:
    `gh issue view N --json comments` for anything newer than that bullet.
+   **Delegate this check if it means reading more than ~25 KB**, such as a
+   range diff or several files. That is the bar this early in a session (step
+   6b). Give one agent the findings and the range, ask which still hold with
+   `file:line`, and check each answer at its line before you rewrite anything.
    Rewrite what has gone stale **in place** with a dated "superseded in part"
    note and commit that prune first, because the successor reads the WP file
    and not your session. Then check whether any WP depending on this one is
@@ -155,6 +168,27 @@ Run the session-start ritual. The SessionStart hook's report
    partial record on disk at every point, so an interrupted session leaves the
    successor something, and it is what keeps the hook's order rule quiet
    without a handover being owed.
+6b. **Read by what the rest of the session pays.** Cache reads are nearly all
+   of a session's bill. Every token read into this session is re-read by each
+   request after it, while an agent's reading ends with the agent. Delegating
+   also keeps the session further from compaction, which is one of step 7's
+   handover triggers. The numbers are in `docs/milestones/process.md` § What a
+   session's reading costs, measured for `/pr-review` in #548.
+   - **Read what you will edit by range.** `grep -n` for the symbol, then
+     `Read` with `offset`/`limit`. Delegating that saves nothing, because the
+     edit needs the text here anyway. Never read a large module whole:
+     `refine.py` is 377 KB, about 150K tokens.
+   - **Delegate what you need only a conclusion from once it passes ~50 KB**
+     (`wc -c`; 1 KB ≈ 400 tokens). Examples: a survey across modules, a long
+     WP's history, a milestone record, a range diff. Halve the bar to ~25 KB
+     at either end of the session: early, while a couple of hundred requests
+     are still to come, and once the context passes 300K. Use `Explore` to
+     locate something and a general-purpose agent to read and judge it. Ask for
+     the conclusion with `file:line` pointers, never excerpts, because the
+     agent's report is carried like any other read. Check what you build on.
+   - **Under the bar, read it yourself.** An agent starts from its own ~40-70K
+     context, so a small read costs more delegated. A median WP file (16 KB)
+     costs $0.34 to read at session start and $0.60 through an Opus agent.
 7. **Restate before starting**: the checklist item being started, the WP's
    acceptance command, and the session scope — this WP only; finish →
    `/wp-handover` → stop.
