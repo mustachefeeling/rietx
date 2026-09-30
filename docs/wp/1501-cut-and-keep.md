@@ -1,6 +1,6 @@
 # WP-1501 — cut and keep: a figure of part of the structure
 
-Milestone: v1.7 · Status: ⬜
+Milestone: v1.7 · Status: 🔄 2026-09-30 — claimed by @yue-here
 Depends on: 1470
 Priority: P2 2026-09-27 — a cut is the first edit a figure needs, and today it means re-indexing the dict by hand; #498 stopped the manual offering the deletion that raised
 
