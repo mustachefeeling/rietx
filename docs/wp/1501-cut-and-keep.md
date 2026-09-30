@@ -161,7 +161,7 @@ since an agent says "the plane through the origin and the next one at d".
   cubic cell keeps the atoms with `frac · hkl ≤ 1`.
 - [x] `recolour` and `StructureFigure.palette`; the colour validation at
   entry; `hidden=`'s error names the mask route.
-- [ ] The import-boundary pin.
+- [x] The import-boundary pin.
 - [ ] `exports.md` rewritten with a runnable example per verb, the
   `model_copy` rule, `api-figure.md` regenerated, and the manual partition
   green.
