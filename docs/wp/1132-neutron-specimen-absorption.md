@@ -151,3 +151,19 @@ estimation off.
   fit time, so a neutron capillary with a declared radius was silently having
   an X-ray µR computed and written onto it. Both fixed in PR #108; the fence
   and this WP are what the second one turned into.
+
+- **2026-09-30** — PR #541 merged (`fd8026a3`, closing issue #117) after three
+  review rounds, on a stacked gate with #532, #546 and #522 (fast 7156 passed /
+  101 skipped, slow 234 passed / 12 skipped; macOS arm64, `[dev,jax]`).
+  - **What the rounds changed.** Round 1 found #530's radiation-keyed pin
+    failing on merged main (the neutron histogram now gets a µR), so the row
+    is keyed on the table each histogram reads. It also found the X-ray µ/ρ
+    described as falling as λ⁻³ at five sites (it rises as λ³, measured
+    exponent 3.04 for O between 1 and 2 Å) and the Sears cross-sections
+    described as free-atom (they are the bound values, H 82.0 b against 20.5 b
+    free). Round 3 is a docstring: the bound-value test checks a *mixed*
+    table, not a self-consistent free-atom one.
+  - **What it does not do.** Step 5 remains a hand check at an assumed 3.0 mm
+    radius, not a validation against a measurement, so the WP stays open.
+    The Brindley path on neutron is #543. `Capabilities.radiations` reading
+    `LINEAR_ATTENUATION_BY_SOURCE` is unbuilt.

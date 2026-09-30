@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: v1.6 · Status: 🔄 2026-09-30 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536) and #455's Gram path (PR #535); #455's basis fix is open (PR #532); M-8, M-9, the Part 1 chapter and the skill rows remain
+Milestone: v1.6 · Status: 🔄 2026-09-30 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536) and #455's Gram path (PR #535); #455's basis fix (PR #532); M-8, M-9, the Part 1 chapter and the skill rows remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -602,3 +602,25 @@ no magnetic model declared.
     7092 is the previous gate's 7084 plus this PR's 8 tests. `main` then
     moved by #560 (two WP files), and `test_docs_consistency` re-ran on the
     rebuilt tree: 25 passed.
+
+- **2026-09-30** — #455's basis fix landed from outside: PR #532
+  (`mustachefeeling`), merged as `3fb48679` after three review rounds, on a
+  stacked gate with #541, #546 and #522 (fast 7156 passed / 101 skipped, slow
+  234 passed / 12 skipped; macOS arm64, `[dev,jax]`). The PR edited no file in
+  `docs/wp/`.
+  - **What it adds.** `equivalence_classes` no longer depends on the amplitude
+    basis (`_canonical_basis`: SVD row space, RREF, QR with positive diagonal),
+    stops at the first restart that reproduces (`rtol`), and builds each
+    candidate's structure factors and Gram stack once. `_fit_residual` is
+    `(target, grams, rng, *, restarts=32, rtol=None)`, where `rtol` is both
+    #535's dark-shell floor and the early stop.
+  - **What it does not settle.** The cubic case (`P n -3 m:1` (0,0,½)) still
+    gives a partition that moves with the rotation although the canonical
+    bases agree to 9.2e-16, so the PR says "Addresses #455", not "Closes".
+    The docstring numbers (48 % of single restarts, 21 of 32 pair-runs
+    distinguishable at 4 restarts, 2 of 192 draws unreproduced in 32) were
+    re-measured on #534's fixed frame. Mechanism A at 32 restarts is "usually
+    enough", not a margin.
+  - **Gotcha.** The fast tier stayed small by passing `restarts=4` in the tests
+    whose claim is that two frames agree. A new test of that kind should do
+    the same, or it pays the full 32 on every distinguishable pair.
