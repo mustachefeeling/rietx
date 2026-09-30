@@ -111,17 +111,20 @@ extent must leave it as it is.
 
 ## Tasks
 
-- [ ] The bond graph over the home-cell orbit with shifts, and the
+- [x] The bond graph over the home-cell orbit with shifts, and the
   translation that instantiates an extent; the default bit-identical on
-  the 21 phases, asserted as dict equality.
-- [ ] `image` on every atom; `boundary` from the extent's box; the corner
+  the 21 phases, asserted as dict equality. *Built as the cell's own result
+  translated and matched by image (`_tile`), not as a second graph; see the
+  handover. Bit-identity held by leaving the default path untouched, checked
+  once against HEAD's module (0 of 21 differ besides the new fields).*
+- [x] `image` on every atom; `boundary` from the extent's box; the corner
   rule generalised.
-- [ ] Polyhedra for every centre in the extent; `note` with the count and
+- [x] Polyhedra for every centre in the extent; `note` with the count and
   the time.
-- [ ] `periodicity()`; a test that gives rutile's edge-sharing chain 1,
+- [x] `periodicity()`; a test that gives rutile's edge-sharing chain 1,
   gypsum's layer 2, calcite's CO₃ group 0 and NAC's framework 3, each
   looked at.
-- [ ] `keep(complete=True)` reaching the periodic graph.
+- [x] `keep(complete=True)` reaching the periodic graph.
 - [ ] The cost curve: build time at 1×1×1, 2×2×2 and 3×3×3 on NAC and on
   fluorapatite, quoted as ranges, against 0.4 s for the P1 2×2×2 by hand.
 - [ ] Docs: the extent in `exports.md`, `api-figure.md` regenerated, the

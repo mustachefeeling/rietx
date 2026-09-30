@@ -15,9 +15,13 @@ d-spacings or Å; a boundary search that keeps bonded atoms and whole
 polyhedra), Jmol (``within``) and pymatgen/ASE (molecules as connected
 components of the bond graph).
 
-Everything here acts on the finite graph ``build`` produced, which is one cell
-and the images its bonds and polyhedra reach.  Two images of one atom are two
-atoms: a motif's periodicity is not seen.
+Everything here acts on the finite graph ``build`` produced, which is the
+extent it was asked for (one cell by default) and the images its bonds and
+polyhedra reach.  Two images of one atom are two atoms, so a piece is finite,
+and each atom's ``image`` (which atom of the cell, by which lattice translation)
+is what :func:`periodicity` reads to say whether the piece repeats.  A bond's
+``j`` is an image of its far end and not always the atom at that end, so every
+function here finds the far end by image (:func:`_far`).
 """
 
 from __future__ import annotations
@@ -60,6 +64,30 @@ def _mask(geometry: Mapping, mask, name: str = "mask") -> np.ndarray:
         raise ValueError(f"{name}: a boolean array with one entry per atom ({n}), "
                          f"as select, plane, sphere and component return; got "
                          f"dtype {out.dtype} and shape {out.shape}")
+    return out
+
+
+def _far(geometry: Mapping) -> np.ndarray:
+    """The index of the atom at each bond's far end, ``b``, found by image.
+
+    ``build``'s ``j`` is an atom the bond's far end is a translate of, so it can
+    sit a cell away from ``b``.  The far end is the atom whose image is ``b``'s:
+    the orbit atom ``j`` is an image of, translated by the whole cells between
+    that atom and ``b``.  A far end the figure does not draw (an atom cap) falls
+    back on ``j``, which is what the bond was before.
+    """
+    atoms = geometry["atoms"]
+    inverse = np.linalg.inv(np.asarray(geometry["lattice"], dtype=np.float64).T)
+    at = {(a["image"][0], *a["image"][1]): k for k, a in enumerate(atoms)}
+    home: dict[int, np.ndarray] = {}
+    for a in atoms:
+        o, n = a["image"]
+        home.setdefault(o, np.asarray(a["frac"], dtype=np.float64) - n)
+    out = np.empty(len(geometry["bonds"]), dtype=int)
+    for k, b in enumerate(geometry["bonds"]):
+        o = atoms[b["j"]]["image"][0]
+        n = np.rint(inverse @ np.asarray(b["b"], dtype=np.float64) - home[o]).astype(int)
+        out[k] = at.get((o, *(int(v) for v in n)), b["j"])
     return out
 
 
@@ -181,7 +209,7 @@ def component(geometry: Mapping, atom: int, *, via: str = "bonds") -> np.ndarray
     n = len(atoms)
     if via == "bonds":
         i = [b["i"] for b in geometry["bonds"]]
-        j = [b["j"] for b in geometry["bonds"]]
+        j = _far(geometry)
         graph = coo_array((np.ones(len(i)), (i, j)), shape=(n, n))
         _, label = connected_components(graph, directed=False)
         return label == label[atom]
@@ -215,6 +243,51 @@ def component(geometry: Mapping, atom: int, *, via: str = "bonds") -> np.ndarray
     return out
 
 
+def periodicity(geometry: Mapping, mask) -> int:
+    """How many independent lattice directions the atoms ``mask`` keeps repeat in, 0 to 3.
+
+    A molecule is 0, a chain 1, a layer 2 and a framework 3 (Larsen et al.,
+    2019, *Phys. Rev. Materials* 3, 034003; pymatgen's
+    ``get_dimensionality_larsen``).  The bonds between kept atoms join them in
+    the graph of the cell's own atoms, each bond carrying the lattice
+    translation between its ends' images.  Round a cycle those add to a lattice
+    vector, zero when the piece closes on itself and not when it reaches its
+    own image a cell away.  The answer is the rank of the vectors, and for a
+    mask of several pieces the largest.  A piece is seen as periodic only if the
+    figure draws the image it reaches, so a mask of one cell's atoms without the
+    bond neighbours ``build`` adds reads as 0 (:func:`component` returns them).
+    """
+    kept = _mask(geometry, mask)
+    atoms = geometry["atoms"]
+    around: dict[int, list[tuple[int, np.ndarray]]] = {}
+    for b, j in zip(geometry["bonds"], _far(geometry)):
+        if kept[b["i"]] and kept[j]:
+            (o, n), (p, m) = atoms[b["i"]]["image"], atoms[j]["image"]
+            t = np.asarray(m) - np.asarray(n)
+            around.setdefault(o, []).append((p, t))
+            around.setdefault(p, []).append((o, -t))
+    # a potential per atom of the cell, from a spanning tree of each piece; an
+    # edge the tree does not use closes a cycle whose translation is the gap
+    potential: dict[int, np.ndarray] = {}
+    best = 0
+    for root in around:
+        if root in potential:
+            continue
+        potential[root] = np.zeros(3, dtype=int)
+        piece, todo = [], [root]
+        while todo:
+            o = todo.pop()
+            for p, t in around[o]:
+                if p not in potential:
+                    potential[p] = potential[o] + t
+                    todo.append(p)
+                else:
+                    piece.append(potential[o] + t - potential[p])
+        if piece:
+            best = max(best, int(np.linalg.matrix_rank(np.array(piece, dtype=np.float64))))
+    return best
+
+
 def keep(geometry: Mapping, mask, *, complete: bool = False) -> dict:
     """The geometry with only the atoms ``mask`` keeps, every index consistent.
 
@@ -230,27 +303,29 @@ def keep(geometry: Mapping, mask, *, complete: bool = False) -> dict:
     atoms = geometry["atoms"]
     kept = _mask(geometry, mask).copy()
     bonds, polys = geometry["bonds"], geometry["polyhedra"]
+    far = _far(geometry)
     if complete:
         first = kept.copy()
-        for b in bonds:
-            if first[b["i"]] or first[b["j"]]:
-                kept[b["i"]] = kept[b["j"]] = True
+        for b, j in zip(bonds, far):
+            if first[b["i"]] or first[j]:
+                kept[b["i"]] = kept[j] = True
         for p in polys:
             if first[p["center"]]:
                 kept[p["vertices"]] = True
     new = np.cumsum(kept) - 1
-    bond_ok = [bool(kept[b["i"]] and kept[b["j"]]) for b in bonds]
+    bond_ok = [bool(kept[b["i"]] and kept[j]) for b, j in zip(bonds, far)]
     poly_ok = [bool(kept[p["center"]] and all(kept[v] for v in p["vertices"])) for p in polys]
     bond_at = np.cumsum(bond_ok) - 1
-    cut_bonds = sum(1 for b, ok in zip(bonds, bond_ok)
-                    if not ok and (kept[b["i"]] or kept[b["j"]]))
+    cut_bonds = sum(1 for b, j, ok in zip(bonds, far, bond_ok)
+                    if not ok and (kept[b["i"]] or kept[j]))
     cut_polys = sum(1 for p, ok in zip(polys, poly_ok)
                     if not ok and (kept[p["center"]] or any(kept[v] for v in p["vertices"])))
     out = dict(geometry)
     out["sites"] = copy.deepcopy(geometry["sites"])
     out["atoms"] = [dict(a) for a, k in zip(atoms, kept) if k]
-    out["bonds"] = [{**b, "i": int(new[b["i"]]), "j": int(new[b["j"]])}
-                    for b, ok in zip(bonds, bond_ok) if ok]
+    # ``j`` stays while its atom does, and is the far end's where it was cut
+    out["bonds"] = [{**b, "i": int(new[b["i"]]), "j": int(new[b["j"] if kept[b["j"]] else j])}
+                    for b, j, ok in zip(bonds, far, bond_ok) if ok]
     out["polyhedra"] = [
         {**p, "center": int(new[p["center"]]),
          "vertices": [int(new[v]) for v in p["vertices"]],

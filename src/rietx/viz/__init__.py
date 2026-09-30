@@ -6,13 +6,13 @@ from .indexing import (
 )
 from .plots import plot_for_vlm, plot_pattern, plot_result, plot_trajectory
 
-__all__ = ["LiveSession", "component", "keep", "plane", "plot_candidates",
+__all__ = ["LiveSession", "component", "keep", "periodicity", "plane", "plot_candidates",
            "plot_for_vlm", "plot_indexing", "plot_pattern", "plot_peak_list",
            "plot_result", "plot_trajectory", "plot_validation", "recolour",
            "render_structure", "select", "sphere", "write_html"]
 
-_FIGURE3D = ("component", "keep", "plane", "recolour", "render_structure", "select",
-             "sphere")
+_FIGURE3D = ("component", "keep", "periodicity", "plane", "recolour", "render_structure",
+             "select", "sphere")
 
 
 def __getattr__(name: str):
