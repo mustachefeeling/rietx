@@ -231,6 +231,14 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "_restraint_tension_diagnostics": (
         (ABSENT,), "soft restraints are refused in a joint fit "
                    "(run_multi_least_squares), so there is no tension to report"),
+    "_stage_order_diagnostics": (
+        (ABSENT,), "not called from multi.py: the magnetic-width ordering rule "
+                   "(WP-1343) is checked by Refinement.fit and run_stage, and "
+                   "the joint path has no plan check for it"),
+    "_moved_moment_diagnostics": (
+        (ABSENT,), "not called from multi.py: the moment's shift between the "
+                   "width preset's rungs (WP-1343) is read by "
+                   "Refinement._run_plan, which a joint fit does not run"),
 }
 
 #: The same rule one rank down, over :class:`~rietx.strategy.staged.GuardReport`'s
