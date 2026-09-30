@@ -228,14 +228,31 @@ line if the checkpoint ended it. Close with
    **A backgrounded run is yours until you kill it**: before the run ends,
    `pgrep -f "$SCRATCH"` and kill every waiter this session started (seven
    orphans from a dead run were once found still polling the bench).
-6. **Conformance against `CLAUDE.md`, sized to the PR.** Under ~400 reviewable
-   lines read the diff yourself; above it (the usual case) write the reviewable
-   diff to `$SCRATCH` once and dispatch one `pr-conformance` agent per touched
-   subtree, pointed at that file and the subtree's `CLAUDE.md`. Give each agent
+6. **Conformance against `CLAUDE.md`, sized to what the main session carries.**
+   Everything the main session reads, every later request it makes re-reads at
+   the cache-read price. A subagent's reading ends with the agent. Cache reads
+   are nearly all of a review's bill, so delegate unless the diff is small *and*
+   the session is young.
+   - **Breakeven** (measured 2026-09-30 on three runs' transcripts, at Opus 5.5
+     prices): a `pr-conformance` agent (Sonnet, ~38K base context) pays above
+     ~100 reviewable lines. A general-purpose reader (~70K base) pays above
+     ~200, falling toward ~100 once the main context passes 300K. Below those
+     it is a wash, so read the diff yourself.
+   - **Size of the saving:** a read-only Opus reader cost $2-3 a PR, roughly half
+     what the same reading costs mid-run in the main session. Six PRs read
+     in-session would have taken a 306K context past the context checkpoint.
+   - **Sonnet saves less than its list price suggests:** its cache reads cost
+     the same as Opus 5.5's, so it saves only on writes and output.
+
+   To delegate, write the reviewable diff to `$SCRATCH` once and dispatch one
+   `pr-conformance` agent per touched subtree, pointed at that file and the
+   subtree's `CLAUDE.md`. Give each agent
    the PR's tree as files, `git -C "$BENCH" archive refs/pr/N | tar -x -C
    "$SCRATCH/tree-N"`, never the bench: the bench holds whichever tree step 5
    is testing, and a PR based on current main is its own merged tree.
-   **Verify every finding yourself before posting.** Do not restate invariants
+   **Verify every finding yourself before posting.** The breakeven already
+   counts that check: about one main-session request per twelve the agent
+   made. Do not restate invariants
    here; the
    classes outsiders miss most: a `Literal` member or defaulted field with no
    writer, physics without a citation, a correction offering an Rwp comparison
@@ -243,7 +260,7 @@ line if the checkpoint ended it. Close with
    code, a diagnostic code or a measured operating rule with no agent-skill
    row (root CLAUDE.md § skill: the body, or the task shape's reference),
    physics with Part 1 prose but no Part 2 equation.
-7. **`/code-review medium N`** for `src/` changes above the step-6 threshold;
+7. **`/code-review medium N`** for `src/` changes above step 6's ~200 lines;
    name the level (unnamed, it reuses whatever was typed last). **Never while a
    suite holds the bench**: the review forks into the session's working
    directory and checks the PR head out there. On 2026-09-29 that swapped the
