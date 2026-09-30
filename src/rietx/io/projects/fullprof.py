@@ -1839,6 +1839,10 @@ def magnetic_reading(model: FullProfModel, phase: FullProfPhase
         return (f"Isy = {phase.isy} states basis functions of irreducible "
                 f"representations (BASR/BASI), not symmetry operators, and a "
                 f"combination of basis functions is not a magnetic space group")
+    if not phase.atoms:
+        return ("it states no magnetic site, so there is no moment to put on a "
+                "nuclear phase, and a magnetic group with no moment constrains "
+                "nothing")
     sym = phase.magnetic
     if sym.cen != 1:
         return (f"Cen = {sym.cen}: the listed operators are half the group, and "
@@ -1901,7 +1905,9 @@ def magnetic_reading(model: FullProfModel, phase: FullProfPhase
     try:
         nuclear_sg = gemmi.SpaceGroup(partner.space_group)
         f_n = occupancy_factor(partner)
-    except FullProfPcrError as exc:
+    except (FullProfPcrError, ValueError) as exc:
+        # gemmi raises ValueError on a symbol it cannot parse; returned as a
+        # reason, like every other refusal here, so to_structure names the file.
         return f"its counterpart {partner.name!r} does not build: {exc}"
     moments: dict = {}
     reduced: list[float] = []

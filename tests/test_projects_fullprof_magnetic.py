@@ -241,6 +241,33 @@ def test_a_magnetic_scale_the_nuclear_phase_does_not_share_is_refused(tmp_path):
     assert "scaled by 2" in message
 
 
+def test_a_magnetic_phase_with_no_sites_is_refused_by_name(tmp_path):
+    """Nat = 0 under Jbt = 1: no moment to place. Refused as a reason naming
+    the file and the phase, never ``max()`` on an empty list."""
+    empty = _phase(name="FeO_mag", nat=0, jbt=1, isy=-1, sg="P -1",
+                   symmetry=_P21C_PRIMED, atoms="", cell=_MONO,
+                   cell_codes=_NO_CODES, nvk=1) + "\n" + _K0
+    message = _refused(tmp_path, _nuclear(), empty,
+                       match=r"'FeO_mag' \(Jbt 1, Isy -1, 0 sites\) — it states "
+                             r"no magnetic site")
+    assert "mag.pcr" in message
+
+
+def test_an_unparsable_counterpart_symbol_is_refused_by_name(tmp_path):
+    """gemmi's ``ValueError`` on the counterpart's symbol becomes a reason, so
+    ``to_structure`` refuses naming the file and the phase."""
+    model = read_fullprof_pcr(_pcr(tmp_path, "m.pcr", _nuclear(sg="Q 9 z"),
+                                   _magnetic()))
+    reason = magnetic_reading(model, model.magnetic_phases[0])
+    assert isinstance(reason, str)
+    assert "counterpart 'FeO_synth' does not build" in reason
+    assert "Q 9 z" in reason
+    message = _refused(tmp_path, _nuclear(sg="Q 9 z"), _magnetic(),
+                       match=r"'FeO_mag' .* counterpart 'FeO_synth' does not "
+                             r"build")
+    assert "mag.pcr" in message
+
+
 def test_jbt_minus1_on_an_oblique_cell_is_refused(tmp_path):
     _refused(tmp_path, _nuclear(),
              _magnetic(jbt=-1, atom=_moment_atom(r=(3.0, 30.0, 60.0))),
