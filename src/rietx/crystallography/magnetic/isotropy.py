@@ -1205,13 +1205,21 @@ def _identify_in_a_reduced_cell(group: MagneticGroup, metric) -> MagneticSpaceGr
 
 
 #: How a :class:`PairVerdict` was decided.  ``proved-*`` rests on a
-#: certificate that holds for every model of the family; ``sampled-*`` on a
-#: number of random models of it; ``unresolved`` on nothing at all.
+#: certificate that holds for almost every model of the family, on the Gram
+#: stack as floating point builds it; ``sampled-*`` on a number of random
+#: models of it; ``unresolved`` on nothing at all.
 RELATION_STATUSES = ("proved-contained", "proved-not", "sampled-contained",
                      "sampled-not", "unresolved")
 
-#: The certificates a ``proved-*`` :class:`PairVerdict` can rest on.
+#: The certificates a ``proved-*`` :class:`PairVerdict` can rest on in this
+#: release.
 RELATION_CERTIFICATES = ("absence", "subspace")
+
+#: Why an ``unresolved`` :class:`PairVerdict` was not decided: ``settled``,
+#: its pair was already decided distinct by the other direction; ``joined``,
+#: its two candidates were already in one class through other pairs, so no
+#: draw was spent on it (the certificates still ran, and none applied).
+UNRESOLVED_REASONS = ("settled", "joined")
 
 
 @dataclass(frozen=True)
@@ -1228,29 +1236,34 @@ class PairVerdict:
     * ``proved-contained`` — ``a`` has no powder pattern to this d limit
       (every shell is a systematic absence), so ``b``'s zero model
       reproduces all of it.  ``certificate`` is ``"absence"``.
-    * ``proved-not`` — no model of ``b`` reproduces ``a``'s, for a reason
-      that holds for the whole family (``certificate``, below).  No draw is
-      made.
+    * ``proved-not`` — no model of ``b`` reproduces almost any model of
+      ``a``, for a reason that holds for the whole family (``certificate``,
+      below).  No draw is made.
     * ``sampled-contained`` — every one of ``draws`` random models of ``a``
       was reproduced by a fit of ``b`` to ``rtol``.  A statement about those
       draws, not about the family (:func:`powder_equivalent`, mechanism B).
     * ``sampled-not`` — a draw was not reproduced by any restart of the fit.
       ``draws`` counts the draws made, that last one included, and
-      ``unresolved`` is 1: a fit's failure is not a proof (mechanism A).
-    * ``unresolved`` — nothing tested this direction: its pair was already
-      settled distinct by the other direction, or joined into one class
-      through other pairs before :func:`equivalence_classes` reached it
-      (``draws`` is 0).
+      ``undecided_draws`` is 1: a fit's failure is not a proof (mechanism A).
+    * ``unresolved`` — nothing decided this direction: no certificate
+      applied and no draw was made, for the ``reason``
+      :data:`UNRESOLVED_REASONS` names (``draws`` is 0).
+
+    **"Proved" means proved on the Gram stack built in floating point, to
+    this module's tolerances, for almost every model of** ``a`` — not of
+    the exact stack, and not of every model.  The two thresholds each
+    certificate reads are stated with it below, with the gap measured
+    around each.
 
     ``certificate`` is one of :data:`RELATION_CERTIFICATES`, or ``None`` for
     a status that is not proved:
 
-    * ``absence`` — ``a`` lights a shell ``b`` cannot: G_s of ``b`` is dark
-      on the tolerance :func:`systematic_absences` and :func:`_fit_residual`
-      use, while ``a``'s is not, so ``a``'s intensity there is non-zero for
-      almost every model and ``b``'s is zero for every one.  Exact for a G_s
-      identically zero, as :func:`_fit_residual`'s docstring says of the
-      same test.
+    * ``absence`` — ``a`` lights a shell ``b`` cannot: G_s of ``b`` is below
+      :data:`INTENSITY_RTOL` of ``b``'s own largest (:func:`_dark_shells`,
+      scale-free), while ``a``'s is not below ``a``'s, so ``a``'s intensity
+      there is non-zero for almost every model and ``b``'s is negligible for
+      every one.  Exact for a G_s identically zero.  For a silent ``a``
+      (:func:`_silent`) it is the proof of containment instead.
     * ``subspace`` — the linear span of ``a``'s shell-intensity vectors is
       not inside ``b``'s.  I_s(x) = xᵀ G_s x = tr(G_s xxᵀ), and the rank-one
       xxᵀ span the symmetric matrices, so the span of a family's image is
@@ -1258,13 +1271,37 @@ class PairVerdict:
       each G_s written as a vector.  ``b``'s image lies in V_b; if V_a ⊄ V_b
       the models of ``a`` whose intensity vector falls in V_b are a proper
       algebraic subset, of measure zero, and every other one is out of
-      ``b``'s reach.  The span test is an SVD rank and a principal angle, so
-      it holds to :data:`ISOTROPY_ATOL`: the measured gap on this module's
-      cases is in-span sines ≤ 1.3e-14 against separating ones ≥ 0.21.
+      ``b``'s reach.  Two thresholds: the rank cut at
+      :data:`INTENSITY_RTOL` of the largest singular value, and the leak at
+      :data:`ISOTROPY_ATOL`.  Measured on this module's cases, the kept
+      relative singular values are ≥ 2.5e-2 and the dropped ones ≤ 2.5e-15,
+      and in-span sines are ≤ 1.3e-14 against separating ones ≥ 0.21; a
+      stack with a singular value inside (1e-12, 1e-6) of its largest has
+      no gap to cut at and gives no subspace certificate
+      (:func:`_intensity_span`).
+
+    **The two directions of proof are not equally safe.**  A false
+    separation costs one extra refinement; a false containment silently
+    drops a distinguishable model.  So a containment certificate needs an
+    exact arbiter or a printed relative residual, and a separation
+    certificate needs a measured gap between its threshold and the values
+    it cuts.  The only containment in this release, the silent family, is
+    exact; any later one that is gated on a tolerance must print its
+    residual relative to the stack it was measured on.
 
     Neither certificate says by how much two patterns differ, only that they
     differ; the distance comes with the certificates that measure it
     (issue #565).
+
+    **The plan for the later parts of issue #565**, fixed here so that the
+    names do not move: a verdict carried from another pair by a proved
+    containment (a transfer, part 4, and the consistency rule of part 5
+    that uses it to refute a sampled join) is a **certificate** value
+    (``"transfer"``), not a status.  Its status is ``proved-not`` or
+    ``proved-contained`` like any other proof, since a status says how
+    strongly a direction is known and a transfer is as strong as its
+    sources; the certificate names the argument, and a ``via`` field naming
+    the source pair arrives with it.
     """
 
     a: int
@@ -1272,11 +1309,12 @@ class PairVerdict:
     status: str
     certificate: str | None = None
     draws: int = 0
-    unresolved: int = 0
+    undecided_draws: int = 0
+    reason: str | None = None
 
     @property
     def proved(self) -> bool:
-        """Whether the verdict holds for every model, not only for the draws."""
+        """Whether the verdict rests on a certificate rather than on draws (see the class docstring for what that proves)."""
         return self.status.startswith("proved")
 
     @property
@@ -1358,7 +1396,9 @@ class CandidateSet:
         True when every pair inside class ``index`` is proved contained both
         ways and every pair between it and another class has a direction
         proved not contained; one sampled or unresolved relation on either
-        side makes it False.
+        side makes it False.  Issue #565's part 5 changes what ``classes``
+        means, and this rule, the ``__str__`` legend and the ``classes``
+        docstring are to be rewritten there together.
         """
         if not self.relations:
             return None
@@ -1430,7 +1470,7 @@ class CandidateSet:
         by = {c: first.count(c) for c in RELATION_CERTIFICATES}
         lines = ["", f"pairs: {len(pairs)}; proved {len(proved)} ("
                  + ", ".join(f"{c} {by[c]}" for c in RELATION_CERTIFICATES)
-                 + f"); sampled {len(sampled)}; joined untested {untested}"]
+                 + f"); sampled {len(sampled)}; joined, not drawn {untested}"]
         lines.append("class P: every relation bounding the class is proved; "
                      "S: one rests on draws or on nothing")
         if sampled:
@@ -1439,7 +1479,8 @@ class CandidateSet:
             equal = there.contained and back.contained
             counts = ", ".join(
                 "-" if v.status == "unresolved" else
-                f"{v.draws}" + (f" ({v.unresolved} not reproduced)" if v.unresolved else "")
+                f"{v.draws}" + (f" ({v.undecided_draws} not reproduced)"
+                                if v.undecided_draws else "")
                 for v in (there, back))
             lines.append(f"  {self.candidates[there.a].label} {'~' if equal else '|'} "
                          f"{self.candidates[there.b].label}  "
@@ -2029,13 +2070,35 @@ def _canonical_basis(candidate: MagneticCandidate) -> MagneticCandidate:
         (rows.shape[0],) + candidate.configurations.shape[1:]))
 
 
-def _dark_shells(grams: np.ndarray) -> np.ndarray:
-    """The shells a family can never light: G_s below :data:`INTENSITY_RTOL` of the stack's largest."""
+def _dark_shells(grams: np.ndarray, *, floor: float = 1.0) -> np.ndarray:
+    """The shells a family can never light: G_s below :data:`INTENSITY_RTOL` of the stack's largest.
+
+    The largest is taken as at least ``floor``.  :func:`_fit_residual` uses
+    the default 1.0, an absolute floor it has always had; the certificates
+    use ``floor=1e-300`` (:func:`_certificate_dark`), which makes the test
+    scale-free, as every other comparison in this module is.  The two
+    differ only on a family whose whole stack is below 1 and that is not
+    silent (|F|max above :data:`INTENSITY_RTOL`, :func:`_silent`): the fit
+    counts every one of its shells dark, and the certificate compares its
+    shells with each other.  That window is not empty: a site 10⁻⁴ off a
+    special position of ``P m -3 m`` puts 21 of its 28 families in it, with
+    stack maxima from 1e-11 to 3e-3.  There a draw of the family is still
+    tested by the fit, which reports it not reproduced by the floor: the
+    fit's floor can cost a sampled verdict there, and a proved one comes
+    from the scale-free test alone.
+    """
     size = np.max(np.abs(grams), axis=(1, 2), initial=0.0)
-    return size <= INTENSITY_RTOL * max(float(np.max(size, initial=0.0)), 1.0)
+    return size <= INTENSITY_RTOL * max(float(np.max(size, initial=0.0)), floor)
 
 
-def _intensity_span(grams: np.ndarray) -> np.ndarray:
+def _certificate_dark(grams: np.ndarray, silent: bool) -> np.ndarray:
+    """The dark shells the absence certificate reads: scale-free, and every shell of a silent family."""
+    if silent:
+        return np.ones(grams.shape[0], dtype=bool)
+    return _dark_shells(grams, floor=1e-300)
+
+
+def _intensity_span(grams: np.ndarray) -> np.ndarray | None:
     """Orthonormal columns spanning V = {(tr G_s X)_s : X symmetric}, the span of a family's image.
 
     Each G_s is written as its upper triangle with the off-diagonal entries
@@ -2043,6 +2106,13 @@ def _intensity_span(grams: np.ndarray) -> np.ndarray:
     vector, so V is the column space of that (n_shells, n(n+1)/2) matrix;
     its rank is taken on :data:`INTENSITY_RTOL` of the largest singular
     value, the tolerance an undeterminable amplitude is taken on.
+
+    None when a relative singular value lies inside (1e-12, 1e-6), three
+    decades either side of that cut: the rank is then a choice of the
+    tolerance, not a property of the stack, and :func:`_certify` gives no
+    subspace certificate on it, so the pair goes to the draws.  On the
+    module's measured cases the kept values are ≥ 2.5e-2 and the dropped
+    ones ≤ 2.5e-15, so no case there reaches this.
     """
     n = grams.shape[1]
     upper = np.triu_indices(n)
@@ -2051,8 +2121,15 @@ def _intensity_span(grams: np.ndarray) -> np.ndarray:
     if rows.size == 0:
         return np.zeros((grams.shape[0], 0))
     u, s, _ = np.linalg.svd(rows, full_matrices=False)
-    rank = int(np.sum(s > INTENSITY_RTOL * max(float(s.max()), 1e-300)))
+    relative = s / max(float(s.max()), 1e-300)
+    if np.any((relative > _SPAN_GAP[0]) & (relative < _SPAN_GAP[1])):
+        return None
+    rank = int(np.sum(relative > INTENSITY_RTOL))
     return u[:, :rank]
+
+
+#: The relative singular values :func:`_intensity_span` must have none of.
+_SPAN_GAP = (1e-12, 1e-6)
 
 
 def _span_leak(span_a: np.ndarray, span_b: np.ndarray) -> float:
@@ -2069,13 +2146,16 @@ def _certify(a: int, b: int, dark: list[np.ndarray], spans: list[np.ndarray],
 
     In order: ``a`` with no pattern at all is contained in anything
     (absence); ``a`` lighting a shell ``b`` is dark at is not (absence);
-    V_a ⊄ V_b is not (subspace).  :class:`PairVerdict` states each argument.
+    V_a ⊄ V_b is not (subspace), unless either span has no gap to be cut
+    at (None).  ``dark`` is :func:`_certificate_dark`'s.
+    :class:`PairVerdict` states each argument.
     """
     if silent[a]:
         return PairVerdict(a, b, "proved-contained", "absence")
     if bool(np.any(dark[b] & ~dark[a])):
         return PairVerdict(a, b, "proved-not", "absence")
-    if _span_leak(spans[a], spans[b]) > ISOTROPY_ATOL:
+    if spans[a] is not None and spans[b] is not None \
+            and _span_leak(spans[a], spans[b]) > ISOTROPY_ATOL:
         return PairVerdict(a, b, "proved-not", "subspace")
     return None
 
@@ -2184,12 +2264,13 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     measurable.  This function computes the classes from the intensities and so
     never has to decide which group the rule is about.
 
-    **The boolean does not say how it was decided, and "equivalent" is
-    always sampled.**  Before any draw the pair goes through the
-    certificates :class:`PairVerdict` states: a shell one family lights and
-    the other cannot, or an intensity span not inside the other's, proves
-    the pair *distinct* for every model, and then nothing is drawn.  The
-    only equality a certificate proves is between two families with no
+    **The boolean does not say how it was decided, and with the
+    certificates in this release "equivalent" is sampled.**  Before any
+    draw the pair goes through the certificates :class:`PairVerdict`
+    states: a shell one family lights and the other cannot, or an intensity
+    span not inside the other's, proves the pair *distinct* for almost
+    every model, and then nothing is drawn.  The only equality the
+    certificates in this release prove is between two families with no
     pattern at all, so any other ``True`` rests on the draws below, and so
     does a ``False`` no certificate gave;
     :func:`powder_relations` returns which, direction by direction, with the
@@ -2258,7 +2339,7 @@ def _powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     once per candidate rather than once per draw.
     """
     silent = [_silent(fa), _silent(fb)]
-    dark = [_dark_shells(ga), _dark_shells(gb)]
+    dark = [_certificate_dark(ga, silent[0]), _certificate_dark(gb, silent[1])]
     spans = [_intensity_span(ga), _intensity_span(gb)]
     there, back = _pair_verdicts(0, 1, (a, b), (ga, gb), silent, dark, spans, refl,
                                  draws=draws, seed=seed, rtol=rtol, restarts=restarts)
@@ -2286,17 +2367,21 @@ def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
     """The two directed verdicts of one pair: certificates first, then the draws.
 
     A pair a certificate settles distinct is not drawn at all, and its other
-    direction is recorded ``unresolved`` unless a certificate settles that
-    too.  Otherwise each direction not proved contained is sampled, i → j
-    first, on one generator seeded with ``seed`` — the stream, draw for draw,
-    that this pair's test consumed before the certificates existed, so a
-    pair no certificate settles gets the verdict it always had.  The draws
-    stop at the first one not reproduced, as they always did.
+    direction is recorded ``unresolved`` (``reason="settled"``) unless a
+    certificate settles that too.  Otherwise each direction not proved
+    contained is sampled, i → j first, on one generator seeded with
+    ``seed`` — the stream, draw for draw, that this pair's test consumed
+    before the certificates existed, so a pair no certificate settles gets
+    the verdict it always had.  The draws stop at the first one not
+    reproduced, as they always did.  ``draws`` on the verdict counts every
+    draw taken from the generator: one whose pattern is zero everywhere is
+    counted as reproduced, since ``b``'s zero model reproduces it, and is
+    not fitted.
     """
     proved = {(i, j): _certify(i, j, dark, spans, silent),
               (j, i): _certify(j, i, dark, spans, silent)}
     if any(v is not None and v.status == "proved-not" for v in proved.values()):
-        return tuple(proved[key] or PairVerdict(*key, "unresolved")
+        return tuple(proved[key] or PairVerdict(*key, "unresolved", reason="settled")
                      for key in ((i, j), (j, i)))
     rng = np.random.default_rng(seed)
     out: list[PairVerdict] = []
@@ -2305,7 +2390,7 @@ def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
             out.append(proved[(a, b)])
             continue
         if out and out[0].status == "sampled-not":
-            out.append(PairVerdict(a, b, "unresolved"))
+            out.append(PairVerdict(a, b, "unresolved", reason="settled"))
             continue
         made = 0
         verdict = None
@@ -2332,7 +2417,7 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int,
     factors = [structure_factors(c, refl, little=little) for c in canonical]
     grams = [gram(f, refl.shells) for f in factors]
     silent = [_silent(f) for f in factors]
-    dark = [_dark_shells(g) for g in grams]
+    dark = [_certificate_dark(g, quiet) for g, quiet in zip(grams, silent)]
     spans = [_intensity_span(g) for g in grams]
     parent = list(range(n))
 
@@ -2346,8 +2431,15 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int,
     for i in range(n):
         for j in range(i + 1, n):
             if find(i) == find(j):
-                verdicts[(i, j)] = PairVerdict(i, j, "unresolved")
-                verdicts[(j, i)] = PairVerdict(j, i, "unresolved")
+                # joined through other pairs: the certificates still run, since
+                # a proof is not transitive the way a join is and a later rule
+                # reads every one; only the draws are skipped
+                proved = {key: _certify(*key, dark, spans, silent)
+                          for key in ((i, j), (j, i))}
+                reason = "settled" if any(v is not None and v.status == "proved-not"
+                                          for v in proved.values()) else "joined"
+                for key, v in proved.items():
+                    verdicts[key] = v or PairVerdict(*key, "unresolved", reason=reason)
                 continue
             there, back = _pair_verdicts(i, j, canonical, grams, silent, dark, spans, refl,
                                          draws=draws, seed=seed, rtol=rtol, restarts=restarts)
@@ -2374,9 +2466,9 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
     Each pair is settled by a certificate where one applies — a shell one
     family lights and the other cannot, or an intensity span not inside the
     other's (:class:`PairVerdict`) — and by :func:`powder_equivalent`'s
-    draws otherwise.  A certificate proves two candidates *distinct*, or
-    two with no pattern at all equal, so every other join here rests on
-    draws, and union-find carries
+    draws otherwise.  The certificates in this release prove two candidates
+    *distinct*, or two with no pattern at all equal, so every other join
+    here rests on draws, and union-find carries
     each sampled verdict further: one false "equivalent" joins two classes,
     and one false "distinguishable" splits a class only if no other chain of
     pairs joins it.  Read the count as measured at this ``seed``, ``draws``
@@ -2399,7 +2491,9 @@ def powder_relations(candidate_set: CandidateSet, refl: ReflectionSet, *,
 
     One :class:`PairVerdict` per ordered pair (a, b), sorted: proved by a
     certificate, sampled with the number of draws actually made, or
-    unresolved where nothing tested that direction.  The same pass, the same
+    unresolved where nothing tested that direction, with its ``reason``.
+    The certificates run on every ordered pair; the draws are skipped on a
+    pair union-find has already joined.  The same pass, the same
     generator streams and the same partition as :func:`equivalence_classes`
     with these arguments.
     """

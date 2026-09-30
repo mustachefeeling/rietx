@@ -378,7 +378,7 @@ def test_a_cubic_collinear_site_gives_one_powder_equivalence_class():
     assert {candidate.bns_number for candidate in found} >= {"139.537", "166.101", "71.536"}
     # the certificates' negative arm: the six spans coincide to 1e-14, and a
     # certificate that fired on that round-off would split Shirane's case
-    assert found.relations and not any(v.proved for v in found.relations)
+    assert found.relations and not any(v.status == "proved-not" for v in found.relations)
 
 
 def test_a_tetragonal_parent_splits_the_same_three_directions():
@@ -1760,7 +1760,7 @@ def test_s1_against_s2_of_the_cubic_known_answer_is_sampled_not_proved():
     irrep = [c.irrep_label for c in found]
     between = [v for v in relations if {irrep[v.a], irrep[v.b]} == {"S1", "S2"}]
     assert len(between) == 18
-    assert not any(v.proved or v.certificate for v in between)
+    assert all(v.certificate not in ("absence", "subspace") for v in between)
     assert any(v.status.startswith("sampled") and v.draws > 0 for v in between)
     across = [v for v in relations
               if irrep[v.a] in ("S1", "S2") and irrep[v.b] in ("S3", "S4")]
@@ -1800,6 +1800,7 @@ def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
     assert _table_marks(result) == ["S", "S", "S", "S", "P"]
     statuses = {v.status for v in result.relations}
     assert {"sampled-contained", "sampled-not", "unresolved", "proved-not"} <= statuses
+    assert all((v.reason is not None) == (v.status == "unresolved") for v in result.relations)
     assert any(v.status == "sampled-not" and v.draws < 3 for v in result.relations)
     expected = []
     for (i, j), pair in _pairs(result.relations, len(subset)).items():
@@ -1821,4 +1822,113 @@ def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
         counts = line.split(" n = ")[1]
         for v, shown in zip(pair, counts.split(", ")):
             assert shown.split()[0] == ("-" if v.status == "unresolved" else str(v.draws))
-            assert ("not reproduced" in shown) == (v.unresolved > 0)
+            assert ("not reproduced" in shown) == (v.undecided_draws > 0)
+
+
+def test_the_certificates_run_on_a_pair_union_find_has_already_joined(monkeypatch):
+    """A join is transitive and a proof is not, so a joined pair still gets its certificates.
+
+    The draw-count test's five cubic families, every fit replaced by a
+    perfect reproduction, so S1 ∪ S2 is one class.  The positive arm: the
+    certificates of S1(rank 1)#1 ↔ S3 are withheld, so that pair is drawn
+    and joined, and S3 joins the class through it — as a later certificate
+    that is not an equivalence (a stored Farkas witness, issue #565 part 2)
+    can leave a proved separation inside a class.  Every other S3 pair is
+    then reached already joined, and must still carry its ``proved-not``;
+    the S1/S2 pairs reached joined carry ``reason="joined"`` and no draws.
+    """
+    from dataclasses import replace
+
+    found = isotropy.candidates(*KNOWN_ANSWER)
+    labels = ["S1(rank 1)#1", "S1(rank 1)#2", "S2(rank 1)#1", "S2(rank 1)#2", "S3(rank 1)#1"]
+    subset = replace(found, candidates=tuple(c for c in found if c.label in labels))
+    reflections = isotropy.reflections(found.lattice, 1.5)
+    monkeypatch.setattr(isotropy, "_fit_residual", lambda *args, **kwargs: 0.0)
+    real = isotropy._certify
+
+    def withheld(a, b, *args):
+        return None if {a, b} == {0, 4} else real(a, b, *args)
+
+    monkeypatch.setattr(isotropy, "_certify", withheld)
+    classes, relations = isotropy._classify(subset, reflections, draws=3,
+                                            seed=20260906, rtol=1e-4, restarts=1)
+    assert classes == ((0, 1, 2, 3, 4),)
+    pairs = _pairs(relations, len(subset))
+    for (i, j), pair in pairs.items():
+        if 4 in (i, j) and 0 not in (i, j):
+            assert any(v.status == "proved-not" and v.certificate is not None
+                       for v in pair), pair
+            assert all(v.draws == 0 for v in pair), pair
+    joined = [v for v in relations if v.reason == "joined"]
+    assert joined
+    assert all(v.draws == 0 and v.status == "unresolved" for v in joined)
+    assert all(4 not in (v.a, v.b) for v in joined)
+
+
+#: A site 10⁻⁴ off the origin of ``P m -3 m``, where 21 of the 28 families
+#: have a whole Gram stack below 1 (1e-11 to 3e-3) and are not silent.
+NEAR_SPECIAL = ("P m -3 m", (1e-4, 0.0, 0.0), GAMMA)
+
+
+def test_the_certificate_labels_do_not_move_with_an_overall_moment_scale():
+    """Only ratios of intensities are compared, so scaling every moment by one factor changes no certificate.
+
+    Every structure factor is scaled by 10⁻², 1 and 10² (every Gram stack
+    by 10⁻⁴, 1 and 10⁴), which keeps the same families silent, and the
+    certificate on every ordered pair must be the same at each scale.  An
+    absolute floor on the dark test moves 24 of the 756 labels at scale 1
+    here alone, between ``absence`` and ``subspace``.
+    """
+    found = isotropy.candidates(*NEAR_SPECIAL)
+    reflections = isotropy.reflections(found.lattice, 1.5)
+    canonical = [isotropy._canonical_basis(c) for c in found]
+    factors = [isotropy.structure_factors(c, reflections) for c in canonical]
+    grams = [isotropy.gram(f, reflections.shells) for f in factors]
+    assert sum(float(np.max(np.abs(g))) < 1.0 and not isotropy._silent(f)
+               for f, g in zip(factors, grams)) >= 20
+    n = len(found)
+    labels = {}
+    for scale in (1e-2, 1.0, 1e2):
+        scaled = [f * scale for f in factors]
+        silent = [isotropy._silent(f) for f in scaled]
+        g = [isotropy.gram(f, reflections.shells) for f in scaled]
+        dark = [isotropy._certificate_dark(x, quiet) for x, quiet in zip(g, silent)]
+        spans = [isotropy._intensity_span(x) for x in g]
+        verdicts = [isotropy._certify(a, b, dark, spans, silent)
+                    for a in range(n) for b in range(n) if a != b]
+        labels[scale] = (tuple(silent),
+                         tuple(v and (v.status, v.certificate) for v in verdicts))
+    assert labels[1e-2] == labels[1.0] == labels[1e2]
+
+
+def test_a_stack_with_no_gap_at_the_rank_cut_gives_no_subspace_certificate():
+    """A singular value within three decades of the rank cut makes the span a choice of tolerance, so nothing is proved on it.
+
+    Synthetic first: two shells whose Gram blocks differ by 1e-8 in one
+    direction have a relative singular value of about 1e-8, inside
+    (1e-12, 1e-6), and :func:`isotropy._intensity_span` returns None.
+    Then the near-special ``P m -3 m`` set, where the gap closes on real
+    families (their stack differs from a special position's by δ² ≈ 1e-8):
+    no pair with such a family carries a subspace certificate.  Without the
+    guard, the draws at ``rtol`` 1e-4 and those certificates disagree there,
+    and the set splits into 16 classes where the draws alone give 11.
+    """
+    grams = np.array([np.eye(2), np.diag([1.0, 1.0 + 1e-8])])
+    assert isotropy._intensity_span(grams) is None
+    assert isotropy._intensity_span(np.array([np.eye(2), np.diag([1.0, 2.0])])).shape[1] == 2
+
+    found = isotropy.candidates(*NEAR_SPECIAL)
+    reflections = isotropy.reflections(found.lattice, 1.5)
+    canonical = [isotropy._canonical_basis(c) for c in found]
+    factors = [isotropy.structure_factors(c, reflections) for c in canonical]
+    grams = [isotropy.gram(f, reflections.shells) for f in factors]
+    silent = [isotropy._silent(f) for f in factors]
+    dark = [isotropy._certificate_dark(g, quiet) for g, quiet in zip(grams, silent)]
+    spans = [isotropy._intensity_span(g) for g in grams]
+    gapless = {i for i, span in enumerate(spans) if span is None}
+    assert gapless
+    for a in range(len(found)):
+        for b in range(len(found)):
+            if a != b and {a, b} & gapless:
+                v = isotropy._certify(a, b, dark, spans, silent)
+                assert v is None or v.certificate != "subspace", (a, b, v)
