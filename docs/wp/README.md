@@ -28,6 +28,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | 2026-09-30 | P2 | [v1.8](#v1-8) |
+| [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | 2026-09-30 | P2 | [v1.9](#v1-9) |
 
 ## Next, by priority
 
@@ -48,7 +49,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1523](1523-a-phase-fitted-to-noise-passes-the-support-test.md) | A phase fitted to noise passes the support test | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1527](1527-foreign-files-spell-a-species-as-the-program-does.md) | Foreign files spell a species as the other program does | P2 | — | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | P2 | [1801](1801-rotation-mathematics.md) | [v1.8](#v1-8) |
-| [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | P2 | — | [v1.9](#v1-9) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -390,7 +390,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1901](1901-the-difference-fourier-map.md) | The difference-Fourier map: a missing atom shows as a peak | ⬜ | P3 | — |
-| [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | ⬜ | P2 | — |
+| [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | 🔄 2026-09-30 | P2 | — |
 
 ## <a id="unscheduled"></a>Unscheduled
 
