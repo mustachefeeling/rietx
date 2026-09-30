@@ -125,13 +125,16 @@ extent must leave it as it is.
   gypsum's layer 2, calcite's CO₃ group 0 and NAC's framework 3, each
   looked at.
 - [x] `keep(complete=True)` reaching the periodic graph.
-- [ ] The cost curve: build time at 1×1×1, 2×2×2 and 3×3×3 on NAC and on
+- [x] The cost curve: build time at 1×1×1, 2×2×2 and 3×3×3 on NAC and on
   fluorapatite, quoted as ranges, against 0.4 s for the P1 2×2×2 by hand.
-- [ ] Docs: the extent in `exports.md`, `api-figure.md` regenerated, the
+  *Warm, Apple M4, 7 builds each: NAC 14-30, 23-38, 44-62 ms (185, 1064, 3143
+  atoms); fluorapatite 6-7, 11-30, 22-41 ms (106, 576, 1662 atoms). The P1 2×2×2
+  built by hand: NAC 377-395 ms, fluorapatite 131-148 ms.*
+- [x] Docs: the extent in `exports.md`, `api-figure.md` regenerated, the
   skill's reference row.
-- [ ] Tests, pictures to `tests/output/`: a 2×2×1 NAC block, a (001) slab
+- [x] Tests, pictures to `tests/output/`: a 2×2×1 NAC block, a (001) slab
   of fluorapatite with complete polyhedra.
-- [ ] The addition staged in the open milestone's record.
+- [x] The addition staged in the open milestone's record.
 
 ## Acceptance
 

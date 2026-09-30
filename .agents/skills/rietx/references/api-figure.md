@@ -17,13 +17,14 @@ this; everything in `rx.` is `import rietx as rx`.*
 
 ## Part of the structure
 
-A site is left out, or a slab or a motif kept, by a mask over the dict's `atoms`: `g = build(structure)`, then `rx.viz.keep(g, ~rx.viz.select(g, label="F2"))`. `hidden=` takes species and elements, never a site label. Never delete from `atoms` by hand: bonds and polyhedra hold atoms by index, and `keep` is the one place that renumbers. Masks combine with `&`, `|` and `~`. `keep(..., complete=True)` brings back the far ends of cut bonds and the vertices of cut polyhedra, from the atoms `build` made. Its `note` counts what a cut lost. `component(via="edges")` where bonds reach everything.
+A site is left out, or a slab or a motif kept, by a mask over the dict's `atoms`: `g = build(structure)`, then `rx.viz.keep(g, ~rx.viz.select(g, label="F2"))`. `hidden=` takes species and elements, never a site label. Never delete from `atoms` by hand: bonds and polyhedra hold atoms by index, and `keep` is the one place that renumbers. Masks combine with `&`, `|` and `~`. `keep(..., complete=True)` brings back the far ends of cut bonds and the vertices of cut polyhedra, from the atoms `build` made. Its `note` counts what a cut lost. `component(via="edges")` where bonds reach everything. `build(structure, extent=((0, 2), (0, 2), (0, 1)), max_atoms=2000)` draws a block of cells, raising past `max_atoms`; each atom's `image` says which atom of the cell it is, and `periodicity(g, mask)` reads 0 to 3 for a motif (Measured: WP-1502, NAC 3x3x3 in 44-62 ms).
 
 - `rx.viz.keep(geometry: Mapping, mask, *, complete: bool = False) -> dict` — The geometry with only the atoms `mask` keeps, every index consistent.
 - `rx.viz.select(geometry: Mapping, *, species=None, element=None, label=None, site=None, boundary: bool | None = None) -> np.ndarray` — The atoms of the named sites, as a boolean array over `atoms`.
 - `rx.viz.plane(geometry: Mapping, hkl, distance: float, *, width: float | None = None, inverse: bool = False, units: str = 'd') -> np.ndarray` — The atoms on the origin side of the plane (hkl) at `distance`.
 - `rx.viz.sphere(geometry: Mapping, centre, radius: float) -> np.ndarray` — The atoms within `radius` Å of `centre`, itself included.
 - `rx.viz.component(geometry: Mapping, atom: int, *, via: str = 'bonds') -> np.ndarray` — The connected piece of the figure holding `atom`.
+- `rx.viz.periodicity(geometry: Mapping, mask) -> int` — How many independent lattice directions the atoms `mask` keeps repeat in, 0 to 3.
 - `rx.viz.recolour(geometry: Mapping, mask, colour) -> dict` — The geometry with the masked atoms, and the polyhedra centred on them, in `colour`.
 
 ## The pattern before a model

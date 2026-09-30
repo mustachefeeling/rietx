@@ -47,3 +47,21 @@ mask = viz.select(geometry, element="Al") & viz.sphere(geometry, al, 0.1)
 fig = viz.render_structure(viz.recolour(geometry, mask, "#ff0000"),
                            path=HERE / "nac_one_red.png")
 print(f"palette: {fig.palette}")
+
+# a block of cells: the cell's bonds and polyhedra translated, so it costs what it draws
+block = build(structure, extent=((0, 2), (0, 2), (0, 1)), max_atoms=2000)
+viz.render_structure(block, path=HERE / "nac_2x2x1.png")
+print(f"2x2x1 block: {len(block['atoms'])} atoms, {len(block['bonds'])} bonds, "
+      f"{len(block['polyhedra'])} polyhedra")
+
+# which atom of the cell each atom is, and by which lattice translation
+print(f"atom 0 is {block['atoms'][0]['image']}, atom {block['n_cell'] - 1} is "
+      f"{block['atoms'][block['n_cell'] - 1]['image']}")
+
+# how many directions a piece repeats in: the octahedron's corner-sharing
+# framework in three, one AlF6 and its bonds in none
+al = next(i for i in viz.select(block, element="Al").nonzero()[0])
+framework = viz.component(block, al, via="corners")
+octahedron = viz.sphere(block, al, 2.0)
+print(f"periodicity: framework {viz.periodicity(block, framework)}, "
+      f"one octahedron {viz.periodicity(block, octahedron)}")

@@ -290,9 +290,14 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "`&`, `|` and `~`. `keep(..., complete=True)` brings back the "
                 "far ends of cut bonds and the vertices of cut polyhedra, from "
                 "the atoms `build` made. Its `note` counts what a cut lost. "
-                "`component(via=\"edges\")` where bonds reach everything.",
+                "`component(via=\"edges\")` where bonds reach everything. "
+                "`build(structure, extent=((0, 2), (0, 2), (0, 1)), "
+                "max_atoms=2000)` draws a block of cells, raising past "
+                "`max_atoms`; each atom's `image` says which atom of the cell it "
+                "is, and `periodicity(g, mask)` reads 0 to 3 for a motif "
+                "(Measured: WP-1502, NAC 3x3x3 in 44-62 ms).",
                 ("rx.viz.keep", "rx.viz.select", "rx.viz.plane", "rx.viz.sphere",
-                 "rx.viz.component", "rx.viz.recolour"),
+                 "rx.viz.component", "rx.viz.periodicity", "rx.viz.recolour"),
             ),
             (
                 "The pattern before a model",

@@ -216,6 +216,7 @@ Each example below is from `examples/structure_cut.py`.
 ```{literalinclude} ../../../examples/structure_cut.py
 :language: python
 :start-at: geometry = build(structure)
+:end-before: a block of cells
 ```
 
 ```text
@@ -253,10 +254,15 @@ palette: {'Ca1': '#00c4b8', 'Al1': '#bc5c70', 'Na1': '#8040e0', 'F1': '#48d860',
 - `keep(g, mask, complete=True)` first re-adds the far ends of the bonds cut
   from a kept atom, and the vertices of polyhedra whose centre is kept.
   That is VESTA's boundary search.
-  It completes only within the atoms `build` produced, which are one cell and
-  the images its bonds and polyhedra reach.
-  Two images of one atom are two atoms here, so a motif's periodicity is not
-  seen.
+  It completes only within the atoms `build` produced, which are the extent
+  it was asked for and the images its bonds and polyhedra reach.
+  A bond's `j` is an image of its far end and not always the atom at that end,
+  so `keep` and `component` find the far end by image.
+- `periodicity(g, mask)` says how many lattice directions the masked atoms
+  repeat in, from 0 to 3.
+  A molecule is 0, a chain 1, a layer 2 and a framework 3 (Larsen et al. 2019).
+  It needs the image the piece reaches to be drawn, so it reads a mask of a
+  motif and its bond neighbours, as `component` returns one.
 
 `hidden=` does not take a site label, and its error says to use
 `keep(g, ~select(g, label=...))`.
@@ -268,6 +274,39 @@ live model.
 To change the chemistry a figure shows, edit a `model_copy(deep=True)`: an
 in-place edit changes the next fit, and no history node records it.
 A cut changes only the picture.
+
+### A block of cells
+
+`build(structure, extent=((0, 2), (0, 2), (0, 1)))` draws a block of whole
+cells as a half-open box in cell units.
+`extent=None` is the one cell.
+The cell is built once and the block is that result translated, so the cost
+grows with the atoms drawn.
+Each atom is drawn once, the atoms on the block's lower faces are drawn again
+on the opposite ones as the cell's own rule does, every bond of a drawn atom is
+kept, and every polyhedron whose centre is drawn is kept whole.
+A block that draws more than `max_atoms` raises, and the GUI's 400 is that
+default, so pass a larger one.
+`note` gives the atom count and the build time.
+
+Every atom carries `image`, `[orbit index, [n1, n2, n3]]`: which atom of the
+cell it is, and the whole cells it has been moved by.
+Two images of one atom are told apart from two atoms by it, and
+`periodicity` reads it.
+`n_cell` is how many of the first `atoms` are the block's own atoms and their
+face copies, the only ones a polyhedron is centred on.
+`corners` and `edges` frame the block.
+
+```{literalinclude} ../../../examples/structure_cut.py
+:language: python
+:start-at: a block of cells
+```
+
+```text
+2x2x1 block: 599 atoms, 919 bonds, 128 polyhedra
+atom 0 is [0, [0, 0, 0]], atom 351 is [11, [2, 1, 0]]
+periodicity: framework 3, one octahedron 0
+```
 
 ## The reflection list
 
