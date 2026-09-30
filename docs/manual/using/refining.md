@@ -490,7 +490,9 @@ to broaden. Both terms are freed, because which one carries an excess is a
 property of the dataset; expect the other back unmeasured.
 `MAGNETIC_WIDTH_UNMEASURED` names a freed width that is below three of its own
 esds (the ratio `MomentEvidence.supported` uses for a moment), and one that came
-back with no esd at all, on its floor. On the Cr₂WO₆ tutorial pattern at 4 K
+back with no esd at all. That message names a cause only where it checked one:
+a magnetic component with no intensity (a zero moment), or the term on its
+softplus floor. On the Cr₂WO₆ tutorial pattern at 4 K
 (k = 0, with magnetic-only intensity on the parent's absences) the size term
 comes back 0.034 ± 0.016°, two esds and so unmeasured, the strain term on its
 floor with no esd, and the moment moves 2.125 ± 0.060 → 2.171 ± 0.054 μ_B. On
