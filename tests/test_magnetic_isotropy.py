@@ -455,7 +455,12 @@ def test_the_mno_type_cell_splits_the_111_moment_from_the_in_plane_ones():
                           (1, 1, 1))]
     assert len(along) == 1
     in_plane = tuple(i for i in range(len(found)) if i not in along)
-    assert isotropy.equivalence_classes(found, refl) == ((along[0],), in_plane)
+    # restarts=4: every equivalent draw here reproduces on its first restart,
+    # at the default cap too, so the cap is paid only by the three pairs that
+    # are distinguishable, where it buys nothing (80-99 s on Linux CI at 32,
+    # 8-21 s before the cap was raised)
+    assert isotropy.equivalence_classes(found, refl, restarts=4) == \
+        ((along[0],), in_plane)
     first = list(refl.shells[0])
     assert refl.d[first[0]] == pytest.approx(5.0 * np.sqrt(3.0) / 1.5, rel=1e-12)
     for i, candidate in enumerate(found):
@@ -511,6 +516,8 @@ def test_the_same_crystal_in_a_rotated_frame_gives_the_same_intensities_and_clas
     frame: every shell's intensity and every class must come back unchanged.
     This is the test that would have caught #534, where the moment was rebuilt
     from the cell parameters in a fixed frame and ĥ followed the lattice.
+    The classes are compared at ``restarts=4``: the claim is that the two
+    frames agree, and the MnO test's note on the cap holds in both frames.
     """
     q = RIGID_MAPS[name]
     found = isotropy.candidates("F m -3 m", (0, 0, 0), HALF)
@@ -524,8 +531,8 @@ def test_the_same_crystal_in_a_rotated_frame_gives_the_same_intensities_and_clas
         a = isotropy.powder_intensities(candidate, amplitudes, here)
         b = isotropy.powder_intensities(candidate, amplitudes, there)
         assert np.allclose(a, b, rtol=1e-10, atol=1e-10 * float(np.max(a)))
-    assert isotropy.equivalence_classes(found, here) == \
-        isotropy.equivalence_classes(found, there)
+    assert isotropy.equivalence_classes(found, here, restarts=4) == \
+        isotropy.equivalence_classes(found, there, restarts=4)
 
 
 @pytest.mark.parametrize("case", [("F m -3 m", HALF), ("P m -3 m", HALF)],
@@ -1499,3 +1506,138 @@ def test_identify_refuses_the_same_way_in_both_spglib_error_modes():
             identify(group)              # the same refusal with the flag off
     finally:
         spglib_error.OLD_ERROR_HANDLING = before
+
+
+# --------------------------------------------------------------------------
+# G. The class count is a function of the family, not of its basis (#455)
+# --------------------------------------------------------------------------
+
+#: issue #455's reproduction case: two rank-1 directions of one two-copy
+#: irrep, whose basis within the span is whatever the LAPACK returned.
+P21C_SITE = (Fraction(11, 100), Fraction(13, 100), Fraction(17, 100))
+P21C_K = (Fraction(0), Fraction(0), Fraction(1, 2))
+
+
+def rotated_bases(found, rotation):
+    """The issue's rotation: each family's basis turned within its own span.
+
+    This is what a different LAPACK does to ``configurations`` (#455: span
+    projectors agree to 1.5e-15 across Accelerate and OpenBLAS, the basis
+    elements differ by up to 1.4), made reproducible on one machine.
+    """
+    from dataclasses import replace
+
+    rng = np.random.default_rng(rotation)
+    turned = []
+    for c in found:
+        q, _ = np.linalg.qr(rng.normal(size=(c.free_amplitudes,) * 2))
+        turned.append(replace(c, configurations=np.tensordot(q, c.configurations,
+                                                             axes=(1, 0))))
+    return replace(found, candidates=tuple(turned))
+
+
+def test_the_canonical_basis_is_fixed_by_the_span_alone():
+    """Every rotation of the input basis gives one canonical basis, on the same span.
+
+    Rotation 3 is the one that flipped the class count on one machine before
+    the fix.  The positive arm is the raw bases: they differ by O(1), so an
+    agreement below is not two copies of one array.
+    """
+    found = isotropy.candidates("P 1 21/c 1", P21C_SITE, P21C_K)
+    base = [isotropy._canonical_basis(c).configurations for c in found]
+    for rotation in range(6):
+        turned = rotated_bases(found, rotation)
+        for c, original, reference in zip(turned, found, base):
+            assert float(np.max(np.abs(c.configurations - original.configurations))) > 0.1
+            canonical = isotropy._canonical_basis(c).configurations
+            assert np.allclose(canonical, reference, atol=1e-12, rtol=0.0), c.label
+            flat = canonical.reshape(canonical.shape[0], -1)
+            assert np.allclose(flat @ flat.T, np.eye(flat.shape[0]), atol=1e-12)
+            raw = original.configurations.reshape(flat.shape[0], -1)
+            # the same family: the raw basis lies in the canonical span
+            assert np.allclose(raw @ flat.T @ flat, raw, atol=1e-12)
+
+
+def test_a_rotated_basis_gives_the_same_classes():
+    """Issue #455's machine-independent proof, reversed: a rotated basis no longer flips it.
+
+    Before the fix ``((0, 1), (2,))`` became ``((0,), (1,), (2,))`` under
+    rotation 3 at the default seed and ``restarts=4``, the cap of the day.
+    This asserts at that cap, because the basis fix must remove the flip on
+    its own: with :func:`isotropy._canonical_basis` replaced by the identity,
+    rotation 0 splits the pair at ``restarts=4`` on macOS arm64 (early stop
+    included), while with it every rotation 0-7 agrees at 1, 2 and 4
+    restarts.  The equivalent draws need at most 3 restarts here at either
+    cap, and at the default the two distinguishable pairs would pay 32
+    restarts each (132-180 s on Linux CI).  Seed 7's flip, a restart-cap
+    effect, is :func:`test_the_classes_do_not_move_with_the_rotation_or_the_seed`'s,
+    whose grid holds it at the default cap.
+    """
+    found = isotropy.candidates("P 1 21/c 1", P21C_SITE, P21C_K)
+    reflections = isotropy.reflections(found.lattice, 1.5)
+    expected = ((0, 1), (2,))
+    assert isotropy.equivalence_classes(found, reflections, restarts=4) == expected
+    for rotation in (0, 3):
+        assert isotropy.equivalence_classes(rotated_bases(found, rotation), reflections,
+                                            restarts=4) == expected, rotation
+
+
+@pytest.mark.slow
+def test_the_classes_do_not_move_with_the_rotation_or_the_seed():
+    """Six rotations × seeds 0-9 of the reproduction case, one partition (#455).
+
+    Before the fix 2 of 18 runs split the pair (rotation 3 at the default
+    seed, and seed 7 unrotated, of rotations 0-6 and seeds 0-9); after it,
+    none of these 60 does.  2-8 min on one core by machine load, hence slow, with
+    :func:`test_a_rotated_basis_gives_the_same_classes` its fast representative.
+    """
+    found = isotropy.candidates("P 1 21/c 1", P21C_SITE, P21C_K)
+    reflections = isotropy.reflections(found.lattice, 1.5)
+    seen = {(rotation, seed): isotropy.equivalence_classes(
+                rotated_bases(found, rotation), reflections, seed=seed)
+            for rotation in range(6) for seed in range(10)}
+    assert set(seen.values()) == {((0, 1), (2,))}, seen
+
+
+def test_the_fit_stops_at_the_first_restart_that_reproduces(monkeypatch):
+    """With ``rtol`` one reproduction answers the question, so one fit is paid, not 32."""
+    import scipy.optimize
+
+    found = isotropy.candidates("P n m a", (0, 0, 0), GAMMA)
+    reflections = isotropy.reflections(found.lattice, 1.8)
+    candidate = isotropy._canonical_basis(found[0])
+    factors = isotropy.structure_factors(candidate, reflections)
+    rng = np.random.default_rng(0)
+    amplitudes = isotropy._normalised_draw(candidate, reflections.lattice, rng)
+    target = isotropy.powder_intensities(candidate, amplitudes, reflections,
+                                         factors=factors)
+    calls = []
+    real = scipy.optimize.least_squares
+
+    def counting(*args, **kwargs):
+        calls.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(scipy.optimize, "least_squares", counting)
+    grams = isotropy.gram(factors, reflections.shells)
+    stopped = isotropy._fit_residual(target, grams, np.random.default_rng(1),
+                                     restarts=32, rtol=1e-4)
+    assert stopped <= 1e-4 and len(calls) < 32
+    calls.clear()
+    isotropy._fit_residual(target, grams, np.random.default_rng(1), restarts=5)
+    assert len(calls) == 5                 # no rtol: every restart runs
+
+
+def test_an_already_stable_partition_is_unchanged_by_the_fix():
+    """The control arm: a case whose classes never moved keeps them, member for member.
+
+    ``P n m a`` at Γ, origin site, d_min = 1.5: four one-member classes on the
+    code before #455's fix at seeds 20260906 and 0-2, and after it.  Every pair
+    here is distinguishable, so it is also the case that pays the raised
+    restart cap in full.
+    """
+    found = isotropy.candidates("P n m a", (0, 0, 0), GAMMA)
+    reflections = isotropy.reflections(found.lattice, 1.5)
+    for seed in (20260906, 0):
+        assert isotropy.equivalence_classes(found, reflections, seed=seed) == \
+            ((0,), (1,), (2,), (3,))
