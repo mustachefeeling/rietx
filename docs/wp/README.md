@@ -28,6 +28,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | 2026-09-30 | P2 | [v1.8](#v1-8) |
+| [1802](1802-the-fragment-type.md) | The fragment: a body template with a frame and declared bonds | 2026-09-30 | P3 | [v1.8](#v1-8) |
 
 ## Next, by priority
 
@@ -382,7 +383,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | 🔄 2026-09-30 | P2 | — |
-| [1802](1802-the-fragment-type.md) | The fragment: a body template with a frame and declared bonds | ⬜ | P3 | — ([1801](1801-rotation-mathematics.md) soft) |
+| [1802](1802-the-fragment-type.md) | The fragment: a body template with a frame and declared bonds | 🔄 2026-09-30 | P3 | — ([1801](1801-rotation-mathematics.md) soft) |
 | [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | ⬜ | P2 | [1801](1801-rotation-mathematics.md) |
 
 ## <a id="v1-9"></a>v1.9 — structure solution
