@@ -54,6 +54,38 @@ cannot represent an absorption edge, so an interval containing an edge raises an
 error instead of being interpolated. A wavelength that close above an edge also
 means strong fluorescence, and a refusal is more honest than any number.
 
+On a constant-wavelength neutron source the same sum runs over the Sears
+cross-sections {cite}`sears1992` instead, since X-ray and neutron attenuation
+are different quantities and not two precisions of one:
+
+```{math}
+:label: corr-mu-neutron
+
+\mu\ [\mathrm{cm}^{-1}] \;=\;
+\sum_{\mathrm{atoms}} \mathrm{occ}\cdot m \cdot
+\frac{\sigma_{\mathrm{abs}}\,\lambda/\lambda_0
+      + \sigma_{\mathrm{coh}} + \sigma_{\mathrm{inc}}\ [\mathrm{barn}]}
+     {V\ [\text{Å}^3]},
+\qquad \lambda_0 = 1.798\ \text{Å}.
+```
+
+{source}`rietx.crystallography.neutron.linear_attenuation_neutron`
+
+$\sigma_{\mathrm{abs}}$ is tabulated for 2200 m/s neutrons, $\lambda_0$, and
+away from a resonance it follows the $1/v$ law, so it grows linearly in
+$\lambda$ where an X-ray $\mu/\rho$ rises roughly as $\lambda^{3}$ (falls as
+$E^{-3}$). The scattering terms are the bound (Sears) values, taken as
+$\lambda$-independent; for hydrogen the bound value approximates an effective
+cross-section that in a real solid depends on $\lambda$ and on the proton's
+dynamics. In a polycrystal the coherent part is Bragg scattering, and how much
+of the beam that removes depends on $\lambda$ against the largest $d$-spacing,
+which is not modelled. Hydrogen is where the two radiations part most: its
+incoherent 80.26 barn makes it about 93 % of brucite's neutron $\mu$ and
+under 1 % of its X-ray one. A resonant absorber (Cd, Sm, Eu, Gd, Yb) is
+refused. Near a resonance the $1/v$ scaling of the thermal value is wrong in
+principle, and no resonance energies are tabulated to say how near a given
+$\lambda$ is. That is the neutron twin of the edge refusal above.
+
 ## Capillary (cylindrical) absorption
 
 The transmission coefficient is the volume average of the attenuation

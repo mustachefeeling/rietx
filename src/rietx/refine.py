@@ -71,6 +71,7 @@ from .optimize.least_squares import (
     run_least_squares,
 )
 from .optimize.qpa import (
+    LINEAR_ATTENUATION_BY_SOURCE,
     compute_qpa,
     estimate_capillary_mu_r,
     estimate_flat_plate_mu_t,
@@ -4648,32 +4649,35 @@ def _apply_esds(table: ParameterTable, result: RefinementResult,
         p.path: p.stderr for p in result.parameters if p.stderr is not None})
 
 
-#: Why the composition estimator declines on a source that is not X-ray.
+#: Why the composition estimator declines on a source it has no table for.
 #:
-#: :mod:`rietx.crystallography.attenuation` is an **X-ray** compilation —
-#: photoabsorption plus scattering, cross-checked against the Cromer-Liberman
-#: f'' table — and a neutron does not attenuate that way at all.  Neutron
-#: attenuation is σ_abs(λ) + σ_coh + σ_inc, where σ_abs is quoted at 2200 m/s
-#: (λ = 1.798 Å) and scales as 1/v, i.e. **linearly in λ**, while X-ray µ/ρ
-#: falls roughly as λ⁻³ between edges and has edges at all.  The two are
-#: unrelated numbers: hydrogen is nearly transparent to X-rays and one of the
-#: strongest neutron attenuators there is.
-#:
-#: So this is not a coarse estimate, it is the wrong physical quantity, and
-#: writing it into ``Geometry.mu_r`` would apply a confidently wrong correction
-#: with nothing said — the outcome the docstring below calls the worst of the
-#: three.  It declines and reports instead.  A neutron estimator is buildable
-#: from the table this package already ships (WP-1132); until it exists an
-#: explicit ``mu_r``/``mu_t`` is how to apply the correction on a neutron
-#: instrument, and an explicit value always won anyway.
-_NON_XRAY_ABSORPTION_ESTIMATE = (
-    "specimen absorption was not estimated: the composition estimator is X-ray "
-    "photoabsorption (McMaster tables), and neutron attenuation is a different "
-    "quantity from a different table — sigma_abs scales as lambda rather than "
-    "as lambda^-3, and the scattering cross-sections dominate for light "
-    "elements. Declare Geometry.mu_r (capillary) or Geometry.mu_t (flat plate) "
-    "explicitly to apply the correction; see WP-1132 for a neutron estimator."
+#: Attenuation is a property of the radiation, not a coarse or fine version of
+#: one number: X-ray µ/ρ (McMaster, :mod:`rietx.crystallography.attenuation`)
+#: rises roughly as λ³ (falls as E⁻³) between edges and has edges at all,
+#: while neutron attenuation is σ_abs(λ) + σ_coh + σ_inc, σ_abs linear in λ
+#: (the 1/v law), and hydrogen is nearly transparent to one and among the
+#: strongest attenuators of the other.  So each source kind needs *its own* table
+#: (:data:`rietx.optimize.qpa.LINEAR_ATTENUATION_BY_SOURCE`: X-ray, and
+#: constant-wavelength neutron from Sears 1992 since WP-1132), and a kind with
+#: none declines here rather than borrowing another radiation's — writing the
+#: wrong quantity into ``Geometry.mu_r`` would apply a confidently wrong
+#: correction with nothing said, the outcome the docstring below calls the
+#: worst of the three.  This fence is what made WP-1132 visible and it stays
+#: for every kind still without a table: a time-of-flight bank spans a range
+#: of λ, so one µ per histogram is not even well defined there.  An explicit
+#: ``mu_r``/``mu_t`` is always honoured, whatever the source.
+_NO_ATTENUATION_TABLE_ESTIMATE = (
+    "specimen absorption was not estimated: there is no attenuation table for "
+    "this source kind (the composition estimator carries X-ray McMaster and "
+    "constant-wavelength neutron Sears tables, and neither describes this "
+    "radiation). Declare Geometry.mu_r (capillary) or Geometry.mu_t (flat "
+    "plate) explicitly to apply the correction."
 )
+
+
+def _has_attenuation_table(instrument: Instrument) -> bool:
+    """Whether the composition estimator has a table for this source kind."""
+    return instrument.source.kind in LINEAR_ATTENUATION_BY_SOURCE
 
 
 def _resolve_specimen_absorption(structure: Structure,
@@ -4693,16 +4697,17 @@ def _resolve_specimen_absorption(structure: Structure,
     if geom.kind == "debye_scherrer":
         if geom.capillary_radius_mm is None or geom.mu_r is not None:
             return "given", None
-        # Asked *after* the explicit-value check, so declaring µR on a neutron
-        # capillary still works — only the X-ray table is fenced off, not the
-        # correction (:data:`_NON_XRAY_ABSORPTION_ESTIMATE`).
-        if instrument.source.kind != "xray_cw":
-            return "estimated", _NON_XRAY_ABSORPTION_ESTIMATE
+        # Asked *after* the explicit-value check, so declaring µR on a source
+        # with no table still works — only the estimate is fenced off, not the
+        # correction (:data:`_NO_ATTENUATION_TABLE_ESTIMATE`).
+        if not _has_attenuation_table(instrument):
+            return "estimated", _NO_ATTENUATION_TABLE_ESTIMATE
         table = ParameterTable(structure, instrument)
         mu_r, reason = estimate_capillary_mu_r(
             structure, table.decode(table.x0()),
             instrument.source.primary_wavelength,
-            geom.capillary_radius_mm, geom.packing_fraction)
+            geom.capillary_radius_mm, geom.packing_fraction,
+            source_kind=instrument.source.kind)
         if mu_r is None:
             return "estimated", reason
         geom.mu_r = mu_r
@@ -4710,13 +4715,14 @@ def _resolve_specimen_absorption(structure: Structure,
 
     if geom.thickness_mm is None or geom.mu_t is not None:
         return "given", None
-    if instrument.source.kind != "xray_cw":
-        return "estimated", _NON_XRAY_ABSORPTION_ESTIMATE
+    if not _has_attenuation_table(instrument):
+        return "estimated", _NO_ATTENUATION_TABLE_ESTIMATE
     table = ParameterTable(structure, instrument)
     mu_t, reason = estimate_flat_plate_mu_t(
         structure, table.decode(table.x0()),
         instrument.source.primary_wavelength,
-        geom.thickness_mm, geom.packing_fraction)
+        geom.thickness_mm, geom.packing_fraction,
+        source_kind=instrument.source.kind)
     if mu_t is None:
         return "estimated", reason
     geom.mu_t = mu_t
@@ -4874,8 +4880,12 @@ def _absorption_diagnostics(record) -> list[Diagnostic]:
                      + ("µt" if flat else "µR")
                      + f" could not be estimated ({record.skipped}); the "
                      "pattern was fitted with NO absorption correction"),
-            suggestion=(f"set {where[0]} explicitly, or use a wavelength away "
-                        "from an absorption edge of the specimen")))
+            suggestion=(f"set {where[0]} explicitly (measured, or computed "
+                        "by hand for this specimen); on an X-ray source a "
+                        "wavelength away from an absorption edge of the "
+                        "specimen also lets the estimate run, while a neutron "
+                        "resonant absorber (Cd, Sm, Eu, Gd, Yb) is refused at "
+                        "every wavelength")))
     if record.out_of_range:
         out.append(Diagnostic(
             level="warning", code="ABSORPTION_MU_R_OUT_OF_RANGE", where=where,
@@ -7208,36 +7218,41 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
 def estimate_mu_r(structure: Structure, instrument: Instrument) -> float | None:
     """Starting µR for a packed capillary, from composition and geometry.
 
-    Combines each phase's linear attenuation coefficient (McMaster tables, via
-    :mod:`rietx.crystallography.attenuation`) into a volume-fraction-weighted
-    bulk µ, scales it by ``Geometry.packing_fraction`` — voids do not absorb —
-    and multiplies by ``Geometry.capillary_radius_mm``.
+    Combines each phase's linear attenuation coefficient — McMaster tables
+    (:mod:`rietx.crystallography.attenuation`) on an X-ray source, Sears
+    (1992) cross-sections (:mod:`rietx.crystallography.neutron`) on a
+    constant-wavelength neutron one — into a volume-fraction-weighted bulk µ,
+    scales it by ``Geometry.packing_fraction`` — voids do not absorb — and
+    multiplies by ``Geometry.capillary_radius_mm``.
 
     Returns ``None`` rather than raising when µ is unavailable (a wavelength
     whose tabulation interval straddles an absorption edge, an element outside
-    the compilation, an energy outside 2-120 keV) or when the geometry carries
-    no capillary radius.  Use it to *populate* ``Geometry.mu_r``; a refinement
-    will do the same thing itself at compile time if ``mu_r`` is left ``None``.
+    the compilation, an energy outside 2-120 keV; on neutrons, a species the
+    Sears table lacks or a resonant absorber — Cd, Sm, Eu, Gd, Yb — refused at
+    every wavelength) or when the geometry carries no capillary radius.  Use
+    it to *populate* ``Geometry.mu_r``; a refinement will do the same thing
+    itself at compile time if ``mu_r`` is left ``None``.
 
-    **X-ray sources only**, and ``None`` on any other — the tables are X-ray
-    photoabsorption and neutron attenuation is a different quantity entirely
-    (:data:`_NON_XRAY_ABSORPTION_ESTIMATE` has the physics and names the WP).
-    Returning a number here would be worse than returning nothing: the caller
-    asked for a starting µR and would have no way to tell that it came from
-    the wrong radiation.
+    ``None`` on a source kind with no table (time-of-flight among them) —
+    each radiation's attenuation is its own quantity
+    (:data:`_NO_ATTENUATION_TABLE_ESTIMATE` has the physics).  Returning a
+    number from another radiation's table would be worse than returning
+    nothing: the caller asked for a starting µR and would have no way to tell
+    that it came from the wrong radiation.
 
     µR is not refinable, deliberately — see :mod:`rietx.model.absorption`.
     """
     geom = instrument.geometry
     if geom.kind != "debye_scherrer" or geom.capillary_radius_mm is None:
         return None
-    if instrument.source.kind != "xray_cw":
+    if not _has_attenuation_table(instrument):
         return None
     table = ParameterTable(structure, instrument)
     mu_r, _ = estimate_capillary_mu_r(
         structure, table.decode(table.x0()),
         instrument.source.primary_wavelength,
-        geom.capillary_radius_mm, geom.packing_fraction)
+        geom.capillary_radius_mm, geom.packing_fraction,
+        source_kind=instrument.source.kind)
     return mu_r
 
 

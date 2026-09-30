@@ -316,11 +316,37 @@ RADIATION_KEYED = [
     Keyed("magnetic structure factor built",
           lambda j, h: j._models[h].phases[1].magnetic is not None,
           {"xray_cw": False, "neutron_cw": True}),
-    # McMaster photoabsorption is an X-ray table; a neutron µR is WP-1132's
-    Keyed("capillary muR estimated from composition",
-          lambda j, h: j.fitted_instruments[h].geometry.mu_r is not None,
+    # Both kinds estimate a µR from composition since WP-1132, each off its
+    # own table (McMaster photoabsorption, Sears cross-sections), so the rows
+    # key on which table was read rather than on whether a µR exists
+    Keyed("capillary muR read off the McMaster (X-ray) table",
+          lambda j, h: _mu_r_is_from_table(j, h, "xray_cw"),
           {"xray_cw": True, "neutron_cw": False}),
+    Keyed("capillary muR read off the Sears (neutron) table",
+          lambda j, h: _mu_r_is_from_table(j, h, "neutron_cw"),
+          {"xray_cw": False, "neutron_cw": True}),
 ]
+
+
+def _mu_r_is_from_table(joint, h: int, table_kind: str) -> bool:
+    """Whether histogram ``h``'s compiled µR is the one ``table_kind`` gives.
+
+    Recomputed on a fresh copy of the fixture's specimen at its starting
+    values, which is what the joint fit estimates from at construction.
+    """
+    from rietx.optimize.qpa import estimate_capillary_mu_r
+    from rietx.params.vector import ParameterTable
+    got = joint.fitted_instruments[h].geometry.mu_r
+    if got is None:
+        return False
+    structure = rx.Structure(phases=[corundum(), mnf2()])
+    ins = INSTRUMENT_FOR_KIND[joint.mtable.instruments[h].source.kind]()
+    table = ParameterTable(structure, ins)
+    want, _ = estimate_capillary_mu_r(
+        structure, table.decode(table.x0()), ins.source.primary_wavelength,
+        ins.geometry.capillary_radius_mm, ins.geometry.packing_fraction,
+        source_kind=table_kind)
+    return want is not None and bool(np.isclose(got, want, rtol=1e-12))
 
 
 @pytest.fixture(scope="module")
