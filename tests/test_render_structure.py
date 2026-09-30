@@ -758,3 +758,19 @@ def test_the_automatic_view_beside_the_opening_view():
         _save(opening, f"report_{name}_opening")
         _save(auto, f"report_{name}_auto")
         assert auto.report.hidden <= opening.report.hidden
+
+
+def test_hidden_may_be_a_generator_and_the_recipe_keeps_it(nac):
+    """``hidden=`` read once for the recipe must still reach ``_species``."""
+    listed = render_structure(nac, size=200, hidden=["Na"])
+    lazy = render_structure(nac, size=200, hidden=(x for x in ["Na"]))
+    assert lazy.recipe["hidden"] == ["Na"]
+    assert len(lazy.atoms) == len(listed.atoms)
+    assert np.array_equal(lazy.image, listed.image)
+
+
+@pytest.mark.parametrize("kw, words", [({"turn": "30q"}, "turn term"),
+                                       ({"up": "zzz"}, "unknown direction")])
+def test_auto_names_a_bad_up_or_turn_as_the_plain_view_does(nac, kw, words):
+    with pytest.raises(ValueError, match=words):
+        render_structure(nac, view="auto", size=200, **kw)

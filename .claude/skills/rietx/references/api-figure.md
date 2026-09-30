@@ -13,7 +13,7 @@ this; everything in `rx.` is `import rietx as rx`.*
 
 - `rx.viz.render_structure(structure, phase: int = 0, *, mode: str = 'ball', view='opening', up=None, turn: str | None = None, size=1000, supersample: int = 2, probability: float | None = None, bond_tolerance: float | None = None, exaggeration: float = 1.0, hidden=(), boundary: bool = True, polyhedra=None, axis_labels: bool = True, atom_labels: bool = False, outline: bool = False, background='white', path=None, dpi: float | None = None) -> StructureFigure` — Draw one phase of a structure as the GUI's structure viewer draws it.
 - `rietx.viz.figure3d.StructureFigure` — What `render_structure` drew.
-  Fields: `image: np.ndarray`, `rotation: list[list[float]]`, `pixels_per_angstrom: float`, `atoms: list[dict]`, `letters: list[dict]`, `path: str | None = None`, `palette: dict[str, str] = {}`, `report: rp.FigureReport | None = None`, `candidates: list[dict] = []`, `recipe: dict = {}`
+  Fields: `image: np.ndarray`, `rotation: list[list[float]]`, `pixels_per_angstrom: float`, `atoms: list[dict]`, `letters: list[dict]`, `path: str | None = None`, `palette: dict[str, str] = {}`, `report: FigureReport | None = None`, `candidates: list[dict] = []`, `recipe: dict = {}`
 
 ## Reading the figure before looking
 

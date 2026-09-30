@@ -341,7 +341,7 @@ def keep(geometry: Mapping, mask, *, complete: bool = False) -> dict:
     out["cut"] = {"polyhedra": before.get("polyhedra", 0) + cut_polys,
                   "bonds": before.get("bonds", 0) + cut_bonds}
     if lost:
-        out["note"] =" · ".join([*([geometry["note"]] if geometry.get("note") else []), *lost])
+        out["note"] = " · ".join([*([geometry["note"]] if geometry.get("note") else []), *lost])
     return out
 
 

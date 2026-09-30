@@ -27,6 +27,7 @@ from ..theme import TOKENS
 from . import cut, glyphs, raster, views
 from . import report as rp
 from . import scene as sc
+from .report import FigureReport
 
 #: The CSS width the GUI's pixel sizes are drawn against: an image whose long
 #: side is this many pixels has the GUI's on-screen line widths and letters.
@@ -82,7 +83,7 @@ class StructureFigure:
     letters: list[dict]
     path: str | None = None
     palette: dict[str, str] = field(default_factory=dict)
-    report: rp.FigureReport | None = None
+    report: FigureReport | None = None
     candidates: list[dict] = field(default_factory=list)
     recipe: dict = field(default_factory=dict)
 
@@ -354,7 +355,12 @@ def _dangling(geometry: Mapping, scene: dict, hidden: list[str]) -> int:
 
 
 def _plain(value):
-    """``value`` with tuples as lists, which is what JSON keeps of them."""
+    """``value`` with tuples and arrays as lists and numpy scalars as numbers,
+    which is what JSON keeps of them."""
+    if isinstance(value, np.ndarray):
+        value = value.tolist()
+    elif isinstance(value, np.generic):
+        return value.item()
     return [_plain(v) for v in value] if isinstance(value, (tuple, list)) else value
 
 
@@ -457,7 +463,7 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     dark = bg is not None and sum(w * v for w, v in zip(sc.LOOK["luma"], bg)) < 0.5
     tokens = TOKENS["dark" if dark else "light"]
     hidden_asked = [hidden] if isinstance(hidden, str) else list(hidden)
-    hidden = _species(geometry, hidden)
+    hidden = _species(geometry, hidden_asked)
     if polyhedra is None:
         on, formulas = mode == "ball", None
     elif isinstance(polyhedra, Mapping):
@@ -514,7 +520,7 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
         warnings += [f"{label}: its displacement tensor is not positive definite, so its "
                      "ellipsoid is drawn flat" for label in flat]
     if seen.unjudged:
-        warnings.append(f"{seen.unjudged} atoms cover less than one sample at {rp.ID_SIZE} px "
+        warnings.append(f"{seen.unjudged} atoms cover less than one sample at {max(probe.size) if isinstance(probe.size, tuple) else probe.size} px "
                         "and are not counted in hidden")
     report = rp.FigureReport(
         hidden=seen.hidden, hidden_atoms=seen.hidden_atoms,

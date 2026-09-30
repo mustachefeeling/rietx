@@ -156,16 +156,17 @@ def choose_view(geometry: Mapping, p: Probe, up, turn, compiled_path: bool | Non
     ``view``, ``hidden`` and ``empty``, the numbers the search read at
     :data:`ID_SIZE` from atoms and bonds alone.
     """
-    tried = []
+    tried, refused = [], None
     for rank, view in enumerate([*directions(), OPENING]):
         try:
             R = views.resolve(geometry, view, up, turn)
-        except ValueError:          # an up= along this direction cannot be up
+        except ValueError as exc:   # an up= along this direction cannot be up
+            refused = refused or exc
             continue
         seen = look(p, R, compiled_path)
         tried.append((seen.hidden, seen.empty, rank, view))
     if not tried:
-        raise ValueError(f"no view in the search can have up={up!r}")
+        raise refused
     tried.sort(key=lambda t: t[:3])
     return tried[0][3], [{"view": v, "hidden": h, "empty": e}
                          for h, e, _, v in tried[:N_CANDIDATES]]

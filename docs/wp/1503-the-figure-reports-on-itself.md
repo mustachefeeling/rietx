@@ -1,8 +1,7 @@
 # WP-1503 — the figure reports on itself, and picks a view
 
-Milestone: v1.7 · Status: 🔄 2026-09-30 — claimed by @yue-here
+Milestone: v1.7 · Status: ✅ 2026-09-30 — report, view="auto", recipe
 Depends on: 1470 (1501 soft)
-Priority: P3 2026-09-27 — an agent can look at its picture today; this makes each look count, and nothing is wrong without it
 
 ## Goal
 
@@ -131,6 +130,68 @@ RIETX_COMPILED=0 .venv/bin/python -m pytest tests/test_render_structure.py
 - WP-1470 D7, D8 and D12 (the array, the anchors, the views).
 
 ## Handover log
+
+- **2026-09-30** — closed. A structure figure now says what a look would
+  tell you. `StructureFigure.report` gives the share of atoms hidden behind
+  others, bonds ending in mid-air, overlapping letters, the empty share of
+  the frame, what `keep` cut, and warnings. `view="auto"` searches the
+  low-index directions and the opening view and draws the one that hides
+  least, returning the runners-up. `recipe` draws the picture again bit for
+  bit through JSON. On the 21 measured phases the automatic view hid fewer
+  atoms than the opening view on 14 and more on none (mean 18 % to 6 %). An
+  agent can now read a number, turn, and look once at the size it keeps.
+  Nothing tested whether an agent does so; that is 1504.
+  - **Done.** The id pass (`raster.id_plane`, kernel `id_plane` in
+    `_kernels_numba.py`, numpy twin, equal plane for plane); `pack_ids`,
+    vectorised and separate from `_pack`; `viz/figure3d/report.py`
+    (`FigureReport`, `probe`, `look`, `choose_view`); `_labels`/`_dangling`/
+    `_empty` in `render.py`; `keep` writes a structured `cut` beside `note`;
+    `views.resolve` refuses `"auto"` with a pointer. Skill section "Reading
+    the figure before looking" (generated), manual § What the figure says
+    about itself, the example's new lines and its test, the v1.6 record.
+  - **Measured** (Apple M4, warm, `[dev]`, darwin arm64, no other session
+    running). Id pass, kernel, including packing: 0.6-0.8 ms on one NAC cell
+    against a render of 17-19 ms (about 4 %, acceptance was a third). Numpy
+    path: 11.8 ms on the cell, 212 ms at 3143 atoms, so a build without
+    numba pays 0.6x a cell render and 1.3x at 3143 atoms. Report cost in
+    `render_structure`: about +2 ms on the cell, +14-55 ms at 3143 atoms
+    (`cut._far` is 12 ms of that when a vertex-only atom is undrawn).
+    `view="auto"`: 92 ms on the cell, 565 ms at 3143 atoms, 19-127 ms over
+    the 21 phases at 256 px. Fast suite: 7060 passed, 157 skipped in 2:25,
+    `[dev]`, darwin arm64, before the review's three added cases. Added
+    tests: 36 cases in `test_render_structure.py`, 5.96 s summed (21 of them
+    the phase sweep, 3.79 s), none in the slow tail.
+  - **Design choices the WP did not fix.** The id pass packs its own arrays
+    (`_pack` costs more than the pass, and the search runs it ~100 times).
+    Candidates and the report's hidden share read one function and one frame
+    rule, so the acceptance comparison is exact, but a candidate's `empty`
+    is atoms and bonds only while `report.empty` reads the image. Lines and
+    faces do not hide an atom. Both signs of each direction are searched
+    (98 directions plus the opening view). The winner is often an index-2
+    direction (NAC [0, 1, 2], rutile [-2, 0, -1]): the WP ties toward small
+    indices only after hidden and empty, so a recognisable axis view loses
+    to a cleaner one. That is the place to soften if agents dislike it.
+  - **Dropped.** The WP's "a component that crosses the frame" warning: the
+    frame is fitted to what is drawn, so nothing crosses it, and I could not
+    find the case it meant. `recipe` leaves out `probability`,
+    `bond_tolerance`, `phase` and `path`, since they build the geometry or
+    write a file and the geometry is the caller's.
+  - **Review.** `/code-review high --fix` found and fixed a generator passed
+    as `hidden=` being consumed before `_species` read it (nothing hidden,
+    silently), and `choose_view` masking a bad `turn=`/`up=` under
+    "no view can have up=None"; both have tests. I also fixed three of its
+    minor items (the `rp.` alias leaking into the skill file, the warning's
+    size, numpy values in the recipe). Left: `probe` round-trips face
+    triangles through lists and `look` re-derives the extent `_extent`
+    computes, so the two can drift on a change to either.
+  - **Gotchas.** `rotation` passed back as `view=` was bit-identical here;
+    it was not assumed, it is tested. The `Bash` guard here refuses some
+    heredocs at random: write a scratch file and append it. Pictures are in
+    `tests/output/figure3d/report_*`.
+  - **Next.** 1504 (measure with real agents) is unblocked by this: its
+    question is whether reading `report` before looking cuts looks and
+    tokens, and whether the agent takes `candidates[1]` or adds `turn=`.
+    Run it only from a costed menu the user picks from.
 
 - **2026-09-27** — filed from the session that closed WP-1470. Next: the
   id pass and its cost, since every number here rests on it.
