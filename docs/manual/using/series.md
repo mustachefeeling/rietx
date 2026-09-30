@@ -980,6 +980,12 @@ histogram only. The same holds for `SPECIES_FALLBACK_NEUTRAL`, and
 three appears at the top level. `STAGE_MAX_ITER` and
 `SPACE_GROUP_SETTING_ASSUMED` appear there, once each.
 
+There is one exception, `BACKGROUND_ABSORPTION`, which is on both lists. It is
+raised on its histogram's list and repeated once on
+`RefinementResult.diagnostics`, where it keeps its `hist.<h>.` path, as the
+top-level report carried it before the rule was written. Each copy is the same
+finding about one histogram, so count it once.
+
 The rule is written as data. `rietx.multi.DIAGNOSTIC_SCOPES` places each
 diagnostic, and `rietx.multi.GUARD_SCOPES` places each guard. Each row gives
 its reason, including the rows for diagnostics a joint fit does not compute.

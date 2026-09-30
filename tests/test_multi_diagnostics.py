@@ -24,7 +24,7 @@ import numpy as np
 import pytest
 
 import rietx as rx
-from rietx.strategy.staged import RefinementPlan, Stage
+from rietx.strategy.staged import GuardFinding, GuardReport, RefinementPlan, Stage
 from tests.test_joint_xray_neutron import _flat, _neutron, _xray, _y_calc, corundum
 
 multi = importlib.import_module("rietx.multi")
@@ -171,6 +171,37 @@ def test_the_joint_path_fills_each_guard_where_its_scope_says(field):
     inside, outside = _guard_fills()
     assert (field in inside) == (multi.HISTOGRAM in scopes), field
     assert (field in outside) == bool(set(scopes) & {multi.SPECIMEN, multi.FIT}), field
+
+
+#: A finding for each guard placed on a histogram's list *and* at the top
+#: level: the one exception to the written rule, which the prose must name.
+_ON_BOTH_LISTS = {
+    "background_correlations":
+        lambda: GuardFinding.background_absorption("hist.0.phases.0.scale", 0.99),
+}
+
+
+def test_a_guard_on_both_lists_is_named_as_the_exception_in_the_prose():
+    """The manual and skill §8.30 say a pattern's finding goes on its
+    histogram's list and a fit's goes at the top level; a guard scoped to
+    both is the exception, so its code must be named in both texts — and a
+    new such row fails here until it is."""
+    both = {f for f, (scopes, _) in multi.GUARD_SCOPES.items()
+            if multi.HISTOGRAM in scopes
+            and set(scopes) & {multi.SPECIMEN, multi.FIT}}
+    assert both == set(_ON_BOTH_LISTS)
+    root = Path(__file__).resolve().parents[1]
+    manual = (root / "docs/manual/using/series.md").read_text(encoding="utf-8")
+    skill = (root / "docs/skill/rietx/references/surprises.md").read_text(
+        encoding="utf-8")
+    s830 = skill[skill.index("**8.30 "):].split("\n**8.", 1)[0]
+    for field, finding in _ON_BOTH_LISTS.items():
+        (diag,) = multi._guard_diagnostics(
+            GuardReport(**{field: [finding()]}))
+        for text in (manual, s830):
+            i = text.find(diag.code)
+            assert i >= 0 and "both lists" in text[max(0, i - 300):i + 300], (
+                field, diag.code)
 
 
 # -------------------------------------------------------- the three codes ---

@@ -511,7 +511,9 @@ and reports a pattern's findings on that pattern.** f₀ with f′/f″ on the
 X-ray histogram, b on the neutron one, polarisation locked there and the
 magnetic term built there only: nothing to declare. `result.diagnostics`
 carries what is about the shared structure, the solve or the plan
-(`STAGE_MAX_ITER`, `SPACE_GROUP_SETTING_ASSUMED`, `HIGH_CORRELATION`).
+(`STAGE_MAX_ITER`, `SPACE_GROUP_SETTING_ASSUMED`, `HIGH_CORRELATION`), plus a
+copy of each histogram's `BACKGROUND_ABSORPTION` under its `hist.<h>.` path:
+one finding on both lists, so count it once.
 Everything about one pattern's radiation, instrument or counts is on
 `result.histograms[h].diagnostics`: `DISPERSION_NEGLECTED` and
 `SPECIES_FALLBACK_NEUTRAL` on the X-ray histogram, `NEUTRON_RESONANT_ABSORBER`
