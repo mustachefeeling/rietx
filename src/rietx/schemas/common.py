@@ -338,8 +338,8 @@ from .._nearmiss import did_you_mean
 #: every document written before loads unchanged and no fit's number moves;
 #: what a consumer notices is two new keys in every serialized phase, two new
 #: parameter paths on a phase that declares a magnetic structure, and the
-#: reflection table's new ``component`` column.  WP-1469 took 0.36 first; its
-#: sibling WP-1329 landed second and took 0.38.
+#: reflection table's new ``component`` column.  WP-1469 took 0.36 first, and
+#: its sibling WP-1329 took 0.38 on top of this.
 #: 0.37 → 0.38 (WP-1329): ``SeriesEntry.magnetic``, the moment along a
 #: series — WP-1327's ``MomentEvidence`` rows per pattern of a sequential
 #: refinement.  Before it, a magnetic series handed back a signed
