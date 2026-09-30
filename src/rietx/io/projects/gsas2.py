@@ -504,6 +504,12 @@ class Gsas2Phase:
     #: and guessing at it is how a reader comes to describe a model it has not
     #: read.  Ten of the 34 corpus projects carry one
     magnetic_partner: str | None = None
+    #: the file's ``General['Isotope']``, atom type → the isotope chosen for it
+    #: (``{'H': '2', 'Ni': 'Nat. Abund.'}``).  GSAS-II keeps the isotope here
+    #: and not in the atom type — "dict of isotopes for each atom type", its
+    #: data-object docs — so a site's scatterer is its type *and* this choice
+    #: (issue #554)
+    isotope: dict[str, str] = field(default_factory=dict)
 
     @property
     def magnetic(self) -> bool:
@@ -958,7 +964,9 @@ def _phase(name: str, data: dict) -> Gsas2Phase:
         pawley=bool(general.get("doPawley", False)),
         number=data.get("pId") if isinstance(data.get("pId"), int) else None,
         magnetic_partner=(str(data["magPhases"])
-                          if data.get("magPhases") else None))
+                          if data.get("magPhases") else None),
+        isotope=({str(k): str(v) for k, v in general["Isotope"].items()}
+                 if isinstance(general.get("Isotope"), dict) else {}))
 
 
 #: The sample parameters GSAS-II stores as ``[value, flag]``, which is the set a
@@ -1389,6 +1397,47 @@ def _report(model: Gsas2Model, diagnostics: list[Diagnostic]) -> None:
 EIGHT_PI_SQUARED = 8.0 * 3.141592653589793 ** 2
 
 
+#: GSAS-II's ``General['Isotope']`` value for natural abundance, its default.
+_NATURAL = "Nat. Abund."
+
+
+def _isotope_species(phase: Gsas2Phase, atom_type: str, named: str) -> str:
+    """A site's rietx species: its GSAS-II atom type and the isotope chosen for it.
+
+    ``Ni+2`` with ``General['Isotope']['Ni+2'] == '58'`` is ``58Ni2+``: the
+    mass number in front, which is rietx's neutron key, and the charge
+    normalised as for any type (``neutron.normalize_species`` reduces it to
+    ``58Ni``).  ``Nat. Abund.`` (the default) and no entry leave the type as it
+    is, and so do ``D`` and ``T``, which already name their isotope.  A choice
+    that is not a mass number, or one the Sears table rietx scatters from does
+    not carry, is refused naming the phase and the type, since reading it as
+    natural abundance is the silent change of b issue #554 was.
+    """
+    from ...crystallography.neutron import b_coh
+    from .fullprof import normalize_species
+
+    species = normalize_species(atom_type)
+    choice = phase.isotope.get(atom_type, _NATURAL).strip()
+    if choice == _NATURAL or species in ("D", "T"):
+        return species
+    if not choice.isdigit():
+        raise Gsas2GpxError(
+            f"{named}: phase {phase.name!r} chooses isotope {choice!r} for atom "
+            f"type {atom_type!r} (General['Isotope']), which is neither "
+            f"{_NATURAL!r} nor a mass number, so which nucleus scatters there "
+            f"is not something this reader can say")
+    isotope = f"{int(choice)}{species}"
+    try:
+        b_coh(isotope)
+    except KeyError as exc:
+        raise Gsas2GpxError(
+            f"{named}: phase {phase.name!r} chooses isotope {choice} for atom "
+            f"type {atom_type!r} (General['Isotope']), and {exc.args[0]}. "
+            f"Reading the site as natural abundance instead would change its "
+            f"scattering length without saying so") from exc
+    return isotope
+
+
 def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
                  diagnostics: list[Diagnostic] | None = None):
     """Build a :class:`~rietx.schemas.Structure` from a parsed ``.gpx``.
@@ -1400,7 +1449,9 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
     nothing, so it maps onto ``vary=False`` rather than onto a schema default.
 
     ``Uiso`` becomes ``Biso`` through :data:`EIGHT_PI_SQUARED`.  Species are
-    normalised to IUCr spelling (``Mn+3`` → ``Mn3+``), reported as
+    normalised to IUCr spelling (``Mn+3`` → ``Mn3+``), and a type the phase's
+    ``General['Isotope']`` gives a mass number is built as that isotope
+    (:func:`_isotope_species`: ``H`` with ``2`` is ``2H``), both reported as
     ``GSAS2_GPX_SPECIES_NORMALISED`` where ``diagnostics=`` is passed.
 
     ``phase`` picks one of a multi-phase file by name or by GSAS-II's own phase
@@ -1439,8 +1490,6 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
     import rietx as rx
 
     from ...crystallography.wyckoff import coordinate_basis, stabilizer_rotations
-    from .fullprof import normalize_species
-
     named = model.path or "<model>"
     if not model.phases:
         raise Gsas2GpxError(
@@ -1521,7 +1570,7 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
     frozen: list[str] = []
     sites: list[dict] = []
     for i, atom in enumerate(chosen.atoms):
-        species = normalize_species(atom.species)
+        species = _isotope_species(chosen, atom.species, named)
         if species != atom.species:
             rewrites.setdefault(atom.species, (species, []))[1].append(
                 f"phases.0.atoms.{i}.species")
@@ -1579,11 +1628,15 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
 
     if diagnostics is not None:
         for raw, (canonical, wheres) in rewrites.items():
+            choice = chosen.isotope.get(raw, _NATURAL)
+            why = (f"the phase's General['Isotope'] chooses isotope {choice} "
+                   f"for that type, which GSAS-II keeps outside the atom type"
+                   if choice != _NATURAL and raw not in ("D", "T") else
+                   "GSAS-II writes an ionic charge sign first; normalised to "
+                   "IUCr spelling")
             diagnostics.append(Diagnostic(
                 level="info", code="GSAS2_GPX_SPECIES_NORMALISED",
-                message=(f"species {raw!r} in {named} read as {canonical!r} — "
-                         f"GSAS-II writes an ionic charge sign first; "
-                         f"normalised to IUCr spelling"),
+                message=f"species {raw!r} in {named} read as {canonical!r} — {why}",
                 where=wheres))
         if frozen:
             diagnostics.append(Diagnostic(
