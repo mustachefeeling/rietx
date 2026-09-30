@@ -9,11 +9,22 @@ this; everything in `rx.` is `import rietx as rx`.*
 
 ## Drawing it
 
-`rx.viz.render_structure(ref.structure)` draws one phase as the GUI's structure viewer draws it, with no browser: an RGBA array in `.image`, a PNG when `path=` is given. Look at the picture you drew. `view=` takes `"a"`, `"b"`, `"c"`, `[u, v, w]`, `{"hkl": (h, k, l)}` or a rotation; `.rotation` is the view drawn, and passing it back redraws the same picture. `.atoms` and `.letters` give pixel positions for labels you add yourself. For a site's colour (`#rrggbb`) or radius, edit the dict `rietx.gui.structure3d.build` returns and pass that. Deleting an atom from it raises, since bonds and polyhedra hold its index. Another program's picture: `Structure.to_cif` writes the anisotropic loop, and VESTA or JmolData draws it (Hypothesis: WP-1470, from each program's manual; neither was run).
+`rx.viz.render_structure(ref.structure)` draws one phase as the GUI's structure viewer draws it, with no browser: an RGBA array in `.image`, a PNG when `path=` is given. Look at the picture you drew. `view=` takes `"a"`, `"b"`, `"c"`, `[u, v, w]`, `{"hkl": (h, k, l)}` or a rotation; `.rotation` is the view drawn, and passing it back redraws the same picture. `.atoms` and `.letters` give pixel positions for labels you add yourself. For a site's colour (`#rrggbb`, `white` or `black`; anything else raises) or radius, edit the dict `rietx.gui.structure3d.build` returns and pass that. Another program's picture: `Structure.to_cif` writes the anisotropic loop, and VESTA or JmolData draws it (Hypothesis: WP-1470, from each program's manual; neither was run).
 
 - `rx.viz.render_structure(structure, phase: int = 0, *, mode: str = 'ball', view='opening', up=None, turn: str | None = None, size=1000, supersample: int = 2, probability: float | None = None, bond_tolerance: float | None = None, exaggeration: float = 1.0, hidden=(), boundary: bool = True, polyhedra=None, axis_labels: bool = True, atom_labels: bool = False, outline: bool = False, background='white', path=None, dpi: float | None = None) -> StructureFigure` — Draw one phase of a structure as the GUI's structure viewer draws it.
 - `rietx.viz.figure3d.StructureFigure` — What `render_structure` drew.
-  Fields: `image: np.ndarray`, `rotation: list[list[float]]`, `pixels_per_angstrom: float`, `atoms: list[dict]`, `letters: list[dict]`, `path: str | None = None`
+  Fields: `image: np.ndarray`, `rotation: list[list[float]]`, `pixels_per_angstrom: float`, `atoms: list[dict]`, `letters: list[dict]`, `path: str | None = None`, `palette: dict[str, str] = {}`
+
+## Part of the structure
+
+A site is left out, or a slab or a motif kept, by a mask over the dict's `atoms`: `g = build(structure)`, then `rx.viz.keep(g, ~rx.viz.select(g, label="F2"))`. `hidden=` takes species and elements, never a site label. Never delete from `atoms` by hand: bonds and polyhedra hold atoms by index, and `keep` is the one place that renumbers. Masks combine with `&`, `|` and `~`. `keep(..., complete=True)` brings back the far ends of cut bonds and the vertices of cut polyhedra, from the atoms `build` made. Its `note` counts what a cut lost. `component(via="edges")` where bonds reach everything.
+
+- `rx.viz.keep(geometry: Mapping, mask, *, complete: bool = False) -> dict` — The geometry with only the atoms `mask` keeps, every index consistent.
+- `rx.viz.select(geometry: Mapping, *, species=None, element=None, label=None, site=None, boundary: bool | None = None) -> np.ndarray` — The atoms of the named sites, as a boolean array over `atoms`.
+- `rx.viz.plane(geometry: Mapping, hkl, distance: float, *, width: float | None = None, inverse: bool = False, units: str = 'd') -> np.ndarray` — The atoms on the origin side of the plane (hkl) at `distance`.
+- `rx.viz.sphere(geometry: Mapping, centre, radius: float) -> np.ndarray` — The atoms within `radius` Å of `centre`, itself included.
+- `rx.viz.component(geometry: Mapping, atom: int, *, via: str = 'bonds') -> np.ndarray` — The connected piece of the figure holding `atom`.
+- `rx.viz.recolour(geometry: Mapping, mask, colour) -> dict` — The geometry with the masked atoms, and the polyhedra centred on them, in `colour`.
 
 ## The pattern before a model
 

@@ -271,14 +271,28 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "w]`, `{\"hkl\": (h, k, l)}` or a rotation; `.rotation` is the "
                 "view drawn, and passing it back redraws the same picture. "
                 "`.atoms` and `.letters` give pixel positions for labels you add "
-                "yourself. For a site's colour (`#rrggbb`) or radius, edit the "
-                "dict `rietx.gui.structure3d.build` returns and pass that. "
-                "Deleting an atom from it raises, since bonds and polyhedra "
-                "hold its index. "
+                "yourself. For a site's colour (`#rrggbb`, `white` or `black`; "
+                "anything else raises) or radius, edit the dict "
+                "`rietx.gui.structure3d.build` returns and pass that. "
                 "Another program's picture: `Structure.to_cif` writes the "
                 "anisotropic loop, and VESTA or JmolData draws it (Hypothesis: "
                 "WP-1470, from each program's manual; neither was run).",
                 ("rx.viz.render_structure", "rietx.viz.figure3d.StructureFigure"),
+            ),
+            (
+                "Part of the structure",
+                "A site is left out, or a slab or a motif kept, by a mask over "
+                "the dict's `atoms`: `g = build(structure)`, then "
+                "`rx.viz.keep(g, ~rx.viz.select(g, label=\"F2\"))`. `hidden=` "
+                "takes species and elements, never a site label. Never delete "
+                "from `atoms` by hand: bonds and polyhedra hold atoms by index, "
+                "and `keep` is the one place that renumbers. Masks combine with "
+                "`&`, `|` and `~`. `keep(..., complete=True)` brings back the "
+                "far ends of cut bonds and the vertices of cut polyhedra, from "
+                "the atoms `build` made. Its `note` counts what a cut lost. "
+                "`component(via=\"edges\")` where bonds reach everything.",
+                ("rx.viz.keep", "rx.viz.select", "rx.viz.plane", "rx.viz.sphere",
+                 "rx.viz.component", "rx.viz.recolour"),
             ),
             (
                 "The pattern before a model",

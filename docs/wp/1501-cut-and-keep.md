@@ -165,13 +165,13 @@ since an agent says "the plane through the origin and the next one at d".
 - [x] `exports.md` rewritten with a runnable example per verb, the
   `model_copy` rule, `api-figure.md` regenerated, and the manual partition
   green.
-- [ ] Skill: the verbs on `api-figure.md`, and a line in the routing row's
+- [x] Skill: the verbs on `api-figure.md`, and a line in the routing row's
   reference saying a site is hidden by a mask. Pay for any body byte with a
   cut.
-- [ ] Tests, and pictures to `tests/output/`: NAC without F2 by mask, a
+- [x] Tests, and pictures to `tests/output/`: NAC without F2 by mask, a
   (110) slab of NAC with `complete=True`, rutile's chain, one recoloured
   site.
-- [ ] The addition staged in the open milestone's record.
+- [x] The addition staged in the open milestone's record.
 
 ## Acceptance
 
