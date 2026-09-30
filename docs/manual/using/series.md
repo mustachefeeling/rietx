@@ -810,8 +810,9 @@ The three diagnostics that key on the radiation, `DISPERSION_NEGLECTED`,
 histogram whose radiation raised them, never at the top level; the rule that
 places them and every other diagnostic is in
 {ref}`reading-a-joint-result`. What the result does not yet say is which
-radiation each histogram was, because `HistogramResult` carries no instrument. Read `MultiHistogramRefinement.fitted_instruments` instead, whose
-entry for each histogram carries its `source.kind`.
+radiation each histogram was, because `HistogramResult` carries no instrument.
+Read `MultiHistogramRefinement.fitted_instruments` instead, whose entry for
+each histogram carries its `source.kind`.
 
 The real-data joint fit this package is tested against is one Nd₂Ru₂O₇
 specimen measured on an APS 11-BM synchrotron and an NCNR BT-1

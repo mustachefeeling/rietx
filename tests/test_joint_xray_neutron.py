@@ -36,8 +36,9 @@ answer each kind must give.  A new radiation-keyed term joins with one row
 kind fails :func:`test_every_row_answers_for_every_source_kind` until every row
 says what it does there.  Three things the table is not: the radiation-keyed
 *diagnostics*, which WP-1344 placed on the histogram that owns each (pinned
-below at their exact count, ``multi.DIAGNOSTIC_SCOPES`` the rule); the λ-keyed size normalisation, which is
-WP-1131's and tested in ``test_multi_histogram.py``; and anything a single
+below at their exact count, ``multi.DIAGNOSTIC_SCOPES`` the rule); the
+λ-keyed size normalisation, which is WP-1131's and tested in
+``test_multi_histogram.py``; and anything a single
 histogram already tests, since the question here is only whether the stack
 keeps each histogram's answer its own.
 
