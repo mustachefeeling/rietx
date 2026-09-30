@@ -83,6 +83,7 @@ from __future__ import annotations
 
 import contextvars
 import math
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -1350,6 +1351,70 @@ def _report(model: GsasModel, diagnostics: list[Diagnostic]) -> None:
 EIGHT_PI_SQUARED = 8.0 * 3.141592653589793 ** 2
 
 
+def normalize_species(token: str) -> str:
+    """``NI+2_58`` → ``58Ni2+``: GSAS's atom type in rietx's spelling.
+
+    The GSAS technical manual gives the type as ``aasv_nnn`` — chemical symbol,
+    valence sign, valence, then an underscore and the isotope number (Larson &
+    Von Dreele, LAUR 86-748, 2004, ``EXPR ATYPnn``, printed p. 182) — and its
+    EXPEDT walkthrough spells the example: "a TYPE of 'NI+2_58' (note the
+    underscore '_')" loads the Ni²⁺ X-ray and ⁵⁸Ni neutron data. So the
+    isotope number is split off at the underscore *before* the charge is
+    normalised (:func:`.fullprof.normalize_species`, which deletes every
+    character outside ``[A-Za-z0-9+-]`` and so joined the two into a "+258"
+    ion, issue #555), and goes in front as rietx's mass number: ``LI+1_7`` →
+    ``7Li1+``, ``H_2`` → ``2H``, ``NI_58`` → ``58Ni``. A blank ``nnn`` is the
+    manual's natural abundance. A token whose isotope part is not a number is
+    returned as it stands, to fail loudly at the lookup rather than be guessed.
+    """
+    from .fullprof import normalize_species as _element_and_charge
+    stem, underscore, isotope = token.strip().partition("_")
+    if not underscore:
+        return _element_and_charge(stem)
+    isotope = isotope.strip()
+    if not isotope:
+        return _element_and_charge(stem)
+    if not isotope.isdigit():
+        return token.strip()
+    return f"{int(isotope)}{_element_and_charge(stem)}"
+
+
+def gsas_species(species: str) -> str:
+    """``7Li1+`` → ``LI+1_7``: the inverse of :func:`normalize_species`.
+
+    The manual's type grammar, ``aasv_nnn`` (printed p. 182): the symbol in
+    upper case, "the valence as a sign and a numerical value, e.g. 'TI+4'"
+    (``AFAC aaaa``, printed p. 181), then ``_`` and the isotope number. So
+    ``Zr4+`` → ``ZR+4``, ``Mn`` → ``MN``, ``7Li`` → ``LI_7``, ``D`` → ``H_2``.
+    **From the manual only**: no GSAS run has checked it (issue #555).
+
+    An ion with a sign and no magnitude (``Cu+``) is refused, as the TOPAS and
+    FullProf writers refuse it: rietx computes the neutral atom for it, and
+    the grammar has no digitless valence to write.
+    """
+    s = species.strip()
+    mass = ""
+    if s in ("D", "T"):
+        mass, s = ("2" if s == "D" else "3"), "H"
+    m = re.fullmatch(r"(\d*)([A-Za-z]{1,2})(?:(\d*)([+-]))?", s)
+    if not m:
+        raise ValueError(
+            f"species {species!r} is not an element, an ion or an isotope, and "
+            f"a GSAS atom type ('aasv_nnn') names one of those")
+    lead, element, magnitude, sign = m.groups()
+    mass = mass or lead
+    if sign and not magnitude:
+        raise ValueError(
+            f"species {species!r} has a sign but no charge magnitude: rietx's "
+            f"scattering table reads it as the neutral atom, and GSAS's type "
+            f"grammar writes a valence as a sign and a number ('TI+4'), so no "
+            f"GSAS type states the model rietx computed. Write "
+            f"{mass + element + '1' + sign!r} for the ion or "
+            f"{mass + element!r} for the neutral atom")
+    return (f"{element.upper()}{sign or ''}{magnitude or ''}"
+            + (f"_{mass}" if mass else ""))
+
+
 def to_structure(model: GsasModel, *, phase: int | None = None,
                  diagnostics: list[Diagnostic] | None = None):
     """Build a :class:`~rietx.schemas.Structure` from a parsed ``.EXP``.
@@ -1397,8 +1462,6 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
     import rietx as rx
 
     from ...crystallography.wyckoff import coordinate_basis, stabilizer_rotations
-    from .fullprof import normalize_species
-
     if not model.phases:
         raise GsasExpError(
             f"{model.path or '<model>'}: states no phases — a .EXP written "
@@ -1549,11 +1612,14 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
     if diagnostics is not None:
         named = model.path or "<model>"
         for raw, (canonical, wheres) in rewrites.items():
+            why = ("GSAS writes the type as 'aasv_nnn' (symbol, valence, then "
+                   "the isotope number after '_'); the isotope number is "
+                   "rietx's mass number, in front" if "_" in raw else
+                   "GSAS writes the scattering token in upper case; "
+                   "normalised to IUCr spelling")
             diagnostics.append(Diagnostic(
                 level="info", code="GSAS_EXP_SPECIES_NORMALISED",
-                message=(f"species {raw!r} in {named} read as {canonical!r} — "
-                         f"GSAS writes the scattering token in upper case; "
-                         f"normalised to IUCr spelling"),
+                message=f"species {raw!r} in {named} read as {canonical!r} — {why}",
                 where=wheres))
         if frozen:
             diagnostics.append(Diagnostic(
@@ -1898,13 +1964,17 @@ def from_structure(structure: Structure, *, title: str = "",
                     f"in — exp(-B·s²) with B < 0 grows without bound at high "
                     f"Q.  Writing it would only fail at the read, with the "
                     f"file already on disk")
-            species = _write_label(atom.species, what=f"{site}.species")
+            try:
+                typ = gsas_species(atom.species)
+            except ValueError as exc:
+                raise ValueError(f"{site} ({atom.label!r}): {exc}") from None
+            species = _write_label(typ, what=f"{site}.species")
             label = _write_label(atom.label, what=f"{site}.label")
             xyz = (atom.x, atom.y, atom.z)
             multiplicity = len(expand_positions(
                 sg, np.array([atom.x.value, atom.y.value, atom.z.value])))
-            contents[atom.species] = (contents.get(atom.species, 0.0)
-                                      + atom.occ.value * multiplicity)
+            contents[typ] = (contents.get(typ, 0.0)
+                             + atom.occ.value * multiplicity)
             head = (f"  {species}" + "".join(
                 write_field(p.value, _WRITE_NUMBER, what=f"{site}.{k}",
                        narrowed=narrowed)
