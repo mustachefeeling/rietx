@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import math
 import re
+import time
 from collections.abc import Sequence
 from typing import Any
 
@@ -123,6 +124,12 @@ _FACING = np.array([1.0, math.e, math.pi])
 #: payload will carry.  A cap rather than a promise: it is reported in ``note``
 #: when it bites, because a silently truncated cell reads as a wrong structure.
 MAX_ATOMS = 400
+
+#: The extent ``build`` draws by default: the one cell (WP-1502).
+DEFAULT_EXTENT = ((0, 1), (0, 1), (0, 1))
+
+#: Keys an atom carries while the payload is built and never sends.
+_PRIVATE = ("_turn", "_orbit")
 
 #: Fractional tolerance for "this atom is on the cell boundary", which is what
 #: earns it a duplicate at the far face — the corner atom that appears eight
@@ -638,7 +645,8 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
           bond_tolerance: float = BOND_TOLERANCE,
           max_atoms: int = MAX_ATOMS, disorder: str = "all",
           centres: Sequence[str] | None = None,
-          ligands: Sequence[str] | None = None) -> dict[str, Any]:
+          ligands: Sequence[str] | None = None,
+          extent: Sequence[Sequence[int]] | None = None) -> dict[str, Any]:
     """Drawable geometry for one phase of ``structure``.
 
     The returned dict is the wire format of ``GET /api/structure3d``; its shape
@@ -656,7 +664,25 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     environments and an anion-centred OCa₄ are asked for.  The payload
     echoes both and lists the elements in use as ``centre_elements`` and
     ``ligand_elements``.
+
+    ``extent`` is ``((a0, a1), (b0, b1), (c0, c1))``, the block of whole cells
+    to draw as a half-open box in cell units (WP-1502); ``None`` is the one
+    cell, ``((0, 1),) * 3``.  Every atom carries ``image`` = ``[orbit index,
+    [n1, n2, n3]]``, which atom of the cell it is and by which lattice
+    translation it is moved, so two images of one atom are told apart from two
+    atoms.  The cell is built once and the block is that result translated,
+    matched by image, so the cost grows with the atoms drawn.  The block holds
+    each atom once, the atoms on its lower faces again on the opposite ones (the
+    cell's own rule), every bond of an atom in it, and every polyhedron whose
+    centre is in it, whole.  ``max_atoms`` then bounds the block and raises
+    past it, as a block cannot be trimmed without cutting bonds.
     """
+    box = _extent(extent)
+    if box != DEFAULT_EXTENT:
+        started = time.perf_counter()
+        home = build(structure, phase, probability=probability, bond_tolerance=bond_tolerance,
+                     max_atoms=_UNCAPPED, disorder=disorder, centres=centres, ligands=ligands)
+        return _tile(home, box, max_atoms, started)
     if disorder not in DISORDER_VIEWS:
         raise ValueError(f"disorder must be one of {', '.join(DISORDER_VIEWS)}, "
                          f"not {disorder!r}")
@@ -727,6 +753,7 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     atoms.extend(corners)
 
     corners = _corners(basis)
+    orbit_frac = orbit["frac"]
     return {
         "phase": phase,
         "phases": [p.name for p in phases],
@@ -736,13 +763,18 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
         "volume": float(abs(np.linalg.det(basis))),
         "lattice": basis.T.tolist(),          # rows a, b, c as Cartesian vectors
         "corners": corners.tolist(),
+        "extent": [list(b) for b in DEFAULT_EXTENT],
         # twelve index pairs into ``corners``, so "12 edges" is a fact of the
         # payload and not of whichever line convention the renderer happens to use
         "edges": _EDGES,
         "sites": sites,
         # an image's symmetry operation is the server's own business (it says
         # which images of a negative disorder group coexist), so it stays here
-        "atoms": [{k: v for k, v in a.items() if k != "_turn"} for a in atoms],
+        "atoms": [{**{k: v for k, v in a.items() if k not in _PRIVATE},
+                   "image": _image(a, orbit_frac)} for a in atoms],
+        # the first ``n_cell`` atoms are the block's own images and their
+        # boundary duplicates, the only ones a polyhedron is centred on
+        "n_cell": n_cell,
         "bonds": bonds,
         # vertices, bonds and the centre are indices into ``atoms`` and
         # ``bonds``; faces and edges index the polyhedron's own vertices
@@ -780,11 +812,145 @@ _EDGES: list[list[int]] = [[i, i ^ bit] for bit in (1, 2, 4)
                            for i in range(8) if not i & bit]
 
 
-def _corners(basis: np.ndarray) -> np.ndarray:
-    """The eight cell corners in Cartesian Å, in binary (a, b, c) order."""
+def _corners(basis: np.ndarray, box=DEFAULT_EXTENT) -> np.ndarray:
+    """The eight corners of ``box`` in Cartesian Å, in binary (a, b, c) order."""
+    lo = np.array([b[0] for b in box], dtype=np.float64)
+    span = np.array([b[1] - b[0] for b in box], dtype=np.float64)
     frac = np.array([[(i >> 0) & 1, (i >> 1) & 1, (i >> 2) & 1] for i in range(8)],
                     dtype=np.float64)
-    return frac @ basis.T
+    return (lo + frac * span) @ basis.T
+
+
+#: A cap no phase reaches, for the cell an extent is built from.
+_UNCAPPED = 1 << 40
+
+
+def _extent(extent) -> tuple[tuple[int, int], ...]:
+    """``extent`` as three ``(lo, hi)`` whole-cell pairs, or a ``ValueError``."""
+    if extent is None:
+        return DEFAULT_EXTENT
+    try:
+        pairs = [tuple(pair) for pair in extent]
+        ok = len(pairs) == 3 and all(len(pair) == 2 for pair in pairs)
+        ok = ok and all(isinstance(v, (int, np.integer)) and not isinstance(v, bool)
+                        for pair in pairs for v in pair)
+    except TypeError:
+        ok = False
+    if not ok:
+        raise ValueError(f"extent {extent!r}: three (low, high) pairs of whole cells, "
+                         "as ((0, 2), (0, 2), (0, 1))")
+    box = tuple((int(lo), int(hi)) for lo, hi in pairs)
+    if any(hi <= lo for lo, hi in box):
+        raise ValueError(f"extent {extent!r}: each pair needs high above low; the box "
+                         "is half-open, so (0, 1) is the one cell")
+    return box
+
+
+def _image(atom: dict, orbit_frac: np.ndarray) -> list:
+    """``[orbit index, [n1, n2, n3]]``: which atom of the cell ``atom`` is an image
+    of, and the lattice translation that moved it."""
+    o = atom["_orbit"]
+    n = np.rint(np.asarray(atom["frac"], dtype=np.float64) - orbit_frac[o]).astype(int)
+    return [int(o), n.tolist()]
+
+
+def _tile(home: dict, box: tuple, max_atoms: int, started: float) -> dict:
+    """``home``, the one cell's geometry, instantiated over the cells of ``box``.
+
+    Every atom is found by its image ``(orbit index, n)``, which is exact where
+    a position needs rounding, so the block is a translation of the cell's
+    bond search and is never searched again (WP-1502).  The cell's atoms and
+    their boundary duplicates, translated over the cells and taken once each,
+    are the block's own (the cell's rule, as it reads on a face of the block);
+    every bond of one of them is the cell's bond translated, taken once; a
+    bond's far end outside them is a neighbour drawn as :func:`_partners` does,
+    and a polyhedron is its centre's in the cell, translated, with the ligands
+    no stick reached added as :func:`_polyhedra` does.
+    """
+    atoms = home["atoms"]
+    basis = np.asarray(home["lattice"], dtype=np.float64).T
+    inverse = np.linalg.inv(basis)
+    n_cell = home["n_cell"]
+    shift = np.array([[a["image"][1]] for a in atoms], dtype=np.int64).reshape(-1, 3)
+    orbit_of = [a["image"][0] for a in atoms]
+    frac_of: dict[int, np.ndarray] = {}
+    template: dict[int, dict] = {}
+    for a, n, o in zip(atoms, shift, orbit_of):
+        if o not in frac_of:
+            frac_of[o] = np.asarray(a["frac"], dtype=np.float64) - n
+            template[o] = a
+    real = [a for a in range(n_cell) if not atoms[a]["boundary"]]
+    copies = [a for a in range(n_cell) if atoms[a]["boundary"]]
+    # the block holds at least one image of every atom per cell, so the cap is
+    # known before any cell is built, and a large extent raises at once
+    n_cells = math.prod(hi - lo for lo, hi in box)
+    if n_cells * len(real) > max_atoms:
+        raise ValueError(f"extent {box}: at least {n_cells * len(real)} atoms in the block, "
+                         f"past max_atoms={max_atoms}; pass a larger max_atoms")
+    cells = np.stack(np.meshgrid(*[np.arange(lo, hi) for lo, hi in box], indexing="ij"),
+                     axis=-1).reshape(-1, 3)
+    out: list[dict] = []
+    at: dict[tuple, int] = {}
+
+    def place(o: int, n: np.ndarray, *, boundary: bool, vertex_only: bool = False) -> int:
+        key = (o, *(int(v) for v in n))
+        if key not in at:
+            frac = frac_of[o] + n
+            at[key] = len(out)
+            out.append({**template[o], "frac": frac.tolist(), "pos": (basis @ frac).tolist(),
+                        "boundary": boundary, "vertex_only": vertex_only,
+                        "image": [o, [int(v) for v in n]]})
+        return at[key]
+
+    for t in cells:
+        for a in real:
+            place(orbit_of[a], t + shift[a], boundary=False)
+    for t in cells:
+        for a in copies:
+            place(orbit_of[a], t + shift[a], boundary=True)
+    if len(out) > max_atoms:
+        raise ValueError(f"extent {box}: {len(out)} atoms in the block, past max_atoms="
+                         f"{max_atoms}; pass a larger max_atoms")
+    n_block = len(out)
+
+    def far(bond: dict) -> tuple[int, np.ndarray]:
+        o = orbit_of[bond["j"]]
+        return o, np.rint(inverse @ np.asarray(bond["b"]) - frac_of[o]).astype(np.int64)
+
+    bonds: list[dict] = []
+    seen: dict[tuple, int] = {}
+    bond_at = np.empty((len(cells), len(home["bonds"])), dtype=np.int64)
+    ends = [(orbit_of[b["i"]], shift[b["i"]], *far(b)) for b in home["bonds"]]
+    for c, t in enumerate(cells):
+        for k, (bond, (o, n, p, m)) in enumerate(zip(home["bonds"], ends)):
+            one = (o, *(int(v) for v in n + t))
+            two = (p, *(int(v) for v in m + t))
+            key = (one, two) if one <= two else (two, one)
+            if key not in seen:
+                seen[key] = len(bonds)
+                i = at[one]
+                j = place(p, m + t, boundary=True)
+                bonds.append({**bond, "i": i, "j": j, "a": out[i]["pos"], "b": out[j]["pos"]})
+            bond_at[c, k] = seen[key]
+    polyhedra: list[dict] = []
+    centred: set[tuple] = set()
+    for c, t in enumerate(cells):
+        for poly in home["polyhedra"]:
+            centre = (orbit_of[poly["center"]], *(int(v) for v in shift[poly["center"]] + t))
+            if centre in centred:
+                continue
+            centred.add(centre)
+            vertices = [place(orbit_of[v], shift[v] + t, boundary=True, vertex_only=True)
+                        for v in poly["vertices"]]
+            polyhedra.append({**poly, "center": at[centre], "vertices": vertices,
+                              "bonds": [int(bond_at[c, k]) for k in poly["bonds"]]})
+    polyhedra.sort(key=lambda p: p["center"])
+    label = "×".join(str(hi - lo) for lo, hi in box)
+    note = f"extent {label} · {len(out)} atoms · built in {1e3 * (time.perf_counter() - started):.0f} ms"
+    return {**home, "atoms": out, "bonds": bonds, "polyhedra": polyhedra, "polyhedra_dropped": [],
+            "n_cell": n_block, "extent": [list(b) for b in box],
+            "corners": _corners(basis, box).tolist(),
+            "note": " · ".join(x for x in (home["note"], note) if x)}
 
 
 def _expand(ph, phase: int, sg, basis: np.ndarray, astar: np.ndarray,
@@ -815,6 +981,8 @@ def _expand(ph, phase: int, sg, basis: np.ndarray, astar: np.ndarray,
     # each image's rotation, numbered: an image of a site and an image of
     # another share one when one operation made both (WP-1468)
     turns: dict[tuple, int] = {}
+    # which atom of the cell an image is, counting the ones no boundary rule made
+    n_orbit = 0
     for j, atom in enumerate(ph.atoms):
         element = element_symbol(atom.species)
         xyz = np.array([atom.x.value, atom.y.value, atom.z.value], dtype=np.float64)
@@ -854,6 +1022,7 @@ def _expand(ph, phase: int, sg, basis: np.ndarray, astar: np.ndarray,
             site["npd"] = site["npd"] or npd
             for shift in _boundary_shifts(frac):
                 image = frac + shift
+                n_orbit += not shift.any()
                 atoms.append({
                     "site": j,
                     "frac": image.tolist(),
@@ -864,6 +1033,7 @@ def _expand(ph, phase: int, sg, basis: np.ndarray, astar: np.ndarray,
                     "rms": rms.tolist(),
                     "npd": npd,
                     "_turn": turn,
+                    "_orbit": n_orbit - 1,
                 })
     every = atoms
     if len(atoms) > max_atoms:

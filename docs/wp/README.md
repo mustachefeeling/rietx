@@ -370,7 +370,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1501](1501-cut-and-keep.md) | Cut and keep: a figure of part of the structure | ✅ 2026-09-30 | — | [1470](1470-a-structure-figure-without-a-browser.md) |
-| [1502](1502-an-extent-beyond-one-cell.md) | An extent beyond one cell | ⬜ | P3 | [1470](1470-a-structure-figure-without-a-browser.md) ([1501](1501-cut-and-keep.md) soft) |
+| [1502](1502-an-extent-beyond-one-cell.md) | An extent beyond one cell | ✅ 2026-09-30 | — | [1470](1470-a-structure-figure-without-a-browser.md) ([1501](1501-cut-and-keep.md) soft) |
 | [1503](1503-the-figure-reports-on-itself.md) | The figure reports on itself, and picks a view | ⬜ | P3 | [1470](1470-a-structure-figure-without-a-browser.md) ([1501](1501-cut-and-keep.md) soft) |
 | [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | ⬜ | P4 | [1501](1501-cut-and-keep.md), [1502](1502-an-extent-beyond-one-cell.md), [1503](1503-the-figure-reports-on-itself.md) |
 | [1505](1505-rietview-the-figure-leaves-the-package.md) | rietview: the figure leaves the package | ⬜ | P4 | [1504](1504-the-figure-surface-measured-with-real-agents.md) |

@@ -10,8 +10,8 @@ Provisional by declaration: its look and its arguments follow the GUI's
 structure viewer, which is still changing (WP-1468).
 """
 
-from .cut import component, keep, plane, recolour, select, sphere
+from .cut import component, keep, periodicity, plane, recolour, select, sphere
 from .render import StructureFigure, render_structure
 
-__all__ = ["StructureFigure", "component", "keep", "plane", "recolour",
+__all__ = ["StructureFigure", "component", "keep", "periodicity", "plane", "recolour",
            "render_structure", "select", "sphere"]

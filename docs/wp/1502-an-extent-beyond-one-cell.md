@@ -1,8 +1,7 @@
 # WP-1502 — an extent beyond one cell
 
-Milestone: v1.7 · Status: ⬜
+Milestone: v1.7 · Status: ✅ 2026-09-30 — build(extent=), image on every atom, periodicity(), keep by far end
 Depends on: 1470 (1501 soft)
-Priority: P3 2026-09-27 — a view over what the model already knows; VESTA draws a supercell today, and a P1 expansion by hand is the workaround
 
 ## Goal
 
@@ -81,26 +80,6 @@ row and `test_structure3d.py` read `atoms`, `bonds` and `polyhedra`. A new
 field is additive. A changed meaning of `boundary` is not, so the default
 extent must leave it as it is.
 
-### Inherited
-
-- **From WP-1468 (2026-09-28).** Only an atom among the first `n_cell` of
-  `atoms` (the cell's own images and their boundary duplicates) is a
-  polyhedron centre; a bond partner or a vertex outside is not. The GUI's
-  double-click on such an image falls back to its site's nearest centred
-  polyhedron (`focusedPolyhedra`), which an extent that makes more atoms
-  centres changes. Each image also carries the number of the rotation that
-  made it, server-side only (`_turn`, stripped from the dict), because two
-  images of a negative disorder group coexist only when one rotation made
-  both. An image the extent adds by a lattice translation keeps its parent's.
-- **From WP-1501 (2026-09-30).** `keep`, `complete=` and `component` act on
-  the finite built graph, and `component(via="corners")` on NAC returns 168 of
-  185 atoms because two images of one atom are two atoms. A periodic identity
-  (which image is the same atom) is what makes a motif's piece finite, and only
-  this WP can supply it. `component` with `via="edges"`/`"faces"` starts only
-  from a polyhedron's centre. A polyhedron's `bonds` are found by position, so
-  their `i` and `j` can be periodic twins of its centre and vertices: an extent
-  that adds atoms must keep that, since `keep` renumbers them by index.
-
 ## Non-goals
 
 - A GUI control for the extent.
@@ -111,24 +90,30 @@ extent must leave it as it is.
 
 ## Tasks
 
-- [ ] The bond graph over the home-cell orbit with shifts, and the
+- [x] The bond graph over the home-cell orbit with shifts, and the
   translation that instantiates an extent; the default bit-identical on
-  the 21 phases, asserted as dict equality.
-- [ ] `image` on every atom; `boundary` from the extent's box; the corner
+  the 21 phases, asserted as dict equality. *Built as the cell's own result
+  translated and matched by image (`_tile`), not as a second graph; see the
+  handover. Bit-identity held by leaving the default path untouched, checked
+  once against HEAD's module (0 of 21 differ besides the new fields).*
+- [x] `image` on every atom; `boundary` from the extent's box; the corner
   rule generalised.
-- [ ] Polyhedra for every centre in the extent; `note` with the count and
+- [x] Polyhedra for every centre in the extent; `note` with the count and
   the time.
-- [ ] `periodicity()`; a test that gives rutile's edge-sharing chain 1,
+- [x] `periodicity()`; a test that gives rutile's edge-sharing chain 1,
   gypsum's layer 2, calcite's CO₃ group 0 and NAC's framework 3, each
   looked at.
-- [ ] `keep(complete=True)` reaching the periodic graph.
-- [ ] The cost curve: build time at 1×1×1, 2×2×2 and 3×3×3 on NAC and on
+- [x] `keep(complete=True)` reaching the periodic graph.
+- [x] The cost curve: build time at 1×1×1, 2×2×2 and 3×3×3 on NAC and on
   fluorapatite, quoted as ranges, against 0.4 s for the P1 2×2×2 by hand.
-- [ ] Docs: the extent in `exports.md`, `api-figure.md` regenerated, the
+  *Warm, Apple M4, 7 builds each: NAC 14-30, 23-38, 44-62 ms (185, 1064, 3143
+  atoms); fluorapatite 6-7, 11-30, 22-41 ms (106, 576, 1662 atoms). The P1 2×2×2
+  built by hand: NAC 377-395 ms, fluorapatite 131-148 ms.*
+- [x] Docs: the extent in `exports.md`, `api-figure.md` regenerated, the
   skill's reference row.
-- [ ] Tests, pictures to `tests/output/`: a 2×2×1 NAC block, a (001) slab
+- [x] Tests, pictures to `tests/output/`: a 2×2×1 NAC block, a (001) slab
   of fluorapatite with complete polyhedra.
-- [ ] The addition staged in the open milestone's record.
+- [x] The addition staged in the open milestone's record.
 
 ## Acceptance
 
@@ -155,6 +140,76 @@ npm --prefix gui test
   num_z, adjust_box)`; ASE `Atoms.repeat`; pymatgen `make_supercell`.
 
 ## Handover log
+
+- **2026-09-30** — closed. A figure can now draw a block of cells, such as
+  2×2×1 or 3×3×3, from Python, in tens of milliseconds where building the same
+  crystal as a P1 cell by hand took about 0.4 s. Each atom now says which atom
+  of the cell it is and by which lattice translation it was moved, so two images
+  of one atom are no longer mistaken for two atoms. That makes a motif's
+  periodicity readable: rutile's edge-sharing chain reads 1, gypsum's layer 2,
+  a carbonate group 0 and NAC's framework 3. A cut that keeps the whole
+  polyhedra at a slab's faces no longer leaves a bond ending in mid-air. The
+  design differs from the WP text in one way, recorded below.
+  - **Done.** `build(extent=)` in `gui/structure3d.py`: the one cell is built as
+    before and `_tile` instantiates it over the cells, matching atoms, bonds and
+    polyhedra by exact image `(orbit index, n)`. Payload gained `image` (every
+    atom), `n_cell` and `extent`; `corners` frames the block; `note` carries the
+    count and time. `viz/figure3d/cut.py`: `periodicity`, `_far` (a bond's far
+    end found by image), `keep` and `component(via="bonds")` use it, `keep`
+    carries `n_cell`. Exported through `rietx.viz`. `tests/test_structure_extent.py`
+    (13 tests, 40 cases), the example, `exports.md`, the skill's `api-figure.md`
+    and its two copies, the v1.6 record. The scene corpus was rewritten once.
+  - **Design changed.** The WP planned a bond graph over the orbit with lattice
+    shifts. I translated the cell's own result instead. The default path is then
+    untouched, so `extent=None` is bit-identical by construction: checked once
+    against HEAD's module, 0 of 21 phases differ apart from the new fields. A
+    committed check cannot carry that (the WP says why), so the test pins the
+    translation's identity element instead (`_tile` over `(0, 1)³` equals the
+    cell on atoms, bonds and polyhedra, 21 phases). The bond search still runs
+    once, over the home cell.
+  - **Measured** (Apple M4, warm, 7 builds, `[dev]`, darwin arm64, no other
+    suite running). NAC 1×1×1, 2×2×2, 3×3×3: 14-30, 23-38, 44-62 ms for 185,
+    1064, 3143 atoms. Fluorapatite: 6-7, 11-30, 22-41 ms for 106, 576, 1662
+    atoms. The P1 2×2×2 by hand: NAC 377-395 ms, fluorapatite 131-148 ms. NAC
+    2×2×2 holds 672 atoms in the box, 696 with face copies, 1064 with bond
+    neighbours and vertex ligands, which equals the P1 expansion's 1064. The
+    acceptance line's "1064 atoms inside the box plus the face duplicates" reads
+    that way: 672 are inside. A block equals a from-scratch P1 cell of that size
+    on atoms, bonds and polyhedra for NAC 2×2×2, LaB6 3×2×2, gypsum 2×1×2,
+    quartz 2×2×1 and rutile 2×3×1. Fast suite, `[dev]`, darwin arm64, worktree
+    venv: 7024 passed, 157 skipped in 127 s; the session added 40 cases in
+    `test_structure_extent.py` (13 tests, 6.2 s of the fast run, none in the slow
+    tail), and the first run's 7022 plus the review's two tests is 7024 exactly.
+    Vitest 581 passed and `svelte-check` 0 errors under node v26. The full
+    selection did not run: the change touches a viewer, not a measured number.
+  - **Review** (`/code-review high --fix`): three fixes landed. A large extent
+    built every cell before the cap raised (8.7 s for 30³); it now raises in
+    18 ms. `keep` left `n_cell` past the end of the list. The example's new
+    picture was not checked. Declined: the wall-clock in `note` makes two builds
+    of one block unequal (the WP asked for the time there; it bites a caller
+    comparing payloads, so a later change could move it beside the dict);
+    `max_atoms` bounds the block and not the neighbours drawn past it (documented);
+    `_far` loops per bond, cheap at these sizes.
+  - **Gotchas.** (1) Two structure-builders compare by position only to a
+    rounding: a coordinate near 2.29685 keys differently in two builds, so the
+    tests shift off the tie first. (2) A P1 supercell is an oracle only up to
+    `BOUNDARY_TOL`, which is a fraction of the cell: fluorapatite's Ca1 at
+    z = 0.002 gets a face copy in the doubled cell and not in the block, so
+    fluorapatite is not in the oracle list. (3) The old default path can draw a
+    bond neighbour and a vertex-only ligand at one spot when their rounded
+    positions differ (LaB6 in a 3×2×2 P1 cell, two atoms). The block matches by
+    exact image and cannot; the default path was left alone as the bit-identical
+    baseline, and this is the sibling I deliberately did not fix. (4) A polyhedron
+    cut from rutile reads 1, not 0: two of its O are one atom a lattice vector
+    apart, which is the chain's bridge. (5) `keep` and `component` need `image`
+    on the atoms, so a payload saved before this WP raises `KeyError`; forwarded
+    to 1505.
+  - **Forwarded.** To 1505's `### Inherited`: the new fields, `_tile` and the
+    old-payload `KeyError`. 1504 depends on 1501, 1502 and 1503 and is unblocked
+    on this side.
+  - **Next.** 1503 (the figure reports on itself) is the open WP that can now
+    describe an extent, since `note` and `n_cell` exist; it should decide first
+    whether the report quotes the build time, given the declined finding above.
 
 - **2026-09-27** — filed from the session that closed WP-1470, with the
   timings in Context. Next: the bond graph over the orbit, since the
