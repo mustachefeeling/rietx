@@ -169,6 +169,7 @@ to 4 × 4.
 and `exaggeration=` meaning what they mean in the GUI.
 `hidden=` takes elements or species, and a name the phase does not have
 raises.
+One site is left out by a mask, as {ref}`below <figure-cut-and-keep>`.
 `boundary=False` drops the images outside the cell.
 `polyhedra=` follows the mode (on for balls, off for ellipsoids) unless you
 pass `True`, `False` or a formula switch such as `{"AlF₆": False}`.
@@ -177,9 +178,11 @@ pass `True`, `False` or a formula switch such as `{"AlF₆": False}`.
 none.
 For a site's colour or radius, edit the dict `rietx.gui.structure3d.build`
 returns and pass the dict in place of the structure.
-A colour is `#rrggbb`, and any other spelling draws grey.
-Deleting an atom from the dict raises, because its bonds and polyhedra hold
-atoms by index.
+A site's `color` is `#rrggbb`, `"white"` or `"black"`, and `render_structure`
+raises on any other spelling, because the scene would draw it grey without a
+message.
+`StructureFigure.palette` gives each site label drawn and its colour, for a
+legend beside the figure.
 
 On an Apple M4 in September 2026, a warm render of this NAC cell took
 33-40 ms at 1000 px and 71-94 ms at 3000 px.
@@ -194,6 +197,75 @@ Its look and keywords are {ref}`provisional <provisional-by-declaration>`.
 For a picture in another program's style, `Structure.to_cif` writes each
 phase with its anisotropic displacement loop.
 VESTA and Jmol both read it.
+
+(figure-cut-and-keep)=
+### Drawing part of the structure
+
+The dict `build` returns holds its bonds and polyhedra by index into its
+`atoms`.
+Deleting an atom from it renumbers nothing and raises at the first later index.
+`rietx.viz.keep` is the one function that renumbers.
+It takes the dict and a boolean mask over `atoms` and returns a new dict with
+only the atoms the mask keeps.
+A bond survives when both its ends do, and a polyhedron when its centre and
+every vertex do.
+What it cut from a surviving atom is counted in the dict's `note`.
+Four functions build the mask, and masks combine with `&`, `|` and `~`.
+Each example below is from `examples/structure_cut.py`.
+
+```{literalinclude} ../../../examples/structure_cut.py
+:language: python
+:start-at: geometry = build(structure)
+```
+
+```text
+built: 185 atoms, 255 bonds, 34 polyhedra
+without F2: 113 atoms drawn; 26 polyhedra cut · 108 bonds cut
+completed: 173 atoms drawn; note ''
+(110) slab: 112 atoms kept
+4 Å round atom 18: 15 atoms kept
+corner-sharing piece of atom 18: 168 atoms
+palette: {'Ca1': '#00c4b8', 'Al1': '#bc5c70', 'Na1': '#8040e0', 'F1': '#48d860', 'F2': '#48d860', 'F3': '#48d860', 'Al1 (recoloured)': '#ff0000'}
+```
+
+- `select(g, species=, element=, label=, site=, boundary=)` picks the atoms of
+  named sites.
+  `F1` and `F2` share the species `F1-`, so a label or a site index tells them
+  apart.
+  A name the phase lacks raises and lists what it has.
+- `plane(g, hkl, distance, width=None, inverse=False, units="d")` keeps the
+  origin side of the plane (hkl) at `distance` d-spacings, so `distance=1` is
+  the first plane beyond the origin.
+  `units="angstrom"` reads Å along the plane's normal.
+  `width` keeps the slab from `distance` to `distance + width` instead.
+- `sphere(g, centre, radius)` keeps the atoms within `radius` Å of an atom
+  index or a Cartesian point.
+- `component(g, atom, via="bonds")` keeps the connected piece holding `atom`.
+  `via="corners"`, `"edges"` or `"faces"` joins polyhedra sharing at least one,
+  two or three vertices.
+  Use them when bonds reach everything: by bonds every atom of NAC's cell is
+  one piece.
+- `recolour(g, mask, colour)` returns a dict in which the masked atoms, and the
+  polyhedra centred on them, are in a new colour.
+  The rest of the site keeps its own.
+- `keep(g, mask, complete=True)` first re-adds the far ends of the bonds cut
+  from a kept atom, and the vertices of polyhedra whose centre is kept.
+  That is VESTA's boundary search.
+  It completes only within the atoms `build` produced, which are one cell and
+  the images its bonds and polyhedra reach.
+  Two images of one atom are two atoms here, so a motif's periodicity is not
+  seen.
+
+`hidden=` does not take a site label, and its error says to use
+`keep(g, ~select(g, label=...))`.
+`sites` is untouched by `keep`, so `atoms[k]["site"]` keeps its meaning.
+None of the functions modifies its input.
+
+`render_structure(structure)` draws `ref.structure` and the structure is the
+live model.
+To change the chemistry a figure shows, edit a `model_copy(deep=True)`: an
+in-place edit changes the next fit, and no history node records it.
+A cut changes only the picture.
 
 ## The reflection list
 

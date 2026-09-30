@@ -162,7 +162,7 @@ since an agent says "the plane through the origin and the next one at d".
 - [x] `recolour` and `StructureFigure.palette`; the colour validation at
   entry; `hidden=`'s error names the mask route.
 - [x] The import-boundary pin.
-- [ ] `exports.md` rewritten with a runnable example per verb, the
+- [x] `exports.md` rewritten with a runnable example per verb, the
   `model_copy` rule, `api-figure.md` regenerated, and the manual partition
   green.
 - [ ] Skill: the verbs on `api-figure.md`, and a line in the routing row's
