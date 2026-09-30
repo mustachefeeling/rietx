@@ -1882,9 +1882,12 @@ def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
     fit is a small non-linear least squares with the exact Jacobian 2·G_s·b.
     Several restarts because a quadratic-form fit has sign and
     permutation symmetries, and a start can sit on a saddle or roll into a
-    local minimum: on the five non-cubic cases of issue #455, 51 % of single
-    restarts on a pair known to be equivalent reached the global minimum, and
-    the failures cluster by draw (one draw needed 32).  With ``rtol`` the loop
+    local minimum: on the five non-cubic cases of issue #455, measured with
+    #534's frame fix, 48 % of single restarts on a pair known to be
+    equivalent reached the global minimum (367 of 768), and the failures
+    cluster by draw: 34 of 192 draws had all of their first four restarts
+    fail, where independent restarts predict 14, and one draw reached it
+    only 6 times in 512 restarts.  With ``rtol`` the loop
     **stops at the first restart that reaches it**, since the question asked
     is "can B reproduce this?" and one reproduction answers it; so an
     equivalent draw costs one or two fits and only a draw that *cannot* be
@@ -1980,8 +1983,11 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     What is exact: a family with no powder pattern at this d limit is
     equivalent to anything (below), and the verdict no longer depends on the
     amplitude basis a candidate arrived in, beyond round-off, since
-    :func:`_canonical_basis` fixes it from the span before any draw.  What is
-    not:
+    :func:`_canonical_basis` fixes it from the span before any draw.
+    Round-off is not always small here: on the cubic ``P n -3 m:1`` at
+    (0,0,½), canonical bases agreeing to 9.2e-16 across three rotations
+    still gave a partition that moved with the rotation at each of three
+    seeds (2 to 4 classes over the nine runs).  What is not exact:
 
     * **"Distinguishable" can be a failure to fit** (mechanism A).  It is
       returned when, for one draw, all ``restarts`` random starts of the
@@ -1990,22 +1996,26 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
       stop in a local minimum, and restarts on one draw are not independent
       trials: they share the draw, and some draws have a dominant wrong
       basin.  So no failure probability follows from ``restarts`` alone.
-      On the five non-cubic cases of issue #455, 21 of 40 equivalent
-      pair-runs came out distinguishable at 4 restarts; at 32 with the early
-      stop in :func:`_fit_residual` the four mechanism-A cases give one
-      partition each across three seeds and three basis rotations, but one
-      draw still needed its 32nd restart, so 32 is a measured sufficiency
-      there and not a margin.  More ``draws`` make this error *more* likely,
-      not less.
+      On the five non-cubic cases of issue #455, measured with #534's frame
+      fix, 21 of 32 equivalent pair-runs came out distinguishable at 4
+      restarts.  At 32 with the early stop in :func:`_fit_residual` each case
+      gives one partition across three seeds and three basis rotations, but
+      2 of the same 192 equivalent draws were still not reproduced in 32
+      restarts (both ``P 62 2 2``, pair 4-5), so 32 is usually enough there
+      and not a margin.  More ``draws`` make this error *more* likely, not
+      less.
     * **"Equivalent" can be a lucky set of draws** (mechanism B).  It is
       returned when every one of ``draws`` draws in each direction is
       reproduced.  The draws are independent, so if B reproduces only a
       fraction 1 − f of A's draws (it converges to a real non-zero minimum
       on the rest), the pair passes with probability (1 − f)^draws: 0.42 at
-      f = ¼ and the default 3 draws, which is ``P a -3`` at (½,½,½) in issue
-      #455.  More restarts do not help.  How small an f should still count as
-      "distinguishable", and what the draws to detect it cost, is open
-      (WP-1418), and this function does not settle it.
+      f = ¼ and the default 3 draws.  More restarts do not help.  Issue
+      #455's example, ``P a -3`` at (½,½,½), was measured before #534's
+      frame fix; with it that case gives one partition in 9 of 9 seed and
+      basis runs, so no measured case shows B now.  Whether one does, how
+      small an f should still count as "distinguishable", and what the draws
+      to detect it cost, are open (WP-1418), and this function does not
+      settle them.
 
     A class count built on these verdicts is therefore a function of
     ``seed``, ``draws`` and ``restarts``, and across machines agrees only as
