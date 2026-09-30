@@ -526,7 +526,8 @@ def test_a_magnetic_path_exports_through_to_table_and_write_csv(tmp_path):
 
     out = tmp_path / "moment.csv"
     series.write_csv(out, paths=["magnetic.Mn"])
-    assert out.read_text().splitlines()[0].endswith("magnetic.Mn,magnetic.Mn_esd")
+    assert out.read_text(encoding="utf-8").splitlines()[0].endswith(
+        "magnetic.Mn,magnetic.Mn_esd")
 
     with pytest.raises(ValueError, match="no magnetic site 'Fe'") as err:
         series.to_table(paths=["magnetic.Fe"])
