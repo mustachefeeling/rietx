@@ -501,11 +501,14 @@ def test_the_neutron_histogram_buys_the_oxygen_and_not_the_aluminium(
     X-ray pattern does and x(O) about as well, so jointly the X-ray keeps
     the aluminium (esd ×0.94-0.97 of its own) while the oxygen gains
     (×0.64-0.68).  Seeds 1-3 on macOS arm64; Linux x86_64 (seed 1) gives
-    0.955 and 0.660, and neutron/X-ray 3.62 and 0.993 (ratio 3.64).  The
-    tightest bar, ``joint_al > 0.9``, clears the cross-platform spread by
-    about 0.05; the others sit well outside it.  A
-    stack that handed both histograms one amplitude could not produce this
-    asymmetry: the two sensitivities would be one.
+    0.955 and 0.660, and neutron/X-ray 3.62 and 0.993 (ratio 3.64); CI's
+    py3.11 job gave 0.887 and 0.622.  The absolute joint ratios move by
+    ~0.07 across builds, so the claim is pinned as the *asymmetry*
+    joint_al / joint_o, which held at 1.38-1.45 on every one of them; the
+    absolute floor under joint_al only rules out the aluminium gaining as
+    much as the oxygen does.  A stack that handed both histograms one
+    amplitude could not produce this asymmetry: the two sensitivities
+    would be one, and the ratio would sit near 1.
     """
     joint, (x_alone, n_alone), _ = two_weightings
     ratios = {}
@@ -517,7 +520,8 @@ def test_the_neutron_histogram_buys_the_oxygen_and_not_the_aluminium(
     (joint_al, n_al), (joint_o, n_o) = (ratios["phases.0.atoms.0.z"],
                                         ratios["phases.0.atoms.1.x"])
     assert n_al / n_o > 2.5, ratios
-    assert joint_al > 0.9 and joint_o < 0.8, ratios
+    assert joint_o < 0.8 and joint_al > 0.8, ratios
+    assert joint_al / joint_o > 1.25, ratios
 
 
 # ------------------------------- the diagnostics a joint fit does not run ---
