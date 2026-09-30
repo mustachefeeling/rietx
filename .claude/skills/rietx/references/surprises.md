@@ -369,18 +369,12 @@ the model breaks its own bounds [0, 25]; it follows 2·phases.0.atoms.0.biso"*.
 Read that as a constraint to widen, never as a corrupt model or a bad CIF.
 (Measured: WP-1119.)
 
-**Declaring bounds on every coordinate is what makes a tie refuse.** Coordinates
-load from a CIF with `(-inf, inf)`, so a tie on a symmetry-adapted displacement
-DOF never meets a bound by default. The DOF has no bounds of its own either; the
-bound it can break is on the coordinate its symmetry tie reaches. Give every
-`x`/`y`/`z` a `[0, 1]` range, as a careful caller building its own `Parameter`s
-does, and an offset tie can push that coordinate out. `tie()` refuses at the call,
-names the tie you wrote, the coordinate, its atom and the bound, and registers
-nothing, so the corrected retry goes through: *"tying phases.0.atoms.1.dof.0 to
-1·phases.0.atoms.0.dof.0 + 3 implies phases.0.atoms.1.x=3.2482 (atom O1 of phase
-X), outside its bounds [0, 1]; loosen that bound or change the tie"*. The offset reaches
-the coordinate through the symmetry map (in P 1 it adds to it directly: 0.2482 + 3
-= 3.2482), so check the offset against the coordinate before widening anything.
+**Declaring bounds on every coordinate is what makes a tie refuse.** CIF
+coordinates load unbounded, and a displacement DOF has no bounds of its own;
+give `x`/`y`/`z` a `[0, 1]` range and an offset tie can push the coordinate out.
+`tie()` then refuses at the call, naming the tie, the coordinate, its atom and
+the bound, and registers nothing, so the corrected retry goes through. In P 1
+the offset adds to the coordinate directly: check it before widening a bound.
 (Measured: WP-1337, #246.)
 
 
