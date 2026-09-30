@@ -932,7 +932,7 @@ instruction; 344 landed against the 350.
 Measured 2026-09-30 for `/pr-review`
 ([#548](https://github.com/yue-here/rietx/pull/548)) and carried to the WP
 commands the same day. The rules are `/pr-review` step 6, `/wp-start` steps 2,
-5 and 6b, and `/wp-handover`'s opening note and steps 5-7. The numbers behind
+5 and 6b, and `/wp-handover`'s opening note and steps 5, 7 and 8. The numbers behind
 them are here.
 
 **The mechanism.** A token that enters the main session is paid for twice.

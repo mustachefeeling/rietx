@@ -38,7 +38,7 @@ than no check. **Count trees, not lines**: `grep` reads the command line, so a
 background launch matches its own zsh wrapper too and `-c` says 1 on an idle
 machine. **Found one: wait or defer, and never measure anyway** — it would not be
 quotable (§ Quoting numbers). Checked in `/pr-review` step 9 and `/wp-handover`
-steps 6 and 9; rungs 1-2 skip it, being cheap to repeat.
+steps 7 and 10; rungs 1-2 skip it, being cheap to repeat.
 
 - `-n` is deliberately **not** in `addopts`: a bare `pytest tests/x.py::y`
   stays serial, so `-s` and pdb keep working. `--dist loadgroup` is not
