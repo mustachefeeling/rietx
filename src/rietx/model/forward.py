@@ -543,7 +543,7 @@ class CompiledPhase:
     # block.  σ²(M) = monomials @ S is the only hkl-dependent piece; the
     # d-spacings that turn it into a width move with the cell at evaluation.
     strain_monomials: np.ndarray | None = None
-    # Secondary extinction, frozen *out* of this stage: True when the phase's
+    # Primary extinction, frozen *out* of this stage: True when the phase's
     # ``extinction`` is exactly 0 — where Sabine's E is identically 1 — and no
     # path this stage can move reaches it.  Then E is a multiply by ones, and
     # the six-term Laue series that builds it is pure cost: measured 1.2 s of
@@ -1282,7 +1282,7 @@ class CompiledModel:
         The addition happens **only** where a magnetic term exists, so a phase
         with no moment reaches the same arithmetic in the same order and every
         number it produces is bit-identical to what it produced before this WP.
-        Secondary extinction reads this total, which is the physical reading:
+        Primary extinction reads this total, which is the physical reading:
         the attenuation is of the reflection, and the reflection is whatever
         the crystal actually diffracts.  It changes nothing at the default
         ``extinction = 0``, where Sabine's E is exactly 1.
@@ -1516,7 +1516,7 @@ class CompiledModel:
                              float(values[f"phases.{ip}.preferred_orientation.r"])),
                     lambda: self._po_factors(ip, values, cell))
                 base = base * P
-            # secondary extinction (model/extinction.py): a per-(line,
+            # primary extinction (model/extinction.py): a per-(line,
             # reflection) intensity multiplier folded in below.  ext=0 makes E
             # exactly 1 (Sabine's blend is sin²θ·1 + cos²θ·1, which is exactly
             # 1.0 in fp), so where the stage cannot move ext off zero the

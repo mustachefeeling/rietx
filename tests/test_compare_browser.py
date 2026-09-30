@@ -138,7 +138,7 @@ def test_the_pointer_reads_each_variant_and_names_a_reflection(page):
     page.mouse.move(*_centre(page, "diff"))
     _frames(page)
     text = page.inner_text("#readout")
-    assert text.startswith("2θ ") and "Baseline" in text and "+ secondary extinction" in text, text
+    assert text.startswith("2θ ") and "Baseline" in text and "+ primary extinction" in text, text
     page.mouse.move(*_centre(page, "ticks", 35.5))
     _frames(page)
     assert page.is_visible("#tip")

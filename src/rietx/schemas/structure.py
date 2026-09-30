@@ -758,7 +758,7 @@ class Phase(_InheritsDeclaredDefaults):
     scale: Parameter = Field(
         default_factory=lambda: Parameter(value=1.0, vary=False, min=0.0, transform="softplus")
     )
-    # Secondary-extinction coefficient (Sabine model, model/extinction.py).
+    # Primary-extinction coefficient (Sabine model, model/extinction.py).
     # Attenuates the strong low-angle reflections of a well-crystallised
     # sample: each reflection's integrated intensity is multiplied by
     # E(hkl) = E_B·sin²θ + E_L·cos²θ with a dimensionless x ∝ ext·|F|²·(λ/V)².

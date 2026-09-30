@@ -1799,7 +1799,7 @@ def _report_cif(structure, ambiguous: list[str],
     extras = {
         "microstrain": "the Stephens anisotropic strain coefficients",
         "preferred_orientation": "the March-Dollase preferred orientation",
-        "extinction": "the secondary-extinction coefficient",
+        "extinction": "the primary-extinction coefficient",
         "restraints": "the soft restraints",
     }
     for name, what in extras.items():

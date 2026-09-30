@@ -210,14 +210,18 @@ the Jacobian keeps no kink. Uncorrected roughness
 biases ADPs severely: Biso refines to −1.9 … −2.5 Å² where the corrected value
 is +0.3.
 
-## Secondary extinction
+## Primary extinction
 
 Extinction removes intensity from the strongest reflections, because the
-diffracted beam re-diffracts inside a coherent domain. Left uncorrected, the
+diffracted beam re-diffracts inside a coherent domain, a mosaic block. That is
+primary extinction, and it is the only extinction a powder has: secondary
+extinction is the attenuation of the beam by other, similarly oriented blocks
+upstream, and in a powder the corresponding effect is multiple scattering
+{cite}`sabine1988b`. Left uncorrected, the
 refinement compensates with a spuriously large Biso and a small scale.
 Sabine's polycrystalline model {cite}`sabine1985,sabine1988,sabine1988b`
-blends the two-beam limits by the fraction of a random powder in each
-geometry:
+interpolates between the two-beam limits with $\sin^2\theta$ and
+$\cos^2\theta$ weights:
 
 ```{math}
 :label: corr-sabine

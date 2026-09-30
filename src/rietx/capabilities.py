@@ -541,7 +541,7 @@ def _features() -> dict[str, bool]:
         "anisotropic_adp": "aniso" in Atom.model_fields,
         "preferred_orientation": "preferred_orientation" in Phase.model_fields,
         "stephens_strain": "microstrain" in Phase.model_fields,
-        "secondary_extinction": "extinction" in Phase.model_fields,
+        "primary_extinction": "extinction" in Phase.model_fields,
         "restraints": "restraints" in Phase.model_fields,
         # a commensurate propagation vector, hence satellites at G ± k
         # (WP-1326).  Derived from the field, so it flips on its own

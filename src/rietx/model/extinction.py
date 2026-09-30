@@ -1,15 +1,21 @@
-"""Secondary extinction — the Sabine polycrystalline model.
+"""Primary extinction — the Sabine polycrystalline model.
 
 Extinction is the attenuation of a strong reflection because the diffracted
 beam is itself re-diffracted back into the incident beam inside a coherently
-scattering domain.  It is *not* a peak-shape effect: it removes intensity from
-the integrated area of the strongest (usually low-angle, large-|F|)
-reflections, so an uncorrected refinement compensates with a spuriously large
-Biso and a spuriously small scale.
+scattering domain, a mosaic block.  That is *primary* extinction, and it is the
+only extinction mechanism that operates in a powder (Sabine, Von Dreele &
+Jørgensen 1988, p. 375); the powder counterpart of secondary extinction, the
+attenuation of the beam by other blocks of the same orientation, is multiple
+scattering, which this model does not describe.  ``ext`` is therefore a squared
+block size D², in µm², not a secondary-extinction (mosaic-spread) coefficient.
+It is *not* a peak-shape effect: it removes intensity from the integrated area
+of the strongest (usually low-angle, large-|F|) reflections, so an uncorrected
+refinement compensates with a spuriously large Biso and a spuriously small
+scale.
 
-For a powder Sabine (1988) blends the Bragg (backscattering) and Laue
-(forward-scattering) two-beam limits by the fraction of the crystal in each
-geometry, which for a random powder is sin²θ and cos²θ respectively:
+Sabine (1988, eq. 17) gives the extinction factor at scattering angle 2θ as
+the average of the Laue (forward-scattering) and Bragg (backscattering)
+two-beam solutions, weighted cos²θ and sin²θ respectively:
 
     E(hkl) = E_B·sin²θ + E_L·cos²θ
 
@@ -37,7 +43,9 @@ result and matches GSAS-II ``GetPwdrExt``.
 
 **The two Laue branches do not join continuously at x = 1**: the six-term
 series gives E_L(1⁻) ≈ 0.6742 and the two-term asymptote E_L(1⁺) ≈ 0.6981, a
-~2% step (the asymptotic expansion is only accurate for x ≫ 1).  This is
+~2% step (the asymptotic expansion is only accurate for x ≫ 1).  Sabine (1988,
+eq. 16) prints the asymptote to four terms and names no switch point; the
+x = 1 changeover and the two-term truncation are GSAS-II's.  This is
 inherited verbatim from GSAS-II and is out of reach for real powder data,
 where x ≪ 1 keeps every reflection on the smooth series branch; it is *not*
 smoothed, because doing so would break the cross-code golden.  E stays
@@ -47,10 +55,19 @@ References
 ----------
 * Sabine, T. M. (1985). *Aust. J. Phys.* 38, 507 — extinction in
   polycrystalline materials.
-* Sabine, T. M. (1988). *Acta Cryst.* A44, 368 — reconciliation of the
-  Zachariasen and Darwin theories (the sin²θ/cos²θ blend).
+* Sabine, T. M. (1988). *Acta Cryst.* A44, 368 — reconciliation of extinction
+  theories: the Laue and Bragg solutions (eqs 6, 11) and their angular blend
+  (eq. 17).
 * Sabine, Von Dreele & Jørgensen (1988). *Acta Cryst.* A44, 374 — the model
   as used in a Rietveld refinement.
+
+**Provenance of the Laue coefficients.**  c₁…c₃ are Sabine (1988) eq. 6 and
+c₄ is eq. 3 of Sabine, Von Dreele & Jørgensen (1988), −1/2, 1/4, −5/48, 7/192.
+c₅ and c₆ are in neither paper.  The Laue integral of Sabine's own set-up
+(Lorentzian coupling, p. 371) expands to −7/640 = −0.0109375 for c₅, which the
+values below reproduce, and 11/3840 = 2.8646e-3 for c₆, which they do not
+(2.8497e-3, 0.5 % smaller, ≤ 1.5e-5 in E_L on 0 < x ≤ 1).  The values are kept
+as GSAS-II's, for the cross-code golden.
 
 The parameterization (the Xpol constant 0.079411, the Laue-series coefficients,
 and the x>1 asymptote kept to two terms) is adopted verbatim from GSAS-II
@@ -64,8 +81,9 @@ import numpy as np
 
 from ..backend import get_backend
 
-#: Sabine Laue-series coefficients c₁…c₆ (E_L = 1 + Σ cᵢ xⁱ on 0 < x ≤ 1),
-#: the exact values GSAS-II ``GetPwdrExt`` uses.
+#: Laue-series coefficients c₁…c₆ (E_L = 1 + Σ cᵢ xⁱ on 0 < x ≤ 1), the exact
+#: values GSAS-II ``GetPwdrExt`` uses.  c₁…c₄ are Sabine's (see the module
+#: docstring); c₆ is 0.5 % below the series' own 11/3840.
 _LAUE_COEF = np.array(
     [-0.5, 0.25, -0.10416667, 0.036458333, -0.0109375, 2.8497409e-3],
     dtype=np.float64,

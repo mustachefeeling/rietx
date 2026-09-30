@@ -672,9 +672,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         anchor="corrections.html#quantitative-phase-analysis-and-microabsorption",
     ),
     "phases.*.extinction": HelpEntry(
-        title="Secondary extinction",
+        title="Primary extinction",
         description=(
-            "The Sabine secondary-extinction coefficient, attenuating the "
+            "The Sabine primary-extinction coefficient, a squared mosaic-block "
+            "size (a powder has no secondary extinction), attenuating the "
             "strong low-angle reflections of a well-crystallised specimen. "
             "0 is exactly no correction, so a phase that does not free it is "
             "unaffected. The gradient at 0 is dead, which is why the staged "
@@ -682,7 +683,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.0",
         typical="0 for a ground powder; up to 1e-4 for large crystallites",
-        anchor="corrections.html#secondary-extinction",
+        anchor="corrections.html#primary-extinction",
     ),
     "phases.*.lor_size": HelpEntry(
         title="Lorentzian size broadening",

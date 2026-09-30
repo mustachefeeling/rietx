@@ -318,12 +318,13 @@ class RefinementPlan:
             # phases that declared a PO block; r ≡ 1 is the identity, so a start
             # from 1.0 perturbs nothing until the data pull it off.
             Stage("preferred_orientation", ["phases.*.preferred_orientation.r"]),
-            # secondary extinction (WP-0506) comes *after* the displacement
-            # stage on purpose: ext, Biso and the ADPs all attenuate high-Q
-            # intensity, so letting the structure/ADPs settle first leaves
-            # extinction with only its (different, low-angle-weighted)
-            # signature to fit.  The coefficient starts at exactly 0 on the
-            # softplus floor, so the stage seeds it to lift TRF off the zero.
+            # primary extinction (WP-0506, named secondary until WP-1451)
+            # comes *after* the displacement stage on purpose: ext, Biso and
+            # the ADPs all attenuate high-Q intensity, so letting the
+            # structure/ADPs settle first leaves extinction with only its
+            # (different, low-angle-weighted) signature to fit.  The
+            # coefficient starts at exactly 0 on the softplus floor, so the
+            # stage seeds it to lift TRF off the zero.
             Stage("extinction", ["phases.*.extinction"], seed=1e-3),
             *_ROUGHNESS_STAGE,
         ])

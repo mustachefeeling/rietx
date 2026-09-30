@@ -165,7 +165,7 @@ def test_srm660c_lab6_rietveld(srm660c_baseline):
 
 
 def test_srm660c_extinction_does_no_harm(srm660c_baseline):
-    """WP-0506 does-no-harm: freeing secondary extinction on a fine-powder
+    """WP-0506 does-no-harm: freeing primary extinction on a fine-powder
     standard must refine it small and must not degrade the fit or bias the
     cell.  SRM 660c is a NIST line-profile standard — genuine extinction is
     negligible — so this is the guard against extinction absorbing unrelated

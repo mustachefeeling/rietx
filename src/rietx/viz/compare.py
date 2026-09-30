@@ -841,7 +841,7 @@ VARIANTS: tuple[Variant, ...] = (
             "sinθ = 2τ and *amplifying* below sinθ = τ, which is what "
             "ROUGHNESS_OUTSIDE_REGIME reports.",
             _with_roughness_pitschke, geometries=("bragg_brentano",)),
-    Variant("extinction", "+ secondary extinction",
+    Variant("extinction", "+ primary extinction",
             "Sabine polycrystalline blend on the strongest low-angle reflections. "
             "Correlates with the scale at ρ ≈ 0.97 — a genuine degeneracy, so "
             "expect HIGH_CORRELATION and treat any 'improvement' sceptically.",

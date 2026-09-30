@@ -1,4 +1,4 @@
-"""Secondary extinction (WP-0506, Sabine model).
+"""Primary extinction (WP-0506, Sabine model).
 
 The golden is a faithful scalar transcription of GSAS-II ``GetPwdrExt`` /
 ``GetPwdrExtDerv`` (behavioral reference only — no code is ported; see
