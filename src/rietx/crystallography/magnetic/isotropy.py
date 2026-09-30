@@ -1861,8 +1861,11 @@ def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
     with ``rtol`` given and |t_s| above it of the target's largest, the
     family **provably** cannot reproduce the target and that floor is
     returned without a fit — an absence the other family fills is the
-    strongest evidence of distinguishability there is.  Below ``rtol`` the
-    row stays in the fit, where it is a constant.
+    strongest evidence of distinguishability there is.  "Provably" is exact
+    for G_s ≡ 0 only: a shell counted dark at the tolerance can still reach
+    |t_s| for a large enough ‖b‖, though every live shell then grows as
+    ‖b‖² too, which is why it is not expected to matter at ``rtol`` = 1e-4.
+    Below ``rtol`` the row stays in the fit, where it is a constant.
 
     The driver is ``"trf"`` whenever there are fewer live shells than amplitudes,
     because ``"lm"`` *refuses* that problem rather than solving it badly
