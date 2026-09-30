@@ -69,6 +69,27 @@ in the asymmetric unit.
 refinement wants them. So the first rung stands alone, and 1515's milestone
 builds on it.
 
+### Inherited
+
+- **2026-09-30, from the issue triage (issue #561): the reporter's scoping
+  proposal for this WP.** Thirteen independent chunks R0-R12 off `main`, each
+  with a test that can fail; R0 (rotation mathematics) and R1 (`Fragment`)
+  touch no v1.6 file. The design's one load-bearing move is a typed
+  `derived: list[DerivedBlock]` beside the affine block in
+  `params/vector.py`, with `decode`, `local_jacobian` and `reach_pattern()`
+  surfaces, so body-atom coordinates get esds (TOPAS's rule, Coelho 2015
+  § 10.22.8) while the moment keeps its "no C row, no esd" rule. Prior art is
+  clean-room (manuals and papers; FOX is GPL, concepts only). Two public
+  cases: acridine form IX (COD 2242872) and diacetylene at 5 K (COD 1577467).
+  *Checked at `e3e6486a`*: the `vector.py` lines it quotes (`:8-10`, `:1132`,
+  `:1218-1223`) are on `4de25284` and were not re-measured; a cost-only
+  proposal, no code. Seven questions are open and are the maintainer's: where
+  the map lives, orientation convention, the moment migrating later, the
+  anti-bump pair list, whether R0/R1 may start before v1.6 closes, chunk
+  numbering (the next unused number is 1527 here, and 1527 is now taken by
+  the species WP, so 1528), and the skill file. Decision pending (batch item,
+  2026-09-30). Its companion is #562, under WP-1515.
+
 ## What the scoping decides
 
 1. **Where the map lives.** (a) A C that depends on θ, rebuilt from the

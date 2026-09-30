@@ -80,6 +80,31 @@ leader. The answer is distinct solutions, ranked, with agreement across
 seeds beside each. The winner is handed to a Rietveld plan. WP-1517 measures
 the whole surface with real agents.
 
+### Inherited
+
+- **2026-09-30, from the issue triage (issue #562, and its prototype
+  comment): the reporter's scoping proposal for this WP.** Thirteen chunks
+  S0-S9, six of them touching no v1.6 file. The design rests on one cost
+  object, χ²(I) = χ²_Pawley,min + (I − I_P)ᵀM(I − I_P) with M = ΩᵀWΩ (1.8e-16
+  on NAC), a ranked list with evidence and no `.structure`, and #197/#198
+  leaving the fence with direct space in the order map, direct space, charge
+  flipping. The comment reports a blind prototype on a private corpus of 23
+  inorganic patterns (counts only, nothing about a specimen): 17 right, 15
+  graded `high`, none of those wrong. It proposes amendments (a) to (g): a
+  sparse-plus-low-rank M, Wyckoff-class enumeration from the start, a
+  mandatory prior-off control arm, rival-margin and blind-contrast grade
+  edits, S4 restated as incremental-move throughput, an adaptive ladder, and
+  extraction seeding in the entry point. **The blind-contrast threshold is
+  proposed, not validated, not coded**, and the Kabova et al. (2025)
+  thresholds were taken from a summary, so neither is a constant yet.
+  *Checked at `e3e6486a`*: `structure_factor.py`, `events.py` and
+  `schemas/indexing.py` line numbers are on `4de25284` and `5ac3fc03` and
+  were not re-measured. Eight questions are open, and the reporter asks in
+  the comment whether S0 may open as the first PR. Those are the
+  maintainer's. Decision pending (batch item, 2026-09-30). Companion: #561,
+  under WP-1514. Private-corpus figures stay out of the public tree unless
+  the corpus is cited by number (root CLAUDE.md § Licensing).
+
 ## What the scoping decides
 
 1. The routes and their order.

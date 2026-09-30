@@ -125,6 +125,33 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-09-30, from the issue triage (issue #563): the moment recipe printed
+  beside `IrrepBasis` has the exponent's sign backwards for 2k ∉ L\*.**
+  `modes.py:1078` and `:1083` (`pairing`) and `:132`, `:181-182` (the module
+  docstring) still print `exp(-2πi k·R)`, which is FullProf's S_kj, while the
+  vectors the module builds are the coefficients of `exp(+2πi k·R)` (S\*_kj).
+  *Checked at `e3e6486a`*: the lines are unchanged. The reporter's kagome-K
+  case (spglib, no rietx code) gives 36 operations for the `+` field and 12
+  for the printed recipe, a mixture of S1 and S6. Nothing shipped consumes a
+  complex-k ψ, so this is text and a field-side test, no number moves. Fix PR
+  #564 is open. The reporter also asks whether a `moment_field(basis,
+  amplitudes, translations)` builder is wanted; that is new public API and
+  waits on the maintainer (batch item, 2026-09-30).
+- **2026-09-30, from the issue triage (issue #565): M-7 as a certificate, a
+  proposal, not code.** The reporter's scoping (Farkas dual, minimum-norm
+  d = 1/‖y‖, isometry, transfers, a consistency rule) gives
+  `equivalence_classes` a *proved* or *sampled* label per directed pair.
+  Six cubic cases ran on two machines with identical verdicts; the positive
+  arm (600 certified draws re-fitted) reproduced none. It touches only
+  `isotropy.py` and lands as five PRs after #532. Four questions are open and
+  are the maintainer's: what `classes` means (split partition, the
+  reporter's suggestion, against union-find), the accept floor (1e-12 with an
+  exact LDLᵀ check), the default draw count (12 per direction on unsettled
+  cross-irrep pairs), and the metric for d (unweighted L2 with a printed
+  bracket). *Checked at `e3e6486a`*: #535 and #536 are merged and #532 is
+  open, so the premise holds; the `isotropy.py` line numbers it quotes are on
+  `44eaa091` and were not re-measured. Decision pending (batch item,
+  2026-09-30).
 - **From [1506](1506-a-planning-doc-pr-runs-what-reads-it.md), 2026-09-27:
   `isotropy.analyse` on F m -3 m takes 26 s, and the fast suite pays it
   twice.** `isotropy.analyse(isotropy.candidates("F m -3 m", (0, 0, 0),
