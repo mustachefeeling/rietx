@@ -3324,7 +3324,8 @@ def test_write_topas_inp_refuses_a_line_break_in_a_phase_name():
 
 #: One cell per class the moment basis can tell apart: an orthorhombic cell
 #: (edges unequal, so the per-axis scale already turns a two-axis moment), a
-#: monoclinic one (β obtuse, the Kit 2 cell TOPAS was measured on) and an
+#: monoclinic one (β obtuse, the cell TOPAS was measured on — the moment-basis
+#: note on ``TopasSite.moment`` in ``io/projects/topas.py``) and an
 #: oblique triclinic one (no angle 90°). Each with a type-I group whose general
 #: position leaves the moment unconstrained, so any three components are legal.
 _MAGNETIC_CASES = {
@@ -3389,8 +3390,9 @@ def test_write_topas_inp_round_trips_a_magnetic_phase(case, tmp_path):
 
 
 def test_write_topas_inp_writes_mlx_in_topas_fractional_basis(tmp_path):
-    """The Kit 2 numbers: TOPAS's `mlx 0.4 mly -0.3 mlz 0.3` on the 5.2 / 6.9
-    / 8.4 Å cell is (2.08, -2.07, 2.52) μ_B crystal-axis — measured against
+    """The measured numbers (the moment-basis note on ``TopasSite.moment`` in
+    ``io/projects/topas.py``): TOPAS's `mlx 0.4 mly -0.3 mlz 0.3` on the 5.2 /
+    6.9 / 8.4 Å cell is (2.08, -2.07, 2.52) μ_B crystal-axis — measured against
     TOPAS 6's own intensities — so writing that moment gives those three
     components back, and a held moment writes `!` on all three."""
     phase = _magnetic_phase("monoclinic", vary=False)

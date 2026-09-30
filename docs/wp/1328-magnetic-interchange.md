@@ -67,6 +67,10 @@ is still named in the result.
 
 ### Inherited
 
+- **2026-09-30, from the review of #544: `Phase.propagation_vector` is refused
+  by the TOPAS writer only.** Checked on #544's head: `gsas`, `fullprof` and
+  `gsas2`'s `from_structure` write a phase carrying k = (0, 0, ½) with no k in
+  the file, no exception and no warning, so it reads back as k = 0. A follow-up.
 - **2026-09-27, from the issue triage (issue #470): three of the four
   foreign writers still drop a magnetic phase in silence.** The handover
   below lists #470 as not done; PR #478 says it "does not fix the writer".
