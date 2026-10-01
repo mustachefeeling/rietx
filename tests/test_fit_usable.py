@@ -176,3 +176,26 @@ def test_usable_reads_the_level_vocabulary_not_a_code_list(broad):
         assert probe.usable is (level != "error"), level
     for status in ("max_iter", "diverged"):
         assert base.model_copy(update={"status": status}).usable is False
+
+
+# -- the joint path owes it per histogram (multi.DIAGNOSTIC_SCOPES) ----------
+
+def test_a_joint_fit_names_the_width_on_the_histogram_it_belongs_to(broad):
+    """One broad pattern and one the declared instrument describes, sharing
+    one LaB6 with no width term freed: the row lands on the broad histogram
+    with the single fit's own message, and nowhere else."""
+    structure, ins = _lab6()
+    ins.background = BackgroundChebyshev.with_terms(3)
+    joint = rx.refine_multi([broad, _broad_pattern(0.0)], structure,
+                            [ins, ins.model_copy(deep=True)], plan=PLAN_NO_WIDTHS)
+    per_hist = [_width_rows(h) for h in joint.histograms]
+    assert [len(rows) for rows in per_hist] == [1, 0], [
+        [d.code for d in h.diagnostics] for h in joint.histograms]
+    assert not _width_rows(joint), "the census is the histogram's, never the fit's"
+    (row,) = per_hist[0]
+    assert row.where == ["phases.0", "instrument.profile"]
+    # the single fit's question, asked of this histogram: same census, same
+    # fitted widths, same row
+    (single,) = _width_rows(_fit(broad, PLAN_NO_WIDTHS))
+    assert row.message == single.message
+    assert row.value == pytest.approx(single.value, rel=1e-6)
