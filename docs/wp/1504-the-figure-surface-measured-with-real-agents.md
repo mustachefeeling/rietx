@@ -1,8 +1,8 @@
 # WP-1504 — the figure surface measured with real agents
 
-Milestone: v1.7 · Status: 🔄 2026-10-01 — claimed by @yue-here (round C on WP-1529's merge)
+Milestone: v1.7 · Status: 🔄 2026-10-01 — fixed round run (14 runs, 13 done); N = 3 waits on a menu pick
 Depends on: 1501, 1502, 1503; 1529 soft (the next round)
-Priority: P3 2026-10-01 — WP-1529 landed its three fixes (PR #635); the round reruns on its merge
+Priority: P3 2026-10-01 — the fixed round ran on WP-1529's merge; option E (N = 3) waits on the maintainer
 
 ## Goal
 
@@ -108,6 +108,92 @@ condition is enforced in a shim, never in the prompt.
 
 ## Handover log
 
+### 2026-10-01 (round C) — the fixed condition, one run a cell
+
+With WP-1529's three fixes in place, agents finished 13 of the 14 figure
+tasks, against 9 of 14 on the previous surface and 6 of 14 on the original.
+Every run now opened the rietx skill and drew with rietx. Under round B,
+Sonnet drew by hand in 8 of 14 runs. Fluorapatite, which failed in all four
+earlier runs on rietx's own bare phosphorus, passed on both models. This is
+still one run a cell. And the condition changed two things at once: the
+skill's description, which decides the route, and the drawing itself. So it
+is a strong direction rather than a result, and the N = 3 option on the menu
+is what turns it into one. The round cost $5.05.
+
+*Measured* (darwin, Claude Code 2.1.286, `claude-sonnet-5-5` and
+`claude-opus-5-5`, N = 1 a cell, protocol 1.3; `run.py table`, fixed rows
+only; before and after are the round B entry's):
+
+| task | model | done | renders | looks | tokens (k) | minutes | $ |
+|---|---|---|---|---|---|---|---|
+| rutile | sonnet | 1/1 | 2 | 1 | 207 | 0.3 | 0.14 |
+| rutile | opus | 1/1 | 2 | 1 | 176 | 0.3 | 0.24 |
+| chains | sonnet | 1/1 | 4 | 2 | 357 | 0.5 | 0.20 |
+| chains | opus | 1/1 | 4 | 4 | 291 | 0.7 | 0.33 |
+| gypsum | sonnet | 0/1 | 4 | 2 | 317 | 0.5 | 0.19 |
+| gypsum | opus | 1/1 | 11 | 4 | 417 | 1.3 | 0.41 |
+| calcite | sonnet | 1/1 | 4 | 2 | 209 | 0.3 | 0.15 |
+| calcite | opus | 1/1 | 3 | 2 | 243 | 0.5 | 0.27 |
+| nac | sonnet | 1/1 | 5 | 2 | 358 | 0.6 | 0.20 |
+| nac | opus | 1/1 | 5 | 3 | 410 | 0.8 | 0.37 |
+| lab6 | sonnet | 1/1 | 6 | 3 | 579 | 1.2 | 0.32 |
+| lab6 | opus | 1/1 | 2 | 2 | 311 | 0.7 | 0.36 |
+| fap | sonnet | 1/1 | 4 | 2 | 321 | 0.6 | 0.22 |
+| fap | opus | 1/1 | 5 | 4 | 490 | 1.1 | 0.44 |
+
+- Done by model: Sonnet 2/7 before, 4/7 after, 6/7 fixed. Opus 4/7, 5/7,
+  7/7.
+- The rietx skill was invoked in 14 of 14 fixed runs, and
+  `references/api-figure.md` read in 13. Every run called
+  `render_structure` (2-11 renders), and 10 of 14 called `keep`.
+- The one miss, gypsum on Sonnet: the outer rows of water had O bonded to
+  one H. Every other criterion passed.
+- `fig.report`, in how many of the 14 fixed runs each field was read: the
+  whole report printed in 14; `hidden` 1, `hidden_atoms` 1, `empty` 2;
+  `dangling_bonds`, `label_overlaps`, `cut`, `note` and `warnings` never.
+  As in round B, agents print the report whole.
+- Spend: agents $3.85, judge $1.20, 9.3 minutes of agent time.
+- The record grew 2.6 MB for 14 runs (about 186 KB a run), and `runs/` is
+  6.9 MB.
+- I looked at all 14 figures on one contact sheet and disputed no verdict.
+  That is not the protocol's spot check, which is the maintainer's.
+
+*Done.* Amendment 1.3 in `PROTOCOL.md`: the `fixed` condition at `1b837e03`,
+1.2's runs pooled with 1.3's (`POOLED`), each condition's references drawn
+apart, and option E on the menu. `prepare ROOT fixed` passed its instrument
+check. The inherited note is folded into Context and Tasks and deleted.
+
+The inherited checks, answered in the amendment:
+- `without_bare_centres` no longer changes any picture on `fixed`. The dict
+  still holds the 2, 4 and 8 bare centres, and the renderer leaves them out.
+- `carbonate_groups` still does. `keep` of all but Ca leaves 96 O, 60 of
+  them in no carbonate.
+- Calcite drew 8 bare Ca on the after surface (132 atoms drawn against 124),
+  which corrects amendment 1.2's "none".
+- All seven right reference figures are pixel-identical between `after` and
+  `fixed`. Four defaults changed, and each still misses a criterion the fix
+  does not touch, so the judge check stands without being asked again.
+
+*WP-1505's trigger, rated: not fired.* Its second clause wants the surface
+unchanged between this WP's rounds, and round B led to WP-1529 changing it.
+Its first wants a real user or agent task, and these tasks are the round's.
+A round on `fixed` that finds no new defect would be the first pair of
+rounds with the surface unchanged between them. Recorded in 1505's
+`### Inherited`.
+
+*Gotchas.*
+- `fixed` changes the route and the drawing together. Rutile on Sonnet failed
+  with 0 renders before and after, and passed with 2 on `fixed`, so the route
+  is most of it. N = 1 cannot separate the two.
+- The worktree guard refuses a heredoc. Edits to `run.py` went through a
+  scratchpad script.
+
+Next, in order. (1) The maintainer spot-checks the 13 dones, at
+`runs/*-fixed-*/figure.png`. (2) Pick from `run.py --menu`: E runs before
+against fixed at N = 3 (70 runs, $16-39 measured), which is the
+result-bearing comparison. Or close the WP on N = 1 as a direction, if that
+is enough for 1501-1503's keep-or-cut decision. (3) If E runs and turns up no
+new defect, re-rate 1505's trigger from that.
 - **2026-10-01** (round B, same session) — Every cell has now run once under
   1.2: 28 runs at $11.19, 37 minutes of agent time. With the new surface the
   agents finished more of the tasks, 9 of 14 against 6 of 14 before. That is

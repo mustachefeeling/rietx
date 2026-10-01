@@ -99,6 +99,14 @@ the list is rietx's by nature.
   a geometry from before WP-1502 (a saved payload) raises `KeyError` in `keep`
   and `component`: rietview must either rebuild or say so. `test_figure_boundary.py`
   still passes unchanged.
+- **From WP-1504 (2026-10-01).** The trigger is rated not fired. Its
+  second clause wants the figure surface unchanged between 1504's rounds, and
+  round B led to WP-1529 changing it (`viz/figure3d/scene.py`, `render.py`,
+  `report.py` and the skill's description). The fixed round on 1529's merge
+  finished 13 of 14 tasks with rietx's renderer in every run. A further round
+  that finds no new defect would be the first pair with the surface unchanged
+  between them, so re-rate then. The first clause is untouched, because the
+  round's tasks are its own.
 
 ## Non-goals
 
