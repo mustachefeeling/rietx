@@ -318,7 +318,8 @@ def test_the_parent_route_is_refused_when_the_magnetic_orbit_is_smaller():
     unnamed child was refused one step earlier for the unrelated reason that no
     symbol named it, the compile never saw the case; now that the child is
     stated, the check has to be here, where the documented remedy
-    (``nuclear_group="magnetic"``) is still reachable.
+    (``nuclear_group="magnetic"``) is still reachable and
+    ``strategy.magnetic._supercell`` takes it by itself.
     """
     parent = Phase(
         name="synthetic P212121", space_group="P 21 21 21",
@@ -807,6 +808,33 @@ def test_pnma_half_zero_half_states_in_the_magnetic_nuclear_group():
                                    ion="Fe3+", nuclear_group="magnetic")
         assert st.child_space_group == "P 1 21/m 1"
         assert sum(a.moment is not None for a in st.phase.atoms) == 4
+
+
+def test_solver_falls_back_to_the_magnetic_nuclear_group_on_a_symbol_refusal():
+    """`solve_magnetic`'s statement helper takes the documented remedy itself.
+
+    Before this, the fallback fired only on the lattice-integrality refusal;
+    the quarter-translation refusal (Pnma at k = (1/2, 0, 1/2)) made every
+    candidate class "refused" and the solver abstain — for a reason with a
+    documented answer, which is what the fallback is for.
+    """
+    from rietx.crystallography.magnetic.isotropy import candidates
+    from rietx.schemas.common import Parameter
+    from rietx.schemas.structure import Atom, Cell, Phase
+    from rietx.strategy.magnetic import _supercell
+
+    phase = Phase(name="t", space_group="P n m a",
+                  cell=Cell(a=Parameter(value=12.6), b=Parameter(value=9.1),
+                            c=Parameter(value=9.13), alpha=Parameter(value=90.0),
+                            beta=Parameter(value=90.0), gamma=Parameter(value=90.0)),
+                  atoms=[Atom(label="Fe1", species="Fe", x=Parameter(value=0.0979),
+                              y=Parameter(value=0.25), z=Parameter(value=0.666))])
+    c = next(c for c in candidates("P n m a", (0.0979, 0.25, 0.666), ("1/2", "0", "1/2"))
+             if c.bns_number == "11.55")
+    st, used = _supercell(phase, c, species="Fe", ions="Fe3+", magnitude=4.0,
+                          nuclear_group="parent")
+    assert used == "magnetic"
+    assert st.child_space_group == "P 1 21/m 1"
 
 
 def test_every_spglib_short_symbol_resolves_after_normalisation():

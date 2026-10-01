@@ -345,6 +345,33 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
             ),
         ),
     ),
+    "magnetic": (
+        "The magnetic structure index",
+        "Load it when you are about to determine a magnetic structure: a "
+        "converged neutron fit leaves intensity unexplained and you want the "
+        "candidate models ranked rather than one stated by hand.",
+        (
+            (
+                "Determining a magnetic structure",
+                "`rx.solve_magnetic(ref, data, sites=[...], ion=...)` takes a "
+                "converged **neutron** fit and proposes a propagation vector, "
+                "candidate models per k, one trial refinement per class the "
+                "powder cannot separate, and a ranked list with a stated "
+                "criterion: ΔBIC against a nuclear reference, then a "
+                "magnetic-only R, then parsimony, and never Rwp, since more "
+                "amplitudes always fit better. Classes inside the tie width that "
+                "neither the magnetic-only R nor parsimony separates "
+                "abstain together rather than name a winner, and a class with no "
+                "supported moment cannot win. A non-neutron histogram is refused "
+                "by name; everything else, \"nothing to solve\" included, is "
+                "reported. Read `MagneticSolution.verdict` before `.best`, and "
+                "`references/magnetic.md` for what each reading must not be "
+                "taken to mean. Provisional: the criterion may still move.",
+                ("rx.solve_magnetic", "rx.MagneticSolution", "rx.MagneticTrial",
+                 "rx.MomentRow"),
+            ),
+        ),
+    ),
 }
 
 HEADER = """# The API index

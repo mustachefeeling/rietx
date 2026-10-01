@@ -1,6 +1,6 @@
 # 7j. The magnetic family: a satellite, a stated moment and the child group it implies
 
-Load it when a magnetic `Diagnostic` fired — from `analyse_moments` on a fit's `FitReport.magnetic` rows, from `magnetic_supercell`'s returned statement, or from a magCIF/TOPAS/FullProf import — when you were handed a magnetic structure to read, or before you read `FitReport.satellites`.
+Load it when a magnetic `Diagnostic` fired — from `analyse_moments` on a fit's `FitReport.magnetic` rows, from `solve_magnetic`'s `MagneticSolution`, from `magnetic_supercell`'s returned statement, or from a magCIF/TOPAS/FullProf import — when you were handed a magnetic structure to read, or before you read `FitReport.satellites`.
 
 *A reference file of the `rietx` skill. The body it belongs to is [`SKILL.md`](../SKILL.md); section numbers are the ones the body cites.*
 
@@ -9,6 +9,7 @@ The magnetic diagnostic family lives in this one file rather than in §7's table
 * **Moment codes** are about a refined moment (WP-1327) and ride on the report's `MomentEvidence` rows (`analyse_moments`, `FitReport.magnetic`); the **magnetic-width codes** (WP-1343) ride on `result.diagnostics`.
 * **Candidate codes** are not on `result.diagnostics` at all: they are on the `SupercellStatement` `magnetic_supercell` returns, because the question — does a Hermann-Mauguin symbol name the child group this cell carries — is settled before a fit exists, the same way a project reader's own codes are.
 * The **satellite arm** (WP-1326, `FitReport.satellites`) emits no code at all; its readings are in the next section.
+* The **determination verb** (WP-1418, `solve_magnetic`) answers on the `MagneticSolution` it returns, readings and codes in one table.
 * **Interchange codes** are about a magnetic structure read from a file (WP-1328) and fire at *import* — pass `diagnostics=[]` to the reader to collect them; they never reach `result.diagnostics`.
 
 ## The satellite arm
@@ -19,6 +20,20 @@ The magnetic diagnostic family lives in this one file rather than in §7's table
 | `SatelliteEvidence.excess_on_absent_lattice_lines` > 0 | Read it as a k = 0 magnetic structure. The points are forbidden only under the group you assumed: a lower nuclear group, λ/2 contamination and an impurity line also put intensity there, and on X-rays magnetism is not a cause at all. Rule those out first; on neutrons, then test a moment model under a k = 0 magnetic space group (§7j above), not a propagation vector, which refuses k = 0 |
 | `SatelliteEvidence.excess_on_nuclear_lines` > 0 | Call it magnetic or nuclear from this pattern. A k = 0 structure and a nuclear misfit look alike here; a pattern of the same specimen above its ordering temperature separates them |
 | `SatelliteEvidence.radiation == "xray"` | Call intensity at G ± k magnetic. On X-rays it is a superstructure reflection |
+
+## The determination verb
+
+`rx.solve_magnetic` (signatures: [`api-magnetic.md`](api-magnetic.md)) answers with a `MagneticSolution`, provisional by declaration. Its codes ride on `MagneticSolution.diagnostics`, never on `result.diagnostics`; `MAGNETIC_ION_ASSUMED` and `LANDE_G_ASSUMED` (interchange rows below) arrive there too when the solve had to resolve a site's ion.
+
+| reading or code | what you must not assume, and what to do |
+|---|---|
+| `MagneticSolution.verdict == "abstained"` | Pick a class from `trials` yourself, or widen `tie_width` until one wins. The leading classes lie inside `tie_width` ΔBIC and the magnetic-only R and parsimony did not separate them; `tied` names them and `reason` says which key failed. Report the tie with every tied class, and separate them with data (another temperature, a single crystal) rather than with a threshold. The same verdict with every class **refused** is a statement about what could be modelled, not about the specimen, and `reason` says so |
+| `MagneticSolution.verdict == "nothing to solve"` | Read it as a search that failed. No refined class both carries a supported moment (WP-1327's null test) and improves on the nuclear model (ΔBIC > 0), which is the answer for a pattern above its ordering temperature. A class can clear the null test and still be here, so read `reason` for which half failed: on the Cr₂WO₆ tutorial set at 150 K one class's degenerate pair sums to 0.59 ± 0.26 μ_B (2.3σ, not supported) at ΔBIC −37. A trial whose fit still stops on its iteration budget after `SOLVE_MAX_CONTINUATIONS` continuations has `fit_status` `"max_iter"` and is listed, not ranked (Measured: WP-1418) |
+| `MagneticTrial.members` longer than one | Report the representative as the structure. The members are models this pattern, to `MagneticSolution.d_min`, cannot separate; quote the class and name them all |
+| `MagneticSolution.margin` | Diff `trials[0].delta_bic` against `trials[1]` by hand. `trials` lists the eligible classes and then the rest, so the second row can be an unsupported class with a higher raw ΔBIC; `margin` is over the best *other eligible* class and is `None` on an abstention |
+| `MomentRow.paired_with` non-empty | Quote `MomentRow.magnitude` or judge the row by `MomentRow.supported`. The two moduli ride a flat direction and each fails the null test alone; the powder measures `paired_magnitude`, and the gate reads `MomentRow.pair_supported` for it |
+| `K_VECTOR_UNSEPARATED` | (info) Treat the winning propagation vector as settled. The top two entries of `MagneticSolution.k_trials` are within `k_tie_width` ΔBIC (default 10.0) and the satellite step's own scoring did not separate them either; `k_trials` holds one row per k actually refined |
+| `MAGNETIC_SUBGROUP_PREFERRED` | (**warning**) Trust the ranked list's top row without reading `MagneticSolution.subgroup_note`. After the winner is chosen, each of its maximal magnetic subgroups already enumerated at the same k is refitted from the winner's solution, and one beat it by more than `tie_width` ΔBIC; `value` is the margin and the message names both groups. The code reports; it does not change `MagneticSolution.best`. Only a k = 0 winner is audited, and a k ≠ 0 winner's note says the audit was not attempted |
 
 ## Moment codes
 

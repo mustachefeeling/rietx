@@ -106,6 +106,12 @@ from .schemas.sequential import (
 )
 from .schemas.suggest import CandidateGroup, ParameterCandidate, SuggestionResult
 from .sequential import SequentialRefinement, refine_sequential
+from .strategy.magnetic import (
+    MagneticSolution,
+    MagneticTrial,
+    MomentRow,
+    solve_magnetic,
+)
 from .strategy.staged import (
     PLAN_INFO,
     PLAN_PRESETS,
@@ -142,6 +148,9 @@ __all__ = [
     "LeBailValidation",
     "MagneticOnset",
     "MagneticTrajectory",
+    "MagneticSolution",
+    "MagneticTrial",
+    "MomentRow",
     "Parameter",
     "ParameterCandidate",
     "ParameterRow",
@@ -206,6 +215,7 @@ __all__ = [
     "refine_multi",
     "replay",
     "save_instrument_profile",
+    "solve_magnetic",
     "write_qpa_table",
     "estimate_mu_r",
     "write_recipe_tables",
