@@ -41,7 +41,6 @@ U\\* = Uiso·G*, and U_cart = M·(Uiso·G*)·Mᵀ = Uiso·M·(MᵀM)⁻¹·Mᵀ 
 from __future__ import annotations
 
 import math
-import re
 import time
 from collections.abc import Sequence
 from typing import Any
@@ -192,8 +191,6 @@ DISORDER_VIEWS = ("all", "major")
 # ----------------------------------------------------------------------
 # species → element, colour, radius
 # ----------------------------------------------------------------------
-_SPECIES = re.compile(r"^([A-Za-z]{1,2})(\d*[+-])?$")
-
 #: The elements the **CPK convention** actually names (Corey & Pauling, 1953,
 #: Rev. Sci. Instrum. 24, 621; Koltun, 1965, US Patent 3,170,246): hydrogen
 #: white, carbon black, nitrogen blue, oxygen red, sulfur yellow, phosphorus
@@ -214,16 +211,20 @@ _CPK: dict[str, str] = {
 def element_symbol(species: str) -> str:
     """The bare element of a scattering species: ``"La3+"`` → ``"La"``.
 
-    Same grammar :func:`~rietx.crystallography.scattering.normalize_species`
-    parses, and for the same reason — a charge is a scattering detail, while
-    radius and colour are properties of the element.  gemmi's own
-    ``Element("O2-")`` answers ``X``, so the charge is stripped here first.
+    The engine's own parser,
+    :func:`rietx.crystallography.species.element_symbol` — a charge is a
+    scattering detail, while radius and colour are properties of the element.  So a nuclide is drawn as its element (``"D"``, ``"2H"`` →
+    ``"H"``, ``"7Li"`` → ``"Li"``) and a valence label as its atom (``"Cval"``
+    → ``"C"``), as the composition reads them; a parser of its own here passed
+    ``D`` through and drew ``2H`` as unknown (#576 review, follow-up 2).  A
+    species that parser refuses is ``"X"``.
     """
-    match = _SPECIES.match(species.strip())
-    if match is None:
+    from ..crystallography.species import element_symbol as _engine_element
+
+    try:
+        return _engine_element(species)
+    except ValueError:
         return "X"
-    symbol = match.group(1).capitalize()
-    return symbol if gemmi.Element(symbol).atomic_number else "X"
 
 
 #: The colour for a species no form-factor grammar resolves to an element.
@@ -475,11 +476,11 @@ def element_list(values: Sequence[str], what: str = "elements") -> list[str]:
 #: Chem. 17, 215, Table 3), checked against it.  His table has none for Te,
 #: At, Kr or Xe, and theirs are the values usually tabulated on the Pauling
 #: scale, not checked.  Te needs one: without it a tellurate's Te would be an
-#: anion, and a ligand of the metals beside it.  Deuterium is hydrogen's value,
-#: since :func:`element_symbol` passes ``D`` through and a neutron structure
-#: must draw as its protonated twin does.
+#: anion, and a ligand of the metals beside it.  Deuterium needs no row:
+#: :func:`element_symbol` reads ``D`` as hydrogen, so a neutron structure draws
+#: as its protonated twin does.
 ELECTRONEGATIVITY: dict[str, float] = {
-    "H": 2.20, "D": 2.20, "B": 2.04, "C": 2.55, "N": 3.04, "O": 3.44, "F": 3.98, "Si": 1.90,
+    "H": 2.20, "B": 2.04, "C": 2.55, "N": 3.04, "O": 3.44, "F": 3.98, "Si": 1.90,
     "P": 2.19, "S": 2.58, "Cl": 3.16, "As": 2.18, "Se": 2.55, "Br": 2.96, "Kr": 3.00,
     "Te": 2.10, "I": 2.66, "Xe": 2.60, "At": 2.20,
 }

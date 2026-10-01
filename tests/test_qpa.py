@@ -78,6 +78,31 @@ def test_atomic_weight_valence_species():
     assert math.isclose(atomic_weight("Siva"), 28.085, abs_tol=0.1)
 
 
+def test_the_species_parser_is_crystallographys_and_qpa_re_exports_it():
+    """One parser, in a module that needs nothing of rietx (#590 review).
+
+    The structure viewer and the geometry read a species with it; living in
+    ``optimize.qpa`` it pulled qpa's schemas and attenuation tables across
+    WP-1505's split.  ``optimize.qpa.element_symbol`` still answers, as the
+    same function.
+    """
+    import ast
+    import inspect
+
+    from rietx.crystallography import species
+    from rietx.optimize import qpa
+
+    assert qpa.element_symbol is species.element_symbol
+    assert qpa._parse_species is species._parse_species
+    tree = ast.parse(inspect.getsource(species))
+    imported = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import)
+                for a in n.names}
+    imported |= {n.module.split(".")[0] for n in ast.walk(tree)
+                 if isinstance(n, ast.ImportFrom) and n.module and not n.level}
+    relative = [n for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.level]
+    assert imported <= {"__future__", "re", "gemmi"} and not relative
+
+
 def test_zmv_lab6():
     phase = make_lab6().phases[0]
     zmv = phase_zmv(phase.space_group, phase.cell.lengths_angles(), _atoms(phase))

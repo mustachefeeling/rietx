@@ -1390,13 +1390,23 @@ def gsas_species(species: str) -> str:
 
     An ion with a sign and no magnitude (``Cu+``) is refused, as the TOPAS and
     FullProf writers refuse it: rietx computes the neutral atom for it, and
-    the grammar has no digitless valence to write.
+    the grammar has no digitless valence to write.  A valence-labelled species
+    (``Cval``, ``Siva``) is refused with its own message: rietx scatters it
+    from the Waasmaier-Kirfel table, and the grammar has no label for it.
     """
     s = species.strip()
     mass = ""
     if s in ("D", "T"):
         mass, s = ("2" if s == "D" else "3"), "H"
     m = re.fullmatch(r"(\d*)([A-Za-z]{1,2})(?:(\d*)([+-]))?", s)
+    valence = re.fullmatch(r"([A-Z][a-z]?)(val|va)", s)
+    if not m and valence:
+        raise ValueError(
+            f"species {species!r} is the valence-electron form factor rietx "
+            f"scatters {valence[1]} from (the Waasmaier-Kirfel table), and a "
+            f"GSAS atom type ('aasv_nnn') has no label for one: its valence "
+            f"is a charge ('TI+4'). Write {valence[1]!r} for the neutral atom "
+            f"if GSAS's own {valence[1]} form factor will do")
     if not m:
         raise ValueError(
             f"species {species!r} is not an element, an ion or an isotope, and "

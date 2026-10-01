@@ -259,12 +259,12 @@ def _neighbours(sites, values, ip: int, i: int, g: np.ndarray,
 def _element(species: str) -> gemmi.Element:
     """The element behind a scattering species (``"Zn2+"`` → Zn).
 
-    ``optimize.qpa.element_symbol`` is the one parser — it already rejects the
-    symbols gemmi maps to its placeholder element, and a covalent radius of
-    1.0 Å for a mis-parsed species would silently reclassify every one of its
-    contacts.
+    ``crystallography.species.element_symbol`` is the one parser — it already
+    rejects the symbols gemmi maps to its placeholder element, and a covalent
+    radius of 1.0 Å for a mis-parsed species would silently reclassify every
+    one of its contacts.
     """
-    from ..optimize.qpa import element_symbol
+    from ..crystallography.species import element_symbol
 
     return gemmi.Element(element_symbol(species))
 

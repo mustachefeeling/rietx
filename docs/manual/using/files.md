@@ -786,7 +786,9 @@ refused by name, and so is `Cu+`. GSAS-II keeps an isotope as a per-type
 choice in the phase's General data, which no CIF tag reaches. Its importer
 reads `7Li` as hydrogen and `Cu+` as carbon, and says so only on stdout. Write
 the element, then choose the isotope in GSAS-II. `2H` is written `D`, the one
-isotope label GSAS-II takes.
+isotope label GSAS-II takes, and every site written `D` is named
+`GSAS2_CIF_DEUTERIUM_AS_D`: GSAS-II's D has b = 6.681 fm, against the
+6.671 fm (Sears) rietx uses.
 
 ### What comes back
 

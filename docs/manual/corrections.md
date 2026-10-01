@@ -350,7 +350,10 @@ W_p \;=\; \frac{S_p\, (Z M V)_p}{\sum_q S_q\, (Z M V)_q},
 with $Z$ formula units per cell, $M$ the formula mass and $V$ the cell volume,
 all derived from the refined model. Occupancies enter the mass, so the
 load-bearing quantity is the cell mass $ZM = \sum \mathrm{occ}\cdot m\cdot A$,
-and the $Z/M$ split is display-only. These are fractions of the modelled
+and the $Z/M$ split is display-only. Here $m$ is the site multiplicity and $A$
+the atomic weight: the IUPAC standard weight for an element, and for a nuclide
+(`D`, `2H`, `7Li`) its own mass, 2.0141 for ²H and the mass number otherwise,
+within 0.26 % of the nuclide's mass above A = 4. These are fractions of the modelled
 crystalline content, so they still sum to 1 when an amorphous fraction is
 present.
 

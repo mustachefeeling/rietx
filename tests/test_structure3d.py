@@ -401,7 +401,8 @@ def test_an_atom_is_never_bonded_to_its_own_boundary_duplicate(lab6):
 # ----------------------------------------------------------------------
 @pytest.mark.parametrize(("species", "element"), [
     ("La", "La"), ("La3+", "La"), ("O2-", "O"), ("o", "O"), ("FE", "Fe"),
-    ("D", "D"), ("Xx", "X"), ("", "X"),
+    ("D", "H"), ("2H", "H"), ("T", "H"), ("7Li", "Li"), ("Cval", "C"),
+    ("Siva", "Si"), ("Xx", "X"), ("", "X"),
 ])
 def test_a_species_resolves_to_its_element(species, element):
     """Charge is a scattering detail; radius and colour are the element's.
@@ -409,8 +410,14 @@ def test_a_species_resolves_to_its_element(species, element):
     gemmi's own ``Element("O2-")`` answers ``X``, which is why the charge comes
     off here first — an oxygen drawn in the unknown-element grey is a viewer
     quietly disagreeing with the parameter table about what the atom is.
+    A nuclide and a valence label are their element, as the engine's own
+    parser reads them (``crystallography.species.element_symbol``; #576
+    review, follow-up 2).
     """
+    from rietx.crystallography.species import element_symbol
     assert s3.element_symbol(species) == element
+    if element != "X":
+        assert element_symbol(species) == element
 
 
 def test_colours_are_cpk_where_the_convention_names_one_and_derived_elsewhere():

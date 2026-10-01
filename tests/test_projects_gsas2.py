@@ -439,6 +439,19 @@ def test_an_isotope_choice_rietx_cannot_scatter_is_refused(tmp_path, choice, mat
     assert "'Ni+2'" in str(exc.value) and "iso.gpx" in str(exc.value)
 
 
+@pytest.mark.parametrize("isotope", [None, "2", ["H", "2"]])
+def test_an_isotope_entry_that_is_not_a_dict_is_refused(tmp_path, isotope):
+    """Present and not a dict is not "none chosen": reading it as ``{}`` made
+    a malformed choice indistinguishable from natural abundance (#570
+    review, follow-up 1).  Absent stays natural abundance (the ``{}`` row of
+    the parametrisation above)."""
+    path = _write_gpx(tmp_path / "iso.gpx", _minimal_project(
+        atoms=_isotope_rows(), Isotope=isotope))
+    with pytest.raises(Gsas2GpxError, match=r"General\['Isotope'\]") as exc:
+        read_gsas2_gpx(path)
+    assert "not taken as natural abundance" in str(exc.value)
+
+
 def test_a_global_nobody_vouched_for_refuses_the_whole_file(tmp_path):
     """The bytes are literal, so this cannot agree with the reader by accident.
 
@@ -944,6 +957,25 @@ def test_the_type_symbol_is_one_gsas2_imports_as_that_species(tmp_path, species,
     out = tmp_path / "one.cif"
     rx.write_gsas2_phase_cif(_one_site(species), out)
     assert _type_symbol(out) == written
+
+
+@pytest.mark.parametrize("species, respelled", [
+    ("2H", True), ("D", False), ("H", None)])
+def test_a_deuterium_site_is_named_with_gsas2s_own_b(species, respelled):
+    """``2H`` → ``D`` is a respelling onto GSAS-II's D, whose b is 6.681 fm
+    against Sears's 6.671 (#569 review, follow-up 1): an info row names
+    every site written D, and a site that is not deuterium gets none."""
+    from rietx.io.projects.gsas2 import from_structure
+    found: list = []
+    from_structure(_one_site(species), diagnostics=found)
+    rows = [d for d in found if d.code == "GSAS2_CIF_DEUTERIUM_AS_D"]
+    if respelled is None:
+        assert rows == []
+        return
+    (row,) = rows
+    assert row.level == "info" and row.where == ["phases.0.atoms.0"]
+    assert "6.681" in row.message and "6.671" in row.message
+    assert ("respelled from 2H" in row.message) is respelled
 
 
 @pytest.mark.parametrize("species, match", [
