@@ -131,6 +131,34 @@ def test_a_fragment_is_frozen_and_validated():
         fr.Fragment(("C",), [[0, 0, float("nan")]])
 
 
+def test_the_coordinate_shape_is_checked_before_any_reshape():
+    """A transposed (3, n) array has 3n elements too, and is refused, not
+    scrambled; so are coordinates without species and a species string."""
+    xyz = np.array([[0, 0, 0], [1.4, 0, 0], [2.1, 1.2, 0], [2.8, 1.2, 1.1]])
+    assert np.array_equal(fr.Fragment(("C", "N", "O", "S"), xyz).xyz, xyz)
+    with pytest.raises(ValueError, match=r"shape \(3, 4\); expected \(4, 3\)"):
+        fr.Fragment(("C", "N", "O", "S"), xyz.T)
+    with pytest.raises(ValueError, match=r"shape \(12,\); expected \(4, 3\)"):
+        fr.Fragment(("C", "N", "O", "S"), xyz.ravel())
+    with pytest.raises(ValueError, match=r"shape \(1, 3\); expected \(0, 3\)"):
+        fr.Fragment((), [[1, 2, 3]])
+    assert len(fr.Fragment((), [])) == 0
+    with pytest.raises(ValueError, match="one string"):
+        fr.Fragment("Fe", [[0, 0, 0], [0, 0, 1]])
+
+
+def test_a_non_integer_bond_index_is_refused_not_truncated():
+    """As a Z-matrix reference is (``test_z_matrix_lines_are_checked...``)."""
+    xyz = [[0, 0, 0], [0, 0, 1.13]]
+    assert fr.Fragment(("C", "O"), xyz, bonds=[(np.int64(0), 1.0)]).bonds == ((0, 1),)
+    with pytest.raises(ValueError, match="integer atom indices"):
+        fr.Fragment(("C", "O"), xyz, bonds=[(0, 1.9)])
+    with pytest.raises(ValueError, match="integer atom indices"):
+        fr.Fragment(("C", "O"), xyz, bonds=[(0, True)])
+    with pytest.raises(ValueError, match="integer atom indices"):
+        fr.from_zmatrix([("C",), ("O", 0, 1.13)], bonds=[(0, 1.9)])
+
+
 # --- the body frame and the DOF count ----------------------------------------
 
 
@@ -199,6 +227,41 @@ def test_an_ideal_ring_round_trips_through_its_z_matrix(n, cc, ch):
     assert fr.rotation_dof_count(got) == 3
 
 
+def test_a_non_planar_chain_round_trips_with_its_dihedral_signs():
+    """The ring round trip compares distances, which a mirror image keeps, and a
+    planar ring's torsions are 0° or 180°, whose sign is moot.  This chain is
+    chiral: its torsions are about +60°, −90° and +150° (measured, not typed),
+    and the rebuilt chain must have the same signed tetrahedral volumes, which
+    a mirror image negates."""
+    x = np.array([[0.0, 0.0, 0.0], [1.5, 0.0, 0.0], [2.0, 1.4, 0.0],
+                  [3.4, 1.6, 0.9], [3.9, 0.4, 1.8], [2.9, -0.6, 2.4],
+                  [3.3, -2.0, 1.9]])
+    lines = [("C",), ("C", 0, float(np.linalg.norm(x[1] - x[0])))]
+    lines.append(("C", 1, float(np.linalg.norm(x[2] - x[1])), 0, _angle(x[2], x[1], x[0])))
+    torsions = []
+    for k in range(3, len(x)):
+        tor = _dihedral(x[k], x[k - 1], x[k - 2], x[k - 3])
+        torsions.append(tor)
+        lines.append(("C", k - 1, float(np.linalg.norm(x[k] - x[k - 1])),
+                      k - 2, _angle(x[k], x[k - 1], x[k - 2]), k - 3, tor))
+    assert any(t > 20 for t in torsions) and any(t < -20 for t in torsions)
+    got = fr.from_zmatrix(lines).xyz
+    assert np.max(np.abs(_distances(got) - _distances(x))) < 1e-12
+
+    def volumes(y):
+        return np.array([np.linalg.det(np.array([y[j] - y[i] for j in q]))
+                         for i in range(len(y)) for q in
+                         [(a, b, c) for a in range(i + 1, len(y))
+                          for b in range(a + 1, len(y)) for c in range(b + 1, len(y))]])
+
+    vx = volumes(x)
+    assert np.min(np.abs(vx)) > 0.0
+    np.testing.assert_allclose(volumes(got), vx, rtol=0, atol=1e-11)
+    for k in range(3, len(x)):
+        assert _dihedral(*got[k - 3:k + 1][::-1]) == pytest.approx(torsions[k - 3],
+                                                                   abs=1e-10)
+
+
 def test_the_third_atom_is_in_the_xz_plane_on_the_positive_side():
     """The plane convention, pinned for a third atom bonded to either earlier atom.
 
@@ -252,6 +315,30 @@ def test_a_collinear_reference_triple_is_refused_naming_it():
     np.testing.assert_allclose(fixed.xyz[2], [0.0, 0.0, 2.4], atol=1e-15)
     with pytest.raises(ValueError, match="dummy"):
         fr.from_zmatrix([("C",), ("C", 0, 1.2), (X, 1, 1.0, 0, 90)], bonds=[(1, 2)])
+
+
+def test_acetylene_needs_no_dummy():
+    """H–C≡C–H, every angle 180°: from the fourth line the reference triple is
+    collinear, and a 180° angle makes the dihedral inert, so nothing is
+    refused (module docstring, "Collinearity").  An angle short of 180° with
+    the same collinear triple is still refused."""
+    lines = [("H",), ("C", 0, 1.06), ("C", 1, 1.2, 0, 180),
+             ("H", 2, 1.06, 1, 180, 0, 0)]
+    f = fr.from_zmatrix(lines, bonds=[(0, 1), (1, 2), (2, 3)])
+    np.testing.assert_allclose(f.xyz, [[0, 0, 0], [0, 0, 1.06], [0, 0, 2.26],
+                                       [0, 0, 3.32]], rtol=0, atol=1e-15)
+    assert fr.rotation_dof_count(f) == 2
+    # the dihedral really is inert: any value gives the same molecule
+    spun = list(lines)
+    spun[3] = ("H", 2, 1.06, 1, 180, 0, 73.0)
+    assert np.array_equal(fr.from_zmatrix(spun).xyz, f.xyz)
+    # 0°: A folds back onto the C side of B
+    back = fr.from_zmatrix(lines[:3] + [("H", 2, 0.5, 1, 0, 0, 0)])
+    np.testing.assert_allclose(back.xyz[3], [0, 0, 1.76], rtol=0, atol=1e-15)
+    bent = list(lines)
+    bent[3] = ("H", 2, 1.06, 1, 179.0, 0, 0)
+    with pytest.raises(ValueError, match="collinear"):
+        fr.from_zmatrix(bent)
 
 
 def test_z_matrix_lines_are_checked_before_they_are_placed():

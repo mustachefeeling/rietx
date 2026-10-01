@@ -51,7 +51,10 @@ pins it on a hand-worked point.
 C and D lie on a line, because D then defines no half-plane about B–C.
 :func:`from_zmatrix` refuses such a line and names the three atoms.  A bond
 angle of 0° or 180° (A on the line B–C) is not refused: A is placed uniquely
-and only its dihedral is inert.  A dummy point (species :data:`DUMMY`) off the
+and only its dihedral is inert, so from the fourth line on a line with
+an angle of exactly 0° or 180° skips the collinearity check and ignores its
+dihedral (acetylene needs no dummy).  An angle near but not at 0° or 180°
+still needs a non-collinear B, C, D.  A dummy point (species :data:`DUMMY`) off the
 line resolves a collinear triple; dummies are placed and then removed from the
 returned fragment.
 
@@ -124,9 +127,15 @@ class Fragment:
     bonds: tuple[tuple[int, int], ...] | None = None
 
     def __post_init__(self):
+        if isinstance(self.species, str):
+            raise ValueError(f"species {self.species!r} is one string; pass a "
+                             f"sequence with one species per atom")
         species = tuple(str(s) for s in self.species)
-        xyz = np.array(self.xyz, dtype=np.float64).reshape(-1, 3) if len(
-            species) else np.zeros((0, 3))
+        # the shape is the caller's, read before anything is reshaped: a
+        # transposed (3, n) array has 3n elements too
+        xyz = np.array(self.xyz, dtype=np.float64)
+        if not species and xyz.size == 0:
+            xyz = np.zeros((0, 3))
         if xyz.shape != (len(species), 3):
             raise ValueError(f"xyz has shape {np.shape(self.xyz)}; expected "
                              f"({len(species)}, 3), one row per species")
@@ -139,7 +148,7 @@ class Fragment:
         if bonds is not None:
             norm = []
             for pair in bonds:
-                i, j = (int(k) for k in pair)
+                i, j = _bond_indices(pair)
                 if i == j or not (0 <= i < len(species) and 0 <= j < len(species)):
                     raise ValueError(f"bond {tuple(pair)} does not join two "
                                      f"distinct atoms of {len(species)}")
@@ -178,6 +187,15 @@ class Fragment:
         origin.setflags(write=False)
         axes.setflags(write=False)
         return BodyFrame(origin, axes)
+
+
+def _bond_indices(pair) -> tuple[int, int]:
+    """A declared bond's two indices, refusing a non-integer (as a Z-matrix
+    reference is refused) rather than truncating it."""
+    pair = tuple(pair)
+    if len(pair) != 2 or any(isinstance(k, bool) or int(k) != k for k in pair):
+        raise ValueError(f"bond {pair} must be two integer atom indices")
+    return int(pair[0]), int(pair[1])
 
 
 def inertia_tensor(xyz) -> np.ndarray:
@@ -244,7 +262,8 @@ def from_zmatrix(lines: Sequence[Sequence], bonds=None) -> Fragment:
     references for the convention).
 
     A line whose reference atoms b, c, d are collinear is refused, naming
-    them.  Lines with species :data:`DUMMY` are placed and then left out of
+    them, unless its angle is exactly 0° or 180° (its dihedral is then
+    inert).  Lines with species :data:`DUMMY` are placed and then left out of
     the result; the remaining atoms keep their order.  ``bonds`` are declared
     as pairs of line indices and renumbered with the atoms; a bond to a dummy
     is refused.  With ``bonds=None`` the fragment declares none.
@@ -289,6 +308,13 @@ def from_zmatrix(lines: Sequence[Sequence], bonds=None) -> Fragment:
             p = _place(b, c, c + np.array([1.0, 0.0, 0.0]), r, angle, 0.0)
         else:
             b, c, d = (pos[k] for k in refs)
+            if angle in (0.0, 180.0):
+                # A on the line B–C: the dihedral moves nothing, so D is not
+                # needed and its collinearity is no refusal
+                p = b - r * math.cos(math.radians(angle)) * _unit(b - c)
+                pos.append(p)
+                species.append(sp)
+                continue
             if _collinear_sine(b, c, d) < COLLINEAR_TOL:
                 names = ", ".join(f"{k} ({species[k]})" for k in refs)
                 raise ValueError(
@@ -305,7 +331,7 @@ def from_zmatrix(lines: Sequence[Sequence], bonds=None) -> Fragment:
     if bonds is not None:
         declared = []
         for pair in bonds:
-            i, j = (int(k) for k in pair)
+            i, j = _bond_indices(pair)
             for k in (i, j):
                 if not 0 <= k < len(species):
                     raise ValueError(f"bond {tuple(pair)} names line {k}, which "
