@@ -2774,7 +2774,7 @@ def _magnetic_build_diagnostics(model: TopasModel, phases_in, specs,
                                 nuclear_groups=None) -> list[Diagnostic]:
     """What the magnetic build assumed, said once per phase it applies to.
 
-    Three things, each an assumption or a derivation rather than a reading,
+    Four things, each an assumption or a derivation rather than a reading,
     which is exactly why they are on a channel instead of in a comment:
 
     * ``TOPAS_MAGNETIC_GROUP_READ`` — the magnetic group is the file's own
@@ -2844,7 +2844,31 @@ def _magnetic_build_diagnostics(model: TopasModel, phases_in, specs,
                         "crystal-axis nor a Cartesian reading; a file's "
                         "MM_CrystalAxis_Display values are the stored "
                         "components, to check against")))
-        bare = [s for s in moment_sites if re.fullmatch(r"[A-Za-z]{1,2}",
+        # `mg` is refinable in TOPAS (Technical Reference § 13: "The Lande
+        # splitting factor can be refined using the site-dependent parameter
+        # mg") and `Moment.g` is a plain float, so a refined g arrives held at
+        # the file's value: one free parameter fewer than the file's own
+        # refinement, the same loss `TOPAS_CELL_COUPLING_DROPPED` reports for
+        # a cell tie.
+        g_free = [(j, s) for j, s in enumerate(ph.sites)
+                  if s.moment is not None and s.vary.get("mg")]
+        if g_free:
+            out.append(Diagnostic(
+                level="warning", code="TOPAS_MOMENT_G_HELD",
+                where=[f"phases.{ip}.atoms.{j}.moment.g" for j, _ in g_free],
+                message=(f"{path}: phase {ph.name!r}: the file refines the "
+                         f"Landé g (`mg`) on "
+                         + ", ".join(f"{s.label!r} (g = {s.moment['mg']:g})"
+                                     for _, s in g_free)
+                         + "; rietx's Moment.g is a fixed number, so g is "
+                           "read as held at that value and the built model "
+                           "has fewer free parameters than the file's "
+                           "refinement"),
+                suggestion=("g enters only the ⟨j₂⟩ weight of the form factor, "
+                            "(2/g − 1); set Atom.moment.g on the built "
+                            "structure to try another value, and compare with "
+                            "the file's figures knowing g did not move")))
+        bare =[s for s in moment_sites if re.fullmatch(r"[A-Za-z]{1,2}",
                                                         s.species)]
         if bare:
             out.append(Diagnostic(
