@@ -91,7 +91,7 @@ record is `docs/wp/1504-eval/runs/`, and the table is in 1504's handover log.
 - [x] One cell draws no bare centre: the design chosen against VESTA's
   behaviour, and a test over the six round-B phases (rutile 2 Ti and
   fluorapatite 4 P today, 0 after).
-- [ ] `hidden=` and `dangling_bonds` agree: a test on calcite and LaB₆.
+- [x] `hidden=` and `dangling_bonds` agree: a test on calcite and LaB₆.
 - [ ] The GUI checked against the changed `build` (`gui/CLAUDE.md`).
 - [ ] Tests + PNGs to `tests/output/`.
 - [ ] Skill: `api-figure.md` regenerated (`docs/skill/make_api_index.py`) and

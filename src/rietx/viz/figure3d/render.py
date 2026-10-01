@@ -334,23 +334,26 @@ def _label_overlaps(labels, frame: raster.Frame) -> int:
     return total
 
 
-def _dangling(geometry: Mapping, scene: dict, hidden: list[str]) -> int:
-    """Bond halves drawn toward an atom that is not, unless ``hidden=`` took
-    that atom's species: the half ends in mid-air."""
+def _dangling(geometry: Mapping, scene: dict) -> int:
+    """Bond halves drawn toward an atom that is not: the half ends in mid-air.
+
+    A half left by ``hidden=`` counts too.  The legend's switch takes a
+    species' own halves and leaves its neighbours' pointing at it, and round B
+    printed this count as 0 on a calcite covered in O stubs, which is what an
+    agent reading the report rather than the picture was told (WP-1529).
+    """
     if not scene["halves"]:
         return 0
     drawn = {a["index"] for a in scene["atoms"]}
     atoms, bonds = geometry["atoms"], geometry["bonds"]
-    if len(drawn) == len(atoms) and not hidden:
+    if len(drawn) == len(atoms):
         return 0
     far = cut._far(geometry)
-    species = {k: s["species"] for k, s in enumerate(geometry["sites"])}
     count = 0
     for h in scene["halves"]:
         bond = bonds[h["bond"]]
         end = int(far[h["bond"]]) if list(bond["a"]) == h["from"] else bond["i"]
-        if end not in drawn and species[atoms[end]["site"]] not in hidden:
-            count += 1
+        count += end not in drawn
     return count
 
 
@@ -414,7 +417,9 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     level (default 50 %) and ``exaggeration`` a drawing scale on top of it,
     which is not a probability.  ``bond_tolerance`` is the bond threshold as a
     multiple of rᵢ + rⱼ.  ``hidden`` is species to leave out, with their bond
-    halves; ``boundary=False`` leaves out the images outside the cell.
+    halves; the other half of each bond stays, as a stub the report counts in
+    ``dangling_bonds``, and ``keep`` with a mask removes a species with its
+    bonds whole.  ``boundary=False`` leaves out the images outside the cell.
     ``polyhedra`` is ``None`` for the mode's default (on for balls, off for
     ellipsoids), ``True``/``False``, or ``{formula: bool}`` switching formulas
     as the GUI's legend does (``{"AlF₆": False}``).
@@ -525,7 +530,7 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
                         "and are not counted in hidden")
     report = rp.FigureReport(
         hidden=seen.hidden, hidden_atoms=seen.hidden_atoms,
-        dangling_bonds=_dangling(geometry, scene, hidden),
+        dangling_bonds=_dangling(geometry, scene),
         label_overlaps=_label_overlaps(labels, frame), empty=_empty(image, bg),
         cut={"polyhedra": 0, "bonds": 0, **geometry.get("cut", {})},
         note=geometry.get("note", ""), warnings=warnings)

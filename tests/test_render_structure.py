@@ -25,7 +25,7 @@ from rietx.crystallography.cif import structure_from_cif
 from rietx.gui import structure3d as s3
 from rietx.model import compiled
 from rietx.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
-from rietx.viz import render_structure
+from rietx.viz import keep, render_structure, select
 from rietx.viz.figure3d import raster, views
 from rietx.viz.figure3d import report as rp
 from rietx.viz.figure3d import scene as sc
@@ -663,10 +663,32 @@ def test_a_bond_toward_an_atom_that_is_not_drawn_dangles(nac):
         other = bond["b"] if list(bond["a"]) == h["from"] else bond["a"]
         want += bool(np.linalg.norm(drawn - np.asarray(other), axis=1).min() > 1e-6)
     assert want > 0 and bare.report.dangling_bonds == want
-    # a species the caller took away is asked for, not dangling
+    # a species the caller took away leaves its neighbours' halves, which dangle
     species = geometry["sites"][0]["species"]
     asked = render_structure(geometry, size=200, hidden=[species])
-    assert asked.report.dangling_bonds == 0
+    assert asked.report.dangling_bonds > 0
+
+
+@pytest.mark.parametrize("name, element", [("calcite CaCO3", "Ca"), ("LaB6", "La")])
+def test_the_stubs_hidden_leaves_are_the_stubs_the_report_counts(name, element):
+    """Round B's calcite under ``hidden=("Ca",)`` was covered in O stubs while
+    the report read 0 (WP-1529).  The count is each half the scene draws
+    toward a hidden atom, and ``keep`` takes the species with its bonds whole,
+    which draws none."""
+    geometry = s3.build(measured(next(r for r in MEASURED if r["name"] == name)))
+    fig = render_structure(geometry, size=200, hidden=(element,))
+    species = sorted({s["species"] for s in geometry["sites"] if s["element"] == element})
+    scene = sc.build_scene(geometry, "ball", hidden=species, polyhedra=sc.shown_polyhedra(
+        geometry, True, None, species, True))
+    toward = 0
+    for h in scene["halves"]:
+        bond = geometry["bonds"][h["bond"]]
+        other = bond["b"] if list(bond["a"]) == h["from"] else bond["a"]
+        toward += any(geometry["sites"][a["site"]]["element"] == element
+                      and np.allclose(a["pos"], other) for a in geometry["atoms"])
+    assert toward > 0 and fig.report.dangling_bonds == toward
+    cut = keep(geometry, ~select(geometry, element=element))
+    assert render_structure(cut, size=200).report.dangling_bonds == 0
 
 
 def test_labels_that_share_a_place_overlap():
