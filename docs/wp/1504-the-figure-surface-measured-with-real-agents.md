@@ -97,6 +97,38 @@ condition is enforced in a shim, never in the prompt.
 
 ## Handover log
 
+- **2026-10-01** (after the handover below, same session) — Amendment 1.2 is
+  written. At the maintainer's question, the round now tests expansion beyond
+  one cell properly, and it checks two figure defects nothing caught before.
+  The new seventh task asks for one rutile chain, four cells long, seen from
+  the side. Every figure is now also checked for bonds ending in empty space,
+  and for atoms drawn without their polyhedron. The second check found that
+  one cell of rutile or fluorapatite already draws such bare atoms, and that
+  the figure's report cannot see a stub left by `hidden=`. No run has used
+  1.2 yet, and the judge must be checked again before one does.
+
+  *Measured* (after surface, `[dev]`, darwin): `hidden=("Ca",)` leaves the O
+  half of every Ca–O bond drawn while `report.dangling_bonds` reads 0. One
+  cell draws 2 Ti bare in rutile and 4 P bare in fluorapatite, and 0 in NAC,
+  gypsum, calcite and LaB₆. `keep` drops a polyhedron missing a corner and
+  never draws part of one. One rutile chain by `component(via="edges")` and
+  `keep` gives 4 Ti and 4 octahedra, and `complete=True` adds 22 bare Ti.
+  The figures are in `PROTOCOL.md` § Amendment 1.2.
+
+  *Done.* `run.py`: the `chains` task, two common criteria, the judge's
+  `--setting-sources`, `PROTOCOL_VERSION` 1.2, pilot costs beside the prior
+  in the menu. `reference_figures.py`: rutile and fluorapatite drop their
+  bare centres, calcite keeps whole carbonate groups, and chains is new.
+  `fig_trace.py`: comments only, copied into both venvs. The 1.1 pilot moved
+  to `pilot-1.1/`, and the 1.1 judge check to `references-1.1.json`.
+
+  *Gotchas.* Two findings belong to item 6, the cuts. No verb removes bare
+  centres and no report field counts them. And `dangling_bonds` is blind to
+  `hidden=` stubs by its own docstring. Both may be rietx defects rather than
+  agent errors, and the round will show whether agents trip on them.
+
+  Next: offer J again (14 judge calls, $1-4 by the prior). Only once every
+  right reference passes and every default fails, bring the menu for A or B.
 - **2026-10-01** — The harness for the figure round is built and checked end
   to end, and no round has run yet. The Opus judge reads a picture as the
   rubric needs: it passed all six right reference figures and failed all six

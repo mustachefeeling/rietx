@@ -69,9 +69,10 @@ MAX_BUDGET_USD = "12"
 JUDGE_BUDGET_USD = "2"
 #: The hosted manual is today's in both conditions, so neither gets it.
 DISALLOWED = ("WebFetch", "WebSearch")
-#: PROTOCOL.md § Amendment 1.1: the user-level skills stay out of a run.  A run
-#: carries the version it was launched under, and only runs of this one pool.
-PROTOCOL_VERSION = "1.1"
+#: PROTOCOL.md § Amendment 1.1: the user-level skills stay out of a run, and
+#: § Amendment 1.2: out of the judge's too.  A run carries the version it was
+#: launched under, and only runs of this one pool.
+PROTOCOL_VERSION = "1.2"
 SETTING_SOURCES = "project,local"
 THUMB = 800
 
@@ -89,6 +90,18 @@ TASKS = {
             "The view is down c: the unit-cell outline is a square.",
             "Octahedra stand at more than one chain position in the cell, such as "
             "its corners and its centre.",
+        )),
+    # amendment 1.2: the one task a single cell cannot answer
+    "chains": dict(
+        phase="rutile TiO2", cif="rutile.cif",
+        prompt=("rutile.cif is rutile, TiO₂. Draw a single chain of its edge-sharing "
+                "TiO₆ octahedra from the side, four unit cells long. Save the picture "
+                "as figure.png."),
+        criteria=(
+            "Ti–O octahedra are drawn as polyhedra, each sharing an edge with the next.",
+            "Exactly one chain is shown, seen from the side: it runs across the "
+            "picture, not end-on.",
+            "The chain holds four or five octahedra.",
         )),
     "gypsum": dict(
         phase="gypsum CaSO4.2H2O", cif="gypsum.cif",
@@ -141,9 +154,15 @@ TASKS = {
             "The legend's colours match the colours of the atoms in the picture.",
         )),
 }
-#: Asked of every figure, after the task's own criteria.
+#: Asked of every figure, after the task's own criteria.  The last two are
+#: amendment 1.2's: a stub is invisible to `report.dangling_bonds` when
+#: `hidden=` made it, and `keep` leaves a centre bare when it drops a polyhedron.
 COMMON = ("The figure is not cut off: no atom or polyhedron is clipped by the "
-          "frame's edge.",)
+          "frame's edge.",
+          "Every bond drawn joins two atoms that are both drawn: no bond ends in "
+          "empty space.",
+          "Polyhedra are whole: none is missing a corner, and no atom of the kind "
+          "at their centres is drawn without one.")
 
 JUDGE = """\
 You are scoring a figure that an AI agent drew for a chemist. The chemist asked:
@@ -619,7 +638,7 @@ def ask_judge(task: str, figure: Path, where: Path) -> dict:
     proc = subprocess.run(
         ["claude", "-p", judge_prompt(task), "--model", JUDGE_MODEL, "--session-id", session,
          "--allowedTools", "Read", "--strict-mcp-config", "--output-format", "json",
-         "--max-budget-usd", JUDGE_BUDGET_USD],
+         "--setting-sources", SETTING_SOURCES, "--max-budget-usd", JUDGE_BUDGET_USD],
         cwd=where, capture_output=True, text=True, env=agent_env(f"judge-{where.name}"))
     verdict = {"model": JUDGE_MODEL, "session_id": session, "returncode": proc.returncode}
     try:
@@ -703,7 +722,15 @@ def menu() -> None:
         rates[model], source = per_run(model, measured)
         print(f"  {model:7s} ${rates[model][0]:.2f}-{rates[model][1]:.2f}  ({source})")
     print(f"  judge   ${judge_cost[0]:.2f}-{judge_cost[1]:.2f}"
-          f"  wall {wall[0]:.0f}-{wall[1]:.0f} min a run, serial\n")
+          f"  wall {wall[0]:.0f}-{wall[1]:.0f} min a run, serial")
+    pilots = [json.loads(f.read_text(encoding="utf-8"))
+              for f in sorted(HARNESS.glob("pilot-*/*/score.json"))]
+    for model in MODELS:
+        seen = [f"${s['cost_usd']:.2f} ({s['protocol']})" for s in pilots
+                if s["model"] == model and s.get("cost_usd")]
+        if seen:
+            print(f"  pilots, not pooled: {model} {', '.join(seen)}")
+    print()
 
     finished = {s["run"] for s in measured}
 

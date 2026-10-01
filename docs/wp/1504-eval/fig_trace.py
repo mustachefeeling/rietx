@@ -21,9 +21,11 @@ row; ``repr``/``str`` of the object, and ``__dict__``, write a ``whole`` row,
 since printing a report puts every field in the agent's context.  A field the
 ``before`` tree does not have is simply never read there.
 
-**Attribution** is the run id ``run.py launch`` puts in ``RIETX_FIG_RUN``, with
-the working directory beside it as the cross-check: the log path is baked per
-condition, not per run, because a venv per run would be 72 of them.
+**Attribution** is the key ``run.py launch`` puts in ``RIETX_FIG_RUN``,
+``<run>@<session>``, with the working directory beside it as the cross-check:
+the log path is baked per condition, not per run, because a venv per run would
+be 72 of them, and a run name relaunched under a later protocol is a second
+launch.
 """
 
 from __future__ import annotations
@@ -66,8 +68,9 @@ _WATCHED = (
 )
 
 #: Keyword values recorded beside the names: each says which route was taken,
-#: and none is the user's data.  ``view`` is recorded as its kind unless it is
-#: a short string ("c", "auto"), since a rotation is nine floats.
+#: and none is the user's data.  ``_short`` keeps a value whole when it is
+#: small -- a short string, up to six scalars, or up to three rows of three, so
+#: a rotation passed as ``view`` is recorded in full -- and as its kind beyond.
 _VALUES = frozenset({
     "view", "mode", "size", "supersample", "dpi", "boundary", "polyhedra",
     "hidden", "atom_labels", "outline", "extent", "max_atoms", "complete",

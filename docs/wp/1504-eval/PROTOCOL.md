@@ -241,3 +241,82 @@ only runs of the current one.
 |---|---|---|---|---|---|---|---|
 | gypsum-after-sonnet-1 | no (a Ca cut by the frame) | 0.21 | 0.8 | 8 | 0 | 5 | yue-figure-style |
 | gypsum-after-opus-1 | yes | 1.42 | 5.3 | 21 | 11 | 5 | rietx, yue-figure-style |
+
+## Amendment 1.2, 2026-10-01: a task across cells, and two checks no figure passed by luck
+
+Written after the 1.1 pilot (one gypsum run per model) and before any round.
+It makes four changes, and the judge is checked again before it scores a run.
+
+### A seventh task, which one cell cannot answer
+
+NAC was the only task that needed more than one cell, and the judge can only
+count its block by eye. The seventh task needs a chain several cells long,
+and one chain picked out of many.
+
+7. **chains**, from `rutile.cif`:
+   > rutile.cif is rutile, TiO₂. Draw a single chain of its edge-sharing TiO₆ octahedra from the side, four unit cells long. Save the picture as figure.png.
+
+Its criteria:
+
+1. Ti–O octahedra are drawn as polyhedra, each sharing an edge with the next.
+2. Exactly one chain is shown, seen from the side: it runs across the picture, not end-on.
+3. The chain holds four or five octahedra.
+
+On the after surface the chain is `component(g, atom, via="edges")` over a
+block four cells along c, then `keep`. That gives 4 Ti and 4 octahedra, with
+no bond left dangling. Adding `complete=True` brings back 22 Ti of the
+neighbouring chains, each drawn bare. The grid grows to 7 tasks and 84 runs.
+
+### Two checks every figure now gets
+
+After the registered "not cut off" check, the judge asks two more of every
+figure:
+
+- Every bond drawn joins two atoms that are both drawn: no bond ends in empty space.
+- Polyhedra are whole: none is missing a corner, and no atom of the kind at their centres is drawn without one.
+
+Three measurements on the after surface, all on 2026-10-01, are why.
+
+- `render_structure(..., hidden=("Ca",))` removes the Ca but draws the O half
+  of every Ca–O bond. The calcite figure is covered in these stubs, and its
+  report reads `dangling_bonds = 0`. The report leaves out by design the
+  halves a `hidden=` species took away. LaB₆ with `hidden=("La",)` does the
+  same. So the report cannot catch a stub, and only the picture can.
+- `keep` never draws part of a polyhedron. It drops a polyhedron that lost a
+  corner and counts it in `cut`. So the failure a picture shows is a centre
+  atom drawn bare.
+- One cell already draws bare centres. The atoms brought in as the far ends
+  of bonds just outside the cell carry no polyhedron. Rutile draws two Ti
+  bare (above and below the body centre, at z = −½ and 1½). Fluorapatite
+  draws four P bare, beyond the side faces. NAC, gypsum, calcite and LaB₆
+  draw none. No verb removes them and no field of the report counts them.
+
+The 1.1 references met neither check in every task, so three recipes in
+`reference_figures.py` change. Rutile and fluorapatite drop their bare
+centres with a mask read off the dict. Calcite keeps the connected pieces
+holding a C once the Ca is gone: 12 C and 36 O, C–O bonds only. Two other
+routes were measured and refused. `keep` of everything but Ca leaves the O
+whose C lies outside the cell. `keep` of the C with `complete=True` left 16
+O bonded to no C.
+
+### The judge launches without the user-level skills too
+
+The judge now runs with `--setting-sources project,local`, as the agents do
+since 1.1. All 16 judge sessions under 1.0 and 1.1 used `Read` alone and
+invoked no skill, so no verdict on record changes. But the flag changes how
+the judge is launched, and the new criteria change what it is asked. So the
+check of § The judge runs again, on the seven pairs drawn by the amended
+`reference_figures.py`, before it scores a run. The 1.1 check is kept as
+`references-1.1.json`.
+
+### Two corrections to the text above
+
+- `RIETX_FIG_RUN` holds `<run>@<session>` since the trace key fix on
+  2026-10-01, not the run's name. The registered section says "naming the
+  run".
+- `fig_trace.py`'s comment on `_VALUES` now says what `_short` does: a
+  rotation passed as `view` is recorded in full. Both prepared venvs were
+  given the corrected file. Its code did not change.
+
+The two 1.1 pilot runs are kept in `pilot-1.1/`, and pool with nothing after
+this amendment.

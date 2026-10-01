@@ -29,6 +29,36 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from run import TASKS, cif_text  # noqa: E402
 
 
+def without_bare_centres(g):
+    """``g`` less every atom of a polyhedron-centre element that carries none.
+
+    One cell draws them as bond ends just outside it: rutile's two Ti above and
+    below the body centre, fluorapatite's four P beyond the side faces (measured
+    for amendment 1.2).  No verb names them and the report counts none, so the
+    mask is read off the dict.
+    """
+    centres = {p["center"] for p in g["polyhedra"] if p["drawn_by_default"]}
+    kinds = {g["sites"][g["atoms"][c]["site"]]["element"] for c in centres}
+    mask = np.array([g["sites"][a["site"]]["element"] not in kinds or i in centres
+                     for i, a in enumerate(g["atoms"])])
+    return rx.viz.keep(g, mask)
+
+
+def carbonate_groups(g):
+    """The connected pieces holding a C once Ca is gone: 12 C, 36 O, C–O bonds only.
+
+    Not ``hidden=("Ca",)``, which leaves the O half of every Ca–O bond drawn and
+    uncounted by ``dangling_bonds``; not ``keep`` of all but Ca, which leaves
+    the O whose C lies outside the cell; and not ``keep`` of the C with
+    ``complete=True``, which left 16 O bonded to no C (amendment 1.2).
+    """
+    g = rx.viz.keep(g, ~rx.viz.select(g, element="Ca"))
+    mask = np.zeros(len(g["atoms"]), bool)
+    for i in np.flatnonzero(rx.viz.select(g, element="C")):
+        mask |= rx.viz.component(g, int(i))
+    return rx.viz.keep(g, mask)
+
+
 def gypsum(s):
     """One (010) layer, the one about y = ½, two cells wide, seen down c."""
     g = build(s, extent=((0, 2), (0, 1), (0, 2)))
@@ -39,7 +69,7 @@ def gypsum(s):
 
 def fap(s, path):
     """17 cm at 300 dpi, down c, a legend drawn onto the picture from ``palette``."""
-    fig = rx.viz.render_structure(s, view="c", size=(2008, 1700))
+    fig = rx.viz.render_structure(without_bare_centres(build(s)), view="c", size=(2008, 1700))
     image = Image.fromarray(fig.image).convert("RGB")
     draw = ImageDraw.Draw(image)
     font = ImageFont.load_default(size=44)
@@ -50,10 +80,26 @@ def fap(s, path):
     image.save(path, dpi=(300, 300))
 
 
+def chains(s):
+    """One chain, the one through the body centre, four cells along c, from the side.
+
+    ``component`` over shared edges is the chain; ``keep`` without
+    ``complete``, since completing it brings back the neighbouring chains'
+    titanium bare (22 of 26 measured, amendment 1.2).
+    """
+    g = build(s, extent=((0, 1), (0, 1), (0, 4)), max_atoms=2000)
+    centre = next(i for i, a in enumerate(g["atoms"])
+                  if g["sites"][a["site"]]["element"] == "Ti"
+                  and np.allclose(a["frac"], [0.5, 0.5, 0.5]))
+    return rx.viz.render_structure(rx.viz.keep(g, rx.viz.component(g, centre, via="edges")),
+                                   view=[1, 1, 0])
+
+
 RIGHT = {
-    "rutile": lambda s: rx.viz.render_structure(s, view="c"),
+    "rutile": lambda s: rx.viz.render_structure(without_bare_centres(build(s)), view="c"),
+    "chains": chains,
     "gypsum": gypsum,
-    "calcite": lambda s: rx.viz.render_structure(s, hidden=("Ca",), polyhedra=False),
+    "calcite": lambda s: rx.viz.render_structure(carbonate_groups(build(s)), polyhedra=False),
     "nac": lambda s: rx.viz.render_structure(
         build(s, extent=((0, 2), (0, 2), (0, 1))), view="c"),
     # `keep`, not `hidden=("La",)`, which leaves the B half of every La–B bond
