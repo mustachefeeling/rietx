@@ -1,6 +1,6 @@
 # WP-1802 — the fragment: a body template with a frame and declared bonds
 
-Milestone: v1.8 · Status: ⬜
+Milestone: v1.8 · Status: 🔄 2026-09-30 — claimed by @mustachefeeling
 Depends on: 1801 soft (the rotation of a template into place)
 Priority: P3 2026-09-30 — a building block; no user sees it until 1803's seam and a later WP exist
 
