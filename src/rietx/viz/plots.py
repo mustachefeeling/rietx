@@ -938,7 +938,11 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     One stacked panel per requested display path, resolved through
     :meth:`SeriesResult.resolve_trajectory` — a refined parameter's dot-path, or
     a derived ``"qpa.<phase>"`` weight fraction, ``"r_bragg.<phase>"`` or
-    ``"r_f.<phase>"`` agreement index — plotted against the series coordinate.
+    ``"r_f.<phase>"`` agreement index, or ``"magnetic.<site>"`` (WP-1329: |m|
+    against the axis, the unsupported patterns drawn **hollow and without a
+    bar**, a pattern with no verdict as a cross, and the onset bracket shaded, so a held moment cannot be read off
+    the figure as a small measured one) — plotted against the series
+    coordinate.
     **Error bars appear only where the kind has an esd to carry**: a refined
     parameter and a weight fraction do, an agreement index does not (its
     ``stderr`` column is ``None`` throughout, and a zero-height bar would read
@@ -992,8 +996,46 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     for ax, name in zip(axes[:, 0], paths, strict=True):
         traj = series.resolve_trajectory(name)
         x, value, sd = traj.arrays()
-        ax.errorbar(x, value, yerr=np.where(np.isfinite(sd), sd, 0.0),
-                    fmt="o-", ms=4, lw=1.0, capsize=2, color="#1f5fa8")
+        yerr = np.where(np.isfinite(sd), sd, 0.0)
+        # A magnetic trajectory carries a per-point verdict, and the whole
+        # point of WP-1329 is that a held point must not look like a small
+        # measured moment: it is drawn hollow, with no bar (``stderr`` is
+        # already ``None`` there, so ``arrays()`` handed us NaN), and the onset
+        # bracket is shaded between the two patterns that straddle it.  The
+        # line runs through every point, while the filled marker is drawn only
+        # where the verdict is "supported" — otherwise the hollow square sits
+        # over a filled measurement mark.  Guarded on the attribute rather than
+        # on the type so an ordinary Trajectory takes exactly the path it took
+        # before.
+        supported = getattr(traj, "supported", None)
+        if supported:
+            ax.plot(x, value, "-", lw=1.0, color="#1f5fa8")
+            ax.errorbar(x, np.where(supported, value, np.nan), yerr=yerr,
+                        fmt="o", ms=4, capsize=2, color="#1f5fa8")
+        else:
+            ax.errorbar(x, value, yerr=yerr,
+                        fmt="o-", ms=4, lw=1.0, capsize=2, color="#1f5fa8")
+        if supported:
+            measured = getattr(traj, "measured", None) or [True] * len(supported)
+            held_ix = [i for i, ok in enumerate(supported)
+                       if not ok and measured[i]]
+            blind_ix = [i for i, m in enumerate(measured) if not m]
+            if held_ix:
+                ax.plot(x[held_ix], value[held_ix], "s", ms=7, mfc="none",
+                        mec="#6b6b6b", mew=1.2, ls="none",
+                        label="held (unsupported)")
+            # no verdict at all (no esd, or a diverged fit): not the data
+            # saying "no moment", so it gets its own mark
+            if blind_ix:
+                ax.plot(x[blind_ix], value[blind_ix], "x", ms=7,
+                        color="#6b6b6b", mew=1.2, ls="none",
+                        label="no verdict")
+            if held_ix or blind_ix:
+                ax.legend(fontsize=7, loc="best", frameon=False)
+            onset = getattr(traj, "onset", None)
+            if onset is not None and onset.x is not None:
+                ax.axvspan(onset.bracket[0], onset.bracket[1],
+                           color="#1f5fa8", alpha=0.10, lw=0)
         if mark_diagnostics:
             for i, label in enumerate(traj.labels):
                 if label in reseeded:

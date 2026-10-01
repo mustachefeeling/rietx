@@ -389,13 +389,22 @@ no detected structural transition, modelled as two phases; the first-order
 coexistence figures are Kemei et al., J. Phys.: Condens. Matter 25, 326001
 (2013) and Phys. Rev. B 90, 064418 (2014).)*
 
+## A moment through an ordering transition
+
+Each entry carries `SeriesEntry.magnetic` (`MomentEvidence` rows);
+`series.magnetic_trajectory()` is |m| against the axis, **esd withheld on every
+unsupported point**, onset bracketed on `MagneticOnset`.  Never build "|m| vs
+T" from the raw `…moment.dof0` rows: signed, verdict-free, and smoothed through
+the transition by the warm start.  A pattern with no modulus esd, or diverged,
+gives no verdict (`MagneticTrajectory.measured` False), outside the bracket.
+
 ## The series codes: what each one means you must not do
 
-These nine arrive on a `SeriesResult` — the series' own `diagnostics`, or a
+These eleven arrive on a `SeriesResult` — the series' own `diagnostics`, or a
 pattern's entry — and a single `fit()` never emits one, so their rows live
 here rather than in §7's table, which carries what a fit is likely to say.
 Branch on the code, as §7 says; the manual's *Refining many patterns* chapter explains each.
-The tenth series code, `SEQUENTIAL_PERSISTENT_FINDING`, is an abstention, so its row is in §6, [`abstention.md`](abstention.md).
+The twelfth series code, `SEQUENTIAL_PERSISTENT_FINDING`, is an abstention, so its row is in §6, [`abstention.md`](abstention.md).
 
 | Code | What it means you must not do |
 |---|---|
@@ -408,3 +417,5 @@ The tenth series code, `SEQUENTIAL_PERSISTENT_FINDING`, is an abstention, so its
 | `SEQUENTIAL_WIDTH_GROWTH` | Read that phase's width, or its scale, cell or weight fraction, as a measurement from the pattern the message names onward. At one pattern the width reached 3× the first value the series measured **and** GoF 2× its own, so the phase is standing in for something the model lacks: a second phase, a diffuse signal, background the function cannot follow. No per-pattern code says so until `STRAIN_UNUSUALLY_LARGE` at 1.5° (measured on a 0.4 %-split second phase: width 3.65×, GoF 3.1×, nothing else fired). Fit the onset pattern with the missing component. `value` is the width ratio there. A Stephens block is not screened (WP-1465) |
 | `SERIES_PATTERN_FAILED` | Read a missing index in `SeriesResult.entries` as a pattern nobody asked to fit — it is one on which **every** rung of the ladder raised rather than returned (`SeriesResult.failures`/`.n_failed` name it, `SeriesFailure.exception` carries the last rung's `repr(exc)`), not a converged-but-rejected `"diverged"` entry. A rung that raises is a rung that lost and the ladder escalates past it, so the last rung tried was a cold fit unless `reseed=False` or the pattern was the first walked: what failed is the pattern, not its neighbour's state. A pattern a later rung rescued has an entry whose `rungs_raised` says what the earlier rungs raised. With `direction="both"` a failure in the backward chain says so and costs only the comparison (`SEQUENTIAL_PATH_CHECK_INCOMPLETE`); the forward entry stands. The default `on_error="carry"` warm-starts the successor from the last accepted pattern; `"skip"` starts it cold; under `"raise"` the chain ends in the exception instead — read `SequentialRefinement.results_`/`.failures_`, or the exception's own `series_results`/`series_failures` (and `series_result`, the forward `SeriesResult`, when the backward pass is what raised) for what completed. A chain that fitted **no** pattern raises under every policy, so an empty `SeriesResult` never comes back as an answer |
 | `SEQUENTIAL_PATH_CHECK_INCOMPLETE` | Read zero `SEQUENTIAL_PATH_DEPENDENT` findings as a clean bill while this is present. At `warning` the forward/backward comparison **did not run** at all — the forward chain was cancelled (so the backward one never started), the backward chain was cancelled, or it raised under `on_error="raise"` — and the message names the chain and the pattern it stopped on: no trajectory on this series has been shown independent of the order it was refined in, so re-run `direction="both"` to completion before quoting any per-pattern esd as the uncertainty. At `info` it ran on less than the series, in one of two ways: `where` lists **patterns** one chain has no entry for (every rung raised there; `value` is the number compared), or **paths** some chain measured that no pattern could judge because no pattern has an esd for them in both chains (issue #269 — a path held throughout one direction). A finding that did fire still stands; silence says nothing about what these name — read `result.trajectory(path)` against `result.backward.trajectory(path)` yourself |
+| `SEQUENTIAL_MOMENT_HOLD` | Read the held patterns as small moments, or plot them as zero with an error bar. A held point's `value` is its fit's modulus, judged against its *own* esd, so the trajectory withholds the esd there. The message names the successors reseeded to the floor instead of warm-started |
+| `SEQUENTIAL_MOMENT_ONSET` | Quote the midpoint as a critical temperature with that ± as its uncertainty: it is a **bracket** between the last released and the first held pattern, the ± half *your pattern spacing*, and nothing fits `m ∝ (1 − T/T_N)^β`. Nor quote it when `MagneticOnset.bracket_verdicts_final` is False (the early-stopped modulus had not finished falling), nor from one pass: `direction="both"` carries both chains' brackets and says whether they overlap, and one chain's warm start can carry a moment across the transition |

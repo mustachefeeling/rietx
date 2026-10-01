@@ -338,10 +338,23 @@ from .._nearmiss import did_you_mean
 #: every document written before loads unchanged and no fit's number moves;
 #: what a consumer notices is two new keys in every serialized phase, two new
 #: parameter paths on a phase that declares a magnetic structure, and the
-#: reflection table's new ``component`` column.  WP-1469 took 0.36 first; a
-#: sibling PR (WP-1329) also claims 0.37, and whichever of the two lands
-#: second takes 0.38.
-SCHEMA_VERSION = "0.37"
+#: reflection table's new ``component`` column.  WP-1469 took 0.36 first, and
+#: its sibling WP-1329 took 0.38 on top of this.
+#: 0.37 → 0.38 (WP-1329): ``SeriesEntry.magnetic``, the moment along a
+#: series — WP-1327's ``MomentEvidence`` rows per pattern of a sequential
+#: refinement.  Before it, a magnetic series handed back a signed
+#: ``phases.i.atoms.j.moment.dof0`` row in ``parameters`` and *none* of the
+#: evidence that stops it being misread: ``supported``, the esd the ratio is
+#: against, the direction the powder could not determine, the dipole
+#: approximation in force.  Written by ``sequential._chain`` from the same
+#: ``report.magnetic.analyse_moments`` a single-pattern report uses, keyed on
+#: ``MomentEvidence.path`` (already stored since WP-1327).  Additive and
+#: defaulted to an empty list, which is the honest empty state and the
+#: bit-identical one: a series whose phases declare no moment serializes
+#: exactly as before apart from that list, and no number any fit produces
+#: moves.  ``MagneticTrajectory``/``MagneticOnset`` are *derived* views over it
+#: and are stored nowhere.  WP-1343 took 0.37 first.
+SCHEMA_VERSION = "0.38"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
