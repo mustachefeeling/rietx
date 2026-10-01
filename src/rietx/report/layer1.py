@@ -224,7 +224,18 @@ def attribute_regions(model: CompiledModel, values: dict[str, float],
     (``model`` when not given), which must share its grid: the report hands in
     a model at the closing precision and one at the declared stages' precision
     (``report._reading_models``).
+
+    **Empty on a model whose grid is not an angle**, checked here at the entry
+    point rather than deeper in: every template below is a function of
+    θ = radians(2θ/2), and ``np.radians`` of a flight time in the tens of
+    thousands does not fail — it returns a plausible angle and attributes the
+    misfit against shapes that describe nothing.  ``build_report`` already
+    returns before reaching this on such a result and says so in the summary;
+    this is the module's own boundary, so calling it directly cannot produce
+    the silent nonsense either.
     """
+    if getattr(model, "axis", "two_theta") != "two_theta":
+        return []
     y_calc = model.evaluate(values)
     delta = model.y_obs - y_calc
     sqrt_w = 1.0 / model.sigma
