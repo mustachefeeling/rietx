@@ -1161,7 +1161,7 @@ whoever needs the corpus next.
 |---|---|
 | top-level tree items | 195 `PWDR`, 4 `IMG`, 4 `HKLF`, 3 `Sequential results`, 1 `Sequential peak fit results`, and the six singletons every project carries |
 | histogram types | 99 `PNT` (time of flight), 80 `PXC`, 16 `PNC` |
-| phases | 46: 40 nuclear, 6 magnetic — and **10 of the nuclear ones carry `magPhases`**, so they are the nuclear half of a magnetic model rather than a whole one |
+| phases | 46: 40 nuclear, 6 magnetic — and **10 of the nuclear ones carry `magPhases`**. That is not evidence of a magnetic model (issue #606): on the five public projects checked that carry it, the value is one of the project's own histogram names and the project holds no magnetic phase |
 | atom refine flags | `''` 270, `XU` 155, `U` 7, `UM` 4, `M` 1, and 2 written as a single space |
 | displacement | 313 isotropic sites, 126 anisotropic |
 | background functions | 114 `chebyschev-1`, 80 `chebyschev`, 1 `log interpolate` |

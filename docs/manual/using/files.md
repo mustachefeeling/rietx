@@ -997,7 +997,7 @@ A phase is a `Gsas2Phase`:
 | `Gsas2Phase.atoms` | the sites |
 | `Gsas2Phase.isotope` | the isotope chosen per atom type, GSAS-II's `General['Isotope']`. GSAS-II keeps the isotope here rather than in the type, so `to_structure` builds a site whose type has a mass-number choice as that isotope (`H` with `2` is `2H`) |
 | `Gsas2Phase.kind`, `Gsas2Phase.magnetic` | GSAS-II's phase type, and whether it is a magnetic one |
-| `Gsas2Phase.magnetic_partner` | set where a *nuclear* phase is half of a magnetic model. The sites import correctly. The magnetic scattering in the file's own Rwp does not, so a fit of this structure is not comparable with the file's figures |
+| `Gsas2Phase.magnetic_partner` | GSAS-II's `magPhases` entry on a *nuclear* phase, verbatim and not interpreted (GSAS-II does not document it). It is not evidence of magnetic scattering: on the public projects that carry it, it names one of the project's own histograms and the project holds no magnetic phase. A phase GSAS-II types `magnetic` is what makes the file's figures include magnetic scattering, and `GSAS2_GPX_PHASE_MAGNETIC` reports it |
 | `Gsas2Phase.pawley` | whether the phase was fitted by Pawley extraction, in which case its refined quantities are intensities rather than sites |
 
 Each of its sites is a `Gsas2Atom`:

@@ -307,6 +307,35 @@ def test_the_read_reports_the_magnetic_phase_and_the_constraints(magnetic):
     assert "GSAS2_GPX_CONSTRAINT_NOT_CARRIED" in codes
 
 
+def test_a_magphases_entry_is_reported_as_what_the_file_shows():
+    """#606: the `magPhases` arm claimed the file's Rwp includes magnetic
+    scattering.  On the Mn3O4 tutorial file the entry is one of the project's
+    own histogram names, the project holds one nuclear phase and no magnetic
+    one, so nothing magnetic is modelled: the row says that, at info."""
+    found: list = []
+    model = read_gsas2_gpx(SETTING, diagnostics=found)
+    (phase,) = model.phases
+    assert phase.kind == "nuclear"
+    assert phase.magnetic_partner in {h.name for h in model.histograms}
+    (d,) = [d for d in found if d.code == "GSAS2_GPX_PHASE_MAGNETIC"]
+    assert d.level == "info"
+    assert "one of this project's histogram names" in d.message
+    assert "holds no phase GSAS-II types `magnetic`" in d.message
+    assert "Rwp" not in d.message and "not comparable" not in d.message
+
+
+def test_the_comparison_warning_rides_on_the_magnetic_phase():
+    """#606's other half: the project that does hold a magnetic phase is
+    where the file's figures include magnetic scattering, and the warning
+    there says so; the nuclear phase beside it carries no `magPhases`."""
+    found: list = []
+    model = read_gsas2_gpx(MAGNETIC, diagnostics=found)
+    assert [p.magnetic_partner for p in model.phases] == [None, None]
+    (d,) = [d for d in found if d.code == "GSAS2_GPX_PHASE_MAGNETIC"]
+    assert d.level == "warning" and d.where == ["phases.1"]
+    assert "not comparable" in d.message
+
+
 # ------------------------------------------------------------- through the door
 
 def test_the_registry_claims_both_and_builds(pbso4):
