@@ -28,6 +28,7 @@ child whose nuclear orbit the magnetic group cannot cover.
 
 from __future__ import annotations
 
+import re
 from fractions import Fraction
 
 import numpy as np
@@ -650,6 +651,34 @@ def test_the_explicit_route_reproduces_the_candidate_route_exactly():
     assert (again.phase.magnetic_symmetry.operations
             == statement.phase.magnetic_symmetry.operations)
 
+
+
+def test_a_bns_number_the_group_is_not_is_refused_on_both_routes():
+    """#605: ``bns_number`` was stored on the child phase unchecked, so a
+    caller's wrong number was re-exported beside operators it contradicts.
+
+    A BNS number labels a group's type, so it is checked against the group's
+    own identification.  Positive arm: the candidate's own number passes, on
+    the explicit route exactly as in the test above."""
+    statement, cand = _statement(pbcm_parent(), (0.25, 0.125, 0.25), HALF_A,
+                                 species="Fe", ion="Fe3+")
+    own = statement.group.identify().bns_number
+    assert cand.bns_number == own
+    wrong = "1.1" if own != "1.1" else "2.4"
+    with pytest.raises(ValueError, match=rf"bns_number '{re.escape(wrong)}'"
+                                         rf".*BNS {re.escape(own)}"):
+        magnetic_supercell(
+            pbcm_parent(), group=statement.group, transform=statement.transform,
+            k=cand.cell.k, bns_number=wrong, magnetic_species="Fe",
+            ion="Fe3+", magnitude=2.0)
+    with pytest.raises(ValueError, match=re.escape(wrong)):
+        magnetic_supercell(pbcm_parent(), cand, bns_number=wrong,
+                           magnetic_species="Fe", ion="Fe3+")
+    kept = magnetic_supercell(
+        pbcm_parent(), group=statement.group, transform=statement.transform,
+        k=cand.cell.k, bns_number=own, magnetic_species="Fe", ion="Fe3+",
+        magnitude=2.0)
+    assert kept.phase.magnetic_symmetry.bns_number == own
 
 def test_the_magnetic_nuclear_group_keeps_the_structure_factor_identity():
     """``nuclear_group="magnetic"`` costs constraints, not correctness.

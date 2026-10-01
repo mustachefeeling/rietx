@@ -232,7 +232,14 @@ the one its cell and coordinates are in. So the list is kept as written, the
 transform goes into `MagneticSymmetry.setting` as the record it is, and applying
 it would move the group away from the atoms beside it.
 `MagneticSymmetry.uni_number` is *derived* from the operators through spglib, so
-it is the same on both sides of a round trip.
+it is the same on both sides of a round trip. A stated `number_BNS` or
+`number_OG` is checked against the same identification: a number labels the
+group's type in every setting, so one the operators are not is a contradiction.
+The operators are what is refined, so their numbers are stored, the stated
+`name_BNS` is dropped with the wrong number, and `CIF_MAGNETIC_NUMBER_MISMATCH`
+names both. The reader cannot tell which side is wrong: a forgotten
+anti-centring in the centring loop makes the operators a smaller group while
+the number stays right.
 
 The magnetic ion is not in the file. The magnetic dictionary has no item for
 it, and MAGNDATA writes a bare `Mn` for a site that is chemically Mn³⁺, so
@@ -295,7 +302,8 @@ supercell. The parent k is read for that test and nothing else, so it is not
 stored and not written back.
 
 `Structure.to_cif` and `Refinement.write_cif` write the same form back. The
-operator and centring loops go out verbatim, the BNS/OG metadata with them,
+operator and centring loops go out verbatim, the BNS/OG metadata with them
+(a `MagneticSymmetry` whose number is not its operators' is refused by name),
 and the moments in crystal-axis components with the dictionary's own
 `_su` items beside them, *not* in the `value(su)` notation every other number
 in the file uses, and for a measured reason: a refined moment's esd is routinely
