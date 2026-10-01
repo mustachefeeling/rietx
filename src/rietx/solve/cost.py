@@ -65,8 +65,17 @@ tests.
 
 **Refusals** (:class:`ExtractionRefused`, by ``reason``): no fit; a
 Rietveld-mode fit; an unconverged or a poor extraction; a magnetic phase
-anywhere in the model; and two terms that are not linear, primary extinction on
-the solved phase and a penalised background under projection.
+anywhere in the model; two terms that are not linear, primary extinction on
+the solved phase and a penalised background under projection; and two cases
+the form would otherwise **leave out in silence**, by name.  A satellite
+(WP-1326) inside the fitted range, on any phase: the Rietveld compile gives it
+factor 0, so the solved phase's column, a ``"pawley"`` nuisance column and a
+``"scale"`` impurity's profile are all empty there while the data carries the
+peak.  And, under ``"pawley"``, a nuisance reflection only a line other than
+line 0 reaches (a λ/n harmonic beyond line 0's sphere): its columns carry the
+line ratios relative to line 0's intensity, which is zero there.  The solved
+phase reads its factor off |F|², so a λ/n reflection is carried there, and
+``"scale"`` draws every line (#580 review, item 5).
 """
 
 from __future__ import annotations
@@ -77,6 +86,7 @@ from typing import Literal
 import numpy as np
 from scipy.sparse import csr_matrix
 
+from ..crystallography.symmetry import reflection_label
 from ..model.forward import d_spacings
 from ..optimize.statistics import column_rescale
 
@@ -89,7 +99,10 @@ _CELL_KEYS = ("a", "b", "c", "alpha", "beta", "gamma")
 NUISANCE_RCOND = 1e-12
 
 Refusal = Literal["not_an_extraction", "rietveld", "unconverged", "poor",
-                  "magnetic", "nonlinear"]
+                  "magnetic", "nonlinear", "satellite", "secondary_line_only"]
+
+#: How many reflections a refusal names before it counts the rest.
+NAMED_REFLECTIONS = 5
 
 
 class ExtractionRefused(ValueError):
@@ -107,7 +120,11 @@ class ExtractionRefused(ValueError):
     carry.  ``"nonlinear"``: something in the frozen model is not linear in |F|²
     (primary extinction on the solved phase) or in the nuisance coefficients (a
     penalised background, whose coefficients are not free), so the quadratic
-    form would not be the profile χ².
+    form would not be the profile χ².  ``"satellite"``: some phase has
+    satellite reflections in the fitted range, which the form has no column
+    for.  ``"secondary_line_only"``: under ``"pawley"``, a nuisance reflection
+    is reached only by a line other than line 0, so its free-intensity column
+    would be empty.  Both name the phase and the reflections.
     """
 
     def __init__(self, reason: Refusal, message: str):
@@ -123,6 +140,63 @@ def _refuse_magnetic_model(model) -> None:
             raise ExtractionRefused(
                 "magnetic", f"compiled phase {j} carries a magnetic term: the "
                 "solve cost holds one |F|² per reflection and has no magnetic term")
+
+
+def _in_range(cp) -> np.ndarray:
+    """(N,) bool: the reflection has a nonempty frozen window on some line."""
+    return np.asarray((cp.win[..., 1] > cp.win[..., 0]).any(axis=0))
+
+
+def _named(cp, rows: np.ndarray) -> str:
+    hklm = cp.reflections.hklm
+    names = ", ".join(reflection_label(hklm[k]) for k in rows[:NAMED_REFLECTIONS])
+    more = len(rows) - NAMED_REFLECTIONS
+    return names + (f" and {more} more" if more > 0 else "")
+
+
+def _refuse_silent_absence(model, values: dict, phase: int, nuisance: str) -> None:
+    """Refuse, by name, a reflection the form would leave out in silence.
+
+    Read-only: nothing here enters the arithmetic of a case it accepts.  A
+    satellite's factor is 0 in the Rietveld compile (``_nuclear_f2``), so on
+    the solved phase its column is empty, under ``"pawley"`` the ``live``
+    filter drops it and under ``"scale"`` the impurity's profile is zero at
+    it.  Under ``"pawley"`` a nuisance phase's columns are relative to line
+    0's intensity (:func:`omega_lines`), zero for a reflection beyond line 0's
+    sphere, so a reflection only another line's window holds is dropped too.
+    """
+    for j, cp in enumerate(model.phases):
+        if cp.satellites is None:
+            continue
+        rows = np.flatnonzero(cp.reflections.is_satellite & _in_range(cp))
+        if rows.size:
+            role = "the solved phase" if j == phase else f"nuisance phase {j}"
+            raise ExtractionRefused(
+                "satellite", f"{role} has {rows.size} satellite reflection(s) in "
+                f"the fitted range ({_named(cp, rows)}): a satellite has no "
+                "nuclear |F|², so the solve cost has no column for it and would "
+                "leave its intensity out of the form; drop the propagation "
+                "vector, or the range that holds its satellites")
+    if nuisance != "pawley":
+        return
+    for j, cp in enumerate(model.phases):
+        if j == phase or cp.win.shape[0] < 2:
+            continue
+        peaks = model.phase_peaks(j, values)
+        line0 = np.asarray(peaks[0][3], dtype=np.float64) > 0
+        other = np.zeros_like(line0)
+        for il in range(1, len(peaks)):
+            other |= ((np.asarray(peaks[il][3], dtype=np.float64) > 0)
+                      & (cp.win[il, :, 1] > cp.win[il, :, 0]))
+        rows = np.flatnonzero(other & ~line0)
+        if rows.size:
+            raise ExtractionRefused(
+                "secondary_line_only", f"nuisance phase {j} has {rows.size} "
+                f"reflection(s) in the fitted range that only a line other than "
+                f"line 0 reaches ({_named(cp, rows)}): under nuisance='pawley' "
+                "its columns are the line ratios relative to line 0's "
+                "intensity, which is zero there, so they would be left out; "
+                "pass nuisance='scale', or narrow the range")
 
 
 def _cell(values: dict, ip: int) -> tuple:
@@ -427,7 +501,10 @@ class SolveCost:
 
         The lower rung of :meth:`from_pawley`, which compiles the model; this
         one reads whatever structure the model holds, since the per-hkl factor
-        intensity/|F|² does not depend on it.
+        intensity/|F|² does not depend on it.  Refuses by name, with
+        :class:`ExtractionRefused`, satellites in the fitted range and, under
+        ``"pawley"``, a nuisance reflection only a line other than line 0
+        reaches (the module docstring's last two refusals).
         """
         if model.mode != "rietveld":
             raise ValueError(
@@ -438,6 +515,7 @@ class SolveCost:
         if nuisance not in ("pawley", "scale"):
             raise ValueError(f"nuisance must be 'pawley' or 'scale', got {nuisance!r}")
         _refuse_magnetic_model(model)
+        _refuse_silent_absence(model, values, phase, nuisance)
         y, w, om, X = _design(model, values, phase, background, nuisance)
         wom = om.multiply(w[:, None]).tocsr()                 # WΩ
         M0 = (om.T @ wom).tocsr()
