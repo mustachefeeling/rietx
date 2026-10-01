@@ -276,6 +276,10 @@ PRIORITIES = wp_index.PRIORITIES
 #   2026-10-31  src/rietx/io/CLAUDE.md        563 -> 565  for Yue's review of #1241: § Refusals' fourth
 #                                                          case (a name-only refusal) and the table
 #                                                          row's no-fixture sentence; landed LANDED
+#   2026-11-02  src/rietx/io/CLAUDE.md        565 -> 581  for the time-of-flight forward model (issue
+#                                                          #193): § The intensity basis is never
+#                                                          inferred, the ordinate's twin of the axis
+#                                                          rule; landed 580
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -766,7 +770,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # on a banner rather than by escalating, and that a Windows-written header
     # ends in `\r`, which `$` under `re.M` does not match.  Landed at 562; the
     # +1 is headroom.
-    "src/rietx/io/CLAUDE.md": 565,
+    # 565 -> 581 (issue #193, the time-of-flight forward model): the ordinate
+    # becomes a declared quantity beside the axis — whether a channel holds
+    # counts or counts per µs — so § The intensity basis is never inferred
+    # states the rule the next reader must follow (set it only from a
+    # declaration, measure W from the abscissa).  The evidence is in
+    # `io/formats/gsas.py`'s docstring.  Landed at 580; the +1 is headroom.
+    "src/rietx/io/CLAUDE.md": 581,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs
