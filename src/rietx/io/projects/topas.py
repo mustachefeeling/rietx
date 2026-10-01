@@ -1928,12 +1928,13 @@ _STR_MACRO = re.compile(r"^[ \t]*STR\s*\(([^)\n]*)\)", re.M)
 _STR_DEFINED = re.compile(r"\bmacro\s+STR\s*\(")
 
 
-def expand_str_macros(active: str, stripped: str, path) -> str:
+def expand_str_macros(active: str, live: str, path) -> str:
     """Rewrite each ``STR(sg[, name])`` as the ``str`` block it opens (WP-1433).
 
-    ``active`` is the live text; ``stripped`` is the comment-stripped text with
-    the macro definitions still in it, which is where a file's own ``macro STR``
-    would be. The rewrite stays on its line, so every later line number is the
+    ``active`` is the live text; ``live`` is the same text with the macro
+    definitions still in it, which is where a file's own ``macro STR`` would
+    be. Live, not all the comment-stripped text: a ``macro STR`` in a branch
+    the conditionals ruled out is a definition TOPAS never reads (#587). The rewrite stays on its line, so every later line number is the
     file's. Values are written **quoted**, so the ``space_group``/``phase_name``
     scans and :func:`_masked` take exactly the argument and not the rest of the
     line. Refused by name, never guessed:
@@ -1949,8 +1950,8 @@ def expand_str_macros(active: str, stripped: str, path) -> str:
     calls = list(_STR_MACRO.finditer(active))
     if not calls:
         return active
-    if m := _STR_DEFINED.search(stripped):
-        line = stripped.count("\n", 0, m.start()) + 1
+    if m := _STR_DEFINED.search(live):
+        line = live.count("\n", 0, m.start()) + 1
         raise TopasInpError(
             f"{path}:{line}: this file defines its own `STR` macro, and that "
             f"body — not the reference's description of TOPAS's own — is what "
@@ -2390,7 +2391,7 @@ def read_topas_inp(path: str | Path, *,
     refuse_unevaluable_directives(_excise_macro_defs(stripped), path)
     conditionals = _resolve_conditionals(stripped, path)
     active = expand_str_macros(_excise_macro_defs(conditionals.text),
-                               stripped, path)
+                               conditionals.text, path)
     # Where a card attaches is decided before any card is read: the block split
     # below *is* the assumption that a card belongs to the block it sits in.
     refuse_moved_attachment(active, path)

@@ -1616,6 +1616,19 @@ def test_a_file_defining_its_own_STR_refuses_rather_than_expanding_ours(tmp_path
         read_topas_inp(inp)
 
 
+def test_an_own_STR_in_a_dead_branch_is_a_definition_TOPAS_never_reads(tmp_path):
+    """#587 review, follow-up 2: `#ifdef CUSTOM` … `macro STR(sg) {…}` …
+    `#endif` with `CUSTOM` undefined defines nothing, so the `STR(...)` phases
+    read as the reference describes them. Defined, the file's own body is
+    what TOPAS expands, and the refusal stands."""
+    own = "#ifdef CUSTOM\nmacro STR(g) { str space_group g scale 2 }\n#endif\n"
+    model = read_topas_inp(_inp(tmp_path, "strdead.inp", own + _STR_PHASES))
+    assert [p.name for p in model.phases] == ["corundum", "silicon"]
+    inp = _inp(tmp_path, "strlive.inp", "#define CUSTOM\n" + own + _STR_PHASES)
+    with pytest.raises(TopasInpError, match="defines its own `STR` macro"):
+        read_topas_inp(inp)
+
+
 # ---------------------------------------- #prm, #if, #elseif, #out (WP-1433)
 
 _PHASE = ('str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
