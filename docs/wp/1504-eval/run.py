@@ -315,8 +315,9 @@ def prepare(root: Path, condition: str) -> None:
     tree, venv = root / "trees" / condition, root / "venvs" / condition
     log = root / "logs" / f"{condition}.jsonl"
     check_no_inherited_context(root / "work" / "x")
-    if venv.exists():
-        raise SystemExit(f"{venv} exists: a condition is prepared once")
+    if venv.exists() or tree.exists():
+        raise SystemExit(f"{venv} or {tree} exists: a condition is prepared once, "
+                         "and a failed prepare's leftovers are removed by hand")
     tree.mkdir(parents=True)
     archive = subprocess.run(["git", "-C", str(REPO), "archive", "--format=tar",
                               COMMITS[condition], "--", *TREE_PATHS],
@@ -457,6 +458,11 @@ def skills(rows: list[dict]) -> dict:
     return {"invoked": invoked, "files": sorted(files)}
 
 
+def _under(path: str, roots: tuple[str, ...]) -> bool:
+    """``path`` is one of ``roots`` or inside one: ``work/x-1`` holds no ``work/x-10``."""
+    return any(path == r or path.startswith(r.rstrip("/") + "/") for r in roots)
+
+
 def outside(rows: list[dict], allowed: tuple[str, ...]) -> list[str]:
     """Absolute paths the agent named outside the run's own places."""
     found = set()
@@ -467,7 +473,7 @@ def outside(rows: list[dict], allowed: tuple[str, ...]) -> list[str]:
                 continue
             for path in ABSOLUTE.findall(value):
                 full = os.path.expanduser(path)
-                if not full.startswith(allowed):
+                if not _under(full, allowed):
                     found.add(path)
     return sorted(found)
 
@@ -510,22 +516,29 @@ def collect(root: Path, run: str) -> dict:
     # later protocol is a second launch, and the condition's log holds both
     # (the 1.1 pilot first scored 15 renders, 11 of them the 1.0 run's).
     stamps = [t for t in (trail._stamp(r) for r in rows) if t is not None]
+    if not stamps:
+        raise SystemExit(f"{run}: transcript {transcript} has no timestamped row")
     first = min(stamps) - 5.0
     last = max(stamps) + (launched.get("outlived_session_seconds") or 0.0) + 30.0
-    key = launched.get("trace_key", run)
+    trace_key = launched.get("trace_key", run)
     traced = [r for r in load(p["log"]) if first <= (r.get("t") or 0.0) <= last
-              and (r.get("run") == key
+              and (r.get("run") == trace_key
                    or (r.get("run") is None
-                       and str(r.get("cwd") or "").startswith(str(p["workspace"]))))]
+                       and _under(str(r.get("cwd") or ""), (str(p["workspace"]),))))]
     bill = trail.usage(rows)
     calls = trail.tool_calls(rows)
     result = launched.get("result") or {}
     top = [r for r in traced if r.get("event") == "call" and r.get("depth") == 0]
+    # A process's counts arrive at exit; one killed before it (a Bash timeout,
+    # os._exit) left only its first-read rows, so each of those counts once.
     counts: dict[str, int] = {}
+    counted = {r.get("pid") for r in traced if r.get("event") == "reads"}
     for r in traced:
         if r.get("event") == "reads":
-            for key, n in r["counts"].items():
-                counts[key] = counts.get(key, 0) + n
+            for field, n in r["counts"].items():
+                counts[field] = counts.get(field, 0) + n
+        elif r.get("event") == "read" and r.get("pid") not in counted:
+            counts[r["name"]] = counts.get(r["name"], 0) + 1
     facts = figure_facts(p["workspace"] / "figure.png")
     score = {
         "run": run, "task": task, "condition": condition, "model": model,
@@ -620,7 +633,8 @@ def ask_judge(task: str, figure: Path, where: Path) -> dict:
     criteria = verdict.get("criteria") or []
     n_criteria = len(TASKS[task]["criteria"]) + len(COMMON)
     verdict["yes"] = (len(criteria) == n_criteria
-                      and all(c.get("verdict") == "yes" for c in criteria)) if criteria else None
+                      and all(str(c.get("verdict")).strip().lower() == "yes"
+                              for c in criteria)) if criteria else None
     return verdict
 
 
@@ -767,6 +781,8 @@ def check() -> None:
     protocol = (HARNESS / "PROTOCOL.md").read_text(encoding="utf-8")
     flat = " ".join(protocol.split())
     quoted = [*COMMITS.values(), PREAMBLE, *COMMON,
+              f"--setting-sources {SETTING_SOURCES}", f"--max-budget-usd {MAX_BUDGET_USD}",
+              "--disallowedTools " + " ".join(DISALLOWED),
               *(t["prompt"] for t in TASKS.values()),
               *(c for t in TASKS.values() for c in t["criteria"])]
     quoted.append(JUDGE.replace("{{", "{").replace("}}", "}"))

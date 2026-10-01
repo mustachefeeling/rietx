@@ -142,7 +142,7 @@ lacked `functools.wraps`, and an agent went reading source for a signature.
 And **check the condition reached each cell**, off its transcript: a user-level
 skill shadows a workspace one of the same name (WP-1338's § Amendment 1.1), and
 one on the task's subject picks the route, so launch with `--setting-sources
-project,local`, which keeps only user skills out (WP-1504's § Amendment 1.1).
+project,local`; the user `CLAUDE.md` still loads (WP-1504's § Amendment 1.1).
 
 ## An eval's expected answer is a measurement, not a definition
 
