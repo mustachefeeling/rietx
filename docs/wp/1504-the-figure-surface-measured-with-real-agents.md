@@ -1,6 +1,6 @@
 # WP-1504 — the figure surface measured with real agents
 
-Milestone: v1.7 · Status: 🔄 2026-10-01 — harness, judge check and gypsum pilot landed; the rounds wait on the maintainer's next pick
+Milestone: v1.7 · Status: 🔄 2026-10-01 — round B run (one of every cell, 28 runs); item 6, the cuts, waits on the maintainer
 Depends on: 1501, 1502, 1503
 Priority: P3 2026-10-01 — the harness and its judge are checked; the rounds wait on a pick from `run.py --menu`
 
