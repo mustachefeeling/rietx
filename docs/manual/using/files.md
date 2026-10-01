@@ -105,6 +105,34 @@ because the file stated the unit, never because the numbers looked like one.
 The same header line is how a `dSpacing`, `MomentumTransfer` or `Wavelength`
 export is refused by name rather than read as an angle.
 
+And the ordinate has the same rule. GSAS writes the intensity relation as
+$I_o = I'_o/(W\cdot I_i)$, where $I'_o$ is "the number of counts observed in a
+channel of width $W$": a calculated Bragg sum is an intensity *density*, so a
+histogram whose channels hold counts owes it a factor of $W$ and one already
+divided by $W$ does not. On a flight-time bank $W$ is not a constant (an
+ISIS GEM `RALF` bank is Δt/t = 0.004 throughout, so $W$ rises in proportion to
+the flight time across the whole window), so the difference is a *slope in
+flight time*, not a scale, and a fit that gets it
+wrong pays for it in the displacement parameters rather than in the phase
+scale. `PatternData.intensity_basis` is `"counts"`, `"density"` or `None`, and
+a reader sets it only where the file declares it:
+
+| file | what it declares |
+|---|---|
+| GSAS bank whose header says `with Y multiplied by the bin widths` | `"counts"`. Mantid's `SaveGSS` writes that line when, and only when, its `MultiplyByBinWidth` option was on, and that option defaults to on |
+| GSAS bank of `STD` or `ESD` records | `"counts"`. Neither layout can express a density: an `STD` record is a repeat count and a six-character integer |
+| GSAS bank of `TIME_MAP` bintype | `"counts"`. A tabulated acquisition-clock map, which is not a form Mantid writes |
+| `.xy` / `.xye` stating a y-axis unit per unit of flight time | `"density"` |
+| `.xy` / `.xye` stating any other count-like y-axis unit | `"counts"` |
+| anything else | `None`, and on a flight-time pattern a `PATTERN_INTENSITY_BASIS_UNKNOWN` naming both answers |
+
+A Mantid header is by itself no evidence of a density: a POWGEN `.xye`
+states `Counts per microAmp.hour`, which is a count normalised by an integrated
+proton charge, a scalar, and exactly degenerate with the phase scale. Only a
+per-µs unit is a division by the channel's own width. `None` is left `None`:
+the fit then proceeds as a density, which is what every flight-time fit did
+before the field existed, and says so with `TOF_INTENSITY_BASIS_ASSUMED`.
+
 One file, one quantity. A GSAS file holding both a `CONS` bank and a
 `TIME_MAP` bank is refused naming both axes: this reader returns the first
 bank, and which one that was would otherwise decide what the pattern's abscissa
@@ -136,10 +164,9 @@ d = bank.source.d_from_tof(pattern.tof_us())
 Both come back with every parameter `vary=False`, for the reason
 `load_instrument_profile` does: an instrument-parameter file is a beamline
 calibration refined against a standard, and freeing DIFC beside a free cell
-re-opens the same flat direction a free wavelength does. This build reads a
-bank and refines none: no flight-time forward model exists here yet, so
-`Refinement` and every other entry that would compute a pattern refuse a
-`neutron_tof` instrument by name.
+re-opens the same flat direction a free wavelength does. A bank is refined
+through `Refinement` like a scan ({ref}`sec-tof-profiles` has its peak shape);
+a joint fit over several banks is not written yet.
 
 The GSAS-I reader holds to the layout the GSAS manual documents and refuses
 anything else by name. The first `PRCF` set is the default whatever its
@@ -153,8 +180,9 @@ a later set of any type is skipped with `GSAS_IPARM_PROFILE_DECLINED`. A
 non-zero anisotropic or peak-shift coefficient is refused rather than dropped,
 and so is a non-zero fifth pair of an ITYP 1 or 2 incident spectrum, which
 the documented layout stops short of. A bank with no `PRCF` set at all keeps its
-calibration and gets an all-zero `ProfileTOF`, which says plainly that no
-profile was read. A GSAS-II `.instprm` names each coefficient, so its profile is read; a
+calibration and gets an all-zero `ProfileTOF`, which the flight-time compiler
+refuses by name, so a fit on it stops instead of running on a profile nobody
+read. A GSAS-II `.instprm` names each coefficient, so its profile is read; a
 key with no published time-of-flight law is accepted only at exactly zero.
 
 Legacy instrument files. A *legacy layout* is a file that departs from a

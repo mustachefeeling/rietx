@@ -935,3 +935,11 @@ reader's `Type` dispatch, and `legacy/` a reader that accepts a named deviation
 only when called by name.  The operating detail went down a rank: the PRCF
 layout, the bintype table and every refusal's wording are the module
 docstrings'.  556 landed against the 557.
+
+557 -> 572 for the neutron time-of-flight forward model (yue-here/rietx issue
+#193): the *ordinate* becomes the second declared quantity.  Whether a channel
+holds the counts it recorded or those counts divided by its own width is a
+statement no value can settle, and on a bank the wrong answer is a slope in
+flight time that a displacement parameter pays for, so the declare-never-infer
+rule gains its intensity-basis section.  The measurement behind it is
+`io/formats/gsas.py`'s docstring.  571 landed against the 572.

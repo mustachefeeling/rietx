@@ -42,8 +42,8 @@ not do.
 
 | When | Load |
 |---|---|
-| you are about to call rietx: entry points, constructors, the four answer types and their fields, the report | [`references/api.md`](references/api.md) |
-| you were handed another program's input file, not a pattern | [`references/api.md`](references/api.md) § In |
+| you are about to call rietx: entry points, constructors, the four answer types and their fields, the report | [`api.md`](references/api.md); TOF: [`api-tof.md`](references/api-tof.md) |
+| another program's input file, not a pattern | [`api.md`](references/api.md) § In |
 | §7j — a magnetic `Diagnostic` fired, or `FitReport.satellites` ranked a k, or you were handed a magnetic structure (magCIF, TOPAS moments) | [`references/magnetic.md`](references/magnetic.md) |
 | §5 — you are about to quote a number: which field carries which fact, and read numbers rather than pixels | [`references/numbers.md`](references/numbers.md) |
 | §4/§4b — a judging or deliverable rule needs its measurement, before you override one | [`references/judging.md`](references/judging.md) |
@@ -54,7 +54,7 @@ not do.
 | §9c, deciding: ranking, differencing, auditing, identifiability | [`references/batch.md`](references/batch.md) |
 | §9c, operating: budget, cost, timing, the log, inventory, fault tolerance | [`references/batch-operating.md`](references/batch-operating.md) |
 | §9d — a human may be watching this fit, or you want to hand one a window onto a long run; also reading a finished run off disk | [`references/watching.md`](references/watching.md) |
-| writing the answer out: CIF, QPA and reflection tables, plots, a structure figure | [`references/api.md`](references/api.md) § Out, [`api-figure.md`](references/api-figure.md) |
+| writing the answer out: CIF, QPA and reflection tables, plots, a structure figure | [`api.md`](references/api.md) § Out, [`api-figure.md`](references/api-figure.md) |
 
 ---
 

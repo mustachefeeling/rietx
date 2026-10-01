@@ -257,6 +257,29 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 #: A technique's own index, ``api-<name>.md``: its title, the load
 #: condition the body's routing row names, and its sections, as above.
 TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ...]]] = {
+    "tof": (
+        "The time-of-flight index",
+        "Load it when the pattern is a neutron time-of-flight bank: a flight "
+        "time on `pattern.tof`, a GSAS `.iparm`/`.prm` or a GSAS-II `.instprm` "
+        "`Type: PNT` calibration beside it. Its heuristics and codes are "
+        "`references/tof.md`.",
+        (
+            (
+                "The bank",
+                "`rx.read_pattern` puts a declared flight time on `pattern.tof` "
+                "in µs. The calibration is never in the data file: "
+                "`rx.read_gsas_tof_iparm` returns one frozen `Instrument` per "
+                "bank, `rx.read_gsas2_instprm` one from a `Type: PNT` file, and "
+                "`rx.Instrument.tof_neutron_bank` builds one by hand. "
+                "`Refinement.fit` refines it like a scan; the result carries "
+                "`tof`, not `two_theta`, and `result.axis` says which.",
+                ("rx.read_gsas_tof_iparm", "rx.Instrument.tof_neutron_bank",
+                 "rietx.schemas.instrument.TOFSource",
+                 "rietx.schemas.instrument.ProfileTOF",
+                 "rietx.schemas.instrument.IncidentSpectrum"),
+            ),
+        ),
+    ),
     "figure": (
         "The figure index",
         "Load it when you want a picture of a structure: a refined model to "

@@ -566,12 +566,12 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "α(d) = α₀ + α₁/d. It is the *rise* of the back-to-back pair — the "
             "short-flight-time side of the peak — so a larger α is a sharper "
             "leading edge. A rate, not a width: the shape has amplitude "
-            "αβ/(α+β) and infinite width as either goes to zero, so an "
-            "all-zero block is a profile nobody calibrated."
+            "αβ/(α+β) and infinite width as either goes to zero, which is why "
+            "an all-zero block is refused at compile rather than fitted."
         ),
         unit="µs⁻¹", default="0.0",
         typical="0-1 µs⁻¹; often left at 0 with all of α in α₁",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="profiles.html#time-of-flight-the-back-to-back-exponentials",
     ),
     "instrument.source.profile_tof.alpha1": HelpEntry(
         title="TOF rise rate α₁",
@@ -584,7 +584,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="Å/µs", default="0.0",
         typical="0.1-2 Å/µs",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="profiles.html#time-of-flight-the-back-to-back-exponentials",
     ),
     "instrument.source.profile_tof.beta0": HelpEntry(
         title="TOF decay rate β₀",
@@ -597,18 +597,20 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs⁻¹", default="0.0",
         typical="0.01-0.2 µs⁻¹",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="profiles.html#time-of-flight-the-back-to-back-exponentials",
     ),
     "instrument.source.profile_tof.beta1": HelpEntry(
         title="TOF decay rate β₁",
         description=(
             "The 1/d⁴ term of the decay rate. The fourth power makes it act "
             "only at the short-d end of a bank, so on a range that does not "
-            "reach there the data cannot see it."
+            "reach there it is nearly a dead column and refines to whatever "
+            "the background will pay for — free it only when the short-d peaks "
+            "are in the fitted window."
         ),
         unit="Å⁴/µs", default="0.0",
         typical="0-0.05 Å⁴/µs",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="profiles.html#time-of-flight-the-back-to-back-exponentials",
     ),
     "instrument.source.profile_tof.sig0": HelpEntry(
         title="TOF Gaussian variance σ₀²",
@@ -622,7 +624,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs²", default="0.0",
         typical="0-500 µs²",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="profiles.html#time-of-flight-the-back-to-back-exponentials",
     ),
     "instrument.source.profile_tof.sig1": HelpEntry(
         title="TOF Gaussian variance σ₁²",
@@ -635,7 +637,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs²/Å²", default="0.0",
         typical="100-400 µs²/Å², i.e. √σ₁² ≈ 10-20 µs/Å",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="profiles.html#time-of-flight-the-back-to-back-exponentials",
     ),
     "instrument.source.profile_tof.sig2": HelpEntry(
         title="TOF Gaussian variance σ₂²",
@@ -645,18 +647,21 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs²/Å⁴", default="0.0",
         typical="0-50 µs²/Å⁴",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="profiles.html#time-of-flight-the-back-to-back-exponentials",
     ),
     "instrument.source.profile_tof.gam0": HelpEntry(
         title="TOF Lorentzian FWHM γ₀",
         description=(
             "The constant term of the Lorentzian FWHM, γ(d) = γ₀ + γ₁·d + "
-            "γ₂·d². A FWHM, not a variance, unlike the σ terms beside it; all "
-            "three at zero is the pure-Gaussian (GSAS type 1) shape."
+            "γ₂·d². A FWHM, not a variance, unlike the σ terms beside it. A "
+            "bank whose γ terms are all zero and cannot move this stage is "
+            "compiled with the pure-Gaussian (GSAS type 1) shape instead of "
+            "the pseudo-Voigt one, which is a structural choice taken once at "
+            "compile and never from a value mid-solve."
         ),
         unit="µs", default="0.0",
         typical="0-20 µs; 0 on a type-1 bank",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="profiles.html#time-of-flight-the-back-to-back-exponentials",
     ),
     "instrument.source.profile_tof.gam1": HelpEntry(
         title="TOF Lorentzian FWHM γ₁",
@@ -668,7 +673,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs/Å", default="0.0",
         typical="0-30 µs/Å",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="profiles.html#time-of-flight-the-back-to-back-exponentials",
     ),
     "instrument.source.profile_tof.gam2": HelpEntry(
         title="TOF Lorentzian FWHM γ₂",
@@ -679,7 +684,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs/Å²", default="0.0",
         typical="0-5 µs/Å²",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="profiles.html#time-of-flight-the-back-to-back-exponentials",
     ),
     "instrument.source.incident_spectrum.p*": HelpEntry(
         title="Incident-spectrum coefficient",
@@ -694,15 +699,19 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "coefficient — P1 is an intensity, the odd ones inside the "
             "exponentials are reciprocal powers of milliseconds — which is why "
             "no unit is declared for the family. "
-            "Held by default: the file's values were refined by GSAS against a "
-            "vanadium run, and a smooth envelope in wavelength is degenerate "
-            "with an isotropic displacement parameter."
+            "Held by default and worth leaving held: the file's values were "
+            "refined by GSAS against a vanadium run, and a smooth envelope in "
+            "wavelength is degenerate with an isotropic displacement "
+            "parameter, so freeing these against an unknown structure moves "
+            "Biso rather than measuring the spectrum. Freeing them on a "
+            "standard, where Biso is known, is how the calibration gets "
+            "checked."
         ),
         unit=None, default=None,
         typical="whatever the instrument-parameter file states; a bank whose "
                 "reduction already divided by vanadium declares ITYP 0 and has "
                 "no coefficients at all",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="corrections.html#the-incident-spectrum-of-a-time-of-flight-bank",
     ),
     "instrument.background.c*": HelpEntry(
         title="Background coefficient",

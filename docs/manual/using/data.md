@@ -72,6 +72,7 @@ known about their uncertainty.
 | `PatternData.two_theta` | list[float] or None | `None` | 2θ in degrees, strictly increasing |
 | `PatternData.tof` | list[float] or None | `None` | neutron flight time in microseconds, strictly increasing |
 | `PatternData.intensity` | list[float] | required | measured intensity, same length |
+| `PatternData.intensity_basis` | `"counts"`, `"density"` or None | `None` | whether a channel holds counts or counts per µs; `None` is "the file did not say". Read by the flight-time arm only |
 | `PatternData.sigma` | list[float] or None | `None` | per-point esd from the file; `None` selects the Poisson fallback |
 | `PatternData.excluded_regions` | list[tuple[float, float]] | `[]` | intervals to leave out of the fit, on whichever axis is set |
 | `PatternData.metadata` | dict[str, str] | `{}` | what the reader found in the file header |
@@ -85,13 +86,41 @@ scan and passes every monotonicity check an angle passes.
 
 A time-of-flight pattern is one a neutron spallation source produced (ISIS, SNS,
 LANSCE): the whole moderator spectrum hits the specimen and the reflections
-arrive in order of their d-spacing. This build reads one and refines none:
-there is no flight-time forward model yet. `Refinement`, `refine`,
+arrive in order of their d-spacing. `Refinement.fit` refines one, against a
+`neutron_tof` instrument carrying the bank's calibration: positions from
+TOF = DIFC·d + DIFA·d² + TZERO + DIFB/d, a back-to-back-exponential profile
+whose widths are polynomials in d, and the d⁴·sinθ Lorentz factor. The result
+that comes back carries `RefinementResult.tof` rather than
+`RefinementResult.two_theta` and says so through `RefinementResult.axis`; see
+[](results.md).
+
+The rest of the package is still angle-shaped and says so.
 `MultiHistogramRefinement`, `refine_sequential`, `index_pattern`, `pick_peaks`,
 `determine_extinction_symbol`, `auto_background`, `diagnose`,
 `PatternData.plot` and the project container each raise on a flight time or a
 `neutron_tof` instrument, naming the axis, its unit and the entry point that
-closed, rather than computing an angle from a microsecond.
+closed, rather than computing an angle from a microsecond. March-Dollase
+preferred orientation and Stephens anisotropic strain are refused on the
+flight-time arm too, rather than silently dropped: both are written in deg 2θ,
+and on a bank every reflection shares one angle, so each has a *different
+form* here and not a different value. Specimen absorption and Sabine
+extinction are not refused: they are applied per reflection at its own
+wavelength, λ_hkl = 2·d·sin θ_bank.
+
+What one channel holds is a declaration too. `PatternData.intensity_basis`
+is `"counts"`, `"density"` or `None`: whether the stored intensity is the
+number of neutrons the channel counted, or that number already divided by the
+channel's own width in µs. It is the other half of GSAS's
+$I_o = I'_o/(W\cdot I_i)$, and on a flight-time bank it matters because W is
+not a constant (an ISIS GEM `RALF` bank is Δt/t = 0.004 throughout, so W rises
+in proportion to the flight time), and the two answers differ by a *slope in
+flight time* that a displacement parameter, not the phase scale, ends up
+paying for. The readers set it where the file says so and leave it `None`
+where nothing does; [](files.md) has the table. `None` is refined as a density
+(the behaviour every flight-time fit had before the field existed), with a
+warning that says which two values are in question. The constant-wavelength
+arm ignores the field entirely: a 2θ step is constant, or nearly so, and folds
+into the scale.
 
 Reading such a pattern is useful on its own even so: with the bank's
 calibration (`TOFSource`, below) the flight times convert to d-spacings.
@@ -712,8 +741,7 @@ $$
 $$
 
 They are held by default, because an instrument-parameter file's profile is a
-calibration refined against a standard. In this build they are carried and
-listed in a bank's parameter table, and nothing evaluates them.
+calibration refined against a standard; freeing them is a stage's decision.
 
 `IncidentSpectrum` is the moderator spectrum a bank's histograms still carry,
 and whether they do is a fact about the file: `IncidentSpectrum.itype` is
@@ -727,7 +755,8 @@ and what ISIS GEM, SNS NOMAD and POWGEN all write. A LANSCE-style file writes
 `ITYP 1` with a full `ICOFF` block. A block whose fifth pair ($P_{10}$,
 $P_{11}$) is non-zero is refused by `read_gsas_tof_iparm`, which holds to the
 documented layout, and carried as written by `rietx.io.legacy.read_lansce_iparm`.
-Nothing in this build evaluates a spectrum.
+The model evaluates the pair; [](../corrections.md) has the functions and
+where the factor is applied.
 
 `Instrument.tof_neutron_bank` is the constructor, beside
 `Instrument.constant_wavelength_neutron` and with the same shape. A multi-bank

@@ -123,7 +123,14 @@ REFERENCE_BUDGET_BYTES = REFERENCE_MAX_BYTES - REFERENCE_GAP_BYTES
 #: headroom.  Raising `REFERENCE_MAX_BYTES` instead would hand
 #: `diagnostics.md` room it had been denied, so the generated file gets its own
 #: bar against the same 40 kB truncation.
-API_INDEX_MAX_BYTES = 39_000
+#:
+#: 39_000 → 39_400 for the time-of-flight forward model (issue #193): the
+#: index renders ``PatternData.intensity_basis`` and the result's ``tof`` axis
+#: fields, +106 B, on a file the readers-and-axis cut had left at 38 965 B.
+#: Every time-of-flight *verb* went to ``api-tof.md`` rather than here, by the
+#: technique rule above; these are fields of the everyday answer types, which
+#: cannot move.  Still 600 B under the truncation the bar stands for.
+API_INDEX_MAX_BYTES = 39_400
 
 
 @dataclass(frozen=True)
