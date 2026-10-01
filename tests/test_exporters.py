@@ -205,6 +205,26 @@ def test_reflection_table_width_off_matches_the_unsplit_computation():
     assert got == expect
 
 
+def test_a_total_row_f_squared_is_nuclear_only_and_the_docstring_says_so():
+    """Issue #613.  MnF2's (1 0 0) is a nuclear absence of P4_2/mnm and a
+    magnetic line under 136.499: on its "total" row ``f_squared`` is 0 while
+    ``intensity`` is among the largest in the table.  The docstring said
+    ``intensity`` is built from ``f_squared``; it now says that on a magnetic
+    phase the column is the nuclear |F|^2 alone."""
+    model, values, rows = _mnf2_rows()
+    assert not model.mag_split(0)
+    (r100,) = [r for r in rows if r.line == 0
+               and sorted(map(abs, (r.h, r.k, r.l))) == [0, 0, 1]
+               and r.l == 0]
+    assert r100.component == "total"
+    assert r100.f_squared == 0.0
+    line0 = sorted((r.intensity for r in rows if r.line == 0), reverse=True)
+    assert r100.intensity >= line0[2] > 0.0       # among the three largest
+    doc = " ".join(ReflectionRow.__doc__.split())
+    assert "``f_squared`` is the **nuclear** ⟨|F_N|²⟩ alone" in doc
+    assert "issue #613" in doc
+
+
 def test_reflection_table_nuclear_plus_magnetic_equals_width_off_intensity():
     """(a) With `magnetic_lor_strain` non-zero, sum(nuclear + magnetic) per
     (line, reflection) equals the width-off export's `intensity` to 1e-9

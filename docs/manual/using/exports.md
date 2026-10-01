@@ -398,7 +398,7 @@ the structure, for a caller that holds those instead of a `Refinement`.
 | `ReflectionRow.d` | the d-spacing in Å |
 | `ReflectionRow.two_theta` | the apparent position, in degrees |
 | `ReflectionRow.multiplicity` | the Laue-group multiplicity of the orbit |
-| `ReflectionRow.f_squared` | \|F\|², or `None` in Le Bail and Pawley mode |
+| `ReflectionRow.f_squared` | the nuclear \|F\|² (on a magnetic phase too, unless the row is a `"magnetic"` component), or `None` in Le Bail and Pawley mode |
 | `ReflectionRow.intensity` | the modelled integrated intensity of this row |
 | `ReflectionRow.satellite_order` | the m of Q = H + m·k, 0 on every nuclear reflection |
 | `ReflectionRow.component` | `"total"`, or `"nuclear"`/`"magnetic"` where a magnetic width is active |
@@ -433,6 +433,14 @@ different profiles; their `ReflectionRow.intensity` values add up to the
 reflection's total, and `ReflectionRow.f_squared` is each component's own
 structure factor. A table read as one row per reflection would otherwise carry
 the nuclear share alone and put every magnetic-only reflection at zero.
+
+On a `"total"` row of a phase carrying moments, which is every row of it
+until a magnetic width is active, `ReflectionRow.f_squared` is the nuclear
+⟨|F_N|²⟩ alone, while `ReflectionRow.intensity` is built from
+⟨|F_N|²⟩ + p²⟨|F_⊥|²⟩. A magnetic-only reflection, such as MnF₂'s (1 0 0) under
+136.499, which is a nuclear absence, therefore has `f_squared` 0 beside one of
+the largest intensities in the pattern. Read the magnetic share from
+`ReflectionRow.intensity`, not from `ReflectionRow.f_squared`.
 
 `ReflectionRow.f_squared` is `None` in Le Bail and Pawley mode, where the
 per-reflection intensity is extracted or refined rather than computed from the
