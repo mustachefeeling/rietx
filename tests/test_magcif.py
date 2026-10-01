@@ -810,6 +810,63 @@ def test_a_su_is_read_in_the_place_of_the_last_decimal(tmp_path):
         magcif.parse_su("?")
 
 
+_NULL_COMPONENT_ROWS = {
+    # form: (fixture, tags, row with {null} in one component cell)
+    "crystal-axis": ("LaMnO3", ("crystalaxis_x", "crystalaxis_y",
+                                "crystalaxis_z"),
+                     ("Mn1", "3.7(1)", "{null}", "0.00000")),
+    "Cartesian": ("YMnO3", ("Cartn_x", "Cartn_y", "Cartn_z"),
+                  ("Mn1", "0.0", "2.9098", "{null}")),
+    "spherical": ("YMnO3", ("spherical_modulus", "spherical_polar",
+                            "spherical_azimuthal"),
+                  ("Mn1", "2.9098", "{null}", "90.0")),
+}
+
+
+@pytest.mark.parametrize("null, meaning", [("?", "unknown"),
+                                           (".", "inapplicable")])
+@pytest.mark.parametrize("form", sorted(_NULL_COMPONENT_ROWS))
+def test_a_null_moment_component_is_refused_not_read_as_zero(tmp_path, form,
+                                                             null, meaning):
+    """#602: ``Mn1 3.7(1) ? 0.0`` was read as (3.7, 0, 0) with nothing said.
+
+    In CIF ``?`` is *unknown* and ``.`` *inapplicable* (the CIF 1.1 syntax
+    specification); ``cif_mag.dic`` gives no moment component a
+    default, so neither has a value, and a zero is a claim the file did not
+    make.  The refusal names the site, the item and what the null means."""
+    key, tags, row = _NULL_COMPONENT_ROWS[form]
+    loop = _moment_loop([tuple(v.format(null=null) for v in row)], tags=tags)
+    item = tags[row.index("{null}") - 1]
+    with pytest.raises(magcif.MagCifError) as err:
+        _read(tmp_path, key, moment_loop=loop)
+    text = str(err.value)
+    assert "'Mn1'" in text and f"{form} form" in text
+    assert f"_atom_site_moment.{item} = '{null}' ({meaning})" in text
+
+
+def test_the_same_cell_holding_a_number_reads_that_number(tmp_path):
+    """The positive arm of #602: the row the refusal fires on, with a number in
+    the null's place, reads that number, so the refusal is about the null."""
+    loop = _moment_loop([("Mn1", "3.7(1)", "1.7", "0.00000")],
+                        tags=("crystalaxis_x", "crystalaxis_y", "crystalaxis_z"))
+    moment = _read(tmp_path, "LaMnO3", moment_loop=loop).phases[0].atoms[1].moment
+    assert moment.values() == pytest.approx((3.7, 1.7, 0.0))
+
+
+def test_a_form_a_row_leaves_entirely_null_is_a_form_it_does_not_use(tmp_path):
+    """A loop carrying two forms fills the one a row does not state with ``.``
+    in every cell; that row reads from its other form, as before #602.  A
+    ``?`` in an su item is an esd not known, which is ``stderr=None``."""
+    loop = _moment_loop(
+        [("Mn1", "1.68", "3.36", "0.0", "?", ".", ".", ".")],
+        tags=("crystalaxis_x", "crystalaxis_y", "crystalaxis_z",
+              "crystalaxis_x_su", "Cartn_x", "Cartn_y", "Cartn_z"))
+    read = _read(tmp_path, "YMnO3", moment_loop=loop)
+    got = [a.moment for a in read.phases[0].atoms if a.moment][0]
+    assert got.values() == pytest.approx((1.68, 3.36, 0.0))
+    assert got.crystalaxis_x.stderr is None
+
+
 # ===========================================================================
 # 4. the negative controls
 # ===========================================================================
