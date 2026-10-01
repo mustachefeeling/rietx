@@ -1484,7 +1484,11 @@ def write_magnetic_block(block, phase, *,
     * the BNS/OG numbers, the BNS name and ``transform_BNS_Pp_abc`` as the
       metadata they are — after checking the numbers against the operators
       (:func:`refuse_contradicting_numbers`), so a file this writes never
-      states a group its own loops are not (#605);
+      states a group its own loops are not (#605).  **What is not carried:** a
+      ``setting`` that is not a (P,p) transform (prose a project saved before
+      #610 or a hand-built ``MagneticSymmetry`` holds) is left out of the file,
+      because this function has no diagnostics channel to say so; it reads back
+      as ``setting=None`` (:func:`_transform_or_none`);
     * one ``_atom_site_moment`` row per site carrying a moment: the crystal-axis
       components and their ``_su`` columns (see :func:`_moment_number` for why
       neither ``value(su)`` nor a fixed number of decimals), and ``magnitude``

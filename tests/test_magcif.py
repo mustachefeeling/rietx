@@ -934,6 +934,22 @@ def test_a_magnetic_supercell_is_refused_naming_what_would_be_needed(tmp_path):
         _read(tmp_path, "LaMnO3", k="1/2 0 0")
 
 
+
+def test_the_manual_describes_the_transform_tag_the_writer_writes():
+    """Review of #628, item 1: ``using/exports.md`` still said a supercell's
+    ``setting`` prose was copied into ``transform_BNS_Pp_abc``, which this
+    writer no longer does (the test above).  Both manual chapters that state
+    what goes into the tag must say it is left out for anything that is not a
+    (P,p) transform, and neither may say prose is copied into it."""
+    root = Path(__file__).resolve().parents[1] / "docs" / "manual" / "using"
+    for chapter in ("exports.md", "files.md"):
+        text = " ".join((root / chapter).read_text(encoding="utf-8").split())
+        assert "copied verbatim into `_space_group_magn.transform_BNS_Pp_abc`" \
+            not in text, chapter
+        assert "(P,p) transform" in text or "(P,p) from the current" in text, \
+            chapter
+        assert "left out" in text, chapter
+
 def test_a_magnetic_supercell_phase_round_trips_in_its_own_cell(tmp_path):
     """A phase ``magnetic_supercell`` built (#477) is already stated in the
     magnetic cell, one nuclear orbit split into its magnetic sites, so the
