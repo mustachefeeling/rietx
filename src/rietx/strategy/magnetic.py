@@ -291,9 +291,10 @@ class MomentRow:
         fails however large the moment is — while the quadrature sum the
         powder does measure can be many esds clear of zero.  Measured on a
         two-site entry of issue #458's MAGNDATA sweep: each modulus at 0.4× its own esd
-        ("unsupported"), their quadrature sum at 63× its esd (read through the
-        cross-stage ρ fallback that :func:`_moment_correlations` no longer
-        uses, and not re-measured since), and the solve
+        ("unsupported"), their quadrature sum at 63× its esd (re-measured with
+        ρ and both σ's read from the answer stage's covariance, as
+        :func:`_moment_correlations` now does: unchanged, and 63–82× across
+        the seeds and re-fit rounds where the pair folds), and the solve
         said "nothing to solve" because the gate read the rows (with the
         coordinates also free, the published group lost the same way to a
         class whose ΔBIC was 7× lower — see :func:`_moment_correlations`).  The
