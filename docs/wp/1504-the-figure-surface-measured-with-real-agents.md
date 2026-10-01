@@ -1,8 +1,8 @@
 # WP-1504 — the figure surface measured with real agents
 
-Milestone: v1.7 · Status: 🔄 2026-10-01 — claimed by @yue-here
+Milestone: v1.7 · Status: 🔄 2026-10-01 — harness, judge check and gypsum pilot landed; the rounds wait on the maintainer's next pick
 Depends on: 1501, 1502, 1503
-Priority: P3 2026-09-30 — 1501, 1502 and 1503 have landed, so it can start; costed menu first
+Priority: P3 2026-10-01 — the harness and its judge are checked; the rounds wait on a pick from `run.py --menu`
 
 ## Goal
 
@@ -97,5 +97,70 @@ condition is enforced in a shim, never in the prompt.
 
 ## Handover log
 
+- **2026-10-01** — The harness for the figure round is built and checked end
+  to end, and no round has run yet. The Opus judge reads a picture as the
+  rubric needs: it passed all six right reference figures and failed all six
+  defaults. The first pilot found that a user-level figure skill on the
+  maintainer's machine can take a run off rietx entirely. So every run now
+  launches without user-level skills (amendment 1.1). Under 1.1 the gypsum
+  pilot split. Opus drew the layer with the new extent and cut verbs in under
+  a minute for $0.25. Sonnet never opened the rietx skill and drew it by hand
+  in matplotlib. That is one run each, so it is a question for the round and
+  not yet an answer.
+
+  *Done.* Items 1 and 2. `docs/wp/1504-eval/`: `PROTOCOL.md` (registered,
+  then amendment 1.1), `run.py`, `fig_trace.py`, `reference_figures.py`,
+  `references.json`, `pilot-1.0/`, `runs/`. Both conditions are prepared at
+  `~/rietx-agent-runs/2026-10-01-wp1504-figure` (before `5304b85a`, after
+  `97c1d9cc`), and each passed `prepare`'s instrument check. The maintainer
+  picked J + A from the menu, then A again under 1.1.
+
+  *Measured* (darwin, Claude Code 2.1.286, `claude-sonnet-5-5` and
+  `claude-opus-5-5`; the harness's own venv `[dev]`):
+  - Judge check (J): 12 of 12 agree with the reference, $1.30.
+  - Pilot under 1.0, kept apart and pooled with nothing: Sonnet not done
+    ($0.21, 0.8 min, no render, loaded `yue-figure-style` first and never
+    imported rietx); Opus done ($1.42, 5.3 min, 11 renders, loaded `rietx`
+    and `yue-figure-style`).
+  - Two Haiku probes of `--setting-sources project,local`, $0.03: the six
+    user-level skills drop out, while the workspace's `rietx`, the built-ins
+    (`dataviz` among them) and the user `CLAUDE.md` still load.
+  - Pilot under 1.1 (`run.py table`):
+
+    | task | model | condition | done | renders | looks | tokens (k) | minutes | $ |
+    |---|---|---|---|---|---|---|---|---|
+    | gypsum | sonnet | after | 0/1 | 0 | 4 | 191 | 1.0 | 0.20 |
+    | gypsum | opus | after | 1/1 | 4 | 2 | 233 | 0.8 | 0.25 |
+
+    The Opus run read `hidden`, `dangling_bonds` and `empty`, and printed the
+    whole report three times. Judging the two cost $0.15.
+  - Spend this session: $3.79 (judge check $1.30, pilot 1.0 $1.86 with
+    judging, probes $0.03, pilot 1.1 $0.60 with judging).
+  - Lane trial (`/wp-lanes`): no lane dispatched, because context passed
+    150K only after the harness item had begun. Kept items: harness estimated
+    45 requests, took 48 (decided at 128K); pilot-1.1 estimated 5, took 5.
+    The main session ran 91 requests, peaked at 282K and cost $7.90.
+
+  *Gotchas.*
+  - `render_structure(hidden=("La",))` drops La but leaves the B half of
+    every La–B bond as a stub. `keep(g, select(g, element="B"))` drops both.
+    It is a candidate for item 6's list, and for a skill line if the round's
+    agents trip on it.
+  - Relaunching a run name under a new protocol first double-counted it: the
+    trace is per condition, and both launches logged under the bare name. A
+    launch now keys its rows by run and session, read inside the session's
+    window.
+  - The menu's per-run price is still the prior until a model has two 1.1
+    runs. The 1.1 pilot's $0.20 and $0.25 sit well under it.
+  - The committed record runs about 140 KB a run (figure at 800 px, trace,
+    trail), so option C adds about 10 MB to the repository.
+  - A trail's last lines (refinement seconds, per-process floor) are round
+    1.1's read-outs and mean nothing here. Each `score.json` holds this
+    round's.
+
+  Next: bring `run.py --menu` to the maintainer again. B (one repeat of
+  every cell, 24 runs) comes before C, because N = 1 per cell already says
+  whether Sonnet bypassing the skill is general or a gypsum quirk. Then the
+  table, one line per `report` field, and the cuts.
 - **2026-09-27** — filed from the session that closed WP-1470. Next: wait
   for 1503; then write the harness and bring the menu.
