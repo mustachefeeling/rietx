@@ -51,6 +51,7 @@ from ..sequential import (
     DIRECTIONS,
     PATH_DEPENDENCE_SIGMA,
     REFIT_MODES,
+    _angle_difference,
     _noise_floor,
     unique_labels,
 )
@@ -315,7 +316,8 @@ def setup_payload(setup: SeriesSetup, *, running: bool, has_result: bool,
 # ----------------------------------------------------------------------
 def trajectories(series: SeriesResult,
                  backward: SeriesResult | None = None,
-                 relative: frozenset[str] = frozenset()) -> list[dict]:
+                 relative: frozenset[str] = frozenset(),
+                 angles: frozenset[str] = frozenset()) -> list[dict]:
     """Every parameter's path across the series, plus the QPA fractions.
 
     One entry per dot-path in first-seen order, then one ``qpa.<phase>`` per
@@ -329,6 +331,9 @@ def trajectories(series: SeriesResult,
     coordinate DOF is the step from where each fit began, and the two chains
     begin a pattern from opposite neighbours, so its disagreement would rank
     top on a series whose coordinates agree (WP-1333).
+
+    ``angles`` paths are compared modulo a turn, as the fence compares them
+    (``sequential._angle_paths``, #604).
     """
     unstable = {d.where[0] for d in series.diagnostics
                 if d.code == "SEQUENTIAL_PATH_DEPENDENT" and d.where}
@@ -368,12 +373,13 @@ def trajectories(series: SeriesResult,
             if len(other) == len(traj):
                 row["backward"] = list(other.value)
                 if path not in relative:
-                    row["n_sigma"] = _disagreement(traj, other)
+                    row["n_sigma"] = _disagreement(traj, other,
+                                                   angle=path in angles)
         out.append(row)
     return out
 
 
-def _disagreement(forward, backward) -> float | None:
+def _disagreement(forward, backward, *, angle: bool = False) -> float | None:
     """The largest forward/backward difference in combined σ, or ``None``.
 
     Deliberately the same arithmetic as
@@ -381,23 +387,26 @@ def _disagreement(forward, backward) -> float | None:
     noise floor, ``nanargmax`` — so the number a panel sorts by is the number the
     fence fired on.  ``None`` where the fence itself abstains: a parameter with
     no esd in either chain cannot be judged this way, and reporting 0 would read
-    as agreement it has not earned.
+    as agreement it has not earned.  ``angle`` takes the difference modulo a
+    turn, the fence's ``_angle_difference``.
     """
     _, vf, sf = forward.arrays()
     _, vb, sb = backward.arrays()
     combined = np.sqrt(np.nan_to_num(sf) ** 2 + np.nan_to_num(sb) ** 2)
     if not np.any(combined > 0.0):
         return None
+    gap = np.abs(_angle_difference(vf - vb) if angle else vf - vb)
     with np.errstate(divide="ignore", invalid="ignore"):
-        n_sigma = np.abs(vf - vb) / np.where(combined > 0.0, combined, np.nan)
-    n_sigma = np.where(np.abs(vf - vb) > _noise_floor(vf, vb), n_sigma, 0.0)
+        n_sigma = gap / np.where(combined > 0.0, combined, np.nan)
+    n_sigma = np.where(gap > _noise_floor(vf, vb), n_sigma, 0.0)
     value = float(np.nanmax(n_sigma))
     return value if np.isfinite(value) else None
 
 
 def result_payload(series: SeriesResult, backward: SeriesResult | None, *,
                    running: bool, curves: list[bool],
-                   relative: frozenset[str] = frozenset()) -> dict:
+                   relative: frozenset[str] = frozenset(),
+                   angles: frozenset[str] = frozenset()) -> dict:
     """The series answer as a client needs it: entries, trajectories, fences.
 
     ``curves`` says per entry whether this session still holds that pattern's
@@ -412,12 +421,13 @@ def result_payload(series: SeriesResult, backward: SeriesResult | None, *,
     trajectory from an ordering artefact cannot be something a user has to scroll
     to.
 
-    ``relative`` is the runner's ``sequential._relative_paths``, passed on to
+    ``relative`` is the runner's ``sequential._relative_paths``, and
+    ``angles`` its ``sequential._angle_paths``, both passed on to
     :func:`trajectories`.
     """
     return {
         "result": series.model_dump(mode="json"),
-        "trajectories": trajectories(series, backward, relative),
+        "trajectories": trajectories(series, backward, relative, angles),
         "path_dependent": sorted({d.where[0] for d in series.diagnostics
                                   if d.code == "SEQUENTIAL_PATH_DEPENDENT"
                                   and d.where}),

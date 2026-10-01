@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -264,6 +264,40 @@ class LSQOutcome:
     #: points reach ``covariance_estimates`` through; ``refine`` turns it into
     #: ``COVARIANCE_UNAVAILABLE`` naming the stage.
     covariance_error: str | None = None
+
+
+def rechart_outcome(outcome: LSQOutcome, theta: np.ndarray,
+                    signs: np.ndarray | None) -> LSQOutcome:
+    """``outcome`` restated in the chart the table committed it in (#604).
+
+    ``ParameterTable.commit`` moves a moment block's DOFs into the principal
+    chart (``moments.canonical_dofs``), the same moment in different numbers,
+    and returns the ±1 each free column was multiplied by.  ``theta`` is the
+    committed table's ``x0()``.  Every column-indexed field follows: a
+    Jacobian column and a residual cosine take the sign, a correlation takes
+    it on both sides, and an esd takes none, which is why a canonicalisation
+    can move no esd.  ``signs is None`` (nothing moved) returns ``outcome``.
+    """
+    if signs is None:
+        return outcome
+    s = np.asarray(signs, dtype=np.float64)
+
+    def padded(n: int) -> np.ndarray:
+        # a Pawley block rides after the table columns and never moves
+        return np.concatenate([s, np.ones(n - len(s))]) if n > len(s) else s[:n]
+
+    jac = outcome.jac
+    if jac is not None:
+        jac = np.asarray(jac) * padded(np.shape(jac)[1])
+    corr = outcome.correlation
+    if corr is not None:
+        p = padded(np.shape(corr)[0])
+        corr = np.asarray(corr) * np.outer(p, p)
+    cosine = outcome.residual_cosine
+    if cosine is not None:
+        cosine = np.asarray(cosine) * padded(len(cosine))
+    return replace(outcome, theta=np.asarray(theta, dtype=np.float64), jac=jac,
+                   correlation=corr, residual_cosine=cosine)
 
 
 def _guarded_covariance(jac, fun, n_free: int, n_data: int

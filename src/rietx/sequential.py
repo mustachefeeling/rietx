@@ -1263,7 +1263,8 @@ class SequentialRefinement:
                                   dtype=backend_dtype_note(self._backend),
                                   report_thresholds_version=THRESHOLDS_VERSION))
         relative = _relative_paths(self.structure, self.instrument)
-        steps = _discontinuity_steps(series, relative)
+        angles = _angle_paths(self.structure, self.instrument)
+        steps = _discontinuity_steps(series, relative, angles)
         diagnostics += [s.diagnostic for s in steps]
         series.discontinuities = [s.record for s in steps]
         # WP-1305 (c): the check the diagnostic asks the reader for, run here.
@@ -1335,7 +1336,8 @@ class SequentialRefinement:
                     f"{len(back_entries)} of {len(patterns)} patterns"
                     f"{in_flight}"))
             else:
-                diagnostics += _path_dependence_diagnostics(series, back, relative)
+                diagnostics += _path_dependence_diagnostics(series, back, relative,
+                                                            angles)
                 # the onset in *each direction of the chain*, compared: the one
                 # reading a single pass cannot produce (WP-1329)
                 diagnostics = _with_onset_agreement(diagnostics, series, back)
@@ -1770,6 +1772,7 @@ class SequentialRefinement:
                 raise cold[k]
             return cold[k]
 
+        angles = _angle_paths(self.structure, self.instrument)
         for s in steps:
             if cancel is not None and bool(cancel):
                 return
@@ -1798,6 +1801,9 @@ class SequentialRefinement:
             # is not a reproduction, and two magnitudes divided would call it
             # one (see SeriesStep.step)
             cold_step = vb - va
+            if path in angles:
+                # measured as the fence measured the step it re-measures (#604)
+                cold_step = float(_angle_difference(cold_step))
             d.value = cold_step / s.record.step
             d.message += (f"; refitted cold and independently the two patterns "
                           f"step by {cold_step:.4g}, {d.value:.2f}× the "
@@ -2263,8 +2269,31 @@ def _relative_paths(structure: Structure, instrument: Instrument) -> frozenset[s
     return ParameterTable(structure, instrument).anchored_dof_paths
 
 
+def _angle_paths(structure: Structure, instrument: Instrument) -> frozenset[str]:
+    """The moment angle DOFs (:attr:`ParameterTable.angle_dof_paths`).
+
+    Their differences across fits are taken modulo a turn
+    (:func:`_angle_difference`), by both fences here and by the GUI's
+    disagreement column, which must measure what they measure.  Taken from
+    the models the chain was handed, as :func:`_relative_paths` is.
+    """
+    return ParameterTable(structure, instrument).angle_dof_paths
+
+
+def _angle_difference(delta: np.ndarray) -> np.ndarray:
+    """A difference of two angles, in radians, moved by whole turns into (−π, π].
+
+    Issue #604: a moment along −a refined to φ = 3.13 in one pattern and
+    −3.14 in the next, and both fences read the 2π between the two numbers as
+    a jump in the specimen.  The direction moved by 0.01 rad.
+    """
+    d = np.asarray(delta, dtype=np.float64)
+    return np.pi - np.mod(np.pi - d, 2.0 * np.pi)
+
+
 def _discontinuity_steps(series: SeriesResult,
-                         relative: frozenset[str] = frozenset()
+                         relative: frozenset[str] = frozenset(),
+                         angles: frozenset[str] = frozenset()
                          ) -> list[_FlaggedStep]:
     """Steps far larger than the same parameter's typical step in this series.
 
@@ -2283,6 +2312,10 @@ def _discontinuity_steps(series: SeriesResult,
     position, and its first step (from the model, not from a neighbour) read
     as a jump on every clean series.  The coordinate rows it drives are
     absolute, carry the same esd, and are judged instead.
+
+    ``angles`` names the moment angle DOFs (:func:`_angle_paths`), whose step
+    is taken modulo a turn: the chart they are reported in has a cut, and a
+    moment sitting on it steps by 2π in value while it does not move (#604).
 
     **A step into or out of a pattern the fence rejected is not scanned**
     (WP-1469): a ``"diverged"`` entry (``SEQUENTIAL_UNRECOVERED``) or one
@@ -2310,7 +2343,10 @@ def _discontinuity_steps(series: SeriesResult,
         if sum(kept) < MIN_POINTS_FOR_DISCONTINUITY:
             continue
         xv, value, sd = traj.arrays()
-        step = np.abs(np.diff(value))
+        signed = np.diff(value)
+        if path in angles:
+            signed = _angle_difference(signed)
+        step = np.abs(signed)
         judged = np.asarray(kept[:-1]) & np.asarray(kept[1:])
         if not judged.any():
             continue
@@ -2331,7 +2367,7 @@ def _discontinuity_steps(series: SeriesResult,
             record=SeriesStep(
                 path=path, labels=(traj.labels[k], traj.labels[k + 1]),
                 indices=(pair[0].index, pair[1].index),
-                step=float(value[k + 1] - value[k])),
+                step=float(signed[k])),
             diagnostic=Diagnostic(
                 level="info", code="SEQUENTIAL_DISCONTINUITY", where=[path],
                 message=(f"{path} steps by {step[k]:.4g} between "
@@ -2861,7 +2897,8 @@ def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
 
 def _path_dependence_diagnostics(forward: SeriesResult,
                                  backward: SeriesResult,
-                                 relative: frozenset[str] = frozenset()
+                                 relative: frozenset[str] = frozenset(),
+                                 angles: frozenset[str] = frozenset()
                                  ) -> list[Diagnostic]:
     """Where the forward and backward chains disagree beyond their esds.
 
@@ -2886,6 +2923,10 @@ def _path_dependence_diagnostics(forward: SeriesResult,
     path-dependent on a series whose coordinate agreed in both chains
     (WP-1333).  The coordinate rows are compared instead, and they are what
     the check was asked about.
+
+    ``angles`` paths are compared modulo a turn (:func:`_angle_difference`):
+    two chains that end one pattern either side of the azimuth's cut agree on
+    the moment and differ by 2π in value (#604).
     """
     out: list[Diagnostic] = []
     # which patterns the comparison can reach at all: a pattern one chain
@@ -2946,18 +2987,19 @@ def _path_dependence_diagnostics(forward: SeriesResult,
         # patterns both chains did measure are still judged.
         comparable = np.isfinite(sf) & np.isfinite(sb)
         combined = np.sqrt(np.nan_to_num(sf) ** 2 + np.nan_to_num(sb) ** 2)
+        gap = np.abs(_angle_difference(vf - vb) if path in angles else vf - vb)
         if not np.any(comparable & (combined > 0.0)):
             # …nor one whose two chains agree below the noise floor on every
             # shared pattern: the comparison calls that agreement whatever
             # the esds say (the n_sigma floor below), so there was nothing an
             # esd could have changed — a softplus coefficient on its floor,
             # measured on different patterns by each chain, is the case
-            if measured and np.any(np.abs(vf - vb) > _noise_floor(vf, vb)):
+            if measured and np.any(gap > _noise_floor(vf, vb)):
                 unjudged.append(path)
             continue
         with np.errstate(divide="ignore", invalid="ignore"):
-            n_sigma = np.abs(vf - vb) / np.where(combined > 0.0, combined, np.nan)
-        n_sigma = np.where(np.abs(vf - vb) > _noise_floor(vf, vb), n_sigma, 0.0)
+            n_sigma = gap / np.where(combined > 0.0, combined, np.nan)
+        n_sigma = np.where(gap > _noise_floor(vf, vb), n_sigma, 0.0)
         n_sigma = np.where(comparable, n_sigma, 0.0)
         if not np.any(n_sigma > PATH_DEPENDENCE_SIGMA):
             continue

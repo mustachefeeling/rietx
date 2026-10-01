@@ -29,9 +29,11 @@ from scipy import sparse
 
 from ..crystallography.adp import U_NAMES
 from ..crystallography.magnetic.moments import (
+    canonical_dofs,
     dofs_from_moment,
     moment_frame,
     moment_from_dofs,
+    wrap_angle,
 )
 from ..crystallography.stephens import S_NAMES, isotropic_coefficients, strain_basis
 from ..crystallography.symmetry import (
@@ -1309,6 +1311,56 @@ class ParameterTable:
             for name, value in zip(MOMENT_COMPONENTS, components, strict=True):
                 by_path[f"{base}.moment.{name}"].value = float(value)
 
+    def _canonicalise_moment_dofs(self) -> np.ndarray | None:
+        """Move every moment block's DOFs into the principal chart (#604).
+
+        :func:`~rietx.crystallography.magnetic.moments.canonical_dofs` says
+        what the chart is and why every move is an identity on the moment.
+        Returns the ±1 that each **free column** was multiplied by, for the
+        caller to carry its outcome across
+        (:func:`~rietx.optimize.least_squares.rechart_outcome`), or
+        ``None`` when nothing moved.
+
+        Only an entry that is untied, unlocked and no tie's source is moved: a
+        tie reads its source's *value*, so a turn added to a source would add
+        a turn's multiple to its dependent, and a reflection would negate one
+        that is not an angle.  A held entry *is* moved — the block moves
+        together, so the moment it states is the one it stated, and a flat
+        azimuth the stage held (``_hold_flat_moments``) is exactly the entry a
+        reflected polar angle needs.  A move that would touch an entry it may
+        not is not made; that block's other angles still lose their whole
+        turns, which touch nothing but themselves.
+        """
+        if not self._moment_frames:
+            return None
+        sources = {path for e in self.entries if e.tie is not None
+                   for path, _ in e.tie.terms}
+        column = {self.entries[i].path: k for k, i in enumerate(self._free_idx)}
+        by_path = {e.path: e for e in self.entries}
+        signs = np.ones(len(self._free_idx), dtype=np.float64)
+        moved = False
+        for base, frame in self._moment_frames.items():
+            block = [by_path[f"{base}.moment.dof{k}"] for k in range(len(frame))]
+            movable = [e.tie is None and not e.locked and e.path not in sources
+                       for e in block]
+            old = np.array([e.value for e in block], dtype=np.float64)
+            new, s = canonical_dofs(old)
+            changed = new != old
+            if not all(m for m, c in zip(movable, changed, strict=True) if c):
+                # whole turns only, angle by angle
+                new, s = old.copy(), np.ones(len(old))
+                for k in range(1, len(old)):
+                    if movable[k]:
+                        new[k] = wrap_angle(old[k])
+                changed = new != old
+            for e, value, sign, c in zip(block, new, s, changed, strict=True):
+                if c:
+                    e.value = float(value)
+                    if e.path in column:
+                        signs[column[e.path]] = sign
+                    moved = True
+        return signs if moved else None
+
     def moment_frames(self) -> dict[str, np.ndarray]:
         """The frozen per-site frames, for a caller that has to reproduce them."""
         return dict(self._moment_frames)
@@ -1776,6 +1828,25 @@ class ParameterTable:
         and are absolute.
         """
         return frozenset(self._anchored_dofs)
+
+    @property
+    def angle_dof_paths(self) -> frozenset[str]:
+        """The moment DOFs that are angles, compared across fits modulo a turn.
+
+        Every ``…moment.dof<k>`` past the modulus of a block with two or three
+        DOFs (:data:`~rietx.crystallography.magnetic.moments.DOF_NAMES`).  A
+        commit leaves them in the principal chart
+        (:meth:`_canonicalise_moment_dofs`), and that chart still has a cut:
+        a moment along −a is φ = π − ε in one fit and −π + ε in the next, the
+        same direction 2π apart in value (#604).  A reader comparing them
+        across fits takes the difference into (−π, π] first; for the polar
+        angle, which the chart keeps in [0, π], that changes nothing.  Read off
+        the frames, the data built where the block is, never off the path's
+        name.
+        """
+        return frozenset(f"{base}.moment.dof{k}"
+                         for base, frame in self._moment_frames.items()
+                         for k in range(1, len(frame)))
 
     def displace_anchored_dofs(self, coordinates: Mapping[str, float],
                                named: Callable[[str], bool]) -> list[str]:
@@ -2401,15 +2472,27 @@ class ParameterTable:
         p = self._C @ p_free + self._d if len(p_free) else self._d
         return {e.path: float(p[i]) for i, e in enumerate(self.entries)}
 
-    def commit(self, theta: np.ndarray) -> None:
-        """Write refined values back into the table (used between stages)."""
+    def commit(self, theta: np.ndarray) -> np.ndarray | None:
+        """Write refined values back into the table (used between stages).
+
+        A moment block lands in its principal chart
+        (:meth:`_canonicalise_moment_dofs`, #604), so the committed values can
+        differ from ``decode(theta)`` there — the same moment, never a
+        different one.  The return is that method's: ``None`` when nothing
+        moved, else the ±1 per free column, which a caller still holding the
+        solver's outcome passes to
+        :func:`~rietx.optimize.least_squares.rechart_outcome` with ``x0()``
+        so its ``theta``, Jacobian and correlations describe these values.
+        """
         values = self.decode(theta)
         for e in self.entries:
             e.value = values[e.path]
+        signs = self._canonicalise_moment_dofs()
         # the moment components are locked entries fed by a *non-affine* map,
         # so the constraint block cannot carry them and they are derived here
         self._refresh_moment_components()
         self._rebuild()  # held-source contributions to d follow the new values
+        return signs
 
     def stderr_physical(self, theta: np.ndarray, stderr_internal: np.ndarray,
                         correlation: np.ndarray | None = None) -> dict[str, float]:
