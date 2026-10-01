@@ -361,6 +361,8 @@ cannot state is refused by name:
 - a moment ion that differs from the site's species, since TOPAS takes both
   from the one `occ`;
 - a propagation vector, either the parent k of a supercell or a phase's own.
+  A magCIF drops both as well (a supercell is written as k = 0 in its own
+  cell), so the `Structure`'s own JSON is the export that keeps them.
 
 The group's symbol rides as a comment and is not read back.
 
