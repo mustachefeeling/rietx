@@ -1,6 +1,6 @@
 # WP-1527 — foreign files spell a species as the other program does
 
-Milestone: unscheduled · Status: 🔄 2026-10-01 — #569, #570 and #572 landed; #568 (`.pcr`) is held on review, and the fallback-ion decision is open
+Milestone: unscheduled · Status: 🔄 2026-10-02 — all four fix PRs landed (#569, #570, #572, and #568 for `.pcr`); the fallback-ion decision is open
 Track: Coming from another code
 Depends on: — (WP-1118 closed 2026-09-16; its writers and readers are what this corrects)
 Priority: P2 2026-09-30 — a silent wrong structure in another program's refinement (GSAS-II turns `7Li` into H), on a path few fits run; the fix PRs are open
@@ -87,6 +87,29 @@ the spelling the issue's "fix direction" names.
 - Issues #553, #554, #555, #557, #558; PRs #568-#570, #572; PR #556 (#552).
 
 ## Handover log
+
+- **2026-10-02** — The FullProf half is on `main`. A `.pcr` now states what
+  FullProf needs to run it: non-zero widths, the radiation, FullProf's own
+  species spelling (`ZR+4`), and rietx's own f′/f″ as one LINE-12
+  `nam f′ f″ 2` per X-ray `Typ`. *Done:* PR #568 (`a1861ddd`), merged as
+  `430d7b52` by `/pr-review` after four rounds, closing #557 and #558. The
+  reader reads LINE 12 back into `FullProfModel.dispersion`. It refuses a pair
+  more than 0.01 e from plain Cromer-Liberman at the file's primary wavelength,
+  because a `Structure` carries no dispersion. One function,
+  `_dispersion_disagreement`, is that test for the reader and the writer
+  alike, so the writer refuses at write what its reader would refuse
+  (`io/CLAUDE.md` § Project writers). *Decision, the maintainer's, 2026-10-01:*
+  an X-ray export under `source.dispersion = None` is refused. Nothing can
+  state "dispersion declined" in a form the reader accepts, and a file that
+  states numbers the fit then ignores would be worse. A carrier for the pair
+  on the structure or instrument would lift both refusals. That is a new
+  change, not filed yet. The same goes for a measured `Dispersion.overrides`
+  pair beyond the tolerance. *Gotchas:* with no instrument the dispersion is
+  resolved at the placeholder Cu Kα lines, so Eu and Ho (an edge between
+  them) are refused, with a message naming `instrument=`. The `_anomalous`
+  docstring has a stray "With" before "A pair the reader would refuse"
+  (follow-up in the review). *Next:* the `Y3+` fallback-ion decision, which
+  now applies to all four writers.
 
 - **2026-10-01** — Three of the four species fixes are on `main`. A GSAS-II
   phase CIF now spells each species the way GSAS-II's importer reads it, or
