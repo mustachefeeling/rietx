@@ -738,7 +738,7 @@ def refuse_moved_attachment(active: str, path) -> None:
         body = _brace_body(active, m.end() - 1)
         if found := _PHASE_CONTENT.search(body):
             raise TopasInpError(
-                f"{path}: `{m.group().strip()}` is a pre-processor loop — the "
+                f"{path}: `{' '.join(m.group().split())}` is a pre-processor loop — the "
                 f"reference expands its body \"once for every existing instance "
                 f"of the given object type\" — and its body states "
                 f"`{found.group().strip()}`, which this reader reads. A value inside it "
@@ -765,10 +765,14 @@ def refuse_moved_attachment(active: str, path) -> None:
 #: A ``for`` loop's head, with the ``N to M`` range the archive writes
 #: (``for strs 1 to 1``) captured. The reference's grammar node is
 #: ``[for { .. } ]`` and gives no range form; what the range selects is
-#: measured, and :func:`expand_for_loops` records the measurement.
+#: measured, and :func:`expand_for_loops` records the measurement. The brace
+#: may sit on a later line, as :data:`_FOR_LOOP` allows: TOPAS input is
+#: free-format, and a head that stopped at the newline missed an outer
+#: ``for xdds`` and expanded its inner ``for strs`` as if it were top-level.
+#: ``rest`` stops at a ``;`` or a brace, so it never runs into a statement.
 _FOR_HEAD = re.compile(
     r"\bfor\s+(?P<kind>\w+)(?:\s+(?P<lo>\d+)\s+to\s+(?P<hi>\d+))?"
-    r"(?P<rest>[^{};\n]*)\{")
+    r"(?P<rest>[^{};]*?)\s*\{")
 
 #: The macros the reference's macro index lists as stating ``xdd`` and which
 #: this reader does **not** open as a dataset (only ``TOF_XYE``/``TOF_GSAS``
@@ -863,6 +867,18 @@ def expand_for_loops(active: str, path) -> str:
     first insertion move, so this runs after every check that reports a line.
     """
     quoted = re.sub(r'"[^"\n]*"', lambda m: _blank(m.group()), active)
+    # The two head scanners must agree: a head `refuse_moved_attachment` sees
+    # and this expansion does not would be a loop left in place while the
+    # loops around or inside it are rewritten.
+    heads = {m.start() for m in _FOR_HEAD.finditer(quoted)}
+    for m in _FOR_LOOP.finditer(quoted):
+        if m.start() not in heads:
+            raise TopasInpError(
+                f"{path}: `{' '.join(m.group().rstrip('{').split())}` is a "
+                f"pre-processor loop this reader's loop expansion does not "
+                f"parse as one (its head runs into the text before it), so "
+                f"which instances its body reaches, and where its body lands, "
+                f"is not something it can place.")
     loops = [(m, close) for m, close in _top_level_loops(quoted)
              if m["kind"] in ("xdds", "strs")
              and _bears_on_the_model(quoted[m.end():close - 1])]
@@ -870,7 +886,7 @@ def expand_for_loops(active: str, path) -> str:
         return active
     if hit := _UNSEEN_DATASETS.search(quoted):
         raise TopasInpError(
-            f"{path}: `{loops[0][0].group().rstrip('{').strip()}` expands its "
+            f"{path}: `{' '.join(loops[0][0].group().rstrip('{').split())}` expands its "
             f"body once per dataset or phase that exists, and this file opens "
             f"a dataset through `{hit.group().rstrip('(').strip()}`, which "
             f"this reader does not read as one — so how many times the body "
@@ -879,7 +895,7 @@ def expand_for_loops(active: str, path) -> str:
     datasets = [o for o in openers if o["kw"] in _DATASET_OPENERS]
 
     def head(m: re.Match) -> str:
-        return m.group().rstrip("{").strip()
+        return " ".join(m.group().rstrip("{").split())
 
     def phases_of(start: int, stop: int) -> list[re.Match]:
         return [o for o in openers if o["kw"] == "str" and start < o.start() < stop]

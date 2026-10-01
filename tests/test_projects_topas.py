@@ -2751,6 +2751,43 @@ def test_for_xdds_reaches_every_dataset_above_it(tmp_path):
     assert [ph.scale for ph in model.phases] == [1.0, 2.0]
 
 
+@pytest.mark.parametrize("brace", [" {\n", "\n{\n", "\n\n  {\n"])
+@pytest.mark.parametrize("tail", ["", '  hkl_Is phase_name "H"\n'])
+def test_a_loop_head_may_put_its_brace_on_a_later_line(tmp_path, brace, tail):
+    """TOPAS input is free-format, so `for xdds` may end its line and open its
+    brace on the next. The head scanner stopped at the newline: it missed the
+    outer loop and expanded the inner `for strs` as top-level, into the last
+    dataset only. Where a block follows that dataset's `str` (here an
+    `hkl_Is`) the outer loop was then left empty and the file read silently
+    with one phase (#595 review); without one it was refused under the wrong
+    message. Every placement of the brace reads as the same-line form does."""
+    pre = "".join(f'xdd "{d}.xy"\n  str phase_name "P{k}" scale {k}\n' + tail
+                  for k, d in ((1, "a"), (2, "b")))
+    inp = _inp(tmp_path, "fornextline.inp",
+               pre + "for xdds" + brace + "  for strs 1 to 1" + brace
+               + _LOOP_PHASE + "  }\n}\n")
+    model = read_topas_inp(inp)
+    assert [(ph.name, ph.dataset) for ph in model.phases] == [("P1", 0), ("P2", 1)]
+    for ph in model.phases:
+        assert ph.cell["a"] == pytest.approx(4.0)
+        assert [s.label for s in ph.sites] == ["A1"]
+
+
+def test_a_loop_head_the_expansion_does_not_parse_is_refused(tmp_path):
+    """`refuse_moved_attachment`'s `_FOR_LOOP` and the expansion's `_FOR_HEAD`
+    are two scanners over the same heads; where the first sees a head the
+    second does not (here the second reads `for xdds sel1 for strs` as one
+    head with a macro range), the file is refused by name rather than half
+    expanded."""
+    inp = _inp(tmp_path, "forplanted.inp",
+               'xdd "a.xy"\n  str phase_name "P1" scale 1\n'
+               'for xdds sel1 for strs {\n' + _LOOP_PHASE + '}\n')
+    with pytest.raises(TopasInpError,
+                       match=r"`for strs` is a pre-processor loop this reader's "
+                             r"loop expansion does not parse"):
+        read_topas_inp(inp)
+
+
 def test_a_loop_reaches_only_the_datasets_above_it(tmp_path):
     """Measured: a `for xdds` between two datasets shifted the first only. The
     second phase states its own cell, and the loop's site must not reach it."""
