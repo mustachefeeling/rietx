@@ -532,20 +532,83 @@ def read_magnetic_symmetry(block, text: str, path: str, *,
                             "(a translation with time reversal, x,y,z+1/2,-1), "
                             "add the loop: without it this is a different "
                             "magnetic group")))
-    uni = None
+    found = None
     try:
-        uni = identify(MagneticGroup.from_xyz(operations, centerings)).uni_number
+        found = identify(MagneticGroup.from_xyz(operations, centerings))
     except (ValueError, KeyError):
-        uni = None
+        found = None
+    bns = _value(block, "_space_group_magn.number_BNS")
+    og = _value(block, "_space_group_magn.number_OG")
+    symbol = _value(block, "_space_group_magn.name_BNS")
+    if found is not None:
+        bns, og, symbol = _check_stated_numbers(
+            found, bns, og, symbol, path, len(centerings),
+            diagnostics=diagnostics)
     return MagneticSymmetry(
         operations=list(operations),
         centerings=list(centerings),
-        bns_number=_value(block, "_space_group_magn.number_BNS"),
-        og_number=_value(block, "_space_group_magn.number_OG"),
-        symbol=_value(block, "_space_group_magn.name_BNS"),
+        bns_number=bns,
+        og_number=og,
+        symbol=symbol,
         setting=_value(block, "_space_group_magn.transform_BNS_Pp_abc"),
-        uni_number=uni,
+        uni_number=None if found is None else found.uni_number,
     )
+
+
+def _check_stated_numbers(found, bns: str | None, og: str | None,
+                          symbol: str | None, path: str, n_centerings: int, *,
+                          diagnostics: list[Diagnostic] | None):
+    """The BNS/OG numbers and BNS name to store, checked against the operators (#605).
+
+    ``found`` is what :func:`~rietx.crystallography.magnetic.operators.identify`
+    makes of the file's own operator list.  A BNS or OG number is a label of
+    the group's *type*, the same in every setting, so a stated number that is
+    not ``found``'s contradicts the operators beside it.  The operators are the
+    model (D-4) and the numbers metadata, so the operators' own numbers are
+    stored and ``CIF_MAGNETIC_NUMBER_MISMATCH`` (warning) names both.  The
+    stated ``name_BNS`` is kept only while every stated number agrees: no
+    dependency here maps a symbol to a group, so a name cannot be checked on
+    its own, and one written beside a contradicted number is no more
+    trustworthy than the number.  A number the file does not state is left
+    unstated, which keeps the stored record what the file said wherever it
+    agrees with itself.
+
+    The reader cannot tell which side is wrong.  A mistyped number (136.498
+    beside the 136.499 operators) leaves the operators right; a forgotten
+    anti-centring in the centring loop leaves the number right and the
+    operators a different, smaller group (12.62 stated, 10.46 read).  So the
+    message says both, and a group that cannot be named (``identify`` raises)
+    is not checked at all.
+    """
+    stated = {"number_BNS": (bns, found.bns_number),
+              "number_OG": (og, found.og_number)}
+    wrong = {tag: pair for tag, pair in stated.items()
+             if pair[0] is not None and pair[0] != pair[1]}
+    if not wrong:
+        return bns, og, symbol
+    if diagnostics is not None:
+        named = "; ".join(f"_space_group_magn.{tag} {s!r} against {d!r}"
+                          for tag, (s, d) in wrong.items())
+        dropped = (f", and the stated name_BNS {symbol!r} is dropped with it"
+                   if symbol is not None else "")
+        diagnostics.append(Diagnostic(
+            level="warning", code="CIF_MAGNETIC_NUMBER_MISMATCH",
+            where=["phases.0.magnetic_symmetry.bns_number"],
+            message=(f"{path} states a magnetic group its own operators are "
+                     f"not: {named} (the operators' own, BNS "
+                     f"{found.bns_number}, UNI {found.uni_number}). The "
+                     f"operators are what is refined, so their numbers are "
+                     f"stored{dropped}"),
+            suggestion=(
+                "one of the two is wrong and the file cannot say which: a "
+                "mistyped number leaves the operators right, but an "
+                "incomplete operator or centring loop (this file lists "
+                f"{n_centerings} centring translation"
+                f"{'' if n_centerings == 1 else 's'}; a forgotten "
+                "anti-centring such as x,y,z+1/2,-1 halves the group) makes "
+                "the operators a different group. Check the loops against "
+                "the source of the file")))
+    return found.bns_number, found.og_number, None
 
 
 def refuse_a_magnetic_supercell(block, text: str, path: str) -> None:
@@ -1419,7 +1482,9 @@ def write_magnetic_block(block, phase, *,
       stored form and re-deriving them through the group would canonicalise the
       order and break bit-identity for no gain;
     * the BNS/OG numbers, the BNS name and ``transform_BNS_Pp_abc`` as the
-      metadata they are;
+      metadata they are — after checking the numbers against the operators
+      (:func:`refuse_contradicting_numbers`), so a file this writes never
+      states a group its own loops are not (#605);
     * one ``_atom_site_moment`` row per site carrying a moment: the crystal-axis
       components and their ``_su`` columns (see :func:`_moment_number` for why
       neither ``value(su)`` nor a fixed number of decimals), and ``magnitude``
@@ -1443,6 +1508,7 @@ def write_magnetic_block(block, phase, *,
     magnetic = getattr(phase, "magnetic_symmetry", None)
     if magnetic is None:
         return
+    refuse_contradicting_numbers(magnetic, getattr(phase, "name", "?"))
     loop = block.init_loop("_space_group_symop_magn_operation.", ["id", "xyz"])
     for i, xyz in enumerate(magnetic.operations, start=1):
         loop.add_row([str(i), _quote(xyz)])
@@ -1479,6 +1545,40 @@ def write_magnetic_block(block, phase, *,
     for atom in sites:
         loop.add_row([atom.label, _quote(atom.moment.ion),
                       "." if atom.moment.g is None else repr(atom.moment.g)])
+
+
+def refuse_contradicting_numbers(magnetic, phase_name: str) -> None:
+    """Raise where a ``MagneticSymmetry``'s numbers are not its operators' (#605).
+
+    A BNS, OG or UNI number is a label of the group's type, the same in every
+    setting, so it can be checked against
+    :func:`~rietx.crystallography.magnetic.operators.identify` of the stored
+    operator list.  A phase read from a magCIF already agrees
+    (:func:`read_magnetic_symmetry` stores the operators' own numbers), and so
+    does one built from a number or by ``magnetic_supercell``; a
+    ``MagneticSymmetry`` built by hand with a wrong number is the case left,
+    and writing it would put a group into the file that its own loops
+    contradict.  The writer will not choose between them, so it refuses naming
+    both.  A list spglib cannot name is not checked.
+    """
+    from .magnetic.operators import identification
+
+    found = identification(magnetic.group()).group_id
+    if found is None:
+        return
+    wrong = [f"{name} {stated!r} (the operators are {derived!r})"
+             for name, stated, derived in (
+                 ("bns_number", magnetic.bns_number, found.bns_number),
+                 ("og_number", magnetic.og_number, found.og_number),
+                 ("uni_number", magnetic.uni_number, found.uni_number))
+             if stated is not None and stated != derived]
+    if wrong:
+        raise MagCifError(
+            f"phase {phase_name!r}: magnetic_symmetry states "
+            f"{'; '.join(wrong)}. A magCIF written from it would carry a "
+            f"_space_group_magn number its own operator loops contradict, and "
+            f"the operators are what is refined. Correct the number (or set it "
+            f"to None), or the operator list if that is what is wrong.")
 
 
 def _printed_cell(block, phase) -> tuple[float, ...]:

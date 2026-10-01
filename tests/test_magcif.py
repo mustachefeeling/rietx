@@ -1503,6 +1503,105 @@ def test_a_missing_centring_loop_is_read_as_trivial_and_named(tmp_path):
     assert "CIF_MAGNETIC_CENTERING_ASSUMED" not in {d.code for d in quiet}
 
 
+
+def _number_diagnostics(path, ions):
+    diagnostics: list = []
+    read = structure_from_cif(str(path), moment_ions=ions,
+                              diagnostics=diagnostics)
+    return read, [d for d in diagnostics
+                  if d.code == "CIF_MAGNETIC_NUMBER_MISMATCH"]
+
+
+def test_a_stated_bns_number_the_operators_are_not_is_named_and_replaced(
+        tmp_path):
+    """#605: LaMnO3's 62.448 operators with ``number_BNS 62.447`` were stored
+    as 62.447 and re-exported beside the operators they contradict.
+
+    A BNS number labels a group's type in every setting, so ``identify`` of
+    the file's own operators is the oracle.  The operators are the model, so
+    their number is stored, the stated name (which went with the wrong number)
+    is dropped, and the warning names both numbers."""
+    read, (named,) = _number_diagnostics(
+        _fixture(tmp_path, "LaMnO3", bns="62.447", symbol="P n m a"),
+        _IONS["LaMnO3"])
+    ms = read.phases[0].magnetic_symmetry
+    assert identify(ms.group()).bns_number == "62.448"
+    assert (ms.bns_number, ms.symbol) == ("62.448", None)
+    assert named.level == "warning"
+    assert "'62.447' against '62.448'" in named.message
+    assert "'P n m a'" in named.message
+    out = tmp_path / "rt.cif"
+    structure_to_cif(read, str(out))
+    assert re.search(r"(?m)^_space_group_magn\.number_BNS\s+'?62\.448'?\s*$",
+                     out.read_text(encoding="utf-8"))
+
+
+def test_a_stated_og_number_is_checked_the_same_way(tmp_path):
+    """The OG number is the same kind of label; a wrong one fires the same
+    warning, and the right one (62.448 is OG 62.8.509 in spglib's table) is
+    kept silently."""
+    og = identify(_read(tmp_path, "LaMnO3").phases[0]
+                  .magnetic_symmetry.group()).og_number
+    _, quiet = _number_diagnostics(
+        _fixture(tmp_path, "LaMnO3", extra=f"_space_group_magn.number_OG {og}\n"),
+        _IONS["LaMnO3"])
+    assert quiet == []
+    read, (named,) = _number_diagnostics(
+        _fixture(tmp_path, "LaMnO3", extra="_space_group_magn.number_OG 1.1.1\n"),
+        _IONS["LaMnO3"])
+    assert f"'1.1.1' against '{og}'" in named.message
+    assert read.phases[0].magnetic_symmetry.og_number == og
+
+
+def test_a_forgotten_anti_centring_is_caught_by_the_stated_number(tmp_path):
+    """#605's second arm: a C2'/m' (12.62) file whose centring loop states only
+    the identity is a P group of half the order (10.46).  The stated 12.62 is
+    the one cross-check that sees it, and the warning names both numbers and
+    the centring loop as a cause."""
+    from rietx.crystallography.magnetic.operators import magnetic_group
+
+    full = magnetic_group("12.62")
+    operations, centerings = full.xyz_strings()
+    assert len(centerings) == 2                     # x,y,z,+1 and the C one
+    path = _magcif(
+        tmp_path, "c2m", parent="C 1 2/m 1", it=12, bns="12.62",
+        symbol="C2'/m'", cell=(9.1, 6.2, 7.3, 90.0, 111.0, 90.0),
+        operations=operations, centerings=("x,y,z,+1",),
+        sites=("Mn1 Mn 0.11 0.00 0.37 1",),
+        moment_loop=_moment_loop([("Mn1", "1.0", "0.0", "2.0")],
+                                 tags=("crystalaxis_x", "crystalaxis_y",
+                                       "crystalaxis_z")))
+    read, (named,) = _number_diagnostics(path, {"Mn1": "Mn2+"})
+    assert read.phases[0].magnetic_symmetry.bns_number == "10.46"
+    assert "'12.62' against '10.46'" in named.message
+    assert "centring" in named.suggestion
+
+
+def test_a_stated_number_the_operators_are_keeps_number_and_name(tmp_path):
+    """The positive arm: every fixture states its true number, which is kept
+    with its name and raises nothing."""
+    for key in _ALL:
+        read, named = _number_diagnostics(_fixture(tmp_path, key), _IONS[key])
+        ms = read.phases[0].magnetic_symmetry
+        assert named == [], key
+        assert ms.bns_number == _ALL[key]["bns"] == identify(ms.group()).bns_number
+        assert ms.symbol == _ALL[key]["symbol"]
+
+
+def test_the_writer_refuses_a_number_its_operators_contradict(tmp_path):
+    """A ``MagneticSymmetry`` built by hand with a wrong number is the case the
+    reader cannot reach; the writer refuses it by name rather than put a group
+    into the file that its own loops contradict."""
+    read = _read(tmp_path, "LaMnO3")
+    phase = read.phases[0]
+    bad = phase.model_copy(update={"magnetic_symmetry": phase.magnetic_symmetry
+                                   .model_copy(update={"bns_number": "62.447"})})
+    broken = read.model_copy(update={"phases": [bad]})
+    with pytest.raises(magcif.MagCifError,
+                       match=r"bns_number '62\.447' \(the operators are '62\.448'\)"):
+        structure_to_cif(broken, str(tmp_path / "bad.cif"))
+    structure_to_cif(read, str(tmp_path / "good.cif"))
+
 def test_a_misspelled_moment_ions_or_g_key_is_refused(tmp_path):
     """Review of #478, follow-up: ``moment_ions={"Mn_1": ...}`` against a loop
     labelled ``Mn1`` was ignored, and Mn1 took the neutral atom's form factor.

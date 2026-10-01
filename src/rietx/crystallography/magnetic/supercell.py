@@ -1032,6 +1032,30 @@ def anti_translation_ties(phase, ip: int = 0):
     return out
 
 
+def _refuse_a_contradicting_bns_number(group: MagneticGroup,
+                                       bns_number: str | None) -> None:
+    """Raise where a stated ``bns_number`` is not the group's own (#605).
+
+    A BNS number labels a group's type, the same in every setting, so the
+    child-cell operator list must identify as it.  The number is otherwise
+    stored on the phase unchecked and re-exported beside operators that
+    contradict it.  A group spglib cannot name in this cell is not checked.
+    """
+    if bns_number is None:
+        return
+    from .operators import identification
+
+    found = identification(group).group_id
+    if found is not None and found.bns_number != str(bns_number):
+        raise ValueError(
+            f"magnetic_supercell: bns_number {bns_number!r} is not the group "
+            f"this statement carries, whose operators identify as BNS "
+            f"{found.bns_number} (UNI {found.uni_number}). The operators are "
+            f"what is refined and the number is their label, so a phase "
+            f"carrying both would contradict itself; pass the matching "
+            f"number, or none.")
+
+
 # ---------------------------------------------------------------------------
 # the statement
 # ---------------------------------------------------------------------------
@@ -1070,7 +1094,9 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     refuses it by name — and yet the structure is stated, and refined, in a,
     2b, c with a primitive lattice.  Pass the operator list in that cell and its
     (P, p) transform in ``transform_BNS_Pp_abc`` form; ``k`` is then a record
-    for the report and nothing derives from it.
+    for the report and nothing derives from it.  A ``bns_number`` passed with
+    either way in is checked against the group's own and refused when it
+    differs (#605).
 
     ``nuclear_group`` chooses which group the child phase's ``space_group``
     states, and it is the one knob a caller can get wrong, so both settings and
@@ -1176,6 +1202,7 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
 
         basis, origin = parse_transform(transform)
         transform = format_transform([list(row) for row in basis], origin)
+    _refuse_a_contradicting_bns_number(group, bns_number)
     p_child = [[Fraction(v) for v in row] for row in basis]
     cosets = lattice_cosets(basis)
     parent_cell = parent.cell.lengths_angles()
