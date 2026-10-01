@@ -27,9 +27,11 @@ from rietx.model import compiled
 from rietx.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
 from rietx.viz import render_structure
 from rietx.viz.figure3d import raster, views
+from rietx.viz.figure3d import report as rp
 from rietx.viz.figure3d import scene as sc
 from rietx.viz.figure3d.render import _png
 from rietx.viz.theme import TOKENS
+from tests.test_structure3d import MEASURED, measured
 
 DATA = Path(__file__).parent / "data"
 FIXTURE = DATA / "gui" / "scene_cases.json"
@@ -586,3 +588,212 @@ def test_the_letters_are_drawn_in_the_accent_at_their_anchors(nac):
 
     assert inked(labelled.image) - inked(fig.image) > 1000
     _save(labelled, "nac_atom_labels")
+
+
+# ----------------------------------------------------------------------
+# the figure reports on itself (WP-1503)
+# ----------------------------------------------------------------------
+
+def _stack(z_near: float = 0.75, z_far: float = 0.25, **atom_kw) -> dict:
+    """Two carbon atoms one behind the other along c, in a cubic P1 cell with
+    no bonds: looking down c the far one is covered, looking down a it is not."""
+    cell = Cell(a=_p(6.0), b=_p(6.0), c=_p(6.0), alpha=_p(90.0), beta=_p(90.0), gamma=_p(90.0))
+    atoms = [Atom(label="C1", species="C", x=_p(0.5), y=_p(0.5), z=_p(z_near), **atom_kw),
+             Atom(label="C2", species="C", x=_p(0.5), y=_p(0.5), z=_p(z_far), **atom_kw)]
+    return s3.build(Structure(phases=[Phase(name="stack", space_group="P 1",
+                                            cell=cell, atoms=atoms)]))
+
+
+def test_the_id_pass_is_the_same_on_both_paths(nac):
+    """One integer plane, so the bar between the compiled kernel and numpy is
+    equality."""
+    if raster._id_kernel() is None:
+        pytest.skip("no compiled tier in this build")
+    for geometry in (s3.build(nac), _general_ellipsoid()):
+        scene = sc.build_scene(geometry, "ball")
+        arrays = raster.scene_arrays(scene)
+        for view in ("opening", "c", [1, 1, 0]):
+            pk = raster.pack_ids(arrays, views.resolve(geometry, view))
+            frame = raster.Frame(width=200, height=160, x0=-9.0, y0=8.0, ppa=11.0, px_scale=1.0)
+            a = raster.id_plane(pk, frame, compiled_path=True)
+            b = raster.id_plane(pk, frame, compiled_path=False)
+            assert (a.ids >= 0).any()
+            assert np.array_equal(a.ids, b.ids)
+            assert np.array_equal(a.seen, b.seen) and np.array_equal(a.front, b.front)
+
+
+def test_an_atom_behind_another_is_hidden_and_one_beside_it_is_not():
+    geometry = _stack()
+    behind = render_structure(geometry, view="c", size=300)
+    (index,) = behind.report.hidden_atoms
+    assert geometry["atoms"][index]["frac"][2] == pytest.approx(0.25)
+    assert behind.report.hidden == 0.5
+    beside = render_structure(geometry, view="a", size=300)
+    assert beside.report.hidden == 0.0 and beside.report.hidden_atoms == []
+
+
+def test_the_empty_share_is_what_the_image_leaves_blank():
+    geometry = _stack()
+    fig = render_structure(geometry, size=300, background=None)
+    assert fig.report.empty == (fig.image[..., 3] == 0).mean()
+    white = render_structure(geometry, size=300)
+    assert white.report.empty == (white.image[..., :3] == 255).all(axis=-1).mean()
+    # two balls and a cell frame in a frame fitted to them: most of it is air
+    assert 0.3 < white.report.empty < 0.99
+    # a frame asked to be wider than the content is emptier
+    wide = render_structure(geometry, size=(900, 300), background=None)
+    assert wide.report.empty > fig.report.empty
+
+
+def test_a_bond_toward_an_atom_that_is_not_drawn_dangles(nac):
+    geometry = s3.build(nac)
+    assert render_structure(geometry, size=200).report.dangling_bonds == 0
+    bare = render_structure(geometry, size=200, boundary=False)
+    # counted by position, not by the bond's atom indices the report reads: a
+    # half whose bond's other end has no drawn atom on it
+    scene = sc.build_scene(geometry, "ball", show_boundary=False,
+                           polyhedra=sc.shown_polyhedra(geometry, True, None, [], False))
+    drawn = np.array([a["pos"] for a in scene["atoms"]])
+    want = 0
+    for h in scene["halves"]:
+        bond = geometry["bonds"][h["bond"]]
+        other = bond["b"] if list(bond["a"]) == h["from"] else bond["a"]
+        want += bool(np.linalg.norm(drawn - np.asarray(other), axis=1).min() > 1e-6)
+    assert want > 0 and bare.report.dangling_bonds == want
+    # a species the caller took away is asked for, not dangling
+    species = geometry["sites"][0]["species"]
+    asked = render_structure(geometry, size=200, hidden=[species])
+    assert asked.report.dangling_bonds == 0
+
+
+def test_labels_that_share_a_place_overlap():
+    geometry = _stack()
+    down = render_structure(geometry, view="c", size=400, atom_labels=True)
+    across = render_structure(geometry, view="a", size=400, atom_labels=True)
+    assert down.report.label_overlaps >= 1
+    assert across.report.label_overlaps == 0
+    assert render_structure(geometry, view="c", size=400).report.label_overlaps == 0
+
+
+def test_keep_says_what_it_cut_and_the_report_repeats_it(nac):
+    geometry = s3.build(nac)
+    assert render_structure(geometry, size=200).report.cut == {"polyhedra": 0, "bonds": 0}
+    from rietx.viz import keep, select
+    species = geometry["sites"][0]["species"]
+    some = keep(geometry, select(geometry, species=species))
+    whole = keep(some, np.ones(len(some["atoms"]), dtype=bool))
+    twice = keep(some, select(some, boundary=False))
+    first = render_structure(some, size=200).report.cut
+    assert first["bonds"] > 0
+    # a cut that loses nothing adds nothing, and counts run over successive cuts
+    assert render_structure(whole, size=200).report.cut == first
+    both = render_structure(twice, size=200).report.cut
+    assert both["bonds"] >= first["bonds"] and both["polyhedra"] >= first["polyhedra"]
+    assert render_structure(twice, size=200).report.note == twice.get("note", "")
+
+
+def test_a_flat_ellipsoid_is_a_warning():
+    geo = s3.build(_monoclinic(aniso=AnisoU.from_values([0.02, -0.01, -0.01, 0.0, 0.0, 0.0])))
+    flat = render_structure(geo, mode="ellipsoid", size=200)
+    assert any("C1" in w and "flat" in w for w in flat.report.warnings)
+    assert render_structure(geo, mode="ball", size=200).report.warnings == []
+
+
+def test_the_search_is_deterministic_and_returns_what_it_drew(nac):
+    geometry = s3.build(nac)
+    one = render_structure(geometry, view="auto", size=300)
+    two = render_structure(geometry, view="auto", size=300)
+    assert one.candidates == two.candidates and np.array_equal(one.image, two.image)
+    assert len(one.candidates) == rp.N_CANDIDATES
+    best = one.candidates[0]
+    # the first candidate is the picture, and each is a view to pass back
+    assert np.array_equal(render_structure(geometry, view=best["view"], size=300).image,
+                          one.image)
+    ranked = [(c["hidden"], c["empty"]) for c in one.candidates]
+    assert ranked == sorted(ranked)
+    assert render_structure(geometry, size=300).candidates == []
+    with pytest.raises(ValueError, match="needs the scene"):
+        views.resolve(geometry, "auto")
+
+
+def test_of_a_direction_and_its_opposite_the_plainer_is_tried_first():
+    """The two leave the same share empty and often hide the same atoms, so the
+    order decides: fewer minus signs, then the first index positive."""
+    order = [tuple(d) for d in rp.directions()]
+    assert len(order) == 98 and order[:3] == [(0, 0, 1), (0, 1, 0), (1, 0, 0)]
+    for k, d in enumerate(order):
+        minus, other = sum(x < 0 for x in d), sum(x > 0 for x in d)
+        plainer = minus < other or (minus == other and next(x for x in d if x) > 0)
+        assert (order.index(tuple(-x for x in d)) > k) == plainer, d
+
+
+@pytest.mark.parametrize("row", MEASURED, ids=[row["name"] for row in MEASURED])
+def test_auto_never_hides_more_than_the_opening_view(row):
+    """The search includes the opening view, and reads the numbers the report
+    reads, so this is exact and not a tolerance."""
+    geometry = s3.build(measured(row))
+    opening = render_structure(geometry, view="opening", size=256)
+    auto = render_structure(geometry, view="auto", size=256)
+    assert auto.report.hidden <= opening.report.hidden
+    assert auto.report.hidden == auto.candidates[0]["hidden"]
+
+
+@pytest.mark.parametrize("kw", [
+    {}, {"view": "auto"}, {"view": [1, 1, 0], "up": [0, 0, 1], "turn": "20x,-10y"},
+    {"view": {"hkl": (1, 0, 0)}, "size": (300, 200), "background": (0.9, 0.9, 0.5)},
+    {"mode": "ellipsoid", "hidden": "Na", "polyhedra": False, "supersample": 1},
+    {"atom_labels": True, "outline": True, "background": None, "exaggeration": 1.5}])
+def test_the_recipe_draws_the_same_picture_through_json(nac, kw):
+    geometry = s3.build(nac)
+    kw = dict(kw)
+    fig = render_structure(geometry, size=kw.pop("size", 300), **kw)
+    recipe = json.loads(json.dumps(fig.recipe))
+    again = render_structure(geometry, **recipe)
+    assert np.array_equal(again.image, fig.image)
+    assert again.recipe == fig.recipe and again.report == fig.report
+    assert "path" not in fig.recipe
+
+
+@pytest.mark.parametrize("kw", [{"phase": 1}, {"mode": "ellipsoid", "probability": 0.9},
+                                {"bond_tolerance": 0.05}])
+def test_the_recipe_redraws_from_a_structure_what_its_arguments_built(nac, kw):
+    """From a structure, the phase and the geometry's two knobs are in the
+    call; left out, the recipe drew phase 0 at the defaults."""
+    rutile = _rutile()
+    two = Structure(phases=[rutile.phases[0], nac.phases[0]])
+    fig = render_structure(two, size=200, **kw)
+    # the argument matters: without it the picture is another
+    plain = render_structure(two, size=200, mode=kw.get("mode", "ball"))
+    assert not np.array_equal(plain.image, fig.image)
+    again = render_structure(two, **json.loads(json.dumps(fig.recipe)))
+    assert np.array_equal(again.image, fig.image)
+
+
+def test_the_automatic_view_beside_the_opening_view():
+    """The pictures the WP asks for, in tests/output/figure3d."""
+    for name, geometry in (("rutile", s3.build(_rutile())),
+                           ("fluorapatite", s3.build(structure_from_cif(
+                               str(DATA / "fluorapatite.cif")))),
+                           ("nac", s3.build(structure_from_cif(
+                               str(DATA / "cod_1000236.cif"), aniso=True)))):
+        opening = render_structure(geometry, view="opening", size=500)
+        auto = render_structure(geometry, view="auto", size=500)
+        _save(opening, f"report_{name}_opening")
+        _save(auto, f"report_{name}_auto")
+        assert auto.report.hidden <= opening.report.hidden
+
+
+def test_hidden_may_be_a_generator_and_the_recipe_keeps_it(nac):
+    """``hidden=`` read once for the recipe must still reach ``_species``."""
+    listed = render_structure(nac, size=200, hidden=["Na"])
+    lazy = render_structure(nac, size=200, hidden=(x for x in ["Na"]))
+    assert lazy.recipe["hidden"] == ["Na"]
+    assert len(lazy.atoms) == len(listed.atoms)
+    assert np.array_equal(lazy.image, listed.image)
+
+
+@pytest.mark.parametrize("kw, words", [({"turn": "30q"}, "turn term"),
+                                       ({"up": "zzz"}, "unknown direction")])
+def test_auto_names_a_bad_up_or_turn_as_the_plain_view_does(nac, kw, words):
+    with pytest.raises(ValueError, match=words):
+        render_structure(nac, view="auto", size=200, **kw)

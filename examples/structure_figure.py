@@ -38,3 +38,19 @@ fig = render_structure(structure, view="c", size=2008, dpi=300, outline=True,
 for letter in fig.letters:
     print(f"  letter {letter['text']} at ({letter['x']:.0f}, {letter['y']:.0f}) px")
 print(f"wrote {Path(fig.path).name}")
+
+# what the figure says about itself, so a look is not needed to know it
+fig = render_structure(structure, size=400)
+report = fig.report
+print(f"opening view: {report.hidden:.0%} of atoms hidden, {report.dangling_bonds} bonds "
+      f"dangling, {report.empty:.0%} of the frame empty")
+
+# the search over low-index directions, and its runners-up
+auto = render_structure(structure, view="auto", size=400)
+print(f"auto view: {auto.report.hidden:.0%} hidden, chose {auto.candidates[0]['view']}, "
+      f"then {[c['view'] for c in auto.candidates[1:3]]}")
+
+# the call that draws the picture again, here at the size to keep
+final = render_structure(structure, **{**auto.recipe, "size": 1000})
+print(f"redrawn from the recipe with a long side of {max(final.image.shape[:2])} px, "
+      f"same view: {final.rotation == auto.rotation}")

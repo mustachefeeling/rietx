@@ -2,7 +2,7 @@
 
 Milestone: v1.7 · Status: ⬜
 Depends on: 1501, 1502, 1503
-Priority: P4 2026-09-27 — nothing in it can start until 1503 lands; P3 then
+Priority: P3 2026-09-30 — 1501, 1502 and 1503 have landed, so it can start; costed menu first
 
 ## Goal
 

@@ -108,6 +108,9 @@ def resolve(geometry: Mapping, view="opening", up=None, turn: str | None = None)
     direction kept up in the same forms, and defaults to the convention
     (:func:`default_up`); the opening view keeps its own.
     """
+    if isinstance(view, str) and view == "auto":
+        raise ValueError("view='auto' ranks views by what they hide, which needs the "
+                         "scene: render_structure does it, and a rotation is what it returns")
     matrix = None
     if not isinstance(view, (str, Mapping)):
         arr = np.asarray(view, dtype=np.float64)

@@ -31,6 +31,7 @@ that the script ran, never what it found — one authority per fact).
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -167,6 +168,9 @@ def test_structure_figure_example_draws_its_pictures():
     before = _timestamps(*pictures)
     out = _run("structure_figure.py").stdout
     assert "draws the same picture: True" in out, out
+    # the report's section: the search is never worse than the opening view
+    opening, auto = (float(m) for m in re.findall(r"(\d+)% (?:of atoms )?hidden", out))
+    assert auto <= opening and "same view: True" in out, out
     for name, stamp in before.items():
         path = EXAMPLES / name
         assert path.exists(), f"structure_figure.py wrote no {name}"

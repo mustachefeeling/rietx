@@ -27,6 +27,8 @@ from ..._about import DATA_PACKAGE
 EM_UNITS = 30.0
 #: The vertical middle of the font's box, −7 to 25 units.
 MIDDLE_UNITS = 9.0
+#: Half the font's box, −7 to 25 units, about its middle.
+HALF_BOX_UNITS = 16.0
 #: Stroke width, in ems.
 STROKE_EM = 0.1
 

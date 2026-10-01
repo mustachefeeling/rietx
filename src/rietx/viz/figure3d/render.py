@@ -25,7 +25,9 @@ import numpy as np
 
 from ..theme import TOKENS
 from . import cut, glyphs, raster, views
+from . import report as rp
 from . import scene as sc
+from .report import FigureReport
 
 #: The CSS width the GUI's pixel sizes are drawn against: an image whose long
 #: side is this many pixels has the GUI's on-screen line widths and letters.
@@ -62,6 +64,17 @@ class StructureFigure:
     ``#rrggbb`` before any dimming of the images outside the cell, for a legend
     drawn beside the figure.  A site recoloured in part
     (:func:`~rietx.viz.recolour`) appears again as ``"<label> (recoloured)"``.
+
+    ``report`` is the numbers a look would give (:class:`~.report.FigureReport`).
+    ``candidates`` is empty unless ``view="auto"``, and then the best few views
+    the search ranked, each a ``view`` to pass back with the same ``up`` and
+    ``turn``, the ``hidden`` share and the ``empty`` share it read at 256 px
+    from atoms and bonds alone; the first is the one drawn.  ``recipe`` is the
+    call that draws this picture again: ``render_structure(structure,
+    **figure.recipe)``, with the same first argument, gives ``image`` bit for
+    bit.  It holds every other argument as passed but ``path``,
+    JSON-serialisable, with ``view`` the rotation drawn and ``up`` and ``turn``
+    folded into it.  The first argument is the caller's to keep.
     """
     image: np.ndarray
     rotation: list[list[float]]
@@ -70,6 +83,9 @@ class StructureFigure:
     letters: list[dict]
     path: str | None = None
     palette: dict[str, str] = field(default_factory=dict)
+    report: FigureReport | None = None
+    candidates: list[dict] = field(default_factory=list)
+    recipe: dict = field(default_factory=dict)
 
     def __array__(self, dtype=None, copy=None):
         image = self.image if dtype is None else self.image.astype(dtype, copy=False)
@@ -256,22 +272,24 @@ def gui_frame(scene: dict, R, width: int, height: int, css_width: float) -> rast
                         y0=c[1] + height / (2 * ppa), ppa=ppa, px_scale=width / css_width)
 
 
-def text_strokes(scene: dict, geometry: Mapping, R, frame: raster.Frame, *,
-                 axis_labels: bool, atom_labels: bool, accent: str, ink: str):
-    """The letters as strokes, and where each landed."""
+def _labels(scene: dict, geometry: Mapping, R, frame: raster.Frame, *,
+            axis_labels: bool, atom_labels: bool):
+    """Every string drawn, as ``(text, x, y, is_axis, half_height)`` centred on
+    image pixel ``(x, y)``: a, b, c at their anchors, and each site label up and
+    to the right of its atom, clear of it.  ``half_height`` is in pixels."""
     R = np.asarray(R, dtype=np.float64)
     em = LETTER_EM_CSS * frame.px_scale
+    half = glyphs.HALF_BOX_UNITS * em / glyphs.EM_UNITS
 
     def at(p):
         c = R @ np.asarray(p, dtype=np.float64)
         return (c[0] - frame.x0) * frame.ppa, (frame.y0 - c[1]) * frame.ppa
 
-    strokes, letters = [], []
+    out = []
     if axis_labels:
         for label in scene["labels"]:
             x, y = at(label["pos"])
-            strokes += glyphs.strokes(label["text"], x, y, em, sc.rgb(accent))
-            letters.append({"text": label["text"], "x": x, "y": y})
+            out.append((label["text"], x, y, True, half))
     if atom_labels:
         for a in scene["atoms"]:
             if geometry["atoms"][a["index"]]["boundary"]:
@@ -283,8 +301,79 @@ def text_strokes(scene: dict, geometry: Mapping, R, frame: raster.Frame, *,
             # up and to the right of the atom, clear of it
             x += 0.72 * r + glyphs.width(text, em) / 2
             y -= 0.72 * r
-            strokes += glyphs.strokes(text, x, y, em, sc.rgb(ink))
+            out.append((text, x, y, False, half))
+    return out
+
+
+def text_strokes(scene: dict, geometry: Mapping, R, frame: raster.Frame, *,
+                 axis_labels: bool, atom_labels: bool, accent: str, ink: str):
+    """The letters as strokes, and where each landed."""
+    em = LETTER_EM_CSS * frame.px_scale
+    strokes, letters = [], []
+    for text, x, y, is_axis, _ in _labels(scene, geometry, R, frame, axis_labels=axis_labels,
+                                          atom_labels=atom_labels):
+        strokes += glyphs.strokes(text, x, y, em, sc.rgb(accent if is_axis else ink))
+        if is_axis:
+            letters.append({"text": text, "x": x, "y": y})
     return strokes, letters
+
+
+def _label_overlaps(labels, frame: raster.Frame) -> int:
+    """Pairs of drawn strings whose boxes intersect, the box being the string's
+    advance wide and the font's box tall."""
+    em = LETTER_EM_CSS * frame.px_scale
+    box = np.array([[x - glyphs.width(t, em) / 2, x + glyphs.width(t, em) / 2, y - h, y + h]
+                    for t, x, y, _, h in labels], dtype=np.float64).reshape(-1, 4)
+    n, total = len(box), 0
+    for start in range(0, n, 512):
+        c = box[start:start + 512]
+        hit = ((c[:, None, 0] < box[None, :, 1]) & (box[None, :, 0] < c[:, None, 1])
+               & (c[:, None, 2] < box[None, :, 3]) & (box[None, :, 2] < c[:, None, 3]))
+        later = np.arange(start, start + len(c))[:, None] < np.arange(n)[None, :]
+        total += int((hit & later).sum())
+    return total
+
+
+def _dangling(geometry: Mapping, scene: dict, hidden: list[str]) -> int:
+    """Bond halves drawn toward an atom that is not, unless ``hidden=`` took
+    that atom's species: the half ends in mid-air."""
+    if not scene["halves"]:
+        return 0
+    drawn = {a["index"] for a in scene["atoms"]}
+    atoms, bonds = geometry["atoms"], geometry["bonds"]
+    if len(drawn) == len(atoms) and not hidden:
+        return 0
+    far = cut._far(geometry)
+    species = {k: s["species"] for k, s in enumerate(geometry["sites"])}
+    count = 0
+    for h in scene["halves"]:
+        bond = bonds[h["bond"]]
+        end = int(far[h["bond"]]) if list(bond["a"]) == h["from"] else bond["i"]
+        if end not in drawn and species[atoms[end]["site"]] not in hidden:
+            count += 1
+    return count
+
+
+def _plain(value):
+    """``value`` with tuples and arrays as lists and numpy scalars as numbers,
+    which is what JSON keeps of them."""
+    if isinstance(value, np.ndarray):
+        value = value.tolist()
+    elif isinstance(value, np.generic):
+        return value.item()
+    return [_plain(v) for v in value] if isinstance(value, (tuple, list)) else value
+
+
+def _empty(image: np.ndarray, bg) -> float:
+    """The share of pixels nothing was drawn on: transparent, or the
+    background colour exactly."""
+    # one 32-bit compare a pixel: the four bytes read as a little-endian word,
+    # alpha the top one
+    word = np.ascontiguousarray(image).view("<u4")[..., 0]
+    if bg is None:
+        return float(((word >> 24) == 0).mean())
+    r, g, b = (int(v) for v in np.floor(np.asarray(bg) * 255.0 + 0.5))
+    return float((word == (r | g << 8 | b << 16 | 255 << 24)).mean())
 
 
 def _png(path: Path, image: np.ndarray, dpi: float | None) -> None:
@@ -334,7 +423,11 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     (:func:`rietx.viz.figure3d.views.resolve`): ``"opening"``, ``"a"``,
     ``"b"``, ``"c"``, ``[u, v, w]``, ``{"hkl": (h, k, l)}`` or a rotation,
     with ``up`` defaulting to c up (b up when looking down c) and ``turn``
-    ASE's ``"30y,-15x"``.  Every view is fitted to the frame.
+    ASE's ``"30y,-15x"``.  Every view is fitted to the frame.  ``"auto"``
+    draws the low-index direction (indices to 2, or the opening view) that
+    hides the fewest atoms and then leaves the least of the frame empty, and
+    returns the runners-up in ``candidates``; the figure's ``report`` says
+    what is still hidden, for ``turn=`` to work on.
 
     ``size`` is the long side in pixels, or ``(width, height)``;
     ``supersample`` the antialiasing, 1 to 4 samples a side.  ``background``
@@ -369,7 +462,8 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     bg = _colour(background)
     dark = bg is not None and sum(w * v for w, v in zip(sc.LOOK["luma"], bg)) < 0.5
     tokens = TOKENS["dark" if dark else "light"]
-    hidden = _species(geometry, hidden)
+    hidden_asked = [hidden] if isinstance(hidden, str) else list(hidden)
+    hidden = _species(geometry, hidden_asked)
     if polyhedra is None:
         on, formulas = mode == "ball", None
     elif isinstance(polyhedra, Mapping):
@@ -380,10 +474,14 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     scene = sc.build_scene(geometry, mode, hidden=hidden, show_boundary=boundary,
                            exaggeration=exaggeration, polyhedra=shown,
                            cell=tokens["--accent"])
-    R = views.resolve(geometry, view, up, turn)
     margin = max([0.5 * line["width"] for line in scene["lines"]] + [0.0])
     if axis_labels:
         margin = max(margin, 0.6 * LETTER_EM_CSS)
+    probe = rp.probe(scene, geometry, size, margin + 1.0, _fit, axis_labels)
+    candidates: list[dict] = []
+    if isinstance(view, str) and view == "auto":
+        view, candidates = rp.choose_view(geometry, probe, up, turn)
+    R = views.resolve(geometry, view, up, turn)
     extra = ()
     if atom_labels:
         extra, reach = _label_reach(scene, geometry, R)
@@ -412,6 +510,35 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
         target = Path(path)
         _png(target, image, dpi)
         written = str(target)
+    seen = rp.look(probe, R)
+    labels = _labels(scene, geometry, R, frame, axis_labels=axis_labels, atom_labels=atom_labels)
+    warnings = []
+    if mode == "ellipsoid":
+        flat = sorted({geometry["sites"][geometry["atoms"][a["index"]]["site"]]["label"]
+                       for a in scene["atoms"]
+                       if geometry["sites"][geometry["atoms"][a["index"]]["site"]]["npd"]})
+        warnings += [f"{label}: its displacement tensor is not positive definite, so its "
+                     "ellipsoid is drawn flat" for label in flat]
+    if seen.unjudged:
+        long_side = max(probe.size) if isinstance(probe.size, tuple) else probe.size
+        warnings.append(f"{seen.unjudged} atoms cover less than one sample at {long_side} px "
+                        "and are not counted in hidden")
+    report = rp.FigureReport(
+        hidden=seen.hidden, hidden_atoms=seen.hidden_atoms,
+        dangling_bonds=_dangling(geometry, scene, hidden),
+        label_overlaps=_label_overlaps(labels, frame), empty=_empty(image, bg),
+        cut={"polyhedra": 0, "bonds": 0, **geometry.get("cut", {})},
+        note=geometry.get("note", ""), warnings=warnings)
+    # every argument but the first and path: phase, probability and
+    # bond_tolerance pick and build the geometry from a structure, and left out
+    # they redraw phase 0 at the defaults with nothing said
+    recipe = {k: _plain(v) for k, v in {
+        "phase": phase, "mode": mode, "view": views.as_list(R), "size": size,
+        "supersample": s, "probability": probability, "bond_tolerance": bond_tolerance,
+        "exaggeration": exaggeration, "hidden": hidden_asked, "boundary": boundary,
+        "polyhedra": polyhedra, "axis_labels": axis_labels, "atom_labels": atom_labels,
+        "outline": outline, "background": background, "dpi": dpi}.items()}
     return StructureFigure(image=image, rotation=views.as_list(R),
                            pixels_per_angstrom=frame.ppa, atoms=atoms, letters=letters,
-                           path=written, palette=_palette(geometry, scene))
+                           path=written, palette=_palette(geometry, scene), report=report,
+                           candidates=candidates, recipe=recipe)
