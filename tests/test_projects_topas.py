@@ -2887,6 +2887,29 @@ def test_one_dataset_still_reports_its_r_wp(tmp_path):
     assert read_topas_inp(inp).r_wp == pytest.approx(7.7)
 
 
+@pytest.mark.parametrize("line, expected", [
+    ("bkg @ 40 -3 2 -1 0.5", 5),
+    ("bkg @ 40 -3 2\n    -1 0.5", 5),
+    # what a refinement with errors writes back: each coefficient annotated
+    ("bkg @ 40`_0.2 -3`_0.1 2`_0.1 -1`_0.1 0.5`_0.05", 5),
+    ("bkg @ 40`_0.2 -3`_0.1 2`_0.1\n    -1`_0.1 0.5`_0.05", 5),
+    ("bkg @ 40`_0.2 -3`_0.1 2`_0.1 -1`_0.1 1e-6`_2e-7_LIMIT_MIN_1e-6", 5),
+    ("bkg @ 40_0.2 -3_0.1 2_0.1", 3),
+])
+def test_background_terms_counts_coefficients_not_numbers(
+        tmp_path, line, expected):
+    """One per coefficient, whatever is attached to it (#652). The annotated
+    rows came back 1: the repeated group stopped at the first `_esd`, so every
+    written-back file reported a one-term background, and counting numbers
+    instead would have reported the esds as terms too. The plain rows are the
+    positive arm, unchanged by the fix."""
+    inp = _inp(tmp_path, "bkg.inp",
+               f'xdd "a.xye"\n{line}\n'
+               'str\nphase_name "A"\nspace_group "P1"\na 4.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    assert read_topas_inp(inp).background_terms == expected
+
+
 # ---- round-six: a name IS the refine flag (Technical Reference 2.1)
 
 

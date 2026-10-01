@@ -195,6 +195,16 @@ _SG_SUFFIX: dict[str, str] = {"Z": ":2", "S": ":1", "R": ":R", "H": ":H"}
 
 _NUM = r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?"
 
+#: One background coefficient as a file writes it: an optional ``@``, the
+#: number, the write-back backtick, and the ``_esd``/``_LIMIT_*`` annotation a
+#: refinement with errors attaches to it (``40`_0.2``,
+#: ``1e-6`_2e-7_LIMIT_MIN_1e-6``). The annotation is *inside* the slot because
+#: it is a number too: counting every number in the list would double the
+#: answer, and leaving it out of the repeated group ended the list at its first
+#: coefficient, so every written-back file reported one term (#652). The
+#: annotation is the one `_ADP_ANNOTATION` skips between ADP slots.
+_BKG_SLOT = rf"\s*@?\s*{_NUM}`?(?:_[^\s;{{}}]*)?"
+
 #: A TOPAS parameter name. Leading character is deliberately **not** ``\w``:
 #: ``\w`` matches a digit, so ``(?:\w+\s+)?`` in front of a value silently eats
 #: the integer part of a *nameless* one — ``weight_percent 97.9`` came back
@@ -2801,8 +2811,8 @@ def read_topas_inp(path: str | Path, *,
     if model.time_of_flight and set(model.time_of_flight) >= (
             set(range(model.n_datasets)) or {None}):
         model.geometry = None
-    if m := re.search(rf"bkg\s*((?:\s*@?\s*{_NUM}`?)+)", active):
-        model.background_terms = len(re.findall(_NUM, m.group(1)))
+    if m := re.search(rf"bkg((?:{_BKG_SLOT})+)", active):
+        model.background_terms = len(re.findall(_BKG_SLOT, m.group(1)))
     model.data_files = [d.strip() for d in re.findall(r'xdd\s+"?([^"\n]+)', active)]
 
     parsed_site_tokens = 0        # site *tokens* read into phases, not atoms
