@@ -1917,7 +1917,22 @@ def test_the_certificates_run_on_a_pair_union_find_has_already_joined(monkeypatc
 NEAR_SPECIAL = ("P m -3 m", (1e-4, 0.0, 0.0), GAMMA)
 
 
-def test_the_certificate_labels_do_not_move_with_an_overall_moment_scale():
+@pytest.fixture(scope="module")
+def near_special_stack():
+    """The ``NEAR_SPECIAL`` candidates, structure factors and Gram stacks, built once for the tests below.
+
+    Both tests read these and neither mutates them; building them is the
+    cost the two tests shared (about 10 s each when each built its own).
+    """
+    found = isotropy.candidates(*NEAR_SPECIAL)
+    reflections = isotropy.reflections(found.lattice, 1.5)
+    canonical = [isotropy._canonical_basis(c) for c in found]
+    factors = [isotropy.structure_factors(c, reflections) for c in canonical]
+    grams = [isotropy.gram(f, reflections.shells) for f in factors]
+    return found, reflections, factors, grams
+
+
+def test_the_certificate_labels_do_not_move_with_an_overall_moment_scale(near_special_stack):
     """Only ratios of intensities are compared, so scaling every moment by one factor changes no certificate.
 
     Every structure factor is scaled by 10⁻², 1 and 10² (every Gram stack
@@ -1926,11 +1941,7 @@ def test_the_certificate_labels_do_not_move_with_an_overall_moment_scale():
     absolute floor on the dark test moves 24 of the 756 labels at scale 1
     here alone, between ``absence`` and ``subspace``.
     """
-    found = isotropy.candidates(*NEAR_SPECIAL)
-    reflections = isotropy.reflections(found.lattice, 1.5)
-    canonical = [isotropy._canonical_basis(c) for c in found]
-    factors = [isotropy.structure_factors(c, reflections) for c in canonical]
-    grams = [isotropy.gram(f, reflections.shells) for f in factors]
+    found, reflections, factors, grams = near_special_stack
     assert sum(float(np.max(np.abs(g))) < 1.0 and not isotropy._silent(f)
                for f, g in zip(factors, grams)) >= 20
     n = len(found)
@@ -1946,9 +1957,12 @@ def test_the_certificate_labels_do_not_move_with_an_overall_moment_scale():
         labels[scale] = (tuple(silent),
                          tuple(v and (v.status, v.certificate) for v in verdicts))
     assert labels[1e-2] == labels[1.0] == labels[1e2]
+    # a comparison of labels that were all None would pass; both certificates must occur
+    certificates = {x[1] for x in labels[1.0][1] if x}
+    assert {"absence", "subspace"} <= certificates
 
 
-def test_a_stack_with_no_gap_at_the_rank_cut_gives_no_subspace_certificate():
+def test_a_stack_with_no_gap_at_the_rank_cut_gives_no_subspace_certificate(near_special_stack):
     """A singular value within three decades of the rank cut makes the span a choice of tolerance, so nothing is proved on it.
 
     Synthetic first: two shells whose Gram blocks differ by 1e-8 in one
@@ -1964,18 +1978,21 @@ def test_a_stack_with_no_gap_at_the_rank_cut_gives_no_subspace_certificate():
     assert isotropy._intensity_span(grams) is None
     assert isotropy._intensity_span(np.array([np.eye(2), np.diag([1.0, 2.0])])).shape[1] == 2
 
-    found = isotropy.candidates(*NEAR_SPECIAL)
-    reflections = isotropy.reflections(found.lattice, 1.5)
-    canonical = [isotropy._canonical_basis(c) for c in found]
-    factors = [isotropy.structure_factors(c, reflections) for c in canonical]
-    grams = [isotropy.gram(f, reflections.shells) for f in factors]
+    found, reflections, factors, grams = near_special_stack
     silent = [isotropy._silent(f) for f in factors]
     dark = [isotropy._certificate_dark(g, quiet) for g, quiet in zip(grams, silent)]
     spans = [isotropy._intensity_span(g) for g in grams]
     gapless = {i for i, span in enumerate(spans) if span is None}
     assert gapless
+    gapped_subspace = 0
     for a in range(len(found)):
         for b in range(len(found)):
-            if a != b and {a, b} & gapless:
-                v = isotropy._certify(a, b, dark, spans, silent)
+            if a == b:
+                continue
+            v = isotropy._certify(a, b, dark, spans, silent)
+            if {a, b} & gapless:
                 assert v is None or v.certificate != "subspace", (a, b, v)
+            elif v is not None and v.certificate == "subspace":
+                gapped_subspace += 1
+    # the guard is not a blanket refusal: pairs of gapped families keep the certificate
+    assert gapped_subspace

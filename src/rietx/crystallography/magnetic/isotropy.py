@@ -229,7 +229,7 @@ INTENSITY_RTOL = 1e-9
 #: copies — is the isometry certificate of issue #565's part 3, not yet in
 #: this module.  It also applies to two different directions of one irrep,
 #: which are not copies; 12 there would cost about 4 min more on the known
-#: answer.
+#: answer (an estimate, not a measurement).
 CROSS_IRREP_DRAWS = 12
 WITHIN_IRREP_DRAWS = 3
 
@@ -1307,6 +1307,19 @@ class PairVerdict:
     Neither certificate says by how much two patterns differ, only that they
     differ; the distance comes with the certificates that measure it
     (issue #565).
+
+    **A certificate does not read** ``rtol``.  The draws call a model of
+    ``a`` reproduced when the fit of ``b`` agrees to ``rtol`` (default
+    1e-4); the certificates' cuts are fixed.  A certificate and the draws
+    can therefore disagree on a pair whose ``a`` is above the cut and below
+    ``rtol``: for absence, ``a``'s largest relative Gram block on the
+    shells ``b`` is dark at; for subspace, the leak sine.  Measured over
+    every ``proved-not`` pair of five sets (``P m -3 m`` at four sites and
+    ``P n m a`` at one, d_min 1.5 Å), the smallest such margin was 4.1e-2,
+    so at the default nothing moves.  A caller passing an ``rtol`` above
+    about 4e-2 gets certificates that split pairs the draws would have
+    joined.  That is the cheap direction (one extra refinement), and the
+    margin is not checked against ``rtol``.
 
     **The plan for the later parts of issue #565**, fixed here so that the
     names do not move: a verdict carried from another pair by a proved
@@ -2511,8 +2524,9 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
     to every pair.  On the cubic ``P n -3 m:1`` at (0, 0, ½), general site,
     3 draws everywhere gives two classes (S1 ∪ S2 and S3 ∪ S4, each joined by
     lucky draws) and the default gives the four of the known answer, at
-    1.7× the wall time (78 s against 133-136 s, one Linux x86-64 core per
-    run, measured twice each).
+    1.7× the wall time (78.3 and 78.4 s against 134.9 and 135.6 s, one
+    Linux x86-64 core per run, measured twice each, beside 3-7 other
+    single-process tasks).
     """
     return _classify(candidate_set, refl, draws=draws, seed=seed, rtol=rtol,
                      restarts=restarts)[0]
@@ -2529,7 +2543,8 @@ def powder_relations(candidate_set: CandidateSet, refl: ReflectionSet, *,
     The certificates run on every ordered pair; the draws are skipped on a
     pair union-find has already joined.  The same pass, the same
     generator streams and the same partition as :func:`equivalence_classes`
-    with these arguments.
+    with these arguments.  A certificate does not read ``rtol``: see
+    :class:`PairVerdict` for the measured margin.
     """
     return _classify(candidate_set, refl, draws=draws, seed=seed, rtol=rtol,
                      restarts=restarts)[1]
