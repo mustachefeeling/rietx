@@ -811,6 +811,14 @@ because one plan runs every pattern of a series ([](series.md)). A misspelt
 family inside a glob looks exactly like a glob that correctly matched nothing,
 so no rule can report it, and `freed` is the place to look.
 
+One glob is reported all the same: a glob under a name a release retired. A
+saved project, history tree or `.rxt` is migrated as it is read
+([](data.md)), but a plan you build in code is not, so a glob under
+*background_peaks*, the name up to v1.2, matches nothing and leaves a declared
+hump at its seed. That glob, like a literal under the old name, gets
+`STAGE_PATH_UNKNOWN` with its current spelling, `instrument.extra_components.*`.
+A glob under today's spelling that matches nothing stays silent.
+
 A joint fit (`MultiHistogramRefinement`, in [](series.md)) has one more way to do nothing, which is to do it on
 one histogram only. A glob written for one instrument's parameter names reaches
 only the histograms that have them. So a stage whose globs freed rows of

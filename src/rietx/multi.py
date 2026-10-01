@@ -515,9 +515,10 @@ class MultiHistogramRefinement:
         for stage, ftol in zip(plan.stages, plan.stage_ftols(), strict=True):
             freed = self.mtable.set_vary(stage.turn_on, True)
             # what the stage asked for and did not get (WP-1414): a literal
-            # no histogram has, and — the joint fit's own case — a histogram
-            # the stage's globs reached nothing of while reaching another's
-            unknown_paths = self.mtable.unknown_literals(stage.turn_on)
+            # no histogram has or a retired spelling, and — the joint fit's
+            # own case — a histogram the stage's globs reached nothing of
+            # while reaching another's
+            unknown_paths = self.mtable.unknown_paths(stage.turn_on)
             unreached = self.mtable.unreached_histograms(stage.turn_on)
             if carried_hold:
                 # lift the previous stage's hold before this one decides its

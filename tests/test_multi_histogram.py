@@ -307,12 +307,18 @@ def test_a_glob_that_reached_one_histogram_is_told_apart_from_the_rest():
     assert mt.unreached_histograms(["instrument.profile.*"]) == {}
 
     # known means a bare path of some histogram or a scoped one of a real one
-    assert mt.unknown_literals([
+    assert mt.unknown_paths([
         "hist.7.instrument.zero_shift", "hist.1.instrument.zero_shift",
         "instrument.zero_shift", "instrument.zero", "hist.0.instrument.extra_components.0.fwhm",
         "hist.1.instrument.extra_components.0.fwhm",
     ]) == ["hist.7.instrument.zero_shift", "instrument.zero",
            "hist.1.instrument.extra_components.0.fwhm"]
+    # a pattern is unknown only under a retired spelling (WP-1102's rename),
+    # scoped or bare; the current spelling reaching histogram 0 is answered
+    assert mt.unknown_paths([
+        "instrument.background_peaks.*", "hist.0.instrument.background_peaks.*",
+        humps, "phases.*.microstrain.dof.*",
+    ]) == ["instrument.background_peaks.*", "hist.0.instrument.background_peaks.*"]
 
 
 def test_a_shared_parameter_is_freed_once_however_many_histograms_carry_it():
