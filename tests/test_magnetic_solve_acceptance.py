@@ -68,18 +68,23 @@ def test_the_4k_pattern_takes_the_k_zero_route_and_ranks_58_395_first(solved_4k)
 
 
 def test_the_150k_pattern_has_nothing_to_solve(solved_150k):
-    """No class wins, and none improves on the nuclear model.
+    """No class wins, none improves on the nuclear model, and none is supported.
 
-    Not "no class is supported": that half of eligibility does not hold
-    steadily here.  One class's powder-degenerate pair of child sites comes
-    back with a quadrature sum near 0.60 μ_B while each row alone is
-    unsupported, and whether the pair clears the null test the gate reads
-    (``MomentRow.pair_supported``) has turned on its linearised esd: 0.09 μ_B
-    (6.7σ, cleared) before WP-1321 passed declared ranges to the moment's
-    ``Parameter`` (#527), 0.25 μ_B (2.4σ, not cleared) after, with the sum
-    unchanged.  What keeps the class from winning either way is its ΔBIC,
-    below zero, the other half of eligibility, so the assertion is on that
-    half, since it is what this pattern establishes.
+    One class's powder-degenerate pair of child sites comes back with a
+    quadrature sum of 0.59 μ_B and an esd of 0.26 μ_B (2.3σ), so the pair does
+    not clear the null test the gate reads (``MomentRow.pair_supported``); its
+    ΔBIC is −37.3, and the other class's −45.2 with its own pair's sum at
+    zero.  Every fit here converges,
+    the nuclear reference included, but only after the default stages' budget
+    is continued (``SOLVE_MAX_CONTINUATIONS``): 3, 5 and 7 continuations.
+
+    The pair esd once read 0.089 μ_B (6.7σ, "cleared").  That was never a
+    measurement: it multiplied the final stage's σ's by the moment stage's ρ
+    (−0.99821 against the final stage's −0.98591), read off the run's
+    cross-stage HIGH_CORRELATION finding, at a fit that had stopped on its
+    budget (review of #592).  Taken from the final stage's own covariance, the
+    same stopping point gives 0.247.  Re-converged, both the pre-#527 tree and
+    this one give 0.27 and 0.26.
     """
     s = solved_150k
     assert s.n_on_forbidden_lattice_points == 0
@@ -87,3 +92,12 @@ def test_the_150k_pattern_has_nothing_to_solve(solved_150k):
     assert s.best is None and s.margin is None
     refined = [t for t in s.trials if t.status == "refined"]
     assert refined and all(t.delta_bic <= 0.0 for t in refined)
+    assert all(t.fit_status == "converged" for t in refined)
+    assert not any(t.supported for t in refined)
+    paired = [m for t in refined for m in t.moments if m.paired_with]
+    assert paired, "the degenerate pair was not folded"
+    assert not any(m.pair_supported for m in paired)
+    # both classes fold a pair; the other one's sum sits at zero
+    lead = max(paired, key=lambda m: m.paired_magnitude)
+    assert 0.5 < lead.paired_magnitude < 0.7
+    assert 0.2 < lead.paired_magnitude_esd < 0.35

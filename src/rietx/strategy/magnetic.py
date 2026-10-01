@@ -224,6 +224,18 @@ SOLVE_RELEASE_FRACTION = 0.05
 #: as **different minima** rather than the same one reached twice.
 SOLVE_MINIMUM_RTOL = 1e-4
 
+#: How many times :func:`_fit` continues a fit that stopped on its iteration
+#: budget (``max_iter``), each continuation from where the last one stopped,
+#: with everything the plan freed by its end and the last stage's budget and
+#: tolerance.  A runaway guard, never a timer: it bounds a fit that is not
+#: going anywhere, and a fit still short after it is listed and not ranked
+#: (:attr:`MagneticTrial.fit_status`).  **Measured** on Cr₂WO₆ at 150 K (the
+#: tree's tutorial data, review of #592), where the default stages stop every
+#: fit on TRF's 400 evaluations: the nuclear reference needed 5
+#: continuations and the two refined classes 3 and 7, and the budget stops had
+#: left the reference 27.6 χ² and one class 18.2 χ² above their minima.
+SOLVE_MAX_CONTINUATIONS = 10
+
 _MOMENT_GLOB = "moment.dof"
 
 
@@ -351,6 +363,14 @@ class MagneticTrial:
     n_minima: int = 1
     #: which start won, named
     start: str = "flat"
+    #: the winning start's ``RefinementResult.status`` — ``"converged"``,
+    #: ``"max_iter"`` or ``"diverged"``, the fit's own vocabulary.  A fit that
+    #: stops on its iteration budget is continued from where it stopped, up to
+    #: :data:`SOLVE_MAX_CONTINUATIONS` times (:func:`_fit`); one still not
+    #: converged after that is listed with its numbers but is **not eligible** (:func:`_eligible_trials`), because its
+    #: ΔBIC is the budget's and not the data's.  ``None`` only on a trial this
+    #: module did not fit.
+    fit_status: str | None = None
     _structure: Structure | None = field(default=None, repr=False, compare=False)
     _result: object | None = field(default=None, repr=False, compare=False)
 
@@ -376,8 +396,8 @@ class KTrialSummary:
     ``matched``/``worst_offset_deg`` are the satellite step's own numbers for
     this k (``None`` when the k was not scored by it — a given ``k=`` or the
     forbidden-lattice-point route).  ``best_delta_bic`` is the best eligible
-    class's ΔBIC (:func:`_rank`'s own eligibility: refined, a supported
-    moment, ΔBIC > 0), or ``None`` if this k reached no eligible class.
+    class's ΔBIC (:func:`_rank`'s own eligibility: refined and converged, a
+    supported moment, ΔBIC > 0), or ``None`` if this k reached no eligible class.
     """
 
     k: tuple[str, str, str]
@@ -572,6 +592,11 @@ class MagneticSolution:
                  f"{trial.r_magnetic:.3f}" if trial.r_magnetic is not None else "-",
                  moment, str(len(trial.held)) + " dof"), widths)))
         rows.append("")
+        for trial in self.trials:
+            if trial.status == "refined" and not _converged(trial):
+                rows.append(f"  class {trial.class_index}: the fit stopped at "
+                            f"{trial.fit_status!r}, not 'converged', so it is "
+                            f"listed and not ranked")
         for trial in self.trials:
             if len(trial.members) > 1:
                 rows.append(f"  class {trial.class_index}: the powder cannot "
@@ -1089,6 +1114,10 @@ def _descend(parent, winner_trial: "MagneticTrial",
     n_points = int(winner_trial._result.statistics.n_points)
     audits: list[SubgroupAudit] = []
     beat: list[tuple[float, MagneticCandidate]] = []
+    #: subgroups whose refit stopped short of a minimum: their χ² is an upper
+    #: bound, so a margin that beats the winner still does, and one that does
+    #: not is the budget's answer rather than the data's
+    short: list[str] = []
     for _index, _members, candidate, _site_label in maximal:
         try:
             child = _state_k0_warm(parent, candidate, magnetic,
@@ -1118,6 +1147,8 @@ def _descend(parent, winner_trial: "MagneticTrial",
             bns_number=candidate.bns_number, label=candidate.label,
             n_moment_parameters=n_moment, delta_bic_over_winner=margin,
             status="refined"))
+        if result.status != "converged":
+            short.append(f"{candidate.label} ({result.status!r})")
         if margin > tie_width:
             beat.append((margin, candidate))
     if beat:
@@ -1143,6 +1174,10 @@ def _descend(parent, winner_trial: "MagneticTrial",
     note = (f"no subgroup supported at ΔBIC < {tie_width:.1f}" if best is None
             else f"no subgroup beats the winner beyond the tie width of "
                  f"{tie_width:.1f} (best {best:.1f})")
+    if short:
+        note += (f"; not settled for {', '.join(short)}, whose refit stopped "
+                 f"short of a minimum after {SOLVE_MAX_CONTINUATIONS} "
+                 f"continuations of its budget")
     return tuple(audits), note, ()
 
 
@@ -1248,6 +1283,19 @@ def _fit(structure, instrument, data, plan, ties=None, limits=None):
     for target, source, scale, offset in (ties or ()):
         ref.tie(target, source, scale=scale, offset=offset)
     result = ref.fit(data, plan=plan, two_theta_limits=limits)
+    # A budget stop is the budget's answer, not the data's, and ΔBIC compares
+    # two of them: continued from where it stopped, with everything the plan
+    # freed by its end (staging is cumulative) and the last stage's budget and
+    # tolerance, at most SOLVE_MAX_CONTINUATIONS times.  Whatever status the
+    # last one returns is the fit's (``MagneticTrial.fit_status``).
+    last = plan.stages[-1]
+    freed = list(dict.fromkeys(g for st in plan.stages for g in st.turn_on))
+    for _n in range(SOLVE_MAX_CONTINUATIONS):
+        if result.status != "max_iter":
+            break
+        result = ref.fit(data, plan=RefinementPlan(stages=[Stage(
+            f"{last.name} (continued)", freed, max_iter=last.max_iter,
+            ftol=last.ftol)]), two_theta_limits=limits)
     return ref, result
 
 
@@ -1514,27 +1562,41 @@ def _within_k_offset_margin(satellite_score: dict, reference_k, candidate_k,
 
 
 def _eligible_trials(trials) -> list["MagneticTrial"]:
-    """Every trial ``_rank`` would let compete for the win: refined, a
-    supported moment, ΔBIC > 0.
+    """Every trial ``_rank`` would let compete for the win: refined to a
+    converged fit, a supported moment, ΔBIC > 0.
 
     The one definition of "eligible" in this module — :func:`_rank`,
     :func:`_best_eligible_delta_bic` and :attr:`MagneticSolution.margin` all
-    call this rather than repeating the three-clause filter, because the
+    call this rather than repeating the filter, because the
     three had drifted apart once already (issue #390): a caller
     reading ``trials[1]`` as "the runner-up" without checking eligibility can
     land on a *disqualified* trial whose raw ΔBIC is not penalised by
     whatever excluded it and can exceed the true winner's — see
     :attr:`MagneticSolution.margin`'s docstring for the measured case.
     """
-    return [t for t in trials if t.status == "refined" and t.supported
-           and t.delta_bic is not None and t.delta_bic > 0.0]
+    return [t for t in trials if t.status == "refined" and _converged(t)
+           and t.supported and t.delta_bic is not None and t.delta_bic > 0.0]
+
+
+def _converged(trial) -> bool:
+    """Whether a refined trial's fit reached a minimum (``fit_status``)."""
+    return trial.fit_status in (None, "converged")
+
+
+def _budget_rivals(trials, floor: float) -> list["MagneticTrial"]:
+    """Trials kept out of the ranking only by a budget stop, whose ΔBIC would
+    have put them above ``floor`` — the ones a converged fit could have made
+    the winner or a tie, so the ranking must not be read without them."""
+    return [t for t in trials if t.status == "refined" and not _converged(t)
+            and t.supported and t.delta_bic is not None
+            and t.delta_bic > max(floor, 0.0)]
 
 
 def _best_eligible_delta_bic(trials) -> float | None:
     """The best ΔBIC among one k's eligible trials, or ``None``.
 
-    "Eligible" matches :func:`_rank` exactly (refined, a supported moment,
-    ΔBIC > 0) so a k with no eligible class here is exactly a k ``_rank``
+    "Eligible" matches :func:`_rank` exactly (refined and converged, a
+    supported moment, ΔBIC > 0) so a k with no eligible class here is exactly a k ``_rank``
     itself would report as having no winner.
     """
     eligible = [t.delta_bic for t in _eligible_trials(trials)]
@@ -1611,8 +1673,11 @@ def _rank(trials: list[MagneticTrial], tie_width: float, tie_r: float):
     Returns ``(ordered trials, tied class indices, verdict, reason)``.  Every
     trial is in the returned order, refusals and unsupported models included,
     because a ranked list is published whole; only the *eligible* ones — a
-    refined fit, a supported moment and evidence in favour of the fuller model
-    — can win or tie.
+    refined fit that converged, a supported moment and evidence in favour of
+    the fuller model — can win or tie.  A trial kept out only by a budget stop
+    (:func:`_budget_rivals`) whose ΔBIC would have reached the winner's tie
+    width, or would have been the only eligible one, makes the answer an
+    abstention: the budget, not the data, would otherwise have decided.
     """
     def parsimony(t: MagneticTrial) -> int:
         """The count parsimony is about: free moment DOFs of the whole model.
@@ -1639,6 +1704,20 @@ def _rank(trials: list[MagneticTrial], tie_width: float, tie_r: float):
                              -(t.delta_bic if t.delta_bic is not None
                                else -math.inf)))
     ordered = eligible + rest
+    rivals = _budget_rivals(
+        trials, eligible[0].delta_bic - tie_width if eligible else 0.0)
+    if rivals:
+        names = ", ".join(f"class {t.class_index} ({t.label}, ΔBIC "
+                          f"{t.delta_bic:.1f}, {t.fit_status!r})"
+                          for t in rivals)
+        return (tuple(ordered), (), "abstained",
+                f"{len(rivals)} trial fit(s) stopped short of a minimum after "
+                f"{SOLVE_MAX_CONTINUATIONS} continuations of the iteration "
+                f"budget and would have "
+                f"{'tied or beaten the leader' if eligible else 'been eligible'}"
+                f": {names}. Their ΔBIC is where the solver stopped, not a "
+                f"measurement, so the ranking is not stated; raise the stages' "
+                f"max_iter (plan=) and solve again")
     if not eligible:
         # Three different states reach "no winner", and saying the wrong one is
         # a diagnostic that is true of an intermediate state and false of the
@@ -1655,6 +1734,16 @@ def _rank(trials: list[MagneticTrial], tie_width: float, tie_r: float):
                     f"stated as a refinable model, so nothing was tested "
                     f"against the data — this is not a result about the "
                     f"specimen: {'; '.join(reasons)}")
+        short = [t for t in refined if not _converged(t)]
+        # said in the sentence, not only in the caveats: a verdict read off a
+        # fit that stopped short is a statement about where the solver
+        # stopped (the diagnostic-tense rule)
+        stopped = ("" if not short else
+                   f" ({len(short)} of the {len(refined)} stopped short of a "
+                   f"minimum on the iteration budget, so for "
+                   f"{'it' if len(short) == 1 else 'them'} this is where the "
+                   f"solver stopped: "
+                   + ", ".join(f"class {t.class_index}" for t in short) + ")")
         if refined and not any(t.supported for t in refined):
             return (tuple(ordered), (), "nothing to solve",
                     f"{len(refined)} candidate(s) refined and not one came "
@@ -1662,14 +1751,14 @@ def _rank(trials: list[MagneticTrial], tie_width: float, tie_r: float):
                     f"every degenerate pair's quadrature sum) is at its "
                     f"floor or below MOMENT_SUPPORT_SIGMA of its own esd, "
                     f"which is what an unmagnetised pattern looks like under a "
-                    f"magnetic model")
+                    f"magnetic model{stopped}")
         n_supported = sum(1 for t in refined if t.supported)
         return (tuple(ordered), (), "nothing to solve",
                 f"{n_supported} of {len(refined)} refined candidate(s) came back "
                 f"with a supported moment but none improved on the nuclear "
                 f"model (every ΔBIC ≤ 0), so "
                 f"the moment is buying no agreement and there is nothing here "
-                f"a magnetic model explains")
+                f"a magnetic model explains{stopped}")
     best = eligible[0]
     tie = [t for t in eligible if best.delta_bic - t.delta_bic <= tie_width]
     if len(tie) == 1:
@@ -2023,6 +2112,12 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                 "magnetic_symmetry": None})])
             _r, res = _fit(bare, instrument, data, nuclear_plan,
                            limits=limits)
+            if res.status != "converged":
+                caveats.append(
+                    f"the nuclear reference of a {len(child.atoms)}-atom "
+                    f"{child.space_group} cell stopped at {res.status!r} after "
+                    f"{SOLVE_MAX_CONTINUATIONS} continuations of its iteration "
+                    f"budget; every ΔBIC measured against it is provisional")
             references[key] = (_chi2_absolute(res.statistics),
                                int(res.statistics.n_free_parameters),
                                float(res.statistics.rwp),
@@ -2137,7 +2232,16 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                 held=tuple(result.stages[-1].held) if result.stages else (),
                 anti_translation_drift=drift,
                 n_starts=n_starts, n_minima=n_minima, start=start,
+                fit_status=result.status,
                 _structure=ref.fitted_structure, _result=result))
+            if result.status != "converged":
+                caveats.append(
+                    f"class {index}: the trial fit stopped at "
+                    f"{result.status!r} after {SOLVE_MAX_CONTINUATIONS} "
+                    f"continuations of its iteration budget, so its ΔBIC "
+                    f"({trials[-1].delta_bic:.1f}) measures where the solver "
+                    f"stopped rather than a minimum; it is listed and not "
+                    f"ranked")
 
         return trials
 

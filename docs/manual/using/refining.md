@@ -667,6 +667,7 @@ One refusal: a non-neutron histogram, by name. Everything else is reported.
 | `MagneticTrial.free_amplitudes` | amplitudes the representative site's family has before any data is looked at | per site: on a parent with several magnetic sites this is not the model's parameter count, and the ranking's parsimony key reads `MagneticTrial.n_moment_parameters` instead |
 | `MagneticTrial.determinable_amplitudes` | how many of them a powder to `d_min` can determine | the deficit is the flat directions |
 | `MagneticTrial.status` | `"refined"` or `"refused"` | |
+| `MagneticTrial.fit_status` | the trial fit's own `RefinementResult.status`: `"converged"`, `"max_iter"` or `"diverged"` | a fit that stops on its budget is continued up to `SOLVE_MAX_CONTINUATIONS` times; one still short is listed and not ranked, and the caveats name it |
 | `MagneticTrial.refusal` | the message, when refused | e.g. a magnetic orbit that cannot cover the nuclear one |
 | `MagneticTrial.rwp`, `MagneticTrial.gof` | the trial's own agreement | context, never the ranking key |
 | `MagneticTrial.delta_bic` | the primary key | positive favours the magnetic model |

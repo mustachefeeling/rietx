@@ -1430,10 +1430,12 @@ def test_a_pair_whose_quadrature_sum_is_inside_its_esd_stays_unsupported():
 def test_nothing_to_solve_counts_the_supported_classes_not_the_refined_ones():
     """The sentence says how many trials carried a supported moment.
 
-    Measured on Cr₂WO₆ at 150 K (``test_magnetic_solve_acceptance.py``): two
-    classes refined, one of them with a degenerate pair whose quadrature sum
-    clears the null test, both at ΔBIC < 0.  The verdict is right, and the
-    sentence beside it used to say both had a supported moment.
+    Found on Cr₂WO₆ at 150 K (``test_magnetic_solve_acceptance.py``) when one
+    class's degenerate pair read as clearing the null test, both classes at
+    ΔBIC < 0: the verdict was right and the sentence said both had a
+    supported moment.  That pair esd was a cross-stage ρ (review of #592) and
+    the pair no longer clears, so the pattern no longer exercises this and the
+    test is synthetic.
     """
     supported = _trial(0, delta_bic=-33.0, r_mag=0.14, free=2, bns="1.1")
     unsupported = _trial(1, delta_bic=-46.0, r_mag=0.14, free=2, bns="2.2",
@@ -1592,3 +1594,110 @@ def test_the_kept_covariance_is_the_answer_stages():
                                     [top.path_a, top.path_b])
     rho = cov[0, 1] / np.sqrt(cov[0, 0] * cov[1, 1])
     assert rho == pytest.approx(top.rho, abs=1e-9)
+
+
+# ============================================== a budget stop is not a minimum
+
+def test_a_budget_stop_is_continued_from_where_it_stopped():
+    """Review of #592: both 150 K Cr₂WO₆ trials stopped on TRF's evaluation
+    budget 18.4 χ² above their minimum and were ranked as refined.  ``_fit``
+    continues such a fit from where it stopped, freeing everything the plan
+    freed by its end, at most ``SOLVE_MAX_CONTINUATIONS`` times."""
+    from rietx.strategy.magnetic import _fit
+
+    instrument = neutron()
+    data = simulate(tetragonal(), instrument)
+    starved = rx.RefinementPlan(stages=[
+        rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"],
+                 max_iter=1),
+        rx.Stage("all", ["phases.*.cell.*", "phases.*.atoms.*.biso"],
+                 max_iter=1)])
+    _ref, result = _fit(rx.Structure(phases=[tetragonal()]), instrument,
+                        data, starved)
+    assert [s.name for s in result.stages] == ["all (continued)"]
+    freed = {p.path for p in result.parameters if p.vary}
+    assert "phases.0.scale" in freed and "phases.0.cell.a" in freed
+    # each continuation keeps the last stage's one-iteration budget, so this
+    # one may still stop short; whatever the last returns is the trial's
+    assert result.status in ("converged", "max_iter")
+
+
+def test_a_converged_fit_is_not_refitted():
+    from rietx.strategy.magnetic import _fit
+
+    instrument = neutron()
+    data = simulate(tetragonal(), instrument)
+    _ref, result = _fit(rx.Structure(phases=[tetragonal()]), instrument,
+                        data, NUCLEAR_PLAN)
+    assert result.status == "converged"
+    assert [s.name for s in result.stages] == ["scale", "cell"]
+
+
+def _short(trial, status="max_iter"):
+    import dataclasses
+
+    return dataclasses.replace(trial, fit_status=status)
+
+
+def test_a_trial_that_stopped_on_its_budget_is_not_eligible():
+    from rietx.strategy.magnetic import _eligible_trials
+
+    good = _trial(0, delta_bic=900.0, r_mag=0.1, free=1, bns="1.1")
+    assert _eligible_trials([good]) == [good]
+    for status in ("max_iter", "diverged"):
+        assert _eligible_trials([_short(good, status)]) == []
+
+
+def test_a_budget_stopped_rival_makes_the_ranking_an_abstention():
+    """The budget must not decide: a trial kept out only because it stopped
+    short, whose ΔBIC would have reached the leader's tie width, is named and
+    the answer is not stated."""
+    leader = _trial(0, delta_bic=900.0, r_mag=0.1, free=1, bns="1.1")
+    rival = _short(_trial(1, delta_bic=1200.0, r_mag=0.1, free=1, bns="2.2"))
+    _o, tied, verdict, reason = _rank([leader, rival], SOLVE_TIE_DELTA_BIC,
+                                      0.02)
+    assert verdict == "abstained" and tied == ()
+    assert "class 1" in reason and "'max_iter'" in reason
+    # alone it would have been the only eligible class: still not a null result
+    _o, _t, verdict, reason = _rank([rival], SOLVE_TIE_DELTA_BIC, 0.02)
+    assert verdict == "abstained" and "been eligible" in reason
+
+
+def test_nothing_to_solve_says_which_trials_stopped_short():
+    """An unsupported trial read at a budget stop still leaves nothing to
+    solve, but the sentence says the reading is where the solver stopped."""
+    short = _short(_trial(1, delta_bic=-40.0, r_mag=0.1, free=1, bns="2.2",
+                          supported=False))
+    done = _trial(0, delta_bic=-30.0, r_mag=0.1, free=1, bns="1.1",
+                  supported=False)
+    _o, _t, verdict, reason = _rank([done, short], SOLVE_TIE_DELTA_BIC, 0.02)
+    assert verdict == "nothing to solve"
+    assert "1 of the 2 stopped short" in reason and "class 1" in reason
+    _o, _t, _v, reason = _rank([done], SOLVE_TIE_DELTA_BIC, 0.02)
+    assert "stopped short" not in reason
+    # the other "nothing to solve" sentence: supported, and ΔBIC ≤ 0
+    held_back = _short(_trial(2, delta_bic=-10.0, r_mag=0.1, free=1,
+                              bns="3.3"))
+    _o, _t, verdict, reason = _rank([done, held_back], SOLVE_TIE_DELTA_BIC,
+                                    0.02)
+    assert verdict == "nothing to solve"
+    assert reason.startswith("1 of 2 refined candidate(s)"), reason
+    assert "1 of the 2 stopped short" in reason and "class 2" in reason
+
+
+def test_a_budget_stopped_trial_far_behind_the_leader_does_not_block_it():
+    leader = _trial(0, delta_bic=900.0, r_mag=0.1, free=1, bns="1.1")
+    behind = _short(_trial(1, delta_bic=100.0, r_mag=0.1, free=1, bns="2.2"))
+    ordered, tied, verdict, _why = _rank([leader, behind],
+                                         SOLVE_TIE_DELTA_BIC, 0.02)
+    assert verdict == "solved" and tied == (0,)
+    assert ordered[0].bns_number == "1.1"
+    s = MagneticSolution(
+        verdict=verdict, reason=_why, criterion="c", phase="p",
+        space_group="P 1", k=("0", "0", "0"), k_route="given", k_reason="r",
+        k_candidates=(), sites=("Mn1",), n_residual_peaks=0,
+        n_on_nuclear_lines=0, n_on_forbidden_lattice_points=0,
+        n_unexplained=0, trials=ordered, tied=tied,
+        tie_width=SOLVE_TIE_DELTA_BIC, d_min=1.0, nuclear_rwp=0.2,
+        nuclear_gof=1.0, nuclear_r_magnetic=0.5, n_magnetic_channels=10)
+    assert "class 1: the fit stopped at 'max_iter'" in str(s)
