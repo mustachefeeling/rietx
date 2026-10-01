@@ -35,15 +35,18 @@ means read nothing, and `True` still owes every warning its answer (WP-1336).
 ## Step 9 — the width census runs on the fit
 
 `PEAK_WIDTH_LAW_MISMATCH` also fires on a refinement. The indexing census (the
-median FWHM of the 12 most prominent lines) is compared with each phase's
-*fitted* width at those lines, instrument plus size and strain, and fires when
-no phase comes within 3× either way; `value` is the ratio, `where` the closest
-phase. Above 3 the data is broader than the model can make it: free the
+median FWHM of the 12 most prominent lines) is compared with the *fitted*
+width, instrument plus size and strain, of each phase the data can see, and
+fires when none comes within 3× either way; `value` is the ratio, `where` the
+closest phase. A phase below `PHASE_SUPPORT_SIGMA` is left out, so a runaway
+width on a phase at its scale floor cannot silence it. Above 3 the data is broader than the model can make it: free the
 phase's `lor_size`/`lor_strain`, or calibrate the instrument, before quoting
 intensities. Below 1/3 a width term ran away. A phase with a Stephens
 `microstrain` block is not judged (Measured: synthetic LaB6, `lor_size` 0.1°
 against √W ≈ 0.016°, fired at 6.3 with no size term and silent with it freed;
-silent at 1.01–1.32 on the NAC, SRM 660c and FAP examples, WP-1336).
+silent at 1.01–1.32 on the NAC, SRM 660c and FAP examples, WP-1336; fired at
+4.0 beside a 7e-6σ phase whose width came within 3×, silent when that phase
+was visible at 7σ).
 
 ## Step 12 — the geometry table's esds
 

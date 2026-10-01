@@ -10,6 +10,7 @@ terms names the width with ``PEAK_WIDTH_LAW_MISMATCH``, and the same pattern
 with the size term freed does not.
 """
 
+from pathlib import Path
 from typing import get_args
 
 import numpy as np
@@ -18,12 +19,13 @@ import pytest
 import rietx as rx
 from rietx import Instrument, PatternData, Refinement
 from rietx.indexing.peaks import detect_peaks, predicted_fwhm, width_census
-from rietx.model.forward import compile_model
+from rietx.model.forward import PHASE_SUPPORT_SIGMA, compile_model
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Diagnostic, Parameter
 from rietx.schemas.instrument import BackgroundChebyshev
 from tests.test_schemas import make_lab6
 
+DATA = Path(__file__).parent / "data"
 WAVELENGTH = 0.4139
 TRUE_A = 4.15660
 TRUE_W = 2.5e-4
@@ -124,11 +126,77 @@ def test_the_refinement_census_is_the_indexing_census(broad):
     assert len(positions) == 12
 
 
+# -- a phase the data cannot see is not a width candidate (#585 follow-up) ----
+
+#: the major phase's specimen broadening for the two-phase case: the census
+#: reads 0.065° against the declared instrument's 0.016°, a factor of 4
+MAJOR_LOR_SIZE = 0.06
+#: the minor phase's seeded (or runaway) size term — wide enough to land
+#: within WIDTH_MISMATCH_RATIO of the census, which is what made it a decoy
+MINOR_LOR_SIZE = 0.1
+PLAN_MAJOR_ONLY = rx.RefinementPlan(stages=[
+    rx.Stage("scale_bkg", ["phases.0.scale", "instrument.background.*"], max_iter=30),
+    rx.Stage("cell", ["phases.0.cell.*", "instrument.zero_shift"], max_iter=30),
+])
+
+
+def _fit_with_minor(data: PatternData, minor_scale: float):
+    """LaB6 with nothing free to widen it, beside a second cubic phase that
+    carries ``MINOR_LOR_SIZE`` and is held at ``minor_scale``.  Returns the
+    result and each phase's ``phase_support`` at the returned values."""
+    structure, ins = _lab6()
+    minor = make_lab6().phases[0]
+    minor.name = "minor"
+    for axis in (minor.cell.a, minor.cell.b, minor.cell.c):
+        axis.value = 5.1
+    minor.scale.value = minor_scale
+    minor.lor_size.value = MINOR_LOR_SIZE
+    structure.phases.append(minor)
+    ins.background = BackgroundChebyshev.with_terms(3)
+    ref = Refinement(structure, ins)
+    result = ref.fit(data, plan=PLAN_MAJOR_ONLY)
+    model = compile_model(ref.fitted_structure, ref.fitted_instrument, data,
+                          mode="rietveld")
+    table = ParameterTable(ref.fitted_structure, ref.fitted_instrument)
+    return result, model.phase_support(table.decode(table.x0()))
+
+
+@pytest.fixture(scope="module")
+def four_times_broad():
+    return _broad_pattern(MAJOR_LOR_SIZE)
+
+
+def test_an_invisible_phase_does_not_silence_the_width_warning(four_times_broad):
+    """Yue's case on #585: the major phase is 4x too narrow, and a minor phase
+    at its scale floor carries a size term whose width lands near the census.
+    Its width explains no line of the data, so it must not be the "closest
+    phase" that silences the warning.  On main before the fix this fit
+    returned no ``PEAK_WIDTH_LAW_MISMATCH`` at all."""
+    result, support = _fit_with_minor(four_times_broad, minor_scale=1e-12)
+    assert support[1] < PHASE_SUPPORT_SIGMA <= support[0]
+    rows = _width_rows(result)
+    assert len(rows) == 1, [d.code for d in result.diagnostics]
+    (row,) = rows
+    assert row.where[0] == "phases.0"
+    assert row.value is not None and row.value >= 3.0
+
+
+def test_a_visible_minor_phase_still_takes_part(four_times_broad):
+    """The positive arm: the filter is support, not rank.  The same minor
+    phase at a scale the data can see is a candidate as before, and its
+    width, inside WIDTH_MISMATCH_RATIO of the census, keeps the fit silent."""
+    result, support = _fit_with_minor(four_times_broad, minor_scale=1e-6)
+    assert support[1] >= PHASE_SUPPORT_SIGMA
+    assert not _width_rows(result), [d.message for d in _width_rows(result)]
+
+
 # -- #243: status and diagnostics read one way about one solve ----------------
 
 def _nac(seeded: bool):
-    data = rx.read_pattern("tests/data/11BM_NAC.fxye")
-    structure = rx.Structure.from_cif("tests/data/cod_1000236.cif")
+    if not (DATA / "11BM_NAC.fxye").exists():
+        pytest.skip("11-BM NAC dataset not present")
+    data = rx.read_pattern(DATA / "11BM_NAC.fxye")
+    structure = rx.Structure.from_cif(str(DATA / "cod_1000236.cif"))
     ins = rx.Instrument.debye_scherrer(wavelength=0.413957)
     ins.background = BackgroundChebyshev.with_terms(6)
     if seeded:  # as examples/nac_11bm.py seeds it
