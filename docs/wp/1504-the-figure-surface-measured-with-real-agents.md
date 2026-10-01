@@ -140,6 +140,11 @@ condition is enforced in a shim, never in the prompt.
     150K only after the harness item had begun. Kept items: harness estimated
     45 requests, took 48 (decided at 128K); pilot-1.1 estimated 5, took 5.
     The main session ran 91 requests, peaked at 282K and cost $7.90.
+  - Fast selection on the final tree (`[dev]`, darwin): 7311 passed, 159
+    skipped, 8:17 with no check for another session's suite. No test was
+    added, and `tests.added_test_times` agrees: zero. The full selection did
+    not run, because nothing here can move a measured number: the harness
+    lives under `docs/wp/` and pytest never collects it.
 
   *Gotchas.*
   - `render_structure(hidden=("La",))` drops La but leaves the B half of
@@ -158,7 +163,24 @@ condition is enforced in a shim, never in the prompt.
     1.1's read-outs and mean nothing here. Each `score.json` holds this
     round's.
 
-  Next: bring `run.py --menu` to the maintainer again. B (one repeat of
+  *Review* (`/code-review high --fix`): ten findings, seven fixed in one
+  commit. The fixes cover first reads from a process killed before its exit
+  row, path containment in place of a string prefix, a judge verdict compared
+  case-blind, two guards, and `check()` now holding the launch flags to
+  `PROTOCOL.md`. None moved a committed score. Three were declined, each
+  needing an amendment. (1) The judge launches without `--setting-sources`.
+  All 16 judge sessions so far used `Read` alone and invoked no skill, so
+  every verdict on record stands. (2) Two comments in `fig_trace.py` are
+  stale: `_short` records a rotation in full, and `RIETX_FIG_RUN` now holds
+  `run@session`. The prepared venvs hold a copy of the shim, so editing it
+  would part the record from what ran. (3) The registered text says
+  `RIETX_FIG_RUN` names the run.
+
+  Next: write amendment 1.2 before any more runs: the judge gains
+  `--setting-sources project,local`, and the two shim comments and the
+  `RIETX_FIG_RUN` wording are corrected. The flag changes the judge's launch,
+  so offer J again ($1.30) with the menu. Then bring `run.py --menu` to the
+  maintainer. B (one repeat of
   every cell, 24 runs) comes before C, because N = 1 per cell already says
   whether Sonnet bypassing the skill is general or a gypsum quirk. Then the
   table, one line per `report` field, and the cuts.
