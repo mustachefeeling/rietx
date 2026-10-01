@@ -809,6 +809,7 @@ do.
 | `TopasModel.background_terms` | how many background coefficients were refined |
 | `TopasModel.skipped_blocks` | phase blocks that stated no name, or neither a `space_group` nor a `mag_space_group`, recorded whether or not a diagnostics list was passed |
 | `TopasModel.coverage` | what the reader met and did not carry; see below |
+| `TopasModel.time_of_flight` | the datasets that are neutron time of flight, each with the constructs that said so; `to_structure` refuses their phases by name (issue #193), and a file whose every dataset is one states no `geometry` |
 
 `read_fullprof_pcr` returns a `FullProfModel`:
 
