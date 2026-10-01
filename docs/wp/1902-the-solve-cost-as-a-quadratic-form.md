@@ -1,6 +1,6 @@
 # WP-1902 — the solve cost as a quadratic form, and the doublet question first
 
-Milestone: v1.9 · Status: 🔄 2026-10-01 — the spike and `solve/cost.py` landed (PR #580); the "poor" bar is open
+Milestone: v1.9 · Status: 🔄 2026-10-01 — the spike and `solve/cost.py` landed (PR #580); one task left: the "poor" refusal reads `RefinementResult.usable`
 Depends on: —
 Priority: P2 2026-09-30 — the design gate for the direct-space route; every engine chunk reads this cost
 
@@ -44,7 +44,8 @@ the cell and the background held, and W = diag(1/σ²):
   (prototype, amendment (a)). Store it sparse plus low rank when N_refl is large.
 
 Refusals by name: a magnetic phase; a Rietveld-mode model; a poor or
-unconverged extraction.
+unconverged extraction. "Poor" means `not result.usable` (WP-1336), set
+2026-10-01; a tighter bar waits for a measurement on public data.
 
 ## Non-goals
 
@@ -54,10 +55,13 @@ unconverged extraction.
 
 ## Tasks
 
-- [ ] Spike: per-line Ω against Rietveld `evaluate` on FAP (lab doublet) and NAC; record the residuals and the decision
-- [ ] `solve/cost.py`: c, r, M, the floor from S0's own solve, χ² from I
-- [ ] Tests: Ω·I equals `evaluate` to 1e-14 at ten random moves on NAC and on FAP; a wrong Ω fails; the three refusals
-- [ ] Skill: none until a public entry exists
+- [x] Spike: per-line Ω against Rietveld `evaluate` on FAP (lab doublet) and NAC; record the residuals and the decision
+- [x] `solve/cost.py`: c, r, M, the floor from S0's own solve, χ² from I
+- [x] Tests: Ω·I equals `evaluate` to 1e-14 at ten random moves on NAC and on FAP; a wrong Ω fails; the three refusals
+- [x] Skill: none until a public entry exists
+- [ ] `from_pawley`'s "poor" refusal reads `result.usable` instead of its own
+      Rwp test; a test refuses a converged extraction that carries an
+      error-level diagnostic (set 2026-10-01)
 
 ## Acceptance
 
@@ -73,6 +77,20 @@ unconverged extraction.
 - Issue #562; WP-1515.
 
 ## Handover log
+
+### 2026-10-01 (2nd session) — the "poor" bar set
+
+"A poor extraction" now has a meaning: a fit the package itself calls unusable,
+`not result.usable` (WP-1336). That is the converged check plus every
+error-level diagnostic. Today it gives the same answer as PR #580's own test,
+because `MODEL_FAR_FROM_DATA` at Rwp > 0.8 is the only error-level code the
+refinement path emits. The difference comes later: an error-level code added
+after today refuses an extraction with no edit here, where the current test
+keeps its own copy of one threshold. No tighter quality bar is set, because none
+has been measured on public data, which is the reason `from_pawley`'s docstring
+already gives. The engine WPs that read this cost should measure one before
+they assume one. Set at the maintainer's request in a `/pr-review` session.
+*Next:* the new task, a one-line change in `from_pawley` and its test.
 
 - **2026-10-01** — The solve cost is on `main`. `solve/cost.py` turns a Le Bail or
   Pawley extraction into a quadratic form in the reflection intensities, so a

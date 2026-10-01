@@ -1,8 +1,7 @@
 # WP-1802 — the fragment: a body template with a frame and declared bonds
 
-Milestone: v1.8 · Status: 🔄 2026-10-01 — every task landed (PR #579); ready to close
+Milestone: v1.8 · Status: ✅ 2026-10-01 — `crystallography/fragments.py`: the fragment type with its body frame and declared bonds, and the Z-matrix builder (PR #579)
 Depends on: 1801 soft (the rotation of a template into place)
-Priority: P3 2026-09-30 — a building block; no user sees it until 1803's seam and a later WP exist
 
 ## Goal
 
@@ -37,10 +36,10 @@ Scoped in issue #561 (chunk R1) and WP-1514, amended by the 2026-09-30 review.
 
 ## Tasks
 
-- [ ] `Fragment` type, body frame, DOF count, declared bonds
-- [ ] Z-matrix builder; a collinear triple raises naming the atoms; the plane convention pinned
-- [ ] Tests: ideal D6h benzene; a Z-matrix cyclopentadienyl round trip; a linear fragment gets 2 DOFs; a near-linear tolerance case
-- [ ] Skill: none, no public surface
+- [x] `Fragment` type, body frame, DOF count, declared bonds
+- [x] Z-matrix builder; a collinear triple raises naming the atoms; the plane convention pinned
+- [x] Tests: ideal D6h benzene; a Z-matrix cyclopentadienyl round trip; a linear fragment gets 2 DOFs; a near-linear tolerance case
+- [x] Skill: none, no public surface
 
 ## Acceptance
 
@@ -54,6 +53,12 @@ Scoped in issue #561 (chunk R1) and WP-1514, amended by the 2026-09-30 review.
 - Issue #561; WP-1514; WP-1319.
 
 ## Handover log
+
+### 2026-10-01 (2nd session) — closed
+
+Closed. Every task and acceptance row has landed (PR #579), and the entry below
+says what the review established. Nothing is forwarded: WP-1803's seam is the
+fragment's only consumer, and its spike is open as PR #596. *Next:* WP-1803.
 
 - **2026-10-01** — The fragment type is on `main`. A rigid body can now be stated as a
   template with a frame and declared bonds, built by hand or from a Z-matrix.

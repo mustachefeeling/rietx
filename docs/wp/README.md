@@ -21,7 +21,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1336](1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | 2026-10-01 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1337](1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | 2026-09-30 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 2026-09-30 | P3 | [v1.6](#v1-6) |
-| [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | 2026-10-01 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-10-01 | P2 | [v1.6](#v1-6) |
 | [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 2026-09-24 | P1 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1451](1451-the-extinction-a-powder-has.md) | The extinction a powder has | 2026-09-30 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
@@ -30,8 +29,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1527](1527-foreign-files-spell-a-species-as-the-program-does.md) | Foreign files spell a species as the other program does | 2026-10-01 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
-| [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | 2026-10-01 | P2 | [v1.8](#v1-8) |
-| [1802](1802-the-fragment-type.md) | The fragment: a body template with a frame and declared bonds | 2026-10-01 | P3 | [v1.8](#v1-8) |
 | [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | 2026-10-01 | P2 | [v1.8](#v1-8) |
 | [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | 2026-10-01 | P2 | [v1.9](#v1-9) |
 
@@ -384,8 +381,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | 🔄 2026-10-01 | P2 | — |
-| [1802](1802-the-fragment-type.md) | The fragment: a body template with a frame and declared bonds | 🔄 2026-10-01 | P3 | — ([1801](1801-rotation-mathematics.md) soft) |
+| [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | ✅ 2026-10-01 | — | — |
+| [1802](1802-the-fragment-type.md) | The fragment: a body template with a frame and declared bonds | ✅ 2026-10-01 | — | — ([1801](1801-rotation-mathematics.md) soft) |
 | [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | 🔄 2026-10-01 | P2 | [1801](1801-rotation-mathematics.md) |
 
 ## <a id="v1-9"></a>v1.9 — structure solution
@@ -435,7 +432,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1336](1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | 🔄 2026-10-01 | P2 | — ([1310](1310-report-repeats-itself.md) soft) |
 | [1337](1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | 🔄 2026-09-30 | P3 | — ([1311](1311-walking-parameter-bounds.md), [1321](1321-persisted-bounds-repair.md) soft) |
 | [1342](1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ✅ 2026-09-19 | — | — |
-| [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | 🔄 2026-10-01 | P3 | — |
+| [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | ✅ 2026-10-01 | — | — |
 | [1414](1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ✅ 2026-09-22 | — | — ([1341](1341-a-joint-fit-has-no-report.md) soft) |
 | [1415](1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | ✅ 2026-09-24 | — | — |
 | [1417](1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ✅ 2026-09-27 | — | — ([1339](1339-where-the-improvement-lives.md) soft) |
