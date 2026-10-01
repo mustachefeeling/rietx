@@ -41,6 +41,9 @@ Stated as a chemist would, from the 21 phases in
 - **Before**: the WP-1470 tree. The agent has `render_structure`, the
   dict, and the manual as it was. Cuts and extents must be done by hand.
 - **After**: the WP-1503 tree.
+- **Fixed**: WP-1529's merge, `1b837e03` (`PROTOCOL.md` § Amendment 1.3).
+  Round B's three fixes: the skill names figures, no bare polyhedron centre
+  outside the cell, and `dangling_bonds` counts `hidden=` stubs.
 - Sonnet and Opus, at the default effort, three repeats each.
 - The agent gets the skill and a shell, and nothing staged in its folder.
 
@@ -57,19 +60,6 @@ Stated as a chemist would, from the 21 phases in
 
 `docs/wp/1504-eval/` holds the harness, the rubric and the run log. A
 condition is enforced in a shim, never in the prompt.
-
-### Inherited
-
-- **2026-10-01, from WP-1529** (PR #635). Pin the third condition to that
-  PR's merge commit on `main`. Three changes reach the agents. The skill's
-  description names structure figures. A polyhedron centre outside the cell
-  is drawn only while its site's polyhedra are hidden, as in VESTA.
-  `report.dangling_bonds` counts the stubs `hidden=` leaves (calcite under
-  `hidden=("Ca",)`: 112). Two checks for the round. Do
-  `reference_figures.py`'s `without_bare_centres` and `carbonate_groups`
-  still change the picture? They should not need to. And round B's
-  measurement missed calcite: it drew 8 bare Ca on a default-drawn site, so
-  round B's calcite runs drew them too.
 
 ## Non-goals
 
@@ -95,6 +85,10 @@ condition is enforced in a shim, never in the prompt.
   trigger rated. Superseded in part, 2026-10-01: 1501-1503 are closed and
   take no `### Inherited`, so round B's three fixes are filed as WP-1529.
   1505's trigger is still to rate, after the round on 1529's tree.
+- [x] The fixed condition: amendment 1.3, `run.py prepare ROOT fixed`, and
+  the two inherited checks on `reference_figures.py`'s helpers.
+- [ ] The fixed round, on the picked cells. 2026-10-01: the maintainer
+  picked B, one run of each of the 14 fixed cells.
 
 ## Acceptance
 
