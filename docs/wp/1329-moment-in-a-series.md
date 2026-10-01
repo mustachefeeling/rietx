@@ -1,6 +1,6 @@
 # WP-1329 — the moment in a series: the onset, the hold, the trajectory
 
-Milestone: v1.6 · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #522)
+Milestone: v1.6 · Status: 🔄 2026-10-01 — tasks 1–4 landed (PR #522); a real ramp longer than the Cr₂WO₆ pair (task 5) and two review follow-ups remain
 Depends on: 1327 (the moment); 1326 soft (the satellite arm per pattern)
 Priority: P3 2026-09-23 — waits on 1327's moment; P2 when it lands
 
@@ -122,6 +122,21 @@ chain on the same data is reported as a range, never gated.
   [1325](1325-parametric-series.md) the parametric question.
 
 ## Handover log
+
+- **2026-10-01** — A sequential magnetic refinement now reports the moment
+  per pattern and where it switches on. Each `SeriesEntry` carries the moment
+  arm, `SeriesResult` brackets the onset in each direction of the chain and
+  folds the two readings, and the trajectory plot marks the held patterns.
+  *Done:* PR #522 (`67e9737e`), merged as `05646879` by `/pr-review`, closing
+  #481; `SCHEMA_VERSION` is 0.38. Tested on a synthetic ramp and on the public
+  Cr₂WO₆ HB-2A pair. It was reviewed over five rounds; the last head was a
+  rebase, and `git range-diff` shows only the claim commit changed.
+  *Gotchas:* `SeriesEntry.magnetic`'s comment names `_entry_from_result` as
+  its writer, but the writer is `_moment_evidence`, called in `_chain`
+  (`sequential.py:1577`). `_with_onset_agreement` does not compare `sense`, so
+  two brackets that overlap with opposite senses read as agreeing. Both were
+  posted as follow-ups. *Next:* the two follow-ups. Task 5, a real public ramp
+  (search the corpus, then ask), is open.
 
 - **2026-09-02** — created, from the assessment of PR #221, which did not
   reach the series. Added because the ordering transition is the neutron
