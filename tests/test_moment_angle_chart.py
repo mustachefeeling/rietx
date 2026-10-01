@@ -30,6 +30,7 @@ import pytest
 
 import rietx as rx
 from rietx.crystallography.magnetic.moments import canonical_dofs, moment_from_dofs
+from rietx.model import compiled
 from rietx.optimize.least_squares import rechart_outcome
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter as P
@@ -176,6 +177,63 @@ def test_a_commit_lands_in_the_chart_and_moves_no_moment_and_no_esd(
     assert bool((s == -1.0).any()) is reflected
 
 
+def test_the_antipode_signs_the_polar_column_even_where_its_value_stays():
+    """Review of #631, item 1: θ = π/2 is the seed of every in-plane moment
+    and the antipode maps it to π − θ = π/2.  The value stays, the column is
+    still negated, and a sign recorded only on a changed value left ρ(μ, θ)
+    and ρ(θ, φ) in the other chart."""
+    table = _table((1.0, 1.0, 0.0), ("x,y,z,+1",))
+    raw = [-1.0, np.pi / 2, 0.3]
+    theta = _with_dofs(table, raw)
+    _, expected = canonical_dofs(raw)
+    assert expected.tolist() == [-1.0, -1.0, 1.0]
+    signs = table.commit(theta)
+    free = table.free_paths
+    got = [signs[free.index(f"{BASE}.moment.dof{k}")] for k in range(3)]
+    assert got == expected.tolist()
+    by = {e.path: e.value for e in table.entries}
+    assert by[f"{BASE}.moment.dof1"] == np.pi / 2
+
+
+def _hold(table, path, value):
+    """A caller's ``hold`` as the table carries it (``Entry.held``)."""
+    e = next(e for e in table.entries if e.path == path)
+    e.value, e.held, e.vary = value, True, False
+    table._rebuild()
+
+
+@pytest.mark.parametrize("ops, raw, held", [
+    # n = 2: a held azimuth under a negative modulus is not turned by π
+    (("x,y,z,+1", "x,y,-z,-1"), [-3.0, 0.4], 1),
+    # n = 3: a held polar angle under a negative modulus is not π − θ'd, and
+    # the free azimuth keeps only its whole turns
+    (("x,y,z,+1",), [-2.0, 0.7, 0.3 + 4 * np.pi], 1),
+    # n = 3: a held azimuth past a turn is not wrapped either
+    (("x,y,z,+1",), [2.0, 0.7, 0.3 + 4 * np.pi], 2),
+])
+def test_a_caller_held_angle_keeps_the_number_the_caller_set(ops, raw, held):
+    """Review of #631, item 2: a ``hold`` is a number the caller set, and the
+    next stage and the next pattern of a chain start from it."""
+    table = _table((3.0, 0.5, 0.0) if len(raw) == 2 else (1.0, 1.0, 2.0), ops)
+    path = f"{BASE}.moment.dof{held}"
+    _hold(table, path, raw[held])
+    theta = table.x0()
+    free = table.free_paths
+    for k, v in enumerate(raw):
+        if k != held:
+            theta[free.index(f"{BASE}.moment.dof{k}")] = v
+    expected = moment_from_dofs(table.moment_frames()[BASE], raw)
+    signs = table.commit(theta)
+    by = {e.path: e.value for e in table.entries}
+    assert by[path] == raw[held]
+    assert by[f"{BASE}.moment.dof0"] == raw[0]          # no reflection
+    np.testing.assert_allclose(_components(table), expected, atol=1e-12)
+    for k in range(1, len(raw)):
+        if k != held:
+            assert -np.pi < by[f"{BASE}.moment.dof{k}"] <= np.pi
+    assert signs is None or (signs == 1.0).all()
+
+
 def test_a_commit_already_in_the_chart_reports_nothing_moved():
     table = _table((3.0, 0.5, 0.0))
     assert table.commit(table.x0()) is None
@@ -282,6 +340,16 @@ def test_two_chains_a_real_half_radian_apart_across_the_cut_are():
 GRID = np.arange(8.0, 150.0, 0.05)
 
 
+@pytest.fixture
+def compiled_path():
+    """The fitted tests assert bit-identity between two fits, so they declare
+    the path that produced the numbers (``tests/CLAUDE.md`` § Quoting
+    numbers; review of #631, item 3): the compiled tier, the default."""
+    was = compiled.set_enabled(True)
+    yield
+    compiled.set_enabled(was)
+
+
 def _ycalc(structure) -> np.ndarray:
     from rietx.model.forward import compile_model
 
@@ -320,7 +388,7 @@ def _start(scale):
 
 
 def test_a_fit_that_winds_its_azimuth_reports_it_in_the_chart_with_the_same_esds(
-        monkeypatch):
+        monkeypatch, compiled_path):
     """The issue's first pattern: before #604 this fit ended at φ = 53.33 rad.
     The move is the last stage's commit, so the solve is the same one: every
     other value is bit-identical, every esd agrees, and the angle differs by
@@ -347,7 +415,8 @@ def test_a_fit_that_winds_its_azimuth_reports_it_in_the_chart_with_the_same_esds
 
 
 @pytest.mark.slow
-def test_a_series_on_the_cut_gives_no_finding_and_every_angle_in_the_chart():
+def test_a_series_on_the_cut_gives_no_finding_and_every_angle_in_the_chart(
+        compiled_path):
     """The issue's reproduction end to end, both directions: the moment along
     −a only shrinks, and nothing about it may read as a jump, a path
     dependence or a persistent finding.  Before #604: "dof1 steps by 50.2",

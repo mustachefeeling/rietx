@@ -1321,15 +1321,22 @@ class ParameterTable:
         (:func:`~rietx.optimize.least_squares.rechart_outcome`), or
         ``None`` when nothing moved.
 
-        Only an entry that is untied, unlocked and no tie's source is moved: a
-        tie reads its source's *value*, so a turn added to a source would add
-        a turn's multiple to its dependent, and a reflection would negate one
-        that is not an angle.  A held entry *is* moved — the block moves
-        together, so the moment it states is the one it stated, and a flat
-        azimuth the stage held (``_hold_flat_moments``) is exactly the entry a
+        Only an entry that is untied, unlocked, not held by the caller and no
+        tie's source is moved: a tie reads its source's *value*, so a turn
+        added to a source would add a turn's multiple to its dependent, and a
+        reflection would negate one that is not an angle; and a caller's
+        ``hold`` (``Entry.held``) is a number they set, which the next stage
+        and the next pattern of a chain start from (review of #631).  An
+        entry the *stage* froze (``vary=False``, e.g. ``_hold_flat_moments``'
+        flat azimuth) is moved with its block, which is exactly the entry a
         reflected polar angle needs.  A move that would touch an entry it may
         not is not made; that block's other angles still lose their whole
         turns, which touch nothing but themselves.
+
+        A sign is recorded wherever the move negates a column, **whether or
+        not its value changed**: the antipode maps θ to π − θ, which leaves
+        θ = π/2 — the seed of every in-plane moment — where it was and still
+        negates its column (review of #631).
         """
         if not self._moment_frames:
             return None
@@ -1341,11 +1348,11 @@ class ParameterTable:
         moved = False
         for base, frame in self._moment_frames.items():
             block = [by_path[f"{base}.moment.dof{k}"] for k in range(len(frame))]
-            movable = [e.tie is None and not e.locked and e.path not in sources
-                       for e in block]
+            movable = [e.tie is None and not e.locked and not e.held
+                       and e.path not in sources for e in block]
             old = np.array([e.value for e in block], dtype=np.float64)
             new, s = canonical_dofs(old)
-            changed = new != old
+            changed = (new != old) | (s != 1.0)
             if not all(m for m, c in zip(movable, changed, strict=True) if c):
                 # whole turns only, angle by angle
                 new, s = old.copy(), np.ones(len(old))
