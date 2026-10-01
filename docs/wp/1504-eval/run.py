@@ -69,6 +69,10 @@ MAX_BUDGET_USD = "12"
 JUDGE_BUDGET_USD = "2"
 #: The hosted manual is today's in both conditions, so neither gets it.
 DISALLOWED = ("WebFetch", "WebSearch")
+#: PROTOCOL.md § Amendment 1.1: the user-level skills stay out of a run.  A run
+#: carries the version it was launched under, and only runs of this one pool.
+PROTOCOL_VERSION = "1.1"
+SETTING_SOURCES = "project,local"
 THUMB = 800
 
 PREAMBLE = ("rietx is installed for the python interpreter {python}. "
@@ -369,10 +373,12 @@ def launch(root: Path, run: str) -> None:
     command = ["claude", "-p", prompt_for(root, run), "--model", MODELS[model],
                "--session-id", session, "--permission-mode", "bypassPermissions",
                "--output-format", "json", "--strict-mcp-config",
+               "--setting-sources", SETTING_SOURCES,
                "--max-budget-usd", MAX_BUDGET_USD, "--disallowedTools", *DISALLOWED]
     proc = subprocess.run(command, cwd=p["workspace"], capture_output=True, text=True,
                           env=agent_env(run))
     record = {"run": run, "session_id": session, "model": MODELS[model],
+              "protocol": PROTOCOL_VERSION,
               "commit": COMMITS[condition], "returncode": proc.returncode,
               "stderr": proc.stderr[-4000:]}
     try:
@@ -515,6 +521,7 @@ def collect(root: Path, run: str) -> dict:
     score = {
         "run": run, "task": task, "condition": condition, "model": model,
         "repeat": repeat, "commit": COMMITS[condition],
+        "protocol": launched.get("protocol", "1.0"),
         "session_id": launched["session_id"], "models_seen": dict(bill.models),
         "cost_usd": result.get("total_cost_usd"), "turns": result.get("num_turns"),
         "minutes": round((result.get("duration_ms") or 0) / 60000, 2),
@@ -645,8 +652,10 @@ def judge_references(root: Path) -> None:
 
 # --- the menu and the table ----------------------------------------------------
 
-def scores() -> list[dict]:
-    return [json.loads(f.read_text(encoding="utf-8")) for f in sorted(RECORD.glob("*/score.json"))]
+def scores(current: bool = True) -> list[dict]:
+    """Every run's score, or only those launched under ``PROTOCOL_VERSION``."""
+    out = [json.loads(f.read_text(encoding="utf-8")) for f in sorted(RECORD.glob("*/score.json"))]
+    return [s for s in out if s.get("protocol") == PROTOCOL_VERSION] if current else out
 
 
 def per_run(model: str, measured: list[dict]) -> tuple[tuple[float, float], str]:
@@ -673,8 +682,10 @@ def menu() -> None:
     print(f"  judge   ${judge_cost[0]:.2f}-{judge_cost[1]:.2f}"
           f"  wall {wall[0]:.0f}-{wall[1]:.0f} min a run, serial\n")
 
+    finished = {s["run"] for s in measured}
+
     def option(name: str, chosen: list[str], what: str) -> None:
-        todo = [r for r in chosen if not (RECORD / r / "score.json").is_file()]
+        todo = [r for r in chosen if r not in finished]
         low = sum(rates[split(r)[2]][0] + judge_cost[0] for r in todo)
         high = sum(rates[split(r)[2]][1] + judge_cost[1] for r in todo)
         print(f"{name}  {len(todo):2d} runs  ${low:.0f}-{high:.0f}  "
@@ -685,8 +696,11 @@ def menu() -> None:
 
     n_refs = 2 * len(TASKS)
     done_refs = (HARNESS / "references.json").is_file()
-    print(f"J  {0 if done_refs else n_refs:2d} judge calls  ${n_refs * judge_cost[0]:.0f}-"
-          f"{n_refs * judge_cost[1]:.0f}  {'done' if done_refs else 'a few minutes'}")
+    if done_refs:
+        print("J   done: references.json")
+    else:
+        print(f"J  {n_refs:2d} judge calls  ${n_refs * judge_cost[0]:.0f}-"
+              f"{n_refs * judge_cost[1]:.0f}  a few minutes")
     print("     the judge on a right and a default figure per task, before it scores a run")
     option("A", ["gypsum-after-sonnet-1", "gypsum-after-opus-1"],
            "pilot: the harness end to end on the one task that needs a cut, and the "

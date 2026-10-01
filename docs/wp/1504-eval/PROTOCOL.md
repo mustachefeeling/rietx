@@ -212,3 +212,32 @@ were both logged. `run.py check` runs the same draw in this repository's venv.
 (one line per tool call, and the bill), and the final figure at most 800 px
 a side. `references.json` holds the judge's check. Everything else stays in
 `ROOT`: full-size figures, venvs, workspaces and transcripts.
+
+## Amendment 1.1, 2026-10-01: the user-level skills stay out
+
+The judge check passed first, 12 of 12 for $1.30. Pilot A then ran under the
+text above, and both of its runs loaded the user-level `yue-figure-style`
+skill. `gypsum-after-sonnet-1` loaded it as its first act and never imported
+rietx. It drew the layer in matplotlib from the CIF's coordinates. So a
+user-level skill about figures does more than add a constant. On a figure
+task it can choose the route, and then the run measures that skill instead of
+the rietx one. The WP's condition is the skill and a shell, and the
+maintainer's own skills were never part of it.
+
+From 1.1 every run is launched with `--setting-sources project,local` as
+well. Two Haiku probes on 2026-10-01 ($0.03) checked what that changes. The
+six user-level skills drop out. The workspace's `rietx` skill still loads,
+and so do Claude Code's built-in skills, one of which is `dataviz`. The
+user-level `~/.claude/CLAUDE.md` still loads too. It stays a declared
+inheritance, constant across runs. The judge is launched as before, because
+it was checked that way and its `--allowedTools Read` gives it no skill.
+
+The two pilot runs are kept in `pilot-1.0/`, each score marked
+`"protocol": "1.0"`. They pool with no run after this amendment. `run.py`
+stamps each launch with its protocol version, and the menu and the table read
+only runs of the current one.
+
+| pilot run (1.0) | done | $ | minutes | API calls | renders | looks | skills invoked |
+|---|---|---|---|---|---|---|---|
+| gypsum-after-sonnet-1 | no (a Ca cut by the frame) | 0.21 | 0.8 | 8 | 0 | 5 | yue-figure-style |
+| gypsum-after-opus-1 | yes | 1.42 | 5.3 | 21 | 11 | 5 | rietx, yue-figure-style |
