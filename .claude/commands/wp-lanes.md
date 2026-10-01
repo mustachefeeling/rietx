@@ -1,11 +1,13 @@
 ---
-description: Lane trial — send a WP session's long, late checklist items to subagents, then measure what that saved
+description: Lane trial — start a WP session as /wp-start does, but send long, late checklist items to subagents
+argument-hint: "[WP number]"
 ---
 
-Run this after `/wp-start`, which still does everything it does. This command
-changes one thing. Once the session's context is large, a long checklist item
-goes to a *lane*: a subagent that does the item while this session waits, then
-checks the diff and commits it.
+Start a session with this command in place of `/wp-start`, as
+`/wp-lanes NNNN`. The session then works exactly as a `/wp-start` session does,
+with one change. Once its context is large, a long checklist item goes to a
+*lane*: a subagent that does the item while this session waits, then checks
+the diff and commits it.
 
 It is a trial. A replay of 174 WP sessions predicted that this policy cuts a
 session's reads and writes by 19-28% (`docs/milestones/process.md` § Lanes
@@ -13,12 +15,19 @@ within a WP). The replay had to assume three numbers, and this trial measures
 them. It also measures how well a session guesses an item's length, and how
 often a lane's work needs fixing or redoing.
 
-1. **Find this session's id.** It is the name of the directory that holds
-   your scratchpad. Every measurement below takes it:
-   `python3 .claude/hooks/session_usage.py context <session-id>` prints the
-   main context now. Run it once before the first item to check the id.
+1. **Run `/wp-start` first.** Invoke it with the Skill tool and pass on this
+   command's arguments unchanged: `$ARGUMENTS`. With none, `/wp-start` picks
+   the WP as it always does. Carry its ritual through to the restatement, and
+   add one line there: this session runs under the lane trial. Then work the
+   checklist straight through, as any WP session does. Nothing in this
+   command stops for the user.
 
-2. **Decide each item when you start it.**
+2. **Find this session's id.** It is the name of the directory that holds
+   your scratchpad. `python3 .claude/hooks/session_usage.py context
+   <session-id>` prints the main context now. Run it once, before the first
+   item, to check the id.
+
+3. **Decide each item when you start it.**
    - Read the main context with the command above.
    - Estimate how many requests the item will take. A request is one round of
      tool calls. Here the median item takes 15 requests and one in ten takes
@@ -36,7 +45,7 @@ often a lane's work needs fixing or redoing.
    session can make, whatever its size. The handover is never laned. Reading
    to reach a conclusion is `/wp-start` step 6b's business.
 
-3. **Dispatch the lane** with one `Agent` call.
+4. **Dispatch the lane** with one `Agent` call.
    - `subagent_type: general-purpose` on the default model. The description is
      exactly `lane: <item> ~<N>`, matching the decision line. The measurement
      finds lanes by that prefix.
@@ -55,7 +64,7 @@ often a lane's work needs fixing or redoing.
      changed, the tests it ran with their counts, and anything unresolved,
      with `file:line`.
 
-4. **Check it, then commit it.** Read the diff by file: `git diff --stat`,
+5. **Check it, then commit it.** Read the diff by file: `git diff --stat`,
    then ranges. Re-run the tests the lane ran. Fix small things here. If the
    lane got the item wrong, dispatch again with the same description. The
    measurement counts both: edits you make after a lane returns, and a second
@@ -63,17 +72,10 @@ often a lane's work needs fixing or redoing.
    the item in the same commit (`/wp-start` step 6). That commit closes the
    lane's window in the measurement.
 
-5. **Measure, then hand over.** Before `/wp-handover`, run
-   `python3 .claude/hooks/session_usage.py lanes <session-id>`.
-   - Put its tables in the handover entry.
-   - Append its `trial row` to the table in process.md § Lanes within a WP,
-     under *The trial*.
-   - Run the `baseline` command it prints. That re-runs the 174-session
-     replay with this session's measured numbers in place of the assumed ones.
-     Quote the selective policy's row in the handover entry.
-
-   Then run `/wp-handover` as usual. Its diff audit covers lane-written code
-   like any other.
+**The measurement runs inside `/wp-handover`**, at its step 3b, because this
+session dispatched lanes. The session invokes the handover itself as usual.
+Step 3b puts the tables in the handover entry and a row in the record. The
+diff audit in step 6 covers lane-written code like any other.
 
 **What the table means.** Per lane it shows the main context at dispatch and
 the lane's own size. *Re-read* is what the lane read of files this session had
