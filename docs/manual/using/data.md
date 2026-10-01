@@ -99,7 +99,10 @@ quantity in the package divides by the result: the objective
 fallback is correct for raw counts and wrong by √t for anything already divided
 by a counting time, so a reader that cannot establish the intensity scale
 withholds σ rather than inventing it. Reported esds of zero are floored,
-since a zero esd is an infinite weight on one channel.
+since a zero esd is an infinite weight on one channel. The floor is a
+thousandth of the column's median positive esd, so it scales with the
+intensity's units: the same pattern in counts or normalised to one is
+weighted the same.
 
 `PatternData.in_range_mask` is the boolean mask that `excluded_regions` implies,
 and `PatternData.crop` returns a new pattern over a 2θ interval. Cropping and

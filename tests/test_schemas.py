@@ -9,6 +9,7 @@ import re
 import types
 import typing
 
+import numpy as np
 import pytest
 from pydantic import ValidationError
 
@@ -401,6 +402,54 @@ def test_pattern_validation():
         PatternData(two_theta=[1.0, 2.0], intensity=[1.0])  # length mismatch
     p = PatternData(two_theta=[1.0, 2.0, 3.0], intensity=[4.0, 9.0, 16.0])
     assert p.sig().tolist() == [2.0, 3.0, 4.0]  # Poisson fallback
+
+
+#: A small esd column in its own units: the shape of a normalised or
+#: per-monitor reduction, with one zero (a gap) that the floor exists for.
+_SMALL_SIGMA = [5e-4, 2e-4, 8e-4, 0.0, 5e-4]
+
+
+@pytest.mark.parametrize("k", [1e-3, 1.0, 1e3, 1e6])
+def test_sig_does_not_depend_on_the_intensitys_units(k):
+    """The same pattern in two units is weighted the same (#650).
+
+    The floor was ``max(1e-3, median · 1e-3)``. Its absolute ``1e-3`` never
+    binds on counts and raised every esd of a normalised pattern to 1e-3, so a
+    fit of the k = 1 column below ran with σ doubled and χ²_red a quarter of
+    the ×1000 twin's. Scaling the column must scale the answer and nothing
+    else, the zero included.
+    """
+    sigma = [s * k for s in _SMALL_SIGMA]
+    p = PatternData(two_theta=[1.0, 2.0, 3.0, 4.0, 5.0],
+                    intensity=[1.0] * 5, sigma=sigma)
+    got = p.sig()
+    want = np.array(_SMALL_SIGMA) * k
+    want[3] = 5e-4 * 1e-3 * k            # the zero: a thousandth of the median
+    np.testing.assert_allclose(got, want, rtol=1e-12)
+
+
+def test_sig_on_counts_is_unchanged_by_the_relative_floor():
+    """Positive arm: a column whose median esd is ≥ 1 — every counting
+    pattern — gave this answer before #650 too, because the relative term
+    was already the larger one."""
+    p = PatternData(two_theta=[1.0, 2.0, 3.0, 4.0],
+                    intensity=[100.0, 400.0, 900.0, 0.0],
+                    sigma=[10.0, 20.0, 30.0, 0.0])
+    assert p.sig().tolist() == [10.0, 20.0, 30.0, 20.0 * 1e-3]
+
+
+def test_a_results_sig_floors_by_the_patterns_rule():
+    """`RefinementResult.sig` is documented as flooring "by `PatternData.sig`'s
+    own rule", and it carried its own copy of the expression, so it had the
+    same absolute floor. One helper now, and the two must agree on a column
+    the old floor would have raised."""
+    result = _bare_result()
+    result.sigma = list(_SMALL_SIGMA)
+    result.y_obs = [1.0] * len(_SMALL_SIGMA)
+    p = PatternData(two_theta=[1.0, 2.0, 3.0, 4.0, 5.0],
+                    intensity=[1.0] * 5, sigma=list(_SMALL_SIGMA))
+    assert result.sig().tolist() == p.sig().tolist()
+    assert result.sig()[0] == pytest.approx(5e-4)
 
 
 # ------------------------------------------------------- the one plan schema
