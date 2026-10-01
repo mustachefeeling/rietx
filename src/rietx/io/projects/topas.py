@@ -3356,7 +3356,9 @@ def _magnetic_group_line(phase) -> str | None:
             f"propagation vector k = ({', '.join(mag.propagation_vector_parent)}"
             f"), and a TOPAS `str` has no keyword for the parent k, so the file "
             f"would read back as a k = 0 structure in this cell. A magCIF "
-            f"(Structure.to_cif) is the export for it")
+            f"(Structure.to_cif) states it the same way, as k = 0 in this "
+            f"cell, and drops the parent k too; the Structure's own JSON "
+            f"(Structure.model_dump_json) is the export that keeps it")
     group = mag.group()
     found = identification(group)
     if not found.named:

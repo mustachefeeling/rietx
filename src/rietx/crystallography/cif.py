@@ -661,8 +661,11 @@ def write_structure_block(block, phase: Phase, *,
             uloop.add_row([a.label] + [_fmt(getattr(a.aniso, n), 5)
                                        for n in U_NAMES])
     # The magnetic half, when the phase carries one: the operator and centring
-    # loops, the BNS/OG metadata, the parent k, and the moments with their esds
-    # (``crystallography.magcif``).  Nothing at all is written for a phase with
+    # loops, the BNS/OG metadata and the moments with their esds
+    # (``crystallography.magcif``).  Not the parent k: a supercell phase is
+    # written as a k = 0 structure in its own cell, and
+    # ``MagneticSymmetry.propagation_vector_parent`` does not survive the file
+    # (``test_a_magnetic_supercell_phase_round_trips_in_its_own_cell``).  Nothing at all is written for a phase with
     # no ``magnetic_symmetry``, so every file this writer produced before this
     # rung is byte-identical — the one property a writer change inside a
     # function shared by ``structure_to_cif`` and the refinement exporter has

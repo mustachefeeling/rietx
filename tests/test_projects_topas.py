@@ -3501,6 +3501,32 @@ def test_write_topas_inp_refuses_a_parent_propagation_vector():
              r"parent propagation vector k = \(0, 0, 1/2\)")
 
 
+def test_the_parent_k_refusal_names_an_export_that_keeps_it(tmp_path):
+    """Issue #611: the refusal advised a magCIF, and the magCIF writer drops
+    the parent k too (a supercell is written as k = 0 in its own cell).  The
+    advice now says so and names the `Structure`'s own JSON, and both halves
+    of that sentence are checked against what the two writers do."""
+    phase = _magnetic_phase("oblique")
+    mag = phase.magnetic_symmetry.model_copy(
+        update={"propagation_vector_parent": ("0", "0", "1/2")})
+    st = rx.Structure(phases=[phase.model_copy(update={"magnetic_symmetry": mag})])
+    with pytest.raises(ValueError) as err:
+        from_structure(st)
+    msg = str(err.value)
+    assert "drops the parent k too" in msg
+    assert "Structure.model_dump_json" in msg
+    assert not re.search(r"magCIF \(Structure\.to_cif\) is the export", msg)
+    # the magCIF route: k does not survive
+    path = tmp_path / "k.mcif"
+    st.to_cif(str(path))
+    back = rx.Structure.from_cif(path).phases[0].magnetic_symmetry
+    assert back.propagation_vector_parent is None
+    # the JSON route: it does
+    js = rx.Structure.model_validate_json(st.model_dump_json())
+    assert js.phases[0].magnetic_symmetry.propagation_vector_parent == (
+        "0", "0", "1/2")
+
+
 def test_write_topas_inp_refuses_a_k_hypothesis_on_a_nuclear_phase():
     """`Phase.propagation_vector` used to be dropped from a `.inp` in silence."""
     phase = _cubic_al().phases[0].model_copy(
