@@ -46,12 +46,20 @@ on hexagonal axes the moment (1, 1, 0) is 1 μ_B, not √2.
 
 **The frame is frozen per stage.**  It depends on the cell through that metric,
 and the cell refines; recomputing it inside the residual would make the DOF-to-
-component map a function of θ.  So it is built once from the stage's declared
-cell — the same freeze the symmetry-operation subsets take — and the parameter
-table and the forward model call this module with the *same* cell so there is
-exactly one frame per site per stage.  A monoclinic β that moves during a stage
-therefore shifts the frame at the next compile, which is where the components
-written back at the end of a stage are re-projected.
+component map a function of θ.  So it is built once per stage from the cell
+the stage starts at — the same freeze the symmetry-operation subsets take —
+and the parameter table is its one authority: at each stage start
+``ParameterTable.reframe_moments`` rebuilds the frame from the written-back
+cell and re-seeds the DOFs so that they state the same crystal-axis
+components in it, and the forward model is handed the table's frames rather
+than building its own (issue #598).  A monoclinic β that moves during a stage
+therefore changes the frame at the next stage start and never the moment; the
+result's own compile, at the fitted cell, reads the DOFs in the last stage's
+frame, and a table built afterwards from the written-back structure is seated
+in that frame before it is evaluated on the result's model.  Before #598 the
+table kept the first stage's frame for the whole fit while each compile built
+a new one, and a 2° move in β put the written-back modulus 9σ from the
+refined one.
 
 **Dimension by dimension.**
 
@@ -297,6 +305,30 @@ def dofs_from_moment(frame, cell, moment) -> np.ndarray:
         return np.zeros(0, dtype=np.float64)
     g = unit_metric(cell)
     c = e @ g @ np.asarray(moment, dtype=np.float64).reshape(3)
+    return _dofs_from_coefficients(c)
+
+
+def dofs_in_frame(frame, moment) -> np.ndarray:
+    """:func:`dofs_from_moment` for a frame whose cell is not to hand (#598).
+
+    The coefficients are solved from the frame's rows directly rather than
+    projected through a metric, so the answer is right whichever cell the
+    frame was orthonormalised in — which is what re-seeding a table into a
+    compiled model's frames needs, the model having been built at a cell the
+    table no longer holds.  Exact for a moment in the frame's span, which the
+    schema guarantees.
+    """
+    e = np.asarray(frame, dtype=np.float64).reshape(-1, 3)
+    if len(e) == 0:
+        return np.zeros(0, dtype=np.float64)
+    c, *_ = np.linalg.lstsq(e.T, np.asarray(moment, dtype=np.float64).reshape(3),
+                            rcond=None)
+    return _dofs_from_coefficients(c)
+
+
+def _dofs_from_coefficients(c: np.ndarray) -> np.ndarray:
+    """``(μ, angles…)`` from ``(n,)`` coefficients on an orthonormal frame."""
+    n = len(c)
     if n == 1:
         return np.array([c[0]])
     mu = float(np.linalg.norm(c))

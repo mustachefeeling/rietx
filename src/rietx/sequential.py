@@ -794,6 +794,8 @@ def _moment_evidence(ref, result: RefinementResult) -> list[MomentEvidence]:
     from .report.magnetic import analyse_moments
 
     table = ParameterTable(ref.structure, ref.instrument)
+    # the model reads the moment DOFs in the last stage's frames (#598)
+    table.pull_moment_frames(model)
     return analyse_moments(
         model, table.decode(table.x0()), ref.structure,
         held=list(result.stages[-1].held) if result.stages else [],

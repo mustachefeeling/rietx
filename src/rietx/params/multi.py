@@ -521,6 +521,28 @@ class MultiParameterTable:
         for h, table in enumerate(self.tables):
             table.apply_to_models(self.structures[h], self.instruments[h])
 
+    def reframe_moments(self) -> list[str]:
+        """:meth:`ParameterTable.reframe_moments` per histogram, at a stage start.
+
+        Each table against its own structure copy, which holds the cell the
+        last :meth:`apply_to_models` wrote; a shared cell is one value in every
+        copy, so a shared moment DOF is re-seeded to one value in every table
+        and the column map stays a map of equal entries (#598).  Returns the
+        scoped atom paths reframed.
+        """
+        moved = [f"hist.{h}.{base}"
+                 for h, (table, structure) in enumerate(
+                     zip(self.tables, self.structures, strict=True))
+                 for base in table.reframe_moments(structure)]
+        if moved:
+            self._rebuild_columns()
+        return moved
+
+    def push_moment_frames(self, models) -> None:
+        """:meth:`ParameterTable.push_moment_frames`, histogram by histogram."""
+        for table, model in zip(self.tables, models, strict=True):
+            table.push_moment_frames(model)
+
     # -- helpers used by esd assembly ----------------------------------
     def _owner(self, scoped: str) -> int | None:
         """Histogram index of a scoped per-histogram path, or None if shared."""

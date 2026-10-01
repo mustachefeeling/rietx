@@ -2934,6 +2934,13 @@ class Refinement:
         # set lets the compiler allocate FCJ nodes for axial parameters
         # that are about to refine from zero
         self._write_back(table)
+        # the moment frames are frozen per stage like the rest, and from the
+        # cell this stage starts at: a β the last stage moved leaves the table
+        # reading the moment DOFs in the old frame and the compile building a
+        # new one, two moments by one set of numbers (#598).  So the table
+        # rebuilds its frames from the written-back cell, re-seeds the DOFs to
+        # the same components, and hands the compile those frames.
+        table.reframe_moments(self.structure)
         new_model = compile_model(
             self.structure, self.instrument, data, mode=mode,
             two_theta_limits=two_theta_limits,
@@ -2946,6 +2953,7 @@ class Refinement:
             # frozen-at-compile shape as c_w, and None for every plan that
             # does not state one
             window_slack_deg=stage.window_slack_deg)
+        table.push_moment_frames(new_model)
         carried = False
         if model is not None and mode in ("lebail", "pawley") and model.mode == mode:
             _carry_lebail(model, new_model)
@@ -3703,6 +3711,11 @@ class Refinement:
             moving_paths=set(table.moving_paths),
             restraint_weight_scale=stage.restraint_weight_scale,
             window_slack_deg=stage.window_slack_deg)
+        # and the solve's moment frames, never the fresh compile's: this one is
+        # built at the fitted cell, so a last stage that moved an angle would
+        # otherwise read the refined moment DOFs in a frame they were never
+        # refined in, and ``y_calc`` would describe a third moment (#598)
+        table.push_moment_frames(fresh)
         # the solve's weights, never the fresh compile's: a measured
         # background widens σ at the scale a compile sees (WP-1309), so a last
         # stage that moved that scale would re-weight here, and the result
@@ -3975,6 +3988,8 @@ class Refinement:
                     "ran on, and this Refinement has not been fitted. Pass the "
                     "pattern (or a 2θ array) to evaluate the model as it "
                     "stands: ref.predict(data).")
+            # the fitted model reads the moment DOFs in the last stage's frames
+            table.pull_moment_frames(self._model)
             return self._model.evaluate(table.decode(table.x0()))
         if isinstance(two_theta, PatternData):
             two_theta = two_theta.two_theta
@@ -4007,6 +4022,8 @@ class Refinement:
         if isinstance(plan, str):
             plan = PLAN_PRESETS[plan]()
         table = ParameterTable(self.structure, self.instrument)
+        # the model's moment frames are the last stage's, not this table's (#598)
+        table.pull_moment_frames(self._model)
         return build_report(self.result_, model=self._model,
                             values=table.decode(table.x0()), plan=plan,
                             structure=self.structure, held=list(self._held),
@@ -4282,6 +4299,7 @@ class Refinement:
         if self._model is None or self.result_ is None:
             raise RuntimeError("call fit() first")
         table = ParameterTable(self.structure, self.instrument)
+        table.pull_moment_frames(self._model)          # #598, as in report()
         values = table.decode(table.x0())
         return reflection_table(self._model, values, self.structure)
 
