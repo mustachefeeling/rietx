@@ -1804,6 +1804,36 @@ def test_a_condition_ending_before_an_unknown_character_still_reads():
     assert "type out.txt" in live and "x % y" in live
 
 
+@pytest.mark.parametrize("text, tok", [
+    ("#prm n = 2;\n#if n 2 > 3;\n#endif\n", "'2'"),
+    ("#prm n = 2;\n#if (n) (2) > 3;\n#endif\n", "'('"),
+    ("#prm n = 2;\n#prm m = 1;\n#if n #out m > 3;\n#endif\n", "'#out'"),
+    ("#prm n = 2 3;\n#if n == 2;\n#endif\n", "'3'"),
+    ("#prm n = 2 (3);\n#if n == 2;\n#endif\n", "'('"),
+])
+def test_an_implied_multiply_refuses_rather_than_ending_the_condition(
+        tmp_path, tok, text):
+    """#587 review, round 2: Table 3-1's "Multiply is optional, x*y = x y"
+    makes `#if n 2 > 3;` the condition `n*2 > 3`; ending it at `n` chose the
+    branch from its prefix and left `2 > 3;` in the live text. A number, a
+    `(` or an `#out` straight after a complete equation now refuses."""
+    with pytest.raises(TopasInpError, match=re.escape(tok)) as exc:
+        _sites(tmp_path, text)
+    assert "implied multiply" in str(exc.value)
+
+
+def test_a_name_after_a_condition_still_ends_it(tmp_path):
+    """The positive arm: a *name* after a complete condition is the
+    reference's inline form, `#if (Run_Number) type out.txt`, and still reads
+    — the condition ends at `)` and the name is kernel text."""
+    text = ("#prm n = 1;\n"
+            "#if (n == 1) site IN x 0.5 y 0 z 0 occ Na+1 1 beq 0.5 #endif\n"
+            "#if (Run_Number) site OUT x 0 y 0.5 z 0 occ Na+1 1 beq 0.5 #endif\n")
+    assert _sites(tmp_path, text) == ["A1", "IN"]
+    assert "type out.txt" in resolve_ifdefs(
+        "#if (Run_Number) type out.txt\n#endif\n#if (1) type out.txt #endif\n")
+
+
 def test_a_run_number_condition_reads_the_first_run_and_says_so(tmp_path):
     """`Run_Number` is 0 on the first `num_runs` iteration. A file with no
     `num_runs` has one run and nothing to report; the workshop reel file's

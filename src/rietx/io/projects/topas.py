@@ -527,6 +527,23 @@ _HASH_TOKEN = re.compile(r"""
 """, re.X)
 
 
+def _juxtaposed(tok: str) -> _Undecidable:
+    """The refusal for a value straight after a complete equation. Table 3-1:
+    "Multiply is optional, x*y = x y", so `#if n 2 > 3;` is `n*2 > 3`, and
+    ending the condition at `n` decided it from its prefix (#587 review,
+    round 2). A *name* there still ends the condition — the reference's own
+    inline `#if (Run_Number) type out.txt` — so only a number, a `(` or an
+    `#out` is refused."""
+    return _Undecidable(
+        f"a value ({tok!r}) follows it with no operator between, and Table 3-1 "
+        f"makes that an implied multiply (`x y` = `x*y`), which this reader "
+        f"does not evaluate")
+
+
+def _starts_a_value(kind: str | None, tok: str) -> bool:
+    return kind in ("num", "out") or tok == "("
+
+
 def _unknown(char: str) -> _Undecidable:
     """The refusal for a character no hash equation here contains. Without it
     the equation was decided from the part before it: `#if n^2 > 5;` from `n`,
@@ -766,6 +783,8 @@ def _hash_condition(text: str, start: int,
         stop = parser.end()
     elif kind == "bad":
         raise _unknown(tok)
+    elif _starts_a_value(kind, tok):
+        raise _juxtaposed(tok)
     elif kind == "op":
         raise _Undecidable(f"this reader cannot evaluate past {tok!r}")
     return value != 0, parser.run_dependent, stop
@@ -793,6 +812,8 @@ def _hash_definition(text: str, start: int,
             raise _Undecidable("is a string, and a string condition is not "
                                "evaluated here — only numbers")
         value = parser.expression()
+        if _starts_a_value(*parser.peek()[:2]):
+            raise _juxtaposed(parser.peek()[1])
         if parser.i != len(tokens):
             raise _Undecidable(
                 f"this reader cannot evaluate past {parser.peek()[1]!r}")
