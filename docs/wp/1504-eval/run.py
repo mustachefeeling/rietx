@@ -1,4 +1,4 @@
-"""WP-1504's harness: real agents draw seven structure figures, before and after 1501-1503.
+"""WP-1504's harness: real agents draw seven structure figures, before 1501-1503, after and fixed.
 
     python docs/wp/1504-eval/run.py --menu                  # the costed menu
     python docs/wp/1504-eval/run.py check                   # the protocol and the shim
@@ -69,7 +69,7 @@ JUDGE_MODEL = "opus"
 #: dearest figure run the prior allows.
 MAX_BUDGET_USD = "12"
 JUDGE_BUDGET_USD = "2"
-#: The hosted manual is today's in both conditions, so neither gets it.
+#: The hosted manual is today's in every condition, so none gets it.
 DISALLOWED = ("WebFetch", "WebSearch")
 #: PROTOCOL.md § Amendment 1.1: the user-level skills stay out of a run, and
 #: § Amendment 1.2: out of the judge's too.  A run carries the version it was
@@ -246,7 +246,7 @@ def phase_row(task: str) -> dict:
 
 
 def cif_text(task: str) -> str:
-    """A plain CIF of the fixture row, the same bytes for both conditions.
+    """A plain CIF of the fixture row, the same bytes for every condition.
 
     Written here rather than by either tree's ``to_cif``, so the input cannot
     differ between the conditions it is meant to hold equal.
@@ -696,7 +696,7 @@ def judge_references(root: Path, only: list[str] | None = None) -> None:
     ``only`` re-asks the named tasks and keeps the rest of ``references.json``:
     a reworded criterion is checked again without paying for the others.
     """
-    drawn = root / "references"
+    drawn = references(root, "after")
     record = HARNESS / "references.json"
     out = json.loads(record.read_text(encoding="utf-8")) if only and record.is_file() else {}
     for task in only or TASKS:

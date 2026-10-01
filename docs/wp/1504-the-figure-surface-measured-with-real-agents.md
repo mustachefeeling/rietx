@@ -113,12 +113,13 @@ condition is enforced in a shim, never in the prompt.
 With WP-1529's three fixes in place, agents finished 13 of the 14 figure
 tasks, against 9 of 14 on the previous surface and 6 of 14 on the original.
 Every run now opened the rietx skill and drew with rietx. Under round B,
-Sonnet drew by hand in 8 of 14 runs. Fluorapatite, which failed in all four
-earlier runs on rietx's own bare phosphorus, passed on both models. This is
+Sonnet drew by hand in 8 of 14 runs. Fluorapatite failed in all four earlier
+runs. Both Opus runs there failed on rietx's own bare phosphorus, and both
+Sonnet runs drew by hand. On `fixed` it passed on both models. This is
 still one run a cell. And the condition changed two things at once: the
 skill's description, which decides the route, and the drawing itself. So it
-is a strong direction rather than a result, and the N = 3 option on the menu
-is what turns it into one. The round cost $5.05.
+is a strong direction. The N = 3 option on the menu is what would make it a
+result. The round cost $5.05.
 
 *Measured* (darwin, Claude Code 2.1.286, `claude-sonnet-5-5` and
 `claude-opus-5-5`, N = 1 a cell, protocol 1.3; `run.py table`, fixed rows
@@ -190,10 +191,11 @@ rounds with the surface unchanged between them. Recorded in 1505's
 
 Next, in order. (1) The maintainer spot-checks the 13 dones, at
 `runs/*-fixed-*/figure.png`. (2) Pick from `run.py --menu`: E runs before
-against fixed at N = 3 (70 runs, $16-39 measured), which is the
+against fixed at N = 3 (56 runs, $13-33 measured), which is the
 result-bearing comparison. Or close the WP on N = 1 as a direction, if that
 is enough for 1501-1503's keep-or-cut decision. (3) If E runs and turns up no
 new defect, re-rate 1505's trigger from that.
+
 - **2026-10-01** (round B, same session) — Every cell has now run once under
   1.2: 28 runs at $11.19, 37 minutes of agent time. With the new surface the
   agents finished more of the tasks, 9 of 14 against 6 of 14 before. That is
