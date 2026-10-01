@@ -8,6 +8,7 @@ import numpy as np
 from pydantic import Field, model_validator
 
 from .common import Base, Diagnostic, Mode, Provenance
+from .pattern import _floor_sigma
 
 
 class RefinedParameter(Base):
@@ -1345,8 +1346,7 @@ class RefinementResult(Base):
             s = np.asarray(self.sigma, dtype=np.float64)
         else:
             s = np.sqrt(np.maximum(np.asarray(self.y_obs, dtype=np.float64), 1.0))
-        floor = max(1e-3, float(np.median(s[s > 0])) * 1e-3) if np.any(s > 0) else 1.0
-        return np.maximum(s, floor)
+        return _floor_sigma(s)
 
     def for_histogram(self, h: int) -> "RefinementResult":
         """A single-histogram-shaped view of histogram ``h`` for reporting/plots.
