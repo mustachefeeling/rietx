@@ -791,9 +791,10 @@ def fullprof_species(species: str, *, neutron: bool) -> tuple[str, float | None]
       ``LI7`` with no LINE 12 runs **at natural abundance** with no message, so
       the isotope is never written without its b.
 
-    An ion with a sign and no magnitude (``Cu+``) is refused, as the TOPAS
-    writer refuses it: rietx computes the neutral atom for it and FullProf's
-    X-ray table has no ``CU+``. So is an isotope whose name would not fit
+    An ion with a sign and no magnitude (``Cu+``) is refused on an X-ray file,
+    as the TOPAS writer refuses it: rietx computes the neutral atom for it and
+    FullProf's X-ray table has no ``CU+``. On a neutron file it is written as
+    the element, whose b both programs give it. So is an isotope whose name would not fit
     ``NAM``'s four characters (``157Gd`` → ``GD157``; FullProf stops on it).
     """
     s = species.strip()
@@ -807,7 +808,7 @@ def fullprof_species(species: str, *, neutron: bool) -> tuple[str, float | None]
             f"a FullProf Typ names one of those")
     lead, element, magnitude, sign = m.groups()
     mass = mass or lead
-    if sign and not magnitude:
+    if sign and not magnitude and not neutron:
         raise ValueError(
             f"species {species!r} has a sign but no charge magnitude: rietx's "
             f"scattering table reads it as the neutral atom, and FullProf's "
@@ -857,23 +858,35 @@ def _read_user_scatterers(cur: _Cursor, path: Path, model: FullProfModel) -> Non
     NAM in DFP" (10⁻¹² cm), and it is FullProf's only way to state an isotope
     (issue #558): each ``NAM`` must be an element and a mass number
     (``LI7``) whose ``DFP`` is that isotope's Sears b, and is then read as the
-    isotope. Everything else the block can mean is refused by name: X-ray
-    lines (anomalous dispersion, with form-factor coefficient lines behind
-    them), a negative ``Nsc`` (a tabulated form factor), ``ITY ≠ 0`` (a
+    isotope. On an X-ray file an ``ITY = 2`` line is anomalous dispersion
+    alone ("just Df′ and Df″", with FullProf's own tabulated f₀; manual
+    pp. 79–80), which is the wavelength's and not the structure's, so it is
+    read past as LINE 8's wavelengths are: :func:`from_structure` writes one
+    per X-ray ``Typ``. Everything else the block can mean is refused by name:
+    an X-ray ``ITY = 0`` (user form-factor coefficients, a different f₀), a
+    negative ``Nsc`` (a tabulated form factor), a neutron ``ITY ≠ 0`` (a
     magnetic form factor), and a b rietx has no species for.
     """
     nsc = model.control["nsc"]
     if nsc == 0:
         return
-    if model.job != 1 or nsc < 0:
-        why = ("a negative count introduces tabulated form factors"
-               if nsc < 0 else
-               "on an X-ray file LINE 12 carries anomalous dispersion f'/f'' "
-               "and, with Nsc > 0, a form-factor coefficient line per entry")
+    if nsc < 0:
         raise FullProfPcrError(
             f"{path}: control-line field Nsc = {nsc} on a Job = {model.job} "
-            f"file, and this reader reads LINE 12 only as a neutron file's "
-            f"user scattering lengths (Nsc > 0, Job = 1): {why}")
+            f"file, and a negative count introduces tabulated form factors, "
+            f"which this reader does not read")
+    if model.job != 1:
+        for i in range(nsc):
+            line = cur.take(f"anomalous-dispersion line {i + 1} of Nsc = {nsc}")
+            tokens = line.text.split()
+            if len(tokens) < 4 or tokens[3] != "2":
+                raise FullProfPcrError(
+                    f"{path}: line {line.number}: Nsc = {nsc} on an X-ray file "
+                    f"declares a LINE-12 entry here, and this reader reads only "
+                    f"'NAM DFP DFPP 2' (ITY = 2, Df'/Df'' with FullProf's "
+                    f"tabulated form factor); {line.text!r} is not one. ITY = 0 "
+                    f"is a user form factor, a different f0 from rietx's table")
+        return
     from ...crystallography.neutron import b_coh
     for i in range(nsc):
         line = cur.take(f"user scattering length {i + 1} of Nsc = {nsc}")
@@ -2959,6 +2972,18 @@ def _bare_symbol(xhm: str) -> str:
     return xhm.split(":", 1)[0].strip()
 
 
+def _finite(value: float, what: str) -> float:
+    """``value``, or a refusal naming the field: ``repr`` spells a non-finite
+    one ``inf``/``nan``, which FullProf does not parse (``io/CLAUDE.md`` §
+    Project writers)."""
+    if not math.isfinite(value):
+        raise ValueError(
+            f"{what} is {value!r}, which `repr` spells '{value}' and FullProf "
+            f"does not parse — refused here rather than written into a file "
+            f"that fails in another program")
+    return value
+
+
 def _radiation(instrument: Instrument | None) -> tuple[int, float, float, float]:
     """``(Job, Lambda1, Lambda2, Ratio)`` for LINE 4 and LINE 8.
 
@@ -2968,7 +2993,11 @@ def _radiation(instrument: Instrument | None) -> tuple[int, float, float, float]
     manual: "=λ1 for monochromatic beam"), two lines write the second line's
     weight relative to the first as ``Ratio = I2/I1``; a neutron CW source is
     ``Job = 1`` at one wavelength. Refused by name: more than two lines and a
-    declared harmonic, neither of which LINE 8 has a slot for.
+    declared harmonic, neither of which LINE 8 has a slot for; a non-finite
+    wavelength or weight; a first line of weight 0, which has no ratio to be
+    relative to; and a negative second weight, since a negative ``Ratio`` is
+    FullProf's flag that U, V, W for the second wavelength follow, which
+    desynchronises every later line.
     """
     from ...schemas.instrument import _KA_DOUBLETS, Instrument
     if instrument is None:
@@ -2989,19 +3018,135 @@ def _radiation(instrument: Instrument | None) -> tuple[int, float, float, float]
             f"and no lambda/n contamination, so the file would compute a "
             f"different pattern from rietx's")
     if source.kind == "neutron_cw":
-        lam = source.wavelength.value
+        lam = _finite(source.wavelength.value, "instrument.source.wavelength")
         return 1, lam, lam, 0.0
     lines = source.lines
     if len(lines) == 1:
-        lam = lines[0].wavelength.value
+        lam = _finite(lines[0].wavelength.value, "instrument.source.lines.0.wavelength")
         return 0, lam, lam, 0.0
     if len(lines) == 2:
-        return (0, lines[0].wavelength.value, lines[1].wavelength.value,
-                lines[1].weight.value / lines[0].weight.value)
+        lam1, lam2, w1, w2 = (
+            _finite(v, f"instrument.source.lines.{k}")
+            for v, k in ((lines[0].wavelength.value, "0.wavelength"),
+                         (lines[1].wavelength.value, "1.wavelength"),
+                         (lines[0].weight.value, "0.weight"),
+                         (lines[1].weight.value, "1.weight")))
+        if w1 <= 0.0:
+            raise ValueError(
+                f"instrument.source.lines.0.weight is {w1!r}, and LINE 8's "
+                f"Ratio is the second line's intensity over the first's, so a "
+                f"first line of no intensity has no ratio to write")
+        if w2 < 0.0:
+            raise ValueError(
+                f"instrument.source.lines.1.weight is {w2!r}, and a negative "
+                f"LINE 8 Ratio is FullProf's flag that U, V, W for the second "
+                f"wavelength follow on later lines, so every line after it "
+                f"would be read as the wrong field")
+        return 0, lam1, lam2, w2 / w1
     raise ValueError(
         f"instrument's source has {len(lines)} emission lines, and a .pcr's "
         f"LINE 8 states at most two (Lambda1, Lambda2 and their intensity "
         f"Ratio)")
+
+
+def _refuse_dropped_instrument(instrument: Instrument | None) -> None:
+    """Refuse an instrument term the file drops, wherever it is away from its
+    identity (``io/CLAUDE.md`` § Project writers; the ``.prm`` writer's
+    ``zero_shift`` is the precedent): at its identity the dropped value states
+    the same model, away from it the file would compute a different one.
+
+    Each of these has a slot in a ``.pcr`` (``Zero``/``SyCos``/``SySin``,
+    ``muR``, ``Cthm``/``Rpolarz``, a background-peak block), but none is mapped
+    here: their sign and unit conventions against rietx's are not measured,
+    and a guessed mapping moves every peak or rescales every intensity.
+    """
+    if instrument is None:
+        return
+    geometry = instrument.geometry
+    held = [("instrument.zero_shift", instrument.zero_shift.value),
+            ("instrument.geometry.sample_displacement", geometry.sample_displacement.value),
+            ("instrument.geometry.sample_transparency", geometry.sample_transparency.value),
+            ("instrument.geometry.capillary_offset_along_beam",
+             geometry.capillary_offset_along_beam.value),
+            ("instrument.geometry.capillary_offset_across_beam",
+             geometry.capillary_offset_across_beam.value)]
+    for what, value in held:
+        if value != 0.0:
+            raise ValueError(
+                f"{what} is {value!r}, and this writer does not map it onto "
+                f"the .pcr's own term, so the file would place every peak "
+                f"where rietx does not; set it to 0 and let FullProf refine "
+                f"its own")
+    if geometry.surface_roughness is not None:
+        raise ValueError(
+            f"instrument.geometry.surface_roughness is a "
+            f"{geometry.surface_roughness.kind!r} model, which this writer "
+            f"does not map, so the file would state intensities rietx does "
+            f"not compute")
+    absorbing = None
+    if geometry.kind == "debye_scherrer":
+        if geometry.mu_r:
+            absorbing = f"instrument.geometry.mu_r is {geometry.mu_r!r}"
+        elif geometry.mu_r is None and geometry.capillary_radius_mm is not None:
+            absorbing = ("instrument.geometry.capillary_radius_mm is declared, "
+                         "so rietx estimates a mu_r from the composition")
+    elif geometry.kind == "flat_plate_transmission":
+        absorbing = ("instrument.geometry.kind is 'flat_plate_transmission', "
+                     "whose sec(theta) volume factor rietx always applies")
+    elif geometry.mu_t is not None or geometry.thickness_mm is not None:
+        absorbing = ("instrument.geometry.mu_t or thickness_mm is declared, so "
+                     "rietx applies a finite-thickness reflection correction")
+    if absorbing:
+        raise ValueError(
+            f"{absorbing}, and this writer writes muR = 0 with no absorption "
+            f"correction, so the file would state intensities rietx does not "
+            f"compute")
+    source = instrument.source
+    if source.kind == "xray_cw" and source.polarization.value != 0.5:
+        raise ValueError(
+            f"instrument.source.polarization is {source.polarization.value!r}, "
+            f"and this writer writes Cthm = 1, Rpolarz = 0, FullProf's "
+            f"unpolarised beam (rietx's 0.5), so the file would state "
+            f"different intensities at every angle")
+    if instrument.extra_components:
+        raise ValueError(
+            f"instrument.extra_components holds "
+            f"{len(instrument.extra_components)} declared hump or peak "
+            f"component(s), which this writer does not write, so the file "
+            f"would state a pattern without them")
+
+
+def _anomalous(phase, atom, typ: str, dispersion, wavelengths: tuple[float, ...]
+               ) -> tuple[float, float, int]:
+    """LINE 12's ``(DFP, DFPP, 2)`` for an X-ray ``Typ``: rietx's own f′, f″.
+
+    Measured against FullProf 8.20 as a black box (#568 review): a file with
+    no LINE 12 is computed with FullProf's **own** f′/f″, which it prints and
+    which are not rietx's (Fe at 1.85 Å: −2.095/0.566 against Cromer-Liberman
+    −2.548/0.521; a CsCl-type FeAl's Icalc/rietx spread 9.7 % over hkl), so
+    the file always states them. ITY = 2 is "just Df′ and Df″", with
+    FullProf's tabulated sinθ/λ part of f, under the lower-case ``NAM``
+    (manual pp. 79–80); measured, it takes the values for an element and an
+    ion ``Typ`` alike, and the FeAl spread falls to 0.31 %. rietx applies one
+    f′ + i·f″ per element at the primary line (``dispersion.resolve``, which
+    refuses an edge between the lines), as FullProf does per ``NAM``. With
+    ``dispersion=None`` both are written 0, rietx's f = f₀.
+    """
+    if len(typ) > _NAM_WIDTH:
+        raise ValueError(
+            f"phase {phase.name!r}: atom {atom.label!r}: Typ {typ!r} is longer "
+            f"than LINE 12's {_NAM_WIDTH}-character NAM, which states its "
+            f"anomalous dispersion, and FullProf stops on a longer name")
+    if dispersion is None:
+        return 0.0, 0.0, 2
+    from ...crystallography.dispersion import resolve
+    try:
+        f = resolve([atom.species], wavelengths, dispersion.overrides)[atom.species]
+    except (KeyError, ValueError) as exc:
+        raise ValueError(f"phase {phase.name!r}: atom {atom.label!r}: "
+                         f"{exc}") from None
+    return _finite(f.real, f"the f' of {atom.species}"), _finite(
+        f.imag, f"the f'' of {atom.species}"), 2
 
 
 def _widths(phase, instrument: Instrument | None) -> list[float]:
@@ -3011,7 +3156,7 @@ def _widths(phase, instrument: Instrument | None) -> list[float]:
     ``H_G² = U tan²θ + V tanθ + W + IG/cos²θ`` and ``H_L = X tanθ + Y/cosθ``,
     each a FWHM in degrees 2θ (U, V, W in deg², "the units of parameters U V W
     IG are (degrees 2θ)²"), with η from the same Thompson, Cox & Hastings
-    (1987) quintic rietx uses. rietx's laws are the same functions with the
+    (1987, *J. Appl. Cryst.* **20**, 79) quintic rietx uses. rietx's laws are the same functions with the
     Lorentzian letters swapped (``x`` is rietx's 1/cosθ size term, ``y`` its
     tanθ strain term; ``model/profiles/caglioti.py``), and FullProf states
     widths **per phase**, so each phase gets rietx's instrument widths plus its
@@ -3047,9 +3192,19 @@ def _widths(phase, instrument: Instrument | None) -> list[float]:
             f"{instrument.geometry.axial_hl.value!r}), and this writer does "
             f"not map it onto FullProf's S_L/D_L asymmetry pair, so the file "
             f"would state symmetric lines where rietx computes asymmetric ones")
-    return [profile.u.value + phase.gauss_strain.value, profile.v.value,
-            profile.w.value, profile.y.value + phase.lor_strain.value,
-            profile.x.value + phase.lor_size.value, phase.gauss_size.value]
+    terms = {name: _finite(param.value, what) for name, param, what in (
+        ("u", profile.u, "instrument.profile.u"),
+        ("v", profile.v, "instrument.profile.v"),
+        ("w", profile.w, "instrument.profile.w"),
+        ("x", profile.x, "instrument.profile.x"),
+        ("y", profile.y, "instrument.profile.y"),
+        ("gauss_strain", phase.gauss_strain, f"phase {phase.name!r} gauss_strain"),
+        ("gauss_size", phase.gauss_size, f"phase {phase.name!r} gauss_size"),
+        ("lor_strain", phase.lor_strain, f"phase {phase.name!r} lor_strain"),
+        ("lor_size", phase.lor_size, f"phase {phase.name!r} lor_size"))}
+    return [terms["u"] + terms["gauss_strain"], terms["v"], terms["w"],
+            terms["y"] + terms["lor_strain"], terms["x"] + terms["lor_size"],
+            terms["gauss_size"]]
 
 
 def from_structure(structure: Structure, *,
@@ -3076,17 +3231,33 @@ def from_structure(structure: Structure, *,
       (:func:`fullprof_species`): ``ZR+4``/``O-2`` for X-rays, the bare element
       for neutrons, and an isotope as a LINE-12 user scattering length on a
       neutron file (refused on an X-ray one, which has no slot for it).
+    * **the anomalous dispersion** on an X-ray file, as one LINE-12
+      ``nam f′ f″ 2`` per ``Typ`` (:func:`_anomalous`): rietx's own
+      Cromer-Liberman values at the primary line, or 0 under
+      ``dispersion=None``. Without them FullProf applies its own table
+      (measured), which is not rietx's away from Cu Kα.
 
-    What still does not travel: the background, the zero shift and sample
-    displacement, the absorption and polarisation corrections, preferred
-    orientation and extinction, and the fitted 2θ range. The file carries safe,
+    What still does not travel, at its identity: the zero shift, sample
+    displacement and transparency, the capillary offsets, absorption (no
+    ``mu_r``/``mu_t``/specimen dimension, and not a transmission plate),
+    surface roughness, a polarisation other than K = 0.5, declared extra
+    components, preferred orientation (none, or r = 1) and extinction (0).
+    Each is written at FullProf's identity (``Zero = 0``, ``muR = 0``,
+    ``Cthm = 1``, ``Pref = 0``), and each is **refused away from its
+    identity** (:func:`_refuse_dropped_instrument`; the ``.prm`` writer's
+    zero shift is the precedent), because the file would compute a different
+    model. Two things do not travel at any value, because they are the
+    receiving program's to refine against its own data rather than part of
+    the model: the background and the fitted 2θ range. The file carries safe,
     inert values for those (a two-point flat background, one cycle) purely so
     it is *complete* — a ``.pcr`` is positional with no keyword to
     resynchronise on, so every line :func:`read_fullprof_pcr` expects must
     exist even where a ``Structure`` carries nothing for it. Refused by name,
     because the file would state a different profile from rietx's: an exact
-    Voigt shape, a Stephens strain block, axial divergence, harmonics, and more
-    than two emission lines.
+    Voigt shape, a Stephens strain block, axial divergence, harmonics, more
+    than two emission lines, a first line of weight 0, a negative second
+    weight (a negative ``Ratio`` is FullProf's flag for a second U, V, W
+    block), and a non-finite wavelength, weight or width, each by its field.
 
     Every free parameter gets its **own** codeword number
     (``10 * n + 1``, `n` counting up from 1), never a shared tie: a
@@ -3100,10 +3271,13 @@ def from_structure(structure: Structure, *,
     atom always comes back fully occupied — so this writer computes it from
     each site's own multiplicity (``Occ = M_site / M_general``, the *only*
     value that makes every ratio equal to 1 and so passes
-    :func:`occupancy_factor`'s consistency check) rather than carrying the
-    source ``Structure``'s (nonexistent) chemical occupancy.
+    :func:`occupancy_factor`'s consistency check). That is the fully
+    occupied value, so an atom whose ``occ`` is not 1 is **refused**, as the
+    ``.prm`` writer refuses it: writing ``occ·m/M`` would not read back
+    (:func:`occupancy_factor` refuses a partial occupancy), and writing
+    ``m/M`` would state a whole atom where rietx refined a fraction.
 
-    Eight refusals, each naming what FullProf's grammar cannot state, or
+    Further refusals, each naming what FullProf's grammar cannot state, or
     what this same module's own reader would refuse on the way back in. A
     blank phase name: the name line is comment-stripped like every other
     line, so a name that strips to nothing leaves the line blank and the
@@ -3145,6 +3319,7 @@ def from_structure(structure: Structure, *,
 
     job, lambda1, lambda2, ratio = _radiation(instrument)
     neutron = job == 1
+    _refuse_dropped_instrument(instrument)
     for phase in structure.phases:
         # A non-finite value is refused before anything else, for all three
         # foreign-format writers at once (WP-1118). `Parameter` does not forbid
@@ -3163,6 +3338,19 @@ def from_structure(structure: Structure, *,
                     f"'{param.value}' and FullProf does not parse — refused "
                     f"here rather than written into a file that fails in "
                     f"another program")
+        if phase.extinction.value != 0.0:
+            raise ValueError(
+                f"phase {phase.name!r} has extinction = "
+                f"{phase.extinction.value!r}, and this writer writes no "
+                f"extinction term, so the file would state stronger low-angle "
+                f"lines than rietx computes")
+        po = phase.preferred_orientation
+        if po is not None and po.r.value != 1.0:
+            raise ValueError(
+                f"phase {phase.name!r} carries March-Dollase preferred "
+                f"orientation (r = {po.r.value!r} along {po.axis}), and this "
+                f"writer writes Pref = 0 with Nor = 0, so the file would state "
+                f"intensities rietx does not compute")
         if not phase.name.strip():
             raise ValueError(
                 f"phase name {phase.name!r} cannot be written to a FullProf "
@@ -3211,6 +3399,15 @@ def from_structure(structure: Structure, *,
                     f".pcr atom line cannot carry — the line is "
                     f"whitespace-tokenized and a space inside either field "
                     f"desynchronises every column after it")
+            if atom.occ.value != 1.0:
+                raise ValueError(
+                    f"phase {phase.name!r}: atom {atom.label!r} has occ = "
+                    f"{atom.occ.value!r}. This writer's Occ column is the site "
+                    f"multiplicity over the general one, the fully occupied "
+                    f"value, because to_structure's occupancy_factor refuses a "
+                    f"partial occupancy on the way back in; writing occ·m/M "
+                    f"would not read back, and writing m/M would state a full "
+                    f"site. The .prm writer refuses it for the same reason")
             if atom.biso.value < 0.0:
                 raise ValueError(
                     f"phase {phase.name!r}: atom {atom.label!r} has Biso = "
@@ -3230,8 +3427,16 @@ def from_structure(structure: Structure, *,
         return _code() if param.vary else 0.0
 
     body: list[str] = []
-    #: LINE 12's user scattering lengths, ``Typ`` → b (fm), one per isotope.
-    user_scatterers: dict[str, float] = {}
+    #: LINE 12, ``NAM`` → (DFP, DFPP, ITY): on a neutron file an isotope's b
+    #: (10⁻¹² cm, ITY 0); on an X-ray file every Typ's f′/f″ (ITY 2).
+    user_scatterers: dict[str, tuple[float, float, int]] = {}
+    if neutron:
+        dispersion = None
+    else:
+        from ...schemas.instrument import Dispersion
+        dispersion = (Dispersion() if instrument is None
+                      else instrument.source.dispersion)
+        wavelengths = (lambda1,) if ratio == 0.0 else (lambda1, lambda2)
     # The zero-shift line: value/codeword interleaved, four pairs. Nothing a
     # Structure carries maps onto it, so every value is inert and every
     # codeword held — `lambda_slot`'s own docstring calls it "a stale number
@@ -3278,7 +3483,10 @@ def from_structure(structure: Structure, *,
                                  f"{exc}") from None
             typs.append(typ)
             if user_b is not None:
-                user_scatterers[typ] = user_b
+                user_scatterers[typ] = (round(user_b / 10.0, 8), 0.0, 0)
+            elif not neutron and typ.lower() not in user_scatterers:
+                user_scatterers[typ.lower()] = _anomalous(
+                    phase, atom, typ, dispersion, wavelengths)
         body.append(phase.name)
         phase_control = dict(nat=len(phase.atoms), dis=0, ang_or_mom=0,
                              pr1=0.0, pr2=0.0, pr3=1.0, jbt=0, irf=0, isy=0,
@@ -3338,11 +3546,12 @@ def from_structure(structure: Structure, *,
     # Nba = 2, a flat two-point background — the minimum this reader accepts.
     lines.append("5.0 10.0 0.0")
     lines.append("155.0 10.0 0.0")
-    # LINE 12 (Nsc > 0): an isotope's b as a user scattering length, NAM DFP
-    # DFPP ITY with DFP in 10^-12 cm and ITY 0 ("only reads a user defined
-    # atomic Fermi length b"); `fullprof_species` says why this is the route.
-    for typ, b in user_scatterers.items():
-        lines.append(f"{typ} {round(b / 10.0, 8)!r} 0.0 0")
+    # LINE 12 (Nsc > 0), NAM DFP DFPP ITY. Neutron: an isotope's b as a user
+    # scattering length, DFP in 10^-12 cm and ITY 0 ("only reads a user
+    # defined atomic Fermi length b"); `fullprof_species` says why this is the
+    # route. X-ray: each Typ's f'/f'' with ITY 2 (`_anomalous`).
+    for nam, (dfp, dfpp, ity) in user_scatterers.items():
+        lines.append(f"{nam} {dfp!r} {dfpp!r} {ity}")
     # Nex = 0, so no excluded-region lines follow the background — then the
     # refined-parameter count `_read_phase`'s caller reads next
     # (`cur.floats("the refined-parameter count", ...)`), which is a

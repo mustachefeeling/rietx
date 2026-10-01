@@ -28,6 +28,7 @@ counts, not only the values:
   this reader is "handles X, refuses Y *by name*".
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -2209,7 +2210,7 @@ def test_a_written_pcr_never_has_zero_widths():
     assert w > 0.0
     assert (x, y) == (default.y.value, default.x.value)
     assert _lines(text)[1].split()[1] == "7"
-    assert _lines(text)[10].split()[13] == "7"
+    assert _lines(text)[_lines(text).index("syn") + 1].split()[13] == "7"
 
 
 def test_the_widths_are_the_instruments_plus_the_phases_under_fullprofs_letters():
@@ -2336,7 +2337,6 @@ def test_an_isotope_goes_to_fullprof_as_a_line12_user_b(species, nam, b_fm):
     ("7Li", False, "X-ray .pcr cannot state one"),
     ("D", False, "X-ray .pcr cannot state one"),
     ("Cu+", False, "sign but no charge magnitude"),
-    ("Cu+", True, "sign but no charge magnitude"),
     ("157Gd", True, "A4"),
 ])
 def test_a_species_fullprof_cannot_state_is_refused_by_name(species, neutron, match):
@@ -2383,9 +2383,186 @@ def _with_line12(tmp_path, line, job="1"):
     ("LI7 -0.19 0.0 0", "1", "neither"),            # natural Li's b under an isotope name
     ("DEU 0.6671 0.0 0", "1", "neither"),           # a user name rietx cannot map
     ("LI7 -0.222 0.0 1", "1", "ITY = 1"),           # a magnetic form factor
-    ("LI7 -0.222 0.0 0", "0", "Nsc = 1 on a Job = 0"),  # X-ray: f'/f'' plus a coefficient line
+    ("LI7 -0.222 0.0 0", "0", "only 'NAM DFP DFPP 2'"),  # X-ray: f'/f'' plus a coefficient line
 ])
 def test_a_line12_rietx_has_no_species_for_is_refused_at_read(tmp_path, line, job,
                                                                match):
     with pytest.raises(FullProfPcrError, match=match):
         read_fullprof_pcr(_with_line12(tmp_path, line, job))
+
+
+# -- #568 review: every value written is guarded, and what is dropped is dropped
+#    only at its identity --------------------------------------------------------
+
+
+def _set(obj, dotted, value):
+    *head, last = dotted.split(".")
+    for part in head:
+        obj = obj[int(part)] if part.isdigit() else getattr(obj, part)
+    setattr(obj, last, value)
+
+
+def _make_infinite(param, bad):
+    """A Parameter's own bounds refuse ±inf until they are opened (as the
+    cell test above does), and NaN never validates, so ±inf is what reaches
+    the writer."""
+    param.min, param.max = float("-inf"), float("inf")
+    param.value = bad
+
+
+@pytest.mark.parametrize("path, field", [
+    ("source.lines.0.wavelength", "instrument.source.lines.0.wavelength"),
+    ("source.lines.1.wavelength", "instrument.source.lines.1.wavelength"),
+    ("source.lines.1.weight", "instrument.source.lines.1.weight"),
+    ("profile.u", "instrument.profile.u"),
+    ("profile.w", "instrument.profile.w"),
+    ("profile.x", "instrument.profile.x"),
+    ("profile.y", "instrument.profile.y"),
+])
+@pytest.mark.parametrize("bad", [float("inf"), float("-inf")])
+def test_a_non_finite_instrument_value_is_refused_naming_the_field(path, field, bad):
+    inst = _xray(1.5405929, 1.5444274)
+    from_structure(_cubic("Mn"), instrument=inst)       # the control writes
+    obj = inst
+    for part in path.split("."):
+        obj = obj[int(part)] if part.isdigit() else getattr(obj, part)
+    _make_infinite(obj, bad)
+    with pytest.raises(ValueError, match=re.escape(field) + ".*FullProf does not parse"):
+        from_structure(_cubic("Mn"), instrument=inst)
+
+
+@pytest.mark.parametrize("term", ["gauss_strain", "gauss_size", "lor_strain", "lor_size"])
+def test_a_non_finite_phase_broadening_is_refused_naming_it(term):
+    st = _cubic("Mn")
+    _make_infinite(getattr(st.phases[0], term), float("inf"))
+    with pytest.raises(ValueError, match=f"phase 'syn' {term} is inf"):
+        from_structure(st, instrument=_xray(1.5405929))
+
+
+def test_a_doublet_weight_fullprof_cannot_state_is_refused():
+    """A first line of weight 0 has no ratio (it raised a bare
+    ZeroDivisionError); a negative second weight would write a negative Ratio,
+    FullProf's flag for a second U, V, W block."""
+    inst = _xray(1.5405929, 1.5444274)
+    inst.source.lines[0].weight.value = 0.0
+    with pytest.raises(ValueError, match=r"lines\.0\.weight is 0\.0"):
+        from_structure(_cubic("Mn"), instrument=inst)
+    inst = _xray(1.5405929, 1.5444274)
+    inst.source.lines[1].weight.min = -1.0                # the field's bound is 0
+    inst.source.lines[1].weight.value = -0.2
+    with pytest.raises(ValueError, match=r"lines\.1\.weight is -0\.2.*negative LINE 8 Ratio"):
+        from_structure(_cubic("Mn"), instrument=inst)
+    inst.source.lines[1].weight.value = 0.0               # no second line's worth: fine
+    assert _lines(from_structure(_cubic("Mn"), instrument=inst))[3].split()[2] == "0.0"
+
+
+def test_a_partly_occupied_site_is_refused():
+    """Occ is written as m/M, the full site, so occ = 0.5 would go out whole."""
+    st = _cubic("Y", "Mn")
+    st.phases[0].atoms[0].occ.value = 0.5
+    with pytest.raises(ValueError, match="atom 'A0' has occ = 0.5"):
+        from_structure(st)
+    st.phases[0].atoms[0].occ.value = 1.0
+    from_structure(st)
+
+
+@pytest.mark.parametrize("path, value, match", [
+    ("zero_shift.value", 0.01, "instrument.zero_shift is 0.01"),
+    ("geometry.sample_displacement.value", 0.02, "sample_displacement is 0.02"),
+    ("geometry.sample_transparency.value", 0.01, "sample_transparency is 0.01"),
+    ("geometry.capillary_offset_along_beam.value", 0.1, "capillary_offset_along_beam"),
+    ("geometry.capillary_offset_across_beam.value", 0.1, "capillary_offset_across_beam"),
+    ("geometry.mu_t", 0.4, "mu_t or thickness_mm is declared"),
+    ("geometry.thickness_mm", 0.2, "mu_t or thickness_mm is declared"),
+    ("geometry.kind", "flat_plate_transmission", "flat_plate_transmission"),
+    ("source.polarization.value", 0.99, "polarization is 0.99"),
+])
+def test_an_instrument_term_away_from_its_identity_is_refused(path, value, match):
+    """The file states none of these, so a non-identity value would compute
+    a different model; at the identity (the control) it is dropped."""
+    inst = _xray(1.5405929)
+    from_structure(_cubic("Mn"), instrument=inst)
+    _set(inst, path, value)
+    with pytest.raises(ValueError, match=match):
+        from_structure(_cubic("Mn"), instrument=inst)
+
+
+def test_capillary_absorption_surface_roughness_and_extra_components_are_refused():
+    from rietx.schemas.instrument import HumpComponent, RoughnessSuortti
+    inst = _xray(1.5405929)
+    inst.geometry.kind = "debye_scherrer"
+    from_structure(_cubic("Mn"), instrument=inst)          # mu_r None, no radius: off
+    inst.geometry.mu_r = 0.0
+    from_structure(_cubic("Mn"), instrument=inst)          # 0 is off exactly
+    inst.geometry.mu_r = 0.8
+    with pytest.raises(ValueError, match="mu_r is 0.8"):
+        from_structure(_cubic("Mn"), instrument=inst)
+    inst.geometry.mu_r, inst.geometry.capillary_radius_mm = None, 0.35
+    with pytest.raises(ValueError, match="estimates a mu_r"):
+        from_structure(_cubic("Mn"), instrument=inst)
+    inst = _xray(1.5405929)
+    inst.geometry.surface_roughness = RoughnessSuortti()
+    with pytest.raises(ValueError, match="surface_roughness is a 'suortti' model"):
+        from_structure(_cubic("Mn"), instrument=inst)
+    inst = _xray(1.5405929)
+    inst.extra_components = [HumpComponent(position=rx.Parameter(value=20.0),
+                                           height=rx.Parameter(value=5.0),
+                                           fwhm=rx.Parameter(value=8.0))]
+    with pytest.raises(ValueError, match="extra_components holds 1"):
+        from_structure(_cubic("Mn"), instrument=inst)
+
+
+def test_preferred_orientation_and_extinction_away_from_identity_are_refused():
+    st = _cubic("Mn")
+    st.phases[0].preferred_orientation = rx.PreferredOrientation(
+        axis=(0, 0, 1), r=rx.Parameter(value=1.0))
+    from_structure(st)                                      # r = 1 is no texture
+    st.phases[0].preferred_orientation.r.value = 0.8
+    with pytest.raises(ValueError, match=r"March-Dollase .*r = 0\.8"):
+        from_structure(st)
+    st = _cubic("Mn")
+    st.phases[0].extinction.value = 500.0
+    with pytest.raises(ValueError, match="extinction = 500.0"):
+        from_structure(st)
+
+
+def _line12(text):
+    lines = _lines(text)
+    nsc = int(lines[1].split()[5])
+    start = lines.index("155.0 10.0 0.0") + 1
+    return [line.split() for line in lines[start:start + nsc]]
+
+
+def test_an_xray_file_states_rietx_s_own_anomalous_dispersion(tmp_path):
+    """FullProf applies its own f'/f'' to a file without LINE 12 (measured,
+    8.20: Fe at 1.85 Å is −2.095/0.566 there, Cromer-Liberman −2.548/0.521),
+    so every X-ray Typ gets an ITY = 2 line with rietx's values, lower-case
+    NAM, or zeros under dispersion=None; the reader reads them past."""
+    from rietx.crystallography.dispersion import dispersion
+    st = _cubic("Zr4+", "O2-", "Zr4+")
+    text = from_structure(st, instrument=_xray(1.85))
+    want = [["zr+4", *map(repr, dispersion("Zr", 1.85)), "2"],
+            ["o-2", *map(repr, dispersion("O", 1.85)), "2"]]
+    assert _line12(text) == want
+    off = from_structure(st, instrument=_xray(1.85, dispersion=None))
+    assert _line12(off) == [["zr+4", "0.0", "0.0", "2"], ["o-2", "0.0", "0.0", "2"]]
+    # an override is rietx's value, so it is what is written
+    from rietx.schemas.instrument import Dispersion
+    over = from_structure(st, instrument=_xray(1.85, dispersion=Dispersion(
+        overrides={"Zr": (-7.5, 1.25)})))
+    assert _line12(over)[0] == ["zr+4", "-7.5", "1.25", "2"]
+    # no instrument: Cu Kα1's, the line the default doublet is resolved at
+    assert _line12(from_structure(_cubic("Fe")))[0] == [
+        "fe", *map(repr, dispersion("Fe", 1.5405929)), "2"]
+    path = tmp_path / "anomalous.pcr"
+    path.write_text(text, encoding="utf-8")
+    back = to_structure(read_fullprof_pcr(path))
+    assert [a.species for a in back.phases[0].atoms] == ["Zr4+", "O2-", "Zr4+"]
+
+
+def test_a_neutron_file_writes_a_digitless_ion_as_its_element():
+    """Follow-up 7: Cu+ is refused for an X-ray reason (no CU+ form factor);
+    rietx and FullProf both give it Cu's b."""
+    text = from_structure(_cubic("Cu+"),
+                          instrument=rx.Instrument.constant_wavelength_neutron(1.5406))
+    assert any(line.startswith("A0 CU ") for line in _lines(text))

@@ -709,7 +709,8 @@ the element alone, so the charge is not written (`O2-` → `O`; FullProf stops o
 `O-2` there). An isotope is written only on a neutron file, as a LINE-12 user
 scattering length (`7Li` → `Typ LI7` with `LI7 -0.222 0.0 0`), because a bare
 `LI7` runs at natural abundance with no message. An isotope on an X-ray file,
-`Cu+`, and an isotope whose name would not fit LINE 12's four characters
+`Cu+` on an X-ray file (a neutron file writes it as `CU`, Cu's b in both
+programs), and an isotope whose name would not fit LINE 12's four characters
 (`157Gd`) are refused by name. FullProf's grammar has no origin or
 axis suffix at all, though, so it can only *state* a setting its own
 bare-symbol convention already prefers (root CLAUDE.md's "an R lattice on
@@ -767,10 +768,18 @@ states the instrument's wavelengths (`Job = 1` for a neutron source) and its
 widths as FullProf's TCH pseudo-Voigt (`Npr = 7`), each phase's own sample
 broadening added and FullProf's X/Y letters swapped onto rietx's strain/size
 terms. Without an instrument it writes Cu Kα1/Kα2 and a default
-`ProfileTCHZ()`'s widths; zero widths are a FullProf hard stop. A profile term
-FullProf's file would not state the same way is refused by name: an exact
-Voigt shape, a Stephens strain block, axial divergence, harmonics, and a third
-emission line. A written `.EXP` states no
+`ProfileTCHZ()`'s widths; zero widths are a FullProf hard stop. An X-ray file
+also states rietx's own anomalous dispersion, one LINE-12 `nam f′ f″ 2` per
+`Typ` (0 under `dispersion=None`): without it FullProf applies its own f′/f″,
+measured against FullProf 8.20 to differ from rietx's away from Cu Kα. A
+profile term FullProf's file would not state the same way is refused by name:
+an exact Voigt shape, a Stephens strain block, axial divergence, harmonics, a
+third emission line, a first line of weight 0, a negative second weight, and a
+non-finite wavelength, weight or width. So is every term the file writes only
+at its identity, wherever it is away from it: a zero shift, sample
+displacement or transparency, a capillary offset, absorption, surface
+roughness, a polarisation other than K = 0.5, a declared hump or peak,
+preferred orientation (r ≠ 1), extinction, and a partly occupied site. A written `.EXP` states no
 histograms at all, which is what a GSAS experiment file looks like before any
 data is loaded rather than an omission.
 
