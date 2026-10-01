@@ -751,6 +751,7 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
         notes.append(f"{len(dropped)} coordination polyhedra not drawn: their ligands "
                      f"would take the drawing past {max_atoms} atoms")
     atoms.extend(corners)
+    _flag_outside_centres(atoms, n_cell, bonds, polyhedra)
 
     corners = _corners(basis)
     orbit_frac = orbit["frac"]
@@ -945,6 +946,7 @@ def _tile(home: dict, box: tuple, max_atoms: int, started: float) -> dict:
             polyhedra.append({**poly, "center": at[centre], "vertices": vertices,
                               "bonds": [int(bond_at[c, k]) for k in poly["bonds"]]})
     polyhedra.sort(key=lambda p: p["center"])
+    _flag_outside_centres(out, n_block, bonds, polyhedra)
     label = "×".join(str(hi - lo) for lo, hi in box)
     note = f"extent {label} · {len(out)} atoms · built in {1e3 * (time.perf_counter() - started):.0f} ms"
     return {**home, "atoms": out, "bonds": bonds, "polyhedra": polyhedra, "polyhedra_dropped": [],
@@ -1060,7 +1062,9 @@ def _partners(atoms: list[dict], bonds: list[dict], basis: np.ndarray) -> list[d
     completing the added atoms' own bonds would complete theirs in turn, which
     is a packing diagram (this WP's explicit non-goal).  What one level buys is
     the property that matters — every atom of the cell shows its full
-    coordination.
+    coordination.  A partner that would be a polyhedron's centre is drawn
+    only while its polyhedra are hidden, as VESTA's default search would not
+    add it (:func:`_flag_outside_centres`, WP-1529).
     """
     known = set(_keys([a["pos"] for a in atoms]))
     inverse = np.linalg.inv(basis)
@@ -1077,6 +1081,39 @@ def _partners(atoms: list[dict], bonds: list[dict], basis: np.ndarray) -> list[d
         out.append({**source, "pos": list(bond["b"]), "boundary": True,
                     "frac": (inverse @ np.asarray(bond["b"])).tolist()})
     return out
+
+
+def _flag_outside_centres(atoms: list[dict], n_cell: int, bonds: list[dict],
+                          polyhedra: list[dict]) -> None:
+    """Flag ``outside_centre`` on every atom and bond, in place.
+
+    An outside centre is an atom past the first ``n_cell`` whose site centres a
+    polyhedron in this drawing and which is no polyhedron's vertex: a bond from
+    a ligand reached it, and a polyhedron is centred only on the first
+    ``n_cell`` atoms, so it carries none.  Rutile drew 2 Ti that way,
+    fluorapatite 4 P and calcite 8 Ca, and an agent reading "the polyhedra
+    are whole" saw a centre without one (WP-1529).  VESTA's default bond search adds a ligand
+    outside the boundary but never a centre: "A1 atoms lying outside the
+    boundary are never searched" (Momma & Izumi, VESTA manual § 8.2.1).  So
+    the client draws such an atom, and every bond whose far end ``b`` is one,
+    only while no drawn polyhedron is centred on its site (``drawnWith``).  The
+    atom stays in the payload, since while its shell is hidden the bond to it
+    is the ligand's own coordination: NAC's F3 has no other bond while NaF₇
+    and CaF₈ are hidden.
+
+    A bond's near end ``a`` is always one of the first ``n_cell``, so only
+    ``b`` is read.  :func:`_tile` calls this again on a block, whose atoms and
+    bonds are copies carrying the cell's flags, so an interior bond of the
+    block would otherwise keep one.
+    """
+    centring = {atoms[p["center"]]["site"] for p in polyhedra}
+    vertices = {v for p in polyhedra for v in p["vertices"]}
+    for k, atom in enumerate(atoms):
+        atom["outside_centre"] = (k >= n_cell and atom["site"] in centring
+                                  and k not in vertices)
+    outside = set(_keys([a["pos"] for a in atoms if a["outside_centre"]]))
+    for bond, key in zip(bonds, _keys([b["b"] for b in bonds])):
+        bond["outside_centre"] = key in outside
 
 
 def _boundary_shifts(frac: np.ndarray) -> list[np.ndarray]:

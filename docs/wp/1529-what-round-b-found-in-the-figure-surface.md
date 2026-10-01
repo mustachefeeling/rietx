@@ -36,6 +36,9 @@ record is `docs/wp/1504-eval/runs/`, and the table is in 1504's handover log.
   polyhedron. Measured on the `tests/data/polyhedra_phases.json` rows:
   rutile draws 2 Ti bare, at (½, ½, −½) and (½, ½, 1½); fluorapatite draws
   4 P bare, beyond the side faces; NAC, gypsum, calcite and LaB₆ draw none.
+  *Superseded in part 2026-10-01:* calcite drew 8 Ca bare too, all on a site
+  whose CaO₆ is drawn by default. Shells hidden by default add 26 Ca in
+  fluorapatite, 9 Ca and 7 Na in NAC and 8 Ca in gypsum.
   `polyhedra_dropped` is empty for all six, because those polyhedra were
   never built rather than dropped. Both Opus fluorapatite runs failed the
   judge's "polyhedra are whole" check on exactly this. Dropping the bare atoms
@@ -85,7 +88,7 @@ record is `docs/wp/1504-eval/runs/`, and the table is in 1504's handover log.
 
 - [x] The skill's description names structure figures, within its budget;
   the two committed copies re-synced.
-- [ ] One cell draws no bare centre: the design chosen against VESTA's
+- [x] One cell draws no bare centre: the design chosen against VESTA's
   behaviour, and a test over the six round-B phases (rutile 2 Ti and
   fluorapatite 4 P today, 0 after).
 - [ ] `hidden=` and `dangling_bonds` agree: a test on calcite and LaB₆.

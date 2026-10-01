@@ -241,6 +241,9 @@ def test_the_corpus_reaches_every_rule_it_exists_for():
     scenes = [c["scene"] for c in corpus["scenes"]]
     payloads = corpus["payloads"]
     assert any(a.get("vertex_only") for g in payloads.values() for a in g["atoms"])
+    # rutile's two Ti outside the cell, and their sticks (WP-1529)
+    assert any(a.get("outside_centre") for g in payloads.values() for a in g["atoms"])
+    assert any(b.get("outside_centre") for g in payloads.values() for b in g["bonds"])
     assert any(a["npd"] for g in payloads.values() for a in g["atoms"])
     # a floored axis is FLAT_AXIS long, in both of drawable's branches: one
     # flat axis (mono_one_flat) and two (mono_two_flat)
@@ -755,15 +758,17 @@ def test_the_recipe_draws_the_same_picture_through_json(nac, kw):
 
 
 @pytest.mark.parametrize("kw", [{"phase": 1}, {"mode": "ellipsoid", "probability": 0.9},
-                                {"bond_tolerance": 0.05}])
+                                {"bond_tolerance": 0.05, "polyhedra": False}])
 def test_the_recipe_redraws_from_a_structure_what_its_arguments_built(nac, kw):
     """From a structure, the phase and the geometry's two knobs are in the
-    call; left out, the recipe drew phase 0 at the defaults."""
+    call; left out, the recipe drew phase 0 at the defaults.  Rutile's sticks
+    all lie inside its octahedra, so the bond knob shows with them off."""
     rutile = _rutile()
     two = Structure(phases=[rutile.phases[0], nac.phases[0]])
     fig = render_structure(two, size=200, **kw)
     # the argument matters: without it the picture is another
-    plain = render_structure(two, size=200, mode=kw.get("mode", "ball"))
+    plain = render_structure(two, size=200, mode=kw.get("mode", "ball"),
+                             polyhedra=kw.get("polyhedra"))
     assert not np.array_equal(plain.image, fig.image)
     again = render_structure(two, **json.loads(json.dumps(fig.recipe)))
     assert np.array_equal(again.image, fig.image)
