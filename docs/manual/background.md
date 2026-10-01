@@ -38,6 +38,36 @@ The rows land in $J^\top J$, so the covariance is regularised, and they are
 excluded from $R_{wp}$ and the serial-correlation statistics. They are soft
 observations rather than data.
 
+(bg-lambda-counts)=
+### What the pure number leaves to the counts
+
+A pure λ fixes the penalty's weight against the data's, so it fixes the
+*relative* bias a too-stiff spline leaves in a broad feature. The χ² that bias
+costs grows with the feature's height in σ, so the same λ is stiffer, in what it
+costs, on a better-counted pattern. Measured on the synthetic NAC capillary
+pattern of `tests/test_air_scatter_undeclared.py` (0.005° steps,
+`auto_background`'s 3° knots, a hump of FWHM about 8° and 900 counts over a
+300-count level, no air rise), with every count multiplied by k:
+
+| k | hump height / σ | χ²_red at λ = 1 | at λ = 0.1 | at λ = 0.01 |
+|---|---|---|---|---|
+| 0.01 | 2.6 | 1.137 | 1.111 | 1.105 |
+| 0.1 | 8.2 | 1.301 | 1.079 | 1.039 |
+| 1 | 26 | 3.764 | 1.478 | 1.060 |
+| 10 | 82 | 28.44 | 5.489 | 1.293 |
+
+The excess over the λ = 0.01 column grows about tenfold per decade of k, as
+$(h/\sigma)^2$ would. `FitReport.background.worst_absorption` reads 0.02 in every
+cell and `BACKGROUND_ABSORPTION` fires in none, so on this pattern the lower λ
+buys the hump without reaching the lines. The rows are invariant to the step:
+the k = 1 cell at λ = 1 reads 3.761 at 0.001° steps. The default stays 1. On a
+well-counted pattern with a broad hump, the signature of a λ stiffer than the
+data supports is the one `increase_background_flexibility` reports: an
+off-region χ²_red well above 1 at a Durbin–Watson d well under 2 (here 4.04 and
+0.48 at λ = 1, 1.08 and 1.79 at λ = 0.01). Lower `lambda_smooth` a decade at a
+time, and read `worst_absorption` and `BACKGROUND_ABSORPTION` at each step before
+keeping one.
+
 (a-measured-background)=
 ## A measured background
 

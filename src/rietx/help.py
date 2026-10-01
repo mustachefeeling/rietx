@@ -526,7 +526,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "declares it only when `rietx.background.diagnose` reports the "
             "rise: the shape is broad, so freeing it without cause gives the "
             "background one more way to imitate a peak. Absent, it has no "
-            "path, so no plan can free it."
+            "path, so no plan can free it, and a fit whose residual says the "
+            "term would have cut χ² reports `AIR_SCATTER_UNDECLARED`."
         ),
         unit=None, default="null",
         typical="absent unless the pattern diagnostics report a low-angle "

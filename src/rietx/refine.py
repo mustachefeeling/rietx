@@ -5272,6 +5272,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     diagnostics = diagnostics + _low_angle_diagnostics(
         model, values, y_calc, stats, ticks, tick_support)
 
+    # The whole residual's half of the same question, for a P-spline whose
+    # air term was declined: the region above reads only below the first
+    # reflection, and auto_background's trigger reads the envelope (#636).
+    diagnostics = diagnostics + _air_scatter_undeclared_diagnostics(
+        model, values, y_calc, stats)
+
     # What a declared sharp peak did, once the fit has an answer about it
     # (WP-1103).  Built after ``ticks`` because "is this component sitting on a
     # reflection" is asked against the same predicted positions Layer 0 uses,
@@ -6380,6 +6386,24 @@ LOW_ANGLE_UNMODELLED_RATIO = 3.0
 #: as "no region" rather than as a level computed on three points.
 LOW_ANGLE_MIN_CHANNELS = 10
 
+#: fraction of the fit's own weighted residual sum of squares that a 1/(2θ)
+#: column would remove, at or above which ``AIR_SCATTER_UNDECLARED`` fires on a
+#: P-spline background that declares no air term (issue #636).  Measured on
+#: the issue's synthetic NAC capillary pattern (λ 0.4133 Å, 2θ 0.5-50°, 3°
+#: knots, a broad hump under an A/(2θ) rise): 0.127, 0.035 and 0.0063 at
+#: A = 600, 300 and 150, where declaring the term cuts χ² by 24 %, 11 % and
+#: 4.3 %; 0 at A = 50 and on five seeds without the rise, where declaring it
+#: cuts nothing and the column's best coefficient is negative, a direction
+#: the bounded term cannot take.  The same at a 0.001° step.  A = 150 is
+#: the case ``LOW_ANGLE_UNMODELLED`` is already silent on.
+AIR_SCATTER_UNDECLARED_FRACTION = 0.005
+
+#: the same removal in units of the fit's reduced χ², i.e. the score
+#: statistic, which is χ²(1)-distributed when the column explains nothing.  25
+#: is 5σ, so a short pattern whose 1/N noise floor sits near the fraction
+#: above cannot fire on noise alone.
+AIR_SCATTER_UNDECLARED_SCORE = 25.0
+
 
 def _first_reflection_fwhm(model: CompiledModel, values: dict[str, float],
                            ticks: dict[str, list[float]],
@@ -6537,6 +6561,94 @@ def _low_angle_diagnostics(model: CompiledModel, values: dict[str, float],
             "the background's air-scatter term; this diagnostic does not "
             "choose between them"),
         value=ratio,
+    )]
+
+
+def _air_scatter_undeclared_diagnostics(model: CompiledModel,
+                                        values: dict[str, float],
+                                        y_calc, stats) -> list[Diagnostic]:
+    """``AIR_SCATTER_UNDECLARED``: a P-spline background with no air term,
+    on a fit whose residual a 1/(2θ) column would cut materially (#636).
+
+    ``auto_background`` declares the term only on
+    ``PatternDiagnostics.air_scatter_gain``, a cubic-against-cubic+1/x test
+    on the rolling low-quantile envelope over the whole range, and since
+    WP-1454 a declined term is absent.  That envelope is blind on exactly the
+    pattern the term is for: on a peak-dense synchrotron capillary scan its
+    3° windows miss a rise confined to the first few degrees and read far
+    above the true background where the lines crowd, so the gain is set by the
+    hump and the line density rather than by the rise (#636's synthetic
+    pattern: 0.0035 with the rise, 0.047 without it).
+    ``LOW_ANGLE_UNMODELLED`` reads the fit's residual instead, but only below
+    the first reflection, so a rise that runs on under the first lines is
+    outside its region.
+
+    This reads the fit's whole residual.  It is the one-column score test:
+    with r the weighted residual, penalty rows appended, and a the weighted
+    1/(2θ) row ``compile_model`` would build, projected off the background
+    block the fit already has, the column removes (a⊥·r)²/(a⊥·a⊥) of χ² at
+    coefficient t = a⊥·r/(a⊥·a⊥).  At the solution r is orthogonal to the
+    background block, so this is what one Gauss-Newton step on the extended
+    model buys with the Bragg model held, and projecting off the background
+    block alone, rather than every free column, makes it a lower bound on
+    that step.  It is not a bound on what a fresh run of a staged plan with
+    the term declared reaches, which is path-dependent: on round-robin
+    sample 2 (``tests/data/qarr/cpd-2.prn``), where the trigger declares the
+    term, taking it away again reads 0.028 here, while the declared refit's
+    χ² moves 1.5 % with nothing but the term's seed and sits 0.75 % under
+    the undeclared one.  **One-sided**:
+    the term is bounded at zero, so a negative t is a direction the declared
+    term cannot take, and it does not fire.  That is what separates the arms
+    on #636's pattern, where every no-rise seed has t < 0.  Where the spline
+    can already draw 1/(2θ) (fine knots), a⊥ is small and so is the score,
+    which is the flat direction WP-1454 and WP-1460 describe.
+
+    Fires when the removal is at least :data:`AIR_SCATTER_UNDECLARED_FRACTION`
+    of χ² **and** at least :data:`AIR_SCATTER_UNDECLARED_SCORE` reduced-χ²
+    units.  Silent on any background without penalty rows: only a P-spline
+    carries the term, and a λ = 0 spline has no rows to tell it from a
+    Chebyshev by.
+    """
+    if model.bkg_penalty is None or any(
+            p.endswith("background.air") for p in model.bkg_paths):
+        return []
+    w = 1.0 / model.sigma
+    r = (model.y_obs - np.asarray(y_calc)) * w
+    pen = model.penalty_residual(values)
+    pen = np.zeros(0) if pen is None else np.asarray(pen, dtype=np.float64)
+    total = float(r @ r)
+    if not (total > 0.0 and stats.chi2 > 0.0):
+        return []
+    r_aug = np.concatenate([r, -pen])
+    block = np.vstack([(model.bkg_design * w).T, model.bkg_penalty])
+    air = np.concatenate([w / np.maximum(model.tt, 1e-3),
+                          np.zeros(model.bkg_penalty.shape[0])])
+    beta, *_ = np.linalg.lstsq(block, air, rcond=None)
+    perp = air - block @ beta
+    norm = float(perp @ perp)
+    lean = float(perp @ r_aug)
+    if not (norm > 0.0 and lean > 0.0):
+        return []
+    removed = lean * lean / norm
+    fraction = removed / total
+    if (fraction < AIR_SCATTER_UNDECLARED_FRACTION
+            or removed / stats.chi2 < AIR_SCATTER_UNDECLARED_SCORE):
+        return []
+    return [Diagnostic(
+        level="warning", code="AIR_SCATTER_UNDECLARED",
+        message=(
+            "the P-spline background declares no 1/(2θ) air-scatter term, "
+            "and re-fitting the background with one, the Bragg model held, "
+            f"would remove at least {fraction:.1%} of this fit's χ² "
+            f"({removed / stats.chi2:.0f}× its reduced χ²; a score test on "
+            "the fit's own residual) — "
+            "auto_background's envelope trigger declines the term on a "
+            "humped or line-dense pattern"),
+        suggestion=(
+            "declare the term and refit: instrument.background.air_scatter = "
+            "Parameter(value=1e-3, min=0.0, transform=\"softplus\"); if the "
+            "rise is not air scatter, raise the pattern's lower limit instead"),
+        value=fraction,
     )]
 
 

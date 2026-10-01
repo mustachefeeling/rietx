@@ -515,6 +515,28 @@ the background's air-scatter term are both available, and only whoever is lookin
 at the pattern can tell whether the region is genuinely outside the beam or the
 background model is locally wrong there.
 
+### A declined air-scatter term
+
+`auto_background` declares the P-spline's 1/(2θ) term only when
+`air_scatter_gain` crosses 0.3, and a declined term is absent, so no plan can
+free it. On a line-dense synchrotron capillary pattern with a broad hump that
+envelope test is blind. Its 3° windows miss a rise confined to the first few
+degrees and sit far above the true background where the lines crowd. On the
+synthetic NAC pattern of `tests/test_air_scatter_undeclared.py` (λ = 0.4133 Å,
+0.5–50°, 0.005° steps) it reads 0.0042 with a strong rise and 0.044 without one.
+`AIR_SCATTER_UNDECLARED` asks the fit instead. It fires on a P-spline with no
+air term when re-fitting the background with a 1/(2θ) column, the Bragg model
+held, would remove at least 0.5 % of χ² and at least 25 times the reduced χ²
+(`Diagnostic.value` is the fraction). It is the one-column score test on the
+fit's own residual, so it costs no refit. It is one-sided because the term is
+bounded at zero: a residual leaning the other way is a direction the term
+cannot take. On that pattern it reads 0.13 with the rise, where declaring the
+term cuts χ² by 24 %, and nothing on the control, where declaring it cuts
+nothing. A weaker rise that `LOW_ANGLE_UNMODELLED` misses, because it runs on
+under the first lines, still reads 0.011. Where the spline can draw 1/(2θ) on its
+own, the projected column is small and the code is silent. The remedy is in
+the suggestion: declare the term and refit.
+
 ### How many observations stand behind each channel
 
 `PatternDiagnostics.coverage_regions` is the one measurement here that reads the
