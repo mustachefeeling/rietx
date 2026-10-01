@@ -73,10 +73,11 @@ condition is enforced in a shim, never in the prompt.
 - [x] A costed menu to the maintainer before any cell runs. `run.py --menu`;
   2026-10-01 the maintainer picked J (the judge on the reference figures)
   and A (the gypsum pilot, after, one run per model).
-- [ ] The before round, on the picked cells.
-- [ ] The after round, on the same cells.
-- [ ] The table in this file's handover, and one line per `report` field:
-  read or never read.
+- [x] The before round, on the picked cells. Round B, 2026-10-01: one run
+  of every cell under 1.2, interleaved with the after round.
+- [x] The after round, on the same cells. Round B, the same 28-run batch.
+- [x] The table in this file's handover, and one line per `report` field:
+  read or never read. For round B, in the 2026-10-01 round B entry.
 - [ ] The cuts pushed into 1501 to 1503's `### Inherited`, and 1505's
   trigger rated.
 
@@ -97,6 +98,97 @@ condition is enforced in a shim, never in the prompt.
 
 ## Handover log
 
+- **2026-10-01** (round B, same session) — Every cell has now run once under
+  1.2: 28 runs at $11.19, 37 minutes of agent time. With the new surface the
+  agents finished more of the tasks, 9 of 14 against 6 of 14 before. That is
+  one run a cell, so it is a direction and not yet a result. Three things
+  look solid already. The rietx skill almost never reaches a figure task,
+  because its description speaks only of refinement. Sonnet drew by hand in
+  matplotlib in 8 of 14 runs and finished one task that way. And both Opus
+  runs on fluorapatite failed on a defect
+  in rietx itself: one cell draws phosphorus atoms without their tetrahedra.
+
+  *Measured* (darwin, Claude Code 2.1.286, `claude-sonnet-5-5` and
+  `claude-opus-5-5`, N = 1 a cell, interleaved before and after):
+
+  | task | model | condition | done | renders | looks | tokens (k) | minutes | $ |
+  |---|---|---|---|---|---|---|---|---|
+  | rutile | sonnet | before | 0/1 | 0 | 1 | 76 | 0.6 | 0.08 |
+  | rutile | sonnet | after | 0/1 | 0 | 1 | 83 | 0.4 | 0.08 |
+  | rutile | opus | before | 0/1 | 3 | 7 | 375 | 2.1 | 0.52 |
+  | rutile | opus | after | 1/1 | 2 | 2 | 379 | 1.8 | 0.42 |
+  | chains | sonnet | before | 0/1 | 0 | 1 | 83 | 0.5 | 0.09 |
+  | chains | sonnet | after | 1/1 | 0 | 3 | 158 | 0.8 | 0.13 |
+  | chains | opus | before | 1/1 | 2 | 2 | 302 | 1.7 | 0.36 |
+  | chains | opus | after | 1/1 | 4 | 4 | 274 | 1.1 | 0.29 |
+  | gypsum | sonnet | before | 0/1 | 0 | 3 | 129 | 1.6 | 0.13 |
+  | gypsum | sonnet | after | 0/1 | 0 | 5 | 347 | 1.2 | 0.28 |
+  | gypsum | opus | before | 0/1 | 7 | 5 | 431 | 2.0 | 0.48 |
+  | gypsum | opus | after | 1/1 | 2 | 2 | 296 | 1.2 | 0.37 |
+  | calcite | sonnet | before | 1/1 | 5 | 5 | 308 | 1.6 | 0.20 |
+  | calcite | sonnet | after | 1/1 | 4 | 3 | 243 | 0.5 | 0.16 |
+  | calcite | opus | before | 1/1 | 3 | 2 | 489 | 1.8 | 0.50 |
+  | calcite | opus | after | 1/1 | 1 | 1 | 184 | 0.8 | 0.23 |
+  | nac | sonnet | before | 0/1 | 2 | 2 | 300 | 1.1 | 0.21 |
+  | nac | sonnet | after | 1/1 | 5 | 3 | 296 | 0.9 | 0.20 |
+  | nac | opus | before | 1/1 | 3 | 3 | 563 | 1.6 | 0.58 |
+  | nac | opus | after | 0/1 | 6 | 5 | 481 | 1.8 | 0.49 |
+  | lab6 | sonnet | before | 1/1 | 2 | 2 | 414 | 1.6 | 0.27 |
+  | lab6 | sonnet | after | 1/1 | 2 | 2 | 348 | 0.9 | 0.22 |
+  | lab6 | opus | before | 1/1 | 4 | 4 | 509 | 2.0 | 0.47 |
+  | lab6 | opus | after | 1/1 | 3 | 3 | 408 | 1.7 | 0.43 |
+  | fap | sonnet | before | 0/1 | 0 | 2 | 251 | 1.0 | 0.20 |
+  | fap | sonnet | after | 0/1 | 0 | 3 | 211 | 1.0 | 0.21 |
+  | fap | opus | before | 0/1 | 3 | 4 | 360 | 1.8 | 0.55 |
+  | fap | opus | after | 0/1 | 5 | 4 | 692 | 2.1 | 0.61 |
+
+  Done, by model and condition: Sonnet 2/7 before and 4/7 after; Opus 4/7
+  before and 5/7 after. Every Opus run used `render_structure`, and 3 of 7
+  Sonnet runs in each condition did. The judge cost $2.42 for 28 verdicts.
+
+  `fig.report`'s fields, in how many of the 14 after-runs the agent read
+  each:
+  - `hidden`: 1
+  - `hidden_atoms`: never read
+  - `dangling_bonds`: 1
+  - `label_overlaps`: never read
+  - `empty`: 1
+  - `cut`: never read
+  - `note`: never read
+  - `warnings`: 1
+  - the whole report printed: 10 (Opus 7, Sonnet 3)
+
+  So agents print the report and read it, rather than pick fields. Field-level
+  "never read" therefore says little: a printed report puts every field in
+  front of the agent.
+
+  *Routes.* The skill was opened in 5 of 28 runs. Its description reads
+  "Refine powder diffraction data … whenever a task involves a powder pattern,
+  a CIF to fit against one …", the same in both trees, and names no figure.
+  Opus found the figure functions by listing the package and reading
+  `figure3d`'s source and signatures. Sonnet drew by hand in 8 runs, 4 of
+  them after loading Claude Code's built-in `dataviz` skill, and finished one
+  of those 8 (chains, after). On the after surface: `view="auto"` in 6 runs,
+  `keep` in 9, `build(extent=)` in 6. The stall lines (R6) are derived from
+  each score's route and the judge's reasons, and marked so.
+
+  *Why runs failed.* The "polyhedra are whole" check failed or was unclear in
+  9 of 13 not-done runs. In both Opus fluorapatite runs it caught the bare P
+  that rietx's own single cell draws. Three hand-drawn runs were clipped by
+  the frame. Two runs failed only on "unclear" for a task criterion (gypsum
+  edge-on, NAC's block), and both used the renderer.
+
+  *Gotchas.* The record is 4.4 MB for 28 runs (about 157 KB a run), so C's
+  further 56 runs would add about 9 MB.
+
+  Next, in order. (1) Item 6, which needs the maintainer. The evidence points
+  at three rietx changes before any further round: name figures in the
+  skill's description; stop a single cell drawing bare centres, or give a
+  verb that removes them; and let `dangling_bonds` count `hidden=` stubs. Each
+  would change what the round measures, so C on the current trees answers a
+  question about a surface that is about to change. (2) Rate 1505's trigger
+  from this table, or after C. (3) A round after those fixes would need its
+  own commit pinned as a third condition.
 - **2026-10-01** (after the handover below, same session) — Amendment 1.2 is
   written. At the maintainer's question, the round now tests expansion beyond
   one cell properly, and it checks two figure defects nothing caught before.
