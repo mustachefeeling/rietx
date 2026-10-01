@@ -1484,7 +1484,11 @@ def write_magnetic_block(block, phase, *,
     * the BNS/OG numbers, the BNS name and ``transform_BNS_Pp_abc`` as the
       metadata they are — after checking the numbers against the operators
       (:func:`refuse_contradicting_numbers`), so a file this writes never
-      states a group its own loops are not (#605);
+      states a group its own loops are not (#605).  **What is not carried:** a
+      ``setting`` that is not a (P,p) transform (prose a project saved before
+      #610 or a hand-built ``MagneticSymmetry`` holds) is left out of the file,
+      because this function has no diagnostics channel to say so; it reads back
+      as ``setting=None`` (:func:`_transform_or_none`);
     * one ``_atom_site_moment`` row per site carrying a moment: the crystal-axis
       components and their ``_su`` columns (see :func:`_moment_number` for why
       neither ``value(su)`` nor a fixed number of decimals), and ``magnitude``
@@ -1519,7 +1523,8 @@ def write_magnetic_block(block, phase, *,
             ("_space_group_magn.number_BNS", magnetic.bns_number),
             ("_space_group_magn.name_BNS", magnetic.symbol),
             ("_space_group_magn.number_OG", magnetic.og_number),
-            ("_space_group_magn.transform_BNS_Pp_abc", magnetic.setting)):
+            ("_space_group_magn.transform_BNS_Pp_abc",
+             _transform_or_none(magnetic.setting))):
         if value:
             block.set_pair(tag, _quote(str(value)))
     sites = [a for a in phase.atoms if a.moment is not None]
@@ -1622,6 +1627,31 @@ def _number_or_dot(value: float | None) -> str:
     if value is None or not math.isfinite(value):
         return "."
     return _moment_number(value)
+
+
+def _transform_or_none(setting: str | None) -> str | None:
+    """``setting`` where it is a ``transform_BNS_Pp_abc`` value, else ``None`` (#610).
+
+    ``cif_mag.dic`` defines the item as the (P,p) carrying the basis and origin
+    of the **current** setting to those of the BNS setting, in coreCIF's
+    ``transform_Pp_abc`` notation with a semicolon between the two parts
+    (``'a,b,c;0,0,0'``).  ``MagneticSymmetry.setting`` held provenance prose
+    from two builders before #610 ("BNS standard setting (spglib magnetic
+    database, …)", "child cell a,b,2c;0,0,0 of P 4/m m m"), and a stored or
+    hand-built phase can still carry it; that is not a value of the item, so
+    the tag is omitted rather than written with text no reader can parse.  The
+    test is :func:`~rietx.crystallography.magnetic.operators.parse_transform`,
+    the same parser the rest of the package reads the item with.
+    """
+    from .magnetic.operators import parse_transform
+
+    if not setting:
+        return None
+    try:
+        parse_transform(setting)
+    except ValueError:
+        return None
+    return setting
 
 
 def read_private_moment_items(block) -> tuple[dict[str, str], dict[str, float]]:

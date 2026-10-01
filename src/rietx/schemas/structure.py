@@ -612,6 +612,10 @@ class MagneticSymmetry(Base):
     og_number: str | None = None
     uni_number: int | None = None
     symbol: str | None = None
+    #: magCIF's ``_space_group_magn.transform_BNS_Pp_abc``: the (P,p) that
+    #: carries this setting's basis and origin to the BNS standard setting's,
+    #: as in ``'b,-a,c;0,0,0'``, or ``None`` where it is not known.  Metadata,
+    #: never applied; the writer omits a value that is not in that form (#610).
     setting: str | None = None
     #: k of the parent cell this supercell was built from, as three rational
     #: strings — a record of provenance for the report, never used to generate
@@ -635,10 +639,15 @@ class MagneticSymmetry(Base):
 
             group = magnetic_group(value)
             ops, cent = group.xyz_strings()
+            # ``setting`` is magCIF's transform_BNS_Pp_abc, current -> BNS
+            # standard, and a number resolves to the database's BNS standard
+            # setting (``hall_number=0``), so it is the identity.  The
+            # database's own prose (``group.setting``) is not a transform and
+            # was written into that tag verbatim until #610.
             return {
                 "operations": list(ops), "centerings": list(cent),
                 "bns_number": group.bns_number, "og_number": group.og_number,
-                "uni_number": group.uni_number, "setting": group.setting,
+                "uni_number": group.uni_number, "setting": "a,b,c;0,0,0",
             }
         return value
 
