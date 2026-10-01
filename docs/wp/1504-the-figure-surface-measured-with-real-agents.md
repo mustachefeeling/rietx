@@ -66,8 +66,10 @@ condition is enforced in a shim, never in the prompt.
 
 ## Tasks
 
-- [ ] The harness: a shim per condition, the six task prompts, the rubric,
-  the trace parser for `report` reads.
+- [x] The harness: a shim per condition, the six task prompts, the rubric,
+  the trace parser for `report` reads. `docs/wp/1504-eval/`: `PROTOCOL.md`
+  (registered 2026-10-01), `run.py`, `fig_trace.py`, and
+  `reference_figures.py` for checking the judge before it scores a run.
 - [ ] A costed menu to the maintainer before any cell runs.
 - [ ] The before round, on the picked cells.
 - [ ] The after round, on the same cells.
