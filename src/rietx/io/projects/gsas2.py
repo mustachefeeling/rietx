@@ -497,12 +497,14 @@ class Gsas2Phase:
     space_group_from_operators: str | None = None
     #: GSAS-II's own index for the phase, the ``p`` of a ``p:h:name`` variable
     number: int | None = None
-    #: the file's ``General['magPhases']`` entry, verbatim.  A nuclear phase
-    #: carrying one is half of a magnetic model — the project fits magnetic
-    #: scattering somewhere this reader does not follow — so the string is kept
-    #: as evidence and **not** interpreted: what it names is GSAS-II's business
-    #: and guessing at it is how a reader comes to describe a model it has not
-    #: read.  Ten of the 34 corpus projects carry one
+    #: the file's ``General['magPhases']`` entry, verbatim, kept as evidence
+    #: and **not** interpreted: GSAS-II's documentation does not describe the
+    #: key, and guessing at it is how a reader comes to describe a model it
+    #: has not read.  Ten of the 34 corpus projects carry one.  It is **not**
+    #: evidence of magnetic scattering in the file (issue #606): on the five
+    #: public projects checked that carry it (``gsas2_mn3o4_setting.gpx`` and
+    #: four Magnetic-I/II tutorial files) the value is one of the project's
+    #: own histogram names and the project holds no magnetic phase
     magnetic_partner: str | None = None
     #: the file's ``General['Isotope']``, atom type → the isotope chosen for it
     #: (``{'H': '2', 'Ni': 'Nat. Abund.'}``).  GSAS-II keeps the isotope here
@@ -1355,6 +1357,8 @@ def _report(model: Gsas2Model, diagnostics: list[Diagnostic]) -> None:
                 + " — the coefficients are on `model.histograms[…].background` "
                   "and the background to fit with is yours to choose"),
             where=[f"histograms.{hist.number}.background"]))
+    magnetic_phases = [p.name for p in model.phases if p.magnetic]
+    histogram_names = {h.name for h in model.histograms}
     for phase in model.phases:
         _report_setting(named, phase, diagnostics)
         if phase.magnetic:
@@ -1365,18 +1369,38 @@ def _report(model: Gsas2Model, diagnostics: list[Diagnostic]) -> None:
                     f"(GSAS-II phase type {phase.kind!r}), and this reader "
                     f"does not read a `.gpx` magnetic block yet — a magCIF of "
                     f"the structure is the route that does "
-                    f"(`Structure.from_cif`)"),
+                    f"(`Structure.from_cif`).  The project's other phases "
+                    f"build, but where they share a histogram with this one "
+                    f"the file's figures include its magnetic scattering, so "
+                    f"a fit of them alone is not comparable with the file's"),
                 where=[f"phases.{phase.number}"]))
         elif phase.magnetic_partner:
+            # Issue #606.  What `magPhases` means is GSAS-II's and is not
+            # documented, so the message states only what the file shows: on
+            # the five public projects checked that carry it the value is one of the
+            # project's own histogram names and the project holds no
+            # magnetic phase — no magnetic scattering is modelled, and the
+            # file's Rwp is a nuclear figure.  A magnetic phase in the project
+            # is reported by the arm above, which is where the comparison
+            # warning is true.
+            names_histogram = phase.magnetic_partner in histogram_names
+            held = (f"holds {len(magnetic_phases)} phase(s) GSAS-II types "
+                    f"`magnetic` ({', '.join(map(repr, magnetic_phases))}), "
+                    f"reported on their own"
+                    if magnetic_phases else
+                    "holds no phase GSAS-II types `magnetic`, so nothing "
+                    "magnetic is modelled in it")
             diagnostics.append(Diagnostic(
-                level="warning", code="GSAS2_GPX_PHASE_MAGNETIC",
+                level="warning" if magnetic_phases else "info",
+                code="GSAS2_GPX_PHASE_MAGNETIC",
                 message=(
-                    f"{named}: phase {phase.name!r} is nuclear, and the "
-                    f"project states a magnetic partner for it "
-                    f"({phase.magnetic_partner!r}).  The sites and cell import "
-                    f"correctly; what does not is the magnetic scattering the "
-                    f"file's own Rwp includes, so a fit of this structure is "
-                    f"not comparable with the file's figures"),
+                    f"{named}: phase {phase.name!r} is nuclear and carries "
+                    f"GSAS-II's `magPhases` entry "
+                    f"({phase.magnetic_partner!r}"
+                    + (", one of this project's histogram names"
+                       if names_histogram else "")
+                    + f").  The project {held}.  The entry is kept verbatim "
+                      f"on `Gsas2Phase.magnetic_partner` and not interpreted"),
                 where=[f"phases.{phase.number}"]))
     if model.constraints:
         equivalences = sum(1 for c in model.constraints if c.is_equivalence)
