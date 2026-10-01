@@ -1,0 +1,178 @@
+"""WP-1336: the fit says when it is unusable (issues #243 and #249).
+
+Two channels, each owed a test.  ``status`` is the optimiser's exit and
+``diagnostics`` is the quality channel, and ``RefinementResult.usable`` reads
+both — so the #243 reproduction, which converges at an Rwp past
+``MODEL_FAR_FROM_DATA``, must read ``usable is False`` while its ``status``
+still says ``converged``.  And the indexing width census now runs on the fit:
+a broad pattern fitted with a narrow declared instrument and no size or strain
+terms names the width with ``PEAK_WIDTH_LAW_MISMATCH``, and the same pattern
+with the size term freed does not.
+"""
+
+from typing import get_args
+
+import numpy as np
+import pytest
+
+import rietx as rx
+from rietx import Instrument, PatternData, Refinement
+from rietx.indexing.peaks import detect_peaks, predicted_fwhm, width_census
+from rietx.model.forward import compile_model
+from rietx.params.vector import ParameterTable
+from rietx.schemas.common import Diagnostic, Parameter
+from rietx.schemas.instrument import BackgroundChebyshev
+from tests.test_schemas import make_lab6
+
+WAVELENGTH = 0.4139
+TRUE_A = 4.15660
+TRUE_W = 2.5e-4
+#: the specimen broadening the synthetic carries: a Lorentzian size term of
+#: 0.1° (FWHM coefficient of 1/cosθ), against an instrument whose own lines are
+#: √W ≈ 0.016° wide — a factor of ~6 at the census lines
+BROAD_LOR_SIZE = 0.1
+
+PLAN_NO_WIDTHS = rx.RefinementPlan(stages=[
+    rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"], max_iter=30),
+    rx.Stage("cell", ["phases.*.cell.*", "instrument.zero_shift"], max_iter=30),
+])
+PLAN_WITH_SIZE = rx.RefinementPlan(stages=[
+    *PLAN_NO_WIDTHS.stages,
+    rx.Stage("size", ["phases.*.lor_size"], max_iter=30),
+])
+
+
+def _lab6(lor_size: float = 0.0):
+    structure = make_lab6()
+    phase = structure.phases[0]
+    for axis in (phase.cell.a, phase.cell.b, phase.cell.c):
+        axis.value = TRUE_A
+    phase.scale.value = 5e-4
+    phase.lor_size.value = lor_size
+    ins = Instrument.debye_scherrer(wavelength=WAVELENGTH)
+    ins.profile.w.value = TRUE_W
+    return structure, ins
+
+
+def _broad_pattern(lor_size: float) -> PatternData:
+    structure, ins = _lab6(lor_size)
+    ins.background = BackgroundChebyshev(
+        coefficients=[Parameter(value=v) for v in (40.0, -6.0, 1.5)])
+    tt = np.arange(3.0, 24.0, 0.005)
+    blank = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    model = compile_model(structure, ins, blank, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    y = model.evaluate(table.decode(table.x0()))
+    y = np.random.default_rng(7).poisson(np.maximum(y, 1.0)).astype(float)
+    return PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
+
+
+def _fit(data: PatternData, plan, *, lor_size_seed: float = 0.0):
+    structure, ins = _lab6(lor_size_seed)
+    ins.background = BackgroundChebyshev.with_terms(3)
+    return Refinement(structure, ins).fit(data, plan=plan)
+
+
+def _width_rows(result):
+    return [d for d in result.diagnostics if d.code == "PEAK_WIDTH_LAW_MISMATCH"]
+
+
+@pytest.fixture(scope="module")
+def broad():
+    return _broad_pattern(BROAD_LOR_SIZE)
+
+
+# -- #249: the width census reaches the refinement path ----------------------
+
+def test_a_narrow_declared_instrument_on_broad_data_names_the_width(broad):
+    result = _fit(broad, PLAN_NO_WIDTHS)
+    rows = _width_rows(result)
+    assert len(rows) == 1, [d.code for d in result.diagnostics]
+    row = rows[0]
+    assert row.level == "warning"
+    assert row.value is not None and row.value >= 3.0   # data broader than the model
+    assert row.where[0] == "phases.0"
+    # the only width channels that existed before stay silent here, which is
+    # what made the case invisible: no size or strain term was refined
+    assert not {"SIZE_UNUSUALLY_SMALL", "STRAIN_UNUSUALLY_LARGE"} & {
+        d.code for d in result.diagnostics}
+
+
+def test_freeing_the_size_term_on_the_same_data_silences_it(broad):
+    """The positive arm: the comparator is the *fitted* widths, so a model
+    that can broaden and did is not told its instrument is wrong."""
+    result = _fit(broad, PLAN_WITH_SIZE, lor_size_seed=0.02)
+    assert not _width_rows(result), [d.message for d in _width_rows(result)]
+
+
+def test_a_correctly_declared_instrument_is_silent():
+    result = _fit(_broad_pattern(0.0), PLAN_NO_WIDTHS)
+    assert not _width_rows(result), [d.message for d in _width_rows(result)]
+
+
+def test_the_refinement_census_is_the_indexing_census(broad):
+    """One census, two callers: ``width_census`` must measure what
+    ``detect_peaks`` measures on the same channels, or the two paths would
+    quote different widths for one pattern under one code."""
+    structure, ins = _lab6()
+    det = detect_peaks(broad, ins)
+    tt, y, sig = broad.tt(), broad.y(), broad.sig()
+    census = width_census(tt, y, sig, predicted_fwhm(tt, ins))
+    assert census is not None
+    positions, measured = census
+    assert measured == det.fwhm_measured
+    assert len(positions) == 12
+
+
+# -- #243: status and diagnostics read one way about one solve ----------------
+
+def _nac(seeded: bool):
+    data = rx.read_pattern("tests/data/11BM_NAC.fxye")
+    structure = rx.Structure.from_cif("tests/data/cod_1000236.cif")
+    ins = rx.Instrument.debye_scherrer(wavelength=0.413957)
+    ins.background = BackgroundChebyshev.with_terms(6)
+    if seeded:  # as examples/nac_11bm.py seeds it
+        ins.profile.w.value = 2e-5
+        ins.profile.x.value = 2e-3
+    return Refinement(structure, ins).fit(
+        data, mode="lebail", plan=rx.RefinementPlan.lab_sample_refine(),
+        two_theta_limits=(2.0, 24.0))
+
+
+def test_issue_243_reproduction_reads_unusable_while_converged():
+    """The issue's script on the repo's own fixture.  ``status`` keeps its one
+    meaning — the solver's exit — and the two channels agree through the
+    documented reading: an error-level diagnostic makes the fit unusable."""
+    result = _nac(seeded=False)
+    assert result.status == "converged"
+    errors = {d.code for d in result.diagnostics if d.level == "error"}
+    assert "MODEL_FAR_FROM_DATA" in errors
+    assert result.usable is False
+
+
+def test_the_seeded_profile_reads_usable():
+    """The positive arm of the reproduction: the fixture is fine, and the same
+    call seeded as the example seeds it is a fit the predicate passes."""
+    result = _nac(seeded=True)
+    assert result.status == "converged"
+    assert result.usable is True
+    assert not _width_rows(result), [d.message for d in _width_rows(result)]
+
+
+# -- the predicate is an expression over the level vocabulary -----------------
+
+def test_usable_reads_the_level_vocabulary_not_a_code_list(broad):
+    """WP-1037's rule for a derived flag: the predicate names a *level*, so
+    this checks the level it names is still a member of the live vocabulary
+    (an authority the predicate never consults), and that every level and
+    every status reads the way the docstring says."""
+    levels = get_args(Diagnostic.model_fields["level"].annotation)
+    assert "error" in levels
+    base = _fit(broad, PLAN_WITH_SIZE, lor_size_seed=0.02)
+    assert base.status == "converged"
+    for level in levels:
+        probe = base.model_copy(update={"diagnostics": [
+            Diagnostic(level=level, code="ANY_NEW_CODE", message="")]})
+        assert probe.usable is (level != "error"), level
+    for status in ("max_iter", "diverged"):
+        assert base.model_copy(update={"status": status}).usable is False
