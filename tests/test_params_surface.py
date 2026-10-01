@@ -12,7 +12,13 @@ import pytest
 
 import rietx as rx
 from rietx._nearmiss import did_you_mean, near_misses
-from rietx.params.vector import Entry, is_literal_path
+from rietx.params.vector import (
+    Entry,
+    is_literal_path,
+    retired_spelling,
+    unknown_paths_among,
+)
+from rietx.schemas.instrument import HumpComponent
 from rietx.schemas.params import ParameterRow, TieSpec
 from rietx.strategy.staged import PLAN_INFO, PLAN_PRESETS
 from tests.test_refine_synthetic import perturbed_models, synthesize
@@ -751,7 +757,7 @@ def test_an_unknown_literal_is_one_the_table_lacks_not_one_it_declined(ref):
              WAVELENGTH_TYPO, "phases.*.microstrain.dof.*", "phases.*.cel.*",
              WAVELENGTH_TYPO, "vars.A"]
     assert table.set_vary(asked, True) == []
-    assert table.unknown_literals(asked) == [WAVELENGTH_TYPO, "vars.A"], (
+    assert table.unknown_paths(asked) == [WAVELENGTH_TYPO, "vars.A"], (
         "order kept, repeats dropped, declined rows and patterns absent")
 
 
@@ -846,6 +852,76 @@ def test_a_single_stage_run_says_it_too(ref, pattern):
             if d.code == "STAGE_PATH_UNKNOWN"] == [[WAVELENGTH_TYPO]]
 
 
+#: the hump family under WP-1102's name and under the one it retired
+HUMPS = "instrument.extra_components.*"
+RETIRED_HUMPS = "instrument.background_peaks.*"
+
+
+def _with_a_hump():
+    structure, ins = perturbed_models()
+    ins.extra_components = [HumpComponent(
+        position=rx.Parameter(value=30.0), fwhm=rx.Parameter(value=6.0, min=1.0),
+        height=rx.Parameter(value=200.0, min=0.0))]
+    return structure, ins
+
+
+def test_a_retired_spelling_is_the_migrators_and_a_current_one_is_not():
+    """One authority on renamed paths: ``schemas.migrate``, asked, not copied."""
+    assert retired_spelling(RETIRED_HUMPS) == HUMPS
+    assert retired_spelling("instrument.background_peaks.0.height") == (
+        "instrument.extra_components.0.height")
+    for current in (HUMPS, "phases.*.microstrain.dof.*", WAVELENGTH_TYPO):
+        assert retired_spelling(current) is None, current
+    # a pattern under the old word that a caller's own variable answers is
+    # answered, so it is not unknown however it is spelt
+    assert unknown_paths_among(["vars.background_peaks*"],
+                               {"vars.background_peaks"}) == []
+    assert unknown_paths_among([RETIRED_HUMPS, HUMPS, RETIRED_HUMPS],
+                               {"phases.0.scale"}) == [RETIRED_HUMPS]
+
+
+def test_a_glob_under_a_retired_spelling_is_named_with_the_current_one(pattern):
+    """The draft's case: the plan froze a declared hump at its seed in silence.
+
+    WP-1102 renamed ``background_peaks`` to ``extra_components``; the class and
+    the attribute under the old names raise, a stored plan is migrated as it is
+    read, and a glob written in code matched nothing and said nothing.  The
+    literal under the old name was already reported, but pointed at
+    ``instrument.background.c0``, a different parameter.
+    """
+    structure, ins = _with_a_hump()
+    ref = rx.Refinement(structure, ins, history=False)
+    literal = "instrument.background_peaks.0.height"
+    result = ref.fit(pattern, plan=rx.RefinementPlan(stages=[
+        rx.Stage("hump", [RETIRED_HUMPS, literal], max_iter=5)]))
+
+    stage = result.stages[0]
+    assert stage.freed == [] and stage.unknown_paths == [RETIRED_HUMPS, literal]
+    unknown = {d.where[0]: d for d in result.diagnostics
+               if d.code == "STAGE_PATH_UNKNOWN"}
+    assert set(unknown) == {RETIRED_HUMPS, literal}
+    assert all(d.level == "warning" for d in unknown.values())
+    assert f"the current spelling is {HUMPS!r}" in unknown[RETIRED_HUMPS].message
+    assert ("the current spelling is 'instrument.extra_components.0.height'"
+            in unknown[literal].message)
+    assert "background.c0" not in unknown[literal].message
+
+
+def test_a_hump_glob_on_a_model_without_a_hump_stays_silent(pattern):
+    """The negative arm: the current spelling matching nothing is a healthy plan.
+
+    The shipped hump stage is safe in any plan for exactly this reason
+    (``strategy/staged.py``), and the retired-spelling rule must not reach it.
+    """
+    structure, ins = perturbed_models()
+    assert not ins.extra_components
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(pattern, plan=rx.RefinementPlan(stages=[
+        rx.Stage("hump", [HUMPS], max_iter=5)]))
+    assert result.stages[0].freed == [] and result.stages[0].unknown_paths == []
+    assert "STAGE_PATH_UNKNOWN" not in {d.code for d in result.diagnostics}
+
+
 def test_the_shipped_presets_name_no_path_a_shipped_instrument_lacks():
     """The literal rule may fire only on a caller's mistake, never on ours.
 
@@ -864,7 +940,7 @@ def test_the_shipped_presets_name_no_path_a_shipped_instrument_lacks():
         table = rx.Refinement(structure, ins, history=False)._working_table()
         for name, build in PLAN_PRESETS.items():
             for stage in build().stages:
-                assert table.unknown_literals(stage.turn_on) == [], (
+                assert table.unknown_paths(stage.turn_on) == [], (
                     name, stage.name, ins.geometry.kind)
 
 

@@ -39,7 +39,7 @@ from .vector import (
     ParameterTable,
     _is_wavelength,
     check_wavelength_freedom,
-    is_literal_path,
+    unknown_paths_among,
 )
 
 
@@ -278,17 +278,15 @@ class MultiParameterTable:
             known |= self._names(h)
         return known
 
-    def unknown_literals(self, path_globs: list[str]) -> list[str]:
-        """The literal paths naming no entry in any histogram (WP-1414).
+    def unknown_paths(self, path_globs: list[str]) -> list[str]:
+        """The paths naming no entry in any histogram (WP-1414).
 
-        :meth:`ParameterTable.unknown_literals` across the stack, under this
+        :meth:`ParameterTable.unknown_paths` across the stack, under this
         table's matching rule: a literal is known when it is a bare path of
         some histogram or a scoped one (``hist.1.instrument.zero_shift``), so
         ``hist.7.…`` on a three-histogram fit is unknown however real its tail.
         """
-        known = self.known_paths()
-        return [g for g in dict.fromkeys(path_globs)
-                if is_literal_path(g) and g not in known]
+        return unknown_paths_among(path_globs, self.known_paths())
 
     def unreached_histograms(self, path_globs: list[str]) -> dict[int, list[str]]:
         """Histograms a stage's globs reached elsewhere and not here (WP-1414).

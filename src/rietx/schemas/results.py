@@ -851,13 +851,16 @@ class StageResult(Base):
     #: Empty on every fit where no hold was declared, which is every fit that
     #: predates this field.  It feeds ``HOLD_BLOCKED_PLAN``.
     blocked_by_hold: list[str] = Field(default_factory=list)
-    #: the **literal** paths in this stage's ``turn_on`` that name no parameter
-    #: of the model, in plan order (WP-1414, issue #265).  A literal is a
-    #: ``turn_on`` entry with no ``*``, ``?`` or ``[``: it names one parameter,
+    #: the **literal** paths, and the retired spellings, in this stage's
+    #: ``turn_on`` that name no parameter of the model, in plan order
+    #: (WP-1414, issue #265).  A literal is a ``turn_on`` entry with no
+    #: ``*``, ``?`` or ``[``: it names one parameter,
     #: so missing it is a typo or a renamed path, and whatever the stage was
     #: meant to refine was not.  A *pattern* that matched nothing is not here,
     #: because that is how the shipped plans reach components a model may not
-    #: declare; nor is a row that exists and was declined (locked, tied or
+    #: declare, unless it is written under a spelling a release retired
+    #: (``instrument.background_peaks.*``, WP-1102), which can only be a
+    #: rename the plan missed; nor is a row that exists and was declined (locked, tied or
     #: held), which :attr:`freed` omits and ``ParameterRow.held_because``
     #: explains.  On a joint fit, known means a bare path of some histogram or
     #: a scoped ``hist.h.…`` one.  It feeds ``STAGE_PATH_UNKNOWN``.

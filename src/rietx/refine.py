@@ -98,6 +98,7 @@ from .params.vector import (
     cell_window,
     is_literal_path,
     is_variable_path,
+    retired_spelling,
 )
 from .report.magnetic import magnetic_width_findings
 from .report.schemas import (
@@ -350,7 +351,7 @@ class _StageHold:
     #: asked of the table afterwards, for this carrier's own reason.
     reach: dict[str, list[str]] = dataclasses.field(default_factory=dict)
     blocked_by_hold: list[str] = dataclasses.field(default_factory=list)
-    #: the literal ``turn_on`` paths naming no entry (WP-1414), riding here
+    #: the ``turn_on`` paths naming no entry (WP-1414), riding here
     #: for ``blocked_by_hold``'s reason: decided before the solve, unchanged
     #: by it, and delivered to the two ``StageResult`` call sites this way
     unknown_paths: list[str] = dataclasses.field(default_factory=list)
@@ -2620,12 +2621,14 @@ class Refinement:
             if e.held and e.tie is None and not e.locked
             and any(fnmatch.fnmatchcase(e.path, g) for g in stage.turn_on))
         # What the stage asked for by name and the model does not have
-        # (WP-1414).  A literal only: a pattern matching nothing is how the
-        # shipped plans reach components a model may not declare, so it stays
-        # silent, while a literal names one parameter and missing it is a
-        # typo or a rename.  Recorded, never raised — one plan runs a whole
-        # series, and a path one pattern's model lacks must not end the chain.
-        unknown_paths = table.unknown_literals(stage.turn_on)
+        # (WP-1414).  A literal, or a pattern under a retired spelling: any
+        # other pattern matching nothing is how the shipped plans reach
+        # components a model may not declare, so it stays silent, while a
+        # literal names one parameter and missing it is a typo or a rename,
+        # and a retired name is a rename the plan missed.  Recorded, never
+        # raised — one plan runs a whole series, and a path one pattern's
+        # model lacks must not end the chain.
+        unknown_paths = table.unknown_paths(stage.turn_on)
         if self._held:
             # lift the previous stage's hold before this one decides its own:
             # a phase invisible then may be plain now, and a cumulative plan
@@ -4604,6 +4607,17 @@ def _unknown_path_diagnostics(stage_results: list[StageResult],
     (:func:`~rietx.params.vector.is_literal_path`), and a pattern matching
     nothing stays silent for that reason.
 
+    **One pattern can be told apart too: one under a retired spelling.**
+    WP-1102 renamed ``instrument.background_peaks`` to
+    ``instrument.extra_components``.  A stored plan is migrated as it is read,
+    but ``Stage("hump", ["instrument.background_peaks.*"])`` written in code is
+    not, and it froze a declared hump at its seed in silence, where the class
+    and the attribute under the old names both raise.  The retired name is
+    :mod:`rietx.schemas.migrate`'s to know
+    (:func:`~rietx.params.vector.retired_spelling`), and such a path is named
+    here with its current spelling in place of the nearest-path guess, which
+    for that literal was ``instrument.background.c0``.
+
     ``warning``, where :func:`_hold_diagnostics` is ``info``: that one
     reports the run doing what the caller declared, and this one the caller
     being wrong about the model, so whatever the stage was meant to refine
@@ -4627,9 +4641,22 @@ def _unknown_path_diagnostics(stage_results: list[StageResult],
             by_path.setdefault(path, []).append(sr.name)
     out = []
     for path, stages in by_path.items():
-        hint = did_you_mean(path, known, n=1)
         which = (f"stage {stages[0]!r}" if len(stages) == 1 else
                  f"stages {', '.join(repr(s) for s in stages)}")
+        current = retired_spelling(path)
+        if current is not None:
+            out.append(Diagnostic(
+                level="warning", code="STAGE_PATH_UNKNOWN",
+                message=(f"{which} asked for {path}, a spelling retired after "
+                         "v1.2, so nothing was freed for it; the current "
+                         f"spelling is {current!r}"),
+                where=[path],
+                suggestion=(f"write {current!r} in the plan: a stored project, "
+                            "history or .rxt is migrated as it is read, and a "
+                            "plan built in code is not"),
+            ))
+            continue
+        hint = did_you_mean(path, known, n=1)
         out.append(Diagnostic(
             level="warning", code="STAGE_PATH_UNKNOWN",
             message=(f"{which} asked for {path}, which names no parameter of "

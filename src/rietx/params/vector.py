@@ -321,6 +321,47 @@ def is_literal_path(glob: str) -> bool:
     return not any(ch in _GLOB_CHARS for ch in glob)
 
 
+def retired_spelling(path: str) -> str | None:
+    """``path`` in the current spelling, when it uses a name a release retired.
+
+    ``None`` for a path this release spells as written.  The answer is
+    :func:`rietx.schemas.migrate.migrate_document_text`'s, the one authority on
+    renamed dot-paths, so there is no second list of retired names to drift
+    from it: ``instrument.background_peaks.*`` comes back as
+    ``instrument.extra_components.*`` (WP-1102).  A stored plan is migrated as
+    it is read; a plan written in code reaches the table under the old name,
+    and this is how a stage tells that miss from a healthy one.
+    """
+    from ..schemas.migrate import migrate_document_text
+
+    current, moved = migrate_document_text(path)
+    return current if moved else None
+
+
+def unknown_paths_among(path_globs: Iterable[str], known: set[str]) -> list[str]:
+    """The ``turn_on`` entries that name nothing in ``known`` and can be wrong.
+
+    Two kinds, both the caller's mistake and never a healthy plan's miss
+    (WP-1414): a literal no entry has (:func:`is_literal_path`), and a pattern
+    under a retired spelling (:func:`retired_spelling`) that matches nothing.
+    Any other pattern matching nothing stays out, because that is how the
+    shipped plans reach a component a model may not declare.  A retired
+    pattern that does match something (a ``vars.background_peaks`` the
+    caller declared) is answered and stays out too.  Order kept, repeats
+    dropped.  The one statement of the rule, for :class:`ParameterTable` and
+    the joint table alike.
+    """
+    import fnmatch
+
+    def unknown(g: str) -> bool:
+        if is_literal_path(g):
+            return g not in known
+        return (retired_spelling(g) is not None
+                and not any(fnmatch.fnmatchcase(p, g) for p in known))
+
+    return [g for g in dict.fromkeys(path_globs) if unknown(g)]
+
+
 #: Cell parameter names in table order — lengths first, then angles.
 _CELL_NAMES = ("a", "b", "c", "alpha", "beta", "gamma")
 
@@ -2079,25 +2120,24 @@ class ParameterTable:
         return [e.path for e in self.entries
                 if self._glob_reaches(e, path_globs, True)]
 
-    def unknown_literals(self, path_globs: list[str]) -> list[str]:
-        """The literal paths among ``path_globs`` that name no entry (WP-1414).
+    def unknown_paths(self, path_globs: list[str]) -> list[str]:
+        """The paths among ``path_globs`` that name no entry (WP-1414).
 
         The half of a ``set_vary`` call its return cannot carry.  ``hits``
         answers "what did this free", and an empty list is the same answer for
         a pattern that legitimately matched nothing, for a row declined as
         locked, tied or held, and for a path that does not exist.  Only the
-        last is the caller's mistake, and only a literal can make it
-        (:func:`is_literal_path`), so this reports exactly those: a declined
-        row *was* found, and ``ParameterRow.held_because`` says why.
+        last is the caller's mistake, and only a literal or a retired spelling
+        can be seen to make it (:func:`unknown_paths_among`), so this reports
+        exactly those: a declined row *was* found, and
+        ``ParameterRow.held_because`` says why.
 
         A question about the table's paths and nothing else, so it is asked
         separately rather than folded into ``set_vary``'s return, which a
         dozen callers read as a list of freed paths.  Order kept, repeats
         dropped.
         """
-        known = {e.path for e in self.entries}
-        return [g for g in dict.fromkeys(path_globs)
-                if is_literal_path(g) and g not in known]
+        return unknown_paths_among(path_globs, {e.path for e in self.entries})
 
     def _wavelength_paths(self) -> frozenset[str]:
         return frozenset(e.path for e in self.entries
