@@ -278,13 +278,20 @@ def vector_from_quaternion(q):
 def matrix_from_quaternion(q):
     """R(q), Solà, Deray & Atchuthan 2018, eq. (138) — the matrix of x' = q·x·q*.
 
-    q must be a unit quaternion to :data:`UNIT_TOLERANCE`; it is not
-    renormalised, since a quaternion that is not unit is a wrong object.
+    q must be a unit quaternion to :data:`UNIT_TOLERANCE`, since one that is
+    not is a wrong object; within it, q is normalised before R is built, as
+    :func:`vector_from_quaternion` does.  R scales as ‖q‖², so RᵀR as ‖q‖⁴:
+    unnormalised, a q passing at ‖q‖ − 1 = 9e-10 gave a matrix that
+    :func:`quaternion_from_matrix` refused at max|RᵀR − I| = 3.6e-9 under the
+    same tolerance.  Normalising keeps R orthonormal to rounding, so the round
+    trip holds wherever the first check passes, and the matrix bar stays the
+    one a stored record needs rather than being widened by 4.
     """
     xp = get_backend()
     q = xp.asarray(q, dtype=np.float64).reshape(4)
     if _checks_run():
         _check_unit_quaternion(q)
+    q = q / xp.sqrt(xp.sum(q * q))
     w, x, y, z = q[0], q[1], q[2], q[3]
     return xp.stack([
         xp.stack([w * w + x * x - y * y - z * z, 2 * (x * y - w * z), 2 * (x * z + w * y)]),
