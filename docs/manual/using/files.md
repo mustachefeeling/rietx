@@ -717,7 +717,11 @@ coordinates, both meaning "refine as symmetry permits". A structure whose six
 or three disagree is written free and the group is named,
 `GSAS_EXP_REFINE_FLAG_MERGED`, so the file still says the cell refined and
 you learn which held parameter it frees. Pass `diagnostics=[]` to collect
-both.
+both. A species is written as the manual's atom type, `aasv_nnn`: the symbol
+in upper case, the valence sign-first with its number, then `_` and the isotope
+number (`Zr4+` → `ZR+4`, `7Li1+` → `LI+1_7`, `D` → `H_2`); `Cu+` is refused.
+That spelling is from the manual only, since no GSAS run has checked it. The
+reader takes GSAS's `NI+2_58` back as `58Ni2+`, the ⁵⁸Ni isotope of the ion.
 
 Some things do not travel, because no `to_structure` builds them from its
 file. Common to all three: the emission profile and instrument geometry

@@ -860,7 +860,8 @@ def test_the_multiplicity_and_contents_are_derived_from_the_sites(tmp_path):
     model = read_gsas_exp(out)
     (phase,) = model.phases
     assert [a.multiplicity for a in phase.atoms] == [4, 2]
-    assert phase.formula == (("Ca", 4.0), ("F1-", 1.0))
+    # in GSAS's own type spelling, as the atom records are (#555)
+    assert phase.formula == (("CA", 4.0), ("F-1", 1.0))
 
 
 def test_write_gsas_exp_writes_the_resolved_setting_not_the_bare_symbol(tmp_path):
@@ -1194,3 +1195,77 @@ def _diagnostics(path):
     out: list = []
     read_gsas_exp(path, diagnostics=out)
     return out
+
+
+# ------------------------------------------ the atom type's grammar (#555)
+#
+# GSAS writes a type as 'aasv_nnn' (Larson & Von Dreele 2004, EXPR ATYPnn,
+# printed p. 182): symbol, valence sign and valence, then '_' and the isotope
+# number. The reader used to strip the underscore and read 'NI+2_58' as a
+# '+258' ion of natural Ni, reporting the rename as correct.
+
+def _one_site(species: str) -> rx.Structure:
+    return rx.Structure(phases=[rx.Phase(
+        name="syn", space_group="Pm-3m", cell=rx.Cell.cubic(4.0),
+        atoms=[rx.Atom(label="A1", species=species, x=rx.Parameter(value=0.0),
+                       y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                       biso=rx.Parameter(value=0.5, min=0.0, max=25.0))])])
+
+
+def _with_type(tmp_path: Path, gsas_type: str) -> Path:
+    """A written .EXP with the site's type field (A8, after two blanks) set by
+    hand to GSAS's own spelling, in both the atom and the contents record."""
+    out = tmp_path / "syn.EXP"
+    rx.write_gsas_exp(_one_site("Ni"), out)
+    lines = [line[:12] + f"  {gsas_type:<8}" + line[22:]
+             if ("AT  1A" in line or "CHMF 1" in line) else line
+             for line in out.read_text(encoding="utf-8").splitlines()]
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return out
+
+
+@pytest.mark.parametrize("gsas_type, species, b_fm", [
+    ("NI+2_58", "58Ni2+", 14.4),
+    ("LI+1_7", "7Li1+", -2.22),
+    ("NI_58", "58Ni", 14.4),
+    ("H_2", "2H", 6.671),
+    ("NI", "Ni", 10.3),         # blank nnn: natural abundance, unchanged
+])
+def test_a_gsas_isotope_type_reads_as_that_isotope(tmp_path, gsas_type, species,
+                                                   b_fm):
+    from rietx.crystallography.neutron import b_coh
+    diagnostics = []
+    back = to_structure(read_gsas_exp(_with_type(tmp_path, gsas_type)),
+                        diagnostics=diagnostics)
+    atom = back.phases[0].atoms[0]
+    assert atom.species == species
+    assert b_coh(atom.species) == pytest.approx(b_fm)
+    if "_" in gsas_type:
+        (said,) = [d.message for d in diagnostics
+                   if d.code == "GSAS_EXP_SPECIES_NORMALISED"]
+        assert "isotope number" in said
+
+
+@pytest.mark.parametrize("species, written", [
+    ("Zr4+", "ZR+4"), ("O2-", "O-2"), ("Cu1+", "CU+1"), ("Mn", "MN"),
+    ("7Li", "LI_7"), ("7Li1+", "LI+1_7"), ("D", "H_2"), ("60Ni", "NI_60"),
+    ("157Gd", "GD_157"),
+])
+def test_the_writer_spells_the_manuals_type(tmp_path, species, written):
+    """'aasv_nnn', symbol upper case and the valence sign-first with its
+    number ('TI+4', printed p. 181). From the manual only: no GSAS run."""
+    text = from_structure(_one_site(species))
+    (atom,) = [r for r in text.splitlines() if "AT  1A" in r]
+    (chmf,) = [r for r in text.splitlines() if "CHMF 1" in r]
+    assert atom[12:22] == f"  {written:<8}"
+    assert chmf[12:22] == f"  {written:<8}"
+    back = _round_trip(_one_site(species), tmp_path)
+    from rietx.crystallography.neutron import normalize_species
+    assert (normalize_species(back.phases[0].atoms[0].species)
+            == normalize_species(species))
+
+
+def test_the_writer_refuses_a_digitless_ion():
+    with pytest.raises(ValueError, match="sign but no charge magnitude") as exc:
+        from_structure(_one_site("Cu+"))
+    assert "'A1'" in str(exc.value)
