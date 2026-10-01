@@ -54,6 +54,20 @@ read time by :mod:`~rietx.io.projects.topas` itself, and for a different reason
 text in hand is not the text TOPAS parsed. That refusal is about the *file*;
 this table is about the *model*.
 
+**A library macro is a construct too** (#649). A file often writes a peak
+shape not as ``peak_type``/``lor_fwhm`` but as ``TCHZ_Peak_Type(…)``, a size
+as ``CS_L(…)``, a displacement as ``Specimen_Displacement(…)`` — and the mask
+that makes the keyword scan safe blanks every ``name(…)`` call, name included,
+so a registry of keywords alone met none of them and the import said nothing.
+A row therefore also lists the :attr:`Feature.macros` that state it, scanned by
+the reader as *invocations* (``Name(``) anywhere in the active text, not only
+inside a phase: the reference lists these macros under its instrument, 2θ and
+intensity-correction and microstructure headings (§19.3.4-19.3.10, §17.9.5.2),
+so wherever one is written it is about the model. The names and signatures
+are the reference's section text; no macro body is reproduced. A *keyword*
+outside a phase is still out of scope as above — that boundary is the
+module's, and moving it is a separate decision.
+
 Keyword names are the format's own identifiers, treated as specification facts
 the way ``io/CLAUDE.md`` § Adding a format already treats a byte offset or a
 tag name; every description here is this package's own. See ``ATTRIBUTION.md``.
@@ -84,12 +98,13 @@ class Stance(str, Enum):
 class Feature:
     """One construct of the format, and this reader's declared stance on it.
 
-    ``keywords`` are the format's own identifiers. ``what`` is one line in this
-    package's words, written to be read *in a diagnostic message* — it says what
-    the file states, not what TOPAS does with it. ``why`` is present only where
-    the stance needs an argument: a ``REFUSED`` row has to say what building
-    without it would misrepresent, and a ``REPORTED`` one what the caller is
-    losing.
+    ``keywords`` are the format's own identifiers, and ``macros`` the library
+    macros that state the same construct (see the module docstring). ``what``
+    is one line in this package's words, written to be read *in a diagnostic
+    message* — it says what the file states, not what TOPAS does with it.
+    ``why`` is present only where the stance needs an argument: a ``REFUSED``
+    row has to say what building without it would misrepresent, and a
+    ``REPORTED`` one what the caller is losing.
     """
 
     name: str
@@ -97,13 +112,14 @@ class Feature:
     stance: Stance
     what: str
     why: str = ""
+    macros: tuple[str, ...] = ()
 
     def __str__(self) -> str:
-        return f"{self.name} ({', '.join(self.keywords)})"
+        return f"{self.name} ({', '.join(self.keywords + self.macros)})"
 
 
-def _f(name, stance, what, *keywords, why=""):
-    return Feature(name, tuple(keywords), stance, what, why)
+def _f(name, stance, what, *keywords, why="", macros=()):
+    return Feature(name, tuple(keywords), stance, what, why, tuple(macros))
 
 
 #: The registry. One row per construct, ordered by stance so the table reads as
@@ -193,20 +209,56 @@ FEATURES: tuple[Feature, ...] = (
        "numerical_lor_ymin_on_ymax", "pk_xo", "th2_offset",
        "lpsd_th2_angular_range_degrees", "WPPM_ft_conv",
        why="rietx's own profile is fitted from the pattern, and the two codes' "
-           "convolution stacks do not correspond term for term"),
+           "convolution stacks do not correspond term for term",
+       # §19.3.5 (the phase peak types) and §19.3.4 (the instrument and its
+       # convolutions).
+       macros=("PV_Peak_Type", "PVII_Peak_Type", "TCHZ_Peak_Type",
+               "Simple_Axial_Model", "Full_Axial_Model", "Finger_et_al",
+               "Tube_Tails", "UVW", "Slit_Width", "SW", "Specimen_Tilt",
+               "Sample_Thickness", "Divergence", "Variable_Divergence",
+               "Variable_Divergence_Shape")),
+    _f("size and strain broadening", Stance.REPORTED,
+       "a crystallite-size or microstrain broadening",
+       why="rietx refines its own size and strain widths on the phase, added "
+           "to the instrument's, and the file's are a term of a convolution "
+           "stack the import does not carry, so the widths they explained are "
+           "not reproduced",
+       # §19.3.10's size and strain macros, with their documented short forms,
+       # and §17.9.5.2's.
+       macros=("CS_L", "CS_G", "CS", "Crystallite_Size", "Strain_L",
+               "Strain_G", "Microstrain", "MS", "LVol_FWHM_CS_G_L",
+               "e0_from_Strain")),
+    _f("2θ corrections", Stance.REPORTED,
+       "a zero-point or specimen-displacement correction",
+       why="each moves every peak, and rietx refines its own zero and "
+           "displacement against the pattern, so the file's correction is not "
+           "carried and the positions it explained are not",
+       # §19.3.7, with the documented short forms.
+       macros=("Zero_Error", "ZE", "Specimen_Displacement", "SD")),
     _f("specimen corrections", Stance.REPORTED,
        "a specimen or geometry correction",
        "capillary_diameter_mm", "capillary_parallel_beam",
        "capillary_divergent_beam", "capillary_u_cm_inv",
        "brindley_spherical_r_cm", "aberration_range_change_allowed",
        why="the correction's parameters are the author's model of the "
-           "specimen, and they are not transferable term for term"),
+           "specimen, and they are not transferable term for term",
+       # §19.3.8 (intensity corrections), §19.3.6's Brindley macro and
+       # §19.3.10's thickness-dependent absorption; `Absorption` from §5.2.
+       macros=("Absorption", "Absorption_With_Sample_Thickness_mm",
+               "Absorption_With_Sample_Thickness_mm_Intensity",
+               "Absorption_With_Sample_Thickness_mm_Shape_Intensity",
+               "Surface_Roughness_Pitschke_et_al", "Surface_Roughness_Suortti",
+               "Variable_Divergence_Intensity",
+               "Apply_Brindley_Spherical_R_PD")),
     _f("preferred orientation", Stance.REPORTED,
        "a texture model", "spherical_harmonics_hkl", "normals_plot",
        "normals_plot_min_d",
-       why="rietx carries March-Dollase and spherical harmonics are a v2 "
-           "fence, so the texture is dropped and the intensities it explained "
-           "are not"),
+       why="spherical harmonics are a v2 fence, and this reader does not "
+           "translate a March-Dollase correction into rietx's either, so the "
+           "texture is dropped and the intensities it explained are not",
+       # §19.3.8, with the documented short form.
+       macros=("Preferred_Orientation", "PO", "PO_Two_Directions",
+               "PO_Spherical_Harmonics")),
     _f("restraints and penalties", Stance.REPORTED,
        "a restraint, penalty or interatomic interaction",
        "penalty", "phase_penalties", "only_penalties", "atomic_interaction",
@@ -271,6 +323,16 @@ FEATURES: tuple[Feature, ...] = (
 
 _BY_KEYWORD: dict[str, Feature] = {
     kw: feat for feat in FEATURES for kw in feat.keywords}
+
+#: The library macros the registry names, each to its row. Not part of
+#: :data:`PHASE_SCOPE`: a macro is not a keyword of the §5.1 tree, and the
+#: reader scans for it on a different view of the text (an invocation, where
+#: the keyword mask blanks every call) and over the whole file.
+_BY_MACRO: dict[str, Feature] = {
+    m: feat for feat in FEATURES for m in feat.macros}
+
+#: Every macro name the registry gives a stance.
+MACROS: frozenset[str] = frozenset(_BY_MACRO)
 
 #: Every keyword the format allows inside a phase, from the reference's §5.1
 #: tree (``Tstr_details`` plus the ``Tphase_*``/``Tcomm_*`` groups reachable
@@ -350,24 +412,25 @@ PREPROCESSOR: tuple[Feature, ...] = (
 
 
 def stance(keyword: str) -> Stance | None:
-    """This reader's declared stance on ``keyword``, or ``None`` if the keyword
-    is not in the phase scope this table covers."""
-    feat = _BY_KEYWORD.get(keyword)
+    """This reader's declared stance on ``keyword`` (or a macro name), or
+    ``None`` if the table does not cover it."""
+    feat = feature(keyword)
     return feat.stance if feat else None
 
 
 def feature(keyword: str) -> Feature | None:
-    """The :class:`Feature` ``keyword`` belongs to, or ``None``."""
-    return _BY_KEYWORD.get(keyword)
+    """The :class:`Feature` ``keyword`` (or a macro name) belongs to, or
+    ``None``."""
+    return _BY_KEYWORD.get(keyword) or _BY_MACRO.get(keyword)
 
 
 @dataclass(frozen=True)
 class Hit:
     """One feature a file states, and the keywords it stated it with.
 
-    The keywords are the ones actually **found**, not the feature's whole list:
-    a message naming every convolution keyword TOPAS has, when the file wrote
-    two of them, is a message a reader stops reading.
+    The keywords (and macro names) are the ones actually **found**, not the
+    feature's whole list: a message naming every convolution keyword TOPAS
+    has, when the file wrote two of them, is a message a reader stops reading.
     """
 
     feature: Feature
@@ -420,8 +483,8 @@ class Coverage:
 
 
 def classify(found: dict[str, set[str]]) -> Coverage:
-    """Sort keywords into stances. ``found`` maps a keyword to the phase names
-    that stated it.
+    """Sort keywords into stances. ``found`` maps a keyword or a macro name to
+    the phase names that stated it, ``""`` for one stated outside any phase.
 
     The token scan itself belongs to the reader, which owns the mask that makes
     one safe (a ``site`` inside a quoted path is not a keyword). This function
@@ -430,7 +493,7 @@ def classify(found: dict[str, set[str]]) -> Coverage:
     reported: list[Hit] = []
     refused: list[Hit] = []
     for feat in FEATURES:
-        hits = sorted(kw for kw in feat.keywords if kw in found)
+        hits = sorted(kw for kw in feat.keywords + feat.macros if kw in found)
         if not hits:
             continue
         phases = sorted({p for kw in hits for p in found[kw] if p})
