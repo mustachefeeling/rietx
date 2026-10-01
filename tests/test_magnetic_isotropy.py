@@ -1932,6 +1932,7 @@ def near_special_stack():
     return found, reflections, factors, grams
 
 
+@pytest.mark.xdist_group("magnetic-near-special")
 def test_the_certificate_labels_do_not_move_with_an_overall_moment_scale(near_special_stack):
     """Only ratios of intensities are compared, so scaling every moment by one factor changes no certificate.
 
@@ -1962,6 +1963,7 @@ def test_the_certificate_labels_do_not_move_with_an_overall_moment_scale(near_sp
     assert {"absence", "subspace"} <= certificates
 
 
+@pytest.mark.xdist_group("magnetic-near-special")
 def test_a_stack_with_no_gap_at_the_rank_cut_gives_no_subspace_certificate(near_special_stack):
     """A singular value within three decades of the rank cut makes the span a choice of tolerance, so nothing is proved on it.
 
