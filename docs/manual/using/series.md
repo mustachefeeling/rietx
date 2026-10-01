@@ -1120,9 +1120,14 @@ finding about one histogram, so count it once.
 The rule is written as data. `rietx.multi.DIAGNOSTIC_SCOPES` places each
 diagnostic, and `rietx.multi.GUARD_SCOPES` places each guard. Each row gives
 its reason, including the rows for diagnostics a joint fit does not compute.
-There are four of those: the two Pawley ones (a joint fit is Rietveld-only),
-`HOLD_BLOCKED_PLAN` (a joint fit has no hold verb) and `RESTRAINT_TENSION`
-(restraints are refused). One more is withheld on purpose: `DATA_SUPPORT_LOW`.
+There are six of those: the two Pawley ones (a joint fit is Rietveld-only),
+`HOLD_BLOCKED_PLAN` (a joint fit has no hold verb), `RESTRAINT_TENSION`
+(restraints are refused), and the two magnetic-width checks,
+`STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` and `MAGNETIC_WIDTH_MOVED_MOMENT`
+(WP-1343's ordering rule and moment shift are read by the single-pattern
+plan, which a joint fit does not run). A joint fit carries the magnetic term
+on its neutron histogram, so its width-before-moment ordering is unchecked.
+One more is withheld on purpose: `DATA_SUPPORT_LOW`.
 Its ratio of observations to parameters has no agreed definition across
 histograms, and one pattern's reflections counted against the shared columns
 would warn about a fit the other patterns support. Its two sibling checks,
