@@ -7001,6 +7001,9 @@ def _width_census_diagnostics(model: CompiledModel, values: dict[str, float],
     width is not one number per angle: a phase with a Stephens ``microstrain``
     block (its width is per reflection, and the isotropic law alone would
     under-read it), or a width law that is not finite and positive on the grid.
+    Only phases the data can see (``phase_support`` at or above
+    :data:`~rietx.model.forward.PHASE_SUPPORT_SIGMA`, with a line in range)
+    take part: an invisible phase's width explains no line of the census.
     """
     from .indexing.diagnostics import refinement_width_diagnostics
     from .indexing.peaks import width_census
@@ -7017,8 +7020,17 @@ def _width_census_diagnostics(model: CompiledModel, values: dict[str, float],
     if census is None:
         return []
     positions, measured = census
+    # only a phase the data can see is a candidate for "the closest width": a
+    # phase at its scale floor contributes nothing to the lines measured, so
+    # its width — a seeded or runaway lor_size — would otherwise be free to
+    # land near the census and silence the warning the visible phases owe
+    # (#585 follow-up).  Same authority and threshold as PHASE_UNCONSTRAINED.
+    support = model.phase_support(values)
+    line_counts = model.phase_line_counts()
     modelled: dict[int, tuple[str, float]] = {}
     for ip in range(len(model.phases)):
+        if line_counts[ip] == 0 or support[ip] < PHASE_SUPPORT_SIGMA:
+            continue
         (w1, w2), = model._width_block(ip, values, [positions], 0.0)
         fw = np.asarray(model.peak_fwhm(w1, w2), dtype=np.float64)
         if np.all(np.isfinite(fw)):

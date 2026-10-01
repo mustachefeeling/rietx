@@ -1275,7 +1275,8 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "message carries the ratio so the two can be told apart. On a "
             "refinement the census is compared with the fitted widths, size "
             "and strain included, so it fires only when no phase's widths "
-            "came within the factor."
+            "came within the factor. A phase the data cannot see is left out "
+            "of that comparison."
         ),
         anchor="profiles.html#the-instrument-sample-width-split",
     ),
