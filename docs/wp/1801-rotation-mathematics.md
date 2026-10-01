@@ -1,6 +1,6 @@
 # WP-1801 — rotation mathematics: the exponential map, its derivative, the canonical quaternion
 
-Milestone: v1.8 · Status: 🔄 2026-09-30 — claimed by @mustachefeeling
+Milestone: v1.8 · Status: 🔄 2026-10-01 — the module, its tests and both review follow-ups landed (PRs #578, #591); ready to close
 Depends on: —
 Priority: P2 2026-09-30 — the first rung of the rigid-body milestone, touches no v1.6 file, nothing blocks it
 
@@ -55,6 +55,38 @@ column vectors; a new `xp` op goes into `_OP_NAMES` and every backend
   textbook; cite the source used in the docstring (author, year).
 
 ## Handover log
+
+### 2026-10-01 (2nd session) — both review follow-ups landed
+
+Both follow-ups from the first merge are on `main`, so every task here has landed. A
+quaternion the unit check passes now gives a matrix the matrix check passes, and
+ω → q → ω has a test of its own.
+
+*Done:* PR #591 (`c387359b`), merged as `4c471327` by `/pr-review`.
+`matrix_from_quaternion` builds R from q/‖q‖ after the unit check, so
+`UNIT_TOLERANCE` stays one number for both checks.
+`test_vector_quaternion_vector_round_trip_within_8_ulp` holds at the existing 8ε bar;
+the contributor measured 4.0ε worst. *Gotchas:*
+`test_vector_matrix_vector_round_trip_within_8_ulp` still takes Python's `max()`,
+which drops a NaN that is not first. It was posted as a follow-up. *Next:* close
+the WP. WP-1803 is unblocked.
+
+- **2026-10-01** — The rotation maths is on `main`. `crystallography/rotation.py`
+  gives the exponential map, its left Jacobian, the derivative of a rotated
+  frame, quaternions, Log and composition, all in backend `xp` ops, so a rigid
+  body can be rotated and differentiated on any backend. Nothing consumes it
+  yet. *Done:* PR #578 (`872d34fe`), merged as `824d0c8b` by `/pr-review`.
+  *Measured* by the review on numpy and jax (torch was not installed, so it had
+  a static read only): ∂(Exp(ω)·R₀)/∂ω against Richardson-extrapolated central
+  differences at 300 points from 1e-10 to 12 rad, worst error 4e-12. A, B and
+  C jump by about 1 ulp at the 0.25 rad series switch, and their first
+  derivatives by at most 2e-12 relative. The jax Jacobians are finite at
+  ω = 0, 1e-300, π ± 1e-9 and 2π. *Gotchas:* `UNIT_TOLERANCE` bounds both
+  ‖q‖ − 1 and max|RᵀR − I|, but RᵀR scales as ‖q‖⁴, so
+  q = (1 + 9e-10)·(1, 0, 0, 0) passes `matrix_from_quaternion` while its
+  matrix fails `quaternion_from_matrix`. ω → q → ω has no test of its own; it
+  holds to 4ε on 2000 random vectors. Both were posted as follow-ups.
+  *Next:* the two follow-ups, then WP-1803, which this unblocks.
 
 - **2026-09-30** — created, from the 2026-09-30 issue triage (issue #561) after
   an adversarial review of the proposal against `e3e6486a`. No open WP owns it.

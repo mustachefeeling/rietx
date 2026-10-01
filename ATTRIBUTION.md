@@ -399,6 +399,15 @@ they were built from. Their licence texts ship in the wheel and sdist as
   wrong sign, and then says of the table that it "does not seem to be the
   case in practice". Only ⟨j₀⟩ and ⟨j₂⟩ are taken, and the combination
   f = ⟨j₀⟩ + (2/g − 1)⟨j₂⟩ is computed here.
+  **Three rows come from the print, not from `periodictable`** (2026-10-01,
+  #593): Ni³⁺ ⟨j₀⟩ and ⟨j₂⟩ and V ⟨j₂⟩, from ITC Vol. C (3rd ed., 2004) Tables
+  4.4.5.1 and 4.4.5.5, pp. 454 and 456, read from the page image. CrysFML's
+  Ni³⁺ rows, which `periodictable` carries, are not Brown's: its ⟨j₂⟩ is his
+  Ni⁴⁺ row. Its V ⟨j₂⟩ is a curve-identical refit. The whole table was
+  verified the same day against the print and against P. J. Brown's own data
+  file (the McPhase manual's mirror, read for verification only; nothing
+  copied). The Pr³⁺ ⟨j₀⟩ row is not in the print: it is the Pr³⁺ row of
+  Brown's data file, as `periodictable` carries it.
 - Element **colours** in `src/rietx/gui/structure3d.py` (`_CPK`) — the
   *assignments* are the CPK convention (Corey & Pauling, 1953, Rev. Sci. Instrum.
   24, 621; Koltun, 1965, US Patent 3,170,246): hydrogen white, carbon black,

@@ -1080,6 +1080,27 @@ _LEGACY_COUNT_FIELD = "n_background_peaks"
 
 
 class RefinementResult(Base):
+    """What a fit returns: the answer, its statistics, and what the engine
+    found wrong with it.
+
+    **``status`` is the optimiser's exit and nothing else.**  ``"converged"``
+    says the solver met its stopping test; it makes **no claim that the fit is
+    any good**, and a model that matches nothing can converge — driving a
+    phase scale to zero *is* a minimum (issue #243: ``converged`` at Rwp
+    84–235 % beside ``MODEL_FAR_FROM_DATA``).  The vocabulary is
+    :class:`StageResult`'s three solver terminations, for the reason its
+    docstring gives, which is why a fourth member such as
+    ``"converged_with_findings"`` is not how this is said.
+
+    **Quality is** :attr:`diagnostics`' **channel.**  Branch on the codes; a
+    ``"warning"`` is a finding to answer before quoting what it names, and an
+    ``"error"`` means the parameter values and esds are not a refinement of
+    this model.  :attr:`usable` is the one-line reading of both channels a
+    batch driver wants: ``status == "converged"`` and no diagnostic at level
+    ``"error"``.  It is a gate against the unusable, not a certificate of the
+    rest — a ``True`` fit still owes an answer to each of its warnings.
+    """
+
     #: ``result.rwp`` is the single most expensive miss in WP-1110's evidence,
     #: because of *when* it fires: the ``AttributeError`` arrived after a
     #: 105 s refinement had completed, and took it with it — see
@@ -1254,6 +1275,20 @@ class RefinementResult(Base):
     # empty for an ordinary single-histogram fit.  ``statistics`` above is then
     # the pooled combined number and ``two_theta``/``y_*`` mirror histogram 0.
     histograms: list[HistogramResult] = Field(default_factory=list)
+
+    @property
+    def usable(self) -> bool:
+        """Whether this fit can be read at all (WP-1336): the solver converged
+        **and** no diagnostic carries level ``"error"``.
+
+        An expression over :attr:`Diagnostic.level`, never a list of codes
+        (WP-1037's rule for a derived flag): an error-level code added later is
+        counted the day it is written, with nothing here to edit.  ``False``
+        means do not read the values; ``True`` is not a pass — the warnings
+        still name what each number may not be quoted as (class docstring).
+        """
+        return (self.status == "converged"
+                and not any(d.level == "error" for d in self.diagnostics))
 
     # -- numpy views -------------------------------------------------------
     def sig(self) -> np.ndarray:

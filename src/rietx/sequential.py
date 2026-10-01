@@ -2678,7 +2678,8 @@ def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
     two passes, so it is one diagnostic carrying both brackets rather than two
     diagnostics a reader has to notice are about the same thing.  The two
     **agree** when their brackets overlap — which is the WP's "within one
-    pattern", since adjacent brackets share an endpoint — and a disagreement
+    pattern", since adjacent brackets share an endpoint — and their ``sense``
+    is the same, so both read the same side as ordered; a disagreement
     raises the row to ``warning``: a moment carried across the transition by
     one chain's warm start and not the other's is exactly what a single pass
     cannot see, and it is the failure this whole comparison is for.
@@ -2755,13 +2756,24 @@ def _with_onset_agreement(diagnostics: list[Diagnostic], forward: SeriesResult,
         # unconverged bracket is two readings of the same intermediate state
         early = [chain for chain, o in (("forward", mine), ("backward", other))
                  if o.bracket_verdicts_final is False]
-        agrees = overlap and not early
+        # a bracket in the same place with the ordered side on the other end
+        # is not agreement: the two chains disagree about which side it is
+        same_side = mine.sense == other.sense
+        agrees = overlap and same_side and not early
         if agrees:
             tail = (", which overlaps the forward bracket — the onset is the "
                     "data's, not the ordering's")
             advice = ("quote the bracket, with the pattern spacing as its "
                       "uncertainty: the two chains reaching it from opposite "
                       "ends is the check that it is the data's")
+        elif overlap and not same_side:
+            side = {"falls": "below", "rises": "above"}
+            tail = (f", which overlaps the forward bracket, but the forward "
+                    f"chain supports the moment {side[mine.sense]} it and the "
+                    f"backward chain {side[other.sense]} it: the two disagree "
+                    f"about which side is ordered, so neither bracket is a "
+                    f"measurement of the onset")
+            advice = _COMPARE_CHAINS
         elif overlap:
             tail = (f", which overlaps the forward bracket, but the "
                     f"{' and the '.join(early)} bracket"

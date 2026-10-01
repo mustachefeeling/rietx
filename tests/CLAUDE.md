@@ -134,15 +134,15 @@ skill **routing** change loses reads. Different episodes, answer contracts and
 scoring, so a cell in one is comparable to nothing in another. What they share
 is the discipline, the part to copy into a fourth: **register the round before
 running it**, never rewritten afterwards; enforce the condition in a **shim**
-rather than in the prompt; fix the read-outs in advance. The second earned that
-last rule twice: its headline result (no cell called the JSON surface it was
-about, deleted in WP-1303) was not one of its read-outs, and its `pointed` cell
-came back **split** at N = 2, reported as split, not resolved.
+rather than in the prompt; fix the read-outs in advance (WP-1303's headline was
+none of them), and report a cell that came back **split** at N = 2 as split.
 
 A shim has to be **invisible to its subject**: the surface round's first tracer
 lacked `functools.wraps`, and an agent went reading source for a signature.
 And **check the condition reached each cell**, off its transcript: a user-level
-skill shadows a workspace one of the same name (WP-1338's § Amendment 1.1).
+skill shadows a workspace one of the same name (WP-1338's § Amendment 1.1), and
+one on the task's subject picks the route, so launch with `--setting-sources
+project,local`; the user `CLAUDE.md` still loads (WP-1504's § Amendment 1.1).
 
 ## An eval's expected answer is a measurement, not a definition
 

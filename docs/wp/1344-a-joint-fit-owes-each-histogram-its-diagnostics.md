@@ -1,6 +1,6 @@
 # WP-1344 — a joint fit owes each histogram the diagnostics its own radiation earns
 
-Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #546)
+Milestone: unscheduled · Status: 🔄 2026-10-01 — every task landed (PRs #546, #589); ready to close
 Track: What fires, and what stays silent
 Depends on: — (WP-1341 owns the neighbouring "a joint fit has no report" gap,
 and goes after this one: its report renders the sorting this WP writes)
@@ -149,6 +149,34 @@ added (root `CLAUDE.md` § Numbers).
   out of scope here.
 
 ## Handover log
+
+### 2026-10-01 (2nd session) — the `series.md` count fixed
+
+The last open item is on `main`. `series.md` now counts six absent diagnostics,
+matching `multi.DIAGNOSTIC_SCOPES`, so every task here has landed.
+
+*Done:* PR #589 (`66ca3d7c`), merged as `b83fd06c` by `/pr-review`. The
+paragraph names `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` and
+`MAGNETIC_WIDTH_MOVED_MOMENT`, and says a joint fit lacks them because it does not
+run the single-pattern plan, so its width-before-moment ordering is unchecked.
+*Next:* close the WP.
+
+- **2026-10-01** — A joint X-ray + neutron fit now puts each finding where it
+  belongs. A diagnostic about one pattern's radiation, instrument or counts
+  goes on that histogram's list, and one about the shared structure or the
+  joint solve goes once on the fit's. The rule is data
+  (`multi.DIAGNOSTIC_SCOPES`, `multi.GUARD_SCOPES`), and meta-tests hold it
+  equal to what `multi.py` calls. *Done:* PR #546 (`5bba6b65`), merged as
+  `f7a7308a` by `/pr-review`. It does every task: the classification as data,
+  the meta-tests, dispersion, resonant-absorber and species-fallback wired per
+  histogram, the deliberate omissions recorded with reasons, and skill §8.30.
+  It was reviewed over four rounds; the last head was a rebase, and
+  `git range-diff` shows only the claim commit changed. *Gotcha:* six helpers
+  are `ABSENT`, and `using/series.md:1123` names four. The two WP-1343 codes,
+  `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` and `MAGNETIC_WIDTH_MOVED_MOMENT`,
+  are never raised on a joint fit, and the prose does not say so. This was
+  posted as a follow-up for the contributor's next `series.md` PR. §8.30 is at
+  its budget (34 597 of 34 600 B). *Next:* that sentence, then close.
 
 - **2026-09-11** — a freshness pass before this WP's filing PR (#297) merges;
   no work on the WP itself started. PR #282 had merged (`8c39a02c`) between the

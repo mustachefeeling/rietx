@@ -386,25 +386,14 @@ def detect_peaks(data: PatternData, instrument: Instrument, *,
             f"only {len(tt)} points survive the mask and 2θ range; peak "
             "picking needs a pattern, not a window")
 
-    env = _debiased_envelope(tt, y)
-    net = y - env
-    z = np.where(net > 0.0, net, 0.0) / sigma
-    step = float(np.median(np.diff(tt)))
-
     fwhm_pred = predicted_fwhm(tt, instrument)
-    dist = max(int(PEAK_DETECT_SEPARATION_FWHM_FRAC
-                   * float(fwhm_pred.min()) / max(step, 1e-12)), 1)
-    idx, props = find_peaks(z, height=PEAK_MIN_HEIGHT_SIGMA,
-                            prominence=PEAK_MIN_PROMINENCE_SIGMA,
-                            distance=dist)
+    env, net, step, idx, props = _candidates(tt, y, sigma, fwhm_pred)
 
     # width census: rank by prominence, then measure — never the reverse
     fwhm_meas = float(np.median(fwhm_pred))
     scale = 1.0
     if len(idx):
-        rank = np.argsort(props["prominences"])[::-1][:PEAK_WIDTH_CENSUS_N]
-        widths, *_ = peak_widths(net, idx[rank], rel_height=0.5)
-        fwhm_meas = float(np.median(widths)) * step
+        rank, fwhm_meas = _census(net, idx, props, step)
         ref = float(np.median(fwhm_pred[idx[rank]]))
         if ref > 0.0 and fwhm_meas > 0.0:
             scale = float(np.clip(fwhm_meas / ref, *PEAK_WIDTH_SCALE_BOUNDS))
@@ -450,6 +439,54 @@ def detect_peaks(data: PatternData, instrument: Instrument, *,
     return Detection(tt, y, sigma, env, out, fwhm_meas,
                      float(np.median(fwhm_pred)), scale, int(len(shoulder_idx)),
                      tt[alias_idx])
+
+
+def _candidates(tt: np.ndarray, y: np.ndarray, sigma: np.ndarray,
+                fwhm_pred: np.ndarray):
+    """The σ-normalised maxima detection starts from, and what found them:
+    ``(envelope, net, step, indices, find_peaks properties)``.  Shared by
+    :func:`detect_peaks` and :func:`width_census`, so the census a refinement
+    takes is the one indexing takes, line for line."""
+    env = _debiased_envelope(tt, y)
+    net = y - env
+    z = np.where(net > 0.0, net, 0.0) / sigma
+    step = float(np.median(np.diff(tt)))
+    dist = max(int(PEAK_DETECT_SEPARATION_FWHM_FRAC
+                   * float(fwhm_pred.min()) / max(step, 1e-12)), 1)
+    idx, props = find_peaks(z, height=PEAK_MIN_HEIGHT_SIGMA,
+                            prominence=PEAK_MIN_PROMINENCE_SIGMA,
+                            distance=dist)
+    return env, net, step, idx, props
+
+
+def _census(net: np.ndarray, idx: np.ndarray, props: dict, step: float
+            ) -> tuple[np.ndarray, float]:
+    """The :data:`~rietx.schemas.indexing.PEAK_WIDTH_CENSUS_N` most prominent
+    maxima (positions into ``idx``) and their median FWHM in ° 2θ."""
+    rank = np.argsort(props["prominences"])[::-1][:PEAK_WIDTH_CENSUS_N]
+    widths, *_ = peak_widths(net, idx[rank], rel_height=0.5)
+    return rank, float(np.median(widths)) * step
+
+
+def width_census(tt: np.ndarray, y: np.ndarray, sigma: np.ndarray,
+                 fwhm_pred: np.ndarray) -> tuple[np.ndarray, float] | None:
+    """The width census alone, on arrays a caller already masked: the 2θ of
+    the census lines and their median measured FWHM, or ``None`` when no line
+    clears detection's thresholds (or there are too few points to look).
+
+    ``fwhm_pred`` is the width law the separation floor is sized from, as in
+    :func:`detect_peaks`; it does not enter the measurement.  No groups, no
+    aliases and no shoulders: this is the half of a :class:`Detection` the
+    refinement path needs (:func:`~rietx.indexing.diagnostics.\
+refinement_width_diagnostics` says why it needs it at all).
+    """
+    if len(tt) < 16:
+        return None
+    _env, net, step, idx, props = _candidates(tt, y, sigma, fwhm_pred)
+    if not len(idx):
+        return None
+    rank, fwhm_meas = _census(net, idx, props, step)
+    return tt[idx[rank]], fwhm_meas
 
 
 def _group_indices(tt: np.ndarray, fwhm: np.ndarray) -> list[np.ndarray]:

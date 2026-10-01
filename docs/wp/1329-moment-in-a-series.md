@@ -1,6 +1,6 @@
 # WP-1329 — the moment in a series: the onset, the hold, the trajectory
 
-Milestone: v1.6 · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #522)
+Milestone: v1.6 · Status: 🔄 2026-10-01 — tasks 1–4 and both review follow-ups landed (PRs #522, #589); task 5, a real ramp longer than the Cr₂WO₆ pair, remains
 Depends on: 1327 (the moment); 1326 soft (the satellite arm per pattern)
 Priority: P3 2026-09-23 — waits on 1327's moment; P2 when it lands
 
@@ -122,6 +122,32 @@ chain on the same data is reported as a range, never gated.
   [1325](1325-parametric-series.md) the parametric question.
 
 ## Handover log
+
+### 2026-10-01 (2nd session) — both review follow-ups landed
+
+Both follow-ups from PR #522's review are on `main`. Two chains that bracket the
+onset in one place now agree only when they order the same side, and
+`SeriesEntry.magnetic` names its real writer. Task 5 is what remains.
+
+*Done:* PR #589 (`66ca3d7c`), merged as `b83fd06c` by `/pr-review`.
+`_with_onset_agreement` needs `mine.sense == other.sense` as well as overlap, and
+opposite senses get their own `warning` with the `_COMPARE_CHAINS` advice.
+*Next:* task 5, a real ramp longer than the Cr₂WO₆ pair.
+
+- **2026-10-01** — A sequential magnetic refinement now reports the moment
+  per pattern and where it switches on. Each `SeriesEntry` carries the moment
+  arm, `SeriesResult` brackets the onset in each direction of the chain and
+  folds the two readings, and the trajectory plot marks the held patterns.
+  *Done:* PR #522 (`67e9737e`), merged as `05646879` by `/pr-review`, closing
+  #481; `SCHEMA_VERSION` is 0.38. Tested on a synthetic ramp and on the public
+  Cr₂WO₆ HB-2A pair. It was reviewed over five rounds; the last head was a
+  rebase, and `git range-diff` shows only the claim commit changed.
+  *Gotchas:* `SeriesEntry.magnetic`'s comment names `_entry_from_result` as
+  its writer, but the writer is `_moment_evidence`, called in `_chain`
+  (`sequential.py:1577`). `_with_onset_agreement` does not compare `sense`, so
+  two brackets that overlap with opposite senses read as agreeing. Both were
+  posted as follow-ups. *Next:* the two follow-ups. Task 5, a real public ramp
+  (search the corpus, then ask), is open.
 
 - **2026-09-02** — created, from the assessment of PR #221, which did not
   reach the series. Added because the ordering transition is the neutron

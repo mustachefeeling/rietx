@@ -1,0 +1,134 @@
+{
+ "run": "gypsum-after-sonnet-1",
+ "task": "gypsum",
+ "condition": "after",
+ "model": "sonnet",
+ "repeat": 1,
+ "commit": "97c1d9cc1344a73983fe2e1f2a6d287761e29d13",
+ "protocol": "1.2",
+ "session_id": "606726e9-ce75-4565-b2aa-fc78514b7cd1",
+ "models_seen": {
+  "claude-sonnet-5-5": 11
+ },
+ "cost_usd": 0.27703000000000005,
+ "turns": 15,
+ "minutes": 1.25,
+ "api_calls": 11,
+ "tokens": {
+  "input": 22,
+  "cache_read": 303770,
+  "cache_write": 35878,
+  "output": 7272
+ },
+ "renders": [],
+ "builds": [],
+ "cuts": {},
+ "looks": [
+  {
+   "path": "/Users/yue/rietx-agent-runs/2026-10-01-wp1504-figure/work/gypsum-after-sonnet-1/figure.png",
+   "pixels": [
+    2000,
+    1300
+   ]
+  },
+  {
+   "path": "/Users/yue/rietx-agent-runs/2026-10-01-wp1504-figure/work/gypsum-after-sonnet-1/figure.png",
+   "pixels": [
+    2000,
+    1300
+   ]
+  },
+  {
+   "path": "/Users/yue/rietx-agent-runs/2026-10-01-wp1504-figure/work/gypsum-after-sonnet-1/figure.png",
+   "pixels": [
+    2000,
+    1300
+   ]
+  },
+  {
+   "path": "/Users/yue/rietx-agent-runs/2026-10-01-wp1504-figure/work/gypsum-after-sonnet-1/figure.png",
+   "pixels": [
+    2000,
+    1300
+   ]
+  },
+  {
+   "path": "/Users/yue/rietx-agent-runs/2026-10-01-wp1504-figure/work/gypsum-after-sonnet-1/figure.png",
+   "pixels": [
+    2000,
+    1300
+   ]
+  }
+ ],
+ "report_reads": {},
+ "figure_reads": {},
+ "skills": {
+  "invoked": [
+   "dataviz"
+  ],
+  "files": []
+ },
+ "errors": [],
+ "outside": [],
+ "figure": {
+  "exists": true,
+  "pixels": [
+   2000,
+   1300
+  ],
+  "dpi": [
+   200.0,
+   200.0
+  ]
+ },
+ "mechanical": {
+  "pass": true,
+  "checks": [
+   [
+    "figure.png exists",
+    true
+   ]
+  ]
+ },
+ "stall": "Derived: drew by hand in matplotlib, loaded dataviz; not done: polyhedra not whole or bare centres (unclear).",
+ "judge": {
+  "model": "opus",
+  "session_id": "54e377df-5ebb-4fbd-a51c-88eab39e2473",
+  "returncode": 0,
+  "cost_usd": 0.1040158,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "The Ca and S atoms form one horizontal band between b ≈ −2 and +2 Å, labelled as one CaSO₄ sheet."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "Each water O, drawn as a red diamond, is bonded to two grey H atoms above and below the sheet."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "The layer runs horizontally across the plot as a band, with the layer normal along the vertical axis."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms lie inside the axes frame, and the outermost O atoms near x ≈ −0.2 and 10.2 are not clipped."
+   },
+   {
+    "n": 5,
+    "verdict": "yes",
+    "saw": "Every Ca–O, S–O and O–H line ends on a drawn atom."
+   },
+   {
+    "n": 6,
+    "verdict": "unclear",
+    "saw": "No polyhedra are drawn, only ball-and-stick bonds, and each S shows only three bonded O in this projection."
+   }
+  ],
+  "yes": false
+ },
+ "done": false
+}

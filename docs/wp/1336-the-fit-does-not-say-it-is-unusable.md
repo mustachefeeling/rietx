@@ -1,6 +1,6 @@
 # WP-1336 — the fit does not say it is unusable: the status channel and the width census
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-01 — every task landed (PR #585); one review follow-up before it closes
 Track: What fires, and what stays silent
 Depends on: — (1310 soft: how findings arrive on the result)
 Priority: P2 2026-09-23 — a converged fit an order of magnitude off the measured widths, and no channel says so
@@ -190,6 +190,22 @@ a documented reading; a narrow-instrument synthetic fit names the width.
 - `src/rietx/help.py` — the one place what a name *is* is written (WP-1202).
 
 ## Handover log
+
+- **2026-10-01** — A fit now says when it is unusable. `RefinementResult.usable` is
+  `False` for a converged fit that carries an error-level diagnostic, and the
+  class docstring says `status` is the optimiser's exit with no claim about
+  quality. The width census runs inside the fit, so the #249 case names itself.
+  *Done:* PR #585 (`4e38d72e`), merged as `b9412368` by `/pr-review`; it
+  answers #243 and #249. The three decisions are recorded in the PR: `status`
+  keeps three members; `usable` is a property over `Diagnostic.level`, never a
+  list of codes; the census is wired into the fit and compared with each phase's
+  *fitted* width, with the reason in `refinement_width_diagnostics`' docstring.
+  *Measured* on review: the indexing acceptance suite is green on the merged
+  tree, since `peaks.py` feeds the engines. *Gotchas:* every phase in
+  `model.phases` takes part in the width comparison (`refine.py:7019-7024`), so a
+  floored phase within 3× of the data can silence the warning. Limiting it to
+  `phase_support` closes that, and it was posted as a follow-up. *Next:* that
+  follow-up, then close.
 
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issues #243,
   #249). The `status` vocabulary was checked against the tree first: it is the

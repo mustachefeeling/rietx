@@ -79,6 +79,7 @@ from .refine import (
     _unknown_path_diagnostics,
     _utcnow,
     _wavelength_calibration_diagnostics,
+    _width_census_diagnostics,
     clamp_cell_runaway,
 )
 from .report.schemas import THRESHOLDS_VERSION
@@ -173,6 +174,10 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "_size_flag_diagnostics": (
         (HISTOGRAM,), "read against each histogram's own λ; a disagreement "
                       "between rows would mean the WP-1131 scaling came undone"),
+    "_width_census_diagnostics": (
+        (HISTOGRAM,), "the census is one pattern's channels against one "
+                      "instrument's fitted widths (WP-1336); a joint fit that "
+                      "pooled it could not say which declared profile is wrong"),
     # -- per histogram: the pattern's counts and the fit's agreement with them
     "_data_support_diagnostics": (
         (HISTOGRAM,), "the sampling and dead-channel halves are facts about one "
@@ -783,6 +788,12 @@ class MultiHistogramRefinement:
             # this one row lives somewhere else.
             diags.extend(_strain_flag_diagnostics(model, values, struct))
             diags.extend(_size_flag_diagnostics(model, values, struct))
+            # The data-side width check (WP-1336), per histogram for the same
+            # reason: its comparator is this instrument's fitted widths on this
+            # pattern's channels, the one place a too-narrow declared profile
+            # shows when no size or strain term is freed to give the flags above
+            # a number to read.
+            diags.extend(_width_census_diagnostics(model, values, struct))
             # What this histogram's own radiation is owed (WP-1344): each of
             # the three asks one source, so each is this histogram's, and a
             # mixed fit raises it on the histogram it belongs to and nowhere

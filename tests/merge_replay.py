@@ -32,8 +32,9 @@ ROOT = Path(__file__).resolve().parents[1]
 INDEX = "docs/wp/README.md"
 WATCHED = ("docs/ROADMAP.md", "tests/test_docs_consistency.py")
 #: A driver that is git's own text merge, standing in for "no driver" where
-#: the repository's config names one.
-TEXT_MERGE = "git merge-file %A %O %B"
+#: the repository's config names one.  Histogram is the algorithm git's merge
+#: uses; plain merge-file runs myers.  The /pr-review bench sets the same line.
+TEXT_MERGE = "git merge-file --diff-algorithm=histogram %A %O %B"
 DRIVER = (
     f'"{sys.executable}" "{ROOT / ".claude" / "hooks" / "wp_index.py"}" '
     f"--merge %O %A %B || {TEXT_MERGE}"
