@@ -68,6 +68,7 @@ from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import (
     SOLVERS,
     _longest_line_wavelength,
+    rechart_outcome,
     run_least_squares,
 )
 from .optimize.qpa import (
@@ -2753,7 +2754,11 @@ class Refinement:
                                     events=events, stage=stage.name,
                                     backend=self._backend, solver=self._solver,
                                     cancel=cancel, **stage_ftol)
-        table.commit(outcome.theta)
+        # the table commits a moment in its principal chart (#604), and the
+        # outcome is restated in that chart so every later reader of its
+        # theta, Jacobian and correlations describes the values committed
+        signs = table.commit(outcome.theta)
+        outcome = rechart_outcome(outcome, table.x0(), signs)
         # A phase's own support can stay comfortably above PHASE_SUPPORT_SIGMA
         # the whole time and its cell still walk to nonsense — a joint
         # degeneracy with another free phase's cell, invisible to the
@@ -2865,7 +2870,8 @@ class Refinement:
                 model, table, max_iter=stage.max_iter, events=events,
                 stage=stage.name, backend=self._backend,
                 solver=self._solver, cancel=cancel, **stage_ftol)
-            table.commit(second.theta)
+            signs = table.commit(second.theta)
+            second = rechart_outcome(second, table.x0(), signs)
             second_runaway = clamp_cell_runaway(table, start_values)
             if second_runaway:
                 table.refresh_ties()

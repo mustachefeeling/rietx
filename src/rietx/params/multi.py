@@ -503,10 +503,21 @@ class MultiParameterTable:
         thetas = self.split(theta)
         return [self.tables[h].decode(thetas[h]) for h in range(len(self.tables))]
 
-    def commit(self, theta: np.ndarray) -> None:
+    def commit(self, theta: np.ndarray) -> np.ndarray | None:
+        """Each histogram's table commits its slice; the moment re-charting
+        signs (``ParameterTable.commit``, #604) come back on the combined
+        columns.  A shared column is committed from one value by every table
+        that holds it, and the chart is a function of the value, so the
+        tables agree on its sign."""
         thetas = self.split(theta)
+        combined = None
         for h, table in enumerate(self.tables):
-            table.commit(thetas[h])
+            signs = table.commit(thetas[h])
+            if signs is not None:
+                if combined is None:
+                    combined = np.ones(len(theta), dtype=np.float64)
+                combined[self._col_map[h]] = signs
+        return combined
 
     def apply_to_models(self) -> None:
         for h, table in enumerate(self.tables):

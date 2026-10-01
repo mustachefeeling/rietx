@@ -923,7 +923,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "proportional to m², so the column is dead there."
         ),
         unit=None, default=None,
-        typical="1-5 μ_B for the modulus; the angles are unbounded radians",
+        typical=("1-5 μ_B for the modulus; the angles are unbounded while a "
+                 "stage solves and reported with μ ≥ 0, the polar angle in "
+                 "[0, π] and the azimuth in (−π, π]"),
         anchor="parameterisation.html#moment-degrees-of-freedom",
     ),
     "phases.*.microstrain.s*": _STEPHENS_S,

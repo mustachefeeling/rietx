@@ -245,6 +245,17 @@ dimension gives $(\mu)$ with $\mu$ *signed*, two give $(\mu, \phi)$ and three
 $(\mu, \theta, \phi)$; the frame is frozen per stage from the declared cell,
 like every other discrete object here.
 
+Nothing bounds these DOFs while a stage solves, so a fit can end at
+$\phi + 2\pi k$, at $(-\mu, \phi + \pi)$ or at $(\mu, -\theta, \phi + \pi)$,
+which are all the same moment. Every commit therefore moves a block into one
+chart: $\mu \ge 0$ for two or three DOFs, $\theta \in [0, \pi]$ and
+$\phi \in (-\pi, \pi]$, the chart the stage's seed is already in. Each move is
+an identity on the moment and negates whole columns at most, so it changes no
+esd, and the solver's correlations are re-signed with it. An entry a tie reads
+or the caller holds is left where it is. The chart still has a cut at
+$\phi = \pm\pi$, so the series fences compare an angle across patterns
+modulo a turn.
+
 ## Soft restraints
 
 A bond-length, angle or value restraint contributes one row to the residual

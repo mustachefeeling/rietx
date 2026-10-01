@@ -292,6 +292,62 @@ def dofs_from_moment(frame, cell, moment) -> np.ndarray:
     return np.array([mu, theta, phi])
 
 
+def wrap_angle(phi: float) -> float:
+    """``phi`` moved by whole turns into (−π, π], the ``atan2`` range.
+
+    An angle already there comes back bit-for-bit, so a fit that stayed in the
+    chart is not touched by rounding.
+    """
+    if -np.pi < phi <= np.pi:
+        return float(phi)
+    return float(np.pi - np.mod(np.pi - phi, 2.0 * np.pi))
+
+
+def canonical_dofs(dofs) -> tuple[np.ndarray, np.ndarray]:
+    """The same moment's DOFs in the principal chart, and the sign of each move.
+
+    The principal chart is the one :func:`dofs_from_moment` seeds every stage
+    with: μ ≥ 0 for n ≥ 2, the polar angle in [0, π] and the azimuth in
+    (−π, π].  The solver does not stay in it, because nothing bounds the DOFs
+    (the reason is in :meth:`ParameterTable._collect_atom_moment`): it can end
+    a fit at φ + 2πk, at (−μ, φ + π), or at (μ, −θ, φ + π), all of them the
+    moment it started from.  Issue #604: a series read those re-wraps as
+    jumps in the specimen, and a report printed a polar angle of 50.96 rad.
+
+    Every move here is an identity on the moment (checked by
+    :func:`moment_from_dofs` to rounding) and has a **diagonal ±1 Jacobian**,
+    so it changes no esd — a whole turn is a shift, and each reflection
+    negates one or two DOFs and shifts the rest.  The second return value is
+    that diagonal, so a caller holding a covariance or a Jacobian in the old
+    chart can carry it across: ``jac[:, k] *= s[k]`` and
+    ``corr *= outer(s, s)``.  n = 1 is returned unchanged: its μ is signed by
+    design and it has no angle.
+    """
+    d = np.array(dofs, dtype=np.float64).reshape(-1)
+    s = np.ones(len(d), dtype=np.float64)
+    n = len(d)
+    if n < 2:
+        return d, s
+    if n == 3:
+        # polar first, into (−π, π]; a negative one is the reflection
+        # (μ, θ, φ) → (μ, −θ, φ + π)
+        d[1] = wrap_angle(d[1])
+        if d[1] < 0.0:
+            d[1], d[2] = -d[1], d[2] + np.pi
+            s[1] = -s[1]
+    if d[0] < 0.0:
+        # the antipode: (μ, φ) → (−μ, φ + π), and (μ, θ, φ) → (−μ, π − θ, φ + π),
+        # which keeps θ in [0, π]
+        d[0] = -d[0]
+        s[0] = -s[0]
+        if n == 3:
+            d[1] = np.pi - d[1]
+            s[1] = -s[1]
+        d[-1] = d[-1] + np.pi
+    d[-1] = wrap_angle(d[-1])
+    return d, s
+
+
 def d_moment_d_dofs(frame, dofs) -> np.ndarray:
     """``(n, 3)`` — ∂(crystal-axis components)/∂DOF, analytic.
 

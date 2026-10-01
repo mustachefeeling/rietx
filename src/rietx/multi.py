@@ -29,6 +29,7 @@ from .model.microstructure import microstructure_table
 from .optimize.least_squares import (
     SOLVERS,
     _longest_line_wavelength,
+    rechart_outcome,
     run_multi_least_squares,
 )
 from .optimize.statistics import (
@@ -557,7 +558,12 @@ class MultiHistogramRefinement:
                                               max_iter=stage.max_iter,
                                               backend=self._backend,
                                               solver=self._solver, **stage_ftol)
-            self.mtable.commit(outcome.theta)
+            signs = self.mtable.commit(outcome.theta)
+            if signs is not None:
+                # a moment committed in its principal chart (#604): the
+                # combined x0 is cached, so it is rebuilt before it is read
+                self.mtable._rebuild_columns()
+                outcome = rechart_outcome(outcome, self.mtable.x0(), signs)
             # A phase's own support can stay above PHASE_SUPPORT_SIGMA in
             # every histogram and its shared cell still walk to nonsense — the
             # single-histogram runner's own joint-degeneracy gap
@@ -579,7 +585,10 @@ class MultiHistogramRefinement:
                     models, self.mtable, weights=weights,
                     max_iter=stage.max_iter, backend=self._backend,
                     solver=self._solver, **stage_ftol)
-                self.mtable.commit(second.theta)
+                signs = self.mtable.commit(second.theta)
+                if signs is not None:
+                    self.mtable._rebuild_columns()
+                    second = rechart_outcome(second, self.mtable.x0(), signs)
                 second_runaway = _clamp_cell_runaway_multi(self.mtable, start_values)
                 if second_runaway:
                     self.mtable._rebuild_columns()
