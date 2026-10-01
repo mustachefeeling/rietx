@@ -1,6 +1,6 @@
 # WP-1801 — rotation mathematics: the exponential map, its derivative, the canonical quaternion
 
-Milestone: v1.8 · Status: 🔄 2026-10-01 — the module and its tests landed (PR #578); two review follow-ups (the unit tolerance, an ω → q → ω test) remain before it closes
+Milestone: v1.8 · Status: 🔄 2026-10-01 — the module, its tests and both review follow-ups landed (PRs #578, #591); ready to close
 Depends on: —
 Priority: P2 2026-09-30 — the first rung of the rigid-body milestone, touches no v1.6 file, nothing blocks it
 
@@ -55,6 +55,21 @@ column vectors; a new `xp` op goes into `_OP_NAMES` and every backend
   textbook; cite the source used in the docstring (author, year).
 
 ## Handover log
+
+### 2026-10-01 (2nd session) — both review follow-ups landed
+
+Both follow-ups from the first merge are on `main`, so every task here has landed. A
+quaternion the unit check passes now gives a matrix the matrix check passes, and
+ω → q → ω has a test of its own.
+
+*Done:* PR #591 (`c387359b`), merged as `4c471327` by `/pr-review`.
+`matrix_from_quaternion` builds R from q/‖q‖ after the unit check, so
+`UNIT_TOLERANCE` stays one number for both checks.
+`test_vector_quaternion_vector_round_trip_within_8_ulp` holds at the existing 8ε bar;
+the contributor measured 4.0ε worst. *Gotchas:*
+`test_vector_matrix_vector_round_trip_within_8_ulp` still takes Python's `max()`,
+which drops a NaN that is not first. It was posted as a follow-up. *Next:* close
+the WP. WP-1803 is unblocked.
 
 - **2026-10-01** — The rotation maths is on `main`. `crystallography/rotation.py`
   gives the exponential map, its left Jacobian, the derivative of a rotated

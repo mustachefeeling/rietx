@@ -1,6 +1,6 @@
 # WP-1902 — the solve cost as a quadratic form, and the doublet question first
 
-Milestone: v1.9 · Status: 🔄 2026-09-30 — claimed by @mustachefeeling
+Milestone: v1.9 · Status: 🔄 2026-10-01 — the spike and `solve/cost.py` landed (PR #580); the "poor" bar is open
 Depends on: —
 Priority: P2 2026-09-30 — the design gate for the direct-space route; every engine chunk reads this cost
 
@@ -73,6 +73,24 @@ unconverged extraction.
 - Issue #562; WP-1515.
 
 ## Handover log
+
+- **2026-10-01** — The solve cost is on `main`. `solve/cost.py` turns a Le Bail or
+  Pawley extraction into a quadratic form in the reflection intensities, so a
+  structure trial is scored without a pattern evaluation. The doublet spike came
+  first and showed multi-line data needs no refusal. *Done:* PR #580
+  (`4ab339f7`), merged as `604a5bb7` by `/pr-review` after two review rounds.
+  *Measured* by the contributor: Ω·I against `evaluate` at ten random moves,
+  2.8e-16 on NAC and 3.6e-16 on FAP. The doublet error the review predicted is
+  real (2.6e-3 on FAP) and arises only when Ω is built on a Le Bail or Pawley
+  compile, which this cost does not do. *Gotchas* from the review: the nuisance
+  pseudo-inverse is equilibrated through `column_rescale`, because an impurity's
+  stored scale otherwise set the cutoff for the background columns (χ² ×37 at a
+  stored scale of 1e4). `nuisance="scale"` takes the impurity's atoms as
+  declared, a Le Bail placeholder included. *Open:* the "poor" bar (review
+  item 7) is the maintainer's to set here. Two refusals the contributor proposed
+  are follow-ups for their own PR: a phase with `propagation_vector`, and a
+  declared harmonic under `"pawley"`, both of which now drop out as absent.
+  *Next:* the bar, then the engine chunks that read this cost.
 
 - **2026-09-30** — created, from the 2026-09-30 issue triage (issue #562). No
   open WP owns it. The figures above are the review agent's scratch probes at
