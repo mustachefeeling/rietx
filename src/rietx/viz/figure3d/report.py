@@ -46,7 +46,7 @@ class FigureReport:
     front, at a long side of 256 px, and ``hidden_atoms`` their indices into the
     geometry's ``atoms``.  An atom under one sample at that size is left out of
     both.  ``dangling_bonds`` counts bond halves whose far atom is not drawn,
-    not counting one a ``hidden=`` species took away.  ``label_overlaps`` counts
+    the stubs ``hidden=`` leaves included.  ``label_overlaps`` counts
     pairs of drawn letters whose boxes intersect.  ``empty`` is the share of
     the picture's pixels with nothing drawn, read off the image.  ``cut`` is
     what :func:`~rietx.viz.keep` dropped from a kept atom, and ``note`` the

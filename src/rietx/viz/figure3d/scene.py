@@ -232,12 +232,38 @@ def drawn_with(geometry: Mapping, polyhedra: Iterable[int]):
     """``drawnWith``: whether a payload atom is drawn while ``polyhedra`` are.
 
     An atom in the payload only as a polyhedron's vertex is drawn only while
-    one of its polyhedra is.  Returns a test on an index into ``atoms``, and
-    :func:`build_scene` reads it for the atoms it draws and for its zoom fit.
+    one of its polyhedra is.  An atom outside the cell whose site centres a
+    polyhedron (``outside_centre``) is drawn only while no drawn polyhedron is
+    centred on its site, and so is a flagged bond to one, both halves: VESTA
+    adds no centre outside the boundary (its manual, § 8.2.1; WP-1529).
+    Returns a test on an index into ``atoms``, whose ``bond`` is the same test
+    on an index into ``bonds``; :func:`build_scene` reads it for the atoms and
+    bonds it draws and for its zoom fit.
+
+    A site is the asymmetric-unit atom it was built from, ``sites[k]["index"]``,
+    because :func:`~rietx.viz.recolour` points some images of a site at a copy:
+    keyed on ``atoms[k]["site"]``, dimming fluorapatite's images drew its 4 bare
+    P again.
     """
-    atoms = geometry["atoms"]
-    corners = {v for i in polyhedra for v in geometry["polyhedra"][i]["vertices"]}
-    return lambda index: not atoms[index].get("vertex_only") or index in corners
+    atoms, sites = geometry["atoms"], geometry["sites"]
+    polys = list(polyhedra)
+    corners = {v for i in polys for v in geometry["polyhedra"][i]["vertices"]}
+    centred = {sites[atoms[geometry["polyhedra"][i]["center"]]["site"]]["index"]
+               for i in polys}
+
+    def drawn(index: int) -> bool:
+        atom = atoms[index]
+        return ((not atom.get("vertex_only") or index in corners)
+                and not (atom.get("outside_centre")
+                         and sites[atom["site"]]["index"] in centred))
+
+    def bond(index: int) -> bool:
+        b = geometry["bonds"][index]
+        return not (b.get("outside_centre")
+                    and sites[atoms[b["j"]]["site"]]["index"] in centred)
+
+    drawn.bond = bond
+    return drawn
 
 
 def build_scene(geometry: Mapping, mode: str = "ball", *,
@@ -248,8 +274,9 @@ def build_scene(geometry: Mapping, mode: str = "ball", *,
 
     ``hidden`` is the species switched off, and a bond half belongs to its
     atom.  ``polyhedra`` is the indices drawn (:func:`shown_polyhedra`); a
-    drawn polyhedron takes away its centre's sticks to its own vertices and
-    brings the atoms only it needs.  ``center`` and ``radius`` are the fit the
+    drawn polyhedron takes away its centre's sticks to its own vertices,
+    brings the atoms only it needs, and hides its site's centres outside the
+    cell with their sticks (:func:`drawn_with`).  ``center`` and ``radius`` are the fit the
     GUI zooms to, and ``depth`` holds every atom the payload can draw.
     """
     hidden = set(hidden)
@@ -279,7 +306,7 @@ def build_scene(geometry: Mapping, mode: str = "ball", *,
     radius = stick_radius(geometry, mode, exaggeration)
     halves = []
     for index, bond in enumerate(geometry["bonds"]):
-        if index in replaced:
+        if index in replaced or not drawn.bond(index):
             continue
         mid = [(bond["a"][k] + bond["b"][k]) / 2 for k in range(3)]
         for frm, at in ((bond["a"], bond["i"]), (bond["b"], bond["j"])):

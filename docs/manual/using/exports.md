@@ -322,8 +322,9 @@ than 80 % by an atom or a bond in front.
 It is read from a 256 px pass that records which atom or bond is in front at
 each pixel, so a stick that hides an atom counts and a translucent face does
 not.
-`dangling_bonds` counts bond halves whose far atom is not drawn, apart from
-those a `hidden=` species took away.
+`dangling_bonds` counts bond halves whose far atom is not drawn.
+The stubs a `hidden=` species leaves on its neighbours count too.
+A mask on `element=` through `keep` removes the species with its bonds whole.
 On NAC it is 0 for the cell, for a block of cells and after a `keep`, since
 `keep` drops a bond it cuts and counts it in `cut`.
 It is 158 with `boundary=False`, which leaves out the images at the cell faces

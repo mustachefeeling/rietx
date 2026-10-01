@@ -25,7 +25,7 @@ from rietx.crystallography.cif import structure_from_cif
 from rietx.gui import structure3d as s3
 from rietx.model import compiled
 from rietx.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
-from rietx.viz import render_structure
+from rietx.viz import keep, recolour, render_structure, select
 from rietx.viz.figure3d import raster, views
 from rietx.viz.figure3d import report as rp
 from rietx.viz.figure3d import scene as sc
@@ -241,6 +241,9 @@ def test_the_corpus_reaches_every_rule_it_exists_for():
     scenes = [c["scene"] for c in corpus["scenes"]]
     payloads = corpus["payloads"]
     assert any(a.get("vertex_only") for g in payloads.values() for a in g["atoms"])
+    # rutile's two Ti outside the cell, and their sticks (WP-1529)
+    assert any(a.get("outside_centre") for g in payloads.values() for a in g["atoms"])
+    assert any(b.get("outside_centre") for g in payloads.values() for b in g["bonds"])
     assert any(a["npd"] for g in payloads.values() for a in g["atoms"])
     # a floored axis is FLAT_AXIS long, in both of drawable's branches: one
     # flat axis (mono_one_flat) and two (mono_two_flat)
@@ -660,10 +663,61 @@ def test_a_bond_toward_an_atom_that_is_not_drawn_dangles(nac):
         other = bond["b"] if list(bond["a"]) == h["from"] else bond["a"]
         want += bool(np.linalg.norm(drawn - np.asarray(other), axis=1).min() > 1e-6)
     assert want > 0 and bare.report.dangling_bonds == want
-    # a species the caller took away is asked for, not dangling
+    # a species the caller took away leaves its neighbours' halves, which dangle
     species = geometry["sites"][0]["species"]
     asked = render_structure(geometry, size=200, hidden=[species])
-    assert asked.report.dangling_bonds == 0
+    assert asked.report.dangling_bonds > 0
+
+
+@pytest.mark.parametrize("name, element", [("calcite CaCO3", "Ca"), ("LaB6", "La")])
+def test_the_stubs_hidden_leaves_are_the_stubs_the_report_counts(name, element):
+    """Round B's calcite under ``hidden=("Ca",)`` was covered in O stubs while
+    the report read 0 (WP-1529).  The count is each half the scene draws
+    toward a hidden atom, and ``keep`` takes the species with its bonds whole,
+    which draws none."""
+    geometry = s3.build(measured(next(r for r in MEASURED if r["name"] == name)))
+    fig = render_structure(geometry, size=200, hidden=(element,))
+    species = sorted({s["species"] for s in geometry["sites"] if s["element"] == element})
+    scene = sc.build_scene(geometry, "ball", hidden=species, polyhedra=sc.shown_polyhedra(
+        geometry, True, None, species, True))
+    toward = 0
+    for h in scene["halves"]:
+        bond = geometry["bonds"][h["bond"]]
+        other = bond["b"] if list(bond["a"]) == h["from"] else bond["a"]
+        toward += any(geometry["sites"][a["site"]]["element"] == element
+                      and np.allclose(a["pos"], other) for a in geometry["atoms"])
+    assert toward > 0 and fig.report.dangling_bonds == toward
+    cut = keep(geometry, ~select(geometry, element=element))
+    clean = render_structure(cut, size=400)
+    assert clean.report.dangling_bonds == 0
+    _save(render_structure(geometry, size=400, hidden=(element,)), f"stubs_{element}_hidden")
+    _save(clean, f"stubs_{element}_kept")
+
+
+@pytest.mark.parametrize("name", ["rutile TiO2", "fluorapatite", "calcite CaCO3"])
+def test_the_round_b_phases_draw_no_bare_centre(name):
+    """The pictures WP-1529 looks at: polyhedra on, no centre outside the cell
+    without its polyhedron; the scene test is test_structure3d's."""
+    geometry = s3.build(measured(next(r for r in MEASURED if r["name"] == name)))
+    fig = render_structure(geometry, size=500)
+    _save(fig, "bare_centres_" + name.split()[0])
+    shown = sc.shown_polyhedra(geometry, True, None, [], True)
+    centred = {geometry["atoms"][geometry["polyhedra"][i]["center"]]["site"] for i in shown}
+    drawn = [geometry["atoms"][a["index"]] for a in fig.atoms]
+    assert not any(a["outside_centre"] and a["site"] in centred for a in drawn)
+
+
+def test_a_recoloured_image_is_still_a_centre_of_its_site():
+    """``recolour`` points the masked images at a copy of their site, so a
+    test keyed on ``atoms[k]["site"]`` lost them: dimming fluorapatite's
+    images drew its 4 P outside the cell bare again."""
+    geometry = s3.build(measured(next(r for r in MEASURED if r["name"] == "fluorapatite")))
+    dimmed = recolour(geometry, select(geometry, boundary=True), "#cccccc")
+    for g in (geometry, dimmed):
+        scene = sc.build_scene(g, polyhedra=sc.shown_polyhedra(g, True))
+        bare = [g["sites"][g["atoms"][a["index"]]["site"]]["element"] for a in scene["atoms"]
+                if g["atoms"][a["index"]]["outside_centre"]]
+        assert "P" not in bare
 
 
 def test_labels_that_share_a_place_overlap():
@@ -755,15 +809,17 @@ def test_the_recipe_draws_the_same_picture_through_json(nac, kw):
 
 
 @pytest.mark.parametrize("kw", [{"phase": 1}, {"mode": "ellipsoid", "probability": 0.9},
-                                {"bond_tolerance": 0.05}])
+                                {"bond_tolerance": 0.05, "polyhedra": False}])
 def test_the_recipe_redraws_from_a_structure_what_its_arguments_built(nac, kw):
     """From a structure, the phase and the geometry's two knobs are in the
-    call; left out, the recipe drew phase 0 at the defaults."""
+    call; left out, the recipe drew phase 0 at the defaults.  Rutile's sticks
+    all lie inside its octahedra, so the bond knob shows with them off."""
     rutile = _rutile()
     two = Structure(phases=[rutile.phases[0], nac.phases[0]])
     fig = render_structure(two, size=200, **kw)
     # the argument matters: without it the picture is another
-    plain = render_structure(two, size=200, mode=kw.get("mode", "ball"))
+    plain = render_structure(two, size=200, mode=kw.get("mode", "ball"),
+                             polyhedra=kw.get("polyhedra"))
     assert not np.array_equal(plain.image, fig.image)
     again = render_structure(two, **json.loads(json.dumps(fig.recipe)))
     assert np.array_equal(again.image, fig.image)

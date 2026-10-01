@@ -583,6 +583,23 @@ describe("the polyhedra", () => {
     expect(caption(geo, "ball", 1, [0])).toContain("4 atoms in the cell + 1 image outside it");
   });
 
+  it("hide a centre of their site outside the cell, with its sticks", () => {
+    // an O's bond leaves the cell for a second Si, which carries no tetrahedron
+    const geo = tetrahedron();
+    const out = [3, 3, 3];
+    geo.atoms.push({ ...geo.atoms[0], pos: out, boundary: true, outside_centre: true });
+    geo.bonds.push({ i: 1, j: 0, a: geo.atoms[1].pos, b: out, d: 2.0, outside_centre: true });
+    const scene = (polyhedra: number[]) => buildScene(geo, { mode: "ball", polyhedra });
+    // VESTA's default search adds no centre outside the boundary (WP-1529)
+    expect(scene([0]).atoms.map((a) => a.index)).toEqual([0, 1, 2, 3, 4]);
+    expect(scene([0]).halves).toEqual([]);
+    // with the polyhedra hidden it is the O's coordination, and draws
+    expect(scene([]).atoms.map((a) => a.index)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(scene([]).halves.filter((h) => h.bond === 4)).toHaveLength(2);
+    expect(caption(geo, "ball", 1, [0])).toContain("5 atoms in the cell · ");
+    expect(caption(geo, "ball", 1, [])).toContain("5 atoms in the cell + 1 image outside it");
+  });
+
   it("fit the zoom to what the default picture can draw", () => {
     // the hidden polyhedron's own vertex, far out
     const geo = tetrahedron({ drawn_by_default: false });

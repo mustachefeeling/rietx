@@ -2,7 +2,7 @@
 
 Milestone: v1.7 · Status: 🔄 2026-10-01 — round B run (one of every cell, 28 runs); the next round waits on WP-1529
 Depends on: 1501, 1502, 1503; 1529 soft (the next round)
-Priority: P4 2026-10-01 — was P3: round B ran; the next round waits on WP-1529, which lifts it
+Priority: P3 2026-10-01 — WP-1529 landed its three fixes (PR #635); the round reruns on its merge
 
 ## Goal
 
@@ -57,6 +57,19 @@ Stated as a chemist would, from the 21 phases in
 
 `docs/wp/1504-eval/` holds the harness, the rubric and the run log. A
 condition is enforced in a shim, never in the prompt.
+
+### Inherited
+
+- **2026-10-01, from WP-1529** (PR #635). Pin the third condition to that
+  PR's merge commit on `main`. Three changes reach the agents. The skill's
+  description names structure figures. A polyhedron centre outside the cell
+  is drawn only while its site's polyhedra are hidden, as in VESTA.
+  `report.dangling_bonds` counts the stubs `hidden=` leaves (calcite under
+  `hidden=("Ca",)`: 112). Two checks for the round. Do
+  `reference_figures.py`'s `without_bare_centres` and `carbonate_groups`
+  still change the picture? They should not need to. And round B's
+  measurement missed calcite: it drew 8 bare Ca on a default-drawn site, so
+  round B's calcite runs drew them too.
 
 ## Non-goals
 

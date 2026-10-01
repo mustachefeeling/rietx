@@ -6,7 +6,10 @@ description: >-
   FitReport) — read it before the first fit() whenever a task involves a powder
   pattern, a CIF to fit against one, phase fractions, a cell to determine, an
   in-situ series, a batch of candidates or of patterns fitted as separate
-  jobs, or an existing rietx result to judge.
+  jobs, or an existing rietx result to judge. Read it too before drawing a
+  crystal structure from a CIF or a refined model. rx.viz.render_structure
+  draws one to a PNG with polyhedra and a view down any axis, without a
+  browser.
 license: MIT
 compatibility: Requires the rietx Python package (pip install rietx) and Python 3.11+. Works offline — this file and its references ship in the wheel; the user manual it names is hosted at https://rietx.org.
 metadata:

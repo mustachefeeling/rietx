@@ -27,6 +27,7 @@ from rietx.crystallography.cif import structure_from_cif
 from rietx.crystallography.symmetry import expand_orbit, expand_positions, get_spacegroup
 from rietx.gui import structure3d as s3
 from rietx.schemas.structure import AnisoU, Atom, Cell, Parameter, Phase, Structure
+from rietx.viz.figure3d import scene as sc
 
 DATA = Path(__file__).parent / "data"
 
@@ -1069,6 +1070,90 @@ def test_the_default_picture_on_the_measured_phases(row):
             drawn.setdefault(element, set()).add(p["coordination"])
     assert {e: sorted(v) for e, v in drawn.items()} == row["expected"]
     _every_polyhedron_is_one(payload)
+
+
+def _bare_centres(geometry: dict, polyhedra: list[int]) -> list[str]:
+    """The elements of the atoms the scene draws while ``polyhedra`` are, whose
+    site centres a drawn polyhedron while they are neither a drawn polyhedron's
+    centre nor its vertex."""
+    drawn = [geometry["polyhedra"][i] for i in polyhedra]
+    centring = {geometry["atoms"][p["center"]]["site"] for p in drawn}
+    held = {p["center"] for p in drawn} | {v for p in drawn for v in p["vertices"]}
+    atoms = geometry["atoms"]
+    return [geometry["sites"][atoms[a["index"]]["site"]]["element"]
+            for a in sc.build_scene(geometry, polyhedra=polyhedra)["atoms"]
+            if atoms[a["index"]]["site"] in centring and a["index"] not in held]
+
+
+def _flagged(geometry: dict) -> tuple[dict, dict]:
+    """The flagged centres by element: on sites whose polyhedra are drawn by
+    default, and on sites whose polyhedra are all hidden by default."""
+    shown = {geometry["atoms"][geometry["polyhedra"][i]["center"]]["site"]
+             for i in sc.shown_polyhedra(geometry, True)}
+    out: tuple[dict, dict] = ({}, {})
+    for a in geometry["atoms"]:
+        if a["outside_centre"]:
+            counts = out[a["site"] not in shown]
+            element = geometry["sites"][a["site"]]["element"]
+            counts[element] = counts.get(element, 0) + 1
+    return out
+
+
+#: WP-1504's round-B phases, and the centres each one cell flags: on main
+#: before WP-1529 the first count drew bare in the default picture
+ROUND_B = {"rutile TiO2": ({"Ti": 2}, {}),
+           "fluorapatite": ({"P": 4}, {"Ca": 26}),
+           "NAC": ({}, {"Ca": 9, "Na": 7}),
+           "gypsum CaSO4.2H2O": ({}, {"Ca": 8}),
+           "calcite CaCO3": ({"Ca": 8}, {}),
+           "LaB6": ({}, {})}
+
+
+@pytest.mark.parametrize("name", ROUND_B)
+def test_a_cell_draws_no_centre_without_its_polyhedron(name):
+    """VESTA's default bond search adds a ligand outside the boundary and never
+    a centre (its manual, § 8.2.1), so a bond from a ligand in the cell to a
+    centre outside it draws, with the centre, only while that site's polyhedra
+    are hidden (WP-1529).  Asked of the scene, by default and with every
+    polyhedron drawn, in the cell and in a 2×1×1 block, whose interior bonds
+    are never flagged.  Every drawn half still ends on a drawn atom, and each
+    polyhedron's hidden sticks join its centre to its own vertices."""
+    row = next(r for r in MEASURED if r["name"] == name)
+    cell = s3.build(measured(row))
+    assert _flagged(cell) == ROUND_B[name]
+    block = s3.build(measured(row), extent=((0, 2), (0, 1), (0, 1)), max_atoms=5000)
+    assert not any(b["outside_centre"] and b["j"] < block["n_cell"] for b in block["bonds"])
+    for geometry in (cell, block):
+        default = sc.shown_polyhedra(geometry, True)
+        for polyhedra in (default, list(range(len(geometry["polyhedra"])))):
+            assert _bare_centres(geometry, polyhedra) == []
+            scene = sc.build_scene(geometry, polyhedra=polyhedra)
+            drawn = set(_keys(geometry["atoms"][a["index"]] for a in scene["atoms"]))
+            for half in scene["halves"]:
+                bond = geometry["bonds"][half["bond"]]
+                assert _key(bond["a"]) in drawn and _key(bond["b"]) in drawn
+        for p in geometry["polyhedra"]:
+            centre = _key(geometry["atoms"][p["center"]]["pos"])
+            corners = {_key(geometry["atoms"][v]["pos"]) for v in p["vertices"]}
+            for k in p["bonds"]:
+                bond = geometry["bonds"][k]
+                ends = {_key(bond["a"]), _key(bond["b"])}
+                assert centre in ends and len(ends & corners) == 1
+    # a hidden shell leaves its ligands' bonds to its centres drawn: NAC's F3
+    # at (0.96, 0.96, 0.96) has no other, and building them out left it bare
+    flagged = [k for k, b in enumerate(cell["bonds"]) if b["outside_centre"]]
+    if name == "NAC":
+        drawn = {h["bond"] for h in sc.build_scene(
+            cell, polyhedra=sc.shown_polyhedra(cell, True))["halves"]}
+        assert len(flagged) == 31 and set(flagged) <= drawn
+
+
+def _key(pos) -> tuple:
+    return tuple(round(v, 6) for v in pos)
+
+
+def _keys(atoms) -> list[tuple]:
+    return [_key(a["pos"]) for a in atoms]
 
 
 def test_the_centre_and_ligand_lists_replace_the_rule():

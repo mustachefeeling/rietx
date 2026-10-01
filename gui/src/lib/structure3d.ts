@@ -50,6 +50,10 @@ export interface DrawnAtom {
   /** in the payload only as a polyhedron's vertex, so drawn only while one of
    *  its polyhedra is (WP-1466); absent reads as false */
   vertex_only?: boolean;
+  /** outside the cell, on a site that centres a polyhedron and as no
+   *  polyhedron's vertex, so drawn only while its site's polyhedra are hidden
+   *  (WP-1529); absent reads as false */
+  outside_centre?: boolean;
   /** columns are the principal axes at one RMS displacement (Å) */
   ellipsoid: number[][];
   rms: number[];
@@ -62,6 +66,9 @@ export interface Bond {
   a: number[];
   b: number[];
   d: number;
+  /** its far end `b` is an `outside_centre` atom, so the bond is drawn only
+   *  while that atom is (WP-1529); absent reads as false */
+  outside_centre?: boolean;
 }
 
 /** One coordination polyhedron (WP-1466): chemistry and geometry both
@@ -587,15 +594,37 @@ function drawable(m: number[][]): Mat3 {
  *
  * An atom in the payload only as a polyhedron's vertex (`vertex_only`) is
  * drawn only while one of its polyhedra is: at the default bond tolerance,
- * NAC's hidden NaF₇ and CaF₈ would leave 12 F with no stick and no face.  The
- * one statement of that rule: `buildScene` draws by it, its zoom fit reads it
- * over the default polyhedra, and `caption` counts by it.  A copy of it is how
- * the caption came to count atoms that were not drawn (WP-1468).
+ * NAC's hidden NaF₇ and CaF₈ would leave 12 F with no stick and no face.  An
+ * atom outside the cell whose site centres a polyhedron (`outside_centre`) is
+ * drawn only while no drawn polyhedron is centred on its site, and so is a
+ * flagged bond to one, both halves (`.bond`): VESTA adds no centre outside the
+ * boundary (its manual, § 8.2.1), and rutile drew 2 Ti with no octahedron
+ * (WP-1529).  The one statement of both rules: `buildScene` draws by it, its
+ * zoom fit reads it over the default polyhedra, and `caption` counts by it.  A
+ * copy of it is how the caption came to count atoms that were not drawn
+ * (WP-1468).
  */
-export function drawnWith(geometry: Geometry,
-                          polyhedra: readonly number[]): (index: number) => boolean {
+export function drawnWith(geometry: Geometry, polyhedra: readonly number[]): Drawn {
   const corners = new Set(polyhedra.flatMap((i) => geometry.polyhedra[i].vertices));
-  return (index) => !geometry.atoms[index].vertex_only || corners.has(index);
+  // a site is the asymmetric-unit atom it was built from, as the Python twin
+  // keys it, since `recolour` there points some images of a site at a copy
+  const unit = (atom: number) => geometry.sites[geometry.atoms[atom].site].index;
+  const centred = new Set(polyhedra.map((i) => unit(geometry.polyhedra[i].center)));
+  const atom = (index: number) => {
+    const a = geometry.atoms[index];
+    return (!a.vertex_only || corners.has(index)) && !(a.outside_centre && centred.has(unit(index)));
+  };
+  const bond = (index: number) => {
+    const b = geometry.bonds[index];
+    return !(b.outside_centre && centred.has(unit(b.j)));
+  };
+  return Object.assign(atom, { bond });
+}
+
+/** `drawnWith`'s test on an index into `atoms`, and on one into `bonds`. */
+export interface Drawn {
+  (index: number): boolean;
+  bond(index: number): boolean;
 }
 
 /**
@@ -614,7 +643,8 @@ export function drawnWith(geometry: Geometry,
  * A drawn polyhedron (WP-1466) brings its faces and its edges, the edges as
  * lines in a darker ink of the centre's colour, and takes away its centre's
  * sticks to its own vertices.  An atom in the payload only as a polyhedron's
- * vertex is drawn only while one of its polyhedra is (`drawnWith`).  The gap
+ * vertex is drawn only while one of its polyhedra is, and a centre of its site
+ * outside the cell only while none is, with its sticks (`drawnWith`).  The gap
  * shell and the bond rule can disagree (NAC's Na: 4 sticks, 7 vertices), and
  * drawing both would show the contradiction rather than the shell.
  */
@@ -646,7 +676,7 @@ export function buildScene(geometry: Geometry, options: SceneOptions): Scene {
   const radius = stickRadius(geometry, mode, exaggeration);
   const halves: SceneHalf[] = [];
   geometry.bonds.forEach((bond, index) => {
-    if (replaced.has(index)) return;
+    if (replaced.has(index) || !drawn.bond(index)) return;
     const mid = [0, 1, 2].map((k) => (bond.a[k] + bond.b[k]) / 2);
     for (const [from, at] of [[bond.a, bond.i], [bond.b, bond.j]] as const) {
       const site = geometry.sites[geometry.atoms[at].site];
