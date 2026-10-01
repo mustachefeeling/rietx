@@ -512,6 +512,49 @@ file, a history header and an agent request all record which schedule ran. In
 the GUI's text document it is the `tolerance` line, whose value is a number or
 the word `none`.
 
+### The Lorentzian window on a time-of-flight bank
+
+A plan carries a second schedule, and it only acts on a time-of-flight bank
+whose profile has a Lorentzian part. Each peak is evaluated inside a window
+frozen for the stage, sized so that each side leaves out at most 1e-4 of the
+peak's area. The Lorentzian tail is the expensive part of that rule: it is
+roughly η/(π·tol) FWHM long, which on a bank with γ ≠ 0 can be most of the
+pattern. `RefinementPlan.intermediate_lorentz_window_tol` loosens that one
+component, and only in every stage but the last:
+
+```python
+import rietx as rx
+
+plan = rx.RefinementPlan(stages=[
+    rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.c*"]),
+    rx.Stage("cell", ["phases.*.cell.a"]),
+    rx.Stage("displacement", ["phases.*.atoms.*.biso"]),
+])
+assert plan.intermediate_lorentz_window_tol == 1e-2
+assert plan.stage_lorentz_window_tols() == [1e-2, 1e-2, None]
+```
+
+`RefinementPlan.stage_lorentz_window_tols` applies the rule
+`RefinementPlan.stage_ftols` applies. `Stage.lorentz_window_tol` overrides the
+schedule for one stage. The last stage takes `None`, which is
+the one 1e-4 rule for every component, because it produces the answer. The
+exponential wings and the Gaussian part keep 1e-4 in every stage. A bank whose
+profile is Gaussian compiles the same windows either way, bit for bit.
+`StageResult.lorentz_window_tol` reports the tolerance each stage actually
+ran at, so a coarse stage can be told apart from the answer. It is `None` on a
+constant-wavelength stage and on a Gaussian bank, where no Lorentzian window
+was sized. `NodeAction.lorentz_window_tol` records the same input on the
+stage's history node, so a cherry-pick compiles the windows the stage
+compiled. `PlanSpec.intermediate_lorentz_window_tol` and
+`StageSpec.lorentz_window_tol` carry both settings through JSON. The GUI's
+text document has no line for the plan-level setting, so applying a document
+keeps the project's own value.
+
+On synthetic Si banks this moved no final parameter by more than 0.006 esd and
+cut the whole fit's cost by 1.2 to 3.6 times. The cut is not larger because
+the answer stage, which frees everything at 1e-4, is most of what remains. Set
+the field to `None` for 1e-4 in every stage.
+
 ## What a stage carries
 
 A `Stage` is `Stage.name`, a list of globs in `Stage.turn_on`, and seven

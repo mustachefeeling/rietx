@@ -847,6 +847,18 @@ class StageResult(Base):
     #: fits' parameter shifts needs to know whether they were converged the
     #: same way.
     ftol: float | None = None
+    #: the per-side area fraction of each peak's **Lorentzian component** this
+    #: stage's frozen windows were sized to leave outside, read off the model
+    #: the stage ran on — ``1e-2`` for an intermediate stage under the default
+    #: schedule (``RefinementPlan.intermediate_lorentz_window_tol``), ``1e-4``
+    #: (``forward_tof.TOF_WINDOW_AREA_TOL``) for the answer stage.  ``None``
+    #: where no Lorentzian window was sized at all: a constant-wavelength
+    #: stage, a Gaussian-branch bank, and a stage recorded by a runner that
+    #: does not write it (``multi.py``, which compiles every stage at the
+    #: answer tolerance).  Recorded for ``ftol``'s reason: a coarse stage's
+    #: numbers are never the reported ones, and a reader comparing two fits'
+    #: stage trajectories must be able to see which stages were coarse.
+    lorentz_window_tol: float | None = None
     #: steps the bounded-LM driver shortened against a linear-inequality
     #: constraint (the Stephens strain cone) during this stage.  Always 0 under
     #: TRF, which has no such vocabulary.  Nonzero in the *final* stage means

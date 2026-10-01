@@ -339,9 +339,16 @@ from .._nearmiss import did_you_mean
 #: (e) ``compile_tof_model`` refuses a Lorentzian width polynomial
 #: γ(d) = gam0 + gam1·d + gam2·d² that goes negative over the fitted d range,
 #: by name — the twin of the σ²(d) check.
+#: (f) the **staged Lorentzian window tolerance**: ``StageResult`` and
+#: ``NodeAction`` gain ``lorentz_window_tol``, ``StageSpec`` gains it as an
+#: override and ``PlanSpec`` gains ``intermediate_lorentz_window_tol``
+#: (default 1e-2).  A bank's pseudo-Voigt windows are sized with the
+#: Lorentzian component at that tolerance in every stage but the last, which
+#: stays at ``TOF_WINDOW_AREA_TOL``.  Additive, ``None`` on the records, so an
+#: older document reads unchanged.
 #: **No constant-wavelength number moves**: every new field is read by the
-#: flight-time forward model and by nothing else, and the full fast suite's
-#: goldens are unchanged.
+#: flight-time forward model and by nothing else (the plan's field is carried
+#: and ignored on a scan), and the full fast suite's goldens are unchanged.
 SCHEMA_VERSION = "0.36"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]

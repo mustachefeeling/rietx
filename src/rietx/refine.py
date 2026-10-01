@@ -482,7 +482,8 @@ def _compile_for(structure: Structure, instrument: Instrument,
                  limits: tuple[float, float] | None = None,
                  moving_paths: set[str] | None = None,
                  restraint_weight_scale: float = 1.0,
-                 window_slack: float | None = None) -> AnyCompiledModel:
+                 window_slack: float | None = None,
+                 lorentz_window_tol: float | None = None) -> AnyCompiledModel:
     """Compile against whichever forward model this **pair** names.
 
     The one routing point, so the four call sites in this module read alike and
@@ -500,13 +501,19 @@ def _compile_for(structure: Structure, instrument: Instrument,
     without a unit here for that reason; the public keyword a caller writes is
     still ``two_theta_limits`` (see :meth:`Refinement.fit`), which is a name
     this rung deliberately does not rename.
+
+    ``lorentz_window_tol`` reaches the flight-time compiler only: the
+    constant-wavelength windows have their own rule
+    (``forward.WINDOW_AREA_TOL``) and no schedule, so a plan's schedule is
+    dropped here for a 2θ pattern rather than at each caller.
     """
     if data.axis == "tof" or instrument.source.kind == "neutron_tof":
         return compile_tof_model(
             structure, instrument, data, mode=mode, tof_limits=limits,
             moving_paths=moving_paths,
             restraint_weight_scale=restraint_weight_scale,
-            window_slack_us=window_slack)
+            window_slack_us=window_slack,
+            lorentz_window_tol=lorentz_window_tol)
     return compile_model(
         structure, instrument, data, mode=mode, two_theta_limits=limits,
         moving_paths=moving_paths,
@@ -2586,7 +2593,8 @@ class Refinement:
                       seed=node.action.seed, strain_seed=node.action.strain_seed,
                       restraint_weight_scale=node.action.restraint_weight_scale,
                       ftol=node.action.ftol,
-                      window_slack_deg=node.action.window_slack_deg)
+                      window_slack_deg=node.action.window_slack_deg,
+                      lorentz_window_tol=node.action.lorentz_window_tol)
         return self.run_stage(data, stage)
 
     # ------------------------------------------------------------------
@@ -2680,7 +2688,8 @@ class Refinement:
                    two_theta_limits: tuple[float, float] | None,
                    correlation_guard: float, events=None, cancel=None,
                    stage_index: int = 1, n_stages: int = 1,
-                   ftol: float | None = None):
+                   ftol: float | None = None,
+                   lorentz_window_tol: float | None = None):
         """One stage: free params, recompile, solve, commit, guard.
 
         The recompile is what keeps the residual smooth *within* the stage —
@@ -2747,7 +2756,11 @@ class Refinement:
             # the stage's declared window capture slack (WP-1112): the same
             # frozen-at-compile shape as c_w, and None for every plan that
             # does not state one
-            window_slack=stage.window_slack_deg)
+            window_slack=stage.window_slack_deg,
+            # the Lorentzian window tolerance the *plan* scheduled for this
+            # stage (RefinementPlan.stage_lorentz_window_tols), passed in like
+            # ftol because only the plan knows which stage is last
+            lorentz_window_tol=lorentz_window_tol)
         carried = False
         if model is not None and mode in ("lebail", "pawley") and model.mode == mode:
             _carry_lebail(model, new_model)
@@ -3310,16 +3323,18 @@ class Refinement:
         """
         model = outcome = guard = None
         ftols = plan.stage_ftols()
+        lorentz_tols = plan.stage_lorentz_window_tols()
         correlation_hits: dict[tuple[str, frozenset],
                               list[tuple[str, Diagnostic]]] = {}
         answer_runaway: list[Diagnostic] = []
-        for k, (stage, ftol) in enumerate(zip(plan.stages, ftols, strict=True),
-                                          start=1):
+        for k, (stage, ftol, lorentz_tol) in enumerate(
+                zip(plan.stages, ftols, lorentz_tols, strict=True), start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
                 model, outcome, guard, freed, hold = self._run_stage(
                     stage, data, mode, table, model, two_theta_limits,
                     plan.correlation_guard, events=stream, cancel=cancel,
-                    stage_index=k, n_stages=len(plan.stages), ftol=ftol)
+                    stage_index=k, n_stages=len(plan.stages), ftol=ftol,
+                    lorentz_window_tol=lorentz_tol)
             stage_diagnostics = _guard_diagnostics(guard) + _covariance_diagnostics(
                 stage.name, outcome, answer=k == len(plan.stages))
             for d in stage_diagnostics:
@@ -3351,6 +3366,8 @@ class Refinement:
                 unknown_paths=hold.unknown_paths,
                 # checked, trivially: one histogram has no elsewhere
                 unreached_histograms={},
+                # read off the model the stage ran on, never off the schedule
+                lorentz_window_tol=getattr(model, "lorentz_window_tol", None),
             ))
             if stage_reports:
                 self.stage_reports_.append(self._stage_report(
@@ -3371,6 +3388,10 @@ class Refinement:
                     # (Stage.ftol is None for every stage taking the plan's
                     # schedule), because a cherry-pick re-runs what happened
                     ftol=ftol, window_slack_deg=stage.window_slack_deg,
+                    # the input that ran, so a cherry-pick compiles the same
+                    # windows; None off a bank, where no schedule applies and a
+                    # constant-wavelength node's api_call keeps its text
+                    lorentz_window_tol=lorentz_tol if _is_tof(model) else None,
                 ), model, table, outcome, stage_diagnostics)
         # the converged vector's own findings, and nothing earlier: the same
         # ``guard`` object ``_build_result`` projects ``at_bound`` from
@@ -3543,7 +3564,9 @@ class Refinement:
                         # no plan here, so no notion of an intermediate stage: one
                         # stage run on its own is the state the caller is asking
                         # for, and it takes its own ftol or the solver default
-                        ftol=stage.ftol)
+                        # — and its own Lorentzian window tolerance or 1e-4
+                        ftol=stage.ftol,
+                        lorentz_window_tol=stage.lorentz_window_tol)
             finally:
                 if (stream is not None and stream is not events
                         and stream is not recorder):
@@ -3579,7 +3602,8 @@ class Refinement:
                 ftol=stage.ftol, held=hold.held, released=hold.released,
                 held_reach=hold.reach,
                 blocked_by_hold=hold.blocked_by_hold,
-                unknown_paths=hold.unknown_paths, unreached_histograms={})
+                unknown_paths=hold.unknown_paths, unreached_histograms={},
+                lorentz_window_tol=getattr(model, "lorentz_window_tol", None))
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and
             # before the node, so the node carries what the result carries
@@ -3604,6 +3628,8 @@ class Refinement:
                     seed=stage.seed, strain_seed=stage.strain_seed,
                     restraint_weight_scale=stage.restraint_weight_scale,
                     ftol=stage.ftol, window_slack_deg=stage.window_slack_deg,
+                    lorentz_window_tol=(stage.lorentz_window_tol
+                                        if _is_tof(model) else None),
                 ), model, table, outcome, diagnostics)
 
             # after the node, which keeps its as-optimised metrics: the result
@@ -7253,7 +7279,10 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
 
     model = _compile_for(structure, instrument, data, mode=state.mode,
                          limits=state.two_theta_limits,
-                         moving_paths=set(table.moving_paths))
+                         moving_paths=set(table.moving_paths),
+                         # a coarse stage's node is re-measured on the windows
+                         # it ran on, not on the answer tolerance's
+                         lorentz_window_tol=node.action.lorentz_window_tol)
     if state.mode in ("lebail", "pawley"):
         _restore_lebail(state.reflections, model)
 

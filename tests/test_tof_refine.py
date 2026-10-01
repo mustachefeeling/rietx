@@ -380,9 +380,10 @@ def test_the_schema_version_moved_with_the_field():
     Two entries: the readers-and-axis rung (0.35), and this cut's (0.36) —
     the result's abscissa, the intensity basis, the corrections that follow λ
     across a bank, the four sample widths becoming refinable there, and the
-    γ-polynomial refusal.  The number is re-pinned rather than relaxed on
-    purpose: what this asserts is that somebody *noticed*, and a test that
-    accepted any version would assert nothing."""
+    γ-polynomial refusal, and the staged Lorentzian window tolerance
+    recorded on ``StageResult``/``NodeAction``.  The number is re-pinned
+    rather than relaxed on purpose: what this asserts is that somebody
+    *noticed*, and a test that accepted any version would assert nothing."""
     from rietx.schemas.common import SCHEMA_VERSION
 
     assert SCHEMA_VERSION == "0.36"

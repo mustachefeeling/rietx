@@ -93,6 +93,10 @@ class NodeAction(Base):
     restraint_weight_scale: float = 1.0
     ftol: float | None = None
     window_slack_deg: float | None = None
+    #: the Lorentzian window tolerance the stage compiled a bank at, as the
+    #: *input* that ran (``None`` = the answer tolerance), so a cherry-pick of
+    #: a coarse stage compiles the windows it compiled.  ``None`` off a bank.
+    lorentz_window_tol: float | None = None
     ties: dict[str, TieSpec] = Field(default_factory=dict)
     untied: list[str] = Field(default_factory=list)
     #: ``"set_variable"``'s own arguments (WP-1119), by the same rule as
@@ -129,7 +133,8 @@ class NodeAction(Base):
                  ("strain_seed", self.strain_seed, 0.0),
                  ("restraint_weight_scale", self.restraint_weight_scale, 1.0),
                  ("ftol", self.ftol, None),
-                 ("window_slack_deg", self.window_slack_deg, None))
+                 ("window_slack_deg", self.window_slack_deg, None),
+                 ("lorentz_window_tol", self.lorentz_window_tol, None))
                 if v != off)
             return (f"ref.run_stage(data, rx.Stage({self.name!r}, {self.turn_on!r}, "
                     f"max_iter={self.max_iter}{extras}))")

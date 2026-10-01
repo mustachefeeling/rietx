@@ -1583,6 +1583,20 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         unit="deg 2θ", default="null",
         typical="leave null outside indexing validation",
     ),
+    "lorentz_window_tol": HelpEntry(
+        title="Lorentzian window tolerance",
+        description=(
+            "Time-of-flight only. The fraction of each peak's Lorentzian "
+            "component, per side, this stage's frozen windows may leave "
+            "outside, overriding the plan's schedule. Null takes it from the "
+            "plan, which runs every stage but the last at "
+            "`intermediate_lorentz_window_tol` and the last at 1e-4. The "
+            "exponential wings and the Gaussian part are never loosened, and a "
+            "Gaussian-branch bank or a 2θ pattern ignores it."
+        ),
+        default="null",
+        typical="leave null; 1e-4 to force a stage to the answer tolerance",
+    ),
 }
 
 #: One entry per ``io.formats.base.READER_OPTIONS`` key.  ``ReaderOption.help``

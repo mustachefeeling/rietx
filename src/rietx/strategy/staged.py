@@ -19,10 +19,11 @@ from dataclasses import dataclass, field
 from .._nearmiss import did_you_mean
 from ..schemas.common import Mode
 
-# INTERMEDIATE_FTOL is defined beside the mirror because the pydantic field
-# needs it at class-definition time and this module is the *upper* layer; it is
-# re-exported here, where plan policy is read.
-from ..schemas.plan import INTERMEDIATE_FTOL, PlanSpec
+# INTERMEDIATE_FTOL and INTERMEDIATE_LORENTZ_WINDOW_TOL are defined beside the
+# mirror because the pydantic fields need them at class-definition time and
+# this module is the *upper* layer; they are re-exported here, where plan
+# policy is read.
+from ..schemas.plan import INTERMEDIATE_FTOL, INTERMEDIATE_LORENTZ_WINDOW_TOL, PlanSpec
 
 #: ``phases.i.atoms.j.u11`` … — the stored anisotropic components, grouped by
 #: site for the positive-definiteness guard.
@@ -163,6 +164,15 @@ class Stage:
     #: (``indexing.workflow.VALIDATION_WINDOW_SLACK_DEG``).  ``None`` = the
     #: default; frozen at stage compile like every other discrete choice.
     window_slack_deg: float | None = None
+    #: **time-of-flight only**: the per-side area fraction of each peak's
+    #: *Lorentzian component* this stage's frozen windows may leave outside,
+    #: overriding the plan's schedule.  ``None`` = take it from the plan
+    #: (:attr:`RefinementPlan.intermediate_lorentz_window_tol` for every stage
+    #: but the last, ``forward_tof.TOF_WINDOW_AREA_TOL`` for the last).  The
+    #: exponential wings and the Gaussian extent are never loosened by it, and
+    #: a constant-wavelength pattern or a Gaussian-branch bank ignores it.
+    #: Frozen at stage compile like every other window input.
+    lorentz_window_tol: float | None = None
 
     def __getattr__(self, name: str):
         if name in _PYDANTIC_SURFACE:
@@ -246,6 +256,29 @@ class RefinementPlan:
     #: it still does, bit for bit.  See :meth:`stage_ftols` for the rule and
     #: :data:`INTERMEDIATE_FTOL` for what the number is and costs.
     intermediate_ftol: float | None = INTERMEDIATE_FTOL
+    #: the Lorentzian-component window tolerance every stage but the last
+    #: compiles a time-of-flight bank at, unless that stage declares its own
+    #: :attr:`Stage.lorentz_window_tol`.  ``None`` = the answer tolerance in
+    #: every stage, bit for bit the windows before the schedule existed.  See
+    #: :meth:`stage_lorentz_window_tols` for the rule and
+    #: :data:`INTERMEDIATE_LORENTZ_WINDOW_TOL` for what the number is and buys.
+    intermediate_lorentz_window_tol: float | None = INTERMEDIATE_LORENTZ_WINDOW_TOL
+
+    def stage_lorentz_window_tols(self) -> list[float | None]:
+        """The Lorentzian window tolerance each stage compiles at, in order.
+
+        :meth:`stage_ftols`' rule, for the second schedule a plan carries and
+        for the same reason it lives here: only the plan knows which stage is
+        last.  A stage's own ``lorentz_window_tol`` wins; the last stage takes
+        ``None`` — ``forward_tof.TOF_WINDOW_AREA_TOL``, one rule for every
+        component — because it produces the answer; every other stage takes
+        :attr:`intermediate_lorentz_window_tol`.  A one-stage plan is all
+        endpoint and nothing is loosened.
+        """
+        last = len(self.stages) - 1
+        return [s.lorentz_window_tol if s.lorentz_window_tol is not None
+                else (None if i == last else self.intermediate_lorentz_window_tol)
+                for i, s in enumerate(self.stages)]
 
     def stage_ftols(self) -> list[float | None]:
         """The tolerance each stage runs at, in order — the one authority.

@@ -129,7 +129,9 @@ REFERENCE_BUDGET_BYTES = REFERENCE_MAX_BYTES - REFERENCE_GAP_BYTES
 #: fields, +106 B, on a file the readers-and-axis cut had left at 38 965 B.
 #: Every time-of-flight *verb* went to ``api-tof.md`` rather than here, by the
 #: technique rule above; these are fields of the everyday answer types, which
-#: cannot move.  Still 600 B under the truncation the bar stands for.
+#: cannot move.  The staged Lorentzian window tolerance then renders its
+#: ``StageResult``/``StageSpec``/``PlanSpec`` fields, +142 B, for 39 213 B.
+#: Still ~800 B under the truncation the bar stands for.
 API_INDEX_MAX_BYTES = 39_400
 
 
