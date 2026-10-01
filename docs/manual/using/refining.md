@@ -331,7 +331,7 @@ it can disagree with the nuclear phase it is declared beside: a type-IV group
 next to the symbol of its unprimed operations (the anti-translated atom is not
 in the structure), a BNS number whose default origin choice is not the nuclear
 group's, a b-unique number on a c-unique cell. Each would compile a different
-structure from the one the group describes, so the phase refuses it by name.
+structure from the one the group describes, so the readers and `Refinement(...)` refuse it by name.
 State the nuclear operations with the translation in
 `Phase.symmetry_operations`, pick the matching setting with
 `rietx.crystallography.magnetic.operators.database_settings` and

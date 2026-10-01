@@ -28,14 +28,29 @@ import pytest
 from rietx.crystallography.magnetic import operators as O
 from rietx.crystallography.magnetic.isotropy import candidates
 from rietx.crystallography.magnetic.operators import format_transform
-from rietx.crystallography.magnetic.scattering import compile_magnetic_sites
+from rietx.crystallography.magnetic.scattering import (
+    check_group_is_structure_symmetry,
+    compile_magnetic_sites,
+)
 from rietx.crystallography.magnetic.supercell import magnetic_supercell
 from rietx.crystallography.structure_factor import compile_phase_sites
 from rietx.io.projects.topas import TopasInpError, read_topas_inp, to_structure
 from rietx.schemas.common import Parameter as P
-from rietx.schemas.structure import Atom, Cell, MagneticSymmetry, Moment, Phase
+from rietx.schemas.structure import Atom, Cell, MagneticSymmetry, Moment
+from rietx.schemas.structure import Phase as _Phase
 
 REFUSED = "not a symmetry of the structure it decorates"
+
+
+def Phase(**kw) -> _Phase:
+    """A phase *as stated*: built, then judged where a statement is judged.
+
+    The check is not a schema validator (a refined phase has to validate), so
+    the tests ask it the way ``Refinement`` and the readers do.
+    """
+    phase = _Phase(**kw)
+    check_group_is_structure_symmetry(phase)
+    return phase
 
 
 def _cell(a, b, c, al=90.0, be=90.0, ga=90.0) -> Cell:
@@ -289,25 +304,26 @@ def test_an_anti_translated_image_compiles_the_reversed_moment():
     assert np.allclose(moments[k], -m, atol=1e-12)
 
 
-def test_the_check_judges_the_stated_structure_not_refined_drift():
-    """A write-back (leaf assignment) does not re-run the check.
+def _drifted_supercell() -> _Phase:
+    """The builder's output, then what a fit that frees B and z leaves behind."""
+    cand = candidates("P 4/m m m", (0, 0, 0), (0, 0, Fraction(1, 2)),
+                      kind="magnetic").candidates[0]
+    phase = magnetic_supercell(_parent(), cand, magnetic_species="Mn",
+                               ion="Mn2+", magnitude=2.0).phase
+    check_group_is_structure_symmetry(phase)      # a clean statement first
+    for n, atom in enumerate(phase.atoms):
+        atom.biso.value += 0.03 * n               # copies the group relates
+        atom.z.value += 2e-3 * n                  # no longer agree
+    return phase
 
-    Explicit copies the group relates move independently once their
-    coordinates are freed; the compile at the next stage must not refuse a
-    fit half-way through for that, so the check sits on the statement.
-    """
-    phase = Phase(name="c", space_group="P 4/m m m",
-                  atoms=[_mn("Mn1"), _mn("Mn2", (0, 0, 0.5), (0, 0, -3))], **C8)
-    phase.atoms[1].z.value = 0.51
-    assert phase.atoms[1].z.value == 0.51
 
+def test_a_refined_supercell_still_validates_and_reads_back(tmp_path):
+    """The check is not on the schema, so refined values are never re-judged.
 
-def test_a_recorded_state_reads_back_and_a_statement_does_not(tmp_path):
-    """``history.jsonl`` holds refined values; reading it back is not a statement.
-
-    Positive arm: the same structure JSON, validated as a fresh statement,
-    is refused — so the read-back passing is the context, not a check that
-    cannot fire.
+    Review of #620: the builder lists anti-translated copies as independent
+    sites, so once B or the coordinates are freed they drift apart, and a
+    validator on ``Phase`` refused the JSON round trip of the fit's own
+    result ("the 'O_2' there has another occupancy or B").
     """
     import rietx as rx
     from rietx.history.store import read_records, write_records
@@ -319,17 +335,32 @@ def test_a_recorded_state_reads_back_and_a_statement_does_not(tmp_path):
     )
     from rietx.schemas.structure import Structure
 
-    structure = Structure(phases=[Phase(
-        name="c", space_group="P 4/m m m",
-        atoms=[_mn("Mn1"), _mn("Mn2", (0, 0, 0.5), (0, 0, -3))], **C8)])
-    structure.phases[0].atoms[1].z.value = 0.51   # a freed copy, one stage on
-    with pytest.raises(ValueError, match=REFUSED):
-        Structure.model_validate_json(structure.model_dump_json())
+    structure = Structure(phases=[_drifted_supercell()])
+    back = Structure.model_validate_json(structure.model_dump_json())
+    assert back == structure
     node = HistoryNode(id="n1", action=NodeAction(kind="stage"),
                        state=RefinementState(
                            structure=structure,
                            instrument=rx.Instrument.constant_wavelength_neutron(2.4)))
     path = tmp_path / "history.jsonl"
     write_records(path, [HistoryRecord(record="node", node=node)])
-    back, = list(read_records(path))
-    assert back.node.state.structure.phases[0].atoms[1].z.value == 0.51
+    got, = list(read_records(path))
+    assert got.node.state.structure == structure
+    # positive arm: the same drift *is* what the check refuses when asked,
+    # so the round trip passing is the check's absence from the schema
+    with pytest.raises(ValueError, match=REFUSED):
+        check_group_is_structure_symmetry(structure.phases[0])
+
+
+def test_a_refinement_refuses_a_group_that_is_not_a_symmetry():
+    """The statement is judged where it enters a fit, whatever built it."""
+    import rietx as rx
+    from rietx.schemas.structure import Structure
+
+    instrument = rx.Instrument.constant_wavelength_neutron(2.4)
+    bad = _Phase(name="c", space_group="P 4/m m m", atoms=[_mn()], **C8)
+    with pytest.raises(ValueError, match=REFUSED):
+        rx.Refinement(Structure(phases=[bad]), instrument)
+    ok = _Phase(name="c", space_group="[P 4/m m m]",
+                symmetry_operations=WITH_TRANSLATION, atoms=[_mn()], **C8)
+    rx.Refinement(Structure(phases=[ok]), instrument)

@@ -991,8 +991,8 @@ def database_settings(spec) -> tuple[DatabaseSetting, ...]:
     allowed in both, it is not caught by the moment at all — it propagates
     over the wrong operations (254 of 1767 cases over the 24 two-origin
     families, issue #597; ``P n n n:2`` with ``48.259`` compiles to a structure
-    spglib names 13.69).  That case is refused by ``Phase``'s
-    magnetic-symmetry check
+    spglib names 13.69).  That case is refused where a statement enters (the readers and
+    ``Refinement``) by the magnetic-symmetry check
     (:func:`~rietx.crystallography.magnetic.scattering.check_group_is_structure_symmetry`),
     because the default setting's operations do not map the stated structure
     onto itself; the remedy is the matching ``hall_number`` from here.

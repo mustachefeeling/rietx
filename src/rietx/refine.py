@@ -35,6 +35,7 @@ from .background.diagnostics import (
     dead_channels,
     sampling_steps_per_fwhm,
 )
+from .crystallography.magnetic.scattering import check_group_is_structure_symmetry
 from .crystallography.symmetry import reflection_label, reflection_label_row
 from .help import help_key_for
 from .history.events import _attach_progress, as_event_stream
@@ -1280,6 +1281,14 @@ class Refinement:
         self._backend = backend
         self._solver = solver
         self.structure = structure.model_copy(deep=True)
+        # A magnetic group has to be a symmetry of the structure it decorates
+        # (issue #597).  Judged here, where a statement enters a fit, and not
+        # on the schema or at compile: a refined phase whose group-related
+        # copies were listed separately (the supercell builder's, a file's)
+        # has drifted apart once B, occupancy or coordinates were freed, and
+        # must still validate and read back.
+        for phase in self.structure.phases:
+            check_group_is_structure_symmetry(phase)
         self.instrument = instrument.model_copy(deep=True)
         #: λ per line as *declared*, snapshotted once here at construction — the
         #: wavelengths on the instrument this ``Refinement`` was built with.

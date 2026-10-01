@@ -336,6 +336,13 @@ def check_group_is_structure_symmetry(phase) -> None:
 
     The refusal :func:`group_symmetry_violations` describes, for a phase with
     moments and a ``magnetic_symmetry``; anything else returns.
+
+    Runs where a **statement** enters: the readers (magCIF, TOPAS, FullProf)
+    and ``Refinement.__init__``.  Never as a ``Phase`` validator and never at
+    compile: atoms the group relates but the caller listed separately (the
+    supercell builder's anti-translated copies, explicit copies in a file) move
+    apart once their B, occupancy or coordinates are freed, so a refined phase
+    is not a statement and must still validate and read back (review of #620).
     """
     if phase.magnetic_symmetry is None:
         return

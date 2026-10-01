@@ -3634,7 +3634,7 @@ def _magnetic_build_diagnostics(model: TopasModel, phases_in, specs,
       table. Nothing here compares the two tables, but the phase does: a
       number whose standard-setting operations are not a symmetry of the
       file's nuclear ``space_group``, cell and sites (a b-unique 14.79 beside
-      ``P 1 1 21/b``) is refused when the phase is built, by
+      ``P 1 1 21/b``) is refused when the phase is read, by
       :func:`~rietx.crystallography.magnetic.scattering.check_group_is_structure_symmetry`
       (issue #597), never read into a different structure.
     * ``TOPAS_MOMENT_CONVENTION`` — ``mlx mly mlz`` are read as
@@ -4093,6 +4093,8 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
                                    min=0.0, transform="softplus",
                                    **({"vary": ph.vary["scale"]}
                                       if "scale" in ph.vary else {}))))
+            from ...crystallography.magnetic.scattering import check_group_is_structure_symmetry
+            check_group_is_structure_symmetry(phases[-1])
         except TopasInpError:
             raise
         except Exception as exc:
