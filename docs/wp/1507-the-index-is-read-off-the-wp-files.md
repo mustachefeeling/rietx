@@ -173,6 +173,24 @@ matrix. The freshness and merge tests live in `test_docs_consistency.py` and
 
 ## Handover log
 
+### 2026-10-01 — /pr-review's bench merges as GitHub does
+
+Not a session on this WP. A /pr-review fix touched two of its pieces.
+
+- The 2nd session left `/pr-review` unchanged on purpose, and that was wrong.
+  The bench ran the row merge, so its stacks and `merge-tree` checks called
+  clean the index conflicts GitHub reported on #522, #546, #579 and #580. The
+  bench now overrides the driver with git's text merge in its own worktree
+  config (`commands/pr-review.md` § Where this command runs). Other trees keep
+  the row merge. `session_start.ensure_merge_driver` now reads `--local`, so
+  the override never makes it rewrite `.git/config`.
+- `tests/merge_replay.py`'s `TEXT_MERGE` now passes
+  `--diff-algorithm=histogram`, the algorithm git's own merge uses. Over the
+  baseline window both algorithms give the same paths for every merge: 25
+  conflicted, 17 on ROADMAP. The window now holds 391 merges, where the task
+  below says 398, because `--all` reads only the refs that still exist.
+  Compare rates, as the task says.
+
 ### 2026-09-27 (2nd session) — the index is generated; the replay waits two weeks
 
 The WP tables no longer live in ROADMAP. A script reads each WP file's
