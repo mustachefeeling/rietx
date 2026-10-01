@@ -2073,6 +2073,36 @@ def test_a_topas_magnetic_phase_reads_with_the_moments_in_place(tmp_path):
     codes = [d.code for d in built]
     assert "TOPAS_MOMENT_CONVENTION" in codes
     assert "TOPAS_MOMENT_ION_UNCHARGED" not in codes    # the file wrote Cr+3
+    assert "TOPAS_MOMENT_G_HELD" not in codes           # the file states no mg
+
+
+@pytest.mark.parametrize("mg, refined", [
+    ("mg @ 1.9", True),        # `@`: refined
+    ("mg g_cr 1.9", True),     # a name is itself the refine flag (TR § 2.1)
+    ("mg ! 1.9", False),       # held in the file, held here: nothing to say
+    ("mg 1.9", False),
+])
+def test_a_refined_lande_g_is_reported_held(tmp_path, mg, refined):
+    """#603: `mg` is refinable in TOPAS (Technical Reference § 13, "The Lande
+    splitting factor can be refined using the site-dependent parameter mg")
+    and `Moment.g` is a plain float, so a refined g arrives held at the
+    file's value. The read said nothing; it now says so, naming the site."""
+    text = _TOPAS_MAG.replace("mly @ 2.35 mlz 0", f"mly @ 2.35 mlz 0 {mg}")
+    assert text != _TOPAS_MAG
+    model = read_topas_inp(_inp(tmp_path, text))
+    assert model.phases[0].sites[0].moment["mg"] == 1.9
+    built: list = []
+    structure = topas_to_structure(model, magnetic_symmetry="58.395",
+                                   diagnostics=built)
+    assert structure.phases[0].atoms[0].moment.g == 1.9   # the value arrives
+    held = [d for d in built if d.code == "TOPAS_MOMENT_G_HELD"]
+    if not refined:
+        assert held == []
+        return
+    (d,) = held
+    assert d.level == "warning"
+    assert d.where == ["phases.0.atoms.0.moment.g"]
+    assert "'Cr1' (g = 1.9)" in d.message and "held" in d.message
 
 
 def test_a_topas_moment_with_no_group_supplied_is_refused_by_name(tmp_path):

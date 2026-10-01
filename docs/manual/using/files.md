@@ -353,6 +353,12 @@ A crystal-axis reading misses the median pair by about 58 %, and a Cartesian
 one by about 80 %. With the moment along b alone, where the three readings
 coincide, all three match, which shows the comparison can tell them apart.
 
+`mg` is the site's Landé g, which enters only the ⟨j₂⟩ weight of the
+magnetic form factor. TOPAS can refine it (Technical Reference § 13), but
+`Moment.g` is a fixed number. So an `mg` the file refines (`mg @ 1.9`, or a
+named parameter) is read as held at the file's value, and
+`TOPAS_MOMENT_G_HELD` names each such site.
+
 `mag_only` and `mag_only_for_mag_sites` switch a site's nuclear scattering off.
 The file that uses them typically restates the magnetic sites in a second
 `str`. Building that without the switch would count those sites' nuclear
