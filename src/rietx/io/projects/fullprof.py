@@ -870,6 +870,25 @@ _DISPERSION_NAM = re.compile(r"([a-z]{1,2})(?:[+-]\d*)?")
 _DISPERSION_ATOL_E = 0.01
 
 
+def _dispersion_disagreement(element: str, fp: float, fpp: float,
+                             lam: float) -> str | None:
+    """Why a stated ``(f', f'')`` is not rietx's at ``lam``, or ``None`` if it is.
+
+    The one test the reader applies to a file's pair and the writer applies to
+    the pair it is about to write (a writer refuses what its reader refuses,
+    ``io/CLAUDE.md`` § Project writers): within :data:`_DISPERSION_ATOL_E` of
+    plain Cromer-Liberman at ``lam``, and rietx has a value there.
+    """
+    from ...crystallography.dispersion import dispersion
+    try:
+        ours = dispersion(element, lam)
+    except (KeyError, ValueError) as exc:
+        return f"rietx has no value for it at {lam} Å ({exc})"
+    if max(abs(fp - ours[0]), abs(fpp - ours[1])) > _DISPERSION_ATOL_E:
+        return f"rietx computes {ours[0]:.4g} / {ours[1]:.4g} at {lam} Å"
+    return None
+
+
 def _check_stated_dispersion(line: _Line, tokens: list, path: Path,
                              model: FullProfModel) -> None:
     """Record an X-ray file's ``NAM DFP DFPP 2`` line; refuse one rietx would not compute.
@@ -883,7 +902,9 @@ def _check_stated_dispersion(line: _Line, tokens: list, path: Path,
     wavelength (or where rietx has no value there, an absorption edge), because
     reading past it would run the fit on numbers the file did not state. A file
     :func:`from_structure` wrote with its instrument's own dispersion reads back
-    clean; one written with ``source.dispersion = None`` (f′ = f″ = 0) does not.
+    clean. :func:`from_structure` refuses at write the pairs this refuses at
+    read (a measured override, ``source.dispersion = None``'s zeros), so no
+    file this module wrote is one it cannot read.
     """
     m = _DISPERSION_NAM.fullmatch(tokens[0].lower())
     try:
@@ -897,14 +918,7 @@ def _check_stated_dispersion(line: _Line, tokens: list, path: Path,
     element = m.group(1).capitalize()
     model.dispersion[element] = (fp, fpp)
     lam = model.lambda1
-    from ...crystallography.dispersion import dispersion
-    try:
-        ours = dispersion(element, lam)
-        off = max(abs(fp - ours[0]), abs(fpp - ours[1]))
-        why = (f"rietx computes {ours[0]:.4g} / {ours[1]:.4g} at {lam} Å"
-               if off > _DISPERSION_ATOL_E else None)
-    except (KeyError, ValueError) as exc:
-        why = f"rietx has no value for it at {lam} Å ({exc})"
+    why = _dispersion_disagreement(element, fp, fpp, lam)
     if why is not None:
         raise FullProfPcrError(
             f"{path}: line {line.number}: the file states f' = {fp!r}, "
@@ -3183,6 +3197,29 @@ def _refuse_dropped_instrument(instrument: Instrument | None) -> None:
             f"would state a pattern without them")
 
 
+def _refuse_unreadable_dispersion(phase, atom, fp: float, fpp: float,
+                                  lam: float) -> None:
+    """Refuse at write a pair :func:`_check_stated_dispersion` would refuse on read.
+
+    A ``Structure`` carries no dispersion, so the reader accepts only a pair
+    within tolerance of rietx's own at the file's primary wavelength; a file
+    stating any other (a measured ``Dispersion.overrides`` entry, or the
+    zeros ``dispersion=None`` means) would be one this module could not read
+    back, and the refusal belongs on the way out (#568 review round 3).
+    """
+    why = _dispersion_disagreement(atom.species, fp, fpp, lam)
+    if why is not None:
+        raise ValueError(
+            f"phase {phase.name!r}: atom {atom.label!r}: the instrument's "
+            f"dispersion for {atom.species} is f' = {fp!r}, f'' = {fpp!r}, and "
+            f"{why}. FullProf would compute with the pair the file states, "
+            f"but this module's reader refuses any pair other than rietx's "
+            f"Cromer-Liberman value (a Structure carries no dispersion), so "
+            f"the file could not be read back. A measured override or "
+            f"`source.dispersion = None` (f' = f'' = 0) cannot be exported "
+            f"yet")
+
+
 def _anomalous(phase, atom, typ: str, dispersion, wavelengths: tuple[float, ...]
                ) -> tuple[float, float, int]:
     """LINE 12's ``(DFP, DFPP, 2)`` for an X-ray ``Typ``: rietx's own f′, f″.
@@ -3197,7 +3234,8 @@ def _anomalous(phase, atom, typ: str, dispersion, wavelengths: tuple[float, ...]
     ion ``Typ`` alike, and the FeAl spread falls to 0.31 %. rietx applies one
     f′ + i·f″ per element at the primary line (``dispersion.resolve``, which
     refuses an edge between the lines), as FullProf does per ``NAM``. With
-    ``dispersion=None`` both are written 0, rietx's f = f₀.
+    A pair the reader would refuse (an override beyond tolerance, the zeros of
+    ``dispersion=None``) is refused here (:func:`_refuse_unreadable_dispersion`).
     """
     if len(typ) > _NAM_WIDTH:
         raise ValueError(
@@ -3205,15 +3243,19 @@ def _anomalous(phase, atom, typ: str, dispersion, wavelengths: tuple[float, ...]
             f"than LINE 12's {_NAM_WIDTH}-character NAM, which states its "
             f"anomalous dispersion, and FullProf stops on a longer name")
     if dispersion is None:
-        return 0.0, 0.0, 2
+        fp = fpp = 0.0
+        _refuse_unreadable_dispersion(phase, atom, fp, fpp, wavelengths[0])
+        return fp, fpp, 2
     from ...crystallography.dispersion import resolve
     try:
         f = resolve([atom.species], wavelengths, dispersion.overrides)[atom.species]
     except (KeyError, ValueError) as exc:
         raise ValueError(f"phase {phase.name!r}: atom {atom.label!r}: "
                          f"{exc}") from None
-    return _finite(f.real, f"the f' of {atom.species}"), _finite(
-        f.imag, f"the f'' of {atom.species}"), 2
+    fp = _finite(f.real, f"the f' of {atom.species}")
+    fpp = _finite(f.imag, f"the f'' of {atom.species}")
+    _refuse_unreadable_dispersion(phase, atom, fp, fpp, wavelengths[0])
+    return fp, fpp, 2
 
 
 def _widths(phase, instrument: Instrument | None) -> list[float]:
@@ -3303,14 +3345,17 @@ def from_structure(structure: Structure, *,
       respelled as the element, before it can be exported.
     * **the anomalous dispersion** on an X-ray file, as one LINE-12
       ``nam f′ f″ 2`` per ``Typ`` (:func:`_anomalous`): rietx's own
-      Cromer-Liberman values at the primary line, or 0 under
-      ``dispersion=None``. Without them FullProf applies its own table
+      Cromer-Liberman values at the primary line. Without them FullProf
+      applies its own table
       (measured), which is not rietx's away from Cu Kα. With no
       ``instrument`` they are resolved at the placeholder Cu Kα lines, so an
-      element with an edge there (Eu, Ho) is refused, naming ``instrument=``.
+      element with an edge there (Eu, Ho) is refused, naming ``instrument=``
+      with a source whose wavelength has a value for it.
       :func:`read_fullprof_pcr` reads these lines back and accepts a pair
       within ``_DISPERSION_ATOL_E`` of rietx's own, so the first two forms
-      round-trip; ``dispersion=None``'s zeros are refused at read.
+      round-trip. A measured ``Dispersion.overrides`` pair, or the zeros of
+      ``dispersion=None``, would be refused by that reader (a ``Structure``
+      carries no dispersion), so the writer refuses them, naming the atom.
 
     What still does not travel, at its identity: the zero shift, sample
     displacement and transparency, the capillary offsets, absorption (no
@@ -3570,9 +3615,7 @@ def from_structure(structure: Structure, *,
                         f"{exc}. No instrument was given, so the file's "
                         f"dispersion was resolved at the placeholder Cu "
                         f"K\u03b1 lines, which the caller never chose; pass "
-                        f"`instrument=` with the real source (or one with "
-                        f"`source.dispersion = None` to state f\u2032 = "
-                        f"f\u2033 = 0)") from None
+                        f"`instrument=` with the real source") from None
         body.append(phase.name)
         phase_control = dict(nat=len(phase.atoms), dis=0, ang_or_mom=0,
                              pr1=0.0, pr2=0.0, pr3=1.0, jbt=0, irf=0, isy=0,

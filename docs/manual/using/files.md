@@ -770,7 +770,7 @@ broadening added and FullProf's X/Y letters swapped onto rietx's strain/size
 terms. Without an instrument it writes Cu Kα1/Kα2 and a default
 `ProfileTCHZ()`'s widths; zero widths are a FullProf hard stop. An X-ray file
 also states rietx's own anomalous dispersion, one LINE-12 `nam f′ f″ 2` per
-`Typ` (0 under `dispersion=None`): without it FullProf applies its own f′/f″,
+`Typ` (an override or `dispersion=None`, which this module's reader would refuse, is refused at write): without it FullProf applies its own f′/f″,
 measured against FullProf 8.20 to differ from rietx's away from Cu Kα. A
 profile term FullProf's file would not state the same way is refused by name:
 an exact Voigt shape, a Stephens strain block, axial divergence, harmonics, a

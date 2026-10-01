@@ -2537,20 +2537,29 @@ def test_an_xray_file_states_rietx_s_own_anomalous_dispersion(tmp_path):
     """FullProf applies its own f'/f'' to a file without LINE 12 (measured,
     8.20: Fe at 1.85 Å is −2.095/0.566 there, Cromer-Liberman −2.548/0.521),
     so every X-ray Typ gets an ITY = 2 line with rietx's values, lower-case
-    NAM, or zeros under dispersion=None; the reader reads them past."""
+    NAM; the reader reads them past. A pair that reader would refuse is
+    refused at write (round 3)."""
     from rietx.crystallography.dispersion import dispersion
+    from rietx.schemas.instrument import Dispersion
     st = _cubic("Zr4+", "O2-", "Zr4+")
-    text = from_structure(st, instrument=_xray(1.85))
+    text = from_structure(st, instrument=_xray(1.85, dispersion=Dispersion()))
     want = [["zr+4", *map(repr, dispersion("Zr", 1.85)), "2"],
             ["o-2", *map(repr, dispersion("O", 1.85)), "2"]]
     assert _line12(text) == want
-    off = from_structure(st, instrument=_xray(1.85, dispersion=None))
-    assert _line12(off) == [["zr+4", "0.0", "0.0", "2"], ["o-2", "0.0", "0.0", "2"]]
-    # an override is rietx's value, so it is what is written
-    from rietx.schemas.instrument import Dispersion
-    over = from_structure(st, instrument=_xray(1.85, dispersion=Dispersion(
-        overrides={"Zr": (-7.5, 1.25)})))
-    assert _line12(over)[0] == ["zr+4", "-7.5", "1.25", "2"]
+    # a pair the reader would refuse is refused at write, naming the atom and why
+    with pytest.raises(ValueError, match=r"atom .*f' = 0\.0.*could not be read back"):
+        from_structure(st, instrument=_xray(1.85, dispersion=None))
+    with pytest.raises(ValueError, match=r"f' = -7\.5.*could not be read back"):
+        from_structure(st, instrument=_xray(1.85, dispersion=Dispersion(
+            overrides={"Zr": (-7.5, 1.25)})))
+    # an override inside the reader's tolerance is rietx's value, so it is what is written
+    f1, f2 = dispersion("Zr", 1.85)
+    near = from_structure(st, instrument=_xray(1.85, dispersion=Dispersion(
+        overrides={"Zr": (f1 + 0.005, f2)})))
+    assert _line12(near)[0] == ["zr+4", repr(f1 + 0.005), repr(f2), "2"]
+    p_near = tmp_path / "near.pcr"
+    p_near.write_text(near, encoding="utf-8")
+    to_structure(read_fullprof_pcr(p_near))
     # no instrument: Cu Kα1's, the line the default doublet is resolved at
     assert _line12(from_structure(_cubic("Fe")))[0] == [
         "fe", *map(repr, dispersion("Fe", 1.5405929)), "2"]
@@ -2564,19 +2573,20 @@ def test_a_structure_only_export_names_the_way_out_of_an_edge_element():
     """#568 round 2, item 1: with no instrument the dispersion is resolved at
     the placeholder Cu K\u03b1 lines, which refuse Eu and Ho (an edge between
     them); the message must say the caller never chose them and name the way
-    out, which is an instrument (dispersion=None states f' = f'' = 0)."""
+    out, which is an instrument whose wavelength has a value for it."""
     for el in ("Eu", "Ho"):
         with pytest.raises(ValueError, match=r"No instrument was given.*instrument="):
             from_structure(_cubic(el))
         # positive arm: the named way out writes
-        text = from_structure(_cubic(el), instrument=_xray(1.5405929, dispersion=None))
-        assert _line12(text) == [[el.lower(), "0.0", "0.0", "2"]]
+        text = from_structure(_cubic(el), instrument=_xray(0.7093))
+        assert _line12(text)[0][0] == el.lower()
     # an element without an edge there is unchanged
     assert from_structure(_cubic("Fe"))
 
 
 def _xray_pcr(tmp_path, *, edit=None):
-    text = from_structure(_cubic("Fe"), instrument=_xray(1.85))
+    from rietx.schemas.instrument import Dispersion
+    text = from_structure(_cubic("Fe"), instrument=_xray(1.85, dispersion=Dispersion()))
     if edit is not None:
         lines = text.splitlines()
         i = next(k for k, line in enumerate(lines) if line.startswith("fe "))
@@ -2602,12 +2612,9 @@ def test_the_reader_reads_a_files_own_dispersion_and_refuses_a_different_one(tmp
     # FullProf's own pair for Fe at 1.85 \u00c5 differs by 0.45 e: refused, by name
     with pytest.raises(FullProfPcrError, match=r"f' = -2\.095.*Fe.*Dispersion\.overrides"):
         read_fullprof_pcr(_xray_pcr(tmp_path, edit="fe -2.095 0.566 2"))
-    # dispersion=None's zeros state f = f0, which a Structure cannot carry
-    zeros = from_structure(_cubic("Fe"), instrument=_xray(1.85, dispersion=None))
-    path = tmp_path / "zeros.pcr"
-    path.write_text(zeros, encoding="utf-8")
+    # zeros state f = f0, which a Structure cannot carry (the writer refuses them too)
     with pytest.raises(FullProfPcrError, match=r"f' = 0\.0"):
-        read_fullprof_pcr(path)
+        read_fullprof_pcr(_xray_pcr(tmp_path, edit="fe 0.0 0.0 2"))
 
 
 def test_a_neutron_file_writes_a_digitless_ion_as_its_element():
