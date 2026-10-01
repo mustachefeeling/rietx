@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: v1.6 · Status: 🔄 2026-10-01 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
+Milestone: v1.6 · Status: 🔄 2026-10-01 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -716,3 +716,27 @@ no magnetic model declared.
   leaves provisional. `MAGNETIC_SUBGROUP_PREFERRED` carries no `where`. A
   refused row prints `None` in the table's `det` column. *Next:* #582 (part 1
   of 5 of #565), held on one `xdist_group` mark at its round 2.
+
+### 2026-10-02 (2nd session) — #565's isotropy certificates, part 1 of 5
+
+Two candidate models a powder cannot tell apart can now be *proved* apart
+where the data allow it, instead of only failing to be joined by random draws.
+Part 1 of issue #565 landed from outside: PR #582 (`b34d125e`), merged as
+`9ca91dc3` by `/pr-review` after three rounds. `isotropy.powder_relations`
+returns a `PairVerdict` per ordered pair, carrying the certificate that
+decided it. The certificates run on every ordered pair, and the draws are
+skipped on a pair union-find has already joined. Two certificates prove a pair
+apart: *absence* (a shell one model lights that the other leaves dark) and
+*subspace* (the intensity span leaks). A Gram stack with no gap at the rank
+cut gives no subspace certificate, since its span would be a choice of
+tolerance. *Measured (the PR's, quoted in the docstrings):* the default draws
+give the four classes of the known answer on `P n -3 m:1` at (0, 0, ½) in 78.3
+and 78.4 s, against 134.9 and 135.6 s at three draws everywhere (one Linux
+x86-64 core). Over every proved-apart pair of five candidate sets, the
+smallest margin between a certificate's cut and the draws' `rtol` is 4.1e-2.
+*Gotchas:* a certificate does not read `rtol`, so a caller passing `rtol`
+above about 4e-2 gets certificates that split pairs the draws would join. That
+is stated in `PairVerdict`, not gated, and gating it is left to part 2's
+Farkas dual. `test_every_sampled_edge_prints_the_draws_it_actually_made` pins
+fit outcomes at one seed and `restarts=4`, and the nightly's Windows leg has
+not run it yet. *Next:* #565 part 2.
