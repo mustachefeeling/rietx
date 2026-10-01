@@ -1,10 +1,9 @@
 # WP-1344 — a joint fit owes each histogram the diagnostics its own radiation earns
 
-Milestone: unscheduled · Status: 🔄 2026-10-01 — every task landed (PRs #546, #589); ready to close
+Milestone: unscheduled · Status: ✅ 2026-10-01 — a joint fit puts each radiation-keyed diagnostic on its own histogram, with every helper classified under a meta-test (PRs #546, #589)
 Track: What fires, and what stays silent
 Depends on: — (WP-1341 owns the neighbouring "a joint fit has no report" gap,
 and goes after this one: its report renders the sorting this WP writes)
-Priority: P3 2026-09-23 — a diagnostic the joint path is owed and does not get; 1341 is the larger sibling
 
 ## Goal
 
@@ -66,41 +65,6 @@ not exist for diagnostics, and writing it is most of this WP: which checks are
 a fact about the *specimen* (one answer for the fit), which about a
 *histogram's radiation* (one answer each), and which about the *fit as a whole*.
 
-### Inherited
-
-- **From [1103](1103-peak-components.md) (2026-09-13): the gap is not only in
-  the diagnostics loop — `multi.py` owns a second *tick builder* too, and it
-  had the same shape of miss.** `MultiHistogramRefinement._ticks` builds its
-  per-histogram tick lists from the phases alone, so when 1103 taught
-  `refine._build_result` to write declared sharp peaks under the reserved
-  `"(extra)"` key, the joint path kept reporting every declared peak as an
-  unindexed impurity on every histogram. Found in review, not by a test: no
-  joint-fit fixture declared a component, exactly as no joint-fit fixture
-  raised `DISPERSION_NEGLECTED`. Fixed in 1103 by making
-  `CompiledModel.extra_peak_tick_positions` the one authority both builders
-  call, which is the shape this WP is looking for one rank up — the fix that
-  lasts is a single authority, not a second wiring commit.
-
-  Two things this WP can use. (1) **The census it needs is wider than the
-  diagnostics loop**: whatever rule it writes should be applied to every
-  `multi.py` member that re-derives something `Refinement` also derives, and
-  `_ticks` is the proof that list has at least one non-diagnostic entry. (2)
-  **The stated rule for a tick is already settled** and need not be
-  re-litigated: a declared peak is a fact about the *specimen's mount*, so it
-  belongs to every histogram that sees it, whereas a radiation-keyed
-  diagnostic is per histogram — two different answers from the same census,
-  which is the distinction the WP's Context says is most of the work.
-- **From WP-1414, 2026-09-22: one more census row, already placed.**
-  `STAGE_FREED_NOTHING` is joint-only and per histogram by construction, and
-  it lives on the top-level diagnostics rather than on
-  `HistogramResult.diagnostics`: a stage's reach is a fact about the *plan*,
-  decided before any histogram's model is compiled, so it belongs with the
-  plan's other findings (`STAGE_PATH_UNKNOWN`, `HOLD_BLOCKED_PLAN`'s
-  single-histogram sibling), not with the radiation-keyed ones. If this WP
-  moves per-histogram findings into `HistogramResult`, read that as a
-  deliberate exception rather than a miss. It keys on histogram **index**
-  (`value`), which a reordered histogram list would silently repoint.
-
 ## Non-goals
 
 - **Not the report.** A joint fit having no `FitReport` is WP-1341; this WP is
@@ -112,22 +76,22 @@ a fact about the *specimen* (one answer for the fit), which about a
 
 ## Tasks
 
-- [ ] Enumerate every `_*_diagnostics` helper in `refine.py` and classify each
+- [x] Enumerate every `_*_diagnostics` helper in `refine.py` and classify each
       as specimen-wide, per-histogram, or whole-fit — as **data**, in the
       `SIZE_LAMBDA_POWER` idiom, not as a comment, so a new helper has to
       declare which it is.
-- [ ] A meta-test that fails when a helper exists with no classification, and
+- [x] A meta-test that fails when a helper exists with no classification, and
       when the joint path's loop disagrees with the classification. This is the
       part that stops the gap reopening; without it the fix is one commit old.
-- [ ] Wire `_dispersion_diagnostics` and `_resonant_absorber_diagnostics` per
+- [x] Wire `_dispersion_diagnostics` and `_resonant_absorber_diagnostics` per
       histogram, and re-point
       `test_the_dispersion_diagnostic_is_not_wired_into_a_joint_fit_yet` at the
       intended count — 1, on the X-ray histogram only. Its docstring already
       says this is the test to rewrite and what to rewrite it to.
-- [ ] Check the omissions that are *deliberate*: some of what `multi.py` leaves
+- [x] Check the omissions that are *deliberate*: some of what `multi.py` leaves
       out may be correct, and each one that survives needs its reason recorded
       where the classification lives, not lost in the diff.
-- [ ] Skill rows: `docs/skill/rietx/references/` — whichever rows say a code
+- [x] Skill rows: `docs/skill/rietx/references/` — whichever rows say a code
       fires need to stop implying it fires everywhere, if any do.
 
 ## Acceptance
@@ -149,6 +113,14 @@ added (root `CLAUDE.md` § Numbers).
   out of scope here.
 
 ## Handover log
+
+### 2026-10-01 (3rd session) — closed
+
+Closed. Every task has landed (PRs #546 and #589). The `### Inherited` section
+goes with the close. Its WP-1414 note needed no action. Its WP-1103 note held one
+point beyond this WP's tasks: the census of what `multi.py` re-derives is wider
+than the diagnostics loop, and `_ticks` proved it. That point is forwarded to
+WP-1341, the larger joint-fit WP. *Next:* WP-1341.
 
 ### 2026-10-01 (2nd session) — the `series.md` count fixed
 
