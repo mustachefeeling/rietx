@@ -1251,3 +1251,51 @@ def test_a_trajectory_with_a_no_verdict_point_plots(tmp_path):
     out = tmp_path / "blind.png"
     series.plot("magnetic.Mn", path=str(out))
     assert out.exists()
+
+
+# ================================================ composing with solve_magnetic
+
+@pytest.mark.slow
+def test_solve_magnetic_on_the_first_pattern_gives_the_model_the_series_refines(
+        tmp_path):
+    """The two rungs compose: M-9 determines, WP-1329 follows it along the axis.
+
+    ``solve_magnetic`` is run on the coldest pattern — the one with a moment to
+    find — and the magnetic structure it refined is handed to
+    ``refine_sequential`` as the starting model for the whole ramp.  The series
+    then reports the moment released on the ordered patterns and held on the
+    paramagnetic one, with an onset, from a model no human stated.
+
+    It goes through the **magCIF** the solution writes rather than through the
+    trial's in-memory structure, because that is the route a user has — the
+    determination and the series need not be the same session — and it is
+    therefore the one that has to keep working.
+    """
+    cold = simulate(4.5, 6600)
+    hot = simulate(0.0, 6601)
+    ref = rx.Refinement(Structure(phases=[nuclear_mnf2()]), neutron())
+    ref.fit(cold, plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
+        rx.Stage("cell", ["phases.*.scale", "instrument.background.c*",
+                          "phases.*.cell.*"])]))
+
+    solution = rx.solve_magnetic(ref, cold, sites=["Mn"], ion="Mn2+")
+    assert solution.verdict == "solved", solution.reason
+
+    written = solution.write_magcifs(tmp_path)
+    assert written, "a solved determination writes its class"
+    best = f"class{solution.best.class_index}_"
+    magcif = next(p for p in written if Path(p).name.startswith(best))
+    solved = rx.Structure.from_cif(magcif)
+    assert solved.phases[0].atoms[0].moment is not None
+    assert solved.phases[0].magnetic_symmetry is not None
+
+    series = rx.refine_sequential(
+        [cold, hot], solved, ref.fitted_instrument, plan=moment_plan(),
+        x=[10.0, 90.0], x_label="T (K)")
+    traj = series.magnetic_trajectory()
+
+    assert traj.supported == [True, False], traj.value
+    assert traj.value[0] == pytest.approx(4.5, abs=0.4)
+    assert traj.stderr[1] is None
+    assert tuple(traj.onset.bracket) == (10.0, 90.0)
