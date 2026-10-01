@@ -550,3 +550,132 @@ def test_a_phase_with_restraints_is_blinded_without_them(two_phase):
     _, cost = _blind_cost(ref, data, st, nuisance="pawley")
     _, plain = _blind_cost(ref, data, ref.fitted_structure, nuisance="pawley")
     assert cost.chi2_floor == plain.chi2_floor
+
+
+# -- refused by name: what the form would leave out in silence (#580 item 5) -----
+
+def _rutile(k=None):
+    return rx.Phase(name="TiO2", space_group="P 42/m n m",
+                    cell=_cell(4.5937, 4.5937, 2.9587, 90, 90, 90),
+                    atoms=[_atom("Ti", "Ti", 0, 0, 0, 0.4), _atom("O", "O", 0.3048, 0.3048, 0, 0.6)],
+                    scale=rx.Parameter(value=1e-3), propagation_vector=k)
+
+
+def _caf2(k=None):
+    return rx.Phase(name="CaF2", space_group="F m -3 m",
+                    cell=_cell(5.4631, 5.4631, 5.4631, 90, 90, 90),
+                    atoms=[_atom("Ca", "Ca", 0, 0, 0, 0.6), _atom("F", "F", 0.25, 0.25, 0.25, 0.9)],
+                    scale=rx.Parameter(value=4e-4), propagation_vector=k)
+
+
+def _flat(lo, hi):
+    tt = np.arange(lo, hi, 0.02)
+    return PatternData(two_theta=list(tt), intensity=list(np.full_like(tt, 10.0)))
+
+
+def _in_range(cp):
+    """The oracle's own reading of the frozen windows: any line, nonempty."""
+    return np.any(cp.win[:, :, 1] > cp.win[:, :, 0], axis=0)
+
+
+def _xray():
+    ins = rx.Instrument.debye_scherrer(1.54)
+    ins.source.dispersion = None
+    return ins
+
+
+@pytest.mark.parametrize("nuisance", ["pawley", "scale"])
+def test_refuses_satellites_on_the_solved_phase(nuisance):
+    """On main the cost was built with an empty Ω column for every satellite in
+    range (37 here): the Rietveld compile gives a satellite factor 0, while the
+    data carries the peak.  The count is checked against the windows."""
+    st, ins = rx.Structure(phases=[_rutile(("0", "0", "1/2")), _caf2()]), _xray()
+    model = compile_model(st, ins, _flat(15, 120), mode="rietveld")
+    cp = model.phases[0]
+    n = int(np.sum(cp.reflections.is_satellite & _in_range(cp)))
+    assert n > 10
+    with pytest.raises(ExtractionRefused, match=rf"the solved phase has {n} satellite") as err:
+        SolveCost.from_model(model, _values(st, ins), nuisance=nuisance)
+    assert err.value.reason == "satellite"
+    assert "(0, 0, 1)+k" in str(err.value)
+
+
+def test_refuses_satellites_through_from_pawley():
+    """The extraction path: a Le Bail fit with k declared extracts the
+    satellites, and the blind compile keeps k, so the refusal is reached."""
+    st, ins = rx.Structure(phases=[_rutile(("0", "0", "1/2"))]), _xray()
+    tt = np.arange(20.0, 70.0, 0.02)
+    flat = PatternData(two_theta=list(tt), intensity=list(np.ones_like(tt)))
+    y = np.asarray(compile_model(st, ins, flat, mode="rietveld").evaluate(_values(st, ins)))
+    yo = np.random.default_rng(5).poisson(y * 1e3 + 50.0).astype(float)
+    data = PatternData(two_theta=list(tt), intensity=list(yo),
+                       sigma=list(np.sqrt(np.maximum(yo, 1))))
+    ref = rx.Refinement(st, ins, history=False)
+    assert ref.fit(data, mode="lebail", telemetry=False, plan=rx.RefinementPlan(
+        stages=[rx.Stage("b", ["instrument.background.*"])])).status == "converged"
+    with pytest.raises(ExtractionRefused, match="satellite reflection") as err:
+        SolveCost.from_pawley(ref, data)
+    assert err.value.reason == "satellite"
+
+
+@pytest.mark.parametrize("nuisance", ["pawley", "scale"])
+def test_refuses_a_nuisance_phase_s_satellites(nuisance):
+    """``"pawley"`` dropped them with the ``live`` filter (n_nuisance was the
+    same as without k); ``"scale"`` projected an impurity profile that is zero
+    at them.  Either way the data's satellite peaks had no column."""
+    st, ins = rx.Structure(phases=[_rutile(), _caf2(("1/2", "1/2", "1/2"))]), _xray()
+    model = compile_model(st, ins, _flat(15, 120), mode="rietveld")
+    cp = model.phases[1]
+    n = int(np.sum(cp.reflections.is_satellite & _in_range(cp)))
+    assert n > 10
+    with pytest.raises(ExtractionRefused, match=rf"nuisance phase 1 has {n} satellite") as err:
+        SolveCost.from_model(model, _values(st, ins), nuisance=nuisance)
+    assert err.value.reason == "satellite"
+
+
+@pytest.fixture(scope="module")
+def harmonic():
+    """λ = 2.4 Å with its λ/2 harmonic over 10–150°: every reflection with
+    d < 1.2 Å is beyond line 0's sphere and reached by line 1 alone."""
+    ins = rx.Instrument.constant_wavelength_neutron(2.4, fwhm_deg=0.3, harmonics=True)
+    assert [ln.wavelength.value for ln in ins.source.lines] == [2.4, 1.2]
+    return ins, _flat(10, 150)
+
+
+def test_refuses_a_reflection_only_the_harmonic_reaches_under_pawley(harmonic):
+    """The oracle is geometric: d below λ₀/2 and a live window on line 1.
+    On main those 26 CaF₂ columns came out empty and were dropped."""
+    ins, data = harmonic
+    st = rx.Structure(phases=[_rutile(), _caf2()])
+    model = compile_model(st, ins, data, mode="rietveld")
+    cp = model.phases[1]
+    beyond = np.asarray(cp.reflections.d) < 2.4 / 2
+    n = int(np.sum(beyond & (cp.win[1, :, 1] > cp.win[1, :, 0])))
+    assert n > 10
+    with pytest.raises(ExtractionRefused, match=rf"nuisance phase 1 has {n} reflection") as err:
+        SolveCost.from_model(model, _values(st, ins), nuisance="pawley")
+    assert err.value.reason == "secondary_line_only"
+    assert "(4, 2, 2)" in str(err.value)
+
+
+def test_the_harmonic_is_not_refused_under_scale_or_on_the_solved_phase(harmonic):
+    """The negative arms.  ``"scale"`` projects the impurity's whole calculated
+    profile, every line drawn; the solved phase reads its factor off |F|², so
+    its λ/2-only reflections are carried, and Ω·F reproduces ``evaluate``."""
+    ins, data = harmonic
+    two = rx.Structure(phases=[_rutile(), _caf2()])
+    SolveCost.from_model(compile_model(two, ins, data, mode="rietveld"),
+                         _values(two, ins), nuisance="scale")
+    one = rx.Structure(phases=[_caf2()])
+    model = compile_model(one, ins, data, mode="rietveld")
+    v = _values(one, ins)
+    cost = SolveCost.from_model(model, v, nuisance="pawley")
+    beyond = np.asarray(model.phases[0].reflections.d) < 2.4 / 2
+    assert np.sum(beyond & _in_range(model.phases[0])) > 10
+    blind = solve_cost.blind_structure(one, 0, "pawley")
+    bmodel = compile_model(blind, ins, data, mode="rietveld")
+    omega = sum(solve_cost.omega_lines(bmodel, 0, _values(blind, ins))[1:],
+                solve_cost.omega_lines(bmodel, 0, _values(blind, ins))[0])
+    assert np.all(omega.getnnz(axis=0)[beyond & _in_range(model.phases[0])] > 0)
+    assert _omega_residual(model, omega, v, [v]) <= OMEGA_BAR
+    assert cost.chi2(_f2(model, v))[1] > 0
