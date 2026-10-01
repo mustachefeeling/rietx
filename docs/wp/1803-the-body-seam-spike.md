@@ -1,6 +1,6 @@
 # WP-1803 — the body seam: a derived block, or a linearisation inside C
 
-Milestone: v1.8 · Status: 🔄 2026-10-01 — claimed by @mustachefeeling
+Milestone: v1.8 · Status: 🔄 2026-10-01 — decision accepted, the typed `derived` block (#596); the re-cut of R2b onward is open
 Depends on: 1801
 Priority: P2 2026-09-30 — the decision every later rigid-body WP waits on; it carries the six open questions of the 2026-09-30 review
 
@@ -79,10 +79,31 @@ The DESIGN.md clause exists and quotes the numbers. `tests/test_docs_consistency
 
 ## Handover log
 
-- **2026-09-30** — created, from the 2026-09-30 issue triage (issue #561). No
-  open WP owns it. The review's stale line references (`vector.py:1218-1223` is
-  now `:1259-1260`, `:1132-1136` is `:1175-1178`, `:1252` is `:1292`) were
-  re-found at `e3e6486a` and are the ones quoted here.
+### 2026-10-01 (2nd session) — the decision accepted and merged
+
+The seam is decided. A body's atoms come from a typed `derived` block applied after the
+affine matmul in `decode`, and every later rigid-body WP builds on that clause in
+`docs/DESIGN.md` § Parameter system. What remains here is the re-cut of R2b onward.
+
+*Done:* PR #596 (`6afb70a1`), merged as `470e8cba` by `/pr-review` on the maintainer's
+acceptance. Main's own index regenerations conflicted with the branch twice, so two merges
+of main on the branch regenerate `docs/wp/README.md` (`fafac3df`, `6afb70a1`). *Prior art*,
+checked at review: TOPAS, FullProf and GSAS-II all compute body atoms exactly from the
+body's parameters at every evaluation, and none linearises. TOPAS takes the slopes by the
+chain rule and tracks each atom's dependencies from its expression tree (Coelho 2018,
+*J. Appl. Cryst.* 51, §3.2). FullProf's `Jbt=4` routine uses a centre and three Euler
+angles, and its manual asks for rotation damping three times the others'. GSAS-II orients a
+Cartesian body with a quaternion refined through an angle and an axis (its rigid-body
+tutorial). The increment composed at commit is what Triggs et al. (2000, §2.2) recommend
+for least squares over Euler angles. FullProf's frame is rietx's: x ∥ a, z ⊥ the a–b plane.
+*Next:* the re-cut of R2b onward, from the text at the end of #596's description. The WP
+that builds the table carries one addition from the review. A stage folds its rotation in
+only at commit, and the exponential map's Jacobian degenerates as |δω| → 2π, so that WP
+bounds |δω| or re-anchors past π. A global search (WP-1515) is the case that could reach it.
+*Gotchas:* every index regeneration on main conflicts with an outside PR that edits
+`docs/wp/README.md`, and GitHub runs no CI on a conflicting PR. Merge such a PR as soon as
+its sync push goes green.
+
 - **2026-10-01** — claimed by @mustachefeeling. Spike run on a synthetic C₆Br
   body in a triclinic P‑1 cell (two seeds, numpy backend, Mac) against
   `beb48147`; the record is the DESIGN.md § Parameter system clause "Rigid
@@ -97,3 +118,7 @@ The DESIGN.md clause exists and quotes the numbers. `tests/test_docs_consistency
   bit‑identical. Not done here: the re‑cut of R2b onward (proposed in the PR
   body as text for the maintainer; R5 is not cut); answer 6 is a judgement,
   not a measurement.
+- **2026-09-30** — created, from the 2026-09-30 issue triage (issue #561). No
+  open WP owns it. The review's stale line references (`vector.py:1218-1223` is
+  now `:1259-1260`, `:1132-1136` is `:1175-1178`, `:1252` is `:1292`) were
+  re-found at `e3e6486a` and are the ones quoted here.
