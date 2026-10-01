@@ -41,12 +41,24 @@ Conventions, stated by physics rather than by letter
   is oblique whenever the cell is, so the magnitude is **not** √(Σmᵢ²) — see
   :func:`moment_magnitude`.  :func:`moment_to_cartesian` is the conversion the
   structure factor needs (decision D-3).
-* **The symmetry action is the same in crystal-axis and in fractional
-  components**, which is why this module can do the constraint algebra on
-  integer matrices without ever seeing a cell: the two bases differ by
-  ``diag(1/a, 1/b, 1/c)``, and a symmetry rotation never mixes two axes that
-  the setting does not force to be equal in length
-  (``symmetry.cell_constraints``), so the diagonal conjugation is the identity.
+* **The integer action is exact on fractional components in any cell, and on
+  crystal-axis components only where no operation mixes two axes of unequal
+  length.**  The two bases differ by D = diag(a, b, c), so the crystal-axis
+  action is D·R·D⁻¹, which is R exactly when every nonzero off-diagonal R_ij
+  joins two axes the group forces to be equal in length (a 4-fold's a and b, a
+  hexagonal 3-fold's a and b).  That holds in every tabulated setting —
+  measured: all 1651 of spglib's BNS-setting groups — so the constraint algebra
+  runs on integer matrices without ever seeing a cell.  It fails in a sheared
+  cell of the same lattice, such as MnF₂'s 136.499 restated in (a, b, a+c),
+  where the 4-fold sends c' to c' − a + b and the moment allowed at Mn comes out
+  as (1, 0, −1) against the true (−1.471, 0, 1.779).  A group carries no cell,
+  so it cannot build D: :meth:`MagneticGroup.allowed_moment_basis` and
+  :meth:`MagneticGroup.site_orbit` with a moment **refuse** such a setting by
+  name (:meth:`MagneticGroup.axis_mixing` finds the operation), and the
+  module-level :func:`allowed_moment_basis` and
+  :meth:`MagneticOperator.act_on_moment`, which take no group, stay the
+  fractional action that :mod:`.isotropy` uses in its magnetic cells, some of
+  which are sheared (P 2 2 2 at k = (½, ½, ½), for one).
 
 ``docs/manual/parameterisation.md``'s "Magnetic moment constraints" section
 carries these three equations — the axial-vector action, the crystal-axis
@@ -80,7 +92,7 @@ import spglib.error
 from ..adp import cartesian_basis
 from ..lattice import direct_metric_tensor
 from ..symmetry import SITE_TOL
-from ..wyckoff import _nullspace_int
+from ..wyckoff import _nullspace_int, adp_basis
 
 #: Number of magnetic space groups (Litvin 2013; UNI numbering 1-1651).
 N_MAGNETIC_SPACE_GROUPS = 1651
@@ -539,6 +551,11 @@ class MagneticGroup:
         wrong.  Raises ``ValueError`` if any conjugated rotation is not
         integral (the transform does not map this group's lattice to a
         lattice) or if the current cell is not a cell of the group.
+
+        A target cell may be sheared — (a, b, a+c), say — and the result is
+        still the right group, whose integer action is right on fractional
+        components.  It is not the crystal-axis action there, so the moment
+        methods of the result refuse it by name (:meth:`axis_mixing`).
         """
         p_matrix, shift = (parse_transform(transform)
                            if isinstance(transform, str)
@@ -587,6 +604,63 @@ class MagneticGroup:
         return out
 
     # -- sites and moments ------------------------------------------------
+    def axis_mixing(self) -> tuple[MagneticOperator, int, int] | None:
+        """An operation no cell of this setting can give a crystal-axis action of R, or ``None``.
+
+        On crystal-axis components an operation acts by D·R·D⁻¹, D = diag(a, b,
+        c), which is the integer R exactly when every nonzero off-diagonal R_ij
+        joins two axes of equal length.  A hexagonal 3-fold mixes a and b, and a
+        hexagonal cell has a = b, so it is fine; so is a monoclinic group stated
+        on its hexagonal parent's axes, as MAGNDATA states many.  A **sheared**
+        cell is not: in MnF₂'s 136.499 restated in (a, b, a+c), |a+c| = |a| would
+        need c = 0.  This asks the question exactly that way — is there a
+        positive-definite metric the group admits (RᵀGR = G over its rotations)
+        in which every pair of axes some operation mixes has equal length — and
+        returns ``(operation, i, j)`` for the first operation whose mixed pair
+        (i, j) makes the answer no, ``None`` when there is such a cell.
+
+        ``None`` is a statement about the setting, not about a particular cell: a
+        cell that breaks one of those equalities still gets the wrong action, and
+        it is the cell's constraints (``symmetry.cell_constraints`` on the
+        nuclear group) that hold it to them.  Every tabulated setting returns
+        ``None`` (module docstring).
+        """
+        if "axis_mixing" not in self._cache:
+            ops = sorted(self.all_operations(),
+                         key=lambda o: (o.rotation, o.translation, o.time_reversal))
+            metrics = adp_basis([np.array(r, dtype=int).T
+                                 for r in sorted({op.rotation for op in ops})])
+            found = None
+            pairs: list[tuple[int, int]] = []
+            for op in ops:
+                mixed = [(i, j) for i in range(3) for j in range(i + 1, 3)
+                         if (op.rotation[i][j] or op.rotation[j][i]) and (i, j) not in pairs]
+                if not mixed:
+                    continue
+                pairs.extend(mixed)
+                if not _admits_equal_lengths(metrics, pairs):
+                    found = (op, *mixed[-1])
+                    break
+            self._cache["axis_mixing"] = found
+        return self._cache["axis_mixing"]
+
+    def _refuse_crystal_axis_action(self, what: str) -> None:
+        """Raise when the integer action is not the crystal-axis one (:meth:`axis_mixing`)."""
+        mixing = self.axis_mixing()
+        if mixing is None:
+            return
+        op, i, j = mixing
+        raise ValueError(
+            f"{what} works on crystal-axis moment components, and in this setting "
+            f"({self.setting}) the operation {op.xyz()!r} mixes the {_ABC[i]} and "
+            f"{_ABC[j]} axes, and no cell of this setting has them equal in length. Its "
+            f"crystal-axis action is D·R·D⁻¹ with D = diag(a, b, c), not the integer "
+            f"R, and a MagneticGroup carries no cell to build D from, so the answer "
+            f"would be wrong. Restate the structure in a cell where no operation "
+            f"mixes axes of unequal length (every tabulated setting is one), or work "
+            f"in fractional components with the module-level "
+            f"allowed_moment_basis(group.site_stabilizer(xyz))")
+
     def site_stabilizer(self, xyz, *, tol: float = SITE_TOL
                         ) -> tuple[MagneticOperator, ...]:
         """Every operation of the group that maps this site onto itself.
@@ -624,7 +698,13 @@ class MagneticGroup:
         exactly what a moment outside the allowed subspace does, and is the
         cheapest test that a stated structure is consistent with its own
         symmetry.
+
+        The moment is in crystal-axis components, so with a moment this refuses
+        a setting whose integer action is not the crystal-axis one
+        (:meth:`axis_mixing`); the positions alone are cell-free.
         """
+        if moment is not None:
+            self._refuse_crystal_axis_action("site_orbit with a moment")
         positions: list[np.ndarray] = []
         moments: list[np.ndarray] = []
         m = None if moment is None else np.asarray(moment, dtype=np.float64)
@@ -663,7 +743,12 @@ class MagneticGroup:
         Same construction as :func:`~rietx.crystallography.wyckoff.adp_basis`
         one tensor rank down: the allowed patterns span ∩ ker(A(op) − I) over
         the site's stabiliser, with A the **axial** action ε·det(R)·R.
+
+        Refuses, naming the operation, a setting in which that integer action is
+        not the crystal-axis action (:meth:`axis_mixing`): a sheared cell such as
+        (a, b, a+c), which :meth:`transformed` can produce.
         """
+        self._refuse_crystal_axis_action("allowed_moment_basis")
         return allowed_moment_basis(self.site_stabilizer(xyz, tol=tol))
 
     # -- identification ---------------------------------------------------
@@ -1214,6 +1299,47 @@ def moment_magnitude(moment, cell) -> float:
 # exact rational helpers (kept local; the package's only other exact-linear-
 # algebra kernel is wyckoff._nullspace_int, which this module reuses)
 # ---------------------------------------------------------------------------
+def _admits_equal_lengths(metrics: np.ndarray, pairs) -> bool:
+    """Whether some positive-definite metric in the span of ``metrics`` has
+    G_ii = G_jj for every (i, j) in ``pairs``.
+
+    ``metrics`` are Voigt rows (G11, G22, G33, G12, G13, G23), the
+    :func:`~rietx.crystallography.wyckoff.adp_basis` order.  The equalities cut
+    a subspace, and the question is whether it meets the positive-definite
+    cone: λ_min of a linear matrix function is concave, so its maximum over the
+    unit ball is climbed by projected subgradient ascent from the projection of
+    the identity, stopping at the first metric whose λ_min is clearly positive.
+    A sheared cell sits on the cone's boundary (the best metric is singular,
+    λ_min = 0), a legitimate one well inside it.
+    """
+    rows = np.asarray(metrics, dtype=np.float64).reshape(-1, 6)
+    if rows.shape[0] == 0:
+        return False
+    cut = np.array([rows[:, i] - rows[:, j] for i, j in pairs]).reshape(len(pairs), -1)
+    _, sv, vt = np.linalg.svd(cut)
+    kernel = vt[int(np.sum(sv > 1e-12 * max(1.0, float(sv.max())))):]   # coefficient space
+    if kernel.shape[0] == 0:
+        return False
+    basis = kernel @ rows                                             # Voigt rows of the subspace
+    mats = np.array([[[b[0], b[3], b[4]], [b[3], b[1], b[5]], [b[4], b[5], b[2]]]
+                     for b in basis])
+    q, _ = np.linalg.qr(mats.reshape(len(mats), 9).T)
+    mats = q.T.reshape(-1, 3, 3)                                      # orthonormal, Frobenius
+    theta = np.einsum("kab,ab->k", mats, np.eye(3))
+    best = -np.inf
+    for step in range(1, 2001):
+        norm = float(np.linalg.norm(theta))
+        if norm > 1.0:
+            theta = theta / norm
+        values, vectors = np.linalg.eigh(np.einsum("k,kab->ab", theta, mats))
+        best = max(best, float(values[0]))
+        if best > 1e-6:
+            return True
+        v = vectors[:, 0]
+        theta = theta + (0.5 / np.sqrt(step)) * np.einsum("a,kab,b->k", v, mats, v)
+    return False
+
+
 def _rational_matrix(values) -> list[list[Fraction]]:
     rows = [[Fraction(v) if not isinstance(v, float) else _as_fraction(v)
              for v in row] for row in values]

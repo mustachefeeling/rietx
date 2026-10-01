@@ -179,9 +179,17 @@ vector to unit length before applying it:
 
 {source}`rietx.crystallography.magnetic.operators.moment_to_cartesian`
 
-the same Cholesky-derived Cartesian frame the ADP construction uses, so the
-crystal-axis and fractional actions of $R$ agree. The constraint algebra never
-has to see a cell.
+the same Cholesky-derived Cartesian frame the ADP construction uses. The
+crystal-axis and fractional components differ by $D = \mathrm{diag}(a, b, c)$,
+so on crystal-axis components an operation acts by $D R D^{-1}$, which is $R$
+itself exactly when every pair of axes $R$ mixes has equal lengths: a 4-fold's
+$a$ and $b$, a hexagonal 3-fold's $a$ and $b$. Every tabulated setting meets
+that, so the constraint algebra never has to see a cell. A sheared cell of the
+same lattice does not: MnF₂'s group restated in $(a, b, a+c)$ has a 4-fold
+that mixes $a+c$ with $a$, whose lengths no cell of that setting can make
+equal. A magnetic group carries no cell, so in such a setting its crystal-axis
+moment methods refuse by name rather than answer with $R$
+(`MagneticGroup.axis_mixing` names the operation).
 
 (sec-moment-dofs)=
 ## Moment degrees of freedom
