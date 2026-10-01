@@ -44,8 +44,13 @@ profile R over exactly the channels the nuclear model puts nothing on — WP-132
 buckets 2 and 3 — where 1.0 is "explains none of it" and 0 is "explains all of
 it".  Then parsimony as a literal tiebreak, for the case where two classes have
 the same amplitude count and the same χ².  A gap under
-:data:`SOLVE_TIE_DELTA_BIC` is **not** a ranking: the classes inside it are
-reported as tied and the verdict is an abstention naming all of them.
+:data:`SOLVE_TIE_DELTA_BIC` is **not** a ΔBIC ranking: the classes inside it
+are tied *on ΔBIC*, and the next two keys decide among them — the
+magnetic-only R when it separates them by more than
+:data:`SOLVE_TIE_R_MAGNETIC` (relative), then the smaller moment-parameter
+count.  The verdict is ``"solved"`` with the reason naming which key decided,
+and :attr:`MagneticSolution.margin` can then be negative.  Only when neither
+key separates them is the verdict an abstention naming all of them.
 
 **The null test is a gate, not a column.**  A trial whose every moment comes
 back unsupported (WP-1327 D4: below the floor *or* below
@@ -132,8 +137,10 @@ SOLVE_TIE_DELTA_BIC = 6.0
 
 #: Relative separation in the magnetic-only R below which two ΔBIC-tied classes
 #: are still tied.  A profile R over a few hundred channels of a weak magnetic
-#: signal is not a three-figure quantity, and 2 % is about where two fits of
-#: the same data by the same code stop being the same number.
+#: signal is not a three-figure quantity, so a small relative gap is not
+#: ordering.  **2 % is a chosen margin, not a measured one**: no run here
+#: establishes where two fits of the same data stop agreeing in R, and it is
+#: open to a measurement that does.
 SOLVE_TIE_R_MAGNETIC = 0.02
 
 #: How many candidate propagation vectors the ranked list is carried down to
@@ -342,28 +349,31 @@ class MagneticTrial:
     #: :attr:`n_moment_parameters`, and it is what the ranking's parsimony key
     #: reads
     free_amplitudes: int
-    determinable_amplitudes: int
+    #: ``None`` on a refused trial: the powder determines nothing about a model
+    #: that was never stated, which is not the same as "determines none"
+    determinable_amplitudes: int | None
     status: str
     refusal: str | None = None
     rwp: float | None = None
     gof: float | None = None
     delta_bic: float | None = None
     r_magnetic: float | None = None
-    n_moment_parameters: int = 0
-    n_free_parameters: int = 0
+    #: ``None`` on a refused trial (no fit ran), like the three fields below
+    n_moment_parameters: int | None = None
+    n_free_parameters: int | None = None
     moments: tuple[MomentRow, ...] = ()
     held: tuple[str, ...] = ()
     anti_translation_drift: float | None = None
     #: how many seeds the moment stage was started from — one for a class with
     #: a single magnetic site, one per site plus the flat start otherwise
-    n_starts: int = 1
+    n_starts: int | None = None
     #: how many *distinct* converged minima those starts found.  More than one
     #: is a reportable fact about the candidate and not about the run: it says
     #: the moment stage of this model is multimodal, so the answer below is the
     #: best of several and a different seed would have reported another
-    n_minima: int = 1
+    n_minima: int | None = None
     #: which start won, named
-    start: str = "flat"
+    start: str | None = None
     #: the winning start's ``RefinementResult.status`` — ``"converged"``,
     #: ``"max_iter"`` or ``"diverged"``, the fit's own vocabulary.  A fit that
     #: stops on its iteration budget is continued from where it stopped, up to
@@ -372,6 +382,13 @@ class MagneticTrial:
     #: ΔBIC is the budget's and not the data's.  ``None`` only on a trial this
     #: module did not fit.
     fit_status: str | None = None
+    #: the ``status`` of the nuclear reference this trial's ΔBIC was measured
+    #: against, after the same continuations.  A reference stopped short has a
+    #: χ² too high and inflates the ΔBIC of every trial measured against it by
+    #: the same amount, in the direction that turns "nothing to solve" into
+    #: "solved" — so a trial against one is treated exactly like a trial whose
+    #: own fit stopped short (:func:`_converged`).  ``None`` on a refused trial.
+    reference_status: str | None = None
     _structure: Structure | None = field(default=None, repr=False, compare=False)
     _result: object | None = field(default=None, repr=False, compare=False)
 
@@ -385,6 +402,21 @@ class MagneticTrial:
     def label(self) -> str:
         """What the table prints in the class column."""
         return f"{self.bns_number} {self.representative}"
+
+    @property
+    def stopped_short(self) -> str | None:
+        """What stopped short of a minimum, in words, or ``None``.
+
+        Either this trial's own fit or the nuclear reference its ΔBIC is
+        measured against (:attr:`reference_status`): both are the budget's
+        answer and not the data's.
+        """
+        if self.fit_status not in (None, "converged"):
+            return f"the fit stopped at {self.fit_status!r}"
+        if self.reference_status not in (None, "converged"):
+            return (f"its nuclear reference stopped at "
+                    f"{self.reference_status!r}")
+        return None
 
 
 @dataclass(frozen=True)
@@ -430,7 +462,8 @@ class SubgroupAudit:
 
     bns_number: str
     label: str
-    n_moment_parameters: int
+    #: ``None`` on a refused row: no fit ran, so no moment was counted
+    n_moment_parameters: int | None
     delta_bic_over_winner: float | None
     status: str
     refusal: str | None = None
@@ -443,10 +476,14 @@ class MagneticSolution:
     ``verdict`` is one of:
 
     ``"solved"``
-        one class is ahead of every other by more than :attr:`tie_width`.
+        one class is ahead of every other by more than :attr:`tie_width`, or
+        the classes inside it are separated by the magnetic-only R or by
+        parsimony (``reason`` says which key decided).
     ``"abstained"``
-        the top classes are inside the tie width, or the k step could not
-        choose; ``tied`` names the classes and ``reason`` says which it is.
+        the top classes are inside the tie width and neither the magnetic-only
+        R nor parsimony separates them, or the k step could not choose, or a
+        fit that would have mattered stopped on its budget; ``tied`` names the
+        classes and ``reason`` says which it is.
     ``"nothing to solve"``
         the pattern carries no unexplained intensity a magnetic model would
         explain, or no candidate's moment survived the null test.  This is an
@@ -520,10 +557,12 @@ class MagneticSolution:
         """The winner's ΔBIC over the best *other eligible* class, or ``None``.
 
         ``None`` when there is no winner (an abstention) or no second
-        eligible class to compare against — never a negative number, because
-        an eligible class can only ever lose to a class with a **higher**
-        ΔBIC, and a higher-ΔBIC class is, by :func:`_rank`'s own key, the
-        winner instead.
+        eligible class to compare against.  The winner is ``trials[0]``, which
+        is the top-ΔBIC class unless :func:`_rank`'s second or third key
+        (the magnetic-only R, parsimony) chose among classes inside the tie
+        width; then another eligible class can carry a **higher** ΔBIC than
+        the winner and this is **negative**, by at most :attr:`tie_width`.
+        That is the tiebreak made visible, not a ranking failure.
 
         **Why this exists** (issue #390, measured on two entries of its
         MAGNDATA sweep): a caller diffing
@@ -544,11 +583,12 @@ class MagneticSolution:
         """
         if self.verdict != "solved" or not self.trials:
             return None
-        eligible = sorted(_eligible_trials(self.trials),
-                          key=lambda t: t.delta_bic, reverse=True)
-        if len(eligible) < 2:
+        winner = self.trials[0]
+        others = [t.delta_bic for t in _eligible_trials(self.trials)
+                  if t is not winner]
+        if not others:
             return None
-        return eligible[0].delta_bic - eligible[1].delta_bic
+        return winner.delta_bic - max(others)
 
     def __str__(self) -> str:
         head = [
@@ -595,8 +635,8 @@ class MagneticSolution:
         rows.append("")
         for trial in self.trials:
             if trial.status == "refined" and not _converged(trial):
-                rows.append(f"  class {trial.class_index}: the fit stopped at "
-                            f"{trial.fit_status!r}, not 'converged', so it is "
+                rows.append(f"  class {trial.class_index}: "
+                            f"{trial.stopped_short}, not 'converged', so it is "
                             f"listed and not ranked")
         for trial in self.trials:
             if len(trial.members) > 1:
@@ -1126,7 +1166,7 @@ def _descend(parent, winner_trial: "MagneticTrial",
             if child is None:
                 audits.append(SubgroupAudit(
                     bns_number=candidate.bns_number, label=candidate.label,
-                    n_moment_parameters=0, delta_bic_over_winner=None,
+                    n_moment_parameters=None, delta_bic_over_winner=None,
                     status="refused",
                     refusal="forbids a moment on every named site"))
                 continue
@@ -1137,7 +1177,7 @@ def _descend(parent, winner_trial: "MagneticTrial",
         except Exception as exc:      # noqa: BLE001 - reported, never swallowed
             audits.append(SubgroupAudit(
                 bns_number=candidate.bns_number, label=candidate.label,
-                n_moment_parameters=0, delta_bic_over_winner=None,
+                n_moment_parameters=None, delta_bic_over_winner=None,
                 status="refused", refusal=f"{type(exc).__name__}: {exc}"))
             continue
         _moments, n_moment, _pair = _moment_rows(ref, result, ref.fitted_structure)
@@ -1283,7 +1323,12 @@ def _fit(structure, instrument, data, plan, ties=None, limits=None):
     ref = Refinement(structure, instrument.model_copy(deep=True))
     for target, source, scale, offset in (ties or ()):
         ref.tie(target, source, scale=scale, offset=offset)
-    result = ref.fit(data, plan=plan, two_theta_limits=limits)
+    # ``telemetry=False`` on every fit here: a fit whose result the package
+    # discards (the reference, the losing starts, each continuation, every
+    # audit refit) is a trial, not a run, and ``_fit`` cannot tell the
+    # winner's fit from the rest (root CLAUDE.md, "Every fit records itself").
+    result = ref.fit(data, plan=plan, two_theta_limits=limits,
+                     telemetry=False)
     # A budget stop is the budget's answer, not the data's, and ΔBIC compares
     # two of them: continued from where it stopped, with everything the plan
     # freed by its end (staging is cumulative) and the last stage's budget and
@@ -1296,7 +1341,7 @@ def _fit(structure, instrument, data, plan, ties=None, limits=None):
             break
         result = ref.fit(data, plan=RefinementPlan(stages=[Stage(
             f"{last.name} (continued)", freed, max_iter=last.max_iter,
-            ftol=last.ftol)]), two_theta_limits=limits)
+            ftol=last.ftol)]), two_theta_limits=limits, telemetry=False)
     return ref, result
 
 
@@ -1580,8 +1625,9 @@ def _eligible_trials(trials) -> list["MagneticTrial"]:
 
 
 def _converged(trial) -> bool:
-    """Whether a refined trial's fit reached a minimum (``fit_status``)."""
-    return trial.fit_status in (None, "converged")
+    """Whether a refined trial's fit, and the nuclear reference its ΔBIC is
+    measured against, reached a minimum (``fit_status``, ``reference_status``)."""
+    return trial.stopped_short is None
 
 
 def _budget_rivals(trials, floor: float) -> list["MagneticTrial"]:
@@ -1614,14 +1660,19 @@ def _score_k_trials(k_runs: list[tuple[tuple, list["MagneticTrial"]]],
     which k won and by how much (or that only one reached an eligible class).
 
     A k with no eligible class sorts last, never first — the winner is always
-    a k that produced *something*, when any did — and among two such k's the
-    first walked wins ties (Python's sort is stable, and ``k_runs`` is in walk
-    order), which matters only when neither reached an eligible class at all.
+    a k that produced *something*, when any did — and among such k's the one
+    with more *refined* classes comes first, so a k whose every class refused
+    never speaks for a k that was fitted.  Only then does the first walked win
+    (Python's sort is stable, and ``k_runs`` is in walk order).
     """
     scored = [(k_i, trials_i, _best_eligible_delta_bic(trials_i))
               for k_i, trials_i in k_runs]
-    scored.sort(key=lambda row: row[2] if row[2] is not None else -math.inf,
-               reverse=True)
+    # a k that refined something outranks one whose every class refused, even
+    # when neither reached an eligible class: its verdict is about the data,
+    # the other's about what could be modelled
+    scored.sort(key=lambda row: (
+        row[2] if row[2] is not None else -math.inf,
+        sum(1 for t in row[1] if t.status == "refined")), reverse=True)
     kk, trials, _ = scored[0]
 
     def _label(k_i) -> str:
@@ -1668,6 +1719,33 @@ def _score_k_trials(k_runs: list[tuple[tuple, list["MagneticTrial"]]],
     return kk, trials, k_trial_rows, tuple(diagnostics), tuple(caveats)
 
 
+def _n_k_tried(k_runs) -> int:
+    """How many of the k's walked so far were actually *tried*: a k whose
+    every class refused ran no fit and uses up no ``k_trials`` slot."""
+    return sum(1 for _k, ts in k_runs
+               if any(t.status == "refined" for t in ts))
+
+
+def _reported_reference(reference_of, references, kk, ordered):
+    """The nuclear reference the reported ``nuclear_*`` numbers come from.
+
+    The one the **leading trial** was measured against: ``kk`` is the winning
+    k and ``ordered[0]`` the winner (on an abstention, the class ranked
+    first).  Taking the first child cell's reference that was built instead
+    reports the losing k's numbers whenever two k's have different child cells
+    and the second wins.  Falls back to any reference built at ``kk``, then to
+    any at all, and is ``None`` only when none was.
+    """
+    reference = (reference_of.get((kk, ordered[0].class_index))
+                 if ordered else None)
+    if reference is None:
+        reference = next((v for (k_i, _i), v in reference_of.items()
+                          if k_i == kk), None)
+    if reference is None:
+        reference = next(iter(references.values()), None)
+    return reference
+
+
 def _rank(trials: list[MagneticTrial], tie_width: float, tie_r: float):
     """ΔBIC, then the magnetic-only R, then parsimony — and abstain on a tie.
 
@@ -1709,7 +1787,7 @@ def _rank(trials: list[MagneticTrial], tie_width: float, tie_r: float):
         trials, eligible[0].delta_bic - tie_width if eligible else 0.0)
     if rivals:
         names = ", ".join(f"class {t.class_index} ({t.label}, ΔBIC "
-                          f"{t.delta_bic:.1f}, {t.fit_status!r})"
+                          f"{t.delta_bic:.1f}, {t.stopped_short})"
                           for t in rivals)
         return (tuple(ordered), (), "abstained",
                 f"{len(rivals)} trial fit(s) stopped short of a minimum after "
@@ -1928,7 +2006,7 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     magnetic, g_map, ion_assumed, g_assumed = _magnetic_sites(
         parent, sites, species, ion, g)
     for _j, label, key in magnetic:
-        if key == parent.atoms[_j].species and not key[-1:].isdigit():
+        if key == parent.atoms[_j].species and key.isalpha():
             caveats.append(
                 f"{label}: the neutral-atom form factor {key!r} was used "
                 f"because no oxidation state was named; pass "
@@ -2101,7 +2179,12 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     #: below, beside K_VECTOR_UNSEPARATED.
     pair_diagnostics: list[Diagnostic] = []
 
-    def reference_for(child_structure) -> tuple[float, int, float, float, float | None]:
+    #: (k, class index) → the reference tuple that class's ΔBIC was measured
+    #: against, so the reported nuclear numbers are the winner's, not whichever
+    #: child cell happened to be built first
+    reference_of: dict[tuple, tuple] = {}
+
+    def reference_for(child_structure) -> tuple:
         child = child_structure.phases[0]
         key = (child.space_group, tuple(round(v, 9)
                                         for v in child.cell.lengths_angles()),
@@ -2118,12 +2201,14 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                     f"the nuclear reference of a {len(child.atoms)}-atom "
                     f"{child.space_group} cell stopped at {res.status!r} after "
                     f"{SOLVE_MAX_CONTINUATIONS} continuations of its iteration "
-                    f"budget; every ΔBIC measured against it is provisional")
+                    f"budget; every trial measured against it is listed and "
+                    f"not ranked")
             references[key] = (_chi2_absolute(res.statistics),
                                int(res.statistics.n_free_parameters),
                                float(res.statistics.rwp),
                                float(res.statistics.gof),
-                               r_magnetic(res, mask))
+                               r_magnetic(res, mask),
+                               res.status)
         return references[key]
 
     def run_k(kk, sets, classes):
@@ -2161,7 +2246,8 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                             f"coordinates are correspondingly less constrained; "
                             f"they are held here, as they must be")
                     child_structure = Structure(phases=[statement.phase])
-                chi2_ref, p_ref = reference_for(child_structure)[:2]
+                reference_of[(kk, index)] = reference_for(child_structure)
+                chi2_ref, p_ref = reference_of[(kk, index)][:2]
                 owners = [label for _j, label, _i in magnetic
                           if any(a.moment is not None
                                  and _moment_owner(a.label, [label]) == label
@@ -2201,7 +2287,7 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                                 if candidate.identification else None),
                     msg_type=candidate.msg_type,
                     free_amplitudes=candidate.free_amplitudes,
-                    determinable_amplitudes=0,
+                    determinable_amplitudes=None,
                     status="refused", refusal=f"{type(exc).__name__}: {exc}"))
                 continue
             n_free = int(result.statistics.n_free_parameters)
@@ -2234,6 +2320,7 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                 anti_translation_drift=drift,
                 n_starts=n_starts, n_minima=n_minima, start=start,
                 fit_status=result.status,
+                reference_status=reference_of[(kk, index)][5],
                 _structure=ref.fitted_structure, _result=result))
             if result.status != "converged":
                 caveats.append(
@@ -2243,6 +2330,13 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                     f"({trials[-1].delta_bic:.1f}) measures where the solver "
                     f"stopped rather than a minimum; it is listed and not "
                     f"ranked")
+            if reference_of[(kk, index)][5] != "converged":
+                caveats.append(
+                    f"class {index}: its nuclear reference stopped at "
+                    f"{reference_of[(kk, index)][5]!r}, so its ΔBIC "
+                    f"({trials[-1].delta_bic:.1f}) is inflated by the "
+                    f"reference's own distance from a minimum; it is listed "
+                    f"and not ranked")
 
         return trials
 
@@ -2265,7 +2359,9 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     k_runs: list[tuple[tuple, list[MagneticTrial]]] = [(kk, trials)]
     for k_next, sets_next, classes_next in enumerated[1:]:
         if any(t.status == "refined" for t in trials):
-            if len(k_runs) >= max(1, k_trials) or not _within_k_offset_margin(
+            # a k whose every class refused was never *tried*, so it uses up
+            # no ``k_trials`` slot
+            if _n_k_tried(k_runs) >= max(1, k_trials) or not _within_k_offset_margin(
                     satellite_score, kk, k_next):
                 break
         else:
@@ -2311,7 +2407,7 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                 magnetic, g_map, plan, instrument, data, limits, tie_width,
                 zero)
 
-    reference = next(iter(references.values()), None)
+    reference = _reported_reference(reference_of, references, kk, ordered)
     caveats.append(
         "ΔBIC's N is the raw channel count, not an effective number of "
         "independent observations (issue #270): channels inside one peak are "
@@ -2346,7 +2442,8 @@ _CRITERION = (
     "moment paths (n_added = the moment DOFs left free), then the magnetic-only "
     "R over the channels the nuclear model puts nothing on, then parsimony; "
     "a supported moment (WP-1327's null test) is a precondition and classes "
-    "inside the tie width are an abstention, never a winner. Never Rwp alone")
+    "inside the tie width that neither of those two separates are an "
+    "abstention, never a winner. Never Rwp alone")
 
 
 def _determinable(sets, site_label, candidate) -> int:

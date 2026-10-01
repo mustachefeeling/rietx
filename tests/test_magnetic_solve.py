@@ -35,6 +35,8 @@ so each block below turns on something specific:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -281,7 +283,7 @@ def test_one_magcif_per_class_and_nothing_written_unless_asked(a_type, a_type_so
     written = solution.write_magcifs(tmp_path / "out")
     assert len(written) == sum(1 for t in solution.trials
                                if t.status == "refined")
-    text = (tmp_path / "out" / written[0].rsplit("/", 1)[1]).read_text(
+    text = (tmp_path / "out" / Path(written[0]).name).read_text(
         encoding="utf-8")
     assert "_space_group_symop_magn_operation.xyz" in text
     assert "_atom_site_moment.crystalaxis_x" in text
@@ -592,7 +594,7 @@ def test_a_class_with_two_magnetic_sites_is_started_from_every_one_of_them():
                             "Mn2 only, then released")
     assert winner.n_minima >= 1
     # a multimodal class says so in the answer, not only in a log
-    multimodal = [t for t in solution.trials if t.n_minima > 1]
+    multimodal = [t for t in solution.trials if (t.n_minima or 0) > 1]
     if multimodal:
         assert any(f"class {t.class_index}" in c and "distinct minima" in c
                    for t in multimodal for c in solution.caveats)
@@ -809,6 +811,9 @@ def test_a_charged_rare_earth_species_defaults_g_and_recovers_the_moment(
     assert solution.best.bns_number == truth.bns_number
     assert solution.best.moments[0].ion == "Dy3+"
     assert solution.best.moments[0].magnitude == pytest.approx(3.5, abs=0.4)
+    # review of #592, item 7: the species already carries its charge, so the
+    # "neutral-atom form factor was used" caveat is false of this run
+    assert not any("neutral-atom" in c for c in solution.caveats), solution.caveats
     codes = {d.code for d in solution.diagnostics}
     assert "LANDE_G_ASSUMED" in codes
     assert "MAGNETIC_ION_ASSUMED" not in codes  # the ion was already stated
@@ -856,6 +861,13 @@ def test_a_caller_stated_ion_still_needs_an_explicit_g_issue_257_a5(dy_charged_t
     assert "Landé g factor" in solution.reason, solution.reason
     assert all(t.status == "refused" and "4f/5f ion" in (t.refusal or "")
               for t in solution.trials)
+    # review of #592, item 8: nothing was fitted, so nothing is reported as if
+    # it had been (one start, one minimum, a flat start, zero free parameters,
+    # "the powder determines none")
+    for t in solution.trials:
+        assert (t.determinable_amplitudes, t.n_starts, t.n_minima, t.start,
+                t.n_moment_parameters, t.n_free_parameters,
+                t.fit_status, t.reference_status) == (None,) * 8
     codes = {d.code for d in solution.diagnostics}
     assert "LANDE_G_ASSUMED" not in codes
 
@@ -1063,6 +1075,114 @@ def test_margin_is_the_true_gap_between_two_eligible_classes():
     runner_up = _trial(1, delta_bic=140.0, r_mag=0.2, free=1, bns="1.2")
     ordered, tied, verdict, why = _rank((winner, runner_up), SOLVE_TIE_DELTA_BIC, 0.02)
     assert _solution(ordered, tied, verdict, why).margin == pytest.approx(60.0)
+
+
+def test_margin_after_a_tiebreak_is_the_winners_own_gap_and_can_be_negative():
+    """Review of #592, item 4: the R key chose class 1 over class 0 inside the
+    tie width, so the winner is ``trials[0]`` and *not* the top-ΔBIC class.
+    The margin is the winner's ΔBIC against the best other eligible class —
+    here −2 — and not the gap between whichever two sorted first by ΔBIC."""
+    a = _trial(0, delta_bic=120.0, r_mag=0.40, free=1)
+    b = _trial(1, delta_bic=118.0, r_mag=0.11, free=1, bns="2.2")
+    ordered, tied, verdict, why = _rank((a, b), SOLVE_TIE_DELTA_BIC, 0.02)
+    solution = _solution(ordered, tied, verdict, why)
+    assert verdict == "solved" and solution.best.class_index == 1
+    assert solution.margin == pytest.approx(-2.0)
+    assert abs(solution.margin) <= SOLVE_TIE_DELTA_BIC
+    # the winner with a third class: against the *best other*, not the second
+    c = _trial(2, delta_bic=90.0, r_mag=0.5, free=1, bns="3.3")
+    ordered, tied, verdict, why = _rank((a, b, c), SOLVE_TIE_DELTA_BIC, 0.02)
+    assert _solution(ordered, tied, verdict, why).margin == pytest.approx(-2.0)
+
+
+def test_a_nuclear_reference_that_stopped_short_keeps_its_trials_out_of_the_ranking():
+    """Review of #592, item 6: a reference short of its minimum has a χ² too
+    high, which inflates every ΔBIC measured against it by the same amount and
+    can turn "nothing to solve" into "solved".  Such a trial is treated like
+    one whose own fit stopped short: not eligible, and an abstention when it
+    would have mattered."""
+    from dataclasses import replace
+
+    from rietx.strategy.magnetic import _converged, _eligible_trials
+
+    ok = _trial(0, delta_bic=150.0, r_mag=0.1, free=1)
+    assert _converged(ok) and _eligible_trials([ok]) == [ok]
+    # positive arm: the same trial against a converged reference is a winner
+    converged_ref = replace(ok, reference_status="converged")
+    assert _rank([converged_ref], SOLVE_TIE_DELTA_BIC, 0.02)[2] == "solved"
+
+    short = replace(ok, reference_status="max_iter")
+    assert not _converged(short) and _eligible_trials([short]) == []
+    assert "nuclear reference stopped at 'max_iter'" in short.stopped_short
+    _o, tied, verdict, reason = _rank([short], SOLVE_TIE_DELTA_BIC, 0.02)
+    assert verdict == "abstained" and tied == ()
+    assert "nuclear reference stopped at 'max_iter'" in reason
+    # and it is the printed table's business too, not only the verdict's
+    text = str(_solution((short,), (), verdict, reason))
+    assert "its nuclear reference stopped at 'max_iter', not 'converged'" in text
+    # a short reference cannot *create* evidence: ΔBIC ≤ 0 there stays an
+    # answer about the specimen
+    null = replace(_trial(0, delta_bic=-12.0, r_mag=0.1, free=1),
+                   reference_status="max_iter")
+    assert _rank([null], SOLVE_TIE_DELTA_BIC, 0.02)[2] == "nothing to solve"
+
+
+def test_the_reported_nuclear_numbers_are_the_leading_trials_reference():
+    """Review of #592, item 5: ``next(iter(references.values()))`` was the
+    first child cell built, which is the losing k's when the second k wins."""
+    from rietx.strategy.magnetic import _reported_reference
+
+    ref_k1 = (100.0, 5, 0.31, 2.0, 0.9, "converged")
+    ref_k2 = (80.0, 6, 0.22, 1.4, 0.5, "converged")
+    references = {"cell-k1": ref_k1, "cell-k2": ref_k2}
+    reference_of = {((0, 0), 0): ref_k1, ((1, 1), 0): ref_k2,
+                    ((1, 1), 1): ref_k2}
+    winner = _trial(1, delta_bic=40.0, r_mag=0.1, free=1)
+    assert _reported_reference(reference_of, references, (1, 1), [winner]) is ref_k2
+    assert _reported_reference(reference_of, references, (0, 0),
+                               [_trial(0, delta_bic=3.0, r_mag=0.1, free=1)]) is ref_k1
+    # no trial (nothing ranked): any reference built at the winning k
+    assert _reported_reference(reference_of, references, (1, 1), []) is ref_k2
+    # a refused leader has no entry of its own; its k's reference stands in
+    assert _reported_reference(reference_of, references, (1, 1),
+                               [_trial(7, delta_bic=1.0, r_mag=0.1, free=1)]) is ref_k2
+    assert _reported_reference({}, {}, (0, 0), []) is None
+
+
+def test_no_internal_fit_records_itself_as_a_run(monkeypatch):
+    """Review of #592, item 2 (root CLAUDE.md, "Every fit records itself", 4):
+    every fit ``_fit`` makes — the first and each continuation — is a trial the
+    package may discard, so none is a run.  ``_fit`` cannot tell the winner's
+    fit from the rest, so all of them decline."""
+    import importlib
+    from types import SimpleNamespace
+
+    refine_module = importlib.import_module("rietx.refine")   # `rietx.refine` the name is the function
+
+    calls = []
+    statuses = iter(["max_iter", "max_iter", "converged"])
+
+    class _Stub:
+        def __init__(self, structure, instrument):
+            pass
+
+        def tie(self, *a, **k):
+            pass
+
+        def fit(self, data, **kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(status=next(statuses))
+
+    class _Instrument:
+        def model_copy(self, deep=False):
+            return self
+
+    plan = rx.RefinementPlan(stages=[rx.Stage("m", ["phases.*.scale"])])
+    monkeypatch.setattr(refine_module, "Refinement", _Stub)
+    _ref, result = _magnetic_module._fit(object(), _Instrument(), None, plan)
+    assert result.status == "converged"
+    assert len(calls) == 3                       # one fit and two continuations
+    assert [c.get("telemetry", "unset") for c in calls] == [False] * 3
 
 
 def test_margin_is_none_not_negative_when_the_second_row_is_disqualified():

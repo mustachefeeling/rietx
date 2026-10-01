@@ -609,8 +609,14 @@ makes the compared models differ from the ones the plan describes, so
 in the caveats. Its own defaults are axis-shaped and produce none.
 
 The abstention is a result. Classes whose ΔBIC lies within
-`MagneticSolution.tie_width` of the leader's are tied; `MagneticSolution.tied`
-names them and `MagneticSolution.verdict` reads `"abstained"`. The default
+`MagneticSolution.tie_width` of the leader's are tied on ΔBIC, and the next two
+keys decide among them: the magnetic-only R, when it separates them by more than
+2 % (relative), then the smaller moment-parameter count. A tiebreak that decides
+gives `"solved"`, with the key named in `MagneticSolution.reason`, and
+`MagneticSolution.margin` is then the winner's ΔBIC over the best other class,
+which can be negative. When neither key separates them
+`MagneticSolution.tied` names them and `MagneticSolution.verdict` reads
+`"abstained"`. The default
 width is 6.0, "strong" on the Kass & Raftery scale, the same bar peak fitting
 uses to keep an added component. So is the other abstention this workflow
 makes: a cubic collinear structure has one class and a modulus the data
@@ -665,20 +671,22 @@ One refusal: a non-neutron histogram, by name. Everything else is reported.
 | `MagneticTrial.irrep`, `MagneticTrial.direction` | the labels | e.g. `S2`, `(a)` |
 | `MagneticTrial.bns_number`, `MagneticTrial.uni_number`, `MagneticTrial.msg_type` | what spglib recognised the operator list as | `"unidentified"` and `None` are honest, not errors |
 | `MagneticTrial.free_amplitudes` | amplitudes the representative site's family has before any data is looked at | per site: on a parent with several magnetic sites this is not the model's parameter count, and the ranking's parsimony key reads `MagneticTrial.n_moment_parameters` instead |
-| `MagneticTrial.determinable_amplitudes` | how many of them a powder to `d_min` can determine | the deficit is the flat directions |
+| `MagneticTrial.determinable_amplitudes` | how many of them a powder to `d_min` can determine | the deficit is the flat directions; `None` on a refused trial |
 | `MagneticTrial.status` | `"refined"` or `"refused"` | |
 | `MagneticTrial.fit_status` | the trial fit's own `RefinementResult.status`: `"converged"`, `"max_iter"` or `"diverged"` | a fit that stops on its budget is continued up to `SOLVE_MAX_CONTINUATIONS` times; one still short is listed and not ranked, and the caveats name it |
+| `MagneticTrial.reference_status` | the `status` of the nuclear reference this trial's ΔBIC was measured against, after the same continuations | a reference still short inflates every ΔBIC against it, so such a trial is listed and not ranked, exactly like one whose own fit stopped short; `None` when refused |
+| `MagneticTrial.stopped_short` | what stopped short of a minimum, in words: this trial's fit or its reference | `None` when both converged |
 | `MagneticTrial.refusal` | the message, when refused | e.g. a magnetic orbit that cannot cover the nuclear one |
 | `MagneticTrial.rwp`, `MagneticTrial.gof` | the trial's own agreement | context, never the ranking key |
 | `MagneticTrial.delta_bic` | the primary key | positive favours the magnetic model |
 | `MagneticTrial.r_magnetic` | the magnetic-only R | compare against `MagneticSolution.nuclear_r_magnetic` |
-| `MagneticTrial.n_moment_parameters` | moment DOFs left free, ΔBIC's `n_added` | |
+| `MagneticTrial.n_moment_parameters` | moment DOFs left free, ΔBIC's `n_added` | `None` on a refused trial, as for the next three rows |
 | `MagneticTrial.n_free_parameters` | the whole free count | |
 | `MagneticTrial.moments` | one `MomentRow` per site that carries one | |
 | `MagneticTrial.held` | the DOFs the stage held | a direction here was not measured |
 | `MagneticTrial.supported` | whether any site's moment, or any degenerate pair's quadrature sum, survived the null test | false disqualifies the trial from winning |
 | `MagneticTrial.anti_translation_drift` | how far a supercell refinement left its own group, μ_B | zero is the pass; `None` for k = 0, where there is no anti-centring |
-| `MagneticTrial.n_starts` | how many seeds the moment stage was started from | one per magnetic site plus the flat one; 1 when the class has a single site |
+| `MagneticTrial.n_starts` | how many seeds the moment stage was started from | one per magnetic site plus the flat one; 1 when the class has a single site; `None` when refused |
 | `MagneticTrial.n_minima` | how many distinct minima those starts found | more than one is a fact about the candidate: its moment problem is multimodal and one seed would have reported another answer |
 | `MagneticTrial.start` | which start won, named | `"flat"` or `"<site> only, then released"` |
 | `MagneticTrial.label` | what the table prints | BNS plus irrep and direction |

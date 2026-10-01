@@ -86,7 +86,9 @@ def nuclear_fit(phase, data, instrument):
 @pytest.fixture(scope="module")
 def true_k_and_data():
     """A genuine k=(0,0,1/2) magnetic tetragonal pattern and its converged
-    nuclear fit -- the same shape as test_magnetic_solve.py's own fixtures."""
+    nuclear fit -- the same shape as test_magnetic_solve.py's own fixtures.
+    **Consumers carry** ``@pytest.mark.xdist_group("magnetic-k-trials-true-k")``,
+    or each xdist worker rebuilds the simulation and the nuclear fit."""
     instrument = neutron()
     truth = candidates("P 4/m m m", (0.0, 0.0, 0.0), (0, 0, "1/2"))[0]
     statement = magnetic_supercell(tetragonal(), truth, magnetic_species=["Mn1"],
@@ -97,6 +99,7 @@ def true_k_and_data():
 
 
 @pytest.mark.slow
+@pytest.mark.xdist_group("magnetic-k-trials-true-k")
 def test_two_k_within_margin_are_both_refined_and_reported(true_k_and_data, monkeypatch):
     """Force the satellite arm to report two candidate k's tied on matching
     (the mechanism ``k_trials`` changes), and check both get a full trial: the true
@@ -148,6 +151,7 @@ def test_two_k_within_margin_are_both_refined_and_reported(true_k_and_data, monk
 
 
 @pytest.mark.slow
+@pytest.mark.xdist_group("magnetic-k-trials-true-k")
 def test_k_trials_1_keeps_the_single_k_behaviour(true_k_and_data, monkeypatch):
     """``k_trials=1`` is the escape hatch back to the old behaviour: only the
     first testable k is ever fitted, whatever the offset margin says."""
@@ -281,6 +285,52 @@ def test_score_k_trials_notes_a_k_with_no_eligible_class():
     assert not diagnostics
     assert any("only one" in c for c in caveats)
     assert rows[1].best_delta_bic is None
+
+
+def _refused(index=0):
+    return MagneticTrial(
+        class_index=index, representative=f"S{index}(a)",
+        members=(f"1.1 S{index}(a)",), site="Mn1", irrep=f"S{index}",
+        direction="(a)", bns_number="1.1", uni_number=None, msg_type=1,
+        free_amplitudes=1, determinable_amplitudes=None, status="refused",
+        refusal="synthetic")
+
+
+def test_score_k_trials_a_k_whose_every_class_refused_never_speaks_for_a_fitted_k():
+    """Review of #592, item 1: neither k reached an eligible class, and the
+    stable sort kept walk order, so the k that ran **no fit** supplied
+    ``solution.k`` and the verdict ("nothing was tested against the data")
+    while a fitted k's trials were dropped."""
+    k1, k2 = (0, 0), (1, 1)
+    refused_k = [_refused(0), _refused(1)]
+    fitted_k = [_trial(0, delta_bic=-5.0, bns="2.2")]    # refined, not eligible
+
+    kk, trials, rows, _d, _c = _score_k_trials(
+        [(k1, refused_k), (k2, fitted_k)], {}, SOLVE_K_TIE_DELTA_BIC, "phase")
+
+    assert kk == k2 and trials is fitted_k
+    assert [r.n_refined for r in rows] == [1, 0]
+    # positive arm: with the fitted k walked first the answer is the same, and
+    # an eligible class still outranks the refined count
+    kk, _t, _r, _d, _c = _score_k_trials(
+        [(k2, fitted_k), (k1, refused_k)], {}, SOLVE_K_TIE_DELTA_BIC, "phase")
+    assert kk == k2
+    eligible_k = [_trial(0, delta_bic=40.0)]
+    kk, _t, _r, _d, _c = _score_k_trials(
+        [(k1, refused_k), (k2, eligible_k)], {}, SOLVE_K_TIE_DELTA_BIC, "phase")
+    assert kk == k2
+
+
+def test_a_refused_k_uses_up_no_k_trials_slot():
+    """Review of #592, item 1: ``len(k_runs)`` counted a k whose every class
+    refused, so with ``k_trials=2`` one refused k plus one fitted k closed the
+    walk after a single k had actually been tried."""
+    from rietx.strategy.magnetic import _n_k_tried
+
+    k_runs = [((0, 0), [_refused(0)]), ((1, 1), [_trial(0, delta_bic=10.0)])]
+    assert len(k_runs) == 2 and _n_k_tried(k_runs) == 1
+    assert _n_k_tried([]) == 0
+    assert _n_k_tried(k_runs + [((2, 2), [_trial(0, delta_bic=3.0)])]) == 2
 
 
 def test_score_k_trials_single_k_run_reports_nothing_extra():
