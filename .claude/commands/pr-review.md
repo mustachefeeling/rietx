@@ -21,8 +21,26 @@ Triage reads the remote and runs from anywhere. Before step 4, and before the
 `all` mode's pass B, enter the bench: `EnterWorktree` with
 `path: .claude/worktrees/pr-bench` — a persistent worktree with a `[dev,jax]`
 venv, created once by `git worktree add --detach .claude/worktrees/pr-bench
-origin/main` plus step 4's venv line. From then on `BENCH=.` and the main
-checkout is never named (`worktree_only.py` keeps it read-only anyway).
+origin/main` plus step 4's venv line and the driver line below. From then on
+`BENCH=.` and the main checkout is never named (`worktree_only.py` keeps it
+read-only anyway).
+
+**The bench merges as GitHub does.** GitHub's merge runs no custom driver, so
+it merges `docs/wp/README.md` as text. Every local tree runs the `wpindex` row
+merge on that file instead (`.gitattributes`). The bench's own config swaps the
+row merge for git's text merge, set once:
+
+```sh
+git -C .claude/worktrees/pr-bench config --worktree merge.wpindex.driver \
+  'git merge-file --diff-algorithm=histogram %A %O %B'
+```
+
+Every `merge` and `merge-tree` in the bench then conflicts where GitHub does.
+Under the row merge the bench called clean the index conflicts GitHub reported
+on #522, #546, #579 and #580. Under this line it found all four. It also
+rebuilt 60 of 60 of GitHub's merges on main to the same tree (2026-10-01). `histogram`
+is the algorithm git's own merge uses. Plain `merge-file` runs myers, and myers
+disagreed with git's merge on 6 of 1500 random merges.
 
 ## Triage — the no-argument mode
 
@@ -66,8 +84,10 @@ whether a maintainer has commented — **and the reason for its rank**:
    handover entry is what rewrites it.
 3. **`DIRTY`** — not a review: post a one-line rebase request and move on.
    GitHub computes the field lazily; once main has moved since the call,
-   `git merge-tree --write-tree origin/main refs/pr/N` (nonzero = conflict) is
-   the authority.
+   `git -C .claude/worktrees/pr-bench merge-tree --write-tree origin/main
+   refs/pr/N` (nonzero = conflict) is the authority. It runs in the bench
+   because any other tree's row merge hides an index conflict (§ Where this
+   command runs).
 4. **Collision degree** (files shared with other open PRs), ascending — every
    merge stales the diffs sharing a file with it.
 5. **Reviewable lines**, ascending.
@@ -191,6 +211,7 @@ line if the checkpoint ended it. Close with
 
    ```sh
    BENCH=.
+   git -C "$BENCH" config --get merge.wpindex.driver  # must print git merge-file (§ Where this command runs)
    git -C "$BENCH" fetch origin main
    git -C "$BENCH" fetch origin "pull/N/head:refs/pr/N" --force
    git -C "$BENCH" reset --hard origin/main
@@ -204,7 +225,8 @@ line if the checkpoint ended it. Close with
    `docs/manual/_generated`, `tests/output/`, any `*.rex/` and the venv. **The
    merged tree is the tree under test**: branch protection is `strict: false`,
    so nothing else ever tests it; a conflict here *is* the finding — report,
-   ask for a rebase, stop. Venv:
+   ask for a rebase, stop. That includes a conflict on the index alone, since
+   GitHub refuses that merge too. Venv:
    `(cd "$BENCH" && uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev,jax]")`,
    reinstalled only when the PR touches `pyproject.toml`; `[dev,jax]` matches
    `nightly.yml`'s full job so counts compare and cross-backend rows pass
@@ -295,15 +317,23 @@ line if the checkpoint ended it. Close with
 
    **Stack the clear-cut PRs that share no file, and gate the stack once.** A
    full `-m slow` run costs 50-75 min on a 4-core box, so when several PRs
-   have passed steps 1-8 and touch disjoint files, merge them together onto
-   the bench (`git merge refs/pr/A refs/pr/B …`). Run step 5's suites and the
-   slow gate once on that tree, then merge them one after another. The last
-   merge leaves `origin/main` content-identical to the tree the gate ran on:
-   check it with `git diff <stack-sha> origin/main`, which must be empty, and
-   say so in each review's "what ran". A PR that shares a file with another
-   in the stack, or whose review is still open, stays out. A red stack is
-   bisected before anything in it merges. On 2026-09-29 three PRs went in on
-   one 76-minute full run instead of three.
+   have passed steps 1-8 and touch disjoint files, replay their merges onto
+   the bench in the order GitHub will merge them. Start from `origin/main` and
+   run `git -C "$BENCH" merge --no-edit refs/pr/N` once per PR. GitHub tests
+   each PR against the main the previous merge left, and the replay asks the
+   same question with the bench's text merge. A PR whose replayed merge
+   conflicts leaves the stack (`git -C "$BENCH" merge --abort`) and gets a
+   rebase request. Run step 5's suites and the slow gate once on that tree,
+   then merge on GitHub in the replay's order. The last merge leaves
+   `origin/main` content-identical to the tree the gate ran on: check it with
+   `git diff <stack-sha> origin/main`, which must be empty, and say so in
+   each review's "what ran". A PR that shares a file with another in the
+   stack, or whose review is still open, stays out. The generated
+   `docs/wp/README.md` is exempt. A claim regenerates it, so 32 of the last 60
+   merged PRs changed it. The replay finds its conflicts, and the fast suite's
+   `test_the_wp_index_is_the_generators_output` checks the merged rows. A red
+   stack is bisected before anything in it merges. On 2026-09-29 three PRs
+   went in on one 76-minute full run instead of three.
 
    **And say which issues the merge closed.** Read
    `gh pr view N --json closingIssuesReferences` before merging. A PR that
