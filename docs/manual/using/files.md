@@ -753,7 +753,12 @@ convention at all. GSAS-II checks its own reading of the symbol against those
 operations and offers to transform a structure that disagrees. A phase whose
 symbol is ambiguous is named `GSAS2_CIF_SETTING_IN_OPERATORS`. What a CIF
 cannot state (the refine flags, the phase scale, the sample broadening) is
-named `GSAS2_CIF_FIELD_NOT_WRITTEN`.
+named `GSAS2_CIF_FIELD_NOT_WRITTEN`. An isotope other than deuterium is
+refused by name, and so is `Cu+`. GSAS-II keeps an isotope as a per-type
+choice in the phase's General data, which no CIF tag reaches. Its importer
+reads `7Li` as hydrogen and `Cu+` as carbon, and says so only on stdout. Write
+the element, then choose the isotope in GSAS-II. `2H` is written `D`, the one
+isotope label GSAS-II takes.
 
 ### What comes back
 

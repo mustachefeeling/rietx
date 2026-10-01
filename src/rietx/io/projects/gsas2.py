@@ -1650,6 +1650,9 @@ def from_structure(structure, *,
     What does not cross is named in the diagnostics rather than dropped in
     silence: a CIF states no refine flags, no phase scale and no sample
     broadening, so a GSAS-II project built from this file starts with its own.
+    An isotope other than deuterium and a digitless ion are refused by name
+    (:func:`gsas2_cif_species`), because GSAS-II's import reads them as a
+    different element and says so only on stdout (issue #553).
     A magnetic phase is refused instead (issue #470): the file would carry
     the magCIF loops, but GSAS-II's import drops them without a word, so a
     diagnostic here would be too quiet.
@@ -1680,6 +1683,20 @@ def from_structure(structure, *,
             phase, "a GSAS-II phase CIF",
             why="GSAS-II's CIF import drops the file's magnetic loops without "
                 "a warning (measured on GSAS-II 5.6.3)")
+        # The species GSAS-II's importer reads as this site's (#553): a
+        # refusal names the site, and D is the one respelling.
+        typed = []
+        for j, atom in enumerate(phase.atoms):
+            try:
+                typed.append(gsas2_cif_species(atom.species))
+            except ValueError as exc:
+                raise ValueError(
+                    f"phases.{index}.atoms.{j} ({atom.label!r}) in phase "
+                    f"{phase.name!r}: {exc}") from None
+        if typed != [atom.species for atom in phase.atoms]:
+            phase = phase.model_copy(update={"atoms": [
+                atom.model_copy(update={"species": sp})
+                for atom, sp in zip(phase.atoms, typed, strict=True)]})
         block = doc.add_new_block(_block_name(phase.name, index, taken_names))
         sg = get_spacegroup(phase.space_group)
         resolved = sg.xhm()
@@ -1703,6 +1720,51 @@ def from_structure(structure, *,
     if diagnostics is not None:
         _report_cif(structure, ambiguous, diagnostics)
     return doc.as_string()
+
+
+def gsas2_cif_species(species: str) -> str:
+    """The ``_atom_site_type_symbol`` GSAS-II's CIF import reads as ``species``.
+
+    Measured on GSAS-II 5.6.3's own importer (``GSASIIscriptable.add_phase``,
+    run as a black box; issue #553): an ion in either order is taken as that
+    ion (``Zr4+`` is stored ``Zr+4``), so it is written as it stands. Two
+    spellings are not, and the importer's only notice is a line on stdout:
+
+    * **an isotope**, which GSAS-II does not carry in the atom type at all. Its
+      data-object docs put the choice in the phase's ``General["Isotope"]``,
+      "dict of isotopes for each atom type", and a phase CIF has no tag the
+      importer reads for it; ``7Li``, ``60Ni``, ``2H`` and ``7Li1+`` each came
+      back as **H** ("Atom type 7li not found, using H"). The one isotope label
+      it takes is ``D`` (b = 6.681 fm, Sears's 6.671), so ``2H`` is written as
+      ``D``; every other isotope is refused by name.
+    * **a digitless ion**: ``Cu+`` came back as **C** ("Atom type C+u not
+      found, using C"), where rietx computes neutral Cu for it.
+    """
+    s = species.strip()
+    if s in ("D", "2H"):
+        return "D"
+    m = re.fullmatch(r"(\d*)([A-Za-z]{1,2})(?:(\d*)([+-]))?", s)
+    if m is None:
+        return species
+    mass, element, magnitude, sign = m.groups()
+    if mass:
+        raise ValueError(
+            f"species {species!r} is an isotope, and GSAS-II's CIF import has "
+            f"no tag for one: it keeps the isotope as a per-atom-type choice "
+            f"in the phase's General['Isotope'], and it reads "
+            f"{species!r} as hydrogen, saying so only on stdout (measured, "
+            f"GSAS-II 5.6.3). Write the site as "
+            f"{element + (magnitude or '') + (sign or '')!r} and choose "
+            f"isotope {mass} for that type in GSAS-II (Phase > General > "
+            f"Isotope), or use D for deuterium, the one isotope label it takes")
+    if sign and not magnitude:
+        raise ValueError(
+            f"species {species!r} has a sign but no charge magnitude: rietx "
+            f"reads it as the neutral atom, and GSAS-II's CIF import reads "
+            f"{species!r} as a different element altogether (Cu+ became C, "
+            f"measured). Write {element + '1' + sign!r} for the ion or "
+            f"{element!r} for the neutral atom")
+    return species
 
 
 def _block_name(name: str, index: int, taken: set[str]) -> str:

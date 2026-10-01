@@ -832,3 +832,51 @@ def test_a_site_label_a_cif_loop_cannot_carry_is_refused(tmp_path):
     structure.phases[0].atoms[0].label = "Mg 1"
     with pytest.raises(ValueError, match="splits the row"):
         rx.write_gsas2_phase_cif(structure, tmp_path / "bad.cif")
+
+
+# ------------------------------------ what GSAS-II's CIF import reads (#553)
+#
+# GSAS-II 5.6.3's importer (scriptable `add_phase`, run as a black box) made
+# `7Li`/`2H`/`60Ni`/`7Li1+` into H and `Cu+` into C, saying so only on stdout,
+# while this package's own `structure_from_cif` read every one back unchanged.
+# So the round trip cannot see it and these pin the written symbol instead.
+
+def _one_site(species: str) -> rx.Structure:
+    return rx.Structure(phases=[rx.Phase(
+        name="syn", space_group="Pm-3m", cell=rx.Cell.cubic(4.0),
+        atoms=[rx.Atom(label="A1", species=species, x=rx.Parameter(value=0.0),
+                       y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                       biso=rx.Parameter(value=0.5, min=0.0, max=25.0))])])
+
+
+def _type_symbol(path: Path) -> str:
+    block = gemmi.cif.read(str(path)).sole_block()
+    return gemmi.cif.as_string(block.find_values("_atom_site_type_symbol")[0])
+
+
+@pytest.mark.parametrize("species, written", [
+    ("Zr4+", "Zr4+"), ("O2-", "O2-"), ("Cu1+", "Cu1+"), ("Mn", "Mn"),
+    ("D", "D"), ("2H", "D"),
+])
+def test_the_type_symbol_is_one_gsas2_imports_as_that_species(tmp_path, species,
+                                                              written):
+    """Measured: GSAS-II stores these as Zr+4, O-2, Cu+1, Mn and D, with no
+    'not found' line. `2H` is written `D`, the one isotope label it takes."""
+    out = tmp_path / "one.cif"
+    rx.write_gsas2_phase_cif(_one_site(species), out)
+    assert _type_symbol(out) == written
+
+
+@pytest.mark.parametrize("species, match", [
+    ("7Li", "is an isotope"), ("60Ni", "is an isotope"),
+    ("7Li1+", "is an isotope"), ("157Gd", "is an isotope"),
+    ("Cu+", "sign but no charge magnitude"),
+])
+def test_a_species_gsas2_would_import_as_another_element_is_refused(tmp_path,
+                                                                    species, match):
+    with pytest.raises(ValueError, match=match) as exc:
+        rx.write_gsas2_phase_cif(_one_site(species), tmp_path / "bad.cif")
+    assert "phases.0.atoms.0 ('A1')" in str(exc.value)
+    if "isotope" in match:
+        assert "General" in str(exc.value) and "Isotope" in str(exc.value)
+    assert not (tmp_path / "bad.cif").exists()
