@@ -1,6 +1,6 @@
 # WP-1344 — a joint fit owes each histogram the diagnostics its own radiation earns
 
-Milestone: unscheduled · Status: 🔄 2026-10-01 — every task landed (PR #546); the `series.md` count of absent diagnostics (it says four, the table has six) to fix before it closes
+Milestone: unscheduled · Status: 🔄 2026-10-01 — every task landed (PRs #546, #589); ready to close
 Track: What fires, and what stays silent
 Depends on: — (WP-1341 owns the neighbouring "a joint fit has no report" gap,
 and goes after this one: its report renders the sorting this WP writes)
@@ -149,6 +149,17 @@ added (root `CLAUDE.md` § Numbers).
   out of scope here.
 
 ## Handover log
+
+### 2026-10-01 (2nd session) — the `series.md` count fixed
+
+The last open item is on `main`. `series.md` now counts six absent diagnostics,
+matching `multi.DIAGNOSTIC_SCOPES`, so every task here has landed.
+
+*Done:* PR #589 (`66ca3d7c`), merged as `b83fd06c` by `/pr-review`. The
+paragraph names `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` and
+`MAGNETIC_WIDTH_MOVED_MOMENT`, and says a joint fit lacks them because it does not
+run the single-pattern plan, so its width-before-moment ordering is unchecked.
+*Next:* close the WP.
 
 - **2026-10-01** — A joint X-ray + neutron fit now puts each finding where it
   belongs. A diagnostic about one pattern's radiation, instrument or counts
