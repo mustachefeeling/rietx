@@ -3324,7 +3324,8 @@ def test_every_phase_scope_keyword_has_exactly_one_stance():
     """
     seen: dict[str, str] = {}
     for feat in coverage.FEATURES:
-        assert feat.keywords, f"{feat.name} declares no keyword"
+        assert feat.keywords or feat.macros, (
+            f"{feat.name} declares neither a keyword nor a macro")
         assert feat.stance in coverage.Stance
         for kw in feat.keywords:
             assert kw not in seen, (
@@ -3443,6 +3444,99 @@ def test_coverage_is_on_the_model_without_a_diagnostics_list(tmp_path):
     messages — `skipped_blocks`' rule, and for the same reason."""
     inp = _inp(tmp_path, "nochannel.inp", _PLAIN + "lor_fwhm = 0.1;\n")
     assert read_topas_inp(inp).coverage.partial is True
+
+
+# ------------------------------------------ library macros (#649)
+
+
+def test_every_macro_has_one_stance_and_is_no_keyword_or_read_macro():
+    """The macro arm's oracle. A macro name claimed by two rows has no single
+    stance; one that is also a keyword would be scanned twice on two views of
+    the text; and one the reader *reads* (a cell, emission or axis macro,
+    `STR`, `Get`, `Radius`) must never be reported as dropped."""
+    from rietx.io.projects import topas as T
+
+    seen: dict[str, str] = {}
+    for feat in coverage.FEATURES:
+        for name in feat.macros:
+            assert name not in seen, f"{name!r}: {seen[name]!r} and {feat.name!r}"
+            seen[name] = feat.name
+    assert set(seen) == set(coverage.MACROS)
+    assert not coverage.MACROS & coverage.PHASE_SCOPE
+    read = set(T._CELL_MACROS) | set(T._UNDEFINED_CELL_MACROS) | {
+        "A1", "A2", "A3", "STR", "Get", "Radius", "LP_Factor"}
+    assert not coverage.MACROS & read
+    assert not [m for m in coverage.MACROS if re.fullmatch(r"\w+Ka\d?", m)]
+    # Report-only: every macro row says what a caller loses.
+    for feat in coverage.FEATURES:
+        if feat.macros:
+            assert feat.stance is coverage.Stance.REPORTED and feat.why
+
+
+_XDD = 'xdd "a.xy"\n  bkg @ 10 0 0\n'
+
+
+@pytest.mark.parametrize("line, where, feature_name", [
+    ("PV_Peak_Type(@, 0.1, @, 0, @, 0, @, 0.5, @, 0, @, 0)", "str", "peak profile"),
+    ("PVII_Peak_Type(@, 0.1, @, 0, @, 0, @, 1.5, @, 0, @, 0)", "str", "peak profile"),
+    ("TCHZ_Peak_Type(@, 0, @, 0, @, 0.01, @, 0, @, 0.05, @, 0)", "str", "peak profile"),
+    ("Simple_Axial_Model(@, 5)", "xdd", "peak profile"),
+    ("CS_L(csl, 150)", "str", "size and strain broadening"),
+    ("Crystallite_Size(@, 150)", "str", "size and strain broadening"),
+    ("Microstrain(@, 0.2)", "str", "size and strain broadening"),
+    ("LVol_FWHM_CS_G_L(1, 80, 0.89, 70, csg, 200, csl, 300)", "str",
+     "size and strain broadening"),
+    ("e0_from_Strain(0.002, sg, 0, sl, 0.1)", "str", "size and strain broadening"),
+    ("Preferred_Orientation(@, 0.9, , 1 1 1)", "str", "preferred orientation"),
+    ("PO_Spherical_Harmonics(sh, 4)", "str", "preferred orientation"),
+    ("Zero_Error(@, 0.01)", "xdd", "2θ corrections"),
+    ("Specimen_Displacement(@, 0.05)", "xdd", "2θ corrections"),
+    ("SD(@, 0.05)", "xdd", "2θ corrections"),
+    ("Absorption(@, 50)", "xdd", "specimen corrections"),
+])
+def test_a_library_macro_is_named_as_a_partial_import(
+        tmp_path, line, where, feature_name):
+    """Every row came back `coverage.partial == False` with no diagnostic: the
+    keyword mask blanks a macro call, name and all, and the scan read only
+    phase chunks (#649). A macro inside the phase is attributed to it; one at
+    dataset level to none."""
+    text = (_XDD + line + "\n" + _PLAIN if where == "xdd"
+            else _XDD + _PLAIN + line + "\n")
+    diags = []
+    model = read_topas_inp(_inp(tmp_path, "macro.inp", text), diagnostics=diags)
+    assert model.coverage.partial is True
+    (hit,) = model.coverage.reported
+    assert hit.feature.name == feature_name
+    name = line.split("(")[0]
+    assert hit.keywords == (name,)
+    assert hit.phases == (("P",) if where == "str" else ())
+    (report,) = [d for d in diags if d.code == "TOPAS_FEATURES_NOT_IMPORTED"]
+    assert name in report.message
+    # Reported, never refused: the structure still builds.
+    assert to_structure(model).phases[0].cell.a.value == pytest.approx(5.0)
+
+
+def test_a_macro_name_that_is_not_an_invocation_is_not_reported(tmp_path):
+    """The positive arm of the invocation rule. A name in a quoted path, a
+    parameter declared with a short form's name and an equation reading it are
+    not calls, so the file below is the plain one and reports nothing."""
+    text = (_XDD + 'out "C:\\runs\\Zero_Error(1).txt"\n'
+            + _PLAIN + "prm SD 0.1\nprm CS 2.0\nscale_pks = SD CS;\n")
+    model = read_topas_inp(_inp(tmp_path, "nocall.inp", text))
+    assert not [h for h in model.coverage.reported
+                if set(h.keywords) & coverage.MACROS]
+
+
+def test_a_macro_in_a_loop_left_where_it_is_written_is_still_reported(
+        tmp_path):
+    """A `for` body stating only macros does not make the loop expand, so a
+    loop TOPAS could not have reached is not a refusal it would earn — and the
+    macro is still met by the file-wide scan, unattributed."""
+    text = _XDD + "for strs { CS_L(@, 100) }\n" + _PLAIN
+    model = read_topas_inp(_inp(tmp_path, "loopmacro.inp", text))
+    (hit,) = model.coverage.reported
+    assert hit.feature.name == "size and strain broadening"
+    assert model.phases[0].cell["a"] == pytest.approx(5.0)
 
 
 # ------------------------------------- a cell edge coupled through a parameter

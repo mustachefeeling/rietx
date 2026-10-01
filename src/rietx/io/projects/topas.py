@@ -185,6 +185,24 @@ _COVERED = re.compile(
     r"\b(?:" + "|".join(sorted((re.escape(k) for k in _coverage.SCANNED),
                                key=len, reverse=True)) + r")\b")
 
+#: The library macros :mod:`.coverage` gives a stance, matched as an
+#: **invocation** — the name, then ``(`` — on the text with only its quoted
+#: strings blanked (:func:`_unquoted`). Not on THE mask: that blanks every
+#: ``name(...)`` call, name included, which is why a registry of keywords alone
+#: never met a ``TCHZ_Peak_Type(...)`` and the import said nothing (#649). The
+#: ``(`` is what keeps a parameter that happens to share a short form (a
+#: ``prm SD``, an equation reading ``CS``) from reading as the macro; every
+#: macro listed takes arguments. Longest first, as above.
+_MACRO_CALL = re.compile(
+    r"\b(" + "|".join(sorted((re.escape(m) for m in _coverage.MACROS),
+                              key=len, reverse=True)) + r")\s*\(")
+
+
+def _unquoted(text: str) -> str:
+    """``text`` with its ``"…"`` strings blanked, offset-for-offset, so a macro
+    name inside a path or a phase name is not an invocation."""
+    return re.sub(r'"[^"\n]*"', lambda m: _blank(m.group()), text)
+
 #: TOPAS origin/axis suffixes → the Hermann-Mauguin extension gemmi wants.
 #: ``Z`` is *Zentrum*, the centrosymmetric origin (choice 2); ``S`` is the
 #: site-symmetry origin (choice 1). Dropping the letter is not harmless: for
@@ -2832,6 +2850,10 @@ def read_topas_inp(path: str | Path, *,
     #: rigid body — on a four-phase QPA file, "the file states a rigid body" is
     #: a sentence a caller cannot act on.
     covered: dict[str, set[str]] = {}
+    #: ``(start, end, phase name)`` of each `str` chunk that became a phase, so
+    #: a macro invocation found by the file-wide scan below says which phase
+    #: stated it.
+    phase_spans: list[tuple[int, int, str]] = []
     for index, opener in enumerate(openers):
         if opener["kw"] in _DATASET_OPENERS:
             dataset = 0 if dataset is None else dataset + 1
@@ -2907,6 +2929,7 @@ def read_topas_inp(path: str | Path, *,
         # `coverage`'s; the scan is this module's, because the mask is.
         for m in _COVERED.finditer(mchunk):
             covered.setdefault(m.group(), set()).add(phase.name)
+        phase_spans.append((opener.end(), end, phase.name))
         # The cell keys are read token-wise (WP-1118): the grammar is unified per
         # keyword but the scan was still per line, and TOPAS is whitespace-
         # insensitive, so `a 5.4 b 6.1 c 7.2` on one line read only `a` and built
@@ -3219,6 +3242,17 @@ def read_topas_inp(path: str | Path, *,
         parsed_site_tokens += len(site_texts)
         model.phases.append(phase)
 
+    # The macro arm (#649): a library macro states a construct the way a
+    # keyword does, and is written inside a phase or at dataset level alike, so
+    # it is scanned over the whole active text and attributed to the phase
+    # whose chunk holds it, or to none. A `for` body stating only macros is not
+    # a reason to expand the loop (`_bears_on_the_model`): left where it is
+    # written it is still met here, unattributed, and reported rather than
+    # refused for a target TOPAS would not have found.
+    for m in _MACRO_CALL.finditer(_unquoted(active)):
+        owner = next((name for start, end, name in phase_spans
+                      if start <= m.start() < end), "")
+        covered.setdefault(m.group(1), set()).add(owner)
     # Set before the site-count guard's refusal has a chance to fire, so that on
     # every path where a model exists at all it carries its own coverage.
     model.coverage = _coverage.classify(covered)

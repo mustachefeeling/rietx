@@ -1197,7 +1197,10 @@ These formats hold constructs this package has no model for, and dropping one
 changes the model rather than its presentation. So every construct the TOPAS
 reader knows about is a `Feature` carrying a declared `Stance`, a keyword with
 no stance fails a test instead of vanishing, and what a particular file turned
-out to contain comes back as a `Coverage` of `Hit` rows:
+out to contain comes back as a `Coverage` of `Hit` rows. A construct written
+as a library macro (`TCHZ_Peak_Type(…)`, `CS_L(…)`,
+`Specimen_Displacement(…)`) is met as well as one written in keywords, inside
+a phase or at dataset level:
 
 ```python
 from rietx.io.projects import coverage
@@ -1211,6 +1214,7 @@ from rietx.io.projects import coverage
 | `Stance.REFUSED` | met, and the file is refused rather than returned half-built |
 | `Feature.name`, `Feature.what`, `Feature.why` | one construct, what it is and the argument for its stance |
 | `Feature.stance`, `Feature.keywords` | the stance, and the format keywords it governs |
+| `Feature.macros` | the format's library macros that state the same construct, met wherever the file invokes one |
 | `Hit.feature`, `Hit.keywords`, `Hit.phases` | one construct actually met in a file, and where |
 | `Coverage.reported`, `Coverage.refused`, `Coverage.partial` | the hits of each kind |
 | `Coverage.summary`, `Coverage.summary_of` | those hits in a sentence |
