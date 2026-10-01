@@ -410,9 +410,10 @@ def test_a_species_resolves_to_its_element(species, element):
     off here first — an oxygen drawn in the unknown-element grey is a viewer
     quietly disagreeing with the parameter table about what the atom is.
     A nuclide and a valence label are their element, as the engine's own
-    parser reads them (``qpa.element_symbol``; #576 review, follow-up 2).
+    parser reads them (``crystallography.species.element_symbol``; #576
+    review, follow-up 2).
     """
-    from rietx.optimize.qpa import element_symbol
+    from rietx.crystallography.species import element_symbol
     assert s3.element_symbol(species) == element
     if element != "X":
         assert element_symbol(species) == element

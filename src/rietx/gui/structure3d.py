@@ -211,15 +211,15 @@ _CPK: dict[str, str] = {
 def element_symbol(species: str) -> str:
     """The bare element of a scattering species: ``"La3+"`` → ``"La"``.
 
-    The engine's own parser, :func:`rietx.optimize.qpa.element_symbol` — a
-    charge is a scattering detail, while radius and colour are properties of
-    the element.  So a nuclide is drawn as its element (``"D"``, ``"2H"`` →
+    The engine's own parser,
+    :func:`rietx.crystallography.species.element_symbol` — a charge is a
+    scattering detail, while radius and colour are properties of the element.  So a nuclide is drawn as its element (``"D"``, ``"2H"`` →
     ``"H"``, ``"7Li"`` → ``"Li"``) and a valence label as its atom (``"Cval"``
     → ``"C"``), as the composition reads them; a parser of its own here passed
     ``D`` through and drew ``2H`` as unknown (#576 review, follow-up 2).  A
     species that parser refuses is ``"X"``.
     """
-    from ..optimize.qpa import element_symbol as _engine_element
+    from ..crystallography.species import element_symbol as _engine_element
 
     try:
         return _engine_element(species)

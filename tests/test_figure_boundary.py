@@ -18,16 +18,19 @@ import rietx
 ROOT = Path(rietx.__file__).parent
 
 #: Measured 2026-09-30.  ``gui.structure3d`` is the figure's one upward
-#: import, made inside ``render_structure``.  2026-10-01: ``optimize.qpa``,
-#: whose ``element_symbol`` the viewer now reads a species with instead of a
-#: parser of its own that disagreed on ``D`` (#576 review, follow-up 2).
+#: import, made inside ``render_structure``.  2026-10-01:
+#: ``crystallography.species``, whose ``element_symbol`` the viewer now reads a
+#: species with instead of a parser of its own that disagreed on ``D`` (#576
+#: review, follow-up 2).  It is that parser alone, moved out of
+#: ``optimize.qpa`` so the split is not committed to qpa's imports (#590
+#: review).
 BOUNDARY = {
     "rietx._about",
     "rietx.crystallography.adp",
+    "rietx.crystallography.species",
     "rietx.crystallography.symmetry",
     "rietx.gui.structure3d",
     "rietx.model.compiled",
-    "rietx.optimize.qpa",
     "rietx.viz.theme",
 }
 
