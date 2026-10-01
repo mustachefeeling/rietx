@@ -20,7 +20,7 @@ import os
 from collections.abc import Sequence
 from typing import ClassVar, Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 from .common import Base, Parameter, _InheritsDeclaredDefaults
 
@@ -694,6 +694,13 @@ class MagneticSymmetry(Base):
 #: tested by WP-1327 before ``Phase.propagation_vector`` existed, so that
 #: adding the field was one call rather than a rule someone had to remember.
 #: ``Atom.moment`` is not listed and does not need to be: a moment without a
+#: Validation-context key under which a *recorded* state is read back
+#: (``history.store.read_records``): the Phase check that the magnetic group
+#: is a symmetry of the structure judges a statement, not refined values
+#: (:meth:`Phase._magnetic_group_is_a_symmetry`).
+RESTORED_CONTEXT_KEY = "rietx_restored_state"
+RESTORED_CONTEXT: dict[str, bool] = {RESTORED_CONTEXT_KEY: True}
+
 #: magnetic symmetry is refused on its own (:meth:`Phase._moments_are_stateable`),
 #: so a phase carrying any moment carries this field too.
 MOMENT_MODEL_FIELDS: tuple[str, ...] = ("magnetic_symmetry",)
@@ -1125,6 +1132,37 @@ class Phase(_InheritsDeclaredDefaults):
                 resolve_g(atom.moment.ion, atom.moment.g)
             except ValueError as exc:
                 raise ValueError(f"{where}: {exc}") from exc
+        return self
+
+    @model_validator(mode="after")
+    def _magnetic_group_is_a_symmetry(self, info: ValidationInfo) -> "Phase":
+        """Refuse a magnetic group that is not a symmetry of this structure.
+
+        Unlike the span test above this needs the cell and the nuclear
+        expansion, so it is the one magnetic check here that is not arithmetic
+        on the atom alone.  It lives on the schema rather than at compile for
+        one reason: it judges the structure *as stated*.  A compile runs again
+        at every stage boundary with the refined values written back, and two
+        atoms the group relates but the caller listed separately (the supercell
+        builder's anti-translated copies, explicit copies in a file) move
+        independently if their coordinates are freed, so a compile-time check
+        would refuse a fit half-way through instead of refusing the input.
+        Issue #597; :func:`~rietx.crystallography.magnetic.scattering.
+        check_group_is_structure_symmetry` has both predicates and why.
+
+        For the same reason a **recorded** state is not re-judged: a history
+        node holds the refined values, and reading ``history.jsonl`` back
+        validates them, so ``history.store.read_records`` passes
+        :data:`RESTORED_CONTEXT` and the check stands aside.  The statement
+        that state was refined from was checked when it was made.
+        """
+        if info.context and info.context.get(RESTORED_CONTEXT_KEY):
+            return self
+        from ..crystallography.magnetic.scattering import (
+            check_group_is_structure_symmetry,
+        )
+
+        check_group_is_structure_symmetry(self)
         return self
 
     @model_validator(mode="after")

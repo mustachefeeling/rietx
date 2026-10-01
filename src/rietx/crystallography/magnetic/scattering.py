@@ -191,6 +191,183 @@ def compile_magnetic_sites(phase, ops) -> MagneticSites | None:
                          ions=ions, g_factors=gs, approximations=names)
 
 
+#: |RᵀGR − G| / max|G| above which a magnetic operation is not a symmetry of
+#: the cell.  Every consistent phase measured on issue #597 sits at ≤ 1e-16
+#: and the wrong-setting ones at 0.43-0.52; 1e-3 (≈ 0.06° on an angle) leaves
+#: room for a cell copied from a file to a few decimals.
+METRIC_TOL = 1e-3
+#: fractional-coordinate tolerance for matching an image to an atom of the
+#: compiled structure.  Looser than ``SITE_TOL``: two atoms the magnetic group
+#: relates may be listed separately in a file at four decimals.
+INVARIANCE_POS_TOL = 1e-3
+#: moment tolerance for the same match, μ_B, relative to max(1, |m|)
+INVARIANCE_MOMENT_TOL = 1e-3
+
+
+def group_symmetry_violations(phase, ops) -> list[str]:
+    """Why the declared magnetic group is not a symmetry of ``phase``, or ``[]``.
+
+    A magnetic space group is a symmetry *of the structure it decorates*: its
+    operations must map the lattice onto itself and the compiled set of atoms
+    — every nuclear image of every atom, with its species, occupancy, B and,
+    on a moment carrier, the moment ``mom_mat`` assigns it — onto itself, with
+    the axial action ε·det(R)·R on the moment.  :func:`_axial_matrices` asks
+    only the converse (every nuclear image is reached by *some* magnetic
+    operation, first match wins), and that is satisfied by a group that is not
+    a symmetry at all: a type-IV group by number beside the symbol of its
+    unprimed operations (the anti-translated atom does not exist), a BNS
+    number beside a nuclear group in the other origin choice (the moments come
+    out of a different group), a b-unique group on a c-unique cell (issue
+    #597).  Each compiles a different structure from the one the group
+    describes, with no diagnostic.
+
+    Two predicates, both needed:
+
+    1. **lattice metric** RᵀGR = G for every operation.  Catches the
+       wrong-setting cell even when every atom sits where the wrong operation
+       happens to map it onto itself (a magnetic atom alone on an inversion
+       centre);
+    2. **structure invariance** of the compiled set, above.
+
+    Not "every magnetic operation with ε dropped is a nuclear operation": the
+    supercell builder lists the anti-translated copies as independent sites
+    under the parent's group, which fails that test on every phase it builds
+    and is right.
+
+    ``ops`` is ``PhaseSites.ops``.  Returns at most a handful of messages
+    (the first few violations, then a count); an image no magnetic operation
+    reaches is :func:`_axial_matrices`' refusal, not this one's.
+    """
+    group = phase.magnetic_symmetry.group()
+    cell = phase.cell.lengths_angles()
+    basis = np.asarray(cartesian_basis(*cell), dtype=np.float64)
+    metric = basis.T @ basis
+    scale = float(np.max(np.abs(metric)))
+    all_ops = group.all_operations()
+    out: list[str] = []
+    for op in all_ops:
+        r = np.asarray(op.rotation, dtype=np.float64)
+        dev = float(np.max(np.abs(r.T @ metric @ r - metric))) / scale
+        if dev > METRIC_TOL:
+            out.append(
+                f"the operation {op.xyz()} does not map the cell "
+                f"{tuple(round(v, 4) for v in cell)} onto itself "
+                f"(|RᵀGR − G|/|G| = {dev:.2g}), so the group is in a "
+                f"different setting from the cell")
+            return out
+    # the compiled structure: one row per nuclear image of every atom
+    pos, owner, mom = [], [], []
+    for j, atom in enumerate(phase.atoms):
+        xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
+        rot, tran = ops[j]
+        rot = np.asarray(rot, dtype=np.float64)
+        tran = np.asarray(tran, dtype=np.float64)
+        images = (np.einsum("mij,j->mi", rot, xyz) + tran) % 1.0
+        if atom.moment is not None:
+            try:
+                mats = _axial_matrices(group, xyz, rot, tran, phase.name,
+                                       atom.label)
+            except ValueError:
+                return out          # compile refuses this one by name
+            moments = mats @ np.asarray(atom.moment.values(), dtype=np.float64)
+        else:
+            moments = np.full((len(images), 3), np.nan)
+        pos.append(images)
+        mom.append(moments)
+        owner.extend([j] * len(images))
+    pos = np.concatenate(pos)
+    mom = np.concatenate(mom)
+    owner = np.asarray(owner)
+    keys = [(a.species, a.occ.value, a.biso.value) for a in phase.atoms]
+    species = np.array([[ka[0] == kb[0] for kb in keys] for ka in keys])
+    same = np.array([[ka[0] == kb[0] and abs(ka[1] - kb[1]) <= 1e-4
+                      and abs(ka[2] - kb[2]) <= 1e-4 for kb in keys]
+                     for ka in keys])[owner][:, owner]          # (n, n)
+    species = species[owner][:, owner]
+    carries = ~np.isnan(mom[:, 0])
+    m_tol = INVARIANCE_MOMENT_TOL * np.maximum(
+        1.0, np.linalg.norm(np.where(carries[:, None], mom, 0.0), axis=1))
+    n_bad = 0
+    block = 256
+    for op in all_ops:
+        r = np.asarray(op.rotation, dtype=np.float64)
+        t = np.array([float(c) for c in op.translation])
+        moved = (pos @ r.T + t) % 1.0
+        moved_m = mom @ op.moment_matrix().T
+        for lo in range(0, len(pos), block):
+            sl = slice(lo, lo + block)
+            delta = np.abs(moved[sl, None, :] - pos[None, :, :])
+            at = np.all(np.minimum(delta, 1.0 - delta) <= INVARIANCE_POS_TOL,
+                        axis=2)
+            near = at & same[sl]
+            dist = np.linalg.norm(mom[None, :, :] - moved_m[sl, None, :], axis=2)
+            good_m = near & carries[None, :] & (dist <= m_tol[sl, None])
+            ok = np.where(carries[sl], good_m.any(axis=1), near.any(axis=1))
+            for i in lo + np.flatnonzero(~ok):
+                n_bad += 1
+                if len(out) >= 3:
+                    continue
+                hits = np.flatnonzero(near[i - lo])
+                if hits.size == 0:
+                    other = np.flatnonzero(at[i - lo] & species[i])
+                    problem = ("there is no such atom in the structure"
+                               if other.size == 0 else
+                               f"the {phase.atoms[owner[other[0]]].label!r} "
+                               f"there has another occupancy or B")
+                else:
+                    h = hits[0]
+                    have = (np.round(mom[h], 3).tolist() if carries[h]
+                            else "no moment")
+                    problem = (f"the group puts the moment "
+                               f"{np.round(moved_m[i], 3).tolist()} μ_B there "
+                               f"where the structure has {have}")
+                atom = phase.atoms[owner[i]]
+                out.append(
+                    f"{op.xyz()} sends the image of {atom.label!r} "
+                    f"({atom.species}) at {np.round(pos[i], 4).tolist()} to "
+                    f"{np.round(moved[i], 4).tolist()}, and {problem}")
+    if n_bad > len(out):
+        out.append(f"... {n_bad} (image, operation) pairs in all")
+    return out
+
+
+def check_group_is_structure_symmetry(phase) -> None:
+    """Raise ``ValueError`` naming why the magnetic group is not a symmetry.
+
+    The refusal :func:`group_symmetry_violations` describes, for a phase with
+    moments and a ``magnetic_symmetry``; anything else returns.
+    """
+    if phase.magnetic_symmetry is None:
+        return
+    if not any(a.moment is not None for a in phase.atoms):
+        return
+    from ..structure_factor import select_orbit_ops
+    from ..symmetry import resolve_group
+
+    sg = resolve_group(phase.space_group, phase.symmetry_operations)
+    ops = [select_orbit_ops(sg, np.array([a.x.value, a.y.value, a.z.value]))
+           for a in phase.atoms]
+    problems = group_symmetry_violations(phase, ops)
+    if not problems:
+        return
+    raise ValueError(
+        f"phase {phase.name!r}: the declared magnetic symmetry is not a "
+        f"symmetry of the structure it decorates (space group "
+        f"{phase.space_group!r}, cell and atoms as stated): "
+        + "; ".join(problems)
+        + ". A magnetic space group has to map the lattice and every atom, "
+        "with its moment, onto itself, or the forward model computes a "
+        "different structure from the one the group describes. Usual causes: "
+        "a type-IV group (anti-translation) by number beside the nuclear "
+        "group of its unprimed operations — state the nuclear group with the "
+        "translation in Phase.symmetry_operations, or list the translated "
+        "atoms explicitly; a BNS number whose default setting (origin choice, "
+        "cell choice, unique axis) is not the nuclear group's — pick the "
+        "matching setting with operators.database_settings() and "
+        "magnetic_group(..., hall_number=...), or give the operator list in "
+        "the nuclear setting")
+
+
 def _axial_matrices(group, xyz, rot, tran, phase_name, label) -> np.ndarray:
     """``(m, 3, 3)`` ε·det(R)·R, one per nuclear image of the site.
 
@@ -232,7 +409,13 @@ def _axial_matrices(group, xyz, rot, tran, phase_name, label) -> np.ndarray:
     images = [op.act_on_site(xyz) for op in ops_all]
     mats = np.empty((len(rot), 3, 3), dtype=np.float64)
     for k, (r, t) in enumerate(zip(rot, tran, strict=True)):
-        want = np.asarray(r, dtype=np.float64) @ xyz + np.asarray(t, dtype=np.float64)
+        # wrapped like ``act_on_site``'s images: unwrapped, a coordinate one
+        # cell or more away gives δ in (1, 2), where 1 − δ is negative and
+        # "matches" every operation, so the first one won and an
+        # anti-translated image got the untranslated moment (issue #597, the
+        # shifted-origin supercell statements)
+        want = (np.asarray(r, dtype=np.float64) @ xyz
+                + np.asarray(t, dtype=np.float64)) % 1.0
         for op, image in zip(ops_all, images, strict=True):
             delta = np.abs(image - want)
             if np.all(np.minimum(delta, 1.0 - delta) <= SITE_TOL):

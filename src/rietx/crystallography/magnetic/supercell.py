@@ -1096,7 +1096,11 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     (P, p) transform in ``transform_BNS_Pp_abc`` form; ``k`` is then a record
     for the report and nothing derives from it.  A ``bns_number`` passed with
     either way in is checked against the group's own and refused when it
-    differs (#605).
+    differs (#605).  The list has to be stated at
+    the child origin the transform puts the atoms at (x_c = P⁻¹·(x − p)), i.e.
+    restated by ``transformed`` under (I, −P⁻¹·p) when p is not zero: the same
+    list at another origin is not a symmetry of the child structure, and the
+    child phase refuses it (``Phase``'s magnetic-symmetry check, issue #597).
 
     ``nuclear_group`` chooses which group the child phase's ``space_group``
     states, and it is the one knob a caller can get wrong, so both settings and
