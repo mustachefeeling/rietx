@@ -370,15 +370,16 @@ def launch(root: Path, run: str) -> None:
     _run(str(p["rietx"]), "skill", "--install", str(p["workspace"]), "--copy")
 
     session = str(uuid.uuid4())
+    key = f"{run}@{session}"
     command = ["claude", "-p", prompt_for(root, run), "--model", MODELS[model],
                "--session-id", session, "--permission-mode", "bypassPermissions",
                "--output-format", "json", "--strict-mcp-config",
                "--setting-sources", SETTING_SOURCES,
                "--max-budget-usd", MAX_BUDGET_USD, "--disallowedTools", *DISALLOWED]
     proc = subprocess.run(command, cwd=p["workspace"], capture_output=True, text=True,
-                          env=agent_env(run))
+                          env=agent_env(key))
     record = {"run": run, "session_id": session, "model": MODELS[model],
-              "protocol": PROTOCOL_VERSION,
+              "protocol": PROTOCOL_VERSION, "trace_key": key,
               "commit": COMMITS[condition], "returncode": proc.returncode,
               "stderr": proc.stderr[-4000:]}
     try:
@@ -503,11 +504,19 @@ def collect(root: Path, run: str) -> dict:
     if transcript is None:
         raise SystemExit(f"{run}: no transcript for session {launched['session_id']}")
     rows = trail.load(transcript)
-    # the run id is what attributes a row; a process that lost the variable
-    # (a script that clears its environment) falls back on its directory
-    traced = [r for r in load(p["log"]) if r.get("run") == run
-              or (r.get("run") is None
-                  and str(r.get("cwd") or "").startswith(str(p["workspace"])))]
+    # The launch's key attributes a row, and a process that lost the variable
+    # (a script that clears its environment) falls back on its directory.  Both
+    # are read inside the session's own window: a run name relaunched under a
+    # later protocol is a second launch, and the condition's log holds both
+    # (the 1.1 pilot first scored 15 renders, 11 of them the 1.0 run's).
+    stamps = [t for t in (trail._stamp(r) for r in rows) if t is not None]
+    first = min(stamps) - 5.0
+    last = max(stamps) + (launched.get("outlived_session_seconds") or 0.0) + 30.0
+    key = launched.get("trace_key", run)
+    traced = [r for r in load(p["log"]) if first <= (r.get("t") or 0.0) <= last
+              and (r.get("run") == key
+                   or (r.get("run") is None
+                       and str(r.get("cwd") or "").startswith(str(p["workspace"]))))]
     bill = trail.usage(rows)
     calls = trail.tool_calls(rows)
     result = launched.get("result") or {}
