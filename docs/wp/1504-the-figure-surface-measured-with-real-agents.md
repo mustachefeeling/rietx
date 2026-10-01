@@ -1,6 +1,6 @@
 # WP-1504 — the figure surface measured with real agents
 
-Milestone: v1.7 · Status: 🔄 2026-10-01 — round B run (one of every cell, 28 runs); the next round waits on WP-1529
+Milestone: v1.7 · Status: 🔄 2026-10-01 — claimed by @yue-here (round C on WP-1529's merge)
 Depends on: 1501, 1502, 1503; 1529 soft (the next round)
 Priority: P3 2026-10-01 — WP-1529 landed its three fixes (PR #635); the round reruns on its merge
 
