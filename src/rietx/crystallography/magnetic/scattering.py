@@ -65,7 +65,7 @@ import numpy as np
 
 from ..adp import cartesian_basis
 from ..symmetry import SITE_TOL, ReflectionSet, as_group, generate_reflections
-from .form_factor import approximation_name, coefficients, resolve_g
+from .form_factor import approximation_name, j0, j2, resolve_g
 from .moments import moment_frame, moment_from_dofs
 
 #: p = γ·r₀/2, the magnetic scattering length of one Bohr magneton, in **fm**
@@ -450,25 +450,20 @@ def magnetic_f2(members, seg, counts, stol, msites: MagneticSites, cell,
 
 
 def _form_factor(msites: MagneticSites, j: int, stol):
-    """f_j(s) for the atom's ion and g, evaluated on the member-shaped ``stol``."""
+    """f_j(s) for the atom's ion and g, evaluated on the member-shaped ``stol``.
+
+    Through :func:`~.form_factor.j0`/:func:`~.form_factor.j2`, the one
+    evaluator of the table: they dispatch an ion to whichever stored form
+    carries it (Brown's or Lisher & Forsyth's), which a local evaluation of
+    :func:`~.form_factor.coefficients` could not.
+    """
     ion = msites.ions[j]
     g = msites.g_factors[j]
-    c0, c2 = coefficients(ion)
-    stol2 = stol * stol
-    f = _three_gaussian(c0, stol2, stol2_factor=False)
+    f = np.asarray(j0(ion, stol), dtype=np.float64)
     weight = 2.0 / g - 1.0
     if weight == 0.0:
         return f
-    if c2 is None:  # pragma: no cover - the schema refuses this combination
-        raise KeyError(f"no ⟨j2⟩ for {ion!r}")
-    return f + weight * _three_gaussian(c2, stol2, stol2_factor=True)
-
-
-def _three_gaussian(coef, stol2, *, stol2_factor: bool):
-    a0, a1, b0, b1, c0, c1, d = coef
-    out = (a0 * np.exp(-a1 * stol2) + b0 * np.exp(-b1 * stol2)
-           + c0 * np.exp(-c1 * stol2) + d)
-    return stol2 * out if stol2_factor else out
+    return f + weight * np.asarray(j2(ion, stol), dtype=np.float64)
 
 
 def _crystalaxis_to_cartesian(cell) -> np.ndarray:

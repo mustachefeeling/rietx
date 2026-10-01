@@ -423,3 +423,26 @@ dipole amplitude is $[\langle j_0\rangle\,(L + 2S) + \langle j_2\rangle\,L] /
 {eq}`int-ff-dipole` and not its sign-flipped twin. The two agree only at
 $g = 2$, so a spin-only test cannot tell them apart. The output names which
 form was used per species, because a fit that does not say is not checkable.
+
+Two rare-earth rows need a note. The row Brown's table labels Ce$^{2+}$ is a
+Ce$^{3+}$ calculation: it reproduces Freeman and Desclaux's Dirac-Fock Ce$^{3+}$
+values at Brown's own fit error, and they computed no Ce$^{2+}$
+{cite}`freeman1979`. So rietx keys it `Ce3+` and refuses `Ce2+` by name. Brown
+carries no Pr row of any charge, so Pr$^{3+}$ comes from an older fit with one
+exponential fewer {cite}`lisher1971`:
+
+```{math}
+:label: int-ff-lisher
+
+\langle j_0\rangle(s) = A e^{-a s^2} + B e^{-b s^2} + C,
+\qquad
+\langle j_2\rangle(s) = s^2\left[A e^{-a s^2} + B e^{-b s^2} + C\right].
+```
+
+{source}`rietx.crystallography.magnetic.form_factor`
+
+That fit is to non-relativistic Hartree-Fock values, while every other
+rare-earth row is a fit to Dirac-Fock ones. Its $\langle r^2\rangle$ is about
+10 % smaller than a Dirac-Fock Pr$^{3+}$'s would be, so its form factor falls
+off a little more slowly with $s$. `approximation_name` names the source
+wherever this row is in force.

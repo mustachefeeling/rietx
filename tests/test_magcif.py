@@ -1622,14 +1622,14 @@ def test_an_element_with_no_declared_default_still_refuses_exactly_as_before(
         structure_from_cif(str(path))
 
 
-def test_ce_declares_ce3_but_the_table_only_carries_ce2_so_it_still_refuses(
-        tmp_path):
-    """Negative control (declared-but-unresolvable axis): Ce is declared as
-    Ce3+ in the assumed-ion table (Ce4+ is 4f0, non-magnetic), but Brown's own
-    ⟨j0⟩/⟨j2⟩ rows carry Ce2+ only. The declared default must not silently
-    substitute the *wrong* ion (Ce2+) just because it exists in the table --
-    a bare Ce site stays refused, and the refusal names Ce3+, matching what
-    was actually asked for."""
+def test_a_bare_ce_site_now_defaults_to_ce3(tmp_path):
+    """Positive control, formerly the negative one: Ce is declared as Ce3+ in
+    the assumed-ion table (Ce4+ is 4f0, non-magnetic). Until #626 the table
+    carried Brown's row under its misprinted "Ce2+" label, so a bare Ce site
+    was refused; the row is Ce3+ (Freeman & Desclaux 1979) and is now keyed
+    so, and the default resolves the way every other lanthanide's does, with
+    its Hund's-rule g (6/7) and the MAGNETIC_ION_ASSUMED report. Same
+    synthetic substitution into LaMnO3's cited geometry as the Dy test."""
     sites = ("La1 La 0.54900 0.25000 0.01000 1",
              "Ce1 Ce 0.00000 0.00000 0.00000 1",
              "O1 O 0.98600 0.25000 0.93000 1",
@@ -1637,9 +1637,28 @@ def test_ce_declares_ce3_but_the_table_only_carries_ce2_so_it_still_refuses(
     moment_loop = _moment_loop([("Ce1", "3.7(1)", "0.0(5)", "0.00000",
                                  "mx,my,mz")])
     path = _fixture(tmp_path, "LaMnO3", sites=sites, moment_loop=moment_loop)
-    with pytest.raises(ValidationError,
-                       match=r"no magnetic form factor for 'Ce'"):
-        structure_from_cif(str(path))
+    diagnostics: list = []
+    structure = structure_from_cif(str(path), diagnostics=diagnostics)
+    atom = structure.phases[0].atoms[1]
+    assert atom.moment.ion == "Ce3+"
+    assert atom.moment.g == pytest.approx(6 / 7)
+    (hit,) = [d for d in diagnostics if d.code == "MAGNETIC_ION_ASSUMED"]
+    assert "Ce3+" in hit.message
+
+
+def test_a_stated_ce2_ion_is_refused_with_the_label_misprint(tmp_path):
+    """A caller who states Ce2+ is refused by name, and told why: the only
+    tabulated "Ce2+" row is a Ce3+ calculation (#626)."""
+    sites = ("La1 La 0.54900 0.25000 0.01000 1",
+             "Ce1 Ce 0.00000 0.00000 0.00000 1",
+             "O1 O 0.98600 0.25000 0.93000 1",
+             "O2 O 0.30900 0.03900 0.22400 1")
+    moment_loop = _moment_loop([("Ce1", "3.7(1)", "0.0(5)", "0.00000",
+                                 "mx,my,mz")])
+    path = _fixture(tmp_path, "LaMnO3", sites=sites, moment_loop=moment_loop)
+    with pytest.raises(ValidationError, match=r"'Ce2\+'.*Ce3\+ calculation"):
+        structure_from_cif(str(path), moment_ions={"Ce1": "Ce2+"},
+                           moment_g={"Ce1": 0.8})
 
 
 def _bare_dy_fixture(tmp_path):

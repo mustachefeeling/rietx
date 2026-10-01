@@ -406,8 +406,19 @@ they were built from. Their licence texts ship in the wheel and sdist as
   Ni⁴⁺ row. Its V ⟨j₂⟩ is a curve-identical refit. The whole table was
   verified the same day against the print and against P. J. Brown's own data
   file (the McPhase manual's mirror, read for verification only; nothing
-  copied). The Pr³⁺ ⟨j₀⟩ row is not in the print: it is the Pr³⁺ row of
-  Brown's data file, as `periodictable` carries it.
+  copied).
+- Magnetic **form-factor coefficients for Pr³⁺** in
+  `src/rietx/crystallography/magnetic/form_factor.py` (`_J0_LISHER`, `_J2_LISHER`)
+  — Lisher, E. J. & Forsyth, J. B. (1971), *Acta Cryst.* A **27**, 545–549,
+  doi:10.1107/S0567739471001190, Table 1 (p. 545, ⟨j₀⟩) and Table 2 (p. 546,
+  ⟨j₂⟩), read from the page image (2026-09-22) and checked against the paper's
+  text layer. Ten numbers (A, a, B, b, C per order), in the paper's own
+  5-parameter form, not reshaped into Brown's. They replace the Pr³⁺ ⟨j₀⟩
+  previously carried from `periodictable`, which is the Pr³⁺ row of Brown's data
+  file and is not in the ITC print. Cite Lisher & Forsyth (1971). In the same
+  change (#626) the Brown row ITC prints as "Ce²⁺" is keyed `Ce3+`: it
+  reproduces Freeman & Desclaux (1979, *J. Magn. Magn. Mater.* **12**, 11–21)
+  Table 7's Ce³⁺ values at Brown's printed fit error, and they computed no Ce²⁺.
 - Element **colours** in `src/rietx/gui/structure3d.py` (`_CPK`) — the
   *assignments* are the CPK convention (Corey & Pauling, 1953, Rev. Sci. Instrum.
   24, 621; Koltun, 1965, US Patent 3,170,246): hydrogen white, carbon black,
