@@ -46,8 +46,9 @@ corroborate and to prioritise. Where the two disagreed, the reference won and th
    a fact about one **pattern**, a ``beq`` is a fact about one ``occ``, and
    ``r_wp`` exists at both the top and the dataset level. A block runs to "the
    next keyword of the same type" (§5.1), which is what :data:`_BLOCK` slices —
-   and ``for``/``load``/``move_to`` suspend that, so they refuse
-   (:func:`refuse_moved_attachment`).
+   and ``for``/``load``/``move_to`` suspend that. ``for xdds``/``for strs`` are
+   expanded into the blocks they reach (:func:`expand_for_loops`); the rest
+   refuse (:func:`refuse_moved_attachment`).
 4. **One value grammar, and a name is a flag** (§1.2, §2.1-2.3). ``#`` is a
    number, ``$`` a string, ``N`` a name, ``E`` "an equation (i.e. ``= a+b;``) or
    constant (i.e. ``1.245``) or a parameter name with a value (i.e. ``lp
@@ -399,6 +400,14 @@ class TopasModel:
     #: depend on the caller having asked for messages. ``coverage.partial`` is
     #: the yes/no; ``coverage.reported`` and ``.refused`` are the story.
     coverage: _coverage.Coverage = field(default_factory=_coverage.Coverage)
+    #: The datasets that are **time of flight**, each with the constructs that
+    #: say so — ``{1: ("TOF_XYE", "TOF_x_axis_calibration")}`` — keyed like
+    #: :attr:`TopasPhase.dataset`, ``None`` where the file opens no dataset.
+    #: rietx models constant-wavelength diffraction only (time of flight is
+    #: issue #193), so such a dataset's phases are refused by
+    #: :func:`to_structure`; on the model for the reason ``coverage`` is, and
+    #: empty for a file with none.
+    time_of_flight: dict = field(default_factory=dict)
 
 
 def strip_comments(text: str) -> str:
@@ -707,9 +716,12 @@ def refuse_moved_attachment(active: str, path) -> None:
     inside ``for xdds { for strs 1 to 1 { … } }``. ``_BLOCK`` looks for ``str``
     at the start of a line and ``for strs`` is not that, so such a phase is
     invisible to the split; and where a real ``str`` exists elsewhere in the
-    file, the loop body's cell and sites are swept into *it* instead. 36 of the
-    618 archive files carry a loop over content this reader reads, 22 of which
-    built a ``Structure``.
+    file, the loop body's cell and sites are swept into *it* instead. Those two
+    object types are now expanded before this runs (:func:`expand_for_loops`:
+    54 of the 468 archive files it was measured on went from refused to read,
+    and none the other way), so what reaches this check is a loop over
+    another object type — ``for site_recs { … }`` — or one left as written
+    because its body states nothing the model carries.
 
     Only a loop whose body carries **phase or site** content refuses: a
     ``for strs { r_bragg 0 }``, a loop of ``out`` records, or a ``for xdds``
@@ -749,6 +761,233 @@ def refuse_moved_attachment(active: str, path) -> None:
             f"{path}: `move_to` walks TOPAS's internal data tree, so the cards "
             f"after it attach somewhere this reader cannot follow from the "
             f"text's own nesting.")
+
+
+#: A ``for`` loop's head, with the ``N to M`` range the archive writes
+#: (``for strs 1 to 1``) captured. The reference's grammar node is
+#: ``[for { .. } ]`` and gives no range form; what the range selects is
+#: measured, and :func:`expand_for_loops` records the measurement.
+_FOR_HEAD = re.compile(
+    r"\bfor\s+(?P<kind>\w+)(?:\s+(?P<lo>\d+)\s+to\s+(?P<hi>\d+))?"
+    r"(?P<rest>[^{};\n]*)\{")
+
+#: The macros the reference's macro index lists as stating ``xdd`` and which
+#: this reader does **not** open as a dataset (only ``TOF_XYE``/``TOF_GSAS``
+#: are in :data:`_DATASET_OPENERS`). A ``for xdds`` loop iterates over every
+#: dataset that exists, so where one of these supplies a dataset the reader
+#: cannot see, the iteration count is unknown and the loop is refused rather
+#: than expanded over the datasets it happens to see. ``yobs_eqn`` is the
+#: keyword form of the same thing — a dataset made from an equation.
+_UNSEEN_DATASETS = re.compile(
+    r"\b(?:(?:RAW|XDD|XYE|XY|DAT|BRML|SST|Create_XDDs)\s*\(|yobs_eqn\b)")
+
+
+def _brace_close(text: str, open_brace: int) -> int | None:
+    """One past the ``}`` balancing the ``{`` at ``open_brace``, or ``None``."""
+    depth = 0
+    for i in range(open_brace, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+    return None
+
+
+def _top_level_loops(text: str) -> list[tuple[re.Match, int]]:
+    """The ``for`` loops of ``text`` that no other loop encloses, each with the
+    offset one past its closing brace."""
+    loops: list[tuple[re.Match, int]] = []
+    reached = 0
+    for m in _FOR_HEAD.finditer(text):
+        if m.start() < reached:
+            continue
+        close = _brace_close(text, m.end() - 1)
+        if close is None:
+            return loops        # unbalanced: left to refuse_moved_attachment
+        loops.append((m, close))
+        reached = close
+    return loops
+
+
+def _bears_on_the_model(body: str) -> bool:
+    """Does a loop body state anything this reader reads or reports?
+
+    Phase or site content, a time-of-flight construct, or a phase-scope
+    keyword :mod:`.coverage` gives a stance with an outcome. A loop stating
+    none of these (``for strs { Remove_Phase(0.3, 0.5) }``, ``for xdds {
+    th2_offset = … }``) changes nothing the built model carries, so it is left
+    as written — and is not refused for a target TOPAS would not have found.
+    """
+    return bool(_PHASE_CONTENT.search(body) or _TOF_CONSTRUCT.search(body)
+                or _COVERED.search(_masked(body)))
+
+
+def expand_for_loops(active: str, path) -> str:
+    """Expand ``for xdds { … }`` and ``for strs [N to M] { … }`` textually.
+
+    The reference defines ``for $object_type { … }`` as "a pre-processor loop
+    that expands its body once for every existing instance of the given object
+    type" (Technical Reference, the ``for`` entry under ``TMisc_keywords``), and
+    its own examples place the loop *after* the objects (§2.22-2.23,
+    ``str … str … for strs { … }``). What "existing" means, and what the range
+    form selects — which the reference does not state — was measured on TOPAS
+    v6 as a black box, on two-``xdd`` synthetic files whose loop body sets a
+    distinguishable peak shift (``tests/data/README.md`` § ``for`` loops):
+
+    * a ``for xdds`` loop reaches **every dataset opened above it** and none
+      below (a loop between two ``xdd``\\ s shifted the first only), and one
+      with no dataset above it stops TOPAS with ``Error loading sstring_in``;
+    * a ``for strs`` loop reaches the phases of the **dataset it is written
+      in** — at the end of the file, the last one's, not every phase in the
+      file — and inside ``for xdds`` each dataset's own in turn;
+    * a "phase" there is a ``str``: an ``hkl_Is`` above it is not counted and
+      not reached;
+    * ``N to M`` counts phases from 1 **within that dataset**, and on
+      ``for xdds`` counts datasets from 1; a range past the last instance, or
+      a loop with nothing to reach, stops TOPAS too (``invalid index``).
+
+    So the expansion is textual and positional, which is what the block model
+    needs: a ``for xdds`` body's own text is inserted at the head of each
+    dataset above the loop, before its first ``str``, where a dataset-level
+    card belongs; a ``for strs`` body at the end of each phase it reaches; the
+    loop itself is blanked. A loop whose body states nothing this reader reads
+    is left as written (:func:`_bears_on_the_model`). Everything TOPAS refuses
+    is refused here, and so is everything the reader cannot place — a body
+    that opens a block of its own,
+    a loop over another object type nested inside one of these two, and a file
+    whose datasets come from a macro this reader does not open
+    (:data:`_UNSEEN_DATASETS`), because then the number of datasets the loop
+    iterates over is not in the text. A loop over another object type is left
+    as it is, for :func:`refuse_moved_attachment` to judge. Offsets after the
+    first insertion move, so this runs after every check that reports a line.
+    """
+    quoted = re.sub(r'"[^"\n]*"', lambda m: _blank(m.group()), active)
+    loops = [(m, close) for m, close in _top_level_loops(quoted)
+             if m["kind"] in ("xdds", "strs")
+             and _bears_on_the_model(quoted[m.end():close - 1])]
+    if not loops:
+        return active
+    if hit := _UNSEEN_DATASETS.search(quoted):
+        raise TopasInpError(
+            f"{path}: `{loops[0][0].group().rstrip('{').strip()}` expands its "
+            f"body once per dataset or phase that exists, and this file opens "
+            f"a dataset through `{hit.group().rstrip('(').strip()}`, which "
+            f"this reader does not read as one — so how many times the body "
+            f"is expanded, and into which phases, is not in the text in hand.")
+    openers = list(_BLOCK.finditer(active))
+    datasets = [o for o in openers if o["kw"] in _DATASET_OPENERS]
+
+    def head(m: re.Match) -> str:
+        return m.group().rstrip("{").strip()
+
+    def phases_of(start: int, stop: int) -> list[re.Match]:
+        return [o for o in openers if o["kw"] == "str" and start < o.start() < stop]
+
+    def phase_end(phase: re.Match, stop: int) -> int:
+        later = [o.start() for o in openers if o.start() > phase.start()]
+        return min([stop, *later])
+
+    def selected(m: re.Match, phases: list[re.Match], where: str) -> list[re.Match]:
+        if m["rest"].strip():
+            raise TopasInpError(
+                f"{path}: `{head(m)}` selects its instances with "
+                f"`{m['rest'].strip()}`, which is not an `N to M` range this "
+                f"reader can read — a macro, most likely, standing for one — "
+                f"so which instances the body reaches is not in the text.")
+        if not phases:
+            raise TopasInpError(
+                f"{path}: `{head(m)}` has nothing this reader can see to "
+                f"reach in {where}. Either there is none, which TOPAS itself "
+                f"refuses (measured: `Error loading sstring_in`), or a macro "
+                f"whose body this reader does not expand states it — and "
+                f"either way the text the loop would have filled is not here.")
+        if m["lo"] is None:
+            return phases
+        lo, hi = int(m["lo"]), int(m["hi"])
+        if not 1 <= lo <= hi <= len(phases):
+            raise TopasInpError(
+                f"{path}: `{head(m)}` asks for instances {lo} to {hi} of "
+                f"{where}, which states {len(phases)} — TOPAS itself stops on "
+                f"this (measured: `invalid index`).")
+        return phases[lo - 1:hi]
+
+    def checked_body(m: re.Match, body: str, qbody: str) -> None:
+        if (inner := _FOR_HEAD.search(qbody)):
+            raise TopasInpError(
+                f"{path}: `{head(m)}` holds `{head(inner)}`, a loop this "
+                f"reader does not expand inside another, so where its body "
+                f"lands is not something it can place.")
+        if (block := _BLOCK.search(body)):
+            raise TopasInpError(
+                f"{path}: `{head(m)}` opens a `{block['kw']}` block inside its "
+                f"body — a new object per iteration, which this reader does "
+                f"not expand.")
+
+    inserts: list[tuple[int, int, str]] = []        # (offset, loop order, text)
+    for order, (m, close) in enumerate(loops):
+        body = active[m.end():close - 1]
+        qbody = quoted[m.end():close - 1]
+        above = [d for d in datasets if d.start() < m.start()]
+        if not above:
+            raise TopasInpError(
+                f"{path}: `{head(m)}` is written above every dataset this "
+                f"reader can see, and a loop reaches only the instances that "
+                f"exist where it is written. Either the file opens none above "
+                f"it, which TOPAS itself refuses (measured: `Error loading "
+                f"sstring_in`), or a macro whose body this reader does not "
+                f"expand opens them — and then how many there are is not in "
+                f"the text in hand.")
+        def span_end(d: re.Match) -> int:
+            later = [o.start() for o in datasets if o.start() > d.start()]
+            return min([m.start(), *later])
+        if m["kind"] == "strs":
+            checked_body(m, body, qbody)
+            current = above[-1]
+            stop = span_end(current)
+            for ph in selected(m, phases_of(current.start(), stop),
+                               f"the dataset `{current['kw']}` above it"):
+                inserts.append((phase_end(ph, stop), order, body))
+            continue
+        # `for xdds`: its own text goes to each dataset's head; a nested
+        # `for strs` goes to that dataset's phases.
+        nested = _top_level_loops(qbody)
+        own = list(body)
+        for inner, inner_close in nested:
+            if inner["kind"] != "strs":
+                raise TopasInpError(
+                    f"{path}: `{head(m)}` holds `{head(inner)}`, a loop this "
+                    f"reader does not expand, so where its body lands is not "
+                    f"something it can place.")
+            own[inner.start():inner_close] = _blank(qbody[inner.start():inner_close])
+        own_text = "".join(own)
+        checked_body(m, own_text, re.sub(r'"[^"\n]*"',
+                                         lambda q: _blank(q.group()), own_text))
+        for d in selected(m, above, "the file above it"):
+            k = datasets.index(d)
+            stop = span_end(d)
+            if own_text.strip():
+                blocks = [o.start() for o in openers if d.start() < o.start() < stop]
+                inserts.append((blocks[0] if blocks else stop, order, own_text))
+            for inner, inner_close in nested:
+                inner_body = body[inner.end():inner_close - 1]
+                checked_body(inner, inner_body, qbody[inner.end():inner_close - 1])
+                for ph in selected(inner, phases_of(d.start(), stop),
+                                   f"dataset {k}"):
+                    inserts.append((phase_end(ph, stop), order, inner_body))
+    out = list(active)
+    for m, close in loops:
+        out[m.start():close] = _blank(active[m.start():close])
+    text = "".join(out)
+    # Insert from the end so every offset above is still the original's; at one
+    # offset the earlier loop's text comes first, as TOPAS reads them in order.
+    ranked = sorted(((offset, order, seq, body)
+                     for seq, (offset, order, body) in enumerate(inserts)),
+                    key=lambda i: i[:3], reverse=True)
+    for offset, _, _, body in ranked:
+        text = text[:offset] + "\n" + body + "\n" + text[offset:]
+    return text
 
 
 def normalize_species(species: str) -> str:
@@ -1451,8 +1690,11 @@ _UNDEFINED_CELL_MACROS = ("Orthorhombic", "Monoclinic", "Triclinic")
 #: count guard was blind to it because both sides of that guard read the same
 #: truncated chunk. Macro definitions are excised whole by
 #: :func:`_excise_macro_defs` before the file is split, braces and body and all.
+#: ``TOF_XYE`` and ``TOF_GSAS`` are the two macros here, and they open a dataset
+#: (:data:`_DATASET_OPENERS` says why) — so a phase above one ends at it rather
+#: than running on through the next bank's dataset-level cards.
 _BLOCK_OPENERS = ("str", "hkl_Is", "xo_Is", "d_Is", "xdd_scr", "xdd_sum",
-                  "xdd", "fit_obj", "STR")
+                  "xdd", "fit_obj", "STR", "TOF_XYE", "TOF_GSAS")
 
 #: ``xdd`` must follow ``xdd_scr``/``xdd_sum`` in the alternation above, and the
 #: pattern is anchored with ``[ \t]`` rather than ``\s`` because ``\s`` matches
@@ -1462,8 +1704,74 @@ _BLOCK = re.compile(rf"^[ \t]*(?P<kw>{'|'.join(_BLOCK_OPENERS)})\b", re.M)
 #: The openers that start a **dataset** rather than a phase. The grammar's
 #: `Txdd`/`Txdd_scr` put every phase kind — `str`, `hkl_Is`, `xo_Is`, `d_Is` —
 #: *inside* one of these, so an opener from this set is where one pattern ends
-#: and the next begins.
-_DATASET_OPENERS = ("xdd", "xdd_scr", "xdd_sum")
+#: and the next begins. ``TOF_XYE(path, calc_step)`` and ``TOF_GSAS(…)`` are
+#: macros, and are here because the reference says what they open: §19.3.11
+#: lists them as the time-of-flight data-file macros, and its macro index
+#: lists both among the macros stating ``xdd``. Without them every bank of a
+#: multi-bank time-of-flight file was the dataset above it — 44 of the 68
+#: archive files carrying a `for` loop open their datasets this way. The other
+#: dataset macros (``RAW``, ``XDD``, …) still open none (:data:`_UNSEEN_DATASETS`).
+_DATASET_OPENERS = ("xdd", "xdd_scr", "xdd_sum", "TOF_XYE", "TOF_GSAS")
+
+#: What says a dataset is **time of flight**. Each is the reference's: the
+#: macros of §19.3.11 ("Neutron TOF" — the data-file macros, the emission
+#: profile ``TOF_LAM``, the calibration ``TOF_x_axis_calibration`` that "writes
+#: the pk_xo equation … converting d-spacing to x-axis space", and the three
+#: profile macros), and ``pk_xo`` written in ``D_spacing`` (§5.2: "the peak
+#: position for neutron time-of-flight data is typically calculated in
+#: time-of-flight space, tof = t0 + t1 d + t2 d²"). ``gui_tof_*`` is not in the
+#: reference and is here from the archive, which writes it beside ``pk_xo``.
+#: ``neutron_data`` is not: constant-wavelength neutron data states it too.
+_TOF_CONSTRUCT = re.compile(
+    r"\b(?:(?P<macro>TOF_XYE|TOF_GSAS|TOF_x_axis_calibration|TOF_LAM"
+    r"|TOF_Exponential|TOF_PV|TOF_CS_L|TOF_CS_G)\s*\("
+    r"|(?P<gui>gui_tof_\w+)|(?P<pk>pk_xo\b[^;{}]*?\bD_spacing\b))")
+
+
+def _time_of_flight(stripped: str, active: str) -> dict:
+    """The datasets of ``active`` that state a time-of-flight construct, each
+    with the names of the constructs (:data:`_TOF_CONSTRUCT`).
+
+    A user macro whose body states one is a construct too, named by the macro:
+    the archive's time-of-flight files write the ``pk_xo`` equation inside a
+    macro of their own and invoke it once per bank, and the definition is
+    excised before the text is read. A construct above every
+    dataset opener is charged to **every** dataset, since this reader cannot
+    say which one TOPAS gave it to and the cost of guessing low is a
+    time-of-flight bank read as constant wavelength.
+    """
+    def names(text: str) -> list[tuple[int, str]]:
+        return [(m.start(), m["macro"] or ("gui_tof_*" if m["gui"] else
+                                           "pk_xo in D_spacing"))
+                for m in _TOF_CONSTRUCT.finditer(text)]
+
+    bodies = {}
+    for m in _MACRO_DEF.finditer(stripped):
+        name = re.match(r"macro\s*(\w*)", m.group())[1]
+        if name:
+            bodies[name] = _brace_body(stripped, m.end() - 1)
+    tof_macros: set[str] = set()
+    while True:     # a macro invoking a time-of-flight macro is one too
+        grown = {n for n, b in bodies.items() if n not in tof_macros and (
+            names(b) or any(re.search(rf"\b{re.escape(t)}\b", b)
+                            for t in tof_macros))}
+        if not grown:
+            break
+        tof_macros |= grown
+    quoted = re.sub(r'"[^"\n]*"', lambda m: _blank(m.group()), active)
+    found = names(quoted)
+    for name in tof_macros:
+        found += [(m.start(), name)
+                  for m in re.finditer(rf"\b{re.escape(name)}\b", quoted)]
+    starts = [o.start() for o in _BLOCK.finditer(active)
+              if o["kw"] in _DATASET_OPENERS]
+    out: dict = {}
+    for at, name in found:
+        before = sum(1 for s in starts if s <= at)
+        for k in ([before - 1] if before else range(len(starts)) or [None]):
+            out.setdefault(k, set()).add(name)
+    return {k: tuple(sorted(v)) for k, v in sorted(
+        out.items(), key=lambda kv: (kv[0] is not None, kv[0] or 0))}
 
 #: TOPAS's ``STR(...)`` macro expands to a whole ``str`` block. Its definition
 #: lives in a macro library this reader does not have and may not reproduce
@@ -1880,6 +2188,7 @@ def read_topas_inp(path: str | Path, *,
     active = _excise_macro_defs(resolve_ifdefs(stripped))
     # Where a card attaches is decided before any card is read: the block split
     # below *is* the assumption that a card belongs to the block it sits in.
+    active = expand_for_loops(active, path)
     refuse_moved_attachment(active, path)
     # THE masked text, built once and sliced by every token scan below (the
     # cell-key scan, the site split, the file-level site count) — offset-for-
@@ -1934,6 +2243,13 @@ def read_topas_inp(path: str | Path, *,
         model.goniometer_radius_mm = float(m.group(1))
     model.geometry = ("debye_scherrer" if _CAPILLARY.search(active)
                       else "bragg_brentano")
+    # A time-of-flight dataset has no diffractometer geometry of either kind,
+    # so a file whose every dataset is one states none — `bragg_brentano` was
+    # this reader's default, and on such a file it was a fact nobody wrote.
+    model.time_of_flight = _time_of_flight(stripped, active)
+    if model.time_of_flight and set(model.time_of_flight) >= (
+            set(range(model.n_datasets)) or {None}):
+        model.geometry = None
     if m := re.search(rf"bkg\s*((?:\s*@?\s*{_NUM}`?)+)", active):
         model.background_terms = len(re.findall(_NUM, m.group(1)))
     model.data_files = [d.strip() for d in re.findall(r'xdd\s+"?([^"\n]+)', active)]
@@ -2453,6 +2769,20 @@ def read_topas_inp(path: str | Path, *,
                          f"`model.phases`"),
                 where=[f"coverage.refused.{h.feature.name}"
                        for h in model.coverage.refused]))
+        for k, constructs in model.time_of_flight.items():
+            diagnostics.append(Diagnostic(
+                level="warning", code="TOPAS_FEATURE_REFUSED",
+                message=(f"{path}: "
+                         f"{'the file' if k is None else f'dataset {k}'} is "
+                         f"time of flight (it states {', '.join(constructs)}), "
+                         f"and this build models constant-wavelength "
+                         f"diffraction only — time of flight is issue #193 — "
+                         f"so `to_structure` refuses its phases rather than "
+                         f"build them as if from a constant-wavelength "
+                         f"pattern. Read `model.phases` for what the file "
+                         f"states and `model.time_of_flight` for which "
+                         f"datasets are time of flight"),
+                where=[f"time_of_flight.{k}"]))
         for phase_name, raw, canonical in origin_translations:
             diagnostics.append(Diagnostic(
                 level="info", code="TOPAS_ORIGIN_TRANSLATED",
@@ -2962,6 +3292,25 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     # refinement* is made, and that is where a claim it cannot support has to
     # stop. Filtered to the phases actually being built, so `dataset=` selecting
     # a specimen without the rigid body still builds.
+    # **A time-of-flight dataset is refused by name** (issue #193), the same
+    # read-reports/build-refuses split as the coverage arm below, at dataset
+    # rather than phase scope — so `dataset=` selecting a constant-wavelength
+    # dataset of a mixed file still builds.
+    tof = sorted({ph.dataset for ph in phases_in
+                  if ph.dataset in model.time_of_flight},
+                 key=lambda d: (d is not None, d or 0))
+    if tof:
+        stated = "; ".join(
+            f"{'the file' if d is None else f'dataset {d}'}: "
+            f"{', '.join(model.time_of_flight[d])}" for d in tof)
+        raise TopasInpError(
+            f"{model.path or '<model>'}: the phases asked for belong to a "
+            f"time-of-flight pattern ({stated}), and this build models "
+            f"constant-wavelength diffraction only — neutron time of flight "
+            f"is issue #193. Building them would put a time-of-flight bank's "
+            f"scale and refine flags into a constant-wavelength model. Pass "
+            f"dataset=N for a constant-wavelength dataset of this file, or "
+            f"read `model.phases` for what the file states.")
     building = {ph.name for ph in phases_in}
     blocked = [h for h in model.coverage.refused
                if not h.phases or building.intersection(h.phases)]
