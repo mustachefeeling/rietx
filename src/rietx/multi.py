@@ -48,6 +48,7 @@ from .refine import (
     _WAVELENGTH_PINNED_BY_HELD_HISTOGRAM,
     _absorption_diagnostics,
     _absorption_record,
+    _air_scatter_undeclared_diagnostics,
     _capillary_offset_diagnostics,
     _cell_runaway_diagnostic,
     _cell_runaway_withheld,
@@ -192,6 +193,8 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
                       "histogram the model does not describe"),
     "_low_angle_diagnostics": (
         (HISTOGRAM,), "the region below one pattern's first reflection"),
+    "_air_scatter_undeclared_diagnostics": (
+        (HISTOGRAM,), "one histogram's residual against its own background"),
     "_qpa_esd_unavailable_diagnostics": (
         (HISTOGRAM,), "through _quantify_phases, which partitions one "
                       "histogram's scales"),
@@ -813,6 +816,8 @@ class MultiHistogramRefinement:
             diags.extend(_data_support_diagnostics(None, model))
             diags.extend(_low_angle_diagnostics(model, values, y_calc, stats,
                                                 ticks, tick_support))
+            diags.extend(_air_scatter_undeclared_diagnostics(model, values,
+                                                             y_calc, stats))
 
             histograms.append(HistogramResult(
                 label=model.meta.get("label", "") or f"hist{h}",

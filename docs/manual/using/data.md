@@ -813,12 +813,17 @@ under the second-difference penalty of {eq}`bg-penalty`.
 the clamped cubic basis, `BackgroundPSpline.lambda_smooth` is the penalty
 weight, a pure number measured against the data's own weight per coefficient,
 so the same λ means the same stiffness in counts, in a normalised unit or at
-any step size. `BackgroundPSpline.lambda_units` set to `"intensity"` restores the
+any step size. It does not make the penalty's *cost* count-independent: on a
+well-counted pattern with a broad hump the default λ = 1 can be stiffer than the
+data supports ({ref}`bg-lambda-counts`). `BackgroundPSpline.lambda_units` set to `"intensity"` restores the
 pre-1.5.1 rows, whose λ moved with the intensity unit, to reproduce an old fit.
 `BackgroundPSpline.air_scatter` scales an additive 1/2θ term for the
 low-angle air rise. The air term is absent (`None`) unless you declare it or
 `auto_background` does, which it does only when the pattern diagnostics report
 the rise. Absent, it has no parameter path, so no plan can free it.
+A fit on a P-spline without it reports `AIR_SCATTER_UNDECLARED` when its own
+residual says the term would have cut χ², which is how a rise the envelope
+trigger missed comes to light.
 `BackgroundPSpline.for_range` builds uniform knots over a 2θ range, with no air
 term.
 
