@@ -1639,9 +1639,9 @@ class Refinement:
         next stage compile or ``parameters()`` call performs anyway.
         """
         candidate = self.structure if structure is None else structure
-        if structure is not None:
-            # a replacement structure is a new statement entering the fit
-            _judge_magnetic_groups(structure)
+        # No magnetic-group judgement here: ``edit`` receives refined state
+        # plus one change (the GUI's funnel for every model edit), which is the
+        # case :func:`_refined_state` exists for (issue #597).
         try:
             table = ParameterTable(
                 candidate, self.instrument if instrument is None else instrument)

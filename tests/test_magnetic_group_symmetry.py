@@ -402,14 +402,20 @@ def test_the_packages_own_constructions_do_not_rejudge_refined_state():
         rx.Refinement(drifted, instrument)
 
 
-def test_a_replacement_structure_is_judged_by_edit():
-    rx, instrument, fresh, _ = _refined_ref()
+def test_edit_does_not_rejudge_a_refined_supercell_with_one_value_changed():
+    """The GUI hands ``edit`` the refined structure with one field changed;
+    that is refined state, not a statement entering."""
+    rx, instrument, fresh, drifted = _refined_ref()
     ref = rx.Refinement(fresh, instrument)
-    bad = _Phase(name="c", space_group="P 4/m m m", atoms=[_mn()], **C8)
-    from rietx.schemas.structure import Structure
+    ref.structure = drifted.model_copy(deep=True)       # what a fit leaves
+    edited = ref.structure.model_copy(deep=True)
+    edited.phases[0].atoms[0].biso.value += 0.01
+    ref.edit(structure=edited)
+    assert ref.structure == edited
+    # positive arm: a caller constructing a Refinement from the same drifted
+    # values is still judged
     with pytest.raises(ValueError, match=REFUSED):
-        ref.edit(structure=Structure(phases=[bad]))
-    ref.edit(structure=fresh)                           # positive arm
+        rx.Refinement(drifted, instrument)
 
 
 def test_a_multi_histogram_refinement_judges_the_statement():
