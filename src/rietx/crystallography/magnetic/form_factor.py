@@ -74,18 +74,53 @@ Brown fitted (Freeman & Desclaux 1979, *J. Magn. Magn. Mater.* **12**,
 fingerprint and a self-consistency battery in
 ``tests/test_magnetic_form_factor_table.py``.
 
+**Ce³⁺ is Brown's row printed as "Ce²⁺"** (issue #626, 2026-10-01).  The
+row ITC Vol. C labels Ce²⁺ in Tables 4.4.5.3/.7/.11/.13 reproduces Freeman &
+Desclaux's (1979, *J. Magn. Magn. Mater.* **12**, 11-21, Table 7) Dirac-Fock
+**Ce³⁺** values at Brown's own printed fit error in all four orders.  Freeman
+& Desclaux computed no Ce²⁺, and the row's ⟨r²⟩ (1.29 a.u., their Ce³⁺ is
+1.31) lies below Nd²⁺'s, where a Ce²⁺ would lie above.  The label is a
+misprint, carried by Brown's own data file too.  So the row is stored here
+under ``"Ce3+"``, and ``"Ce2+"`` is refused by name with that reason
+(:data:`_RETIRED`): no Ce²⁺ form factor is tabulated in any source this
+module holds, and serving Ce³⁺ physics under a Ce²⁺ key would be silent.
+
 Cross-checked against published rows: Fe³⁺ ⟨j₀⟩ against Gupta *et al.*
 (arXiv:1309.3683), which cites Dianoux & Lander's *Neutron Data Booklet*, and
 Mn²⁺ ⟨j₀⟩ against the MnF₂ polarised-neutron study of 2025 — seven of seven
 coefficients each.
 
-**Pr³⁺.** Its ⟨j₀⟩ row is in no table of the 2004 print. It is the Pr³⁺ row
-of Brown's data file, which also carries a ⟨j₂⟩ that this table does not.
-That ⟨j₀⟩ reproduces Lisher & Forsyth's (1971) non-relativistic Pr³⁺ curve
-(*Acta Cryst.* A **27**, 545-549) to 0.05 % rms, so it is not on the
-Dirac-Fock footing of the other rare-earth rows. What to ship for Pr³⁺ is
-left to a follow-up (#593); until then a Pr³⁺ moment with g ≠ 2 is
-refused by name.
+**Pr³⁺ is Lisher & Forsyth's (1971)** fit, both orders (*Acta Cryst.* A
+**27**, 545-549, Tables 1 and 2, pp. 545-546; issue #626).  ITC Vol. C
+carries no Pr row of any charge.  The Pr³⁺ ⟨j₀⟩ this table held until
+2026-10-01 was the Pr³⁺ row of P. J. Brown's data file (not in the print),
+which matches Lisher & Forsyth's curve to 0.05 % rms; Lisher & Forsyth also
+give the matching ⟨j₂⟩, so both orders now come from one citable fit.
+**Its footing differs from its neighbours'.**  Lisher & Forsyth fitted the
+non-relativistic Hartree-Fock values of Blume, Freeman & Watson (1962,
+*J. Chem. Phys.* **37**, 1245), while every other rare-earth row here is a fit
+to Dirac-Fock values.  The relativistic 4f shell is more extended: Pr³⁺'s
+⟨r²⟩ from this ⟨j₀⟩ is 1.065 a.u., about 10 % smaller than the ≈ 1.2 a.u.
+a Dirac-Fock Pr³⁺ would have between Freeman & Desclaux's Ce³⁺ (1.309) and
+Nd³⁺ (1.114).  A Pr³⁺ form factor here therefore falls off more slowly with
+s than a Dirac-Fock one would, and a refined Pr³⁺ moment can differ from one
+refined with a Dirac-Fock row by a few per cent at high angle.
+:func:`approximation_name` names Lisher & Forsyth wherever their fit is in
+force.
+
+Two stored forms
+----------------
+Brown's coefficients (:data:`_J0`, :data:`_J2`) are the **7-parameter** form
+above.  Lisher & Forsyth (1971, eq. 1 and eq. 2) fit a **5-parameter** form,
+two exponentials and a constant, with the same argument s = sinθ/λ::
+
+    ⟨j₀⟩(s) = A·e^(−a·s²) + B·e^(−b·s²) + C
+    ⟨jₙ⟩(s) = s²·[A·e^(−a·s²) + B·e^(−b·s²) + C]   (n ≥ 2)
+
+The two are separate least-squares fits, not two spellings of one table, so
+they are stored apart (:data:`_J0_LISHER`, :data:`_J2_LISHER`) and never
+reshaped into each other.  :func:`j0`/:func:`j2` dispatch per ion to
+whichever store carries it; :func:`coefficients` is Brown's store only.
 
 ``periodictable`` also carries a pre-combined "J" entry for Ce²⁺, Ce³⁺ and
 Pr³⁺ (``add_form_factor("J", ...)``) that looks, at first glance, like it
@@ -93,17 +128,17 @@ could supply a Ce³⁺ row — but its own module docstring says the combination
 it uses does not actually follow the ⟨j₀⟩ + (2/g − 1)⟨j₂⟩ (or any stated)
 formula "in practice", and a single combined curve cannot be decomposed back
 into separate ⟨j₀⟩(s) and ⟨j₂⟩(s) without knowing which g it assumed. It was
-not used here for that reason either: see ``checks/agent_reports/
-form-factor-publication-REQUEST.md`` for what a genuine Ce³⁺ row would need.
+not used here for that reason either.
 
 References
 ----------
 * Brown, P. J. *International Tables for Crystallography* Vol. C, § 4.4.5 —
   the ⟨jₙ⟩ coefficients and the analytic form.
 * Freeman, A. J. & Desclaux, J. P. (1979). *J. Magn. Magn. Mater.* **12**,
-  11-21 — the Dirac-Fock ⟨jₙ⟩ values Brown fitted for the rare-earth rows.
+  11-21 — the Dirac-Fock ⟨jₙ⟩ values Brown fitted for the rare-earth rows;
+  the evidence that his "Ce²⁺" row is Ce³⁺.
 * Lisher, E. J. & Forsyth, J. B. (1971). *Acta Cryst.* A **27**, 545-549 —
-  an independent (non-relativistic) fit, used as a third lineage.
+  the 5-parameter form; Tables 1 and 2 (pp. 545-546) supply Pr³⁺.
 * Halpern, O. & Johnson, M. H. (1939). *Phys. Rev.* **55**, 898 — magnetic
   neutron scattering by an atom with a magnetization density.
 * Rodríguez-Carvajal, J. (1993). *Physica B* **192**, 55 — FullProf; the
@@ -119,8 +154,12 @@ import numpy as np
 
 from ...backend import get_backend
 
-#: (A, a, B, b, C, c, D) of one ⟨jₙ⟩ fit.
+#: (A, a, B, b, C, c, D) of one Brown-shaped ⟨jₙ⟩ fit.
 Coefficients = tuple[float, float, float, float, float, float, float]
+
+#: (A, a, B, b, C) of one Lisher & Forsyth (1971) ⟨jₙ⟩ fit: two exponentials
+#: and a constant (module docstring, "Two stored forms").
+LisherCoefficients = tuple[float, float, float, float, float]
 
 #: Atomic numbers whose ions need an explicit ``g``: the lanthanides (Ce-Lu)
 #: and the actinides (Th-Cm).  Not "f block" as a shell-filling statement — it
@@ -130,7 +169,7 @@ _G_REQUIRED_Z = frozenset(range(58, 72)) | frozenset(range(90, 97))
 
 _ION = re.compile(r"^([A-Z][a-z]?)(?:(\d+)([+-]))?$")
 
-#: ⟨j₀⟩ coefficients, keyed by ion (``"Cr"``, ``"Cr3+"``).  96 rows: the 3d
+#: ⟨j₀⟩ coefficients, keyed by ion (``"Cr"``, ``"Cr3+"``).  95 rows: the 3d
 #: and 4d transition series, the 4f rare earths and the 5f actinides Brown's
 #: table carries.
 _J0: dict[str, Coefficients] = {
@@ -191,8 +230,7 @@ _J0: dict[str, Coefficients] = {
     "Rh1+": (0.3342, 29.7564, 1.2209, 9.4384, -0.5755, 5.332, 0.021),
     "Pd": (0.2003, 29.3633, 1.1446, 9.5993, -0.3689, 4.0423, 0.0251),
     "Pd1+": (0.5033, 24.5037, 1.9982, 6.9082, -1.524, 5.5133, 0.0213),
-    "Ce2+": (0.2953, 17.6846, 0.2923, 6.7329, 0.4313, 5.3827, -0.0194),
-    "Pr3+": (0.0504, 24.9989, 0.2572, 12.0377, 0.7142, 5.0039, -0.0219),
+    "Ce3+": (0.2953, 17.6846, 0.2923, 6.7329, 0.4313, 5.3827, -0.0194),   # printed "Ce2+"
     "Nd2+": (0.1645, 25.0453, 0.2522, 11.9782, 0.6012, 4.9461, -0.018),
     "Nd3+": (0.054, 25.0293, 0.3101, 12.102, 0.6575, 4.7223, -0.0216),
     "Sm2+": (0.0909, 25.2032, 0.3037, 11.8562, 0.625, 4.2366, -0.02),
@@ -232,10 +270,7 @@ _J0: dict[str, Coefficients] = {
     "Am7+": (0.3601, 12.7299, 1.964, 5.1203, -1.356, 3.7142, 0.0316),
 }
 
-#: ⟨j₂⟩ coefficients, same keys.  95 rows — every ion above except **Pr³⁺**,
-#: whose ⟨j₂⟩ is in Brown's data file but not in the ITC print or in
-#: ``periodictable`` (module docstring, "Pr³⁺").  That gap is not papered
-#: over: a Pr³⁺ moment with g ≠ 2 is refused by name.
+#: ⟨j₂⟩ coefficients, same keys: every ion of :data:`_J0`.
 _J2: dict[str, Coefficients] = {
     "Sc": (10.8172, 54.327, 4.7353, 14.847, 0.6071, 4.218, 0.0011),
     "Sc1+": (8.5021, 34.285, 3.2116, 10.994, 0.4244, 3.605, 0.0009),
@@ -294,7 +329,7 @@ _J2: dict[str, Coefficients] = {
     "Rh1+": (4.026, 18.95, 3.1663, 7.0, -0.0296, 0.486, 0.0127),
     "Pd": (3.3105, 14.726, 2.6332, 5.862, -0.0437, 1.13, 0.0053),
     "Pd1+": (4.2749, 17.9, 2.7021, 6.354, -0.0258, 0.7, 0.0071),
-    "Ce2+": (0.9809, 18.063, 1.8413, 7.769, 0.9905, 2.845, 0.012),
+    "Ce3+": (0.9809, 18.063, 1.8413, 7.769, 0.9905, 2.845, 0.012),   # printed "Ce2+"
     "Nd2+": (1.453, 18.34, 1.6196, 7.285, 0.8752, 2.622, 0.0126),
     "Nd3+": (0.6751, 18.342, 1.6272, 7.26, 0.9644, 2.602, 0.015),
     "Sm2+": (1.036, 18.425, 1.4769, 7.032, 0.881, 2.437, 0.0152),
@@ -334,6 +369,28 @@ _J2: dict[str, Coefficients] = {
     "Am7+": (1.8845, 9.161, 2.0746, 4.042, -0.1318, 1.723, 0.002),
 }
 
+#: Lisher & Forsyth (1971) ⟨j₀⟩, Table 1 p. 545, and ⟨j₂⟩, Table 2 p. 546, in
+#: their 5-parameter form (module docstring, "Two stored forms").  Pr³⁺ only:
+#: ITC Vol. C carries no Pr row.  The trailing ε is the paper's rms fit error,
+#: never a coefficient.
+_J0_LISHER: dict[str, LisherCoefficients] = {
+    "Pr3+": (0.2277, 16.11, 0.7923, 5.277, -0.0204),   # epsilon = 0.0802
+}
+_J2_LISHER: dict[str, LisherCoefficients] = {
+    "Pr3+": (1.8655, 8.1948, 1.0779, 2.6641, 0.01199),   # epsilon = 0.6399
+}
+
+#: Keys this table refuses with a reason rather than the generic "no row".
+_RETIRED: dict[str, str] = {
+    "Ce2+": ("ITC Vol. C prints a row labelled Ce2+, but it is a Ce3+ "
+             "calculation: it reproduces Freeman & Desclaux's (1979) "
+             "Dirac-Fock Ce3+ values at Brown's own fit error, and they "
+             "computed no Ce2+. No Ce2+ magnetic form factor is tabulated in "
+             "any source this table holds, so the key is refused rather than "
+             "serve Ce3+ physics under a Ce2+ name. Write 'Ce3+' if the site "
+             "is Ce3+"),
+}
+
 
 def _element(ion: str) -> tuple[str, int]:
     """``("Cr3+")`` → ``("Cr", 3)``; raises on anything this table cannot key."""
@@ -342,15 +399,15 @@ def _element(ion: str) -> tuple[str, int]:
         raise ValueError(
             f"{ion!r} is not a magnetic-ion spelling. Write the element symbol "
             f"with its charge — 'Cr3+', 'Fe2+', 'Ho3+' — or the neutral atom "
-            f"'Cr'. Available: {', '.join(sorted(_J0))}")
+            f"'Cr'. Available: {', '.join(magnetic_ions())}")
     sym, n, sign = m.groups()
     charge = 0 if n is None else int(n) * (1 if sign == "+" else -1)
     return sym, charge
 
 
 def magnetic_ions() -> tuple[str, ...]:
-    """Every ion the table carries a ⟨j₀⟩ for, sorted."""
-    return tuple(sorted(_J0))
+    """Every ion the table carries a ⟨j₀⟩ for, in either stored form, sorted."""
+    return tuple(sorted(set(_J0) | set(_J0_LISHER)))
 
 
 def has_ion(ion: str) -> bool:
@@ -359,8 +416,9 @@ def has_ion(ion: str) -> bool:
     ``ion`` is matched verbatim (``"Dy"`` and ``"Dy3+"`` are different keys) —
     used to decide whether a bare element symbol resolves *neutrally* before
     :func:`resolve_assumed_ion` is tried (issue-magnetic-form-factor D1).
+    Either stored form counts.
     """
-    return ion in _J0
+    return ion in _J0 or ion in _J0_LISHER
 
 
 #: The majority oxidation state that is **magnetic**, for a bare element
@@ -390,9 +448,7 @@ _ASSUMED_ION: dict[str, tuple[str, str]] = {
     # because a *different* oxidation state of the same element is at least
     # as common and is the one with no unpaired 4f electron:
     "Ce": ("Ce3+", "Ce4+ is 4f0 (non-magnetic); Ce3+ (4f1) is the reported "
-                    "magnetic state. This table's own <j0>/<j2> rows carry "
-                    "Ce2+ only (Brown, ITC Vol C), not Ce3+, so this default "
-                    "does not currently resolve here -- see has_ion/coefficients"),
+                    "magnetic state"),
     "Eu": ("Eu2+", "Eu3+ is 4f6 (J=0, non-magnetic); Eu2+ (4f7, S=7/2) is the "
                     "state reported for magnetically ordered Eu compounds "
                     "(EuO, EuS, EuTe and similar)"),
@@ -415,9 +471,9 @@ def assumed_ion_for_element(element: str) -> tuple[str, str] | None:
 
     Returns ``(ion, reason)`` from :data:`_ASSUMED_ION`, or ``None`` when this
     table declares no default for it at all.  This is the *declared* table —
-    it does not check that the declared ion actually has a ⟨j₀⟩ row (Ce does
-    not, see the table above); :func:`resolve_assumed_ion` is the one that
-    checks and is what a caller should use.
+    it does not check that the declared ion actually has a ⟨j₀⟩ row;
+    :func:`resolve_assumed_ion` is the one that checks and is what a caller
+    should use.
     """
     return _ASSUMED_ION.get(element)
 
@@ -427,10 +483,9 @@ def resolve_assumed_ion(element: str) -> tuple[str, str] | None:
 
     ``None`` both when ``element`` has no declared default at all (every 3d/4d
     element, and every f-block element this table's ionic rows do not cover)
-    and when it has one that does not currently resolve (``"Ce"`` -> declared
-    ``"Ce3+"``, but this table's rows are ``Ce2+`` only) — a designed-but-
-    unavailable default must come back exactly like "no default", never
-    silently succeed for a different ion than the one recorded as the reason.
+    and when it has one that does not resolve — a designed-but-unavailable
+    default must come back exactly like "no default", never silently succeed
+    for a different ion than the one recorded as the reason.
     """
     entry = assumed_ion_for_element(element)
     if entry is None:
@@ -473,10 +528,7 @@ def lande_g(S: float, L: float, J: float) -> float:
 _ASSUMED_ION_SLJ: dict[str, tuple[float, float, float]] = {
     # Ln3+, 4f^n ground terms (Hund's rules: maximise S, then L, then
     # J = |L-S| for a shell under half full, J = L+S over half full).
-    "Ce3+": (0.5, 3.0, 2.5),   # 4f1,  2F5/2  (declared for D3's "if it ever
-                               # resolves" -- this table's <j0> rows carry
-                               # Ce2+ only, so resolve_assumed_ion("Ce")
-                               # never reaches this g)
+    "Ce3+": (0.5, 3.0, 2.5),   # 4f1,  2F5/2
     "Pr3+": (1.0, 5.0, 4.0),   # 4f2,  3H4
     "Nd3+": (1.5, 6.0, 4.5),   # 4f3,  4I9/2
     "Sm3+": (2.5, 5.0, 2.5),   # 4f5,  6H5/2
@@ -518,8 +570,8 @@ def assumed_lande_g(ion: str) -> float | None:
 
 
 def has_j2(ion: str) -> bool:
-    """Whether the table carries ⟨j₂⟩ for this ion (Pr³⁺ is the one that is not)."""
-    return ion in _J2
+    """Whether the table carries ⟨j₂⟩ for this ion, in either stored form."""
+    return ion in _J2 or ion in _J2_LISHER
 
 
 def needs_explicit_g(ion: str) -> bool:
@@ -541,24 +593,58 @@ def needs_explicit_g(ion: str) -> bool:
     return z in _G_REQUIRED_Z
 
 
+def _no_row_error(ion: str) -> KeyError:
+    """The "no row for this ion" refusal: names the ion, lists what the table
+    carries for its element, and gives the reason for a retired key."""
+    if ion in _RETIRED:
+        return KeyError(f"no magnetic form factor for {ion!r}: {_RETIRED[ion]}")
+    sym, _ = _element(ion)
+    near = sorted(k for k in magnetic_ions() if _element(k)[0] == sym)
+    hint = (f" This table carries {', '.join(near)} for {sym}."
+            if near else f" It carries no {sym} at all.")
+    return KeyError(
+        f"no magnetic form factor for {ion!r}.{hint} A magnetic ion absent "
+        f"from the table is refused rather than mapped to a neighbour: "
+        f"Fe2+ and Fe3+ are visibly different form factors and the "
+        f"substitution would come back as a wrong moment with a small esd")
+
+
 def coefficients(ion: str) -> tuple[Coefficients, Coefficients | None]:
-    """``(⟨j₀⟩ coefficients, ⟨j₂⟩ coefficients or None)`` for one ion.
+    """``(⟨j₀⟩ coefficients, ⟨j₂⟩ coefficients or None)`` in Brown's 7-parameter
+    form, for one ion.
 
     Refuses an ion the table does not carry **by name**, listing the ions of
     the same element that are carried — the useful reply when someone typed
-    ``Fe4+`` for a table that stops at Fe⁴⁺, or ``Mn3`` for ``Mn3+``.
+    ``Fe4+`` for a table that stops at Fe⁴⁺, or ``Mn3`` for ``Mn3+``.  An ion
+    stored only in Lisher & Forsyth's form (Pr³⁺) is refused here too, since
+    the forms are not interchangeable: :func:`lisher_coefficients` returns it,
+    and :func:`j0`/:func:`j2` evaluate either.
     """
     if ion not in _J0:
-        sym, _ = _element(ion)
-        near = sorted(k for k in _J0 if _element(k)[0] == sym)
-        hint = (f" This table carries {', '.join(near)} for {sym}."
-                if near else f" It carries no {sym} at all.")
-        raise KeyError(
-            f"no magnetic form factor for {ion!r}.{hint} A magnetic ion absent "
-            f"from the table is refused rather than mapped to a neighbour: "
-            f"Fe2+ and Fe3+ are visibly different form factors and the "
-            f"substitution would come back as a wrong moment with a small esd")
+        if ion in _J0_LISHER:
+            raise KeyError(
+                f"{ion!r} is stored in Lisher & Forsyth's (1971) 5-parameter "
+                f"form, not Brown's 7-parameter one: use lisher_coefficients, "
+                f"or j0/j2 to evaluate it")
+        raise _no_row_error(ion)
     return _J0[ion], _J2.get(ion)
+
+
+def lisher_coefficients(ion: str) -> tuple[LisherCoefficients, LisherCoefficients]:
+    """``(⟨j₀⟩, ⟨j₂⟩)`` in Lisher & Forsyth's (1971) 5-parameter form (Table 1
+    p. 545, Table 2 p. 546), for the ions stored that way (Pr³⁺).
+
+    An ion stored in Brown's 7-parameter form is refused naming that form,
+    the mirror of :func:`coefficients`' refusal of a Lisher ion.
+    """
+    if ion not in _J0_LISHER:
+        if ion in _J0:
+            raise KeyError(
+                f"{ion!r} is stored in Brown's (ITC Vol. C § 4.4.5) "
+                f"7-parameter form, not Lisher & Forsyth's 5-parameter one: "
+                f"use coefficients, or j0/j2 to evaluate it")
+        raise _no_row_error(ion)
+    return _J0_LISHER[ion], _J2_LISHER[ion]
 
 
 def _jn(coef: Coefficients, stol2, *, stol2_factor: bool):
@@ -569,23 +655,42 @@ def _jn(coef: Coefficients, stol2, *, stol2_factor: bool):
     return stol2 * out if stol2_factor else out
 
 
+def _jn_lisher(coef: LisherCoefficients, stol2, *, stol2_factor: bool):
+    """Lisher & Forsyth's form: Lisher, E. J. & Forsyth, J. B. (1971),
+    *Acta Cryst.* A **27**, 545-549, eqs. (1) and (2), p. 545."""
+    xp = get_backend()
+    a0, a1, b0, b1, c = coef
+    out = a0 * xp.exp(-a1 * stol2) + b0 * xp.exp(-b1 * stol2) + c
+    return stol2 * out if stol2_factor else out
+
+
 def j0(ion: str, stol):
-    """⟨j₀⟩(s) for ``ion``; ``stol`` = s = sinθ/λ in Å⁻¹.  ⟨j₀⟩(0) = 1 by construction."""
-    c0, _ = coefficients(ion)
+    """⟨j₀⟩(s) for ``ion``; ``stol`` = s = sinθ/λ in Å⁻¹.  ⟨j₀⟩(0) = 1 to the fit.
+
+    Evaluates whichever stored form carries the ion (module docstring, "Two
+    stored forms"); this and :func:`j2` are the one evaluator of the table.
+    """
     stol = get_backend().asarray(stol, dtype=np.float64)
-    return _jn(c0, stol * stol, stol2_factor=False)
+    if ion in _J0:
+        return _jn(_J0[ion], stol * stol, stol2_factor=False)
+    if ion in _J0_LISHER:
+        return _jn_lisher(_J0_LISHER[ion], stol * stol, stol2_factor=False)
+    raise _no_row_error(ion)
 
 
 def j2(ion: str, stol):
     """⟨j₂⟩(s), **including its s² factor**, so ⟨j₂⟩(0) = 0 exactly."""
-    _, c2 = coefficients(ion)
-    if c2 is None:
+    stol = get_backend().asarray(stol, dtype=np.float64)
+    if ion in _J2:
+        return _jn(_J2[ion], stol * stol, stol2_factor=True)
+    if ion in _J2_LISHER:
+        return _jn_lisher(_J2_LISHER[ion], stol * stol, stol2_factor=True)
+    if has_ion(ion):
         raise KeyError(
             f"the form-factor table carries ⟨j0⟩ for {ion!r} but no ⟨j2⟩, so "
             f"the dipole approximation cannot be completed for it. Refine it "
             f"with g = 2 (⟨j0⟩ alone) only if that is the physics you mean")
-    stol = get_backend().asarray(stol, dtype=np.float64)
-    return _jn(c2, stol * stol, stol2_factor=True)
+    raise _no_row_error(ion)
 
 
 #: What ``magnetic_form_factor`` used, for the report and the diagnostics: the
@@ -598,10 +703,13 @@ def approximation_name(ion: str, g: float | None) -> str:
     """The name of the approximation :func:`magnetic_form_factor` will use.
 
     Resolved without evaluating anything, so a report can name it before a fit
-    runs and a caller can compare two species' treatment.
+    runs and a caller can compare two species' treatment.  An ion whose rows
+    are Lisher & Forsyth's (Pr³⁺) says so, since their footing differs from
+    the rest of the table (module docstring, "Pr³⁺").
     """
     gg = resolve_g(ion, g)
-    return J0_ONLY if gg == 2.0 else f"{J0_J2}, g = {gg:g}"
+    name = J0_ONLY if gg == 2.0 else f"{J0_J2}, g = {gg:g}"
+    return name + (" (Lisher & Forsyth 1971)" if ion in _J0_LISHER else "")
 
 
 def resolve_g(ion: str, g: float | None) -> float:
@@ -633,8 +741,7 @@ def magnetic_form_factor(ion: str, stol, g: float | None = None):
     **not** Q, and it is not Q/4π expressed in some other unit.
 
     At g = 2 the ⟨j₂⟩ coefficient is exactly zero and the term is not
-    evaluated at all, so a 3d ion's f is ⟨j₀⟩ bit-for-bit and an ion with no
-    ⟨j₂⟩ row (Pr³⁺) is usable there.
+    evaluated at all, so a 3d ion's f is ⟨j₀⟩ bit-for-bit.
     """
     gg = resolve_g(ion, g)
     c2_weight = 2.0 / gg - 1.0

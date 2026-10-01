@@ -1070,7 +1070,7 @@ class Phase(_InheritsDeclaredDefaults):
                 f"is the operator list that says which directions the site "
                 f"allows and how the moment propagates over the orbit. State "
                 f"it as the magCIF operator loop, or as a UNI/BNS/OG number")
-        from ..crystallography.magnetic.form_factor import coefficients, resolve_g
+        from ..crystallography.magnetic.form_factor import j0, resolve_g
         from ..crystallography.magnetic.operators import in_span
 
         group = self.magnetic_symmetry.group()
@@ -1104,7 +1104,9 @@ class Phase(_InheritsDeclaredDefaults):
                     f"the origin and the parameter cannot move — seed a "
                     f"physical estimate (1-5 μ_B for a 3d ion) instead")
             try:
-                coefficients(atom.moment.ion)
+                # existence only; j0 searches both stored forms, coefficients
+                # only Brown's (Pr3+ is Lisher & Forsyth's)
+                j0(atom.moment.ion, 0.0)
             except KeyError as exc:
                 # pydantic wraps a ValueError into its own report and lets a
                 # KeyError through raw, which would reach a caller as an
