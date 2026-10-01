@@ -25,6 +25,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 2026-09-24 | P1 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1451](1451-the-extinction-a-powder-has.md) | The extinction a powder has | 2026-09-30 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-09-28 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
+| [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | 2026-10-01 | P3 | [v1.7](#v1-7) |
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | 2026-09-30 | P2 | [v1.8](#v1-8) |
@@ -374,7 +375,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1501](1501-cut-and-keep.md) | Cut and keep: a figure of part of the structure | ✅ 2026-09-30 | — | [1470](1470-a-structure-figure-without-a-browser.md) |
 | [1502](1502-an-extent-beyond-one-cell.md) | An extent beyond one cell | ✅ 2026-09-30 | — | [1470](1470-a-structure-figure-without-a-browser.md) ([1501](1501-cut-and-keep.md) soft) |
 | [1503](1503-the-figure-reports-on-itself.md) | The figure reports on itself, and picks a view | ✅ 2026-09-30 | — | [1470](1470-a-structure-figure-without-a-browser.md) ([1501](1501-cut-and-keep.md) soft) |
-| [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | ⬜ | P3 | [1501](1501-cut-and-keep.md), [1502](1502-an-extent-beyond-one-cell.md), [1503](1503-the-figure-reports-on-itself.md) |
+| [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | 🔄 2026-10-01 | P3 | [1501](1501-cut-and-keep.md), [1502](1502-an-extent-beyond-one-cell.md), [1503](1503-the-figure-reports-on-itself.md) |
 | [1505](1505-rietview-the-figure-leaves-the-package.md) | rietview: the figure leaves the package | ⬜ | P4 | [1504](1504-the-figure-surface-measured-with-real-agents.md) |
 
 ## <a id="v1-8"></a>v1.8 — rigid bodies

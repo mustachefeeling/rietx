@@ -1,6 +1,6 @@
 # WP-1504 — the figure surface measured with real agents
 
-Milestone: v1.7 · Status: ⬜
+Milestone: v1.7 · Status: 🔄 2026-10-01 — claimed by @yue-here
 Depends on: 1501, 1502, 1503
 Priority: P3 2026-09-30 — 1501, 1502 and 1503 have landed, so it can start; costed menu first
 
