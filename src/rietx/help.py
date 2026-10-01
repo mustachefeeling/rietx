@@ -1272,7 +1272,10 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "The fitted widths do not follow the declared instrumental width "
             "law. Either the specimen is broadened, which is a finding, or "
             "the declared instrument is wrong, which is a setup error. The "
-            "message carries the ratio so the two can be told apart."
+            "message carries the ratio so the two can be told apart. On a "
+            "refinement the census is compared with the fitted widths, size "
+            "and strain included, so it fires only when no phase's widths "
+            "came within the factor."
         ),
         anchor="profiles.html#the-instrument-sample-width-split",
     ),

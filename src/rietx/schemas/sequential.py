@@ -88,8 +88,9 @@ class SeriesEntry(Base):
     #: itself.
     phase_agreement: list[PhaseAgreement] = Field(default_factory=list)
     #: The moment arm (WP-1327) for **this pattern**, one row per magnetic
-    #: site, written by :func:`rietx.sequential._entry_from_result` from the
-    #: same :func:`rietx.report.magnetic.analyse_moments` every single-pattern
+    #: site, written by :meth:`rietx.sequential.SequentialRefinement._chain`
+    #: (through ``_moment_evidence``) from the same
+    #: :func:`rietx.report.magnetic.analyse_moments` every single-pattern
     #: report uses — never a second reading of it (WP-1076).
     #:
     #: **It is here because a series without it is a trap** (WP-1329).  A

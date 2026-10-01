@@ -57,11 +57,17 @@ Conventions, each of which a caller can get wrong silently:
    is real — the whole {0,½}³ zone-boundary set of a primitive lattice — and
    where the phases are complex the character inner products come back the
    same anyway, because the character set is closed under conjugation.  What
-   sees it is D(i)D(j) = ω(i,j)·D(i·j), which
-   :func:`magnetic_representation` checks before returning, and the
-   equivariance of the projected vectors, which :func:`basis_vectors` checks.
-   Both are measured against a deliberately conjugated representation in
-   ``tests/test_magnetic_modes.py``.
+   sees it, **where the factor system ω is not real**, is D(i)D(j) =
+   ω(i,j)·D(i·j), which :func:`magnetic_representation` checks before
+   returning, and the equivariance of the projected vectors, which
+   :func:`basis_vectors` checks.  Both are measured against a deliberately
+   conjugated representation in ``tests/test_magnetic_modes.py``.  Where ω is
+   real — every symmorphic group, and some others such as P 6₃/m m c at K —
+   the return phases can still be complex (P 6/m m m at K: |Im| up to 0.87),
+   and a conjugated phase then passes both checks: conj(ω) = ω, and the
+   conjugated Γ is equivalent to the true one, so the projected vectors are
+   equivariant too.  Only the field-side test,
+   ``tests/test_magnetic_field_convention.py``, sees the sign there.
 
 3. **The vector action is a REAL-space action: R untransposed.**  Root
    ``CLAUDE.md``'s Rᵀ rule is about *hkl*; a moment sitting at a site is a
@@ -165,7 +171,22 @@ pairing makes a real moment arrangement:
 * 2k ≡ 0 with FS = 0 — D* is an inequivalent small irrep at the *same* k; the
   physically irreducible representation is D ⊕ D*, same amplitude count.
 * 2k ≡ 0 with FS = −1 (pseudoreal) — D ≅ D* but only through an antisymmetric
-  intertwiner, so no real gauge exists and the real form is D ⊕ D.
+  intertwiner, so no real gauge exists and the real form is D ⊕ D: the real
+  irreducible representation has dimension 2d_ν and complexifies to D ⊕ D, so
+  the n_ν complex copies pair up and the real isotypic block has n_ν·d_ν
+  dimensions, **not** 2·n_ν·d_ν (n_ν is even).
+
+The free real-amplitude count is therefore a function of (2k ∈ L*, FS) alone,
+never of whether the projected vectors happen to come out real
+(:attr:`IrrepBasis.free_real_amplitudes`): n_ν·d_ν for FS = ±1 at 2k ∈ L*;
+2·n_ν·d_ν for FS = 0 there, a conjugate pair at the same k counted once
+(:attr:`ModeTable.total_free_real_amplitudes`); and 2·n_ν·d_ν for **every**
+irrep at 2k ∉ L*, with no pair collapsed — C and iC give different real fields
+(cos versus sin modulation) even when ψ is real, and an irrep at k whose
+characters are the conjugate of another's is a second irrep at k, not the
+partner, which lives at −k.  At 2k ∈ L* the counts close on 3N, at 2k ∉ L* on
+2·3N; ``tests/test_magnetic_modes.py`` asserts both on the zone-boundary
+pseudoreal cases and on P 3 and P 4 off it.
 
 Izyumov, Naish & Ozerov (1991) is cited for the **middle** case only, the
 physically irreducible pairing of an irrep with an inequivalent conjugate
@@ -487,7 +508,12 @@ def permutation_representation(space_group, site_xyz, k) -> PermutationRepresent
     opposite sign is a representation too — of the *conjugate* factor system —
     and it decomposes into the same multiplicities, measured, at every k tried,
     which is why :func:`magnetic_representation` checks the factor system
-    explicitly instead of inferring it from a decomposition that closes.
+    explicitly instead of inferring it from a decomposition that closes.  That
+    check, and the equivariance one, see the sign only **where ω is not real**;
+    where it is real (every symmorphic group) the conjugate factor system is the
+    same one, and only the field-side test,
+    ``tests/test_magnetic_field_convention.py``, tells the two apart (module
+    docstring, convention 2).
 
     The orbit is the primitive-cell one (:func:`orbit_positions`), and the
     operations are gemmi's coset representatives in
@@ -691,11 +717,14 @@ def magnetic_representation(space_group, site_xyz, k, kind: str = "axial"
 
     The result is verified before it is returned: the matrices must satisfy
     D(i)·D(j) = ω(i, j)·D(i·j) with ω the *irreps module's* factor system, to
-    :data:`MODE_ATOL`.  That identity, and the equivariance
-    :func:`basis_vectors` checks, are the only two things that tell a correct
-    return-vector phase from a conjugated one — the decomposition cannot, and
-    the check is cheap (:func:`_factor_system_residual` works on the tensor
-    factors, not on the 3N × 3N product).
+    :data:`MODE_ATOL`.  Where ω is not real, that identity and the equivariance
+    :func:`basis_vectors` checks are the only two runtime checks that tell a
+    correct return-vector phase from a conjugated one — the decomposition
+    cannot, and the check is cheap (:func:`_factor_system_residual` works on the
+    tensor factors, not on the 3N × 3N product).  Where ω is real (every
+    symmorphic group) neither can, and only the field-side test,
+    ``tests/test_magnetic_field_convention.py``, does (module docstring,
+    convention 2).
     """
     if kind not in VECTOR_KINDS:
         raise ValueError(f"kind must be one of {VECTOR_KINDS}, got {kind!r}")
@@ -912,12 +941,25 @@ class IrrepBasis:
     def free_real_amplitudes(self) -> int:
         """Real amplitudes a refinement varies for this irrep.
 
-        n_ν·d_ν when the basis vectors are real, twice that when the physical
-        moment needs a complex amplitude and its conjugate partner — the
-        distinction :attr:`pairing` spells out.
+        The real dimension of the irrep's share of the real moment space,
+        from (2k ∈ L*, Frobenius–Schur indicator) alone — never from whether
+        the vectors came out real (Bradley & Cracknell, 1972, Def. 1.3.7
+        p. 20 and Th. 4.6.2 p. 204):
+
+        * 2k ∉ L*: 2·n_ν·d_ν.  The field Σ C·ψ·e^{+2πik·R} + c.c. needs a
+          complex C even when ψ is real, because C and iC give different
+          fields; its conjugate partner lives at −k.
+        * 2k ∈ L*, FS = +1: n_ν·d_ν (real gauge, real amplitudes).
+        * 2k ∈ L*, FS = 0: 2·n_ν·d_ν, for the pair D ⊕ D*; the partner at the
+          same k carries no more, and :attr:`ModeTable.total_free_real_amplitudes`
+          counts the pair once.
+        * 2k ∈ L*, FS = −1 (pseudoreal): n_ν·d_ν.  The real irrep has
+          dimension 2d_ν and complexifies to D ⊕ D, so it occurs n_ν/2 times.
         """
         count = self.multiplicity * self.irrep.dimension
-        return count if self.real else 2 * count
+        if not self.representation.little.has_minus_k or self.irrep.frobenius_schur == 0:
+            return 2 * count
+        return count
 
     def labels(self) -> tuple[tuple[int, int, str], ...]:
         """``(basis_set, row, label)`` for every vector, in storage order."""
@@ -1134,7 +1176,8 @@ def _reality_and_pairing(rep: SiteRepresentation, irrep: SmallIrrep, real_gauge:
     return "pseudoreal", (
         "the irrep is pseudoreal: D is equivalent to D* only through an antisymmetric "
         "intertwiner, so no real gauge exists and the physically irreducible representation "
-        "is D + D with complex amplitudes"
+        "is D + D. The vectors are complex, but the n copies pair up under that intertwiner, "
+        "so the real moment space they span has n*d dimensions, not 2*n*d"
     )
 
 
@@ -1182,20 +1225,25 @@ class ModeTable:
     def total_free_real_amplitudes(self) -> int:
         """Real mode amplitudes over the physically irreducible representations.
 
-        A genuinely complex irrep and its complex conjugate are **one**
-        physically irreducible representation: the realification of either
-        already spans the whole real isotypic block, so a conjugate pair is
-        counted once.  Measured (M-7, 2026-09-06) on P4 at Γ with a general
+        At 2k ∈ L* a genuinely complex irrep (FS = 0) and its complex conjugate
+        are **one** physically irreducible representation: the realification of
+        either already spans the whole real isotypic block, so a conjugate pair
+        is counted once.  Measured (M-7, 2026-09-06) on P4 at Γ with a general
         site: summing every irrep gives 3 + 6 + 6 + 3 = 18 against 3N = 12; with
         the pair collapsed the total equals 3N on all 230 standard settings.
         Self-conjugate irreps (real characters, which includes every pseudoreal
         one) are always counted.
+
+        At 2k ∉ L* nothing is collapsed: the conjugate of an irrep at k is an
+        irrep at −k, so two irreps at k with conjugate characters are two
+        different irreps, and the total is 2·3N (P 3 at K: 6 + 6 + 6 = 18).
         """
         total = 0
         kept: list[np.ndarray] = []
+        pairs_collapse = self.representation.little.has_minus_k
         for b in self.bases:
             chi = np.asarray(b.irrep.characters)
-            if not np.allclose(chi, np.conj(chi), atol=1e-8) and any(
+            if pairs_collapse and not np.allclose(chi, np.conj(chi), atol=1e-8) and any(
                     np.allclose(np.conj(other), chi, atol=1e-8) for other in kept):
                 continue
             kept.append(chi)

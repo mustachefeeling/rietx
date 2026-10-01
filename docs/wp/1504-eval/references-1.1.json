@@ -1,0 +1,342 @@
+{
+ "rutile-right": {
+  "model": "opus",
+  "session_id": "79a68643-1579-4a9a-947e-936c33e82c23",
+  "returncode": 0,
+  "cost_usd": 0.10132840000000001,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "The Ti–O octahedra are drawn as shaded polyhedra, which look like rhombi when viewed down c."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "The blue unit-cell outline is a square, with a and b in the plane and c labelled at the origin."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "Octahedra sit at all four cell corners and at the cell centre, and the centre one is rotated relative to the corner ones."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "Every atom and polyhedron sits fully inside the frame, with a white margin on all sides."
+   }
+  ],
+  "yes": true,
+  "expected": true
+ },
+ "rutile-default": {
+  "model": "opus",
+  "session_id": "5eb16b7b-83cd-4719-91a2-62a7b3116e41",
+  "returncode": 0,
+  "cost_usd": 0.1038844,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "Grey translucent TiO6 octahedra are drawn as polyhedra, with O spheres at their vertices."
+   },
+   {
+    "n": 2,
+    "verdict": "no",
+    "saw": "The blue cell outline is a skewed, hexagon-like oblique projection with a, b and c all labelled in the plane, so it is not a square seen down c."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "Octahedra sit at several positions, including the cell corners and a differently oriented one at the centre."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and polyhedra lie inside the frame with white margin, and none is clipped."
+   }
+  ],
+  "yes": false,
+  "expected": false
+ },
+ "gypsum-right": {
+  "model": "opus",
+  "session_id": "92f608fc-a153-4288-8381-4b244d897fe0",
+  "returncode": 0,
+  "cost_usd": 0.1052464,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "The Ca and SO₄ tetrahedra form a single horizontal double-row band in the middle, with water above and below it and no second band."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "Water O atoms sit above and below the band, and each one carries two white H atoms."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "The layer runs horizontally across the picture as a narrow band, viewed down c with b vertical."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and polyhedra, including the outermost O atoms at the left and right, lie inside the image with white margin around them."
+   }
+  ],
+  "yes": true,
+  "expected": true
+ },
+ "gypsum-default": {
+  "model": "opus",
+  "session_id": "224af593-64aa-4069-b6cf-c7de18f4974c",
+  "returncode": 0,
+  "cost_usd": 0.1056624,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "no",
+    "saw": "A whole unit cell is drawn with Ca and SO₄ spread through its volume, and no single Ca–SO₄ band can be picked out."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "Several red O atoms each carry two small white H atoms, which are visible water molecules."
+   },
+   {
+    "n": 3,
+    "verdict": "no",
+    "saw": "The view is an oblique perspective of the unit-cell box, and no layer runs across the picture as a band."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and tetrahedra sit inside the frame with white margin around them."
+   }
+  ],
+  "yes": false,
+  "expected": false
+ },
+ "calcite-right": {
+  "model": "opus",
+  "session_id": "4e3a8a6b-9016-4868-a3d5-dc0bbb3661c2",
+  "returncode": 0,
+  "cost_usd": 0.1022078,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "Only black C and red O atoms appear, with no Ca-coloured spheres anywhere."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "There are no shaded polyhedra, only ball-and-stick atoms and the blue cell outline."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "Each black C atom is bonded to three red O atoms in a trigonal arrangement, though many stray O atoms with dangling bond stubs surround them."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms sit inside the frame with white margin on every side, and none is clipped."
+   }
+  ],
+  "yes": true,
+  "expected": true
+ },
+ "calcite-default": {
+  "model": "opus",
+  "session_id": "e6a18b08-45ff-4dc0-a114-dc0351d7c2a1",
+  "returncode": 0,
+  "cost_usd": 0.1025678,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "no",
+    "saw": "Large green Ca spheres appear throughout the cell."
+   },
+   {
+    "n": 2,
+    "verdict": "no",
+    "saw": "Green CaO6 octahedra are drawn as translucent polyhedra all over the figure."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "Black C atoms are bonded to three red O atoms in trigonal groups, though some are seen edge-on."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and polyhedra sit inside the frame with a margin, and none are clipped."
+   }
+  ],
+  "yes": false,
+  "expected": false
+ },
+ "nac-right": {
+  "model": "opus",
+  "session_id": "5106d985-0c28-4dbc-b064-922af7df55b1",
+  "returncode": 0,
+  "cost_usd": 0.1206712,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "Each Al sits inside a shaded maroon octahedron drawn as a polyhedron."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "The view looks down c; the outline encloses a 4×4 grid of octahedra at quarter-cell spacing, and the a and b axis labels sit at the edge midpoints, so it spans 2×2 cells with one cell along c."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "All atoms and polyhedra sit inside the white margin, with nothing touching the image border."
+   }
+  ],
+  "yes": true,
+  "expected": true
+ },
+ "nac-default": {
+  "model": "opus",
+  "session_id": "36d29d47-fb06-413d-8f28-d1c20854c290",
+  "returncode": 0,
+  "cost_usd": 0.10256320000000001,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "The Al–F octahedra are drawn as translucent maroon polyhedra."
+   },
+   {
+    "n": 2,
+    "verdict": "no",
+    "saw": "Only one unit-cell box is drawn, with a, b and c labelled at its corners, so this is a single cell rather than a 2×2×1 block."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "Every atom and polyhedron sits inside the frame with white margin around it, and nothing touches the edge."
+   }
+  ],
+  "yes": false,
+  "expected": false
+ },
+ "lab6-right": {
+  "model": "opus",
+  "session_id": "a64c265e-8157-4c2f-8f40-2f0a3d05e1ed",
+  "returncode": 0,
+  "cost_usd": 0.1033188,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "Six copper-coloured B spheres sit at the cell centre, bonded to one another as an octahedron."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "No La atoms are drawn, and every bond runs between B atoms."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "The octahedron and the unit-cell outline sit fully inside the frame with white margin on every side."
+   }
+  ],
+  "yes": true,
+  "expected": true
+ },
+ "lab6-default": {
+  "model": "opus",
+  "session_id": "3ed65ba8-8203-47b2-b8bc-e0e2cf993934",
+  "returncode": 0,
+  "cost_usd": 0.10591880000000001,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "no",
+    "saw": "No B6 octahedron can be picked out; the boron atoms appear as the ends of bonds radiating from La, and the centre is too cluttered to show one."
+   },
+   {
+    "n": 2,
+    "verdict": "no",
+    "saw": "Many half-purple, half-tan bonds join the large purple La atoms to the brown B atoms."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "All atoms sit inside the frame with white margin around them."
+   }
+  ],
+  "yes": false,
+  "expected": false
+ },
+ "fap-right": {
+  "model": "opus",
+  "session_id": "3bcf8b09-06d9-4079-a5ad-ee58ba2d3e73",
+  "returncode": 0,
+  "cost_usd": 0.15330700000000003,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "The blue cell outline is an equal-sided rhombus with a 120° angle between a and b, and the F columns at the corners appear end-on, each ringed by a hexagon of Ca."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "A legend at top left pairs a coloured disc with each label: Ca1, Ca2, P3, F4, O5, O6 and O7."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "The hues match (teal Ca, orange P, green F, red O), though depth shading makes many Ca, O and the small F atoms darker than their legend discs."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and tetrahedra sit well inside the frame with white margin on every side, so nothing is clipped."
+   }
+  ],
+  "yes": true,
+  "expected": true
+ },
+ "fap-default": {
+  "model": "opus",
+  "session_id": "02b2ae79-832e-4e75-9c64-f95536570ad0",
+  "returncode": 0,
+  "cost_usd": 0.09756700000000001,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "no",
+    "saw": "The cell is drawn in an oblique 3D perspective as a box with the c edge visible, so it is not a rhombus and the channels are not seen end-on."
+   },
+   {
+    "n": 2,
+    "verdict": "no",
+    "saw": "The figure has no legend, only the axis labels a, b and c."
+   },
+   {
+    "n": 3,
+    "verdict": "no",
+    "saw": "There is no legend to compare against the atom colours."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and polyhedra sit inside the white margin, and none touch the frame edge."
+   }
+  ],
+  "yes": false,
+  "expected": false
+ }
+}

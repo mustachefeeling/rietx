@@ -82,7 +82,9 @@ CLAIM_HINT = "pick another WP, or /wp-start step 2 to see the whole table"
 # The WP index's merge driver (WP-1507).  Git reads a driver from config and
 # never from the tree, so its two keys in .git/config are the scan's one write.
 # The second half gives git its own conflict markers when the script declines
-# a merge, or when the checkout predates the script.
+# a merge, or when the checkout predates the script.  The check reads only
+# .git/config, because the /pr-review bench overrides the driver in its own
+# worktree config and the scan must not rewrite .git/config on every start there.
 MERGE_DRIVER = (
     "python3 .claude/hooks/wp_index.py --merge %O %A %B || git merge-file %A %O %B"
 )
@@ -398,7 +400,7 @@ def handover_findings(root: Path, limit: int = 50) -> list[Finding]:
 
 def ensure_merge_driver(root: Path) -> None:
     """Point `merge=wpindex` (.gitattributes) at the index's row merge."""
-    if _git(root, "config", "--get", "merge.wpindex.driver") != MERGE_DRIVER:
+    if _git(root, "config", "--local", "--get", "merge.wpindex.driver") != MERGE_DRIVER:
         _git(root, "config", "merge.wpindex.name", "the WP index, merged row by row")
         _git(root, "config", "merge.wpindex.driver", MERGE_DRIVER)
 

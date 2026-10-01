@@ -234,6 +234,81 @@ def _width_diagnostics(det: Detection) -> list[Diagnostic]:
     return out
 
 
+def refinement_width_diagnostics(measured: float,
+                                 modelled: dict[int, tuple[str, float]],
+                                 ) -> list[Diagnostic]:
+    """``PEAK_WIDTH_LAW_MISMATCH`` on a refinement: the census against the
+    fitted model's own widths (WP-1336, issue #249).
+
+    ``measured`` is :func:`~rietx.indexing.peaks.width_census`'s median FWHM;
+    ``modelled`` maps a phase index to its name and the median FWHM the
+    *returned* parameters give that phase at the census lines — instrument
+    U,V,W,X,Y plus the phase's isotropic size and strain terms.  It fires when
+    no phase comes within :data:`WIDTH_MISMATCH_RATIO` of the data, either
+    way, and reports the phase that came closest.
+
+    **Why the census is wired into the fit rather than shipped as a
+    precondition call** (issue #249 asked which).  The siloing was real — the
+    census sat inside :func:`~rietx.indexing.peaks.detect_peaks`, and a
+    refinement builds no :class:`~rietx.indexing.peaks.Detection` — but only
+    the census half of a detection is needed, and it needs no groups.  Three
+    reasons decide it the other way:
+
+    * a ``check_instrument_against(data)`` call says nothing to the caller who
+      does not know to make it, and #249's caller had no reason to, with a
+      correctly transcribed profile;
+    * a precondition can only compare against the *declared* instrument, which
+      is the wrong comparator for a refinement: every sample whose size or
+      strain the plan refines would trip it, and so would every fit whose
+      refined U,V,W cured the mismatch — a warning true of the start and false
+      of the answer.  The fit is the one place the reported widths exist;
+    * cost: one ``find_peaks`` pass and twelve ``peak_widths`` on channels the
+      fit already holds — measured at 1–3 ms on the three ``examples/`` fits
+      (5 332–22 003 channels), against fits of seconds.
+
+    The code and its row are the indexing path's, unchanged, because the
+    statement is the same — the data's widths disagree with the widths the
+    package was told to expect — and the help entry's fork (a broadened
+    specimen is a finding, a wrong instrument a setup error) is the reading
+    both paths need.  The *comparator* differs, and the message says which.
+    """
+    if not modelled or not measured > 0.0:
+        return []
+    ratios = {ip: measured / fw for ip, (_name, fw) in modelled.items() if fw > 0.0}
+    if not ratios:
+        return []
+    ip = min(ratios, key=lambda k: abs(np.log(ratios[k])))
+    ratio = ratios[ip]
+    if 1.0 / WIDTH_MISMATCH_RATIO < ratio < WIDTH_MISMATCH_RATIO:
+        return []
+    name, fw = modelled[ip]
+    others = "" if len(modelled) == 1 else ", the closest of the model's phases"
+    if ratio >= WIDTH_MISMATCH_RATIO:
+        suggestion = ("the data's lines are broader than anything the model "
+                      "can make: either the specimen is broadened (free the "
+                      "phase's lor_size / lor_strain, a finding) or the "
+                      "declared instrument.profile is too narrow for this "
+                      "diffractometer (a setup error: calibrate on a standard "
+                      "and load the profile).  Do not quote intensities, "
+                      "occupancies or ADPs until the widths agree")
+    else:
+        suggestion = ("the model's lines are broader than the data's: a "
+                      "width term ran away (read SIZE_UNUSUALLY_SMALL, "
+                      "STRAIN_UNUSUALLY_LARGE and BOUND_HIT) or the declared "
+                      "instrument.profile is broader than this diffractometer "
+                      "— the ProfileTCHZ default W = 1e-3 deg² is a "
+                      "synchrotron line")
+    return [Diagnostic(
+        level="warning", code="PEAK_WIDTH_LAW_MISMATCH",
+        message=(f"measured FWHM {measured:.4f}° (median of the "
+                 f"{PEAK_WIDTH_CENSUS_N} most prominent lines) against "
+                 f"{fw:.4f}° from the fitted widths of phase {ip} ({name}"
+                 f"{others}: instrument U,V,W,X,Y plus its size and strain "
+                 f"terms) — a factor of {ratio:.1f}"),
+        where=[f"phases.{ip}", "instrument.profile"],
+        suggestion=suggestion, value=ratio)]
+
+
 def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
                         ) -> list[Diagnostic]:
     """Translate a :class:`DataQualityReport` into the ``INDEX_*`` messages.
