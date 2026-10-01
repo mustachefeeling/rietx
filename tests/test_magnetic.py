@@ -233,6 +233,8 @@ def test_pr3_is_lisher_and_forsyth_in_both_orders():
     assert all(has_j2(i) for i in magnetic_ions())
     with pytest.raises(KeyError, match="Lisher & Forsyth"):
         coefficients("Pr3+")
+    with pytest.raises(KeyError, match=r"'Fe3\+' is stored in Brown's .* 7-parameter form"):
+        lisher_coefficients("Fe3+")      # the mirror refusal: in the table, in the other form (#630 review)
     # the 5-parameter form, evaluated as printed, s² factor on <j2>
     s = 0.3
     A, a, B, b, C = lisher_coefficients("Pr3+")[0]

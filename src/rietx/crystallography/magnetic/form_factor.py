@@ -632,8 +632,17 @@ def coefficients(ion: str) -> tuple[Coefficients, Coefficients | None]:
 
 def lisher_coefficients(ion: str) -> tuple[LisherCoefficients, LisherCoefficients]:
     """``(⟨j₀⟩, ⟨j₂⟩)`` in Lisher & Forsyth's (1971) 5-parameter form (Table 1
-    p. 545, Table 2 p. 546), for the ions stored that way (Pr³⁺)."""
+    p. 545, Table 2 p. 546), for the ions stored that way (Pr³⁺).
+
+    An ion stored in Brown's 7-parameter form is refused naming that form,
+    the mirror of :func:`coefficients`' refusal of a Lisher ion.
+    """
     if ion not in _J0_LISHER:
+        if ion in _J0:
+            raise KeyError(
+                f"{ion!r} is stored in Brown's (ITC Vol. C § 4.4.5) "
+                f"7-parameter form, not Lisher & Forsyth's 5-parameter one: "
+                f"use coefficients, or j0/j2 to evaluate it")
         raise _no_row_error(ion)
     return _J0_LISHER[ion], _J2_LISHER[ion]
 
@@ -647,7 +656,8 @@ def _jn(coef: Coefficients, stol2, *, stol2_factor: bool):
 
 
 def _jn_lisher(coef: LisherCoefficients, stol2, *, stol2_factor: bool):
-    """Lisher & Forsyth's (1971) form, their eqs. (1) and (2)."""
+    """Lisher & Forsyth's form: Lisher, E. J. & Forsyth, J. B. (1971),
+    *Acta Cryst.* A **27**, 545-549, eqs. (1) and (2), p. 545."""
     xp = get_backend()
     a0, a1, b0, b1, c = coef
     out = a0 * xp.exp(-a1 * stol2) + b0 * xp.exp(-b1 * stol2) + c
