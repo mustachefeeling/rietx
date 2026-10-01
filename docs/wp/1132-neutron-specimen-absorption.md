@@ -1,6 +1,6 @@
 # WP-1132 — a neutron µR, from the table this package already ships
 
-Milestone: unscheduled · Status: 🔄 2026-09-29 — claimed by @mustachefeeling (PR #541)
+Milestone: unscheduled · Status: 🔄 2026-10-01 — claimed by @mustachefeeling; items 1–6 (PR #541) and #543's Brindley µ (PR #576) landed
 Track: The specimen is not an angle, and the neutron follow-through
 Depends on: the CW neutron source (PR #108, open) — `NeutronSource` and
 `crystallography/neutron.py` are both prerequisites and both land there
@@ -134,6 +134,25 @@ estimation off.
   (`model/absorption.py`), and that is unchanged by the radiation.
 
 ## Handover log
+
+- **2026-10-01** — A neutron fit that sets `particle_radius_um` now takes its
+  Brindley correction from the neutron attenuation, so #543's silent wrong
+  weight fractions are gone. A structure written with a nuclide (`D`, `2H`,
+  `7Li`) now runs QPA and weighs the nuclide as itself. *Done:* PR #576
+  (`839321a4`), merged as `03870fec`, closing #543 and #556 follow-up 1.
+  `LINEAR_ATTENUATION_BY_SOURCE` now maps a source kind to a per-phase µ that
+  takes a `ZMV`. X-ray reads `element_counts`, neutron reads the new
+  `species_counts`, and `CompiledModel.source_kind` is frozen at compile.
+  *Checked by the review:* the test is #543's NaCl + W reproduction on HB-2A's
+  λ, against Sears µ computed by hand, with an arm that fails on the old code.
+  Every species a neutron fit can compile resolves: `D` and `2H` both give
+  0.306 cm⁻¹ against H's 3.29 (4 atoms in 100 Å³, 1.54 Å). X-ray numbers do
+  not move. *Gotchas:* `qpa.element_symbol` now maps `D` to `H`, while
+  `gui/structure3d.py` keeps its own parser that passes `D` through. The
+  nuclide-mass rule (²H at 2.0141, otherwise the mass number A, within 0.26 %
+  above A = 4) is in Part 1 and the docstring, but not beside
+  ZM = Σ occ·m·A in `docs/manual/corrections.md:352`. *Next:* that Part 2
+  sentence, then the `### Inherited` items.
 
 - **2026-09-29** — Items 1–6 landed on PR #541, one commit each. Four places
   where the tree differs from this file's text. (a) Step 5 and the Acceptance
