@@ -94,7 +94,7 @@ record is `docs/wp/1504-eval/runs/`, and the table is in 1504's handover log.
 - [x] `hidden=` and `dangling_bonds` agree: a test on calcite and LaB₆.
 - [x] The GUI checked against the changed `build` (`gui/CLAUDE.md`).
 - [x] Tests + PNGs to `tests/output/`.
-- [ ] Skill: `api-figure.md` regenerated (`docs/skill/make_api_index.py`) and
+- [x] Skill: `api-figure.md` regenerated (`docs/skill/make_api_index.py`) and
   its `hidden=` sentence corrected, beside the description task.
 - [ ] WP-1504's `### Inherited`: the merge commit to pin as a third condition.
 
