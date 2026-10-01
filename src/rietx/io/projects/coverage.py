@@ -314,15 +314,18 @@ PREPROCESSOR: tuple[Feature, ...] = (
        "#define", "#ifdef", "#ifndef", "#else", "#endif"),
     _f("hash conditionals", Stance.READ,
        "text selected by a condition over `#prm` hash parameters: numbers, "
-       "+ - * /, the comparisons and `And`; `#out` inside a condition; "
+       "+ - * / and `^` (left-binding, as Table 3-1 states it), the "
+       "comparisons and `And`; `#out` inside a condition; "
        "`Run_Number` as the first run's 0, reported as TOPAS_FIRST_RUN_READ "
        "where `num_runs` states more",
        "#prm", "#if", "#elseif", "#out", "Run_Number",
        why="`#out` outside a condition is left in the text, so a value read "
            "through one refuses as stated-but-unreadable"),
     _f("undecidable hash condition", Stance.REFUSED,
-       "a condition reaching `Rand`, a string, or a function other than `And`",
-       "Rand", "Mod",
+       "a condition reaching `Rand`, a string, a function other than `And`, "
+       "a character that is no operator here (`%`, a lone `=`), or a `^` "
+       "Table 3-1 does not order (`-x^y`, `x*y^z`)",
+       "Rand", "Mod", "%",
        why="§19.1.2's own `#prm ran = Constant(Rand(0,1)); #if ran < 0.5;` has "
            "no answer a reader can give, and neither does a function this "
            "reader does not evaluate"),

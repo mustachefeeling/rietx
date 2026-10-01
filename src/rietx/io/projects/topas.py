@@ -523,8 +523,18 @@ _HASH_TOKEN = re.compile(r"""
   | (?P<out>\#out\b)
   | (?P<name>[A-Za-z_]\w*)
   | (?P<str>"[^"\n]*")
-  | (?P<op>==|!=|<=|>=|<|>|[-+*/(),;])
+  | (?P<op>==|!=|<=|>=|<|>|[-+*/^(),;])
 """, re.X)
+
+
+def _unknown(char: str) -> _Undecidable:
+    """The refusal for a character no hash equation here contains. Without it
+    the equation was decided from the part before it: `#if n^2 > 5;` from `n`,
+    `#prm n = 2 % 3;` as 2 (#587 review)."""
+    return _Undecidable(
+        f"it reaches {char!r}, which is not an operator this reader evaluates "
+        f"(numbers, + - * / ^, the six comparisons, `And` and parentheses), "
+        f"so deciding it from the text before {char!r} would be a guess")
 
 
 #: The reference's own example of a condition with no answer (§19.1.2).
@@ -549,16 +559,23 @@ class _HashValue:
 
 
 def _hash_tokens(text: str, start: int, stop: int | None = None):
-    """``(kind, text, offset)`` from ``start`` until a newline, ``stop``, or a
-    character no hash equation contains."""
+    """``(kind, text, offset)`` from ``start`` until a newline, a ``;`` (which
+    is yielded), or ``stop``. A character no hash equation contains ends the
+    tokens as one ``("bad", char, offset)`` token, so the parser refuses it if
+    it reaches it (:func:`_unknown`) and not otherwise — the reference's
+    inline `#if (Run_Number) type out.txt` ends at `)`, before the `.`."""
     pos, stop = start, len(text) if stop is None else stop
     while pos < stop:
         m = _HASH_TOKEN.match(text, pos, stop)
         if not m:
+            if text[pos] != "\n":
+                yield "bad", text[pos], pos
             return
         pos = m.end()
         if m.lastgroup != "ws":
             yield m.lastgroup, m.group(), m.start()
+            if m.group() == ";":
+                return
 
 
 class _HashParser:
@@ -577,6 +594,8 @@ class _HashParser:
 
     def take(self, want: str | None = None):
         kind, tok, off = self.peek()
+        if kind == "bad":
+            raise _unknown(tok)
         if kind is None or (want is not None and tok != want):
             raise _Undecidable(f"expected {want or 'a value'}, found "
                                f"{tok or 'the end of the line'!r}")
@@ -610,14 +629,48 @@ class _HashParser:
         return value
 
     def multiplicative(self) -> float:
-        value = self.unary()
+        value, _ = self.power()
         while self.peek()[1] in ("*", "/"):
             _, op, _ = self.take()
-            right = self.unary()
+            right, raised = self.power()
+            if raised:
+                raise _Undecidable(
+                    f"it writes `^` to the right of `{op}`, and Table 3-1 "
+                    f"states `x^y*z = (x^y)*z` and `x^y/z = (x^y)/z` but not "
+                    f"which of `(x{op}y)^z` and `x{op}(y^z)` `x{op}y^z` is")
             if op == "/" and right == 0:
                 raise _Undecidable("it divides by zero")
             value = value * right if op == "*" else value / right
         return value
+
+    def power(self) -> tuple[float, bool]:
+        """``x^y`` as Table 3-1 (Equation Operators and Functions) states it:
+        "Calculates x to the power of y", binding left — `x^y^z = (x^y)^z`,
+        `x^y*z = (x^y)*z`, `x^y/z = (x^y)/z`. Only what those three forms
+        settle is decided: a signed base (`-x^y`) and a `^` right of `*` or
+        `/` are refused, since the table orders neither. Whether a `^` was
+        read is returned for :meth:`multiplicative`'s check."""
+        signed = self.peek()[1] in ("-", "+")
+        value = self.unary()
+        raised = False
+        while self.peek()[1] == "^":
+            if signed:
+                raise _Undecidable(
+                    "it raises a signed value to a power, and Table 3-1 does "
+                    "not state whether `-x^y` is `(-x)^y` or `-(x^y)`")
+            self.take()
+            exponent = self.unary()
+            if value == 0 and exponent < 0:
+                raise _Undecidable("it divides by zero")
+            if value < 0 and exponent != int(exponent):
+                raise _Undecidable(
+                    "it raises a negative number to a non-integer power")
+            try:
+                value = math.pow(value, exponent)
+            except OverflowError:
+                raise _Undecidable("its power overflows") from None
+            raised = True
+        return value, raised
 
     def unary(self) -> float:
         if self.peek()[1] in ("-", "+"):
@@ -711,6 +764,8 @@ def _hash_condition(text: str, start: int,
     if tok == ";":
         parser.take()
         stop = parser.end()
+    elif kind == "bad":
+        raise _unknown(tok)
     elif kind == "op":
         raise _Undecidable(f"this reader cannot evaluate past {tok!r}")
     return value != 0, parser.run_dependent, stop
@@ -732,6 +787,8 @@ def _hash_definition(text: str, start: int,
     parser = _HashParser(tokens, params)
     try:
         _precheck(tokens)
+        if bad := [tok for kind, tok, _ in tokens if kind == "bad"]:
+            raise _unknown(bad[0])
         if any(kind == "str" for kind, _, _ in tokens):
             raise _Undecidable("is a string, and a string condition is not "
                                "evaluated here — only numbers")
@@ -772,6 +829,8 @@ def _num_runs(active: str, params: dict[str, _HashValue]) -> float | None:
         parser = _HashParser(_hash_tokens(active, m.end()), params)
         value = parser.expression()
     except _Undecidable:
+        return None
+    if parser.peek()[0] == "bad":         # `num_runs = 2^3 % 2`: not 8
         return None
     return None if parser.run_dependent else value
 

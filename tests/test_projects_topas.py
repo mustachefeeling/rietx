@@ -1713,6 +1713,84 @@ def test_an_undecidable_condition_refuses_naming_the_reason(
         _sites(tmp_path, text)
 
 
+@pytest.mark.parametrize("text, char", [
+    # The #587 review's four cases, each decided from its prefix before.
+    ("#prm n = 2;\n#if n % 2 == 1;\n#endif\n", "'%'"),
+    ("#prm n = 2;\n#if n = 3;\n#endif\n", "'='"),
+    # The same characters in a definition, refused when a condition reads it.
+    ("#prm n = 7 % 2;\n#if n == 7;\n#endif\n", "'%'"),
+    ("#prm n = 2 = 3;\n#if n == 2;\n#endif\n", "'='"),
+    ("#prm n = 2 & 3;\n#if n == 2;\n#endif\n", "'&'"),
+    ("#if (1 ! 2);\n#endif\n", "'!'"),
+])
+def test_a_character_the_evaluator_does_not_know_refuses_by_name(
+        tmp_path, text, char):
+    """#587 review, item 1: tokenising stopped silently at an unknown
+    character, so `#if n % 2 == 1;` and `#if n = 3;` were each decided from
+    `n` alone, and `#prm n = 2^3;` stored 2. Every one now refuses, naming the
+    character, rather than choosing a branch."""
+    with pytest.raises(TopasInpError, match=re.escape(char)) as exc:
+        _sites(tmp_path, text)
+    assert "not an operator this reader evaluates" in str(exc.value)
+
+
+@pytest.mark.parametrize("text, needle", [
+    ("#prm n = 2;\n#if 3 * n^2 > 5;\n#endif\n", "to the right of `*`"),
+    ("#prm n = 2;\n#if 12 / n^2 == 3;\n#endif\n", "to the right of `/`"),
+    ("#prm n = 2;\n#if -n^2 < 0;\n#endif\n", "signed value"),
+    ("#prm m = 3 * 2^2;\n#if m > 1;\n#endif\n", "to the right of `*`"),
+    ("#if (-8)^0.5 > 1;\n#endif\n", "non-integer power"),
+    ("#if 0^-1 > 1;\n#endif\n", "divides by zero"),
+])
+def test_a_power_table_3_1_does_not_order_refuses(tmp_path, text, needle):
+    """Table 3-1 states `x^y` with `x^y^z = (x^y)^z`, `x^y*z = (x^y)*z` and
+    `x^y/z = (x^y)/z`, and nothing else about its order: `x*y^z` could be
+    either grouping, and so could `-x^y`. Those refuse; so does a power with
+    no real value."""
+    with pytest.raises(TopasInpError, match=re.escape(needle)):
+        _sites(tmp_path, text)
+
+
+_KNOWN = "site YES x 0.5 y 0 z 0 occ Na+1 1 beq 0.5\n"
+
+
+@pytest.mark.parametrize("condition, live", [
+    # The #587 review's `^` cases, which Table 3-1 does order.
+    ("#prm n = 2;\n#if n^2 > 5;", False),            # 4 > 5: the #else
+    ("#prm n = 2^3;\n#if n == 2;", False),
+    ("#prm n = 2^3;\n#if n == 8;", True),
+    ("#if 2^3^2 == 64;", True),                       # (2^3)^2, not 2^9
+    ("#if 2^3*2 == 16;", True),
+    ("#if 2^3/2 == 4;", True),
+    ("#if 1 + 2^3 == 9;", True),
+    ("#if 2^-1 == 0.5;", True),
+    # The operators the evaluator already knew still decide.
+    ("#if 7 - 2 * 3 == 1;", True),
+    ("#if (1 + 1) * 2 >= 4;", True),
+    ("#if 6 / 4 > 1.5;", False),
+    ("#if 3 != 3;", False),
+    ("#if And(1 <= 2, 2 < 3);", True),
+    ("#if -1 < 0;", True),
+    ("#prm n = 3;\n#if (#out n + 1) == 4;", True),
+])
+def test_the_operators_the_evaluator_knows_still_decide(
+        tmp_path, condition, live):
+    """The positive arm of the refusals above: a known operator decides, and
+    the branch taken is the one the arithmetic selects."""
+    text = condition + "\n" + _KNOWN + "#else\n#endif\n"
+    assert _sites(tmp_path, text) == (["A1", "YES"] if live else ["A1"])
+
+
+def test_a_condition_ending_before_an_unknown_character_still_reads():
+    """The reference's inline `#if (Run_Number) type out.txt`: the condition
+    ends at `)`, and the `.` after it is kernel text the evaluator never
+    reaches, so it is not refused. Nor is anything after a condition's `;`."""
+    text = ("#prm n = 1;\n#if (n == 1) type out.txt\n#endif\n"
+            "#if n == 1; x % y\n#endif\n")
+    live = resolve_ifdefs(text)
+    assert "type out.txt" in live and "x % y" in live
+
+
 def test_a_run_number_condition_reads_the_first_run_and_says_so(tmp_path):
     """`Run_Number` is 0 on the first `num_runs` iteration. A file with no
     `num_runs` has one run and nothing to report; the workshop reel file's
@@ -1741,6 +1819,7 @@ _PREPROCESSOR_SNIPPETS = {
     "#out": "#prm n = 1;\n#if #out n;\n#endif\n",
     "Run_Number": "#if Run_Number == 0;\n#endif\n",
     "Rand": "#if Rand(0, 1);\n#endif\n", "Mod": "#if Mod(3, 2);\n#endif\n",
+    "%": "#if 3 % 2;\n#endif\n",
     "STR(######": 'STR(######, "#name#")\n', "macro STR": "macro STR(g) { }\nSTR(P1)\n",
     "#ifdef !": "#ifdef !D\n#endif\n", "#include": '#include "x.inc"\n',
     "#ingest": '#ingest "x.inc"\n', "#external_INP": '#external_INP "x.inp"\n',
