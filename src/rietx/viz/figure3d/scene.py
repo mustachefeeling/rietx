@@ -239,20 +239,28 @@ def drawn_with(geometry: Mapping, polyhedra: Iterable[int]):
     Returns a test on an index into ``atoms``, whose ``bond`` is the same test
     on an index into ``bonds``; :func:`build_scene` reads it for the atoms and
     bonds it draws and for its zoom fit.
+
+    A site is the asymmetric-unit atom it was built from, ``sites[k]["index"]``,
+    because :func:`~rietx.viz.recolour` points some images of a site at a copy:
+    keyed on ``atoms[k]["site"]``, dimming fluorapatite's images drew its 4 bare
+    P again.
     """
-    atoms = geometry["atoms"]
+    atoms, sites = geometry["atoms"], geometry["sites"]
     polys = list(polyhedra)
     corners = {v for i in polys for v in geometry["polyhedra"][i]["vertices"]}
-    centred = {atoms[geometry["polyhedra"][i]["center"]]["site"] for i in polys}
+    centred = {sites[atoms[geometry["polyhedra"][i]["center"]]["site"]]["index"]
+               for i in polys}
 
     def drawn(index: int) -> bool:
         atom = atoms[index]
         return ((not atom.get("vertex_only") or index in corners)
-                and not (atom.get("outside_centre") and atom["site"] in centred))
+                and not (atom.get("outside_centre")
+                         and sites[atom["site"]]["index"] in centred))
 
     def bond(index: int) -> bool:
         b = geometry["bonds"][index]
-        return not (b.get("outside_centre") and atoms[b["j"]]["site"] in centred)
+        return not (b.get("outside_centre")
+                    and sites[atoms[b["j"]]["site"]]["index"] in centred)
 
     drawn.bond = bond
     return drawn

@@ -606,14 +606,17 @@ function drawable(m: number[][]): Mat3 {
  */
 export function drawnWith(geometry: Geometry, polyhedra: readonly number[]): Drawn {
   const corners = new Set(polyhedra.flatMap((i) => geometry.polyhedra[i].vertices));
-  const centred = new Set(polyhedra.map((i) => geometry.atoms[geometry.polyhedra[i].center].site));
+  // a site is the asymmetric-unit atom it was built from, as the Python twin
+  // keys it, since `recolour` there points some images of a site at a copy
+  const unit = (atom: number) => geometry.sites[geometry.atoms[atom].site].index;
+  const centred = new Set(polyhedra.map((i) => unit(geometry.polyhedra[i].center)));
   const atom = (index: number) => {
     const a = geometry.atoms[index];
-    return (!a.vertex_only || corners.has(index)) && !(a.outside_centre && centred.has(a.site));
+    return (!a.vertex_only || corners.has(index)) && !(a.outside_centre && centred.has(unit(index)));
   };
   const bond = (index: number) => {
     const b = geometry.bonds[index];
-    return !(b.outside_centre && centred.has(geometry.atoms[b.j].site));
+    return !(b.outside_centre && centred.has(unit(b.j)));
   };
   return Object.assign(atom, { bond });
 }

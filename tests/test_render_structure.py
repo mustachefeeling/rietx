@@ -25,7 +25,7 @@ from rietx.crystallography.cif import structure_from_cif
 from rietx.gui import structure3d as s3
 from rietx.model import compiled
 from rietx.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
-from rietx.viz import keep, render_structure, select
+from rietx.viz import keep, recolour, render_structure, select
 from rietx.viz.figure3d import raster, views
 from rietx.viz.figure3d import report as rp
 from rietx.viz.figure3d import scene as sc
@@ -705,6 +705,19 @@ def test_the_round_b_phases_draw_no_bare_centre(name):
     centred = {geometry["atoms"][geometry["polyhedra"][i]["center"]]["site"] for i in shown}
     drawn = [geometry["atoms"][a["index"]] for a in fig.atoms]
     assert not any(a["outside_centre"] and a["site"] in centred for a in drawn)
+
+
+def test_a_recoloured_image_is_still_a_centre_of_its_site():
+    """``recolour`` points the masked images at a copy of their site, so a
+    test keyed on ``atoms[k]["site"]`` lost them: dimming fluorapatite's
+    images drew its 4 P outside the cell bare again."""
+    geometry = s3.build(measured(next(r for r in MEASURED if r["name"] == "fluorapatite")))
+    dimmed = recolour(geometry, select(geometry, boundary=True), "#cccccc")
+    for g in (geometry, dimmed):
+        scene = sc.build_scene(g, polyhedra=sc.shown_polyhedra(g, True))
+        bare = [g["sites"][g["atoms"][a["index"]]["site"]]["element"] for a in scene["atoms"]
+                if g["atoms"][a["index"]]["outside_centre"]]
+        assert "P" not in bare
 
 
 def test_labels_that_share_a_place_overlap():
