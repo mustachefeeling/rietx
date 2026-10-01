@@ -1823,6 +1823,7 @@ def from_structure(structure: Structure, *, title: str = "",
         get_spacegroup,
         refuse_magnetic_phase,
         refuse_operation_list,
+        refuse_propagation_vector,
     )
 
     if len(structure.phases) > _WRITE_MAX_PHASES:
@@ -1857,6 +1858,9 @@ def from_structure(structure: Structure, *, title: str = "",
                 f"{_WRITE_MAX_ATOMS + 1} has no key")
         refuse_operation_list(phase, "a GSAS `.EXP`")
         refuse_magnetic_phase(phase, "a GSAS `.EXP`")
+        refuse_propagation_vector(
+            phase, "a GSAS `.EXP`",
+            why="the GSAS manual's phase records state no propagation vector")
         sg = get_spacegroup(phase.space_group)
         cell = phase.cell
         edges = (cell.a, cell.b, cell.c)

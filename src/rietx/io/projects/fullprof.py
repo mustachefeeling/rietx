@@ -2942,9 +2942,15 @@ def from_structure(structure: Structure) -> str:
     # with an inert codeword, never the wavelength".
     body.append("0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0")
 
+    from ...crystallography.symmetry import refuse_propagation_vector
     for phase in structure.phases:
         refuse_operation_list(phase, "a FullProf `.pcr`")
         refuse_magnetic_phase(phase, "a FullProf `.pcr`")
+        refuse_propagation_vector(
+            phase, "a FullProf `.pcr`",
+            why="a .pcr's k (Nvk) on a nuclear phase makes FullProf compute a "
+                "nuclear structure factor on the satellites, where rietx's k "
+                "contributes nothing to a Rietveld stage")
         sg = get_spacegroup(phase.space_group)
         resolved = sg.xhm()
         bare = _bare_symbol(resolved)

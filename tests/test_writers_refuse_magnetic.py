@@ -105,3 +105,44 @@ def test_topas_writes_the_moment_where_the_others_refuse(tmp_path):
         phase.model_copy(update={"atoms": [mn, phase.atoms[1]]})]))
     assert "mag_space_group 136.499" in text
     assert "mlz @ " in text
+
+
+# ------------------------------------------- a k hypothesis (issue #567)
+#
+# `Phase.propagation_vector` (WP-1326) went out of the FullProf, GSAS and
+# GSAS-II writers with no k in the file, so each read back as k = 0; only the
+# TOPAS writer refused it.
+
+def _with_k():
+    from rietx import Atom, Cell, Parameter, Phase
+    atom = Atom(label="Mn1", species="Mn", x=Parameter(value=0.0),
+                y=Parameter(value=0.0), z=Parameter(value=0.0),
+                biso=Parameter(value=0.5, min=0.0, max=25.0, unit="A^2"))
+    return Phase(name="syn", space_group="Pm-3m", cell=Cell.cubic(4.0),
+                 atoms=[atom], propagation_vector=("0", "0", "1/2"))
+
+
+@pytest.mark.parametrize("fmt", sorted(WRITERS))
+def test_a_propagation_vector_is_refused_by_name(fmt, tmp_path):
+    writer, name = WRITERS[fmt]
+    out = tmp_path / "k.out"
+    with pytest.raises(ValueError) as err:
+        getattr(_module(fmt), writer)(Structure(phases=[_with_k()]), out)
+    message = str(err.value)
+    assert "'syn'" in message and name in message
+    assert "k = (0, 0, 1/2)" in message and "k = 0" in message
+    assert "Structure.model_dump_json" in message   # not to_cif: it drops k too
+    assert not out.exists()
+
+
+def test_the_json_the_refusal_points_at_does_carry_k():
+    phase = _with_k()
+    back = Structure.model_validate_json(Structure(phases=[phase]).model_dump_json())
+    assert back.phases[0].propagation_vector == ("0", "0", "1/2")
+
+
+@pytest.mark.parametrize("fmt", sorted(WRITERS))
+def test_the_same_phase_without_k_still_writes(fmt):
+    phase = _with_k()
+    phase.propagation_vector = None
+    assert _module(fmt).from_structure(Structure(phases=[phase]))
