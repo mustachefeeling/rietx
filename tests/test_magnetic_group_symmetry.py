@@ -364,3 +364,85 @@ def test_a_refinement_refuses_a_group_that_is_not_a_symmetry():
     ok = _Phase(name="c", space_group="[P 4/m m m]",
                 symmetry_operations=WITH_TRANSLATION, atoms=[_mn()], **C8)
     rx.Refinement(Structure(phases=[ok]), instrument)
+
+
+# --------------------------------- refined state is never re-judged (review r2)
+def _refined_ref():
+    """(rx, instrument, a clean supercell Structure, the same with B and z drifted)."""
+    import rietx as rx
+    from rietx.schemas.structure import Structure
+
+    instrument = rx.Instrument.constant_wavelength_neutron(2.4)
+    cand = candidates("P 4/m m m", (0, 0, 0), (0, 0, Fraction(1, 2)),
+                      kind="magnetic").candidates[0]
+    fresh = Structure(phases=[magnetic_supercell(
+        _parent(), cand, magnetic_species="Mn", ion="Mn2+", magnitude=2.0).phase])
+    return rx, instrument, fresh, Structure(phases=[_drifted_supercell()])
+
+
+def test_the_packages_own_constructions_do_not_rejudge_refined_state():
+    """``branch``, ``_trial`` and ``from_node`` build a ``Refinement`` from a
+    structure a fit already moved; none of them is a statement entering."""
+    from rietx.history.tree import RefinementTree
+    from rietx.schemas.history import NodeAction
+
+    rx, instrument, fresh, drifted = _refined_ref()
+    x = np.linspace(10.0, 90.0, 50)
+    data = rx.PatternData(two_theta=x.tolist(), intensity=[100.0] * len(x))
+    ref = rx.Refinement(fresh, instrument, history=RefinementTree.for_data(data))
+    ref.structure = drifted.model_copy(deep=True)       # what a fit leaves
+    assert ref.branch().structure == drifted
+    assert ref._trial().structure == drifted
+    node = ref.history.add(parents=[], action=NodeAction(kind="root"),
+                           state=ref.snapshot())
+    assert rx.Refinement.from_node(ref.history, node.id).structure == drifted
+    # positive arm: the same drifted structure *is* refused when a caller
+    # states it
+    with pytest.raises(ValueError, match=REFUSED):
+        rx.Refinement(drifted, instrument)
+
+
+def test_a_replacement_structure_is_judged_by_edit():
+    rx, instrument, fresh, _ = _refined_ref()
+    ref = rx.Refinement(fresh, instrument)
+    bad = _Phase(name="c", space_group="P 4/m m m", atoms=[_mn()], **C8)
+    from rietx.schemas.structure import Structure
+    with pytest.raises(ValueError, match=REFUSED):
+        ref.edit(structure=Structure(phases=[bad]))
+    ref.edit(structure=fresh)                           # positive arm
+
+
+def test_a_multi_histogram_refinement_judges_the_statement():
+    import rietx as rx
+    from rietx.multi import MultiHistogramRefinement
+    from rietx.schemas.structure import Structure
+
+    instrument = rx.Instrument.constant_wavelength_neutron(2.4)
+    bad = _Phase(name="c", space_group="P 4/m m m", atoms=[_mn()], **C8)
+    with pytest.raises(ValueError, match=REFUSED):
+        MultiHistogramRefinement(Structure(phases=[bad]), [instrument])
+    _, _, fresh, _ = _refined_ref()
+    MultiHistogramRefinement(fresh, [instrument])       # positive arm
+
+
+def test_a_series_judges_the_statement_once_and_not_each_patterns_carried_state():
+    """``_fit_one`` builds pattern n's ``Refinement`` from values warmed off
+    pattern n−1; a refined supercell must run through it."""
+    import rietx as rx
+    from rietx.schemas.structure import Structure
+    from rietx.sequential import SequentialRefinement
+
+    instrument = rx.Instrument.constant_wavelength_neutron(2.4)
+    bad = _Phase(name="c", space_group="P 4/m m m", atoms=[_mn()], **C8)
+    with pytest.raises(ValueError, match=REFUSED):
+        SequentialRefinement(Structure(phases=[bad]), instrument)
+    _, _, fresh, drifted = _refined_ref()
+    x = np.linspace(10.0, 90.0, 400)
+    data = rx.PatternData(two_theta=x.tolist(), intensity=[100.0] * len(x))
+    series = SequentialRefinement(fresh, instrument)
+
+    def drift(index, pattern, structure, ins):          # the carried state
+        structure.phases[0] = drifted.phases[0].model_copy(deep=True)
+
+    result = series.fit([data, data], prepare=drift)
+    assert len(result.entries) == 2

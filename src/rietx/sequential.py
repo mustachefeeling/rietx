@@ -146,6 +146,8 @@ from .refine import (
     Refinement,
     _declared_wavelengths,
     _extract_reflections,
+    _judge_magnetic_groups,
+    _refined_state,
     _refuse_without_phases,
     _utcnow,
 )
@@ -938,6 +940,9 @@ class SequentialRefinement:
                              f"available: {', '.join(SOLVERS)}")
         self._backend = backend
         self._solver = solver
+        # the caller's statement is judged once, here; each pattern's
+        # ``Refinement`` is built from carried (refined) values and is not
+        _judge_magnetic_groups(structure)
         self.structure = structure.model_copy(deep=True)
         self.instrument = instrument.model_copy(deep=True)
         self.carry = list(carry)
@@ -1680,9 +1685,10 @@ class SequentialRefinement:
             displaced = _carry_into(structure, instrument, previous, self.carry)
         if prepare is not None:
             prepare(index, data, structure, instrument)
-        ref = Refinement(structure, instrument, backend=self._backend,
-                         solver=self._solver,
-                         history=self._history_spec(label + history_suffix))
+        with _refined_state():
+            ref = Refinement(structure, instrument, backend=self._backend,
+                             solver=self._solver,
+                             history=self._history_spec(label + history_suffix))
         # The wavelength is a property of the beamline, declared once for the
         # whole series — but ``_carry_into`` warm-starts pattern n from pattern
         # n-1's *refined* λ, so the ``Refinement`` just built would snapshot that
