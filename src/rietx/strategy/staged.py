@@ -249,8 +249,18 @@ _EXTRA_COMPONENT_STAGE = (
 #: 1. the moment, with both widths held at zero (their default, which *is* the
 #:    off state — the second frozen family is not even built, so the widths
 #:    are not merely fixed but structurally absent from the draw);
-#: 2. the widths, with the moment held at the value step 1 reached;
-#: 3. both together, from a start where each is already near its own answer.
+#: 2. the widths, seeded off their floor, **beside** the moment step 1
+#:    converged.  Staging is cumulative, so the moment is not held here: it
+#:    keeps refining with the widths (issue #609).  What the order buys is the
+#:    start, not a hold — the moment enters this stage at its own converged
+#:    value rather than cold, so the pair is not freed together from nothing;
+#: 3. the same free set again, the plan's last stage, so it converges at the
+#:    solver's own ftol rather than the intermediate one and carries no seed.
+#:
+#: Holding the moment through step 2 was measured as the alternative (issue
+#: #609, MnF₂ with planted widths 0.1°, 0.25° and 0.6° from starts 3.0–5.5
+#: μ_B): |m| and the width agree with this order's to within one esd on every
+#: case, and Rwp is equal or worse, so the hold would buy nothing here.
 #:
 #: **Both** width terms are freed, because which of the two carries an excess
 #: is a property of the dataset rather than of the physics, so the plan cannot
@@ -485,8 +495,10 @@ class RefinementPlan:
     def magnetic_width(cls) -> "RefinementPlan":
         """The three-step order for a **magnetic** broadening term (WP-1343).
 
-        The moment with the widths held at zero, then the width with the
-        moment held, then both together.  The stage list itself is
+        The moment with the widths held at zero, then the widths freed beside
+        the converged moment (staging is cumulative, so the moment keeps
+        refining; it is not held), then the same set as the last stage.  The
+        stage list itself is
         :data:`MAGNETIC_WIDTH_STAGE_PATHS` — one authority, so
         this preset and the ``STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT`` check
         that reports a plan violating the order cannot describe different
@@ -740,10 +752,13 @@ PLAN_INFO: dict[str, PlanInfo] = {
         description=(
             "The turn-on order for a phase whose magnetic peaks are broader "
             "than its nuclear ones: the moment with the magnetic width held "
-            "at zero, then the width with the moment held, then both "
-            "together. Frees nothing else — the confound it stages around is "
-            "between those two alone, since both lower the calculated "
-            "magnetic peak's height."),
+            "at zero, then the width freed beside the converged moment (the "
+            "moment keeps refining; staging is cumulative), then both "
+            "together to the final tolerance. Frees nothing else — the "
+            "confound it stages around is between those two alone, since "
+            "both lower the calculated magnetic peak's height, and the order "
+            "makes the moment enter the width stage converged rather than "
+            "cold."),
         modes=("rietveld",),
         when_to_use=(
             "After a magnetic structure has converged and "

@@ -449,8 +449,11 @@ only on a phase that declares `Phase.magnetic_symmetry`.
 The turn-on order is not optional. The moment and the width both lower the
 calculated magnetic peak's height, so freed together from a cold start they
 trade against each other. The order is the moment with the widths held at
-zero, then the widths with the moment held, then both together, and it ships
-as a plan:
+zero, then the widths freed beside the converged moment, then both together.
+Staging is cumulative, so the moment is not held in the middle stage: what the
+order buys is that the moment enters it at its own converged value rather than
+cold. Holding it there was measured and changed nothing beyond one esd. The
+order ships as a plan:
 
 <!-- api-doc: no-exec — it needs a converged magnetic structure -->
 ```python

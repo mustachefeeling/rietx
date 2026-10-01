@@ -4213,7 +4213,8 @@ def _stage_order_diagnostics(plan, table,
     against scale, and the discipline ``mccusker_structural`` encodes.
 
     The order the package prescribes is **moment first with the widths held at
-    zero, then the widths with the moment held, then both together**
+    zero, then the widths freed beside the converged moment, then both
+    together** (cumulative, so the moment is not held in the middle stage)
     (``strategy.staged.MAGNETIC_WIDTH_STAGE_PATHS`` is that order as a stage
     list, and ``RefinementPlan.magnetic_width`` builds it).
 
@@ -4276,8 +4277,8 @@ def _stage_order_diagnostics(plan, table,
                     f"of its own quantity"),
                 suggestion=(
                     "use the three-step order: the moment with the widths "
-                    "held at zero, then the widths with the moment held, then "
-                    "both together — plan=\"magnetic_width\", or "
+                    "held at zero, then the widths freed beside the converged "
+                    "moment, then both together — plan=\"magnetic_width\", or "
                     "strategy.staged.MAGNETIC_WIDTH_STAGE_PATHS as stages")))
     return out
 

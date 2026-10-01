@@ -40,6 +40,7 @@ and strain, and the route WP-1327 closed.
 from __future__ import annotations
 
 import hashlib
+import re
 
 import numpy as np
 import pytest
@@ -60,6 +61,7 @@ from rietx.schemas.structure import Moment, Phase
 from rietx.strategy.staged import (
     MAGNETIC_WIDTH_SEED_DEG,
     MAGNETIC_WIDTH_STAGE_PATHS,
+    PLAN_INFO,
     PLAN_PRESETS,
 )
 from tests.test_magnetic import LAMBDA_CW, MNF2_BNS, MNF2_CELL, atom, cell
@@ -607,6 +609,48 @@ def test_the_preset_is_the_three_step_order():
     assert any("magnetic_lor" in g for g in plan.stages[2].turn_on)
 
 
+#: Issue #609: the preset's texts said step 2 holds the moment.  Staging is
+#: cumulative, so it refines there; no authored sentence may say otherwise.
+_HOLD_CLAIM = re.compile(r"moment held|holding the moment|moment is held"
+                         r"|with the moment\s+held", re.IGNORECASE)
+
+
+def test_the_preset_refines_the_moment_in_its_width_stage_and_says_so():
+    """Issue #609, both halves.  The runner: step 2's free set carries the
+    moment beside the two widths (staging is cumulative), the same set the
+    last stage frees.  The text: the preset's own description and docstring say
+    so, rather than that the moment is held."""
+    ph = _mnf2(size=SIZE)
+    ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
+    ph.scale.value = 0.02
+    tt = np.arange(8.0, 140.0, 0.1)
+    blank = rx.PatternData(two_theta=tt.tolist(),
+                           intensity=np.zeros_like(tt).tolist())
+    y = np.asarray(rx.Refinement(rx.Structure(phases=[ph]),
+                                 ins.model_copy(deep=True)).predict(blank)) + 20.0
+    data = rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist())
+    start = _mnf2(moment=(0.0, 0.0, 4.0))
+    start.scale.value = 0.02
+    starts: dict = {}
+    moment = "phases.0.atoms.0.moment.dof0"
+
+    def on_event(event):
+        if event["kind"] == "stage_start":
+            starts[event["data"]["stage"]] = event["data"]["free_paths"]
+
+    res = rx.Refinement(rx.Structure(phases=[start]), ins).fit(
+        data, plan="magnetic_width", events=on_event)
+    assert moment in starts["magnetic_width"]
+    assert "phases.0.magnetic_lor_size" in starts["magnetic_width"]
+    assert sorted(starts["magnetic_width"]) == sorted(starts["moment_and_width"])
+    rung = {s.name: s for s in res.stages}
+    assert moment not in rung["magnetic_width"].freed   # first freed in step 1
+    # the authored texts
+    assert not _HOLD_CLAIM.search(PLAN_INFO["magnetic_width"].description)
+    assert not _HOLD_CLAIM.search(rx.RefinementPlan.magnetic_width.__doc__)
+    assert "cumulative" in PLAN_INFO["magnetic_width"].description
+
+
 def test_a_plan_that_frees_the_width_beside_a_cold_moment_is_reported():
     """`STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT`, and it arrives **before the
     first stage runs** — the confound is made by the stage list, so a report
@@ -624,6 +668,7 @@ def test_a_plan_that_frees_the_width_beside_a_cold_moment_is_reported():
     assert [d.code for d in got] == ["STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT"]
     assert "phases.0.magnetic_lor_size" in got[0].where
     assert "magnetic_width" in got[0].suggestion
+    assert not _HOLD_CLAIM.search(got[0].suggestion)       # issue #609
     # the preset itself is silent, and so is a width freed after the moment
     assert not _stage_order_diagnostics(PLAN_PRESETS["magnetic_width"](), table,
                                     "rietveld")
@@ -751,6 +796,7 @@ def test_the_diagnostic_fires_on_a_planted_width_and_not_without_one():
     assert hits[0].value > MAGNETIC_WIDTH_SIGMA
     assert "biased **low**" in hits[0].message
     assert "magnetic_lor_size" in hits[0].where[0]
+    assert not _HOLD_CLAIM.search(hits[0].message + hits[0].suggestion)  # #609
 
     # control: observations narrow, model narrow — nothing to say
     narrow.y_obs[:] = y_narrow

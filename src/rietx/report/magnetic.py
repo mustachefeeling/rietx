@@ -626,12 +626,13 @@ def magnetic_width_findings(model, values, *, esds=None, free=(),
                 f"so the refined moment is biased **low** here. Free "
                 f"phases.{ip}.magnetic_lor_size (and its strain partner if "
                 f"the excess grows with angle) after the moment has "
-                f"converged, holding the moment while the width settles, then "
-                f"both together"),
+                f"converged, so the moment enters the width stage at its own "
+                f"answer rather than cold"),
             suggestion=(
                 f"fit(data, plan=\"magnetic_width\") — the three-step order "
-                f"(moment, then phases.{ip}.magnetic_lor_size with the moment "
-                f"held and seeded off its softplus floor, then both). A "
+                f"(moment, then phases.{ip}.magnetic_lor_size seeded off its "
+                f"softplus floor beside the converged moment, then both to the "
+                f"final tolerance). A "
                 f"single stage freeing the width beside the moment is "
                 f"reported as STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT"),
         ))
