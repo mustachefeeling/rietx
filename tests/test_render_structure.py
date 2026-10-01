@@ -688,7 +688,23 @@ def test_the_stubs_hidden_leaves_are_the_stubs_the_report_counts(name, element):
                       and np.allclose(a["pos"], other) for a in geometry["atoms"])
     assert toward > 0 and fig.report.dangling_bonds == toward
     cut = keep(geometry, ~select(geometry, element=element))
-    assert render_structure(cut, size=200).report.dangling_bonds == 0
+    clean = render_structure(cut, size=400)
+    assert clean.report.dangling_bonds == 0
+    _save(render_structure(geometry, size=400, hidden=(element,)), f"stubs_{element}_hidden")
+    _save(clean, f"stubs_{element}_kept")
+
+
+@pytest.mark.parametrize("name", ["rutile TiO2", "fluorapatite", "calcite CaCO3"])
+def test_the_round_b_phases_draw_no_bare_centre(name):
+    """The pictures WP-1529 looks at: polyhedra on, no centre outside the cell
+    without its polyhedron; the scene test is test_structure3d's."""
+    geometry = s3.build(measured(next(r for r in MEASURED if r["name"] == name)))
+    fig = render_structure(geometry, size=500)
+    _save(fig, "bare_centres_" + name.split()[0])
+    shown = sc.shown_polyhedra(geometry, True, None, [], True)
+    centred = {geometry["atoms"][geometry["polyhedra"][i]["center"]]["site"] for i in shown}
+    drawn = [geometry["atoms"][a["index"]] for a in fig.atoms]
+    assert not any(a["outside_centre"] and a["site"] in centred for a in drawn)
 
 
 def test_labels_that_share_a_place_overlap():
