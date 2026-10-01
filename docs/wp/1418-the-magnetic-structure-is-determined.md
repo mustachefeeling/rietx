@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: v1.6 · Status: 🔄 2026-09-30 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536) and #455's Gram path (PR #535); #455's basis fix (PR #532); M-8, M-9, the Part 1 chapter and the skill rows remain
+Milestone: v1.6 · Status: 🔄 2026-10-01 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564); M-8, M-9, the Part 1 chapter and the skill rows remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -664,3 +664,20 @@ no magnetic model declared.
   - **Gotcha.** The fast tier stayed small by passing `restarts=4` in the tests
     whose claim is that two frames agree. A new test of that kind should do
     the same, or it pays the full 32 on every distinguishable pair.
+
+- **2026-10-01** — #563's sign text landed from outside: PR #564. The moment
+  recipe printed beside `IrrepBasis` now has the right exponent. The vectors
+  are the coefficients of exp(+2πi k·R), and the FullProf mapping is stated:
+  S₋ₖ = Σ C·ψ, and Sₖ its conjugate. *Done:* PR #564 (`b6dc8e3c`), merged as
+  `beb48147` by `/pr-review`, closing #563 as the `### Inherited` entry of
+  2026-09-30 decided. No number moved: only docstrings and the `pairing`
+  string changed. The new `test_magnetic_field_convention.py` measures the
+  field's active action on a supercell, over three complex-k cases, two
+  zone-boundary controls and a conjugated-vector negative arm, with spglib's
+  magnetic-space-group identification as a second oracle. *Gotcha:* the
+  docstring cites Wills (2000) *Physica B* eq. (3) for SARAh's side, and that
+  paper is not in the library. Wills (2025), *Acta Cryst.* B, "SARAh – web
+  representational analysis", eq. (3) states the same D({E|t}) =
+  exp(−2πi k·t), and the review asked for that citation beside the 2000 one.
+  *Next:* #582 (part 1 of 5 of #565), which the maintainer freed for review on
+  2026-10-01.
