@@ -92,7 +92,7 @@ record is `docs/wp/1504-eval/runs/`, and the table is in 1504's handover log.
   behaviour, and a test over the six round-B phases (rutile 2 Ti and
   fluorapatite 4 P today, 0 after).
 - [x] `hidden=` and `dangling_bonds` agree: a test on calcite and LaB₆.
-- [ ] The GUI checked against the changed `build` (`gui/CLAUDE.md`).
+- [x] The GUI checked against the changed `build` (`gui/CLAUDE.md`).
 - [ ] Tests + PNGs to `tests/output/`.
 - [ ] Skill: `api-figure.md` regenerated (`docs/skill/make_api_index.py`) and
   its `hidden=` sentence corrected, beside the description task.
