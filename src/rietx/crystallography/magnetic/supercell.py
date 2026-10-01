@@ -116,6 +116,7 @@ from ..symmetry import (
 from . import isotropy as _isotropy
 from .moments import tilted_seed
 from .operators import MagneticGroup, format_transform
+from .scattering import check_group_is_structure_symmetry
 
 __all__ = [
     "ChildGroup",
@@ -1103,8 +1104,8 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     the child origin the transform puts the atoms at (x_c = P⁻¹·(x − p)), i.e.
     restated by ``transformed`` under (I, −P⁻¹·p) when p is not zero: the same
     list at another origin is not a symmetry of the child structure, and the
-    child phase is refused where it enters a fit (``Refinement``'s
-    magnetic-symmetry check, issue #597).
+    child phase is refused here, as it would be where it enters a fit
+    (the magnetic-symmetry check, issue #597).
 
     ``nuclear_group`` chooses which group the child phase's ``space_group``
     states, and it is the one knob a caller can get wrong, so both settings and
@@ -1359,6 +1360,9 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
                                        else tuple(str(c) for c in k))),
         scale=Parameter(value=parent.scale.value),
     )
+    # the builder's own statement is judged here, once; a refined copy of it
+    # is not (``check_group_is_structure_symmetry``)
+    check_group_is_structure_symmetry(phase)
     return SupercellStatement(
         phase=phase, transform=transform, index=len(cosets),
         parent_space_group=parent.space_group, child_space_group=symbol,
