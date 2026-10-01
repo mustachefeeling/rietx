@@ -41,13 +41,15 @@ their windows overlap.  The projection adds a dense term of rank at most the
 number of nuisance columns, so M is kept as M₀ − VVᵀ with M₀ = ΩᵀWΩ sparse and
 V = ΩᵀWX·L, where L·Lᵀ is the pseudo-inverse of XᵀWX.  An evaluation costs
 O(nnz(M₀) + N·rank), never O(N²); M is formed densely once, at construction,
-for the least-squares solve that gives the floor.
+for the least-squares solve that gives the floor, which is O(N³) in
+reflections and is construction's cost, not an evaluation's.
 
 **Nuisance modes.**  ``"pawley"`` projects every other phase out as free
 per-reflection intensities (one column per reflection, its emission lines
 tied at the ratios the compiled model gives them).  ``"scale"`` projects each
-as a single column, its own calculated profile, which needs its structure.  The first discards whatever the
-solved phase shares with a dense impurity pattern; the second keeps it.
+as a single column, its own calculated profile, from its atoms as declared
+(:func:`blind_structure`).  The first discards whatever the solved phase
+shares with a dense impurity pattern; the second keeps it.
 
 Ω is built per emission line (:func:`omega_lines`) from the unit profiles of
 ``derivative_bases`` and a per-line factor taken by linearity, read off a
@@ -76,12 +78,14 @@ import numpy as np
 from scipy.sparse import csr_matrix
 
 from ..model.forward import d_spacings
+from ..optimize.statistics import column_rescale
 
 _CELL_KEYS = ("a", "b", "c", "alpha", "beta", "gamma")
 
-#: Eigenvalues of XᵀWX below this fraction of the largest are dropped from the
-#: pseudo-inverse: a nuisance column that is a linear combination of others
-#: (two coincident impurity reflections) carries no direction of its own.
+#: Eigenvalues of the equilibrated XᵀWX (unit diagonal) below this fraction of
+#: the largest are dropped from the pseudo-inverse: a nuisance column that is a
+#: linear combination of others (two coincident impurity reflections) carries
+#: no direction of its own.
 NUISANCE_RCOND = 1e-12
 
 Refusal = Literal["not_an_extraction", "rietveld", "unconverged", "poor",
@@ -227,11 +231,32 @@ def _design(model, values: dict, phase: int, background: str, nuisance: str):
     return y, w, om, (np.hstack(xcols) if xcols else None)
 
 
-def _low_rank_pinv(G: np.ndarray) -> np.ndarray:
-    """L with L·Lᵀ = G⁺ for a symmetric positive semi-definite G."""
-    lam, Q = np.linalg.eigh(0.5 * (G + G.T))
+def _low_rank_pinv(X: np.ndarray, w: np.ndarray) -> np.ndarray:
+    """L with WX·L·Lᵀ·XᵀW the projection term of P, for G = XᵀWX.
+
+    G is equilibrated to unit diagonal before the cut (root ``CLAUDE.md``,
+    the normal-matrix rule; :func:`rietx.optimize.statistics.normal_factors`
+    is the same construction): with D = diag(G)^(-1/2), L = D·Q·Λ^(-1/2) from
+    the eigenpairs of D·G·D above :data:`NUISANCE_RCOND`.  Rescaling a column
+    of X leaves the column space and so the projection unchanged, and the cut
+    no longer depends on a column's units: an impurity's stored scale, a free
+    nuisance coefficient, otherwise sets the cutoff for the background columns
+    (#580 review).  A zero column has no direction and is dropped.
+    """
+    sw = np.sqrt(w)[:, None] * X
+    e = column_rescale(sw)             # exact powers of two, far columns only
+    if e is not None:
+        sw = sw * e
+    G = sw.T @ sw
+    G = 0.5 * (G + G.T)
+    d = np.sqrt(np.diag(G))
+    live = d > 0.0
+    inv_d = np.where(live, 1.0 / np.where(live, d, 1.0), 0.0)
+    lam, Q = np.linalg.eigh(G * np.outer(inv_d, inv_d))
     keep = lam > NUISANCE_RCOND * max(float(lam[-1]), 0.0)
-    return Q[:, keep] / np.sqrt(lam[keep])
+    if e is not None:
+        inv_d = inv_d * e
+    return inv_d[:, None] * (Q[:, keep] / np.sqrt(lam[keep]))
 
 
 def _dummy(species: str):
@@ -249,18 +274,19 @@ def blind_structure(structure, phase: int, nuisance: str):
 
     The solved phase keeps its cell and profile terms and gets one dummy atom
     and scale 1.  Under ``nuisance="pawley"`` every other phase gets a dummy
-    atom too (its columns carry line ratios only).  Under ``"scale"`` every
-    other phase keeps its atoms, which must exist, and a positive scale.
+    atom too (its columns carry line ratios only).  A phase given a dummy loses
+    its restraints, which name atoms it no longer has and which the cost does
+    not read.  Under ``"scale"`` every other phase keeps its atoms **as
+    declared**, and a positive scale: its calculated profile is the impurity's
+    column, and nothing here can tell a real structure from a placeholder
+    atom (the one Le Bail needs), whose |F|² is then projected as the
+    impurity's profile.
     """
     s = structure.model_copy(deep=True)
     for j, ph in enumerate(s.phases):
-        species = ph.atoms[0].species if ph.atoms else "C"
         if j == phase or nuisance == "pawley":
-            ph.atoms = [_dummy(species)]
-        elif not ph.atoms:
-            raise ValueError(
-                f"nuisance='scale' needs the structure of phase {j} ({ph.name!r}), "
-                "which has no atoms; use nuisance='pawley'")
+            ph.restraints = []
+            ph.atoms = [_dummy(ph.atoms[0].species)]
         if j == phase or ph.scale.value <= 0:
             ph.scale.value = 1.0
     return s
@@ -333,7 +359,9 @@ class SolveCost:
                     nuisance: Literal["pawley", "scale"] = "pawley") -> SolveCost:
         """Build the cost from a converged Le Bail or Pawley ``refinement``.
 
-        ``data`` is the pattern it was fitted to; the 2θ range is the fit's.
+        ``data`` is the pattern it was fitted to; the 2θ range is the fit's,
+        and a fitted-point count other than the fit's is refused
+        (``ValueError``).
         Refuses, with :class:`ExtractionRefused`, a magnetic structure, a
         refinement that holds no fit or a Rietveld fit, one whose solver did not
         converge, and one whose Rwp
@@ -379,6 +407,11 @@ class SolveCost:
         structure = blind_structure(refinement.fitted_structure, phase, nuisance)
         model = compile_model(structure, instrument, data, mode="rietveld",
                               two_theta_limits=refinement._two_theta_limits)
+        if len(model.tt) != result.statistics.n_points:
+            raise ValueError(
+                f"data gives {len(model.tt)} fitted points where the extraction "
+                f"fitted {result.statistics.n_points}: pass the pattern the "
+                "refinement was fitted to, with its excluded regions")
         table = ParameterTable(structure, instrument)
         cost = cls.from_model(model, table.decode(table.x0()), phase=phase,
                               background=background, nuisance=nuisance)
@@ -416,7 +449,7 @@ class SolveCost:
         if X is not None:
             n_x = X.shape[1]
             wx = w[:, None] * X
-            L = _low_rank_pinv(X.T @ wx)                      # L·Lᵀ = (XᵀWX)⁺
+            L = _low_rank_pinv(X, w)                          # L·Lᵀ = (XᵀWX)⁺, equilibrated
             yx = L.T @ (wx.T @ y)
             V = np.asarray(wom.T @ X) @ L                     # ΩᵀWX·L
             b = b - V @ yx

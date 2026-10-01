@@ -176,7 +176,12 @@ def test_a_pawley_fit_sits_on_or_above_its_own_floor(nac):
 
 
 def test_sparse_low_rank_equals_the_dense_projection(nac_lebail):
-    """M₀ − VVᵀ, b and c against the dense P = W − WX(XᵀWX)⁺XᵀW built directly."""
+    """M₀ − VVᵀ, b and c against the dense P = W − WX(XᵀWX)⁺XᵀW built directly.
+
+    The oracle's (XᵀWX)⁺ is equilibrated, as the code's is: an unequilibrated
+    ``pinv`` cuts what an unequilibrated eigensolve cuts and would agree with
+    a wrong cutoff (``test_chi2_does_not_depend_on_the_impurity_s_stored_scale``
+    measures the cutoff itself)."""
     ref, data = nac_lebail
     cost = SolveCost.from_pawley(ref, data)
     assert cost.V.shape[1] == cost.n_nuisance > 0
@@ -188,7 +193,10 @@ def test_sparse_low_rank_equals_the_dense_projection(nac_lebail):
                                      "projected", "pawley")
     Om = om.toarray()
     WX = w[:, None] * X
-    Gp = np.linalg.pinv(X.T @ WX, rcond=1e-12, hermitian=True)   # (XᵀWX)⁺, not eigh
+    G = X.T @ WX
+    dg = 1.0 / np.sqrt(np.diag(G))
+    Gp = dg[:, None] * np.linalg.pinv(G * np.outer(dg, dg), rcond=1e-12,
+                                      hermitian=True) * dg   # D(DGD)⁺D, not eigh
     OX, YX = Om.T @ WX, WX.T @ y
     M = Om.T @ (w[:, None] * Om) - OX @ Gp @ OX.T
     b = Om.T @ (w * y) - OX @ (Gp @ YX)
@@ -339,6 +347,14 @@ def test_refuses_a_rietveld_fit_and_no_fit(nac, nac_lebail):
     assert err.value.reason == "rietveld"
 
 
+def test_refuses_data_other_than_the_fitted_pattern(nac_lebail):
+    """An excluded region the fit did not have changes the fitted points."""
+    ref, data = nac_lebail
+    cut = data.model_copy(update={"excluded_regions": [(10.0, 11.0)]})
+    with pytest.raises(ValueError, match="fitted points where the extraction fitted"):
+        SolveCost.from_pawley(ref, cut)
+
+
 def test_does_not_refuse_the_converged_extraction(nac_lebail):
     ref, data = nac_lebail
     assert ref.result_.status == "converged"
@@ -477,3 +493,60 @@ def test_scale_nuisance_keeps_what_free_impurity_intensities_discard(two_phase):
     assert np.all(gap >= -IDENTITY_BAR * scale.c)
     assert np.all(gap > 0)
     assert scale.chi2_floor >= pawley.chi2_floor
+
+
+def _blind_cost(ref, data, structure, nuisance="scale"):
+    S = solve_cost.blind_structure(structure, 0, nuisance)
+    model = compile_model(S, ref.fitted_instrument, data, mode="rietveld")
+    return model, SolveCost.from_model(model, _values(S, ref.fitted_instrument),
+                                       nuisance=nuisance)
+
+
+def test_chi2_does_not_depend_on_the_impurity_s_stored_scale(two_phase):
+    """The stored impurity scale is a free nuisance coefficient, so χ² cannot
+    depend on it.  Swept over eight decades (1e-4 is near the fixture's; 1 is
+    the schema default, which Le Bail and Pawley leave as declared) against a
+    direct least squares over unit-norm columns √W·[Ω·F, impurity, background],
+    an SVD of the design that never forms XᵀWX.  Unequilibrated, the cut at
+    1e-12·λmax let the impurity column set the background's cutoff: −4e-4 at
+    1e2 and ×37 at 1e4 (#580 review)."""
+    ref, data = two_phase
+    S0 = ref.fitted_structure
+    truth = compile_model(S0, ref.fitted_instrument, data, mode="rietveld")
+    f2 = _f2(truth, _values(S0, ref.fitted_instrument))
+    got = []
+    for scale in 10.0 ** np.arange(-4, 5):
+        st = S0.model_copy(deep=True)
+        st.phases[1].scale.value = float(scale)
+        model, cost = _blind_cost(ref, data, st)
+        y, w, om, X = solve_cost._design(model, _values(
+            solve_cost.blind_structure(st, 0, "scale"), ref.fitted_instrument),
+            0, "projected", "scale")
+        A = np.column_stack([om @ f2, X]) * np.sqrt(w)[:, None]
+        A = A / np.linalg.norm(A, axis=0)
+        coef = np.linalg.lstsq(A, y * np.sqrt(w), rcond=None)[0]
+        assert coef[0] > 0
+        r = y * np.sqrt(w) - A @ coef
+        chi, _ = cost.chi2(f2)
+        assert abs(chi - float(r @ r)) <= IDENTITY_BAR * cost.c, scale
+        got.append(chi)
+    assert np.ptp(got) <= IDENTITY_BAR * cost.c
+
+
+def test_a_phase_with_restraints_is_blinded_without_them(two_phase):
+    """The dummy swap leaves one atom, so a restraint naming atom 1 would fail
+    the Phase validator on assignment; the cost reads no restraint row, so a
+    blinded phase carries none.  A ``"scale"`` impurity keeps its atoms and
+    its restraints."""
+    ref, data = two_phase
+    st = ref.fitted_structure.model_copy(deep=True)
+    for ph in st.phases:
+        ph.restraints = [rx.BondRestraint(atom_i=0, atom_j=1, target=1.95, sigma=0.01)]
+    blind = solve_cost.blind_structure(st, 0, "scale")
+    assert blind.phases[0].restraints == [] and len(blind.phases[0].atoms) == 1
+    assert len(blind.phases[1].restraints) == 1 and len(blind.phases[1].atoms) == 2
+    blind = solve_cost.blind_structure(st, 0, "pawley")
+    assert all(ph.restraints == [] for ph in blind.phases)
+    _, cost = _blind_cost(ref, data, st, nuisance="pawley")
+    _, plain = _blind_cost(ref, data, ref.fitted_structure, nuisance="pawley")
+    assert cost.chi2_floor == plain.chi2_floor
