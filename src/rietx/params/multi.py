@@ -220,7 +220,37 @@ class MultiParameterTable:
         for table, scale in zip(self.tables, self.value_scales, strict=True):
             if scale:
                 table.apply_value_scale(scale)
+        self._check_moment_frames_shared()
         self._rebuild_columns()
+
+    def _check_moment_frames_shared(self) -> None:
+        """Refuse a shared moment DOF over a per-histogram cell or position.
+
+        A moment's DOFs are read in a frame built from the cell angles and the
+        atom's position (#598).  One shared column then states one moment only
+        if every histogram builds the same frame; with a per-histogram cell
+        each table would re-seed it from its own, the column would keep one
+        histogram's value, and every other histogram would read a different
+        moment at each stage start, silently (review of #615).  Per-histogram
+        DOFs over a per-histogram cell are fine: each table re-seeds its own.
+        """
+        for base in self.tables[0].moment_frames():
+            _, ip, _, j = base.split(".")
+            frame_paths = [f"phases.{ip}.cell.{t}" for t in
+                           ("a", "b", "c", "alpha", "beta", "gamma")]
+            frame_paths += [f"{base}.{t}" for t in ("x", "y", "z")]
+            dofs = [e.path for e in self.tables[0].entries
+                    if e.path.startswith(f"{base}.moment.dof")]
+            if (any(self.sharing.is_shared(d) for d in dofs)
+                    and not all(self.sharing.is_shared(f) for f in frame_paths)):
+                raise ValueError(
+                    f"the moment of {base} is shared across histograms but its "
+                    f"cell or position is per-histogram "
+                    f"(SharingMap.per_histogram): a moment's DOFs are read in a "
+                    f"frame built from the cell, so one shared DOF would mean a "
+                    f"different moment in each histogram. Make the moment "
+                    f"per-histogram too (per_histogram=['{base}.moment.*']) or "
+                    f"share the cell.")
 
     @property
     def n_histograms(self) -> int:

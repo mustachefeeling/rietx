@@ -303,3 +303,56 @@ def test_dofs_in_frame_needs_no_cell():
                                atol=1e-13)
     np.testing.assert_allclose(moment_from_dofs(frame, dofs_in_frame(frame, m)), m,
                                atol=1e-13)
+
+
+# --------------------------------------------------------------------------
+# review of #615, round 1
+# --------------------------------------------------------------------------
+def _two_site_table(beta, ties=False):
+    from rietx.params.vector import AffineTie
+
+    phase = _phase(beta)
+    phase.atoms.insert(1, _atom("Mn", "Mn", (0.5, 0.0, 0.5), 0.3,
+                                Moment.from_values((1.0, 0.5, -2.0), "Mn2+", vary=True)))
+    structure = rx.Structure(phases=[phase])
+    instrument = rx.Instrument.constant_wavelength_neutron(2.4, fwhm_deg=0.25)
+    table = ParameterTable(structure, instrument)
+    if ties:
+        table.set_tie("phases.0.atoms.1.moment.dof0",
+                      AffineTie(terms=(("phases.0.atoms.0.moment.dof0", 1.0),)))
+    return structure, table
+
+
+def test_reframe_leaves_a_tied_moment_dof_to_its_source():
+    """Two sites with tied moduli, and a β that moves: the tied entry follows its
+    source, so the write-back and the compile hold one moment for it."""
+    structure, table = _two_site_table(103.0, ties=True)
+    table.set_vary(["phases.0.atoms.0.moment.dof*"], True)
+    structure.phases[0].cell.beta.value = 98.0
+    assert len(table.reframe_moments(structure)) == 2
+    by = {e.path: e.value for e in table.entries}
+    mu_a = by["phases.0.atoms.0.moment.dof0"]
+    assert by["phases.0.atoms.1.moment.dof0"] == mu_a
+    # the components written back are those the compile decodes: B's frame, its
+    # re-seeded angles and the *source's* modulus
+    decoded = table.decode(table.x0())
+    for base in ("phases.0.atoms.0", "phases.0.atoms.1"):
+        dofs = [decoded[f"{base}.moment.dof{k}"] for k in range(3)]
+        expect = moment_from_dofs(table.moment_frames()[base], dofs)
+        got = [by[f"{base}.moment.crystalaxis_{n}"] for n in "xyz"]
+        np.testing.assert_allclose(got, expect, rtol=0, atol=1e-12)
+
+
+def test_a_shared_moment_over_a_per_histogram_cell_is_refused():
+    instruments = [rx.Instrument.constant_wavelength_neutron(2.4, fwhm_deg=0.25),
+                   rx.Instrument.constant_wavelength_neutron(1.8, fwhm_deg=0.25)]
+    structure = rx.Structure(phases=[_phase(103.0)])
+    from rietx.params.multi import MultiParameterTable, SharingMap
+
+    with pytest.raises(ValueError, match="moment of phases.0.atoms.0 is shared"):
+        MultiParameterTable(structure, instruments,
+                            sharing=SharingMap(per_histogram=["phases.*.cell.*"]))
+    # positive arms: the moment per-histogram as well, or the default sharing
+    MultiParameterTable(structure, instruments, sharing=SharingMap(
+        per_histogram=["phases.*.cell.*", "phases.*.atoms.*.moment.*"]))
+    MultiParameterTable(structure, instruments)

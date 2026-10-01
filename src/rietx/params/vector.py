@@ -1533,9 +1533,24 @@ class ParameterTable:
             if not any(components):
                 continue
             for k, value in enumerate(dofs_in_frame(frame, components)):
-                by_path[f"{base}.moment.dof{k}"].value = float(value)
+                entry = by_path[f"{base}.moment.dof{k}"]
+                # a tied entry's own value is never read: decoding takes its
+                # source's.  Writing one here would give the write-back a
+                # moment (this entry's re-seed) that the compile (the
+                # source's) does not hold, #598's mismatch again (review of
+                # #615).  Its source is re-seeded in its own frame; the tied
+                # entry follows it, as a tie means.
+                if entry.tie is None:
+                    entry.value = float(value)
         if moved:
             self._rebuild()
+            # bring each tied entry's stored value to what decoding gives it,
+            # so the components below are the ones the compile will build
+            decoded = self.decode(self.x0())
+            for e in self.entries:
+                if e.tie is not None and e.path.endswith(
+                        tuple(f".moment.dof{k}" for k in range(3))):
+                    e.value = decoded[e.path]
             self._refresh_moment_components()
         return moved
 
