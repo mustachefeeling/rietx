@@ -47,9 +47,10 @@ Scope: **k = 0 and 2k a reciprocal lattice vector**
 --------------------------------------------------
 The stabiliser of an order-parameter direction is a subgroup of the *grey*
 little group G_k1'.  Turning it into a space group needs the lattice
-translations, and a translation t enters the order parameter as
-exp(−2πi k·t) — which is ±1, hence a time-reversal sign, only when 2k is a
-reciprocal lattice vector.  For any other k (a denominator of 3 or more, or a
+translations, and a translation t acts on the order parameter (the
+amplitudes of :mod:`.modes`' basis vectors, which are the coefficients of
+exp(+2πi k·R)) as D({E|t}) = exp(−2πi k·t) — which is ±1, hence a
+time-reversal sign, only when 2k is a reciprocal lattice vector.  For any other k (a denominator of 3 or more, or a
 centred case like I4₁32 at (½,½,½) where (1,1,1) is not a reciprocal lattice
 vector of the body-centred lattice) the order parameter is genuinely complex,
 the −k arm of the star is coupled to the +k one, and the isotropy subgroup is
