@@ -1,0 +1,189 @@
+{
+ "run": "fap-before-opus-1",
+ "task": "fap",
+ "condition": "before",
+ "model": "opus",
+ "repeat": 1,
+ "commit": "5304b85ab092f629a0392b43966df8fda76563dd",
+ "protocol": "1.2",
+ "session_id": "b68bf4ef-a2e4-42be-bc24-da8aff1ac377",
+ "models_seen": {
+  "claude-opus-5-5": 10
+ },
+ "cost_usd": 0.5524258000000001,
+ "turns": 16,
+ "minutes": 1.75,
+ "api_calls": 10,
+ "tokens": {
+  "input": 20,
+  "cache_read": 310169,
+  "cache_write": 41809,
+  "output": 7792
+ },
+ "renders": [
+  {
+   "pixels": [
+    1380,
+    2008
+   ],
+   "values": {
+    "view": "c",
+    "size": 2008,
+    "supersample": 3
+   },
+   "first": "Structure",
+   "ok": true
+  },
+  {
+   "pixels": [
+    1000,
+    674
+   ],
+   "values": {
+    "view": "c",
+    "up": [
+     1,
+     2,
+     0
+    ],
+    "boundary": false,
+    "size": 1000
+   },
+   "first": "Structure",
+   "ok": true
+  },
+  {
+   "pixels": [
+    2008,
+    1380
+   ],
+   "values": {
+    "view": "c",
+    "up": [
+     1,
+     2,
+     0
+    ],
+    "size": 2008,
+    "supersample": 3
+   },
+   "first": "dict",
+   "ok": true
+  }
+ ],
+ "builds": [
+  {},
+  {}
+ ],
+ "cuts": {},
+ "looks": [
+  {
+   "path": "/tmp/draft.png",
+   "pixels": [
+    1375,
+    2000
+   ]
+  },
+  {
+   "path": "/tmp/d2.png",
+   "pixels": [
+    1000,
+    674
+   ]
+  },
+  {
+   "path": "/Users/yue/rietx-agent-runs/2026-10-01-wp1504-figure/work/fap-before-opus-1/figure.png",
+   "pixels": [
+    2000,
+    1524
+   ]
+  },
+  {
+   "path": "/tmp/crop.png",
+   "pixels": [
+    200,
+    200
+   ]
+  }
+ ],
+ "report_reads": {},
+ "figure_reads": {
+  "atoms": 1,
+  "image": 3
+ },
+ "skills": {
+  "invoked": [],
+  "files": []
+ },
+ "errors": [],
+ "outside": [],
+ "figure": {
+  "exists": true,
+  "pixels": [
+   2008,
+   1530
+  ],
+  "dpi": [
+   300.0,
+   300.0
+  ]
+ },
+ "mechanical": {
+  "pass": true,
+  "checks": [
+   [
+    "figure.png exists",
+    true
+   ],
+   [
+    "width 2008 px within (2005, 2011)",
+    true
+   ],
+   [
+    "dpi 300.0 within (299.0, 301.0)",
+    true
+   ]
+  ]
+ },
+ "stall": "Derived: render_structure ×3; not done: polyhedra not whole or bare centres.",
+ "judge": {
+  "model": "opus",
+  "session_id": "485500aa-f23b-426d-812f-61eee286bff0",
+  "returncode": 0,
+  "cost_usd": 0.1120246,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "The cell outline is a 120° rhombus with the F channels at its corners seen end-on, and Ca triangles surround them."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "A legend along the bottom lists Ca, P, O, F and PO4 tetrahedron, each beside a swatch."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "Ca is teal, P orange, O red and F green, both in the legend and in the picture."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and polyhedra sit inside the frame with white margin around them."
+   },
+   {
+    "n": 5,
+    "verdict": "yes",
+    "saw": "Each bond I could trace ends at a drawn atom, and I saw no stub ending in empty space."
+   },
+   {
+    "n": 6,
+    "verdict": "no",
+    "saw": "Several P atoms have no tetrahedron, for example near (890,310), (525,615), (1470,760) and (1105,1055)."
+   }
+  ],
+  "yes": false
+ },
+ "done": false
+}
