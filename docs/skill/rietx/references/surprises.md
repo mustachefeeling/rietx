@@ -506,13 +506,13 @@ blank's esds enter the weight as σ² + s²·σ_f², so two fits declaring diffe
 scales are not scored on one statistic.
 (Measured: WP-1309.)
 
-**8.30 A joint X-ray + neutron fit keys every correction on its own histogram,
-and raises none of the radiation-keyed diagnostics.** f₀ with f′/f″ on the
-X-ray histogram, b on the neutron one, polarisation locked there and the
-magnetic term built there only: nothing to declare. But
-`DISPERSION_NEGLECTED`, `NEUTRON_RESONANT_ABSORBER` and
-`SPECIES_FALLBACK_NEUTRAL` come from `Refinement` alone, so a joint result
-without them is unchecked, not clean. Fit each pattern alone with one short
-stage and read them there. `HistogramResult` names no radiation;
-`MultiHistogramRefinement.fitted_instruments[h].source.kind` does.
-(Measured: WP-1312.)
+**8.30 A joint X-ray + neutron fit keys every correction, and each pattern's
+findings, to its own histogram.** f₀ with f′/f″ on the X-ray one; b, a locked
+polarisation and the magnetic term on the neutron one. Read every
+`result.histograms[h].diagnostics`: `DISPERSION_NEGLECTED` and
+`SPECIES_FALLBACK_NEUTRAL` are X-ray findings, `NEUTRON_RESONANT_ABSORBER` a
+neutron one. `result.diagnostics` holds the shared structure, solve and plan,
+plus each histogram's `BACKGROUND_ABSORPTION`, on both lists: count it once.
+`DATA_SUPPORT_LOW` never fires on a joint fit. Histogram h's radiation is
+`MultiHistogramRefinement.fitted_instruments[h].source.kind`.
+(Measured: WP-1312, WP-1344.)

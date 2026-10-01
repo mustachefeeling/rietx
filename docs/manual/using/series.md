@@ -805,12 +805,11 @@ different number per histogram, and that is a matter of wavelength rather
 than radiation (`SIZE_NORMALISED_ACROSS_WAVELENGTHS`, and the size section of
 [](results.md)).
 
-A joint fit does not yet tell you two things. Three diagnostics that key on
-the radiation are computed by `Refinement` and by nothing in the joint path, on
-either histogram: `DISPERSION_NEGLECTED`, `NEUTRON_RESONANT_ABSORBER` and
-`SPECIES_FALLBACK_NEUTRAL`. Their absence from a joint result is therefore not
-a clean bill. Each is computed when a fit starts, so fitting each pattern alone
-with one short stage is enough to read them. And the result does not say which
+The three diagnostics that key on the radiation, `DISPERSION_NEGLECTED`,
+`NEUTRON_RESONANT_ABSORBER` and `SPECIES_FALLBACK_NEUTRAL`, land on the
+histogram whose radiation raised them, never at the top level; the rule that
+places them and every other diagnostic is in
+{ref}`reading-a-joint-result`. What the result does not yet say is which
 radiation each histogram was, because `HistogramResult` carries no instrument.
 Read `MultiHistogramRefinement.fitted_instruments` instead, whose entry for
 each histogram carries its `source.kind`.
@@ -950,6 +949,7 @@ coordinates are shared by default, scales and everything under `instrument.` are
 not), and scanning a per-histogram path pins it in one histogram only, which is
 a different experiment from the one you meant.
 
+(reading-a-joint-result)=
 ### Reading a joint result
 
 `RefinementResult.histograms` is a list of `HistogramResult`, one per pattern.
@@ -968,6 +968,36 @@ An empty list means an ordinary single-histogram fit.
 | `HistogramResult.restraints` | the restraint report for that histogram |
 | `HistogramResult.phase_agreement` | its R_B and R_F, per phase |
 | `HistogramResult.diagnostics` | what that histogram reported |
+
+A joint fit reports each diagnostic in one of two places, and the place follows
+from what the diagnostic is about. A finding about one pattern goes on that
+histogram's `HistogramResult.diagnostics`, once per histogram: its radiation,
+its instrument, its counts, or how well the model fits it. A finding about the
+shared structure, the joint solve or the plan goes once on
+`RefinementResult.diagnostics`. So a mixed X-ray and neutron fit whose X-ray
+source declines anomalous dispersion raises `DISPERSION_NEGLECTED` on the X-ray
+histogram only. The same holds for `SPECIES_FALLBACK_NEUTRAL`, and
+`NEUTRON_RESONANT_ABSORBER` goes on the neutron histogram only. None of the
+three appears at the top level. `STAGE_MAX_ITER` and
+`SPACE_GROUP_SETTING_ASSUMED` appear there, once each.
+
+There is one exception, `BACKGROUND_ABSORPTION`, which is on both lists. It is
+raised on its histogram's list and repeated once on
+`RefinementResult.diagnostics`, where it keeps its `hist.<h>.` path, as the
+top-level report carried it before the rule was written. Each copy is the same
+finding about one histogram, so count it once.
+
+The rule is written as data. `rietx.multi.DIAGNOSTIC_SCOPES` places each
+diagnostic, and `rietx.multi.GUARD_SCOPES` places each guard. Each row gives
+its reason, including the rows for diagnostics a joint fit does not compute.
+There are four of those: the two Pawley ones (a joint fit is Rietveld-only),
+`HOLD_BLOCKED_PLAN` (a joint fit has no hold verb) and `RESTRAINT_TENSION`
+(restraints are refused). One more is withheld on purpose: `DATA_SUPPORT_LOW`.
+Its ratio of observations to parameters has no agreed definition across
+histograms, and one pattern's reflections counted against the shared columns
+would warn about a fit the other patterns support. Its two sibling checks,
+`PATTERN_UNDERSAMPLED` and `PATTERN_DEAD_CHANNELS`, are about one measurement,
+so each histogram gets them.
 
 A pooled Rwp is never quoted alone. Stacking patterns into one residual
 means a single pooled number can hide a badly fitting histogram, which is the
