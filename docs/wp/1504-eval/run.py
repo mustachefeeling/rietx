@@ -1,4 +1,4 @@
-"""WP-1504's harness: real agents draw six structure figures, before and after 1501-1503.
+"""WP-1504's harness: real agents draw seven structure figures, before 1501-1503, after and fixed.
 
     python docs/wp/1504-eval/run.py --menu                  # the costed menu
     python docs/wp/1504-eval/run.py check                   # the protocol and the shim
@@ -51,9 +51,11 @@ if str(REPO) not in sys.path:
 #: The two trees.  ``before`` is WP-1470's merge: ``render_structure`` and the
 #: dict, no cut, no extent, no report.  ``after`` is WP-1503's merge, the last
 #: commit to touch the figure surface when the round was registered.
+#: ``fixed`` is amendment 1.3's: WP-1529's merge, round B's three fixes.
 COMMITS = {
     "before": "5304b85ab092f629a0392b43966df8fda76563dd",
     "after": "97c1d9cc1344a73983fe2e1f2a6d287761e29d13",
+    "fixed": "1b837e038042236e13face9824ecf5905e5740e8",
 }
 #: What the wheel build reads, and nothing else: the tree an agent can find is
 #: the package and its skill, never the tests or the planning documents.
@@ -67,12 +69,14 @@ JUDGE_MODEL = "opus"
 #: dearest figure run the prior allows.
 MAX_BUDGET_USD = "12"
 JUDGE_BUDGET_USD = "2"
-#: The hosted manual is today's in both conditions, so neither gets it.
+#: The hosted manual is today's in every condition, so none gets it.
 DISALLOWED = ("WebFetch", "WebSearch")
 #: PROTOCOL.md § Amendment 1.1: the user-level skills stay out of a run, and
 #: § Amendment 1.2: out of the judge's too.  A run carries the version it was
-#: launched under, and only runs of this one pool.
-PROTOCOL_VERSION = "1.2"
+#: launched under, and only runs of the versions in ``POOLED`` pool: § Amendment
+#: 1.3 adds a condition and changes no launch, so 1.2's runs pool with it.
+PROTOCOL_VERSION = "1.3"
+POOLED = ("1.2", "1.3")
 SETTING_SOURCES = "project,local"
 THUMB = 800
 
@@ -242,7 +246,7 @@ def phase_row(task: str) -> dict:
 
 
 def cif_text(task: str) -> str:
-    """A plain CIF of the fixture row, the same bytes for both conditions.
+    """A plain CIF of the fixture row, the same bytes for every condition.
 
     Written here rather than by either tree's ``to_cif``, so the input cannot
     differ between the conditions it is meant to hold equal.
@@ -274,7 +278,7 @@ def prompt_for(root: Path, run: str) -> str:
 # --- prepare -------------------------------------------------------------------
 
 #: Run by each condition's own interpreter: every CIF is read and drawn, and on
-#: ``after`` the report is read field-wise and whole, so the shim's rows can be
+#: a tree with a report the report is read field-wise and whole, so the shim's rows can be
 #: checked against reads known to have happened.
 CHECK_SCRIPT = """\
 import inspect, json, sys
@@ -318,9 +322,9 @@ def instrument_check(python: Path, log: Path, condition: str, boot: str = "") ->
         problems.append(f"render rows {sizes} for {len(TASKS)} renders at a long side of 160")
     if result["first"] != "structure":
         problems.append(f"the signature shows {result['first']!r} first: the shim is visible")
-    if result["has_report"] != (condition == "after"):
+    if result["has_report"] != (condition != "before"):
         problems.append(f"report present = {result['has_report']} on {condition}")
-    if condition == "after" and not {"report.hidden", "report.whole"} <= reads:
+    if condition != "before" and not {"report.hidden", "report.whole"} <= reads:
         problems.append(f"report reads logged: {sorted(reads)}")
     if condition == "before" and any(n.startswith("report.") for n in reads):
         problems.append("a report read logged on a tree with no report")
@@ -363,11 +367,17 @@ def prepare(root: Path, condition: str) -> None:
     log.parent.mkdir(parents=True, exist_ok=True)
     log.touch()
     checked = instrument_check(python, log, condition)
-    if condition == "after":  # drawing them is free; judging them is menu option J
-        _run(str(python), str(HARNESS / "reference_figures.py"), str(root / "references"))
+    if condition != "before":  # drawing them is free; judging them is menu option J
+        _run(str(python), str(HARNESS / "reference_figures.py"),
+             str(references(root, condition)))
     (root / f"{condition}.prepared.json").write_text(
         json.dumps({"commit": COMMITS[condition], **checked}, indent=1), encoding="utf-8")
     print(f"{condition}: {python}, instrument checked: {checked}")
+
+
+def references(root: Path, condition: str) -> Path:
+    """Where ``prepare`` draws a condition's reference figures; the judge reads ``after``'s."""
+    return root / ("references" if condition == "after" else f"references-{condition}")
 
 
 # --- launch --------------------------------------------------------------------
@@ -686,7 +696,7 @@ def judge_references(root: Path, only: list[str] | None = None) -> None:
     ``only`` re-asks the named tasks and keeps the rest of ``references.json``:
     a reworded criterion is checked again without paying for the others.
     """
-    drawn = root / "references"
+    drawn = references(root, "after")
     record = HARNESS / "references.json"
     out = json.loads(record.read_text(encoding="utf-8")) if only and record.is_file() else {}
     for task in only or TASKS:
@@ -707,9 +717,9 @@ def judge_references(root: Path, only: list[str] | None = None) -> None:
 # --- the menu and the table ----------------------------------------------------
 
 def scores(current: bool = True) -> list[dict]:
-    """Every run's score, or only those launched under ``PROTOCOL_VERSION``."""
+    """Every run's score, or only those launched under a version in ``POOLED``."""
     out = [json.loads(f.read_text(encoding="utf-8")) for f in sorted(RECORD.glob("*/score.json"))]
-    return [s for s in out if s.get("protocol") == PROTOCOL_VERSION] if current else out
+    return [s for s in out if s.get("protocol") in POOLED] if current else out
 
 
 def per_run(model: str, measured: list[dict]) -> tuple[tuple[float, float], str]:
@@ -772,6 +782,8 @@ def menu() -> None:
     option("C", runs(), "the registered round: N = 3 per cell")
     option("D", [r for r in runs() if split(r)[2] == "sonnet"],
            "the registered round on Sonnet alone, the cheaper half")
+    option("E", [r for r in runs() if split(r)[1] != "after"],
+           "amendment 1.3: before against fixed at N = 3, after left at round B's N = 1")
 
 
 def _span(values: list[float], fmt: str = "{:.0f}") -> str:
@@ -805,12 +817,13 @@ def table() -> None:
                       f"{_span([s['cost_usd'] for s in cell], '{:.2f}')} |")
     fields = ("hidden", "hidden_atoms", "dangling_bonds", "label_overlaps", "empty",
               "cut", "note", "warnings", "whole")
-    after = [s for s in measured if s["condition"] == "after"]
-    if after:
-        print(f"\n`report` fields, runs reading each, of {len(after)} after-runs:")
-        for name in fields:
-            n = sum(name in s["report_reads"] for s in after)
-            print(f"- `{name}`: {n}" + ("" if n else " — never read"))
+    for condition in [c for c in COMMITS if c != "before"]:
+        cell = [s for s in measured if s["condition"] == condition]
+        if cell:
+            print(f"\n`report` fields, runs reading each, of {len(cell)} {condition}-runs:")
+            for name in fields:
+                n = sum(name in s["report_reads"] for s in cell)
+                print(f"- `{name}`: {n}" + ("" if n else " — never read"))
 
 
 # --- check ---------------------------------------------------------------------
