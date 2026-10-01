@@ -408,6 +408,12 @@ class TopasModel:
     #: :func:`to_structure`; on the model for the reason ``coverage`` is, and
     #: empty for a file with none.
     time_of_flight: dict = field(default_factory=dict)
+    #: Each time-of-flight dataset read toward a rietx bank
+    #: (:class:`~rietx.io.projects.topas_tof.TopasTOFBank`): its calibration
+    #: and profile mapped onto ``TOFSource``/``ProfileTOF``, and by name
+    #: every construct rietx cannot carry. Keyed like ``time_of_flight``;
+    #: :func:`~rietx.io.projects.topas_tof.to_tof_refinement` builds from it.
+    tof_banks: dict = field(default_factory=dict)
 
 
 def strip_comments(text: str) -> str:
@@ -2263,6 +2269,9 @@ def read_topas_inp(path: str | Path, *,
     # so a file whose every dataset is one states none — `bragg_brentano` was
     # this reader's default, and on such a file it was a fact nobody wrote.
     model.time_of_flight = _time_of_flight(stripped, active)
+    if model.time_of_flight:
+        from .topas_tof import read_tof_banks
+        model.tof_banks = read_tof_banks(stripped, active, model.time_of_flight)
     if model.time_of_flight and set(model.time_of_flight) >= (
             set(range(model.n_datasets)) or {None}):
         model.geometry = None
@@ -2785,20 +2794,19 @@ def read_topas_inp(path: str | Path, *,
                          f"`model.phases`"),
                 where=[f"coverage.refused.{h.feature.name}"
                        for h in model.coverage.refused]))
-        for k, constructs in model.time_of_flight.items():
+        for k, bank in model.tof_banks.items():
+            if not bank.refused:
+                continue
             diagnostics.append(Diagnostic(
                 level="warning", code="TOPAS_FEATURE_REFUSED",
                 message=(f"{path}: "
                          f"{'the file' if k is None else f'dataset {k}'} is "
-                         f"time of flight (it states {', '.join(constructs)}), "
-                         f"and this build models constant-wavelength "
-                         f"diffraction only — time of flight is issue #193 — "
-                         f"so `to_structure` refuses its phases rather than "
-                         f"build them as if from a constant-wavelength "
-                         f"pattern. Read `model.phases` for what the file "
-                         f"states and `model.time_of_flight` for which "
-                         f"datasets are time of flight"),
-                where=[f"time_of_flight.{k}"]))
+                         f"time of flight and states "
+                         + "; ".join(f"`{c}` ({why})" for c, why in bank.refused)
+                         + " — each refused rather than approximated, so "
+                           "`topas_tof.to_tof_refinement` refuses this bank. "
+                           "Read `model.tof_banks` for what the file states"),
+                where=[f"tof_banks.{k}"]))
         for phase_name, raw, canonical in origin_translations:
             diagnostics.append(Diagnostic(
                 level="info", code="TOPAS_ORIGIN_TRANSLATED",
@@ -3321,12 +3329,12 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
             f"{', '.join(model.time_of_flight[d])}" for d in tof)
         raise TopasInpError(
             f"{model.path or '<model>'}: the phases asked for belong to a "
-            f"time-of-flight pattern ({stated}), and this build models "
-            f"constant-wavelength diffraction only — neutron time of flight "
-            f"is issue #193. Building them would put a time-of-flight bank's "
-            f"scale and refine flags into a constant-wavelength model. Pass "
-            f"dataset=N for a constant-wavelength dataset of this file, or "
-            f"read `model.phases` for what the file states.")
+            f"time-of-flight pattern ({stated}), whose scale is TOPAS's "
+            f"d⁴-only intensity and not a constant-wavelength one. Build the "
+            f"bank with `rietx.io.projects.topas_tof.to_tof_refinement(model, "
+            f"dataset=N, two_theta_bank_deg=…)`, which converts the scale and "
+            f"builds the instrument, or pass dataset=N for a "
+            f"constant-wavelength dataset of this file.")
     building = {ph.name for ph in phases_in}
     blocked = [h for h in model.coverage.refused
                if not h.phases or building.intersection(h.phases)]
