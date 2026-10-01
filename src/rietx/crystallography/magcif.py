@@ -407,8 +407,31 @@ _MOMENT_OPTIONAL = (
 )
 
 
+# The items that state a moment component.  A ``?`` or ``.`` in one of these is
+# kept in the row (every other item drops it), so :func:`_components_from_row`
+# can tell a component the file wrote as not-a-number from a column the loop
+# does not have (#602).
+_MOMENT_COMPONENT_ITEMS = (
+    "crystalaxis_x", "crystalaxis_y", "crystalaxis_z",
+    "Cartn_x", "Cartn_y", "Cartn_z",
+    "spherical_modulus", "spherical_polar", "spherical_azimuthal",
+)
+
+# CIF's two null values (the CIF 1.1 syntax specification, Hall, Westbrook &
+# Brown, *International Tables* Vol. G ch. 2.2; the COMCIFS reference parser
+# reads them as distinct "unknown" and "not applicable" kinds).  cif_mag.dic defines no default for any moment
+# component, so neither has a value to substitute.
+_CIF_NULL_MEANING = {"?": "unknown", ".": "inapplicable"}
+
+
 def _moment_table(block):
-    """The ``_atom_site_moment`` loop as ``[{item: text}]``, either spelling."""
+    """The ``_atom_site_moment`` loop as ``[{item: text}]``, either spelling.
+
+    An empty, ``?`` or ``.`` cell is dropped, except in a moment-component
+    item (:data:`_MOMENT_COMPONENT_ITEMS`), where ``?``/``.`` is kept as
+    written: there it is a statement about a component, which
+    :func:`_components_from_row` refuses rather than reads as zero.
+    """
     rows: list[dict[str, str]] = []
     for prefix in ("_atom_site_moment.", "_atom_site_moment_"):
         table = block.find(prefix, ["label"] + [f"?{n}" for n in _MOMENT_OPTIONAL])
@@ -420,8 +443,11 @@ def _moment_table(block):
             for i, name in enumerate(names):
                 if not row.has(i):
                     continue
-                text = row.str(i).strip()
-                if text in ("", ".", "?"):
+                # ``row.str`` maps both nulls to "", so read the raw token for them
+                raw = row[i].strip()
+                text = raw if raw in _CIF_NULL_MEANING else row.str(i).strip()
+                if text == "" or (text in _CIF_NULL_MEANING
+                                  and name not in _MOMENT_COMPONENT_ITEMS):
                     continue
                 entry[name] = text
             rows.append(entry)
@@ -1023,6 +1049,8 @@ def _components_from_row(row: dict[str, str], label: str, cell, path: str
     """
     from .magnetic.operators import moment_from_cartesian, moment_magnitude
 
+    _refuse_null_components(row, label, path)
+    row = _stated_items(row)
     forms: dict[str, np.ndarray] = {}
     esds: list[float | None] = [None, None, None]
     raw_component_text: list[str] | None = None
@@ -1173,11 +1201,56 @@ def _cartesian_esds(sus, cell) -> list[float | None]:
     return out
 
 
+def _stated_items(row: dict[str, str]) -> dict[str, str]:
+    """``row`` without its ``?``/``.`` component cells (:func:`_moment_table`)."""
+    return {k: v for k, v in row.items() if v not in _CIF_NULL_MEANING}
+
+
+_MOMENT_FORMS = (
+    ("crystal-axis", ("crystalaxis_x", "crystalaxis_y", "crystalaxis_z")),
+    ("Cartesian", ("Cartn_x", "Cartn_y", "Cartn_z")),
+    ("spherical", ("spherical_modulus", "spherical_polar",
+                   "spherical_azimuthal")),
+)
+
+
+def _refuse_null_components(row: dict[str, str], label: str, path: str) -> None:
+    """Raise where a row states a moment form with a ``?``/``.`` component (#602).
+
+    A form whose cells are *all* ``?``/``.`` is a form this row does not use —
+    a loop that carries both crystal-axis and Cartesian columns fills the one a
+    row does not state with ``.`` — and is skipped, as an absent column is.  A
+    form with a number in one cell and ``?`` or ``.`` in another is a moment
+    with a component the file says it does not know (``?``) or that has no
+    value (``.``).  Neither is zero, and a ``Moment`` has no unknown component
+    to carry it in, so the row is refused by site and item.  A component that
+    is zero by symmetry is written ``0`` in a magCIF, as MAGNDATA does.
+    """
+    for form, items in _MOMENT_FORMS:
+        nulls = [(i, row[i]) for i in items if row.get(i) in _CIF_NULL_MEANING]
+        numbers = [i for i in items
+                   if i in row and row[i] not in _CIF_NULL_MEANING]
+        if not nulls or not numbers:
+            continue
+        named = ", ".join(f"_atom_site_moment.{i} = {v!r} "
+                          f"({_CIF_NULL_MEANING[v]})" for i, v in nulls)
+        raise MagCifError(
+            f"{path}: site {label!r} states its moment in the {form} form "
+            f"with {named}. In CIF '?' means the value is unknown and '.' that "
+            f"it is inapplicable; neither is 0 mu_B, and cif_mag.dic gives a "
+            f"moment component no default to fall back on. rietx stores a "
+            f"moment as three numbers and has no unknown component to carry "
+            f"this in, so the row is refused rather than read with that "
+            f"component set to zero. Write the number, or 0 where the "
+            f"component is zero by symmetry.")
+
+
 def _spherical_su_dropped(row: dict[str, str]) -> list[str]:
     """The spherical items of a row whose su is not carried: every one with an
     inline su, where the spherical form is the one the moment was taken from
     (no crystal-axis item in the row; the spherical form outranks a Cartesian
     one in :func:`_components_from_row`)."""
+    row = _stated_items(row)
     if any(f"crystalaxis_{a}" in row for a in ("x", "y", "z")):
         return []
     names = ("modulus", "polar", "azimuthal")

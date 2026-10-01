@@ -269,7 +269,12 @@ inline `value(su)`, or half the last printed digit when neither is given)
 rather than a fixed band, widened by each component's own imprecision
 propagated through the metric, since the derived norm is itself only as
 precise as the components it came from. A magnitude rounded to fewer
-figures than the components is read, not refused.
+figures than the components is read, not refused. A component written `?`
+or `.` beside numbers in the same form is refused, naming the site and the
+item. In CIF `?` means unknown and `.` inapplicable, the dictionary gives a
+moment component no default, and reading either as 0 μ_B would state a moment
+the file did not. A form whose cells in a row are all `?` or `.` is one that
+row does not use, and the other form is read.
 
 Standard uncertainties follow the form the moment is taken from. A
 crystal-axis row keeps its own. A Cartesian row's go through the conversion,
