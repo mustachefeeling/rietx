@@ -45,51 +45,47 @@ visibly different form factors and "the nearest ion" is how a moment comes out
 
 Provenance
 ----------
-The coefficients are Brown's ITC Vol. C tabulation, transcribed from the
-public-domain ``periodictable`` package (which carries the CrysFML Fortran
-table); ``ATTRIBUTION.md`` carries the row, and ``periodictable`` is **not** a
-dependency of this package — the numbers are here, in source.  Cross-checked
-against published rows: Fe³⁺ ⟨j₀⟩ against Gupta *et al.* (arXiv:1309.3683),
-which cites Dianoux & Lander's *Neutron Data Booklet*, and Mn²⁺ ⟨j₀⟩ against
-the MnF₂ polarised-neutron study of 2025 — seven of seven coefficients each.
+The coefficients are Brown's ITC Vol. C § 4.4.5 tabulation (3rd ed., 2004,
+Tables 4.4.5.1-4.4.5.8, pp. 454-457).  Most rows were transcribed from the
+public-domain ``periodictable`` package, which carries the CrysFML Fortran
+table; ``ATTRIBUTION.md`` carries the row, and ``periodictable`` is **not** a
+dependency of this package — the numbers are here, in source.
 
-**2026-09-18 audit (issue-magnetic-form-factor-gaps).** ``ill.eu``'s "ffacts"
-pages, named in the brief as the primary access route to Brown's table, are
-gone (HTTP 404 as of 2026-09-18, both the index and the node pages; the
-whole ``/sites/ccsl/ffacts/`` subtree is absent from the current site). Five
-existing rows — Fe³⁺, Mn²⁺ (3d) and Nd³⁺, Sm³⁺, Dy³⁺ (4f) — were re-checked
-coefficient by coefficient, as a **verification read only**, against two
-other transcriptions of the same Brown/ITC table: P. J. Brown's own data
-file, signed "Jane Brown", mirrored by the McPhase project at
-http://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/node137.html, and
-GSAS-II's ``GSASII/atmdata.py`` ``MagFF`` table
-(https://raw.githubusercontent.com/AdvancedPhotonSource/GSAS-II/master/GSASII/atmdata.py),
-both accessed 2026-09-18. All five rows' ⟨j₀⟩ **and** ⟨j₂⟩ coefficients agree
-with both mirrors to the precision each carries — no disagreement found.
+**Verified 2026-10-01 (#593), whole table.** Every ⟨j₀⟩ and ⟨j₂⟩ row
+was compared, as curves on Brown's fit ranges, with two independent
+renderings of Brown's fits: the 2004 print (read from the page image) and P.
+J. Brown's own data file (signed "Jane Brown", dated 2013-09-19, mirrored in
+the McPhase manual at
+http://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/node137.html; the
+ILL "ffacts" pages are gone). The file was read for verification only and
+nothing is copied from it (``ATTRIBUTION.md``). Of the 190 rows the print
+carries, 188 agree with both renderings to the print's rounding. Two did
+not: **Ni³⁺ ⟨j₀⟩ and ⟨j₂⟩**. Those rows were CrysFML's, and both of Brown's
+renderings disagree with them (CrysFML's Ni³⁺ ⟨j₂⟩ is Brown's Ni⁴⁺ row digit
+for digit). The physics agrees with Brown: with CrysFML's rows the ⟨r²⟩
+steps Ni²⁺ → Ni³⁺ → Ni⁴⁺ are −25 to −28 % and then 0 to +1 %, where every
+other 3d element steps −14 to −19 % and then −11 to −15 %. Ni³⁺ is now the
+print's row, and so is V ⟨j₂⟩. CrysFML's V ⟨j₂⟩ is a refit that differs from
+the print by at most 5 × 10⁻⁴ in f, and it was aligned with the print so
+that the citation covers it. Both rows carry the print's three decimals on
+the exponents. The rare-earth rows also reproduce the Dirac-Fock values
+Brown fitted (Freeman & Desclaux 1979, *J. Magn. Magn. Mater.* **12**,
+11-21, Table 7) to his printed fit error. The table is pinned by a
+fingerprint and a self-consistency battery in
+``tests/test_magnetic_form_factor_table.py``.
 
-Both mirrors also carry a Pr³⁺ ⟨j₂⟩ row that this module still does not, and
-the two agree with each other to 3-4 decimals — but per Michael's guidance
-(2026-09-18), a mirror agreeing with another mirror is a transcription
-check, never a substitute for the primary publication, so this is *not*
-treated as settling where the row comes from. Tracing GSAS-II's own comment
-("really Pr+3 - from J2K", unlike every other row in that file, which its
-module docstring attributes to "Intl. Tables for Cryst, Vol. C" generally)
-further than that: GSAS-II's own git history uses "J2K" as an internal name
-for its electron-deformation-density ("Hansen-Coppens"/multipole) machinery
-— a commit titled "mods to deformation math - now the J2K stuff works"
-(AdvancedPhotonSource/GSAS-II@e0d67845, 2025-03-29) — which is not a rare-
-earth magnetic-form-factor context at all. So this row's actual primary
-source is **unidentified**, not merely unread: it may not be Brown/ITC Vol.
-C at either mirror. **It is not copied in**, for two independent reasons:
-``ATTRIBUTION.md`` already rules out copying a magnetic-form-factor number
-from either mirror for this exact table (GSAS-II's grant-back clause,
-spec-only; McPhase's GPL — "the numbers in both are Brown's, but those files
-are not ours to copy," stricter than this brief's own generic source list,
-followed here in preference to it), and independently, no primary source
-was actually read for this specific row — the standard this project already
-holds every other row in this table to. Candidate primary sources checked
-and the row stays a documented gap pending one of them (or another) becoming
-readable: see ``checks/agent_reports/form-factor-publication-REQUEST.md``.
+Cross-checked against published rows: Fe³⁺ ⟨j₀⟩ against Gupta *et al.*
+(arXiv:1309.3683), which cites Dianoux & Lander's *Neutron Data Booklet*, and
+Mn²⁺ ⟨j₀⟩ against the MnF₂ polarised-neutron study of 2025 — seven of seven
+coefficients each.
+
+**Pr³⁺.** Its ⟨j₀⟩ row is in no table of the 2004 print. It is the Pr³⁺ row
+of Brown's data file, which also carries a ⟨j₂⟩ that this table does not.
+That ⟨j₀⟩ reproduces Lisher & Forsyth's (1971) non-relativistic Pr³⁺ curve
+(*Acta Cryst.* A **27**, 545-549) to 0.05 % rms, so it is not on the
+Dirac-Fock footing of the other rare-earth rows. What to ship for Pr³⁺ is
+left to a follow-up (#593); until then a Pr³⁺ moment with g ≠ 2 is
+refused by name.
 
 ``periodictable`` also carries a pre-combined "J" entry for Ce²⁺, Ce³⁺ and
 Pr³⁺ (``add_form_factor("J", ...)``) that looks, at first glance, like it
@@ -104,6 +100,10 @@ References
 ----------
 * Brown, P. J. *International Tables for Crystallography* Vol. C, § 4.4.5 —
   the ⟨jₙ⟩ coefficients and the analytic form.
+* Freeman, A. J. & Desclaux, J. P. (1979). *J. Magn. Magn. Mater.* **12**,
+  11-21 — the Dirac-Fock ⟨jₙ⟩ values Brown fitted for the rare-earth rows.
+* Lisher, E. J. & Forsyth, J. B. (1971). *Acta Cryst.* A **27**, 545-549 —
+  an independent (non-relativistic) fit, used as a third lineage.
 * Halpern, O. & Johnson, M. H. (1939). *Phys. Rev.* **55**, 898 — magnetic
   neutron scattering by an atom with a magnetization density.
 * Rodríguez-Carvajal, J. (1993). *Physica B* **192**, 55 — FullProf; the
@@ -169,7 +169,7 @@ _J0: dict[str, Coefficients] = {
     "Ni": (-0.0172, 35.7392, 0.3174, 14.2689, 0.7136, 4.5661, -0.0143),
     "Ni1+": (0.0705, 35.8561, 0.3984, 13.8042, 0.5427, 4.3965, -0.0118),
     "Ni2+": (0.0163, 35.8826, 0.3916, 13.2233, 0.6052, 4.3388, -0.0133),
-    "Ni3+": (-0.0134, 35.8677, 0.2678, 12.3326, 0.7614, 4.2369, -0.0162),
+    "Ni3+": (0.0012, 35.000, 0.3468, 11.987, 0.6667, 4.252, -0.0148),   # ITC-C 2004 T 4.4.5.1, p. 454
     "Ni4+": (-0.009, 35.8614, 0.2776, 11.7904, 0.7474, 4.2011, -0.0163),
     "Cu": (0.0909, 34.9838, 0.4088, 11.4432, 0.5128, 3.8248, -0.0124),
     "Cu1+": (0.0749, 34.9656, 0.4147, 11.7642, 0.5238, 3.8497, -0.0127),
@@ -233,20 +233,9 @@ _J0: dict[str, Coefficients] = {
 }
 
 #: ⟨j₂⟩ coefficients, same keys.  95 rows — every ion above except **Pr³⁺**,
-#: which the ``periodictable``/CrysFML transcription this table is built from
-#: has a ⟨j₀⟩ for and no ⟨j₂⟩.  That gap is not papered over: a Pr³⁺ moment
-#: with g ≠ 2 is refused by name.  Two other transcriptions (GSAS-II's,
-#: McPhase's) carry a Pr³⁺ row and agree with each other, but neither is a
-#: primary source read directly (module docstring, "2026-09-18 audit") —
-#: GSAS-II's own comment on this one row does not match the "Intl. Tables
-#: for Cryst, Vol. C" attribution every other row in its file carries, and
-#: tracing it further finds "J2K" used elsewhere in GSAS-II's own history
-#: for unrelated deformation-density machinery, so its actual source is
-#: unidentified.  ``ATTRIBUTION.md`` also already rules out copying a
-#: magnetic-form-factor number from either of those two sources (GSAS-II:
-#: grant-back clause, spec-only; McPhase: GPL), so the row stays absent
-#: pending a source this project can actually cite
-#: from — see ``checks/agent_reports/form-factor-publication-REQUEST.md``.
+#: whose ⟨j₂⟩ is in Brown's data file but not in the ITC print or in
+#: ``periodictable`` (module docstring, "Pr³⁺").  That gap is not papered
+#: over: a Pr³⁺ moment with g ≠ 2 is refused by name.
 _J2: dict[str, Coefficients] = {
     "Sc": (10.8172, 54.327, 4.7353, 14.847, 0.6071, 4.218, 0.0011),
     "Sc1+": (8.5021, 34.285, 3.2116, 10.994, 0.4244, 3.605, 0.0009),
@@ -255,7 +244,7 @@ _J2: dict[str, Coefficients] = {
     "Ti1+": (6.1567, 27.275, 2.6833, 8.983, 0.407, 3.052, 0.0011),
     "Ti2+": (4.3107, 18.348, 2.096, 6.797, 0.2984, 2.548, 0.0007),
     "Ti3+": (3.3717, 14.444, 1.8258, 5.713, 0.247, 2.265, 0.0005),
-    "V": (3.8099, 21.347, 2.3295, 7.409, 0.4333, 2.632, 0.0015),
+    "V": (3.7600, 21.831, 2.4026, 7.546, 0.4464, 2.663, 0.0017),   # ITC-C 2004 T 4.4.5.5, p. 456
     "V1+": (4.7474, 23.323, 2.3609, 7.808, 0.4105, 2.706, 0.0014),
     "V2+": (3.4386, 16.53, 1.9638, 6.141, 0.2997, 2.267, 0.0009),
     "V3+": (2.3005, 14.682, 2.0364, 6.13, 0.4099, 2.382, 0.0014),
@@ -283,7 +272,7 @@ _J2: dict[str, Coefficients] = {
     "Ni": (1.0302, 12.252, 1.4669, 4.745, 0.4521, 1.744, 0.0036),
     "Ni1+": (2.104, 14.866, 1.4302, 5.071, 0.4031, 1.778, 0.0034),
     "Ni2+": (1.708, 11.016, 1.2147, 4.103, 0.315, 1.533, 0.0018),
-    "Ni3+": (1.1612, 7.7, 1.0027, 3.263, 0.2719, 1.378, 0.0025),
+    "Ni3+": (1.4683, 8.671, 0.1794, 1.106, 1.1068, 3.257, -0.0023),   # ITC-C 2004 T 4.4.5.5, p. 456
     "Ni4+": (1.1612, 7.7, 1.0027, 3.263, 0.2719, 1.378, 0.0025),
     "Cu": (1.9182, 14.49, 1.3329, 4.73, 0.3842, 1.639, 0.0035),
     "Cu1+": (1.8814, 13.433, 1.2809, 4.545, 0.3646, 1.602, 0.0033),

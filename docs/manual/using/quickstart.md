@@ -351,7 +351,12 @@ Six things in it are moves that any later refinement repeats:
 
 ## The `RefinementResult` object
 
-`RefinementResult.status` says whether the solver converged.
+`RefinementResult.status` says whether the solver converged, and nothing
+about whether the fit is any good: a model that matches nothing can converge.
+Fit quality is `RefinementResult.diagnostics`' channel. `RefinementResult.usable`
+reads the two together, as `status == "converged"` with no diagnostic at level
+`"error"`, which is the test a batch driver wants before it reads a value. A
+`True` there is not a pass: each warning still names a number you may not quote.
 `RefinementResult.statistics` carries the agreement indices, of which
 `Statistics.rwp` and `Statistics.gof` are the two usually quoted, and
 `Statistics.n_points`, `Statistics.n_free_parameters` and

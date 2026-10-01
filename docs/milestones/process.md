@@ -10,7 +10,8 @@ and the one-tree-per-session tooling of 2026-08-27. The test keeps the rule and
 a one-line table per bump; the reasoning is here. Since 2026-09-30 it also
 holds [what a session's reading costs](#what-a-sessions-reading-costs), the
 measurement behind the delegation rules in `/pr-review`, `/wp-start` and
-`/wp-handover`.
+`/wp-handover`. Since 2026-10-01 it holds [lanes within a
+WP](#lanes-within-a-wp), the replay behind the `/wp-lanes` trial.
 
 ## The rule
 
@@ -1029,8 +1030,9 @@ A WP session differs from a review in two ways.
   ahead and ~12K with 200. At handover (300-450K context, 20-50 requests
   left) it is 14-20K for an Opus agent and 6-9K for a Sonnet one. So #548's
   ~20K (~50 KB) is the commands' single bar. How many requests a WP session
-  makes was not measured (below), so the lower figures are left to the table
-  rather than stated as a rule.
+  makes was not measured then, so the lower figures are left to the table
+  rather than stated as a rule. The median is 212 ([measured
+  since](#lanes-within-a-wp)).
 
 **Two corollaries used by `/wp-handover`.**
 
@@ -1061,7 +1063,109 @@ files of 25.5 KB added ~10.5K tokens, a 10.2 KB python range ~4.1K, and a
   them is 55-150K tokens.
 - **Records**: the v1.0 record is 340 KB.
 
-**Not measured.** No WP session's transcript was on the measuring box, so the
-WP-shape table is the model's rather than a run's. Its request counts are
-parameters. A WP session's real count, from #548's `usage_sum.py` run over
-one's transcript, is the next measurement to take.
+**Measured since.** The WP-shape table above is the model's, with request
+counts as parameters, because no WP session's transcript was on the measuring
+box. A day later 174 were measured on the maintainer's. A session makes a
+median of 212 requests and peaks at a median 374K
+([Lanes within a WP](#lanes-within-a-wp)).
+
+## Lanes within a WP
+
+Measured 2026-10-01 over this machine's WP-session transcripts.
+`python3 .claude/hooks/session_usage.py baseline` reproduces every number
+below. It reads every main transcript of this repository that made a
+`WP-NNNN:` commit and at least 20 requests. Re-run later, it reads whatever
+transcripts the machine holds then, so its numbers move. Every model is priced at its
+family's current generation, so the August sessions on Opus 5 are a
+counterfactual bill at Opus 5.5 rates.
+
+A *lane* is a subagent that does one checklist item while the main session
+waits. The main session then checks the diff and commits it.
+
+**The sessions.** There are 174, from 20 August to 30 September, with 42,315
+requests. Each splits at its WP commits into items, 1,487 in all, roughly one
+checklist entry each.
+
+- A session makes a median of 212 requests (p10 75, p90 404). Its context
+  peaks at a median 374K.
+- The first request grew from 60K (the first ten sessions) to 78K (the last
+  ten). Every later request and every agent pays that base again.
+- The median item takes 15 requests (p90 65) and adds 18K tokens (p90 92K).
+  It starts at 272K. Most of a session's requests run late, at a large
+  context.
+
+**The bill** is $3,604. Cache reads are 66%, cache writes and input 19%, and
+output 16%. If each request had carried only its session's first context,
+reads would have been 25% of what they were. The other 75% is accumulation.
+
+**What fills the context.** `Read` results are 60%. Tool inputs the model
+wrote, mostly edits, are 17%. `cat`/`sed`/`awk`/`head` are 11%, grep 5%, diffs
+and logs 2%, and test output about 1%. Reading is three-quarters of what a
+session carries.
+
+**An agent's start.** An Opus 5.5 agent's first request is 65K (median of 26).
+None of it is read from the cache, so consecutive agents share no cached
+prefix.
+
+**The replay.** Each item is kept in the main session or sent to a lane.
+
+- A kept item pays its measured growth on top of the main context, as the
+  replay has left it.
+- A lane starts from 64K, plus the WP file (6.3K), plus the files it edits
+  that an earlier item read and it did not, plus *u*. Those carried files come
+  to a median of 0 and a p90 of 1K, because an item mostly reads what it
+  edits. *u* is the code an earlier item read only to understand the problem,
+  which a lane must read again. No transcript shows it, so the table spans
+  0-40K.
+- A lane makes 3 orientation requests. The main session pays 5 requests at
+  its own context to dispatch and check it, then carries 8K of report and
+  diff.
+
+With nothing laned, the replay reproduces every request's context.
+
+| policy | items laned | *u* = 0 | *u* = 20K | *u* = 40K |
+|---|---|---|---|---|
+| lane every item | 1,487 | −20% | −8% | +4% |
+| lane when main > 200K | 1,034 | −16% | −9% | −2% |
+| lane when main > 150K and item ≥ 20 requests | 403 | −28% | −23% | −19% |
+| same, 10 main requests and 20K left per lane | 403 | −21% | −17% | −12% |
+| same, one lane in five redone | 403 | −22% | −17% | −11% |
+
+The percentages are of the modelled reads and writes, $2,819. At *u* = 20K
+the selective policy saves $650, 18% of the whole bill. Laning every item
+turns on *u*, and at 40K it costs more than it saves. The selective policy
+holds under every variation tried.
+
+The saving sits in the long sessions. Under the selective policy at *u* =
+20K, sessions peaking under 300K save 1%. Those peaking at 300-450K save 17%,
+and those above 450K save 31%.
+
+**The crossover.** A lane saves the main context minus its own base, on each
+of its requests. Its fixed cost is its base written at the 5-minute rate,
+three orientation requests, the main session's five requests, the 8K carried
+afterwards and one dispatch prompt. So the item length at which a lane breaks
+even falls as the main context grows:
+
+| lane base | main 150K | 200K | 250K | 300K | 400K | 500K |
+|---|---|---|---|---|---|---|
+| 80K | 50 requests | 31 | 24 | 19 | 15 | 13 |
+| 110K | 109 | 51 | 35 | 27 | 19 | 16 |
+
+A laned item also stops adding its growth to the main session, which lowers
+these lengths a little for the requests still to come. Sonnet lanes would add
+little. Sonnet's cache reads cost the same $0.20, so only writes and output
+get cheaper.
+
+**The trial.** The replay assumed three numbers: *u*, the main session's
+requests per lane, and what a lane leaves in the main context. It also assumed
+that a session can tell a long item before starting it, and that a lane's
+work holds up. `/wp-lanes` runs the selective policy in a real WP session, and
+`session_usage.py lanes` measures all five. One row per trial session:
+
+| date | session | lanes | kept | re-read (*u*) | main requests per lane | left in main | actual / estimated requests | lanes fixed / redone | saved | of the session |
+|---|---|---|---|---|---|---|---|---|---|---|
+
+Whether `/wp-start` step 6b takes the rule waits for a few rows. Until then
+the policy lives only in `/wp-lanes`.
+[WP-1903](../wp/1903-the-lane-trial-decides.md) makes the decision once three
+rows are in.

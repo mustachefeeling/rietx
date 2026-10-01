@@ -5242,6 +5242,13 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # twin of the flag above (bound: params.vector.size_cap, one tier up).
     diagnostics = diagnostics + _size_flag_diagnostics(model, values, structure)
 
+    # The width census against the answer's own widths (WP-1336, issue #249):
+    # the one width check that looks at the data rather than at a refined
+    # coefficient, so it speaks where the two flags above have nothing to read
+    # — a model with no size or strain freed.  Why here and not as a
+    # precondition call: ``indexing.diagnostics.refinement_width_diagnostics``.
+    diagnostics = diagnostics + _width_census_diagnostics(model, values, structure)
+
     # The two robustness statements that are about the *run* rather than a
     # parameter, so they are Diagnostics here rather than GuardFindings (which
     # exist to carry paths — these have none).  Both cover the silent-failure
@@ -6980,6 +6987,42 @@ def _sqrt_or_none(variance: float | None) -> float | None:
 #: ``gauss_size`` is a variance, so the size is read from its square root, the
 #: same conversion :func:`~rietx.params.vector.size_cap_hi` uses for the bound.
 SIZE_FLAG_SIZE_A = 50.0
+
+
+def _width_census_diagnostics(model: CompiledModel, values: dict[str, float],
+                              structure: Structure) -> list[Diagnostic]:
+    """``PEAK_WIDTH_LAW_MISMATCH`` from the fit: the indexing census taken on
+    the fitted channels, against each phase's width at the returned values.
+
+    The comparison and the reason it runs here are
+    :func:`~rietx.indexing.diagnostics.refinement_width_diagnostics`'s; this
+    gathers the two numbers.  Declines, rather than guessing, where the model's
+    width is not one number per angle: a phase with a Stephens ``microstrain``
+    block (its width is per reflection, and the isotropic law alone would
+    under-read it), or a width law that is not finite and positive on the grid.
+    """
+    from .indexing.diagnostics import refinement_width_diagnostics
+    from .indexing.peaks import width_census
+
+    if not model.phases or any(ph.microstrain is not None
+                               for ph in structure.phases):
+        return []
+    tt = np.asarray(model.tt, dtype=np.float64)
+    fwhm_inst = np.asarray(model.instrument_fwhm_deg(tt, values), dtype=np.float64)
+    if not (np.all(np.isfinite(fwhm_inst)) and float(fwhm_inst.min()) > 0.0):
+        return []
+    census = width_census(tt, np.asarray(model.y_obs, dtype=np.float64),
+                          np.asarray(model.sigma, dtype=np.float64), fwhm_inst)
+    if census is None:
+        return []
+    positions, measured = census
+    modelled: dict[int, tuple[str, float]] = {}
+    for ip in range(len(model.phases)):
+        (w1, w2), = model._width_block(ip, values, [positions], 0.0)
+        fw = np.asarray(model.peak_fwhm(w1, w2), dtype=np.float64)
+        if np.all(np.isfinite(fw)):
+            modelled[ip] = (structure.phases[ip].name, float(np.median(fw)))
+    return refinement_width_diagnostics(measured, modelled)
 
 
 def _size_flag_diagnostics(model: CompiledModel, values: dict[str, float],

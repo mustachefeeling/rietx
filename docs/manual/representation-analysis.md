@@ -138,9 +138,23 @@ than to $\mathbf{k}$, and the physically irreducible representation pairs
 the two arms of the star, $D_{\mathbf{k}} \oplus D^*_{-\mathbf{k}}$; when
 $2\mathbf{k} \in L^*$ but the Frobenius-Schur indicator is $0$ or $-1$ the
 irrep is complex or pseudoreal at the same k, and the real combination is
-$D \oplus D^*$ or $D \oplus D$ respectively. All three double the count of
-free real amplitudes against the real case, because the conjugate partner
-carries no information the returned vectors do not already hold.
+$D \oplus D^*$ or $D \oplus D$ respectively.
+
+The free real-amplitude count follows from these cases alone, never from
+whether the vectors happen to come out real (Bradley & Cracknell, 1972,
+Definition 1.3.7 p. 20 and Theorem 4.6.2 p. 204). Where
+$2\mathbf{k} \notin L^*$ every irrep carries $2 n_\nu d_\nu$, even when
+its vectors are real, because $C$ and $iC$ give different fields (cosine
+against sine modulation), and no irrep at $\mathbf{k}$ is the partner of
+another, since $D^*$ lives at $-\mathbf{k}$; the counts close on
+$2 \cdot 3N$. Where $2\mathbf{k} \in L^*$ the counts close on $3N$: a real
+irrep carries $n_\nu d_\nu$; a complex one $2 n_\nu d_\nu$, with the pair
+$D, D^*$ counted once; and a pseudoreal one $n_\nu d_\nu$, because its real
+irreducible form has dimension $2 d_\nu$ and complexifies to $D \oplus D$,
+so the $n_\nu$ complex copies pair up and only $n_\nu/2$ of them are
+independent over the reals. P2₁2₁2₁ at $(\tfrac12,\tfrac12,\tfrac12)$ on a
+general site is the smallest example: one pseudoreal irrep with
+$n_\nu = 6$, $d_\nu = 2$, and $12 = 3N$ real amplitudes.
 
 For the LaMnO₃ 4b orbit the four one-dimensional even irreps each give one
 real basis vector per axis, and the twelve vectors, three irreps times three

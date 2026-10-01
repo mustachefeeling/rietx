@@ -181,17 +181,15 @@ def test_j0_coefficients_match_a_published_row(ion, published):
 
 
 @pytest.mark.parametrize("ion, j0_published, j2_published", [
-    # 2026-09-18 audit (issue-magnetic-form-factor-gaps): five rows checked
-    # coefficient by coefficient against two independent transcriptions of
-    # Brown's ITC Vol. C table -- P. J. Brown's own data file (signed "Jane
-    # Brown"), mirrored at http://www2.cpfs.mpg.de/~rotter/homepage_mcphase/
-    # manual/node137.html (accessed 2026-09-18), and GSAS-II's
-    # GSASII/atmdata.py MagFF table (accessed 2026-09-18 from
-    # AdvancedPhotonSource/GSAS-II on GitHub), whose own docstring names
-    # "Intl. Tables for Cryst, Vol. C" for these coefficients. ill.eu's
-    # "ffacts" pages -- the brief's named primary route -- return HTTP 404
-    # as of this date; both mirrors agree with this module's existing rows
-    # to the precision each carries, so no disagreement was found.
+    # Five rows checked coefficient by coefficient against the two renderings
+    # of Brown's fits: the ITC Vol. C 2004 print, read from the page image
+    # (Tables 4.4.5.1/.3/.5/.7, pp. 454-457; exponents to 3 decimals), and
+    # P. J. Brown's own data file (signed "Jane Brown", 2013-09-19, mirrored
+    # read-only at http://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/
+    # node137.html; exponents to 4 decimals). These rows equal the file
+    # exactly and the print to its 3 decimals. First checked 2026-09-18,
+    # re-attributed 2026-10-01 when the whole table was verified (module
+    # docstring, "Verified 2026-10-01").
     ("Fe3+", (0.3972, 13.2442, 0.6295, 4.9034, -0.0314, 0.3496, 0.0044),
              (1.3602, 11.998, 1.5188, 5.003, 0.4705, 1.991, 0.0038)),
     ("Mn2+", (0.4220, 17.684, 0.5948, 6.005, 0.0043, -0.609, -0.0219),
@@ -203,16 +201,15 @@ def test_j0_coefficients_match_a_published_row(ion, published):
     ("Dy3+", (0.1157, 15.0732, 0.3270, 6.7991, 0.5821, 3.0202, -0.0249),
              (0.2523, 18.517, 1.0914, 6.736, 0.9345, 2.208, 0.025)),
 ])
-def test_the_2026_09_18_audit_rows_match_both_mirrors(ion, j0_published, j2_published):
-    """Two 3d rows and three 4f rows, re-verified against a live source.
+def test_five_rows_match_both_renderings_of_browns_table(ion, j0_published, j2_published):
+    """Two 3d rows and three 4f rows, pinned to Brown's own data file.
 
     Distinct from :func:`test_j0_coefficients_match_a_published_row` above:
     that test pins two rows against a *paper*; this one pins five rows
-    (⟨j₀⟩ **and** ⟨j₂⟩) against the *table this module claims to transcribe*,
-    re-opened independently rather than trusted from the module's own
-    history. The tolerance is exact because both mirrors carry these
-    particular rows to at least 4 decimal places, matching what this table
-    stores.
+    (⟨j₀⟩ **and** ⟨j₂⟩) against the *table this module claims to transcribe*.
+    The tolerance is exact because Brown's file carries these rows to 4
+    decimal places, matching what this table stores; the print agrees to its
+    3. The whole table is covered by ``test_magnetic_form_factor_table.py``.
     """
     got_j0, got_j2 = coefficients(ion)
     assert got_j0 == pytest.approx(j0_published, abs=0.0, rel=0.0)

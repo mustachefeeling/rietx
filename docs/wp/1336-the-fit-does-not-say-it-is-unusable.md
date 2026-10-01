@@ -1,6 +1,6 @@
 # WP-1336 — the fit does not say it is unusable: the status channel and the width census
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-01 — claimed by @mustachefeeling
 Track: What fires, and what stays silent
 Depends on: — (1310 soft: how findings arrive on the result)
 Priority: P2 2026-09-23 — a converged fit an order of magnitude off the measured widths, and no channel says so

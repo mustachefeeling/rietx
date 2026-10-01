@@ -227,6 +227,31 @@ def test_quaternion_matrix_quaternion_round_trip_within_4_ulp():
     assert worst <= 4 * EPS, worst / EPS
 
 
+def test_vector_quaternion_vector_round_trip_within_8_ulp():
+    """|ω| < π: Log_q(Exp_q(ω)) = ω on its own, at the vector round trip's
+    8·ε (measured 4·ε on these 2000; #578 review, follow-up 2)."""
+    omegas = np.concatenate([_random_vectors(2000, np.pi * 0.999),
+                             [np.zeros(3), [1e-300, 0.0, 0.0], [0.0, 1e-9, -1e-9],
+                              [2e-3, 0.0, 0.0], [0.0, 5e-4, -5e-4],
+                              [0.0, 0.0, np.pi - 1e-9]]])
+    # np.max, not max(): a NaN (the 0/0 the series branch exists for) must fail
+    worst = float(np.max([np.abs(rt.vector_from_quaternion(rt.quaternion_from_vector(w)) - w)
+                          for w in omegas]))
+    assert worst <= 8 * EPS, worst / EPS
+
+
+@pytest.mark.parametrize("drift", [9e-10, -9e-10])
+def test_a_quaternion_the_unit_check_passes_gives_a_matrix_the_matrix_check_passes(drift):
+    """RᵀR scales as ‖q‖⁴, so an unnormalised R(q) at ‖q‖ − 1 = 9e-10 was refused
+    at 3.6e-9 by the same tolerance on the way back (#578 review, follow-up 1)."""
+    for q in (np.array([1.0, 0.0, 0.0, 0.0]), np.array([0.5, 0.5, -0.5, 0.5])):
+        r = rt.matrix_from_quaternion((1.0 + drift) * q)
+        assert np.max(np.abs(r.T @ r - np.eye(3))) < 4 * EPS
+        assert np.max(np.abs(rt.quaternion_from_matrix(r) - q)) < 4 * EPS
+    with pytest.raises(ValueError, match="unit quaternion"):
+        rt.matrix_from_quaternion((1.0 + 2 * rt.UNIT_TOLERANCE) * q)
+
+
 def test_quaternion_from_vector_agrees_with_the_matrix_route():
     """Eq. (132) and eq. (134) are one rotation: R(Exp_q(ω)) = Exp_R(ω)."""
     for w in _random_vectors(200, 3 * np.pi):

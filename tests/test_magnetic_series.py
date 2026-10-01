@@ -834,6 +834,23 @@ def test_the_mixed_onset_row_blames_the_chain_that_located_none():
     assert row.level == "info" and "not the ordering's" in row.message
 
 
+_RISES = (False, False, False, True, True)          # 60 → 75, other side
+
+
+@pytest.mark.parametrize("backward_flags, agrees", [
+    (_BRACKETED, True), (_RISES, False)], ids=["same-sense", "opposite-sense"])
+def test_brackets_in_one_place_agree_only_when_they_order_the_same_side(
+        backward_flags, agrees):
+    """Two chains bracketing 60 → 75, one reading the moment supported below
+    it and the other above, overlap and still disagree about which side is
+    ordered; the row called that agreement (#522 review, follow-up 2)."""
+    (row,) = _agreement(_BRACKETED, backward_flags)
+    assert "the backward chain brackets it 60 → 75" in row.message
+    assert (row.level == "info") is agrees
+    assert ("not the ordering's" in row.message) is agrees
+    assert ("disagree about which side is ordered" in row.message) is not agrees
+
+
 @pytest.mark.parametrize("forward_flags, backward_flags", [
     (_BRACKETED, _BRACKETED), (_BRACKETED, _EVERYWHERE),
     (_BRACKETED, _INTERLEAVED), (_INTERLEAVED, _BRACKETED),

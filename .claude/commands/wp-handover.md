@@ -52,6 +52,14 @@ re-reading its own diff.
    - **Between them go the working details** for the successor: *Done* /
      *Measured* / *In flight* / *Gotchas*, written for someone who has read
      only this WP file and CLAUDE.md.
+3b. **Measure this session's lanes**, if it ran under `/wp-lanes` (an `Agent`
+   call whose description starts `lane:`). Run
+   `python3 .claude/hooks/session_usage.py lanes <session-id>`, where the id
+   is the name of the directory that holds your scratchpad. Put its tables
+   under the entry's *Measured*. Append its `trial row` to the table in
+   `docs/milestones/process.md` § Lanes within a WP: `grep -n '^| date |
+   session'` for the line, then `Read` from there. Run the `baseline` command
+   it prints, and quote the selective policy's row in the entry.
 4. **Sync the Status line** (`glyph date — free text`, vocabulary in
    `docs/wp/TEMPLATE.md`). The index row follows at the end of step 8.
 5. **Push forward references**: anything learned that changes work in a WP
