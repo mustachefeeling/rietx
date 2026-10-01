@@ -426,6 +426,22 @@ class Moment(_InheritsDeclaredDefaults):
 #: and a fourth spelling of the same list is a fourth place to forget one.
 MOMENT_COMPONENTS = ("crystalaxis_x", "crystalaxis_y", "crystalaxis_z")
 
+#: The bounds an atom's B_iso starts with, in Å².
+BISO_BOUNDS = (0.0, 25.0)
+
+
+def biso_bounds(value: float) -> dict[str, float]:
+    """``min`` and ``max`` for a B_iso read from a file: :data:`BISO_BOUNDS`,
+    widened to hold the value.
+
+    A published structure can sit outside the usual bounds.  A disordered
+    organic cation's U_iso of 0.35 Å² is a B_iso of 27.6 Å², and a light atom
+    can be refined slightly negative.  A bound the read value breaks refuses
+    the whole file, so a reader widens it instead.
+    """
+    lo, hi = BISO_BOUNDS
+    return {"min": min(lo, value), "max": max(hi, value)}
+
 
 class Atom(_InheritsDeclaredDefaults):
     """One site in the asymmetric unit.

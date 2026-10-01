@@ -122,7 +122,7 @@ from ..schemas.instrument import (
     Source,
 )
 from ..schemas.pattern import PatternData
-from ..schemas.structure import Atom, Cell, Phase, Structure
+from ..schemas.structure import Atom, Cell, Phase, Structure, biso_bounds
 from ..strategy.staged import RefinementPlan, Stage
 
 __all__ = ["Recipe", "RecipeError", "read_recipe", "write_recipe_tables"]
@@ -1083,16 +1083,14 @@ def _read_atoms(key: str, st: dict, par: dict,
                 f"{base}.ADP = {adp!r}: PowderLine's vocabulary is 'Uiso' or "
                 f"'Uaniso'")
         uiso = site.get("Uiso")
+        b_iso = 0.5 if uiso is None else EIGHT_PI_SQ * float(uiso)
         atom = Atom(label=str(label), species=str(element),
                     x=Parameter(value=float(site.get("x", 0.0))),
                     y=Parameter(value=float(site.get("y", 0.0))),
                     z=Parameter(value=float(site.get("z", 0.0))),
                     occ=Parameter(value=float(site.get("occupancy", 1.0)),
                                   min=0.0, max=1.5),
-                    biso=Parameter(
-                        value=0.5 if uiso is None
-                        else EIGHT_PI_SQ * float(uiso),
-                        min=0.0, max=25.0, unit="A^2"))
+                    biso=Parameter(value=b_iso, **biso_bounds(b_iso), unit="A^2"))
         spec = atom_par.get(label) or {}
         pbase = f"payload.phases.{key}.parameterization.atoms.{label}"
         for axis in ("x", "y", "z"):
