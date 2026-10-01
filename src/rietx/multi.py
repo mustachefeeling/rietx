@@ -534,12 +534,17 @@ class MultiHistogramRefinement:
             if stage.seed:
                 self.mtable.seed_softplus(freed, stage.seed)
             self.mtable.apply_to_models()
+            # the single-histogram runner's rule (``_run_stage``, #598): the
+            # moment frames follow the cell this stage starts from, and the
+            # compile reads the DOFs in the table's frames, not its own
+            self.mtable.reframe_moments()
             models = [
                 compile_model(s, ins, d, mode="rietveld", two_theta_limits=lim,
                               moving_paths=set(tab.moving_paths))
                 for s, ins, d, lim, tab in zip(
                     self.mtable.structures, self.mtable.instruments, data, limits,
                     self.mtable.tables, strict=True)]
+            self.mtable.push_moment_frames(models)
             stage_ftol = {} if ftol is None else {"ftol": ftol}
             # A phase the data cannot see is flat here too, and "the data" is
             # every histogram (WP-1301): the rule is the one

@@ -1398,7 +1398,13 @@ class MomentEvidence(Base):
     the crystal-axis components with the magCIF *cosine* metric; the two agree
     to roundoff when the conversion is right and disagree by up to 41 % on a
     hexagonal cell when someone reaches for the Euclidean norm, which is why
-    both are here.
+    both are here.  One disagreement is not an error: the frame is frozen per
+    stage, so the modulus is |m| in the metric of the cell the last stage
+    *started* from, and ``magnitude_from_components`` is |m| at the fitted
+    cell.  Where that stage moved a cell angle they differ to first order in
+    the move — 3.1768 against 3.1771 μ_B for the 0.01° a cumulative plan's
+    last stage moved β on a monoclinic fixture, 2.996 against 3.061 for a 2°
+    move made inside the moment stage itself (issue #598).
 
     ``unmeasured_directions`` names the DOFs the powder average could not
     determine — ``"polar"``, ``"azimuth"`` — and they are *held*, so they carry

@@ -31,6 +31,7 @@ from ..crystallography.adp import U_NAMES
 from ..crystallography.magnetic.moments import (
     canonical_dofs,
     dofs_from_moment,
+    dofs_in_frame,
     moment_frame,
     moment_from_dofs,
     wrap_angle,
@@ -64,6 +65,13 @@ WAVELENGTH_SUFFIX = ".wavelength"
 #: physical esd is read as unmeasured, as an infinite one is (WP-1463,
 #: ``ParameterTable._phys_sigma_free``).
 _SIGMA_MAX = float(np.sqrt(np.finfo(np.float64).max))
+
+#: How far a moment frame (orthonormal rows, entries of order one) may move
+#: between stages before :meth:`ParameterTable.reframe_moments` rebuilds it
+#: (or :meth:`ParameterTable.pull_moment_frames` takes a model's).
+#: Above roundoff and far below anything a fit could see: a frame moved by
+#: 1e-12 moves the moment by 1e-12 of its modulus.
+_MOMENT_REFRAME_TOL = 1e-12
 
 
 def _is_wavelength(path: str) -> bool:
@@ -1045,11 +1053,13 @@ class ParameterTable:
         #: it always wrote, and ``x0``/``bounds`` skip the lookup's branch.
         self._value_scale: dict[str, float] = {}
         #: atom base path (``phases.0.atoms.2``) → the orthonormal frame of
-        #: that site's allowed moment subspace, in crystal-axis rows.  Frozen
-        #: here from the stage's declared cell and read by
-        #: :meth:`_refresh_moment_components`; the forward model builds the
-        #: *same* frame from the *same* cell through the one function that
-        #: makes it, so there is exactly one frame per site per stage.
+        #: that site's allowed moment subspace, in crystal-axis rows.  Built
+        #: here from the declared cell, rebuilt at every stage start by
+        #: :meth:`reframe_moments` from the cell that stage starts from, and
+        #: read by :meth:`_refresh_moment_components`.  The runners hand these
+        #: to the forward model (:meth:`push_moment_frames`) rather than let each
+        #: compile build its own, so there is exactly one frame per site per
+        #: stage and the table is its authority (issue #598).
         self._moment_frames: dict[str, np.ndarray] = {}
         self._collect(structure, instrument)
         self._rebuild()
@@ -1409,8 +1419,144 @@ class ParameterTable:
                     moved = True
         return signs if moved else None
 
+    def reframe_moments(self, structure: Structure) -> list[str]:
+        """Rebuild every moment frame from ``structure``'s cell; keep the moment.
+
+        A stage's start (issue #598).  The frame is Gram-Schmidt in the unit-
+        vector metric, which moves with the cell *angles*, so a stage that
+        refined β left the table reading the DOFs in the frame of the cell the
+        fit started from while the next compile built one from the cell it had
+        reached: the forward model and the write-back then meant two moments by
+        the same DOFs, 9σ apart on a monoclinic β that moved 2°.  Here the
+        frame is rebuilt from the cell the caller has just written back and
+        each DOF block is re-seeded so that it states, in the new frame, the
+        crystal-axis components it stated in the old one — the moment the data
+        were fitted with is what carries across the boundary, not its numbers
+        in a frame that no longer applies.  :meth:`push_moment_frames` then
+        hands the compile these frames.
+
+        Returns the atom base paths whose frame was rebuilt.
+        """
+        frames: dict[str, np.ndarray] = {}
+        for base in self._moment_frames:
+            _, ip, _, j = base.split(".")
+            phase = structure.phases[int(ip)]
+            atom = phase.atoms[int(j)]
+            xyz = (atom.x.value, atom.y.value, atom.z.value)
+            frames[base] = moment_frame(
+                phase.magnetic_symmetry.group().allowed_moment_basis(xyz),
+                phase.cell.lengths_angles())
+        return self._reseed_moments(frames)
+
+    def pull_moment_frames(self, model) -> list[str]:
+        """Seat this table's moment DOFs in ``model``'s frames (#598).
+
+        For a table built *after* a fit from the written-back structure and
+        evaluated on the fit's own model (``predict()``, ``report()``, the
+        reflection table, a series' moment rows): the table seeds its DOFs in a
+        frame built at the fitted cell, the model reads them in the last
+        stage's, and where that stage moved an angle the pair would describe a
+        moment neither of them holds.  The components are what the two agree
+        on, so the DOFs are re-seeded to state them in the model's frames.
+        Returns the atom base paths re-seeded.
+        """
+        frames: dict[str, np.ndarray] = {}
+        for base in self._moment_frames:
+            own = self._model_frame(model, base)
+            if own is not None:
+                frames[base] = own
+        return self._reseed_moments(frames)
+
+    def push_moment_frames(self, model) -> None:
+        """Make ``model`` read the moment DOFs in this table's frames (#598).
+
+        A compile builds each site's frame from the cell it is given, which is
+        the right frame only when that is the cell the DOFs were seeded in.
+        After a stage start's :meth:`reframe_moments` it is, and this changes
+        nothing a compile did not already hold to roundoff.  The result's own
+        compile (``Refinement._final_compile``) is the case it exists for: it
+        is built at the *fitted* cell, so where the last stage moved an angle
+        its frames are a third frame for the DOFs the solve refined in the
+        stage's, and ``y_calc`` described a moment neither the solve nor the
+        write-back had.
+        """
+        for base, frame in self._moment_frames.items():
+            if self._model_frame(model, base) is None:
+                continue
+            _, ip, _, j = base.split(".")
+            model.phases[int(ip)].magnetic.frames[int(j)] = frame
+
+    def _model_frame(self, model, base: str) -> np.ndarray | None:
+        """``model``'s frame for the site at ``base``, checked against ours."""
+        _, ip, _, j = base.split(".")
+        msites = getattr(model.phases[int(ip)], "magnetic", None)
+        if msites is None:
+            return None
+        own = msites.frames[int(j)]
+        mine = self._moment_frames[base]
+        if own is None or own.shape != mine.shape:
+            raise ValueError(
+                f"{base}: the compiled model has a "
+                f"{0 if own is None else len(own)}-dimensional moment subspace "
+                f"and the parameter table a {len(mine)}-dimensional one; they "
+                f"were built from different structures")
+        return own
+
+    def _reseed_moments(self, frames: Mapping[str, np.ndarray]) -> list[str]:
+        """Swap in ``frames`` and re-seed each DOF block to the same moment.
+
+        A frame within ``_MOMENT_REFRAME_TOL`` of the one held is left as it
+        was, DOFs and all: every orthogonal or hexagonal cell, whose angles are
+        fixed by symmetry, and every boundary the cell did not move across, so
+        those fits are bit-identical to what they were.  A zero moment keeps
+        its DOFs too, because its angles are not recoverable from components
+        that are all zero and they are what a later stage grows the moment
+        along.  The coefficients are solved on the frame's rows
+        (:func:`~rietx.crystallography.magnetic.moments.dofs_in_frame`), so a
+        frame need not have been built at the cell this table holds.
+        """
+        if not frames:
+            return []
+        self._refresh_moment_components()
+        by_path = {e.path: e for e in self.entries}
+        moved: list[str] = []
+        for base, frame in frames.items():
+            old = self._moment_frames[base]
+            if (frame.shape == old.shape
+                    and float(np.max(np.abs(frame - old), initial=0.0))
+                    <= _MOMENT_REFRAME_TOL):
+                continue
+            components = [by_path[f"{base}.moment.{name}"].value
+                          for name in MOMENT_COMPONENTS]
+            self._moment_frames[base] = np.array(frame, dtype=np.float64)
+            moved.append(base)
+            if not any(components):
+                continue
+            for k, value in enumerate(dofs_in_frame(frame, components)):
+                entry = by_path[f"{base}.moment.dof{k}"]
+                # a tied entry's own value is never read: decoding takes its
+                # source's.  Writing one here would give the write-back a
+                # moment (this entry's re-seed) that the compile (the
+                # source's) does not hold, #598's mismatch again (review of
+                # #615).  Its source is re-seeded in its own frame; the tied
+                # entry follows it, as a tie means.
+                if entry.tie is None:
+                    entry.value = float(value)
+        if moved:
+            self._rebuild()
+            # bring each tied entry's stored value to what decoding gives it,
+            # so the components below are the ones the compile will build
+            decoded = self.decode(self.x0())
+            for e in self.entries:
+                if e.tie is not None and e.path.endswith(
+                        tuple(f".moment.dof{k}" for k in range(3))):
+                    e.value = decoded[e.path]
+            self._refresh_moment_components()
+        return moved
+
     def moment_frames(self) -> dict[str, np.ndarray]:
-        """The frozen per-site frames, for a caller that has to reproduce them."""
+        """The per-site frames of the current stage, for a caller that has to
+        reproduce them — the forward model takes these, not its own."""
         return dict(self._moment_frames)
 
     def _collect_instrument(self, instrument: Instrument) -> None:
