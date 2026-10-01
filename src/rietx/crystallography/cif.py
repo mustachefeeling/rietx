@@ -13,6 +13,7 @@ from ..schemas.common import Diagnostic, Parameter
 from ..schemas.structure import AnisoU, Atom, Cell, Phase, Structure
 from . import magcif
 from .adp import U_NAMES, u_equivalent
+from .magnetic.scattering import check_group_is_structure_symmetry
 from .symmetry import OperatorGroup, snap_diagnostics, split_group_label
 
 
@@ -533,6 +534,7 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
         atoms=atoms,
         magnetic_symmetry=magnetic_symmetry,
     )
+    check_group_is_structure_symmetry(phase)
     return Structure(phases=[phase])
 
 

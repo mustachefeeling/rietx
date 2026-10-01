@@ -116,6 +116,7 @@ from ..symmetry import (
 from . import isotropy as _isotropy
 from .moments import tilted_seed
 from .operators import MagneticGroup, format_transform
+from .scattering import check_group_is_structure_symmetry
 
 __all__ = [
     "ChildGroup",
@@ -817,7 +818,10 @@ def _child_positions(parent_phase, basis, shift, cosets):
 
 
 def _same_site(a, b, tol: float = CHILD_SITE_TOL) -> bool:
-    d = np.abs(np.asarray(a) - np.asarray(b))
+    # both wrapped: min(d, 1 - d) is negative for d > 1, which "matches"
+    # anything, and a stated coordinate (x = -0.1) beside an image already
+    # wrapped into [0, 1) (0.95) is exactly that
+    d = np.abs(np.asarray(a) % 1.0 - np.asarray(b) % 1.0)
     return bool(np.all(np.minimum(d, 1.0 - d) <= tol))
 
 
@@ -1096,7 +1100,12 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     (P, p) transform in ``transform_BNS_Pp_abc`` form; ``k`` is then a record
     for the report and nothing derives from it.  A ``bns_number`` passed with
     either way in is checked against the group's own and refused when it
-    differs (#605).
+    differs (#605).  The list has to be stated at
+    the child origin the transform puts the atoms at (x_c = P⁻¹·(x − p)), i.e.
+    restated by ``transformed`` under (I, −P⁻¹·p) when p is not zero: the same
+    list at another origin is not a symmetry of the child structure, and the
+    child phase is refused here, as it would be where it enters a fit
+    (the magnetic-symmetry check, issue #597).
 
     ``nuclear_group`` chooses which group the child phase's ``space_group``
     states, and it is the one knob a caller can get wrong, so both settings and
@@ -1351,6 +1360,9 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
                                        else tuple(str(c) for c in k))),
         scale=Parameter(value=parent.scale.value),
     )
+    # the builder's own statement is judged here, once; a refined copy of it
+    # is not (``check_group_is_structure_symmetry``)
+    check_group_is_structure_symmetry(phase)
     return SupercellStatement(
         phase=phase, transform=transform, index=len(cosets),
         parent_space_group=parent.space_group, child_space_group=symbol,

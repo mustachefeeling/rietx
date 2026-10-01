@@ -984,9 +984,18 @@ def database_settings(spec) -> tuple[DatabaseSetting, ...]:
     published structure is origin choice 2, and the Os moment along [111] is
     *allowed* at (0,0,0) in choice 2 and **forbidden** there in choice 1 — the
     site symmetry is -3m in one and -43m in the other.  Nothing in the round
-    trip catches that (spglib identifies its own output either way); only the
-    moment does, which is why :meth:`MagneticGroup.site_orbit` raises rather
-    than averaging when a moment does not fit its site.
+    trip catches that (spglib identifies its own output either way).  The
+    moment catches it only where, as there, the two settings give the site
+    different symmetry: :meth:`MagneticGroup.site_orbit` and the ``Phase``
+    span test then refuse a moment that does not fit.  Where the moment is
+    allowed in both, it is not caught by the moment at all — it propagates
+    over the wrong operations (254 of 1767 cases over the 24 two-origin
+    families, issue #597; ``P n n n:2`` with ``48.259`` compiles to a structure
+    spglib names 13.69).  That case is refused where a statement enters (the readers and
+    ``Refinement``) by the magnetic-symmetry check
+    (:func:`~rietx.crystallography.magnetic.scattering.check_group_is_structure_symmetry`),
+    because the default setting's operations do not map the stated structure
+    onto itself; the remedy is the matching ``hall_number`` from here.
 
     ``is_default`` marks the setting ``hall_number=0`` gives.
 

@@ -3675,7 +3675,12 @@ def _magnetic_build_diagnostics(model: TopasModel, phases_in, specs,
       stated no ``space_group``, the nuclear group was derived from it
       (:func:`_nuclear_groups`). The file's coordinates are taken to be in that
       standard setting, as TOPAS takes them to be in the setting of its own
-      table; nothing here checks that the two tables agree.
+      table. Nothing here compares the two tables, but the phase does: a
+      number whose standard-setting operations are not a symmetry of the
+      file's nuclear ``space_group``, cell and sites (a b-unique 14.79 beside
+      ``P 1 1 21/b``) is refused when the phase is read, by
+      :func:`~rietx.crystallography.magnetic.scattering.check_group_is_structure_symmetry`
+      (issue #597), never read into a different structure.
     * ``TOPAS_MOMENT_CONVENTION`` — ``mlx mly mlz`` are read as
       **fractional-basis** components and stored as crystal-axis μ_B
       (component × edge; :attr:`TopasSite.moment` carries the evidence). The
@@ -3712,10 +3717,12 @@ def _magnetic_build_diagnostics(model: TopasModel, phases_in, specs,
                 + [f"phases.{ip}.space_group"] * (derived is not None),
                 message=f"{path}: phase {ph.name!r}: " + "; ".join(parts),
                 suggestion=("the file's coordinates and moments are taken to "
-                            "be in the standard setting of that number, which "
-                            "is how TOPAS reads it too; pass "
-                            "to_structure(magnetic_symmetry=...) with an "
-                            "operator list if the file uses another setting")))
+                            "be in the standard setting of that number (a "
+                            "setting whose operations are not a symmetry of "
+                            "the file's space_group and cell is refused, not "
+                            "read); pass to_structure(magnetic_symmetry=...) "
+                            "with an operator list if the file uses another "
+                            "setting")))
         if ph.name not in specs:
             continue
         moment_sites = [s for s in ph.sites if s.moment is not None]
@@ -4130,6 +4137,8 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
                                    min=0.0, transform="softplus",
                                    **({"vary": ph.vary["scale"]}
                                       if "scale" in ph.vary else {}))))
+            from ...crystallography.magnetic.scattering import check_group_is_structure_symmetry
+            check_group_is_structure_symmetry(phases[-1])
         except TopasInpError:
             raise
         except Exception as exc:

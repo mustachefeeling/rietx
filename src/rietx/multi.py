@@ -64,6 +64,7 @@ from .refine import (
     _far_from_data_diagnostics,
     _guard_diagnostics,
     _harmonic_diagnostics,
+    _judge_magnetic_groups,
     _low_angle_diagnostics,
     _max_iter_diagnostics,
     _phase_agreement,
@@ -431,6 +432,7 @@ class MultiHistogramRefinement:
         instruments = list(instruments)
         if len(instruments) < 1:
             raise ValueError("multi-histogram needs at least one instrument")
+        _judge_magnetic_groups(structure)       # a caller's statement (issue #597)
         self.mtable = MultiParameterTable(structure, instruments, sharing=sharing)
         # Resolve each histogram's specimen absorption (capillary µR or
         # flat-plate µt) from composition, exactly as the single-histogram path

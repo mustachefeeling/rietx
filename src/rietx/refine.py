@@ -12,6 +12,7 @@ import tomllib
 import warnings
 from collections.abc import Callable, Iterable, Sequence
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -35,6 +36,7 @@ from .background.diagnostics import (
     dead_channels,
     sampling_steps_per_fwhm,
 )
+from .crystallography.magnetic.scattering import check_group_is_structure_symmetry
 from .crystallography.symmetry import reflection_label, reflection_label_row
 from .help import help_key_for
 from .history.events import _attach_progress, as_event_stream
@@ -1246,6 +1248,34 @@ def _snapshot_sinks(*candidates) -> list:
     return sinks
 
 
+#: whether ``Refinement.__init__`` judges the magnetic groups of what it is given
+_JUDGE_GROUPS: ContextVar[bool] = ContextVar("rietx_judge_groups", default=True)
+
+
+@contextmanager
+def _refined_state():
+    """Construct a ``Refinement`` from state a fit already moved: not judged.
+
+    A context rather than a keyword so the public signature stays what a
+    caller's statement enters through.
+    """
+    token = _JUDGE_GROUPS.set(False)
+    try:
+        yield
+    finally:
+        _JUDGE_GROUPS.reset(token)
+
+
+def _judge_magnetic_groups(structure: Structure) -> None:
+    """Judge every phase's magnetic group against its structure (issue #597).
+
+    The one spelling of the check for the entry points in this module and its
+    siblings (``multi``, ``sequential``); a phase with no magnetic group passes.
+    """
+    for phase in structure.phases:
+        check_group_is_structure_symmetry(phase)
+
+
 class Refinement:
     """Refine ``structure`` + ``instrument`` against a powder pattern.
 
@@ -1280,6 +1310,18 @@ class Refinement:
         self._backend = backend
         self._solver = solver
         self.structure = structure.model_copy(deep=True)
+        # A magnetic group has to be a symmetry of the structure it decorates
+        # (issue #597).  Judged here, where a statement enters a fit, and not
+        # on the schema or at compile: a refined phase whose group-related
+        # copies were listed separately (the supercell builder's, a file's)
+        # has drifted apart once B, occupancy or coordinates were freed, and
+        # must still validate and read back.  The package's own constructions
+        # (``branch``, ``_trial``, ``from_node``, a series' later patterns) hand
+        # this a structure a fit already moved and run under
+        # :func:`_refined_state`: refined state is never re-judged, only a
+        # caller's statement is.
+        if _JUDGE_GROUPS.get():
+            _judge_magnetic_groups(self.structure)
         self.instrument = instrument.model_copy(deep=True)
         #: λ per line as *declared*, snapshotted once here at construction — the
         #: wavelengths on the instrument this ``Refinement`` was built with.
@@ -1509,8 +1551,10 @@ class Refinement:
     def branch(self, node_id: str | None = None) -> "Refinement":
         """A second working tree over the same history, for a rival strategy."""
         tree = self._require_history()
-        ref = Refinement(self.structure, self.instrument,
-                         backend=self._backend, solver=self._solver, history=tree)
+        with _refined_state():
+            ref = Refinement(self.structure, self.instrument,
+                             backend=self._backend, solver=self._solver,
+                             history=tree)
         self._carry_into(ref)
         ref._head_id = self._head_id
         if node_id is not None:
@@ -1529,8 +1573,10 @@ class Refinement:
         """
         if self.history is not None:
             return self.branch()
-        ref = Refinement(self.structure, self.instrument,
-                         backend=self._backend, solver=self._solver, history=False)
+        with _refined_state():
+            ref = Refinement(self.structure, self.instrument,
+                             backend=self._backend, solver=self._solver,
+                             history=False)
         self._carry_into(ref)
         return ref
 
@@ -1593,6 +1639,9 @@ class Refinement:
         next stage compile or ``parameters()`` call performs anyway.
         """
         candidate = self.structure if structure is None else structure
+        # No magnetic-group judgement here: ``edit`` receives refined state
+        # plus one change (the GUI's funnel for every model edit), which is the
+        # case :func:`_refined_state` exists for (issue #597).
         try:
             table = ParameterTable(
                 candidate, self.instrument if instrument is None else instrument)
@@ -2692,8 +2741,9 @@ class Refinement:
                   backend: str = "numpy", solver: str = "trf") -> "Refinement":
         """Open a refinement positioned at an existing checkpoint."""
         node = tree[node_id]
-        ref = cls(node.state.structure, node.state.instrument,
-                  backend=backend, solver=solver, history=tree)
+        with _refined_state():
+            ref = cls(node.state.structure, node.state.instrument,
+                      backend=backend, solver=solver, history=tree)
         return ref.checkout(node_id)
 
     def merge(self, other: str, *, prefer: str = "theirs",

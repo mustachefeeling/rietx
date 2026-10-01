@@ -2606,6 +2606,8 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                        if scale is None else
                        _p(scale, "the phase scale", min=0.0,
                           transform="softplus"))))
+            from ...crystallography.magnetic.scattering import check_group_is_structure_symmetry
+            check_group_is_structure_symmetry(phases[-1])
         except FullProfPcrError:
             raise
         except Exception as exc:

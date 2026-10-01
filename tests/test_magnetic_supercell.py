@@ -924,14 +924,27 @@ def test_an_origin_shift_on_the_parent_route_restates_the_parent(shift):
     was handed p, which disagrees with the atoms by (I − W')·(p + P⁻¹·p): a
     lattice vector for ``1/2,0,0`` (which built) and a half-orbit for
     ``0,0,1/4`` (which was refused as a child cell "not holding a whole
-    orbit").  The reviewer's reproduction, verbatim — the unshifted group
-    passed as it came — and then the orbit identity asserted per operation.
+    orbit").  The reviewer's reproduction, then the orbit identity asserted
+    per operation.  The reproduction passed the unshifted *magnetic* group as
+    it came; that group is not a symmetry of the shifted child (Mn at z = 3/8
+    goes to 5/8, where there is none), and since issue #597 the child phase
+    refuses it, so the magnetic group is carried to the child origin here as
+    the next test carries it (``transformed`` under (I, −P⁻¹·p)).
     """
+    from rietx.crystallography.magnetic.operators import format_transform
+
     parent = p4mmm_parent()
     cand = candidates(parent.space_group, (0.0, 0.0, 0.0), HALF_C).candidates[0]
     base = magnetic_supercell(parent, cand, magnetic_species="Mn", ion="Mn2+")
     transform = "a,b,2c;" + ",".join(str(v) for v in shift)
-    statement = magnetic_supercell(parent, group=base.group, transform=transform,
+    with pytest.raises(ValueError, match="not a symmetry of the structure"):
+        magnetic_supercell(parent, group=base.group, transform=transform,
+                           k=cand.cell.k, magnetic_species="Mn", ion="Mn2+")
+    child_origin = (-Fraction(shift[0]), -Fraction(shift[1]),
+                    -Fraction(shift[2]) / 2)
+    group = base.group.transformed(format_transform(
+        [[1, 0, 0], [0, 1, 0], [0, 0, 1]], child_origin))
+    statement = magnetic_supercell(parent, group=group, transform=transform,
                                    k=cand.cell.k, magnetic_species="Mn",
                                    ion="Mn2+")
     assert statement.transform == transform
@@ -1055,3 +1068,17 @@ def test_the_seed_tilt_is_an_angle_in_the_child_metric():
     sin = float(np.linalg.norm(np.cross(seed, row0))) / float(np.linalg.norm(seed))
     assert sin / cos == pytest.approx(SEED_TILT, rel=1e-9)
     assert float(np.linalg.norm(seed)) == pytest.approx(3.0, rel=1e-12)
+
+
+def test_same_site_wraps_both_arguments():
+    """#620 item 3: a stated x = -0.1 is the site at 0.9, not a match for 0.95.
+
+    ``anti_translation_ties`` hands ``_same_site`` a raw coordinate beside an
+    image ``act_on_site`` has wrapped into [0, 1); the difference 1.05 made
+    ``1 - d`` negative, which passes ``<= tol`` for every pair.
+    """
+    from rietx.crystallography.magnetic.supercell import _same_site
+
+    assert not _same_site((-0.1, 0.0, 0.0), (0.95, 0.0, 0.0))
+    assert _same_site((-0.1, 0.0, 0.0), (0.9, 0.0, 0.0))     # positive arm
+    assert _same_site((1.0, 0.0, 0.0), (0.0, 0.0, 0.0))

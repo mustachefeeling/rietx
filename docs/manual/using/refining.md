@@ -324,6 +324,20 @@ and a moment that is free and exactly zero: |F_m|² is proportional to m²,
 so its Jacobian column vanishes at the origin and the parameter cannot move.
 Seed a physical estimate: 1-5 μ_B for a 3d ion.
 
+A fifth refusal is of the group itself: a magnetic space group has to be a
+symmetry of the structure it decorates, mapping the cell and every atom, with
+its moment, onto itself. A number resolves to the group's default setting, so
+it can disagree with the nuclear phase it is declared beside: a type-IV group
+next to the symbol of its unprimed operations (the anti-translated atom is not
+in the structure), a BNS number whose default origin choice is not the nuclear
+group's, a b-unique number on a c-unique cell. Each would compile a different
+structure from the one the group describes, so the readers and `Refinement(...)` refuse it by name.
+State the nuclear operations with the translation in
+`Phase.symmetry_operations`, pick the matching setting with
+`rietx.crystallography.magnetic.operators.database_settings` and
+`magnetic_group(..., hall_number=...)`, or give the operator list in the
+nuclear setting.
+
 The term reaches a `neutron_cw` histogram and nothing else. On an X-ray
 histogram of a joint fit it is not computed at all, so the moment has no
 gradient anywhere and the report's moment arm carries no row for it; any
