@@ -1,6 +1,6 @@
 # WP-1803 — the body seam: a derived block, or a linearisation inside C
 
-Milestone: v1.8 · Status: ⬜
+Milestone: v1.8 · Status: 🔄 2026-10-01 — claimed by @mustachefeeling
 Depends on: 1801
 Priority: P2 2026-09-30 — the decision every later rigid-body WP waits on; it carries the six open questions of the 2026-09-30 review
 
@@ -63,10 +63,10 @@ itself edits no repo file but DESIGN.md and may run now.
 
 ## Tasks
 
-- [ ] Spike script in the scratchpad: the linearised body, the exact chain, the stretch and esd numbers
-- [ ] The six answers, in DESIGN.md § Parameter system, with the measured figures
+- [x] Spike script in the scratchpad: the linearised body, the exact chain, the stretch and esd numbers
+- [x] The six answers, in DESIGN.md § Parameter system, with the measured figures
 - [ ] Re-cut the remaining chunks (R2b onward) as WPs from the record; R3 is sized L, with the anchored-rotation kind, tie refusals, `help.py`, `gui/src/lib/history.ts` PLACES and the `ParameterRow` field pin
-- [ ] Skill: none
+- [x] Skill: none
 
 ## Acceptance
 
@@ -83,3 +83,17 @@ The DESIGN.md clause exists and quotes the numbers. `tests/test_docs_consistency
   open WP owns it. The review's stale line references (`vector.py:1218-1223` is
   now `:1259-1260`, `:1132-1136` is `:1175-1178`, `:1252` is `:1292`) were
   re-found at `e3e6486a` and are the ones quoted here.
+- **2026-10-01** — claimed by @mustachefeeling. Spike run on a synthetic C₆Br
+  body in a triclinic P‑1 cell (two seeds, numpy backend, Mac) against
+  `beb48147`; the record is the DESIGN.md § Parameter system clause "Rigid
+  bodies", with the conditions under it. Decision: the typed `derived` block.
+  The linearised route reaches the same body (≤ 4e‑8 Å) but only by repeating
+  the stage 4–5 times (16–21 TRF iterations against 6–8 for one solve with the
+  map in `decode`), and its esds are exact only on the closing pass. Positive
+  arms: a planted cross‑product sign is caught by the commit‑time consistency
+  check (0.29–0.33 Å against 0.004 Å) and not by a bond check; a stale anchor
+  is caught only by the bond check (1.9–2.3e‑3 Å against ≤ 1.1e‑15 Å).
+  Re‑run once on a fresh tree at `beb48147`: every non‑timing number
+  bit‑identical. Not done here: the re‑cut of R2b onward (proposed in the PR
+  body as text for the maintainer; R5 is not cut); answer 6 is a judgement,
+  not a measurement.

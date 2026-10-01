@@ -268,6 +268,100 @@ cannot run on autodiff tracers; sympy's torch lambdify printer is immature).
 Transforms: identity + native TRF bounds by default; softplus for widths and
 scales (hard lower bounds stall TRF); logit for occupancies.
 
+**Rigid bodies: a typed `derived` block, not a linearisation inside C** *(measured
+2026-10-01, WP-1803; issue #561).* A body atom's coordinates
+x = o + M⁻¹·Exp(δω)·R₀·r are not affine in the rotation increment, and the table's one
+affine block cannot carry them. Two seams were measured on a synthetic body. **Linearised
+inside C** (x ≈ x₀ + M⁻¹[−R₀r]×·δω per stage, re-exponentiated at commit) keeps C constant
+and every reader of C untouched, but the body is rigid only to θ²/2 inside a stage —
+0.137 % (0.0019 Å on a 1.39 Å bond, 0.0026 Å on 1.90 Å) for a 3° step, 1.5 % (0.029 Å) at
+10° — and one linearised stage leaves the committed body **4.4 σ** from the converged answer
+at 3° and **22–43 σ** at 10°, so the stage has to be repeated until the increment vanishes
+(4–5 passes, 16–21 TRF iterations, |δω| falling 3.0° → 0.025° → 2e‑7 rad → 3e‑11 rad), and
+its esds are exact only on that closing zero‑increment pass (0.955–1.030 of the exact
+chain rule after a 3° stage, 0.84–1.12 after 10°, within 5e‑9 of 1 at the closing pass). **The
+exact map in `decode`** converges in one solve of 6–8 TRF iterations to the same body
+(≤ 4e‑8 Å apart), commits a structure rigid to 1e‑15 Å, and needs **no new Jacobian
+branch**: a body column takes `_peak_chain_column`, which differences θ *through*
+`decode`, so the data‑row column is exact at every iteration (8e‑11 relative against the
+whole‑model FD; `_STRUCTURAL_PATH` never matches a body path, `_structural_column` is
+never entered). The derived block is therefore the seam, and "constant during a run"
+narrows to the affine rows.
+
+*What the block changes, and what it does not.* `decode` applies the blocks after the
+affine matmul and is bit‑identical when none is declared. `stderr_physical` and
+`physical_covariance` take the block's **local Jacobian at θ** for the derived rows — the
+anchor rows in C are 2.3–2.9 % off after a 3° solve and 8–24 % after 10°, exact only at
+δω = 0. The restraint block `(R_phys @ C)` takes the same Jacobian. The pattern readers
+(`moving_paths`, `column_reach`, `entry_reach`, `unmeasured_rows`, `_column_extras`) read
+a **declared** `reach_pattern()`, never the Jacobian's numbers: on the planar test body one
+rotation column's numeric reach was 28 rows where its declared reach is 42, an
+instantaneous zero that a freeze must not rest on. The traced twin applies the same map
+after its dense matmul, in the `xp` ops WP‑1801 wrote. `commit` and `apply_to_models`
+write derived rows from the map in the slot `_refresh_moment_components` holds. The
+moment keeps its own rule ("no C row, no esd"); it is not migrated.
+
+*The Cartesian frame.* `crystallography.adp.cartesian_basis` already *is* the TOPAS frame
+(x ∥ a, y in the a–b plane, z ∥ a × b): the Cholesky factor with a positive diagonal is
+unique, and the closed form
+M = [[a, b cos γ, c cos β], [0, b sin γ, c (cos α − cos β cos γ)/sin γ], [0, 0, V/(a b sin γ)]]
+agrees with it to 1.9e‑15 relative over 2000 random cells. The closed form, in `xp`
+ops, is the frame the body map and the traced twin use; `cartesian_basis` keeps its
+Cholesky and a test pins the two; its docstring's "no convention" disclaimer is retired.
+
+*The cell is a live input to the map.* Measured with the cell free beside the body
+(start 0.4 %/−0.3 %/0.2 % off): with M⁻¹ **frozen** per stage the committed body is
+non‑rigid in the committed cell by 0.6 ε per bond (0.0073 Å at ε = 0.4 %), re‑placing it
+at commit moves atoms by 0.013 Å and lifts the cost 1410 → 1737 at the stage boundary,
+and one more stage (6 iterations, 0.16° of correction) is needed to recover; with M⁻¹
+**live** the body is rigid throughout, the next stage is a zero‑increment pass (0.004°),
+and the answer is the same (cell to 1e‑6 relative, orientation to 1e‑4°). Live is the
+rule. Its consequences are declared, not discovered: the cell columns are in every body
+row's `reach_pattern()`; a cell‑only stage and Le Bail move a body's *fractional*
+coordinates while its geometry in Å stays fixed, which is what a rigid molecule in a
+breathing cell does; and a hold is honoured on the body's own DOFs (origin, rotation),
+never on a body atom's coordinate row, which the body owns as symmetry owns a special
+position.
+
+*An anchored rotation composes.* R₀ ← Exp(δω)·R₀ and δω ← 0 at every commit; the record
+is the absolute unit quaternion with w ≥ 0 (WP‑1801). The subtraction rule of
+`rebase_anchored_dofs`/`reanchor_dofs` is wrong for a rotation by O(v²) — 0.0147°
+orientation error and 0.125 % stretch at v = 3°, 0.34° and 1.4 % at 10° — so a rotation
+DOF is never in `_anchored_dofs` and nothing rebases it. `displace_anchored_dofs` (the
+series carry, WP‑1333) sets a body's increment from the record, δω = Log(R_target·R₀ᵀ)
+and δo = o_target − o₀, exact; a series carries the quaternion and the origin, never the
+increment.
+
+*Ties a body refuses.* A body atom's coordinate row and DOF are locked and are refused as
+tie targets by `Refinement.tie` today ("structurally fixed", "already follows … symmetry
+outranks a user tie"). A derived row as a tie **source** is refused by the public verb
+today but is flattened into `d` by `ParameterTable.set_tie` with no error (measured: the
+dependent's C row empties, it leaves `moving_paths`); the table‑level refusal is added,
+mirroring `apply_value_scale`. A body increment (δω, δo) as a source of anything that
+does not reset with it is refused by name: measured, the dependent read 0.07 after the
+commit and snapped back to 0.02 on the next build. A body DOF may follow another body DOF
+of the same kind, since both reset together.
+
+*Anti‑bump pairs are frozen per plan.* The candidate list is built once at plan compile
+from pairs within r₀ + a margin, its rows exist for the whole plan (zero inside the
+one‑sided term), and a plan‑end diagnostic names pairs that entered r₀ from outside the
+list. A per‑stage rebuild would move the restraint row count that `rows.layout`,
+WP‑1074's per‑stage c_w and the stage‑boundary Jacobian test assume constant. This is a
+design judgement, not a measurement; what would change it is a plan that moves an atom
+further than the margin, and the remedy then is a wider margin.
+
+*Conditions of every figure above.* A synthetic C₆Br body (ideal D6h ring,
+C–C 1.39 Å, C–Br 1.90 Å) in a triclinic P‑1 cell (7.21, 8.13, 9.47 Å, 84.3°,
+97.6°, 104.2°), Cu Kα Bragg–Brentano, 2θ 8–70° (3100 points, 467 reflections),
+Poisson noise, two seeds; origin, rotation increment and phase scale free;
+numpy backend, one process. Iteration counts and every non-timing figure were
+identical across four executions, the last on a fresh tree at `beb48147`. The
+spike script is not merged (the WP's non-goal); timings are not quoted beyond
+"one solve against four or five", since whole routes took 0.05–0.21 s with
+±40 % noise between executions. Not measured: a many-atom body (the accuracy
+of the one-sided FD through a long map), a body on a special position, and
+restraints across a body under the live cell.
+
 ## Minimizer strategy
 
 v1 workhorse: `scipy.optimize.least_squares(method="trf")` — fp64, box
