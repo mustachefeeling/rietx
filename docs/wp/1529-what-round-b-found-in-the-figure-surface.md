@@ -83,7 +83,7 @@ record is `docs/wp/1504-eval/runs/`, and the table is in 1504's handover log.
 
 ## Tasks
 
-- [ ] The skill's description names structure figures, within its budget;
+- [x] The skill's description names structure figures, within its budget;
   the two committed copies re-synced.
 - [ ] One cell draws no bare centre: the design chosen against VESTA's
   behaviour, and a test over the six round-B phases (rutile 2 Ti and
