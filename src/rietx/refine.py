@@ -513,6 +513,220 @@ MOMENT_PROBE_ANGLE_RAD = 0.1
 MAGNETIC_TICK_PURITY = 0.05
 
 
+#: Generic test directions for :func:`_flat_rotation_axis`, on the frame's
+#: coefficient sphere.  Fixed rather than random so two runs of one stage hold
+#: the same thing, and chosen on no symmetry element of any lattice — none on
+#: an axis, a face diagonal or a body diagonal — so a rotation that is trivial
+#: at one of them (about the direction itself) is not trivial at the others.
+_FLAT_AXIS_TEST_DIRECTIONS = np.array([[0.48, 0.36, 0.80],
+                                       [-0.64, 0.60, 0.48]])
+
+
+def _direction(theta: float, phi: float) -> np.ndarray:
+    """Unit coefficient vector of an n = 3 frame at polar θ, azimuth φ."""
+    st = math.sin(theta)
+    return np.array([st * math.cos(phi), st * math.sin(phi), math.cos(theta)])
+
+
+def _angles(s: np.ndarray) -> tuple[float, float]:
+    """(θ, φ) of a unit coefficient vector — the inverse of :func:`_direction`."""
+    return (float(np.arccos(np.clip(s[2], -1.0, 1.0))),
+            float(np.arctan2(s[1], s[0])))
+
+
+def _rotate(s: np.ndarray, axis: np.ndarray, angle: float) -> np.ndarray:
+    """Rodrigues: ``s`` turned by ``angle`` about the unit ``axis``."""
+    c, sn = math.cos(angle), math.sin(angle)
+    return (s * c + np.cross(axis, s) * sn
+            + axis * float(axis @ s) * (1.0 - c))
+
+
+def _flat_rotation_axis(model: CompiledModel, values: dict[str, float],
+                        base: str) -> np.ndarray | None:
+    """The axis a three-DOF moment can turn about unseen, or ``None`` (#599).
+
+    The per-column test in :func:`_flat_moment_paths` asks whether the polar
+    angle *or* the azimuth is flat, and that is the right question only when
+    the frame's polar row lies along the axis the powder is uniaxial about.
+    :func:`~rietx.crystallography.magnetic.moments.moment_frame` builds that
+    row by Gram–Schmidt on the allowed basis, so on tetragonal and hexagonal
+    axes it is **c** and the azimuth is the flat column; on rhombohedral axes
+    the unique axis is [111], the row is not, and the flat rotation is a
+    *combination* of the two angles that neither column owns.  Measured on
+    R-3m:R (a = 4 Å, α = 70°): each column alone responds at order 1 of the
+    modulus, the rotation about [111] at 4.8e-16, and the fit came back with
+    esds on both angles and a ρ = +1.000 between them.
+
+    **Rank, not columns.**  A rotation of the moment about a unit axis **u**
+    moves it by **u** × **m**, so the first-order response to rotating about
+    **u** is linear in **u**: three columns (rotations about the frame's own
+    axes) span it.  A flat *axis* is a null vector of that 3-column block —
+    but at a single direction the block always has one, **u** = **m** itself
+    (a rotation that does nothing), and at a direction the symmetry fixes it
+    has more, because every first derivative vanishes at a stationary point
+    (the reason :data:`MOMENT_PROBE_ANGLE_RAD` is finite).  So the block is
+    stacked over the current direction *and* two generic ones
+    (:data:`_FLAT_AXIS_TEST_DIRECTIONS`): a rotation trivial at one is not at
+    the others, a stationary point at one is not at the others, and what is
+    left null is a rotation the pattern does not see **wherever the moment
+    points** — Shirane's (1959) uniaxial invariance, measured rather than
+    derived, as the per-column probe is.
+
+    **The SVD proposes, the finite rotation decides.**  The smallest right
+    singular vector is a candidate only; it is held only when turning the
+    moment about it by :data:`MOMENT_PROBE_ANGLE_RAD`, at every one of those
+    directions, moves the pattern by no more than
+    :data:`MOMENT_DIRECTION_SUPPORT` of what the same tip displacement of the
+    modulus does — the per-column test's own floor and step, so a direction
+    is held by one rule whichever way the frame happens to lie.
+
+    ``values`` are decoded physical values; the moment's modulus is never
+    moved, and a site at the floor returns ``None`` (the per-column test
+    already holds every direction there).
+    """
+    mu = abs(values[f"{base}.dof0"])
+    if mu <= 0.0:
+        return None
+
+    def evaluate(s: np.ndarray, modulus: float | None = None) -> np.ndarray:
+        theta, phi = _angles(s)
+        v = dict(values)
+        v[f"{base}.dof1"], v[f"{base}.dof2"] = theta, phi
+        if modulus is not None:
+            v[f"{base}.dof0"] = modulus
+        return np.asarray(model.evaluate(v), dtype=np.float64)
+
+    current = _direction(values[f"{base}.dof1"], values[f"{base}.dof2"])
+    tests = [current] + [t / np.linalg.norm(t)
+                         for t in _FLAT_AXIS_TEST_DIRECTIONS]
+    h = 1e-4
+    blocks = []
+    for s in tests:
+        cols = [(evaluate(_rotate(s, e, h)) - evaluate(_rotate(s, e, -h)))
+                / (2.0 * h) for e in np.eye(3)]
+        blocks.append(np.column_stack(cols))
+    _, _, vt = np.linalg.svd(np.vstack(blocks), full_matrices=False)
+    axis = vt[-1] / np.linalg.norm(vt[-1])
+    signed = values[f"{base}.dof0"]
+    for s in tests:
+        y = evaluate(s)
+        scale = float(np.linalg.norm(
+            evaluate(s, signed + math.copysign(MOMENT_PROBE_ANGLE_RAD * mu,
+                                               signed)) - y))
+        turned = float(np.linalg.norm(
+            evaluate(_rotate(s, axis, MOMENT_PROBE_ANGLE_RAD)) - y))
+        if scale <= 0.0 or turned > MOMENT_DIRECTION_SUPPORT * scale:
+            return None
+    return axis
+
+
+def _onto_flat_meridian(model: CompiledModel, values: dict[str, float],
+                        base: str, axis: np.ndarray
+                        ) -> tuple[float, float] | None:
+    """(θ, φ) of the moment turned about ``axis`` into the polar meridian.
+
+    Holding one of two angles removes a flat *combination* from the problem
+    only when the held column's own motion is that combination, and is a
+    trap otherwise: with the azimuth held at an arbitrary value the polar
+    angle sweeps a great circle that need not come within the measured angle
+    of the axis at all.  So the moment is first turned about the flat axis —
+    a move the data cannot see, which is what makes it flat — until it lies
+    in the plane of the axis and the frame's polar row.  There the azimuth's
+    tangent is **u** × **m**, the flat rotation exactly, and the polar angle
+    sweeps the great circle *through* the axis, so it reaches every angle to
+    it: the frame now refines what the P4/mmm frame refines, the modulus and
+    the angle to the unique axis, offset by the axis's own polar angle.
+
+    Of the two points on that circle the one farther from the frame's pole
+    is taken, so the azimuth stays defined.  ``None`` when the axis already
+    is the pole (nothing to turn) or the turned moment does not reproduce the
+    pattern to the same floor — the rotation is then left undone and the
+    caller holds the azimuth where it is.
+    """
+    pole = np.array([0.0, 0.0, 1.0])
+    s = _direction(values[f"{base}.dof1"], values[f"{base}.dof2"])
+    u = axis if float(axis @ s) >= 0.0 else -axis
+    v = pole - float(pole @ u) * u
+    if np.linalg.norm(v) <= 1e-9:
+        return None
+    v = v / np.linalg.norm(v)
+    cos_psi = float(np.clip(u @ s, -1.0, 1.0))
+    sin_psi = math.sqrt(max(1.0 - cos_psi ** 2, 0.0))
+    turned = max((cos_psi * u + sign * sin_psi * v for sign in (1.0, -1.0)),
+                 key=lambda t: float(np.hypot(t[0], t[1])))
+    theta, phi = _angles(turned)
+    mu = abs(values[f"{base}.dof0"])
+    signed = values[f"{base}.dof0"]
+    v0 = dict(values)
+    y = np.asarray(model.evaluate(v0), dtype=np.float64)
+    v1 = dict(values)
+    v1[f"{base}.dof1"], v1[f"{base}.dof2"] = theta, phi
+    v2 = dict(values)
+    v2[f"{base}.dof0"] = signed + math.copysign(MOMENT_PROBE_ANGLE_RAD * mu,
+                                                signed)
+    scale = float(np.linalg.norm(np.asarray(model.evaluate(v2)) - y))
+    moved = float(np.linalg.norm(np.asarray(model.evaluate(v1)) - y))
+    if scale <= 0.0 or moved > MOMENT_DIRECTION_SUPPORT * scale:
+        return None
+    return theta, phi
+
+
+def _flat_moment_scan(model: CompiledModel, table: ParameterTable,
+                      candidates: list[str] | None = None
+                      ) -> tuple[list[str], dict[str, np.ndarray]]:
+    """:func:`_flat_moment_paths`, with the flat axis of every site whose
+    flat direction is a combination (#599) — ``{site base: axis}``, the axis
+    in the site's frame coefficients — for :func:`_hold_flat_moments`, which
+    turns the moment onto it before holding."""
+    paths = [p for p in (table.free_paths if candidates is None else candidates)
+             if _MOMENT_DOF.match(p) and not p.endswith(".dof0")]
+    if not paths:
+        return [], {}
+    values = table.decode(table.x0())
+    y0 = np.asarray(model.evaluate(values), dtype=np.float64)
+
+    def response(path: str, step: float) -> float:
+        v = dict(values)
+        v[path] = values[path] + step
+        return float(np.linalg.norm(
+            np.asarray(model.evaluate(v), dtype=np.float64) - y0))
+
+    def column_flat(path: str) -> bool:
+        modulus = path.rsplit(".dof", 1)[0] + ".dof0"
+        mu = abs(values[modulus])
+        # the same tip displacement both ways: a rotation by δφ moves the
+        # moment by |μ|·δφ, so the modulus is probed by exactly that much
+        scale = response(modulus, MOMENT_PROBE_ANGLE_RAD * max(mu, 1e-6))
+        return scale <= 0.0 or response(path, MOMENT_PROBE_ANGLE_RAD) <= (
+            MOMENT_DIRECTION_SUPPORT * scale)
+
+    flat = [p for p in paths if column_flat(p)]
+    # The combination (#599): a site whose two angles are both live — free,
+    # or asked about — and neither flat on its own.  "Live" rather than
+    # "asked about", because the release question passes only the held
+    # azimuth, and whether it is still flat depends on the polar angle being
+    # free beside it; one angle the caller holds already breaks the
+    # combination, and the per-column answer above is then the whole answer.
+    live = set(table.free_paths) | set(paths)
+    axes: dict[str, np.ndarray] = {}
+    for base in dict.fromkeys(p.rsplit(".", 1)[0] for p in paths):
+        polar, azimuth = f"{base}.dof1", f"{base}.dof2"
+        if (polar not in live or azimuth not in live
+                or polar in flat or azimuth in flat
+                or (polar not in paths and column_flat(polar))):
+            continue
+        axis = _flat_rotation_axis(model, values, base)
+        if axis is None:
+            continue
+        axes[base] = axis
+        # the azimuth, always: :func:`_hold_flat_moments` turns the moment
+        # until the azimuth *is* the flat rotation, and a release asked after
+        # it finds the moment still on that meridian
+        if azimuth in paths:
+            flat.append(azimuth)
+    return flat, axes
+
+
 def _flat_moment_paths(model: CompiledModel, table: ParameterTable,
                        candidates: list[str] | None = None) -> list[str]:
     """Moment **direction** DOFs the calculated pattern does not respond to.
@@ -524,6 +738,15 @@ def _flat_moment_paths(model: CompiledModel, table: ParameterTable,
     direction entirely, a uniaxial one's azimuth — and it is *measured* here
     rather than derived from the symmetry, so a structure the classification
     does not anticipate is handled by the same rule.
+
+    Two measurements, one floor.  Each angle column on its own, by a finite
+    rotation; and, on a three-DOF site where neither column is flat, the
+    rank of the angle block (:func:`_flat_rotation_axis`), because the flat
+    rotation of a uniaxial structure is a column only when the frame's polar
+    row happens to lie along the unique axis — on rhombohedral axes it does
+    not (#599).  A flat combination is answered with the **azimuth**, which
+    :func:`_hold_flat_moments` makes the flat rotation exactly before holding
+    it.
 
     **The modulus is never held.**  It is the one direction that is not flat,
     and it is how a moment legitimately climbs out of the noise — exactly the
@@ -538,35 +761,25 @@ def _flat_moment_paths(model: CompiledModel, table: ParameterTable,
     perturbs the decoded value dict directly rather than θ, and a moment DOF
     has no tie, so a held path is perturbable exactly as a free one is.
     """
-    paths = [p for p in (table.free_paths if candidates is None else candidates)
-             if _MOMENT_DOF.match(p) and not p.endswith(".dof0")]
-    if not paths:
-        return []
-    values = table.decode(table.x0())
-    y0 = np.asarray(model.evaluate(values), dtype=np.float64)
-
-    def response(path: str, step: float) -> float:
-        v = dict(values)
-        v[path] = values[path] + step
-        return float(np.linalg.norm(
-            np.asarray(model.evaluate(v), dtype=np.float64) - y0))
-
-    flat: list[str] = []
-    for path in paths:
-        modulus = path.rsplit(".dof", 1)[0] + ".dof0"
-        mu = abs(values[modulus])
-        # the same tip displacement both ways: a rotation by δφ moves the
-        # moment by |μ|·δφ, so the modulus is probed by exactly that much
-        scale = response(modulus, MOMENT_PROBE_ANGLE_RAD * max(mu, 1e-6))
-        if scale <= 0.0 or response(path, MOMENT_PROBE_ANGLE_RAD) <= (
-                MOMENT_DIRECTION_SUPPORT * scale):
-            flat.append(path)
-    return flat
+    return _flat_moment_scan(model, table, candidates)[0]
 
 
 def _hold_flat_moments(model: CompiledModel, table: ParameterTable) -> list[str]:
-    """Apply :func:`_flat_moment_paths` to the table; returns what it held."""
-    held = _flat_moment_paths(model, table)
+    """Apply :func:`_flat_moment_paths` to the table; returns what it held.
+
+    A flat combination's site is first turned onto the flat meridian
+    (:func:`_onto_flat_meridian`) — written into the table, so the stage
+    starts from it and the report reads it — and its azimuth then held.
+    """
+    held, axes = _flat_moment_scan(model, table)
+    if axes:
+        values = table.decode(table.x0())
+        by_path = {e.path: e for e in table.entries}
+        for base, axis in axes.items():
+            turned = _onto_flat_meridian(model, values, base, axis)
+            if turned is not None:
+                by_path[f"{base}.dof1"].value, by_path[f"{base}.dof2"].value = turned
+        table.refresh_ties()
     if held:
         table.set_vary(held, False)
     return held

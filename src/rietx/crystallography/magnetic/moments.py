@@ -20,6 +20,21 @@ determine, comes back with no esd at all.  Modulus-and-angles splits them:
 the modulus is a column with a gradient and an esd, the angles are columns
 without one exactly when the powder cannot see them.
 
+**When the pole is not the unique axis.**  "The azimuth is the flat column"
+holds only when :func:`moment_frame`'s polar row lies along the axis the
+powder is uniaxial about.  Gram–Schmidt puts it along **c** on tetragonal and
+hexagonal axes, but on rhombohedral axes the unique axis is [111] and the
+row is not, so the flat rotation is a *combination* of polar and azimuth
+that neither column owns: measured on R-3m:R, each angle alone moves the
+pattern at order 1 of the modulus, the rotation about [111] at 4.8e-16, and
+the two angles came back with esds and ρ = +1.000 (issue #599).  The frame
+is not re-oriented for it — it is built from the basis and the cell alone,
+in two places that must agree.  Instead ``refine._flat_rotation_axis``
+measures the flat axis from the rank of the angle block, the fit turns the
+moment about it (a move the data cannot see) into the plane of that axis
+and the pole, and there the azimuth *is* the flat rotation, so it is held
+like any other flat column and the polar angle sweeps the angle to the axis.
+
 **The frame.**  The allowed subspace is M-5's
 :func:`~rietx.crystallography.magnetic.operators.allowed_moment_basis` — an
 integer basis of crystal-axis directions, ∩ ker(ε·det(R)·R − I) over the site's

@@ -253,6 +253,28 @@ def _row(model, values, ip, j, cp, msites, phase_name, cell, held_set,
                 f"moment the data cannot see is a flat direction of the "
                 f"least-squares problem and the fit leaves it at nothing. "
                 f"Read this as unsupported, not as a small moment")
+    elif unmeasured and (axis := _turned_axis(model, values, base, n,
+                                              held_set)) is not None:
+        # #599: the flat rotation was a combination of the two angles, and
+        # the fit turned the moment onto it before holding the azimuth — so
+        # "the direction it was stated with" is not what is reported, and
+        # the polar angle is an angle to the axis, offset by the axis's own
+        # polar angle in this frame
+        u_crys = axis @ np.asarray(msites.frames[j], dtype=np.float64)
+        u_crys = u_crys / float(u_crys[int(np.argmax(np.abs(u_crys)))])
+        from ..refine import _direction
+
+        s = _direction(float(dofs[1]), float(dofs[2]))
+        psi = math.degrees(math.acos(min(abs(float(axis @ s)), 1.0)))
+        note = (f"the powder average does not determine the rotation of the "
+                f"moment about [{', '.join(f'{c:.3g}' for c in u_crys)}] "
+                f"(crystal axes) on this site, which this frame splits "
+                f"across polar and azimuth; the moment was turned about that "
+                f"axis — a move the data cannot see — until the rotation is "
+                f"the azimuth, which is held; the polar angle now moves the "
+                f"moment straight towards or away from the axis, so its esd "
+                f"is the esd of the angle to it ({psi:.2f}°), and the "
+                f"direction reported is one of a cone of equally good ones")
     elif unmeasured:
         note = (f"the powder average does not determine "
                 f"{', '.join(unmeasured)} on this site; "
@@ -270,6 +292,26 @@ def _row(model, values, ip, j, cp, msites, phase_name, cell, held_set,
         supported=supported,
         note=note,
     )
+
+
+def _turned_axis(model, values, base, n, held_set):
+    """The flat axis of a site whose azimuth was held as a combination (#599).
+
+    ``None`` unless the site is three-dimensional with the azimuth held and
+    the polar angle free, and the azimuth's flat rotation is about an axis
+    other than the frame's pole — the P4/mmm case, where the azimuth is the
+    flat column on its own and the plain note is true as it stands.  Asked of
+    the same probe the fit held it with, at the reported values.
+    """
+    from ..refine import _flat_rotation_axis
+
+    if (n != 3 or f"{base}.dof2" not in held_set
+            or f"{base}.dof1" in held_set):
+        return None
+    axis = _flat_rotation_axis(model, values, base)
+    if axis is None or abs(float(axis[2])) >= 1.0 - 1e-6:
+        return None
+    return axis
 
 
 # ---------------------------------------------------------------------------

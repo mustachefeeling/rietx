@@ -1608,6 +1608,101 @@ def test_a_determinable_direction_is_not_held():
     assert report.magnetic[0].unmeasured_directions == ["azimuth"]
 
 
+def _rhombohedral(moment, space_group="R -3 m:R") -> Phase:
+    """One Mn at the origin under the identity magnetic group (n = 3), on
+    rhombohedral axes (a = 4 Å, α = 70°) — uniaxial about [111] — or, for
+    the controls, on the same metric's tetragonal and orthorhombic cousins."""
+    cells = {"R -3 m:R": cell(4.0, 4.0, 4.0, 70.0, 70.0, 70.0),
+             "P 4/m m m": cell(4.0, 4.0, 5.0),
+             "P m m m": cell(4.0, 4.4, 5.0)}
+    return Phase(
+        name="rh", space_group=space_group, cell=cells[space_group],
+        atoms=[atom("M", "Mn", (0.0, 0.0, 0.0), biso=0.3,
+                    moment=Moment.from_values(moment, "Mn2+", vary=True))],
+        magnetic_symmetry=MagneticSymmetry(operations=["x,y,z,+1"]))
+
+
+def _angle_to_111(moment) -> float:
+    from rietx.crystallography.magnetic.operators import moment_to_cartesian
+
+    six = (4.0, 4.0, 4.0, 70.0, 70.0, 70.0)
+    m = moment_to_cartesian(np.asarray(moment, dtype=np.float64), six)
+    u = moment_to_cartesian(np.ones(3), six)
+    return float(np.degrees(np.arccos(
+        abs(m @ u) / np.linalg.norm(m) / np.linalg.norm(u))))
+
+
+def test_a_flat_rotation_across_two_angles_is_held_and_named():
+    """Issue #599: the flat direction of a uniaxial powder that no column owns.
+
+    On rhombohedral axes the frame's polar row is not [111], so the rotation
+    about [111] — 4.8e-16 of the pattern, exactly flat (Shirane 1959) — is a
+    combination of polar and azimuth.  Before the fix nothing was held, both
+    angles came back with esds and a ρ = +1.000 between them, the report
+    said nothing was unmeasured, and on 2 of 16 noise seeds the near-singular
+    covariance gave the angle to [111] an esd of 448° and 20 490°.  Now the
+    azimuth is held after the moment is turned onto the flat meridian, the
+    polar angle keeps an esd, and the report names the axis.
+
+    The start, (3.0, 0.2, 0.2) at 36° to [111], is one where holding the
+    azimuth *without* the turn leaves the polar angle sweeping a great circle
+    that never comes within 27.8° of [111]: measured, that fit stops at
+    ``max_iter`` with ψ = 27.84° against the truth's 10.20°, so this test is
+    also the turn's.
+    """
+    truth = (1.5, 2.0, 3.0)
+    ref, result = _fit(_rhombohedral(truth), _rhombohedral((3.0, 0.2, 0.2)))
+    base = "phases.0.atoms.0.moment"
+    assert result.stages[-1].held == [f"{base}.dof2"], result.stages[-1].held
+    rows = {p.path: p for p in result.parameters}
+    assert f"{base}.dof2" not in rows
+    assert rows[f"{base}.dof1"].stderr is not None
+    assert rows[f"{base}.dof0"].stderr is not None
+    assert not [d for d in result.diagnostics
+                if d.code in ("FLAT_DIRECTION", "HIGH_CORRELATION")
+                and f"{base}.dof1" in d.message], result.diagnostics
+    fitted = ref.fitted_structure.phases[0].atoms[0].moment.values()
+    assert _angle_to_111(fitted) == pytest.approx(_angle_to_111(truth),
+                                                  abs=0.01)
+    assert abs(rows[f"{base}.dof0"].value) == pytest.approx(
+        float(moment_magnitude(np.asarray(truth),
+                               (4.0, 4.0, 4.0, 70.0, 70.0, 70.0))), rel=1e-3)
+    row = ref.report().magnetic[0]
+    assert row.unmeasured_directions == ["azimuth"]
+    assert "about [1, 1, 1] (crystal axes)" in row.note, row.note
+    assert "cone of equally good ones" in row.note
+
+
+def test_the_flat_rotation_probe_holds_nothing_a_powder_can_see():
+    """The controls #599's probe needs, or it is "hold the azimuth always".
+
+    The same identity group and moment on two cousins of that metric.  On
+    P4/mmm the pole is **c**, the unique axis: the azimuth is flat on its own,
+    held, and the report keeps the plain note — the turn is not applied.  On
+    Pmmm nothing is uniaxial and nothing may be held: this is the row that
+    fails a probe built at the current direction alone (a rotation about the
+    moment itself does nothing, so it reads as flat) or one that trusts the
+    SVD without the finite rotation.
+    """
+    truth, start = (1.5, 2.0, 3.0), (1.0, 1.0, 2.5)
+    base = "phases.0.atoms.0.moment"
+    ref, result = _fit(_rhombohedral(truth, "P 4/m m m"),
+                       _rhombohedral(start, "P 4/m m m"))
+    assert result.stages[-1].held == [f"{base}.dof2"]
+    row = ref.report().magnetic[0]
+    assert row.unmeasured_directions == ["azimuth"]
+    assert row.note.endswith("the direction reported is the one it was "
+                             "stated with"), row.note
+    ref, result = _fit(_rhombohedral(truth, "P m m m"),
+                       _rhombohedral(start, "P m m m"))
+    assert result.stages[-1].held == []
+    rows = {p.path: p for p in result.parameters}
+    assert all(rows[f"{base}.dof{k}"].stderr is not None for k in range(3))
+    assert ref.report().magnetic[0].unmeasured_directions == []
+    assert ref.fitted_structure.phases[0].atoms[0].moment.values() == (
+        pytest.approx(truth, abs=1e-3))
+
+
 def test_the_null_test_reports_the_moment_unsupported_rather_than_small():
     """A pattern with no magnetic intensity: held at the floor, not fitted.
 
