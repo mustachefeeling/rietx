@@ -28,7 +28,7 @@ The magnetic diagnostic family lives in this one file rather than in §7's table
 
 ## Magnetic-width codes
 
-On `result.diagnostics`, from a fit (WP-1343). The terms are `Phase.magnetic_lor_size`/`_strain`, the magnetic component's own Lorentzian width; the turn-on order is `plan="magnetic_width"` (moment with widths at zero → widths with moment held → both).
+On `result.diagnostics`, from a fit (WP-1343). The terms are `Phase.magnetic_lor_size`/`_strain`, the magnetic component's own Lorentzian width; the turn-on order is `plan="magnetic_width"` (moment with widths at zero → widths beside the converged moment, which keeps refining → both).
 
 | code | what you must not assume, and what to do |
 |---|---|
