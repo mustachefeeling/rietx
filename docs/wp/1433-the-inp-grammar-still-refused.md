@@ -1,6 +1,6 @@
 # WP-1433 — the `.inp` grammar the reader still refuses: `STR(...)` and `#if`
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-01 — claimed by @mustachefeeling
 Track: Coming from another code
 Depends on: — (WP-1118 closed 2026-09-16 and handed these two over; WP-1119
 settled that neither needs an expression language)

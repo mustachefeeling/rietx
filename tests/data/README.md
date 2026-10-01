@@ -1057,8 +1057,8 @@ measured 2026-08-27): **516 parse, 367 build a `Structure`**, and **7 refuse at
 the encoding gate** (an ASCII-range UTF-16 export whose NUL bytes survive the
 decode — guessing the byte order is a repair the reader will not make in
 silence). The gap between 516 and 367 is not error: it is Pawley/indexing-only
-inputs with no structural phase, `STR(...)`-macro phases the reader refuses by
-name, magnetic space groups it has no model for, and the stated-but-unreadable
+inputs with no structural phase, `STR(...)`-macro phases the reader refused by
+name until WP-1433 (which reads them; its PR records the re-measured counts), magnetic space groups it has no model for, and the stated-but-unreadable
 refusals below — every one a *report or refuse*, none a silent drop.
 
 The count *fell* from the 572/389 measured on 2026-08-26, and the fall is the

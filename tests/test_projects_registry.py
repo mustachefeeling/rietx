@@ -337,7 +337,9 @@ def test_a_reader_error_reaches_the_caller_naming_the_file(tmp_path):
     the registry must not turn that into a bare parser exception or a
     half-built model.
     """
-    path = _write(tmp_path, "macro.inp", INP_STR_MACRO)
+    # `STR(R-3c)` reads since WP-1433; its template form still refuses.
+    path = _write(tmp_path, "macro.inp", INP_STR_MACRO.replace(
+        "STR(R-3c)", 'STR(######, "#name#")'))
     with pytest.raises(ValueError) as exc:
         read_project_model(path)
     assert "macro.inp" in str(exc.value) and "STR(" in str(exc.value)
