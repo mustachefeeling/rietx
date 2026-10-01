@@ -347,3 +347,70 @@ The first check is kept in `references-1.2-first.json`. The NAC and
 fluorapatite pairs were asked again under the new wording, for $0.32, and
 the judge agreed with the reference on all four. `references.json` holds the
 merged check: 14 of 14, $1.48 in all. R1 is trusted under 1.2 from here.
+
+## Amendment 1.3, 2026-10-01: a third condition, after round B's fixes
+
+Written after round B (one run of every cell under 1.2, 28 runs) and before
+any run of the new condition. Round B pointed at three defects in rietx, and
+WP-1529 fixed them. This amendment measures the surface with those fixes.
+
+### The third condition
+
+| condition | commit | what it is |
+|---|---|---|
+| fixed | `1b837e038042236e13face9824ecf5905e5740e8` | WP-1529's merge (#635): the after surface, plus round B's three fixes |
+
+Three changes reach an agent on `fixed`:
+
+- The skill's description names structure figures. Under 1.2 it spoke only
+  of refinement, and the skill was opened in 5 of 28 runs.
+- A polyhedron centre outside the cell is drawn only while its site's
+  polyhedra are hidden, as in VESTA.
+- `report.dangling_bonds` counts the stubs `hidden=` leaves.
+  `references/api-figure.md` says both.
+
+The skill on `fixed` also carries refinement-side rows that landed between
+the two commits (WP-1329, 1336 and 1344). None of them mentions a figure. No
+commit on `main` touched the figure surface between 1b837e03 and this
+amendment, written at 8e5f94c7.
+
+The launch, the prompts, the criteria and the judge do not change. So 1.2's
+runs pool with 1.3's, and a score still records the version it was launched
+under. The grid grows to 7 tasks, 3 conditions, 2 models and 3 repeats: 126
+runs.
+
+### What `prepare` measured on the new tree
+
+`run.py prepare ROOT fixed` passed its instrument check. One cell now draws 2
+fewer atoms in rutile (49), 4 fewer in fluorapatite (102) and 8 fewer in
+calcite (124). Those are the bare centres. On the after surface
+`hidden=("Ca",)` read `dangling_bonds = 0` over calcite. On `fixed` it reads
+112, and `hidden=("La",)` over LaB₆ reads 192.
+
+### A correction to 1.2
+
+§ Amendment 1.2 says one cell of calcite draws no bare centre. It draws 8 bare
+Ca on the after surface: `prepare` counts 132 atoms drawn there and 124 on
+`fixed`, and `without_bare_centres` removes the same 8. Round B's calcite runs
+were asked to hide Ca, so the miss reaches a calcite figure only where an
+agent drew Ca.
+
+### The reference figures and the judge check
+
+`prepare` draws `fixed`'s references into `ROOT/references-fixed`. All seven
+right figures are identical, pixel for pixel, to `after`'s. Four defaults
+changed, because their bare centres are gone: calcite (3.5 % of pixels),
+rutile and chains (1.4 % each) and fluorapatite (0.6 %). Each still misses a
+task criterion that the change does not touch. Calcite still draws Ca. Rutile
+is not seen down c. Chains shows a whole cell. Fluorapatite has no legend. So
+the judge check in `references.json` stands under 1.3 without being asked
+again.
+
+`reference_figures.py` is unchanged, so both trees draw the same right
+figures. Its two helpers were checked on `fixed`:
+
+- `without_bare_centres` no longer changes any picture. The dict from `build`
+  still holds the bare centres, and the renderer leaves them out.
+- `carbonate_groups` still does. `keep` of everything but Ca leaves 96 O,
+  and 60 of them belong to no carbonate. WP-1529 did not set out to change
+  that.
