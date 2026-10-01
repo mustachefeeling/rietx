@@ -291,7 +291,13 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         # survives past fit time — folds a powder-degenerate moment pair into
         # one quadrature number instead of two independently-quoted moduli.
         correlations=(result.identifiability.top_correlations
-                     if result.identifiability is not None else None))
+                     if result.identifiability is not None else None),
+        # #599: which sites the last stage held as a flat combination, and
+        # turned, read off its own record — the note is a projection of
+        # that, never a fresh probe (review of #624, item 2)
+        flat_axes=(result.stages[-1].moment_flat_axes if result.stages
+                   else None),
+        turned=(result.stages[-1].moment_turned if result.stages else None))
     attributions = attribute_regions(model, values, report.regions)
     report.attribution = attributions
     # March-Dollase texture and Stephens anisotropic strain are computed before

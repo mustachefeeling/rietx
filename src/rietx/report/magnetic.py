@@ -53,6 +53,8 @@ def analyse_moments(model, values, structure=None, *,
                     held: list[str] | None = None,
                     esd: dict[str, float] | None = None,
                     correlations: list | None = None,
+                    flat_axes: dict[str, list[float]] | None = None,
+                    turned: list[str] | None = None,
                     ) -> list[MomentEvidence]:
     """One row per magnetic site of the compiled model, or an empty list.
 
@@ -84,6 +86,15 @@ def analyse_moments(model, values, structure=None, *,
     top-|ρ| list was not passed in, or that never measured one, reports each
     modulus on its own, which is the honest state when nothing said otherwise
     — never "these are not paired".
+
+    ``flat_axes`` and ``turned`` are the last stage's
+    ``StageResult.moment_flat_axes`` and ``.moment_turned`` (issue #599): the
+    sites whose azimuth was held as a flat *combination* of two angles, with
+    the axis, and which of them the fit turned onto that axis's meridian
+    first.  The note for such a site is a projection of that record, so it
+    says the moment was turned only where the fit says it turned it.
+    ``None`` reads as "no such site", the state of every result stored
+    before the fields.
     """
     if model is None:
         return []
@@ -101,7 +112,8 @@ def analyse_moments(model, values, structure=None, *,
             if not msites.carries[j]:
                 continue
             out.append(_row(model, values, ip, j, cp, msites, phase_name,
-                            cell, held_set, structure, esd or {}))
+                            cell, held_set, structure, esd or {},
+                            flat_axes or {}, set(turned or ())))
     if correlations:
         out = _pair_degenerate_moments(
             out, correlations, {r.path: float(values[r.path]) for r in out})
@@ -211,11 +223,16 @@ def moment_pair_diagnostics(rows: list[MomentEvidence]) -> list[Diagnostic]:
 
 
 def _row(model, values, ip, j, cp, msites, phase_name, cell, held_set,
-         structure, esd) -> MomentEvidence:
-    from ..crystallography.magnetic.moments import DOF_NAMES, moment_from_dofs
+         structure, esd, flat_axes, turned) -> MomentEvidence:
+    from ..crystallography.magnetic.moments import (
+        DOF_NAMES,
+        moment_from_dofs,
+        unit_metric,
+    )
     from ..crystallography.magnetic.operators import moment_magnitude
 
-    base = f"phases.{ip}.atoms.{j}.moment"
+    site = f"phases.{ip}.atoms.{j}"
+    base = f"{site}.moment"
     n = msites.n_dofs(j)
     dofs = np.array([values[f"{base}.dof{k}"] for k in range(n)])
     components = moment_from_dofs(msites.frames[j], dofs)
@@ -253,28 +270,38 @@ def _row(model, values, ip, j, cp, msites, phase_name, cell, held_set,
                 f"moment the data cannot see is a flat direction of the "
                 f"least-squares problem and the fit leaves it at nothing. "
                 f"Read this as unsupported, not as a small moment")
-    elif unmeasured and (axis := _turned_axis(model, values, base, n,
-                                              held_set)) is not None:
-        # #599: the flat rotation was a combination of the two angles, and
-        # the fit turned the moment onto it before holding the azimuth — so
-        # "the direction it was stated with" is not what is reported, and
-        # the polar angle is an angle to the axis, offset by the axis's own
-        # polar angle in this frame
-        u_crys = axis @ np.asarray(msites.frames[j], dtype=np.float64)
-        u_crys = u_crys / float(u_crys[int(np.argmax(np.abs(u_crys)))])
-        from ..refine import _direction
-
-        s = _direction(float(dofs[1]), float(dofs[2]))
-        psi = math.degrees(math.acos(min(abs(float(axis @ s)), 1.0)))
-        note = (f"the powder average does not determine the rotation of the "
-                f"moment about [{', '.join(f'{c:.3g}' for c in u_crys)}] "
-                f"(crystal axes) on this site, which this frame splits "
-                f"across polar and azimuth; the moment was turned about that "
-                f"axis — a move the data cannot see — until the rotation is "
-                f"the azimuth, which is held; the polar angle now moves the "
-                f"moment straight towards or away from the axis, so its esd "
-                f"is the esd of the angle to it ({psi:.2f}°), and the "
-                f"direction reported is one of a cone of equally good ones")
+    elif unmeasured and f"{base}.dof2" in held_set and site in flat_axes:
+        # #599: the flat rotation was a combination of the two angles.  Read
+        # off the stage's own record (review of #624, item 2), never probed
+        # again here: whether the moment was turned is a fact about the fit,
+        # and only the turned case makes the polar esd an esd of the angle
+        # to the axis.
+        u = np.asarray(flat_axes[site], dtype=np.float64)
+        shown = u / float(u[int(np.argmax(np.abs(u)))])
+        g = unit_metric(cell)
+        m = np.asarray(components, dtype=np.float64)
+        denom = math.sqrt(max(float(u @ g @ u) * float(m @ g @ m), 0.0))
+        psi = (math.degrees(math.acos(min(abs(float(u @ g @ m)) / denom, 1.0)))
+               if denom > 0.0 else float("nan"))
+        axis_text = (f"the rotation of the moment about "
+                     f"[{', '.join(f'{c:.3g}' for c in shown)}] (crystal "
+                     f"axes) on this site, which this frame splits across "
+                     f"polar and azimuth")
+        if site in turned:
+            note = (f"the powder average does not determine {axis_text}; the "
+                    f"moment was turned about that axis — a move the data "
+                    f"cannot see — until the rotation is the azimuth, which "
+                    f"is held; the polar angle now moves the moment straight "
+                    f"towards or away from the axis, so its esd is the esd of "
+                    f"the angle to it ({psi:.2f}°), and the direction "
+                    f"reported is one of a cone of equally good ones")
+        else:
+            note = (f"the powder average does not determine {axis_text}; the "
+                    f"azimuth is held where the stage found it, because "
+                    f"turning the moment about the axis did not reproduce the "
+                    f"pattern to the flat-direction floor, so the polar "
+                    f"angle's esd is *not* the esd of the angle to the axis "
+                    f"({psi:.2f}° at the answer)")
     elif unmeasured:
         note = (f"the powder average does not determine "
                 f"{', '.join(unmeasured)} on this site; "
@@ -292,26 +319,6 @@ def _row(model, values, ip, j, cp, msites, phase_name, cell, held_set,
         supported=supported,
         note=note,
     )
-
-
-def _turned_axis(model, values, base, n, held_set):
-    """The flat axis of a site whose azimuth was held as a combination (#599).
-
-    ``None`` unless the site is three-dimensional with the azimuth held and
-    the polar angle free, and the azimuth's flat rotation is about an axis
-    other than the frame's pole — the P4/mmm case, where the azimuth is the
-    flat column on its own and the plain note is true as it stands.  Asked of
-    the same probe the fit held it with, at the reported values.
-    """
-    from ..refine import _flat_rotation_axis
-
-    if (n != 3 or f"{base}.dof2" not in held_set
-            or f"{base}.dof1" in held_set):
-        return None
-    axis = _flat_rotation_axis(model, values, base)
-    if axis is None or abs(float(axis[2])) >= 1.0 - 1e-6:
-        return None
-    return axis
 
 
 # ---------------------------------------------------------------------------

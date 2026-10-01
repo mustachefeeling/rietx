@@ -354,7 +354,15 @@ from .._nearmiss import did_you_mean
 #: exactly as before apart from that list, and no number any fit produces
 #: moves.  ``MagneticTrajectory``/``MagneticOnset`` are *derived* views over it
 #: and are stored nowhere.  WP-1343 took 0.37 first.
-SCHEMA_VERSION = "0.38"
+#: 0.38 → 0.39 (issue #599): ``StageResult.moment_flat_axes`` and
+#: ``StageResult.moment_turned`` — the flat rotation axis of every three-DOF
+#: moment site whose azimuth a stage held as a flat combination of its two
+#: angles, and which of those sites the stage turned onto the axis's meridian
+#: first.  The record the report's moment note is a projection of (review of
+#: #624, item 2): the turn changes the direction a fit reports, so it ships
+#: with a field stating it.  Additive and defaulted to empty, which is every
+#: fit without such a site; a document written before loads unchanged.
+SCHEMA_VERSION = "0.39"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

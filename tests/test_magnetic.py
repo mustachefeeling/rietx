@@ -1667,10 +1667,74 @@ def test_a_flat_rotation_across_two_angles_is_held_and_named():
     assert abs(rows[f"{base}.dof0"].value) == pytest.approx(
         float(moment_magnitude(np.asarray(truth),
                                (4.0, 4.0, 4.0, 70.0, 70.0, 70.0))), rel=1e-3)
+    stage = result.stages[-1]
+    site = "phases.0.atoms.0"
+    assert list(stage.moment_flat_axes) == [site]
+    axis = np.asarray(stage.moment_flat_axes[site])
+    assert axis / axis[0] == pytest.approx([1.0, 1.0, 1.0], abs=1e-6)
+    assert stage.moment_turned == [site]
     row = ref.report().magnetic[0]
     assert row.unmeasured_directions == ["azimuth"]
     assert "about [1, 1, 1] (crystal axes)" in row.note, row.note
     assert "cone of equally good ones" in row.note
+
+
+
+@pytest.mark.parametrize("eps, released", [(1e-6, False), (1e-9, True)])
+def test_a_flat_combination_found_at_the_answer_is_turned_too(eps, released):
+    """Review of #624, item 1: every hold of a combination turns first.
+
+    A start at a vanishing modulus is the stage-start probe's blind spot, and
+    on this fixture it reaches both of the answer's holds (measured):
+
+    * **the collapse check** at 3e-6 μ_B: the stage-start probe finds nothing
+      (neither column flat, no axis confirmed), and the answer finds the
+      combination with both angles free;
+    * **the release check** at 3e-9 μ_B: both angles read flat as columns
+      and are held, the modulus grows, and the answer releases the polar
+      angle and keeps the azimuth as a combination.
+
+    Before the fix both held the azimuth unturned, leaving the polar angle
+    on #599's trap meridian; now the answer's hold turns the moment, the
+    record says so, and the stage solves again.
+    """
+    truth = (1.5, 2.0, 3.0)
+    start = tuple(eps * np.array([3.0, 0.2, 0.2]))
+    ref, result = _fit(_rhombohedral(truth), _rhombohedral(start))
+    stage = result.stages[-1]
+    base = "phases.0.atoms.0.moment"
+    assert stage.held == [f"{base}.dof2"], stage.held
+    assert (f"{base}.dof1" in stage.released) is released, stage.released
+    assert stage.moment_turned == ["phases.0.atoms.0"]
+    fitted = ref.fitted_structure.phases[0].atoms[0].moment.values()
+    assert _angle_to_111(fitted) == pytest.approx(_angle_to_111(truth),
+                                                  abs=0.01)
+
+
+def test_the_moment_note_is_a_projection_of_the_stage_record():
+    """Review of #624, item 2: the report says "turned" only where the fit did.
+
+    The note is read off ``StageResult.moment_flat_axes``/``.moment_turned``,
+    never a fresh probe.  The same fitted state is reported three ways by
+    editing only the record: turned (the fit's own), held unturned (the
+    record a refused turn leaves), and no combination at all.
+    """
+    ref, result = _fit(_rhombohedral((1.5, 2.0, 3.0)),
+                       _rhombohedral((3.0, 0.2, 0.2)))
+    last = result.stages[-1]
+
+    def note_with(**record):
+        stages = result.stages[:-1] + [last.model_copy(update=record)]
+        ref.result_ = result.model_copy(update={"stages": stages})
+        return ref.report().magnetic[0].note
+
+    assert "was turned about that axis" in note_with()
+    unturned = note_with(moment_turned=[])
+    assert "about [1, 1, 1] (crystal axes)" in unturned
+    assert "held where the stage found it" in unturned
+    assert "was turned" not in unturned
+    assert note_with(moment_flat_axes={}, moment_turned=[]).endswith(
+        "the direction reported is the one it was stated with")
 
 
 def test_the_flat_rotation_probe_holds_nothing_a_powder_can_see():
@@ -1689,6 +1753,8 @@ def test_the_flat_rotation_probe_holds_nothing_a_powder_can_see():
     ref, result = _fit(_rhombohedral(truth, "P 4/m m m"),
                        _rhombohedral(start, "P 4/m m m"))
     assert result.stages[-1].held == [f"{base}.dof2"]
+    assert result.stages[-1].moment_flat_axes == {}
+    assert result.stages[-1].moment_turned == []
     row = ref.report().magnetic[0]
     assert row.unmeasured_directions == ["azimuth"]
     assert row.note.endswith("the direction reported is the one it was "
@@ -1871,7 +1937,7 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # ``SeriesEntry.rwp_fence`` and ``SeriesResult.discontinuities`` 0.36,
     # WP-1343's two ``Phase`` magnetic widths 0.37, and WP-1329's
     # ``SeriesEntry.magnetic`` 0.38.
-    assert caps.schema_version == "0.38"
+    assert caps.schema_version == "0.39"
 
 
 def test_every_moment_dof_has_a_help_entry():

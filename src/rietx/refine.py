@@ -366,6 +366,11 @@ class _StageHold:
     #: stage this package's own suite runs outside this file's own fixture.
     cell_runaway_unresolved: list[tuple[str, list[str]]] = dataclasses.field(
         default_factory=list)
+    #: ``StageResult.moment_flat_axes`` and ``.moment_turned`` (#599), decided
+    #: inside the stage by :func:`_hold_flat_moments` and the post-solve hold
+    moment_flat_axes: dict[str, list[float]] = dataclasses.field(
+        default_factory=dict)
+    moment_turned: list[str] = dataclasses.field(default_factory=list)
 
 
 def _tie_terms(source: "str | dict[str, float] | Sequence[tuple[str, float]]",
@@ -535,7 +540,11 @@ def _angles(s: np.ndarray) -> tuple[float, float]:
 
 
 def _rotate(s: np.ndarray, axis: np.ndarray, angle: float) -> np.ndarray:
-    """Rodrigues: ``s`` turned by ``angle`` about the unit ``axis``."""
+    """``s`` turned by ``angle`` about the unit ``axis``.
+
+    Rodrigues' rotation formula (Rodrigues, O., 1840, *J. Math. Pures Appl.*
+    **5**, 380): v cos α + (k × v) sin α + k (k·v)(1 − cos α).
+    """
     c, sn = math.cos(angle), math.sin(angle)
     return (s * c + np.cross(axis, s) * sn
             + axis * float(axis @ s) * (1.0 - c))
@@ -569,8 +578,9 @@ def _flat_rotation_axis(model: CompiledModel, values: dict[str, float],
     (:data:`_FLAT_AXIS_TEST_DIRECTIONS`): a rotation trivial at one is not at
     the others, a stationary point at one is not at the others, and what is
     left null is a rotation the pattern does not see **wherever the moment
-    points** — Shirane's (1959) uniaxial invariance, measured rather than
-    derived, as the per-column probe is.
+    points** — Shirane's uniaxial invariance (Shirane, G., 1959, *Acta
+    Cryst.* **12**, 282), measured rather than derived, as the per-column
+    probe is.
 
     **The SVD proposes, the finite rotation decides.**  The smallest right
     singular vector is a candidate only; it is held only when turning the
@@ -638,7 +648,13 @@ def _onto_flat_meridian(model: CompiledModel, values: dict[str, float],
     the angle to the unique axis, offset by the axis's own polar angle.
 
     Of the two points on that circle the one farther from the frame's pole
-    is taken, so the azimuth stays defined.  ``None`` when the axis already
+    is taken, so the azimuth stays defined.  The construction is elementary
+    spherical geometry — the cone of half-angle ψ about **u** meets the great
+    circle through **u** and the pole at the two points cos ψ **u** ± sin ψ
+    **v̂**, **v̂** the unit in-plane normal to **u** — and the turn reaching
+    it is a rotation about **u** (:func:`_rotate`); that the turn is unseen
+    is Shirane's uniaxial invariance (*Acta Cryst.* **12**, 282, 1959),
+    which this function does not assume but measures against the floor.  ``None`` when the axis already
     is the pole (nothing to turn) or the turned moment does not reproduce the
     pattern to the same floor — the rotation is then left undone and the
     caller holds the azimuth where it is.
@@ -734,8 +750,9 @@ def _flat_moment_paths(model: CompiledModel, table: ParameterTable,
     The rule WP-1327 takes from WP-1301, one object down: a direction the data
     cannot see is a flat direction, and holding it is cheaper and truer than
     letting it wander into a number with an esd.  What a powder cannot see of
-    a moment is Shirane's (1959) result — a cubic collinear structure's
-    direction entirely, a uniaxial one's azimuth — and it is *measured* here
+    a moment is Shirane's result (Shirane, G., 1959, *Acta Cryst.* **12**,
+    282) — a cubic collinear structure's direction entirely, a uniaxial
+    one's azimuth — and it is *measured* here
     rather than derived from the symmetry, so a structure the classification
     does not anticipate is handled by the same rule.
 
@@ -764,25 +781,64 @@ def _flat_moment_paths(model: CompiledModel, table: ParameterTable,
     return _flat_moment_scan(model, table, candidates)[0]
 
 
-def _hold_flat_moments(model: CompiledModel, table: ParameterTable) -> list[str]:
-    """Apply :func:`_flat_moment_paths` to the table; returns what it held.
+def _turn_onto_meridians(model: CompiledModel, table: ParameterTable,
+                         axes: dict[str, np.ndarray]) -> dict[str, list[float]]:
+    """Turn each site in ``axes`` onto its flat meridian; returns the turned.
 
-    A flat combination's site is first turned onto the flat meridian
-    (:func:`_onto_flat_meridian`) — written into the table, so the stage
-    starts from it and the report reads it — and its azimuth then held.
+    The one place a flat combination's moment is turned (#599, review of
+    #624 item 1), so every hold of one — at stage start, after a release at
+    the answer, after a collapse — turns before it holds.  Writes into the
+    table at its current values (:func:`_onto_flat_meridian` checks the turn
+    against the floor there) and returns ``{site: flat axis}`` for the sites
+    it actually turned, the axis in crystal-axis components (a unit vector
+    in the magCIF unit-vector metric) — the record ``StageResult`` carries.
+    A site whose turn did not reproduce the pattern is left where it was and
+    is absent from the answer.
+    """
+    if not axes:
+        return {}
+    values = table.decode(table.x0())
+    frames = table.moment_frames()
+    by_path = {e.path: e for e in table.entries}
+    turned: dict[str, list[float]] = {}
+    for base, axis in axes.items():
+        angles = _onto_flat_meridian(model, values, base, axis)
+        if angles is None:
+            continue
+        by_path[f"{base}.dof1"].value, by_path[f"{base}.dof2"].value = angles
+        turned[_site(base)] = _axis_in_crystal_axes(axis, frames[_site(base)])
+    table.refresh_ties()
+    return turned
+
+
+def _site(base: str) -> str:
+    """``phases.i.atoms.j`` of a moment DOF block ``phases.i.atoms.j.moment``
+    — the key the frames and ``StageResult.moment_flat_axes`` use."""
+    return base.removesuffix(".moment")
+
+
+def _axis_in_crystal_axes(axis: np.ndarray, frame: np.ndarray) -> list[float]:
+    """A frame-coefficient axis as crystal-axis components."""
+    return [float(c) for c in np.asarray(axis) @ np.asarray(frame)]
+
+
+def _hold_flat_moments(model: CompiledModel, table: ParameterTable
+                       ) -> tuple[list[str], dict[str, list[float]],
+                                  dict[str, list[float]]]:
+    """Apply :func:`_flat_moment_paths` to the table.
+
+    Returns what it held, the flat axis (crystal-axis components) of every
+    site held as a combination, and which of those it turned
+    (:func:`_turn_onto_meridians`) before holding their azimuth.
     """
     held, axes = _flat_moment_scan(model, table)
-    if axes:
-        values = table.decode(table.x0())
-        by_path = {e.path: e for e in table.entries}
-        for base, axis in axes.items():
-            turned = _onto_flat_meridian(model, values, base, axis)
-            if turned is not None:
-                by_path[f"{base}.dof1"].value, by_path[f"{base}.dof2"].value = turned
-        table.refresh_ties()
+    frames = table.moment_frames()
+    found = {_site(b): _axis_in_crystal_axes(a, frames[_site(b)])
+             for b, a in axes.items()}
+    turned = _turn_onto_meridians(model, table, axes)
     if held:
         table.set_vary(held, False)
-    return held
+    return held, found, turned
 
 
 def _only_moves(reached: list[str], prefixes: tuple[str, ...]) -> bool:
@@ -2934,7 +2990,7 @@ class Refinement:
         # path of an invisible phase, ``moment.dof0`` included) stays with the
         # phase, and only what this probe itself held is asked again as a
         # direction (review of #433, finding 2)
-        moment_hold = _hold_flat_moments(model, table)
+        moment_hold, flat_axes, moment_turned = _hold_flat_moments(model, table)
         held = held + moment_hold
         if held:
             held_set = set(held)
@@ -3020,15 +3076,45 @@ class Refinement:
         # and asking the table now would get nothing back (WP-1342)
         released = (_released_phases(model, table, phase_held, support, held_reach)
                     if phase_held else [])
+        # A combination found by either question below is turned before the
+        # re-solve, as at stage start (review of #624, item 1): a site held at
+        # stage start as two flat *columns* (its modulus under the floor) can
+        # come back from the answer as a flat combination — its polar angle
+        # released, its azimuth still held — and a held azimuth that was never
+        # turned leaves the polar angle on a meridian that need not pass near
+        # the flat axis, which is #599's trap.
+        late_axes: dict[str, np.ndarray] = {}
+        still_flat: set[str] = set()
         if moment_held:
-            still_flat = set(_flat_moment_paths(model, table, moment_held))
+            still, still_axes = _flat_moment_scan(model, table, moment_held)
+            still_flat = set(still)
             released = released + [p for p in moment_held if p not in still_flat]
+            late_axes.update({b: a for b, a in still_axes.items()
+                              if _site(b) not in moment_turned})
         # the same question the hold asked, asked again of the answer: what is
         # free now and belongs to a phase the data cannot see, and what moment
         # direction went flat while the stage ran
-        collapsed = (_unsupported_phase_paths(model, table, support)
-                     + _flat_moment_paths(model, table))
-        if released or collapsed:
+        frames = table.moment_frames()
+        for b, a in late_axes.items():
+            flat_axes.setdefault(_site(b),
+                                 _axis_in_crystal_axes(a, frames[_site(b)]))
+        # Turned here, at the answer, wherever the azimuth stays held and the
+        # site is not yet turned — after a release, and also where nothing was
+        # released because the stage-start turn was refused (measured: a start
+        # at 3e-8 μ_B reads roundoff on both sides of the floor test, the
+        # rank probe still finds the axis, the turn is declined, and the
+        # answer sat at ψ = 27.84° against 10.20° with nothing re-solved).
+        # A turn here is a reason to solve again, as a release is.
+        late_turned = _turn_onto_meridians(
+            model, table, {b: a for b, a in late_axes.items()
+                           if f"{b}.dof2" in still_flat})
+        moment_turned.update(late_turned)
+        flat_now, collapse_axes = _flat_moment_scan(model, table)
+        collapsed = _unsupported_phase_paths(model, table, support) + flat_now
+        for b, a in collapse_axes.items():
+            flat_axes.setdefault(_site(b),
+                                 _axis_in_crystal_axes(a, frames[_site(b)]))
+        if released or collapsed or late_turned:
             if collapsed:
                 # Restore before holding: those values moved in a direction the
                 # data cannot see, and the restore is invisible to the data by
@@ -3041,6 +3127,11 @@ class Refinement:
                 for path in collapsed:
                     by_path[path].value = start_values[path]
                 table.refresh_ties()  # dependents follow (b←a on a cubic cell)
+                # a collapsed combination is turned at the restored values,
+                # then held — the stage-start order
+                moment_turned.update(_turn_onto_meridians(
+                    model, table, {b: a for b, a in collapse_axes.items()
+                                   if f"{b}.dof2" in collapsed}))
                 # read while they are still columns, as at stage start
                 held_reach.update(_reach_beyond_self(table, collapsed))
                 table.set_vary(collapsed, False)
@@ -3139,8 +3230,13 @@ class Refinement:
                         cost_initial=outcome.cost_initial,
                         cost_final=outcome.cost_final, rwp=stage_rwp,
                         held=list(held), released=list(released))
+        final_held = set(held)
+        kept_axes = {b: a for b, a in flat_axes.items()
+                     if f"{b}.moment.dof2" in final_held}
         return model, outcome, guard, freed, _StageHold(
             held=list(held), released=list(released),
+            moment_flat_axes=kept_axes,
+            moment_turned=[b for b in kept_axes if b in moment_turned],
             reach={c: list(v) for c, v in held_reach.items()},
             blocked_by_hold=blocked_by_hold, unknown_paths=unknown_paths,
             cell_runaway=list(cell_runaway),
@@ -3517,6 +3613,8 @@ class Refinement:
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
                 ftol=ftol, held=hold.held, released=hold.released,
                 held_reach=hold.reach,
+                moment_flat_axes=hold.moment_flat_axes,
+                moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths,
                 # checked, trivially: one histogram has no elsewhere
@@ -3757,6 +3855,8 @@ class Refinement:
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
                 ftol=stage.ftol, held=hold.held, released=hold.released,
                 held_reach=hold.reach,
+                moment_flat_axes=hold.moment_flat_axes,
+                moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths, unreached_histograms={})
             # after the StageResult rather than beside the other two extends
