@@ -48,7 +48,7 @@ def _result(n: int, uid: str, body: str, sidechain=False, **extra) -> dict:
 
 def _write(path: Path, entries: list) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("".join(json.dumps(e) + "\n" for e in entries))
+    path.write_text("".join(json.dumps(e) + "\n" for e in entries), encoding="utf-8")
     return path
 
 
