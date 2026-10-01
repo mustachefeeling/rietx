@@ -1,8 +1,8 @@
 # WP-1504 — the figure surface measured with real agents
 
-Milestone: v1.7 · Status: 🔄 2026-10-01 — round B run (one of every cell, 28 runs); item 6, the cuts, waits on the maintainer
-Depends on: 1501, 1502, 1503
-Priority: P3 2026-10-01 — the harness and its judge are checked; the rounds wait on a pick from `run.py --menu`
+Milestone: v1.7 · Status: 🔄 2026-10-01 — round B run (one of every cell, 28 runs); the next round waits on WP-1529
+Depends on: 1501, 1502, 1503; 1529 soft (the next round)
+Priority: P4 2026-10-01 — was P3: round B ran; the next round waits on WP-1529, which lifts it
 
 ## Goal
 
@@ -79,7 +79,9 @@ condition is enforced in a shim, never in the prompt.
 - [x] The table in this file's handover, and one line per `report` field:
   read or never read. For round B, in the 2026-10-01 round B entry.
 - [ ] The cuts pushed into 1501 to 1503's `### Inherited`, and 1505's
-  trigger rated.
+  trigger rated. Superseded in part, 2026-10-01: 1501-1503 are closed and
+  take no `### Inherited`, so round B's three fixes are filed as WP-1529.
+  1505's trigger is still to rate, after the round on 1529's tree.
 
 ## Acceptance
 
@@ -189,6 +191,10 @@ condition is enforced in a shim, never in the prompt.
   question about a surface that is about to change. (2) Rate 1505's trigger
   from this table, or after C. (3) A round after those fixes would need its
   own commit pinned as a third condition.
+
+  The maintainer chose to fix first, and the three fixes are filed as
+  WP-1529. This WP waits on it: the next round runs on 1529's merge as a
+  third condition, and the before and after records here stay as they are.
 - **2026-10-01** (after the handover below, same session) — Amendment 1.2 is
   written. At the maintainer's question, the round now tests expansion beyond
   one cell properly, and it checks two figure defects nothing caught before.
