@@ -1,6 +1,6 @@
 # WP-1433 — the `.inp` grammar the reader still refuses: `STR(...)` and `#if`
 
-Milestone: unscheduled · Status: 🔄 2026-10-01 — claimed by @mustachefeeling
+Milestone: unscheduled · Status: 🔄 2026-10-01 — every task landed from outside (PR #587); four `STR(...)` files stop at `to_structure` as rigid bodies (WP-1514)
 Track: Coming from another code
 Depends on: — (WP-1118 closed 2026-09-16 and handed these two over; WP-1119
 settled that neither needs an expression language)
@@ -143,18 +143,18 @@ and is not committed either.
 
 ## Tasks
 
-- [ ] Re-measure the two `STR(...)` counts on the archive, and decide the shape
+- [x] Re-measure the two `STR(...)` counts on the archive, and decide the shape
       of the fix against §19 with the reference's own words behind it. Write the
       decision in this file (#107).
-- [ ] `STR(...)` expands, and the files that carry it read their phases.
-- [ ] A `#prm` evaluator for `#if`/`#elseif`, scoped to deterministic integer
+- [x] `STR(...)` expands, and the files that carry it read their phases.
+- [x] A `#prm` evaluator for `#if`/`#elseif`, scoped to deterministic integer
       conditions with `And` and the comparisons, refusing `Rand` and every
       string condition by name. `#out` substitutes where a condition needs it.
-- [ ] Re-measure PR #98's incidence floors once both land, and record what the
+- [x] Re-measure PR #98's incidence floors once both land, and record what the
       reader still declines, in `coverage.py`'s stances and here.
-- [ ] Tests, with every fixture synthesized inline and its archive idiom named;
+- [x] Tests, with every fixture synthesized inline and its archive idiom named;
       obs/calc/diff PNGs for any refinement a fixture drives.
-- [ ] Skill: a row only if a new diagnostic code lands. These refusals raise
+- [x] Skill: a row only if a new diagnostic code lands. These refusals raise
       rather than diagnose, and `SKILL.md`'s routing row already sends a foreign
       file to `references/api.md` § In.
 
@@ -183,6 +183,35 @@ ships, at the model WP-1130 got from its stripped scratchpad copy.
   [1119](1119-named-variables.md) § Decisions 4.
 
 ## Handover log
+
+- **2026-10-01** — Both halves landed from outside. `STR(sg)` and
+  `STR(sg, name)` expand to the `str` block they open, and `#prm`, `#if`,
+  `#elseif` and `#out` are evaluated in the same token pass and frame stack as
+  `#ifdef`. *Done:* PR #587 (`6759a772`, three review rounds), merged as
+  `38a6e249` by `/pr-review`.
+  *Decision* (task 1, the shape of the `STR(...)` fix): a special case, not a
+  macro pass. §19.3.12 documents `STR(sg)` by its effect, which is all a
+  clean-room reader may use, and a general pass would need macro bodies that
+  `ATTRIBUTION.md` fences. Every macro-opened phase in the archive is this one
+  macro. The second argument is read as the phase name from the reference's own
+  example inputs; no archive file this makes readable uses it.
+  *Measured* by the contributor over the 462 of 606 archive `.inp` files that
+  were present: the two `STR(...)` counts reconcile as 7 live calls, 5 with a
+  real space group and 2 template slots. PR #98's floors moved read 385 → 390,
+  refused 77 → 72, phases 625 → 629; `to_structure` stays at 269. The one `#if`
+  archive file now passes the evaluation and refuses at `#ifdef !name`, a
+  non-goal. On the public workshop zip, 3 of 4 files read where 1 did, and
+  `reel_02` as shipped gives JSON byte-identical to its `#if`-stripped copy.
+  New: `TOPAS_FIRST_RUN_READ` when `num_runs` states more than one run, and
+  `coverage.PREPROCESSOR`, a stance table a test holds to the reader.
+  *Still declined:* `Mod`, `Rand`, strings, `#ifdef !`, includes and `#m_*`
+  refuse by name; four newly read files stop at `to_structure` as rigid bodies
+  (WP-1514). *Gotchas* from review: Table 3-1's implied multiply (`x y` =
+  `x*y`) refuses rather than ending a condition at its first name, and an
+  unknown character refuses wherever the parser reaches it. Every task is
+  ticked, but the acceptance bar is not met in full: the `STR(...)` files read
+  their phases, and four of them stop at `to_structure` as rigid bodies.
+  *Next:* the maintainer's call, close here or hold for WP-1514.
 
 - **2026-09-16** — created as WP-1118 closed, taking the two task lines that
   outlived it. The session that filed it fetched the Technical Reference to

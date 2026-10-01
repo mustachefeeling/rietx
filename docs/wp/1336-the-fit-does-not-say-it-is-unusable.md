@@ -1,6 +1,6 @@
 # WP-1336 — the fit does not say it is unusable: the status channel and the width census
 
-Milestone: unscheduled · Status: 🔄 2026-10-01 — every task landed (PR #585); one review follow-up before it closes
+Milestone: unscheduled · Status: 🔄 2026-10-01 — every task and its review follow-up landed (PRs #585, #645); ready to close
 Track: What fires, and what stays silent
 Depends on: — (1310 soft: how findings arrive on the result)
 Priority: P2 2026-09-23 — a converged fit an order of magnitude off the measured widths, and no channel says so
@@ -190,6 +190,14 @@ a documented reading; a narrow-instrument synthetic fit names the width.
 - `src/rietx/help.py` — the one place what a name *is* is written (WP-1202).
 
 ## Handover log
+
+- **2026-10-01 (2nd session)** — The width census now compares only phases the
+  data can see, so a floored phase can no longer silence the warning. It reads
+  `phase_support`, `phase_line_counts` and `PHASE_SUPPORT_SIGMA`, the same reading
+  `PHASE_UNCONSTRAINED` takes. *Done:* PR #645 (`902c1686`), merged as `31beaeb8`
+  by `/pr-review`. It is the review follow-up the entry below left open, so the WP
+  can close. *Measured* on review: fast and slow suites green on a stack of eleven
+  outside PRs (tree `b0761d96`, macOS arm64, `[dev,jax]`). *Next:* close (fold `### Inherited`, drop the Priority line).
 
 - **2026-10-01** — A fit now says when it is unusable. `RefinementResult.usable` is
   `False` for a converged fit that carries an error-level diagnostic, and the

@@ -1,6 +1,6 @@
 # WP-1902 — the solve cost as a quadratic form, and the doublet question first
 
-Milestone: v1.9 · Status: 🔄 2026-10-01 — the spike and `solve/cost.py` landed (PR #580); one task left: the "poor" refusal reads `RefinementResult.usable`
+Milestone: v1.9 · Status: 🔄 2026-10-01 — the spike, `solve/cost.py` (PR #580) and its two named refusals (PR #648) landed; one task left: the "poor" refusal reads `RefinementResult.usable`
 Depends on: —
 Priority: P2 2026-09-30 — the design gate for the direct-space route; every engine chunk reads this cost
 
@@ -77,6 +77,21 @@ unconverged extraction. "Poor" means `not result.usable` (WP-1336), set
 - Issue #562; WP-1515.
 
 ## Handover log
+
+### 2026-10-01 (3rd session) — the two silent absences refuse by name
+
+The solve cost now refuses the two kinds of reflection it used to leave out
+without saying so. `ExtractionRefused` gains `"satellite"` (any phase with a
+satellite inside the fitted range, in both nuisance modes) and
+`"secondary_line_only"` (under `nuisance="pawley"`, a nuisance reflection only a
+λ/n line reaches). Each message names the phase, the count and the first five
+reflections. *Done:* PR #648 (`f345ba66`), merged as `9ee59304` by `/pr-review`.
+These are the two refusals the 2026-10-01 entry below left for the
+contributor's own PR. The review accepted one widening: the satellite refusal
+covers a `"scale"` nuisance phase too, because its Rietveld column is also zero
+at a satellite. The check reads only frozen state, so an accepted case's arrays
+are byte-identical (the contributor's seven cases). *Next:* unchanged, the
+"poor" refusal reading `RefinementResult.usable`.
 
 ### 2026-10-01 (2nd session) — the "poor" bar set
 
