@@ -1773,7 +1773,7 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # WP-1320's ``FractionProfile``, a new answer type, took 0.33, and
     # WP-1468's two ``Atom`` disorder fields 0.34, and the time-of-flight
     # axis and ``TOFSource`` (issue #193) 0.35.
-    assert caps.schema_version == "0.35"
+    assert caps.schema_version == "0.36"
 
 
 def test_every_moment_dof_has_a_help_entry():

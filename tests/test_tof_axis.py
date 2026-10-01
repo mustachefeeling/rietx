@@ -283,8 +283,8 @@ def test_the_capabilities_arm_grows_a_third_radiation_and_does_not_call_it_one_l
     would be the one wrong statement a derived table could make about it.
 
     The note is what a client reads to decide whether to hand the build a
-    bank, so it may not overstate the answer: it says the arm is read and that
-    no flight-time forward model exists here.
+    bank, so it may not overstate the answer: it names the flight-time model a
+    bank refines with, and what is still **not** written on one.
     """
     arms = {r.kind: r for r in rx.capabilities().radiations}
     assert set(arms) == {"xray_cw", "neutron_cw", "neutron_tof"}
@@ -294,7 +294,9 @@ def test_the_capabilities_arm_grows_a_third_radiation_and_does_not_call_it_one_l
     assert tof.anomalous_dispersion is False
     note = tof.scatterer.lower()
     assert "flight time" in note
-    assert "read" in note and "refines none" in note
+    assert "rietveld refinement of one bank" in note
+    assert "several banks" in note and "not written" in note
+    assert "le bail" in note
 
 
 # ---------------------------------------------------------------------------
@@ -1062,16 +1064,25 @@ def _assert_authored(exc: pytest.ExceptionInfo, where: str) -> None:
     assert "issue #193" in message
 
 
-def test_fit_refuses_a_tof_pattern_against_a_cw_instrument(tof_pattern,
-                                                           cw_models):
-    """No flight-time forward model exists in this build, so the matched pair
-    is refused at construction (a bank) and the crossed pair at ``fit``."""
+def test_fit_refuses_a_crossed_pair_either_way(tof_pattern, cw_models):
+    """``fit`` serves both arms, so what it refuses is a *crossed* pair: a
+    flight time against a constant-wavelength instrument, and a 2θ scan
+    against a bank — each by name, before a run begins."""
     structure, instrument = cw_models
     for call in (lambda: rx.Refinement(structure, instrument).fit(tof_pattern),
                  lambda: rx.refine(tof_pattern, structure, instrument)):
         with pytest.raises(ValueError) as exc:
             call()
-        _assert_authored(exc, "Refinement.fit()")
+        message = str(exc.value)
+        assert message.startswith("Refinement.fit()"), message
+        assert "time of flight in microseconds" in message
+        assert "no bank calibration" in message
+    bank = rx.Instrument.tof_neutron_bank(difc=5123.45, two_theta_bank_deg=61.2)
+    scan = PatternData(two_theta=[10.0 + 0.02 * i for i in range(200)],
+                       intensity=[10.0] * 200)
+    with pytest.raises(ValueError, match=r"^Refinement\.fit\(\): this "
+                       r"instrument's source is a neutron_tof bank"):
+        rx.Refinement(structure, bank, history=False).fit(scan)
 
 
 def test_the_multi_histogram_entry_names_which_histogram(tof_pattern, cw_models):
@@ -1146,29 +1157,26 @@ def test_compile_model_is_the_backstop(tof_pattern, cw_models):
     _assert_authored(exc, "compile_model()")
 
 
-def test_a_tof_instrument_is_refused_at_construction(cw_models):
-    """The mistake seen from the other side, refused before anything reads a
-    wavelength the source does not have.
-
-    Without this it surfaces as an ``AttributeError`` for a wavelength the
-    source does not have, which tells a caller nothing about what they did.
-    The single and the joint constructor both read one, so both refuse; an
-    edit that swaps a bank in is the same door.
-    """
+def test_a_bank_constructs_a_refinement_and_the_joint_entry_still_refuses(
+        cw_models):
+    """A single ``Refinement`` over a bank is a legitimate object now — its
+    table registers the bank's calibration, and the pattern is checked at
+    ``fit`` — and an edit that swaps a bank in is the same.  The joint
+    constructor still reads a wavelength per histogram and has no flight-time
+    arm, so it refuses a bank by name, saying which instrument."""
     structure, instrument = cw_models
     bank = rx.Instrument.tof_neutron_bank(difc=5123.45, two_theta_bank_deg=61.2)
-    for call, where in (
-            (lambda: rx.Refinement(structure, bank), "Refinement()"),
-            (lambda: rx.MultiHistogramRefinement(structure, [instrument, bank]),
-             "MultiHistogramRefinement(), instrument 1 of 2"),
-            (lambda: rx.Refinement(structure, instrument, history=False).edit(
-                instrument=bank), "Refinement.edit()")):
-        with pytest.raises(ValueError) as exc:
-            call()
-        message = str(exc.value)
-        assert message.startswith(where), message
-        assert "neutron_tof bank" in message
-        assert "issue #193" in message
+    ref = rx.Refinement(structure, bank, history=False)
+    assert "instrument.source.difc" in {r.path for r in ref.parameters()}
+    edited = rx.Refinement(structure, instrument, history=False)
+    edited.edit(instrument=bank)
+    assert edited.instrument.source.kind == "neutron_tof"
+    with pytest.raises(ValueError) as exc:
+        rx.MultiHistogramRefinement(structure, [instrument, bank])
+    message = str(exc.value)
+    assert message.startswith("MultiHistogramRefinement(), instrument 1 of 2"), message
+    assert "neutron_tof bank" in message
+    assert "issue #193" in message
 
 
 def test_require_two_theta_passes_a_constant_wavelength_pattern(cw_models):
@@ -1198,9 +1206,11 @@ def test_the_project_and_gui_doors_refuse_one_too(tmp_path, tof_pattern, cw_mode
                           structure=structure, instrument=instrument)
     _assert_authored(exc, "Project.create()")
 
-    with pytest.raises(ValueError) as exc:
-        rx.project.fitted_mask(tof_pattern, None)
-    _assert_authored(exc, "project.fitted_mask()")
+    # ``fitted_mask`` is the fit's own authority on which channels it uses,
+    # and the fit now runs on a bank, so it answers on the pattern's own
+    # abscissa: limits in µs there
+    mask = rx.project.fitted_mask(tof_pattern, (1100.0, 1500.0))
+    assert int(mask.sum()) == 41
 
     # the GUI's own door: an upload is refused with the same words, wrapped in
     # the type the wizard shows rather than as a bare ValueError

@@ -309,7 +309,40 @@ from .._nearmiss import did_you_mean
 #: refines, exactly as before.  A ``neutron_tof`` source is read and never
 #: refined in this build.  Whichever of this and a sibling PR claiming 0.35
 #: lands last renumbers.
-SCHEMA_VERSION = "0.35"
+#: 0.35 → 0.36 (issue #193, the time-of-flight profile, spectrum and
+#: corrections): a bank is **refined**, and five observable changes land
+#: together because they are one feature — the 0.34 → 0.35 entry's forward
+#: half.
+#: (a) the **result's** abscissa: ``RefinementResult.tof`` and
+#: ``HistogramResult.tof`` added (µs), and ``two_theta`` on both becomes
+#: optional, defaulting to ``None`` rather than to ``[]``.  A consumer reading
+#: ``result.two_theta`` unconditionally now has a ``None`` case — and not only
+#: on a bank: a result built without curves used to report an empty list,
+#: which reads as "measured nothing on an angular axis", and now reports
+#: ``None``, "carries no curve" (the WP-1076 honest-empty-state rule).  A
+#: validator refuses a result carrying both abscissae.
+#: ``RefinementResult.axis``/``.axis_unit``/``.x()`` mirror ``PatternData``'s,
+#: with a third ``axis`` answer, ``None``, for a curve-less result; ``ticks``
+#: is stated to be on the result's own abscissa (µs on a bank).
+#: (b) ``PatternData.intensity_basis``, ``Literal["counts", "density"] | None``
+#: defaulting to ``None`` ("the file did not say"): on a bank a ``"counts"``
+#: pattern has its calculated Bragg sum multiplied by the channel width it
+#: measures from its own abscissa, a ``"density"`` one by nothing, and ``None``
+#: proceeds as a density while saying so (``PATTERN_INTENSITY_BASIS_UNKNOWN``).
+#: The readers set it only where the file declares it.
+#: (c) what varies with λ inside one bank is evaluated: the declared incident
+#: spectrum per channel, and specimen absorption and Sabine extinction per
+#: reflection, so ``phases.*.extinction`` is refinable on a bank.
+#: (d) a phase's four sample widths are refinable on a bank, and the size
+#: pair changes unit **there only**: ``lor_size`` holds K/L in Å⁻¹ and
+#: ``gauss_size`` its square, because a white beam states no λ.
+#: (e) ``compile_tof_model`` refuses a Lorentzian width polynomial
+#: γ(d) = gam0 + gam1·d + gam2·d² that goes negative over the fitted d range,
+#: by name — the twin of the σ²(d) check.
+#: **No constant-wavelength number moves**: every new field is read by the
+#: flight-time forward model and by nothing else, and the full fast suite's
+#: goldens are unchanged.
+SCHEMA_VERSION = "0.36"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

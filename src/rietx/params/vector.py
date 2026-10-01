@@ -926,6 +926,116 @@ def size_cap(tt_min: float, tt_max: float, wavelength_a: float,
     return min(physics, rng)
 
 
+#: (π/360), the one factor between a stored strain **coefficient** and the
+#: Δd/d it means.  A deliberate second spelling of
+#: :func:`~rietx.model.profiles.caglioti.microstrain_width`'s constant, for
+#: :data:`_SIZE_CAP_SCHERRER_K`'s reason — this module stays free of a
+#: ``params`` → ``model`` import — and held to it by an equality pin rather
+#: than by this comment (``tests/test_strain_cap.py``).  The physics: the
+#: Stokes-Wilson broadening is Δ2θ = 2·(Δd/d)·tanθ in *radians*, so a
+#: coefficient c in degrees carries Δd/d = (π/180)·c/2.
+_STRAIN_COEFFICIENT_TO_DD = math.pi / 360.0
+
+
+def tof_strain_cap(tof_min: float, tof_max: float, difc: float,
+                   d_max: float) -> float:
+    """:func:`strain_cap` on a **bank**: the widest ``lor_strain`` its own
+    fitted range can express.
+
+    The flight-time twin of the rule one function up, and the same rule: a
+    line whose width exceeds the interval it was measured over carries no
+    information the fit could have got from the data.  What differs is the
+    arithmetic, because a bank's strain broadening is a flight time and not an
+    angle (:func:`~rietx.model.profiles.tof.tof_sample_gamma`):
+
+        ΔT_strain(d) = DIFC·ε·d,   ε = Δd/d as a FWHM
+
+    which is largest at the **longest** fitted d, exactly as the angular
+    ``tanθ`` term is largest at the highest θ.  Holding that contribution to
+    :data:`STRAIN_CAP_RANGE_FRACTION` of the fitted flight-time extent,
+
+        DIFC·ε·d_max ≤ f·(T_max − T_min)
+
+    and converting ε back to the stored degree coefficient
+    (:data:`_STRAIN_COEFFICIENT_TO_DD`) gives what this returns.  With
+    DIFA = DIFB = ZERO = 0 the bound reads exactly as the brief states it —
+    T = DIFC·d makes it ε ≤ f·(d_max − d_min)/d_max, **the fitted d range's own
+    fractional width** — and taking it off the flight-time window rather than
+    off that identity is what keeps it right on a bank whose DIFA is not zero.
+
+    Same three properties as the angular cap, and they are what make it
+    landable: dimensional and self-scaling (no magic constant enters);
+    generous by construction (a GEM bank at DIFC = 2822 µs/Å over
+    3500-22 000 µs, i.e. d = 1.24-7.79 Å, caps ε at 0.841 — **84 % Δd/d**,
+    against the ~10⁻³ a real specimen shows and the ~10⁻² a badly defective
+    one does); and **armed only on a
+    term that has already reached it** (:func:`strain_cap_hi`), so a fit inside
+    the range the data can express gets no bound at all and is bit-identical to
+    an uncapped build.
+
+    Returns ``inf`` when the range cannot state a bound — a degenerate window,
+    a non-positive DIFC or d_max — because "no claim" is the honest output.
+    """
+    span = tof_max - tof_min
+    if not (span > 0.0 and difc > 0.0 and d_max > 0.0):
+        return math.inf
+    dd = STRAIN_CAP_RANGE_FRACTION * span / (difc * d_max)
+    return dd / _STRAIN_COEFFICIENT_TO_DD
+
+
+def tof_size_cap(tof_min: float, tof_max: float, difc: float, d_max: float,
+                 *, k: float = _SIZE_CAP_SCHERRER_K,
+                 min_size_a: float = SIZE_CAP_MIN_SIZE_A) -> float:
+    """:func:`size_cap` on a **bank**: the widest ``lor_size`` allowed, in Å⁻¹.
+
+    The flight-time twin, and the *same two clauses* — the tighter of a
+    crystallite floor and the fitted-range backstop — with both arithmetics
+    changed by the one fact that makes this rung necessary: on a
+    ``neutron_tof`` table ``lor_size`` holds **K/L in Å⁻¹**, not a width in
+    degrees (T-3c; ``model.forward_tof.sample_broadening_terms``).
+
+    **The crystallite floor needs no wavelength here**, which is the whole
+    difference from the angular form.  There a floor ``L ≥ min_size_a`` is a
+    ceiling ``(180/π)·k·λ/min_size_a`` on the coefficient and λ is what a white
+    beam has not got; here the coefficient *is* K/L, so
+
+        ``lor_size`` ≤ k / min_size_a            [the crystallite floor]
+
+    — 0.045 Å⁻¹ at 2 nm, and the same 2 nm the angular cap uses
+    (:data:`SIZE_CAP_MIN_SIZE_A`, a runaway fence a couple of unit cells below
+    anything the archive contains, never a claim about how small a crystallite
+    may be).
+
+    **The backstop is the strain rule with d² for d**, because a size
+    broadening is ΔT = DIFC·(K/L)·d² and that is largest at the longest fitted
+    d (:func:`tof_strain_cap` for the flight-time-extent argument):
+
+        DIFC·(K/L)·d_max² ≤ f·(T_max − T_min)    [the range backstop]
+
+    with f = :data:`SIZE_CAP_RANGE_FRACTION`.  Which of the two binds is a
+    measurement rather than a guess, and on a real bank it is the floor: a
+    POWGEN bank at DIFC = 22 587 µs/Å over 1900-16 660 µs (d = 0.084-0.74 Å)
+    gives a backstop of 1.20 Å⁻¹ against the floor's 0.045, and a long-d GEM
+    bank at DIFC = 2822 over 3500-22 000 µs (d = 1.24-7.79 Å) gives 0.108 —
+    still the floor.  The backstop therefore catches the degenerate case (a
+    narrow window at long d), exactly as the angular one catches 1/cosθ near
+    2θ = 180°.
+
+    The Gaussian term takes the square of whichever width binds, and the cap is
+    armed only where the coefficient has already reached it — both
+    :func:`size_cap_hi`, unchanged: it is a statement about the *stored* pair
+    and knows nothing about which arm computed the width.
+    """
+    floor = math.inf
+    if k > 0.0 and min_size_a > 0.0:
+        floor = k / min_size_a
+    span = tof_max - tof_min
+    rng = math.inf
+    if span > 0.0 and difc > 0.0 and d_max > 0.0:
+        rng = SIZE_CAP_RANGE_FRACTION * span / (difc * d_max * d_max)
+    return min(floor, rng)
+
+
 def size_cap_hi(name: str, value: float, hi: float, cap: float) -> float:
     """The upper bound one size term takes this stage — ``hi`` unless capped.
 
@@ -1081,6 +1191,20 @@ class ParameterTable:
         ))
 
     def _collect(self, structure: Structure, instrument: Instrument) -> None:
+        # **What a time-of-flight bank cannot use, it does not register, or
+        # force-fixes** (#442, WP-1073).  The TOF forward branch
+        # (``model.forward_tof``) shares the reflection list, |F|², the cell and
+        # the background with the constant-wavelength one and shares no
+        # *instrument* width and no *position offset* with it: the resolution
+        # is ``ProfileTOF``'s polynomials in d, and the flight time comes from
+        # DIFC/DIFA/TZERO/DIFB.  The Caglioti terms, the degree ``zero_shift``
+        # and the two 2θ specimen aberrations have a bank-side counterpart and
+        # are absent from a bank's table (``BANK_ABSENT_PATHS``); the phase-side
+        # terms below that branch cannot use are force-fixed rather than
+        # merely unfree — a free entry there is a dead column, one the solver
+        # moves and the model ignores, and ``set_vary`` would hand it out to any
+        # glob without objecting.
+        tof = instrument.source.kind == "neutron_tof"
         for ip, phase in enumerate(structure.phases):
             sg = resolve_group(phase.space_group, phase.symmetry_operations)
             # The cell ties come from the *setting*, not from the crystal system
@@ -1101,10 +1225,44 @@ class ParameterTable:
                 else:
                     self._add(f"{base}.cell.{name}", p)
             self._add(f"{base}.scale", phase.scale)
+            # **Extinction is refinable on both arms.**  It was force-fixed on
+            # the time-of-flight arm until T-3, because ``compile_tof_model``
+            # refused a declared one; Sabine's variable x carries λ only as
+            # (λ/V)², so the constant-wavelength function takes an array of
+            # per-reflection wavelengths unchanged and there is nothing left to
+            # refuse.  March-Dollase below is the case that still is: it
+            # averages over a reflection's symmetry orbit at the *measured*
+            # angle, and on a bank every reflection shares one angle, so the
+            # correction has a different form here rather than a different
+            # value.  A parameter the forward branch refuses is force-fixed
+            # rather than merely unfree (WP-1073) — and with a second
+            # consequence that made it visible: ``Refinement.suggest`` probes
+            # every held-but-*refinable* row by seeding it off its softplus
+            # floor, so a merely unfree one is seeded to a non-zero value and
+            # the probe's own recompile is refused mid-``summary()``.
             self._add(f"{base}.extinction", phase.extinction)
             if phase.preferred_orientation is not None:
                 self._add(f"{base}.preferred_orientation.r",
-                          phase.preferred_orientation.r)
+                          phase.preferred_orientation.r, force_fixed=tof)
+            # **The four sample widths are refinable on both arms** (T-3c).
+            # They were force-fixed on the flight-time arm until then, and the
+            # reason given was that the branch could not use them; it can.  A
+            # crystallite size and a microstrain broaden every peak of a phase
+            # on a bank exactly as they do on a scan — ΔT = DIFC·(K/L)·d² and
+            # ΔT = DIFC·ε·d (``model.profiles.tof.tof_sample_gamma``) — and
+            # they are properties of the *specimen*, so they are the columns a
+            # joint constant-wavelength + time-of-flight fit shares.  What
+            # differs between the arms is only the **unit** the size pair is
+            # stored in, and only the size pair: a strain coefficient is
+            # λ-free and means the same number of degrees everywhere, while a
+            # size coefficient is (180/π)·K·λ/L and is a length only through a
+            # wavelength, which a white beam does not have.  So on a
+            # ``neutron_tof`` table ``lor_size`` holds K/L in Å⁻¹ and
+            # ``gauss_size`` its square in Å⁻²
+            # (``model.forward_tof.sample_broadening_terms``).  A mixed fit
+            # sharing the column would convert between the two units the way
+            # WP-1131's map does between two wavelengths; that fit is not
+            # written yet (``MultiHistogramRefinement`` refuses a bank).
             self._add(f"{base}.lor_size", phase.lor_size)
             # a Stephens block owns the tanθ Lorentzian channel outright: its
             # isotropic direction is the same column, so lor_strain is locked
@@ -1113,7 +1271,7 @@ class ParameterTable:
                       force_fixed=phase.microstrain is not None)
             self._add(f"{base}.gauss_size", phase.gauss_size)
             self._add(f"{base}.gauss_strain", phase.gauss_strain)
-            self._collect_microstrain(base, sg, phase)
+            self._collect_microstrain(base, sg, phase, tof=tof)
             for j, atom in enumerate(phase.atoms):
                 self._collect_atom_coords(f"{base}.atoms.{j}", sg, atom)
                 self._add(f"{base}.atoms.{j}.occ", atom.occ)
@@ -1124,7 +1282,8 @@ class ParameterTable:
                                  instrument.zero_shift)
         self._collect_instrument(instrument)
 
-    def _collect_microstrain(self, base: str, sg, phase) -> None:
+    def _collect_microstrain(self, base: str, sg, phase, *,
+                             tof: bool = False) -> None:
         """Stephens S_HKL enter θ through Laue-symmetry-allowed patterns.
 
         The rank-4 twin of :meth:`_collect_atom_adps`: the phase contributes
@@ -1186,8 +1345,14 @@ class ParameterTable:
                     path=f"{base}.microstrain.{name}", value=0.0, vary=False,
                     lo=p.min, hi=p.max, transform=p.transform, locked=True))
         for k, path in enumerate(dof_paths):
-            self.entries.append(Entry(path=path, value=float(coef[k]), vary=want_vary,
-                                      lo=-np.inf, hi=np.inf, transform="identity"))
+            # ``locked`` on a time-of-flight bank: ``strain_width_deg`` returns
+            # a width in deg 2θ, which is not a microsecond, so
+            # ``compile_tof_model`` refuses a declared block outright — the DOF
+            # rows exist for the paths' sake and cannot be freed (WP-1073).
+            self.entries.append(Entry(path=path, value=float(coef[k]),
+                                      vary=want_vary and not tof,
+                                      lo=-np.inf, hi=np.inf,
+                                      transform="identity", locked=tof))
         # S scales as microstrain², so one unit-ppm projection serves any seed
         unit, *_ = np.linalg.lstsq(
             basis.T.astype(np.float64),
