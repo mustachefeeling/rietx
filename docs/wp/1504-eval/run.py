@@ -5,7 +5,7 @@
     python docs/wp/1504-eval/run.py prepare ROOT CONDITION  # a condition's tree and venv
     python docs/wp/1504-eval/run.py go ROOT RUN [RUN ...]   # launch, collect, judge
     python docs/wp/1504-eval/run.py launch|collect|judge ROOT RUN
-    python docs/wp/1504-eval/run.py judge-references ROOT   # the judge, checked first
+    python docs/wp/1504-eval/run.py judge-references ROOT [TASK ...]  # the judge, checked first
     python docs/wp/1504-eval/run.py table                   # the handover's table
 
 A **run** is ``<task>-<condition>-<model>-<repeat>``, e.g. ``rutile-after-opus-1``.
@@ -130,8 +130,11 @@ TASKS = {
                 "2×2×1 block of unit cells. Save the picture as figure.png."),
         criteria=(
             "Al–F octahedra are drawn as polyhedra.",
-            "The picture covers two unit cells along a, two along b and one along "
-            "c: not a single cell, and not a larger block.",
+            # reworded in amendment 1.2: seen down c, one outline round the
+            # block cannot say how many cells it holds
+            "The block's shape shows in the picture: two unit cells along a, two "
+            "along b and one along c, so its outline is a flat square box rather "
+            "than a cube. Not a single cell, and not a larger block.",
         )),
     "lab6": dict(
         phase="LaB6", cif="lab6.cif",
@@ -151,7 +154,11 @@ TASKS = {
             "The view is down c: the cell outline is a rhombus with a 120° angle, "
             "and the channels along c are seen end-on.",
             "A legend names the atom types beside the colour each is drawn in.",
-            "The legend's colours match the colours of the atoms in the picture.",
+            # reworded in amendment 1.2: spheres are shaded, and copies outside
+            # the cell drawn darker, so no swatch matches every pixel
+            "The legend's colours match the colours of the atoms in the picture, "
+            "allowing for the shading of each sphere and for the darker copies "
+            "outside the cell.",
         )),
 }
 #: Asked of every figure, after the task's own criteria.  The last two are
@@ -673,11 +680,16 @@ def judge(root: Path, run: str) -> None:
         f"{c.get('n')}:{c.get('verdict')}" for c in score["judge"].get("criteria") or []))
 
 
-def judge_references(root: Path) -> None:
-    """The judge on ``reference_figures.py``'s pairs: every right one done, no default."""
+def judge_references(root: Path, only: list[str] | None = None) -> None:
+    """The judge on ``reference_figures.py``'s pairs: every right one done, no default.
+
+    ``only`` re-asks the named tasks and keeps the rest of ``references.json``:
+    a reworded criterion is checked again without paying for the others.
+    """
     drawn = root / "references"
-    out = {}
-    for task in TASKS:
+    record = HARNESS / "references.json"
+    out = json.loads(record.read_text(encoding="utf-8")) if only and record.is_file() else {}
+    for task in only or TASKS:
         for kind in ("right", "default"):
             verdict = ask_judge(task, drawn / f"{task}-{kind}.png",
                                 root / "judge" / f"reference-{task}-{kind}")
@@ -832,7 +844,10 @@ def main(argv: list[str]) -> int:
     elif len(argv) >= 2 and argv[1] == "table":
         table()
     elif len(argv) >= 3 and argv[1] == "judge-references":
-        judge_references(Path(argv[2]).resolve())
+        unknown = [t for t in argv[3:] if t not in TASKS]
+        if unknown:
+            raise SystemExit(f"unknown tasks {unknown}: {list(TASKS)}")
+        judge_references(Path(argv[2]).resolve(), argv[3:] or None)
     elif len(argv) >= 4 and argv[1] == "prepare":
         prepare(Path(argv[2]).resolve(), argv[3])
     elif len(argv) >= 4 and argv[1] in ("launch", "collect", "judge", "go"):

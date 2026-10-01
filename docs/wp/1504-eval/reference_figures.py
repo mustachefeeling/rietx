@@ -100,8 +100,9 @@ RIGHT = {
     "chains": chains,
     "gypsum": gypsum,
     "calcite": lambda s: rx.viz.render_structure(carbonate_groups(build(s)), polyhedra=False),
-    "nac": lambda s: rx.viz.render_structure(
-        build(s, extent=((0, 2), (0, 2), (0, 1))), view="c"),
+    # the opening view, where the block's outline is a flat box: down c it is a
+    # square either way, and the 1.2 judge could not count the cells
+    "nac": lambda s: rx.viz.render_structure(build(s, extent=((0, 2), (0, 2), (0, 1)))),
     # `keep`, not `hidden=("La",)`, which leaves the B half of every La–B bond
     "lab6": lambda s: rx.viz.render_structure(
         rx.viz.keep(g := build(s), rx.viz.select(g, element="B", boundary=False))),

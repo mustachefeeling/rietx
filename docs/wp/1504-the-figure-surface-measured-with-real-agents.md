@@ -127,8 +127,15 @@ condition is enforced in a shim, never in the prompt.
   `hidden=` stubs by its own docstring. Both may be rietx defects rather than
   agent errors, and the round will show whether agents trip on them.
 
-  Next: offer J again (14 judge calls, $1-4 by the prior). Only once every
-  right reference passes and every default fails, bring the menu for A or B.
+  The maintainer then picked J. The judge agreed on 12 of 14 ($1.16), and the
+  two misses were "unclear" on right figures. Down c, NAC's block has one
+  square outline and shows no cell count. Fluorapatite's flat legend swatches
+  match no shaded sphere. Both criteria were reworded, and NAC's reference
+  moved to the opening view (`PROTOCOL.md` § 1.2's judge check). The re-check
+  of those four agreed, for $0.32. So the judge agrees on 14 of 14 under 1.2
+  ($1.48), and the session's spend is $5.27.
+
+  Next: bring `run.py --menu` to the maintainer for A (the 1.2 pilot) or B.
 - **2026-10-01** — The harness for the figure round is built and checked end
   to end, and no round has run yet. The Opus judge reads a picture as the
   rubric needs: it passed all six right reference figures and failed all six

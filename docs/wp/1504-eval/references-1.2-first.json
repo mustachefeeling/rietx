@@ -1,0 +1,542 @@
+{
+ "rutile-right": {
+  "model": "opus",
+  "session_id": "7b742d7b-01e3-4fa0-8928-01e777b89b8e",
+  "returncode": 0,
+  "cost_usd": 0.0780242,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "The TiO6 octahedra are drawn as shaded polyhedra around the grey Ti spheres."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "The blue unit-cell outline is a square, and the view looks down c."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "Octahedra sit at all four cell corners and at the body centre."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and polyhedra lie inside the frame with white margin around them."
+   },
+   {
+    "n": 5,
+    "verdict": "yes",
+    "saw": "The only bond lines visible run between drawn O atoms through the Ti centres, and none ends in empty space."
+   },
+   {
+    "n": 6,
+    "verdict": "yes",
+    "saw": "Each of the five octahedra shows all its O corners, and every Ti sits inside a polyhedron."
+   }
+  ],
+  "yes": true,
+  "expected": true
+ },
+ "rutile-default": {
+  "model": "opus",
+  "session_id": "38a871b8-535b-4650-9a0b-88ba6ec06063",
+  "returncode": 0,
+  "cost_usd": 0.08166019999999999,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "The Ti atoms sit inside shaded grey TiO6 octahedra."
+   },
+   {
+    "n": 2,
+    "verdict": "no",
+    "saw": "The cell is seen at a slant: its outline is a hexagon-like projection with the a, b and c axes all visible, not a square."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "Octahedra stand at several cell sites, including the corners and the body centre."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "Every atom and polyhedron lies inside the frame with a margin to spare."
+   },
+   {
+    "n": 5,
+    "verdict": "yes",
+    "saw": "The one explicit bond, at top centre, joins a Ti atom to an O atom that are both drawn."
+   },
+   {
+    "n": 6,
+    "verdict": "yes",
+    "saw": "Every Ti atom has its octahedron, and each octahedron has all six O corners."
+   }
+  ],
+  "yes": false,
+  "expected": false
+ },
+ "chains-right": {
+  "model": "opus",
+  "session_id": "26c5dcae-953e-47c4-8dca-93f17d855766",
+  "returncode": 0,
+  "cost_usd": 0.0813064,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "Grey TiO6 octahedra are drawn as solid polyhedra, and each meets the next at a shared O pair that is seen end-on, so it shows as a single point."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "One chain runs vertically down the picture, seen side-on with the c axis in the image plane."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "Four octahedra are stacked in the chain."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and polyhedra sit inside the frame with margin to spare."
+   },
+   {
+    "n": 5,
+    "verdict": "yes",
+    "saw": "No separate bonds are drawn, only polyhedron edges and the unit-cell outline."
+   },
+   {
+    "n": 6,
+    "verdict": "yes",
+    "saw": "Every Ti sits inside a complete octahedron with all its O corners drawn."
+   }
+  ],
+  "yes": true,
+  "expected": true
+ },
+ "chains-default": {
+  "model": "opus",
+  "session_id": "2d465839-d8bd-43a3-b4eb-a05de8ddb548",
+  "returncode": 0,
+  "cost_usd": 0.0819784,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "Grey TiO6 octahedra are drawn as polyhedra, and stacked ones share edges."
+   },
+   {
+    "n": 2,
+    "verdict": "no",
+    "saw": "Several octahedra columns are shown with the unit-cell outline, viewed roughly down c rather than one chain from the side."
+   },
+   {
+    "n": 3,
+    "verdict": "no",
+    "saw": "About six or seven octahedra spread over several columns, not one chain of four or five."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and polyhedra sit inside the frame with white margin around them."
+   },
+   {
+    "n": 5,
+    "verdict": "yes",
+    "saw": "The only bond drawn, at top centre, joins a Ti atom to an O atom; the blue lines are cell edges."
+   },
+   {
+    "n": 6,
+    "verdict": "yes",
+    "saw": "Every Ti sits inside a polyhedron, and no polyhedron visibly lacks a corner O."
+   }
+  ],
+  "yes": false,
+  "expected": false
+ },
+ "gypsum-right": {
+  "model": "opus",
+  "session_id": "a6ee4756-d182-4f1f-ae1b-c08b3c15c4a6",
+  "returncode": 0,
+  "cost_usd": 0.0846782,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "The Ca and SO₄ form a single horizontal band in the middle of the cell, with no second band stacked above or below."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "Water O atoms above and below the band each carry two white H atoms."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "The layer runs horizontally across the picture as a narrow band, viewed along c."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and tetrahedra sit well inside the frame with white margin on every side."
+   },
+   {
+    "n": 5,
+    "verdict": "yes",
+    "saw": "Every bond, including the outer Ca–O bonds, ends on a drawn O sphere."
+   },
+   {
+    "n": 6,
+    "verdict": "yes",
+    "saw": "All four S atoms sit inside complete yellow tetrahedra, and no bare S atom appears."
+   }
+  ],
+  "yes": true,
+  "expected": true
+ },
+ "gypsum-default": {
+  "model": "opus",
+  "session_id": "331e3055-e1d2-46c8-9194-7c6cd4c264ad",
+  "returncode": 0,
+  "cost_usd": 0.0819342,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "no",
+    "saw": "A whole unit cell is drawn in an oblique view, so Ca and SO₄ fill the box and do not form one distinct band."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "Several red O atoms each carry two small white H atoms."
+   },
+   {
+    "n": 3,
+    "verdict": "no",
+    "saw": "The view is a tilted perspective of a unit-cell box, and no layer runs across the picture as an edge-on band."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and polyhedra sit inside the frame with margin to spare."
+   },
+   {
+    "n": 5,
+    "verdict": "yes",
+    "saw": "Each Ca–O, S–O and O–H bond ends on a drawn sphere."
+   },
+   {
+    "n": 6,
+    "verdict": "unclear",
+    "saw": "The SO₄ tetrahedra look complete, but overlap makes it hard to confirm every corner and every S."
+   }
+  ],
+  "yes": false,
+  "expected": false
+ },
+ "calcite-right": {
+  "model": "opus",
+  "session_id": "86d33534-8dac-45cb-9f6a-b953961dd6c5",
+  "returncode": 0,
+  "cost_usd": 0.07368759999999999,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "Only black C and red O atoms appear, with no Ca spheres."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "No polyhedra are drawn, only ball-and-stick groups and the unit cell outline."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "Each black C is bonded to three red O in a trigonal planar arrangement."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms sit well inside the frame with margin on every side."
+   },
+   {
+    "n": 5,
+    "verdict": "yes",
+    "saw": "Every bond runs from a C to an O, and both atoms are drawn."
+   },
+   {
+    "n": 6,
+    "verdict": "yes",
+    "saw": "No polyhedra are drawn and no Ca centres appear, so nothing is incomplete."
+   }
+  ],
+  "yes": true,
+  "expected": true
+ },
+ "calcite-default": {
+  "model": "opus",
+  "session_id": "91614eaa-a614-4a9c-8ffb-4af16636b21f",
+  "returncode": 0,
+  "cost_usd": 0.0787596,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "no",
+    "saw": "Large green Ca spheres are drawn throughout the cell."
+   },
+   {
+    "n": 2,
+    "verdict": "no",
+    "saw": "Green CaO6 octahedra fill the figure."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "Black C atoms each have three red O atoms bonded around them in a trigonal arrangement."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and polyhedra sit inside the frame with margin to spare."
+   },
+   {
+    "n": 5,
+    "verdict": "yes",
+    "saw": "Every visible bond, including the green-red Ca–O sticks, ends on a drawn atom."
+   },
+   {
+    "n": 6,
+    "verdict": "no",
+    "saw": "Several Ca spheres, such as those beside the carbonates at the right edge near the middle, are drawn bonded with sticks and have no octahedron."
+   }
+  ],
+  "yes": false,
+  "expected": false
+ },
+ "nac-right": {
+  "model": "opus",
+  "session_id": "115635d8-a903-4b50-93eb-91bdbbd8d19a",
+  "returncode": 0,
+  "cost_usd": 0.08940300000000001,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "The Al sites are drawn as translucent maroon octahedra."
+   },
+   {
+    "n": 2,
+    "verdict": "unclear",
+    "saw": "The view is straight down c and shows a 4×4 grid of octahedra inside one square outline, so I cannot tell whether that outline is a single cell or the 2×2 block."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "There is white margin on all four sides, and no atom or polyhedron touches the image edge."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "The bonds at the edge end on small green F spheres, and I found none ending in empty space."
+   },
+   {
+    "n": 5,
+    "verdict": "yes",
+    "saw": "All 16 octahedra look complete, and I saw no Al atom without a polyhedron."
+   }
+  ],
+  "yes": false,
+  "expected": true
+ },
+ "nac-default": {
+  "model": "opus",
+  "session_id": "074fb058-6ec5-43f0-9cd9-353b4502df1f",
+  "returncode": 0,
+  "cost_usd": 0.081075,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "Translucent maroon octahedra are drawn around the Al centres."
+   },
+   {
+    "n": 2,
+    "verdict": "no",
+    "saw": "The outline is a single cubic cell seen along the body diagonal, not a 2×2×1 block."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "All atoms and polyhedra sit inside the frame with margin to spare."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "Every bond stick I could see ends at a small green F sphere or at a cation."
+   },
+   {
+    "n": 5,
+    "verdict": "yes",
+    "saw": "Each visible octahedron has six corners, and I saw no bare Al atom outside a polyhedron."
+   }
+  ],
+  "yes": false,
+  "expected": false
+ },
+ "lab6-right": {
+  "model": "opus",
+  "session_id": "360b8c1c-0ed1-4546-81b1-e76a5f8e2ec0",
+  "returncode": 0,
+  "cost_usd": 0.0784906,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "One cluster of six B spheres is bonded into an octahedron in the middle of the cell."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "No La atoms are drawn, so no La–B bonds appear."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "The cell and the octahedron sit well inside the frame with wide margins."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "Every bond runs between two of the six drawn B spheres."
+   },
+   {
+    "n": 5,
+    "verdict": "yes",
+    "saw": "The octahedron has all six corners and no lone centre atom is drawn."
+   }
+  ],
+  "yes": true,
+  "expected": true
+ },
+ "lab6-default": {
+  "model": "opus",
+  "session_id": "54f5a49e-71e3-4ab4-a13a-7b2561a27d50",
+  "returncode": 0,
+  "cost_usd": 0.0773306,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "no",
+    "saw": "B atoms appear mainly as dangling spokes bonded to La, and no distinct B6 octahedra or polyhedra can be picked out."
+   },
+   {
+    "n": 2,
+    "verdict": "no",
+    "saw": "Many purple-and-tan two-coloured bonds run from the large purple La atoms out to the brown B atoms."
+   },
+   {
+    "n": 3,
+    "verdict": "yes",
+    "saw": "All atoms sit inside the frame with white margin around them."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "Each bond appears to end on a drawn atom, and none ends in empty space."
+   },
+   {
+    "n": 5,
+    "verdict": "unclear",
+    "saw": "No polyhedra are drawn, and La-centred B coordination is shown as bonds, so polyhedron completeness cannot be judged."
+   }
+  ],
+  "yes": false,
+  "expected": false
+ },
+ "fap-right": {
+  "model": "opus",
+  "session_id": "33dc0211-f129-4f19-9eb3-f9e81cc674ef",
+  "returncode": 0,
+  "cost_usd": 0.1179868,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "yes",
+    "saw": "The blue cell outline is a rhombus with a 120° angle at the origin, and the F columns at the corners appear as points ringed by Ca, so the c channels are seen end-on."
+   },
+   {
+    "n": 2,
+    "verdict": "yes",
+    "saw": "A legend at top left lists Ca1, Ca2, P3, F4, O5, O6 and O7, each beside a coloured disc."
+   },
+   {
+    "n": 3,
+    "verdict": "unclear",
+    "saw": "The legend uses the same hues as the atoms, but most Ca are drawn dark teal against the legend's bright cyan, and many O are dark maroon against its bright red."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and polyhedra sit well inside the frame with white margin on every side."
+   },
+   {
+    "n": 5,
+    "verdict": "yes",
+    "saw": "Every bond I can trace runs between two drawn atoms, and none ends in empty space."
+   },
+   {
+    "n": 6,
+    "verdict": "yes",
+    "saw": "Each P has an orange tetrahedron with O at its visible corners, and no P is drawn without one."
+   }
+  ],
+  "yes": false,
+  "expected": true
+ },
+ "fap-default": {
+  "model": "opus",
+  "session_id": "0ab7035d-fd69-40e6-8fb4-48b9336b00d7",
+  "returncode": 0,
+  "cost_usd": 0.0747468,
+  "criteria": [
+   {
+    "n": 1,
+    "verdict": "no",
+    "saw": "The view is oblique: the cell is a 3D box with the c axis pointing up, so the channels are not seen end-on."
+   },
+   {
+    "n": 2,
+    "verdict": "no",
+    "saw": "There is no legend, only the axis labels a, b and c."
+   },
+   {
+    "n": 3,
+    "verdict": "no",
+    "saw": "There is no legend to compare against the atom colours."
+   },
+   {
+    "n": 4,
+    "verdict": "yes",
+    "saw": "All atoms and polyhedra sit inside the frame with white margin around them."
+   },
+   {
+    "n": 5,
+    "verdict": "no",
+    "saw": "Several red–cyan bonds stick out from atoms and end in empty space, for example near the top centre and lower right."
+   },
+   {
+    "n": 6,
+    "verdict": "no",
+    "saw": "Several orange P atoms are drawn without a tetrahedron, and some tetrahedra lack O atoms at their corners."
+   }
+  ],
+  "yes": false,
+  "expected": false
+ }
+}

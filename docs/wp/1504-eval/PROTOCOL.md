@@ -320,3 +320,30 @@ check of § The judge runs again, on the seven pairs drawn by the amended
 
 The two 1.1 pilot runs are kept in `pilot-1.1/`, and pool with nothing after
 this amendment.
+
+### 1.2's judge check, and two criteria reworded before any run
+
+The judge's first check under 1.2 cost $1.16 and agreed with the reference on
+12 of 14 figures. Each of the new checks failed a default it should fail. The
+fluorapatite default, for one, failed both: "Several red–cyan bonds stick out
+from atoms and end in empty space", and "Several orange P atoms are drawn
+without a tetrahedron". The two disagreements were "unclear" on right figures,
+on criteria the 1.1 judge had passed. So the criteria were the weak part, and
+§ The judge says such a disagreement is fixed in the criteria.
+
+- NAC's block. The reference looked straight down c, and the judge saw "a 4×4
+  grid of octahedra inside one square outline", so it could not tell one cell
+  from the block. The outline goes round the whole block, so down c it is a
+  square either way. The reference now uses the opening view, where the block
+  is a flat box, and the criterion asks for the shape a picture can show:
+  - The block's shape shows in the picture: two unit cells along a, two along b and one along c, so its outline is a flat square box rather than a cube. Not a single cell, and not a larger block.
+- Fluorapatite's legend. The judge saw "most Ca are drawn dark teal against
+  the legend's bright cyan". The spheres are shaded, and the copies outside
+  the cell are drawn darker, so a flat swatch matches no sphere exactly. The
+  criterion now reads:
+  - The legend's colours match the colours of the atoms in the picture, allowing for the shading of each sphere and for the darker copies outside the cell.
+
+The first check is kept in `references-1.2-first.json`. The NAC and
+fluorapatite pairs were asked again under the new wording, for $0.32, and
+the judge agreed with the reference on all four. `references.json` holds the
+merged check: 14 of 14, $1.48 in all. R1 is trusted under 1.2 from here.
