@@ -375,8 +375,10 @@ PROJECT_FORMATS: tuple[ProjectFormat, ...] = (
             carries=("phases", "sites", "refine flags and their ties",
                      "a Jbt = ±1 phase's moments and magnetic group, where it "
                      "restates a nuclear phase in that phase's cell with k = 0",
-                     "instrument resolution function", "the run's own chi2 "
-                     "and per-phase R_Bragg", "the data file it points at"),
+                     "instrument resolution function", "a neutron file's "
+                     "LINE-12 user scattering lengths, read as isotopes",
+                     "the run's own chi2 and per-phase R_Bragg",
+                     "the data file it points at"),
             reports_at="build",
             matches=_matches_fullprof_pcr,
             read=fullprof.read_fullprof_pcr,
