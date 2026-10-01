@@ -1342,7 +1342,11 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
         magnetic_symmetry=MagneticSymmetry(
             operations=list(ops), centerings=list(cent),
             bns_number=bns_number,
-            setting=f"child cell {transform} of {parent.space_group}",
+            # ``setting`` is the transform from this cell to the BNS standard
+            # setting, which this builder does not derive; the parent -> child
+            # transform it does know is a different map, and stays on the
+            # statement (``SupercellStatement.transform``) and in the name (#610)
+            setting=None,
             propagation_vector_parent=(None if k is None
                                        else tuple(str(c) for c in k))),
         scale=Parameter(value=parent.scale.value),

@@ -318,7 +318,13 @@ magnetic-dictionary tag at all, the form-factor ion and the Landé g, so they go
 out under a namespaced `_rietx_atom_site_moment.` category; without them a round
 trip would lose which form factor the refinement used. A refinement CIF also
 carries `_atom_site_moment.magnitude_su`, the esd of the modulus, which is
-where a moment's uncertainty lives.
+where a moment's uncertainty lives. `_space_group_magn.transform_BNS_Pp_abc` is
+written only when `MagneticSymmetry.setting` is a transform in the dictionary's
+form, the (P,p) from the current setting to the BNS one (`'a,b,c;0,0,0'`), and
+is left out otherwise. A group built from its number is in the BNS standard
+setting, so its `setting` is `'a,b,c;0,0,0'`. A `magnetic_supercell` phase has
+none: the parent-to-child transform it knows is a different map, and it stays
+on the statement and in the phase name.
 
 (a-magnetic-phase-from-a-topas-inp)=
 ### A magnetic phase from a TOPAS `.inp`

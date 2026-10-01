@@ -988,6 +988,78 @@ def test_a_magnetic_supercell_phase_round_trips_in_its_own_cell(tmp_path):
     assert np.max(np.abs(y1 - y0)) <= 1e-9 * np.max(y0)
 
 
+
+def _written_transform(tmp_path, phase) -> list[str]:
+    path = tmp_path / "transform.mcif"
+    structure_to_cif(rx.Structure(phases=[phase]), str(path))
+    return [line.split(None, 1)[1].strip("'\"")
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.startswith("_space_group_magn.transform_BNS_Pp_abc")]
+
+
+def _mnf2(magnetic_symmetry):
+    from rietx.schemas.structure import Atom, Cell, Moment, Phase
+
+    def p(v):
+        return rx.Parameter(value=v)
+
+    return Phase(
+        name="MnF2", space_group="P 42/m n m",
+        cell=Cell(a=p(4.87), b=p(4.87), c=p(3.31), alpha=p(90.0), beta=p(90.0),
+                  gamma=p(90.0)),
+        atoms=[Atom(label="Mn1", species="Mn", x=p(0.0), y=p(0.0), z=p(0.0),
+                    biso=p(0.3),
+                    moment=Moment.from_values((0.0, 0.0, 4.6), "Mn2+")),
+               Atom(label="F1", species="F", x=p(0.305), y=p(0.305), z=p(0.0),
+                    biso=p(0.3))],
+        magnetic_symmetry=magnetic_symmetry)
+
+
+def test_the_transform_tag_holds_a_transform_or_is_not_written(tmp_path):
+    """#610: ``transform_BNS_Pp_abc`` received free text — the database's
+    "BNS standard setting (spglib magnetic database, …)" and the supercell's
+    "child cell a,b,2c;0,0,0 of P 4/m m m" — which rietx's own parser refuses.
+
+    ``cif_mag.dic`` defines the item as the (P,p) from the current setting to
+    the BNS one, with a semicolon between the parts.  A group built from its
+    number is in the BNS standard setting, so it is the identity; the supercell
+    builder does not derive one (its parent -> child map is a different
+    transform), so the tag is omitted; prose a caller put in ``setting`` is
+    omitted too.  Every value written parses."""
+    from rietx.crystallography.magnetic.isotropy import candidates
+    from rietx.crystallography.magnetic.operators import parse_transform
+    from rietx.crystallography.magnetic.supercell import magnetic_supercell
+    from rietx.schemas.structure import Atom, Cell, MagneticSymmetry, Phase
+
+    database = MagneticSymmetry.model_validate("136.499")
+    assert database.setting == "a,b,c;0,0,0"
+    assert _written_transform(tmp_path, _mnf2(database)) == ["a,b,c;0,0,0"]
+
+    prose = database.model_copy(update={"setting": "BNS standard setting "
+                                        "(spglib magnetic database)"})
+    assert _written_transform(tmp_path, _mnf2(prose)) == []
+    stated = database.model_copy(update={"setting": "b,-a,c;0,0,0"})
+    (written,) = _written_transform(tmp_path, _mnf2(stated))
+    assert written == "b,-a,c;0,0,0"
+    parse_transform(written)
+
+    def p(v):
+        return rx.Parameter(value=v)
+
+    parent = Phase(
+        name="tetragonal", space_group="P 4/m m m",
+        cell=Cell(a=p(4.0), b=p(4.0), c=p(4.2), alpha=p(90.0), beta=p(90.0),
+                  gamma=p(90.0)),
+        atoms=[Atom(label="Mn1", species="Mn", x=p(0.0), y=p(0.0), z=p(0.0),
+                    biso=p(0.4))])
+    truth = candidates("P 4/m m m", (0.0, 0.0, 0.0), (0, 0, "1/2"))[0]
+    child = magnetic_supercell(parent, truth, magnetic_species=["Mn1"],
+                               ion={"Mn1": "Mn3+"}, magnitude=3.0)
+    assert child.phase.magnetic_symmetry.setting is None
+    assert child.transform in child.phase.name
+    assert _written_transform(tmp_path, child.phase) == []
+
+
 def test_an_all_integer_k_is_gamma_not_a_supercell(tmp_path):
     """D2: k = (1, 1, 1) is Gamma identically -- a propagation vector is only
     ever physically meaningful modulo the reciprocal lattice, so an all-integer
