@@ -1,8 +1,7 @@
 # WP-1801 — rotation mathematics: the exponential map, its derivative, the canonical quaternion
 
-Milestone: v1.8 · Status: 🔄 2026-10-01 — the module, its tests and both review follow-ups landed (PRs #578, #591); ready to close
+Milestone: v1.8 · Status: ✅ 2026-10-01 — `crystallography/rotation.py`: the exponential map, its derivative and the canonical quaternion in backend `xp` ops, with every round trip tested (PRs #578, #591)
 Depends on: —
-Priority: P2 2026-09-30 — the first rung of the rigid-body milestone, touches no v1.6 file, nothing blocks it
 
 ## Goal
 
@@ -38,9 +37,9 @@ column vectors; a new `xp` op goes into `_OP_NAMES` and every backend
 
 ## Tasks
 
-- [ ] `rotation.py`: vector → matrix, matrix → vector, vector ↔ quaternion, `dR/dδω`, in `xp` ops; the canonical form w ≥ 0 with the w = 0 tie-break
-- [ ] Tests: derivative against central finite differences to 1e-9 on 100 random vectors **and** at δω = 0, at |δω| = 1e-8 and near π; all round trips; the canonical form idempotent; a `jax.jacfwd` at zero finite (self-skips without jax)
-- [ ] Skill: none, no public surface
+- [x] `rotation.py`: vector → matrix, matrix → vector, vector ↔ quaternion, `dR/dδω`, in `xp` ops; the canonical form w ≥ 0 with the w = 0 tie-break
+- [x] Tests: derivative against central finite differences to 1e-9 on 100 random vectors **and** at δω = 0, at |δω| = 1e-8 and near π; all round trips; the canonical form idempotent; a `jax.jacfwd` at zero finite (self-skips without jax)
+- [x] Skill: none, no public surface
 
 ## Acceptance
 
@@ -55,6 +54,13 @@ column vectors; a new `xp` op goes into `_OP_NAMES` and every backend
   textbook; cite the source used in the docstring (author, year).
 
 ## Handover log
+
+### 2026-10-01 (3rd session) — closed
+
+Closed. Every task and acceptance row has landed (PRs #578 and #591), and the two
+entries below say what each merge established. The rotation maths is ready for
+the rigid-body seam, and WP-1803's spike (PR #596) already builds on it. Nothing
+is forwarded. *Next:* WP-1803.
 
 ### 2026-10-01 (2nd session) — both review follow-ups landed
 

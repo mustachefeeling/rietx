@@ -88,6 +88,16 @@ Some constraints that shape (1) and (3):
 
 ### Inherited
 
+- **From WP-1344, 2026-10-01 (closed): the census of what `multi.py` re-derives
+  is wider than its diagnostics.** WP-1344 classified every `_*_diagnostics`
+  helper for the joint path under a meta-test. It did not audit the other
+  `MultiHistogramRefinement` members that re-derive something `Refinement`
+  derives. `_ticks` is the known case: WP-1103 found it reporting every declared
+  peak as an unindexed impurity, and fixed it by making
+  `CompiledModel.extra_peak_tick_positions` the one authority both builders call.
+  A joint-fit report renders those members' output, so the audit belongs here.
+  The rule WP-1103 settled still holds: a declared peak belongs to every
+  histogram that sees it, and a radiation-keyed diagnostic to one histogram.
 - **From WP-1434, 2026-09-18: `bound_findings` grew two keyword arguments,
   and `multi.py` already passes both.** It takes `cos=outcome.residual_cosine`
   and `esd=outcome.stderr_internal`, so the joint path inherits the new
