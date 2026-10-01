@@ -1089,6 +1089,36 @@ multi-dataset templates and stale batch files, excluded because their numbers
 are not from one converged state. Both classes are named in the round-five sweep
 JSON, not hidden in the median.
 
+#### `for` loops — measured against TOPAS v6 (2026-10-01)
+
+The reference says a `for $object_type { … }` loop "expands its body once for
+every existing instance of the given object type" and stops there.
+`expand_for_loops` needs the rest, and it was measured on TOPAS v6 as a
+**black box** on synthetic files only: a flat 20–60° pattern, Cu Kα1, a
+Pm-3m Ni phase at a = 4 Å (100 at 22.20°) or 5 Å (110 at 25.17°), and a loop
+body setting `th2_offset = 0.5;`, so a reached phase's peaks move by +0.50°.
+Positions were read off each dataset's `Out_X_Ycalc` file.
+
+| layout | result | reading |
+|---|---|---|
+| two `xdd`s, then `for xdds { th2_offset; for strs { the whole phase } }` | both datasets built and shifted | reaches every dataset above it |
+| the same loop **above** both `xdd`s | `Error loading sstring_in at xdds` | nothing above → TOPAS refuses |
+| `xdd`, loop, `xdd` | the first shifted, the second not | "existing" = opened above the loop |
+| two `xdd`s × two `str`s, `for xdds { for strs 1 to 1 { … } }` | in **each** dataset its first `str` shifted | the range counts within one dataset |
+| the same, `for strs 1 to 1` (or `for strs`) at the end of the file | only the **last** dataset's phases shifted | a bare `for strs` reaches the dataset it is written in |
+| an `xdd` with no `str`, `for strs { … }`; or `for strs 2 to 4` over two | `Error loading sstring_in at strs` (`invalid index`) | nothing to reach → TOPAS refuses |
+| `hkl_Is` (a = 4) then `str` (a = 5), `for strs 1 to 1` | the `str` shifted, the `hkl_Is` not | `strs` counts `str` only |
+| three `xdd`s, `for xdds 2 to 3` | the second and third shifted | `for xdds N to M` is 1-based over datasets |
+| phases written out, `th2_offset` in dataset 1 only (control) | dataset 1 shifted, 2 not | the read-out can fail |
+
+Over the 468 `.inp` files of the archive mirror it was measured on (macOS
+metadata stubs excluded): **54 files
+go from refused to read and none the other way**; 44 of the 68 files carrying a
+live loop open their datasets with `TOF_XYE(...)`, which is why that macro is a
+dataset opener. Every one of those is a time-of-flight file, and its banks are
+then refused at build by name (issue #193) while a constant-wavelength dataset
+beside them still builds: 13 more datasets build than before.
+
 ### FullProf `.pcr` — six real files, none of them vendorable
 
 `io/projects/fullprof.py` reads a FullProf refinement *control* file, the same
