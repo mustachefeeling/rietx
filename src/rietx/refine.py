@@ -6552,11 +6552,12 @@ def _quantify_phases(table: ParameterTable, theta: np.ndarray,
     # from refined coordinates, which could have drifted near a special
     # position and collapsed an orbit).  The primary emission line feeds
     # the Brindley microabsorption attenuation (µ ∝ λ³ makes the Kα₂
-    # offset sub-percent in µ, far smaller in τ).
+    # offset sub-percent in µ, far smaller in τ), from the table of the
+    # histogram's own radiation (#543): the neutron µ, not the X-ray one.
     multiplicities = [[len(op[0]) for op in cp.sites.ops] for cp in model.phases]
     wavelength = model.line_wavelengths[0] if model.line_wavelengths else None
     qpa = compute_qpa(structure, values, scale_cov, multiplicities,
-                      wavelength=wavelength)
+                      wavelength=wavelength, source_kind=model.source_kind)
     if qpa is None:
         return None, _qpa_unavailable_diagnostics(structure, values)
     diagnostics = microabsorption_diagnostics(qpa)
