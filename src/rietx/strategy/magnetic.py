@@ -279,7 +279,9 @@ class MomentRow:
         fails however large the moment is — while the quadrature sum the
         powder does measure can be many esds clear of zero.  Measured on a
         two-site entry of issue #458's MAGNDATA sweep: each modulus at 0.4× its own esd
-        ("unsupported"), their quadrature sum at 63× its esd, and the solve
+        ("unsupported"), their quadrature sum at 63× its esd (read through the
+        cross-stage ρ fallback that :func:`_moment_correlations` no longer
+        uses, and not re-measured since), and the solve
         said "nothing to solve" because the gate read the rows (with the
         coordinates also free, the published group lost the same way to a
         class whose ΔBIC was 7× lower — see :func:`_moment_correlations`).  The
@@ -1399,7 +1401,7 @@ def _moment_rows(ref, result, structure
         held=list(result.stages[-1].held) if result.stages else [],
         esd={p.path: p.stderr for p in result.parameters
              if p.stderr is not None},
-        correlations=_moment_correlations(result))
+        correlations=_moment_correlations(ref, result))
     rows = [
         MomentRow(label=e.atom, ion=e.ion, magnitude=float(e.magnitude),
                   esd=None if e.magnitude_esd is None
@@ -1414,38 +1416,58 @@ def _moment_rows(ref, result, structure
     return tuple(rows), n_moment, tuple(moment_pair_diagnostics(evidence))
 
 
-def _moment_correlations(result):
-    """The correlated pairs the degenerate-pair fold reads: the worst-|ρ| list, plus every
-    stored ``HIGH_CORRELATION``/``FLAT_DIRECTION`` pair between two moment DOFs.
+def _moment_correlations(ref, result):
+    """The correlated pairs the degenerate-pair fold reads: every pair of free
+    moment moduli, with ρ taken from the covariance their σ's came from.
 
-    ``identifiability.top_correlations`` is only the worst
+    The fold multiplies ρ by the two rows' esds, and the pair esd is a
+    cancellation of order (1 − |ρ|), so ρ and the σ's must come from one
+    compile — the answer-producing stage's, which
+    :attr:`~rietx.Refinement._answer_covariance` keeps beside the result.
+
+    **Two sources this used to read, and why neither is enough.**
+    ``identifiability.top_correlations`` is final-stage but only the worst
     :data:`~rietx.optimize.identifiability.TOP_CORRELATIONS_K` pairs of the
-    whole fit, and a fit that also frees coordinates can fill every slot with
-    ρ = 1 coordinate pairs: measured on the same two-Co-site entry with the
+    whole fit, and a fit that also frees coordinates (or a child cell with
+    exactly degenerate Biso twins) can fill every slot with ρ = 1 pairs:
+    measured on a two-Co-site entry of issue #458's MAGNDATA sweep with the
     coordinates free, the moment pair at ρ = −1.000 was absent from the list
-    and the fold never ran.  The guard's own findings on
-    ``result.diagnostics`` are the same matrix thresholded rather than
-    truncated (never capped in storage — ``_cap_high_correlation`` bounds the
-    rendering only), so they carry the pair; its ``value`` is the signed ρ.
-    ``None`` when neither source has anything, exactly as before.
+    and the fold never ran.  The stored ``HIGH_CORRELATION``/``FLAT_DIRECTION``
+    findings carry such a pair, but ``_dedup_high_correlations`` keeps the
+    **worst |ρ| across every stage** ("flagged in stages: moment, all"), and an
+    earlier stage, with fewer parameters free, typically has the larger |ρ|.
+    Measured on Cr₂WO₆ at 150 K (the tree's tutorial data, review of #592):
+    the moment stage's ρ = −0.99821 against the final stage's −0.98591, and
+    the final σ's with the moment stage's ρ gave a pair esd of 0.089 μ_B where
+    the final stage's own covariance gives 0.247 — a 2.8× error toward false
+    support.  So neither is read for a moment pair.
+
+    Only **free** moduli are paired: a tied row shares its source's column and
+    would correlate at ±1 by construction, which is a tie and not a powder
+    degeneracy.  ``None`` when the fit kept no covariance (no esds, or
+    ``ref`` holds another result's), exactly as before: a fit whose
+    covariance was not measured reports each modulus on its own.
     """
     from ..schemas.results import CorrelationPair
 
-    pairs = (list(result.identifiability.top_correlations)
-             if result.identifiability is not None else [])
-    seen = {frozenset((c.path_a, c.path_b)) for c in pairs}
-    for d in getattr(result, "diagnostics", None) or ():
-        where = list(d.where or ())
-        if (d.code not in ("HIGH_CORRELATION", "FLAT_DIRECTION")
-                or len(where) != 2 or d.value is None
-                or not all(_MOMENT_GLOB in w for w in where)):
-            continue
-        key = frozenset(where)
-        if key in seen:
-            continue
-        seen.add(key)
-        pairs.append(CorrelationPair(path_a=where[0], path_b=where[1],
-                                     rho=float(d.value)))
+    kept = getattr(ref, "_answer_covariance", None)
+    if kept is None or kept[0] is not result or kept[3] is None:
+        return None
+    _result, table, theta, stderr_internal, correlation = kept
+    paths = [p.path for p in result.parameters
+             if p.vary and p.stderr is not None and _MOMENT_GLOB in p.path
+             and p.path.endswith(".dof0")]
+    if len(paths) < 2:
+        return None
+    cov = table.physical_covariance(theta, stderr_internal, correlation, paths)
+    var = np.diag(cov)
+    pairs = []
+    for i in range(len(paths)):
+        for j in range(i + 1, len(paths)):
+            if var[i] > 0.0 and var[j] > 0.0:
+                pairs.append(CorrelationPair(
+                    path_a=paths[i], path_b=paths[j],
+                    rho=float(cov[i, j] / math.sqrt(var[i] * var[j]))))
     return pairs or None
 
 

@@ -1030,6 +1030,18 @@ class Refinement:
         self._mu_r_source, self._mu_r_skipped = _resolve_specimen_absorption(
             self.structure, self.instrument)
         self.result_: RefinementResult | None = None
+        #: The covariance ``result_``'s esds were read off, kept in memory beside
+        #: it and never serialized (the Identifiability argument: the Jacobian
+        #: does not survive fit time).  ``(result, table, theta,
+        #: stderr_internal, correlation)``, the answer-producing stage's own, so
+        #: a caller that needs a correlation between two parameters the
+        #: top-|ρ| list truncated can take it from the **same** compile as the
+        #: σ's it multiplies — never from the run's ``HIGH_CORRELATION``
+        #: findings, which keep the worst |ρ| across every stage.  The result
+        #: rides in the tuple so a reader can check it holds the covariance of
+        #: the result it was handed.  ``None`` until a fit returns, and dropped
+        #: with ``result_``.
+        self._answer_covariance: tuple | None = None
         #: the last ``fit(stage_reports=True)`` run's trajectory, one
         #: :class:`~rietx.report.StageReport` per completed stage (WP-1058).
         #: Empty after a fit that was not asked for one — a report is *derived*
@@ -1156,6 +1168,7 @@ class Refinement:
         """
         self._model = None
         self.result_ = None
+        self._answer_covariance = None
         self.stage_reports_ = []
 
     def _require_history(self) -> RefinementTree:
@@ -3140,6 +3153,9 @@ class Refinement:
                 declared_wavelengths=declared_wavelengths,
                 cell_runaway=answer_runaway)
             _apply_esds(table, self.result_, self.structure, self.instrument)
+            self._answer_covariance = (self.result_, table, outcome.theta,
+                                       outcome.stderr_internal,
+                                       outcome.correlation)
             self._stamp(self.result_, tree)
             if stream is not None:
                 stream.emit("fit_end", status=self.result_.status,
@@ -3589,6 +3605,9 @@ class Refinement:
                 guard=guard, max_shift_over_esd=outcome.max_shift_over_esd,
                 declared_wavelengths=declared_wavelengths)
             _apply_esds(table, self.result_, self.structure, self.instrument)
+            self._answer_covariance = (self.result_, table, outcome.theta,
+                                       outcome.stderr_internal,
+                                       outcome.correlation)
             self._stamp(self.result_, tree)
             if recorder is not None:
                 recorder.write_summary(self.result_)

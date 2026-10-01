@@ -1450,34 +1450,145 @@ def test_an_ordinary_row_is_not_pair_supported():
     assert row.pair_supported is False
 
 
-def test_the_fold_reads_stored_moment_correlations_beyond_the_top_list():
-    """Issue #458: with coordinates free, the fit's worst-five |ρ| list was all
-    coordinate pairs at ρ = 1 and the moment pair (ρ = −1.000) was only in the
-    stored HIGH_CORRELATION/FLAT_DIRECTION findings, so the fold never ran."""
+#: Cr₂WO₆ at 150 K on the pre-#527 tree (review of #592, the tree's tutorial
+#: data): the final stage's σ's of the two child moduli, their signed DOFs,
+#: the final stage's own ρ and the moment stage's ρ, which the run's
+#: cross-stage HIGH_CORRELATION dedup kept because its |ρ| was larger.
+_CR2WO6_SIGMA = (1.562, 4.486)
+_CR2WO6_DOF = (0.563, 0.195)
+_CR2WO6_RHO_FINAL = -0.98591
+_CR2WO6_RHO_MOMENT_STAGE = -0.99821
+
+
+def _cr2wo6_pair_fit(rho_final):
+    """A stand-in fit with the Cr₂WO₆ pair: two free moduli, a top-five list
+    crowded out by ρ = 1 Biso twins, the run's deduplicated HIGH_CORRELATION
+    finding carrying the **moment stage's** ρ, and a kept answer covariance
+    whose ρ is ``rho_final``."""
     from types import SimpleNamespace
 
     from rietx.schemas.common import Diagnostic
     from rietx.schemas.results import CorrelationPair
-    from rietx.strategy.magnetic import _moment_correlations
 
     a, b = "phases.0.atoms.0.moment.dof0", "phases.0.atoms.1.moment.dof0"
-    top = [CorrelationPair(path_a=f"phases.0.atoms.{i}.dof.1",
-                           path_b=f"phases.0.atoms.{i + 1}.dof.1", rho=1.0)
+    sa, sb = _CR2WO6_SIGMA
+    top = [CorrelationPair(path_a=f"phases.0.atoms.{i}.biso",
+                           path_b=f"phases.0.atoms.{i + 1}.biso", rho=1.0)
            for i in range(2, 7)]
-    diags = [Diagnostic(level="warning", code="HIGH_CORRELATION",
-                        message="m", where=[a, b], value=-1.0),
-             Diagnostic(level="warning", code="FLAT_DIRECTION",
-                        message="m", where=[a, b], value=-1.0),
-             Diagnostic(level="warning", code="HIGH_CORRELATION",
-                        message="m", where=["phases.0.scale",
-                                            "phases.0.atoms.0.biso"],
-                        value=0.97)]
+    stale = Diagnostic(
+        level="warning", code="HIGH_CORRELATION",
+        message="m — flagged in stages: moment, all", where=[a, b],
+        value=_CR2WO6_RHO_MOMENT_STAGE)
     result = SimpleNamespace(
         identifiability=SimpleNamespace(top_correlations=top),
-        diagnostics=diags)
-    pairs = _moment_correlations(result)
-    moment_pairs = [c for c in pairs if {c.path_a, c.path_b} == {a, b}]
-    assert len(moment_pairs) == 1 and moment_pairs[0].rho == -1.0
-    assert len(pairs) == 6  # the five top pairs kept, the non-moment one not added
-    assert _moment_correlations(SimpleNamespace(identifiability=None,
-                                                diagnostics=[])) is None
+        diagnostics=[stale],
+        parameters=[SimpleNamespace(path=a, vary=True, stderr=sa),
+                    SimpleNamespace(path=b, vary=True, stderr=sb),
+                    # a tied partner correlates at ±1 by construction
+                    SimpleNamespace(path="phases.0.atoms.2.moment.dof0",
+                                    vary=False, stderr=sa)])
+    cov = np.array([[sa * sa, rho_final * sa * sb],
+                    [rho_final * sa * sb, sb * sb]])
+
+    class _Table:
+        def physical_covariance(self, theta, stderr_internal, correlation,
+                                paths):
+            assert paths == [a, b]
+            return cov
+
+    ref = SimpleNamespace(_answer_covariance=(
+        result, _Table(), None, np.ones(2), np.eye(2)))
+    return ref, result, (a, b)
+
+
+def _fold(pairs, paths):
+    from rietx.report.magnetic import _pair_degenerate_moments
+    from rietx.report.schemas import MomentEvidence
+
+    rows = [MomentEvidence(atom=f"Cr{i}", phase="cr2wo6", ion="Cr3+",
+                           magnitude=abs(d), magnitude_esd=s,
+                           crystalaxis=[d, 0.0, 0.0], free_directions=["m"],
+                           supported=False, approximation="dipole", path=p)
+            for i, (p, d, s) in enumerate(zip(paths, _CR2WO6_DOF,
+                                              _CR2WO6_SIGMA))]
+    return _pair_degenerate_moments(rows, pairs, dict(zip(paths, _CR2WO6_DOF)))
+
+
+def test_the_pair_rho_is_the_final_stages_never_the_cross_stage_worst():
+    """Review of #592: the fold multiplied the final stage's σ's by a ρ read off
+    the run's HIGH_CORRELATION findings, which keep the worst |ρ| across every
+    stage.  On Cr₂WO₆ at 150 K that was the moment stage's −0.99821 against
+    the final stage's −0.98591, and the pair esd came out 0.089 μ_B where the
+    final stage's own covariance gives 0.247 — false support at 6.7σ.  The ρ
+    must come from the covariance the σ's came from."""
+    from rietx.strategy.magnetic import _moment_correlations
+
+    ref, result, paths = _cr2wo6_pair_fit(_CR2WO6_RHO_FINAL)
+    pairs = _moment_correlations(ref, result)
+    assert len(pairs) == 1          # the tied partner is not paired
+    assert {pairs[0].path_a, pairs[0].path_b} == set(paths)
+    assert pairs[0].rho == pytest.approx(_CR2WO6_RHO_FINAL, abs=1e-12)
+    folded = _fold(pairs, paths)
+    assert folded[0].paired_magnitude == pytest.approx(0.596, abs=2e-3)
+    assert folded[0].paired_magnitude_esd == pytest.approx(0.247, abs=2e-3)
+
+
+def test_the_planted_cross_stage_rho_reproduces_the_false_support():
+    """The positive arm of the test above: the same fold, handed the moment
+    stage's ρ the old fallback read, reproduces the reported 0.0886 — so the
+    arithmetic the fixed test relies on is the arithmetic that went wrong."""
+    from rietx.schemas.results import CorrelationPair
+
+    _ref, _result, paths = _cr2wo6_pair_fit(_CR2WO6_RHO_FINAL)
+    planted = [CorrelationPair(path_a=paths[0], path_b=paths[1],
+                               rho=_CR2WO6_RHO_MOMENT_STAGE)]
+    folded = _fold(planted, paths)
+    assert folded[0].paired_magnitude_esd == pytest.approx(0.0886, abs=5e-4)
+    assert folded[0].paired_magnitude > 3.0 * folded[0].paired_magnitude_esd
+
+
+def test_a_moment_pair_crowded_out_of_the_top_list_is_still_folded():
+    """Issue #458: with coordinates free, the fit's worst-five |ρ| list was all
+    coordinate pairs at ρ = 1 and the moment pair was not in it.  The pair is
+    read off the kept covariance, so the top-k truncation cannot hide it."""
+    from rietx.strategy.magnetic import _moment_correlations
+
+    ref, result, paths = _cr2wo6_pair_fit(-1.0 + 1e-6)
+    pairs = _moment_correlations(ref, result)
+    assert [frozenset((c.path_a, c.path_b)) for c in pairs] == [
+        frozenset(paths)]
+
+
+def test_no_kept_covariance_and_a_stale_one_are_both_not_measured():
+    """``None``, never a fallback to the cross-stage findings: a ref that kept
+    no covariance, or kept another result's, says nothing about this pair."""
+    from types import SimpleNamespace
+
+    from rietx.strategy.magnetic import _moment_correlations
+
+    ref, result, _paths = _cr2wo6_pair_fit(_CR2WO6_RHO_FINAL)
+    assert _moment_correlations(SimpleNamespace(_answer_covariance=None),
+                                result) is None
+    other = SimpleNamespace(**vars(result))
+    assert _moment_correlations(ref, other) is None
+
+
+def test_the_kept_covariance_is_the_answer_stages():
+    """``Refinement._answer_covariance`` is the covariance of the result it is
+    stored beside: on a two-stage fit, the worst pair of the final stage's
+    ``top_correlations`` is reproduced from it to the digit."""
+    instrument = neutron()
+    data = simulate(tetragonal(), instrument)
+    ref = rx.Refinement(rx.Structure(phases=[tetragonal()]), instrument)
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
+        rx.Stage("all", ["phases.*.scale", "instrument.background.c*",
+                         "phases.*.cell.*", "phases.*.atoms.*.biso"])])
+    result = ref.fit(data, plan=plan)
+    kept, table, theta, stderr_internal, correlation = ref._answer_covariance
+    assert kept is result
+    top = result.identifiability.top_correlations[0]
+    cov = table.physical_covariance(theta, stderr_internal, correlation,
+                                    [top.path_a, top.path_b])
+    rho = cov[0, 1] / np.sqrt(cov[0, 0] * cov[1, 1])
+    assert rho == pytest.approx(top.rho, abs=1e-9)
