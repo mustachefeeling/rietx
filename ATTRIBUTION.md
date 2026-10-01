@@ -346,7 +346,13 @@ they were built from. Their licence texts ship in the wheel and sdist as
   *Neutron News* **3**(3), 26–37, and the same author's tabulation in
   *International Tables for Crystallography* Vol. C, ch. 4.4.4, Table 4.4.4.1.
   Thermal values only — no energy dependence, which is a fence for TOF rather
-  than a gap for constant wavelength.
+  than a gap for constant wavelength. The first transcription kept each printed
+  uncertainty's digits as extra decimals ("15.(7.)" became 15.7) in 245 cells;
+  corrected on 2026-10-01 against an Internet Archive snapshot of the same page
+  (2026-06-08), with every correction checked against gemmi's Sears table,
+  Rauch & Waschkowski (2003), GSAS-II's table or the row's own cross-section
+  sum rules. The file header records how, and the one place it departs from
+  the copy (a misprint at 147Sm σ_inc).
 - `src/rietx/data/f0_WaasKirf.dat` — Waasmaier & Kirfel (1995) 5-Gaussian f0
   coefficients, obtained from the ESRF DABAX collection (public scientific data,
   redistributed by silx (MIT) among others). Cite Waasmaier & Kirfel (1995).

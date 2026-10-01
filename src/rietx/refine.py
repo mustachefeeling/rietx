@@ -5693,9 +5693,9 @@ def _dispersion_diagnostics(structure: Structure,
 
 #: A resonant absorber whose *element* absorbs at least this much is reported
 #: as a warning rather than as info.  1000 barn separates the four classic
-#: black absorbers on this table -- Cd 2520, Eu 4530, Sm 5923, Gd 49700 -- from
+#: black absorbers on this table -- Cd 2520, Eu 4530, Sm 5922, Gd 49700 -- from
 #: Yb, whose element absorbs 34.80 and whose resonance lives in one minority
-#: isotope (``168Yb``, 2230.40).  The split is about how much of the beam the
+#: isotope (``168Yb``, 2230).  The split is about how much of the beam the
 #: specimen eats, which is a different question from whether b is complex, and
 #: both are worth saying.
 RESONANT_ABSORBER_SEVERE_BARN = 1000.0
