@@ -361,6 +361,20 @@ takes the rule WP-1301 takes for a phase the data cannot see: hold them, name
 them in `StageResult.held`, and report what could not be measured rather than
 a number nobody measured.
 
+The flat rotation is a frame column only when the frame's polar row lies along
+the unique axis. On tetragonal and hexagonal axes it does, and the azimuth is
+held. On rhombohedral axes the unique axis is [111] and the row is not, so the
+rotation the powder cannot see is a combination of polar and azimuth (issue
+#599). The fit finds that axis from the rank of the two angles' response.
+Before holding, it turns the moment about the axis onto the meridian through
+it. The data cannot see that move, and the move is checked before it is
+written. There the azimuth is the flat rotation and is held, and the polar
+angle measures the angle to the axis. The turn changes the direction the fit
+reports: `StageResult.moment_flat_axes` names the axis,
+`StageResult.moment_turned` records the turn, and the moment note says the
+reported direction is one of a cone of equally good ones. Quote the angle to
+the axis, not the direction.
+
 A moment the data does not support comes back unsupported, and the test is a
 ratio. Refine the same model against a pattern above the ordering
 temperature and the modulus goes to nothing, because |F_m|² ∝ m² and the only

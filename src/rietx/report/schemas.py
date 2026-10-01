@@ -1402,7 +1402,10 @@ class MomentEvidence(Base):
 
     ``unmeasured_directions`` names the DOFs the powder average could not
     determine — ``"polar"``, ``"azimuth"`` — and they are *held*, so they carry
-    no esd at all.
+    no esd at all.  Where the flat rotation was a combination of the two
+    angles (a uniaxial powder on axes whose frame pole is not the unique axis,
+    issue #599) the fit turned the moment about that axis before holding the
+    azimuth, and ``note`` names the axis and the angle to it.
 
     ``supported`` is the WP's null test, and it is a **ratio, not a floor**.
     Measured on the Cr₂WO₆ tutorial data (GSAS-II *Magnetic-II*, HB-2A):

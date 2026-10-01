@@ -837,6 +837,22 @@ class StageResult(Base):
     #: :attr:`held`; the cost of both solves is in :attr:`n_iterations`, and
     #: :attr:`cost_initial` is still the cost the stage started at.
     released: list[str] = Field(default_factory=list)
+    #: per three-DOF moment site whose azimuth this stage held as part of a
+    #: flat **combination** of its two angles (issue #599) — a uniaxial powder
+    #: on axes whose frame pole is not the unique axis, R-3m:R about [111] —
+    #: the flat rotation axis, as crystal-axis components of a unit vector in
+    #: the magCIF unit-vector metric.  Keyed by site (``phases.i.atoms.j``).
+    #: A site whose azimuth is flat on its own (the P4/mmm case) is not here.
+    #: Empty on every fit where no such site was held.
+    moment_flat_axes: dict[str, list[float]] = Field(default_factory=dict)
+    #: the sites of :attr:`moment_flat_axes` whose moment the stage **turned**
+    #: about that axis, onto the meridian through it, before holding the
+    #: azimuth — a move the data cannot see, checked against the
+    #: flat-direction floor before it was written, and the one correction
+    #: here that changes the direction a fit reports.  A site in
+    #: :attr:`moment_flat_axes` and not here was held where it was, because
+    #: the turned moment did not reproduce the pattern to that floor.
+    moment_turned: list[str] = Field(default_factory=list)
     #: paths this stage's ``turn_on`` matched and did **not** free, because
     #: the caller had declared a hold on them (WP-1435,
     #: ``Refinement.hold``).  The record of which declaration won: a plan's

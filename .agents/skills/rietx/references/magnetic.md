@@ -26,6 +26,8 @@ The magnetic diagnostic family lives in this one file rather than in §7's table
 |---|---|
 | `MOMENT_PAIR_DEGENERATE` | (info — from `report.magnetic.moment_pair_diagnostics` over `analyse_moments`' rows) Read either site's own `MomentEvidence.magnitude` for a paired row. The powder measures only the pair's quadrature sum, `sqrt(m_a^2 + m_b^2)` (`MomentEvidence.paired_magnitude` and `.paired_magnitude_esd`, `paired_with` naming the other site) — the two moduli are correlated in the fit and not separately determined, so either one's raw magnitude is an artefact of that correlation rather than a measurement |
 
+**A held moment direction is not a code.** It is in `StageResult.held` (`…moment.dof1`/`dof2`) and in `MomentEvidence.unmeasured_directions`. Do not quote a held angle as measured: it has no esd because the powder cannot see it (Shirane, *Acta Cryst.* **12**, 282, 1959). On a site whose flat rotation is a combination of the two angles (a uniaxial powder on axes whose frame pole is not the unique axis, e.g. R-3m:R about [111]), the fit first turns the moment about that axis and then holds the azimuth. `StageResult.moment_flat_axes` names the axis and `.moment_turned` records the turn. The reported `crystalaxis` direction is then one of a cone of equally good ones; quote the angle to the axis (the polar esd is its esd), not the direction.
+
 ## Magnetic-width codes
 
 On `result.diagnostics`, from a fit (WP-1343). The terms are `Phase.magnetic_lor_size`/`_strain`, the magnetic component's own Lorentzian width; the turn-on order is `plan="magnetic_width"` (moment with widths at zero → widths beside the converged moment, which keeps refining → both).

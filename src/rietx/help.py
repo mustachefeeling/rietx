@@ -919,6 +919,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "uniaxial structure, the angle to the unique axis — no more, so "
             "the directions it cannot determine are **held** and named in "
             "`StageResult.held` rather than returned as small numbers. "
+            "Where that axis is not the frame's pole (rhombohedral axes, "
+            "about [111]) the fit first turns the moment about it, which "
+            "changes the reported direction, and records the axis and the "
+            "turn in `StageResult.moment_flat_axes` and `.moment_turned`. "
             "Seeding the modulus at exactly zero is refused: |F_m|² is "
             "proportional to m², so the column is dead there."
         ),
