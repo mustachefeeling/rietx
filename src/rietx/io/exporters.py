@@ -82,6 +82,16 @@ class ReflectionRow:
     integrated intensity of this (line, reflection): in Rietveld mode
     scale·multiplicity·|F|²·P·(line weight)·Lp·extinction·absorption·roughness.
 
+    **On a phase carrying moments, ``f_squared`` is not that |F|²** (issue
+    #613).  The intensity is built from ⟨|F_N|²⟩ + p²⟨|F_⊥|²⟩, and on a
+    ``"total"`` row — every row of a phase whose magnetic width is at its off
+    state — ``f_squared`` is the **nuclear** ⟨|F_N|²⟩ alone.  A magnetic-only
+    reflection (a nuclear absence the magnetic group allows: MnF₂'s (1 0 0) under
+    136.499) therefore carries ``f_squared == 0`` beside one of the pattern's
+    largest intensities.  The magnetic share is in ``intensity``; it gets its
+    own row, ``component == "magnetic"`` with ``f_squared`` = p²⟨|F_⊥|²⟩, only
+    where the phase's magnetic width is active.
+
     With anomalous scattering on, ``f_squared`` is the **Friedel-averaged**
     ⟨|F|²⟩ = ½(|F(h)|² + |F(−h)|²) that the powder peak actually contains, not
     the representative reflection's own |F(h)|² — the two differ in a
