@@ -29,6 +29,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | 2026-10-01 | P4 | [v1.7](#v1-7) |
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1529](1529-what-round-b-found-in-the-figure-surface.md) | What round B found in the figure surface: the skill names figures, a cell draws no bare centre, the report counts every stub | 2026-10-01 | P3 | [v1.7](#v1-7) |
 | [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | 2026-09-30 | P2 | [v1.8](#v1-8) |
 | [1802](1802-the-fragment-type.md) | The fragment: a body template with a frame and declared bonds | 2026-09-30 | P3 | [v1.8](#v1-8) |
 
@@ -378,7 +379,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1503](1503-the-figure-reports-on-itself.md) | The figure reports on itself, and picks a view | ✅ 2026-09-30 | — | [1470](1470-a-structure-figure-without-a-browser.md) ([1501](1501-cut-and-keep.md) soft) |
 | [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | 🔄 2026-10-01 | P4 | [1501](1501-cut-and-keep.md), [1502](1502-an-extent-beyond-one-cell.md), [1503](1503-the-figure-reports-on-itself.md) ([1529](1529-what-round-b-found-in-the-figure-surface.md) soft) |
 | [1505](1505-rietview-the-figure-leaves-the-package.md) | rietview: the figure leaves the package | ⬜ | P4 | [1504](1504-the-figure-surface-measured-with-real-agents.md) |
-| [1529](1529-what-round-b-found-in-the-figure-surface.md) | What round B found in the figure surface: the skill names figures, a cell draws no bare centre, the report counts every stub | ⬜ | P3 | — |
+| [1529](1529-what-round-b-found-in-the-figure-surface.md) | What round B found in the figure surface: the skill names figures, a cell draws no bare centre, the report counts every stub | 🔄 2026-10-01 | P3 | — |
 
 ## <a id="v1-8"></a>v1.8 — rigid bodies
 

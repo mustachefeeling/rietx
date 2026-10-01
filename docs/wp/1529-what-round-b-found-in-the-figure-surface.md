@@ -1,6 +1,6 @@
 # WP-1529 — what round B found in the figure surface: the skill names figures, a cell draws no bare centre, the report counts every stub
 
-Milestone: v1.7 · Status: ⬜
+Milestone: v1.7 · Status: 🔄 2026-10-01 — claimed by @yue-here
 Depends on: —
 Priority: P3 2026-10-01 — a workaround covers each (reading the package, a hand mask), and WP-1504's next round waits on all three
 
