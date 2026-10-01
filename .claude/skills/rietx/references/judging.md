@@ -23,6 +23,28 @@ magnitude says *how far* the solve was still moving in esd units, which
 separates "nearly there" (just over the band) from a fit that stopped
 mid-flight — measured ≈14 on one starved iteration.
 
+## Step 9 — `status` is the optimiser's exit; `usable` reads both channels
+
+`result.status` says how the solver stopped and claims nothing about the fit:
+issue #243's reproduction on the bundled NAC fixture, profile unseeded, returns
+`converged` beside `MODEL_FAR_FROM_DATA` (Measured: Rwp 2.15 on 1.6.0.dev0).
+Quality is `result.diagnostics`. A batch driver branches on `result.usable`,
+which is `status == "converged"` with no diagnostic at level `"error"`; `False`
+means read nothing, and `True` still owes every warning its answer (WP-1336).
+
+## Step 9 — the width census runs on the fit
+
+`PEAK_WIDTH_LAW_MISMATCH` also fires on a refinement. The indexing census (the
+median FWHM of the 12 most prominent lines) is compared with each phase's
+*fitted* width at those lines, instrument plus size and strain, and fires when
+no phase comes within 3× either way; `value` is the ratio, `where` the closest
+phase. Above 3 the data is broader than the model can make it: free the
+phase's `lor_size`/`lor_strain`, or calibrate the instrument, before quoting
+intensities. Below 1/3 a width term ran away. A phase with a Stephens
+`microstrain` block is not judged (Measured: synthetic LaB6, `lor_size` 0.1°
+against √W ≈ 0.016°, fired at 6.3 with no size term and silent with it freed;
+silent at 1.01–1.32 on the NAC, SRM 660c and FAP examples, WP-1336).
+
 ## Step 12 — the geometry table's esds
 
 `stderr` is propagated through the *whole* covariance, which McCusker §10
