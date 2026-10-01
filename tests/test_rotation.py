@@ -195,8 +195,9 @@ def test_vector_matrix_vector_round_trip_within_8_ulp():
                              [np.zeros(3), [1e-300, 0.0, 0.0], [0.0, 1e-9, -1e-9],
                               [2e-3, 0.0, 0.0], [0.0, 5e-4, -5e-4],
                               [0.0, 0.0, np.pi - 1e-9]]])
-    worst = max(float(np.max(np.abs(rt.vector_from_matrix(rt.matrix_from_vector(w)) - w)))
-                for w in omegas)
+    # np.max, not max(): Python's max() drops a NaN that is not the first item
+    worst = float(np.max([np.abs(rt.vector_from_matrix(rt.matrix_from_vector(w)) - w)
+                          for w in omegas]))
     assert worst <= 8 * EPS, worst / EPS
 
 
