@@ -1,0 +1,6 @@
+{"event": "exit", "wall": 2.0554, "t": 1790862276.202, "pid": 15029, "cwd": "/Users/yue/rietx-agent-runs/2026-10-01-wp1504-figure/work/fap-after-sonnet-1", "run": "fap-after-sonnet-1@ac5e8df1-334e-47d3-be72-3172b6dccdaf"}
+{"event": "exit", "wall": 0.001, "t": 1790862276.496, "pid": 15034, "cwd": "/Users/yue/rietx-agent-runs/2026-10-01-wp1504-figure/work/fap-after-sonnet-1", "run": "fap-after-sonnet-1@ac5e8df1-334e-47d3-be72-3172b6dccdaf"}
+{"event": "exit", "wall": 1.9363, "t": 1790862300.835, "pid": 15132, "cwd": "/Users/yue/rietx-agent-runs/2026-10-01-wp1504-figure/work/fap-after-sonnet-1", "run": "fap-after-sonnet-1@ac5e8df1-334e-47d3-be72-3172b6dccdaf"}
+{"event": "exit", "wall": 0.0671, "t": 1790862301.265, "pid": 15145, "cwd": "/Users/yue/rietx-agent-runs/2026-10-01-wp1504-figure/work/fap-after-sonnet-1", "run": "fap-after-sonnet-1@ac5e8df1-334e-47d3-be72-3172b6dccdaf"}
+{"event": "exit", "wall": 1.5813, "t": 1790862311.65, "pid": 16278, "cwd": "/Users/yue/rietx-agent-runs/2026-10-01-wp1504-figure/work/fap-after-sonnet-1", "run": "fap-after-sonnet-1@ac5e8df1-334e-47d3-be72-3172b6dccdaf"}
+{"event": "exit", "wall": 0.4503, "t": 1790862322.598, "pid": 16418, "cwd": "/Users/yue/rietx-agent-runs/2026-10-01-wp1504-figure/work/fap-after-sonnet-1", "run": "fap-after-sonnet-1@ac5e8df1-334e-47d3-be72-3172b6dccdaf"}
