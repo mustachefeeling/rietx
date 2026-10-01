@@ -854,13 +854,23 @@ def main(argv: list[str]) -> int:
         root = Path(argv[2]).resolve()
         for run in argv[3:]:
             split(run)
+        failed = []
         for run in argv[3:]:
-            if argv[1] in ("launch", "go"):
-                launch(root, run)
-            if argv[1] in ("collect", "go"):
-                collect(root, run)
-            if argv[1] in ("judge", "go"):
-                judge(root, run)
+            # one run's failure is reported and the batch goes on: a serial
+            # batch is hours, and a stop at run 3 would idle the rest
+            try:
+                if argv[1] in ("launch", "go"):
+                    launch(root, run)
+                if argv[1] in ("collect", "go"):
+                    collect(root, run)
+                if argv[1] in ("judge", "go"):
+                    judge(root, run)
+            except SystemExit as exc:
+                print(f"{run}: FAILED {exc}")
+                failed.append(run)
+        if failed:
+            print(f"{len(failed)} failed: {' '.join(failed)}")
+            return 1
     else:
         print(__doc__)
         return 2
