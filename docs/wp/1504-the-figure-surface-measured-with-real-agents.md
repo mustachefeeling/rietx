@@ -81,14 +81,15 @@ condition is enforced in a shim, never in the prompt.
 - [x] The after round, on the same cells. Round B, the same 28-run batch.
 - [x] The table in this file's handover, and one line per `report` field:
   read or never read. For round B, in the 2026-10-01 round B entry.
-- [ ] The cuts pushed into 1501 to 1503's `### Inherited`, and 1505's
+- [x] The cuts pushed into 1501 to 1503's `### Inherited`, and 1505's
   trigger rated. Superseded in part, 2026-10-01: 1501-1503 are closed and
   take no `### Inherited`, so round B's three fixes are filed as WP-1529.
-  1505's trigger is still to rate, after the round on 1529's tree.
+  1505's trigger rated 2026-10-01 after the fixed round: not fired (the
+  round C entry).
 - [x] The fixed condition: amendment 1.3, `run.py prepare ROOT fixed`, and
   the two inherited checks on `reference_figures.py`'s helpers.
-- [ ] The fixed round, on the picked cells. 2026-10-01: the maintainer
-  picked B, one run of each of the 14 fixed cells.
+- [x] The fixed round, on the picked cells. 2026-10-01: the maintainer
+  picked B, one run of each of the 14 fixed cells; 13 done.
 
 ## Acceptance
 
