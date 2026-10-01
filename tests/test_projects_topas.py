@@ -2724,24 +2724,147 @@ def test_a_directive_this_reader_cannot_evaluate_refuses_by_name(
 # ---- round-six: a card attaches where it is written (Tech Ref 2.20-2.23, 5.1)
 
 
-def test_a_for_loop_over_content_this_reader_reads_is_refused(tmp_path):
-    """"`for $object_type { ... }` is a pre-processor loop that expands its body
-    once for every existing instance of the given object type."
+# The `for` loops are expanded (Technical Reference, `for` under
+# `TMisc_keywords`: "expands its body once for every existing instance of the
+# given object type"). What "existing" means and what `N to M` selects was
+# measured on TOPAS v6 as a black box (`tests/data/README.md` § `for` loops);
+# every fixture below is a two-dataset synthetic file of that kit's shape.
 
-    The block model — `_BLOCK` slicing between openers — *is* the assumption
-    that a card belongs to the block it sits inside, and the reference licenses
-    it only in the absence of these verbs. The ``archive file 27`` series and
-    `archive file 1` declare a whole phase inside
-    `for xdds { for strs 1 to 1 { ... } }`: `for strs` is not a line-initial
-    `str`, so the phase is invisible to the split, and where a real `str`
-    exists elsewhere its cell and sites are swept into *that* one instead.
-    """
-    inp = _inp(tmp_path, "for.inp",
-               'xdd "a.xye"\n'
-               'for strs 1 to 1 {\n'
-               '  phase_name "A"\n  space_group "P1"\n  a 4.0\n'
-               '  site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
-               '}\n')
+#: A phase stated nowhere but in a loop body: its cell and its one site.
+_LOOP_PHASE = ('    space_group "P m -3 m"\n    a 4.0 b 4.0 c 4.0 al 90 be 90 ga 90\n'
+               '    site A1 x 0 y 0 z 0 occ Ni 1 beq 0.5\n')
+
+
+def test_for_xdds_reaches_every_dataset_above_it(tmp_path):
+    """`for xdds { for strs 1 to 1 { … } }` after the datasets — how the
+    archive declares a phase once for every bank — puts the body in each
+    dataset's first `str`. Before this the file was refused whole."""
+    inp = _inp(tmp_path, "forxdds.inp",
+               'xdd "a.xy"\n  str phase_name "P1" scale 1\n'
+               'xdd "b.xy"\n  str phase_name "P2" scale 2\n'
+               'for xdds {\n  for strs 1 to 1 {\n' + _LOOP_PHASE + '  }\n}\n')
+    model = read_topas_inp(inp)
+    assert [(ph.name, ph.dataset) for ph in model.phases] == [("P1", 0), ("P2", 1)]
+    for ph in model.phases:
+        assert ph.cell["a"] == pytest.approx(4.0)
+        assert [s.label for s in ph.sites] == ["A1"]
+    assert [ph.scale for ph in model.phases] == [1.0, 2.0]
+
+
+@pytest.mark.parametrize("brace", [" {\n", "\n{\n", "\n\n  {\n"])
+@pytest.mark.parametrize("tail", ["", '  hkl_Is phase_name "H"\n'])
+def test_a_loop_head_may_put_its_brace_on_a_later_line(tmp_path, brace, tail):
+    """TOPAS input is free-format, so `for xdds` may end its line and open its
+    brace on the next. The head scanner stopped at the newline: it missed the
+    outer loop and expanded the inner `for strs` as top-level, into the last
+    dataset only. Where a block follows that dataset's `str` (here an
+    `hkl_Is`) the outer loop was then left empty and the file read silently
+    with one phase (#595 review); without one it was refused under the wrong
+    message. Every placement of the brace reads as the same-line form does."""
+    pre = "".join(f'xdd "{d}.xy"\n  str phase_name "P{k}" scale {k}\n' + tail
+                  for k, d in ((1, "a"), (2, "b")))
+    inp = _inp(tmp_path, "fornextline.inp",
+               pre + "for xdds" + brace + "  for strs 1 to 1" + brace
+               + _LOOP_PHASE + "  }\n}\n")
+    model = read_topas_inp(inp)
+    assert [(ph.name, ph.dataset) for ph in model.phases] == [("P1", 0), ("P2", 1)]
+    for ph in model.phases:
+        assert ph.cell["a"] == pytest.approx(4.0)
+        assert [s.label for s in ph.sites] == ["A1"]
+
+
+def test_a_loop_head_the_expansion_does_not_parse_is_refused(tmp_path):
+    """`refuse_moved_attachment`'s `_FOR_LOOP` and the expansion's `_FOR_HEAD`
+    are two scanners over the same heads; where the first sees a head the
+    second does not (here the second reads `for xdds sel1 for strs` as one
+    head with a macro range), the file is refused by name rather than half
+    expanded."""
+    inp = _inp(tmp_path, "forplanted.inp",
+               'xdd "a.xy"\n  str phase_name "P1" scale 1\n'
+               'for xdds sel1 for strs {\n' + _LOOP_PHASE + '}\n')
+    with pytest.raises(TopasInpError,
+                       match=r"`for strs` is a pre-processor loop this reader's "
+                             r"loop expansion does not parse"):
+        read_topas_inp(inp)
+
+
+def test_a_loop_reaches_only_the_datasets_above_it(tmp_path):
+    """Measured: a `for xdds` between two datasets shifted the first only. The
+    second phase states its own cell, and the loop's site must not reach it."""
+    inp = _inp(tmp_path, "forbetween.inp",
+               'xdd "a.xy"\n  str phase_name "P1" scale 1\n'
+               'for xdds {\n  for strs {\n' + _LOOP_PHASE + '  }\n}\n'
+               'xdd "b.xy"\n  str phase_name "P2" scale 1\n'
+               '    space_group "P m -3 m"\n    a 5.0 b 5.0 c 5.0 al 90 be 90 ga 90\n'
+               '    site B1 x 0 y 0 z 0 occ Ni 1 beq 0.5\n')
+    p1, p2 = read_topas_inp(inp).phases
+    assert [s.label for s in p1.sites] == ["A1"]
+    assert [s.label for s in p2.sites] == ["B1"]
+    assert p2.cell["a"] == pytest.approx(5.0)
+
+
+def test_a_bare_for_strs_reaches_the_dataset_it_is_written_in(tmp_path):
+    """Measured: a `for strs 1 to 1` at the end of the file reached the *last*
+    dataset's first `str` and nothing in the dataset above — the range counts
+    within one dataset, not over the file."""
+    inp = _inp(tmp_path, "forstrs.inp",
+               'xdd "a.xy"\n  str phase_name "P1" scale 1\n' + _LOOP_PHASE +
+               '  str phase_name "Q1" scale 1\n' + _LOOP_PHASE +
+               'xdd "b.xy"\n  str phase_name "P2" scale 1\n' + _LOOP_PHASE +
+               '  str phase_name "Q2" scale 1\n' + _LOOP_PHASE +
+               'for strs 1 to 1 {\n  site X1 x 0.5 y 0.5 z 0.5 occ O 1 beq 1\n}\n')
+    sites = {ph.name: [s.label for s in ph.sites] for ph in read_topas_inp(inp).phases}
+    assert sites == {"P1": ["A1"], "Q1": ["A1"], "P2": ["A1", "X1"], "Q2": ["A1"]}
+
+
+def test_for_xdds_takes_a_range_and_its_own_text_goes_to_each_dataset(tmp_path):
+    """`for xdds 2 to 3` is 1-based over the datasets (measured); the body's
+    dataset-level text lands at each dataset's head, ahead of its `str`, so it
+    is not read as part of a phase."""
+    head = 'xdd "{0}.xy"\n  str phase_name "{0}" scale 1\n' + _LOOP_PHASE
+    inp = _inp(tmp_path, "forrange.inp",
+               "".join(head.format(n) for n in ("D1", "D2", "D3")) +
+               'for xdds 2 to 3 {\n  scale_pks = 1;\n'
+               '  for strs { site X1 x 0.5 y 0.5 z 0.5 occ O 1 beq 1 }\n}\n')
+    model = read_topas_inp(inp)
+    assert [len(ph.sites) for ph in model.phases] == [1, 2, 2]
+    # `scale_pks` reached datasets 2 and 3 at dataset level, not as a phase card
+    assert not any("scale_pks" in h.keywords for h in model.coverage.reported)
+
+
+@pytest.mark.parametrize("text, needle", [
+    # TOPAS itself stops on these three (measured: `Error loading sstring_in`)
+    ('for xdds {\n  for strs {\n' + _LOOP_PHASE + '  }\n}\n'
+     'xdd "a.xy"\n  str phase_name "P1" scale 1\n',
+     "above every dataset this reader can see"),
+    ('xdd "a.xy"\nfor strs {\n' + _LOOP_PHASE + '}\n',
+     "nothing this reader can see to reach"),
+    ('xdd "a.xy"\n  str phase_name "P1" scale 1\nfor strs 2 to 3 {\n'
+     + _LOOP_PHASE + '}\n', "asks for instances 2 to 3"),
+    # what the reader cannot place
+    ('xdd "a.xy"\n  str phase_name "P1" scale 1\nfor xdds sel1 {\n'
+     + _LOOP_PHASE + '}\n', "selects its instances with `sel1`"),
+    ('xdd "a.xy"\n  str phase_name "P1" scale 1\nfor xdds {\n'
+     '  for site_recs { beq 1 }\n' + _LOOP_PHASE + '}\n', "a loop this reader"),
+    ('xdd "a.xy"\n  str phase_name "P1" scale 1\nfor xdds {\n'
+     '  str phase_name "P9"\n' + _LOOP_PHASE + '}\n', "opens a `str` block"),
+    ('RAW(a)\nxdd "b.xy"\n  str phase_name "P1" scale 1\nfor xdds {\n'
+     '  for strs {\n' + _LOOP_PHASE + '  }\n}\n', "through `RAW`"),
+])
+def test_a_loop_whose_expansion_is_not_in_the_text_is_refused(tmp_path, text, needle):
+    """Each is refused by name: either TOPAS refuses it too, or the instances
+    the body reaches are not in the text this reader holds."""
+    with pytest.raises(TopasInpError, match=re.escape(needle)):
+        read_topas_inp(_inp(tmp_path, "forbad.inp", text))
+
+
+def test_a_loop_over_another_object_type_is_still_refused(tmp_path):
+    """Only `xdds`/`strs` are expanded; `for site_recs { … }` stating content
+    this reader reads is refused as before (`refuse_moved_attachment`)."""
+    inp = _inp(tmp_path, "forsites.inp",
+               'str\nphase_name "A"\nspace_group "P1"\na 4.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               'for site_recs { beq 1 }\n')
     with pytest.raises(TopasInpError, match="pre-processor loop"):
         read_topas_inp(inp)
 
@@ -2756,6 +2879,102 @@ def test_a_for_loop_over_nothing_this_reader_reads_is_left_alone(tmp_path):
                'for strs { r_bragg 0 }\n')
     (phase,) = read_topas_inp(inp).phases
     assert phase.cell["a"] == pytest.approx(4.0)
+
+
+def test_a_loop_bearing_on_nothing_is_not_refused_for_its_target(tmp_path):
+    """An archive template writes `for strs { Remove_Phase(0.3, 0.5) }` above its
+    only `str`, which TOPAS would refuse (no `str` to reach). The body states
+    nothing the built model carries, so the reader leaves it as `main` did
+    rather than refusing a file over a card it would not have read."""
+    inp = _inp(tmp_path, "forremove.inp",
+               'xdd "a.xy"\nfor strs { Remove_Phase(0.3, 0.5) }\n'
+               'str\nphase_name "A"\nspace_group "P1"\na 4.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    (phase,) = read_topas_inp(inp).phases
+    assert phase.cell["a"] == pytest.approx(4.0)
+
+
+# ---- a time-of-flight dataset is refused by name (issue #193)
+
+#: One constant-wavelength-free bank: what the reference's §19.3.11 macros
+#: and §5.2's `pk_xo` make of a dataset, each added to this one at a time.
+_BANK_PHASE = ('  str phase_name "P" scale @ 0.001\n'
+               '    space_group "P m -3 m"\n    a 4.0 b 4.0 c 4.0 al 90 be 90 ga 90\n'
+               '    site A1 x 0 y 0 z 0 occ Ni 1 beq 0.5\n')
+
+
+@pytest.mark.parametrize("bank, construct", [
+    ('TOF_XYE(bank1.xye, 3)\n', "TOF_XYE"),
+    ('TOF_GSAS(bank1.gsa, 3)\n', "TOF_GSAS"),
+    ('xdd "bank1.xye"\n  TOF_x_axis_calibration(t0, 1, t1, 5000, t2, 0)\n',
+     "TOF_x_axis_calibration"),
+    ('xdd "bank1.xye"\n  TOF_LAM(0.001)\n', "TOF_LAM"),
+    ('xdd "bank1.xye"\n  pk_xo = 1 + 5000 D_spacing;\n', "pk_xo in D_spacing"),
+    ('macro tof_axis { pk_xo = t0 + t1 D_spacing; }\n'
+     'xdd "bank1.xye"\n  local !t0 1 local !t1 5000\n  tof_axis\n', "tof_axis"),
+    ('xdd "bank1.xye"\n  gui_tof_t0 = 1;\n', "gui_tof_*"),
+])
+def test_a_time_of_flight_dataset_is_refused_by_name(tmp_path, bank, construct):
+    """Before this, every one of these read as a constant-wavelength file: the
+    phase built, nothing was reported, and the model said `bragg_brentano` — a
+    geometry the file never states. Now the read names the construct and the
+    issue, the model records which dataset is time of flight, and the build
+    refuses rather than hand a bank's phase to a constant-wavelength fit."""
+    found: list = []
+    model = read_topas_inp(_inp(tmp_path, "tof.inp", bank + _BANK_PHASE),
+                           diagnostics=found)
+    assert model.time_of_flight == {0: (construct,)}
+    assert model.geometry is None
+    (refusal,) = [d for d in found if d.code == "TOPAS_FEATURE_REFUSED"]
+    assert "time of flight" in refusal.message and "#193" in refusal.message
+    assert construct in refusal.message
+    assert refusal.where == ["time_of_flight.0"]
+    with pytest.raises(TopasInpError, match="#193"):
+        to_structure(model)
+
+
+def test_neutron_data_alone_is_not_time_of_flight(tmp_path):
+    """The positive arm: constant-wavelength neutron data states
+    `neutron_data` and a `D_spacing` scale too, and must still read and build
+    as it did."""
+    found: list = []
+    model = read_topas_inp(_inp(tmp_path, "cwn.inp",
+                                'xdd "a.xy"\n  neutron_data\n  la 1 lo 1.5 lh 0.1\n'
+                                '  scale_pks = D_spacing^2;\n' + _BANK_PHASE),
+                           diagnostics=found)
+    assert model.time_of_flight == {}
+    assert model.geometry == "bragg_brentano"
+    assert not [d for d in found if d.code == "TOPAS_FEATURE_REFUSED"]
+    assert len(to_structure(model).phases) == 1
+
+
+def test_a_mixed_file_builds_its_constant_wavelength_dataset(tmp_path):
+    """`TOF_XYE` opens a dataset (§19.3.11, and the reference's macro index
+    lists it among the macros stating `xdd`), so a bank's phase is its own
+    dataset rather than the X-ray one above it, and `dataset=` selects the one
+    that can be built. Without the opener both phases were dataset 0 and the
+    X-ray phase's text ran on through the bank's dataset-level cards."""
+    inp = _inp(tmp_path, "mixed.inp",
+               'xdd "x.xy"\n  la 1 lo 1.540596 lh 0.1\n' + _BANK_PHASE +
+               'TOF_XYE(bank1.xye, 3)\n  scale_pks = D_spacing^4;\n' + _BANK_PHASE)
+    model = read_topas_inp(inp)
+    assert [ph.dataset for ph in model.phases] == [0, 1]
+    assert model.n_datasets == 2
+    assert model.time_of_flight == {1: ("TOF_XYE",)}
+    assert model.geometry == "bragg_brentano"       # the X-ray dataset's
+    assert not any("scale_pks" in h.keywords for h in model.coverage.reported)
+    assert len(to_structure(model, dataset=0).phases) == 1
+    with pytest.raises(TopasInpError, match="time-of-flight"):
+        to_structure(model, dataset=1)
+
+
+def test_a_loop_can_make_a_dataset_time_of_flight(tmp_path):
+    """The expansion runs first, so a time-of-flight card stated once for every
+    dataset in a `for xdds` reaches each of them — the archive's shape."""
+    inp = _inp(tmp_path, "toffor.inp",
+               'xdd "b1.xye"\n' + _BANK_PHASE + 'xdd "b2.xye"\n' + _BANK_PHASE +
+               'for xdds {\n  TOF_LAM(0.001)\n}\n')
+    assert read_topas_inp(inp).time_of_flight == {0: ("TOF_LAM",), 1: ("TOF_LAM",)}
 
 
 def test_load_of_a_keyword_this_reader_reads_is_refused(tmp_path):

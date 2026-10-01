@@ -416,9 +416,10 @@ same reason. Six rules the pattern readers do not need:
   because its output is a whole model and a caller cannot see which part is the
   file's. Four classes are refused **by name** (numbers still readable on the
   model): an unevaluated pre-processor directive, a card whose attachment moved
-  (`for`/`load`/`move_to`), a macro whose body lives in a library, and a file
-  whose phases belong to different patterns — the last a *selection*, following
-  `read_pattern`'s `scan=`: `to_structure(model, dataset=N)`, never concatenated.
+  (`load`/`move_to`/`for`, bar the expanded `for xdds`/`for strs`), a macro
+  whose body lives in a library, and a file whose phases belong to different
+  patterns — a *selection*, following `read_pattern`'s `scan=`:
+  `to_structure(model, dataset=N)`, never concatenated; a TOF one refuses, #193.
 - **Where a file states its symmetry twice, the operators outrank the symbol —
   and where it states it once, the reader says so** (WP-1118, issue #101). A
   Hermann-Mauguin symbol is ambiguous for 40 of gemmi's settings, the `:1`/`:2`
