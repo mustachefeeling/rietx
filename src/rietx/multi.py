@@ -50,6 +50,7 @@ from .refine import (
     _absorption_diagnostics,
     _absorption_record,
     _air_scatter_undeclared_diagnostics,
+    _axis_in_crystal_axes,
     _capillary_offset_diagnostics,
     _cell_runaway_diagnostic,
     _cell_runaway_withheld,
@@ -62,11 +63,13 @@ from .refine import (
     _extra_peak_diagnostics,
     _extra_peak_tick_support,
     _far_from_data_diagnostics,
+    _flat_moment_scan,
     _guard_diagnostics,
     _harmonic_diagnostics,
     _judge_magnetic_groups,
     _low_angle_diagnostics,
     _max_iter_diagnostics,
+    _onto_flat_meridian,
     _phase_agreement,
     _phase_support_diagnostics,
     _quantify_phases,
@@ -75,6 +78,7 @@ from .refine import (
     _resolve_specimen_absorption,
     _resonant_absorber_diagnostics,
     _roughness_regime_diagnostics,
+    _site,
     _size_flag_diagnostics,
     _species_fallback_diagnostics,
     _strain_flag_diagnostics,
@@ -373,6 +377,197 @@ def _rehold_multi(models, mtable, held: list[str],
     return released, collapsed
 
 
+def _flat_moments_multi(models, mtable, candidates: list[str] | None = None
+                        ) -> tuple[list[str], dict[str, np.ndarray]]:
+    """Moment directions flat in **every** histogram that carries them (#600).
+
+    The joint form of :func:`rietx.refine._flat_moment_paths`, and the
+    intersection for the reason :func:`_joint_unsupported_phases` takes one:
+    a direction one histogram can see is not flat, because the joint fit
+    sees it through that histogram.  An X-ray histogram does not see a moment
+    at all — its modulus response is exactly zero, so the per-histogram probe
+    calls every direction flat there — and so leaves the neutron histograms'
+    answer unchanged, which is the case the issue measured (a cubic collinear
+    ferromagnet whose polar and azimuth came back at ±1.4e9 and ±1.5e10 rad
+    with nothing held).
+
+    Moment DOFs are structural, so they are shared and their scoped name is
+    the bare one.  A flat *combination* (#599) carries the axis it turns
+    about; one is kept only where every histogram that names an axis names
+    the same one, since turning the moment about an axis one pattern does
+    not find flat would move what that pattern sees.
+    """
+    flat_sets: list[set[str]] = []
+    carried: list[set[str]] = []
+    axes: dict[str, np.ndarray] = {}
+    disagree: set[str] = set()
+    for model, table in zip(models, mtable.tables, strict=True):
+        names = {e.path for e in table.entries}
+        asked = (None if candidates is None
+                 else [p for p in candidates if p in names])
+        flat, found = _flat_moment_scan(model, table, asked)
+        flat_sets.append(set(flat))
+        carried.append(names)
+        for base, axis in found.items():
+            if base in axes and abs(float(axes[base] @ axis)) < 1.0 - 1e-6:
+                disagree.add(base)
+            axes.setdefault(base, axis)
+    pool = (mtable.free_paths if candidates is None else candidates)
+    joint = [p for p in pool
+             if any(p in names for names in carried)
+             and all(p in flat for flat, names in zip(flat_sets, carried,
+                                                       strict=True)
+                     if p in names)]
+    for base in disagree:
+        axes.pop(base, None)
+        joint = [p for p in joint if p != f"{base}.dof2"]
+    axes = {b: a for b, a in axes.items() if f"{b}.dof2" in joint}
+    return joint, axes
+
+
+def _sees_moment(model, values: dict[str, float], base: str) -> bool:
+    """Whether this histogram's pattern responds to the site's modulus at all.
+
+    Deliberately its own, coarser test (a 10 % modulus step, exact ``!=``)
+    beside :func:`rietx.refine._onto_flat_meridian`'s zero-response refusal:
+    it only decides which histograms are *asked* for a turn.  One that sees
+    the moment and refuses the turn vetoes it everywhere, the safe direction
+    — turning what one pattern cannot reproduce would move what it sees.
+    """
+    v = dict(values)
+    v[f"{base}.dof0"] = values[f"{base}.dof0"] + 0.1 * max(
+        abs(values[f"{base}.dof0"]), 1e-6)
+    return bool(np.any(np.asarray(model.evaluate(v), dtype=np.float64)
+                       != np.asarray(model.evaluate(values), dtype=np.float64)))
+
+
+def _turn_flat_axes_multi(models, mtable, axes: dict[str, np.ndarray]
+                          ) -> list[str]:
+    """Turn each site in ``axes`` onto its flat meridian; returns the turned.
+
+    The joint :func:`rietx.refine._turn_onto_meridians`, and the one place a
+    flat combination's moment is turned on this path (review of #624 item 1:
+    every hold turns before it holds).  A turn is kept only when it
+    reproduces **every** histogram's pattern, then written into every table —
+    the DOF is shared, so each table holds a copy.  A site whose turn is
+    refused is left where it is and is absent from the answer (``[]`` sites
+    are keyed ``phases.i.atoms.j``, the key ``StageResult`` uses).
+    """
+    turned: list[str] = []
+    if not axes:
+        return turned
+    # per table, from each table's own entries: ``mtable.x0()`` is the cache
+    # the stage started from, and a turn after the solve (a release, a
+    # collapse restore) must read the answer's polar angle, scale and
+    # background, not the ones the stage began at (review of #655 item 1)
+    values = [t.decode(t.x0()) for t in mtable.tables]
+    for base, axis in axes.items():
+        # asked of the histograms that see the moment: one that does not
+        # (an X-ray pattern, a zero modulus response) cannot measure the
+        # turn against a modulus scale, and cannot see it either
+        turns = [_onto_flat_meridian(m, v, base, axis)
+                 for m, v in zip(models, values, strict=True)
+                 if f"{base}.dof2" in v and _sees_moment(m, v, base)]
+        if not turns or any(t is None for t in turns) or not all(
+                np.allclose(t, turns[0], rtol=0.0, atol=1e-9) for t in turns):
+            continue
+        for table in mtable.tables:
+            by_path = {e.path: e for e in table.entries}
+            if f"{base}.dof2" in by_path:
+                by_path[f"{base}.dof1"].value = turns[0][0]
+                by_path[f"{base}.dof2"].value = turns[0][1]
+                table.refresh_ties()
+        turned.append(_site(base))
+    mtable._rebuild_columns()
+    return turned
+
+
+def _axes_in_crystal_axes(mtable, axes: dict[str, np.ndarray]
+                          ) -> dict[str, list[float]]:
+    """``{site: axis in crystal-axis components}``, the record's form.
+
+    The moment frames are structural, so every table that carries a site
+    carries the same one; the first is read.
+    """
+    out: dict[str, list[float]] = {}
+    for base, axis in axes.items():
+        for table in mtable.tables:
+            frame = table.moment_frames().get(_site(base))
+            if frame is not None:
+                out[_site(base)] = _axis_in_crystal_axes(axis, frame)
+                break
+    return out
+
+
+def _hold_flat_moments_multi(models, mtable
+                             ) -> tuple[list[str], dict[str, list[float]],
+                                        list[str]]:
+    """Hold what :func:`_flat_moments_multi` finds.
+
+    The single-histogram :func:`rietx.refine._hold_flat_moments`, jointly,
+    with its triple: what it held, the flat axis of every site held as a
+    combination (crystal-axis components), and which of those it turned
+    (:func:`_turn_flat_axes_multi`) before holding the azimuth.
+    """
+    held, axes = _flat_moments_multi(models, mtable)
+    found = _axes_in_crystal_axes(mtable, axes)
+    turned = _turn_flat_axes_multi(models, mtable, axes)
+    if held:
+        mtable.set_vary(held, False)
+    return held, found, turned
+
+
+def _rehold_flat_moments_multi(models, mtable, moment_held: list[str],
+                               start_values: list[dict[str, float]],
+                               turned: list[str]
+                               ) -> tuple[list[str], list[str],
+                                          dict[str, list[float]], list[str]]:
+    """The post-solve half of the moment hold, for the joint path.
+
+    The single-histogram runner's readings of the answer: a held direction
+    that is no longer flat is released, a free one that went flat while
+    solving is put back where the stage found it and held, and a combination
+    still held unturned — after a release, or because the stage-start turn
+    was refused — is turned here (review of #624 item 1).  Returns
+    ``(released, collapsed, axes found, sites turned here)``; a turn is a
+    reason to solve again, as a release is.  Asked separately from
+    :func:`_rehold_multi`, whose prefix test would release a direction for
+    the wrong reason — a phase being visible says nothing about whether its
+    moment direction is determined.
+
+    The order differs from :meth:`MultiHistogramRefinement.fit`'s single-
+    histogram counterpart on one point, kept on purpose: the phase re-hold
+    (:func:`_rehold_multi`) has already run ``set_vary`` when this scans, so
+    the moment directions of a phase it just released are scanned as free —
+    and, if flat, restored and held, where the single path leaves them free
+    for the second solve.
+    """
+    released: list[str] = []
+    late_axes: dict[str, np.ndarray] = {}
+    if moment_held:
+        still, still_axes = _flat_moments_multi(models, mtable, moment_held)
+        released = [p for p in moment_held if p not in set(still)]
+        late_axes = {b: a for b, a in still_axes.items()
+                     if _site(b) not in turned and f"{b}.dof2" in still}
+    collapsed, collapse_axes = _flat_moments_multi(models, mtable)
+    if collapsed:
+        for h, table in enumerate(mtable.tables):
+            by_path = {e.path: e for e in table.entries}
+            for path in collapsed:
+                if path in by_path:
+                    by_path[path].value = start_values[h][path]
+            table.refresh_ties()
+    axes = {**late_axes, **{b: a for b, a in collapse_axes.items()
+                            if f"{b}.dof2" in collapsed}}
+    found = _axes_in_crystal_axes(mtable, {**late_axes, **collapse_axes})
+    turned_now = _turn_flat_axes_multi(models, mtable, axes)
+    if collapsed:
+        mtable.set_vary(collapsed, False)
+    if released:
+        mtable.set_vary(released, True)
+    return released, collapsed, found, turned_now
+
+
 def _clamp_cell_runaway_multi(mtable, start_values: list[dict[str, float]]
                               ) -> list[tuple[str, float, float]]:
     """:func:`~rietx.refine.clamp_cell_runaway`, extended to the joint runner
@@ -558,6 +753,12 @@ class MultiHistogramRefinement:
             # — the single-histogram runner's rule (``_run_stage``)
             declared_freed = list(freed)
             held = _hold_unsupported_phases_multi(models, self.mtable)
+            # and a moment direction no histogram can see (WP-1327, #600):
+            # the single-histogram runner's second hold, kept apart for the
+            # same reason — each is asked again of the answer by its own test
+            moment_hold, flat_axes, moment_turned = _hold_flat_moments_multi(
+                models, self.mtable)
+            held = held + moment_hold
             if held:
                 held_set = set(held)
                 freed = [p for p in declared_freed if p not in held_set]
@@ -582,9 +783,18 @@ class MultiHistogramRefinement:
             if cell_runaway:
                 self.mtable._rebuild_columns()
                 outcome = dataclasses.replace(outcome, theta=self.mtable.x0())
-            released, collapsed = _rehold_multi(models, self.mtable, held,
-                                                start_values)
-            if released or collapsed:
+            moment_set = set(moment_hold)
+            released, collapsed = _rehold_multi(
+                models, self.mtable, [p for p in held if p not in moment_set],
+                start_values)
+            m_released, m_collapsed, m_axes, m_turned = _rehold_flat_moments_multi(
+                models, self.mtable, [p for p in held if p in moment_set],
+                start_values, moment_turned)
+            released, collapsed = released + m_released, collapsed + m_collapsed
+            for site, axis in m_axes.items():
+                flat_axes.setdefault(site, axis)
+            moment_turned = moment_turned + m_turned
+            if released or collapsed or m_turned:
                 released_set = set(released)
                 held = [p for p in held + collapsed if p not in released_set]
                 held_set = set(held)
@@ -617,6 +827,11 @@ class MultiHistogramRefinement:
                 cell_runaway_diags.append(runaway_diag)
             self.mtable.apply_to_models()
             carried_hold = list(held)
+            # the record of the turn (#599), for the sites still held at the
+            # answer: a site in ``moment_flat_axes`` and not in
+            # ``moment_turned`` was held where it was
+            kept_axes = {b: a for b, a in flat_axes.items()
+                         if f"{b}.moment.dof2" in set(held)}
             stage_results.append(StageResult(
                 name=stage.name, status=outcome.status,
                 n_iterations=outcome.n_iterations,
@@ -625,6 +840,8 @@ class MultiHistogramRefinement:
                 n_constraint_truncations=outcome.n_constraint_truncations,
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
                 ftol=ftol, held=held, released=released,
+                moment_flat_axes=kept_axes,
+                moment_turned=[b for b in kept_axes if b in moment_turned],
                 unknown_paths=unknown_paths, unreached_histograms=unreached))
 
         assert models is not None and outcome is not None
