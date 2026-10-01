@@ -988,6 +988,7 @@ A phase is a `Gsas2Phase`:
 | `Gsas2Phase.cell`, `Gsas2Phase.volume` | the six lattice parameters and the cell volume |
 | `Gsas2Phase.refine_cell` | GSAS-II refines a cell under one flag, so there is one here rather than six |
 | `Gsas2Phase.atoms` | the sites |
+| `Gsas2Phase.isotope` | the isotope chosen per atom type, GSAS-II's `General['Isotope']`. GSAS-II keeps the isotope here rather than in the type, so `to_structure` builds a site whose type has a mass-number choice as that isotope (`H` with `2` is `2H`) |
 | `Gsas2Phase.kind`, `Gsas2Phase.magnetic` | GSAS-II's phase type, and whether it is a magnetic one |
 | `Gsas2Phase.magnetic_partner` | set where a *nuclear* phase is half of a magnetic model. The sites import correctly. The magnetic scattering in the file's own Rwp does not, so a fit of this structure is not comparable with the file's figures |
 | `Gsas2Phase.pawley` | whether the phase was fitted by Pawley extraction, in which case its refined quantities are intensities rather than sites |
@@ -1098,7 +1099,10 @@ is negative. The last two are what a corpus of real projects contains and a
 specification never mentions: GSAS-II fits a phase with no sites by extracting
 its intensities, and a refinement really can end with a negative displacement
 parameter. Each refusal names the phase and leaves the numbers on the model,
-because deciding what a negative `Uiso` should have been is yours.
+because deciding what a negative `Uiso` should have been is yours. An isotope choice that is not a mass number, or
+names a nucleus the Sears table rietx scatters from does not carry, is refused
+the same way, since reading it as natural abundance would change the site's
+scattering length without saying so.
 
 ### Which formats this build reads
 

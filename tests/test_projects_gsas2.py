@@ -360,6 +360,56 @@ def _minimal_project(**phase_overrides) -> list:
     ]
 
 
+# ---------------------------------------- the isotope a phase chooses (#554)
+#
+# GSAS-II keeps a site's isotope outside its atom type, in the phase's
+# General['Isotope'] ("dict of isotopes for each atom type", GSASIIobj docs),
+# as `add_phase` + `General['Isotope'].update({'H': '2', 'Ni': '58'})` stores
+# it in GSAS-II 5.6.3. The fragment below is that dict, built here.
+
+def _isotope_rows():
+    return [["Ni1", "Ni+2", "XU", 0.0, 0.0, 0.0, 1.0, "m3m", 1, "I",
+             0.005, 0, 0, 0, 0, 0, 0, 11],
+            ["H1", "H", "", 0.5, 0.5, 0.5, 1.0, "m3m", 1, "I",
+             0.01, 0, 0, 0, 0, 0, 0, 12],
+            ["D1", "D", "", 0.5, 0.0, 0.0, 1.0, "4/mmm", 3, "I",
+             0.01, 0, 0, 0, 0, 0, 0, 13]]
+
+
+@pytest.mark.parametrize("choices, species, b_fm", [
+    ({"Ni+2": "58", "H": "2", "D": "2"}, ["58Ni2+", "2H", "D"], [14.4, 6.671, 6.671]),
+    ({"Ni+2": "Nat. Abund.", "H": "Nat. Abund.", "D": "Nat. Abund."},
+     ["Ni2+", "H", "D"], [10.3, -3.739, 6.671]),
+    ({}, ["Ni2+", "H", "D"], [10.3, -3.739, 6.671]),
+])
+def test_the_phases_isotope_choice_is_the_sites_species(tmp_path, choices,
+                                                        species, b_fm):
+    from rietx.crystallography.neutron import b_coh
+    path = _write_gpx(tmp_path / "iso.gpx", _minimal_project(
+        atoms=_isotope_rows(), Isotope=choices))
+    model = read_gsas2_gpx(path)
+    assert model.phases[0].isotope == choices
+    found: list = []
+    atoms = to_structure(model, diagnostics=found).phases[0].atoms
+    assert [a.species for a in atoms] == species
+    assert [b_coh(a.species) for a in atoms] == pytest.approx(b_fm)
+    said = [d.message for d in found if d.code == "GSAS2_GPX_SPECIES_NORMALISED"]
+    if choices.get("H") == "2":
+        assert any("'H'" in m and "isotope 2" in m for m in said)
+
+
+@pytest.mark.parametrize("choice, match", [
+    ("99", "no neutron scattering length"),   # a mass the Sears table lacks
+    ("heavy", "neither"),
+])
+def test_an_isotope_choice_rietx_cannot_scatter_is_refused(tmp_path, choice, match):
+    path = _write_gpx(tmp_path / "iso.gpx", _minimal_project(
+        atoms=_isotope_rows(), Isotope={"Ni+2": choice}))
+    with pytest.raises(Gsas2GpxError, match=match) as exc:
+        to_structure(read_gsas2_gpx(path))
+    assert "'Ni+2'" in str(exc.value) and "iso.gpx" in str(exc.value)
+
+
 def test_a_global_nobody_vouched_for_refuses_the_whole_file(tmp_path):
     """The bytes are literal, so this cannot agree with the reader by accident.
 
