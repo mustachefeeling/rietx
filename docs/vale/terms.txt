@@ -195,6 +195,7 @@ Hofmann
 Hotelling
 Jacobian
 Jacobians
+Jorgensen
 Kass
 Kessler
 Kirfel
