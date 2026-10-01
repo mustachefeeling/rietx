@@ -68,6 +68,10 @@ Conventions a caller can get wrong silently
    it is the *realification* ℝ^{2d_ν}, with matrices [[Re D, −Im D], [Im D,
    Re D]], which is the physically irreducible representation and is what makes
    the amplitude count agree with :attr:`~.modes.IrrepBasis.free_real_amplitudes`.
+   For a **pseudoreal** irrep (Frobenius–Schur −1) the n_ν realified copies are
+   not independent: the real irrep complexifies to D ⊕ D, so they pair up and
+   n_ν/2 of them span the real isotypic block of n_ν·d_ν dimensions; only those
+   are kept (Bradley & Cracknell, 1972, Def. 1.3.7 p. 20).
    The realification is only a representation of the same group because Γ_mag
    is real, which is exactly what 2k ∈ L* buys — the same fact the scope fence
    above rests on.
@@ -514,7 +518,7 @@ class OrderParameterSpace:
 
     @property
     def copies(self) -> int:
-        """n_ν, the multiplicity of the irrep in the site representation."""
+        """The independent copies: n_ν, or n_ν/2 for a pseudoreal irrep (convention 1)."""
         return int(self.configurations.shape[0])
 
     @property
@@ -552,6 +556,12 @@ def order_parameter_space(basis: IrrepBasis, *, kind: str = "magnetic"
             f"irrep {basis.irrep.label!r} has real matrices = {real_gauge} but real "
             f"basis vectors = {basis.real}; with a real representation the two are the "
             f"same statement and this module's amplitude count depends on it")
+    if not real_gauge and basis.irrep.frobenius_schur == 1:
+        raise RuntimeError(
+            f"irrep {basis.irrep.label!r} is real (Frobenius-Schur +1) but came without a "
+            f"real gauge; its realification is reducible, so the order-parameter space and "
+            f"the amplitude count would both be wrong. modes._maybe_real_gauge should have "
+            f"found one; this is a bug, not a tolerance")
     n_ops = matrices.shape[0]
     if real_gauge:
         small = matrices.real
@@ -560,7 +570,8 @@ def order_parameter_space(basis: IrrepBasis, *, kind: str = "magnetic"
         small = np.array([np.block([[m.real, -m.imag], [m.imag, m.real]])
                           for m in matrices])
         # m = Σ C ψ + c.c. with C = A + iB gives m = Σ (A·2Reψ − B·2Imψ)
-        configs = np.concatenate([2.0 * vectors.real, -2.0 * vectors.imag], axis=1)
+        configs = _independent_copies(
+            np.concatenate([2.0 * vectors.real, -2.0 * vectors.imag], axis=1))
     elements: list[GreyElement] = []
     stack: list[np.ndarray] = []
     for i in range(n_ops):
@@ -579,6 +590,34 @@ def order_parameter_space(basis: IrrepBasis, *, kind: str = "magnetic"
             f"from modes.basis_vectors; the realification and the amplitude count "
             f"must agree or every parameter count downstream is wrong")
     return space
+
+
+def _independent_copies(configs: np.ndarray) -> np.ndarray:
+    """The realified copies whose moment patterns are independent, in order.
+
+    Each realified copy spans a subspace of moment space carrying the same real
+    representation, irreducible for FS = 0 and FS = −1, so a copy either adds
+    its whole dimension to the span of those kept or adds nothing.  For FS = 0
+    every copy adds; for a pseudoreal irrep half of them do, because the real
+    irrep complexifies to D ⊕ D and the n_ν complex copies pair up.  A partial
+    increment means the realified copy is reducible, and is refused.
+    """
+    kept: list[np.ndarray] = []
+    rank = 0
+    for copy in configs:
+        flat = np.concatenate(kept + [copy]).reshape(-1, copy[0].size)
+        s = np.linalg.svd(flat, compute_uv=False)
+        new_rank = int(np.sum(s > ISOTROPY_ATOL * max(1.0, float(s.max()))))
+        if new_rank == rank:
+            continue
+        if new_rank != rank + copy.shape[0]:
+            raise RuntimeError(
+                f"a realified copy adds {new_rank - rank} of its {copy.shape[0]} "
+                f"dimensions to the span of the others; it is reducible, so the "
+                f"order-parameter space would be wrong. This is a bug, not a tolerance")
+        kept.append(copy)
+        rank = new_rank
+    return np.array(kept, dtype=np.float64)
 
 
 # --------------------------------------------------------------------------
