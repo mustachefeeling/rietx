@@ -935,3 +935,10 @@ reader's `Type` dispatch, and `legacy/` a reader that accepts a named deviation
 only when called by name.  The operating detail went down a rank: the PRCF
 layout, the bintype table and every refusal's wording are the module
 docstrings'.  556 landed against the 557.
+
+557 -> 563 for the TOPAS time-of-flight bank (issue #193): one standing rule,
+that a `.inp` bank is read by evaluating the laws it states — sampled over d
+and kept only where rietx's reproduces them exactly — and never by matching
+how a macro spells them, plus the one fact a session would otherwise get
+wrong, that the bank angle is not in the file.  The measured laws stay in
+`projects/topas_tof.py` and `tests/data/README.md`.  563 landed against 563.
