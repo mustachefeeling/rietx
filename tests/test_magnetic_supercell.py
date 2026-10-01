@@ -1068,3 +1068,17 @@ def test_the_seed_tilt_is_an_angle_in_the_child_metric():
     sin = float(np.linalg.norm(np.cross(seed, row0))) / float(np.linalg.norm(seed))
     assert sin / cos == pytest.approx(SEED_TILT, rel=1e-9)
     assert float(np.linalg.norm(seed)) == pytest.approx(3.0, rel=1e-12)
+
+
+def test_same_site_wraps_both_arguments():
+    """#620 item 3: a stated x = -0.1 is the site at 0.9, not a match for 0.95.
+
+    ``anti_translation_ties`` hands ``_same_site`` a raw coordinate beside an
+    image ``act_on_site`` has wrapped into [0, 1); the difference 1.05 made
+    ``1 - d`` negative, which passes ``<= tol`` for every pair.
+    """
+    from rietx.crystallography.magnetic.supercell import _same_site
+
+    assert not _same_site((-0.1, 0.0, 0.0), (0.95, 0.0, 0.0))
+    assert _same_site((-0.1, 0.0, 0.0), (0.9, 0.0, 0.0))     # positive arm
+    assert _same_site((1.0, 0.0, 0.0), (0.0, 0.0, 0.0))

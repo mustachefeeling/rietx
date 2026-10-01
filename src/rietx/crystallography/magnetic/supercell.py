@@ -817,7 +817,10 @@ def _child_positions(parent_phase, basis, shift, cosets):
 
 
 def _same_site(a, b, tol: float = CHILD_SITE_TOL) -> bool:
-    d = np.abs(np.asarray(a) - np.asarray(b))
+    # both wrapped: min(d, 1 - d) is negative for d > 1, which "matches"
+    # anything, and a stated coordinate (x = -0.1) beside an image already
+    # wrapped into [0, 1) (0.95) is exactly that
+    d = np.abs(np.asarray(a) % 1.0 - np.asarray(b) % 1.0)
     return bool(np.all(np.minimum(d, 1.0 - d) <= tol))
 
 
@@ -1100,7 +1103,8 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     the child origin the transform puts the atoms at (x_c = P⁻¹·(x − p)), i.e.
     restated by ``transformed`` under (I, −P⁻¹·p) when p is not zero: the same
     list at another origin is not a symmetry of the child structure, and the
-    child phase refuses it (``Phase``'s magnetic-symmetry check, issue #597).
+    child phase is refused where it enters a fit (``Refinement``'s
+    magnetic-symmetry check, issue #597).
 
     ``nuclear_group`` chooses which group the child phase's ``space_group``
     states, and it is the one knob a caller can get wrong, so both settings and
