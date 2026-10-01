@@ -293,6 +293,59 @@ SCANNED: frozenset[str] = frozenset(
     if f.stance in (Stance.REPORTED, Stance.REFUSED))
 
 
+#: The **file-level** constructs: the macro and pre-processor forms that decide
+#: what text there is, outside the phase scope :data:`FEATURES` partitions.
+#: Declared here so the reach is a table too (WP-1433), with one difference
+#: from the phase rows: a ``REFUSED`` row here refuses at **read**
+#: (:func:`~rietx.io.projects.topas.read_topas_inp` raises naming it), since
+#: with it present the text in hand is not the text TOPAS parsed — there is no
+#: model to build without it. Written against :data:`PREPROCESSOR_SPEC`.
+PREPROCESSOR_SPEC = ("TOPAS Academic Technical Reference, version 8 "
+                     "(2026-08-12), §19.1.2 and §19.3.12")
+
+PREPROCESSOR: tuple[Feature, ...] = (
+    _f("STR macro", Stance.READ,
+       "a phase opened by `STR(sg)` or `STR(sg, name)`, read as a `str` "
+       "stating that space group (and that phase_name)", "STR",
+       why="§19.3.12 says what `STR(sg)` does, so the reader writes the `str` "
+           "it opens; the body is a macro library's and is not reproduced"),
+    _f("name conditionals", Stance.READ,
+       "text selected by whether a name was `#define`d",
+       "#define", "#ifdef", "#ifndef", "#else", "#endif"),
+    _f("hash conditionals", Stance.READ,
+       "text selected by a condition over `#prm` hash parameters: numbers, "
+       "+ - * /, the comparisons and `And`; `#out` inside a condition; "
+       "`Run_Number` as the first run's 0, reported as TOPAS_FIRST_RUN_READ "
+       "where `num_runs` states more",
+       "#prm", "#if", "#elseif", "#out", "Run_Number",
+       why="`#out` outside a condition is left in the text, so a value read "
+           "through one refuses as stated-but-unreadable"),
+    _f("undecidable hash condition", Stance.REFUSED,
+       "a condition reaching `Rand`, a string, or a function other than `And`",
+       "Rand", "Mod",
+       why="§19.1.2's own `#prm ran = Constant(Rand(0,1)); #if ran < 0.5;` has "
+           "no answer a reader can give, and neither does a function this "
+           "reader does not evaluate"),
+    _f("STR template or own STR", Stance.REFUSED,
+       "`STR(######, ...)`, a template slot no script has filled, or a file "
+       "defining its own `macro STR`, whose body is what TOPAS would expand",
+       "STR(######", "macro STR",
+       why="the first is not a space group; the second is a body this reader "
+           "does not expand"),
+    _f("negated name test", Stance.REFUSED,
+       "`#ifdef !name`, which the reference does not describe", "#ifdef !",
+       why="read as a negation the branch is live, as a name it is dead"),
+    _f("text from elsewhere", Stance.REFUSED,
+       "text pulled in from another file",
+       "#include", "#ingest", "#external_INP"),
+    _f("un-definition", Stance.REFUSED,
+       "a directive un-defining names already collected",
+       "#undef", "#delete_macros"),
+    _f("macro-expansion directives", Stance.REFUSED,
+       "a `#m_*` directive outside any macro body", "#m_if", "#m_ifarg"),
+)
+
+
 def stance(keyword: str) -> Stance | None:
     """This reader's declared stance on ``keyword``, or ``None`` if the keyword
     is not in the phase scope this table covers."""

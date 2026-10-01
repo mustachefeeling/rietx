@@ -28,7 +28,8 @@ corroborate and to prioritise. Where the two disagreed, the reference won and th
    ``#define``/``#undef``, the ``#if``/``#ifdef``/``#ifndef``/``#elseif``/
    ``#else``/``#endif`` family, ``#delete_macros``, ``#list``, and the ``#m_*``
    directives invoked on macro expansion. This reader evaluates ``macro``
-   excision and the ``#ifdef``/``#ifndef`` family; the rest is refused by name,
+   excision, the ``#ifdef``/``#ifndef`` family and ``#prm``/``#if``/``#elseif``
+   over hash parameters (§19.1.2, WP-1433); the rest is refused by name,
    because a directive it does not evaluate means the text in hand is not the
    text TOPAS parsed. See :func:`refuse_unevaluable_directives`.
 2. **Everything is a token; nothing is a line.** The format is
@@ -103,9 +104,10 @@ states: a *stated* cell key that could not be read fell back on ``c["a"]`` or
 :func:`read_topas_inp`'s cell loop); a ``str`` chunk that ran into the next
 block took the neighbour's cell, scale and weight_percent (:data:`_BLOCK`); a
 schema refusal raised above the boundary that converts it; and a negative
-``beq`` was moved to zero (:func:`to_structure`). ``STR(...)`` is the same
-class one level up — a phase the reader cannot expand is refused by name
-(:data:`_STR_MACRO`), never answered with "this file has no phases".
+``beq`` was moved to zero (:func:`to_structure`). ``STR(...)`` was the same
+class one level up — answered with "this file has no phases" — and is now
+read from what §19.3.12 says it does (:func:`expand_str_macros`); the calls
+that reference does not describe are refused by name.
 
 **A cell edge coupled to another is read through the scope, not guessed.** The
 spelling the archive uses for a tetragonal or cubic phase written without a cell
@@ -477,9 +479,13 @@ def strip_comments(text: str) -> str:
 #: 13, and one file gates a site's `beq` with an `#ifdef` *inside the site line*.
 #: The alternation is ordered so `#ifdef`/`#ifndef` win over `#if` and `#elseif`
 #: over `#else`; the symbol is captured only for the two that take one, so a
-#: `#else` never swallows the directive that follows it.
+#: `#else` never swallows the directive that follows it. `#prm` is here because
+#: a hash parameter is declared *in sequence* with the conditionals that read it
+#: — one declared inside a dead branch was never declared (WP-1433).
 _DIRECTIVE = re.compile(
-    r"#(?:(?P<cond>ifdef|ifndef)\s+(?P<sym>\S+)|(?P<kw>elseif|else|endif|if)\b)")
+    r"#(?:(?P<cond>ifdef|ifndef)\s+(?P<sym>\S+)"
+    r"|prm\s+(?P<prm>[A-Za-z_]\w*)\s*="
+    r"|(?P<kw>elseif|else|endif|if)\b)")
 
 #: A `#define`d symbol, read with the **same** charset the `#ifdef` above uses.
 #: `\w+` on one side and a bare token on the other is how `#define ABO3-x_fit`
@@ -488,11 +494,295 @@ _DIRECTIVE = re.compile(
 _DEFINE = re.compile(r"#define\s+(\S+)")
 
 
-def resolve_ifdefs(text: str) -> str:
-    """Blank the ``#ifdef``/``#ifndef`` branches that are not live (rule 2).
+# ----------------------------------------------- `#prm` and `#if` (WP-1433)
+#
+# Technical Reference §19.1.2, "Pre-processor equations and `#prm`, `#if`,
+# `#elseif`, `#out`", is the whole specification. A `#prm` is a *hash
+# parameter*, evaluated at the pre-processor stage and "totally separate to
+# parameters defined using `prm`" — unknown to the kernel — so this namespace is
+# its own and `symbol_table` is never consulted: mixing the two would read a
+# kernel parameter's value into a pre-processor condition. `#if E;` …
+# `[#elseif E;]` … `#endif` selects text by the value of `E`, and the
+# reference's worked example is `And(space_group_number >= 75,
+# space_group_number <= 142)`, so comparisons, `And` and arithmetic over `#prm`s
+# reach every case the archive and the workshop files write. Not a TOPAS
+# equation engine (WP-1433 § Non-goals): a function other than `And` is refused
+# by name, and so are the two the reference itself shows have no answer a
+# reader can give — `Rand` (its own example is `#prm ran = Constant(Rand(0,1));
+# #if ran < 0.5;`) and a string-valued condition.
 
-    Symbols are collected first because TOPAS permits a ``#define`` after its
-    own use; the stack keeps nesting honest.
+#: `Run_Number` is the one name a condition reads that no `#prm` declares: the
+#: index of the current `num_runs` iteration, 0 on the first (§ `num_runs`;
+#: the reference's own idiom is `#if (Run_Number) … #else … #endif` to tell the
+#: first run from the rest). A file with no `num_runs` has one run, so it is 0.
+_RUN_NUMBER = "Run_Number"
+
+_HASH_TOKEN = re.compile(r"""
+    (?P<ws>[ \t\r]+)
+  | (?P<num>(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)
+  | (?P<out>\#out\b)
+  | (?P<name>[A-Za-z_]\w*)
+  | (?P<str>"[^"\n]*")
+  | (?P<op>==|!=|<=|>=|<|>|[-+*/(),;])
+""", re.X)
+
+
+#: The reference's own example of a condition with no answer (§19.1.2).
+_RAND = ("it reaches `Rand`, so the branch is chosen by a random draw at load "
+         "time and no reader can say which one TOPAS took")
+
+
+class _Undecidable(Exception):
+    """A pre-processor equation this reader will not decide, and why — in the
+    words the refusal quotes."""
+
+
+@dataclass(frozen=True)
+class _HashValue:
+    """One evaluated hash equation. ``error`` is set instead of ``value`` when
+    it could not be decided — kept rather than raised, because a `#prm` nothing
+    tests costs nothing; only a condition that reaches it refuses."""
+
+    value: float | None = None
+    run_dependent: bool = False
+    error: str | None = None
+
+
+def _hash_tokens(text: str, start: int, stop: int | None = None):
+    """``(kind, text, offset)`` from ``start`` until a newline, ``stop``, or a
+    character no hash equation contains."""
+    pos, stop = start, len(text) if stop is None else stop
+    while pos < stop:
+        m = _HASH_TOKEN.match(text, pos, stop)
+        if not m:
+            return
+        pos = m.end()
+        if m.lastgroup != "ws":
+            yield m.lastgroup, m.group(), m.start()
+
+
+class _HashParser:
+    """Recursive descent over one hash equation, stopping at the first token
+    that cannot continue it — so ``#if (Run_Number) type out.txt`` ends the
+    condition at ``)``, which is how the reference's own example writes it."""
+
+    def __init__(self, tokens, params: dict[str, _HashValue]):
+        self.toks = list(tokens)
+        self.i = 0
+        self.params = params
+        self.run_dependent = False
+
+    def peek(self):
+        return self.toks[self.i] if self.i < len(self.toks) else (None, "", -1)
+
+    def take(self, want: str | None = None):
+        kind, tok, off = self.peek()
+        if kind is None or (want is not None and tok != want):
+            raise _Undecidable(f"expected {want or 'a value'}, found "
+                               f"{tok or 'the end of the line'!r}")
+        self.i += 1
+        return kind, tok, off
+
+    def end(self) -> int:
+        """Offset just past the last token consumed."""
+        if not self.i:
+            return -1
+        _, tok, off = self.toks[self.i - 1]
+        return off + len(tok)
+
+    def expression(self) -> float:
+        left = self.additive()
+        _, tok, _ = self.peek()
+        if tok in ("==", "!=", "<", ">", "<=", ">="):
+            self.take()
+            right = self.additive()
+            left = float({"==": left == right, "!=": left != right,
+                          "<": left < right, ">": left > right,
+                          "<=": left <= right, ">=": left >= right}[tok])
+        return left
+
+    def additive(self) -> float:
+        value = self.multiplicative()
+        while self.peek()[1] in ("+", "-"):
+            _, op, _ = self.take()
+            right = self.multiplicative()
+            value = value + right if op == "+" else value - right
+        return value
+
+    def multiplicative(self) -> float:
+        value = self.unary()
+        while self.peek()[1] in ("*", "/"):
+            _, op, _ = self.take()
+            right = self.unary()
+            if op == "/" and right == 0:
+                raise _Undecidable("it divides by zero")
+            value = value * right if op == "*" else value / right
+        return value
+
+    def unary(self) -> float:
+        if self.peek()[1] in ("-", "+"):
+            _, op, _ = self.take()
+            value = self.unary()
+            return -value if op == "-" else value
+        return self.primary()
+
+    def primary(self) -> float:
+        kind, tok, _ = self.take()
+        if kind == "num":
+            return float(tok)
+        if kind == "str":
+            raise _Undecidable(
+                f"it compares the string {tok}, and a string condition is not "
+                f"evaluated here — only numbers over `#prm`s")
+        if tok == "(":
+            value = self.expression()
+            self.take(")")
+            return value
+        if kind == "out":
+            kind, tok, _ = self.take()
+            if kind != "name":
+                raise _Undecidable(f"`#out` names no hash parameter ({tok!r})")
+            return self.lookup(tok)
+        if kind == "name":
+            if self.peek()[1] == "(":
+                return self.call(tok)
+            return self.lookup(tok)
+        raise _Undecidable(f"{tok!r} cannot start a value")
+
+    def call(self, name: str) -> float:
+        if name == "Rand":
+            raise _Undecidable(_RAND)
+        if name != "And":
+            depth, j = 0, self.i          # `Constant(Rand(0,1))`: name Rand
+            while j < len(self.toks):
+                tok = self.toks[j][1]
+                depth += (tok == "(") - (tok == ")")
+                if tok == "Rand" and self.toks[j][0] == "name":
+                    return self.call("Rand")
+                if depth <= 0 and j > self.i:
+                    break
+                j += 1
+            raise _Undecidable(
+                f"it calls `{name}`, and this reader evaluates `And`, the "
+                f"comparisons and arithmetic over `#prm`s — not TOPAS's "
+                f"function library")
+        self.take("(")
+        values = [self.expression()]
+        while self.peek()[1] == ",":
+            self.take()
+            values.append(self.expression())
+        self.take(")")
+        return float(all(values))
+
+    def lookup(self, name: str) -> float:
+        if name in self.params:
+            hv = self.params[name]
+            if hv.error:
+                raise _Undecidable(f"`{name}` is a `#prm` that {hv.error}")
+            self.run_dependent |= hv.run_dependent
+            return hv.value
+        if name == _RUN_NUMBER:
+            self.run_dependent = True
+            return 0.0
+        raise _Undecidable(
+            f"`{name}` is no `#prm` declared above it in live text — a kernel "
+            f"`prm` is not a hash parameter, and the reference keeps the two "
+            f"namespaces apart")
+
+
+def _precheck(tokens) -> None:
+    """Name `Rand` before anything else does: `Constant(Rand(0,1))` is the
+    reference's own spelling, and refusing it as "calls `Constant`" would name
+    the wrapper rather than the reason."""
+    for kind, tok, _ in tokens:
+        if kind == "name" and tok == "Rand":
+            raise _Undecidable(_RAND)
+
+
+def _hash_condition(text: str, start: int,
+                    params: dict[str, _HashValue]) -> tuple[bool, bool, int]:
+    """Evaluate the condition of an ``#if``/``#elseif`` whose keyword ends at
+    ``start``: ``(live, read Run_Number, offset past the condition)``. A
+    trailing ``;`` is the reference's form and is consumed with it."""
+    parser = _HashParser(_hash_tokens(text, start), params)
+    value = parser.expression()
+    stop = parser.end()
+    kind, tok, _ = parser.peek()
+    if tok == ";":
+        parser.take()
+        stop = parser.end()
+    elif kind == "op":
+        raise _Undecidable(f"this reader cannot evaluate past {tok!r}")
+    return value != 0, parser.run_dependent, stop
+
+
+def _hash_definition(text: str, start: int,
+                     params: dict[str, _HashValue]) -> tuple[_HashValue, int]:
+    """Evaluate a ``#prm name = E;`` whose ``=`` ends at ``start``: the value
+    (or the reason it has none) and the offset past its ``;``. Evaluated where
+    it is written — the pre-processor reads in order — and an undecidable one
+    is kept as its reason, not raised, until a condition reaches it."""
+    semi = text.find(";", start)
+    if semi == -1:                        # never blank the rest of the file
+        stop = text.find("\n", start)
+        return _HashValue(error="has no closing `;`"), (
+            len(text) if stop == -1 else stop)
+    stop = semi + 1
+    tokens = list(_hash_tokens(text.replace("\n", " "), start, semi))
+    parser = _HashParser(tokens, params)
+    try:
+        _precheck(tokens)
+        if any(kind == "str" for kind, _, _ in tokens):
+            raise _Undecidable("is a string, and a string condition is not "
+                               "evaluated here — only numbers")
+        value = parser.expression()
+        if parser.i != len(tokens):
+            raise _Undecidable(
+                f"this reader cannot evaluate past {parser.peek()[1]!r}")
+    except _Undecidable as exc:
+        reason = str(exc)
+        return _HashValue(error=reason if reason.startswith("is ")
+                          else f"could not be evaluated: {reason}"), stop
+    return _HashValue(value=value, run_dependent=parser.run_dependent), stop
+
+
+@dataclass
+class _Conditionals:
+    """What resolving the conditionals found beyond the text itself."""
+
+    text: str
+    #: Whether a live/dead decision read `Run_Number` (directly or through a
+    #: `#prm`), so the text is the first run's (:data:`_RUN_NUMBER`).
+    run_dependent: bool = False
+    #: The `#prm`s live at the end of the file, for `num_runs = #out n;`.
+    params: dict[str, _HashValue] = field(default_factory=dict)
+
+
+_NUM_RUNS = re.compile(r"\bnum_runs\b\s*=?")
+
+
+def _num_runs(active: str, params: dict[str, _HashValue]) -> float | None:
+    """The run count ``num_runs`` states — 1 where it is absent, ``None`` where
+    its equation (``num_runs = #out pattern_count;``) is not one this reader
+    decides."""
+    m = _NUM_RUNS.search(active)
+    if not m:
+        return 1.0
+    try:
+        parser = _HashParser(_hash_tokens(active, m.end()), params)
+        value = parser.expression()
+    except _Undecidable:
+        return None
+    return None if parser.run_dependent else value
+
+
+def resolve_ifdefs(text: str, path: str | Path = "<text>") -> str:
+    """Blank the conditional branches that are not live (rule 2).
+
+    ``#ifdef``/``#ifndef`` test a ``#define``; symbols are collected first
+    because TOPAS permits a ``#define`` after its own use; the stack keeps
+    nesting honest. ``#if``/``#elseif`` test a hash equation over the ``#prm``s
+    declared above them in live text (WP-1433, see :func:`_resolve_conditionals`).
 
     **Token-oriented, not line-oriented** — the same correction the cell scan
     and the site split already made, for the same reason: the format is
@@ -506,16 +796,77 @@ def resolve_ifdefs(text: str) -> str:
     Dead text is **blanked rather than deleted** (:func:`_blank`), so a line
     number in a later refusal still names the line the file has.
     """
+    return _resolve_conditionals(text, path).text
+
+
+def _resolve_conditionals(text: str, path: str | Path) -> _Conditionals:
+    """:func:`resolve_ifdefs`, with what a caller reporting on it needs.
+
+    One mechanism for both families, as WP-1433 asks: an ``#if`` frame is the
+    same ``[keeping_here, branch_already_taken]`` an ``#ifdef`` frame is, and
+    only how ``keeping_here`` is decided differs. A condition is evaluated only
+    where every enclosing frame is live — a dead branch is text TOPAS never
+    pre-processed, so its ``#if`` can be anything — and a directive inside a
+    ``macro`` body is left alone, since the body is excised whole
+    (:func:`_excise_macro_defs`) and its ``#if`` tests the macro's arguments,
+    which only an expansion binds. The directive and its condition are blanked,
+    and so is a live ``#prm`` declaration: the kernel never sees one, so leaving
+    it in reads ``#prm n = 4;`` as the kernel ``prm n`` (:func:`symbol_table`).
+    """
     defined = set(_DEFINE.findall(text))
+    in_macro = _excise_macro_defs(text)
+    params: dict[str, _HashValue] = {}
+    run_dependent = False
     out: list[str] = []
     stack: list[list[bool]] = []          # [keeping_here, branch_already_taken]
     position = 0
+
+    def refuse(at: int, directive: str, reason: str) -> TopasInpError:
+        line = text.count("\n", 0, at) + 1
+        snippet = text[at:].split("\n", 1)[0]
+        return TopasInpError(
+            f"{path}:{line}: `{directive}` in {snippet.strip()[:60]!r} is not "
+            f"decided here: {reason}. Which branch TOPAS read is unknown, and "
+            f"reading on would report a model mixing both.")
+
     for m in _DIRECTIVE.finditer(text):
+        if m.start() < position:
+            continue                      # inside a condition already consumed
+        live_here = all(frame[0] for frame in stack)
         chunk = text[position:m.start()]
-        out.append(chunk if all(frame[0] for frame in stack) else _blank(chunk))
+        out.append(chunk if live_here else _blank(chunk))
         position = m.end()
+        opaque = in_macro[m.start()] != text[m.start()]
+        if m["prm"]:
+            if live_here and not opaque:
+                value, position = _hash_definition(text, m.end(), params)
+                params[m["prm"]] = value
+                out.append(_blank(text[m.start():position]))
+            else:
+                out.append(m.group() if live_here else _blank(m.group()))
+            continue
+        if m["kw"] in ("if", "elseif") and not opaque:
+            decide = live_here if m["kw"] == "if" else (
+                all(frame[0] for frame in stack[:-1]) and bool(stack)
+                and not stack[-1][1])
+            live = False
+            if decide:
+                try:
+                    live, by_run, position = _hash_condition(text, m.end(), params)
+                except _Undecidable as exc:
+                    raise refuse(m.start(), f"#{m['kw']}", str(exc)) from None
+                run_dependent |= by_run
+            out.append(_blank(text[m.start():position]))
+            if m["kw"] == "if":
+                stack.append([live, live])
+            elif stack:
+                stack[-1] = [live, stack[-1][1] or live]
+            continue
         out.append(_blank(m.group()))
-        if m["cond"]:
+        if m["kw"] in ("if", "elseif"):   # inside a macro body: excised later
+            if m["kw"] == "if":
+                stack.append([True, True])
+        elif m["cond"]:
             live = (m["sym"] in defined) != (m["cond"] == "ifndef")
             stack.append([live, live])
         elif m["kw"] == "else":
@@ -524,11 +875,9 @@ def resolve_ifdefs(text: str) -> str:
         elif m["kw"] == "endif":
             if stack:
                 stack.pop()
-        # `#if`/`#elseif` never reach here: `refuse_unevaluable_directives`
-        # has already refused the file.
     tail = text[position:]
     out.append(tail if all(frame[0] for frame in stack) else _blank(tail))
-    return "".join(out)
+    return _Conditionals("".join(out), run_dependent, params)
 
 
 #: Every pre-processor directive the reference names, by what it does to the
@@ -538,17 +887,19 @@ def resolve_ifdefs(text: str) -> str:
 #: TOPAS parsed** — the ``/* */`` problem one level up.
 #:
 #: * *evaluated here* — ``macro`` (excised whole by :func:`_excise_macro_defs`),
-#:   ``#define`` and the ``#ifdef``/``#ifndef``/``#else``/``#endif`` family where
-#:   each directive opens its own line (:func:`resolve_ifdefs`).
+#:   ``#define`` and the ``#ifdef``/``#ifndef``/``#else``/``#endif`` family
+#:   (:func:`resolve_ifdefs`), and ``#prm``/``#if``/``#elseif`` over hash
+#:   parameters (WP-1433, :func:`_resolve_conditionals`).
 #: * *brings in text that is not in this file* — ``#include``, ``#ingest``,
 #:   ``#external_INP``. Refused: no amount of care with the bytes in hand can
 #:   recover bytes that are somewhere else.
 #: * *changes which definitions are live* — ``#delete_macros``, ``#undef``.
 #:   Refused: the first un-defines macros, the second un-defines the symbols
 #:   :func:`resolve_ifdefs` collects, and neither is honoured.
-#: * *a condition this reader cannot decide* — ``#if``/``#elseif`` test "a
-#:   general equation (often built from ``#prm`` hash parameters)", which needs
-#:   the equation evaluator this reader does not have.
+#: * *a condition this reader cannot decide* — an ``#if``/``#elseif`` reaching
+#:   ``Rand``, a string, or a function other than ``And``. Refused by name where
+#:   it is evaluated (:class:`_HashParser`), not here: whether a condition is
+#:   decidable depends on the ``#prm``s live above it.
 #: * *invoked on macro expansion* — the ``#m_*`` family. These live only inside
 #:   a macro body, so :func:`_excise_macro_defs` removes them; one surviving in
 #:   the excised text means the body was not balanced, and is refused.
@@ -569,11 +920,11 @@ def refuse_unevaluable_directives(text: str, path) -> None:
     matters is not which directive appears but whether the text left afterwards
     is the text TOPAS read.
 
-    Two conditional forms reach here, and both are refused because *either*
-    reading of them is a guess:
+    ``#if``/``#elseif`` used to be refused here; WP-1433 evaluates them
+    (:func:`_resolve_conditionals`), and the conditions it cannot decide refuse
+    there, by name. One conditional form is still refused here because *either*
+    reading of it is a guess:
 
-    * ``#if`` / ``#elseif``, which test an equation over ``#prm`` hash
-      parameters — 1 archive file, and an evaluator this reader does not have.
     * ``#ifdef !name``, which the reference does not describe at all: it says
       ``#ifdef``/``#ifndef`` "test whether a name has (or hasn't) been
       previously ``#define``'d", and says nothing about ``!``. Read as a
@@ -610,14 +961,6 @@ def refuse_unevaluable_directives(text: str, path) -> None:
                 f"and should only ever sit inside a `macro ... {{ ... }}` body; "
                 f"one surviving here means the body's braces are unbalanced and "
                 f"the excision could not find its end.")
-        for m in re.finditer(r"#(?:elseif|if)\b", s):
-            raise TopasInpError(
-                f"{path}:{number}: `{m.group()}` tests an equation — the "
-                f"reference calls it \"a general equation (often built from "
-                f"`#prm` hash parameters)\" — and this reader has no evaluator "
-                f"for one, so which branch of {s[:60]!r} was refined is unknown "
-                f"and reading on would report a model mixing both. "
-                f"`#ifdef NAME`/`#ifndef NAME` are resolved; `#if` is not.")
         for m in re.finditer(r"#ifn?def\s+(\S+)", s):
             if m.group(1).startswith("!"):
                 raise TopasInpError(
@@ -628,7 +971,13 @@ def refuse_unevaluable_directives(text: str, path) -> None:
                     f"readings are wrong in opposite directions: as a negation "
                     f"the branch is live, as a plain name it never matches and "
                     f"the branch is dead. Write `#ifndef NAME` instead.")
-        for m in re.finditer(r"#ifn?def\b|#endif\b", s):
+        for m in re.finditer(r"#if(?:n?def)?\b|#elseif\b|#endif\b", s):
+            if m.group() == "#elseif":
+                if not depth:
+                    raise TopasInpError(
+                        f"{path}:{number}: `#elseif` with no `#if` open, so "
+                        f"which text it selects is this reader's guess.")
+                continue
             depth += 1 if m.group().startswith("#if") else -1
             if depth < 0:
                 raise TopasInpError(
@@ -638,7 +987,7 @@ def refuse_unevaluable_directives(text: str, path) -> None:
                     f"absorbed.")
     if depth:
         raise TopasInpError(
-            f"{path}: {depth} `#ifdef`/`#ifndef` here {'is' if depth == 1 else 'are'} "
+            f"{path}: {depth} `#if`/`#ifdef`/`#ifndef` here {'is' if depth == 1 else 'are'} "
             f"never closed by an `#endif`, so where the conditional text ends "
             f"is this reader's guess rather than the file's statement.")
 
@@ -1501,13 +1850,80 @@ _BLOCK = re.compile(rf"^[ \t]*(?P<kw>{'|'.join(_BLOCK_OPENERS)})\b", re.M)
 #: and the next begins.
 _DATASET_OPENERS = ("xdd", "xdd_scr", "xdd_sum")
 
-#: TOPAS's ``STR(...)`` macro expands to a whole ``str`` block. Its definition
-#: lives in a macro library this reader does not have and may not reproduce
-#: (``ATTRIBUTION.md``'s fence), so the phases such a file states cannot be
-#: read — and *saying nothing* is the F2 failure again: the file plainly
-#: contains ``STR(``, and answering "a Pawley or indexing-only .inp is legal
-#: and has none" is a confident wrong diagnosis about it. Refused by name.
+#: TOPAS's ``STR(...)`` macro, which opens a phase. Its body is in a macro
+#: library this reader does not have and may not reproduce (``ATTRIBUTION.md``'s
+#: fence), so it is expanded from what the Technical Reference **says it does**
+#: rather than from what it is: §19.3.12 lists ``STR(sg)`` as "signals the start
+#: of structure information with a space group of sg" — a ``str`` stating
+#: ``space_group sg``. The reference's own example inputs also write a second
+#: argument, the phase's name (``STR(R_-3_c, "Corundum Al2 O3")``), read as
+#: ``phase_name``. That is a special case and not a macro pass (WP-1433's
+#: decision, :func:`expand_str_macros`): the archive's every macro-opened phase
+#: is this one macro, and a general pass would need the library's bodies.
+#: Before WP-1433 it was refused by name, because *saying nothing* — "a Pawley
+#: or indexing-only .inp is legal and has none" — was the alternative.
 _STR_MACRO = re.compile(r"^[ \t]*STR\s*\(([^)\n]*)\)", re.M)
+
+#: A file's **own** ``STR`` macro. Its body, not the reference's description,
+#: is what TOPAS expands, so the special case would read the wrong text.
+_STR_DEFINED = re.compile(r"\bmacro\s+STR\s*\(")
+
+
+def expand_str_macros(active: str, stripped: str, path) -> str:
+    """Rewrite each ``STR(sg[, name])`` as the ``str`` block it opens (WP-1433).
+
+    ``active`` is the live text; ``stripped`` is the comment-stripped text with
+    the macro definitions still in it, which is where a file's own ``macro STR``
+    would be. The rewrite stays on its line, so every later line number is the
+    file's. Values are written **quoted**, so the ``space_group``/``phase_name``
+    scans and :func:`_masked` take exactly the argument and not the rest of the
+    line. Refused by name, never guessed:
+
+    * a file defining its own ``STR`` (``_STR_DEFINED``);
+    * a call with no argument or more than two, which the reference describes
+      neither of;
+    * a space group carrying ``#`` — ``STR(######, "#name#")`` is a template's
+      slot that a script fills before TOPAS runs, not a symbol (2 archive
+      files), and reading it as one would hand ``to_structure`` a group no
+      table has.
+    """
+    calls = list(_STR_MACRO.finditer(active))
+    if not calls:
+        return active
+    if m := _STR_DEFINED.search(stripped):
+        line = stripped.count("\n", 0, m.start()) + 1
+        raise TopasInpError(
+            f"{path}:{line}: this file defines its own `STR` macro, and that "
+            f"body — not the reference's description of TOPAS's own — is what "
+            f"its {len(calls)} `STR(...)` call(s) expand to. This reader does "
+            f"not expand macro bodies, so the phases are not read.")
+    out: list[str] = []
+    position = 0
+    for m in calls:
+        # Split on the commas outside quotes: a name may hold one.
+        args = [a.strip() for a in
+                re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', m.group(1))]
+        line = active.count("\n", 0, m.start()) + 1
+        if not 1 <= len(args) <= 2 or not args[0]:
+            raise TopasInpError(
+                f"{path}:{line}: `STR({m.group(1).strip()})` — the reference "
+                f"describes `STR(sg)` and its examples `STR(sg, name)`; "
+                f"{len(args)} arguments is neither, so what it opens is unknown.")
+        sg, name = args[0].strip('"').strip(), (
+            args[1].strip('"').strip() if len(args) == 2 else "")
+        if "#" in sg:
+            raise TopasInpError(
+                f"{path}:{line}: `STR({m.group(1).strip()})` — {sg!r} is a "
+                f"template's placeholder, filled by whatever writes this file "
+                f"before TOPAS reads it, not a space group. Read the filled-in "
+                f"copy.")
+        indent = m.group()[:len(m.group()) - len(m.group().lstrip())]
+        out.append(active[position:m.start()])
+        out.append(f'{indent}str space_group "{sg}"'
+                   + (f' phase_name "{name}"' if name else ""))
+        position = m.end()
+    out.append(active[position:])
+    return "".join(out)
 
 #: What declares a capillary (Debye-Scherrer) geometry, as the archive spells
 #: it: the two ``Cylindrical_…`` correction macros and TOPAS's ``capillary_…``
@@ -1913,7 +2329,9 @@ def read_topas_inp(path: str | Path, *,
     # of their own), then what is left has to be text this reader can resolve.
     stripped = strip_comments(raw)
     refuse_unevaluable_directives(_excise_macro_defs(stripped), path)
-    active = _excise_macro_defs(resolve_ifdefs(stripped))
+    conditionals = _resolve_conditionals(stripped, path)
+    active = expand_str_macros(_excise_macro_defs(conditionals.text),
+                               stripped, path)
     # Where a card attaches is decided before any card is read: the block split
     # below *is* the assumption that a card belongs to the block it sits in.
     refuse_moved_attachment(active, path)
@@ -1973,19 +2391,6 @@ def read_topas_inp(path: str | Path, *,
     if m := re.search(rf"bkg\s*((?:\s*@?\s*{_NUM}`?)+)", active):
         model.background_terms = len(re.findall(_NUM, m.group(1)))
     model.data_files = [d.strip() for d in re.findall(r'xdd\s+"?([^"\n]+)', active)]
-
-    # A phase this reader cannot read is refused by name, never left out: the
-    # five archive files whose every phase opens `STR(R-3)` came back with zero
-    # phases and were then diagnosed as legal Pawley inputs.
-    if m := _STR_MACRO.search(active):
-        n = len(_STR_MACRO.findall(active))
-        raise TopasInpError(
-            f"{path}: {n} phase{'' if n == 1 else 's'} here open with TOPAS's "
-            f"`STR(...)` macro (first: STR({m.group(1).strip()})), which expands "
-            f"to a whole `str` block from a macro library this reader does not "
-            f"have and may not reproduce. Reading on would report no phase at "
-            f"all — 'a Pawley or indexing-only .inp is legal and has none' — "
-            f"about a file that plainly states {n}.")
 
     parsed_site_tokens = 0        # site *tokens* read into phases, not atoms
     #: Which dataset the `str` blocks below currently sit in. `None` until an
@@ -2432,6 +2837,22 @@ def read_topas_inp(path: str | Path, *,
     # site-count guard above, so a file that is about to refuse does not also
     # leave a half-list of diagnostics behind on the caller's list.
     if diagnostics is not None:
+        # The `Run_Number` arm (WP-1433). A condition on `Run_Number` was read as
+        # the first run's, which is the only run a file with no `num_runs` has;
+        # where it states more, later runs read other branches, and the model
+        # here is run 0's — said, because nothing in the model shows it.
+        runs = _num_runs(active, conditionals.params)
+        if conditionals.run_dependent and runs != 1:
+            stated = ("a `num_runs` this reader could not evaluate"
+                      if runs is None else f"num_runs = {runs:g}")
+            diagnostics.append(Diagnostic(
+                level="warning", code="TOPAS_FIRST_RUN_READ",
+                message=(f"{path}: a `#if`/`#elseif` here tests `Run_Number`, "
+                         f"and the file states {stated}; the branches were "
+                         f"read as the first run (Run_Number 0) reads them. "
+                         f"A later run pre-processes the same file into other "
+                         f"text, so this is run 0's model"),
+                where=["Run_Number"]))
         for raw, (canonical, where) in species_rewrites.items():
             diagnostics.append(Diagnostic(
                 level="info", code="TOPAS_SPECIES_NORMALISED",

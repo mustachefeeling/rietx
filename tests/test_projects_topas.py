@@ -1560,27 +1560,209 @@ def test_a_str_block_with_no_phase_name_is_recorded_not_passed_over(tmp_path):
     assert "indexing-only" not in str(exc.value)
 
 
-# ------------------------------------------- STR(...) is refused by name
+# -------------------------------------------- STR(...) opens a phase (WP-1433)
 
-def test_a_phase_opening_with_the_STR_macro_is_refused_by_name(tmp_path):
-    """`STR(R-3)` expands to a whole `str` block from a macro library this
-    reader does not have and may not reproduce.
+_STR_PHASES = ('r_wp 3.2\nxdd "sample.xye"\n'
+               'STR(R-3)\nphase_name "corundum"\na 4.76\nc 12.99\n'
+               'site Al1 x 0 y 0 z 0.352 occ Al+3 1 beq 0.3\n'
+               'STR(Fm-3m, "silicon")\na 5.431\n'
+               'site Si1 x 0 y 0 z 0 occ Si 1 beq 0.5\n')
 
-    Such a file returned **zero** phases and `to_structure` then answered "A
-    Pawley or indexing-only .inp is legal and has none" — a confident wrong
-    diagnosis about a file that plainly contains `STR(`. Seven archive files
-    are affected (`archive file 14`, `archive file 15`, `archive file 16`, `archive file 17` and
-    three variants of archive file 18), all returning no phase at all.
-    Expanding the macro can wait; answering wrongly about it cannot.
-    """
-    inp = _inp(tmp_path, "strmacro.inp",
-               'r_wp 3.2\nxdd "sample.xye"\n'
-               'STR(R-3)\nphase_name "corundum"\n'
-               'STR(Fm-3m)\nphase_name "silicon"\n')
-    with pytest.raises(TopasInpError) as exc:
+
+def test_a_phase_opening_with_the_STR_macro_reads_its_phase(tmp_path):
+    """Technical Reference §19.3.12: `STR(sg)` "signals the start of structure
+    information with a space group of sg", and the reference's own example
+    inputs pass the phase's name second (`STR(R_-3_c, "Corundum Al2 O3")`).
+
+    Stands for the archive idiom `STR(R-3)` / `STR(p-1)` opening the phase,
+    with `phase_name` below it — 5 archive files. Before WP-1433 such a file
+    was refused by name (and before PR #98 it parsed zero phases); now both
+    phases arrive with the group the macro states and the name either
+    spelling gives."""
+    model = read_topas_inp(_inp(tmp_path, "strmacro.inp", _STR_PHASES))
+    assert [(p.name, p.space_group) for p in model.phases] == [
+        ("corundum", "R-3"), ("silicon", "Fm-3m")]
+    assert [s.label for p in model.phases for s in p.sites] == ["Al1", "Si1"]
+    assert model.phases[1].cell["a"] == pytest.approx(5.431)
+    structure = to_structure(model)
+    assert [p.name for p in structure.phases] == ["corundum", "silicon"]
+
+
+@pytest.mark.parametrize("call, needle", [
+    ('STR(######, "#name#")', "template's placeholder"),
+    ("STR()", "is neither"),
+    ("STR(P1, a, b)", "3 arguments is neither"),
+])
+def test_an_STR_call_the_reference_does_not_describe_refuses_by_name(
+        tmp_path, call, needle):
+    """`STR(######, "#name#")` is the archive's template idiom (2 files): a
+    slot a script fills before TOPAS runs, so reading `######` as a group would
+    hand `to_structure` a symbol no table has. A call with no argument or more
+    than two is described nowhere in the reference."""
+    inp = _inp(tmp_path, "strbad.inp",
+               f'xdd "a.xye"\n{call}\na 5.0\n'
+               f'site A1 x 0 y 0 z 0 occ Na+1 1 beq 0.5\n')
+    with pytest.raises(TopasInpError, match=re.escape(needle)):
         read_topas_inp(inp)
-    assert "strmacro.inp" in str(exc.value)
-    assert "STR(R-3)" in str(exc.value) and "2 phases" in str(exc.value)
+
+
+def test_a_file_defining_its_own_STR_refuses_rather_than_expanding_ours(tmp_path):
+    """What TOPAS expands is the file's own body, which this reader does not
+    expand — the special case would read the reference's description instead.
+    Synthetic: no archive file defines one."""
+    inp = _inp(tmp_path, "strown.inp",
+               "macro STR(g) { str space_group g scale 2 }\n" + _STR_PHASES)
+    with pytest.raises(TopasInpError, match="defines its own `STR` macro"):
+        read_topas_inp(inp)
+
+
+# ---------------------------------------- #prm, #if, #elseif, #out (WP-1433)
+
+_PHASE = ('str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+          'site A1 x 0 y 0 z 0 occ Na+1 1 beq 0.5\n')
+
+
+def _sites(tmp_path, text, name="hash.inp", diagnostics=None):
+    model = read_topas_inp(_inp(tmp_path, name, _PHASE + text),
+                           diagnostics=diagnostics)
+    return [s.label for p in model.phases for s in p.sites]
+
+
+def test_if_elseif_chooses_the_branch_the_hash_parameters_select(tmp_path):
+    """§19.1.2's own worked example: `#prm space_group_number = 4;` then `#if
+    And(space_group_number >= 75, space_group_number <= 142);` … `#elseif`.
+    Only the first true branch is live, an `#else` only when none was."""
+    text = ("#prm sgn = 99;\n"
+            "#if And(sgn >= 75, sgn <= 142);\n"
+            "site TET x 0.5 y 0 z 0 occ Na+1 1 beq 0.5\n"
+            "#elseif And(sgn >= 16, sgn <= 74);\n"
+            "site ORT x 0.5 y 0 z 0 occ Na+1 1 beq 0.5\n"
+            "#elseif sgn > 0;\n"
+            "site LATE x 0.5 y 0 z 0 occ Na+1 1 beq 0.5\n"
+            "#else\n"
+            "site ELSE x 0.5 y 0 z 0 occ Na+1 1 beq 0.5\n"
+            "#endif\n")
+    assert _sites(tmp_path, text) == ["A1", "TET"]
+    assert _sites(tmp_path, text.replace("99", "20")) == ["A1", "ORT"]
+    assert _sites(tmp_path, text.replace("99", "3")) == ["A1", "LATE"]
+    assert _sites(tmp_path, text.replace("99", "-3")) == ["A1", "ELSE"]
+
+
+def test_out_and_hash_arithmetic_reach_a_condition(tmp_path):
+    """The workshop reel files' idiom: `#prm pattern_count = 68;` then `#if
+    (#out pattern_count > 1)` and `#if (Run_Number == #out pattern_count -
+    1)`. A `#prm` may be a function of other `#prm`s (§19.1.2)."""
+    text = ("#prm n = 3;\n#prm twice = 2 * n - 1;\n"
+            "#if (#out twice > 4)\nsite BIG x 0.5 y 0 z 0 occ Na+1 1 beq 0.5\n#endif\n"
+            "#if (twice == 5) site INLINE x 0.5 y 0.5 z 0 occ Na+1 1 beq 0.5 #endif\n"
+            "#if (n - 3) site NOT x 0 y 0.5 z 0 occ Na+1 1 beq 0.5 #endif\n")
+    assert _sites(tmp_path, text) == ["A1", "BIG", "INLINE"]
+
+
+def test_a_hash_parameter_declared_in_a_dead_branch_was_never_declared(tmp_path):
+    """The pre-processor reads in order, and dead text is text it never read:
+    the workshop file declares `pattern_count` in both arms of an `#ifdef`."""
+    text = ("#ifdef TEST\n#prm n = 1;\n#else\n#prm n = 7;\n#endif\n"
+            "#if n == 7;\nsite SEVEN x 0.5 y 0 z 0 occ Na+1 1 beq 0.5\n#endif\n")
+    assert _sites(tmp_path, text) == ["A1", "SEVEN"]
+    assert _sites(tmp_path, "#define TEST\n" + text) == ["A1"]
+
+
+def test_a_hash_parameter_is_not_a_kernel_parameter(tmp_path):
+    """"totally separate to parameters defined using `prm`" (§19.1.2), both
+    ways: an `#if` cannot read a kernel `prm`, and the kernel never sees a
+    `#prm` — left in the text, `#prm q = 0.25;` read as `prm q` and a site's
+    `x = q;` resolved to it."""
+    with pytest.raises(TopasInpError, match="no `#prm` declared above it"):
+        _sites(tmp_path, "prm k 2\n#if k > 1;\n#endif\n")
+    assert "#prm" not in resolve_ifdefs("#prm q = 0.25;\nkeep\n")
+    inp = _inp(tmp_path, "leak.inp", "#prm q = 0.25;\n" + _PHASE.replace(
+        "x 0 y 0", "x = q; y 0"))
+    with pytest.raises(TopasInpError):
+        read_topas_inp(inp)
+
+
+def test_a_condition_in_a_dead_branch_or_a_macro_body_is_not_evaluated(tmp_path):
+    """Dead text was never pre-processed, so its `#if` may test anything; a
+    macro body's `#if` tests the macro's arguments, which only an expansion
+    binds (the reference's recursive `#if (n > 0)` example has that shape),
+    and the body is excised whole."""
+    text = ("#ifdef OFF\n#if Rand(0, 1) < 0.5;\n#endif\n#endif\n"
+            "macro Twice(& n) { #if (n > 0) A #else B #endif }\n")
+    assert _sites(tmp_path, text) == ["A1"]
+
+
+@pytest.mark.parametrize("text, needle", [
+    ("#prm ran = Constant(Rand(0,1));\n#if ran < 0.5;\n#endif\n", "`Rand`"),
+    ("#if Rand(0, 1) < 0.5;\n#endif\n", "`Rand`"),
+    ("#if Constant(Rand(0, 1)) < 0.5;\n#endif\n", "`Rand`"),
+    ('#prm s = "Cu";\n#if s == 1;\n#endif\n', "is a string"),
+    ('#if "a" == "a";\n#endif\n', "a string condition is not evaluated"),
+    ("#prm n = 4;\n#if (Mod(Run_Number, (3 + n)) == 0)\n#endif\n",
+     "it calls `Mod`"),
+    ("#if 1 < 2 < 3;\n#endif\n", "cannot evaluate past '<'"),
+    ("#elseif 1;\n", "`#elseif` with no `#if` open"),
+])
+def test_an_undecidable_condition_refuses_naming_the_reason(
+        tmp_path, text, needle):
+    """§19.1.2 shows by example that not every condition has an answer —
+    `#prm ran = Constant(Rand(0,1)); #if ran < 0.5;` is legal — so `Rand` and a
+    string condition stay refused by name, and so does any function but `And`
+    (the workshop `reel_01` file's `Mod(Run_Number, …)`)."""
+    with pytest.raises(TopasInpError, match=re.escape(needle)):
+        _sites(tmp_path, text)
+
+
+def test_a_run_number_condition_reads_the_first_run_and_says_so(tmp_path):
+    """`Run_Number` is 0 on the first `num_runs` iteration. A file with no
+    `num_runs` has one run and nothing to report; the workshop reel file's
+    `num_runs = #out pattern_count;` has 68, and later runs pre-process the
+    same text differently, so the model is run 0's and a warning says it."""
+    gated = ("#if (Run_Number == 0)\nsite FIRST x 0.5 y 0 z 0 occ Na+1 1 beq 0.5\n"
+             "#endif\n")
+    quiet: list = []
+    assert _sites(tmp_path, gated, diagnostics=quiet) == ["A1", "FIRST"]
+    assert not [d for d in quiet if d.code == "TOPAS_FIRST_RUN_READ"]
+    diags: list = []
+    assert _sites(tmp_path, "#prm count = 68;\nnum_runs = #out count ;\n"
+                  + gated, diagnostics=diags) == ["A1", "FIRST"]
+    (first,) = [d for d in diags if d.code == "TOPAS_FIRST_RUN_READ"]
+    assert "num_runs = 68" in first.message and first.level == "warning"
+
+
+#: One synthesized snippet per file-level keyword `coverage.PREPROCESSOR`
+#: declares, appended after a one-site phase.
+_PREPROCESSOR_SNIPPETS = {
+    "STR": 'STR(Fm-3m, "S")\na 5.0\nsite S1 x 0 y 0 z 0 occ Na+1 1 beq 0.5\n',
+    "#define": "#define D\n", "#ifdef": "#ifdef D\n#endif\n",
+    "#ifndef": "#ifndef D\n#endif\n", "#else": "#ifdef D\n#else\n#endif\n",
+    "#endif": "#ifdef D\n#endif\n", "#prm": "#prm n = 1;\n",
+    "#if": "#if 1;\n#endif\n", "#elseif": "#if 0;\n#elseif 1;\n#endif\n",
+    "#out": "#prm n = 1;\n#if #out n;\n#endif\n",
+    "Run_Number": "#if Run_Number == 0;\n#endif\n",
+    "Rand": "#if Rand(0, 1);\n#endif\n", "Mod": "#if Mod(3, 2);\n#endif\n",
+    "STR(######": 'STR(######, "#name#")\n', "macro STR": "macro STR(g) { }\nSTR(P1)\n",
+    "#ifdef !": "#ifdef !D\n#endif\n", "#include": '#include "x.inc"\n',
+    "#ingest": '#ingest "x.inc"\n', "#external_INP": '#external_INP "x.inp"\n',
+    "#undef": "#undef D\n", "#delete_macros": "#delete_macros { X }\n",
+    "#m_if": "#m_if 1;\n", "#m_ifarg": "#m_ifarg x 1\n",
+}
+
+
+@pytest.mark.parametrize("feature, keyword", [
+    (f, kw) for f in coverage.PREPROCESSOR for kw in f.keywords])
+def test_every_preprocessor_stance_is_what_the_reader_does(
+        tmp_path, feature, keyword):
+    """`coverage.PREPROCESSOR` declares the file-level reach (WP-1433). A
+    declaration nobody checks drifts, so each keyword is exercised: a `READ`
+    row reads, a `REFUSED` row refuses at read."""
+    inp = _inp(tmp_path, "pp.inp", _PHASE + _PREPROCESSOR_SNIPPETS[keyword])
+    if feature.stance is coverage.Stance.READ:
+        assert read_topas_inp(inp).phases
+    else:
+        assert feature.stance is coverage.Stance.REFUSED
+        with pytest.raises(TopasInpError):
+            read_topas_inp(inp)
 
 
 # --------------------------------------- beq: refused, never moved or leaked
@@ -2698,7 +2880,6 @@ def test_a_block_comment_nests(tmp_path):
 
 
 @pytest.mark.parametrize("line, needle", [
-    ('#if (Run_Number == 0)\nview_structure\n#endif\n', "tests an equation"),
     ('#ifdef !old_version\nsite X x 0 y 0 z 0 occ Na+1 1\n#endif\n',
      "describes no `!` form"),
     ('#include "other.inc"\n', "pulls text from another file"),
