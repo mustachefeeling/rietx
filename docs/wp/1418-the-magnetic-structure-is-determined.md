@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: v1.6 · Status: 🔄 2026-10-01 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564); M-8, M-9, the Part 1 chapter and the skill rows remain
+Milestone: v1.6 · Status: 🔄 2026-10-01 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -681,3 +681,38 @@ no magnetic model declared.
   exp(−2πi k·t), and the review asked for that citation beside the 2000 one.
   *Next:* #582 (part 1 of 5 of #565), which the maintainer freed for review on
   2026-10-01.
+
+- **2026-10-02** — M-9's verb landed from outside: PR #592 (`66d03eaa`),
+  merged as `ac91b5f0` by `/pr-review` after two rounds. `rx.solve_magnetic`
+  takes a converged neutron fit with unexplained intensity and returns a
+  `MagneticSolution`. It proposes k, refines one trial per powder-equivalence
+  class, and ranks them by ΔBIC against a nuclear reference, then the
+  magnetic-only R, then parsimony, never Rwp. It writes one magCIF per class
+  on request and sets `capabilities().features["magnetic_determination"]`.
+  Part 1 is `using/refining.md` § Determining a magnetic structure. The skill
+  carries `references/api-magnetic.md` and the §7j routing row. *What the
+  review established (round 2):*
+  - **A tie inside `SOLVE_TIE_DELTA_BIC` (6.0) is not always an abstention.**
+    The magnetic-only R decides when it separates the tied classes by more than
+    `SOLVE_TIE_R_MAGNETIC`, then parsimony. The verdict is then `"solved"`, and
+    `margin` can be negative by at most the tie width. Only when neither key
+    separates them does the verdict abstain. The docs were changed to match
+    the code. The 2 % in `SOLVE_TIE_R_MAGNETIC` is **chosen, not measured**:
+    no run establishes where two fits of the same data stop agreeing in R.
+  - **A fit stopped on its budget is listed, not ranked**, and so is every
+    trial measured against a nuclear reference still short after its
+    continuations (`MagneticTrial.reference_status`, `stopped_short`). A short
+    reference inflates every ΔBIC against it, in the direction that turns
+    "nothing to solve" into "solved".
+  - Every internal fit passes `telemetry=False`. A refused trial carries
+    `None` for what no fit computed.
+  - **Acceptance.** Cr₂WO₆ at 4 K solves, and at 150 K the verdict is
+    "nothing to solve", with no supported moment after every fit converged.
+    The WP's acceptance wording put the k = 0 sentence at 150 K; measured, it
+    belongs to the 4 K arm. LaMnO₃'s A-type ranks first of four.
+  *Not done, and so M-9 stays open:* no `help.py` entries; the M-9 fixtures
+  write no obs/calc/diff PNG beyond the 4 K winner. *Follow-ups filed in the
+  review:* `MagneticSolution` has no `model_dump`, which it needs before it
+  leaves provisional. `MAGNETIC_SUBGROUP_PREFERRED` carries no `where`. A
+  refused row prints `None` in the table's `det` column. *Next:* #582 (part 1
+  of 5 of #565), held on one `xdist_group` mark at its round 2.
