@@ -157,3 +157,56 @@ def test_the_joint_fit_holds_nothing_a_neutron_pattern_can_see():
     assert all(rows[f"{BASE}.dof{k}"].stderr is not None for k in range(3))
     assert joint.fitted_structures[0].phases[0].atoms[0].moment.values() == (
         pytest.approx(truth, abs=1e-3))
+
+
+def test_a_turn_after_the_solve_reads_the_answers_angle_not_the_stage_starts():
+    """The late turn (review of #655 item 1): decoded from the committed values.
+
+    A combination released or collapsed while solving is turned at the answer,
+    after ``mtable.commit`` and before any column rebuild — ``mtable.x0()`` is
+    then the cache the stage *started* from.  The turn is an unseen rotation
+    about the flat axis, so it keeps the angle to that axis; written from the
+    stage-start angles it would hand the answer the start's angle instead.
+    """
+    from rietx.multi import MultiHistogramRefinement, _flat_moments_multi, _turn_flat_axes_multi
+    from rietx.refine import _direction
+
+    joint = MultiHistogramRefinement(
+        rx.Structure(phases=[_phase("R -3 m:R", (3.0, 0.2, 0.2))]),
+        _instruments())
+    mtable = joint.mtable
+    mtable.set_vary(["*"], False)
+    mtable.set_vary([f"{BASE}.dof*"], True)
+    mtable.apply_to_models()
+    models = [compile_model(s, ins, rx.PatternData(
+        two_theta=tt.tolist(), intensity=[1.0] * len(tt)))
+        for s, ins, tt in zip(mtable.structures, mtable.instruments, _grids(),
+                              strict=True)]
+    _held, axes = _flat_moments_multi(models, mtable)
+    assert set(axes) == {BASE}
+    axis = axes[BASE]
+
+    def psi(values):
+        """Angle to the flat axis, in the frame the turn works in."""
+        s = _direction(values[f"{BASE}.dof1"], values[f"{BASE}.dof2"])
+        return float(np.degrees(np.arccos(min(abs(float(axis @ s)), 1.0))))
+
+    def own(table):
+        return table.decode(table.x0())
+
+    stage_start = mtable.x0()
+    cols = {p: i for i, p in enumerate(mtable.free_paths)}
+    # the solve moves the angles; commit writes them and no rebuild follows
+    theta = mtable.x0()
+    theta[cols[f"{BASE}.dof1"]] += 0.35
+    theta[cols[f"{BASE}.dof2"]] -= 0.4
+    mtable.commit(theta)
+    assert np.array_equal(mtable.x0(), stage_start), "x0 is the stale cache"
+    answer = psi(own(mtable.tables[0]))
+    started = psi(mtable.decode(stage_start)[0])
+    assert abs(answer - started) > 1.0, "the solve must have moved the angle"
+
+    assert _turn_flat_axes_multi(models, mtable, axes) == ["phases.0.atoms.0"]
+    # the turn is an unseen rotation about the axis: it keeps the angle to it
+    for table in mtable.tables:
+        assert psi(own(table)) == pytest.approx(answer, abs=1e-6)

@@ -425,7 +425,14 @@ def _flat_moments_multi(models, mtable, candidates: list[str] | None = None
 
 
 def _sees_moment(model, values: dict[str, float], base: str) -> bool:
-    """Whether this histogram's pattern responds to the site's modulus at all."""
+    """Whether this histogram's pattern responds to the site's modulus at all.
+
+    Deliberately its own, coarser test (a 10 % modulus step, exact ``!=``)
+    beside :func:`rietx.refine._onto_flat_meridian`'s zero-response refusal:
+    it only decides which histograms are *asked* for a turn.  One that sees
+    the moment and refuses the turn vetoes it everywhere, the safe direction
+    — turning what one pattern cannot reproduce would move what it sees.
+    """
     v = dict(values)
     v[f"{base}.dof0"] = values[f"{base}.dof0"] + 0.1 * max(
         abs(values[f"{base}.dof0"]), 1e-6)
@@ -448,7 +455,11 @@ def _turn_flat_axes_multi(models, mtable, axes: dict[str, np.ndarray]
     turned: list[str] = []
     if not axes:
         return turned
-    values = mtable.decode(mtable.x0())
+    # per table, from each table's own entries: ``mtable.x0()`` is the cache
+    # the stage started from, and a turn after the solve (a release, a
+    # collapse restore) must read the answer's polar angle, scale and
+    # background, not the ones the stage began at (review of #655 item 1)
+    values = [t.decode(t.x0()) for t in mtable.tables]
     for base, axis in axes.items():
         # asked of the histograms that see the moment: one that does not
         # (an X-ray pattern, a zero modulus response) cannot measure the
@@ -522,6 +533,13 @@ def _rehold_flat_moments_multi(models, mtable, moment_held: list[str],
     :func:`_rehold_multi`, whose prefix test would release a direction for
     the wrong reason — a phase being visible says nothing about whether its
     moment direction is determined.
+
+    The order differs from :meth:`MultiHistogramRefinement.fit`'s single-
+    histogram counterpart on one point, kept on purpose: the phase re-hold
+    (:func:`_rehold_multi`) has already run ``set_vary`` when this scans, so
+    the moment directions of a phase it just released are scanned as free —
+    and, if flat, restored and held, where the single path leaves them free
+    for the second solve.
     """
     released: list[str] = []
     late_axes: dict[str, np.ndarray] = {}
