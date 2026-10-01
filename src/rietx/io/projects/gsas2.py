@@ -938,6 +938,15 @@ def _phase(name: str, data: dict) -> Gsas2Phase:
         a for a in (_atom(row, pointers)  # type: ignore[arg-type]
                     for row in data.get("Atoms", []) if isinstance(row, list))
         if a is not None)
+    # absent is "none chosen" (natural abundance); present and not a dict is
+    # a file this reader cannot tell from that, so it is not read as one
+    isotope = general.get("Isotope", {})
+    if not isinstance(isotope, dict):
+        raise Gsas2GpxError(
+            f"phase {name!r} states General['Isotope'] as "
+            f"{type(isotope).__name__} {isotope!r} rather than the dict of "
+            f"isotopes per atom type GSAS-II writes, so which isotope each "
+            f"type chose cannot be read; it is not taken as natural abundance")
     from ...crystallography.symmetry import setting_from_operators
 
     sgdata = general.get("SGData", {})
@@ -965,8 +974,7 @@ def _phase(name: str, data: dict) -> Gsas2Phase:
         number=data.get("pId") if isinstance(data.get("pId"), int) else None,
         magnetic_partner=(str(data["magPhases"])
                           if data.get("magPhases") else None),
-        isotope=({str(k): str(v) for k, v in general["Isotope"].items()}
-                 if isinstance(general.get("Isotope"), dict) else {}))
+        isotope={str(k): str(v) for k, v in isotope.items()})
 
 
 #: The sample parameters GSAS-II stores as ``[value, flag]``, which is the set a
@@ -1723,6 +1731,7 @@ def from_structure(structure, *,
 
     doc = gemmi.cif.Document()
     ambiguous: list[str] = []
+    deuterium: list[tuple[str, str]] = []
     taken_names: set[str] = set()
     for index, phase in enumerate(structure.phases):
         _refuse_non_finite(phase, index)
@@ -1752,6 +1761,10 @@ def from_structure(structure, *,
                 raise ValueError(
                     f"phases.{index}.atoms.{j} ({atom.label!r}) in phase "
                     f"{phase.name!r}: {exc}") from None
+        deuterium.extend((f"phases.{index}.atoms.{j}", atom.species.strip())
+                         for j, (atom, sp) in enumerate(
+                             zip(phase.atoms, typed, strict=True))
+                         if sp == "D")
         if typed != [atom.species for atom in phase.atoms]:
             phase = phase.model_copy(update={"atoms": [
                 atom.model_copy(update={"species": sp})
@@ -1777,7 +1790,7 @@ def from_structure(structure, *,
                              f"reads as {taken} here")
 
     if diagnostics is not None:
-        _report_cif(structure, ambiguous, diagnostics)
+        _report_cif(structure, ambiguous, diagnostics, deuterium)
     return doc.as_string()
 
 
@@ -1893,8 +1906,22 @@ def _refuse_non_finite(phase, index: int) -> None:
 
 
 def _report_cif(structure, ambiguous: list[str],
-                diagnostics: list[Diagnostic]) -> None:
+                diagnostics: list[Diagnostic],
+                deuterium: list[tuple[str, str]] = ()) -> None:
     """What this CIF states in an unusual place, and what it cannot state."""
+    if deuterium:
+        respelled = [path for path, sp in deuterium if sp != "D"]
+        diagnostics.append(Diagnostic(
+            level="info", code="GSAS2_CIF_DEUTERIUM_AS_D",
+            message=(
+                f"{len(deuterium)} deuterium site(s) are written as D, the one "
+                f"isotope label GSAS-II's CIF import takes"
+                + (f" ({', '.join(respelled)} respelled from 2H)"
+                   if respelled else "")
+                + ".  GSAS-II scatters D at its own b = 6.681 fm against the "
+                  "6.671 fm (Sears) rietx uses, so a GSAS-II refinement of "
+                  "this file starts 0.15 % away on those sites"),
+            where=[path for path, _ in deuterium]))
     if ambiguous:
         diagnostics.append(Diagnostic(
             level="info", code="GSAS2_CIF_SETTING_IN_OPERATORS",

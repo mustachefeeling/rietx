@@ -1269,3 +1269,14 @@ def test_the_writer_refuses_a_digitless_ion():
     with pytest.raises(ValueError, match="sign but no charge magnitude") as exc:
         from_structure(_one_site("Cu+"))
     assert "'A1'" in str(exc.value)
+
+
+@pytest.mark.parametrize("species, element", [("Cval", "C"), ("Siva", "Si")])
+def test_the_writer_refuses_a_valence_label_as_one(species, element):
+    """rietx scatters ``Cval``/``Siva`` from the Waasmaier-Kirfel table, so
+    "not an element, an ion or an isotope" misdescribed them; the grammar has
+    no valence label, so they are still refused (#572 review, follow-up 2)."""
+    with pytest.raises(ValueError, match="valence-electron form factor") as exc:
+        from_structure(_one_site(species))
+    assert "not an element" not in str(exc.value)
+    assert f"Write {element!r}" in str(exc.value)
