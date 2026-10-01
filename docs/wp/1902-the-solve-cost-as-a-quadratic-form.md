@@ -1,6 +1,6 @@
 # WP-1902 — the solve cost as a quadratic form, and the doublet question first
 
-Milestone: v1.9 · Status: ⬜
+Milestone: v1.9 · Status: 🔄 2026-09-30 — claimed by @mustachefeeling
 Depends on: —
 Priority: P2 2026-09-30 — the design gate for the direct-space route; every engine chunk reads this cost
 
