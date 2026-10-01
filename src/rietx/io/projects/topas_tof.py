@@ -303,7 +303,8 @@ class TopasTOFBank:
 
 
 #: Convolutions and peak-stack operations rietx's TOF peak has no counterpart
-#: for (the reference's ``Tcomm_1`` list and §6's peak-stack keywords).
+#: for: the reference's ``Tcomm_1`` convolution list, and its peak-stack
+#: keywords (``push_peak`` … ``add_pop_1st_2nd_peak``), which sum pulses.
 _UNCARRIED_SHAPE = ("user_defined_convolution", "hat", "num_hats",
                     "stacked_hats_conv", "one_on_x_conv", "circles_conv",
                     "ft_conv", "axial_conv", "lpsd_th2_angular_range_degrees",
@@ -311,7 +312,7 @@ _UNCARRIED_SHAPE = ("user_defined_convolution", "hat", "num_hats",
                     "bring_2nd_peak_to_top", "add_pop_1st_2nd_peak",
                     "scale_top_peak", "more_accurate_Voigt",
                     "numerical_lor_gauss_conv", "th2_offset", "capillary_diameter_mm")
-_UNCARRIED_MACROS = ("TOF_CS_L", "TOF_CS_G", "TOF_GSAS")
+_UNCARRIED_MACROS = ("TOF_CS_L", "TOF_CS_G")
 _UNCARRIED_MODEL = ("mlx", "mly", "mlz", "mag_space_group", "pdf_data",
                     "rigid", "spherical_harmonics_hkl")
 
@@ -347,9 +348,9 @@ def _pair(c: str, v: str, symbols) -> "_topas._Read | None":
     return _topas._read_tail(f"{c} {v}", symbols)
 
 
-def _param(read, unit: str | None = None, scale: float = 1.0) -> Parameter:
+def _param(read, unit: str | None = None) -> Parameter:
     vary = bool(read.vary) if read.vary is not None else False
-    return Parameter(value=float(read.value) * scale, vary=vary, unit=unit)
+    return Parameter(value=float(read.value), vary=vary, unit=unit)
 
 
 def _keyword_values(text: str, keyword: str) -> list[str]:
@@ -444,7 +445,7 @@ def _read_bank(k, constructs, span, bodies, file_reads) -> TopasTOFBank:
         if re.search(rf"\b{kw}\b", whole):
             bank.refuse(kw, "rietx's time-of-flight bank has no counterpart")
     for mac in _UNCARRIED_MACROS:
-        if re.search(rf"\b{mac}\s*\(", whole) and mac != "TOF_GSAS":
+        if re.search(rf"\b{mac}\s*\(", whole):
             bank.refuse(mac, "rietx's time-of-flight bank has no counterpart")
     if re.search(r"\bTOF_GSAS\s*\(", whole):
         bank.refuse("TOF_GSAS", "a GSAS-format data file is not read through "
