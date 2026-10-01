@@ -2560,6 +2560,56 @@ def test_an_xray_file_states_rietx_s_own_anomalous_dispersion(tmp_path):
     assert [a.species for a in back.phases[0].atoms] == ["Zr4+", "O2-", "Zr4+"]
 
 
+def test_a_structure_only_export_names_the_way_out_of_an_edge_element():
+    """#568 round 2, item 1: with no instrument the dispersion is resolved at
+    the placeholder Cu K\u03b1 lines, which refuse Eu and Ho (an edge between
+    them); the message must say the caller never chose them and name the way
+    out, which is an instrument (dispersion=None states f' = f'' = 0)."""
+    for el in ("Eu", "Ho"):
+        with pytest.raises(ValueError, match=r"No instrument was given.*instrument="):
+            from_structure(_cubic(el))
+        # positive arm: the named way out writes
+        text = from_structure(_cubic(el), instrument=_xray(1.5405929, dispersion=None))
+        assert _line12(text) == [[el.lower(), "0.0", "0.0", "2"]]
+    # an element without an edge there is unchanged
+    assert from_structure(_cubic("Fe"))
+
+
+def _xray_pcr(tmp_path, *, edit=None):
+    text = from_structure(_cubic("Fe"), instrument=_xray(1.85))
+    if edit is not None:
+        lines = text.splitlines()
+        i = next(k for k, line in enumerate(lines) if line.startswith("fe "))
+        lines[i] = edit
+        text = "\n".join(lines) + "\n"
+    path = tmp_path / "xray.pcr"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_the_reader_reads_a_files_own_dispersion_and_refuses_a_different_one(tmp_path):
+    """#568 round 2, item 2: a stated f'/f'' was checked for shape and dropped,
+    so the fit ran on Cromer-Liberman values whatever the file said (FullProf's
+    Fe at 1.85 \u00c5 is -2.095/0.566 against -2.548/0.521: 9.7 % in R)."""
+    from rietx.crystallography.dispersion import dispersion
+    # positive arm: a file the writer produced reads back, and the pair is kept
+    model = read_fullprof_pcr(_xray_pcr(tmp_path))
+    assert model.dispersion["Fe"] == pytest.approx(dispersion("Fe", 1.85))
+    to_structure(model)
+    # within the stated tolerance (a three-decimal rounding of rietx's pair)
+    f1, f2 = dispersion("Fe", 1.85)
+    read_fullprof_pcr(_xray_pcr(tmp_path, edit=f"fe {f1:.3f} {f2:.3f} 2"))
+    # FullProf's own pair for Fe at 1.85 \u00c5 differs by 0.45 e: refused, by name
+    with pytest.raises(FullProfPcrError, match=r"f' = -2\.095.*Fe.*Dispersion\.overrides"):
+        read_fullprof_pcr(_xray_pcr(tmp_path, edit="fe -2.095 0.566 2"))
+    # dispersion=None's zeros state f = f0, which a Structure cannot carry
+    zeros = from_structure(_cubic("Fe"), instrument=_xray(1.85, dispersion=None))
+    path = tmp_path / "zeros.pcr"
+    path.write_text(zeros, encoding="utf-8")
+    with pytest.raises(FullProfPcrError, match=r"f' = 0\.0"):
+        read_fullprof_pcr(path)
+
+
 def test_a_neutron_file_writes_a_digitless_ion_as_its_element():
     """Follow-up 7: Cu+ is refused for an X-ray reason (no CU+ form factor);
     rietx and FullProf both give it Cu's b."""

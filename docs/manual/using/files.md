@@ -874,6 +874,7 @@ do.
 | `FullProfModel.background` | the background the file declares |
 | `FullProfModel.excluded_regions`, `FullProfModel.fitted_range` | what the run fitted and what it left out |
 | `FullProfModel.user_scatterers` | a neutron file's LINE-12 user scattering lengths, each read as the isotope it is the Sears b of |
+| `FullProfModel.dispersion` | an X-ray file's LINE-12 f′/f″ per element as stated; a pair differing from rietx's Cromer-Liberman value at the file's wavelength is refused at read |
 | `FullProfModel.data_file`, `FullProfModel.pattern` | the pattern it points at |
 | `FullProfModel.cycles`, `FullProfModel.refined_parameter_count`, `FullProfModel.parameter_numbers` | how the run was driven, and which codeword numbered which parameter |
 | `FullProfModel.output` | the output options the file sets |

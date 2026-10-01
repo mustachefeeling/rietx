@@ -47,11 +47,14 @@ multi-pattern ``NPATT`` layout (a different grammar throughout, not merely a
 different control-line header), a polynomial or Fourier background, single-
 crystal/integrated-intensity jobs (``Cry``), restraint blocks, and every
 control-line flag whose non-zero meaning would add lines this reader has no
-file to establish the position of. The one such flag read is ``Nsc`` on a
-neutron file: its LINE-12 user scattering lengths are FullProf's only way to
+file to establish the position of. The one such flag read is ``Nsc``. On a
+neutron file its LINE-12 user scattering lengths are FullProf's only way to
 state an isotope (issue #558), so each is read as the isotope whose Sears b it
-states, and anything else LINE 12 can carry is refused. Each refusal names the file, the field and
-the value.
+states. On an X-ray file each line must be ``ITY = 2`` anomalous dispersion
+(f′, f″ on FullProf's own f₀), which is read into
+:attr:`FullProfModel.dispersion` and refused where it differs from rietx's
+Cromer-Liberman value at the file's wavelength; anything else LINE 12 can
+carry is refused. Each refusal names the file, the field and the value.
 
 The three design decisions, and why
 -----------------------------------
@@ -654,6 +657,11 @@ class FullProfModel:
     #: that is not an element plus a mass number whose Sears b it states is
     #: refused at read rather than kept as a b rietx has no species for.
     user_scatterers: dict = field(default_factory=dict)
+    #: An X-ray file's LINE-12 anomalous dispersion (``ITY = 2``), keyed by
+    #: element: ``{"Fe": (f′, f″)}`` in electrons, as the file states them.
+    #: Read so the file can be compared with rietx's own table
+    #: (:func:`_check_stated_dispersion`), which refuses a pair that differs.
+    dispersion: dict = field(default_factory=dict)
     #: The count the file declares. Compare with :attr:`parameter_numbers`
     #: rather than trusting either: they disagree in a real file (trap 4).
     refined_parameter_count: int | None = None
@@ -850,6 +858,64 @@ def fullprof_species(species: str, *, neutron: bool) -> tuple[str, float | None]
     return f"{element}{mass}", b
 
 
+#: A LINE-12 ``NAM`` on an X-ray file: the element, then an optional charge
+#: (``zr+4``, ``o-2``, ``fe``), in the lower case :func:`from_structure` writes.
+_DISPERSION_NAM = re.compile(r"([a-z]{1,2})(?:[+-]\d*)?")
+
+#: How far a stated f′ or f″ may sit from rietx's Cromer-Liberman value at the
+#: file's wavelength and still be read as the same model, in electrons. A file
+#: this module wrote carries ``repr`` of rietx's own number, and FullProf prints
+#: its tabulated pairs to three decimals; the pairs the two tables disagree on
+#: are the ones that matter (Fe at 1.85 Å: 0.45 e in f′, #568 review).
+_DISPERSION_ATOL_E = 0.01
+
+
+def _check_stated_dispersion(line: _Line, tokens: list, path: Path,
+                             model: FullProfModel) -> None:
+    """Record an X-ray file's ``NAM DFP DFPP 2`` line; refuse one rietx would not compute.
+
+    FullProf computes the structure factor with the f′/f″ the file states
+    here, and a :class:`~rietx.schemas.Structure` carries none: the fit rietx
+    builds from it takes Cromer-Liberman values at the instrument's
+    wavelength. So a stated pair is *read* — into :attr:`FullProfModel.dispersion`,
+    keyed by element, in electrons — and **refused** where it differs from
+    rietx's by more than :data:`_DISPERSION_ATOL_E` at the file's primary
+    wavelength (or where rietx has no value there, an absorption edge), because
+    reading past it would run the fit on numbers the file did not state. A file
+    :func:`from_structure` wrote with its instrument's own dispersion reads back
+    clean; one written with ``source.dispersion = None`` (f′ = f″ = 0) does not.
+    """
+    m = _DISPERSION_NAM.fullmatch(tokens[0].lower())
+    try:
+        fp, fpp = float(tokens[1]), float(tokens[2])
+    except ValueError:
+        m = None
+    if m is None:
+        raise FullProfPcrError(
+            f"{path}: line {line.number}: {line.text!r} is not "
+            f"'NAM DFP DFPP 2' with an element NAM and two numbers")
+    element = m.group(1).capitalize()
+    model.dispersion[element] = (fp, fpp)
+    lam = model.lambda1
+    from ...crystallography.dispersion import dispersion
+    try:
+        ours = dispersion(element, lam)
+        off = max(abs(fp - ours[0]), abs(fpp - ours[1]))
+        why = (f"rietx computes {ours[0]:.4g} / {ours[1]:.4g} at {lam} Å"
+               if off > _DISPERSION_ATOL_E else None)
+    except (KeyError, ValueError) as exc:
+        why = f"rietx has no value for it at {lam} Å ({exc})"
+    if why is not None:
+        raise FullProfPcrError(
+            f"{path}: line {line.number}: the file states f' = {fp!r}, "
+            f"f'' = {fpp!r} for {element}, and {why}. FullProf computes with "
+            f"the stated pair and a Structure carries no dispersion, so "
+            f"building one would run the fit on other numbers than the "
+            f"file's. Set the pair as `Dispersion.overrides[{element!r}]` on "
+            f"the instrument you refine with, and delete this line (or "
+            f"Nsc) to read the rest")
+
+
 def _read_user_scatterers(cur: _Cursor, path: Path, model: FullProfModel) -> None:
     """LINE 12: ``Nsc`` lines of ``NAM DFP DFPP ITY``, read on a neutron file.
 
@@ -886,6 +952,7 @@ def _read_user_scatterers(cur: _Cursor, path: Path, model: FullProfModel) -> Non
                     f"'NAM DFP DFPP 2' (ITY = 2, Df'/Df'' with FullProf's "
                     f"tabulated form factor); {line.text!r} is not one. ITY = 0 "
                     f"is a user form factor, a different f0 from rietx's table")
+            _check_stated_dispersion(line, tokens, path, model)
         return
     from ...crystallography.neutron import b_coh
     for i in range(nsc):
@@ -3230,12 +3297,20 @@ def from_structure(structure: Structure, *,
     * **the species in FullProf's spelling**, which depends on the radiation
       (:func:`fullprof_species`): ``ZR+4``/``O-2`` for X-rays, the bare element
       for neutrons, and an isotope as a LINE-12 user scattering length on a
-      neutron file (refused on an X-ray one, which has no slot for it).
+      neutron file (refused on an X-ray one, which has no slot for it). A
+      call with no ``instrument`` always writes an X-ray file, so a deuterated
+      structure (``D``, ``7Li``) needs a neutron ``instrument``, or its sites
+      respelled as the element, before it can be exported.
     * **the anomalous dispersion** on an X-ray file, as one LINE-12
       ``nam f′ f″ 2`` per ``Typ`` (:func:`_anomalous`): rietx's own
       Cromer-Liberman values at the primary line, or 0 under
       ``dispersion=None``. Without them FullProf applies its own table
-      (measured), which is not rietx's away from Cu Kα.
+      (measured), which is not rietx's away from Cu Kα. With no
+      ``instrument`` they are resolved at the placeholder Cu Kα lines, so an
+      element with an edge there (Eu, Ho) is refused, naming ``instrument=``.
+      :func:`read_fullprof_pcr` reads these lines back and accepts a pair
+      within ``_DISPERSION_ATOL_E`` of rietx's own, so the first two forms
+      round-trip; ``dispersion=None``'s zeros are refused at read.
 
     What still does not travel, at its identity: the zero shift, sample
     displacement and transparency, the capillary offsets, absorption (no
@@ -3485,8 +3560,19 @@ def from_structure(structure: Structure, *,
             if user_b is not None:
                 user_scatterers[typ] = (round(user_b / 10.0, 8), 0.0, 0)
             elif not neutron and typ.lower() not in user_scatterers:
-                user_scatterers[typ.lower()] = _anomalous(
-                    phase, atom, typ, dispersion, wavelengths)
+                try:
+                    user_scatterers[typ.lower()] = _anomalous(
+                        phase, atom, typ, dispersion, wavelengths)
+                except ValueError as exc:
+                    if instrument is not None:
+                        raise
+                    raise ValueError(
+                        f"{exc}. No instrument was given, so the file's "
+                        f"dispersion was resolved at the placeholder Cu "
+                        f"K\u03b1 lines, which the caller never chose; pass "
+                        f"`instrument=` with the real source (or one with "
+                        f"`source.dispersion = None` to state f\u2032 = "
+                        f"f\u2033 = 0)") from None
         body.append(phase.name)
         phase_control = dict(nat=len(phase.atoms), dis=0, ang_or_mom=0,
                              pr1=0.0, pr2=0.0, pr3=1.0, jbt=0, irf=0, isy=0,
