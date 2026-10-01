@@ -1,6 +1,6 @@
 # WP-1527 — foreign files spell a species as the other program does
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-01 — #569, #570 and #572 landed; #568 (`.pcr`) is held on review, and the fallback-ion decision is open
 Track: Coming from another code
 Depends on: — (WP-1118 closed 2026-09-16; its writers and readers are what this corrects)
 Priority: P2 2026-09-30 — a silent wrong structure in another program's refinement (GSAS-II turns `7Li` into H), on a path few fits run; the fix PRs are open
@@ -87,6 +87,34 @@ the spelling the issue's "fix direction" names.
 - Issues #553, #554, #555, #557, #558; PRs #568-#570, #572; PR #556 (#552).
 
 ## Handover log
+
+- **2026-10-01** — Three of the four species fixes are on `main`. A GSAS-II
+  phase CIF now spells each species the way GSAS-II's importer reads it, or
+  refuses it by name. A `.gpx` keeps the isotope its phase chose. A GSAS `.EXP`
+  reads and writes the manual's `aasv_nnn` type. The FullProf half, #568, is
+  held on review. *Done:* PR #569 (`6afa5fdb`, merged as `ecd5e96d`, closes
+  #553), PR #570 (`cb1f0ca1`, `d8350249`, closes #554) and PR #572
+  (`81e15696`, `cec8a8f2`, closes #555). Task 2 is met for these three: the
+  tests pin the written spelling to the reporter's measured GSAS-II table
+  (#569) and to the manual's grammar (#572), not to rietx's own reader. Task 3
+  is settled by #556: an isotope species takes its element's f₀ on an X-ray
+  histogram, so #570's `2H` and `58Ni2+` compile for both radiations. Task 4:
+  no new diagnostic code; #570 and #572 extend the messages of
+  `GSAS2_GPX_SPECIES_NORMALISED` and `GSAS_EXP_SPECIES_NORMALISED`, and the
+  three skill copies agree. *Held:* #568 (review of 2026-10-01, three items).
+  Its new radiation and width values pass no non-finite guard, a first-line
+  weight of 0 raises a bare `ZeroDivisionError`, and a negative ratio
+  desynchronises the file. A partly occupied site is written fully occupied
+  (older than the PR). The "does not travel" list omits zero shift,
+  displacement, absorption and anomalous dispersion. *Open, one decision for
+  all four writers:* a species rietx computes as neutral by fallback (`Y3+`,
+  per `scattering.detect_fallback`) is written as the ion by the GSAS-II, GSAS
+  and FullProf writers, so the other program refines a different atom. That
+  is the `Cu+` refusal's reason without its refusal. *Gotchas:* #572's writer
+  half is still from the manual only, with no EXPEDT run. It now refuses the
+  valence-labelled `Cval` and `Siva`, with a message calling them "not an
+  element, an ion or an isotope". *Next:* #568's second round, then the
+  `Y3+` decision.
 
 - **2026-09-30** — created, from the 2026-09-30 issue triage (issues #553, #554,
   #555, #557, #558). Checked against the tree at `e3e6486a`: `write_fullprof_pcr`

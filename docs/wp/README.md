@@ -13,23 +13,24 @@ names hard dependencies, and *soft* marks a preferred order.
 
 | WP | Title | Since | Priority | Section |
 |---|---|---|---|---|
-| [1132](1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | 2026-09-29 | P2 | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
+| [1132](1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | 2026-10-01 | P2 | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
 | [1326](1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | 2026-09-26 | P2 | [v1.6](#v1-6) |
 | [1327](1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 2026-09-26 | P2 | [v1.6](#v1-6) |
-| [1328](1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | 2026-09-30 | P3 | [v1.6](#v1-6) |
-| [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 2026-09-29 | P3 | [v1.6](#v1-6) |
+| [1328](1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | 2026-10-01 | P3 | [v1.6](#v1-6) |
+| [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 2026-10-01 | P3 | [v1.6](#v1-6) |
 | [1336](1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | 2026-10-01 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1337](1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | 2026-09-30 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 2026-09-30 | P3 | [v1.6](#v1-6) |
-| [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | 2026-09-29 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-09-30 | P2 | [v1.6](#v1-6) |
+| [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | 2026-10-01 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-10-01 | P2 | [v1.6](#v1-6) |
 | [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 2026-09-24 | P1 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1451](1451-the-extinction-a-powder-has.md) | The extinction a powder has | 2026-09-30 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-09-28 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | 2026-10-01 | P4 | [v1.7](#v1-7) |
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | 2026-09-30 | P2 | [v1.8](#v1-8) |
+| [1527](1527-foreign-files-spell-a-species-as-the-program-does.md) | Foreign files spell a species as the other program does | 2026-10-01 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
+| [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | 2026-10-01 | P2 | [v1.8](#v1-8) |
 | [1802](1802-the-fragment-type.md) | The fragment: a body template with a frame and declared bonds | 2026-09-30 | P3 | [v1.8](#v1-8) |
 
 ## Next, by priority
@@ -48,7 +49,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1514](1514-scoping-rigid-bodies.md) | Scoping rigid bodies: the milestone that makes the parameter map nonlinear | P2 | — ([1319](1319-structure-interchange.md), [1515](1515-scoping-structure-solution.md), [1516](1516-scoping-stacking-faults.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1523](1523-a-phase-fitted-to-noise-passes-the-support-test.md) | A phase fitted to noise passes the support test | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1527](1527-foreign-files-spell-a-species-as-the-program-does.md) | Foreign files spell a species as the other program does | P2 | — | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | P2 | [1801](1801-rotation-mathematics.md) | [v1.8](#v1-8) |
 | [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | P2 | — | [v1.9](#v1-9) |
 
@@ -363,10 +363,10 @@ Not started and rated P1 or P2. The rest are in the tables below.
 |---|---|---|---|---|
 | [1326](1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | 🔄 2026-09-26 | P2 | — |
 | [1327](1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 🔄 2026-09-26 | P2 | [1326](1326-satellites-without-a-moment.md) |
-| [1328](1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | 🔄 2026-09-30 | P3 | [1327](1327-magnetic-structure.md) ([1118](1118-foreign-model-files.md) soft) |
-| [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 🔄 2026-09-29 | P3 | [1327](1327-magnetic-structure.md) ([1326](1326-satellites-without-a-moment.md) soft) |
+| [1328](1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | 🔄 2026-10-01 | P3 | [1327](1327-magnetic-structure.md) ([1118](1118-foreign-model-files.md) soft) |
+| [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 🔄 2026-10-01 | P3 | [1327](1327-magnetic-structure.md) ([1326](1326-satellites-without-a-moment.md) soft) |
 | [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 🔄 2026-09-30 | P3 | [1327](1327-magnetic-structure.md) ([1326](1326-satellites-without-a-moment.md) soft) |
-| [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 🔄 2026-09-30 | P2 | #290, [1326](1326-satellites-without-a-moment.md), [1327](1327-magnetic-structure.md) |
+| [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 🔄 2026-10-01 | P2 | #290, [1326](1326-satellites-without-a-moment.md), [1327](1327-magnetic-structure.md) |
 | [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | ⬜ | P3 | [1418](1418-the-magnetic-structure-is-determined.md) ([1327](1327-magnetic-structure.md) soft) |
 
 ## <a id="v1-7"></a>v1.7 — rietview: the structure figure an agent composes
@@ -384,7 +384,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | 🔄 2026-09-30 | P2 | — |
+| [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | 🔄 2026-10-01 | P2 | — |
 | [1802](1802-the-fragment-type.md) | The fragment: a body template with a frame and declared bonds | 🔄 2026-09-30 | P3 | — ([1801](1801-rotation-mathematics.md) soft) |
 | [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | ⬜ | P2 | [1801](1801-rotation-mathematics.md) |
 
@@ -406,7 +406,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1319](1319-structure-interchange.md) | Structure interchange: checkCIF conformance, and a bare XYZ importer | ⬜ | P3 | — |
 | [1433](1433-the-inp-grammar-still-refused.md) | The `.inp` grammar the reader still refuses: `STR(...)` and `#if` | ⬜ | P3 | — |
 | [1455](1455-a-topas-tchz-profile-reads-in.md) | A TOPAS TCHZ profile reads in | ⬜ | P3 | — ([1433](1433-the-inp-grammar-still-refused.md) soft) |
-| [1527](1527-foreign-files-spell-a-species-as-the-program-does.md) | Foreign files spell a species as the other program does | ⬜ | P2 | — |
+| [1527](1527-foreign-files-spell-a-species-as-the-program-does.md) | Foreign files spell a species as the other program does | 🔄 2026-10-01 | P2 | — |
 
 ### <a id="unscheduled-the-fit-has-no-reference"></a>The fit has no reference
 
@@ -419,7 +419,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1131](1131-sample-broadening-is-a-specimen-property.md) | Sample broadening is a specimen property, not an angular coefficient | ✅ 2026-09-02 | — | — |
-| [1132](1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | 🔄 2026-09-29 | P2 | — |
+| [1132](1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | 🔄 2026-10-01 | P2 | — |
 | [1133](1133-diagnostic-names-its-view.md) | A diagnostic names the view that shows it | ⬜ | P3 | — |
 | [1312](1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | ⬜ | P2 | — |
 
@@ -435,7 +435,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1336](1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | 🔄 2026-10-01 | P2 | — ([1310](1310-report-repeats-itself.md) soft) |
 | [1337](1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | 🔄 2026-09-30 | P3 | — ([1311](1311-walking-parameter-bounds.md), [1321](1321-persisted-bounds-repair.md) soft) |
 | [1342](1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ✅ 2026-09-19 | — | — |
-| [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | 🔄 2026-09-29 | P3 | — |
+| [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | 🔄 2026-10-01 | P3 | — |
 | [1414](1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ✅ 2026-09-22 | — | — ([1341](1341-a-joint-fit-has-no-report.md) soft) |
 | [1415](1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | ✅ 2026-09-24 | — | — |
 | [1417](1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ✅ 2026-09-27 | — | — ([1339](1339-where-the-improvement-lives.md) soft) |

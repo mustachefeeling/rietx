@@ -1,6 +1,6 @@
 # WP-1328 — magnetic interchange: magCIF in and out, and the readers stop refusing
 
-Milestone: v1.6 · Status: 🔄 2026-09-30 — every task landed (PR #544 the last); the `### Inherited` items remain to prune before it closes
+Milestone: v1.6 · Status: 🔄 2026-10-01 — every task landed (PR #544 the last), and #567's writer refusal (PR #571); the `### Inherited` items remain to prune before it closes
 Depends on: 1327 (the model the files describe); 1118 soft (the coverage
 registry the foreign readers report through)
 Priority: P3 2026-09-23 — waits on 1327's model; P2 when it lands
@@ -278,6 +278,26 @@ is still named in the result.
   [1319](1319-structure-interchange.md) the CIF writer's guard.
 
 ## Handover log
+
+### 2026-10-01 — #567's writer refusal landed from outside
+
+The FullProf, GSAS and GSAS-II writers now refuse a phase that carries a
+propagation vector, naming it, instead of writing a file that reads back as
+k = 0. Every writer's refusal, TOPAS's included, now points at the
+`Structure`'s JSON, the one export that keeps k.
+
+- *Done:* PR #571 (`5bc4c725`), merged as `b9d87369` by `/pr-review`, closing
+  #567, which is the `### Inherited` entry "`Phase.propagation_vector` is
+  refused by the TOPAS writer only". `symmetry.refuse_propagation_vector` sits
+  beside `refuse_magnetic_phase`, and each writer calls it per phase before
+  writing.
+- *Measured* by the contributor: FullProf 8.20 gives a nuclear phase with
+  `Nvk = 1` satellites at a nuclear |F|², which is why the `.pcr`'s k is a
+  different model from rietx's.
+- *Still open* from that entry, unchanged and design choices:
+  `fullprof.to_structure` drops a nuclear phase's `Nvk` k, and
+  `Structure.to_cif` writes no k.
+- *Next:* prune `### Inherited`, then close.
 
 ### 2026-09-30 — the TOPAS moment writer and the `.pcr` stance landed from outside
 
