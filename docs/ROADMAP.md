@@ -529,25 +529,23 @@ scope creep. Each item names what fenced it.
 
 - **Physics.** Fundamental Parameters as a differentiable convolution stack
   (Cheary-Coelho 1992) — **with** the peaks buffer, never before
-  ([1122](wp/1122-compiled-peaks-buffer.md) measured shape reuse below
-  break-even without one); neutron **TOF** (CW landed in 1134; issue #193; the
-  energy-dependent resonant absorption at S(Q), #113) — **built through
-  rather than deferred**: the fork's branch is visible (`tof-cleanroom-20260923`),
-  and **decided 2026-09-24: held until v1.6 closes**, then taken on that branch
-  in its own cuts (T-1, T-2/T-3, T-5), with #442 (a bank's force-fixed CW width
-  rows under 1414's "matched, not freed") going with T-1, and #618 (whether
-  instrument parameters may be taken from Mantid's GPL-3.0 instrument files;
-  answered 2026-10-02 on the thread: values with provenance, never the files) — and issue #362 lists the constant-wavelength reads
-  (`CompiledModel.tt`, `line_wavelengths`, `sigma_measured`; `viz/snapshot.py`
-  and 23 more sites) a second compiled-model class meets, so the accessor seam
-  it proposes waits for that class rather than preceding it; spherical-harmonics
-  texture (Von Dreele 1997; #131);
-  difference Fourier / maximum-entropy maps (McCusker §6; the partition input
-  exists in `lebail_update`, the consumer is structure completion; #197);
-  internal-standard and amorphous QPA; **modulated structures** (superspace —
-  1314 reads Jana's files without them; issue #258 holds the shared design
-  for the nuclear and magnetic cases). **Magnetic structures left this fence
-  2026-09-02** for § Unscheduled's track (1326–1329); the incommensurate
+  ([1122](wp/1122-compiled-peaks-buffer.md) measured shape reuse below break-even
+  without one); neutron **TOF** (CW landed in 1134; issue #193; the energy-dependent
+  resonant absorption at S(Q), #113) — **built through rather than deferred**: the
+  fork's branch is visible (`tof-cleanroom-20260923`), and **decided 2026-09-24:
+  held until v1.6 closes**, then taken on that branch in its own cuts (T-1, T-2/T-3,
+  T-5), with #442 (a bank's force-fixed CW width rows under 1414's "matched, not
+  freed") going with T-1, and #618 (Mantid's instrument values: with provenance,
+  never the files) — and issue #362 lists the constant-wavelength reads
+  (`CompiledModel.tt`, `line_wavelengths`, `sigma_measured`; `viz/snapshot.py` and
+  23 more sites) a second compiled-model class meets, so the accessor seam it
+  proposes waits for that class rather than preceding it; spherical-harmonics
+  texture (Von Dreele 1997; #131); difference Fourier / maximum-entropy maps
+  (McCusker §6; the partition input exists in `lebail_update`, the consumer is
+  structure completion; #197); internal-standard and amorphous QPA; **modulated
+  structures** (superspace — 1314 reads Jana's files without them; issue #258 holds
+  the shared design for the nuclear and magnetic cases). **Magnetic structures left
+  this fence 2026-09-02** for § Unscheduled's track (1326–1329); the incommensurate
   case, polarised neutrons and magnetic X-rays stay fenced (1327's non-goals).
   **Rigid bodies (#195), direct-space solution and stacking faults left it
   2026-09-28** for scoping in § Unscheduled (1514–1516; DESIGN.md has why).
@@ -564,17 +562,12 @@ scope creep. Each item names what fenced it.
   every scoreboard summary says "high-symmetry" out loud — and the
   SDPDRR-2/CONOGRAPH profile acquisitions; Boultif-Louër volume tightening
   (design in 1042 § Deferred).
-- **Estimation.** Posterior sampling after a converged fit (Fancher et al.
-  2016, *Sci. Rep.* 6, 31625; issue #355, whose thread carries a six-rung
-  decomposition B-1…B-6 measured at `6f4aa6b1`, gradient ≈ one forward
-  evaluation under jax). The gate is B-3's table — the posterior interval
-  against the Bérar-Lelann esd on the two vendored standards, both residual
-  models. **Stopped there, decided 2026-10-02**: the reporter's B-1…B-3
-  prototype (2026-10-01, on the thread) put the Gaussian posterior within
-  0.84–1.05 of the *uninflated* esd on both standards, so B-4…B-6 are not
-  built. It reopens on a converged fit whose Gaussian 68 % interval falls
-  outside 0.8–1.25 of the uninflated esd, or whose posterior is truncated at
-  a physical bound.
+- **Estimation.** Posterior sampling after a converged fit (Fancher et al. 2016,
+  *Sci. Rep.* 6, 31625; issue #355, B-1…B-6 on its thread, gradient ≈ one
+  forward evaluation under jax). **Stopped after B-3, decided 2026-10-02**: the
+  Gaussian posterior sat within 0.84–1.05 of the uninflated esd on both vendored
+  standards. It reopens on a fit where that ratio leaves 0.8–1.25, or on a
+  posterior truncated at a physical bound.
 - **Navigation.** From the QPA of a mixed-phase sample to the composition to
   make next (PICIP, Ritchie et al. 2025, *J. Chem. Inf. Model.* 65, 13226;
   issue #349, filed as v2+ by its author): a `rietx.navigate` subpackage on
