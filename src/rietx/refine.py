@@ -3628,7 +3628,6 @@ class Refinement:
         has at pass *k* is a state, so the best pass is *restored* rather than
         merely reported.
         """
-        one = dataclasses.replace(plan, lebail_passes=1)
         best = None            # (rwp, result, state, head, pass number, fit view)
         rows: list[float] = []
         reason = "cap"
@@ -3651,7 +3650,10 @@ class Refinement:
         cancel = runs.attach_cancel(runs.recorder_of(stream), cancel)
         try:
             for _ in range(plan.lebail_passes):
-                result = self._fit_pass(data, mode="lebail", plan=one,
+                # the whole plan, cap and all: ``_fit_pass`` never reads
+                # ``lebail_passes``, and what it records (``_last_plan``, the
+                # history header) should say the cap that was asked for
+                result = self._fit_pass(data, mode="lebail", plan=plan,
                                         events=stream, cancel=cancel,
                                         telemetry=False, **kw)
                 rwp = float(result.statistics.rwp)

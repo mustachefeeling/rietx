@@ -180,3 +180,11 @@ def test_a_cancel_in_a_later_pass_leaves_the_best_pass_standing(pattern):
                 telemetry=False, events=on_event, cancel=token)
     assert ref.result_ is not None
     assert ref.result_.statistics.rwp == pytest.approx(0.16821, abs=2e-5)
+
+
+def test_the_refinement_records_the_cap_it_was_asked_for(pattern):
+    ref = _refinement(1.0)
+    result = ref.fit(pattern, mode="lebail", plan=_plan(3),
+                     two_theta_limits=LIMITS, telemetry=False)
+    assert ref._last_plan.lebail_passes == 3
+    assert result is ref.result_

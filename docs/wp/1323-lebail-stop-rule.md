@@ -169,10 +169,11 @@ cannot see a wrong cell or a low background), and both are still true.*
       attaches the recorder once and the passes share its stream, so one run
       directory per job. (c) A cancel or exception in pass k > 1 restores the
       best pass before re-raising (`_keep_pass`); the exception still raises.
+- [x] (d) done: the passes get the whole plan (`_fit_pass` never reads the
+      cap), so `_last_plan` and the history header carry it.
 - [ ] **From the 2026-10-02 review, open.** (b) `.rxt` render/parse
       (`gui/textdoc.py`) and the GUI plan panel know nothing of
-      `lebail_passes`, so a GUI edit resets it to 1. (d) `_last_plan` and the
-      history header record the one-pass copy, so `summary()` hides the cap.
+      `lebail_passes`, so a GUI edit resets it to 1.
 - [ ] **Open questions from the 2026-10-02 prose review of `judging.md`**, each
       needing a domain check before the text is touched, and none caused by
       this WP. (1) The same four-phase 25-50° fixture gives Fe Biso −165 Å² at
