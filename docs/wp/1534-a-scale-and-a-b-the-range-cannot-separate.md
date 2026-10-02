@@ -151,11 +151,12 @@ still do, which the maintainer weighs:
 One fixture and one shape, so this is evidence for the decision rather than
 the decision itself.
 
-**Not this WP, noted (hypothesis).** The covariance's cut zeroes the variance
-of *any* exactly degenerate combination of live columns. One example is a
-one-site phase's occupancy against its scale, on any range. `_cov_free`
-catches only a column with no gradient. Widening it changes every fit's esds,
-so that belongs to its own WP.
+**Not this WP, filed as
+[WP-1535](1535-a-discarded-direction-reads-as-measured.md).** The
+covariance's cut zeroes the variance of *any* exactly degenerate combination
+of live columns. One hypothesised example is a one-site phase's occupancy
+against its scale, on any range. `_cov_free` catches only a column with no
+gradient.
 
 **What a fix may not do.** A threshold is quoted from a source or measured
 here, never set by eye (root CLAUDE.md, WP-1448). An Rwp comparison is not

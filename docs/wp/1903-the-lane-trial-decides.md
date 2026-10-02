@@ -69,6 +69,30 @@ shows up there.
 - `baseline` re-reads whatever transcripts the machine holds, so its numbers
   drift from the record's. Quote the run's date with them.
 
+### Inherited
+
+- **From WP-1534 (2026-10-02), the second trial row.** One lane, `act-on-it`,
+  was dispatched at 242K: an estimated 45 requests that took 143. It saved
+  $5.17, 24% of the session. The main session needed 11 requests to check it,
+  and it re-read 0K. Review found nothing to fix and nothing was redone. The
+  lane deviated from its prompt three times, each a sound call reported in
+  its hand-back. It hit the 45-request estimate a third of the way through.
+  Two script defects surfaced, and that session's branch fixed both in
+  `session_usage.py`. **(1)** A session that starts in the main checkout and
+  then enters a worktree files its subagent transcripts under the
+  *worktree's* project directory. `measure_lanes` looked only beside the main
+  transcript and reported "no lane dispatches found". **(2)** `baseline`
+  divided by zero for a peak-context band holding no sessions. That is
+  routine in a cloud container, which holds one session's transcripts.
+  The same cloud fact also makes the session's `baseline` replay a replay
+  over **one** session, not 174. Its selective row, "0 items laned, +0%", is
+  therefore not comparable to the record's, and re-running the replay for
+  this WP has to happen on the maintainer's machine. Two of its seven decision
+  lines, `lanes: keep measure-first ~8` and `lanes: keep guidelines ~1`, did
+  not appear in the kept-item table. Both opened a text block that went on
+  with prose, which `DECISION`'s multiline `^` should accept, so the cause is
+  unchecked.
+
 ## Non-goals
 
 - Lanes for reading. `/wp-start` step 6b already delegates reads above ~50 KB.

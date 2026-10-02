@@ -1165,6 +1165,7 @@ work holds up. `/wp-lanes` runs the selective policy in a real WP session, and
 | date | session | lanes | kept | re-read (*u*) | main requests per lane | left in main | actual / estimated requests | lanes fixed / redone | saved | of the session |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-10-01 | ec2ca17f | 2 | 4 | 5K | 6 | 11K | 1.22 | 0 / 0 | +2.77 | +21% |
+| 2026-10-02 | c77ba4ec | 1 | 5 | 0K | 11 | 39K | 0.62 | 0 / 0 | +5.17 | +24% |
 
 Whether `/wp-start` step 6b takes the rule waits for a few rows. Until then
 the policy lives only in `/wp-lanes`.

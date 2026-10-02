@@ -124,6 +124,13 @@ down.
 
 ### Inherited
 
+- **2026-10-02, from WP-1534: a fifth trip of the ramp guard.**
+  `test_the_ramp_reproduction_no_longer_runs_away` measured 81.6 s on
+  WP-1534's branch and 81.9 s on its untouched base, against the 60 s guard.
+  Both ran under `-n auto` in a 15-file selection, `[dev]`, Linux x86-64,
+  4 cores. Alone it took 16.6 and 17.2 s. The chain ran the same 1609
+  iterations with WP-1534's new scale–B probe on and off, so the probe adds
+  nothing to this fixture.
 - **2026-09-30, from the issue triage (issue #539, which is this note's
   fourth trip): the ramp guard fails on every loaded 4-core run.**
   `RAMP_RUNAWAY_GUARD_S` is still 60 s at `tests/test_held_phase.py:685`
