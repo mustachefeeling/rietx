@@ -181,4 +181,9 @@ picture, so the GUI needs the same depth passes. Nothing is built.
 - **Filed** because no open WP owns a lighting change. 1470 D9 declined it,
   and the maintainer's request reverses that.
 - **Measured**: the table above, from `docs/wp/1538-measure/ao_probe.py`.
+- **Reviewed** (`/code-review high --fix`): D5 rewritten. The view search
+  shades nothing and never reads the maps. Everything that rebuilds the
+  scene rebuilds them. The cell frame's width in Å follows the framing,
+  which is a decision to make before it casts. The headline now quotes the
+  no-cutoff row.
 - **Next**: ask for Tarini et al. (2006), then the numpy path.

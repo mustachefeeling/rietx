@@ -210,5 +210,9 @@ the GUI a menu for them. Nothing is built.
 - **Checked**: `povray` 3.7.0.10 and `blender` 5.2.2 install from Homebrew,
   `gltf-validator` is on npm, `rsvg-convert` and Inkscape are installed
   here. None is installed for the tests.
+- **Reviewed** (`/code-review high --fix`): POV-Ray's `matrix` and glTF's
+  `node.matrix` both take M's columns, so writing `shape` row by row draws
+  Mᵀ. A line's radius needs `px_scale`. `gui_frame` is zoom 1 with no pan,
+  so the route applies the `View`. All three are now in Context.
 - **Next**: the `.pov` writer and its handedness test, which is the trap
   most likely to pass unnoticed.

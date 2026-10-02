@@ -180,4 +180,8 @@ painter's-algorithm fault 1470 found. Nothing is built.
   1504 measures the existing surface, 1505 moves code without adding to it).
 - **Read**: `render.py`, `raster.py`'s docstring and `draw`, `scene.py`'s
   `LOOK` and `build_scene` output, 1462 § D1, 1470 § D6, D9 and Non-goals.
+- **Reviewed** (`/code-review high --fix`): two stale line citations fixed.
+  One point left as written: D5 keys a face's class by formula (`face CaO6`),
+  so polyhedra round two Ca sites share a class. That selects every CaO6 at
+  once, which may be what a person editing wants. Decide when D5 is built.
 - **Next**: the first task. Read ASE's writer before building D2.
