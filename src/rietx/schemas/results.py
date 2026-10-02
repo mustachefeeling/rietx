@@ -833,7 +833,9 @@ class StageResult(Base):
     held_reach: dict[str, list[str]] = Field(default_factory=dict)
     #: per phase whose displacement parameters this stage **held** because the
     #: fitted range cannot separate them from the phase's scale (WP-1534), the
-    #: separation measured at stage start: the sine of the angle between the
+    #: separation measured at stage start (or, for a phase the support hold
+    #: released inside the stage, before its second solve): the sine of the
+    #: angle between the
     #: phase's scale column and its uniform-B column
     #: (``refine._scale_b_separation``), under
     #: ``refine.SCALE_B_SEPARATION_FLOOR``.  Keyed by phase index.  The held

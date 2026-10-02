@@ -295,6 +295,22 @@ def test_a_held_scale_leaves_b_to_measure_the_intensity(pattern):
     assert _findings(res) == []
 
 
+def test_a_phase_released_inside_the_stage_is_asked_before_its_second_solve(
+        pattern):
+    """Fe starts under the noise, so the support hold takes its B before the
+    probe can see it; the solve raises its scale and the release frees B.  The
+    probe is asked then, or the second solve runs on the ridge unflagged."""
+    ref = rx.Refinement(*_models(START_SCALES[:FE] + [1e-9]))
+    _, res = _fit(pattern, [Stage("b", BIG + BISO)], ref=ref)
+    (sr,) = res.stages
+    assert FE_B in sr.held and FE_B not in sr.released + sr.freed
+    assert list(sr.scale_b_held) == [FE]
+    assert sr.scale_b_held[FE] < SCALE_B_SEPARATION_FLOOR
+    (finding,) = _findings(res)
+    assert finding.where == [FE_B]
+    assert _findings(res, "PHASE_UNCONSTRAINED") == []
+
+
 def test_a_variable_driving_b_is_held_as_its_column(pattern):
     """Columns, never names (WP-1342): the free name is the variable's."""
     ref = rx.Refinement(*_models(START_SCALES))

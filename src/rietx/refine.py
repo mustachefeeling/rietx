@@ -587,12 +587,24 @@ def _scale_b_separation(model: CompiledModel, table: ParameterTable
     (:func:`_own_scale_is_free`), and a nonzero component.  Every other phase
     is absent from the answer, never 1.0 or 0.0.
     """
+    return _scale_b_probe(model, table)[0]
+
+
+def _scale_b_probe(model: CompiledModel, table: ParameterTable,
+                   phases: set[int] | None = None
+                   ) -> tuple[dict[int, float], dict[str, list[str]],
+                              dict[int, list[str]]]:
+    """:func:`_scale_b_separation`, with the column reach and the
+    displacement columns it read, so a caller holding on the answer does not
+    read **C** again; ``phases`` limits the question to those phases."""
     if model.mode != "rietveld":
-        return {}
+        return {}, {}, {}
     reach = table.column_reach()
     columns = _displacement_columns(table, reach)
+    if phases is not None:
+        columns = {ip: c for ip, c in columns.items() if ip in phases}
     if not columns:
-        return {}
+        return {}, reach, columns
     values = table.decode(table.x0())
     sigma = np.asarray(model.sigma, dtype=np.float64)
     out: dict[int, float] = {}
@@ -612,10 +624,11 @@ def _scale_b_separation(model: CompiledModel, table: ParameterTable
             continue
         out[ip] = float(np.linalg.norm(b - (float(a @ b) / aa) * a)
                         / math.sqrt(bb))
-    return out
+    return out, reach, columns
 
 
-def _hold_scale_b_ridges(model: CompiledModel, table: ParameterTable
+def _hold_scale_b_ridges(model: CompiledModel, table: ParameterTable,
+                         phases: set[int] | None = None
                          ) -> tuple[list[str], dict[str, list[str]],
                                     dict[int, float]]:
     """Hold every phase's displacement columns where :func:`_scale_b_separation`
@@ -626,18 +639,17 @@ def _hold_scale_b_ridges(model: CompiledModel, table: ParameterTable
     held for — the record ``StageResult.scale_b_held`` carries.  The phase's
     scale is never held: it is the half of the pair the data does measure,
     the phase's one intensity, and holding B leaves it measuring exactly that.
+    ``phases`` limits the test to those phases (a release inside the stage).
     """
-    separation = _scale_b_separation(model, table)
+    separation, reach, columns = _scale_b_probe(model, table, phases)
     ridged = {ip: r for ip, r in separation.items()
               if r < SCALE_B_SEPARATION_FLOOR}
     if not ridged:
         return [], {}, {}
-    columns = _displacement_columns(table, table.column_reach())
     held = [c for ip in sorted(ridged) for c in columns.get(ip, [])]
-    reach = _reach_beyond_self(table, held)
-    if held:
-        table.set_vary(held, False)
-    return held, reach, ridged
+    held_reach = _reach_beyond_self(table, held, reach)
+    table.set_vary(held, False)
+    return held, held_reach, ridged
 
 
 #: A moment direction whose calculated-pattern response is this far below the
@@ -1050,8 +1062,9 @@ def _only_moves(reached: list[str], prefixes: tuple[str, ...]) -> bool:
         p.startswith(prefixes) and not p.endswith(".scale") for p in moved)
 
 
-def _reach_beyond_self(table: ParameterTable,
-                       columns: list[str]) -> dict[str, list[str]]:
+def _reach_beyond_self(table: ParameterTable, columns: list[str],
+                       reach: dict[str, list[str]] | None = None
+                       ) -> dict[str, list[str]]:
     """Per column, the entries it moves other than itself (WP-1342).
 
     The record half of a hold, and it must be read **before** ``set_vary``
@@ -1064,7 +1077,8 @@ def _reach_beyond_self(table: ParameterTable,
     """
     if not columns:
         return {}
-    reach = table.column_reach()
+    # a caller that has just read C for the same table hands it in
+    reach = table.column_reach() if reach is None else reach
     out = {}
     for c in columns:
         other = [p for p in reach.get(c, [c]) if p != c]
@@ -3240,9 +3254,10 @@ class Refinement:
         # last, on what the other two left free: an invisible phase's B is
         # already the phase hold's.  Kept apart for the moment hold's reason,
         # and more strictly: the ridge rests on the frozen reflection list, so
-        # it is decided once per stage and never asked again at the answer —
-        # a phase that rises above the noise still has one d-spacing, and
-        # ``_released_phases`` would release it for being visible.
+        # it is never asked again at the answer — a phase that rises above the
+        # noise still has one d-spacing, and ``_released_phases`` would release
+        # it for being visible.  The one later question is the converse: a
+        # phase the support hold released below, whose B was never probed.
         ridge_hold, ridge_reach, scale_b_held = _hold_scale_b_ridges(model, table)
         held = held + moment_hold + ridge_hold
         held_reach.update(ridge_reach)
@@ -3328,9 +3343,10 @@ class Refinement:
         # phase hold takes an invisible phase's moment DOFs too, and read by
         # name those went to the direction probe, which skips ``dof0`` and so
         # released the modulus of a phase the data still could not see.
-        moment_held = [p for p in held if p in set(moment_hold)]
+        moment_set, ridge_set = set(moment_hold), set(ridge_hold)
+        moment_held = [p for p in held if p in moment_set]
         phase_held = [p for p in held
-                      if p not in set(moment_hold) and p not in set(ridge_hold)]
+                      if p not in moment_set and p not in ridge_set]
         # the hold's reach travels with it: a held ``vars.X`` names no phase,
         # and asking the table now would get nothing back (WP-1342)
         released = (_released_phases(model, table, phase_held, support, held_reach)
@@ -3399,6 +3415,23 @@ class Refinement:
                 released_set = set(released)
                 table.set_vary(released, True)
                 held = [p for p in held if p not in released_set]
+                # A phase held unseen at stage start was never asked the
+                # scale-B question — its displacement columns were not free —
+                # so it is asked here, before the second solve frees them
+                # along the ridge #204 walked.  Its B is still the value the
+                # stage started from, having been held through the first solve.
+                late = {int(m.group(1)) for p in released
+                        for name in (p, *held_reach.get(p, ()))
+                        if (m := _DISPLACEMENT_PATH.match(name))}
+                if late:
+                    late_hold, late_reach, late_sep = _hold_scale_b_ridges(
+                        model, table, phases=late)
+                    if late_hold:
+                        held_reach.update(late_reach)
+                        held = held + late_hold
+                        scale_b_held.update(late_sep)
+                        late_set = set(late_hold)
+                        released = [p for p in released if p not in late_set]
             self._held = list(held)
             held_set = set(held)
             freed = [p for p in declared_freed if p not in held_set]
@@ -4505,8 +4538,9 @@ class Refinement:
                 held["wavelength-blocked"].append(row.path)
         last = self.result_.stages[-1] if self.result_.stages else None
         # the last stage's ``held`` carries every hold's columns; the ones the
-        # scale-B test took are counted apart, read off its own record, so
-        # neither label claims the other's (WP-1534)
+        # scale-B test took are counted apart, read off its own record
+        # (WP-1534).  A moment-direction hold still lands under the WP-1301
+        # label, as it did before: no field names which held paths were its.
         ridge = ({c for cols in _scale_b_columns(last).values() for c in cols}
                  if last is not None else set())
         phase_unsupported = ([p for p in last.held if p not in ridge]
