@@ -1,9 +1,8 @@
 # WP-1336 — the fit does not say it is unusable: the status channel and the width census
 
-Milestone: unscheduled · Status: 🔄 2026-10-01 — every task and its review follow-up landed (PRs #585, #645); ready to close
+Milestone: unscheduled · Status: ✅ 2026-10-02 — closed; PRs #585 and #645 landed every task
 Track: What fires, and what stays silent
 Depends on: — (1310 soft: how findings arrive on the result)
-Priority: P2 2026-09-23 — a converged fit an order of magnitude off the measured widths, and no channel says so
 
 ## Goal
 
@@ -110,34 +109,6 @@ case the useful change is a **callable precondition check**
 through. Take that decision explicitly; either answer is defensible and the
 choice should be visible.
 
-### Inherited
-
-- **2026-09-28, from [1338](1338-the-skills-own-gates.md): `references/diagnostics.md` is closed to growth.**
-  Every skill file now has a ceiling and a budget below it
-  (`tests/skill_caps.py`), and the budget fails a change that grows a file
-  past it. `diagnostics.md` (35 111 B) and `diagnostics-indexing.md`
-  (35 124 B) sit over their 34 600 B budget, so a row this WP adds there
-  comes with an equal cut in the same change, or goes to the file a reader
-  meets the code in (the criterion in the `REFERENCE_MAX_BYTES` comment).
-  CI's lint job reports each changed file's headroom on the draft PR.
-
-- **From WP-1310, 2026-09-16: one way a result contradicted itself is gone,
-  and this WP should not re-report it.** `BOUND_HIT` used to be appended as
-  each stage ended with nothing re-evaluating it, so a converged fit could
-  carry "refined to its bound" about a parameter five orders of magnitude
-  from one, while the row for that same parameter said `at_bound=False`. The
-  findings are now re-taken from the final guard, and the two surfaces are
-  pinned set-equal (`tests/test_bound_hit_at_convergence.py`). A fit whose
-  status and diagnostics disagree is still this WP's subject; that particular
-  disagreement is no longer an instance of it.
-- **From WP-1434, 2026-09-18: `BOUND_HIT` changed what it claims, and its
-  silence became informative.** It fires when the limit *carried load* rather
-  than when the value stopped near one, and `Diagnostic.value` on that code
-  is a number where it was `None`. A status channel reading this code gets a
-  stronger signal than 1310 left it: a parameter resting near a limit with no
-  row is one the limit is not holding, so there is nothing to widen. Nine of
-  32 constructed cases were silent before this and none are now.
-
 ## Non-goals
 
 - Making the unseeded configuration converge. The fits in #243 should not have
@@ -152,23 +123,23 @@ choice should be visible.
 
 ## Tasks
 
-- [ ] Give `RefinementResult` the class docstring it lacks, and state there
+- [x] Give `RefinementResult` the class docstring it lacks, and state there
       what `status` claims and what it does not, naming `diagnostics` as the
       quality channel.
-- [ ] Decide whether a derived usability predicate lands, and if so make it an
+- [x] Decide whether a derived usability predicate lands, and if so make it an
       expression over the live diagnostics vocabulary rather than a literal
       (WP-1037's rule: a derived flag rots silently when its name and its
       export drift).
-- [ ] Decide the width-census question — wire the census into the refinement
+- [x] Decide the width-census question — wire the census into the refinement
       path, or ship `check_instrument_against(data)` as a precondition call —
       and write the reason for the choice into the module that owns it.
-- [ ] A synthetic acceptance case: a broad pattern fitted with a narrow
+- [x] A synthetic acceptance case: a broad pattern fitted with a narrow
       declared instrument and no size/strain parameters now names the width.
       Needs no data file.
-- [ ] Tests: the #243 reproduction asserts the two channels agree about the
+- [x] Tests: the #243 reproduction asserts the two channels agree about the
       same solve; the census fires on the synthetic case and stays silent on
       the suite's seeded fixtures.
-- [ ] Skill: `references/judging.md` — that `status` is optimiser exit, and
+- [x] Skill: `references/judging.md` — that `status` is optimiser exit, and
       the width row. `references/diagnostics.md` gains
       `PEAK_WIDTH_LAW_MISMATCH` on the refinement side if it becomes reachable
       there (room enough since PR #111's split; see 1338).
@@ -190,6 +161,8 @@ a documented reading; a narrow-instrument synthetic fit names the width.
 - `src/rietx/help.py` — the one place what a name *is* is written (WP-1202).
 
 ## Handover log
+
+- **2026-10-02 (close)** — Closed. The tasks were ticked (landed in #585 and #645), the Priority line deleted and the narrative moved to the v1.6 record. `### Inherited` was deleted: the 1338 note is about growing `diagnostics.md`, which this WP did not do (its skill rows sit in `judging.md`), and the 1310/1434 notes were context, not work. *Next:* none.
 
 - **2026-10-01 (2nd session)** — The width census now compares only phases the
   data can see, so a floored phase can no longer silence the warning. It reads
