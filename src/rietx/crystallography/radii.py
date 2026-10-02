@@ -49,6 +49,7 @@ Three rules every lookup keeps, because a radius table is easy to make lie:
 from __future__ import annotations
 
 import math
+import operator
 import re
 from dataclasses import dataclass
 from functools import lru_cache
@@ -176,6 +177,10 @@ def _ion_and_charge(species: str) -> tuple[str, int]:
     element, mass_number = _parse_species(species)
     if element == "H" and mass_number == 2:
         return "D", charge
+    if element == "H" and mass_number not in (None, 1):
+        raise KeyError(f"Shannon (1976) tabulates hydrogen and deuterium apart "
+                       f"and has no row for mass number {mass_number} "
+                       f"(species {species!r})")
     return element, charge
 
 
@@ -188,6 +193,8 @@ def _cn_label(cn: int | str) -> str:
     """Shannon's label for a CN given as an integer or a Roman string."""
     if isinstance(cn, bool):
         raise TypeError(f"coordination number must be an int or a Roman numeral, not {cn!r}")
+    if not isinstance(cn, str):
+        cn = operator.index(cn)  # numpy integers; TypeError for floats
     if isinstance(cn, int):
         if cn not in _ROMAN:
             raise KeyError(f"Shannon (1976) tabulates no coordination number {cn}")
@@ -250,7 +257,8 @@ def ionic_radius(species: str, cn: int | str, *, spin: str | None = None,
 
     tabulated = sorted({r.cn for r in of_charge},
                        key=lambda c: (_ARABIC[c.removesuffix("SQ").removesuffix("PY")], c))
-    if isinstance(cn, int) and not isinstance(cn, bool):
+    if not isinstance(cn, str):
+        cn = operator.index(cn)
         at_cn = [r for r in of_charge if r.coordination == cn]
     else:
         at_cn = [r for r in of_charge if r.cn == label]
@@ -303,11 +311,15 @@ def covalent_radius(element: str, order: Literal[1, 2] = 1) -> float:
         >>> covalent_radius("C"), covalent_radius("C", order=2)
         (0.75, 0.67)
     """
-    if order not in (1, 2) or isinstance(order, bool):
+    try:
+        order_ok = not isinstance(order, bool) and operator.index(order) in (1, 2)
+    except TypeError:
+        order_ok = False
+    if not order_ok:
         raise ValueError(f"order must be 1 (single bond) or 2 (double bond), not {order!r}")
     symbol = element_symbol(element)
     row = _pyykko_rows().get(symbol)
-    value = None if row is None else row[order - 1]
+    value = None if row is None else row[operator.index(order) - 1]
     if value is None or not math.isfinite(value):
         source = "2009a (single bonds)" if order == 1 else "2009b (double bonds)"
         raise KeyError(f"Pyykkö & Atsumi {source} print no r{order} for {symbol} "
