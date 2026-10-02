@@ -67,7 +67,7 @@ rectangle closed by two half-ellipses.
   raster still runs, so `image`, `report`, `atoms` and `letters` are the
   PNG's. SVG user units are the PNG's pixels at `size`, so every position in
   `atoms` and `letters` holds for the SVG too. `dpi` sets the physical width
-  as it sets the PNG's `pHYs`. The refusal at `render.py:451` names every
+  as it sets the PNG's `pHYs`. The refusal at `render.py:670` names every
   suffix it takes. JPEG stays refused.
 - **D2. Painter's algorithm, with the crossing fault repaired.** Every
   primitive gets a depth key, and the writer emits them far to near. Three
@@ -108,7 +108,7 @@ rectangle closed by two half-ellipses.
   extends it.
 - A new `src/rietx/viz/figure3d/vector.py`: scene and frame to a display
   list, then the display list to SVG text. Standard library only.
-- `docs/manual/using/exports.md:193` says "There is no SVG or PDF output."
+- `docs/manual/using/exports.md:219` says "There is no SVG or PDF output."
 - `docs/skill/rietx/references/api-figure.md`: the paragraph naming what
   `path=` writes.
 

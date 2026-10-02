@@ -56,15 +56,21 @@ coordinate is under `ring_width` = 0.035.
 ### POV-Ray
 
 - An atom is `sphere { 0, 1 ... matrix <M> translate pos }`, an exact
-  ellipsoid, as the raster solves it.
+  ellipsoid, as the raster solves it. POV-Ray's `matrix` lists the images of
+  x, y and z in turn, so its first three numbers are M's first **column**.
+  Written in `shape`'s row-major order, the sphere takes Mᵀ, and MᵀM is a
+  different ellipsoid whenever M is not symmetric. glTF's `node.matrix` is
+  column-major for the same reason.
 - A ring is a pigment in the unit frame, before the matrix:
   `function { min(abs(x), min(abs(y), abs(z))) }` under a colour map with
   one step at `ring_width`. That is the shader's own rule, exact on the
   ellipsoid.
 - A bond half is `cylinder { from, to, r open }`, open as the raster's are.
   A face is a `mesh2` with `transmit` 1 − `POLY_ALPHA`. A line is a cylinder
-  of radius ½·width / `ppa`. The letters are the Hershey strokes as thin
-  cylinders in the camera plane, so no font file is needed.
+  of radius ½·width·`px_scale` / `ppa`, since `width` is in CSS px and `ppa`
+  is per image pixel (`raster._pack` scales it the same way). The letters
+  are the Hershey strokes as thin cylinders in the camera plane, so no font
+  file is needed.
 - The camera is `orthographic` with the frame's width and height in Å.
   **POV-Ray is left-handed** and rietx's Cartesian frame is right-handed.
   Without a mirror the picture is the enantiomer, and a centrosymmetric
@@ -94,7 +100,9 @@ coordinate is under `ring_width` = 0.035.
   primitives, two materials.
 - Faces are one mesh per polyhedron with `alphaMode: BLEND` and base colour
   alpha `POLY_ALPHA`. Lines and letters are thin cylinders, as in POV-Ray.
-- An orthographic camera node with `xmag`/`ymag` from the frame, and one
+- An orthographic camera node with `xmag`/`ymag` from the frame. They are
+  half the frame's width and height in Å, and Blender's importer doubles
+  them into its ortho scale. Then one
   `KHR_lights_punctual` directional light at the `LOOK` direction. Blender
   imports both.
 - glTF is right-handed with +Y up, in metres. Write 1 Å as one unit and say
@@ -113,9 +121,11 @@ commits the pictures beside the PNG.
 The PNG export stays client-side (`Structure3D.svelte`, `gl3d.ts`'s
 `exportPng`). The other formats come from one server route, for example
 `POST /api/structure3d/export`. Its body is the format, the panel's `View`
-(`rotation`, `zoom`, `pan`; `structure3d.ts:778`), the canvas's CSS size and
+(`rotation`, `zoom`, `pan`; `structure3d.ts:785`), the canvas's CSS size and
 the query options `GET /api/structure3d` already takes. It calls the same
-writers through `render.gui_frame`, so the file has the canvas's framing.
+writers through `render.gui_frame`. That frame is the canvas's at zoom 1
+with no pan, so the route applies the `View`'s `zoom` and `pan` to it before
+the file can have the canvas's framing.
 `gui/CLAUDE.md` holds the server contract. `tests/test_gui_manual.py`
 partitions the routes, so the route needs a manual chapter in the same
 change.
@@ -144,7 +154,8 @@ change.
 - [ ] The `.pov` writer: atoms, rings, halves, faces, lines, letters,
   camera and light. Test: the handedness check on a chiral phase, an
   unrendered text comparison against a committed small case, and each
-  atom's `matrix` equal to its `shape`.
+  atom's `matrix`, read in POV-Ray's column order, mapping the unit sphere
+  onto `pos + M·u` on an ellipsoid whose M is not symmetric.
 - [ ] The `.glb` writer. Test: the file parses as GLB (magic, version,
   chunk lengths), node transforms reproduce each atom's `shape` to 1e-12,
   and the validator reports no errors on the corpus.

@@ -510,7 +510,7 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   the reflection's own obs/calc count ratio, so it flatters whatever model partitioned it.
 - **Licensing**: port code only from permissive sources, with ATTRIBUTION.md updates.
   BGMN/Profex/xrayutilities are GPL — concepts only, never code. TOPAS/FullProf are closed —
-  papers only. ChimeraX — its user docs only, its source never opened (WP-1538). **Data carries its own fence, per file**: a PyPI upload publishes harder than a
+  papers only. ChimeraX's source is never opened, only its user docs (WP-1537, 1538). **Data carries its own fence, per file**: a PyPI upload publishes harder than a
   repository does, so a file entering the *wheel* (`src/rietx/data/`) states its status where it
   ships — `qarr/*.prn` have none, which is why the four round-robin standards cannot be example
   projects however small (WP-1204). **A private corpus is cited by number, never by name**

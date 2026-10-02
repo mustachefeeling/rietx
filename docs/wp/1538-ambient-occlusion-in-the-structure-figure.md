@@ -86,9 +86,14 @@ bound on what sticks add. The multishadow number is the WP's to measure.
 - **D4. Translucent faces cast and receive nothing at first.** A face at
   `POLY_ALPHA` = 0.55 casting a full shadow would darken its own centre
   atom. Look at the corpus pictures before deciding otherwise.
-- **D5. Maps belong to the scene.** They are cached on the scene, so
-  `view="auto"`'s hundred-odd id passes and a GUI rotation reuse them. A
-  change of hidden species, cut, extent or polyhedra rebuilds them.
+- **D5. Maps belong to the scene.** They are cached on the scene, so a GUI
+  rotation reuses them. `view="auto"`'s id passes shade nothing and need
+  none, so only the drawn view builds them. Anything that rebuilds the scene
+  rebuilds them: mode, `stick=`, `exaggeration=`, hidden species, cut,
+  extent or polyhedra. The cell frame's width is in CSS px, so its width in
+  Å follows the frame's `px_scale` and `ppa`. Either it casts at a fixed
+  width in Å, or the maps depend on the framing and cannot be cached on the
+  scene alone. Decide which before D1's "the cell frame" is built.
 - **D6. Python first, then the GUI, and off by default.** `outline=` is the
   precedent (1470 D9): an option the GUI does not draw stays off, so an
   agent's figure looks like the GUI's. Here the GUI gains the toggle in the
@@ -168,7 +173,8 @@ bit for bit. The before-and-after pairs are committed and looked at.
 The maintainer asked for ambient occlusion in the structure figure if it is
 cheap. It is affordable: ChimeraX's method costs 12 to 21 plain renders,
 once a scene. It shows in ball mode, where the default figure darkens by
-roughly 5-11 % on average, and hardly at all in ellipsoid mode. The cost
+about 15 % on average with no cutoff, the row multishadow comes closest to,
+and 5-11 % from occluders within 3-5 Å. It hardly shows in ellipsoid mode. The cost
 that matters is the second renderer: the GUI and `render_structure` draw one
 picture, so the GUI needs the same depth passes. Nothing is built.
 
