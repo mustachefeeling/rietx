@@ -163,7 +163,8 @@ def test_the_fit_reports_the_sharp_basin_with_a_tight_esd_and_no_finding(multimo
     _, result, _ = multimodal
     row = result.qpa.phases[1]
     assert row.weight_fraction == pytest.approx(0.0119, abs=0.0005)
-    assert row.weight_fraction_stderr == pytest.approx(0.0053, abs=0.0005)
+    # 0.0053 before #674: the esd carries eqs (10)-(12)'s factor, 0.74× the run-sum's here
+    assert row.weight_fraction_stderr == pytest.approx(0.0039, abs=0.0005)
     naming = [d.code for d in result.diagnostics
               if any("CaF2" in w or w.startswith("phases.1.") for w in d.where)]
     assert not naming, naming

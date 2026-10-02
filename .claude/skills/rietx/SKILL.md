@@ -237,8 +237,8 @@ measured evidence behind each rule is
     means no covariance behind the row or fixed by symmetry, never zero.
 13. **Quote no esd without its inflation.** `statistics.esd_inflation` is the
     Bérar-Lelann factor for serial correlation, and it has an expected value of
-    ≈1.13 even for perfectly white residuals, so a value near that says
-    nothing; it is one scalar for every parameter, not a per-parameter measurement. `report.identifiability` carries the
+    ≈1.13 even for perfectly white residuals, so it measures the residual's
+    correlation, not any one esd's error. `report.identifiability` carries the
     trio to pass on with any esd — raw χ²_red, the inflation, Durbin-Watson —
     plus the δR line. Scaling variances by GoF² alone is "highly questionable"
     (Schwarzenbach, 1989).
