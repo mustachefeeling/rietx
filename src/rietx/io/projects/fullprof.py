@@ -167,6 +167,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ...schemas.common import Diagnostic, Parameter
+from ...schemas.structure import biso_bounds, biso_widening_diagnostic
 from ..formats.base import decode
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -2864,7 +2865,7 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                         occ=rx.Parameter(value=1.0, min=0.0, max=1.5),
                         biso=_p(atom.values["biso"],
                                 f"atom {atom.label!r}'s Biso",
-                                min=0.0, max=25.0),
+                                **biso_bounds(atom.values["biso"].value)),
                         moment=_moment(atom_index))
                 for atom_index, atom in enumerate(ph.atoms)]
             phases.append(rx.Phase(
@@ -3043,9 +3044,13 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                          f"the constraint"),
                 where=[path]))
     try:
-        return rx.Structure(phases=phases)
+        structure = rx.Structure(phases=phases)
     except Exception as exc:
         raise FullProfPcrError(f"{model.path or '<model>'}: {exc}") from exc
+    if diagnostics is not None and (
+            widened := biso_widening_diagnostic(structure, str(model.path or '<model>'))) is not None:
+        diagnostics.append(widened)
+    return structure
 
 
 # ------------------------------------------------------------------- the writer

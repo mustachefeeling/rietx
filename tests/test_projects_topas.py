@@ -1946,7 +1946,8 @@ def test_a_negative_beq_is_refused_naming_the_site_never_clamped(tmp_path):
     assert "-0.42" in str(exc.value)
 
 
-def test_a_schema_refusal_from_the_cell_or_the_atoms_is_still_converted(tmp_path):
+def test_a_schema_refusal_from_the_cell_or_the_atoms_is_still_converted(
+        tmp_path, monkeypatch):
     """`rx.Cell(...)` and the `atoms` comprehension sat **outside** the try that
     exists to convert a schema report into a reader's refusal — one line above
     it — so only the `rx.Phase(...)` call was covered and `beq bA 26.0` reached
@@ -1954,15 +1955,35 @@ def test_a_schema_refusal_from_the_cell_or_the_atoms_is_still_converted(tmp_path
 
     The truncation pin cannot catch this class: a ragged cut rarely leaves a
     well-formed line carrying an out-of-range number, so it is tested directly.
-    26 Å² is outside the [0, 25] window `Atom.biso` itself declares, which is
-    where the bound comes from — the reader quotes it rather than inventing it.
+    26 Å² was outside the [0, 25] window `Atom.biso` declares until the readers
+    widened the bound to hold the file's value
+    (:func:`rietx.schemas.structure.biso_bounds`).  The old bound is put back
+    here, so the boundary is still exercised by a refusal the schema raises.
     """
+    import rietx.io.projects.topas as topas
+
+    monkeypatch.setattr(topas, "biso_bounds",
+                        lambda value: {"min": 0.0, "max": 25.0})
     inp = _inp(tmp_path, "outofrange.inp",
                'str\nphase_name "hot"\nspace_group "P1"\na 5.0\n'
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq bA 26.0\n')
     with pytest.raises(TopasInpError) as exc:
         to_structure(read_topas_inp(inp))
     assert "outofrange.inp" in str(exc.value) and "hot" in str(exc.value)
+
+
+def test_a_beq_above_the_starting_bound_reads(tmp_path):
+    """A stated beq of 26 Å² reads, with its bound widened to hold it, and
+    the reader says so."""
+    inp = _inp(tmp_path, "hot.inp",
+               'str\nphase_name "hot"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq bA 26.0\n')
+    diagnostics = []
+    structure = to_structure(read_topas_inp(inp), diagnostics=diagnostics)
+    biso = structure.phases[0].atoms[0].biso
+    assert (biso.value, biso.max) == (pytest.approx(26.0), pytest.approx(26.0))
+    widened = [d for d in diagnostics if d.code == "BISO_BOUND_WIDENED"]
+    assert [d.where for d in widened] == [["phases.0.atoms.0.biso"]]
 
 
 # ------------------------------------------------------------ the robustness pin

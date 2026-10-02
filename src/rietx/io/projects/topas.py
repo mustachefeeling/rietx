@@ -169,6 +169,7 @@ from ...crystallography.symmetry import (
     setting_diagnostics,
 )
 from ...schemas.common import Diagnostic, Parameter
+from ...schemas.structure import biso_bounds, biso_widening_diagnostic
 from ..formats.base import decode
 from . import coverage as _coverage
 
@@ -4096,15 +4097,16 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
                                     **({"vary": s.vary[u]} if u in s.vary else {}))
                     for u in _ADP_KEYS})
                 displacement = {
-                    "biso": rx.Parameter(value=b_record, vary=False, **biso_window),
+                    "biso": rx.Parameter(value=b_record, vary=False,
+                                         **biso_bounds(b_record)),
                     "aniso": block}
             else:
                 # The file's own number, not `max(beq, 0.0)`: a negative one is
                 # refused above rather than moved. A site that stated none is
                 # seeded 0.5 here, at build time — the model keeps it as None.
-                displacement = {"biso": _sp(s, "beq",
-                                            0.5 if s.beq is None else s.beq,
-                                            **biso_window)}
+                b_iso = 0.5 if s.beq is None else s.beq
+                displacement = {"biso": _sp(s, "beq", b_iso,
+                                            **biso_bounds(b_iso))}
             magnetic = {}
             if s.moment is not None and ph.name in magnetic_specs:
                 # `mlx/mly/mlz` are fractional-basis components (see
@@ -4219,10 +4221,14 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
             f"structure to build. {why} — read `model.phases` directly for what "
             f"it does state.")
     try:
-        return rx.Structure(phases=phases)
+        structure = rx.Structure(phases=phases)
     except Exception as exc:
         # e.g. a phase whose site lines were all inside a disabled #ifdef branch
         raise TopasInpError(f"{model.path or '<model>'}: {exc}") from exc
+    if diagnostics is not None and (
+            widened := biso_widening_diagnostic(structure, str(model.path or '<model>'))) is not None:
+        diagnostics.append(widened)
+    return structure
 
 
 def _tail(param: Parameter) -> str:

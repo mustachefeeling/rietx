@@ -182,6 +182,18 @@ def test_the_child_cell_volume_is_det_p_times_the_parents():
     assert statement.transform == "2a,b,c;0,0,0"
 
 
+def test_a_parent_biso_above_the_starting_bound_reaches_the_child():
+    """A reader widens a Biso's bound to hold the file's value
+    (``schemas.structure.biso_bounds``); the child keeps that bound rather
+    than inheriting the declared 0-25 Å², which would refuse the value."""
+    parent = pbcm_parent()
+    parent.atoms[1].biso = P(value=26.8, min=0.0, max=26.8)
+    statement, _cand = _statement(parent, (0.25, 0.125, 0.25), HALF_A,
+                                  species="Fe", ion="Fe3+")
+    hot = [a.biso for a in statement.phase.atoms if a.label.startswith("O")]
+    assert hot and all((b.value, b.max) == (26.8, 26.8) for b in hot)
+
+
 def test_the_group_in_the_child_cell_identifies_to_the_candidates_bns():
     """The transform is a change of setting, not a change of group.
 

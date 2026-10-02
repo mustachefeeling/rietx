@@ -300,6 +300,29 @@ def test_the_biso_finding_reaches_the_diagnostics():
     assert diags[0].value == pytest.approx(50.0)
 
 
+def test_a_negative_biso_is_reported_and_zero_is_not():
+    """The low side, which a reader reaches by keeping a file's B < 0.  Zero
+    is the default floor, where ``BOUND_HIT`` already speaks."""
+    from rietx.refine import _guard_diagnostics
+    from rietx.strategy.staged import GuardReport, check_biso_negative
+
+    table, model = _state()
+    path = "phases.0.atoms.0.biso"
+    table.entries[table._paths[path]].value = 0.0
+    assert check_biso_negative(table, model) == []
+    assert check_biso_negative(table, None) == []
+
+    table.entries[table._paths[path]].value = -0.16
+    findings = check_biso_negative(table, model)
+    assert [f.code for f in findings] == ["BISO_NEGATIVE"]
+    assert findings[0].paths == (path,)
+    assert findings[0].value == pytest.approx(-0.16)
+
+    diags = _guard_diagnostics(GuardReport(negative_biso=findings))
+    assert [(d.code, d.level, d.where) for d in diags] == [
+        ("BISO_NEGATIVE", "warning", [path])]
+
+
 # ----------------------------------------------------------------------
 # item 5 — |ρ| = 1.000 is a rank statement, not a strong correlation
 # ----------------------------------------------------------------------

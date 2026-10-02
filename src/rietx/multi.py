@@ -111,6 +111,7 @@ from .strategy.staged import (
     bound_findings,
     bound_untested,
     check_adp_positive_definite,
+    check_biso_negative,
     check_biso_plausible,
     check_hump_width,
     check_resolution_positive,
@@ -285,6 +286,9 @@ GUARD_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "large_biso": (
         (SPECIMEN,), "the Lindemann bound is the cell's; asked once, of "
                      "histogram 0's compile (every histogram's gives the same)"),
+    "negative_biso": (
+        (SPECIMEN,), "one structure's B values, asked once, of histogram 0's "
+                     "compile"),
     "nonpositive_strain": (
         (SPECIMEN,), "one coefficient set, but each histogram measures its own "
                      "directions: a phase is named once, from the first "
@@ -1235,6 +1239,7 @@ class MultiHistogramRefinement:
         report.nonpositive_adps = check_adp_positive_definite(mt.tables[0])
         # the specimen's two model-reading guards (GUARD_SCOPES: SPECIMEN)
         report.large_biso = check_biso_plausible(mt.tables[0], models[0])
+        report.negative_biso = check_biso_negative(mt.tables[0], models[0])
         report.nonpositive_strain = _stephens_once(mt, models)
         if outcome.correlation is not None and len(free) > 1:
             c = np.asarray(outcome.correlation)

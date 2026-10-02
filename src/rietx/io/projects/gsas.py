@@ -90,6 +90,7 @@ from typing import TYPE_CHECKING
 
 from ...crystallography.symmetry import setting_diagnostics
 from ...schemas.common import Diagnostic
+from ...schemas.structure import biso_bounds, biso_widening_diagnostic
 
 if TYPE_CHECKING:
     from ...schemas import Structure
@@ -1609,7 +1610,7 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
                 z=rx.Parameter(value=site["xyz"][2], vary=site["vary_xyz"]),
                 occ=rx.Parameter(value=site["occupancy"], min=0.0, max=1.5,
                                  vary=site["vary_occupancy"]),
-                biso=rx.Parameter(value=site["biso"], min=0.0, max=25.0,
+                biso=rx.Parameter(value=site["biso"], **biso_bounds(site["biso"]),
                                   vary=site["vary_biso"]))
                 for site in sites],
             scale=rx.Parameter(value=1e-3, min=0.0, transform="softplus"))])
@@ -1653,6 +1654,9 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
                 f"number, so it is not a rietx scale — refine it rather than "
                 f"trusting a converted value"),
             where=["phases.0.scale"]))
+    if diagnostics is not None and (
+            widened := biso_widening_diagnostic(structure, str(model.path or '<model>'))) is not None:
+        diagnostics.append(widened)
     return structure
 
 

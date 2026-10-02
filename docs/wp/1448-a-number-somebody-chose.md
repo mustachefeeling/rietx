@@ -73,6 +73,15 @@ cites the WP number, so a determined reader can reconstruct most of it. The
 failure is that nothing *prompts* the record, so it happens when someone
 remembers, and the alternatives are the first thing lost.
 
+### Inherited
+
+- **2026-10-02, from WP-1311 (PR #663).** The 25 Å² Biso ceiling now has one
+  name, `schemas.structure.BISO_BOUNDS`. `Atom.biso`'s default reads it, and
+  `biso_bounds(value)` widens it to hold a value read from a file. It is a
+  case-3 value: WP-1311's 2026-09-18 entry measured that it bounds nothing
+  physical, and it was kept on the maintainer's ruling. That makes it one site
+  for this WP's pass, and its argument is in that WP.
+
 ## Non-goals
 
 - A second citation system. Literature provenance works; this sits beside it.

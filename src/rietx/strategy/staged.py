@@ -881,6 +881,11 @@ class GuardFinding:
                    f"{b_melt:.2f} Å² Lindemann melting bound for this cell)")
 
     @classmethod
+    def negative_biso(cls, path: str, biso: float) -> "GuardFinding":
+        return cls("BISO_NEGATIVE", (path,), float(biso),
+                   f"{path} (B = {biso:.3g} Å²)")
+
+    @classmethod
     def nonpositive_resolution(cls, n_bad: int, n_total: int, worst: float,
                                two_theta: float) -> "GuardFinding":
         return cls("RESOLUTION_NOT_POSITIVE",
@@ -912,7 +917,8 @@ class GuardReport:
     is the seventh — added by WP-1311; their
     writers are :func:`check_resolution_positive`, :func:`check_biso_plausible`,
     :func:`check_resolution_supported` and the correlation loop in
-    :func:`check_guards`.
+    :func:`check_guards`.  ``negative_biso`` is the twelfth, written by
+    :func:`check_biso_negative` since PR #663 let a reader keep a file's B < 0.
 
     ``measured_background_absorption`` is the one field that is **not**
     findings, and it is here rather than beside them so that the number a
@@ -952,6 +958,9 @@ class GuardReport:
     # isotropic displacement parameters past the Lindemann melting bound for
     # their own cell (see check_biso_plausible)
     large_biso: list[GuardFinding] = field(default_factory=list)
+    # isotropic displacement parameters below zero — reachable only where a
+    # reader widened the floor to hold a file's value (see check_biso_negative)
+    negative_biso: list[GuardFinding] = field(default_factory=list)
     # the Gaussian resolution terms refined on a pattern whose peaks are
     # predominantly Lorentzian, where they are not determined
     # (see check_resolution_supported)
@@ -1001,7 +1010,7 @@ class GuardReport:
         rule, since a declared name whose reader is missing fails no test)."""
         return [*self.high_correlations, *self.at_bounds, *self.nonpositive_adps,
                 *self.nonpositive_strain, *self.unsupported_resolution,
-                *self.flat_directions, *self.large_biso,
+                *self.flat_directions, *self.large_biso, *self.negative_biso,
                 *self.nonpositive_resolution, *self.narrow_humps,
                 *self.background_correlations, *self.roughness_correlations]
 
@@ -1390,8 +1399,7 @@ def check_biso_plausible(table, model) -> list[GuardFinding]:
     The threshold is computed per phase from that phase's own cell rather than
     fixed, because :func:`biso_melting_bound` moves by a factor 4.5 across
     ordinary packing densities and one constant would be wrong at one end.
-    The low side needs nothing: readers refuse a negative B, the schema floors
-    at zero, and PR #206 made that floor bind a caller-supplied ``Parameter``.
+    The low side is :func:`check_biso_negative`.
 
     Anisotropic sites are skipped.  Their ``biso`` is an inert record of the
     starting estimate (``schemas.structure.Atom``), so testing it would report
@@ -1433,6 +1441,35 @@ def check_biso_plausible(table, model) -> list[GuardFinding]:
             biso = values.get(path)
             if biso is not None and biso > bound:
                 out.append(GuardFinding.large_biso(path, biso, bound))
+    return out
+
+
+def check_biso_negative(table, model) -> list[GuardFinding]:
+    """Isotropic B values below zero.
+
+    The low side of :func:`check_biso_plausible`'s warning, and the first item
+    on the IUCr round robin's list: "atom and overall thermal parameters which
+    are physically unrealistic (negative, zero or large positive values)"
+    (Madsen et al., 2001, J. Appl. Cryst. 34, 409, § 6.2).  A zero B needs no
+    finding of its own, because the default floor sits there and a free B
+    pinned on it already reports ``BOUND_HIT``.
+
+    The schema floors B at zero, so a negative value reaches a fit only where
+    :func:`~rietx.schemas.structure.biso_bounds` widened the floor to hold a
+    file's number, or where a caller set ``min`` below zero.  It is a flag and
+    never a refusal, for the reason Watkin (2008) gives for the high side.
+    Anisotropic sites are skipped, as there.
+    """
+    if model is None:
+        return []
+    values = {e.path: e.value for e in table.entries}
+    out: list[GuardFinding] = []
+    for ip, cp in enumerate(model.phases):
+        for j, is_aniso in enumerate(cp.sites.aniso):
+            path = f"phases.{ip}.atoms.{j}.biso"
+            biso = values.get(path)
+            if not is_aniso and biso is not None and biso < 0.0:
+                out.append(GuardFinding.negative_biso(path, biso))
     return out
 
 
@@ -1737,6 +1774,7 @@ def check_guards(table, outcome, threshold: float,
     report.nonpositive_strain = check_stephens_positive(table, model)
     report.nonpositive_resolution = check_resolution_positive(table, model)
     report.large_biso = check_biso_plausible(table, model)
+    report.negative_biso = check_biso_negative(table, model)
     report.unsupported_resolution = check_resolution_supported(table, model)
     report.narrow_humps = check_hump_width(table, model)
     free = table.free_paths

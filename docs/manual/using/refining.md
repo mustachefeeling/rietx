@@ -1138,6 +1138,7 @@ once:
 | `GuardFinding.unsupported_resolution` | the Gaussian resolution terms were refined on a pattern whose peaks are predominantly Lorentzian, where the data does not determine them |
 | `GuardFinding.flat_direction` | a correlated pair reaches \|ρ\| = 1.000 to the precision the message prints, so the data does not separate them at all |
 | `GuardFinding.large_biso` | an isotropic displacement parameter is past the Lindemann melting bound computed from its own phase's cell |
+| `GuardFinding.negative_biso` | an isotropic displacement parameter is below zero, which the schema allows only where a reader widened the floor to keep a file's value or a caller set one |
 | `GuardFinding.nonpositive_resolution` | the Caglioti quadratic Γ_G² = U·tan²θ + V·tanθ + W goes below zero somewhere in the fitted range, where the forward model clamps Γ_G to a floor rather than raising |
 
 `GuardFinding.value` is the headline number for the kind: the correlation

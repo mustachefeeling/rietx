@@ -1361,7 +1361,7 @@ def test_an_absent_cell_codeword_column_is_refused_naming_the_column(tmp_path):
 # Finding 2 — a schema refusal must be converted at the same boundary.
 
 
-def test_a_schema_refusal_on_an_atom_is_converted_naming_the_file(tmp_path):
+def test_a_schema_refusal_on_an_atom_is_converted_naming_the_file(tmp_path, monkeypatch):
     """``rx.Cell`` and the atoms are built *inside* the conversion ``try``.
 
     They were built above it, so a pydantic ``ValidationError`` escaped raw —
@@ -1369,15 +1369,29 @@ def test_a_schema_refusal_on_an_atom_is_converted_naming_the_file(tmp_path):
     schema refusal is converted at this boundary" and reaching any caller that
     catches only the documented error type.
 
-    ``biso`` is the reachable case: ``to_structure`` bounds it at ``max=25.0``,
-    so a Biso above that is refused by ``rx.Parameter`` itself. A *negative*
-    Biso does not exercise this — it has its own explicit refusal further up.
+    ``biso`` was the reachable case, a Biso above the 25 Å² bound, until the
+    readers widened the bound to hold the file's value
+    (:func:`rietx.schemas.structure.biso_bounds`).  The old bound is put back
+    here, so the boundary is still exercised by a refusal ``rx.Parameter``
+    raises itself.  A *negative* Biso does not exercise this — it has its own
+    explicit refusal further up.
     """
+    import rietx.io.projects.fullprof as fullprof
+
+    monkeypatch.setattr(fullprof, "biso_bounds", lambda value: {"min": 0.0, "max": 25.0})
     sites = _PHASE_SITES.replace("0.21111", "31.00000")
     pcr = _pcr(tmp_path, "hot.pcr", _phase(atoms=sites))
     with pytest.raises(FullProfPcrError) as excinfo:
         to_structure(read_fullprof_pcr(pcr))
     assert "hot.pcr" in str(excinfo.value)
+
+
+def test_a_biso_above_the_starting_bound_reads(tmp_path):
+    """A published Biso of 31 Å² reads, with its bound widened to hold it."""
+    sites = _PHASE_SITES.replace("0.21111", "31.00000")
+    pcr = _pcr(tmp_path, "hot.pcr", _phase(atoms=sites))
+    biso = to_structure(read_fullprof_pcr(pcr)).phases[0].atoms[0].biso
+    assert (biso.value, biso.max) == (pytest.approx(31.0), pytest.approx(31.0))
 
 
 # Finding 3 — a tie rietx cannot express is refused, not silently loosened.
