@@ -236,8 +236,8 @@ returns two different confident fractions at one Rwp, as #204 did.
 ### 2026-10-02 (2nd session) — the hold landed; the guideline reading is owed
 
 A phase with only one reflection in the fitted range can no longer return a
-confident weight fraction from an arbitrary point on the scale–B ridge. Issue
-#204's shape is now a synthetic test: four phases on 25–50° Cu Kα, with bcc Fe
+confident weight fraction from an arbitrary point on the scale–B ridge. The
+shape of issue #204 is now a synthetic test: four phases on 25–50° Cu Kα, with bcc Fe
 having one reflection. It showed the covariance was not saying "unmeasured".
 It said 0.000 ± 0.000 wt%, because the covariance's pseudo-inverse discards
 exactly that direction and reports it at zero variance. Each stage now
