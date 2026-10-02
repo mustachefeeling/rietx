@@ -120,7 +120,7 @@ re-run WP-1466's `measure.py` and name the rows that moved.
       fit follows the atoms, and the argument is in `fig.recipe`
 - [x] `stick=` on `render_structure`, in `fig.recipe`. The module constant
       stays the default, and the twin stays equal
-- [ ] The axis view: measure `hidden` split into own-image stacking and
+- [x] The axis view: measure `hidden` split into own-image stacking and
       occlusion on HKUST-1 down a, ZSM-5 down b and YBa₂Cu₃O₇ down b. Then
       change the report, the `auto` ranking or only the skill's rule, and
       say which

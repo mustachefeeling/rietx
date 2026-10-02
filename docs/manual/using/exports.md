@@ -349,6 +349,20 @@ than 80 % by an atom or a bond in front.
 It is read from a 256 px pass that records which atom or bond is in front at
 each pixel, so a stick that hides an atom counts and a translucent face does
 not.
+`stacked` is the part of `hidden` behind an atom of the same site, within a
+quarter of the hidden atom's drawn radius.
+A view down a symmetry or lattice direction stacks a site's copies by
+construction, and the one in front draws what the ones behind hold.
+`hidden - stacked` is what the view occludes.
+One cell down a cell axis reads:
+
+| Structure | View | `hidden` | `stacked` |
+|---|---|---|---|
+| HKUST-1 | a | 0.53 | 0.53 |
+| ZSM-5 | b | 0.52 | 0.50 |
+| YBa₂Cu₃O₇ | b | 1.00 | 1.00 |
+
+NAC's opening view hides 0.18 and stacks none of it.
 `dangling_bonds` counts bond halves whose far atom is not drawn.
 The stubs a `hidden=` species leaves on its neighbours count too.
 So do the bonds of a cell `build` trimmed, where the far atom was left out
@@ -401,7 +415,10 @@ Pass a candidate's `view` back with the same `up=` and `turn=`, since the search
 applied both.
 Their numbers are the search's, from atoms and bonds alone at 256 px, and can
 differ slightly from the report's `empty`, which reads the image.
-An axis view of a cubic cell stacks atoms, and the report says how many.
+An axis view of a cubic cell stacks atoms, and the report's `stacked` says how
+many.
+The ranking reads `hidden`, stacking included, so `auto` prefers an oblique
+view to a projection that stacks every site behind itself.
 `turn=` works on what stays hidden.
 
 `recipe` is the call that draws the picture again.

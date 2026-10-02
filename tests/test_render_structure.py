@@ -1175,3 +1175,25 @@ def test_a_thinner_stick_halves_the_radius_and_replays():
 def test_stick_is_a_positive_finite_number(value):
     with pytest.raises(ValueError, match="stick"):
         render_structure(_paracetamol(), size=100, stick=value)
+
+
+# ----------------------------------------------------------------------
+# an axis view stacks a site behind itself, and the report says so (WP-1533)
+# ----------------------------------------------------------------------
+
+def test_an_axis_view_stacks_rather_than_hides(hkust, nac):
+    """The skill's rule sent an agent asked for an axis view to ``auto``,
+    because ``hidden`` counts an atom behind a copy of its own site.  Down a
+    cell axis that is the projection, and the copy in front draws it."""
+    ybco = structure_from_cif(str(DATA / "cod_9007744.cif"))
+    down_b = render_structure(ybco, view="b", size=400)
+    assert down_b.report.hidden == down_b.report.stacked == 1.0
+    down_a = render_structure(hkust, view="a", size=400, max_atoms=1000)
+    _save(down_a, "stacked_hkust1_down_a")
+    assert down_a.report.hidden > 0.5
+    assert down_a.report.stacked == pytest.approx(down_a.report.hidden)
+    # an oblique view of NAC hides atoms behind other sites: occlusion, not stacking
+    opening = render_structure(nac, size=400)
+    assert 0.0 <= opening.report.stacked < opening.report.hidden
+    for fig in (down_b, down_a, opening):
+        assert 0.0 <= fig.report.stacked <= fig.report.hidden

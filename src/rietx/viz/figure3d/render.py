@@ -753,6 +753,7 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
                         f"{' and '.join(capped)}; build it again with a larger max_atoms")
     report = rp.FigureReport(
         hidden=seen.hidden, hidden_atoms=seen.hidden_atoms,
+        stacked=rp.stacked(scene, geometry, R, seen),
         dangling_bonds=_dangling(geometry, scene),
         label_overlaps=_label_overlaps(labels, frame),
         label_atom_overlaps=sum(label[5] for label in labels),
