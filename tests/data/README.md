@@ -478,6 +478,19 @@ independent check that the `rietveld`-only guard on the new branch holds.  The
 same tree's depth-2 scalar memo moved no key of any state, which is what
 bit-identical means for it.
 
+**macOS 27.0.1 re-baseline (2026-10-02)**: `toy_anomalous` only.  Its last capture
+(WP-1121, 2026-08-22) ran under macOS 26.5.1.  The machine moved to 27.0.1 at
+00:48 that day, and the state then failed on every tree tried.  That includes `0da9dd80`, the commit that
+captured it, so the code did not move.  Numpy did not move it either: 2.5.1
+and 2.5.2 diverged identically.  `theta` and `y_calc` stayed bit-identical.
+`residual` moved on 162 of 3350 elements, by at most 2.3e-13 of its largest
+value.  `jacobian` moved on 1541 of 43 550, by at most 1.3e-13.  Those two
+keys read the state's synthetic observed pattern and `y_calc` does not, so the
+moved bits enter there.  That pattern is evaluated at a perturbed cell.  The
+other nine states reproduced bit-for-bit and were not re-captured.  The size
+matches the system-maths-library drift measured below.  Which function changed
+was not identified.
+
 These are *environment-pinned* bit patterns, not physical reference values: a
 different BLAS/numpy build may legitimately differ in final bits.  **WP-1002
 measured which half of that sentence is true.**  The *numpy* half is not:
