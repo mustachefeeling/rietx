@@ -232,7 +232,10 @@ by, which §10 of the guidelines requires any publication to state.
 Schwarz's BIC counts N independent observations. A powder residual is serially
 correlated, so at tens of thousands of channels the reward N·ln(χ²_r/χ²_f)
 outvotes one ln N for almost any gain. Issue #270 measured it on four ~49 500-channel
-synchrotron fits, each freeing one occupancy:
+synchrotron fits, each freeing one occupancy. These are pre-1.6 measurements, made
+with the run-sum esd inflation that #674 replaced with Bérar and Lelann's § IV
+correction; `esd_inflation` now reads about 0.8-0.9 of the column below, and the
+fits were not re-run:
 
 | fit | t = value/esd | ΔBIC at raw N | Hamilton | `esd_inflation` | Durbin-Watson |
 |---|---|---|---|---|---|
@@ -245,7 +248,7 @@ None reaches 2σ, and both statistics call all four decisive. Charged at
 N/f², with f the fit's own `esd_inflation`, all four turn negative. For one
 parameter that count makes ΔBIC close to t² − ln N_eff, so the verdict and the
 esd agree. Over 27 last-freed parameters across the acceptance fixtures, N/f²
-refused every |t| < 2.3 and admitted every |t| ≥ 2.6. The rule this replaced
+refused every |t| < 2.3 and admitted every |t| ≥ 2.6 (also pre-1.6, not re-measured). The rule this replaced
 was measured on a 7251-channel corundum pattern, where Hamilton's test at raw N
 blessed an inert Stephens block's 0.16 % χ² gain. At N/f² both tests refuse
 it.

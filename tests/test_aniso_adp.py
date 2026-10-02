@@ -376,16 +376,17 @@ def test_round_trip_recovers_an_anisotropic_perturbation():
         assert getattr(o.aniso, name).value == pytest.approx(
             truth, abs=max(4 * p.stderr, 3e-4)), name
     # the anisotropy is *resolved*, not merely fitted: U33 separates from U11
-    # by ≈2.2σ once the esds carry the Bérar-Lelann inflation the reported
-    # values now genuinely include (BL ≈ 1.52 here for near-white residuals;
-    # WP-0407 fixed the placement bug that used to cancel BL out, which is why
-    # this read ≈3.4σ against the raw esds before).  Still resolved, just stated
-    # against honest (conservative) uncertainties.
+    # by ≈5.5σ once the esds carry the Bérar-Lelann inflation the reported
+    # values include (BL ≈ 1.14 here for near-white residuals, measured
+    # 2026-10-02 with the eqs (10)-(12) factor of #674; it was ≈1.52 and
+    # ≈2.2σ under the run-sum).  WP-0407 fixed the placement bug that used to
+    # cancel BL out of the reported esd.  Still resolved, stated against
+    # honest (conservative) uncertainties.
     #
     # WP-1001 measured what dispersion does to this separation and it is not
     # nothing: with the (now default) block on, the same fit resolves U11 from
-    # U33 at only **1.90σ**.  The mechanism is physical rather than numerical —
-    # at Cu Kα, Ti carries f″ ≈ 1.8 e and O ≈ 0.03, so applying dispersion
+    # U33 at only **1.90σ** (under the pre-1.6 run-sum factor; not re-run).
+    # The mechanism is physical rather than numerical — at Cu Kα, Ti carries f″ ≈ 1.8 e and O ≈ 0.03, so applying dispersion
     # raises the heavy atom's share of every reflection and the light atom's
     # ADP is correspondingly less well determined.  The block is declined in
     # the toy above so this test keeps measuring the WP-0407 esd
