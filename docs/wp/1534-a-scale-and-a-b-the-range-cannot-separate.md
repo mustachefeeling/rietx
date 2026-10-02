@@ -203,7 +203,7 @@ stating what it changed.
       `tests/output/`.
 - [x] Manual Part 2: the ridge relation as a displayed equation with its
       `*Source:*` line, if the fix adds physics.
-- [ ] Skill: a row for the new finding, and a line in the QPA reference on
+- [x] Skill: a row for the new finding, and a line in the QPA reference on
       short ranges.
 
 ## Acceptance
