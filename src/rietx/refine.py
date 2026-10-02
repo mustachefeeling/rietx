@@ -4424,7 +4424,7 @@ class Refinement:
 #: prescribes, not the fault.
 _REVISABLE_CODES = ("BOUND_HIT", "RESOLUTION_NOT_POSITIVE",
                     "RESOLUTION_UNCONSTRAINED",
-                    "BISO_UNUSUALLY_LARGE")
+                    "BISO_UNUSUALLY_LARGE", "BISO_NEGATIVE")
 
 
 def _guard_diagnostics(guard) -> list[Diagnostic]:
@@ -4531,6 +4531,21 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "mobile (a cavity cation, a superionic sublattice) "
                        "the number may be real, and saying so is part of "
                        "quoting it",
+        ))
+    for finding in guard.negative_biso:
+        msg = str(finding)
+        out.append(Diagnostic(
+            level="warning", code="BISO_NEGATIVE",
+            where=list(finding.paths), value=finding.value,
+            message=f"{msg} is below zero — no displacement does that: the "
+                    "Debye-Waller factor grows with sinθ/λ instead of "
+                    "falling, so the column is standing in for something "
+                    "else",
+            suggestion="a negative B usually absorbs an uncorrected "
+                       "absorption or surface-roughness effect, a wrong "
+                       "species or occupancy on that site, or a background "
+                       "that bends at high angle. Correct that, or hold B at "
+                       "a physical value and say so in the result",
         ))
     for finding in guard.nonpositive_resolution:
         msg = str(finding)
