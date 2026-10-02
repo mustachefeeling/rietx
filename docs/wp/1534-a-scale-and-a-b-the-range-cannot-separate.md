@@ -274,8 +274,17 @@ branch tree is the merged tree):
 
 - The probe at stage start reads Fe at 1.0e-12, its rounding floor. The other
   three phases read 0.19–0.40. The floor is 6.3e-8.
-- The fast selection: FAST_COUNTS.
-- The added tests' cost (`tests.added_test_times`): ADDED_TIMES.
+- The fast selection: 7854 passed, 172 skipped, 1 failed, in 20:13 with nothing
+  else running. `tests/test_scale_b_ridge.py` adds 18 cases, all passing, and
+  no new skip. The one failure is environmental:
+  `test_merge_replay.py::test_a_conflict_the_driver_resolves_counts_only_as_text`
+  fails alone in 0.36 s because this container's git 2.43 has no `merge-tree`
+  `diff-algorithm` option, and nothing this branch touched is involved.
+- The added tests' cost (`tests.added_test_times`, one run on this machine):
+  22.2 s over 13 tests. The largest is
+  `test_fe_b_is_held_in_every_stage_that_frees_it` at 7.37 s for two cases,
+  which share the module fixture's two fits. None of them joins the slow
+  tail.
 - The full suite: FULL_COUNTS.
 - The lane trial (`session_usage.py lanes c77ba4ec`):
 
