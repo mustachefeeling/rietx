@@ -21,6 +21,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 from . import raster, views
 
@@ -181,11 +182,16 @@ def stacked(scene: dict, geometry: Mapping, R, look: Look) -> float:
     sites, atoms = geometry["sites"], geometry["atoms"]
     site = np.array([sites[atoms[k]["site"]]["index"] for k in drawn], dtype=np.int64)
     at = {int(k): n for n, k in enumerate(drawn)}
+    rows = np.array([at[k] for k in look.hidden_atoms], dtype=np.int64)
+    # the tree finds the candidates within reach (≤); the strict test then
+    # decides, so the count is the one an all-pairs scan gives
+    found = cKDTree(view[:, :2]).query_ball_point(view[rows, :2], STACKED_REACH * reach[rows])
     count = 0
-    for k in look.hidden_atoms:
-        n = at[k]
-        near = np.hypot(view[:, 0] - view[n, 0], view[:, 1] - view[n, 1]) < STACKED_REACH * reach[n]
-        count += bool((near & (view[:, 2] > view[n, 2]) & (site == site[n])).any())
+    for n, near in zip(rows, found):
+        near = np.asarray(near, dtype=np.int64)
+        near = near[(np.hypot(view[near, 0] - view[n, 0], view[near, 1] - view[n, 1])
+                     < STACKED_REACH * reach[n])]
+        count += bool(((view[near, 2] > view[n, 2]) & (site[near] == site[n])).any())
     return look.hidden * count / len(look.hidden_atoms)
 
 

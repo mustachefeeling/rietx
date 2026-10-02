@@ -85,11 +85,17 @@ def _far(geometry: Mapping, missing: int | None = None) -> np.ndarray:
     for a in atoms:
         o, n = a["image"]
         home.setdefault(o, np.asarray(a["frac"], dtype=np.float64) - n)
-    out = np.empty(len(geometry["bonds"]), dtype=int)
-    for k, b in enumerate(geometry["bonds"]):
-        o = atoms[b["j"]]["image"][0]
-        n = np.rint(inverse @ np.asarray(b["b"], dtype=np.float64) - home[o]).astype(int)
-        out[k] = at.get((o, *(int(v) for v in n)), b["j"] if missing is None else missing)
+    bonds = geometry["bonds"]
+    out = np.empty(len(bonds), dtype=int)
+    if not bonds:
+        return out
+    # one matrix product for every bond rather than one a bond: this runs on
+    # every render through the report's dangling count
+    orbit = [atoms[b["j"]]["image"][0] for b in bonds]
+    ends = np.array([b["b"] for b in bonds], dtype=np.float64).reshape(-1, 3)
+    cells = np.rint(ends @ inverse.T - np.array([home[o] for o in orbit])).astype(int).tolist()
+    for k, (b, o, n) in enumerate(zip(bonds, orbit, cells)):
+        out[k] = at.get((o, *n), b["j"] if missing is None else missing)
     return out
 
 
@@ -310,6 +316,8 @@ def keep(geometry: Mapping, mask, *, complete: bool | str = False) -> dict:
     It completes only within what was built.  ``sites`` is untouched and
     ``atoms[k]["site"]`` keeps its meaning.  The input is not modified.
     """
+    if isinstance(complete, np.bool_):      # ``mask.any()`` and the like
+        complete = bool(complete)
     if not any(complete is c or (isinstance(c, str) and complete == c) for c in COMPLETE):
         raise ValueError(f"complete {complete!r}: one of False, True, 'bonds' or 'polyhedra'")
     atoms = geometry["atoms"]

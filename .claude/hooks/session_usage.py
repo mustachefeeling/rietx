@@ -399,8 +399,8 @@ def measure_lanes(main: Path) -> dict:
         label = a["description"][len(LANE_PREFIX):].strip()
         est = re.search(r"~(\d+)\s*$", label)
         item = re.sub(r"\s*~\d+\s*$", "", label)
-        path = next((d / f"agent-{a['agent_id']}.jsonl" for d in subdirs
-                     if (d / f"agent-{a['agent_id']}.jsonl").exists()), None)
+        path = next((p for p in (d / f"agent-{a['agent_id']}.jsonl" for d in subdirs)
+                     if p.exists()), None)
         if not a["agent_id"] or path is None:
             continue
         sub = parse(path, sidechain=True)
