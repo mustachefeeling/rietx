@@ -341,14 +341,19 @@ def _dangling(geometry: Mapping, scene: dict) -> int:
     species' own halves and leaves its neighbours' pointing at it, and round B
     printed this count as 0 on a calcite covered in O stubs, which is what an
     agent reading the report rather than the picture was told (WP-1529).
+
+    So does a bond whose far end is not in the geometry at all, as ``build``'s
+    atom cap leaves it: HKUST-1's cell trimmed to 400 atoms drew 96 such
+    sticks while this count read 0, because every atom it held was drawn
+    (#665).
     """
     if not scene["halves"]:
         return 0
     drawn = {a["index"] for a in scene["atoms"]}
     atoms, bonds = geometry["atoms"], geometry["bonds"]
-    if len(drawn) == len(atoms):
+    far = cut._far(geometry, missing=-1)
+    if len(drawn) == len(atoms) and (far >= 0).all():
         return 0
-    far = cut._far(geometry)
     count = 0
     for h in scene["halves"]:
         bond = bonds[h["bond"]]
@@ -402,7 +407,8 @@ def _png(path: Path, image: np.ndarray, dpi: float | None) -> None:
 def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="opening",
                      up=None, turn: str | None = None, size=DEFAULT_SIZE,
                      supersample: int = 2, probability: float | None = None,
-                     bond_tolerance: float | None = None, exaggeration: float = 1.0,
+                     bond_tolerance: float | None = None, max_atoms: int | None = None,
+                     exaggeration: float = 1.0,
                      hidden=(), boundary: bool = True, polyhedra=None,
                      axis_labels: bool = True, atom_labels: bool = False,
                      outline: bool = False, background="white", path=None,
@@ -412,6 +418,15 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     ``structure`` is a :class:`~rietx.Structure`, or the dict
     ``rietx.gui.structure3d.build`` returns, edited as you like (a colour, a
     radius, a hidden site): the renderer draws what the dict says (D10).
+
+    From a structure the cell is drawn whole or not at all.  ``max_atoms``
+    (default ``rietx.gui.structure3d.MAX_ATOMS``, 400) bounds the cell's own
+    atoms with their copies on its faces, and a cell past it raises naming its
+    count, as ``build(extent=...)`` raises on a block.  The bonded neighbours
+    and polyhedron vertices drawn outside the cell are not counted against it.
+    A dict says what was built, so ``probability``, ``bond_tolerance`` and
+    ``max_atoms`` are refused with one; the report's ``cut`` counts what its
+    atom cap left out.
 
     ``mode`` is ``"ball"`` or ``"ellipsoid"``; ``probability`` the ellipsoids'
     level (default 50 %) and ``exaggeration`` a drawing scale on top of it,
@@ -453,16 +468,29 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
                          "smear the thin rings and lines a structure figure is read by")
     if dpi is not None and not 0 < float(dpi) < 1e6:
         raise ValueError(f"dpi {dpi!r}: a positive resolution, in dots per inch")
+    if max_atoms is not None and (not isinstance(max_atoms, (int, np.integer))
+                                  or isinstance(max_atoms, bool) or max_atoms < 1):
+        raise ValueError(f"max_atoms {max_atoms!r}: a whole number of atoms, at least 1")
     if isinstance(structure, Mapping):
-        if probability is not None or bond_tolerance is not None:
-            raise ValueError("probability= and bond_tolerance= build the geometry; "
-                             "a geometry dict has already been built with its own")
+        if probability is not None or bond_tolerance is not None or max_atoms is not None:
+            raise ValueError("probability=, bond_tolerance= and max_atoms= build the "
+                             "geometry; a geometry dict has already been built with its own")
         geometry = structure
     else:
+        # the cell is built whole and then held to the cap, the rule
+        # build(extent=...) keeps for a block: a trimmed cell draws broken
+        # bonds that read as a wrong structure (#665)
+        cap = s3.MAX_ATOMS if max_atoms is None else int(max_atoms)
         geometry = s3.build(
             structure, phase,
             probability=s3.DEFAULT_PROBABILITY if probability is None else probability,
-            bond_tolerance=s3.BOND_TOLERANCE if bond_tolerance is None else bond_tolerance)
+            bond_tolerance=s3.BOND_TOLERANCE if bond_tolerance is None else bond_tolerance,
+            max_atoms=s3._UNCAPPED)
+        n_cell = geometry["n_cell"]
+        if n_cell > cap:
+            raise ValueError(f"phase {phase}: {n_cell} atoms in the cell with its face "
+                             f"copies, past max_atoms={cap}; pass max_atoms={n_cell} or "
+                             "more to draw it whole")
     geometry = _site_colours(geometry)
     bg = _colour(background)
     dark = bg is not None and sum(w * v for w, v in zip(sc.LOOK["luma"], bg)) < 0.5
@@ -528,20 +556,26 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
         long_side = max(probe.size) if isinstance(probe.size, tuple) else probe.size
         warnings.append(f"{seen.unjudged} atoms cover less than one sample at {long_side} px "
                         "and are not counted in hidden")
+    cuts = {"atoms": 0, "polyhedra": 0, "bonds": 0, **geometry.get("cut", {})}
+    capped = [f"{n} {what}" for n, what in (
+        (cuts["atoms"], "of the cell's atoms"),
+        (len(geometry.get("polyhedra_dropped", [])), "coordination polyhedra")) if n]
+    if capped:
+        warnings.append(f"build's atom cap trimmed this cell, leaving out "
+                        f"{' and '.join(capped)}; build it again with a larger max_atoms")
     report = rp.FigureReport(
         hidden=seen.hidden, hidden_atoms=seen.hidden_atoms,
         dangling_bonds=_dangling(geometry, scene),
         label_overlaps=_label_overlaps(labels, frame), empty=_empty(image, bg),
-        cut={"polyhedra": 0, "bonds": 0, **geometry.get("cut", {})},
-        note=geometry.get("note", ""), warnings=warnings)
-    # every argument but the first and path: phase, probability and
-    # bond_tolerance pick and build the geometry from a structure, and left out
+        cut=cuts, note=geometry.get("note", ""), warnings=warnings)
+    # every argument but the first and path: phase, probability, bond_tolerance
+    # and max_atoms pick and build the geometry from a structure, and left out
     # they redraw phase 0 at the defaults with nothing said
     recipe = {k: _plain(v) for k, v in {
         "phase": phase, "mode": mode, "view": views.as_list(R), "size": size,
         "supersample": s, "probability": probability, "bond_tolerance": bond_tolerance,
-        "exaggeration": exaggeration, "hidden": hidden_asked, "boundary": boundary,
-        "polyhedra": polyhedra, "axis_labels": axis_labels, "atom_labels": atom_labels,
+        "max_atoms": max_atoms, "exaggeration": exaggeration, "hidden": hidden_asked,
+        "boundary": boundary, "polyhedra": polyhedra, "axis_labels": axis_labels, "atom_labels": atom_labels,
         "outline": outline, "background": background, "dpi": dpi}.items()}
     return StructureFigure(image=image, rotation=views.as_list(R),
                            pixels_per_angstrom=frame.ppa, atoms=atoms, letters=letters,

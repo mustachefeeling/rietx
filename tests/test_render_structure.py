@@ -731,7 +731,8 @@ def test_labels_that_share_a_place_overlap():
 
 def test_keep_says_what_it_cut_and_the_report_repeats_it(nac):
     geometry = s3.build(nac)
-    assert render_structure(geometry, size=200).report.cut == {"polyhedra": 0, "bonds": 0}
+    assert render_structure(geometry, size=200).report.cut == {"atoms": 0, "polyhedra": 0,
+                                                               "bonds": 0}
     from rietx.viz import keep, select
     species = geometry["sites"][0]["species"]
     some = keep(geometry, select(geometry, species=species))
@@ -744,6 +745,81 @@ def test_keep_says_what_it_cut_and_the_report_repeats_it(nac):
     both = render_structure(twice, size=200).report.cut
     assert both["bonds"] >= first["bonds"] and both["polyhedra"] >= first["polyhedra"]
     assert render_structure(twice, size=200).report.note == twice.get("note", "")
+
+
+# ----------------------------------------------------------------------
+# a cell past the atom cap (#665)
+# ----------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def hkust():
+    """HKUST-1, Fm-3m at a = 26.27 Å: 648 atoms in the cell with its face
+    copies, past the viewer's 400."""
+    return structure_from_cif(str(DATA / "cod_4002052.cif"))
+
+
+def test_a_trimmed_cell_is_counted_in_the_report(hkust):
+    """``build``'s one cell trims to its cap, and the report counts what that
+    cost.  It read ``cut {'polyhedra': 0, 'bonds': 0}``, ``dangling_bonds 0``
+    and no warning over a picture of broken linkers; only ``note`` said it."""
+    geometry = s3.build(hkust)
+    assert geometry["n_cell"] == s3.MAX_ATOMS
+    assert geometry["cut"] == {"atoms": 248, "bonds": 0, "polyhedra": 0}
+    fig = render_structure(geometry, size=400)
+    _save(fig, "cap_hkust1_trimmed")
+    assert fig.report.cut["atoms"] == 248
+    # the 96 neighbours outside the cell the cap left no room for: each bond
+    # to one is drawn whole and ends on nothing
+    assert fig.report.dangling_bonds == 96
+    assert any("atom cap" in w and "248" in w and "max_atoms" in w
+               for w in fig.report.warnings)
+    # keep carries the cap's count through a cut of its own
+    inside = keep(geometry, select(geometry, boundary=False))
+    assert inside["cut"]["atoms"] == 248 and inside["cut"]["bonds"] > 0
+    assert render_structure(inside, size=200).report.cut["atoms"] == 248
+
+
+def test_polyhedra_the_cap_turned_away_are_a_warning(nac):
+    """NAC's 90 atoms fit under 175, and some of its polyhedra's ligands do not."""
+    small = s3.build(nac, max_atoms=175)
+    assert small["cut"]["atoms"] == 0 and small["polyhedra_dropped"]
+    warnings = render_structure(small, size=200).report.warnings
+    n = len(small["polyhedra_dropped"])
+    assert any(f"{n} coordination polyhedra" in w and "max_atoms" in w for w in warnings)
+
+
+def test_a_cell_past_the_cap_raises_and_names_its_count(hkust):
+    """From a structure the cell is drawn whole or not at all, the rule
+    ``build(extent=...)`` keeps for a block."""
+    with pytest.raises(ValueError, match="648 atoms.*max_atoms=400.*max_atoms=648"):
+        render_structure(hkust, size=100)
+    with pytest.raises(ValueError, match="max_atoms=647"):
+        render_structure(hkust, size=100, max_atoms=647)
+
+
+def test_a_cell_drawn_whole_has_no_stubs_and_replays(hkust):
+    fig = render_structure(hkust, size=400, max_atoms=648)
+    _save(fig, "cap_hkust1_whole")
+    assert fig.report.cut == {"atoms": 0, "polyhedra": 0, "bonds": 0}
+    assert fig.report.dangling_bonds == 0 and fig.report.warnings == []
+    # the cap bounds the cell's own atoms; its bonded neighbours are drawn past it
+    assert len(fig.atoms) > 648
+    assert sum(not a["boundary"] for a in fig.atoms) == sum(
+        s["multiplicity"] for s in s3.build(hkust, max_atoms=648)["sites"])
+    assert fig.recipe["max_atoms"] == 648
+    again = render_structure(hkust, **json.loads(json.dumps(fig.recipe)))
+    assert np.array_equal(again.image, fig.image)
+
+
+@pytest.mark.parametrize("value", [0, -5, 2.5, True, "648"])
+def test_max_atoms_is_a_positive_whole_number(nac, value):
+    with pytest.raises(ValueError, match="max_atoms"):
+        render_structure(nac, size=100, max_atoms=value)
+
+
+def test_max_atoms_is_refused_with_a_dict(nac):
+    with pytest.raises(ValueError, match="max_atoms"):
+        render_structure(s3.build(nac), size=100, max_atoms=1000)
 
 
 def test_a_flat_ellipsoid_is_a_warning():

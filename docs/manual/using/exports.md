@@ -177,8 +177,19 @@ pass `True`, `False` or a formula switch such as `{"AlF₆": False}`.
 `background=None` is transparent.
 `outline=True` inks the silhouettes, off by default because the GUI draws
 none.
+From a structure, the cell is drawn whole or the call raises.
+`max_atoms=` bounds the cell's own atoms with their copies on its faces, at
+the GUI's 400 by default.
+A cell past it raises and names its count.
+HKUST-1's cell holds 648, so it needs `max_atoms=648` or more.
+The bonded neighbours and polyhedron vertices drawn outside the cell do not
+count against the cap.
 For a site's colour or radius, edit the dict `rietx.gui.structure3d.build`
 returns and pass the dict in place of the structure.
+`build` trims the one cell to its own `max_atoms` instead, because that
+default serves the GUI's viewer.
+The dict's `cut` counts what the trim left out, and so does the figure's
+report.
 A site's `color` is `#rrggbb`, `"white"` or `"black"`, and `render_structure`
 raises on any other spelling, because the scene would draw it grey without a
 message.
@@ -210,7 +221,8 @@ It takes the dict and a boolean mask over `atoms` and returns a new dict with
 only the atoms the mask keeps.
 A bond survives when both its ends do, and a polyhedron when its centre and
 every vertex do.
-What it cut from a surviving atom is counted in the dict's `note`.
+What it cut from a surviving atom is counted in the dict's `note` and added
+to its `cut`.
 Four functions build the mask, and masks combine with `&`, `|` and `~`.
 Each example below is from `examples/structure_cut.py`.
 
@@ -324,6 +336,9 @@ each pixel, so a stick that hides an atom counts and a translucent face does
 not.
 `dangling_bonds` counts bond halves whose far atom is not drawn.
 The stubs a `hidden=` species leaves on its neighbours count too.
+So do the bonds of a cell `build` trimmed, where the far atom was left out
+of the dict.
+HKUST-1 trimmed to 400 atoms has 96.
 A mask on `element=` through `keep` removes the species with its bonds whole.
 On NAC it is 0 for the cell, for a block of cells and after a `keep`, since
 `keep` drops a bond it cuts and counts it in `cut`.
@@ -331,11 +346,15 @@ It is 158 with `boundary=False`, which leaves out the images at the cell faces
 that the bonds there reach.
 `label_overlaps` counts pairs of letters whose boxes intersect, and `empty` is
 the share of pixels with nothing drawn.
-`cut` holds what `keep` dropped from an atom it kept, running over successive
-cuts, and `note` is the dict's own note, which says where `build` trimmed to the
-atom cap.
-`warnings` are sentences, such as an ellipsoid drawn flat because its tensor is
-not positive definite.
+`cut` counts what the figure lost before it was drawn.
+Its `atoms` is the cell's atoms `build`'s atom cap left out, 248 on HKUST-1.
+Its `bonds` and `polyhedra` are what `keep` dropped from an atom it kept,
+running over successive cuts, plus what `build`'s caps left out.
+`note` is the dict's own note, and it gives the same losses in words.
+`warnings` are sentences.
+One says when the atom cap trimmed the cell.
+Another says when an ellipsoid is drawn flat because its tensor is not
+positive definite.
 There is no quality score: the report is evidence and the judgement is the
 reader's.
 

@@ -45,13 +45,19 @@ class FigureReport:
     outside it) that are covered over more than 80 % by an atom or bond in
     front, at a long side of 256 px, and ``hidden_atoms`` their indices into the
     geometry's ``atoms``.  An atom under one sample at that size is left out of
-    both.  ``dangling_bonds`` counts bond halves whose far atom is not drawn,
-    the stubs ``hidden=`` leaves included.  ``label_overlaps`` counts
+    both.  ``dangling_bonds`` counts bond halves whose far atom is not drawn:
+    the stubs ``hidden=`` leaves, and the bonds a trimmed cell leaves ending
+    on an atom the geometry does not hold.  ``label_overlaps`` counts
     pairs of drawn letters whose boxes intersect.  ``empty`` is the share of
-    the picture's pixels with nothing drawn, read off the image.  ``cut`` is
-    what :func:`~rietx.viz.keep` dropped from a kept atom, and ``note`` the
-    geometry's own note, which says where ``build`` trimmed to the atom cap.
-    ``warnings`` are sentences.
+    the picture's pixels with nothing drawn, read off the image.
+
+    ``cut`` counts what the figure lost before it was drawn.  ``atoms`` is the
+    cell's images ``build``'s atom cap left out.  ``bonds`` and ``polyhedra``
+    are what :func:`~rietx.viz.keep` dropped from a kept atom, running over
+    successive cuts, plus the bond segments and polyhedra ``build``'s caps
+    left out.  ``note`` is the geometry's own note, the same losses in words.
+    ``warnings`` are sentences, and one says so when the atom cap trimmed the
+    cell.
     """
     hidden: float
     hidden_atoms: list[int]

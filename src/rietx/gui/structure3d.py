@@ -70,7 +70,8 @@ DEFAULT_PROBABILITY = 0.50
 #: and the honest answer to that is a control, not a better constant.
 BOND_TOLERANCE = 1.15
 
-#: Segments, not pairs — see :func:`_bonds`.  Reported in ``note`` when it bites.
+#: Segments, not pairs — see :func:`_bonds`.  Reported in ``note`` and counted
+#: in ``cut["bonds"]`` when it bites.
 MAX_BONDS = 4000
 
 #: Below this, two "atoms" are the same atom (a duplicated boundary image, or a
@@ -121,7 +122,9 @@ _FACING = np.array([1.0, math.e, math.pi])
 
 #: How many drawn atoms (symmetry images and boundary duplicates included) the
 #: payload will carry.  A cap rather than a promise: it is reported in ``note``
-#: when it bites, because a silently truncated cell reads as a wrong structure.
+#: and counted in ``cut`` when it bites, because a silently truncated cell reads
+#: as a wrong structure.  It is the GUI's viewer's (WP-1502); a Python caller
+#: passes a larger one.
 MAX_ATOMS = 400
 
 #: The extent ``build`` draws by default: the one cell (WP-1502).
@@ -677,6 +680,16 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     cell's own rule), every bond of an atom in it, and every polyhedron whose
     centre is in it, whole.  ``max_atoms`` then bounds the block and raises
     past it, as a block cannot be trimmed without cutting bonds.
+
+    The one cell is trimmed instead, since ``max_atoms``' default of
+    :data:`MAX_ATOMS` serves the GUI's viewer.  The cell's images past the cap
+    are left out, and so are the bonded neighbours and polyhedron ligands that
+    would take the drawing past it, whose bonds then end in mid-air.  ``cut``
+    counts each loss: ``atoms`` the cell's images left out, ``bonds`` the
+    segments past :data:`MAX_BONDS`, and ``polyhedra`` the polyhedra
+    ``polyhedra_dropped`` lists.  ``note`` says the same in words.
+    ``rietx.viz.render_structure`` never draws a trimmed cell from a
+    structure: it raises past its own ``max_atoms``, as the block does.
     """
     box = _extent(extent)
     if box != DEFAULT_EXTENT:
@@ -715,6 +728,9 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     left_out = minor if disorder == "major" else set()
     sites, atoms, notes, every = _expand(ph, phase, sg, basis, astar, max_atoms, left_out)
     n_cell = len(atoms)
+    # what the caps leave out, as numbers beside the words in ``note``: the
+    # figure's report reads these and never parses ``note`` (#665)
+    cut = {"atoms": len(every) - n_cell, "bonds": 0, "polyhedra": 0}
     # the colours are decided *here*, over the phase's own element list, because
     # two of them being the same colour is a fact about this picture and not
     # about the element table (WP-1029)
@@ -737,6 +753,7 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     if len(bonds) > MAX_BONDS:
         notes.append(f"{len(bonds)} bond segments trimmed to {MAX_BONDS}; lower "
                      "the bond tolerance to see a picture rather than a cage")
+        cut["bonds"] = len(bonds) - MAX_BONDS
         bonds = bonds[:MAX_BONDS]
     partners = _partners(atoms, bonds, basis)
     room = max(max_atoms - len(atoms), 0)
@@ -751,6 +768,7 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     if dropped:
         notes.append(f"{len(dropped)} coordination polyhedra not drawn: their ligands "
                      f"would take the drawing past {max_atoms} atoms")
+        cut["polyhedra"] = len(dropped)
     atoms.extend(corners)
     _flag_outside_centres(atoms, n_cell, bonds, polyhedra)
 
@@ -804,6 +822,9 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
                                     if j not in cations and j not in left_out
                                     and is_ligand("", s["element"])})
                             if ligands is None else ligands),
+        # the cell's images, bond segments and polyhedra the caps left out;
+        # ``rietx.viz.keep`` adds what it cuts to the same counts
+        "cut": cut,
         "note": " · ".join(notes),
     }
 
