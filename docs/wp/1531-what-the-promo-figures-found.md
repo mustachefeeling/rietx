@@ -1,6 +1,6 @@
 # WP-1531 — what the promo figures found: a trimmed cell the report calls fine, a bond through a face, labels on atoms, polyhedra without their far ends
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-02 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: — (1501, 1502, 1503 and 1529 are closed; they built the surface these defects sit in)
 Priority: P2 2026-10-02 — `fig.report` calls a broken figure fine, and the skill tells an agent to read the report before the picture

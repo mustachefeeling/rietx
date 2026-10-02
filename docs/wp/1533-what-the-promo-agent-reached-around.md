@@ -1,6 +1,6 @@
 # WP-1533 — what the promo agent reached around: a cell frame with no switch, a stick width in a module constant, a score that argues against the axis view, and the furniture every script rebuilds
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-02 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: — (1531 soft: the same surface, and its report fixes are the P2)
 Priority: P3 2026-10-02 — the agent found a workaround for every item; the axis-view rule is the one that steers it wrong
