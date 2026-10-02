@@ -184,4 +184,10 @@ painter's-algorithm fault 1470 found. Nothing is built.
   One point left as written: D5 keys a face's class by formula (`face CaO6`),
   so polyhedra round two Ca sites share a class. That selects every CaO6 at
   once, which may be what a person editing wants. Decide when D5 is built.
+- **Tests**: none added, no source changed. The fast selection on this
+  branch (`[dev]` venv, macOS 26.6 on Apple silicon) gave 7918 passed, 160
+  skipped and 1 failed. The failure is
+  `test_numpy_path_bit_identical_to_golden[toy_anomalous]` at 1.6e-11, which
+  WP-1531 recorded: #669 re-baselined that golden on macOS 27.0.1. Main's CI
+  is green at this branch's base, 94626aac.
 - **Next**: the first task. Read ASE's writer before building D2.
