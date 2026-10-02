@@ -254,6 +254,56 @@ The shipping PR carries `Closes #150`, `Closes #102` (#106 closes with
 
 ## Handover log
 
+### 2026-10-02 — PR #663: a file's Biso widens the 25 Å² bound instead of refusing the file
+
+Every structure reader built Biso with this WP's kept 0–25 Å² bound. A value
+outside a bound fails validation, so one site above 25 Å² refused the whole
+file. Published structures do sit there: the methylammonium C in COD 4335638
+(CH₃NH₃PbI₃) reads as 26.8 Å². Now a reader widens the bound to hold the value
+it read, and every reader does it the same way. The ceiling's default and its
+ruling are unchanged. A Biso that starts inside 25 Å² still stops there.
+
+This entry records a PR made outside a WP session. It sits here because this
+WP owns the 25 Å² ruling. Three questions the review raised are left to the
+maintainer and are listed under *Declined*.
+
+**Done.**
+
+- `a4b73506` (the PR's own commit, 2026-10-01, written in a promo-video
+  session). `schemas.structure.BISO_BOUNDS` and `biso_bounds(value)`. The CIF,
+  recipe, FullProf, GSAS and GSAS-II readers use them.
+- `/code-review high --fix` on 2026-10-02 found seven issues and fixed three:
+  - `ba3327c8`: the TOPAS reader, the sibling the PR missed. A beq above 25 Å²
+    still refused the `.inp`.
+  - `9af16d4a`: `magnetic_supercell` rebuilt each child's biso as a bare
+    `Parameter`, which inherits 0–25 Å². A parent with a widened bound then
+    failed validation. The child now keeps the source's `min`/`max`.
+  - `3b59a9fc`: `Atom.biso`'s default reads `BISO_BOUNDS`, which it had spelled
+    again beside the constant.
+  - `46bdd813`: the docstring's example now quotes the test's 0.34 Å².
+
+**Declined, for the maintainer.**
+
+- **A negative Biso.** The FullProf, TOPAS, GSAS and GSAS-II readers refuse
+  one on purpose. The CIF and recipe readers now accept one silently, with a
+  negative floor. `check_biso_plausible` has no low-side test because this
+  WP's Item 2 assumed "readers refuse negative B". So a negative Biso from a
+  CIF now reaches a fit with nothing said. The two fixes are that those two
+  readers refuse too, or that a low-side flag is added. Choosing is a policy
+  call.
+- **The widened bound sits exactly at the value.** A freed Biso starts on its
+  own bound and cannot move outward, and `BOUND_HIT` names a limit the reader
+  made up. Headroom would change what the PR intended.
+- **No diagnostic records the widening.** Root CLAUDE.md says a reader repairs
+  a file only where it records a `Diagnostic`. One here means a new code and a
+  skill row.
+
+**Measured** (worktree `.venv`, `[dev]`, darwin; a `/pr-review` slow run was
+going at the same time, so no timing is quoted): FAST_COUNTS.
+
+**Next:** decide the negative-Biso question first. Its answer sets whether the
+diagnostic is one code or two. Then merge #663.
+
 ### 2026-09-18 — closed: all five, and two premises that did not survive
 
 All five of this WP's walking parameters are answered, and not one threshold
