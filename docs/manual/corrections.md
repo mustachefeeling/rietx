@@ -83,8 +83,9 @@ which is not modelled. Hydrogen is where the two radiations part most: its
 incoherent 80.26 barn makes it about 93 % of brucite's neutron $\mu$ and
 under 1 % of its X-ray one. A resonant absorber (Cd, Sm, Eu, Gd, Yb) is
 refused. Near a resonance the $1/v$ scaling of the thermal value is wrong in
-principle, and no resonance energies are tabulated to say how near a given
-$\lambda$ is. That is the neutron twin of the edge refusal above.
+principle. The lowest resonance of each sits at a tabulated energy
+(`rx.crystallography.neutron.resonance_wavelengths`), but how near a given
+$\lambda$ must be to matter is not modelled. That is the neutron twin of the edge refusal above.
 
 ## Capillary (cylindrical) absorption
 

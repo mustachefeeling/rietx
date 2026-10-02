@@ -757,8 +757,8 @@ divides by R.
 `estimate_mu_r` computes a starting µR from a structure's composition and the
 geometry, and returns `None` rather than raising when it cannot: an element
 outside the tabulation, a wavelength straddling an edge, a neutron resonant
-absorber (Cd, Sm, Eu, Gd or Yb, refused at every wavelength since no resonance
-energies are tabulated), or no capillary radius.
+absorber (Cd, Sm, Eu, Gd or Yb, refused at every wavelength, since how near a
+resonance must be to matter is not modelled), or no capillary radius.
 A refinement does the same calculation itself when `mu_r` is left `None`.
 The table follows the source. An X-ray source reads the McMaster cross-sections,
 and a `NeutronSource` reads the Sears neutron ones of {eq}`corr-mu-neutron`,

@@ -6396,17 +6396,17 @@ def _resonant_absorber_diagnostics(structure: Structure,
 
     Everything reported comes from the shipped table, so a reader can check it
     against ``src/rietx/data/b_Sears.dat`` without leaving the repository.
-    Deliberately **not** reported: the resonance energy per nuclide, which
-    WP-1312 also asks for.  That needs a citation this package does not
-    currently carry (Mughabghab's *Atlas of Neutron Resonances* is the usual
-    source) and transcribing it from memory is the failure this campaign has
-    already met once -- so the flag lands without it, and the energies can be
-    added with their citation.
+    The message also says where each species' lowest resonance sits, as an
+    energy and as the neutron wavelength it corresponds to
+    (``neutron.resonance_wavelengths``, ENDF/B-VIII.0), so the reader can set
+    it beside the instrument's own wavelength.  Reported, never judged: how
+    near is near needs the resonance's width, which is not carried.
     """
     from .crystallography.neutron import (  # noqa: PLC0415
         is_resonant_absorber,
         normalize_species,
         properties,
+        resonance_wavelengths,
     )
 
     if instrument.source.kind == "xray_cw":
@@ -6430,13 +6430,18 @@ def _resonant_absorber_diagnostics(structure: Structure,
     worst = max((v for v in flagged.values() if v == v), default=0.0)
     named = ", ".join(f"{s} {v:.0f} barn" for s, v in
                       sorted(flagged.items(), key=lambda kv: -kv[1]))
+    sits = "; ".join(f"{n} {e:.4g} eV = {lam:.3g} A"
+                     for s in sorted(flagged, key=lambda k: -flagged[k])
+                     for n, (e, lam) in resonance_wavelengths(s).items())
     return [Diagnostic(
         level=("warning" if worst >= RESONANT_ABSORBER_SEVERE_BARN else "info"),
         code="NEUTRON_RESONANT_ABSORBER",
         where=sorted(where),
         message=(f"this structure contains a resonant absorber ({named}); the "
                  f"tabulated b is the real part of the thermal value and is "
-                 f"incomplete near the resonance"),
+                 f"incomplete near the resonance (lowest resonance: {sits}; "
+                 f"this source's wavelength is "
+                 f"{instrument.source.primary_wavelength:.4g} A)"),
         suggestion="at one constant wavelength away from the resonance the "
                    "thermal value is the right number and nothing is owed. "
                    "Check that this wavelength is away from it before quoting "

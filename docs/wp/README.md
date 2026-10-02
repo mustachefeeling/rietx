@@ -39,7 +39,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 
 | WP | Title | Priority | Depends on | Section |
 |---|---|---|---|---|
-| [1312](1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | P2 | — | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
 | [1323](1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | P2 | — ([1312](1312-neutron-followthrough.md), [1335](1335-the-report-costs-more-than-the-fit.md), [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) soft) | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | P2 | — ([1333](1333-a-series-survives-one-pattern.md), [1342](1342-a-freeze-that-reads-names.md), [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
@@ -425,7 +424,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1131](1131-sample-broadening-is-a-specimen-property.md) | Sample broadening is a specimen property, not an angular coefficient | ✅ 2026-09-02 | — | — |
 | [1132](1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | 🔄 2026-10-01 | P2 | — |
 | [1133](1133-diagnostic-names-its-view.md) | A diagnostic names the view that shows it | ⬜ | P3 | — |
-| [1312](1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | ⬜ | P2 | — |
+| [1312](1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | ✅ 2026-10-02 | — | — |
 
 ### <a id="unscheduled-what-fires-and-what-stays-silent"></a>What fires, and what stays silent
 
