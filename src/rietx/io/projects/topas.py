@@ -374,6 +374,26 @@ class SkippedBlock:
                 f"{'' if self.n_sites == 1 else 's'} but no {self.lacked}{tail}")
 
 
+def _skipped_remedy(blocks) -> str:
+    """The one line each skipped block is missing, as the sentence a refusal ends on.
+
+    A block is skipped for lacking a ``phase_name``, a ``space_group``, or both,
+    and nothing else: a ``mag_space_group`` stands in for the ``space_group``
+    (how TOPAS's magnetic examples write a phase), so a magnetic ``str`` with no
+    ``phase_name`` is one ``phase_name`` line from reading. Saying *that* is the
+    difference between a refusal a caller can act on and one that only reports
+    — "no phase carries a cell" about a file carrying one sent a caller looking
+    for a missing cell.
+    """
+    lacked = {w for sb in blocks for w in sb.lacked.split(" or ")}
+    want = [line for word, line in (("phase_name", 'a `phase_name "…"` line'),
+                                    ("space_group", 'a `space_group "…"` line'))
+            if word in lacked]
+    return ("a `str` block is read as a phase once it states a `phase_name` and "
+            "a `space_group` (or a `mag_space_group`), so add "
+            + " and ".join(want) + (" to it" if len(blocks) == 1 else " to each"))
+
+
 @dataclass
 class TopasModel:
     """What a ``.inp`` states. Deliberately not a :class:`Structure` yet — the
@@ -395,6 +415,14 @@ class TopasModel:
     #: ``la``/``lo`` an array, and a doublet is two of them.
     emission_lines: list = field(default_factory=list)
     goniometer_radius_mm: float | None = None
+    #: ``"debye_scherrer"`` only where the file **states** a capillary construct
+    #: (:data:`_CAPILLARY`), ``None`` where every dataset is time of flight, and
+    #: otherwise ``"bragg_brentano"`` — which is this reader's **default**, not
+    #: something the file said: a ``neutron_data`` file or one carrying only a
+    #: ``Radius(…)`` arrives as ``"bragg_brentano"`` whatever its experiment
+    #: was. So choose the :class:`~rietx.schemas.instrument.Instrument`
+    #: preset from the radiation and the experiment you know, and read this
+    #: field only as "a capillary was declared, or not".
     geometry: str | None = None
     #: The run's own converged ``r_wp``/``gof`` — the one stated at top level,
     #: above every block opener. ``None`` where the file states none there or
@@ -3429,7 +3457,8 @@ def read_topas_inp(path: str | Path, *,
                 level="warning", code="TOPAS_BLOCK_SKIPPED",
                 message=(f"{path}: {sb} — read onto `model.skipped_blocks`, not "
                          f"built as a phase"),
-                where=[f"skipped_blocks.{i}"]))
+                where=[f"skipped_blocks.{i}"],
+                suggestion=_skipped_remedy([sb])))
     return model
 
 
@@ -4173,7 +4202,8 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
             f"{'' if len(phases) == 1 else 's'} build"
             f"{'s' if len(phases) == 1 else ''} would leave the weight "
             f"fractions no longer summing. " + "; ".join(str(sb) for sb in carrying)
-            + ". Read `model.phases` for what the file does state.")
+            + f"; {_skipped_remedy(carrying)}, or read `model.phases` for what "
+            f"the file does state.")
 
     if not phases:
         # Never "this file has no phases" about a file whose `str` blocks this
@@ -4184,7 +4214,8 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
                f"{len(model.skipped_blocks)} `str` block"
                f"{'' if len(model.skipped_blocks) == 1 else 's'} here could not "
                f"be read as a phase — "
-               + "; ".join(str(sb) for sb in model.skipped_blocks))
+               + "; ".join(str(sb) for sb in model.skipped_blocks)
+               + f"; {_skipped_remedy(model.skipped_blocks)}")
         raise TopasInpError(
             f"{model.path or '<model>'}: no phase carries a cell, so there is no "
             f"structure to build. {why} — read `model.phases` directly for what "

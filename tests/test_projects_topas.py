@@ -224,6 +224,40 @@ def test_the_skipped_block_reports_through_the_channel_but_still_refuses_at_buil
     # Report at read; refuse at build; drop never.
     with pytest.raises(TopasInpError, match="weight fractions"):
         to_structure(model)
+    # ... and the refusal says which lines would let it build instead
+    with pytest.raises(TopasInpError,
+                       match='add a `phase_name "…"` line and a `space_group "…"` line to it'):
+        to_structure(model)
+
+
+@pytest.mark.parametrize("block, wanted, unwanted", [
+    # a magnetic `str` the way TOPAS's own examples write one: the
+    # `mag_space_group` stands in for the `space_group`, so only the name is
+    # missing, and the remedy must not ask for a `space_group` it has
+    ('str\nmag_space_group 62.448\na 5.5\nb 7.7\nc 5.5\n'
+     'site Mn1 x 0 y 0 z 0.5 occ Mn+3 1 beq 0.5\n',
+     ['add a `phase_name "…"` line to it'], ['`space_group "…"` line']),
+    # nothing to name it by and no group: both lines are asked for
+    ('str\na 4.0\nb 4.0\nc 4.0\nsite B1 x 0 y 0 z 0 occ La 1. beq !b 0.5\n',
+     ['`phase_name "…"` line and a `space_group "…"` line'], []),
+])
+def test_a_skipped_block_says_which_line_would_make_it_a_phase(
+        tmp_path, block, wanted, unwanted):
+    """The skipped block's report and the build's refusal both said what the
+    block *lacked* and never that one line would make it readable — so a
+    nameless magnetic `str`, the only block in its file, ended in "no phase
+    carries a cell" about a block carrying one. The remedy is named on the
+    diagnostic's ``suggestion`` and on the refusal, and it asks only for what
+    is missing."""
+    inp = _inp(tmp_path, "nameless.inp", block)
+    diags = []
+    model = read_topas_inp(inp, diagnostics=diags)
+    (skipped,) = [d for d in diags if d.code == "TOPAS_BLOCK_SKIPPED"]
+    with pytest.raises(TopasInpError) as exc:
+        to_structure(model)
+    for said in (skipped.suggestion, str(exc.value)):
+        assert all(w in said for w in wanted), said
+        assert not any(u in said for u in unwanted), said
 
 
 # -------------------------------------------------------------------- rule 3
