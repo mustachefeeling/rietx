@@ -1,9 +1,8 @@
 # WP-1312 — CW neutron follow-through: the seed, the resonant flag, the joint fit
 
-Milestone: unscheduled · Status: 🔄 2026-10-02 — claimed by @yue-here; tasks 1-4 and the #268, #271, #276 and #437 rows landed from outside (PRs #280, #282, #427, #429, #452, #526, #530); the resonance energies landed 2026-10-02 (ENDF/B-VIII.0); left: the #113 comment
+Milestone: unscheduled · Status: ✅ 2026-10-02 — tasks 1-4 and the #268, #271, #276 and #437 rows landed from outside (PRs #280, #282, #427, #429, #452, #526, #530); the resonance energies landed 2026-10-02 (ENDF/B-VIII.0); the #113 comment posted
 Track: The specimen is not an angle, and the neutron follow-through
 Depends on: — (WP-1132, claimed by @mustachefeeling in PR #541, does not gate any task here)
-Priority: P2 2026-09-23 — a resonant absorber's b is mis-tabulated in silence, on a path few fits run
 
 ## Goal
 
@@ -180,11 +179,11 @@ the resonance width, which it does not carry.
 - *Gotchas*: a nuclide with a bound level (¹⁴⁹Sm at -1.127 eV, ¹⁵¹Eu at
   -0.0609 eV) is not given a second entry. The file's resonance range may end
   well above the lowest level, so the lowest *positive* one is the right pick.
-- *Next*: (1) post the #113 comment saying its (a) slice landed with energies,
-  a public act, so the maintainer approves it first; #113 stays open for the
-  fenced (b) and (c) halves. (2) Then close WP-1312, since no task is left.
-  Do the close in the follow-up session: delete the Priority line and move this
-  narrative to the v1.6 record.
+- *Next*: none; the WP is closed. The #113 comment was approved and posted
+  (issue comment 5962375054) and #113 stays open for the fenced (b) and (c)
+  halves. The Priority line is gone and the narrative moved to the v1.6
+  record. Pages 64-5 to 64-12 of another Atlas copy would let the ¹⁵⁵Gd and
+  ¹⁵⁷Gd energies be checked against it.
 
 ### 2026-09-29 (2nd session) — tasks 3 and 4 landed from outside; #194 closes
 
