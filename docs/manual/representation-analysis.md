@@ -330,6 +330,31 @@ each sampled pair with its draw counts.
 The docstring of `rietx.crystallography.magnetic.isotropy.powder_equivalent`
 states what is measured about each failure and what is still open.
 
+A third certificate turns a failed fit into a proof. When the first fit of
+one family does not reproduce a draw of the other, `rietx` looks for a
+weighting $\mathbf{y}$ of the shells with $\sum_s y_s \mathbf{G}_s$
+positive semi-definite and $\mathbf{y}\cdot\mathbf{t} < 0$ on the drawn
+pattern $\mathbf{t}$: every pattern the family can produce then has
+$\mathbf{y}\cdot\mathbf{I} \geq 0$, so none of them is $\mathbf{t}$ (the
+weak duality of semidefinite programming), and the draw is proved out of
+reach. Directions every shell matrix of the fitting family annihilates are
+projected out first, so that a family with an undeterminable amplitude can
+still be certified, and the certificate is checked in exact rational
+arithmetic before it counts. It also measures the separation: $1/\|\mathbf{y}\|$
+is a lower bound on the relative L2 distance from the draw to the other
+family's patterns, and the best fit residual an upper one, and the pair
+record carries that bracket as `d` with the certificate itself (`witness`)
+so it can be re-checked without the random stream. A draw certified this
+way is called distinguishable only when the lower bound is large enough that
+no fit could have reached the tolerance `rtol`
+($d \geq \mathrm{rtol}\,\sqrt{S}\,\max_s t_s/\|\mathbf{t}\|$ over the $S$
+shells it uses); a smaller one is kept and printed, and the fits decide.
+"Proved" for this certificate is of the stored draw, not of every model of
+the family. The
+printed table lists every such separation with its bracket and names any
+class that holds one, which can happen while classes are still joined
+through sampled pairs.
+
 Shirane's own example is mechanical here. His criterion is on the
 configurational symmetry (the symmetry of the signed moment arrangement, which
 he distinguishes from the chemical one; his MnO case is cubic in the chemical

@@ -1942,6 +1942,8 @@ def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
             expected += [labels[v.a]] * v.draws
             assert (v.draws > 0) == (v.status.startswith("sampled") or v.certificate == "farkas")
     assert log == expected
+    proved_lines = [line for line in str(result).splitlines() if " ⊄ " in line]
+    assert [line.split("  draw ")[1] for line in proved_lines] == [str(v.draws) for v in farkas]
 
     printed = [line for line in str(result).splitlines()
                if line.startswith("  ") and " n = " in line]
@@ -1991,9 +1993,15 @@ def test_the_cubic_known_answer_has_four_classes_at_the_default_draws():
 
     At 3 draws everywhere the same set gave two classes, S1 ∪ S2 and
     S3 ∪ S4, each joined by draws that happened to be reproduced; at the
-    default 12 across irreps some draw of every such pair is not.  A sampled
-    verdict at one seed, so this pins the protocol; the S1 ⊄ S2 proofs are a
-    later certificate's.  130-180 s on one core by machine load, hence slow.
+    default 12 across irreps some draw of every such pair is not.  The
+    classes are a sampled verdict at one seed (20260906), so this pins the
+    protocol.  Since part 2 of issue #565 the separations are proved: of
+    the 54 cross-irrep pairs, 36 by absence (S1/S2 against S3/S4) and 17
+    by a stored Farkas witness, each re-verified here from its t and y; the
+    18th, S1(rank 1)#2 → S2(a,b), is ``sampled-not`` with a negative dual
+    (no certificate exists for that draw; part 3's isometry carries it from
+    S1(rank 1)#1's).  The witnesses' d_lo run from 0.0013 to 0.032.
+    50-200 s on one core by machine load and tree, hence slow.
     """
     found = isotropy.analyse(isotropy.candidates(*KNOWN_ANSWER), d_min=1.5)
     by_irrep = {}
@@ -2001,6 +2009,28 @@ def test_the_cubic_known_answer_has_four_classes_at_the_default_draws():
         by_irrep.setdefault(candidate.irrep_label, []).append(i)
     assert found.classes == tuple(tuple(members) for members in by_irrep.values())
     assert len(found.classes) == 4
+
+    irrep = [c.irrep_label for c in found]
+    cross = [pair for (i, j), pair in _pairs(found.relations, len(found)).items()
+             if irrep[i] != irrep[j]]
+    assert len(cross) == 54
+    by = {}
+    for pair in cross:
+        proof = next((v.certificate for v in pair if v.status == "proved-not"), None)
+        by[proof] = by.get(proof, 0) + 1
+    assert by == {"absence": 36, "farkas": 17, None: 1}
+    failed = [v for v in found.relations if v.status == "sampled-not"]
+    assert [(found[v.a].label, found[v.b].label) for v in failed] == [("S1(rank 1)#2", "S2(a,b)")]
+    assert failed[0].dual < 0.0 and failed[0].witness is None
+    reflections = isotropy.reflections(found.lattice, 1.5)
+    canonical = [isotropy._canonical_basis(c) for c in found]
+    farkas = [v for v in found.relations if v.certificate == "farkas"]
+    for v in farkas:
+        g = isotropy.gram(isotropy.structure_factors(canonical[v.b], reflections),
+                          reflections.shells)
+        assert isotropy._verify_witness(g, v.witness)[0], v
+        assert v.d[0] <= v.d[1]
+    assert 1e-3 < min(v.d[0] for v in farkas) and max(v.d[0] for v in farkas) < 0.05
 
 
 def test_the_certificates_run_on_a_pair_union_find_has_already_joined(monkeypatch):
@@ -2454,7 +2484,11 @@ def test_a_proved_separation_inside_a_joined_class_is_reported(monkeypatch, know
     assert _table_marks(result) == ["S"] * 4
     there = next(v for v in result.relations if (v.a, v.b) == (0, 2))
     assert (there.status, there.certificate, there.draws) == ("proved-not", "farkas", 4)
-    assert "proved 1 (absence 0, subspace 0, farkas 1)" in str(result)
+    lo, hi = there.d
+    text = str(result)
+    assert f"S1(rank 1)#1 ⊄ S2(rank 1)#1  d ∈ [{lo:.2g}, {hi:.2g}]  draw 4" in text
+    assert "classes holding a proved separation (part 5 of issue #565 splits them): 0" in text
+    assert "proved 1 (absence 0, subspace 0, farkas 1)" in text
 
 
 @pytest.mark.xdist_group("magnetic-known-answer")
@@ -2501,6 +2535,11 @@ def test_the_s1_s2_pairs_of_the_known_answer_are_proved_by_stored_witnesses(know
         assert w.d[0] >= isotropy._gate(1e-4, np.asarray(w.t), live)
         assert v.dual >= isotropy.FARKAS_FLOOR
     assert min(v.d[0] for v in farkas.values()) < 1e-2
+    printed = [line for line in str(result).splitlines() if " ⊄ " in line]
+    assert len(printed) == len(farkas)
+    for line in printed:
+        lo, hi = (float(x) for x in line.split("d ∈ [")[1].split("]")[0].split(", "))
+        assert lo <= hi
 
 
 def _known_pair(known_answer_stack, names=("S1(rank 1)#2", "S2(rank 1)#1")):

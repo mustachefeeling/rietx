@@ -161,6 +161,15 @@ axial transformation law** M(R**r** + **t**) = θ·det(R)·R·M(**r**) this modu
 domain action uses.
 Rodríguez-Carvajal, J. (1993). *Physica B* **192**, 55, eq. (1) — the sign
 convention for M⊥ written above.
+Vandenberghe, L. & Boyd, S. (1996). *SIAM Rev.* **38**, 49 — weak duality
+for semidefinite programs, the Farkas certificate of :class:`Witness`.
+Boyd, S. & Vandenberghe, L. (2004). *Convex Optimization*. Cambridge
+University Press, §§ 3.1.5 and 8.1 — concavity of λ_min, and the distance to
+a convex cone as a dual norm problem.
+Householder, A. S. (1958). *J. ACM* **5**, 339 — the reflector behind the
+basis of t̂⊥.
+Peyrl, H. & Parrilo, P. A. (2008). *Theor. Comput. Sci.* **409**, 269 —
+exact rational checks of semidefinite certificates.
 Stokes, H. T. & Hatch, D. M. (1988). *Isotropy Subgroups of the 230
 Crystallographic Space Groups*. Singapore: World Scientific.
 Campbell, B. J., Stokes, H. T., Tanner, D. E. & Hatch, D. M. (2006).
@@ -1417,23 +1426,30 @@ class PairVerdict:
       (every shell is a systematic absence), so ``b``'s zero model
       reproduces all of it.  ``certificate`` is ``"absence"``.
     * ``proved-not`` — no model of ``b`` reproduces almost any model of
-      ``a``, for a reason that holds for the whole family (``certificate``,
-      below).  No draw is made.
+      ``a``, for a reason that holds for the whole family, and no draw is
+      made; or (``farkas``) no model of ``b`` reproduces one drawn model of
+      ``a`` to ``rtol``, and ``draws`` is that draw's index
+      (``certificate``, below).
     * ``sampled-contained`` — every one of ``draws`` random models of ``a``
       was reproduced by a fit of ``b`` to ``rtol``.  A statement about those
       draws, not about the family (:func:`powder_equivalent`, mechanism B).
-    * ``sampled-not`` — a draw was not reproduced by any restart of the fit.
-      ``draws`` counts the draws made, that last one included, and
-      ``undecided_draws`` is 1: a fit's failure is not a proof (mechanism A).
+    * ``sampled-not`` — a draw was not reproduced by any restart of the fit,
+      and no Farkas certificate cleared the gate for it.  ``draws`` counts
+      the draws made, that last one included, and ``undecided_draws`` is 1:
+      a fit's failure is not a proof (mechanism A).  ``dual`` is the
+      projected dual's optimum on that draw: negative means no certificate
+      exists for it (the relaxation is feasible: a rank gap or a fit that
+      failed).
     * ``unresolved`` — nothing decided this direction: no certificate
       applied and no draw was made, for the ``reason``
       :data:`UNRESOLVED_REASONS` names (``draws`` is 0).
 
     **"Proved" means proved on the Gram stack built in floating point, to
     this module's tolerances, for almost every model of** ``a`` — not of
-    the exact stack, and not of every model.  The two thresholds each
-    certificate reads are stated with it below, with the gap measured
-    around each.
+    the exact stack, and not of every model — **or, for** ``farkas``, **for
+    the one stored model of** ``a`` **its** :class:`Witness` **holds**.
+    The thresholds each certificate reads are stated with it below, with
+    the gap measured around each.
 
     ``certificate`` is one of :data:`RELATION_CERTIFICATES`, or ``None`` for
     a status that is not proved:
@@ -1459,6 +1475,25 @@ class PairVerdict:
       stack with a singular value inside (1e-12, 1e-6) of its largest has
       no gap to cut at and gives no subspace certificate
       (:func:`_intensity_span`).
+    * ``farkas`` — one draw t of ``a`` is out of ``b``'s reach, by a
+      vector y with Σ_s y_s G_s ⪰ 0 and y·t < 0 on ``b``'s live shells
+      (:class:`Witness`, which is stored as ``witness`` and states the
+      argument).  A statement about that draw, and so about ``a``'s family
+      only in that it contains it: ``a`` ⊄ ``b``.  Tried on a draw whose
+      first fit failed (:data:`DUAL_AFTER_RESTART`).  Thresholds: the
+      common-kernel cut at :data:`INTENSITY_RTOL` of the largest eigenvalue
+      of Σ_s G_s, with the kernel residual guarded at the same value; the
+      accept floor :data:`FARKAS_FLOOR` on the projected dual; the quoted
+      point at :data:`FARKAS_QUOTE`; the exact LDLᵀ of the quoted point as
+      arbiter (:func:`_exact_psd`, which at that margin cannot disagree with
+      the float eigenvalue); and the ``rtol`` gate below.  Measured at
+      d_min 1.5 Å, general site, Linux x86-64: over 145 families of six
+      cubic sets, kept kernel eigenvalues ≥ 2.8e-7 of the largest, dropped
+      ones ≤ 8.2e-16 and kernel residuals ≤ 2.7e-13; on the known answer and
+      ``P m -3 m`` at (0, 0, ½), accepted dual optima 6.4e-10 to 2.0e-5,
+      refused ones on the draws that ended ``sampled-not`` ≤ −3.0e-6, and
+      rounding bounds ≤ 3.4e-14.  ``d`` is the witness's bracket on the
+      relative L2 distance from the draw to ``b``'s image.
 
     **The two directions of proof are not equally safe.**  A false
     separation costs one extra refinement; a false containment silently
@@ -1469,22 +1504,37 @@ class PairVerdict:
     exact; any later one that is gated on a tolerance must print its
     residual relative to the stack it was measured on.
 
-    Neither certificate says by how much two patterns differ, only that they
-    differ; the distance comes with the certificates that measure it
-    (issue #565).
+    The absence and subspace certificates do not say by how much two
+    patterns differ, only that they differ.  The Farkas certificate does:
+    ``d`` = (lower, upper) brackets the relative L2 distance from its draw
+    to ``b``'s image, lower = 1/‖y‖, upper = the best relative residual of
+    the restarts made (one, on a certified draw, so the upper end is loose).
 
-    **A certificate does not read** ``rtol``.  The draws call a model of
-    ``a`` reproduced when the fit of ``b`` agrees to ``rtol`` (default
-    1e-4); the certificates' cuts are fixed.  A certificate and the draws
-    can therefore disagree on a pair whose ``a`` is above the cut and below
-    ``rtol``: for absence, ``a``'s largest relative Gram block on the
-    shells ``b`` is dark at; for subspace, the leak sine.  Measured over
-    every ``proved-not`` pair of five sets (``P m -3 m`` at four sites and
-    ``P n m a`` at one, d_min 1.5 Å), the smallest such margin was 4.1e-2,
-    so at the default nothing moves.  A caller passing an ``rtol`` above
-    about 4e-2 gets certificates that split pairs the draws would have
-    joined.  That is the cheap direction (one extra refinement), and the
-    margin is not checked against ``rtol``.
+    **A family-level certificate does not read** ``rtol``.  The draws call
+    a model of ``a`` reproduced when the fit of ``b`` agrees to ``rtol``
+    (default 1e-4); the absence and subspace cuts are fixed.  Such a
+    certificate and the draws can therefore disagree on a pair whose ``a``
+    is above the cut and below ``rtol``: for absence, ``a``'s largest
+    relative Gram block on the shells ``b`` is dark at; for subspace, the
+    leak sine.  Measured over every ``proved-not`` pair of five sets
+    (``P m -3 m`` at four sites and ``P n m a`` at one, d_min 1.5 Å), the
+    smallest such margin was 4.1e-2, so at the default nothing moves.  A
+    caller passing an ``rtol`` above about 4e-2 gets certificates that split
+    pairs the draws would have joined.  That is the cheap direction (one
+    extra refinement), and the margin is not checked against ``rtol``.
+
+    **The Farkas certificate is the exception: it is gated on** ``rtol``.
+    Over the S_live shells it is on, every model I of ``b`` has
+    max_s |I_s − t_s|/max|t| ≥ ‖I_live − t_live‖₂/(√S_live·max|t|)
+    ≥ d_lo·‖t_live‖₂/(√S_live·max|t|), so a certificate with
+    **d_lo ≥ rtol·√S_live·max|t|/‖t_live‖₂** proves that no restart could
+    reproduce the draw to ``rtol``: ``proved-not`` is then the module's own
+    definition at the caller's ``rtol``, and a draw a later restart would
+    reproduce can never be certified.  Below the gate the certificate is
+    still a proof that the draw is out of ``b``'s exact reach; it is stored
+    as ``witness`` with its ``d``, and the restarts decide the status.  With
+    ``weights`` the gate reads the unweighted bound derived from the same
+    certificate (:func:`_certify_draw`).
 
     **The plan for the later parts of issue #565**, fixed here so that the
     names do not move: a verdict carried from another pair by a proved
@@ -1495,6 +1545,13 @@ class PairVerdict:
     strongly a direction is known and a transfer is as strong as its
     sources; the certificate names the argument, and a ``via`` field naming
     the source pair arrives with it.
+
+    ``d``, ``witness`` and ``dual`` are set only by the draws:
+    ``proved-not``/``farkas`` carries all three; ``sampled-not`` carries
+    ``dual`` when the dual ran on its last draw, and a witness below the
+    gate when one was found; ``sampled-contained`` carries a witness only
+    when a draw was certified below the gate and then reproduced to
+    ``rtol``.  Everything is a tuple, so the record stays hashable.
     """
 
     a: int
@@ -1649,6 +1706,28 @@ class CandidateSet:
             lines.extend(self._relation_lines())
         return "\n".join(lines)
 
+    def _separation_lines(self) -> list[str]:
+        """Every Farkas certificate with its d bracket, then the classes that hold a proved separation."""
+        label = [c.label for c in self.candidates]
+        proved = [v for v in self.relations if v.certificate == "farkas"]
+        below = [v for v in self.relations if v.certificate is None and v.witness is not None]
+        lines = []
+        if proved:
+            lines.append("proved separations (farkas), d ∈ [1/‖y‖, best fit residual]:")
+            lines += [f"  {label[v.a]} ⊄ {label[v.b]}  d ∈ [{v.d[0]:.2g}, {v.d[1]:.2g}]"
+                      f"  draw {v.draws}" for v in proved]
+        if below:
+            lines.append("certificates below the rtol gate (the draws decide), d ∈ [1/‖y‖, best fit residual]:")
+            lines += [f"  {label[v.a]} ⊄ {label[v.b]}  d ∈ [{v.d[0]:.2g}, {v.d[1]:.2g}]"
+                      f"  {v.status}" for v in below]
+        holding = [c for c, members in enumerate(self.classes)
+                   if any(v.status == "proved-not" and v.a in members and v.b in members
+                          for v in self.relations)]
+        if holding:
+            lines.append("classes holding a proved separation (part 5 of issue #565 splits them): "
+                         + ", ".join(str(c) for c in holding))
+        return lines
+
     def _relation_lines(self) -> list[str]:
         """The pair counts by provenance, then every sampled pair with its draws."""
         verdicts = {(v.a, v.b): v for v in self.relations}
@@ -1669,6 +1748,7 @@ class CandidateSet:
                  + f"); sampled {len(sampled)}; joined, not drawn {untested}"]
         lines.append("class P: every relation bounding the class is proved; "
                      "S: one rests on draws or on nothing")
+        lines.extend(self._separation_lines())
         if sampled:
             lines.append("sampled pairs, n = draws a → b, b → a:")
         for there, back in sampled:
@@ -2887,10 +2967,13 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     draw the pair goes through the certificates :class:`PairVerdict`
     states: a shell one family lights and the other cannot, or an intensity
     span not inside the other's, proves the pair *distinct* for almost
-    every model, and then nothing is drawn.  The only equality the
-    certificates in this release prove is between two families with no
-    pattern at all, so any other ``True`` rests on the draws below, and so
-    does a ``False`` no certificate gave;
+    every model, and then nothing is drawn.  During the draws, a draw no
+    restart reproduces can be **proved** out of the other family's reach
+    by a Farkas certificate (``farkas``, :class:`Witness`), at the caller's
+    ``rtol``; then "distinct" is proved too, of that stored draw.  The only
+    equality the certificates in this release prove is between two families
+    with no pattern at all, so any other ``True`` rests on the draws below,
+    and so does a ``False`` no certificate gave;
     :func:`powder_relations` returns which, direction by direction, with the
     number of draws each made.
 
@@ -2904,9 +2987,10 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     still gave a partition that moved with the rotation at each of three
     seeds (2 to 4 classes over the nine runs).  What is not exact:
 
-    * **"Distinguishable" can be a failure to fit** (mechanism A).  It is
-      returned when, for one draw, all ``restarts`` random starts of the
-      other family's fit stop above ``rtol``.  The fit's global minimum is
+    * **"Distinguishable" can be a failure to fit** (mechanism A), where no
+      certificate proved it.  It is returned when, for one draw, all
+      ``restarts`` random starts of the other family's fit stop above
+      ``rtol`` and the Farkas dual finds no certificate above the gate.  The fit's global minimum is
       zero whenever the answer should be "equivalent", but a restart can
       stop in a local minimum, and restarts on one draw are not independent
       trials: they share the draw, and some draws have a dominant wrong
@@ -3112,19 +3196,24 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
     Each pair is settled by a certificate where one applies — a shell one
     family lights and the other cannot, or an intensity span not inside the
     other's (:class:`PairVerdict`) — and by :func:`powder_equivalent`'s
-    draws otherwise.  The certificates in this release prove two candidates
-    *distinct*, or two with no pattern at all equal, so every other join
-    here rests on draws, and union-find carries
+    draws otherwise, where a draw no fit reproduces can itself be proved
+    out of reach (``farkas``).  The certificates in this release prove two
+    candidates *distinct*, or two with no pattern at all equal, so every
+    other join here rests on draws, and union-find carries
     each sampled verdict further: one false "equivalent" joins two classes,
     and one false "distinguishable" splits a class only if no other chain of
     pairs joins it.  Read the count as measured at this ``seed``, ``draws``
     and ``restarts``, not as a property of the group;
-    :func:`powder_relations` says which pair rests on what.  Each
+    :func:`powder_relations` says which pair rests on what.  A proved
+    separation can therefore sit inside a class that sampled pairs joined
+    (``S7`` ⊄ ``S8`` with ``S7`` ~ ``S10`` ~ ``S8``): the printed table
+    names such classes, and issue #565's part 5 splits them.  Each
     candidate's basis is made canonical and its structure factors and
     :func:`gram` stack built once, rather than once per pair or per draw.
     Cost: an equivalent pair mostly stops at its first restart, while a
-    distinguishable one no certificate settles pays the full ``restarts``
-    once.
+    distinguishable one no family-level certificate settles pays one
+    restart and a Farkas dual when the draw is certified, and the full
+    ``restarts`` once when it is not.
 
     ``draws`` is per direction.  Left at ``None`` it is
     :data:`CROSS_IRREP_DRAWS` for a pair of two irreps and
@@ -3151,8 +3240,9 @@ def powder_relations(candidate_set: CandidateSet, refl: ReflectionSet, *,
     The certificates run on every ordered pair; the draws are skipped on a
     pair union-find has already joined.  The same pass, the same
     generator streams and the same partition as :func:`equivalence_classes`
-    with these arguments.  A certificate does not read ``rtol``: see
-    :class:`PairVerdict` for the measured margin.
+    with these arguments.  A family-level certificate does not read
+    ``rtol``; the Farkas one is gated on it (:class:`PairVerdict` states
+    both).  A ``farkas`` verdict carries its :class:`Witness` and ``d``.
     """
     return _classify(candidate_set, refl, draws=draws, seed=seed, rtol=rtol,
                      restarts=restarts)[1]
