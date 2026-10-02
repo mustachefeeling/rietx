@@ -1,6 +1,6 @@
 # WP-1534 — a scale and a B the fitted range cannot separate
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-02 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P3 2026-10-02 — the 0–25 Å² default bounds and two flags cover the case today; task 1 re-rates it, P1 if the QPA esd does not already say the fraction is unmeasured
