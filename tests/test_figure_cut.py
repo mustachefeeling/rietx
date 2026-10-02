@@ -14,6 +14,7 @@ import pytest
 from rietx.crystallography.cif import structure_from_cif
 from rietx.gui import structure3d as s3
 from rietx.viz import component, keep, plane, recolour, render_structure, select, sphere
+from rietx.viz.figure3d.cut import COMPLETE
 from tests.test_render_structure import DATA, _rutile, _save
 from tests.test_structure3d import MEASURED, measured
 
@@ -45,7 +46,7 @@ def test_keep_renumbers_every_index_on_the_measured_phases(row):
     _consistent(keep(g, np.ones(len(g["atoms"]), dtype=bool)))
     for fraction in (0.9, 0.5):
         mask = rng.random(len(g["atoms"])) < fraction
-        for complete in (False, True):
+        for complete in COMPLETE:
             out = keep(g, mask, complete=complete)
             _consistent(out)
             assert len(out["atoms"]) >= mask.sum()
@@ -91,6 +92,36 @@ def test_a_110_slab_of_nac_with_complete(nac):
     _consistent(slab)
     _save(render_structure(slab, size=400), "cut_nac_110_slab")
     assert 0 < len(slab["atoms"]) < len(g["atoms"])
+
+
+def test_a_window_completes_its_polyhedra_alone():
+    """YBa₂Cu₃O₇ one period long in a and two cells in b (issue #667).  The
+    window holds 44 atoms.  ``complete=True`` adds 80, and 50 of them are far
+    ends of cut bonds that are no kept polyhedron's vertex, hanging off the
+    window's edge.  ``complete="polyhedra"`` adds the vertices alone."""
+    st = structure_from_cif(str(DATA / "cod_9007744.cif"))
+    g = s3.build(st, extent=((-1, 2), (-1, 3), (-1, 2)), max_atoms=10_000)
+    frac = np.array([a["frac"] for a in g["atoms"]])
+    e = 1e-3
+    window = ((frac[:, 0] >= -e) & (frac[:, 0] < 1 - e) & (frac[:, 1] >= -e)
+              & (frac[:, 1] <= 2 + e) & (frac[:, 2] >= -e) & (frac[:, 2] <= 1 + e))
+    inside = set(np.flatnonzero(window).tolist())
+    vertices = {v for p in g["polyhedra"] if window[p["center"]] for v in p["vertices"]}
+    assert window.sum() == 44
+    both = keep(g, window, complete=True)
+    polys = keep(g, window, complete="polyhedra")
+    bonds = keep(g, window, complete="bonds")
+    for out in (both, polys, bonds):
+        _consistent(out)
+    assert len(both["atoms"]) == 44 + 80
+    assert len(polys["atoms"]) == len(inside | vertices) == 44 + 30
+    assert len(polys["atoms"]) < len(bonds["atoms"]) <= len(both["atoms"])
+    # every polyhedron centred in the window is drawn whole, and nothing else was added
+    assert len(polys["polyhedra"]) == sum(bool(window[p["center"]]) for p in g["polyhedra"])
+    _save(render_structure(polys, view="a", size=500), "cut_ybco_window_polyhedra")
+    _save(render_structure(both, view="a", size=500), "cut_ybco_window_both")
+    with pytest.raises(ValueError, match="complete"):
+        keep(g, window, complete="vertices")
 
 
 def test_site_masks_refuse_a_name_the_phase_lacks(nac):

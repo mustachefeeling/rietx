@@ -67,14 +67,16 @@ def _mask(geometry: Mapping, mask, name: str = "mask") -> np.ndarray:
     return out
 
 
-def _far(geometry: Mapping) -> np.ndarray:
+def _far(geometry: Mapping, missing: int | None = None) -> np.ndarray:
     """The index of the atom at each bond's far end, ``b``, found by image.
 
     ``build``'s ``j`` is an atom the bond's far end is a translate of, so it can
     sit a cell away from ``b``.  The far end is the atom whose image is ``b``'s:
     the orbit atom ``j`` is an image of, translated by the whole cells between
-    that atom and ``b``.  A far end the figure does not draw (an atom cap) falls
-    back on ``j``, which is what the bond was before.
+    that atom and ``b``.  A far end the figure does not hold (an atom cap left
+    it out) falls back on ``j``, which is what the bond was before, or is
+    ``missing`` when one is given: the report counts those bonds as ending in
+    mid-air (:func:`~.render._dangling`).
     """
     atoms = geometry["atoms"]
     inverse = np.linalg.inv(np.asarray(geometry["lattice"], dtype=np.float64).T)
@@ -83,11 +85,17 @@ def _far(geometry: Mapping) -> np.ndarray:
     for a in atoms:
         o, n = a["image"]
         home.setdefault(o, np.asarray(a["frac"], dtype=np.float64) - n)
-    out = np.empty(len(geometry["bonds"]), dtype=int)
-    for k, b in enumerate(geometry["bonds"]):
-        o = atoms[b["j"]]["image"][0]
-        n = np.rint(inverse @ np.asarray(b["b"], dtype=np.float64) - home[o]).astype(int)
-        out[k] = at.get((o, *(int(v) for v in n)), b["j"])
+    bonds = geometry["bonds"]
+    out = np.empty(len(bonds), dtype=int)
+    if not bonds:
+        return out
+    # one matrix product for every bond rather than one a bond: this runs on
+    # every render through the report's dangling count
+    orbit = [atoms[b["j"]]["image"][0] for b in bonds]
+    ends = np.array([b["b"] for b in bonds], dtype=np.float64).reshape(-1, 3)
+    cells = np.rint(ends @ inverse.T - np.array([home[o] for o in orbit])).astype(int).tolist()
+    for k, (b, o, n) in enumerate(zip(bonds, orbit, cells)):
+        out[k] = at.get((o, *n), b["j"] if missing is None else missing)
     return out
 
 
@@ -288,27 +296,40 @@ def periodicity(geometry: Mapping, mask) -> int:
     return best
 
 
-def keep(geometry: Mapping, mask, *, complete: bool = False) -> dict:
+#: What ``keep(..., complete=)`` takes: nothing, both, or one of the two.
+COMPLETE = (False, True, "bonds", "polyhedra")
+
+
+def keep(geometry: Mapping, mask, *, complete: bool | str = False) -> dict:
     """The geometry with only the atoms ``mask`` keeps, every index consistent.
 
     A bond survives when both its ends do, a polyhedron when its centre and
     every vertex do.  Those cut from a survivor are counted in ``note``
-    (``"3 polyhedra cut · 12 bonds cut"``), so a cut figure says what it lost.
-    ``complete=True`` first re-adds the far ends of the bonds cut from a kept
+    (``"3 polyhedra cut · 12 bonds cut"``), so a cut figure says what it lost,
+    and added to ``cut``.  ``cut`` keeps every count it held, so ``build``'s
+    ``atoms``, the cell's images its atom cap left out, survive any number of
+    cuts.  ``complete=True`` first re-adds the far ends of the bonds cut from a kept
     atom and the vertices of the polyhedra whose centre is kept, from the atoms
-    ``build`` produced: VESTA's boundary search.  It completes only within what
-    was built.  ``sites`` is untouched and ``atoms[k]["site"]`` keeps its
-    meaning.  The input is not modified.
+    ``build`` produced: VESTA's boundary search.  ``complete="polyhedra"``
+    re-adds the vertices alone, so a window of whole polyhedra has nothing
+    hanging off its edge, and ``complete="bonds"`` the far ends alone (#667).
+    It completes only within what was built.  ``sites`` is untouched and
+    ``atoms[k]["site"]`` keeps its meaning.  The input is not modified.
     """
+    if isinstance(complete, np.bool_):      # ``mask.any()`` and the like
+        complete = bool(complete)
+    if not any(complete is c or (isinstance(c, str) and complete == c) for c in COMPLETE):
+        raise ValueError(f"complete {complete!r}: one of False, True, 'bonds' or 'polyhedra'")
     atoms = geometry["atoms"]
     kept = _mask(geometry, mask).copy()
     bonds, polys = geometry["bonds"], geometry["polyhedra"]
     far = _far(geometry)
-    if complete:
-        first = kept.copy()
+    first = kept.copy()
+    if complete in (True, "bonds"):
         for b, j in zip(bonds, far):
             if first[b["i"]] or first[j]:
                 kept[b["i"]] = kept[j] = True
+    if complete in (True, "polyhedra"):
         for p in polys:
             if first[p["center"]]:
                 kept[p["vertices"]] = True
@@ -336,9 +357,10 @@ def keep(geometry: Mapping, mask, *, complete: bool = False) -> dict:
     lost = [f"{n} {what} cut" for n, what in ((cut_polys, "polyhedra"), (cut_bonds, "bonds"))
             if n]
     # the same counts as numbers, running over successive cuts: the figure's
-    # report reads these and never parses ``note``
+    # report reads these and never parses ``note``.  ``build``'s own counts
+    # (``atoms``, the atom cap's) pass through
     before = geometry.get("cut", {})
-    out["cut"] = {"polyhedra": before.get("polyhedra", 0) + cut_polys,
+    out["cut"] = {**before, "polyhedra": before.get("polyhedra", 0) + cut_polys,
                   "bonds": before.get("bonds", 0) + cut_bonds}
     if lost:
         out["note"] = " · ".join([*([geometry["note"]] if geometry.get("note") else []), *lost])

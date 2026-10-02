@@ -69,6 +69,18 @@ shows up there.
 - `baseline` re-reads whatever transcripts the machine holds, so its numbers
   drift from the record's. Quote the run's date with them.
 
+### Inherited
+
+From **WP-1531** (2026-10-02). `session_usage.py lanes` found none of a
+session's lanes when the session entered its worktree after it started, as
+`/wp-start` directs. The session's transcript stays under the directory it
+started in, and its agents land under the worktree's. Fixed at `31c2434e`
+(`subagent_dirs`). A trial row measured before that fix reads 0 lanes. The
+record's second row is that session: 5 lanes and 2 kept items, re-read 15K,
+8 main requests a lane, 14K left in main, +$16.73 (+39 %). Its estimates ran
+short: lanes estimated at 22-30 requests took 50-65 of their own, and the
+kept items 1.1-1.4× theirs.
+
 ## Non-goals
 
 - Lanes for reading. `/wp-start` step 6b already delegates reads above ~50 KB.

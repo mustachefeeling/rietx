@@ -164,6 +164,23 @@ replays the rules over the committed payloads and never rebuilds them, since
 file by itself. A change to `build()` that adds no field does not, so delete
 the file and run the test to refresh the payloads.
 
+### Inherited
+
+From **WP-1533** (2026-10-02), which declined to change the default colours
+and measured two facts that land here. First, C's default `#383838` reads at
+1.56:1 against the dark theme's `#151515`. That is the GUI's dark background
+and `render_structure(background="#151515")`'s, and C shows there only
+through its highlights. It mirrors H's `#d8d8d8` at 1.38:1 on the light
+`#fbfbfa`, which the convention accepts. A plain 3:1 rule would repaint 11
+of the 20 CPK colours on light, and Br (2.37) and I (2.51) also fall under it
+on dark. A theme-dependent C is the candidate. It changes the GUI's dark
+picture, so this WP's non-goal rule applies: re-run WP-1466's `measure.py`
+and name the rows that moved. Until then the skill tells an agent to
+recolour C on a dark background. Second, all six take-2 promo scripts
+cropped `fig.image` to its ink by hand, and the figure carries no polyhedron
+colour, so the scripts read `g["sites"]` for one. Both are controls a
+chemist reaches for.
+
 ## Non-goals
 
 - The octant cut-out, Voronoi solid angles, effective coordination numbers

@@ -263,6 +263,19 @@ def _repo_dirs() -> list[Path]:
             if p.name == slug or p.name.startswith(slug + "--claude-worktrees-")]
 
 
+def subagent_dirs(main: Path) -> list[Path]:
+    """Where the agents of the session whose transcript is ``main`` were written.
+
+    Beside ``main`` until the session enters a worktree.  After that its own
+    transcript stays where it started while its agents land under the
+    worktree's project directory, so a /wp-lanes session that enters its tree
+    second, as /wp-start says to, found none of its five lanes (WP-1531).
+    """
+    dirs = [main.parent / main.stem / "subagents"]
+    dirs += [d for d in PROJECTS.glob(f"*/{main.stem}/subagents") if d not in dirs]
+    return [d for d in dirs if d.is_dir()]
+
+
 def find_main(session_id: str) -> Path:
     hits = sorted(PROJECTS.glob(f"*/{session_id}.jsonl"), key=lambda p: p.stat().st_size)
     if not hits:
@@ -332,7 +345,7 @@ def baseline(us: list[float], mo: int, d: int) -> None:
         f"{k} {v / total:.0%}" for k, v in fill.most_common(7)))
     bases: dict = {}
     for t in ts:
-        for p in (t.path.parent / t.path.stem / "subagents").glob("*.jsonl"):
+        for p in (p for d in subagent_dirs(t.path) for p in d.glob("*.jsonl")):
             a = parse(p, sidechain=True)
             if len(a.requests) >= 2:
                 r0 = a.requests[0]
@@ -377,7 +390,7 @@ def baseline(us: list[float], mo: int, d: int) -> None:
 def measure_lanes(main: Path) -> dict:
     """Per lane and per kept item of one /wp-lanes session, measured."""
     t = parse(main)
-    subdir = main.parent / main.stem / "subagents"
+    subdirs = subagent_dirs(main)
     _, o, r, w5, w1 = PRICES["opus"]
     dispatches = sorted((a for a in t.agents if (a["description"] or "").startswith(LANE_PREFIX)),
                         key=lambda a: a["ts"])
@@ -386,8 +399,9 @@ def measure_lanes(main: Path) -> dict:
         label = a["description"][len(LANE_PREFIX):].strip()
         est = re.search(r"~(\d+)\s*$", label)
         item = re.sub(r"\s*~\d+\s*$", "", label)
-        path = subdir / f"agent-{a['agent_id']}.jsonl"
-        if not a["agent_id"] or not path.exists():
+        path = next((p for p in (d / f"agent-{a['agent_id']}.jsonl" for d in subdirs)
+                     if p.exists()), None)
+        if not a["agent_id"] or path is None:
             continue
         sub = parse(path, sidechain=True)
         if not sub.requests:

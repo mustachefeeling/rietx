@@ -145,6 +145,11 @@ pixels from the top-left corner, so a caller can annotate in matplotlib
 without projecting anything.
 `rotation` is the view drawn, and passing it back as `view=` draws the same
 picture.
+`StructureFigure.to_px` takes Cartesian points in Å, one or an `(N, 3)` array,
+and returns where they land in the image, x right and y down.
+It is the map that placed `atoms`.
+`rotation`, `pixels_per_angstrom` and `StructureFigure.origin` make it.
+`origin` is the view-plane position of pixel (0, 0), in Å.
 
 `view=` takes `"opening"` (the GUI's first picture), `"a"`, `"b"` or `"c"`
 (its buttons), a lattice direction `[u, v, w]`, a plane normal
@@ -175,10 +180,31 @@ One site is left out by a mask, as {ref}`below <figure-cut-and-keep>`.
 `polyhedra=` follows the mode (on for balls, off for ellipsoids) unless you
 pass `True`, `False` or a formula switch such as `{"AlF₆": False}`.
 `background=None` is transparent.
+`cell=False` leaves out the cell's frame and the a, b and c on its edges, so
+the view is fitted to the atoms alone.
+A 22 Å sphere cut from HKUST-1's 26 Å cell draws at 8.5 px/Å with the frame
+and at 16.4 px/Å without it, at `size=400`.
+`stick=` multiplies the radius of the bond sticks, in either mode.
+In ellipsoid mode a stick's radius is half the smallest drawn semi-axis, at
+most 0.08 Å.
+For paracetamol at 100 K (COD 2104364) that is 0.072 Å, and `stick=0.5`
+draws 0.036 Å.
+Above 1, a stick may show through the side of a small ellipsoid.
 `outline=True` inks the silhouettes, off by default because the GUI draws
 none.
+From a structure, the cell is drawn whole or the call raises.
+`max_atoms=` bounds the cell's own atoms with their copies on its faces, at
+the GUI's 400 by default.
+A cell past it raises and names its count.
+HKUST-1's cell holds 648, so it needs `max_atoms=648` or more.
+The bonded neighbours and polyhedron vertices drawn outside the cell do not
+count against the cap.
 For a site's colour or radius, edit the dict `rietx.gui.structure3d.build`
 returns and pass the dict in place of the structure.
+`build` trims the one cell to its own `max_atoms` instead, because that
+default serves the GUI's viewer.
+The dict's `cut` counts what the trim left out, and so does the figure's
+report.
 A site's `color` is `#rrggbb`, `"white"` or `"black"`, and `render_structure`
 raises on any other spelling, because the scene would draw it grey without a
 message.
@@ -199,6 +225,37 @@ For a picture in another program's style, `Structure.to_cif` writes each
 phase with its anisotropic displacement loop.
 VESTA and Jmol both read it.
 
+### A legend, an axis triad and a scale bar
+
+`render_structure` draws none of the three.
+An agent wrote twelve figure scripts for rietx's promotional video, and ten of
+them drew all three in matplotlib.
+Strip height, fonts and extra marks differed in every script, so a drawing
+helper would fix a style each caller then works against.
+The scripts lacked data instead.
+Four fitted the map from Å to pixels by least squares from `atoms`.
+The rest typed the triad's directions in by hand from `view=`.
+Those directions are wrong for any view that is not down an axis.
+`to_px` is that map, so a direction is
+`fig.to_px(v) - fig.to_px([0, 0, 0])`.
+
+The example draws a legend from `palette`, a triad from `to_px` of each lattice
+vector and a 5 Å bar from `pixels_per_angstrom`.
+Each arm of the triad is 1 Å of its axis carried into pixels, so an axis
+tilted out of the page draws short.
+An axis within about 17° of the line of sight is drawn as a dot when it points
+toward the viewer and a cross when it points away.
+The third row of `rotation` is the direction toward the viewer.
+
+```{literalinclude} ../../../examples/structure_furniture.py
+:language: python
+:start-at: geometry = build
+```
+
+```text
+wrote ybco_furniture.png: legend ['Y', 'Ba', 'Cu', 'O'], bar 202 px for 5 Å
+```
+
 (figure-cut-and-keep)=
 ### Drawing part of the structure
 
@@ -210,7 +267,8 @@ It takes the dict and a boolean mask over `atoms` and returns a new dict with
 only the atoms the mask keeps.
 A bond survives when both its ends do, and a polyhedron when its centre and
 every vertex do.
-What it cut from a surviving atom is counted in the dict's `note`.
+What it cut from a surviving atom is counted in the dict's `note` and added
+to its `cut`.
 Four functions build the mask, and masks combine with `&`, `|` and `~`.
 Each example below is from `examples/structure_cut.py`.
 
@@ -255,6 +313,11 @@ palette: {'Ca1': '#00c4b8', 'Al1': '#bc5c70', 'Na1': '#8040e0', 'F1': '#48d860',
 - `keep(g, mask, complete=True)` first re-adds the far ends of the bonds cut
   from a kept atom, and the vertices of polyhedra whose centre is kept.
   That is VESTA's boundary search.
+  `complete="polyhedra"` re-adds the vertices alone, so a window of whole
+  polyhedra has nothing hanging off its edge.
+  On a window of YBa₂Cu₃O₇ holding 44 atoms, `complete=True` adds 80 and
+  `complete="polyhedra"` adds 30.
+  `complete="bonds"` re-adds the far ends alone.
   It completes only within the atoms `build` produced, which are the extent
   it was asked for and the images its bonds and polyhedra reach.
   A bond's `j` is an image of its far end and not always the atom at that end,
@@ -322,20 +385,61 @@ than 80 % by an atom or a bond in front.
 It is read from a 256 px pass that records which atom or bond is in front at
 each pixel, so a stick that hides an atom counts and a translucent face does
 not.
+`stacked` is the part of `hidden` behind an atom of the same site, within a
+quarter of the hidden atom's drawn radius.
+A view down a symmetry or lattice direction stacks a site's copies by
+construction, and the one in front draws what the ones behind hold.
+`hidden - stacked` is what the view occludes.
+One cell down a cell axis reads:
+
+| Structure | View | `hidden` | `stacked` |
+|---|---|---|---|
+| HKUST-1 | a | 0.53 | 0.53 |
+| ZSM-5 | b | 0.52 | 0.50 |
+| YBa₂Cu₃O₇ | b | 1.00 | 1.00 |
+
+NAC's opening view hides 0.18 and stacks none of it.
 `dangling_bonds` counts bond halves whose far atom is not drawn.
 The stubs a `hidden=` species leaves on its neighbours count too.
+So do the bonds of a cell `build` trimmed, where the far atom was left out
+of the dict.
+HKUST-1 trimmed to 400 atoms has 96.
 A mask on `element=` through `keep` removes the species with its bonds whole.
 On NAC it is 0 for the cell, for a block of cells and after a `keep`, since
 `keep` drops a bond it cuts and counts it in `cut`.
 It is 158 with `boundary=False`, which leaves out the images at the cell faces
 that the bonds there reach.
-`label_overlaps` counts pairs of letters whose boxes intersect, and `empty` is
-the share of pixels with nothing drawn.
-`cut` holds what `keep` dropped from an atom it kept, running over successive
-cuts, and `note` is the dict's own note, which says where `build` trimmed to the
-atom cap.
-`warnings` are sentences, such as an ellipsoid drawn flat because its tensor is
-not positive definite.
+`label_overlaps` counts pairs of strings whose boxes intersect.
+A box is the string's width and the font's height.
+`label_atom_overlaps` counts pairs of a string and an atom that meet.
+An atom is the ellipse it projects to, and a site label is not counted against
+its own atom.
+`label_bond_overlaps` counts pairs of a string and a bond that meet.
+A bond is its drawn halves, widened by the stick radius.
+All three count a, b and c too.
+`atom_labels=True` tries eight places around each atom, up and to the right
+first.
+Each label keeps the first place this test finds clear of atoms, bonds and the
+labels placed before it, or else the place that meets fewest.
+On a paracetamol molecule at 800 px the three counts read 0, 0 and 0 with
+balls and 0, 0 and 1 with ellipsoids.
+The one left is C9's label, since each place around C9 meets one of its four
+bonds.
+With every label up and to the right, the counts read 1, 2 and 15, and 0, 3
+and 14.
+`empty` is the share of pixels with nothing drawn.
+`cut` counts what the figure lost before it was drawn.
+Its `atoms` is the cell's atoms `build`'s atom cap left out, 248 on HKUST-1.
+Its `neighbours` is the bonded neighbours outside the cell that the cap left
+out, and `segments` the bond segments past the bond cap of 4000.
+Its `bonds` and `polyhedra` are what `keep` dropped from an atom it kept,
+running over successive cuts.
+`polyhedra` also counts the polyhedra the atom cap left out.
+`note` is the dict's own note, and it gives the same losses in words.
+`warnings` are sentences.
+One says when the atom cap trimmed the cell.
+Another says when an ellipsoid is drawn flat because its tensor is not
+positive definite.
 There is no quality score: the report is evidence and the judgement is the
 reader's.
 
@@ -350,7 +454,10 @@ Pass a candidate's `view` back with the same `up=` and `turn=`, since the search
 applied both.
 Their numbers are the search's, from atoms and bonds alone at 256 px, and can
 differ slightly from the report's `empty`, which reads the image.
-An axis view of a cubic cell stacks atoms, and the report says how many.
+An axis view of a cubic cell stacks atoms, and the report's `stacked` says how
+many.
+The ranking reads `hidden`, stacking included, so `auto` prefers an oblique
+view to a projection that stacks every site behind itself.
 `turn=` works on what stays hidden.
 
 `recipe` is the call that draws the picture again.
