@@ -19,6 +19,7 @@ file this repo may carry, and a synthetic 80-column card is self-describing.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import pytest
@@ -314,24 +315,21 @@ def test_a_fractional_unit_cell_content_is_read_at_its_own_columns(tmp_path):
     assert model.phases[0].formula == (("NA", 5.25),)
 
 
-def test_a_negative_uiso_is_refused_rather_than_built(tmp_path):
-    """A real GSAS refinement reaches one, and no structure can hold it.
-
-    Found by the review pass on WP-1118's own branch, which had just written
-    this refusal into the ``.gpx`` reader and not looked for its sibling here.
-    Without it the file reaches ``rx.Parameter`` and pydantic refuses, naming a
-    ``Parameter`` and never the file.
-    """
+def test_a_negative_uiso_is_read_with_its_bound_widened(tmp_path):
+    """A real GSAS refinement reaches one and GSAS stores it, so the reader
+    keeps the file's number, widens the floor to hold it and says so
+    (PR #663)."""
     cards = list(_MINIMAL)
     cards[-1] = _card("CRS1  AT  1B",
                       " -0.010000                                                    I  U")
     path = _exp(tmp_path, "negative.EXP", *cards)
     model = read_gsas_exp(path)
     assert model.phases[0].atoms[0].uiso == pytest.approx(-0.01)
-    with pytest.raises(GsasExpError) as caught:
-        to_structure(model)
-    assert "negative Uiso" in str(caught.value)
-    assert "NA1" in str(caught.value)
+    diagnostics = []
+    biso = to_structure(model, diagnostics=diagnostics).phases[0].atoms[0].biso
+    b = -0.01 * 8 * math.pi ** 2
+    assert (biso.value, biso.min) == (pytest.approx(b), pytest.approx(b))
+    assert "BISO_BOUND_WIDENED" in [d.code for d in diagnostics]
 
 
 def test_a_schema_refusal_is_converted_rather_than_leaked(tmp_path):
@@ -933,15 +931,15 @@ def test_write_gsas_exp_refuses_an_anisotropic_site(tmp_path):
         from_structure(structure)
 
 
-def test_write_gsas_exp_refuses_a_negative_biso(tmp_path):
-    """The reader refuses a negative ``Uiso``, so writing one would only fail
-    at the read with the file already on disk."""
+def test_write_gsas_exp_writes_a_negative_biso_that_reads_back(tmp_path):
+    """GSAS stores a negative Uiso and the reader now keeps one, so the
+    writer writes it rather than refusing (PR #663)."""
     structure = _hexagonal()
     atom = structure.phases[0].atoms[0]
     atom.biso.min = -1.0
     atom.biso.value = -0.1
-    with pytest.raises(ValueError, match="negative"):
-        from_structure(structure)
+    back = _round_trip(structure, tmp_path).phases[0].atoms[0].biso
+    assert back.value == pytest.approx(-0.1, abs=1e-5)
 
 
 def test_write_gsas_exp_refuses_a_non_finite_value(tmp_path):

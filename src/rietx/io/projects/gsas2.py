@@ -1511,10 +1511,9 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
     * **A Pawley phase**, whose intensities are the model and are not carried
       here; the cell and the extraction's own reflections stay on the file.
 
-    And two the corpus taught rather than the specification: a phase with **no
-    sites**, which GSAS-II fits by extracting intensities, and a **negative
-    Uiso**, which a real refinement reaches and which no structure can hold.
-    Both name the phase; a schema refusal that got past them would name a
+    And one the corpus taught rather than the specification: a phase with **no
+    sites**, which GSAS-II fits by extracting intensities.  It names the phase;
+    a schema refusal that got past it would name a
     ``Parameter`` and never the file, so the final build converts one.
     """
     import gemmi
@@ -1571,18 +1570,6 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
             f"Le Bail mode needs one dummy site to hang the phase on, so there "
             f"is no structure here to build — the cell and symmetry are on "
             f"`model.phases`")
-    negative = [(a.label, a.uiso) for a in chosen.atoms
-                if a.uiso is not None and a.uiso < 0.0]
-    if negative:
-        worst = min(negative, key=lambda row: row[1])
-        raise Gsas2GpxError(
-            f"{named}: phase {chosen.name!r} states a negative Uiso on "
-            f"{len(negative)} site(s), the largest on {worst[0]!r} at "
-            f"{worst[1]:.5g} Å².  A refinement really can end there and "
-            f"GSAS-II really does store it, but exp(-B·s²) with B < 0 grows "
-            f"without bound at high Q, so the value is carried on "
-            f"`model.phases[…].atoms[…].uiso` and not built into a structure.  "
-            f"Deciding what it should have been is yours")
     if not chosen.space_group:
         raise Gsas2GpxError(
             f"{named}: phase {chosen.name!r} states no space-group symbol, so "

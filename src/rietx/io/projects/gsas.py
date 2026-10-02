@@ -1462,9 +1462,9 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
       about a ``β`` block, for the same reason and with the same remedy: a
       corroborating file.
 
-    And one the corpus taught rather than the specification: a **negative
-    Uiso**, which a real refinement reaches and which no structure can hold.
-    It names the phase; a schema refusal that got past it would name a
+    A **negative Uiso**, which a real refinement reaches, is read as the file
+    states it, with its bound widened to hold it (``BISO_BOUND_WIDENED``,
+    PR #663).  A schema refusal that got past the checks above would name a
     ``Parameter`` and never the file, so the final build converts one.
     """
     import gemmi
@@ -1532,19 +1532,6 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
             f"off-diagonal convention GSAS wrote them in is not settled by any "
             f"file in this repo, and a wrong factor of two is a silently wrong "
             f"Debye-Waller factor at high Q")
-    negative = [(a.label, a.uiso) for a in chosen.atoms
-                if a.uiso is not None and a.uiso < 0.0]
-    if negative:
-        worst = min(negative, key=lambda row: row[1])
-        raise GsasExpError(
-            f"{model.path or '<model>'}: phase {chosen.number} states a "
-            f"negative Uiso on {len(negative)} site(s), the largest on "
-            f"{worst[0]!r} at {worst[1]:.5g} Å².  A refinement really can end "
-            f"there and GSAS really does store it, but exp(-B·s²) with B < 0 "
-            f"grows without bound at high Q, so the value is carried on "
-            f"`model.phases[…].atoms[…].uiso` and not built into a structure.  "
-            f"Deciding what it should have been is yours")
-
     cell = chosen.cell
 
     # GSAS's own words for the X flag are "XYZ's are to be refined **as
@@ -1588,9 +1575,9 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
     # try, rather than as it goes — the shape ``gsas2.to_structure`` uses and
     # for the same reason: a schema refusal that reached a caller would name a
     # ``Parameter`` and never the file, which is the one thing
-    # ``io/CLAUDE.md`` forbids a reader.  The two shapes the corpus contains
-    # (a negative Uiso, an anisotropic site) are refused by name above; this
-    # is the class rather than a third instance.
+    # ``io/CLAUDE.md`` forbids a reader.  The shape the corpus contains (an
+    # anisotropic site) is refused by name above; this is the class rather
+    # than a second instance.
     varies = cell.refined
     try:
         structure = rx.Structure(phases=[rx.Phase(
@@ -1884,15 +1871,13 @@ def from_structure(structure: Structure, *, title: str = "",
     it in the other direction for the reason ``GSAS_EXP_SCALE_NOT_COMPARABLE``
     gives.
 
-    Five refusals besides the two in :func:`_write_label`.  More than
+    Four refusals besides the two in :func:`_write_label`.  More than
     :data:`_WRITE_MAX_PHASES` phases or :data:`_WRITE_MAX_ATOMS` sites in one,
     both limits of the format's own key and record layout rather than of this
     build.  An **anisotropic site**, which :func:`to_structure` refuses on the
     way in because no file here settles GSAS's off-diagonal convention — so
     writing six numbers under a convention this module declines to read would
-    be worse than declining to write them.  A **negative** ``biso``, which the
-    same function refuses on the way in, so writing one would only fail later
-    with the file already on disk.  And a **non-finite** value, in
+    be worse than declining to write them.  And a **non-finite** value, in
     :func:`write_field`.
     """
     import numpy as np
@@ -1975,13 +1960,6 @@ def from_structure(structure: Structure, *, title: str = "",
                     f"six numbers under a convention this module declines to "
                     f"read back would be the same guess in the other "
                     f"direction")
-            if atom.biso.value < 0.0:
-                raise ValueError(
-                    f"{site} ({atom.label!r}) has biso = {atom.biso.value}, "
-                    f"and to_structure refuses a negative Uiso on the way back "
-                    f"in — exp(-B·s²) with B < 0 grows without bound at high "
-                    f"Q.  Writing it would only fail at the read, with the "
-                    f"file already on disk")
             try:
                 typ = gsas_species(atom.species)
             except ValueError as exc:
