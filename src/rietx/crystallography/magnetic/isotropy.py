@@ -266,6 +266,13 @@ FARKAS_FLOOR = 1e-12
 #: three decades below it.
 FARKAS_QUOTE = 1e-10
 
+#: The restart after which a failed fit is handed to the Farkas dual.  The
+#: dual and the minimum-norm solve cost 0.16-0.45 s (medians) per certified
+#: draw at 8-36 amplitudes, Linux x86-64; on a draw a later restart
+#: reproduces the dual is wasted, and on a certified one it saves every
+#: remaining restart.
+DUAL_AFTER_RESTART = 1
+
 #: Shortest axis of the default compatible cell, Å.  Only ratios of intensities
 #: are ever compared, so the scale sets nothing but which reflections fall
 #: inside a given d_min.
@@ -2402,19 +2409,50 @@ def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
     is caught here — a solver raising for any other reason is a defect and
     surfaces (Yue's review of #389, 2026-09-18).
     """
-    from scipy.optimize import least_squares
-
     target = np.asarray(target, dtype=np.float64)
-    scale = float(np.max(np.abs(target))) or 1.0
-    dark = _dark_shells(grams)
     if rtol is not None:
-        floor = float(np.max(np.abs(target[dark]), initial=0.0)) / scale
+        floor = _absence_floor(target, grams)
         if floor > rtol:
             return floor
-    keep = ~(dark & (np.abs(target) <= INTENSITY_RTOL * scale))
+    return _restarts(target, grams, rng, restarts=restarts, rtol=rtol)[0]
+
+
+def _absence_floor(target: np.ndarray, grams: np.ndarray) -> float:
+    """The largest target on a shell the fit counts dark, relative to max target: a residual no amplitude can lower."""
+    scale = float(np.max(np.abs(target))) or 1.0
+    return float(np.max(np.abs(target[_dark_shells(grams)]), initial=0.0)) / scale
+
+
+def _fit_rows(target: np.ndarray, grams: np.ndarray) -> np.ndarray:
+    """The shells :func:`_fit_residual` fits: all but those dark for the family and zero in the target."""
+    scale = float(np.max(np.abs(target))) or 1.0
+    return ~(_dark_shells(grams) & (np.abs(target) <= INTENSITY_RTOL * scale))
+
+
+def _restarts(target: np.ndarray, grams: np.ndarray, rng, *, restarts: int,
+              rtol: float | None, rows: np.ndarray | None = None,
+              weights: np.ndarray | None = None) -> tuple[float, float]:
+    """The restart loop of :func:`_fit_residual`: (smallest ‖I − t‖∞ relative to max t, smallest relative L2 residual).
+
+    The first is :func:`_fit_residual`'s return value, with its early stop at
+    ``rtol``.  The second is min over the restarts made of
+    ‖w∘(I(x) − t)‖₂/‖w∘t‖₂ on ``rows`` (every fitted shell when None, unit
+    ``weights`` when None), the upper end of a :class:`Witness`'s ``d``.
+    Both draw on ``rng`` exactly as :func:`_fit_residual` always has, one
+    normal vector per restart, so splitting the loop in two consumes the
+    same stream as running it whole.
+    """
+    from scipy.optimize import least_squares
+
+    scale = float(np.max(np.abs(target))) or 1.0
+    keep = _fit_rows(target, grams)
     if not np.any(keep):
-        return 0.0
+        return 0.0, 0.0
     g, t = grams[keep], target[keep]
+    rows = keep if rows is None else rows
+    w = np.ones(len(target)) if weights is None else np.asarray(weights, dtype=np.float64)
+    wt = w[rows] * target[rows]
+    wt_norm = float(np.linalg.norm(wt)) or 1.0
 
     def residual(b):
         return (g @ b) @ b - t
@@ -2422,7 +2460,7 @@ def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
     def jacobian(b):
         return 2.0 * (g @ b)
 
-    best = np.inf
+    best, best_l2 = np.inf, np.inf
     n = grams.shape[1]
     method = "lm" if t.size >= n else "trf"
     for _ in range(restarts):
@@ -2430,9 +2468,11 @@ def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
         fit = least_squares(residual, start, jac=jacobian, method=method,
                             xtol=1e-14, ftol=1e-14, gtol=1e-14, max_nfev=4000)
         best = min(best, float(np.max(np.abs(fit.fun))))
+        model = (grams[rows] @ fit.x) @ fit.x
+        best_l2 = min(best_l2, float(np.linalg.norm(w[rows] * model - wt)) / wt_norm)
         if rtol is not None and best / scale <= rtol:
             break
-    return best / scale
+    return best / scale, best_l2
 
 
 # --------------------------------------------------------------------------
@@ -2715,6 +2755,20 @@ def _farkas_certificate(grams_live: np.ndarray, target_live: np.ndarray,
                   "rounding_bound": n * eps + n_shells * eps * kappa, "exact": True}
 
 
+def _gate(rtol: float, target: np.ndarray, live: np.ndarray) -> float:
+    """g = rtol·√S_live·max|t|/‖t_live‖₂: a certificate with d_lo ≥ g proves no restart can reach ``rtol``.
+
+    For every model I of ``b`` the fit's residual is
+    r_∞ = max_s |I_s − t_s|/max|t| over the fitted shells, which include
+    ``live``, so r_∞ ≥ ‖I_live − t_live‖₂/(√S_live·max|t|)
+    ≥ d_lo·‖t_live‖₂/(√S_live·max|t|).  d_lo ≥ g then gives r_∞ ≥ rtol for
+    every model: the draw is not reproduced at the caller's own ``rtol``.
+    """
+    scale = float(np.max(np.abs(target)))
+    return rtol * float(np.sqrt(np.count_nonzero(live))) * scale \
+        / float(np.linalg.norm(target[live]))
+
+
 def _verify_witness(grams_b: np.ndarray, witness: Witness) -> tuple[bool, float, float]:
     """Re-check a stored :class:`Witness` against ``b``'s stack: (holds, projected ratio, |y·t̂ + 1|).
 
@@ -2736,6 +2790,71 @@ def _verify_witness(grams_b: np.ndarray, witness: Witness) -> tuple[bool, float,
     holds = (residual <= INTENSITY_RTOL and off <= 1e-9 and ratio >= FARKAS_FLOOR
              and _exact_psd(projected, y))
     return bool(holds), ratio, off
+
+
+def _certify_draw(target: np.ndarray, grams_b: np.ndarray, dark_b: np.ndarray, rng, *,
+                  restarts: int, rtol: float, draw: int,
+                  weights: np.ndarray | None = None
+                  ) -> tuple[bool, bool, Witness | None, float | None]:
+    """One draw of ``a`` against ``b``: (reproduced, proved not, witness, dual).
+
+    :func:`_fit_residual`'s loop, with the Farkas dual after restart
+    :data:`DUAL_AFTER_RESTART`: the absence floor first, then that many
+    restarts; if none reproduces the draw to ``rtol``, the certificate is
+    solved on ``b``'s live shells (lit for ``b`` by the scale-free test,
+    ``dark_b``, and fitted).  A certificate that passes the exact check and
+    the gate (:func:`_gate`: d_lo ≥ g, with d_lo from the unweighted bound
+    when ``weights`` are given) ends the draw proved, with no more restarts;
+    otherwise the remaining restarts run as before and decide it, and a
+    certificate below the gate rides along as the witness.  The generator is
+    consumed exactly as :func:`_fit_residual` consumes it up to the point the
+    draw is decided.
+
+    With ``weights`` the certificate is solved on w_s G_s and w∘t, so d is
+    the weighted distance; its unweighted bound is
+    y_u = (w∘y_w)·‖t‖/‖w∘t‖, which has y_u·t̂ = −1 and M(y_u) a positive
+    multiple of the weighted M(y_w), so it is a certificate for the
+    unweighted problem and the gate reads 1/‖y_u‖.  The fit and its ``rtol``
+    stay unweighted.
+    """
+    if _absence_floor(target, grams_b) > rtol:
+        return False, False, None, None
+    first = min(DUAL_AFTER_RESTART, restarts)
+    keep = _fit_rows(target, grams_b)
+    live = keep & ~dark_b
+    w = None if weights is None else np.asarray(weights, dtype=np.float64)
+    r_inf, r_l2 = _restarts(target, grams_b, rng, restarts=first, rtol=rtol,
+                            rows=live, weights=w)
+    if r_inf <= rtol:
+        return True, False, None, None
+    witness, dual = None, None
+    if np.any(live) and float(np.linalg.norm(target[live])) > 0.0:
+        dual, parts = _farkas_certificate(grams_b[live], target[live],
+                                          None if w is None else w[live])
+        if parts is not None:
+            y = parts["y"]
+            d_lo = 1.0 / float(np.linalg.norm(y))
+            if w is None:
+                d_gate = d_lo
+            else:
+                tw = w[live] * target[live]
+                y_u = w[live] * y * float(np.linalg.norm(target[live])) / float(np.linalg.norm(tw))
+                d_gate = 1.0 / float(np.linalg.norm(y_u))
+            witness = Witness(
+                draw=draw, t=tuple(float(v) for v in target),
+                live=tuple(int(s) for s in np.flatnonzero(live)),
+                y=tuple(float(v) for v in y),
+                weights=None if w is None else tuple(float(v) for v in w),
+                kernel_dim=parts["kernel_dim"], kernel_residual=parts["kernel_residual"],
+                ratio=parts["ratio"], rounding_bound=parts["rounding_bound"],
+                exact=parts["exact"], d=(d_lo, r_l2))
+            if d_gate >= _gate(rtol, target, live):
+                return False, True, witness, dual
+    more_inf, more_l2 = _restarts(target, grams_b, rng, restarts=restarts - first, rtol=rtol,
+                                  rows=live, weights=w)
+    if witness is not None and more_l2 < witness.d[1]:
+        witness = replace(witness, d=(witness.d[0], more_l2))
+    return more_inf <= rtol, False, witness, dual
 
 
 def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
@@ -2874,17 +2993,23 @@ def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
                    restarts: int) -> tuple[PairVerdict, PairVerdict]:
     """The two directed verdicts of one pair: certificates first, then the draws.
 
-    A pair a certificate settles distinct is not drawn at all, and its other
-    direction is recorded ``unresolved`` (``reason="settled"``) unless a
-    certificate settles that too.  Otherwise each direction not proved
-    contained is sampled, i → j first, on one generator seeded with
+    A pair a family-level certificate settles distinct is not drawn at all,
+    and its other direction is recorded ``unresolved`` (``reason="settled"``)
+    unless a certificate settles that too.  Otherwise each direction not
+    proved contained is sampled, i → j first, on one generator seeded with
     ``seed`` — the stream, draw for draw, that this pair's test consumed
     before the certificates existed, so a pair no certificate settles gets
-    the verdict it always had.  The draws stop at the first one not
-    reproduced, as they always did.  ``draws`` on the verdict counts every
-    draw taken from the generator: one whose pattern is zero everywhere is
-    counted as reproduced, since ``b``'s zero model reproduces it, and is
-    not fitted.
+    the verdict it always had.  Each draw goes through
+    :func:`_certify_draw`: a draw its Farkas certificate proves out of reach
+    at ``rtol`` ends the direction ``proved-not`` (``farkas``, ``draws`` =
+    that draw's index, the :class:`Witness` and its ``d`` attached), and
+    the other direction is ``settled``.  The draws stop at the first one not
+    reproduced, certified or not, as they always did; an uncertified one is
+    ``sampled-not`` with the dual's optimum in ``dual`` (negative: no
+    certificate exists for that draw) and any certificate below the gate as
+    its witness.  ``draws`` on the verdict counts every draw taken from the
+    generator: one whose pattern is zero everywhere is counted as
+    reproduced, since ``b``'s zero model reproduces it, and is not fitted.
     """
     proved = {(i, j): _certify(i, j, dark, spans, silent),
               (j, i): _certify(j, i, dark, spans, silent)}
@@ -2897,21 +3022,33 @@ def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
         if proved[(a, b)] is not None:
             out.append(proved[(a, b)])
             continue
-        if out and out[0].status == "sampled-not":
+        if out and out[0].status in ("sampled-not", "proved-not"):
             out.append(PairVerdict(a, b, "unresolved", reason="settled"))
             continue
         made = 0
         verdict = None
+        below_gate = None
         for _ in range(draws):
             amplitudes = _normalised_draw(canonical[a], refl.lattice, rng)
             made += 1
             target = (grams[a] @ amplitudes) @ amplitudes
             if float(np.max(np.abs(target))) <= 0.0:
                 continue
-            if _fit_residual(target, grams[b], rng, restarts=restarts, rtol=rtol) > rtol:
-                verdict = PairVerdict(a, b, "sampled-not", None, made, 1)
+            reproduced, certified, witness, dual = _certify_draw(
+                target, grams[b], dark[b], rng, restarts=restarts, rtol=rtol, draw=made)
+            if certified:
+                verdict = PairVerdict(a, b, "proved-not", "farkas", made, 0,
+                                      d=witness.d, witness=witness, dual=dual)
                 break
-        out.append(verdict or PairVerdict(a, b, "sampled-contained", None, made, 0))
+            if not reproduced:
+                verdict = PairVerdict(a, b, "sampled-not", None, made, 1,
+                                      d=None if witness is None else witness.d,
+                                      witness=witness, dual=dual)
+                break
+            below_gate = below_gate or witness
+        out.append(verdict or PairVerdict(
+            a, b, "sampled-contained", None, made, 0,
+            d=None if below_gate is None else below_gate.d, witness=below_gate))
     return out[0], out[1]
 
 

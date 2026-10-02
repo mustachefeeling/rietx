@@ -1896,10 +1896,14 @@ def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
     of each.  The printed n must be those numbers.  The set is five families
     of the cubic known-answer case (two S1, two S2, one S3) at restarts 4,
     which holds sampled-contained directions (3 draws, within an irrep),
-    sampled-not ones stopped early (2 to 4 of 12 at this seed, across
-    irreps), unresolved and proved ones (none), so a count that ignored the
-    early stop or charged a proved pair would show, and so would a draw
-    spent on a pair already proved distinct.
+    Farkas-proved ones stopped early at their witness draw (2 to 4 of 12 at
+    this seed, across irreps: all four S1 → S2 directions), unresolved and
+    family-proved ones (none), so a count that ignored the early stop or
+    charged a proved pair would show, and so would a draw spent on a pair
+    already proved distinct, or on the other direction of a Farkas-proved
+    one.  Before part 2 of issue #565 the four S1 → S2 directions were
+    ``sampled-not`` at the same draws; the witness draw is the draw a fit
+    failed on, so the log is the same.
     """
     from dataclasses import replace
 
@@ -1919,17 +1923,24 @@ def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
     # the S1 and S2 classes rest on draws; S3 is proved apart from all four
     assert _table_marks(result) == ["S", "S", "S", "S", "P"]
     statuses = {v.status for v in result.relations}
-    assert {"sampled-contained", "sampled-not", "unresolved", "proved-not"} <= statuses
+    assert {"sampled-contained", "unresolved", "proved-not"} <= statuses
     assert all((v.reason is not None) == (v.status == "unresolved") for v in result.relations)
-    assert any(v.status == "sampled-not" and v.draws < isotropy.CROSS_IRREP_DRAWS
-               for v in result.relations)
+    farkas = [v for v in result.relations if v.certificate == "farkas"]
+    assert {(labels[v.a], labels[v.b]) for v in farkas} == {
+        (f"S1(rank 1)#{p}", f"S2(rank 1)#{q}") for p in (1, 2) for q in (1, 2)}
+    assert all(0 < v.draws < isotropy.CROSS_IRREP_DRAWS for v in farkas)
     expected = []
     for (i, j), pair in _pairs(result.relations, len(subset)).items():
-        if any(v.status == "proved-not" for v in pair):
-            assert all(v.draws == 0 for v in pair), pair   # settled: nothing drawn
+        for v in pair:
+            other = pair[1] if v is pair[0] else pair[0]
+            if v.certificate == "farkas":          # proved by a witness: its draw's index
+                assert v.draws == v.witness.draw and v.undecided_draws == 0, v
+                assert (other.status, other.reason, other.draws) == ("unresolved", "settled", 0)
+            elif v.status == "proved-not":         # by a family certificate: nothing drawn
+                assert v.draws == other.draws == 0, pair
         for v in pair:
             expected += [labels[v.a]] * v.draws
-            assert (v.draws > 0) == v.status.startswith("sampled")
+            assert (v.draws > 0) == (v.status.startswith("sampled") or v.certificate == "farkas")
     assert log == expected
 
     printed = [line for line in str(result).splitlines()
@@ -1961,7 +1972,8 @@ def test_the_default_draws_are_twelve_across_irreps_and_three_within(monkeypatch
     labels = ["S1(rank 1)#1", "S1(rank 1)#2", "S2(rank 1)#1", "S2(rank 1)#2", "S3(rank 1)#1"]
     subset = replace(found, candidates=tuple(c for c in found if c.label in labels))
     reflections = isotropy.reflections(found.lattice, 1.5)
-    monkeypatch.setattr(isotropy, "_fit_residual", lambda *args, **kwargs: 0.0)
+    monkeypatch.setattr(isotropy, "_certify_draw",
+                        lambda *args, **kwargs: (True, False, None, None))
     irrep = [c.irrep_label for c in subset]
     for draws, across, within in ((None, 12, 3), (2, 2, 2)):
         relations = isotropy.powder_relations(subset, reflections, draws=draws)
@@ -2009,7 +2021,8 @@ def test_the_certificates_run_on_a_pair_union_find_has_already_joined(monkeypatc
     labels = ["S1(rank 1)#1", "S1(rank 1)#2", "S2(rank 1)#1", "S2(rank 1)#2", "S3(rank 1)#1"]
     subset = replace(found, candidates=tuple(c for c in found if c.label in labels))
     reflections = isotropy.reflections(found.lattice, 1.5)
-    monkeypatch.setattr(isotropy, "_fit_residual", lambda *args, **kwargs: 0.0)
+    monkeypatch.setattr(isotropy, "_certify_draw",
+                        lambda *args, **kwargs: (True, False, None, None))
     real = isotropy._certify
 
     def withheld(a, b, *args):
@@ -2261,3 +2274,274 @@ def test_a_stored_synthetic_witness_reverifies_and_its_negation_does_not():
     # a witness is hashable, as the frozen PairVerdict it rides on must be
     assert hash(isotropy.PairVerdict(0, 1, "proved-not", "farkas", 1, 0, d=witness.d,
                                      witness=witness, dual=0.1))
+
+
+#: ``P m -3 m`` at (0, 0, ½), general site: 14 families, eight of them with a
+#: common kernel on their live shells (S5(a), S8(a) and the six S9/S10).
+PM3M_X = ("P m -3 m", P21C_SITE, P21C_K)
+
+
+def _stack(case):
+    found = isotropy.candidates(*case)
+    reflections = isotropy.reflections(found.lattice, 1.5)
+    canonical = [isotropy._canonical_basis(c) for c in found]
+    factors = [isotropy.structure_factors(c, reflections) for c in canonical]
+    grams = [isotropy.gram(f, reflections.shells) for f in factors]
+    dark = [isotropy._certificate_dark(g, isotropy._silent(f))
+            for g, f in zip(grams, factors)]
+    labels = [c.label for c in found]
+    return found, reflections, canonical, grams, dark, labels
+
+
+@pytest.fixture(scope="module")
+def known_answer_stack():
+    """The known answer's candidates, canonical bases, Gram stacks and dark shells, built once (about 1.5 s)."""
+    return _stack(KNOWN_ANSWER)
+
+
+@pytest.fixture(scope="module")
+def pm3mx_stack():
+    """``PM3M_X``'s candidates, canonical bases, Gram stacks and dark shells, built once (about 1.5 s)."""
+    return _stack(PM3M_X)
+
+
+def _own_draws(stack, label, n):
+    """n draws of one family against its own stack: (target, live, live stack) each."""
+    found, reflections, canonical, grams, dark, labels = stack
+    b = labels.index(label)
+    rng = np.random.default_rng(20260906)
+    out = []
+    for _ in range(n):
+        x = isotropy._normalised_draw(canonical[b], reflections.lattice, rng)
+        t = (grams[b] @ x) @ x
+        live = isotropy._fit_rows(t, grams[b]) & ~dark[b]
+        out.append((t, live, grams[b][live]))
+    return out
+
+
+@pytest.mark.xdist_group("magnetic-pm3mx")
+def test_a_draw_of_a_kernel_family_never_certifies_against_itself(pm3mx_stack):
+    """A family reproduces its own draws, so no certificate may exist for them, projected or not.
+
+    ``P m -3 m`` at (0, 0, ½): S5(a) and S8(a) each have a one-dimensional
+    common kernel on their live shells.  Three own draws each: the projected
+    dual and the unprojected one are both strictly negative, and nothing is
+    issued.  The positive arm is the next test, a cross-family draw on the
+    same kind of stack that certifies.
+    """
+    for label in ("S5(a)", "S8(a)"):
+        for t, live, g in _own_draws(pm3mx_stack, label, 3):
+            assert isotropy._live_projection(g)[1] == 1
+            dual, parts = isotropy._farkas_certificate(g, t[live])
+            raw, _ = isotropy._farkas_dual(g / np.max(np.abs(g)), _unit(t[live]))
+            assert parts is None and dual < 0.0 and raw < 0.0, (label, dual, raw)
+
+
+@pytest.mark.xdist_group("magnetic-known-answer")
+def test_a_draw_of_the_known_answer_never_certifies_against_itself(known_answer_stack):
+    """The same negative arm on a family with no kernel: S2(rank 1)#1 against its own draws."""
+    for t, live, g in _own_draws(known_answer_stack, "S2(rank 1)#1", 3):
+        assert isotropy._live_projection(g)[1] == 0
+        dual, parts = isotropy._farkas_certificate(g, t[live])
+        assert parts is None and dual < 0.0, dual
+
+
+@pytest.mark.xdist_group("magnetic-pm3mx")
+def test_a_kernel_family_is_certified_only_once_its_kernel_is_projected_out(pm3mx_stack):
+    """S1(a) → S5(a): on the raw stack the dual sits on the structural zero; projected, it certifies.
+
+    The first draw of the pair's stream.  S5(a)'s stack has a common kernel
+    of dimension 1, so every Σ y_s G_s has a zero eigenvalue and the raw
+    dual's ratio is round-off (2e-17 here), below the floor; with the kernel
+    projected out the optimum is 1.1e-6 and the certificate gives
+    d_lo = 0.0055, above the gate (2.3e-4 at ``rtol`` 1e-4).  The unit test
+    of :func:`isotropy._live_projection` holds the guard that refuses a
+    kernel whose residual is above :data:`isotropy.INTENSITY_RTOL`.
+    """
+    found, reflections, canonical, grams, dark, labels = pm3mx_stack
+    a, b = labels.index("S1(a)"), labels.index("S5(a)")
+    x = isotropy._normalised_draw(canonical[a], reflections.lattice,
+                                  np.random.default_rng(20260906))
+    t = (grams[a] @ x) @ x
+    live = isotropy._fit_rows(t, grams[b]) & ~dark[b]
+    g = grams[b][live]
+    raw, _ = isotropy._farkas_dual(g / np.max(np.abs(g)), _unit(t[live]))
+    assert abs(raw) <= 1e-15
+    dual, parts = isotropy._farkas_certificate(g, t[live])
+    assert dual >= 1e-7 and parts is not None and parts["kernel_dim"] == 1
+    assert parts["kernel_residual"] <= 1e-12
+    d_lo = 1.0 / float(np.linalg.norm(parts["y"]))
+    assert d_lo == pytest.approx(0.0055, rel=0.05)
+    assert d_lo >= isotropy._gate(1e-4, t, live)
+
+
+@pytest.mark.xdist_group("magnetic-pm3mx")
+def test_the_gate_reads_rtol_with_the_root_s_factor(monkeypatch, pm3mx_stack):
+    """A certificate proves a draw out of reach at ``rtol`` only when d_lo ≥ rtol·√S·max|t|/‖t‖.
+
+    The T3 draw (S1(a) → S5(a)) with every restart stubbed to fail, so the
+    certificate alone decides.  At ``rtol`` 1e-4 and 1e-9 it proves the
+    draw, after exactly one restart call; at an ``rtol`` between
+    d_lo·‖t‖/(√S·max|t|) and d_lo it does not (a gate without the √S factor
+    would), the witness rides along and the remaining restarts run.  Here
+    √S·max|t|/‖t‖ = 2.3.
+    """
+    found, reflections, canonical, grams, dark, labels = pm3mx_stack
+    a, b = labels.index("S1(a)"), labels.index("S5(a)")
+    x = isotropy._normalised_draw(canonical[a], reflections.lattice,
+                                  np.random.default_rng(20260906))
+    t = (grams[a] @ x) @ x
+    calls = []
+
+    def failing(*args, **kwargs):
+        calls.append(kwargs["restarts"])
+        return 1.0, 1.0
+
+    monkeypatch.setattr(isotropy, "_restarts", failing)
+
+    def run(rtol):
+        calls.clear()
+        return isotropy._certify_draw(t, grams[b], dark[b], np.random.default_rng(0),
+                                      restarts=8, rtol=rtol, draw=1)
+
+    reproduced, certified, witness, dual = run(1e-4)
+    assert (reproduced, certified, calls) == (False, True, [1])
+    d_lo = witness.d[0]
+    factor = isotropy._gate(1.0, t, np.isin(np.arange(len(t)), witness.live))
+    assert 1.5 < factor < 4.0
+    middle = d_lo / np.sqrt(factor)          # inside (d_lo/factor, d_lo)
+    reproduced, certified, witness, dual = run(middle)
+    assert (reproduced, certified, calls) == (False, False, [1, 7])
+    assert witness is not None and witness.d[0] == pytest.approx(d_lo)
+    assert run(1e-9)[1]
+
+
+@pytest.mark.xdist_group("magnetic-known-answer")
+def test_a_proved_separation_inside_a_joined_class_is_reported(monkeypatch, known_answer_stack):
+    """Union-find can join two families a witness has proved apart; the table must say so.
+
+    Four known-answer families, every draw stubbed to be reproduced except
+    those of S1(rank 1)#1 → S2(rank 1)#1, which run for real and certify at
+    draw 4 at this seed (20260906).  S2(rank 1)#1 then joins the class
+    through the stubbed S1(rank 1)#2 pair, so one class holds a
+    ``proved-not``/``farkas`` direction: it is marked S, the separation is
+    printed with its d bracket, and the class is named as holding one.
+    This is the shape ``F -4 3 m`` Γ takes at seed 2 (S4 ⊄ S5 inside
+    S4 ∪ S5).
+    """
+    from dataclasses import replace
+
+    found, reflections, canonical, grams, dark, labels = known_answer_stack
+    names = ["S1(rank 1)#1", "S1(rank 1)#2", "S2(rank 1)#1", "S2(rank 1)#2"]
+    subset = replace(found, candidates=tuple(c for c in found if c.label in names))
+    target = grams[labels.index("S2(rank 1)#1")]
+    drawn = []
+    real_draw, real_certify = isotropy._normalised_draw, isotropy._certify_draw
+
+    def logging(candidate, lattice, rng):
+        drawn.append(candidate.label)
+        return real_draw(candidate, lattice, rng)
+
+    def selective(t, grams_b, *args, **kwargs):
+        if drawn[-1] == "S1(rank 1)#1" and np.array_equal(grams_b, target):
+            return real_certify(t, grams_b, *args, **kwargs)
+        return True, False, None, None
+
+    monkeypatch.setattr(isotropy, "_normalised_draw", logging)
+    monkeypatch.setattr(isotropy, "_certify_draw", selective)
+    result = isotropy.analyse(subset, d_min=1.5, restarts=4)
+    assert result.classes == ((0, 1, 2, 3),)
+    assert _table_marks(result) == ["S"] * 4
+    there = next(v for v in result.relations if (v.a, v.b) == (0, 2))
+    assert (there.status, there.certificate, there.draws) == ("proved-not", "farkas", 4)
+    assert "proved 1 (absence 0, subspace 0, farkas 1)" in str(result)
+
+
+@pytest.mark.xdist_group("magnetic-known-answer")
+def test_the_s1_s2_pairs_of_the_known_answer_are_proved_by_stored_witnesses(known_answer_stack):
+    """S1 against S2 of the known answer: every pair the certificate proves, at the default draws and restarts 4.
+
+    The six S1 and S2 families.  At seed 20260906 seven of the nine
+    S1 → S2 directions certify (pinned below, with the draw each stops
+    at); the other two are ``sampled-not`` with a negative dual: no
+    certificate exists for that draw.  At restarts 32 the second of them,
+    S1(a,b) → S2(rank 1)#2, is reproduced at draw 4 and certified at draw 10
+    instead (measured, not pinned: about 2× the time).  Every witness is
+    re-verified from its stored t and y alone, sits at ratio ≥
+    :data:`isotropy.FARKAS_QUOTE`, passes the exact check, has
+    d_lo ≤ d_up and clears the gate.  No physical floor: the smallest d_lo
+    is 0.0049, below the 1e-2 a floor might be tempted to set.
+    """
+    from dataclasses import replace
+
+    found, reflections, canonical, grams, dark, labels = known_answer_stack
+    subset = replace(found, candidates=tuple(c for c in found if c.irrep_label in ("S1", "S2")))
+    names = [c.label for c in subset]
+    classes, relations = isotropy._classify(subset, reflections, draws=None, seed=20260906,
+                                            rtol=1e-4, restarts=4)
+    result = replace(subset, classes=classes, relations=relations)
+    farkas = {(names[v.a], names[v.b]): v for v in result.relations if v.certificate == "farkas"}
+    assert {key: v.draws for key, v in farkas.items()} == {
+        ("S1(rank 1)#1", "S2(rank 1)#1"): 4, ("S1(rank 1)#1", "S2(rank 1)#2"): 3,
+        ("S1(rank 1)#1", "S2(a,b)"): 3, ("S1(rank 1)#2", "S2(rank 1)#1"): 2,
+        ("S1(rank 1)#2", "S2(rank 1)#2"): 2, ("S1(a,b)", "S2(rank 1)#1"): 4,
+        ("S1(a,b)", "S2(a,b)"): 3}
+    failed = [v for v in result.relations if v.status == "sampled-not"]
+    assert {(names[v.a], names[v.b]) for v in failed} == {
+        ("S1(rank 1)#2", "S2(a,b)"), ("S1(a,b)", "S2(rank 1)#2")}
+    assert all(v.dual is not None and v.dual < 0.0 and v.witness is None for v in failed)
+    for (a, b), v in farkas.items():
+        w = v.witness
+        holds, ratio, off = isotropy._verify_witness(grams[labels.index(b)], w)
+        assert holds and off <= 1e-9 and ratio >= isotropy.FARKAS_FLOOR, (a, b)
+        assert w.exact and w.ratio >= isotropy.FARKAS_QUOTE and w.rounding_bound < 1e-13
+        assert v.d == w.d and w.d[0] == pytest.approx(1.0 / np.linalg.norm(w.y))
+        assert w.d[0] <= w.d[1]
+        live = np.isin(np.arange(len(w.t)), w.live)
+        assert w.d[0] >= isotropy._gate(1e-4, np.asarray(w.t), live)
+        assert v.dual >= isotropy.FARKAS_FLOOR
+    assert min(v.d[0] for v in farkas.values()) < 1e-2
+
+
+def _known_pair(known_answer_stack, names=("S1(rank 1)#2", "S2(rank 1)#1")):
+    from dataclasses import replace
+
+    found = known_answer_stack[0]
+    return replace(found, candidates=tuple(c for c in found if c.label in names))
+
+
+@pytest.mark.xdist_group("magnetic-known-answer")
+def test_the_exact_check_is_called_once_per_witness_and_refuses_on_false(monkeypatch,
+                                                                         known_answer_stack):
+    """The exact LDLᵀ is the arbiter: it runs on every quoted certificate, and a False issues no witness.
+
+    S1(rank 1)#2 → S2(rank 1)#1, which certifies at draw 2 (seed 20260906,
+    restarts 4).  A spy counts one exact call per witness issued.  With the
+    exact check forced False the same draw is not certified: no witness,
+    no ``farkas``, and the draws decide (here the draw is not reproduced in
+    4 restarts, so ``sampled-not`` with the dual's positive optimum, a
+    certificate the arbiter refused).  The unit test of
+    :func:`isotropy._exact_psd` holds what it refuses on its own.
+    """
+    subset = _known_pair(known_answer_stack)
+    reflections = known_answer_stack[1]
+    calls = []
+    real = isotropy._exact_psd
+
+    def spy(*args):
+        calls.append(1)
+        return real(*args)
+
+    monkeypatch.setattr(isotropy, "_exact_psd", spy)
+    relations = isotropy.powder_relations(subset, reflections, restarts=4)
+    witnesses = [v.witness for v in relations if v.witness is not None]
+    assert len(witnesses) == len(calls) == 1
+    assert relations[0].certificate == "farkas" and relations[0].draws == 2
+
+    monkeypatch.setattr(isotropy, "_exact_psd", lambda *args: False)
+    refused = isotropy.powder_relations(subset, reflections, restarts=4)
+    assert all(v.witness is None and v.certificate is None for v in refused)
+    assert (refused[0].status, refused[0].draws) == ("sampled-not", 2)
+    assert refused[0].dual >= isotropy.FARKAS_FLOOR
+
+
