@@ -254,6 +254,61 @@ The shipping PR carries `Closes #150`, `Closes #102` (#106 closes with
 
 ## Handover log
 
+### 2026-10-02 (2nd session) — every reader keeps a negative B; the default bounds stay; WP-1534 filed
+
+A converged FullProf, GSAS, GSAS-II or TOPAS refinement with a slightly
+negative B now opens in rietx. Each of those programs stores such a value, and
+rietx used to refuse the whole file. The four project readers now keep the
+number, widen its bound and report `BISO_BOUND_WIDENED`, as the CIF reader has
+since PR #663. The three writers write one back. The 0–25 Å² default on
+`Atom.biso` stays. Removing it was tried and rejected, because issue #204
+measured an unbounded B walking a scale–B ridge to −165 Å² and returning two
+different phase fractions at one Rwp. WP-1534 is filed to fix that ridge at
+its source.
+
+This answers the first entry's "Next". PR #663 merged while this work was in
+flight, so it travels as its own PR.
+
+**Decided, and why.**
+
+- **The project readers keep a negative B, and the writers write one.** The
+  four readers refused it because "rietx bounds biso at zero". Widening at
+  read removes that premise. The writers refused only because the readers
+  did. The maintainer took this after asking whether the other codes refuse
+  negative values. They don't.
+- **The default bounds stay, and a caller's out-of-range value still raises.**
+  The maintainer first asked for `Atom.biso` to accept every value. Two things
+  ruled that out. #204's ridge walk comes back without a floor. And widening
+  inside the schema cannot report itself, so it would silently undo PR #206's
+  deliberate refusal of `Parameter(value=-165.0)`. Only a reader can say what
+  it widened. The range is a backstop and no more. On a 25–50° Cu Kα scan, a
+  walk to 25 Å² still moves a phase scale about 10×. That figure is arithmetic
+  on #204's relation `scale·exp(−2B·s²)` with mean s² = 0.047 Å⁻², not a run.
+
+**Done.**
+
+- `f2c21399`: the refusals removed from the four readers and three writers.
+  Seven refusal tests become read, widen and round-trip tests. The TOPAS test
+  pinning the old refusal paragraph is deleted with that paragraph. `help.py`,
+  `io/CLAUDE.md` and the skill's api index say the new behaviour.
+- `cc320e22`: WP-1534 filed. Folding was checked first. WP-1460 reports
+  correlated pairs and WP-1420 re-enters a held phase, so neither owns acting
+  on the ridge.
+- `fd07dfa1`: a stale section heading in the TOPAS tests.
+
+**Measured** (worktree `.venv`, `[dev]`, darwin/arm64, merged with
+`origin/main` at `0498127f`, alone on the machine): the fast selection gave
+7848 passed, 159 skipped, 0 failed. Against the first entry's run the total
+moved by −1. That is the deleted docstring test, with seven tests renamed in
+place. The `toy_anomalous` golden failure the first entry recorded is gone:
+PR #669 re-baselined it for macOS 27.0.1, so the OS update was the cause. The
+full suite did not run, because no measured number can move: no acceptance
+fixture reads a negative B, and the default bounds are unchanged.
+
+**Next:** WP-1534 task 1, which measures whether the phase fraction's esd
+already marks the ridge as unmeasured. Its result decides whether the default
+bounds can ever go.
+
 ### 2026-10-02 — PR #663: a file's Biso widens the 25 Å² bound and says so
 
 Every structure reader built Biso with this WP's kept 0–25 Å² bound. A value

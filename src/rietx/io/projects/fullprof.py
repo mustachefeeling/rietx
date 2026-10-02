@@ -2604,7 +2604,7 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
     and is not gated on ``drop_parameter_ties``, which the *atom*-tie refusal
     below is.
 
-    Six refusals, each naming what it would otherwise have dropped:
+    Five refusals, each naming what it would otherwise have dropped:
 
     * **A magnetic phase that does not map.** A ``Jbt = ±1`` phase is read
       onto its nuclear counterpart where :func:`magnetic_reading` says it
@@ -2615,12 +2615,6 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
       R_Bragg — went unmentioned. ``nuclear_only=True`` is how a caller *declares* it wants the
       nuclear subset; the omission is then the caller's, and named in the
       message this refusal replaces.
-    * **A negative ``Biso``.** An oxygen site in ``corpus file 4`` refined to a
-      negative value, which is a real FullProf outcome (the column absorbs
-      absorption and normalisation error). rietx bounds ``biso`` at zero, and
-      clamping a negative Biso to 0 changes every high-Q intensity — a
-      *contradiction*, not the kind of small deviation root CLAUDE.md licenses
-      a reader to repair silently.
     * **An anisotropic β block.** The β → U^ij conversion needs a convention no
       file here settles (whether the stored off-diagonal already carries the
       exponent's factor of 2), and a wrong factor is a silently wrong
@@ -2733,16 +2727,6 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                     f"exponent's factor of 2 — and a wrong factor is a silently "
                     f"wrong Debye-Waller factor at high Q. Read "
                     f"`atom.betas` for what the file states.")
-            biso = atom.values["biso"].value
-            if biso < 0.0:
-                raise FullProfPcrError(
-                    f"{where}: atom {atom.label!r} has Biso = {biso}, and rietx "
-                    f"bounds biso at zero. A negative B is a real FullProf "
-                    f"outcome — the column absorbs absorption and normalisation "
-                    f"error — but clamping it to zero changes every high-Q "
-                    f"intensity, so it is a contradiction rather than a "
-                    f"deviation a reader may repair. Read "
-                    f"`atom.values['biso'].value` for the file's own number.")
         # The occupancy check is also what verifies `normalize_space_group`'s
         # origin choice: a wrong origin gives wrong multiplicities, so the
         # ratios stop agreeing and the phase is refused rather than returned.
@@ -3427,9 +3411,7 @@ def from_structure(structure: Structure, *,
     refuses unless that reproduces ``get_spacegroup(phase.space_group).xhm()``
     exactly. An atom's label or species carrying whitespace: a ``.pcr`` atom
     line is whitespace-tokenized, so an embedded space would desynchronise
-    every column after it. A negative ``biso``: :func:`to_structure`
-    refuses one on the way in (§ above), so writing one here would only fail
-    later, at the read, with the file already on disk. And a **non-finite**
+    every column after it. And a **non-finite**
     value, which ``repr`` spells ``inf``/``nan`` and FullProf does not parse —
     surfaced by the review pass on this writer's own branch and answered for
     all three foreign-format writers at once (WP-1118).
@@ -3535,14 +3517,6 @@ def from_structure(structure: Structure, *,
                     f"partial occupancy on the way back in; writing occ·m/M "
                     f"would not read back, and writing m/M would state a full "
                     f"site. The .prm writer refuses it for the same reason")
-            if atom.biso.value < 0.0:
-                raise ValueError(
-                    f"phase {phase.name!r}: atom {atom.label!r} has Biso = "
-                    f"{atom.biso.value}, and read_fullprof_pcr's own "
-                    f"to_structure refuses a negative Biso on the way back "
-                    f"in (it bounds biso at zero) — writing this file would "
-                    f"only fail later, at the read, rather than here where "
-                    f"the value is still in hand")
 
     counter = [0]
 
