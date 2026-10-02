@@ -122,7 +122,14 @@ from ..schemas.instrument import (
     Source,
 )
 from ..schemas.pattern import PatternData
-from ..schemas.structure import Atom, Cell, Phase, Structure, biso_bounds
+from ..schemas.structure import (
+    Atom,
+    Cell,
+    Phase,
+    Structure,
+    biso_bounds,
+    biso_widening_diagnostic,
+)
 from ..strategy.staged import RefinementPlan, Stage
 
 __all__ = ["Recipe", "RecipeError", "read_recipe", "write_recipe_tables"]
@@ -1018,7 +1025,10 @@ def _read_phases(payload: dict, instrument: Instrument,
         phase, name = _read_phase(key, block, lam, diags)
         built.append(phase)
         names.append(name)
-    return Structure(phases=built), names
+    structure = Structure(phases=built)
+    if (widened := biso_widening_diagnostic(structure, "the recipe")) is not None:
+        diags.append(widened)
+    return structure, names
 
 
 def _read_phase(key: str, block: dict, lam: float,

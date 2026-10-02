@@ -119,7 +119,14 @@ experimenter quoting a refined number. Past that threshold the symbol and the
 angle contradict each other, one of the two is wrong, and choosing between them
 is yours: the value is left byte for byte and the read raises.
 
-A third note is a report rather than a repair. A site can sit within 1e-4 of a
+A B_iso outside the 0–25 Å² starting bounds is kept, and its bound is widened
+to hold it (`BISO_BOUND_WIDENED`). Published structures carry such values. The
+methylammonium C in COD 4335638 sits at 26.8 Å², and a light atom is sometimes
+refined slightly negative. The number is the file author's model, so refine it
+or set a physical start before a stage holds it. A fit that keeps a negative B
+reports `BISO_NEGATIVE`.
+
+A further note is a report rather than a repair. A site can sit within 1e-4 of a
 special position without being on it, as a file quoting five decimals often
 leaves one. Such a site has its orbit expanded at that position, so its
 multiplicity is the special one, and `SITE_SNAPPED_TO_SPECIAL_POSITION` names

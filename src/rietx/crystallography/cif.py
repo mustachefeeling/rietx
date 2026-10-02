@@ -10,7 +10,15 @@ from pathlib import Path
 import gemmi
 
 from ..schemas.common import Diagnostic, Parameter
-from ..schemas.structure import AnisoU, Atom, Cell, Phase, Structure, biso_bounds
+from ..schemas.structure import (
+    AnisoU,
+    Atom,
+    Cell,
+    Phase,
+    Structure,
+    biso_bounds,
+    biso_widening_diagnostic,
+)
 from . import magcif
 from .adp import U_NAMES, u_equivalent
 from .magnetic.scattering import check_group_is_structure_symmetry
@@ -535,7 +543,11 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
         magnetic_symmetry=magnetic_symmetry,
     )
     check_group_is_structure_symmetry(phase)
-    return Structure(phases=[phase])
+    structure = Structure(phases=[phase])
+    if diagnostics is not None and (
+            widened := biso_widening_diagnostic(structure, str(path))) is not None:
+        diagnostics.append(widened)
+    return structure
 
 
 def format_su(value: float, esd: float | None, *, decimals: int = 6) -> str:

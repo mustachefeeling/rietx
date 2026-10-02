@@ -169,7 +169,7 @@ from ...crystallography.symmetry import (
     setting_diagnostics,
 )
 from ...schemas.common import Diagnostic, Parameter
-from ...schemas.structure import biso_bounds
+from ...schemas.structure import biso_bounds, biso_widening_diagnostic
 from ..formats.base import decode
 from . import coverage as _coverage
 
@@ -4190,10 +4190,14 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
             f"structure to build. {why} — read `model.phases` directly for what "
             f"it does state.")
     try:
-        return rx.Structure(phases=phases)
+        structure = rx.Structure(phases=phases)
     except Exception as exc:
         # e.g. a phase whose site lines were all inside a disabled #ifdef branch
         raise TopasInpError(f"{model.path or '<model>'}: {exc}") from exc
+    if diagnostics is not None and (
+            widened := biso_widening_diagnostic(structure, str(model.path or '<model>'))) is not None:
+        diagnostics.append(widened)
+    return structure
 
 
 def _tail(param: Parameter) -> str:

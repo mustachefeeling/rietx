@@ -1939,12 +1939,17 @@ def test_a_schema_refusal_from_the_cell_or_the_atoms_is_still_converted(
 
 
 def test_a_beq_above_the_starting_bound_reads(tmp_path):
-    """A stated beq of 26 Å² reads, with its bound widened to hold it."""
+    """A stated beq of 26 Å² reads, with its bound widened to hold it, and
+    the reader says so."""
     inp = _inp(tmp_path, "hot.inp",
                'str\nphase_name "hot"\nspace_group "P1"\na 5.0\n'
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq bA 26.0\n')
-    biso = to_structure(read_topas_inp(inp)).phases[0].atoms[0].biso
+    diagnostics = []
+    structure = to_structure(read_topas_inp(inp), diagnostics=diagnostics)
+    biso = structure.phases[0].atoms[0].biso
     assert (biso.value, biso.max) == (pytest.approx(26.0), pytest.approx(26.0))
+    widened = [d for d in diagnostics if d.code == "BISO_BOUND_WIDENED"]
+    assert [d.where for d in widened] == [["phases.0.atoms.0.biso"]]
 
 
 # ------------------------------------------------------------ the robustness pin

@@ -64,3 +64,30 @@ def test_cif_with_a_biso_outside_the_bounds_reads(tmp_path):
     assert atoms["O1"].biso.value == pytest.approx(-0.002 * EIGHT_PI_SQ)
     assert atoms["O1"].biso.min == pytest.approx(-0.002 * EIGHT_PI_SQ)
     assert (atoms["Na1"].biso.min, atoms["Na1"].biso.max) == BISO_BOUNDS
+
+
+def test_the_widening_is_reported_once_naming_every_site(tmp_path):
+    """A reader says that it widened a bound, as root CLAUDE.md asks of a
+    repair: one diagnostic for the file, every widened site in ``where``."""
+    path = tmp_path / "bounds.cif"
+    path.write_text(CIF, encoding="utf-8")
+    diagnostics = []
+    structure_from_cif(path, diagnostics=diagnostics)
+
+    widened = [d for d in diagnostics if d.code == "BISO_BOUND_WIDENED"]
+    assert len(widened) == 1
+    labels = [a.label for a in structure_from_cif(path).phases[0].atoms]
+    assert widened[0].where == [f"phases.0.atoms.{labels.index(name)}.biso"
+                                for name in labels if name in ("C1", "O1")]
+    assert widened[0].level == "warning"
+    assert "not a physical displacement" in widened[0].message
+    assert "O1" in widened[0].message.split("B < 0 on")[1]
+
+
+def test_a_file_inside_the_bounds_reports_no_widening(tmp_path):
+    path = tmp_path / "inside.cif"
+    path.write_text(CIF.replace("0.34", "0.02").replace("-0.002", "0.01"),
+                    encoding="utf-8")
+    diagnostics = []
+    structure_from_cif(path, diagnostics=diagnostics)
+    assert "BISO_BOUND_WIDENED" not in [d.code for d in diagnostics]

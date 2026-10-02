@@ -22,7 +22,7 @@ from typing import ClassVar, Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from .common import Base, Parameter, _InheritsDeclaredDefaults
+from .common import Base, Diagnostic, Parameter, _InheritsDeclaredDefaults
 
 #: the lower bound below which ``params.transforms.internal_bounds`` treats a
 #: softplus parameter as *unbounded* below, which is what lets its physical
@@ -438,9 +438,55 @@ def biso_bounds(value: float) -> dict[str, float]:
     organic cation's U_iso of 0.34 Å² is a B_iso of 26.8 Å², and a light atom
     can be refined slightly negative.  A bound the read value breaks refuses
     the whole file, so a reader widens it instead.
+
+    The widened bound is the value itself, with no headroom past it.  A freed
+    B can move back toward :data:`BISO_BOUNDS` and no further out, so a fit
+    that wants more reports ``BOUND_HIT`` instead of walking.  A reader that
+    calls this reports what it widened with :func:`biso_widening_diagnostic`.
     """
     lo, hi = BISO_BOUNDS
     return {"min": min(lo, value), "max": max(hi, value)}
+
+
+def biso_widening_diagnostic(structure: Structure, source: str) -> Diagnostic | None:
+    """One ``BISO_BOUND_WIDENED`` diagnostic naming every isotropic site whose
+    read B_iso lies outside :data:`BISO_BOUNDS`, or ``None`` if there is none.
+
+    A reader repairs a file only where it says that it did (root CLAUDE.md,
+    WP-1028), and :func:`biso_bounds` changes a bound the file never stated.
+    The value is kept rather than moved: Watkin (2008, J. Appl. Cryst. 41,
+    491) shows a displacement parameter is evidence about the model, and
+    clamping it destroys the evidence.  A negative B is named as such because
+    Madsen et al. (2001, J. Appl. Cryst. 34, 409, § 6.2) list it among the
+    physically unrealistic values a code should warn about.  An anisotropic
+    site is skipped, because its ``biso`` is an inert record.
+    """
+    lo, hi = BISO_BOUNDS
+    rows = [(f"phases.{i}.atoms.{j}.biso", atom.label, atom.biso.value)
+            for i, phase in enumerate(structure.phases)
+            for j, atom in enumerate(phase.atoms)
+            if atom.aniso is None and not lo <= atom.biso.value <= hi]
+    if not rows:
+        return None
+    listed = ", ".join(f"{label} {b:.3g} Å²" for _, label, b in rows)
+    negative = [label for _, label, b in rows if b < 0.0]
+    message = (f"{len(rows)} site(s) in {source} carry a B_iso outside the "
+               f"{lo:g}–{hi:g} Å² starting bounds ({listed}). Each bound was "
+               f"widened to hold the file's value, so a freed B can move back "
+               f"toward that range and no further out.")
+    if negative:
+        message += (f" B < 0 on {', '.join(negative)} is not a physical "
+                    f"displacement: its Debye–Waller factor grows with "
+                    f"sinθ/λ instead of falling.")
+    worst = max(rows, key=lambda row: max(lo - row[2], row[2] - hi))
+    return Diagnostic(
+        level="warning", code="BISO_BOUND_WIDENED",
+        where=[path for path, _, _ in rows], value=worst[2],
+        message=message,
+        suggestion="read these numbers as the file author's model, not as "
+                   "displacements of your specimen: refine them against your "
+                   "data, or set a physical starting value before any stage "
+                   "that holds them")
 
 
 class Atom(_InheritsDeclaredDefaults):

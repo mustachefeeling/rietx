@@ -87,7 +87,7 @@ from typing import Any
 import numpy as np
 
 from ...schemas.common import Diagnostic
-from ...schemas.structure import biso_bounds
+from ...schemas.structure import biso_bounds, biso_widening_diagnostic
 from .coverage import Stance
 
 #: Which description of the format this reader was written against.  Stated
@@ -1694,6 +1694,9 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
                 f"`model.histograms[…].sample['Scale']` and "
                 f"`model.hap[…].scale`"),
             where=["phases.0.scale"]))
+    if diagnostics is not None and (
+            widened := biso_widening_diagnostic(structure, str(model.path or '<model>'))) is not None:
+        diagnostics.append(widened)
     return structure
 
 
