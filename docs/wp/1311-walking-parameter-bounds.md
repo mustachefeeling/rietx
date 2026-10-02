@@ -299,7 +299,14 @@ maintainer and are listed under *Declined*.
   skill row.
 
 **Measured** (worktree `.venv`, `[dev]`, darwin; a `/pr-review` slow run was
-going at the same time, so no timing is quoted): FAST_COUNTS.
+going at the same time, so no timing is quoted): the fast selection gave
+7842 passed, 159 skipped, 1 failed. The branch adds 5 tests, 7 cases, all
+passing. Main's own count was not run for a baseline. The failure is
+`test_backend_shim.py::test_numpy_path_bit_identical_to_golden[toy_anomalous]`,
+1.6e-11 off its golden. It fails the same way on `origin/main` (`ca9bda29`) in
+this venv, while main's Linux CI is green. So it predates this branch and is
+local to this machine's environment. It was not investigated. The full suite
+did not run, because a bound's width moves no measured number.
 
 **Next:** decide the negative-Biso question first. Its answer sets whether the
 diagnostic is one code or two. Then merge #663.
