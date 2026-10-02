@@ -27,7 +27,35 @@ the scale–B shape before the solve (`SCALE_B_INSEPARABLE`), which removes the
 direction from that pair, but every other exactly degenerate pair is
 untouched.
 
-**Candidate shapes (hypothesis, unmeasured).**
+**Measured 2026-10-02 (task 1; numpy, Darwin, `[dev]` venv, worktree `pure-frolicking-bubble`).**
+A pytest plugin wrapped `statistics.normal_factors`, re-formed the equilibrated
+matrix, and counted eigenvalues with |λ| ≤ `PINV_RCOND·|λ|max` that load on two
+or more live columns (a one-column cut is a dead column, already handled).
+
+- **Fast selection**: 3 100 whole-pattern solves, 24 with such a direction
+  (0.8 %). Pawley overlap groups (intensities, already
+  `PAWLEY_OVERLAP_UNRESOLVED`) and tests that build a degenerate pair on
+  purpose. No ordinary Rietveld fit.
+- **`-m slow` (the acceptance fixtures)**: 1 899 whole-pattern solves, 183 with
+  one (9.6 %), 461 directions in all. They sit in the headline fixtures:
+  cpd-1a QPA (round-robin, dispersion, sequential), SRM 676a's two R
+  descriptions, brucite March–Dollase and Stephens, the surface-roughness
+  pure phases, the Cr₂WO₆ 150 K pattern. Depth below the cut, |λ|/cut:
+  88 in 0.5–1, 226 in 0.1–0.5, 146 in 0.001–0.1, 1 under 1e-3. So most are
+  at the rounding floor rather than far under it, and they load on 4–8
+  columns, not a pair.
+- **Occupancy against scale (confirmed)**: one-site bcc Fe, 20–100°, scale and
+  `occ` free, from 1e-4 and 0.8. The direction's λ is 3.1e-16 against a cut of
+  2.0e-15, loaded 0.707/0.707, and the fit returns scale 1.84e-4 ± 4.5e-6 and
+  occ 1.039 ± 0.0127, with `HIGH_CORRELATION` and `FLAT_DIRECTION` beside them.
+  Both esds are confident; the pair is exactly degenerate.
+- The one red row in the slow selection, `test_watch_app.py::…scratch_copy…`,
+  passed alone (4.6 s): load, not this.
+- `normal_covariance` (indexing's per-peak fits) has 144 such solves in the
+  slow selection, all two-column pairs; out of this WP's whole-pattern scope
+  and not examined further.
+
+**Candidate shapes (hypothesis; the first is confirmed above).**
 
 - A one-site phase's occupancy against its scale. |F|² ∝ occ², so on any
   range the occupancy is exactly a reparameterisation of the scale.
@@ -55,7 +83,7 @@ and WP-1460 (how a flat direction is *reported*; this WP is about its *esd*).
 
 ## Tasks
 
-- [ ] **Measure first.** Count discarded eigen-directions (eigenvalue under
+- [x] **Measure first.** Count discarded eigen-directions (eigenvalue under
       `PINV_RCOND × λmax`) across the fast suite's fits and the acceptance
       fixtures, and record which parameters each one touches. Build the
       one-site occupancy–scale case and confirm or refute the hypothesis.
