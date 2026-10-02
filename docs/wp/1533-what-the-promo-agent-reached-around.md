@@ -124,8 +124,12 @@ re-run WP-1466's `measure.py` and name the rows that moved.
       occlusion on HKUST-1 down a, ZSM-5 down b and YBa₂Cu₃O₇ down b. Then
       change the report, the `auto` ranking or only the skill's rule, and
       say which
-- [ ] Furniture: land a helper or decline it, with the line counts above as
-      the case
+- [x] Furniture: land a helper or decline it, with the line counts above as
+      the case. **A drawing helper declined 2026-10-02, `fig.to_px` landed.**
+      10 of 12 scripts drew the same legend, triad and bar, but strip,
+      fonts and annotations differ in every one. Four fitted an Å-to-pixel
+      map by least squares and the rest typed the triad by hand, so the map
+      is on the figure and `examples/structure_furniture.py` draws the three
 - [x] Default colours: change or decline. A change re-runs WP-1466's
       `measure.py` and names the rows that moved. **Declined 2026-10-02.**
       The hues separate within a phase (WP-1029), which is their job. C's

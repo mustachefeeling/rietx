@@ -531,6 +531,29 @@ def test_the_anchors_say_where_each_atom_and_letter_landed(nac):
     assert all(0 <= t["x"] < w and 0 <= t["y"] < h for t in fig.letters)
 
 
+def test_to_px_is_the_map_that_placed_the_atoms(nac):
+    """WP-1533: four of twelve promo scripts fitted this map by least squares
+    from ``atoms``.  It is the one the renderer used, on a view down no axis of
+    a monoclinic cell, with the frame left out so the fit moves."""
+    geometry = s3.build(_monoclinic())
+    fig = render_structure(geometry, view=[1, 2, 3], turn="20y", size=300, cell=False)
+    pos = np.array([geometry["atoms"][a["index"]]["pos"] for a in fig.atoms])
+    drawn = np.array([[a["x"], a["y"]] for a in fig.atoms])
+    assert len(drawn) > 1 and fig.to_px(pos).shape == drawn.shape
+    np.testing.assert_allclose(fig.to_px(pos), drawn, rtol=0, atol=1e-9)
+    np.testing.assert_allclose(fig.to_px(pos[0]), drawn[0], rtol=0, atol=1e-9)
+    with pytest.raises(ValueError, match=r"\(N, 3\)"):
+        fig.to_px(pos[:, :2])
+    # down c of a cubic cell with b up, a points right and b up the page
+    fig = render_structure(nac, view="c", size=200)
+    a, b, _ = np.asarray(s3.build(nac)["lattice"])
+    zero = fig.to_px(np.zeros(3))
+    np.testing.assert_allclose((fig.to_px(a) - zero) / fig.pixels_per_angstrom,
+                               [np.linalg.norm(a), 0.0], atol=1e-9)
+    np.testing.assert_allclose((fig.to_px(b) - zero) / fig.pixels_per_angstrom,
+                               [0.0, -np.linalg.norm(b)], atol=1e-9)
+
+
 def test_the_options_reach_the_picture(nac):
     base = render_structure(nac, size=200)
     no_na = render_structure(nac, size=200, hidden=["Na"]).atoms

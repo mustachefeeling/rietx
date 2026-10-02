@@ -64,9 +64,13 @@ class StructureFigure:
     ``np.asarray(figure)`` and ``plt.imshow(figure)`` both take it.
     ``rotation`` is the view drawn, rows the screen's right, up and toward the
     viewer in the structure's Cartesian Å: pass it back as ``view=`` for the
-    same picture.  ``atoms`` has one entry per atom drawn, ``letters`` one per
-    a, b, c: where each landed, in pixels from the top-left corner, so a caller
-    can annotate without re-projecting.  ``path`` is the PNG written, if any.
+    same picture.  ``origin`` is where pixel (0, 0), the top-left corner, sits
+    in the view plane, in Å along the first two rows of ``rotation``.
+    ``rotation``, ``origin`` and ``pixels_per_angstrom`` make the map
+    :meth:`to_px` applies.
+    ``atoms`` has one entry per atom drawn, ``letters`` one per a, b, c: where
+    each landed, in pixels from the top-left corner, so a caller can annotate
+    without re-projecting.  ``path`` is the PNG written, if any.
     ``palette`` is each site label drawn and the colour it is drawn in, as
     ``#rrggbb`` before any dimming of the images outside the cell, for a legend
     drawn beside the figure.  A site recoloured in part
@@ -86,6 +90,7 @@ class StructureFigure:
     image: np.ndarray
     rotation: list[list[float]]
     pixels_per_angstrom: float
+    origin: list[float]
     atoms: list[dict]
     letters: list[dict]
     path: str | None = None
@@ -99,6 +104,25 @@ class StructureFigure:
         # numpy 2 trusts copy=True to have copied, so np.array(figure) must
         # not hand out the figure's own buffer
         return image.copy() if copy else image
+
+    def to_px(self, points) -> np.ndarray:
+        """Where Cartesian points land in ``image``, in pixels.
+
+        ``points`` is in the structure's Cartesian Å, shape ``(3,)`` or
+        ``(N, 3)``, the frame of ``build``'s ``pos`` and ``lattice``.  The
+        answer is ``(x, y)`` from the top-left corner, x right and y down,
+        shape ``(2,)`` or ``(N, 2)``: the map that placed ``atoms``.  Depth
+        is dropped, since the projection is parallel.  A direction is
+        ``to_px(v) - to_px([0, 0, 0])``, for an axis triad drawn beside the
+        figure.
+        """
+        p = np.asarray(points, dtype=np.float64)
+        if p.ndim not in (1, 2) or p.shape[-1] != 3:
+            raise ValueError(f"points of shape {p.shape}: give (3,) or (N, 3), in Å")
+        r = np.asarray(self.rotation, dtype=np.float64)
+        x = (p @ r[0] - self.origin[0]) * self.pixels_per_angstrom
+        y = (self.origin[1] - p @ r[1]) * self.pixels_per_angstrom
+        return np.stack([x, y], axis=-1)
 
 
 def _colour(value) -> tuple[float, float, float] | None:
@@ -770,6 +794,7 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
         "axis_labels": asked_axis_labels, "atom_labels": atom_labels, "outline": outline,
         "background": background, "dpi": dpi}.items()}
     return StructureFigure(image=image, rotation=views.as_list(R),
-                           pixels_per_angstrom=frame.ppa, atoms=atoms, letters=letters,
+                           pixels_per_angstrom=frame.ppa, origin=[float(frame.x0), float(frame.y0)],
+                           atoms=atoms, letters=letters,
                            path=written, palette=_palette(geometry, scene), report=report,
                            candidates=candidates, recipe=recipe)

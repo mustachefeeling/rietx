@@ -145,6 +145,11 @@ pixels from the top-left corner, so a caller can annotate in matplotlib
 without projecting anything.
 `rotation` is the view drawn, and passing it back as `view=` draws the same
 picture.
+`StructureFigure.to_px` takes Cartesian points in Å, one or an `(N, 3)` array,
+and returns where they land in the image, x right and y down.
+It is the map that placed `atoms`.
+`rotation`, `pixels_per_angstrom` and `StructureFigure.origin` make it.
+`origin` is the view-plane position of pixel (0, 0), in Å.
 
 `view=` takes `"opening"` (the GUI's first picture), `"a"`, `"b"` or `"c"`
 (its buttons), a lattice direction `[u, v, w]`, a plane normal
@@ -219,6 +224,37 @@ Its look and keywords are {ref}`provisional <provisional-by-declaration>`.
 For a picture in another program's style, `Structure.to_cif` writes each
 phase with its anisotropic displacement loop.
 VESTA and Jmol both read it.
+
+### A legend, an axis triad and a scale bar
+
+`render_structure` draws none of the three.
+An agent wrote twelve figure scripts for rietx's promotional video, and ten of
+them drew all three in matplotlib.
+Strip height, fonts and extra marks differed in every script, so a drawing
+helper would fix a style each caller then works against.
+The scripts lacked data instead.
+Four fitted the map from Å to pixels by least squares from `atoms`.
+The rest typed the triad's directions in by hand from `view=`.
+Those directions are wrong for any view that is not down an axis.
+`to_px` is that map, so a direction is
+`fig.to_px(v) - fig.to_px([0, 0, 0])`.
+
+The example draws a legend from `palette`, a triad from `to_px` of each lattice
+vector and a 5 Å bar from `pixels_per_angstrom`.
+Each arm of the triad is 1 Å of its axis carried into pixels, so an axis
+tilted out of the page draws short.
+An axis within about 17° of the line of sight is drawn as a dot when it points
+toward the viewer and a cross when it points away.
+The third row of `rotation` is the direction toward the viewer.
+
+```{literalinclude} ../../../examples/structure_furniture.py
+:language: python
+:start-at: geometry = build
+```
+
+```text
+wrote ybco_furniture.png: legend ['Y', 'Ba', 'Cu', 'O'], bar 202 px for 5 Å
+```
 
 (figure-cut-and-keep)=
 ### Drawing part of the structure

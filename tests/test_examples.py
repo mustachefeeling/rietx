@@ -189,3 +189,16 @@ def test_structure_cut_example_draws_its_pictures():
         path = EXAMPLES / name
         assert path.exists(), f"structure_cut.py wrote no {name}"
         assert path.stat().st_mtime_ns != stamp, f"structure_cut.py left a stale {name}"
+
+
+def test_structure_furniture_example_draws_its_picture():
+    """The furniture walkthrough (WP-1533): a legend, a triad and a scale bar
+    drawn in matplotlib from what the figure carries."""
+    pytest.importorskip("matplotlib")
+    before = _timestamps("ybco_furniture.png")
+    out = _run("structure_furniture.py").stdout
+    assert "legend ['Y', 'Ba', 'Cu', 'O']" in out, out
+    for name, stamp in before.items():
+        path = EXAMPLES / name
+        assert path.exists(), f"structure_furniture.py wrote no {name}"
+        assert path.stat().st_mtime_ns != stamp, f"structure_furniture.py left a stale {name}"
