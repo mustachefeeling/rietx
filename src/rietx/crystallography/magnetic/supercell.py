@@ -1333,7 +1333,11 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
             y=Parameter(value=float(position[1])),
             z=Parameter(value=float(position[2])),
             occ=Parameter(value=source.occ.value),
-            biso=Parameter(value=source.biso.value), moment=moment))
+            # the source's own bounds: a reader widens them to hold a file's
+            # value (schemas.structure.biso_bounds), and the declared 0-25 Å²
+            # a bare Parameter inherits would refuse that value here
+            biso=Parameter(value=source.biso.value, min=source.biso.min,
+                           max=source.biso.max), moment=moment))
         site_map.append((j, coset))
 
     ops, cent = group.xyz_strings()
