@@ -143,3 +143,40 @@ def test_the_field_crosses_the_mirror_both_ways_and_refuses_zero():
     assert PlanSpec.model_validate(spec.model_dump(mode="json")).lebail_passes == 5
     with pytest.raises(ValueError):
         PlanSpec(stages=[], lebail_passes=0)
+
+
+def test_an_alternation_is_one_run_directory_not_one_per_pass(pattern, tmp_path):
+    """``rietx watch`` lists a job once; a pass each drew N rows (WP-1403)."""
+    from rietx import runs
+    was = runs.set_enabled(True)
+    try:
+        # 0.3 % off: three passes before it settles, so several would record
+        result = rx.Refinement.fit(_refinement(1.003), pattern, mode="lebail",
+                                   plan=_plan(4), two_theta_limits=LIMITS,
+                                   telemetry=str(tmp_path))
+    finally:
+        runs.set_enabled(was)
+    assert _stop(result).value == result.statistics.rwp
+    dirs = [p for p in tmp_path.iterdir() if p.is_dir()]
+    assert len(dirs) == 1
+    assert (dirs[0] / "meta.json").exists()
+
+
+def test_a_cancel_in_a_later_pass_leaves_the_best_pass_standing(pattern):
+    """Pass 1 is the best on exact cells; a cancel during pass 2 restores it."""
+    from rietx.optimize.cancel import CancelToken, RefinementCancelled
+    ref = _refinement(1.0)
+    token = CancelToken()
+    seen = []
+
+    def on_event(e):
+        kind = getattr(e, "kind", None) or (e.get("kind") if isinstance(e, dict) else None)
+        if kind == "fit_start":
+            seen.append(kind)
+            if len(seen) == 2:
+                token.cancel()
+    with pytest.raises(RefinementCancelled):
+        ref.fit(pattern, mode="lebail", plan=_plan(8), two_theta_limits=LIMITS,
+                telemetry=False, events=on_event, cancel=token)
+    assert ref.result_ is not None
+    assert ref.result_.statistics.rwp == pytest.approx(0.16821, abs=2e-5)

@@ -165,14 +165,14 @@ cannot see a wrong cell or a low background), and both are still true.*
       PbSO4 and Tb2BaCoO5 are not in tree, so the three LaB6+cBN shapes stand
       in (exact cells keep pass 1, as Tb2BaCoO5 would; +0.3 % converges).
 
-- [ ] **From the 2026-10-02 review, open.** (a) One telemetry run directory per
-      pass: `_fit_pass` attaches the recorder each time, against the "once per
-      job" rule; attach once around the loop. (b) `.rxt` render/parse
+- [x] **From the 2026-10-02 review: (a) and (c) done.** (a) The alternation
+      attaches the recorder once and the passes share its stream, so one run
+      directory per job. (c) A cancel or exception in pass k > 1 restores the
+      best pass before re-raising (`_keep_pass`); the exception still raises.
+- [ ] **From the 2026-10-02 review, open.** (b) `.rxt` render/parse
       (`gui/textdoc.py`) and the GUI plan panel know nothing of
-      `lebail_passes`, so a GUI edit resets it to 1. (c) A cancel or exception
-      in pass k > 1 loses the best pass and leaves the state at pass k-1.
-      (d) `_last_plan` and the history header record the one-pass copy, so
-      `summary()` hides the cap.
+      `lebail_passes`, so a GUI edit resets it to 1. (d) `_last_plan` and the
+      history header record the one-pass copy, so `summary()` hides the cap.
 - [ ] **Open questions from the 2026-10-02 prose review of `judging.md`**, each
       needing a domain check before the text is touched, and none caused by
       this WP. (1) The same four-phase 25-50° fixture gives Fe Biso −165 Å² at

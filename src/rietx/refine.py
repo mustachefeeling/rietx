@@ -3632,44 +3632,84 @@ class Refinement:
         best = None            # (rwp, result, state, head, pass number, fit view)
         rows: list[float] = []
         reason = "cap"
-        for _ in range(plan.lebail_passes):
-            result = self._fit_pass(data, mode="lebail", plan=one, **kw)
-            rwp = float(result.statistics.rwp)
-            rows.append(rwp)
-            if best is not None and (rwp >= best[0] or not np.isfinite(rwp)):
-                # not lower: a fixed point if it is level to within the
-                # tolerance, a wander if it is worse
-                reason = ("converged" if rwp <= best[0] * (1 + LEBAIL_CONVERGED_REL)
-                          else "non_monotone")
-                break
-            gain = None if best is None else (best[0] - rwp) / best[0]
-            best = (rwp, result, self.snapshot(), self._head_id, len(rows),
-                    (self._model, self._answer_covariance, self.stage_reports_))
-            if gain is not None and gain <= LEBAIL_CONVERGED_REL:
-                reason = "converged"
-                break
-        _, result, state, head, kept, fit_view = best
-        if kept != len(rows):
-            self._restore_state(state)
-            # ``_restore_state`` drops the fit's view of the values (it is what
-            # ``checkout`` needs), but these *are* the values the kept pass
-            # fitted, so ``result_``, ``report()``, ``predict()`` and the
-            # plots read the answer this call returns, not nothing
-            self.result_ = result
-            (self._model, self._answer_covariance,
-             self.stage_reports_) = fit_view
-            # A fit re-extracts the intensities at its first stage, so the
-            # pass after a plain ``fit()`` starts from the parameters alone.
-            # Seeding them from the restored state would hand the next fit a
-            # start the hand loop never had: measured on the +2 % LaB6+cBN
-            # start, 254.09 % against the loop's 194.56 %.
-            self._pending_reflections = []
-            if self.history is not None and head is not None:
-                self.history.set_head(head)
-                self._head_id = head
-        result.diagnostics.append(_lebail_stop_diagnostic(
-            reason, kept, rows, plan.lebail_passes))
-        return result
+        # **Once per job** (WP-1403): each pass would otherwise attach its own
+        # recorder and write a run directory, so N passes drew N rows in
+        # ``rietx watch``.  The stream is built and the recorder attached here,
+        # and the passes get the stream as ``events`` — an object the caller
+        # owns as far as ``_fit_pass`` is concerned, so it closes none — and
+        # find the recorder through ``runs.recorder_of``, as a series' do.
+        events = kw.pop("events", None)
+        telemetry = kw.pop("telemetry", None)
+        label = kw.pop("label", None)
+        cancel = kw.pop("cancel", None)
+        stream = _attach_progress(as_event_stream(events),
+                                  kw.pop("progress", None))
+        recorder = runs.attach(stream, events, telemetry=telemetry,
+                               project_hint=self._project_hint(), label=label)
+        if recorder is not None and stream is None:
+            stream = recorder
+        cancel = runs.attach_cancel(runs.recorder_of(stream), cancel)
+        try:
+            for _ in range(plan.lebail_passes):
+                result = self._fit_pass(data, mode="lebail", plan=one,
+                                        events=stream, cancel=cancel,
+                                        telemetry=False, **kw)
+                rwp = float(result.statistics.rwp)
+                rows.append(rwp)
+                if best is not None and (rwp >= best[0] or not np.isfinite(rwp)):
+                    # not lower: a fixed point if it is level to within the
+                    # tolerance, a wander if it is worse
+                    reason = ("converged" if rwp <= best[0] * (1 + LEBAIL_CONVERGED_REL)
+                              else "non_monotone")
+                    break
+                gain = None if best is None else (best[0] - rwp) / best[0]
+                best = (rwp, result, self.snapshot(), self._head_id, len(rows),
+                        (self._model, self._answer_covariance, self.stage_reports_))
+                if gain is not None and gain <= LEBAIL_CONVERGED_REL:
+                    reason = "converged"
+                    break
+            _, result, state, head, kept, fit_view = best
+            if kept != len(rows):
+                self._keep_pass(result, state, head, fit_view)
+            result.diagnostics.append(_lebail_stop_diagnostic(
+                reason, kept, rows, plan.lebail_passes))
+            if recorder is not None:
+                # the last pass wrote its own; the answer is the kept one
+                recorder.write_summary(result)
+            return result
+        except BaseException:
+            # a cancel or an error in pass k > 1 leaves the state at pass k-1;
+            # the best pass is the one worth standing at
+            if best is not None and best[4] != len(rows):
+                self._keep_pass(best[1], best[2], best[3], best[5])
+            if recorder is not None:
+                recorder.close("failed")
+            raise
+        finally:
+            if stream is not None and stream is not events:
+                stream.close()        # built here from a path or a callable
+            if recorder is not None:
+                recorder.close()
+
+    def _keep_pass(self, result, state, head, fit_view) -> None:
+        """Restore the pass ``_fit_lebail_alternation`` decided to keep."""
+        self._restore_state(state)
+        # ``_restore_state`` drops the fit's view of the values (it is what
+        # ``checkout`` needs), but these *are* the values the kept pass
+        # fitted, so ``result_``, ``report()``, ``predict()`` and the
+        # plots read the answer this call returns, not nothing
+        self.result_ = result
+        (self._model, self._answer_covariance,
+         self.stage_reports_) = fit_view
+        # A fit re-extracts the intensities at its first stage, so the
+        # pass after a plain ``fit()`` starts from the parameters alone.
+        # Seeding them from the restored state would hand the next fit a
+        # start the hand loop never had: measured on the +2 % LaB6+cBN
+        # start, 254.09 % against the loop's 194.56 %.
+        self._pending_reflections = []
+        if self.history is not None and head is not None:
+            self.history.set_head(head)
+            self._head_id = head
 
     def _fit_pass(self, data: PatternData, *, mode: Mode,
                   plan: RefinementPlan,
