@@ -1,6 +1,6 @@
 # WP-1312 — CW neutron follow-through: the seed, the resonant flag, the joint fit
 
-Milestone: unscheduled · Status: ⬜ — tasks 1-4 and the #268, #271, #276 and #437 rows landed from outside (PRs #280, #282, #427, #429, #452, #526, #530); left: a cited resonance energy per `RESONANT_ABSORBERS` member (task 2) and the #113 comment
+Milestone: unscheduled · Status: 🔄 2026-10-02 — claimed by @yue-here; tasks 1-4 and the #268, #271, #276 and #437 rows landed from outside (PRs #280, #282, #427, #429, #452, #526, #530); left: a cited resonance energy per `RESONANT_ABSORBERS` member (task 2) and the #113 comment
 Track: The specimen is not an angle, and the neutron follow-through
 Depends on: — (WP-1132, claimed by @mustachefeeling in PR #541, does not gate any task here)
 Priority: P2 2026-09-23 — a resonant absorber's b is mis-tabulated in silence, on a path few fits run
