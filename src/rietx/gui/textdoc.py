@@ -683,7 +683,9 @@ def parse(text: str) -> ParsedDocument:
                 doc.tolerance = None if value == "none" else float(value)
                 doc.tolerance_set = True
         elif keyword == "passes":
-            if (len(rest) != 1 or not rest[0].isdigit() or int(rest[0]) < 1):
+            # ascii only: ``"²".isdigit()`` is true and ``int("²")`` raises
+            if (len(rest) != 1 or not (rest[0].isascii() and rest[0].isdigit())
+                    or int(rest[0]) < 1):
                 fail(n, "passes takes one whole number of at least 1 — how "
                         "many times a Le Bail fit runs the plan", raw, "passes")
             else:

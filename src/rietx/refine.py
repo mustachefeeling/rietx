@@ -3649,13 +3649,14 @@ class Refinement:
             stream = recorder
         cancel = runs.attach_cancel(runs.recorder_of(stream), cancel)
         try:
-            for _ in range(plan.lebail_passes):
+            for number in range(1, plan.lebail_passes + 1):
                 # the whole plan, cap and all: ``_fit_pass`` never reads
                 # ``lebail_passes``, and what it records (``_last_plan``, the
                 # history header) should say the cap that was asked for
                 result = self._fit_pass(data, mode="lebail", plan=plan,
                                         events=stream, cancel=cancel,
-                                        telemetry=False, **kw)
+                                        telemetry=False, lebail_pass=number,
+                                        **kw)
                 rwp = float(result.statistics.rwp)
                 rows.append(rwp)
                 if best is not None and (rwp >= best[0] or not np.isfinite(rwp)):
@@ -3679,11 +3680,15 @@ class Refinement:
                 # the last pass wrote its own; the answer is the kept one
                 recorder.write_summary(result)
             return result
-        except BaseException:
-            # a cancel or an error in pass k > 1 leaves the state at pass k-1;
-            # the best pass is the one worth standing at
-            if best is not None and best[4] != len(rows):
+        except BaseException as exc:
+            # a cancel or an error in pass k > 1 leaves the state wherever the
+            # in-flight pass had got to (its completed stages stand), which is
+            # neither the last pass nor the best; the best pass is the one
+            # worth standing at, and a cancel names the node it stands at
+            if best is not None:
                 self._keep_pass(best[1], best[2], best[3], best[5])
+                if isinstance(exc, RefinementCancelled):
+                    exc.node_id = best[3]
             if recorder is not None:
                 recorder.close("failed")
             raise
@@ -3718,8 +3723,14 @@ class Refinement:
                   two_theta_limits: tuple[float, float] | None = None,
                   events=None, cancel=None, telemetry=None,
                   label: str | None = None, stage_reports: bool = False,
-                  progress=None) -> RefinementResult:
-        """One run of ``plan``: what ``fit`` was before WP-1323."""
+                  progress=None, lebail_pass: int | None = None) -> RefinementResult:
+        """One run of ``plan``: what ``fit`` was before WP-1323.
+
+        ``lebail_pass`` is set by the alternation and stamps this pass's
+        ``fit_start``/``fit_end``, so a recorder reads the pass's end as the end
+        of a pass and not of the run (``runs.RunRecorder._observe``).
+        """
+        stamp = {} if lebail_pass is None else {"lebail_pass": lebail_pass}
         _refuse_without_phases(self.structure, "fit")
         if not plan.stages:
             # Refused here, before a history tree is created or an event is
@@ -3780,7 +3791,8 @@ class Refinement:
                 stream.emit("fit_start", mode=mode,
                             stages=[s.name for s in plan.stages],
                             n_points=len(data.two_theta),
-                            n_fitted=int(fitted_mask(data, two_theta_limits).sum()))
+                            n_fitted=int(fitted_mask(data, two_theta_limits).sum()),
+                            **stamp)
 
             # Stages are cumulative *within the plan*, and the plan drives the whole
             # turn-on sequence: `restore=False` holds everything first, so a fit
@@ -3827,7 +3839,7 @@ class Refinement:
                 if stream is not None:
                     stream.emit("fit_end", status="cancelled", stage=exc.stage,
                                 completed=[s.name for s in exc.completed_stages],
-                                node_id=exc.node_id)
+                                node_id=exc.node_id, **stamp)
                     if stream is not events:
                         stream.close()
                 raise
@@ -3872,7 +3884,7 @@ class Refinement:
                 stream.emit("fit_end", status=self.result_.status,
                             rwp=self.result_.statistics.rwp,
                             gof=self.result_.statistics.gof,
-                            node_id=self.result_.node_id)
+                            node_id=self.result_.node_id, **stamp)
                 if stream is not events:  # we created it from a path/callable
                     stream.close()
             if recorder is not None:

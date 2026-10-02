@@ -188,3 +188,53 @@ def test_the_refinement_records_the_cap_it_was_asked_for(pattern):
                      two_theta_limits=LIMITS, telemetry=False)
     assert ref._last_plan.lebail_passes == 3
     assert result is ref.result_
+
+
+def test_a_pass_ending_is_not_the_run_ending(pattern, tmp_path):
+    """Each pass emits a ``fit_end``; a recorder that read "done" off the first
+    told ``rietx watch`` the job had finished while passes 2..N still ran."""
+    import json
+
+    from rietx import runs
+    states = []
+
+    def on_event(e):
+        if e["kind"] in ("fit_start", "fit_end"):
+            status = [p / "status.json" for p in tmp_path.iterdir() if p.is_dir()]
+            if status and status[0].exists():
+                states.append(json.loads(status[0].read_text())["state"])
+
+    was = runs.set_enabled(True)
+    try:
+        rx.Refinement.fit(_refinement(1.003), pattern, mode="lebail",
+                          plan=_plan(4), two_theta_limits=LIMITS,
+                          telemetry=str(tmp_path), events=on_event)
+    finally:
+        runs.set_enabled(was)
+    assert len(states) >= 4 and set(states) == {"running"}
+    final = json.loads(next(tmp_path.glob("*/status.json")).read_text())
+    assert final["state"] == "done"
+
+
+def test_a_cancel_part_way_through_a_later_pass_restores_the_best_pass(pattern):
+    """The in-flight pass's completed stages stand after a cancel, so the state
+    is neither pass 1's nor its own end unless the loop puts it back."""
+    from rietx.optimize.cancel import CancelToken, RefinementCancelled
+    ref = _refinement(1.0)
+    token = CancelToken()
+    fits, ends = [], []
+
+    def on_event(e):
+        if e["kind"] == "fit_start":
+            fits.append(1)
+        elif e["kind"] == "stage_end" and len(fits) == 2:
+            ends.append(1)
+            if len(ends) == 4:          # the cell is free by then
+                token.cancel()
+    with pytest.raises(RefinementCancelled):
+        ref.fit(pattern, mode="lebail", plan=_plan(8), two_theta_limits=LIMITS,
+                telemetry=False, events=on_event, cancel=token)
+    kept = ref.result_
+    assert kept.statistics.rwp == pytest.approx(0.16821, abs=2e-5)
+    cell = {p.path: p.value for p in kept.parameters}["phases.0.cell.a"]
+    assert ref.structure.phases[0].cell.a.value == pytest.approx(cell, abs=1e-9)
