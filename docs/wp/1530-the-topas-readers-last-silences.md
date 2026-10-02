@@ -61,7 +61,7 @@ The reporter's four options:
 3. refuse either, which would refuse a valid file calling a user's macro;
 4. leave it, and state the limit in `coverage.py`'s docstring.
 
-*Decision owed (2026-10-02 triage):* the triage recommends option 1 plus
+*Decided 2026-10-02 (issue triage; the maintainer accepted the recommendation):* option 1 plus
 option 4's docstring sentence for bare identifiers. Option 1 keys on
 `name(`, so its false positives are bounded, and it covers the case seen
 in practice (a peak-shape macro defined in an include).
@@ -76,7 +76,7 @@ to keep `None` and document it, to return the length and add a separate
 `background_refined: bool | None` beside it (as phases carry `vary`), or to
 return `0`.
 
-*Decision owed (2026-10-02 triage):* the triage recommends the length plus
+*Decided 2026-10-02 (issue triage; the maintainer accepted the recommendation):* the length plus
 `background_refined`, the one option that loses no information. The
 manual's wording changes with it.
 
