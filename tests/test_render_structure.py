@@ -112,6 +112,10 @@ def _cases(payloads: dict[str, dict]) -> tuple[list, list]:
              "polyhedra": sc.shown_polyhedra(geo, True, hidden=species[:1],
                                              show_boundary=False)},
         ]
+        # a thinner stick (WP-1533), on the payloads that draw one: without
+        # bonds the case is the atoms again
+        if geo["bonds"]:
+            options.append({"mode": "ellipsoid", "stick": 0.5})
         # rutile draws every polyhedron by default, and a repeated case is
         # 40 kB that tests nothing new
         options = [o for k, o in enumerate(options) if o not in options[:k]]
@@ -120,7 +124,8 @@ def _cases(payloads: dict[str, dict]) -> tuple[list, list]:
                 geo, opt["mode"], hidden=opt.get("hidden", ()),
                 show_boundary=opt.get("showBoundary", True),
                 exaggeration=opt.get("exaggeration", 1.0),
-                polyhedra=opt.get("polyhedra", ()), cell=opt.get("cell", sc.CELL_INK))
+                polyhedra=opt.get("polyhedra", ()), cell=opt.get("cell", sc.CELL_INK),
+                stick=opt.get("stick", 1.0))
             scenes.append({"payload": name, "options": opt, "scene": scene})
         toggles = [{"on": True}, {"on": False},
                    {"on": True, "hidden": species[:1]},
@@ -254,6 +259,9 @@ def test_the_corpus_reaches_every_rule_it_exists_for():
     assert {"mono_one_flat", "mono_two_flat"} <= floored
     assert any(s["faces"] for s in scenes)
     assert any(a["rings"] for s in scenes for a in s["atoms"])
+    # a stick scaled off its default, on a scene that draws one (WP-1533)
+    assert any(case["options"].get("stick", 1.0) != 1.0 and case["scene"]["halves"]
+               for case in corpus["scenes"])
     shown = [c["shown"] for c in corpus["shown"] if c["on"]]
     whole = [len(corpus["payloads"][c["payload"]]["polyhedra"]) for c in corpus["shown"]
              if c["on"]]
@@ -1029,7 +1037,8 @@ def test_auto_never_hides_more_than_the_opening_view(row):
     {}, {"view": "auto"}, {"view": [1, 1, 0], "up": [0, 0, 1], "turn": "20x,-10y"},
     {"view": {"hkl": (1, 0, 0)}, "size": (300, 200), "background": (0.9, 0.9, 0.5)},
     {"mode": "ellipsoid", "hidden": "Na", "polyhedra": False, "supersample": 1},
-    {"atom_labels": True, "outline": True, "background": None, "exaggeration": 1.5}])
+    {"atom_labels": True, "outline": True, "background": None, "exaggeration": 1.5},
+    {"stick": 0.5, "outline": True}])
 def test_the_recipe_draws_the_same_picture_through_json(nac, kw):
     geometry = s3.build(nac)
     kw = dict(kw)
@@ -1118,3 +1127,51 @@ def test_a_figure_without_its_frame_is_fitted_to_the_atoms(hkust):
     assert bare.recipe["cell"] is False
     again = render_structure(ball, **bare.recipe)
     assert np.array_equal(again.image, bare.image)
+
+
+# ----------------------------------------------------------------------
+# the stick has a width argument (WP-1533)
+# ----------------------------------------------------------------------
+
+def test_stick_one_is_the_default_bit_for_bit():
+    molecule = _paracetamol()
+    for mode in ("ball", "ellipsoid"):
+        plain = render_structure(molecule, mode=mode, size=300, axis_labels=False)
+        ones = render_structure(molecule, mode=mode, size=300, axis_labels=False, stick=1.0)
+        assert np.array_equal(ones.image, plain.image)
+        assert plain.recipe["stick"] == 1.0
+
+
+def test_a_thinner_stick_halves_the_radius_and_replays():
+    """At 100 K paracetamol's 50 % ellipsoids are small, and the promo take
+    set ``scene.STICK_OF_SEMI_AXIS = 0.25`` by hand to thin the sticks, which
+    a recipe could not carry.  ``stick=0.5`` is that setting."""
+    molecule = _paracetamol()
+    # 0.0723 Å against 0.0361 Å, measured: half the smallest drawn semi-axis
+    # (0.1445 Å), and then half of that
+    assert sc.stick_radius(molecule, "ellipsoid") == pytest.approx(0.07227, abs=1e-5)
+    assert sc.stick_radius(molecule, "ellipsoid", stick=0.5) == (
+        0.5 * sc.stick_radius(molecule, "ellipsoid"))
+    assert sc.stick_radius(molecule, "ball", stick=0.5) == 0.5 * sc.STICK_RADIUS
+    thick = render_structure(molecule, mode="ellipsoid", size=600, axis_labels=False)
+    thin = render_structure(molecule, mode="ellipsoid", size=600, axis_labels=False,
+                            stick=0.5)
+    _save(thick, "stick_paracetamol_ellipsoid_1")
+    _save(thin, "stick_paracetamol_ellipsoid_0.5")
+    # the atoms and the frame are the same, so every pixel lost is a stick's
+    assert thin.pixels_per_angstrom == thick.pixels_per_angstrom
+    assert thin.atoms == thick.atoms
+
+    def inked(img):
+        return int((img[..., :3] != 255).any(-1).sum())
+
+    assert inked(thin.image) < inked(thick.image)
+    assert thin.recipe["stick"] == 0.5
+    again = render_structure(molecule, **json.loads(json.dumps(thin.recipe)))
+    assert np.array_equal(again.image, thin.image) and again.report == thin.report
+
+
+@pytest.mark.parametrize("value", [0, -0.5, float("nan"), float("inf"), True, "0.5"])
+def test_stick_is_a_positive_finite_number(value):
+    with pytest.raises(ValueError, match="stick"):
+        render_structure(_paracetamol(), size=100, stick=value)

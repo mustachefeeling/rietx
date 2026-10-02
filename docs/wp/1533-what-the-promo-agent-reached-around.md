@@ -118,7 +118,7 @@ re-run WP-1466's `measure.py` and name the rows that moved.
 
 - [x] `cell=` on `render_structure`. On by default. Off drops the frame, the
       fit follows the atoms, and the argument is in `fig.recipe`
-- [ ] `stick=` on `render_structure`, in `fig.recipe`. The module constant
+- [x] `stick=` on `render_structure`, in `fig.recipe`. The module constant
       stays the default, and the twin stays equal
 - [ ] The axis view: measure `hidden` split into own-image stacking and
       occlusion on HKUST-1 down a, ZSM-5 down b and YBa₂Cu₃O₇ down b. Then

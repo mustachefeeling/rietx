@@ -576,7 +576,7 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
                      up=None, turn: str | None = None, size=DEFAULT_SIZE,
                      supersample: int = 2, probability: float | None = None,
                      bond_tolerance: float | None = None, max_atoms: int | None = None,
-                     exaggeration: float = 1.0,
+                     exaggeration: float = 1.0, stick: float = 1.0,
                      hidden=(), boundary: bool = True, cell: bool = True, polyhedra=None,
                      axis_labels: bool = True, atom_labels: bool = False,
                      outline: bool = False, background="white", path=None,
@@ -598,11 +598,18 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
 
     ``mode`` is ``"ball"`` or ``"ellipsoid"``; ``probability`` the ellipsoids'
     level (default 50 %) and ``exaggeration`` a drawing scale on top of it,
-    which is not a probability.  ``bond_tolerance`` is the bond threshold as a
-    multiple of rᵢ + rⱼ.  ``hidden`` is species to leave out, with their bond
-    halves; the other half of each bond stays, as a stub the report counts in
-    ``dangling_bonds``, and ``keep`` with a mask removes a species with its
-    bonds whole.  ``boundary=False`` leaves out the images outside the cell.
+    which is not a probability.  ``stick`` multiplies the mode's stick radius.
+    That radius is 0.08 Å in ball mode.  In ellipsoid mode it is half the
+    smallest drawn semi-axis, from 0.02 Å to 0.08 Å, and the 0.02 Å floor does
+    not scale.  At ``stick ≤ 1`` every ball stays wider than its stick.  Every
+    stick's rim also stays inside the ellipsoid it ends in, because a rim no
+    wider than half the smallest semi-axis lies inside the inscribed sphere.
+    A larger ``stick`` may poke through.  ``bond_tolerance`` is the bond
+    threshold as a multiple of rᵢ + rⱼ.  ``hidden`` is species to leave out,
+    with their bond halves; the other half of each bond stays, as a stub the
+    report counts in ``dangling_bonds``, and ``keep`` with a mask removes a
+    species with its bonds whole.  ``boundary=False`` leaves out the images
+    outside the cell.
     ``cell=False`` leaves out the cell's frame, and the a, b and c that label
     its edges go with it, so the view is fitted to the atoms alone.
     ``polyhedra`` is ``None`` for the mode's default (on for balls, off for
@@ -641,6 +648,10 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
                          "smear the thin rings and lines a structure figure is read by")
     if dpi is not None and not 0 < float(dpi) < 1e6:
         raise ValueError(f"dpi {dpi!r}: a positive resolution, in dots per inch")
+    if (isinstance(stick, bool) or not isinstance(stick, (int, float, np.integer, np.floating))
+            or not 0 < stick < np.inf):
+        raise ValueError(f"stick {stick!r}: a positive, finite multiple of the mode's "
+                         "stick radius (1 draws the default)")
     if max_atoms is not None and (not isinstance(max_atoms, (int, np.integer))
                                   or isinstance(max_atoms, bool) or max_atoms < 1):
         raise ValueError(f"max_atoms {max_atoms!r}: a whole number of atoms, at least 1")
@@ -682,7 +693,7 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     scene = sc.build_scene(geometry if cell else {**geometry, "edges": []}, mode,
                            hidden=hidden, show_boundary=boundary,
                            exaggeration=exaggeration, polyhedra=shown,
-                           cell=tokens["--accent"])
+                           cell=tokens["--accent"], stick=float(stick))
     asked_axis_labels, axis_labels = axis_labels, bool(axis_labels) and bool(cell)
     margin = max([0.5 * line["width"] for line in scene["lines"]] + [0.0])
     if axis_labels:
@@ -703,7 +714,7 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
                                     ink=tokens["--fg"])
     ol = None
     if outline:
-        step = sc.stick_radius(geometry, mode, exaggeration)
+        step = sc.stick_radius(geometry, mode, exaggeration, float(stick))
         ol = (OUTLINE_CSS * frame.px_scale, step, sc.rgb(tokens["--fg"]))
     image = raster.draw(scene, R, frame, supersample=s, background=bg, text=strokes,
                         outline=ol)
@@ -753,8 +764,8 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     recipe = {k: _plain(v) for k, v in {
         "phase": phase, "mode": mode, "view": views.as_list(R), "size": size,
         "supersample": s, "probability": probability, "bond_tolerance": bond_tolerance,
-        "max_atoms": max_atoms, "exaggeration": exaggeration, "hidden": hidden_asked,
-        "boundary": boundary, "cell": cell, "polyhedra": polyhedra,
+        "max_atoms": max_atoms, "exaggeration": exaggeration, "stick": stick,
+        "hidden": hidden_asked, "boundary": boundary, "cell": cell, "polyhedra": polyhedra,
         "axis_labels": asked_axis_labels, "atom_labels": atom_labels, "outline": outline,
         "background": background, "dpi": dpi}.items()}
     return StructureFigure(image=image, rotation=views.as_list(R),

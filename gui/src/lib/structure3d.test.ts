@@ -231,6 +231,21 @@ describe("the scene", () => {
     expect(buildScene(geo, { mode: "ellipsoid" }).halves[0].radius).toBe(thin);
   });
 
+  it("scales the stick by the mode's own rule, and never the floor", () => {
+    const geo = geometry();
+    // 1 is the default bit for bit, in both modes
+    expect(stickRadius(geo, "ball", 1, 1)).toBe(stickRadius(geo, "ball"));
+    expect(stickRadius(geo, "ellipsoid", 1, 1)).toBe(stickRadius(geo, "ellipsoid"));
+    expect(stickRadius(geo, "ball", 1, 0.5)).toBe(STICK_RADIUS * 0.5);
+    // ellipsoid mode: the semi-axis share and its cap both scale
+    expect(stickRadius(geo, "ellipsoid", 1, 0.5)).toBe(0.5 * stickRadius(geo, "ellipsoid"));
+    expect(stickRadius(geo, "ellipsoid", 8, 0.5)).toBe(STICK_RADIUS * 0.5);
+    // the floor is the hairline, so it does not
+    expect(stickRadius(geo, "ellipsoid", 1, 0.01)).toBe(STICK_FLOOR);
+    expect(buildScene(geo, { mode: "ellipsoid", stick: 0.5 }).halves[0].radius)
+      .toBe(stickRadius(geo, "ellipsoid", 1, 0.5));
+  });
+
   it("frames the cell with twelve edges at a width in CSS pixels", () => {
     // a WebGL line is one *device* pixel, half a CSS pixel at DPR 2 and a
     // hairline in a 3000 px export, so the frame is quads with a width (D9)
@@ -735,10 +750,10 @@ describe("the Python renderer's scene rules", () => {
     corpus.scenes.forEach((c, k) => {
       const o = c.options as { mode: "ball" | "ellipsoid"; hidden?: string[];
                                showBoundary?: boolean; exaggeration?: number;
-                               cell?: string; polyhedra?: number[] };
+                               stick?: number; cell?: string; polyhedra?: number[] };
       const scene = buildScene(corpus.payloads[c.payload], {
         mode: o.mode, hidden: new Set(o.hidden ?? []), showBoundary: o.showBoundary,
-        exaggeration: o.exaggeration, cell: o.cell, polyhedra: o.polyhedra,
+        exaggeration: o.exaggeration, stick: o.stick, cell: o.cell, polyhedra: o.polyhedra,
       });
       close(scene, c.scene, `scenes[${k}] ${c.payload} ${JSON.stringify(o)}`);
     });

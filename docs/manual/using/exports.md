@@ -179,6 +179,12 @@ pass `True`, `False` or a formula switch such as `{"AlF₆": False}`.
 the view is fitted to the atoms alone.
 A 22 Å sphere cut from HKUST-1's 26 Å cell draws at 8.5 px/Å with the frame
 and at 16.4 px/Å without it, at `size=400`.
+`stick=` multiplies the radius of the bond sticks, in either mode.
+In ellipsoid mode a stick's radius is half the smallest drawn semi-axis, at
+most 0.08 Å.
+For paracetamol at 100 K (COD 2104364) that is 0.072 Å, and `stick=0.5`
+draws 0.036 Å.
+Above 1, a stick may show through the side of a small ellipsoid.
 `outline=True` inks the silhouettes, off by default because the GUI draws
 none.
 From a structure, the cell is drawn whole or the call raises.
