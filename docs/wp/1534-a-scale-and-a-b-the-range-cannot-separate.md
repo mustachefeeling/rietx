@@ -99,6 +99,30 @@ algebra of the structure factor rather than by any threshold. A phase with two
 or more distinct d-spacings is separable in principle, and there the
 covariance's esd is honest. Fluorite above is that case.
 
+**The test (task 3, 2026-10-02): the separation of two columns, against
+the covariance's own cut.** At stage start, for each phase with a free
+displacement column, take its weighted phase component `a = y_p/σ` (the
+scale's column, up to a factor) and `b`, the change in `y_p/σ` when every
+isotropic B of the phase moves together by a small step. The separation is
+`r = |b − (a·b/a·a)·a| / |b|`, the sine of the angle between the two columns.
+On the fixture it is 2.2e-16 for Fe (rounding), and 0.138 for fluorite (from
+cos = 0.99042), the nearest phase that *is* separable. The threshold is the
+covariance's own cut, not a tuned number. `normal_factors` hands the
+equilibrated normal matrix to `pinv`, whose `rcond` is numpy's 1e-15. The
+pair's 2×2 block `[[1, c], [c, 1]]` has eigenvalues `1 ± |c|`, with
+`1 − |c| = r²/(1 + |c|) ≈ r²/2`. So the pair, taken alone, is discarded when
+`r²/2 < rcond · 2`, that is when `r < 2√rcond ≈ 6.3e-8`. In the full matrix,
+λmax can be up to P rather than 2, which moves the real cut up by as much as
+√(P/2). Measured cases sit eleven decades either side of the threshold, so
+that factor does not decide them. The hold therefore fires where the esd
+would otherwise lie, and nowhere else. A near-ridge like fluorite keeps its
+honest, huge esd, and `HIGH_CORRELATION` already names it. This test is
+preferred over counting distinct d-spacings because a count needs an equality
+tolerance and is fooled by a reflection whose |F|² is zero by site symmetry.
+The separation reads the intensity the phase actually puts in the data.
+Task 2's guideline reading is still owed. It can add a *near*-ridge statement,
+but this test does not wait on it.
+
 **Not this WP, noted (hypothesis).** The covariance's cut zeroes the variance
 of *any* exactly degenerate combination of live columns. One example is a
 one-site phase's occupancy against its scale, on any range. `_cov_free`
@@ -131,7 +155,7 @@ stating what it changed.
       al. (1999) and the IUCr QPA round robin (Madsen et al., 2001) first.
       Search the local corpus before asking for either. Write what they say,
       with page, into Context.
-- [ ] **Name the test.** The separability of a phase's scale and B on the
+- [x] **Name the test.** The separability of a phase's scale and B on the
       fitted range is a property of the data and the reflection list. It is
       computable before a stage frees B: for example, the intensity-weighted
       spread of s² over that phase's reflections, or the measured angle
