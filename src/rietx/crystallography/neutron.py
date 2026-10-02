@@ -66,6 +66,32 @@ RESONANT_ABSORBERS: frozenset[str] = frozenset(
     {"Cd", "Sm", "Eu", "Gd", "Yb",
      "113Cd", "149Sm", "151Eu", "155Gd", "157Gd", "168Yb"})
 
+#: Energy (eV) of the **lowest positive-energy resonance** of each nuclide that
+#: makes it a resonant absorber, from the resolved-resonance parameters of
+#: ENDF/B-VIII.0 (Brown et al. 2018, *Nucl. Data Sheets* **148**, 1; files
+#: ``n-048_Cd_113`` to ``n-070_Yb_168``, read from MF2/MT151).  The lowest one
+#: is the one that sets how far a thermal wavelength sits from the resonance.
+#: ``149Sm`` and ``151Eu`` also carry a bound (negative-energy) level, at
+#: -1.127 and -0.0609 eV, which is not a resonance a beam can sit on and is
+#: left out.  The values agree with the evaluation behind them, Mughabghab,
+#: *Atlas of Neutron Resonances* (2006), where the front chapters name
+#: ``113Cd``, ``149Sm`` and ``155Gd`` as the nuclei with a resonance near
+#: thermal energy; the per-nuclide tables were not to hand.
+RESONANCE_ENERGY_EV: dict[str, float] = {
+    "113Cd": 0.1787, "149Sm": 0.0973, "151Eu": 0.321,
+    "155Gd": 0.0268, "157Gd": 0.0314, "168Yb": 0.597}
+
+#: The nuclides that carry each resonant *element's* resonance.  Natural Gd has
+#: two (¹⁵⁵Gd and ¹⁵⁷Gd, 14.8 % and 15.6 % of the element), the others one.
+_RESONANCE_CARRIERS: dict[str, tuple[str, ...]] = {
+    "Cd": ("113Cd",), "Sm": ("149Sm",), "Eu": ("151Eu",),
+    "Gd": ("155Gd", "157Gd"), "Yb": ("168Yb",)}
+
+#: λ(Å) = NEUTRON_LAMBDA_EV_ANGSTROM / sqrt(E / eV): h / sqrt(2 m_n E) with
+#: CODATA 2018 h, m_n and e.  It gives 1.798 Å at 25.3 meV, the 2200 m/s
+#: wavelength of :data:`SIGMA_ABS_REFERENCE_WAVELENGTH`.
+NEUTRON_LAMBDA_EV_ANGSTROM = 0.286014
+
 
 @lru_cache(maxsize=None)
 def _load_table() -> dict[str, dict]:
@@ -168,6 +194,25 @@ def is_resonant_absorber(species: str) -> bool:
     return normalize_species(species) in RESONANT_ABSORBERS
 
 
+def resonance_wavelengths(species: str) -> dict[str, tuple[float, float]]:
+    """Where a resonant absorber's lowest resonance sits: ``{nuclide: (E_eV, λ_Å)}``.
+
+    The wavelength is the neutron's own, λ = h/√(2 m_n E)
+    (:data:`NEUTRON_LAMBDA_EV_ANGSTROM`), so it can be set beside an
+    instrument's wavelength.  Energies are :data:`RESONANCE_ENERGY_EV`.  An
+    element lists the nuclide or nuclides carrying its resonance, and a species
+    that is not a resonant absorber returns ``{}``.
+
+        >>> {k: (v[0], round(v[1], 2)) for k, v in resonance_wavelengths("Gd").items()}
+        {'155Gd': (0.0268, 1.75), '157Gd': (0.0314, 1.61)}
+    """
+    key = normalize_species(species)
+    nuclides = _RESONANCE_CARRIERS.get(key, (key,) if key in RESONANCE_ENERGY_EV else ())
+    return {n: (RESONANCE_ENERGY_EV[n],
+                NEUTRON_LAMBDA_EV_ANGSTROM / RESONANCE_ENERGY_EV[n] ** 0.5)
+            for n in nuclides}
+
+
 #: Wavelength (Å) at which the table's ``xs_abs_barn`` is quoted: neutrons at
 #: the conventional thermal velocity of 2200 m/s, the velocity Sears (1992)
 #: quotes absorption cross-sections for.  The absorption cross-section of a
@@ -208,9 +253,9 @@ def total_cross_section_neutron(species: str, wavelength: float) -> float:
     leaves the 1/v law, so the thermal value scaled by λ is wrong in
     principle rather than imprecise — the neutron twin of an X-ray wavelength
     whose tabulation interval straddles an absorption edge, and refused for
-    the same reason.  "Near" would need each nuclide's resonance energies,
-    which this package does not carry (the reason
-    ``refine._resonant_absorber_diagnostics`` gives for not quoting them), so
+    the same reason.  The lowest resonance energy of each is
+    tabulated (:data:`RESONANCE_ENERGY_EV`), but "near" also needs the
+    resonance's width and strength, which this package does not carry, so
     the refusal covers **every** listed absorber at every wavelength rather
     than guess which are far enough away.  An explicit ``Geometry.mu_r`` /
     ``mu_t`` is how such a specimen gets its correction.
@@ -227,8 +272,8 @@ def total_cross_section_neutron(species: str, wavelength: float) -> float:
             f"{species!r} (read as {key!r}) is a resonant neutron absorber, "
             f"whose absorption leaves the 1/v law near a nuclear resonance; "
             f"the thermal cross-section scaled to {wavelength:g} A is not an "
-            f"estimate there, and no resonance energies are tabulated to say "
-            f"whether this wavelength is near one")
+            f"estimate there, and how far this wavelength is from the resonance is not "
+            f"modelled (resonance_wavelengths gives where it sits)")
     parts = (row["xs_abs_barn"], row["xs_coh_barn"], row["xs_inc_barn"])
     if not all(np.isfinite(v) for v in parts):
         raise KeyError(

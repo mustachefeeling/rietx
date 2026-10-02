@@ -1,6 +1,6 @@
 # WP-1312 — CW neutron follow-through: the seed, the resonant flag, the joint fit
 
-Milestone: unscheduled · Status: 🔄 2026-10-02 — claimed by @yue-here; tasks 1-4 and the #268, #271, #276 and #437 rows landed from outside (PRs #280, #282, #427, #429, #452, #526, #530); left: a cited resonance energy per `RESONANT_ABSORBERS` member (task 2) and the #113 comment
+Milestone: unscheduled · Status: 🔄 2026-10-02 — claimed by @yue-here; tasks 1-4 and the #268, #271, #276 and #437 rows landed from outside (PRs #280, #282, #427, #429, #452, #526, #530); the resonance energies landed 2026-10-02 (ENDF/B-VIII.0); left: the #113 comment
 Track: The specimen is not an angle, and the neutron follow-through
 Depends on: — (WP-1132, claimed by @mustachefeeling in PR #541, does not gate any task here)
 Priority: P2 2026-09-23 — a resonant absorber's b is mis-tabulated in silence, on a path few fits run
@@ -82,10 +82,12 @@ exercising this combination.
       line. Landed from outside as PR #280 (`9d8b7043`, 2026-09-16), with the
       `ProfileTCHZ.w` bound decided 2026-09-11 and the refusal built on it.
       See the 2026-09-16 entry.
-- [ ] ~~Yb into `RESONANT_ABSORBERS`; the resonant-absorber diagnostic;
-      skill row~~ — landed from outside, PR #282 (`8c39a02c`). **Left: a
-      cited resonance energy per member**, which that PR deliberately
-      declined for want of a citation (2026-09-11 entry).
+- [x] Yb into `RESONANT_ABSORBERS`; the resonant-absorber diagnostic;
+      skill row — landed from outside, PR #282 (`8c39a02c`). The cited
+      resonance energy per member landed 2026-10-02: lowest positive
+      resonance of each nuclide from ENDF/B-VIII.0 (the supplied Atlas PDF
+      stops before its per-nuclide tables), `RESONANCE_ENERGY_EV` /
+      `resonance_wavelengths`, quoted in the diagnostic's message.
 - [x] The mixed-fit acceptance/example (public dual dataset, provenance row)
       + the radiation-kind audit, any fix it forces landing as its own
       commit; obs/calc/diff PNGs for both histograms to `tests/output/`.
