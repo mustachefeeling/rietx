@@ -354,6 +354,14 @@ they were built from. Their licence texts ship in the wheel and sdist as
   Rauch & Waschkowski (2003), GSAS-II's table or the row's own cross-section
   sum rules. The file header records how, and the one place it departs from
   the copy (a misprint at 147Sm σ_inc).
+- `RESONANCE_ENERGY_EV` in `src/rietx/crystallography/neutron.py` — the lowest
+  positive-energy resonance of 113Cd, 149Sm, 151Eu, 155Gd, 157Gd and 168Yb,
+  read from the resolved-resonance parameters (MF2/MT151) of ENDF/B-VIII.0
+  (Brown et al. 2018, *Nucl. Data Sheets* **148**, 1; US evaluated nuclear
+  data, public). Six numbers, no code. Checked against Mughabghab,
+  *Atlas of Neutron Resonances* (2006) for 113Cd (0.178 eV), 149Sm (0.0973 eV)
+  and 168Yb (0.597 eV); the copy to hand lacks the 155Gd and 157Gd pages and
+  151Eu was not located, so those three rest on ENDF alone.
 - `src/rietx/data/f0_WaasKirf.dat` — Waasmaier & Kirfel (1995) 5-Gaussian f0
   coefficients, obtained from the ESRF DABAX collection (public scientific data,
   redistributed by silx (MIT) among others). Cite Waasmaier & Kirfel (1995).

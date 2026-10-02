@@ -959,7 +959,7 @@ def test_neutron_attenuation_names_an_untabulated_species():
 def test_a_resonant_absorber_refuses_the_neutron_estimate(species):
     """The neutron twin of the X-ray "straddles an edge" refusal (WP-1132
     item 4): the thermal σ_abs scaled by 1/v is wrong in principle near a
-    resonance, and with no resonance energies in the tree every listed
+    resonance, and with how near a resonance matters not modelled, every listed
     absorber refuses — Yb, whose element absorbs only 34.8 barn, included.
 
     A mass-numbered nuclide (``157Gd``) refuses at the cross-section too, and
@@ -1268,3 +1268,49 @@ def test_the_cr2wo6_hb2a_estimate_matches_the_sears_table_by_hand():
     assert (source, reason) == ("estimated", None)
     assert inst.geometry.mu_r == pytest.approx(mu_r, rel=1e-12)
     assert equivalent_delta_biso(mu_r, 2.4067) == pytest.approx(0.0342, abs=5e-4)
+
+
+def test_every_resonant_absorber_has_a_resonance_energy():
+    """WP-1312 task 2: the flag says *that* a species is resonant, and each
+    member of ``RESONANT_ABSORBERS`` now also says *where*.  Crossed both ways,
+    so a new member without an energy fails here and an energy for a nuclide
+    that is not flagged does too."""
+    from rietx.crystallography.neutron import (  # noqa: PLC0415
+        NEUTRON_LAMBDA_EV_ANGSTROM,
+        RESONANCE_ENERGY_EV,
+        RESONANT_ABSORBERS,
+        SIGMA_ABS_REFERENCE_WAVELENGTH,
+        resonance_wavelengths,
+    )
+
+    assert set(RESONANCE_ENERGY_EV) <= RESONANT_ABSORBERS
+    from rietx.crystallography.neutron import _RESONANCE_CARRIERS  # noqa: PLC0415
+    assert set(_RESONANCE_CARRIERS) <= RESONANT_ABSORBERS
+    assert {n for ns in _RESONANCE_CARRIERS.values() for n in ns} == set(RESONANCE_ENERGY_EV)
+    for species in RESONANT_ABSORBERS:
+        where = resonance_wavelengths(species)
+        assert where, species
+        for nuclide, (e_ev, lam) in where.items():
+            assert nuclide in RESONANCE_ENERGY_EV
+            assert lam == pytest.approx(NEUTRON_LAMBDA_EV_ANGSTROM / e_ev ** 0.5)
+    assert resonance_wavelengths("Al") == {}
+    assert set(resonance_wavelengths("Gd")) == {"155Gd", "157Gd"}
+    # the constant reproduces the 2200 m/s wavelength this package already uses
+    assert NEUTRON_LAMBDA_EV_ANGSTROM / 0.0253 ** 0.5 == pytest.approx(
+        SIGMA_ABS_REFERENCE_WAVELENGTH, abs=1e-3)
+
+
+def test_the_resonant_flag_says_where_the_resonance_is():
+    """The message carries the lowest resonance as an energy and a wavelength,
+    beside the source's own, and the level is unchanged by it."""
+    from rietx.refine import _resonant_absorber_diagnostics  # noqa: PLC0415
+
+    neutron = rx.Instrument.constant_wavelength_neutron(1.7)
+    gd = _resonant_absorber_diagnostics(_one_species("Gd"), neutron)[0]
+    assert gd.level == "warning"
+    assert "155Gd 0.0268 eV = 1.75 A" in gd.message
+    assert "157Gd 0.0314 eV = 1.61 A" in gd.message
+    assert "wavelength is 1.7 A" in gd.message
+    yb = _resonant_absorber_diagnostics(_one_species("Yb"), neutron)[0]
+    assert yb.level == "info"
+    assert "168Yb 0.597 eV = 0.37 A" in yb.message

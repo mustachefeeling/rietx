@@ -107,6 +107,15 @@ the list is rietx's by nature.
   that finds no new defect would be the first pair with the surface unchanged
   between them, so re-rate then. The first clause is untouched, because the
   round's tasks are its own.
+- **From WP-1536, 1537 and 1538 (filed 2026-10-02).** Three queued WPs add to
+  the figure: `.svg`, `.pov` and `.glb` through `render_structure`'s `path=`
+  suffix, and an `ambient_occlusion=` option drawn in both the PNG renderer
+  and the GUI. Each one landing changes the surface the second trigger
+  clause wants unchanged. Their writers are planned as new modules under
+  `viz/figure3d/` using the standard library and numpy, and the occlusion pass
+  uses `model.compiled`, which is already on the boundary list. So the split
+  would carry them without a new import from rietx. `test_figure_boundary.py`
+  is where to confirm that as each lands.
 
 ## Non-goals
 

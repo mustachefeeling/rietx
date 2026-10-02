@@ -1,9 +1,8 @@
 # WP-1312 — CW neutron follow-through: the seed, the resonant flag, the joint fit
 
-Milestone: unscheduled · Status: ⬜ — tasks 1-4 and the #268, #271, #276 and #437 rows landed from outside (PRs #280, #282, #427, #429, #452, #526, #530); left: a cited resonance energy per `RESONANT_ABSORBERS` member (task 2) and the #113 comment
+Milestone: unscheduled · Status: ✅ 2026-10-02 — tasks 1-4 and the #268, #271, #276 and #437 rows landed from outside (PRs #280, #282, #427, #429, #452, #526, #530); the resonance energies landed 2026-10-02 (ENDF/B-VIII.0); the #113 comment posted
 Track: The specimen is not an angle, and the neutron follow-through
 Depends on: — (WP-1132, claimed by @mustachefeeling in PR #541, does not gate any task here)
-Priority: P2 2026-09-23 — a resonant absorber's b is mis-tabulated in silence, on a path few fits run
 
 ## Goal
 
@@ -65,111 +64,6 @@ structure factors differently. WP-1134's own log notes three defects found
 only by *combining* parts on a single path — the same argument for
 exercising this combination.
 
-### Inherited
-
-- **2026-09-24, from the issue triage (issue #437): `read_gsas_prm` refuses
-  a type-3 `PNCR` file it could read.** The same class of defect as #271's
-  row below, in the GSAS-I reader: `io/instrument_profile.py`'s
-  `_HTYPE_REFUSALS["PNCR"]` refuses every `HTYPE PNCR` file before the
-  `PRCF` type is read. Its message describes the repository's one fixture
-  (`tests/data/mg090.Cu311.inst`, `PRCF` type 1) rather than the file in
-  hand. *Checked against the tree at `8fbafe5`*: `11BM_LaB6_cBN_mg2044.prm`
-  (`PXCR`, `PRCF1 3 19`) reads to a `ProfileTCHZ`. The same file with
-  `HTYPE PNCR` and `ICONS 2.4067` raises, telling the user their file
-  "carries a PRCF of type 1". That is the message rule root `CLAUDE.md` gives
-  under WP-1118: a message that names its discriminator makes a claim about
-  the file. **The ask:** key the refusal on the `PRCF` type, as the `PXCR`
-  path already does. A type-3 `PNCR` file reads onto
-  `Instrument.constant_wavelength_neutron` (a `NeutronSource` at the `ICONS`
-  λ, no Kα₂, no polarisation) with the `PXCR` mapping of U V W / X Y / S/L
-  H/L. A type-1 file keeps its refusal, worded about its own type. **The
-  fixture the docstring asked for exists publicly**: the GSAS-II tutorial
-  *Magnetic-II* instrument file `Cr2WO6_T4K_dat.prm` (HFIR HB-2A,
-  λ 2.4067 Å, `INS 1PRCF1 3 8`). Its provenance goes in
-  `tests/data/README.md`, and the file goes under `tests/`, never
-  `src/rietx/data/`. The same instrument's GSAS-II `.instprm` is already
-  `tests/data/gsas2_hb2a.instprm` (WP-1118's entry below), so the two readers
-  can be crossed on one diffractometer. The reporter offered the PR on the
-  thread. No re-rating: a raise that fires wrongly and costs a workaround
-  is this WP's P2 row already.
-- **2026-09-23, from the issue triage (issue #276).** The reporter claimed
-  #276's row on the thread and opened PR #429 the same day ("the neutron
-  preset builds its profile in a coarse-instrument box; a bare wide width
-  still refuses by name"). The PR covers #276 only; #268's row is unclaimed.
-  Reviewing it is `/pr-review`'s.
-- **2026-09-16, from [1118](1118-foreign-model-files.md): there is now a real
-  CW-neutron instrument to start from.** `rx.read_gsas2_instprm` reads a
-  GSAS-II `.instprm` into a frozen `Instrument`, and `tests/data/gsas2_hb2a.instprm`
-  is HFIR's HB-2A at λ = 2.40627 Å with its refined Caglioti terms, its zero
-  and its axial divergence. Task 3's joint fit needs a neutron histogram's
-  instrument from somewhere; this is one nobody here invented, and its widths
-  (U = 0.0799, V = -0.0444, W = 0.0242 deg²) are a real reactor
-  diffractometer's rather than a seed.
-- **2026-09-02, from the magnetic scattering track
-  ([1327](1327-magnetic-structure.md)): the joint-fit audit gains a third row
-  when the moment lands.** Task 3 here audits that per-histogram physics keys
-  on the histogram's own radiation (dispersion no-ops on the neutron arm, b
-  against f(Q), polarisation against none). 1327 adds a magnetic term that
-  enters a `neutron_cw` histogram only and is identically zero on an X-ray
-  one, so shape the audit as a table keyed on the source kind that a new
-  term joins with one row, rather than three hand-written checks. Nothing to
-  build here for it now.
-- **2026-09-03, from the issue triage (issue #252): the joint fit has now
-  been exercised from outside.** An outside campaign ran a converged
-  two-histogram X-ray + neutron fit on one shared structure (41 free
-  parameters, Rwp 0.088, GoF 1.47) — evidence for task 3's "admissible and
-  unexercised", though not the audit it asks for. What that run found missing
-  is reporting and telemetry (`summary`/`report`, `events=`,
-  `max_shift_over_esd`), which is
-  [1341](1341-a-joint-fit-has-no-report.md), not this WP.
-
-- **2026-09-15, from the issue triage (issues #271, #268, #276): three
-  neutron rows for the follow-through.**
-
-  **#271 — `read_recipe` refuses `PNC` with a clause that is true only of
-  TOF.** `io/recipe.py` (WP-1306) reads a PowderLine recipe whose instrument
-  block is GSAS-II's, and refuses any `Type` other than `PXC`, saying `'PNC' neutron and every time-of-flight type put a different
-  quantity on the x axis than PatternData holds`. False for `PNC`: a
-  constant-wavelength neutron histogram's axis is 2θ in degrees, and the
-  package has refined that radiation since WP-1134. `PNC` differs from `PXC`
-  only in the source arm (`NeutronSource`, polarisation pinned at 1, no
-  emission lines), and `Lam` from `Iparm1` is the neutron λ. Ask: a `PNC`
-  recipe builds a `constant_wavelength_neutron` instrument and refines; the
-  TOF types keep their refusal with a message naming only them. This is
-  task 3's "admissible" contradicted at the recipe door, so it is this WP's
-  row. The recipe reader is a build-wide feature and not a `PROJECT_FORMATS`
-  row (`io/projects/registry.py`'s docstring), so nothing in 1118's registry
-  moves with it.
-
-  **#268 — `docs/manual/intensities.md` contradicts itself on b.** Line 73:
-  "b is real for every nuclide this table covers". Line 94, same section:
-  for the resonant absorbers "b is complex". Sears gives ¹⁵⁷Gd as
-  b = −1.14 − 71.9i fm and `b_Sears.dat` stores the real part only, which is
-  the fact the first sentence reaches for. One clause fixes it: every value
-  the table *stores* is real; for the resonant absorbers b is complex and
-  the table carries its real part, which `NEUTRON_RESONANT_ABSORBER` names
-  since PR #282. Task 2's manual half. The reporter's audit of 30 stated
-  values across the tree against Sears 1992 (via gemmi's `neutron92`) found
-  only the Nd/Ru transposition of #254; this prose claim was the only other
-  thing.
-
-  **#276 — `constant_wavelength_neutron(fwhm_deg > 1.0)` raises on its own
-  bound, and the 2026-09-11 ruling above already answers it.** Before PR
-  #280 the seed `x = fwhm` tripped `profile.x`'s `max = 1.0`; after it,
-  `w = fwhm²` trips `w`'s at the same threshold. The ruling stands: the
-  bound stays, the constructor refuses by name with the per-`Parameter`
-  escape. What #276 adds is the measured case the refusal must be shown to
-  cover. The public APDW Co₃O₄ set (ILL D1B, λ = 2.52 Å) has a strongest
-  line of 1.10° FWHM, Caglioti 2.26° at 124° 2θ, and its FullProf `.pcr`
-  carries U = 1.576, V = −0.501, W = 0.475, outside `ProfileTCHZ.u`'s
-  default `max = 1.0` too. With every width bound widened by hand (u ∈
-  [−0.5, 8], v ∈ [−4, 4], w/x/y ≤ 8) it converges to U = 1.654 ± 0.051 at
-  Rwp 0.0074. So the refusal's escape has to build *that* instrument (five
-  bounds, not one), the neutron chapter states it, and a bare
-  `ProfileTCHZ(u=1.576)` refusing is the ruling's cost, said out loud. Use
-  the D1B numbers as the refusal test's fixture (its licence per
-  `tests/data/README.md`); 1415 uses the same file.
-
 ## Non-goals
 
 - **Not the neutron µR estimator** —
@@ -187,10 +81,12 @@ exercising this combination.
       line. Landed from outside as PR #280 (`9d8b7043`, 2026-09-16), with the
       `ProfileTCHZ.w` bound decided 2026-09-11 and the refusal built on it.
       See the 2026-09-16 entry.
-- [ ] ~~Yb into `RESONANT_ABSORBERS`; the resonant-absorber diagnostic;
-      skill row~~ — landed from outside, PR #282 (`8c39a02c`). **Left: a
-      cited resonance energy per member**, which that PR deliberately
-      declined for want of a citation (2026-09-11 entry).
+- [x] Yb into `RESONANT_ABSORBERS`; the resonant-absorber diagnostic;
+      skill row — landed from outside, PR #282 (`8c39a02c`). The cited
+      resonance energy per member landed 2026-10-02: lowest positive
+      resonance of each nuclide from ENDF/B-VIII.0 (the supplied Atlas PDF
+      stops before its per-nuclide tables), `RESONANCE_ENERGY_EV` /
+      `resonance_wavelengths`, quoted in the diagnostic's message.
 - [x] The mixed-fit acceptance/example (public dual dataset, provenance row)
       + the radiation-kind audit, any fix it forces landing as its own
       commit; obs/calc/diff PNGs for both histograms to `tests/output/`.
@@ -227,6 +123,67 @@ issue #113 saying its (a) slice landed — #113 stays open for the fenced
 - Sears, V. F. (1992), *Neutron News* **3**(3), 26 — the shipped table.
 
 ## Handover log
+
+### 2026-10-02 — the resonant-absorber flag now says where the resonance is
+
+A neutron refinement of a structure holding Cd, Sm, Eu, Gd or Yb used to be
+told only that the scattering length is incomplete near a resonance. It is now
+told where the lowest resonance sits, as an energy and as a neutron
+wavelength, beside the instrument's own wavelength. For Gd the two resonances
+are at 1.75 Å and 1.61 Å, close to the 1.798 Å thermal wavelength. That is why
+the flag matters most on a reactor instrument near 1.5-2.5 Å. The package
+still does not judge whether a given wavelength is too near, because that needs
+the resonance width, which it does not carry.
+
+- *Done*: `RESONANCE_ENERGY_EV`, `resonance_wavelengths()` and
+  `NEUTRON_LAMBDA_EV_ANGSTROM` in `crystallography/neutron.py`; the
+  `NEUTRON_RESONANT_ABSORBER` message quotes them (`refine.py`). Two tests in
+  `tests/test_neutron_cw.py`, one crossing every `RESONANT_ABSORBERS` member
+  against the energy table. Two stale sentences in the manual
+  (`corrections.md`, `using/data.md`) and one in the `total_cross_section_neutron`
+  refusal message now say what is true. The Inherited section was pruned on
+  arrival: every row (#271, #268, #276, #437, the joint-fit audit) had landed.
+- *Source, and why it is not the Atlas.* The values are the lowest
+  positive-energy resonance of ¹¹³Cd 0.1787, ¹⁴⁹Sm 0.0973, ¹⁵¹Eu 0.321,
+  ¹⁵⁵Gd 0.0268, ¹⁵⁷Gd 0.0314 and ¹⁶⁸Yb 0.597 eV, read from the MF2/MT151
+  records of the ENDF/B-VIII.0 files (IAEA-NDS download, 2018 retrieval). The
+  Atlas PDF in the Zotero library (`XIHREUPV`, 153 pages) ends at the
+  bibliography on printed page 136, so its per-nuclide tables are absent. The
+  full volume then turned up (`~/Downloads`, 1008 pages). It matches ¹¹³Cd
+  (0.178 eV), ¹⁴⁹Sm (0.0973) and ¹⁶⁸Yb (0.597). It lacks the ¹⁵⁵Gd pages and
+  ¹⁵⁷Gd's first ones (printed 64-5 to 64-12 are not in the scan), and ¹⁵¹Eu
+  was not found by text search. Those three rest on ENDF alone, and the code
+  comment and `ATTRIBUTION.md` say so. Pages 64-5 to 64-12 from another copy
+  would close it.
+- *Deliberately not done*: the refusal in `total_cross_section_neutron` stays
+  at every wavelength for every listed absorber. Loosening it needs a width and
+  a measured departure from 1/v, and nothing here measures either.
+- *Measured* (macOS arm64, `[dev]` without jax or torch, `-n auto --dist
+  loadgroup`): fast selection 7922 passed, 159 skipped, ~5 min on the first
+  run, which was alone; the re-run after review, with another session's suite
+  running beside it, took ~8.7 min and so is not a timing. Two tests added,
+  each ~0.00 s in the junit file, so neither joins the slow tail. The full
+  selection did not run: nothing here moves a measured number, because the
+  only change is message text and a data table. One test failed on the
+  re-run, `test_skill.py`'s budget, because I had added a sentence to the
+  skill row. The row's file was already over budget, so I reverted it. The
+  package's own message carries the fact, which the placement rule ranks first.
+- *Review (`/code-review high --fix`)*: no correctness bug. Applied: a comment
+  that overclaimed an Atlas cross-check (now states what was and was not
+  checked), an `ATTRIBUTION.md` entry for the ENDF values, and the `sits`
+  list ordered like `named` in the message. Taken afterwards: the carriers
+  table is now crossed against `RESONANT_ABSORBERS` in the test. Declined: the
+  skill-row edit (above), deriving `NEUTRON_LAMBDA_EV_ANGSTROM` from
+  `scipy.constants` (the test pins it to the 1.798 Å already shipped), a manual
+  line wrap, and rewording the refusal message.
+- *Gotchas*: a nuclide with a bound level (¹⁴⁹Sm at -1.127 eV, ¹⁵¹Eu at
+  -0.0609 eV) is not given a second entry. The file's resonance range may end
+  well above the lowest level, so the lowest *positive* one is the right pick.
+- *Next*: none; the WP is closed. The #113 comment was approved and posted
+  (issue comment 5962375054) and #113 stays open for the fenced (b) and (c)
+  halves. The Priority line is gone and the narrative moved to the v1.6
+  record. Pages 64-5 to 64-12 of another Atlas copy would let the ¹⁵⁵Gd and
+  ¹⁵⁷Gd energies be checked against it.
 
 ### 2026-09-29 (2nd session) — tasks 3 and 4 landed from outside; #194 closes
 
