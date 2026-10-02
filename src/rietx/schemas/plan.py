@@ -145,6 +145,12 @@ class PlanSpec(Base):
             "everywhere, i.e. the fully-converged schedule.  1e-6 is "
             "1.2-1.6x fewer whole-plan evaluations for answers within "
             "0.03 esd on a single fit (WP-1113/1123)"))
+    lebail_passes: int = Field(
+        1, ge=1, description=(
+            "the cap on Le Bail passes: under mode='lebail' the plan is run "
+            "again from where it ended, up to this many times, stopping at the "
+            "first pass that does not lower Rwp and keeping the best.  1 is a "
+            "single run; the field does nothing in any other mode (WP-1323)"))
 
     @model_validator(mode="before")
     @classmethod
@@ -180,14 +186,16 @@ class PlanSpec(Base):
     def from_plan(cls, plan: Any) -> "PlanSpec":
         return cls(stages=[StageSpec.from_stage(s) for s in plan.stages],
                    correlation_guard=plan.correlation_guard,
-                   intermediate_ftol=plan.intermediate_ftol)
+                   intermediate_ftol=plan.intermediate_ftol,
+                   lebail_passes=plan.lebail_passes)
 
     def to_plan(self) -> Any:
         from ..strategy.staged import RefinementPlan
 
         return RefinementPlan(stages=[s.to_stage() for s in self.stages],
                               correlation_guard=self.correlation_guard,
-                              intermediate_ftol=self.intermediate_ftol)
+                              intermediate_ftol=self.intermediate_ftol,
+                              lebail_passes=self.lebail_passes)
 
     def preset_name(self) -> str | None:
         """The registered preset this plan equals, or ``None`` if it was edited.

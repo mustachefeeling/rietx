@@ -146,11 +146,10 @@ rough structural model before quoting it (Peterson 2005). The variable is
 reflections per FWHM, so on a resolved pattern skip the check. Two rules about it
 the API does not tell you, both measured on third-party lab data.
 
-4. **Iterate the whole plan to a fixed point; one `fit()` is not enough**, and
-   **keep the best pass, not the last.** The extracted per-hkl intensities are
-   frozen inside each least-squares run, so intensities and profile converge only
-   by *alternating*, and the alternation is not a descent on one objective, so a
-   later pass can come back worse.
+4. **One `fit()` is not enough: set `plan.lebail_passes`** (say 8). It stops at
+   the first pass that does not lower Rwp, keeps the best and says why
+   (`LEBAIL_ALTERNATION_STOPPED`). **A poor start wanders.** A known structure
+   is no Le Bail job: use `lab_calibrate`.
 5. **Seed the background before the first pass, always.** `auto_background`
    starts every coefficient at 0.0, so the first `lebail_update` runs before the
    background has ever been fitted, is handed the whole pedestal, and gives it to

@@ -144,20 +144,27 @@ does not change it.
       is the third. So keep-best matters in the first and third rows and a cap
       alone would truncate the second. Script: scratchpad `baseline.py`, not
       committed.
-- [ ] `RefinementPlan.lebail_passes` (cap) with keep-best and a stop on
+- [x] `RefinementPlan.lebail_passes` (cap) with keep-best and a stop on
       non-monotone Rwp; the schedule is the plan's and one authority applies
       it, as `stage_ftols()` does for tolerances. Bit-identical at one pass.
-- [ ] `LEBAIL_ALTERNATION_STOPPED` diagnostic naming the reason (cap reached,
+      `Refinement.fit` is the one authority (`_fit_lebail_alternation`); at 1
+      it calls `_fit_pass`, the old body, unchanged. **Keep-best restores the
+      parameters and not the extracted intensities**: a `fit` re-extracts at
+      its first stage, and seeding the restored ones gave the next pass a start
+      the hand loop never had (254.09 % against 194.56 %, +2 % start). A pass
+      within 1e-4 of the best, either way, is a fixed point.
+- [x] `LEBAIL_ALTERNATION_STOPPED` diagnostic naming the reason (cap reached,
       non-monotone, converged) and the pass kept; reaches `str(result)`.
-- [ ] Skill §2 rule 4 and `references/judging.md` §2 rewritten: name the
+- [x] Skill §2 rule 4 and `references/judging.md` §2 rewritten: name the
       verb, state the cap, and the scope clause — a known structure is a
-      staged Rietveld job.
-- [ ] Manual Part 1 `using/refining.md`: the alternation and its stop rule;
+      staged Rietveld job. The code's row is in `judging.md`, because
+      `diagnostics.md` has no headroom under its budget.
+- [x] Manual Part 1 `using/refining.md`: the alternation and its stop rule;
       Part 2 needs no new equation (the partition is documented).
-- [ ] Tests: PbSO4 reaches 10.247 % without a hand loop; Tb2BaCoO5 returns
-      pass 1's answer rather than pass 2's; the #210 fixture stops before the
-      wander, and the diagnostic says why. obs/calc/diff PNGs to
-      `tests/output/`.
+- [x] Tests: the #210 fixture stops before the wander and the diagnostic says
+      why; obs/calc/diff PNGs to `tests/output/`. **Not done as written:**
+      PbSO4 and Tb2BaCoO5 are not in tree, so the three LaB6+cBN shapes stand
+      in (exact cells keep pass 1, as Tb2BaCoO5 would; +0.3 % converges).
 
 ## Acceptance
 

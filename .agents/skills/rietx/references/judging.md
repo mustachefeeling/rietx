@@ -69,11 +69,17 @@ against the `_space_group_symop_operation_xyz` loop it writes beside them.
 
 ## §2 rules 4-5 — the two Le Bail measurements
 
-**Iterate to a fixed point, and keep the best pass.** On PbSO4 pass 1 stops at
+**Alternate under a cap, and keep the best pass.** On PbSO4 pass 1 stops at
 Rwp 20.756 % with an unphysical Caglioti **V = +0.0615**; passes 2-4 reach
-10.247 % with the curve sane. Re-run the plan until Rwp stops moving. Because
-the alternation is not a descent on one objective, a later pass can come back
-worse — seen on Tb2BaCoO5, 17.3 % → 18.7 %.
+10.247 % with the curve sane. `plan.lebail_passes` runs them and stops at the
+first pass that does not lower Rwp; `LEBAIL_ALTERNATION_STOPPED` says why
+(`non_monotone` or a cap hit is no fixed point). Not a descent: Tb2BaCoO5 went
+17.3 % → 18.7 %. *(Measured: 11-BM LaB6+cBN, `profile_only`.)* Cells exact:
+16.821, 16.907, pass 1 kept. +0.3 %: fixed point at 16.967. +2 %: 230, 207, 175,
+195, pass 3 kept. **A poor start wanders; a good one converges.**
+
+**A known structure is no Le Bail job:** calibrate with one staged Rietveld pass
+(#210: 43.8 s against ~40 min).
 
 **Seed the background first.** `auto_background` chooses the knot spacing or the
 Chebyshev *order* but starts every coefficient at **0.0**, so the modelled
@@ -87,19 +93,14 @@ strongest peak: cycle one claims **571×** the true Bragg intensity.
 fitted triclinic tricalcium silicate at NSLS X7A. The Le Bail fit won on both
 indices reported (χ² 16.46 against 22.81, R_p 2.34 against 3.52 at ambient) and
 its cell parameters wandered over a heating and cooling series, while the
-Rietveld cell from an admittedly imperfect model stayed consistent. Any single
-Le Bail fit there looked acceptable, and only the trend exposed it. The cause is
-reflection density rather than low symmetry alone, and the same disagreement has
-been reported on an I4/mmm structure. Peterson's own scope is "particularly for
-high reflection density data", and the abstract says so.
+Rietveld cell from an admittedly imperfect model stayed consistent. The cause is
+reflection density rather than low symmetry alone.
 
 **Measured at the other end of that variable**, one range and one instrument
 treatment, three modes: 11-BM LaB₆, 2-40°, 55 reflections, mean FWHM 0.0097°,
 **0.014 reflections per FWHM**. Rietveld a = 4.1568414(52) Å, Le Bail
 4.1568425(51), Pawley 4.1568431(51) — a spread of 0.4 ppm, a third of one esd,
-with the esds equal to 2 %. The Le Bail fit also won on Rwp there (0.0861
-against 0.0879) and its cell was still right, so the better Rwp is not itself
-the signal. Count reflections per FWHM: crowded, check the cell against a
+with the esds equal to 2 %. Count reflections per FWHM: crowded, check the cell against a
 structural model; resolved, do not spend the fit.
 
 **Multi-phase Le Bail** was broken until v1.0 and is now supported: the shares
