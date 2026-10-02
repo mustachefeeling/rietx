@@ -1,6 +1,6 @@
 # WP-1535 — A direction the covariance discards reads as measured
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-02 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-02 — a confident esd on an exactly degenerate pair, with only `FLAT_DIRECTION` beside it; WP-1534 holds the one shape it measured, and this WP measures how many others there are
