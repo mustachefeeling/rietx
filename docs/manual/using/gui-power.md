@@ -83,6 +83,7 @@ Document-level keywords:
 | `excluded` | one excluded region, low then high; repeatable |
 | `plan` | the plan preset name |
 | `tolerance` | the intermediate-stage convergence tolerance, or `none` |
+| `passes` | the Le Bail cap (`lebail_passes`); written only above 1, and absent means one pass |
 | `stage` | one stage: its name, then `free` and a comma-separated glob list |
 | `phase` | opens a phase block: its index, then its name quoted |
 | `instrument` | opens the instrument block |

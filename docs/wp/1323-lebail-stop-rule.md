@@ -171,9 +171,10 @@ cannot see a wrong cell or a low background), and both are still true.*
       best pass before re-raising (`_keep_pass`); the exception still raises.
 - [x] (d) done: the passes get the whole plan (`_fit_pass` never reads the
       cap), so `_last_plan` and the history header carry it.
-- [ ] **From the 2026-10-02 review, open.** (b) `.rxt` render/parse
-      (`gui/textdoc.py`) and the GUI plan panel know nothing of
-      `lebail_passes`, so a GUI edit resets it to 1.
+- [x] (b) done: a `passes N` line in the `.rxt` document (rendered only above 1,
+      parsed, refused below 1), `passes` in `rxt.ts`'s keyword mirror, and the
+      Plan panel carries the plan fields it has no control for through a save
+      (`intermediate_ftol` was reset the same way). Dist rebuilt.
 - [ ] **Open questions from the 2026-10-02 prose review of `judging.md`**, each
       needing a domain check before the text is touched, and none caused by
       this WP. (1) The same four-phase 25-50° fixture gives Fe Biso −165 Å² at

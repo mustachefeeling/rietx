@@ -464,6 +464,29 @@ def test_a_tolerance_that_cannot_be_a_tolerance_is_refused(project):
         assert delta.plan is None, bad
 
 
+def test_the_passes_line_carries_the_le_bail_cap_and_refuses_nonsense(project):
+    """``lebail_passes`` (WP-1323) had no line, so a save through the document
+    reset a Le Bail job's cap to one pass.  Absent at its default, as ``guard``
+    is, so every stored document renders byte for byte as before."""
+    text = td.render(project)
+    assert not any(ln.startswith("passes ") for ln in text.splitlines())
+
+    delta, errors = _changes(_edit(text, "tolerance", "tolerance 1e-06\npasses 8"),
+                             project)
+    assert errors == []
+    assert delta.plan["plan"]["lebail_passes"] == 8
+
+    # and it renders once above the default, so a save cannot drop it
+    project.doc.plan = project.doc.plan.model_copy(update={"lebail_passes": 5})
+    assert any(ln.startswith("passes 5") for ln in td.render(project).splitlines())
+
+    for bad in ("passes 0", "passes -2", "passes many", "passes", "passes 2 3"):
+        delta, errors = _changes(
+            _edit(text, "tolerance", f"tolerance 1e-06\n{bad}"), project)
+        assert errors and errors[0].where == "passes", bad
+        assert delta.plan is None, bad
+
+
 def test_a_stage_line_round_trips_every_key_stage_spec_has(project):
     """The keys are derived from ``StageSpec``, so this is the whole set at once.
 
