@@ -435,7 +435,7 @@ def biso_bounds(value: float) -> dict[str, float]:
     widened to hold the value.
 
     A published structure can sit outside the usual bounds.  A disordered
-    organic cation's U_iso of 0.35 Å² is a B_iso of 27.6 Å², and a light atom
+    organic cation's U_iso of 0.34 Å² is a B_iso of 26.8 Å², and a light atom
     can be refined slightly negative.  A bound the read value breaks refuses
     the whole file, so a reader widens it instead.
     """
