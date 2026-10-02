@@ -350,7 +350,8 @@ no fit could have reached the tolerance `rtol`
 ($d \geq \mathrm{rtol}\,\sqrt{S}\,\max_s t_s/\|\mathbf{t}\|$ over the $S$
 shells it uses); a smaller one is kept and printed, and the fits decide.
 "Proved" for this certificate is of the stored draw, not of every model of
-the family. The
+the family. An optional per-shell `weights` vector (an inverse standard
+deviation, say) changes the norm $d$ is measured in, not what is proved. The
 printed table lists every such separation with its bracket and names any
 class that holds one, which can happen while classes are still joined
 through sampled pairs.

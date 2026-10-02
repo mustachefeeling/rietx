@@ -2940,7 +2940,7 @@ def _certify_draw(target: np.ndarray, grams_b: np.ndarray, dark_b: np.ndarray, r
 def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
                       refl: ReflectionSet, *, draws: int | None = None, seed: int = 20260906,
                       rtol: float = 1e-4, restarts: int = 32,
-                      little: LittleGroup | None = None) -> bool:
+                      little: LittleGroup | None = None, weights=None) -> bool:
     """Whether a powder pattern to ``refl``'s d limit can tell two candidates apart.
 
     **The definition, taken here.**  A and B are *powder-equivalent* when each
@@ -2976,6 +2976,12 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     and so does a ``False`` no certificate gave;
     :func:`powder_relations` returns which, direction by direction, with the
     number of draws each made.
+
+    ``weights``, optional, is one positive number per shell of ``refl``
+    (σ⁻¹ or f²·L, say): the Farkas certificate is then solved on the
+    weighted stack, so its ``d`` is the weighted relative distance.  It
+    changes which point is quoted and what ``d`` reads, not what is
+    proved: the gate and the fit's ``rtol`` stay unweighted.
 
     **Both sampled verdicts are statistical, for different reasons** (issue #455).
     What is exact: a family with no powder pattern at this d limit is
@@ -3022,6 +3028,7 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     ``seed``, ``draws`` and ``restarts``, and across machines agrees only as
     far as the fits' floating point does.
     """
+    weights = _shell_weights(weights, refl)
     if little is None:
         little = _irreps.little_group(a.space_group, a.k)
     a, b = _canonical_basis(a), _canonical_basis(b)
@@ -3029,13 +3036,14 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     fb = structure_factors(b, refl, little=little)
     return _powder_equivalent(a, b, fa, fb, gram(fa, refl.shells), gram(fb, refl.shells),
                               refl, draws=_draws_for(a, b, draws), seed=seed, rtol=rtol,
-                              restarts=restarts)
+                              restarts=restarts, weights=weights)
 
 
 def _powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
                        fa: np.ndarray, fb: np.ndarray, ga: np.ndarray, gb: np.ndarray,
                        refl: ReflectionSet, *,
-                       draws: int, seed: int, rtol: float, restarts: int) -> bool:
+                       draws: int, seed: int, rtol: float, restarts: int,
+                       weights: np.ndarray | None = None) -> bool:
     """:func:`powder_equivalent` on canonical candidates whose factors and grams are built.
 
     ``ga``/``gb`` are ``gram(fa, refl.shells)``/``gram(fb, refl.shells)``, the
@@ -3046,8 +3054,23 @@ def _powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     dark = [_certificate_dark(ga, silent[0]), _certificate_dark(gb, silent[1])]
     spans = [_intensity_span(ga), _intensity_span(gb)]
     there, back = _pair_verdicts(0, 1, (a, b), (ga, gb), silent, dark, spans, refl,
-                                 draws=draws, seed=seed, rtol=rtol, restarts=restarts)
+                                 draws=draws, seed=seed, rtol=rtol, restarts=restarts,
+                                 weights=weights)
     return bool(there.contained and back.contained)
+
+
+def _shell_weights(weights, refl: ReflectionSet) -> np.ndarray | None:
+    """``weights`` as one positive finite float per shell of ``refl``, or None; anything else is refused by name."""
+    if weights is None:
+        return None
+    w = np.asarray(weights, dtype=np.float64).reshape(-1)
+    if w.shape[0] != len(refl.shells):
+        raise ValueError(f"weights has {w.shape[0]} entries and the reflection set has "
+                         f"{len(refl.shells)} shells: one weight per shell, in refl.shells order")
+    if not np.all(np.isfinite(w)) or not np.all(w > 0.0):
+        raise ValueError("weights must be positive and finite on every shell: a zero weight "
+                         "would drop a shell from the certificate, not down-weight it")
+    return w
 
 
 def _draws_for(a: MagneticCandidate, b: MagneticCandidate, draws: int | None) -> int:
@@ -3074,7 +3097,8 @@ def _silent(factors: np.ndarray) -> bool:
 
 def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
                    refl: ReflectionSet, *, draws: int, seed: int, rtol: float,
-                   restarts: int) -> tuple[PairVerdict, PairVerdict]:
+                   restarts: int, weights: np.ndarray | None = None
+                   ) -> tuple[PairVerdict, PairVerdict]:
     """The two directed verdicts of one pair: certificates first, then the draws.
 
     A pair a family-level certificate settles distinct is not drawn at all,
@@ -3119,7 +3143,8 @@ def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
             if float(np.max(np.abs(target))) <= 0.0:
                 continue
             reproduced, certified, witness, dual = _certify_draw(
-                target, grams[b], dark[b], rng, restarts=restarts, rtol=rtol, draw=made)
+                target, grams[b], dark[b], rng, restarts=restarts, rtol=rtol, draw=made,
+                weights=weights)
             if certified:
                 verdict = PairVerdict(a, b, "proved-not", "farkas", made, 0,
                                       d=witness.d, witness=witness, dual=dual)
@@ -3137,9 +3162,10 @@ def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
 
 
 def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | None,
-              seed: int, rtol: float, restarts: int
+              seed: int, rtol: float, restarts: int, weights=None
               ) -> tuple[tuple[tuple[int, ...], ...], tuple[PairVerdict, ...]]:
     """:func:`equivalence_classes` and :func:`powder_relations` from one pass over the pairs."""
+    weights = _shell_weights(weights, refl)
     little = _irreps.little_group(candidate_set.space_group, candidate_set.k)
     n = len(candidate_set)
     canonical = [_canonical_basis(c) for c in candidate_set]
@@ -3172,7 +3198,8 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | 
                 continue
             there, back = _pair_verdicts(i, j, canonical, grams, silent, dark, spans, refl,
                                          draws=_draws_for(canonical[i], canonical[j], draws),
-                                         seed=seed, rtol=rtol, restarts=restarts)
+                                         seed=seed, rtol=rtol, restarts=restarts,
+                                         weights=weights)
             verdicts[(i, j)], verdicts[(j, i)] = there, back
             if there.contained and back.contained:
                 parent[find(j)] = find(i)
@@ -3186,7 +3213,7 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | 
 
 def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
                         draws: int | None = None, seed: int = 20260906, rtol: float = 1e-4,
-                        restarts: int = 32) -> tuple[tuple[int, ...], ...]:
+                        restarts: int = 32, weights=None) -> tuple[tuple[int, ...], ...]:
     """Connected components of :func:`powder_equivalent` over a candidate set.
 
     Members of one class are models a powder pattern to this d limit cannot
@@ -3213,7 +3240,8 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
     Cost: an equivalent pair mostly stops at its first restart, while a
     distinguishable one no family-level certificate settles pays one
     restart and a Farkas dual when the draw is certified, and the full
-    ``restarts`` once when it is not.
+    ``restarts`` once when it is not.  ``weights`` is
+    :func:`powder_equivalent`'s.
 
     ``draws`` is per direction.  Left at ``None`` it is
     :data:`CROSS_IRREP_DRAWS` for a pair of two irreps and
@@ -3226,12 +3254,12 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
     single-process tasks).
     """
     return _classify(candidate_set, refl, draws=draws, seed=seed, rtol=rtol,
-                     restarts=restarts)[0]
+                     restarts=restarts, weights=weights)[0]
 
 
 def powder_relations(candidate_set: CandidateSet, refl: ReflectionSet, *,
                      draws: int | None = None, seed: int = 20260906, rtol: float = 1e-4,
-                     restarts: int = 32) -> tuple[PairVerdict, ...]:
+                     restarts: int = 32, weights=None) -> tuple[PairVerdict, ...]:
     """Every directed verdict behind :func:`equivalence_classes`, with how each was decided.
 
     One :class:`PairVerdict` per ordered pair (a, b), sorted: proved by a
@@ -3242,20 +3270,25 @@ def powder_relations(candidate_set: CandidateSet, refl: ReflectionSet, *,
     generator streams and the same partition as :func:`equivalence_classes`
     with these arguments.  A family-level certificate does not read
     ``rtol``; the Farkas one is gated on it (:class:`PairVerdict` states
-    both).  A ``farkas`` verdict carries its :class:`Witness` and ``d``.
+    both).  A ``farkas`` verdict carries its :class:`Witness` and ``d``;
+    ``weights`` is :func:`powder_equivalent`'s.
     """
     return _classify(candidate_set, refl, draws=draws, seed=seed, rtol=rtol,
-                     restarts=restarts)[1]
+                     restarts=restarts, weights=weights)[1]
 
 
 def analyse(candidate_set: CandidateSet, *, d_min: float = 1.5,
             draws: int | None = None, seed: int = 20260906, rtol: float = 1e-4,
-            restarts: int = 32) -> CandidateSet:
+            restarts: int = 32, weights=None) -> CandidateSet:
     """Fill in the absences, the determinable amplitudes, the equivalence classes and their relations.
 
     Returns a new :class:`CandidateSet` whose ``__str__`` prints the whole
     classic table.  The reflection list is the magnetic cell's own to ``d_min``,
     on the cell the set was built with.
+
+    ``weights``, when given, has one entry per shell of
+    ``reflections(candidate_set.lattice, d_min)`` (see
+    :func:`powder_equivalent`).
 
     Every column it fills is magnetic neutron intensity, so a
     ``kind="displacive"`` set is refused by name rather than given plausible
@@ -3287,7 +3320,7 @@ def analyse(candidate_set: CandidateSet, *, d_min: float = 1.5,
             little=little, factors=factors))
         absences.append(systematic_absences(candidate, refl, little=little).total)
     classes, relations = _classify(candidate_set, refl, draws=draws, seed=seed,
-                                   rtol=rtol, restarts=restarts)
+                                   rtol=rtol, restarts=restarts, weights=weights)
     return CandidateSet(
         space_group=candidate_set.space_group, site=candidate_set.site,
         k=candidate_set.k, kind=candidate_set.kind, cell=candidate_set.cell,

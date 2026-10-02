@@ -2584,3 +2584,33 @@ def test_the_exact_check_is_called_once_per_witness_and_refuses_on_false(monkeyp
     assert refused[0].dual >= isotropy.FARKAS_FLOOR
 
 
+@pytest.mark.xdist_group("magnetic-known-answer")
+def test_weights_move_d_and_not_what_is_proved(known_answer_stack):
+    """Per-shell weights change the norm d is measured in; the statuses stay the draws' and the gate's.
+
+    S1(rank 1)#2 → S2(rank 1)#1 at restarts 4.  Uniform weights of 2 leave
+    every status and d unchanged to 1e-9 (d is a relative distance); a ramp
+    from 0.25 to 4 across the shells leaves every status unchanged, moves
+    d, and is recorded on the witness.  A wrong length or a zero weight is
+    refused by name.
+    """
+    subset = _known_pair(known_answer_stack)
+    reflections = known_answer_stack[1]
+    n_shells = len(reflections.shells)
+    plain = isotropy.powder_relations(subset, reflections, restarts=4)
+    doubled = isotropy.powder_relations(subset, reflections, restarts=4,
+                                        weights=2.0 * np.ones(n_shells))
+    ramp = np.geomspace(0.25, 4.0, n_shells)
+    ramped = isotropy.powder_relations(subset, reflections, restarts=4, weights=ramp)
+    assert [v.status for v in plain] == [v.status for v in doubled] == [v.status for v in ramped]
+    assert plain[0].certificate == "farkas"
+    assert np.allclose(doubled[0].d, plain[0].d, rtol=1e-9, atol=0.0)
+    assert doubled[0].witness.weights == (2.0,) * n_shells
+    assert ramped[0].witness.weights == tuple(ramp)
+    assert abs(ramped[0].d[0] / plain[0].d[0] - 1.0) > 1e-2
+    assert isotropy._verify_witness(known_answer_stack[3][known_answer_stack[5].index(
+        "S2(rank 1)#1")], ramped[0].witness)[0]
+    with pytest.raises(ValueError, match="one weight per shell"):
+        isotropy.powder_relations(subset, reflections, weights=np.ones(n_shells - 1))
+    with pytest.raises(ValueError, match="positive and finite"):
+        isotropy.powder_relations(subset, reflections, weights=np.r_[0.0, np.ones(n_shells - 1)])
