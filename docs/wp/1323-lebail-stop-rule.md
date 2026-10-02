@@ -1,6 +1,6 @@
 # WP-1323 — the Le Bail alternation has a stop rule, and a scope
 
-Milestone: unscheduled · Status: 🔄 2026-10-02 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-02 — alternation shipped; review follow-ups open
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-09-23 — the skill sends every Le Bail job to a hand loop with no cap; the call is the workaround
@@ -165,6 +165,15 @@ cannot see a wrong cell or a low background), and both are still true.*
       PbSO4 and Tb2BaCoO5 are not in tree, so the three LaB6+cBN shapes stand
       in (exact cells keep pass 1, as Tb2BaCoO5 would; +0.3 % converges).
 
+- [ ] **From the 2026-10-02 review, open.** (a) One telemetry run directory per
+      pass: `_fit_pass` attaches the recorder each time, against the "once per
+      job" rule; attach once around the loop. (b) `.rxt` render/parse
+      (`gui/textdoc.py`) and the GUI plan panel know nothing of
+      `lebail_passes`, so a GUI edit resets it to 1. (c) A cancel or exception
+      in pass k > 1 loses the best pass and leaves the state at pass k-1.
+      (d) `_last_plan` and the history header record the one-pass copy, so
+      `summary()` hides the cap.
+
 ## Acceptance
 
 ```sh
@@ -184,6 +193,66 @@ baseline table, never gated.
   schedule), WP-1302 (the termination view).
 
 ## Handover log
+
+- **2026-10-02** — **The package now runs the Le Bail alternation itself.**
+  Set a pass cap on the plan and `fit` repeats the plan, stops at the first
+  pass that does not lower Rwp, keeps the best pass and says why it stopped.
+  Measured on the one multi-phase pattern in tree, the three shapes #210
+  reported all appear and are handled: from the exact cell the second pass is
+  worse and the first is kept, from a cell 0.3 % off the loop converges, and
+  from 2 % off it wanders and the third pass of four is kept. It also showed
+  that restoring the best pass must not restore its extracted intensities,
+  because the next fit re-extracts them. What is still open is four review
+  findings, listed in Tasks, of which the telemetry one (a run directory per
+  pass) is the one a user would notice first.
+
+  **Done.** `RefinementPlan`/`PlanSpec.lebail_passes` (default 1, `ge=1`);
+  `Refinement.fit` dispatches to `_fit_lebail_alternation` above 1 and to
+  `_fit_pass` (the old body, unchanged) at 1; `_restore_state` factored out of
+  `checkout`; `LEBAIL_ALTERNATION_STOPPED` (info on a fixed point, warning
+  otherwise, `value` the kept pass's Rwp) reaches `str(result)`;
+  `LEBAIL_CONVERGED_REL = 1e-4`; skill rule 4 and `judging.md`, copies synced;
+  manual `using/refining.md` § The Le Bail alternation; schema 0.40 → 0.41 and
+  project format 1.3 → 1.4 (WP-1123's precedent); `refine_sequential`'s
+  collapse now carries the field.
+
+  **Measured** (macOS arm64, `[dev]` venv, numba on, 11-BM LaB6+cBN,
+  `profile_only`, 5.1-50°). Hand loop, Rwp %: exact cells 16.821, 16.907, then
+  16.908 flat; +0.3 % 16.987, 16.969, 16.967 flat; +2 % 230.35, 206.58, 175.10,
+  194.56, 196.29, 203.94, 211.29, 219.93 (67 s of 8 passes). `lebail_passes=8`
+  reproduces them and stops at passes 2, 3 and 4. A restored state seeded with
+  its intensities then gave the next pass 254.09 % against the loop's 194.56 %;
+  with parameters only it gives 194.562. Fast selection, `[dev]`, macOS: 7924
+  passed, 159 skipped, 0 failed after the version fixes (the earlier 7924 + 1
+  failed + 159 had the manual-partition failure); five tests added, one more
+  marked slow. Added-test times from that run, under `-n auto` load: 22.1 s,
+  18.4 s, 7.0 s, 5.1 s, 0.0 s. The two slow ones are in the fast tier's tail
+  because they are the only cover of converge and cap on a real pattern. Full
+  suite not run: no measured number moved.
+
+  **Review** (`/code-review high --fix`): fixed keep-best leaving `ref.result_`
+  and the model empty, and the series collapse dropping the field; fixed a NaN
+  Rwp replacing the best. Left open: the four items in Tasks. Declined: the
+  finding on deleted `judging.md` sentences, which I removed on purpose to pay
+  the file's byte budget (the Rwp-is-not-the-signal sentence and Peterson's
+  scope line); say so if either should return and be paid for elsewhere.
+
+  **Lane trial.** `/wp-lanes` session, no lane dispatched. Decisions:
+  `keep baseline-fixture ~15`, `keep lebail_passes-plan-field ~25`. Context at
+  both was 99K and 119K, under the 150K line, so by the rule neither was
+  laned. Step 3b has no lanes to measure and no row was added to process.md.
+
+  **Gotchas.** PbSO4 and Tb2BaCoO5 are not in tree, so the Tasks' named
+  acceptance numbers (10.247 %, pass 1 kept) are unreproduced and LaB6+cBN
+  stands in. A fresh `fit` never carries intensities across calls, so "continue
+  from a state" and "checkout then fit" differ (checkout seeds them).
+  Pruned `### Inherited`: the 2026-09-23 entry folded into Context; the other
+  two stay, both still true and out of scope.
+
+  **Next:** (1) the telemetry-once fix, because it changes what a user sees in
+  `rietx watch`; (2) `.rxt`/GUI support for the field; (3) decide whether a
+  cancelled alternation should return the best pass; (4) the background
+  protocol in Inherited, if the maintainer wants it in this WP.
 
 - **2026-09-01** — created from issue #210 during the roadmap reorder; no code
   touched. First task is the baseline table.

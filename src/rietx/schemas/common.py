@@ -370,7 +370,11 @@ from .._nearmiss import did_you_mean
 #: did), so an empty default would say "looked, nothing held" of a fit nobody
 #: looked at.  Both single-histogram runners now write a mapping on every
 #: stage; the joint runner does not ask, and leaves ``None``.
-SCHEMA_VERSION = "0.40"
+#: 0.40 → 0.41 (WP-1323): ``PlanSpec.lebail_passes``, the cap on Le Bail passes.
+#: Additive and defaulted to 1, the single run every earlier plan made; an older
+#: build refuses a document carrying it (``extra="forbid"``), which is the point
+#: of the bump.
+SCHEMA_VERSION = "0.41"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

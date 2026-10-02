@@ -3629,27 +3629,35 @@ class Refinement:
         merely reported.
         """
         one = dataclasses.replace(plan, lebail_passes=1)
-        best = None            # (rwp, result, state, head, pass number)
+        best = None            # (rwp, result, state, head, pass number, fit view)
         rows: list[float] = []
         reason = "cap"
         for _ in range(plan.lebail_passes):
             result = self._fit_pass(data, mode="lebail", plan=one, **kw)
             rwp = float(result.statistics.rwp)
             rows.append(rwp)
-            if best is not None and rwp >= best[0]:
+            if best is not None and (rwp >= best[0] or not np.isfinite(rwp)):
                 # not lower: a fixed point if it is level to within the
                 # tolerance, a wander if it is worse
                 reason = ("converged" if rwp <= best[0] * (1 + LEBAIL_CONVERGED_REL)
                           else "non_monotone")
                 break
             gain = None if best is None else (best[0] - rwp) / best[0]
-            best = (rwp, result, self.snapshot(), self._head_id, len(rows))
+            best = (rwp, result, self.snapshot(), self._head_id, len(rows),
+                    (self._model, self._answer_covariance, self.stage_reports_))
             if gain is not None and gain <= LEBAIL_CONVERGED_REL:
                 reason = "converged"
                 break
-        _, result, state, head, kept = best
+        _, result, state, head, kept, fit_view = best
         if kept != len(rows):
             self._restore_state(state)
+            # ``_restore_state`` drops the fit's view of the values (it is what
+            # ``checkout`` needs), but these *are* the values the kept pass
+            # fitted, so ``result_``, ``report()``, ``predict()`` and the
+            # plots read the answer this call returns, not nothing
+            self.result_ = result
+            (self._model, self._answer_covariance,
+             self.stage_reports_) = fit_view
             # A fit re-extracts the intensities at its first stage, so the
             # pass after a plain ``fit()`` starts from the parameters alone.
             # Seeding them from the restored state would hand the next fit a

@@ -93,6 +93,9 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(patter
     assert stop.value == result.statistics.rwp
     assert "16.821, 16.907" in stop.message
     assert CODE in str(result)              # the termination view carries it
+    # the kept pass is the one the Refinement answers from afterwards
+    assert ref.result_ is result
+    assert ref.report() is not None
     _plot(result, "lebail_alternation_exact.png")
 
 
