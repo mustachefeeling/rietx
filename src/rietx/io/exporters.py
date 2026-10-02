@@ -387,7 +387,8 @@ def _write_refinement_metadata(block, result: RefinementResult,
         if st.esd_inflation is not None:
             esd_method += (", then multiplied by the Berar-Lelann "
                            f"serial-correlation factor {st.esd_inflation:.3g} "
-                           "(Berar & Lelann, 1991, J. Appl. Cryst. 24, 1)")
+                           "(Berar & Lelann, 1991, J. Appl. Cryst. 24, 1, "
+                           "homogeneous correction, eqs 10-12)")
         block.set_pair("_pd_proc_ls_special_details", gemmi.cif.quote(esd_method))
     block.set_pair("_pd_proc_ls_profile_function",
                    gemmi.cif.quote(_profile_description(instrument)))

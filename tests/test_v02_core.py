@@ -32,19 +32,50 @@ def test_berar_lelann_alternating_is_one():
     assert berar_lelann_factor(d) == pytest.approx(1.0)
 
 
+def _z_from_chi2_densities(x):
+    """Bérar & Lelann (1991) p. 4: z from "the relative values of the
+    distribution functions of the χ² distributions for one and two degrees of
+    freedom", f₂/(f₁ + f₂) at x = aᵢ² + aᵢ₋₁² — taken from scipy, not from the
+    closed form the function uses."""
+    from scipy.stats import chi2
+    f1, f2 = chi2.pdf(x, 1), chi2.pdf(x, 2)
+    return f2 / (f1 + f2)
+
+
+def test_berar_lelann_hand_computed_case():
+    """Eqs (10)-(12) by hand on five residuals (#674).
+
+    a = (1, 2, 3, −1, −2): z₂ = z(1 + 4), z₃ = z(4 + 9), z₄ = 0 (sign change),
+    z₅ = z(1 + 4).  Runs of z > 0 are {2, 3} and {5}; a one-point run adds
+    nothing, so S'' − S = 2·z₂·z₃·a₂·a₃ and S = 19.  The run-sum this replaced
+    gave √(45/19) = 1.5390 here."""
+    z2, z3 = _z_from_chi2_densities(5.0), _z_from_chi2_densities(13.0)
+    assert z2 == pytest.approx(np.sqrt(10 * np.pi) / (2 + np.sqrt(10 * np.pi)), rel=1e-12)
+    expected = np.sqrt((19.0 + 2.0 * z2 * z3 * 2.0 * 3.0) / 19.0)
+    assert expected == pytest.approx(1.1752188815774838, rel=1e-14)
+    d = np.array([1.0, 2.0, 3.0, -1.0, -2.0])
+    assert berar_lelann_factor(d) == pytest.approx(expected, rel=1e-14)
+    # the factor reads the residuals' sign pattern, not their direction
+    assert berar_lelann_factor(-d) == pytest.approx(expected, rel=1e-14)
+
+
 def test_berar_lelann_runs_inflate():
-    # long same-sign runs → coherent sums ≫ incoherent → factor > 1
+    # three ten-point same-sign stretches of |a| = 1: every pair has x = 2, so
+    # nine points per stretch carry z = z(2), and S'' − S = 3·[(9z)² − 9z²]
     d = np.concatenate([np.ones(10), -np.ones(10), np.ones(10)])
-    # each run: (Σd)² = 100 vs Σd² = 10 → factor √10
-    assert berar_lelann_factor(d) == pytest.approx(np.sqrt(10.0))
+    z = _z_from_chi2_densities(2.0)
+    assert berar_lelann_factor(d) == pytest.approx(np.sqrt((30.0 + 3 * 72 * z * z) / 30.0), rel=1e-12)
 
 
 def test_berar_lelann_white_noise_expectation():
-    # even white noise has chance runs: E[χ²']/χ² = 1 + 4/π → factor ≈ 1.508
-    # (the documented conservatism of the raw published estimator)
+    """iid N(0, 1) residuals do not give 1: eqs (10)-(12) expect
+    E[S'']/E[S] = 1.269409 as N → ∞ (by quadrature over the run structure,
+    independent of the implementation), a factor of 1.12668.  Two hundred
+    draws of N = 200 000 average 1.12674 with a spread of 0.0014, so ± 0.006
+    is a 4σ bar.  The run-sum this replaced sits at 1.508, far outside it."""
     rng = np.random.default_rng(0)
-    d = rng.standard_normal(5000)
-    assert berar_lelann_factor(d) == pytest.approx(np.sqrt(1.0 + 4.0 / np.pi), abs=0.06)
+    d = rng.standard_normal(200_000)
+    assert berar_lelann_factor(d) == pytest.approx(np.sqrt(1.2694088892), abs=0.006)
 
 
 def test_esd_inflation_in_result(synthetic_pattern):
@@ -53,8 +84,9 @@ def test_esd_inflation_in_result(synthetic_pattern):
     result = ref.fit(synthetic_pattern)
     assert result.statistics.esd_inflation is not None
     assert result.statistics.esd_inflation >= 1.0
-    # near-perfect synthetic fit → residuals ≈ white → near the 1.51 floor
-    assert result.statistics.esd_inflation < 1.7
+    # near-perfect synthetic fit → residuals ≈ white → near the white-noise
+    # expectation of ≈ 1.13, not above it
+    assert result.statistics.esd_inflation < 1.3
 
 
 # ----------------------------------------------------------------------

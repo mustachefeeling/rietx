@@ -1698,7 +1698,7 @@ def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,
 
     Cov = χ²_red · (JᵀJ)⁻¹ with χ²_red = Σr²/(N−P); esd_i = √Cov_ii, then
     multiplied by the Bérar-Lelann serial-correlation factor (Bérar & Lelann,
-    1991, J. Appl. Cryst. 24, 1 — see ``statistics.berar_lelann_factor``).  The
+    1991, J. Appl. Cryst. 24, 1, § IV — see ``statistics.berar_lelann_factor``).  The
     returned esds therefore carry the inflation; the correlation matrix does
     **not** — it is the true Pearson matrix (unit diagonal) normalised by the
     *raw* sqrt-diagonal, so a genuinely degenerate pair reports |ρ| ≈ 1 and the

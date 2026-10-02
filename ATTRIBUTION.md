@@ -123,7 +123,8 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
   tabulated anomalous-scattering factors (the high-energy limit the bundled table uses).
 - McCusker et al. (1999). *J. Appl. Cryst.* 32, 36–50 — Rietveld refinement guidelines.
 - Toby, B. H. (2006). *Powder Diffraction* 21, 67–70 — agreement indices.
-- Bérar & Lelann (1991). *J. Appl. Cryst.* 24, 1–5 — serial-correlation esd correction.
+- Bérar & Lelann (1991). *J. Appl. Cryst.* 24, 1–5 — serial-correlation esd correction: the § IV
+  homogeneous correction, eqs (10)–(12), implemented from the paper (`berar_lelann_factor`).
 - Hill & Howard (1987). *J. Appl. Cryst.* 20, 467–474 — QPA scale-factor relation.
 - Le Bail, Duroy & Fourquet (1988). *Mater. Res. Bull.* 23, 447–452 — Le Bail intensity extraction.
 - Coelho, A. A. (2005). *J. Appl. Cryst.* 38, 455–461; (2018) 51, 210–218 & 428–435 —
@@ -142,8 +143,8 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
 - Ryan et al. (1988). *Nucl. Instrum. Meth.* B34, 396 — SNIP background clipping.
 - David, W. I. F. (2004). *J. Res. NIST* 109 — cumulative-χ² diagnostics.
 - Hill & Flack (1987). *J. Appl. Cryst.* 20, 356–361 — Durbin-Watson statistic in Rietveld refinement.
-- Andreev, Y. G. (1994). *J. Appl. Cryst.* 27, 288–297 — noted as the refinement of the
-  Bérar-Lelann estimator's white-noise bias (paywalled; concept referenced, formula not reproduced).
+- Andreev, Y. G. (1994). *J. Appl. Cryst.* 27, 288–297 — restates the Bérar-Lelann correction
+  (eqs 1–3, with the 2π of their Fortran) and minimises it as a figure of merit; cited for the 2π.
 - Hamilton, W. C. (1965). *Acta Cryst.* 18, 502–510 — R-factor ratio significance test.
 - Schwarz, G. (1978). *Ann. Stat.* 6, 461–464 — Bayesian information criterion.
 - Wilson, A. J. C. (1963). *Mathematical Theory of X-ray Powder Diffractometry*;

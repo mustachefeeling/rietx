@@ -137,13 +137,13 @@ cell axis the space group already ties, a coordinate behind its site-symmetry
 direction, and a `lebail`/`pawley` mode-fixed path are refused by name rather
 than silently ignored.
 
-## Step 13 — why the inflation is an upper bound, and why the trio travels
+## Step 13 — why the inflation is not a measurement, and why the trio travels
 
-The Bérar-Lelann factor has an expected value of ≈1.51 even for perfectly white
-residuals. That is a house derivation rather than the paper's: chance same-sign
-runs give E[χ²′]/χ² = 1 + 4/π (`optimize.statistics.berar_lelann_factor`,
-simulation-verified). So it is an upper bound on the damage, not a measurement
-of it.
+The Bérar-Lelann factor has an expected value of ≈1.13 even for perfectly white
+residuals: chance same-sign neighbours give E[S″]/E[S] = 1.269 under the
+paper's eqs (10)-(12) (`optimize.statistics.berar_lelann_factor`; quadrature,
+checked by simulation). It is one scalar applied to every esd, so it says how
+correlated the residual is, not how wrong any one parameter's esd is.
 
 `report.identifiability` quotes the qualifying trio side by side — raw χ²_red,
 the inflation (already in every quoted esd, dividable back out), Durbin-Watson —
