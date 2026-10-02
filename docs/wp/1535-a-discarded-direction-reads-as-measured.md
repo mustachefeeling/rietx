@@ -169,13 +169,13 @@ conditional.
   three acceptance files (29 tests): 64 of 237 guard calls carry the finding,
   and on cpd-1a it names `lor_size`, `lor_strain`, `gauss_size`, `gauss_strain`
   and the profile W/X/Y. One-site Fe, scale and `occ` free: λ 3.1e-16 against a
-  cut of 2.0e-15, scale 1.84e-4 ± 4.5e-6, occ 1.039 ± 0.0127. Counts: the full
-  selection before the review fixes was 8185 passed, 170 skipped
-  (23:37, alone). Fast selection after them and after merging origin/main:
-  see the next line. The 8 added tests cost 0.01 s together in the fast tier.
-  Not run: the full selection after the review fixes (they touch guard
-  conditions and one code's retake only; the three acceptance files above and
-  the fast selection ran on them).
+  cut of 2.0e-15, scale 1.84e-4 ± 4.5e-6, occ 1.039 ± 0.0127. Counts: fast
+  selection after the review fixes, before merging main, 7929 passed, 159
+  skipped (2:30); the 8 added tests cost 0.01 s together there. Full selection
+  on the tree merged with origin/main (six commits in), 8186 passed, 170
+  skipped, 18:13, alone. The earlier full run, before the review fixes, was
+  8185 passed, 170 skipped (23:37): +1 is the review's added test. I did not run
+  a baseline on main.
 
   *Review* (`/code-review high --fix`, 8 findings). Fixed: the code was not in
   `_REVISABLE_CODES`, so it printed once per stage (a test added). I fixed four
