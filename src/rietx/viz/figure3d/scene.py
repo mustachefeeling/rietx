@@ -123,15 +123,19 @@ def atom_transform(geometry: Mapping, atom: Mapping, mode: str,
     return [[r, 0.0, 0.0], [0.0, r, 0.0], [0.0, 0.0, r]]
 
 
-def stick_radius(geometry: Mapping, mode: str, exaggeration: float = 1.0) -> float:
-    """``stickRadius``: half a bond's thickness, in Å, for the mode drawn."""
+def stick_radius(geometry: Mapping, mode: str, exaggeration: float = 1.0,
+                 stick: float = 1.0) -> float:
+    """``stickRadius``: half a bond's thickness, in Å, for the mode drawn.
+
+    ``stick`` multiplies the mode's own rule, and the floor stays a hairline.
+    """
     if mode != "ellipsoid":
-        return STICK_RADIUS
+        return STICK_RADIUS * stick
     semi = [v for atom in geometry["atoms"] for v in atom["rms"] if v > 0]
     if not semi:
-        return STICK_RADIUS
+        return STICK_RADIUS * stick
     smallest = min(semi) * geometry["scale"] * exaggeration
-    return max(STICK_FLOOR, min(STICK_RADIUS, STICK_OF_SEMI_AXIS * smallest))
+    return max(STICK_FLOOR, min(STICK_RADIUS * stick, STICK_OF_SEMI_AXIS * stick * smallest))
 
 
 def invert3(m: Sequence[float]) -> list[float] | None:
@@ -269,11 +273,12 @@ def drawn_with(geometry: Mapping, polyhedra: Iterable[int]):
 def build_scene(geometry: Mapping, mode: str = "ball", *,
                 hidden: Iterable[str] = (), show_boundary: bool = True,
                 exaggeration: float = 1.0, polyhedra: Sequence[int] = (),
-                cell: str = CELL_INK) -> dict:
+                cell: str = CELL_INK, stick: float = 1.0) -> dict:
     """``buildScene``: everything the renderer draws, in Å.
 
     ``hidden`` is the species switched off, and a bond half belongs to its
-    atom.  ``polyhedra`` is the indices drawn (:func:`shown_polyhedra`); a
+    atom.  ``stick`` multiplies every half's radius (:func:`stick_radius`).
+    ``polyhedra`` is the indices drawn (:func:`shown_polyhedra`); a
     drawn polyhedron takes away its centre's sticks to its own vertices,
     brings the atoms only it needs, and hides its site's centres outside the
     cell with their sticks (:func:`drawn_with`).  ``center`` and ``radius`` are the fit the
@@ -303,7 +308,7 @@ def build_scene(geometry: Mapping, mode: str = "ball", *,
             "color": rgb(dim(site["color"]) if atom["boundary"] else site["color"]),
             "rings": mode == "ellipsoid" and bool(site["aniso"]),
         })
-    radius = stick_radius(geometry, mode, exaggeration)
+    radius = stick_radius(geometry, mode, exaggeration, stick)
     halves = []
     for index, bond in enumerate(geometry["bonds"]):
         if index in replaced or not drawn.bond(index):

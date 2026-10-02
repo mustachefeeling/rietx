@@ -297,7 +297,9 @@ branch tree is the merged tree):
 
   Kept items: name-the-test (est 4, 3 requests), re-measure-unbounded (4, 2),
   tests (1, 0), manual-equation (12, 6), skill (6, 7). The row went into
-  `process.md`.
+  `process.md`. A re-run at the end of the handover, on `main`'s
+  `subagent_dirs`, read saved +7.43 (+23%): the in-session model moves as the
+  session grows, so the row keeps the step-3b figure.
 - The `baseline` replay in this container covers **one** session, this one,
   not the record's 174. Its selective row reads "0 items laned, +0%", which
   is not comparable to the record, so WP-1903 has to re-run it on the

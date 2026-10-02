@@ -21,6 +21,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 from . import raster, views
 
@@ -29,6 +30,9 @@ ID_SIZE = 256
 #: An atom is hidden when more than this share of the samples it would cover
 #: have something in front of them.
 HIDDEN_SHARE = 0.8
+#: A hidden atom is stacked behind its own site when an atom of that site lies
+#: in front within this share of its projected radius (WP-1533).
+STACKED_REACH = 0.25
 #: ``view="auto"`` tries every primitive direction [u, v, w] whose indices are at
 #: most this many in magnitude, and the opening view.
 SEARCH_INDEX = 2
@@ -45,18 +49,43 @@ class FigureReport:
     outside it) that are covered over more than 80 % by an atom or bond in
     front, at a long side of 256 px, and ``hidden_atoms`` their indices into the
     geometry's ``atoms``.  An atom under one sample at that size is left out of
-    both.  ``dangling_bonds`` counts bond halves whose far atom is not drawn,
-    the stubs ``hidden=`` leaves included.  ``label_overlaps`` counts
-    pairs of drawn letters whose boxes intersect.  ``empty`` is the share of
-    the picture's pixels with nothing drawn, read off the image.  ``cut`` is
-    what :func:`~rietx.viz.keep` dropped from a kept atom, and ``note`` the
-    geometry's own note, which says where ``build`` trimmed to the atom cap.
-    ``warnings`` are sentences.
+    both.  ``stacked`` is the part of ``hidden`` that sits behind an atom of
+    its own site, within a quarter of its projected radius: a projection down
+    a symmetry or lattice direction stacks a site's copies by construction, and
+    the one in front draws what the one behind holds.  ``hidden - stacked`` is
+    what the view occludes.  Down a cell axis HKUST-1 reads 0.53 hidden and
+    0.53 stacked, ZSM-5 0.52 and 0.50, YBa₂Cu₃O₇ 1.00 and 1.00 (WP-1533).
+    ``dangling_bonds`` counts bond halves whose far atom is not drawn:
+    the stubs ``hidden=`` leaves, and the bonds a trimmed cell leaves ending
+    on an atom the geometry does not hold.  ``label_overlaps`` counts pairs
+    of drawn strings whose boxes intersect, a box being the string's width and
+    the font's height.  ``label_atom_overlaps`` counts (string, atom) pairs
+    whose shapes meet, an atom being the ellipse it projects to and a site
+    label never counting its own atom.  ``label_bond_overlaps`` counts
+    (string, bond) pairs, a bond being its drawn halves as segments widened by
+    the stick radius.  All three count a, b and c too.  Each site label takes
+    the first of eight places around its atom that this test finds clear of
+    atoms, bonds and the strings placed before it, so a count left above zero
+    is a site label with no clear place, or a, b or c, which stay where they
+    are.  ``empty`` is the share of the picture's pixels with nothing drawn,
+    read off the image.
+
+    ``cut`` counts what the figure lost before it was drawn.  ``atoms`` is the
+    cell's images ``build``'s atom cap left out, ``neighbours`` the bonded
+    neighbours outside the cell it left out, and ``segments`` the bond
+    segments past its bond cap.  ``bonds`` and ``polyhedra`` are what
+    :func:`~rietx.viz.keep` dropped from a kept atom, running over successive
+    cuts, and ``polyhedra`` adds those the atom cap left out.  ``note`` is the
+    geometry's own note, the same losses in words.  ``warnings`` are
+    sentences, and one says so when either cap trimmed the cell.
     """
     hidden: float
     hidden_atoms: list[int]
+    stacked: float
     dangling_bonds: int
     label_overlaps: int
+    label_atom_overlaps: int
+    label_bond_overlaps: int
     empty: float
     cut: dict[str, int]
     note: str
@@ -133,6 +162,38 @@ def look(p: Probe, R, compiled_path: bool | None = None) -> Look:
                 hidden_atoms=[int(k) for k in plane.index[covered]],
                 empty=float((plane.ids < 0).mean()),
                 unjudged=int((~p.boundary & (plane.seen == 0)).sum()))
+
+
+def stacked(scene: dict, geometry: Mapping, R, look: Look) -> float:
+    """The share of the judged atoms hidden behind an atom of their own site
+    at their own place in the picture (:data:`STACKED_REACH`).
+
+    A site is the asymmetric-unit atom, ``sites[k]["index"]``, so a copy made
+    by a rotation counts as well as one made by a translation: in one cell of
+    HKUST-1 down a, 24 of the 328 hidden atoms are behind a translate of
+    themselves and all 328 behind an atom of their own site.
+    """
+    if not look.hidden_atoms:
+        return 0.0
+    R = np.asarray(R, dtype=np.float64)
+    drawn = np.array([a["index"] for a in scene["atoms"]], dtype=np.int64)
+    view = np.array([a["pos"] for a in scene["atoms"]], dtype=np.float64).reshape(-1, 3) @ R.T
+    shape = np.array([a["shape"] for a in scene["atoms"]], dtype=np.float64).reshape(-1, 3, 3)
+    reach = np.linalg.norm(np.einsum("ij,njk->nik", R[:2], shape), axis=2).max(axis=1)
+    sites, atoms = geometry["sites"], geometry["atoms"]
+    site = np.array([sites[atoms[k]["site"]]["index"] for k in drawn], dtype=np.int64)
+    at = {int(k): n for n, k in enumerate(drawn)}
+    rows = np.array([at[k] for k in look.hidden_atoms], dtype=np.int64)
+    # the tree finds the candidates within reach (≤); the strict test then
+    # decides, so the count is the one an all-pairs scan gives
+    found = cKDTree(view[:, :2]).query_ball_point(view[rows, :2], STACKED_REACH * reach[rows])
+    count = 0
+    for n, near in zip(rows, found):
+        near = np.asarray(near, dtype=np.int64)
+        near = near[(np.hypot(view[near, 0] - view[n, 0], view[near, 1] - view[n, 1])
+                     < STACKED_REACH * reach[n])]
+        count += bool(((view[near, 2] > view[n, 2]) & (site[near] == site[n])).any())
+    return look.hidden * count / len(look.hidden_atoms)
 
 
 def directions(limit: int = SEARCH_INDEX) -> list[list[int]]:

@@ -530,6 +530,20 @@ def test_a_cell_larger_than_the_viewer_draws_says_so(nac):
     payload = s3.build(nac, max_atoms=20)
     assert len(payload["atoms"]) == 20
     assert "trimmed to 20" in payload["note"]
+    # and counts it, beside the words, for a reader that never parses note (#665)
+    whole = s3.build(nac)
+    assert whole["cut"] == {"atoms": 0, "neighbours": 0, "segments": 0, "polyhedra": 0}
+    assert payload["cut"]["atoms"] == whole["n_cell"] - 20
+    assert payload["cut"]["polyhedra"] == len(payload["polyhedra_dropped"])
+
+
+def test_bond_segments_past_the_cap_are_counted(lab6, monkeypatch):
+    full = len(s3.build(lab6)["bonds"])
+    monkeypatch.setattr(s3, "MAX_BONDS", 10)
+    payload = s3.build(lab6)
+    assert len(payload["bonds"]) == 10
+    assert payload["cut"]["segments"] == full - 10
+    assert f"{full} bond segments trimmed to 10" in payload["note"]
 
 
 def test_every_bond_ends_on_an_atom_that_is_drawn(lab6):
@@ -1263,6 +1277,8 @@ def test_a_polyhedron_is_never_cut_off(nac):
     # and each is listed by centre and ligands, for the legend (WP-1468)
     assert len(small["polyhedra_dropped"]) == full - len(small["polyhedra"])
     assert payload["polyhedra_dropped"] == []
+    assert small["cut"]["polyhedra"] == full - len(small["polyhedra"])
+    assert payload["cut"]["polyhedra"] == 0
     drawn = {(p["site"], p["coordination"]) for p in payload["polyhedra"]}
     for p in small["polyhedra_dropped"]:
         assert (p["site"], len(p["ligands"])) in drawn

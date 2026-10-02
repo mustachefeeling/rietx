@@ -25,8 +25,8 @@ from rietx.crystallography.cif import structure_from_cif
 from rietx.gui import structure3d as s3
 from rietx.model import compiled
 from rietx.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
-from rietx.viz import keep, recolour, render_structure, select
-from rietx.viz.figure3d import raster, views
+from rietx.viz import component, keep, recolour, render_structure, select
+from rietx.viz.figure3d import glyphs, raster, render, views
 from rietx.viz.figure3d import report as rp
 from rietx.viz.figure3d import scene as sc
 from rietx.viz.figure3d.render import _png
@@ -112,6 +112,10 @@ def _cases(payloads: dict[str, dict]) -> tuple[list, list]:
              "polyhedra": sc.shown_polyhedra(geo, True, hidden=species[:1],
                                              show_boundary=False)},
         ]
+        # a thinner stick (WP-1533), on the payloads that draw one: without
+        # bonds the case is the atoms again
+        if geo["bonds"]:
+            options.append({"mode": "ellipsoid", "stick": 0.5})
         # rutile draws every polyhedron by default, and a repeated case is
         # 40 kB that tests nothing new
         options = [o for k, o in enumerate(options) if o not in options[:k]]
@@ -120,7 +124,8 @@ def _cases(payloads: dict[str, dict]) -> tuple[list, list]:
                 geo, opt["mode"], hidden=opt.get("hidden", ()),
                 show_boundary=opt.get("showBoundary", True),
                 exaggeration=opt.get("exaggeration", 1.0),
-                polyhedra=opt.get("polyhedra", ()), cell=opt.get("cell", sc.CELL_INK))
+                polyhedra=opt.get("polyhedra", ()), cell=opt.get("cell", sc.CELL_INK),
+                stick=opt.get("stick", 1.0))
             scenes.append({"payload": name, "options": opt, "scene": scene})
         toggles = [{"on": True}, {"on": False},
                    {"on": True, "hidden": species[:1]},
@@ -254,6 +259,9 @@ def test_the_corpus_reaches_every_rule_it_exists_for():
     assert {"mono_one_flat", "mono_two_flat"} <= floored
     assert any(s["faces"] for s in scenes)
     assert any(a["rings"] for s in scenes for a in s["atoms"])
+    # a stick scaled off its default, on a scene that draws one (WP-1533)
+    assert any(case["options"].get("stick", 1.0) != 1.0 and case["scene"]["halves"]
+               for case in corpus["scenes"])
     shown = [c["shown"] for c in corpus["shown"] if c["on"]]
     whole = [len(corpus["payloads"][c["payload"]]["polyhedra"]) for c in corpus["shown"]
              if c["on"]]
@@ -523,6 +531,29 @@ def test_the_anchors_say_where_each_atom_and_letter_landed(nac):
     assert all(0 <= t["x"] < w and 0 <= t["y"] < h for t in fig.letters)
 
 
+def test_to_px_is_the_map_that_placed_the_atoms(nac):
+    """WP-1533: four of twelve promo scripts fitted this map by least squares
+    from ``atoms``.  It is the one the renderer used, on a view down no axis of
+    a monoclinic cell, with the frame left out so the fit moves."""
+    geometry = s3.build(_monoclinic())
+    fig = render_structure(geometry, view=[1, 2, 3], turn="20y", size=300, cell=False)
+    pos = np.array([geometry["atoms"][a["index"]]["pos"] for a in fig.atoms])
+    drawn = np.array([[a["x"], a["y"]] for a in fig.atoms])
+    assert len(drawn) > 1 and fig.to_px(pos).shape == drawn.shape
+    np.testing.assert_allclose(fig.to_px(pos), drawn, rtol=0, atol=1e-9)
+    np.testing.assert_allclose(fig.to_px(pos[0]), drawn[0], rtol=0, atol=1e-9)
+    with pytest.raises(ValueError, match=r"\(N, 3\)"):
+        fig.to_px(pos[:, :2])
+    # down c of a cubic cell with b up, a points right and b up the page
+    fig = render_structure(nac, view="c", size=200)
+    a, b, _ = np.asarray(s3.build(nac)["lattice"])
+    zero = fig.to_px(np.zeros(3))
+    np.testing.assert_allclose((fig.to_px(a) - zero) / fig.pixels_per_angstrom,
+                               [np.linalg.norm(a), 0.0], atol=1e-9)
+    np.testing.assert_allclose((fig.to_px(b) - zero) / fig.pixels_per_angstrom,
+                               [0.0, -np.linalg.norm(b)], atol=1e-9)
+
+
 def test_the_options_reach_the_picture(nac):
     base = render_structure(nac, size=200)
     no_na = render_structure(nac, size=200, hidden=["Na"]).atoms
@@ -720,18 +751,175 @@ def test_a_recoloured_image_is_still_a_centre_of_its_site():
         assert "P" not in bare
 
 
-def test_labels_that_share_a_place_overlap():
+def test_labels_that_share_a_place_overlap(monkeypatch):
+    """Two atoms one behind the other: their labels would share a place, and
+    the second takes another (#666).  Held to the first place, the rule
+    before, they overlap, and each sits on the other's atom."""
     geometry = _stack()
     down = render_structure(geometry, view="c", size=400, atom_labels=True)
     across = render_structure(geometry, view="a", size=400, atom_labels=True)
-    assert down.report.label_overlaps >= 1
+    assert down.report.label_overlaps == 0
     assert across.report.label_overlaps == 0
     assert render_structure(geometry, view="c", size=400).report.label_overlaps == 0
+    monkeypatch.setattr(render, "LABEL_ANCHORS", render.LABEL_ANCHORS[:1])
+    held = render_structure(geometry, view="c", size=400, atom_labels=True)
+    assert (held.report.label_overlaps, held.report.label_atom_overlaps) == (1, 2)
+
+
+# ----------------------------------------------------------------------
+# site labels clear of atoms and bonds (#666, WP-1531)
+# ----------------------------------------------------------------------
+
+@functools.cache
+def _paracetamol() -> dict:
+    """One whole paracetamol molecule (COD 2104364), cut from a block of cells
+    as issue #666 cut it, without the cell edges.  Built once a process and
+    shared, so a caller reads it and never edits."""
+    block = s3.build(structure_from_cif(str(DATA / "cod_2104364.cif"), aniso=True),
+                     extent=((-1, 2), (-1, 2), (-1, 2)), max_atoms=4000)
+    pos = np.array([a["pos"] for a in block["atoms"]])
+    nitrogen = [i for i, a in enumerate(block["atoms"])
+                if block["sites"][a["site"]]["element"] == "N"]
+    middle = min(nitrogen, key=lambda i: float(np.linalg.norm(pos[i] - pos.mean(axis=0))))
+    return {**keep(block, component(block, middle)), "edges": []}
+
+
+def _label_counts(fig) -> tuple[int, int, int]:
+    r = fig.report
+    return r.label_overlaps, r.label_atom_overlaps, r.label_bond_overlaps
+
+
+#: (label_overlaps, label_atom_overlaps, label_bond_overlaps) on the molecule
+#: at 800 px.  The rule before #666 put every label up and to the right of its
+#: atom, and measured (1, 2, 15) in ball mode and (0, 3, 14) in ellipsoid mode.
+#: The bond left in ellipsoid mode is C9's: four bonds leave it, and every
+#: place around it meets one.
+PARACETAMOL_LABELS = {"ball": (0, 0, 0), "ellipsoid": (0, 0, 1)}
+
+
+@pytest.mark.parametrize("mode", ["ball", "ellipsoid"])
+def test_site_labels_are_placed_clear_of_atoms_and_bonds(mode):
+    molecule = _paracetamol()
+    fig = render_structure(molecule, mode=mode, atom_labels=True, axis_labels=False, size=800)
+    _save(fig, f"labels_paracetamol_{mode}")
+    assert len(fig.atoms) == 20
+    assert _label_counts(fig) == PARACETAMOL_LABELS[mode]
+    again = render_structure(molecule, **json.loads(json.dumps(fig.recipe)))
+    assert np.array_equal(again.image, fig.image) and again.report == fig.report
+
+
+@pytest.mark.parametrize("mode", ["ball", "ellipsoid"])
+def test_the_counts_see_the_old_placement_land_on_bonds(mode, monkeypatch):
+    """Held to the first place, the rule before #666, the labels land where
+    the issue saw them: O8 on H92, H7 on N7, and across bonds."""
+    monkeypatch.setattr(render, "LABEL_ANCHORS", render.LABEL_ANCHORS[:1])
+    fig = render_structure(_paracetamol(), mode=mode, atom_labels=True, axis_labels=False,
+                           size=800)
+    _save(fig, f"labels_paracetamol_{mode}_one_place")
+    assert _label_counts(fig) == {"ball": (1, 2, 15), "ellipsoid": (0, 3, 14)}[mode]
+
+
+def test_a_label_with_no_clear_place_is_counted_on_what_it_meets():
+    """The far atom of two, drawn at four times the near one's radius: every
+    place around the near atom lies on it.  The near label keeps the first
+    place and is counted once; the far one's first place is clear."""
+    geometry = _stack()
+    far = next(k for k, s in enumerate(geometry["sites"]) if s["label"] == "C2")
+    sites = [dict(s, radius=4 * s["radius"]) if k == far else s
+             for k, s in enumerate(geometry["sites"])]
+    fig = render_structure({**geometry, "sites": sites}, view="c", size=400,
+                           axis_labels=False, atom_labels=True)
+    _save(fig, "labels_no_clear_place")
+    assert _label_counts(fig) == (0, 1, 0)
+
+
+@pytest.mark.parametrize("anchor", range(len(render.LABEL_ANCHORS)))
+def test_a_label_in_any_place_is_inside_the_frame(anchor, monkeypatch):
+    """The frame is fitted before the labels are placed, so it holds a label
+    in whichever place it takes.  The frame's padding is taken away, or it
+    would hide a bound that falls short.  A one-letter label is narrower than
+    it is tall, which is the case the label's width alone does not bound."""
+    placed = []
+
+    def spy(*args, **kw):
+        out = labels(*args, **kw)
+        placed.extend(out)
+        return out
+
+    labels = render._labels
+    monkeypatch.setattr(render, "_labels", spy)
+    monkeypatch.setattr(render, "LABEL_ANCHORS", render.LABEL_ANCHORS[anchor:anchor + 1])
+    monkeypatch.setattr(render, "FIT_PAD", 0.0)
+    molecule = _paracetamol()
+    letters = {**molecule, "sites": [dict(s, label=s["element"]) for s in molecule["sites"]]}
+    for geometry in (molecule, letters):
+        placed.clear()
+        fig = render_structure(geometry, atom_labels=True, axis_labels=False, size=300)
+        height, width = fig.image.shape[:2]
+        em = render.LETTER_EM_CSS * 300 / render.CANVAS_CSS_PX
+        assert len(placed) == 20
+        for text, x, y, _, half, *_ in placed:
+            w = glyphs.width(text, em)
+            assert 0.0 <= x - w / 2 and x + w / 2 <= width, text
+            assert 0.0 <= y - half and y + half <= height, text
+
+
+def test_the_label_shape_tests_agree_with_sampling():
+    """The label tests are exact, and a grid of points in a box can only miss
+    a sliver.  So a box a grid point of which lies in a shape meets it, and a
+    box that meets a shape has a grid point in it once grown by 2 px.  The
+    ellipses are no flatter than 4 to 20, so a sliver is wider than the
+    grid's 0.5 px."""
+    rng = np.random.default_rng(666)
+    n = 30
+    a, b, phi = rng.uniform(4, 20, n), rng.uniform(4, 20, n), rng.uniform(0, np.pi, n)
+    c, s = np.cos(phi), np.sin(phi)
+    shapes = {"cx": rng.uniform(0, 120, n), "cy": rng.uniform(0, 120, n),
+              "sxx": (a * c) ** 2 + (b * s) ** 2, "syy": (a * s) ** 2 + (b * c) ** 2,
+              "sxy": (a * a - b * b) * c * s,
+              "px": rng.uniform(0, 120, n), "py": rng.uniform(0, 120, n),
+              "r": rng.uniform(1.5, 6, n)}
+    length = np.where(np.arange(n) % 10 == 0, 0.0, rng.uniform(5, 60, n))  # some are dots
+    turn = rng.uniform(0, 2 * np.pi, n)
+    shapes["qx"] = shapes["px"] + length * np.cos(turn)
+    shapes["qy"] = shapes["py"] + length * np.sin(turn)
+    x0, y0 = rng.uniform(0, 120, 60), rng.uniform(0, 120, 60)
+    boxes = np.stack([x0, x0 + rng.uniform(2, 40, 60), y0, y0 + rng.uniform(2, 20, 60)], axis=1)
+    # three boxes each holding a whole ellipse, which no edge of theirs meets
+    held = [[shapes["cx"][k] - 25, shapes["cx"][k] + 25, shapes["cy"][k] - 25,
+             shapes["cy"][k] + 25] for k in range(3)]
+    boxes = np.concatenate([boxes, held])
+    every = np.arange(n)
+    exact = {"atoms": render._on_atoms(boxes, shapes, every),
+             "halves": render._on_halves(boxes, shapes, every)}
+
+    def sampled(box, grow):
+        # no wider apart than 0.5 px, and never past the box's edges
+        xs = np.linspace(box[0] - grow, box[1] + grow, int((box[1] - box[0] + 2 * grow) * 2) + 2)
+        ys = np.linspace(box[2] - grow, box[3] + grow, int((box[3] - box[2] + 2 * grow) * 2) + 2)
+        gx, gy = (g.ravel()[:, None] for g in np.meshgrid(xs, ys))
+        ux, uy = gx - shapes["cx"], gy - shapes["cy"]
+        det = shapes["sxx"] * shapes["syy"] - shapes["sxy"] ** 2
+        form = shapes["syy"] * ux * ux - 2 * shapes["sxy"] * ux * uy + shapes["sxx"] * uy * uy
+        dx, dy = shapes["qx"] - shapes["px"], shapes["qy"] - shapes["py"]
+        along = (gx - shapes["px"]) * dx + (gy - shapes["py"]) * dy
+        t = np.clip(np.divide(along, dx * dx + dy * dy, out=np.zeros_like(along),
+                              where=(dx * dx + dy * dy) > 0), 0.0, 1.0)
+        gap = np.hypot(shapes["px"] + t * dx - gx, shapes["py"] + t * dy - gy)
+        return {"atoms": (form <= det).any(axis=0), "halves": (gap <= shapes["r"]).any(axis=0)}
+
+    for i, box in enumerate(boxes):
+        inner, outer = sampled(box, 0.0), sampled(box, 2.0)
+        for kind in ("atoms", "halves"):
+            assert not (inner[kind] & ~exact[kind][i]).any(), (kind, i)
+            assert not (exact[kind][i] & ~outer[kind]).any(), (kind, i)
+    for kind in ("atoms", "halves"):
+        assert 20 < exact[kind].sum() < exact[kind].size - 20, kind
 
 
 def test_keep_says_what_it_cut_and_the_report_repeats_it(nac):
     geometry = s3.build(nac)
-    assert render_structure(geometry, size=200).report.cut == {"polyhedra": 0, "bonds": 0}
+    assert render_structure(geometry, size=200).report.cut == {"atoms": 0, "neighbours": 0, "segments": 0, "polyhedra": 0, "bonds": 0}
     from rietx.viz import keep, select
     species = geometry["sites"][0]["species"]
     some = keep(geometry, select(geometry, species=species))
@@ -744,6 +932,81 @@ def test_keep_says_what_it_cut_and_the_report_repeats_it(nac):
     both = render_structure(twice, size=200).report.cut
     assert both["bonds"] >= first["bonds"] and both["polyhedra"] >= first["polyhedra"]
     assert render_structure(twice, size=200).report.note == twice.get("note", "")
+
+
+# ----------------------------------------------------------------------
+# a cell past the atom cap (#665)
+# ----------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def hkust():
+    """HKUST-1, Fm-3m at a = 26.27 Å: 648 atoms in the cell with its face
+    copies, past the viewer's 400."""
+    return structure_from_cif(str(DATA / "cod_4002052.cif"))
+
+
+def test_a_trimmed_cell_is_counted_in_the_report(hkust):
+    """``build``'s one cell trims to its cap, and the report counts what that
+    cost.  It read ``cut {'polyhedra': 0, 'bonds': 0}``, ``dangling_bonds 0``
+    and no warning over a picture of broken linkers; only ``note`` said it."""
+    geometry = s3.build(hkust)
+    assert geometry["n_cell"] == s3.MAX_ATOMS
+    assert geometry["cut"] == {"atoms": 248, "neighbours": 96, "segments": 0, "polyhedra": 0}
+    fig = render_structure(geometry, size=400)
+    _save(fig, "cap_hkust1_trimmed")
+    assert fig.report.cut["atoms"] == 248
+    # the 96 neighbours outside the cell the cap left no room for: each bond
+    # to one is drawn whole and ends on nothing
+    assert fig.report.dangling_bonds == 96
+    assert any("atom cap" in w and "248" in w and "max_atoms" in w
+               for w in fig.report.warnings)
+    # keep carries the cap's count through a cut of its own
+    inside = keep(geometry, select(geometry, boundary=False))
+    assert inside["cut"]["atoms"] == 248 and inside["cut"]["bonds"] > 0
+    assert render_structure(inside, size=200).report.cut["atoms"] == 248
+
+
+def test_polyhedra_the_cap_turned_away_are_a_warning(nac):
+    """NAC's 90 atoms fit under 175, and some of its polyhedra's ligands do not."""
+    small = s3.build(nac, max_atoms=175)
+    assert small["cut"]["atoms"] == 0 and small["polyhedra_dropped"]
+    warnings = render_structure(small, size=200).report.warnings
+    n = len(small["polyhedra_dropped"])
+    assert any(f"{n} coordination polyhedra" in w and "max_atoms" in w for w in warnings)
+
+
+def test_a_cell_past_the_cap_raises_and_names_its_count(hkust):
+    """From a structure the cell is drawn whole or not at all, the rule
+    ``build(extent=...)`` keeps for a block."""
+    with pytest.raises(ValueError, match="648 atoms.*max_atoms=400.*max_atoms=648"):
+        render_structure(hkust, size=100)
+    with pytest.raises(ValueError, match="max_atoms=647"):
+        render_structure(hkust, size=100, max_atoms=647)
+
+
+def test_a_cell_drawn_whole_has_no_stubs_and_replays(hkust):
+    fig = render_structure(hkust, size=400, max_atoms=648)
+    _save(fig, "cap_hkust1_whole")
+    assert fig.report.cut == {"atoms": 0, "neighbours": 0, "segments": 0, "polyhedra": 0, "bonds": 0}
+    assert fig.report.dangling_bonds == 0 and fig.report.warnings == []
+    # the cap bounds the cell's own atoms; its bonded neighbours are drawn past it
+    assert len(fig.atoms) > 648
+    assert sum(not a["boundary"] for a in fig.atoms) == sum(
+        s["multiplicity"] for s in s3.build(hkust, max_atoms=648)["sites"])
+    assert fig.recipe["max_atoms"] == 648
+    again = render_structure(hkust, **json.loads(json.dumps(fig.recipe)))
+    assert np.array_equal(again.image, fig.image)
+
+
+@pytest.mark.parametrize("value", [0, -5, 2.5, True, "648"])
+def test_max_atoms_is_a_positive_whole_number(nac, value):
+    with pytest.raises(ValueError, match="max_atoms"):
+        render_structure(nac, size=100, max_atoms=value)
+
+
+def test_max_atoms_is_refused_with_a_dict(nac):
+    with pytest.raises(ValueError, match="max_atoms"):
+        render_structure(s3.build(nac), size=100, max_atoms=1000)
 
 
 def test_a_flat_ellipsoid_is_a_warning():
@@ -796,7 +1059,8 @@ def test_auto_never_hides_more_than_the_opening_view(row):
     {}, {"view": "auto"}, {"view": [1, 1, 0], "up": [0, 0, 1], "turn": "20x,-10y"},
     {"view": {"hkl": (1, 0, 0)}, "size": (300, 200), "background": (0.9, 0.9, 0.5)},
     {"mode": "ellipsoid", "hidden": "Na", "polyhedra": False, "supersample": 1},
-    {"atom_labels": True, "outline": True, "background": None, "exaggeration": 1.5}])
+    {"atom_labels": True, "outline": True, "background": None, "exaggeration": 1.5},
+    {"stick": 0.5, "outline": True}])
 def test_the_recipe_draws_the_same_picture_through_json(nac, kw):
     geometry = s3.build(nac)
     kw = dict(kw)
@@ -853,3 +1117,105 @@ def test_hidden_may_be_a_generator_and_the_recipe_keeps_it(nac):
 def test_auto_names_a_bad_up_or_turn_as_the_plain_view_does(nac, kw, words):
     with pytest.raises(ValueError, match=words):
         render_structure(nac, view="auto", size=200, **kw)
+
+
+# ----------------------------------------------------------------------
+# the frame has a switch (WP-1533)
+# ----------------------------------------------------------------------
+
+def test_a_figure_without_its_frame_is_fitted_to_the_atoms(hkust):
+    """Trial 1 of the promo take cut a 22 Å sphere from HKUST-1's 26 Å cell,
+    and it drew at about a third of the frame until the script cleared
+    ``edges`` by hand."""
+    from rietx.viz import sphere
+
+    g = s3.build(hkust, max_atoms=1000)
+    middle = np.asarray(g["lattice"], dtype=np.float64).sum(axis=0) / 2
+    ball = keep(g, sphere(g, middle.tolist(), 11.0))
+    framed = render_structure(ball, size=400)
+    bare = render_structure(ball, size=400, cell=False)
+    _save(framed, "cell_hkust1_sphere_framed")
+    _save(bare, "cell_hkust1_sphere_bare")
+    accent = np.asarray(sc.rgb(TOKENS["light"]["--accent"])) * 255
+
+    def ink(img):
+        return (np.abs(img[..., :3].astype(float) - accent).max(-1) < 10).sum()
+
+    assert ink(framed.image) > 200 and ink(bare.image) == 0
+    assert bare.letters == [] and framed.letters
+    # 8.5 against 16.4 px/Å, measured: the sphere fills the frame without its cell
+    assert bare.pixels_per_angstrom > 1.8 * framed.pixels_per_angstrom
+    assert bare.report.empty < framed.report.empty
+    assert bare.recipe["cell"] is False
+    again = render_structure(ball, **bare.recipe)
+    assert np.array_equal(again.image, bare.image)
+
+
+# ----------------------------------------------------------------------
+# the stick has a width argument (WP-1533)
+# ----------------------------------------------------------------------
+
+def test_stick_one_is_the_default_bit_for_bit():
+    molecule = _paracetamol()
+    for mode in ("ball", "ellipsoid"):
+        plain = render_structure(molecule, mode=mode, size=300, axis_labels=False)
+        ones = render_structure(molecule, mode=mode, size=300, axis_labels=False, stick=1.0)
+        assert np.array_equal(ones.image, plain.image)
+        assert plain.recipe["stick"] == 1.0
+
+
+def test_a_thinner_stick_halves_the_radius_and_replays():
+    """At 100 K paracetamol's 50 % ellipsoids are small, and the promo take
+    set ``scene.STICK_OF_SEMI_AXIS = 0.25`` by hand to thin the sticks, which
+    a recipe could not carry.  ``stick=0.5`` is that setting."""
+    molecule = _paracetamol()
+    # 0.0723 Å against 0.0361 Å, measured: half the smallest drawn semi-axis
+    # (0.1445 Å), and then half of that
+    assert sc.stick_radius(molecule, "ellipsoid") == pytest.approx(0.07227, abs=1e-5)
+    assert sc.stick_radius(molecule, "ellipsoid", stick=0.5) == (
+        0.5 * sc.stick_radius(molecule, "ellipsoid"))
+    assert sc.stick_radius(molecule, "ball", stick=0.5) == 0.5 * sc.STICK_RADIUS
+    thick = render_structure(molecule, mode="ellipsoid", size=600, axis_labels=False)
+    thin = render_structure(molecule, mode="ellipsoid", size=600, axis_labels=False,
+                            stick=0.5)
+    _save(thick, "stick_paracetamol_ellipsoid_1")
+    _save(thin, "stick_paracetamol_ellipsoid_0.5")
+    # the atoms and the frame are the same, so every pixel lost is a stick's
+    assert thin.pixels_per_angstrom == thick.pixels_per_angstrom
+    assert thin.atoms == thick.atoms
+
+    def inked(img):
+        return int((img[..., :3] != 255).any(-1).sum())
+
+    assert inked(thin.image) < inked(thick.image)
+    assert thin.recipe["stick"] == 0.5
+    again = render_structure(molecule, **json.loads(json.dumps(thin.recipe)))
+    assert np.array_equal(again.image, thin.image) and again.report == thin.report
+
+
+@pytest.mark.parametrize("value", [0, -0.5, float("nan"), float("inf"), True, "0.5"])
+def test_stick_is_a_positive_finite_number(value):
+    with pytest.raises(ValueError, match="stick"):
+        render_structure(_paracetamol(), size=100, stick=value)
+
+
+# ----------------------------------------------------------------------
+# an axis view stacks a site behind itself, and the report says so (WP-1533)
+# ----------------------------------------------------------------------
+
+def test_an_axis_view_stacks_rather_than_hides(hkust, nac):
+    """The skill's rule sent an agent asked for an axis view to ``auto``,
+    because ``hidden`` counts an atom behind a copy of its own site.  Down a
+    cell axis that is the projection, and the copy in front draws it."""
+    ybco = structure_from_cif(str(DATA / "cod_9007744.cif"))
+    down_b = render_structure(ybco, view="b", size=400)
+    assert down_b.report.hidden == down_b.report.stacked == 1.0
+    down_a = render_structure(hkust, view="a", size=400, max_atoms=1000)
+    _save(down_a, "stacked_hkust1_down_a")
+    assert down_a.report.hidden > 0.5
+    assert down_a.report.stacked == pytest.approx(down_a.report.hidden)
+    # an oblique view of NAC hides atoms behind other sites: occlusion, not stacking
+    opening = render_structure(nac, size=400)
+    assert 0.0 <= opening.report.stacked < opening.report.hidden
+    for fig in (down_b, down_a, opening):
+        assert 0.0 <= fig.report.stacked <= fig.report.hidden

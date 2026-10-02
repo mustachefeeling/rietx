@@ -389,13 +389,18 @@ export const STICK_FLOOR = 0.02;
  * `r ≤ ½·min semi-axis` lies inside the ellipsoid's inscribed sphere, hence
  * inside the ellipsoid in every direction. It never *grows* past
  * `STICK_RADIUS`, because a fat stick is a fat stick whatever it is buried in.
+ *
+ * `stick` multiplies the mode's rule, and the floor stays a hairline (WP-1533).
+ * At `stick ≤ 1` both promises above hold; a larger one may poke through.
  */
-export function stickRadius(geometry: Geometry, mode: Mode, exaggeration = 1): number {
-  if (mode !== "ellipsoid") return STICK_RADIUS;
+export function stickRadius(geometry: Geometry, mode: Mode, exaggeration = 1,
+                            stick = 1): number {
+  if (mode !== "ellipsoid") return STICK_RADIUS * stick;
   const semi = geometry.atoms.flatMap((atom) => atom.rms).filter((v) => v > 0);
-  if (!semi.length) return STICK_RADIUS;
+  if (!semi.length) return STICK_RADIUS * stick;
   const smallest = Math.min(...semi) * geometry.scale * exaggeration;
-  return Math.max(STICK_FLOOR, Math.min(STICK_RADIUS, STICK_OF_SEMI_AXIS * smallest));
+  return Math.max(STICK_FLOOR,
+                  Math.min(STICK_RADIUS * stick, STICK_OF_SEMI_AXIS * stick * smallest));
 }
 
 /**
@@ -514,6 +519,8 @@ export interface SceneOptions {
   hidden?: ReadonlySet<string>;
   showBoundary?: boolean;
   exaggeration?: number;
+  /** a multiple of the mode's stick radius (`stickRadius`), 1 by default */
+  stick?: number;
   /** the cell frame's colour, `#rrggbb` */
   cell?: string;
   /** the polyhedra drawn, indices into `geometry.polyhedra` (`shownPolyhedra`) */
@@ -650,7 +657,7 @@ export interface Drawn {
  */
 export function buildScene(geometry: Geometry, options: SceneOptions): Scene {
   const { mode, hidden = new Set<string>(), showBoundary = true,
-          exaggeration = 1, cell = "#1f5fa8", polyhedra = [] } = options;
+          exaggeration = 1, stick = 1, cell = "#1f5fa8", polyhedra = [] } = options;
   // a drawn polyhedron replaces its centre's sticks to its own vertices (P6)
   const replaced = new Set(polyhedra.flatMap((i) => geometry.polyhedra[i].bonds));
   // and brings the atoms only a polyhedron needs, which come with no other
@@ -673,7 +680,7 @@ export function buildScene(geometry: Geometry, options: SceneOptions): Scene {
       rings: mode === "ellipsoid" && site.aniso,
     });
   });
-  const radius = stickRadius(geometry, mode, exaggeration);
+  const radius = stickRadius(geometry, mode, exaggeration, stick);
   const halves: SceneHalf[] = [];
   geometry.bonds.forEach((bond, index) => {
     if (replaced.has(index) || !drawn.bond(index)) return;

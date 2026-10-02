@@ -265,3 +265,60 @@ def test_a_two_by_two_by_one_block_of_nac_is_drawn(nac):
     g = s3.build(nac, extent=((0, 2), (0, 2), (0, 1)), max_atoms=BIG)
     _save(render_structure(g, size=600), "extent_nac_2x2x1")
     assert len(g["polyhedra"]) > 34
+
+
+# ----------------------------------------------------------------------
+# a polyhedron lists its own bonds (issue #664)
+# ----------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def rp3():
+    """(BA)₂(MA)₂Pb₃I₁₀, the n = 3 Ruddlesden–Popper lead iodide (COD 4003235).
+    Its I1 at y = 0.0605 of b = 51.959 Å sits 3.1435195 Å from the face."""
+    return structure_from_cif(str(DATA / "cod_4003235.cif"))
+
+
+def _unlisted(g: dict) -> list[dict]:
+    """The polyhedra that leave a bond from their centre to their own vertex
+    off ``bonds``.  The renderer draws such a bond as a stick through the
+    faces.  Bonds are matched by position.  In the one cell a bond's ``j`` is
+    an image of its far end and not the atom drawn there, so matching by index
+    finds nothing."""
+    keys = [_key(a["pos"]) for a in g["atoms"]]
+    at: dict[frozenset, set[int]] = {}
+    for k, b in enumerate(g["bonds"]):
+        at.setdefault(frozenset((_key(b["a"]), _key(b["b"]))), set()).add(k)
+    return [p for p in g["polyhedra"]
+            if set().union(*(at.get(frozenset((keys[p["center"]], keys[v])), set())
+                             for v in p["vertices"])) - set(p["bonds"])]
+
+
+def _each_image_once(g: dict) -> bool:
+    return len({(a["image"][0], *a["image"][1]) for a in g["atoms"]}) == len(g["atoms"])
+
+
+@pytest.mark.parametrize("extent, n_polyhedra", [
+    (None, 17), (((0, 2), (0, 1), (0, 2)), 62), (((-3, 4), (-1, 2), (-3, 4)), 1911)],
+    ids=["one cell", "2x1x2", "7x3x7"])
+def test_every_polyhedron_lists_its_own_bonds(rp3, extent, n_polyhedra):
+    """Before the fix, 3 of the cell's 17 PbI₆ left a bond off, 12 of the
+    2×1×2 block's 62 and 245 of the 7×3×7 block's 1911.  The cell also drew a
+    second I at each of those 3 corners.  The I lay on a half step of the
+    1e-6 Å position key.  There the bond's far end and the polyhedron's vertex
+    rounded apart."""
+    g = s3.build(rp3, extent=extent, max_atoms=BIG)
+    assert len(g["polyhedra"]) == n_polyhedra
+    assert _unlisted(g) == []
+    assert _each_image_once(g)
+
+
+@pytest.mark.parametrize("name", ["LaB6", "NAC"])
+@pytest.mark.parametrize("extent", [None, ((0, 2),) * 3], ids=["one cell", "2x2x2"])
+def test_every_polyhedron_lists_its_own_bonds_in_other_cells(name, extent):
+    """LaB6's B at 0.5 × 4.157597 = 2.0787985 Å is on the same half step.
+    Before the fix 4 of the cell's 8 polyhedra and 12 of the 2×2×2 block's 27
+    left a bond off.  NAC was clean and guards that it stays so."""
+    g = s3.build(_row(name), extent=extent, max_atoms=BIG)
+    assert g["polyhedra"]
+    assert _unlisted(g) == []
+    assert _each_image_once(g)
