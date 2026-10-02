@@ -173,6 +173,20 @@ cannot see a wrong cell or a low background), and both are still true.*
       in pass k > 1 loses the best pass and leaves the state at pass k-1.
       (d) `_last_plan` and the history header record the one-pass copy, so
       `summary()` hides the cap.
+- [ ] **Open questions from the 2026-10-02 prose review of `judging.md`**, each
+      needing a domain check before the text is touched, and none caused by
+      this WP. (1) The same four-phase 25-50° fixture gives Fe Biso −165 Å² at
+      one place and −150 Å² at another. (2) The same ramp gives "42 of 68" in
+      one section and "40 of 68" in another. (3) The size coefficient is
+      "proportional to λ" here, and root CLAUDE.md says the Gaussian one goes
+      as λ². (4) The tie rule says "within its own esd", but its example
+      (0.2763(1810), 0.5279(1911)) is inside the combined σ and outside either
+      esd. (5) 5 750 channels are counted as observations, where root CLAUDE.md
+      counts reflections. (6) "5 %" for 11.6-12.0 s → 12.1-12.2 s is 1-5 %.
+      (7) One ADP "on its bound" beside "nothing else distinguishes" the two
+      fits: would `BOUND_HIT` fire? (8) "Symmetry outranks" is followed by a
+      list that includes a mode-fixed path. (9) `SKILL.md` §2 says "third-party
+      lab data" and the new tag cites 11-BM synchrotron data.
 
 ## Acceptance
 

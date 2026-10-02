@@ -1,8 +1,7 @@
 # 4/4b. The evidence behind the judging rules
 
 Load it when a rule in §4 (judging a fit) or §4b (declaring the deliverable)
-needs its measurement — before overriding one, and before quoting a number whose
-trustworthiness the rule decides.
+needs its measurement: before you override one, or quote a number it governs.
 
 *A reference file of the `rietx` skill. The body it belongs to is
 [`SKILL.md`](../SKILL.md); section numbers are the ones the body cites.*
@@ -18,10 +17,7 @@ with the number at 70.1, Fe's Biso at −165 Å² along a scale·exp(−2Bs²) r
 and 4.02e-05 once that Biso was bounded (issue #204). So a large value on a
 converged stage is the signature of an unbounded or degenerate direction: look
 for a parameter without the range its field declares, or for a
-`HIGH_CORRELATION` pair. Where a stage stopped on `STAGE_MAX_ITER`, its
-magnitude says *how far* the solve was still moving in esd units, which
-separates "nearly there" (just over the band) from a fit that stopped
-mid-flight — measured ≈14 on one starved iteration.
+`HIGH_CORRELATION` pair. After `STAGE_MAX_ITER` it says *how far* the solve was still moving, in esds: just over the band is nearly there, and one stage stopped mid-flight read ≈14.
 
 ## Step 9 — `status` is the optimiser's exit; `usable` reads both channels
 
@@ -50,9 +46,7 @@ was visible at 7σ).
 
 ## Step 12 — the geometry table's esds
 
-`stderr` is propagated through the *whole* covariance, which McCusker §10
-requires of any derived quantity, and `stderr_diagonal` beside it is what
-ignoring the correlations would have given. Quote the first; use the pair when
+`stderr` is propagated through the *whole* covariance, as McCusker §10 requires of any derived quantity. `stderr_diagonal` beside it ignores the correlations. Quote the first; use the pair when
 you need to say how much the correlations mattered (measured on 11-BM NAC,
 dropping them moves an esd by ×0.71 to ×1.15, in *both* directions, so a
 diagonal esd is not the conservative choice).
@@ -69,24 +63,11 @@ against the `_space_group_symop_operation_xyz` loop it writes beside them.
 
 ## §2 rules 4-5 — the two Le Bail measurements
 
-**Alternate under a cap, and keep the best pass.** On PbSO4 pass 1 stops at
-Rwp 20.756 % with an unphysical Caglioti **V = +0.0615**; passes 2-4 reach
-10.247 % with the curve sane. `plan.lebail_passes` runs them and stops at the
-first pass that does not lower Rwp; `LEBAIL_ALTERNATION_STOPPED` says why
-(`non_monotone` or a cap hit is no fixed point). Not a descent: Tb2BaCoO5 went
-17.3 % → 18.7 %. *(Measured: 11-BM LaB6+cBN, `profile_only`.)* Cells exact:
-16.821, 16.907, pass 1 kept. +0.3 %: fixed point at 16.967. +2 %: 230, 207, 175,
-195, pass 3 kept. **A poor start wanders; a good one converges.**
+**Alternate under a cap, and keep the best pass.** On PbSO4 pass 1 ends at Rwp 20.756 % with an unphysical Caglioti **V = +0.0615**; passes 2-4 reach 10.247 % with the curve sane. On Tb2BaCoO5 a later pass rose, 17.3 % → 18.7 %. `plan.lebail_passes` stops at the first pass that does not lower Rwp and keeps the best. `LEBAIL_ALTERNATION_STOPPED` names the stop; `non_monotone` or a cap hit is no fixed point. Rwp % per pass (Measured: 11-BM LaB6+cBN, `profile_only`): exact cells 16.821, 16.907, pass 1 kept; 0.3 % off, a fixed point at 16.967; 2 % off, 230, 207, 175, 195, pass 3 kept.
 
-**A known structure is no Le Bail job:** calibrate with one staged Rietveld pass
-(#210: 43.8 s against ~40 min).
+**A known structure is no Le Bail job.** One staged Rietveld calibration took 43.8 s against ~40 min of Le Bail (#210).
 
-**Seed the background first.** `auto_background` chooses the knot spacing or the
-Chebyshev *order* but starts every coefficient at **0.0**, so the modelled
-background is identically zero and the first `lebail_update` runs *before* the
-background has ever been fitted. The partition is then handed
-`max(y_obs − 0, 0)` — the whole pedestal — and gives it to the Bragg
-reflections. Measured on a synthetic pattern whose background is 5× its
+**Seed the background first.** `auto_background` chooses the knot spacing or the Chebyshev *order* but starts every coefficient at **0.0**, so the first `lebail_update` runs *before* the background is fitted. It partitions `max(y_obs − 0, 0)` (the whole pedestal) and gives it to the Bragg reflections. Measured on a synthetic pattern whose background is 5× its
 strongest peak: cycle one claims **571×** the true Bragg intensity.
 
 **The cell is the weaker half.** Peterson (2005, *Powder Diffr.* **20**, 14)
@@ -99,29 +80,18 @@ reflection density rather than low symmetry alone.
 **Measured at the other end of that variable**, one range and one instrument
 treatment, three modes: 11-BM LaB₆, 2-40°, 55 reflections, mean FWHM 0.0097°,
 **0.014 reflections per FWHM**. Rietveld a = 4.1568414(52) Å, Le Bail
-4.1568425(51), Pawley 4.1568431(51) — a spread of 0.4 ppm, a third of one esd,
-with the esds equal to 2 %. Count reflections per FWHM: crowded, check the cell against a
-structural model; resolved, do not spend the fit.
+4.1568425(51), Pawley 4.1568431(51). They spread 0.4 ppm, a third of one esd, and the esds agree within 2 %. Le Bail also won on Rwp there (0.0861 against 0.0879), so a better Rwp does not show the cell is wrong or right. Where reflections crowd, check the cell against a structural model; where resolved, skip it.
 
-**Multi-phase Le Bail** was broken until v1.0 and is now supported: the shares
-sum to 1 across all phases at every channel (measured Σ calculated / Σ observed
-excess **1.79 → 1.0000** on LaB₆ + CaF₂, single-phase path bit-identical). One
-caveat survives the fix and is about the method: the intensities of two phases
-whose reflections *coincide* are not separately determined by the data, since
-the partition splits them by the current model, which is a starting value and
-not a measurement. Treat a high multi-phase Le Bail Rwp as a reason to check the
+**Multi-phase Le Bail** works since v1.0. The shares sum to 1 across all phases at every channel (measured Σ calculated / Σ observed excess **1.79 → 1.0000** on LaB₆ + CaF₂, single-phase path bit-identical). One caveat is the method's own. The data do not split the intensity of two phases whose reflections *coincide*, so the partition splits it by the current model, a starting value. Treat a high multi-phase Le Bail Rwp as a reason to check the
 seeding above.
 
 ## §3 rule 8 — what tying three oxygens actually bought
 
-A constraint *removes* a parameter, unlike a restraint, which adds a weighted
-observation and leaves the count alone, so it is the one move that raises the
-observation-to-parameter ratio. The two cases worth reaching for are
+A constraint *removes* a parameter and so raises the observation-to-parameter ratio. A restraint adds a weighted observation and leaves the count alone. The two cases worth reaching for are
 McCusker's: equal displacement parameters across atoms in the same
 environment, and occupancies summing to a known total.
 
-**Check the premise before you tie, and not with Rwp.** The check is in the
-free refinement: if each free value lies within its own esd of the others, the
+**Check the premise in the free refinement, not with Rwp.** If each free value lies within its own esd of the others, the
 data does not contradict the claim that they are one parameter. Where they
 disagree by more than their esds, the atoms are saying they are *not* in the
 same environment, and tying them replaces a measurement with an assumption.
@@ -129,35 +99,29 @@ same environment, and tying them replaces a measurement with an assumption.
 Fluorapatite's three phosphate oxygens, tied as one displacement parameter: 20 →
 18 free parameters, 287.5 → 319.4 observations per parameter, and B(O)
 0.2763(1810) / 0.5279(1911) / 0.4149(1282) Å² free against 0.4138(899) Å² tied —
-tighter than the best of the three. Rwp moved by 0.05 % of itself, which is why
-it can tell you neither that the constraint helped nor that it hurt.
+tighter than the best of the three. Rwp moved by 0.05 % of itself, so it cannot say whether the constraint helped or hurt.
 
 Every tie is recorded as a `set_tie` history node and restored by a checkout, so
-a constrained protocol replays as one. Symmetry always outranks a user tie: a
+a constrained protocol replays as one. Symmetry outranks a user tie: a
 cell axis the space group already ties, a coordinate behind its site-symmetry
 direction, and a `lebail`/`pawley` mode-fixed path are refused by name rather
 than silently ignored.
 
 ## Step 13 — why the inflation is not a measurement, and why the trio travels
 
-The Bérar-Lelann factor has an expected value of ≈1.13 even for perfectly white
-residuals: chance same-sign neighbours give E[S″]/E[S] = 1.269 under the
+The Bérar-Lelann factor has an expected value of √1.269 ≈ 1.13 even for white residuals: chance same-sign neighbours give E[S″]/E[S] = 1.269 under the
 paper's eqs (10)-(12) (`optimize.statistics.berar_lelann_factor`; quadrature,
 checked by simulation). It is one scalar applied to every esd, so it says how
 correlated the residual is, not how wrong any one parameter's esd is.
 
-`report.identifiability` quotes the qualifying trio side by side — raw χ²_red,
-the inflation (already in every quoted esd, dividable back out), Durbin-Watson —
-plus the δR line (`delta_r_slope` / `delta_r_intercept`: sorted Δ/σ against
+`report.identifiability` quotes raw χ²_red, the inflation (already in every quoted esd, dividable back out) and Durbin-Watson side by side, plus the δR line (`delta_r_slope` / `delta_r_intercept`: sorted Δ/σ against
 normal quantiles; slope ≈ 1 and intercept ≈ 0 on honest σ, slope > 1 when σ is
 underestimated).
 
 The round robins measured why the ingredients matter: the same data refined
 under different protocols spread by up to ×17–25 of the quoted esds on cell
 dimensions (Hill, 1992; Hill & Cranswick, 1994, *J. Appl. Cryst.* **27**, 802),
-whose explanation is §3's first degeneracy row — the cell compensating 2θ-scale
-errors. Durbin-Watson is in the trio because serial correlation is precisely
-what makes the raw esds untrustworthy, and d stays discriminating where Rwp and
+explained by §3's first degeneracy row (the cell compensating 2θ-scale errors). Durbin-Watson is in the trio because serial correlation makes the raw esds untrustworthy, and its d stays discriminating where Rwp and
 GoF do not (Hill & Flack, 1987, *J. Appl. Cryst.* **20**, 356).
 
 ## Step 14 — the exchange row, the swap, and the ridge
@@ -168,13 +132,9 @@ that a fitted partner stands many σ from its null. An E2-shaped answer reads
 "converged, but the fitted zero_shift is exchangeable with the held
 sample_displacement — **this fit** cannot tell you which is physical". Measured,
 the fit carrying a planted displacement inside a compensating zero and its clean
-reference differ in *nothing* but this row: χ²_red 1.012 against 1.010, R²
-identical to six decimals, and only the partner's 128σ against 1.6σ separates
-them.
+reference differ only in this row: χ²_red 1.012 against 1.010, R² identical to six decimals, the partner at 128σ against 1.6σ.
 
-**Why R² cannot decide it.** R² is a *geometric* statement about column overlap
-and cannot say whether the counts in hand separate the pair. On real SRM 660c an
-R² of 0.9977 pair comes apart decisively: χ² 4.0752 (zero only) against 3.4890
+**Why R² cannot decide it.** R² measures column overlap alone, not whether the counts separate the pair. On real SRM 660c a pair at R² 0.9977 comes apart decisively: χ² 4.0752 (zero only) against 3.4890
 (displacement only) on 5332 points, with the zero-only model biasing *a* by
 +100 ppm.
 
@@ -183,7 +143,7 @@ is 1.10, read on the losing rival's χ² over the winning rival's. On the round-
 eval's solvable control (rivals decisive at 1.1679, the SRM 660c pair above) the
 agents that ran the swap recovered the true displacement and still declined or
 hedged the answer: the control went 0/7 valid. Below the band the pair is
-genuinely unresolved — the two real tie states measure 1.0075 and 1.0001.
+unresolved: the two real tie states measure 1.0075 and 1.0001.
 
 **Why the clause is on the statistics block as well as in the summary.**
 Measured consumers pipe the answer to a file and grep the statistics back, and
@@ -201,7 +161,7 @@ it. The swap runs each rival **alone**; the ridge runs them **together**.
 
 A sharp LaB₆ fit and one under 0.6° of broadening both report Rwp **0.0137**,
 and background-subtracted they read 0.0490 and 0.0766. Raw Rwp is flattered by
-whatever the background carries — 89 % of the observed intensity in both — so
+whatever the background carries (89 % of the observed intensity in both), so
 the number that separates two fits is the subtracted one. The literature says
 the same twice: Toby (2006, Fig. 1) shows identical model discrepancies reading
 Rwp 23 % with no background and 3.5 % with one, and Hill's 1992 round robin
@@ -212,11 +172,7 @@ included.
 
 ## Step 17 — a trace phase's R_B
 
-Neither index is weighted, so a reflection the fit barely constrains weighs as
-much as one that dominates it — the weighted R_WI of Cox & Papoular (1996,
-*Mater. Sci. Forum* **228–231**, 233) exists to answer exactly this and is not
-computed here — and a minor phase's windows sit under the major phase's peaks,
-where the counts the major phase failed to describe are handed out too. Measured
+Neither index is weighted, so a reflection the fit barely constrains weighs as much as one that dominates it. The weighted R_WI of Cox & Papoular (1996, *Mater. Sci. Forum* **228–231**, 233) answers this and is not computed here. A minor phase's windows also sit under the major phase's peaks and get the counts the major phase failed to describe. Measured
 on 11-BM NAC with 1.35 wt % CaF₂: 0.052 for the major phase against 0.385 for
 the impurity, all of the latter in four reflections at I(obs)/I(calc) ≈ 2.2,
 each under a strong NAC peak. Read it beside `qpa.phases[].weight_fraction`, and
@@ -224,9 +180,7 @@ treat a trace phase's value as a question rather than a measurement.
 
 `write_refinement_cif` writes them as `_refine_ls_R_I_factor` and
 `_refine_ls_R_factor_all` on each phase's own block, beside a
-`_pd_proc_ls_special_details` that states the esd method in full — the base
-estimator √diag(χ²_red·(JᵀJ)⁻¹), then the Bérar-Lelann factor it was multiplied
-by, which §10 of the guidelines requires any publication to state.
+`_pd_proc_ls_special_details` that states the esd method in full, as McCusker §10 requires: the base estimator √diag(χ²_red·(JᵀJ)⁻¹), then the Bérar-Lelann factor it was multiplied by.
 
 ## §4 — adding a parameter: the t-ratio before ΔBIC
 
@@ -280,7 +234,7 @@ one unit of raw-N ΔBIC per added parameter.
 
 Adopting another code's protocol means mirroring its refined-parameter set, its
 held parameters and its excluded regions, then checking that the channel count
-matches before believing any Rwp comparison. Reading its numbers is not enough.
+matches before believing any Rwp comparison.
 Measured on the GSAS-II fluorapatite tutorial: guessing a plausible protocol
 gave Rwp 16 % and a +390 ppm cell, while mirroring the converged `.EXP` gave
 9.73 % against GSAS's 10.05 % on an identical 5750 channels.
@@ -291,10 +245,7 @@ gave Rwp 16 % and a +390 ppm cell, while mirroring the converged `.EXP` gave
 phase set does not produce — an unmodelled phase's signature, distinct from
 resolution-limited noise. `report.lebail_gap` is the structural-against-profile
 triage: it re-partitions the per-hkl intensities at the frozen converged state
-and reports both Rwp. A `ratio` ≫ 1 means positions and profile alone account
-for the pattern, so every line is indexed and phase identification is safe
-**at any absolute Rwp** — the structural model does not have to fit well for
-the phase list to be right.
+and reports both Rwp. A `ratio` ≫ 1 means positions and profile alone account for the pattern, so every line is indexed and phase identification is safe **at any absolute Rwp**.
 
 `unmatched_calc` asks the same question from the other side and only answers it
 in Rietveld mode. Le Bail and Pawley extraction takes each intensity from
@@ -302,8 +253,7 @@ in Rietveld mode. Le Bail and Pawley extraction takes each intensity from
 nothing and most of the residual the detector looks for goes with it. What
 survives is a noise excursion near a tick. Measured on a synthetic LaB₆ pattern
 (WP-1024): 17 of the certified cell's own 28 reflections
-and 94 of a doubled cell's 153, 61 % either way, so it does not separate them at
-all. The count that does is `LeBailValidation.predicted_but_absent`, which
+and 94 of a doubled cell's 153, 61 % either way, so it does not separate them. The count that does is `LeBailValidation.predicted_but_absent`, which
 integrates net intensity above the fitted background over each predicted
 position. The blind direction is the one de Wolff's M₂₀ has, and it is why
 Oishi-Tomiyasu (2013, *J. Appl. Cryst.* **46**, 1277) reversed the figure.
@@ -312,8 +262,7 @@ The clip at zero is rietx's, and it changes what a bad background looks like.
 Unrectified, the method returns **negative** intensities wherever the background
 is overestimated, which David & Sivia (2002, *Structure Determination from
 Powder Diffraction Data*, ch. 8) found and Le Bail's retrospection passes on.
-rietx partitions `max(y_obs − y_bkg, 0)`, so a background
-set too high hides in intensities pinned at nothing. A background driven too
+So a background set too high hides in intensities pinned at zero. A background driven too
 *low* is the documented pathology on the other side: `absent_reflections` found
 0 of 163 absences on a wrong candidate whose co-refined background had gone
 negative.
@@ -324,19 +273,17 @@ Fractions ride on scales, so the rows that decide a QPA are the ones that bias
 scales silently. `report.background.absorption`, keyed by parameter path, is
 the detector: the block projection R² of each structural parameter's Jacobian
 column onto the background column span sees §3's scale↔Biso↔background
-degeneracy that a pairwise ρ cannot. A negative Biso is that same error
+degeneracy. A negative Biso is that same error
 laundered through a scale. The Le Bail gap reads the *other* way here than for
 phase ID: a large ratio means the intensity model is wrong, and wrong
 intensities **are** wrong fractions.
 
 LaB₆, broad peaks, same data both times. Fitted with a 1°-knot unpenalized
 spline the refinement reports Rwp **0.08852** and GoF 1.022, against **0.08969**
-and 1.025 with a correct Chebyshev-6 — the wrong background wins on every
-agreement index — and its displacement parameters come back 0.958 and 0.000 Å²
+and 1.025 with a correct Chebyshev-6. The wrong background wins on every agreement index, and its displacement parameters come back 0.958 and 0.000 Å²
 against a truth of 0.5, one of them on its bound, where the correct background
 gives 0.691 and 0.327. `worst_absorption` reads 0.46 against 0.08, either side
-of the 0.25 at which `BACKGROUND_ABSORPTION` fires. **Nothing else in the report
-distinguishes these two fits, and the plot does not either**: the over-flexible
+of the 0.25 at which `BACKGROUND_ABSORPTION` fires. Nothing else in the report or the plot distinguishes the two fits: the over-flexible
 residual is white noise inside ±3σ.
 
 The **too-stiff** side has no guard of its own. On round-robin sample 2, a
@@ -347,10 +294,7 @@ default λ, which was measured in intensity units. λ is a pure number now, and
 the same λ means the same stiffness at any count level. A λ tuned by hand
 against an older version, such as λ ≈ 1/σ², does not carry over.
 
-The whole `report.background.absorption` table is published rather than only the
-entries over `BACKGROUND_ABSORPTION_NOTABLE`, because a fired/not-fired bit is a
-verdict and the diagnostic already carries the verdict. A pairwise ρ misses the
-effect entirely: ~0.2 per coefficient while the block absorbed 46 %.
+The table lists entries below `BACKGROUND_ABSORPTION_NOTABLE` too; the diagnostic carries the verdict. A pairwise ρ reads ~0.2 per coefficient while the block absorbed 46 %.
 
 ## §4b — the two QPA rules the round robins own
 
@@ -359,11 +303,8 @@ Appl. Cryst.* **35**, 383.
 
 - A Rietveld σ(W) reflects only the fit's mathematical precision and is "not
   necessarily related to the accuracy". Judge a fraction against the published
-  participant spread, never against its own esd. (This is the policy the
-  repository's `tests/data/README.md` applies to the bundled `qarr/` patterns,
-  which are the round robin's own samples.)
-- Microabsorption is the largest physical obstacle to X-ray QPA — "may prove to
-  be insurmountable in some circumstances" — and a Brindley correction applied
+  participant spread, never against its own esd.
+- Microabsorption is the largest physical obstacle to X-ray QPA and "may prove to be insurmountable in some circumstances". A Brindley correction applied
   where none is needed *reduces* accuracy (their sample 1 and synthetic bauxite;
   `BRINDLEY_OUTSIDE_REGIME`).
 
@@ -380,7 +321,7 @@ Reflections a little apart in d are not held, and their esd is honest but
 huge. On the same fixture, fluorite's error passed through the normalisation
 into every fraction as ± thousands of wt%. Read a QPA esd that large as a
 limit of the fitted range, not of the specimen, and widen the range before you
-quote. (Measured: same fixture.)
+quote.
 
 ## §4b — a trace phase's esd describes one basin
 
@@ -407,15 +348,12 @@ A lab Cu Kα in-situ pattern gave one phase at 1.41 ± 0.65 wt% with no
 diagnostic. Pinning its `lor_strain` on a grid and refitting everything else
 warm found three reproducible basins, at 0 %, ~1.5 % and 98.7 %, within 0.011 pp
 of Rwp, and the lowest Rwp belonged to 98.7 %. The pattern 100 °C lower spanned
-0.636 pp around one minimum, so the case is per pattern. Another program gave
-25.3 ± 0.5 wt% on the same data, so no cross-code reference exists and the scan
-is the evidence. No local statistic flagged it. On a real six-phase fit the
+0.636 pp around one minimum, so the case is per pattern. Another program gave 25.3 ± 0.5 wt%, in no basin, so the scan is the only evidence. No local statistic flagged it. On a real six-phase fit the
 offending phase's `background_absorption` read 0.183 against another phase's
 0.208, it was absent from `top_correlations`, and it was absent from the one
 scale-bearing soft mode.
 
-The check is a width profile, and `ref.profile_fraction(data, phase)` runs it.
-It pins each of the phase's free width terms (`lor_strain`, `lor_size`,
+`profile_fraction` runs a width profile. It pins each of the phase's free width terms (`lor_strain`, `lor_size`,
 `gauss_strain`, `gauss_size`; `axes=` to name one) at 12 FWHMs, 0 and then
 log-spaced to half the fitted range, refits the rest warm on a branch, and
 reads the fraction and the data's χ² at each:
@@ -444,33 +382,21 @@ profile admits 0.86 % to 77 % in two basins separated by a barrier the data sees
 (Δχ² 15 against a cut of 9.4), `excess` 74, and fires. Without the hump and with
 five times the CaF₂, one basin at 3.3-4.4 % and `excess` 0.61: silent. By hand
 the same scan is `ref.branch()`, `trial.set_vary([axis], False)`, then per value
-`set_values` and `run_stage(data, rx.Stage("width_pin", []))`, with χ² taken as
-`chi2 · (n_points − n_free_parameters)` because `statistics.chi2` is reduced.
+`set_values` and `run_stage(data, rx.Stage("width_pin", []))`, with χ² = `chi2 · (n_points − n_free_parameters)`.
 
-This is not the ZMV family. A wrong multiplicity or setting
-(`SITE_SNAPPED_TO_SPECIAL_POSITION`, `SPACE_GROUP_SETTING_ASSUMED`) is a fixed
-multiplicative offset on one phase at an unchanged Rwp, and a width profile
-cannot see it.
+A width profile cannot see the ZMV family. A wrong multiplicity or setting (`SITE_SNAPPED_TO_SPECIAL_POSITION`, `SPACE_GROUP_SETTING_ASSUMED`) is a fixed multiplicative offset on one phase at an unchanged Rwp.
 
 ## §4b — the worked example that stops at GoF 2.97
 
 LaB₆ pore proxy: a guest scatterer at the 1b site in the data only, host model
-refined to convergence. Rietveld Rwp 0.0405, GoF 2.97 — a "bad fit" by GoF. The
-report gives zero suggested actions; intensity carries 83 % of the misfit in
-per-region errors of 9–18 % with **alternating sign** ((100) low, (110) high,
-(111) low — structure-factor interference, which scale, ADP and texture cannot
-produce, and the summary names it as un-modelled scattering contents); and
-`lebail_gap.rwp_lebail` reads 0.0170 against 0.0405, a ratio of ×2.4.
+refined to convergence. Rietveld Rwp 0.0405, GoF 2.97 — a "bad fit" by GoF. The report suggests no action. Intensity carries 83 % of the misfit, in per-region errors of 9–18 % with **alternating sign**: (100) low, (110) high, (111) low. That is structure-factor interference, which scale, ADP and texture cannot produce; the summary names it un-modelled scattering contents. `lebail_gap.rwp_lebail` reads 0.0170 against 0.0405, a ratio of ×2.4.
 
 Read by deliverable: phase ID is **done** — stop, at GoF 2.97. A structure
-determination is **not**, and its next move is chemistry (what occupies the
-pores), never finer profile corrections, which this evidence says cannot help.
+determination is **not**, and its next move is chemistry (what occupies the pores). Finer profile corrections cannot help.
 
 ## §4b — why no bar moves for non-ideal data
 
-The gates auto-scale to information content. Measured: a zero error read at
-confidence 0.997 on sharp data produces silence, GoF 1.02, on the same error
-under 0.6° of broadening. Pushing finer corrections into a fit whose attribution
+The gates auto-scale to information content. Measured: a zero error named at confidence 0.997 on sharp data draws silence and GoF 1.02 under 0.6° of broadening. Pushing finer corrections into a fit whose attribution
 is resolution-limited changes numbers it cannot justify.
 
 ## §4b — the trajectory deliverable, and where its rows come from
@@ -481,10 +407,7 @@ own rows. `SEQUENTIAL_PATH_DEPENDENT` is an ordering artefact — only a
 `SEQUENTIAL_PERSISTENT_FINDING` states a persistent count no per-pattern code
 can, measured at **42 of 68** patterns on this ramp. `SEQUENTIAL_DISCONTINUITY`
 flags either the science or a chain failure, and `verify_discontinuities=True`
-tells them apart (below). `PHASE_UNCONSTRAINED` says the value is held, not
-measured, so its trajectory is the one you handed in — then the QPA
-deliverable's own background check, applied **at every point** along the
-chain: an absent phase took **40–96 wt %** at equal Rwp.
+tells them apart (below). `PHASE_UNCONSTRAINED` says the value is held, so its trajectory is the one you handed in. Apply the QPA background check **at every point** too: an absent phase took **40–96 wt %** at equal Rwp.
 
 The row exists because an agent needed it and wrote it itself. Given 68 patterns
 of a variable-temperature ramp, `rietx`, and "tell me what the cell does, and
@@ -502,27 +425,22 @@ Two are now the package's:
 
 - **The cold-refit check is `verify_discontinuities=True`.** Each flagged step's
   two patterns are refitted cold and independently, and the diagnostic's `value`
-  becomes the cold step over the chain's — 1.0 in the data, 0 the chain's own.
+  becomes the cold step over the chain's (1.0 a real step, 0 the chain's).
   Measured on that ramp, reproducing the run's own protocol: the chain takes
   11.6–12.0 s and the check adds 5 % (12.1–12.2 s) for four flagged steps over
   four patterns, and the real transition reproduces at **1.00**. The cost scales
   with the patterns flagged, not with the series length.
 - **The rows are `SeriesResult.summary(deliverable="series")`.** In the same
-  re-run, `PHASE_UNCONSTRAINED` fires on the impurity's cell in **40 of 68**
-  patterns and the trajectory of a *held* value is not a measurement — which is
-  exactly the "would not quote" list the agent arrived at by hand.
+  re-run, `PHASE_UNCONSTRAINED` fires on the impurity's cell in **40 of 68** patterns, the "would not quote" list the agent built by hand.
 
-The two the package cannot supply stay the caller's, and the row says so rather
-than leaving them blank: nothing in a pattern file records what pinned the 2θ
+The two the package cannot supply stay the caller's, and the row says so: nothing in a pattern file records what pinned the 2θ
 scale, and no esd can tell you it is a precision on the shape rather than an
 accuracy on the absolute.
 
 ## Microstructure: what a domain size is, and what it is not
 
 `result.microstructure` reads each of a phase's four sample-broadening
-coefficients as the quantity behind it — a **coherent domain size** in Å from
-the two 1/cosθ terms, a dimensionless Δd/d from the two tanθ terms — with an
-esd, or a named reason there is none (`MicrostructureTerm.unavailable`:
+coefficients as the quantity behind it (a **coherent domain size** in Å from the two 1/cosθ terms, a dimensionless Δd/d from the two tanθ terms), with an esd, or a named reason there is none (`MicrostructureTerm.unavailable`:
 `at_zero`, `no_wavelength`, `not_measured`).
 
 **A domain size is not a particle size.** `Phase.particle_radius_um` is a
@@ -543,8 +461,7 @@ apparent strain half of it before the breadth factor).
 **Read `separable` before either number.** Over a short 2θ range 1/cosθ and
 tanθ are one curve, so the fit trades a size against a strain at no cost in
 Rwp. `PhaseMicrostructure.separable` is the width trend's own verdict and
-`size_strain_collinearity` the correlation it was decided on. `False` is not a
-smaller number to quote — it is a wider range to collect. Refining one of the
+`size_strain_collinearity` the correlation it was decided on. `False` means collect a wider range. Refining one of the
 pair and holding the other is not a workaround: the answer then depends on
 which was held.
 
@@ -572,7 +489,5 @@ Microstructure check, plus the rows that speak to the intensity model
 directly: per-region intensity coefficients and their angular trends,
 `report.texture` and `report.strain` with their caveats, restraint tension,
 ADP positive-definiteness, and `report.identifiability.exchanges` with
-`.soft_modes` (step 14, above). Here a notable Le Bail gap is a **blocker**,
-not a comfort the way it can be for phase ID: the intensity model *is* the
-structural claim, and a large gap says that model does not carry the pattern,
+`.soft_modes` (step 14, above). Here a Le Bail gap over `LEBAIL_GAP_NOTABLE` is a **blocker**: the intensity model *is* the structural claim, and the gap says that model does not carry the pattern,
 whatever the profile-only fit's Rwp says.
