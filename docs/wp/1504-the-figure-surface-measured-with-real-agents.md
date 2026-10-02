@@ -76,6 +76,12 @@ also added `cell=`, `stick=`, `max_atoms=`, `fig.to_px`, the label overlap
 counts and `cut["atoms"]`. A round run after their merge measures a
 different surface from the fixed round.
 
+From **WP-1536, 1537 and 1538** (filed 2026-10-02, queued). They add `.svg`,
+`.pov` and `.glb` to `render_structure`'s `path=`, and an
+`ambient_occlusion=` option. None has landed. A round run after any of them
+measures a larger surface. Task 6 (fluorapatite for print) is the one an
+agent could then answer with an SVG.
+
 ## Non-goals
 
 - Running it in CI.
