@@ -2614,3 +2614,50 @@ def test_weights_move_d_and_not_what_is_proved(known_answer_stack):
         isotropy.powder_relations(subset, reflections, weights=np.ones(n_shells - 1))
     with pytest.raises(ValueError, match="positive and finite"):
         isotropy.powder_relations(subset, reflections, weights=np.r_[0.0, np.ones(n_shells - 1)])
+
+
+#: One stored witness of the known answer, S1(rank 1)#2 → S2(rank 1)#1, the
+#: second draw of that direction at seed 20260906, as this module issued it
+#: (Mac and Linux x86-64 agree on its d to 1e-11).  ``t`` is the draw's
+#: intensity on every shell; on the ten shells S2(rank 1)#1 is dark at, where
+#: the draw is round-off (≤ 3e-28), it is written as 0, since only ``live``
+#: is read.  21 + 11 floats are the whole certificate.
+KNOWN_WITNESS_T = (
+    2.0396393395864063, 0.0, 252.06544346393682, 0.0, 62.70070903511004, 0.0,
+    49.55375266228131, 0.0, 137.48616945846405, 0.0, 498.8713302469807, 0.0,
+    381.00297278756, 82.28384194390448, 0.0, 190.7827456811467, 0.0,
+    189.62545190032296, 0.0, 323.70047257503467, 0.0)
+KNOWN_WITNESS_LIVE = (0, 2, 4, 6, 8, 10, 12, 13, 15, 17, 19)
+KNOWN_WITNESS_Y = (
+    168.669104663701, -83.7818311668111, -11.145777187393524, 27.298573695204375,
+    47.65852630835245, 7.687155677427313, 5.790285362209989, 46.895126357899464,
+    4.678876175141169, -0.5806536292744398, 6.392822745987245)
+
+
+@pytest.mark.xdist_group("magnetic-known-answer")
+def test_a_stored_known_answer_witness_reverifies_from_its_literals(known_answer_stack):
+    """A certificate needs no generator: the stored t and y prove the draw out of S2(rank 1)#1's reach on any machine.
+
+    Rebuilt from the literals alone against S2(rank 1)#1's stack: |y·t̂ + 1|
+    ≤ 1e-9, projected ratio ≥ :data:`isotropy.FARKAS_FLOOR`, exact LDLᵀ, and
+    d_lo = 1/‖y‖ = 0.0049.  It survives a change of S2(rank 1)#1's
+    amplitude basis (G_s → QᵀG_sQ is a congruence).  The negative arms: −y,
+    and the same y against S1(rank 1)#2's own stack, which reproduces its
+    own draw.
+    """
+    from dataclasses import replace
+
+    found, reflections, canonical, grams, dark, labels = known_answer_stack
+    b, a = labels.index("S2(rank 1)#1"), labels.index("S1(rank 1)#2")
+    y = np.array(KNOWN_WITNESS_Y)
+    witness = isotropy.Witness(
+        draw=2, t=KNOWN_WITNESS_T, live=KNOWN_WITNESS_LIVE, y=KNOWN_WITNESS_Y, weights=None,
+        kernel_dim=0, kernel_residual=0.0, ratio=1e-10, rounding_bound=7.9e-15, exact=True,
+        d=(1.0 / float(np.linalg.norm(y)), 0.00495))
+    holds, ratio, off = isotropy._verify_witness(grams[b], witness)
+    assert holds and ratio >= isotropy.FARKAS_FLOOR and off <= 1e-9
+    assert witness.d[0] == pytest.approx(0.00494, rel=2e-3)
+    q, _ = np.linalg.qr(np.random.default_rng(5).normal(size=(grams[b].shape[1],) * 2))
+    assert isotropy._verify_witness(np.einsum("ki,skl,lj->sij", q, grams[b], q), witness)[0]
+    assert not isotropy._verify_witness(grams[b], replace(witness, y=tuple(-y)))[0]
+    assert not isotropy._verify_witness(grams[a], witness)[0]
