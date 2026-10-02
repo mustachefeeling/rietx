@@ -39,6 +39,16 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 #: cell, profile, background and scale are outside it.
 STRUCTURAL_PARAMETER_GLOB = "phases.*.atoms.*"
 
+#: The relative cut :func:`normal_factors` hands ``pinv``: every eigenvalue of
+#: the equilibrated normal matrix below ``PINV_RCOND × λmax`` is discarded, and
+#: the direction it spans comes back at **zero** variance.  numpy's own default,
+#: so passing it is bit-identical to leaving it out; named because a second
+#: consumer derives a threshold from it — the scale–B hold's
+#: ``refine.SCALE_B_SEPARATION_FLOOR`` is the column separation below which a
+#: phase's scale and displacement pair falls under this cut (WP-1534), so the
+#: hold fires exactly where the esd would otherwise be a confident zero.
+PINV_RCOND = 1e-15
+
 #: A Jacobian column whose largest entry has a binary exponent beyond ±this is
 #: rescaled by :func:`column_rescale` before anything squares it.  Inside the
 #: window the arithmetic is left exactly as it was, so an ordinary fit is
@@ -128,7 +138,8 @@ def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     d = np.sqrt(np.diag(JTJ))
     live = d > 0.0
     inv_d = np.where(live, 1.0 / np.where(live, d, 1.0), 0.0)
-    k = np.linalg.pinv(JTJ * np.outer(inv_d, inv_d), hermitian=True) * scale
+    k = np.linalg.pinv(JTJ * np.outer(inv_d, inv_d), rcond=PINV_RCOND,
+                       hermitian=True) * scale
     if s is not None:
         inv_d = inv_d * s
     return k, inv_d, chi2_red

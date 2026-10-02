@@ -71,15 +71,37 @@ shows up there.
 
 ### Inherited
 
-From **WP-1531** (2026-10-02). `session_usage.py lanes` found none of a
-session's lanes when the session entered its worktree after it started, as
-`/wp-start` directs. The session's transcript stays under the directory it
-started in, and its agents land under the worktree's. Fixed at `31c2434e`
-(`subagent_dirs`). A trial row measured before that fix reads 0 lanes. The
-record's second row is that session: 5 lanes and 2 kept items, re-read 15K,
-8 main requests a lane, 14K left in main, +$16.73 (+39 %). Its estimates ran
-short: lanes estimated at 22-30 requests took 50-65 of their own, and the
-kept items 1.1-1.4× theirs.
+- **From WP-1534 (2026-10-02), the third trial row** (`c77ba4ec`, a cloud
+  session). One lane, `act-on-it`, was dispatched at 242K: an estimated 45
+  requests that took 143. It saved $5.17, 24% of the session. The main
+  session needed 11 requests to check it, and it re-read 0K. The measurement
+  reads 0 fixed and 0 redone, because its window closes at the lane's commit.
+  `/wp-handover`'s review then found one correctness gap in the lane's code:
+  a phase released mid-stage skipped the new probe. The lane prompt had not
+  named that second path. The fix landed as its own commit. The lane
+  deviated from its prompt three times, each a sound call reported in its
+  hand-back. This session hit WP-1531's worktree defect independently and
+  fixed it locally; on merge it took `main`'s `subagent_dirs`. It also fixed
+  `baseline`, which divided by zero for a peak-context band holding no
+  sessions. That is routine in a cloud container, which holds one session's
+  transcripts. The same cloud fact makes that session's `baseline` replay a
+  replay over **one** session, not 174. Its selective row, "0 items laned,
+  +0%", is therefore not comparable to the record's, and the re-run for this
+  WP has to happen on the maintainer's machine. Two of its seven decision
+  lines, `lanes: keep measure-first ~8` and `lanes: keep guidelines ~1`, did
+  not appear in the kept-item table. Both opened a text block that went on
+  with prose, which `DECISION`'s multiline `^` should accept, so the cause is
+  unchecked. **With this row the record holds three, the count this WP waits
+  for**, with 8 lanes among them against the 6 asked.
+- From **WP-1531** (2026-10-02). `session_usage.py lanes` found none of a
+  session's lanes when the session entered its worktree after it started, as
+  `/wp-start` directs. The session's transcript stays under the directory it
+  started in, and its agents land under the worktree's. Fixed at `31c2434e`
+  (`subagent_dirs`). A trial row measured before that fix reads 0 lanes. The
+  record's second row is that session: 5 lanes and 2 kept items, re-read 15K,
+  8 main requests a lane, 14K left in main, +$16.73 (+39 %). Its estimates ran
+  short: lanes estimated at 22-30 requests took 50-65 of their own, and the
+  kept items 1.1-1.4× theirs.
 
 ## Non-goals
 

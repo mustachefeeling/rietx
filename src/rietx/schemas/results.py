@@ -831,6 +831,26 @@ class StageResult(Base):
     #: an empty list, so ``held`` and the values here together are every value
     #: the stage froze.
     held_reach: dict[str, list[str]] = Field(default_factory=dict)
+    #: per phase whose displacement parameters this stage **held** because the
+    #: fitted range cannot separate them from the phase's scale (WP-1534), the
+    #: separation measured at stage start (or, for a phase the support hold
+    #: released inside the stage, before its second solve): the sine of the
+    #: angle between the
+    #: phase's scale column and its uniform-B column
+    #: (``refine._scale_b_separation``), under
+    #: ``refine.SCALE_B_SEPARATION_FLOOR``.  Keyed by phase index.  The held
+    #: columns themselves are in :attr:`held`, beside WP-1301's and WP-1327's;
+    #: this is what says which of them were held on this test and why.
+    #:
+    #: A hold on the frozen reflection list, so — unlike WP-1301's — never
+    #: released inside the stage: a phase with one d-spacing in range keeps it
+    #: whatever the solve does.  It feeds ``SCALE_B_INSEPARABLE``.
+    #:
+    #: **``None`` means nobody looked**: a result stored before this field, and
+    #: every stage of a joint fit, whose runner does not ask the question.
+    #: Both single-histogram runners write a mapping on every stage, so an
+    #: empty one is a stage that looked and held nothing on this test.
+    scale_b_held: dict[int, float] | None = None
     #: paths held at stage start and **released within the same stage**: the
     #: phase rose above support while the stage solved, so the hold was lifted
     #: and the stage solved a second time (once — never a third) with them

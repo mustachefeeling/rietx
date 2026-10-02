@@ -1986,9 +1986,10 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # WP-1468's two ``Atom`` disorder fields 0.34, WP-1321's declared
     # ranges on every class beyond ``Atom`` 0.35, WP-1469's
     # ``SeriesEntry.rwp_fence`` and ``SeriesResult.discontinuities`` 0.36,
-    # WP-1343's two ``Phase`` magnetic widths 0.37, and WP-1329's
-    # ``SeriesEntry.magnetic`` 0.38.
-    assert caps.schema_version == "0.39"
+    # WP-1343's two ``Phase`` magnetic widths 0.37, WP-1329's
+    # ``SeriesEntry.magnetic`` 0.38, #599's moment flat axes 0.39, and
+    # WP-1534's ``StageResult.scale_b_held`` 0.40.
+    assert caps.schema_version == "0.40"
 
 
 def test_every_moment_dof_has_a_help_entry():

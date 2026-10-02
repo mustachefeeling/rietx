@@ -376,7 +376,9 @@ def baseline(us: list[float], mo: int, d: int) -> None:
         sel = [t for t in ts if lo <= max(r.context for r in t.requests) < hi]
         a = sum(replay(t, lambda m, n: False, 0) for t in sel)
         b = sum(replay(t, POLICIES[2][1], u, mo=mo, d=d) for t in sel)
-        print(f"  {_k(lo)}-{_k(hi) if hi < 10**9 else 'up'}: {len(sel)} sessions, saving {(a - b) / a:.0%}")
+        # an empty band (a fresh container holds one session) has nothing to save
+        saving = f"{(a - b) / a:.0%}" if a else "n/a"
+        print(f"  {_k(lo)}-{_k(hi) if hi < 10**9 else 'up'}: {len(sel)} sessions, saving {saving}")
     _, o, r, w5, w1 = PRICES["opus"]
     print("\nitem length (requests) at which a lane pays, by main context:")
     for base in (80_000, 110_000):

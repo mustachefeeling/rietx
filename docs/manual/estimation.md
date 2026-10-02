@@ -234,6 +234,54 @@ is held rather than bounded), so the scan would stop short of the basin it is
 looking for. At a pinned width the rest of the problem is close to linear in
 the scale, and each refit has one answer.
 
+## A scale and a B the range cannot separate
+
+A uniform displacement parameter $B$ multiplies every reflection of a phase by
+$\exp(-2Bs^2)$, beside its scale $S$ {cite}`itc-c`, so
+
+```{math}
+:label: est-scale-b
+
+\ln I_{hkl} \;=\; \ln S \;-\; 2B\,s_{hkl}^2 \;+\; \ln K_{hkl},
+```
+
+{source}`rietx.refine._scale_b_separation`
+
+where $K_{hkl}$ holds every term neither parameter touches. If all of a
+phase's reflections in the fitted range sit at one $s^2$, the data measure only
+$\ln S - 2Bs^2$. The two Jacobian columns are then one direction. The
+covariance of {eq}`est-cov` does not report that direction as unmeasured. It
+equilibrates the normal matrix and passes it to a pseudo-inverse, which
+discards every eigenvalue below {{ PINV_RCOND }} of the largest. A discarded
+direction comes back with zero variance. The scale therefore carries a tight
+esd, conditional on a $B$ the data never saw. On a 25–50° Cu Kα scan of a
+four-phase mixture, bcc Fe has one reflection in range, (110). It walked to
+$B = -150$ Å² and was reported at 0.000 ± 0.000 wt%.
+
+So at the values each stage starts from, the stage measures a separation:
+
+```{math}
+:label: est-scale-b-separation
+
+r \;=\; \frac{\lVert b - (a\cdot b / a\cdot a)\,a \rVert}{\lVert b \rVert}
+\;<\; 2\sqrt{\mathrm{rcond}},
+```
+
+{source}`rietx.refine.SCALE_B_SEPARATION_FLOOR`
+
+Here $a = y_p/\sigma$ is the phase's weighted component, and $b$ is its change
+under a uniform step in $B$. Where $r$ falls under the floor,
+{{ SCALE_B_SEPARATION_FLOOR }}, the stage holds the phase's displacement
+parameters. The floor is the cut itself, not a tuned number. Two unit columns
+at angle φ form the block $[[1, c], [c, 1]]$. Its small eigenvalue,
+$1 - |c| \approx r^2/2$, is discarded against $\lambda_{\max} \approx 2$
+exactly when $r < 2\sqrt{\mathrm{rcond}}$.
+
+With $B$ held, the phase's weight fraction is conditional on it. At fixed
+intensity, an error $\delta B$ moves the fraction by the factor
+$\exp(2\,\delta B\,\bar{s}^2)$, which `SCALE_B_INSEPARABLE` quotes per Å². A
+pair above the floor is not held, and its esd is honest, however large.
+
 ## Staged strategy and series
 
 Parameter groups are freed cumulatively in the IUCr-guideline order

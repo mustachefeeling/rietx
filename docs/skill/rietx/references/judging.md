@@ -363,6 +363,21 @@ Appl. Cryst.* **35**, 383.
   where none is needed *reduces* accuracy (their sample 1 and synthetic bauxite;
   `BRINDLEY_OUTSIDE_REGIME`).
 
+## §4b — a short range measures a scale only together with its B
+
+A phase's intensity is scale · exp(−2B·s²). On a range where its reflections
+sit at one d-spacing, the data give one number for the pair, and a fraction
+read from it is conditional on B. (Measured: WP-1534's 25–50° Cu Kα
+four-phase fixture. bcc Fe has one reflection there. With B free it walked to
+−150 Å² and returned 0.000 ± 0.000 wt%. With B held it returned 1.284 wt%,
+against 1.211 true.) The stage now holds that B and fires
+`SCALE_B_INSEPARABLE`. Quote the fraction together with that condition.
+Reflections a little apart in d are not held, and their esd is honest but
+huge. On the same fixture, fluorite's error passed through the normalisation
+into every fraction as ± thousands of wt%. Read a QPA esd that large as a
+limit of the fitted range, not of the specimen, and widen the range before you
+quote. (Measured: same fixture.)
+
 ## §4b — a trace phase's esd describes one basin
 
 `weight_fraction_stderr` is the curvature of χ² at the converged point, so it
