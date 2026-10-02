@@ -1806,7 +1806,7 @@ def test_every_cross_class_pair_of_the_pnma_candidates_is_proved():
                 assert dark[v.b] - dark[v.a], (v, "b is dark nowhere a is lit")
     assert sum(v.draws for v in found.relations) == 0
     assert _table_marks(found) == ["P"] * 4
-    assert "proved 6 (absence 6, subspace 0); sampled 0" in str(found)
+    assert "proved 6 (absence 6, subspace 0, farkas 0); sampled 0" in str(found)
 
 
 def test_a_subspace_certificate_is_a_separation_a_fit_confirms():
@@ -2117,3 +2117,147 @@ def test_a_stack_with_no_gap_at_the_rank_cut_gives_no_subspace_certificate(near_
                 gapped_subspace += 1
     # the guard is not a blanket refusal: pairs of gapped families keep the certificate
     assert gapped_subspace
+
+
+# --------------------------------------------------------------------------
+# I. The Farkas certificate of one draw (issue #565, part 2)
+# --------------------------------------------------------------------------
+
+#: Three shells of two amplitudes: I(x) = (x₁², x₂², (x₁ + x₂)²/2).  Its
+#: relaxed cone is {(X₁₁, X₂₂, (X₁₁ + X₂₂ + 2X₁₂)/2) : X ⪰ 0}, so t = (1, 1, 2.5)
+#: needs X₁₂ = 1.5 > √(X₁₁X₂₂) and is out of reach, while (1, 1, 1.5) is in it.
+#: The nearest point of the cone to (1, 1, 2.5) is symmetric (the projection
+#: onto a convex set is unique, and the swap x₁ ↔ x₂ fixes both), so it is on
+#: the ray (1, 1, 2): residual √3/6, relative distance √3/6/√8.25 = 0.10050.
+SYNTHETIC_STACK = np.array([np.diag([1.0, 0.0]), np.diag([0.0, 1.0]),
+                            0.5 * np.ones((2, 2))])
+SYNTHETIC_OUT = np.array([1.0, 1.0, 2.5])
+SYNTHETIC_IN = np.array([1.0, 1.0, 1.5])
+SYNTHETIC_DISTANCE = np.sqrt(3.0) / 6.0 / np.sqrt(8.25)
+
+
+def _unit(t):
+    return t / np.linalg.norm(t)
+
+
+def test_the_householder_basis_is_orthonormal_and_orthogonal_to_the_target():
+    """Columns 2… of one reflector span t̂⊥, for any sign of t̂'s first entry; no SVD is needed."""
+    rng = np.random.default_rng(1)
+    vectors = [np.eye(5)[0], -np.eye(5)[0], np.eye(5)[3], _unit(rng.normal(size=7)),
+               _unit(np.abs(rng.normal(size=21)))]
+    for u in vectors:
+        basis = isotropy._householder_complement(u)
+        assert basis.shape == (u.shape[0], u.shape[0] - 1)
+        assert np.allclose(basis.T @ basis, np.eye(u.shape[0] - 1), atol=1e-14)
+        assert float(np.max(np.abs(basis.T @ u))) <= 1e-14
+    assert isotropy._householder_complement(np.array([1.0])).shape == (1, 0)
+
+
+def test_the_exact_check_refuses_what_the_float_eigenvalue_cannot_see():
+    """[[1, 1], [1, 1 − 2⁻⁵³]] has a float eigenvalue at round-off and determinant −2⁻⁵³ exactly.
+
+    The float spectrum cannot say which side of zero it is on; the rational
+    LDLᵀ can, and refuses it.  The positive arms: [[1, 1], [1, 1]] (a zero
+    pivot with a zero row, PSD) and a strictly positive matrix; and a
+    negated PSD matrix is refused.
+    """
+    almost = np.array([[[1.0, 1.0], [1.0, 1.0 - 2.0 ** -53]]])
+    assert 1.0 - 2.0 ** -53 != 1.0
+    assert abs(float(np.linalg.eigvalsh(almost[0])[0])) <= 1e-15
+    assert not isotropy._exact_psd(almost, [1.0])
+    assert isotropy._exact_psd(np.array([np.ones((2, 2))]), [1.0])
+    assert isotropy._exact_psd(np.array([[[2.0, 1.0], [1.0, 2.0]]]), [1.0])
+    assert not isotropy._exact_psd(np.array([[[2.0, 1.0], [1.0, 2.0]]]), [-1.0])
+
+
+def test_the_kernel_projection_finds_the_common_kernel_and_guards_its_residual():
+    """A zero direction shared by every block is projected out; a near-kernel one coupled to the rest is flagged.
+
+    The synthetic stack padded with a zero amplitude has a one-dimensional
+    common kernel at residual 0, and the projected stack is the original.
+    The guard's positive arm: G₁ = vvᵀ with v = (1, 10⁻⁶) beside G₂ = e₁e₁ᵀ
+    puts Σ G_s's small eigenvalue at 2.5e-13 of the largest, inside the cut,
+    while G₁ moves that direction by 5e-7 of its norm, above
+    :data:`isotropy.INTENSITY_RTOL`: no certificate may be built on it.
+    """
+    padded = np.zeros((3, 3, 3))
+    padded[:, :2, :2] = SYNTHETIC_STACK
+    projected, kernel, residual = isotropy._live_projection(padded)
+    assert (kernel, residual) == (1, 0.0)
+    assert projected.shape == (3, 2, 2)
+    plain, none, _ = isotropy._live_projection(SYNTHETIC_STACK)
+    assert none == 0
+    assert np.allclose(np.linalg.eigvalsh(np.einsum("s,sij->ij", [1.0, 2.0, 3.0], projected)),
+                       np.linalg.eigvalsh(np.einsum("s,sij->ij", [1.0, 2.0, 3.0], plain)),
+                       atol=1e-14)
+
+    v = np.array([1.0, 1e-6])
+    coupled = np.array([np.outer(v, v), np.diag([1.0, 0.0])])
+    _, kernel, residual = isotropy._live_projection(coupled)
+    assert kernel == 1 and residual > 100 * isotropy.INTENSITY_RTOL
+    assert isotropy._farkas_certificate(coupled, np.array([1.0, 1.5])) == (None, None)
+
+
+def test_the_synthetic_certificate_brackets_the_known_distance():
+    """Dual, minimum norm, quote and exact check on a stack whose distance is known in closed form.
+
+    Out of reach: the dual clears :data:`isotropy.FARKAS_FLOOR`, the quoted y
+    keeps y·t̂ = −1, is PSD in exact arithmetic with ratio ≥
+    :data:`isotropy.FARKAS_QUOTE`, and 1/‖y‖ is a lower bound within 1 % of
+    the closed-form 0.10050 (the minimum-norm point gives it exactly; the
+    quote steps inside).  In reach: the dual is negative and nothing is
+    issued.  With a zero amplitude padded on, the unprojected dual sits on
+    the structural zero and is refused, the projected one accepted.
+    """
+    t_hat = _unit(SYNTHETIC_OUT)
+    dual, y_dual = isotropy._farkas_dual(SYNTHETIC_STACK / 1.0, t_hat)
+    assert dual >= isotropy.FARKAS_FLOOR
+    # the maximiser itself drifts: λ_min grows without bound along a z ⊥ t̂ with
+    # M(z) ≻ 0, so ‖y‖ is huge and y·t̂ = −1 is lost to cancellation; it is
+    # never quoted, only used to aim the minimum-norm solve
+    assert np.linalg.norm(y_dual) > 1e6
+    y_mn, anchor = isotropy._min_norm_certificate(SYNTHETIC_STACK, t_hat, y_dual)
+    assert 1.0 / np.linalg.norm(y_mn) == pytest.approx(SYNTHETIC_DISTANCE, rel=1e-4)
+    assert np.linalg.norm(anchor) > np.linalg.norm(y_mn)
+    y = isotropy._quote_inside(SYNTHETIC_STACK, y_mn, anchor)
+    assert isotropy._spectrum_ratio(SYNTHETIC_STACK, y) >= isotropy.FARKAS_QUOTE
+    assert isotropy._exact_psd(SYNTHETIC_STACK, y)
+    assert abs(float(y @ t_hat) + 1.0) <= 1e-12
+    d_lo = 1.0 / float(np.linalg.norm(y))
+    assert SYNTHETIC_DISTANCE * 0.99 <= d_lo <= SYNTHETIC_DISTANCE * (1 + 1e-12)
+
+    dual, parts = isotropy._farkas_certificate(SYNTHETIC_STACK, SYNTHETIC_OUT)
+    assert parts is not None and parts["exact"] and parts["kernel_dim"] == 0
+    assert parts["rounding_bound"] < 1e-13
+    assert isotropy._farkas_certificate(SYNTHETIC_STACK, SYNTHETIC_IN)[1] is None
+    assert isotropy._farkas_certificate(SYNTHETIC_STACK, SYNTHETIC_IN)[0] < 0.0
+
+    padded = np.zeros((3, 3, 3))
+    padded[:, :2, :2] = SYNTHETIC_STACK
+    raw, _ = isotropy._farkas_dual(padded, t_hat)
+    assert raw < isotropy.FARKAS_FLOOR and abs(raw) <= 1e-15
+    dual, parts = isotropy._farkas_certificate(padded, SYNTHETIC_OUT)
+    assert parts is not None and parts["kernel_dim"] == 1
+    assert 1.0 / np.linalg.norm(parts["y"]) == pytest.approx(d_lo, rel=1e-6)
+
+
+def test_a_stored_synthetic_witness_reverifies_and_its_negation_does_not():
+    """:func:`isotropy._verify_witness` rebuilds the stack from t and live alone; −y and another stack fail."""
+    _, parts = isotropy._farkas_certificate(SYNTHETIC_STACK, SYNTHETIC_OUT)
+    y = parts["y"]
+    witness = isotropy.Witness(
+        draw=1, t=tuple(SYNTHETIC_OUT), live=(0, 1, 2), y=tuple(y), weights=None,
+        kernel_dim=0, kernel_residual=0.0, ratio=parts["ratio"],
+        rounding_bound=parts["rounding_bound"], exact=True,
+        d=(1.0 / float(np.linalg.norm(y)), 1.0))
+    holds, ratio, off = isotropy._verify_witness(SYNTHETIC_STACK, witness)
+    assert holds and ratio >= isotropy.FARKAS_FLOOR and off <= 1e-12
+    from dataclasses import replace
+
+    assert not isotropy._verify_witness(SYNTHETIC_STACK, replace(witness, y=tuple(-y)))[0]
+    # a stack that reaches t = (1, 1, 2.5) at x = (1, 1): no certificate exists for it
+    other = np.array([np.diag([1.0, 0.0]), np.diag([0.0, 1.0]), 1.25 * np.eye(2)])
+    assert not isotropy._verify_witness(other, witness)[0]
+    # a witness is hashable, as the frozen PairVerdict it rides on must be
+    assert hash(isotropy.PairVerdict(0, 1, "proved-not", "farkas", 1, 0, d=witness.d,
+                                     witness=witness, dual=0.1))

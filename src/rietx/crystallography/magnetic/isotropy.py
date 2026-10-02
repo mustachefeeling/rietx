@@ -245,6 +245,27 @@ INTENSITY_RTOL = 1e-9
 CROSS_IRREP_DRAWS = 12
 WITHIN_IRREP_DRAWS = 3
 
+#: The Farkas certificate's accept floor (issue #565, decision 2): a draw is
+#: certified only when the projected dual's optimum, λ_min/|λ|_max of
+#: Σ_s y_s G_s on the kernel-projected stack, is at least this.  Below it no
+#: certificate is issued for that draw and the restarts decide it.
+#: Measured on this module's own streams at seed 20260906, d_min 1.5 Å,
+#: Linux x86-64: the 49 accepted draws of the known answer (17) and of
+#: ``P m -3 m`` at (0, 0, ½) (32) have optima 6.4e-10 to 2.0e-5, and the six
+#: draws that ended ``sampled-not`` have −3.0e-6 and below, so the floor
+#: sits 2.8 decades under the smallest accepted optimum.
+FARKAS_FLOOR = 1e-12
+
+#: The projected ratio the quoted certificate is moved inside to: the
+#: min-norm point sits on the PSD boundary to rounding (ratios −4e-16 to
+#: 2e-16 on the 49 draws above), where an exact check can go either way
+#: between machines, so the certificate stored and checked is the nearest
+#: point toward the interior with at least this ratio (or half the interior
+#: anchor's, when that is lower).  Two decades above :data:`FARKAS_FLOOR`;
+#: the per-certificate rounding bound (≤ 3.4e-14 measured) is more than
+#: three decades below it.
+FARKAS_QUOTE = 1e-10
+
 #: Shortest axis of the default compatible cell, Å.  Only ratios of intensities
 #: are ever compared, so the scale sets nothing but which reflections fall
 #: inside a given d_min.
@@ -1309,14 +1330,69 @@ RELATION_STATUSES = ("proved-contained", "proved-not", "sampled-contained",
                      "sampled-not", "unresolved")
 
 #: The certificates a ``proved-*`` :class:`PairVerdict` can rest on in this
-#: release.
-RELATION_CERTIFICATES = ("absence", "subspace")
+#: release: ``absence`` and ``subspace`` hold for a whole family,
+#: ``farkas`` for one stored draw (its :class:`Witness`).
+RELATION_CERTIFICATES = ("absence", "subspace", "farkas")
 
 #: Why an ``unresolved`` :class:`PairVerdict` was not decided: ``settled``,
 #: its pair was already decided distinct by the other direction; ``joined``,
 #: its two candidates were already in one class through other pairs, so no
 #: draw was spent on it (the certificates still ran, and none applied).
 UNRESOLVED_REASONS = ("settled", "joined")
+
+
+@dataclass(frozen=True)
+class Witness:
+    """A Farkas certificate that one draw of ``a`` is out of ``b``'s reach, stored so it can be re-checked without the generator.
+
+    I_s(x) = xᵀ G_s x = tr(G_s xxᵀ), so every intensity vector ``b`` can
+    produce is (tr G_s X)_s for some X ⪰ 0.  A vector y with
+    M(y) = Σ_s y_s G_s ⪰ 0 and y·t < 0 then proves that no X ⪰ 0, hence no
+    amplitude vector of ``b``, gives t, since y·(tr G_s X)_s = tr(M(y) X) ≥ 0
+    (weak duality; Vandenberghe & Boyd 1996, *SIAM Rev.* **38**, 49).
+    Everything is on ``b``'s live shells, with the common kernel of ``b``'s
+    stack projected out first (:func:`_live_projection`).
+
+    * ``draw`` — 1-based index of the draw in its direction's stream.
+    * ``t`` — the draw's intensity vector on every shell of the reflection
+      set, as drawn (unit total moment).
+    * ``live`` — the shells y is on: those ``b`` can light and the fit kept.
+    * ``y`` — the quoted certificate on ``live``, normalised to y·t̂ = −1
+      with t̂ the unit (weighted) target on ``live``.
+    * ``weights`` — the per-shell weights the certificate was solved with,
+      on every shell, or None.
+    * ``kernel_dim``, ``kernel_residual`` — the common kernel's dimension
+      and max_s ‖G_s K‖₂/‖G_s‖₂ on it (≤ :data:`INTENSITY_RTOL`).
+    * ``ratio`` — λ_min/|λ|_max of M_P(y) on the projected stack, at least
+      :data:`FARKAS_QUOTE` or half the interior anchor's.
+    * ``rounding_bound`` — n ε + S ε κ_y with κ_y = Σ_s |y_s|‖G_s‖₂/‖M(y)‖₂:
+      how far rounding in forming M(y) can move ``ratio``.  At most 3.4e-14
+      on every measured case, more than three decades below
+      :data:`FARKAS_QUOTE`.
+    * ``exact`` — the exact LDLᵀ of M_P(y), built in rationals from the
+      float y and the float projected stack (:func:`_exact_psd`).  A stored
+      witness always has True: a False issues none.
+    * ``d`` — (lower, upper) on the relative L2 distance from t̂ to ``b``'s
+      image.  Lower: 1/‖y‖, since for every point k of the relaxed cone
+      ‖t̂ − k‖·‖y‖ ≥ y·(k − t̂) ≥ 1, with equality at the minimum-norm y
+      (Boyd & Vandenberghe 2004, *Convex Optimization*, § 8.1).  Upper: the
+      smallest relative L2 residual ‖I(x) − t‖₂/‖t‖₂ on ``live`` among the
+      restarts actually made, which is one on a certified draw, so the
+      bracket is loose there.  With ``weights``, both are of the weighted
+      vectors.
+    """
+
+    draw: int
+    t: tuple[float, ...]
+    live: tuple[int, ...]
+    y: tuple[float, ...]
+    weights: tuple[float, ...] | None
+    kernel_dim: int
+    kernel_residual: float
+    ratio: float
+    rounding_bound: float
+    exact: bool
+    d: tuple[float, float]
 
 
 @dataclass(frozen=True)
@@ -1421,6 +1497,9 @@ class PairVerdict:
     draws: int = 0
     undecided_draws: int = 0
     reason: str | None = None
+    d: tuple[float, float] | None = None
+    witness: Witness | None = None
+    dual: float | None = None
 
     @property
     def proved(self) -> bool:
@@ -2354,6 +2433,309 @@ def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
         if rtol is not None and best / scale <= rtol:
             break
     return best / scale
+
+
+# --------------------------------------------------------------------------
+# the Farkas certificate of one draw (issue #565, part 2)
+
+def _householder_complement(u: np.ndarray) -> np.ndarray:
+    """Orthonormal columns spanning u⊥, for a unit vector u: columns 2… of one Householder reflector.
+
+    H = I − 2vvᵀ/vᵀv with v = u − αe₁, α = −sign(u₁), maps u to αe₁, and H
+    is symmetric and orthogonal, so its first column is u/α and the others
+    are an orthonormal basis of u⊥ (Householder 1958, *J. ACM* **5**, 339).
+    No SVD: the basis is a closed form of u.
+    """
+    m = u.shape[0]
+    alpha = -1.0 if u[0] >= 0.0 else 1.0
+    v = u.astype(np.float64).copy()
+    v[0] -= alpha
+    vv = float(v @ v)
+    h = np.eye(m)
+    if vv > 0.0:
+        h -= (2.0 / vv) * np.outer(v, v)
+    return h[:, 1:]
+
+
+def _spectrum_ratio(grams: np.ndarray, y: np.ndarray) -> float:
+    """λ_min/|λ|_max of M(y) = Σ_s y_s G_s."""
+    w = np.linalg.eigvalsh(np.einsum("s,sij->ij", y, grams))
+    return float(w[0] / max(float(np.max(np.abs(w))), 1e-300))
+
+
+def _live_projection(grams: np.ndarray) -> tuple[np.ndarray, int, float]:
+    """The stack with its common kernel projected out: (PᵀG_sP scaled to max 1, kernel dimension, kernel residual).
+
+    One ``eigh`` of Σ_s G_s (stack scaled to max 1): directions with
+    eigenvalue ≤ :data:`INTENSITY_RTOL` of the largest are the common kernel
+    K, since every G_s is PSD and Σ_s G_s u = 0 forces G_s u = 0.  On K every
+    M(y) vanishes, so M(y) ⪰ 0 exactly when PᵀM(y)P ⪰ 0 for P the
+    orthonormal complement, and a strict certificate becomes possible where
+    the full M(y) has a structural zero eigenvalue.  The cut errs toward
+    keeping a direction: a kept near-kernel direction only weakens the
+    certificate, a dropped live one would make it invalid, which is what the
+    kernel residual r_K = max_s ‖G_s K‖₂/‖G_s‖₂ guards (the caller refuses a
+    certificate above :data:`INTENSITY_RTOL`).  Measured on 145 families of
+    six cubic sets at the general site, d_min 1.5 Å (Linux x86-64): dropped
+    relative eigenvalues ≤ 8.2e-16, kept ones ≥ 2.8e-7, r_K ≤ 2.7e-13.
+    """
+    g = grams / max(float(np.max(np.abs(grams))), 1e-300)
+    w, v = np.linalg.eigh(g.sum(axis=0))
+    kernel = int(np.sum(w <= INTENSITY_RTOL * max(float(w[-1]), 1e-300)))
+    residual = 0.0
+    if kernel:
+        k = v[:, :kernel]
+        residual = max(float(np.linalg.norm(x @ k, 2)) / max(float(np.linalg.norm(x, 2)), 1e-300)
+                       for x in g)
+        p = v[:, kernel:]
+        g = np.einsum("ki,skl,lj->sij", p, g, p)
+        g = g / max(float(np.max(np.abs(g))), 1e-300)
+    return g, kernel, residual
+
+
+def _farkas_dual(grams: np.ndarray, t_hat: np.ndarray) -> tuple[float, np.ndarray]:
+    """max λ_min(Σ_s y_s G_s) over y·t̂ = −1, as (λ_min/|λ|_max at the maximiser, y).
+
+    λ_min is concave and the constraint affine (Boyd & Vandenberghe 2004,
+    § 3.1.5), so a local ascent finds the optimum.  y = −t̂ + N z with N the
+    :func:`_householder_complement` of t̂; BFGS on the smooth concave
+    surrogate −τ log tr exp(−M/τ), within τ log n of λ_min, at τ = 10⁻¹ …
+    10⁻⁶ from z = 0; one exact eigenvalue at the end.  One live shell leaves
+    the single point −t̂.  ``grams`` is scaled to max 1, as
+    :func:`_live_projection` returns it.
+    """
+    from scipy.optimize import minimize
+    from scipy.special import logsumexp, softmax
+
+    y0 = -t_hat
+    n_shells = t_hat.shape[0]
+    z = np.zeros(n_shells - 1)
+    if n_shells > 1:
+        basis = _householder_complement(t_hat)
+
+        def surrogate(tau):
+            def f(z):
+                w, v = np.linalg.eigh(np.einsum("s,sij->ij", y0 + basis @ z, grams))
+                p = softmax(-w / tau)
+                grad = np.einsum("sij,ik,jk,k->s", grams, v, v, p)
+                return tau * logsumexp(-w / tau), -(basis.T @ grad)
+            return f
+
+        for tau in (1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6):
+            z = minimize(surrogate(tau), z, jac=True, method="BFGS",
+                         options={"gtol": 1e-12, "maxiter": 2000}).x
+        y = y0 + basis @ z
+    else:
+        y = y0
+    return _spectrum_ratio(grams, y), y
+
+
+def _min_norm_certificate(grams: np.ndarray, t_hat: np.ndarray,
+                          y_dual: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """The minimum-norm certificate, min ‖y‖ on M(y) ⪰ 0 and y·t̂ = −1, and an interior anchor: (y_mn, anchor).
+
+    1/‖y_mn‖ is the distance from t̂ to the cone of (tr G_s X)_s, X ⪰ 0
+    (Boyd & Vandenberghe 2004, § 8.1), and any feasible y bounds it from
+    below.  ``y_dual`` is :func:`_farkas_dual`'s maximiser, strictly
+    feasible and usually of enormous norm (the dual is unbounded when a
+    certificate exists).  The anchor is on the ray from −t̂ through it, at
+    twice where the ratio first exceeds min(10⁻⁹, half the maximiser's)
+    (bisection), a moderate-norm interior point.  From there a barrier
+    method (Boyd & Vandenberghe 2004, § 11.3): ‖y‖² − μ log det M(y) on
+    y = −t̂ + N z, each μ centred by Newton steps with the exact Hessian
+    2I + μ[tr(M⁻¹G_s M⁻¹G_r)] and a backtracking line search that keeps
+    M(y) ≻ 0 (a Cholesky factor must exist), μ divided by 10 from ‖anchor‖²
+    until n μ ≤ 10⁻¹² ‖y‖², which bounds ‖y‖² above its minimum by that.
+    The centred points are unique, so y_mn depends neither on the
+    maximiser's drift nor on the platform's rounding beyond the tolerance
+    (measured: d agrees to 1e-11 between macOS arm64 and Linux x86-64, where
+    a BFGS barrier stopped on "precision loss" at points 3.7× apart in d).
+    One live shell: both are −t̂.
+    """
+    y0 = -t_hat
+    if t_hat.shape[0] == 1:
+        return y0, y0
+    basis = _householder_complement(t_hat)
+    z_dual = basis.T @ (y_dual - y0)
+    threshold = min(1e-9, _spectrum_ratio(grams, y_dual) / 2)
+    lo, hi = 0.0, 1.0
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        if _spectrum_ratio(grams, y0 + mid * (basis @ z_dual)) > threshold:
+            hi = mid
+        else:
+            lo = mid
+    z = z_dual
+    for factor in (2.0, 1.0):
+        if _spectrum_ratio(grams, y0 + basis @ (factor * hi * z_dual)) > 0.0:
+            z = factor * hi * z_dual
+            break
+    anchor = y0 + basis @ z
+    n = grams.shape[1]
+
+    def barrier(z, mu):
+        """(value, M⁻¹) at z, or (inf, None) where M(y) is not positive definite."""
+        y = y0 + basis @ z
+        m = np.einsum("s,sij->ij", y, grams)
+        try:
+            chol = np.linalg.cholesky(m)
+            inverse = np.linalg.inv(m)
+        except np.linalg.LinAlgError:       # not positive definite, or singular to rounding
+            return np.inf, None
+        value = float(y @ y) - 2.0 * mu * float(np.sum(np.log(np.diag(chol))))
+        if not np.isfinite(value):
+            return np.inf, None
+        return value, 0.5 * (inverse + inverse.T)
+
+    mu = float(anchor @ anchor)
+    for _ in range(64):
+        value, inverse = barrier(z, mu)
+        for _ in range(100):
+            y = y0 + basis @ z
+            b = np.einsum("ij,sjk->sik", inverse, grams)          # M⁻¹ G_s
+            grad = basis.T @ (2.0 * y - mu * np.einsum("sii->s", b))
+            hess = basis.T @ (2.0 * np.eye(len(y)) + mu * np.einsum("sij,rji->sr", b, b)) @ basis
+            step = -np.linalg.solve(hess, grad)
+            decrement = -float(grad @ step)
+            if decrement <= 1e-14 * float(y @ y):
+                break
+            s = 1.0
+            for _ in range(60):
+                trial, trial_inverse = barrier(z + s * step, mu)
+                if trial <= value - 0.25 * s * decrement:
+                    break
+                s *= 0.5
+            else:
+                break
+            z, value, inverse = z + s * step, trial, trial_inverse
+        y = y0 + basis @ z
+        if n * mu <= 1e-12 * float(y @ y):
+            break
+        mu /= 10.0
+    return y0 + basis @ z, anchor
+
+
+def _quote_inside(grams: np.ndarray, y_mn: np.ndarray, anchor: np.ndarray) -> np.ndarray:
+    """The certificate to quote: the point of the segment y_mn → anchor nearest y_mn with ratio ≥ min(:data:`FARKAS_QUOTE`, anchor's/2).
+
+    λ_min of M(y) is concave along the segment and y·t̂ = −1 holds on all of
+    it, so a bisection on the fraction finds the point.  d moves by at most
+    0.7 % (d_q/d_mn ≥ 0.9934 over the 49 witnesses of the known answer and
+    ``P m -3 m`` at (0, 0, ½)).
+    """
+    target = min(FARKAS_QUOTE, _spectrum_ratio(grams, anchor) / 2)
+    if _spectrum_ratio(grams, y_mn) >= target:
+        return y_mn
+    lo, hi = 0.0, 1.0
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        if _spectrum_ratio(grams, (1 - mid) * y_mn + mid * anchor) >= target:
+            hi = mid
+        else:
+            lo = mid
+    return (1 - hi) * y_mn + hi * anchor
+
+
+def _exact_psd(grams: np.ndarray, y) -> bool:
+    """Whether Σ_s y_s G_s is PSD in exact arithmetic, for the float y and the float stack.
+
+    The matrix is built in :class:`fractions.Fraction` from the floats and
+    reduced by LDLᵀ without pivoting: PSD iff every pivot is ≥ 0 and a zero
+    pivot has a zero remaining row (Peyrl & Parrilo 2008, *Theor. Comput.
+    Sci.* **409**, 269, on rational certificates).  Exact for the stack as
+    floating point holds it, not for the stack exact arithmetic would build.
+    At the quoted margin (:data:`FARKAS_QUOTE`, more than three decades
+    above the rounding bound) it cannot disagree with the float eigenvalue:
+    it is the arbiter by decision, and assurance in practice.
+    """
+    n_shells, n, _ = grams.shape
+    yf = [Fraction(float(v)) for v in y]
+    gf = [[[Fraction(float(grams[s, i, j])) for j in range(n)] for i in range(n)]
+          for s in range(n_shells)]
+    a = [[sum((yf[s] * gf[s][i][j] for s in range(n_shells)), Fraction(0)) if j >= i
+          else Fraction(0) for j in range(n)] for i in range(n)]
+    for i in range(n):
+        for j in range(i):
+            a[i][j] = a[j][i]          # the float G_s are symmetric only to rounding
+    for k in range(n):
+        pivot = a[k][k]
+        if pivot < 0:
+            return False
+        if pivot == 0:
+            if any(a[k][j] != 0 for j in range(k + 1, n)):
+                return False
+            continue
+        for i in range(k + 1, n):
+            if a[k][i] == 0:
+                continue
+            f = a[k][i] / pivot
+            for j in range(i, n):
+                a[i][j] -= f * a[k][j]
+    return True
+
+
+def _certificate_stack(grams_live: np.ndarray, target_live: np.ndarray,
+                       weights_live: np.ndarray | None) -> tuple[np.ndarray, np.ndarray]:
+    """The (weighted) live stack and unit target a certificate is solved on: (w_s G_s, w∘t/‖w∘t‖)."""
+    if weights_live is None:
+        return grams_live, target_live / float(np.linalg.norm(target_live))
+    g = grams_live * weights_live[:, None, None]
+    t = weights_live * target_live
+    return g, t / float(np.linalg.norm(t))
+
+
+def _farkas_certificate(grams_live: np.ndarray, target_live: np.ndarray,
+                        weights_live: np.ndarray | None = None) -> tuple[float | None, dict | None]:
+    """The projected dual's optimum and, when it clears :data:`FARKAS_FLOOR`, the quoted certificate: (dual, parts).
+
+    ``parts`` holds y (quoted, on the live shells, y·t̂ = −1), the projected
+    stack's kernel data, ratio, rounding bound and the exact check; None
+    when the dual is below the floor, the kernel residual is above
+    :data:`INTENSITY_RTOL` (dual None too: nothing is solved), the quoted
+    ratio is below the floor, or the exact check fails.
+    """
+    g, t_hat = _certificate_stack(grams_live, target_live, weights_live)
+    projected, kernel, residual = _live_projection(g)
+    if residual > INTENSITY_RTOL:
+        return None, None
+    dual, y_dual = _farkas_dual(projected, t_hat)
+    if dual < FARKAS_FLOOR:
+        return dual, None
+    y_mn, anchor = _min_norm_certificate(projected, t_hat, y_dual)
+    y = _quote_inside(projected, y_mn, anchor)
+    ratio = _spectrum_ratio(projected, y)
+    if ratio < FARKAS_FLOOR or not _exact_psd(projected, y):
+        return dual, None
+    eps = float(np.finfo(np.float64).eps)
+    m = np.einsum("s,sij->ij", y, projected)
+    kappa = float(np.sum(np.abs(y) * np.array([np.linalg.norm(x, 2) for x in projected]))) \
+        / max(float(np.linalg.norm(m, 2)), 1e-300)
+    n_shells, n = projected.shape[:2]
+    return dual, {"y": y, "kernel_dim": kernel, "kernel_residual": residual, "ratio": ratio,
+                  "rounding_bound": n * eps + n_shells * eps * kappa, "exact": True}
+
+
+def _verify_witness(grams_b: np.ndarray, witness: Witness) -> tuple[bool, float, float]:
+    """Re-check a stored :class:`Witness` against ``b``'s stack: (holds, projected ratio, |y·t̂ + 1|).
+
+    Rebuilds the (weighted) live stack from ``grams_b`` and the stored t,
+    projects out its common kernel afresh, and requires |y·t̂ + 1| ≤ 1e-9,
+    projected ratio ≥ :data:`FARKAS_FLOOR` and the exact LDLᵀ.  The stored
+    t is an intensity vector, so a change of either family's amplitude basis
+    leaves the check intact (M(y) and y·t move by congruence and not at
+    all).
+    """
+    live = np.asarray(witness.live, dtype=np.int64)
+    t = np.asarray(witness.t, dtype=np.float64)[live]
+    w = None if witness.weights is None else np.asarray(witness.weights)[live]
+    g, t_hat = _certificate_stack(grams_b[live], t, w)
+    projected, _, residual = _live_projection(g)
+    y = np.asarray(witness.y, dtype=np.float64)
+    off = abs(float(y @ t_hat) + 1.0)
+    ratio = _spectrum_ratio(projected, y)
+    holds = (residual <= INTENSITY_RTOL and off <= 1e-9 and ratio >= FARKAS_FLOOR
+             and _exact_psd(projected, y))
+    return bool(holds), ratio, off
 
 
 def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
