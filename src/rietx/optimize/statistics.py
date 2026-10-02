@@ -151,6 +151,9 @@ def discarded_directions(jac: np.ndarray) -> tuple[int, np.ndarray]:
     """How many directions of the equilibrated normal matrix ``pinv`` discards
     beyond dead columns, and which columns they *touch* (WP-1535).
 
+    One touched column is enough: a discarded direction needs two loaded
+    columns to exist, but only the columns that pass the test below are named.
+
     :func:`normal_factors` hands ``pinv`` a cut, and a direction under it comes
     back at **zero** variance: every parameter loading on it reports only the
     variance of the directions the data did measure.  A column with no gradient
@@ -192,7 +195,7 @@ def discarded_directions(jac: np.ndarray) -> tuple[int, np.ndarray]:
     kept_var = (vec[:, ~gone] ** 2 / lam[~gone]).sum(axis=1)
     lost_var = (vec[:, gone] ** 2).sum(axis=1) / cut
     touched = np.flatnonzero(live & (lost_var >= kept_var))
-    return (n_gone, touched) if len(touched) >= 2 else none
+    return (n_gone, touched) if len(touched) >= 1 else none
 
 
 def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,

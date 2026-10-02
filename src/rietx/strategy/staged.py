@@ -879,7 +879,7 @@ class GuardFinding:
                             n_discarded: int) -> "GuardFinding":
         return cls("COVARIANCE_DIRECTION_DISCARDED", tuple(paths),
                    float(n_discarded),
-                   f"{len(paths)} parameters ({', '.join(paths)}) load on "
+                   f"{', '.join(paths)} lie in or beside "
                    f"{n_discarded} direction(s) the covariance solve discards")
 
     @classmethod
@@ -1773,6 +1773,8 @@ def check_discarded_directions(jac, free: list[str],
     """
     from ..optimize.statistics import discarded_directions
 
+    if jac.shape[1] != len(free):  # ``soft_modes``' guard: names must match columns
+        return []
     n, touched = discarded_directions(jac)
     if n == 0:
         return []
@@ -1855,8 +1857,11 @@ def check_guards(table, outcome, threshold: float,
         if scan_exchangeability and model is not None:
             report.measured_exchangeability = exchangeability_scan(model, table)
         try:
-            report.discarded_directions = check_discarded_directions(
-                outcome.jac, free, report.flat_directions)
+            # no esds, nothing to qualify; and a Pawley solve cuts the matrix
+            # augmented by its intensity block, which ``outcome.jac`` omits
+            if outcome.correlation is not None and not outcome.n_aux:
+                report.discarded_directions = check_discarded_directions(
+                    outcome.jac, free, report.flat_directions)
         except np.linalg.LinAlgError:
             # ``soft_modes``' rule above: the stage already said so
             if getattr(outcome, "covariance_error", None) is None:

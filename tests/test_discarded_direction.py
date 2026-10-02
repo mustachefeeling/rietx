@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from rietx.optimize.statistics import discarded_directions
-from rietx.refine import _guard_diagnostics
+from rietx.refine import _REVISABLE_CODES, _guard_diagnostics
 from rietx.strategy.staged import (
     GuardFinding,
     GuardReport,
@@ -89,3 +89,9 @@ def test_the_row_names_its_paths_and_the_diagnostic_carries_them():
     (d,) = [d for d in diags if d.code == "COVARIANCE_DIRECTION_DISCARDED"]
     assert d.where == ["phases.0.q0", "phases.0.q1", "phases.0.q4"]
     assert d.level == "warning"
+
+
+def test_the_code_is_retaken_on_the_answer_stage_not_accumulated():
+    """An earlier stage's cut is not the matrix the result's esds came from, and
+    an unkeyed code is appended once per stage."""
+    assert "COVARIANCE_DIRECTION_DISCARDED" in _REVISABLE_CODES

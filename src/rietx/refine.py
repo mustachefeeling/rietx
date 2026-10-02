@@ -4649,9 +4649,16 @@ class Refinement:
 #: finding.  A plan that turned them back off would drop it, which is the
 #: intended reading — held at instrumental values is the remedy the paper
 #: prescribes, not the fault.
+#:
+#: ``COVARIANCE_DIRECTION_DISCARDED`` (WP-1535) is a claim about the esds of the
+#: **answer-producing** solve, which are the only ones a result quotes.  An
+#: intermediate stage's cut is a different matrix (cumulative staging adds
+#: columns), and unkeyed it was appended once per stage, so one persistent
+#: combination printed as many copies as the plan has stages.
 _REVISABLE_CODES = ("BOUND_HIT", "RESOLUTION_NOT_POSITIVE",
                     "RESOLUTION_UNCONSTRAINED",
-                    "BISO_UNUSUALLY_LARGE", "BISO_NEGATIVE")
+                    "BISO_UNUSUALLY_LARGE", "BISO_NEGATIVE",
+                    "COVARIANCE_DIRECTION_DISCARDED")
 
 
 def _guard_diagnostics(guard) -> list[Diagnostic]:
