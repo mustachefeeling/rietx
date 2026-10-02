@@ -120,6 +120,18 @@ flag whose name suggests it only adds output. The reporter turned it on for
 every fit of a multi-hundred-pattern batch because it seemed the diligent
 choice.
 
+### Inherited
+
+- **2026-10-02, from the issue triage (issue #245): the cost to cut is a fixed
+  ~0.36 s per stage report, and a docstring still quotes the old ratio.** The
+  reporter re-measured on `3d1a6feb` (2026-09-29; `11BM_NAC.fxye`, 5 stages,
+  median of 3, BLAS pinned to 1): `stage_reports=False` 0.331 s,
+  `stage_reports=True` 2.136 s, 6.45×. The per-report cost is unchanged from
+  the docstring's 0.33 s; the fit got about 3× faster, so the multiple grew
+  and will keep growing as fits speed up. *Checked at `ca9bda29`*:
+  `Refinement.fit`'s docstring (`refine.py:3376`) still says "a trajectory
+  costs ≈2.5× the fit". Correct it in the same change that cuts the cost.
+
 ## Non-goals
 
 - The solver's own cost, and the exhausted-budget stop rule — 1334.
