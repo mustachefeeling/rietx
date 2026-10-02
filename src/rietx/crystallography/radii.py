@@ -1,6 +1,6 @@
-"""Tabulated ionic and covalent radii: Shannon (1976) and Pyykkö & Atsumi (2009).
+"""Tabulated ionic, covalent and metallic radii: Shannon (1976), Pyykkö & Atsumi (2009), Pauling (1960).
 
-Two tables, for two different kinds of contact, and neither is the bond table.
+Three tables, for three different kinds of contact, and none is the bond table.
 
 * **Ionic and crystal radii** — Shannon, R. D. (1976). *Acta Cryst.* A**32**,
   751–767, doi:10.1107/S0567739476001551, Table 1 (pp. 752–753), bundled as
@@ -19,6 +19,12 @@ Two tables, for two different kinds of contact, and neither is the bond table.
   R(AB) = r(A) + r(B), fitted to molecular bond lengths — so they describe a
   *covalent bond in a molecule or a molecular fragment* (a rigid body), not a
   contact in an extended inorganic solid.
+* **Metallic radii** — Pauling, L. (1960). *The Nature of the Chemical Bond*,
+  3rd ed., Cornell University Press, Table 11-1 (p. 403), bundled as
+  ``r_metal_Pauling.dat``: the metallic valence v, the radius for ligancy 12,
+  R(L12), and the single-bond metallic radius R₁, for 72 elements. These
+  describe *metal–metal contacts*, and the boride-type frameworks Pauling
+  treats with the same scheme, in intermetallic and anion-free phases.
 
 **The bond table does not read either.** :mod:`rietx.model.geometry` perceives
 bonds with Cordero et al. (2008) covalent radii through gemmi's
@@ -26,10 +32,8 @@ bonds with Cordero et al. (2008) covalent radii through gemmi's
 Database, which is the question that table answers. Pyykkö's radii are smaller
 for nearly every d- and f-block metal, so substituting them would turn long
 cation–oxygen bonds into contacts; they are here for the places a single- or
-double-bond *length* is the quantity wanted.
-
-**Metallic radii are not here.** Neither table describes a metal–metal
-contact, and no metallic-radius source is bundled yet.
+double-bond *length* is the quantity wanted. Pauling's metallic radii are for
+the contacts neither of the other two describes.
 
 Three rules every lookup keeps, because a radius table is easy to make lie:
 
@@ -60,6 +64,7 @@ from .species import _parse_species, element_symbol
 
 _SHANNON_FILE = "r_ion_Shannon.dat"
 _PYYKKO_FILE = "r_cov_Pyykko.dat"
+_PAULING_FILE = "r_metal_Pauling.dat"
 
 _ROMAN = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII",
           8: "VIII", 9: "IX", 10: "X", 11: "XI", 12: "XII", 13: "XIII",
@@ -325,3 +330,103 @@ def covalent_radius(element: str, order: Literal[1, 2] = 1) -> float:
         raise KeyError(f"Pyykkö & Atsumi {source} print no r{order} for {symbol} "
                        f"(read from {element!r})")
     return value / 100.0
+
+
+@dataclass(frozen=True)
+class MetallicRadius:
+    """One entry of Pauling (1960) Table 11-1, and the radius asked of it.
+
+    ``radius`` is the column ``ligancy`` names, in Å: R₁, the single-bond
+    metallic radius (``ligancy=1``), or R(L12), the radius for ligancy 12
+    (``ligancy=12``). Both are kept, with the metallic valence ``valence``
+    that relates them. ``flags`` is ``()`` for a cell as printed, or names
+    what differs: ``v_assumed`` (valence printed in parentheses: P, S, Se,
+    Te), ``v_corrected`` (Eu), ``r12_corrected`` (Gd), ``label_corrected``
+    (Sr, printed "Sn") and ``r12_off_relation`` (Pm, kept as printed);
+    ``as_printed`` holds the cell a correction replaced. ``page`` is the
+    book page of the table.
+    """
+
+    element: str
+    ligancy: Literal[1, 12]
+    radius: float              # Å, the column `ligancy` names
+    r1: float                  # Å, R₁
+    r12: float                 # Å, R(L12)
+    valence: float             # metallic valence v
+    flags: tuple[str, ...]
+    as_printed: str            # "" or e.g. "r12=2.804"
+    page: int
+
+
+@lru_cache(maxsize=None)
+def _pauling_rows() -> dict[str, MetallicRadius]:
+    """Parse ``r_metal_Pauling.dat`` once: symbol → entry (``ligancy`` 1)."""
+    text = (files("rietx.data") / _PAULING_FILE).read_text(encoding="utf-8")
+    table: dict[str, MetallicRadius] = {}
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        symbol, v, r12, r1, page, flags, printed = line.split()
+        table[symbol] = MetallicRadius(
+            element=symbol, ligancy=1, radius=float(r1), r1=float(r1),
+            r12=float(r12), valence=float(v),
+            flags=() if flags == "-" else tuple(flags.split(",")),
+            as_printed="" if printed == "-" else printed, page=int(page))
+    return table
+
+
+def metallic_radius(element: str, *, ligancy: Literal[1, 12] = 1) -> MetallicRadius:
+    """Pauling (1960) metallic radius of ``element``, Table 11-1 (p. 403).
+
+    ``ligancy=1`` gives R₁, "the metallic radius" (p. 404): the radius for a
+    bond of bond number 1, from which Pauling builds a contact of bond number
+    n as D(n) = D(1) − 0.600 log n (Eq. 11-1, p. 400). ``ligancy=12`` gives
+    R(L12), the radius in a twelve-coordinated metal; the two are related by
+    R(L12) = R₁ + 0.300 log(12/v) (p. 412). Ligancy is Pauling's word for
+    coordination number, and only these two columns are printed — no other
+    value is interpolated.
+
+    **For metal–metal contacts in intermetallic and anion-free phases**, and
+    for boride-type frameworks, which Pauling treats in the same scheme
+    (pp. 365–366). Not for a cation–anion contact, which is Shannon's
+    (:func:`ionic_radius`), nor a bond in a molecule (:func:`covalent_radius`).
+    Not the bond table: :mod:`rietx.model.geometry` stays on Cordero et al.
+    (2008) through gemmi. A mass number in ``element`` is dropped; a charge
+    is refused, since an ion has no metallic radius.
+
+    Three cells of the printed table are misprints, corrected in the bundled
+    file with the printed value kept on the result (:attr:`MetallicRadius.as_printed`):
+    Gd R(L12) (printed 2.804, 1.804 by Pauling's own relation and the 1947
+    table), Eu v (printed 3, 2 by its radii and the 1947 table) and the Sr
+    cell labelled "Sn". Pm R(L12) breaks the relation by 0.020 Å and is
+    returned as printed, flagged ``r12_off_relation``.
+
+    Raises :class:`ValueError` for a ligancy other than 1 or 12 or a charged
+    species, and :class:`KeyError` naming the elements Table 11-1 prints when
+    ``element`` is not among them (C, N, O, the halogens, the noble gases,
+    Fr–Ac and every actinide but Th and U).
+
+        >>> metallic_radius("La").radius, metallic_radius("La", ligancy=12).radius
+        (1.69, 1.871)
+    """
+    try:
+        ligancy_ok = not isinstance(ligancy, bool) and operator.index(ligancy) in (1, 12)
+    except TypeError:
+        ligancy_ok = False
+    if not ligancy_ok:
+        raise ValueError(f"ligancy must be 1 (R1, bond number 1) or 12 (R(L12)), "
+                         f"the two Pauling (1960) Table 11-1 prints, not {ligancy!r}")
+    m = _CHARGE_RE.match(element)
+    if m is not None and (m.group("s") or m.group("s2")):
+        raise ValueError(f"species {element!r} carries a charge; a metallic radius "
+                         f"belongs to a neutral metal atom (use ionic_radius for an ion)")
+    symbol = element_symbol(element)
+    table = _pauling_rows()
+    row = table.get(symbol)
+    if row is None:
+        raise KeyError(f"Pauling (1960) Table 11-1 prints no metallic radius for "
+                       f"{symbol} (read from {element!r}); it prints "
+                       f"{' '.join(table)}")
+    if operator.index(ligancy) == 1:
+        return row
+    return MetallicRadius(**{**row.__dict__, "ligancy": 12, "radius": row.r12})
