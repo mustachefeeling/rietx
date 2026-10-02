@@ -1921,29 +1921,28 @@ def test_every_preprocessor_stance_is_what_the_reader_does(
             read_topas_inp(inp)
 
 
-# --------------------------------------- beq: refused, never moved or leaked
+# ------------------------------------------ beq: kept, never moved or leaked
 
-def test_a_negative_beq_is_refused_naming_the_site_never_clamped(tmp_path):
+def test_a_negative_beq_is_kept_never_clamped(tmp_path):
     """`max(s.beq, 0.0)` moved a stated −0.42 to 0.0 with nothing said.
 
     A slightly negative refined B is an ordinary outcome of a converged
     refinement — the column absorbs absorption and normalisation error, and 75
-    sites across 11 archive files state one — so this is the reader repairing
-    where it cannot say that it did, the rule its own tri-state argument rests
-    on. Moving it changes every high-Q intensity, so it is a contradiction
-    rather than a deviation a reader may repair, and the sibling `.pcr` reader
-    refuses the same value: one story whichever code wrote the file. The number
-    stays readable on `model.phases`.
+    sites across 11 archive files state one. Moving it changes every high-Q
+    intensity, so the reader keeps the file's number, widens the floor to hold
+    it and says so (PR #663).
     """
     inp = _inp(tmp_path, "negb.inp",
                'str\nphase_name "Co10Ge3O16"\nspace_group "P1"\na 8.3\n'
                'site GE1 x 0 y 0 z 0 occ Ge+4 1 beq bge -0.42`\n')
     model = read_topas_inp(inp)
     assert model.phases[0].sites[0].beq == pytest.approx(-0.42)
-    with pytest.raises(TopasInpError) as exc:
-        to_structure(model)
-    assert "negb.inp" in str(exc.value) and "GE1" in str(exc.value)
-    assert "-0.42" in str(exc.value)
+    diagnostics = []
+    biso = to_structure(model, diagnostics=diagnostics).phases[0].atoms[0].biso
+    assert (biso.value, biso.min) == (pytest.approx(-0.42), pytest.approx(-0.42))
+    widened = [d for d in diagnostics if d.code == "BISO_BOUND_WIDENED"]
+    assert [d.where for d in widened] == [["phases.0.atoms.0.biso"]]
+    assert "GE1" in widened[0].message
 
 
 def test_a_schema_refusal_from_the_cell_or_the_atoms_is_still_converted(
@@ -2487,17 +2486,6 @@ def test_an_absent_occ_or_beq_still_keeps_its_default_not_a_refusal(tmp_path):
 
 
 # ---------------------------- finding 6: an absent writer is not a claim
-
-def test_the_negative_beq_docstring_does_not_claim_a_pcr_reader_exists():
-    """WP-1076: a declared name is a claim. The sibling `.pcr` reader lives on a
-    *different* open PR (#111, `fullprof-pcr-reader`), not this tree, so
-    `to_structure`'s docstring must state the rule a future/sibling reader keeps,
-    not claim a file on this tree refuses the value (finding 6). The sentence
-    becomes true when #111 merges."""
-    doc = to_structure.__doc__
-    assert "the sibling `.pcr` reader refuses the same value" not in doc
-    assert "WP-1076" in doc
-
 
 # ---------------------------- the `'/*` idiom (coordinator finding)
 
@@ -3931,16 +3919,18 @@ def test_write_topas_inp_refuses_a_label_or_species_with_whitespace(tmp_path):
         from_structure(structure)
 
 
-def test_write_topas_inp_refuses_a_negative_biso(tmp_path):
-    """`to_structure` itself refuses a negative beq on the way in, so writing
-    one would only fail later, at the read, with the file already on disk."""
+def test_write_topas_inp_writes_a_negative_biso_that_reads_back(tmp_path):
+    """TOPAS stores a negative beq and the reader now keeps one, so the
+    writer writes it rather than refusing (PR #663)."""
     atom = rx.Atom(label="Al1", species="Al", x=rx.Parameter(value=0.0),
                    y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
                    biso=rx.Parameter(value=-0.1, min=-1.0, max=25.0))
     structure = rx.Structure(phases=[rx.Phase(
         name="Al", space_group="Fm-3m", cell=rx.Cell.cubic(4.0495), atoms=[atom])])
-    with pytest.raises(ValueError, match="negative"):
-        from_structure(structure)
+    out = tmp_path / "negb.inp"
+    out.write_text(from_structure(structure), encoding="utf-8")
+    back = to_structure(read_topas_inp(out)).phases[0].atoms[0].biso
+    assert back.value == pytest.approx(-0.1)
 
 
 def test_write_topas_inp_refuses_a_single_quote_in_a_label(tmp_path):

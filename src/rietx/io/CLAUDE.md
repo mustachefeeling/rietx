@@ -407,10 +407,10 @@ same reason. Six rules the pattern readers do not need:
   guard.** A pydantic `ValidationError` reaching a caller names a `Parameter`
   and never the file, which is § Refusals losing to the thing it forbids;
   `read_gsas_prm` paid for that once (WP-1118) and `gsas2.to_structure` closes
-  the class rather than adding a third instance. The two shapes a real corpus
-  contains are still refused by **name** first — a negative `Uiso`, and a phase
-  with no sites, which is how GSAS-II stores a Le Bail extraction — because a
-  message naming the phase is worth more than one naming the field.
+  the class rather than adding a third instance. A phase with no sites (a
+  GSAS-II Le Bail extraction) is refused by **name** first, a message naming the
+  phase being worth more; a file's B outside its bound is widened and reported
+  (`schemas.structure.biso_bounds`, PR #663), never refused.
 - **A project reader refuses where a pattern reader would repair.** A pattern
   reader repairs only where it can say it did; a project reader mostly cannot,
   because its output is a whole model and a caller cannot see which part is the
@@ -450,7 +450,7 @@ Four rules the readers do not need (WP-1118, four formats: `.inp`, `.pcr`,
 
 - **Refuse on the way out whatever the reader refuses on the way in**, and
   refuse it where the value is still in hand rather than leaving the file on
-  disk to fail in someone else's program. A negative `Biso`, an anisotropic
+  disk to fail in someone else's program. An anisotropic
   site under a convention `to_structure` declines to assume, a setting the
   format cannot spell — and a **non-finite** value, which `repr` writes as
   `inf` and no real program parses. The reader's own refusals are the list to

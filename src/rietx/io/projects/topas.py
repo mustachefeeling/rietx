@@ -3861,19 +3861,13 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     dropped phase — rather than built isotropic with the anisotropy discarded.
     The numbers stay readable on ``model.phases`` either way.
 
-    A **negative** ``beq`` is refused, naming the site. It is not a parse error:
-    a slightly negative refined B is an ordinary outcome of a converged
-    refinement (the column absorbs absorption and normalisation error), and 75
-    sites across 11 archive files state one. But rietx's :class:`~rietx.Atom`
-    declares ``biso`` on [0, 25] Å², and ``max(beq, 0.0)`` moved the file's
-    −0.42 to 0 with nothing said — a *repair the reader cannot say it made*,
-    which changes every high-Q intensity. The number stays readable on
-    ``model.phases``. The refusal is the same one a sibling structure reader
-    (say a FullProf ``.pcr`` reader) follows for the same value, so a caller
-    meeting a negative B gets one story whichever code wrote the file — stated
-    as the rule a future reader keeps rather than as a claim about a file, since
-    no such sibling exists on this tree yet (WP-1076: a declared name is a
-    claim).
+    A **negative** ``beq`` is read as the file states it. A slightly negative
+    refined B is an ordinary outcome of a converged refinement (the column
+    absorbs absorption and normalisation error), and 75 sites across 11
+    archive files state one. Its bound is widened to hold it rather than the
+    number being moved to zero (PR #663), which ``BISO_BOUND_WIDENED`` reports,
+    and a fit that keeps it reports ``BISO_NEGATIVE``. Every structure reader
+    treats it the same way.
 
     ``magnetic_symmetry`` names a **magnetic** phase's group where the file
     does not. A ``mag_space_group`` stating a BNS or OG number (``62.448``,
@@ -3996,12 +3990,6 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
             model, phases_in, magnetic_specs, group_from_file,
             nuclear_groups))
 
-    # The window is `Atom.biso`'s own declaration, read off the schema rather
-    # than restated here: the bound this refusal quotes must not be the reader's
-    # invention, which is half of what was wrong with clamping to it.
-    biso_default = rx.Atom.model_fields["biso"].default_factory()
-    biso_window = {"min": biso_default.min, "max": biso_default.max}
-
     phases = []
     for ph in phases_in:
         # Report or refuse, never drop. A phase whose cell could not be read
@@ -4044,16 +4032,6 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
                     f"({', '.join(k for k in _ADP_KEYS if k in s.adps)}) — a "
                     f"missing off-diagonal is 0 by convention, but a missing "
                     f"diagonal U has no default this reader may invent.")
-            if s.beq is not None and s.beq < biso_window["min"]:
-                raise TopasInpError(
-                    f"{model.path or '<model>'}: phase {ph.name!r}: site "
-                    f"{s.label!r} has beq = {s.beq}, and rietx bounds biso at "
-                    f"{biso_window['min']}. A negative B is an ordinary outcome "
-                    f"of a converged refinement — the column absorbs absorption "
-                    f"and normalisation error — but moving it to "
-                    f"{biso_window['min']} changes every high-Q intensity, so it "
-                    f"is a contradiction rather than a deviation a reader may "
-                    f"repair. Read `model.phases` for the file's own number.")
         c = ph.cell
 
         def _p(key: str, default: float):
@@ -4102,7 +4080,7 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
                     "aniso": block}
             else:
                 # The file's own number, not `max(beq, 0.0)`: a negative one is
-                # refused above rather than moved. A site that stated none is
+                # kept rather than moved. A site that stated none is
                 # seeded 0.5 here, at build time — the model keeps it as None.
                 b_iso = 0.5 if s.beq is None else s.beq
                 displacement = {"biso": _sp(s, "beq", b_iso,
@@ -4449,10 +4427,7 @@ def from_structure(structure: Structure) -> str:
     than part of the name. A label or species carrying a single quote:
     unlike ``phase_name``, a site's label and species are not quoted, so an
     unquoted ``'`` opens a line comment (:func:`strip_comments`) and drops
-    everything after it on that line, x/y/z/occ/beq included. And a
-    negative ``biso``: :func:`to_structure` refuses one on the way in (it
-    bounds biso at zero), so writing one here would only fail later, at the
-    read, with the file already on disk.
+    everything after it on that line, x/y/z/occ/beq included.
     """
     from ..._about import DIST_NAME
 
@@ -4512,14 +4487,6 @@ def from_structure(structure: Structure) -> str:
                     f"are not quoted, so `strip_comments` reads an unquoted "
                     f"``'`` as opening a line comment and drops everything "
                     f"after it on that line, including x/y/z/occ/beq")
-            if atom.biso.value < 0.0:
-                raise ValueError(
-                    f"phase {phase.name!r}: atom {atom.label!r} has biso = "
-                    f"{atom.biso.value}, and read_topas_inp's own "
-                    f"to_structure refuses a negative beq on the way back "
-                    f"in (it bounds biso at zero) — writing this file would "
-                    f"only fail later, at the read, rather than here where "
-                    f"the value is still in hand")
             try:
                 species = topas_species(atom.species)
             except ValueError as exc:

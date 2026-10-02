@@ -1138,23 +1138,23 @@ def test_a_phase_with_no_sites_is_refused_rather_than_dropped(tmp_path):
         to_structure(model)
 
 
-def test_a_negative_biso_is_refused_naming_the_atom(tmp_path):
+def test_a_negative_biso_is_read_with_its_bound_widened(tmp_path):
     """``corpus file 4``:70 refined O1 to Biso = −0.67266 Å², a real FullProf
     outcome — the column absorbs absorption and normalisation error.
 
-    rietx bounds ``biso`` at zero, and clamping −0.67 to 0 changes every high-Q
-    intensity: a *contradiction* between the file and the model, not the kind of
-    small deviation root CLAUDE.md licenses a reader to repair silently. So it is
-    refused, and the file's own number stays readable on the model.
+    FullProf stores it and so does every other code, so the reader keeps the
+    file's number, widens the floor to hold it and says so (PR #663). Moving
+    it to zero would change every high-Q intensity.
     """
     negative = _PHASE_SITES.replace("0.31111  0.21111", "0.31111 -0.55555", 1)
     model = read_fullprof_pcr(_pcr(tmp_path, "negb.pcr",
                                    _phase(atoms=negative)))
-    assert model.phases[0].atoms[0].values["biso"].value == pytest.approx(-0.55555)
-    with pytest.raises(FullProfPcrError) as exc:
-        to_structure(model)
-    assert "negb.pcr" in str(exc.value)
-    assert "'Cr'" in str(exc.value) and "-0.55555" in str(exc.value)
+    diagnostics = []
+    biso = to_structure(model, diagnostics=diagnostics).phases[0].atoms[0].biso
+    assert (biso.value, biso.min) == (pytest.approx(-0.55555), pytest.approx(-0.55555))
+    widened = [d for d in diagnostics if d.code == "BISO_BOUND_WIDENED"]
+    assert [d.where for d in widened] == [["phases.0.atoms.0.biso"]]
+    assert "negb.pcr" in widened[0].message
 
 
 def test_an_anisotropic_beta_block_is_read_and_refused(tmp_path):
@@ -2090,17 +2090,18 @@ def test_write_fullprof_pcr_refuses_a_label_or_species_with_whitespace(tmp_path)
         from_structure(structure)
 
 
-def test_write_fullprof_pcr_refuses_a_negative_biso(tmp_path):
-    """`to_structure` itself refuses a negative Biso on the way in, so
-    writing one would only fail later, at the read, with the file already on
-    disk."""
+def test_write_fullprof_pcr_writes_a_negative_biso_that_reads_back(tmp_path):
+    """FullProf stores a negative Biso and the reader now keeps one, so the
+    writer writes it rather than refusing (PR #663)."""
     atom = rx.Atom(label="Al1", species="Al", x=rx.Parameter(value=0.0),
                    y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
                    biso=rx.Parameter(value=-0.1, min=-1.0, max=25.0))
     structure = rx.Structure(phases=[rx.Phase(
         name="Al", space_group="Fm-3m", cell=rx.Cell.cubic(4.0495), atoms=[atom])])
-    with pytest.raises(ValueError, match="negative"):
-        from_structure(structure)
+    out = tmp_path / "negb.pcr"
+    out.write_text(from_structure(structure), encoding="utf-8")
+    back = to_structure(read_fullprof_pcr(out)).phases[0].atoms[0].biso
+    assert back.value == pytest.approx(-0.1)
 
 
 def test_write_fullprof_pcr_refuses_a_blank_phase_name():

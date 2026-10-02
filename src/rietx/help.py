@@ -856,12 +856,13 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "by B = 8π²·Uiso. It damps intensity as exp(−B·sin²θ/λ²), so it is "
             "determined by the high-angle data and is the parameter a "
             "too-flexible background biases first. A negative B is "
-            "unphysical and the bound is at 0; a refined B above about 5 Å² "
-            "for a heavy atom usually means an absorption or background error "
-            "rather than a real displacement. The schema also caps it at "
-            "25 Å², which is this package's own default and not what other "
-            "Rietveld codes do: pass your own Parameter with a wider max to "
-            "refine a specimen that runs hotter than that."
+            "unphysical, and a refined B above about 5 Å² for a heavy atom "
+            "usually means an absorption or background error rather than a "
+            "real displacement. The default bounds are 0 to 25 Å², this "
+            "package's own and not what other Rietveld codes do: pass your own "
+            "Parameter with a wider range to refine past them. A structure "
+            "file's own value outside that range is kept, and the reader "
+            "widens the bound to hold it."
         ),
         unit="Å²", default="0.5",
         typical="0.2-2 Å² for an inorganic framework at room temperature",
