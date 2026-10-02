@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: 🔄 2026-10-02 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P3 2026-10-02 — the 0–25 Å² default bounds and two flags cover the case today; task 1 re-rates it, P1 if the QPA esd does not already say the fraction is unmeasured
+Priority: P1 2026-10-02 — task 1 measured the QPA esd *not* saying it: unbounded, a one-reflection phase returns 0.000 ± 0.000 wt% against 1.211 true, because the covariance discards the ridge rather than marking it
 
 ## Goal
 
@@ -61,6 +61,50 @@ is untouched. This WP is that fix.
 - **Where the hold is declared.** A hold lives in the table
   (`ParameterTable.set_vary`, `Entry.held`), never at call sites (WP-1435).
 
+**Task 1, measured (2026-10-02).** The fixture: corundum, zincite, fluorite
+and bcc Fe at equal scales (2e-4; true 71.778 / 3.569 / 23.443 / 1.211 wt%),
+25–50° in 0.01° steps (2500 points), `Instrument.bragg_brentano("CuKa")`,
+Poisson noise at seed 3. Fe has exactly one reflection there, (110) at 44.67°,
+which is #204's shape: #204's walking phase was Fe on 25–50° too. The fit starts
+from scales of 1e-4 and B at the truth. Two staging orders were run, cell before
+B and B before cell, each with `biso` unbounded and with the default 0–25 Å².
+
+- **Unbounded, both orders walk.** Fe reaches B = −150.0 and −150.9 Å² with its
+  scale at 2.4e-12 and 2.2e-12. Its fraction is **0.000 ± 0.000 wt%** in both
+  orders, at an Rwp of 0.0763697470 in both. `ln(scale ratio)/(ΔB·s²)` is
+  ≈ 2.0, #204's relation again. Fe's B esd is 0.22 Å² at −150 Å².
+- **Bounded, the two orders differ.** Fe comes back at 1.283 and 1.236 wt%,
+  at an Rwp of 0.0763722 in both. Zincite O sits at the 0 floor (`BOUND_HIT`).
+- **The esd does not say it, and the reason is the covariance's cut.** Fe's
+  scale and B Jacobian columns are collinear to rounding:
+  1 − |cos| = 2.2e-16 at the answer, against 9.6e-3 for fluorite, 3.5e-2 for
+  zincite and 0.28 for corundum. In the equilibrated normal matrix, their
+  combined direction has eigenvalue −3.8e-18 unbounded and 6.3e-16 bounded.
+  Both are below `pinv`'s cut of 1e-15 × λmax = 2.9e-15, so the direction is
+  *discarded* and gets zero variance. Fe's scale comes back "measured" to 2.7 %,
+  bounded and unbounded alike, which is conditional on a B the data never saw.
+  This is WP-1110 item 14's confident wrong esd, here for a *combination* of
+  two live columns rather than for one column. Fluorite's near-ridge eigenvalue
+  (7.3e-11 and 9.9e-10) survives the cut. Its esds are therefore honest and
+  huge: Ca B ± 2 070–15 150 Å², W ± 2 000–14 650 wt%. Through the sum in the
+  normalisation, those esds reach every fraction (corundum ± 1 900–14 000 wt%).
+- **Which guards fire.** `HIGH_CORRELATION` and `FLAT_DIRECTION` fire on
+  `phases.3.scale ~ phases.3.atoms.0.biso`, and on fluorite's pairs, in all four
+  runs. `BISO_NEGATIVE` fires on Fe when unbounded. Nothing names a fraction.
+
+So the fix is an **action**, and the test needs no tuned number. A phase whose
+reflections in the fitted range sit at **one d-spacing** gives the data one
+intensity for it. On that range `ln S − 2B·s²` is one coordinate, by the
+algebra of the structure factor rather than by any threshold. A phase with two
+or more distinct d-spacings is separable in principle, and there the
+covariance's esd is honest. Fluorite above is that case.
+
+**Not this WP, noted (hypothesis).** The covariance's cut zeroes the variance
+of *any* exactly degenerate combination of live columns. One example is a
+one-site phase's occupancy against its scale, on any range. `_cov_free`
+catches only a column with no gradient. Widening it changes every fit's esds,
+so that belongs to its own WP.
+
 **What a fix may not do.** A threshold is quoted from a source or measured
 here, never set by eye (root CLAUDE.md, WP-1448). An Rwp comparison is not
 evidence for a correction. A fix ships with a record field or diagnostic
@@ -77,7 +121,7 @@ stating what it changed.
 
 ## Tasks
 
-- [ ] **Measure first.** Build a synthetic narrow-range mixture: two or more
+- [x] **Measure first.** Build a synthetic narrow-range mixture: two or more
       phases, 25–50° Cu Kα, known fractions, `biso` freed with
       `min=-inf, max=inf`. Reproduce the walk. Record whether the fraction's
       esd already marks it unmeasured, and which existing guards fire. This
