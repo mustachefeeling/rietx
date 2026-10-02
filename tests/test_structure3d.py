@@ -532,7 +532,7 @@ def test_a_cell_larger_than_the_viewer_draws_says_so(nac):
     assert "trimmed to 20" in payload["note"]
     # and counts it, beside the words, for a reader that never parses note (#665)
     whole = s3.build(nac)
-    assert whole["cut"] == {"atoms": 0, "bonds": 0, "polyhedra": 0}
+    assert whole["cut"] == {"atoms": 0, "neighbours": 0, "segments": 0, "polyhedra": 0}
     assert payload["cut"]["atoms"] == whole["n_cell"] - 20
     assert payload["cut"]["polyhedra"] == len(payload["polyhedra_dropped"])
 
@@ -542,7 +542,7 @@ def test_bond_segments_past_the_cap_are_counted(lab6, monkeypatch):
     monkeypatch.setattr(s3, "MAX_BONDS", 10)
     payload = s3.build(lab6)
     assert len(payload["bonds"]) == 10
-    assert payload["cut"]["bonds"] == full - 10
+    assert payload["cut"]["segments"] == full - 10
     assert f"{full} bond segments trimmed to 10" in payload["note"]
 
 

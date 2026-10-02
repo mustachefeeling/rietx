@@ -71,7 +71,7 @@ DEFAULT_PROBABILITY = 0.50
 BOND_TOLERANCE = 1.15
 
 #: Segments, not pairs — see :func:`_bonds`.  Reported in ``note`` and counted
-#: in ``cut["bonds"]`` when it bites.
+#: in ``cut["segments"]`` when it bites.
 MAX_BONDS = 4000
 
 #: Below this, two "atoms" are the same atom (a duplicated boundary image, or a
@@ -685,7 +685,8 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     :data:`MAX_ATOMS` serves the GUI's viewer.  The cell's images past the cap
     are left out, and so are the bonded neighbours and polyhedron ligands that
     would take the drawing past it, whose bonds then end in mid-air.  ``cut``
-    counts each loss: ``atoms`` the cell's images left out, ``bonds`` the
+    counts each loss: ``atoms`` the cell's images left out, ``neighbours`` the
+    bonded neighbours outside the cell left out, ``segments`` the bond
     segments past :data:`MAX_BONDS`, and ``polyhedra`` the polyhedra
     ``polyhedra_dropped`` lists.  ``note`` says the same in words.
     ``rietx.viz.render_structure`` never draws a trimmed cell from a
@@ -730,7 +731,7 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     n_cell = len(atoms)
     # what the caps leave out, as numbers beside the words in ``note``: the
     # figure's report reads these and never parses ``note`` (#665)
-    cut = {"atoms": len(every) - n_cell, "bonds": 0, "polyhedra": 0}
+    cut = {"atoms": len(every) - n_cell, "neighbours": 0, "segments": 0, "polyhedra": 0}
     # the colours are decided *here*, over the phase's own element list, because
     # two of them being the same colour is a fact about this picture and not
     # about the element table (WP-1029)
@@ -753,13 +754,14 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     if len(bonds) > MAX_BONDS:
         notes.append(f"{len(bonds)} bond segments trimmed to {MAX_BONDS}; lower "
                      "the bond tolerance to see a picture rather than a cage")
-        cut["bonds"] = len(bonds) - MAX_BONDS
+        cut["segments"] = len(bonds) - MAX_BONDS
         bonds = bonds[:MAX_BONDS]
     partners = _partners(atoms, bonds, basis)
     room = max(max_atoms - len(atoms), 0)
     if len(partners) > room:
         notes.append(f"{len(partners) - room} bonded neighbour(s) outside the cell "
                      "are not drawn; their bonds end in mid-air")
+        cut["neighbours"] = len(partners) - room
         partners = partners[:room]
     atoms.extend(partners)
     polyhedra, corners, dropped = _polyhedra(sites, orbit, cations, atoms, n_cell, bonds,

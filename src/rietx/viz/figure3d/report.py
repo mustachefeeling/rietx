@@ -71,12 +71,13 @@ class FigureReport:
     read off the image.
 
     ``cut`` counts what the figure lost before it was drawn.  ``atoms`` is the
-    cell's images ``build``'s atom cap left out.  ``bonds`` and ``polyhedra``
-    are what :func:`~rietx.viz.keep` dropped from a kept atom, running over
-    successive cuts, plus the bond segments and polyhedra ``build``'s caps
-    left out.  ``note`` is the geometry's own note, the same losses in words.
-    ``warnings`` are sentences, and one says so when the atom cap trimmed the
-    cell.
+    cell's images ``build``'s atom cap left out, ``neighbours`` the bonded
+    neighbours outside the cell it left out, and ``segments`` the bond
+    segments past its bond cap.  ``bonds`` and ``polyhedra`` are what
+    :func:`~rietx.viz.keep` dropped from a kept atom, running over successive
+    cuts, and ``polyhedra`` adds those the atom cap left out.  ``note`` is the
+    geometry's own note, the same losses in words.  ``warnings`` are
+    sentences, and one says so when either cap trimmed the cell.
     """
     hidden: float
     hidden_atoms: list[int]

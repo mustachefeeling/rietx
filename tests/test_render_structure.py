@@ -919,8 +919,7 @@ def test_the_label_shape_tests_agree_with_sampling():
 
 def test_keep_says_what_it_cut_and_the_report_repeats_it(nac):
     geometry = s3.build(nac)
-    assert render_structure(geometry, size=200).report.cut == {"atoms": 0, "polyhedra": 0,
-                                                               "bonds": 0}
+    assert render_structure(geometry, size=200).report.cut == {"atoms": 0, "neighbours": 0, "segments": 0, "polyhedra": 0, "bonds": 0}
     from rietx.viz import keep, select
     species = geometry["sites"][0]["species"]
     some = keep(geometry, select(geometry, species=species))
@@ -952,7 +951,7 @@ def test_a_trimmed_cell_is_counted_in_the_report(hkust):
     and no warning over a picture of broken linkers; only ``note`` said it."""
     geometry = s3.build(hkust)
     assert geometry["n_cell"] == s3.MAX_ATOMS
-    assert geometry["cut"] == {"atoms": 248, "bonds": 0, "polyhedra": 0}
+    assert geometry["cut"] == {"atoms": 248, "neighbours": 96, "segments": 0, "polyhedra": 0}
     fig = render_structure(geometry, size=400)
     _save(fig, "cap_hkust1_trimmed")
     assert fig.report.cut["atoms"] == 248
@@ -988,7 +987,7 @@ def test_a_cell_past_the_cap_raises_and_names_its_count(hkust):
 def test_a_cell_drawn_whole_has_no_stubs_and_replays(hkust):
     fig = render_structure(hkust, size=400, max_atoms=648)
     _save(fig, "cap_hkust1_whole")
-    assert fig.report.cut == {"atoms": 0, "polyhedra": 0, "bonds": 0}
+    assert fig.report.cut == {"atoms": 0, "neighbours": 0, "segments": 0, "polyhedra": 0, "bonds": 0}
     assert fig.report.dangling_bonds == 0 and fig.report.warnings == []
     # the cap bounds the cell's own atoms; its bonded neighbours are drawn past it
     assert len(fig.atoms) > 648

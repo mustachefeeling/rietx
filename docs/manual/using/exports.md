@@ -430,8 +430,11 @@ and 14.
 `empty` is the share of pixels with nothing drawn.
 `cut` counts what the figure lost before it was drawn.
 Its `atoms` is the cell's atoms `build`'s atom cap left out, 248 on HKUST-1.
+Its `neighbours` is the bonded neighbours outside the cell that the cap left
+out, and `segments` the bond segments past the bond cap of 4000.
 Its `bonds` and `polyhedra` are what `keep` dropped from an atom it kept,
-running over successive cuts, plus what `build`'s caps left out.
+running over successive cuts.
+`polyhedra` also counts the polyhedra the atom cap left out.
 `note` is the dict's own note, and it gives the same losses in words.
 `warnings` are sentences.
 One says when the atom cap trimmed the cell.

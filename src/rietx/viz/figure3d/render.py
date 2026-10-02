@@ -685,20 +685,24 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
                              "geometry; a geometry dict has already been built with its own")
         geometry = structure
     else:
-        # the cell is built whole and then held to the cap, the rule
-        # build(extent=...) keeps for a block: a trimmed cell draws broken
-        # bonds that read as a wrong structure (#665)
+        # the cell is held to the cap, the rule build(extent=...) keeps for a
+        # block: a trimmed cell draws broken bonds that read as a wrong
+        # structure (#665).  Built at the cap first, so a large cell raises
+        # after 400 atoms' work, and again uncapped only where the cap kept
+        # out the neighbours or polyhedra past the cell, which it does not bound
         cap = s3.MAX_ATOMS if max_atoms is None else int(max_atoms)
-        geometry = s3.build(
-            structure, phase,
+        built = dict(
             probability=s3.DEFAULT_PROBABILITY if probability is None else probability,
-            bond_tolerance=s3.BOND_TOLERANCE if bond_tolerance is None else bond_tolerance,
-            max_atoms=s3._UNCAPPED)
-        n_cell = geometry["n_cell"]
-        if n_cell > cap:
+            bond_tolerance=s3.BOND_TOLERANCE if bond_tolerance is None else bond_tolerance)
+        geometry = s3.build(structure, phase, max_atoms=cap, **built)
+        lost = geometry["cut"]
+        if lost["atoms"]:
+            n_cell = cap + lost["atoms"]
             raise ValueError(f"phase {phase}: {n_cell} atoms in the cell with its face "
                              f"copies, past max_atoms={cap}; pass max_atoms={n_cell} or "
                              "more to draw it whole")
+        if lost["neighbours"] or lost["polyhedra"]:
+            geometry = s3.build(structure, phase, max_atoms=s3._UNCAPPED, **built)
     geometry = _site_colours(geometry)
     bg = _colour(background)
     dark = bg is not None and sum(w * v for w, v in zip(sc.LOOK["luma"], bg)) < 0.5
@@ -768,13 +772,18 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
         long_side = max(probe.size) if isinstance(probe.size, tuple) else probe.size
         warnings.append(f"{seen.unjudged} atoms cover less than one sample at {long_side} px "
                         "and are not counted in hidden")
-    cuts = {"atoms": 0, "polyhedra": 0, "bonds": 0, **geometry.get("cut", {})}
+    cuts = {"atoms": 0, "neighbours": 0, "segments": 0, "polyhedra": 0, "bonds": 0,
+            **geometry.get("cut", {})}
     capped = [f"{n} {what}" for n, what in (
         (cuts["atoms"], "of the cell's atoms"),
+        (cuts["neighbours"], "bonded neighbours outside it"),
         (len(geometry.get("polyhedra_dropped", [])), "coordination polyhedra")) if n]
     if capped:
         warnings.append(f"build's atom cap trimmed this cell, leaving out "
                         f"{' and '.join(capped)}; build it again with a larger max_atoms")
+    if cuts["segments"]:
+        warnings.append(f"{cuts['segments']} bond segments past build's cap of "
+                        f"{s3.MAX_BONDS} are not drawn; lower bond_tolerance")
     report = rp.FigureReport(
         hidden=seen.hidden, hidden_atoms=seen.hidden_atoms,
         stacked=rp.stacked(scene, geometry, R, seen),
