@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections import Counter
 from importlib.resources import files
 
+import numpy as np
 import pytest
 
 from rietx.crystallography import radii
@@ -231,3 +232,27 @@ def test_bad_arguments_are_refused():
         ionic_radius("O2-", "six")
     with pytest.raises(ValueError, match="order"):
         covalent_radius("C", order=3)
+
+
+@pytest.mark.parametrize("species", ["T+", "3H+"])
+def test_tritium_does_not_borrow_hydrogens_row(species):
+    """Shannon tabulates D apart from H and prints no tritium row."""
+    with pytest.raises(KeyError, match="mass number 3"):
+        ionic_radius(species, 2)
+    assert ionic_radius("D+", 2).ion == "D"
+    assert ionic_radius("1H+", 2).ion == "H"
+
+
+def test_numpy_integers_are_integers_to_the_lookup():
+    """Consumers count neighbours in numpy."""
+    want = ionic_radius("Fe3+", 6, spin="HS")
+    assert ionic_radius("Fe3+", np.int64(6), spin="HS") == want
+    assert covalent_radius("C", order=np.int64(2)) == covalent_radius("C", order=2)
+    with pytest.raises(TypeError):
+        ionic_radius("Fe3+", 6.0, spin="HS")
+
+
+@pytest.mark.parametrize("order", [1.0, 2.0, 0, "1"])
+def test_a_non_integer_bond_order_names_the_allowed_orders(order):
+    with pytest.raises(ValueError, match="order must be 1"):
+        covalent_radius("C", order=order)
