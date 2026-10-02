@@ -73,10 +73,10 @@ RESONANT_ABSORBERS: frozenset[str] = frozenset(
 #: is the one that sets how far a thermal wavelength sits from the resonance.
 #: ``149Sm`` and ``151Eu`` also carry a bound (negative-energy) level, at
 #: -1.127 and -0.0609 eV, which is not a resonance a beam can sit on and is
-#: left out.  The values agree with the evaluation behind them, Mughabghab,
-#: *Atlas of Neutron Resonances* (2006), where the front chapters name
-#: ``113Cd``, ``149Sm`` and ``155Gd`` as the nuclei with a resonance near
-#: thermal energy; the per-nuclide tables were not to hand.
+#: left out.  Checked against Mughabghab, *Atlas of Neutron Resonances*
+#: (2006) for ``113Cd`` (0.178 eV), ``149Sm`` (0.0973 eV) and ``168Yb``
+#: (0.597 eV).  The copy to hand lacks the ``155Gd`` and ``157Gd`` pages and
+#: ``151Eu`` was not located, so those three rest on ENDF alone.
 RESONANCE_ENERGY_EV: dict[str, float] = {
     "113Cd": 0.1787, "149Sm": 0.0973, "151Eu": 0.321,
     "155Gd": 0.0268, "157Gd": 0.0314, "168Yb": 0.597}

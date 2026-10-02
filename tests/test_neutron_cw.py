@@ -1284,6 +1284,9 @@ def test_every_resonant_absorber_has_a_resonance_energy():
     )
 
     assert set(RESONANCE_ENERGY_EV) <= RESONANT_ABSORBERS
+    from rietx.crystallography.neutron import _RESONANCE_CARRIERS  # noqa: PLC0415
+    assert set(_RESONANCE_CARRIERS) <= RESONANT_ABSORBERS
+    assert {n for ns in _RESONANCE_CARRIERS.values() for n in ns} == set(RESONANCE_ENERGY_EV)
     for species in RESONANT_ABSORBERS:
         where = resonance_wavelengths(species)
         assert where, species

@@ -125,6 +125,67 @@ issue #113 saying its (a) slice landed — #113 stays open for the fenced
 
 ## Handover log
 
+### 2026-10-02 — the resonant-absorber flag now says where the resonance is
+
+A neutron refinement of a structure holding Cd, Sm, Eu, Gd or Yb used to be
+told only that the scattering length is incomplete near a resonance. It is now
+told where the lowest resonance sits, as an energy and as a neutron
+wavelength, beside the instrument's own wavelength. For Gd the two resonances
+are at 1.75 Å and 1.61 Å, close to the 1.798 Å thermal wavelength. That is why
+the flag matters most on a reactor instrument near 1.5-2.5 Å. The package
+still does not judge whether a given wavelength is too near, because that needs
+the resonance width, which it does not carry.
+
+- *Done*: `RESONANCE_ENERGY_EV`, `resonance_wavelengths()` and
+  `NEUTRON_LAMBDA_EV_ANGSTROM` in `crystallography/neutron.py`; the
+  `NEUTRON_RESONANT_ABSORBER` message quotes them (`refine.py`). Two tests in
+  `tests/test_neutron_cw.py`, one crossing every `RESONANT_ABSORBERS` member
+  against the energy table. Two stale sentences in the manual
+  (`corrections.md`, `using/data.md`) and one in the `total_cross_section_neutron`
+  refusal message now say what is true. The Inherited section was pruned on
+  arrival: every row (#271, #268, #276, #437, the joint-fit audit) had landed.
+- *Source, and why it is not the Atlas.* The values are the lowest
+  positive-energy resonance of ¹¹³Cd 0.1787, ¹⁴⁹Sm 0.0973, ¹⁵¹Eu 0.321,
+  ¹⁵⁵Gd 0.0268, ¹⁵⁷Gd 0.0314 and ¹⁶⁸Yb 0.597 eV, read from the MF2/MT151
+  records of the ENDF/B-VIII.0 files (IAEA-NDS download, 2018 retrieval). The
+  Atlas PDF in the Zotero library (`XIHREUPV`, 153 pages) ends at the
+  bibliography on printed page 136, so its per-nuclide tables are absent. The
+  full volume then turned up (`~/Downloads`, 1008 pages). It matches ¹¹³Cd
+  (0.178 eV), ¹⁴⁹Sm (0.0973) and ¹⁶⁸Yb (0.597). It lacks the ¹⁵⁵Gd pages and
+  ¹⁵⁷Gd's first ones (printed 64-5 to 64-12 are not in the scan), and ¹⁵¹Eu
+  was not found by text search. Those three rest on ENDF alone, and the code
+  comment and `ATTRIBUTION.md` say so. Pages 64-5 to 64-12 from another copy
+  would close it.
+- *Deliberately not done*: the refusal in `total_cross_section_neutron` stays
+  at every wavelength for every listed absorber. Loosening it needs a width and
+  a measured departure from 1/v, and nothing here measures either.
+- *Measured* (macOS arm64, `[dev]` without jax or torch, `-n auto --dist
+  loadgroup`): fast selection 7922 passed, 159 skipped, ~5 min on the first
+  run, which was alone; the re-run after review, with another session's suite
+  running beside it, took ~8.7 min and so is not a timing. Two tests added,
+  each ~0.00 s in the junit file, so neither joins the slow tail. The full
+  selection did not run: nothing here moves a measured number, because the
+  only change is message text and a data table. One test failed on the
+  re-run, `test_skill.py`'s budget, because I had added a sentence to the
+  skill row. The row's file was already over budget, so I reverted it. The
+  package's own message carries the fact, which the placement rule ranks first.
+- *Review (`/code-review high --fix`)*: no correctness bug. Applied: a comment
+  that overclaimed an Atlas cross-check (now states what was and was not
+  checked), an `ATTRIBUTION.md` entry for the ENDF values, and the `sits`
+  list ordered like `named` in the message. Taken afterwards: the carriers
+  table is now crossed against `RESONANT_ABSORBERS` in the test. Declined: the
+  skill-row edit (above), deriving `NEUTRON_LAMBDA_EV_ANGSTROM` from
+  `scipy.constants` (the test pins it to the 1.798 Å already shipped), a manual
+  line wrap, and rewording the refusal message.
+- *Gotchas*: a nuclide with a bound level (¹⁴⁹Sm at -1.127 eV, ¹⁵¹Eu at
+  -0.0609 eV) is not given a second entry. The file's resonance range may end
+  well above the lowest level, so the lowest *positive* one is the right pick.
+- *Next*: (1) post the #113 comment saying its (a) slice landed with energies,
+  a public act, so the maintainer approves it first; #113 stays open for the
+  fenced (b) and (c) halves. (2) Then close WP-1312, since no task is left.
+  Do the close in the follow-up session: delete the Priority line and move this
+  narrative to the v1.6 record.
+
 ### 2026-09-29 (2nd session) — tasks 3 and 4 landed from outside; #194 closes
 
 A joint fit of an X-ray and a neutron histogram now has an audit that says

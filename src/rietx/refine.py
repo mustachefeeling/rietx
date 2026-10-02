@@ -6431,7 +6431,7 @@ def _resonant_absorber_diagnostics(structure: Structure,
     named = ", ".join(f"{s} {v:.0f} barn" for s, v in
                       sorted(flagged.items(), key=lambda kv: -kv[1]))
     sits = "; ".join(f"{n} {e:.4g} eV = {lam:.3g} A"
-                     for s in sorted(flagged)
+                     for s in sorted(flagged, key=lambda k: -flagged[k])
                      for n, (e, lam) in resonance_wavelengths(s).items())
     return [Diagnostic(
         level=("warning" if worst >= RESONANT_ABSORBER_SEVERE_BARN else "info"),
