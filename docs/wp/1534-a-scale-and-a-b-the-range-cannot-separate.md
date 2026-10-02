@@ -285,7 +285,10 @@ branch tree is the merged tree):
   `test_fe_b_is_held_in_every_stage_that_frees_it` at 7.37 s for two cases,
   which share the module fixture's two fits. None of them joins the slow
   tail.
-- The full suite: FULL_COUNTS.
+- **The full suite did not complete.** It was launched once, alone, on the
+  final tree. The 4-core container stopped it at its 2-hour background limit
+  before any summary printed, so no full count is quoted. The slow
+  acceptance suites on this change are left to CI's nightly `full` job.
 - The lane trial (`session_usage.py lanes c77ba4ec`):
 
   | lane | est | requests | main at dispatch | lane base | re-read | main requests | left in main | main edits after | redo | lane $ | main $ | in-session $ | saved $ |
