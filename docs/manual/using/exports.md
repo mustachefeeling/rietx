@@ -267,6 +267,11 @@ palette: {'Ca1': '#00c4b8', 'Al1': '#bc5c70', 'Na1': '#8040e0', 'F1': '#48d860',
 - `keep(g, mask, complete=True)` first re-adds the far ends of the bonds cut
   from a kept atom, and the vertices of polyhedra whose centre is kept.
   That is VESTA's boundary search.
+  `complete="polyhedra"` re-adds the vertices alone, so a window of whole
+  polyhedra has nothing hanging off its edge.
+  On a window of YBa₂Cu₃O₇ holding 44 atoms, `complete=True` adds 80 and
+  `complete="polyhedra"` adds 30.
+  `complete="bonds"` re-adds the far ends alone.
   It completes only within the atoms `build` produced, which are the extent
   it was asked for and the images its bonds and polyhedra reach.
   A bond's `j` is an image of its far end and not always the atom at that end,

@@ -81,7 +81,7 @@ polyhedron's vertex. The proposal: `complete="polyhedra"` and
       bonds on the four blocks the issue names
 - [x] #666: label placement clear of atoms and bonds, and the two new overlap
       counts in the report (both twins if the scene module moves)
-- [ ] #667: `complete="polyhedra"` / `"bonds"`
+- [x] #667: `complete="polyhedra"` / `"bonds"`
 - [ ] Tests, with the issues' reproductions as cases and a rendered PNG of
       each to `tests/output/`
 - [ ] Skill: the figure rows that tell an agent to trust `fig.report` say

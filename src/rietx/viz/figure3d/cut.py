@@ -290,7 +290,11 @@ def periodicity(geometry: Mapping, mask) -> int:
     return best
 
 
-def keep(geometry: Mapping, mask, *, complete: bool = False) -> dict:
+#: What ``keep(..., complete=)`` takes: nothing, both, or one of the two.
+COMPLETE = (False, True, "bonds", "polyhedra")
+
+
+def keep(geometry: Mapping, mask, *, complete: bool | str = False) -> dict:
     """The geometry with only the atoms ``mask`` keeps, every index consistent.
 
     A bond survives when both its ends do, a polyhedron when its centre and
@@ -300,19 +304,24 @@ def keep(geometry: Mapping, mask, *, complete: bool = False) -> dict:
     ``atoms``, the cell's images its atom cap left out, survive any number of
     cuts.  ``complete=True`` first re-adds the far ends of the bonds cut from a kept
     atom and the vertices of the polyhedra whose centre is kept, from the atoms
-    ``build`` produced: VESTA's boundary search.  It completes only within what
-    was built.  ``sites`` is untouched and ``atoms[k]["site"]`` keeps its
-    meaning.  The input is not modified.
+    ``build`` produced: VESTA's boundary search.  ``complete="polyhedra"``
+    re-adds the vertices alone, so a window of whole polyhedra has nothing
+    hanging off its edge, and ``complete="bonds"`` the far ends alone (#667).
+    It completes only within what was built.  ``sites`` is untouched and
+    ``atoms[k]["site"]`` keeps its meaning.  The input is not modified.
     """
+    if not any(complete is c or (isinstance(c, str) and complete == c) for c in COMPLETE):
+        raise ValueError(f"complete {complete!r}: one of False, True, 'bonds' or 'polyhedra'")
     atoms = geometry["atoms"]
     kept = _mask(geometry, mask).copy()
     bonds, polys = geometry["bonds"], geometry["polyhedra"]
     far = _far(geometry)
-    if complete:
-        first = kept.copy()
+    first = kept.copy()
+    if complete in (True, "bonds"):
         for b, j in zip(bonds, far):
             if first[b["i"]] or first[j]:
                 kept[b["i"]] = kept[j] = True
+    if complete in (True, "polyhedra"):
         for p in polys:
             if first[p["center"]]:
                 kept[p["vertices"]] = True
