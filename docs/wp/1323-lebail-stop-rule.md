@@ -35,6 +35,17 @@ converge only by alternating — and the alternation is not a descent on one
 objective. Where the profile subspace is nearly flat, each re-extraction moves
 the valley floor *within* that subspace.
 
+**Reframed 2026-09-23 by the reporter's later comments (folded 2026-10-02).**
+The time cost does not transfer: on a second specimen 20 uncapped passes took
+8.6 s. The divergence does. From a poor start Rwp rose monotonically
+(37.73 % to 47.65 % over 20 passes; 19.09 % to 26.09 % over 15 on the
+six-phase pattern). From a good start the alternation helps (56.80 % to
+26.93 %, and 2.5247 % against staged Rietveld's 2.5614 % when started from
+Rietveld's answer). So a cap alone truncates a converging run, and the rule
+is keep-best, stop on the first pass that does not lower Rwp, never stop while
+it falls, say why, and say the result depends on the start state. That is what
+shipped.
+
 **Measured cost** (#210, a six-phase lab pattern at 0.05° steps): an
 unconstrained Le Bail with five free cells and all four Caglioti terms took
 **~40 of a ~100-minute session**; pass 2 came out worse than pass 1 (Rwp
@@ -66,6 +77,10 @@ does not change it.
 
 ### Inherited
 
+*Pruned 2026-10-02. The 2026-09-23 entry is folded into Context above. The two
+below describe failures this WP deliberately does not address (the stop rule
+cannot see a wrong cell or a low background), and both are still true.*
+
 - **2026-09-28, from the review of `solution case 1` (private corpus map
   § 5; WP-1510 has the source).** A third way a Le Bail answer goes wrong,
   this time on the background. The agent followed SKILL.md §2 rule 5 and
@@ -86,22 +101,6 @@ does not change it.
   term that grows while the background sits at its seed is the tell to
   report. The too-stiff side has no guard (root CLAUDE.md § Background
   flexibility).
-- **2026-09-23, from the issue triage (issue #210).** The reporter's two
-  later comments (2026-09-01 and 2026-09-02) revise the Context's framing,
-  and no session had folded them. The time cost does not transfer: on a
-  second specimen, 20 uncapped passes took 8.6 s. The divergence does. From
-  a poor start Rwp rose monotonically, 37.73 % to 47.65 % over 20 passes, and
-  19.09 % to 26.09 % over 15 on the six-phase pattern, where a cap of 8 with
-  keep-best stopped at pass 3 and kept pass 1. From a good start the
-  alternation helps: 56.80 % to 26.93 %, still improving at the bound, and
-  2.5247 % against staged Rietveld's 2.5614 % when started from Rietveld's
-  converged answer. So a cap alone truncates a converging run. The ask is
-  keep-best, a stop on the first non-monotone pass, no early stop while Rwp
-  still falls, and the stop reason recorded. The reporter also asks for one
-  sentence where an agent reads it, saying the result depends on the start
-  state. Checked against the tree at `644dff84`: Context § Measured cost
-  still leads with the 40-minute figure, and no skill row states the
-  start-state dependence.
 - **2026-09-15, from the issue #313 manual fix (no WP).** A second way the
   alternation wanders, on a *wrong cell* rather than a flat profile subspace.
   LaB₆ (`tests/data/11BM_LaB6_660a.fxye`, 2-20°, `plan="profile_only"`,
