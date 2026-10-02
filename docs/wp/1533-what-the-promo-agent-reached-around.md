@@ -126,8 +126,13 @@ re-run WP-1466's `measure.py` and name the rows that moved.
       say which
 - [ ] Furniture: land a helper or decline it, with the line counts above as
       the case
-- [ ] Default colours: change or decline. A change re-runs WP-1466's
-      `measure.py` and names the rows that moved
+- [x] Default colours: change or decline. A change re-runs WP-1466's
+      `measure.py` and names the rows that moved. **Declined 2026-10-02.**
+      The hues separate within a phase (WP-1029), which is their job. C's
+      #383838 reads at 1.56:1 on the dark #151515, the mirror of H's
+      1.38:1 on light, and a plain 3:1 rule would repaint 11 of 20 CPK
+      colours. The skill now says to recolour C on a dark background, and
+      a theme-dependent C goes to WP-1468 with these numbers
 - [ ] Tests, with a rendered PNG of each new argument to `tests/output/`
 - [ ] Skill: `cell=` and `stick=` in `api-figure.md`'s signature row and
       body, and the `hidden` rule rewritten for a view the prompt named

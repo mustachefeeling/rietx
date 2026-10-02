@@ -345,7 +345,9 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "max_atoms=2000)` draws a block of cells, raising past "
                 "`max_atoms`; each atom's `image` says which atom of the cell it "
                 "is, and `periodicity(g, mask)` reads 0 to 3 for a motif "
-                "(Measured: WP-1502, NAC 3x3x3 in 44-62 ms).",
+                "(Measured: WP-1502, NAC 3x3x3 in 44-62 ms). On a dark "
+                "`background`, `recolour` C, whose default #383838 reads at "
+                "1.56:1 against #151515 (Measured: WP-1533).",
                 ("rx.viz.keep", "rx.viz.select", "rx.viz.plane", "rx.viz.sphere",
                  "rx.viz.component", "rx.viz.periodicity", "rx.viz.recolour"),
             ),
