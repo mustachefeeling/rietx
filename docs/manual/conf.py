@@ -49,9 +49,10 @@ from rietx.optimize.statistics import (
     MAX_SHIFT_CONVERGED,
     OBS_PER_PARAMETER_MIN,
     OBS_PER_PARAMETER_PREFERRED,
+    PINV_RCOND,
 )
 from rietx.params.vector import SIZE_CAP_MIN_SIZE_A, STRAIN_CAP_RANGE_FRACTION
-from rietx.refine import SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
+from rietx.refine import SCALE_B_SEPARATION_FLOOR, SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
 from rietx.report.layer2 import IMPURITY_SIGMA
 from rietx.report.schemas import (
     MATURITY_MAX_RWP,
@@ -157,6 +158,10 @@ myst_substitutions = {
     "OBS_PER_PARAMETER_MIN": OBS_PER_PARAMETER_MIN,
     "OBS_PER_PARAMETER_PREFERRED": OBS_PER_PARAMETER_PREFERRED,
     "VARIANCE_CANCELLATION_FLOOR": VARIANCE_CANCELLATION_FLOOR,
+    # the covariance's pinv cut and the scale-B floor derived from it
+    # (WP-1534); formatted, the floor being an irrational sqrt
+    "PINV_RCOND": f"{PINV_RCOND:.0e}",
+    "SCALE_B_SEPARATION_FLOOR": f"{SCALE_B_SEPARATION_FLOOR:.1e}",
     "DEFAULT_N_UNINDEXED": DEFAULT_N_UNINDEXED,
     "DEFAULT_SEARCH_LINES": DEFAULT_SEARCH_LINES,
     "SEARCH_POOL_MULTIPLE": SEARCH_POOL_MULTIPLE,

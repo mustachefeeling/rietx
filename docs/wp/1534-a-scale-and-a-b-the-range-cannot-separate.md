@@ -201,7 +201,7 @@ stating what it changed.
       PR #663 deferred.
 - [x] Tests (unit + the synthetic fixture) + obs/calc/diff PNGs to
       `tests/output/`.
-- [ ] Manual Part 2: the ridge relation as a displayed equation with its
+- [x] Manual Part 2: the ridge relation as a displayed equation with its
       `*Source:*` line, if the fix adds physics.
 - [ ] Skill: a row for the new finding, and a line in the QPA reference on
       short ranges.
