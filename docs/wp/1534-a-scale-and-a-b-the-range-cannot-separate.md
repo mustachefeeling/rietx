@@ -1,9 +1,9 @@
 # WP-1534 — a scale and a B the fitted range cannot separate
 
-Milestone: unscheduled · Status: 🔄 2026-10-02 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-02 — the hold and `SCALE_B_INSEPARABLE` landed (PR #673); task 2's guideline reading is owed, and the default-bounds decision is the maintainer's
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P1 2026-10-02 — task 1 measured the QPA esd *not* saying it: unbounded, a one-reflection phase returns 0.000 ± 0.000 wt% against 1.211 true, because the covariance discards the ridge rather than marking it
+Priority: P3 2026-10-02 — was P1: the hold that stops the silent 0.000 ± 0.000 wt% landed in PR #673; what remains is task 2's reading (needs the paper corpus) and the maintainer's call on the default bounds
 
 ## Goal
 
@@ -233,9 +233,115 @@ returns two different confident fractions at one Rwp, as #204 did.
 
 ## Handover log
 
-- **2026-10-02** — created from PR #663's review. No open WP owns acting on
-  a scale–B ridge: WP-1460 reports correlated pairs and WP-1420 re-enters a
-  held phase. Fully unbounding `Atom.biso` was rejected because #204 measured
-  this ridge walking to −165 Å². This WP removes the reason the bounds are
-  needed. Next: task 1, because it decides whether the fix is a report or an
-  action.
+### 2026-10-02 (2nd session) — the hold landed; the guideline reading is owed
+
+A phase with only one reflection in the fitted range can no longer return a
+confident weight fraction from an arbitrary point on the scale–B ridge. Issue
+#204's shape is now a synthetic test: four phases on 25–50° Cu Kα, with bcc Fe
+having one reflection. It showed the covariance was not saying "unmeasured".
+It said 0.000 ± 0.000 wt%, because the covariance's pseudo-inverse discards
+exactly that direction and reports it at zero variance. Each stage now
+detects the case before solving, by the same cut the covariance uses. It
+holds the phase's B at the value supplied and reports `SCALE_B_INSEPARABLE`,
+which names the phase and says how far the fraction moves per Å² of error in
+B. Fe now comes back at 1.284 wt% (truth 1.211) whether B is bounded or not,
+so on this shape the 0–25 Å² default is no longer what protects the answer.
+Whether to keep it is now a choice for the maintainer.
+
+*Done*, in order:
+
+- Task 1 measured (`ff362fb`), and task 3 named the test (`bae258c`).
+- The hold, `StageResult.scale_b_held` (schema 0.40), the finding, its
+  skill row and the manual Part 1 row (`146916c`). This was laned; see
+  *Measured*.
+- Task 5's re-measure (`546cc01`).
+- Manual Part 2's ridge section with two equations and live substitutions
+  (`2b27daa`).
+- The QPA short-range section in the skill (`38d7652`).
+- The review fix (`a4a7126`): a phase that the support hold took at stage
+  start and released mid-stage now gets the probe before its second solve.
+  The new test `test_a_phase_released_inside_the_stage_is_asked_before_its_second_solve`
+  covers it.
+- `session_usage.py` (`f3d7199`): it finds a lane filed under the worktree's
+  project directory, and `baseline` survives an empty band.
+
+**Task 2 is not done.** The paper corpus is maintainer-local and was not in
+this cloud container. The test needs no threshold from the papers, so
+nothing waited on it.
+
+*Measured* (`[dev]`, Linux x86-64, 4 cores; `main` had not moved, so the
+branch tree is the merged tree):
+
+- The probe at stage start reads Fe at 1.0e-12, its rounding floor. The other
+  three phases read 0.19–0.40. The floor is 6.3e-8.
+- The fast selection: FAST_COUNTS.
+- The added tests' cost (`tests.added_test_times`): ADDED_TIMES.
+- The full suite: FULL_COUNTS.
+- The lane trial (`session_usage.py lanes c77ba4ec`):
+
+  | lane | est | requests | main at dispatch | lane base | re-read | main requests | left in main | main edits after | redo | lane $ | main $ | in-session $ | saved $ |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | act-on-it | 45 | 143 | 242K | 79K | 0K of 174K | 11 | 39K | 0 | 0 | 7.78 | 0.99 | 14.16 | +5.17 |
+
+  Kept items: name-the-test (est 4, 3 requests), re-measure-unbounded (4, 2),
+  tests (1, 0), manual-equation (12, 6), skill (6, 7). The row went into
+  `process.md`.
+- The `baseline` replay in this container covers **one** session, this one,
+  not the record's 174. Its selective row reads "0 items laned, +0%", which
+  is not comparable to the record, so WP-1903 has to re-run it on the
+  maintainer's machine. The crossover at this session's context was 40
+  requests at 250K for an 80K lane base. The 143-request lane cleared it, but
+  my estimate of 45 was a third of the actual.
+- **Lane quality:** the review raised one correctness finding on lane-written
+  code, the released-phase gap. The lane prompt had pointed at `phase_held`
+  but did not name the release path as a second entry. The lane deviated
+  three times, and all three were sound, reported calls: a `None` default for
+  "never looked", a probe only where the phase's own scale is free, and U^ij
+  names in the displacement match.
+
+*Declined review findings*, one line each:
+
+- An all-anisotropic phase is never probed. Fixing it needs a uniform-U step
+  in each site's ADP basis, which is new physics. It is noted in WP-1535 as a
+  candidate shape.
+- The joint runner has no probe. That goes to WP-1341's Inherited, and
+  `multi.DIAGNOSTIC_SCOPES` declares it ABSENT.
+- The summary still labels moment holds "phase-unsupported". That predates
+  this branch, and the comment now says so.
+- `_intensity_weighted_s2` weights the nuclear component only. That affects
+  only the message on a split magnetic phase.
+
+*Gotchas*:
+
+- `test_the_ramp_reproduction_no_longer_runs_away` fails its 60 s guard under
+  a loaded `-n auto` on 4 cores: 81.6 s on this branch, 81.9 s on the base. It
+  passes alone in 17 s. This is its fifth recorded trip, now in WP-1420's
+  Inherited.
+- The repo's worktree hook blocks edits in a cloud session's main checkout.
+  This session worked in `.claude/worktrees/wp1534-scale-b-ridge` on local
+  branch `wp1534-scale-b-ridge`, and pushed to the designated remote branch
+  `claude/quirky-noether-39b0el`.
+
+*Forward references*: WP-1535 is filed, for the covariance's zero-variance
+direction on any exactly degenerate combination. Inherited entries went to
+1341 (the joint probe), 1420 (the ramp guard) and 1903 (the lane row and the
+two script defects).
+
+*Next*:
+
+1. The maintainer decides PR #663's deferred question from task 5's table:
+   keep the 0–25 Å² default as a choice, or drop it. The hold now carries
+   #204's shape either way.
+2. Task 2 in a session that has the paper corpus. It can add a *near*-ridge
+   statement for the case fluorite shows: B 2.44 Å² against 0.55, with an
+   honest esd of thousands. If the papers prescribe action there, that
+   becomes a task here.
+3. Close this WP after (2).
+
+### 2026-10-02 (1st session) — created from PR #663's review
+
+No open WP owns acting on a scale–B ridge: WP-1460 reports correlated pairs
+and WP-1420 re-enters a held phase. Fully unbounding `Atom.biso` was rejected
+because #204 measured this ridge walking to −165 Å². This WP removes the
+reason the bounds are needed. Next: task 1, because it decides whether the fix
+is a report or an action.
