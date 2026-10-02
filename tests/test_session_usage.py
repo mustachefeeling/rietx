@@ -140,3 +140,24 @@ def test_a_lane_is_measured_from_both_transcripts(tmp_path: Path) -> None:
                                                + 200 * 20.00) / 1e6)
     (kept,) = res["kept"]
     assert kept == dict(item="item 1", estimate=8, requests=2, main_context=205_000)
+
+
+def test_a_lane_written_under_the_worktree_is_found(tmp_path: Path, monkeypatch) -> None:
+    """A session that enters its worktree after it started keeps its own
+    transcript where it started, and its agents land under the worktree's
+    project directory (WP-1531, where all five lanes went unseen)."""
+    monkeypatch.setattr(su, "PROJECTS", tmp_path)
+    sid = "11111111-2222-3333-4444-666666666666"
+    main = _write(tmp_path / "proj" / f"{sid}.jsonl", [
+        _asst(1, "m1", read=200_000, blocks=[
+            _use("g1", "Agent", description="lane: item 2 ~25", prompt="...")]),
+        _result(2, "g1", "launched", toolUseResult={"agentId": "abc"}),
+        _asst(3, "m2", read=215_000, blocks=[
+            _use("c1", "Bash", command='git commit -m "WP-1234: item 2"')]),
+    ])
+    _write(tmp_path / "proj--claude-worktrees-wp1234" / sid / "subagents" / "agent-abc.jsonl", [
+        _asst(1, "s1", read=0, write=60_000, sidechain=True),
+        _asst(2, "s2", read=60_000, write=10_000, sidechain=True),
+    ])
+    (lane,) = su.measure_lanes(main)["lanes"]
+    assert lane["item"] == "item 2" and lane["requests"] == 2
