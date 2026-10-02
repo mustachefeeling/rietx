@@ -125,10 +125,25 @@ does not change it.
 
 ## Tasks
 
-- [ ] Reproduce #210's shape on a fixture in tree (a multi-phase lab pattern
-      with free cells and Caglioti terms), and record the per-pass Rwp table
-      for the unconstrained alternation. This is the baseline every later
-      number is measured against.
+- [x] Reproduce #210's shape on a fixture in tree, and record the per-pass Rwp
+      table for the unconstrained alternation. This is the baseline every later
+      number is measured against. **Fixture:** no multi-phase lab pattern is in
+      tree, so the stand-in is `11BM_LaB6_cBN_mg2044.xye` (two phases, 5.1-50°),
+      Le Bail scaffolds, `plan="profile_only"`, a hand loop of 8 `fit()` calls
+      (2026-10-02, macOS, `[dev]` venv, numba on). Rwp %, per pass:
+
+      | start | passes 1-8 | wall |
+      |---|---|---|
+      | cells exact | 16.821, 16.907, 16.908, 16.908, … | 3 s |
+      | cells +0.3 % | 16.987, 16.969, 16.967, 16.967, … | 6 s |
+      | cells +2 % | 230.35, 206.58, 175.10, 194.56, 196.29, 203.94, 211.29, 219.93 | 67 s |
+
+      Three shapes, as in #210: from the exact cell pass 2 is *worse* than
+      pass 1 and the loop then sits still; +0.3 % improves and converges;
+      +2 % never settles, `instrument.profile.x` pinned at 1, and the best pass
+      is the third. So keep-best matters in the first and third rows and a cap
+      alone would truncate the second. Script: scratchpad `baseline.py`, not
+      committed.
 - [ ] `RefinementPlan.lebail_passes` (cap) with keep-best and a stop on
       non-monotone Rwp; the schedule is the plan's and one authority applies
       it, as `stage_ftols()` does for tolerances. Bit-identical at one pass.
