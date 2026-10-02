@@ -192,6 +192,7 @@ background
 estimation
 parameterisation
 representation-analysis
+superspace
 indexing
 engines
 method
