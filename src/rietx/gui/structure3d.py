@@ -1425,13 +1425,33 @@ def _split_stick(bond: dict, radii: np.ndarray, metal: np.ndarray, cation: np.nd
     return bool(one_atom(bond["d"], near_a[shared], near_b[shared]).any())
 
 
-def _keys(points) -> list[tuple]:
-    """Each point rounded to 1e-6 Å, the key two drawn positions are matched by.
+#: Where the bins of a position key start, as a fraction of their 1e-6 Å step
+#: (:func:`_keys`).  It is 2 − φ.  That lies far from every fraction with a
+#: small denominator.
+_KEY_PHASE = 0.3819660112501051
 
-    Rounded as one array rather than point by point, which is the same
+
+def _keys(points) -> list[tuple]:
+    """Each point's 1e-6 Å bin, the key two drawn positions are matched by.
+
+    The bins start :data:`_KEY_PHASE` of a step off the decimal grid, because
+    a CIF's positions lie on that grid.  A short coordinate times a short cell
+    length is a short decimal.  LaB6's B is at 0.5 × 4.157597 = 2.0787985 Å,
+    and an I of (BA)₂(MA)₂Pb₃I₁₀ at 0.0605 × 51.959 = 3.1435195 Å.  Each lies
+    on a half step of 1e-6 Å.  There rounding lets the last bit of the
+    arithmetic choose the side.  A bond's far end and the polyhedron vertex at
+    that point are two computations of it.  On the I they differ by 4e-15 Å,
+    and they had rounded to two keys.  So the polyhedron left that bond off
+    its ``bonds``, and the renderer drew it as a stick through the faces.  A
+    second atom was also drawn at that corner.  This hit 3 of the cell's 17
+    PbI₆ and 4 of LaB6's 8 polyhedra (issue #664).  A position given to nine
+    decimals now lies at least 3e-11 Å from an edge.
+
+    Binned as one array rather than point by point, which is the same
     arithmetic at a fraction of the cost (WP-1468).
     """
-    return [tuple(row) for row in np.round(np.asarray(points, dtype=np.float64).reshape(-1, 3), 6)]
+    bins = np.floor(np.asarray(points, dtype=np.float64).reshape(-1, 3) * 1e6 + _KEY_PHASE)
+    return [tuple(row) for row in bins.astype(np.int64).tolist()]
 
 
 # ----------------------------------------------------------------------

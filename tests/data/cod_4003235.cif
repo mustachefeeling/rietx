@@ -1,0 +1,132 @@
+#------------------------------------------------------------------------------
+#$Date: 2019-11-22 22:36:26 +0200 (Fri, 22 Nov 2019) $
+#$Revision: 231452 $
+#$URL: file:///home/coder/svn-repositories/_RELOADED_COD/cod-reloaded/cif/4/00/32/4003235.cif $
+#------------------------------------------------------------------------------
+#
+# This file is available in the Crystallography Open Database (COD),
+# http://www.crystallography.net/
+#
+# All data on this site have been placed in the public domain by the
+# contributors.
+#
+# Trimmed for rietx's tests to the items structure_from_cif reads: the
+# reflection list, the SHELX files and the geometry and atom-type loops are
+# left out.  Nothing kept is edited.
+#
+data_4003235
+loop_
+_publ_author_name
+'Stoumpos, Constantinos C.'
+'Cao, Duyen H.'
+'Clark, Daniel J.'
+'Young, Joshua'
+'Rondinelli, James M.'
+'Jang, Joon I.'
+'Hupp, Joseph T.'
+'Kanatzidis, Mercouri G.'
+_publ_section_title
+;
+ Ruddlesden--Popper Hybrid Lead Iodide Perovskite 2D Homologous
+ Semiconductors
+;
+_journal_issue                   8
+_journal_name_full               'Chemistry of Materials'
+_journal_page_first              2852
+_journal_paper_doi               10.1021/acs.chemmater.6b00847
+_journal_volume                  28
+_journal_year                    2016
+_chemical_formula_moiety         2(C4H9NH3),2(CH3NH3),Pb3I10
+_chemical_formula_sum            'C10 H36 I10 N4 Pb3'
+_chemical_formula_weight         2103.00
+_chemical_name_common            'Butylammonium Methylammonium Lead Iodide'
+_space_group_crystal_system      orthorhombic
+_space_group_IT_number           41
+_space_group_name_Hall           'C -2ac 2'
+_space_group_name_H-M_alt        'C 2 e b'
+_symmetry_Int_Tables_number      41
+_symmetry_space_group_name_H-M   'C 2 e b'
+_cell_angle_alpha                90
+_cell_angle_beta                 90
+_cell_angle_gamma                90
+_cell_formula_units_Z            4
+_cell_length_a                   8.9275(6)
+_cell_length_b                   51.959(4)
+_cell_length_c                   8.8777(6)
+_cell_measurement_reflns_used    5445
+_cell_measurement_temperature    293(2)
+_cell_measurement_theta_max      23.50
+_cell_measurement_theta_min      1.57
+_cell_volume                     4118.0(5)
+_cod_database_code               4003235
+loop_
+_space_group_symop_operation_xyz
+'x, y, z'
+'x, -y, -z'
+'x, y+1/2, -z+1/2'
+'x, -y+1/2, z+1/2'
+'x+1/2, y+1/2, z'
+'x+1/2, -y+1/2, -z'
+'x+1/2, y+1, -z+1/2'
+'x+1/2, -y+1, z+1/2'
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_U_iso_or_equiv
+_atom_site_adp_type
+_atom_site_occupancy
+_atom_site_site_symmetry_order
+_atom_site_calc_flag
+_atom_site_refinement_flags_posn
+_atom_site_refinement_flags_adp
+_atom_site_refinement_flags_occupancy
+Pb1 Pb 0.5147(4) 0.0000 0.5000 0.0484(5) Uani 1 2 d S T P
+Pb2 Pb 0.5246(2) 0.12391(3) 0.50105(15) 0.0530(4) Uani 1 1 d . . .
+I1 I 0.5192(15) 0.06050(5) 0.4673(4) 0.1030(13) Uani 1 1 d . . .
+I2 I 0.7790(7) 0.12782(8) 0.2559(8) 0.1021(15) Uani 1 1 d . . .
+I3 I 0.7770(8) 0.11576(8) 0.7460(8) 0.0996(13) Uani 1 1 d . . .
+I4 I 0.2783(17) -0.00432(9) 0.251(2) 0.189(3) Uani 1 1 d . . .
+I5 I 0.5265(19) 0.18172(6) 0.5588(4) 0.138(2) Uani 1 1 d . . .
+N1 N 1.090(12) 0.0628(18) 0.539(10) 0.23(4) Uiso 1 1 d D . .
+H1A H 1.0863 0.0783 0.5818 0.350 Uiso 1 1 calc R U .
+H1B H 1.1724 0.0615 0.4835 0.350 Uiso 1 1 calc R U .
+H1C H 1.0903 0.0507 0.6101 0.350 Uiso 1 1 calc R U .
+C1 C 0.961(13) 0.059(2) 0.445(13) 0.23(4) Uiso 1 1 d D . .
+H1D H 0.8721 0.0605 0.5051 0.350 Uiso 1 1 calc R U .
+H1E H 0.9660 0.0429 0.3970 0.350 Uiso 1 1 calc R U .
+H1F H 0.9594 0.0727 0.3695 0.350 Uiso 1 1 calc R U .
+N2 N 0.4984 0.1644 0.9592 0.130(16) Uiso 1 1 d D . .
+H2A H 0.5693 0.1549 0.9158 0.195 Uiso 1 1 calc R U .
+H2B H 0.4282 0.1682 0.8917 0.195 Uiso 1 1 calc R U .
+H2C H 0.4574 0.1555 1.0346 0.195 Uiso 1 1 calc R U .
+C2 C 0.5705 0.1903 1.0231 0.130(16) Uiso 1 1 d D . .
+H2D H 0.6481 0.1860 1.0955 0.156 Uiso 1 1 calc R U .
+H2E H 0.6166 0.1997 0.9411 0.156 Uiso 1 1 calc R U .
+C3 C 0.4519 0.2072 1.0990 0.130(16) Uiso 1 1 d D . .
+H3A H 0.3661 0.2092 1.0331 0.156 Uiso 1 1 calc R U .
+H3B H 0.4184 0.1992 1.1919 0.156 Uiso 1 1 calc R U .
+C4 C 0.5201 0.2325 1.1309 0.130(16) Uiso 1 1 d D . .
+H4A H 0.5255 0.2427 1.0396 0.156 Uiso 1 1 calc R U .
+H4B H 0.6206 0.2304 1.1705 0.156 Uiso 1 1 calc R U .
+C5 C 0.4187 0.2458 1.2485 0.130(16) Uiso 1 1 d D . .
+H5A H 0.4590 0.2625 1.2726 0.195 Uiso 1 1 calc R U .
+H5B H 0.4143 0.2355 1.3381 0.195 Uiso 1 1 calc R U .
+H5C H 0.3197 0.2478 1.2079 0.195 Uiso 1 1 calc R U .
+loop_
+_atom_site_aniso_label
+_atom_site_aniso_U_11
+_atom_site_aniso_U_22
+_atom_site_aniso_U_33
+_atom_site_aniso_U_23
+_atom_site_aniso_U_13
+_atom_site_aniso_U_12
+Pb1 0.0411(11) 0.0628(10) 0.0411(8) -0.0012(8) 0.000 0.000
+Pb2 0.0516(9) 0.0659(8) 0.0414(6) -0.0012(6) 0.0156(8) 0.0030(15)
+I1 0.144(3) 0.0534(15) 0.112(2) 0.0002(14) -0.025(5) -0.004(4)
+I2 0.077(3) 0.161(3) 0.0685(19) -0.022(4) 0.0385(17) -0.020(5)
+I3 0.073(3) 0.154(3) 0.0722(17) -0.004(5) -0.0394(16) 0.019(5)
+I4 0.219(6) 0.129(3) 0.219(5) -0.005(11) -0.184(5) 0.016(11)
+I5 0.264(6) 0.0584(17) 0.093(2) -0.0022(15) 0.022(6) -0.010(8)
