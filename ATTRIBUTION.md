@@ -376,6 +376,30 @@ they were built from. Their licence texts ship in the wheel and sdist as
   *Atlas of Neutron Resonances* (2006) for 113Cd (0.178 eV), 149Sm (0.0973 eV)
   and 168Yb (0.597 eV); the copy to hand lacks the 155Gd and 157Gd pages and
   151Eu was not located, so those three rest on ENDF alone.
+- `src/rietx/data/r_ion_Shannon.dat` — effective ionic and crystal radii,
+  all 497 rows of Table 1 (pp. 752–753) of Shannon, R. D. (1976). *Acta
+  Cryst.* A**32**, 751–767, doi:10.1107/S0567739476001551, with every printed
+  column and Shannon's derivation/reliability flags. **Shannon is the sole
+  source of every ionic radius here.** Transcribed for this package from
+  the page images (2026-10-02). No file was copied. Two independent digital
+  copies were read as checks only: the Imperial College Shannon database
+  agrees on all 994 radii and differs on one flag, and Wikipedia's "Ionic
+  radius" tables differ on two cells. In all three cases the page agrees
+  with this transcription. The file header lists those cells, the page
+  checks, and the one printed exception to Shannon's CR = IR ± 0.14 Å
+  (N⁵⁺ III). Read by `crystallography.radii.ionic_radius`.
+- `src/rietx/data/r_cov_Pyykko.dat` — molecular covalent radii from
+  Pyykkö, P. & Atsumi, M. (2009). *Chem. Eur. J.* **15**, 186–197,
+  doi:10.1002/chem.200800987 (single bonds, r₁, Fig. 2, 118 elements), and
+  Pyykkö, P. & Atsumi, M. (2009). *Chem. Eur. J.* **15**, 12770–12779,
+  doi:10.1002/chem.200901472 (double bonds, r₂, Fig. 3, 108 elements).
+  Transcribed from the figures (2026-10-02). Fig. 3 is marked "This table
+  copyright © 2009 by Pekka Pyykkö", so only the numbers are reproduced,
+  never the figure. Wikipedia's "Covalent radius" table was a check only,
+  and agrees on all 226 values. These radii are for covalent bonds in
+  molecules and rigid bodies (`crystallography.radii.covalent_radius`).
+  The bond table in `model/geometry.py` does not read them; it uses gemmi's
+  Cordero et al. (2008) radii.
 - `src/rietx/data/f0_WaasKirf.dat` — Waasmaier & Kirfel (1995) 5-Gaussian f0
   coefficients, obtained from the ESRF DABAX collection (public scientific data,
   redistributed by silx (MIT) among others). Cite Waasmaier & Kirfel (1995).
