@@ -61,6 +61,21 @@ Stated as a chemist would, from the 21 phases in
 `docs/wp/1504-eval/` holds the harness, the rubric and the run log. A
 condition is enforced in a shim, never in the prompt.
 
+### Inherited
+
+From **WP-1533** (2026-10-02). `FigureReport.stacked` is the part of
+`hidden` that sits behind an atom of the same site, within a quarter of its
+drawn radius. One cell down a cell axis reads 0.53 hidden and 0.53 stacked
+on HKUST-1, 0.52 and 0.50 on ZSM-5, and 1.00 and 1.00 on YBa₂Cu₃O₇. NAC's
+opening view reads 0.18 and 0.00. The skill's rule now reads
+`hidden - stacked` and keeps a view the task named. `view="auto"` still
+ranks by `hidden`, stacking included, so it prefers an oblique view to an
+axis projection. Whether it should rank by occlusion is an agent question,
+because the change moves every default `auto` pick. WP-1531 and WP-1533
+also added `cell=`, `stick=`, `max_atoms=`, `fig.to_px`, the label overlap
+counts and `cut["atoms"]`. A round run after their merge measures a
+different surface from the fixed round.
+
 ## Non-goals
 
 - Running it in CI.

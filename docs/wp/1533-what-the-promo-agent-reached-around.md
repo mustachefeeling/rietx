@@ -1,9 +1,8 @@
 # WP-1533 — what the promo agent reached around: a cell frame with no switch, a stick width in a module constant, a score that argues against the axis view, and the furniture every script rebuilds
 
-Milestone: unscheduled · Status: 🔄 2026-10-02 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-02 — closed, PR #671
 Track: Render what the fit already knows
 Depends on: — (1531 soft: the same surface, and its report fixes are the P2)
-Priority: P3 2026-10-02 — the agent found a workaround for every item; the axis-view rule is the one that steers it wrong
 
 ## Goal
 
@@ -166,6 +165,62 @@ npm --prefix gui test
   Cryst. B* **65**, 363).
 
 ## Handover log
+
+- **2026-10-02** — closed, all seven tasks, in one session with WP-1531 under
+  the `/wp-lanes` trial (PR #671). The lane tables are in WP-1531's entry.
+
+  An agent no longer has to patch rietx to get the figure it wants. The cell
+  frame and the stick width are arguments, so `fig.recipe` redraws what was
+  drawn. The figure carries the map from Å to pixels, so a legend, axis triad
+  and scale bar need no least-squares fit and no hand-typed directions, and
+  an example draws all three. The report now separates atoms stacked behind
+  a copy of their own site from atoms another site hides, and the skill
+  keeps a view the task named. Two changes were declined on the record: a
+  drawing helper, and a new default palette.
+
+  *Done.*
+  - `cell=` (`948d9042`): `cell=False` drops the frame and its a, b, c, and
+    the fit follows the atoms.
+  - `stick=` (`047a5e59`): a multiple of the mode's stick rule, the floor
+    unscaled, in `fig.recipe`. The TypeScript twin takes the same option and
+    the scene corpus replays a rutile case at 0.5. GUI dist rebuilt.
+  - The axis view (`5efd60b5`): `FigureReport.stacked`. The `auto` ranking
+    is unchanged, because ranking by occlusion moves every default pick and
+    WP-1504's agent round is where that is measured.
+  - Colours declined (`d7d439df`), furniture helper declined with
+    `fig.to_px` and `examples/structure_furniture.py` landed (`9beaddb3`),
+    skill rows (`0129188b`).
+
+  *Measured* (`[dev]` venv, macOS 26.6.2 arm64):
+  - HKUST-1's 22 Å sphere at `size=400`: 8.5 px/Å with the frame, 16.4
+    without it.
+  - Paracetamol at 100 K, ellipsoid mode: stick radius 0.0723 Å at
+    `stick=1` and 0.0361 Å at 0.5, against a smallest semi-axis of
+    0.1445 Å.
+  - `hidden` split, one cell each: HKUST-1 down a 328 hidden atoms, all 328
+    behind an atom of their own site and 24 behind a translate of
+    themselves. ZSM-5 down b: 149, 144 and 8. YBa₂Cu₃O₇ down b: 14, 14 and
+    14. So the split is by site: in one cell most copies come from
+    rotations. Stacked shares 0.53, 0.50 and 1.00 against hidden 0.53, 0.52
+    and 1.00. NAC's opening view hides 0.18 and stacks 0.00.
+  - Contrast against the backgrounds: C `#383838` on `#151515` 1.56:1, H
+    `#d8d8d8` on `#fbfbfa` 1.38:1. Under 3:1 are 3 of the 20 CPK colours on
+    dark and 11 on light.
+  - Furniture, from the twelve final promo scripts: 10 draw a per-element
+    legend, an L-shaped triad and a round-length scale bar, with strip,
+    fonts and annotations different in each. Four fitted an Å-to-pixel map
+    by least squares and the rest typed the triad from `view=`. None used
+    `fig.palette` or `fig.letters`. `to_px` reproduces every atom's `x`, `y`
+    to 2.8e-14 px on a skewed, turned view.
+
+  *Not done, deliberately.* A drawing helper: the styling differs in every
+  script, so a helper would fix choices agents then fight. A new default
+  palette: within-phase separation holds, and a theme-dependent C changes
+  the GUI's dark picture, which is WP-1468's rule. Cropping to the ink, done
+  by hand in all six take-2 scripts, also went to WP-1468.
+
+  Next: none here. WP-1504's next round should measure whether `auto`
+  ranks by `hidden - stacked`.
 
 - **2026-10-02** — created, from the second promo take and the trial before
   it (yue-here/rietx-promo `demo/log/figures-take-2.md`,
