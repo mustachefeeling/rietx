@@ -123,6 +123,34 @@ The separation reads the intensity the phase actually puts in the data.
 Task 2's guideline reading is still owed. It can add a *near*-ridge statement,
 but this test does not wait on it.
 
+**Task 5, re-measured with the hold (2026-10-02): the decision PR #663
+deferred.** Same fixture, same four runs (bounded and unbounded, both
+staging orders):
+
+| run | Fe wt% (true 1.211) | zincite | fluorite | corundum | Rwp |
+|---|---|---|---|---|---|
+| unbounded, either order | 1.284 | 3.492 | 25.67 | 69.55 | 0.0763697470 |
+| bounded, either order | 1.283 | 3.585 | 25.65 | 69.48 | 0.0763722 |
+
+Before the hold, the unbounded runs gave Fe 0.000 wt% and the bounded runs
+1.283 and 1.236. Now every run gives `SCALE_B_INSEPARABLE` on
+`phases.3.atoms.0.biso` and nothing else of the kind. **On #204's shape, the
+0–25 Å² default is no longer load-bearing.** Bounded and unbounded agree on
+every fraction to 0.1 wt%. Where they differ, the cause is zincite's O, at
+B = −0.88 ± 3.3 Å² unbounded (`BISO_NEGATIVE`) against the 0 floor bounded
+(`BOUND_HIT`). That is a zero within one esd either way. Two things the bounds
+still do, which the maintainer weighs:
+
+- **The near ridge is not held, and the bounds do not bind it either.**
+  Fluorite's Ca B lands at 2.44 Å² (true 0.55) in all four runs, with an esd
+  of ± 3 700–7 700 Å². That esd is honest, and it is why every fraction's QPA
+  esd reads in thousands of wt%. The hold covers the *exact* ridge only, by
+  design: above the cut, the covariance already tells the truth.
+- **A mildly negative B reads as `BISO_NEGATIVE` instead of `BOUND_HIT`.**
+
+One fixture and one shape, so this is evidence for the decision rather than
+the decision itself.
+
 **Not this WP, noted (hypothesis).** The covariance's cut zeroes the variance
 of *any* exactly degenerate combination of live columns. One example is a
 one-site phase's occupancy against its scale, on any range. `_cov_free`
@@ -166,12 +194,12 @@ stating what it changed.
       the phase and the fraction's consequence. Or, if task 1 shows the esd
       already says it, add only the finding. Either way, a diagnostic states
       what was done.
-- [ ] **Re-measure #204's shape unbounded.** With the fix in place, run task
+- [x] **Re-measure #204's shape unbounded.** With the fix in place, run task
       1's fixture with `Atom.biso` unbounded. If the fraction lands within the
       fixture's tolerance, or is marked unmeasured, the default bounds are no
       longer load-bearing. Put that result to the maintainer as the decision
       PR #663 deferred.
-- [ ] Tests (unit + the synthetic fixture) + obs/calc/diff PNGs to
+- [x] Tests (unit + the synthetic fixture) + obs/calc/diff PNGs to
       `tests/output/`.
 - [ ] Manual Part 2: the ridge relation as a displayed equation with its
       `*Source:*` line, if the fix adds physics.
