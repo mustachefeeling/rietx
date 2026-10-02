@@ -1,9 +1,8 @@
 # WP-1535 — A direction the covariance discards reads as measured
 
-Milestone: unscheduled · Status: 🔄 2026-10-02 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-02 — shipped as COVARIANCE_DIRECTION_DISCARDED; esds left, see handover
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P2 2026-10-02 — a confident esd on an exactly degenerate pair, with only `FLAT_DIRECTION` beside it; WP-1534 holds the one shape it measured, and this WP measures how many others there are
 
 ## Goal
 
@@ -129,6 +128,78 @@ conditional.
 - van der Sluis, A. (1969). Numer. Math. 14, 14–23.
 
 ## Handover log
+
+- **2026-10-02** — The covariance cut that gives a discarded direction zero
+  variance is not rare, and a pair test cannot see most of it. On the
+  acceptance fixtures about one whole-pattern solve in ten discards a direction
+  that spans four to eight columns, and a typical case is the sample-broadening
+  block of a QPA mixture: size, strain and the instrument widths trading off
+  against each other. Those fits now carry a warning, `COVARIANCE_DIRECTION_DISCARDED`,
+  naming the parameters whose esds are at least √2 short. The esds themselves
+  are unchanged, because blanking them would have emptied the headline fixtures
+  on a threshold that rounding sets. A one-site occupancy against its scale is
+  confirmed as an exact degeneracy, and it was already reported as a flat pair.
+
+  *Done.* Task 1 measured it (below). Task 2 decided a finding over a mark:
+  `statistics.discarded_directions` (eigenpairs of the equilibrated normal
+  matrix under the cut, the touched test summed over the discarded subspace),
+  `check_discarded_directions` and `GuardReport.discarded_directions` in
+  `strategy/staged.py`, one `Diagnostic` in `refine._guard_diagnostics`, and the
+  joint-fit twin in `multi.py` (`GUARD_SCOPES`: FIT). Retaken on the answer stage
+  through `_REVISABLE_CODES`. Skipped when a Pawley block is present (the cut
+  matrix includes intensities `outcome.jac` omits), when no covariance exists,
+  and when the Jacobian width differs from `free_paths`. A touched set inside a
+  pair `FLAT_DIRECTION` already reported adds no row. Tests in
+  `tests/test_discarded_direction.py` (8). Manual Part 2: `estimation.md` §
+  "A combination of three or more", eq. `est-discarded-touch`, beside
+  WP-1534's ridge. Skill: one row in `references/diagnostics.md`, paid for by
+  trimming the `FLAT_DIRECTION` and `FLAT_DIRECTION_OMITTED` rows (the skill's
+  byte budget; the dropped sentences were the sign note, the `axial_sl ~
+  axial_hl` example and "rides beside … loses nothing").
+
+  *Measured* (numpy, Darwin arm64, `[dev]` venv in this worktree, one session
+  alone on the machine for the full run). Probe: a plugin wrapping
+  `normal_factors`, counting eigenvalues |λ| ≤ `PINV_RCOND·|λ|max` loading on
+  two or more live columns. Fast selection: 24 of 3 100 whole-pattern solves
+  (0.8 %), all Pawley overlaps or pairs built on purpose. `-m slow`: 183 of
+  1 899 (9.6 %), 461 directions, 88 at 0.5–1 of the cut, 226 at 0.1–0.5, 146 at
+  0.001–0.1, 1 below; in cpd-1a QPA (round-robin, dispersion, sequential),
+  SRM 676a's two R descriptions, brucite March–Dollase and Stephens, the
+  roughness pure phases and the Cr₂WO₆ 150 K pattern. After the build, on
+  three acceptance files (29 tests): 64 of 237 guard calls carry the finding,
+  and on cpd-1a it names `lor_size`, `lor_strain`, `gauss_size`, `gauss_strain`
+  and the profile W/X/Y. One-site Fe, scale and `occ` free: λ 3.1e-16 against a
+  cut of 2.0e-15, scale 1.84e-4 ± 4.5e-6, occ 1.039 ± 0.0127. Counts: the full
+  selection before the review fixes was 8185 passed, 170 skipped
+  (23:37, alone). Fast selection after them and after merging origin/main:
+  see the next line. The 8 added tests cost 0.01 s together in the fast tier.
+  Not run: the full selection after the review fixes (they touch guard
+  conditions and one code's retake only; the three acceptance files above and
+  the fast selection ran on them).
+
+  *Review* (`/code-review high --fix`, 8 findings). Fixed: the code was not in
+  `_REVISABLE_CODES`, so it printed once per stage (a test added). I fixed four
+  more by hand: a single touched column was dropped (`len >= 2` where `>= 1`
+  was meant), a Pawley solve analysed the wrong matrix, a fit with no covariance
+  still warned about esds, and a width mismatch could mislabel columns. Declined:
+  the extra `eigh` and Gram build per stage (not timed; worth a number if the
+  stage charge is ever judged, WP-1413), `value` being the
+  count of all discarded directions (reworded the message instead), and the
+  absence of a staged end-to-end test and a joint-fit test. The stage-loop path
+  has the membership assertion and the acceptance runs, nothing finer.
+
+  *Gotchas.* `discarded_directions` rebuilds the equilibrated matrix rather than
+  reading `normal_factors`' own eigendecomposition, so the two agree only while
+  `normal_factors` keeps its Jacobi scaling and its cut; both read
+  `PINV_RCOND`. The 144 `normal_covariance` solves of the indexing peak fits (all
+  two-column pairs) were counted and not examined. A series' per-pattern
+  repeat of this finding is not deduplicated by `sequential`; HIGH_CORRELATION's
+  "N of M" does not cover it yet.
+
+  Next: nothing open here. If the stage charge is ever judged, move the
+  eigendecomposition into `normal_factors`' return and derive `touched` from it
+  (WP-1413's test is the shortest fit). If a series shows the finding in every
+  pattern, `sequential._persistent_diagnostics` needs the code added to its list.
 
 - **2026-10-02** — filed from WP-1534's handover. No open WP owns the esd of
   a discarded *combination*: 0407 and 1056 are closed, and 1460 reports pairs
