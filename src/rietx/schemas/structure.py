@@ -468,7 +468,8 @@ class Atom(_InheritsDeclaredDefaults):
     y: Parameter
     z: Parameter
     occ: Parameter = Field(default_factory=lambda: Parameter(value=1.0, min=0.0, max=1.5))
-    biso: Parameter = Field(default_factory=lambda: Parameter(value=0.5, min=0.0, max=25.0, unit="A^2"))
+    biso: Parameter = Field(default_factory=lambda: Parameter(
+        value=0.5, min=BISO_BOUNDS[0], max=BISO_BOUNDS[1], unit="A^2"))
     aniso: AnisoU | None = None
     # Optional magnetic moment, opt-in per atom exactly as ``aniso`` is
     # (WP-1327).  ``None`` — the default — is exactly off: a phase whose atoms
