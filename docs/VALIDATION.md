@@ -419,9 +419,9 @@ The one cross-code comparison. GSAS-II's converged fluorapatite tutorial, with i
 
 **Claims:** a user constraint on three chemically equivalent sites reduces the parameter count and tightens the esd, without moving the values the free refinement measured
 
-**Referenced to:** the same protocol's own free fit on the same 5750 channels, the only difference being the tie.  The esd bar is referenced twice: to the best of the three free esds (0.1282 A^2) and to their inverse-variance combination (0.0917), which is what the constraint has to beat to have recovered the information rather than merely divided by root-N.  The identity half is that the three tied rows carry the *same* value and esd to 1e-12, since they are one parameter.  Rwp is deliberately not a referent: it moves by 0.05 % of itself, so no bar on it could distinguish a good constraint from a bad one
+**Referenced to:** the same protocol's own free fit on the same 5750 channels, the only difference being the tie.  The esd bar is referenced twice: to the best of the three free esds (0.1008 A^2) and to their inverse-variance combination (0.0721), which is what the constraint has to beat to have recovered the information rather than merely divided by root-N.  The identity half is that the three tied rows carry the *same* value and esd to 1e-12, since they are one parameter.  Rwp is deliberately not a referent: it moves by 0.05 % of itself, so no bar on it could distinguish a good constraint from a bad one
 
-**Measured:** 20 -> 18 free parameters, 287.5 -> 319.4 observations per parameter; B(O) 0.2763(1810) / 0.5279(1911) / 0.4149(1282) free against 0.4138(899) tied; every free interval contains the tied value, and the four untied Biso sites move by < 0.5 sigma
+**Measured:** 20 -> 18 free parameters, 287.5 -> 319.4 observations per parameter; B(O) 0.2834(1421) / 0.5288(1497) / 0.4361(1008) free against 0.4263(704) tied, the three free values 1.01 / 0.68 / 0.10 of their own esds from the tied value (esds with Berar-Lelann eqs (10)-(12), #674); the four untied Biso sites move by < 0.5 sigma
 
 #### `test_the_file_states_a_wider_free_set_than_this_plan`
 

@@ -137,13 +137,13 @@ cell axis the space group already ties, a coordinate behind its site-symmetry
 direction, and a `lebail`/`pawley` mode-fixed path are refused by name rather
 than silently ignored.
 
-## Step 13 — why the inflation is an upper bound, and why the trio travels
+## Step 13 — why the inflation is not a measurement, and why the trio travels
 
-The Bérar-Lelann factor has an expected value of ≈1.51 even for perfectly white
-residuals. That is a house derivation rather than the paper's: chance same-sign
-runs give E[χ²′]/χ² = 1 + 4/π (`optimize.statistics.berar_lelann_factor`,
-simulation-verified). So it is an upper bound on the damage, not a measurement
-of it.
+The Bérar-Lelann factor has an expected value of ≈1.13 even for perfectly white
+residuals: chance same-sign neighbours give E[S″]/E[S] = 1.269 under the
+paper's eqs (10)-(12) (`optimize.statistics.berar_lelann_factor`; quadrature,
+checked by simulation). It is one scalar applied to every esd, so it says how
+correlated the residual is, not how wrong any one parameter's esd is.
 
 `report.identifiability` quotes the qualifying trio side by side — raw χ²_red,
 the inflation (already in every quoted esd, dividable back out), Durbin-Watson —
@@ -232,7 +232,10 @@ by, which §10 of the guidelines requires any publication to state.
 Schwarz's BIC counts N independent observations. A powder residual is serially
 correlated, so at tens of thousands of channels the reward N·ln(χ²_r/χ²_f)
 outvotes one ln N for almost any gain. Issue #270 measured it on four ~49 500-channel
-synchrotron fits, each freeing one occupancy:
+synchrotron fits, each freeing one occupancy. These are pre-1.6 measurements, made
+with the run-sum esd inflation that #674 replaced with Bérar and Lelann's § IV
+correction; `esd_inflation` now reads about 0.8-0.9 of the column below, and the
+fits were not re-run:
 
 | fit | t = value/esd | ΔBIC at raw N | Hamilton | `esd_inflation` | Durbin-Watson |
 |---|---|---|---|---|---|
@@ -245,7 +248,7 @@ None reaches 2σ, and both statistics call all four decisive. Charged at
 N/f², with f the fit's own `esd_inflation`, all four turn negative. For one
 parameter that count makes ΔBIC close to t² − ln N_eff, so the verdict and the
 esd agree. Over 27 last-freed parameters across the acceptance fixtures, N/f²
-refused every |t| < 2.3 and admitted every |t| ≥ 2.6. The rule this replaced
+refused every |t| < 2.3 and admitted every |t| ≥ 2.6 (also pre-1.6, not re-measured). The rule this replaced
 was measured on a 7251-channel corundum pattern, where Hamilton's test at raw N
 blessed an inert Stephens block's 0.16 % χ² gain. At N/f² both tests refuse
 it.

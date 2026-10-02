@@ -326,14 +326,14 @@ terms to match one Gaussian's three.)*
 it.** `Statistics.esd_inflation` is the Bérar-Lelann serial-correlation factor,
 and the fit-side and report-side docstrings both say the reported esds *have
 already been multiplied by it*; you divide it out to recover raw χ²·(JᵀJ)⁻¹
-esds. It is conservative by construction — perfectly white residuals land at
-≈1.51 — so it is an upper bound on serial-correlation damage rather than a
-measurement, and a batch acceptance bar set near 2 fires on sound fits. Read a
+esds. It does not reach 1 on a perfect fit — perfectly white residuals land at
+≈1.13 (≈1.51 before 1.6) — so it is not a measurement of serial-correlation
+damage, and a batch acceptance bar set near 2 fires on sound fits. Read a
 large value as evidence about the *model*, i.e. unmodelled profile detail whose
 residual is serially correlated, which `report.background` and `report.regions`
 then localise — never as an uncertainty correction to apply. *(Measured: archive
-screening campaign — 8.45 on the 11-BM VT Mn₃O₄ 8.281 K fit, against the 2-4
-band the docstring gives for lab data and the ≈1.51 white-residual expectation
-the package verifies in its own tests; three independent readings of that number
+screening campaign, pre-1.6 factor — 8.45 on the 11-BM VT Mn₃O₄ 8.281 K fit,
+against the 2-4 band the docstring then gave for lab data and the ≈1.51
+white-residual expectation the package then verified in its own tests; three independent readings of that number
 in one session inverted its direction, one while quoting the docstring that
 states it.)*

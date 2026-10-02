@@ -411,7 +411,7 @@ carries `ExchangeRow`, the report carries the richer `ExchangeFinding` below.
 | `SoftMode.eigenvalue` | the eigenvalue of the scale-normalised normal matrix; small is soft |
 | `SoftMode.loadings` | dot-path → component, so the mode reads as a combination |
 
-Measured on the NAC Rietveld fit: esd inflation 9.3 at d = 0.18, and the softest
+Measured on the NAC Rietveld fit: esd inflation 8.0 at d = 0.18, and the softest
 mode has eigenvalue 0.0032 loading +0.80 on `instrument.profile.v` against −0.43
 and −0.41 on `instrument.profile.u` and `instrument.profile.w`. That is the
 Caglioti trio, which the pairwise list can only show as three separate numbers,

@@ -13,10 +13,12 @@ statistic d = Σ(Δᵢ−Δᵢ₋₁)²/ΣΔᵢ² on weighted residuals (Hill & 
 J. Appl. Cryst. 20, 356) flags serial correlation (d ≈ 2 ⇒ uncorrelated).
 
 When residuals *are* serially correlated the χ²·(JᵀJ)⁻¹ esds are too small:
-neighbouring points do not carry independent information.  Bérar & Lelann
-(1991, J. Appl. Cryst. 24, 1) sum consecutive same-sign weighted residuals
-coherently, χ²' = Σ_runs (Σ_{i∈run} δᵢ)² ≥ χ², and multiply every esd by
-√(χ²'/χ²) — the inflation factor reported here and applied to the esds.
+neighbouring points do not carry independent information.  Bérar & Lelann's
+homogeneous correction (1991, J. Appl. Cryst. 24, 1, § IV eqs 10-12) adds a
+same-sign neighbour linearly in proportion to its probability of being
+correlated with its predecessor, S'' ≥ S, and multiplies every esd by √(S''/S)
+— the inflation factor reported here and applied to the esds
+(:func:`berar_lelann_factor`).
 """
 
 from __future__ import annotations
@@ -252,25 +254,51 @@ def covariance_from_factors(k: np.ndarray, inv_d: np.ndarray) -> np.ndarray:
 
 
 def berar_lelann_factor(delta: np.ndarray) -> float:
-    """Esd inflation factor for serial correlation.
+    """Esd inflation factor for serial correlation, √(S''/S).
 
-    Bérar & Lelann (1991), J. Appl. Cryst. 24, 1: runs of consecutive
-    weighted residuals δᵢ = √wᵢ·Δᵢ sharing a sign are summed coherently,
+    Bérar & Lelann (1991), *J. Appl. Cryst.* **24**, 1-5, § IV, the
+    "homogeneous correction" (p. 4, eqs 10-12).  On the weighted residuals
+    aᵢ = √wᵢ·Δᵢ, each point carries the probability zᵢ that it is correlated
+    with its predecessor,
 
-        χ²' = Σ_runs (Σ_{i∈run} δᵢ)²
+        zᵢ = √(2π xᵢ) / (2 + √(2π xᵢ)),  xᵢ = aᵢ² + aᵢ₋₁²,  if aᵢ·aᵢ₋₁ > 0,
+        zᵢ = 0                                            otherwise,
 
-    and esds are multiplied by √(χ²'/χ²).  Same-sign cross terms are
-    positive, so the factor is always ≥ 1.
+    and is added quadratically with weight 1 − zᵢ² and linearly with weight
+    zᵢ (eq 10):
 
-    Caveat (documented, not hidden): the estimator is *conservative*.  Even
-    iid Gaussian residuals form chance runs (geometric length distribution,
-    mean 2), giving E[χ²']/χ² = 1 + 4/π, i.e. an expected factor ≈ 1.51 for
-    perfectly white residuals — verified against simulation in the tests.
-    Treat the factor as an upper bound on the serial-correlation esd damage;
-    Andreev (1994, J. Appl. Cryst. 27, 288) develops a figure of merit that
-    removes this bias.  The raw published factor is what FullProf applies,
-    and it is reported in ``Statistics.esd_inflation`` so it can be divided
-    back out.
+        S'' = Σᵢ (1 − zᵢ²) aᵢ² + Σ_runs (Σ_{i∈run} zᵢ aᵢ)²,
+
+    a run being a maximal stretch of consecutive zᵢ > 0 (the m-summation of
+    eq 8, "performed while t is non zero").  The first point of a same-sign
+    stretch has z = 0 and is quadratic only.  Esds are multiplied by √(S''/S)
+    (eq 11; the Appendix's ``SCOR``).  Within a run every aᵢ shares a sign, so
+    S'' − S is a sum of positive cross terms and the factor is ≥ 1.
+
+    zᵢ is the paper's stated derivation (p. 4) — "the relative values of the
+    distribution functions of the χ² distributions for one and two degrees of
+    freedom" — read as densities at x: f₂/(f₁ + f₂) with f₁ = e^{−x/2}/√(2πx)
+    and f₂ = e^{−x/2}/2, which is the expression above.  That is the 2π the
+    paper's own Fortran carries (Appendix, ``SQRT(2*3.1416*COREL)``) and
+    Andreev (1994, *J. Appl. Cryst.* **27**, 288, eq 3) prints; the typeset
+    eq (12) has 2 where both have 2π.  The Fortran also pairs each zᵢ with
+    the *earlier* point of its pair, the time reverse of eq (10), and seeds a
+    run with the last point of the previous one (the inaccuracy Andreev's
+    Appendix I corrects); this is eq (10) as printed.
+
+    Two properties a reader needs.  zᵢ depends on aᵢ² itself, so the factor
+    is not invariant to the residuals' scale: the paper's normalised
+    differences are meant to grow with counting time (§ V).  And white
+    residuals do not give 1: iid N(0, 1) residuals give E[S'']/E[S] =
+    1.2694 (quadrature, N → ∞), a factor ≈ 1.127, so a value near that is
+    no evidence of serial correlation.
+
+    Before 1.6 (#674) this function summed every same-sign stretch
+    coherently with weight 1, its first point included: the § III product
+    test at level p = 0 (eqs 6-9, p. 3, "both points will be considered as
+    correlated"), which the paper sets aside because "the correction proves
+    to be strongly dependent" on the level.  It read ≈ 1.51 on white
+    residuals.
     """
     d = np.asarray(delta, dtype=np.float64)
     if len(d) < 2:
@@ -278,13 +306,14 @@ def berar_lelann_factor(delta: np.ndarray) -> float:
     chi2 = float(d @ d)
     if chi2 <= 0.0:
         return 1.0
-    sign = np.sign(d)
-    change = np.nonzero(sign[1:] != sign[:-1])[0] + 1
-    starts = np.concatenate([[0], change])
-    ends = np.concatenate([change, [len(d)]])
-    cs = np.concatenate([[0.0], np.cumsum(d)])
-    run_sums = cs[ends] - cs[starts]
-    return max(float(np.sqrt((run_sums @ run_sums) / chi2)), 1.0)
+    q = np.sqrt(2.0 * np.pi * (d[1:] * d[1:] + d[:-1] * d[:-1]))
+    z = np.concatenate([[0.0], np.where(d[1:] * d[:-1] > 0.0, q / (2.0 + q), 0.0)])
+    quad = float(((1.0 - z * z) * d * d).sum())
+    # runs of consecutive z > 0, summed linearly by prefix-sum differences
+    edges = np.flatnonzero(np.diff(np.concatenate([[0], (z > 0.0).astype(np.int8), [0]])))
+    cs = np.concatenate([[0.0], np.cumsum(z * d)])
+    lin = cs[edges[1::2]] - cs[edges[::2]]
+    return max(float(np.sqrt((quad + lin @ lin) / chi2)), 1.0)
 
 
 def _chi2_absolute(stats) -> float:
@@ -313,8 +342,8 @@ def effective_sample_size(n_points: int, esd_inflation: float | None) -> float:
     can no longer be decisive.
 
     A heuristic, not a theorem, and conservative in the direction the esds
-    are: white residuals still give f ≈ 1.51 (:func:`berar_lelann_factor`'s
-    caveat), so N_eff ≈ N/2.3 there.  Not :func:`effective_observations`,
+    are: white residuals still give f ≈ 1.13 (:func:`berar_lelann_factor`'s
+    caveat), so N_eff ≈ N/1.27 there.  Not :func:`effective_observations`,
     which answers a resolution question (how many reflections the points
     resolve); this answers an independence one.  ``esd_inflation`` of
     ``None`` (a fit too short to measure it) returns N unchanged.
@@ -325,7 +354,8 @@ def effective_sample_size(n_points: int, esd_inflation: float | None) -> float:
     every |t| < 2.3 is refused and every |t| ≥ 2.6 admitted, where charging
     M_ind refused 8 of the 12 cases at |t| ≥ 2.6 it has a value for (up to
     t = 6.8), admitted one at t = 0.81 where M_ind exceeds N/f², and has no
-    value for a joint fit.
+    value for a joint fit.  That measurement predates 1.6, whose factor reads
+    12-21 % lower on real residuals (#674).
     """
     if esd_inflation is None or not esd_inflation > 1.0:
         return float(n_points)

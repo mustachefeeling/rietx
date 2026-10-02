@@ -116,7 +116,7 @@ def test_srm660c_lab6_rietveld(srm660c_baseline):
     a = ref.fitted_structure.phases[0].cell.a.value
     a_err = result.parameter("phases.0.cell.a").stderr
     # the reported esd carries the Bérar-Lelann serial-correlation inflation
-    # (BL ≈ 3.38 here, so ~25e-6 vs the raw χ²·(JᵀJ)⁻¹ ~7.4e-6) — WP-0407 fixed
+    # (BL ≈ 2.82 here, so ~21e-6 vs the raw χ²·(JᵀJ)⁻¹ ~7.4e-6) — WP-0407 fixed
     # the placement bug that used to cancel BL out of the reported physical esd
     assert a_err is not None and 1.5e-5 < a_err < 5e-5
     assert result.statistics.esd_inflation is not None

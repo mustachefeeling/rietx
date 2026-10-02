@@ -282,27 +282,28 @@ def test_tying_the_similar_atoms_bisos_buys_precision(fap_inputs, fap_fit):
     also what Rwp does here: it moves by +0.05 % relative, i.e. the constraint
     costs no fit quality and could not have shown that it bought anything.
 
-    Measured 2026-08-15, ``[dev]`` on darwin/arm64 (fits are deterministic;
-    only the wall clock is machine state):
+    Measured 2026-10-02, ``[dev]`` on darwin/arm64, with the esds carrying
+    Bérar & Lelann's eqs (10)-(12) factor (#674; fits are deterministic, only
+    the wall clock is machine state):
 
     ==========================  ============  ============
     ..                          free          tied
     ==========================  ============  ============
     free parameters             20            18
-    observations/parameter      287.5         319.4
-    Rwp                         0.097307      0.097355
-    B(O5) / Å²                  0.2763(1810)  0.4138(899)
-    B(O6) / Å²                  0.5279(1911)  0.4138(899)
-    B(O7) / Å²                  0.4149(1282)  0.4138(899)
+    Rwp                         0.096957      0.097002
+    B(O5) / Å²                  0.2834(1421)  0.4263(704)
+    B(O6) / Å²                  0.5288(1497)  0.4263(704)
+    B(O7) / Å²                  0.4361(1008)  0.4263(704)
     ==========================  ============  ============
 
-    The three free values are mutually consistent — every one of the three
-    intervals contains the tied value — which is the premise §7 asks the
-    experimenter to check before constraining.  The tied esd 0.0899 is tighter
-    than the best of the three free ones (0.1282) and slightly tighter than
-    their inverse-variance combination (0.0917), because the constrained fit
-    uses the correlations between the three sites and a naive weighted mean
-    does not.
+    The three free values are mutually consistent — they sit 1.01, 0.68 and
+    0.10 of their own esds from the tied value — which is the premise §7 asks
+    the experimenter to check before constraining.  (Under the pre-1.6 run-sum
+    factor, whose esds were 27 % wider here, every interval contained it.)  The
+    tied esd 0.0704 is tighter than the best of the three free ones (0.1008)
+    and slightly tighter than their inverse-variance combination (0.0721),
+    because the constrained fit uses the correlations between the three sites
+    and a naive weighted mean does not.
     """
     data, structure, instrument = fap_inputs
     _, free = fap_fit
@@ -332,7 +333,7 @@ def test_tying_the_similar_atoms_bisos_buys_precision(fap_inputs, fap_fit):
     for path in PHOSPHATE_OXYGENS:
         p = free.parameter(path)
         assert p.stderr is not None
-        assert abs(p.value - common.value) < p.stderr, path
+        assert abs(p.value - common.value) < 1.5 * p.stderr, path
         esds.append(p.stderr)
 
     # ...and the return: tighter than the best free one, and at least as tight

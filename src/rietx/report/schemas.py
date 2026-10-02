@@ -251,7 +251,15 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   ``STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT``, which reads the plan.  No
 #   existing threshold, gate or emission condition moved, and no field was
 #   added to any report schema.
-THRESHOLDS_VERSION = "1.10"
+# 1.10 → 1.11 (issue #674): no field, gate or threshold changed, but the
+#   *meaning* of Statistics.esd_inflation did.  It now is Bérar & Lelann's
+#   (1991) § IV homogeneous correction, eqs (10)-(12), where it was the § III
+#   run-sum at p = 0; on the package's public standards it is 0.75-0.88 of its
+#   former value.  Every decision built on f moves with it: ΔBIC's N/f²
+#   (effective_sample_size, suggest, compare_freed) and the
+#   profile_fraction cut Δχ²·f², as do all reported esds.  A consumer
+#   comparing f against a number sees the change, on 1.8 → 1.9's precedent.
+THRESHOLDS_VERSION = "1.11"
 
 #: WP-1343.  How far the moment must move when a magnetic width is released
 #: before the release is called a *measurement of the correlation*, in units

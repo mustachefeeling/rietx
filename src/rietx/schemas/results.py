@@ -69,13 +69,14 @@ class Statistics(Base):
     from both y_obs and y_calc, which Toby recommends as the more meaningful
     number when the background is a large fraction of the signal.
 
-    ``esd_inflation`` is the Bérar-Lelann serial-correlation factor
-    (Bérar & Lelann, 1991, J. Appl. Cryst. 24, 1) — reported parameter esds
-    have already been multiplied by it.  The estimator is conservative: even
-    perfectly white residuals land at ≈1.51 (chance same-sign runs — see
-    ``optimize.statistics.berar_lelann_factor``); lab data with unmodelled
-    profile detail typically lands at 2-4.  Divide it out for raw
-    χ²·(JᵀJ)⁻¹ esds.
+    ``esd_inflation`` is the Bérar-Lelann serial-correlation factor, their
+    homogeneous correction (Bérar & Lelann, 1991, J. Appl. Cryst. 24, 1,
+    § IV) — reported parameter esds have already been multiplied by it.
+    Perfectly white residuals still land at ≈1.13, from chance same-sign
+    neighbours (``optimize.statistics.berar_lelann_factor``), so a value near
+    that is no evidence of correlation; lab data with unmodelled profile
+    detail lands near 2-3 (1.93 on the FAP tutorial fit, 2.82 on SRM 660c).
+    Divide it out for raw χ²·(JᵀJ)⁻¹ esds.
 
     ``max_shift_over_esd`` is McCusker et al. (1999) §7's convergence
     quantity: the largest |Δθᵢ|/esd(θᵢ) over the final accepted step of the

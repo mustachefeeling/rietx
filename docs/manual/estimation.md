@@ -125,20 +125,44 @@ generous.
 
 \mathrm{Cov} \;=\; \chi^2_{\mathrm{red}} \cdot (J^\top J)^{-1},
 \qquad \mathrm{esd}_i = \sqrt{\mathrm{Cov}_{ii}} \cdot
-\sqrt{\chi'^2 / \chi^2},
+\sqrt{S'' / S},
 ```
 
 {source}`rietx.optimize.least_squares.covariance_estimates`
 
-where the second factor is the Bérar-Lelann serial-correlation inflation
-{cite}`berar1991`. Consecutive same-sign weighted residuals are summed
-coherently, $\chi'^2 = \sum_{\mathrm{runs}} (\sum_{i\in\mathrm{run}}
-\delta_i)^2 \ge \chi^2$, because serially correlated neighbours do not carry
-independent information. The estimator is conservative: even white residuals
-land at an expected factor ≈1.51, so read it as an upper bound on the
-serial-correlation esd damage. Andreev's serial-correlations figure of merit
-{cite}`andreev1994` removes that bias by carrying the correlation into the
-minimised quantity itself.
+where the second factor is the Bérar-Lelann serial-correlation inflation, the
+homogeneous correction of their § IV {cite}`berar1991`. On the weighted
+residuals $a_i$, with $S = \sum a_i^2$, each point carries the probability
+$z_i$ that it is correlated with its predecessor, and enters the sum
+quadratically with weight $1 - z_i^2$ and linearly with weight $z_i$:
+
+```{math}
+:label: est-berar-lelann
+
+S'' = \sum_i (1 - z_i^2)\, a_i^2 + \sum_{\mathrm{runs}}
+      \Bigl(\sum_{i \in \mathrm{run}} z_i a_i\Bigr)^2,
+\qquad
+z_i = \frac{\sqrt{2\pi x_i}}{2 + \sqrt{2\pi x_i}},\;
+x_i = a_i^2 + a_{i-1}^2 \quad (a_i a_{i-1} > 0),
+```
+
+{source}`rietx.optimize.statistics.berar_lelann_factor`
+
+and $z_i = 0$ where the sign changes. A run is a stretch of consecutive
+$z_i > 0$. Correlated neighbours do not carry independent information, so
+they are added coherently in proportion to how likely they are to be
+correlated. The $z_i$ is the paper's stated derivation, the ratio of the
+$\chi^2$ densities for two degrees of freedom to the sum of those for one and
+two, $f_2/(f_1 + f_2)$ at $x_i$. That is the $2\pi$ of the paper's own Fortran
+and of Andreev's restatement {cite}`andreev1994`; the typeset eq. (12) prints
+2 instead. Two properties follow. White residuals do not give 1: iid unit
+normals give $E[S'']/E[S] = 1.269$, a factor of ≈1.13, so a value near that is
+no evidence of correlation. And $z_i$ reads $a_i^2$ itself, so the factor is
+not invariant to the residuals' scale: it grows with $\chi^2_{\mathrm{red}}$
+at a fixed correlation, which the paper intends, since normalised differences
+grow with counting time. Before 1.6 the package summed every same-sign run
+with weight 1 instead, the paper's rejected § III product test at level zero,
+which reads ≈1.51 on white residuals.
 
 Reported esds carry the inflation. The correlation matrix does not. It is the
 true Pearson matrix, so a genuinely degenerate pair reports $|\rho| \approx 1$
@@ -462,9 +486,9 @@ the count at which, for one added parameter, the reward term is that
 parameter's $t^2$ at its inflated esd, so ΔBIC is positive exactly when
 $t^2 > \ln N_{\mathrm{eff}}$. It is a heuristic and not a theorem, and it is
 conservative the way the esds are: white residuals still give $f \approx
-1.51$. Hamilton's test {cite}`hamilton1965` takes the same $N_{\mathrm{eff}}$,
-so the two verdicts are read off one count. Measured on four ~49 500-channel
-synchrotron fits of one occupancy, raw $N$ gave ΔBIC +36 to +211 to a
+1.13$. Hamilton's test {cite}`hamilton1965` takes the same $N_{\mathrm{eff}}$,
+so the two verdicts are read off one count. Measured with the pre-1.6 factor on
+four ~49 500-channel synchrotron fits of one occupancy, raw $N$ gave ΔBIC +36 to +211 to a
 parameter each fit's own esd put within 0.76-1.89σ of zero, and
 $N_{\mathrm{eff}}$ turned all four negative.
 

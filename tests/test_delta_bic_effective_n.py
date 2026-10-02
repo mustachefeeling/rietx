@@ -24,7 +24,7 @@ from rietx.report.layer2 import delta_bic, hamilton_justified
 from rietx.strategy.suggest import Candidate, build_suggestion
 
 N = 50_000
-RHO = 0.95
+RHO = 0.975   # f ≈ 6.5 under eqs (10)-(12) (#674), inside the issue's fits' range
 
 
 @pytest.fixture(scope="module")
@@ -70,11 +70,15 @@ def _suggest(resid, column):
 def test_the_fixture_is_as_correlated_as_the_issue_s_patterns(
         correlated_residual):
     f = berar_lelann_factor(correlated_residual)
-    assert 5.0 < f < 12.0          # the issue's four fits: 7.1-10.2
+    # the issue's four fits read 7.1-10.2 under the pre-1.6 run-sum, which
+    # reads 14-27 % above eqs (10)-(12) on real residuals
+    assert 5.0 < f < 12.0
     assert effective_sample_size(N, f) == pytest.approx(N / f ** 2)
-    # white residuals are not left at N: the factor is conservative there too
+    # white residuals are not left at N: the factor reads ≈1.13 there, so
+    # N_eff ≈ N/1.27
     white = np.random.default_rng(1).standard_normal(N)
-    assert effective_sample_size(N, berar_lelann_factor(white)) < N / 2
+    assert effective_sample_size(N, berar_lelann_factor(white)) == pytest.approx(
+        N / 1.2694, rel=0.03)
     assert effective_sample_size(N, None) == N
 
 

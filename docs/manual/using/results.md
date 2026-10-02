@@ -61,10 +61,13 @@ conventions say the same thing about a fit, and the naming here follows Toby
 {cite}`toby2006`, but a number copied from a paper needs the convention copied
 with it.
 
-`Statistics.esd_inflation` is conservative by construction. Perfectly white
-residuals still land near 1.51, because same-sign runs happen by chance, and lab
-data with unmodelled profile detail typically lands at 2 to 4. Treat it as an
-upper bound on the serial-correlation damage rather than as a measurement of it.
+`Statistics.esd_inflation` does not reach 1 even on a perfect fit. Perfectly
+white residuals land near 1.13, because same-sign neighbours happen by chance,
+so a value near that is no evidence of serial correlation. Lab data with
+unmodelled profile detail lands near 2 to 3. It is Bérar and Lelann's
+homogeneous correction, one scalar for every parameter, so treat it as a
+measure of how correlated the residual is rather than as a calibrated
+per-parameter uncertainty.
 
 (structure-agreement-indices)=
 ## Structure agreement indices

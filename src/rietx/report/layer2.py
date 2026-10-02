@@ -187,7 +187,8 @@ def delta_bic(chi2_restricted: float, chi2_full: float,
     ``esd_inflation`` — because on a powder pattern the residual is serially
     correlated and raw N lets any χ² improvement outvote the ln N penalty:
     the reporter's four ~49 500-channel synchrotron fits gave ΔBIC +36 to
-    +211 for an occupancy each fit's own esd put within 0.76-1.89σ of zero,
+    +211 for an occupancy each fit's own esd put within 0.76-1.89σ of zero
+    (pre-1.6 esds, the run-sum factor #674 replaced),
     and N_eff = N/f² turned all four negative (#270).  ``None``, the default,
     is the raw-N form, kept for the callers whose N *is* a count of
     independent points (a peak list, a reflection set).
@@ -223,7 +224,8 @@ def compare_freed(restricted, full) -> FreedComparison:
 
     Issue #270 is why the pair travels together.  On four ~49 500-channel
     fits of one occupancy, raw-N ΔBIC read +36 to +211 while each fit's own
-    esd put the occupancy within 0.76-1.89σ of zero.
+    esd put the occupancy within 0.76-1.89σ of zero (pre-1.6 esds: the
+    run-sum factor, which #674 replaced).
 
     Raises :class:`ValueError` when the two fits are not nested: different
     channel counts, intensities or modes, a path ``restricted`` frees that
