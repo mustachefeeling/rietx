@@ -175,6 +175,10 @@ One site is left out by a mask, as {ref}`below <figure-cut-and-keep>`.
 `polyhedra=` follows the mode (on for balls, off for ellipsoids) unless you
 pass `True`, `False` or a formula switch such as `{"AlF₆": False}`.
 `background=None` is transparent.
+`cell=False` leaves out the cell's frame and the a, b and c on its edges, so
+the view is fitted to the atoms alone.
+A 22 Å sphere cut from HKUST-1's 26 Å cell draws at 8.5 px/Å with the frame
+and at 16.4 px/Å without it, at `size=400`.
 `outline=True` inks the silhouettes, off by default because the GUI draws
 none.
 From a structure, the cell is drawn whole or the call raises.

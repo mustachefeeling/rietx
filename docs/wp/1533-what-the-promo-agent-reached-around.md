@@ -116,7 +116,7 @@ re-run WP-1466's `measure.py` and name the rows that moved.
 
 ## Tasks
 
-- [ ] `cell=` on `render_structure`. On by default. Off drops the frame, the
+- [x] `cell=` on `render_structure`. On by default. Off drops the frame, the
       fit follows the atoms, and the argument is in `fig.recipe`
 - [ ] `stick=` on `render_structure`, in `fig.recipe`. The module constant
       stays the default, and the twin stays equal

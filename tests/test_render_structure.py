@@ -1086,3 +1086,35 @@ def test_hidden_may_be_a_generator_and_the_recipe_keeps_it(nac):
 def test_auto_names_a_bad_up_or_turn_as_the_plain_view_does(nac, kw, words):
     with pytest.raises(ValueError, match=words):
         render_structure(nac, view="auto", size=200, **kw)
+
+
+# ----------------------------------------------------------------------
+# the frame has a switch (WP-1533)
+# ----------------------------------------------------------------------
+
+def test_a_figure_without_its_frame_is_fitted_to_the_atoms(hkust):
+    """Trial 1 of the promo take cut a 22 Å sphere from HKUST-1's 26 Å cell,
+    and it drew at about a third of the frame until the script cleared
+    ``edges`` by hand."""
+    from rietx.viz import sphere
+
+    g = s3.build(hkust, max_atoms=1000)
+    middle = np.asarray(g["lattice"], dtype=np.float64).sum(axis=0) / 2
+    ball = keep(g, sphere(g, middle.tolist(), 11.0))
+    framed = render_structure(ball, size=400)
+    bare = render_structure(ball, size=400, cell=False)
+    _save(framed, "cell_hkust1_sphere_framed")
+    _save(bare, "cell_hkust1_sphere_bare")
+    accent = np.asarray(sc.rgb(TOKENS["light"]["--accent"])) * 255
+
+    def ink(img):
+        return (np.abs(img[..., :3].astype(float) - accent).max(-1) < 10).sum()
+
+    assert ink(framed.image) > 200 and ink(bare.image) == 0
+    assert bare.letters == [] and framed.letters
+    # 8.5 against 16.4 px/Å, measured: the sphere fills the frame without its cell
+    assert bare.pixels_per_angstrom > 1.8 * framed.pixels_per_angstrom
+    assert bare.report.empty < framed.report.empty
+    assert bare.recipe["cell"] is False
+    again = render_structure(ball, **bare.recipe)
+    assert np.array_equal(again.image, bare.image)

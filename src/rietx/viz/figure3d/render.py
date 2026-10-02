@@ -577,7 +577,7 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
                      supersample: int = 2, probability: float | None = None,
                      bond_tolerance: float | None = None, max_atoms: int | None = None,
                      exaggeration: float = 1.0,
-                     hidden=(), boundary: bool = True, polyhedra=None,
+                     hidden=(), boundary: bool = True, cell: bool = True, polyhedra=None,
                      axis_labels: bool = True, atom_labels: bool = False,
                      outline: bool = False, background="white", path=None,
                      dpi: float | None = None) -> StructureFigure:
@@ -603,6 +603,8 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     halves; the other half of each bond stays, as a stub the report counts in
     ``dangling_bonds``, and ``keep`` with a mask removes a species with its
     bonds whole.  ``boundary=False`` leaves out the images outside the cell.
+    ``cell=False`` leaves out the cell's frame, and the a, b and c that label
+    its edges go with it, so the view is fitted to the atoms alone.
     ``polyhedra`` is ``None`` for the mode's default (on for balls, off for
     ellipsoids), ``True``/``False``, or ``{formula: bool}`` switching formulas
     as the GUI's legend does (``{"AlF₆": False}``).
@@ -675,9 +677,13 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     else:
         on, formulas = bool(polyhedra), None
     shown = sc.shown_polyhedra(geometry, on, formulas, hidden, boundary)
-    scene = sc.build_scene(geometry, mode, hidden=hidden, show_boundary=boundary,
+    # the frame is the payload's ``edges``; the fit reads what the scene
+    # draws, so a frame left out stops holding the view open (WP-1533)
+    scene = sc.build_scene(geometry if cell else {**geometry, "edges": []}, mode,
+                           hidden=hidden, show_boundary=boundary,
                            exaggeration=exaggeration, polyhedra=shown,
                            cell=tokens["--accent"])
+    asked_axis_labels, axis_labels = axis_labels, bool(axis_labels) and bool(cell)
     margin = max([0.5 * line["width"] for line in scene["lines"]] + [0.0])
     if axis_labels:
         margin = max(margin, 0.6 * LETTER_EM_CSS)
@@ -748,8 +754,9 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
         "phase": phase, "mode": mode, "view": views.as_list(R), "size": size,
         "supersample": s, "probability": probability, "bond_tolerance": bond_tolerance,
         "max_atoms": max_atoms, "exaggeration": exaggeration, "hidden": hidden_asked,
-        "boundary": boundary, "polyhedra": polyhedra, "axis_labels": axis_labels, "atom_labels": atom_labels,
-        "outline": outline, "background": background, "dpi": dpi}.items()}
+        "boundary": boundary, "cell": cell, "polyhedra": polyhedra,
+        "axis_labels": asked_axis_labels, "atom_labels": atom_labels, "outline": outline,
+        "background": background, "dpi": dpi}.items()}
     return StructureFigure(image=image, rotation=views.as_list(R),
                            pixels_per_angstrom=frame.ppa, atoms=atoms, letters=letters,
                            path=written, palette=_palette(geometry, scene), report=report,
