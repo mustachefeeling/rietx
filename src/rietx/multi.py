@@ -239,6 +239,10 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "_hold_diagnostics": (
         (ABSENT,), "a joint fit has no hold verb, so no StageResult here "
                    "carries blocked_by_hold for HOLD_BLOCKED_PLAN to report"),
+    "_scale_b_ridge_diagnostics": (
+        (ABSENT,), "the joint runner does not run the scale-B probe (WP-1534), "
+                   "so its StageResults leave scale_b_held at None and there "
+                   "is no hold for SCALE_B_INSEPARABLE to report"),
     "_pawley_unresolved_diagnostics": (
         (ABSENT,), "a joint fit is Rietveld-only (fit refuses pawley)"),
     "_pawley_off_data_diagnostics": (

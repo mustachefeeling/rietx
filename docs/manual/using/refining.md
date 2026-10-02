@@ -1009,6 +1009,7 @@ for stage in result.stages:
 | `StageResult.held` | paths the plan freed that this stage held anyway, because the data could not see their phase |
 | `StageResult.held_reach` | per held path, the tied parameters it also stopped |
 | `StageResult.released` | the ones it held at the start and let go again, having seen the phase appear while it solved |
+| `StageResult.scale_b_held` | per phase whose displacement parameters this stage held because the fitted range cannot separate them from the phase's scale, the measured separation of the two columns; `{}` when it looked and held nothing, `None` on a joint fit or a result stored before the check existed |
 | `StageResult.unknown_paths` | the literal `turn_on` paths that name no parameter of this model; `None` on a result stored before the check existed |
 | `StageResult.unreached_histograms` | joint fits: per histogram, the globs that freed rows of another histogram and matched none of this one; `{}` on a single histogram, `None` on a result stored before the check existed |
 

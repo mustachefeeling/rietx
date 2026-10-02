@@ -161,7 +161,7 @@ stating what it changed.
       spread of s² over that phase's reflections, or the measured angle
       between the two Jacobian columns. Pick one from task 1's numbers and
       task 2's guidance. Write where its threshold comes from.
-- [ ] **Act on it** the way WP-1301 does: hold B for the stage where the test
+- [x] **Act on it** the way WP-1301 does: hold B for the stage where the test
       fails, record it in `StageResult.held`, and report a finding that names
       the phase and the fraction's consequence. Or, if task 1 shows the esd
       already says it, add only the finding. Either way, a diagnostic states

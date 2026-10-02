@@ -83,6 +83,7 @@ from .optimize.qpa import (
 from .optimize.statistics import (
     OBS_PER_PARAMETER_MIN,
     OBS_PER_PARAMETER_PREFERRED,
+    PINV_RCOND,
     berar_lelann_factor,
     compute_statistics,
     data_support,
@@ -375,6 +376,9 @@ class _StageHold:
     moment_flat_axes: dict[str, list[float]] = dataclasses.field(
         default_factory=dict)
     moment_turned: list[str] = dataclasses.field(default_factory=list)
+    #: ``StageResult.scale_b_held`` (WP-1534): per phase whose displacement
+    #: columns :func:`_hold_scale_b_ridges` held, the separation it measured
+    scale_b_held: dict[int, float] = dataclasses.field(default_factory=dict)
 
 
 def _tie_terms(source: "str | dict[str, float] | Sequence[tuple[str, float]]",
@@ -468,6 +472,172 @@ def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
     reach = table.column_reach()
     return [p for p in table.free_paths
             if _only_moves(reach.get(p, [p]), prefixes)]
+
+
+#: Below this separation of a phase's scale column from its displacement
+#: column, the covariance cannot see the pair as two directions, and the stage
+#: holds the displacement parameters rather than solving along the ridge
+#: (WP-1534).  **Derived from the covariance's own cut, never tuned.**
+#: :func:`~rietx.optimize.statistics.normal_factors` equilibrates the normal
+#: matrix to unit diagonal and hands it to ``pinv`` with
+#: :data:`~rietx.optimize.statistics.PINV_RCOND`.  Two unit columns at angle φ
+#: give the block ``[[1, c], [c, 1]]``, c = cos φ, whose eigenvalues are
+#: 1 ± |c|, and 1 − |c| = r²/(1 + |c|) ≈ r²/2 with r = sin φ.  So the pair
+#: alone is discarded when r²/2 < rcond · 2 — λmax is 1 + |c| ≈ 2 — that is when
+#: r < 2·√rcond ≈ 6.3e-8.  In the full matrix λmax can reach the column count
+#: P rather than 2, which raises the real cut by up to √(P/2), a decade at
+#: P = 200.  The cases measured on WP-1534's four-phase fixture sit far
+#: either side of it: bcc Fe's one reflection reads
+#: 1.0e-12 through this probe (its rounding floor, :data:`SCALE_B_STEP`;
+#: 2.2e-16 between the analytic columns), corundum, zincite and fluorite
+#: 0.19-0.40 at stage start, so that factor decides none of them.  A pair above
+#: the floor keeps its honest, possibly huge esd, which ``HIGH_CORRELATION``
+#: already names.
+SCALE_B_SEPARATION_FLOOR = 2.0 * math.sqrt(PINV_RCOND)
+
+#: The uniform isotropic-B step (Å²) the displacement column is read with.  A
+#: forward difference is **exact for the question asked**: a phase whose
+#: reflections in range sit at one d-spacing has every intensity multiplied by
+#: the one factor exp(−2·h·s²), so its difference is proportional to the
+#: component at any step, and a phase with two d-spacings is not, at any step
+#: either.  The step only sets the rounding floor of the reading, which is
+#: ε/(2·h·s²) — measured 1.0e-12 on bcc Fe (s² = 0.061 Å⁻²), and about
+#: 4e-11 at the lowest s² a lab scan reaches (2θ = 10° Cu Kα, s² ≈ 0.003 Å⁻²),
+#: three decades under the floor.  Measured on WP-1534's fixture, the
+#: separable phases' readings move by under 6 % between h = 1e-3 and 1 Å².
+SCALE_B_STEP = 1e-3
+
+#: ``phases.i.atoms.j.<displacement>``: an isotropic ``biso``, an anisotropic
+#: site's ADP DOF, or the U^ij component one drives — every entry a phase's
+#: Debye-Waller factor reads, and nothing else.
+_DISPLACEMENT_PATH = re.compile(
+    r"^phases\.(\d+)\.atoms\.\d+\.(?:biso|adp\.\d+|u11|u22|u33|u12|u13|u23)$")
+
+
+def _displacement_columns(table: ParameterTable,
+                          reach: dict[str, list[str]]) -> dict[int, list[str]]:
+    """Per phase, the free columns that move its displacement parameters only.
+
+    **All, never any; columns, never names** — :func:`_only_moves`' two rules
+    for the same reason.  A column driving two phases' B through one
+    ``vars.B`` has a direction neither phase's scale can imitate unless both
+    sit on one d-spacing, so it is never held for one phase's ridge, and a
+    variable is dropped before the test, being an entry the forward model
+    never reads.
+    """
+    out: dict[int, list[str]] = {}
+    for col in table.free_paths:
+        moved = [p for p in reach.get(col, [col]) if not is_variable_path(p)]
+        if not moved:
+            continue
+        phases = set()
+        for p in moved:
+            m = _DISPLACEMENT_PATH.match(p)
+            if m is None:
+                break
+            phases.add(int(m.group(1)))
+        else:
+            if len(phases) == 1:
+                out.setdefault(phases.pop(), []).append(col)
+    return out
+
+
+def _own_scale_is_free(reach: dict[str, list[str]], ip: int) -> bool:
+    """Whether some free column moves phase ``ip``'s scale and nothing else.
+
+    The ridge is a pair of columns, so it needs the scale's as well as the
+    displacement's.  With the scale held, B is measured against the one
+    intensity the data gives, and holding it would freeze a determined
+    parameter.  A scale shared with another phase through a variable is a
+    column that phase moves too, so it is not one the displacement column can
+    imitate, and it does not count.
+    """
+    want = [f"phases.{ip}.scale"]
+    return any([p for p in moved if not is_variable_path(p)] == want
+               for moved in reach.values())
+
+
+def _scale_b_separation(model: CompiledModel, table: ParameterTable
+                       ) -> dict[int, float]:
+    """Per phase whose scale and displacement both refine, how far apart the
+    two columns are: the sine of the angle between them (WP-1534).
+
+    A phase's intensity is ``scale · exp(−2B·s²)`` times terms neither
+    parameter touches, with s = sinθ/λ = 1/(2d) and the isotropic
+    Debye-Waller factor T = exp(−B·s²) of International Tables Vol. C
+    (Prince, 2004).  Where every reflection of the phase in the fitted range
+    sits at one d-spacing, ln(scale) − 2B·s² is one coordinate, and the two
+    columns are one direction — issue #204's walk of bcc Fe to B = −165 Å² on
+    a 25–50° scan, scale and B moving together at an Rwp agreeing to eleven
+    figures.  This reads that off the intensity the phase actually puts in
+    the data, so it needs no tolerance on d and is not fooled by a reflection
+    whose |F|² vanishes by site symmetry, which a count of distinct d-spacings
+    would be.
+
+    ``a`` is the weighted component ``y_p/σ`` (the scale's column, up to a
+    factor) and ``b`` its change when every isotropic B of the phase moves by
+    :data:`SCALE_B_STEP`; the answer is ``|b − (a·b/a·a)·a| / |b|``.  Read at
+    the values the stage starts from, on the frozen reflection list, like
+    every other per-stage freeze.
+
+    A phase is measured only where the question exists: Rietveld mode (Le
+    Bail and Pawley force-fix every displacement path), at least one
+    isotropic site to step, a free column moving its displacement paths
+    alone (:func:`_displacement_columns`), its own scale free
+    (:func:`_own_scale_is_free`), and a nonzero component.  Every other phase
+    is absent from the answer, never 1.0 or 0.0.
+    """
+    if model.mode != "rietveld":
+        return {}
+    reach = table.column_reach()
+    columns = _displacement_columns(table, reach)
+    if not columns:
+        return {}
+    values = table.decode(table.x0())
+    sigma = np.asarray(model.sigma, dtype=np.float64)
+    out: dict[int, float] = {}
+    for ip in sorted(columns):
+        sites = model.phases[ip].sites
+        iso = [j for j in range(sites.n_asym) if not sites.aniso[j]]
+        if not iso or not _own_scale_is_free(reach, ip):
+            continue
+        a = np.asarray(model.phase_component(ip, values), dtype=np.float64) / sigma
+        stepped = dict(values)
+        for j in iso:
+            stepped[f"phases.{ip}.atoms.{j}.biso"] += SCALE_B_STEP
+        b = (np.asarray(model.phase_component(ip, stepped), dtype=np.float64)
+             / sigma - a)
+        aa, bb = float(a @ a), float(b @ b)
+        if not (aa > 0.0 and bb > 0.0):
+            continue
+        out[ip] = float(np.linalg.norm(b - (float(a @ b) / aa) * a)
+                        / math.sqrt(bb))
+    return out
+
+
+def _hold_scale_b_ridges(model: CompiledModel, table: ParameterTable
+                         ) -> tuple[list[str], dict[str, list[str]],
+                                    dict[int, float]]:
+    """Hold every phase's displacement columns where :func:`_scale_b_separation`
+    is under :data:`SCALE_B_SEPARATION_FLOOR`.
+
+    Returns what it held, the held columns' reach (read while they are still
+    columns, :func:`_reach_beyond_self`), and the separation of every phase it
+    held for — the record ``StageResult.scale_b_held`` carries.  The phase's
+    scale is never held: it is the half of the pair the data does measure,
+    the phase's one intensity, and holding B leaves it measuring exactly that.
+    """
+    separation = _scale_b_separation(model, table)
+    ridged = {ip: r for ip, r in separation.items()
+              if r < SCALE_B_SEPARATION_FLOOR}
+    if not ridged:
+        return [], {}, {}
+    columns = _displacement_columns(table, table.column_reach())
+    held = [c for ip in sorted(ridged) for c in columns.get(ip, [])]
+    reach = _reach_beyond_self(table, held)
+    if held:
+        table.set_vary(held, False)
+    return held, reach, ridged
 
 
 #: A moment direction whose calculated-pattern response is this far below the
@@ -3053,12 +3223,13 @@ class Refinement:
         # did.  Derived rather than patched, because a collapse and a release
         # can happen in the same stage.
         declared_freed = list(freed)
-        # Two holds, and they answer different questions of the same stage: a
-        # phase the data cannot see at all (WP-1301), and a moment *direction*
-        # the powder average cannot determine (WP-1327).  Both are flat
-        # directions, both are taken after the compile at the values the stage
-        # starts from, and both go into ``StageResult.held`` so the report can
-        # say which and why.
+        # Three holds, and they answer different questions of the same stage:
+        # a phase the data cannot see at all (WP-1301), a moment *direction*
+        # the powder average cannot determine (WP-1327), and a phase's
+        # displacement the fitted range cannot tell from its scale (WP-1534).
+        # All are flat directions, all are taken after the compile at the
+        # values the stage starts from, and all go into ``StageResult.held``
+        # so the report can say which and why.
         held, held_reach = _hold_unsupported_phases(model, table)
         # kept apart, because the release below judges each hold by its own
         # question: a moment DOF the *phase* hold took (every free structural
@@ -3066,7 +3237,15 @@ class Refinement:
         # phase, and only what this probe itself held is asked again as a
         # direction (review of #433, finding 2)
         moment_hold, flat_axes, moment_turned = _hold_flat_moments(model, table)
-        held = held + moment_hold
+        # last, on what the other two left free: an invisible phase's B is
+        # already the phase hold's.  Kept apart for the moment hold's reason,
+        # and more strictly: the ridge rests on the frozen reflection list, so
+        # it is decided once per stage and never asked again at the answer —
+        # a phase that rises above the noise still has one d-spacing, and
+        # ``_released_phases`` would release it for being visible.
+        ridge_hold, ridge_reach, scale_b_held = _hold_scale_b_ridges(model, table)
+        held = held + moment_hold + ridge_hold
+        held_reach.update(ridge_reach)
         if held:
             held_set = set(held)
             freed = [p for p in declared_freed if p not in held_set]
@@ -3150,7 +3329,8 @@ class Refinement:
         # name those went to the direction probe, which skips ``dof0`` and so
         # released the modulus of a phase the data still could not see.
         moment_held = [p for p in held if p in set(moment_hold)]
-        phase_held = [p for p in held if p not in set(moment_hold)]
+        phase_held = [p for p in held
+                      if p not in set(moment_hold) and p not in set(ridge_hold)]
         # the hold's reach travels with it: a held ``vars.X`` names no phase,
         # and asking the table now would get nothing back (WP-1342)
         released = (_released_phases(model, table, phase_held, support, held_reach)
@@ -3318,6 +3498,7 @@ class Refinement:
             moment_flat_axes=kept_axes,
             moment_turned=[b for b in kept_axes if b in moment_turned],
             reach={c: list(v) for c, v in held_reach.items()},
+            scale_b_held=dict(scale_b_held),
             blocked_by_hold=blocked_by_hold, unknown_paths=unknown_paths,
             cell_runaway=list(cell_runaway),
             cell_runaway_unresolved=[(d, list(e)) for d, e in cell_runaway_unresolved])
@@ -3696,6 +3877,7 @@ class Refinement:
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
                 ftol=ftol, held=hold.held, released=hold.released,
                 held_reach=hold.reach,
+                scale_b_held=hold.scale_b_held,
                 moment_flat_axes=hold.moment_flat_axes,
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
@@ -3943,6 +4125,7 @@ class Refinement:
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
                 ftol=stage.ftol, held=hold.held, released=hold.released,
                 held_reach=hold.reach,
+                scale_b_held=hold.scale_b_held,
                 moment_flat_axes=hold.moment_flat_axes,
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
@@ -4320,11 +4503,21 @@ class Refinement:
                 held["user-fixed"].append(row.path)
             else:
                 held["wavelength-blocked"].append(row.path)
-        phase_unsupported = list(self.result_.stages[-1].held) if self.result_.stages else []
+        last = self.result_.stages[-1] if self.result_.stages else None
+        # the last stage's ``held`` carries every hold's columns; the ones the
+        # scale-B test took are counted apart, read off its own record, so
+        # neither label claims the other's (WP-1534)
+        ridge = ({c for cols in _scale_b_columns(last).values() for c in cols}
+                 if last is not None else set())
+        phase_unsupported = ([p for p in last.held if p not in ridge]
+                             if last is not None else [])
         counts = ", ".join(f"{len(v)} {k}" for k, v in held.items() if v)
         if phase_unsupported:
             counts += (", " if counts else "") + \
                 f"{len(phase_unsupported)} phase-unsupported (WP-1301)"
+        if ridge:
+            counts += (", " if counts else "") + \
+                f"{len(ridge)} scale-B inseparable (WP-1534)"
         lines.append(f"    held: {counts or 'none'}")
         if self._excluded_regions:
             ranges = ", ".join(f"{lo:.2f}-{hi:.2f}°" for lo, hi in self._excluded_regions)
@@ -5682,6 +5875,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         model.phase_support(values), model.phase_line_counts(),
         (model.tt_min, model.tt_max), list(table.free_paths), structure,
         stage_results)
+
+    # A phase whose scale and B the range cannot separate (WP-1534), and what
+    # its fraction is conditional on.  Read off the stage records, which carry
+    # the hold, so the finding and the record quote one measurement.
+    diagnostics = diagnostics + _scale_b_ridge_diagnostics(
+        model, values, structure, stage_results)
 
     # A strain broader than solved refinements normally use — a flag to check,
     # not a bound (the bound is params.vector.strain_cap, one tier up).
@@ -7291,11 +7490,19 @@ def _held_by_phase(stage_results: list[StageResult], n_phases: int
     one finding about a phase into one per tied cell parameter (measured: 3 on
     the ramp's cubic CaF₂, for a single absent phase). The account of what else
     a hold stopped is ``held_reach`` itself, on the record.
+
+    **Only this hold's columns.**  ``held`` also carries what the scale–B test
+    held (WP-1534), which is about a visible phase and is
+    ``SCALE_B_INSEPARABLE``'s to report; counted here, a phase that collapsed
+    after a ridge stage would name that stage as one that held it unseen.
     """
     paths: list[set[str]] = [set() for _ in range(n_phases)]
     stages: list[dict[str, None]] = [{} for _ in range(n_phases)]
     for sr in stage_results:
+        ridge = {c for cols in _scale_b_columns(sr).values() for c in cols}
         for path in sr.held:
+            if path in ridge:
+                continue
             for name in (path, *sr.held_reach.get(path, ())):
                 parts = name.split(".")
                 try:
@@ -7412,6 +7619,128 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
                 "direction. Either the phase is not in this specimen and "
                 "belongs out of the model, or its scale is stuck at its floor "
                 "and needs seeding before anything else of it is freed"),
+        ))
+    return out
+
+
+def _scale_b_columns(sr: StageResult) -> dict[int, list[str]]:
+    """Per phase this stage held on the scale–B test, the columns held for it.
+
+    Read off the record, for :func:`_held_by_phase`'s reason: the finding and
+    the record must not disagree about what happened.  ``held`` carries all
+    three holds' columns, and :attr:`~StageResult.scale_b_held` names the
+    phases; a column belongs to phase ``ip``'s ridge when its name or its
+    reach is one of ``ip``'s displacement paths — the reach because a held
+    ``vars.B`` names no phase (WP-1342).  Within one stage the three holds
+    cannot share a column: a phase the data cannot see has its displacement
+    columns held before the probe runs, which then has nothing of it to test.
+    """
+    out: dict[int, list[str]] = {}
+    for ip in sorted(sr.scale_b_held or {}):
+        for col in sr.held:
+            for name in (col, *sr.held_reach.get(col, ())):
+                m = _DISPLACEMENT_PATH.match(name)
+                if m is not None and int(m.group(1)) == ip:
+                    out.setdefault(ip, []).append(col)
+                    break
+    return out
+
+
+def _intensity_weighted_s2(model: CompiledModel, ip: int,
+                           values: dict[str, float]) -> float | None:
+    """Phase ``ip``'s mean s² = 1/(4d²) over its reflections in the fitted range.
+
+    Weighted by each (emission line, reflection)'s integrated intensity, since
+    the fraction's sensitivity to B is the intensity's, and a weak reflection
+    at high s moves it less than a strong one at low s.  "In range" is a
+    nonempty frozen window (:meth:`CompiledModel.phase_line_counts`' reading),
+    and the plain mean stands in where every intensity is zero.  ``None`` when
+    no reflection of the phase lies in range.
+    """
+    cp = model.phases[ip]
+    inside = cp.win[:, :, 1] > cp.win[:, :, 0]
+    if not inside.any():
+        return None
+    s2 = np.broadcast_to(0.25 / np.asarray(cp.reflections.d, dtype=np.float64) ** 2,
+                         inside.shape)
+    w = np.stack([np.asarray(p[3], dtype=np.float64)
+                  for p in model.phase_peaks(ip, values)])
+    w = np.where(inside & np.isfinite(w), np.abs(w), 0.0)
+    if float(w.sum()) > 0.0:
+        return float((w * s2).sum() / w.sum())
+    return float(s2[inside].mean())
+
+
+def _scale_b_ridge_diagnostics(model: CompiledModel, values: dict[str, float],
+                               structure: Structure,
+                               stage_results: list[StageResult] | None,
+                               ) -> list[Diagnostic]:
+    """``SCALE_B_INSEPARABLE`` — a scale and a B the range cannot separate,
+    and what was done (WP-1534).
+
+    One per phase across the run.  The phase's intensity is
+    ``scale · exp(−2B·s²)`` (the isotropic Debye-Waller factor,
+    International Tables Vol. C, Prince 2004), so on a range where its
+    reflections sit at one d-spacing the data give one number for the pair;
+    the stage held the displacement half (``StageResult.scale_b_held``), and
+    the scale measured the intensity at the B handed in.  What that costs is
+    the **fraction**: holding the intensity fixed, the scale goes as
+    exp(2B·s²), so an error δB in the held B moves the phase's weight fraction
+    by the factor exp(2·δB·s̄²) — about 100·(exp(2·s̄²) − 1) % per Å², relative,
+    before the normalisation over phases damps it for a major phase.  s̄² is
+    intensity-weighted (:func:`_intensity_weighted_s2`).  The covariance
+    cannot say this: with B held, the fraction's esd carries none of B's
+    uncertainty, and with B free it was the pinv cut that discarded the
+    ridge and returned 0.000 ± 0.000 wt% (WP-1534 task 1).
+
+    ``warning``: the reported fraction is a conditional statement, and nothing
+    else in the result says on what.
+    """
+    paths: dict[int, dict[str, None]] = {}
+    stages: dict[int, dict[str, None]] = {}
+    least: dict[int, float] = {}
+    for sr in stage_results or ():
+        columns = _scale_b_columns(sr)
+        for ip, r in (sr.scale_b_held or {}).items():
+            stages.setdefault(ip, {})[sr.name] = None
+            least[ip] = min(float(r), least.get(ip, math.inf))
+            for col in columns.get(ip, ()):
+                paths.setdefault(ip, {})[col] = None
+    out: list[Diagnostic] = []
+    for ip in sorted(least):
+        held = sorted(paths.get(ip, {}))
+        names = list(stages[ip])
+        name = structure.phases[ip].name
+        n = len(held)
+        at = ", ".join(f"{p} = {values[p]:.4g}" for p in held[:3] if p in values)
+        message = (
+            f"the fitted range {model.tt_min:.4g}-{model.tt_max:.4g}° cannot "
+            f"separate phase {ip} ({name})'s scale from its displacement "
+            f"parameters: the two columns are {least[ip]:.1e} apart, under the "
+            f"{SCALE_B_SEPARATION_FLOOR:.1e} the covariance can resolve, which "
+            f"is what reflections at one d-spacing give. So {n} displacement "
+            f"parameter{'' if n == 1 else 's'} {'was' if n == 1 else 'were'} "
+            f"held for stage{'' if len(names) == 1 else 's'} "
+            f"{', '.join(names)}"
+            + (f" ({at}{'…' if n > 3 else ''})" if at else "")
+            + ", and the phase's weight fraction is conditional on "
+            + ("that value" if n == 1 else "those values"))
+        s2 = _intensity_weighted_s2(model, ip, values)
+        if s2 is not None:
+            message += (f": each 1 Å² of error in B moves it by about "
+                        f"{100.0 * math.expm1(2.0 * s2):.2g} % "
+                        f"(intensity-weighted mean s² = {s2:.3g} Å⁻² over its "
+                        f"reflections in range)")
+        out.append(Diagnostic(
+            level="warning", code="SCALE_B_INSEPARABLE",
+            where=held, value=least[ip], message=message,
+            suggestion=(
+                "quote this phase's weight fraction as conditional on the held "
+                "B — its esd carries none of B's uncertainty — or supply B "
+                "from elsewhere (a fit over a wider range, or a published "
+                "value for this material at this temperature); or widen the "
+                "fitted range to reach a second d-spacing of the phase, which "
+                "separates the pair and lifts the hold"),
         ))
     return out
 

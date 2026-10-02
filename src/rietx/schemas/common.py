@@ -362,7 +362,15 @@ from .._nearmiss import did_you_mean
 #: #624, item 2): the turn changes the direction a fit reports, so it ships
 #: with a field stating it.  Additive and defaulted to empty, which is every
 #: fit without such a site; a document written before loads unchanged.
-SCHEMA_VERSION = "0.39"
+#: 0.39 → 0.40 (WP-1534): ``StageResult.scale_b_held`` — per phase whose
+#: displacement parameters a stage held because the fitted range cannot
+#: separate them from the phase's scale, the column separation measured.
+#: Additive, and defaulted to ``None`` rather than empty, the 0.25 → 0.26 rule:
+#: a stored result from before this may have walked that ridge (issue #204's
+#: did), so an empty default would say "looked, nothing held" of a fit nobody
+#: looked at.  Both single-histogram runners now write a mapping on every
+#: stage; the joint runner does not ask, and leaves ``None``.
+SCHEMA_VERSION = "0.40"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
