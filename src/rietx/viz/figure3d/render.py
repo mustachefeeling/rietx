@@ -47,6 +47,13 @@ OUTLINE_CSS = 1.0
 DEFAULT_SIZE = 1000
 MAX_SUPERSAMPLE = 4
 MODES = ("ball", "ellipsoid")
+#: The places tried for a site label, in order, as (right, up) signs: up and
+#: to the right first, which is where every label went before #666.
+LABEL_ANCHORS = ((1, 1), (1, 0), (0, 1), (-1, 1), (-1, 0), (1, -1), (0, -1), (-1, -1))
+#: A label beside the atom on a diagonal has the middle of its near side this
+#: many projected radii right or left of the atom's centre and as many above
+#: or below it.  On an axis it is this times √2 out, the same distance.
+LABEL_OFFSET = 0.72
 
 
 @dataclass(frozen=True)
@@ -177,20 +184,29 @@ def _formulas(geometry: Mapping, polyhedra: Mapping) -> dict:
 
 
 def _label_reach(scene: dict, geometry: Mapping, R: np.ndarray):
-    """Where the atom labels are anchored, in Å, and how far past the anchor
-    the widest one reaches, in CSS px: a label sits up and to the right of its
-    atom (:func:`text_strokes`), outside the atom's own box."""
+    """Points the frame must hold for the atom labels, in Å, and how far past
+    them a label reaches, in CSS px, whichever of :data:`LABEL_ANCHORS` it
+    takes (:func:`_labels`).
+
+    Every anchor's near side lies within ``LABEL_OFFSET·√2`` projected radii
+    of the atom's centre along x and along y, so the four points that far out
+    bound them.  Past those a label runs on by at most its width, or by its
+    whole height when it sits above or below.
+    """
     points, reach = [], 0.0
+    full = 2.0 * glyphs.HALF_BOX_UNITS * LETTER_EM_CSS / glyphs.EM_UNITS
     for a in scene["atoms"]:
         record = geometry["atoms"][a["index"]]
         if record["boundary"]:
             continue
         m = R @ np.asarray(a["shape"], dtype=np.float64).reshape(3, 3)
         r = max(float(np.linalg.norm(m[0])), float(np.linalg.norm(m[1])))
-        c = R.T @ (R @ np.asarray(a["pos"], dtype=np.float64) + [0.72 * r, 0.72 * r, 0.0])
-        points.append(c)
+        out = LABEL_OFFSET * np.sqrt(2.0) * r
+        c = R @ np.asarray(a["pos"], dtype=np.float64)
+        points += [R.T @ (c + step) for step in ([out, 0.0, 0.0], [-out, 0.0, 0.0],
+                                                 [0.0, out, 0.0], [0.0, -out, 0.0])]
         text = geometry["sites"][record["site"]]["label"]
-        reach = max(reach, glyphs.width(text, LETTER_EM_CSS))
+        reach = max(reach, glyphs.width(text, LETTER_EM_CSS), full)
     return points, reach
 
 
@@ -272,46 +288,198 @@ def gui_frame(scene: dict, R, width: int, height: int, css_width: float) -> rast
                         y0=c[1] + height / (2 * ppa), ppa=ppa, px_scale=width / css_width)
 
 
-def _labels(scene: dict, geometry: Mapping, R, frame: raster.Frame, *,
-            axis_labels: bool, atom_labels: bool):
-    """Every string drawn, as ``(text, x, y, is_axis, half_height)`` centred on
-    image pixel ``(x, y)``: a, b, c at their anchors, and each site label up and
-    to the right of its atom, clear of it.  ``half_height`` is in pixels."""
+def _drawn_shapes(scene: dict, arrays: dict, R, frame: raster.Frame) -> dict:
+    """The atoms and bond halves as drawn, projected to image pixels: what a
+    label is kept clear of and counted against.
+
+    An atom is the ellipse its ellipsoid projects to.  With ``A`` the first
+    two rows of its axes in the view, in pixels, ``S = AAᵀ`` and the ellipse
+    is zᵀS⁻¹z ≤ 1 about its centre.  A ball's is a disc.  A bond half is the
+    segment it projects to, widened by its stick radius on every side.
+    ``arrays`` is :func:`.raster.scene_arrays` of ``scene``, which leaves out
+    an atom with no inverse, as the drawing does.
+    """
+    R = np.asarray(R, dtype=np.float64)
+    c = arrays["pos"] @ R.T
+    m = np.einsum("ij,njk->nik", R[:2], arrays["shape"]) * frame.ppa
+    s = m @ m.transpose(0, 2, 1)
+    a = arrays["from"] @ R.T
+    b = arrays["to"] @ R.T
+
+    def u(x):
+        return (x - frame.x0) * frame.ppa
+
+    def v(y):
+        return (frame.y0 - y) * frame.ppa
+
+    sxx, syy = s[:, 0, 0], s[:, 1, 1]
+    px, py, qx, qy = u(a[:, 0]), v(a[:, 1]), u(b[:, 0]), v(b[:, 1])
+    r = arrays["radius"] * frame.ppa
+    return {"index": arrays["index"], "cx": u(c[:, 0]), "cy": v(c[:, 1]),
+            # image y runs down, which turns the sign of the cross term
+            "sxx": sxx, "syy": syy, "sxy": -s[:, 0, 1],
+            "hx": np.sqrt(sxx), "hy": np.sqrt(syy),
+            "px": px, "py": py, "qx": qx, "qy": qy, "r": r,
+            "lx": np.minimum(px, qx) - r, "ux": np.maximum(px, qx) + r,
+            "ly": np.minimum(py, qy) - r, "uy": np.maximum(py, qy) + r,
+            "bond": np.array([h["bond"] for h in scene["halves"]], dtype=np.int64)}
+
+
+def _on_atoms(box: np.ndarray, sh: dict, k: np.ndarray) -> np.ndarray:
+    """Which of atoms ``k`` each box ``(x0, x1, y0, y1)`` meets, as a
+    boxes × atoms mask.
+
+    About the atom's centre the ellipse is zᵀ adj(S) z ≤ det S.  The form is
+    convex, so over a box not holding the centre its least value lies on an
+    edge, where it is a parabola whose minimum is clamped to the edge's span.
+    """
+    x0 = box[:, None, 0] - sh["cx"][k]
+    x1 = box[:, None, 1] - sh["cx"][k]
+    y0 = box[:, None, 2] - sh["cy"][k]
+    y1 = box[:, None, 3] - sh["cy"][k]
+    sxx, syy, sxy = sh["sxx"][k], sh["syy"][k], sh["sxy"][k]
+    det = sxx * syy - sxy * sxy
+    sy = np.divide(sxy, sxx, out=np.zeros_like(sxx), where=sxx > 0)
+    sx = np.divide(sxy, syy, out=np.zeros_like(syy), where=syy > 0)
+
+    def form(x, y):
+        return syy * x * x - 2.0 * sxy * x * y + sxx * y * y
+
+    # the two upright edges, then the two level ones
+    xs, ys = np.stack([x0, x1]), np.stack([y0, y1])
+    least = np.minimum(form(xs, np.clip(sy * xs, y0, y1)).min(axis=0),
+                       form(np.clip(sx * ys, x0, x1), ys).min(axis=0))
+    inside = (x0 < 0.0) & (0.0 < x1) & (y0 < 0.0) & (0.0 < y1)
+    return (inside | (least < det)) & (det > 0.0)
+
+
+def _on_halves(box: np.ndarray, sh: dict, k: np.ndarray) -> np.ndarray:
+    """Which of bond halves ``k`` each box meets, as a boxes × halves mask.
+
+    A widened segment meets a box when the segment crosses it, or passes
+    within its stick radius of it.  The segment crosses the box when no axis
+    separates them, of the three that could: x, y and the segment's normal.
+    Apart, two convex shapes are nearest at a corner of one, so the distance
+    is the least of the segment's ends to the box and the box's corners to
+    the segment.
+    """
+    x0, x1 = box[:, None, 0], box[:, None, 1]
+    y0, y1 = box[:, None, 2], box[:, None, 3]
+    px, py, qx, qy = sh["px"][k], sh["py"][k], sh["qx"][k], sh["qy"][k]
+    dx, dy = qx - px, qy - py
+    crossing = ((np.minimum(px, qx) <= x1) & (x0 <= np.maximum(px, qx))
+                & (np.minimum(py, qy) <= y1) & (y0 <= np.maximum(py, qy))
+                & (np.abs(dx * ((y0 + y1) / 2 - py) - dy * ((x0 + x1) / 2 - px))
+                   <= (np.abs(dy) * (x1 - x0) + np.abs(dx) * (y1 - y0)) / 2))
+    ex, ey = np.stack([px, qx])[:, None], np.stack([py, qy])[:, None]
+    gx = np.maximum(np.maximum(x0 - ex, ex - x1), 0.0)
+    gy = np.maximum(np.maximum(y0 - ey, ey - y1), 0.0)
+    near = (gx * gx + gy * gy).min(axis=0)
+    cx, cy = np.stack([x0, x0, x1, x1]), np.stack([y0, y1, y0, y1])
+    length2 = dx * dx + dy * dy
+    along = (cx - px) * dx + (cy - py) * dy
+    t = np.clip(np.divide(along, length2, out=np.zeros_like(along), where=length2 > 0.0),
+                0.0, 1.0)
+    fx, fy = px + t * dx - cx, py + t * dy - cy
+    near = np.minimum(near, (fx * fx + fy * fy).min(axis=0))
+    r = sh["r"][k]
+    return crossing | (near < r * r)
+
+
+def _hits(box: np.ndarray, own: int, sh: dict) -> tuple[np.ndarray, np.ndarray]:
+    """For each label box ``(x0, x1, y0, y1)``, how many drawn atoms other
+    than atom ``own`` it meets, and how many bonds.  A bond counts once
+    however many of its halves the box meets.  Only the shapes whose bounding
+    boxes meet the boxes' union are tested, so a label costs what is near it.
+    """
+    lo_x, hi_x = box[:, 0].min(), box[:, 1].max()
+    lo_y, hi_y = box[:, 2].min(), box[:, 3].max()
+    a = np.flatnonzero((sh["cx"] - sh["hx"] < hi_x) & (lo_x < sh["cx"] + sh["hx"])
+                       & (sh["cy"] - sh["hy"] < hi_y) & (lo_y < sh["cy"] + sh["hy"])
+                       & (sh["index"] != own))
+    h = np.flatnonzero((sh["lx"] < hi_x) & (lo_x < sh["ux"])
+                       & (sh["ly"] < hi_y) & (lo_y < sh["uy"]))
+    atoms = _on_atoms(box, sh, a).sum(axis=1) if len(a) else np.zeros(len(box), np.int64)
+    if not len(h):
+        return atoms, np.zeros(len(box), np.int64)
+    # a bond's halves are drawn one after the other, so its halves are a run
+    bond = sh["bond"][h]
+    runs = np.flatnonzero(np.r_[True, bond[1:] != bond[:-1]])
+    bonds = np.logical_or.reduceat(_on_halves(box, sh, h), runs, axis=1).sum(axis=1)
+    return atoms, bonds
+
+
+def _labels(scene: dict, geometry: Mapping, R, frame: raster.Frame, arrays: dict, *,
+            axis_labels: bool, atom_labels: bool) -> list[tuple]:
+    """Every string drawn, as ``(text, x, y, is_axis, half_height, atoms,
+    bonds)`` centred on image pixel ``(x, y)``, ``half_height`` in pixels.
+
+    a, b and c sit at their anchors.  Each site label is tried at the places
+    :data:`LABEL_ANCHORS` names, in order, and takes the first whose box meets
+    no drawn atom but its own, no bond and no string already placed.  Where
+    every place meets something it takes the one meeting fewest, the earlier
+    on a tie, so the same scene gives the same picture.  ``atoms`` and
+    ``bonds`` are how many of each the string's box meets where it was put,
+    by :func:`_hits`, which is the test the placement made.  ``arrays`` is
+    :func:`.raster.scene_arrays` of ``scene``.
+    """
     R = np.asarray(R, dtype=np.float64)
     em = LETTER_EM_CSS * frame.px_scale
     half = glyphs.HALF_BOX_UNITS * em / glyphs.EM_UNITS
+    if not (axis_labels or atom_labels):
+        return []
+    sh = _drawn_shapes(scene, arrays, R, frame)
 
     def at(p):
         c = R @ np.asarray(p, dtype=np.float64)
         return (c[0] - frame.x0) * frame.ppa, (frame.y0 - c[1]) * frame.ppa
 
     out = []
+    placed = np.empty((len(scene["labels"]) + len(scene["atoms"]), 4))
     if axis_labels:
         for label in scene["labels"]:
             x, y = at(label["pos"])
-            out.append((label["text"], x, y, True, half))
-    if atom_labels:
-        for a in scene["atoms"]:
-            if geometry["atoms"][a["index"]]["boundary"]:
-                continue
-            text = geometry["sites"][geometry["atoms"][a["index"]]["site"]]["label"]
-            m = R @ np.asarray(a["shape"], dtype=np.float64).reshape(3, 3)
-            r = max(float(np.linalg.norm(m[0])), float(np.linalg.norm(m[1]))) * frame.ppa
-            x, y = at(a["pos"])
-            # up and to the right of the atom, clear of it
-            x += 0.72 * r + glyphs.width(text, em) / 2
-            y -= 0.72 * r
-            out.append((text, x, y, False, half))
+            w = glyphs.width(label["text"], em)
+            placed[len(out)] = (x - w / 2, x + w / 2, y - half, y + half)
+            atoms, bonds = _hits(placed[len(out):len(out) + 1], -1, sh)
+            out.append((label["text"], x, y, True, half, int(atoms[0]), int(bonds[0])))
+    if not atom_labels:
+        return out
+    signs = np.asarray(LABEL_ANCHORS, dtype=np.float64)
+    diagonal = (signs[:, 0] != 0.0) & (signs[:, 1] != 0.0)
+    level = signs[:, 1] == 0.0
+    for a in scene["atoms"]:
+        if geometry["atoms"][a["index"]]["boundary"]:
+            continue
+        text = geometry["sites"][geometry["atoms"][a["index"]]["site"]]["label"]
+        m = R @ np.asarray(a["shape"], dtype=np.float64).reshape(3, 3)
+        r = max(float(np.linalg.norm(m[0])), float(np.linalg.norm(m[1]))) * frame.ppa
+        x, y = at(a["pos"])
+        w = glyphs.width(text, em)
+        # the middle of the label's near side sits d right or left of the
+        # centre and d above or below it on a diagonal, and d·√2 out on an axis
+        d = LABEL_OFFSET * r
+        far = d * np.sqrt(2.0)
+        xs = x + signs[:, 0] * (np.where(diagonal, d, far) + w / 2)
+        ys = y - signs[:, 1] * np.where(diagonal, d, np.where(level, 0.0, far + half))
+        boxes = np.stack([xs - w / 2, xs + w / 2, ys - half, ys + half], axis=1)
+        atoms, bonds = _hits(boxes, a["index"], sh)
+        q = placed[:len(out)]
+        letters = ((boxes[:, None, 0] < q[None, :, 1]) & (q[None, :, 0] < boxes[:, None, 1])
+                   & (boxes[:, None, 2] < q[None, :, 3])
+                   & (q[None, :, 2] < boxes[:, None, 3])).sum(axis=1)
+        k = int(np.argmin(atoms + bonds + letters))
+        placed[len(out)] = boxes[k]
+        out.append((text, float(xs[k]), float(ys[k]), False, half, int(atoms[k]), int(bonds[k])))
     return out
 
 
-def text_strokes(scene: dict, geometry: Mapping, R, frame: raster.Frame, *,
-                 axis_labels: bool, atom_labels: bool, accent: str, ink: str):
-    """The letters as strokes, and where each landed."""
+def text_strokes(labels: list[tuple], frame: raster.Frame, *, accent: str, ink: str):
+    """The letters :func:`_labels` placed, as strokes, and where each a, b
+    and c landed."""
     em = LETTER_EM_CSS * frame.px_scale
     strokes, letters = [], []
-    for text, x, y, is_axis, _ in _labels(scene, geometry, R, frame, axis_labels=axis_labels,
-                                          atom_labels=atom_labels):
+    for text, x, y, is_axis, *_ in labels:
         strokes += glyphs.strokes(text, x, y, em, sc.rgb(accent if is_axis else ink))
         if is_axis:
             letters.append({"text": text, "x": x, "y": y})
@@ -323,7 +491,7 @@ def _label_overlaps(labels, frame: raster.Frame) -> int:
     advance wide and the font's box tall."""
     em = LETTER_EM_CSS * frame.px_scale
     box = np.array([[x - glyphs.width(t, em) / 2, x + glyphs.width(t, em) / 2, y - h, y + h]
-                    for t, x, y, _, h in labels], dtype=np.float64).reshape(-1, 4)
+                    for t, x, y, _, h, *_ in labels], dtype=np.float64).reshape(-1, 4)
     n, total = len(box), 0
     for start in range(0, n, 512):
         c = box[start:start + 512]
@@ -453,8 +621,11 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     ``supersample`` the antialiasing, 1 to 4 samples a side.  ``background``
     is ``"white"``, ``"black"``, ``"#rrggbb"``, three channels in 0..1, or
     ``None`` for transparent.  ``outline=True`` inks silhouettes, off by
-    default because the GUI draws none.  ``path`` writes a PNG, with ``dpi``
-    only in its ``pHYs`` chunk.
+    default because the GUI draws none.  ``atom_labels=True`` writes each site
+    label beside its atom, in the first of eight places around it clear of
+    atoms, bonds and the labels before it.  The report counts what each label
+    still meets.  ``path`` writes a PNG, with ``dpi`` only in its ``pHYs``
+    chunk.
     """
     from ...gui import structure3d as s3
 
@@ -520,8 +691,9 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
         extra, reach = _label_reach(scene, geometry, R)
         margin = max(margin, reach, 0.6 * LETTER_EM_CSS)
     frame = _fit(_extent(scene, R, axis_labels, extra), size, margin + 1.0)
-    strokes, letters = text_strokes(scene, geometry, R, frame, axis_labels=axis_labels,
-                                    atom_labels=atom_labels, accent=tokens["--accent"],
+    labels = _labels(scene, geometry, R, frame, probe.arrays, axis_labels=axis_labels,
+                     atom_labels=atom_labels)
+    strokes, letters = text_strokes(labels, frame, accent=tokens["--accent"],
                                     ink=tokens["--fg"])
     ol = None
     if outline:
@@ -544,7 +716,6 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
         _png(target, image, dpi)
         written = str(target)
     seen = rp.look(probe, R)
-    labels = _labels(scene, geometry, R, frame, axis_labels=axis_labels, atom_labels=atom_labels)
     warnings = []
     if mode == "ellipsoid":
         flat = sorted({geometry["sites"][geometry["atoms"][a["index"]]["site"]]["label"]
@@ -566,7 +737,9 @@ def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="ope
     report = rp.FigureReport(
         hidden=seen.hidden, hidden_atoms=seen.hidden_atoms,
         dangling_bonds=_dangling(geometry, scene),
-        label_overlaps=_label_overlaps(labels, frame), empty=_empty(image, bg),
+        label_overlaps=_label_overlaps(labels, frame),
+        label_atom_overlaps=sum(label[5] for label in labels),
+        label_bond_overlaps=sum(label[6] for label in labels), empty=_empty(image, bg),
         cut=cuts, note=geometry.get("note", ""), warnings=warnings)
     # every argument but the first and path: phase, probability, bond_tolerance
     # and max_atoms pick and build the geometry from a structure, and left out

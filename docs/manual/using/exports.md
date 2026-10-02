@@ -344,8 +344,25 @@ On NAC it is 0 for the cell, for a block of cells and after a `keep`, since
 `keep` drops a bond it cuts and counts it in `cut`.
 It is 158 with `boundary=False`, which leaves out the images at the cell faces
 that the bonds there reach.
-`label_overlaps` counts pairs of letters whose boxes intersect, and `empty` is
-the share of pixels with nothing drawn.
+`label_overlaps` counts pairs of strings whose boxes intersect.
+A box is the string's width and the font's height.
+`label_atom_overlaps` counts pairs of a string and an atom that meet.
+An atom is the ellipse it projects to, and a site label is not counted against
+its own atom.
+`label_bond_overlaps` counts pairs of a string and a bond that meet.
+A bond is its drawn halves, widened by the stick radius.
+All three count a, b and c too.
+`atom_labels=True` tries eight places around each atom, up and to the right
+first.
+Each label keeps the first place this test finds clear of atoms, bonds and the
+labels placed before it, or else the place that meets fewest.
+On a paracetamol molecule at 800 px the three counts read 0, 0 and 0 with
+balls and 0, 0 and 1 with ellipsoids.
+The one left is C9's label, since each place around C9 meets one of its four
+bonds.
+With every label up and to the right, the counts read 1, 2 and 15, and 0, 3
+and 14.
+`empty` is the share of pixels with nothing drawn.
 `cut` counts what the figure lost before it was drawn.
 Its `atoms` is the cell's atoms `build`'s atom cap left out, 248 on HKUST-1.
 Its `bonds` and `polyhedra` are what `keep` dropped from an atom it kept,

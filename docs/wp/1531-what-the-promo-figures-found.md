@@ -79,7 +79,7 @@ polyhedron's vertex. The proposal: `complete="polyhedra"` and
 - [x] #664: trace why a face-centred PbI₆ misses its own bond in a block, fix
       it in `build`, and assert every polyhedron lists all its centre–vertex
       bonds on the four blocks the issue names
-- [ ] #666: label placement clear of atoms and bonds, and the two new overlap
+- [x] #666: label placement clear of atoms and bonds, and the two new overlap
       counts in the report (both twins if the scene module moves)
 - [ ] #667: `complete="polyhedra"` / `"bonds"`
 - [ ] Tests, with the issues' reproductions as cases and a rendered PNG of

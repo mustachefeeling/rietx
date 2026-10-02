@@ -47,9 +47,18 @@ class FigureReport:
     geometry's ``atoms``.  An atom under one sample at that size is left out of
     both.  ``dangling_bonds`` counts bond halves whose far atom is not drawn:
     the stubs ``hidden=`` leaves, and the bonds a trimmed cell leaves ending
-    on an atom the geometry does not hold.  ``label_overlaps`` counts
-    pairs of drawn letters whose boxes intersect.  ``empty`` is the share of
-    the picture's pixels with nothing drawn, read off the image.
+    on an atom the geometry does not hold.  ``label_overlaps`` counts pairs
+    of drawn strings whose boxes intersect, a box being the string's width and
+    the font's height.  ``label_atom_overlaps`` counts (string, atom) pairs
+    whose shapes meet, an atom being the ellipse it projects to and a site
+    label never counting its own atom.  ``label_bond_overlaps`` counts
+    (string, bond) pairs, a bond being its drawn halves as segments widened by
+    the stick radius.  All three count a, b and c too.  Each site label takes
+    the first of eight places around its atom that this test finds clear of
+    atoms, bonds and the strings placed before it, so a count left above zero
+    is a site label with no clear place, or a, b or c, which stay where they
+    are.  ``empty`` is the share of the picture's pixels with nothing drawn,
+    read off the image.
 
     ``cut`` counts what the figure lost before it was drawn.  ``atoms`` is the
     cell's images ``build``'s atom cap left out.  ``bonds`` and ``polyhedra``
@@ -63,6 +72,8 @@ class FigureReport:
     hidden_atoms: list[int]
     dangling_bonds: int
     label_overlaps: int
+    label_atom_overlaps: int
+    label_bond_overlaps: int
     empty: float
     cut: dict[str, int]
     note: str

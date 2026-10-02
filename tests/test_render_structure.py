@@ -25,8 +25,8 @@ from rietx.crystallography.cif import structure_from_cif
 from rietx.gui import structure3d as s3
 from rietx.model import compiled
 from rietx.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
-from rietx.viz import keep, recolour, render_structure, select
-from rietx.viz.figure3d import raster, views
+from rietx.viz import component, keep, recolour, render_structure, select
+from rietx.viz.figure3d import glyphs, raster, render, views
 from rietx.viz.figure3d import report as rp
 from rietx.viz.figure3d import scene as sc
 from rietx.viz.figure3d.render import _png
@@ -720,13 +720,170 @@ def test_a_recoloured_image_is_still_a_centre_of_its_site():
         assert "P" not in bare
 
 
-def test_labels_that_share_a_place_overlap():
+def test_labels_that_share_a_place_overlap(monkeypatch):
+    """Two atoms one behind the other: their labels would share a place, and
+    the second takes another (#666).  Held to the first place, the rule
+    before, they overlap, and each sits on the other's atom."""
     geometry = _stack()
     down = render_structure(geometry, view="c", size=400, atom_labels=True)
     across = render_structure(geometry, view="a", size=400, atom_labels=True)
-    assert down.report.label_overlaps >= 1
+    assert down.report.label_overlaps == 0
     assert across.report.label_overlaps == 0
     assert render_structure(geometry, view="c", size=400).report.label_overlaps == 0
+    monkeypatch.setattr(render, "LABEL_ANCHORS", render.LABEL_ANCHORS[:1])
+    held = render_structure(geometry, view="c", size=400, atom_labels=True)
+    assert (held.report.label_overlaps, held.report.label_atom_overlaps) == (1, 2)
+
+
+# ----------------------------------------------------------------------
+# site labels clear of atoms and bonds (#666, WP-1531)
+# ----------------------------------------------------------------------
+
+@functools.cache
+def _paracetamol() -> dict:
+    """One whole paracetamol molecule (COD 2104364), cut from a block of cells
+    as issue #666 cut it, without the cell edges.  Built once a process and
+    shared, so a caller reads it and never edits."""
+    block = s3.build(structure_from_cif(str(DATA / "cod_2104364.cif"), aniso=True),
+                     extent=((-1, 2), (-1, 2), (-1, 2)), max_atoms=4000)
+    pos = np.array([a["pos"] for a in block["atoms"]])
+    nitrogen = [i for i, a in enumerate(block["atoms"])
+                if block["sites"][a["site"]]["element"] == "N"]
+    middle = min(nitrogen, key=lambda i: float(np.linalg.norm(pos[i] - pos.mean(axis=0))))
+    return {**keep(block, component(block, middle)), "edges": []}
+
+
+def _label_counts(fig) -> tuple[int, int, int]:
+    r = fig.report
+    return r.label_overlaps, r.label_atom_overlaps, r.label_bond_overlaps
+
+
+#: (label_overlaps, label_atom_overlaps, label_bond_overlaps) on the molecule
+#: at 800 px.  The rule before #666 put every label up and to the right of its
+#: atom, and measured (1, 2, 15) in ball mode and (0, 3, 14) in ellipsoid mode.
+#: The bond left in ellipsoid mode is C9's: four bonds leave it, and every
+#: place around it meets one.
+PARACETAMOL_LABELS = {"ball": (0, 0, 0), "ellipsoid": (0, 0, 1)}
+
+
+@pytest.mark.parametrize("mode", ["ball", "ellipsoid"])
+def test_site_labels_are_placed_clear_of_atoms_and_bonds(mode):
+    molecule = _paracetamol()
+    fig = render_structure(molecule, mode=mode, atom_labels=True, axis_labels=False, size=800)
+    _save(fig, f"labels_paracetamol_{mode}")
+    assert len(fig.atoms) == 20
+    assert _label_counts(fig) == PARACETAMOL_LABELS[mode]
+    again = render_structure(molecule, **json.loads(json.dumps(fig.recipe)))
+    assert np.array_equal(again.image, fig.image) and again.report == fig.report
+
+
+@pytest.mark.parametrize("mode", ["ball", "ellipsoid"])
+def test_the_counts_see_the_old_placement_land_on_bonds(mode, monkeypatch):
+    """Held to the first place, the rule before #666, the labels land where
+    the issue saw them: O8 on H92, H7 on N7, and across bonds."""
+    monkeypatch.setattr(render, "LABEL_ANCHORS", render.LABEL_ANCHORS[:1])
+    fig = render_structure(_paracetamol(), mode=mode, atom_labels=True, axis_labels=False,
+                           size=800)
+    _save(fig, f"labels_paracetamol_{mode}_one_place")
+    assert _label_counts(fig) == {"ball": (1, 2, 15), "ellipsoid": (0, 3, 14)}[mode]
+
+
+def test_a_label_with_no_clear_place_is_counted_on_what_it_meets():
+    """The far atom of two, drawn at four times the near one's radius: every
+    place around the near atom lies on it.  The near label keeps the first
+    place and is counted once; the far one's first place is clear."""
+    geometry = _stack()
+    far = next(k for k, s in enumerate(geometry["sites"]) if s["label"] == "C2")
+    sites = [dict(s, radius=4 * s["radius"]) if k == far else s
+             for k, s in enumerate(geometry["sites"])]
+    fig = render_structure({**geometry, "sites": sites}, view="c", size=400,
+                           axis_labels=False, atom_labels=True)
+    _save(fig, "labels_no_clear_place")
+    assert _label_counts(fig) == (0, 1, 0)
+
+
+@pytest.mark.parametrize("anchor", range(len(render.LABEL_ANCHORS)))
+def test_a_label_in_any_place_is_inside_the_frame(anchor, monkeypatch):
+    """The frame is fitted before the labels are placed, so it holds a label
+    in whichever place it takes.  The frame's padding is taken away, or it
+    would hide a bound that falls short.  A one-letter label is narrower than
+    it is tall, which is the case the label's width alone does not bound."""
+    placed = []
+
+    def spy(*args, **kw):
+        out = labels(*args, **kw)
+        placed.extend(out)
+        return out
+
+    labels = render._labels
+    monkeypatch.setattr(render, "_labels", spy)
+    monkeypatch.setattr(render, "LABEL_ANCHORS", render.LABEL_ANCHORS[anchor:anchor + 1])
+    monkeypatch.setattr(render, "FIT_PAD", 0.0)
+    molecule = _paracetamol()
+    letters = {**molecule, "sites": [dict(s, label=s["element"]) for s in molecule["sites"]]}
+    for geometry in (molecule, letters):
+        placed.clear()
+        fig = render_structure(geometry, atom_labels=True, axis_labels=False, size=300)
+        height, width = fig.image.shape[:2]
+        em = render.LETTER_EM_CSS * 300 / render.CANVAS_CSS_PX
+        assert len(placed) == 20
+        for text, x, y, _, half, *_ in placed:
+            w = glyphs.width(text, em)
+            assert 0.0 <= x - w / 2 and x + w / 2 <= width, text
+            assert 0.0 <= y - half and y + half <= height, text
+
+
+def test_the_label_shape_tests_agree_with_sampling():
+    """The label tests are exact, and a grid of points in a box can only miss
+    a sliver.  So a box a grid point of which lies in a shape meets it, and a
+    box that meets a shape has a grid point in it once grown by 2 px.  The
+    ellipses are no flatter than 4 to 20, so a sliver is wider than the
+    grid's 0.5 px."""
+    rng = np.random.default_rng(666)
+    n = 30
+    a, b, phi = rng.uniform(4, 20, n), rng.uniform(4, 20, n), rng.uniform(0, np.pi, n)
+    c, s = np.cos(phi), np.sin(phi)
+    shapes = {"cx": rng.uniform(0, 120, n), "cy": rng.uniform(0, 120, n),
+              "sxx": (a * c) ** 2 + (b * s) ** 2, "syy": (a * s) ** 2 + (b * c) ** 2,
+              "sxy": (a * a - b * b) * c * s,
+              "px": rng.uniform(0, 120, n), "py": rng.uniform(0, 120, n),
+              "r": rng.uniform(1.5, 6, n)}
+    length = np.where(np.arange(n) % 10 == 0, 0.0, rng.uniform(5, 60, n))  # some are dots
+    turn = rng.uniform(0, 2 * np.pi, n)
+    shapes["qx"] = shapes["px"] + length * np.cos(turn)
+    shapes["qy"] = shapes["py"] + length * np.sin(turn)
+    x0, y0 = rng.uniform(0, 120, 60), rng.uniform(0, 120, 60)
+    boxes = np.stack([x0, x0 + rng.uniform(2, 40, 60), y0, y0 + rng.uniform(2, 20, 60)], axis=1)
+    # three boxes each holding a whole ellipse, which no edge of theirs meets
+    held = [[shapes["cx"][k] - 25, shapes["cx"][k] + 25, shapes["cy"][k] - 25,
+             shapes["cy"][k] + 25] for k in range(3)]
+    boxes = np.concatenate([boxes, held])
+    every = np.arange(n)
+    exact = {"atoms": render._on_atoms(boxes, shapes, every),
+             "halves": render._on_halves(boxes, shapes, every)}
+
+    def sampled(box, grow):
+        # no wider apart than 0.5 px, and never past the box's edges
+        xs = np.linspace(box[0] - grow, box[1] + grow, int((box[1] - box[0] + 2 * grow) * 2) + 2)
+        ys = np.linspace(box[2] - grow, box[3] + grow, int((box[3] - box[2] + 2 * grow) * 2) + 2)
+        gx, gy = (g.ravel()[:, None] for g in np.meshgrid(xs, ys))
+        ux, uy = gx - shapes["cx"], gy - shapes["cy"]
+        det = shapes["sxx"] * shapes["syy"] - shapes["sxy"] ** 2
+        form = shapes["syy"] * ux * ux - 2 * shapes["sxy"] * ux * uy + shapes["sxx"] * uy * uy
+        dx, dy = shapes["qx"] - shapes["px"], shapes["qy"] - shapes["py"]
+        along = (gx - shapes["px"]) * dx + (gy - shapes["py"]) * dy
+        t = np.clip(np.divide(along, dx * dx + dy * dy, out=np.zeros_like(along),
+                              where=(dx * dx + dy * dy) > 0), 0.0, 1.0)
+        gap = np.hypot(shapes["px"] + t * dx - gx, shapes["py"] + t * dy - gy)
+        return {"atoms": (form <= det).any(axis=0), "halves": (gap <= shapes["r"]).any(axis=0)}
+
+    for i, box in enumerate(boxes):
+        inner, outer = sampled(box, 0.0), sampled(box, 2.0)
+        for kind in ("atoms", "halves"):
+            assert not (inner[kind] & ~exact[kind][i]).any(), (kind, i)
+            assert not (exact[kind][i] & ~outer[kind]).any(), (kind, i)
+    for kind in ("atoms", "halves"):
+        assert 20 < exact[kind].sum() < exact[kind].size - 20, kind
 
 
 def test_keep_says_what_it_cut_and_the_report_repeats_it(nac):
