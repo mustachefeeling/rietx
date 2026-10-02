@@ -535,7 +535,9 @@ scope creep. Each item names what fenced it.
   rather than deferred**: the fork's branch is visible (`tof-cleanroom-20260923`),
   and **decided 2026-09-24: held until v1.6 closes**, then taken on that branch
   in its own cuts (T-1, T-2/T-3, T-5), with #442 (a bank's force-fixed CW width
-  rows under 1414's "matched, not freed") going with T-1 — and issue #362 lists the constant-wavelength reads
+  rows under 1414's "matched, not freed") going with T-1, and #618 (whether
+  instrument parameters may be taken from Mantid's GPL-3.0 instrument files)
+  answered before any TOF preset ships — and issue #362 lists the constant-wavelength reads
   (`CompiledModel.tt`, `line_wavelengths`, `sigma_measured`; `viz/snapshot.py`
   and 23 more sites) a second compiled-model class meets, so the accessor seam
   it proposes waits for that class rather than preceding it; spherical-harmonics
