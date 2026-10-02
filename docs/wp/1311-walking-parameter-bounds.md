@@ -260,9 +260,13 @@ Every structure reader built Biso with this WP's kept 0–25 Å² bound. A value
 outside a bound fails validation, so one site above 25 Å² refused the whole
 file. Published structures do sit there. The methylammonium C in COD 4335638
 (CH₃NH₃PbI₃) reads as 26.8 Å². Now every reader keeps the file's number,
-widens that site's bound to hold it, and reports the widening. A fit that ends
-with a negative B is flagged. The ceiling's default and its ruling are
-unchanged.
+widens that site's bound to hold it, and reports the widening. That includes
+the four project readers, which used to refuse a negative B that their own
+programs store, and the three writers now write one. A fit that ends with a
+negative B is flagged. The 0–25 Å² default and this WP's ruling on it are
+unchanged. Removing the default outright was tried and rejected, because
+issue #204 measured an unbounded B walking a scale–B ridge to −165 Å². WP-1534
+is filed to fix that ridge at its source.
 
 This entry records a PR made outside a WP session. It sits here because this
 WP owns the 25 Å² ruling. The maintainer asked for the review's three open
@@ -284,12 +288,21 @@ import CIFs whose Biso values are wrong.
 - **Every reader records the widening** as one `BISO_BOUND_WIDENED` warning
   per file, listing every site in `where`. This is root CLAUDE.md's rule that
   a reader repairs only where it says it did.
-- **Not generalised: the four project readers and three writers still refuse
-  a negative B.** Those refusals are deliberate and pinned by nine tests. The
-  TOPAS reader's reason was that moving the value to zero changes every
-  high-Q intensity. Keeping the value without moving it answers that reason,
-  so the refusals could become the same report. That is a separate decision
-  about reproducing a foreign refinement, and it was not taken here.
+- **The project readers keep a negative B too, and the writers write one.**
+  FullProf, GSAS, GSAS-II and TOPAS all store a negative refined B. The four
+  readers refused it because "rietx bounds biso at zero", and widening at read
+  removes that premise. The three writers refused only because the readers
+  did. The maintainer took this decision after the first round.
+- **The default bounds stay, and a caller's out-of-range value still raises.**
+  The maintainer first asked for `Atom.biso` to accept every value. Two things
+  ruled that out. Issue #204 measured an unbounded B riding the
+  `scale·exp(−2B·s²)` ridge to −165 Å², returning 0.0 and 80.9 wt% at one Rwp.
+  And widening inside the schema could not report itself, which would silently
+  undo PR #206's deliberate refusal of `Parameter(value=-165.0)`. Only a
+  reader can say what it widened. The 0–25 Å² range is a backstop, not a
+  defence: on a 25–50° Cu Kα scan a walk to 25 Å² still moves a phase scale
+  about 10× (arithmetic on #204's relation, not a run). WP-1534 owns the real
+  fix.
 
 **Done.**
 
@@ -315,6 +328,13 @@ import CIFs whose Biso values are wrong.
   budget, so the new row is one line and the `BISO_UNUSUALLY_LARGE` row lost
   its threshold derivation, which its message and the docstring already hold.
 - `a59a06de`: merged `origin/main` (`b700e28d`, PR #660, TOPAS docs).
+- `f2c21399`: the four project readers' and three writers' negative-B
+  refusals removed. Eight tests become read, widen and round-trip tests. The
+  TOPAS test pinning the old refusal paragraph is deleted with it. `help.py`,
+  `io/CLAUDE.md` and the skill's api index say the new behaviour.
+- WP-1534 filed: a scale and a B the fitted range cannot separate. Folding was
+  checked first. WP-1460 reports correlated pairs, and WP-1420 re-enters a
+  held phase, so neither owns acting on the ridge.
 
 **Measured** (worktree `.venv`, `[dev]`, darwin/arm64, on the merged tree,
 alone on the machine): the fast selection gave 7848 passed, 159 skipped and
