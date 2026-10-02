@@ -254,62 +254,84 @@ The shipping PR carries `Closes #150`, `Closes #102` (#106 closes with
 
 ## Handover log
 
-### 2026-10-02 — PR #663: a file's Biso widens the 25 Å² bound instead of refusing the file
+### 2026-10-02 — PR #663: a file's Biso widens the 25 Å² bound and says so
 
 Every structure reader built Biso with this WP's kept 0–25 Å² bound. A value
 outside a bound fails validation, so one site above 25 Å² refused the whole
-file. Published structures do sit there: the methylammonium C in COD 4335638
-(CH₃NH₃PbI₃) reads as 26.8 Å². Now a reader widens the bound to hold the value
-it read, and every reader does it the same way. The ceiling's default and its
-ruling are unchanged. A Biso that starts inside 25 Å² still stops there.
+file. Published structures do sit there. The methylammonium C in COD 4335638
+(CH₃NH₃PbI₃) reads as 26.8 Å². Now every reader keeps the file's number,
+widens that site's bound to hold it, and reports the widening. A fit that ends
+with a negative B is flagged. The ceiling's default and its ruling are
+unchanged.
 
 This entry records a PR made outside a WP session. It sits here because this
-WP owns the 25 Å² ruling. Three questions the review raised are left to the
-maintainer and are listed under *Declined*.
+WP owns the 25 Å² ruling. The maintainer asked for the review's three open
+questions to be settled by the design rules, on the premise that people will
+import CIFs whose Biso values are wrong.
+
+**Decided, and why.**
+
+- **A negative Biso in a CIF or recipe is kept, not refused or clamped.**
+  Refusing blocks the import the maintainer wants. Clamping moves the file's
+  number, and Watkin (2008) is why this WP made the high side a flag: the
+  number is evidence about the model. Madsen et al. (2001) list a negative B
+  first among the values a code should warn about. So the read reports it,
+  and so does the fit.
+- **The widened bound sits at the file's value, with no headroom.** Headroom
+  would be a number somebody chose (WP-1448). At the value, a freed B can move
+  back toward the range and no further out, and a fit wanting more reports
+  `BOUND_HIT`.
+- **Every reader records the widening** as one `BISO_BOUND_WIDENED` warning
+  per file, listing every site in `where`. This is root CLAUDE.md's rule that
+  a reader repairs only where it says it did.
+- **Not generalised: the four project readers and three writers still refuse
+  a negative B.** Those refusals are deliberate and pinned by nine tests. The
+  TOPAS reader's reason was that moving the value to zero changes every
+  high-Q intensity. Keeping the value without moving it answers that reason,
+  so the refusals could become the same report. That is a separate decision
+  about reproducing a foreign refinement, and it was not taken here.
 
 **Done.**
 
 - `a4b73506` (the PR's own commit, 2026-10-01, written in a promo-video
-  session). `schemas.structure.BISO_BOUNDS` and `biso_bounds(value)`. The CIF,
-  recipe, FullProf, GSAS and GSAS-II readers use them.
-- `/code-review high --fix` on 2026-10-02 found seven issues and fixed three:
-  - `ba3327c8`: the TOPAS reader, the sibling the PR missed. A beq above 25 Å²
-    still refused the `.inp`.
+  session). `schemas.structure.BISO_BOUNDS` and `biso_bounds(value)`, used by
+  the CIF, recipe, FullProf, GSAS and GSAS-II readers.
+- `/code-review high --fix` found seven issues. It fixed three, plus one
+  cosmetic fix:
+  - `ba3327c8`: the TOPAS reader, the sibling the PR missed.
   - `9af16d4a`: `magnetic_supercell` rebuilt each child's biso as a bare
-    `Parameter`, which inherits 0–25 Å². A parent with a widened bound then
-    failed validation. The child now keeps the source's `min`/`max`.
-  - `3b59a9fc`: `Atom.biso`'s default reads `BISO_BOUNDS`, which it had spelled
-    again beside the constant.
-  - `46bdd813`: the docstring's example now quotes the test's 0.34 Å².
+    `Parameter`, so a widened parent failed validation. The child keeps the
+    source's `min`/`max`.
+  - `3b59a9fc`: `Atom.biso`'s default reads `BISO_BOUNDS`.
+  - `46bdd813`: the docstring example quotes the test's 0.34 Å².
+- `a25dd197`: `biso_widening_diagnostic` in `schemas/structure.py`. Each of
+  the six readers calls it once on the built structure, so no reader keeps
+  index bookkeeping. Anisotropic sites are skipped, their `biso` being inert.
+  It has a skill row in 7i and a paragraph in the manual's files chapter.
+- `5e9e7387`: `check_biso_negative` and `GuardReport.negative_biso`, wired
+  through `findings()`, `_guard_diagnostics`, `multi.GUARD_SCOPES` and
+  `_REVISABLE_CODES`. `check_biso_plausible`'s docstring no longer claims
+  readers refuse a negative B. The skill's `diagnostics.md` was over its byte
+  budget, so the new row is one line and the `BISO_UNUSUALLY_LARGE` row lost
+  its threshold derivation, which its message and the docstring already hold.
+- `a59a06de`: merged `origin/main` (`b700e28d`, PR #660, TOPAS docs).
 
-**Declined, for the maintainer.**
-
-- **A negative Biso.** The FullProf, TOPAS, GSAS and GSAS-II readers refuse
-  one on purpose. The CIF and recipe readers now accept one silently, with a
-  negative floor. `check_biso_plausible` has no low-side test because this
-  WP's Item 2 assumed "readers refuse negative B". So a negative Biso from a
-  CIF now reaches a fit with nothing said. The two fixes are that those two
-  readers refuse too, or that a low-side flag is added. Choosing is a policy
-  call.
-- **The widened bound sits exactly at the value.** A freed Biso starts on its
-  own bound and cannot move outward, and `BOUND_HIT` names a limit the reader
-  made up. Headroom would change what the PR intended.
-- **No diagnostic records the widening.** Root CLAUDE.md says a reader repairs
-  a file only where it records a `Diagnostic`. One here means a new code and a
-  skill row.
-
-**Measured** (worktree `.venv`, `[dev]`, darwin; a `/pr-review` slow run was
-going at the same time, so no timing is quoted): the fast selection gave
-7842 passed, 159 skipped, 1 failed. The branch adds 5 tests, 7 cases, all
-passing. Main's own count was not run for a baseline. The failure is
+**Measured** (worktree `.venv`, `[dev]`, darwin/arm64, on the merged tree,
+alone on the machine): the fast selection gave 7848 passed, 159 skipped and
+1 failed. Against the run before this round, the total moved by +6. Three are
+this round's tests, two are #660's parametrised cases, and one is
+`test_multi_diagnostics`' scope test picking up the new field. Every added
+test costs at most 0.20 s. The failure is
 `test_backend_shim.py::test_numpy_path_bit_identical_to_golden[toy_anomalous]`,
-1.6e-11 off its golden. It fails the same way on `origin/main` (`ca9bda29`) in
-this venv, while main's Linux CI is green. So it predates this branch and is
-local to this machine's environment. It was not investigated. The full suite
-did not run, because a bound's width moves no measured number.
+1.6e-11 off its golden. It fails the same way on `origin/main` (`ca9bda29`)
+in this venv, so it predates this branch. The goldens skip off darwin/arm64,
+so CI cannot see it, and it was not investigated. The full suite did not run,
+because a bound's width moves no measured number.
 
-**Next:** decide the negative-Biso question first. Its answer sets whether the
-diagnostic is one code or two. Then merge #663.
+**Next:** decide whether the four project readers keep refusing a negative B
+or switch to the same report. That decision governs three writers' refusals
+too. Then merge #663. Separately, someone should look at the `toy_anomalous`
+golden on darwin.
 
 ### 2026-09-18 — closed: all five, and two premises that did not survive
 
