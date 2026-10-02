@@ -169,6 +169,7 @@ from ...crystallography.symmetry import (
     setting_diagnostics,
 )
 from ...schemas.common import Diagnostic, Parameter
+from ...schemas.structure import biso_bounds
 from ..formats.base import decode
 from . import coverage as _coverage
 
@@ -4067,15 +4068,16 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
                                     **({"vary": s.vary[u]} if u in s.vary else {}))
                     for u in _ADP_KEYS})
                 displacement = {
-                    "biso": rx.Parameter(value=b_record, vary=False, **biso_window),
+                    "biso": rx.Parameter(value=b_record, vary=False,
+                                         **biso_bounds(b_record)),
                     "aniso": block}
             else:
                 # The file's own number, not `max(beq, 0.0)`: a negative one is
                 # refused above rather than moved. A site that stated none is
                 # seeded 0.5 here, at build time — the model keeps it as None.
-                displacement = {"biso": _sp(s, "beq",
-                                            0.5 if s.beq is None else s.beq,
-                                            **biso_window)}
+                b_iso = 0.5 if s.beq is None else s.beq
+                displacement = {"biso": _sp(s, "beq", b_iso,
+                                            **biso_bounds(b_iso))}
             magnetic = {}
             if s.moment is not None and ph.name in magnetic_specs:
                 # `mlx/mly/mlz` are fractional-basis components (see
