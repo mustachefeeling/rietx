@@ -14,6 +14,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | WP | Title | Since | Priority | Section |
 |---|---|---|---|---|
 | [1132](1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | 2026-10-01 | P2 | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
+| [1323](1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | 2026-10-02 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1326](1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | 2026-09-26 | P2 | [v1.6](#v1-6) |
 | [1327](1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 2026-09-26 | P2 | [v1.6](#v1-6) |
 | [1328](1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | 2026-10-01 | P3 | [v1.6](#v1-6) |
@@ -41,7 +42,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | WP | Title | Priority | Depends on | Section |
 |---|---|---|---|---|
 | [1312](1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | P2 | — | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
-| [1323](1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | P2 | — ([1312](1312-neutron-followthrough.md), [1335](1335-the-report-costs-more-than-the-fit.md), [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) soft) | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | P2 | — ([1333](1333-a-series-survives-one-pattern.md), [1342](1342-a-freeze-that-reads-names.md), [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1445](1445-the-optics-nobody-declared.md) | The optics nobody declared: a source that cannot emit the line | P2 | — ([1442](1442-a-ghost-search-at-chance.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
@@ -431,7 +431,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 |---|---|---|---|---|
 | [1320](1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ✅ 2026-09-27 | — | — ([1310](1310-report-repeats-itself.md) soft) |
 | [1321](1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ✅ 2026-09-29 | — | — |
-| [1323](1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | P2 | — |
+| [1323](1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | 🔄 2026-10-02 | P2 | — |
 | [1324](1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, and a setting nobody chose | ✅ 2026-09-02 | — | — |
 | [1332](1332-the-axis-a-reader-hands-back.md) | What a reader hands back: the axis, the rows, the σ column | ✅ 2026-09-28 | — | — |
 | [1336](1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | 🔄 2026-10-01 | P2 | — ([1310](1310-report-repeats-itself.md) soft) |
