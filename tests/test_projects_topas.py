@@ -1921,7 +1921,7 @@ def test_every_preprocessor_stance_is_what_the_reader_does(
             read_topas_inp(inp)
 
 
-# --------------------------------------- beq: refused, never moved or leaked
+# ------------------------------------------ beq: kept, never moved or leaked
 
 def test_a_negative_beq_is_kept_never_clamped(tmp_path):
     """`max(s.beq, 0.0)` moved a stated −0.42 to 0.0 with nothing said.
