@@ -1,4 +1,5 @@
-"""Shannon (1976) ionic/crystal radii and Pyykkö & Atsumi (2009) covalent radii.
+"""Shannon (1976) ionic/crystal radii, Pyykkö & Atsumi (2009) covalent radii
+and Pauling (1960) metallic radii.
 
 The spot values below are written out from the printed pages, not read from
 the bundled files, so a corrupted or truncated table fails here instead of
@@ -17,7 +18,13 @@ import numpy as np
 import pytest
 
 from rietx.crystallography import radii
-from rietx.crystallography.radii import IonicRadius, covalent_radius, ionic_radius
+from rietx.crystallography.radii import (
+    IonicRadius,
+    MetallicRadius,
+    covalent_radius,
+    ionic_radius,
+    metallic_radius,
+)
 
 
 def _text(name: str) -> str:
@@ -147,7 +154,8 @@ def test_each_data_file_states_its_source_and_status_where_it_ships():
     """A file entering the wheel says what it is (CLAUDE.md, licensing)."""
     for name, dois in (("r_ion_Shannon.dat", ["10.1107/S0567739476001551"]),
                        ("r_cov_Pyykko.dat", ["10.1002/chem.200800987",
-                                             "10.1002/chem.200901472"])):
+                                             "10.1002/chem.200901472"]),
+                       ("r_metal_Pauling.dat", ["10.1021/ja01195a024"])):
         head = _text(name).split("\n\n")[0]
         assert "# CITE:" in head and "# STATUS:" in head
         for doi in dois:
@@ -256,3 +264,136 @@ def test_numpy_integers_are_integers_to_the_lookup():
 def test_a_non_integer_bond_order_names_the_allowed_orders(order):
     with pytest.raises(ValueError, match="order must be 1"):
         covalent_radius("C", order=order)
+
+
+# --- Pauling (1960) metallic radii ------------------------------------------
+#
+# (element, v, R(L12), R1), Pauling (1960) Table 11-1, p. 403, each read off
+# the page image; one or more from every printed row of the table.
+_PAULING_ROWS = [
+    ("Li", 1, 1.549, 1.225), ("B", 3, 0.98, 0.80),   # B R1 printed ".80"
+    ("Al", 3, 1.429, 1.248), ("K", 1, 2.349, 2.025),
+    ("Fe", 6, 1.260, 1.170), ("Cu", 5.56, 1.276, 1.176),
+    ("Ge", 2.56, 1.444, 1.242), ("Te", 2, 1.60, 1.37),  # v printed "(2)"
+    ("Pd", 6, 1.373, 1.283), ("Sn", 2.56, 1.623, 1.421),
+    ("La", 3, 1.871, 1.690), ("W", 6, 1.394, 1.304),
+    ("Pb", 2.56, 1.704, 1.502), ("Bi", 1.56, 1.776, 1.510),
+    ("U", 6, 1.516, 1.426), ("Yb", 2, 1.933, 1.699),
+]
+
+
+@pytest.mark.parametrize("element, v, r12, r1", _PAULING_ROWS)
+def test_pauling_rows_match_the_printed_page(element, v, r12, r1):
+    one = metallic_radius(element)
+    twelve = metallic_radius(element, ligancy=12)
+    assert isinstance(one, MetallicRadius)
+    assert (one.radius, one.r1, one.r12, one.valence, one.ligancy) == (r1, r1, r12, v, 1)
+    assert (twelve.radius, twelve.r1, twelve.ligancy) == (r12, r1, 12)
+    assert one.page == 403 and one.as_printed == ""
+
+
+def test_pauling_misprints_are_corrected_with_the_printed_cell_kept():
+    gd = metallic_radius("Gd", ligancy=12)
+    assert (gd.radius, gd.r1, gd.flags, gd.as_printed) == (
+        1.804, 1.623, ("r12_corrected",), "r12=2.804")
+    eu = metallic_radius("Eu")
+    assert (eu.valence, eu.r12, eu.r1, eu.flags, eu.as_printed) == (
+        2, 2.084, 1.850, ("v_corrected",), "v=3")
+    sr = metallic_radius("Sr")
+    assert (sr.valence, sr.r12, sr.r1, sr.flags, sr.as_printed) == (
+        2, 2.148, 1.914, ("label_corrected",), "label=Sn")
+    assert metallic_radius("Sn").r1 == 1.421          # Sn's own cell is untouched
+    pm = metallic_radius("Pm", ligancy=12)             # flagged, kept as printed
+    assert (pm.radius, pm.r1, pm.flags, pm.as_printed) == (
+        1.834, 1.633, ("r12_off_relation",), "")
+    assert {r.element for r in radii._pauling_rows().values() if "v_assumed" in r.flags} \
+        == {"P", "S", "Se", "Te"}
+
+
+def test_pauling_corrections_carry_their_evidence_in_the_file():
+    head = _text("r_metal_Pauling.dat").split("\n\n")[0]
+    for needle in ("printed 2.804, corrected to 1.804", "printed 3, corrected to 2",
+                   'labelled "Sn"', "printed 1.834", "p. 412", "1947 table"):
+        assert needle in head
+
+
+def _pauling_cells(text: str) -> list[list[str]]:
+    return [line.split() for line in text.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")]
+
+
+def _off_the_pauling_relation(cells: list[list[str]]) -> list[str]:
+    """Rows breaking R(L12) = R1 + 0.300 log(12/v) (p. 412) beyond the
+    rounding of the printed digits (half a unit in the last place of each)."""
+    off = []
+    for symbol, v, r12, r1, *_ in cells:
+        tol = sum(0.5 * 10.0 ** -len(x.split(".")[1]) for x in (r12, r1)) + 1e-4
+        if abs(float(r12) - float(r1) - 0.300 * np.log10(12 / float(v))) > tol:
+            off.append(symbol)
+    return off
+
+
+def _as_printed(cells: list[list[str]]) -> list[list[str]]:
+    """The table as the page prints it: each correction undone."""
+    printed = []
+    for symbol, v, r12, r1, page, flags, cell in cells:
+        for undo in ([] if cell == "-" else cell.split(";")):
+            key, value = undo.split("=")
+            if key == "v":
+                v = value
+            elif key == "r12":
+                r12 = value
+        printed.append([symbol, v, r12, r1, page, flags, cell])
+    return printed
+
+
+def test_pauling_relation_holds_except_at_the_misprints():
+    """Pauling's own ligancy-12 correction, on every row (all print both
+    radii). As printed it breaks at the three misprints; as shipped only Pm,
+    kept as printed, still breaks it."""
+    cells = _pauling_cells(_text("r_metal_Pauling.dat"))
+    assert _off_the_pauling_relation(cells) == ["Pm"]
+    assert _off_the_pauling_relation(_as_printed(cells)) == ["Pm", "Eu", "Gd"]
+
+
+def test_the_pauling_relation_catches_a_one_digit_slip():
+    """Positive arm: one 3 read as 8 (Re R(L12) 1.373 -> 1.873, the slip one
+    copy's OCR made) is caught."""
+    cells = _pauling_cells(_text("r_metal_Pauling.dat"))
+    re_row = next(c for c in cells if c[0] == "Re")
+    re_row[2] = "1.873"
+    assert "Re" in _off_the_pauling_relation(cells)
+
+
+def test_pauling_row_counts_match_the_print():
+    """72 entries in the printed order of Table 11-1's seven rows."""
+    symbols = [c[0] for c in _pauling_cells(_text("r_metal_Pauling.dat"))]
+    blocks = ["Li Be B", "Na Mg Al Si P S",
+              "K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se",
+              "Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te",
+              "Cs Ba La Hf Ta W Re Os Ir Pt Au Hg Tl Pb Bi", "Th U",
+              "Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb Lu"]
+    assert [len(b.split()) for b in blocks] == [3, 6, 16, 16, 15, 2, 14]
+    assert symbols == " ".join(blocks).split()
+    assert len(radii._pauling_rows()) == 72
+
+
+@pytest.mark.parametrize("ligancy", [2, 6, 8, 0, 1.0, 12.0, "12", True])
+def test_a_ligancy_pauling_does_not_print_is_refused(ligancy):
+    with pytest.raises(ValueError, match="ligancy must be 1 .* or 12"):
+        metallic_radius("Fe", ligancy=ligancy)
+
+
+@pytest.mark.parametrize("element", ["C", "O", "Cl", "Ar", "Ac", "Pu"])
+def test_an_element_not_in_table_11_1_is_refused_naming_the_table(element):
+    with pytest.raises(KeyError, match=f"no metallic radius for {element} .*Li Be B Na"):
+        metallic_radius(element)
+
+
+def test_a_charged_species_has_no_metallic_radius():
+    with pytest.raises(ValueError, match="carries a charge"):
+        metallic_radius("Fe3+")
+    with pytest.raises(ValueError, match="carries a charge"):
+        metallic_radius("La+3")
+    assert metallic_radius("7Li") == metallic_radius("Li")
+    assert metallic_radius("Fe", ligancy=np.int64(12)).radius == 1.260
