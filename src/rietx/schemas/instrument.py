@@ -941,6 +941,17 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
     (``model/profiles/voigt.py``).  It is a per-instrument, compile-time choice —
     not a refinable parameter and not per-reflection — and consumes the *same*
     U,V,W,X,Y widths, so switching shapes never touches the parameter table.
+
+    **Every width is bounded, and which box depends on how the instrument was
+    built.**  The X-ray presets take :data:`TCHZ_BOUNDS` (U ≥ −0.05,
+    V ∈ [−0.5, 0.5]); :meth:`Instrument.constant_wavelength_neutron` takes
+    :data:`TCHZ_BOUNDS_COARSE` through :meth:`coarse` (U ≥ −0.5, V ∈ [−4, 4]);
+    an explicit ``Parameter(value, min, max)`` carries the caller's own.  W, X
+    and Y are softplus-transformed with a floor of zero in both boxes, because
+    Γ_G² and Γ_L are a variance and a width.  Some programs hold these
+    coefficients unbounded, so a solution read from another program can sit
+    outside the box: one with W < 0 lies outside both boxes, so a comparison
+    against it starts from W = 0 rather than from its value.
     """
 
     #: WP-1312's escape for a coarser instrument, which a ``Parameter`` leaving
