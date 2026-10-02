@@ -363,7 +363,9 @@ def baseline(us: list[float], mo: int, d: int) -> None:
         sel = [t for t in ts if lo <= max(r.context for r in t.requests) < hi]
         a = sum(replay(t, lambda m, n: False, 0) for t in sel)
         b = sum(replay(t, POLICIES[2][1], u, mo=mo, d=d) for t in sel)
-        print(f"  {_k(lo)}-{_k(hi) if hi < 10**9 else 'up'}: {len(sel)} sessions, saving {(a - b) / a:.0%}")
+        # an empty band (a fresh container holds one session) has nothing to save
+        saving = f"{(a - b) / a:.0%}" if a else "n/a"
+        print(f"  {_k(lo)}-{_k(hi) if hi < 10**9 else 'up'}: {len(sel)} sessions, saving {saving}")
     _, o, r, w5, w1 = PRICES["opus"]
     print("\nitem length (requests) at which a lane pays, by main context:")
     for base in (80_000, 110_000):
@@ -387,6 +389,11 @@ def measure_lanes(main: Path) -> dict:
         est = re.search(r"~(\d+)\s*$", label)
         item = re.sub(r"\s*~\d+\s*$", "", label)
         path = subdir / f"agent-{a['agent_id']}.jsonl"
+        if a["agent_id"] and not path.exists():
+            # a session that entered a worktree after starting files its
+            # subagents under the worktree's project directory, not beside
+            # the main transcript (measured on WP-1534's lane)
+            path = next(PROJECTS.glob(f"*/{main.stem}/subagents/{path.name}"), path)
         if not a["agent_id"] or not path.exists():
             continue
         sub = parse(path, sidechain=True)
