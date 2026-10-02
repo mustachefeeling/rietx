@@ -49,6 +49,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1514](1514-scoping-rigid-bodies.md) | Scoping rigid bodies: the milestone that makes the parameter map nonlinear | P2 | — ([1319](1319-structure-interchange.md), [1515](1515-scoping-structure-solution.md), [1516](1516-scoping-stacking-faults.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1523](1523-a-phase-fitted-to-noise-passes-the-support-test.md) | A phase fitted to noise passes the support test | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1530](1530-the-topas-readers-last-silences.md) | The TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background | P2 | — ([1433](1433-the-inp-grammar-still-refused.md) soft) | [Unscheduled](#unscheduled-coming-from-another-code) |
+| [1531](1531-what-the-promo-figures-found.md) | What the promo figures found: a trimmed cell the report calls fine, a bond through a face, labels on atoms, polyhedra without their far ends | P2 | — | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -405,6 +407,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1433](1433-the-inp-grammar-still-refused.md) | The `.inp` grammar the reader still refuses: `STR(...)` and `#if` | 🔄 2026-10-01 | P3 | — |
 | [1455](1455-a-topas-tchz-profile-reads-in.md) | A TOPAS TCHZ profile reads in | ⬜ | P3 | — ([1433](1433-the-inp-grammar-still-refused.md) soft) |
 | [1527](1527-foreign-files-spell-a-species-as-the-program-does.md) | Foreign files spell a species as the other program does | 🔄 2026-10-02 | P2 | — |
+| [1530](1530-the-topas-readers-last-silences.md) | The TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background | ⬜ | P2 | — ([1433](1433-the-inp-grammar-still-refused.md) soft) |
 
 ### <a id="unscheduled-the-fit-has-no-reference"></a>The fit has no reference
 
@@ -508,6 +511,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 🔄 2026-09-28 | P4 | [1466](1466-the-structure-viewer-draws-coordination-polyhedra.md) |
 | [1470](1470-a-structure-figure-without-a-browser.md) | A structure figure from Python, drawn without a browser | ✅ 2026-09-27 | — | — |
 | [1522](1522-the-gui-says-what-the-read-repaired.md) | The GUI says what reading the project repaired | ⬜ | P3 | — |
+| [1531](1531-what-the-promo-figures-found.md) | What the promo figures found: a trimmed cell the report calls fine, a bond through a face, labels on atoms, polyhedra without their far ends | ⬜ | P2 | — |
+| [1533](1533-what-the-promo-agent-reached-around.md) | What the promo agent reached around: a cell frame with no switch, a stick width in a module constant, a score that argues against the axis view, and the furniture every script rebuilds | ⬜ | P3 | — ([1531](1531-what-the-promo-figures-found.md) soft) |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
 
@@ -540,6 +545,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1452](1452-spglib-to-moyo.md) | Spglib to moyo, once | ⬜ | P3 | [1327](1327-magnetic-structure.md), [1418](1418-the-magnetic-structure-is-determined.md), [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) |
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 🔄 2026-09-27 | P3 | — |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 🔄 2026-09-27 | P3 | — ([1506](1506-a-planning-doc-pr-runs-what-reads-it.md) soft) |
+| [1532](1532-the-skill-passages-a-driving-agent-needed.md) | The skill passages a driving agent needed: fourteen rows, placed where each is cheapest | ⬜ | P3 | — (#660 soft) |
 | [1903](1903-the-lane-trial-decides.md) | The lane trial decides whether a WP session sends long items to subagents | ⬜ | P4 | — |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement

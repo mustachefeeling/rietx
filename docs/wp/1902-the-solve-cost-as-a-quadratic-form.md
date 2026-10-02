@@ -47,6 +47,17 @@ Refusals by name: a magnetic phase; a Rietveld-mode model; a poor or
 unconverged extraction. "Poor" means `not result.usable` (WP-1336), set
 2026-10-01; a tighter bar waits for a measurement on public data.
 
+### Inherited
+
+- **2026-10-02, from the issue triage (issue #562): the Wyckoff-class
+  enumeration is not a task here.** *Decided 2026-10-02:* it claims its own
+  number, **WP-1904**, answering the reporter's question of 2026-09-30. It is
+  a separate module (`crystallography/site_classes.py`, beside `wyckoff.py`,
+  outside `solve/`) with its own acceptance across all 564 gemmi settings, so
+  it shares no handover with this WP. The WP file is written when its PR
+  lands, or before if the reporter wants the number on the record first. Do
+  not take 1904 for anything else.
+
 ## Non-goals
 
 - Engines, moves, tempering, grading (later WPs).

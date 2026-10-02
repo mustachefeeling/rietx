@@ -140,6 +140,24 @@ rule above applies to the form factors.
 
 ### Inherited
 
+- **2026-10-02, from the issue triage (issue #612): `magnetic_supercell` cannot
+  state the textbook MnO case (F m −3 m, k = ½½½).** *Checked at `ca9bda29`*
+  with the reporter's script, output identical to the issue. Under
+  `nuclear_group="parent"` all four candidates are refused with a message
+  naming the parent's own group as the problem. Under
+  `nuclear_group="magnetic"`, 167.108, 12.63 and 15.90 are refused with text
+  about "the parent's space group" on the branch asked to use the magnetic
+  group's nuclear part, and 2.7 ends in a raw pydantic
+  `ValidationError: phase … has no atoms`. Mechanism of the last:
+  `child_basis` returns the fractional basis `b+c, a/2+b/2+c, a/2+b+c/2` for
+  the F-centred parent, and `lattice_cosets` returns `()` for it, so
+  `_child_positions` is empty. Positive arm: P 4/m m m, k = (0,0,½) builds 7
+  of 8 (candidate × `nuclear_group`) with no invariance violation, and 63.466
+  under `"magnetic"` gets the same misleading text. The fix: `lattice_cosets`
+  handles or refuses a fractional child basis of a centred parent, each
+  branch's refusal names what that branch cannot do, and "no child positions"
+  is refused by name before the `Phase` is built.
+
 - **2026-09-29, from [1321](1321-persisted-bounds-repair.md): the supercell
   builder copies values only, so a parent's own stated range does not
   cross.** `crystallography/magnetic/supercell.py` builds the child phase

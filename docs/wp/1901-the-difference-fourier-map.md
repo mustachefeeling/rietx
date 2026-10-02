@@ -33,6 +33,21 @@ Amendments from the review:
   record, and never let the map be the evidence of its own fit (a model-biased
   map flatters the model that partitioned it).
 
+### Inherited
+
+- **2026-10-02, from the issue triage (issue #653): the GUI panel this WP
+  fences out has a written proposal.** It draws the maps this WP computes in
+  the structure viewer and in `render_structure`: ΔF isosurfaces at ±nσ with
+  a slider in σ units, the peak list as linked markers, a slice plane, the
+  structure's own extent rules, and the map's caveats on screen (model bias,
+  d_min and completeness, negative nuclear density being real for negative-b
+  species). The package computes the mesh and the browser draws triangles,
+  per WP-1015's rule; mesh against a ~1 MB 64³ grid is to be measured. It is
+  **not this WP's scope**, and nothing here changes. It reaches this WP in one
+  place: the map's grid, σ and peak list are the inputs the panel would read,
+  so keep them a public return rather than a private intermediate. File the
+  panel as its own WP when this one closes, from #653's text.
+
 ## Non-goals
 
 - Charge flipping, direct space, the cost function (WP-1902 and later).

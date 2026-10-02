@@ -125,6 +125,44 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-02, from the issue triage (issue #607): `MagneticCandidate.verified`
+  never reads the operator list its docstring says it certifies.**
+  `in_allowed_span` (`isotropy.py:956`) says the allowed-span helper "derives
+  the allowed subspace back from that operator list" and that "a missing
+  anti-translation" breaks it. The code reads `self.direction.stabilizer` and
+  the permutation phases, never `self.group`, which is the object labelled and
+  handed to the supercell builder and `solve_magnetic`. *Checked at
+  `ca9bda29`* with the reporter's script: dropping only the anti-translation
+  sign in `_candidate_group` changes all four MnO labels (167.108 → 166.101,
+  12.63 → 12.58, 15.90 → 12.62, 2.7 → 2.4), spglib on the generated
+  structure disagrees with each, and `verified=True` on all four. The
+  unplanted tree agrees with spglib 4 of 4. Two fixes are offered: fold the
+  op-by-op invariance of `configurations` under `self.group` (the loop
+  `test_every_configuration_is_invariant_under_its_own_group` already runs)
+  into the check, or reword the docstring and the failure text to say what is
+  checked. The first makes the flag mean what its name says.
+- **2026-10-02, from the issue triage (issue #608): the `CandidateSet` column
+  "domains" prints `direction.conjugates`, about half the domain count.**
+  *Checked at `ca9bda29`*: MnF₂ 136.499, LaMnO₃ 62.448 and Cr₂O₃ 167.106
+  print 1 where [G_k1′ : H] is 2, and MnO 15.90 prints 3 where it is 6 (24
+  over the four star arms). `_domain_operations`, which the powder sums use,
+  gives the hand count on all four, so no intensity is wrong. The fix is a
+  relabel of the column (`isotropy.py:1501`), the sentence about "the same
+  structure in a different domain", and the test docstring that pins the
+  conjugate count under the word "domains"; or print [G_k1′ : H] and say
+  whether star arms are included.
+- **2026-10-02, from the issue triage (issues #384, #390, #458): what PR #592
+  took from each, read off its body.** #390: `MagneticSolution.margin`, the
+  seed tilt, the `MAGNETIC_SUBGROUP_PREFERRED` audit and the tie lattice rode
+  with M-9, "taken as the WP recorded it". #458: the null-test gate fix is
+  commit `9113559c`; the recipe (the `nuclear_reference=` seam, (iv) with its
+  stopping rule, the (v) plan, the scale diagnostic) and four residuals are
+  reported and left for the recipe PR, as decided on #458. #384: part 1, a
+  `magnetic_candidates` section on the winner's `FitReport`, was never built
+  and is "left for a follow-up in the series". The handover entry of
+  2026-10-02 below records the verb and does not map it to these three
+  issues, so this entry does.
+
 - **2026-09-30, from the issue triage (issue #563): the moment recipe printed
   beside `IrrepBasis` has the exponent's sign backwards for 2k ∉ L\*.**
   `modes.py:1078` and `:1083` (`pairing`) and `:132`, `:181-182` (the module
