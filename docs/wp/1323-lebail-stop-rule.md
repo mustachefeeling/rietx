@@ -1,6 +1,6 @@
 # WP-1323 — the Le Bail alternation has a stop rule, and a scope
 
-Milestone: unscheduled · Status: 🔄 2026-10-02 — alternation shipped; review follow-ups open
+Milestone: unscheduled · Status: 🔄 2026-10-03 — alternation shipped; GUI progress view and judging.md questions open
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-09-23 — the skill sends every Le Bail job to a hand loop with no cap; the call is the workaround
@@ -209,6 +209,58 @@ baseline table, never gated.
   schedule), WP-1302 (the termination view).
 
 ## Handover log
+
+- **2026-10-03** — **The Le Bail alternation now behaves as one job.** A run
+  of several passes is one row in `rietx watch` with the right status, a cancel
+  or error part-way through leaves the best pass standing, and the cap survives
+  a trip through the GUI's text document and Plan panel. Before this, each pass
+  looked like its own run, and a second pass could be lost on cancel. The
+  review also caught that the first pass finishing marked the whole run "done".
+  Still open: the GUI progress view repeats stage names every pass, and the
+  nine `judging.md` questions need your domain check.
+
+  **Done** (second session on this WP). (a) `_fit_lebail_alternation` attaches
+  the recorder once and the passes share its stream; each pass stamps
+  `lebail_pass` on its `fit_start`/`fit_end`, and `runs.RunRecorder._observe`
+  ignores a stamped `fit_end`, so only `close()` writes `done`. (c) Any
+  exception restores the best pass (`_keep_pass`, factored from the old inline
+  block) and sets `RefinementCancelled.node_id` to the kept node, then raises.
+  (d) The passes get the whole plan, so `_last_plan` and the history header
+  carry the cap. (b) A `passes N` line in the `.rxt` document, shown only above
+  1, refused below 1 and on non-ASCII digits; `passes` in `rxt.ts`'s keyword
+  mirror; the Plan panel sends back the plan fields it has no control for
+  (`intermediate_ftol` was being reset the same way); dist rebuilt; one row in
+  `gui-power.md`.
+
+  **Measured** (macOS arm64, `[dev]` venv, numba on, current main merged in).
+  Fast selection: 7932 passed, 159 skipped, 1 failed, the failure being
+  `test_portability` on two `read_text()` calls in a test of mine; fixed, and
+  that file alone then passes (14). Six tests added by this session. Added-test
+  times, one run under `-n auto` load: 30.7 s, 22.7 s, 7.98 s, 6.3 s, 6.2 s,
+  4.9 s, 3.4 s, 0.12 s for the new ones. The slow ones stay unmarked for the
+  reason the 10-02 entry gives: they are the only cover of the loop on a real
+  pattern. Full suite not run: no measured number moved. vitest 583 passed,
+  svelte-check clean.
+
+  **Review** (`/code-review high --fix`): fixed the premature `done` status, the
+  restore-only-if-not-last condition, and an `isdigit` crash. Declined, with
+  reasons: the GUI session's stage-name dedup (needs a decision on what a pass
+  looks like in the progress view); a series with `lebail_passes` above 1
+  emitting one series-stamped `fit_end` per pass (no consumer counts them; the
+  `lebail_pass` stamp tells them apart). Its note that 16.907 and 16.908
+  disagree is two different pairs (pass 2 against pass 1, then a fixed-point
+  step), not a conflict.
+
+  **Lane trial.** No lane dispatched. Decisions: `keep telemetry-once-and-cancel
+  ~12`, `keep rxt-gui-lebail_passes ~15`, both at about 90-110K context, under
+  the 150K line. Step 3b has no lanes to measure; no row added.
+
+  **Gotchas.** A `/code-review --fix` runs in this tree, so I merged main only
+  after it returned. A merge during a running suite invalidates the run.
+
+  **Next:** (1) the maintainer's call on the nine `judging.md` questions;
+  (2) decide how the GUI progress view should show a pass; (3) the background
+  protocol in Inherited, if wanted in this WP, else file it.
 
 - **2026-10-02** — **The package now runs the Le Bail alternation itself.**
   Set a pass cap on the plan and `fit` repeats the plan, stops at the first

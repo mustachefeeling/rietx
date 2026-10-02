@@ -202,7 +202,7 @@ def test_a_pass_ending_is_not_the_run_ending(pattern, tmp_path):
         if e["kind"] in ("fit_start", "fit_end"):
             status = [p / "status.json" for p in tmp_path.iterdir() if p.is_dir()]
             if status and status[0].exists():
-                states.append(json.loads(status[0].read_text())["state"])
+                states.append(json.loads(status[0].read_text(encoding="utf-8"))["state"])
 
     was = runs.set_enabled(True)
     try:
@@ -212,7 +212,7 @@ def test_a_pass_ending_is_not_the_run_ending(pattern, tmp_path):
     finally:
         runs.set_enabled(was)
     assert len(states) >= 4 and set(states) == {"running"}
-    final = json.loads(next(tmp_path.glob("*/status.json")).read_text())
+    final = json.loads(next(tmp_path.glob("*/status.json")).read_text(encoding="utf-8"))
     assert final["state"] == "done"
 
 
