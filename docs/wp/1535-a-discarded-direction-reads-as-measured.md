@@ -87,10 +87,25 @@ and WP-1460 (how a flat direction is *reported*; this WP is about its *esd*).
       `PINV_RCOND × λmax`) across the fast suite's fits and the acceptance
       fixtures, and record which parameters each one touches. Build the
       one-site occupancy–scale case and confirm or refute the hypothesis.
-- [ ] Decide from the count: mark the touched parameters unmeasured in the
+- [x] Decide from the count: mark the touched parameters unmeasured in the
       covariance, or add a finding naming the direction and leave the esds.
       Write down the threshold for "touches" (a loading on the discarded
       eigenvector), derived, not tuned.
+      **Decision (2026-10-02): a finding, esds left.** 9.6 % of the acceptance
+      solves cut a direction, at the rounding floor and over 4–8 columns, so
+      marking would blank esds across the QPA, SRM 676a and brucite fixtures
+      on a threshold the arithmetic cannot defend. The pair case is already
+      covered by `FLAT_DIRECTION` (|ρ| ≥ 1 − 5e-4, and it already says each esd
+      is conditional); the gap is a combination of three or more columns, where
+      no pairwise ρ reaches it. New guard `COVARIANCE_DIRECTION_DISCARDED`
+      (`GuardReport.discarded_directions`), computed in `check_guards` from
+      `outcome.jac`, which is where `background_absorption` already reads it.
+      **"Touches", derived:** the true eigenvalue of a discarded direction is at
+      most the cut, so it adds at least v_i²/(PINV_RCOND·|λ|max) to column i's
+      equilibrated variance. Column i is touched when that is at least the
+      variance the solve reports, Σ_kept v_i²/λ — the esd is then at least √2
+      short. A direction whose touched set is exactly a pair `FLAT_DIRECTION`
+      already reported adds no row.
 - [ ] Tests, and the record line or diagnostic that states what changed.
 - [ ] Manual Part 2: the equilibrated cut in `estimation.md`, beside
       WP-1534's ridge section.
