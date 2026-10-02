@@ -87,6 +87,19 @@ spglib convention, as PRs against the migration branch once it exists.
 
 ### Inherited
 
+- **2026-10-02, from the issue triage (issue #426): the reporter holds no ITA
+  Vol. A either, and one letter-rule data point.** Their reply of 2026-09-30
+  (after the maintainer's) says the check of the printed Fd-3m tables has to
+  be done from a copy on the maintainer's side; Bilbao's WYCKPOS served them a
+  human-verification page. The data point, spglib 2.7.0 as a black box: the
+  usual spinel description in `Fd-3m:2` (Mg ⅛⅛⅛, Al ½½½, O x x x with
+  x = 0.2624) standardises to Hall 525 (origin choice 1) with origin shift
+  (⅝, ⅛, ⅛), and the sites come back Mg 8b, Al 16c, O 32e. The usual labels
+  are 8a / 16d / 32e. The two differ by the (½, ½, ½) normaliser shift, so
+  both are valid, and the choice is the undocumented tie-break. A candidate
+  test for decision (1): under origin choice 2 the rule gives 8a / 16d / 32e
+  on the textbook spinel.
+
 - **2026-09-30, from the issue triage (issue #426): the two rules only the
   maintainer can set, with a recommendation each.** *Evidence is thin*: the
   local paper corpus held no space-group, Wyckoff or Bilbao item, and no
