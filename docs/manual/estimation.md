@@ -306,6 +306,38 @@ intensity, an error $\delta B$ moves the fraction by the factor
 $\exp(2\,\delta B\,\bar{s}^2)$, which `SCALE_B_INSEPARABLE` quotes per Å². A
 pair above the floor is not held, and its esd is honest, however large.
 
+### A combination of three or more
+
+The same cut discards a direction made of more than two columns, and then no
+pairwise correlation shows it. Let $E = D\,J^{\mathsf T}J\,D$ be the
+equilibrated normal matrix with eigenpairs $(\lambda_k, v_k)$, and let $G$ be
+the discarded set, $|\lambda_k| \le \mathrm{rcond}\cdot\lambda_{\max}$. Column
+$i$ is *touched* when the discarded subspace adds at least as much variance as
+the solve reports:
+
+```{math}
+:label: est-discarded-touch
+
+\frac{1}{\mathrm{rcond}\,\lambda_{\max}}\sum_{k \in G} v_{ik}^2
+\;\ge\; \sum_{k \notin G} \frac{v_{ik}^2}{\lambda_k}.
+```
+
+{source}`rietx.optimize.statistics.discarded_directions`
+
+A discarded eigenvalue is at most the cut, so the left side is a lower bound on
+the variance the solve left out. Where it reaches the right side, the esd is at
+least $\sqrt{2}$ short. The sums run over the subspace, never one eigenvector,
+because two discarded directions are defined only up to a rotation inside it.
+Jacobi scaling makes the test independent of a column's units.
+
+`COVARIANCE_DIRECTION_DISCARDED` names the touched parameters and leaves their
+esds as they are. A touched set that is exactly a pair `FLAT_DIRECTION` already
+reported adds no row. On the acceptance fixtures 183 of 1 899 whole-pattern
+solves discarded such a direction, most of them within a factor of ten of the
+cut, over four to eight columns each. Marking those esds absent would blank the
+QPA, SRM 676a and brucite fixtures on a threshold that rounding sets, so the
+finding reports and the esd stays.
+
 ## Staged strategy and series
 
 Parameter groups are freed cumulatively in the IUCr-guideline order

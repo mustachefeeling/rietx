@@ -113,6 +113,7 @@ from .strategy.staged import (
     check_adp_positive_definite,
     check_biso_negative,
     check_biso_plausible,
+    check_discarded_directions,
     check_hump_width,
     check_resolution_positive,
     check_resolution_supported,
@@ -299,6 +300,8 @@ GUARD_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
                      "histogram whose reflections leave the cone"),
     "high_correlations": ((FIT,), "one correlation matrix, of the joint solve"),
     "flat_directions": ((FIT,), "read off the same matrix, beside the correlation"),
+    "discarded_directions": ((FIT,), "the joint normal matrix's own cut, read "
+                                     "off the joint Jacobian"),
     "at_bounds": ((FIT,), "the joint θ's bounds"),
 }
 
@@ -1257,6 +1260,13 @@ class MultiHistogramRefinement:
                             report.flat_directions.append(
                                 GuardFinding.flat_direction(
                                     free[i], free[j], c[i, j]))
+        if outcome.jac is not None and len(free) > 1:
+            try:
+                report.discarded_directions = check_discarded_directions(
+                    outcome.jac, free, report.flat_directions)
+            except np.linalg.LinAlgError:
+                if getattr(outcome, "covariance_error", None) is None:
+                    raise
         report.at_bounds = at_bounds
         return _guard_diagnostics(report) + _size_sharing_diagnostics(mt)
 

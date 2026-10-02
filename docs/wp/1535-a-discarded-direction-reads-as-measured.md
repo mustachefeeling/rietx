@@ -106,10 +106,10 @@ and WP-1460 (how a flat direction is *reported*; this WP is about its *esd*).
       variance the solve reports, Σ_kept v_i²/λ — the esd is then at least √2
       short. A direction whose touched set is exactly a pair `FLAT_DIRECTION`
       already reported adds no row.
-- [ ] Tests, and the record line or diagnostic that states what changed.
-- [ ] Manual Part 2: the equilibrated cut in `estimation.md`, beside
+- [x] Tests, and the record line or diagnostic that states what changed.
+- [x] Manual Part 2: the equilibrated cut in `estimation.md`, beside
       WP-1534's ridge section.
-- [ ] Skill: the row for whatever the decision adds.
+- [x] Skill: the row for whatever the decision adds.
 
 ## Acceptance
 

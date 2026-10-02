@@ -4743,6 +4743,20 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "held. Widening the fitted range or adding a second "
                        "histogram is what actually separates them",
         ))
+    for finding in guard.discarded_directions:
+        out.append(Diagnostic(
+            level="warning", code="COVARIANCE_DIRECTION_DISCARDED",
+            where=list(finding.paths), value=finding.value,
+            message=f"{finding.message} — the data measure none of that "
+                    "combination, and the esd of each is the variance of the "
+                    "directions that *were* measured, so each is at least "
+                    "√2 too small and may be far more",
+            suggestion="quote none of these esds as measured from this fit. "
+                       "No pair among them is a flat direction on its own, so "
+                       "free fewer of them in one stage, hold the ones known "
+                       "independently, or widen the fitted range; the esds of "
+                       "parameters not named here are unaffected",
+        ))
     for finding in guard.large_biso:
         msg = str(finding)
         out.append(Diagnostic(
