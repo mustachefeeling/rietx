@@ -210,7 +210,13 @@ _ANY_CALL = re.compile(r"(?<![\w.])([A-Za-z_]\w*)\s*\(")
 _EQUATION_FUNCTIONS = frozenset({
     "Abs", "Sin", "Cos", "Tan", "Asin", "Acos", "Atan", "Atan2", "Sinh", "Cosh",
     "Tanh", "Exp", "Ln", "Log", "Sqrt", "Mod", "Min", "Max", "If", "Get", "Val",
-    "Sign", "Floor", "Ceil", "Int", "Radius", "STR", "TOF_XYE", "TOF_GSAS"})
+    "Sign", "Floor", "Ceil", "Int", "Log10", "Pow", "Rand", "Rad", "Deg",
+    "Radius", "STR", "TOF_XYE", "TOF_GSAS"})
+
+#: ``Out…`` and ``Create_…`` macros write files and states about the run, not
+#: the model (the registry's IGNORED stance, by name), so their calls are not
+#: unread in the sense that matters.
+_RUN_LEVEL_CALL = re.compile(r"(?:Out|Create)_\w*")
 
 
 def _unread_calls(unquoted: str, stripped: str) -> tuple[str, ...]:
@@ -228,7 +234,8 @@ def _unread_calls(unquoted: str, stripped: str) -> tuple[str, ...]:
         m.group(1) for m in _ANY_CALL.finditer(unquoted)
         if m.group(1) not in known
         and m.group(1).rstrip("_") not in known
-        and not re.fullmatch(r"(?:Cu|Co|Cr|Fe|Mo|Ag)Ka\d?", m.group(1))}))
+        and not re.fullmatch(r"(?:Cu|Co|Cr|Fe|Mo|Ag)Ka\d?", m.group(1))
+        and not _RUN_LEVEL_CALL.fullmatch(m.group(1))}))
 
 
 def _unquoted(text: str) -> str:
@@ -1415,8 +1422,10 @@ def expand_for_loops(active: str, path) -> str:
             f"{path}: `{' '.join(loops[0][0].group().rstrip('{').split())}` expands its "
             f"body once per dataset or phase that exists, and this file opens "
             f"a dataset through `{hit.group().rstrip('(').strip()}`, which "
-            f"this reader does not read as one — so how many times the body "
-            f"is expanded, and into which phases, is not in the text in hand.")
+            f"this reader does not expand a loop over (it counts a data-file "
+            f"macro as one dataset, but a loop would need each phase placed "
+            f"in its dataset) — so how many times the body is expanded, and "
+            f"into which phases, is not something it can place.")
     openers = list(_BLOCK.finditer(active))
     datasets = [o for o in openers if o["kw"] in _DATASET_OPENERS]
 
@@ -2921,10 +2930,11 @@ def read_topas_inp(path: str | Path, *,
 
     parsed_site_tokens = 0        # site *tokens* read into phases, not atoms
     #: Which dataset the `str` blocks below currently sit in. `None` until an
-    #: `xdd`-family opener is seen: the grammar makes `str` a child of `xdd`, but
-    #: a real file routinely supplies the dataset from a macro (`RAW(...)`,
-    #: `TOF_XYE(...)`), and inventing dataset 0 for a file that states none would
-    #: be a fact the reader made up.
+    #: `xdd`-family opener is seen: the grammar makes `str` a child of `xdd`, and
+    #: a dataset a macro supplies (`RAW(...)`, `TOF_XYE(...)`) is an opener too
+    #: (:data:`_DATASET_OPENERS`, WP-1530). A phase above every opener stays
+    #: `None`: inventing dataset 0 for a file that states none would be a fact
+    #: the reader made up.
     dataset: int | None = None
     # Repairs to surface on `diagnostics` (finding 4): a distinct rewritten
     # species keyed to its raw form, carrying every atom path it touched (the
@@ -3451,7 +3461,8 @@ def read_topas_inp(path: str | Path, *,
                          f"an include this reader has not seen and a misspelt "
                          f"name look the same from here, and either way "
                          f"whatever the call states is missing from the built "
-                         f"structure. TOPAS itself stops on an undefined one. "
+                         f"structure. A name this reader has no row for is listed "
+                         f"too, so a real library macro can appear here. "
                          f"Read `model.coverage.unread_calls`"),
                 where=[f"coverage.unread_calls.{n}"
                        for n in model.coverage.unread_calls]))

@@ -4260,7 +4260,7 @@ def test_two_macro_opened_datasets_are_two_datasets(tmp_path, macro):
     built into one `Structure`. The `xdd "a"` control already refused."""
     model = read_topas_inp(_inp(
         tmp_path, "twomacro.inp",
-        f'{macro}(a)\n' + _ONE_PHASE.replace('"A"', '"A"') +
+        f'{macro}(a)\n' + _ONE_PHASE +
         f'{macro}(b)\n' + _ONE_PHASE.replace('"A"', '"B"')))
     assert model.n_datasets == 2
     assert [ph.dataset for ph in model.phases] == [0, 1]
