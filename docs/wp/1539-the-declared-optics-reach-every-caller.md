@@ -49,8 +49,18 @@ screen work closed with 1445. Checked against the index on 2026-10-03.
 - [x] The wizard maps `beam_optics` to `Source.kbeta`, after deciding incident versus
       diffracted monochromator. State what a file with neither says.
 - [ ] brml and rasx record optics, when a fixture carrying them is in hand.
-- [ ] Tests, each with a control that is not vacuous (the 1445 review caught one that was).
-- [ ] Skill: the routing row, or "none" and why.
+      **Checked 2026-10-03, left open:** the three fixtures hold no positive case.
+      Both rasx files say `DetectorMonochromator SelectedUnit="None"` (so a
+      diffracted-beam monochromator is a named category there, and `"None"` is
+      its off state), and an incident `Optics/Attribute` that is vendor free text
+      (`PB-Ge(220)x2_Compress`, an incident Ge(220) channel-cut). Which values
+      other than `"None"` the category takes is unmeasured. The brml lists
+      `AvailableOptics` (a `Crystal3B` among them) beside `MountedOptic`, so a
+      listed crystal is not a mounted one, and the fixture's one mounted optic
+      is a slit and an absorber. Writing either reader now would be the
+      confident guess the key's "absent means undeclared" rule forbids.
+- [x] Tests, each with a control that is not vacuous (the 1445 review caught one that was).
+- [x] Skill: none beyond the regenerated `api.md`. The wizard is not a call an agent makes, and `auto_background(source=)` is in the signature the index renders.
 
 ## Acceptance
 
