@@ -56,12 +56,11 @@ The row needs that check before it is written.
 
 ### Inherited
 
-- **From WP-1510 (2026-10-03): `api.md` is over its cap on `main`.** At
-  `0303da12` it is 39 519 B against `API_INDEX_MAX_BYTES` = 39 500, so
-  `test_skill.py::test_every_reference_file_is_within_its_cap[api.md]` fails on
-  every branch. WP-1510 grew it by 0 B. Any row this WP adds to `api.md` meets
-  that first, and the cap-or-split decision above is now overdue rather than
-  ahead.
+- **From WP-1510 (2026-10-03): `api.md` has 95 B of headroom left.** WP-1539
+  raised `API_INDEX_MAX_BYTES` to 39 600, and WP-1510's `index_pattern(formula=,
+  temperature=)` took it to 39 700 at 39 605 B. The ceiling is now 300 B under
+  the 40 kB truncation it guards. So any row this WP adds to `api.md` meets the
+  split decision first, and that decision is due now.
 
 ## Non-goals
 
