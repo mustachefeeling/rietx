@@ -1,6 +1,6 @@
 # WP-1510 — What the chemist knows reaches the indexing search
 
-Milestone: unscheduled · Status: 🔄 2026-10-03 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-03 — five of seven tasks landed; four acceptance rows red, the volume task waits on two papers
 Track: Data and metadata in, a structure out
 Depends on: — (1449 soft, the ranking this feeds; 1508 soft, the search that ran out of time)
 Priority: P2 2026-09-28 — a defect that fires wrongly: sixty false impurity lines and a refused gate cost a collaborator's agent one whole earlier session, and each fix is small
@@ -119,7 +119,10 @@ rule.
 - [ ] A volume window and a Z check from a formula: a `SearchSpec` helper,
       its volume source read and cited in the docstring, and a diagnostic
       for a candidate whose volume implies a non-integer Z (code named at
-      review, with its `help.py` entry).
+      review, with its `help.py` entry). **Blocked 2026-10-03**: neither
+      paper is in the local corpus (zotero-linker, ~/Zotero, rietx-refs-misc
+      checked); ask for both. No `INDEX_*` code has a `help.py` arm today, so
+      "its `help.py` entry" needs a decision too.
 - [x] `CellCandidate`: named accessors or a `to_cell()`. Check whether two
       settings of one lattice are merged as priors, and say so in the
       docstring.
@@ -127,6 +130,11 @@ rule.
       documented (the partition fails until it is).
 - [x] Skill: the ask-or-infer rule in the indexing reference, tagged
       `(Measured: solution case 1)`, inside `tests/skill_caps.py`'s budget.
+- [ ] The four acceptance rows the de-duplicated line list moved
+      (handover 2026-10-03): corundum indexes at c/2, its declared-shift row
+      reads −0.090°, cpd-1a's shift reads −0.009°, and zircon's primitive
+      twin indexes one line fewer than the centred cell. Decide each before
+      this WP closes.
 
 ## Acceptance
 
@@ -149,6 +157,95 @@ given the skill asks for or infers the range before its first search.
   volumes. Read before citing.
 
 ## Handover log
+
+- **2026-10-03** — A peak list no longer offers one line twice. About a
+  quarter of the lines a re-seed pass adds turned out to be a neighbouring
+  group's line fitted again, so a crowded lab pattern listed up to a third of
+  its lines twice, and the indexer counted the copies as impurities. They are
+  now flagged and kept out of what the engines see. The cleaner list broke
+  four indexing acceptance rows, because the old answers leant on the copies.
+  The lane that traced them found no wrong copy kept. It found the corundum
+  answer resting on one engine's random seed, and two pinned shift values that
+  were artefacts of the copies. Three smaller defects from the source run are
+  fixed. A refused prior now names the value to pass, a refused quality gate
+  names the undeclared instrument first, and a candidate's cell reads by name.
+  The volume window waits on two papers.
+
+  *Done.* (1) `duplicate_line`: a `PeakFlag` in `PEAK_UNUSABLE_FLAGS`, set by
+  `pick.flag_duplicate_lines` in `pick_peaks_with_state` and in the GUI
+  editor's `_spliced` (`only=`). It marks a component of one group within
+  `PAWLEY_OVERLAP_FWHM_FRAC`·FWHM of a better-measured, usable component of
+  another group, and keeps it in `peaks`. `INDEXING_THRESHOLDS_VERSION` is now
+  1.7. Mirrors: `help.py`, `help_keys.json`, `gui/src/lib/rxt.ts` and the
+  rebuilt dist, the manual's flag table, and the regenerated skill `api.md`.
+  The review subagent's shoulder-seeding guess is **refuted**: 0-1 shoulder
+  seeds on every pattern. (2) `INDEX_DATA_INSUFFICIENT` leads with
+  `diagnostics.undeclared_instrument` when `assess_peak_list(instrument=)`
+  sees zero axial apertures or the default `ProfileTCHZ`. `index_pattern`
+  passes its instrument through. (3) **WP-1045's never-widen rule is kept.**
+  The box is the search the caller declared, so a prior that widened it would
+  make that search depend on a guess. A refusal at the box is now a `warning`
+  whose suggestion is `SearchSpec(max_d_axis=N)`, with N one ångström past the
+  prior's longest axis (`PriorReport.box`). (5) `CellCandidate.a` … `.gamma`
+  and `.to_cell()`. Measured: a monoclinic prior declared with β and with
+  180° − β comes back as one candidate, and `INDEX_PRIOR_USED` names both
+  priors. (7) The skill's §7d asks for the cell, or infers it, before the
+  first search. Its 520 B was paid for by cuts in the same file.
+
+  *Measured* (`[dev]` venv, macOS). Duplicates: on the 16 IUCr round-robin
+  lab patterns, 4-35 components are flagged where any are, and `cpd-4` went
+  from 113 usable lines to 78. Close pairs (< 0.02°) among usable lines fell
+  from 2-26 per pattern to 0, while LaB6 and fluorite were untouched. 11-BM
+  NAC keeps 10 close pairs, and they lie inside groups. Corundum's 5 flagged
+  lines each sit on exactly one calculated reflection and have a twin in the
+  neighbouring group, three of them at equal intensity.
+  `test_acceptance_indexing.py`: 39 passed and 5 failed in 15 min. Row 5's
+  usable floor counted copies and moved from 50 to 45. Rows 1-4 are still red.
+  What the lane established, in its own words where unverified:
+  - **Corundum c/2, and the declared-shift row.** Which copy is kept is not
+    the cause: the kept copy is as close to the certificate or closer in all
+    5 pairs. The lane reports that svd's seed 0 no longer finds the true cell
+    while seeds 1-11 do, so dichotomy is its only finder. The c/2 cell that
+    all three engines find then ranks first. My own check, svd only and
+    hexagonal only, showed c/2 in the top four with and without the flag, so
+    the seed claim is the lane's and not verified here.
+  - **cpd-1a's shift.** Two of the five pairs behind the old −0.038° were
+    copies. A separate fit of the 16 fluorite lines gives −0.0095 ± 0.0023,
+    so the pinned −0.038 was the artefact.
+  - **Zircon.** The centred and primitive cells are refined separately, so
+    the "primitive indexes at least as many" direction can flip by one line,
+    here 45 against 46.
+
+  Lanes (trial, `/wp-lanes`):
+
+  | lane | est | requests | main at dispatch | lane base | re-read | main requests | left in main | main edits after | redo | model | lane $ | main $ | in-session $ | saved $ |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | duplicate_line surface sync | 25 | 19 | 177K | 69K | 0K of 0K | 5 | 38K | 2 | 0 | sonnet-5-5 | 0.52 | 1.72 | 1.19 | -1.65 |
+  | formula volume window and Z check | 35 | 22 | 250K | 70K | 0K of 0K | 19 | 21K | 2 | 0 | opus-5-5 | 0.83 | 1.33 | 1.50 | -0.77 |
+  | corundum c/2 regression | 25 | 2 | 287K | 70K | 0K of 18K | 5 | 5K | 0 | 0 | opus-5-5 | 0.38 | 0.30 | 0.14 | -0.54 |
+  | corundum c/2 regression | 25 | 91 | 293K | 70K | 0K of 52K | 4 | 8K | 1 | 1 | opus-5-5 | 4.99 | 0.37 | 9.39 | +4.04 |
+
+  Kept: instrument-first gate suggestion, est 18 and took 15. Skill
+  ask-or-infer rule, est 8 and took 6. Trial row: 4 lanes, 2 kept, saved
+  +1.08 (+6 %). The volume lane stopped by design at the missing papers. The
+  first corundum lane died on the 600 s stream watchdog during a long test
+  run, so its re-dispatch was told to keep commands under 8 min. Baseline
+  replay at these parameters: the selective policy (> 150K and ≥ 20 requests)
+  saves 25 %.
+
+  *Not done.* `solution case 1`'s replay: the pattern is a collaborator's
+  unpublished dataset and is not in this tree. The full suite was not run,
+  because the acceptance file is already known red. Main's
+  `test_skill.py::…[api.md]` cap row fails at `origin/main` too, with
+  `api.md` at 39 519 B against a cap of 39 500 B, and nothing here grew it.
+
+  *Next.* (a) Decide rows 1-4. Rows 3 and 4 are assertion changes: cpd-1a's
+  shift to about −0.009° with its corundum-agreement clause dropped, and the
+  zircon direction check. Rows 1-2 need either an svd seed or agreement fix,
+  which is an engine change and a non-goal here, or reverting `duplicate_line`
+  from `PEAK_UNUSABLE_FLAGS` to a reported-only flag until that fix lands.
+  That choice is the maintainer's. (b) Ask for Kempster & Lipson (1972) and
+  Hofmann (2002), then do task 4 and task 6.
 
 - **2026-09-28** — created from the review of `solution case 1`, with
   WP-1511 to 1517. Nothing started.
