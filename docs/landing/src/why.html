@@ -1,0 +1,38 @@
+<main>
+<article class="wrap"><div class="essay">
+  <h1>Why <code>rietx</code>?</h1>
+
+  <p>I started doing powder diffraction work in 2007. During my PhD I used <a href="http://www.rietica.org/">Rietica</a>, a Rietveld engine rarely used now. The appeal was its rudimentary scripting engine, RietBASIC, that let me script refinements for variable-temperature datasets. Soon afterwards, I learned Python to wrangle more complicated datasets.</p>
+
+  <p>Around 2021, I started to build and train machine learning models. What struck me was the pace of progress enabled by the openness in that field: new ideas on <a href="https://arxiv.org/">arXiv</a>, not paywalled journals; open-source libraries like <a href="https://scikit-learn.org/">scikit-learn</a>, <a href="https://www.tensorflow.org/">TensorFlow</a>, and <a href="https://pytorch.org/">PyTorch</a> one terminal command away; model weights shared on <a href="https://huggingface.co/">Hugging Face</a>.</p>
+
+  <p>Vast edifices of the modern scientific enterprise are built on specialised data analysis software. They represent the distillation of years of expertise, often written and maintained as passion projects by poorly paid academics in their spare time. They can lack polish and adherence to industry best practices, but are still essential.</p>
+
+  <p>In the past, academia has rarely been able to compete with industry for software engineering talent. However, we’ve suddenly reached a situation where high-quality software engineering is available on tap. At the same time, using language models and agents to analyse data has become central to many researchers’ day-to-day work. <code>rietx</code> is an experiment in how we develop scientific software in this new world—both with AI agents, and for them.</p>
+
+  <p>The shape of <code>rietx</code> is inspired by open-source efforts in the computer science community. It has a well-documented API that follows common Python idioms. It can be installed in seconds on Linux, Mac or Windows. It has an extensive test suite and runs CI with <a href="./#validation">validation</a> on real data. It’s MIT licensed.</p>
+
+  <p>I believe what sets <code>rietx</code> apart from most scientific software is that it’s designed from the ground up for working scientists to easily control with natural language via AI coding agents. That means token efficiency (read: you can do many refinements within a standard AI subscription plan quota) and standard harnesses (e.g. Claude Code, Codex, Copilot, pi).</p>
+
+  <p>How does <code>rietx</code> achieve this? Firstly, output interpretability. Rietveld practitioners compare model and data by eye to judge a fit, not just by using numerical metrics. Standard Rietveld engines provide outputs made for the human eye, so an agent has to burn more tokens to really understand what’s going on (if it can at all).</p>
+
+  <p>Without using tokens, <code>rietx</code> creates a <a href="https://rietx.org/using/report.html"><code>FitReport</code></a> after each refinement: a structured list of annotated numerical proxies and suggested actions covering a large number of human expert heuristics. Reflecting the ideas of <a href="https://en.wikipedia.org/wiki/Universal_design">universal design</a>, some users note that the <code>FitReport</code> is also very useful in guiding manual usage.</p>
+
+  <p>Secondly, the <a href="https://rietx.org/using/skill.html"><code>rietx</code> agent skill</a>. <a href="https://agentskills.io/">Skills</a> in AI parlance are simply bundles of text documents that provide instructions on a specific task; agents can install them automatically. The <code>rietx</code> skill is written alongside the <code>rietx</code> source code and anchored on a large corpus of peer-reviewed literature. It explains to an agent how to use <code>rietx</code> to do high-quality refinements and avoid pitfalls.</p>
+
+  <p>Asking an agent to first learn how to do Rietveld refinement every time you want to use it is expensive and mostly unverified. We pay everyone’s tab for this up front <em>via</em> the agent skill. This allows users to use cheaper, lower-strength models for routine tasks with confidence, and run frontier models for longer on difficult problems.</p>
+
+  <p>This leads to what I believe is a difference of ethos in the development of <code>rietx</code> compared to most other AI approaches to powder diffraction analysis: there is a clear separation between refinement engine and AI models. While other approaches strengthen the AI side, we strengthen the engine. This means that the ability to solve complex refinement problems scales with the improvement of AI models. In our testing, current frontier models using <code>rietx</code> can, for example, refine <a href="./#agent">complex sequential multi-phase datasets</a>. I imagine in time, almost all use cases could be addressed with little human intervention.</p>
+
+  <p>My hope is that combining these elements will democratise the usage of autonomous Rietveld analysis in a way that empowers individual scientists. Moreover, I think that this is a template for future development of scientific software.</p>
+
+  <p>Thank you for your interest! If you try <code>rietx</code>, I’d love to hear how it goes. Drop me a line at <a href="mailto:yue@rietx.org">yue@rietx.org</a></p>
+
+  <p class="sig">—Yue</p>
+
+  <nav class="essay-end" aria-label="Where next">
+    <a href="./">← rietx home</a>
+    <a href="./#quickstart">Agent quickstart →</a>
+  </nav>
+</div></article>
+</main>
