@@ -961,7 +961,7 @@ def _kept_by_git(paths: list[Path]) -> list[Path]:
     result = subprocess.run(
         ["git", "check-ignore", "-z", "--stdin"],
         input="".join(f"{p}\0" for p in paths),
-        cwd=ROOT, capture_output=True, text=True, check=False,
+        cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=False,
     )
     # 0 is "something matched", 1 is "nothing did"; anything else is git
     # declining to answer, which must not read as "nothing is ignored".
@@ -1017,9 +1017,12 @@ def test_no_planning_doc_links_something_gitignored():
     assert targets, "no linked files found — the link regex or the corpus moved"
     # Repo-relative and normalised: a link's `..` stays out of what git is asked
     # and of what the index listing below is compared against.
-    paths = sorted({
-        Path(os.path.normpath(p)).relative_to(ROOT).as_posix() for p in targets
-    })
+    normalised = {Path(os.path.normpath(p)) for p in targets}
+    outside = sorted(str(p) for p in normalised if not p.is_relative_to(ROOT))
+    assert not outside, (
+        "a planning doc links a file outside the repository:\n" + "\n".join(outside)
+    )
+    paths = sorted(p.relative_to(ROOT).as_posix() for p in normalised)
     # The paths go on stdin, never argv: the WP files' links outgrew Windows'
     # 32 767-character command line, and argv failed there with WinError 206
     # every night from 2026-09-28 (WP-1541).
@@ -1028,7 +1031,8 @@ def test_no_planning_doc_links_something_gitignored():
         # without reading the rules, and the point here is the rules.
         ["git", "check-ignore", "-v", "-z", "--no-index", "--stdin"],
         input="".join(f"{p}\0" for p in paths),
-        cwd=ROOT, capture_output=True, text=True, check=False,
+        # git reads and writes paths as UTF-8; the locale is cp1252 on Windows.
+        cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=False,
     )
     # 0 is "something matched", 1 is "nothing did"; anything else is git
     # declining to answer — no repository, a path outside it — and it writes to
@@ -1057,7 +1061,7 @@ def test_no_planning_doc_links_something_gitignored():
     # The whole index is listed rather than the paths named, for argv's reason.
     tracked = subprocess.run(
         ["git", "ls-files", "-z"],
-        cwd=ROOT, capture_output=True, text=True, check=True,
+        cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=True,
     )
     untracked = sorted(set(paths) - set(tracked.stdout.split("\0")))
     assert not untracked, (

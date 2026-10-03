@@ -942,14 +942,15 @@ before placing it (a close, a comment, a fold into a WP's `### Inherited`, a new
 milestone), docs-only, with every public act batched to the person. The `#N` a WP file cites is the
 whole triage record: the command's table reads it, and so does `wp_claim.py` above.
 
-Shipped: **v0.1 … v1.5**, one record each in `docs/milestones/`; ROADMAP's table carries the
+Shipped: **v0.1 … v1.6**, one record each in `docs/milestones/`; ROADMAP's table carries the
 acceptance one-liners, restated in neither place. Since WP-1117 the compatibility promise
 (`docs/manual/using/compatibility.md`) is a **preview**: anything may change in any release,
 versions bumping per observable change. **1.0.2 was written and never published**, folded into v1.1
 (2026-08-23), so 1.0.1 is what anyone upgrades *from* and `docs/releases/1.0.2.md` describes a
 release that never existed. **A milestone is named, a release is numbered at its cut** (WP-1540,
-ROADMAP rule 6), so `pyproject.version` is the next release's `.dev0` — `1.6.0.dev0` today. It
-is the string every `RefinementResult.provenance` and history node stamps, moved after each cut.
+ROADMAP rule 6), so `pyproject.version` is the next release's `.dev0`, and the release itself only
+on the tree its tag is cut from. It is the string every `RefinementResult.provenance` and history
+node stamps, moved after each cut.
 
 **Indexing.** Full dossier `src/rietx/indexing/CLAUDE.md` (auto-loads when a session works there);
 measured stories in the v1.0 record's appendix. **A new indexing rule lands there; it earns a

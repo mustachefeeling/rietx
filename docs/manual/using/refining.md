@@ -438,7 +438,7 @@ it. Neither is a measurement. So
 `MomentEvidence.supported` is false when the modulus is below its floor or
 below three of its own esds, and the note quotes which. A modulus with no
 esd has no ratio to take, and `supported` is then `None`, not an answer. At 4 K the same model
-gives 2.12 ± 0.048, a ratio of 44, and the answer flips. That is the
+gives 2.125 ± 0.048, a ratio of 44, and the answer flips. That is the
 deliverable; a small moment with a small esd would not be.
 
 A peak on a forbidden lattice point is forbidden under the group the fit
