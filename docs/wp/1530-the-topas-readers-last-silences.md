@@ -1,6 +1,6 @@
 # WP-1530 — the TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-03 — claimed by @yue-here
 Track: Coming from another code
 Depends on: — (1433 soft: the same reader, its `STR(...)` and `#if` work landed in PR #587)
 Priority: P2 2026-10-02 — two of the three are a model built wrong with nothing said, on a reader path few fits run
