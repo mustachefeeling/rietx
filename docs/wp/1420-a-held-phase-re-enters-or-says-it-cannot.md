@@ -124,6 +124,13 @@ down.
 
 ### Inherited
 
+- **2026-10-03, from a cleanup session: the guard is 300 s.** This WP's own
+  commit `b333ca09` (2026-09-30) had widened `RAMP_RUNAWAY_GUARD_S` to 300 s
+  and fixed the root CLAUDE.md's count of λ-scaled size terms, but was never
+  pushed from its tree. It is cherry-picked as `6336c65c` (CLAUDE.md rewrapped
+  to hold its line cap) and closes issue #539. The ramp-guard halves of the
+  three entries below are discharged; the iteration bar's name (#538,
+  WP-1334) is not.
 - **2026-10-02, from WP-1534: a fifth trip of the ramp guard.**
   `test_the_ramp_reproduction_no_longer_runs_away` measured 81.6 s on
   WP-1534's branch and 81.9 s on its untouched base, against the 60 s guard.
