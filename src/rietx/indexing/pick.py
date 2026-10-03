@@ -470,14 +470,16 @@ def flag_duplicate_lines(peaks: list[ObservedPeak], *,
     """
     if len(peaks) < 2:
         return
+    # unusable components are dropped before the sort: one may carry a NaN esd
+    # (``position_unmeasured``), and a NaN key breaks the order of the rest
+    usable = [k for k in range(len(peaks))
+              if not set(peaks[k].flags) & PEAK_UNUSABLE_FLAGS]
     # owners: the unflagged usable components judged so far, kept sorted by 2θ
     owner_tt: list[float] = []
     owner_group: list[int] = []
-    for k in sorted(range(len(peaks)),
+    for k in sorted(usable,
                     key=lambda k: (peaks[k].two_theta_esd, peaks[k].group)):
         p = peaks[k]
-        if set(p.flags) & PEAK_UNUSABLE_FLAGS:
-            continue
         tol = PAWLEY_OVERLAP_FWHM_FRAC * p.fwhm
         lo = bisect.bisect_left(owner_tt, p.two_theta - tol)
         hi = bisect.bisect_right(owner_tt, p.two_theta + tol)

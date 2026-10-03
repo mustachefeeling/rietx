@@ -361,7 +361,10 @@ def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
                       "returns a rank order with nothing behind it")
         # the instrument is named first because it is the cheapest of the
         # remedies: a re-pick, where the others are a new measurement
-        missing = {} if instrument is None else undeclared_instrument(instrument)
+        # only a fitted list was picked with an instrument; a position list
+        # has no picker to re-run
+        missing = ({} if instrument is None or peaks.source != "fitted"
+                   else undeclared_instrument(instrument))
         if missing:
             suggestion = ("declare the instrument before re-picking: "
                           + "; ".join(missing.values()) + ".  The picker fits every "
@@ -647,8 +650,8 @@ def _z_not_integer(cand, formula: str, temperature: float,
         message=(f"this cell holds {z:.2f} formula units of {formula} "
                  f"({cand.volume:.1f} Å³ over {v_fu:.1f} Å³ per unit at "
                  f"{temperature:g} K, Hofmann 2002).  The nearest whole number, "
-                 f"{n}, needs a crystal {abs(off) * 100:.0f} % "
-                 f"{'less dense' if off > 0 else 'denser'} than the estimate, "
+                 f"{n}, needs a formula unit {abs(off) * 100:.0f} % "
+                 f"{'larger' if off > 0 else 'smaller'} than the estimate, "
                  f"past the {Z_INTEGER_TOLERANCE * 100:.0f} % that twice one "
                  "crystal's scatter allows"),
         where=where + [f"formula {formula}"],

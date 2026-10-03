@@ -83,7 +83,10 @@ from .structure import Cell
 #: 4-35 components of 18-116 are flagged where any are (``cpd-4`` offered 113
 #: usable lines and now offers 78), and none of the lab lists keeps two usable
 #: lines within 0.02° of each other. ``INDEX_IMPURITY_LINES`` counted the copies
-#: as lines no candidate explained.
+#: as lines no candidate explained.  The same WP raised ``INDEX_PRIOR_USED``
+#: from ``info`` to ``warning`` when a prior lies outside the axis box, and
+#: added the opt-in ``formula=`` check, ``INDEX_Z_NOT_INTEGER`` at
+#: ``Z_INTEGER_TOLERANCE``, which a run without a formula never meets.
 INDEXING_THRESHOLDS_VERSION = "1.7"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is

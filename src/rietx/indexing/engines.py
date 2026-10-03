@@ -364,9 +364,14 @@ class SearchSpec:
                              f"least 1, with min <= max; got {z!r}")
         v_fu, _ = formula_unit_volume(formula, temperature)
         low, high = VOLUME_RATIO_BOUNDS
-        return cls(min_volume=max(DEFAULT_MIN_VOLUME, z_min * v_fu * low),
-                   max_volume=None if z_max is None else z_max * v_fu * high,
-                   **fields)
+        v_min = max(DEFAULT_MIN_VOLUME, z_min * v_fu * low)
+        v_max = None if z_max is None else z_max * v_fu * high
+        if v_max is not None and v_max < v_min:
+            # the floor binds above the formula's ceiling: an empty window
+            # would search nothing and report silence
+            raise ValueError(f"{formula!r} with z={z!r} allows at most "
+                             f"{v_max:.1f} Å³, below the {v_min:g} Å³ floor")
+        return cls(min_volume=v_min, max_volume=v_max, **fields)
 
     def engine_pool(self) -> int:
         """Candidates one (engine × system) unit hands to the merge.
