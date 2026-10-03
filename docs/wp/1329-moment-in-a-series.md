@@ -94,14 +94,16 @@ chain on the same data is reported as a range, never gated.
 
 ## Tasks
 
-- [ ] The series drives 1327's hold per pattern: released/held recorded in
+- [x] The series drives 1327's hold per pattern: released/held recorded in
       each entry, the onset in each direction of the chain, the
-      path-dependence flag when they disagree.
-- [ ] The trajectory: |m|(T) with esds, held patterns marked as held, printed
+      path-dependence flag when they disagree. (PRs #522, #589)
+- [x] The trajectory: |m|(T) with esds, held patterns marked as held, printed
       by 1305's series view; the satellite reading beside it for k ≠ 0.
-- [ ] Manual Part 1 (`using/series.md`), skill row, the diagnostic's
-      protocol row.
-- [ ] Tests on a synthetic ramp built from 1327's model (moment following a
+- [x] Manual Part 1 (`using/series.md`), skill row, the diagnostic's
+      protocol row. (Ticked 2026-10-03 from the tree: `using/series.md`
+      § A moment through an ordering transition, `references/series.md`
+      § the same, `SEQUENTIAL_MOMENT_HOLD`/`_ONSET`.)
+- [x] Tests on a synthetic ramp built from 1327's model (moment following a
       declared m(T), noise from the pattern's own σ): the onset lands within
       one pattern of the declared T_N in both directions; obs/calc/diff PNGs
       and the trajectory plot to `tests/output/`.
