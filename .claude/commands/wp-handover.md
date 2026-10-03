@@ -159,6 +159,9 @@ re-reading its own diff.
    grow long; v1.0's reached 340 KB. Leave ROADMAP's Current focus alone:
    it holds milestone prose, and the index lists what is in flight and next
    (WP-1507).
+   **A closing WP that was P1 for a silent wrong answer or data loss owes a
+   release at once** (`docs/RELEASING.md` § When): read the tier off the
+   `Priority:` line before deleting it, and say so in step 12's report.
    **Then, closing or not, run `python3 .claude/hooks/wp_index.py`**, once,
    after every header edit of steps 4, 5 and 8. It rewrites
    `docs/wp/README.md`, and a test fails while the index is stale.

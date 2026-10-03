@@ -12,6 +12,24 @@ came from; and no check that the tag and `pyproject.version` agree, which is
 the one packaging mistake with no undo, because PyPI refuses a second upload of
 a version number that has already been published.
 
+## When
+
+A release is cut once a week, and at once when a P1 fix lands (WP-1540). A P1
+fix here is the defect half of the rubric's top tier in `docs/wp/TEMPLATE.md`:
+a silent wrong answer in a shipped path, or data loss. A P1 that was a red
+check or a finishing rung waits for the week. The cut carries whatever `main`
+holds, and a milestone that is not finished waits for the next one.
+
+The weekly cut is cheap to forget, so it is not left to memory. The
+session-start hook prints `release owed` once the newest `v*` tag is seven days
+old and `main` has merged anything since. A P1 fix has no date to read, so
+`/wp-handover` says a release is owed when the WP it closes was P1.
+
+The interval follows the measured rate. Before WP-1540 every release carried
+14 to 77 merges and 210 to 301 lines of notes. By early October 2026, 80 to 177
+PRs merged in a week. A fortnightly cut would carry about 1 200 lines of notes,
+which is the backlog this rule exists to prevent.
+
 ## Cutting a release
 
 1. Set `pyproject.version`. The convention is in

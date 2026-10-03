@@ -82,8 +82,9 @@ so a session loads only what it needs:
    Acceptance rows *at the open* — the v1.3 record says plainly that rows
    written at ship are the weaker evidence — plus a `###` section and a table
    row here. **Milestone completes**: measure its acceptance in its record and
-   flip its row; it ships in the next release. **Release is cut**
-   (`RELEASING.md`): it carries whatever is on `main`, numbered over the last
+   flip its row; it ships in the next release. **Release is cut** weekly, and
+   at once for a P1 fix (`RELEASING.md` § When): it carries what `main` holds,
+   numbered over the last
    release (a minor when anything was added); finish `milestones/vX.Y.md` with
    the measured ship block naming the milestones it completes, check README's
    claims, then move `pyproject.version` to the next minor's `.dev0` and open
