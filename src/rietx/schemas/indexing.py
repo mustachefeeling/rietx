@@ -86,7 +86,19 @@ from .structure import Cell
 #: as lines no candidate explained.  The same WP raised ``INDEX_PRIOR_USED``
 #: from ``info`` to ``warning`` when a prior lies outside the axis box, and
 #: added the opt-in ``formula=`` check, ``INDEX_Z_NOT_INTEGER`` at
-#: ``Z_INTEGER_TOLERANCE``, which a run without a formula never meets.
+#: ``Z_INTEGER_TOLERANCE``, which a run without a formula never meets.  And it
+#: added the mirror of 1.5's re-rank: a candidate whose ``SupercellCheck``
+#: reads ``"supported"`` moves directly above that parent, unless another check
+#: refutes it (``consensus.above_supported_parents``).  ``"supported"`` now
+#: counts only the extras seen on lines the parent's own lattice leaves
+#: unexplained (``SupercellCheck.n_seen_unexplained``), at the same p₀ and α;
+#: an extra seen only beside a parent line leaves the pair ``"undecided"``.  No
+#: ``"refuted"`` verdict moved.  Over the 13 acceptance searches one order
+#: changed: SRM 676a's certified cell, found by one engine, rose from eighth to
+#: first above its c/2 subcell (8 of 18 extras seen, all unexplained,
+#: p = 0.0027), in both corundum searches.  Two pseudo-tetragonal LaB6
+#: descriptions went from ``"supported"`` to ``"undecided"`` over the
+#: half-volume rival, their seen extras all on the rival's lines.
 INDEXING_THRESHOLDS_VERSION = "1.7"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
@@ -855,11 +867,14 @@ class SupercellCheck(Base):
     ``verdict`` is ``"refuted"`` when the extras are seen no more often than
     chance and the test had the power to say otherwise, and the candidate then
     sits directly below this parent, with the refuting ``supercell_refuted``
-    caveat.  ``"supported"`` means the extras are present beyond chance, so the
-    larger cell is a lattice statement the data make.  ``"undecided"`` means
-    not even every extra seen could have reached the significance level, which
-    includes a parent whose lines this one only repeats.  An undecided check
-    moves nothing.
+    caveat.  ``"supported"`` means the extras seen on lines the parent leaves
+    unexplained (``n_seen_unexplained``) are beyond chance, so the larger cell
+    is a lattice statement the data make, and the candidate then sits directly
+    above this parent unless another check refutes it (WP-1510).
+    ``"undecided"`` means not even every extra seen could have reached the
+    significance level, which includes a parent whose lines this one only
+    repeats, or that the extras are seen beyond chance only on lines the parent
+    explains.  An undecided check moves nothing.
     """
 
     parent_cell: tuple[float, float, float, float, float, float]
@@ -871,6 +886,11 @@ class SupercellCheck(Base):
     n_seen: int
     p0: float
     p_value: float
+    #: of the ``n_seen``, those seen on an observed line the parent's lattice
+    #: leaves unexplained; ``"supported"`` is the binomial chance of at least
+    #: this many falling below α at the same ``p0``.  ``None`` in a record
+    #: written before thresholds version 1.7, which did not count them
+    n_seen_unexplained: int | None = None
     verdict: Literal["supported", "refuted", "undecided"]
     #: ° 2θ of the extras nothing was seen at, lowest first and at most six:
     #: where to look in the pattern for the lines the larger cell needs

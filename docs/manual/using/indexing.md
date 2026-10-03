@@ -888,17 +888,32 @@ would still read as seen {eq}`idx-supercell-chance`.
 When the extra lines are seen no more often than chance, the larger cell is
 *refuted*. It moves to directly below the cell inside it, stays in the list,
 and carries the refuting caveat `supercell_refuted`, with a message naming the
-parent and the counts. Nothing else in the order changes, and a check that
-cannot decide changes nothing. That happens when there are too few such lines
-in range, as when the smaller cell's lines are all the larger one adds. The
-check needs only the peak list, so it runs on a bare list too. Each pair asked
-is a `SupercellCheck` on the larger cell's `CellCandidate.supercell_checks`.
+parent and the counts.
+
+When the extra lines seen on observed lines the smaller cell cannot index are
+more than chance gives, the larger cell is *supported*. It moves to directly
+above the cell inside it. The smaller cell leaves those observed lines
+unexplained. On the round-robin corundum pattern all three engines found the
+certified cell's c/2 subcell, which indexes 37 of 47 lines. Only one engine
+found the certified cell. Its extras were seen 8 times in 18, all on lines the
+subcell cannot index. Chance gives 2.7. So the certified cell now ranks first.
+An extra seen on a line the smaller cell already explains does not count
+towards support. A cell refuted against any reported cell is never moved up.
+
+Nothing else in the order changes, and a check that cannot decide changes
+nothing. That happens when there are too few such lines in range, as when the
+smaller cell's lines are all the larger one adds. It also happens when the
+extras are seen beyond chance only on lines the smaller cell explains, as for a
+pseudo-symmetric description of the smaller cell's own lattice. The check
+needs only the peak list, so it runs on a bare list too. Each pair asked is a
+`SupercellCheck` on the larger cell's `CellCandidate.supercell_checks`.
 
 | Field | Holds |
 |---|---|
 | `SupercellCheck.parent_cell`, `SupercellCheck.parent_system`, `SupercellCheck.parent_centring` | the smaller candidate this cell contains |
 | `SupercellCheck.index` | how many of the parent's primitive cells one of this cell's holds |
 | `SupercellCheck.n_extra`, `SupercellCheck.n_seen` | extra lines no extinction could remove, and how many sit on an observed line |
+| `SupercellCheck.n_seen_unexplained` | how many of those observed lines the smaller cell cannot index; `None` in a record from before thresholds version 1.7 |
 | `SupercellCheck.p0` | the chance that a position with no line reads as seen |
 | `SupercellCheck.p_value` | the chance of seeing at least that many, had the extra lines not existed |
 | `SupercellCheck.verdict` | `refuted`, `supported` or `undecided` |

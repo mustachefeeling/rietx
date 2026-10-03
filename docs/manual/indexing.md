@@ -400,3 +400,14 @@ and at $p \ge \alpha$ = {{ SUPERCELL_CHANCE_ALPHA }} the larger cell is ranked
 directly below the smaller. The test cannot refute where it could not have
 confirmed. When even $k = n$ gives $p_0^{\,n} \ge \alpha$, too few lines or
 too many windows, the verdict is undecided and the order stays as it was.
+
+The other direction asks a narrower count. Of the $k$, let $k'$ fall on an
+observed line that no line of the smaller cell's own lattice explains. When the
+same tail with $k'$ in place of $k$ is below $\alpha$, the larger cell is ranked
+directly above the smaller. Those observed lines exist, and the smaller cell
+cannot index them. An added line seen on a line the smaller cell explains is
+left out of $k'$. A pseudo-symmetric description places its added lines beside
+the smaller cell's own, and those lines say nothing about the larger cell. The
+null stays $p_0$. That overstates the chance of landing on an unexplained line.
+So this count errs towards leaving the order alone. A larger cell refuted
+against any reported cell is never moved up.

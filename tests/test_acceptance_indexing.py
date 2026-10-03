@@ -1083,6 +1083,17 @@ def test_a_certified_lab_pattern_indexes_and_is_graded_honestly(corundum_index):
     cannot be indexed, so counting it in the denominator only ever depressed
     this figure of merit.
 
+    **WP-1510 took out five more, and the rank went with them for a while.**
+    The five were duplicate copies of indexed lines (``duplicate_line``), so
+    the row reads 45 of 47 with the same two unindexed.  Without them only
+    dichotomy found the certified cell, while all three engines found its c/2
+    subcell, which indexes 37 of 47.  Corroboration then ranked the subcell
+    first and the certified cell eighth.  The supercell check had already said
+    which is right: the certified cell's 18 extras over the subcell are seen 8
+    times, all on lines the subcell cannot index, where chance gives 2.7
+    (p = 0.0027).  A supported supercell now ranks directly above its parent,
+    the mirror of WP-1449's rule, and the certified cell is first again.
+
     ``low`` remains the honest grade, on three caveats that each name something
     real: only one engine found it (``engines_disagree``); the Le Bail fit sees 12
     reflections the *lattice* R-3m allows where the pattern has no intensity,
@@ -1103,7 +1114,10 @@ def test_a_certified_lab_pattern_indexes_and_is_graded_honestly(corundum_index):
     dc = best.cell[2] / c_cert - 1.0
     assert abs(da) < 1.5e-4, f"a = {best.cell[0]:.5f} ({da*1e6:+.0f} ppm)"
     assert abs(dc) < 1.5e-4, f"c = {best.cell[2]:.5f} ({dc*1e6:+.0f} ppm)"
-    assert best.n_indexed >= 50, f"{best.n_indexed} of {best.n_lines} lines"
+    # 45 of 47 since WP-1510, where it was 50 of 52: the five duplicate copies
+    # that left ``usable()`` were all lines this cell indexed, so the count fell
+    # by exactly five and the unindexed two below did not move
+    assert best.n_indexed >= 45, f"{best.n_indexed} of {best.n_lines} lines"
     # the quantity the bar is really about: lines the search could not place.
     # Four before WP-1110 item 14, two after — and two of the four were phantoms
     # rather than misses, so this is asserted beside the fraction below.
@@ -1153,6 +1167,9 @@ def test_declaring_the_shift_template_is_what_recovers_the_certificate(
     the Le Bail Rwp 0.282 → 0.225.  So the two mechanisms are now cleanly
     separated — the measured **magnitude** widens the window and finds more lines,
     the declared **shape** corrects the cell — where before they were confounded.
+    Since WP-1510 removed five duplicate copies the axes read a +110 → −114 ppm
+    and c +57 → −109 ppm, the coefficient −0.0749°, and the certificate-grade
+    c/a −53 → +5 ppm, which is what the row now reads.
 
     **The figures of merit are the striking part and they are not free.**  M₂₀
     goes 22 → 83 and F_N 16 → 66, because ``engines.scored_positions`` scores a
@@ -1185,9 +1202,19 @@ def test_declaring_the_shift_template_is_what_recovers_the_certificate(
     assert after.chi2_red < before.chi2_red
     assert after.fom_value("m20") > 3.0 * before.fom_value("m20")
     assert after.lebail.rwp < before.lebail.rwp
-    # the cell is what the template buys: both axes move *toward* the certificate
-    assert abs(after.cell[0] - a_cert) < abs(before.cell[0] - a_cert), (
-        "declaring the shape must sharpen a, not merely the figures of merit")
+    # the cell is what the template buys, read where the certificate is exact.
+    # This asserted that a moves toward the certificate, and that comparison
+    # cannot resolve the effect.  The correction carries a from one side of the
+    # certified value to the other at about the same distance, and c too.
+    # Measured on dichotomy's refined cell (WP-1510): with the five duplicate
+    # copies usable, a +113 -> -106 ppm; without them, +110 -> -114 ppm, a
+    # 4 ppm miss.  An absolute axis carries the lab d-scale and the specimen's
+    # temperature (tests/CLAUDE.md), and c/a carries neither.  c/a moved
+    # -53 -> -9 ppm on the first list and -53 -> +5 ppm on the second.
+    ratio = c_cert / a_cert
+    assert (abs(after.cell[2] / after.cell[0] - ratio)
+            < abs(before.cell[2] / before.cell[0] - ratio)), (
+        "declaring the shape must sharpen c/a, not merely the figures of merit")
     # and the window already carried indexed_fraction over its bar in both calls,
     # since WP-1038 measures the magnitude before the search rather than assuming
     for c in (before, after):

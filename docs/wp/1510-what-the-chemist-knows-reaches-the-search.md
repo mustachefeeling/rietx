@@ -128,7 +128,7 @@ rule.
       documented (the partition fails until it is).
 - [x] Skill: the ask-or-infer rule in the indexing reference, tagged
       `(Measured: solution case 1)`, inside `tests/skill_caps.py`'s budget.
-- [ ] The four acceptance rows the de-duplicated line list moved
+- [x] The four acceptance rows the de-duplicated line list moved
       (handover 2026-10-03): corundum indexes at c/2, its declared-shift row
       reads −0.090°, cpd-1a's shift reads −0.009°, and zircon's primitive
       twin indexes one line fewer than the centred cell. Decide each before
