@@ -85,7 +85,7 @@ def pick_peaks_with_state(data: PatternData, instrument: Instrument, *,
     fits = [fit_group(det, g, instrument) for g in det.groups]
     peaks = _peaks_from_fits(fits, lam0)
     if flag_contamination and peaks:
-        flag_ghosts(peaks, lam0, det)
+        flag_ghosts(peaks, lam0, det, source=instrument.source)
     if peaks:
         flag_kalpha2_residuals(peaks, instrument.source.lines)
     _flag_extrapolated_background(peaks, det.two_theta)
@@ -174,7 +174,7 @@ def fit_peaks(data: PatternData, instrument: Instrument,
             peaks.append(peak)
     peaks.sort(key=lambda p: p.two_theta)
 
-    flag_ghosts(peaks, lam0, det)
+    flag_ghosts(peaks, lam0, det, source=instrument.source)
     flag_kalpha2_residuals(peaks, instrument.source.lines)
     _flag_extrapolated_background(peaks, det.two_theta)
 
@@ -486,7 +486,8 @@ def flag_kalpha2_residuals(peaks: list[ObservedPeak], lines, *,
 
 
 def flag_ghosts(peaks: list[ObservedPeak], wavelength: float,
-                det: Detection, *, only: set[int] | None = None) -> None:
+                det: Detection, *, only: set[int] | None = None,
+                source: object | None = None) -> None:
     """Mark Kβ / W Lα ghosts in place, using the shared background rule.
 
     Matching is on *integrated* intensity and on the fitted σ(2θ) — the two
@@ -497,13 +498,17 @@ def flag_ghosts(peaks: list[ObservedPeak], wavelength: float,
     whole list — a ghost's parent can be anywhere).  WP-1027's editor passes the
     indices of the one group it refitted, so recomputing ghosts for the edited
     components cannot resurrect a mark a user cleared on an untouched one.
+
+    ``source`` is the instrument's declared beam: a neutron source, or an X-ray
+    one behind a monochromator, skips the search (WP-1445).
     """
     tt = np.array([p.two_theta for p in peaks])
     inten = np.array([p.intensity for p in peaks])
     esd = np.array([p.two_theta_esd for p in peaks])
     flags = contamination_flags_from_peaks(
         tt, inten, esd, wavelength,
-        tt_range=(float(det.two_theta[0]), float(det.two_theta[-1])))
+        tt_range=(float(det.two_theta[0]), float(det.two_theta[-1])),
+        source=source)
     by_kind = {"kbeta": "ghost_kbeta", "tungsten_la": "ghost_tungsten"}
     for f in flags:
         k = int(np.argmin(np.abs(tt - f.two_theta)))

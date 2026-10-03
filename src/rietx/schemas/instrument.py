@@ -482,6 +482,14 @@ class Source(_InheritsDeclaredDefaults):
     polarization: Parameter = Field(
         default_factory=lambda: Parameter(value=0.5, min=0.0, max=1.0)
     )
+    #: What stands between the tube and the detector as far as Kβ goes (WP-1445).
+    #: ``None`` is **undeclared**, never "no filter": most files say nothing, and
+    #: the contamination screen runs unchanged on it.  ``"monochromator"`` makes
+    #: the screen skip both searches.  ``"filter"`` and ``"mirror"`` are
+    #: recorded and change nothing: a filtered or mirrored beam still shows an
+    #: injected leak down to 2 % of Kα, and there is no measured ceiling to
+    #: narrow to.  See ``background.diagnostics.ghost_searches``.
+    kbeta: Literal["filter", "monochromator", "mirror"] | None = None
     #: anomalous scattering, **on by default since v1.0**; None ⇒ f = f₀,
     #: bit-identical to the non-anomalous model and to every number recorded
     #: in ``docs/milestones/`` through v0.6 (see :class:`Dispersion`)
@@ -2029,7 +2037,9 @@ class Instrument(_InheritsDeclaredDefaults):
         Cu Kα.  For an ideally-mosaic crystal the polarization factor becomes
         (1 + cos²2θ_m·cos²2θ)/(1 + cos²2θ_m), i.e. our K-convention with
         K = 1/(1 + cos²2θ_m)  (International Tables C, §6.2; Azároff, 1955).
-        ``None`` → unpolarized beam, K = 0.5.
+        ``None`` → unpolarized beam, K = 0.5.  A monochromator also removes Kβ,
+        so it sets ``Source.kbeta = "monochromator"`` and the contamination
+        screen skips its Kβ and W Lα searches; one declaration says both.
 
         That 26.6° is a *Cu* number, not a property of the crystal: 2θ_m =
         2·asin(λ/2d) with d₍₀₀₂₎ ≈ 3.354 Å, so the same graphite sits at ≈12.1°
@@ -2048,9 +2058,11 @@ class Instrument(_InheritsDeclaredDefaults):
                 f"unknown radiation {radiation!r}; available: {sorted(_RADIATIONS)}"
             ) from None
         k = 0.5
+        kbeta = None
         if monochromator_two_theta is not None:
             c2 = math.cos(math.radians(monochromator_two_theta)) ** 2
             k = 1.0 / (1.0 + c2)
+            kbeta = "monochromator"
         emission = [EmissionLine(wavelength=lines[0],
                                  weight=Parameter(value=1.0, min=0.0, max=2.0))]
         for wl in lines[1:]:
@@ -2061,6 +2073,7 @@ class Instrument(_InheritsDeclaredDefaults):
             source=Source(
                 lines=emission,
                 polarization=Parameter(value=k, min=0.0, max=1.0),
+                kbeta=kbeta,
             ),
             geometry=Geometry(kind="bragg_brentano",
                               goniometer_radius_mm=goniometer_radius_mm,

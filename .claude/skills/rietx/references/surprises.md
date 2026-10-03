@@ -123,10 +123,10 @@ Three things then follow from *which* anode, all measured:
 * What `DISPERSION_NEGLECTED` is warning about is anode-dependent: hematite is
   a `warning` at Co Kα (180 eV under the Fe K edge, f′ = −3.3 e) and an `info`
   at Mo Ka (f′ = +0.3 e). Same specimen, same code, different severity.
-* Contamination checks are per anode. An unrecognised wavelength (synchrotron,
-  an untabulated anode) yields `contamination == []` — *not checked*, not
-  clean. `background.identify_anode(λ)` returns `None` there and is how you
-  tell the two apart.
+* Contamination checks are per anode. `contamination == []` is *not checked*,
+  not clean, for an unrecognised wavelength (`identify_anode(λ)` is `None`), a
+  neutron source and `kbeta="monochromator"`. `kbeta=None` is undeclared, not
+  "no filter".
 
 **8.12 "Infinitely thick" is a modelling claim you make by saying nothing.**
 Every flat-plate fit in this package — and by default in every Rietveld code —

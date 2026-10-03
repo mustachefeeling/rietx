@@ -45,7 +45,7 @@ Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities(
 - `rx.Instrument.debye_scherrer(wavelength: float, *, polarization: float = 0.99, goniometer_radius_mm: float | None = None, capillary_radius_mm: float | None = None, packing_fraction: float = 0.6, mu_r: float | None = None) -> Instrument` — Synchrotron/capillary preset with a single wavelength.
 - `rx.estimate_mu_r(structure: Structure, instrument: Instrument) -> float | None` — Starting µR for a packed capillary, from composition and geometry.
 - `rx.auto_background(data: PatternData, *, kind: str = 'pspline', diagnostics: PatternDiagnostics | None = None, wavelength: float | None = None, two_theta_limits: tuple[float, float] | None = None) -> Background` — Build a background model sized to the pattern.
-- `rx.diagnose(data: PatternData, *, wavelength: float | None = None, baseline_lambda: float | None = None) -> PatternDiagnostics` — Compute `PatternDiagnostics` for a raw pattern.
+- `rx.diagnose(data: PatternData, *, wavelength: float | None = None, baseline_lambda: float | None = None, source: object | None = None) -> PatternDiagnostics` — `PatternDiagnostics` of a raw pattern.
 - `rx.load_instrument_profile(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> Instrument` — Read a profile file back as a **frozen** instrument.
 - `rx.save_instrument_profile(instrument: Instrument, path: str | Path)` — Write the instrument's calibrated state to a JSON profile file.
 - `rx.capabilities() -> Capabilities` — Everything this build can do — see the module docstring.
@@ -74,7 +74,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.Instrument` — Everything about the measurement except the sample.
   Fields: `source: Source | NeutronSource`, `geometry: Geometry = Geometry(…)`, `zero_shift: Parameter = Parameter(0.0, min=-0.5, max=0.5)`, `profile: ProfileTCHZ = ProfileTCHZ(…)`, `background: BackgroundChebyshev | BackgroundFixedPlusChebyshev | BackgroundPSpline = BackgroundChebyshev(…)`, `extra_components: list[HumpComponent | PeakComponent] = []`
 - `rx.Source` — Constant-wavelength X-ray source.
-  Fields: `kind: Literal['xray_cw'] = 'xray_cw'`, `lines: list[EmissionLine]`, `polarization: Parameter = Parameter(0.5, min=0.0, max=1.0)`, `dispersion: Dispersion | None = Dispersion(…)`, `harmonics: list[Harmonic] = []`
+  Fields: `kind: Literal['xray_cw'] = 'xray_cw'`, `lines: list[EmissionLine]`, `polarization: Parameter = Parameter(0.5, min=0.0, max=1.0)`, `kbeta: Literal['filter', 'monochromator', 'mirror'] | None = None`, `dispersion: Dispersion | None = Dispersion(…)`, `harmonics: list[Harmonic] = []`
 - `rx.NeutronSource` — Constant-wavelength **neutron** source: one wavelength, nuclear scattering.
   Fields: `kind: Literal['neutron_cw'] = 'neutron_cw'`, `wavelength: Parameter`, `harmonics: list[Harmonic] = []`
 - `rx.Geometry` — Diffraction geometry.
