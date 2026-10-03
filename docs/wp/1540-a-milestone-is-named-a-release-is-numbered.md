@@ -110,6 +110,19 @@ holds the index equal to the generator) clean.
   closed to new WPs rather than renamed, since its three WPs are ✅ history.
   No cadence was chosen.
 
+  *Review.* `/code-review high --fix` found eight statements of the old rule
+  the branch missed, and seven were fixed in one commit: pyproject's comment,
+  RELEASING step 1, root CLAUDE.md's records line, the TOF hold (it meant
+  magnetic, so it now says so), Current focus (one milestone open, three
+  queued) and four live docstrings naming v1.8 or v1.9. Declined: the
+  skill's "until v1.6" in `surprises.md`, which stays true because the cut is a
+  minor. Its eighth note became a commit: an old `Milestone: v1.7` header
+  now gets an error naming its new name.
+
+  *Measured.* The fast selection gave 8 111 passed, 159 skipped and 1 failed
+  (`[dev]`, macOS arm64, three other sessions' suites running beside it). The
+  failure is the `api.md` cap, which `main` has too. No tests were added.
+
   *Gotchas.* The worktree guard refuses a heredoc with a loop; scripts in
   the scratchpad ran instead. `tests/test_skill.py`'s `api.md` cap fails on
   `main` too (39 519 B against 39 500), so it is not this branch's.
