@@ -1215,7 +1215,10 @@ def test_the_phantom_lines_are_what_had_blocked_it(corundum_peaks):
 
     assert len(peaks.peaks) > len(peaks.usable()), "nothing was flagged at all"
     assert 4 <= len(flagged) <= 14, len(flagged)
-    assert len(peaks.usable()) >= 50
+    # 45, not 50: five of the 52 lines the old floor counted were copies.  Each
+    # is one line that two neighbouring groups both fitted, and
+    # ``duplicate_line`` keeps the second copy out of ``usable()`` (WP-1510)
+    assert len(peaks.usable()) >= 45
     # every flagged line sits below a much stronger one, and further from it than
     # the real lines sit from their own predicted positions
     tt = np.array([p.two_theta for p in peaks.peaks])
