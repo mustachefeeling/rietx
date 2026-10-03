@@ -25,6 +25,12 @@ DATA = Path(__file__).parent / "data"
 PATTERN = DATA / "11BM_LaB6_cBN_mg2044.xye"
 LIMITS = (5.1, 50.0)
 CODE = "LEBAIL_ALTERNATION_STOPPED"
+#: Rwp is quoted from a converged TRF fit, whose stopping point moves with the
+#: platform's libm.  The exact-cell pass 1 reads 0.168210 on macOS arm64 and
+#: 0.168236-0.168238 on Linux x86-64 (CI, py3.11/3.12 and jax), a spread of
+#: 2.8e-5 where the bar had been 2e-5.  3e-4 is ten times that, and pass 2 of
+#: the same run (0.16907) is still 8.6e-4 away, so the bar separates the passes.
+RWP_PLATFORM_SPREAD = 3e-4
 
 
 @pytest.fixture(scope="module")
@@ -89,7 +95,7 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(patter
     assert stop.level == "warning"
     assert "did not lower Rwp" in stop.message
     assert "pass 1 of 2 was kept" in stop.message
-    assert result.statistics.rwp == pytest.approx(0.16821, abs=2e-5)
+    assert result.statistics.rwp == pytest.approx(0.16821, abs=RWP_PLATFORM_SPREAD)
     assert stop.value == result.statistics.rwp
     assert "16.821, 16.907" in stop.message
     assert CODE in str(result)              # the termination view carries it
@@ -112,7 +118,7 @@ def test_a_converging_run_is_not_cut_short_and_ends_at_a_fixed_point(pattern):
     assert stop.level == "info"
     assert "fixed point" in stop.message
     assert "pass 3 of 3 was kept" in stop.message
-    assert result.statistics.rwp == pytest.approx(0.16967, abs=2e-5)
+    assert result.statistics.rwp == pytest.approx(0.16967, abs=RWP_PLATFORM_SPREAD)
     _plot(result, "lebail_alternation_converged.png")
 
 
@@ -207,7 +213,7 @@ def test_a_cancel_in_a_later_pass_leaves_the_best_pass_standing(pattern):
         ref.fit(pattern, mode="lebail", plan=_plan(8), two_theta_limits=LIMITS,
                 telemetry=False, events=on_event, cancel=token)
     assert ref.result_ is not None
-    assert ref.result_.statistics.rwp == pytest.approx(0.16821, abs=2e-5)
+    assert ref.result_.statistics.rwp == pytest.approx(0.16821, abs=RWP_PLATFORM_SPREAD)
 
 
 def test_the_refinement_records_the_cap_it_was_asked_for(pattern):
@@ -263,6 +269,6 @@ def test_a_cancel_part_way_through_a_later_pass_restores_the_best_pass(pattern):
         ref.fit(pattern, mode="lebail", plan=_plan(8), two_theta_limits=LIMITS,
                 telemetry=False, events=on_event, cancel=token)
     kept = ref.result_
-    assert kept.statistics.rwp == pytest.approx(0.16821, abs=2e-5)
+    assert kept.statistics.rwp == pytest.approx(0.16821, abs=RWP_PLATFORM_SPREAD)
     cell = {p.path: p.value for p in kept.parameters}["phases.0.cell.a"]
     assert ref.structure.phases[0].cell.a.value == pytest.approx(cell, abs=1e-9)
