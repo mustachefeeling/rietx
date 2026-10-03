@@ -156,25 +156,32 @@ p{margin:0}
    it opens, so its long lines set the start of the growth: it began near the full row and
    shrank to 680 px (751 px mid-growth, measured).  Contained, the body adds nothing to the
    box's own width, which then grows from the button's. */
-.qs-body{padding:0 16px 16px;contain:inline-size}
-.qs-hint{color:var(--muted);font-size:.88rem;margin-bottom:10px}
-.qs-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 12px;font-size:.84rem;color:var(--muted)}
-.qs-src{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px}
+.qs-body{padding:2px 16px 16px;contain:inline-size}
+/* Three layers, two type sizes.  What the person does is the box's body text.  The choice
+   that changes the prompt is a small label row.  The prompt is set apart on the tinted ground
+   the install command uses, headed like the page's other code panes, with its copy button
+   in its own corner. */
+.qs-lead{font-size:.92rem;line-height:1.5;color:var(--ink-2);margin-bottom:14px}
+.qs-src{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px;margin-bottom:8px;font-size:.84rem;color:var(--muted)}
 .qs-src label{position:relative;cursor:pointer}
 .qs-src input{position:absolute;inset:0;margin:0;opacity:0;cursor:pointer}
 .qs-src label:hover span{color:var(--ink)}
 .qs-src input:checked + span{color:var(--ink);text-decoration:underline 1.5px var(--accent);text-underline-offset:4px}
 .qs-src input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
 .qs-src .dot{color:var(--faint)}
-.qs-copy{appearance:none;border:0;background:none;display:inline-flex;align-items:center;gap:6px;margin:0 -8px 0 auto;padding:4px 8px;
-  border-radius:6px;font:inherit;color:var(--accent-ink);cursor:pointer}
-.qs-copy:hover{background:var(--surface-2)}
-.qs-prompt{margin-top:8px;font-size:.92rem;line-height:1.55;color:var(--ink-2)}
+.qs-block{background:var(--surface-2);border-radius:8px;padding:6px 16px 14px}
+.qs-head{display:flex;align-items:baseline;justify-content:space-between;
+  font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.qs-copy{appearance:none;border:0;background:none;display:inline-flex;align-items:center;gap:6px;margin-right:-8px;padding:4px 8px;
+  border-radius:6px;font:inherit;font-size:.84rem;letter-spacing:0;text-transform:none;color:var(--accent-ink);cursor:pointer}
+.qs-copy:hover{background:var(--surface-3)}
+.qs-prompt{margin-top:4px;font-size:.92rem;line-height:1.6;color:var(--ink)}
 .qs-prompt p{margin:0 0 8px}
-.qs-prompt ol{margin:0;padding-left:1.35em}
+.qs-prompt ol{margin:0;padding-left:1.4em}
 .qs-prompt li{margin:0 0 4px;padding-left:2px}
+.qs-prompt li::marker{color:var(--muted)}
 /* a command stays on one line; only the GitHub URL, too long for a phone, may break */
-.qs-prompt code{font-size:.88em;color:var(--ink);white-space:nowrap}
+.qs-prompt code{font-size:.88em;white-space:nowrap}
 .qs-prompt .v-git code{white-space:normal;overflow-wrap:anywhere}
 /* one install line shows; without :has() the release one does, and the radios do nothing */
 .qs .v-git{display:none}

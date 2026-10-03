@@ -17,24 +17,26 @@
        showing, each `code` wrapped in backticks.  Every link to #quickstart opens it. -->
   <details class="qs" id="quickstart">
     <summary>Agent quickstart<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+    <!-- Three layers, each drawn once: what the person does (plain text), the one choice
+         that changes the prompt, and the prompt itself, set apart as text to copy. -->
     <div class="qs-body">
-      <p class="qs-hint">Paste this into Claude Code, Codex or another coding agent, opened in the folder that holds your data.</p>
-      <div class="qs-bar">
-        <div class="qs-src" role="radiogroup" aria-labelledby="qs-src-lbl">
-          <span id="qs-src-lbl">Install from</span>
-          <label><input type="radio" name="qs-src" value="pip" checked><span>PyPI</span></label>
-          <span class="dot" aria-hidden="true">·</span>
-          <label><input type="radio" name="qs-src" value="git"><span>GitHub (latest)</span></label>
-        </div>
-        <button class="qs-copy copy" id="qs-copy" type="button"><svg class="i-copy" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg><svg class="i-done" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span class="lbl">Copy</span></button>
+      <p class="qs-lead">Open Claude Code, Codex or another coding agent in the folder that holds your data, then paste in this prompt.</p>
+      <div class="qs-src" role="radiogroup" aria-labelledby="qs-src-lbl">
+        <span id="qs-src-lbl">Install rietx from</span>
+        <label><input type="radio" name="qs-src" value="pip" checked><span>PyPI</span></label>
+        <span class="dot" aria-hidden="true">·</span>
+        <label><input type="radio" name="qs-src" value="git"><span>GitHub (latest)</span></label>
       </div>
-      <div class="qs-prompt" id="qs-prompt">
-        <p>I want to refine powder diffraction data with rietx (https://rietx.org). My data and any structure files (CIFs) are in this folder.</p>
-        <ol>
-          <li>Create a Python virtual environment here with Python 3.11 or newer. <span class="v-pip">Install rietx into it: <code>pip install rietx</code></span><span class="v-git">Install the latest development version of rietx into it: <code>pip install git+https://github.com/yue-here/rietx</code></span></li>
-          <li>Install the rietx agent skill with <code>rietx skill --install</code>. Then read <code>.agents/skills/rietx/SKILL.md</code>.</li>
-          <li>Look at the files in this folder and tell me what they are. Propose a refinement plan before you run it.</li>
-        </ol>
+      <div class="qs-block">
+        <div class="qs-head"><span>Prompt</span><button class="qs-copy copy" id="qs-copy" type="button"><svg class="i-copy" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg><svg class="i-done" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span class="lbl">Copy</span></button></div>
+        <div class="qs-prompt" id="qs-prompt">
+          <p>I want to refine powder diffraction data with rietx (https://rietx.org). My data and any structure files (CIFs) are in this folder.</p>
+          <ol>
+            <li>Create a Python virtual environment here with Python 3.11 or newer. <span class="v-pip">Install rietx into it: <code>pip install rietx</code></span><span class="v-git">Install the latest development version of rietx into it: <code>pip install git+https://github.com/yue-here/rietx</code></span></li>
+            <li>Install the rietx agent skill with <code>rietx skill --install</code>. Then read <code>.agents/skills/rietx/SKILL.md</code>.</li>
+            <li>Look at the files in this folder and tell me what they are. Propose a refinement plan before you run it.</li>
+          </ol>
+        </div>
       </div>
     </div>
   </details>
