@@ -1,6 +1,6 @@
 # WP-1510 — What the chemist knows reaches the indexing search
 
-Milestone: unscheduled · Status: 🔄 2026-10-03 — every task landed and the indexing acceptance file is green; merges after the 1.6 cut
+Milestone: unscheduled · Status: 🔄 2026-10-03 — every task landed; full suite green on main merged after the 1.6 cut, PR #690 ready
 Track: Data and metadata in, a structure out
 Depends on: — (1449 soft, the ranking this feeds; 1508 soft, the search that ran out of time)
 Priority: P2 2026-09-28 — a defect that fires wrongly: sixty false impurity lines and a refused gate cost a collaborator's agent one whole earlier session, and each fix is small
@@ -221,10 +221,18 @@ given the skill asks for or infers the range before its first search.
   `api.md` cap row). That is +3 against 8143, the supercell tests. Baseline
   replay at this trial row: the selective policy saves 24 %.
 
-  *Next.* (a) After the 1.6 cut, merge main into this branch. Then stage
-  `duplicate_line`, `from_formula`, `INDEX_Z_NOT_INTEGER`, the prior warning
-  and the supercell promotion in whichever milestone record is open, since
-  they are user-facing. (b) The open review findings: the instrument-first
+  *After the 1.6 cut* (the same day). Main is merged in at `006286ac`, which
+  opened 1.7, and the venv is reinstalled at `1.7.0.dev0`. The user-facing
+  changes are staged in `docs/releases/1.7.0.md`. `API_INDEX_MAX_BYTES` went
+  39 600 → 39 700: `index_pattern(formula=, temperature=)` adds 56 B and the
+  merged file stood at 39 605 B. That leaves 300 B under the 40 kB
+  truncation, so the next raise is the split (WP-1532's Inherited). On the
+  merged tree (`[dev]` venv, macOS arm64, nothing else running): the fast
+  selection gave 8155 passed, 159 skipped and 0 failed. The full suite gave
+  8418 passed, 168 skipped and 0 failed in 18:59.
+
+  *Next.* (a) Merge PR #690 when CI is green; that is the maintainer's
+  call. (b) The open review findings: the instrument-first
   lead on a synchrotron setup, the two-step flow that never sees it, and
   `formula` in the CLI and GUI, and the five open review findings above,
   the hydrate parse first. (c) Whether a supported supercell's
