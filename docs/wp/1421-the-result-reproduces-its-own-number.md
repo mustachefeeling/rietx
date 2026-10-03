@@ -107,6 +107,16 @@ register. The shape is worth carrying into this WP: what a state *records* and
 what rebuilding from that state *produces* are two objects, and only a test
 comparing them can say they agree.
 
+- **From WP-1541 (2026-10-03): the LaB₆/cBN boron coordinate's esd rose,
+  and #674 cannot be the cause.** Re-measuring the validation matrix for the
+  1.6.0 cut, `test_the_one_free_coordinate_agrees` (`lab6_cbn`) gave x =
+  0.19838 with an esd of 2.26e-3, where the row said 1.7e-3 and called its
+  2e-3 band loose against it. The band is now tighter than the esd, and the
+  row says so. #674 only shrinks esds, so something else moved this one at
+  some point since the suite's first commit (`8156687c`); nobody has looked
+  for when. This WP measures `lab6_cbn` already (5.5e-4 χ² staleness), which
+  is why the question is parked here rather than in a WP of its own.
+
 ## Non-goals
 
 - Window sizing (`WINDOW_AREA_TOL`, `WINDOW_MIN_DEG`) and the frozen-per-stage

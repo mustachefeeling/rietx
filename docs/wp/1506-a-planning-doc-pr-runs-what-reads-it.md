@@ -124,6 +124,11 @@ the tail today, in local serial seconds:
   just above it already passes its paths on `--stdin -z`, and doing the same
   here keeps `--no-index`. Linux and macOS were green. It failed again on
   2026-09-29 (run 36563538187), the Windows leg's only failure.
+- **From WP-1541 (2026-10-03): the WinError 206 item above is fixed.** It was
+  the release's pre-upload gate, so the cut took it. The test passes its paths
+  on `--stdin -z`, and the index half lists the index (`git ls-files -z`)
+  rather than naming the paths, for the same argv reason. Both halves were
+  made to fail on purpose. Nothing is left here for this item.
 
 ## Non-goals
 
