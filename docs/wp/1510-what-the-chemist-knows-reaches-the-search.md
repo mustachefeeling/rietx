@@ -89,15 +89,14 @@ The quick preset's 30 s per system ran out on the monoclinic and
 orthorhombic searches here (`INDEX_SEARCH_INCOMPLETE`, then
 `INDEX_BUDGET_EXHAUSTED` at 120 s); search speed is 1508 and 1509 (PR #514).
 
-### Inherited
+**Ranking is settled** (WP-1449, closed 2026-09-29): a reported supercell the
+pattern does not support ranks directly below its parent (`supercell_refuted`).
+A prior that changes the reported list changes which pairs get asked, never the
+rule.
 
-- **From WP-1449 (closed 2026-09-29): the ranking this feeds is settled.**
-  In consensus, a reported supercell whose uncancellable extras are seen no
-  more often than chance moves directly below its parent, with the refuting
-  caveat `supercell_refuted`. Measured on bethanechol's monoclinic lists, it
-  never supported a phantom supercell: 544 refuted, and 6 left undecided
-  where p0 = 0.738, which moves nothing. A prior that changes the reported list
-  changes which pairs get asked, never the rule.
+**Sites re-checked 2026-10-03 on `0303da12`**: all still hold, with line drift
+(`schemas/indexing.py` `max_d_axis` now :1204 and `CellCandidate` :932,
+`diagnostics.py` `INDEX_DATA_INSUFFICIENT` :327, `priors.py` refusal :237).
 
 ## Non-goals
 
