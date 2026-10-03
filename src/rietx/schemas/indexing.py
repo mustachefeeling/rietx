@@ -74,7 +74,16 @@ from .common import Base, Diagnostic, Provenance
 #: reduction moved the setting.  ``CELL_EQUALITY_CHI2`` did not move.  Two runs
 #: with identical spec notes now answer differently: bethanechol set Db's truth
 #: went from rank 1 to 2 behind a wrong cell two engines had found in two settings.
-INDEXING_THRESHOLDS_VERSION = "1.6"
+#: 1.7 (WP-1510): ``PeakFlag`` gains ``duplicate_line`` and
+#: ``PEAK_UNUSABLE_FLAGS`` gains it too — a component of one group sitting on
+#: the line a neighbouring group fitted, found where a re-seed pass in the first
+#: window proposed what the second group already owned.  ``pick_peaks`` answers
+#: differently on any pattern carrying one: on the 16 IUCr round-robin lab patterns
+#: 4-35 components of 18-116 are flagged where any are (``cpd-4`` offered 113
+#: usable lines and now offers 78), and none of the lab lists keeps two usable
+#: lines within 0.02° of each other. ``INDEX_IMPURITY_LINES`` counted the copies
+#: as lines no candidate explained.
+INDEXING_THRESHOLDS_VERSION = "1.7"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.
@@ -491,6 +500,15 @@ PEAK_ASSUMED_ESD_DEG = 0.02
 #: ``no_intensity`` it **is** unusable rather than reported, because there is no
 #: judgement left for a consumer to make: a ±kσ window built from it admits the
 #: whole axis.  It stays in ``peaks`` for the same reason the other two do.
+#: ``duplicate_line`` — a component of one group within
+#: :data:`~rietx.model.forward.PAWLEY_OVERLAP_FWHM_FRAC` of a better-measured
+#: component of *another* group, which is one physical line fitted twice (WP-1510).
+#: Detection puts every seed in exactly one group and the groups are separated by
+#: that same fraction, so two groups can only meet on one line through a re-seed
+#: pass, which proposes the neighbour's unmodelled maximum.  The copy stays in
+#: ``peaks`` because it is what let the first group's window fit its own line,
+#: and is unusable because a list that offers one line twice makes the
+#: second copy a "line no candidate explains".
 #: ``unnamed_neighbour`` — only :func:`~rietx.indexing.fit_peaks` can raise it
 #: (WP-1101): detection saw a component inside this window that the caller's
 #: position list did not name, so the fit apportioned that intensity among the
@@ -517,6 +535,7 @@ PeakFlag = Literal[
     "no_intensity",
     "unnamed_neighbour",
     "position_unmeasured",
+    "duplicate_line",
 ]
 
 #: FWHM multiple within which a weak component may be read as a stronger
@@ -553,7 +572,7 @@ PEAK_AXIAL_TAIL_MAX_FWHM = 3.5
 #: stops holding at ±1 961° (WP-1442).
 PEAK_UNUSABLE_FLAGS: frozenset[str] = frozenset(
     {"ghost_kbeta", "ghost_tungsten", "excluded", "fit_failed", "not_separable",
-     "no_intensity", "position_unmeasured"})
+     "no_intensity", "position_unmeasured", "duplicate_line"})
 
 #: Standard deviations above χ²_red = 1 at which a group's fit is **refuted**, and
 #: therefore above which a ΔBIC verdict on adding one more component to it cannot
