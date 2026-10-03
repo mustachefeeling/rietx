@@ -46,7 +46,7 @@ screen work closed with 1445. Checked against the index on 2026-10-03.
 
 - [x] `auto_background(source=)`, passed to the screen; `api.md` and the manual partition
       move with it, paid for by a cut under the skill caps.
-- [ ] The wizard maps `beam_optics` to `Source.kbeta`, after deciding incident versus
+- [x] The wizard maps `beam_optics` to `Source.kbeta`, after deciding incident versus
       diffracted monochromator. State what a file with neither says.
 - [ ] brml and rasx record optics, when a fixture carrying them is in hand.
 - [ ] Tests, each with a control that is not vacuous (the 1445 review caught one that was).

@@ -59,6 +59,7 @@ from .. import _about
 from ..capabilities import capabilities as _capabilities
 from ..help import help_registry as _help_registry
 from ..history.events import EventStream
+from ..io.readers import read_pattern
 from ..optimize.cancel import CancelToken, RefinementCancelled
 from ..project import Project
 from ..refine import (
@@ -83,6 +84,7 @@ from .imports import (
     UploadRefused,
     UploadStore,
     instrument_from_preset,
+    kbeta_from_metadata,
     preview_cif,
     preview_instrument,
     preview_pattern,
@@ -413,7 +415,16 @@ class GuiSession:
                 "rietveld mode; create the project in 'lebail' or 'pawley' "
                 "mode, and add atoms later to switch",
                 where=["mode"])
-        instrument = _as_instrument(body.get("instrument"), self.uploads)
+        spec = body.get("instrument")
+        if isinstance(spec, dict) and "preset" in spec and "kbeta" not in spec:
+            # the file's own optics, which the wizard form has no field for
+            # (WP-1539); a declaration in the spec outranks it
+            try:
+                spec = {**spec, "kbeta": kbeta_from_metadata(read_pattern(
+                    pattern, **(body.get("reader_options") or {})).metadata)}
+            except (ValueError, OSError):
+                pass  # the project's own read of the file reports it
+        instrument = _as_instrument(spec, self.uploads)
         kw: dict[str, Any] = {}
         for key in ("mode", "two_theta_limits", "excluded_regions",
                     "reader_options", "ui"):

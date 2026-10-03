@@ -153,3 +153,40 @@ def test_a_file_listing_no_optics_records_none(tmp_path):
     bare = tmp_path / "bare.xrdml"
     bare.write_text(text[:start] + text[end:], encoding="utf-8")
     assert "beam_optics" not in rx.read_pattern(bare).metadata
+
+
+# ---------------------------------------------------------------------------
+# WP-1539 — the file's optics reach the instrument the wizard builds
+# ---------------------------------------------------------------------------
+def test_the_reader_says_which_side_of_the_sample_an_optic_sits():
+    both = rx.read_pattern(DATA / "panalytical_attenuator.xrdml")
+    # this file's hybrid monochromator is before the sample
+    assert "monochromator" in both.metadata["beam_optics"]
+    assert "diffracted_beam_optics" not in both.metadata
+    assert "diffracted_beam_optics" in METADATA_KEYS
+
+
+def test_only_a_monochromator_after_the_sample_maps_to_kbeta():
+    from rietx.gui.imports import kbeta_from_metadata
+
+    incident = rx.read_pattern(DATA / "panalytical_attenuator.xrdml").metadata
+    assert kbeta_from_metadata(incident) == "mirror"  # recorded, acts on nothing
+    assert kbeta_from_metadata({"beam_optics": "monochromator"}) is None
+    assert kbeta_from_metadata({"beam_optics": "monochromator",
+                                "diffracted_beam_optics": "monochromator"}) == "monochromator"
+    assert kbeta_from_metadata({"beam_optics": "filter"}) == "filter"
+    assert kbeta_from_metadata({}) is None
+    assert kbeta_from_metadata(None) is None
+
+
+def test_the_preset_builder_sets_kbeta_from_the_file_and_the_constructor_outranks_it():
+    from rietx.gui.imports import instrument_from_preset
+
+    spec = {"preset": "bragg_brentano", "radiation": "CuKa",
+            "goniometer_radius_mm": 240.0}
+    assert instrument_from_preset(spec).source.kbeta is None  # the control
+    got = instrument_from_preset({**spec, "kbeta": "monochromator"})
+    assert got.source.kbeta == "monochromator"
+    own = instrument_from_preset({**spec, "kbeta": "filter",
+                                  "monochromator_two_theta": 26.6})
+    assert own.source.kbeta == "monochromator"
