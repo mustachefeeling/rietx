@@ -506,14 +506,17 @@ def kbeta_from_metadata(metadata: dict | None) -> str | None:
     Only a monochromator **after the sample** maps to ``"monochromator"``, the
     one value that makes the contamination screen skip: that is the case WP-1442
     measured.  The same element before the sample is not mapped, since nothing
-    here measured what it leaves of Kβ, and a file whose only optic is an
-    incident monochromator stays undeclared.  A filter or a mirror is recorded
-    and changes nothing downstream.
+    here measured what it leaves of Kβ, so a file listing one stays undeclared
+    even beside a mirror or a filter: naming those would name an optic that is
+    not the one deciding Kβ.  A filter or a mirror alone is recorded and changes
+    nothing downstream.
     """
     metadata = metadata or {}
     if "monochromator" in str(metadata.get("diffracted_beam_optics") or ""):
         return "monochromator"
     listed = str(metadata.get("beam_optics") or "")
+    if "monochromator" in listed:  # before the sample, so unmeasured
+        return None
     if "filter" in listed:
         return "filter"
     if "xRayMirror" in listed:
@@ -632,5 +635,9 @@ def instrument_from_preset(spec: dict) -> Any:
     # source has no Kβ to declare
     if (kbeta is not None and built.source.kind == "xray_cw"
             and built.source.kbeta is None):
-        built.source.kbeta = kbeta
+        try:  # validated on assignment: an unknown value is the caller's
+            built.source.kbeta = kbeta
+        except ValueError as exc:
+            raise UploadRefused(f"{name}: kbeta: {exc}",
+                                where=["instrument.kbeta"]) from None
     return built

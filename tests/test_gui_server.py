@@ -656,6 +656,12 @@ def test_the_wizard_carries_the_files_optics_into_the_source(blank, tmp_path):
         made[name] = session.project.refinement.instrument.source.kbeta
     assert made == {"file": "mirror", "own": "filter"}
 
+    # an instrument edit from a preset reads the project's own file the same way
+    status, patched = client.patch("/api/instrument", {"instrument": {
+        "preset": "bragg_brentano", "radiation": "CuKa", "goniometer_radius_mm": 240.0}})
+    assert status == 200, patched
+    assert session.project.refinement.instrument.source.kbeta == "mirror"
+
 
 def test_a_typed_cell_creates_a_project_that_fits(blank, tmp_path, pattern_file):
     """A cell and a symbol are a project — no CIF anywhere in this test.

@@ -169,9 +169,14 @@ def test_the_reader_says_which_side_of_the_sample_an_optic_sits():
 def test_only_a_monochromator_after_the_sample_maps_to_kbeta():
     from rietx.gui.imports import kbeta_from_metadata
 
+    # a mirror and a monochromator, both before the sample: undeclared, since
+    # "mirror" would name the optic that is not deciding Kβ
     incident = rx.read_pattern(DATA / "panalytical_attenuator.xrdml").metadata
-    assert kbeta_from_metadata(incident) == "mirror"  # recorded, acts on nothing
+    assert kbeta_from_metadata(incident) is None
+    mirror = rx.read_pattern(DATA / "panalytical_powder.xrdml").metadata
+    assert kbeta_from_metadata(mirror) == "mirror"  # recorded, acts on nothing
     assert kbeta_from_metadata({"beam_optics": "monochromator"}) is None
+    assert kbeta_from_metadata({"beam_optics": "monochromator,filter"}) is None
     assert kbeta_from_metadata({"beam_optics": "monochromator",
                                 "diffracted_beam_optics": "monochromator"}) == "monochromator"
     assert kbeta_from_metadata({"beam_optics": "filter"}) == "filter"
@@ -190,3 +195,12 @@ def test_the_preset_builder_sets_kbeta_from_the_file_and_the_constructor_outrank
     own = instrument_from_preset({**spec, "kbeta": "filter",
                                   "monochromator_two_theta": 26.6})
     assert own.source.kbeta == "monochromator"
+
+
+def test_the_preset_builder_refuses_an_unknown_kbeta_by_name():
+    from rietx.gui.imports import UploadRefused, instrument_from_preset
+
+    with pytest.raises(UploadRefused) as caught:
+        instrument_from_preset({"preset": "bragg_brentano", "radiation": "CuKa",
+                                "goniometer_radius_mm": 240.0, "kbeta": "bogus"})
+    assert caught.value.where == ["instrument.kbeta"]
