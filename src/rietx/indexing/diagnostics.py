@@ -336,7 +336,7 @@ def undeclared_instrument(instrument: Instrument) -> dict[str, str]:
            for k in "uvwxy"):
         out["instrument.profile"] = (
             "instrument.profile is the default ProfileTCHZ, a synchrotron line "
-            "(W = 1e-3 deg²)")
+            f"(W = {default.w.value:g} deg²)")
     return out
 
 
@@ -590,8 +590,8 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
                      f"{check.n_extra} extra line(s) it predicts that no "
                      f"extinction could remove, {check.n_seen} sit on an "
                      f"observed line, where chance alone puts {chance:.1f} "
-                     f"(p = {check.p_value:.2g}).  So it is ranked directly below "
-                     "that candidate." + others),
+                     f"(p = {check.p_value:.2g}).  So it is ranked below that "
+                     "candidate." + others),
             where=where + ([f"first missing extra at {check.absent_two_theta[0]:.3f}°"]
                            if check.absent_two_theta else []),
             suggestion=("read the smaller cell as the lattice: this one repeats "

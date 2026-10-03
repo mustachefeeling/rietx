@@ -886,7 +886,7 @@ covered by those windows, which is how often a position with no line at all
 would still read as seen {eq}`idx-supercell-chance`.
 
 When the extra lines are seen no more often than chance, the larger cell is
-*refuted*. It moves to directly below the cell inside it, stays in the list,
+*refuted*. It moves below the cell inside it, stays in the list,
 and carries the refuting caveat `supercell_refuted`, with a message naming the
 parent and the counts.
 

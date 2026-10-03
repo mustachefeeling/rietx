@@ -367,6 +367,8 @@ def prior_used_diagnostic(reports: list[PriorReport], jumped: list[str],
     # search the caller asked for depend on what they guessed.  On the run that
     # reopened this, the refusal sat at ``info`` inside a long message and cost
     # a 24-minute rerun before anyone acted on it.
+    unconfirmed = ("read a prior-only candidate as stated-and-unconfirmed: "
+                   "the engines did not find it, and its grade says so")
     boxed = [r for r in reports if r.box is not None]
     if boxed:
         highs = [r.box["max_d_axis"] for r in boxed if "max_d_axis" in r.box]
@@ -380,13 +382,11 @@ def prior_used_diagnostic(reports: list[PriorReport], jumped: list[str],
                         f"were not checked: rerun with SearchSpec({args}) to "
                         "search the box they need.  A prior never widens the "
                         "box itself, because the box is the search you "
-                        "declared"),
+                        "declared.  And " + unconfirmed),
             value=float(len(boxed)))
     return Diagnostic(
         level="info", code="INDEX_PRIOR_USED", message=message,
-        where=[r.label for r in reports],
-        suggestion=("read a prior-only candidate as stated-and-unconfirmed: "
-                    "the engines did not find it, and its grade says so"))
+        where=[r.label for r in reports], suggestion=unconfirmed)
 
 
 __all__ = ["MAX_PRIOR_INDEX", "PriorReport",

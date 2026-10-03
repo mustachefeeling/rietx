@@ -351,9 +351,13 @@ class SearchSpec:
             formula_unit_volume,
         )
 
+        clash = sorted({"min_volume", "max_volume"} & fields.keys())
+        if clash:
+            raise ValueError(f"from_formula sets {' and '.join(clash)} from the "
+                             "formula; build SearchSpec directly to declare it")
         if z is None:
             z_min, z_max = 1, None
-        elif isinstance(z, tuple):
+        elif isinstance(z, (tuple, list)):
             z_min, z_max = z
         else:
             z_min = z_max = z
