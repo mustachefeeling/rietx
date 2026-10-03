@@ -865,11 +865,11 @@ do.
 | `TopasModel.phases` | the phases the file states, with their sites and refine flags |
 | `TopasModel.r_wp`, `TopasModel.gof` | the run's own figures, where the grammar settles which is the file's |
 | `TopasModel.r_wp_all`, `TopasModel.gof_all` | every such value in file order, since a multi-dataset file states one per dataset |
-| `TopasModel.n_datasets` | how many `xdd`-family blocks the file opens |
+| `TopasModel.n_datasets` | how many `xdd`-family blocks the file opens, a data-file macro (`RAW(…)`, `XYE(…)`, `TOF_XYE(…)`) counting as one |
 | `TopasModel.data_files` | the pattern files it points at |
 | `TopasModel.emission_lines`, `TopasModel.emission_macro`, `TopasModel.anode`, `TopasModel.wavelength` | the emission profile, as stated or as a macro named it |
 | `TopasModel.geometry`, `TopasModel.goniometer_radius_mm` | the diffractometer, where the file says |
-| `TopasModel.background_terms` | how many background coefficients were refined |
+| `TopasModel.background_terms`, `TopasModel.background_refined` | how many coefficients the `bkg` list states, and whether any is refined (`@`) rather than held (`!`); both `None` when the file states no `bkg` |
 | `TopasModel.skipped_blocks` | phase blocks that stated no name, or neither a `space_group` nor a `mag_space_group`, recorded whether or not a diagnostics list was passed |
 | `TopasModel.coverage` | what the reader met and did not carry; see below |
 | `TopasModel.time_of_flight` | the datasets that are neutron time of flight, each with the constructs that said so; `to_structure` refuses their phases by name (issue #193), and a file whose every dataset is one states no `geometry` |
@@ -1253,6 +1253,7 @@ from rietx.io.projects import coverage
 | `Feature.macros` | the format's library macros that state the same construct, met wherever the file invokes one |
 | `Hit.feature`, `Hit.keywords`, `Hit.phases` | one construct actually met in a file, and where |
 | `Coverage.reported`, `Coverage.refused`, `Coverage.partial` | the hits of each kind |
+| `Coverage.unread_calls` | the names the file calls as `name(…)` that it neither defines nor has a row for, and the reader does not read: a macro from an include it has not seen, or a misspelt one. A bare misspelt keyword (`lor_fwhmm 0.1`) is not covered |
 | `Coverage.summary`, `Coverage.summary_of` | those hits in a sentence |
 
 A refused construct raises, naming the file and the line. A reported one

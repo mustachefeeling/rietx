@@ -199,6 +199,45 @@ _MACRO_CALL = re.compile(
                               key=len, reverse=True)) + r")\s*\(")
 
 
+#: A call, ``name(``, anywhere in the text. Not preceded by ``.`` or a word
+#: character, so the tail of a longer name is not a call.
+_ANY_CALL = re.compile(r"(?<![\w.])([A-Za-z_]\w*)\s*\(")
+
+#: The names a call may carry without the reader owing the caller a word: the
+#: equation functions, and the calls this reader reads by name elsewhere. The
+#: registry's macros, the file's own ``macro`` definitions and the dataset,
+#: cell and emission macros are added at the scan (:func:`_unread_calls`).
+_EQUATION_FUNCTIONS = frozenset({
+    "Abs", "Sin", "Cos", "Tan", "Asin", "Acos", "Atan", "Atan2", "Sinh", "Cosh",
+    "Tanh", "Exp", "Ln", "Log", "Sqrt", "Mod", "Min", "Max", "If", "Get", "Val",
+    "Sign", "Floor", "Ceil", "Int", "Log10", "Pow", "Rand", "Rad", "Deg",
+    "Radius", "STR", "TOF_XYE", "TOF_GSAS"})
+
+#: ``Out…`` and ``Create_…`` macros write files and states about the run, not
+#: the model (the registry's IGNORED stance, by name), so their calls are not
+#: unread in the sense that matters.
+_RUN_LEVEL_CALL = re.compile(r"(?:Out|Create)_\w*")
+
+
+def _unread_calls(unquoted: str, stripped: str) -> tuple[str, ...]:
+    """The names ``unquoted`` calls that nothing here defines or reads (#651).
+
+    TOPAS stops on an undefined macro ("unknown or misplaced keyword"), so a
+    file reaching this reader either defines the name in an include the reader
+    does not have or has a typo, and the structure built from it is the same
+    in both cases: missing whatever the call states.
+    """
+    known = (_EQUATION_FUNCTIONS | _coverage.MACROS | set(_CELL_MACROS)
+             | set(_DATASET_MACROS)
+             | set(re.findall(r"\bmacro\s+(\w+)", stripped)))
+    return tuple(sorted({
+        m.group(1) for m in _ANY_CALL.finditer(unquoted)
+        if m.group(1) not in known
+        and m.group(1).rstrip("_") not in known
+        and not re.fullmatch(r"(?:Cu|Co|Cr|Fe|Mo|Ag)Ka\d?", m.group(1))
+        and not _RUN_LEVEL_CALL.fullmatch(m.group(1))}))
+
+
 def _unquoted(text: str) -> str:
     """``text`` with its ``"…"`` strings blanked, offset-for-offset, so a macro
     name inside a path or a phase name is not an invocation."""
@@ -222,7 +261,10 @@ _NUM = r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?"
 #: answer, and leaving it out of the repeated group ended the list at its first
 #: coefficient, so every written-back file reported one term (#652). The
 #: annotation is the one `_ADP_ANNOTATION` skips between ADP slots.
-_BKG_SLOT = rf"\s*@?\s*{_NUM}`?(?:_[^\s;{{}}]*)?"
+#: The refine marker is ``@`` (refined) or ``!`` (held), and it **stays** for the
+#: numbers after it until the other one appears, so ``bkg ! c0 c1`` holds the
+#: whole list (#652).
+_BKG_SLOT = rf"\s*(?P<flag>[@!])?\s*{_NUM}`?(?:_[^\s;{{}}]*)?"
 
 #: A TOPAS parameter name. Leading character is deliberately **not** ``\w``:
 #: ``\w`` matches a digit, so ``(?:\w+\s+)?`` in front of a value silently eats
@@ -438,7 +480,11 @@ class TopasModel:
     #: belong to different patterns.
     n_datasets: int = 0
     data_files: list = field(default_factory=list)
+    #: How many coefficients the ``bkg`` list states, refined or held.
     background_terms: int | None = None
+    #: Whether any of them is refined (``@``). ``False`` is a held list
+    #: (``bkg ! c0 c1``), ``None`` is a file stating no ``bkg`` list.
+    background_refined: bool | None = None
     #: One :class:`SkippedBlock` per ``str`` block that states no ``phase_name``
     #: or no ``space_group``, saying what it lacked and what it did carry (its
     #: cell, scale and weight_percent). Such a
@@ -1260,9 +1306,10 @@ _FOR_HEAD = re.compile(
     r"\bfor\s+(?P<kind>\w+)(?:\s+(?P<lo>\d+)\s+to\s+(?P<hi>\d+))?"
     r"(?P<rest>[^{};]*?)\s*\{")
 
-#: The macros the reference's macro index lists as stating ``xdd`` and which
-#: this reader does **not** open as a dataset (only ``TOF_XYE``/``TOF_GSAS``
-#: are in :data:`_DATASET_OPENERS`). A ``for xdds`` loop iterates over every
+#: The macros the reference's macro index lists as stating ``xdd`` and whose
+#: datasets this reader sees as openers (:data:`_DATASET_MACROS`) but whose
+#: loops it still does not expand (WP-1530 counted them, and left the refusal
+#: alone: no file here exercises the expansion). A ``for xdds`` loop iterates over every
 #: dataset that exists, so where one of these supplies a dataset the reader
 #: cannot see, the iteration count is unknown and the loop is refused rather
 #: than expanded over the datasets it happens to see. ``yobs_eqn`` is the
@@ -1375,8 +1422,10 @@ def expand_for_loops(active: str, path) -> str:
             f"{path}: `{' '.join(loops[0][0].group().rstrip('{').split())}` expands its "
             f"body once per dataset or phase that exists, and this file opens "
             f"a dataset through `{hit.group().rstrip('(').strip()}`, which "
-            f"this reader does not read as one — so how many times the body "
-            f"is expanded, and into which phases, is not in the text in hand.")
+            f"this reader does not expand a loop over (it counts a data-file "
+            f"macro as one dataset, but a loop would need each phase placed "
+            f"in its dataset) — so how many times the body is expanded, and "
+            f"into which phases, is not something it can place.")
     openers = list(_BLOCK.finditer(active))
     datasets = [o for o in openers if o["kw"] in _DATASET_OPENERS]
 
@@ -2234,10 +2283,18 @@ _UNDEFINED_CELL_MACROS = ("Orthorhombic", "Monoclinic", "Triclinic")
 _BLOCK_OPENERS = ("str", "hkl_Is", "xo_Is", "d_Is", "xdd_scr", "xdd_sum",
                   "xdd", "fit_obj", "STR", "TOF_XYE", "TOF_GSAS")
 
+#: The data-file macros the reference's macro index lists as stating ``xdd``
+#: and which are not in :data:`_BLOCK_OPENERS`, so that
+#: ``registry._TOPAS_LINE`` does not claim a file on a bare ``XY`` or ``DAT``
+#: (WP-1530). Each opens a dataset only **as a call**, hence the lookahead.
+_DATASET_MACROS = ("RAW", "XDD", "XYE", "XY", "DAT", "BRML", "SST")
+
 #: ``xdd`` must follow ``xdd_scr``/``xdd_sum`` in the alternation above, and the
 #: pattern is anchored with ``[ \t]`` rather than ``\s`` because ``\s`` matches
 #: the newline and would let one match span two lines.
-_BLOCK = re.compile(rf"^[ \t]*(?P<kw>{'|'.join(_BLOCK_OPENERS)})\b", re.M)
+_BLOCK = re.compile(
+    rf"^[ \t]*(?P<kw>{'|'.join(_BLOCK_OPENERS)}"
+    rf"|(?:{'|'.join(_DATASET_MACROS)})(?=[ \t]*\())\b", re.M)
 
 #: The openers that start a **dataset** rather than a phase. The grammar's
 #: `Txdd`/`Txdd_scr` put every phase kind — `str`, `hkl_Is`, `xo_Is`, `d_Is` —
@@ -2248,8 +2305,12 @@ _BLOCK = re.compile(rf"^[ \t]*(?P<kw>{'|'.join(_BLOCK_OPENERS)})\b", re.M)
 #: lists both among the macros stating ``xdd``. Without them every bank of a
 #: multi-bank time-of-flight file was the dataset above it — 44 of the 68
 #: archive files carrying a `for` loop open their datasets this way. The other
-#: dataset macros (``RAW``, ``XDD``, …) still open none (:data:`_UNSEEN_DATASETS`).
-_DATASET_OPENERS = ("xdd", "xdd_scr", "xdd_sum", "TOF_XYE", "TOF_GSAS")
+#: data-file macros (:data:`_DATASET_MACROS`) open one too since WP-1530: a file
+#: opening two datasets with ``RAW(a)`` and ``RAW(b)`` read as none, and
+#: ``to_structure`` built both specimens' phases into one ``Structure``. A
+#: phase above a single such macro is dataset 0 now, not ``None``.
+_DATASET_OPENERS = ("xdd", "xdd_scr", "xdd_sum", "TOF_XYE", "TOF_GSAS",
+                   *_DATASET_MACROS)
 
 #: What says a dataset is **time of flight**. Each is the reference's: the
 #: macros of §19.3.11 ("Neutron TOF" — the data-file macros, the emission
@@ -2859,15 +2920,21 @@ def read_topas_inp(path: str | Path, *,
             set(range(model.n_datasets)) or {None}):
         model.geometry = None
     if m := re.search(rf"bkg((?:{_BKG_SLOT})+)", active):
-        model.background_terms = len(re.findall(_BKG_SLOT, m.group(1)))
+        refined, flags = False, []
+        for slot in re.finditer(_BKG_SLOT, m.group(1)):
+            refined = (slot["flag"] == "@") if slot["flag"] else refined
+            flags.append(refined)
+        model.background_terms = len(flags)
+        model.background_refined = any(flags)
     model.data_files = [d.strip() for d in re.findall(r'xdd\s+"?([^"\n]+)', active)]
 
     parsed_site_tokens = 0        # site *tokens* read into phases, not atoms
     #: Which dataset the `str` blocks below currently sit in. `None` until an
-    #: `xdd`-family opener is seen: the grammar makes `str` a child of `xdd`, but
-    #: a real file routinely supplies the dataset from a macro (`RAW(...)`,
-    #: `TOF_XYE(...)`), and inventing dataset 0 for a file that states none would
-    #: be a fact the reader made up.
+    #: `xdd`-family opener is seen: the grammar makes `str` a child of `xdd`, and
+    #: a dataset a macro supplies (`RAW(...)`, `TOF_XYE(...)`) is an opener too
+    #: (:data:`_DATASET_OPENERS`, WP-1530). A phase above every opener stays
+    #: `None`: inventing dataset 0 for a file that states none would be a fact
+    #: the reader made up.
     dataset: int | None = None
     # Repairs to surface on `diagnostics` (finding 4): a distinct rewritten
     # species keyed to its raw form, carrying every atom path it touched (the
@@ -3294,7 +3361,8 @@ def read_topas_inp(path: str | Path, *,
         covered.setdefault(m.group(1), set()).add(owner)
     # Set before the site-count guard's refusal has a chance to fire, so that on
     # every path where a model exists at all it carries its own coverage.
-    model.coverage = _coverage.classify(covered)
+    model.coverage = _coverage.classify(
+        covered, _unread_calls(_unquoted(active), stripped))
 
     # A file-level count of `site` tokens, computed over THE masked text and so
     # independent of how the file was split into blocks (WP-1118). A splitter
@@ -3384,6 +3452,20 @@ def read_topas_inp(path: str | Path, *,
                          f"list, and `model.phases` for what the file states"),
                 where=[f"coverage.reported.{h.feature.name}"
                        for h in model.coverage.reported]))
+        if model.coverage.unread_calls:
+            names = ", ".join(f"`{n}(…)`" for n in model.coverage.unread_calls)
+            diagnostics.append(Diagnostic(
+                level="warning", code="TOPAS_FEATURES_NOT_IMPORTED",
+                message=(f"{path}: the file calls {names}, which it does not "
+                         f"define and this reader does not read. A macro from "
+                         f"an include this reader has not seen and a misspelt "
+                         f"name look the same from here, and either way "
+                         f"whatever the call states is missing from the built "
+                         f"structure. A name this reader has no row for is listed "
+                         f"too, so a real library macro can appear here. "
+                         f"Read `model.coverage.unread_calls`"),
+                where=[f"coverage.unread_calls.{n}"
+                       for n in model.coverage.unread_calls]))
         if model.coverage.refused:
             diagnostics.append(Diagnostic(
                 level="warning", code="TOPAS_FEATURE_REFUSED",
