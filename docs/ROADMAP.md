@@ -105,7 +105,7 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 what `main` carries when it is cut, whichever milestones are complete by then
 (WP-1540, 2026-10-03). Its [record](milestones/v1.6.md) narrates what has
 landed since 1.5.0, and its notes are staged in
-[releases/1.5.1.md](releases/1.5.1.md), which takes its number at the cut.
+[releases/1.5.1.md](releases/1.6.0.md), which takes its number at the cut.
 
 **One milestone is open and three are queued, by name.** [magnetic](#magnetic--the-magnetic-structure)
 opened 2026-09-18 as v1.6; rietview, rigid-bodies and structure-solution were
@@ -341,7 +341,7 @@ The WPs are in [the index](wp/README.md#v1-5-what-the-package-says-about-itself)
 ### v1.5.x — after the ship
 
 Work landing while no milestone is open, staged in
-[releases/1.5.1.md](releases/1.5.1.md) the day it lands, because v1.4's ship
+[releases/1.5.1.md](releases/1.6.0.md) the day it lands, because v1.4's ship
 pass found two changes that had shipped with no record entry behind them. The
 1.0.x road is the precedent, ending included: written as a patch, folded into
 the next minor if one opens first. The road ends with WP-1540. A fix now lands
