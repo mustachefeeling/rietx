@@ -1,6 +1,6 @@
 # WP-1445 — the optics nobody declared: a source that cannot emit the line
 
-Milestone: unscheduled · Status: 🔄 2026-10-03 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-03 — the seven tasks landed; three follow-ups remain (see Handover log)
 Track: What fires, and what stays silent
 Depends on: — (1442 soft)
 Priority: P2 2026-09-23 — an X-ray ghost search fires on a neutron source; the schema decision is this WP's first task
@@ -127,6 +127,12 @@ already owns `mu_t`, `goniometer_radius_mm` and the aberration parameters, so
 - [x] Tests: the neutron pattern, the demo's mirror, and a fixture whose
       declared monochromator makes the search skip.
 
+- [ ] Follow-ups the review found: `auto_background` cannot be handed a
+      source (it needs a public argument, so `api.md` and the manual
+      partition move with it); the import wizard does not turn `beam_optics`
+      into `Source.kbeta` (and must tell an incident monochromator from a
+      diffracted-beam one); brml and rasx record no optics.
+
 ## Acceptance
 
 ```sh
@@ -145,6 +151,24 @@ already owns `mu_t`, `goniometer_radius_mm` and the aberration parameters, so
 - `src/rietx/io/CLAUDE.md` for what a reader may and may not repair.
 
 ## Handover log
+
+### 2026-10-03 — Source.kbeta, and the screen reads it
+
+An instrument can now say what stands between the tube and the detector as far as
+Kβ goes, and the ghost screen believes it. A neutron source and a diffracted-beam
+monochromator skip the Kβ and tungsten searches, which they had no business
+running. A filter or a mirror is recorded but changes nothing, because the screen
+still finds a leak injected at 2 % of Kα on two real patterns, so skipping on a
+filter would throw away real findings. Leaving the field empty means "nobody said",
+and the screen runs exactly as before.
+
+- **Done:** `Source.kbeta` (None, filter, monochromator, mirror); `bragg_brentano(monochromator_two_theta=)` sets it, so the 17 round-robin fixtures need no second declaration; `background.diagnostics.ghost_searches`; `source=` on `diagnose`, `contamination_flags_from_peaks`, `flag_ghosts`, and the two `pick_peaks` paths and the GUI splice; xrdml metadata `beam_optics` (element names only); manual row, skill bullet in `surprises.md`, help text; `tests/test_beam_optics.py` (12).
+- **Measured:** injection ladder on corundum and zincite, r = 0.14, 0.10, 0.05, 0.02: 8, 8, 8, 7 and 6, 6, 7, 7 Kβ lines flagged, undeclared source. Fast selection, `[dev]`, darwin/arm64: 8072 passed, 159 skipped (one pytest process of another session may have overlapped the timing; counts are unaffected). `tests/test_acceptance_indexing.py`: 44 passed, 13:42. Full suite not run: no measured number moves.
+- **Review (`/code-review high --fix`):** fixed a vacuous neutron test (its control also returned empty), replaced by one with a synthetic pattern that is flagged undeclared and silent under neutron and monochromator. Declined, with reasons: `auto_background` lacks a `source=` argument (I removed it to stay inside `api.md`'s cap; the manual now says where the skip applies); `ghost_searches` returns a tuple though only `()` or both occur (kept for tests and for a future narrowing); it reads `source` by `getattr` rather than `isinstance`; xrdml's `monochromator` does not tell incident from diffracted-beam.
+- **Dropped on purpose:** a `kbeta_filter=` preset argument (would cost the wizard a field and a rebuilt dist for a value that changes nothing).
+- **Gotchas:** skill caps are tight: `api.md` sits within bytes of its ceiling and `surprises.md` of its budget, so the next public name there pays with a cut. `--write-deferred` on `tests/api_surface` was run once and changed nothing. Lane trial: no item crossed 150K context with an estimate of 20 or more, so no lane was dispatched, and I did not write the `lanes: keep` lines, so the estimate comparison has no data.
+
+Next, in order: (1) `auto_background(source=)`, since it is the one library caller that cannot reach the skip; (2) the wizard maps `beam_optics` to `kbeta` only after deciding incident versus diffracted monochromator, which is the premise 1442 measured only for the second; (3) brml and rasx when a file shows the element.
 
 ### 2026-09-22 — filed
 

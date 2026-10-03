@@ -21,6 +21,7 @@ from rietx.background.diagnostics import (
     _KBETA,
     _W_LA1,
     contamination_flags_from_peaks,
+    diagnose,
     ghost_searches,
 )
 from rietx.io.formats.base import METADATA_KEYS
@@ -114,12 +115,27 @@ def test_a_document_without_the_field_loads_and_one_with_it_round_trips():
         Source.model_validate({**doc, "kbeta": "foil"})
 
 
-def test_a_real_neutron_pattern_reports_no_contamination_and_says_nothing_else():
-    data = rx.read_pattern(DATA / "mg090.Cu311.gsas")
-    from rietx.background import diagnose
+def _pattern_with_kbeta_ghosts() -> rx.PatternData:
+    """Ten strong lines and an unfiltered tube's Kβ image of each, as counts."""
+    tt = np.arange(15.0, 80.0, 0.01)
+    parents = np.array([21.0, 27.5, 33.0, 38.0, 43.5, 49.0, 54.0, 60.0, 66.0, 72.0])
+    amp = np.linspace(20000.0, 12000.0, len(parents))
+    ghosts = 2.0 * np.degrees(np.arcsin(
+        np.sin(np.radians(parents / 2.0)) * _KBETA["CuKa"] / LAM))
+    y = np.full_like(tt, 50.0)
+    for centre, a in [*zip(parents, amp), *zip(ghosts, RATIO * amp)]:
+        y += a * np.exp(-0.5 * ((tt - centre) / 0.04) ** 2)
+    counts = np.random.default_rng(0).poisson(y).astype(float)
+    return rx.PatternData(two_theta=tt, intensity=counts)
 
-    diag = diagnose(data, wavelength=1.5404, source=_neutron())
-    assert diag.contamination == []
+
+def test_diagnose_reads_the_declared_source():
+    # the control: undeclared flags the images, the declared sources do not
+    data = _pattern_with_kbeta_ghosts()
+    assert diagnose(data, wavelength=LAM).contamination
+    assert diagnose(data, wavelength=LAM, source=_neutron()).contamination == []
+    mono = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6).source
+    assert diagnose(data, wavelength=LAM, source=mono).contamination == []
 
 
 def test_the_xrdml_reader_names_the_optics_a_file_lists():
