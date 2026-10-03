@@ -233,6 +233,31 @@ given the skill asks for or infers the range before its first search.
   replay at these parameters: the selective policy (> 150K and ≥ 20 requests)
   saves 25 %.
 
+  *Review* (`/code-review high --fix`, 9 findings). Three are fixed:
+  - Duplicates are judged best-first, and only an unflagged copy owns a line.
+    The same components are flagged on all 16 patterns.
+  - A prior past both box edges names both values.
+  - `where` lists only the undeclared blocks.
+
+  Six are declined, and two of them are real and open:
+  - (5) A correctly set-up synchrotron instrument also has zero axial
+    apertures and the default profile, so the instrument-first lead
+    misfires there.
+  - (7) The documented two-step flow, `index_pattern(peaks)` with no
+    instrument, never sees the new suggestion.
+
+  The other four are design calls:
+  - Stale `duplicate_line` flags in the GUI editor after an owner moves.
+    Clearing them would undo a user's flag edits (WP-1043).
+  - The mean-FWHM tolerance. It moves six patterns' counts by one.
+  - Stopping the re-seed pass from proposing an owned line. That would
+    redesign the peak fitter.
+  - A `Cell.from_lengths_angles` that five sites could share.
+
+  Fast selection (`[dev]` venv, macOS): 8121 passed, 159 skipped, 1 failed.
+  The failure is main's `api.md` cap row. 10 tests were added, taking 3.74 s,
+  2.45 s of it the `cpd-4` count.
+
   *Not done.* `solution case 1`'s replay: the pattern is a collaborator's
   unpublished dataset and is not in this tree. The full suite was not run,
   because the acceptance file is already known red. Main's
@@ -244,8 +269,11 @@ given the skill asks for or infers the range before its first search.
   zircon direction check. Rows 1-2 need either an svd seed or agreement fix,
   which is an engine change and a non-goal here, or reverting `duplicate_line`
   from `PEAK_UNUSABLE_FLAGS` to a reported-only flag until that fix lands.
-  That choice is the maintainer's. (b) Ask for Kempster & Lipson (1972) and
-  Hofmann (2002), then do task 4 and task 6.
+  That choice is the maintainer's. (b) Review findings 5 and 7. Gate the
+  instrument-first lead on a lab source, and decide whether `pick_peaks`
+  records its instrument on the `PeakList` so the two-step flow sees it.
+  (c) Ask for Kempster & Lipson (1972) and Hofmann (2002), then do task 4
+  and task 6.
 
 - **2026-09-28** — created from the review of `solution case 1`, with
   WP-1511 to 1517. Nothing started.
