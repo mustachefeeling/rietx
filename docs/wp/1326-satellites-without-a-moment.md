@@ -176,6 +176,14 @@ not both be declared on one phase.
 - [ ] Source a public constant-wavelength neutron pattern with a published
       k ≠ 0 structure (search the maintainer's corpus first, then ask; the
       GSAS-II `Magnetic-III` … `-V` folders are the first place to look).
+      *Two candidates confirmed 2026-10-03*, each a CW neutron pattern under
+      the GSAS-II-tutorials `LICENSE` that the `gsas2_*.gpx` fixtures already
+      ship under: `Magnetic-III/data/Ba6Co6.xye` (+ `D1B.PRM`), Ba₆Co₆ClO₁₆ on
+      ILL D1B, k = (0, 0, ½) by the tutorial's own text; and
+      `Magnetic-IV/data/PrSrMnO.gda` (+ `Saclay 3T2.instprm`),
+      Pr₀.₅Sr₀.₅MnO₃ on LLB 3T2, k = (1, 0, 0) on the Fmmm cell (the
+      A-centring made magnetic). The published structure each answers to is
+      still to cite. WP-1343's acceptance 4 wants the same data.
 - [ ] Tests, including the acceptance below, with obs/calc/diff PNGs to
       `tests/output/`.
 
