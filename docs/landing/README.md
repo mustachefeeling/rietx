@@ -3,15 +3,19 @@
 The page served at `https://rietx.org/`, beside the manual at `/manual.html`.
 Written 2026-09-02 with Claude Code; entered the repository in WP-1331.
 `python build.py` writes `dist/index.html`, the whole page in one file, which is
-also what the mockup artifact shows.
+also what the mockup artifact shows. Since 2026-10-03 a second page sits beside
+it: `why.html`, the maintainer's essay, linked from a hero button and the footer
+rather than the top bar, which has no room for a fourth item at 320 px.
 
 ## What is here
 
 | path | what |
 |---|---|
-| `src/index.html` | the page: markup, CSS, JS. The one source. Placeholders `%%IMG:…%%`, `%%DEMO%%`, `%%TRANSCRIPT%%`, `%%FAVICON%%` |
+| `src/shell.html` | what every page shares: the stylesheet, the top bar, the theme control, the footer. Placeholders `%%TITLE%%`, `%%DESCRIPTION%%`, `%%NOTE%%` (from `build.PAGES`), `%%MAIN%%` (the page), `%%FAVICON%%` |
+| `src/index.html` | the landing page's `<main>` and its scripts: the hero's copy buttons and quickstart disclosure, the animation. Placeholders `%%IMG:…%%`, `%%DEMO%%`, `%%TRANSCRIPT%%`. The hero draws a command to copy flat and tinted, like code, and every bordered box as a button or a link. The agent quickstart is a `<details>` on its own line whose button grows into the prompt; any `#quickstart` link opens it too. Its prompt is written once, as markup, and `tests/test_landing.py` runs its install and skill commands |
+| `src/why.html` | the essay's `<main>`. The words are the maintainer's, verbatim; only the links were added |
 | `src/favicon.svg` | the manual's favicon recoloured to the accent (`#d8660c` light, `#ff9d4d` dark) |
-| `build.py` | `python build.py` → `dist/index.html` (everything inlined); `python build.py --site` → `site/` with `img/`, `data/`, `favicon.svg` |
+| `build.py` | `python build.py` → `dist/<page>.html` (everything inlined); `python build.py --site` → `site/` with every page, `img/`, `data/`, `favicon.svg`. `PAGES` lists the pages, each with its title, description and footer line; a new page is a row there and a file in `src/` |
 | `build_demo.py` | `python build_demo.py <bundle dir> data/demo.json 2` — the animation payload from the contributor's `curves.npz` + `metadata.csv`, decimated by the third argument (**always 2** for the committed file; see § The payload below). Refuses to write if any filename, scan index or specimen token from the bundle reaches the output |
 | `data/transcript.json` | what the pane shows around the log: `prompt` (the run's prompt, cut to a few lines), `head` (the stdout before the series), `marks` (lines that land on a given frame: the chunk boundaries, the finalise summary), `report` (the agent's closing words, cut) and `note`. Cuts are marked `[…]`, file names and paths are bracketed stand-ins. `python tools/check_transcript.py <bundle dir> data/transcript.json` refuses any pattern filename, scan index, specimen tag, machine path or person from the bundle |
 | `data/demo.json` | the built payload, **committed**, 0.99 MB: 275 × 649 obs and calc as base64 Int16, weight fractions, the gas/temperature programme. Each frame carries `t` (the file's clock, s) and `tm` (the plotted clock, min: the six pauses of 18–58 min between scans count as one 74 s interval; `pauses` lists them). Phases carry `name`, `html` and `support`; the three support phases are named `support 1`–`3` rather than by formula: `build_demo.phase_columns` takes their columns from the bundle's own header, in header order, so their names are in neither the payload nor the builder — and deliberately not in `build.LEAK` either, since a denylist publishes what it denies. Segments carry the atmosphere text and a colour `key` (`n2`, `h2`, `air`). `decimation` and `steps_per_fwhm` record the redaction. No filenames |

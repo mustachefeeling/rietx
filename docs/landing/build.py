@@ -1,9 +1,12 @@
-"""Assemble the landing page.
+"""Assemble the landing page and the pages beside it.
 
-  python build.py            -> dist/index.html   everything inlined (one file; what the artifact shows)
-  python build.py --site     -> site/             index.html + img/ + data/demo.json, for a web server
+  python build.py            -> dist/<page>.html  everything inlined (one file a page; what the artifact shows)
+  python build.py --site     -> site/             every page + img/ + data/demo.json, for a web server
 
-`src/index.html` is the one source.  `%%IMG:name%%` becomes a data URI (inline) or
+`src/shell.html` is what every page shares: the stylesheet, the top bar, the theme control
+and the footer.  Each page in PAGES is a `<main>` (and any script of its own) in `src/`,
+dropped into the shell at `%%MAIN%%`; the table gives its title, its description and the
+footer's line saying who wrote it.  `%%IMG:name%%` becomes a data URI (inline) or
 `img/<name>.png` (site); `%%DEMO%%` is data/demo.json inline, or empty for the site build,
 where the page fetches data/demo.json at load; `%%TRANSCRIPT%%` is data/transcript.json
 when it exists, else empty and the page draws its placeholder.
@@ -12,10 +15,32 @@ import base64
 import re
 import shutil
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SRC = HERE / "src" / "index.html"
+SHELL = HERE / "src" / "shell.html"
+
+
+@dataclass(frozen=True)
+class Page:
+    title: str
+    description: str
+    note: str          # the footer's line: who wrote the page, Claude named in every one
+
+
+_YUE = '<a href="https://github.com/yue-here">@yue-here</a>'
+#: Every page the site serves at its root, keyed by its file name in `src/` and in the output.
+PAGES = {
+    "index.html": Page(
+        "rietx",
+        "rietx: Rietveld refinement of powder diffraction data, driven from Python and by agents.",
+        f"Page written by Claude with edits by {_YUE}."),
+    "why.html": Page(
+        "Why rietx?",
+        "Why rietx exists: a note from its author on writing scientific software with AI agents, and for them.",
+        f"Essay by {_YUE}. Page built by Claude."),
+}
 IMAGES = {"fap-light": "img/fap-light.png", "fap-dark": "img/fap-dark.png",
           "gui-light": "img/gui-history-light.png", "gui-dark": "img/gui-history-dark.png"}
 DEMO = HERE / "data" / "demo.json"
@@ -79,26 +104,30 @@ DOCUMENT = """<!doctype html>
 """
 
 
-def assemble(site: bool) -> str:
-    html = SRC.read_text(encoding="utf-8")
+def assemble(site: bool, name: str = "index.html") -> str:
+    page = PAGES[name]
+    html = SHELL.read_text(encoding="utf-8")
+    html = html.replace("%%MAIN%%", (HERE / "src" / name).read_text(encoding="utf-8").strip())
+    html = (html.replace("%%TITLE%%", page.title).replace("%%DESCRIPTION%%", page.description)
+            .replace("%%NOTE%%", page.note))
     fav = HERE / "src" / "favicon.svg"
     html = html.replace("%%FAVICON%%", "favicon.svg" if site else data_uri(fav))
     for name, rel in IMAGES.items():
         html = html.replace(f"%%IMG:{name}%%", rel if site else data_uri(HERE / rel))
-    if not site and not DEMO.exists():
+    if not site and "%%DEMO%%" in html and not DEMO.exists():
         # The inline build is the one-file artifact, whose whole point is the payload;
         # absent, say so rather than raising FileNotFoundError from inside a replace.
         # (`--site` is the build where absent is a legitimate state — see __main__.)
         raise SystemExit(f"no payload at {DEMO} — the inline build needs one; "
                          f"`build.py --site` is the build that does not")
-    demo = "" if site else DEMO.read_text(encoding="utf-8")
-    html = html.replace("%%DEMO%%", demo)
+    if "%%DEMO%%" in html:
+        html = html.replace("%%DEMO%%", "" if site else DEMO.read_text(encoding="utf-8"))
     tr = TRANSCRIPT.read_text(encoding="utf-8").strip() if TRANSCRIPT.exists() else ""
     html = html.replace("%%TRANSCRIPT%%", tr)
-    assert "%%" not in html, "unfilled placeholder"
+    assert "%%" not in html, f"unfilled placeholder in {name}"
     bad = leaks(html)
     if bad:
-        raise SystemExit(f"leak: {bad[:5]} in the page")
+        raise SystemExit(f"leak: {bad[:5]} in {name}")
     return DOCUMENT.format(body=html) if site else html
 
 if __name__ == "__main__":
@@ -118,9 +147,11 @@ if __name__ == "__main__":
             shutil.copy(DEMO, out / "data" / "demo.json")
         if TRANSCRIPT.exists():
             shutil.copy(TRANSCRIPT, out / "data" / "transcript.json")
-        (out / "index.html").write_text(assemble(True), encoding="utf-8")
+        for name in PAGES:
+            (out / name).write_text(assemble(True, name), encoding="utf-8")
     else:
         out = HERE / "dist"
         out.mkdir(exist_ok=True)
-        (out / "index.html").write_text(assemble(False), encoding="utf-8")
+        for name in PAGES:
+            (out / name).write_text(assemble(False, name), encoding="utf-8")
     print("wrote", out)

@@ -80,8 +80,19 @@ def build_demo():
 
 @pytest.fixture(scope="module")
 def site_html(build) -> str:
-    """The site build's bytes, assembled without writing anything."""
+    """The landing page's site build, assembled without writing anything."""
     return build.assemble(True)
+
+
+#: Every page `build.py` serves, read off its own table so a new page is covered by
+#: adding it there.
+PAGE_NAMES = list(_build_module().PAGES)
+
+
+@pytest.fixture(scope="module", params=PAGE_NAMES)
+def any_page(request, build) -> tuple[str, str]:
+    """(name, site build) for each page in turn."""
+    return request.param, build.assemble(True, request.param)
 
 
 # ----------------------------------------------------------------------
@@ -90,7 +101,9 @@ def site_html(build) -> str:
 
 #: path -> must it be ignored?
 IGNORE_EXPECTED = {
-    "docs/landing/src/index.html": False,      # the one source
+    "docs/landing/src/shell.html": False,      # what every page shares
+    "docs/landing/src/index.html": False,      # the landing page's own body
+    "docs/landing/src/why.html": False,
     "docs/landing/build.py": False,
     "docs/landing/README.md": False,
     "docs/landing/img/fap-light.png": False,   # committed figure, under a repo-wide *.png
@@ -100,6 +113,8 @@ IGNORE_EXPECTED = {
     "docs/landing/preview.html": True,         # built page, payload inlined
     "docs/landing/dist/index.html": True,
     "docs/landing/site/index.html": True,
+    "docs/landing/site/why.html": True,
+    "docs/landing/dist/why.html": True,
 }
 
 
@@ -235,27 +250,38 @@ def test_the_support_phases_ship_unnamed(build_demo):
     assert [sup for *_, sup in cols] == [False] * len(named) + [True, True]
 
 
-def test_no_leak_token_reaches_the_built_page(site_html, build):
+def test_no_leak_token_reaches_a_built_page(any_page, build):
     """`build.py` raises on a leak at build time; this is the same question
     asked of the assembled bytes, so a change to `leaks()` that stopped
     raising would still be caught."""
-    assert build.leaks(site_html) == []
+    name, page = any_page
+    assert build.leaks(page) == [], name
 
 
-def test_every_placeholder_is_filled(site_html):
-    assert "%%" not in site_html
+def test_every_placeholder_is_filled(any_page):
+    name, page = any_page
+    assert "%%" not in page, name
+
+
+def test_every_page_says_claude_wrote_it(any_page):
+    """Anything published under the maintainer's name carries a line saying Claude
+    wrote it, and the shell's footer is where each page says so.  The line is per
+    page because the pages differ: the essay's words are the maintainer's own."""
+    name, page = any_page
+    notes = re.findall(r'<span class="note">(.*?)</span>', page, re.S)
+    assert len(notes) == 1 and "Claude" in notes[0], f"{name}: {notes}"
 
 
 # ----------------------------------------------------------------------
 # What the site build has to be for a web server
 # ----------------------------------------------------------------------
 
-def test_the_site_build_is_a_document_not_a_fragment(site_html):
+def test_the_site_build_is_a_document_not_a_fragment(any_page):
     """The source is authored for the Artifact runtime, which supplies the
     skeleton and refuses a file that brings its own.  A web server supplies
     none of it: without the charset every `·`, `°C` and `θ` on the page is
     mojibake unless the server happens to say utf-8."""
-    head = site_html[:400].lower()
+    head = any_page[1][:400].lower()
     assert head.startswith("<!doctype html>")
     assert '<meta charset="utf-8">' in head
     assert "width=device-width" in head
@@ -265,7 +291,8 @@ def test_the_inline_build_stays_a_fragment(build):
     """...and the other build must NOT gain one, or the artifact publish gets a
     document inside a document."""
     assert build.DEMO.exists(), "the payload is committed; this should not be conditional"
-    assert not build.assemble(False).lstrip().lower().startswith("<!doctype")
+    for name in build.PAGES:
+        assert not build.assemble(False, name).lstrip().lower().startswith("<!doctype"), name
 
 
 def test_the_page_fetches_the_payload_it_does_not_inline(site_html):
@@ -286,12 +313,13 @@ def _links(page: str) -> list[str]:
     return re.findall(r'(?:href|src)="([^"]+)"', page)
 
 
-def test_no_link_means_the_manual_and_lands_on_this_page(site_html):
+def test_no_link_means_the_manual_and_lands_on_this_page(any_page):
     """`/` is the landing page since WP-1331 and the manual is `/manual.html`.
     Three links in the page meant "the manual" and pointed at the site root."""
-    roots = [a for a in _links(site_html) if a.rstrip("/") == "https://rietx.org"]
+    name, page = any_page
+    roots = [a for a in _links(page) if a.rstrip("/") == "https://rietx.org"]
     assert len(roots) == 1, (
-        f"{len(roots)} links point at the site root; exactly one may (the brand, "
+        f"{name}: {len(roots)} links point at the site root; exactly one may (the brand, "
         f"which does mean 'home').  A link meaning the manual is "
         f"https://rietx.org/manual.html."
     )
@@ -306,18 +334,30 @@ def test_the_manual_still_gives_up_index_html():
     assert not (REPO_ROOT / "docs" / "manual" / "index.md").exists()
 
 
-def test_every_relative_link_resolves_to_something_the_build_writes(site_html, build):
-    """A root-relative or bare link in the page has to name a file
-    `build.py --site` puts beside it.  Derived from build.py's own tables, so a
-    new image is covered by adding it there."""
+def test_every_relative_link_resolves_to_something_the_build_writes(any_page, build):
+    """A root-relative or bare link in a page has to name a file
+    `build.py --site` puts beside it, and a fragment has to name an id the page
+    it points into carries: the hero's quickstart is reached by `#quickstart`
+    from wherever a link to it sits.  Derived from build.py's own tables, so a
+    new image or a new page is covered by adding it there."""
+    name, page = any_page
     written = {"favicon.svg", "data/demo.json", "data/transcript.json"}
-    written |= set(build.IMAGES.values())
-    for link in _links(site_html):
-        if link.startswith(("http://", "https://", "#", "data:", "mailto:")):
+    written |= set(build.IMAGES.values()) | set(build.PAGES)
+    for link in _links(page):
+        if link.startswith("#"):
+            assert f'id="{link[1:]}"' in page, f"{name}: {link!r} names an id the page does not carry"
             continue
-        assert link.lstrip("/") in written, (
-            f"{link!r} is not written by build.py --site (it writes {sorted(written)})"
+        if link.startswith(("http://", "https://", "data:", "mailto:")):
+            continue
+        path, _, fragment = link.partition("#")
+        path = path.lstrip("/")
+        path = "index.html" if path in ("", ".", "./") else path.removeprefix("./")
+        assert path in written, (
+            f"{name}: {link!r} is not written by build.py --site (it writes {sorted(written)})"
         )
+        if fragment:
+            assert f'id="{fragment}"' in build.assemble(True, path), (
+                f"{name}: {link!r} names an id {path} does not carry")
 
 
 # ----------------------------------------------------------------------
@@ -358,7 +398,47 @@ def test_build_py_site_runs_and_writes_the_files_it_names(build):
     )
     assert result.returncode == 0, f"build.py --site failed:\n{result.stdout}\n{result.stderr}"
     site = LANDING / "site"
-    assert (site / "index.html").is_file()
+    for name in build.PAGES:
+        assert (site / name).is_file(), f"build.py --site wrote no {name}"
     assert (site / "favicon.svg").is_file()
     for rel in build.IMAGES.values():
         assert (site / rel).is_file(), f"build.py --site wrote no {rel}"
+
+
+# ----------------------------------------------------------------------
+# The agent quickstart: a prompt somebody pastes, so every command in it runs
+# ----------------------------------------------------------------------
+
+def _prompt(site_html: str) -> tuple[str, list[str]]:
+    """The quickstart prompt's text, and every `code` span in it."""
+    block = re.search(r'<div class="qs-prompt" id="qs-prompt">(.*?)</div>', site_html, re.S)
+    assert block, "no quickstart prompt on the landing page"
+    codes = [_html.unescape(c) for c in re.findall(r"<code>(.*?)</code>", block.group(1))]
+    return _html.unescape(re.sub(r"<[^>]+>", "", block.group(1))), codes
+
+
+def test_the_quickstart_installs_this_package_from_where_it_lives(site_html):
+    """Both install lines name the real package: the PyPI one by the distribution
+    name, the GitHub one by the repository `_about` publishes.  The Python floor
+    the prompt quotes is pyproject's, which is what pip enforces."""
+    about = pytest.importorskip("rietx._about")
+    text, codes = _prompt(site_html)
+    assert f"pip install {about.DIST_NAME}" in codes
+    assert f"pip install git+{about.REPO_URL}" in codes
+    floor = re.search(r'requires-python = ">=(\d+\.\d+)"',
+                      (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")).group(1)
+    assert f"Python {floor} or newer" in text, f"the prompt does not quote Python {floor}"
+
+
+def test_the_quickstart_skill_command_writes_the_file_it_says_to_read(site_html, tmp_path, monkeypatch):
+    """`rietx skill --install`, run where the prompt runs it (the data folder),
+    has to leave a SKILL.md at the path the prompt then tells the agent to read.
+    Run through the CLI rather than `skill.install`, because the command is what
+    the agent types."""
+    cli = pytest.importorskip("rietx.cli")
+    _, codes = _prompt(site_html)
+    command = next(c for c in codes if c.startswith("rietx skill"))
+    path = next(c for c in codes if c.endswith("SKILL.md"))
+    monkeypatch.chdir(tmp_path)
+    assert cli.main(command.split()[1:]) == 0
+    assert (tmp_path / path).is_file(), f"{command!r} wrote no {path}"
