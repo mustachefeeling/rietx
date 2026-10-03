@@ -1253,6 +1253,7 @@ from rietx.io.projects import coverage
 | `Feature.macros` | the format's library macros that state the same construct, met wherever the file invokes one |
 | `Hit.feature`, `Hit.keywords`, `Hit.phases` | one construct actually met in a file, and where |
 | `Coverage.reported`, `Coverage.refused`, `Coverage.partial` | the hits of each kind |
+| `Coverage.unread_calls` | the names the file calls as `name(…)` that it neither defines nor has a row for, and the reader does not read: a macro from an include it has not seen, or a misspelt one. A bare misspelt keyword (`lor_fwhmm 0.1`) is not covered |
 | `Coverage.summary`, `Coverage.summary_of` | those hits in a sentence |
 
 A refused construct raises, naming the file and the line. A reported one

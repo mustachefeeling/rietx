@@ -93,10 +93,10 @@ manual's wording changes with it.
       `.inp`, so the corpus measurement is the private map's and was not made;
       what it moves is stated in `_DATASET_OPENERS`' comment (a lone macro's
       phase is dataset 0, not `None`)
-- [ ] Undefined calls and unknown keywords (#651), as decided
+- [x] Undefined calls and unknown keywords (#651), as decided
 - [x] A held `bkg` list (#652), as decided, with `using/files.md`
-- [ ] Tests: the three reproductions in the issues, each with its positive arm
-- [ ] Skill: the `TOPAS_FEATURES_NOT_IMPORTED` row in
+- [x] Tests: the three reproductions in the issues, each with its positive arm
+- [x] Skill: the `TOPAS_FEATURES_NOT_IMPORTED` row in
       `references/diagnostics-projects.md` stops implying a complete import
       when `coverage.partial` is `False`, if what lands makes that so
 

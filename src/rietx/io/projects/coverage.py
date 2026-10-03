@@ -464,12 +464,20 @@ class Coverage:
     #: is how a caller finds out what the file states.
     #: :func:`~rietx.io.projects.topas.to_structure` is what refuses.
     refused: tuple[Hit, ...] = ()
+    #: Names the file **calls** as ``name(…)`` that it does not define, that
+    #: carry no row here and that the reader does not read (WP-1530, #651).
+    #: A user's own include and a misspelt macro look the same from outside,
+    #: which is why the wording is "called and not read" and nothing stronger.
+    #: A bare identifier in keyword position (``lor_fwhmm 0.1``) is **not**
+    #: covered: telling a keyword from a parameter name in value position needs
+    #: the grammar, and TOPAS itself stops on such a line.
+    unread_calls: tuple[str, ...] = ()
 
     @property
     def partial(self) -> bool:
         """True where the file states something about the model this import does
         not carry."""
-        return bool(self.reported or self.refused)
+        return bool(self.reported or self.refused or self.unread_calls)
 
     def summary(self) -> str:
         """One line naming what was not imported, for a diagnostic message."""
@@ -482,7 +490,8 @@ class Coverage:
         return "; ".join(str(h) for h in hits)
 
 
-def classify(found: dict[str, set[str]]) -> Coverage:
+def classify(found: dict[str, set[str]],
+             unread_calls: tuple[str, ...] = ()) -> Coverage:
     """Sort keywords into stances. ``found`` maps a keyword or a macro name to
     the phase names that stated it, ``""`` for one stated outside any phase.
 
@@ -501,4 +510,4 @@ def classify(found: dict[str, set[str]]) -> Coverage:
                   else refused if feat.stance is Stance.REFUSED else None)
         if bucket is not None:
             bucket.append(Hit(feat, tuple(hits), tuple(phases)))
-    return Coverage(tuple(reported), tuple(refused))
+    return Coverage(tuple(reported), tuple(refused), tuple(unread_calls))

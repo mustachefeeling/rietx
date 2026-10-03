@@ -4279,3 +4279,32 @@ def test_one_macro_opened_dataset_is_dataset_zero_and_a_bare_name_is_not_a_call(
     assert len(to_structure(model).phases) == 1
     bare = read_topas_inp(_inp(tmp_path, "bare.inp", 'xdd "a.xye"\nXY 1\n' + _ONE_PHASE))
     assert bare.n_datasets == 1
+
+
+@pytest.mark.parametrize("line, name", [
+    ("Peak_Shape_Macro(0.1)", "Peak_Shape_Macro"),
+    ("My_Include_Macro(1, 2)", "My_Include_Macro"),
+])
+def test_a_call_to_a_name_nothing_defines_is_reported(tmp_path, line, name):
+    """#651: an undefined macro call was dropped with `partial=False` and no
+    diagnostic, indistinguishable from the control."""
+    diagnostics: list = []
+    model = read_topas_inp(_inp(tmp_path, "undef.inp",
+                                f'xdd "a.xye"\n{line}\n' + _ONE_PHASE),
+                           diagnostics=diagnostics)
+    assert model.coverage.unread_calls == (name,)
+    assert model.coverage.partial
+    hits = [d for d in diagnostics if d.code == "TOPAS_FEATURES_NOT_IMPORTED"]
+    assert len(hits) == 1 and f"`{name}(…)`" in hits[0].message
+
+
+def test_a_defined_macro_a_read_macro_and_an_equation_are_not_unread_calls(tmp_path):
+    """The positive arm: the file's own macro, a registry macro, a cell macro,
+    an emission macro, a data macro and an equation function all pass."""
+    inp = _inp(tmp_path, "defined.inp",
+               'macro My_Shape(w) { lor_fwhm w }\n'
+               'RAW(a)\n  CuKa2(0.0001)\n  My_Shape(0.1)\n  Zero_Error(0)\n'
+               'str\nphase_name "A"\nspace_group "P m -3 m"\nCubic(4.0)\n'
+               'prm t = Sin(1) + Max(1, 2);\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    assert read_topas_inp(inp).coverage.unread_calls == ()

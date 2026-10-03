@@ -199,6 +199,38 @@ _MACRO_CALL = re.compile(
                               key=len, reverse=True)) + r")\s*\(")
 
 
+#: A call, ``name(``, anywhere in the text. Not preceded by ``.`` or a word
+#: character, so the tail of a longer name is not a call.
+_ANY_CALL = re.compile(r"(?<![\w.])([A-Za-z_]\w*)\s*\(")
+
+#: The names a call may carry without the reader owing the caller a word: the
+#: equation functions, and the calls this reader reads by name elsewhere. The
+#: registry's macros, the file's own ``macro`` definitions and the dataset,
+#: cell and emission macros are added at the scan (:func:`_unread_calls`).
+_EQUATION_FUNCTIONS = frozenset({
+    "Abs", "Sin", "Cos", "Tan", "Asin", "Acos", "Atan", "Atan2", "Sinh", "Cosh",
+    "Tanh", "Exp", "Ln", "Log", "Sqrt", "Mod", "Min", "Max", "If", "Get", "Val",
+    "Sign", "Floor", "Ceil", "Int", "Radius", "STR", "TOF_XYE", "TOF_GSAS"})
+
+
+def _unread_calls(unquoted: str, stripped: str) -> tuple[str, ...]:
+    """The names ``unquoted`` calls that nothing here defines or reads (#651).
+
+    TOPAS stops on an undefined macro ("unknown or misplaced keyword"), so a
+    file reaching this reader either defines the name in an include the reader
+    does not have or has a typo, and the structure built from it is the same
+    in both cases: missing whatever the call states.
+    """
+    known = (_EQUATION_FUNCTIONS | _coverage.MACROS | set(_CELL_MACROS)
+             | set(_DATASET_MACROS)
+             | set(re.findall(r"\bmacro\s+(\w+)", stripped)))
+    return tuple(sorted({
+        m.group(1) for m in _ANY_CALL.finditer(unquoted)
+        if m.group(1) not in known
+        and m.group(1).rstrip("_") not in known
+        and not re.fullmatch(r"(?:Cu|Co|Cr|Fe|Mo|Ag)Ka\d?", m.group(1))}))
+
+
 def _unquoted(text: str) -> str:
     """``text`` with its ``"…"`` strings blanked, offset-for-offset, so a macro
     name inside a path or a phase name is not an invocation."""
@@ -3319,7 +3351,8 @@ def read_topas_inp(path: str | Path, *,
         covered.setdefault(m.group(1), set()).add(owner)
     # Set before the site-count guard's refusal has a chance to fire, so that on
     # every path where a model exists at all it carries its own coverage.
-    model.coverage = _coverage.classify(covered)
+    model.coverage = _coverage.classify(
+        covered, _unread_calls(_unquoted(active), stripped))
 
     # A file-level count of `site` tokens, computed over THE masked text and so
     # independent of how the file was split into blocks (WP-1118). A splitter
@@ -3409,6 +3442,19 @@ def read_topas_inp(path: str | Path, *,
                          f"list, and `model.phases` for what the file states"),
                 where=[f"coverage.reported.{h.feature.name}"
                        for h in model.coverage.reported]))
+        if model.coverage.unread_calls:
+            names = ", ".join(f"`{n}(…)`" for n in model.coverage.unread_calls)
+            diagnostics.append(Diagnostic(
+                level="warning", code="TOPAS_FEATURES_NOT_IMPORTED",
+                message=(f"{path}: the file calls {names}, which it does not "
+                         f"define and this reader does not read. A macro from "
+                         f"an include this reader has not seen and a misspelt "
+                         f"name look the same from here, and either way "
+                         f"whatever the call states is missing from the built "
+                         f"structure. TOPAS itself stops on an undefined one. "
+                         f"Read `model.coverage.unread_calls`"),
+                where=[f"coverage.unread_calls.{n}"
+                       for n in model.coverage.unread_calls]))
         if model.coverage.refused:
             diagnostics.append(Diagnostic(
                 level="warning", code="TOPAS_FEATURE_REFUSED",
