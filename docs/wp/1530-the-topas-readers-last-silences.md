@@ -1,6 +1,6 @@
 # WP-1530 — the TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background
 
-Milestone: unscheduled · Status: 🔄 2026-10-03 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-03 — #616, #651 and #652 landed; the reference-derived allowlist for #651 remains
 Track: Coming from another code
 Depends on: — (1433 soft: the same reader, its `STR(...)` and `#if` work landed in PR #587)
 Priority: P2 2026-10-02 — two of the three are a model built wrong with nothing said, on a reader path few fits run
@@ -100,6 +100,14 @@ manual's wording changes with it.
       `references/diagnostics-projects.md` stops implying a complete import
       when `coverage.partial` is `False`, if what lands makes that so
 
+- [ ] The unread-call allowlist from the Technical Reference's macro and
+      function index: `LP_Factor`, `Rp_Peak` and similar real library macros
+      are reported today as unread. Model-bearing ones get registry rows
+      (REPORTED), the rest join the allowlist
+- [ ] `data_files` for a macro-opened dataset (`RAW(a)` gives `n_datasets` 2 and
+      `data_files` `[]`), and one source for the data-macro list in
+      `_UNSEEN_DATASETS` and `_DATASET_MACROS`
+
 ## Acceptance
 
 Each issue's reproduction gives the corrected answer, and each positive arm
@@ -116,6 +124,16 @@ still passes.
   data-file macros that state `xdd`). Paper and manual only; TOPAS is closed.
 
 ## Handover log
+
+- **2026-10-03** — Three silences of the TOPAS `.inp` reader are closed. A file that opens its datasets with a data macro (`RAW(a)`, `XYE(b)`, …) now reads as that many datasets, so two specimens are no longer built into one structure. A call to a macro the file never defines is reported, where it was dropped without a word. A held `bkg` list now says how many coefficients it has and that none is refined. One piece is unfinished and is the next job. The "undefined call" report also lists real TOPAS library macros the reader has no row for (`LP_Factor`, for one), so it can name something that is not a typo. Only the reference's macro index can fix that.
+
+  **Done.** #616: `_DATASET_MACROS` joins `_DATASET_OPENERS` and `_BLOCK`, matched only as a call so a bare `XY` is not one and `registry`'s claim pattern is unchanged. A lone macro's phase is dataset 0 now, not `None`. #652: `TopasModel.background_refined` beside `background_terms`; the `@`/`!` marker sticks until the other appears. #651: `Coverage.unread_calls` and a second `TOPAS_FEATURES_NOT_IMPORTED` diagnostic, with the bare-keyword limit stated in the field's comment. Manual rows and the skill row updated, three skill copies synced.
+
+  **Measured.** The corpus measurement the task asked for was not made: `tests/data/` holds no `.inp`, and the corpus is the private map's. The effect is stated in the code instead (dataset 0 for a lone macro). Fast selection on this branch (`.venv`, `[dev]`, macOS arm64): 8074 passed, 159 skipped, after three manual-API failures from the undocumented new field, fixed and re-run green (192 in the manual, skill and docs files). The 17 tests this session added are all in `tests/test_projects_topas.py`; no pre-session baseline was taken, so the passed+skipped delta is not checked. The full selection did not run: nothing it measures (acceptance numbers) is reachable from the reader. No lanes were dispatched; the session never passed 150K before its last item.
+
+  **Review pass.** `/code-review high --fix` made three fixes (a refusal message and a comment that contradicted the new opener, a no-op `replace` in a test). I applied one more from it: `Log10`, `Pow`, `Rand`, `Rad`, `Deg` and `Out_*`/`Create_*` calls are no longer unread, and the diagnostic no longer says TOPAS stops on an undefined one. Declined for now, and listed as the two new tasks: the reference-derived allowlist, `data_files` for macro datasets, and one source for the data-macro list.
+
+  **Gotchas.** `_UNSEEN_DATASETS` still refuses a `for xdds` loop in a file with a macro dataset, though the dataset is now counted; no file exercises the expansion, so it was left. Next: take the two open tasks, starting with the allowlist, since it decides whether the second diagnostic is trustworthy; it needs the Technical Reference's macro index.
 
 - **2026-10-02** — created, from the 2026-10-02 issue triage (issues #616,
   #651, #652). Checked against the tree at `ca9bda29`: #616's file reads
