@@ -912,7 +912,7 @@ b is 3.449 fm for Al and 5.803 fm for O (Sears's table, which is what
 `b_Sears.dat` holds). On synthetic corundum patterns with a known answer, the
 X-ray pattern alone determined z(Al) about three times better than the neutron
 pattern alone, and x(O) about as well. Refined jointly, the esd of z(Al) was
-0.94 to 0.97 of the X-ray pattern's own, and the esd of x(O) 0.64 to 0.68 of it.
+0.95 to 0.97 of the X-ray pattern's own, and the esd of x(O) 0.58 to 0.69 of it.
 The neutron histogram bought the oxygen and left the aluminium to the X-rays.
 In the same fits the two scales, 3.5 times apart, and two zero shifts of
 opposite sign each came back on their own histogram's value.
@@ -1158,8 +1158,8 @@ of `MultiHistogramRefinement.fitted_structures`, a = 4.156604 Å against the
 4.15660 Å the patterns were built from and +1.0 ppm out, while the per-histogram
 zero
 shifts separated correctly, 0.006019° and −0.009974° against the 0.006° and
-−0.010° that went in. Its esd was 3.26 × 10⁻⁶ Å, against 6.36 × 10⁻⁶ and
-3.80 × 10⁻⁶ from the two patterns refined singly: 1.95× and 1.16× better than
+−0.010° that went in. Its esd was 2.43 × 10⁻⁶ Å, against 4.70 × 10⁻⁶ and
+2.83 × 10⁻⁶ from the two patterns refined singly: 1.94× and 1.17× better than
 either alone, which is the joint fit's whole argument.
 
 Those numbers come from synthetic patterns with known answers, so the comparison

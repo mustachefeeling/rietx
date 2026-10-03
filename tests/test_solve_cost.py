@@ -667,8 +667,13 @@ def test_the_harmonic_is_not_refused_under_scale_or_on_the_solved_phase(harmonic
     SolveCost.from_model(compile_model(two, ins, data, mode="rietveld"),
                          _values(two, ins), nuisance="scale")
     one = rx.Structure(phases=[_caf2()])
-    model = compile_model(one, ins, data, mode="rietveld")
     v = _values(one, ins)
+    # The data carry the phase.  On the flat pattern the background explains
+    # everything, so the projected data are rounding noise (|b| ~ 1e-14) and the
+    # scale's sign with them: it came out 0.0 on Windows on 2026-10-02 (WP-1541).
+    y = np.asarray(compile_model(one, ins, data, mode="rietveld").evaluate(v))
+    data = PatternData(two_theta=data.two_theta, intensity=list(y))
+    model = compile_model(one, ins, data, mode="rietveld")
     cost = SolveCost.from_model(model, v, nuisance="pawley")
     beyond = np.asarray(model.phases[0].reflections.d) < 2.4 / 2
     assert np.sum(beyond & _in_range(model.phases[0])) > 10
@@ -678,4 +683,6 @@ def test_the_harmonic_is_not_refused_under_scale_or_on_the_solved_phase(harmonic
                 solve_cost.omega_lines(bmodel, 0, _values(blind, ins))[0])
     assert np.all(omega.getnnz(axis=0)[beyond & _in_range(model.phases[0])] > 0)
     assert _omega_residual(model, omega, v, [v]) <= OMEGA_BAR
-    assert cost.chi2(_f2(model, v))[1] > 0
+    # Scale 1 to rounding means every line's reflections are in the cost: one
+    # dropped λ/2-only reflection leaves its peak unexplained and moves it.
+    assert cost.chi2(_f2(model, v))[1] == pytest.approx(1.0, rel=1e-9)

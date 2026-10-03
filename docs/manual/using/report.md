@@ -411,7 +411,7 @@ carries `ExchangeRow`, the report carries the richer `ExchangeFinding` below.
 | `SoftMode.eigenvalue` | the eigenvalue of the scale-normalised normal matrix; small is soft |
 | `SoftMode.loadings` | dot-path → component, so the mode reads as a combination |
 
-Measured on the NAC Rietveld fit: esd inflation 8.0 at d = 0.18, and the softest
+Measured on the NAC Rietveld fit: esd inflation 8.1 at d = 0.18, and the softest
 mode has eigenvalue 0.0032 loading +0.80 on `instrument.profile.v` against −0.43
 and −0.41 on `instrument.profile.u` and `instrument.profile.w`. That is the
 Caglioti trio, which the pairwise list can only show as three separate numbers,
@@ -633,8 +633,8 @@ Each freed parameter comes back with its t-ratio beside the ΔBIC of adding the
 set. For one parameter the two agree, ΔBIC being close to t² − ln N_eff, so a
 parameter within 1σ of where the restricted fit held it cannot be decisive. At
 raw N it can. On a LaB6 fit whose model lacks the data's Lorentzian width
-(21 400 channels, Durbin-Watson 0.10, f = 6.07), freeing the boron Biso gave
-t = +1.58, raw-N ΔBIC +87 and ΔBIC −3.7 at N_eff 580.
+(21 400 channels, Durbin-Watson 0.10, f = 5.77), freeing the boron Biso gave
+t = +1.67, raw-N ΔBIC +87 and ΔBIC −3.6 at N_eff 642.
 
 | Field | Is | Reads as |
 |---|---|---|

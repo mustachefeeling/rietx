@@ -201,7 +201,7 @@ more than one way, so a Le Bail cell that fits better than a structural model
 does can still be the wrong cell {cite}`peterson2005`. Where they are resolved
 the freedom buys nothing, and the check is cheap to skip: on the 11-BM LaB₆
 pattern, at 0.014 reflections per FWHM, Le Bail, Pawley and Rietveld agree on
-*a* to 0.4 ppm with the same esd to 2 %. Reflections per FWHM is the number to
+*a* to 0.4 ppm with the same esd to 3 %. Reflections per FWHM is the number to
 look at, and crowding rather than low symmetry is what drives it.
 
 ### With no structure at all
@@ -270,8 +270,8 @@ phase: Na2Ca3Al2F14, I 21 3, a=10.257 A, 6 asymmetric atoms
 
 Le Bail:  status=converged  Rwp=0.1435  GoF=5.44  a=10.251214 A
 Rietveld: status=converged  Rwp=0.0933  GoF=3.54
-          a = 10.251216 +/- 0.000046 A (COD reference 10.257(1); high-accuracy powder ~10.2497-10.2506)
-          [warning] BOUND_HIT: phases.1.atoms.0.biso refined to its bound (ρ=+0.187, 1.5e-27 esd from the limit)
+          a = 10.251216 +/- 0.000040 A (COD reference 10.257(1); high-accuracy powder ~10.2497-10.2506)
+          [warning] BOUND_HIT: phases.1.atoms.0.biso refined to its bound (ρ=+0.187, 1.7e-27 esd from the limit)
 ```
 
 It goes on to print the report summary, its five worst regions, and the history

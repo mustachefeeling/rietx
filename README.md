@@ -41,8 +41,8 @@ Output of the full script (trimmed at the `…`):
 ```text
 Le Bail:  status=converged  Rwp=0.1435  GoF=5.44  a=10.251214 A
 Rietveld: status=converged  Rwp=0.0933  GoF=3.54
-          a = 10.251216 +/- 0.000046 A (COD reference 10.257(1); high-accuracy powder ~10.2497-10.2506)
-          [warning] BOUND_HIT: phases.1.atoms.0.biso refined to its bound
+          a = 10.251216 +/- 0.000040 A (COD reference 10.257(1); high-accuracy powder ~10.2497-10.2506)
+          [warning] BOUND_HIT: phases.1.atoms.0.biso refined to its bound (ρ=+0.187, …)
           [info] CAPILLARY_OFFSET_UNAVAILABLE: this capillary geometry declares no goniometer radius, …
 
 FitReport: Rwp=0.0933 GoF=3.54; 53 regions, top 15 shown (74% of χ²); 53 unmatched observed peak(s); …

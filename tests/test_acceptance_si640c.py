@@ -725,10 +725,10 @@ def test_the_chebyshev6_arm_relaxes_the_peak_onto_the_envelope(
 
     "Declare a peak *instead of* extra polynomial terms, never on top of them"
     is argued from what the peak does between the two arms: with only three
-    Chebyshev terms it sits low and wide (4.18(11)°, 5.57(27)°), absorbing the
+    Chebyshev terms it sits low and wide (4.18(9)°, 5.57(22)°), absorbing the
     residual direct-beam rise the short polynomial cannot; give the polynomial
-    three more terms and the peak relaxes onto the envelope (5.245(41)°) and
-    narrows by nearly three (1.94(11)°) while Rwp barely moves.  That is the
+    three more terms and the peak relaxes onto the envelope (5.245(32)°) and
+    narrows by nearly three (1.94(8)°) while Rwp barely moves.  That is the
     "5.245(41)°" caveat the manual and the docstring both quote, held here to a
     refinement rather than to prose.
     """
@@ -869,8 +869,8 @@ def test_the_refined_scale_rejects_the_only_value_the_code_could_express(
     absorbs what the container scatters, so the fraction of the blank that
     reached run 4918 is not 1.0 — and 1.0 was the only value this package could
     express before the ``scale`` field existed.  Freed, it comes back at
-    0.8374(142): issue #171's hand-set interior minimum of ≈ 0.85 sits inside
-    one esd, and unity is rejected at more than ten.
+    0.8374(113): issue #171's hand-set interior minimum of ≈ 0.85 sits 1.1
+    esd away, and unity is rejected at more than ten.
 
     The synthetic fixture in `test_background_measured.py` recovered 0.8315(58)
     against a truth of 0.85 and named the mechanism — a noisy blank biases its
@@ -947,7 +947,7 @@ def test_a_longer_polynomial_eats_the_measured_scale(
     polynomial is additive and the curve is a shape, so what the two share is
     the background's level, and the longer polynomial takes it.
 
-    Here, on run 4736: 0.8374(142) on three terms and 0.6935(246) on six — the
+    Here, on run 4736: 0.8374(113) on three terms and 0.6935(196) on six — the
     same walk, on data nobody constructed.  And the sting is which arm Rwp
     prefers.  Scored on one common weight the six-term arm is the *better* fit
     (0.076382 against 0.077328) while its scale is the one that disagrees with

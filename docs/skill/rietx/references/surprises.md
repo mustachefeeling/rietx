@@ -28,7 +28,7 @@ settings side by side on the bundled standards, whose cumulative-Δχ² panel sh
 
 **8.2 The opposite also happens: an improvement that passes every statistical
 test and is still rejected.** On round-robin brucite, adding anisotropic strain
-improves Rwp 18.55 → 17.90 % with ΔBIC +15.5 at N/f² — and drives σ²(M) negative on 12
+improves Rwp 18.62 → 17.84 % with ΔBIC +22.4 at N/f² — and drives σ²(M) negative on 7
 of 43 reflections, so the coefficients are unphysical and unquotable. A
 statistical test cannot see a violated positivity cone.
 
@@ -74,8 +74,8 @@ lookup **raises** rather than degrading (that is deliberate — a selective
 fallback would leave some species corrected and others not, manufacturing
 exactly the unequal cross-phase bias the correction exists to remove; decline
 the block or supply `overrides`), and light-atom ADPs come back *less precise*
-even as they come back *less biased* (rutile U11/U33 separate at 1.9σ with the
-block on against 2.2σ without, because f″ raises the heavy atom's share).
+even as they come back *less biased* (rutile U11/U33 separate at 5.1σ with the
+block on against 5.5σ without, because f″ raises the heavy atom's share).
 
 **8.8 Never transfer a literature constant without a numerical check across
 *all* its arguments.** A published cylinder-absorption coefficient printed as
@@ -386,7 +386,7 @@ A sample holder line sitting on a sample peak can be handled two ways: declare a
 `excluded_regions`. On the NIST SRM 660c LaB6 protocol with two holder lines
 injected onto reflections, both recover the clean-pattern cell — declaring to
 −1.0 ppm, excluding to +0.6 ppm — while *ignoring* the intruder costs +7.6 ppm
-and inflates the cell esd 7.5x. Excluding cost 256 of 5332 channels (4.8 %).
+and inflates the cell esd 8.7x. Excluding cost 256 of 5332 channels (4.8 %).
 **So do not tell a user that declaring is the more accurate choice; it is not,
 on a pattern with plenty of reflections.** What declaring buys is the retained
 channels and a *measured* intruder (area and position with esds) instead of a

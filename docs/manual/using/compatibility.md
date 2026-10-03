@@ -142,6 +142,16 @@ to move are declared rather than left to be inferred:
   ranking to be restated; the operator list, the moments and the magCIF a
   solution writes are the stable part and carry the promises their own
   chapters make.
+- The satellite test and the moment along a series are provisional too, and
+  are named here because their modules also hold stable types.
+  `SatelliteEvidence` and the `SatelliteCandidate` rows it ranks
+  (`FitReport.satellites`) answer from a fixed set of zone-boundary vectors.
+  The generator still to come changes what is ranked and what a candidate
+  carries. `MagneticTrajectory` and the `MagneticOnset` it carries were
+  measured on a synthetic ramp and one two-pattern pair, and the rule that
+  folds two chains' brackets has already changed once. The builder for a
+  k ≠ 0 supercell, `magnetic_supercell`, is not exported at the top level
+  and may change in any release.
 - The foreign-refinement readers are provisional as a subsystem.
   `read_project_model`, `identify_project_format`, `read_topas_inp`,
   `read_fullprof_pcr`, `read_gsas_exp` and the per-format models they answer

@@ -1316,7 +1316,7 @@ class Structure(Base):
                                   nuclear_group=nuclear_group,
                                   diagnostics=diagnostics)
 
-    def to_cif(self, path: str) -> None:
+    def to_cif(self, path: str | os.PathLike[str]) -> None:
         from ..crystallography.cif import structure_to_cif
 
         structure_to_cif(self, path)
