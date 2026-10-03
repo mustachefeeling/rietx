@@ -32,7 +32,8 @@ _MIN_FIT_CHANNELS = 10
 def auto_background(data: PatternData, *, kind: str = "pspline",
                     diagnostics: PatternDiagnostics | None = None,
                     wavelength: float | None = None,
-                    two_theta_limits: tuple[float, float] | None = None) -> Background:
+                    two_theta_limits: tuple[float, float] | None = None,
+                    source: object | None = None) -> Background:
     """Build a background model sized to the pattern.
 
     ``kind="pspline"`` (default): penalized co-refined spline — knot spacing
@@ -48,6 +49,10 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
     extends the curve to wherever its slope points (WP-1454: on a private
     series, negative from 75° past a 40° limit).  ``diagnostics`` supplied by the
     caller are used as given, and the knots are still confined to the limits.
+
+    ``source`` is the declared beam (:class:`~rietx.schemas.instrument.Source`),
+    handed to ``diagnose`` so its contamination screen skips the searches the
+    beam cannot need (WP-1445, WP-1539).  Without it the screen runs as before.
     """
     if two_theta_limits is not None:
         lo, hi = (float(v) for v in two_theta_limits)
@@ -63,7 +68,7 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
                 f"two_theta_limits ({lo}, {hi}) leave {n_fit} fitted channels, "
                 f"fewer than the {_MIN_FIT_CHANNELS} a fit needs")
         data = data.crop(lo, hi)
-    diag = diagnostics or diagnose(data, wavelength=wavelength)
+    diag = diagnostics or diagnose(data, wavelength=wavelength, source=source)
     if kind == "chebyshev":
         sel = select_chebyshev_order(data)
         return BackgroundChebyshev.with_terms(int(sel.selected))

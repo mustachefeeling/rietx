@@ -143,15 +143,18 @@ def _kid(element: ET.Element | None, *names: str) -> ET.Element | None:
 _OPTICS = ("xRayMirror", "monochromator", "filter")
 
 
-def _optics(measurement: ET.Element) -> str | None:
+def _optics(measurement: ET.Element, *,
+            paths: tuple[str, ...] = ("incidentBeamPath", "diffractedBeamPath")
+            ) -> str | None:
     """The optic elements a measurement's beam paths list, comma-joined, or
     ``None`` when it lists none.
 
     ``None`` is *nothing declared*, never "no optics": a file that omits the
-    elements says nothing about the beam.
+    elements says nothing about the beam.  ``paths`` narrows the walk to one
+    side of the sample (WP-1539).
     """
     found = []
-    for path in ("incidentBeamPath", "diffractedBeamPath"):
+    for path in paths:
         beam = _kid(measurement, path)
         if beam is not None:
             found += [name for name in _OPTICS if _kids(beam, name)]
@@ -424,6 +427,7 @@ def _read_scan(measurement: ET.Element, scan: ET.Element, *, path: Path,
         goniometer_radius_mm=_number(_kid(measurement, "incidentBeamPath",
                                           "radius")),
         beam_optics=_optics(measurement),
+        diffracted_beam_optics=_optics(measurement, paths=("diffractedBeamPath",)),
     )
     return two_theta, y, sigma, meta
 

@@ -49,6 +49,7 @@ import re
 import threading
 import time
 from collections import deque
+from collections.abc import Callable
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from fnmatch import fnmatchcase
@@ -59,6 +60,7 @@ from .. import _about
 from ..capabilities import capabilities as _capabilities
 from ..help import help_registry as _help_registry
 from ..history.events import EventStream
+from ..io.readers import read_pattern
 from ..optimize.cancel import CancelToken, RefinementCancelled
 from ..project import Project
 from ..refine import (
@@ -83,6 +85,7 @@ from .imports import (
     UploadRefused,
     UploadStore,
     instrument_from_preset,
+    kbeta_from_metadata,
     preview_cif,
     preview_instrument,
     preview_pattern,
@@ -413,7 +416,10 @@ class GuiSession:
                 "rietveld mode; create the project in 'lebail' or 'pawley' "
                 "mode, and add atoms later to switch",
                 where=["mode"])
-        instrument = _as_instrument(body.get("instrument"), self.uploads)
+        instrument = _as_instrument(_with_file_optics(
+            body.get("instrument"), lambda: read_pattern(
+                pattern, **(body.get("reader_options") or {})).metadata),
+            self.uploads)
         kw: dict[str, Any] = {}
         for key in ("mode", "two_theta_limits", "excluded_regions",
                     "reader_options", "ui"):
@@ -1392,7 +1398,9 @@ class GuiSession:
     def instrument_patch(self, body: dict) -> dict:
         self._require_idle()
         node = self._edit(
-            instrument=_as_instrument(_need(body, "instrument"), self.uploads),
+            instrument=_as_instrument(_with_file_optics(
+                _need(body, "instrument"),
+                lambda: self._need_project().data.metadata), self.uploads),
             label=body.get("label") or "instrument edited")
         return {"node_id": node, **self.instrument()}
 
@@ -3376,6 +3384,24 @@ def _as_structure(payload, uploads=None) -> Structure:
             code="UNKNOWN_SPECIES",
             where=[f"{u['path']}.species" for u in unknown])
     return structure
+
+
+def _with_file_optics(spec: Any, metadata: Callable[[], dict | None]) -> Any:
+    """A preset spec with the pattern file's own optics as ``kbeta`` (WP-1539).
+
+    The wizard form has no field for ``Source.kbeta``, so a preset built from
+    it would drop what the file says.  A ``kbeta`` already in the spec outranks
+    the file's, and anything other than a preset spec passes through.
+    ``metadata`` is called only when it is needed.  A read that fails leaves
+    the spec alone, because the project's own read of the file reports it.
+    """
+    if not (isinstance(spec, dict) and "preset" in spec and "kbeta" not in spec):
+        return spec
+    try:
+        found = metadata()
+    except (ValueError, OSError, TypeError, KeyError):
+        return spec
+    return {**spec, "kbeta": kbeta_from_metadata(found)}
 
 
 def _as_instrument(payload, uploads=None) -> Instrument:

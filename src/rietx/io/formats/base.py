@@ -198,6 +198,11 @@ METADATA_KEYS: dict[str, str] = {
                    "named only. Recorded, never used, and **absent means "
                    "undeclared**, not that the beam has none: most files say "
                    "nothing",
+    "diffracted_beam_optics": "the part of `beam_optics` that sits after the "
+                              "sample. A monochromator there removes Kβ, which "
+                              "is the one case `Source.kbeta` acts on; the same "
+                              "element before the sample is not mapped. Absent "
+                              "means undeclared, as for `beam_optics`",
 }
 
 
