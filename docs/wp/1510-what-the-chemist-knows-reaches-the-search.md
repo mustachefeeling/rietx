@@ -199,12 +199,35 @@ given the skill asks for or infers the range before its first search.
   running. Lanes: the trial row is updated to 6 lanes, 3 kept, saved +17.77
   (+31 %).
 
+  *Review* (`/code-review high --fix`, 9 findings). Four are fixed:
+  - `INDEX_SUPERCELL_REFUTED` and its manual and skill text say "below", not
+    "directly below", since a promoted parent leaves its refuted child in
+    place.
+  - The boxed-prior warning keeps the prior-only guidance.
+  - `from_formula` refuses a duplicated volume field and takes a list `z`.
+  - The default W is read live.
+
+  Five are open:
+  - **`CuSO4.5H2O` reads as 4.5 O and comes out 39 % low, silently.** The
+    grammar cannot tell it from `Mg0.5SiO3`. Refusing a `.` hydrate and
+    pointing to `·` is the candidate fix.
+  - In the supercell test, "unexplained" uses the child's shift correction
+    for the parent's lines.
+  - The GUI editor's stale `duplicate_line` marks.
+  - The synchrotron instrument-first lead.
+  - `formula` is not recorded on the result.
+
+  Fast selection after the fixes: 8146 passed, 159 skipped, 1 failed (main's
+  `api.md` cap row). That is +3 against 8143, the supercell tests. Baseline
+  replay at this trial row: the selective policy saves 24 %.
+
   *Next.* (a) After the 1.6 cut, merge main into this branch. Then stage
   `duplicate_line`, `from_formula`, `INDEX_Z_NOT_INTEGER`, the prior warning
   and the supercell promotion in whichever milestone record is open, since
   they are user-facing. (b) The open review findings: the instrument-first
   lead on a synchrotron setup, the two-step flow that never sees it, and
-  `formula` in the CLI and GUI. (c) Whether a supported supercell's
+  `formula` in the CLI and GUI, and the five open review findings above,
+  the hydrate parse first. (c) Whether a supported supercell's
   promotion deserves an `src/rietx/indexing/CLAUDE.md` rule. It changes
   nothing outside `indexing/`, so it needs no root clause.
 
