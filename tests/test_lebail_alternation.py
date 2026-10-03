@@ -11,6 +11,7 @@ alternation moved into ``fit`` (WP-1323 handover).
 from __future__ import annotations
 
 import dataclasses
+import re
 from pathlib import Path
 
 import pytest
@@ -97,7 +98,12 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(patter
     assert "pass 1 of 2 was kept" in stop.message
     assert result.statistics.rwp == pytest.approx(0.16821, abs=RWP_PLATFORM_SPREAD)
     assert stop.value == result.statistics.rwp
-    assert "16.821, 16.907" in stop.message
+    # the per-pass table the message prints, read as numbers: as text it was
+    # "16.821, 16.907" on macOS and "16.824, 16.905" on Linux (the same spread
+    # RWP_PLATFORM_SPREAD names, in per cent)
+    table = [float(v) for v in re.search(
+        r"Rwp % per pass: ([\d., ]+)\)", stop.message).group(1).split(",")]
+    assert table == pytest.approx([16.821, 16.907], abs=100 * RWP_PLATFORM_SPREAD)
     assert CODE in str(result)              # the termination view carries it
     # the GUI's run record carries the verdict, since no panel shows a
     # result's diagnostics and a node cannot hold this one
