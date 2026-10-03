@@ -214,6 +214,25 @@ baseline table, never gated.
 
 ## Handover log
 
+- **2026-10-03** (reconstructed post hoc, from `git log --stat`) — **The
+  alternation's tests now pass on Linux as well as macOS.** CI on the PR failed
+  after the entry below was written, because the converged Rwp differs between
+  the two platforms in the fifth decimal. Two commits widened the bar to cover
+  that spread, and PR #683 then merged. No package code changed.
+
+  **Done.** `6d3ca805`: `RWP_PLATFORM_SPREAD = 3e-4` in
+  `tests/test_lebail_alternation.py` replaces the 2e-5 bar in four tests. Its
+  comment carries the measurement: the exact-cell pass 1 reads 0.168210 on
+  macOS arm64 and 0.168236-0.168238 on Linux x86-64 (CI, py3.11/3.12 and jax),
+  and pass 2 (0.16907) stays 8.6e-4 away, so the bar still tells the passes
+  apart. `3ddf76ae`: the per-pass table in the stop message is parsed as
+  numbers, since as text it read "16.821, 16.907" on macOS and
+  "16.824, 16.905" on Linux. CI (`gh run list`): `d9e04240` failed,
+  `6d3ca805` was cancelled by the next push, `3ddf76ae` passed. The commits do
+  not say which session wrote them.
+
+  **Next:** unchanged from the entry below.
+
 - **2026-10-03** — **The Le Bail alternation now behaves as one job.** A run
   of several passes is one row in `rietx watch` with the right status, a cancel
   or error part-way through leaves the best pass standing, and the cap survives
