@@ -1061,10 +1061,19 @@
       {#if busy}
         {run?.run.stage ?? "starting"}
         {#if run?.run.stage_index}({run.run.stage_index}/{run.run.n_stages}){/if}
+        {#if run?.run.lebail?.pass}· pass {run.run.lebail.pass}{#if run.run.lebail.of} of {run.run.lebail.of}{/if}{/if}
       {:else}
         {run?.run.status ?? "idle"}
       {/if}
     </span>
+    {#if !busy && run?.run.lebail?.stopped}
+      <!-- the alternation's verdict: it lives on the result's diagnostics, which
+           no panel shows, and cannot sit on a history node (WP-1323) -->
+      <span class="muted lebail-stop" data-level={run.run.lebail.level}
+        title={[run.run.lebail.stopped, run.run.lebail.suggestion].filter(Boolean).join(" — ")}>
+        Le Bail: {run.run.lebail.stopped.replace(/^the Le Bail alternation /, "")}
+      </span>
+    {/if}
     <button onclick={start} disabled={busy || !project || noPhases}
       title={noPhases ? NO_PHASES_REASON : null}>Run</button>
     <button class="ghost" onclick={cancel} disabled={!busy}>Cancel</button>
@@ -1297,6 +1306,15 @@
     flex: 0 1 auto;
   }
 
+  .lebail-stop {
+    max-width: 28rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lebail-stop[data-level="warning"] {
+    color: var(--warn, inherit);
+  }
   .pill[data-state="running"] {
     color: var(--ok);
     border-color: var(--ok);

@@ -1,6 +1,6 @@
 # WP-1323 — the Le Bail alternation has a stop rule, and a scope
 
-Milestone: unscheduled · Status: 🔄 2026-10-03 — alternation shipped; GUI progress view open
+Milestone: unscheduled · Status: 🔄 2026-10-03 — alternation shipped; GUI pass grouping open
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-09-23 — the skill sends every Le Bail job to a hand loop with no cap; the call is the workaround
@@ -255,6 +255,22 @@ baseline table, never gated.
   disagree is two different pairs (pass 2 against pass 1, then a fixed-point
   step), not a conflict.
 
+  **Later the same day: the GUI progress view, decided.** Run through the GUI,
+  the stop warning was nowhere: no panel shows a result's diagnostics, and a
+  history node cannot hold it (it is added after the nodes commit). Decision:
+  the run record carries it. `fit_start` stamps `lebail_pass`/`lebail_of`, the
+  session resets the stage ticks each pass and the pill reads "profile (5/5) ·
+  pass 2 of 6"; on finish the record holds the package's own sentence (which
+  pass was kept, Rwp per pass) and the header shows it beside the pill, full
+  text and suggestion on hover. Checked on the +0.3 % LaB6+cBN project through
+  the run route: pass 1 of 6 while running, then "reached a fixed point; pass 3
+  of 3 was kept (16.987, 16.969, 16.967)". Not done: grouping nodes by pass in
+  the History panel, and a Report-tab list of the result's diagnostics. A +2 %
+  demo start never finds the cell (Rwp 194 %), which is the wander the stop rule
+  exists for and a poor demo of success. One test added in each of
+  `test_gui_server.py` and `test_lebail_alternation.py`; vitest 583, dist
+  rebuilt, 255 passed and 1 skipped across the GUI, run and alternation files.
+
   **Lane trial.** No lane dispatched. Decisions: `keep telemetry-once-and-cancel
   ~12`, `keep rxt-gui-lebail_passes ~15`, both at about 90-110K context, under
   the 150K line. Step 3b has no lanes to measure; no row added.
@@ -262,7 +278,8 @@ baseline table, never gated.
   **Gotchas.** A `/code-review --fix` runs in this tree, so I merged main only
   after it returned. A merge during a running suite invalidates the run.
 
-  **Next:** (1) decide how the GUI progress view should show a pass; (2) the
+  **Next:** (1) group history nodes by pass, and list a result's diagnostics
+  in the Report tab, if wanted; (2) the
   background protocol in Inherited, if wanted in this WP, else file it.
 
 - **2026-10-02** — **The package now runs the Le Bail alternation itself.**

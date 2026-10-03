@@ -3676,6 +3676,35 @@ def test_the_progress_pill_names_the_pass_and_the_rung():
     assert _series_stage_name({}, 2) == "2"
 
 
+def test_a_le_bail_pass_resets_the_stage_ticks_and_names_itself(tmp_path):
+    """The alternation repeats the plan, so pass 2 must not open fully ticked.
+
+    Stage names repeat every pass; a list kept across passes showed every stage
+    complete while the second pass was still running (WP-1323).  The cap rides
+    on ``fit_start`` so the pill can say "pass 2 of 6".
+    """
+    from rietx.gui.session import _idle_run
+
+    session = GuiSession(state_dir=tmp_path / "state")
+    session._run = _idle_run()
+    session._run["n_stages"] = 2
+
+    def push(kind, **data):
+        session._push({"kind": kind, "data": data})
+
+    push("fit_start", lebail_pass=1, lebail_of=6)
+    push("stage_start", stage="bkg", index=1, n_stages=2)
+    push("stage_end", stage="bkg")
+    push("stage_start", stage="cell", index=2, n_stages=2)
+    push("stage_end", stage="cell")
+    assert session._run["completed_stages"] == ["bkg", "cell"]
+    assert session._run["lebail"] == {"pass": 1, "of": 6}
+
+    push("fit_start", lebail_pass=2, lebail_of=6)
+    assert session._run["completed_stages"] == []
+    assert session._run["lebail"] == {"pass": 2, "of": 6}
+
+
 def test_a_series_member_history_is_its_own_tree_and_read_only(series):
     """One tree per pattern, pinned to its data — so its nodes are not checkouts."""
     from rietx.gui.session import tree_payload

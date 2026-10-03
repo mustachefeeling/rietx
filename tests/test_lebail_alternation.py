@@ -93,6 +93,12 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(patter
     assert stop.value == result.statistics.rwp
     assert "16.821, 16.907" in stop.message
     assert CODE in str(result)              # the termination view carries it
+    # the GUI's run record carries the verdict, since no panel shows a
+    # result's diagnostics and a node cannot hold this one
+    from rietx.gui.session import _summarize_refinement
+    run = _summarize_refinement(result, None)
+    assert run["lebail"]["stopped"] == stop.message
+    assert run["lebail"]["level"] == "warning"
     # the kept pass is the one the Refinement answers from afterwards
     assert ref.result_ is result
     assert ref.report() is not None

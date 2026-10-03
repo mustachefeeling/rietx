@@ -3730,7 +3730,8 @@ class Refinement:
         ``fit_start``/``fit_end``, so a recorder reads the pass's end as the end
         of a pass and not of the run (``runs.RunRecorder._observe``).
         """
-        stamp = {} if lebail_pass is None else {"lebail_pass": lebail_pass}
+        stamp = ({} if lebail_pass is None else
+                 {"lebail_pass": lebail_pass, "lebail_of": plan.lebail_passes})
         _refuse_without_phases(self.structure, "fit")
         if not plan.stages:
             # Refused here, before a history tree is created or an event is
