@@ -279,9 +279,17 @@ baseline table, never gated.
   `test_gui_server.py` and `test_lebail_alternation.py`; vitest 583, dist
   rebuilt, 255 passed and 1 skipped across the GUI, run and alternation files.
 
-  **Lane trial.** No lane dispatched. Decisions: `keep telemetry-once-and-cancel
-  ~12`, `keep rxt-gui-lebail_passes ~15`, both at about 90-110K context, under
-  the 150K line. Step 3b has no lanes to measure; no row added.
+  **Lane trial.** One lane, dispatched after the handover first ran:
+  `lane history-and-report-passes ~30` at 288K main context. Two items were
+  kept at 126K (`telemetry-once-and-cancel ~12`, `rxt-gui-lebail_passes ~15`;
+  both took 25 requests, against estimates of 12 and 15). Measured
+  (`session_usage.py lanes`, `[dev]`, macOS): lane 36 requests against an
+  estimate of 30 (1.67 over all three), lane base 70K, re-read 4K of 486K, 10
+  main requests and 18K left in main to check it, 2 main edits after it (the
+  dist-size test and the check itself), 0 redone, lane $1.51, in-session $3.54
+  modelled, saved +$1.32. The selective policy at these figures: -20 % at 410 K
+  peak, -12 % with the lane assumptions doubled. Row added to
+  `docs/milestones/process.md` § Lanes within a WP.
 
   **Gotchas.** A `/code-review --fix` runs in this tree, so I merged main only
   after it returned. A merge during a running suite invalidates the run.
