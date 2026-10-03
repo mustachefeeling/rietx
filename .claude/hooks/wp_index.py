@@ -63,6 +63,9 @@ DEPENDS_RE = re.compile(r"^Depends on: (.*?)(?=\n(?:[A-Z][a-z]+: |\n)|\Z)", re.M
 # A shipped milestone is a version (v1.5, v1.5.x).  An open or queued one is a
 # lowercase name (magnetic), and its release takes a number when it is cut
 # (WP-1540).  Lowercase keeps the guard: a prose heading opens with a capital.
+# The queued versions renamed on 2026-10-03, for a branch that still carries one.
+RENAMED = {"v1.6": "magnetic", "v1.7": "rietview", "v1.8": "rigid-bodies",
+           "v1.9": "structure-solution"}
 SECTION_RE = re.compile(r"^(v\d+\.\d+(?:\.x)?|Unscheduled|v2\+|[a-z][a-z0-9-]*)(?=\s|$)")
 
 # A WP number (bare or WP-prefixed, never part of a date) or an issue/PR ref.
@@ -263,6 +266,8 @@ def rows_from_headers(hs: list[Header], groups: list[Group]) -> dict[str, Row]:
                 + (f", Track {h.track!r}" if h.track else ", no Track line")
                 + " names no heading under ROADMAP § Work packages"
                 + (f"; its tracks are {here}" if here else "")
+                + (f"; {h.milestone} was renamed {RENAMED[h.milestone]!r} (WP-1540)"
+                   if h.milestone in RENAMED else "")
             )
         rows[h.number] = Row(
             number=h.number,
