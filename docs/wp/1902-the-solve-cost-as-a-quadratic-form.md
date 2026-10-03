@@ -80,9 +80,9 @@ unconverged extraction. "Poor" means `not result.usable` (WP-1336), set
 - [x] `solve/cost.py`: c, r, M, the floor from S0's own solve, χ² from I
 - [x] Tests: Ω·I equals `evaluate` to 1e-14 at ten random moves on NAC and on FAP; a wrong Ω fails; the three refusals
 - [x] Skill: none until a public entry exists
-- [ ] `from_pawley`'s "poor" refusal reads `result.usable` instead of its own
+- [x] `from_pawley`'s "poor" refusal reads `result.usable` instead of its own
       Rwp test; a test refuses a converged extraction that carries an
-      error-level diagnostic (set 2026-10-01)
+      error-level diagnostic (set 2026-10-01; done 2026-10-03)
 
 ## Acceptance
 
