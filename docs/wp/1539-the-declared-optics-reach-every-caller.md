@@ -1,6 +1,6 @@
 # WP-1539 — the declared optics reach every caller and every reader
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-03 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: — (1445 shipped the field)
 Priority: P3 2026-10-03 — a workaround covers it: the caller passes `source=` to `diagnose` directly, and an undeclared source runs the screen as before
