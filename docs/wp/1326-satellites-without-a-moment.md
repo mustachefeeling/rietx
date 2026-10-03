@@ -93,6 +93,14 @@ not both be declared on one phase.
 
 ### Inherited
 
+- **2026-10-03, from [1328](1328-magnetic-interchange.md), closed: two
+  places a propagation vector still drops on the way out or in.** Both were
+  left as design choices by #567's review. `fullprof.to_structure` drops a
+  nuclear phase's `Nvk` k, since FullProf's nuclear k and rietx's k are not
+  the same model. `Structure.to_cif` writes no k, though magCIF has
+  `_parent_propagation_vector.kxkykz`; the writers' refusals point at the JSON
+  instead.
+
 - **2026-09-15, from the issue triage (issue #257 A1–A3, and PR #290):
   three amendments to this WP, and a layer that landed under it.**
   PR #290 (2026-09-10) added `crystallography.magnetic.operators`: operators
