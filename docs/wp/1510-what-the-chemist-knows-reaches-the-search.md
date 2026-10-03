@@ -1,6 +1,6 @@
 # WP-1510 — What the chemist knows reaches the indexing search
 
-Milestone: unscheduled · Status: 🔄 2026-10-03 — five of seven tasks landed; four acceptance rows red, the volume task waits on two papers
+Milestone: unscheduled · Status: 🔄 2026-10-03 — all seven tasks landed; four acceptance rows red and awaiting the maintainer's decision
 Track: Data and metadata in, a structure out
 Depends on: — (1449 soft, the ranking this feeds; 1508 soft, the search that ran out of time)
 Priority: P2 2026-09-28 — a defect that fires wrongly: sixty false impurity lines and a refused gate cost a collaborator's agent one whole earlier session, and each fix is small
@@ -155,6 +155,54 @@ given the skill asks for or infers the range before its first search.
   volumes. Read before citing.
 
 ## Handover log
+
+- **2026-10-03** — A formula now says how big the cell should be. Given a
+  chemical formula, the package estimates one formula unit's volume from
+  Hofmann's (2002) per-element volumes, and the caller can turn that into a
+  search window. A candidate whose volume implies a fractional number of
+  formula units is reported, never removed. Both source papers were read, the
+  table transcribed from the published PDF. The Z check is deliberately
+  coarse. One crystal scatters 4 % about Hofmann's estimate, so a cell 2.8
+  formula units big reads as "3, within the method" and does not fire. The
+  source run's 2.8 came from the cruder 18 Å³ rule, which ran 8 % low there,
+  and says nothing about this one. All seven tasks are in. The four red
+  acceptance rows from the first entry below are unchanged and still wait on
+  the maintainer.
+
+  *Done.* `crystallography/atomic_volume.py`: Hofmann's Table 2, transcribed
+  from the PDF's text layer and checked against the page image. Sixteen
+  elements the PDF prints as a dash are absent, and Ac and Am carry no error.
+  `formula_unit_volume(formula, temperature)` scales by
+  (1 + ᾱT)/(1 + ᾱ·298 K), ᾱ = 0.95 × 10⁻⁴ K⁻¹. `SearchSpec.from_formula(formula,
+  z=…, temperature=…)` sets `min_volume`/`max_volume` to z formula units ×
+  0.8-1.25, Hofmann's own ratio bounds (1746 of 182 239 structures outside).
+  With `z=None` it sets only the floor. `index_pattern(formula=, temperature=)`
+  reports `INDEX_Z_NOT_INTEGER` (warning, `value` = implied Z) per candidate
+  and never narrows. The tolerance `Z_INTEGER_TOLERANCE` is twice the 4.00 %
+  single-crystal scatter (Hofmann §3, a percentage of V_obs/V_est: the 18 Å³
+  rule's is 9.04 against its published ~10 %). Above Z = 6.25 the check is
+  silent by arithmetic. No `help.py` entry, because no `INDEX_*` code has an
+  arm there, so the skill row is the entry. Manual Parts 1 and 2, two bib
+  entries and ATTRIBUTION.md are updated. Hofmann was in the corpus all along
+  at `zotero-linker/derived/XULHS76B/`; two content greps missed it because
+  the text never spells the name.
+
+  *Measured* (`[dev]` venv, macOS). Spot-checks against the PDF: H 5.08 ±
+  0.04, C 13.87 ± 0.05, N 11.8 ± 0.3, O 11.39 ± 0.17 Å³. Benzoic acid comes to
+  150.35 ± 0.93 Å³, 16.7 Å³ per non-hydrogen atom. Indexing, manual, skill and
+  docs selection: 668 passed, 1 skipped, 1 failed (main's `api.md` cap row).
+  `tests/test_indexing_formula.py` adds 22 tests. `api.md` grew 39 519 →
+  39 575 B, further over the cap WP-1532 now holds. Lanes: the trial row in
+  `docs/milestones/process.md` is updated to 5 lanes, 2 kept, saved +7.74
+  (+21 %). The volume lane's second dispatch took 101 requests against an
+  estimate of 35. The baseline replay's selective policy saves 24 %.
+
+  *Next.* (a) The four acceptance rows and the two review findings: the
+  first entry's next actions (a) and (b) are unchanged. (b) `formula` does not
+  reach the CLI (`cli.py:305`) or the GUI (`gui/session.py:1583`) yet. (c) If
+  the maintainer wants the source run's Z ≈ 2.8 flagged, the tolerance has to
+  fall below 6.7 %, and Table 1 says about a third of correct cells sit more
+  than 5 % off.
 
 - **2026-10-03** — A peak list no longer offers one line twice. About a
   quarter of the lines a re-seed pass adds turned out to be a neighbouring

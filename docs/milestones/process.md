@@ -1168,7 +1168,7 @@ work holds up. `/wp-lanes` runs the selective policy in a real WP session, and
 | 2026-10-02 | 46f97a56 | 5 | 2 | 15K | 8 | 14K | 2.27 | 2 / 0 | +16.73 | +39% |
 | 2026-10-02 | c77ba4ec | 1 | 5 | 0K | 11 | 39K | 0.62 | 0 / 0 | +5.17 | +24% |
 | 2026-10-03 | 6dc4faa1 | 1 | 2 | 4K | 10 | 18K | 1.67 | 1 / 0 | +1.32 | +12% |
-| 2026-10-03 | e6ef1126 | 4 | 2 | 0K | 5 | 15K | 0.76 | 3 / 1 | +1.08 | +6% |
+| 2026-10-03 | e6ef1126 | 5 | 2 | 0K | 5 | 19K | 0.76 | 3 / 2 | +7.74 | +21% |
 
 Whether `/wp-start` step 6b takes the rule waits for a few rows. Until then
 the policy lives only in `/wp-lanes`.
