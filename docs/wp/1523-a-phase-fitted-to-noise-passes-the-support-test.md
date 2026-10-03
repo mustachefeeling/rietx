@@ -64,6 +64,60 @@ fences out "`PHASE_SUPPORT_SIGMA`, or the package deciding whether a phase is
 present" in its Non-goals, which is this WP's whole subject. 1339 owns the
 localisation statistic and carries the #219 finding only as context.
 
+### Decided 2026-10-04: the scale's marginal significance, at 3σ
+
+**A phase is seen when its scale is 3σ from zero by its marginal esd**, the
+esd taken over every column that can move with it: the stage's free columns
+and the phase's own held structural columns. Three is
+`indexing.workflow.ABSENT_SIGMA`, the multiple of its propagated σ a line's
+net intensity must reach to count as present. `PHASE_SUPPORT_SIGMA` cited that
+constant as "the same footing" while testing one point's height at 1σ.
+
+**Why no statistic of the modelled curve can do it.** Under the null the
+phase's cell, widths and displacements are unidentified, so the fit chooses
+them to match the noise (Davies 1977, a nuisance parameter present only under
+the alternative). Any function of the fitted curve is then inflated by that
+choice. The scale's marginal esd counts the same freedom to first order.
+
+Issue #481's frame at `origin/main` 69a1afc7, re-drawn over seeds (`[dev]`,
+macOS arm64). Twenty blank fits (seeds 100-109, each from the two starts of
+the table above) and sixteen weak real phases. Each count is the fits whose
+phase read as seen, with the fit run under the rule named:
+
+| Planted scale | max(y/σ) ≥ 1, today | ‖y/σ‖₂ ≥ 3 | Marginal z at the answer, either run | Cell error when refined |
+|---|---|---|---|---|
+| 0 (blank), 20 fits | 9 released, cell off up to 0.02 Å | 6 released, one cell off 0.24 Å | 0.00-2.75 | — |
+| 3e-8, 8 fits | 6 | 6 | 0.0-3.4 | ≤ 1.1e-3 Å |
+| 6e-8, 8 fits | 6 | 6 | 0.0-3.3 | up to 4.2e-3 Å |
+| 1.2e-7, 8 fits | 8 | 8 | 4.2-5.0 | ≤ 1.2e-3 Å |
+| 2.5e-7, 8 fits | 8 | 8 | 9.4-11.9 | ≤ 3e-4 Å |
+
+The integrated norm ‖y/σ‖₂ is the scale's *conditional* z (everything else
+held), and on the blank it reached 3.1-4.4 once a released cell had chased the
+noise. Row 1 of the table above reads 2.06 marginal even after the chase. A
+phase at 3e-8 to 6e-8 reads as unseen under the new rule. Its cell was off by
+up to 1000 ppm when refined, so holding it is the honest answer.
+
+**Where each reader gets it.** A Jacobian exists at a stage's answer and at the
+end, and nowhere else.
+
+- `phase_support` stays the cheap screen and becomes ‖y_p/σ‖₂, the
+  conditional z. It bounds the marginal z from above, so a phase under 3σ
+  there is unseen with no Jacobian. The stage-start hold and the cell window
+  read it.
+- At the answer the collapse and the release read the marginal z, and the
+  release counts the held columns too, so a held cell cannot make the phase
+  look better determined than it would be free.
+- `PHASE_UNCONSTRAINED` and the width census read the final marginal z.
+- `reflection_support` and `extra_peak_support` become the window norm
+  against the same 3σ. That is `ABSENT_SIGMA`'s own test on a line.
+
+**Not generalised, deliberately.** A joint fit (`multi.py`) keeps the screen
+alone, because WP-1341 owns its report. Le Bail and Pawley fix the scale, so
+the screen is all they read. The ridge case of WP-1339's Inherited (#219) is
+for 1339. The marginal z is the statistic that could see it, and this WP does
+not measure it there.
+
 ## Non-goals
 
 - The chain-level consequences. 1469 already leaves a pattern above the Rwp
@@ -76,9 +130,9 @@ localisation statistic and carries the #219 finding only as context.
 
 - [ ] Reproduce both rows in a test from a synthetic blank frame, and record
       the support and the scale significance at each stage's landing values.
-- [ ] Decide the statistic, recorded here with the measurement that chose it,
-      and count what moves on the suite's absent-phase and held-phase
-      fixtures (a phase that should stay released must stay released).
+- [x] Decide the statistic, recorded here with the measurement that chose it
+      (§ Decided 2026-10-04). What moves on the fixtures is counted with the
+      landing, in the handover entry.
 - [ ] Land it in `phase_support` (or beside it, as the one authority both
       consumers read), so the hold and `PHASE_UNCONSTRAINED` agree.
 - [ ] Tests: the blank frame holds its cell and fires `PHASE_UNCONSTRAINED`
