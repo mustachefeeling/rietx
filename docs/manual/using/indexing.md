@@ -681,7 +681,9 @@ puts its crystal system at the front of the queue, seeds the stochastic engine's
 starting basin with its metric, and is checked against the lines the engines'
 own way. No
 system is dropped and no range is changed, so a wrong prior costs time rather
-than truth, and `INDEX_PRIOR_USED` records what was assumed. Declare one
+than truth, and `INDEX_PRIOR_USED` records what was assumed. Two settings of
+one lattice, such as an acute and an obtuse monoclinic angle, come back as one
+candidate, because the ranking compares reduced cells. Declare one
 whenever you have a database hit or an isostructural analogue; §7d of the
 protocol has the worked example.
 
@@ -731,6 +733,8 @@ lives in that candidate's own `CellCandidate.diagnostics` and
 | Field | Holds |
 |---|---|
 | `CellCandidate.cell`, `CellCandidate.cell_esd` | a, b, c (Å) and α, β, γ (°), with esds |
+| `CellCandidate.a`, `CellCandidate.b`, `CellCandidate.c`, `CellCandidate.alpha`, `CellCandidate.beta`, `CellCandidate.gamma` | the members of `cell` by name |
+| `CellCandidate.to_cell` | `cell` as a `Cell`, every parameter fixed; the esds stay on `cell_esd` |
 | `CellCandidate.system`, `CellCandidate.centring` | crystal system, and Bravais centring letter |
 | `CellCandidate.lattice_group` | the absence-free group of the lattice: holohedry plus centring |
 | `CellCandidate.volume`, `CellCandidate.volume_esd` | cell volume, Å³ |

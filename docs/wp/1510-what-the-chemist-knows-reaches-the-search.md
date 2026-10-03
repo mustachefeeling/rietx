@@ -120,7 +120,7 @@ rule.
       its volume source read and cited in the docstring, and a diagnostic
       for a candidate whose volume implies a non-integer Z (code named at
       review, with its `help.py` entry).
-- [ ] `CellCandidate`: named accessors or a `to_cell()`. Check whether two
+- [x] `CellCandidate`: named accessors or a `to_cell()`. Check whether two
       settings of one lattice are merged as priors, and say so in the
       docstring.
 - [ ] Manual Part 1 and `tests/api_surface.py`: every new public name

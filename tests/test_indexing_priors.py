@@ -260,3 +260,33 @@ def test_the_prior_seeds_svds_starting_basin(monkeypatch):
                for c in res.candidates), (
         "the seeded start did not reach the stated basin — with the random "
         "ladder starved to zero trials the seed is the only thing that ran")
+
+
+# ----------------------------------------------------------------------
+# two settings of one lattice, and a cell you can read by name (WP-1510)
+# ----------------------------------------------------------------------
+@pytest.mark.xdist_group("indexing-priors")
+def test_two_settings_of_one_prior_lattice_are_one_candidate():
+    """Declared with β and with 180° − β, one monoclinic lattice is checked as
+    two priors, named twice in ``INDEX_PRIOR_USED``, and reported as one row."""
+    peaks, cell = synthetic_peaks("monoclinic")
+    a, b, c, al, be, ga = cell
+    spec = SearchSpec(systems=("monoclinic",),
+                      prior_cells=(tuple(cell), (a, b, c, al, 180.0 - be, ga)))
+    res = index_pattern(peaks, spec=spec, engines=())
+    assert len(res.candidates) == 1
+    assert res.candidates[0].found_by == ["prior"]
+    used = next(d for d in res.diagnostics if d.code == "INDEX_PRIOR_USED")
+    assert used.message.count("entered unconfirmed") == 2
+
+
+def test_a_candidate_cell_reads_by_name_and_converts():
+    from rietx.schemas.indexing import CellCandidate
+
+    cand = CellCandidate(cell=(8.875, 16.408, 7.137, 90.0, 93.84, 90.0),
+                         cell_esd=(0.0,) * 6, system="monoclinic")
+    assert (cand.a, cand.b, cand.c) == (8.875, 16.408, 7.137)
+    assert (cand.alpha, cand.beta, cand.gamma) == (90.0, 93.84, 90.0)
+    assert cand.to_cell().lengths_angles() == cand.cell
+    # properties, not fields: the JSON shape is the tuple it always was
+    assert "beta" not in cand.model_dump()

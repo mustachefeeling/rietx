@@ -32,7 +32,8 @@ from typing import Literal
 import numpy as np
 from pydantic import Field, field_validator, model_validator
 
-from .common import Base, Diagnostic, Provenance
+from .common import Base, Diagnostic, Parameter, Provenance
+from .structure import Cell
 
 #: Any change a consumer could observe bumps the last component by one, and
 #: the comment says what changed — no classification, no digest (WP-1117).
@@ -956,6 +957,14 @@ class CellCandidate(Base):
     independent engines is the confidence, the same device as the cross-backend
     Jacobian matrix and ``direction="both"`` — and ``ambiguity`` is populated
     whenever a geometrically indistinguishable partner exists.
+
+    ``cell`` is a bare (a, b, c, α, β, γ) tuple in Å and degrees, kept so for
+    the JSON shape; ``a`` … ``gamma`` name its members and :meth:`to_cell`
+    builds a :class:`~rietx.schemas.structure.Cell` from it (WP-1510).  Two
+    settings of one lattice are one candidate: a prior declared twice, once
+    with an acute and once with an obtuse monoclinic angle, is checked as two
+    priors, each named in ``INDEX_PRIOR_USED``, and the consensus merges them
+    into one row, because its deduplication compares reduced cells.
     """
 
     cell: tuple[float, float, float, float, float, float]
@@ -996,6 +1005,37 @@ class CellCandidate(Base):
     #: :data:`IndexCaveat` vocabulary
     confidence_caveats: list[IndexCaveat] = Field(default_factory=list)
     diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+    @property
+    def a(self) -> float:
+        return self.cell[0]
+
+    @property
+    def b(self) -> float:
+        return self.cell[1]
+
+    @property
+    def c(self) -> float:
+        return self.cell[2]
+
+    @property
+    def alpha(self) -> float:
+        return self.cell[3]
+
+    @property
+    def beta(self) -> float:
+        return self.cell[4]
+
+    @property
+    def gamma(self) -> float:
+        return self.cell[5]
+
+    def to_cell(self) -> Cell:
+        """The candidate's cell as a :class:`~rietx.schemas.structure.Cell`,
+        every parameter fixed.  The esds stay on ``cell_esd``: a ``Parameter``
+        carries none."""
+        return Cell(**{k: Parameter(value=float(v)) for k, v in zip(
+            ("a", "b", "c", "alpha", "beta", "gamma"), self.cell)})
 
     def fom_value(self, name: str) -> float | None:
         """One panel member by name, or None — never a KeyError, because which
