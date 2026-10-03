@@ -44,7 +44,7 @@ screen work closed with 1445. Checked against the index on 2026-10-03.
 
 ## Tasks
 
-- [ ] `auto_background(source=)`, passed to the screen; `api.md` and the manual partition
+- [x] `auto_background(source=)`, passed to the screen; `api.md` and the manual partition
       move with it, paid for by a cut under the skill caps.
 - [ ] The wizard maps `beam_optics` to `Source.kbeta`, after deciding incident versus
       diffracted monochromator. State what a file with neither says.

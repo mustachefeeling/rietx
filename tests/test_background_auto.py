@@ -1722,3 +1722,24 @@ def test_signal_cutoff_reports_one_boundary_per_edge():
     got = signal_cutoffs(tt, y + halo, _sigma_like_the_file(y + halo))
     assert [c.edge for c in got] == ["low"], got
     assert abs(got[0].two_theta - 12.0) < 0.2, got
+
+
+def test_auto_background_hands_its_declared_source_to_the_screen(monkeypatch):
+    """``source=`` reaches ``diagnose``; without it the screen gets ``None`` (WP-1539)."""
+    from rietx.background import auto as auto_mod
+    from rietx.schemas.instrument import NeutronSource
+
+    seen = []
+    real = auto_mod.diagnose
+
+    def spy(data, **kw):
+        seen.append(kw.get("source"))
+        return real(data, **kw)
+
+    monkeypatch.setattr(auto_mod, "diagnose", spy)
+    data = _peaky_pattern(background=_flat_bkg)
+    auto_background(data, wavelength=WAVELENGTH)
+    neutron = NeutronSource(wavelength=WAVELENGTH)
+    auto_background(data, wavelength=WAVELENGTH, source=neutron)
+    assert seen[0] is None
+    assert seen[1] is neutron
