@@ -1,6 +1,6 @@
 # WP-1523 — A phase fitted to noise passes the support test
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-04 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: — (1420 soft: the same hold, in a chain)
 Priority: P2 2026-09-29 — a frame with no phase in it reports that phase's cell with an esd and no `PHASE_UNCONSTRAINED`, depending on where the fit started; a path few fits run
