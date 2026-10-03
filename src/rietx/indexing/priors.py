@@ -173,6 +173,9 @@ class PriorReport:
     systems: tuple[str, ...]        # what it classified as
     candidate: EngineCandidate | None   # survived the check, or None
     reason: str = ""                # why not, when candidate is None
+    #: the ``SearchSpec`` field and value that would admit a prior refused at
+    #: the axis box, or ``None``; written only by ``build_prior_candidates``
+    box: tuple[str, float] | None = None
 
 
 def _centring_choices(spec: SearchSpec, system: str,
@@ -232,9 +235,16 @@ def build_prior_candidates(peaks: PeakList, spec: SearchSpec, quality
         axes = (float(cell[0]), float(cell[1]), float(cell[2]))
         if not (spec.min_d_axis <= min(axes)
                 and max(axes) <= spec.max_d_axis):
+            # one whole ångström of margin past the prior's own axis, so the
+            # refined cell is not refused at the edge it was admitted at
+            report.box = (("max_d_axis", float(np.ceil(max(axes))) + 1.0)
+                          if max(axes) > spec.max_d_axis else
+                          ("min_d_axis",
+                           max(float(np.floor(min(axes))) - 1.0, 0.5)))
             report.reason = (f"outside the declared axis range "
                              f"{spec.min_d_axis:g}-{spec.max_d_axis:g} Å — a "
-                             "prior never widens the box")
+                             "prior never widens the box; pass "
+                             f"{report.box[0]}={report.box[1]:g} to search it")
             continue
         n_max = int(np.ceil(max(axes) * np.sqrt(max(q_max, 1e-12)))) + 1
         if n_max > MAX_PRIOR_INDEX:
@@ -345,6 +355,27 @@ def prior_used_diagnostic(reports: list[PriorReport], jumped: list[str],
         + "; ".join(lines)
         + ". A prior reorders and seeds the search; it never injects a "
           "candidate past the engines, and no range was changed by it")
+    # a prior refused at the box is the caller's knowledge going unused, so it
+    # is a warning naming the value to pass (WP-1510).  WP-1045's rule stands:
+    # the box is a declared search, and a prior that widened it would make the
+    # search the caller asked for depend on what they guessed.  On the run that
+    # reopened this, the refusal sat at ``info`` inside a long message and cost
+    # a 24-minute rerun before anyone acted on it.
+    boxed = [r for r in reports if r.box is not None]
+    if boxed:
+        highs = [v for f, v in (r.box for r in boxed) if f == "max_d_axis"]
+        lows = [v for f, v in (r.box for r in boxed) if f == "min_d_axis"]
+        args = ", ".join(([f"max_d_axis={max(highs):g}"] if highs else [])
+                         + ([f"min_d_axis={min(lows):g}"] if lows else []))
+        return Diagnostic(
+            level="warning", code="INDEX_PRIOR_USED", message=message,
+            where=[r.label for r in reports],
+            suggestion=(f"{len(boxed)} prior(s) lie outside the axis box and "
+                        f"were not checked: rerun with SearchSpec({args}) to "
+                        "search the box they need.  A prior never widens the "
+                        "box itself, because the box is the search you "
+                        "declared"),
+            value=float(len(boxed)))
     return Diagnostic(
         level="info", code="INDEX_PRIOR_USED", message=message,
         where=[r.label for r in reports],

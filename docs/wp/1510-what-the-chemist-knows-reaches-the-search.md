@@ -113,7 +113,7 @@ rule.
       that counts lines.
 - [x] `INDEX_DATA_INSUFFICIENT`: the suggestion names an undeclared
       instrument first. Test both branches.
-- [ ] `INDEX_PRIOR_USED`: a prior refused at the box is reported at
+- [x] `INDEX_PRIOR_USED`: a prior refused at the box is reported at
       `warning` with the `max_d_axis` value to pass, or 1045's decision is
       reopened. Either way the handover records the reason.
 - [ ] A volume window and a Z check from a formula: a `SearchSpec` helper,

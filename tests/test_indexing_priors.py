@@ -145,6 +145,29 @@ def test_a_prior_outside_the_box_is_refused_before_any_check():
     cands, reports = build_prior_candidates(peaks, spec, None)
     assert cands == []
     assert "never widens the box" in reports[0].reason
+    assert reports[0].box == ("max_d_axis", 15.0)
+
+
+def test_a_prior_refused_at_the_box_is_a_warning_naming_the_value():
+    """The caller's knowledge going unused is a warning, and its suggestion is
+    the value to pass, not a sentence to decode (WP-1510)."""
+    from rietx.indexing.priors import build_prior_candidates, prior_used_diagnostic
+
+    peaks, _cell = synthetic_peaks("cubic")
+    spec = SearchSpec(systems=("cubic", "tetragonal"), min_d_axis=2.0,
+                      max_d_axis=12.0,
+                      prior_cells=((5.31, 5.31, 13.72, 90.0, 90.0, 90.0),
+                                   (5.31, 5.31, 5.31, 90.0, 90.0, 90.0)))
+    _cands, reports = build_prior_candidates(peaks, spec, None)
+    d = prior_used_diagnostic(reports, [], [])
+    assert d.level == "warning"
+    assert "SearchSpec(max_d_axis=15)" in d.suggestion
+    assert d.value == 1.0
+
+    inside = SearchSpec(systems=("cubic",), min_d_axis=2.0, max_d_axis=12.0,
+                        prior_cells=((5.31, 5.31, 5.31, 90.0, 90.0, 90.0),))
+    _cands, reports = build_prior_candidates(peaks, inside, None)
+    assert prior_used_diagnostic(reports, [], []).level == "info"
 
 
 # ----------------------------------------------------------------------
