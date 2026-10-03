@@ -1137,6 +1137,17 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "there is no judgement left to make."
         ),
     ),
+    "duplicate_line": HelpEntry(
+        title="Line another group already fitted",
+        label="duplicate",
+        description=(
+            "This component sits on a line that a neighbouring group fitted "
+            "with a better-measured component. It is one physical peak fitted "
+            "twice. The copy is kept in the list, because it let its own "
+            "group's window fit, and it is unusable: a list that offers one "
+            "line twice makes the second copy a line no candidate explains."
+        ),
+    ),
 }
 
 #: One entry per value of :attr:`~rietx.schemas.indexing.ObservedPeak.origin`

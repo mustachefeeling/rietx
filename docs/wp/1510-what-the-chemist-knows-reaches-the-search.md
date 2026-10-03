@@ -107,7 +107,7 @@ rule.
 
 ## Tasks
 
-- [ ] Measure where the duplicate lines come from, on a public fixture that
+- [x] Measure where the duplicate lines come from, on a public fixture that
       reproduces them or a synthetic one built to. Then collapse to one line
       per physical peak on the path into `index_pattern`, pinned by a test
       that counts lines.
