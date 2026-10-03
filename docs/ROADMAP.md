@@ -101,11 +101,10 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**1.6.0 is cut from this tree** (WP-1541, 2026-10-03), the first release
-numbered at its cut (WP-1540). It carries what `main` held, completes no
-milestone, and ships the magnetic rungs that landed with what is missing
-stated ([notes](releases/1.6.0.md), [record](milestones/v1.6.md)). After the
-tag, `pyproject.version` moves to `1.7.0.dev0` and the v1.7 record opens.
+**The next release is 1.7** (`pyproject.version` `1.7.0.dev0`), cut from what
+`main` holds ([record](milestones/v1.7.md), notes staged in
+[releases/1.7.0.md](releases/1.7.0.md)). 1.6.0 shipped 2026-10-03, the first
+release numbered at its cut ([notes](releases/1.6.0.md)).
 
 **One milestone is open and three are queued, by name.** [magnetic](#magnetic--the-magnetic-structure)
 opened 2026-09-18 as v1.6; rietview, rigid-bodies and structure-solution were
@@ -149,6 +148,7 @@ covers (1119 § Gotchas).
 | v1.4 | Free-standing peaks: fit_peaks + the extra-components seam | ✅ **shipped 2026-09-13** ([record](milestones/v1.4.md), [notes](releases/1.4.0.md)) | seventeen rows, **every one written before the work rather than at the ship** — 1101's five at the open, 1102's and 1103's sharpened by the sessions that had read them — and all seventeen met on the release tree (record § Appendix). The measured half: `fit_peaks` answers a named position that fits nothing and flags the unnamed neighbour beside one; the union's second member costs no new field and its landing is read from data, not from a class name; and the operando case is reported against its own alternative rather than flattered — declaring two injected holder lines recovers the SRM 660c cell to −1.0 ppm where ignoring them costs +7.6 ppm and inflates the cell esd 7.5×, while **excluding** the regions recovers it too, to +0.6 ppm, for 4.8 % of the channels |
 | v1.5 | A window into a run: the live watcher, foreign model files, a measured background | ✅ **shipped 2026-09-18** ([record](milestones/v1.5.md), [notes](releases/1.5.0.md)) | nine rows, **none of them written at the open**, because the milestone was opened 496 commits behind its own work — the record says plainly that this is weaker evidence than v1.3's at-ship rows and reads as an inventory. The measured half: the live view at 180-329 kB a stage against the replaced page's 4.51-6.03 MB; a default-on recorder costing 1.03-1.28×, which **fails** its own 1.05× gate on two cases of three and was kept anyway with the reason recorded; a console that froze the main thread for 997 ms on a 60 000-event run, capped at the route; four foreign formats read and written; and `help.py`'s Lp corrected from 0.508× of the one the code computes |
 | v1.6 | The first release numbered at its cut: what `main` held on 2026-10-03, completing no milestone | ✅ **shipped 2026-10-03** ([record](milestones/v1.6.md), [notes](releases/1.6.0.md)) | 217 pull requests since v1.5.0, every user-facing change named in the notes or dispositioned in WP-1541's handover; the magnetic rungs ship unfinished and say what is missing; the Windows pre-upload gate, red every night since 2026-09-28, green on the release commit; VALIDATION.md's measured column re-run on the release tree; suite counts in the record's ship appendix |
+| v1.7 | The next release: what `main` carries when it is cut, and the milestones complete by then | 🔄 **accumulating since 2026-10-03** ([record](milestones/v1.7.md)) | written at the cut |
 | magnetic | The magnetic structure (was v1.6): the satellite, the moment, the determination, the mode amplitude — [§ magnetic](#magnetic--the-magnetic-structure) | 🔄 **opened 2026-09-18** ([record](milestones/magnetic.md)) | eleven rows written at the open, the record's § Acceptance; the measured half is still to come |
 | rietview | rietview (was v1.7): the structure figure an agent composes — cuts, extents, a figure that reports on itself, a real-agent measurement, the split — [§ rietview](#rietview--the-structure-figure-an-agent-composes) | ⬜ **queued 2026-09-27** | written at the open |
 | rigid-bodies | Rigid bodies (was v1.8): a fragment refined as one body, its atoms reported with esds — [WPs](wp/README.md#rigid-bodies): 1801-1803, the seam spike first, the rest cut from its record | ⬜ **queued 2026-09-30** | written at the open |
