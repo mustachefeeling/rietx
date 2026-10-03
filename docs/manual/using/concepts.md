@@ -192,7 +192,7 @@ the second time with the three phosphate oxygens' `biso` tied together:
 |---|---|---|
 | free parameters | 20 | 18 |
 | points per parameter | 287.5 | 319.4 |
-| Rwp | 0.097307 | 0.097355 |
+| Rwp | 0.096957 | 0.097002 |
 | B(O5) / Å² | 0.2834(1421) | 0.4263(704) |
 | B(O6) / Å² | 0.5288(1497) | 0.4263(704) |
 | B(O7) / Å² | 0.4361(1008) | 0.4263(704) |

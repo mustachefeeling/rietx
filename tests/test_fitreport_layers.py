@@ -1267,7 +1267,7 @@ def test_e2_converged_report_names_the_exchange(truth):
     −0.02 mm displacement into a compensating zero (χ²_red ≈ 1.01, spike
     table in the WP handover) and before this WP the *converged* report
     carried no trace of it.  Now the summary names the pair and the row
-    carries the evidence: R² = 0.9999 with the partner 128σ from its null."""
+    carries the evidence: R² = 0.9999 with the partner 168σ from its null."""
     from rietx.report import is_exchangeable
     from rietx.report.schemas import EXCHANGE_PARTNER_MIN_SIGNIFICANCE, EXCHANGEABLE_MIN_R2
 

@@ -639,6 +639,30 @@ def test_spacegroup_route_names_the_free_cell_parameters(blank):
     assert "unknown space group symbol" in payload["error"]["message"]
 
 
+def test_the_wizard_carries_the_files_optics_into_the_source(blank, tmp_path):
+    """The form has no field for ``Source.kbeta``; the file's own optics fill it (WP-1539)."""
+    session, client = blank
+    xrdml = Path(__file__).parent / "data" / "panalytical_powder.xrdml"
+    made = {}
+    for name, instrument in (("file", {"preset": "bragg_brentano", "radiation": "CuKa",
+                                       "goniometer_radius_mm": 240.0}),
+                             ("own", {"preset": "bragg_brentano", "radiation": "CuKa",
+                                      "goniometer_radius_mm": 240.0, "kbeta": "filter"})):
+        status, payload = client.post("/api/project/new", {
+            "path": str(tmp_path / f"{name}.rex"), "pattern": str(xrdml),
+            "structure": {"space_group": "P m -3 m", "cell": {"a": 4.160}},
+            "instrument": instrument, "mode": "lebail"})
+        assert status == 200, payload
+        made[name] = session.project.refinement.instrument.source.kbeta
+    assert made == {"file": "mirror", "own": "filter"}
+
+    # an instrument edit from a preset reads the project's own file the same way
+    status, patched = client.patch("/api/instrument", {"instrument": {
+        "preset": "bragg_brentano", "radiation": "CuKa", "goniometer_radius_mm": 240.0}})
+    assert status == 200, patched
+    assert session.project.refinement.instrument.source.kbeta == "mirror"
+
+
 def test_a_typed_cell_creates_a_project_that_fits(blank, tmp_path, pattern_file):
     """A cell and a symbol are a project — no CIF anywhere in this test.
 

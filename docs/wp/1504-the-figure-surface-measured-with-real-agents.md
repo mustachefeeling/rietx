@@ -1,6 +1,6 @@
 # WP-1504 — the figure surface measured with real agents
 
-Milestone: v1.7 · Status: 🔄 2026-10-01 — fixed round run (14 runs, 13 done); N = 3 waits on a menu pick
+Milestone: rietview · Status: 🔄 2026-10-01 — fixed round run (14 runs, 13 done); N = 3 waits on a menu pick
 Depends on: 1501, 1502, 1503; 1529 soft (the next round)
 Priority: P3 2026-10-01 — the fixed round ran on WP-1529's merge; option E (N = 3) waits on the maintainer
 

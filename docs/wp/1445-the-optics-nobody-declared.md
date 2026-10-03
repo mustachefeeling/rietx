@@ -1,9 +1,8 @@
 # WP-1445 — the optics nobody declared: a source that cannot emit the line
 
-Milestone: unscheduled · Status: 🔄 2026-10-03 — the seven tasks landed; three follow-ups remain (see Handover log)
+Milestone: unscheduled · Status: ✅ 2026-10-03 — the seven tasks landed; the three follow-ups are WP-1539
 Track: What fires, and what stays silent
 Depends on: — (1442 soft)
-Priority: P2 2026-09-23 — an X-ray ghost search fires on a neutron source; the schema decision is this WP's first task
 
 ## Goal
 
@@ -127,7 +126,7 @@ already owns `mu_t`, `goniometer_radius_mm` and the aberration parameters, so
 - [x] Tests: the neutron pattern, the demo's mirror, and a fixture whose
       declared monochromator makes the search skip.
 
-- [ ] Follow-ups the review found: `auto_background` cannot be handed a
+- [x] Follow-ups the review found (filed 2026-10-03 as WP-1539): `auto_background` cannot be handed a
       source (it needs a public argument, so `api.md` and the manual
       partition move with it); the import wizard does not turn `beam_optics`
       into `Source.kbeta` (and must tell an incident monochromator from a
@@ -151,6 +150,13 @@ already owns `mu_t`, `goniometer_radius_mm` and the aberration parameters, so
 - `src/rietx/io/CLAUDE.md` for what a reader may and may not repair.
 
 ## Handover log
+
+### 2026-10-03 (2nd session) — closed
+
+The three follow-ups below were filed as WP-1539, which no open WP owned, and
+the follow-up item is ticked with that pointer. Nothing else remained, so the
+WP closes and its narrative is in `docs/milestones/v1.6.md`. The Priority line
+is deleted as moot, and there was no `### Inherited` section to consume.
 
 ### 2026-10-03 — Source.kbeta, and the screen reads it
 

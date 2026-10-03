@@ -12,6 +12,7 @@ output parsing.
 
 from __future__ import annotations
 
+import datetime
 import importlib.util
 import json
 import os
@@ -1392,3 +1393,24 @@ def test_a_depends_link_the_other_branch_renumbered_is_declined() -> None:
     theirs = text(("0009", "—"))
     with pytest.raises(wp_index.Conflict, match="0002"):
         wp_index.merge(base, ours, theirs)
+
+
+def test_a_week_old_release_tag_with_merges_since_owes_a_release(repo: Path) -> None:
+    """The weekly cut (WP-1540): silent inside the week, and with nothing merged."""
+    (repo / "README").write_text("x\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "init", date="2026-09-01")
+    _git(repo, "tag", "v1.0.0")
+    tagged = datetime.date(2026, 9, 1)
+    assert hook.release_flag(repo, today=tagged + datetime.timedelta(days=30)) is None
+
+    _git(repo, "checkout", "-q", "-b", "feature")
+    (repo / "x.py").write_text("y\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "work", date="2026-09-02")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "merge", "-q", "--no-ff", "-m", "merge", "feature", date="2026-09-02")
+
+    assert hook.release_flag(repo, today=tagged + datetime.timedelta(days=6)) is None
+    flag = hook.release_flag(repo, today=tagged + datetime.timedelta(days=7))
+    assert flag is not None and "v1.0.0 is 7 days old, 1 merges since" in flag

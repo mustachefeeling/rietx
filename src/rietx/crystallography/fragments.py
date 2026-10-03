@@ -1,6 +1,6 @@
 """Molecular fragments: a rigid-body template, its declared bonds and its body frame.
 
-A rigid body (WP-1802, the second rung of v1.8; issue #561) refines a
+A rigid body (WP-1802, the second rung of rigid-bodies; issue #561) refines a
 *template* as a whole: a set of atoms at Cartesian positions in Å.  This module
 holds the template and one way of making it, and nothing of the refinement: no
 orientation, no schema, no parameter table.

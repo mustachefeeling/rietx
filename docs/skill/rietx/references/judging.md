@@ -79,8 +79,8 @@ reflection density rather than low symmetry alone.
 
 **Measured at the other end of that variable**, one range and one instrument
 treatment, three modes: 11-BM LaB₆, 2-40°, 55 reflections, mean FWHM 0.0097°,
-**0.014 reflections per FWHM**. Rietveld a = 4.1568414(52) Å, Le Bail
-4.1568425(51), Pawley 4.1568431(51). They spread 0.4 ppm, a third of one esd, and the esds agree within 2 %. Le Bail also won on Rwp there (0.0861 against 0.0879), so a better Rwp does not show the cell is wrong or right. Where reflections crowd, check the cell against a structural model; where resolved, skip it.
+**0.014 reflections per FWHM**. Rietveld a = 4.1568414(45) Å, Le Bail
+4.1568425(44), Pawley 4.1568431(44). They spread 0.4 ppm, two-fifths of one esd, and the esds agree within 3 %. Le Bail also won on Rwp there (0.0861 against 0.0879), so a better Rwp does not show the cell is wrong or right. Where reflections crowd, check the cell against a structural model; where resolved, skip it.
 
 **Multi-phase Le Bail** works since v1.0. The shares sum to 1 across all phases at every channel (measured Σ calculated / Σ observed excess **1.79 → 1.0000** on LaB₆ + CaF₂, single-phase path bit-identical). One caveat is the method's own. The data do not split the intensity of two phases whose reflections *coincide*, so the partition splits it by the current model, a starting value. Treat a high multi-phase Le Bail Rwp as a reason to check the
 seeding above.
@@ -134,7 +134,7 @@ that a fitted partner stands many σ from its null. An E2-shaped answer reads
 "converged, but the fitted zero_shift is exchangeable with the held
 sample_displacement — **this fit** cannot tell you which is physical". Measured,
 the fit carrying a planted displacement inside a compensating zero and its clean
-reference differ only in this row: χ²_red 1.012 against 1.010, R² identical to six decimals, the partner at 128σ against 1.6σ.
+reference differ only in this row: χ²_red 1.012 against 1.010, R² identical to six decimals, the partner at 168σ against 1.5σ.
 
 **Why R² cannot decide it.** R² measures column overlap alone, not whether the counts separate the pair. On real SRM 660c a pair at R² 0.9977 comes apart decisively: χ² 4.0752 (zero only) against 3.4890
 (displacement only) on 5332 points, with the zero-only model biasing *a* by
@@ -292,7 +292,7 @@ residual is white noise inside ±3σ). `BACKGROUND_ABSORPTION` does, and so does
 The **too-stiff** side has no guard of its own. On round-robin sample 2, a
 1°-knot P-spline with its penalty ten thousand times too stiff moved corundum's
 Biso 28 % with no background code firing, at 1.17× the Rwp and with the
-fractions within 1 wt % (WP-1454). Before 1.5.1 that was what high counts did to the
+fractions within 1 wt % (WP-1454). Up to 1.5.0 that was what high counts did to the
 default λ, which was measured in intensity units. λ is a pure number now, and
 the same λ means the same stiffness at any count level. A λ tuned by hand
 against an older version, such as λ ≈ 1/σ², does not carry over.
@@ -380,10 +380,10 @@ windows no longer cover the profile and `FROZEN_COMPILE_STALE` fires.
 so the fit is not in the lowest basin along the ridge.
 
 A synthetic trace of CaF₂ in LaB₆ (lab Cu Kα, a 10-count amorphous hump under a
-six-term Chebyshev) reproduces the shape. The fit gives 1.19 ± 0.53 wt%. The
+six-term Chebyshev) reproduces the shape. The fit gives 1.19 ± 0.39 wt%. The
 profile admits 0.86 % to 77 % in two basins separated by a barrier the data sees
-(Δχ² 15 against a cut of 9.4), `excess` 74, and fires. Without the hump and with
-five times the CaF₂, one basin at 3.3-4.4 % and `excess` 0.61: silent. By hand
+(Δχ² 15 against a cut of 5.2), `excess` 99, and fires. Without the hump and with
+five times the CaF₂, one basin at 3.8-3.9 % and `excess` 0.22: silent. By hand
 the same scan is `ref.branch()`, `trial.set_vary([axis], False)`, then per value
 `set_values` and `run_stage(data, rx.Stage("width_pin", []))`, with χ² = `chi2 · (n_points − n_free_parameters)`.
 

@@ -107,3 +107,14 @@ def test_a_cif_reads_from_a_pathlib_path_as_from_a_str():
     from_path = rx.Structure.from_cif(path)
     from_str = rx.Structure.from_cif(str(path))
     assert from_path.model_dump() == from_str.model_dump()
+
+
+def test_a_cif_writes_to_a_pathlib_path_as_to_a_str(tmp_path):
+    """The writer's half: ``Structure.to_cif`` handed a ``pathlib.Path`` to
+    gemmi's ``write_file``, which takes a ``str`` only, and raised TypeError."""
+    import rietx as rx
+    structure = rx.Structure.from_cif(Path(__file__).parent / "data" / "cod_1000055.cif")
+    structure.to_cif(tmp_path / "path.cif")
+    structure.to_cif(str(tmp_path / "str.cif"))
+    assert ((tmp_path / "path.cif").read_text(encoding="utf-8")
+            == (tmp_path / "str.cif").read_text(encoding="utf-8"))

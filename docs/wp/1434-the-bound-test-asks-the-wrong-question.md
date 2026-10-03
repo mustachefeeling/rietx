@@ -252,7 +252,7 @@ solver happened to stop beside.
   that only the `BOUND_HIT` diagnostic reads. `str(finding)` is untouched,
   which is what the byte-for-byte pin protects.
 - Thirteen test rows, the skill's diagnostics row, and a staged
-  [1.5.1](../releases/1.5.1.md) section.
+  [1.5.1](../releases/1.6.0.md) section.
 
 **Measured.** `[dev]`, macOS arm64, machine otherwise idle (`ps` checked
 before each run).

@@ -688,7 +688,7 @@ def write_structure_block(block, phase: Phase, *,
                                 magnitude_esds=moment_magnitude_esds)
 
 
-def structure_to_cif(structure: Structure, path: str) -> None:
+def structure_to_cif(structure: Structure, path: str | os.PathLike[str]) -> None:
     """Write phases to a minimal CIF (cell, positions, occupancies, ADPs).
 
     One data block per phase.  See :func:`write_structure_block` for the ADP
@@ -698,4 +698,5 @@ def structure_to_cif(structure: Structure, path: str) -> None:
     for phase in structure.phases:
         block = doc.add_new_block(re.sub(r"\W+", "_", phase.name))
         write_structure_block(block, phase)
-    doc.write_file(path)
+    # gemmi's writer takes a str only, as its readers do (structure_from_cif).
+    doc.write_file(os.fspath(path))

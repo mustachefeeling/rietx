@@ -14,9 +14,9 @@ instrument and protocol as ``test_acceptance_qpa_roundrobin`` (provenance in
 case as a success story):
 
 Adding the three anisotropic Stephens patterns to brucite improves Rwp from
-18.55 % to 17.90 %, and that improvement passes *both* statistical tests for
-the added parameters — Hamilton's R-ratio test at α = 0.05 and ΔBIC, +15.5 at
-N/f² since WP-1417 (+488 at raw N when this was written).
+18.62 % to 17.84 %, and that improvement passes *both* statistical tests for
+the added parameters — Hamilton's R-ratio test at α = 0.05 and ΔBIC, +22.4 at
+N/f² on the 1.6.0 tree (+592 at raw N).
 It is nonetheless **physically inadmissible**: the refinement drives σ²(M)
 negative on 12 of the 43 fitted reflections, and the fit stops at max_iter
 rather than converging.  σ² is a variance; a negative one is not a large
@@ -62,6 +62,9 @@ seed    LM Rwp               LM σ² < 0           TRF Rwp              TRF σ²
 3000    0.17819              0 of 43             0.17819              0 of 43
 ======  ===================  ==================  ===================  ==============
 
+Measured before 1.6.0. Re-run on the 1.6.0 tree, the TRF column reads 13, 7,
+0 and 0 of 43, and seed 800 gives LM 0.18162 against TRF 0.17844.
+
 So: the constraint holds from **every** start, which is what it promised, and
 the unconstrained driver leaves the cone from the low seeds only.  But the
 objective has several local minima, and the coefficients that come back span
@@ -85,9 +88,9 @@ It also pins which statistic to believe, and the answer moved with issue #270
 separates them (+592 against −15).  That read as ΔBIC being the statistic to
 trust until #270 showed raw-N ΔBIC blessing a 1σ occupancy the same way.  Both
 are now read at N/f², f the restricted fit's ``esd_inflation``.  There Hamilton
-refuses corundum too, and ΔBIC reads +15.5 for brucite against −17.8.  Brucite's
+refuses corundum too, and ΔBIC reads +22.4 for brucite against −18.6.  Brucite's
 block still pays for its three parameters jointly, while three of its four S_HKL
-coefficients lie within 1.2σ of zero (value/esd 0.33, −1.14, 0.33, 2.31): the
+coefficients lie within 1.3σ of zero (value/esd 0.38, −1.27, 0.37, 2.57): the
 ~100 % spread across starts above, seen in one fit's esds.
 
 
@@ -268,7 +271,7 @@ def test_brucite_improvement_is_justified_but_leaves_the_physical_cone(
         == pytest.approx(0.65, abs=0.05)
 
     # 1. the improvement is real and passes both tests for the added
-    #    parameters at N/f² (measured ΔBIC +15.5 at N_eff 392; +592 at raw N)
+    #    parameters at N/f² (measured ΔBIC +22.4 at N_eff 479; +592 at raw N)
     assert iso.statistics.rwp == pytest.approx(0.1855, abs=0.01)
     assert ani.statistics.rwp == pytest.approx(0.1790, abs=0.01)
     assert ani.statistics.rwp < iso.statistics.rwp
@@ -277,7 +280,7 @@ def test_brucite_improvement_is_justified_but_leaves_the_physical_cone(
     bic, hamilton = info["eff"]
     assert bic > 0.0 and hamilton
     # …jointly: at most one of the four S_HKL coefficients lies 2σ from zero
-    # (value/esd 0.33, −1.14, 0.33, 2.31), so the data measure the block and
+    # (value/esd 0.38, −1.27, 0.37, 2.57), so the data measure the block and
     # not its coefficients.  From zero, because the isotropic fit has no block
     t = [p.value / p.stderr for p in ani.parameters
          if ".microstrain.dof." in p.path and p.stderr]
@@ -381,11 +384,11 @@ def test_constrained_solver_keeps_brucite_inside_the_cone():
     ==================  ======  ===================
     brucite, seed 800   Rwp     reflections σ² < 0
     ==================  ======  ===================
-    TRF, unconstrained  17.90   12 of 43
-    LM, cone enforced   18.42   0 of 43
+    TRF, unconstrained  17.84   7 of 43
+    LM, cone enforced   18.16   0 of 43
     ==================  ======  ===================
 
-    A fit that is inadmissible on 12 of its 43 reflections is not a better fit
+    A fit that is inadmissible on 7 of its 43 reflections is not a better fit
     for having a lower Rwp; it is a fit whose S_HKL cannot be quoted.  Same
     shape as the v0.5 method result — a correction that is right can move Rwp
     the wrong way — which is why every assertion below is about the cone and

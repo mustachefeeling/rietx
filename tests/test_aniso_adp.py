@@ -385,7 +385,8 @@ def test_round_trip_recovers_an_anisotropic_perturbation():
     #
     # WP-1001 measured what dispersion does to this separation and it is not
     # nothing: with the (now default) block on, the same fit resolves U11 from
-    # U33 at only **1.90σ** (under the pre-1.6 run-sum factor; not re-run).
+    # U33 at **5.1σ** against 5.5σ declined (measured 2026-10-03 under the
+    # eqs (10)-(12) factor; 1.90σ against 2.2σ under the pre-1.6 run-sum).
     # The mechanism is physical rather than numerical — at Cu Kα, Ti carries f″ ≈ 1.8 e and O ≈ 0.03, so applying dispersion
     # raises the heavy atom's share of every reflection and the light atom's
     # ADP is correspondingly less well determined.  The block is declined in

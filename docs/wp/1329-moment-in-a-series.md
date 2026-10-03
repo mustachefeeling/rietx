@@ -1,6 +1,6 @@
 # WP-1329 — the moment in a series: the onset, the hold, the trajectory
 
-Milestone: v1.6 · Status: 🔄 2026-10-01 — tasks 1–4 and both review follow-ups landed (PRs #522, #589); task 5, a real ramp longer than the Cr₂WO₆ pair, remains
+Milestone: magnetic · Status: 🔄 2026-10-01 — tasks 1–4 and both review follow-ups landed (PRs #522, #589); task 5, a real ramp longer than the Cr₂WO₆ pair, remains
 Depends on: 1327 (the moment); 1326 soft (the satellite arm per pattern)
 Priority: P3 2026-09-23 — waits on 1327's moment; P2 when it lands
 
@@ -73,6 +73,17 @@ chain on the same data is reported as a range, never gated.
   sinθ/λ in `src/`, `tests/`, `examples/` or the manual. **So name the
   propagation vector `k` and add no qualifier.** Root CLAUDE.md § Conventions
   carries the rule that keeps it free. The same note is in 1326, 1327, 1328 and 1418.
+- **From WP-1541 (2026-10-03): `MagneticTrajectory` and `MagneticOnset`
+  shipped in 1.6.0 without a provisional declaration a test can see.** Both
+  are defined in `rietx.schemas.sequential`, beside 102 stable names, so no
+  `PROVISIONAL_MODULES` prefix can cover them. The cut named them provisional
+  in prose, in `using/compatibility.md` and the 1.6.0 notes. The mechanised
+  fix is to move both into a module of their own (for example
+  `rietx.schemas.magnetic_series`), re-export them from
+  `rietx.schemas.sequential`, and declare it, with the reason that they were
+  measured on a synthetic ramp and one two-pattern pair and the bracket-folding
+  rule changed after they landed (#589). Then drop their sentence from the
+  compatibility page.
 
 ## Non-goals
 

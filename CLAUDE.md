@@ -875,9 +875,9 @@ Planning docs are split so a session loads only what it needs; do not read all:
 - `docs/wp/NNNN-*.md` — one **self-contained** WP per task (context, commit-sized checklist,
   acceptance command, handover log); its header lines are what the index reads, never hand-copied.
 - `docs/DESIGN.md` — design record; read only the section a WP links.
-- `docs/milestones/vX.Y.md` — one record per milestone: measured acceptance at ship, plus (while in
-  flight) the running "How vX.Y is getting here" narrative and the dated appendices. `v1.0.md` is
-  the live one.
+- `docs/milestones/vX.Y.md` — one record per release: the measured ship block, plus (while in
+  flight) the running "How vX.Y is getting here" narrative; `<name>.md` holds a named milestone's
+  scope and acceptance (WP-1540). `v1.6.md` is the live one.
 - The **paper corpus** (location and unread list) is maintainer-local, outside this repo;
   `AGENTS.md` names the split and the maintainer's memory holds it. **Search it before asking for a
   paper or re-deriving a published constant.**
@@ -942,14 +942,14 @@ before placing it (a close, a comment, a fold into a WP's `### Inherited`, a new
 milestone), docs-only, with every public act batched to the person. The `#N` a WP file cites is the
 whole triage record: the command's table reads it, and so does `wp_claim.py` above.
 
-Shipped: **v0.1 … v1.5**, one record each in `docs/milestones/`; ROADMAP's table carries the
+Shipped: **v0.1 … v1.6**, one record each in `docs/milestones/`; ROADMAP's table carries the
 acceptance one-liners, restated in neither place. Since WP-1117 the compatibility promise
 (`docs/manual/using/compatibility.md`) is a **preview**: anything may change in any release,
 versions bumping per observable change. **1.0.2 was written and never published**, folded into v1.1
 (2026-08-23), so 1.0.1 is what anyone upgrades *from* and `docs/releases/1.0.2.md` describes a
-release that never existed. `pyproject.version` tracks the milestone in flight, or the **last
-shipped when none is** — `1.6.0.dev0` today, with v1.6 open. It is the string every
-`RefinementResult.provenance` and history node stamps; a new milestone opens at `1.x.0.dev0`.
+release that never existed. **A milestone is named, a release is numbered at its cut** (WP-1540,
+ROADMAP rule 6), so `pyproject.version` is the next release's `.dev0` except on the tree a tag is
+cut from. Every `RefinementResult.provenance` and history node stamps it; it moves after each cut.
 
 **Indexing.** Full dossier `src/rietx/indexing/CLAUDE.md` (auto-loads when a session works there);
 measured stories in the v1.0 record's appendix. **A new indexing rule lands there; it earns a

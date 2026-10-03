@@ -1,6 +1,6 @@
 # WP-1326 — satellites at G ± k, with no moment model: is it magnetic?
 
-Milestone: v1.6 · Status: 🔄 2026-09-26 — the satellites and their report arm landed from outside (PR #468); the public k ≠ 0 pattern and the Cr₂WO₆ PNG remain
+Milestone: magnetic · Status: 🔄 2026-09-26 — the satellites and their report arm landed from outside (PR #468); the public k ≠ 0 pattern and the Cr₂WO₆ PNG remain
 Depends on: — (first rung of the magnetic scattering track; 1327 builds on
 its reflection list)
 Priority: P2 2026-09-23 — the open milestone's first rung, nothing blocks it
@@ -121,6 +121,18 @@ not both be declared on one phase.
   sinθ/λ in `src/`, `tests/`, `examples/` or the manual. **So name the
   propagation vector `k` and add no qualifier.** Root CLAUDE.md § Conventions
   carries the rule that keeps it free. The same note is in 1327, 1328, 1329 and 1418.
+- **From WP-1541 (2026-10-03): the satellite types shipped in 1.6.0 without
+  a provisional declaration a test can see.** `SatelliteEvidence` and
+  `SatelliteCandidate` are defined in `rietx.report.schemas`, which also
+  defines 197 stable names, so no `PROVISIONAL_MODULES` prefix can cover them
+  (`tests/api_surface.py` resolves by defining module). The cut named them
+  provisional in prose instead, in `using/compatibility.md` and the 1.6.0
+  notes. The mechanised fix is to move both into `rietx.report.satellites`,
+  re-export them from `rietx.report.schemas`, and declare that prefix with a
+  reason such as: the candidate set is a fixed zone-boundary enumeration with
+  no chance baseline and no CDML label, and the generator still to come
+  changes what is ranked and what a candidate carries. Then drop their
+  sentence from the compatibility page.
 
 ## Non-goals
 

@@ -1,6 +1,6 @@
 # WP-1902 — the solve cost as a quadratic form, and the doublet question first
 
-Milestone: v1.9 · Status: 🔄 2026-10-01 — the spike, `solve/cost.py` (PR #580) and its two named refusals (PR #648) landed; one task left: the "poor" refusal reads `RefinementResult.usable`
+Milestone: structure-solution · Status: 🔄 2026-10-01 — the spike, `solve/cost.py` (PR #580) and its two named refusals (PR #648) landed; one task left: the "poor" refusal reads `RefinementResult.usable`
 Depends on: —
 Priority: P2 2026-09-30 — the design gate for the direct-space route; every engine chunk reads this cost
 
@@ -57,6 +57,16 @@ unconverged extraction. "Poor" means `not result.usable` (WP-1336), set
   it shares no handover with this WP. The WP file is written when its PR
   lands, or before if the reporter wants the number on the record first. Do
   not take 1904 for anything else.
+- **From WP-1541 (2026-10-03):
+  `test_the_harmonic_is_not_refused_under_scale_or_on_the_solved_phase` now
+  fits a pattern that carries the phase.** It asserted a positive scale on the
+  flat `_flat(10, 150)` pattern, where the background explains everything, so
+  the projected data were rounding noise (|b| = 7.6e-15) and the scale's sign
+  with them. It came out 0.0 on the Windows nightly of 2026-10-02. The data
+  are now CaF₂'s own calculated pattern and the assertion is scale = 1 to
+  1e-9 (measured 1.0000000000000002); built without the λ/2 line the same
+  cost answers 1.0101. Any other solve-cost test on a flat pattern that reads
+  the sign or size of `b` has the same exposure.
 
 ## Non-goals
 

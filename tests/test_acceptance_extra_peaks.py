@@ -35,9 +35,12 @@ and 43.6205°:
     declare     4.156891     2.46e-05    -1.0    0.07701      5332
     exclude     4.156898     2.49e-05    +0.6    0.08625      5076
 
+The esds are 1.5.0's. On the 1.6.0 tree clean is 2.08e-05 and ignore
+1.81e-04, 8.7x.
+
 **The honest reading, and it is not the one this WP assumed.** Declaring
 recovers the clean cell (-1.0 ppm) and ignoring does not (+7.6 ppm, with the
-esd inflated 7.5x and Rwp 3.7x) — that part holds. But *excluding also
+esd inflated 7.5x, 8.7x on the 1.6.0 tree, and Rwp 3.7x) — that part holds. But *excluding also
 recovers it*, to +0.6 ppm, for 256 channels (4.8 %). On this fixture the case
 for declaring is **not** cell accuracy over exclusion. It is that the channels
 stay in the fit, and that the intruder is measured rather than discarded:

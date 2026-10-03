@@ -23,6 +23,7 @@ destination, because the fix is to move narrative, never to delete facts.
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
 import sys
 from pathlib import Path
@@ -960,7 +961,7 @@ def _kept_by_git(paths: list[Path]) -> list[Path]:
     result = subprocess.run(
         ["git", "check-ignore", "-z", "--stdin"],
         input="".join(f"{p}\0" for p in paths),
-        cwd=ROOT, capture_output=True, text=True, check=False,
+        cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=False,
     )
     # 0 is "something matched", 1 is "nothing did"; anything else is git
     # declining to answer, which must not read as "nothing is ignored".
@@ -1014,25 +1015,41 @@ def test_no_planning_doc_links_something_gitignored():
             if rel and (doc.parent / rel).is_file():
                 targets.append(doc.parent / rel)
     assert targets, "no linked files found — the link regex or the corpus moved"
-    paths = [str(p) for p in sorted(set(targets))]
+    # Repo-relative and normalised: a link's `..` stays out of what git is asked
+    # and of what the index listing below is compared against.
+    normalised = {Path(os.path.normpath(p)) for p in targets}
+    outside = sorted(str(p) for p in normalised if not p.is_relative_to(ROOT))
+    assert not outside, (
+        "a planning doc links a file outside the repository:\n" + "\n".join(outside)
+    )
+    paths = sorted(p.relative_to(ROOT).as_posix() for p in normalised)
+    # The paths go on stdin, never argv: the WP files' links outgrew Windows'
+    # 32 767-character command line, and argv failed there with WinError 206
+    # every night from 2026-09-28 (WP-1541).
     result = subprocess.run(
         # --no-index: check-ignore answers for a *tracked* file out of the index
         # without reading the rules, and the point here is the rules.
-        ["git", "check-ignore", "-v", "--no-index", *paths],
-        cwd=ROOT, capture_output=True, text=True, check=False,
+        ["git", "check-ignore", "-v", "-z", "--no-index", "--stdin"],
+        input="".join(f"{p}\0" for p in paths),
+        # git reads and writes paths as UTF-8; the locale is cp1252 on Windows.
+        cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=False,
     )
     # 0 is "something matched", 1 is "nothing did"; anything else is git
-    # declining to answer — no repository, a path outside it, an argument list
-    # too long — and it writes to stderr, leaving an empty stdout that reads
-    # here as a pass (tests/CLAUDE.md § Guards that go quiet instead of red).
+    # declining to answer — no repository, a path outside it — and it writes to
+    # stderr, leaving an empty stdout that reads here as a pass
+    # (tests/CLAUDE.md § Guards that go quiet instead of red).
     assert result.returncode in (0, 1), (
         f"git check-ignore exited {result.returncode} and asked nothing: "
         f"{result.stderr.strip()}"
     )
+    # -v -z writes four fields a match: source, line number, pattern, path.
+    fields = result.stdout.split("\0")[:-1]
+    assert len(fields) % 4 == 0, f"unexpected check-ignore output: {result.stdout!r}"
     ignored = [
-        line for line in result.stdout.splitlines()
+        f"{source}:{line}:{pattern}\t{path}"
+        for source, line, pattern, path in zip(*[iter(fields)] * 4)
         # A `!` pattern is check-ignore reporting the un-ignore that saved it.
-        if line and not line.split("\t")[0].rpartition(":")[2].startswith("!")
+        if not pattern.startswith("!")
     ]
     assert not ignored, (
         "a planning doc links a file .gitignore drops:\n" + "\n".join(ignored)
@@ -1041,23 +1058,29 @@ def test_no_planning_doc_links_something_gitignored():
     # never added, and a rule committed without the files it frees leaves this
     # guard green while a clone gets nothing — so ask the index too.  Absent
     # this, only CI sees it, through the missing file the link test resolves.
+    # The whole index is listed rather than the paths named, for argv's reason.
     tracked = subprocess.run(
-        ["git", "ls-files", "--error-unmatch", "--", *paths],
-        cwd=ROOT, capture_output=True, text=True, check=False,
+        ["git", "ls-files", "-z"],
+        cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=True,
     )
-    assert tracked.returncode == 0, (
-        "a planning doc links a file git does not track:\n" + tracked.stderr.strip()
+    untracked = sorted(set(paths) - set(tracked.stdout.split("\0")))
+    assert not untracked, (
+        "a planning doc links a file git does not track:\n" + "\n".join(untracked)
     )
 
 
 def test_every_shipped_milestone_row_names_its_record():
-    """A ✅ milestone row must link a record file; the link test resolves it."""
+    """A ✅ milestone row must link a record file; the link test resolves it.
+
+    A version's record is `vX.Y.md` and a named milestone's is `<name>.md`
+    (WP-1540), so the pattern takes either.
+    """
     text = ROADMAP.read_text(encoding="utf-8")
     section = text.split("## Milestones", 1)[1].split("## Work packages", 1)[0]
     for line in section.splitlines():
         if not line.startswith("|") or "✅" not in line:
             continue
-        assert re.search(r"\(milestones/v[\d.]+\.md\)", line), (
+        assert re.search(r"\(milestones/(?:v[\d.]+|[a-z][a-z0-9-]*)\.md\)", line), (
             f"shipped milestone row without a record link: {line[:80]}"
         )
 

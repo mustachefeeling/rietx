@@ -499,6 +499,31 @@ def _by_name(anode: str | None) -> str | None:
     return element + "Ka" if element + "Ka" in _anode_candidates() else None
 
 
+def kbeta_from_metadata(metadata: dict | None) -> str | None:
+    """What a file says stands between the tube and the detector as far as Kβ
+    goes, as a ``Source.kbeta`` value, or ``None`` when it says nothing (WP-1539).
+
+    Only a monochromator **after the sample** maps to ``"monochromator"``, the
+    one value that makes the contamination screen skip: that is the case WP-1442
+    measured.  The same element before the sample is not mapped, since nothing
+    here measured what it leaves of Kβ, so a file listing one stays undeclared
+    even beside a mirror or a filter: naming those would name an optic that is
+    not the one deciding Kβ.  A filter or a mirror alone is recorded and changes
+    nothing downstream.
+    """
+    metadata = metadata or {}
+    if "monochromator" in str(metadata.get("diffracted_beam_optics") or ""):
+        return "monochromator"
+    listed = str(metadata.get("beam_optics") or "")
+    if "monochromator" in listed:  # before the sample, so unmeasured
+        return None
+    if "filter" in listed:
+        return "filter"
+    if "xRayMirror" in listed:
+        return "mirror"
+    return None
+
+
 def suggest_instrument(metadata: dict | None) -> dict | None:
     """What the file already knows about its instrument, as a preset spec.
 
@@ -575,6 +600,9 @@ def instrument_from_preset(spec: dict) -> Any:
     anode.  A form that posted a whole ``Instrument`` would be a second copy of
     all three, kept in TypeScript.
 
+    A ``kbeta`` key is not a constructor argument: it is the file's own optics
+    (:func:`kbeta_from_metadata`), set on the built X-ray source after it.
+
     Refusals are the constructors' own — an unknown anode lists the ones that
     exist, ``bragg_brentano`` without a goniometer radius says so — because they
     are already the right sentences.
@@ -587,7 +615,8 @@ def instrument_from_preset(spec: dict) -> Any:
             f"unknown instrument preset {name!r}; available: "
             f"{sorted(INSTRUMENT_PRESETS)}", where=["instrument.preset"])
     allowed = INSTRUMENT_PRESETS[name]
-    extra = sorted(set(spec) - {"preset", *allowed})
+    kbeta = spec.get("kbeta")
+    extra = sorted(set(spec) - {"preset", "kbeta", *allowed})
     if extra:
         raise UploadRefused(
             f"{name} takes {list(allowed)}; it does not take {extra}",
@@ -598,8 +627,17 @@ def instrument_from_preset(spec: dict) -> Any:
             "debye_scherrer needs a wavelength in Å — it is the one geometry "
             "with no anode to read one from", where=["instrument.wavelength"])
     try:
-        if name == "debye_scherrer":
-            return Instrument.debye_scherrer(**kwargs)
-        return getattr(Instrument, name)(**kwargs)
+        built = (Instrument.debye_scherrer(**kwargs) if name == "debye_scherrer"
+                 else getattr(Instrument, name)(**kwargs))
     except (ValueError, TypeError) as exc:
         raise UploadRefused(f"{name}: {exc}", where=["instrument"]) from None
+    # a declaration the constructor made outranks the file's, and a neutron
+    # source has no Kβ to declare
+    if (kbeta is not None and built.source.kind == "xray_cw"
+            and built.source.kbeta is None):
+        try:  # validated on assignment: an unknown value is the caller's
+            built.source.kbeta = kbeta
+        except ValueError as exc:
+            raise UploadRefused(f"{name}: kbeta: {exc}",
+                                where=["instrument.kbeta"]) from None
+    return built

@@ -1422,21 +1422,21 @@ class HumpComponent(_InheritsDeclaredDefaults):
     ==============================  ======  ========  ============  ================
     background                       terms  Rwp       Biso(Si)/Å²   HIGH_CORRELATION
     ==============================  ======  ========  ============  ================
-    Chebyshev, 3 terms                   3  0.119977  0.414(75)                    0
-    that **+ one peak**              3 + 3  0.082503  0.421(12)                    0
-    Chebyshev, 6 terms                   6  0.088597  0.422(29)                    0
-    that **+ one peak**              6 + 3  0.077152  0.4235(85)                   0
+    Chebyshev, 3 terms                   3  0.119977  0.414(65)                    0
+    that **+ one peak**              3 + 3  0.082503  0.421(10)                    0
+    Chebyshev, 6 terms                   6  0.088597  0.422(25)                    0
+    that **+ one peak**              6 + 3  0.077152  0.4235(66)                   0
     ==============================  ======  ========  ============  ================
 
     **Three parameters beat three polynomial terms.**  Rows one and two differ by
     three numbers and so do rows one and three — the peak takes Rwp down 31 %
     relative, three more Chebyshev coefficients only 26 %.  Biso(Si) barely moves
-    (well inside one esd) but its **esd falls 6×**, and so do those of λ, the
+    (well inside one esd) but its **esd falls 6.5×**, and so do those of λ, the
     scale and the zero shift: an undescribed background blurs this fit rather
     than biasing it.
 
     **The feature is identified from outside the fit.**  The refined peak is
-    5.57(27)° wide against an instrumental Gaussian FWHM of 0.00346° at that
+    5.57(22)° wide against an instrumental Gaussian FWHM of 0.00346° at that
     angle — 1 608×.  11-BM's published blank (run 4736, ``empty Kapton
     capillary``, same February 2010 beamtime), fitted independently of this
     package, puts the same feature at 4.2417(111)° with FWHM 6.153(23)°, and the
@@ -1445,16 +1445,16 @@ class HumpComponent(_InheritsDeclaredDefaults):
     halo.  That — not the Rwp — is what makes the term quotable.
 
     **A peak needs a low-order background to mean anything.**  Between the
-    3-term and 6-term arms the peak moves 1.07° and narrows from 5.57(27)° to
-    1.94(11)° while Rwp moves by 0.005: the peak and the polynomial describe
+    3-term and 6-term arms the peak moves 1.07° and narrows from 5.57(22)° to
+    1.94(8)° while Rwp moves by 0.005: the peak and the polynomial describe
     overlapping freedom, so the more flexible the polynomial the less the peak's
     own parameters mean.  Declare a peak *instead of* extra polynomial terms,
     never on top of them.
 
     **The refined centre is not the halo position.**  A symmetric Gaussian
     spanning 2-50° also absorbs the residual direct-beam rise a 3-term Chebyshev
-    cannot reach, which pulls the fitted centre to 4.18(11)° below the envelope's
-    4.98°; at six terms it relaxes onto the envelope at 5.245(41)°.  Quote the
+    cannot reach, which pulls the fitted centre to 4.18(9)° below the envelope's
+    4.98°; at six terms it relaxes onto the envelope at 5.245(32)°.  Quote the
     envelope for where the halo is and the fit for the model that describes it.
     ``docs/manual/using/data.md`` carries the long form and
     ``tests/data/README.md`` the provenance of every file named here.
