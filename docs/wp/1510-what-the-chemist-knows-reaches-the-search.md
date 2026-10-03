@@ -197,6 +197,29 @@ given the skill asks for or infers the range before its first search.
   (+21 %). The volume lane's second dispatch took 101 requests against an
   estimate of 35. The baseline replay's selective policy saves 24 %.
 
+  *Review* (`/code-review high --fix`, 10 findings). Five are fixed:
+  - Unusable copies leave `flag_duplicate_lines`' sort, since a NaN esd broke
+    the order.
+  - A position-only list is never told to re-pick with a declared instrument.
+  - `from_formula` raises on an empty window, where `H2` with z = 1 put the
+    floor above the ceiling.
+  - The Z message quotes the formula-unit volume ratio, not a density.
+  - The 1.7 note now records `INDEX_PRIOR_USED`'s level change and the
+    opt-in Z check.
+
+  Five are declined:
+  - The GUI editor's stale `duplicate_line` after an owner moves. Fixing it
+    would edit other groups, which `gui/peaks.py` forbids.
+  - A refitted better copy beside an untouched one leaves both usable. The
+    test pins that outcome.
+  - `from_formula` raises a bare `TypeError` on a duplicated keyword.
+  - The synchrotron instrument-first lead, the earlier finding 5.
+  - The formula parsed once per candidate.
+
+  Fast selection (`[dev]` venv, macOS) after the fixes: 8143 passed, 159
+  skipped, 1 failed (main's `api.md` cap row). That is +22 passed against the
+  first entry's 8121, exactly the new formula tests, and no new skip.
+
   *Next.* (a) The four acceptance rows and the two review findings: the
   first entry's next actions (a) and (b) are unchanged. (b) `formula` does not
   reach the CLI (`cli.py:305`) or the GUI (`gui/session.py:1583`) yet. (c) If
