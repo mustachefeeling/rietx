@@ -23,6 +23,7 @@ destination, because the fix is to move narrative, never to delete facts.
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
 import sys
 from pathlib import Path
@@ -1014,25 +1015,37 @@ def test_no_planning_doc_links_something_gitignored():
             if rel and (doc.parent / rel).is_file():
                 targets.append(doc.parent / rel)
     assert targets, "no linked files found — the link regex or the corpus moved"
-    paths = [str(p) for p in sorted(set(targets))]
+    # Repo-relative and normalised: a link's `..` stays out of what git is asked
+    # and of what the index listing below is compared against.
+    paths = sorted({
+        Path(os.path.normpath(p)).relative_to(ROOT).as_posix() for p in targets
+    })
+    # The paths go on stdin, never argv: the WP files' links outgrew Windows'
+    # 32 767-character command line, and argv failed there with WinError 206
+    # every night from 2026-09-28 (WP-1541).
     result = subprocess.run(
         # --no-index: check-ignore answers for a *tracked* file out of the index
         # without reading the rules, and the point here is the rules.
-        ["git", "check-ignore", "-v", "--no-index", *paths],
+        ["git", "check-ignore", "-v", "-z", "--no-index", "--stdin"],
+        input="".join(f"{p}\0" for p in paths),
         cwd=ROOT, capture_output=True, text=True, check=False,
     )
     # 0 is "something matched", 1 is "nothing did"; anything else is git
-    # declining to answer — no repository, a path outside it, an argument list
-    # too long — and it writes to stderr, leaving an empty stdout that reads
-    # here as a pass (tests/CLAUDE.md § Guards that go quiet instead of red).
+    # declining to answer — no repository, a path outside it — and it writes to
+    # stderr, leaving an empty stdout that reads here as a pass
+    # (tests/CLAUDE.md § Guards that go quiet instead of red).
     assert result.returncode in (0, 1), (
         f"git check-ignore exited {result.returncode} and asked nothing: "
         f"{result.stderr.strip()}"
     )
+    # -v -z writes four fields a match: source, line number, pattern, path.
+    fields = result.stdout.split("\0")[:-1]
+    assert len(fields) % 4 == 0, f"unexpected check-ignore output: {result.stdout!r}"
     ignored = [
-        line for line in result.stdout.splitlines()
+        f"{source}:{line}:{pattern}\t{path}"
+        for source, line, pattern, path in zip(*[iter(fields)] * 4)
         # A `!` pattern is check-ignore reporting the un-ignore that saved it.
-        if line and not line.split("\t")[0].rpartition(":")[2].startswith("!")
+        if not pattern.startswith("!")
     ]
     assert not ignored, (
         "a planning doc links a file .gitignore drops:\n" + "\n".join(ignored)
@@ -1041,12 +1054,14 @@ def test_no_planning_doc_links_something_gitignored():
     # never added, and a rule committed without the files it frees leaves this
     # guard green while a clone gets nothing — so ask the index too.  Absent
     # this, only CI sees it, through the missing file the link test resolves.
+    # The whole index is listed rather than the paths named, for argv's reason.
     tracked = subprocess.run(
-        ["git", "ls-files", "--error-unmatch", "--", *paths],
-        cwd=ROOT, capture_output=True, text=True, check=False,
+        ["git", "ls-files", "-z"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
     )
-    assert tracked.returncode == 0, (
-        "a planning doc links a file git does not track:\n" + tracked.stderr.strip()
+    untracked = sorted(set(paths) - set(tracked.stdout.split("\0")))
+    assert not untracked, (
+        "a planning doc links a file git does not track:\n" + "\n".join(untracked)
     )
 
 
