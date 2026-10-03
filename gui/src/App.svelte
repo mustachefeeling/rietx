@@ -1066,14 +1066,6 @@
         {run?.run.status ?? "idle"}
       {/if}
     </span>
-    {#if !busy && run?.run.lebail?.stopped}
-      <!-- the alternation's verdict: it lives on the result's diagnostics, which
-           no panel shows, and cannot sit on a history node (WP-1323) -->
-      <span class="muted lebail-stop" data-level={run.run.lebail.level}
-        title={[run.run.lebail.stopped, run.run.lebail.suggestion].filter(Boolean).join(" — ")}>
-        Le Bail: {run.run.lebail.stopped.replace(/^the Le Bail alternation /, "")}
-      </span>
-    {/if}
     <button onclick={start} disabled={busy || !project || noPhases}
       title={noPhases ? NO_PHASES_REASON : null}>Run</button>
     <button class="ghost" onclick={cancel} disabled={!busy}>Cancel</button>
@@ -1082,6 +1074,19 @@
     </button>
   </div>
 </header>
+
+{#if !busy && run?.run.lebail?.stopped}
+  <!-- The alternation's verdict (WP-1323).  It lives on the result's
+       diagnostics, which no panel shows, and cannot sit on a history node, so
+       the run record carries it.  A row of its own under the header, never a
+       span in it: the header is full at ordinary widths and the sentence
+       pushed the project's name down to "lebail_…". -->
+  <div class="lebail-stop" data-level={run.run.lebail.level} role="status">
+    <b>Le Bail alternation</b>
+    {run.run.lebail.stopped.replace(/^the Le Bail alternation /, "")}.
+    {#if run.run.lebail.suggestion}<span class="muted">{run.run.lebail.suggestion}.</span>{/if}
+  </div>
+{/if}
 
 <main bind:this={mainEl}>
   <!-- `Model` is mounted exactly once (WP-1205), whether or not a project is
@@ -1307,13 +1312,13 @@
   }
 
   .lebail-stop {
-    max-width: 28rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    padding: 4px 12px;
+    font-size: var(--text-sm);
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--accent) 8%, var(--panel));
   }
   .lebail-stop[data-level="warning"] {
-    color: var(--warn, inherit);
+    background: color-mix(in srgb, var(--warn) 14%, var(--panel));
   }
   .pill[data-state="running"] {
     color: var(--ok);

@@ -261,8 +261,10 @@ baseline table, never gated.
   the run record carries it. `fit_start` stamps `lebail_pass`/`lebail_of`, the
   session resets the stage ticks each pass and the pill reads "profile (5/5) ·
   pass 2 of 6"; on finish the record holds the package's own sentence (which
-  pass was kept, Rwp per pass) and the header shows it beside the pill, full
-  text and suggestion on hover. Checked on the +0.3 % LaB6+cBN project through
+  pass was kept, Rwp per pass) and a full-width strip under the header shows
+  it with the suggestion. (First put beside the pill, it squeezed the project's
+  name to "lebail_…" at ordinary widths; found by the user, checked in a real
+  browser at 1000 px.) Checked on the +0.3 % LaB6+cBN project through
   the run route: pass 1 of 6 while running, then "reached a fixed point; pass 3
   of 3 was kept (16.987, 16.969, 16.967)". Not done: grouping nodes by pass in
   the History panel, and a Report-tab list of the result's diagnostics. A +2 %
