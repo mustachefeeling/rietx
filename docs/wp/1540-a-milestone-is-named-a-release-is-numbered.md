@@ -1,9 +1,8 @@
 # WP-1540 — a milestone is named, a release is numbered
 
-Milestone: unscheduled · Status: 🔄 2026-10-03 — renamed and rules rewritten (PR #692); comments posted on #286, #561, #562; the release trigger is being chosen
+Milestone: unscheduled · Status: ✅ 2026-10-03 — named milestones, a weekly cut and a P1 cut, the hook says when one is owed (PR #692)
 Track: The repo's own process
 Depends on: —
-Priority: P2 2026-10-03 — work on main piles up behind a milestone that is late
 
 ## Goal
 
@@ -50,8 +49,7 @@ open contributor PRs (#680, #675) touch no planning document.
   framing: `releases/1.5.1.md` calls itself a bug-fix release, and the file
   stays where it is until the cut (36 links in 21 files reach it, and every
   branch in flight appends to it).
-- A release cadence. Which trigger cuts a release (an age, a size, a date) is
-  the maintainer's decision, and this WP removes only what made one wait.
+- Cutting 1.6.0 itself, which the hook now says is owed.
 - History. A shipped record, a handover log and a closed WP's status text say
   what was true when they were written, so "v1.7" stays in them.
 - Re-declaring the magnetic schema types provisional. That belongs to the
@@ -73,6 +71,9 @@ open contributor PRs (#680, #675) touch no planning document.
 - [x] Draft one comment per collaborator thread (#286, #426, #561, #562),
       batched for the maintainer to approve.
 
+- [x] The trigger the maintainer chose: weekly, and at once for a P1 fix
+      (`RELEASING.md` § When), flagged by the session-start hook.
+
 ## Acceptance
 
 `.venv/bin/python -m pytest tests/test_docs_consistency.py tests/test_skill.py`
@@ -80,6 +81,27 @@ green, and `python3 .claude/hooks/wp_index.py --check` (or the test that
 holds the index equal to the generator) clean.
 
 ## Handover log
+
+- **2026-10-03** (closing) — Releases now have a rhythm: one a week, and one
+  at once when a fix for a silent wrong answer or data loss lands. Nobody has
+  to remember it, because every session now starts with a line saying a
+  release is owed once the last one is a week old. Today that line reads 15
+  days and 268 merges since v1.5.0, so 1.6.0 is owed now.
+
+  *Done.* The comments are posted on #286 (covering #426), #561 and #562.
+  `RELEASING.md` § When states the rule and the rate behind it (past releases
+  carried 14-77 merges and 210-301 note lines, and 80-177 PRs now merge a
+  week). ROADMAP rule 6 points there. `session_start.release_flag` reads the
+  newest `v*` tag and the merges since it, and costs 30 ms of the hook's
+  320 ms. `/wp-handover` step 8 says a closing P1 defect owes a release, the
+  half no date can read. One test added (`test_workflow_hooks.py`, 106
+  passed).
+
+  *Next.* Cut 1.6.0 by `docs/RELEASING.md`. The cut owes four things: rename
+  `releases/1.5.1.md`, rewrite its "bug-fix" framing, declare `MagneticOnset`
+  and `MagneticTrajectory` provisional, and open `milestones/v1.7.md` with
+  `1.7.0.dev0`. The `api.md` cap failure on `main` should be fixed first,
+  since step 3 needs a green `main`.
 
 - **2026-10-03** — A late milestone no longer holds back a release. The four
   open or queued milestones now carry names (magnetic, rietview, rigid-bodies,

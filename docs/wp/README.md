@@ -33,7 +33,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1527](1527-foreign-files-spell-a-species-as-the-program-does.md) | Foreign files spell a species as the other program does | 2026-10-02 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1530](1530-the-topas-readers-last-silences.md) | The TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background | 2026-10-03 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1534](1534-a-scale-and-a-b-the-range-cannot-separate.md) | A scale and a B the fitted range cannot separate | 2026-10-02 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1540](1540-a-milestone-is-named-a-release-is-numbered.md) | A milestone is named, a release is numbered | 2026-10-03 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | 2026-10-01 | P2 | [rigid-bodies](#rigid-bodies) |
 | [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | 2026-10-01 | P2 | [structure-solution](#structure-solution) |
 
@@ -549,7 +548,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 🔄 2026-09-27 | P3 | — |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 🔄 2026-09-27 | P3 | — ([1506](1506-a-planning-doc-pr-runs-what-reads-it.md) soft) |
 | [1532](1532-the-skill-passages-a-driving-agent-needed.md) | The skill passages a driving agent needed: fourteen rows, placed where each is cheapest | ⬜ | P3 | — (#660 soft) |
-| [1540](1540-a-milestone-is-named-a-release-is-numbered.md) | A milestone is named, a release is numbered | 🔄 2026-10-03 | P2 | — |
+| [1540](1540-a-milestone-is-named-a-release-is-numbered.md) | A milestone is named, a release is numbered | ✅ 2026-10-03 | — | — |
 | [1903](1903-the-lane-trial-decides.md) | The lane trial decides whether a WP session sends long items to subagents | ⬜ | P4 | — |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement
