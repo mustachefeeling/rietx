@@ -151,9 +151,10 @@ re-reading its own diff.
    step 6's review has already read the diff.
 8. **If the WP is closing** (✅/🛑): delete its consumed `### Inherited`
    section and its `Priority:` line (a closed WP's priority is moot), and
-   MOVE its narrative to the in-flight milestone record (the in-flight
-   `docs/milestones/vX.Y.md` § "How vX.Y is getting here"; the last shipped
-   record's when no milestone is open). Append to the record by range:
+   MOVE its narrative to the record of the release in flight
+   (`docs/milestones/vX.Y.md` for `pyproject.version`'s X.Y, § "How vX.Y is
+   getting here"), whichever named milestone the WP sits under (WP-1540).
+   Append to the record by range:
    `grep -n '^##'` for the section, then `Read` only its last lines. Records
    grow long; v1.0's reached 340 KB. Leave ROADMAP's Current focus alone:
    it holds milestone prose, and the index lists what is in flight and next
