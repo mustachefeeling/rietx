@@ -1190,6 +1190,7 @@
         <div class="panel" class:hidden={tab !== "report"}>
           <Report {head} {busy} {simple} {say} {applied}
             chi2={result?.statistics?.chi2 ?? null}
+            diagnostics={result?.diagnostics ?? []}
             onzoom={(lo, hi) => (zoom = [lo, hi])}
             onapplied={absorbApply} onmoved={moved} />
         </div>

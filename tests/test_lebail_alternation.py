@@ -34,7 +34,7 @@ def pattern():
     return rx.read_pattern(PATTERN)
 
 
-def _refinement(cell_scale: float) -> rx.Refinement:
+def _refinement(cell_scale: float, history: bool = False) -> rx.Refinement:
     lab6 = lebail_scaffold("P m -3 m", [4.1569 * cell_scale] * 3 + [90.0] * 3,
                            name="LaB6")
     cbn = lebail_scaffold("F -4 3 m", [3.6165 * cell_scale] * 3 + [90.0] * 3,
@@ -45,7 +45,7 @@ def _refinement(cell_scale: float) -> rx.Refinement:
     ins.profile.x.value = 2e-3
     ins.background = BackgroundChebyshev.with_terms(8)
     return rx.Refinement(rx.Structure(phases=[lab6.phases[0], cbn.phases[0]]),
-                         ins, history=False)
+                         ins, history=history)
 
 
 def _plan(passes: int):
@@ -139,6 +139,28 @@ def test_the_state_the_loop_keeps_is_the_state_a_hand_loop_would_continue_from(p
                   two_theta_limits=LIMITS, telemetry=False)
     assert nxt.statistics.rwp == pytest.approx(1.94562, abs=1e-4)
     _plot(result, "lebail_alternation_wander_kept.png")
+
+
+def test_the_passes_mark_their_history_nodes_and_the_head_stands_in_the_kept_one(pattern):
+    """Pass 1 kept, pass 2 discarded: the notes say which nodes are whose."""
+    ref = _refinement(1.0, history=True)
+    _fit(ref, pattern, 6)
+    tree = ref.history
+    notes = {i: tree.nodes[i].notes for i in tree.order}
+    assert notes[tree.order[0]] == {}                    # the root is no pass's
+    one = [n for n in notes.values() if n.get("lebail_pass") == "1"]
+    two = [n for n in notes.values() if n.get("lebail_pass") == "2"]
+    assert one and two
+    assert all(n.get("lebail_kept") == "1 of 2" for n in one)
+    assert all(n.get("lebail_discarded") == "true" for n in two)
+    assert "lebail_discarded" not in tree.nodes[tree.head].notes
+    assert tree.nodes[tree.head].notes["lebail_pass"] == "1"
+
+
+def test_without_a_history_the_marking_writes_and_raises_nothing(pattern):
+    ref = _refinement(1.0)
+    _fit(ref, pattern, 3)
+    assert ref.history is None
 
 
 def test_the_field_crosses_the_mirror_both_ways_and_refuses_zero():

@@ -3630,6 +3630,7 @@ class Refinement:
         """
         best = None            # (rwp, result, state, head, pass number, fit view)
         rows: list[float] = []
+        spans: list[list[str]] = []     # the history nodes each pass created
         reason = "cap"
         # **Once per job** (WP-1403): each pass would otherwise attach its own
         # recorder and write a run directory, so N passes drew N rows in
@@ -3653,10 +3654,17 @@ class Refinement:
                 # the whole plan, cap and all: ``_fit_pass`` never reads
                 # ``lebail_passes``, and what it records (``_last_plan``, the
                 # history header) should say the cap that was asked for
-                result = self._fit_pass(data, mode="lebail", plan=plan,
-                                        events=stream, cancel=cancel,
-                                        telemetry=False, lebail_pass=number,
-                                        **kw)
+                before = 0 if self.history is None else len(self.history.order)
+                try:
+                    result = self._fit_pass(data, mode="lebail", plan=plan,
+                                            events=stream, cancel=cancel,
+                                            telemetry=False, lebail_pass=number,
+                                            **kw)
+                finally:
+                    # an abandoned pass's committed stages are its nodes too
+                    if self.history is not None:
+                        spans.append([i for i in self.history.order[before:]
+                                      if self.history.nodes[i].parents])
                 rwp = float(result.statistics.rwp)
                 rows.append(rwp)
                 if best is not None and (rwp >= best[0] or not np.isfinite(rwp)):
@@ -3674,6 +3682,7 @@ class Refinement:
             _, result, state, head, kept, fit_view = best
             if kept != len(rows):
                 self._keep_pass(result, state, head, fit_view)
+            self._mark_passes(spans, kept)
             result.diagnostics.append(_lebail_stop_diagnostic(
                 reason, kept, rows, plan.lebail_passes))
             if recorder is not None:
@@ -3697,6 +3706,28 @@ class Refinement:
                 stream.close()        # built here from a path or a callable
             if recorder is not None:
                 recorder.close()
+
+    def _mark_passes(self, spans: list[list[str]], kept: int) -> None:
+        """Write which pass each history node belongs to, as node ``notes``.
+
+        ``lebail_pass`` on every node a pass created, ``lebail_kept`` on the
+        kept pass's nodes (``"k of N"``, N the passes run) and
+        ``lebail_discarded`` on the rest, so a viewer can tell the passes the
+        head left behind from the one it stands in.  Notes are the tree's own
+        free-form channel, so no schema moves.  Nothing is written, and nothing
+        raised, when the refinement keeps no history.
+        """
+        tree = self.history
+        if tree is None:
+            return
+        for number, ids in enumerate(spans, start=1):
+            mark = {"lebail_pass": str(number)}
+            if number == kept:
+                mark["lebail_kept"] = f"{kept} of {len(spans)}"
+            else:
+                mark["lebail_discarded"] = "true"
+            for node_id in ids:
+                tree.annotate(node_id, notes=mark)
 
     def _keep_pass(self, result, state, head, fit_view) -> None:
         """Restore the pass ``_fit_lebail_alternation`` decided to keep."""

@@ -21,7 +21,8 @@
    */
   import { ApiError, api } from "../api";
   import {
-    actionRows, headline, predictionNote, worstRegions, zoomWindow,
+    actionRows, diagnosticTone, headline, orderDiagnostics, predictionNote,
+    worstRegions, zoomWindow, type FitDiagnostic,
   } from "../lib/report";
   import { num } from "../lib/table";
 
@@ -30,6 +31,7 @@
     busy = false,
     simple = true,
     chi2 = null,
+    diagnostics = [],
     applied = null,
     say = (_line: string) => {},
     onzoom = (_lo: number, _hi: number) => {},
@@ -40,6 +42,8 @@
     busy?: boolean;
     simple?: boolean;
     chi2?: number | null;
+    /** the result's own diagnostics (`/api/result`), which App already holds */
+    diagnostics?: FitDiagnostic[];
     applied?: { kind: string; chi2_before: number; predicted: number | null; undo: string } | null;
     say?: (line: string) => void;
     onzoom?: (lo: number, hi: number) => void;
@@ -54,6 +58,7 @@
 
   const head_ = $derived(report ? headline(report) : null);
   const rows = $derived(report ? actionRows(report.suggested_actions ?? [], arms) : []);
+  const fitDiagnostics = $derived(orderDiagnostics(diagnostics));
   const regions = $derived(report ? worstRegions(report.regions ?? []) : []);
   // `null` while the stage is still running, not 0: `chi2` is the *last* result's,
   // which is the one the action was applied at, so subtracting mid-run would print
@@ -182,6 +187,24 @@ mispositioned or absent phase, not an impurity">
             title="check out the node this project stood at before the action">
             Undo</button>
         </div>
+      {/if}
+
+      <!-- the answer's own diagnostics: produced by the package, shown by no
+           other panel (a node holds only those committed with it).  All of
+           them, errors first; a level is a chip tone, never a filter -->
+      {#if fitDiagnostics.length}
+        <h3>Fit diagnostics</h3>
+        {#each fitDiagnostics as d (d.code + d.message)}
+          <div class="fitdiag" data-level={d.level}>
+            <div class="line">
+              <span class="chip {diagnosticTone(d.level)}">{d.level}</span>
+              <strong class="kind mono">{d.code}</strong>
+            </div>
+            <p class="why">{d.message}</p>
+            {#if d.suggestion}<p class="muted">{d.suggestion}</p>{/if}
+            {#if d.where?.length}<p class="paths mono muted">{d.where.join("  ")}</p>{/if}
+          </div>
+        {/each}
       {/if}
 
       <!-- Layer 2 -->
@@ -398,6 +421,20 @@ mispositioned or absent phase, not an impurity">
 
   .action[data-tone="low"] {
     border-left-color: var(--line);
+  }
+
+  .fitdiag {
+    border-left: 3px solid var(--line);
+    padding: 1px 6px;
+    margin-bottom: 4px;
+  }
+
+  .fitdiag[data-level="error"] {
+    border-left-color: var(--bad);
+  }
+
+  .fitdiag[data-level="warning"] {
+    border-left-color: var(--warn);
   }
 
   .action.off {

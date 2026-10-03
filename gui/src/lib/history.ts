@@ -240,6 +240,50 @@ export function nodeLabel(node: HistoryNode): string {
   }
 }
 
+/** A chip's tone, from the app's one vocabulary (`app.css`). */
+export type Tone = "note" | "ok" | "warn" | "bad" | "accent";
+
+/**
+ * The Le Bail alternation's mark on a node (WP-1323), as a chip.
+ *
+ * `Refinement.fit` writes it into the node's own `notes`: `lebail_pass` on
+ * every node a pass created, then `lebail_kept` (`"k of N"`) or
+ * `lebail_discarded` once the passes have stopped.  So this reads a fact the
+ * tree already carries and invents no history semantics.  One chip, its
+ * **tone** saying what became of the pass (`ok` kept, `warn` discarded, `note`
+ * while the run is still going): a second chip for the verdict took the
+ * name column's room on every node of a six-stage pass, and the words are in
+ * the chip's `title` and {@link passVerdict}.  The text is plain rather than a
+ * `help.py` entry because it names a *note key* on a node, which is no
+ * parameter, flag or field vocabulary, and nothing else reads it.  A node with
+ * no such note answers an empty list, which is every node of every fit that
+ * was not an alternation.
+ */
+export function passChips(node: HistoryNode): Array<{ text: string; tone: Tone; title: string }> {
+  const notes = node.notes ?? {};
+  if (!notes.lebail_pass) return [];
+  const tone: Tone = notes.lebail_kept ? "ok" : notes.lebail_discarded ? "warn" : "note";
+  return [{ text: `pass ${notes.lebail_pass}`, tone, title: passVerdict(node) }];
+}
+
+/** What became of the node's pass, in words, or `""` for a node no pass made. */
+export function passVerdict(node: HistoryNode): string {
+  const notes = node.notes ?? {};
+  if (!notes.lebail_pass) return "";
+  if (notes.lebail_kept) {
+    return `pass ${notes.lebail_pass} of the Le Bail alternation, kept (${notes.lebail_kept}); the head stands in it`;
+  }
+  if (notes.lebail_discarded) {
+    return `pass ${notes.lebail_pass} of the Le Bail alternation, not kept; its nodes stay in the tree`;
+  }
+  return `pass ${notes.lebail_pass} of the Le Bail alternation`;
+}
+
+/** True for a node of a pass the alternation did not keep. */
+export function isDiscarded(node: HistoryNode): boolean {
+  return Boolean(node.notes?.lebail_discarded);
+}
+
 /**
  * Rwp change against the node's first parent, or `null` when either lacks one.
  *

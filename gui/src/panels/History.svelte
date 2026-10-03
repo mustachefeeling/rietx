@@ -24,7 +24,7 @@
   import {
     DIFF_CAP, PATH_CHARS, PERCENT_CHARS, VALUE_CHARS, diffRows, edgeSegments,
     formatDelta, formatPercent, formatSide, laneColor, layout, nodeLabel,
-    rwpDelta, type Edge, type HistoryNode,
+    passChips, passVerdict, isDiscarded, rwpDelta, type Edge, type HistoryNode,
   } from "../lib/history";
 
   let {
@@ -222,6 +222,7 @@
               r={placed.node.id === head ? 4.5 : 3}
               class:head={placed.node.id === head}
               class:selected={placed.node.id === selected}
+              class:discarded={isDiscarded(placed.node)}
               style:--lane={laneColor(placed.lane)} />
           {/each}
         </svg>
@@ -229,12 +230,16 @@
         {#each graph.placed as placed (placed.node.id)}
           {@const n = placed.node}
           {@const delta = rwpDelta(n, byId)}
-          <div class="node" class:on={n.id === selected} class:other={n.id === against}>
+          <div class="node" class:on={n.id === selected} class:other={n.id === against}
+            class:discarded={isDiscarded(n)}>
             <button class="pick" onclick={() => select(n.id)}
               title={n.api_call}>
               <span class="id mono muted">{n.id}</span>
               <span class="what">{nodeLabel(n)}</span>
               {#if n.id === head}<span class="chip accent">HEAD</span>{/if}
+              {#each passChips(n) as chip (chip.text)}
+                <span class="chip {chip.tone}" title={chip.title}>{chip.text}</span>
+              {/each}
               {#each n.tags as label (label)}<span class="chip">{label}</span>{/each}
               {#if n.n_diagnostics}
                 <span class="chip warn" title="{n.n_diagnostics} diagnostic(s)">
@@ -272,6 +277,7 @@
         {#if node.gof !== null}· GoF {node.gof.toFixed(3)}{/if}
         · {node.created_utc}
       </p>
+      {#if passVerdict(node)}<p class="muted">{passVerdict(node)}.</p>{/if}
       {#each node.diagnostics as d (d.code + d.message)}
         <p class="diag" data-level={d.level}>
           <span class="mono">{d.code}</span>
@@ -414,6 +420,10 @@
     stroke: var(--accent);
   }
 
+  svg.rail circle.discarded {
+    opacity: 0.45;
+  }
+
   svg.rail circle.head {
     fill: var(--accent);
     stroke: var(--accent);
@@ -429,6 +439,14 @@
 
   .node.on {
     background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+
+  /* a pass the alternation did not keep: still there, still selectable, but not
+     where the head is */
+  .node.discarded .what,
+  .node.discarded .rwp,
+  .node.discarded .delta {
+    opacity: 0.55;
   }
 
   .node.other {

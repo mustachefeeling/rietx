@@ -1,6 +1,6 @@
 # WP-1323 — the Le Bail alternation has a stop rule, and a scope
 
-Milestone: unscheduled · Status: 🔄 2026-10-03 — alternation shipped; GUI pass grouping open
+Milestone: unscheduled · Status: 🔄 2026-10-03 — alternation shipped; background protocol open
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-09-23 — the skill sends every Le Bail job to a hand loop with no cap; the call is the workaround
@@ -266,8 +266,14 @@ baseline table, never gated.
   name to "lebail_…" at ordinary widths; found by the user, checked in a real
   browser at 1000 px.) Checked on the +0.3 % LaB6+cBN project through
   the run route: pass 1 of 6 while running, then "reached a fixed point; pass 3
-  of 3 was kept (16.987, 16.969, 16.967)". Not done: grouping nodes by pass in
-  the History panel, and a Report-tab list of the result's diagnostics. A +2 %
+  of 3 was kept (16.987, 16.969, 16.967)". Both then done (lane): `_mark_passes` writes `lebail_pass`, `lebail_kept` and
+  `lebail_discarded` as node `notes` (no schema move), the History panel shows a
+  `pass k` chip per node (green kept, orange discarded, discarded rows dimmed),
+  and the Report tab lists every diagnostic of the result, errors first (it
+  surfaced `RESOLUTION_NOT_POSITIVE` and others no panel had shown). Checked in
+  a real browser at 1000 px. `test_gui_dist`'s `app < vendor-cm` byte proxy had
+  0.6 % headroom and failed on 2 kB of new panel code; it is now `< 1.5x`, the
+  `rectangularSelection` check beside it being the real guard. A +2 %
   demo start never finds the cell (Rwp 194 %), which is the wander the stop rule
   exists for and a poor demo of success. One test added in each of
   `test_gui_server.py` and `test_lebail_alternation.py`; vitest 583, dist
@@ -280,9 +286,7 @@ baseline table, never gated.
   **Gotchas.** A `/code-review --fix` runs in this tree, so I merged main only
   after it returned. A merge during a running suite invalidates the run.
 
-  **Next:** (1) group history nodes by pass, and list a result's diagnostics
-  in the Report tab, if wanted; (2) the
-  background protocol in Inherited, if wanted in this WP, else file it.
+  **Next:** (1) the background protocol in Inherited, if wanted in this WP, else file it.
 
 - **2026-10-02** — **The package now runs the Le Bail alternation itself.**
   Set a pass cap on the plan and `fit` repeats the plan, stops at the first

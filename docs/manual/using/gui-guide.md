@@ -472,6 +472,12 @@ from it before you close it.
 The `FitReport` rendered. [](report.md) is what the statements mean; five things
 about this panel will otherwise be misread.
 
+Above the suggestions sits a "Fit diagnostics" section. It lists every diagnostic
+the fit's result carries, errors first, then warnings, then notes, each with its
+code, message, suggestion and the parameters it names. These are the package's own
+findings about the answer (`BOUND_HIT`, `LEBAIL_ALTERNATION_STOPPED` and the rest),
+and no other panel shows them.
+
 - A suggestion with no Apply button is still a suggestion. Four of the action
   kinds are advice, and the note beside them is the deliverable. The
   background-flexibility pair is the case to watch: a more flexible background
@@ -494,6 +500,11 @@ about this panel will otherwise be misread.
 
 Every state the refinement has passed through, drawn as a graph. What this panel
 changes is what you are free to try.
+
+After a Le Bail run that alternated, each node carries a `pass k` chip. The chip
+is green on the pass the fit kept, and the head stands in it. It is orange on the
+other passes, whose nodes are drawn faint and stay in the tree. Select a node to
+read the verdict in words.
 
 The rail is lanes, and a lane is where the tree divided. There are no named
 branches here and no moving refs. An edge runs down its lane and steps sideways
