@@ -31,7 +31,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1534](1534-a-scale-and-a-b-the-range-cannot-separate.md) | A scale and a B the fitted range cannot separate | 2026-10-02 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 2026-10-03 | P4 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | 2026-10-01 | P2 | [rigid-bodies](#rigid-bodies) |
-| [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | 2026-10-01 | P2 | [structure-solution](#structure-solution) |
 
 ## Next, by priority
 
@@ -392,7 +391,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1901](1901-the-difference-fourier-map.md) | The difference-Fourier map: a missing atom shows as a peak | ⬜ | P3 | — |
-| [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | 🔄 2026-10-01 | P2 | — |
+| [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | ✅ 2026-10-03 | — | — |
 
 ## <a id="unscheduled"></a>Unscheduled
 
