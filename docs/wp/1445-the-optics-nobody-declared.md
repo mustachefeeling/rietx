@@ -1,6 +1,6 @@
 # WP-1445 — the optics nobody declared: a source that cannot emit the line
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-03 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: — (1442 soft)
 Priority: P2 2026-09-23 — an X-ray ghost search fires on a neutron source; the schema decision is this WP's first task
