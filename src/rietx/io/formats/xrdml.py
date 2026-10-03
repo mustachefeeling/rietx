@@ -12,6 +12,7 @@ parser below is this package's own::
         usedWavelength/kAlpha1 kAlpha2
         incidentBeamPath/radius           the goniometer radius, in mm
         incidentBeamPath/xRayTube/anodeMaterial
+        incidentBeamPath/xRayMirror monochromator filter   optics, named only
         scan  @scanAxis @mode @status     one per scan — a file holds several
           dataPoints
             positions @axis @unit         one per goniometer axis
@@ -134,6 +135,27 @@ def _kid(element: ET.Element | None, *names: str) -> ET.Element | None:
             return None
         element = next(iter(_kids(element, name)), None)
     return element
+
+
+#: The optic elements whose *presence* is recorded (WP-1445).  Nothing inside
+#: one is read: a graded mirror suppresses Kβ without a number this package has
+#: for how much, so the file's own words are all that is safe to carry.
+_OPTICS = ("xRayMirror", "monochromator", "filter")
+
+
+def _optics(measurement: ET.Element) -> str | None:
+    """The optic elements a measurement's beam paths list, comma-joined, or
+    ``None`` when it lists none.
+
+    ``None`` is *nothing declared*, never "no optics": a file that omits the
+    elements says nothing about the beam.
+    """
+    found = []
+    for path in ("incidentBeamPath", "diffractedBeamPath"):
+        beam = _kid(measurement, path)
+        if beam is not None:
+            found += [name for name in _OPTICS if _kids(beam, name)]
+    return ",".join(dict.fromkeys(found)) or None
 
 
 def _text(element: ET.Element | None) -> str | None:
@@ -401,6 +423,7 @@ def _read_scan(measurement: ET.Element, scan: ET.Element, *, path: Path,
                                  np.asarray(count_time).flat[0]) else None),
         goniometer_radius_mm=_number(_kid(measurement, "incidentBeamPath",
                                           "radius")),
+        beam_optics=_optics(measurement),
     )
     return two_theta, y, sigma, meta
 

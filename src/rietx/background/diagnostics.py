@@ -1400,8 +1400,14 @@ def counting_coverage(
 
 
 def diagnose(data: PatternData, *, wavelength: float | None = None,
-             baseline_lambda: float | None = None) -> PatternDiagnostics:
-    """Compute :class:`PatternDiagnostics` for a raw pattern."""
+             baseline_lambda: float | None = None,
+             source: object | None = None) -> PatternDiagnostics:
+    """:class:`PatternDiagnostics` of a raw pattern.
+
+    ``source`` is the declared beam, which the contamination screen asks what
+    it can carry (:func:`ghost_searches`); ``None`` leaves the screen to the
+    wavelength alone, as before.  A neutron source skips it.
+    """
     from .select import select_arpls_lambda
 
     mask = data.in_range_mask()
@@ -1494,7 +1500,8 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
 
     flags: list[ContaminationFlag] = []
     if wavelength is not None and len(ghost_idx):
-        flags = _contamination_flags(tt, net, sigma, ghost_idx, wavelength)
+        flags = _contamination_flags(tt, net, sigma, ghost_idx, wavelength,
+                                     source=source)
 
     lam = (select_arpls_lambda(data).selected if baseline_lambda is None
            else baseline_lambda)
@@ -1531,6 +1538,37 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     )
 
 
+def ghost_searches(source: object | None) -> tuple[str, ...]:
+    """Which ghost searches a declared source leaves worth running (WP-1445).
+
+    ``source`` is an :class:`~rietx.schemas.instrument.Source` or
+    ``NeutronSource``, or ``None`` for a caller with none to give.  ``None`` and
+    an undeclared X-ray source (``kbeta is None``) get both searches, which is
+    what the screen did before the optics could be declared.  Anything less is
+    a **skip**, and a skip is the same kind of silence as
+    :func:`identify_anode`'s ``None``: not checked, never clean.
+
+    * neutron: both skipped, since neither a Kβ nor a tungsten line is in the
+      beam; ``identify_anode`` matches on wavelength alone and called a 1.5404 Å
+      neutron pattern ``"CuKa"``.
+    * ``kbeta="monochromator"``: both skipped (WP-1442 measured that neither
+      reaches the detector behind one).
+    * ``kbeta="filter"`` and ``"mirror"``: both kept.  A skip would discard
+      real detections: an image injected into corundum and zincite at
+      r = 0.14, 0.10, 0.05 and 0.02 was flagged at every rung (6-8 lines,
+      WP-1445), so a leak past a working filter is findable.  Narrowing the
+      ceiling needs a filtered-leak ratio this tree has no measurement of.
+    """
+    if source is None:
+        return ("kbeta", "tungsten_la")
+    if getattr(source, "kind", None) != "xray_cw":
+        return ()
+    kbeta = getattr(source, "kbeta", None)
+    if kbeta == "monochromator":
+        return ()
+    return ("kbeta", "tungsten_la")
+
+
 def identify_anode(wavelength: float) -> str | None:
     """The anode whose Kα1 this wavelength is, or ``None``.
 
@@ -1552,6 +1590,7 @@ def contamination_flags_from_peaks(
     intensity_esd: np.ndarray | None = None,
     tt_range: tuple[float, float] | None = None,
     tol_deg: float = GHOST_TOL_DEG, k_sigma: float = GHOST_MATCH_K,
+    source: object | None = None,
 ) -> list[ContaminationFlag]:
     """Ghost lines at the Kβ / W Lα positions of the strongest lines in a
     **peak list** — the one implementation of the ghost rule in this package.
@@ -1582,8 +1621,9 @@ def contamination_flags_from_peaks(
     than :data:`GHOST_MIN_PARENTS` parents in range is a silence rather than a
     clean bill, exactly as an unrecognised wavelength is.
     """
+    searches = ghost_searches(source)
     anode = identify_anode(wavelength)
-    if anode is None:
+    if anode is None or not searches:
         return []
     tt = np.asarray(two_theta, dtype=np.float64)
     inten = np.asarray(intensity, dtype=np.float64)
@@ -1593,6 +1633,8 @@ def contamination_flags_from_peaks(
     esd = None if two_theta_esd is None else np.asarray(two_theta_esd, dtype=np.float64)
     flags: list[ContaminationFlag] = []
     for kind, lam_ghost in (("kbeta", _KBETA[anode]), ("tungsten_la", _W_LA1)):
+        if kind not in searches:
+            continue
         cands, n_searched = _ghost_candidates(
             tt, inten, esd, intensity_esd, lam_ghost / wavelength, lo, hi,
             tol_deg=tol_deg, k_sigma=k_sigma)
@@ -1713,7 +1755,8 @@ def _ghost_consensus(
 
 def _contamination_flags(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,
                          peak_idx: np.ndarray, wavelength: float,
-                         *, tol_deg: float = GHOST_TOL_DEG
+                         *, tol_deg: float = GHOST_TOL_DEG,
+                         source: object | None = None
                          ) -> list[ContaminationFlag]:
     """Channel-index view of :func:`contamination_flags_from_peaks`.
 
@@ -1725,4 +1768,4 @@ def _contamination_flags(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,
     return contamination_flags_from_peaks(
         tt[peak_idx], net[peak_idx], None, wavelength,
         intensity_esd=sigma[peak_idx], tt_range=(float(tt[0]), float(tt[-1])),
-        tol_deg=tol_deg)
+        tol_deg=tol_deg, source=source)

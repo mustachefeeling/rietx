@@ -513,14 +513,15 @@ class PeakEditor:
             if carry.excluded and "excluded" not in peak.flags:
                 peak.flags = [*peak.flags, "excluded"]
         doc.peaks = _spliced(doc.peaks, g, fresh, self.det,
-                             self.instrument.source.lines)
+                             self.instrument.source.lines,
+                             source=self.instrument.source)
         meta.gamma_g, meta.gamma_l = float(fit.gamma_g), float(fit.gamma_l)
         meta.from_reseed = [bool(b) for b in fit.reseeded()]
         return doc
 
 
 def _spliced(peaks: PeakList, g: int, fresh: list[ObservedPeak],
-             det: Detection, lines=()) -> PeakList:
+             det: Detection, lines=(), source=None) -> PeakList:
     """The list with group ``g`` replaced by ``fresh``, marks and diagnostics
     recomputed for exactly the spliced components."""
     merged = [p for p in peaks.peaks if p.group != g] + list(fresh)
@@ -528,7 +529,7 @@ def _spliced(peaks: PeakList, g: int, fresh: list[ObservedPeak],
     if fresh:
         new_ids = {id(p) for p in fresh}
         only = {i for i, p in enumerate(merged) if id(p) in new_ids}
-        flag_ghosts(merged, peaks.wavelength, det, only=only)
+        flag_ghosts(merged, peaks.wavelength, det, only=only, source=source)
         # the same one-group restriction, for the same reason: recomputing the
         # Kα2-residual mark on edited components must not resurrect one a user
         # cleared on an untouched line (WP-1043)

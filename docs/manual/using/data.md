@@ -435,6 +435,7 @@ Ask `capabilities()` for the anode names rather than trusting a list in prose.
 |---|---|---|---|
 | `Source.lines` | list[`EmissionLine`] | required | one entry per emission line, at least one |
 | `Source.polarization` | `Parameter` | 0.5 | the fraction K of {eq}`corr-lp`; 0.5 is an unpolarised beam |
+| `Source.kbeta` | `"filter"`, `"monochromator"`, `"mirror"` or None | None | what the file or the lab says stands in the beam as far as Kβ goes. None is undeclared, never "no filter", and the ghost screen runs as usual. `"monochromator"` (set by `bragg_brentano(monochromator_two_theta=)`) skips both ghost searches. `"filter"` and `"mirror"` are recorded and change nothing, because the screen still finds an injected leak at 2 % of Kα. A neutron source never runs the screen |
 | `Source.dispersion` | `Dispersion` or None | on | anomalous scattering, {eq}`int-friedel` |
 | `Source.harmonics` | list[`Harmonic`] | empty | declared λ/n monochromator orders, refused on this radiation; see [below](harmonic-contamination) |
 | `Source.kind` | `"xray_cw"` | `"xray_cw"` | constant-wavelength X-rays |

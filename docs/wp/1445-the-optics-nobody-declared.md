@@ -86,31 +86,45 @@ already owns `mu_t`, `goniometer_radius_mm` and the aberration parameters, so
       reader refuses a new one by `extra="forbid"`, the direction the
       compatibility note accepts. Behaviour per member: `monochromator` skips
       both searches (1442 measured that neither Kβ nor W Lα reaches the
-      detector behind one); `filter` skips the Kβ search and keeps W Lα, which
-      a Kβ foil does not remove; `mirror` is **recorded and changes nothing**,
-      because a graded mirror's leak has no number in this tree and a narrowed
-      window would be a chosen one. A neutron source needs no field: its
+      detector behind one); `filter` and `mirror` are **recorded and change
+      nothing**. First draft had `filter` skip Kβ; the injection ladder
+      (task 4) overturned it, since an image injected into corundum and
+      zincite is flagged at r = 0.14, 0.10, 0.05 and 0.02 alike (6-8 lines at
+      every rung), so a skip throws away real leaks past a working filter, and
+      a narrowed ceiling would need a filtered-leak ratio nothing here
+      measures. A neutron source needs no field: its
       `kind` is the declaration.
-- [ ] `monochromator_two_theta` is kept as well as consumed, or the new field
+- [x] `monochromator_two_theta` is kept as well as consumed, or the new field
       subsumes it. Whichever, the fixtures that already declare one stop
       needing a second declaration to say the same thing.
-      Plan: it stays the one input and `bragg_brentano` also sets
-      `kbeta="monochromator"` from it; a new `kbeta_filter=` argument sets
-      `"filter"`; both given, the monochromator wins.
-- [ ] A source that cannot emit the line never runs the search: `neutron_cw`
+      Done: it stays the one input and `bragg_brentano` also sets
+      `kbeta="monochromator"` from it. No `kbeta_filter=` argument: `filter`
+      changes nothing, and a preset argument would cost the import wizard a
+      field and a rebuilt dist, so `"filter"` and `"mirror"` are set on the
+      `Source` directly.
+- [x] A source that cannot emit the line never runs the search: `neutron_cw`
       skips. Both callers, which means `diagnose` grows a way to be told.
       `identify_anode`'s docstring says a `None` is *not checked* rather than
       *clean*; a skip has to be the same kind of silence.
-- [ ] For `xray_cw`, a declared filter or monochromator narrows the ratio
+- [x] For `xray_cw`, a declared filter or monochromator narrows the ratio
       window or skips, with the narrowing measured against 1442's injection
       ladder rather than chosen.
-- [ ] The xrdml reader learns `<xRayMirror>`, `<monochromator>` and
+      Measured 2026-10-03 on corundum and zincite (`tests/data/qarr`), an
+      image of the whole pattern at the Kβ position added at r = 0.14, 0.10,
+      0.05, 0.02, through `pick_peaks`: **6-8 lines flagged at every rung**
+      (corundum 8, 8, 8, 7; zincite 6, 6, 7, 7). Nothing narrows, and a filter
+      skip would discard real leaks. Only the monochromator and the neutron
+      source skip.
+- [x] The xrdml reader learns `<xRayMirror>`, `<monochromator>` and
       `<filter>`, recording what the file says and nothing more. brml and rasx
       when files exist to test them against; a reader that cannot see the
       element declares nothing rather than guessing.
-- [ ] Manual and skill: what the field means, and that an undeclared instrument
+      Done for xrdml as metadata `beam_optics` (element names only). brml and
+      rasx are not done: no fixture shows either spelling, and the wizard does
+      not yet turn `beam_optics` into `Source.kbeta`.
+- [x] Manual and skill: what the field means, and that an undeclared instrument
       is not a clean one.
-- [ ] Tests: the neutron pattern, the demo's mirror, and a fixture whose
+- [x] Tests: the neutron pattern, the demo's mirror, and a fixture whose
       declared monochromator makes the search skip.
 
 ## Acceptance

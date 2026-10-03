@@ -193,6 +193,11 @@ METADATA_KEYS: dict[str, str] = {
     "goniometer_radius_mm": "the goniometer radius the file records, in mm — one "
                             "of the four bragg_brentano numbers that need not be "
                             "typed when the file already knows it",
+    "beam_optics": "the optic elements a file lists in its beam paths "
+                   "(xRayMirror, monochromator, filter), comma-joined and "
+                   "named only. Recorded, never used, and **absent means "
+                   "undeclared**, not that the beam has none: most files say "
+                   "nothing",
 }
 
 
