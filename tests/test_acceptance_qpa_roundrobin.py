@@ -51,7 +51,8 @@ the BRINDLEY_OUTSIDE_REGIME fence fires on magnetite/zircon — the WP-0305
 machinery correctly refusing confidence outside its regime.
 
 The statistical σ(W) propagated from the correlated scale covariance is
-0.1-0.4 wt % throughout — an order of magnitude below the measured errors.
+0.12-0.82 wt % (median 0.43 over cpd-1a to 1h), several times below the
+measured errors.
 That is not a defect of the propagation: QPA accuracy on real mixtures is
 dominated by intensity-level systematics (microabsorption, residual texture,
 fixed-structure approximations) that no scale covariance can see.  The tests

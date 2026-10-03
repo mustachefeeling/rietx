@@ -145,9 +145,9 @@ second job from WP-0503, as the anisotropic-strain acceptance pair
 broadening and corundum as the isotropic control on the same instrument,
 protocol and channel count. **The reference values there are not a certificate —
 they are a characterisation**, and the headline one is negative: three Stephens
-patterns improve brucite's Rwp from 18.55 % to 17.90 % with ΔBIC = +488 and
-still drive σ²(M) negative on 12 of 43 reflections. Corundum: Rwp 14.37 %,
-ΔBIC = −17, Layer-1 anisotropy 1.60× and `detected=False`. Re-measure both
+patterns improve brucite's Rwp from 18.62 % to 17.84 % with ΔBIC = +22.4 at
+N/f² (+592 at raw N) and still drive σ²(M) negative on 7 of 43 reflections
+(1.6.0 tree). Corundum: Rwp 14.37 %, ΔBIC = −18.6 at N/f², Layer-1 anisotropy 1.80× and `detected=False`. Re-measure both
 before changing any of them.
 
 - Madsen, I. C.; Scarlett, N. V. Y.; Cranswick, L. M. D.; Lwin, T. (2001).
@@ -781,7 +781,7 @@ references:
 | The hump is the container, not a missed reflection | APS 11-BM **run 4736**, header `Chemical formula = empty Kapton capillary (Kapton)`, `Calibration file = feb10/11bmb_4733.calib`, `Calibrated wavelength = 0.412225`, collected 11 Feb 2010 — the same February 2010 beamtime as run 4918, with the sample taken out. Published on 11-BM's Standards Data listing (`wiki-ext.aps.anl.gov/ug11bm/index.php/Standards_Data`), recovered through the Internet Archive by the same route as the `qarr/*.prn` files. Fitted **outside this package** (numpy Chebyshev + scipy least-squares, weights from the file's own σ column) over the committed pattern's exact 1.997–49.996° range: Chebyshev-3 + one Gaussian gives χ²ᵣ = 1.125 on 48 000 channels, position 4.2417(111)°, FWHM 6.153(23)°, where Chebyshev-3 alone gives 5.33 and it takes fourteen polynomial terms to match the six-parameter fit. Cross-**code** and cross-**scan**, which is what the old example could not offer. **Committed since 2026-09-17**, and that fit reproduces on the committed bytes to every digit recorded here, which is what identifies the file as run 4736 |
 | The hump is not the beam or the air path | APS 11-BM's published `background/11BM_background_air_scatter.xy`, header `11-BM Background, No sample - Air Scatter Only`, one hour, run cycle 2009-2, λ 0.458735 Å. Binned over 2–50° it decays strictly monotonically with nothing localised anywhere. Note the **different wavelength**: a d = 4.73 Å halo would sit at 5.56° in this scan rather than 4.98°, so the control is quoted as "no localised feature anywhere", which is wavelength-free, rather than as "nothing at 5°" |
 | What the feature is | The blank's envelope maximum is at 4.98° 2θ, which at 0.412225 Å is d = 4.74 Å, Q = 1.33 Å⁻¹ — the polyimide amorphous halo. Quoted as an envelope reading of the data, not as a literature value |
-| Why the *refined* centre is 4.18° and not 4.98° | A symmetric Gaussian over 2–50° also absorbs the residual direct-beam rise a 3-term Chebyshev cannot reach, so it is pulled low. Measured, not asserted: give the polynomial three more terms and the same peak relaxes to 5.245(41)° and narrows from 5.57(27)° to 1.94(11)°. The manual carries this caveat in the prose and quotes the envelope for the halo and the fit for the model |
+| Why the *refined* centre is 4.18° and not 4.98° | A symmetric Gaussian over 2–50° also absorbs the residual direct-beam rise a 3-term Chebyshev cannot reach, so it is pulled low. Measured, not asserted: give the polynomial three more terms and the same peak relaxes to 5.245(32)° and narrows from 5.57(22)° to 1.94(8)°. The manual carries this caveat in the prose and quotes the envelope for the halo and the fit for the model |
 
 **What that pattern still is, and is not.** Two measurements taken on it are
 still cited in this package — in `refine.py` for the held capillary offset and
