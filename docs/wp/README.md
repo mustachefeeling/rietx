@@ -25,7 +25,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1433](1433-the-inp-grammar-still-refused.md) | The `.inp` grammar the reader still refuses: `STR(...)` and `#if` | 2026-10-01 | P3 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 2026-09-24 | P1 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1451](1451-the-extinction-a-powder-has.md) | The extinction a powder has | 2026-09-30 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-09-28 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
+| [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-10-03 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | 2026-10-01 | P3 | [rietview](#rietview) |
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
@@ -511,7 +511,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1461](1461-every-browser-chart-draws-with-uplot.md) | Every browser chart draws with uPlot | ✅ 2026-09-26 | — | — |
 | [1462](1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md) | The structure viewer draws with its own WebGL2 renderer | ✅ 2026-09-26 | — | — ([1461](1461-every-browser-chart-draws-with-uplot.md) soft) |
 | [1466](1466-the-structure-viewer-draws-coordination-polyhedra.md) | The structure viewer draws coordination polyhedra | ✅ 2026-09-26 | — | [1462](1462-the-structure-viewer-draws-with-its-own-webgl2-renderer.md) |
-| [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 🔄 2026-09-28 | P4 | [1466](1466-the-structure-viewer-draws-coordination-polyhedra.md) |
+| [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 🔄 2026-10-03 | P4 | [1466](1466-the-structure-viewer-draws-coordination-polyhedra.md) |
 | [1470](1470-a-structure-figure-without-a-browser.md) | A structure figure from Python, drawn without a browser | ✅ 2026-09-27 | — | — |
 | [1522](1522-the-gui-says-what-the-read-repaired.md) | The GUI says what reading the project repaired | ⬜ | P3 | — |
 | [1531](1531-what-the-promo-figures-found.md) | What the promo figures found: a trimmed cell the report calls fine, a bond through a face, labels on atoms, polyhedra without their far ends | ✅ 2026-10-02 | — | — |
