@@ -1359,11 +1359,11 @@ def test_a_centred_tetragonal_lattice_is_recovered_with_its_centring(zircon_inde
     (``engines.dedup_groups``).  Here it chooses correctly — tetragonal **I**,
     a +207 ppm and c +1906 ppm from Hazen & Finger's cell.
 
-    Note which figure does the choosing, and note that the obvious one would
-    choose **wrong**.  The primitive twin of the same metric is also in the list
-    and indexes 60 of 68 observed lines against the centred cell's 59 — *more*,
-    not fewer, because a cell predicting twice as many reflections can only ever
-    match at least as many observed ones.  What separates them is
+    Note which figure does the choosing, and note that the obvious one cannot.
+    The primitive twin of the same metric is also in the list and indexes within
+    one line of the centred cell, because a cell predicting twice as many
+    reflections matches at least as many observed ones at a shared metric.
+    What separates them is
     ``predicted_seen_fraction``, 0.57 for I against 0.28 for P, since half of what
     P predicts is not there.  That is coverage scored *in both directions*, which
     is the whole reason the panel is a panel — and forward coverage alone would
@@ -1387,18 +1387,16 @@ def test_a_centred_tetragonal_lattice_is_recovered_with_its_centring(zircon_inde
              and abs(c.cell[2] / best.cell[2] - 1.0) < 1e-3]
     assert twins, "the primitive twin was merged away; dedup_groups must keep it"
     twin = twins[0]
-    # Forward coverage cannot separate them: the twins index 59 and 60 of 68
-    # lines, i.e. the *primitive* twin explains marginally more, which is the
-    # trap — a cell that predicts twice as many reflections will never index
-    # fewer.  (They were exactly equal under the assumed 0.05° window; WP-1038's
-    # measured 0.0299° is narrower and splits them by one line, in the direction
-    # that would rank the wrong twin first if forward coverage decided.)
+    # Forward coverage cannot separate them: the twins index within a line of
+    # each other.  At one shared metric the primitive twin can never index
+    # fewer, since it predicts twice as many reflections.  But the twins are
+    # refined separately, so the direction of that one line is not a property
+    # of the data: it was P 60 against I 59, and once the duplicate copies left
+    # the list (WP-1510) it is P 45 against I 46, the primitive cell's c 70 ppm
+    # shorter and missing the 117.47° line.  So only the gap is asserted.
     assert abs(twin.n_indexed - best.n_indexed) <= 1, (
         f"forward coverage: I {best.n_indexed}, P {twin.n_indexed} of "
         f"{best.n_lines} — the twins should be within a line of each other")
-    assert twin.n_indexed >= best.n_indexed, (
-        "the primitive twin should not index *fewer* lines than the centred one "
-        "— if it does, this row is no longer testing what it claims")
     # what actually separates them is coverage in the *reverse* direction
     assert (best.fom_value("predicted_seen_fraction")
             > 1.5 * twin.fom_value("predicted_seen_fraction"))
@@ -2167,8 +2165,15 @@ def test_one_shift_is_measured_from_a_multi_phase_pattern(corundum_peaks):
     Checked here both ways.  Corundum, single phase, gives −0.0639° against an
     independently measured −0.065°.  ``cpd-1a`` is the IUCr round-robin's
     **three-phase** mixture — corundum, zincite and fluorite on the same
-    diffractometer — and returns −0.0382° from pairs its own screen cannot
-    attribute to any one phase, with no cell for any of them.
+    diffractometer — and returns −0.009° from pairs its own screen cannot
+    attribute to any one phase, with no cell for any of them.  A separate fit
+    of its 16 fluorite lines with the cell free gives −0.0095 ± 0.0023°.
+
+    It read −0.038° until WP-1510, and two of the five pairs behind that were
+    one line fitted twice by neighbouring groups (``duplicate_line``).  The
+    clause that it agreed with corundum's −0.064° went with it.  A cos θ shift
+    here is specimen displacement, which is set per mount, so two specimens on
+    one diffractometer have no reason to share it.
     """
     from rietx.indexing.pick import pick_peaks
     from rietx.indexing.quality import screen_shift_from_pairs
@@ -2188,11 +2193,9 @@ def test_one_shift_is_measured_from_a_multi_phase_pattern(corundum_peaks):
     assert mixture.source == "reflection_pairs", mixture.pairs.declined_reason
     m_amp = next(t.coefficient for t in mixture.templates
                  if t.name == mixture.best)
-    assert m_amp == pytest.approx(-0.038, abs=0.010)
+    # the fluorite-only fit's −0.0095 ± 0.0023°, at about twice its esd
+    assert m_amp == pytest.approx(-0.0095, abs=0.005)
     assert mixture.pairs.z >= PAIR_MIN_Z
-    # the two specimens were run on the same instrument, and the shifts agree to
-    # well inside the spread a specimen-mounting difference would produce
-    assert abs(m_amp - amp) < 0.030
 
 
 @pytest.mark.xdist_group("indexing-acceptance-lab6")
