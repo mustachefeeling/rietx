@@ -127,7 +127,7 @@ already owns `mu_t`, `goniometer_radius_mm` and the aberration parameters, so
 - [x] Tests: the neutron pattern, the demo's mirror, and a fixture whose
       declared monochromator makes the search skip.
 
-- [ ] Follow-ups the review found: `auto_background` cannot be handed a
+- [x] Follow-ups the review found (filed 2026-10-03 as WP-1539): `auto_background` cannot be handed a
       source (it needs a public argument, so `api.md` and the manual
       partition move with it); the import wizard does not turn `beam_optics`
       into `Source.kbeta` (and must tell an incident monochromator from a
