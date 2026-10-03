@@ -176,7 +176,7 @@ basin along this ridge.
 `QPA_FRACTION_UNDETERMINED` fires when an admissible fraction lies more than
 {{ FRACTION_PROFILE_EXCESS }} times the esd's 95 % half-width from the fit's
 fraction. That factor is a choice, not a measurement. The controls reached at most 0.79 and the synthetic
-trace fixture reached about 75, so it sits well clear of both. The warning names
+trace fixture reached about 99, so it sits well clear of both. The warning names
 the range and the widths that produced it. A fraction it fires on is not
 determined by this pattern, whatever its esd says, so quote the range rather
 than the point. The basins separate only on information the fit does not have:
@@ -184,7 +184,7 @@ a width held at a value the specimen justifies, a background that can take the
 hump itself, or more counts on the phase's strongest lines.
 
 On that synthetic fixture, LaB₆ with a trace of CaF₂ and a small amorphous hump
-under a six-term Chebyshev background, the fit reports CaF₂ at 1.19 ± 0.53 wt%.
+under a six-term Chebyshev background, the fit reports CaF₂ at 1.19 ± 0.39 wt%.
 The profile admits everything from 0.86 % to 77 %, in two basins separated by a
 barrier the data can see.
 

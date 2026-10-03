@@ -900,15 +900,15 @@ additive, so it moves the level and never rescales the shape.
 
 Free the scale against a low-order polynomial, and read it as a measurement only
 there. On a synthetic blank built at a true scale of 0.85, one Chebyshev term
-recovers 0.8378(42) and six recover 0.6479(182), while Rwp falls monotonically
+recovers 0.8378(29) and six recover 0.6479(127), while Rwp falls monotonically
 from 0.07634 to 0.07299 across that row. `HIGH_CORRELATION` against `c0` fires
 at the flexible end and is the correct report rather than a fit failure.
 
 Measured data behaves the same way. `tests/data/11BM_Kapton.xy` is an empty
 Kapton capillary scanned at APS 11-BM in February 2010, and
 `tests/data/11BM_Si640c.xy` is NIST SRM 640c silicon in that capillary from the
-same beamtime. Against three Chebyshev terms the scale refines to 0.8374(142).
-Against six it walks to 0.6935(246), and Rwp prefers that arm, 0.076382 against
+same beamtime. Against three Chebyshev terms the scale refines to 0.8374(113).
+Against six it walks to 0.6935(196), and Rwp prefers that arm, 0.076382 against
 0.077328 on one weight. The scale it prefers is the one that disagrees with a
 hand-set scan of the same two files, which put the minimum at 0.85. A lower Rwp
 does not make a scale more nearly measured.
@@ -1062,10 +1062,10 @@ jointly with the polynomial at the end.
 
 | background | free background terms | Rwp | GoF | Biso(Si) / Å² | `HIGH_CORRELATION` |
 |---|---|---|---|---|---|
-| Chebyshev, 3 terms | 3 | 0.119977 | 1.9695 | 0.414(75) | 0 |
-| Chebyshev-3 + one hump | 3 + 3 | 0.082503 | 1.3544 | 0.421(12) | 0 |
-| Chebyshev, 6 terms | 6 | 0.088597 | 1.4545 | 0.422(29) | 0 |
-| Chebyshev-6 + one hump | 6 + 3 | 0.077152 | 1.2666 | 0.4235(85) | 0 |
+| Chebyshev, 3 terms | 3 | 0.119977 | 1.9695 | 0.414(65) | 0 |
+| Chebyshev-3 + one hump | 3 + 3 | 0.082503 | 1.3544 | 0.421(10) | 0 |
+| Chebyshev, 6 terms | 6 | 0.088597 | 1.4545 | 0.422(25) | 0 |
+| Chebyshev-6 + one hump | 6 + 3 | 0.077152 | 1.2666 | 0.4235(66) | 0 |
 
 Three peak parameters beat three polynomial ones. The first two rows differ by
 three numbers, and so do the first and third: three peak parameters against
@@ -1076,13 +1076,13 @@ and it is a fair one only because the parameter counts match.
 
 The peak releases the Bragg intensity instead of competing with it. Biso(Si)
 barely moves, 0.414 to 0.421 Å², well inside one esd. Its esd falls by a factor
-of six, 0.075 to 0.012 Å². So do the esds of everything the background was
-trading against: λ 5.9×, the scale 6.0×, the zero shift 5.9×. A background the
+of six, 0.065 to 0.010 Å². So do the esds of everything the background was
+trading against: λ 6.4×, the scale 6.5×, the zero shift 6.4×. A background the
 model cannot describe blurs this fit more than it biases it, and the three
 numbers that describe the hump give back the precision.
 
-The fitted peak comes back at position 4.18(11)°, height 115.3(38) counts, FWHM
-5.57(27)°. The instrumental Gaussian FWHM at that angle, from this fit's own
+The fitted peak comes back at position 4.18(9)°, height 115.3(30) counts, FWHM
+5.57(22)°. The instrumental Gaussian FWHM at that angle, from this fit's own
 refined u, v, w, is 0.00346°, so the peak is 1 608× the resolution. That is what
 a diffuse feature looks like, and it is 400× clear of the `HUMP_TOO_NARROW`
 guard in the next section. Neither peak arm returns a single `HIGH_CORRELATION`
@@ -1122,7 +1122,7 @@ three-parameter Rwp reduction, and that is what makes this feature quotable.
 #### Where the fitted centre is not the halo position
 
 Read the table honestly and one number does not fit. The halo is at 4.98–5.05°
-by envelope, and the refined peak comes back at 4.18(11)°. The two are answering
+by envelope, and the refined peak comes back at 4.18(9)°. The two are answering
 different questions.
 
 A symmetric Gaussian spanning 2–50° has to absorb whatever the 3-term polynomial
@@ -1130,8 +1130,8 @@ cannot, and what the polynomial cannot do at this end of the range is the
 residual direct-beam rise below 3°. So the fitted centre is pulled low. It is
 the best single Gaussian for the halo plus that rise, and not a measurement of
 the halo. Give the polynomial three more terms and the rise becomes the
-polynomial's job: the Chebyshev-6 arm's peak relaxes to 5.245(41)°, onto the
-envelope, and narrows from 5.57(27)° to 1.94(11)°.
+polynomial's job: the Chebyshev-6 arm's peak relaxes to 5.245(32)°, onto the
+envelope, and narrows from 5.57(22)° to 1.94(8)°.
 
 Quote the envelope, and the blank, for where the halo is. Quote the fit for the
 model that describes it. Do not read the refined position as a physical

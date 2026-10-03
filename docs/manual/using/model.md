@@ -580,7 +580,7 @@ esds onto `ParameterRow.esd`, so one listing carries both the value and its
 uncertainty. A tied row gets one too: the free parameters' covariance is
 propagated through `C` as σ² = diag(C·Cov·Cᵀ), so an identity tie reports
 exactly its source's number. In that NAC fit `phases.0.cell.b` and `.c` both
-come back at 6.27e-05, which is `a`'s esd. The tied coordinate rows carry none,
+come back at 5.68e-05, which is `a`'s esd. The tied coordinate rows carry none,
 because a row is given an esd only when at least one of its sources was free,
 and that plan did not free the coordinate degrees of freedom. `None` means the
 uncertainty is unavailable rather than zero.

@@ -201,7 +201,7 @@ more than one way, so a Le Bail cell that fits better than a structural model
 does can still be the wrong cell {cite}`peterson2005`. Where they are resolved
 the freedom buys nothing, and the check is cheap to skip: on the 11-BM LaB₆
 pattern, at 0.014 reflections per FWHM, Le Bail, Pawley and Rietveld agree on
-*a* to 0.4 ppm with the same esd to 2 %. Reflections per FWHM is the number to
+*a* to 0.4 ppm with the same esd to 3 %. Reflections per FWHM is the number to
 look at, and crowding rather than low symmetry is what drives it.
 
 ### With no structure at all
