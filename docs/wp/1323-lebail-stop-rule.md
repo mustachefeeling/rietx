@@ -1,6 +1,6 @@
 # WP-1323 — the Le Bail alternation has a stop rule, and a scope
 
-Milestone: unscheduled · Status: 🔄 2026-10-03 — alternation shipped; GUI progress view and judging.md questions open
+Milestone: unscheduled · Status: 🔄 2026-10-03 — alternation shipped; GUI progress view open
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-09-23 — the skill sends every Le Bail job to a hand loop with no cap; the call is the workaround
@@ -175,20 +175,24 @@ cannot see a wrong cell or a low background), and both are still true.*
       parsed, refused below 1), `passes` in `rxt.ts`'s keyword mirror, and the
       Plan panel carries the plan fields it has no control for through a save
       (`intermediate_ftol` was reset the same way). Dist rebuilt.
-- [ ] **Open questions from the 2026-10-02 prose review of `judging.md`**, each
-      needing a domain check before the text is touched, and none caused by
-      this WP. (1) The same four-phase 25-50° fixture gives Fe Biso −165 Å² at
-      one place and −150 Å² at another. (2) The same ramp gives "42 of 68" in
-      one section and "40 of 68" in another. (3) The size coefficient is
-      "proportional to λ" here, and root CLAUDE.md says the Gaussian one goes
-      as λ². (4) The tie rule says "within its own esd", but its example
-      (0.2763(1810), 0.5279(1911)) is inside the combined σ and outside either
-      esd. (5) 5 750 channels are counted as observations, where root CLAUDE.md
-      counts reflections. (6) "5 %" for 11.6-12.0 s → 12.1-12.2 s is 1-5 %.
-      (7) One ADP "on its bound" beside "nothing else distinguishes" the two
-      fits: would `BOUND_HIT` fire? (8) "Symmetry outranks" is followed by a
-      list that includes a mode-fixed path. (9) `SKILL.md` §2 says "third-party
-      lab data" and the new tag cites 11-BM synchrotron data.
+- [x] **The nine `judging.md` questions, resolved 2026-10-03** (checked against the
+      source and McCusker 1999 / Toby 2006 by a subagent; its Q3, Q4 and Q7
+      claims re-checked here). Q1, Q2, Q6: two sources or two warnings told
+      apart in the text. Q3: Lorentzian size goes as λ, Gaussian as λ²
+      (`SIZE_LAMBDA_POWER`). Q4: the tie check compares each pair with the
+      combined esd (threshold "about two", a convention); the esds were
+      refreshed to the post-#674 values in `judging.md` and `concepts.md`, and
+      `concepts.md`'s "each interval contains the tied value" was false on
+      them (O5 sits 1.01 esds off) so it now reads pairwise (1.19, 0.88, 0.51).
+      Q5: "observations per parameter" is "points per parameter" in
+      `judging.md`, `concepts.md`, `VALIDATION.md` and `validation_matrix.py`.
+      Q7: no index or plot separates the fits, `BACKGROUND_ABSORPTION` and
+      `BOUND_HIT` do; the Rwp/Biso numbers are dated 2026-08-12 (a re-run gave
+      0.08831 and 0.926, not re-measured in the text). Q8: mode-fixed split
+      out of the symmetry sentence. Q9: SKILL.md says "external patterns".
+      Not touched: the old numbers in `tests/test_background_auto.py:1246`'s
+      docstring, and whether any code prints 42 of 68 today (needs the ramp
+      data in `~/rietx-agent-runs`).
 
 ## Acceptance
 
@@ -216,8 +220,8 @@ baseline table, never gated.
   a trip through the GUI's text document and Plan panel. Before this, each pass
   looked like its own run, and a second pass could be lost on cancel. The
   review also caught that the first pass finishing marked the whole run "done".
-  Still open: the GUI progress view repeats stage names every pass, and the
-  nine `judging.md` questions need your domain check.
+  Still open: the GUI progress view repeats stage names every pass.
+  (The nine `judging.md` questions were resolved later that day; see Tasks.)
 
   **Done** (second session on this WP). (a) `_fit_lebail_alternation` attaches
   the recorder once and the passes share its stream; each pass stamps
@@ -258,9 +262,8 @@ baseline table, never gated.
   **Gotchas.** A `/code-review --fix` runs in this tree, so I merged main only
   after it returned. A merge during a running suite invalidates the run.
 
-  **Next:** (1) the maintainer's call on the nine `judging.md` questions;
-  (2) decide how the GUI progress view should show a pass; (3) the background
-  protocol in Inherited, if wanted in this WP, else file it.
+  **Next:** (1) decide how the GUI progress view should show a pass; (2) the
+  background protocol in Inherited, if wanted in this WP, else file it.
 
 - **2026-10-02** — **The package now runs the Le Bail alternation itself.**
   Set a pass cap on the plan and `fit` repeats the plan, stops at the first

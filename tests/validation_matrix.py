@@ -664,7 +664,7 @@ CLAIMS: tuple[Claim, ...] = (
                   "one parameter.  Rwp is deliberately not a referent: it "
                   "moves by 0.05 % of itself, so no bar on it could "
                   "distinguish a good constraint from a bad one",
-        measured="20 -> 18 free parameters, 287.5 -> 319.4 observations per "
+        measured="20 -> 18 free parameters, 287.5 -> 319.4 points per "
                  "parameter; B(O) 0.2834(1421) / 0.5288(1497) / 0.4361(1008) "
                  "free against 0.4263(704) tied, the three free values 1.01 / "
                  "0.68 / 0.10 of their own esds from the tied value (esds "

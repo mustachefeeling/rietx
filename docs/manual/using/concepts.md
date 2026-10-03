@@ -191,21 +191,25 @@ the second time with the three phosphate oxygens' `biso` tied together:
 | | free | tied |
 |---|---|---|
 | free parameters | 20 | 18 |
-| observations per parameter | 287.5 | 319.4 |
+| points per parameter | 287.5 | 319.4 |
 | Rwp | 0.097307 | 0.097355 |
-| B(O5) / Å² | 0.2763(1810) | 0.4138(899) |
-| B(O6) / Å² | 0.5279(1911) | 0.4138(899) |
-| B(O7) / Å² | 0.4149(1282) | 0.4138(899) |
+| B(O5) / Å² | 0.2834(1421) | 0.4263(704) |
+| B(O6) / Å² | 0.5288(1497) | 0.4263(704) |
+| B(O7) / Å² | 0.4361(1008) | 0.4263(704) |
 
 The return is precision. The constrained esd is smaller than the best of the
 three free ones. Rwp is not the evidence and cannot be. It moved by 0.05 % of
 itself, the shape "the constraint costs no fit quality" takes.
 
-The check to run first is in the free column. Each of the three intervals
-contains the tied value, so the free refinement does not contradict the claim
-that these are one parameter. Where the free values disagree by more than
-their esds, the atoms are telling you they are not in the same environment, and
-tying them replaces a measurement with an assumption.
+Points per parameter counts the 5 750 measured channels. The independent
+observations are the reflections, far fewer (McCusker et al. 1999, §9).
+
+The check to run first is in the free column. Compare each pair of free values
+with their combined esd, the square root of the sum of the two squared esds. The
+three pairs differ by 1.19, 0.88 and 0.51 of it, all under about two, so the free
+refinement does not contradict the claim that these are one parameter. Where a
+pair differs by more, the atoms are telling you they are not in the same
+environment, and tying them replaces a measurement with an assumption.
 :::
 
 (named-variables)=

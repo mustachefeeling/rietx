@@ -13,7 +13,7 @@ The band is quoted from the paper and gates nothing here, but read the number
 on **every** solve, `converged` included. The solver stops on the cost, and a
 cost that has stopped falling says nothing about a parameter walking a flat
 direction: on a 25–50° four-phase QPA scan all six stages reported `converged`
-with the number at 70.1, Fe's Biso at −165 Å² along a scale·exp(−2Bs²) ridge,
+with the number at 70.1, Fe's Biso at −165 Å² (the campaign's run) along a scale·exp(−2Bs²) ridge,
 and 4.02e-05 once that Biso was bounded (issue #204). So a large value on a
 converged stage is the signature of an unbounded or degenerate direction: look
 for a parameter without the range its field declares, or for a
@@ -91,21 +91,23 @@ A constraint *removes* a parameter and so raises the observation-to-parameter ra
 McCusker's: equal displacement parameters across atoms in the same
 environment, and occupancies summing to a known total.
 
-**Check the premise in the free refinement, not with Rwp.** If each free value lies within its own esd of the others, the
-data does not contradict the claim that they are one parameter. Where they
-disagree by more than their esds, the atoms are saying they are *not* in the
-same environment, and tying them replaces a measurement with an assumption.
+**Check the premise in the free refinement, not with Rwp.** Compare each pair of free values with their combined esd, √(σa²+σb²). If every pair differs by less than about two of them, the
+data does not contradict the claim that they are one parameter. Where one pair
+differs by more, the atoms are saying they are *not* in the same environment, and
+tying them replaces a measurement with an assumption. The test ignores the
+correlation between the two fits, so it is lenient when that is positive.
 
 Fluorapatite's three phosphate oxygens, tied as one displacement parameter: 20 →
-18 free parameters, 287.5 → 319.4 observations per parameter, and B(O)
-0.2763(1810) / 0.5279(1911) / 0.4149(1282) Å² free against 0.4138(899) Å² tied —
-tighter than the best of the three. Rwp moved by 0.05 % of itself, so it cannot say whether the constraint helped or hurt.
+18 free parameters, 287.5 → 319.4 points per parameter (5 750 channels, not independent
+observations; McCusker §9), and B(O) 0.2834(1421) / 0.5288(1497) / 0.4361(1008) Å²
+free against 0.4263(704) Å² tied. The free values differ pairwise by 1.19, 0.88
+and 0.51 combined esds, and the tied esd is tighter than the best of the three. Rwp moved by 0.05 % of itself, so it cannot say whether the constraint helped or hurt.
 
 Every tie is recorded as a `set_tie` history node and restored by a checkout, so
 a constrained protocol replays as one. Symmetry outranks a user tie: a
-cell axis the space group already ties, a coordinate behind its site-symmetry
-direction, and a `lebail`/`pawley` mode-fixed path are refused by name rather
-than silently ignored.
+cell axis the space group already ties and a coordinate behind its site-symmetry
+direction are refused by name rather than silently ignored. A `lebail`/`pawley`
+mode-fixed path is refused too, because the mode already fixes it.
 
 ## Step 13 — why the inflation is not a measurement, and why the trio travels
 
@@ -283,8 +285,9 @@ spline the refinement reports Rwp **0.08852** and GoF 1.022, against **0.08969**
 and 1.025 with a correct Chebyshev-6. The wrong background wins on every agreement index, and its displacement parameters come back 0.958 and 0.000 Å²
 against a truth of 0.5, one of them on its bound, where the correct background
 gives 0.691 and 0.327. `worst_absorption` reads 0.46 against 0.08, either side
-of the 0.25 at which `BACKGROUND_ABSORPTION` fires. Nothing else in the report or the plot distinguishes the two fits: the over-flexible
-residual is white noise inside ±3σ.
+of the 0.25 at which `BACKGROUND_ABSORPTION` fires. No agreement index and no plot distinguishes the two fits (the over-flexible
+residual is white noise inside ±3σ). `BACKGROUND_ABSORPTION` does, and so does
+`BOUND_HIT` on the zero parameter. Numbers measured 2026-08-12.
 
 The **too-stiff** side has no guard of its own. On round-robin sample 2, a
 1°-knot P-spline with its penalty ten thousand times too stiff moved corundum's
@@ -312,8 +315,8 @@ Appl. Cryst.* **35**, 383.
 
 A phase's intensity is scale · exp(−2B·s²). On a range where its reflections
 sit at one d-spacing, the data give one number for the pair, and a fraction
-read from it is conditional on B. (Measured: WP-1534's 25–50° Cu Kα
-four-phase fixture. bcc Fe has one reflection there. With B free it walked to
+read from it is conditional on B. (Measured: WP-1534's synthetic rebuild of #204's 25–50° Cu Kα
+four-phase scan. bcc Fe has one reflection there. With B free it walked to
 −150 Å² and returned 0.000 ± 0.000 wt%. With B held it returned 1.284 wt%,
 against 1.211 true.) The stage now holds that B and fires
 `SCALE_B_INSEPARABLE`. Quote the fraction together with that condition.
@@ -405,7 +408,7 @@ Four codes on `SeriesResult.summary(deliverable="series")` carry the chain's
 own rows. `SEQUENTIAL_PATH_DEPENDENT` is an ordering artefact — only a
 `direction="both"` chain can produce one, so a one-way chain has not looked.
 `SEQUENTIAL_PERSISTENT_FINDING` states a persistent count no per-pattern code
-can, measured at **42 of 68** patterns on this ramp. `SEQUENTIAL_DISCONTINUITY`
+can, measured at **42 of 68** patterns on this ramp (`BOUND_HIT` on one cell, original run). `SEQUENTIAL_DISCONTINUITY`
 flags either the science or a chain failure, and `verify_discontinuities=True`
 tells them apart (below). `PHASE_UNCONSTRAINED` says the value is held, so its trajectory is the one you handed in. Apply the QPA background check **at every point** too: an absent phase took **40–96 wt %** at equal Rwp.
 
@@ -427,11 +430,11 @@ Two are now the package's:
   two patterns are refitted cold and independently, and the diagnostic's `value`
   becomes the cold step over the chain's (1.0 a real step, 0 the chain's).
   Measured on that ramp, reproducing the run's own protocol: the chain takes
-  11.6–12.0 s and the check adds 5 % (12.1–12.2 s) for four flagged steps over
+  11.6–12.0 s and the check adds 1–5 % (12.1–12.2 s) for four flagged steps over
   four patterns, and the real transition reproduces at **1.00**. The cost scales
   with the patterns flagged, not with the series length.
 - **The rows are `SeriesResult.summary(deliverable="series")`.** In the same
-  re-run, `PHASE_UNCONSTRAINED` fires on the impurity's cell in **40 of 68** patterns, the "would not quote" list the agent built by hand.
+  re-run, `PHASE_UNCONSTRAINED` fires on the impurity's cell in **40 of 68** patterns (re-run, WP-1301), the "would not quote" list the agent built by hand.
 
 The two the package cannot supply stay the caller's, and the row says so: nothing in a pattern file records what pinned the 2θ
 scale, and no esd can tell you it is a precision on the shape rather than an
@@ -471,8 +474,8 @@ magnitude and a mixing coefficient. Nothing makes them agree, so the ratio is a
 measurement: far from 1 means the two describe different specimens and neither
 is quotable alone.
 
-**In a joint fit, read the size and never the degrees.** A size coefficient is
-proportional to λ, so `MultiHistogramRefinement` normalises the shared column
+**In a joint fit, read the size and never the degrees.** The Lorentzian size coefficient is
+proportional to λ and the Gaussian one to λ² (`SIZE_LAMBDA_POWER`), so `MultiHistogramRefinement` normalises the shared column
 and reports it at histogram 0's wavelength, saying so through
 `SIZE_NORMALISED_ACROSS_WAVELENGTHS`. Each histogram's own structure copy
 carries the coefficient it needs; the crystallite behind them is one number.
