@@ -336,14 +336,18 @@ def test_the_manual_still_gives_up_index_html():
 
 def test_every_relative_link_resolves_to_something_the_build_writes(any_page, build):
     """A root-relative or bare link in a page has to name a file
-    `build.py --site` puts beside it, and a fragment on another page has to name
-    an id that page carries.  Derived from build.py's own tables, so a new image
-    or a new page is covered by adding it there."""
+    `build.py --site` puts beside it, and a fragment has to name an id the page
+    it points into carries: the hero's quickstart is reached by `#quickstart`
+    from wherever a link to it sits.  Derived from build.py's own tables, so a
+    new image or a new page is covered by adding it there."""
     name, page = any_page
     written = {"favicon.svg", "data/demo.json", "data/transcript.json"}
     written |= set(build.IMAGES.values()) | set(build.PAGES)
     for link in _links(page):
-        if link.startswith(("http://", "https://", "#", "data:", "mailto:")):
+        if link.startswith("#"):
+            assert f'id="{link[1:]}"' in page, f"{name}: {link!r} names an id the page does not carry"
+            continue
+        if link.startswith(("http://", "https://", "data:", "mailto:")):
             continue
         path, _, fragment = link.partition("#")
         path = path.lstrip("/")

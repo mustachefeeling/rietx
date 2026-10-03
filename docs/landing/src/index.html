@@ -1,45 +1,42 @@
 <main>
 <section class="hero"><div class="wrap">
-  <div class="hero-text">
-    <a class="why" href="why.html"><span>Why <code>rietx</code>?</span> <span class="sub">A note from the author</span> <span class="arr" aria-hidden="true">→</span></a>
-    <h1>Rietveld refinement for humans and machines</h1>
-    <p class="lede"><code>rietx</code> is an open-source Python package for analysing powder diffraction data. It's easy to install and the streamlined API can be used by most common AI coding agents.</p>
-    <div class="cta">
-      <span class="install"><span class="ps">$</span>pip install rietx</span>
-      <a class="btn primary" href="https://rietx.org/manual.html">Read the manual</a>
-      <a class="btn" href="https://github.com/yue-here/rietx">GitHub</a>
-    </div>
+  <h1>Rietveld refinement for humans and machines</h1>
+  <p class="lede"><code>rietx</code> is an open-source Python package for analysing powder diffraction data. It's easy to install and the streamlined API can be used by most common AI coding agents.</p>
+  <!-- Two kinds of thing in one row, drawn two ways: a command to copy is flat and tinted
+       like code, with only its icon a button; every bordered box is a button or a link. -->
+  <div class="cta">
+    <span class="cmd"><span class="ps" aria-hidden="true">$</span><code>pip install rietx</code><button class="icon-btn copy" type="button" data-copy="pip install rietx" aria-label="Copy the install command" title="Copy"><svg class="i-copy" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg><svg class="i-done" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button></span>
+    <a class="btn" href="https://rietx.org/manual.html">Read the manual</a>
+    <a class="btn" href="https://github.com/yue-here/rietx">GitHub</a>
+    <a class="btn" href="why.html">Why rietx?</a>
+    <button class="btn" id="qs-toggle" type="button" aria-expanded="false" aria-controls="quickstart">Agent quickstart<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
   </div>
   <!-- The prompt is written once, as markup.  `.v-pip` and `.v-git` are the two install
        lines; the radios pick one by CSS alone, and the copy button serialises what is
-       showing, each `code` wrapped in backticks. -->
-  <section class="qs" id="quickstart" aria-labelledby="qs-title">
-    <div class="qs-head">
-      <h2 id="qs-title">Agent quickstart</h2>
-      <fieldset class="seg">
-        <legend class="sr">Install rietx from</legend>
-        <label><input type="radio" name="qs-src" value="pip" checked><span>PyPI release</span></label>
-        <label><input type="radio" name="qs-src" value="git"><span>Latest from GitHub</span></label>
-      </fieldset>
+       showing, each `code` wrapped in backticks.  Every link to #quickstart opens it. -->
+  <div class="qs" id="quickstart" tabindex="-1" hidden>
+    <p class="qs-hint">Paste this into Claude Code, Codex or another coding agent, opened in the folder that holds your data.</p>
+    <div class="qs-box">
+      <div class="qs-bar">
+        <div class="qs-src" role="radiogroup" aria-labelledby="qs-src-lbl">
+          <span id="qs-src-lbl">Install from</span>
+          <label><input type="radio" name="qs-src" value="pip" checked><span>PyPI</span></label>
+          <span class="dot" aria-hidden="true">·</span>
+          <label><input type="radio" name="qs-src" value="git"><span>GitHub (latest)</span></label>
+        </div>
+        <button class="qs-copy copy" id="qs-copy" type="button"><svg class="i-copy" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg><svg class="i-done" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span class="lbl">Copy</span></button>
+      </div>
+      <div class="qs-prompt" id="qs-prompt">
+        <p>I want to refine powder diffraction data with rietx (https://rietx.org). My data and any structure files (CIFs) are in this folder.</p>
+        <ol>
+          <li>Create a Python virtual environment here with Python 3.11 or newer. <span class="v-pip">Install rietx into it: <code>pip install rietx</code></span><span class="v-git">Install the latest development version of rietx into it: <code>pip install git+https://github.com/yue-here/rietx</code></span></li>
+          <li>Install the rietx agent skill with <code>rietx skill --install</code>. Then read <code>.agents/skills/rietx/SKILL.md</code>.</li>
+          <li>Look at the files in this folder and tell me what they are. Propose a refinement plan before you run it.</li>
+        </ol>
+      </div>
     </div>
-    <div class="qs-prompt" id="qs-prompt">
-      <p>I want to refine powder diffraction data with rietx (https://rietx.org). My data and any structure files (CIFs) are in this folder.</p>
-      <ol>
-        <li>Create a Python virtual environment here with Python 3.11 or newer. <span class="v-pip">Install rietx into it: <code>pip install rietx</code></span><span class="v-git">Install the latest development version of rietx into it: <code>pip install git+https://github.com/yue-here/rietx</code></span></li>
-        <li>Install the rietx agent skill with <code>rietx skill --install</code>. Then read <code>.agents/skills/rietx/SKILL.md</code>.</li>
-        <li>Look at the files in this folder and tell me what they are. Propose a refinement plan before you run it.</li>
-      </ol>
-    </div>
-    <div class="qs-foot">
-      <p>Open Claude Code, Codex or another coding agent in the folder that holds your data, then paste this in.</p>
-      <button class="btn qs-copy" id="qs-copy" type="button">
-        <svg class="i-copy" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg>
-        <svg class="i-done" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
-        <span id="qs-copy-label">Copy prompt</span>
-      </button>
-      <span class="sr" id="qs-status" role="status"></span>
-    </div>
-  </section>
+  </div>
+  <span class="sr" id="copy-status" role="status"></span>
 </div></section>
 
 <section class="block" id="agent"><div class="wrap">
@@ -152,7 +149,7 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
     <li><strong>Indexing</strong><span>Robust automatic peak picking and three available indexing engines. <a href="https://rietx.org/using/indexing.html">Indexing</a></span></li>
     <li><strong>Corrections</strong><span>Axial divergence, displacement and transparency, absorption, preferred orientation, anisotropic displacement and strain, anomalous dispersion. <a href="https://rietx.org/using/model.html">Model</a></span></li>
     <li><strong>Solvers and backends</strong><span>Very fast compiled kernel; trust-region and Levenberg–Marquardt on an analytic Jacobian; optional JAX and PyTorch backends for fully differentiable refinements. <a href="https://rietx.org/estimation.html">Estimation</a></span></li>
-    <li><strong>For agents</strong><span>Ships with an agent skill summarising refinement heuristics and <code>rietx</code> features. Works with most coding agents. <code>rietx skill --install</code>. <a href="https://rietx.org/using/agents.html">Agents</a></span></li>
+    <li><strong>For agents</strong><span>Ships with an agent skill summarising refinement heuristics and <code>rietx</code> features. Works with most coding agents. <code>rietx skill --install</code>. <a href="#quickstart">Quickstart</a> · <a href="https://rietx.org/using/agents.html">Agents</a></span></li>
   </ul>
 </div></section>
 
@@ -177,18 +174,37 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
 </main>
 
 <script>
-/* ---------- the agent quickstart's copy button ---------- */
+/* ---------- the hero's two copy buttons, and the quickstart disclosure ---------- */
 // Its own script, because the animation's returns early on a page without a payload.
-// What is copied is what is showing: the unchosen install line is dropped, each `code`
-// becomes backticked markdown, and the list is numbered as drawn.  The clipboard API needs
-// a secure context and a permissive frame, so a hidden textarea stands behind it.
 (function(){
   "use strict";
-  const box = document.getElementById("quickstart");
-  const btn = document.getElementById("qs-copy"), label = document.getElementById("qs-copy-label");
-  const status = document.getElementById("qs-status");
+  const panel = document.getElementById("quickstart"), toggle = document.getElementById("qs-toggle");
+  const status = document.getElementById("copy-status");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // The quickstart opens from its button, and from every link to #quickstart wherever that
+  // link sits, so a link never lands on a closed panel.  It closes only from its button.
+  function setOpen(open){
+    panel.hidden = !open;
+    toggle.setAttribute("aria-expanded", String(open));
+  }
+  function reveal(){
+    setOpen(true);
+    panel.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    panel.focus({ preventScroll: true });
+  }
+  toggle.addEventListener("click", () => setOpen(panel.hidden));
+  document.addEventListener("click", e => {
+    const a = e.target.closest('a[href="#quickstart"]');
+    if (a){ e.preventDefault(); reveal(); }
+  });
+  window.addEventListener("hashchange", () => { if (location.hash === "#quickstart") reveal(); });
+  if (location.hash === "#quickstart") reveal();
+
+  // What the quickstart copies is what is showing: the unchosen install line is dropped,
+  // each `code` becomes backticked markdown, and the list is numbered as drawn.
   function promptText(){
-    const src = box.querySelector('input[name="qs-src"]:checked').value;
+    const src = panel.querySelector('input[name="qs-src"]:checked').value;
     const el = document.getElementById("qs-prompt").cloneNode(true);
     el.querySelectorAll(src === "git" ? ".v-pip" : ".v-git").forEach(n => n.remove());
     el.querySelectorAll("code").forEach(c => c.replaceWith("`" + c.textContent + "`"));
@@ -197,6 +213,8 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
       ? [...n.children].map((li, i) => `${i + 1}. ${flat(li)}`).join("\n")
       : flat(n)).join("\n\n");
   }
+  // The clipboard API needs a secure context and a permissive frame, so a hidden textarea
+  // stands behind it.
   async function copy(text){
     try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
     const ta = document.createElement("textarea");
@@ -206,15 +224,20 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
     ta.remove();
     return ok;
   }
-  let timer = 0;
-  btn.addEventListener("click", async () => {
-    const ok = await copy(promptText());
-    btn.classList.toggle("done", ok);
-    label.textContent = ok ? "Copied" : "Select and copy it instead";
-    status.textContent = ok ? "Prompt copied to the clipboard" : "Copying failed";
-    clearTimeout(timer);
-    timer = setTimeout(() => { btn.classList.remove("done"); label.textContent = "Copy prompt"; status.textContent = ""; }, 2000);
-  });
+  for (const btn of document.querySelectorAll("button.copy")){
+    const label = btn.querySelector(".lbl"), idle = label ? label.textContent : "";
+    let timer = 0;
+    btn.addEventListener("click", async () => {
+      const ok = await copy(btn.dataset.copy || promptText());
+      btn.classList.toggle("copied", ok);
+      if (label) label.textContent = ok ? "Copied" : "Copy failed";
+      status.textContent = ok ? "Copied to the clipboard" : "Copying failed; select the text instead";
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        btn.classList.remove("copied"); if (label) label.textContent = idle; status.textContent = "";
+      }, 1800);
+    });
+  }
 })();
 </script>
 

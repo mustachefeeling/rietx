@@ -4,7 +4,7 @@ The page served at `https://rietx.org/`, beside the manual at `/manual.html`.
 Written 2026-09-02 with Claude Code; entered the repository in WP-1331.
 `python build.py` writes `dist/index.html`, the whole page in one file, which is
 also what the mockup artifact shows. Since 2026-10-03 a second page sits beside
-it: `why.html`, the maintainer's essay, linked from the hero and the footer
+it: `why.html`, the maintainer's essay, linked from a hero button and the footer
 rather than the top bar, which has no room for a fourth item at 320 px.
 
 ## What is here
@@ -12,7 +12,7 @@ rather than the top bar, which has no room for a fourth item at 320 px.
 | path | what |
 |---|---|
 | `src/shell.html` | what every page shares: the stylesheet, the top bar, the theme control, the footer. Placeholders `%%TITLE%%`, `%%DESCRIPTION%%`, `%%NOTE%%` (from `build.PAGES`), `%%MAIN%%` (the page), `%%FAVICON%%` |
-| `src/index.html` | the landing page's `<main>` and its scripts: the agent quickstart's copy button, the animation. Placeholders `%%IMG:…%%`, `%%DEMO%%`, `%%TRANSCRIPT%%`. The quickstart prompt is written once, as markup; `tests/test_landing.py` runs its install and skill commands |
+| `src/index.html` | the landing page's `<main>` and its scripts: the hero's copy buttons and quickstart disclosure, the animation. Placeholders `%%IMG:…%%`, `%%DEMO%%`, `%%TRANSCRIPT%%`. The hero draws a command to copy flat and tinted, like code, and every bordered box as a button or a link. The agent quickstart opens below the row from its button or from any `#quickstart` link. Its prompt is written once, as markup, and `tests/test_landing.py` runs its install and skill commands |
 | `src/why.html` | the essay's `<main>`. The words are the maintainer's, verbatim; only the links were added |
 | `src/favicon.svg` | the manual's favicon recoloured to the accent (`#d8660c` light, `#ff9d4d` dark) |
 | `build.py` | `python build.py` → `dist/<page>.html` (everything inlined); `python build.py --site` → `site/` with every page, `img/`, `data/`, `favicon.svg`. `PAGES` lists the pages, each with its title, description and footer line; a new page is a row there and a file in `src/` |
