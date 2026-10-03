@@ -74,12 +74,29 @@ already owns `mu_t`, `goniometer_radius_mm` and the aberration parameters, so
 
 ## Tasks
 
-- [ ] The design call, recorded in this file with its date: a `Source` field or
+- [x] The design call, recorded in this file with its date: a `Source` field or
       a `Geometry` one, and what its vocabulary is. "None declared" must not
       read as "no filter", since most files say nothing.
+      **Decided 2026-10-03: `Source.kbeta: Literal["filter", "monochromator",
+      "mirror"] | None = None`, on the X-ray `Source`.** It says what stands
+      between the tube and the detector as far as Kβ goes, so it sits with the
+      lines the beam carries and beside `polarization`, the one optics fact
+      already kept there. `None` is *undeclared*, and the screen runs exactly
+      as before. A new optional field loads every old document, and an old
+      reader refuses a new one by `extra="forbid"`, the direction the
+      compatibility note accepts. Behaviour per member: `monochromator` skips
+      both searches (1442 measured that neither Kβ nor W Lα reaches the
+      detector behind one); `filter` skips the Kβ search and keeps W Lα, which
+      a Kβ foil does not remove; `mirror` is **recorded and changes nothing**,
+      because a graded mirror's leak has no number in this tree and a narrowed
+      window would be a chosen one. A neutron source needs no field: its
+      `kind` is the declaration.
 - [ ] `monochromator_two_theta` is kept as well as consumed, or the new field
       subsumes it. Whichever, the fixtures that already declare one stop
       needing a second declaration to say the same thing.
+      Plan: it stays the one input and `bragg_brentano` also sets
+      `kbeta="monochromator"` from it; a new `kbeta_filter=` argument sets
+      `"filter"`; both given, the monochromator wins.
 - [ ] A source that cannot emit the line never runs the search: `neutron_cw`
       skips. Both callers, which means `diagnose` grows a way to be told.
       `identify_anode`'s docstring says a `None` is *not checked* rather than
