@@ -100,6 +100,7 @@ from ..schemas.indexing import (
     ShiftScreen,
     ShiftTemplateFit,
 )
+from ..schemas.instrument import Instrument
 from .fom import panel_undefined
 
 #: Reflections per Laue orbit, averaged over general hkl, relative to triclinic
@@ -380,6 +381,7 @@ def assess_peak_list(peaks: PeakList, *,
                      shift_from_pairs: bool = False,
                      pair_seed: int = 0,
                      envelope_n: int = PEAK_MIN_USABLE_LINES,
+                     instrument: Instrument | None = None,
                      ) -> DataQualityReport:
     """Judge a peak list fit to index, or abstain with a reason.
 
@@ -390,6 +392,9 @@ def assess_peak_list(peaks: PeakList, *,
     ``sigma_sys_deg`` declares a systematic floor from outside (a calibration),
     and is recorded as such — an *assumed* precision must never be quoted as a
     measured one, the same rule ``PeakList.from_positions`` follows.
+    ``instrument`` is the one the list was picked with; it changes no verdict,
+    and an abstention's suggestion names what it still leaves at default
+    (:func:`~rietx.indexing.diagnostics.undeclared_instrument`) first.
 
     **The σ(Q)/Q abstention runs only on a list whose σ was measured**, and that
     qualifier is load-bearing rather than defensive.  ``MAX_RELATIVE_SIGMA_Q`` is
@@ -426,7 +431,7 @@ def assess_peak_list(peaks: PeakList, *,
             abstained_reason=(f"{len(usable)} usable line(s): a lattice cannot "
                               "be constrained by fewer than two"))
         return report.model_copy(update={
-            "diagnostics": quality_diagnostics(report, peaks)})
+            "diagnostics": quality_diagnostics(report, peaks, instrument)})
 
     order = np.argsort(q)
     q, q_esd = q[order], q_esd[order]
@@ -492,7 +497,7 @@ def assess_peak_list(peaks: PeakList, *,
         volume_envelope=envelope, shift=shift,
         supports_indexing=reason is None, abstained_reason=reason)
     return report.model_copy(update={
-        "diagnostics": quality_diagnostics(report, peaks)})
+        "diagnostics": quality_diagnostics(report, peaks, instrument)})
 
 
 __all__ = ["VOLUME_ENVELOPE_SLACK", "assess_peak_list", "fit_shift_model",

@@ -111,7 +111,7 @@ rule.
       reproduces them or a synthetic one built to. Then collapse to one line
       per physical peak on the path into `index_pattern`, pinned by a test
       that counts lines.
-- [ ] `INDEX_DATA_INSUFFICIENT`: the suggestion names an undeclared
+- [x] `INDEX_DATA_INSUFFICIENT`: the suggestion names an undeclared
       instrument first. Test both branches.
 - [ ] `INDEX_PRIOR_USED`: a prior refused at the box is reported at
       `warning` with the `max_d_axis` value to pass, or 1045's decision is

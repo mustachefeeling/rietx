@@ -719,7 +719,7 @@ def index_pattern(peaks: PeakList | None = None, *,
         ran_preset = "custom"
     if quality is None:
         quality = assess_peak_list(peaks, shift_from_pairs=shift_from_pairs,
-                                   pair_seed=spec.seed)
+                                   pair_seed=spec.seed, instrument=instrument)
     spec = _adopt_measured_shift(spec, quality)
     spec = _restrict_to_supported(spec, quality)
     names = tuple(engines) if engines is not None else engine_names()

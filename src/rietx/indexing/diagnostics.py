@@ -32,6 +32,7 @@ from ..schemas.indexing import (
     DataQualityReport,
     PeakList,
 )
+from ..schemas.instrument import Instrument, ProfileTCHZ
 from .peaks import Detection
 
 #: Physical cause of each shift template, for the messages.  The template names
@@ -309,7 +310,32 @@ def refinement_width_diagnostics(measured: float,
         suggestion=suggestion, value=ratio)]
 
 
+def undeclared_instrument(instrument: Instrument) -> list[str]:
+    """What the instrument a peak list was picked with still leaves at default.
+
+    The picker holds both and applies them (:func:`~rietx.indexing.pick_peaks`),
+    so a default stands in for a measurement.  Axial divergence at S/L = H/L = 0
+    leaves a lab line's low-angle asymmetry to the position, and the default
+    ``ProfileTCHZ`` (W = 1e-3 deg²) is a synchrotron line, so the width seeds
+    and the separation floor are a lab pattern's several times over.  Measured
+    on one lab capillary pattern (WP-1510, ``solution case 1``): declaring both
+    took median σ(Q)/Q from 1.05e-3 to 6.9e-4 and the gate passed.
+    """
+    out = []
+    geo = instrument.geometry
+    if geo.axial_sl.value == 0.0 and geo.axial_hl.value == 0.0:
+        out.append("geometry.axial_sl and geometry.axial_hl are 0, so no axial "
+                   "divergence is modelled")
+    default = ProfileTCHZ()
+    if all(getattr(instrument.profile, k).value == getattr(default, k).value
+           for k in "uvwxy"):
+        out.append("instrument.profile is the default ProfileTCHZ, a "
+                   "synchrotron line (W = 1e-3 deg²)")
+    return out
+
+
 def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
+                        instrument: Instrument | None = None,
                         ) -> list[Diagnostic]:
     """Translate a :class:`DataQualityReport` into the ``INDEX_*`` messages.
 
@@ -323,14 +349,24 @@ def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
     where_range = [f"2θ {report.two_theta_min:.2f}-{report.two_theta_max:.2f}°"]
 
     if report.abstained_reason is not None:
+        suggestion = ("abstention is the result here — extend the 2θ range, "
+                      "count longer, or re-pick with a lower "
+                      "PEAK_MIN_HEIGHT_SIGMA.  Running a search anyway "
+                      "returns a rank order with nothing behind it")
+        # the instrument is named first because it is the cheapest of the
+        # remedies: a re-pick, where the others are a new measurement
+        missing = [] if instrument is None else undeclared_instrument(instrument)
+        if missing:
+            suggestion = ("declare the instrument before re-picking: "
+                          + "; ".join(missing) + ".  The picker fits every "
+                          "line with these held, so a default widens each "
+                          "position's esd.  Otherwise " + suggestion)
         out.append(Diagnostic(
             level="error", code="INDEX_DATA_INSUFFICIENT",
             message=report.abstained_reason,
-            where=where_range,
-            suggestion=("abstention is the result here — extend the 2θ range, "
-                        "count longer, or re-pick with a lower "
-                        "PEAK_MIN_HEIGHT_SIGMA.  Running a search anyway "
-                        "returns a rank order with nothing behind it")))
+            where=where_range + (["instrument.geometry", "instrument.profile"]
+                                 if missing else []),
+            suggestion=suggestion))
     elif report.fom_undefined:
         absent = "; ".join(f"{name}: {why}"
                            for name, why in sorted(report.fom_undefined.items()))
