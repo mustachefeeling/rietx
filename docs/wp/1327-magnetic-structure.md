@@ -357,7 +357,10 @@ rule above applies to the form factors.
       rows, `help.py` entries, `capabilities()` feature flag.
 - [ ] Tests, including the acceptance below, with obs/calc/diff PNGs to
       `tests/output/`. **Cr₂WO₆ 4 K and the 150 K null ship
-      (`test_acceptance_magnetic.py`). LaMnO₃ is not vendored, and no
+      (`test_acceptance_magnetic.py`). LaMnO₃ is not vendored (its licence
+      is checked, 2026-10-03: `Magnetic-I/data/LaMnO3_50k.gsas` and
+      `BT1_Cu311.inst` sit under the GSAS-II-tutorials `LICENSE`, the GSAS-II
+      Open Source License the `gsas2_*.gpx` fixtures already ship under), and no
       magnetic refinement writes a PNG.**
 
 ## Acceptance
@@ -390,12 +393,16 @@ rule above applies to the form factors.
 - Shirane, G. (1959). *Acta Cryst.* **12**, 282 — what a powder average
   determines of a moment direction.
 - Brown, P. J. *International Tables for Crystallography* Vol. C, § 4.4.5 —
-  magnetic form factors, the ⟨jₙ⟩ coefficients. **Not in the corpus; ask.**
+  magnetic form factors, the ⟨jₙ⟩ coefficients. *In the maintainer's
+  library since 2026-10-03* (Prince ed., 3rd ed., 2004): Tables
+  4.4.5.1-4.4.5.14, ⟨j₀⟩ to ⟨j₆⟩, read by `pdftotext` cleanly enough to
+  cross-check A5's table against.
 - Rodríguez-Carvajal, J. (1993). *Physica B* **192**, 55 — FullProf; the
   manual (in the corpus) has eqs 3.47–3.54 and the form-factor conventions.
 - Perez-Mato, J. M. et al. (2015). *Annu. Rev. Mater. Res.* **45**, 217 —
   magnetic symmetry and the BNS/OG settings. Gallego, S. V. et al. (2016).
-  *J. Appl. Cryst.* **49**, 1750 — MAGNDATA. **Neither in the corpus.**
+  *J. Appl. Cryst.* **49**, 1750 — MAGNDATA. *Both in the maintainer's
+  library since 2026-10-03.*
 - COMCIFS `magnetic_dic` (`cif_mag.dic`, tags checked 2026-09-02) — the
   operator, centring, moment and propagation-vector tags this WP's stored
   form mirrors.
