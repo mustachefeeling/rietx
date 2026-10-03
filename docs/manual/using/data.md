@@ -820,7 +820,7 @@ so the same λ means the same stiffness in counts, in a normalised unit or at
 any step size. It does not make the penalty's *cost* count-independent: on a
 well-counted pattern with a broad hump the default λ = 1 can be stiffer than the
 data supports ({ref}`bg-lambda-counts`). `BackgroundPSpline.lambda_units` set to `"intensity"` restores the
-pre-1.5.1 rows, whose λ moved with the intensity unit, to reproduce an old fit.
+rows of 1.5.0 and earlier, whose λ moved with the intensity unit, to reproduce an old fit.
 `BackgroundPSpline.air_scatter` scales an additive 1/2θ term for the
 low-angle air rise. The air term is absent (`None`) unless you declare it or
 `auto_background` does, which it does only when the pattern diagnostics report
