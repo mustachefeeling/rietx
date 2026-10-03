@@ -12,11 +12,29 @@ came from; and no check that the tag and `pyproject.version` agree, which is
 the one packaging mistake with no undo, because PyPI refuses a second upload of
 a version number that has already been published.
 
+## When
+
+A release is cut once a week, and at once when a P1 fix lands (WP-1540). A P1
+fix here is the defect half of the rubric's top tier in `docs/wp/TEMPLATE.md`:
+a silent wrong answer in a shipped path, or data loss. A P1 that was a red
+check or a finishing rung waits for the week. The cut carries whatever `main`
+holds, and a milestone that is not finished waits for the next one.
+
+The weekly cut is cheap to forget, so it is not left to memory. The
+session-start hook prints `release owed` once the newest `v*` tag is seven days
+old and `main` has merged anything since. A P1 fix has no date to read, so
+`/wp-handover` says a release is owed when the WP it closes was P1.
+
+The interval follows the measured rate. Before WP-1540 every release carried
+14 to 77 merges and 210 to 301 lines of notes. By early October 2026, 80 to 177
+PRs merged in a week. A fortnightly cut would carry about 1 200 lines of notes,
+which is the backlog this rule exists to prevent.
+
 ## Cutting a release
 
 1. Set `pyproject.version`. The convention is in
-   [CLAUDE.md](../CLAUDE.md): the milestone in flight, or the last shipped when
-   none is. **Two things follow it and neither is automatic.** Reinstall
+   [CLAUDE.md](../CLAUDE.md) and ROADMAP protocol rule 6: a release is numbered
+   at its cut (WP-1540). **Two things follow it and neither is automatic.** Reinstall
    (`uv pip install -e ".[dev]"`), because `rietx.__version__` is
    `importlib.metadata.version()` and reads the dist-info written at install
    time — until you do, every number the suite measures is stamped with the old
@@ -104,6 +122,7 @@ makes step 6 a real gate rather than a formality.
 - The workflow's own header explains each guard and why the `publish` job is
   the only one holding `id-token: write`.
 - `docs/releases/X.Y.Z.md` is the per-release record and the release body.
-- `docs/milestones/vX.Y.md` is the measured record of a *milestone*, which is a
+- `docs/milestones/vX.Y.md` is the measured record of a minor release, and
+  `docs/milestones/<name>.md` that of a named milestone (WP-1540). Both are a
   different document: acceptance numbers, not upgrade notes. A patch release
-  has notes and no milestone record.
+  has notes and no record of either kind.

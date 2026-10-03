@@ -1051,13 +1051,17 @@ def test_no_planning_doc_links_something_gitignored():
 
 
 def test_every_shipped_milestone_row_names_its_record():
-    """A ✅ milestone row must link a record file; the link test resolves it."""
+    """A ✅ milestone row must link a record file; the link test resolves it.
+
+    A version's record is `vX.Y.md` and a named milestone's is `<name>.md`
+    (WP-1540), so the pattern takes either.
+    """
     text = ROADMAP.read_text(encoding="utf-8")
     section = text.split("## Milestones", 1)[1].split("## Work packages", 1)[0]
     for line in section.splitlines():
         if not line.startswith("|") or "✅" not in line:
             continue
-        assert re.search(r"\(milestones/v[\d.]+\.md\)", line), (
+        assert re.search(r"\(milestones/(?:v[\d.]+|[a-z][a-z0-9-]*)\.md\)", line), (
             f"shipped milestone row without a record link: {line[:80]}"
         )
 

@@ -1,6 +1,6 @@
 # WP-1503 — the figure reports on itself, and picks a view
 
-Milestone: v1.7 · Status: ✅ 2026-09-30 — report, view="auto", recipe
+Milestone: rietview · Status: ✅ 2026-09-30 — report, view="auto", recipe
 Depends on: 1470 (1501 soft)
 
 ## Goal

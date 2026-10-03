@@ -15,26 +15,26 @@ names hard dependencies, and *soft* marks a preferred order.
 |---|---|---|---|---|
 | [1132](1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | 2026-10-01 | P2 | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
 | [1323](1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | 2026-10-03 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1326](1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | 2026-09-26 | P2 | [v1.6](#v1-6) |
-| [1327](1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 2026-09-26 | P2 | [v1.6](#v1-6) |
-| [1328](1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | 2026-10-01 | P3 | [v1.6](#v1-6) |
-| [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 2026-10-01 | P3 | [v1.6](#v1-6) |
+| [1326](1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | 2026-09-26 | P2 | [magnetic](#magnetic) |
+| [1327](1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 2026-09-26 | P2 | [magnetic](#magnetic) |
+| [1328](1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | 2026-10-01 | P3 | [magnetic](#magnetic) |
+| [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 2026-10-01 | P3 | [magnetic](#magnetic) |
 | [1337](1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | 2026-09-30 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 2026-09-30 | P3 | [v1.6](#v1-6) |
-| [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-10-01 | P2 | [v1.6](#v1-6) |
+| [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 2026-09-30 | P3 | [magnetic](#magnetic) |
+| [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-10-01 | P2 | [magnetic](#magnetic) |
 | [1433](1433-the-inp-grammar-still-refused.md) | The `.inp` grammar the reader still refuses: `STR(...)` and `#if` | 2026-10-01 | P3 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 2026-09-24 | P1 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1451](1451-the-extinction-a-powder-has.md) | The extinction a powder has | 2026-09-30 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-09-28 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
-| [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | 2026-10-01 | P3 | [v1.7](#v1-7) |
+| [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | 2026-10-01 | P3 | [rietview](#rietview) |
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 2026-09-27 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1527](1527-foreign-files-spell-a-species-as-the-program-does.md) | Foreign files spell a species as the other program does | 2026-10-02 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1530](1530-the-topas-readers-last-silences.md) | The TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background | 2026-10-03 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1534](1534-a-scale-and-a-b-the-range-cannot-separate.md) | A scale and a B the fitted range cannot separate | 2026-10-02 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 2026-10-03 | P4 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | 2026-10-01 | P2 | [v1.8](#v1-8) |
-| [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | 2026-10-01 | P2 | [v1.9](#v1-9) |
+| [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | 2026-10-01 | P2 | [rigid-bodies](#rigid-bodies) |
+| [1902](1902-the-solve-cost-as-a-quadratic-form.md) | The solve cost as a quadratic form, and the doublet question first | 2026-10-01 | P2 | [structure-solution](#structure-solution) |
 
 ## Next, by priority
 
@@ -355,7 +355,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1435](1435-a-hold-the-caller-declares.md) | A hold the caller declares, which a plan may not quietly override | ✅ 2026-09-18 | — | — |
 | [1441](1441-a-constraint-the-series-can-declare.md) | A constraint the series can declare | ✅ 2026-09-18 | — | — |
 
-## <a id="v1-6"></a>v1.6 — the magnetic structure
+## <a id="magnetic"></a>magnetic — the magnetic structure
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
@@ -367,7 +367,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 🔄 2026-10-01 | P2 | #290, [1326](1326-satellites-without-a-moment.md), [1327](1327-magnetic-structure.md) |
 | [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | ⬜ | P3 | [1418](1418-the-magnetic-structure-is-determined.md) ([1327](1327-magnetic-structure.md) soft) |
 
-## <a id="v1-7"></a>v1.7 — rietview: the structure figure an agent composes
+## <a id="rietview"></a>rietview — the structure figure an agent composes
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
@@ -381,7 +381,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1537](1537-the-structure-scene-for-a-ray-tracer.md) | The structure scene for a ray tracer: POV-Ray and glTF | ⬜ | P3 | — ([1536](1536-the-structure-figure-as-an-svg.md) soft) |
 | [1538](1538-ambient-occlusion-in-the-structure-figure.md) | Ambient occlusion in the structure figure | ⬜ | P3 | — |
 
-## <a id="v1-8"></a>v1.8 — rigid bodies
+## <a id="rigid-bodies"></a>rigid-bodies — a fragment refined as one body
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
@@ -389,7 +389,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1802](1802-the-fragment-type.md) | The fragment: a body template with a frame and declared bonds | ✅ 2026-10-01 | — | — ([1801](1801-rotation-mathematics.md) soft) |
 | [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | 🔄 2026-10-01 | P2 | [1801](1801-rotation-mathematics.md) |
 
-## <a id="v1-9"></a>v1.9 — structure solution
+## <a id="structure-solution"></a>structure-solution — a map, a cost and a search
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
@@ -549,6 +549,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 🔄 2026-09-27 | P3 | — |
 | [1507](1507-the-index-is-read-off-the-wp-files.md) | The WP index is read off the WP files | 🔄 2026-09-27 | P3 | — ([1506](1506-a-planning-doc-pr-runs-what-reads-it.md) soft) |
 | [1532](1532-the-skill-passages-a-driving-agent-needed.md) | The skill passages a driving agent needed: fourteen rows, placed where each is cheapest | ⬜ | P3 | — (#660 soft) |
+| [1540](1540-a-milestone-is-named-a-release-is-numbered.md) | A milestone is named, a release is numbered | ✅ 2026-10-03 | — | — |
 | [1903](1903-the-lane-trial-decides.md) | The lane trial decides whether a WP session sends long items to subagents | ⬜ | P4 | — |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement

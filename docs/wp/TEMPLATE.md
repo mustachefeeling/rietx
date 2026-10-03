@@ -19,12 +19,16 @@ owns it, and write why into the first handover bullet ("no open WP owns the
 step scan"; "1420 fences the threshold out"), because a check that leaves no
 trace cannot be told apart from one that never ran.
 Numbering: MMNN — the block of the milestone this WP is OPENED for, then the
-next free sequence number (v1.1 → 11xx); an unscheduled WP takes the newest
-block. The number never changes when the WP moves, so it is not where the WP
+next free sequence number (v1.1 → 11xx, rietview → 15xx; a named milestone
+claims the next free hundred when it is queued); an unscheduled WP takes the
+newest block. The number never changes when the WP moves, so it is not where the WP
 stands: the Milestone line is, and the WP index (README.md here, generated)
 places the row by it. Never recycle a retired number.
-Milestone values: vN.N (a row of ROADMAP's table), vN.N.x (shipped after that
-milestone, in its patch releases), unscheduled.
+Milestone values: a lowercase name for an open or queued milestone
+(`magnetic`, a row of ROADMAP's table), vN.N for one that shipped as that
+version, vN.N.x (shipped after that milestone, in its patch releases; closed
+by WP-1540), unscheduled. A name never becomes a number: the release that
+ships it is numbered when it is cut (ROADMAP protocol rule 6).
 Track: the #### heading, verbatim, that the WP sits under in its milestone's
 ROADMAP section. A section without tracks takes no line. A heading ROADMAP
 lacks fails tests/test_docs_consistency.py.

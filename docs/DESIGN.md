@@ -226,7 +226,7 @@ differentiable from day one.
     maps (#197), modulated structures and total scattering (#192).
     **Decided 2026-09-30:** difference Fourier (#197) and charge flipping
     (#198) leave the fence with direct-space solution, in the order map,
-    direct space, charge flipping (milestone v1.9).
+    direct space, charge flipping (milestone structure-solution, queued as v1.9).
 
 ## Architecture invariants
 

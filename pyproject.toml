@@ -10,9 +10,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rietx"
-# The milestone in flight, or the last shipped when none is: the convention is
-# CLAUDE.md's, the procedure docs/RELEASING.md's § Cutting a release, step 1.
-# *Which* milestone that is stays out of this comment — naming it is what rotted
+# The next release's .dev0, moved after each cut: the convention is CLAUDE.md's
+# (WP-1540), the procedure docs/RELEASING.md's § Cutting a release, step 1.
+# *Which* release that is stays out of this comment — naming it is what rotted
 # the note this replaces, which still said v1.0 was open two releases after it
 # shipped.  The value itself is stamped into every RefinementResult's Provenance
 # and every history node, so a stale one mislabels the provenance of real

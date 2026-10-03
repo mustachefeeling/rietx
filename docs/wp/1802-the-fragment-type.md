@@ -1,6 +1,6 @@
 # WP-1802 — the fragment: a body template with a frame and declared bonds
 
-Milestone: v1.8 · Status: ✅ 2026-10-01 — `crystallography/fragments.py`: the fragment type with its body frame and declared bonds, and the Z-matrix builder (PR #579)
+Milestone: rigid-bodies · Status: ✅ 2026-10-01 — `crystallography/fragments.py`: the fragment type with its body frame and declared bonds, and the Z-matrix builder (PR #579)
 Depends on: 1801 soft (the rotation of a template into place)
 
 ## Goal

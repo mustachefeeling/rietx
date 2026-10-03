@@ -14,7 +14,8 @@ count, venv resolution), then one line per flag — another live Claude session
 whose shell sits in this same tree, **a WP another live session is already
 working** (``wp_claim``), a missed ``/wp-handover`` (two severities, see below),
 a venv whose editable ``rietx`` pointer resolves to a different tree, any WP
-whose Status glyph is in flight.  Healthy output is one or two lines.
+whose Status glyph is in flight, and a release owed once the newest ``v*`` tag
+is a week old (``release_flag``, WP-1540).  Healthy output is one or two lines.
 
 **One session per tree** is the rule the first flag enforces, and it is the one
 this repo's collisions all reduce to: sessions launched in the same checkout
@@ -61,6 +62,7 @@ to skip the one line that is ever load-bearing.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import os
 import re
@@ -149,6 +151,38 @@ def repo_line(root: Path) -> str:
     n_dirty = len(status.splitlines()) if status else 0
     dirty = "clean" if n_dirty == 0 else f"{n_dirty} uncommitted"
     return f"{root} @ {branch} · {position} · {dirty}"
+
+
+# A release is cut weekly, and at once for a P1 fix (ROADMAP rule 6, WP-1540).
+RELEASE_DAYS = 7
+
+
+def release_flag(root: Path, today: Optional[dt.date] = None) -> Optional[str]:
+    """Say a release is owed once the newest ``v*`` tag is a week old.
+
+    A rule nobody is reminded of is the rule that let 268 merges wait behind
+    one late milestone, so the weekly cut is read off the tags here rather than
+    remembered.  The P1 half has no date to read and stays /wp-handover's.
+    """
+    tag = _git(root, "for-each-ref", "--sort=-creatordate", "--count=1",
+               "--format=%(refname:short) %(creatordate:short)", "refs/tags/v*")
+    if not tag:
+        return None
+    name, _, day = tag.partition(" ")
+    try:
+        age = ((today or dt.date.today()) - dt.date.fromisoformat(day)).days
+    except ValueError:
+        return None
+    if age < RELEASE_DAYS:
+        return None
+    base = "origin/main"
+    if _git(root, "rev-parse", "--verify", "-q", base) is None:
+        base = "main"
+    merges = _git(root, "rev-list", "--count", "--merges", f"{name}..{base}")
+    if merges in (None, "0"):
+        return None
+    return (f"release owed: {name} is {age} days old, {merges} merges since "
+            f"(weekly, ROADMAP rule 6; docs/RELEASING.md)")
 
 
 class Session(NamedTuple):
@@ -480,6 +514,9 @@ def render(root: Path) -> str:
                 f"note: WP-{f.wp} ({f.glyph}) post-close commits not in the log "
                 f"(commits to {f.commit_date}, {entry})"
             )
+    owed = release_flag(root)
+    if owed:
+        lines.append(f"⚠ {owed}")
     flying = in_flight_wps(root)
     if flying:
         lines.append("in flight: " + ", ".join(f"WP-{wp}" for wp in flying))

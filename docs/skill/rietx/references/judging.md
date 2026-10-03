@@ -292,7 +292,7 @@ residual is white noise inside ±3σ). `BACKGROUND_ABSORPTION` does, and so does
 The **too-stiff** side has no guard of its own. On round-robin sample 2, a
 1°-knot P-spline with its penalty ten thousand times too stiff moved corundum's
 Biso 28 % with no background code firing, at 1.17× the Rwp and with the
-fractions within 1 wt % (WP-1454). Before 1.5.1 that was what high counts did to the
+fractions within 1 wt % (WP-1454). Up to 1.5.0 that was what high counts did to the
 default λ, which was measured in intensity units. λ is a pure number now, and
 the same λ means the same stiffness at any count level. A λ tuned by hand
 against an older version, such as λ ≈ 1/σ², does not carry over.

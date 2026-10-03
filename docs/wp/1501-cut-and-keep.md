@@ -1,6 +1,6 @@
 # WP-1501 — cut and keep: a figure of part of the structure
 
-Milestone: v1.7 · Status: ✅ 2026-09-30 — keep, four masks and recolour landed in the v1.6 tree
+Milestone: rietview · Status: ✅ 2026-09-30 — keep, four masks and recolour landed in the v1.6 tree
 Depends on: 1470
 
 ## Goal

@@ -1,6 +1,6 @@
 # WP-1326 — satellites at G ± k, with no moment model: is it magnetic?
 
-Milestone: v1.6 · Status: 🔄 2026-09-26 — the satellites and their report arm landed from outside (PR #468); the public k ≠ 0 pattern and the Cr₂WO₆ PNG remain
+Milestone: magnetic · Status: 🔄 2026-09-26 — the satellites and their report arm landed from outside (PR #468); the public k ≠ 0 pattern and the Cr₂WO₆ PNG remain
 Depends on: — (first rung of the magnetic scattering track; 1327 builds on
 its reflection list)
 Priority: P2 2026-09-23 — the open milestone's first rung, nothing blocks it
