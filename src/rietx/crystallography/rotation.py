@@ -1,7 +1,7 @@
 """Rotations in 3-D: rotation vector ↔ matrix ↔ unit quaternion, and ∂R/∂δω.
 
 The mathematics a rigid body's orientation needs (WP-1801, the first rung of
-v1.8; issue #561), and nothing of the body itself.  The authority for every formula is Solà, J., Deray, J. &
+rigid-bodies; issue #561), and nothing of the body itself.  The authority for every formula is Solà, J., Deray, J. &
 Atchuthan, D. (2018), *A micro Lie theory for state estimation in robotics*,
 arXiv:1812.01537 (v9, 2021); equation numbers below are that paper's.
 

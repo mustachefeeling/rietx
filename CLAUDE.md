@@ -875,9 +875,9 @@ Planning docs are split so a session loads only what it needs; do not read all:
 - `docs/wp/NNNN-*.md` — one **self-contained** WP per task (context, commit-sized checklist,
   acceptance command, handover log); its header lines are what the index reads, never hand-copied.
 - `docs/DESIGN.md` — design record; read only the section a WP links.
-- `docs/milestones/vX.Y.md` — one record per milestone: measured acceptance at ship, plus (while in
-  flight) the running "How vX.Y is getting here" narrative and the dated appendices. `v1.0.md` is
-  the live one.
+- `docs/milestones/vX.Y.md` — one record per release: the measured ship block, plus (while in
+  flight) the running "How vX.Y is getting here" narrative; `<name>.md` holds a named milestone's
+  scope and acceptance (WP-1540). `v1.6.md` is the live one.
 - The **paper corpus** (location and unread list) is maintainer-local, outside this repo;
   `AGENTS.md` names the split and the maintainer's memory holds it. **Search it before asking for a
   paper or re-deriving a published constant.**

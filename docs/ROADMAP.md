@@ -106,7 +106,7 @@ what `main` carries when it is cut, whichever milestones are complete by then
 landed since 1.5.0, and its notes are staged in
 [releases/1.5.1.md](releases/1.5.1.md), which takes its number at the cut.
 
-**Four milestones are open by name.** [magnetic](#magnetic--the-magnetic-structure)
+**One milestone is open and three are queued, by name.** [magnetic](#magnetic--the-magnetic-structure)
 opened 2026-09-18 as v1.6; rietview, rigid-bodies and structure-solution were
 queued as v1.7, v1.8 and v1.9. Threads #286, #426, #561 and #562 quote those
 numbers, so each row in § Milestones says which it was. **Neutron TOF stays at
@@ -532,7 +532,7 @@ scope creep. Each item names what fenced it.
   without one); neutron **TOF** (CW landed in 1134; issue #193; the energy-dependent
   resonant absorption at S(Q), #113) — **built through rather than deferred**: the
   fork's branch is visible (`tof-cleanroom-20260923`), and **decided 2026-09-24:
-  held until v1.6 closes**, then taken on that branch in its own cuts (T-1, T-2/T-3,
+  held until magnetic (then v1.6) closes**, then taken on that branch in its own cuts (T-1, T-2/T-3,
   T-5), with #442 (a bank's force-fixed CW width rows under 1414's "matched, not
   freed") going with T-1, and #618 (Mantid's instrument values: with provenance,
   never the files) — and issue #362 lists the constant-wavelength reads

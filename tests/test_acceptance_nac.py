@@ -151,9 +151,9 @@ def _masked(text: str) -> str:
 
     The **version** is masked whole, before the digit runs, and that is not a
     tidy-up.  Under the digit mask alone ``1.3.0.dev0`` becomes ``#dev#`` and
-    ``1.3.0`` becomes ``#``, so a golden written during a milestone pins the
+    ``1.3.0`` becomes ``#``, so a golden written between releases pins the
     release *phase* into the view's shape and goes red on the one commit that
-    ships it — and again when the next milestone opens at ``1.x.0.dev0``.
+    ships it — and again when the version moves on to ``1.x.0.dev0``.
     Measured: the only red in v1.3's ship suite, and the six required checks
     cannot see it because acceptance is ``slow``.
     """
