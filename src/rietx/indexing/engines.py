@@ -318,6 +318,56 @@ class SearchSpec:
     prior_cells: tuple[tuple[float, float, float, float, float, float], ...] = ()
     prior_spacegroups: tuple[str, ...] = ()
 
+    @classmethod
+    def from_formula(cls, formula: str, *,
+                     z: int | tuple[int, int] | None = None,
+                     temperature: float = 298.0, **fields) -> SearchSpec:
+        """A spec whose volume window comes from the chemical formula (WP-1510).
+
+        One formula unit's volume is Hofmann's (2002) sum of average atomic
+        volumes at ``temperature`` in K
+        (:func:`~rietx.crystallography.atomic_volume.formula_unit_volume`).
+        The window holds ``z`` formula units, widened to the ratio bounds
+        :data:`~rietx.crystallography.atomic_volume.VOLUME_RATIO_BOUNDS`
+        (V_obs/V_est from 0.8 to 1.25).  Hofmann found 1746 of 182 239
+        structures beyond them.  The window takes that wide bound rather than
+        the 4 % scatter of one crystal, because a window that excludes the true
+        cell makes the search return a wrong answer.
+
+        ``z`` counts formula units in the conventional cell: an integer, a
+        ``(min, max)`` pair, or ``None``.  ``None`` sets only the floor of one
+        formula unit and leaves ``max_volume`` to the data-quality envelope,
+        because a formula says nothing about how many units the cell holds.
+        The floor never drops below :data:`DEFAULT_MIN_VOLUME`: both are lower
+        bounds, so the larger binds.  Every other field passes through
+        ``fields``.
+
+        Narrowing the search is the caller's own act, so ``index_pattern``
+        never builds this window from its ``formula=`` argument, which only
+        reports (``INDEX_Z_NOT_INTEGER``).
+        """
+        from ..crystallography.atomic_volume import (
+            VOLUME_RATIO_BOUNDS,
+            formula_unit_volume,
+        )
+
+        if z is None:
+            z_min, z_max = 1, None
+        elif isinstance(z, tuple):
+            z_min, z_max = z
+        else:
+            z_min = z_max = z
+        whole = all(float(v).is_integer() for v in (z_min, z_max)
+                    if v is not None)
+        if not whole or z_min < 1 or (z_max is not None and z_max < z_min):
+            raise ValueError(f"z must be a whole number of formula units, at "
+                             f"least 1, with min <= max; got {z!r}")
+        v_fu, _ = formula_unit_volume(formula, temperature)
+        low, high = VOLUME_RATIO_BOUNDS
+        return cls(min_volume=max(DEFAULT_MIN_VOLUME, z_min * v_fu * low),
+                   max_volume=None if z_max is None else z_max * v_fu * high,
+                   **fields)
+
     def engine_pool(self) -> int:
         """Candidates one (engine × system) unit hands to the merge.
 

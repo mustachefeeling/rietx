@@ -539,6 +539,8 @@ result = rx.index_pattern(peaks, data=data, instrument=ins)
 | `validate` | `True` | run the Le Bail validation when a pattern is available |
 | `check_top` | `None` | how many candidates get the expensive per-candidate checks |
 | `two_theta_limits` | `None` | restrict the range the validation fits use |
+| `formula` | `None` | a chemical formula; each candidate's implied Z is checked against it ([](#a-volume-window-from-the-formula)) |
+| `temperature` | 298 | the measurement temperature in K, for the formula's volume |
 | `events` | `None` | the streaming event ladder, as everywhere else |
 | `cancel` | `None` | a `CancelToken`; a cancelled search returns what it has |
 
@@ -699,6 +701,47 @@ carries that are not the data.
 
 It is what a project document persists ([](files.md)), so a run can be repeated
 from a stored setting rather than from a call site.
+
+(a-volume-window-from-the-formula)=
+### A volume window from the formula
+
+A formula says roughly how much room one formula unit takes in a crystal.
+`SearchSpec.from_formula` turns that into a volume window. The volume of one
+formula unit is the sum of Hofmann's (2002) average atomic volumes, from
+`rietx.crystallography.atomic_volume.formula_unit_volume`. The window holds `z`
+formula units, widened to the bounds {{ VOLUME_RATIO_LOW }} to
+{{ VOLUME_RATIO_HIGH }} on the ratio of observed to estimated volume. About 1 %
+of the 182 239 structures Hofmann fitted lie outside those bounds.
+
+```python
+from rietx.crystallography.atomic_volume import formula_unit_volume
+from rietx.indexing import SearchSpec
+
+volume, esd = formula_unit_volume("C7H6O2")      # benzoic acid, at 298 K
+assert (round(volume, 2), round(esd, 2)) == (150.35, 0.93)
+
+spec = SearchSpec.from_formula("C7H6O2", z=(2, 8), max_d_axis=32.0)
+assert round(spec.min_volume, 2) == 240.56       # 2 x 150.35 x 0.8
+assert round(spec.max_volume, 2) == 1503.5       # 8 x 150.35 x 1.25
+```
+
+`z` counts formula units in the conventional cell, as an integer, a
+`(min, max)` pair or `None`. `None` sets only the floor of one formula unit and
+leaves the ceiling to the data-quality envelope, because a formula says nothing
+about how many units the cell holds. The esd says how well the average volume is
+known. One crystal scatters about it by {{ VOLUME_SCATTER_PCT }} %, and the
+window is wider still, because a window that excludes the true cell makes the
+search return a wrong one. The volumes are fitted to organic and metal-organic
+crystals. An ionic compound comes out too large, so the floor can exclude its
+cell.
+
+Passing `formula=` to `index_pattern` checks each candidate instead of
+narrowing the search. A cell whose volume holds a fractional number of formula
+units carries `INDEX_Z_NOT_INTEGER`, a warning whose `value` is the implied Z.
+It fires when the nearest whole number is more than
+{{ Z_INTEGER_TOLERANCE_PCT }} % away, twice one crystal's scatter, so it says
+nothing above Z = {{ Z_CHECK_SILENT_ABOVE }}. The candidate keeps its rank. The
+theory is in [](#ch-indexing).
 
 ## The result object
 

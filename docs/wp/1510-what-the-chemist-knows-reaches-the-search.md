@@ -116,17 +116,15 @@ rule.
 - [x] `INDEX_PRIOR_USED`: a prior refused at the box is reported at
       `warning` with the `max_d_axis` value to pass, or 1045's decision is
       reopened. Either way the handover records the reason.
-- [ ] A volume window and a Z check from a formula: a `SearchSpec` helper,
+- [x] A volume window and a Z check from a formula: a `SearchSpec` helper,
       its volume source read and cited in the docstring, and a diagnostic
       for a candidate whose volume implies a non-integer Z (code named at
-      review, with its `help.py` entry). **Blocked 2026-10-03**: neither
-      paper is in the local corpus (zotero-linker, ~/Zotero, rietx-refs-misc
-      checked); ask for both. No `INDEX_*` code has a `help.py` arm today, so
-      "its `help.py` entry" needs a decision too.
+      review, with its `help.py` entry). No `INDEX_*` code has a `help.py`
+      arm, so the entry is the skill row (2026-10-03).
 - [x] `CellCandidate`: named accessors or a `to_cell()`. Check whether two
       settings of one lattice are merged as priors, and say so in the
       docstring.
-- [ ] Manual Part 1 and `tests/api_surface.py`: every new public name
+- [x] Manual Part 1 and `tests/api_surface.py`: every new public name
       documented (the partition fails until it is).
 - [x] Skill: the ask-or-infer rule in the indexing reference, tagged
       `(Measured: solution case 1)`, inside `tests/skill_caps.py`'s budget.

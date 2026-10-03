@@ -22,6 +22,7 @@ from sphinxcontrib.bibtex.style.referencing import BracketStyle
 from sphinxcontrib.bibtex.style.referencing.author_year import AuthorYearReferenceStyle
 
 from rietx._about import DIST_NAME, DOCS_URL, REPO_URL
+from rietx.crystallography.atomic_volume import VOLUME_RATIO_BOUNDS, VOLUME_SCATTER
 from rietx.crystallography.dispersion import NEAR_EDGE_EV
 from rietx.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
 from rietx.examples import list_examples
@@ -30,6 +31,7 @@ from rietx.gui.textdoc import VALUE_DIGITS as RXT_VALUE_DIGITS
 from rietx.help import help_registry
 from rietx.indexing.ambiguity import MAX_AMBIGUITY_INDEX, SUPERCELL_CHANCE_ALPHA
 from rietx.indexing.dichotomy import ANGLE_STEP_DEG, AXIS_STEP
+from rietx.indexing.diagnostics import Z_INTEGER_TOLERANCE
 from rietx.indexing.engines import (
     DEFAULT_N_UNINDEXED,
     DEFAULT_SEARCH_LINES,
@@ -171,6 +173,14 @@ myst_substitutions = {
     "MAX_AMBIGUITY_INDEX": MAX_AMBIGUITY_INDEX,
     "MAX_RELATIVE_SIGMA_Q": MAX_RELATIVE_SIGMA_Q,
     "MIN_LINES_PER_DOF": MIN_LINES_PER_DOF,
+    # the formula-volume window and the Z check (WP-1510): the scatter of one
+    # crystal, the ratio bounds the window takes, the tolerance at twice the
+    # scatter, and the Z above which every value is within it of a whole number
+    "VOLUME_SCATTER_PCT": f"{VOLUME_SCATTER * 100:.2f}",
+    "VOLUME_RATIO_LOW": f"{VOLUME_RATIO_BOUNDS[0]:g}",
+    "VOLUME_RATIO_HIGH": f"{VOLUME_RATIO_BOUNDS[1]:g}",
+    "Z_INTEGER_TOLERANCE_PCT": f"{Z_INTEGER_TOLERANCE * 100:g}",
+    "Z_CHECK_SILENT_ABOVE": f"{0.5 / Z_INTEGER_TOLERANCE:g}",
     # How many example projects the wheel carries.  A *count* in prose is the
     # same class of stale number as a retuned threshold, and it rots the same
     # silent way: `using/quickstart.md` said "Three" while the page's own
