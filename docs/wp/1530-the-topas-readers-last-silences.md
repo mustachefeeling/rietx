@@ -89,11 +89,12 @@ manual's wording changes with it.
 
 ## Tasks
 
-- [ ] Macro-opened datasets (#616): measure what counting the `xdd`-stating
-      macros as openers changes on every `.inp` under `tests/data/`, then
-      count them, or refuse a second macro-opened dataset by name
+- [x] Macro-opened datasets (#616): counted, 2026-10-03. `tests/data/` holds no
+      `.inp`, so the corpus measurement is the private map's and was not made;
+      what it moves is stated in `_DATASET_OPENERS`' comment (a lone macro's
+      phase is dataset 0, not `None`)
 - [ ] Undefined calls and unknown keywords (#651), as decided
-- [ ] A held `bkg` list (#652), as decided, with `using/files.md`
+- [x] A held `bkg` list (#652), as decided, with `using/files.md`
 - [ ] Tests: the three reproductions in the issues, each with its positive arm
 - [ ] Skill: the `TOPAS_FEATURES_NOT_IMPORTED` row in
       `references/diagnostics-projects.md` stops implying a complete import

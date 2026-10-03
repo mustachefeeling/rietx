@@ -4225,3 +4225,57 @@ def test_write_topas_inp_carries_the_group_symbol_as_a_comment(tmp_path):
     back, out = _round_trip(rx.Structure(phases=[phase]), tmp_path)
     assert "' magnetic group symbol (not read): Pnma" in out.read_text(encoding="utf-8")
     assert back.phases[0].magnetic_symmetry.symbol is None
+
+
+# ---- WP-1530: the last silences of the reader
+
+_ONE_PHASE = ('str\nphase_name "A"\nspace_group "P1"\na 4.0\n'
+              'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+
+
+@pytest.mark.parametrize("line, terms, refined", [
+    ("bkg @ 40 -3 2", 3, True),
+    ("bkg ! 40 -3 2", 3, False),
+    ("bkg 40 -3 2", 3, False),
+    ("bkg ! 40`_0.2 -3`_0.1 2`_0.1", 3, False),
+    ("bkg ! 40 @ -3 2", 3, True),
+])
+def test_a_held_background_list_reports_its_length_and_that_it_was_held(
+        tmp_path, line, terms, refined):
+    """#652: `bkg ! c0 c1 …` read `background_terms = None`. The marker sticks
+    until the other one appears, and the first row is the refined positive arm."""
+    model = read_topas_inp(_inp(tmp_path, "bkgheld.inp",
+                                f'xdd "a.xye"\n{line}\n' + _ONE_PHASE))
+    assert (model.background_terms, model.background_refined) == (terms, refined)
+
+
+def test_a_file_with_no_bkg_states_neither(tmp_path):
+    model = read_topas_inp(_inp(tmp_path, "nobkg.inp", 'xdd "a.xye"\n' + _ONE_PHASE))
+    assert (model.background_terms, model.background_refined) == (None, None)
+
+
+@pytest.mark.parametrize("macro", ["RAW", "XDD", "XYE", "XY", "DAT", "BRML", "SST"])
+def test_two_macro_opened_datasets_are_two_datasets(tmp_path, macro):
+    """#616: `RAW(a)` and `RAW(b)` read `n_datasets 0`, and both phases were
+    built into one `Structure`. The `xdd "a"` control already refused."""
+    model = read_topas_inp(_inp(
+        tmp_path, "twomacro.inp",
+        f'{macro}(a)\n' + _ONE_PHASE.replace('"A"', '"A"') +
+        f'{macro}(b)\n' + _ONE_PHASE.replace('"A"', '"B"')))
+    assert model.n_datasets == 2
+    assert [ph.dataset for ph in model.phases] == [0, 1]
+    with pytest.raises(TopasInpError, match="2 datasets"):
+        to_structure(model)
+    assert len(to_structure(model, dataset=1).phases) == 1
+
+
+def test_one_macro_opened_dataset_is_dataset_zero_and_a_bare_name_is_not_a_call(
+        tmp_path):
+    """The positive arm: a single `RAW(a)` builds as before, its phase now
+    dataset 0 rather than `None`. A bare `XY` is no macro call."""
+    model = read_topas_inp(_inp(tmp_path, "onemacro.inp",
+                                'RAW(a)\n' + _ONE_PHASE))
+    assert model.n_datasets == 1 and model.phases[0].dataset == 0
+    assert len(to_structure(model).phases) == 1
+    bare = read_topas_inp(_inp(tmp_path, "bare.inp", 'xdd "a.xye"\nXY 1\n' + _ONE_PHASE))
+    assert bare.n_datasets == 1
