@@ -145,7 +145,19 @@ def test_a_prior_outside_the_box_is_refused_before_any_check():
     cands, reports = build_prior_candidates(peaks, spec, None)
     assert cands == []
     assert "never widens the box" in reports[0].reason
-    assert reports[0].box == ("max_d_axis", 15.0)
+    assert reports[0].box == {"max_d_axis": 15.0}
+
+
+def test_a_prior_past_both_edges_names_both():
+    """A rerun naming only one edge would be refused at the other."""
+    from rietx.indexing.priors import build_prior_candidates
+
+    peaks, _cell = synthetic_peaks("cubic")
+    spec = SearchSpec(systems=("tetragonal",), min_d_axis=4.0, max_d_axis=12.0,
+                      prior_cells=((3.2, 3.2, 13.72, 90.0, 90.0, 90.0),))
+    _cands, reports = build_prior_candidates(peaks, spec, None)
+    assert reports[0].box == {"max_d_axis": 15.0, "min_d_axis": 2.0}
+    assert "max_d_axis=15, min_d_axis=2" in reports[0].reason
 
 
 def test_a_prior_refused_at_the_box_is_a_warning_naming_the_value():

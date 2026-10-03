@@ -289,6 +289,16 @@ def test_an_abstention_names_an_undeclared_instrument_first():
     assert "axial_sl" in d.suggestion and "ProfileTCHZ" in d.suggestion
     assert "instrument.profile" in d.where
 
+    # only what is still at default is located
+    axial = bare.model_copy(update={
+        "geometry": bare.geometry.model_copy(update={
+            "axial_sl": Parameter(value=0.03, min=0.0, max=0.2),
+            "axial_hl": Parameter(value=0.03, min=0.0, max=0.2)})})
+    d = next(x for x in assess_peak_list(coarse, instrument=axial).diagnostics
+             if x.code == "INDEX_DATA_INSUFFICIENT")
+    assert "instrument.profile" in d.where
+    assert "instrument.geometry" not in d.where
+
     declared = bare.model_copy(update={
         "geometry": bare.geometry.model_copy(update={
             "axial_sl": Parameter(value=0.03, min=0.0, max=0.2),

@@ -1203,6 +1203,19 @@ def test_a_line_two_groups_fitted_is_flagged_once_and_stays_listed():
     assert sorted(p.two_theta for p in kept) == [35.124, 35.407, 40.0]
 
 
+def test_a_copy_flagged_itself_owns_no_line():
+    """Three copies in a chain, each within the tolerance of the next and the
+    ends farther apart: the middle one loses to the best, and the far end, which
+    only the flagged middle one overlapped, stays a line whatever the 2θ order."""
+    from rietx.indexing.pick import flag_duplicate_lines
+
+    # tolerance 0.5 × 0.15 = 0.075°; 35.00-35.06 and 35.06-35.12 overlap
+    peaks = [_line(35.00, 0.009, 0), _line(35.06, 0.006, 1),
+             _line(35.12, 0.003, 2)]
+    flag_duplicate_lines(peaks)
+    assert [bool(p.flags) for p in peaks] == [False, True, False]
+
+
 def test_two_lines_of_one_group_are_never_duplicates():
     from rietx.indexing.pick import flag_duplicate_lines
 

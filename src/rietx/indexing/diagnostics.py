@@ -310,8 +310,9 @@ def refinement_width_diagnostics(measured: float,
         suggestion=suggestion, value=ratio)]
 
 
-def undeclared_instrument(instrument: Instrument) -> list[str]:
-    """What the instrument a peak list was picked with still leaves at default.
+def undeclared_instrument(instrument: Instrument) -> dict[str, str]:
+    """What the instrument a peak list was picked with still leaves at default,
+    keyed by the block that holds it.
 
     The picker holds both and applies them (:func:`~rietx.indexing.pick_peaks`),
     so a default stands in for a measurement.  Axial divergence at S/L = H/L = 0
@@ -321,16 +322,18 @@ def undeclared_instrument(instrument: Instrument) -> list[str]:
     on one lab capillary pattern (WP-1510, ``solution case 1``): declaring both
     took median σ(Q)/Q from 1.05e-3 to 6.9e-4 and the gate passed.
     """
-    out = []
+    out: dict[str, str] = {}
     geo = instrument.geometry
     if geo.axial_sl.value == 0.0 and geo.axial_hl.value == 0.0:
-        out.append("geometry.axial_sl and geometry.axial_hl are 0, so no axial "
-                   "divergence is modelled")
+        out["instrument.geometry"] = (
+            "geometry.axial_sl and geometry.axial_hl are 0, so no axial "
+            "divergence is modelled")
     default = ProfileTCHZ()
     if all(getattr(instrument.profile, k).value == getattr(default, k).value
            for k in "uvwxy"):
-        out.append("instrument.profile is the default ProfileTCHZ, a "
-                   "synchrotron line (W = 1e-3 deg²)")
+        out["instrument.profile"] = (
+            "instrument.profile is the default ProfileTCHZ, a synchrotron line "
+            "(W = 1e-3 deg²)")
     return out
 
 
@@ -355,17 +358,16 @@ def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
                       "returns a rank order with nothing behind it")
         # the instrument is named first because it is the cheapest of the
         # remedies: a re-pick, where the others are a new measurement
-        missing = [] if instrument is None else undeclared_instrument(instrument)
+        missing = {} if instrument is None else undeclared_instrument(instrument)
         if missing:
             suggestion = ("declare the instrument before re-picking: "
-                          + "; ".join(missing) + ".  The picker fits every "
+                          + "; ".join(missing.values()) + ".  The picker fits every "
                           "line with these held, so a default widens each "
                           "position's esd.  Otherwise " + suggestion)
         out.append(Diagnostic(
             level="error", code="INDEX_DATA_INSUFFICIENT",
             message=report.abstained_reason,
-            where=where_range + (["instrument.geometry", "instrument.profile"]
-                                 if missing else []),
+            where=where_range + list(missing),
             suggestion=suggestion))
     elif report.fom_undefined:
         absent = "; ".join(f"{name}: {why}"

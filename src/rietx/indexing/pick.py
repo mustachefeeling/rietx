@@ -17,6 +17,8 @@ peak list must not silently drop:
 
 from __future__ import annotations
 
+import bisect
+
 import numpy as np
 
 from ..background import contamination_flags_from_peaks
@@ -453,7 +455,10 @@ def flag_duplicate_lines(peaks: list[ObservedPeak], *,
     copies, 27 of the 116 on ``cpd-4``.
 
     The better-measured copy (smaller position esd, then lower group index) is
-    the line and the other is flagged.  A component already unusable neither
+    the line and the other is flagged.  Components are judged best first, and
+    only an unflagged one owns a line.  So in a chain of three copies, each
+    within the tolerance of the next, the far end is not lost to a middle copy
+    that was itself flagged.  A component already unusable neither
     owns a line nor needs marking: a zero-intensity copy has no position to
     duplicate anything with.  The copy is **kept in the list**, as
     ``not_separable``'s component is: it is the context that let the first
@@ -465,24 +470,24 @@ def flag_duplicate_lines(peaks: list[ObservedPeak], *,
     """
     if len(peaks) < 2:
         return
-    order = np.argsort([p.two_theta for p in peaks])
-    pos = np.array([peaks[k].two_theta for k in order])
-    for k in order:
+    # owners: the unflagged usable components judged so far, kept sorted by 2θ
+    owner_tt: list[float] = []
+    owner_group: list[int] = []
+    for k in sorted(range(len(peaks)),
+                    key=lambda k: (peaks[k].two_theta_esd, peaks[k].group)):
         p = peaks[k]
-        if ((only is not None and k not in only)
-                or set(p.flags) & PEAK_UNUSABLE_FLAGS):
+        if set(p.flags) & PEAK_UNUSABLE_FLAGS:
             continue
         tol = PAWLEY_OVERLAP_FWHM_FRAC * p.fwhm
-        lo = np.searchsorted(pos, p.two_theta - tol, side="left")
-        hi = np.searchsorted(pos, p.two_theta + tol, side="right")
-        for m in order[lo:hi]:
-            q = peaks[m]
-            if (q.group != p.group
-                    and not set(q.flags) & PEAK_UNUSABLE_FLAGS
-                    and (q.two_theta_esd, q.group)
-                    < (p.two_theta_esd, p.group)):
-                p.flags = [*p.flags, "duplicate_line"]
-                break
+        lo = bisect.bisect_left(owner_tt, p.two_theta - tol)
+        hi = bisect.bisect_right(owner_tt, p.two_theta + tol)
+        if ((only is None or k in only)
+                and any(g != p.group for g in owner_group[lo:hi])):
+            p.flags = [*p.flags, "duplicate_line"]
+            continue
+        at = bisect.bisect_right(owner_tt, p.two_theta)
+        owner_tt.insert(at, p.two_theta)
+        owner_group.insert(at, p.group)
 
 
 def flag_kalpha2_residuals(peaks: list[ObservedPeak], lines, *,

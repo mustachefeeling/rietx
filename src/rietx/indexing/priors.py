@@ -173,9 +173,9 @@ class PriorReport:
     systems: tuple[str, ...]        # what it classified as
     candidate: EngineCandidate | None   # survived the check, or None
     reason: str = ""                # why not, when candidate is None
-    #: the ``SearchSpec`` field and value that would admit a prior refused at
+    #: the ``SearchSpec`` fields and values that would admit a prior refused at
     #: the axis box, or ``None``; written only by ``build_prior_candidates``
-    box: tuple[str, float] | None = None
+    box: dict[str, float] | None = None
 
 
 def _centring_choices(spec: SearchSpec, system: str,
@@ -236,15 +236,21 @@ def build_prior_candidates(peaks: PeakList, spec: SearchSpec, quality
         if not (spec.min_d_axis <= min(axes)
                 and max(axes) <= spec.max_d_axis):
             # one whole ångström of margin past the prior's own axis, so the
-            # refined cell is not refused at the edge it was admitted at
-            report.box = (("max_d_axis", float(np.ceil(max(axes))) + 1.0)
-                          if max(axes) > spec.max_d_axis else
-                          ("min_d_axis",
-                           max(float(np.floor(min(axes))) - 1.0, 0.5)))
+            # refined cell is not refused at the edge it was admitted at.  Both
+            # edges are named when both are crossed, or the rerun is refused
+            # at the other one
+            report.box = {}
+            if max(axes) > spec.max_d_axis:
+                report.box["max_d_axis"] = float(np.ceil(max(axes))) + 1.0
+            if min(axes) < spec.min_d_axis:
+                report.box["min_d_axis"] = max(
+                    float(np.floor(min(axes))) - 1.0, 0.5)
             report.reason = (f"outside the declared axis range "
                              f"{spec.min_d_axis:g}-{spec.max_d_axis:g} Å — a "
                              "prior never widens the box; pass "
-                             f"{report.box[0]}={report.box[1]:g} to search it")
+                             + ", ".join(f"{k}={v:g}"
+                                         for k, v in report.box.items())
+                             + " to search it")
             continue
         n_max = int(np.ceil(max(axes) * np.sqrt(max(q_max, 1e-12)))) + 1
         if n_max > MAX_PRIOR_INDEX:
@@ -363,8 +369,8 @@ def prior_used_diagnostic(reports: list[PriorReport], jumped: list[str],
     # a 24-minute rerun before anyone acted on it.
     boxed = [r for r in reports if r.box is not None]
     if boxed:
-        highs = [v for f, v in (r.box for r in boxed) if f == "max_d_axis"]
-        lows = [v for f, v in (r.box for r in boxed) if f == "min_d_axis"]
+        highs = [r.box["max_d_axis"] for r in boxed if "max_d_axis" in r.box]
+        lows = [r.box["min_d_axis"] for r in boxed if "min_d_axis" in r.box]
         args = ", ".join(([f"max_d_axis={max(highs):g}"] if highs else [])
                          + ([f"min_d_axis={min(lows):g}"] if lows else []))
         return Diagnostic(
