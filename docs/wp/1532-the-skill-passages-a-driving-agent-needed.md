@@ -54,6 +54,14 @@ on a fresh `Refinement` raises "call fit() first". `Atom(species="Li7")`
 constructs, so the refusal the issue quotes happens later, at evaluation.
 The row needs that check before it is written.
 
+### Inherited
+
+- **From WP-1510 (2026-10-03): `api.md` has 95 B of headroom left.** WP-1539
+  raised `API_INDEX_MAX_BYTES` to 39 600, and WP-1510's `index_pattern(formula=,
+  temperature=)` took it to 39 700 at 39 605 B. The ceiling is now 300 B under
+  the 40 kB truncation it guards. So any row this WP adds to `api.md` meets the
+  split decision first, and that decision is due now.
+
 ## Non-goals
 
 - The docstrings and diagnostic texts: PR #660.

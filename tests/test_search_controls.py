@@ -119,6 +119,8 @@ CALL_TIME_INPUTS = {
     "shift_from_pairs",              # the screen's own switch, not a control
     "events", "cancel",              # plumbing
     "two_theta_limits",              # the project document owns this fact
+    "formula", "temperature",        # the specimen's chemistry: it checks the
+                                     # answer and steers nothing (WP-1510)
 }
 #: parameters the controls reach through ``search`` rather than by name
 VIA_SEARCH = {"spec", "preset"}

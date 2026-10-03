@@ -17,6 +17,8 @@ peak list must not silently drop:
 
 from __future__ import annotations
 
+import bisect
+
 import numpy as np
 
 from ..background import contamination_flags_from_peaks
@@ -28,6 +30,7 @@ from ..schemas.indexing import (
     PEAK_REFUTED_SIGMA,
     PEAK_SATELLITE_MAX_RATIO,
     PEAK_SATELLITE_NEAR_FWHM,
+    PEAK_UNUSABLE_FLAGS,
     ObservedPeak,
     PeakFlag,
     PeakList,
@@ -89,6 +92,7 @@ def pick_peaks_with_state(data: PatternData, instrument: Instrument, *,
     if peaks:
         flag_kalpha2_residuals(peaks, instrument.source.lines)
     _flag_extrapolated_background(peaks, det.two_theta)
+    flag_duplicate_lines(peaks)
 
     pl = PeakList(
         peaks=peaks, wavelength=lam0,
@@ -436,6 +440,58 @@ def _unresolved(fit: GroupFit, j: int) -> bool:
     return bool(np.min(np.abs(others - fit.two_theta[j])) < gap)
 
 
+def flag_duplicate_lines(peaks: list[ObservedPeak], *,
+                         only: set[int] | None = None) -> None:
+    """Mark a line that another group has already fitted as ``duplicate_line``.
+
+    Detection gives every seed to exactly one group, and groups are separated by
+    :data:`~rietx.model.forward.PAWLEY_OVERLAP_FWHM_FRAC` of a FWHM (the
+    package's one definition of "these overlap").  Two components of
+    *different* groups closer than that are therefore one physical line, and
+    the only way they meet is a re-seed pass: the window around a group holds a
+    neighbour's maximum nothing models, the residual proposes it, and the
+    ΔBIC gate pays for it.  Measured on the 16 IUCr round-robin lab patterns and
+    11-BM NAC, a quarter to a third of the re-seeded components were such
+    copies, 27 of the 116 on ``cpd-4``.
+
+    The better-measured copy (smaller position esd, then lower group index) is
+    the line and the other is flagged.  Components are judged best first, and
+    only an unflagged one owns a line.  So in a chain of three copies, each
+    within the tolerance of the next, the far end is not lost to a middle copy
+    that was itself flagged.  A component already unusable neither
+    owns a line nor needs marking: a zero-intensity copy has no position to
+    duplicate anything with.  The copy is **kept in the list**, as
+    ``not_separable``'s component is: it is the context that let the first
+    window fit its own line, so deleting it would bias that line.  It is
+    unusable, because offered as a second line it reads as an observed line no
+    candidate cell explains.  ``only`` restricts which components can be marked,
+    for the one-group refit of the peak editor, for the reason
+    :func:`flag_ghosts`' does.
+    """
+    if len(peaks) < 2:
+        return
+    # unusable components are dropped before the sort: one may carry a NaN esd
+    # (``position_unmeasured``), and a NaN key breaks the order of the rest
+    usable = [k for k in range(len(peaks))
+              if not set(peaks[k].flags) & PEAK_UNUSABLE_FLAGS]
+    # owners: the unflagged usable components judged so far, kept sorted by 2θ
+    owner_tt: list[float] = []
+    owner_group: list[int] = []
+    for k in sorted(usable,
+                    key=lambda k: (peaks[k].two_theta_esd, peaks[k].group)):
+        p = peaks[k]
+        tol = PAWLEY_OVERLAP_FWHM_FRAC * p.fwhm
+        lo = bisect.bisect_left(owner_tt, p.two_theta - tol)
+        hi = bisect.bisect_right(owner_tt, p.two_theta + tol)
+        if ((only is None or k in only)
+                and any(g != p.group for g in owner_group[lo:hi])):
+            p.flags = [*p.flags, "duplicate_line"]
+            continue
+        at = bisect.bisect_right(owner_tt, p.two_theta)
+        owner_tt.insert(at, p.two_theta)
+        owner_group.insert(at, p.group)
+
+
 def flag_kalpha2_residuals(peaks: list[ObservedPeak], lines, *,
                            only: set[int] | None = None) -> None:
     """Mark components sitting at a strong group-mate's **Kα2 maximum**.
@@ -519,5 +575,6 @@ def flag_ghosts(peaks: list[ObservedPeak], wavelength: float,
             peaks[k].flags = [*peaks[k].flags, name]
 
 
-__all__ = ["fit_peaks", "flag_ghosts", "flag_kalpha2_residuals",
+__all__ = ["fit_peaks", "flag_duplicate_lines", "flag_ghosts",
+           "flag_kalpha2_residuals",
            "peaks_of_group", "pick_peaks", "pick_peaks_with_state"]

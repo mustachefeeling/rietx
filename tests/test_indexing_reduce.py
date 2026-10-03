@@ -693,6 +693,34 @@ def test_a_true_superstructures_extras_are_present():
     assert ev.n_seen == ev.n_extra >= 5
     assert ev.p_value < 1e-6
     assert ev.verdict() == "supported"
+    # no parent line sits on them, so every one counts towards support
+    assert ev.n_seen_unexplained == ev.n_seen
+    assert ev.p_value_unexplained == ev.p_value
+
+
+def test_an_extra_seen_only_on_a_parent_line_supports_nothing():
+    """WP-1510: a pseudo-symmetric child's seen extras sit on the parent's lines.
+
+    LaB6's half-volume rival (a/√2, a/√2, a) is isospectral with the cubic
+    cell, and a tetragonal description with c 0.1 % short splits each cubic
+    line it shares with the rival into an extra beside it.  Inside a 0.02°
+    window two of its four extras are seen, p = 0.003 against p₀ = 0.023, so
+    the count over every seen extra calls the larger cell supported.  Both sit
+    on lines the rival explains, so none is seen on an unexplained line, and
+    the pair is undecided: neither supported, which would move the child above
+    the rival, nor refuted, since the extras are seen.  The finished LaB6
+    search reported two such pairs, at 2 of 3.
+    """
+    a = 4.1566
+    rival = (a / np.sqrt(2.0), a / np.sqrt(2.0), a, 90.0, 90.0, 90.0)
+    child = (a, a, a * (1.0 - 1e-3), 90.0, 90.0, 90.0)
+    q, esd = _lines((a,) * 3 + (90.0,) * 3, two_theta_max=145.0, esd_deg=0.02)
+
+    ev = supercell_chance(rival, "P", child, "P", q, esd)
+    assert ev is not None and ev.index == 2
+    assert ev.n_seen >= 2 and ev.p_value < SUPERCELL_CHANCE_ALPHA
+    assert ev.n_seen_unexplained == 0 and ev.p_value_unexplained == 1.0
+    assert ev.verdict() == "undecided"
 
 
 def test_the_uncancellable_extras_answer_without_the_class():

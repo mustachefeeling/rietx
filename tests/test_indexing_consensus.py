@@ -35,6 +35,7 @@ from rietx import IndexingResult, index_pattern
 from rietx.crystallography.symmetry import generate_reflections
 from rietx.indexing.consensus import (
     CONSENSUS_CHECK_TOP,
+    above_supported_parents,
     below_refuting_parents,
     caveats_for,
     checked_indices,
@@ -451,8 +452,8 @@ def test_a_refuted_supercell_sits_directly_below_its_parent_and_nothing_else_mov
     A refuted child waits for every parent that refutes it, so it lands below
     the lowest-ranked of them; candidates between the two keep their places
     above it; a child already below its parent stays put; and a supported or
-    undecided check moves nothing, being evidence *for* the larger cell or no
-    evidence at all.
+    undecided check moves nothing here.  An undecided one is no evidence at
+    all, and a supported one is :func:`above_supported_parents`'s to act on.
     """
     a, b, c, d, e, f = (_candidate(4.0 + 0.1 * i) for i in range(6))
     a.supercell_checks = [_check(c, "refuted"), _check(e, "refuted")]
@@ -462,6 +463,65 @@ def test_a_refuted_supercell_sits_directly_below_its_parent_and_nothing_else_mov
     e.supercell_checks = [_check(f, "undecided")]
     assert below_refuting_parents([a, b, c, d, e, f]) == [b, c, d, e, a, f]
     assert below_refuting_parents([b, c, d, e, f]) == [b, c, d, e, f]
+
+
+def test_a_supported_supercell_sits_directly_above_its_parent_and_a_refuted_one_never_rises():
+    """The mirror rule (WP-1510), on hand-built checks.
+
+    A supported child moves up to directly above the highest-ranked parent
+    supporting it, and the candidates between keep their order below it.  Two
+    children of one parent keep their own order above it.  A child already
+    above its parent stays put.  A child refuted against any parent is never
+    moved up, even where another check supports it, so the two halves never
+    pull one candidate both ways.  An undecided check moves nothing.
+    """
+    a, b, c, d, e, f, g = (_candidate(4.0 + 0.1 * i) for i in range(7))
+    a.supercell_checks = [_check(c, "supported")]      # already above c
+    d.supercell_checks = [_check(b, "supported")]
+    f.supercell_checks = [_check(b, "supported"), _check(c, "supported")]
+    e.supercell_checks = [_check(b, "supported"), _check(c, "refuted")]
+    g.supercell_checks = [_check(b, "undecided")]
+    ranked = [a, b, c, d, e, f, g]
+    assert above_supported_parents(ranked) == [a, d, f, b, c, e, g]
+    # composed as consensus composes them, e stays under the c that refutes it
+    both = above_supported_parents(below_refuting_parents(ranked))
+    assert both == [a, d, f, b, c, e, g]
+    assert both.index(e) > both.index(c)
+
+
+def test_a_supercell_the_pattern_shows_rises_above_its_parent_and_a_phantom_does_not(
+        cubic_peaks):
+    """The pair through the check, both ways, on synthetic lists.
+
+    The same two cells, the cubic truth and a c × 2 cell, ranked parent first
+    as corroboration would put a cell more engines found.  When the pattern
+    carries the doubled cell's lines, its extras are seen on lines the cubic
+    cell cannot index, the check reads supported, and the larger cell moves
+    above.  When only the cubic cell's lines exist, the same pair reads refuted
+    and the larger cell stays below.
+    """
+    double = (TRUE_A, TRUE_A, 2 * TRUE_A, 90.0, 90.0, 90.0)
+
+    def pair():
+        parent = _candidate(TRUE_A)
+        child = _candidate(TRUE_A, cell=double, system="tetragonal",
+                           lattice_group="P 4/m m m", volume=2 * TRUE_A ** 3)
+        return parent, child
+
+    for peaks, verdict, first in (
+            (_peak_list(double, "P 4/m m m"), "supported", "child"),
+            (cubic_peaks, "refuted", "parent")):
+        parent, child = pair()
+        ranked = [parent, child]
+        supercell_checks(ranked, peaks, q_match=peaks.q_esd(), k_sigma=3.0)
+        (check,) = child.supercell_checks
+        assert check.verdict == verdict
+        if verdict == "supported":
+            assert check.n_seen_unexplained == check.n_seen == check.n_extra
+        else:
+            assert check.n_seen_unexplained == check.n_seen == 0
+        ordered = above_supported_parents(below_refuting_parents(ranked))
+        assert ordered[0] is (child if first == "child" else parent)
 
 
 def test_a_phantom_supercell_is_refuted_graded_down_and_told_where_to_look(
@@ -489,6 +549,7 @@ def test_a_phantom_supercell_is_refuted_graded_down_and_told_where_to_look(
     assert check.parent_cell == truth.cell and check.n_seen == 0
     assert check.absent_two_theta == sorted(check.absent_two_theta)
     assert below_refuting_parents(ranked) == [truth, doubled]
+    assert above_supported_parents([truth, doubled]) == [truth, doubled]
 
     caveats, verdict = _gate(doubled)
     assert caveats == ["supercell_refuted"] and verdict == "low"

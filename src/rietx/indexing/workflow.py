@@ -607,6 +607,7 @@ def index_pattern(peaks: PeakList | None = None, *,
                   validate: bool = True,
                   check_top: int | None = None,
                   two_theta_limits: tuple[float, float] | None = None,
+                  formula: str | None = None, temperature: float = 298.0,
                   events=None, cancel=None):
     """Find the unit cell — or say, in the shape of the answer, that it cannot.
 
@@ -670,6 +671,14 @@ def index_pattern(peaks: PeakList | None = None, *,
     only (:func:`_restrict_to_supported`), ranked by the reduced panel, and
     capped by the ``fom_panel_reduced`` caveat — each absent figure named with
     its reason on ``quality.fom_undefined``.
+
+    ``formula`` checks each candidate against the chemistry (WP-1510).  The
+    number of formula units a cell's volume implies, by Hofmann's (2002) volumes
+    at ``temperature`` in K, is reported as ``INDEX_Z_NOT_INTEGER`` when it is
+    far from a whole number.  It reports and never narrows.  The search window
+    a formula implies is :meth:`~rietx.indexing.engines.SearchSpec.from_formula`,
+    declared by the caller, because narrowing is the caller's own act.  A
+    formula the table cannot read raises before peaks are picked.
     """
     from ..history.events import as_event_stream
     from ..optimize.cancel import RefinementCancelled
@@ -695,6 +704,10 @@ def index_pattern(peaks: PeakList | None = None, *,
     from .pick import pick_peaks
     from .quality import assess_peak_list
 
+    if formula is not None:
+        from ..crystallography.atomic_volume import formula_unit_volume
+
+        formula_unit_volume(formula, temperature)   # a bad formula raises here
     if peaks is None:
         if data is None or instrument is None:
             raise ValueError(
@@ -719,7 +732,7 @@ def index_pattern(peaks: PeakList | None = None, *,
         ran_preset = "custom"
     if quality is None:
         quality = assess_peak_list(peaks, shift_from_pairs=shift_from_pairs,
-                                   pair_seed=spec.seed)
+                                   pair_seed=spec.seed, instrument=instrument)
     spec = _adopt_measured_shift(spec, quality)
     spec = _restrict_to_supported(spec, quality)
     names = tuple(engines) if engines is not None else engine_names()
@@ -952,7 +965,8 @@ def index_pattern(peaks: PeakList | None = None, *,
                shift_allowance_assumed=outcome.shift_allowance_assumed,
                checked=outcome.ambiguity_checked, quality=quality)
     for cand in outcome.candidates:
-        cand.diagnostics = list(cand.diagnostics) + candidate_diagnostics(cand)
+        cand.diagnostics = list(cand.diagnostics) + candidate_diagnostics(
+            cand, formula=formula, temperature=temperature)
 
     result = IndexingResult(
         candidates=outcome.candidates, engines_run=outcome.engines_run,

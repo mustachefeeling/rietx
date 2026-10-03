@@ -298,18 +298,24 @@ def _extra_mask(q_child: np.ndarray, q_parent: np.ndarray,
     own precision would not settle anything, so a prediction that close to a
     parent line is the same line and not an extra.
     """
-    if not len(q_parent):
-        return np.ones(len(q_child), dtype=bool)
-    # the nearest parent line by binary search, as ``fom.match_lines`` does: a
-    # full distance matrix is extras × parent lines, which at 0.41 Å on a 10 Å
-    # cell is ~10⁹ entries (WP-1449, 11-BM NAC)
-    ref = np.sort(np.asarray(q_parent, dtype=np.float64))
-    child = np.asarray(q_child, dtype=np.float64)
-    right = np.searchsorted(ref, child)
+    return _nearest_gap(q_child, q_parent) > max(tol, 1e-12)
+
+
+def _nearest_gap(q: np.ndarray, ref: np.ndarray) -> np.ndarray:
+    """Each ``q``'s distance to the nearest ``ref``, ``inf`` when there is none.
+
+    By binary search, as ``fom.match_lines`` does: a full distance matrix is
+    extras × parent lines, which at 0.41 Å on a 10 Å cell is ~10⁹ entries
+    (WP-1449, 11-BM NAC).
+    """
+    q = np.asarray(q, dtype=np.float64)
+    if not len(ref):
+        return np.full(len(q), np.inf)
+    ref = np.sort(np.asarray(ref, dtype=np.float64))
+    right = np.searchsorted(ref, q)
     left = np.clip(right - 1, 0, len(ref) - 1)
     right = np.clip(right, 0, len(ref) - 1)
-    d = np.minimum(np.abs(child - ref[left]), np.abs(child - ref[right]))
-    return d > max(tol, 1e-12)
+    return np.minimum(np.abs(q - ref[left]), np.abs(q - ref[right]))
 
 
 def _discriminating(hkl_extra: np.ndarray, q_extra: np.ndarray, q_lo: float,
@@ -443,7 +449,9 @@ def _same_reduced_metric(red_a: np.ndarray, red_b: np.ndarray) -> bool:
 #: falls between them without having been placed there.  The truth side is the
 #: close one — a pseudo-tetragonal description of LaB6 over its half-volume
 #: rival, 2 of 3 extras seen — and a truth read as refuted there would move
-#: below a cell it already sits below.
+#: below a cell it already sits below.  Since thresholds version 1.7 that pair
+#: reads *undecided*, every seen extra lying on a line the rival explains
+#: (:meth:`SupercellEvidence.verdict`).
 SUPERCELL_CHANCE_ALPHA = 0.01
 #: Metric deviation up to which a lattice symmetry still counts when deciding
 #: which reflections an extinction could cancel (:func:`lattice_point_group`):
@@ -590,6 +598,12 @@ class SupercellEvidence:
     #: of seeing at least this many extras had the child's extra lines not
     #: existed.  1.0 when there are no extras.
     p_value: float
+    #: whether each extra is seen on an observed line the **parent's** lattice
+    #: leaves unexplained, no parent line inside that line's window.  ``None``
+    #: means not counted, and then every seen extra counts.
+    extra_seen_unexplained: tuple[bool, ...] | None = None
+    #: the same binomial over those extras alone, at the same p₀
+    p_value_unexplained: float | None = None
 
     @property
     def n_extra(self) -> int:
@@ -600,6 +614,12 @@ class SupercellEvidence:
         return int(sum(self.extra_seen))
 
     @property
+    def n_seen_unexplained(self) -> int:
+        if self.extra_seen_unexplained is None:
+            return self.n_seen
+        return int(sum(self.extra_seen_unexplained))
+
+    @property
     def p_floor(self) -> float:
         """The p-value had **every** extra been seen, p₀ⁿ — the most this test
         could have said for the child on these data."""
@@ -608,18 +628,34 @@ class SupercellEvidence:
     def verdict(self, alpha: float = SUPERCELL_CHANCE_ALPHA) -> str:
         """``"supported"``, ``"refuted"`` or ``"undecided"``.
 
-        *supported*: the extras are seen more often than chance at level
-        ``alpha``, so the larger cell is a lattice statement the data make.
-        *refuted*: they are not, and the test had the power to say otherwise.
-        *undecided*: even every extra seen could not have reached ``alpha``
-        (:attr:`p_floor` ≥ ``alpha``) — no extra in range, or too few against a
-        high chance rate.  That outcome is not measured, so it is not a
-        refutation: a child with no extra line in range is the geometrical
-        ambiguity :func:`ambiguity_partners` reports, not a cell the data reject.
+        *supported*: the extras seen on lines the parent leaves unexplained are
+        more than chance gives at level ``alpha``, so the larger cell is a
+        lattice statement the data make.  *refuted*: the extras are seen no more
+        often than chance, counting every seen one, and the test had the power
+        to say otherwise.  *undecided*: even every extra seen could not have
+        reached ``alpha`` (:attr:`p_floor` ≥ ``alpha``) — no extra in range, or
+        too few against a high chance rate.  That outcome is not measured, so it
+        is not a refutation: a child with no extra line in range is the
+        geometrical ambiguity :func:`ambiguity_partners` reports, not a cell the
+        data reject.
+
+        The two directions count differently, each the conservative way for
+        what it moves (WP-1510).  An extra seen on a line the parent already
+        explains is evidence of nothing about the larger cell.  So it cannot
+        support the child, and it still protects the child from refutation.  A
+        child seen beyond chance only through the parent's own lines is
+        *undecided*.  That happens on a pseudo-symmetric description, whose
+        extras sit beside the parent's lines: two tetragonal descriptions of
+        LaB6 read 2 of 3 extras seen over its half-volume rival (p = 0.0072),
+        and all 4 seen extras lie on lines the rival explains.  The same p₀
+        is the null for both counts, which is conservative for support, since a
+        random position lands on an unexplained line no more often than on any.
         """
-        if self.p_value < alpha:
+        p_unexplained = (self.p_value if self.p_value_unexplained is None
+                         else self.p_value_unexplained)
+        if p_unexplained < alpha:
             return "supported"
-        if self.p_floor >= alpha:
+        if self.p_floor >= alpha or self.p_value < alpha:
             return "undecided"
         return "refuted"
 
@@ -696,6 +732,14 @@ def supercell_chance(parent_cell: tuple[float, ...], parent_centring: str,
     window the search matched with (``engines.match_window``): the question is
     whether a line would have been claimed as indexed.
 
+    **Support asks a narrower count than refutation** (WP-1510).  Each seen
+    extra is also asked whether the line it sits on is one the parent explains,
+    a line of the parent's lattice in the parent's own metric inside that
+    line's window.  The binomial over the extras seen on unexplained lines is
+    ``p_value_unexplained``, and :meth:`SupercellEvidence.verdict` reads it for
+    *supported*.  An extra seen on a parent line says nothing about the larger
+    cell, and on a pseudo-symmetric child that is where the seen extras are.
+
     **What counts as an extra.**  A counted reflection whose parent coordinates
     are not integral (:func:`_parent_coordinates`), inside ``q_range``
     (default: the observed lines' own span), and farther than the median σ(Q)
@@ -746,6 +790,18 @@ def supercell_chance(parent_cell: tuple[float, ...], parent_centring: str,
     parent_line = _integral(lattice @ t.T) & (q_lattice <= q_edge)
     q_parent = q_lattice[parent_line]
 
+    # which observed lines the parent explains: one of its lattice lines, in its
+    # **own** metric, inside that line's window.  The child's metric is right
+    # for asking whether a reflection is an extra and wrong here, since a
+    # pseudo-symmetric child moves the parent's lines off the observed ones.
+    # Out to the widest window past the range, so a line near the top is asked
+    # against every parent line that could explain it
+    q_top = q_hi + k_sigma * float(np.max(esd))
+    n_top = int(np.ceil(max(tuple(parent_cell)[:3]) * np.sqrt(q_top))) + 1
+    hkl_p = trial_hkl(n_top, parent_centring)
+    q_own = design_matrix(hkl_p) @ af_from_cell(tuple(parent_cell))
+    explained = _nearest_gap(obs, q_own[q_own <= q_top]) <= k_sigma * esd
+
     if child_hkl is None:
         hkl, q = lattice, q_lattice
     else:
@@ -772,20 +828,25 @@ def supercell_chance(parent_cell: tuple[float, ...], parent_centring: str,
         distinct[1:] = np.diff(q) > LINE_COINCIDENCE_RTOL * q[1:]
         hkl, q = hkl[distinct], q[distinct]
 
-    if len(q):
-        seen = np.any(np.abs(q[:, None] - obs[None, :])
-                      <= k_sigma * esd[None, :], axis=1)
-    else:
-        seen = np.zeros(0, dtype=bool)
+    hit = (np.abs(q[:, None] - obs[None, :]) <= k_sigma * esd[None, :]
+           if len(q) else np.zeros((0, len(obs)), dtype=bool))
+    seen = np.any(hit, axis=1)
+    alone = np.any(hit & ~explained[None, :], axis=1)
     p0 = chance_rate(obs, esd, q_lo, q_hi, k_sigma=k_sigma)
-    n, k = len(q), int(np.count_nonzero(seen))
-    p_value = 1.0 if n == 0 else float(binom.sf(k - 1, n, min(max(p0, 0.0), 1.0)))
+    rate = min(max(p0, 0.0), 1.0)
+    n = len(q)
+
+    def tail(k: int) -> float:
+        return 1.0 if n == 0 else float(binom.sf(k - 1, n, rate))
+
     return SupercellEvidence(
         index=index,
         extra_hkl=tuple(tuple(int(v) for v in row) for row in hkl),
         extra_q=tuple(float(v) for v in q),
         extra_seen=tuple(bool(v) for v in seen),
-        p0=p0, p_value=p_value)
+        p0=p0, p_value=tail(int(np.count_nonzero(seen))),
+        extra_seen_unexplained=tuple(bool(v) for v in alone),
+        p_value_unexplained=tail(int(np.count_nonzero(alone))))
 
 
 __all__ = ["AMBIGUITY_DISCREPANCY_SLACK", "AMBIGUITY_EXTEND_FACTOR",
