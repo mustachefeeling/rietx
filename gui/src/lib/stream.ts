@@ -37,6 +37,12 @@ export interface RunState {
     completed_stages: string[];
     error: { code: string; message: string } | null;
     elapsed?: number | null;
+    /** A Le Bail alternation (WP-1323): `pass`/`of` while it runs, `stopped`
+     *  (the package's own sentence, which pass was kept) once it has. */
+    lebail?: {
+      pass?: number; of?: number | null;
+      stopped?: string; level?: string; suggestion?: string | null;
+    } | null;
   };
   project: string | null;
   head: string | null;

@@ -54,7 +54,9 @@ from .plan import PlanSpec
 #: and nothing already written means anything different.  The version is the
 #: only field that can say so *before* the log is read, which is the whole
 #: reason it moves for a change that added no key here.
-PROJECT_FORMAT_VERSION = "1.3"
+#: ``1.4`` (WP-1323): the persisted plan gained ``lebail_passes``, a key an older
+#: build's ``extra="forbid"`` refuses.  Minor, as 1.2 was for ``intermediate_ftol``.
+PROJECT_FORMAT_VERSION = "1.4"
 
 
 def check_interval(kind: str, lo: float, hi: float) -> None:

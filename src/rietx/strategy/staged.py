@@ -315,6 +315,14 @@ class RefinementPlan:
     #: it still does, bit for bit.  See :meth:`stage_ftols` for the rule and
     #: :data:`INTERMEDIATE_FTOL` for what the number is and costs.
     intermediate_ftol: float | None = INTERMEDIATE_FTOL
+    #: the cap on Le Bail passes (WP-1323).  A pass is one whole run of the plan;
+    #: extracted intensities are frozen inside a run, so intensities and profile
+    #: converge only by alternating.  ``1`` is the single run every fit made
+    #: before this field, bit for bit.  Above 1 under ``mode="lebail"``,
+    #: ``Refinement.fit`` repeats the plan, keeps the best pass and records why
+    #: it stopped (:data:`LEBAIL_ALTERNATION_STOPPED`).  Ignored in every
+    #: other mode, where there is nothing to alternate.
+    lebail_passes: int = 1
 
     def stage_ftols(self) -> list[float | None]:
         """The tolerance each stage runs at, in order — the one authority.

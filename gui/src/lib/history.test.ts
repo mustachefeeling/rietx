@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DIFF_CAP, LANE_HUES, PATH_CHARS, PERCENT_CHARS, PLACES, VALUE_CHARS, diffRows,
-  edgeSegments, formatDelta, formatFor, formatPercent, formatSide, laneColor,
+  edgeSegments, formatDelta, isDiscarded, passChips, passVerdict, formatFor, formatPercent, formatSide, laneColor,
   layout, nodeLabel, rwpDelta, type Edge, type HistoryNode,
 } from "./history";
 
@@ -330,5 +330,26 @@ describe("the compare table's numbers", () => {
       "min-width: calc(var(--w-path) + 3 * var(--w-val) + var(--w-pct)");
     expect(DIFF_CAP).toBe(200);
     expect(PATH_CHARS).toBeGreaterThan(0);
+  });
+});
+
+describe("the Le Bail alternation's marks", () => {
+  it("chips the pass on every node, its tone saying whether it was kept", () => {
+    const kept = node("n2", ["n1"], { notes: { lebail_pass: "1", lebail_kept: "1 of 2" } });
+    const lost = node("n5", ["n4"], { notes: { lebail_pass: "2", lebail_discarded: "true" } });
+    const live = node("n6", ["n5"], { notes: { lebail_pass: "3" } });
+    expect(passChips(kept).map((c) => [c.text, c.tone])).toEqual([["pass 1", "ok"]]);
+    expect(passChips(lost).map((c) => [c.text, c.tone])).toEqual([["pass 2", "warn"]]);
+    expect(passChips(live).map((c) => [c.text, c.tone])).toEqual([["pass 3", "note"]]);
+    expect(passVerdict(kept)).toContain("kept (1 of 2)");
+    expect(passVerdict(lost)).toContain("not kept");
+    expect(isDiscarded(lost)).toBe(true);
+    expect(isDiscarded(kept)).toBe(false);
+  });
+
+  it("says nothing about a node no alternation made", () => {
+    expect(passChips(node("n1", []))).toEqual([]);
+    expect(passVerdict(node("n1", []))).toBe("");
+    expect(isDiscarded(node("n1", []))).toBe(false);
   });
 });

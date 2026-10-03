@@ -1988,8 +1988,9 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # ``SeriesEntry.rwp_fence`` and ``SeriesResult.discontinuities`` 0.36,
     # WP-1343's two ``Phase`` magnetic widths 0.37, WP-1329's
     # ``SeriesEntry.magnetic`` 0.38, #599's moment flat axes 0.39, and
-    # WP-1534's ``StageResult.scale_b_held`` 0.40.
-    assert caps.schema_version == "0.40"
+    # WP-1534's ``StageResult.scale_b_held`` 0.40, and WP-1323's
+    # ``PlanSpec.lebail_passes`` 0.41.
+    assert caps.schema_version == "0.41"
 
 
 def test_every_moment_dof_has_a_help_entry():

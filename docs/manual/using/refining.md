@@ -91,6 +91,41 @@ assert result.mode == "lebail"
 
 `Capabilities.modes` lists them, for a program that offers the choice.
 
+### The Le Bail alternation
+
+The extracted intensities are frozen inside one run of the plan, so they and the
+profile converge only by running the plan again. That alternation is not a
+descent on one objective: from a good start Rwp falls to a fixed point, and from
+a poor one it can rise for as many passes as you allow.
+
+`RefinementPlan.lebail_passes` (mirrored by `PlanSpec.lebail_passes`) is the cap.
+At `1`, the default, `fit` runs the plan once. Above `1` under `mode="lebail"` it
+runs the plan again from where it ended, stops at the first pass that does not
+lower Rwp, and restores the best pass. A pass that gains less than 1e-4 of Rwp
+counts as a fixed point. The stop reason, the Rwp of every pass and the pass kept
+come back as `LEBAIL_ALTERNATION_STOPPED` in `result.diagnostics`. The field does
+nothing in any other mode.
+
+On the 11-BM LaB₆ + cBN pattern with `profile_only`, three starts give three
+shapes. Exact cells read 16.821 % then 16.907 %, so pass 1 is kept. Cells 0.3 %
+off read 16.987, 16.969 and 16.967 %, a fixed point. Cells 2 % off read 230, 207,
+175 and 195 %, so pass 3 is kept. The answer depends on the start state, so check
+the cell and the background before reading a kept pass.
+
+A known structure is not a Le Bail job. Calibrating an instrument on a standard
+whose structure is known is one staged Rietveld pass, because the structure pins
+the intensities and there is nothing to alternate.
+
+<!-- api-doc: no-exec — it needs a result from the reader's own data -->
+```python
+import dataclasses
+
+plan = dataclasses.replace(rx.PLAN_PRESETS["profile_only"](), lebail_passes=8)
+result = ref.fit(data, mode="lebail", plan=plan)
+stop = next(d for d in result.diagnostics if d.code == "LEBAIL_ALTERNATION_STOPPED")
+print(stop.message)
+```
+
 ## Choosing a plan at run time
 
 [](concepts.md) introduces the seven presets and the order they encode. What

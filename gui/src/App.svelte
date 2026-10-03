@@ -1061,6 +1061,7 @@
       {#if busy}
         {run?.run.stage ?? "starting"}
         {#if run?.run.stage_index}({run.run.stage_index}/{run.run.n_stages}){/if}
+        {#if run?.run.lebail?.pass}· pass {run.run.lebail.pass}{#if run.run.lebail.of} of {run.run.lebail.of}{/if}{/if}
       {:else}
         {run?.run.status ?? "idle"}
       {/if}
@@ -1073,6 +1074,19 @@
     </button>
   </div>
 </header>
+
+{#if !busy && run?.run.lebail?.stopped}
+  <!-- The alternation's verdict (WP-1323).  It lives on the result's
+       diagnostics, which no panel shows, and cannot sit on a history node, so
+       the run record carries it.  A row of its own under the header, never a
+       span in it: the header is full at ordinary widths and the sentence
+       pushed the project's name down to "lebail_…". -->
+  <div class="lebail-stop" data-level={run.run.lebail.level} role="status">
+    <b>Le Bail alternation</b>
+    {run.run.lebail.stopped.replace(/^the Le Bail alternation /, "")}.
+    {#if run.run.lebail.suggestion}<span class="muted">{run.run.lebail.suggestion}.</span>{/if}
+  </div>
+{/if}
 
 <main bind:this={mainEl}>
   <!-- `Model` is mounted exactly once (WP-1205), whether or not a project is
@@ -1176,6 +1190,7 @@
         <div class="panel" class:hidden={tab !== "report"}>
           <Report {head} {busy} {simple} {say} {applied}
             chi2={result?.statistics?.chi2 ?? null}
+            diagnostics={result?.diagnostics ?? []}
             onzoom={(lo, hi) => (zoom = [lo, hi])}
             onapplied={absorbApply} onmoved={moved} />
         </div>
@@ -1297,6 +1312,15 @@
     flex: 0 1 auto;
   }
 
+  .lebail-stop {
+    padding: 4px 12px;
+    font-size: var(--text-sm);
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  }
+  .lebail-stop[data-level="warning"] {
+    background: color-mix(in srgb, var(--warn) 14%, var(--panel));
+  }
   .pill[data-state="running"] {
     color: var(--ok);
     border-color: var(--ok);

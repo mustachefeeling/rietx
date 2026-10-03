@@ -220,3 +220,36 @@ export function predictionNote(headlineValue: Headline): string {
           `— one estimate for the whole report, not per suggestion, and not a ` +
           `bound on what any one of them achieves`);
 }
+
+/** One entry of `RefinementResult.diagnostics`, as `/api/result` sends it. */
+export interface FitDiagnostic {
+  level: string;
+  code: string;
+  message: string;
+  where?: string[];
+  suggestion?: string | null;
+}
+
+const LEVEL_RANK: Record<string, number> = { error: 0, warning: 1, info: 2 };
+
+/**
+ * The result's own diagnostics, error first, none dropped.
+ *
+ * The package emits these (`BOUND_HIT`, `RESOLUTION_UNCONSTRAINED`,
+ * `LEBAIL_ALTERNATION_STOPPED`, …) and a history node carries only the ones
+ * committed with it, so this list is the one place a client sees what the
+ * *answer* says.  The sort is stable: within a level the package's own order
+ * stands, and a level this build does not know sorts last rather than away.
+ */
+export function orderDiagnostics(list: readonly FitDiagnostic[] | null | undefined): FitDiagnostic[] {
+  const rank = (d: FitDiagnostic) => LEVEL_RANK[d.level] ?? 3;
+  return [...(list ?? [])]
+    .map((d, i) => ({ d, i }))
+    .sort((a, b) => rank(a.d) - rank(b.d) || a.i - b.i)
+    .map(({ d }) => d);
+}
+
+/** A diagnostic's chip tone: the app's vocabulary, `note` for an unknown level. */
+export function diagnosticTone(level: string): "bad" | "warn" | "note" {
+  return level === "error" ? "bad" : level === "warning" ? "warn" : "note";
+}

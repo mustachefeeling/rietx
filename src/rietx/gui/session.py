@@ -1741,7 +1741,8 @@ class GuiSession:
                          "stage": None, "stage_index": None, "n_stages": n_stages,
                          "started_utc": _utcnow(), "finished_utc": None,
                          "elapsed": None, "rwp": None, "gof": None,
-                         "node_id": None, "completed_stages": [], "error": None}
+                         "node_id": None, "completed_stages": [], "error": None,
+                         "lebail": None}
             self._worker = threading.Thread(
                 target=self._work, args=(call, stream, summarize),
                 name=f"{_about.SERVER_TOKEN}-gui-run", daemon=True)
@@ -1877,6 +1878,15 @@ class GuiSession:
             self._events.append({"seq": self._seq, **event})
             kind = event.get("kind")
             series = data.get("series_index")
+            if kind == "fit_start" and data.get("lebail_pass") is not None:
+                # A Le Bail alternation repeats the plan, so the stages done
+                # are *this pass's*: kept across passes, the second pass would
+                # open with every stage ticked while it was still running
+                # (WP-1323).  The cap rides on the event so the pill can say
+                # "pass 2 of 6" without the session knowing the plan.
+                self._run["lebail"] = {"pass": int(data["lebail_pass"]),
+                                       "of": data.get("lebail_of")}
+                self._run["completed_stages"] = []
             if kind == "eval":
                 self._n_eval = int(data.get("n_eval") or self._n_eval + 1)
             elif series is not None:
@@ -3004,9 +3014,19 @@ def tree_payload(tree) -> dict:
 
 def _summarize_refinement(result, _token) -> dict:
     """The run-record fields a finished fit or stage supplies."""
-    return {"status": result.status, "rwp": result.statistics.rwp,
-            "gof": result.statistics.gof, "node_id": result.node_id,
-            "completed_stages": [s.name for s in result.stages]}
+    out = {"status": result.status, "rwp": result.statistics.rwp,
+           "gof": result.statistics.gof, "node_id": result.node_id,
+           "completed_stages": [s.name for s in result.stages]}
+    # The Le Bail alternation's own verdict (WP-1323).  A result's diagnostics
+    # are on no panel and a node's cannot hold this one, which is added after
+    # the nodes are committed, so the run record is where a person sees why
+    # the passes stopped and which was kept.
+    stop = next((d for d in result.diagnostics
+                 if d.code == "LEBAIL_ALTERNATION_STOPPED"), None)
+    if stop is not None:
+        out["lebail"] = {"stopped": stop.message, "level": stop.level,
+                         "suggestion": stop.suggestion}
+    return out
 
 
 def _summarize_index(result, token) -> dict:
@@ -3095,7 +3115,8 @@ def _idle_run() -> dict:
     return {"kind": None, "name": "", "status": None, "stage": None,
             "stage_index": None, "n_stages": None, "started_utc": None,
             "finished_utc": None, "elapsed": None, "rwp": None, "gof": None,
-            "node_id": None, "completed_stages": [], "error": None}
+            "node_id": None, "completed_stages": [], "error": None,
+            "lebail": None}
 
 
 def _parse_utc(stamp: str) -> float:

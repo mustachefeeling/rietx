@@ -1724,26 +1724,30 @@ class Refinement:
         """
         tree = self._require_history()
         node = tree[node_id]
-        self.structure = node.state.structure.model_copy(deep=True)
-        self.instrument = node.state.instrument.model_copy(deep=True)
-        self._mode = node.state.mode
-        self._two_theta_limits = node.state.two_theta_limits
-        self._free_paths = list(node.state.free_paths)
+        self._restore_state(node.state)
+        self._head_id = node.id
+        tree.set_head(node.id)
+        return self
+
+    def _restore_state(self, state: RefinementState) -> None:
+        """Make ``state`` the working state; ``checkout`` and keep-best share it."""
+        self.structure = state.structure.model_copy(deep=True)
+        self.instrument = state.instrument.model_copy(deep=True)
+        self._mode = state.mode
+        self._two_theta_limits = state.two_theta_limits
+        self._free_paths = list(state.free_paths)
         # the node's free set is the declared one (``_record_free_paths``), so
         # a checkout starts with no hold and the next stage takes its own
         self._held = []
-        self._ties = {p: s.model_copy(deep=True) for p, s in node.state.ties.items()}
+        self._ties = {p: s.model_copy(deep=True) for p, s in state.ties.items()}
         self._variables = {n: v.model_copy(deep=True)
-                           for n, v in node.state.variables.items()}
+                           for n, v in state.variables.items()}
         # unlike ``_held`` above, a user hold is restored: it is a declaration
         # the node recorded, and a checkout that dropped it would hand back a
         # state whose pin had quietly expired (WP-1435)
-        self._user_holds = set(node.state.holds)
-        self._pending_reflections = [r.model_copy(deep=True) for r in node.state.reflections]
-        self._head_id = node.id
+        self._user_holds = set(state.holds)
+        self._pending_reflections = [r.model_copy(deep=True) for r in state.reflections]
         self._invalidate_fit()
-        tree.set_head(node.id)
-        return self
 
     def branch(self, node_id: str | None = None) -> "Refinement":
         """A second working tree over the same history, for a rival strategy."""
@@ -3598,8 +3602,168 @@ class Refinement:
         McCusker turn-on order *is* the bootstrap ladder — so prepending one
         reproduced stage 1's report to three decimals.)
         """
-        _refuse_without_phases(self.structure, "fit")
         plan = resolve_plan(plan, mode)
+        if mode == "lebail" and plan.lebail_passes > 1 and plan.stages:
+            return self._fit_lebail_alternation(
+                data, plan=plan, two_theta_limits=two_theta_limits,
+                events=events, cancel=cancel, telemetry=telemetry, label=label,
+                stage_reports=stage_reports, progress=progress)
+        return self._fit_pass(
+            data, mode=mode, plan=plan, two_theta_limits=two_theta_limits,
+            events=events, cancel=cancel, telemetry=telemetry, label=label,
+            stage_reports=stage_reports, progress=progress)
+
+    def _fit_lebail_alternation(self, data: PatternData, *,
+                                plan: RefinementPlan, **kw) -> RefinementResult:
+        """Run the plan up to ``plan.lebail_passes`` times and keep the best pass.
+
+        The extracted intensities are frozen inside a run (the
+        frozen-per-stage invariant), so they and the profile converge only by
+        alternating, and the alternation is no descent on one objective: from
+        a poor start Rwp rose monotonically over 15-20 passes, from a good one
+        it fell to a fixed point (#210, WP-1323's baseline table).  Hence the
+        rule, which is the reporter's and not a tuned one: stop at the first
+        pass that does not lower Rwp, never while it still falls, and answer
+        with the pass that had the lowest.  What a plan that is not a descent
+        has at pass *k* is a state, so the best pass is *restored* rather than
+        merely reported.
+        """
+        best = None            # (rwp, result, state, head, pass number, fit view)
+        rows: list[float] = []
+        spans: list[list[str]] = []     # the history nodes each pass created
+        reason = "cap"
+        # **Once per job** (WP-1403): each pass would otherwise attach its own
+        # recorder and write a run directory, so N passes drew N rows in
+        # ``rietx watch``.  The stream is built and the recorder attached here,
+        # and the passes get the stream as ``events`` — an object the caller
+        # owns as far as ``_fit_pass`` is concerned, so it closes none — and
+        # find the recorder through ``runs.recorder_of``, as a series' do.
+        events = kw.pop("events", None)
+        telemetry = kw.pop("telemetry", None)
+        label = kw.pop("label", None)
+        cancel = kw.pop("cancel", None)
+        stream = _attach_progress(as_event_stream(events),
+                                  kw.pop("progress", None))
+        recorder = runs.attach(stream, events, telemetry=telemetry,
+                               project_hint=self._project_hint(), label=label)
+        if recorder is not None and stream is None:
+            stream = recorder
+        cancel = runs.attach_cancel(runs.recorder_of(stream), cancel)
+        try:
+            for number in range(1, plan.lebail_passes + 1):
+                # the whole plan, cap and all: ``_fit_pass`` never reads
+                # ``lebail_passes``, and what it records (``_last_plan``, the
+                # history header) should say the cap that was asked for
+                before = 0 if self.history is None else len(self.history.order)
+                try:
+                    result = self._fit_pass(data, mode="lebail", plan=plan,
+                                            events=stream, cancel=cancel,
+                                            telemetry=False, lebail_pass=number,
+                                            **kw)
+                finally:
+                    # an abandoned pass's committed stages are its nodes too
+                    if self.history is not None:
+                        spans.append([i for i in self.history.order[before:]
+                                      if self.history.nodes[i].parents])
+                rwp = float(result.statistics.rwp)
+                rows.append(rwp)
+                if best is not None and (rwp >= best[0] or not np.isfinite(rwp)):
+                    # not lower: a fixed point if it is level to within the
+                    # tolerance, a wander if it is worse
+                    reason = ("converged" if rwp <= best[0] * (1 + LEBAIL_CONVERGED_REL)
+                              else "non_monotone")
+                    break
+                gain = None if best is None else (best[0] - rwp) / best[0]
+                best = (rwp, result, self.snapshot(), self._head_id, len(rows),
+                        (self._model, self._answer_covariance, self.stage_reports_))
+                if gain is not None and gain <= LEBAIL_CONVERGED_REL:
+                    reason = "converged"
+                    break
+            _, result, state, head, kept, fit_view = best
+            if kept != len(rows):
+                self._keep_pass(result, state, head, fit_view)
+            self._mark_passes(spans, kept)
+            result.diagnostics.append(_lebail_stop_diagnostic(
+                reason, kept, rows, plan.lebail_passes))
+            if recorder is not None:
+                # the last pass wrote its own; the answer is the kept one
+                recorder.write_summary(result)
+            return result
+        except BaseException as exc:
+            # a cancel or an error in pass k > 1 leaves the state wherever the
+            # in-flight pass had got to (its completed stages stand), which is
+            # neither the last pass nor the best; the best pass is the one
+            # worth standing at, and a cancel names the node it stands at
+            if best is not None:
+                self._keep_pass(best[1], best[2], best[3], best[5])
+                if isinstance(exc, RefinementCancelled):
+                    exc.node_id = best[3]
+            if recorder is not None:
+                recorder.close("failed")
+            raise
+        finally:
+            if stream is not None and stream is not events:
+                stream.close()        # built here from a path or a callable
+            if recorder is not None:
+                recorder.close()
+
+    def _mark_passes(self, spans: list[list[str]], kept: int) -> None:
+        """Write which pass each history node belongs to, as node ``notes``.
+
+        ``lebail_pass`` on every node a pass created, ``lebail_kept`` on the
+        kept pass's nodes (``"k of N"``, N the passes run) and
+        ``lebail_discarded`` on the rest, so a viewer can tell the passes the
+        head left behind from the one it stands in.  Notes are the tree's own
+        free-form channel, so no schema moves.  Nothing is written, and nothing
+        raised, when the refinement keeps no history.
+        """
+        tree = self.history
+        if tree is None:
+            return
+        for number, ids in enumerate(spans, start=1):
+            mark = {"lebail_pass": str(number)}
+            if number == kept:
+                mark["lebail_kept"] = f"{kept} of {len(spans)}"
+            else:
+                mark["lebail_discarded"] = "true"
+            for node_id in ids:
+                tree.annotate(node_id, notes=mark)
+
+    def _keep_pass(self, result, state, head, fit_view) -> None:
+        """Restore the pass ``_fit_lebail_alternation`` decided to keep."""
+        self._restore_state(state)
+        # ``_restore_state`` drops the fit's view of the values (it is what
+        # ``checkout`` needs), but these *are* the values the kept pass
+        # fitted, so ``result_``, ``report()``, ``predict()`` and the
+        # plots read the answer this call returns, not nothing
+        self.result_ = result
+        (self._model, self._answer_covariance,
+         self.stage_reports_) = fit_view
+        # A fit re-extracts the intensities at its first stage, so the
+        # pass after a plain ``fit()`` starts from the parameters alone.
+        # Seeding them from the restored state would hand the next fit a
+        # start the hand loop never had: measured on the +2 % LaB6+cBN
+        # start, 254.09 % against the loop's 194.56 %.
+        self._pending_reflections = []
+        if self.history is not None and head is not None:
+            self.history.set_head(head)
+            self._head_id = head
+
+    def _fit_pass(self, data: PatternData, *, mode: Mode,
+                  plan: RefinementPlan,
+                  two_theta_limits: tuple[float, float] | None = None,
+                  events=None, cancel=None, telemetry=None,
+                  label: str | None = None, stage_reports: bool = False,
+                  progress=None, lebail_pass: int | None = None) -> RefinementResult:
+        """One run of ``plan``: what ``fit`` was before WP-1323.
+
+        ``lebail_pass`` is set by the alternation and stamps this pass's
+        ``fit_start``/``fit_end``, so a recorder reads the pass's end as the end
+        of a pass and not of the run (``runs.RunRecorder._observe``).
+        """
+        stamp = ({} if lebail_pass is None else
+                 {"lebail_pass": lebail_pass, "lebail_of": plan.lebail_passes})
+        _refuse_without_phases(self.structure, "fit")
         if not plan.stages:
             # Refused here, before a history tree is created or an event is
             # emitted, because the assertion this replaces fired *after* the
@@ -3659,7 +3823,8 @@ class Refinement:
                 stream.emit("fit_start", mode=mode,
                             stages=[s.name for s in plan.stages],
                             n_points=len(data.two_theta),
-                            n_fitted=int(fitted_mask(data, two_theta_limits).sum()))
+                            n_fitted=int(fitted_mask(data, two_theta_limits).sum()),
+                            **stamp)
 
             # Stages are cumulative *within the plan*, and the plan drives the whole
             # turn-on sequence: `restore=False` holds everything first, so a fit
@@ -3706,7 +3871,7 @@ class Refinement:
                 if stream is not None:
                     stream.emit("fit_end", status="cancelled", stage=exc.stage,
                                 completed=[s.name for s in exc.completed_stages],
-                                node_id=exc.node_id)
+                                node_id=exc.node_id, **stamp)
                     if stream is not events:
                         stream.close()
                 raise
@@ -3751,7 +3916,7 @@ class Refinement:
                 stream.emit("fit_end", status=self.result_.status,
                             rwp=self.result_.statistics.rwp,
                             gof=self.result_.statistics.gof,
-                            node_id=self.result_.node_id)
+                            node_id=self.result_.node_id, **stamp)
                 if stream is not events:  # we created it from a path/callable
                     stream.close()
             if recorder is not None:
@@ -6034,6 +6199,41 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                             + len(model.peak_components)),
         n_background_components=len(model.component_paths),
     )
+
+
+#: A Le Bail pass that lowers Rwp by no more than this fraction, or raises it by
+#: no more, has reached a fixed point.  Measured on WP-1323's baseline: cells
+#: exact 16.908 -> 16.908 (0), cells +0.3 % 16.969 -> 16.967 (1e-4).
+LEBAIL_CONVERGED_REL = 1e-4
+
+
+def _lebail_stop_diagnostic(reason: str, kept: int, rows: list[float],
+                            cap: int) -> Diagnostic:
+    """``LEBAIL_ALTERNATION_STOPPED``: why the passes stopped, and which was kept (WP-1323).
+
+    ``info`` when the alternation ended at a fixed point, ``warning`` when it
+    did not: a run that hit the cap with Rwp still falling is truncated rather
+    than finished, and one that wandered has a start-state-dependent answer.
+    """
+    table = ", ".join(f"{100 * r:.3f}" for r in rows)
+    said = {"converged": "reached a fixed point",
+            "non_monotone": "stopped at the first pass that did not lower Rwp",
+            "cap": f"reached the cap of {cap} passes with Rwp still falling"}[reason]
+    return Diagnostic(
+        level="info" if reason == "converged" else "warning",
+        code="LEBAIL_ALTERNATION_STOPPED", where=[],
+        message=(f"the Le Bail alternation {said}; pass {kept} of {len(rows)} "
+                 f"was kept (Rwp % per pass: {table})"),
+        suggestion={
+            "converged": None,
+            "non_monotone": ("the result depends on the start state: a poor "
+                             "start wanders and a good one converges. Check the "
+                             "cell and the background before reading the kept "
+                             "pass"),
+            "cap": ("raise plan.lebail_passes, or continue from this state "
+                    "with another fit(); the answer is not yet a fixed point"),
+        }[reason],
+        value=float(rows[kept - 1]))
 
 
 def _extract_reflections(model: CompiledModel | None) -> list[ReflectionState]:

@@ -1,6 +1,6 @@
 # WP-1323 — the Le Bail alternation has a stop rule, and a scope
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-03 — alternation shipped; background protocol open
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-09-23 — the skill sends every Le Bail job to a hand loop with no cap; the call is the workaround
@@ -35,6 +35,17 @@ converge only by alternating — and the alternation is not a descent on one
 objective. Where the profile subspace is nearly flat, each re-extraction moves
 the valley floor *within* that subspace.
 
+**Reframed 2026-09-23 by the reporter's later comments (folded 2026-10-02).**
+The time cost does not transfer: on a second specimen 20 uncapped passes took
+8.6 s. The divergence does. From a poor start Rwp rose monotonically
+(37.73 % to 47.65 % over 20 passes; 19.09 % to 26.09 % over 15 on the
+six-phase pattern). From a good start the alternation helps (56.80 % to
+26.93 %, and 2.5247 % against staged Rietveld's 2.5614 % when started from
+Rietveld's answer). So a cap alone truncates a converging run, and the rule
+is keep-best, stop on the first pass that does not lower Rwp, never stop while
+it falls, say why, and say the result depends on the start state. That is what
+shipped.
+
 **Measured cost** (#210, a six-phase lab pattern at 0.05° steps): an
 unconstrained Le Bail with five free cells and all four Caglioti terms took
 **~40 of a ~100-minute session**; pass 2 came out worse than pass 1 (Rwp
@@ -66,6 +77,10 @@ does not change it.
 
 ### Inherited
 
+*Pruned 2026-10-02. The 2026-09-23 entry is folded into Context above. The two
+below describe failures this WP deliberately does not address (the stop rule
+cannot see a wrong cell or a low background), and both are still true.*
+
 - **2026-09-28, from the review of `solution case 1` (private corpus map
   § 5; WP-1510 has the source).** A third way a Le Bail answer goes wrong,
   this time on the background. The agent followed SKILL.md §2 rule 5 and
@@ -86,22 +101,6 @@ does not change it.
   term that grows while the background sits at its seed is the tell to
   report. The too-stiff side has no guard (root CLAUDE.md § Background
   flexibility).
-- **2026-09-23, from the issue triage (issue #210).** The reporter's two
-  later comments (2026-09-01 and 2026-09-02) revise the Context's framing,
-  and no session had folded them. The time cost does not transfer: on a
-  second specimen, 20 uncapped passes took 8.6 s. The divergence does. From
-  a poor start Rwp rose monotonically, 37.73 % to 47.65 % over 20 passes, and
-  19.09 % to 26.09 % over 15 on the six-phase pattern, where a cap of 8 with
-  keep-best stopped at pass 3 and kept pass 1. From a good start the
-  alternation helps: 56.80 % to 26.93 %, still improving at the bound, and
-  2.5247 % against staged Rietveld's 2.5614 % when started from Rietveld's
-  converged answer. So a cap alone truncates a converging run. The ask is
-  keep-best, a stop on the first non-monotone pass, no early stop while Rwp
-  still falls, and the stop reason recorded. The reporter also asks for one
-  sentence where an agent reads it, saying the result depends on the start
-  state. Checked against the tree at `644dff84`: Context § Measured cost
-  still leads with the 40-minute figure, and no skill row states the
-  start-state dependence.
 - **2026-09-15, from the issue #313 manual fix (no WP).** A second way the
   alternation wanders, on a *wrong cell* rather than a flat profile subspace.
   LaB₆ (`tests/data/11BM_LaB6_660a.fxye`, 2-20°, `plan="profile_only"`,
@@ -125,24 +124,75 @@ does not change it.
 
 ## Tasks
 
-- [ ] Reproduce #210's shape on a fixture in tree (a multi-phase lab pattern
-      with free cells and Caglioti terms), and record the per-pass Rwp table
-      for the unconstrained alternation. This is the baseline every later
-      number is measured against.
-- [ ] `RefinementPlan.lebail_passes` (cap) with keep-best and a stop on
+- [x] Reproduce #210's shape on a fixture in tree, and record the per-pass Rwp
+      table for the unconstrained alternation. This is the baseline every later
+      number is measured against. **Fixture:** no multi-phase lab pattern is in
+      tree, so the stand-in is `11BM_LaB6_cBN_mg2044.xye` (two phases, 5.1-50°),
+      Le Bail scaffolds, `plan="profile_only"`, a hand loop of 8 `fit()` calls
+      (2026-10-02, macOS, `[dev]` venv, numba on). Rwp %, per pass:
+
+      | start | passes 1-8 | wall |
+      |---|---|---|
+      | cells exact | 16.821, 16.907, 16.908, 16.908, … | 3 s |
+      | cells +0.3 % | 16.987, 16.969, 16.967, 16.967, … | 6 s |
+      | cells +2 % | 230.35, 206.58, 175.10, 194.56, 196.29, 203.94, 211.29, 219.93 | 67 s |
+
+      Three shapes, as in #210: from the exact cell pass 2 is *worse* than
+      pass 1 and the loop then sits still; +0.3 % improves and converges;
+      +2 % never settles, `instrument.profile.x` pinned at 1, and the best pass
+      is the third. So keep-best matters in the first and third rows and a cap
+      alone would truncate the second. Script: scratchpad `baseline.py`, not
+      committed.
+- [x] `RefinementPlan.lebail_passes` (cap) with keep-best and a stop on
       non-monotone Rwp; the schedule is the plan's and one authority applies
       it, as `stage_ftols()` does for tolerances. Bit-identical at one pass.
-- [ ] `LEBAIL_ALTERNATION_STOPPED` diagnostic naming the reason (cap reached,
+      `Refinement.fit` is the one authority (`_fit_lebail_alternation`); at 1
+      it calls `_fit_pass`, the old body, unchanged. **Keep-best restores the
+      parameters and not the extracted intensities**: a `fit` re-extracts at
+      its first stage, and seeding the restored ones gave the next pass a start
+      the hand loop never had (254.09 % against 194.56 %, +2 % start). A pass
+      within 1e-4 of the best, either way, is a fixed point.
+- [x] `LEBAIL_ALTERNATION_STOPPED` diagnostic naming the reason (cap reached,
       non-monotone, converged) and the pass kept; reaches `str(result)`.
-- [ ] Skill §2 rule 4 and `references/judging.md` §2 rewritten: name the
+- [x] Skill §2 rule 4 and `references/judging.md` §2 rewritten: name the
       verb, state the cap, and the scope clause — a known structure is a
-      staged Rietveld job.
-- [ ] Manual Part 1 `using/refining.md`: the alternation and its stop rule;
+      staged Rietveld job. The code's row is in `judging.md`, because
+      `diagnostics.md` has no headroom under its budget.
+- [x] Manual Part 1 `using/refining.md`: the alternation and its stop rule;
       Part 2 needs no new equation (the partition is documented).
-- [ ] Tests: PbSO4 reaches 10.247 % without a hand loop; Tb2BaCoO5 returns
-      pass 1's answer rather than pass 2's; the #210 fixture stops before the
-      wander, and the diagnostic says why. obs/calc/diff PNGs to
-      `tests/output/`.
+- [x] Tests: the #210 fixture stops before the wander and the diagnostic says
+      why; obs/calc/diff PNGs to `tests/output/`. **Not done as written:**
+      PbSO4 and Tb2BaCoO5 are not in tree, so the three LaB6+cBN shapes stand
+      in (exact cells keep pass 1, as Tb2BaCoO5 would; +0.3 % converges).
+
+- [x] **From the 2026-10-02 review: (a) and (c) done.** (a) The alternation
+      attaches the recorder once and the passes share its stream, so one run
+      directory per job. (c) A cancel or exception in pass k > 1 restores the
+      best pass before re-raising (`_keep_pass`); the exception still raises.
+- [x] (d) done: the passes get the whole plan (`_fit_pass` never reads the
+      cap), so `_last_plan` and the history header carry it.
+- [x] (b) done: a `passes N` line in the `.rxt` document (rendered only above 1,
+      parsed, refused below 1), `passes` in `rxt.ts`'s keyword mirror, and the
+      Plan panel carries the plan fields it has no control for through a save
+      (`intermediate_ftol` was reset the same way). Dist rebuilt.
+- [x] **The nine `judging.md` questions, resolved 2026-10-03** (checked against the
+      source and McCusker 1999 / Toby 2006 by a subagent; its Q3, Q4 and Q7
+      claims re-checked here). Q1, Q2, Q6: two sources or two warnings told
+      apart in the text. Q3: Lorentzian size goes as λ, Gaussian as λ²
+      (`SIZE_LAMBDA_POWER`). Q4: the tie check compares each pair with the
+      combined esd (threshold "about two", a convention); the esds were
+      refreshed to the post-#674 values in `judging.md` and `concepts.md`, and
+      `concepts.md`'s "each interval contains the tied value" was false on
+      them (O5 sits 1.01 esds off) so it now reads pairwise (1.19, 0.88, 0.51).
+      Q5: "observations per parameter" is "points per parameter" in
+      `judging.md`, `concepts.md`, `VALIDATION.md` and `validation_matrix.py`.
+      Q7: no index or plot separates the fits, `BACKGROUND_ABSORPTION` and
+      `BOUND_HIT` do; the Rwp/Biso numbers are dated 2026-08-12 (a re-run gave
+      0.08831 and 0.926, not re-measured in the text). Q8: mode-fixed split
+      out of the symmetry sentence. Q9: SKILL.md says "external patterns".
+      Not touched: the old numbers in `tests/test_background_auto.py:1246`'s
+      docstring, and whether any code prints 42 of 68 today (needs the ramp
+      data in `~/rietx-agent-runs`).
 
 ## Acceptance
 
@@ -163,6 +213,148 @@ baseline table, never gated.
   schedule), WP-1302 (the termination view).
 
 ## Handover log
+
+- **2026-10-03** — **The Le Bail alternation now behaves as one job.** A run
+  of several passes is one row in `rietx watch` with the right status, a cancel
+  or error part-way through leaves the best pass standing, and the cap survives
+  a trip through the GUI's text document and Plan panel. Before this, each pass
+  looked like its own run, and a second pass could be lost on cancel. The
+  review also caught that the first pass finishing marked the whole run "done".
+  Still open: the GUI progress view repeats stage names every pass.
+  (The nine `judging.md` questions were resolved later that day; see Tasks.)
+
+  **Done** (second session on this WP). (a) `_fit_lebail_alternation` attaches
+  the recorder once and the passes share its stream; each pass stamps
+  `lebail_pass` on its `fit_start`/`fit_end`, and `runs.RunRecorder._observe`
+  ignores a stamped `fit_end`, so only `close()` writes `done`. (c) Any
+  exception restores the best pass (`_keep_pass`, factored from the old inline
+  block) and sets `RefinementCancelled.node_id` to the kept node, then raises.
+  (d) The passes get the whole plan, so `_last_plan` and the history header
+  carry the cap. (b) A `passes N` line in the `.rxt` document, shown only above
+  1, refused below 1 and on non-ASCII digits; `passes` in `rxt.ts`'s keyword
+  mirror; the Plan panel sends back the plan fields it has no control for
+  (`intermediate_ftol` was being reset the same way); dist rebuilt; one row in
+  `gui-power.md`.
+
+  **Measured** (macOS arm64, `[dev]` venv, numba on, current main merged in).
+  Fast selection: 7932 passed, 159 skipped, 1 failed, the failure being
+  `test_portability` on two `read_text()` calls in a test of mine; fixed, and
+  that file alone then passes (14). Six tests added by this session. Added-test
+  times, one run under `-n auto` load: 30.7 s, 22.7 s, 7.98 s, 6.3 s, 6.2 s,
+  4.9 s, 3.4 s, 0.12 s for the new ones. The slow ones stay unmarked for the
+  reason the 10-02 entry gives: they are the only cover of the loop on a real
+  pattern. Full suite not run: no measured number moved. vitest 583 passed,
+  svelte-check clean.
+
+  **Review** (`/code-review high --fix`): fixed the premature `done` status, the
+  restore-only-if-not-last condition, and an `isdigit` crash. Declined, with
+  reasons: the GUI session's stage-name dedup (needs a decision on what a pass
+  looks like in the progress view); a series with `lebail_passes` above 1
+  emitting one series-stamped `fit_end` per pass (no consumer counts them; the
+  `lebail_pass` stamp tells them apart). Its note that 16.907 and 16.908
+  disagree is two different pairs (pass 2 against pass 1, then a fixed-point
+  step), not a conflict.
+
+  **Later the same day: the GUI progress view, decided.** Run through the GUI,
+  the stop warning was nowhere: no panel shows a result's diagnostics, and a
+  history node cannot hold it (it is added after the nodes commit). Decision:
+  the run record carries it. `fit_start` stamps `lebail_pass`/`lebail_of`, the
+  session resets the stage ticks each pass and the pill reads "profile (5/5) ·
+  pass 2 of 6"; on finish the record holds the package's own sentence (which
+  pass was kept, Rwp per pass) and a full-width strip under the header shows
+  it with the suggestion. (First put beside the pill, it squeezed the project's
+  name to "lebail_…" at ordinary widths; found by the user, checked in a real
+  browser at 1000 px.) Checked on the +0.3 % LaB6+cBN project through
+  the run route: pass 1 of 6 while running, then "reached a fixed point; pass 3
+  of 3 was kept (16.987, 16.969, 16.967)". Both then done (lane): `_mark_passes` writes `lebail_pass`, `lebail_kept` and
+  `lebail_discarded` as node `notes` (no schema move), the History panel shows a
+  `pass k` chip per node (green kept, orange discarded, discarded rows dimmed),
+  and the Report tab lists every diagnostic of the result, errors first (it
+  surfaced `RESOLUTION_NOT_POSITIVE` and others no panel had shown). Checked in
+  a real browser at 1000 px. `test_gui_dist`'s `app < vendor-cm` byte proxy had
+  0.6 % headroom and failed on 2 kB of new panel code; it is now `< 1.5x`, the
+  `rectangularSelection` check beside it being the real guard. A +2 %
+  demo start never finds the cell (Rwp 194 %), which is the wander the stop rule
+  exists for and a poor demo of success. One test added in each of
+  `test_gui_server.py` and `test_lebail_alternation.py`; vitest 583, dist
+  rebuilt, 255 passed and 1 skipped across the GUI, run and alternation files.
+
+  **Lane trial.** One lane, dispatched after the handover first ran:
+  `lane history-and-report-passes ~30` at 288K main context. Two items were
+  kept at 126K (`telemetry-once-and-cancel ~12`, `rxt-gui-lebail_passes ~15`;
+  both took 25 requests, against estimates of 12 and 15). Measured
+  (`session_usage.py lanes`, `[dev]`, macOS): lane 36 requests against an
+  estimate of 30 (1.67 over all three), lane base 70K, re-read 4K of 486K, 10
+  main requests and 18K left in main to check it, 2 main edits after it (the
+  dist-size test and the check itself), 0 redone, lane $1.51, in-session $3.54
+  modelled, saved +$1.32. The selective policy at these figures: -20 % at 410 K
+  peak, -12 % with the lane assumptions doubled. Row added to
+  `docs/milestones/process.md` § Lanes within a WP.
+
+  **Gotchas.** A `/code-review --fix` runs in this tree, so I merged main only
+  after it returned. A merge during a running suite invalidates the run.
+
+  **Next:** (1) the background protocol in Inherited, if wanted in this WP, else file it.
+
+- **2026-10-02** — **The package now runs the Le Bail alternation itself.**
+  Set a pass cap on the plan and `fit` repeats the plan, stops at the first
+  pass that does not lower Rwp, keeps the best pass and says why it stopped.
+  Measured on the one multi-phase pattern in tree, the three shapes #210
+  reported all appear and are handled: from the exact cell the second pass is
+  worse and the first is kept, from a cell 0.3 % off the loop converges, and
+  from 2 % off it wanders and the third pass of four is kept. It also showed
+  that restoring the best pass must not restore its extracted intensities,
+  because the next fit re-extracts them. What is still open is four review
+  findings, listed in Tasks, of which the telemetry one (a run directory per
+  pass) is the one a user would notice first.
+
+  **Done.** `RefinementPlan`/`PlanSpec.lebail_passes` (default 1, `ge=1`);
+  `Refinement.fit` dispatches to `_fit_lebail_alternation` above 1 and to
+  `_fit_pass` (the old body, unchanged) at 1; `_restore_state` factored out of
+  `checkout`; `LEBAIL_ALTERNATION_STOPPED` (info on a fixed point, warning
+  otherwise, `value` the kept pass's Rwp) reaches `str(result)`;
+  `LEBAIL_CONVERGED_REL = 1e-4`; skill rule 4 and `judging.md`, copies synced;
+  manual `using/refining.md` § The Le Bail alternation; schema 0.40 → 0.41 and
+  project format 1.3 → 1.4 (WP-1123's precedent); `refine_sequential`'s
+  collapse now carries the field.
+
+  **Measured** (macOS arm64, `[dev]` venv, numba on, 11-BM LaB6+cBN,
+  `profile_only`, 5.1-50°). Hand loop, Rwp %: exact cells 16.821, 16.907, then
+  16.908 flat; +0.3 % 16.987, 16.969, 16.967 flat; +2 % 230.35, 206.58, 175.10,
+  194.56, 196.29, 203.94, 211.29, 219.93 (67 s of 8 passes). `lebail_passes=8`
+  reproduces them and stops at passes 2, 3 and 4. A restored state seeded with
+  its intensities then gave the next pass 254.09 % against the loop's 194.56 %;
+  with parameters only it gives 194.562. Fast selection, `[dev]`, macOS: 7924
+  passed, 159 skipped, 0 failed after the version fixes (the earlier 7924 + 1
+  failed + 159 had the manual-partition failure); five tests added, one more
+  marked slow. Added-test times from that run, under `-n auto` load: 22.1 s,
+  18.4 s, 7.0 s, 5.1 s, 0.0 s. The two slow ones are in the fast tier's tail
+  because they are the only cover of converge and cap on a real pattern. Full
+  suite not run: no measured number moved.
+
+  **Review** (`/code-review high --fix`): fixed keep-best leaving `ref.result_`
+  and the model empty, and the series collapse dropping the field; fixed a NaN
+  Rwp replacing the best. Left open: the four items in Tasks. Declined: the
+  finding on deleted `judging.md` sentences, which I removed on purpose to pay
+  the file's byte budget (the Rwp-is-not-the-signal sentence and Peterson's
+  scope line); say so if either should return and be paid for elsewhere.
+
+  **Lane trial.** `/wp-lanes` session, no lane dispatched. Decisions:
+  `keep baseline-fixture ~15`, `keep lebail_passes-plan-field ~25`. Context at
+  both was 99K and 119K, under the 150K line, so by the rule neither was
+  laned. Step 3b has no lanes to measure and no row was added to process.md.
+
+  **Gotchas.** PbSO4 and Tb2BaCoO5 are not in tree, so the Tasks' named
+  acceptance numbers (10.247 %, pass 1 kept) are unreproduced and LaB6+cBN
+  stands in. A fresh `fit` never carries intensities across calls, so "continue
+  from a state" and "checkout then fit" differ (checkout seeds them).
+  Pruned `### Inherited`: the 2026-09-23 entry folded into Context; the other
+  two stay, both still true and out of scope.
+
+  **Next:** (1) the telemetry-once fix, because it changes what a user sees in
+  `rietx watch`; (2) `.rxt`/GUI support for the field; (3) decide whether a
+  cancelled alternation should return the best pass; (4) the background
+  protocol in Inherited, if the maintainer wants it in this WP.
 
 - **2026-09-01** — created from issue #210 during the roadmap reorder; no code
   touched. First task is the baseline table.

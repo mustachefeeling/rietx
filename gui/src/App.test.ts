@@ -1421,6 +1421,27 @@ describe("the report panel", () => {
     expect(actions[0].dataset.tone).toBe("medium");
   });
 
+  it("lists every diagnostic the result carries, errors first, none hidden", async () => {
+    const diag = (level: string, code: string, extra: object = {}) =>
+      ({ level, code, message: `${code} message`, where: [], suggestion: null, ...extra });
+    await openTab("Report", PROJECT, {
+      ...FITTED,
+      "/api/result": () => ({ body: { result: {
+        ...RESULT, statistics: { rwp: 0.216, gof: 1.41, chi2: 16.96 },
+        diagnostics: [
+          diag("info", "LEBAIL_ALTERNATION_STOPPED", { suggestion: "raise lebail_passes" }),
+          diag("warning", "BOUND_HIT", { where: ["phases.0.cell.a"] }),
+          diag("error", "SOME_ERROR"),
+        ] } } }),
+    });
+    const rows = [...host.querySelectorAll<HTMLElement>(".fitdiag")];
+    expect(rows.map((r) => r.querySelector(".kind")?.textContent?.trim()))
+      .toEqual(["SOME_ERROR", "BOUND_HIT", "LEBAIL_ALTERNATION_STOPPED"]);
+    expect(rows[1].textContent).toContain("phases.0.cell.a");
+    expect(rows[2].textContent).toContain("raise lebail_passes");
+    expect(rows[0].querySelector(".chip")?.classList.contains("bad")).toBe(true);
+  });
+
   it("says the predicted Δχ² is the report's, once, not per suggestion", async () => {
     await openTab("Report", PROJECT, FITTED);
     expect(host.textContent).toContain("one estimate for the whole report");

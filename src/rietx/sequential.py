@@ -499,7 +499,10 @@ def _collapse(plan: RefinementPlan) -> RefinementPlan:
         # this is the compressed plan rather than a different protocol, and a
         # collapse that ever produced two stages would otherwise drop the
         # schedule silently (WP-1123)
-        intermediate_ftol=plan.intermediate_ftol)
+        intermediate_ftol=plan.intermediate_ftol,
+        # the alternation is the protocol's, not a stage's: a collapsed warm
+        # refit under mode="lebail" would otherwise run one pass (WP-1323)
+        lebail_passes=plan.lebail_passes)
 
 
 def _ladder(base_plan: RefinementPlan, warm_plan: RefinementPlan

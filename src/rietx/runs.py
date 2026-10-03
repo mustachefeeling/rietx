@@ -1538,7 +1538,9 @@ class RunRecorder(EventStream):
             # the exception: it ends the *chain*, not just this pattern.
             if data.get("status") == "cancelled":
                 self._status["state"] = "cancelled"
-            elif "series_index" not in data:
+            elif "series_index" not in data and "lebail_pass" not in data:
+                # a Le Bail alternation's pass ends a pass, as a series'
+                # member ends a pattern (WP-1323); ``close`` says "done"
                 self._status["state"] = "done"
 
     def _write(self, event: dict) -> None:

@@ -147,7 +147,7 @@ RESERVED_BLOCKS: dict[str, str] = {}
 _PEAK_FLAG_WORDS: tuple[str, ...] = get_args(PeakFlag)
 
 _KEYWORDS = (TEXTDOC_MAGIC, "project", "pattern", "mode", "limits", "excluded", "plan",
-             "guard", "tolerance", "stage", "phase", "instrument", "peaks",
+             "guard", "tolerance", "passes", "stage", "phase", "instrument", "peaks",
              *RESERVED_BLOCKS)
 
 _FLAG_WORDS = ("locked", "mode-fixed", "held", "softplus", "logit")
@@ -235,6 +235,8 @@ class ParsedDocument:
     #: value here rather than the absence of one
     tolerance: float | None = None
     tolerance_set: bool = False
+    #: the ``passes`` line (WP-1323), ``None`` when absent: one pass is the default
+    passes: int | None = None
     stages: list[StageSpec] = field(default_factory=list)
     stage_lines: list[int] = field(default_factory=list)
     phases: dict[int, tuple[int, str | None]] = field(default_factory=dict)
@@ -434,6 +436,12 @@ def _render_plan(doc: ProjectDoc) -> list[str]:
     lines.append(f"tolerance {tol}".ljust(34)
                  + "# intermediate_ftol: every stage but the last stops here "
                    "('none' = converge them all)")
+    # shown only above its default, like ``guard``: a Le Bail job's cap, which
+    # an edit through the document would otherwise reset to one pass
+    if spec.lebail_passes != PlanSpec().lebail_passes:
+        lines.append(f"passes {spec.lebail_passes}".ljust(34)
+                     + "# lebail_passes: Le Bail runs this plan up to N times, "
+                       "keeping the best")
     width = max((len(s.name) for s in spec.stages), default=4)
     default = StageSpec(name="_")
     for stage in spec.stages:
@@ -674,6 +682,14 @@ def parse(text: str) -> ParsedDocument:
             else:
                 doc.tolerance = None if value == "none" else float(value)
                 doc.tolerance_set = True
+        elif keyword == "passes":
+            # ascii only: ``"²".isdigit()`` is true and ``int("²")`` raises
+            if (len(rest) != 1 or not (rest[0].isascii() and rest[0].isdigit())
+                    or int(rest[0]) < 1):
+                fail(n, "passes takes one whole number of at least 1 — how "
+                        "many times a Le Bail fit runs the plan", raw, "passes")
+            else:
+                doc.passes = int(rest[0])
         elif keyword == "stage":
             stage = _parse_stage(n, rest, raw, fail)
             if stage is not None:
@@ -890,7 +906,9 @@ def _plan_changes(parsed: ParsedDocument, doc: ProjectDoc, delta: Delta,
                         correlation_guard=(parsed.guard if parsed.guard is not None
                                            else PlanSpec().correlation_guard),
                         intermediate_ftol=(parsed.tolerance if parsed.tolerance_set
-                                           else PlanSpec().intermediate_ftol))
+                                           else PlanSpec().intermediate_ftol),
+                        lebail_passes=(parsed.passes if parsed.passes is not None
+                                       else PlanSpec().lebail_passes))
     stages_changed = spec is not None and spec != current
 
     if name_changed and stages_changed:

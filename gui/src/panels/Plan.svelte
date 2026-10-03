@@ -115,6 +115,15 @@
   );
   const setAside = $derived((dirty ? [] : resolved?.set_aside ?? []) as string[]);
 
+  /** The plan fields this panel has no control for (`intermediate_ftol`,
+   *  `lebail_passes`, whatever comes next), carried through a save: sending
+   *  only what the panel edits made the server fill each with its default. */
+  let extra = $state<Record<string, unknown>>({});
+  function otherFields(plan: Record<string, unknown>) {
+    const { stages: _s, correlation_guard: _g, ...rest } = plan;
+    return rest;
+  }
+
   async function load() {
     try {
       const [plan, registry, resolve] = await Promise.all([
@@ -122,6 +131,7 @@
       ]);
       stages = plan.plan.stages;
       guard = plan.plan.correlation_guard;
+      extra = otherFields(plan.plan);
       preset = plan.preset;
       presets = registry.plans;
       resolved = resolve;
@@ -143,6 +153,7 @@
       const payload = await api.putPlan(body);
       stages = payload.plan.stages;
       guard = payload.plan.correlation_guard;
+      extra = otherFields(payload.plan);
       preset = payload.preset;
       dirty = false;
       error = "";
@@ -161,7 +172,7 @@
 
   async function save() {
     say(`project.doc.plan = PlanSpec(stages=[${stages.length}], correlation_guard=${guard})`);
-    await put({ plan: { stages, correlation_guard: guard } });
+    await put({ plan: { ...extra, stages, correlation_guard: guard } });
   }
 
   function touch() {

@@ -134,7 +134,12 @@ def test_codemirror_is_split_out_and_off_the_boot_path():
     assert "rectangularSelection" not in app, (
         "CodeMirror was inlined into app.js — check that panels/Text.svelte "
         "still imports lib/editor.ts dynamically")
-    assert len(app.encode()) < len(vendor.read_bytes())
+    # A size proxy for the same fault, with room.  It read `app < vendor`, which
+    # had 0.6 % of headroom (326 108 against 328 006 bytes) and failed on the
+    # first panel that added ~2 kB of its own.  An inlined library adds the
+    # chunk's whole size, so the entry would pass 2x the chunk; 1.5x leaves the
+    # app a further 160 kB of growth before it says anything.
+    assert len(app.encode()) < 1.5 * len(vendor.read_bytes())
 
     # the page pulls the entry only; the chunk is named by the entry, on demand
     assert "vendor-cm" not in html
