@@ -2,6 +2,9 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+# nothing installs from a lock (setup is `uv pip install -e`), and the one
+# committed went six weeks stale; a `uv run` regenerates it locally
+uv.lock
 dist/
 build/
 .pytest_cache/
