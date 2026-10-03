@@ -1,6 +1,6 @@
 # WP-1537 — the structure scene for a ray tracer: POV-Ray and glTF
 
-Milestone: v1.7 · Status: ⬜
+Milestone: rietview · Status: ⬜
 Depends on: 1536 soft (the GUI menu lists SVG once it lands)
 Priority: P3 2026-10-02 — a workaround covers it: a CIF opened in Blender's atomic add-on or in VESTA, which loses rietx's bond rules, polyhedra and colours
 

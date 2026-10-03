@@ -1,6 +1,6 @@
 # WP-1801 — rotation mathematics: the exponential map, its derivative, the canonical quaternion
 
-Milestone: v1.8 · Status: ✅ 2026-10-01 — `crystallography/rotation.py`: the exponential map, its derivative and the canonical quaternion in backend `xp` ops, with every round trip tested (PRs #578, #591)
+Milestone: rigid-bodies · Status: ✅ 2026-10-01 — `crystallography/rotation.py`: the exponential map, its derivative and the canonical quaternion in backend `xp` ops, with every round trip tested (PRs #578, #591)
 Depends on: —
 
 ## Goal

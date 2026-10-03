@@ -1,6 +1,6 @@
 # WP-1502 — an extent beyond one cell
 
-Milestone: v1.7 · Status: ✅ 2026-09-30 — build(extent=), image on every atom, periodicity(), keep by far end
+Milestone: rietview · Status: ✅ 2026-09-30 — build(extent=), image on every atom, periodicity(), keep by far end
 Depends on: 1470 (1501 soft)
 
 ## Goal

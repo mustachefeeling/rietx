@@ -1,6 +1,6 @@
 # WP-1538 — ambient occlusion in the structure figure
 
-Milestone: v1.7 · Status: ⬜
+Milestone: rietview · Status: ⬜
 Depends on: —
 Priority: P3 2026-10-02 — a workaround covers it: WP-1537's POV-Ray or Blender output computes ambient occlusion in the ray tracer
 

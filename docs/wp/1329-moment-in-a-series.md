@@ -1,6 +1,6 @@
 # WP-1329 — the moment in a series: the onset, the hold, the trajectory
 
-Milestone: v1.6 · Status: 🔄 2026-10-01 — tasks 1–4 and both review follow-ups landed (PRs #522, #589); task 5, a real ramp longer than the Cr₂WO₆ pair, remains
+Milestone: magnetic · Status: 🔄 2026-10-01 — tasks 1–4 and both review follow-ups landed (PRs #522, #589); task 5, a real ramp longer than the Cr₂WO₆ pair, remains
 Depends on: 1327 (the moment); 1326 soft (the satellite arm per pattern)
 Priority: P3 2026-09-23 — waits on 1327's moment; P2 when it lands
 

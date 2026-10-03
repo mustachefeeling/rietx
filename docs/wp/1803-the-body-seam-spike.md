@@ -1,6 +1,6 @@
 # WP-1803 — the body seam: a derived block, or a linearisation inside C
 
-Milestone: v1.8 · Status: 🔄 2026-10-01 — decision accepted, the typed `derived` block (#596); the re-cut of R2b onward is open
+Milestone: rigid-bodies · Status: 🔄 2026-10-01 — decision accepted, the typed `derived` block (#596); the re-cut of R2b onward is open
 Depends on: 1801
 Priority: P2 2026-09-30 — the decision every later rigid-body WP waits on; it carries the six open questions of the 2026-09-30 review
 

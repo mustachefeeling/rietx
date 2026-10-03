@@ -1,6 +1,6 @@
 # WP-1343 — the magnetic peaks are broader, and the moment pays for it
 
-Milestone: v1.6 · Status: 🔄 2026-09-30 — PR #524 merged: 9 of 11 tasks done; open: a synthetic k = 0 no-esd case, the PNGs, and acceptance 4 on real k ≠ 0 data
+Milestone: magnetic · Status: 🔄 2026-09-30 — PR #524 merged: 9 of 11 tasks done; open: a synthetic k = 0 no-esd case, the PNGs, and acceptance 4 on real k ≠ 0 data
 Depends on: 1327 (the moment, the magnetic |F_⊥|², the shared scale);
 1326 soft (the satellites that make the term identifiable)
 Priority: P3 2026-09-23 — waits on 1327; P2 when it lands, the moment then reading low in silence

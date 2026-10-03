@@ -1,6 +1,6 @@
 # WP-1327 — a magnetic structure: state it, refine it, report what the powder cannot see
 
-Milestone: v1.6 · Status: 🔄 2026-09-26 — the k = 0 moment (PR #433), the operation-list phase (PR #448) and k ≠ 0's magnetic supercell (PR #477) landed from outside; the analytic moment branch, the LaMnO₃ second dataset and the PNGs remain
+Milestone: magnetic · Status: 🔄 2026-09-26 — the k = 0 moment (PR #433), the operation-list phase (PR #448) and k ≠ 0's magnetic supercell (PR #477) landed from outside; the analytic moment branch, the LaMnO₃ second dataset and the PNGs remain
 Depends on: 1326 (the satellite reflection list)
 Priority: P2 2026-09-23 — the open milestone's core; the moment and its hold start without 1326's list
 

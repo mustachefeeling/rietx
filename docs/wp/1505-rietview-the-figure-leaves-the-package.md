@@ -1,6 +1,6 @@
 # WP-1505 — rietview: the figure leaves the package
 
-Milestone: v1.7 · Status: ⬜
+Milestone: rietview · Status: ⬜
 Depends on: 1504
 Priority: P4 2026-09-27 — waits on a trigger nobody has pulled; P3 the day one fires
 

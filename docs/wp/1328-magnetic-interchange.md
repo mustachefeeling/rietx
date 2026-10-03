@@ -1,6 +1,6 @@
 # WP-1328 — magnetic interchange: magCIF in and out, and the readers stop refusing
 
-Milestone: v1.6 · Status: 🔄 2026-10-01 — every task landed (PR #544 the last), and #567's writer refusal (PR #571); the `### Inherited` items remain to prune before it closes
+Milestone: magnetic · Status: 🔄 2026-10-01 — every task landed (PR #544 the last), and #567's writer refusal (PR #571); the `### Inherited` items remain to prune before it closes
 Depends on: 1327 (the model the files describe); 1118 soft (the coverage
 registry the foreign readers report through)
 Priority: P3 2026-09-23 — waits on 1327's model; P2 when it lands

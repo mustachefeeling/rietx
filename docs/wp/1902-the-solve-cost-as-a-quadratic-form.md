@@ -1,6 +1,6 @@
 # WP-1902 — the solve cost as a quadratic form, and the doublet question first
 
-Milestone: v1.9 · Status: 🔄 2026-10-01 — the spike, `solve/cost.py` (PR #580) and its two named refusals (PR #648) landed; one task left: the "poor" refusal reads `RefinementResult.usable`
+Milestone: structure-solution · Status: 🔄 2026-10-01 — the spike, `solve/cost.py` (PR #580) and its two named refusals (PR #648) landed; one task left: the "poor" refusal reads `RefinementResult.usable`
 Depends on: —
 Priority: P2 2026-09-30 — the design gate for the direct-space route; every engine chunk reads this cost
 
