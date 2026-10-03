@@ -875,6 +875,14 @@ class GuardFinding:
                    f"{a} ~ {b} (ρ={rho:+.3f}; the data does not separate them)")
 
     @classmethod
+    def discarded_direction(cls, paths: tuple[str, ...],
+                            n_discarded: int) -> "GuardFinding":
+        return cls("COVARIANCE_DIRECTION_DISCARDED", tuple(paths),
+                   float(n_discarded),
+                   f"{', '.join(paths)} lie in or beside "
+                   f"{n_discarded} direction(s) the covariance solve discards")
+
+    @classmethod
     def large_biso(cls, path: str, biso: float, b_melt: float) -> "GuardFinding":
         return cls("BISO_UNUSUALLY_LARGE", (path,), float(biso),
                    f"{path} (B = {biso:.2f} Å², {biso / b_melt:.1f}× the "
@@ -969,6 +977,9 @@ class GuardReport:
     # rank statement about the data, reported beside the correlation rather
     # than instead of it (see FLAT_DIRECTION_RHO)
     flat_directions: list[GuardFinding] = field(default_factory=list)
+    # parameters sharing a direction the covariance solve discards (WP-1535):
+    # a combination of columns, which no pairwise ρ reaches
+    discarded_directions: list[GuardFinding] = field(default_factory=list)
     # two-way surface-roughness degeneracy (WP-0502): either roughness is not
     # identifiable from this data, or a displacement parameter is now hiding
     # in it.  Same block-R² statistic as background_correlations.
@@ -1010,7 +1021,8 @@ class GuardReport:
         rule, since a declared name whose reader is missing fails no test)."""
         return [*self.high_correlations, *self.at_bounds, *self.nonpositive_adps,
                 *self.nonpositive_strain, *self.unsupported_resolution,
-                *self.flat_directions, *self.large_biso, *self.negative_biso,
+                *self.flat_directions, *self.discarded_directions,
+                *self.large_biso, *self.negative_biso,
                 *self.nonpositive_resolution, *self.narrow_humps,
                 *self.background_correlations, *self.roughness_correlations]
 
@@ -1749,6 +1761,29 @@ def bound_untested(bounds, free: list[str], theta, transforms: list[str], *,
     return out
 
 
+def check_discarded_directions(jac, free: list[str],
+                               flat: list[GuardFinding]) -> list[GuardFinding]:
+    """``COVARIANCE_DIRECTION_DISCARDED``: the parameters a direction the solve
+    discards reaches, one finding for the solve (WP-1535).
+
+    A set already inside a pair ``FLAT_DIRECTION`` reported adds nothing, since
+    that finding says the same thing about the same two paths.  The statistic
+    and the derivation of *touched* are
+    :func:`~rietx.optimize.statistics.discarded_directions`'.
+    """
+    from ..optimize.statistics import discarded_directions
+
+    if jac.shape[1] != len(free):  # ``soft_modes``' guard: names must match columns
+        return []
+    n, touched = discarded_directions(jac)
+    if n == 0:
+        return []
+    paths = tuple(free[i] for i in touched)
+    if any(set(paths) <= set(f.paths) for f in flat):
+        return []
+    return [GuardFinding.discarded_direction(paths, n)]
+
+
 def check_guards(table, outcome, threshold: float,
                  background_threshold: float = BACKGROUND_ABSORPTION_GUARD,
                  roughness_threshold: float = ROUGHNESS_ABSORPTION_GUARD,
@@ -1821,6 +1856,16 @@ def check_guards(table, outcome, threshold: float,
                 raise
         if scan_exchangeability and model is not None:
             report.measured_exchangeability = exchangeability_scan(model, table)
+        try:
+            # no esds, nothing to qualify; and a Pawley solve cuts the matrix
+            # augmented by its intensity block, which ``outcome.jac`` omits
+            if outcome.correlation is not None and not outcome.n_aux:
+                report.discarded_directions = check_discarded_directions(
+                    outcome.jac, free, report.flat_directions)
+        except np.linalg.LinAlgError:
+            # ``soft_modes``' rule above: the stage already said so
+            if getattr(outcome, "covariance_error", None) is None:
+                raise
         for path, r2 in sorted(report.measured_background_absorption.items(),
                                key=lambda kv: -kv[1]):
             if r2 > background_threshold:

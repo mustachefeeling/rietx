@@ -147,6 +147,57 @@ def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     return k, inv_d, chi2_red
 
 
+def discarded_directions(jac: np.ndarray) -> tuple[int, np.ndarray]:
+    """How many directions of the equilibrated normal matrix ``pinv`` discards
+    beyond dead columns, and which columns they *touch* (WP-1535).
+
+    One touched column is enough: a discarded direction needs two loaded
+    columns to exist, but only the columns that pass the test below are named.
+
+    :func:`normal_factors` hands ``pinv`` a cut, and a direction under it comes
+    back at **zero** variance: every parameter loading on it reports only the
+    variance of the directions the data did measure.  A column with no gradient
+    is handled (infinite variance, ``_cov_free``) and so is a pair whose
+    |ρ| ≈ 1 (``FLAT_DIRECTION``); a combination of three or more columns has
+    neither.  Returns ``(n_discarded, touched)``, ``touched`` the indices into
+    the columns of ``jac``, empty when nothing live is discarded.
+
+    **Touched is derived, not chosen.**  A discarded eigenvalue is at most
+    ``PINV_RCOND·|λ|max``, so the discarded subspace adds *at least*
+    ``Σ_gone v_i²/cut`` to column *i*'s equilibrated variance.  Column *i* is
+    touched when that is at least the variance the solve reports,
+    ``Σ_kept v_i²/λ``: its esd is then at least √2 short.  The sum over the
+    subspace, never one eigenvector, because two discarded directions are
+    defined only up to a rotation inside it and the projector is not.  Jacobi
+    scaling is shared with :func:`normal_factors`, so a column's units do not
+    enter.  The matrix is rebuilt here, not returned by :func:`normal_factors`,
+    whose signature and bits stay as they were: one more ``eigh``.
+    """
+    jac = to_host_fp64(jac)
+    s = column_rescale(jac)
+    if s is not None:
+        jac = jac * s
+    JTJ = jac.T @ jac
+    JTJ = 0.5 * (JTJ + JTJ.T)
+    d = np.sqrt(np.diag(JTJ))
+    live = d > 0.0
+    none = (0, np.zeros(0, dtype=np.intp))
+    if live.sum() < 2:
+        return none
+    inv_d = np.where(live, 1.0 / np.where(live, d, 1.0), 0.0)
+    lam, vec = np.linalg.eigh(JTJ * np.outer(inv_d, inv_d))
+    cut = PINV_RCOND * np.abs(lam).max()
+    gone = np.abs(lam) <= cut
+    # a dead column is its own eigenvector at zero, and not this function's
+    n_gone = int(gone.sum()) - int((~live).sum())
+    if n_gone < 1:
+        return none
+    kept_var = (vec[:, ~gone] ** 2 / lam[~gone]).sum(axis=1)
+    lost_var = (vec[:, gone] ** 2).sum(axis=1) / cut
+    touched = np.flatnonzero(live & (lost_var >= kept_var))
+    return (n_gone, touched) if len(touched) >= 1 else none
+
+
 def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
                       chi2_floor: bool = False,
                       what: str = "residual entering the covariance solve",
