@@ -1,6 +1,6 @@
 # WP-1510 — What the chemist knows reaches the indexing search
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-03 — claimed by @yue-here
 Track: Data and metadata in, a structure out
 Depends on: — (1449 soft, the ranking this feeds; 1508 soft, the search that ran out of time)
 Priority: P2 2026-09-28 — a defect that fires wrongly: sixty false impurity lines and a refused gate cost a collaborator's agent one whole earlier session, and each fix is small
