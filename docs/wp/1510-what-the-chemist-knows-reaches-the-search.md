@@ -125,7 +125,7 @@ rule.
       docstring.
 - [ ] Manual Part 1 and `tests/api_surface.py`: every new public name
       documented (the partition fails until it is).
-- [ ] Skill: the ask-or-infer rule in the indexing reference, tagged
+- [x] Skill: the ask-or-infer rule in the indexing reference, tagged
       `(Measured: solution case 1)`, inside `tests/skill_caps.py`'s budget.
 
 ## Acceptance

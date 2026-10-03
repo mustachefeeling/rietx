@@ -106,32 +106,34 @@ result.
 
 ## 7d. The closed loop: from a pattern of an unknown phase to a refinement
 
-Indexing is the step that used to be missing. Before it, this package could
-refine a structure against a pattern but could not find the cell, so an unknown
-phase was out of reach entirely. `index_pattern` is a peer of `refine` and the
-loop between them closes:
+This section closes the loop between `index_pattern` and `refine`.
+
+**Before the first search, ask for the cell or infer it** (Measured: solution
+case 1: the blind search never found the person's cell).
+Ask for a cell range or candidate cells. When the person has given
+the chemistry (formula, Z or density, solvent), infer a volume window, say so,
+and pass `SearchSpec(min_volume=…, max_volume=…)`. Declare a candidate cell in
+`prior_cells` with `max_d_axis` above its longest axis.
 
 **These names are provisional, and the answers they return are versioned.**
 Indexing is under active development, so everything under `rietx.indexing` and
 every answer type in `rietx.schemas.indexing` may change in any release — the
 [compatibility promise](https://rietx.org/using/compatibility.html#provisional-by-declaration)
-declares the subsystem rather than listing names, and every change is in the
-release notes. Two things do not move with them:
+has the detail. Two things do not move with them:
 `capabilities().indexing_thresholds_version`, which is what the gates below are
 versioned by, and the serialized shape of an `IndexingResult`. So a tool loop
 that *reads* an answer sees any observable change as a version bump; one that
 imports these types should pin an exact version.
 
-**How long will this take?** Since WP-1042 the default answers this itself:
+**How long will this take?** The default answers this itself:
 `index_pattern` resolves the **`quick` preset** — every engine, every requested
 system, and a whole-run ceiling (`SEARCH_PRESETS["quick"]`) covering search,
 probe and validation, with each validation fit drawing an equal slice of the
-remaining clock. Nothing is narrowed; a run that hits the ceiling says so
-(`INDEX_BUDGET_EXHAUSTED`, §7c) rather than having silently searched less, and
-what it cuts is the trailing low-symmetry systems — cheapest-first ordering's
-documented cost. Progress and a graded shortlist for every *completed* system
-stream on the event ladder as the run goes (`events=`), so the useful answer
-usually arrives seconds in, long before the run ends. `preset="full"` is the
+remaining clock. A run that hits the ceiling says so
+(`INDEX_BUDGET_EXHAUSTED`, §7c), and what it cuts is the trailing low-symmetry
+systems. Progress and a graded shortlist for every *completed* system
+stream on the event ladder as the run goes (`events=`), so a useful answer
+usually arrives seconds in. `preset="full"` is the
 unbounded pre-1.0 behaviour — reach for it when a quick run reports truncated
 or not-reached systems and the answer may live there. For the arithmetic, ask
 `rietx.indexing.engines.estimate_ceiling(spec)` (CLI: `rietx index
