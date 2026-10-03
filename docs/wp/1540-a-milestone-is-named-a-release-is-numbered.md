@@ -1,6 +1,6 @@
 # WP-1540 — a milestone is named, a release is numbered
 
-Milestone: unscheduled · Status: 🔄 2026-10-03 — renamed, rules rewritten (PR pending); the collaborator comments wait on the maintainer
+Milestone: unscheduled · Status: 🔄 2026-10-03 — renamed and rules rewritten (PR #692); comments posted on #286, #561, #562; the release trigger is being chosen
 Track: The repo's own process
 Depends on: —
 Priority: P2 2026-10-03 — work on main piles up behind a milestone that is late
@@ -70,7 +70,7 @@ open contributor PRs (#680, #675) touch no planning document.
       narrative step and root CLAUDE.md's version sentence for the split.
 - [x] Fix the two user-facing sentences that name an unreleased version
       ("pre-1.5.1" in the manual, "Before 1.5.1" in the skill).
-- [ ] Draft one comment per collaborator thread (#286, #426, #561, #562),
+- [x] Draft one comment per collaborator thread (#286, #426, #561, #562),
       batched for the maintainer to approve.
 
 ## Acceptance
