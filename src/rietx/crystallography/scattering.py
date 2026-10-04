@@ -290,24 +290,29 @@ def written_neutral_diagnostics(structure, *, code: str, program: str) -> list:
     :func:`detect_fallback`, grouped by the label as written so ``where``
     lists every site carrying it. ``code`` is the writer's own, passed as a
     literal at the call so each format's code is visible where it is emitted.
+    A site carrying a moment is skipped: a writer keeps its ion, which the
+    magnetic form factor is computed from.
     """
     from ..schemas.common import Diagnostic
 
-    found: dict[str, tuple[SpeciesFallback, list[str]]] = {}
+    found: dict[str, tuple[SpeciesFallback, str, list[str]]] = {}
     for i, phase in enumerate(structure.phases):
         for j, atom in enumerate(phase.atoms):
-            if (fallback := written_species(atom.species)[1]) is not None:
-                found.setdefault(fallback.species, (fallback, []))[1].append(
+            if getattr(atom, "moment", None) is not None:
+                continue
+            written, fallback = written_species(atom.species)
+            if fallback is not None:
+                found.setdefault(fallback.species, (fallback, written, []))[2].append(
                     f"phases.{i}.atoms.{j}.species")
     out = []
-    for fallback, where in found.values():
+    for fallback, written, where in found.values():
         sign = "+" if fallback.charge > 0 else "-"
         ion = f"{fallback.element}{abs(fallback.charge)}{sign}"
         out.append(Diagnostic(
             level="warning", code=code, where=where, value=fallback.delta_frac,
             message=(
                 f"{fallback.species!r} is written to this {program} file as "
-                f"neutral {fallback.element}. rietx's X-ray table has no "
+                f"neutral {written}. rietx's X-ray table has no "
                 f"{ion}, so rietx computes the neutral atom for it "
                 f"({fallback.returned_electrons:.4g} electrons against the "
                 f"ion's {fallback.true_electrons:.0f}), and the file states "

@@ -4122,6 +4122,22 @@ def test_write_topas_inp_writes_mlx_in_topas_fractional_basis(tmp_path):
     assert "mg" not in site.split()        # no g stated, none written
 
 
+@pytest.mark.parametrize("ion, written", [("Fe4+", "Fe+4"), ("Mn1+", "Mn+1")])
+def test_write_topas_inp_a_magnetic_site_keeps_an_ion_the_xray_table_lacks(
+        ion, written, tmp_path):
+    """TOPAS takes the magnetic form factor from the `occ` species, and rietx
+    computes the moment from the ion, so the X-ray table's neutral fallback
+    (WP-1527) must not reach a magnetic site, nor its diagnostic."""
+    phase = _magnetic_phase("orthorhombic", species=ion)
+    diags: list = []
+    out = tmp_path / "m.inp"
+    rx.write_topas_inp(rx.Structure(phases=[phase]), out, diagnostics=diags)
+    text = out.read_text(encoding="utf-8")
+    (site,) = [line for line in text.splitlines() if "site Fe1" in line]
+    assert f"occ {written} " in site
+    assert not [d for d in diags if d.code == "TOPAS_SPECIES_WRITTEN_NEUTRAL"]
+
+
 def test_write_topas_inp_moment_round_trips_within_one_ulp(tmp_path):
     """The stated tolerance, measured through the file. The reader stores
     `mlx * a` and the writer writes `m / a`, and `(m / a) * a` misses `m` by

@@ -1574,7 +1574,11 @@ def topas_species(species: str) -> str:
     """
     from ...crystallography.scattering import written_species
 
-    species = written_species(species)[0]
+    return _sign_first(written_species(species)[0])
+
+
+def _sign_first(species: str) -> str:
+    """``Fe4+`` → ``Fe+4``, and nothing else: TOPAS's spelling of a label."""
     if m := re.fullmatch(r"(\d*)([A-Za-z]{1,2})(\d*)([+-])", species):
         mass, element, magnitude, sign = m.groups()
         return f"{mass}{element}{sign}{magnitude}"
@@ -4502,7 +4506,9 @@ def from_structure(structure: Structure, *,
     (:func:`topas_species`), and none is refused. Where rietx computes the
     neutral atom for an ion its table lacks (``Fe+``), the file states the
     neutral element. Pass ``diagnostics=`` a list to have each such label
-    named, ``TOPAS_SPECIES_WRITTEN_NEUTRAL``.
+    named, ``TOPAS_SPECIES_WRITTEN_NEUTRAL``. A site carrying a moment keeps
+    its ion (``Fe4+`` → ``Fe+4``), since TOPAS reads the magnetic form factor
+    from it and rietx computes the moment from that ion.
 
     Four refusals besides the phase-name quote check above, the fourth being
     :func:`_tail`'s on a non-finite value. A label or
@@ -4571,7 +4577,12 @@ def from_structure(structure: Structure, *,
                     f"are not quoted, so `strip_comments` reads an unquoted "
                     f"``'`` as opening a line comment and drops everything "
                     f"after it on that line, including x/y/z/occ/beq")
-            species = topas_species(atom.species)
+            # A magnetic site keeps its ion. TOPAS takes the magnetic form
+            # factor from the `occ` species, and rietx computes the moment's
+            # from that ion (moment.ion == species, checked above), so the
+            # X-ray table's fallback (Fe4+ → Fe) is not what rietx computed.
+            species = (topas_species(atom.species) if atom.moment is None
+                       else _sign_first(atom.species))
             site = (f"  site {atom.label} x {_tail(atom.x)} y {_tail(atom.y)} "
                     f"z {_tail(atom.z)} occ {species} {_tail(atom.occ)}")
             if atom.aniso is not None:
