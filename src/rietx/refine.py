@@ -91,6 +91,7 @@ from .optimize.statistics import (
     data_support,
     structure_r_factors,
 )
+from .params.multi import _unscoped
 from .params.vector import (
     CELL_SAFETY_ANGLE_DEG,
     CELL_SAFETY_FRACTION,
@@ -8168,7 +8169,8 @@ def _scale_b_columns(sr: StageResult) -> dict[int, list[str]]:
     for ip in sorted(sr.scale_b_held or {}):
         for col in sr.held:
             for name in (col, *sr.held_reach.get(col, ())):
-                m = _DISPLACEMENT_PATH.match(name)
+                # a joint fit's per-histogram override is scoped ``hist.h.``
+                m = _DISPLACEMENT_PATH.match(_unscoped(name))
                 if m is not None and int(m.group(1)) == ip:
                     out.setdefault(ip, []).append(col)
                     break
@@ -8235,7 +8237,12 @@ def _scale_b_ridge_diagnostics(models: list[CompiledModel],
     else in the result says on what.  A joint fit passes every histogram's
     model and values; the range quoted spans them.
     """
-    values = per_values[0]
+    def value_of(path: str) -> float | None:
+        # a joint fit's held name is bare where shared, ``hist.h.``-scoped
+        # where a histogram owns it
+        h = int(path.split(".")[1]) if path.startswith("hist.") else 0
+        return per_values[h].get(_unscoped(path))
+
     tt_min = min(m.tt_min for m in models)
     tt_max = max(m.tt_max for m in models)
     paths: dict[int, dict[str, None]] = {}
@@ -8254,7 +8261,8 @@ def _scale_b_ridge_diagnostics(models: list[CompiledModel],
         names = list(stages[ip])
         name = structure.phases[ip].name
         n = len(held)
-        at = ", ".join(f"{p} = {values[p]:.4g}" for p in held[:3] if p in values)
+        at = ", ".join(f"{p} = {v:.4g}" for p in held[:3]
+                       if (v := value_of(p)) is not None)
         message = (
             f"the fitted range {tt_min:.4g}-{tt_max:.4g}° cannot "
             f"separate phase {ip} ({name})'s scale from its displacement "

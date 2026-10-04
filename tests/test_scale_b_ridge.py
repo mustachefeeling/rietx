@@ -486,6 +486,28 @@ def test_a_second_histogram_reaching_more_reflections_separates_fe(pattern):
     assert _findings(res) == []
 
 
+def test_a_scale_shared_across_histograms_is_one_column(pattern):
+    """Fe's (110) on one scan and (200) on another each sit at one d-spacing,
+    so per-histogram scales and the shared B are one ridge.  Sharing the scale
+    leaves one scale column for two s², which the shared B can no longer
+    imitate, so nothing is held.  Counted once per histogram, the shared scale
+    read as two columns and held B anyway."""
+    from rietx.multi import MultiHistogramRefinement
+    from rietx.params.multi import SharingMap
+
+    other = _wide_pattern(np.arange(55.0, 75.0, 0.02))
+    stages = [Stage("s", BIG), Stage("b", BIG + BISO)]
+    _, own = _joint_fit([pattern, other], stages)
+    assert list(own.stages[-1].scale_b_held) == [FE]
+    structure, instrument = _models(START_SCALES)
+    multi = MultiHistogramRefinement(
+        structure, [instrument.model_copy(deep=True) for _ in range(2)],
+        sharing=SharingMap(shared=[f"phases.{FE}.scale"]))
+    shared = multi.fit([pattern, other], plan=RefinementPlan(stages=stages))
+    assert all(sr.scale_b_held == {} for sr in shared.stages)
+    assert FE_B in shared.stages[-1].freed
+
+
 def test_the_held_fit_is_drawn_for_inspection(ridge_fit):
     """Rwp hides locally-bad fits; the picture is the check that does not."""
     from rietx.viz.plots import plot_result

@@ -1387,10 +1387,10 @@ def biso_melting_bound(volume_a3: float, n_atoms: float) -> float:
     8.5-22.4 Å³ per atom.  Two consequences worth carrying.  ``help.py``'s
     long-standing "a refined B above about 5 Å² for a heavy atom usually means
     an absorption or background error" sits inside that band, which is an
-    independent line arriving at the same place.  And ``Atom.biso``'s 25 Å²
-    schema ceiling needs 109-338 Å³ per atom to be reachable below melting,
-    five to twenty times any ordinary packing, so it bounds nothing physical
-    and this guard is what actually speaks.
+    independent line arriving at the same place.  And ``Atom.biso`` has no
+    default ceiling (WP-1534; the 25 Å² one it carried before needed
+    109-338 Å³ per atom to be reachable below melting, five to twenty times
+    any ordinary packing), so this guard is what speaks on a large B.
     """
     import numpy as np
 

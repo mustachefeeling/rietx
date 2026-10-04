@@ -18,6 +18,8 @@ independent single fits — not the joint-residual point of this module.
 from __future__ import annotations
 
 import dataclasses
+import math
+import re
 
 import numpy as np
 
@@ -44,6 +46,7 @@ from .params.multi import (
     _longest_wavelength,
     _unscoped,
 )
+from .params.vector import is_variable_path
 from .refine import (
     _VERSION,
     _WAVELENGTH_PINNED_BY_HELD_HISTOGRAM,
@@ -74,7 +77,6 @@ from .refine import (
     _low_angle_diagnostics,
     _max_iter_diagnostics,
     _onto_flat_meridian,
-    _own_scale_is_free,
     _phase_agreement,
     _phase_support_diagnostics,
     _quantify_phases,
@@ -365,7 +367,13 @@ def _hold_unsupported_phases_multi(models, mtable) -> list[str]:
     return held
 
 
-def _scale_b_probe_multi(models, mtable, phases: set[int] | None = None
+#: ``phases.i.scale``: the one entry a column must move, and nothing else, to
+#: be phase ``i``'s own scale (``refine._own_scale_is_free``'s test).
+_SCALE_PATH = re.compile(r"^phases\.(\d+)\.scale$")
+
+
+def _scale_b_probe_multi(models, mtable, phases: set[int] | None = None,
+                         weights: list[float] | None = None
                          ) -> tuple[dict[int, float], dict[int, list[str]]]:
     """The single fit's scale-B probe (``refine._scale_b_separation``) over
     every histogram at once (WP-1534).
@@ -376,63 +384,81 @@ def _scale_b_probe_multi(models, mtable, phases: set[int] | None = None
     the smallest angle between the two spans
     (``refine._column_separation``).  One histogram reduces to the single
     fit's reading.  A joint column is the phase's displacement column only
-    where it is one in **every** histogram it reaches (all, never any), and a
-    histogram contributes a scale column only where that phase's own scale
-    is free there.  Returns the separations and, per phase, the joint column
-    names a hold would take.
+    where it is one in **every** histogram it reaches (all, never any), and
+    the same rule picks the phase's scale columns: a scale shared across
+    histograms (``SharingMap.shared``) is **one** column on every histogram
+    it reaches, never one per histogram.  Each histogram's rows carry its
+    weight's √w_h, as the joint residual's do.  Returns the separations and,
+    per phase, the joint column names a hold would take.
     """
     reach = [t.column_reach() for t in mtable.tables]
     disp = [_displacement_columns(t, r) for t, r in zip(mtable.tables, reach,
                                                         strict=True)]
     names = mtable.free_paths
     owner: dict[int, set[int] | None] = {}
+    scale_owner: dict[int, set[int] | None] = {}
+    on: dict[int, set[int]] = {}
     for h, table in enumerate(mtable.tables):
         local = {p: ip for ip, cols in disp[h].items() for p in cols}
         for c, k in enumerate(mtable.col_map(h)):
-            ip = local.get(table.free_paths[c])
-            seen = owner.get(int(k), set())
-            owner[int(k)] = None if (seen is None or ip is None) else seen | {ip}
+            k = int(k)
+            path = table.free_paths[c]
+            ip = local.get(path)
+            seen = owner.get(k, set())
+            owner[k] = None if (seen is None or ip is None) else seen | {ip}
+            moved = [q for q in reach[h].get(path, [path])
+                     if not is_variable_path(q)]
+            m = _SCALE_PATH.match(moved[0]) if len(moved) == 1 else None
+            seen = scale_owner.get(k, set())
+            scale_owner[k] = (None if (seen is None or m is None)
+                              else seen | {int(m.group(1))})
+            on.setdefault(k, set()).add(h)
     columns: dict[int, list[int]] = {}
     for k, ips in owner.items():
         if ips is not None and len(ips) == 1:
             columns.setdefault(next(iter(ips)), []).append(k)
+    scale_cols: dict[int, list[int]] = {}
+    for k, ips in scale_owner.items():
+        if ips is not None and len(ips) == 1:
+            scale_cols.setdefault(next(iter(ips)), []).append(k)
     if phases is not None:
         columns = {ip: c for ip, c in columns.items() if ip in phases}
     theta = mtable.x0()
     values = mtable.decode(theta)
-    sigmas = [np.asarray(m.sigma, dtype=np.float64) for m in models]
+    w = [1.0] * len(models) if weights is None else weights
+    inv = [math.sqrt(wh) / np.asarray(m.sigma, dtype=np.float64)
+           for m, wh in zip(models, w, strict=True)]
     out: dict[int, float] = {}
     for ip in sorted(columns):
-        base = [np.asarray(m.phase_component(ip, v), dtype=np.float64) / s
-                for m, v, s in zip(models, values, sigmas, strict=True)]
-        scales = []
-        for h, r in enumerate(reach):
-            if _own_scale_is_free(r, ip):
-                scales.append(np.concatenate(
-                    [b if g == h else np.zeros_like(b) for g, b in enumerate(base)]))
-        if not scales:
+        if ip not in scale_cols:
             continue
+        base = [np.asarray(m.phase_component(ip, v), dtype=np.float64) * f
+                for m, v, f in zip(models, values, inv, strict=True)]
+        scales = [np.concatenate([b if g in on[k] else np.zeros_like(b)
+                                  for g, b in enumerate(base)])
+                  for k in sorted(scale_cols[ip])]
         stepped = []
         for k in sorted(columns[ip]):
             th = theta.copy()
             th[k] += SCALE_B_STEP
             moved = mtable.decode(th)
             stepped.append(np.concatenate(
-                [np.asarray(m.phase_component(ip, v), dtype=np.float64) / s - b
-                 for m, v, s, b in zip(models, moved, sigmas, base, strict=True)]))
+                [np.asarray(m.phase_component(ip, v), dtype=np.float64) * f - b
+                 for m, v, f, b in zip(models, moved, inv, base, strict=True)]))
         r = _column_separation(scales, stepped)
         if r is not None:
             out[ip] = r
     return out, {ip: [names[k] for k in sorted(c)] for ip, c in columns.items()}
 
 
-def _hold_scale_b_ridges_multi(models, mtable, phases: set[int] | None = None
+def _hold_scale_b_ridges_multi(models, mtable, phases: set[int] | None = None,
+                               weights: list[float] | None = None
                                ) -> tuple[list[str], dict[int, float]]:
     """Hold every phase's displacement columns where
     :func:`_scale_b_probe_multi` reads under ``SCALE_B_SEPARATION_FLOOR`` —
     ``refine._hold_scale_b_ridges`` for a joint fit.  Never released at the
     answer: it rests on the frozen reflection lists."""
-    separation, columns = _scale_b_probe_multi(models, mtable, phases)
+    separation, columns = _scale_b_probe_multi(models, mtable, phases, weights)
     ridged = {ip: r for ip, r in separation.items() if r < SCALE_B_SEPARATION_FLOOR}
     held = [c for ip in sorted(ridged) for c in columns[ip]]
     if held:
@@ -853,7 +879,8 @@ class MultiHistogramRefinement:
             # cannot separate (WP-1534): the single runner's probe, asked of
             # every histogram at once; kept apart from the support hold, since
             # it rests on the frozen reflection lists and is never released
-            ridge_hold, scale_b_held = _hold_scale_b_ridges_multi(models, self.mtable)
+            ridge_hold, scale_b_held = _hold_scale_b_ridges_multi(
+                models, self.mtable, weights=weights)
             # and a moment direction no histogram can see (WP-1327, #600):
             # the single-histogram runner's second hold, kept apart for the
             # same reason — each is asked again of the answer by its own test
@@ -893,7 +920,8 @@ class MultiHistogramRefinement:
                 # solve, or that solve runs on the ridge unflagged (the single
                 # runner's ``late_hold``)
                 back = {int(_unscoped(p).split(".")[1]) for p in released}
-                late, late_sep = _hold_scale_b_ridges_multi(models, self.mtable, back)
+                late, late_sep = _hold_scale_b_ridges_multi(
+                    models, self.mtable, back, weights)
                 if late:
                     late_set = set(late)
                     released = [p for p in released if p not in late_set]
