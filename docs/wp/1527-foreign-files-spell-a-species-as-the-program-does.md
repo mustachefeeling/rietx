@@ -1,9 +1,8 @@
 # WP-1527 — foreign files spell a species as the other program does
 
-Milestone: unscheduled · Status: 🔄 2026-10-04 — the rule is in all four writers, the lookup reads one-charge ions, and the `.pcr` is read by FullProf's own rule; Y³⁺ past 2 Å⁻¹ waits on the maintainer
+Milestone: unscheduled · Status: ✅ 2026-10-04 — every writer states the atom rietx computed, checked by the other program's reading rule; one-charge ions and Y³⁺ are tabulated, Y³⁺ handing over to neutral Y past 2.149 Å⁻¹
 Track: Coming from another code
 Depends on: — (WP-1118 closed 2026-09-16; its writers and readers are what this corrects)
-Priority: P2 2026-09-30 — a silent wrong structure in another program's refinement (GSAS-II turns `7Li` into H), on a path few fits run; the fix PRs are open
 
 ## Goal
 
@@ -105,11 +104,12 @@ table), and the writer rule is for those.
   manual Part 2's f₀ section (2026-10-04: checked against Table 6.1.1.3,
   0.0049 e at worst over s ≤ 2 Å⁻¹, and against cctbx `it1992` and GSAS-II
   `atmdata.py`, digit for digit)
-- [ ] Decide what Y³⁺ does past s = 2 Å⁻¹, where the fit leaves the free atom
+- [x] Decide what Y³⁺ does past s = 2 Å⁻¹, where the fit leaves the free atom
   (−0.11 e at 2.5, −0.57 e at 3.0, negative beyond 3.86) and ITC sends the
   reader to the free-atom curve. Today rietx evaluates the fit everywhere, as
   cctbx and GSAS-II do. A switch at s = 2 would put a step in f₀ that a
-  reflection crossing it during a stage would feel.
+  reflection crossing it during a stage would feel. (2026-10-04, the
+  maintainer: neutral Y from 2.149 Å⁻¹, where the two curves meet, so no step.)
 - [x] The maintainer's rule in every writer (GSAS-II CIF, GSAS `.EXP`, FullProf
   `.pcr`, TOPAS `.inp`): write the species rietx computed; where it
   substituted, write the neutral element and report it. The three
@@ -135,6 +135,33 @@ the spelling the issue's "fix direction" names.
 - Issues #553, #554, #555, #557, #558; PRs #568-#570, #572; PR #556 (#552).
 
 ## Handover log
+
+### 2026-10-04 (3rd session) — Y³⁺ hands over to neutral Y; closed
+
+**Closed.** The maintainer chose option (b) of the previous entry: past the
+range its *International Tables* fit covers, Y³⁺ now scatters as neutral Y,
+which is what the book advises and what every other ion in the table already
+does out there. The switch sits where the two curves meet, so nothing jumps.
+Only a pattern at a wavelength under 0.5 Å reaches it.
+
+*Done*: `scattering._itc_handover` finds, once per ion, the first s past
+2 Å⁻¹ where the ITC fit equals the neutral atom's Waasmaier-Kirfel curve
+(Y³⁺: 2.1489 Å⁻¹, 5.107 e; the curves differ there by 2e-15 e). `f0` evaluates
+both rows and picks with `xp.where` on s², so every backend takes the same
+path; the Gaussian sum moved into `_gaussians` unchanged, so every other
+species computes the same arithmetic. The module, `_ITC_IONS` and `f0`
+docstrings, the manual's f₀ paragraph and the 1.7.0 note say so.
+`test_y3plus_hands_over_to_neutral_y_where_the_two_curves_meet` fails without
+the switch (14.2 e at s = 6); `test_the_hand_over_puts_no_step_in_f0`;
+`test_y3plus_hands_over_to_neutral_y_under_jax_as_under_numpy` in
+`test_backend_jax.py`, which skips on `[dev]` and passed in a throwaway
+`[dev,jax]` venv (macOS arm64).
+
+*Deliberately not generalised*: the writers still write `Y+3`/`Y3+`. No
+format can state a curve that switches partway, and below 2 Å⁻¹ the fit and
+the tabulated ion agree to 0.005 e; GSAS-II and cctbx evaluate the same fit
+at every s, so past 2.149 Å⁻¹ they and rietx now differ by up to 0.57 e at
+3 Å⁻¹.
 
 ### 2026-10-04 (2nd session) — the `.pcr` read by FullProf's rule; Y³⁺'s decision measured
 

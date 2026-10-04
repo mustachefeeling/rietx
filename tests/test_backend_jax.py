@@ -326,3 +326,23 @@ def test_srm660c_end_to_end_jax_matches_numpy(srm660c_baseline):
                 two_theta_range=(20.6, 22.2))
     plot_result(results["jax"][1], path=str(OUT / "srm660c_jax_fit_highangle.png"),
                 two_theta_range=(147.5, 150.9))
+
+
+def test_y3plus_hands_over_to_neutral_y_under_jax_as_under_numpy():
+    """WP-1527: f0 picks between the ITC fit and neutral Y with ``xp.where``
+    on s², which under jax is a traced comparison.  Either side of the
+    hand-over, and through it, jax gives numpy's numbers."""
+    from rietx.backend import set_backend
+    from rietx.backend.jax_backend import _enable_x64
+    from rietx.crystallography.scattering import _itc_handover, f0
+
+    h = _itc_handover("Y3+")
+    stol = np.array([0.5, 2.0, h, h + 1e-6, 3.0, 6.0])
+    expected = f0("Y3+", stol)
+    set_backend("jax")
+    try:
+        with _enable_x64():
+            got = np.asarray(f0("Y3+", jax.numpy.asarray(stol)))
+    finally:
+        set_backend("numpy")
+    np.testing.assert_allclose(got, expected, rtol=1e-13, atol=0)

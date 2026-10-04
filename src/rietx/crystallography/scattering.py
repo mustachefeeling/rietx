@@ -11,7 +11,8 @@ DABAX collection; see ATTRIBUTION.md).
 
 One ion *International Tables* Vol. C Table 6.1.1.3 lists is missing from that
 file, Y³⁺.  It is carried in :data:`_ITC_IONS`, from Table 6.1.1.4's
-4-Gaussian fit, which is valid for s ≤ 2 Å⁻¹ only (WP-1527).
+4-Gaussian fit, which is valid for s ≤ 2 Å⁻¹ only (WP-1527); past the s where
+it meets neutral Y, 2.149 Å⁻¹, Y³⁺ computes as neutral Y, as ITC advises.
 
 The symbol is ``s`` in the equation and ``stol`` in python, following the
 paper and cctbx respectively.  The DABAX file's own preamble writes ``k`` for
@@ -57,9 +58,10 @@ _DATA_FILE = "f0_WaasKirf.dat"
 #: s = 2.00, mean 0.0006 e, and f0(0) = 36.00005.  Past 2 Å⁻¹ ITC sends the
 #: reader to the free atom (§6.1.1.3), and this fit leaves it: −0.11 e from
 #: neutral Y's Waasmaier-Kirfel curve at s = 2.5, −0.57 e at 3.0, negative
-#: beyond 3.86.  The printed a4 and b4 are negative; the OCR'd copy drops
-#: both signs, and only −33.108 reproduces 36 electrons at s = 0 and only
-#: −0.01319 reproduces the table at s = 2.  The nine numbers agree digit for
+#: beyond 3.85.  So :func:`f0` hands over to the neutral atom where the two
+#: curves meet (:func:`_itc_handover`).  The printed a4 and b4 are negative;
+#: the OCR'd copy drops both signs, and only −33.108 reproduces 36 electrons
+#: at s = 0 and only −0.01319 reproduces the table at s = 2.  The nine numbers agree digit for
 #: digit with cctbx's ``it1992`` table and GSAS-II's ``atmdata.py`` (ATTRIBUTION.md).
 _ITC_IONS: dict[str, tuple[tuple[float, ...], tuple[float, ...], float]] = {
     "Y3+": ((17.9268, 9.15310, 1.76795, -33.108),
@@ -96,6 +98,45 @@ def _load_table() -> dict[str, np.ndarray]:
         if species not in table:
             table[species] = np.array([*a, 0.0, c, *b, 0.0], dtype=np.float64)
     return table
+
+
+def _gaussians(xp, coeffs: np.ndarray, s2):
+    """Σ a_i exp(−b_i s²) + c for one table row, at ``s2`` = s²."""
+    a = xp.asarray(coeffs[0:5], dtype=np.float64)
+    # lifted, not left as a numpy view: b sits on the *left* of the broadcast
+    # product below, which torch will not accept against a traced operand
+    b = xp.asarray(coeffs[6:11], dtype=np.float64)
+    # b ⊗ s² as a broadcast product (np.outer cannot take a traced operand)
+    return xp.einsum("i,in->n", a, xp.exp(-(b[:, None] * s2[None, :]))) + coeffs[5]
+
+
+@lru_cache(maxsize=None)
+def _itc_handover(species: str) -> float:
+    """The s (Å⁻¹) past which an :data:`_ITC_IONS` ion computes as its neutral atom.
+
+    ITC §6.1.1.3 sends the reader to the free-atom curve beyond the 2 Å⁻¹ its
+    fits cover: out there the core electrons scatter and the valence shell
+    that makes the ion does not.  The DABAX ions fitted to 6 Å⁻¹ bear it out,
+    Sr²⁺ within 0.013 e of Sr and Rb⁺ within 0.006 e of Rb over 1-6 Å⁻¹.
+    The hand-over is the first s past 2 Å⁻¹ where the fit and the neutral
+    atom's Waasmaier-Kirfel curve are equal, so f0 has a kink there and no
+    step, and a reflection crossing it during a stage feels no jump (WP-1527,
+    the maintainer's choice of 2026-10-04).  Y³⁺: 2.149 Å⁻¹, at 5.107 e.
+    """
+    from scipy.optimize import brentq
+
+    table = _load_table()
+    ion, neutral = table[species], table[_ION_RE.match(species).group(1)]
+
+    def gap(s: float) -> float:
+        s2 = np.array([s * s])
+        return float(_gaussians(np, ion, s2)[0] - _gaussians(np, neutral, s2)[0])
+
+    lo, hi = 2.0, 3.0
+    if gap(lo) * gap(hi) > 0.0:
+        raise RuntimeError(f"{species}'s ITC fit does not meet its neutral atom between "
+                           f"s = {lo} and {hi} Å⁻¹; choose its hand-over by hand")
+    return float(brentq(gap, lo, hi, xtol=1e-15, rtol=4.0 * np.finfo(float).eps))
 
 
 #: The two isotope symbols that are not mass-number-first. Every other isotope
@@ -330,15 +371,14 @@ def f0(species: str, stol: np.ndarray) -> np.ndarray:
     Waasmaier & Kirfel (1995) Eq. (1): f0(s) = Σ a_i exp(−b_i s²) + c.
     ``"Y3+"`` reads its four Gaussians from *International Tables* Vol. C
     (2004) Table 6.1.1.4, eq. 6.1.1.15, fitted for s ≤ 2 Å⁻¹ only
-    (:data:`_ITC_IONS` has the source and the error past it).
+    (:data:`_ITC_IONS` has the source), and computes as neutral Y past
+    :func:`_itc_handover`'s 2.149 Å⁻¹, where the two curves meet.
     """
     xp = get_backend()
-    coeffs = _load_table()[normalize_species(species)]
-    a = xp.asarray(coeffs[0:5], dtype=np.float64)
-    c = coeffs[5]
-    # lifted, not left as a numpy view: b sits on the *left* of the broadcast
-    # product below, which torch will not accept against a traced operand
-    b = xp.asarray(coeffs[6:11], dtype=np.float64)
+    key = normalize_species(species)
     s2 = xp.asarray(stol, dtype=np.float64) ** 2
-    # b ⊗ s² as a broadcast product (np.outer cannot take a traced operand)
-    return xp.einsum("i,in->n", a, xp.exp(-(b[:, None] * s2[None, :]))) + c
+    f = _gaussians(xp, _load_table()[key], s2)
+    if key in _ITC_IONS:
+        neutral = _gaussians(xp, _load_table()[_ION_RE.match(key).group(1)], s2)
+        f = xp.where(s2 <= _itc_handover(key) ** 2, f, neutral)
+    return f
