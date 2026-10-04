@@ -1,6 +1,6 @@
 # WP-1527 — foreign files spell a species as the other program does
 
-Milestone: unscheduled · Status: 🔄 2026-10-03 — all four fix PRs landed; the maintainer's no-refusal rule is decided, and three tasks implement it
+Milestone: unscheduled · Status: 🔄 2026-10-04 — the rule is in all four writers and the lookup reads one-charge ions; the `.pcr` other-program test and Y³⁺ past 2 Å⁻¹ remain
 Track: Coming from another code
 Depends on: — (WP-1118 closed 2026-09-16; its writers and readers are what this corrects)
 Priority: P2 2026-09-30 — a silent wrong structure in another program's refinement (GSAS-II turns `7Li` into H), on a path few fits run; the fix PRs are open
@@ -109,11 +109,13 @@ table), and the writer rule is for those.
   reader to the free-atom curve. Today rietx evaluates the fit everywhere, as
   cctbx and GSAS-II do. A switch at s = 2 would put a step in f₀ that a
   reflection crossing it during a stage would feel.
-- [ ] The maintainer's rule in every writer (GSAS-II CIF, GSAS `.EXP`, FullProf
+- [x] The maintainer's rule in every writer (GSAS-II CIF, GSAS `.EXP`, FullProf
   `.pcr`, TOPAS `.inp`): write the species rietx computed; where it
   substituted, write the neutral element and report it. The three
   digitless-ion refusals go (`topas.py:1568`, `fullprof.py:803`,
-  `gsas2.py:1827`)
+  `gsas2.py:1827`) (2026-10-04: `scattering.written_species` and
+  `written_neutral_diagnostics`; one `*_SPECIES_WRITTEN_NEUTRAL` code per
+  format)
 
 ## Acceptance
 
@@ -132,6 +134,48 @@ the spelling the issue's "fix direction" names.
 - Issues #553, #554, #555, #557, #558; PRs #568-#570, #572; PR #556 (#552).
 
 ## Handover log
+
+- **2026-10-04** — **The rule is in the code.** A structure labelled with
+  `Na+` or `Cl-` now scatters as the ions it names, and Y³⁺ is tabulated. A
+  file written for GSAS-II, GSAS, FullProf or TOPAS now states the atom rietx
+  computed in that program's spelling. No writer refuses an ion label any
+  more. Where rietx computes an ion as its neutral atom, the file says neutral
+  and the writer reports it. An isotope a file has no place for still refuses.
+
+  *Done*, as two lanes from a cleanup session, each checked and re-run here.
+  `e24980d9`: `normalize_species` tries `Na1+` between `Na+` and `Na`, and
+  `_ITC_IONS` carries Y³⁺ (a = 17.9268, 9.15310, 1.76795, −33.108; b =
+  1.35417, 11.2145, 22.6599, −0.01319; c = 40.2602), checked against Table
+  6.1.1.3's own Y³⁺ column (0.0049 e at worst over s ≤ 2 Å⁻¹, f(0) =
+  36.00005) and against cctbx `it1992` and GSAS-II `atmdata.py`. The OCR'd
+  copy dropped the minus signs on a4 and b4; only the negative values give 36
+  electrons at s = 0. The DABAX file is byte-identical. The writers:
+  `scattering.written_species` gives each label the species rietx computes,
+  the four spelling functions call it, the three digitless-ion refusals are
+  gone, and `write_topas_inp`/`write_fullprof_pcr` take `diagnostics=`.
+  `Cu+` writes `Cu+1` (TOPAS), `CU+1` (FullProf X-ray, GSAS), `Cu1+` (GSAS-II
+  CIF), and reads back as `Cu1+` through all four. Staged in the 1.7.0 notes.
+
+  *Caps raised*, each with its reason beside it: `API_INDEX_MAX_BYTES`
+  39 600 → 39 700 (`api.md` is 39 642 B with the two new keywords), and
+  `src/rietx/io/CLAUDE.md`'s line cap 498 → 501 for the species exception to
+  § Project writers' first rule. PR #690 (WP-1510) also sets
+  `API_INDEX_MAX_BYTES` to 39 700, so whichever merges second resolves a
+  one-line conflict in `tests/skill_caps.py`.
+
+  *Measured* (`[dev]`, macOS arm64): `test_species_fallback.py` 72 passed
+  (48 before); the four writer files 890 (872 before); with the registry,
+  manual API, skill, docs and portability files, 1189 passed. Pinned numbers
+  that moved: the fallback fixture is now As³⁺ (its value 0.0828 → 0.0996),
+  and the skill row reads 11 of 111.
+
+  *Not done.* The GSAS writer still refuses valence labels (`Cval`, `Siva`,
+  `gsas.py:1405`): no GSAS spelling states what rietx computes. No real
+  program has read `NA+1` or `Na1+`; only `Cu1+`/`CU+1` were measured. `S2-`
+  written as `S` was never run in a target program.
+
+  *Next:* the `.pcr` writer's test through FullProf's own rule (task 2), then
+  the Y³⁺ range decision.
 
 - **2026-10-03** — **The open question is decided, and most of it turned out
   to be a lookup bug.** The maintainer's rule: a writer never refuses a

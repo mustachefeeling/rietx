@@ -250,6 +250,75 @@ def detect_fallback(species: str) -> SpeciesFallback | None:
                            returned_electrons=returned_electrons)
 
 
+def written_species(species: str) -> tuple[str, SpeciesFallback | None]:
+    """The species rietx computes for ``species``, as a label a writer spells.
+
+    The project writers' one rule for a species (WP-1527, the maintainer's
+    rule of 2026-10-03): write the atom rietx computed, never refuse one.
+    A one-charge ion written without its digit is the tabulated ion, so
+    ``"Cu+"`` → ``"Cu1+"``, the label every program's spelling starts from.
+    An ion the table lacks is computed as the neutral atom (:func:`detect_fallback`),
+    so ``"Fe+"`` → ``"Fe"``, returned with the fallback for the writer to
+    report. A mass number is kept (``"57Fe+"`` → ``"57Fe"``), since the
+    isotope is the neutron half of what rietx computed. Every other label is
+    returned as it stands.
+
+        >>> written_species("Cu+")[0], written_species("Fe+")[0]
+        ('Cu1+', 'Fe')
+    """
+    m = re.fullmatch(r"(\d*)([A-Za-z]{1,2})(\d*)([+-])", species.strip())
+    if m is None:
+        return species, None
+    mass, element, magnitude, sign = m.groups()
+    fallback = detect_fallback(species)
+    if fallback is not None:
+        return mass + element, fallback
+    if not magnitude:
+        try:
+            resolved = normalize_species(species)
+        except KeyError:
+            return species, None  # no species at all; the fit's own error
+        if resolved.endswith("1" + sign):
+            return f"{mass}{element}1{sign}", None
+    return species, None
+
+
+def written_neutral_diagnostics(structure, *, code: str, program: str) -> list:
+    """One ``Diagnostic`` per ion label a writer wrote as its neutral atom.
+
+    The writer-side twin of the fit's ``SPECIES_FALLBACK_NEUTRAL``: the same
+    :func:`detect_fallback`, grouped by the label as written so ``where``
+    lists every site carrying it. ``code`` is the writer's own, passed as a
+    literal at the call so each format's code is visible where it is emitted.
+    """
+    from ..schemas.common import Diagnostic
+
+    found: dict[str, tuple[SpeciesFallback, list[str]]] = {}
+    for i, phase in enumerate(structure.phases):
+        for j, atom in enumerate(phase.atoms):
+            if (fallback := written_species(atom.species)[1]) is not None:
+                found.setdefault(fallback.species, (fallback, []))[1].append(
+                    f"phases.{i}.atoms.{j}.species")
+    out = []
+    for fallback, where in found.values():
+        sign = "+" if fallback.charge > 0 else "-"
+        ion = f"{fallback.element}{abs(fallback.charge)}{sign}"
+        out.append(Diagnostic(
+            level="warning", code=code, where=where, value=fallback.delta_frac,
+            message=(
+                f"{fallback.species!r} is written to this {program} file as "
+                f"neutral {fallback.element}. rietx's X-ray table has no "
+                f"{ion}, so rietx computes the neutral atom for it "
+                f"({fallback.returned_electrons:.4g} electrons against the "
+                f"ion's {fallback.true_electrons:.0f}), and the file states "
+                f"the atom rietx computed"),
+            suggestion=(
+                f"to refine the ion in {program}, respell the site there by "
+                f"hand; a rietx fit of this structure computes neutral "
+                f"{fallback.element} and says so as SPECIES_FALLBACK_NEUTRAL")))
+    return out
+
+
 def f0(species: str, stol: np.ndarray) -> np.ndarray:
     """Elastic form factor at ``stol`` = s = sin(θ)/λ (Å⁻¹).
 

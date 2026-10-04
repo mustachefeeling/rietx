@@ -457,7 +457,10 @@ Four rules the readers do not need (WP-1118, four formats: `.inp`, `.pcr`,
   work from; where the reader refuses *for want of evidence*, § What a reader
   may repair's rule decides the direction — magnitude, not the refine flag, so
   a value at the model's identity is dropped and a non-zero one raises (a
-  `.prm`'s `ICONS ZERO`, whose unit no file here settles).
+  `.prm`'s `ICONS ZERO`, whose unit no file here settles). **A species is the
+  exception** (WP-1527): written as the atom rietx computed, a neutral
+  substitute reported (`scattering.written_species`), and refused only as an
+  isotope the file has no place for.
 - **A fixed-column writer owes two things a token writer does not.** The field
   is the *budget*: spend it (`gsas.write_field`, `%g` descending from seventeen
   digits, which is the value's own `repr` wherever that fits) and name what

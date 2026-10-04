@@ -126,9 +126,11 @@ REFERENCE_BUDGET_BYTES = REFERENCE_MAX_BYTES - REFERENCE_GAP_BYTES
 #: stood at 38 993 B, 7 B under, so any PR adding a public field failed here;
 #: #524 adds 137 B (two `Phase` fields, a preset key, `'1.10'`).  39 500 → 39 600
 #: (WP-1539): `auto_background(source=)` adds 49 B, and no signature in the index
-#: can be cut for it.  A technique split (`api-magnetic.md`) is the alternative,
-#: and the maintainer's call.
-API_INDEX_MAX_BYTES = 39_600
+#: can be cut for it.  39 600 → 39 700 (WP-1527): `write_topas_inp` and
+#: `write_fullprof_pcr` gain the `diagnostics=` the other two writers had, 93 B,
+#: so a writer can name the ion it wrote as its neutral atom.  A technique split
+#: (`api-magnetic.md`) is the alternative, and the maintainer's call.
+API_INDEX_MAX_BYTES = 39_700
 
 
 @dataclass(frozen=True)
