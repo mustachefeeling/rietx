@@ -160,8 +160,10 @@ not measure it there.
       `phase_support` is the screen, `refine._answer_significance` the test.
 - [x] Tests: the blank frame holds its cell and fires `PHASE_UNCONSTRAINED`
       from both starts; a weak but real phase is still released.
-- [ ] Skill: the `PHASE_UNCONSTRAINED` row, if its meaning moves; otherwise
-      "none", said here.
+- [x] Skill: the `PHASE_UNCONSTRAINED` row, if its meaning moves; otherwise
+      "none", said here. It moved: `references/abstention.md`'s row states
+      the 3σ significance, and `judging.md`'s QPA-scan note names the constant
+      in place of "1σ".
 
 ## Acceptance
 
