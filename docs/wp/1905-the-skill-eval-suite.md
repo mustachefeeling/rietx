@@ -202,9 +202,10 @@ Haiku and Sonnet.
   27 test functions in all, 0.40 s together by `tests.added_test_times`; none
   joins the slow tail. One fast run (`-n auto`, alone on the machine, 26:32)
   gave 3 failed, 8245 passed and 172 skipped, 8420 in all.
-  - Two failures were this branch's and are fixed. A trigger prompt said
-    "anatase", which `test_no_stale_name` reserves as the package's old name,
-    so `fire-tio2-fractions` became `fire-caco3-fractions`. And 17 text I/O
+  - Two failures were this branch's and are fixed. A trigger prompt named a
+    TiO₂ polymorph that is also the package's reserved old name, which
+    `test_no_stale_name` refuses anywhere outside its allowlist, so
+    `fire-tio2-fractions` became `fire-caco3-fractions`. And 17 text I/O
     calls lacked `encoding=`, caught by `test_portability`.
   - The third, `test_merge_replay`'s conflict test, is the container's.
     Git 2.43 has no `merge-file --diff-algorithm`, and the test fails alone
