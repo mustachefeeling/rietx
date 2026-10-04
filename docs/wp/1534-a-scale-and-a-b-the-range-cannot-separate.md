@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: 🔄 2026-10-04 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P3 2026-10-02 — was P1: the hold that stops the silent 0.000 ± 0.000 wt% landed in PR #673; what remains is task 2's reading (needs the paper corpus) and the maintainer's call on the default bounds
+Priority: P2 2026-10-04 — was P3: the maintainer chose an unbounded `Atom.biso`, which needs the block probe and the joint port in the same change
 
 ## Goal
 
@@ -151,6 +151,64 @@ still do, which the maintainer weighs:
 One fixture and one shape, so this is evidence for the decision rather than
 the decision itself.
 
+**Task 2, read (2026-10-04).** All three guideline papers say to warn. None
+says to bound, clamp or refuse a value.
+
+- McCusker et al. (1999), pp. 45–46: refining B "can be difficult with X-ray
+  powder data, especially if the 2θ range is small". The remedy is to
+  constrain similar atoms to one B. P. 49, §12.7(ix) and §12.8(v): fix B at a
+  sensible value. P. 49, §12.9: an unreasonable B is a cue to check the
+  model's absorption, roughness, scattering factors and texture.
+- Madsen et al. (2001), p. 424, §6.2: codes may warn about "thermal
+  parameters which are physically unrealistic (negative, zero or large
+  positive values)". P. 419, §4.3(a): B fixed at zero biases the fraction
+  through the scale.
+- Scarlett et al. (2002), p. 398, §6.1: a checklist of acceptable values may
+  be encoded in software, but the paper warns against "'black box'
+  technology". P. 396, §4.2(ii) calls B of order 10 Å² unrealistic.
+
+None of the three quantifies B against wt%. None prescribes anything for a
+short range beyond "collect to high angle" (McCusker p. 37).
+
+**The round robin, bounded against unbounded (2026-10-04).** IUCr CPD
+samples 1a–1h, the acceptance suite's protocol (`qpa_plan`), 128 fits: B at
+0–25 Å² or unbounded, dispersion on and off, four ranges. Script and rows are
+in the 2026-10-04 handover entry.
+
+| range | largest ΔW between arms | closer to the weighed truth | lowest unbounded B |
+|---|---|---|---|
+| full scan | 0.03 wt% | tie on all 48 fractions | −1.6 Å² |
+| 25–50° | 1.3 wt% | bounded 21, unbounded 17 | −9.9 Å² |
+| 20–40° | 9.0 wt% | bounded 34, unbounded 10 (≈1 wt% RMS) | −9.0 Å² |
+| 25–33° | 100 wt% | both wrong; the range cannot do QPA | −111 Å² |
+
+Every unbounded B below −1 Å² fired `BISO_NEGATIVE` and a correlation finding
+on its path. The 25 Å² ceiling bound once in 128 fits, on 25–33°.
+
+**A sibling ridge the hold missed.** On 25–33°, fluorite has two reflections,
+(111) and (200), and three free columns: its scale, B(Ca) and B(F). Three
+columns spanning two peak heights are rank-deficient whatever their values.
+The probe stepped every B together, saw two d-spacings and passed it.
+Unbounded, the fit reached B(Ca) = +99 and B(F) = −111 Å² and returned
+fluorite at 0.0 wt% (weighed 1.36). With dispersion off it stopped at
+Rwp 3.3, reported as converged. The fix is the test above, generalised from
+one uniform step to the phase's whole displacement block (task 9).
+
+**Decided 2026-10-04 by the maintainer: `Atom.biso` is unbounded by default.**
+TOPAS, FullProf and GSAS-II bound no displacement parameter by default, and
+the guidelines above ask for warnings. A high B can stand in for disorder or
+rattling, which a ceiling clips. Anisotropic ADP DOFs were never bounded. The
+measured cost is on short ranges only, and every case there is flagged. What
+replaces the bound is the hold where the data cannot measure B, the honest
+esd elsewhere, and `BISO_NEGATIVE` / `BISO_UNUSUALLY_LARGE` on the value.
+Three consequences:
+
+- Readers stop widening, so `biso_bounds` and `BISO_BOUND_WIDENED` go.
+- A model saved with explicit bounds keeps them. A stored (0, 25) is
+  indistinguishable from a bound a user chose, so it is not migrated.
+- The joint runner gets the probe in the same change. The bound was its only
+  protection against #204's walk.
+
 **Not this WP, filed as
 [WP-1535](1535-a-discarded-direction-reads-as-measured.md).** The
 covariance's cut zeroes the variance of *any* exactly degenerate combination
@@ -163,21 +221,9 @@ here, never set by eye (root CLAUDE.md, WP-1448). An Rwp comparison is not
 evidence for a correction. A fix ships with a record field or diagnostic
 stating what it changed.
 
-### Inherited
-
-- **2026-10-04, from WP-1523: the support test leaves displacements out
-  because of this ridge.** A phase is now seen when its scale is 3σ from zero
-  by a marginal esd (`refine._answer_significance`), and that marginal skips
-  every column that moves only displacements or occupancies. With them in it,
-  `tests/test_scale_b_ridge.py`'s fluorite read 153.7σ on the screen and
-  0.02σ marginal, and was held as absent. Any change to what the scale-B hold
-  frees should re-run that file and `tests/test_phase_significance.py`.
-
 ## Non-goals
 
 - Reporting each correlated pair once. That is WP-1460.
-- Changing `Atom.biso`'s default bounds. Task 5 measures whether they are
-  still needed, and the decision goes to the maintainer.
 - Per-atom B instability on light atoms. That is the same ridge one level
   down (an atom's B against its occupancy). Note it if seen, but do not fold
   it in.
@@ -190,7 +236,7 @@ stating what it changed.
       esd already marks it unmeasured, and which existing guards fire. This
       decides whether the fix is a report or an action. Re-rate the Priority
       line from it.
-- [ ] **Read what the guidelines prescribe for a short range.** McCusker et
+- [x] **Read what the guidelines prescribe for a short range.** McCusker et
       al. (1999) and the IUCr QPA round robin (Madsen et al., 2001) first.
       Search the local corpus before asking for either. Write what they say,
       with page, into Context.
@@ -216,6 +262,21 @@ stating what it changed.
       `*Source:*` line, if the fix adds physics.
 - [x] Skill: a row for the new finding, and a line in the QPA reference on
       short ranges.
+- [x] Re-measure on real data: the round robin, bounded against unbounded
+      (Context, 2026-10-04).
+- [ ] **Generalise the probe to the displacement block.** The scale's column
+      against every free displacement column of the phase, equilibrated, cut
+      at the covariance's own `rcond`. Anisotropic sites join. Fluorite on
+      25–33° is the test. Re-run `tests/test_scale_b_ridge.py` and
+      `tests/test_phase_significance.py`: WP-1523's marginal skips every
+      displacement-only column because of this ridge, and fluorite there read
+      153.7σ on the screen against 0.02σ marginal with them in.
+- [ ] **The joint runner runs the probe**, and `multi.DIAGNOSTIC_SCOPES`
+      stops declaring it ABSENT.
+- [ ] **`Atom.biso` unbounded by default**; `biso_bounds` and
+      `BISO_BOUND_WIDENED` deleted; readers, `help.py`, manual, skill and the
+      1.7 notes say so.
+- [ ] Full suite once on the final tree; re-baseline any golden that moved.
 
 ## Acceptance
 
