@@ -107,10 +107,10 @@ numbers. What a fresh session needs from it:
 
 ## Tasks
 
-- [ ] `tests/eval_skill/build.py`: a plugin directory from a skill tree and
+- [x] `tests/eval_skill/build.py`: a plugin directory from a skill tree and
       the case set; `test_eval_skill.py` pins that every case's fixture
       exists, every grader file parses, and `PROTOCOL.md` quotes each prompt
-- [ ] `PROTOCOL.md`, registered before the first scored round: the question,
+- [x] `PROTOCOL.md`, registered before the first scored round: the question,
       the conditions, the models, N, the read-outs and the decision rule above
 - [x] The three cases: `fap-judge` (from the placement round), `fap-fit`
       (from scratch: cell in `report.md` by regex, a fit run by `tool_used`,
@@ -137,7 +137,7 @@ numbers. What a fresh session needs from it:
 ## References
 
 - WP-1904 (the strategy and the pilot); `tests/eval_skill_placement/PROTOCOL.md`
-  (the episode and the rubric); `tests/CLAUDE.md` § Three eval protocols.
+  (the episode and the rubric); `tests/CLAUDE.md` § Four eval protocols.
 - `claude plugin eval` docs: <https://code.claude.com/docs/en/plugin-evals>;
   agentskills.io on evaluating skills and optimising descriptions;
   Anthropic, "Demystifying evals for AI agents" (20-50 tasks from real

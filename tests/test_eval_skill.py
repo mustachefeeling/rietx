@@ -3,7 +3,8 @@
 Nothing here runs a model. What it pins is everything a round would otherwise
 discover at its own expense: a case whose fixture is missing, a grader the
 harness would refuse to load, a built plugin carrying a tree other than the one
-handed in, and a prompt `PROTOCOL.md` does not register.
+handed in, a prompt `PROTOCOL.md` does not register, and a read-out
+(`readout.py`) that scores, bills or decides other than the way it registers.
 """
 
 from __future__ import annotations
@@ -12,17 +13,22 @@ import json
 import re
 import subprocess
 import tomllib
+from fractions import Fraction
 from pathlib import Path
 
 import pytest
 
 from tests.eval_skill import build as B
+from tests.eval_skill import readout as R
 from tests.eval_skill_placement import runner as placement
 
 yaml = pytest.importorskip("yaml")
 
 REPO = Path(__file__).resolve().parents[1]
 TREE = REPO / "docs" / "skill" / "rietx"
+PROTOCOL = B.HERE / "PROTOCOL.md"
+#: WP-1904's result documents: real harness output, kept with the pilot.
+PILOT = REPO / "docs" / "wp" / "1904-eval" / "pilot"
 
 #: `claude plugin eval`'s vocabulary (https://code.claude.com/docs/en/plugin-evals,
 #: § Eval suite reference, read 2026-10-04). An unknown prompt.md key is an
@@ -174,6 +180,55 @@ def test_fap_judge_quotes_the_placement_rubric():
     assert body.startswith(placement.PROMPT)
 
 
+def _flat(text: str) -> str:
+    """Whitespace-flattened with blockquote marks dropped, so a prompt quoted
+    over wrapped `>` lines or in a table cell still compares: the placement
+    round's rule (`tests/eval_skill_placement/test_placement.py`)."""
+    return " ".join(re.sub(r"^> ?", "", text, flags=re.M).split())
+
+
+@pytest.mark.parametrize("case", _cases(), ids=_id)
+def test_the_protocol_quotes_every_prompt(case):
+    """The registration quotes each prompt as written, `@PYTHON@` included:
+    a prompt changed after registration fails here until an amendment quotes
+    the new one."""
+    _, body = _front(case / "prompt.md")
+    assert _flat(body) in _flat(PROTOCOL.read_text(encoding="utf-8")), (
+        f"PROTOCOL.md does not quote {_id(case)}'s prompt")
+
+
+def _graders(case: Path) -> list[dict]:
+    """A case's graders as a result document carries them (`cases[].graders`:
+    name, type, weight, and every other key under `config`)."""
+    out = []
+    for g in sorted((case / "graders").glob("*.md")):
+        meta, _ = _front(g)
+        out.append({"name": g.stem, "type": meta["type"], "weight": meta.get("weight", 1),
+                    "config": {k: v for k, v in meta.items() if k not in ("type", "weight")}})
+    return out
+
+
+@pytest.mark.parametrize("case", [c for c in _cases() if c.parent == B.CASES], ids=_id)
+def test_the_protocol_states_each_cases_tolerance(case):
+    """§ The decision rule's table is what `readout` computes from the graders,
+    so a reweighted grader fails here until the table moves with it."""
+    kept = R.comparable(_graders(case))
+    weights = [g["weight"] for g in kept]
+    t = Fraction(min(weights)) / Fraction(sum(weights))
+    names = ", ".join(f"{g['name']} {g['weight']}" for g in kept)
+    row = f"| `{case.name}` | {names} | {sum(weights)} | {t} |"
+    assert row in PROTOCOL.read_text(encoding="utf-8").splitlines()
+    assert R.tolerance(_graders(case)) == pytest.approx(float(t))
+
+
+def test_readout_tells_the_trigger_roles_apart_as_the_cases_declare_them():
+    for case in (B.CASES / "trigger").iterdir():
+        meta, _ = _front(case / "prompt.md")
+        want = "fire" if meta["description"].startswith("Should fire.") else "quiet"
+        assert R.tier0(_graders(case)) == want, case.name
+    assert all(R.tier0(_graders(c)) is None for c in _cases() if c.parent == B.CASES)
+
+
 def test_the_build_carries_the_tree_it_was_handed(built):
     out, stamp = built
     assert B.tree_sha256(out / "skills" / "rietx") == B.tree_sha256(TREE) == stamp["tree_sha256"]
@@ -240,3 +295,217 @@ def test_the_placement_episode_builds_and_fires_its_codes(tmp_path):
     files = tmp_path / "p" / "evals" / "fap-judge" / "files"
     out = (files / "fit_output.txt").read_text()
     assert all(f" {c} " in out for c in placement.SCORED_CODES)
+
+
+# --- readout.py: the read-outs and the decision rule, on documents built here --
+
+def _g(name: str, kind: str = "regex", weight: float = 1, **config) -> dict:
+    return {"name": name, "type": kind, "weight": weight, "config": config}
+
+
+def test_the_comparable_set_drops_what_a_two_arm_run_drops():
+    graders = [_g("fired", "tool_used", tool="Skill"), _g("ref", target="trace", arm="with-only"),
+               _g("quiet", "tool_used", tool="Skill", arm="both", min=0, max=0),
+               _g("rubric", "llm", weight=2, focus="last_message"), _g("cell", weight=3)]
+    assert [g["name"] for g in R.comparable(graders)] == ["quiet", "rubric", "cell"]
+    assert R.tolerance(graders) == pytest.approx(1 / 6)
+    alone = graders[:2]  # every grader excluded: the harness then scores them all
+    assert R.comparable(alone) == alone
+    run = {"graders": [{"name": n, "passed": p} for n, p in
+                       (("fired", True), ("ref", True), ("quiet", False), ("rubric", True),
+                        ("cell", False))]}
+    assert R.run_score(run, graders) == pytest.approx(2 / 6)
+    run["graders"].pop()  # a comparable grader the run does not report: unscored, not failed
+    assert R.run_score(run, graders) is None
+
+
+def test_the_comparable_score_is_the_harness_score_wherever_both_arms_ran():
+    seen = 0
+    for path in sorted(PILOT.glob("*.json")):
+        doc = R.load(path)
+        if doc["suite"]["ablation"] != "with-without":
+            continue
+        for case in doc["cases"]:
+            for run in (r for runs in case["arms"].values() for r in runs):
+                assert R.run_score(run, case["graders"]) == pytest.approx(run["score"]), path.name
+                seen += 1
+    assert seen == 12
+
+
+def test_an_ablation_none_run_is_rescored_over_the_comparable_graders():
+    """PROTOCOL.md § The score a comparison reads: the harness scored the
+    with-only `skill_fired` here, because nothing is dropped under
+    `--ablation none`; the comparison reads the two-arm score."""
+    fit = next(c for c in R.load(PILOT / "compressed-sonnet-r2.json")["cases"]
+               if c["name"] == "fap-fit")
+    timed_out = fit["arms"]["with"][1]
+    assert timed_out["error"] and timed_out["score"] == pytest.approx(2 / 8)
+    assert R.run_score(timed_out, fit["graders"]) == pytest.approx(1 / 7)
+
+
+def _trace(tmp_path: Path, rows: list[dict]) -> str:
+    """Where the harness keeps one: ``<run>/out/trace.jsonl``."""
+    path = tmp_path / "claude-eval-x" / "out" / "trace.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    return str(path)
+
+
+_BILL = {"input_tokens": 10, "cache_read_input_tokens": 100,
+         "cache_creation_input_tokens": 1000, "output_tokens": 1}
+
+
+def _use(ident: str, name: str, **args) -> dict:
+    return {"type": "assistant", "message": {"id": f"msg-{ident}", "usage": _BILL, "content": [
+        {"type": "tool_use", "id": ident, "name": name, "input": args}]}}
+
+
+def _said(text: str) -> dict:
+    return {"type": "user", "message": {"content": [
+        {"type": "tool_result", "tool_use_id": "1", "content": [{"type": "text", "text": text}]}]}}
+
+
+PLUGIN = "/srv/plug"
+
+
+def _episode(ws: Path, base: str = f"{PLUGIN}/skills/rietx") -> list[dict]:
+    return [
+        {"type": "system", "subtype": "init", "cwd": str(ws)},
+        _use("1", "Skill", skill="rietx-skill-eval:rietx"),
+        _use("1", "Skill", skill="rietx-skill-eval:rietx"),  # one API call, two records
+        _said(f"Base directory for this skill: {base}\n# rietx"),
+        _use("2", "Read", file_path=f"{PLUGIN}/skills/rietx/references/diagnostics.md"),
+        _use("3", "Bash", command=f"/opt/venv/bin/python {ws}/fit.py > {ws}/out.txt 2>/dev/null"),
+        _use("4", "Read", file_path=f"{PLUGIN}/evals/fap-fit/graders/cell_a.md"),
+        _use("5", "Read", file_path="/home/u/rietx/docs/skill/rietx/SKILL.md"),
+        _use("6", "Bash", command="/opt/venv/bin/python -c "
+             "'import rietx.skill as s; print(s.skill_path())'"),
+    ]
+
+
+def test_a_trace_gives_tokens_the_route_and_its_leaks(tmp_path):
+    ws = tmp_path / "claude-eval-x" / "work"
+    path = _trace(tmp_path, _episode(ws))
+    facts = R.trace_facts(path, arm="with", plugin=PLUGIN, python="/opt/venv/bin/python")
+    assert facts["trace"] == "read"
+    assert facts["tokens"] == 6 * 1111 and facts["output_tokens"] == 6  # once per message.id
+    assert facts["fired"] and facts["opened"] == ["diagnostics.md"]
+    assert facts["skill_dir"] == f"{PLUGIN}/skills/rietx" and facts["held"] is True
+    # The loaded skill, the workspace, the interpreter and /dev are not leaks;
+    # the answer key, the checkout's copy and the package's route to one are.
+    assert facts["leaks"] == [f"Read: {PLUGIN}/evals/fap-fit/graders/cell_a.md",
+                              "Read: /home/u/rietx/docs/skill/rietx/SKILL.md",
+                              "Bash: rietx.skill", "Bash: skill_path"]
+
+    without = R.trace_facts(path, arm="without", plugin=PLUGIN, python="/opt/venv/bin/python")
+    assert without["held"] is False  # a skill fired with no plugin loaded
+    assert f"Read: {PLUGIN}/skills/rietx/references/diagnostics.md" in without["leaks"]
+
+    elsewhere = _trace(tmp_path / "b", _episode(ws, base="/root/.claude/skills/rietx"))
+    assert R.trace_facts(elsewhere, arm="with", plugin=PLUGIN)["held"] is False
+
+
+def test_a_trace_that_cannot_be_read_says_so_rather_than_zero(tmp_path):
+    assert R.trace_facts(None, arm="with")["trace"] == "missing"
+    gone = R.trace_facts(str(tmp_path / "gone.jsonl"), arm="with")
+    assert gone["tokens"] is gone["leaks"] is gone["opened"] is None
+    unread = R.trace_facts(_trace(tmp_path, [{"type": "system", "cwd": "/w"}]), arm="with")
+    assert unread["trace"] == "unread" and unread["tokens"] is None
+    # A bare message is lifted into the transcript shape, one API call a row.
+    bare = [{"role": "assistant", "usage": _BILL, "content": [
+        {"type": "tool_use", "id": "1", "name": "Skill", "input": {"skill": "rietx"}}]}] * 2
+    lifted = R.trace_facts(_trace(tmp_path / "c", bare), arm="with")
+    assert lifted["trace"] == "read" and lifted["tokens"] == 2 * 1111 and lifted["fired"]
+
+
+def _doc(model: str, cases: dict, *, ablation: str = "with-without", root=None,
+         partial: bool = False) -> dict:
+    """A result document in the harness's shape. ``cases`` maps a name to
+    (graders, the with arm's runs, the without arm's runs or `None`), a run
+    being the pass/fail of each grader in order."""
+    out = []
+    for name, (graders, with_runs, without_runs) in cases.items():
+        arms = {arm: [{"score": None, "costUsd": 0.1, "judgeCostUsd": 0.02, "durationSeconds": 30,
+                       "turns": 4, "error": None, "tracePath": None, "skippedPaidGraders": False,
+                       "graders": [{"name": g["name"], "passed": p}
+                                   for g, p in zip(graders, passes)]} for passes in runs]
+                for arm, runs in (("with", with_runs), ("without", without_runs)) if runs}
+        out.append({"name": name, "graders": graders, "arms": arms})
+    return {"claudeVersion": "2.1.289", "partial": partial, "partialReason": None,
+            "costUsd": 1.0, "durationSeconds": 60, "cases": out,
+            "suite": {"modelOverride": model, "judgeModel": "sonnet", "ablation": ablation,
+                      "threshold": 1, "concurrency": 1, "root": root}}
+
+
+GRADERS = [_g("a"), _g("b", weight=2), _g("c")]  # t = 1/4
+ALL, NONE = [True] * 3, [False] * 3
+
+
+def _current(**kw) -> dict:
+    return _doc("haiku", {"x": (GRADERS, [ALL] * 3, [NONE] * 3)}, **kw)
+
+
+def _pair(runs, *, model="haiku", graders=GRADERS, partial=False) -> dict:
+    candidate = _doc(model, {"x": (graders, runs, None)}, ablation="none", partial=partial)
+    return R.compare(R.summarise(_current()), R.summarise(candidate))
+
+
+def test_compare_holds_within_one_graders_worth_and_fails_past_it():
+    exact = _pair([[False, True, True]] * 3)  # the weight-1 grader lost in every run: Δ = -t
+    assert exact["verdict"] == "holds"
+    assert exact["rows"][0]["delta"] == pytest.approx(-1 / 4)
+    assert exact["rows"][0]["vs_none"] == pytest.approx(3 / 4)  # against today's without arm
+    assert exact["rows"][0]["tokens"] == (None, None)  # no trace kept: unknown, not zero
+    past = _pair([ALL, [True, False, True], [True, False, True]])  # weight 2, twice: Δ = -1/3
+    assert past["verdict"] == "fails" and past["rows"][0]["loses"]
+
+
+def test_compare_decides_nothing_it_cannot_pair():
+    short = _pair([[True, False, True]] * 2)  # a loss, but at N = 2
+    assert short["verdict"] == "undecided" and short["rows"][0]["why"] == ["candidate N = 2 of 3"]
+    assert _pair([ALL] * 3, model="sonnet")["verdict"] == "undecided"
+    assert _pair([ALL] * 3, partial=True)["verdict"] == "undecided"
+    differ = _pair([[True, True]] * 3, graders=GRADERS[:2])
+    assert differ["verdict"] == "undecided" and "graders differ" in differ["rows"][0]["why"]
+
+
+def test_compare_drops_a_void_run_and_suspects_the_judge_where_the_skill_fired():
+    current = R.summarise(_current())
+    candidate = R.summarise(_doc("haiku", {"x": (GRADERS, [[True, True, False]] * 3, None)},
+                                 ablation="none"))
+    for run in candidate["cases"][0]["arms"]["with"]:
+        run["fired"] = True
+    out = R.compare(current, candidate)
+    assert out["verdict"] == "holds" and out["rows"][0]["suspect_judge"]
+    candidate["cases"][0]["arms"]["with"][0]["held"] = False
+    assert R.compare(current, candidate)["verdict"] == "undecided"
+
+
+def test_tier0_reads_a_fire_rate_and_a_quiet_rate():
+    fire = [_g("fired", "tool_used", tool="Skill", arm="both")]
+    quiet = [_g("fired", "tool_used", tool="Skill", arm="both", min=0, max=0)]
+    doc = _doc("haiku", {"f": (fire, [[True], [True], [False]], None),
+                         "q": (quiet, [[True]] * 3, None)}, ablation="none")
+    assert R.tier0_rates(R.summarise(doc)) == {"fire": (2, 3), "quiet": (3, 3)}
+
+
+def test_the_cli_shows_a_round_beside_its_build_and_exits_on_the_rule(tmp_path, capsys):
+    (tmp_path / B.STAMP).write_text(json.dumps(
+        {"skill_sha256": "a" * 64, "tree_sha256": "b" * 64, "python": "/opt/venv/bin/python"}))
+    cur, cand = tmp_path / "cur.json", tmp_path / "cand.json"
+    current = _current(root=str(tmp_path))
+    current["cases"][0]["arms"]["with"][0]["score"] = 0.5  # a harness that disagrees
+    cur.write_text(json.dumps(current))
+    cand.write_text(json.dumps(_doc("haiku", {"x": (GRADERS, [[True, False, False]] * 3, None)},
+                                    ablation="none", root=str(tmp_path))))
+    assert R.main(["show", str(cur)]) == 0
+    shown = capsys.readouterr().out
+    assert f"build: SKILL.md {'a' * 12}, tree {'b' * 12}" in shown
+    assert "TRACE x with run 1: missing" in shown  # reported, never dropped
+    assert "SCORE x with run 1: comparable 1.000 against the harness's 0.500" in shown
+    assert "SCORE x with run 2" not in shown
+    assert R.main(["compare", str(cur), str(cand)]) == 1
+    decided = capsys.readouterr().out
+    assert "rule: fails (x)" in decided and "note: A/A: both rounds ran one tree" in decided
+    with pytest.raises(SystemExit):
+        R.main(["compare", str(cur)])
