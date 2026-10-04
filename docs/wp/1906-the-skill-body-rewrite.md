@@ -72,7 +72,7 @@ restates what decides the design.
   and ran it through `tests/test_skill.py` and the suite's two cases; its
   handover says what it scored and what it lost. The prototype is a
   measurement of the direction, not the rewrite: it is in
-  `docs/wp/1904-eval/SKILL.compressed.md` to be read, not copied.
+  `docs/wp/1904-eval/SKILL.compressed.txt` to be read, not copied.
 
 ## Non-goals
 
