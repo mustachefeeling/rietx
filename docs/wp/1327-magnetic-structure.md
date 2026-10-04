@@ -446,8 +446,20 @@ installed. The 2026-09-24 entry below compares a read-and-test run against
 "about 3.7 published" and names no source, so that number is not used here.
 Both magnetic acceptance files: 5 passed, in 3-4 s. `test_magnetic`,
 `test_docs_consistency`, `test_portability`, `test_validation_matrix`: 776
-passed. The fast selection grows by 10 cases: the two rows through
-`test_validation_matrix`'s five parametrised checks.
+passed. Final tree, current with `origin/main`, nothing else running: fast
+selection 8175 passed, 159 skipped, in 2:31, **+11** against main by junit
+id: the two rows through `test_validation_matrix`'s five parametrised checks,
+and `test_structure3d`'s colour check, which runs over every CIF in
+`tests/data`. The full suite was not run: the change is test-only and moves
+no measured number.
+
+*Review* (`/code-review high --fix`, eight findings, no correctness bug).
+Fixed: the suite reads λ, the Gaussian terms and S/L, H/L from the vendored
+`.inst` instead of typing them; this entry's time, count and literature
+sentences; WP-1543's pointer by name; a long docstring line. To WP-1543: the
+`.prm` reader refuses a bank whose first profile is type 1 even when a type-3
+one follows. Declined: moving `draw()` into a shared plotting helper, since
+about ten suites repeat those lines and that is a change of its own.
 
 *Seen in the plots*: Pn′ma′ fits well; its largest residual is the magnetic
 (010) line at 11.5°, calculated about 15 % low and slightly broad. Pnma misses
