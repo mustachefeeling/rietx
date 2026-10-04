@@ -355,10 +355,12 @@ rule above applies to the form factors.
 - [x] Manual Part 2 (the structure factor, the perpendicular projection, the
       dipole form factor, each with its *Source* line), Part 1 chapter, skill
       rows, `help.py` entries, `capabilities()` feature flag.
-- [ ] Tests, including the acceptance below, with obs/calc/diff PNGs to
+- [x] Tests, including the acceptance below, with obs/calc/diff PNGs to
       `tests/output/`. **Cr₂WO₆ 4 K and the 150 K null ship
       (`test_acceptance_magnetic.py`). LaMnO₃ is not vendored, and no
-      magnetic refinement writes a PNG.**
+      magnetic refinement writes a PNG.** 2026-10-04: LaMnO₃ is vendored with
+      its GSAS-II-written CIF (`test_acceptance_magnetic_lamno3.py`), and both
+      magnetic suites draw their fits.
 
 ## Acceptance
 
