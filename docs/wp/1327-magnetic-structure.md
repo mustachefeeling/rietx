@@ -1,6 +1,6 @@
 # WP-1327 — a magnetic structure: state it, refine it, report what the powder cannot see
 
-Milestone: magnetic · Status: 🔄 2026-09-26 — the k = 0 moment (PR #433), the operation-list phase (PR #448) and k ≠ 0's magnetic supercell (PR #477) landed from outside; the analytic moment branch, the LaMnO₃ second dataset and the PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-04 — the k = 0 moment (PR #433), the operation-list phase (PR #448), k ≠ 0's magnetic supercell (PR #477) and the LaMnO₃ second dataset have landed; the analytic moment branch remains
 Depends on: 1326 (the satellite reflection list)
 Priority: P2 2026-09-23 — the open milestone's core; the moment and its hold start without 1326's list
 
@@ -407,6 +407,58 @@ rule above applies to the form factors.
   [1312](1312-neutron-followthrough.md) the joint-fit audit this term joins.
 
 ## Handover log
+
+### 2026-10-04 — LaMnO₃, the second dataset, and fit plots
+
+The moment is now checked on a second real pattern, and the package picks the
+right magnetic structure where a published tutorial says the choice is made.
+On LaMnO₃ at 50 K, rietx puts 3.56 μ_B on Mn along a under Pn′ma′, and fits
+markedly worse under the rival group Pnma, at the pair of lines the tutorial
+names. Every magnetic refinement in the suite now draws its fit for a person
+to look at. One thing found on the way is not this WP's: GSAS's Gaussian
+widths may be read 2.35× too narrow by two of rietx's instrument readers,
+filed as WP-1543.
+
+*Done* (a lane, checked and re-run here): `gsas2_bt1_lamno3_50K.gsas`,
+`gsas2_bt1_cu311.inst` and `gsas2_bt1_lamno3.cif` vendored byte-identical
+from the GSAS-II tutorials repo at `ddc0dc3c` (`Magnetic-I/data/`), with
+`tests/data/README.md` rows. The CIF is GSAS-II's own export, with no ICSD or
+FIZ notice, read whole before vendoring. `test_acceptance_magnetic_lamno3.py`
+(slow, `xdist_group("magnetic-lamno3")`): a nuclear fit over the tutorial's
+6-156° with the 15.69° contaminant line excluded, then Mn³⁺ under BNS 62.448
+(Pn′ma′) and 62.441 (Pnma), seeded (1, 0, 1) μ_B with the azimuth DOF held,
+which is the tutorial's My = 0 hold. `read_gsas_prm` refuses the `.inst`
+(its bank's first profile is GSAS type 1), so λ = 1.5403 Å and the type-3
+`GU GV GW` are taken by hand, converted with `io.recipe.GAUSS_CENTIDEG2_TO_DEG2`.
+`test_acceptance_magnetic.py` gains a `draw()` helper; the Cr₂WO₆ 4 K
+nuclear, 4 K moment and 150 K null fits now write full-range and 8-50° plots.
+Two `validation_matrix` rows (characterisation), `docs/VALIDATION.md`
+regenerated.
+
+*Measured* (`[dev]`, macOS arm64): Pn′ma′ |m| = 3.558 ± 0.049 μ_B (73σ),
+m = (3.543, 0, 0.325), the c component 1.5 esd from zero; Rwp 13.81 %
+nuclear-only, 6.31 % Pn′ma′, 8.44 % Pnma (Pnma's moment 3.335 ± 0.079 μ_B
+along c). χ² over 32.8-35.0°: 67 against 2711. The bands are sized from these
+and stated beside each assertion: 3.3 μ_B ≤ |m| < 4 μ_B − 3 esd (Mn³⁺'s
+spin-only ceiling, gS for S = 2), and no literature magnitude, since the
+tutorial quotes none, the corpus holds no LaMnO₃ paper and GSAS-II is not
+installed. Both magnetic acceptance files: 5 passed in 3.6 s. `test_magnetic`,
+`test_docs_consistency`, `test_portability`, `test_validation_matrix`: 776
+passed. The fast selection grows by the two matrix rows' cases.
+
+*Seen in the plots*: Pn′ma′ fits well; its largest residual is the magnetic
+(010) line at 11.5°, calculated about 15 % low and slightly broad. Pnma misses
+the 33.3°/34.4° pair visibly. The Cr₂WO₆ 4 K magnetic line at 16° carries a
+derivative-shaped residual; the 150 K null is clean.
+
+*Gotchas*: freeing the axial S/L and H/L terms (the tutorial's SH/L step) ran
+the final stage into its 200-iteration cap, so they are held at the file's
+0.04/0.03. The (010) shortfall is unexplained: the Mn³⁺ ⟨j₀⟩ form factor at
+s ≈ 0.07 Å⁻¹ and the low-angle asymmetry are the two candidates, and the ITC
+§ 4.4.5 cross-check of A5's table (References) would settle the first.
+
+*Next*: the Jacobian item, the WP's last open task. Before it, if the (010)
+line matters to anyone, check Mn³⁺'s ⟨j₀⟩ against ITC Table 4.4.5.
 
 ### 2026-09-26 — k ≠ 0's magnetic supercell landed from outside
 
