@@ -86,9 +86,10 @@ table), and the writer rule is for those.
 - [x] Review and land PRs #568 (.pcr), #569 (GSAS-II CIF), #570 (.gpx reader),
   #572 (.EXP) through `/pr-review`, each against its issue's reproduction
   (all four merged by 2026-10-02; handover log)
-- [ ] A test per writer that reads the written species through the *other*
+- [x] A test per writer that reads the written species through the *other*
   program's rule (the reporter's table), not through rietx's own reader
-  (met for #569 and #572; the `.pcr` writer's is unconfirmed)
+  (met for #569 and #572; the `.pcr` writer's is unconfirmed) (2026-10-04:
+  the `.pcr` file read by #558's measured FullProf lookup, both radiations)
 - [x] Decide the reader's X-ray arm for an isotope from a foreign file
   (#554's note: land with #552 or refuse on the X-ray histogram) (settled by
   #556: an isotope takes its element's f₀ on an X-ray histogram)
