@@ -95,6 +95,10 @@ and the WP-1415 file is edited in the same PR.
       behaviour moves. **Only the TOPAS test's example token changed.**
 - [x] Skill: none. No skill file names the dataset (checked at `644dff84`,
       and again on the merged tree, all three copies).
+- [x] Reword `CUTOFF_ONSET_FRACTION`'s comment the way `results.md` puts
+      it: within half a degree of the TOPAS window at the leading end, a
+      little further out at the trailing one. **Added 2026-10-04**, from the
+      follow-up #438's review asked for. No PR for it had opened by then.
 
 ## Acceptance
 
