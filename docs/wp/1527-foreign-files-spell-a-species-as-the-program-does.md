@@ -1,6 +1,6 @@
 # WP-1527 — foreign files spell a species as the other program does
 
-Milestone: unscheduled · Status: 🔄 2026-10-04 — the rule is in all four writers and the lookup reads one-charge ions; the `.pcr` other-program test and Y³⁺ past 2 Å⁻¹ remain
+Milestone: unscheduled · Status: 🔄 2026-10-04 — the rule is in all four writers, the lookup reads one-charge ions, and the `.pcr` is read by FullProf's own rule; Y³⁺ past 2 Å⁻¹ waits on the maintainer
 Track: Coming from another code
 Depends on: — (WP-1118 closed 2026-09-16; its writers and readers are what this corrects)
 Priority: P2 2026-09-30 — a silent wrong structure in another program's refinement (GSAS-II turns `7Li` into H), on a path few fits run; the fix PRs are open
@@ -135,6 +135,63 @@ the spelling the issue's "fix direction" names.
 - Issues #553, #554, #555, #557, #558; PRs #568-#570, #572; PR #556 (#552).
 
 ## Handover log
+
+### 2026-10-04 (2nd session) — the `.pcr` read by FullProf's rule; Y³⁺'s decision measured
+
+Every foreign writer's species is now checked the way the other program reads
+it. The FullProf file was the one still unchecked: a test now reads its atom
+type the way FullProf.2k was measured to, on X-ray and neutron files alike,
+and gets back the atom rietx computed in every case tried. No writer bug
+turned up. The WP's last task, what Y³⁺ does past sinθ/λ = 2 Å⁻¹, is measured
+below and waits on the maintainer.
+
+*Done* (a lane, checked and re-run here, `0efea364`). In
+`tests/test_projects_fullprof.py`, an oracle implements issue #558's measured
+lookup: X-ray, element + sign + magnitude, case-free; neutron, b on the
+type's first two characters unless a LINE-12 `NAM` names it.
+`test_the_fullprof_oracle_reproduces_the_measured_lookup` holds the oracle to
+every row of #558's table (16 X-ray, 17 neutron, the two LINE-12 rows) before
+it judges anything. `test_fullprofs_own_lookup_reads_the_written_typ_as_rietxs_species`
+writes a one-site file per label and resolves its type with the oracle, never
+the module's reader: X-ray `Zr4+ O2- Cu+ Cu1+ Na+ Cl- Y3+ Mn Fe+`, neutron
+the same nine plus `D 2H 7Li 7Li1+`. `Fe+` resolves to neutral Fe and carries
+`FULLPROF_SPECIES_WRITTEN_NEUTRAL` on X-ray only. Pointing the oracle at the
+IUCr `Zr4+` spelling fails 7 X-ray cases with the expected message. #558's
+`NI60 0.28` → 2.807 fm row is left out of the self-test (0.28 × 10 is 2.8,
+and the issue does not say where the 0.007 comes from).
+
+*Measured* (`[dev]`, macOS arm64): `test_projects_fullprof.py` 218 → 241
+passed (+23); the acceptance files with `test_portability`, 505 passed.
+
+**Y³⁺ past 2 Å⁻¹, for the maintainer's decision.** Computed from
+`_ITC_IONS`'s coefficients against rietx's neutral Y (Waasmaier-Kirfel,
+fitted to 6 Å⁻¹). The ITC fit minus neutral Y, in electrons: +0.013 at s = 2,
+−0.11 at 2.5, −0.57 at 3, −2.86 at 4, −7.3 at 5, −14.2 at 6; the fit itself
+crosses zero at s = 3.85. Over 0.6-2 Å⁻¹ the two differ by at most 0.061 e,
+and the neighbouring ions the DABAX table fits to 6 Å⁻¹ stay close to their
+neutral atoms over 1-6 Å⁻¹ (Rb⁺ 0.006 e, Sr²⁺ 0.013, Nb³⁺ 0.046, Zr⁴⁺ 0.155).
+So past ~1 Å⁻¹ an ion scatters as its neutral atom, which is why ITC sends
+the reader to the free-atom curve. **The two curves meet at s = 2.149 Å⁻¹**
+(f = 5.107 e). Switching there to neutral Y puts no step in f₀, only a kink,
+which the residual already tolerates elsewhere (FCJ's trapezoid). Where it
+matters: s > 2 needs λ under 0.5 Å at high angle (λ = 0.1 Å reaches 2.6 at
+30° 2θ); a Cu or Mo lab pattern stops at 0.63 or 1.36, and 11-BM's range at
+0.92. Three options: (a) keep the fit everywhere, as cctbx and GSAS-II do;
+(b) switch to neutral Y at 2.149 Å⁻¹, as ITC advises; (c) keep the fit and
+report when a Y³⁺ reflection lies past 2. The session's recommendation is (b).
+
+*Lanes* (`/wp-lanes` trial; `session_usage.py lanes`, whole session, five
+lanes): `pcr-fullprof-rule` estimated 20, took 16 lane requests at 301K main
+context, saved $0.34. `lamno3-acceptance` (WP-1327) estimated 40, took 89 at
+235K, saved $3.15. The session's trial row in `docs/milestones/process.md` is
+updated from three lanes to five: actual/estimated 1.91, saved $38.56, 41 %.
+The replay's selective policy with this session's numbers (u = 0K, mo = 10,
+d = 16K): −21 % over 423 sessions. At 300K main context and an 80K lane base,
+a lane pays from about 28 requests, so a 20-request estimate sits under the
+line and `pcr-fullprof-rule` was a near-miss.
+
+*Next*: the maintainer's choice on Y³⁺; (b) is a few lines in
+`scattering.f0` plus a manual sentence and a test at the crossing.
 
 - **2026-10-04** — **The rule is in the code.** A structure labelled with
   `Na+` or `Cl-` now scatters as the ions it names, and Y³⁺ is tabulated. A
