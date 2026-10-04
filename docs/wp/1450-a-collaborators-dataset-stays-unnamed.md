@@ -80,17 +80,23 @@ and the WP-1415 file is edited in the same PR.
 
 ## Tasks
 
-- [ ] The patterns file exists in `yue-here/rietx-corpus-map`: one pattern
+- [x] The patterns file exists in `yue-here/rietx-corpus-map`: one pattern
       per role (the run number, the compound, the instrument name, the
-      wavelength), as agreed on #417.
+      wavelength), as agreed on #417. **`patterns/wp1450.txt`, map commit
+      `2ea6e86` (2026-10-04).** The reporter wrote it, with several
+      spellings per role. A companion, `patterns/wp1450_all_runs.txt`,
+      lists every run of the series.
 - [x] Genericise every site above, keeping each threshold, its shape and
       the d-spacing at `diagnostics.py:893`. **PR #438 (`605a0e50`), plus
       the five sites and three numerals its review found beyond the list.**
 - [x] Where a record must say that a string was removed, name its role and
       never its value, in commits, the PR body and the handover alike.
       **#438's commit message, body and thread do; so does this file.**
-- [ ] If the corpus map should record the replaced numbers, add them there,
-      never to this tree.
+- [x] If the corpus map should record the replaced numbers, add them there,
+      never to this tree. **Not recorded (2026-10-04).** Nothing on `main`
+      was transcribed from them, so the map has no fixture to check them
+      against. The data owner asked that no derived number be public. The
+      map's row says the replaced text is not there.
 - [x] Tests: none new. The fast selection passes unchanged, since no
       behaviour moves. **Only the TOPAS test's example token changed.**
 - [x] Skill: none. No skill file names the dataset (checked at `644dff84`,
@@ -107,7 +113,7 @@ above and nothing else. The `'*.py' '*.md'` pathspecs keep a numeric data
 file from matching the wavelength pattern by accident.
 
 ```sh
-git grep -n -f <patterns file from yue-here/rietx-corpus-map> -- '*.py' '*.md'   # zero hits
+git grep -n -f <clone of yue-here/rietx-corpus-map>/patterns/wp1450.txt -- '*.py' '*.md'   # zero hits
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 .venv/bin/python -m ruff check src tests examples
 ```
