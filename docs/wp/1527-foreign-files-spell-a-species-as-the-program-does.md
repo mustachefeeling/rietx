@@ -88,8 +88,8 @@ table), and the writer rule is for those.
   (all four merged by 2026-10-02; handover log)
 - [x] A test per writer that reads the written species through the *other*
   program's rule (the reporter's table), not through rietx's own reader
-  (met for #569 and #572; the `.pcr` writer's is unconfirmed) (2026-10-04:
-  the `.pcr` file read by #558's measured FullProf lookup, both radiations)
+  (met for #569 and #572 first; for the `.pcr` on 2026-10-04, the file read
+  by #558's measured FullProf lookup, both radiations)
 - [x] Decide the reader's X-ray arm for an isotope from a foreign file
   (#554's note: land with #552 or refuse on the X-ray histogram) (settled by
   #556: an isotope takes its element's f₀ on an X-ray histogram)
@@ -142,7 +142,9 @@ Every foreign writer's species is now checked the way the other program reads
 it. The FullProf file was the one still unchecked: a test now reads its atom
 type the way FullProf.2k was measured to, on X-ray and neutron files alike,
 and gets back the atom rietx computed in every case tried. No writer bug
-turned up. The WP's last task, what Y³⁺ does past sinθ/λ = 2 Å⁻¹, is measured
+turned up. One limit stays: #558 measured three X-ray ions in FullProf's
+table, `ZR+4`, `O-2` and `CU+1`. So `NA+1`, `CL-1` and `Y+3` are checked for
+their spelling, not for being in the table. The WP's last task, what Y³⁺ does past sinθ/λ = 2 Å⁻¹, is measured
 below and waits on the maintainer.
 
 *Done* (a lane, checked and re-run here, `0efea364`). In
@@ -153,7 +155,8 @@ type's first two characters unless a LINE-12 `NAM` names it.
 every row of #558's table (16 X-ray, 17 neutron, the two LINE-12 rows) before
 it judges anything. `test_fullprofs_own_lookup_reads_the_written_typ_as_rietxs_species`
 writes a one-site file per label and resolves its type with the oracle, never
-the module's reader: X-ray `Zr4+ O2- Cu+ Cu1+ Na+ Cl- Y3+ Mn Fe+`, neutron
+the module's reader: X-ray `Zr4+ O2- Cu+ Cu1+ Na+ Cl- Y3+ Mn Fe+`, each
+with a LINE-12 dispersion row named as its type (added in review), neutron
 the same nine plus `D 2H 7Li 7Li1+`. `Fe+` resolves to neutral Fe and carries
 `FULLPROF_SPECIES_WRITTEN_NEUTRAL` on X-ray only. Pointing the oracle at the
 IUCr `Zr4+` spelling fails 7 X-ray cases with the expected message. #558's
@@ -161,7 +164,10 @@ IUCr `Zr4+` spelling fails 7 X-ray cases with the expected message. #558's
 and the issue does not say where the 0.007 comes from).
 
 *Measured* (`[dev]`, macOS arm64): `test_projects_fullprof.py` 218 → 241
-passed (+23); the acceptance files with `test_portability`, 505 passed.
+passed (+23); the acceptance files with `test_portability`, 505 passed. The
+fast selection after review, nothing else running: 8232 passed, 159 skipped,
+in 2:32. The two added tests take 0.07 s together
+(`tests.added_test_times`), so neither joins the slow tail.
 
 **Y³⁺ past 2 Å⁻¹, for the maintainer's decision.** Computed from
 `_ITC_IONS`'s coefficients against rietx's neutral Y (Waasmaier-Kirfel,

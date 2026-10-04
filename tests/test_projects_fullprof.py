@@ -2434,7 +2434,8 @@ def _fullprof_xray(typ):
     ion (``Zr4+``), a sign with no magnitude (``Cu+``) and a mass number
     (``7Li``, ``7Li1+``) all stop the run. ``D`` runs as H. The oracle checks
     the grammar and the element only. It cannot know which ions FullProf's
-    table holds, so table membership rests on the reporter's runs.
+    table holds, so table membership rests on the reporter's runs, which
+    covered ``ZR+4``, ``O-2`` and ``CU+1`` and no other ion.
     """
     m = re.fullmatch(r"([A-Z]{1,2})(?:([+-])(\d+))?", typ.upper())
     if m is None or _element(m.group(1)) is None:
@@ -2480,7 +2481,7 @@ _MEASURED_NEUTRON = {
 
 
 def test_the_fullprof_oracle_reproduces_the_measured_lookup():
-    """The oracle below is held to every row of #558's table, so it is
+    """The oracle above is held to every row of #558's table, so it is
     FullProf's rule rather than a second copy of the writer's."""
     assert {t: _fullprof_xray(t) for t in _MEASURED_XRAY} == _MEASURED_XRAY
     assert ({t: _fullprof_neutron(t, {}) for t in _MEASURED_NEUTRON}
@@ -2490,21 +2491,24 @@ def test_the_fullprof_oracle_reproduces_the_measured_lookup():
 
 
 def _read_as_fullprof(text):
-    """``(job, typ, user_b)`` of a one-site file: the control line's Job, the
-    atom line's Typ, and LINE 12's ITY-0 user b in fm keyed by ``NAM``. LINE
-    12 follows the four fixed lines, the Nba background points and the Nex
-    excluded regions."""
+    """``(job, typ, user_b, dispersion)`` of a one-site file: the control
+    line's Job, the atom line's Typ, LINE 12's ITY-0 user b in fm keyed by
+    ``NAM``, and the upper-cased ``NAM`` of each ITY-2 dispersion line. LINE
+    12 follows the title, the four fixed lines, the Nba background points and
+    the Nex excluded regions."""
     lines = _lines(text)
     control = lines[1].split()
     job, nba, nex, nsc = (int(control[k]) for k in (0, 3, 4, 5))
     start = 5 + nba + nex
-    user_b = {}
+    user_b, dispersion = {}, set()
     for line in lines[start:start + nsc]:
         nam, dfp, _dfpp, ity = line.split()
         if ity == "0":
             user_b[nam.upper()] = float(dfp) * 10.0     # 10^-12 cm to fm
+        elif ity == "2":
+            dispersion.add(nam.upper())
     (typ,) = [line.split()[1] for line in lines if line.split()[:1] == ["A0"]]
-    return job, typ, user_b
+    return job, typ, user_b, dispersion
 
 
 _SPELLED = ["Zr4+", "O2-", "Cu+", "Cu1+", "Na+", "Cl-", "Y3+", "Mn", "Fe+"]
@@ -2531,7 +2535,8 @@ def test_fullprofs_own_lookup_reads_the_written_typ_as_rietxs_species(
     out = tmp_path / "one.pcr"
     write_fullprof_pcr(_cubic(species), out, instrument=instrument,
                        diagnostics=found)
-    job, typ, user_b = _read_as_fullprof(out.read_text(encoding="utf-8"))
+    job, typ, user_b, dispersion = _read_as_fullprof(
+        out.read_text(encoding="utf-8"))
     assert job == (1 if neutron else 0)
     said = [d.where for d in found
             if d.code == "FULLPROF_SPECIES_WRITTEN_NEUTRAL"]
@@ -2556,6 +2561,11 @@ def test_fullprofs_own_lookup_reads_the_written_typ_as_rietxs_species(
     assert resolved == computed, (
         f"{species!r} written as Typ {typ!r}: FullProf reads {resolved}, "
         f"rietx computes {computed}")
+    # The f'/f'' the writer states reach this Typ only under a NAM spelled as
+    # it (#568 review); without one FullProf uses its own, which differ.
+    assert typ.upper() in dispersion, (
+        f"{species!r} written as Typ {typ!r}: no LINE-12 dispersion row names "
+        f"it ({sorted(dispersion)})")
     written_neutral = species.endswith(("+", "-")) and resolved[1] == 0
     assert said == ([["phases.0.atoms.0.species"]] if written_neutral else [])
 
