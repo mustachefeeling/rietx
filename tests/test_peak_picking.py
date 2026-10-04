@@ -1174,3 +1174,82 @@ def test_fit_peaks_writes_obs_calc_diff_panels(tmp_path):
     fig.savefig(OUT / "fit_peaks_groups.png", dpi=110)
     plt.close(fig)
     assert (OUT / "fit_peaks_groups.png").exists()
+
+
+# -- one line per physical peak (WP-1510) --------------------------------------
+
+def _line(two_theta, esd, group, fwhm=0.15):
+    q = float(q_of_two_theta(np.array(two_theta), 1.5406))
+    return ObservedPeak(
+        two_theta=two_theta, two_theta_esd=esd, intensity=100.0,
+        intensity_esd=5.0, q=q, q_esd=1e-4, fwhm=fwhm, eta=0.5, group=group,
+        n_in_group=2, chi2_red=1.0)
+
+
+def test_a_line_two_groups_fitted_is_flagged_once_and_stays_listed():
+    from rietx.indexing.pick import flag_duplicate_lines
+
+    # group 0 owns 35.12 and borrowed 35.40; group 1 owns 35.41 and borrowed
+    # 35.12 — the shape ``cpd-4`` produced, each line offered twice
+    peaks = [_line(35.124, 0.004, 0), _line(35.397, 0.010, 0),
+             _line(35.124, 0.006, 1), _line(35.407, 0.003, 1),
+             _line(40.000, 0.004, 2)]
+    flag_duplicate_lines(peaks)
+    flagged = [(p.group, p.two_theta) for p in peaks
+               if "duplicate_line" in p.flags]
+    assert flagged == [(0, 35.397), (1, 35.124)]
+    assert len(peaks) == 5
+    kept = [p for p in peaks if set(p.flags).isdisjoint(PEAK_UNUSABLE_FLAGS)]
+    assert sorted(p.two_theta for p in kept) == [35.124, 35.407, 40.0]
+
+
+def test_a_copy_flagged_itself_owns_no_line():
+    """Three copies in a chain, each within the tolerance of the next and the
+    ends farther apart: the middle one loses to the best, and the far end, which
+    only the flagged middle one overlapped, stays a line whatever the 2θ order."""
+    from rietx.indexing.pick import flag_duplicate_lines
+
+    # tolerance 0.5 × 0.15 = 0.075°; 35.00-35.06 and 35.06-35.12 overlap
+    peaks = [_line(35.00, 0.009, 0), _line(35.06, 0.006, 1),
+             _line(35.12, 0.003, 2)]
+    flag_duplicate_lines(peaks)
+    assert [bool(p.flags) for p in peaks] == [False, True, False]
+
+
+def test_two_lines_of_one_group_are_never_duplicates():
+    from rietx.indexing.pick import flag_duplicate_lines
+
+    # an unresolved doublet is one group's business (``unresolved_shoulder``),
+    # and a neighbouring group farther than the overlap fraction is a line
+    peaks = [_line(30.00, 0.004, 0), _line(30.02, 0.004, 0),
+             _line(30.20, 0.004, 1)]
+    flag_duplicate_lines(peaks)
+    assert not any(p.flags for p in peaks)
+
+
+def test_the_editor_marks_only_what_it_just_refitted():
+    from rietx.indexing.pick import flag_duplicate_lines
+
+    peaks = [_line(35.0, 0.010, 0), _line(35.0, 0.004, 1)]
+    flag_duplicate_lines(peaks, only={1})
+    assert not any(p.flags for p in peaks)
+    flag_duplicate_lines(peaks, only={0})
+    assert peaks[0].flags == ["duplicate_line"]
+
+
+def test_no_two_usable_lines_share_a_position_on_a_crowded_lab_pattern():
+    """``cpd-4`` offered 113 usable lines, 26 of them within 0.02° of another
+    (a re-seed pass in one group's window had refitted its neighbour's line);
+    35 components now carry ``duplicate_line`` and none of the 78 left does."""
+    import rietx as rx
+    from tests.test_acceptance_qpa_roundrobin import DATA as QARR
+    from tests.test_acceptance_qpa_roundrobin import qarr_instrument
+
+    path = QARR / "cpd-4.prn"
+    if not path.is_file():
+        pytest.skip("IUCr round-robin cpd-4 pattern not present")
+    peaks = pick_peaks(rx.read_pattern(path), qarr_instrument())
+    usable = np.sort([p.two_theta for p in peaks.usable()])
+    assert not np.any(np.diff(usable) < 0.02)
+    assert sum("duplicate_line" in p.flags for p in peaks.peaks) == 35
+    assert len(usable) == 78

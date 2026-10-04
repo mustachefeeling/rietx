@@ -98,6 +98,14 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
   **mean line** (average discrepancy 10.6 %, −29 % to +32 %), not an upper
   envelope, so any use of it as a search ceiling needs slack this package
   supplies.
+- Kempster, C. J. E. & Lipson, H. (1972). *Acta Cryst.* B28, 3674 — the 18 Å³
+  rule, about 18 Å³ per C, N or O atom of an organic crystal. Cited as the
+  predecessor of Hofmann's table; not implemented.
+- Hofmann, D. W. M. (2002). *Acta Cryst.* B58, 489–493 — the volume of a
+  formula unit as a sum of average atomic volumes, eq. (1), with the esd of
+  eq. (13), in `crystallography/atomic_volume.py`. `SearchSpec.from_formula`
+  and `INDEX_Z_NOT_INTEGER` are built on it (WP-1510). The table itself is
+  under Data tables.
 - Smith, G. S. & Snyder, R. L. (1979). *J. Appl. Cryst.* 12, 60–65 — the F_N
   figure of merit. (`indexing/fom.py` implements both, with a per-line-σ floor on
   ⟨Δ⟩ that is this package's addition and is documented as such, because it is
@@ -354,6 +362,12 @@ they were built from. Their licence texts ship in the wheel and sdist as
   Rauch & Waschkowski (2003), GSAS-II's table or the row's own cross-section
   sum rules. The file header records how, and the one place it departs from
   the copy (a misprint at 147Sm σ_inc).
+- `HOFMANN_VOLUMES` in `src/rietx/crystallography/atomic_volume.py` — Table 2
+  of Hofmann (2002), the average volume and its mean error for 84 elements at
+  298 K, with the thermal expansion coefficient of its § 3. Transcribed from
+  the published PDF and checked against the page image. Numbers, no code. The
+  16 elements the table prints a dash for are absent, and the module docstring
+  names them.
 - `RESONANCE_ENERGY_EV` in `src/rietx/crystallography/neutron.py` — the lowest
   positive-energy resonance of 113Cd, 149Sm, 151Eu, 155Gd, 157Gd and 168Yb,
   read from the resolved-resonance parameters (MF2/MT151) of ENDF/B-VIII.0

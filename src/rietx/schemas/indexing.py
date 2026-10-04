@@ -32,7 +32,8 @@ from typing import Literal
 import numpy as np
 from pydantic import Field, field_validator, model_validator
 
-from .common import Base, Diagnostic, Provenance
+from .common import Base, Diagnostic, Parameter, Provenance
+from .structure import Cell
 
 #: Any change a consumer could observe bumps the last component by one, and
 #: the comment says what changed — no classification, no digest (WP-1117).
@@ -74,7 +75,31 @@ from .common import Base, Diagnostic, Provenance
 #: reduction moved the setting.  ``CELL_EQUALITY_CHI2`` did not move.  Two runs
 #: with identical spec notes now answer differently: bethanechol set Db's truth
 #: went from rank 1 to 2 behind a wrong cell two engines had found in two settings.
-INDEXING_THRESHOLDS_VERSION = "1.6"
+#: 1.7 (WP-1510): ``PeakFlag`` gains ``duplicate_line`` and
+#: ``PEAK_UNUSABLE_FLAGS`` gains it too — a component of one group sitting on
+#: the line a neighbouring group fitted, found where a re-seed pass in the first
+#: window proposed what the second group already owned.  ``pick_peaks`` answers
+#: differently on any pattern carrying one: on the 16 IUCr round-robin lab patterns
+#: 4-35 components of 18-116 are flagged where any are (``cpd-4`` offered 113
+#: usable lines and now offers 78), and none of the lab lists keeps two usable
+#: lines within 0.02° of each other. ``INDEX_IMPURITY_LINES`` counted the copies
+#: as lines no candidate explained.  The same WP raised ``INDEX_PRIOR_USED``
+#: from ``info`` to ``warning`` when a prior lies outside the axis box, and
+#: added the opt-in ``formula=`` check, ``INDEX_Z_NOT_INTEGER`` at
+#: ``Z_INTEGER_TOLERANCE``, which a run without a formula never meets.  And it
+#: added the mirror of 1.5's re-rank: a candidate whose ``SupercellCheck``
+#: reads ``"supported"`` moves directly above that parent, unless another check
+#: refutes it (``consensus.above_supported_parents``).  ``"supported"`` now
+#: counts only the extras seen on lines the parent's own lattice leaves
+#: unexplained (``SupercellCheck.n_seen_unexplained``), at the same p₀ and α;
+#: an extra seen only beside a parent line leaves the pair ``"undecided"``.  No
+#: ``"refuted"`` verdict moved.  Over the 13 acceptance searches one order
+#: changed: SRM 676a's certified cell, found by one engine, rose from eighth to
+#: first above its c/2 subcell (8 of 18 extras seen, all unexplained,
+#: p = 0.0027), in both corundum searches.  Two pseudo-tetragonal LaB6
+#: descriptions went from ``"supported"`` to ``"undecided"`` over the
+#: half-volume rival, their seen extras all on the rival's lines.
+INDEXING_THRESHOLDS_VERSION = "1.7"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.
@@ -491,6 +516,15 @@ PEAK_ASSUMED_ESD_DEG = 0.02
 #: ``no_intensity`` it **is** unusable rather than reported, because there is no
 #: judgement left for a consumer to make: a ±kσ window built from it admits the
 #: whole axis.  It stays in ``peaks`` for the same reason the other two do.
+#: ``duplicate_line`` — a component of one group within
+#: :data:`~rietx.model.forward.PAWLEY_OVERLAP_FWHM_FRAC` of a better-measured
+#: component of *another* group, which is one physical line fitted twice (WP-1510).
+#: Detection puts every seed in exactly one group and the groups are separated by
+#: that same fraction, so two groups can only meet on one line through a re-seed
+#: pass, which proposes the neighbour's unmodelled maximum.  The copy stays in
+#: ``peaks`` because it is what let the first group's window fit its own line,
+#: and is unusable because a list that offers one line twice makes the
+#: second copy a "line no candidate explains".
 #: ``unnamed_neighbour`` — only :func:`~rietx.indexing.fit_peaks` can raise it
 #: (WP-1101): detection saw a component inside this window that the caller's
 #: position list did not name, so the fit apportioned that intensity among the
@@ -517,6 +551,7 @@ PeakFlag = Literal[
     "no_intensity",
     "unnamed_neighbour",
     "position_unmeasured",
+    "duplicate_line",
 ]
 
 #: FWHM multiple within which a weak component may be read as a stronger
@@ -553,7 +588,7 @@ PEAK_AXIAL_TAIL_MAX_FWHM = 3.5
 #: stops holding at ±1 961° (WP-1442).
 PEAK_UNUSABLE_FLAGS: frozenset[str] = frozenset(
     {"ghost_kbeta", "ghost_tungsten", "excluded", "fit_failed", "not_separable",
-     "no_intensity", "position_unmeasured"})
+     "no_intensity", "position_unmeasured", "duplicate_line"})
 
 #: Standard deviations above χ²_red = 1 at which a group's fit is **refuted**, and
 #: therefore above which a ΔBIC verdict on adding one more component to it cannot
@@ -832,11 +867,14 @@ class SupercellCheck(Base):
     ``verdict`` is ``"refuted"`` when the extras are seen no more often than
     chance and the test had the power to say otherwise, and the candidate then
     sits directly below this parent, with the refuting ``supercell_refuted``
-    caveat.  ``"supported"`` means the extras are present beyond chance, so the
-    larger cell is a lattice statement the data make.  ``"undecided"`` means
-    not even every extra seen could have reached the significance level, which
-    includes a parent whose lines this one only repeats.  An undecided check
-    moves nothing.
+    caveat.  ``"supported"`` means the extras seen on lines the parent leaves
+    unexplained (``n_seen_unexplained``) are beyond chance, so the larger cell
+    is a lattice statement the data make, and the candidate then sits directly
+    above this parent unless another check refutes it (WP-1510).
+    ``"undecided"`` means not even every extra seen could have reached the
+    significance level, which includes a parent whose lines this one only
+    repeats, or that the extras are seen beyond chance only on lines the parent
+    explains.  An undecided check moves nothing.
     """
 
     parent_cell: tuple[float, float, float, float, float, float]
@@ -848,6 +886,11 @@ class SupercellCheck(Base):
     n_seen: int
     p0: float
     p_value: float
+    #: of the ``n_seen``, those seen on an observed line the parent's lattice
+    #: leaves unexplained; ``"supported"`` is the binomial chance of at least
+    #: this many falling below α at the same ``p0``.  ``None`` in a record
+    #: written before thresholds version 1.7, which did not count them
+    n_seen_unexplained: int | None = None
     verdict: Literal["supported", "refuted", "undecided"]
     #: ° 2θ of the extras nothing was seen at, lowest first and at most six:
     #: where to look in the pattern for the lines the larger cell needs
@@ -937,6 +980,14 @@ class CellCandidate(Base):
     independent engines is the confidence, the same device as the cross-backend
     Jacobian matrix and ``direction="both"`` — and ``ambiguity`` is populated
     whenever a geometrically indistinguishable partner exists.
+
+    ``cell`` is a bare (a, b, c, α, β, γ) tuple in Å and degrees, kept so for
+    the JSON shape; ``a`` … ``gamma`` name its members and :meth:`to_cell`
+    builds a :class:`~rietx.schemas.structure.Cell` from it (WP-1510).  Two
+    settings of one lattice are one candidate: a prior declared twice, once
+    with an acute and once with an obtuse monoclinic angle, is checked as two
+    priors, each named in ``INDEX_PRIOR_USED``, and the consensus merges them
+    into one row, because its deduplication compares reduced cells.
     """
 
     cell: tuple[float, float, float, float, float, float]
@@ -977,6 +1028,37 @@ class CellCandidate(Base):
     #: :data:`IndexCaveat` vocabulary
     confidence_caveats: list[IndexCaveat] = Field(default_factory=list)
     diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+    @property
+    def a(self) -> float:
+        return self.cell[0]
+
+    @property
+    def b(self) -> float:
+        return self.cell[1]
+
+    @property
+    def c(self) -> float:
+        return self.cell[2]
+
+    @property
+    def alpha(self) -> float:
+        return self.cell[3]
+
+    @property
+    def beta(self) -> float:
+        return self.cell[4]
+
+    @property
+    def gamma(self) -> float:
+        return self.cell[5]
+
+    def to_cell(self) -> Cell:
+        """The candidate's cell as a :class:`~rietx.schemas.structure.Cell`,
+        every parameter fixed.  The esds stay on ``cell_esd``: a ``Parameter``
+        carries none."""
+        return Cell(**{k: Parameter(value=float(v)) for k, v in zip(
+            ("a", "b", "c", "alpha", "beta", "gamma"), self.cell)})
 
     def fom_value(self, name: str) -> float | None:
         """One panel member by name, or None — never a KeyError, because which

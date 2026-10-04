@@ -232,7 +232,65 @@ def supercell_checks(candidates: Sequence[CellCandidate], peaks: PeakList, *,
                 parent_centring=parent.centring, index=ev.index,
                 n_extra=ev.n_extra, n_seen=ev.n_seen, p0=ev.p0,
                 p_value=ev.p_value, verdict=ev.verdict(),
+                n_seen_unexplained=ev.n_seen_unexplained,
                 absent_two_theta=[float(t) for t in tt]))
+
+
+def _parent_key(check) -> tuple:
+    return tuple(check.parent_cell) + (check.parent_system,
+                                       check.parent_centring)
+
+
+def _parents_with(candidates: Sequence[CellCandidate], verdict: str,
+                  ) -> list[set[int]]:
+    """For each candidate, the positions of the parents its checks give
+    ``verdict``, among ``candidates``."""
+    cells = [tuple(c.cell) + (c.system, c.centring) for c in candidates]
+    out = []
+    for child in candidates:
+        keys = {_parent_key(k) for k in child.supercell_checks or []
+                if k.verdict == verdict}
+        out.append({i for i, key in enumerate(cells) if key in keys})
+    return out
+
+
+def _after_waits(waits: Sequence[set[int]]) -> list[int]:
+    """Positions in their given order, each held back until its waits are placed.
+
+    A held position lands directly after the last of its waits, and the
+    positions between keep their order above it.
+    """
+    order: list[int] = []
+    placed: set[int] = set()
+    remaining = list(range(len(waits)))
+    while remaining:
+        for pos, i in enumerate(remaining):
+            if waits[i] <= placed:
+                order.append(i)
+                placed.add(i)
+                del remaining[pos]
+                break
+        else:                           # unreachable for sublattice pairs
+            order.extend(remaining)
+            break
+    return order
+
+
+def _checks_in_final_order(ordered: Sequence[CellCandidate]) -> None:
+    """Re-sort each candidate's checks into its parents' order in ``ordered``.
+
+    A parent can itself move, so the order a check was asked in is stale once
+    the list is re-ranked.  After this, the last refuting check names the
+    parent a refuted child sits directly below, which is what its diagnostic
+    quotes.
+    """
+    rank = {tuple(c.cell) + (c.system, c.centring): r
+            for r, c in enumerate(ordered)}
+    for child in ordered:
+        if child.supercell_checks:
+            child.supercell_checks = sorted(
+                child.supercell_checks,
+                key=lambda k: rank.get(_parent_key(k), len(ordered)))
 
 
 def below_refuting_parents(candidates: Sequence[CellCandidate]
@@ -252,39 +310,54 @@ def below_refuting_parents(candidates: Sequence[CellCandidate]
     promote.  Why this and not a score: re-weighting the panel mends one
     dataset and breaks another (WP-1041).  The check is binary, like
     corroboration, and moves only the pairs it refutes.
+    :func:`above_supported_parents` is the other half.
     """
-    cells = [tuple(c.cell) + (c.system, c.centring) for c in candidates]
-    waits = []
-    for child in candidates:
-        refuting = {tuple(k.parent_cell) + (k.parent_system, k.parent_centring)
-                    for k in child.supercell_checks or []
-                    if k.verdict == "refuted"}
-        waits.append({i for i, key in enumerate(cells) if key in refuting})
-    order: list[int] = []
-    placed: set[int] = set()
-    remaining = list(range(len(candidates)))
-    while remaining:
-        for pos, i in enumerate(remaining):
-            if waits[i] <= placed:
-                order.append(i)
-                placed.add(i)
-                del remaining[pos]
-                break
-        else:                           # unreachable for sublattice pairs
-            order.extend(remaining)
-            break
-    # a parent can itself move below another, so the checks are re-sorted into
-    # the parents' *final* order: the last refuting one is the parent the child
-    # now sits directly below, which is what its diagnostic names
-    rank = {cells[i]: r for r, i in enumerate(order)}
-    for child in candidates:
-        if child.supercell_checks:
-            child.supercell_checks = sorted(
-                child.supercell_checks,
-                key=lambda k: rank.get(tuple(k.parent_cell)
-                                       + (k.parent_system, k.parent_centring),
-                                       len(order)))
-    return [candidates[i] for i in order]
+    order = _after_waits(_parents_with(candidates, "refuted"))
+    out = [candidates[i] for i in order]
+    _checks_in_final_order(out)
+    return out
+
+
+def above_supported_parents(candidates: Sequence[CellCandidate]
+                            ) -> list[CellCandidate]:
+    """The ranked list with every supported supercell directly above its parent.
+
+    The mirror of :func:`below_refuting_parents` (WP-1510).  A candidate whose
+    check against a parent reads ``"supported"`` moves up to directly above
+    the highest-ranked parent supporting it, and nothing else moves.  A child
+    already above its parents stays where it is.  Built as that function's
+    waits on the reversed list, so the child is again the one that moves.
+
+    Why: a supported check says the lines this cell adds over the parent, the
+    ones no extinction could remove, are seen on lines the parent cannot index
+    more often than chance allows at ``SUPERCELL_CHANCE_ALPHA``.  So the
+    parent is not the whole lattice.  Before this, a supported check moved
+    nothing, so finder count decided.  On SRM 676a, once the duplicate copies
+    left the list, only dichotomy found the certified cell while all three
+    engines found its c/2 subcell, which leaves 10 of 47 usable lines
+    unexplained.  The certified cell's 18 extras over it are seen 8 times, all
+    on those lines, at p₀ = 0.150 (p = 0.0027), and corroboration had put the
+    subcell first and the certified cell eighth.  Corroboration does not hold
+    the child back here, just as it does not protect a refuted child: the
+    check is a lattice statement about the pair, not a score.
+
+    **A refuted child is never promoted.**  If any reported cell explains its
+    extras, it is oversized, whatever another pair says.  That also keeps the
+    two halves from contradicting each other: a refuted child keeps its place
+    under its refuting parents, and moving a parent up never moves its refuted
+    children above it.
+    """
+    refuted = _parents_with(candidates, "refuted")
+    supported = [set() if refuted[i] else s
+                 for i, s in enumerate(_parents_with(candidates, "supported"))]
+    n = len(candidates)
+    # reversed, "below" reads "above": each supported child waits for its
+    # supported parents, so it lands directly past the highest-ranked of them
+    flipped = [{n - 1 - j for j in supported[n - 1 - i]} for i in range(n)]
+    order = [n - 1 - i for i in reversed(_after_waits(flipped))]
+    out = [candidates[i] for i in order]
+    _checks_in_final_order(out)
+    return out
 
 
 def checked_indices(candidates: Sequence[CellCandidate],
@@ -431,12 +504,14 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
         to_cell_candidate(c, peaks, k_sigma=spec.k_sigma,
                           n_unindexed=spec.n_unindexed, q_match=q_match)
         for c in ranked]
-    # a supercell the data refute sits below its parent (WP-1449).  Here, on
-    # the engines' list, so every streamed per-system list orders the same way
-    # as the final one; a prior-only tail is appended after and never asked
+    # a supercell the data refute sits below its parent (WP-1449), and one the
+    # data support sits above it (WP-1510).  Here, on the engines' list, so
+    # every streamed per-system list orders the same way as the final one; a
+    # prior-only tail is appended after and never asked
     supercell_checks(out.candidates, peaks, q_match=q_match,
                      k_sigma=spec.k_sigma)
-    out.candidates = below_refuting_parents(out.candidates)
+    out.candidates = above_supported_parents(
+        below_refuting_parents(out.candidates))
     if prior_only:
         # ranked among their own kind only, appended after every engine
         # candidate: a prior may not displace what the engines found
@@ -635,6 +710,7 @@ def apply_gate(candidates: Sequence[CellCandidate], *,
 
 
 __all__ = ["CONSENSUS_CHECK_TOP", "VOLUME_ENVELOPE_SLACK", "ConsensusOutcome",
-           "apply_gate", "below_refuting_parents", "bravais_opinion",
+           "above_supported_parents", "apply_gate", "below_refuting_parents",
+           "bravais_opinion",
            "caveats_for", "checked_indices", "consensus", "grade",
            "merge_engine_candidates", "supercell_checks"]

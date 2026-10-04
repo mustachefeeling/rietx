@@ -1083,6 +1083,17 @@ def test_a_certified_lab_pattern_indexes_and_is_graded_honestly(corundum_index):
     cannot be indexed, so counting it in the denominator only ever depressed
     this figure of merit.
 
+    **WP-1510 took out five more, and the rank went with them for a while.**
+    The five were duplicate copies of indexed lines (``duplicate_line``), so
+    the row reads 45 of 47 with the same two unindexed.  Without them only
+    dichotomy found the certified cell, while all three engines found its c/2
+    subcell, which indexes 37 of 47.  Corroboration then ranked the subcell
+    first and the certified cell eighth.  The supercell check had already said
+    which is right: the certified cell's 18 extras over the subcell are seen 8
+    times, all on lines the subcell cannot index, where chance gives 2.7
+    (p = 0.0027).  A supported supercell now ranks directly above its parent,
+    the mirror of WP-1449's rule, and the certified cell is first again.
+
     ``low`` remains the honest grade, on three caveats that each name something
     real: only one engine found it (``engines_disagree``); the Le Bail fit sees 12
     reflections the *lattice* R-3m allows where the pattern has no intensity,
@@ -1103,7 +1114,10 @@ def test_a_certified_lab_pattern_indexes_and_is_graded_honestly(corundum_index):
     dc = best.cell[2] / c_cert - 1.0
     assert abs(da) < 1.5e-4, f"a = {best.cell[0]:.5f} ({da*1e6:+.0f} ppm)"
     assert abs(dc) < 1.5e-4, f"c = {best.cell[2]:.5f} ({dc*1e6:+.0f} ppm)"
-    assert best.n_indexed >= 50, f"{best.n_indexed} of {best.n_lines} lines"
+    # 45 of 47 since WP-1510, where it was 50 of 52: the five duplicate copies
+    # that left ``usable()`` were all lines this cell indexed, so the count fell
+    # by exactly five and the unindexed two below did not move
+    assert best.n_indexed >= 45, f"{best.n_indexed} of {best.n_lines} lines"
     # the quantity the bar is really about: lines the search could not place.
     # Four before WP-1110 item 14, two after — and two of the four were phantoms
     # rather than misses, so this is asserted beside the fraction below.
@@ -1153,6 +1167,9 @@ def test_declaring_the_shift_template_is_what_recovers_the_certificate(
     the Le Bail Rwp 0.282 → 0.225.  So the two mechanisms are now cleanly
     separated — the measured **magnitude** widens the window and finds more lines,
     the declared **shape** corrects the cell — where before they were confounded.
+    Since WP-1510 removed five duplicate copies the axes read a +110 → −114 ppm
+    and c +57 → −109 ppm, the coefficient −0.0749°, and the certificate-grade
+    c/a −53 → +5 ppm, which is what the row now reads.
 
     **The figures of merit are the striking part and they are not free.**  M₂₀
     goes 22 → 83 and F_N 16 → 66, because ``engines.scored_positions`` scores a
@@ -1185,9 +1202,19 @@ def test_declaring_the_shift_template_is_what_recovers_the_certificate(
     assert after.chi2_red < before.chi2_red
     assert after.fom_value("m20") > 3.0 * before.fom_value("m20")
     assert after.lebail.rwp < before.lebail.rwp
-    # the cell is what the template buys: both axes move *toward* the certificate
-    assert abs(after.cell[0] - a_cert) < abs(before.cell[0] - a_cert), (
-        "declaring the shape must sharpen a, not merely the figures of merit")
+    # the cell is what the template buys, read where the certificate is exact.
+    # This asserted that a moves toward the certificate, and that comparison
+    # cannot resolve the effect.  The correction carries a from one side of the
+    # certified value to the other at about the same distance, and c too.
+    # Measured on dichotomy's refined cell (WP-1510): with the five duplicate
+    # copies usable, a +113 -> -106 ppm; without them, +110 -> -114 ppm, a
+    # 4 ppm miss.  An absolute axis carries the lab d-scale and the specimen's
+    # temperature (tests/CLAUDE.md), and c/a carries neither.  c/a moved
+    # -53 -> -9 ppm on the first list and -53 -> +5 ppm on the second.
+    ratio = c_cert / a_cert
+    assert (abs(after.cell[2] / after.cell[0] - ratio)
+            < abs(before.cell[2] / before.cell[0] - ratio)), (
+        "declaring the shape must sharpen c/a, not merely the figures of merit")
     # and the window already carried indexed_fraction over its bar in both calls,
     # since WP-1038 measures the magnitude before the search rather than assuming
     for c in (before, after):
@@ -1215,7 +1242,10 @@ def test_the_phantom_lines_are_what_had_blocked_it(corundum_peaks):
 
     assert len(peaks.peaks) > len(peaks.usable()), "nothing was flagged at all"
     assert 4 <= len(flagged) <= 14, len(flagged)
-    assert len(peaks.usable()) >= 50
+    # 45, not 50: five of the 52 lines the old floor counted were copies.  Each
+    # is one line that two neighbouring groups both fitted, and
+    # ``duplicate_line`` keeps the second copy out of ``usable()`` (WP-1510)
+    assert len(peaks.usable()) >= 45
     # every flagged line sits below a much stronger one, and further from it than
     # the real lines sit from their own predicted positions
     tt = np.array([p.two_theta for p in peaks.peaks])
@@ -1356,11 +1386,11 @@ def test_a_centred_tetragonal_lattice_is_recovered_with_its_centring(zircon_inde
     (``engines.dedup_groups``).  Here it chooses correctly — tetragonal **I**,
     a +207 ppm and c +1906 ppm from Hazen & Finger's cell.
 
-    Note which figure does the choosing, and note that the obvious one would
-    choose **wrong**.  The primitive twin of the same metric is also in the list
-    and indexes 60 of 68 observed lines against the centred cell's 59 — *more*,
-    not fewer, because a cell predicting twice as many reflections can only ever
-    match at least as many observed ones.  What separates them is
+    Note which figure does the choosing, and note that the obvious one cannot.
+    The primitive twin of the same metric is also in the list and indexes within
+    one line of the centred cell, because a cell predicting twice as many
+    reflections matches at least as many observed ones at a shared metric.
+    What separates them is
     ``predicted_seen_fraction``, 0.57 for I against 0.28 for P, since half of what
     P predicts is not there.  That is coverage scored *in both directions*, which
     is the whole reason the panel is a panel — and forward coverage alone would
@@ -1384,18 +1414,16 @@ def test_a_centred_tetragonal_lattice_is_recovered_with_its_centring(zircon_inde
              and abs(c.cell[2] / best.cell[2] - 1.0) < 1e-3]
     assert twins, "the primitive twin was merged away; dedup_groups must keep it"
     twin = twins[0]
-    # Forward coverage cannot separate them: the twins index 59 and 60 of 68
-    # lines, i.e. the *primitive* twin explains marginally more, which is the
-    # trap — a cell that predicts twice as many reflections will never index
-    # fewer.  (They were exactly equal under the assumed 0.05° window; WP-1038's
-    # measured 0.0299° is narrower and splits them by one line, in the direction
-    # that would rank the wrong twin first if forward coverage decided.)
+    # Forward coverage cannot separate them: the twins index within a line of
+    # each other.  At one shared metric the primitive twin can never index
+    # fewer, since it predicts twice as many reflections.  But the twins are
+    # refined separately, so the direction of that one line is not a property
+    # of the data: it was P 60 against I 59, and once the duplicate copies left
+    # the list (WP-1510) it is P 45 against I 46, the primitive cell's c 70 ppm
+    # shorter and missing the 117.47° line.  So only the gap is asserted.
     assert abs(twin.n_indexed - best.n_indexed) <= 1, (
         f"forward coverage: I {best.n_indexed}, P {twin.n_indexed} of "
         f"{best.n_lines} — the twins should be within a line of each other")
-    assert twin.n_indexed >= best.n_indexed, (
-        "the primitive twin should not index *fewer* lines than the centred one "
-        "— if it does, this row is no longer testing what it claims")
     # what actually separates them is coverage in the *reverse* direction
     assert (best.fom_value("predicted_seen_fraction")
             > 1.5 * twin.fom_value("predicted_seen_fraction"))
@@ -2164,8 +2192,15 @@ def test_one_shift_is_measured_from_a_multi_phase_pattern(corundum_peaks):
     Checked here both ways.  Corundum, single phase, gives −0.0639° against an
     independently measured −0.065°.  ``cpd-1a`` is the IUCr round-robin's
     **three-phase** mixture — corundum, zincite and fluorite on the same
-    diffractometer — and returns −0.0382° from pairs its own screen cannot
-    attribute to any one phase, with no cell for any of them.
+    diffractometer — and returns −0.009° from pairs its own screen cannot
+    attribute to any one phase, with no cell for any of them.  A separate fit
+    of its 16 fluorite lines with the cell free gives −0.0095 ± 0.0023°.
+
+    It read −0.038° until WP-1510, and two of the five pairs behind that were
+    one line fitted twice by neighbouring groups (``duplicate_line``).  The
+    clause that it agreed with corundum's −0.064° went with it.  A cos θ shift
+    here is specimen displacement, which is set per mount, so two specimens on
+    one diffractometer have no reason to share it.
     """
     from rietx.indexing.pick import pick_peaks
     from rietx.indexing.quality import screen_shift_from_pairs
@@ -2185,11 +2220,9 @@ def test_one_shift_is_measured_from_a_multi_phase_pattern(corundum_peaks):
     assert mixture.source == "reflection_pairs", mixture.pairs.declined_reason
     m_amp = next(t.coefficient for t in mixture.templates
                  if t.name == mixture.best)
-    assert m_amp == pytest.approx(-0.038, abs=0.010)
+    # the fluorite-only fit's −0.0095 ± 0.0023°, at about twice its esd
+    assert m_amp == pytest.approx(-0.0095, abs=0.005)
     assert mixture.pairs.z >= PAIR_MIN_Z
-    # the two specimens were run on the same instrument, and the shifts agree to
-    # well inside the spread a specimen-mounting difference would produce
-    assert abs(m_amp - amp) < 0.030
 
 
 @pytest.mark.xdist_group("indexing-acceptance-lab6")

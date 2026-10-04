@@ -12,7 +12,7 @@ are read on the peak list, not on a `RefinementResult`.
 
 | Code | What it means you must not do |
 |---|---|
-| `PEAK_LIST_TOO_SHORT` | Read the answer as *scored*. Below 20 usable lines the classical figures (M₂₀, F_N, Smith's envelope) are not scored, so the search still runs — over the systems the line count supports — but ranks on the reduced panel, and nothing in the answer is comparable to a published threshold. (Before WP-1043 this code refused the search outright; that conflated scoring with searching, and it refused fluorite's 18 clean lines that all three engines index at −5 ppm) |
+| `PEAK_LIST_TOO_SHORT` | Read the answer as *scored*. Below 20 usable lines the classical figures (M₂₀, F_N, Smith's envelope) are not scored, so the search still runs — over the systems the line count supports — but ranks on the reduced panel, and nothing in the answer is comparable to a published threshold. (Before WP-1043 it refused the search; see §7f) |
 | `INDEX_DATA_INSUFFICIENT` | Spend a search budget. The gate has already decided the data cannot support a search *in any system*, and it names which of the two reasons applies (lines per metric degree of freedom, or σ(Q)/Q) |
 | `INDEX_PANEL_REDUCED` | Treat an absent figure as zero, or compute your own M on fewer lines and quote it as M₂₀. Each absent member is named with its reason on `quality.fom_undefined`; the members that remain rank every candidate alike, so the *order* means what it always does — the `fom_panel_reduced` caveat (capping) is what says the scoring does not |
 | `PEAK_SIGMA_ASSUMED` | Quote a precision, or weight lines by 1/σ² as if that meant something — every σ in the list is the same assumed constant. Re-pick from the pattern if you have it. **You may still index it**: an assumed σ is not grounds for refusing, so the σ(Q)/Q abstention below does not run on such a list (it would be quoting a precision this package invented) |
@@ -95,43 +95,45 @@ result.
 | `INDEX_IMPURITY_LINES` | Read it as one thing. A handful of unexplained lines is an impurity; most of the pattern is a wrong metric (measured, 95 of them when the metric was 1 % off). And note the fence: this package does **not** index multi-phase patterns, so a second phase means subtracting the solved one first |
 | `INDEX_BRAVAIS_AMBIGUOUS` | Refine in the higher symmetry because it was reported. The stated system is the conservative one; refine there and *test* the higher one, never the reverse. A disagreement between gemmi and spglib is information, not a bug — their tolerances are different kinds of number (a Le Page obliquity in degrees against a `symprec` in Å) and disagreement is what genuine pseudosymmetry looks like |
 | `INDEX_VOLUME_UNPHYSICAL` | Quote the cell. It is outside what these data can support — below a single atom's exclusion volume, or clear of Smith's (1977) envelope for the number of lines observed |
-| `INDEX_SUPERCELL_REFUTED` | Quote the larger cell, or read its old rank as evidence for it. A smaller reported cell explains the same lines, and the extra lines this one needs that no extinction could remove are seen no more often than chance, so it now sits directly below that cell (the `supercell_refuted` caveat, refuting). The counts are on `supercell_checks`. Only a real superstructure too weak to pick escapes the test, so look at the pattern at `absent_two_theta` if the chemistry predicts one. (Measured: on the finished acceptance searches it put brucite's and 11-BM NAC's truths first, and it kept every truth tested as a child, the lowest at p = 0.0072) |
+| `INDEX_SUPERCELL_REFUTED` | Quote the larger cell, or read its old rank as evidence for it. A smaller reported cell explains the same lines, and the extra lines this one needs that no extinction could remove are seen no more often than chance, so it now sits below that cell (the `supercell_refuted` caveat, refuting). The counts are on `supercell_checks`. Only a real superstructure too weak to pick escapes the test, so look at the pattern at `absent_two_theta` if the chemistry predicts one. (Measured: on the finished acceptance searches it put brucite's and 11-BM NAC's truths first, and it kept every truth tested as a child, the lowest at p = 0.0072) |
+| `INDEX_Z_NOT_INTEGER` | (warning, with `formula=`) Drop the candidate for it. Its volume holds a fractional count of formula units by Hofmann's (2002) volumes, and `value` is that Z. It fires past 8 % from a whole number, twice one crystal's scatter, so a correct cell can fire and Z above 6 never does. Check the formula (solvent, a counter-ion), then suspect a sub- or supercell |
 | `INDEX_NOT_VALIDATED` | Read a `medium` as a near-`high`. No pattern was supplied, so nothing tested any candidate against the whole profile, and the figure-of-merit panel is blind to lines beyond the first twenty, to impurity content and to predicted-but-absent reflections. Pass `data=` and `instrument=` |
 | `INDEX_VALIDATION_FAILED` | (warning — on the candidate's `lebail.diagnostics`) Read this candidate's Le Bail numbers as a judgement, in either direction. The validation *fit* raised (the message names the exception), so `lebail.rwp` is inf and its `status` is `failed`: nothing was measured, which refutes nothing. It is evidence about the candidate, not about the search — but check the instrument before discarding the candidate, because a mis-declared profile or a wavelength on an absorption edge fails every candidate alike, and a run whose validations all fail this way is telling you about the setup, not the cells |
 | `INDEX_BUDGET_EXHAUSTED` | Read the answer as covering the requested search. The ceiling (`quick`'s default, or a declared `total_budget_seconds`) bound, and the result covers what was *reached*: `systems_searched` + `search_complete` distinguish three states — searched (present, `True`), truncated (present, `False`), and not reached (absent; the diagnostic's `where` names them) — and candidates whose validation never ran read `not_validated` (capping), never `validation_failed` (refuting). Units run system-major (WP-1042), so what a binding ceiling cuts is trailing low-symmetry *systems* for every engine equally, never a whole engine — a candidate from a completed system keeps all its finders. The message also distinguishes the slice-only case: the run finished under its ceiling but one or more validation fits exhausted their equal slice of the remaining clock. A user cancellation never writes this code: a stopped run is not a budget statement |
 | `INDEX_SINGLE_ENGINE` | (info) Read `low` as "refuted". One engine ran, and agreement between independent searches is what confidence measures — so every candidate of a one-engine run grades `low` *structurally* (fewer than two finders), which means "unconfirmed by construction". It is a diagnostic rather than a caveat because a capping caveat cannot explain a floor `grade()` produces before caveats are consulted. Re-run with the default engine set for a gradeable answer |
 | `INDEX_CELL_SYSTEMATIC_UNQUANTIFIED` | Quote a Bragg-Brentano cell to its esd. The esd is a *precision* from the line positions; the goniometer radius alone carries **≈ ±85 ppm** that no esd reports, because the data cannot identify it (Rwp moves 0.029 points across 180–320 mm) |
 | `INDEX_CANDIDATES_TRUNCATED` | (info) Read the reported list as everything the search produced. It is the top `max_candidates` of a larger merged set, and the message says how many ranked below it — the cap exists because each reported candidate is priced a Le Bail fit, not because the rest were judged. Its second clause names any (engine × system) unit that returned a **full pool** (five times the reported cap since WP-1046); that clause is a flag rather than a count, because how many distinct lattices sat behind a discarded harvest is not knowable without deduplicating one the search already dropped. Raise `max_candidates` to see further down — it raises the pool with it, and the cost is the validation fits |
-| `INDEX_PRIOR_USED` | (info) Read the answer as unsteered. It *was* steered — this diagnostic names each declared prior and its fate (confirmed by engines / entered unconfirmed / refuted / refused at the box) — but steering changed only *when* things were searched and what seeded the stochastic engine, never a range, a system set, or a rank: prior-only candidates are appended **after** the ranked list and never enter the Borda ranking. A candidate whose `found_by` is `["prior"]` alone is stated-and-unconfirmed — the ordinary agreement caveat grades it down, so treat it as your own hypothesis checked against the lines, not as a finding (WP-1045) |
+| `INDEX_PRIOR_USED` | (info; a warning when a prior lay outside the axis box, naming the value to pass) Read the answer as unsteered. It *was* steered — this diagnostic names each declared prior and its fate — but steering changed only *when* things were searched and what seeded the stochastic engine, never a range, a system set, or a rank: prior-only candidates are appended **after** the ranked list and never enter the Borda ranking. A candidate whose `found_by` is `["prior"]` alone is stated-and-unconfirmed — the ordinary agreement caveat grades it down, so treat it as your own hypothesis checked against the lines, not as a finding (WP-1045) |
 
 ## 7d. The closed loop: from a pattern of an unknown phase to a refinement
 
-Indexing is the step that used to be missing. Before it, this package could
-refine a structure against a pattern but could not find the cell, so an unknown
-phase was out of reach entirely. `index_pattern` is a peer of `refine` and the
-loop between them closes:
+This section closes the loop between `index_pattern` and `refine`.
+
+**Before the first search, ask for the cell or infer it** (Measured: solution
+case 1: the blind search never found the person's cell).
+Ask for a cell range or candidate cells. When the person has given
+the chemistry (formula, Z or density, solvent), infer a volume window with
+`SearchSpec.from_formula(formula, z=…)`, say so, and pass `formula=` too. Declare a candidate cell in
+`prior_cells` with `max_d_axis` above its longest axis.
 
 **These names are provisional, and the answers they return are versioned.**
 Indexing is under active development, so everything under `rietx.indexing` and
 every answer type in `rietx.schemas.indexing` may change in any release — the
 [compatibility promise](https://rietx.org/using/compatibility.html#provisional-by-declaration)
-declares the subsystem rather than listing names, and every change is in the
-release notes. Two things do not move with them:
+has the detail. Two things do not move with them:
 `capabilities().indexing_thresholds_version`, which is what the gates below are
 versioned by, and the serialized shape of an `IndexingResult`. So a tool loop
 that *reads* an answer sees any observable change as a version bump; one that
 imports these types should pin an exact version.
 
-**How long will this take?** Since WP-1042 the default answers this itself:
+**How long will this take?** The default answers this itself:
 `index_pattern` resolves the **`quick` preset** — every engine, every requested
 system, and a whole-run ceiling (`SEARCH_PRESETS["quick"]`) covering search,
 probe and validation, with each validation fit drawing an equal slice of the
-remaining clock. Nothing is narrowed; a run that hits the ceiling says so
-(`INDEX_BUDGET_EXHAUSTED`, §7c) rather than having silently searched less, and
-what it cuts is the trailing low-symmetry systems — cheapest-first ordering's
-documented cost. Progress and a graded shortlist for every *completed* system
-stream on the event ladder as the run goes (`events=`), so the useful answer
-usually arrives seconds in, long before the run ends. `preset="full"` is the
+remaining clock. A run that hits the ceiling says so
+(`INDEX_BUDGET_EXHAUSTED`, §7c). Progress and a graded shortlist for every *completed* system
+stream on the event ladder as the run goes (`events=`), so a useful answer
+usually arrives seconds in. `preset="full"` is the
 unbounded pre-1.0 behaviour — reach for it when a quick run reports truncated
 or not-reached systems and the answer may live there. For the arithmetic, ask
 `rietx.indexing.engines.estimate_ceiling(spec)` (CLI: `rietx index
@@ -285,11 +287,8 @@ Three things about the screen that change how you use its answer:
    Give it a range and a width law its profile fit can match before reading a
    refutation.
 
-**`where` now names the paths on every guard code, `HIGH_CORRELATION` included**
-(v1.0, WP-1007). It used to be empty on that one — the paths were recovered from
-the message by taking its first word, which for a *pair* is not a path at all —
-so a consumer had to parse `"a ~ b (ρ=+0.994)"` to learn which two parameters
-were degenerate. Read `d.where`; never split the message.
+**`where` names the paths on every guard code, `HIGH_CORRELATION` included**
+(WP-1007). Read `d.where`; never split a message like `"a ~ b (ρ=+0.994)"`.
 
 ```python
 for d in result.diagnostics:

@@ -272,6 +272,45 @@ def test_imprecise_list_abstains_even_when_it_is_long():
     assert assess_peak_list(fine).supports_indexing
 
 
+def test_an_abstention_names_an_undeclared_instrument_first():
+    """The picker holds the instrument it was given, so a default axial
+    aperture and the synchrotron default profile widen every esd it fits.
+    Declaring both is a re-pick, the cheapest remedy, so it leads (WP-1510)."""
+    from rietx import Instrument
+    from rietx.schemas.common import Parameter
+    from rietx.schemas.instrument import ProfileTCHZ
+
+    coarse = _fitted(np.linspace(15.0, 130.0, 40), esd=0.5)
+    bare = Instrument.bragg_brentano()
+    bare = bare.model_copy(update={"profile": ProfileTCHZ()})
+    d = next(x for x in assess_peak_list(coarse, instrument=bare).diagnostics
+             if x.code == "INDEX_DATA_INSUFFICIENT")
+    assert d.suggestion.startswith("declare the instrument")
+    assert "axial_sl" in d.suggestion and "ProfileTCHZ" in d.suggestion
+    assert "instrument.profile" in d.where
+
+    # only what is still at default is located
+    axial = bare.model_copy(update={
+        "geometry": bare.geometry.model_copy(update={
+            "axial_sl": Parameter(value=0.03, min=0.0, max=0.2),
+            "axial_hl": Parameter(value=0.03, min=0.0, max=0.2)})})
+    d = next(x for x in assess_peak_list(coarse, instrument=axial).diagnostics
+             if x.code == "INDEX_DATA_INSUFFICIENT")
+    assert "instrument.profile" in d.where
+    assert "instrument.geometry" not in d.where
+
+    declared = bare.model_copy(update={
+        "geometry": bare.geometry.model_copy(update={
+            "axial_sl": Parameter(value=0.03, min=0.0, max=0.2),
+            "axial_hl": Parameter(value=0.03, min=0.0, max=0.2)}),
+        "profile": ProfileTCHZ(w=Parameter(value=0.004, min=0.0))})
+    for ins in (declared, None):
+        d = next(x for x in assess_peak_list(coarse, instrument=ins).diagnostics
+                 if x.code == "INDEX_DATA_INSUFFICIENT")
+        assert d.suggestion.startswith("abstention is the result here")
+        assert "instrument.profile" not in d.where
+
+
 def test_an_assumed_sigma_may_not_refuse_to_index():
     """WP-1026: the precision abstention is a statement about *measured* data.
 

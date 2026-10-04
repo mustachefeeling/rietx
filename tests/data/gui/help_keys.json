@@ -99,6 +99,7 @@
   "peak_flags:asymmetry_unmodelled",
   "peak_flags:axial_tail",
   "peak_flags:background_extrapolated",
+  "peak_flags:duplicate_line",
   "peak_flags:excluded",
   "peak_flags:fit_failed",
   "peak_flags:ghost_kbeta",

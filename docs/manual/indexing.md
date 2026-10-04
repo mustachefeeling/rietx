@@ -218,6 +218,44 @@ $1 - 0.71$ is Smith's own worst case. Used as a hard search ceiling the relation
 has no margin against the worst pattern in its own calibration set, so the slack
 that makes it safe is this package's to supply.
 
+## Volume from a formula
+
+When the formula is known, the volume of one formula unit follows from average
+atomic volumes {cite}`hofmann2002`. Hofmann fitted one volume per element to
+182 239 structures in the Cambridge Structural Database, and let the sum expand
+linearly with temperature:
+
+```{math}
+:label: idx-formula-volume
+
+V_{\mathrm{fu}}(T) \;=\; \sum_i n_i\, \bar v_i \,
+\frac{1 + \bar\alpha\, T}{1 + \bar\alpha\, T_0},
+```
+
+{source}`rietx.crystallography.atomic_volume.formula_unit_volume`
+
+with $n_i$ atoms of element $i$, $\bar v_i$ its average volume at
+$T_0 = 298$ K, and $\bar\alpha = 0.95 \times 10^{-4}$ K$^{-1}$. The paper
+writes the expansion as $(1 + \bar\alpha T)$ with $T$ absolute and quotes the
+volumes at 298 K, and the ratio reconciles the two. The table replaces a single
+figure of about 18 Å³ per C, N or O atom {cite}`kempsterlipson1972`. On
+Hofmann's set the standard deviation of $V_{\mathrm{obs}}/V_{\mathrm{est}}$ is
+4.00 % for the table and 9.04 % for that figure.
+
+Two uncertainties answer two questions. The tabulated mean errors say how well
+each average is known, about 0.5 % of an organic formula unit. One crystal
+scatters about the average by {{ VOLUME_SCATTER_PCT }} %, and a check on one
+candidate cell uses that. A cell of volume $V$ implies $Z = V/V_{\mathrm{fu}}$
+formula units. It is reported when the nearest whole number $n$ needs
+$\lvert Z/n - 1 \rvert$ above {{ Z_INTEGER_TOLERANCE_PCT }} %, twice the
+scatter. Above $Z$ = {{ Z_CHECK_SILENT_ABOVE }} every value lies that close to
+a whole number, so the check is silent there. A search window from a formula
+takes the paper's wider bounds instead, $V_{\mathrm{obs}}/V_{\mathrm{est}}$
+from {{ VOLUME_RATIO_LOW }} to {{ VOLUME_RATIO_HIGH }}, because a window that
+excludes the true cell makes the search return a wrong one. The volumes are
+fitted to organic and metal-organic crystals, and an ionic compound comes out
+too large.
+
 ## Figures of merit, in both directions
 
 The classical figures are de Wolff's {cite}`dewolff1968`
@@ -362,3 +400,14 @@ and at $p \ge \alpha$ = {{ SUPERCELL_CHANCE_ALPHA }} the larger cell is ranked
 directly below the smaller. The test cannot refute where it could not have
 confirmed. When even $k = n$ gives $p_0^{\,n} \ge \alpha$, too few lines or
 too many windows, the verdict is undecided and the order stays as it was.
+
+The other direction asks a narrower count. Of the $k$, let $k'$ fall on an
+observed line that no line of the smaller cell's own lattice explains. When the
+same tail with $k'$ in place of $k$ is below $\alpha$, the larger cell is ranked
+directly above the smaller. Those observed lines exist, and the smaller cell
+cannot index them. An added line seen on a line the smaller cell explains is
+left out of $k'$. A pseudo-symmetric description places its added lines beside
+the smaller cell's own, and those lines say nothing about the larger cell. The
+null stays $p_0$. That overstates the chance of landing on an unexplained line.
+So this count errs towards leaving the order alone. A larger cell refuted
+against any reported cell is never moved up.

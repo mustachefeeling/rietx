@@ -22,8 +22,11 @@ address a consumer can act on.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
+from ..crystallography.atomic_volume import VOLUME_SCATTER, formula_unit_volume
 from ..schemas.common import Diagnostic
 from ..schemas.indexing import (
     MAX_RELATIVE_SIGMA_Q,
@@ -32,6 +35,7 @@ from ..schemas.indexing import (
     DataQualityReport,
     PeakList,
 )
+from ..schemas.instrument import Instrument, ProfileTCHZ
 from .peaks import Detection
 
 #: Physical cause of each shift template, for the messages.  The template names
@@ -309,7 +313,35 @@ def refinement_width_diagnostics(measured: float,
         suggestion=suggestion, value=ratio)]
 
 
+def undeclared_instrument(instrument: Instrument) -> dict[str, str]:
+    """What the instrument a peak list was picked with still leaves at default,
+    keyed by the block that holds it.
+
+    The picker holds both and applies them (:func:`~rietx.indexing.pick_peaks`),
+    so a default stands in for a measurement.  Axial divergence at S/L = H/L = 0
+    leaves a lab line's low-angle asymmetry to the position, and the default
+    ``ProfileTCHZ`` (W = 1e-3 deg²) is a synchrotron line, so the width seeds
+    and the separation floor are a lab pattern's several times over.  Measured
+    on one lab capillary pattern (WP-1510, ``solution case 1``): declaring both
+    took median σ(Q)/Q from 1.05e-3 to 6.9e-4 and the gate passed.
+    """
+    out: dict[str, str] = {}
+    geo = instrument.geometry
+    if geo.axial_sl.value == 0.0 and geo.axial_hl.value == 0.0:
+        out["instrument.geometry"] = (
+            "geometry.axial_sl and geometry.axial_hl are 0, so no axial "
+            "divergence is modelled")
+    default = ProfileTCHZ()
+    if all(getattr(instrument.profile, k).value == getattr(default, k).value
+           for k in "uvwxy"):
+        out["instrument.profile"] = (
+            "instrument.profile is the default ProfileTCHZ, a synchrotron line "
+            f"(W = {default.w.value:g} deg²)")
+    return out
+
+
 def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
+                        instrument: Instrument | None = None,
                         ) -> list[Diagnostic]:
     """Translate a :class:`DataQualityReport` into the ``INDEX_*`` messages.
 
@@ -323,14 +355,26 @@ def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
     where_range = [f"2θ {report.two_theta_min:.2f}-{report.two_theta_max:.2f}°"]
 
     if report.abstained_reason is not None:
+        suggestion = ("abstention is the result here — extend the 2θ range, "
+                      "count longer, or re-pick with a lower "
+                      "PEAK_MIN_HEIGHT_SIGMA.  Running a search anyway "
+                      "returns a rank order with nothing behind it")
+        # the instrument is named first because it is the cheapest of the
+        # remedies: a re-pick, where the others are a new measurement
+        # only a fitted list was picked with an instrument; a position list
+        # has no picker to re-run
+        missing = ({} if instrument is None or peaks.source != "fitted"
+                   else undeclared_instrument(instrument))
+        if missing:
+            suggestion = ("declare the instrument before re-picking: "
+                          + "; ".join(missing.values()) + ".  The picker fits every "
+                          "line with these held, so a default widens each "
+                          "position's esd.  Otherwise " + suggestion)
         out.append(Diagnostic(
             level="error", code="INDEX_DATA_INSUFFICIENT",
             message=report.abstained_reason,
-            where=where_range,
-            suggestion=("abstention is the result here — extend the 2θ range, "
-                        "count longer, or re-pick with a lower "
-                        "PEAK_MIN_HEIGHT_SIGMA.  Running a search anyway "
-                        "returns a rank order with nothing behind it")))
+            where=where_range + list(missing),
+            suggestion=suggestion))
     elif report.fom_undefined:
         absent = "; ".join(f"{name}: {why}"
                            for name, why in sorted(report.fom_undefined.items()))
@@ -433,19 +477,44 @@ BRAGG_BRENTANO_CELL_PPM = 85.0
 #: duplicating the text would let the two copies disagree.
 _PER_CANDIDATE_CODES = ("INDEX_GEOMETRIC_AMBIGUITY", "INDEX_BRAVAIS_AMBIGUOUS",
                         "INDEX_PREDICTED_BUT_ABSENT", "INDEX_IMPURITY_LINES",
-                        "INDEX_VOLUME_UNPHYSICAL", "INDEX_SUPERCELL_REFUTED")
+                        "INDEX_VOLUME_UNPHYSICAL", "INDEX_SUPERCELL_REFUTED",
+                        "INDEX_Z_NOT_INTEGER")
+
+#: How far a cell may sit from a whole number of formula units, as a fraction of
+#: its volume, before ``INDEX_Z_NOT_INTEGER`` fires (WP-1510).  Twice the 4.00 %
+#: scatter of one crystal about Hofmann's (2002) estimate
+#: (:data:`~rietx.crystallography.atomic_volume.VOLUME_SCATTER`).  That scatter
+#: is the method's uncertainty for one crystal.  The table's mean errors, about
+#: 0.5 % for an organic, describe the average and would flag correct cells.
+#: Three consequences.  Above Z = 6.25 every volume lies within 8 % of some
+#: whole number, so the check is silent there by arithmetic.  Z = 2.8 sits 6.7 %
+#: from 3 and does not fire, while Z = 8/3, a third of a Z = 8 cell, sits 11 %
+#: from 3 and does.  And a correct cell can fire, since only 6049 of the 9112
+#: structures in Hofmann's sample 1 lie within 5 % of his estimate (Table 1).
+#: So the code is a warning that reports the number, and never a caveat.
+Z_INTEGER_TOLERANCE = 2.0 * VOLUME_SCATTER
 
 
-def candidate_diagnostics(cand) -> list[Diagnostic]:
+def candidate_diagnostics(cand, *, formula: str | None = None,
+                          temperature: float = 298.0) -> list[Diagnostic]:
     """Everything to say about **one** candidate cell.
 
     Attached to the candidate rather than to the result, so a caller reading the
     third-ranked cell sees why it is third — and so a twelve-candidate answer does
     not bury its own abstention under thirty-six messages.
+
+    ``formula`` (with ``temperature`` in K) adds the chemistry's check: the
+    number of formula units the cell's volume implies, reported as
+    ``INDEX_Z_NOT_INTEGER`` when it is far from a whole number
+    (:data:`Z_INTEGER_TOLERANCE`).
     """
     out: list[Diagnostic] = []
     where = [f"{cand.system} {cand.centring}, "
              f"V = {cand.volume:.1f} Å³, cell {_cell_str(cand.cell)}"]
+    if formula is not None:
+        z_check = _z_not_integer(cand, formula, temperature, where)
+        if z_check is not None:
+            out.append(z_check)
 
     if cand.ambiguity:
         tt = [t for p in cand.ambiguity for t in p.discriminating_two_theta]
@@ -521,8 +590,8 @@ def candidate_diagnostics(cand) -> list[Diagnostic]:
                      f"{check.n_extra} extra line(s) it predicts that no "
                      f"extinction could remove, {check.n_seen} sit on an "
                      f"observed line, where chance alone puts {chance:.1f} "
-                     f"(p = {check.p_value:.2g}).  So it is ranked directly below "
-                     "that candidate." + others),
+                     f"(p = {check.p_value:.2g}).  So it is ranked below that "
+                     "candidate." + others),
             where=where + ([f"first missing extra at {check.absent_two_theta[0]:.3f}°"]
                            if check.absent_two_theta else []),
             suggestion=("read the smaller cell as the lattice: this one repeats "
@@ -561,6 +630,36 @@ def candidate_diagnostics(cand) -> list[Diagnostic]:
                         "or measure more lines — the envelope is a statement "
                         "about how many lines a cell of that size would show")))
     return out
+
+
+def _z_not_integer(cand, formula: str, temperature: float,
+                   where: list[str]) -> Diagnostic | None:
+    """``INDEX_Z_NOT_INTEGER``: the cell holds a fractional number of formula
+    units, by Hofmann's (2002) volumes.  ``value`` is the implied Z."""
+    v_fu, _ = formula_unit_volume(formula, temperature)
+    z = cand.volume / v_fu
+    below = max(1, math.floor(z))
+    # the whole number nearest in *ratio*, since the tolerance is a fraction of
+    # the volume
+    n = min((below, below + 1), key=lambda k: abs(z / k - 1.0))
+    off = z / n - 1.0
+    if abs(off) <= Z_INTEGER_TOLERANCE:
+        return None
+    return Diagnostic(
+        level="warning", code="INDEX_Z_NOT_INTEGER", value=z,
+        message=(f"this cell holds {z:.2f} formula units of {formula} "
+                 f"({cand.volume:.1f} Å³ over {v_fu:.1f} Å³ per unit at "
+                 f"{temperature:g} K, Hofmann 2002).  The nearest whole number, "
+                 f"{n}, needs a formula unit {abs(off) * 100:.0f} % "
+                 f"{'larger' if off > 0 else 'smaller'} than the estimate, "
+                 f"past the {Z_INTEGER_TOLERANCE * 100:.0f} % that twice one "
+                 "crystal's scatter allows"),
+        where=where + [f"formula {formula}"],
+        suggestion=("weigh it beside the figures of merit, never as a refusal.  "
+                    "A fractional Z means a sub- or supercell of the truth, or a "
+                    "formula that misses something (solvent, a counter-ion), or "
+                    "an ionic specimen, where the volumes run large.  Check the "
+                    "formula first"))
 
 
 def index_diagnostics(result, instrument=None) -> list[Diagnostic]:
@@ -845,6 +944,6 @@ def significant(values: np.ndarray, threshold: float) -> np.ndarray:
 
 
 __all__ = ["BRAGG_BRENTANO_CELL_PPM", "SHIFT_CAUSE", "WIDTH_MISMATCH_RATIO",
-           "candidate_diagnostics", "extinction_class_diagnostics",
+           "Z_INTEGER_TOLERANCE", "candidate_diagnostics", "extinction_class_diagnostics",
            "extinction_diagnostics", "index_diagnostics", "peak_diagnostics",
            "quality_diagnostics", "significant"]

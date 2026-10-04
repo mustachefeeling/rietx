@@ -141,9 +141,9 @@ mis-indexing a pattern later.
 
 ### The flags
 
-`ObservedPeak.flags` is a closed vocabulary of fifteen. Seven of them take a
+`ObservedPeak.flags` is a closed vocabulary of sixteen. Eight of them take a
 line out of `PeakList.usable`, and the rest are evidence a consumer weighs.
-Fourteen are below; the fifteenth, `unnamed_neighbour`, belongs to `fit_peaks`
+Fifteen are below; the sixteenth, `unnamed_neighbour`, belongs to `fit_peaks`
 and is described there.
 
 | Flag | Means | Usable? |
@@ -155,6 +155,7 @@ and is described there.
 | `not_separable` | a component the fitter believes as a shape and disbelieves as a line | no |
 | `no_intensity` | it refined onto its zero intensity bound, so it locates nothing | no |
 | `position_unmeasured` | its position esd reached 180°, the whole span a 2θ axis has, so it has no position | no |
+| `duplicate_line` | a better-measured component of another group already fitted this line | no |
 | `sigma_assumed` | σ was supplied rather than fitted | yes |
 | `unresolved_shoulder` | it never separated from its neighbour by half a FWHM | yes |
 | `position_at_bound` | the fit pushed to its position bound: detection seeded it in the wrong place | yes |
@@ -538,6 +539,8 @@ result = rx.index_pattern(peaks, data=data, instrument=ins)
 | `validate` | `True` | run the Le Bail validation when a pattern is available |
 | `check_top` | `None` | how many candidates get the expensive per-candidate checks |
 | `two_theta_limits` | `None` | restrict the range the validation fits use |
+| `formula` | `None` | a chemical formula; each candidate's implied Z is checked against it ([](#a-volume-window-from-the-formula)) |
+| `temperature` | 298 | the measurement temperature in K, for the formula's volume |
 | `events` | `None` | the streaming event ladder, as everywhere else |
 | `cancel` | `None` | a `CancelToken`; a cancelled search returns what it has |
 
@@ -680,7 +683,9 @@ puts its crystal system at the front of the queue, seeds the stochastic engine's
 starting basin with its metric, and is checked against the lines the engines'
 own way. No
 system is dropped and no range is changed, so a wrong prior costs time rather
-than truth, and `INDEX_PRIOR_USED` records what was assumed. Declare one
+than truth, and `INDEX_PRIOR_USED` records what was assumed. Two settings of
+one lattice, such as an acute and an obtuse monoclinic angle, come back as one
+candidate, because the ranking compares reduced cells. Declare one
 whenever you have a database hit or an isostructural analogue; §7d of the
 protocol has the worked example.
 
@@ -696,6 +701,47 @@ carries that are not the data.
 
 It is what a project document persists ([](files.md)), so a run can be repeated
 from a stored setting rather than from a call site.
+
+(a-volume-window-from-the-formula)=
+### A volume window from the formula
+
+A formula says roughly how much room one formula unit takes in a crystal.
+`SearchSpec.from_formula` turns that into a volume window. The volume of one
+formula unit is the sum of Hofmann's (2002) average atomic volumes, from
+`rietx.crystallography.atomic_volume.formula_unit_volume`. The window holds `z`
+formula units, widened to the bounds {{ VOLUME_RATIO_LOW }} to
+{{ VOLUME_RATIO_HIGH }} on the ratio of observed to estimated volume. About 1 %
+of the 182 239 structures Hofmann fitted lie outside those bounds.
+
+```python
+from rietx.crystallography.atomic_volume import formula_unit_volume
+from rietx.indexing import SearchSpec
+
+volume, esd = formula_unit_volume("C7H6O2")      # benzoic acid, at 298 K
+assert (round(volume, 2), round(esd, 2)) == (150.35, 0.93)
+
+spec = SearchSpec.from_formula("C7H6O2", z=(2, 8), max_d_axis=32.0)
+assert round(spec.min_volume, 2) == 240.56       # 2 x 150.35 x 0.8
+assert round(spec.max_volume, 2) == 1503.5       # 8 x 150.35 x 1.25
+```
+
+`z` counts formula units in the conventional cell, as an integer, a
+`(min, max)` pair or `None`. `None` sets only the floor of one formula unit and
+leaves the ceiling to the data-quality envelope, because a formula says nothing
+about how many units the cell holds. The esd says how well the average volume is
+known. One crystal scatters about it by {{ VOLUME_SCATTER_PCT }} %, and the
+window is wider still, because a window that excludes the true cell makes the
+search return a wrong one. The volumes are fitted to organic and metal-organic
+crystals. An ionic compound comes out too large, so the floor can exclude its
+cell.
+
+Passing `formula=` to `index_pattern` checks each candidate instead of
+narrowing the search. A cell whose volume holds a fractional number of formula
+units carries `INDEX_Z_NOT_INTEGER`, a warning whose `value` is the implied Z.
+It fires when the nearest whole number is more than
+{{ Z_INTEGER_TOLERANCE_PCT }} % away, twice one crystal's scatter, so it says
+nothing above Z = {{ Z_CHECK_SILENT_ABOVE }}. The candidate keeps its rank. The
+theory is in [](#ch-indexing).
 
 ## The result object
 
@@ -730,6 +776,8 @@ lives in that candidate's own `CellCandidate.diagnostics` and
 | Field | Holds |
 |---|---|
 | `CellCandidate.cell`, `CellCandidate.cell_esd` | a, b, c (Å) and α, β, γ (°), with esds |
+| `CellCandidate.a`, `CellCandidate.b`, `CellCandidate.c`, `CellCandidate.alpha`, `CellCandidate.beta`, `CellCandidate.gamma` | the members of `cell` by name |
+| `CellCandidate.to_cell` | `cell` as a `Cell`, every parameter fixed; the esds stay on `cell_esd` |
 | `CellCandidate.system`, `CellCandidate.centring` | crystal system, and Bravais centring letter |
 | `CellCandidate.lattice_group` | the absence-free group of the lattice: holohedry plus centring |
 | `CellCandidate.volume`, `CellCandidate.volume_esd` | cell volume, Å³ |
@@ -838,19 +886,34 @@ covered by those windows, which is how often a position with no line at all
 would still read as seen {eq}`idx-supercell-chance`.
 
 When the extra lines are seen no more often than chance, the larger cell is
-*refuted*. It moves to directly below the cell inside it, stays in the list,
+*refuted*. It moves below the cell inside it, stays in the list,
 and carries the refuting caveat `supercell_refuted`, with a message naming the
-parent and the counts. Nothing else in the order changes, and a check that
-cannot decide changes nothing. That happens when there are too few such lines
-in range, as when the smaller cell's lines are all the larger one adds. The
-check needs only the peak list, so it runs on a bare list too. Each pair asked
-is a `SupercellCheck` on the larger cell's `CellCandidate.supercell_checks`.
+parent and the counts.
+
+When the extra lines seen on observed lines the smaller cell cannot index are
+more than chance gives, the larger cell is *supported*. It moves to directly
+above the cell inside it. The smaller cell leaves those observed lines
+unexplained. On the round-robin corundum pattern all three engines found the
+certified cell's c/2 subcell, which indexes 37 of 47 lines. Only one engine
+found the certified cell. Its extras were seen 8 times in 18, all on lines the
+subcell cannot index. Chance gives 2.7. So the certified cell now ranks first.
+An extra seen on a line the smaller cell already explains does not count
+towards support. A cell refuted against any reported cell is never moved up.
+
+Nothing else in the order changes, and a check that cannot decide changes
+nothing. That happens when there are too few such lines in range, as when the
+smaller cell's lines are all the larger one adds. It also happens when the
+extras are seen beyond chance only on lines the smaller cell explains, as for a
+pseudo-symmetric description of the smaller cell's own lattice. The check
+needs only the peak list, so it runs on a bare list too. Each pair asked is a
+`SupercellCheck` on the larger cell's `CellCandidate.supercell_checks`.
 
 | Field | Holds |
 |---|---|
 | `SupercellCheck.parent_cell`, `SupercellCheck.parent_system`, `SupercellCheck.parent_centring` | the smaller candidate this cell contains |
 | `SupercellCheck.index` | how many of the parent's primitive cells one of this cell's holds |
 | `SupercellCheck.n_extra`, `SupercellCheck.n_seen` | extra lines no extinction could remove, and how many sit on an observed line |
+| `SupercellCheck.n_seen_unexplained` | how many of those observed lines the smaller cell cannot index; `None` in a record from before thresholds version 1.7 |
 | `SupercellCheck.p0` | the chance that a position with no line reads as seen |
 | `SupercellCheck.p_value` | the chance of seeing at least that many, had the extra lines not existed |
 | `SupercellCheck.verdict` | `refuted`, `supported` or `undecided` |
