@@ -18,6 +18,8 @@ independent single fits — not the joint-residual point of this module.
 from __future__ import annotations
 
 import dataclasses
+import math
+import re
 
 import numpy as np
 
@@ -44,9 +46,12 @@ from .params.multi import (
     _longest_wavelength,
     _unscoped,
 )
+from .params.vector import is_variable_path
 from .refine import (
     _VERSION,
     _WAVELENGTH_PINNED_BY_HELD_HISTOGRAM,
+    SCALE_B_SEPARATION_FLOOR,
+    SCALE_B_STEP,
     _absorption_diagnostics,
     _absorption_record,
     _air_scatter_undeclared_diagnostics,
@@ -54,12 +59,14 @@ from .refine import (
     _capillary_offset_diagnostics,
     _cell_runaway_diagnostic,
     _cell_runaway_withheld,
+    _column_separation,
     _constraint_diagnostics,
     _covariance_diagnostics,
     _data_support_diagnostics,
     _declared_wavelengths,
     _degenerate_cell_diagnostics,
     _dispersion_diagnostics,
+    _displacement_columns,
     _extra_peak_diagnostics,
     _extra_peak_tick_support,
     _far_from_data_diagnostics,
@@ -78,6 +85,7 @@ from .refine import (
     _resolve_specimen_absorption,
     _resonant_absorber_diagnostics,
     _roughness_regime_diagnostics,
+    _scale_b_ridge_diagnostics,
     _site,
     _size_flag_diagnostics,
     _species_fallback_diagnostics,
@@ -231,6 +239,9 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "_phase_support_diagnostics": (
         (FIT,), "a phase is unseen only when every histogram misses it, so the "
                 "statement is joint"),
+    "_scale_b_ridge_diagnostics": (
+        (FIT,), "the probe stacks every histogram, since a phase's scales are "
+                "per histogram and its displacement parameters shared (WP-1534)"),
     "_size_sharing_diagnostics": (
         (FIT,), "joint-only: what the sharing map did to a size across λ"),
     "_unreached_histogram_diagnostics": (
@@ -240,10 +251,6 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "_hold_diagnostics": (
         (ABSENT,), "a joint fit has no hold verb, so no StageResult here "
                    "carries blocked_by_hold for HOLD_BLOCKED_PLAN to report"),
-    "_scale_b_ridge_diagnostics": (
-        (ABSENT,), "the joint runner does not run the scale-B probe (WP-1534), "
-                   "so its StageResults leave scale_b_held at None and there "
-                   "is no hold for SCALE_B_INSEPARABLE to report"),
     "_pawley_unresolved_diagnostics": (
         (ABSENT,), "a joint fit is Rietveld-only (fit refuses pawley)"),
     "_pawley_off_data_diagnostics": (
@@ -358,6 +365,105 @@ def _hold_unsupported_phases_multi(models, mtable) -> list[str]:
     if held:
         mtable.set_vary(held, False)
     return held
+
+
+#: ``phases.i.scale``: the one entry a column must move, and nothing else, to
+#: be phase ``i``'s own scale (``refine._own_scale_is_free``'s test).
+_SCALE_PATH = re.compile(r"^phases\.(\d+)\.scale$")
+
+
+def _scale_b_probe_multi(models, mtable, phases: set[int] | None = None,
+                         weights: list[float] | None = None
+                         ) -> tuple[dict[int, float], dict[int, list[str]]]:
+    """The single fit's scale-B probe (``refine._scale_b_separation``) over
+    every histogram at once (WP-1534).
+
+    A phase's scale is per histogram and its displacement parameters are
+    shared, so the question is whether some combination of its scales can be
+    imitated by its displacement columns across all the histograms stacked:
+    the smallest angle between the two spans
+    (``refine._column_separation``).  One histogram reduces to the single
+    fit's reading.  A joint column is the phase's displacement column only
+    where it is one in **every** histogram it reaches (all, never any), and
+    the same rule picks the phase's scale columns: a scale shared across
+    histograms (``SharingMap.shared``) is **one** column on every histogram
+    it reaches, never one per histogram.  Each histogram's rows carry its
+    weight's √w_h, as the joint residual's do.  Returns the separations and,
+    per phase, the joint column names a hold would take.
+    """
+    reach = [t.column_reach() for t in mtable.tables]
+    disp = [_displacement_columns(t, r) for t, r in zip(mtable.tables, reach,
+                                                        strict=True)]
+    names = mtable.free_paths
+    owner: dict[int, set[int] | None] = {}
+    scale_owner: dict[int, set[int] | None] = {}
+    on: dict[int, set[int]] = {}
+    for h, table in enumerate(mtable.tables):
+        local = {p: ip for ip, cols in disp[h].items() for p in cols}
+        for c, k in enumerate(mtable.col_map(h)):
+            k = int(k)
+            path = table.free_paths[c]
+            ip = local.get(path)
+            seen = owner.get(k, set())
+            owner[k] = None if (seen is None or ip is None) else seen | {ip}
+            moved = [q for q in reach[h].get(path, [path])
+                     if not is_variable_path(q)]
+            m = _SCALE_PATH.match(moved[0]) if len(moved) == 1 else None
+            seen = scale_owner.get(k, set())
+            scale_owner[k] = (None if (seen is None or m is None)
+                              else seen | {int(m.group(1))})
+            on.setdefault(k, set()).add(h)
+    columns: dict[int, list[int]] = {}
+    for k, ips in owner.items():
+        if ips is not None and len(ips) == 1:
+            columns.setdefault(next(iter(ips)), []).append(k)
+    scale_cols: dict[int, list[int]] = {}
+    for k, ips in scale_owner.items():
+        if ips is not None and len(ips) == 1:
+            scale_cols.setdefault(next(iter(ips)), []).append(k)
+    if phases is not None:
+        columns = {ip: c for ip, c in columns.items() if ip in phases}
+    theta = mtable.x0()
+    values = mtable.decode(theta)
+    w = [1.0] * len(models) if weights is None else weights
+    inv = [math.sqrt(wh) / np.asarray(m.sigma, dtype=np.float64)
+           for m, wh in zip(models, w, strict=True)]
+    out: dict[int, float] = {}
+    for ip in sorted(columns):
+        if ip not in scale_cols:
+            continue
+        base = [np.asarray(m.phase_component(ip, v), dtype=np.float64) * f
+                for m, v, f in zip(models, values, inv, strict=True)]
+        scales = [np.concatenate([b if g in on[k] else np.zeros_like(b)
+                                  for g, b in enumerate(base)])
+                  for k in sorted(scale_cols[ip])]
+        stepped = []
+        for k in sorted(columns[ip]):
+            th = theta.copy()
+            th[k] += SCALE_B_STEP
+            moved = mtable.decode(th)
+            stepped.append(np.concatenate(
+                [np.asarray(m.phase_component(ip, v), dtype=np.float64) * f - b
+                 for m, v, f, b in zip(models, moved, inv, base, strict=True)]))
+        r = _column_separation(scales, stepped)
+        if r is not None:
+            out[ip] = r
+    return out, {ip: [names[k] for k in sorted(c)] for ip, c in columns.items()}
+
+
+def _hold_scale_b_ridges_multi(models, mtable, phases: set[int] | None = None,
+                               weights: list[float] | None = None
+                               ) -> tuple[list[str], dict[int, float]]:
+    """Hold every phase's displacement columns where
+    :func:`_scale_b_probe_multi` reads under ``SCALE_B_SEPARATION_FLOOR`` —
+    ``refine._hold_scale_b_ridges`` for a joint fit.  Never released at the
+    answer: it rests on the frozen reflection lists."""
+    separation, columns = _scale_b_probe_multi(models, mtable, phases, weights)
+    ridged = {ip: r for ip, r in separation.items() if r < SCALE_B_SEPARATION_FLOOR}
+    held = [c for ip in sorted(ridged) for c in columns[ip]]
+    if held:
+        mtable.set_vary(held, False)
+    return held, ridged
 
 
 def _rehold_multi(models, mtable, held: list[str],
@@ -769,12 +875,19 @@ class MultiHistogramRefinement:
             # — the single-histogram runner's rule (``_run_stage``)
             declared_freed = list(freed)
             held = _hold_unsupported_phases_multi(models, self.mtable)
+            # a phase whose scales and displacement parameters the ranges
+            # cannot separate (WP-1534): the single runner's probe, asked of
+            # every histogram at once; kept apart from the support hold, since
+            # it rests on the frozen reflection lists and is never released
+            ridge_hold, scale_b_held = _hold_scale_b_ridges_multi(
+                models, self.mtable, weights=weights)
             # and a moment direction no histogram can see (WP-1327, #600):
             # the single-histogram runner's second hold, kept apart for the
             # same reason — each is asked again of the answer by its own test
             moment_hold, flat_axes, moment_turned = _hold_flat_moments_multi(
                 models, self.mtable)
-            held = held + moment_hold
+            support_hold = held
+            held = held + ridge_hold + moment_hold
             if held:
                 held_set = set(held)
                 freed = [p for p in declared_freed if p not in held_set]
@@ -801,8 +914,19 @@ class MultiHistogramRefinement:
                 outcome = dataclasses.replace(outcome, theta=self.mtable.x0())
             moment_set = set(moment_hold)
             released, collapsed = _rehold_multi(
-                models, self.mtable, [p for p in held if p not in moment_set],
-                start_values)
+                models, self.mtable, list(support_hold), start_values)
+            if released:
+                # a phase the support hold released is asked before its second
+                # solve, or that solve runs on the ridge unflagged (the single
+                # runner's ``late_hold``)
+                back = {int(_unscoped(p).split(".")[1]) for p in released}
+                late, late_sep = _hold_scale_b_ridges_multi(
+                    models, self.mtable, back, weights)
+                if late:
+                    late_set = set(late)
+                    released = [p for p in released if p not in late_set]
+                    collapsed = collapsed + late
+                    scale_b_held.update(late_sep)
             m_released, m_collapsed, m_axes, m_turned = _rehold_flat_moments_multi(
                 models, self.mtable, [p for p in held if p in moment_set],
                 start_values, moment_turned)
@@ -812,7 +936,8 @@ class MultiHistogramRefinement:
             moment_turned = moment_turned + m_turned
             if released or collapsed or m_turned:
                 released_set = set(released)
-                held = [p for p in held + collapsed if p not in released_set]
+                held = list(dict.fromkeys(p for p in held + collapsed
+                                          if p not in released_set))
                 held_set = set(held)
                 freed = [p for p in declared_freed if p not in held_set]
                 second = run_multi_least_squares(
@@ -856,6 +981,7 @@ class MultiHistogramRefinement:
                 n_constraint_truncations=outcome.n_constraint_truncations,
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
                 ftol=ftol, held=held, released=released,
+                scale_b_held=dict(scale_b_held),
                 moment_flat_axes=kept_axes,
                 moment_turned=[b for b in kept_axes if b in moment_turned],
                 unknown_paths=unknown_paths, unreached_histograms=unreached))
@@ -1168,6 +1294,10 @@ class MultiHistogramRefinement:
             self.mtable.structures[0], stage_results,
             basis="with everything else held, in the histogram that shows it best",
             decided=False)
+        # a phase whose scales and B no histogram's range can separate, and
+        # what its fraction is conditional on (WP-1534)
+        diagnostics = diagnostics + _scale_b_ridge_diagnostics(
+            models, per_values, self.mtable.structures[0], stage_results)
 
         weight_note = ("unit (each point's esd governs)"
                        if all(w == 1.0 for w in weights)

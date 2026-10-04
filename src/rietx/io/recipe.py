@@ -127,8 +127,6 @@ from ..schemas.structure import (
     Cell,
     Phase,
     Structure,
-    biso_bounds,
-    biso_widening_diagnostic,
 )
 from ..strategy.staged import RefinementPlan, Stage
 
@@ -1026,8 +1024,6 @@ def _read_phases(payload: dict, instrument: Instrument,
         built.append(phase)
         names.append(name)
     structure = Structure(phases=built)
-    if (widened := biso_widening_diagnostic(structure, "the recipe")) is not None:
-        diags.append(widened)
     return structure, names
 
 
@@ -1100,7 +1096,7 @@ def _read_atoms(key: str, st: dict, par: dict,
                     z=Parameter(value=float(site.get("z", 0.0))),
                     occ=Parameter(value=float(site.get("occupancy", 1.0)),
                                   min=0.0, max=1.5),
-                    biso=Parameter(value=b_iso, **biso_bounds(b_iso), unit="A^2"))
+                    biso=Parameter(value=b_iso, unit="A^2"))
         spec = atom_par.get(label) or {}
         pbase = f"payload.phases.{key}.parameterization.atoms.{label}"
         for axis in ("x", "y", "z"):

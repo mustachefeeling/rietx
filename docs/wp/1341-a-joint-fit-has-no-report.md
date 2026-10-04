@@ -97,15 +97,15 @@ Some constraints that shape (1) and (3):
   noise-fitted phase seen. Its report should decide whether to take the
   marginal test, and whether histograms combine in quadrature. Today a phase
   any one histogram sees is seen.
-- **From WP-1534, 2026-10-02: the joint runner does not run the scale–B
-  probe.** A single-histogram stage holds a phase's displacement parameters
-  where the fitted range cannot separate them from its scale
-  (`refine._hold_scale_b_ridges`, `StageResult.scale_b_held`,
-  `SCALE_B_INSEPARABLE`). A joint stage leaves `scale_b_held` at `None`, and
-  `multi.DIAGNOSTIC_SCOPES` lists `_scale_b_ridge_diagnostics` as ABSENT for
-  that reason. Two ranges can separate together what neither separates alone,
-  so the joint question is the separation of the *joint* columns. Taking the
-  per-histogram answer would hold a B that the pair of histograms measures.
+- **From WP-1534, 2026-10-04: the joint runner now runs the scale–B probe**
+  (this replaces WP-1534's 2026-10-02 note that it did not). A phase's scales
+  are per histogram and its displacement parameters shared, so
+  `multi._scale_b_probe_multi` reads the smallest angle between the span of
+  its scales and the span of its displacement columns, stacked over every
+  histogram. `StageResult.scale_b_held` is written, `SCALE_B_INSEPARABLE`
+  fires, and `DIAGNOSTIC_SCOPES` lists it as FIT. Nothing is left for this
+  WP but to include it in the joint report. It became necessary because
+  `Atom.biso` lost its default bound the same day.
 - **From WP-1344, 2026-10-01 (closed): the census of what `multi.py` re-derives
   is wider than its diagnostics.** WP-1344 classified every `_*_diagnostics`
   helper for the joint path under a meta-test. It did not audit the other

@@ -340,6 +340,174 @@ def test_a_variable_shared_with_a_separable_phase_is_not_held(pattern):
     assert _findings(res) == []
 
 
+# ----------------------------------------------------------------------
+# the block: more displacement columns than the reflections leave room for
+# ----------------------------------------------------------------------
+#: 25–33° Cu Kα: fluorite keeps (111) and (200), two reflections for its
+#: scale, B(Ca) and B(F).  The uniform B is separable there, the block is not.
+#: Iron is left out: it has no reflection there, and its free scale walks a
+#: flat direction to 126 in a second scale-only stage at an unchanged Rwp,
+#: which predates this probe and is WP-1523's (its 2026-10-04 Inherited).
+TT_NARROW = np.arange(25.0, 33.0, 0.01)
+ADP = ["phases.*.atoms.*.adp.*"]
+
+
+def _narrow_models(scales):
+    structure, instrument = _models(scales)
+    structure.phases = structure.phases[:FE]
+    return structure, instrument
+
+
+@pytest.fixture(scope="module")
+def narrow_pattern() -> PatternData:
+    structure, instrument = _narrow_models(TRUE_SCALES)
+    blank = PatternData(two_theta=TT_NARROW.tolist(),
+                        intensity=np.zeros_like(TT_NARROW).tolist())
+    model = compile_model(structure, instrument, blank, mode="rietveld")
+    table = ParameterTable(structure, instrument)
+    y = model.evaluate(table.decode(table.x0()))
+    y = np.random.default_rng(3).poisson(np.maximum(y, 1.0)).astype(float)
+    return PatternData(two_theta=np.asarray(model.tt).tolist(), intensity=y.tolist())
+
+
+def test_two_sites_on_two_reflections_are_one_ridge(narrow_pattern):
+    """Stepping both of fluorite's B together finds a direction the scale
+    cannot imitate; the two sites apart do not.  The round robin's cpd-1c
+    walked them to +99 and −111 Å² this way (WP-1534, 2026-10-04)."""
+    from rietx.refine import SCALE_B_STEP, _column_separation
+
+    structure, instrument = _narrow_models(START_SCALES)
+    table = ParameterTable(structure, instrument)
+    table.set_vary(BIG + BISO, True)
+    model = compile_model(structure, instrument, narrow_pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    r = _scale_b_separation(model, table)
+    assert r[FLUORITE] < SCALE_B_SEPARATION_FLOOR * 1e-3
+    values = table.decode(table.x0())
+    sigma = np.asarray(model.sigma)
+    a = np.asarray(model.phase_component(FLUORITE, values)) / sigma
+    both = dict(values)
+    for j in (0, 1):
+        both[f"phases.{FLUORITE}.atoms.{j}.biso"] += SCALE_B_STEP
+    uniform = np.asarray(model.phase_component(FLUORITE, both)) / sigma - a
+    assert _column_separation([a], [uniform]) > SCALE_B_SEPARATION_FLOOR * 1e3
+
+
+def test_the_block_hold_keeps_fluorite_off_the_walk(narrow_pattern):
+    truth = _narrow_models(TRUE_SCALES)
+    table = ParameterTable(*truth)
+    w = {p.name: p.weight_fraction
+         for p in compute_qpa(truth[0], table.decode(table.x0())).phases}
+    ref = rx.Refinement(*_narrow_models(START_SCALES))
+    _, res = _fit(narrow_pattern, [Stage("s", BIG), Stage("b", BIG + BISO)], ref=ref)
+    sr = res.stages[-1]
+    flu = [f"phases.{FLUORITE}.atoms.{j}.biso" for j in (0, 1)]
+    assert set(flu) <= set(sr.held)
+    assert FLUORITE in sr.scale_b_held
+    (finding,) = [f for f in _findings(res) if flu[0] in f.where]
+    assert finding.where == flu
+    assert [a.biso.value for a in ref.structure.phases[FLUORITE].atoms] == list(
+        TRUE_B["fluorite"])
+    got = _fraction(res, "fluorite")
+    scale = {p.path: p for p in res.parameters}[f"phases.{FLUORITE}.scale"]
+    tol = 3.0 * scale.stderr / scale.value
+    print(f"\nfluorite wt% on 25–33°: {100 * got:.3f} (truth {100 * w['fluorite']:.3f}, "
+          f"tol ±{100 * tol * w['fluorite']:.3f})")
+    # measured 23.884 against 23.730
+    assert abs(got - w["fluorite"]) < tol * w["fluorite"]
+
+
+def test_an_anisotropic_site_is_probed(pattern):
+    """An ADP DOF is a displacement column like a ``biso``; the probe once
+    skipped a phase with no isotropic site (WP-1534's declined finding)."""
+    structure, instrument = _models(START_SCALES)
+    fe = structure.phases[FE].atoms[0]
+    u = TRUE_B["iron"] / (8.0 * math.pi ** 2)
+    fe.aniso = rx.AnisoU(u11=_p(u, vary=True), u22=_p(u, vary=True),
+                         u33=_p(u, vary=True))
+    fe.biso.vary = False
+    table = ParameterTable(structure, instrument)
+    table.set_vary(BIG + BISO + ADP, True)
+    model = compile_model(structure, instrument, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    r = _scale_b_separation(model, table)
+    assert r[FE] < SCALE_B_SEPARATION_FLOOR * 1e-3
+    _, res = _fit(pattern, [Stage("s", BIG), Stage("b", BIG + BISO + ADP)],
+                  ref=rx.Refinement(structure, instrument))
+    sr = res.stages[-1]
+    assert list(sr.scale_b_held) == [FE]
+    assert all(p.startswith(f"phases.{FE}.atoms.0.adp.") for p in sr.held)
+
+
+# ----------------------------------------------------------------------
+# a joint fit: scales per histogram, displacement parameters shared
+# ----------------------------------------------------------------------
+def _joint_fit(patterns, stages):
+    from rietx.multi import MultiHistogramRefinement
+
+    structure, instrument = _models(START_SCALES)
+    ins = [instrument.model_copy(deep=True) for _ in patterns]
+    multi = MultiHistogramRefinement(structure, ins)
+    return multi, multi.fit(patterns, plan=RefinementPlan(stages=stages))
+
+
+def _wide_pattern(tt) -> PatternData:
+    structure, instrument = _models(TRUE_SCALES, unbounded=False)
+    blank = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    model = compile_model(structure, instrument, blank, mode="rietveld")
+    table = ParameterTable(structure, instrument)
+    y = model.evaluate(table.decode(table.x0()))
+    y = np.random.default_rng(4).poisson(np.maximum(y, 1.0)).astype(float)
+    return PatternData(two_theta=np.asarray(model.tt).tolist(), intensity=y.tolist())
+
+
+def test_a_joint_fit_of_two_narrow_scans_holds_fe(pattern):
+    """Before WP-1534's port the joint runner ran no probe, and the 0–25 Å²
+    default on ``Atom.biso`` was all that stood between it and #204's walk."""
+    multi, res = _joint_fit([pattern, pattern],
+                            [Stage("s", BIG), Stage("b", BIG + BISO)])
+    sr = res.stages[-1]
+    assert list(sr.scale_b_held) == [FE]
+    assert sr.scale_b_held[FE] < SCALE_B_SEPARATION_FLOOR
+    assert FE_B in sr.held and FE_B not in sr.freed
+    assert multi.fitted_structures[0].phases[FE].atoms[0].biso.value == TRUE_B["iron"]
+    (finding,) = _findings(res)
+    assert finding.where == [FE_B]
+    assert res.stages[0].scale_b_held == {}
+
+
+def test_a_second_histogram_reaching_more_reflections_separates_fe(pattern):
+    """Fe's (200) and (211) in a 25–90° scan give the shared B a direction no
+    combination of the two scales imitates, so nothing is held."""
+    wide = _wide_pattern(np.arange(25.0, 90.0, 0.02))
+    _, res = _joint_fit([pattern, wide], [Stage("s", BIG), Stage("b", BIG + BISO)])
+    assert all(sr.scale_b_held == {} for sr in res.stages)
+    assert FE_B in res.stages[-1].freed
+    assert _findings(res) == []
+
+
+def test_a_scale_shared_across_histograms_is_one_column(pattern):
+    """Fe's (110) on one scan and (200) on another each sit at one d-spacing,
+    so per-histogram scales and the shared B are one ridge.  Sharing the scale
+    leaves one scale column for two s², which the shared B can no longer
+    imitate, so nothing is held.  Counted once per histogram, the shared scale
+    read as two columns and held B anyway."""
+    from rietx.multi import MultiHistogramRefinement
+    from rietx.params.multi import SharingMap
+
+    other = _wide_pattern(np.arange(55.0, 75.0, 0.02))
+    stages = [Stage("s", BIG), Stage("b", BIG + BISO)]
+    _, own = _joint_fit([pattern, other], stages)
+    assert list(own.stages[-1].scale_b_held) == [FE]
+    structure, instrument = _models(START_SCALES)
+    multi = MultiHistogramRefinement(
+        structure, [instrument.model_copy(deep=True) for _ in range(2)],
+        sharing=SharingMap(shared=[f"phases.{FE}.scale"]))
+    shared = multi.fit([pattern, other], plan=RefinementPlan(stages=stages))
+    assert all(sr.scale_b_held == {} for sr in shared.stages)
+    assert FE_B in shared.stages[-1].freed
+
+
 def test_the_held_fit_is_drawn_for_inspection(ridge_fit):
     """Rwp hides locally-bad fits; the picture is the check that does not."""
     from rietx.viz.plots import plot_result

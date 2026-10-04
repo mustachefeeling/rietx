@@ -858,11 +858,12 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "too-flexible background biases first. A negative B is "
             "unphysical, and a refined B above about 5 Å² for a heavy atom "
             "usually means an absorption or background error rather than a "
-            "real displacement. The default bounds are 0 to 25 Å², this "
-            "package's own and not what other Rietveld codes do: pass your own "
-            "Parameter with a wider range to refine past them. A structure "
-            "file's own value outside that range is kept, and the reader "
-            "widens the bound to hold it."
+            "real displacement. There is no default bound, as in other "
+            "Rietveld codes: a negative B reports BISO_NEGATIVE, one past the "
+            "phase's melting estimate BISO_UNUSUALLY_LARGE, and a stage holds "
+            "B where the fitted range cannot separate it from the phase's "
+            "scale (SCALE_B_INSEPARABLE). Pass a Parameter with min or max to "
+            "bound it yourself."
         ),
         unit="Å²", default="0.5",
         typical="0.2-2 Å² for an inorganic framework at room temperature",

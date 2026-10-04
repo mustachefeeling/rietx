@@ -1,10 +1,13 @@
-"""A published B_iso outside the starting bounds still reads.
+"""A B_iso of any value reads as stated, and nothing bounds it by default.
 
-Every reader used to build B_iso as a parameter bounded at 0 and 25 Å², and a
-value outside its bounds fails validation, so one such site refused the whole
-file.  COD 4335638, CH₃NH₃PbI₃ (Stoumpos, Malliakas & Kanatzidis 2013), carries
-its methylammonium C at U_iso = 0.34 Å², a B_iso of 26.8 Å².  The readers now
-widen the bound to the value.
+Readers once built B_iso bounded at 0 and 25 Å², so one published site
+outside that range refused the whole file: COD 4335638, CH₃NH₃PbI₃ (Stoumpos,
+Malliakas & Kanatzidis 2013), carries its methylammonium C at U_iso = 0.34 Å²,
+a B_iso of 26.8 Å².  PR #663 widened the bound to the file's value.  WP-1534
+removed the default bound (decided 2026-10-04): FullProf, TOPAS and GSAS-II
+bound no displacement parameter by default, the scale-B hold now stops the
+walk the bound stood in for, and ``BISO_NEGATIVE`` and
+``BISO_UNUSUALLY_LARGE`` warn on the value.
 """
 
 from __future__ import annotations
@@ -13,14 +16,14 @@ import math
 
 import pytest
 
+import rietx as rx
 from rietx.crystallography.cif import structure_from_cif
-from rietx.schemas.structure import BISO_BOUNDS, biso_bounds
 
 EIGHT_PI_SQ = 8.0 * math.pi ** 2
 
-#: A rock-salt cell with one site above the bound, one below zero and one
-#: inside, as a disordered cation, a light atom refined slightly negative and
-#: an ordinary site would be.
+#: A rock-salt cell with one site above the old ceiling, one below zero and
+#: one inside, as a disordered cation, a light atom refined slightly negative
+#: and an ordinary site would be.
 CIF = """\
 data_bounds
 _cell_length_a 6.0
@@ -44,50 +47,35 @@ Na1 Na 0 0 0 0.012 1
 """
 
 
-@pytest.mark.parametrize("value, expected", [
-    (2.0, BISO_BOUNDS),
-    (26.8, (0.0, 26.8)),
-    (-0.16, (-0.16, 25.0)),
-])
-def test_bounds_widen_to_hold_the_value(value, expected):
-    bounds = biso_bounds(value)
-    assert (bounds["min"], bounds["max"]) == pytest.approx(expected)
-
-
-def test_cif_with_a_biso_outside_the_bounds_reads(tmp_path):
-    path = tmp_path / "bounds.cif"
-    path.write_text(CIF, encoding="utf-8")
-    atoms = {a.label: a for a in structure_from_cif(path).phases[0].atoms}
-
-    assert atoms["C1"].biso.value == pytest.approx(0.34 * EIGHT_PI_SQ)
-    assert atoms["C1"].biso.max == pytest.approx(0.34 * EIGHT_PI_SQ)
-    assert atoms["O1"].biso.value == pytest.approx(-0.002 * EIGHT_PI_SQ)
-    assert atoms["O1"].biso.min == pytest.approx(-0.002 * EIGHT_PI_SQ)
-    assert (atoms["Na1"].biso.min, atoms["Na1"].biso.max) == BISO_BOUNDS
-
-
-def test_the_widening_is_reported_once_naming_every_site(tmp_path):
-    """A reader says that it widened a bound, as root CLAUDE.md asks of a
-    repair: one diagnostic for the file, every widened site in ``where``."""
+def test_cif_keeps_every_biso_as_stated_and_unbounded(tmp_path):
     path = tmp_path / "bounds.cif"
     path.write_text(CIF, encoding="utf-8")
     diagnostics = []
-    structure_from_cif(path, diagnostics=diagnostics)
+    atoms = {a.label: a for a in
+             structure_from_cif(path, diagnostics=diagnostics).phases[0].atoms}
 
-    widened = [d for d in diagnostics if d.code == "BISO_BOUND_WIDENED"]
-    assert len(widened) == 1
-    labels = [a.label for a in structure_from_cif(path).phases[0].atoms]
-    assert widened[0].where == [f"phases.0.atoms.{labels.index(name)}.biso"
-                                for name in labels if name in ("C1", "O1")]
-    assert widened[0].level == "warning"
-    assert "not a physical displacement" in widened[0].message
-    assert "O1" in widened[0].message.split("B < 0 on")[1]
+    for label, u in (("C1", 0.34), ("O1", -0.002), ("Na1", 0.012)):
+        assert atoms[label].biso.value == pytest.approx(u * EIGHT_PI_SQ)
+        assert (atoms[label].biso.min, atoms[label].biso.max) == (-math.inf, math.inf)
+        assert atoms[label].biso.unit == "A^2"
+    # nothing was repaired, so a reader has nothing to say about B
+    assert not [d for d in diagnostics if "BISO" in d.code]
 
 
-def test_a_file_inside_the_bounds_reports_no_widening(tmp_path):
-    path = tmp_path / "inside.cif"
-    path.write_text(CIF.replace("0.34", "0.02").replace("-0.002", "0.01"),
-                    encoding="utf-8")
-    diagnostics = []
-    structure_from_cif(path, diagnostics=diagnostics)
-    assert "BISO_BOUND_WIDENED" not in [d.code for d in diagnostics]
+def test_the_default_biso_is_unbounded():
+    atom = rx.Atom(label="Fe1", species="Fe", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))
+    assert (atom.biso.value, atom.biso.min, atom.biso.max, atom.biso.unit) == (
+        0.5, -math.inf, math.inf, "A^2")
+    # issue #204's value, which PR #206's inherited bound refused
+    walked = rx.Atom(label="Fe1", species="Fe", x=rx.Parameter(value=0.0),
+                     y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                     biso=rx.Parameter(value=-165.0, vary=True))
+    assert walked.biso.value == -165.0
+
+
+def test_a_bound_the_caller_states_still_binds():
+    with pytest.raises(ValueError):
+        rx.Atom(label="Fe1", species="Fe", x=rx.Parameter(value=0.0),
+                y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                biso=rx.Parameter(value=30.0, min=0.0, max=25.0))
