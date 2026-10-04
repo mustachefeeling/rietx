@@ -125,7 +125,10 @@ git grep -n -i 'secondary extinction' -- src docs/manual tests   # no hits
     (1e-3), chosen for the gradient, not as a size.
   - **Tests** (`[dev]`, macOS arm64, another session's pytest running, so
     no time is quoted): fast selection before the review 8164 passed, 159
-    skipped, no test added; the review's fix adds one. The acceptance files, `test_schemas` and `test_magnetic_width`:
+    skipped, no test added; the review's fix adds one. The final tree
+    (current with `origin/main`, nothing else running): 8165 passed,
+    159 skipped (+1), in 2:33. The added test takes
+    0.03 s. The acceptance files, `test_schemas` and `test_magnetic_width`:
     411 passed. `sphinx -W` builds; the glossary shows µm². The acceptance
     grep still finds the two intended lines the 2026-09-30 entry names.
   - **Review** (`/code-review high --fix`, six findings). Fixed: the
