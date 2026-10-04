@@ -164,6 +164,14 @@ not measure it there.
       "none", said here. It moved: `references/abstention.md`'s row states
       the 3σ significance, and `judging.md`'s QPA-scan note names the constant
       in place of "1σ".
+- [ ] The stage-start hold reads the previous answer's significance, not the
+      screen alone. Today a phase whose screen passes 3σ while its marginal z
+      does not is freed at every stage start. It chases the noise, collapses,
+      is restored and solves again, so it pays one extra solve per stage and
+      can trip `CELL_RUNAWAY` on the way (review of 2026-10-04, item 4). Seed
+      107 of the sweep shows it on the last stage of `mccusker_default`. A
+      longer plan shows it per stage. Measure the solves saved, and count what
+      moves on the absent-, held-phase and scale-B fixtures.
 
 ## Acceptance
 
