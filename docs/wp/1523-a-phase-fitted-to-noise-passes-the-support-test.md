@@ -112,6 +112,27 @@ end, and nowhere else.
 - `reflection_support` and `extra_peak_support` become the window norm
   against the same 3σ. That is `ABSENT_SIGMA`'s own test on a line.
 
+*Revised the same day, from the landing's fixtures.* The rule above fixed
+the blank frame and broke 12 fast tests in two ways. **The esd is taken
+against counting noise**, from (JᵀWJ)⁻¹ with neither √χ²_red nor the
+Bérar-Lelann factor. With both, a misfit anywhere made a present phase read as
+absent: LaB₆ under two dead channels read 2865σ on the screen and 0.23σ by the
+reported esd, and CaF₂ seeded 1.2 % off its cell read 6.74σ against 0.65σ.
+**Displacement and occupancy columns are left out of the marginal**, because a
+column that only rescales intensities says how the intensity splits between it
+and the scale, not whether the phase is there. Kept in, the fluorite of
+`tests/test_scale_b_ridge.py` read 153.7σ on the screen and 0.02σ marginal.
+Three column sets were measured, each with the unscaled covariance:
+
+| Set | Blank seen, of 20 | 3e-8 | 6e-8 | 1.2e-7 | 2.5e-7 | Misfit and ridge fixtures |
+|---|---|---|---|---|---|---|
+| scale and cell only | 4 | 6/8 | 6/8 | 8/8 | 8/8 | pass |
+| every column but displacement and occupancy (**landed**) | 1 | 1/8 | 5/8 | 8/8 | 8/8 | pass |
+| every column | 1 | 1/8 | 5/8 | 8/8 | 8/8 | ridge fails |
+
+The one blank the landed set calls seen is seed 103 from the unfitted start,
+its cell 13.4e-4 Å off.
+
 **Not generalised, deliberately.** A joint fit (`multi.py`) keeps the screen
 alone, because WP-1341 owns its report. Le Bail and Pawley fix the scale, so
 the screen is all they read. The ridge case of WP-1339's Inherited (#219) is
@@ -128,14 +149,16 @@ not measure it there.
 
 ## Tasks
 
-- [ ] Reproduce both rows in a test from a synthetic blank frame, and record
-      the support and the scale significance at each stage's landing values.
+- [x] Reproduce both rows in a test from a synthetic blank frame, and record
+      the support and the scale significance at each stage's landing values
+      (`tests/test_phase_significance.py`, each test's docstring).
 - [x] Decide the statistic, recorded here with the measurement that chose it
       (§ Decided 2026-10-04). What moves on the fixtures is counted with the
       landing, in the handover entry.
-- [ ] Land it in `phase_support` (or beside it, as the one authority both
-      consumers read), so the hold and `PHASE_UNCONSTRAINED` agree.
-- [ ] Tests: the blank frame holds its cell and fires `PHASE_UNCONSTRAINED`
+- [x] Land it in `phase_support` (or beside it, as the one authority both
+      consumers read), so the hold and `PHASE_UNCONSTRAINED` agree:
+      `phase_support` is the screen, `refine._answer_significance` the test.
+- [x] Tests: the blank frame holds its cell and fires `PHASE_UNCONSTRAINED`
       from both starts; a weak but real phase is still released.
 - [ ] Skill: the `PHASE_UNCONSTRAINED` row, if its meaning moves; otherwise
       "none", said here.
