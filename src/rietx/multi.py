@@ -1166,7 +1166,8 @@ class MultiHistogramRefinement:
             (min(m.tt_min for m in models), max(m.tt_max for m in models)),
             [_unscoped(p) for p in mt.free_paths],
             self.mtable.structures[0], stage_results,
-            basis="with everything else held, in the histogram that shows it best")
+            basis="with everything else held, in the histogram that shows it best",
+            decided=False)
 
         weight_note = ("unit (each point's esd governs)"
                        if all(w == 1.0 for w in weights)

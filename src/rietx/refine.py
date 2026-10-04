@@ -71,6 +71,7 @@ from .optimize.least_squares import (
     SOLVERS,
     _jacobian_for,
     _longest_line_wavelength,
+    covariance_estimates,
     rechart_outcome,
     run_least_squares,
 )
@@ -87,9 +88,7 @@ from .optimize.statistics import (
     PINV_RCOND,
     berar_lelann_factor,
     compute_statistics,
-    covariance_from_factors,
     data_support,
-    normal_factors,
     structure_r_factors,
 )
 from .params.vector import (
@@ -1391,11 +1390,16 @@ def _phases_reached(columns: list[str], reach: dict[str, list[str]]) -> set[int]
             if (m := _PHASE_PREFIX.match(name))}
 
 
-#: A displacement or occupancy path.  A column that moves only these rescales
-#: a phase's intensities and moves no peak, so it is left out of the
-#: significance (:func:`_significance_columns`).
-_INTENSITY_ONLY_PATH = re.compile(
-    r"^phases\.\d+\.atoms\.\d+\.(?:biso|adp\.\d+|occ)$")
+#: An occupancy path.  With :data:`_DISPLACEMENT_PATH` (an anisotropic ADP
+#: column reaches the U^ij components it drives, so ``biso|adp`` alone would
+#: keep it), the paths a column may move and still be left out of the
+#: significance (:func:`_significance_columns`): they rescale a phase's
+#: intensities and move no peak.
+_OCCUPANCY_PATH = re.compile(r"^phases\.\d+\.atoms\.\d+\.occ$")
+
+
+def _intensity_only_path(path: str) -> bool:
+    return bool(_DISPLACEMENT_PATH.match(path) or _OCCUPANCY_PATH.match(path))
 
 
 def _significance_columns(free: list[str], held: list[str],
@@ -1419,8 +1423,7 @@ def _significance_columns(free: list[str], held: list[str],
         return [p for p in reach.get(column, [column]) if not is_variable_path(p)]
 
     return [c for c in [*free, *(h for h in held if h not in free)]
-            if not (moved(c) and all(_INTENSITY_ONLY_PATH.match(p)
-                                     for p in moved(c)))]
+            if not (moved(c) and all(_intensity_only_path(p) for p in moved(c)))]
 
 
 def _scale_significance(table: ParameterTable, theta: np.ndarray,
@@ -1444,22 +1447,18 @@ def _scale_significance(table: ParameterTable, theta: np.ndarray,
     idx = np.array([index[c] for c in columns if c in index], dtype=np.intp)
     if not len(idx):
         return 0.0
-    # a residual with Σr² = 1 and one degree of freedom is a unit χ²_red, so
-    # ``normal_factors`` returns pinv(JᵀWJ) unscaled, through the same
-    # equilibration and cut every reported esd takes
+    # a residual with Σr² = 1 and one degree of freedom is a unit χ²_red, and
+    # one nonzero entry has no same-sign run, so a unit Bérar-Lelann factor:
+    # ``covariance_estimates`` returns pinv(JᵀWJ) unscaled, through the same
+    # equilibration, cut and tiny-column esd (WP-1463) every reported esd takes
     unit = np.zeros(len(idx) + 1)
     unit[0] = 1.0
-    k, inv_d, _ = normal_factors(np.asarray(jac)[:, idx], unit, len(idx))
-    cov = covariance_from_factors(k, inv_d)
-    sd = np.sqrt(np.maximum(np.diag(cov), 0.0))
+    sd, corr_sub = covariance_estimates(np.asarray(jac)[:, idx], unit, len(idx))
     n = len(table.free_paths)
     stderr = np.zeros(n)
     stderr[idx] = sd
     corr = np.zeros((n, n))
-    with np.errstate(invalid="ignore", divide="ignore"):
-        denom = np.outer(sd, sd)
-        corr[np.ix_(idx, idx)] = np.where(np.isfinite(denom) & (denom > 0),
-                                          cov / denom, 0.0)
+    corr[np.ix_(idx, idx)] = corr_sub
     esd = table.stderr_physical(theta, stderr, corr).get(path)
     if esd is None or not np.isfinite(esd) or esd <= 0.0:
         return 0.0
@@ -1515,7 +1514,10 @@ def _answer_significance(model: CompiledModel, table: ParameterTable,
             columns = _significance_columns(
                 free, [c for c in held_of[ip] if c in freed], column_reach)
             try:
-                out[ip] = _scale_significance(table, th, jac, columns, ip)
+                # never above the screen it is bounded by: a direction the
+                # pinv cut discards reads zero variance, which would inflate z
+                out[ip] = min(out[ip],
+                              _scale_significance(table, th, jac, columns, ip))
             except np.linalg.LinAlgError:
                 pass  # no covariance: the screen stands
     finally:
@@ -6288,15 +6290,16 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # the ρ≈1 between the phase's cell and its scale — the symptom — while this
     # reports the cause.  The stage records carry the hold, so the message and
     # the record quote one measurement.  The significance is the answer
-    # stage's own (WP-1523): a fit hands in the vector its hold was decided
-    # on, and any other caller gets this result's covariance, or the screen
-    # where there is none.
+    # stage's own (WP-1523): a Rietveld fit hands in the vector its hold was
+    # decided on, and any other caller (Le Bail, Pawley, a replay) gets the
+    # screen at these values, an upper bound on the scale's significance.
+    decided = significance is not None
     if significance is None:
         significance = model.phase_support(values)
     diagnostics = diagnostics + _phase_support_diagnostics(
         significance, model.phase_line_counts(),
         (model.tt_min, model.tt_max), list(table.free_paths), structure,
-        stage_results)
+        stage_results, decided=decided)
 
     # A phase whose scale and B the range cannot separate (WP-1534), and what
     # its fraction is conditional on.  Read off the stage records, which carry
@@ -7987,6 +7990,7 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
                                structure: Structure,
                                stage_results: list[StageResult] | None = None,
                                *, basis: str = "against the counting noise",
+                               decided: bool = True,
                                ) -> list[Diagnostic]:
     """``PHASE_UNCONSTRAINED`` — a phase the data cannot see, and what was done.
 
@@ -8008,6 +8012,10 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
     and the line weights, since rescaling one rescales the scale and its esd
     alike.  ``basis`` names how the σ was taken, for the message: a joint fit
     reads the screen in the histogram that shows the phase best.
+    ``decided`` says whether a held phase's reading is the one its hold was
+    decided on (a single Rietveld fit's stage vector) or one taken at the
+    answer (a joint fit, Le Bail, Pawley, a replay), so the message claims
+    only what is true of the number.
 
     ``params.vector.cell_window`` bounds the *symptom* — it stops the cell
     running away — but a windowed cell re-anchors on every stage, so it walks
@@ -8054,7 +8062,7 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
             cause = (f"no reflection of phase {ip} ({name}) lies in the fitted "
                      f"range {tt_range[0]:.4g}-{tt_range[1]:.4g}°, so nothing "
                      f"about it is measurable here")
-        elif held:
+        elif held and decided:
             # a held phase quotes the reading its hold was decided on, which
             # a second solve at the restored values can since have moved
             cause = (f"phase {ip} ({name})'s scale was at most {support:.2g}σ "

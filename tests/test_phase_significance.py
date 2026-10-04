@@ -32,6 +32,7 @@ import rietx as rx
 from rietx.indexing.workflow import ABSENT_SIGMA
 from rietx.model.forward import PHASE_SUPPORT_SIGMA, compile_model
 from rietx.params.vector import ParameterTable
+from rietx.schemas.instrument import Dispersion
 
 pytestmark = pytest.mark.xdist_group("phase-significance")
 
@@ -59,6 +60,8 @@ def _lab6(a: float, scale: float | None = None) -> rx.Phase:
 
 def _instrument(zero: float, w: float, background) -> rx.Instrument:
     ins = rx.Instrument.debye_scherrer(wavelength=WAVELENGTH)
+    # declared, not inherited: the records below were measured with it on
+    ins.source.dispersion = Dispersion()
     ins.zero_shift.value, ins.profile.w.value = zero, w
     for c, v in zip(ins.background.coefficients, background, strict=False):
         c.value = v
