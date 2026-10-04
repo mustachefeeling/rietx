@@ -74,6 +74,24 @@ restates what decides the design.
   measurement of the direction, not the rewrite: it is in
   `docs/wp/1904-eval/SKILL.compressed.txt` to be read, not copied.
 
+### Inherited
+
+- **From WP-1904 (2026-10-04), the prototype's numbers.** The prototype
+  body (`docs/wp/1904-eval/SKILL.compressed.txt`) is 16 401 B and 5 297
+  tokens on Haiku against 8 683; `tests/test_skill.py` (137 tests) passed
+  with it in place. On Sonnet at N = 2 it lost nothing on `fap-judge`
+  (a ceiling there) and produced the only completed with-skill `fap-fit`
+  cell of either body under the pilot's CPU contention, so the direction is
+  not refuted and not yet shown: 1905's serial round is the measurement.
+  Two of its choices need a decision here: its worked default converges
+  `usable` over 15-90° and ends `max_iter` over the whole 15-130° range, so
+  the example states its range or the plan changes; and it uses a Chebyshev
+  background because the P-spline default fired about 778 `HIGH_CORRELATION`
+  findings between spline coefficients in its author's run, which is a
+  package question (dedup or a different pairing rule) before it is a skill
+  one. Both prototype-driven Sonnet runs followed its worked default line
+  for line, so what the example says is what an agent does.
+
 ## Non-goals
 
 - New physics or new rules: a rule enters the body only from a measured

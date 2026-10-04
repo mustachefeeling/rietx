@@ -9,8 +9,10 @@ the WP's prose. Nothing here is a registered protocol; WP-1905 registers one.
   from scratch with the cell graded by regex on `report.md` and the caveat by
   rubric. Each `fixture.sh` copies the episode files from `$EPISODE`, a
   directory holding `FAP.XRA`, `fluorapatite.cif`, `fit.py`
-  (`colleague_fit.py`) and `fit_output.txt` (its printed output); substitute
-  the path before running.
+  (`colleague_fit.py`) and `fit_output.txt` (its printed output). Each
+  `prompt.md` names this container's interpreter,
+  `/home/user/rietx/.venv/bin/python`; substitute both paths before running,
+  or the `ran_fit` grader fails on a machine where that path is dead.
 - A plugin is built from a skill tree as `build_pilot.py` does: the tree
   copied to `<plugin>/skills/rietx/`, a `.claude-plugin/plugin.json`, and
   `evals/` beside it. The run was

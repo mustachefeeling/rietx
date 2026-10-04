@@ -42,12 +42,10 @@ numbers. What a fresh session needs from it:
   protocols): in the workspace, never in the prompt. Two trees → two builds →
   two runs of one suite; `--ablation none` on the second skips a baseline arm
   that would repeat the first's.
-- **The pilot, 2026-10-04 (WP-1904 handover).** One case, `fap-judge`, the
-  placement round's episode (`tests/eval_skill_placement/colleague_fit.py`,
-  its prompt and four-item rubric reused verbatim as `llm` graders): Haiku,
-  one run per arm, scored 4 of 4 with the skill and 3 of 4 without, $0.16 for
-  both arms and the judge, 82 s. The harness, the scaffold, the free graders
-  and the judge all worked; the trace is deleted unless `--keep-temp`.
+- **The pilot, 2026-10-04.** Two cases ran on Haiku and Sonnet for the
+  current body and WP-1904's prototype; its numbers and the four findings
+  that decide this protocol are the `### Inherited` entry below, and the
+  cases themselves are in `docs/wp/1904-eval/pilot/`.
 - **Cases are written from failures, never from the body.** The sources on
   hand: issue #661's fourteen wrong turns (a reflection table without a fit,
   the flattened background paths, the width boxes, the isotope spellings);
@@ -84,6 +82,28 @@ numbers. What a fresh session needs from it:
   passes `--max-cost-usd`, and the menu goes to the maintainer before any
   cell runs (WP-1504's rule).
 
+### Inherited
+
+- **From WP-1904 (2026-10-04), the pilot this suite grows from.** Four
+  findings decide the protocol. (1) `fap-judge` is a ceiling on Sonnet: 4 of
+  4 in every arm for both bodies at N = 2; on Haiku it separates (4 of 4
+  with, 3 of 4 without). Keep it as Haiku's regression guard and build the
+  deciding cases from failures the current body shows. (2) A fit case
+  cannot run concurrently: four with-arm fits on four cores took 10-15 min
+  each inside the sandbox against 11 s for the same script outside, and two
+  of four cells timed out at 1 500 s. Measure one fit inside the sandbox
+  first, set `timeout_seconds` from it, run `-j 1`, one round at a time;
+  whether the sandbox's read-only venv also defeats the numba kernel cache
+  is unmeasured. (3) With-arm runs did more work than without-arm runs on
+  the from-scratch case (eight Le Bail passes, a report, a second fit), so
+  tokens and wall time per run are read-outs beside the score, and a run
+  that ends promising to write its report later scores as not written.
+  (4) One cell read files outside its workspace; keep the placement round's
+  `leak` read-out. Costs measured: Haiku $0.16 (judge) and $0.60 (fit) for
+  both arms; Sonnet $0.14-0.18 (judge) and $0.23-0.62 (fit) a run. The two
+  cases, their graders, the build script and every result JSON are in
+  `docs/wp/1904-eval/pilot/`.
+
 ## Non-goals
 
 - The rewrite itself: WP-1906 (judged by this suite).
@@ -116,7 +136,7 @@ numbers. What a fresh session needs from it:
 
 ```sh
 .venv/bin/python -m pytest tests/test_eval_skill.py tests/test_skill.py -q
-.venv/bin/python tests/eval_skill/build.py docs/skill/rietx /tmp/skill-eval && claude plugin eval /tmp/skill-eval --case fap-judge --runs 1 --ablation none --model haiku --scaffold --trust-plugin --no-publish --json /tmp/skill-eval.json
+.venv/bin/python tests/eval_skill/build.py docs/skill/rietx /tmp/skill-eval && claude plugin eval /tmp/skill-eval --case fap-judge --runs 1 --ablation none --model haiku --scaffold --allow-tools Bash --trust-plugin --no-publish --json /tmp/skill-eval.json
 .venv/bin/python -m ruff check src tests examples
 ```
 
