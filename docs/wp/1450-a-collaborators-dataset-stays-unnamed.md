@@ -149,8 +149,9 @@ does.
   #438 merged. On this branch both lists hit nothing in `*.py` and `*.md`.
   Without the pathspecs, `wp1450.txt` hits only the LaB₆ fixture JSON
   float the reporter called a coincidence. The all-runs list hits public
-  data files only as digits inside longer numbers, such as a 2θ of
-  2.307000 in an 11-BM scan. Fast selection: 8264 passed, 159 skipped,
+  data files only as digits inside longer numbers, such as the decimals of
+  a 2θ column in an 11-BM scan. Quoting one of those numbers here would
+  itself trip the grep. Fast selection: 8264 passed, 159 skipped,
   0 failed, in 186.78 s (`[dev]` venv, macOS, Python 3.12). No test was
   added, so the counts equal `main`'s. The full selection did not run,
   because comments and docs move no measured number.
