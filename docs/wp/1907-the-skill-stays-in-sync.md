@@ -42,6 +42,20 @@ skill's numbers are rendered from the package rather than typed.
   as current. A tag that names the WP that measured it can be checked
   against the WP index for a later WP that cites and supersedes it.
 
+### Inherited
+
+- **From WP-1905 (2026-10-04), what "the judge-free tier" is.** The harness
+  filters cases by tag, not grader type, so the judge-free run is
+  `--tag trigger --ablation none` with neither `--scaffold` nor
+  `--allow-tools`: twenty one-grader cases, no fixture, no fit, no shell
+  (`tests/eval_skill/PROTOCOL.md` § Tier 0). The fit cases carry an `llm`
+  grader and need a sandbox backend (`bubblewrap`, `socat`) and minutes per
+  run, so they are not nightly material as they stand. A CI job also needs a
+  Claude Code install and credentials in the environment, and
+  `readout.py show` reports the fire and quiet rates a floor would be set on.
+  The tier's twenty prompts still wait on the maintainer's review and have
+  never run, so no floor exists yet.
+
 ## Non-goals
 
 - Prose semantics: whether a rule is still *good advice* is WP-1905's suite,
