@@ -136,6 +136,14 @@ chain on the same data is reported as a range, never gated.
 
 ## Handover log
 
+### 2026-10-03 — the checklist follows the status, by a cleanup session
+
+Tasks 1-4 had landed in PRs #522 and #589 with their boxes left open. They
+are ticked, each checked against the tree: the manual's § A moment through an
+ordering transition, the skill's `references/series.md` row, and the
+`SEQUENTIAL_MOMENT_HOLD`/`_ONSET` codes. *Next:* task 5, a real ramp; GSAS-II's
+tutorials are where WP-1326 found its public neutron data, so look there first.
+
 ### 2026-10-01 (2nd session) — both review follow-ups landed
 
 Both follow-ups from PR #522's review are on `main`. Two chains that bracket the

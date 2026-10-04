@@ -173,6 +173,10 @@ baseline table, never gated.
 
 ## Handover log
 
+- **2026-10-04** — after the close, a forward note to WP-1511, whose
+  `Depends on:` names this WP for the background protocol: that protocol is
+  WP-1542.
+
 - **2026-10-03** — **Closed.** `fit` runs the Le Bail alternation itself,
   with a cap, keep-best and a named stop, and it shipped in 1.6.0. The one
   thing the WP had left was a background failure its stop rule cannot see,

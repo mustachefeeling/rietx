@@ -413,6 +413,19 @@ rule above applies to the form factors.
 
 ## Handover log
 
+### 2026-10-03 — three references found and LaMnO₃'s licence checked, by a cleanup session
+
+Nothing this WP needs is still with the maintainer. The three references it
+marked "ask" are in the maintainer's library, and the second dataset's
+licence allows vendoring it.
+
+*Done* (WP-file edits only): *International Tables* Vol. C § 4.4.5 (Tables
+4.4.5.1-14, the ⟨jₙ⟩ coefficients A5's cross-check needs), Perez-Mato et al.
+(2015) and Gallego et al. (2016) recorded as held. `Magnetic-I/data/
+LaMnO3_50k.gsas` and `BT1_Cu311.inst` sit under the GSAS-II-tutorials
+`LICENSE`, the one the `gsas2_*.gpx` fixtures ship under. *Next:* vendor
+LaMnO₃ and add it to the acceptance, then the analytic moment branch.
+
 ### 2026-09-26 — k ≠ 0's magnetic supercell landed from outside
 
 A commensurate k ≠ 0 magnetic structure can now be stated. As magCIF does, it

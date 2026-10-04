@@ -218,6 +218,19 @@ not both be declared on one phase.
 
 ## Handover log
 
+### 2026-10-03 — two public k ≠ 0 patterns found, by a cleanup session
+
+The data this WP was waiting to ask for exists in public already. GSAS-II's
+own tutorials ship two constant-wavelength neutron patterns with k ≠ 0, under
+the licence four `tests/data` files already carry. Nothing was vendored.
+
+*Done* (WP-file edits only): the sourcing task names both candidates,
+`Magnetic-III` (Ba₆Co₆ClO₁₆, D1B, k = (0, 0, ½)) and `Magnetic-IV`
+(Pr₀.₅Sr₀.₅MnO₃, 3T2, k = (1, 0, 0) on Fmmm), with k read from each tutorial's
+own text. WP-1328's two open k choices arrived in Inherited when it closed.
+*Next:* cite the published structure each answers to, then vendor one and
+write the acceptance; WP-1343's acceptance 4 wants the same data.
+
 ### 2026-09-26 — the satellites landed from outside
 
 A phase can now declare a commensurate propagation vector, and its satellites

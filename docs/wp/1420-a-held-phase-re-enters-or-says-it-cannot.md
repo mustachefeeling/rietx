@@ -355,6 +355,14 @@ series golden is bit-identical.
 
 ## Handover log
 
+- **2026-10-03** — **The ramp test's timeout is 300 s.** This WP's own
+  commit from 2026-09-30 had widened it and was never pushed; a cleanup
+  session cherry-picked it (`6336c65c`), so issue #539 closes with its PR.
+  Nothing else of this WP started, and the status stays ⬜. *Done:*
+  `RAMP_RUNAWAY_GUARD_S` 60 → 300 s, and the root CLAUDE.md's count of
+  λ-scaled size terms (three of seven, rewrapped to hold its line cap); a note
+  in Inherited says which entries that discharges. *Next:* the WP's own tasks.
+
 - **2026-09-15** — created, from the 2026-09-15 issue triage (issue #267).
   Added in the round's second pass: the first pass read the issue and
   placed nothing. Checked against the tree: every hook, constant and rung
