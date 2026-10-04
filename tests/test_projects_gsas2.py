@@ -500,10 +500,9 @@ def test_a_missing_file_names_itself(tmp_path):
         read_gsas2_gpx(tmp_path / "absent.gpx")
 
 
-def test_a_negative_uiso_is_read_with_its_bound_widened(tmp_path):
+def test_a_negative_uiso_is_read_as_stated(tmp_path):
     """A real refinement reaches one and GSAS-II stores it, so the reader
-    keeps the file's number, widens the floor to hold it and says so
-    (PR #663)."""
+    keeps the file's number, unbounded (WP-1534)."""
     atoms = [["Na1", "Na", "XU", 0.0, 0.0, 0.0, 1.0, "m3m", 1, "I",
               -0.004, 0, 0, 0, 0, 0, 0, 12345]]
     path = _write_gpx(tmp_path / "negative.gpx", _minimal_project(atoms=atoms))
@@ -511,8 +510,8 @@ def test_a_negative_uiso_is_read_with_its_bound_widened(tmp_path):
     biso = to_structure(read_gsas2_gpx(path),
                         diagnostics=diagnostics).phases[0].atoms[0].biso
     b = -0.004 * 8 * math.pi ** 2
-    assert (biso.value, biso.min) == (pytest.approx(b), pytest.approx(b))
-    assert "BISO_BOUND_WIDENED" in [d.code for d in diagnostics]
+    assert (biso.value, biso.min) == (pytest.approx(b), -math.inf)
+    assert not [d for d in diagnostics if "BISO" in d.code]
 
 
 def test_a_phase_with_no_sites_is_refused(tmp_path):

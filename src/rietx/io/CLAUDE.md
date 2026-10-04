@@ -409,8 +409,8 @@ same reason. Six rules the pattern readers do not need:
   `read_gsas_prm` paid for that once (WP-1118) and `gsas2.to_structure` closes
   the class rather than adding a third instance. A phase with no sites (a
   GSAS-II Le Bail extraction) is refused by **name** first, a message naming the
-  phase being worth more; a file's B outside its bound is widened and reported
-  (`schemas.structure.biso_bounds`, PR #663), never refused.
+  phase being worth more; a file's B is kept whatever its value, `Atom.biso`
+  having no default bound (WP-1534).
 - **A project reader refuses where a pattern reader would repair.** A pattern
   reader repairs only where it can say it did; a project reader mostly cannot,
   because its output is a whole model and a caller cannot see which part is the

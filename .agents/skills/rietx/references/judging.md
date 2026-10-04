@@ -319,7 +319,11 @@ read from it is conditional on B. (Measured: WP-1534's synthetic rebuild of #204
 four-phase scan. bcc Fe has one reflection there. With B free it walked to
 −150 Å² and returned 0.000 ± 0.000 wt%. With B held it returned 1.284 wt%,
 against 1.211 true.) The stage now holds that B and fires
-`SCALE_B_INSEPARABLE`. Quote the fraction together with that condition.
+`SCALE_B_INSEPARABLE`. It holds too where a phase has fewer reflections than
+scale and displacement parameters, as fluorite's two sites on (111) and (200)
+over 25–33°. (Measured: on IUCr CPD sample 1c, unbounded, B(Ca) +99 and
+B(F) −111 Å² and fluorite 0.0 wt% against 1.36 weighed, before the hold;
+1.32 after.) Quote the fraction together with that condition.
 Reflections a little apart in d are not held, and their esd is honest but
 huge. On the same fixture, fluorite's error passed through the normalisation
 into every fraction as ± thousands of wt%. Read a QPA esd that large as a

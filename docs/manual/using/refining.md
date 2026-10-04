@@ -1175,7 +1175,7 @@ once:
 | `GuardFinding.flat_direction` | a correlated pair reaches \|ρ\| = 1.000 to the precision the message prints, so the data does not separate them at all |
 | `GuardFinding.discarded_direction` | three or more parameters share a direction the covariance solve discards, which no pairwise correlation shows, so each esd is at least √2 too small |
 | `GuardFinding.large_biso` | an isotropic displacement parameter is past the Lindemann melting bound computed from its own phase's cell |
-| `GuardFinding.negative_biso` | an isotropic displacement parameter is below zero, which the schema allows only where a reader widened the floor to keep a file's value or a caller set one |
+| `GuardFinding.negative_biso` | an isotropic displacement parameter is below zero; `Atom.biso` has no default bound, so this warning is what a negative value meets |
 | `GuardFinding.nonpositive_resolution` | the Caglioti quadratic Γ_G² = U·tan²θ + V·tanθ + W goes below zero somewhere in the fitted range, where the forward model clamps Γ_G to a floor rather than raising |
 
 `GuardFinding.value` is the headline number for the kind: the correlation

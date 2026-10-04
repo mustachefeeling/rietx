@@ -182,10 +182,9 @@ def test_the_child_cell_volume_is_det_p_times_the_parents():
     assert statement.transform == "2a,b,c;0,0,0"
 
 
-def test_a_parent_biso_above_the_starting_bound_reaches_the_child():
-    """A reader widens a Biso's bound to hold the file's value
-    (``schemas.structure.biso_bounds``); the child keeps that bound rather
-    than inheriting the declared 0-25 Å², which would refuse the value."""
+def test_a_parent_biso_bound_reaches_the_child():
+    """A bound a caller stated on the parent's Biso binds every child the
+    site becomes, whatever the schema's default (none since WP-1534)."""
     parent = pbcm_parent()
     parent.atoms[1].biso = P(value=26.8, min=0.0, max=26.8)
     statement, _cand = _statement(parent, (0.25, 0.125, 0.25), HALF_A,
