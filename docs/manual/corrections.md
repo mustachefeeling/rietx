@@ -275,6 +275,9 @@ x \;=\; \mathrm{ext} \cdot |F|^2 \cdot \left(\frac{\lambda}{V}\right)^2
 
 with $E_L$ a six-term series in $x$ for $0 < x \le 1$ and a two-term asymptote
 above, $E_L = 1$ at $x \le 0$, and $|F|^2$ entering without multiplicity or Lp.
+$\mathrm{ext}$ is the squared mosaic-block size $D^2$ in µm². The constant
+0.079411 is $r_e^2$ in Å² times $10^8$ Å² per µm², to four figures, so $x$ is dimensionless
+with λ in Å and V in Å³.
 $\mathrm{ext} = 0$ gives $E \equiv \sin^2\theta + \cos^2\theta = 1$ exactly.
 
 ```{warning}
