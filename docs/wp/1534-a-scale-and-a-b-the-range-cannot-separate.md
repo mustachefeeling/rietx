@@ -385,6 +385,10 @@ every case there is flagged.
   added or renamed tests. The largest is
   `test_a_scale_shared_across_histograms_is_one_column` at 0.49 s, so none
   joins the slow tail.
+- After merging `main` at `5aac3dd4` (WP-1905's eval suite, no conflict): the
+  fast selection read 8262 passed, 160 skipped, 1 failed (the golden). The
+  total rose by 97, which are WP-1905's tests. Another session's pytest was
+  running beside it, so its wall time is not quotable.
 
 *Decided, and why*:
 
