@@ -831,8 +831,9 @@ class Phase(_InheritsDeclaredDefaults):
         default_factory=lambda: Parameter(value=1.0, vary=False, min=0.0, transform="softplus")
     )
     # Primary-extinction coefficient (Sabine model, model/extinction.py), the
-    # squared mosaic-block size D² in µm² (WP-1451).  Attenuates the strong low-angle reflections of a well-crystallised
-    # sample: each reflection's integrated intensity is multiplied by
+    # squared mosaic-block size D² in µm² (WP-1451).  Attenuates the strong
+    # low-angle reflections of a well-crystallised sample: each reflection's
+    # integrated intensity is multiplied by
     # E(hkl) = E_B·sin²θ + E_L·cos²θ with a dimensionless x ∝ ext·|F|²·(λ/V)².
     # ext = 0 ⇒ E ≡ 1 exactly (off by default), so it is opt-in and never
     # perturbs a structure that does not free it.  Softplus-bounded positive

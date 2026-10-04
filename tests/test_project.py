@@ -393,6 +393,21 @@ def test_an_unbounded_biso_written_after_206_is_a_choice_and_kept(
     assert reopened.history_diagnostics == []
 
 
+def test_a_unit_declared_later_is_no_range_to_restore(tmp_path, pattern_file):
+    """WP-1451 declared extinction's unit, µm², after ``Phase`` inherited at
+    0.35.  A log written before both holds that parameter's declared range and
+    no unit: nothing is unbounded, so nothing is restored and no note blames
+    issue #204 for a label no release before it could write."""
+    def unitless_extinction(state):
+        state["structure"]["phases"][0]["extinction"]["unit"] = None
+    project = _create(tmp_path / "s.rex", pattern_file)
+    _age_log(project, "0.34", unitless_extinction)
+    reopened = rx.Project.open(project.path)
+    ext = reopened.refinement.structure.phases[0].extinction
+    assert (ext.min, ext.transform, ext.unit) == (0.0, "softplus", None)
+    assert reopened.history_diagnostics == []
+
+
 def test_a_log_that_never_stamped_its_schema_reads_as_the_oldest(
         tmp_path, pattern_file):
     project = _create(tmp_path / "s.rex", pattern_file)
