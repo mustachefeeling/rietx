@@ -143,6 +143,26 @@ def test_a_committed_case_cannot_carry_what_build_writes(tmp_path):
         B.cases(tmp_path)
 
 
+def test_the_trigger_set_is_balanced_and_scored_in_both_arms():
+    """Tier 0: half should fire and half are near-misses that should not, each
+    graded by whether `Skill` was called and nothing else (agentskills.io's
+    description recipe). `arm: both`, or a two-arm run would drop the grader."""
+    roles = {}
+    for case in (B.CASES / "trigger").iterdir():
+        meta, _ = _front(case / "prompt.md")
+        role = next(r for r in B.ROLES if meta["description"].startswith(r))
+        roles.setdefault(role, []).append(case.name)
+        graders = list((case / "graders").glob("*.md"))
+        assert len(graders) == 1, case.name
+        g, _ = _front(graders[0])
+        assert g["type"] == "tool_used" and g["tool"] == "Skill" and g["arm"] == "both"
+        if role == "Should fire.":
+            assert g.get("min", 1) >= 1 and "max" not in g, case.name
+        else:
+            assert role == "Should not fire." and g["min"] == g["max"] == 0, case.name
+    assert {r: len(v) for r, v in roles.items()} == {"Should fire.": 10, "Should not fire.": 10}
+
+
 def test_fap_judge_quotes_the_placement_rubric():
     """One authority for the four rubric items: the placement runner's."""
     graders = B.CASES / "fap-judge" / "graders"

@@ -118,7 +118,8 @@ numbers. What a fresh session needs from it:
       TOPAS `.inp` or a GSAS `.EXP` and asked to reproduce the fit; the
       mapping rows are the graders)
 - [ ] The trigger set, tier 0, with its twenty prompts reviewed by the
-      maintainer before any run
+      maintainer before any run — written 2026-10-04
+      (`tests/eval_skill/cases/trigger/`), the review outstanding
 - [ ] The first round: the current body on Haiku and Sonnet, N = 3, both
       arms, costed menu first; numbers to this file's handover and to
       WP-1906's `### Inherited`
