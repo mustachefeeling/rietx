@@ -123,6 +123,7 @@ UNIT_DISPLAY: dict[str, str] = {
     "counts*deg": "counts·deg 2θ",
     "1e-12 A^-4": "10⁻¹² Å⁻⁴",
     "mu_B": "μ_B",
+    "um^2": "µm²",
 }
 
 
@@ -682,8 +683,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "unaffected. The gradient at 0 is dead, which is why the staged "
             "plans seed it off zero with `Stage.seed` when they free it."
         ),
-        unit=None, default="0.0",
-        typical="0 for a ground powder; up to 1e-4 for large crystallites",
+        unit="µm²", default="0.0",
+        typical="0 for a ground powder; 0.1 to 100 (blocks of 0.3 to 10 µm) "
+                "where a strong reflection loses a visible share",
         anchor="corrections.html#primary-extinction",
     ),
     "phases.*.lor_size": HelpEntry(
