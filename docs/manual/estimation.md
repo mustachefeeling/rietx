@@ -282,24 +282,38 @@ esd, conditional on a $B$ the data never saw. On a 25–50° Cu Kα scan of a
 four-phase mixture, bcc Fe has one reflection in range, (110). It walked to
 $B = -150$ Å² and was reported at 0.000 ± 0.000 wt%.
 
+One $s^2$ is the smallest case of a wider one. A displacement parameter
+changes peak heights and never peak shapes, so each displacement column lies in
+the span of the phase's reflection profiles in range, and so does the scale's.
+A phase with more displacement parameters beside its scale than it has
+reflections in range has a combination of them that imitates the scale.
+Fluorite on 25–33° Cu Kα has (111) and (200) against $B_\mathrm{Ca}$ and
+$B_\mathrm{F}$. Unbounded, a fit walked them to +99 and −111 Å² and the phase to
+0.0 wt% (weighed 1.36).
+
 So at the values each stage starts from, the stage measures a separation:
 
 ```{math}
 :label: est-scale-b-separation
 
-r \;=\; \frac{\lVert b - (a\cdot b / a\cdot a)\,a \rVert}{\lVert b \rVert}
+r \;=\; \min_{b \in \operatorname{span}\{b_j\}}
+\left\lVert \hat a - b \right\rVert
 \;<\; 2\sqrt{\mathrm{rcond}},
 ```
 
 {source}`rietx.refine.SCALE_B_SEPARATION_FLOOR`
 
-Here $a = y_p/\sigma$ is the phase's weighted component, and $b$ is its change
-under a uniform step in $B$. Where $r$ falls under the floor,
-{{ SCALE_B_SEPARATION_FLOOR }}, the stage holds the phase's displacement
-parameters. The floor is the cut itself, not a tuned number. Two unit columns
-at angle φ form the block $[[1, c], [c, 1]]$. Its small eigenvalue,
+Here $\hat a$ is the phase's weighted component $y_p/\sigma$ at unit length,
+and the $b_j$ are its changes under a step in each free displacement column.
+For one column, $r$ is the sine of the angle between the two. Where $r$ falls
+under the floor, {{ SCALE_B_SEPARATION_FLOOR }}, the stage holds the phase's
+displacement parameters. The floor is the cut itself, not a tuned number. The
+scale's column and its projection onto the span, both at unit length, form the
+block $[[1, c], [c, 1]]$ with $c = \cos\varphi$. Its small eigenvalue,
 $1 - |c| \approx r^2/2$, is discarded against $\lambda_{\max} \approx 2$
-exactly when $r < 2\sqrt{\mathrm{rcond}}$.
+exactly when $r < 2\sqrt{\mathrm{rcond}}$. A joint fit has one scale per
+histogram and shares $B$, so it reads the smallest angle between the span of
+the scales and the span of the $b_j$, stacked over histograms.
 
 With $B$ held, the phase's weight fraction is conditional on it. At fixed
 intensity, an error $\delta B$ moves the fraction by the factor

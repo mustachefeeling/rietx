@@ -125,17 +125,17 @@ green for months; the third WP-1426):
 The check all three share: make the guard fail on purpose once, and confirm the
 failure message is the one you expected.
 
-## Three eval protocols, and they pool with nothing of each other's
+## Four eval protocols, and they pool with nothing of each other's
 
 `tests/eval_report_agent/` asks whether an agent **reads** a FitReport it was
-handed; `tests/eval_agent_surface/` (WP-1110) which **surface** it reaches for
-when handed files and a job; `tests/eval_skill_placement/` (WP-1338) whether a
-skill **routing** change loses reads. Different episodes, answer contracts and
-scoring, so a cell in one is comparable to nothing in another. What they share
-is the discipline, the part to copy into a fourth: **register the round before
-running it**, never rewritten afterwards; enforce the condition in a **shim**
-rather than in the prompt; fix the read-outs in advance (WP-1303's headline was
-none of them), and report a cell that came back **split** at N = 2 as split.
+handed; `tests/eval_agent_surface/` (WP-1110) which **surface** it reaches for;
+`tests/eval_skill_placement/` (WP-1338) whether a **routing** change loses
+reads; `tests/eval_skill/` (WP-1905) whether a **body** change keeps outcomes.
+What they share is the discipline, the part to copy into a fifth: **register the
+round before running it**, never rewritten afterwards; enforce the condition in
+a **shim** rather than in the prompt; fix the read-outs in advance (WP-1303's
+headline was none of them), and report a cell that came back **split** at N = 2
+as split.
 
 A shim has to be **invisible to its subject**: the surface round's first tracer
 lacked `functools.wraps`, and an agent went reading source for a signature.

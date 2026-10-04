@@ -91,6 +91,20 @@ restates what decides the design.
   package question (dedup or a different pairing rule) before it is a skill
   one. Both prototype-driven Sonnet runs followed its worked default line
   for line, so what the example says is what an agent does.
+- **From WP-1905 (2026-10-04), the suite this rewrite is judged by.** A
+  candidate is measured as `tests/eval_skill/build.py docs/skill/rietx <out>
+  --body <file>`, run `--ablation none` beside today's body's two-arm round,
+  and read with `tests/eval_skill/readout.py compare`; the rule is
+  `tests/eval_skill/PROTOCOL.md` § The decision rule. Two things change how
+  the pilot's numbers above read. The harness's own score is not comparable
+  across ablation modes (the same `fap-fit` state scored 1 of 7 two-arm and
+  2 of 8 one-arm), so the pilot's current-against-prototype Sonnet scores set
+  a 7-weight score against an 8-weight one; `readout.py` rescores both on the
+  same graders. And `fap-fit`'s cell windows are now measured and ask for
+  value(esd), because the CIF's starting cell sat inside the pilot's windows:
+  the pilot's Haiku with-skill pass was on starting values. The baseline
+  round has not run; it waits on the maintainer's choice from the costed menu
+  in 1905's handover.
 
 ## Non-goals
 

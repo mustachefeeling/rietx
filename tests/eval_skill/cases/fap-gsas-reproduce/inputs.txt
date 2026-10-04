@@ -1,0 +1,3 @@
+# GSAS's converged refinement and its pattern; the EXP carries the model, so no CIF.
+copy tests/data/FAP.XRA
+copy tests/data/FAP.EXP

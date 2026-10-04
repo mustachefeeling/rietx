@@ -81,6 +81,8 @@ remembers, and the alternatives are the first thing lost.
   case-3 value: WP-1311's 2026-09-18 entry measured that it bounds nothing
   physical, and it was kept on the maintainer's ruling. That makes it one site
   for this WP's pass, and its argument is in that WP.
+  **Moot since 2026-10-04 (WP-1534):** `Atom.biso` is unbounded by default,
+  and `BISO_BOUNDS`, `biso_bounds` and `BISO_BOUND_WIDENED` are deleted.
 
 ## Non-goals
 

@@ -12,6 +12,7 @@ fraction read as 0.596 wt% when the file said 11.596, and one read as 0.931 when
 the file said 60.931.
 """
 
+import math
 import re
 from pathlib import Path
 
@@ -1954,8 +1955,8 @@ def test_a_negative_beq_is_kept_never_clamped(tmp_path):
     A slightly negative refined B is an ordinary outcome of a converged
     refinement — the column absorbs absorption and normalisation error, and 75
     sites across 11 archive files state one. Moving it changes every high-Q
-    intensity, so the reader keeps the file's number, widens the floor to hold
-    it and says so (PR #663).
+    intensity, so the reader keeps the file's number. ``Atom.biso`` has no
+    default bound (WP-1534), so nothing is widened and nothing is said.
     """
     inp = _inp(tmp_path, "negb.inp",
                'str\nphase_name "Co10Ge3O16"\nspace_group "P1"\na 8.3\n'
@@ -1964,14 +1965,11 @@ def test_a_negative_beq_is_kept_never_clamped(tmp_path):
     assert model.phases[0].sites[0].beq == pytest.approx(-0.42)
     diagnostics = []
     biso = to_structure(model, diagnostics=diagnostics).phases[0].atoms[0].biso
-    assert (biso.value, biso.min) == (pytest.approx(-0.42), pytest.approx(-0.42))
-    widened = [d for d in diagnostics if d.code == "BISO_BOUND_WIDENED"]
-    assert [d.where for d in widened] == [["phases.0.atoms.0.biso"]]
-    assert "GE1" in widened[0].message
+    assert (biso.value, biso.min) == (pytest.approx(-0.42), -math.inf)
+    assert not [d for d in diagnostics if "BISO" in d.code]
 
 
-def test_a_schema_refusal_from_the_cell_or_the_atoms_is_still_converted(
-        tmp_path, monkeypatch):
+def test_a_schema_refusal_from_the_cell_or_the_atoms_is_still_converted(tmp_path):
     """`rx.Cell(...)` and the `atoms` comprehension sat **outside** the try that
     exists to convert a schema report into a reader's refusal — one line above
     it — so only the `rx.Phase(...)` call was covered and `beq bA 26.0` reached
@@ -1979,35 +1977,27 @@ def test_a_schema_refusal_from_the_cell_or_the_atoms_is_still_converted(
 
     The truncation pin cannot catch this class: a ragged cut rarely leaves a
     well-formed line carrying an out-of-range number, so it is tested directly.
-    26 Å² was outside the [0, 25] window `Atom.biso` declares until the readers
-    widened the bound to hold the file's value
-    (:func:`rietx.schemas.structure.biso_bounds`).  The old bound is put back
-    here, so the boundary is still exercised by a refusal the schema raises.
+    It was a beq of 26 Å² until `Atom.biso` lost its default bound (WP-1534);
+    an occupancy of 1.8 is outside the [0, 1.5] window `Atom.occ` declares.
     """
-    import rietx.io.projects.topas as topas
-
-    monkeypatch.setattr(topas, "biso_bounds",
-                        lambda value: {"min": 0.0, "max": 25.0})
     inp = _inp(tmp_path, "outofrange.inp",
                'str\nphase_name "hot"\nspace_group "P1"\na 5.0\n'
-               'site A1 x 0 y 0 z 0 occ Na+1 1 beq bA 26.0\n')
+               'site A1 x 0 y 0 z 0 occ Na+1 1.8 beq bA 0.5\n')
     with pytest.raises(TopasInpError) as exc:
         to_structure(read_topas_inp(inp))
     assert "outofrange.inp" in str(exc.value) and "hot" in str(exc.value)
 
 
-def test_a_beq_above_the_starting_bound_reads(tmp_path):
-    """A stated beq of 26 Å² reads, with its bound widened to hold it, and
-    the reader says so."""
+def test_a_beq_above_the_old_ceiling_reads(tmp_path):
+    """A stated beq of 26 Å² reads as stated, unbounded (WP-1534)."""
     inp = _inp(tmp_path, "hot.inp",
                'str\nphase_name "hot"\nspace_group "P1"\na 5.0\n'
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq bA 26.0\n')
     diagnostics = []
     structure = to_structure(read_topas_inp(inp), diagnostics=diagnostics)
     biso = structure.phases[0].atoms[0].biso
-    assert (biso.value, biso.max) == (pytest.approx(26.0), pytest.approx(26.0))
-    widened = [d for d in diagnostics if d.code == "BISO_BOUND_WIDENED"]
-    assert [d.where for d in widened] == [["phases.0.atoms.0.biso"]]
+    assert (biso.value, biso.max) == (pytest.approx(26.0), math.inf)
+    assert not [d for d in diagnostics if "BISO" in d.code]
 
 
 # ------------------------------------------------------------ the robustness pin

@@ -348,11 +348,25 @@ def test_a_fixed_angle_within_tolerance_is_accepted_and_still_held():
 # these, a coefficient other than 1 carried a dependent straight past its own
 # ceiling and the first thing that noticed was pydantic, inside
 # ``apply_to_models``, after the solve.
+#
+# The bound here is a caller's [0, 25] on each B, which was ``Atom.biso``'s
+# default until WP-1534 removed it.
+
+
+def bounded_lab6():
+    structure = make_lab6()
+    for atom in structure.phases[0].atoms:
+        atom.biso = Parameter(value=atom.biso.value, min=0.0, max=25.0)
+    return structure
+
+
+def make_bounded_table() -> ParameterTable:
+    return ParameterTable(bounded_lab6(), Instrument.debye_scherrer(wavelength=0.4139))
 
 
 def test_a_dependents_own_ceiling_becomes_its_sources_ceiling():
-    table = make_table()
-    table.set_vary(["phases.0.atoms.0.biso"], True)          # Atom.biso is [0, 25]
+    table = make_bounded_table()
+    table.set_vary(["phases.0.atoms.0.biso"], True)          # B is [0, 25]
     table.set_tie("phases.0.atoms.1.biso",
                   AffineTie(terms=(("phases.0.atoms.0.biso", 2.0),)))
     lo, hi = table.bounds()
@@ -361,7 +375,7 @@ def test_a_dependents_own_ceiling_becomes_its_sources_ceiling():
 
 
 def test_a_negative_coefficient_swaps_the_ends():
-    table = make_table()
+    table = make_bounded_table()
     table.set_vary(["phases.0.atoms.0.biso"], True)
     table.set_tie("phases.0.atoms.1.biso",
                   AffineTie(terms=(("phases.0.atoms.0.biso", -1.0),), const=20.0))
@@ -372,7 +386,7 @@ def test_a_negative_coefficient_swaps_the_ends():
 
 
 def test_windows_intersect_over_every_dependent_of_one_source():
-    table = make_table()
+    table = make_bounded_table()
     table.set_vary(["phases.0.atoms.0.biso"], True)
     table.set_tie("phases.0.atoms.1.biso",
                   AffineTie(terms=(("phases.0.atoms.0.biso", 2.0),)))
@@ -410,7 +424,7 @@ def test_a_second_source_widens_the_window_to_an_outer_box():
     ``s``, so a bounded co-source narrows and an unbounded one does not.
     """
     def window(u_lo: float, u_hi: float) -> tuple[float, float]:
-        table = make_table()
+        table = make_bounded_table()
         table.add_parameter("synthetic.u", 1.0, vary=True, lo=u_lo, hi=u_hi)
         table.set_vary(["phases.0.atoms.0.biso"], True)
         table.set_tie("phases.0.atoms.1.biso",
@@ -426,7 +440,7 @@ def test_a_second_source_widens_the_window_to_an_outer_box():
 
 
 def test_two_bounds_that_cannot_both_hold_are_refused_not_clipped():
-    table = make_table()
+    table = make_bounded_table()
     table.add_parameter("synthetic.big", 30.0, vary=True, lo=30.0, hi=40.0)
     # and it names the *dependent*, which is where the fix usually is: the
     # window is on the source, and widening the source is the wrong move.
@@ -443,12 +457,12 @@ def test_a_bound_broken_on_write_back_names_the_path_and_the_tie():
     Before this it arrived as a bare pydantic ``ValidationError`` naming no
     path, no phase and no tie, from inside ``apply_to_models`` after the solve.
     """
-    table = make_table()
+    table = make_bounded_table()
     table.set_vary(["phases.0.atoms.0.biso"], True)
     table.set_tie("phases.0.atoms.1.biso",
                   AffineTie(terms=(("phases.0.atoms.0.biso", 2.0),)))
     table.entries[table._paths["phases.0.atoms.1.biso"]].value = 40.0
-    structure, instrument = make_lab6(), Instrument.debye_scherrer(wavelength=0.4139)
+    structure, instrument = bounded_lab6(), Instrument.debye_scherrer(wavelength=0.4139)
     with pytest.raises(ValueError, match=r"phases\.0\.atoms\.1\.biso=40.*"
                                          r"\[0, 25\].*2·phases\.0\.atoms\.0\.biso"):
         table.apply_to_models(structure, instrument)
