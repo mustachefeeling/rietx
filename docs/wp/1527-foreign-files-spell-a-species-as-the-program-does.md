@@ -167,7 +167,17 @@ and the issue does not say where the 0.007 comes from).
 passed (+23); the acceptance files with `test_portability`, 505 passed. The
 fast selection after review, nothing else running: 8232 passed, 159 skipped,
 in 2:32. The two added tests take 0.07 s together
-(`tests.added_test_times`), so neither joins the slow tail.
+(`tests.added_test_times`), so neither joins the slow tail. The tree is
+current with `origin/main`; the full suite was not run, the change being a
+test.
+
+*Review* (`/code-review high --fix`, seven findings, no writer bug). Fixed:
+the X-ray arm now checks the f′/f″ row is named as the written type (renaming
+it fails the test); the entry's claim is narrowed to spelling for the three
+ions #558 never measured; two docstrings; this block's counts. Declined: the
+test's own parse of rietx's ion label repeats `scattering`'s regex, kept so
+the oracle shares nothing with the module. The session's lane row has moved
+since (+$39.29, 42 %); the record keeps the figure measured at handover.
 
 **Y³⁺ past 2 Å⁻¹, for the maintainer's decision.** Computed from
 `_ITC_IONS`'s coefficients against rietx's neutral Y (Waasmaier-Kirfel,
