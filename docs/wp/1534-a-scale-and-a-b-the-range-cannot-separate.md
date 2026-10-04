@@ -1,9 +1,8 @@
 # WP-1534 — a scale and a B the fitted range cannot separate
 
-Milestone: unscheduled · Status: 🔄 2026-10-04 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-04 — `Atom.biso` unbounded by maintainer decision; the hold covers the whole displacement block and joint fits
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P2 2026-10-04 — was P3: the maintainer chose an unbounded `Atom.biso`, which needs the block probe and the joint port in the same change
 
 ## Goal
 
@@ -303,6 +302,138 @@ returns two different confident fractions at one Rwp, as #204 did.
   J. Appl. Cryst. 34, 409–426.
 
 ## Handover log
+
+### 2026-10-04 — the bound goes, the hold covers the class; closed
+
+The question this WP kept circling is settled. `Atom.biso` now has no default
+bound, as in FullProf, TOPAS and GSAS-II. The maintainer decided it on three
+grounds. The guideline papers ask for warnings, not bounds. A high B can stand
+in for disorder, which a ceiling clips. And on real data the bound changed
+nothing on a full scan. What replaces it is the hold, now generalised: a stage
+holds a phase's B values wherever its reflections in range are too few to
+separate them from its scale. That covers the one-peak case of #204 and a
+two-site, two-peak case that the bound alone was catching, in a single fit
+and in a joint one. The cost is about 1 wt% RMS on short real ranges, and
+every case there is flagged.
+
+*Done*, in order:
+
+- `184a573e`: task 2 read into Context, the round-robin measurement, the
+  decision, and the 1523 Inherited note folded into the block task.
+- `5519b7aa`, `ed7730aa`: the probe asks the whole displacement block
+  (`refine._scale_b_separation`, `_column_separation`). For one column it is
+  the old sine exactly, so the floor, the record and the Fe reading are
+  unchanged. Anisotropic sites join, which answers the declined finding of
+  the 2nd session of 2026-10-02.
+- `87e9b93b`: the joint runner runs the probe (`multi._scale_b_probe_multi`,
+  `_hold_scale_b_ridges_multi`): the smallest angle between the span of a
+  phase's per-histogram scales and its shared displacement columns.
+  `SCALE_B_INSEPARABLE` moved from ABSENT to FIT in `DIAGNOSTIC_SCOPES`.
+- `ab627d4e`: `Atom.biso` unbounded; `BISO_BOUNDS`, `biso_bounds`,
+  `biso_widening_diagnostic` and `BISO_BOUND_WIDENED` deleted from the schema
+  and all six readers. `help.py`, the manual (Part 1 rows, Part 2's ridge
+  section rewritten for the block), the skill (`abstention.md`, `judging.md`
+  §4b, the `BISO_BOUND_WIDENED` row removed) and the 1.7 notes say so.
+- `1efbedbd`: tests that used B's old [0, 25] as an example bound now state
+  one, or use the occupancy's declared [0, 1.5]. The issue-#209 old-log repair
+  tests moved to the occupancy, which still has a range to restore.
+
+*Measured*:
+
+- **Task 2** (Zotero PDFs, read by a Sonnet agent, load-bearing quotes
+  re-checked at their lines): McCusker et al. (1999) pp. 45–46, 49; Madsen et
+  al. (2001) p. 424 §6.2; Scarlett et al. (2002) pp. 396, 398. Warn, and fix B
+  at a sensible value where the data cannot refine it. None bounds, clamps or
+  refuses, and none quantifies B against wt%.
+- **The round robin, bounded against unbounded.** IUCr CPD samples 1a–1h
+  with `tests/test_acceptance_qpa_roundrobin.qpa_plan()` and its phases and
+  instrument; every atom's `biso` set to `(-inf, inf)` in one arm and left at
+  the suite's explicit `(0, 25)` in the other; dispersion on (`Dispersion()`)
+  and off; `two_theta_limits` of none, 25–50, 20–40 and 25–33°. 128 fits,
+  8 workers, `RIETX_TELEMETRY=0`. Results are in Context's table. Full scan:
+  largest ΔW 0.03 wt%, all 48 fractions tied. 20–40°: bounded closer to the
+  weighed truth 34 times, unbounded 10, median gap 0.23–0.39 wt%.
+- **With the block probe**, the same grid: 25–33° holds every phase and the
+  two arms agree exactly; cpd-1c's fluorite reads 1.32 (dispersion on) and
+  1.54 (off) wt% against 1.36 weighed, where unbounded it read 0.0 and the
+  dispersion-off fit stopped at Rwp 3.3. 20–40° holds fluorite (two
+  reflections, two sites) in all 16 unbounded fits; the lowest B there rose
+  from −9.0 to −4.7 Å². Plots of cpd-1c on both windows were checked.
+- New tests: `tests/test_scale_b_ridge.py` gains 5 (two sites on two
+  reflections, the block hold on the narrow fixture, an anisotropic Fe site,
+  two joint fits, and the review's shared-scale case), 18 → 24 cases; `tests/test_file_biso_bounds.py` goes from
+  6 to 3 cases (the widening helper's three parametrised rows and the
+  diagnostic tests are gone with the helper). No new skip.
+- Full suite, `[dev]`, darwin/arm64 (macOS 26.6.2), alone on the machine, on
+  this branch at `f2c8f3d3` (`main` had not moved since the claim): 8425
+  passed, 171 skipped, 1 failed, in 24:39. The failure is
+  `test_backend_shim.py::test_numpy_path_bit_identical_to_golden[toy_anomalous]`,
+  1.6e-11 off its golden; it fails identically with `origin/main`'s source on
+  the path (`git archive` into the scratchpad, `PYTHONPATH`). It is a residual
+  evaluation, which no bound reaches.
+- Fast selection after the review fixes (`2643ebdd`, same venv and machine,
+  alone): 8164 passed, 160 skipped, 2 failed, in 3:54. One is the golden
+  above. The other was `test_no_planning_doc_links_something_gitignored`,
+  because WP-1908's file was still untracked; the next commit tracks it. The
+  session's tests net +3 (24 − 18 in the ridge file, 3 − 6 in
+  `test_file_biso_bounds.py`), with no new skip. `main` had not moved, so
+  this is the merged tree. The review's joint-probe fixes landed after the
+  full run, so the slow tests reaching the joint runner were re-run on the
+  final tree: 252 passed (`test_absent_phase`, `test_acceptance_wavelength`,
+  `test_held_phase`, the multi and joint files, the ridge file).
+- Added tests' cost (`tests.added_test_times`, one fast run): 1.90 s over 18
+  added or renamed tests. The largest is
+  `test_a_scale_shared_across_histograms_is_one_column` at 0.49 s, so none
+  joins the slow tail.
+
+*Decided, and why*:
+
+- **The bound goes entirely, floor included.** The floor measurably helped on
+  short ranges, and that was put to the maintainer with the numbers. The
+  decision follows the guidelines and prior art: the floor's benefit lives
+  only where the esd is already about 8 wt% and every case is flagged.
+- **Saved projects keep their stored bounds.** A stored (0, 25) cannot be told
+  apart from one a user chose, so it is not migrated.
+- **The hold takes all of a phase's displacement columns**, as before. It does
+  not tie them to one B (McCusker's other remedy), because a stage-scoped tie
+  is new machinery and holding is what the record already reports.
+
+*Review* (`/code-review high --fix`, `2643ebdd`): six fixed. A scale shared
+across histograms (`SharingMap.shared`) is one joint column, not one per
+histogram; without that, a joint fit that measures B through a shared scale
+was held anyway (new test). Probe rows carry the histogram weights, as the
+joint residual's do. A per-histogram B's scoped name matches in the finding.
+The probe checks for a scale column before evaluating anything. Stale 25 Å²
+text was fixed in `staged.py` and the skill's `diagnostics.md`. Three declined:
+
+- A `ValueRestraint` on B separates it from the scale, and the probe reads
+  only data rows, so it still holds B. The gap predates this branch, and a
+  fix needs restraint rows on both column sets.
+- Holding every displacement column of a ridged phase freezes one the data
+  could measure. Which one to keep free is a choice the data do not make,
+  and holding all is what the record states.
+- `surprises.md`'s quoted [0, 25] is a measured WP-1119 transcript.
+
+*Gotchas*:
+
+- `_column_separation` uses `np.linalg.lstsq` and then an SVD of the residual,
+  never the Gram matrix. Its eigenvalues lose the 1e-12 reading to rounding at
+  about 1e-8, which is the floor.
+- `ruff --fix` dropped an import that was unused at the moment it ran
+  (`_scale_b_ridge_diagnostics` in `multi.py`), before the call site existed.
+- The worktree guard refuses a long Python heredoc; write it to the scratchpad
+  and run the file.
+
+*Forward references*: WP-1523's Inherited (a phase with no reflection in range
+keeps a free scale that walks a flat direction, 99.99 wt% at an unchanged
+Rwp); WP-1341's Inherited (the joint probe landed, replacing this WP's
+2026-10-02 note); WP-1448's Inherited (its `BISO_BOUNDS` note is moot).
+WP-1908 is filed for the tick builder, which adds `zero_shift` and not the
+displacement shift (no open WP owned tick positions). WP-1311 is closed and
+owned the 25 Å² ruling; this entry and the 1.7 notes supersede it.
+
+*Next*: nothing in this WP. WP-1908 first, because Layer 0 reads the ticks it
+fixes. Then WP-1523's walk.
 
 ### 2026-10-02 (2nd session) — the hold landed; the guideline reading is owed
 
