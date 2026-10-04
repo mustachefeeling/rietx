@@ -273,7 +273,7 @@ stating what it changed.
       153.7σ on the screen against 0.02σ marginal with them in.
 - [x] **The joint runner runs the probe**, and `multi.DIAGNOSTIC_SCOPES`
       stops declaring it ABSENT.
-- [ ] **`Atom.biso` unbounded by default**; `biso_bounds` and
+- [x] **`Atom.biso` unbounded by default**; `biso_bounds` and
       `BISO_BOUND_WIDENED` deleted; readers, `help.py`, manual, skill and the
       1.7 notes say so.
 - [ ] Full suite once on the final tree; re-baseline any golden that moved.
