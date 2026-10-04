@@ -70,6 +70,11 @@ RELATIVE_COPY = re.compile(
 SURFACE = re.compile(r"\brietx\s+skill\b|\bskill_path\b|\brietx\.skill\b")
 REFERENCE = re.compile(r"references/([a-z0-9-]+\.md)")
 BASE = re.compile(r"Base directory for this skill: (\S+)")
+#: A `Skill` call loading rietx, bare or plugin-namespaced, read off its
+#: JSON-encoded input: the harness documentation's pattern, and the
+#: `input_match` every case's `Skill` grader carries, so a run's "fired" and its
+#: grader count the same calls (another skill firing is neither).
+FIRED = re.compile(r'"skill"\s*:\s*"(?:[\w-]+:)?rietx"')
 
 
 def load(path: str | Path) -> dict:
@@ -111,7 +116,7 @@ def run_score(run: dict, graders: list[dict]) -> float | None:
     """A run's score over the comparable graders; `None` where one is missing."""
     got = {r.get("name"): r for r in run.get("graders") or ()}
     kept = comparable(graders)
-    if any(g["name"] not in got for g in kept):
+    if not kept or any(g["name"] not in got for g in kept):
         return None
     return sum(_w(g) for g in kept if got[g["name"]].get("passed")) / sum(map(_w, kept))
 
@@ -194,8 +199,10 @@ def trace_facts(path: str | None, *, arm: str, plugin: str | None = None,
         return {**facts, "trace": "unread"}
     bill = trail.usage(rows)
     uses = list(_uses(rows))
-    base = next((m.group(1).rstrip(".") for r in rows for s in _strings(r)
-                 for m in [BASE.search(s)] if m), None)
+    # rietx's base directory, never the first skill's: another skill loaded
+    # first would otherwise void the run for a condition it says nothing about.
+    base = next((b for r in rows for s in _strings(r) for m in BASE.finditer(s)
+                 for b in [m.group(1).rstrip(".")] if PurePosixPath(b).name == "rietx"), None)
     run_dir = PurePosixPath(path).parent.parent  # <run>/out/trace.jsonl
     inside = [run_dir, *(PurePosixPath(r["cwd"]) for r in rows
                          if r.get("type") == "system" and isinstance(r.get("cwd"), str))]
@@ -206,7 +213,7 @@ def trace_facts(path: str | None, *, arm: str, plugin: str | None = None,
     allowed = list(SYSTEM)
     if python and len(PurePosixPath(python).parents) > 2:
         allowed.append(PurePosixPath(python).parents[1])
-    fired = any(n == "Skill" and "rietx" in json.dumps(i) for n, i in uses)
+    fired = any(n == "Skill" and FIRED.search(json.dumps(i)) for n, i in uses)
     if arm == "with":
         homes = [run_dir, *([PurePosixPath(plugin)] if plugin else [])]
         held = None if base is None else _under(PurePosixPath(base), homes)
@@ -253,7 +260,7 @@ def summarise(doc: dict, build: dict | None = None) -> dict:
             "ablation": suite.get("ablation"), "concurrency": suite.get("concurrency"),
             "threshold": threshold, "claude": doc.get("claudeVersion"),
             "partial": bool(doc.get("partial")), "partial_reason": doc.get("partialReason"),
-            "cost": doc.get("costUsd"), "seconds": doc.get("durationSeconds"),
+            "cost": doc.get("costUsd"), "seconds": doc.get("durationSeconds"), "root": root,
             "build": {k: build.get(k) for k in keep} if build else None, "cases": cases}
 
 
@@ -353,8 +360,12 @@ def compare(current: dict, candidate: dict) -> dict:
     problems += [f"{side} round is partial ({s['partial_reason']})"
                  for side, s in (("current", current), ("candidate", candidate)) if s["partial"]]
     builds = current["build"], candidate["build"]
-    notes = ["A/A: both rounds ran one tree"] if all(builds) and \
-        builds[0]["tree_sha256"] == builds[1]["tree_sha256"] else []
+    notes = ["A/A: both rounds ran one tree"] if all(builds) and builds[0]["tree_sha256"] \
+        and builds[0]["tree_sha256"] == builds[1]["tree_sha256"] else []
+    if current.get("root") and current.get("root") == candidate.get("root"):
+        # PROTOCOL.md § The conditions: one <out> per condition.
+        notes.append(f"both rounds name one plugin directory, {current['root']}: its "
+                     f"{STAMP} is the later build's, so the hashes cannot tell them apart")
     old = {c["name"]: c for c in current["cases"]}
     problems += [f"{n}: not in the candidate round" for n in
                  sorted(set(old) - {c["name"] for c in candidate["cases"]})]
@@ -387,9 +398,13 @@ def compare(current: dict, candidate: dict) -> dict:
             "loses": loses, "why": why,
             "suspect_judge": delta is not None and delta < 0 and bool(cand_runs)
             and all(r["fired"] for r in cand_runs)})
-    if any(r["loses"] and not r["why"] for r in rows):
+    # A pair the rule cannot read (two models, a partial round, a missing case)
+    # decides nothing, a loss inside it included: rule 3 makes it undecided.
+    if problems:
+        verdict = "undecided"
+    elif any(r["loses"] and not r["why"] for r in rows):
         verdict = "fails"
-    elif problems or any(r["why"] for r in rows):
+    elif any(r["why"] for r in rows):
         verdict = "undecided"
     else:
         verdict = "holds"

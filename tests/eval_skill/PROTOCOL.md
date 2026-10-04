@@ -145,7 +145,10 @@ written.
 Twenty prompts under `cases/trigger/`, ten that should load the skill and ten
 near-misses sharing its vocabulary that should not (agentskills.io's
 description recipe). Each is graded by one `tool_used: Skill` grader with
-`arm: both`: `min: 1` on the ten, `min: 0, max: 0` on the near-misses.
+`arm: both`: `min: 1` on the ten, `min: 0, max: 0` on the near-misses, and on
+all twenty an `input_match` counting only calls that load rietx
+(`readout.FIRED`), so another skill firing on a near-miss is not scored as
+rietx firing.
 Judge-free, no fixture, `max_turns: 4`, and no shell in `allowed_tools`; a
 round's `--allow-tools` grant reaches every case it runs, so the round's
 command line, not the case, decides whether a near-miss can reach one.

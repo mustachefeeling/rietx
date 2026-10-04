@@ -163,7 +163,7 @@ def _scaffold(built: Path, name: str) -> None:
                        f"{shlex.quote(str(built / 'files'))}/. .\n", encoding="utf-8")
     fixture.chmod(0o755)
     (built / "case.yaml").write_text(
-        f'schema_version: "1.1"\nname: {name}\ncontext:\n  scaffold_script: fixture.sh\n',
+        f'schema_version: "1.1"\nname: {json.dumps(name)}\ncontext:\n  scaffold_script: fixture.sh\n',
         encoding="utf-8")
 
 
@@ -171,7 +171,11 @@ def build(tree: Path, out: Path, *, python: Path | None = None,
           body: Path | None = None, only: list[str] | None = None) -> dict:
     """Write the plugin to ``out`` and return what `STAMP` records."""
     tree, out = Path(tree).resolve(), Path(out).resolve()
-    python = Path(python) if python else default_python()
+    # Absolute, never resolved: a relative path names nothing in the run's
+    # workspace or the episode's cwd, and resolving a venv's symlink would
+    # name the base interpreter, which has no rietx.
+    python = Path(python).absolute() if python else default_python()
+    body = Path(body).absolute() if body is not None else None
     if not (tree / "SKILL.md").is_file():
         raise SystemExit(f"{tree} holds no SKILL.md: not a skill tree")
     if Path.home() in python.parents or Path.home() in python.resolve().parents:

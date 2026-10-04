@@ -1,6 +1,6 @@
 ---
 type: tool_used
 tool: Skill
-input_match: rietx
+input_match: '"skill"\s*:\s*"(?:[\w-]+:)?rietx"'
 arm: both
 ---

@@ -162,6 +162,8 @@ def test_the_trigger_set_is_balanced_and_scored_in_both_arms():
         assert len(graders) == 1, case.name
         g, _ = _front(graders[0])
         assert g["type"] == "tool_used" and g["tool"] == "Skill" and g["arm"] == "both"
+        # Only rietx counts, in the grader as in readout's `fired`: one pattern.
+        assert g.get("input_match") == R.FIRED.pattern, case.name
         if role == "Should fire.":
             assert g.get("min", 1) >= 1 and "max" not in g, case.name
         else:
@@ -266,6 +268,14 @@ def test_a_body_swaps_only_the_body(tmp_path):
     for ref in (TREE / "references").iterdir():
         assert (tmp_path / "p" / "skills" / "rietx" / "references" / ref.name).read_bytes() \
             == ref.read_bytes()
+
+
+def test_a_relative_interpreter_is_written_absolute(tmp_path, monkeypatch):
+    """The run's workspace and the episode's cwd are not this one, so a
+    relative `--python` would name nothing in either."""
+    monkeypatch.chdir(tmp_path)
+    stamp = B.build(TREE, tmp_path / "p", python=Path("venv/bin/python"), only=["none"])
+    assert stamp["python"] == str(tmp_path / "venv" / "bin" / "python")
 
 
 def test_the_build_clears_only_its_own_output(tmp_path):
@@ -404,6 +414,13 @@ def test_a_trace_gives_tokens_the_route_and_its_leaks(tmp_path):
     elsewhere = _trace(tmp_path / "b", _episode(ws, base="/root/.claude/skills/rietx"))
     assert R.trace_facts(elsewhere, arm="with", plugin=PLUGIN)["held"] is False
 
+    # Another skill loading first neither fires rietx nor voids the run.
+    other = [_use("0", "Skill", skill="dataviz"),
+             _said("Base directory for this skill: /opt/cc/skills/dataviz"), *_episode(ws)]
+    first = R.trace_facts(_trace(tmp_path / "d", other), arm="with", plugin=PLUGIN)
+    assert first["skill_dir"] == f"{PLUGIN}/skills/rietx" and first["held"] is True
+    assert not R.trace_facts(_trace(tmp_path / "e", other[:2]), arm="without")["fired"]
+
 
 def test_a_trace_that_cannot_be_read_says_so_rather_than_zero(tmp_path):
     assert R.trace_facts(None, arm="with")["trace"] == "missing"
@@ -467,6 +484,13 @@ def test_compare_decides_nothing_it_cannot_pair():
     assert _pair([ALL] * 3, partial=True)["verdict"] == "undecided"
     differ = _pair([[True, True]] * 3, graders=GRADERS[:2])
     assert differ["verdict"] == "undecided" and "graders differ" in differ["rows"][0]["why"]
+    # A loss across two models is no loss the rule can read.
+    lost = [[True, False, False]] * 3
+    assert _pair(lost)["verdict"] == "fails"
+    assert _pair(lost, model="sonnet")["verdict"] == "undecided"
+    assert _pair(lost, partial=True)["verdict"] == "undecided"
+    # A case reported with no graders is unscored, not a crash.
+    assert R.run_score({"graders": []}, []) is None
 
 
 def test_compare_drops_a_void_run_and_suspects_the_judge_where_the_skill_fired():
@@ -507,5 +531,6 @@ def test_the_cli_shows_a_round_beside_its_build_and_exits_on_the_rule(tmp_path, 
     assert R.main(["compare", str(cur), str(cand)]) == 1
     decided = capsys.readouterr().out
     assert "rule: fails (x)" in decided and "note: A/A: both rounds ran one tree" in decided
+    assert f"note: both rounds name one plugin directory, {tmp_path}" in decided
     with pytest.raises(SystemExit):
         R.main(["compare", str(cur)])
