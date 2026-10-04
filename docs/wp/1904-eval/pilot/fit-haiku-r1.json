@@ -1,0 +1,253 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.289",
+  "startedAt": "2026-10-04T09:47:17.169Z",
+  "durationSeconds": 802,
+  "costUsd": 0.5955429,
+  "partial": false,
+  "suite": {
+    "root": "/tmp/claude-0/-home-user-rietx/fb206fd5-3325-5e36-8cb1-86571b5df2f7/scratchpad/pilot/plugin-current",
+    "ablation": "with-without",
+    "modelOverride": "haiku",
+    "judgeModel": "sonnet",
+    "caseFilter": "fap-fit",
+    "threshold": 1,
+    "concurrency": 1,
+    "plugins": [
+      {
+        "name": "rietx-skill",
+        "version": "0.0.1",
+        "path": "/tmp/claude-0/-home-user-rietx/fb206fd5-3325-5e36-8cb1-86571b5df2f7/scratchpad/pilot/plugin-current"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "fap-fit",
+      "dir": "evals/fap-fit",
+      "source": "mixed",
+      "promptMarkdown": "FAP.XRA is a lab powder pattern of fluorapatite, Ca5(PO4)3F, collected on a Bragg-Brentano diffractometer with Cu Kα radiation (doublet, no monochromator). fluorapatite.cif is the starting model. Refine the structure against the pattern with rietx and write me a short report.md: the refined cell parameters with esds, and a list of which refined numbers you would not yet put in a paper and why.\n\nrietx is installed for the python interpreter /home/user/rietx/.venv/bin/python. Your working directory holds FAP.XRA and fluorapatite.cif.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 1500,
+      "maxTurns": 40,
+      "graders": [
+        {
+          "name": "caveats_named",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS only with concrete evidence; do not give the benefit of the doubt. Does the report name at least one specific refined quantity it declines to quote AND give a specific, checkable reason tied to this fit (for example: a named diagnostic code, a correlation between zero shift and sample displacement or between the cell and either of them, a background-flexibility screen, a bound hit, an undersampling warning)? A generic caveat (\"Rietveld esds are underestimated\") without a quantity and a fit-specific reason is FAIL.",
+          "config": {
+            "criteria": "PASS only with concrete evidence; do not give the benefit of the doubt. Does the report name at least one specific refined quantity it declines to quote AND give a specific, checkable reason tied to this fit (for example: a named diagnostic code, a correlation between zero shift and sample displacement or between the cell and either of them, a background-flexibility screen, a bound hit, an undersampling warning)? A generic caveat (\"Rietveld esds are underestimated\") without a quantity and a fit-specific reason is FAIL.",
+            "focus": {
+              "source": "file",
+              "path": "report.md"
+            }
+          }
+        },
+        {
+          "name": "cell_a",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "report.md"
+            },
+            "pattern": "9\\.37[0-3]",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "cell_c",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "report.md"
+            },
+            "pattern": "6\\.88[5-7]",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "ran_fit",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Bash",
+            "input_match": "python"
+          }
+        },
+        {
+          "name": "report_written",
+          "type": "file_exists",
+          "weight": 1,
+          "config": {
+            "path": "report.md",
+            "exists": true
+          }
+        },
+        {
+          "name": "skill_fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "arm": "with-only"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.34965559999999996,
+            "judgeCostUsd": 0.013182,
+            "durationSeconds": 616,
+            "startedAt": "2026-10-04T09:47:17.206Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-xDrZ9X/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "caveats_named",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "# Rietveld Refinement of Fluorapatite (FAP)\n\n## Refined Cell Parameters\n\nThe structure of fluorapatite, Ca₅(PO₄)₃F, was refined against laboratory X-ray powder diffraction data (Cu Kα radiation, Bragg-Brentano geometry) using rietx following the staged refinement protocol.\n\n**Refined unit cell (hexagonal, P63/m):**\n\n| Parameter | Value | Uncertainty |\n|-----------|-------|-------------|\n| a | 9.367913 Å | ±0.001711 Å |\n| c | 6.883046 Å | ±0.001265 Å |\n\nThese compare favorably to the starting model from the CIF (a = 9.3717 Å, c = 6.8859 Å). The cell parameters shift only slightly (<0.02%) upon refinement, indicating the starting structure was well-positioned.\n\n## Fit Quality Metrics\n\n- **Rwp (raw):** 0.11% (unusually low, suggesting possible background over-fitting)\n- **Rwp (background subtracted):** Similar, confirming very good peak fit\n- **GoF:** 1.97\n- **χ²_reduced:** 3.87\n- **ESD Inflation:** 3.02\n- **Durbin-Watson:** 0.81\n\n## Parameters NOT Ready for Publication\n\nThe following refined numbers should **not** appear in a paper without resolution of their underlying issues:\n\n### 1. **Zero shift and sample displacement** (|ρ| = 1.000 correlation)\n   - **Issue:** Perfect collinearity with cell parameters in Bragg-Brentano geometry over the measured angular range\n   - **Why:** These geometric parameters and the cell are degenerate when fitting a narrow 2θ range (~20–140°). The zero shift absorbs any constant angular offset, sample displacement absorbs a cosθ-dependent shift, and the cell absorbs a tanθ-dependent shift. When all three are freed simultaneously against data collected over a single continuous range, one combination of them is indefinable from the data.\n   - **Action required:** Anchor zero shift and sample displacement using a calibration against a standard with a certified cell held fixed (the `lab_calibrate` plan), OR hold these parameters fixed at independently measured values, before quoting cell parameters.\n\n### 2. **Axial aberrations** (|ρ| = −1.000 correlation)\n   - **Issue:** axial_sl and axial_hl are perfectly anti-correlated in the instrument model\n   - **Why:** These two parameters describe the same physical aberration (axial divergence) with opposite sign conventions and are indistinguishable in the fit.\n   - **Action required:** Fix one of these to 0 or to a value from a calibration step.\n\n### 3. **Background polynomial coefficients** (many correlations |ρ| > 0.99)\n   - **Issue:** The background polynomial (Chebyshev, 31 terms) has severe internal correlations; neighboring coefficients are nearly perfectly correlated (ρ ≈ +0.998)\n   - **Why:** An over-parameterized background model fitting to smooth pedestal and peak tails fits multiple equivalent solutions.\n   - **Observed effect:** `worst_absorption` = 0.46 indicates the background can reproduce ~46% of any displacement parameter variation, inflating Biso uncertainties\n   - **Action required:** Either:\n     - Reduce the polynomial order to match the feature content of your background (typically 6–8 coefficients for lab diffractometers), OR\n     - Collect a measured blank scan and fit it with a lower-order polynomial to reduce flexibility\n\n### 4. **Displacement parameters (Biso)** if refined\n   - **Issue:** Correlated with cell through scale and with background via absorption signature\n   - **Why:** A too-flexible background (see #3) can absorb structural broadening, biasing Biso high or low\n   - **Status at report time:** The esd_inflation = 3.02 already inflates reported uncertainties by √3 to account for serial correlation in the residual\n   - **Action required:** After addressing the background over-parameterization, re-refine and report Biso values. Currently they cannot be trusted to better than ±50% of their stated precision.\n\n### 5. **Fit completion status: `max_iter` (not `converged`)**\n   - **Issue:** The refinement hit the iteration limit before the gradient norm dropped to the convergence tolerance\n   - **Why:** The abundance of degenerate parameter combinations (especially zero/displacement/cell and background terms) means the solver cannot find a unique minimum; it walks along a ridge\n   - **Implication:** The reported esds assume the fit has settled; here it may not have fully\n   - **Action required:** Re-run with the degeneracies resolved (calibrate geometry, reduce background order), then the fit should converge cleanly\n\n## Summary\n\n**Publication-ready results:**  \n- Cell parameters **a** and **c** can be reported after calibration: remeasure on a certified standard with `lab_calibrate` (zero shift and sample displacement held) to anchor the geometric parameters, then re-refine the sample\n\n**Not ready for publication:**  \n- Atomic displacements (Biso) — background over-parameterization inflates their uncertainties\n- Zero shift, sample displacement — degenerate with cell without calibration\n- Axial aberrations — degenerate with each other\n\nThe cell values themselves are physically reasonable and the fit to the pattern is excellent, but the current measurement does not separate the cell from its geometric confounders. This is a limitation of the data range and protocol, not the sample.\n"
+              },
+              {
+                "name": "cell_a",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched 9\\.37[0-3]",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched 6\\.88[5-7]",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 14x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "report_written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "report.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill_fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0.8571428571428571,
+            "passed": false,
+            "turns": 26,
+            "costUsd": 0.24588730000000003,
+            "judgeCostUsd": 0.013392000000000001,
+            "durationSeconds": 187,
+            "startedAt": "2026-10-04T09:57:32.734Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-9wdsE4/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "caveats_named",
+                "passed": false,
+                "weight": 1,
+                "explanation": "judge votes: FAIL PASS FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  true,
+                  false
+                ],
+                "evidence": "# Rietveld Refinement Report: Fluorapatite (Ca₅(PO₄)₃F)\n\n## Refinement Summary\n\nRietveld refinement was performed on the fluorapatite powder pattern (FAP.XRA) collected on a Bragg-Brentano diffractometer with Cu Kα radiation using the starting model from fluorapatite.cif. The refinement converged successfully.\n\n### Measurement Conditions\n- **Instrument**: Bragg-Brentano geometry\n- **Radiation**: Cu Kα (λ = 1.5406 Å)\n- **2θ range**: 15.00° – 130.04°\n- **Number of observations**: 5753 points\n- **Number of free parameters**: 13\n\n## Refined Cell Parameters\n\n| Parameter | Value | Standard Error | Unit |\n|-----------|-------|-----------------|------|\n| *a* | 9.37094(4) | 0.00037 | Å |\n| *b* | 9.37094(4)* | — | Å |\n| *c* | 6.88532(4) | 0.00035 | Å |\n| *α* | 90 | — | ° |\n| *β* | 90 | — | ° |\n| *γ* | 120 | — | ° |\n\n*Space group P6₃/m (hexagonal) constrains b = a; refined value: 9.37094(4)*\n\n## Fit Statistics\n\n| Statistic | Value |\n|-----------|-------|\n| R_p | 0.0999 |\n| R_wp | 0.1405 |\n| R_exp | 0.0560 |\n| χ² | 6.288 |\n| GoF (R_wp/R_exp) | 2.508 |\n| Max shift/esd | 0.0001 |\n\n## Parameters Refined\n\n**Structural:**\n- Cell parameters: *a*, *c* (b fixed by symmetry)\n- Scale factor\n\n**Instrumental:**\n- Zero shift: −0.0521(2)°\n- Profile parameters (U, V, W, X, Y): Caglioti TCHZ model\n- Background: 4th order Chebyshev polynomial\n\n## Recommendations: Parameters NOT Yet Ready for Publication\n\n### 1. **Goodness-of-Fit (χ² = 6.29, GoF = 2.51)** ⚠\ufe0f\n   - **Status**: Not acceptable for publication\n   - **Reason**: GoF >> 1 indicates systematic discrepancies between observed and calculated patterns. Ideal GoF ≈ 1; values above 2 suggest:\n     - Unmodeled peak asymmetry or line broadening\n     - Possible unresolved secondary phase or structural disorder\n     - Instrument profile model may not fully capture peak shapes\n   - **Recommended action**: Before reporting, investigate peak profiles near high angles, examine residuals for systematic patterns, or refine additional microstructure parameters\n\n### 2. **Profile Parameters (U, V, W, X, Y)** ⚠\ufe0f\n   - **Status**: Poorly determined, not ready for publication\n   - **Reason**: Several profile parameters carry large uncertainties relative to their values:\n     - V = −0.00176(51) — uncertainty is ~29× the value\n     - Y = 0.01489(206) — uncertainty is ~14× the value\n   - This indicates these parameters are not well-constrained by this pattern and may not have physical meaning\n   - **Recommended action**: Either fix these at literature or instrument-calibrated values, or use a simpler profile model\n\n### 3. **Scale Factor**\n   - **Status**: Typically not reported\n   - **Reason**: Scale factor (1/(# of formula units × multiplicity)) is instrument- and sample-dependent and has limited scientific value\n   - Keep only for validation that refinement has converged\n\n### 4. **Instrument Zero Offset**\n   - **Status**: Not typically reported in structure papers\n   - **Reason**: While well-refined (σ = 0.002°), zero offset is instrument-specific and of limited interest to readers of a structural study\n\n## Conclusion\n\n**The refined cell parameters are suitable for publication** once the fit quality is improved. The *a* and *c* values have small, reliable uncertainties (~0.0004 Å). However, **do not publish the current results** until the elevated GoF is resolved. This likely requires:\n\n1. **Re-examination of the data** for unmodeled effects (asymmetry, anomalous broadening)\n2. **Model refinement** (e.g., adding atomic displacement parameters, refining site occupancies)\n3. **Instrument calibration verification** against a standard\n4. **Profile model optimization** — consider using a more flexible peak shape or different profile function\n\nOnce χ² is reduced to ~1–2 with all systematic residuals eliminated, the cell parameters will be publication-ready.\n"
+              },
+              {
+                "name": "cell_a",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched 9\\.37[0-3]",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched 6\\.88[5-7]",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 21x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "report_written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "report.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 0.8571428571428571,
+        "passRateWithout": 0,
+        "delta": 0.1428571428571429
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 1,
+    "overallScore": 1,
+    "overallPassRate": 1,
+    "meanDelta": 0.1428571428571429
+  }
+}
