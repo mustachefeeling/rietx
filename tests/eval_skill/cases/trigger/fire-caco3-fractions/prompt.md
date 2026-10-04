@@ -7,4 +7,4 @@ max_turns: 4
 timeout_seconds: 180
 allowed_tools: [Read, Grep, Glob, Skill]
 ---
-What are the weight fractions of anatase and rutile in my TiO2 powder? The pattern is tio2.xye from our Bruker D8, and I have a CIF for each phase.
+What are the weight fractions of calcite and aragonite in my CaCO3 powder? The pattern is caco3.xye from our Bruker D8, and I have a CIF for each phase.

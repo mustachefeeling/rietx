@@ -198,8 +198,23 @@ Haiku and Sonnet.
   pilot's `fap-fit` scored 1 of 7 two-arm and 2 of 8 under `--ablation none`
   for the same state. `readout.py` rescores every run over the graders a
   two-arm round keeps, and equals the harness on all 12 two-arm pilot runs.
-- **Tests.** `tests/test_eval_skill.py` adds 97 fast tests and 1 slow one.
-  The fast suite counts are filled in below.
+- **Tests.** `tests/test_eval_skill.py` adds 97 fast tests and 1 slow one,
+  27 test functions in all, 0.40 s together by `tests.added_test_times`; none
+  joins the slow tail. One fast run (`-n auto`, alone on the machine, 26:32)
+  gave 3 failed, 8245 passed and 172 skipped, 8420 in all.
+  - Two failures were this branch's and are fixed. A trigger prompt said
+    "anatase", which `test_no_stale_name` reserves as the package's old name,
+    so `fire-tio2-fractions` became `fire-caco3-fractions`. And 17 text I/O
+    calls lacked `encoding=`, caught by `test_portability`.
+  - The third, `test_merge_replay`'s conflict test, is the container's.
+    Git 2.43 has no `merge-file --diff-algorithm`, and the test fails alone
+    with nothing of this branch in it.
+  - The fixed files re-run green (141 tests across the four affected files).
+    So this tree's fast selection is 8247 passed, 172 skipped and that one
+    environmental failure.
+  - Main's count was not measured, so the delta of 97 is the new file's
+    collection, not a difference of two runs. No full suite ran, as the
+    branch is test- and docs-only.
 - **Lanes** (`session_usage.py lanes`). This session's peak context was 282K.
 
 | lane | est | requests | main at dispatch | re-read | main requests | left in main | main edits after | redo | lane $ | in-session $ | saved $ |

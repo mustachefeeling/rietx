@@ -175,7 +175,7 @@ in an amendment made before the first tier-0 run.
 | `fire-pawley-spacegroup` | Should fire. | Run a Pawley fit of pattern.xy in P6_3/m so I can check whether that space group accounts for every peak. |
 | `fire-quartz-rietveld` | Should fire. | I have a lab XRD pattern of quartz, quartz.xy (Cu Kα, Bragg-Brentano), and the quartz CIF. Run a Rietveld refinement with rietx and tell me the refined cell. |
 | `fire-rank-candidates` | Should fire. | We have twelve candidate structures from a crystal-structure-prediction run, as CIFs. Score each one against our measured powder pattern and rank them. |
-| `fire-tio2-fractions` | Should fire. | What are the weight fractions of anatase and rutile in my TiO2 powder? The pattern is tio2.xye from our Bruker D8, and I have a CIF for each phase. |
+| `fire-caco3-fractions` | Should fire. | What are the weight fractions of calcite and aragonite in my CaCO3 powder? The pattern is caco3.xye from our Bruker D8, and I have a CIF for each phase. |
 | `fire-unknown-cell` | Should fire. | The peaks in peaks.txt come from a phase nobody has identified. Can you work out its unit cell from the powder pattern? |
 | `quiet-bragg-law` | Should not fire. | Explain Bragg's law in one paragraph and give the d-spacing formula for a cubic lattice. |
 | `quiet-chebyshev-numpy` | Should not fire. | Write a numpy function that fits a Chebyshev polynomial baseline to a 1D signal and returns the baseline. |

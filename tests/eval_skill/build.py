@@ -190,7 +190,7 @@ def build(tree: Path, out: Path, *, python: Path | None = None,
     (out / ".claude-plugin").mkdir()
     (out / ".claude-plugin" / "plugin.json").write_text(json.dumps({
         "name": PLUGIN_NAME, "version": "0.0.0",
-        "description": "the rietx agent skill under evaluation (WP-1905)"}, indent=1) + "\n")
+        "description": "the rietx agent skill under evaluation (WP-1905)"}, indent=1) + "\n", encoding="utf-8")
 
     chosen = []
     for case in cases():

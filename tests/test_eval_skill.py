@@ -70,7 +70,7 @@ def built(tmp_path_factory):
     def stub(dest: Path, python: Path) -> None:
         dest.mkdir(parents=True)
         for name in (*placement.DATA_FILES, "fit.py", "fit_output.txt"):
-            (dest / name).write_text(f"stub {name}\n")
+            (dest / name).write_text(f"stub {name}\n", encoding="utf-8")
 
     out = tmp_path_factory.mktemp("plugin") / "p"
     with pytest.MonkeyPatch.context() as mp:
@@ -143,8 +143,8 @@ def test_inputs_refuse_what_they_cannot_read():
 
 def test_a_committed_case_cannot_carry_what_build_writes(tmp_path):
     (tmp_path / "x").mkdir()
-    (tmp_path / "x" / "prompt.md").write_text("---\n---\nhi\n")
-    (tmp_path / "x" / "fixture.sh").write_text("")
+    (tmp_path / "x" / "prompt.md").write_text("---\n---\nhi\n", encoding="utf-8")
+    (tmp_path / "x" / "fixture.sh").write_text("", encoding="utf-8")
     with pytest.raises(ValueError, match="written by build"):
         B.cases(tmp_path)
 
@@ -234,21 +234,21 @@ def test_readout_tells_the_trigger_roles_apart_as_the_cases_declare_them():
 def test_the_build_carries_the_tree_it_was_handed(built):
     out, stamp = built
     assert B.tree_sha256(out / "skills" / "rietx") == B.tree_sha256(TREE) == stamp["tree_sha256"]
-    manifest = json.loads((out / ".claude-plugin" / "plugin.json").read_text())
+    manifest = json.loads((out / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
     assert manifest["name"] == B.PLUGIN_NAME
-    assert json.loads((out / B.STAMP).read_text()) == stamp
+    assert json.loads((out / B.STAMP).read_text(encoding="utf-8")) == stamp
     assert sorted(stamp["cases"]) == sorted(_id(c) for c in _cases())
 
 
 def test_the_build_writes_the_interpreter_and_the_scaffold(built, tmp_path):
     out, _ = built
     for rel in map(_id, _cases()):
-        prompt = (out / "evals" / rel / "prompt.md").read_text()
+        prompt = (out / "evals" / rel / "prompt.md").read_text(encoding="utf-8")
         assert B.PYTHON_MARK not in prompt
         assert not (out / "evals" / rel / B.INPUTS).exists()
     judge = out / "evals" / "fap-judge"
-    assert "/opt/venv/bin/python" in (judge / "prompt.md").read_text()
-    assert yaml.safe_load((judge / "case.yaml").read_text()) == {
+    assert "/opt/venv/bin/python" in (judge / "prompt.md").read_text(encoding="utf-8")
+    assert yaml.safe_load((judge / "case.yaml").read_text(encoding="utf-8")) == {
         "schema_version": "1.1", "name": "fap-judge",
         "context": {"scaffold_script": "fixture.sh"}}
     # The scaffold runs in an empty workspace with no variable naming the case.
@@ -261,7 +261,7 @@ def test_the_build_writes_the_interpreter_and_the_scaffold(built, tmp_path):
 
 def test_a_body_swaps_only_the_body(tmp_path):
     body = tmp_path / "SKILL.md"
-    body.write_text("---\nname: rietx\ndescription: x\n---\nshort\n")
+    body.write_text("---\nname: rietx\ndescription: x\n---\nshort\n", encoding="utf-8")
     stamp = B.build(TREE, tmp_path / "p", body=body, only=["no-case-matches"])
     assert (tmp_path / "p" / "skills" / "rietx" / "SKILL.md").read_bytes() == body.read_bytes()
     assert stamp["tree_sha256"] != B.tree_sha256(TREE) and stamp["cases"] == []
@@ -281,7 +281,7 @@ def test_a_relative_interpreter_is_written_absolute(tmp_path, monkeypatch):
 def test_the_build_clears_only_its_own_output(tmp_path):
     keep = tmp_path / "mine"
     keep.mkdir()
-    (keep / "notes.txt").write_text("not a build")
+    (keep / "notes.txt").write_text("not a build", encoding="utf-8")
     with pytest.raises(SystemExit, match="left alone"):
         B.build(TREE, keep, only=["none"])
     assert (keep / "notes.txt").exists()
@@ -290,7 +290,7 @@ def test_the_build_clears_only_its_own_output(tmp_path):
 
 
 def test_the_suite_stays_out_of_the_wheel_and_the_sdist():
-    cfg = tomllib.loads((REPO / "pyproject.toml").read_text())["tool"]["hatch"]["build"]["targets"]
+    cfg = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["hatch"]["build"]["targets"]
     assert cfg["wheel"]["packages"] == ["src/rietx"]
     assert "/tests" in cfg["sdist"]["exclude"]
     assert not any("eval_skill" in str(v) for v in cfg["wheel"].get("force-include", {}).values())
@@ -303,7 +303,7 @@ def test_the_placement_episode_builds_and_fires_its_codes(tmp_path):
     the rubric grades."""
     B.build(TREE, tmp_path / "p", only=["fap-judge"])
     files = tmp_path / "p" / "evals" / "fap-judge" / "files"
-    out = (files / "fit_output.txt").read_text()
+    out = (files / "fit_output.txt").read_text(encoding="utf-8")
     assert all(f" {c} " in out for c in placement.SCORED_CODES)
 
 
@@ -357,7 +357,7 @@ def _trace(tmp_path: Path, rows: list[dict]) -> str:
     """Where the harness keeps one: ``<run>/out/trace.jsonl``."""
     path = tmp_path / "claude-eval-x" / "out" / "trace.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     return str(path)
 
 
@@ -515,13 +515,13 @@ def test_tier0_reads_a_fire_rate_and_a_quiet_rate():
 
 def test_the_cli_shows_a_round_beside_its_build_and_exits_on_the_rule(tmp_path, capsys):
     (tmp_path / B.STAMP).write_text(json.dumps(
-        {"skill_sha256": "a" * 64, "tree_sha256": "b" * 64, "python": "/opt/venv/bin/python"}))
+        {"skill_sha256": "a" * 64, "tree_sha256": "b" * 64, "python": "/opt/venv/bin/python"}), encoding="utf-8")
     cur, cand = tmp_path / "cur.json", tmp_path / "cand.json"
     current = _current(root=str(tmp_path))
     current["cases"][0]["arms"]["with"][0]["score"] = 0.5  # a harness that disagrees
-    cur.write_text(json.dumps(current))
+    cur.write_text(json.dumps(current), encoding="utf-8")
     cand.write_text(json.dumps(_doc("haiku", {"x": (GRADERS, [[True, False, False]] * 3, None)},
-                                    ablation="none", root=str(tmp_path))))
+                                    ablation="none", root=str(tmp_path))), encoding="utf-8")
     assert R.main(["show", str(cur)]) == 0
     shown = capsys.readouterr().out
     assert f"build: SKILL.md {'a' * 12}, tree {'b' * 12}" in shown
