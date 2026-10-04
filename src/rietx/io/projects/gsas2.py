@@ -87,7 +87,6 @@ from typing import Any
 import numpy as np
 
 from ...schemas.common import Diagnostic
-from ...schemas.structure import biso_bounds, biso_widening_diagnostic
 from .coverage import Stance
 
 #: Which description of the format this reader was written against.  Stated
@@ -1636,8 +1635,7 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
                 z=rx.Parameter(value=site["xyz"][2], vary=site["vary_xyz"]),
                 occ=rx.Parameter(value=site["occupancy"], min=0.0, max=1.5,
                                  vary=site["vary_occupancy"]),
-                biso=rx.Parameter(value=site["biso"], **biso_bounds(site["biso"]),
-                                  vary=site["vary_biso"]))
+                biso=rx.Parameter(value=site["biso"], vary=site["vary_biso"]))
                 for site in sites],
             scale=rx.Parameter(value=1e-3, min=0.0, transform="softplus"))])
     except ValueError as exc:
@@ -1681,9 +1679,6 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
                 f"`model.histograms[…].sample['Scale']` and "
                 f"`model.hap[…].scale`"),
             where=["phases.0.scale"]))
-    if diagnostics is not None and (
-            widened := biso_widening_diagnostic(structure, str(model.path or '<model>'))) is not None:
-        diagnostics.append(widened)
     return structure
 
 

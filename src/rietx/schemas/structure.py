@@ -22,7 +22,7 @@ from typing import ClassVar, Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from .common import Base, Diagnostic, Parameter, _InheritsDeclaredDefaults
+from .common import Base, Parameter, _InheritsDeclaredDefaults
 
 #: the lower bound below which ``params.transforms.internal_bounds`` treats a
 #: softplus parameter as *unbounded* below, which is what lets its physical
@@ -426,69 +426,6 @@ class Moment(_InheritsDeclaredDefaults):
 #: and a fourth spelling of the same list is a fourth place to forget one.
 MOMENT_COMPONENTS = ("crystalaxis_x", "crystalaxis_y", "crystalaxis_z")
 
-#: The bounds an atom's B_iso starts with, in Å².
-BISO_BOUNDS = (0.0, 25.0)
-
-
-def biso_bounds(value: float) -> dict[str, float]:
-    """``min`` and ``max`` for a B_iso read from a file: :data:`BISO_BOUNDS`,
-    widened to hold the value.
-
-    A published structure can sit outside the usual bounds.  A disordered
-    organic cation's U_iso of 0.34 Å² is a B_iso of 26.8 Å², and a light atom
-    can be refined slightly negative.  A bound the read value breaks refuses
-    the whole file, so a reader widens it instead.
-
-    The widened bound is the value itself, with no headroom past it.  A freed
-    B can move back toward :data:`BISO_BOUNDS` and no further out, so a fit
-    that wants more reports ``BOUND_HIT`` instead of walking.  A reader that
-    calls this reports what it widened with :func:`biso_widening_diagnostic`.
-    """
-    lo, hi = BISO_BOUNDS
-    return {"min": min(lo, value), "max": max(hi, value)}
-
-
-def biso_widening_diagnostic(structure: Structure, source: str) -> Diagnostic | None:
-    """One ``BISO_BOUND_WIDENED`` diagnostic naming every isotropic site whose
-    read B_iso lies outside :data:`BISO_BOUNDS`, or ``None`` if there is none.
-
-    A reader repairs a file only where it says that it did (root CLAUDE.md,
-    WP-1028), and :func:`biso_bounds` changes a bound the file never stated.
-    The value is kept rather than moved: Watkin (2008, J. Appl. Cryst. 41,
-    491) shows a displacement parameter is evidence about the model, and
-    clamping it destroys the evidence.  A negative B is named as such because
-    Madsen et al. (2001, J. Appl. Cryst. 34, 409, § 6.2) list it among the
-    physically unrealistic values a code should warn about.  An anisotropic
-    site is skipped, because its ``biso`` is an inert record.
-    """
-    lo, hi = BISO_BOUNDS
-    rows = [(f"phases.{i}.atoms.{j}.biso", atom.label, atom.biso.value)
-            for i, phase in enumerate(structure.phases)
-            for j, atom in enumerate(phase.atoms)
-            if atom.aniso is None and not lo <= atom.biso.value <= hi]
-    if not rows:
-        return None
-    listed = ", ".join(f"{label} {b:.3g} Å²" for _, label, b in rows)
-    negative = [label for _, label, b in rows if b < 0.0]
-    message = (f"{len(rows)} site(s) in {source} carry a B_iso outside the "
-               f"{lo:g}–{hi:g} Å² starting bounds ({listed}). Each bound was "
-               f"widened to hold the file's value, so a freed B can move back "
-               f"toward that range and no further out.")
-    if negative:
-        message += (f" B < 0 on {', '.join(negative)} is not a physical "
-                    f"displacement: its Debye–Waller factor grows with "
-                    f"sinθ/λ instead of falling.")
-    worst = max(rows, key=lambda row: max(lo - row[2], row[2] - hi))
-    return Diagnostic(
-        level="warning", code="BISO_BOUND_WIDENED",
-        where=[path for path, _, _ in rows], value=worst[2],
-        message=message,
-        suggestion="read these numbers as the file author's model, not as "
-                   "displacements of your specimen: refine them against your "
-                   "data, or set a physical starting value before any stage "
-                   "that holds them")
-
-
 class Atom(_InheritsDeclaredDefaults):
     """One site in the asymmetric unit.
 
@@ -514,8 +451,7 @@ class Atom(_InheritsDeclaredDefaults):
     y: Parameter
     z: Parameter
     occ: Parameter = Field(default_factory=lambda: Parameter(value=1.0, min=0.0, max=1.5))
-    biso: Parameter = Field(default_factory=lambda: Parameter(
-        value=0.5, min=BISO_BOUNDS[0], max=BISO_BOUNDS[1], unit="A^2"))
+    biso: Parameter = Field(default_factory=lambda: Parameter(value=0.5, unit="A^2"))
     aniso: AnisoU | None = None
     # Optional magnetic moment, opt-in per atom exactly as ``aniso`` is
     # (WP-1327).  ``None`` — the default — is exactly off: a phase whose atoms
@@ -543,18 +479,15 @@ class Atom(_InheritsDeclaredDefaults):
     # unit these factories declare wherever it left them out (issue #204, PR
     # #206; the rule and its history are ``_InheritsDeclaredDefaults``').
     #
-    # **The 25 A^2 ceiling is this package's own, and it is not common
-    # practice** (WP-1311, measured 2026-09-18).  FullProf's hard limits are
-    # opt-in, one user-supplied ``[LowLIMIT, HighLIMIT]`` line per parameter
-    # (its manual's "Hard limits for parameters"), and TOPAS's bounding
-    # constraints are declared per parameter in the input (Coelho, 2018);
-    # neither ships a default ceiling on a displacement parameter.  It has
-    # been here since v0.1 and the inheritance is what made it bind a
-    # caller's own ``Parameter``, so it is kept rather than widened.  A
-    # specimen that genuinely runs hotter than 25 A^2 is served by supplying
-    # the bound explicitly --- ``Atom(..., biso=Parameter(value=8.0,
-    # vary=True, max=60.0))`` --- which wins over the declared one in either
-    # direction.
+    # **B_iso is unbounded** (WP-1534, decided 2026-10-04), as in FullProf,
+    # TOPAS and GSAS-II, which bound no displacement parameter by default.
+    # The 0-25 A^2 range it carried from v0.1 was #204's only protection
+    # against walking a scale-B ridge; ``refine._hold_scale_b_ridges`` now
+    # holds B wherever the fitted range cannot separate it from the scale, and
+    # ``BISO_NEGATIVE`` and ``BISO_UNUSUALLY_LARGE`` warn on the value, as
+    # Madsen et al. (2001, J. Appl. Cryst. 34, 409, § 6.2) ask a code to.  A
+    # high B can stand in for disorder, which a ceiling clips.  A bound a
+    # caller states still binds.
     _declared_since: ClassVar[str] = "0.17"
 
     @model_validator(mode="after")

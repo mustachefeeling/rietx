@@ -79,14 +79,14 @@ def _atom(**kw) -> Atom:
     return Atom(**kw)
 
 
-def test_atom_bare_biso_parameter_inherits_declared_bounds():
+def test_atom_bare_biso_parameter_inherits_declared_unit():
     """Issue #204: a caller's own bare ``Parameter`` for ``biso`` — the
     natural way to set a starting value or hold one — used to silently lose
     the field's declared (0, 25, "A^2") range to Parameter's own bare
-    defaults. Fails on the parent commit (a4eec1db), where ``a.biso.min``
-    reads ``-inf``."""
+    defaults. Since WP-1534 the declared range is unbounded, and the unit is
+    what a bare ``Parameter`` inherits."""
     a = _atom(biso=Parameter(value=1.0, vary=False))
-    assert (a.biso.min, a.biso.max, a.biso.unit) == (0.0, 25.0, "A^2")
+    assert (a.biso.min, a.biso.max, a.biso.unit) == (float("-inf"), float("inf"), "A^2")
 
 
 def test_atom_bare_occ_parameter_inherits_declared_bounds():
@@ -101,7 +101,7 @@ def test_atom_omitted_biso_still_gets_declared_bounds():
     for the omitted-field case), but pinned here so the inheritance path and
     the omitted-field path are asserted to agree on the same numbers."""
     a = _atom()
-    assert (a.biso.min, a.biso.max, a.biso.unit) == (0.0, 25.0, "A^2")
+    assert (a.biso.min, a.biso.max, a.biso.unit) == (float("-inf"), float("inf"), "A^2")
 
 
 def test_atom_xyz_have_no_declared_bounds_to_lose():
@@ -112,14 +112,14 @@ def test_atom_xyz_have_no_declared_bounds_to_lose():
     assert (a.x.min, a.x.max) == (float("-inf"), float("inf"))
 
 
-def test_atom_biso_out_of_declared_bounds_now_raises():
-    """The issue's measured consequence, reproduced directly: a bare
-    ``Parameter(value=-165.0)`` for biso used to be accepted silently
-    (refined Biso of -165 A^2 at unchanged Rwp). With the declared bound
-    inherited, -165 lies outside [0, 25] and construction raises. Fails on
-    the parent commit, where this construction succeeds."""
+def test_atom_occ_out_of_declared_bounds_raises():
+    """The mechanism issue #204 asked for, on the field that still declares a
+    range: a bare ``Parameter`` outside ``occ``'s [0, 1.5] raises.  ``biso``
+    was the issue's case until WP-1534 made it unbounded; its walk is now
+    stopped by the scale-B hold, not by a bound."""
     with pytest.raises(ValidationError, match=r"outside bounds"):
-        _atom(biso=Parameter(value=-165.0, vary=True))
+        _atom(occ=Parameter(value=-1.0, vary=True))
+    assert _atom(biso=Parameter(value=-165.0, vary=True)).biso.value == -165.0
 
 
 def test_atom_explicit_parameter_bound_is_not_overwritten():
@@ -139,13 +139,13 @@ def test_the_always_overwrite_design_would_clobber_an_explicit_bound():
     the field's declared default, without consulting model_fields_set. Run
     on the very Parameter the test above proves the real validator leaves
     alone, so the two tests are directly comparable."""
-    a = _atom(biso=Parameter(value=1.0, min=-5.0, max=5.0, unit="foo"))
-    default = Atom.model_fields["biso"].default_factory()
-    rejected = a.biso.model_copy()
+    a = _atom(occ=Parameter(value=1.0, min=-5.0, max=5.0, unit="foo"))
+    default = Atom.model_fields["occ"].default_factory()
+    rejected = a.occ.model_copy()
     for attr in ("min", "max", "unit"):  # the rejected design has no gate here
         setattr(rejected, attr, getattr(default, attr))
-    assert (rejected.min, rejected.max, rejected.unit) == (0.0, 25.0, "A^2")
-    assert (rejected.min, rejected.max, rejected.unit) != (a.biso.min, a.biso.max, a.biso.unit)
+    assert (rejected.min, rejected.max, rejected.unit) == (0.0, 1.5, None)
+    assert (rejected.min, rejected.max, rejected.unit) != (a.occ.min, a.occ.max, a.occ.unit)
 
 
 def test_every_bounds_carrying_atom_field_is_inherited():
