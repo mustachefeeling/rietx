@@ -169,6 +169,13 @@ the spelling the issue's "fix direction" names.
   that moved: the fallback fixture is now As³⁺ (its value 0.0828 → 0.0996),
   and the skill row reads 11 of 111.
 
+  *Final tree* (after the review's fixes; `[dev]`, macOS arm64, nothing
+  else running): the fast selection 8165 passed, 159 skipped, in 2:36. The
+  session's 20 added tests cost 0.22 s together (`tests.added_test_times`), so
+  none joins the slow tail. The full selection was not run: no acceptance
+  fixture carries a digitless ion label or Y³⁺ (a grep of `tests/data/*.cif`),
+  and the writers touch no measured number, so none can move.
+
   *Lane trial* (`session_usage.py lanes 0433c291`; the session's three lanes,
   both of this WP's and WP-1504's round E, are measured here):
 
