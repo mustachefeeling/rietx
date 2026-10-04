@@ -170,7 +170,9 @@ the spelling the issue's "fix direction" names.
   and the skill row reads 11 of 111.
 
   *Final tree* (after the review's fixes; `[dev]`, macOS arm64, nothing
-  else running): the fast selection 8165 passed, 159 skipped, in 2:36. The
+  else running): the fast selection 8165 passed, 159 skipped, in 2:36; with
+  current `main` merged in (WP-1510's PR among it), 8200 passed, 159 skipped,
+  in 3:23, the figure this branch merges at. The
   session's 20 added tests cost 0.22 s together (`tests.added_test_times`), so
   none joins the slow tail. The full selection was not run: no acceptance
   fixture carries a digitless ion label or Y³⁺ (a grep of `tests/data/*.cif`),
