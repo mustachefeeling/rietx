@@ -1,6 +1,6 @@
 # WP-1523 — A phase fitted to noise passes the support test
 
-Milestone: unscheduled · Status: 🔄 2026-10-04 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-04 — the 3σ scale significance landed and the blank frame holds from both starts; task 6 (the stage-start hold reads the previous answer) remains
 Track: What fires, and what stays silent
 Depends on: — (1420 soft: the same hold, in a chain)
 Priority: P2 2026-09-29 — a frame with no phase in it reports that phase's cell with an esd and no `PHASE_UNCONSTRAINED`, depending on where the fit started; a path few fits run
@@ -200,6 +200,27 @@ tests pass unchanged or with each moved assertion justified here.
 
 ## Handover log
 
+- **2026-10-04** — A phase that is not in the pattern is now held and named by `PHASE_UNCONSTRAINED`, from either start. The old test asked whether one point of the phase's curve rose above 1σ of the noise. A scale fitted to pure noise lifts that point past 1σ, because the fit also moves the phase's cell to wherever the noise peaks. The new test asks whether the phase's scale is 3σ from zero, with an esd that counts that freedom. Indexing already asks a line for that 3σ. On 20 blank frames it calls 1 seen, where the old test called 9. The cost is that a phase at about 1/16 000 of a strong one's scale is now mostly held (1 of 8 fits saw it, against 6 of 8 before). Its cell came back up to 1000 ppm off when refined, so that loses no measurement.
+
+  **Done.** The decision and the seed sweep that chose it are in § Decided 2026-10-04, revised the same day. `phase_support` is the screen ‖y_p/σ‖₂. `refine._answer_significance` is the test: scale over its esd from (JᵀWJ)⁻¹ against counting noise, marginal over every column but displacements and occupancies, with a held phase's columns freed for the measurement and z capped at the screen. `PHASE_SUPPORT_SIGMA` is 3.0, held equal to `ABSENT_SIGMA` by test. Reflection and declared-peak support are window norms. A phase still held at the end quotes the reading its hold was decided on, and the message says so. New `tests/test_phase_significance.py` covers the blank from both starts, seed 107's collapse path, a weak real phase from both starts, a release, the threshold and the norms. The skill's `PHASE_UNCONSTRAINED` row, the QPA-scan note, the manual's `model.md` and `series.md`, and the root rule are restated.
+
+  **Measured** (`.venv` `[dev]`, macOS arm64, machine idle at launch). Fast selection: 8164 passed, 159 skipped (total 8323), 3:16. Full selection: 8427 passed, 168 skipped (total 8595), 19:55. The new file adds 9 cases. No pre-session baseline was taken, so the passed+skipped delta is not checked. The only moved assertion is `test_reflection_support_is_phase_support_one_rank_down`: best == phase (76.47) became 0 < best (50.90) ≤ phase, because a norm sums every line. The 7 added functions cost 5.48 s in one fast run: the blank frame 3.00 s (2 cases), the weak phase 1.41 s (2), the seed-107 blank 0.72 s, the release 0.33 s, the rest under 0.03 s. None joins the slow tail.
+
+  **Lanes.** One lane, `land` (est 60, 182 requests), dispatched at 229K main context. Re-read 74K of 127K, 27 main requests and 72K left in main to check it, 12 main edits after it, $14.80 lane against $22.66 modelled in-session, saved +$5.17. One item was kept, `skill` (est 6, 8 requests, at 302K). Session: 97 main requests, peak 319K, $8.24. Trial row appended to `process.md`. The lane was resumed once by `SendMessage` with the revised design after its first report. The tool counts that as no redo, and its 182 requests span both rounds. The replay with these numbers prints the selective policy at +26% under "saving by policy" (+28% with mo doubled, +35% with one lane in five redone). The same run prints −31%, −32% and −22% by peak-context band. I did not resolve the two signs, and WP-1903 should read them.
+
+  **Review pass.** `/code-review high --fix` found 9 and fixed 6:
+  - anisotropic ADP columns stayed in the marginal, because my trim of the `u11`…`u23` alternatives was wrong (an `adp.k` column moves tied U^ij entries);
+  - the esd squared a tiny column, where `covariance_estimates` now takes it;
+  - z was not capped at the screen;
+  - the "when its hold was decided" wording also reached joint, Le Bail and Pawley fits;
+  - a comment in `_build_result` was wrong;
+  - stale manual and skill text.
+
+  Its dispersion finding I fixed myself: the test now declares the default it was measured with, so nothing moved. Declined: the backend re-trace when a held column is freed, which costs only jax and torch time. Its item 4 became task 6.
+
+  **Gotchas.** `replay()` and any caller without a fit's stage vector read the screen, so a replay of a fit that collapsed a phase can drop its `PHASE_UNCONSTRAINED`. A phase held at the end can read far above 3σ after the second solve (up to 1888σ at 6 fast-suite stage answers) while staying held, because the rule allows one second solve and never a third. The finding quotes the decision-time reading for that reason. No Part 2 manual equation was added: the theory manual never carried the support test. Forward references went to 1339 (the #219 ridge, unmeasured under the marginal), 1341 (joint fits still read the screen alone), 1420 (weak phases re-enter later) and 1534 (displacements are left out because of its ridge).
+
+  Next: task 6 first, because it decides whether a noise phase costs one extra solve per stage. Feed the previous answer's significance into the next stage's start hold, measure the solves saved on seed 107 under a plan longer than `mccusker_default`, and re-run the absent-, held-phase and scale-B files. Then close the WP.
 - **2026-09-29** — created, from WP-1469's session. Both rows of the table
   measured at `a651a7d`; the support at the answer (2.14σ) was read by
   compiling the fitted models and calling `phase_support` on them. Next:
