@@ -181,17 +181,25 @@ def build(root: Path) -> None:
     if (episode / "fit_output.txt").exists():  # every cell copies this one output
         print(f"episode already built at {episode}")
         return
+    print(build_episode(episode, venv_python(root, "rows")))
+
+
+def build_episode(episode: Path, python: Path) -> str:
+    """The episode every cell is handed, written into ``episode``: the two data
+    files, the colleague's script as `fit.py`, and what it printed under
+    ``python`` as `fit_output.txt`.  Refuses an output missing a scored code.
+    WP-1905's skill eval stages its `fap-judge` case through this too."""
     episode.mkdir(parents=True, exist_ok=True)
     for name in DATA_FILES:
         shutil.copyfile(REPO / "tests" / "data" / name, episode / name)
     shutil.copyfile(HARNESS / "colleague_fit.py", episode / "fit.py")
-    out = _run(str(venv_python(root, "rows")), "fit.py", cwd=episode,
+    out = _run(str(python), "fit.py", cwd=episode,
                env={**os.environ, "RIETX_TELEMETRY": "0"}).stdout
     missing = [c for c in SCORED_CODES if f" {c} " not in out]
     if missing:
         raise SystemExit(f"fit_output.txt does not fire {missing}:\n{out}")
     (episode / "fit_output.txt").write_text(out, encoding="utf-8")
-    print(out)
+    return out
 
 
 def workspace(root: Path, cell: str) -> Path:
