@@ -276,7 +276,7 @@ stating what it changed.
 - [x] **`Atom.biso` unbounded by default**; `biso_bounds` and
       `BISO_BOUND_WIDENED` deleted; readers, `help.py`, manual, skill and the
       1.7 notes say so.
-- [ ] Full suite once on the final tree; re-baseline any golden that moved.
+- [x] Full suite once on the final tree; re-baseline any golden that moved.
 
 ## Acceptance
 
