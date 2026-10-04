@@ -139,6 +139,22 @@ the screen is all they read. The ridge case of WP-1339's Inherited (#219) is
 for 1339. The marginal z is the statistic that could see it, and this WP does
 not measure it there.
 
+### Inherited
+
+- **From WP-1534, 2026-10-04: a phase with no reflection in range keeps a
+  free scale that walks a flat direction.** WP-1534's four-phase fixture
+  (`tests/test_scale_b_ridge.py`) fitted over 25–33° Cu Kα leaves bcc Fe no
+  reflection. One scale-and-background stage left Fe's scale at 0.0. A second,
+  identical stage moved it to 125.8 at an Rwp equal to sixteen figures, and
+  the QPA then read iron at 99.99 wt%. `PHASE_UNCONSTRAINED` fired, and
+  `QPA_ESD_UNAVAILABLE` withheld the esds, but the fraction stood. The rule
+  that holds a phase's flat structural paths and "never its scale" assumes
+  the scale has a column; with no reflection it has none. Possibly your task
+  6, the stage-start hold reading the previous answer. Repro: the fixture's
+  `_models(START_SCALES)` on `np.arange(25, 33, 0.01)`, plan
+  `[Stage("s", BIG), Stage("s2", BIG)]`. WP-1534's narrow tests leave Fe out
+  because of it.
+
 ## Non-goals
 
 - The chain-level consequences. 1469 already leaves a pattern above the Rwp

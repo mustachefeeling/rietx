@@ -317,7 +317,8 @@ def test_a_tie_refuses_and_names_the_holder(ref):
     with pytest.raises(ValueError, match="that is set_values"):
         ref.tie(*BISOS, scale=0.0)
     with pytest.raises(ValueError, match="outside its bounds"):
-        ref.tie(*BISOS, scale=-1.0)
+        # Atom.occ declares [0, 1.5]; B had [0, 25] until WP-1534
+        ref.tie("phases.0.atoms.1.occ", "phases.0.atoms.0.occ", scale=-1.0)
     # a refused call changes nothing — not the table, not the models
     assert {r.path: r for r in ref.parameters()}["phases.0.atoms.0.biso"].refinable
     assert ref.history is None or len(ref.history) == 0

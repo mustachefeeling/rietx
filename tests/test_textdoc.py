@@ -654,14 +654,15 @@ def test_a_refusal_raised_by_the_verb_still_gets_a_line_number(session, project)
     most likely to hit came back with ``line: 0``.
     """
     doc = session.textdoc()
-    bad = _edit(doc["text"], "atoms.0.biso", "  atoms.0.biso   @ 999  min 0  max 25")
+    # an occupancy, whose [0, 1.5] the schema declares (B has had none since WP-1534)
+    bad = _edit(doc["text"], "atoms.0.occ", "  atoms.0.occ   @ 999")
     with pytest.raises(rx.gui.GuiError) as excinfo:
         session.textdoc_put({"text": bad})
     detail = excinfo.value.details[0]
     assert "lies outside its bounds" in detail["message"]
-    assert detail["where"] == "phases.0.atoms.0.biso"
+    assert detail["where"] == "phases.0.atoms.0.occ"
     assert detail["line"] >= 1
-    assert bad.splitlines()[detail["line"] - 1].strip().startswith("atoms.0.biso")
+    assert bad.splitlines()[detail["line"] - 1].strip().startswith("atoms.0.occ")
     # nothing was applied: set_values validates every path before writing one
     assert project.refinement.structure.phases[0].atoms[0].biso.value != 999.0
 

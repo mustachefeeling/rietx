@@ -1387,10 +1387,10 @@ def biso_melting_bound(volume_a3: float, n_atoms: float) -> float:
     8.5-22.4 Å³ per atom.  Two consequences worth carrying.  ``help.py``'s
     long-standing "a refined B above about 5 Å² for a heavy atom usually means
     an absorption or background error" sits inside that band, which is an
-    independent line arriving at the same place.  And ``Atom.biso``'s 25 Å²
-    schema ceiling needs 109-338 Å³ per atom to be reachable below melting,
-    five to twenty times any ordinary packing, so it bounds nothing physical
-    and this guard is what actually speaks.
+    independent line arriving at the same place.  And ``Atom.biso`` has no
+    default ceiling (WP-1534; the 25 Å² one it carried before needed
+    109-338 Å³ per atom to be reachable below melting, five to twenty times
+    any ordinary packing), so this guard is what speaks on a large B.
     """
     import numpy as np
 
@@ -1470,15 +1470,10 @@ def check_biso_negative(table, model) -> list[GuardFinding]:
     The low side of :func:`check_biso_plausible`'s warning, and the first item
     on the IUCr round robin's list: "atom and overall thermal parameters which
     are physically unrealistic (negative, zero or large positive values)"
-    (Madsen et al., 2001, J. Appl. Cryst. 34, 409, § 6.2).  A zero B needs no
-    finding of its own, because the default floor sits there and a free B
-    pinned on it already reports ``BOUND_HIT``.
-
-    The schema floors B at zero, so a negative value reaches a fit only where
-    :func:`~rietx.schemas.structure.biso_bounds` widened the floor to hold a
-    file's number, or where a caller set ``min`` below zero.  It is a flag and
-    never a refusal, for the reason Watkin (2008) gives for the high side.
-    Anisotropic sites are skipped, as there.
+    (Madsen et al., 2001, J. Appl. Cryst. 34, 409, § 6.2).  ``Atom.biso`` has
+    no default bound (WP-1534), so this warning is what a negative B meets.
+    It is a flag and never a refusal, for the reason Watkin (2008) gives for
+    the high side.  Anisotropic sites are skipped, as there.
     """
     if model is None:
         return []

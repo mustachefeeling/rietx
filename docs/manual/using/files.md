@@ -119,8 +119,8 @@ experimenter quoting a refined number. Past that threshold the symbol and the
 angle contradict each other, one of the two is wrong, and choosing between them
 is yours: the value is left byte for byte and the read raises.
 
-A B_iso outside the 0–25 Å² starting bounds is kept, and its bound is widened
-to hold it (`BISO_BOUND_WIDENED`). Published structures carry such values. The
+A B_iso of any value is kept as the file states it, because `Atom.biso` has no
+default bound. Published structures carry values a range would refuse. The
 methylammonium C in COD 4335638 sits at 26.8 Å², and a light atom is sometimes
 refined slightly negative. The number is the file author's model, so refine it
 or set a physical start before a stage holds it. A fit that keeps a negative B

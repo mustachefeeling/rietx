@@ -91,6 +91,7 @@ from .optimize.statistics import (
     data_support,
     structure_r_factors,
 )
+from .params.multi import _unscoped
 from .params.vector import (
     CELL_SAFETY_ANGLE_DEG,
     CELL_SAFETY_FRACTION,
@@ -504,19 +505,22 @@ def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
 #: 2.2e-16 between the analytic columns), corundum, zincite and fluorite
 #: 0.19-0.40 at stage start, so that factor decides none of them.  A pair above
 #: the floor keeps its honest, possibly huge esd, which ``HIGH_CORRELATION``
-#: already names.
+#: already names.  With several displacement columns the reading is the sine
+#: between the scale's column and their span, and the pair is the scale's
+#: column against its projection there, so the same floor applies.
 SCALE_B_SEPARATION_FLOOR = 2.0 * math.sqrt(PINV_RCOND)
 
-#: The uniform isotropic-B step (Å²) the displacement column is read with.  A
-#: forward difference is **exact for the question asked**: a phase whose
-#: reflections in range sit at one d-spacing has every intensity multiplied by
-#: the one factor exp(−2·h·s²), so its difference is proportional to the
-#: component at any step, and a phase with two d-spacings is not, at any step
-#: either.  The step only sets the rounding floor of the reading, which is
-#: ε/(2·h·s²) — measured 1.0e-12 on bcc Fe (s² = 0.061 Å⁻²), and about
-#: 4e-11 at the lowest s² a lab scan reaches (2θ = 10° Cu Kα, s² ≈ 0.003 Å⁻²),
-#: three decades under the floor.  Measured on WP-1534's fixture, the
-#: separable phases' readings move by under 6 % between h = 1e-3 and 1 Å².
+#: The step in θ each displacement column is read with: Å² for a ``biso``,
+#: Å² of U for an ADP DOF.  A forward difference is **exact for the question
+#: asked**: a displacement parameter changes peak heights and never shapes, so
+#: its difference lies in the span of the phase's reflection profiles at any
+#: step, and a phase with one d-spacing has every intensity multiplied by one
+#: factor.  The step only sets the rounding floor of the reading, which is
+#: ε/(2·h·s²) for one column — measured 1.0e-12 on bcc Fe (s² = 0.061 Å⁻²),
+#: and about 4e-11 at the lowest s² a lab scan reaches (2θ = 10° Cu Kα,
+#: s² ≈ 0.003 Å⁻²), three decades under the floor.  Measured on WP-1534's
+#: fixture, the separable phases' readings move by under 6 % between
+#: h = 1e-3 and 1 Å².
 SCALE_B_STEP = 1e-3
 
 #: ``phases.i.atoms.j.<displacement>``: an isotropic ``biso``, an anisotropic
@@ -571,8 +575,9 @@ def _own_scale_is_free(reach: dict[str, list[str]], ip: int) -> bool:
 
 def _scale_b_separation(model: CompiledModel, table: ParameterTable
                        ) -> dict[int, float]:
-    """Per phase whose scale and displacement both refine, how far apart the
-    two columns are: the sine of the angle between them (WP-1534).
+    """Per phase whose scale and displacement both refine, how far the scale's
+    column sits from the span of its displacement columns: the sine of the
+    angle between the column and that span (WP-1534).
 
     A phase's intensity is ``scale · exp(−2B·s²)`` times terms neither
     parameter touches, with s = sinθ/λ = 1/(2d) and the isotropic
@@ -581,25 +586,65 @@ def _scale_b_separation(model: CompiledModel, table: ParameterTable
     sits at one d-spacing, ln(scale) − 2B·s² is one coordinate, and the two
     columns are one direction — issue #204's walk of bcc Fe to B = −165 Å² on
     a 25–50° scan, scale and B moving together at an Rwp agreeing to eleven
-    figures.  This reads that off the intensity the phase actually puts in
-    the data, so it needs no tolerance on d and is not fooled by a reflection
-    whose |F|² vanishes by site symmetry, which a count of distinct d-spacings
-    would be.
+    figures.
+
+    **One d-spacing is the smallest case of a wider one.**  A displacement
+    parameter changes peak heights and never peak shapes, so every
+    displacement column lies in the span of the phase's reflection profiles
+    in range, and so does the scale's.  Where the phase has more free
+    displacement columns than that span has room for beside the scale, some
+    combination of them imitates the scale exactly: fluorite on 25–33° Cu Kα
+    has two reflections, (111) and (200), against B(Ca) and B(F), and an
+    unbounded fit walked them to +99 and −111 Å² and the phase to 0.0 wt%
+    (weighed 1.36; WP-1534's round-robin measurement).  Stepping every B
+    together could not see it, since the uniform direction alone is separable
+    there.  So the question is asked of the whole block.  A degeneracy among
+    the displacement columns alone, with the scale outside it, leaves the
+    fraction measured and is not this function's (WP-1535's).
 
     ``a`` is the weighted component ``y_p/σ`` (the scale's column, up to a
-    factor) and ``b`` its change when every isotropic B of the phase moves by
-    :data:`SCALE_B_STEP`; the answer is ``|b − (a·b/a·a)·a| / |b|``.  Read at
-    the values the stage starts from, on the frozen reflection list, like
-    every other per-stage freeze.
+    factor) and each displacement column its change when that one column of
+    θ moves by :data:`SCALE_B_STEP`.  The answer is the residual of the
+    unit ``a`` after least squares onto the unit displacement columns, which
+    for one column is ``|b − (a·b/a·a)·a| / (|a|·|b|)``.  The least squares
+    is numpy's at its default cut, so the span carries no tolerance of this
+    package's.  Read at the values the stage starts from, on the frozen
+    reflection list, like every other per-stage freeze.  It reads the
+    intensity the phase actually puts in the data, so it needs no tolerance
+    on d and is not fooled by a reflection whose |F|² vanishes by site
+    symmetry, which a count of distinct d-spacings would be.
 
     A phase is measured only where the question exists: Rietveld mode (Le
-    Bail and Pawley force-fix every displacement path), at least one
-    isotropic site to step, a free column moving its displacement paths
-    alone (:func:`_displacement_columns`), its own scale free
-    (:func:`_own_scale_is_free`), and a nonzero component.  Every other phase
-    is absent from the answer, never 1.0 or 0.0.
+    Bail and Pawley force-fix every displacement path), a free column moving
+    its displacement paths alone (:func:`_displacement_columns`), its own
+    scale free (:func:`_own_scale_is_free`), and a nonzero component.  Every
+    other phase is absent from the answer, never 1.0 or 0.0.  An anisotropic
+    site's ADP DOFs are columns like any other.
     """
     return _scale_b_probe(model, table)[0]
+
+
+def _column_separation(scales: list[np.ndarray], columns: list[np.ndarray]
+                       ) -> float | None:
+    """The sine of the smallest angle between the span of ``scales`` and the
+    span of ``columns``, every vector taken at unit length
+    (:func:`_scale_b_separation`), or ``None`` where either set is all zero.
+
+    ``scales`` are one phase's scale columns: one in a single fit, one per
+    histogram in a joint fit, where each lives on its own histogram's rows and
+    so they are orthonormal once unit.  Each is projected off the span of
+    ``columns`` by least squares at numpy's default cut, and the answer is the
+    smallest singular value of what is left.  For one scale column that is
+    its distance from the span.
+    """
+    unit_a = [a / n for a in scales if (n := float(np.linalg.norm(a))) > 0.0]
+    unit_b = [c / n for c in columns if (n := float(np.linalg.norm(c))) > 0.0]
+    if not (unit_a and unit_b):
+        return None
+    span = np.column_stack(unit_b)
+    a = np.column_stack(unit_a)
+    rest = a - span @ np.linalg.lstsq(span, a, rcond=None)[0]
+    return float(np.linalg.svd(rest, compute_uv=False)[-1])
 
 
 def _scale_b_probe(model: CompiledModel, table: ParameterTable,
@@ -617,25 +662,24 @@ def _scale_b_probe(model: CompiledModel, table: ParameterTable,
         columns = {ip: c for ip, c in columns.items() if ip in phases}
     if not columns:
         return {}, reach, columns
-    values = table.decode(table.x0())
+    theta = table.x0()
+    values = table.decode(theta)
+    index = {p: k for k, p in enumerate(table.free_paths)}
     sigma = np.asarray(model.sigma, dtype=np.float64)
     out: dict[int, float] = {}
     for ip in sorted(columns):
-        sites = model.phases[ip].sites
-        iso = [j for j in range(sites.n_asym) if not sites.aniso[j]]
-        if not iso or not _own_scale_is_free(reach, ip):
+        if not _own_scale_is_free(reach, ip):
             continue
         a = np.asarray(model.phase_component(ip, values), dtype=np.float64) / sigma
-        stepped = dict(values)
-        for j in iso:
-            stepped[f"phases.{ip}.atoms.{j}.biso"] += SCALE_B_STEP
-        b = (np.asarray(model.phase_component(ip, stepped), dtype=np.float64)
-             / sigma - a)
-        aa, bb = float(a @ a), float(b @ b)
-        if not (aa > 0.0 and bb > 0.0):
-            continue
-        out[ip] = float(np.linalg.norm(b - (float(a @ b) / aa) * a)
-                        / math.sqrt(bb))
+        stepped = []
+        for col in columns[ip]:
+            th = theta.copy()
+            th[index[col]] += SCALE_B_STEP
+            stepped.append(np.asarray(model.phase_component(ip, table.decode(th)),
+                                      dtype=np.float64) / sigma - a)
+        r = _column_separation([a], stepped)
+        if r is not None:
+            out[ip] = r
     return out, reach, columns
 
 
@@ -6305,7 +6349,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # its fraction is conditional on.  Read off the stage records, which carry
     # the hold, so the finding and the record quote one measurement.
     diagnostics = diagnostics + _scale_b_ridge_diagnostics(
-        model, values, structure, stage_results)
+        [model], [values], structure, stage_results)
 
     # A strain broader than solved refinements normally use — a flag to check,
     # not a bound (the bound is params.vector.strain_cap, one tier up).
@@ -8126,39 +8170,49 @@ def _scale_b_columns(sr: StageResult) -> dict[int, list[str]]:
     for ip in sorted(sr.scale_b_held or {}):
         for col in sr.held:
             for name in (col, *sr.held_reach.get(col, ())):
-                m = _DISPLACEMENT_PATH.match(name)
+                # a joint fit's per-histogram override is scoped ``hist.h.``
+                m = _DISPLACEMENT_PATH.match(_unscoped(name))
                 if m is not None and int(m.group(1)) == ip:
                     out.setdefault(ip, []).append(col)
                     break
     return out
 
 
-def _intensity_weighted_s2(model: CompiledModel, ip: int,
-                           values: dict[str, float]) -> float | None:
-    """Phase ``ip``'s mean s² = 1/(4d²) over its reflections in the fitted range.
+def _intensity_weighted_s2(models: list[CompiledModel], ip: int,
+                           per_values: list[dict[str, float]]) -> float | None:
+    """Phase ``ip``'s mean s² = 1/(4d²) over its reflections in the fitted range
+    of every histogram (one in a single fit).
 
     Weighted by each (emission line, reflection)'s integrated intensity, since
     the fraction's sensitivity to B is the intensity's, and a weak reflection
-    at high s moves it less than a strong one at low s.  "In range" is a
-    nonempty frozen window (:meth:`CompiledModel.phase_line_counts`' reading),
-    and the plain mean stands in where every intensity is zero.  ``None`` when
-    no reflection of the phase lies in range.
+    at high s moves it less than a strong one at low s.  s is λ-free, so a
+    joint fit's histograms pool.  "In range" is a nonempty frozen window
+    (:meth:`CompiledModel.phase_line_counts`' reading), and the plain mean
+    stands in where every intensity is zero.  ``None`` when no reflection of
+    the phase lies in range.
     """
-    cp = model.phases[ip]
-    inside = cp.win[:, :, 1] > cp.win[:, :, 0]
-    if not inside.any():
+    weights, s2s = [], []
+    for model, values in zip(models, per_values, strict=True):
+        cp = model.phases[ip]
+        inside = cp.win[:, :, 1] > cp.win[:, :, 0]
+        if not inside.any():
+            continue
+        s2 = np.broadcast_to(
+            0.25 / np.asarray(cp.reflections.d, dtype=np.float64) ** 2, inside.shape)
+        w = np.stack([np.asarray(p[3], dtype=np.float64)
+                      for p in model.phase_peaks(ip, values)])
+        weights.append(np.where(inside & np.isfinite(w), np.abs(w), 0.0)[inside])
+        s2s.append(s2[inside])
+    if not s2s:
         return None
-    s2 = np.broadcast_to(0.25 / np.asarray(cp.reflections.d, dtype=np.float64) ** 2,
-                         inside.shape)
-    w = np.stack([np.asarray(p[3], dtype=np.float64)
-                  for p in model.phase_peaks(ip, values)])
-    w = np.where(inside & np.isfinite(w), np.abs(w), 0.0)
+    w, s2 = np.concatenate(weights), np.concatenate(s2s)
     if float(w.sum()) > 0.0:
         return float((w * s2).sum() / w.sum())
-    return float(s2[inside].mean())
+    return float(s2.mean())
 
 
-def _scale_b_ridge_diagnostics(model: CompiledModel, values: dict[str, float],
+def _scale_b_ridge_diagnostics(models: list[CompiledModel],
+                               per_values: list[dict[str, float]],
                                structure: Structure,
                                stage_results: list[StageResult] | None,
                                ) -> list[Diagnostic]:
@@ -8181,8 +8235,17 @@ def _scale_b_ridge_diagnostics(model: CompiledModel, values: dict[str, float],
     ridge and returned 0.000 ± 0.000 wt% (WP-1534 task 1).
 
     ``warning``: the reported fraction is a conditional statement, and nothing
-    else in the result says on what.
+    else in the result says on what.  A joint fit passes every histogram's
+    model and values; the range quoted spans them.
     """
+    def value_of(path: str) -> float | None:
+        # a joint fit's held name is bare where shared, ``hist.h.``-scoped
+        # where a histogram owns it
+        h = int(path.split(".")[1]) if path.startswith("hist.") else 0
+        return per_values[h].get(_unscoped(path))
+
+    tt_min = min(m.tt_min for m in models)
+    tt_max = max(m.tt_max for m in models)
     paths: dict[int, dict[str, None]] = {}
     stages: dict[int, dict[str, None]] = {}
     least: dict[int, float] = {}
@@ -8199,20 +8262,22 @@ def _scale_b_ridge_diagnostics(model: CompiledModel, values: dict[str, float],
         names = list(stages[ip])
         name = structure.phases[ip].name
         n = len(held)
-        at = ", ".join(f"{p} = {values[p]:.4g}" for p in held[:3] if p in values)
+        at = ", ".join(f"{p} = {v:.4g}" for p in held[:3]
+                       if (v := value_of(p)) is not None)
         message = (
-            f"the fitted range {model.tt_min:.4g}-{model.tt_max:.4g}° cannot "
+            f"the fitted range {tt_min:.4g}-{tt_max:.4g}° cannot "
             f"separate phase {ip} ({name})'s scale from its displacement "
-            f"parameters: the two columns are {least[ip]:.1e} apart, under the "
-            f"{SCALE_B_SEPARATION_FLOOR:.1e} the covariance can resolve, which "
-            f"is what reflections at one d-spacing give. So {n} displacement "
+            f"parameters: their columns are {least[ip]:.1e} apart, under the "
+            f"{SCALE_B_SEPARATION_FLOOR:.1e} the covariance can resolve. A "
+            f"phase gives this when it has fewer reflections in range than it "
+            f"has scale and displacement parameters. So {n} displacement "
             f"parameter{'' if n == 1 else 's'} {'was' if n == 1 else 'were'} "
             f"held for stage{'' if len(names) == 1 else 's'} "
             f"{', '.join(names)}"
             + (f" ({at}{'…' if n > 3 else ''})" if at else "")
             + ", and the phase's weight fraction is conditional on "
             + ("that value" if n == 1 else "those values"))
-        s2 = _intensity_weighted_s2(model, ip, values)
+        s2 = _intensity_weighted_s2(models, ip, per_values)
         if s2 is not None:
             message += (f": each 1 Å² of error in B moves it by about "
                         f"{100.0 * math.expm1(2.0 * s2):.2g} % "

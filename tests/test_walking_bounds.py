@@ -258,22 +258,21 @@ def test_an_ordinary_biso_is_silent_and_a_molten_one_is_reported():
     assert "Lindemann" in str(findings[0])
 
 
-def test_the_25_a2_schema_ceiling_is_far_above_melting():
+def test_with_no_ceiling_the_melting_bound_is_what_flags_a_large_b():
     """Why this guard exists at all, stated as a test.
 
-    ``Atom.biso`` caps at 25 Å², and on every ordinary structure that ceiling
-    is several times the bound below which the solid is still a solid. The cap
-    therefore bounds nothing physical, and removing the guard would leave the
-    whole 5–25 Å² range unremarked.
+    ``Atom.biso`` has no ceiling (WP-1534; it capped at 25 Å² before), so
+    this flag is the only thing that remarks on a large B.  On every ordinary
+    structure it fires below 10 Å², where the 25 Å² cap bounded nothing
+    physical.
     """
     from rietx.schemas.common import Parameter
     from rietx.schemas.structure import Atom
 
     zero = Parameter(value=0.0)
-    ceiling = Atom(label="X", species="Si", x=zero, y=zero, z=zero).biso.max
-    assert ceiling == 25.0
+    assert Atom(label="X", species="Si", x=zero, y=zero, z=zero).biso.max == float("inf")
     for volume, n_atoms in ((255.0, 30), (4.1566 ** 3, 7), (5.6402 ** 3, 8)):
-        assert biso_melting_bound(volume, n_atoms) < 0.4 * ceiling
+        assert biso_melting_bound(volume, n_atoms) < 10.0
 
 
 def test_the_biso_guard_is_silent_without_a_model():

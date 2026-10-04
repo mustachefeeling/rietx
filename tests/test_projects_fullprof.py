@@ -1138,23 +1138,21 @@ def test_a_phase_with_no_sites_is_refused_rather_than_dropped(tmp_path):
         to_structure(model)
 
 
-def test_a_negative_biso_is_read_with_its_bound_widened(tmp_path):
+def test_a_negative_biso_is_read_as_stated(tmp_path):
     """``corpus file 4``:70 refined O1 to Biso = −0.67266 Å², a real FullProf
     outcome — the column absorbs absorption and normalisation error.
 
     FullProf stores it and so does every other code, so the reader keeps the
-    file's number, widens the floor to hold it and says so (PR #663). Moving
-    it to zero would change every high-Q intensity.
+    file's number. Moving it to zero would change every high-Q intensity.
+    ``Atom.biso`` has no default bound (WP-1534), so nothing is widened.
     """
     negative = _PHASE_SITES.replace("0.31111  0.21111", "0.31111 -0.55555", 1)
     model = read_fullprof_pcr(_pcr(tmp_path, "negb.pcr",
                                    _phase(atoms=negative)))
     diagnostics = []
     biso = to_structure(model, diagnostics=diagnostics).phases[0].atoms[0].biso
-    assert (biso.value, biso.min) == (pytest.approx(-0.55555), pytest.approx(-0.55555))
-    widened = [d for d in diagnostics if d.code == "BISO_BOUND_WIDENED"]
-    assert [d.where for d in widened] == [["phases.0.atoms.0.biso"]]
-    assert "negb.pcr" in widened[0].message
+    assert (biso.value, biso.min) == (pytest.approx(-0.55555), float("-inf"))
+    assert not [d for d in diagnostics if "BISO" in d.code]
 
 
 def test_an_anisotropic_beta_block_is_read_and_refused(tmp_path):
@@ -1369,16 +1367,18 @@ def test_a_schema_refusal_on_an_atom_is_converted_naming_the_file(tmp_path, monk
     schema refusal is converted at this boundary" and reaching any caller that
     catches only the documented error type.
 
-    ``biso`` was the reachable case, a Biso above the 25 Å² bound, until the
-    readers widened the bound to hold the file's value
-    (:func:`rietx.schemas.structure.biso_bounds`).  The old bound is put back
-    here, so the boundary is still exercised by a refusal ``rx.Parameter``
-    raises itself.  A *negative* Biso does not exercise this — it has its own
-    explicit refusal further up.
+    ``biso`` was the reachable case, a Biso above the 25 Å² bound, until
+    ``Atom.biso`` lost its default bound (WP-1534).  The old bound is put back
+    on the atom here, so the boundary is still exercised by a refusal
+    ``rx.Parameter`` raises itself.
     """
-    import rietx.io.projects.fullprof as fullprof
+    real_atom = rx.Atom
 
-    monkeypatch.setattr(fullprof, "biso_bounds", lambda value: {"min": 0.0, "max": 25.0})
+    def strict_atom(**kw):
+        kw["biso"] = rx.Parameter(**{**kw["biso"].model_dump(), "min": 0.0, "max": 25.0})
+        return real_atom(**kw)
+
+    monkeypatch.setattr(rx, "Atom", strict_atom)
     sites = _PHASE_SITES.replace("0.21111", "31.00000")
     pcr = _pcr(tmp_path, "hot.pcr", _phase(atoms=sites))
     with pytest.raises(FullProfPcrError) as excinfo:
@@ -1386,12 +1386,12 @@ def test_a_schema_refusal_on_an_atom_is_converted_naming_the_file(tmp_path, monk
     assert "hot.pcr" in str(excinfo.value)
 
 
-def test_a_biso_above_the_starting_bound_reads(tmp_path):
-    """A published Biso of 31 Å² reads, with its bound widened to hold it."""
+def test_a_biso_above_the_old_ceiling_reads(tmp_path):
+    """A published Biso of 31 Å² reads as stated, unbounded (WP-1534)."""
     sites = _PHASE_SITES.replace("0.21111", "31.00000")
     pcr = _pcr(tmp_path, "hot.pcr", _phase(atoms=sites))
     biso = to_structure(read_fullprof_pcr(pcr)).phases[0].atoms[0].biso
-    assert (biso.value, biso.max) == (pytest.approx(31.0), pytest.approx(31.0))
+    assert (biso.value, biso.max) == (pytest.approx(31.0), float("inf"))
 
 
 # Finding 3 — a tie rietx cannot express is refused, not silently loosened.

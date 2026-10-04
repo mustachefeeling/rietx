@@ -330,9 +330,22 @@ def _bare_biso(value: float | None = None):
     return edit
 
 
+def _bare_occ(value: float | None = None):
+    """``_bare_biso`` on the occupancy, whose declared [0, 1.5] is what these
+    repairs restore since WP-1534 left ``Atom.biso`` with a unit only."""
+    def edit(state):
+        occ = state["structure"]["phases"][0]["atoms"][1]["occ"]
+        occ.update(_BARE)
+        if value is not None:
+            occ["value"] = value
+    return edit
+
+
 def test_a_log_written_before_206_opens_with_its_declared_bounds_back(
         tmp_path, pattern_file):
-    """Issue #209's fixture: a pre-#206 document carrying an unbounded biso.
+    """Issue #209's fixture: a pre-#206 document carrying an unbounded
+    parameter its schema declares a range for (``biso`` then, ``occ`` since
+    WP-1534).
 
     ``model_dump`` wrote the dropped bounds out explicitly, so on load the
     keys are all present, construction inherits nothing, and the fit would run
@@ -340,22 +353,22 @@ def test_a_log_written_before_206_opens_with_its_declared_bounds_back(
     per parameter, naming the atom and both ranges; the value stays put.
     """
     project = _create(tmp_path / "s.rex", pattern_file)
-    project.refinement.set_values({"phases.0.atoms.1.biso": 0.7})   # a second node
-    _age_log(project, "0.16", _bare_biso())
+    project.refinement.set_values({"phases.0.atoms.1.occ": 0.7})   # a second node
+    _age_log(project, "0.16", _bare_occ())
 
     reopened = rx.Project.open(project.path)
-    biso = reopened.refinement.structure.phases[0].atoms[1].biso
-    assert (biso.value, biso.min, biso.max, biso.unit) == (0.7, 0.0, 25.0, "A^2")
+    occ = reopened.refinement.structure.phases[0].atoms[1].occ
+    assert (occ.value, occ.min, occ.max) == (0.7, 0.0, 1.5)
     for node in reopened.history.nodes.values():
-        stored = node.state.structure.phases[0].atoms[1].biso
-        assert (stored.min, stored.max, stored.unit) == (0.0, 25.0, "A^2")
+        stored = node.state.structure.phases[0].atoms[1].occ
+        assert (stored.min, stored.max) == (0.0, 1.5)
 
     [note] = reopened.history_diagnostics
     assert (note.code, note.level, note.where) == (
-        "DECLARED_RANGE_RESTORED", "warning", ["phases.0.atoms.1.biso"])
+        "DECLARED_RANGE_RESTORED", "warning", ["phases.0.atoms.1.occ"])
     assert "(atom B)" in note.message
-    assert "[-inf, inf], no unit" in note.message
-    assert "[0.0, 25.0] A^2" in note.message
+    assert "[-inf, inf]" in note.message
+    assert "[0.0, 1.5]" in note.message
     assert "this history (2: n0000, n0001)" in note.message and "schema 0.17" in note.message
     assert reopened.data_diagnostics == []   # the pattern's channel stays the pattern's
 
@@ -429,15 +442,14 @@ def test_a_stored_value_outside_the_declared_range_is_left_and_reported(
     far outside the X-ray one).  So the parameter is left as stored, still
     unbounded, and the note says so, naming the node and the value."""
     project = _create(tmp_path / "s.rex", pattern_file)
-    _age_log(project, "0.16", _bare_biso(-165.0))
+    _age_log(project, "0.16", _bare_occ(2.0))
     reopened = rx.Project.open(project.path)
-    biso = reopened.refinement.structure.phases[0].atoms[1].biso
-    assert (biso.value, biso.min, biso.max, biso.unit) == (
-        -165.0, float("-inf"), float("inf"), None)
+    occ = reopened.refinement.structure.phases[0].atoms[1].occ
+    assert (occ.value, occ.min, occ.max) == (2.0, float("-inf"), float("inf"))
     [note] = reopened.history_diagnostics
     assert (note.code, note.level, note.where, note.value) == (
-        "DECLARED_RANGE_NOT_RESTORED", "warning", ["phases.0.atoms.1.biso"], -165.0)
-    assert "-165.0 in n0000" in note.message and "[0.0, 25.0] A^2" in note.message
+        "DECLARED_RANGE_NOT_RESTORED", "warning", ["phases.0.atoms.1.occ"], 2.0)
+    assert "2.0 in n0000" in note.message and "[0.0, 1.5]" in note.message
 
 
 def test_a_parameter_is_restored_in_every_node_or_in_none(tmp_path, pattern_file):
@@ -445,18 +457,18 @@ def test_a_parameter_is_restored_in_every_node_or_in_none(tmp_path, pattern_file
     first alone would hand a checkout of it a range the other refutes, so
     neither is restored and the note counts both."""
     project = _create(tmp_path / "s.rex", pattern_file)
-    project.refinement.set_values({"phases.0.atoms.1.biso": 0.7})
+    project.refinement.set_values({"phases.0.atoms.1.occ": 0.7})
     values = iter([0.5, -3.0])
 
     def edit(state):
-        _bare_biso(next(values))(state)
+        _bare_occ(next(values))(state)
 
     _age_log(project, "0.16", edit)
     notes: list = []
     tree = rx.RefinementTree.load(project.path / project.doc.history_file,
                                   diagnostics=notes)
     for node in tree.nodes.values():
-        assert node.state.structure.phases[0].atoms[1].biso.min == float("-inf")
+        assert node.state.structure.phases[0].atoms[1].occ.min == float("-inf")
     [note] = notes
     assert note.code == "DECLARED_RANGE_NOT_RESTORED"
     assert "this history (2: n0000, n0001)" in note.message and "-3.0 in n0001" in note.message
@@ -466,22 +478,22 @@ def test_a_node_this_release_appends_to_an_old_log_is_read_at_its_own_version(
         tmp_path, pattern_file):
     """The header stamps a log's creation, and a log outlives the release that
     began it.  A node appended now carries its own stamp, so an explicit
-    unbounded biso chosen today is a choice tomorrow, while the old node
+    unbounded occupancy chosen today is a choice tomorrow, while the old node
     beside it is still repaired."""
     project = _create(tmp_path / "s.rex", pattern_file)
-    _age_log(project, "0.16", _bare_biso())
+    _age_log(project, "0.16", _bare_occ())
     reopened = rx.Project.open(project.path)
-    reopened.refinement.structure.phases[0].atoms[1].biso = Parameter(
+    reopened.refinement.structure.phases[0].atoms[1].occ = Parameter(
         value=0.6, min=float("-inf"), max=float("inf"), unit=None,
         transform="identity")
-    reopened.refinement.set_values({"phases.0.atoms.1.biso": 0.6})
+    reopened.refinement.set_values({"phases.0.atoms.1.occ": 0.6})
 
     again = rx.Project.open(project.path)
     old, new = (again.history.nodes[n] for n in again.history.order)
     assert new.schema_version == rx.schemas.common.SCHEMA_VERSION
     assert old.schema_version is None
-    assert old.state.structure.phases[0].atoms[1].biso.max == 25.0
-    assert new.state.structure.phases[0].atoms[1].biso.max == float("inf")
+    assert old.state.structure.phases[0].atoms[1].occ.max == 1.5
+    assert new.state.structure.phases[0].atoms[1].occ.max == float("inf")
     [note] = again.history_diagnostics
     assert "this history (n0000)" in note.message
 
