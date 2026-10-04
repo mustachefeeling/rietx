@@ -223,7 +223,10 @@ def _candidate(param: Parameter, declared: Parameter) -> dict | None:
                if getattr(param, attr) != bare}
     fills = {attr: v for attr, v in declared_fills(declared, present).items()
              if getattr(param, attr) != v}
-    if not fills:
+    # the signature is a bare *range*: a unit rides with a restored range, but
+    # alone it is a label a later release declared (extinction's µm², WP-1451)
+    # that a document written before it had no way to state
+    if not fills.keys() - {"unit"}:
         return None
     before = {attr: getattr(param, attr) for attr in BARE_PARAMETER_ATTRS}
     return {"param": param, "fills": fills, "before": before,
