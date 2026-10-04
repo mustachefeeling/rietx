@@ -264,7 +264,7 @@ stating what it changed.
       short ranges.
 - [x] Re-measure on real data: the round robin, bounded against unbounded
       (Context, 2026-10-04).
-- [ ] **Generalise the probe to the displacement block.** The scale's column
+- [x] **Generalise the probe to the displacement block.** The scale's column
       against every free displacement column of the phase, equilibrated, cut
       at the covariance's own `rcond`. Anisotropic sites join. Fluorite on
       25–33° is the test. Re-run `tests/test_scale_b_ridge.py` and

@@ -345,13 +345,22 @@ def test_a_variable_shared_with_a_separable_phase_is_not_held(pattern):
 # ----------------------------------------------------------------------
 #: 25–33° Cu Kα: fluorite keeps (111) and (200), two reflections for its
 #: scale, B(Ca) and B(F).  The uniform B is separable there, the block is not.
+#: Iron is left out: it has no reflection there, and its free scale walks a
+#: flat direction to 126 in a second scale-only stage at an unchanged Rwp,
+#: which predates this probe and is WP-1523's (its 2026-10-04 Inherited).
 TT_NARROW = np.arange(25.0, 33.0, 0.01)
 ADP = ["phases.*.atoms.*.adp.*"]
 
 
+def _narrow_models(scales):
+    structure, instrument = _models(scales)
+    structure.phases = structure.phases[:FE]
+    return structure, instrument
+
+
 @pytest.fixture(scope="module")
 def narrow_pattern() -> PatternData:
-    structure, instrument = _models(TRUE_SCALES, unbounded=False)
+    structure, instrument = _narrow_models(TRUE_SCALES)
     blank = PatternData(two_theta=TT_NARROW.tolist(),
                         intensity=np.zeros_like(TT_NARROW).tolist())
     model = compile_model(structure, instrument, blank, mode="rietveld")
@@ -367,7 +376,7 @@ def test_two_sites_on_two_reflections_are_one_ridge(narrow_pattern):
     walked them to +99 and −111 Å² this way (WP-1534, 2026-10-04)."""
     from rietx.refine import SCALE_B_STEP, _column_separation
 
-    structure, instrument = _models(START_SCALES)
+    structure, instrument = _narrow_models(START_SCALES)
     table = ParameterTable(structure, instrument)
     table.set_vary(BIG + BISO, True)
     model = compile_model(structure, instrument, narrow_pattern, mode="rietveld",
@@ -384,8 +393,12 @@ def test_two_sites_on_two_reflections_are_one_ridge(narrow_pattern):
     assert _column_separation(a, [uniform]) > SCALE_B_SEPARATION_FLOOR * 1e3
 
 
-def test_the_block_hold_keeps_fluorite_off_the_walk(narrow_pattern, true_fraction):
-    ref = rx.Refinement(*_models(START_SCALES))
+def test_the_block_hold_keeps_fluorite_off_the_walk(narrow_pattern):
+    truth = _narrow_models(TRUE_SCALES)
+    table = ParameterTable(*truth)
+    w = {p.name: p.weight_fraction
+         for p in compute_qpa(truth[0], table.decode(table.x0())).phases}
+    ref = rx.Refinement(*_narrow_models(START_SCALES))
     _, res = _fit(narrow_pattern, [Stage("s", BIG), Stage("b", BIG + BISO)], ref=ref)
     sr = res.stages[-1]
     flu = [f"phases.{FLUORITE}.atoms.{j}.biso" for j in (0, 1)]
@@ -395,8 +408,13 @@ def test_the_block_hold_keeps_fluorite_off_the_walk(narrow_pattern, true_fractio
     assert finding.where == flu
     assert [a.biso.value for a in ref.structure.phases[FLUORITE].atoms] == list(
         TRUE_B["fluorite"])
-    print(f"\nfluorite wt% on 25–33°: {100 * _fraction(res, 'fluorite'):.3f} "
-          f"(truth {100 * true_fraction['fluorite']:.3f})")
+    got = _fraction(res, "fluorite")
+    scale = {p.path: p for p in res.parameters}[f"phases.{FLUORITE}.scale"]
+    tol = 3.0 * scale.stderr / scale.value
+    print(f"\nfluorite wt% on 25–33°: {100 * got:.3f} (truth {100 * w['fluorite']:.3f}, "
+          f"tol ±{100 * tol * w['fluorite']:.3f})")
+    # measured 23.884 against 23.730
+    assert abs(got - w["fluorite"]) < tol * w["fluorite"]
 
 
 def test_an_anisotropic_site_is_probed(pattern):
