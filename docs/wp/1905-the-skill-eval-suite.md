@@ -1,6 +1,6 @@
 # WP-1905 — the skill eval suite: `claude plugin eval` over the skill tree, cases from real failures, judge-free first
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-04 — claimed by @yue-here
 Track: The repo's own process
 Depends on: 1904
 Priority: P2 2026-10-04 — the decision WP-1906 and WP-1532 wait on: no body change lands without a before-and-after it can read
