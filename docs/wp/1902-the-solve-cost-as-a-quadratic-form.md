@@ -98,6 +98,12 @@ solve-cost test on a flat pattern reads the sign or size of `b`: none does.
 The three others on `_flat(...)` assert refusal reasons and counts. Nothing
 depends on 1902 in a `Depends on:` line. Narrative moved to the v1.7 record.
 
+*Review* (2026-10-04, `/code-review high`): one finding, declined. With the
+Rwp bar gone, a result over Rwp 0.8 that carries no error-level diagnostic is
+accepted. A result's diagnostics are part of its record, so a reopened one
+keeps `MODEL_FAR_FROM_DATA`; only a hand-edited result loses it, and the
+2026-10-01 decision made `usable` the one bar.
+
 ### 2026-10-01 (3rd session) — the two silent absences refuse by name
 
 The solve cost now refuses the two kinds of reflection it used to leave out

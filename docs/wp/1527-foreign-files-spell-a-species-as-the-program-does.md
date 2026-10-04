@@ -169,6 +169,37 @@ the spelling the issue's "fix direction" names.
   that moved: the fallback fixture is now As³⁺ (its value 0.0828 → 0.0996),
   and the skill row reads 11 of 111.
 
+  *Lane trial* (`session_usage.py lanes 0433c291`; the session's three lanes,
+  both of this WP's and WP-1504's round E, are measured here):
+
+  | lane | est | requests | main at dispatch | lane base | re-read | main requests | left in main | main edits after | redo | lane $ | in-session $ | saved $ |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | 1504-option-E | 40 | 51 | 214K | 69K | 0K of 1061K | 15 | 20K | 4 | 0 | 2.42 | 8.65 | +4.55 |
+  | 1527-lookup-and-Y3 | 35 | 84 | 411K | 70K | 0K of 3K | 6 | 15K | 0 | 0 | 3.83 | 10.49 | +5.86 |
+  | 1527-writers-rule | 35 | 108 | 429K | 69K | 0K of 8K | 10 | 16K | 1 | 0 | 5.36 | 14.12 | +7.56 |
+
+  One item kept: 1902-poor-reads-usable, est 10, 16 requests, at 322K. The
+  session: main 243 requests, peak 461K, $21.32; lanes $11.61. Estimates ran
+  2.00× short. The 1504 lane's window is not clean: it ran 68 minutes while
+  this session worked other WPs, so its 15 main requests and 4 main edits
+  include unrelated work (the edits were WP-1504's own file, the 1505 note
+  and a docstring the lane suggested, none of them fixes to the lane's runs).
+  The selective policy at these figures (`baseline --u 0 --mo 10 --d 16489`):
+  −21 % over the 194 replayed sessions, −13 % with the lane assumptions
+  doubled, and −29 % in the band above 450K that this session reached. Row
+  added to `docs/milestones/process.md` § Lanes within a WP.
+
+  *Review* (`/code-review high --fix`, `8aa52925`). Fixed: the TOPAS writer
+  had neutralised a magnetic site's species (`Fe4+` → `Fe`), though TOPAS
+  reads the magnetic form factor from it and rietx computes the moment from
+  that ion, so a site with a moment keeps its ion (Fe⁴⁺ and Mn⁺ tested); the
+  written-neutral warning names the label written (`D`, `57Fe`); the rule in
+  `io/CLAUDE.md` names the valence labels GSAS still refuses. Declined: a
+  warning for Y³⁺ past s = 2 (a task above, since it needs plumbing in the
+  fit); writing the element in the case it was typed (`fe+` → `fe`, the
+  writers' existing pattern); resolving each species twice per export
+  (negligible).
+
   *Not done.* The GSAS writer still refuses valence labels (`Cval`, `Siva`,
   `gsas.py:1405`): no GSAS spelling states what rietx computes. No real
   program has read `NA+1` or `Na1+`; only `Cu1+`/`CU+1` were measured. `S2-`
