@@ -124,6 +124,14 @@ down.
 
 ### Inherited
 
+- **2026-10-04, from WP-1523: the hold's threshold moved, so re-measure
+  before quoting.** A phase is now seen when its scale is 3σ from zero by its
+  marginal esd against counting noise (`refine._answer_significance`). The old
+  test was one point at 1σ. The stage-start hold reads the screen
+  ‖y_p/σ‖₂ ≥ 3, and the release reads the marginal with the held columns freed
+  for the measurement. A weak phase now re-enters later than it did: at scale
+  3e-8 on issue #481's frame, 1 of 8 fits saw it, against 6 of 8 before. Any
+  re-entry count in this file was taken under the old rule.
 - **2026-10-03, from a cleanup session: the guard is 300 s.** This WP's own
   commit `b333ca09` (2026-09-30) had widened `RAMP_RUNAWAY_GUARD_S` to 300 s
   and fixed the root CLAUDE.md's count of λ-scaled size terms, but was never

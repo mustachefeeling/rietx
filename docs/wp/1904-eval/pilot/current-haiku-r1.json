@@ -1,0 +1,293 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.289",
+  "startedAt": "2026-10-04T09:47:17.119Z",
+  "durationSeconds": 82,
+  "costUsd": 0.1561936,
+  "partial": false,
+  "suite": {
+    "root": "/tmp/claude-0/-home-user-rietx/fb206fd5-3325-5e36-8cb1-86571b5df2f7/scratchpad/pilot/plugin-current",
+    "ablation": "with-without",
+    "modelOverride": "haiku",
+    "judgeModel": "sonnet",
+    "caseFilter": "fap-judge",
+    "threshold": 1,
+    "concurrency": 1,
+    "plugins": [
+      {
+        "name": "rietx-skill",
+        "version": "0.0.1",
+        "path": "/tmp/claude-0/-home-user-rietx/fb206fd5-3325-5e36-8cb1-86571b5df2f7/scratchpad/pilot/plugin-current"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "fap-judge",
+      "dir": "evals/fap-judge",
+      "source": "mixed",
+      "promptMarkdown": "My colleague refined our fluorapatite pattern with `fit.py` and sent me what it printed, `fit_output.txt`. Which of the refined numbers can go in the paper as they stand, and what should they change before the next run?\n\nrietx is installed for the python interpreter /home/user/rietx/.venv/bin/python. Your working directory holds fit.py, fit_output.txt, FAP.XRA and fluorapatite.cif.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 900,
+      "maxTurns": 25,
+      "graders": [
+        {
+          "name": "biso_background",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer say that the displacement parameters (Biso), at least the one the background screen flagged, are not quotable because the 24-term background can absorb them, and that the background should be made stiffer (fewer terms, or another stiffer model) before quoting them?",
+          "config": {
+            "criteria": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer say that the displacement parameters (Biso), at least the one the background screen flagged, are not quotable because the 24-term background can absorb them, and that the background should be made stiffer (fewer terms, or another stiffer model) before quoting them?",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "cell_accuracy",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer say the cell parameters a and c are compromised or not quotable as accurate/absolute values while zero shift and sample displacement are refined together (their correlation with the cell is 0.99+), or that the cell needs the zero/displacement problem fixed first?",
+          "config": {
+            "criteria": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer say the cell parameters a and c are compromised or not quotable as accurate/absolute values while zero shift and sample displacement are refined together (their correlation with the cell is 0.99+), or that the cell needs the zero/displacement problem fixed first?",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "opened_reference",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "trace",
+            "pattern": "references/[a-z-]+\\.md",
+            "flags": "",
+            "match": "contains",
+            "arm": "with-only"
+          }
+        },
+        {
+          "name": "ran_python",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Bash",
+            "input_match": "python",
+            "min": 0,
+            "arm": "with-only"
+          }
+        },
+        {
+          "name": "skill_fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "arm": "with-only"
+          }
+        },
+        {
+          "name": "undersampled",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer treat the undersampling (fewer than 5 steps per FWHM) as a data-collection limit, to be fixed by re-measuring with a finer step, rather than as something a refinement choice can fix?",
+          "config": {
+            "criteria": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer treat the undersampling (fewer than 5 steps per FWHM) as a data-collection limit, to be fixed by re-measuring with a finer step, rather than as something a refinement choice can fix?",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "zero_displacement",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer say that instrument.zero_shift and instrument.geometry.sample_displacement are not measured by this fit (they cannot both be quoted, or neither can), and that one must be fixed at an independently known value, calibrated on a standard, or otherwise separated before either is reported?",
+          "config": {
+            "criteria": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer say that instrument.zero_shift and instrument.geometry.sample_displacement are not measured by this fit (they cannot both be quoted, or neither can), and that one must be fixed at an independently known value, calibrated on a standard, or otherwise separated before either is reported?",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.09602020000000001,
+            "judgeCostUsd": 0.032658000000000006,
+            "durationSeconds": 43,
+            "startedAt": "2026-10-04T09:47:17.155Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-wasqqW/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "biso_background",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Looking at your output against the rietx protocol, there are several critical issues blocking publication-ready numbers.\n\n## **What CANNOT go in the paper as they stand:**\n\n1. **The cell parameters** (a, c) — Though they converged with small esds, they're heavily confounded with zero shift and sample displacement (ρ = +0.997 and +0.995). The diagnostics flag `FLAT_DIRECTION`: this is a rank deficiency in the data, not just correlation. One direction between zero shift and sample displacement is unmeasured, so the cell is uncertain in a way the esds don't show. You need one of:\n   - Calibrate the instrument first (run `lab_calibrate` on a certified standard with cell held), then hold zero shift or sample displacement at the known value\n   - Extend the fitted 2θ range beyond 15–130° if your data allows\n   - Collect a second histogram at a different geometry\n\n2. **The Biso values** — The background carries a strong degeneracy with Ca2's Biso (R² = 0.27). Per the protocol, this biases all ADPs even though Rwp looks good. Your 24-term Chebyshev is too flexible. Before the next run:\n   - Reduce Chebyshev terms (try 12–16)\n   - OR switch to P-spline with stronger smoothing (`lambda_smooth` larger, coarser knots)\n   - OR hold the background additively from a blank-can scan if available\n\n3. **Zero shift and sample displacement** — These are perfectly degenerate (ρ = +1.000, with flat direction). Neither is measurable independently from this fit. Quote neither.\n\n4. **Axial slits** (axial_sl, axial_hl) — Correlated at ρ = −0.999. Hold one at the instrumental value; don't refine both.\n\n5. **U, V, W widths** — The pattern is predominantly Lorentzian (Gaussian carries only 42%). The protocol says: \"do not quote the widths\" and \"treat crystallite size or strain as unmeasured.\" Measure the instrument using `lab_calibrate` on a standard, then hold these at instrumental values.\n\n## **Stop conditions before you run again:**\n\n- Run [`lab_calibrate`](https://rietx.org/using/api.html#rietx.RefinementPlan.lab_calibrate) on a certified standard (Si, SRM 660d, etc.) with the cell **held fixed**. Save and load the instrument profile.\n- **Stiffen the background** (fewer terms or P-spline with higher regularization).\n- **Fix zero shift or sample displacement** at the calibrated value, and refine only the other if needed.\n- **Hold U, V, W** at the instrumental values from calibration.\n- **Hold one axial slit** at its known value.\n- **Resample at FWHM/5** (~5.7 steps for your line width) if you re-collect.\n\nThe data-quality gate (`PATTERN_UNDERSAMPLED` at 4.6 steps) is a collection limit you can't fix in refinement, but re-sampling will improve the intensity reliability for later structural work.\n\n**Protocol and provenance to report**: `lab_bragg_brentano` plan, 2θ 15–130°, 24-term Chebyshev (should be fewer), instrument uncalibrated (should be calibrated), channel count (check `result.channel_count`), rietx version."
+              },
+              {
+                "name": "cell_accuracy",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Looking at your output against the rietx protocol, there are several critical issues blocking publication-ready numbers.\n\n## **What CANNOT go in the paper as they stand:**\n\n1. **The cell parameters** (a, c) — Though they converged with small esds, they're heavily confounded with zero shift and sample displacement (ρ = +0.997 and +0.995). The diagnostics flag `FLAT_DIRECTION`: this is a rank deficiency in the data, not just correlation. One direction between zero shift and sample displacement is unmeasured, so the cell is uncertain in a way the esds don't show. You need one of:\n   - Calibrate the instrument first (run `lab_calibrate` on a certified standard with cell held), then hold zero shift or sample displacement at the known value\n   - Extend the fitted 2θ range beyond 15–130° if your data allows\n   - Collect a second histogram at a different geometry\n\n2. **The Biso values** — The background carries a strong degeneracy with Ca2's Biso (R² = 0.27). Per the protocol, this biases all ADPs even though Rwp looks good. Your 24-term Chebyshev is too flexible. Before the next run:\n   - Reduce Chebyshev terms (try 12–16)\n   - OR switch to P-spline with stronger smoothing (`lambda_smooth` larger, coarser knots)\n   - OR hold the background additively from a blank-can scan if available\n\n3. **Zero shift and sample displacement** — These are perfectly degenerate (ρ = +1.000, with flat direction). Neither is measurable independently from this fit. Quote neither.\n\n4. **Axial slits** (axial_sl, axial_hl) — Correlated at ρ = −0.999. Hold one at the instrumental value; don't refine both.\n\n5. **U, V, W widths** — The pattern is predominantly Lorentzian (Gaussian carries only 42%). The protocol says: \"do not quote the widths\" and \"treat crystallite size or strain as unmeasured.\" Measure the instrument using `lab_calibrate` on a standard, then hold these at instrumental values.\n\n## **Stop conditions before you run again:**\n\n- Run [`lab_calibrate`](https://rietx.org/using/api.html#rietx.RefinementPlan.lab_calibrate) on a certified standard (Si, SRM 660d, etc.) with the cell **held fixed**. Save and load the instrument profile.\n- **Stiffen the background** (fewer terms or P-spline with higher regularization).\n- **Fix zero shift or sample displacement** at the calibrated value, and refine only the other if needed.\n- **Hold U, V, W** at the instrumental values from calibration.\n- **Hold one axial slit** at its known value.\n- **Resample at FWHM/5** (~5.7 steps for your line width) if you re-collect.\n\nThe data-quality gate (`PATTERN_UNDERSAMPLED` at 4.6 steps) is a collection limit you can't fix in refinement, but re-sampling will improve the intensity reliability for later structural work.\n\n**Protocol and provenance to report**: `lab_bragg_brentano` plan, 2θ 15–130°, 24-term Chebyshev (should be fewer), instrument uncalibrated (should be calibrated), channel count (check `result.channel_count`), rietx version."
+              },
+              {
+                "name": "opened_reference",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched references/[a-z-]+\\.md",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "ran_python",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 0x (expected 0..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "skill_fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "undersampled",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Looking at your output against the rietx protocol, there are several critical issues blocking publication-ready numbers.\n\n## **What CANNOT go in the paper as they stand:**\n\n1. **The cell parameters** (a, c) — Though they converged with small esds, they're heavily confounded with zero shift and sample displacement (ρ = +0.997 and +0.995). The diagnostics flag `FLAT_DIRECTION`: this is a rank deficiency in the data, not just correlation. One direction between zero shift and sample displacement is unmeasured, so the cell is uncertain in a way the esds don't show. You need one of:\n   - Calibrate the instrument first (run `lab_calibrate` on a certified standard with cell held), then hold zero shift or sample displacement at the known value\n   - Extend the fitted 2θ range beyond 15–130° if your data allows\n   - Collect a second histogram at a different geometry\n\n2. **The Biso values** — The background carries a strong degeneracy with Ca2's Biso (R² = 0.27). Per the protocol, this biases all ADPs even though Rwp looks good. Your 24-term Chebyshev is too flexible. Before the next run:\n   - Reduce Chebyshev terms (try 12–16)\n   - OR switch to P-spline with stronger smoothing (`lambda_smooth` larger, coarser knots)\n   - OR hold the background additively from a blank-can scan if available\n\n3. **Zero shift and sample displacement** — These are perfectly degenerate (ρ = +1.000, with flat direction). Neither is measurable independently from this fit. Quote neither.\n\n4. **Axial slits** (axial_sl, axial_hl) — Correlated at ρ = −0.999. Hold one at the instrumental value; don't refine both.\n\n5. **U, V, W widths** — The pattern is predominantly Lorentzian (Gaussian carries only 42%). The protocol says: \"do not quote the widths\" and \"treat crystallite size or strain as unmeasured.\" Measure the instrument using `lab_calibrate` on a standard, then hold these at instrumental values.\n\n## **Stop conditions before you run again:**\n\n- Run [`lab_calibrate`](https://rietx.org/using/api.html#rietx.RefinementPlan.lab_calibrate) on a certified standard (Si, SRM 660d, etc.) with the cell **held fixed**. Save and load the instrument profile.\n- **Stiffen the background** (fewer terms or P-spline with higher regularization).\n- **Fix zero shift or sample displacement** at the calibrated value, and refine only the other if needed.\n- **Hold U, V, W** at the instrumental values from calibration.\n- **Hold one axial slit** at its known value.\n- **Resample at FWHM/5** (~5.7 steps for your line width) if you re-collect.\n\nThe data-quality gate (`PATTERN_UNDERSAMPLED` at 4.6 steps) is a collection limit you can't fix in refinement, but re-sampling will improve the intensity reliability for later structural work.\n\n**Protocol and provenance to report**: `lab_bragg_brentano` plan, 2θ 15–130°, 24-term Chebyshev (should be fewer), instrument uncalibrated (should be calibrated), channel count (check `result.channel_count`), rietx version."
+              },
+              {
+                "name": "zero_displacement",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Looking at your output against the rietx protocol, there are several critical issues blocking publication-ready numbers.\n\n## **What CANNOT go in the paper as they stand:**\n\n1. **The cell parameters** (a, c) — Though they converged with small esds, they're heavily confounded with zero shift and sample displacement (ρ = +0.997 and +0.995). The diagnostics flag `FLAT_DIRECTION`: this is a rank deficiency in the data, not just correlation. One direction between zero shift and sample displacement is unmeasured, so the cell is uncertain in a way the esds don't show. You need one of:\n   - Calibrate the instrument first (run `lab_calibrate` on a certified standard with cell held), then hold zero shift or sample displacement at the known value\n   - Extend the fitted 2θ range beyond 15–130° if your data allows\n   - Collect a second histogram at a different geometry\n\n2. **The Biso values** — The background carries a strong degeneracy with Ca2's Biso (R² = 0.27). Per the protocol, this biases all ADPs even though Rwp looks good. Your 24-term Chebyshev is too flexible. Before the next run:\n   - Reduce Chebyshev terms (try 12–16)\n   - OR switch to P-spline with stronger smoothing (`lambda_smooth` larger, coarser knots)\n   - OR hold the background additively from a blank-can scan if available\n\n3. **Zero shift and sample displacement** — These are perfectly degenerate (ρ = +1.000, with flat direction). Neither is measurable independently from this fit. Quote neither.\n\n4. **Axial slits** (axial_sl, axial_hl) — Correlated at ρ = −0.999. Hold one at the instrumental value; don't refine both.\n\n5. **U, V, W widths** — The pattern is predominantly Lorentzian (Gaussian carries only 42%). The protocol says: \"do not quote the widths\" and \"treat crystallite size or strain as unmeasured.\" Measure the instrument using `lab_calibrate` on a standard, then hold these at instrumental values.\n\n## **Stop conditions before you run again:**\n\n- Run [`lab_calibrate`](https://rietx.org/using/api.html#rietx.RefinementPlan.lab_calibrate) on a certified standard (Si, SRM 660d, etc.) with the cell **held fixed**. Save and load the instrument profile.\n- **Stiffen the background** (fewer terms or P-spline with higher regularization).\n- **Fix zero shift or sample displacement** at the calibrated value, and refine only the other if needed.\n- **Hold U, V, W** at the instrumental values from calibration.\n- **Hold one axial slit** at its known value.\n- **Resample at FWHM/5** (~5.7 steps for your line width) if you re-collect.\n\nThe data-quality gate (`PATTERN_UNDERSAMPLED` at 4.6 steps) is a collection limit you can't fix in refinement, but re-sampling will improve the intensity reliability for later structural work.\n\n**Protocol and provenance to report**: `lab_bragg_brentano` plan, 2θ 15–130°, 24-term Chebyshev (should be fewer), instrument uncalibrated (should be calibrated), channel count (check `result.channel_count`), rietx version."
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0.75,
+            "passed": false,
+            "turns": 3,
+            "costUsd": 0.06017339999999998,
+            "judgeCostUsd": 0.02482599999999998,
+            "durationSeconds": 38,
+            "startedAt": "2026-10-04T09:48:00.338Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-do4exg/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "biso_background",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Looking at your refinement output, there are **critical quality issues** that prevent most numbers from being publication-ready. Here's the breakdown:\n\n## ❌ **NOT suitable for paper as-is:**\n\n**Cell parameters (a, c)** — Despite good-looking errors, they're entangled in a perfect correlation (ρ=+0.997–0.995) with the zero shift and sample displacement. The warning is explicit: *\"quote neither as measured from this fit.\"*\n\n**Instrument parameters (zero_shift, sample_displacement)** — Completely correlated (ρ=+1.000) in a flat direction—the data literally cannot separate them. Fix one at an independently-measured value before the next run.\n\n**B-iso values** — The Ca2 B-iso (0.4322) is contaminated by background absorption (R²=0.27). Your background model is too flexible and is absorbing what should be thermal parameters.\n\n## ✓ **Potentially quotable:**\n\n**Other B-iso values** (Ca1, P3, F4, O5, O6, O7) — These may survive the background issue, but verify against Ca2's contamination pattern.\n\n## **What to fix before the next run:**\n\n1. **Instrument calibration first** — Run `lab_calibrate` on a standard with certified cell held fixed, then `save_instrument_profile`. Load that before refining here and **hold U, V, W fixed** (the Lorentzian-dominated pattern won't measure them).\n\n2. **Fix one of the correlated parameters** independently:\n   - Measure zero shift or sample displacement separately (e.g., from a known standard)\n   - Hold that value, free the other\n\n3. **Stiffen the background** — Reduce Chebyshev terms below 24 or increase P-spline smoothing to prevent it from mimicking atomic thermal motion.\n\n4. **Fix one axial slit parameter** (ρ=−0.999) — your geometry is also over-parameterized there.\n\n5. **Re-collect data** — Step size is 4.6 steps/FWHM; need ≥5 for quotable intensities.\n\nYour GoF (1.49) and Rwp (0.0834) look good, but they're masking fundamental unidentifiability in the instrument model."
+              },
+              {
+                "name": "cell_accuracy",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Looking at your refinement output, there are **critical quality issues** that prevent most numbers from being publication-ready. Here's the breakdown:\n\n## ❌ **NOT suitable for paper as-is:**\n\n**Cell parameters (a, c)** — Despite good-looking errors, they're entangled in a perfect correlation (ρ=+0.997–0.995) with the zero shift and sample displacement. The warning is explicit: *\"quote neither as measured from this fit.\"*\n\n**Instrument parameters (zero_shift, sample_displacement)** — Completely correlated (ρ=+1.000) in a flat direction—the data literally cannot separate them. Fix one at an independently-measured value before the next run.\n\n**B-iso values** — The Ca2 B-iso (0.4322) is contaminated by background absorption (R²=0.27). Your background model is too flexible and is absorbing what should be thermal parameters.\n\n## ✓ **Potentially quotable:**\n\n**Other B-iso values** (Ca1, P3, F4, O5, O6, O7) — These may survive the background issue, but verify against Ca2's contamination pattern.\n\n## **What to fix before the next run:**\n\n1. **Instrument calibration first** — Run `lab_calibrate` on a standard with certified cell held fixed, then `save_instrument_profile`. Load that before refining here and **hold U, V, W fixed** (the Lorentzian-dominated pattern won't measure them).\n\n2. **Fix one of the correlated parameters** independently:\n   - Measure zero shift or sample displacement separately (e.g., from a known standard)\n   - Hold that value, free the other\n\n3. **Stiffen the background** — Reduce Chebyshev terms below 24 or increase P-spline smoothing to prevent it from mimicking atomic thermal motion.\n\n4. **Fix one axial slit parameter** (ρ=−0.999) — your geometry is also over-parameterized there.\n\n5. **Re-collect data** — Step size is 4.6 steps/FWHM; need ≥5 for quotable intensities.\n\nYour GoF (1.49) and Rwp (0.0834) look good, but they're masking fundamental unidentifiability in the instrument model."
+              },
+              {
+                "name": "undersampled",
+                "passed": false,
+                "weight": 1,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Looking at your refinement output, there are **critical quality issues** that prevent most numbers from being publication-ready. Here's the breakdown:\n\n## ❌ **NOT suitable for paper as-is:**\n\n**Cell parameters (a, c)** — Despite good-looking errors, they're entangled in a perfect correlation (ρ=+0.997–0.995) with the zero shift and sample displacement. The warning is explicit: *\"quote neither as measured from this fit.\"*\n\n**Instrument parameters (zero_shift, sample_displacement)** — Completely correlated (ρ=+1.000) in a flat direction—the data literally cannot separate them. Fix one at an independently-measured value before the next run.\n\n**B-iso values** — The Ca2 B-iso (0.4322) is contaminated by background absorption (R²=0.27). Your background model is too flexible and is absorbing what should be thermal parameters.\n\n## ✓ **Potentially quotable:**\n\n**Other B-iso values** (Ca1, P3, F4, O5, O6, O7) — These may survive the background issue, but verify against Ca2's contamination pattern.\n\n## **What to fix before the next run:**\n\n1. **Instrument calibration first** — Run `lab_calibrate` on a standard with certified cell held fixed, then `save_instrument_profile`. Load that before refining here and **hold U, V, W fixed** (the Lorentzian-dominated pattern won't measure them).\n\n2. **Fix one of the correlated parameters** independently:\n   - Measure zero shift or sample displacement separately (e.g., from a known standard)\n   - Hold that value, free the other\n\n3. **Stiffen the background** — Reduce Chebyshev terms below 24 or increase P-spline smoothing to prevent it from mimicking atomic thermal motion.\n\n4. **Fix one axial slit parameter** (ρ=−0.999) — your geometry is also over-parameterized there.\n\n5. **Re-collect data** — Step size is 4.6 steps/FWHM; need ≥5 for quotable intensities.\n\nYour GoF (1.49) and Rwp (0.0834) look good, but they're masking fundamental unidentifiability in the instrument model."
+              },
+              {
+                "name": "zero_displacement",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Looking at your refinement output, there are **critical quality issues** that prevent most numbers from being publication-ready. Here's the breakdown:\n\n## ❌ **NOT suitable for paper as-is:**\n\n**Cell parameters (a, c)** — Despite good-looking errors, they're entangled in a perfect correlation (ρ=+0.997–0.995) with the zero shift and sample displacement. The warning is explicit: *\"quote neither as measured from this fit.\"*\n\n**Instrument parameters (zero_shift, sample_displacement)** — Completely correlated (ρ=+1.000) in a flat direction—the data literally cannot separate them. Fix one at an independently-measured value before the next run.\n\n**B-iso values** — The Ca2 B-iso (0.4322) is contaminated by background absorption (R²=0.27). Your background model is too flexible and is absorbing what should be thermal parameters.\n\n## ✓ **Potentially quotable:**\n\n**Other B-iso values** (Ca1, P3, F4, O5, O6, O7) — These may survive the background issue, but verify against Ca2's contamination pattern.\n\n## **What to fix before the next run:**\n\n1. **Instrument calibration first** — Run `lab_calibrate` on a standard with certified cell held fixed, then `save_instrument_profile`. Load that before refining here and **hold U, V, W fixed** (the Lorentzian-dominated pattern won't measure them).\n\n2. **Fix one of the correlated parameters** independently:\n   - Measure zero shift or sample displacement separately (e.g., from a known standard)\n   - Hold that value, free the other\n\n3. **Stiffen the background** — Reduce Chebyshev terms below 24 or increase P-spline smoothing to prevent it from mimicking atomic thermal motion.\n\n4. **Fix one axial slit parameter** (ρ=−0.999) — your geometry is also over-parameterized there.\n\n5. **Re-collect data** — Step size is 4.6 steps/FWHM; need ≥5 for quotable intensities.\n\nYour GoF (1.49) and Rwp (0.0834) look good, but they're masking fundamental unidentifiability in the instrument model."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 0.75,
+        "passRateWithout": 0,
+        "delta": 0.25
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 1,
+    "overallScore": 1,
+    "overallPassRate": 1,
+    "meanDelta": 0.25
+  }
+}
