@@ -1,6 +1,6 @@
 # WP-1450 — a collaborator's dataset stays unnamed
 
-Milestone: unscheduled · Status: 🔄 2026-09-24 — the redaction landed (PR #438); the two private-map tasks and the map-pattern acceptance grep remain, and are the maintainer's
+Milestone: unscheduled · Status: 🔄 2026-10-04 — claimed by @yue-here
 Track: The repo's own process
 Depends on: —
 Priority: P1 2026-09-23 — the data owner asked; land it before 1.5.1 is cut, because the wheel ships `diagnostics.py` and `topas.py`; comments and docstrings only, so the job is small

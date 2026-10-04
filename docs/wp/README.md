@@ -23,7 +23,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 2026-09-30 | P3 | [magnetic](#magnetic) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-10-01 | P2 | [magnetic](#magnetic) |
 | [1433](1433-the-inp-grammar-still-refused.md) | The `.inp` grammar the reader still refuses: `STR(...)` and `#if` | 2026-10-01 | P3 | [Unscheduled](#unscheduled-coming-from-another-code) |
-| [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 2026-09-24 | P1 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 2026-10-04 | P1 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1451](1451-the-extinction-a-powder-has.md) | The extinction a powder has | 2026-09-30 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-09-28 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1504](1504-the-figure-surface-measured-with-real-agents.md) | The figure surface measured with real agents | 2026-10-01 | P3 | [rietview](#rietview) |
@@ -545,7 +545,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1410](1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — | — |
 | [1443](1443-part-one-read-by-a-newcomer.md) | Part 1 read by a newcomer: eleven passages, one word, and the version the manual describes | ⬜ | P3 | — |
 | [1448](1448-a-number-somebody-chose.md) | A number somebody chose says so, and says where the argument is | ⬜ | P4 | — |
-| [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 🔄 2026-09-24 | P1 | — |
+| [1450](1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 🔄 2026-10-04 | P1 | — |
 | [1451](1451-the-extinction-a-powder-has.md) | The extinction a powder has | 🔄 2026-09-30 | P4 | — |
 | [1452](1452-spglib-to-moyo.md) | Spglib to moyo, once | ⬜ | P3 | [1327](1327-magnetic-structure.md), [1418](1418-the-magnetic-structure-is-determined.md), [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) |
 | [1506](1506-a-planning-doc-pr-runs-what-reads-it.md) | A planning-doc PR runs the tests that read it, and CI gates on one check | 🔄 2026-09-27 | P3 | — |
