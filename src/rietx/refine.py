@@ -623,18 +623,27 @@ def _scale_b_separation(model: CompiledModel, table: ParameterTable
     return _scale_b_probe(model, table)[0]
 
 
-def _column_separation(a: np.ndarray, columns: list[np.ndarray]) -> float | None:
-    """The sine of the angle between ``a`` and the span of ``columns``, each
-    taken at unit length (:func:`_scale_b_separation`), or ``None`` where
-    ``a`` or every column is zero."""
-    na = float(np.linalg.norm(a))
-    unit = [c / n for c in columns if (n := float(np.linalg.norm(c))) > 0.0]
-    if not (na > 0.0 and unit):
+def _column_separation(scales: list[np.ndarray], columns: list[np.ndarray]
+                       ) -> float | None:
+    """The sine of the smallest angle between the span of ``scales`` and the
+    span of ``columns``, every vector taken at unit length
+    (:func:`_scale_b_separation`), or ``None`` where either set is all zero.
+
+    ``scales`` are one phase's scale columns: one in a single fit, one per
+    histogram in a joint fit, where each lives on its own histogram's rows and
+    so they are orthonormal once unit.  Each is projected off the span of
+    ``columns`` by least squares at numpy's default cut, and the answer is the
+    smallest singular value of what is left.  For one scale column that is
+    its distance from the span.
+    """
+    unit_a = [a / n for a in scales if (n := float(np.linalg.norm(a))) > 0.0]
+    unit_b = [c / n for c in columns if (n := float(np.linalg.norm(c))) > 0.0]
+    if not (unit_a and unit_b):
         return None
-    u = a / na
-    span = np.column_stack(unit)
-    coef = np.linalg.lstsq(span, u, rcond=None)[0]
-    return float(np.linalg.norm(u - span @ coef))
+    span = np.column_stack(unit_b)
+    a = np.column_stack(unit_a)
+    rest = a - span @ np.linalg.lstsq(span, a, rcond=None)[0]
+    return float(np.linalg.svd(rest, compute_uv=False)[-1])
 
 
 def _scale_b_probe(model: CompiledModel, table: ParameterTable,
@@ -667,7 +676,7 @@ def _scale_b_probe(model: CompiledModel, table: ParameterTable,
             th[index[col]] += SCALE_B_STEP
             stepped.append(np.asarray(model.phase_component(ip, table.decode(th)),
                                       dtype=np.float64) / sigma - a)
-        r = _column_separation(a, stepped)
+        r = _column_separation([a], stepped)
         if r is not None:
             out[ip] = r
     return out, reach, columns
@@ -6339,7 +6348,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # its fraction is conditional on.  Read off the stage records, which carry
     # the hold, so the finding and the record quote one measurement.
     diagnostics = diagnostics + _scale_b_ridge_diagnostics(
-        model, values, structure, stage_results)
+        [model], [values], structure, stage_results)
 
     # A strain broader than solved refinements normally use — a flag to check,
     # not a bound (the bound is params.vector.strain_cap, one tier up).
@@ -8166,32 +8175,41 @@ def _scale_b_columns(sr: StageResult) -> dict[int, list[str]]:
     return out
 
 
-def _intensity_weighted_s2(model: CompiledModel, ip: int,
-                           values: dict[str, float]) -> float | None:
-    """Phase ``ip``'s mean s² = 1/(4d²) over its reflections in the fitted range.
+def _intensity_weighted_s2(models: list[CompiledModel], ip: int,
+                           per_values: list[dict[str, float]]) -> float | None:
+    """Phase ``ip``'s mean s² = 1/(4d²) over its reflections in the fitted range
+    of every histogram (one in a single fit).
 
     Weighted by each (emission line, reflection)'s integrated intensity, since
     the fraction's sensitivity to B is the intensity's, and a weak reflection
-    at high s moves it less than a strong one at low s.  "In range" is a
-    nonempty frozen window (:meth:`CompiledModel.phase_line_counts`' reading),
-    and the plain mean stands in where every intensity is zero.  ``None`` when
-    no reflection of the phase lies in range.
+    at high s moves it less than a strong one at low s.  s is λ-free, so a
+    joint fit's histograms pool.  "In range" is a nonempty frozen window
+    (:meth:`CompiledModel.phase_line_counts`' reading), and the plain mean
+    stands in where every intensity is zero.  ``None`` when no reflection of
+    the phase lies in range.
     """
-    cp = model.phases[ip]
-    inside = cp.win[:, :, 1] > cp.win[:, :, 0]
-    if not inside.any():
+    weights, s2s = [], []
+    for model, values in zip(models, per_values, strict=True):
+        cp = model.phases[ip]
+        inside = cp.win[:, :, 1] > cp.win[:, :, 0]
+        if not inside.any():
+            continue
+        s2 = np.broadcast_to(
+            0.25 / np.asarray(cp.reflections.d, dtype=np.float64) ** 2, inside.shape)
+        w = np.stack([np.asarray(p[3], dtype=np.float64)
+                      for p in model.phase_peaks(ip, values)])
+        weights.append(np.where(inside & np.isfinite(w), np.abs(w), 0.0)[inside])
+        s2s.append(s2[inside])
+    if not s2s:
         return None
-    s2 = np.broadcast_to(0.25 / np.asarray(cp.reflections.d, dtype=np.float64) ** 2,
-                         inside.shape)
-    w = np.stack([np.asarray(p[3], dtype=np.float64)
-                  for p in model.phase_peaks(ip, values)])
-    w = np.where(inside & np.isfinite(w), np.abs(w), 0.0)
+    w, s2 = np.concatenate(weights), np.concatenate(s2s)
     if float(w.sum()) > 0.0:
         return float((w * s2).sum() / w.sum())
-    return float(s2[inside].mean())
+    return float(s2.mean())
 
 
-def _scale_b_ridge_diagnostics(model: CompiledModel, values: dict[str, float],
+def _scale_b_ridge_diagnostics(models: list[CompiledModel],
+                               per_values: list[dict[str, float]],
                                structure: Structure,
                                stage_results: list[StageResult] | None,
                                ) -> list[Diagnostic]:
@@ -8214,8 +8232,12 @@ def _scale_b_ridge_diagnostics(model: CompiledModel, values: dict[str, float],
     ridge and returned 0.000 ± 0.000 wt% (WP-1534 task 1).
 
     ``warning``: the reported fraction is a conditional statement, and nothing
-    else in the result says on what.
+    else in the result says on what.  A joint fit passes every histogram's
+    model and values; the range quoted spans them.
     """
+    values = per_values[0]
+    tt_min = min(m.tt_min for m in models)
+    tt_max = max(m.tt_max for m in models)
     paths: dict[int, dict[str, None]] = {}
     stages: dict[int, dict[str, None]] = {}
     least: dict[int, float] = {}
@@ -8234,18 +8256,19 @@ def _scale_b_ridge_diagnostics(model: CompiledModel, values: dict[str, float],
         n = len(held)
         at = ", ".join(f"{p} = {values[p]:.4g}" for p in held[:3] if p in values)
         message = (
-            f"the fitted range {model.tt_min:.4g}-{model.tt_max:.4g}° cannot "
+            f"the fitted range {tt_min:.4g}-{tt_max:.4g}° cannot "
             f"separate phase {ip} ({name})'s scale from its displacement "
-            f"parameters: the two columns are {least[ip]:.1e} apart, under the "
-            f"{SCALE_B_SEPARATION_FLOOR:.1e} the covariance can resolve, which "
-            f"is what reflections at one d-spacing give. So {n} displacement "
+            f"parameters: their columns are {least[ip]:.1e} apart, under the "
+            f"{SCALE_B_SEPARATION_FLOOR:.1e} the covariance can resolve. A "
+            f"phase gives this when it has fewer reflections in range than it "
+            f"has scale and displacement parameters. So {n} displacement "
             f"parameter{'' if n == 1 else 's'} {'was' if n == 1 else 'were'} "
             f"held for stage{'' if len(names) == 1 else 's'} "
             f"{', '.join(names)}"
             + (f" ({at}{'…' if n > 3 else ''})" if at else "")
             + ", and the phase's weight fraction is conditional on "
             + ("that value" if n == 1 else "those values"))
-        s2 = _intensity_weighted_s2(model, ip, values)
+        s2 = _intensity_weighted_s2(models, ip, per_values)
         if s2 is not None:
             message += (f": each 1 Å² of error in B moves it by about "
                         f"{100.0 * math.expm1(2.0 * s2):.2g} % "

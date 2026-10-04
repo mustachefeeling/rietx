@@ -271,7 +271,7 @@ stating what it changed.
       `tests/test_phase_significance.py`: WP-1523's marginal skips every
       displacement-only column because of this ridge, and fluorite there read
       153.7σ on the screen against 0.02σ marginal with them in.
-- [ ] **The joint runner runs the probe**, and `multi.DIAGNOSTIC_SCOPES`
+- [x] **The joint runner runs the probe**, and `multi.DIAGNOSTIC_SCOPES`
       stops declaring it ABSENT.
 - [ ] **`Atom.biso` unbounded by default**; `biso_bounds` and
       `BISO_BOUND_WIDENED` deleted; readers, `help.py`, manual, skill and the

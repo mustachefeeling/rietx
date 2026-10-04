@@ -390,7 +390,7 @@ def test_two_sites_on_two_reflections_are_one_ridge(narrow_pattern):
     for j in (0, 1):
         both[f"phases.{FLUORITE}.atoms.{j}.biso"] += SCALE_B_STEP
     uniform = np.asarray(model.phase_component(FLUORITE, both)) / sigma - a
-    assert _column_separation(a, [uniform]) > SCALE_B_SEPARATION_FLOOR * 1e3
+    assert _column_separation([a], [uniform]) > SCALE_B_SEPARATION_FLOOR * 1e3
 
 
 def test_the_block_hold_keeps_fluorite_off_the_walk(narrow_pattern):
@@ -437,6 +437,53 @@ def test_an_anisotropic_site_is_probed(pattern):
     sr = res.stages[-1]
     assert list(sr.scale_b_held) == [FE]
     assert all(p.startswith(f"phases.{FE}.atoms.0.adp.") for p in sr.held)
+
+
+# ----------------------------------------------------------------------
+# a joint fit: scales per histogram, displacement parameters shared
+# ----------------------------------------------------------------------
+def _joint_fit(patterns, stages):
+    from rietx.multi import MultiHistogramRefinement
+
+    structure, instrument = _models(START_SCALES)
+    ins = [instrument.model_copy(deep=True) for _ in patterns]
+    multi = MultiHistogramRefinement(structure, ins)
+    return multi, multi.fit(patterns, plan=RefinementPlan(stages=stages))
+
+
+def _wide_pattern(tt) -> PatternData:
+    structure, instrument = _models(TRUE_SCALES, unbounded=False)
+    blank = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    model = compile_model(structure, instrument, blank, mode="rietveld")
+    table = ParameterTable(structure, instrument)
+    y = model.evaluate(table.decode(table.x0()))
+    y = np.random.default_rng(4).poisson(np.maximum(y, 1.0)).astype(float)
+    return PatternData(two_theta=np.asarray(model.tt).tolist(), intensity=y.tolist())
+
+
+def test_a_joint_fit_of_two_narrow_scans_holds_fe(pattern):
+    """Before WP-1534's port the joint runner ran no probe, and the 0–25 Å²
+    default on ``Atom.biso`` was all that stood between it and #204's walk."""
+    multi, res = _joint_fit([pattern, pattern],
+                            [Stage("s", BIG), Stage("b", BIG + BISO)])
+    sr = res.stages[-1]
+    assert list(sr.scale_b_held) == [FE]
+    assert sr.scale_b_held[FE] < SCALE_B_SEPARATION_FLOOR
+    assert FE_B in sr.held and FE_B not in sr.freed
+    assert multi.fitted_structures[0].phases[FE].atoms[0].biso.value == TRUE_B["iron"]
+    (finding,) = _findings(res)
+    assert finding.where == [FE_B]
+    assert res.stages[0].scale_b_held == {}
+
+
+def test_a_second_histogram_reaching_more_reflections_separates_fe(pattern):
+    """Fe's (200) and (211) in a 25–90° scan give the shared B a direction no
+    combination of the two scales imitates, so nothing is held."""
+    wide = _wide_pattern(np.arange(25.0, 90.0, 0.02))
+    _, res = _joint_fit([pattern, wide], [Stage("s", BIG), Stage("b", BIG + BISO)])
+    assert all(sr.scale_b_held == {} for sr in res.stages)
+    assert FE_B in res.stages[-1].freed
+    assert _findings(res) == []
 
 
 def test_the_held_fit_is_drawn_for_inspection(ridge_fit):
