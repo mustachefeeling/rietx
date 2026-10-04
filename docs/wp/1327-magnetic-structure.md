@@ -442,9 +442,12 @@ along c). χ² over 32.8-35.0°: 67 against 2711. The bands are sized from these
 and stated beside each assertion: 3.3 μ_B ≤ |m| < 4 μ_B − 3 esd (Mn³⁺'s
 spin-only ceiling, gS for S = 2), and no literature magnitude, since the
 tutorial quotes none, the corpus holds no LaMnO₃ paper and GSAS-II is not
-installed. Both magnetic acceptance files: 5 passed in 3.6 s. `test_magnetic`,
+installed. The 2026-09-24 entry below compares a read-and-test run against
+"about 3.7 published" and names no source, so that number is not used here.
+Both magnetic acceptance files: 5 passed, in 3-4 s. `test_magnetic`,
 `test_docs_consistency`, `test_portability`, `test_validation_matrix`: 776
-passed. The fast selection grows by the two matrix rows' cases.
+passed. The fast selection grows by 10 cases: the two rows through
+`test_validation_matrix`'s five parametrised checks.
 
 *Seen in the plots*: Pn′ma′ fits well; its largest residual is the magnetic
 (010) line at 11.5°, calculated about 15 % low and slightly broad. Pnma misses

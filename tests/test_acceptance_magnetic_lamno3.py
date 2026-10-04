@@ -27,10 +27,10 @@ a supported moment along **a**, below Mn³⁺'s spin-only ceiling, that removes
 half the nuclear-only misfit, and a Pn′ma′ fit that beats the Pnma one at
 that pair.
 
-**The instrument** is taken from ``gsas2_bt1_cu311.inst`` by hand.
+**The instrument** is read from ``gsas2_bt1_cu311.inst`` record by record.
 ``read_gsas_prm`` refuses the file, since its bank's first profile is GSAS
-type 1, so λ comes from the ``ICONS`` line and the Gaussian widths from the
-type-3 profile, converted by the measured convention
+type 1, so λ comes from the ``ICONS`` line and the Gaussian widths and axial
+terms from the type-3 profile, the widths converted by the measured convention
 ``io.recipe.GAUSS_CENTIDEG2_TO_DEG2`` (a GSAS variance in centideg² to a
 Caglioti FWHM² in deg²).  The file's Lorentzian terms are zero, which a
 softplus width cannot start from, so ``x`` keeps the builder's seed.
@@ -58,11 +58,19 @@ pytestmark = [pytest.mark.slow, pytest.mark.xdist_group("magnetic-lamno3")]
 
 DATA = Path(__file__).parent / "data"
 
-#: ``gsas2_bt1_cu311.inst``: λ from ``ICONS``, and GU, GV, GW from the
-#: type-3 profile (``PRCF31``), in GSAS's centideg²
-LAMBDA = 1.5403
-GU_GV_GW = (239.7, -298.2, 180.8)
-AXIAL_SL_HL = (0.04, 0.03)
+
+def _inst_record(key: str) -> list[float]:
+    """The numbers on bank 1's ``key`` line of ``gsas2_bt1_cu311.inst``."""
+    text = (DATA / "gsas2_bt1_cu311.inst").read_text(encoding="ascii")
+    (line,) = [ln for ln in text.splitlines() if ln[6:12].strip() == key]
+    return [float(f) for f in line[12:].split()]
+
+
+#: λ from ``ICONS``; GU, GV, GW from the type-3 profile (``PRCF31``), in
+#: GSAS's centideg²; S/L and H/L from its next record (``PRCF32``)
+LAMBDA = _inst_record("ICONS")[0]
+GU_GV_GW = tuple(_inst_record("PRCF31")[:3])
+AXIAL_SL_HL = tuple(_inst_record("PRCF32")[2:4])
 #: the tutorial's Step 2 Limits, and the contaminant line at 15.69° that its
 #: Step 7 says neither model gives intensity to, at the width the counts show
 LIMITS = (6.0, 156.0)
@@ -199,8 +207,9 @@ def test_pn_ma_beats_pnma_at_the_tutorials_pair(lamno3):
     magnetic (010) line its intensity, and they differ in the moment's
     direction: along a under Pn′ma′, along c under Pnma.  The direction
     changes which part of each moment is perpendicular to the scattering
-    vector, and the pair at 33.3° and 34.4° 2θ is where that shows.  Both moments are held supported, so the
-    comparison is between two moments and not between a moment and none.
+    vector, and the pair at 33.3° and 34.4° 2θ is where that shows.  Both
+    moments are held supported, so the comparison is between two moments and
+    not between a moment and none.
     Pn′ma′ is held to under 0.85 of Pnma's Rwp (0.75 measured) and under a
     tenth of its χ² over the pair (a fortieth measured).
     """

@@ -73,6 +73,11 @@ fit can still converge well, and the microstructure it reports is wrong.
 - [ ] Tests pinned to GSAS-II's own numbers, not to a round trip.
 - [ ] The 1.7.0 notes: a frozen GSAS instrument's widths move, and so does
       every sample-broadening number fitted on one.
+- [ ] `read_gsas_prm` refuses a bank whose first `PRCF` record is not type
+      3, even when the bank also states a type-3 record, as `BT1_Cu311.inst`
+      does (functions 1, 2 and 3). Decide whether to read the type-3 one, or
+      at least name it in the refusal, once the conversion is settled. From
+      WP-1327's review.
 - [ ] Re-check `tests/test_gsas_prm.py`'s cross of `gsas2_hb2a.instprm`
       against `gsas2_hb2a_cr2wo6.prm`, which says U V W "differ, the two
       being different calibrations".
@@ -97,7 +102,7 @@ Plus a figure: one GSAS-II-computed line drawn over rietx's from the same
 
 - **2026-10-04** — Filed from WP-1327's handover. The LaMnO₃ acceptance
   seeds its widths from a GSAS-I file with the recipe's 8 ln 2 constant
-  (`tests/test_acceptance_magnetic_lamno3.py:115`), because `read_gsas_prm`
-  refuses that file and its ÷1e4 seed refined 5–7× away. Nothing in the
+  (`tests/test_acceptance_magnetic_lamno3.py`, `_instrument`), because
+  `read_gsas_prm` refuses that file and its ÷1e4 seed refined 5–7× away. Nothing in the
   package was changed. Next: the first task, since it decides whether the
   rest is a fix or a docstring.
