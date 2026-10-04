@@ -112,7 +112,7 @@ numbers. What a fresh session needs from it:
       exists, every grader file parses, and `PROTOCOL.md` quotes each prompt
 - [ ] `PROTOCOL.md`, registered before the first scored round: the question,
       the conditions, the models, N, the read-outs and the decision rule above
-- [ ] The three cases: `fap-judge` (from the placement round), `fap-fit`
+- [x] The three cases: `fap-judge` (from the placement round), `fap-fit`
       (from scratch: cell in `report.md` by regex, a fit run by `tool_used`,
       the caveat by rubric), and one from issue #661 (the agent is handed a
       TOPAS `.inp` or a GSAS `.EXP` and asked to reproduce the fit; the
