@@ -1171,6 +1171,7 @@ work holds up. `/wp-lanes` runs the selective policy in a real WP session, and
 | 2026-10-03 | e6ef1126 | 6 | 3 | 0K | 7 | 15K | 0.83 | 3 / 2 | +17.77 | +31% |
 | 2026-10-03 | 0433c291 | 3 | 1 | 0K | 10 | 16K | 2.00 | 2 / 0 | +17.96 | +35% |
 | 2026-10-03 | 38257a74 | 1 | 1 | 74K | 27 | 72K | 2.18 | 1 / 0 | +5.17 | +18% |
+| 2026-10-04 | d1d1ba33 | 2 | 1 | 3K | 11 | 27K | 1.60 | 2 / 0 | +3.23 | +19% |
 
 Session 38257a74 (WP-1523) resumed its one lane by `SendMessage` with a
 revised design after the first report. The tool counts that as no redo, and the
