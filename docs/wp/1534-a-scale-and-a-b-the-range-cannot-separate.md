@@ -1,6 +1,6 @@
 # WP-1534 — a scale and a B the fitted range cannot separate
 
-Milestone: unscheduled · Status: 🔄 2026-10-02 — the hold and `SCALE_B_INSEPARABLE` landed (PR #673); task 2's guideline reading is owed, and the default-bounds decision is the maintainer's
+Milestone: unscheduled · Status: 🔄 2026-10-04 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P3 2026-10-02 — was P1: the hold that stops the silent 0.000 ± 0.000 wt% landed in PR #673; what remains is task 2's reading (needs the paper corpus) and the maintainer's call on the default bounds
