@@ -123,8 +123,8 @@ numbers. What a fresh session needs from it:
 - [ ] The first round: the current body on Haiku and Sonnet, N = 3, both
       arms, costed menu first; numbers to this file's handover and to
       WP-1906's `### Inherited`
-- [ ] Tests, `tests/test_eval_skill.py`; the suite out of the wheel
-- [ ] Skill: none — the suite measures the skill and adds no rule to it
+- [x] Tests, `tests/test_eval_skill.py`; the suite out of the wheel
+- [x] Skill: none — the suite measures the skill and adds no rule to it
 
 ## Acceptance
 
