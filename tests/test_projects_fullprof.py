@@ -1138,23 +1138,21 @@ def test_a_phase_with_no_sites_is_refused_rather_than_dropped(tmp_path):
         to_structure(model)
 
 
-def test_a_negative_biso_is_read_with_its_bound_widened(tmp_path):
+def test_a_negative_biso_is_read_as_stated(tmp_path):
     """``corpus file 4``:70 refined O1 to Biso = −0.67266 Å², a real FullProf
     outcome — the column absorbs absorption and normalisation error.
 
     FullProf stores it and so does every other code, so the reader keeps the
-    file's number, widens the floor to hold it and says so (PR #663). Moving
-    it to zero would change every high-Q intensity.
+    file's number. Moving it to zero would change every high-Q intensity.
+    ``Atom.biso`` has no default bound (WP-1534), so nothing is widened.
     """
     negative = _PHASE_SITES.replace("0.31111  0.21111", "0.31111 -0.55555", 1)
     model = read_fullprof_pcr(_pcr(tmp_path, "negb.pcr",
                                    _phase(atoms=negative)))
     diagnostics = []
     biso = to_structure(model, diagnostics=diagnostics).phases[0].atoms[0].biso
-    assert (biso.value, biso.min) == (pytest.approx(-0.55555), pytest.approx(-0.55555))
-    widened = [d for d in diagnostics if d.code == "BISO_BOUND_WIDENED"]
-    assert [d.where for d in widened] == [["phases.0.atoms.0.biso"]]
-    assert "negb.pcr" in widened[0].message
+    assert (biso.value, biso.min) == (pytest.approx(-0.55555), float("-inf"))
+    assert not [d for d in diagnostics if "BISO" in d.code]
 
 
 def test_an_anisotropic_beta_block_is_read_and_refused(tmp_path):
@@ -1369,16 +1367,18 @@ def test_a_schema_refusal_on_an_atom_is_converted_naming_the_file(tmp_path, monk
     schema refusal is converted at this boundary" and reaching any caller that
     catches only the documented error type.
 
-    ``biso`` was the reachable case, a Biso above the 25 Å² bound, until the
-    readers widened the bound to hold the file's value
-    (:func:`rietx.schemas.structure.biso_bounds`).  The old bound is put back
-    here, so the boundary is still exercised by a refusal ``rx.Parameter``
-    raises itself.  A *negative* Biso does not exercise this — it has its own
-    explicit refusal further up.
+    ``biso`` was the reachable case, a Biso above the 25 Å² bound, until
+    ``Atom.biso`` lost its default bound (WP-1534).  The old bound is put back
+    on the atom here, so the boundary is still exercised by a refusal
+    ``rx.Parameter`` raises itself.
     """
-    import rietx.io.projects.fullprof as fullprof
+    real_atom = rx.Atom
 
-    monkeypatch.setattr(fullprof, "biso_bounds", lambda value: {"min": 0.0, "max": 25.0})
+    def strict_atom(**kw):
+        kw["biso"] = rx.Parameter(**{**kw["biso"].model_dump(), "min": 0.0, "max": 25.0})
+        return real_atom(**kw)
+
+    monkeypatch.setattr(rx, "Atom", strict_atom)
     sites = _PHASE_SITES.replace("0.21111", "31.00000")
     pcr = _pcr(tmp_path, "hot.pcr", _phase(atoms=sites))
     with pytest.raises(FullProfPcrError) as excinfo:
@@ -1386,12 +1386,12 @@ def test_a_schema_refusal_on_an_atom_is_converted_naming_the_file(tmp_path, monk
     assert "hot.pcr" in str(excinfo.value)
 
 
-def test_a_biso_above_the_starting_bound_reads(tmp_path):
-    """A published Biso of 31 Å² reads, with its bound widened to hold it."""
+def test_a_biso_above_the_old_ceiling_reads(tmp_path):
+    """A published Biso of 31 Å² reads as stated, unbounded (WP-1534)."""
     sites = _PHASE_SITES.replace("0.21111", "31.00000")
     pcr = _pcr(tmp_path, "hot.pcr", _phase(atoms=sites))
     biso = to_structure(read_fullprof_pcr(pcr)).phases[0].atoms[0].biso
-    assert (biso.value, biso.max) == (pytest.approx(31.0), pytest.approx(31.0))
+    assert (biso.value, biso.max) == (pytest.approx(31.0), float("inf"))
 
 
 # Finding 3 — a tie rietx cannot express is refused, not silently loosened.
@@ -2351,14 +2351,13 @@ def test_an_isotope_goes_to_fullprof_as_a_line12_user_b(species, nam, b_fm):
 @pytest.mark.parametrize("species, neutron, match", [
     ("7Li", False, "X-ray .pcr cannot state one"),
     ("D", False, "X-ray .pcr cannot state one"),
-    ("Cu+", False, "sign but no charge magnitude"),
     ("157Gd", True, "A4"),
 ])
 def test_a_species_fullprof_cannot_state_is_refused_by_name(species, neutron, match):
     """An isotope on an X-ray file (no isotope label; LINE 12 there is
-    anomalous dispersion), a digitless ion (rietx's neutral atom, FullProf's
-    stop), and an isotope whose NAM exceeds four characters (`GD157` stops
-    FullProf's parse, measured). The refusal names the phase and the atom."""
+    anomalous dispersion), and an isotope whose NAM exceeds four characters
+    (`GD157` stops FullProf's parse, measured). The refusal names the phase
+    and the atom."""
     inst = rx.Instrument.constant_wavelength_neutron(1.5406) if neutron else None
     with pytest.raises(ValueError, match=match) as exc:
         from_structure(_cubic(species), instrument=inst)
@@ -2633,8 +2632,47 @@ def test_the_reader_reads_a_files_own_dispersion_and_refuses_a_different_one(tmp
 
 
 def test_a_neutron_file_writes_a_digitless_ion_as_its_element():
-    """Follow-up 7: Cu+ is refused for an X-ray reason (no CU+ form factor);
-    rietx and FullProf both give it Cu's b."""
+    """Follow-up 7: a neutron file keys b on the element, and rietx and
+    FullProf both give Cu+ Cu's b."""
     text = from_structure(_cubic("Cu+"),
                           instrument=rx.Instrument.constant_wavelength_neutron(1.5406))
     assert any(line.startswith("A0 CU ") for line in _lines(text))
+
+
+@pytest.mark.parametrize("species, xray, neutron", [
+    # WP-1527: the atom rietx computes, in the measured keys above. A
+    # digitless ion is the tabulated one; an untabulated ion is neutral.
+    ("Cu+", "CU+1", "CU"),
+    ("Na+", "NA+1", "NA"),
+    ("Fe+", "FE", "FE"),
+])
+def test_a_digitless_ion_is_written_as_the_atom_rietx_computes(species, xray,
+                                                               neutron):
+    from rietx.crystallography.scattering import written_species
+    from rietx.io.projects.fullprof import fullprof_species
+    assert fullprof_species(species, neutron=False) == (xray, None)
+    assert fullprof_species(species, neutron=True) == (neutron, None)
+    assert normalize_species(xray) == written_species(species)[0]
+
+
+@pytest.mark.parametrize("instrument, named", [
+    (None, True),
+    (rx.Instrument.constant_wavelength_neutron(1.5406), False),
+])
+def test_a_written_ion_reads_back_and_a_substitution_is_named(tmp_path,
+                                                              instrument, named):
+    """The maintainer's rule (WP-1527, 2026-10-03): `Cu+` round-trips as the
+    ion on an X-ray file, and `Fe+`, which rietx computes as neutral Fe, is
+    written so and named. A neutron file writes the element for every ion
+    and substitutes nothing, so it names nothing."""
+    diagnostics: list = []
+    out = tmp_path / "ions.pcr"
+    write_fullprof_pcr(_cubic("Cu+", "Fe+"), out, instrument=instrument,
+                       diagnostics=diagnostics)
+    back = to_structure(read_fullprof_pcr(out))
+    assert [a.species for a in back.phases[0].atoms] == (
+        ["Cu1+", "Fe"] if instrument is None else ["Cu", "Fe"])
+    rows = [d for d in diagnostics
+            if d.code == "FULLPROF_SPECIES_WRITTEN_NEUTRAL"]
+    assert [d.where for d in rows] == (
+        [["phases.0.atoms.1.species"]] if named else [])

@@ -31,9 +31,9 @@ Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities(
 - `rx.read_project_model(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> ProjectModel` — Read a refinement another program wrote, dispatching on *content*.
 - `rx.identify_project_format(path: str | Path) -> ProjectFormat` — Which registered project format claims `path` — the dispatch, once.
 - `rx.read_topas_inp(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> TopasModel` — Parse a `.inp`.
-- `rx.write_topas_inp(structure: Structure, path: str | Path)` — Write `structure` to `path` as a TOPAS `.inp`.
+- `rx.write_topas_inp(structure: Structure, path: str | Path, *, diagnostics: list[Diagnostic] | None = None)` — Write `structure` to `path` as a TOPAS `.inp`.
 - `rx.read_fullprof_pcr(path: str | Path) -> FullProfModel` — Parse a `.pcr`.
-- `rx.write_fullprof_pcr(structure: Structure, path: str | Path, *, instrument: Instrument | None = None)` — Write `structure` to `path` as a FullProf `.pcr`.
+- `rx.write_fullprof_pcr(structure: Structure, path: str | Path, *, instrument: Instrument | None = None, diagnostics: list[Diagnostic] | None = None)` — Write `structure` to `path` as a FullProf `.pcr`.
 - `rx.read_gsas_exp(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> GsasModel` — Read a GSAS-I `.EXP` experiment file.
 - `rx.write_gsas_exp(structure: Structure, path: str | Path, *, title: str = '', diagnostics: list[Diagnostic] | None = None)` — Write `structure` to `path` as a GSAS-I `.EXP`.
 - `rx.read_gsas2_gpx(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> Gsas2Model` — Read a GSAS-II `.gpx` project file.
@@ -62,7 +62,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.Phase` — A crystalline phase: symmetry, cell, atoms, scale, sample broadening.
   Fields: `name: str`, `space_group: str`, `symmetry_operations: list[str] | None = None`, `cell: Cell`, `atoms: list[Atom]`, `scale: Parameter = Parameter(1.0, min=0.0)`, `extinction: Parameter = Parameter(0.0, min=0.0)`, `preferred_orientation: PreferredOrientation | None = None`, `lor_size: Parameter = Parameter(0.0, min=0.0)`, `lor_strain: Parameter = Parameter(0.0, min=0.0)`, `magnetic_lor_size: Parameter = Parameter(0.0, min=0.0)`, `magnetic_lor_strain: Parameter = Parameter(0.0, min=0.0)`, `gauss_size: Parameter = Parameter(0.0, min=0.0)`, `gauss_strain: Parameter = Parameter(0.0, min=0.0)`, `microstrain: StephensStrain | None = None`, `particle_radius_um: float | None = None`, `propagation_vector: tuple[str, str, str] | None = None`, `magnetic_symmetry: MagneticSymmetry | None = None`, `restraints: list[BondRestraint | AngleRestraint | ValueRestraint] = []`
 - `rx.Atom` — One site in the asymmetric unit.
-  Fields: `label: str`, `species: str`, `x: Parameter`, `y: Parameter`, `z: Parameter`, `occ: Parameter = Parameter(1.0, min=0.0, max=1.5)`, `biso: Parameter = Parameter(0.5, min=0.0, max=25.0)`, `aniso: AnisoU | None = None`, `moment: Moment | None = None`, `disorder_assembly: str | None = None`, `disorder_group: str | None = None`
+  Fields: `label: str`, `species: str`, `x: Parameter`, `y: Parameter`, `z: Parameter`, `occ: Parameter = Parameter(1.0, min=0.0, max=1.5)`, `biso: Parameter = Parameter(0.5)`, `aniso: AnisoU | None = None`, `moment: Moment | None = None`, `disorder_assembly: str | None = None`, `disorder_group: str | None = None`
 - `rx.Cell` — Unit-cell lengths (Å) and angles (degrees).
   Fields: `a: Parameter`, `b: Parameter`, `c: Parameter`, `alpha: Parameter`, `beta: Parameter`, `gamma: Parameter`
 - `rx.AnisoU` — Anisotropic displacement tensor in the CIF U^ij convention (Å²).

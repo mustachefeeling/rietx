@@ -12,6 +12,7 @@ fraction read as 0.596 wt% when the file said 11.596, and one read as 0.931 when
 the file said 60.931.
 """
 
+import math
 import re
 from pathlib import Path
 
@@ -111,14 +112,39 @@ def test_species_are_written_in_topas_order(iucr, written):
     assert normalize_species(topas_species(iucr)) == normalize_species(iucr)
 
 
-def test_a_charge_with_no_magnitude_is_refused_rather_than_guessed():
-    """rietx reads `Cu+` as neutral Cu (its table has no `Cu+`); TOPAS's X-ray
-    table has no `Cu+` either and reads `Cu+1` as the ion. No spelling states
-    rietx's model, so the writer says so."""
-    with pytest.raises(ValueError, match=r"'Cu1\+' for the ion or 'Cu'"):
-        topas_species("Cu+")
-    with pytest.raises(ValueError, match=r"'7Li1\+' for the ion or '7Li'"):
-        topas_species("7Li+")
+@pytest.mark.parametrize("species, written", [
+    ("Cu+", "Cu+1"),     # rietx computes the tabulated Cu1+ (WP-1527)
+    ("Na+", "Na+1"),
+    ("Cl-", "Cl-1"),
+    ("7Li+", "7Li+1"),   # the mass number stays
+    ("Fe+", "Fe"),       # no Fe1+ in rietx's table: it computes neutral Fe
+    ("57Fe+", "57Fe"),
+])
+def test_a_species_is_written_as_the_atom_rietx_computes(species, written):
+    """The maintainer's rule (WP-1527, 2026-10-03): no species is refused, and
+    none is written as an atom rietx did not compute. TOPAS reads `Cu+1` as
+    the ion; it has no `Cu+` at all."""
+    assert topas_species(species) == written
+
+
+def test_a_written_ion_reads_back_and_a_substitution_is_named(tmp_path):
+    """`Cu+` round-trips as Cu¹⁺. `Fe+` is written as the neutral Fe rietx
+    computed, and the writer names that label and only that one."""
+    def site(label, species, xyz):
+        return rx.Atom(label=label, species=species,
+                       x=rx.Parameter(value=xyz), y=rx.Parameter(value=xyz),
+                       z=rx.Parameter(value=xyz),
+                       biso=rx.Parameter(value=0.5, min=0.0, max=25.0))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="syn", space_group="Pm-3m", cell=rx.Cell.cubic(4.0),
+        atoms=[site("A1", "Cu+", 0.0), site("A2", "Fe+", 0.5)])])
+    diags: list = []
+    write_topas_inp(structure, tmp_path / "syn.inp", diagnostics=diags)
+    back = to_structure(read_topas_inp(tmp_path / "syn.inp"))
+    assert [a.species for a in back.phases[0].atoms] == ["Cu1+", "Fe"]
+    [named] = [d for d in diags if d.code == "TOPAS_SPECIES_WRITTEN_NEUTRAL"]
+    assert named.where == ["phases.0.atoms.1.species"]
+    assert "'Fe+'" in named.message and "neutral Fe" in named.message
 
 
 @pytest.mark.parametrize("written, expected", [
@@ -1929,8 +1955,8 @@ def test_a_negative_beq_is_kept_never_clamped(tmp_path):
     A slightly negative refined B is an ordinary outcome of a converged
     refinement — the column absorbs absorption and normalisation error, and 75
     sites across 11 archive files state one. Moving it changes every high-Q
-    intensity, so the reader keeps the file's number, widens the floor to hold
-    it and says so (PR #663).
+    intensity, so the reader keeps the file's number. ``Atom.biso`` has no
+    default bound (WP-1534), so nothing is widened and nothing is said.
     """
     inp = _inp(tmp_path, "negb.inp",
                'str\nphase_name "Co10Ge3O16"\nspace_group "P1"\na 8.3\n'
@@ -1939,14 +1965,11 @@ def test_a_negative_beq_is_kept_never_clamped(tmp_path):
     assert model.phases[0].sites[0].beq == pytest.approx(-0.42)
     diagnostics = []
     biso = to_structure(model, diagnostics=diagnostics).phases[0].atoms[0].biso
-    assert (biso.value, biso.min) == (pytest.approx(-0.42), pytest.approx(-0.42))
-    widened = [d for d in diagnostics if d.code == "BISO_BOUND_WIDENED"]
-    assert [d.where for d in widened] == [["phases.0.atoms.0.biso"]]
-    assert "GE1" in widened[0].message
+    assert (biso.value, biso.min) == (pytest.approx(-0.42), -math.inf)
+    assert not [d for d in diagnostics if "BISO" in d.code]
 
 
-def test_a_schema_refusal_from_the_cell_or_the_atoms_is_still_converted(
-        tmp_path, monkeypatch):
+def test_a_schema_refusal_from_the_cell_or_the_atoms_is_still_converted(tmp_path):
     """`rx.Cell(...)` and the `atoms` comprehension sat **outside** the try that
     exists to convert a schema report into a reader's refusal — one line above
     it — so only the `rx.Phase(...)` call was covered and `beq bA 26.0` reached
@@ -1954,35 +1977,27 @@ def test_a_schema_refusal_from_the_cell_or_the_atoms_is_still_converted(
 
     The truncation pin cannot catch this class: a ragged cut rarely leaves a
     well-formed line carrying an out-of-range number, so it is tested directly.
-    26 Å² was outside the [0, 25] window `Atom.biso` declares until the readers
-    widened the bound to hold the file's value
-    (:func:`rietx.schemas.structure.biso_bounds`).  The old bound is put back
-    here, so the boundary is still exercised by a refusal the schema raises.
+    It was a beq of 26 Å² until `Atom.biso` lost its default bound (WP-1534);
+    an occupancy of 1.8 is outside the [0, 1.5] window `Atom.occ` declares.
     """
-    import rietx.io.projects.topas as topas
-
-    monkeypatch.setattr(topas, "biso_bounds",
-                        lambda value: {"min": 0.0, "max": 25.0})
     inp = _inp(tmp_path, "outofrange.inp",
                'str\nphase_name "hot"\nspace_group "P1"\na 5.0\n'
-               'site A1 x 0 y 0 z 0 occ Na+1 1 beq bA 26.0\n')
+               'site A1 x 0 y 0 z 0 occ Na+1 1.8 beq bA 0.5\n')
     with pytest.raises(TopasInpError) as exc:
         to_structure(read_topas_inp(inp))
     assert "outofrange.inp" in str(exc.value) and "hot" in str(exc.value)
 
 
-def test_a_beq_above_the_starting_bound_reads(tmp_path):
-    """A stated beq of 26 Å² reads, with its bound widened to hold it, and
-    the reader says so."""
+def test_a_beq_above_the_old_ceiling_reads(tmp_path):
+    """A stated beq of 26 Å² reads as stated, unbounded (WP-1534)."""
     inp = _inp(tmp_path, "hot.inp",
                'str\nphase_name "hot"\nspace_group "P1"\na 5.0\n'
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq bA 26.0\n')
     diagnostics = []
     structure = to_structure(read_topas_inp(inp), diagnostics=diagnostics)
     biso = structure.phases[0].atoms[0].biso
-    assert (biso.value, biso.max) == (pytest.approx(26.0), pytest.approx(26.0))
-    widened = [d for d in diagnostics if d.code == "BISO_BOUND_WIDENED"]
-    assert [d.where for d in widened] == [["phases.0.atoms.0.biso"]]
+    assert (biso.value, biso.max) == (pytest.approx(26.0), math.inf)
+    assert not [d for d in diagnostics if "BISO" in d.code]
 
 
 # ------------------------------------------------------------ the robustness pin
@@ -3862,12 +3877,20 @@ def test_write_topas_inp_writes_ions_sign_first(tmp_path):
     assert [a.species for a in back.phases[0].atoms] == ["Zr4+", "O2-"]
 
 
-def test_write_topas_inp_refuses_a_charge_with_no_magnitude(tmp_path):
+def test_write_topas_inp_writes_an_untabulated_ion_as_its_neutral_atom(tmp_path):
+    """WP-1527: rietx's table has no Al1+, so it computes neutral Al for
+    `Al+`, and the file states that atom and names the label."""
     phase = _cubic_al().phases[0]
     phase = phase.model_copy(update={"atoms": [
         phase.atoms[0].model_copy(update={"species": "Al+"})]})
-    with pytest.raises(ValueError, match=r"phase 'Al': atom 'Al1': species 'Al\+'"):
-        write_topas_inp(rx.Structure(phases=[phase]), tmp_path / "al.inp")
+    diagnostics: list = []
+    out = tmp_path / "al.inp"
+    write_topas_inp(rx.Structure(phases=[phase]), out, diagnostics=diagnostics)
+    assert "occ Al " in out.read_text(encoding="utf-8")
+    (row,) = [d for d in diagnostics
+              if d.code == "TOPAS_SPECIES_WRITTEN_NEUTRAL"]
+    # f0(Al, 0) is 12.9986 electrons against the ion's 12
+    assert row.level == "warning" and row.value == pytest.approx(0.0832, abs=1e-4)
 
 
 def test_write_topas_inp_writes_the_resolved_setting_not_the_bare_symbol(tmp_path):
@@ -4087,6 +4110,22 @@ def test_write_topas_inp_writes_mlx_in_topas_fractional_basis(tmp_path):
     assert values == pytest.approx({"mlx": 0.4, "mly": -0.3, "mlz": 0.3},
                                    rel=1e-15)
     assert "mg" not in site.split()        # no g stated, none written
+
+
+@pytest.mark.parametrize("ion, written", [("Fe4+", "Fe+4"), ("Mn1+", "Mn+1")])
+def test_write_topas_inp_a_magnetic_site_keeps_an_ion_the_xray_table_lacks(
+        ion, written, tmp_path):
+    """TOPAS takes the magnetic form factor from the `occ` species, and rietx
+    computes the moment from the ion, so the X-ray table's neutral fallback
+    (WP-1527) must not reach a magnetic site, nor its diagnostic."""
+    phase = _magnetic_phase("orthorhombic", species=ion)
+    diags: list = []
+    out = tmp_path / "m.inp"
+    rx.write_topas_inp(rx.Structure(phases=[phase]), out, diagnostics=diags)
+    text = out.read_text(encoding="utf-8")
+    (site,) = [line for line in text.splitlines() if "site Fe1" in line]
+    assert f"occ {written} " in site
+    assert not [d for d in diags if d.code == "TOPAS_SPECIES_WRITTEN_NEUTRAL"]
 
 
 def test_write_topas_inp_moment_round_trips_within_one_ulp(tmp_path):

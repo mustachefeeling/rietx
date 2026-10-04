@@ -604,7 +604,7 @@ class _InheritsDeclaredDefaults(Base):
     ``Parameter`` inherits what it left out.
 
     A field declares its physical range, unit and transform in its
-    ``default_factory`` (``Atom.biso``: min 0, max 25, Å²; ``Phase.lor_size``:
+    ``default_factory`` (``Atom.occ``: min 0, max 1.5; ``Phase.lor_size``:
     min 0, degrees, softplus) rather than as a field constraint, so before
     this the range applied only when the field was omitted entirely.  A caller
     supplying ``Parameter(value=..., vary=...)`` — the natural way to set a

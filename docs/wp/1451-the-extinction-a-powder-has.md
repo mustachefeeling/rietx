@@ -1,9 +1,8 @@
 # WP-1451 — the extinction a powder has
 
-Milestone: unscheduled · Status: 🔄 2026-09-30 — the rename landed (PR #533); declaring `ext`'s unit and restating its `typical` remain
+Milestone: unscheduled · Status: ✅ 2026-10-04 — the rename landed (PR #533); `ext` is declared in µm² and its `typical` range is measured
 Track: The repo's own process
 Depends on: —
-Priority: P4 2026-09-30 — the rename landed; what remains is a help range that describes no extinction, and it moves no number
 
 ## Goal
 
@@ -80,9 +79,10 @@ answer that.
       `tests/test_compare_ui.py` pass; the manual builds under `-W`.
 - [x] Skill: grep `docs/skill/` for the name. None at `644dff84`, so "none"
       unless a row appears before this lands.
-- [ ] Declare `Phase.extinction`'s unit (D² in µm²): a schema unit and a
+- [x] Declare `Phase.extinction`'s unit (D² in µm²): a schema unit and a
       `UNIT_DISPLAY` row, since `help.py`'s `unit` is pinned to the live
       `Parameter`. Then restate `typical` from D. From PR #533's review.
+      (2026-10-04: `unit="um^2"`, shown as µm²; `typical` measured.)
 
 ## Acceptance
 
@@ -101,6 +101,48 @@ git grep -n -i 'secondary extinction' -- src docs/manual tests   # no hits
 
 ## Handover log
 
+- **2026-10-04** — **Closed.** The extinction coefficient now says what it
+  is measured in, µm², in its help entry, which the glossary and the GUI's
+  help card both read. Its help text gave a
+  "typical" value a thousand times too small to dim any reflection. It now
+  gives the range where extinction is visible, measured on five structures.
+  No fit's numbers move.
+  - **Done.** `Phase.extinction`'s default declares `unit="um^2"`;
+    `help.UNIT_DISPLAY` spells it `µm²` (U+00B5, the repo's only micro
+    sign); the help entry's `unit` follows, as `test_help.py` pins. The
+    `using/data.md` row puts µm² in its Default column like its siblings,
+    and the theory chapter says after the Sabine equations why 0.079411 makes
+    `ext` a D² in µm². A document saved before this keeps `unit: null` on
+    that parameter, whatever its schema.
+  - **Measured** (`sabine_extinction` on the strongest reflection, Cu Kα,
+    10-120° 2θ, the scratch script's five structures: the suite's LaB6,
+    fluorapatite and COD 1000055, 9007744 and 4002052): a 1 % loss needs
+    ext = 0.12-8.4 µm² (D = 0.35-2.9 µm) and a 10 % loss 1.4-93 µm²
+    (D = 1.2-9.6 µm). The old `typical` of 1e-4 costs at most 8e-6. The new
+    text is "0 for a ground powder; 0.1 to 100 (blocks of 0.3 to 10 µm)
+    where a strong reflection loses a visible share". `Stage.seed`'s
+    "1e-4 to 1e-3" stays: it describes the seed the extinction stage uses
+    (1e-3), chosen for the gradient, not as a size.
+  - **Tests** (`[dev]`, macOS arm64, another session's pytest running, so
+    no time is quoted): fast selection before the review 8164 passed, 159
+    skipped, no test added; the review's fix adds one. The final tree
+    (current with `origin/main`, nothing else running): 8165 passed,
+    159 skipped (+1), in 2:33. The added test takes
+    0.03 s. The acceptance files, `test_schemas` and `test_magnetic_width`:
+    411 passed. `sphinx -W` builds; the glossary shows µm². The acceptance
+    grep still finds the two intended lines the 2026-09-30 entry names.
+  - **Review** (`/code-review high --fix`, six findings). Fixed: the
+    data.md row's unit column, a reflowed schema comment, and the theory
+    sentence above. **One was a real defect in this change**: a project saved
+    before schema 0.35 stores extinction with its range and no unit, and the
+    declared-range repair read the missing unit as issue #204's signature. It
+    filled `um^2` and emitted an info `DECLARED_RANGE_RESTORED` note per phase
+    blaming #204. `migrate._candidate` now needs a range or transform to
+    restore, so a unit alone rides only with one;
+    `test_a_unit_declared_later_is_no_range_to_restore` fails without the fix.
+    Any later unit declared on a pre-0.35 field takes the same path. Declined:
+    `gui/src/lib/history.ts:361` says an extinction coefficient reaches 1e-6.
+    It does, in µm² too: the LaB6 acceptance refines it to about 2e-10.
 - **2026-09-30** — The rename landed from outside: PR #533
   (`mustachefeeling`), merged as `4de25284` in a `/pr-review` run, closing
   #419. The Sabine correction is now called primary extinction everywhere a

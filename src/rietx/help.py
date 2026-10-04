@@ -123,6 +123,7 @@ UNIT_DISPLAY: dict[str, str] = {
     "counts*deg": "counts·deg 2θ",
     "1e-12 A^-4": "10⁻¹² Å⁻⁴",
     "mu_B": "μ_B",
+    "um^2": "µm²",
 }
 
 
@@ -682,8 +683,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "unaffected. The gradient at 0 is dead, which is why the staged "
             "plans seed it off zero with `Stage.seed` when they free it."
         ),
-        unit=None, default="0.0",
-        typical="0 for a ground powder; up to 1e-4 for large crystallites",
+        unit="µm²", default="0.0",
+        typical="0 for a ground powder; 0.1 to 100 (blocks of 0.3 to 10 µm) "
+                "where a strong reflection loses a visible share",
         anchor="corrections.html#primary-extinction",
     ),
     "phases.*.lor_size": HelpEntry(
@@ -858,11 +860,12 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "too-flexible background biases first. A negative B is "
             "unphysical, and a refined B above about 5 Å² for a heavy atom "
             "usually means an absorption or background error rather than a "
-            "real displacement. The default bounds are 0 to 25 Å², this "
-            "package's own and not what other Rietveld codes do: pass your own "
-            "Parameter with a wider range to refine past them. A structure "
-            "file's own value outside that range is kept, and the reader "
-            "widens the bound to hold it."
+            "real displacement. There is no default bound, as in other "
+            "Rietveld codes: a negative B reports BISO_NEGATIVE, one past the "
+            "phase's melting estimate BISO_UNUSUALLY_LARGE, and a stage holds "
+            "B where the fitted range cannot separate it from the phase's "
+            "scale (SCALE_B_INSEPARABLE). Pass a Parameter with min or max to "
+            "bound it yourself."
         ),
         unit="Å²", default="0.5",
         typical="0.2-2 Å² for an inorganic framework at room temperature",

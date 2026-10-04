@@ -1,0 +1,3 @@
+# The from-scratch fit: the pattern and the starting model, nothing of GSAS's.
+copy tests/data/FAP.XRA
+copy tests/data/fluorapatite.cif

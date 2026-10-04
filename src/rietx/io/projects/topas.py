@@ -169,7 +169,6 @@ from ...crystallography.symmetry import (
     setting_diagnostics,
 )
 from ...schemas.common import Diagnostic, Parameter
-from ...schemas.structure import biso_bounds, biso_widening_diagnostic
 from ..formats.base import decode
 from . import coverage as _coverage
 
@@ -1565,24 +1564,23 @@ def topas_species(species: str) -> str:
     A neutral atom or isotope, or any label that is not an element plus a
     charge, is written as it is.
 
-    An ion with a sign but no magnitude (``Cu+``) is refused. rietx's own
-    scattering table has no ``Cu+`` and falls back to neutral Cu, while
-    TOPAS's X-ray table has no ``Cu+`` at all (it stops) and ``Cu+1`` is the
-    ion, so no spelling writes the model rietx computed.
+    The species written is the one rietx computes
+    (:func:`~rietx.crystallography.scattering.written_species`, WP-1527). A
+    one-charge ion without its digit is the tabulated ion, so ``Cu+`` →
+    ``Cu+1``, which TOPAS reads as that ion. An ion rietx's table lacks is
+    computed as the neutral atom, so ``Fe+`` → ``Fe``, and
+    :func:`from_structure` reports it as ``TOPAS_SPECIES_WRITTEN_NEUTRAL``.
     """
+    from ...crystallography.scattering import written_species
+
+    return _sign_first(written_species(species)[0])
+
+
+def _sign_first(species: str) -> str:
+    """``Fe4+`` → ``Fe+4``, and nothing else: TOPAS's spelling of a label."""
     if m := re.fullmatch(r"(\d*)([A-Za-z]{1,2})(\d*)([+-])", species):
         mass, element, magnitude, sign = m.groups()
-        element = mass + element
-        if not magnitude:
-            raise ValueError(
-                f"species {species!r} has a sign but no charge magnitude: "
-                f"rietx's scattering table reads it as the neutral atom "
-                f"{element!r}, and TOPAS has no {species!r} (its X-ray table "
-                f"stops on it) and reads {element + sign + '1'!r} as the ion, "
-                f"so no TOPAS spelling states the model rietx computed. Write "
-                f"{element + '1' + sign!r} for the ion or {element!r} for the "
-                f"neutral atom")
-        return f"{element}{sign}{magnitude}"
+        return f"{mass}{element}{sign}{magnitude}"
     return species
 
 
@@ -3946,10 +3944,9 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     A **negative** ``beq`` is read as the file states it. A slightly negative
     refined B is an ordinary outcome of a converged refinement (the column
     absorbs absorption and normalisation error), and 75 sites across 11
-    archive files state one. Its bound is widened to hold it rather than the
-    number being moved to zero (PR #663), which ``BISO_BOUND_WIDENED`` reports,
-    and a fit that keeps it reports ``BISO_NEGATIVE``. Every structure reader
-    treats it the same way.
+    archive files state one. ``Atom.biso`` has no default bound (WP-1534), so
+    the number is kept, and a fit that keeps it reports ``BISO_NEGATIVE``.
+    Every structure reader treats it the same way.
 
     ``magnetic_symmetry`` names a **magnetic** phase's group where the file
     does not. A ``mag_space_group`` stating a BNS or OG number (``62.448``,
@@ -4157,16 +4154,14 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
                                     **({"vary": s.vary[u]} if u in s.vary else {}))
                     for u in _ADP_KEYS})
                 displacement = {
-                    "biso": rx.Parameter(value=b_record, vary=False,
-                                         **biso_bounds(b_record)),
+                    "biso": rx.Parameter(value=b_record, vary=False),
                     "aniso": block}
             else:
                 # The file's own number, not `max(beq, 0.0)`: a negative one is
                 # kept rather than moved. A site that stated none is
                 # seeded 0.5 here, at build time — the model keeps it as None.
                 b_iso = 0.5 if s.beq is None else s.beq
-                displacement = {"biso": _sp(s, "beq", b_iso,
-                                            **biso_bounds(b_iso))}
+                displacement = {"biso": _sp(s, "beq", b_iso)}
             magnetic = {}
             if s.moment is not None and ph.name in magnetic_specs:
                 # `mlx/mly/mlz` are fractional-basis components (see
@@ -4285,9 +4280,6 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     except Exception as exc:
         # e.g. a phase whose site lines were all inside a disabled #ifdef branch
         raise TopasInpError(f"{model.path or '<model>'}: {exc}") from exc
-    if diagnostics is not None and (
-            widened := biso_widening_diagnostic(structure, str(model.path or '<model>'))) is not None:
-        diagnostics.append(widened)
     return structure
 
 
@@ -4446,7 +4438,8 @@ def _magnetic_group_line(phase) -> str | None:
     return number
 
 
-def from_structure(structure: Structure) -> str:
+def from_structure(structure: Structure, *,
+                   diagnostics: list[Diagnostic] | None = None) -> str:
     """Serialise ``structure`` as TOPAS ``.inp`` text — the inverse of
     :func:`to_structure`.
 
@@ -4501,6 +4494,14 @@ def from_structure(structure: Structure) -> str:
     ``phase.space_group`` exactly as written; compare space groups with
     ``get_spacegroup(...).xhm()`` on both sides, not by string, since the
     written spacing (``"P n -3 m"``) need not match a caller's own.
+
+    A species is written as the atom rietx computes, in TOPAS's spelling
+    (:func:`topas_species`), and none is refused. Where rietx computes the
+    neutral atom for an ion its table lacks (``Fe+``), the file states the
+    neutral element. Pass ``diagnostics=`` a list to have each such label
+    named, ``TOPAS_SPECIES_WRITTEN_NEUTRAL``. A site carrying a moment keeps
+    its ion (``Fe4+`` → ``Fe+4``), since TOPAS reads the magnetic form factor
+    from it and rietx computes the moment from that ion.
 
     Four refusals besides the phase-name quote check above, the fourth being
     :func:`_tail`'s on a non-finite value. A label or
@@ -4569,11 +4570,12 @@ def from_structure(structure: Structure) -> str:
                     f"are not quoted, so `strip_comments` reads an unquoted "
                     f"``'`` as opening a line comment and drops everything "
                     f"after it on that line, including x/y/z/occ/beq")
-            try:
-                species = topas_species(atom.species)
-            except ValueError as exc:
-                raise ValueError(f"phase {phase.name!r}: atom {atom.label!r}: "
-                                 f"{exc}") from None
+            # A magnetic site keeps its ion. TOPAS takes the magnetic form
+            # factor from the `occ` species, and rietx computes the moment's
+            # from that ion (moment.ion == species, checked above), so the
+            # X-ray table's fallback (Fe4+ → Fe) is not what rietx computed.
+            species = (topas_species(atom.species) if atom.moment is None
+                       else _sign_first(atom.species))
             site = (f"  site {atom.label} x {_tail(atom.x)} y {_tail(atom.y)} "
                     f"z {_tail(atom.z)} occ {species} {_tail(atom.occ)}")
             if atom.aniso is not None:
@@ -4591,6 +4593,10 @@ def from_structure(structure: Structure) -> str:
             if atom.moment is not None:
                 site = f"{site} {_moment_tail(atom.moment, cell)}"
             lines.append(site)
+    if diagnostics is not None:
+        from ...crystallography.scattering import written_neutral_diagnostics
+        diagnostics.extend(written_neutral_diagnostics(
+            structure, code="TOPAS_SPECIES_WRITTEN_NEUTRAL", program="TOPAS"))
     return "\n".join(lines) + "\n"
 
 
@@ -4622,7 +4628,9 @@ def _moment_tail(moment, cell) -> str:
     return " ".join(parts)
 
 
-def write_topas_inp(structure: Structure, path: str | Path) -> None:
+def write_topas_inp(structure: Structure, path: str | Path, *,
+                    diagnostics: list[Diagnostic] | None = None) -> None:
     """Write ``structure`` to ``path`` as a TOPAS ``.inp``. See
     :func:`from_structure` for exactly what carries and what does not."""
-    Path(path).write_text(from_structure(structure), encoding="utf-8")
+    Path(path).write_text(from_structure(structure, diagnostics=diagnostics),
+                          encoding="utf-8")

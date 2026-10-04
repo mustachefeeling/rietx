@@ -180,7 +180,7 @@ and the rest describe what this specimen did to the peaks.
 | `Phase.lor_strain` | `Parameter` | 0.0 deg, softplus | Lorentzian strain broadening, tan θ |
 | `Phase.gauss_size` | `Parameter` | 0.0 deg², softplus | Gaussian size broadening, 1/cos²θ |
 | `Phase.gauss_strain` | `Parameter` | 0.0 deg², softplus | Gaussian strain broadening, tan²θ |
-| `Phase.extinction` | `Parameter` | 0.0, fixed, softplus | primary extinction (squared mosaic-block size), {eq}`corr-sabine`; 0 is E ≡ 1 exactly |
+| `Phase.extinction` | `Parameter` | 0.0 µm², fixed, softplus | primary extinction, the squared mosaic-block size D², {eq}`corr-sabine`; 0 is E ≡ 1 exactly |
 | `Phase.preferred_orientation` | `PreferredOrientation` or None | `None` | single-axis March-Dollase, {eq}`corr-md` |
 | `Phase.microstrain` | `StephensStrain` or None | `None` | anisotropic strain, width per hkl, {eq}`ms-sigma` |
 | `Phase.particle_radius_um` | float or None | `None` | Brindley microabsorption input, {eq}`corr-brindley`; a plain float, never refined |
