@@ -105,7 +105,7 @@ table), and the writer rule is for those.
   0.0049 e at worst over s ≤ 2 Å⁻¹, and against cctbx `it1992` and GSAS-II
   `atmdata.py`, digit for digit)
 - [x] Decide what Y³⁺ does past s = 2 Å⁻¹, where the fit leaves the free atom
-  (−0.11 e at 2.5, −0.57 e at 3.0, negative beyond 3.86) and ITC sends the
+  (−0.11 e at 2.5, −0.57 e at 3.0, negative beyond 3.85) and ITC sends the
   reader to the free-atom curve. Today rietx evaluates the fit everywhere, as
   cctbx and GSAS-II do. A switch at s = 2 would put a step in f₀ that a
   reflection crossing it during a stage would feel. (2026-10-04, the
@@ -162,6 +162,28 @@ format can state a curve that switches partway, and below 2 Å⁻¹ the fit and
 the tabulated ion agree to 0.005 e; GSAS-II and cctbx evaluate the same fit
 at every s, so past 2.149 Å⁻¹ they and rietx now differ by up to 0.57 e at
 3 Å⁻¹.
+
+*Review* (`/code-review high --fix` on this commit, ten findings). Fixed: the
+manual takes the hand-over from the package (`Y3_HANDOVER_STOL` in
+`conf.py`, rendering 2.149); `_itc_handover` brackets the *first* sign change
+on a 1001-point grid before `brentq`, as its docstring promises (Y³⁺ moves in
+the last bits only); the jax test runs under `backend.traced.active`; a
+slope in a docstring (about 2 e per Å⁻¹, not 4); 3.86 → 3.85 above.
+Declined, each for a reason:
+- *Frozen-per-stage discreteness.* The switch is an elementwise `xp.where`,
+  traceable and continuous; the residual keeps a kink, a slope change of
+  0.15 e per Å⁻¹ at one s, as at FCJ's quadrature split. Freezing the choice
+  per reflection at stage compile would trade the kink for a small step at
+  each stage boundary.
+- *A diagnostic per fit.* That was option (c), which the maintainer did not
+  choose; the value is the table's, as every other ion's is, and the 1.7.0
+  note states it.
+- *The writers.* Named above as deliberately not generalised.
+- *A Y³⁺ row in `test_cross_backend.py`.* No derivative path is new: nothing
+  differentiates f₀ analytically, and `where` is in every backend's
+  conformance suite.
+- *Caching the neutral row.* A regex and a second Gaussian sum per Y³⁺ site
+  per evaluation, microseconds.
 
 ### 2026-10-04 (2nd session) — the `.pcr` read by FullProf's rule; Y³⁺'s decision measured
 

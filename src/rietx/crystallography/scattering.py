@@ -132,10 +132,15 @@ def _itc_handover(species: str) -> float:
         s2 = np.array([s * s])
         return float(_gaussians(np, ion, s2)[0] - _gaussians(np, neutral, s2)[0])
 
-    lo, hi = 2.0, 3.0
-    if gap(lo) * gap(hi) > 0.0:
+    # brentq returns *a* root of its bracket, so the bracket is the first
+    # sign change on a fine grid: the first crossing, as documented above
+    grid = np.linspace(2.0, 3.0, 1001)
+    signs = np.sign([gap(s) for s in grid])
+    change = np.flatnonzero(signs[:-1] * signs[1:] <= 0.0)
+    if change.size == 0:
         raise RuntimeError(f"{species}'s ITC fit does not meet its neutral atom between "
-                           f"s = {lo} and {hi} Å⁻¹; choose its hand-over by hand")
+                           f"s = 2 and 3 Å⁻¹; choose its hand-over by hand")
+    lo, hi = grid[change[0]], grid[change[0] + 1]
     return float(brentq(gap, lo, hi, xtol=1e-15, rtol=4.0 * np.finfo(float).eps))
 
 

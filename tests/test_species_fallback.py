@@ -521,7 +521,7 @@ def test_y3plus_hands_over_to_neutral_y_where_the_two_curves_meet():
 
 def test_the_hand_over_puts_no_step_in_f0():
     """A reflection whose s crosses the hand-over during a stage meets a kink
-    and no jump: either side of it f0 moves by its slope (~4 e per Å⁻¹)
+    and no jump: either side of it f0 moves by its slope (~2 e per Å⁻¹)
     times the distance, and no more."""
     h = _itc_handover("Y3+")
     step = 1e-9

@@ -42,7 +42,7 @@ range *International Tables* recommends the free-atom curve, because the core
 electrons dominate high-angle scattering, and the fit leaves it: 0.57 e below
 the free atom at $s = 3$ Å⁻¹, and negative past 3.85 Å⁻¹. So rietx computes
 Y³⁺ as neutral Y past the first $s$ beyond 2 Å⁻¹ where the two curves meet,
-2.149 Å⁻¹. $f_0$ has a kink there and no step.
+{{ Y3_HANDOVER_STOL }} Å⁻¹. $f_0$ has a kink there and no step.
 
 $f'/f''$ come from the Cromer-Liberman tabulation
 {cite}`cromer1970,cromer1981`, the crystallographic reference calculation and
