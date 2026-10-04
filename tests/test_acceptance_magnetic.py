@@ -47,6 +47,8 @@ DATA = Path(__file__).parent / "data"
 #: is taken from it and the width seeded by hand, as the re-run did
 LAMBDA = 2.4067
 FWHM_SEED_DEG = 0.35
+#: the region the plots zoom into, where the magnetic lines are
+LOW_ANGLE = (8.0, 50.0)
 
 SCALE = "phases.0.scale"
 BKG = [f"instrument.background.c{i}" for i in range(4)]
@@ -122,6 +124,17 @@ def _fit(structure, instrument, data, stages):
     return ref, result
 
 
+def draw(result, stem: str, low_angle: tuple[float, float]) -> None:
+    """Fit plots for inspection (``tests/output/``, gitignored): the whole
+    pattern, and the low-angle region where the magnetic lines are."""
+    from rietx.viz.plots import plot_result
+
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    plot_result(result, path=str(out / f"{stem}.png"))
+    plot_result(result, path=str(out / f"{stem}_low.png"), two_theta_range=low_angle)
+
+
 @pytest.fixture(scope="module")
 def cr2wo6(cr2wo6_nuclear):
     # the nuclear fits are the session's (``conftest.cr2wo6_nuclear``), shared
@@ -138,6 +151,9 @@ def cr2wo6(cr2wo6_nuclear):
     ref_null, null = _fit(_with_moment(ref150.structure, (2.0, 0.0, 0.0)),
                           ref150.instrument.model_copy(deep=True), d150,
                           MAGNETIC_STAGES)
+    draw(nuc4, "cr2wo6_4K_nuclear", LOW_ANGLE)
+    draw(ordered["a"][0], "cr2wo6_4K_moment", LOW_ANGLE)
+    draw(null, "cr2wo6_150K_moment", LOW_ANGLE)
     return {"nuc150": nuc150, "nuc4": nuc4, "ordered": ordered,
             "null": (null, ref_null.report().magnetic)}
 
