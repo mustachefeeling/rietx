@@ -9,6 +9,10 @@ valid for s ≤ 6 Å⁻¹ — a wider range than the older 4-Gaussian Cromer-Man
 form.  Coefficients are read from the DABAX file ``f0_WaasKirf.dat`` (ESRF
 DABAX collection; see ATTRIBUTION.md).
 
+One ion *International Tables* Vol. C Table 6.1.1.3 lists is missing from that
+file, Y³⁺.  It is carried in :data:`_ITC_IONS`, from Table 6.1.1.4's
+4-Gaussian fit, which is valid for s ≤ 2 Å⁻¹ only (WP-1527).
+
 The symbol is ``s`` in the equation and ``stol`` in python, following the
 paper and cctbx respectively.  The DABAX file's own preamble writes ``k`` for
 this quantity, above the line where Waasmaier & Kirfel's text begins, and the
@@ -40,10 +44,37 @@ from ..backend import get_backend
 
 _DATA_FILE = "f0_WaasKirf.dat"
 
+#: Ions *International Tables* Vol. C carries and ``f0_WaasKirf.dat`` does not,
+#: as ``(a1..a4, b1..b4, c)`` of ITC eq. 6.1.1.15, f0(s) = Σ₁⁴ aᵢ·exp(−bᵢs²) + c.
+#: Of the 111 ions in Table 6.1.1.3 the Waasmaier-Kirfel file lacks one, Y³⁺.
+#:
+#: Source: Maslen, Fox & O'Keefe, *International Tables for Crystallography*
+#: Vol. C, 3rd ed. (2004), §6.1.1, Table 6.1.1.4, p. 579 (method *DS, the
+#: modified Dirac-Slater calculation of Cromer & Waber 1968).  The fit is valid for
+#: **0 < s < 2.0 Å⁻¹**: the table states a maximum error of 0.005 e (at
+#: s = 2.00) and a mean of 0.001 e there.  Measured against Table 6.1.1.3's
+#: own Y³⁺ column, 56 points from 0 to 2.0 Å⁻¹: maximum 0.0049 e at
+#: s = 2.00, mean 0.0006 e, and f0(0) = 36.00005.  Past 2 Å⁻¹ ITC sends the
+#: reader to the free atom (§6.1.1.3), and this fit leaves it: −0.11 e from
+#: neutral Y's Waasmaier-Kirfel curve at s = 2.5, −0.57 e at 3.0, negative
+#: beyond 3.86.  The printed a4 and b4 are negative; the OCR'd copy drops
+#: both signs, and only −33.108 reproduces 36 electrons at s = 0 and only
+#: −0.01319 reproduces the table at s = 2.  The nine numbers agree digit for
+#: digit with cctbx's ``it1992`` table and GSAS-II's ``atmdata.py`` (ATTRIBUTION.md).
+_ITC_IONS: dict[str, tuple[tuple[float, ...], tuple[float, ...], float]] = {
+    "Y3+": ((17.9268, 9.15310, 1.76795, -33.108),
+            (1.35417, 11.2145, 22.6599, -0.01319),
+            40.2602),
+}
+
 
 @lru_cache(maxsize=1)
 def _load_table() -> dict[str, np.ndarray]:
-    """Parse the DABAX file into {species: [a1..a5, c, b1..b5]}."""
+    """{species: [a1..a5, c, b1..b5]}: the DABAX file, plus :data:`_ITC_IONS`.
+
+    An ITC row is four Gaussians, stored with a5 = b5 = 0 so :func:`f0` reads
+    it unchanged (0·exp(0) adds nothing).  It never replaces a DABAX row.
+    """
     text = (resources.files(_DATA_PACKAGE) / _DATA_FILE).read_text(encoding="utf-8")
     table: dict[str, np.ndarray] = {}
     species: str | None = None
@@ -61,6 +92,9 @@ def _load_table() -> dict[str, np.ndarray]:
             expecting = False
     if not table:
         raise RuntimeError("failed to parse Waasmaier-Kirfel coefficient table")
+    for species, (a, b, c) in _ITC_IONS.items():
+        if species not in table:
+            table[species] = np.array([*a, 0.0, c, *b, 0.0], dtype=np.float64)
     return table
 
 
@@ -107,6 +141,10 @@ def normalize_species(species: str) -> str:
 
     ``"La3+"`` stays ``"La3+"`` if tabulated; ``"LA"`` → ``"La"``;
     ``"O2-"`` falls back to ``"O"`` only if the ion is missing from the table.
+    A one-charge ion written without its digit is that ion: ``"Na+"`` →
+    ``"Na1+"``, ``"Cl-"`` → ``"Cl1-"``.  The table always writes the ``1``,
+    and pymatgen does not (WP-1527; through 1.6 these computed as the neutral
+    atom).  ``"Fe+"`` still falls back, since no table carries ``Fe1+``.
     An isotope reads as its element (:func:`xray_scatterer`): ``"D"`` → ``"H"``,
     ``"7Li1+"`` → ``"Li1+"``.
     """
@@ -118,7 +156,11 @@ def normalize_species(species: str) -> str:
     if m:
         elem = m.group(1).capitalize()
         ion = m.group(2) or ""
-        for candidate in (elem + ion, elem):
+        candidates = [elem + ion]
+        if ion in ("+", "-"):
+            candidates.append(elem + "1" + ion)
+        candidates.append(elem)
+        for candidate in candidates:
             if candidate in table:
                 return candidate
     raise KeyError(f"no Waasmaier-Kirfel coefficients for species {species!r}")
@@ -149,8 +191,8 @@ class SpeciesFallback:
     a real refinement would see.
     """
 
-    species: str            # the raw label, e.g. "Y3+"
-    element: str            # the neutral atom substituted, e.g. "Y"
+    species: str            # the raw label, e.g. "S6+"
+    element: str            # the neutral atom substituted, e.g. "S"
     charge: int             # signed formal charge parsed from `species`
     true_electrons: float   # Z - charge
     returned_electrons: float  # f0(element, 0), what the fallback supplies
@@ -212,6 +254,9 @@ def f0(species: str, stol: np.ndarray) -> np.ndarray:
     """Elastic form factor at ``stol`` = s = sin(θ)/λ (Å⁻¹).
 
     Waasmaier & Kirfel (1995) Eq. (1): f0(s) = Σ a_i exp(−b_i s²) + c.
+    ``"Y3+"`` reads its four Gaussians from *International Tables* Vol. C
+    (2004) Table 6.1.1.4, eq. 6.1.1.15, fitted for s ≤ 2 Å⁻¹ only
+    (:data:`_ITC_IONS` has the source and the error past it).
     """
     xp = get_backend()
     coeffs = _load_table()[normalize_species(species)]

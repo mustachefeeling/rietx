@@ -94,13 +94,21 @@ table), and the writer rule is for those.
   #556: an isotope takes its element's f₀ on an X-ray histogram)
 - [x] Skill: a reference row for the refusal codes the PRs add, or "none" and why
   (none: no new code; #570 and #572 extend two messages, three copies agree)
-- [ ] A digitless one-charge ion reads as the tabulated ion: `normalize_species`
+- [x] A digitless one-charge ion reads as the tabulated ion: `normalize_species`
   tries `Na1+` between `Na+` and `Na`. It moves every fit that used the
   spelling, so it states what it changed (a diagnostic or a record field), and
   `SPECIES_FALLBACK_NEUTRAL` stops firing on those labels
-- [ ] Y³⁺ in the X-ray table, from *International Tables* Vol. C Table 6.1.1.4,
-  with its source and its sinθ/λ ≤ 2 Å⁻¹ range in the data file and the
-  manual Part 2's f₀ section
+- [x] Y³⁺ in the X-ray table, from *International Tables* Vol. C Table 6.1.1.4,
+  with its source and its sinθ/λ ≤ 2 Å⁻¹ range beside the row
+  (`scattering._ITC_IONS`; the DABAX file stays byte-identical) and in the
+  manual Part 2's f₀ section (2026-10-04: checked against Table 6.1.1.3,
+  0.0049 e at worst over s ≤ 2 Å⁻¹, and against cctbx `it1992` and GSAS-II
+  `atmdata.py`, digit for digit)
+- [ ] Decide what Y³⁺ does past s = 2 Å⁻¹, where the fit leaves the free atom
+  (−0.11 e at 2.5, −0.57 e at 3.0, negative beyond 3.86) and ITC sends the
+  reader to the free-atom curve. Today rietx evaluates the fit everywhere, as
+  cctbx and GSAS-II do. A switch at s = 2 would put a step in f₀ that a
+  reflection crossing it during a stage would feel.
 - [ ] The maintainer's rule in every writer (GSAS-II CIF, GSAS `.EXP`, FullProf
   `.pcr`, TOPAS `.inp`): write the species rietx computed; where it
   substituted, write the neutral element and report it. The three
