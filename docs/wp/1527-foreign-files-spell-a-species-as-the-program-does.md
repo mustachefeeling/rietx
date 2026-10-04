@@ -1,9 +1,8 @@
 # WP-1527 — foreign files spell a species as the other program does
 
-Milestone: unscheduled · Status: 🔄 2026-10-04 — the rule is in all four writers and the lookup reads one-charge ions; the `.pcr` other-program test and Y³⁺ past 2 Å⁻¹ remain
+Milestone: unscheduled · Status: ✅ 2026-10-04 — every writer states the atom rietx computed, checked by the other program's reading rule; one-charge ions and Y³⁺ are tabulated, Y³⁺ handing over to neutral Y past 2.149 Å⁻¹
 Track: Coming from another code
 Depends on: — (WP-1118 closed 2026-09-16; its writers and readers are what this corrects)
-Priority: P2 2026-09-30 — a silent wrong structure in another program's refinement (GSAS-II turns `7Li` into H), on a path few fits run; the fix PRs are open
 
 ## Goal
 
@@ -86,9 +85,10 @@ table), and the writer rule is for those.
 - [x] Review and land PRs #568 (.pcr), #569 (GSAS-II CIF), #570 (.gpx reader),
   #572 (.EXP) through `/pr-review`, each against its issue's reproduction
   (all four merged by 2026-10-02; handover log)
-- [ ] A test per writer that reads the written species through the *other*
+- [x] A test per writer that reads the written species through the *other*
   program's rule (the reporter's table), not through rietx's own reader
-  (met for #569 and #572; the `.pcr` writer's is unconfirmed)
+  (met for #569 and #572 first; for the `.pcr` on 2026-10-04, the file read
+  by #558's measured FullProf lookup, both radiations)
 - [x] Decide the reader's X-ray arm for an isotope from a foreign file
   (#554's note: land with #552 or refuse on the X-ray histogram) (settled by
   #556: an isotope takes its element's f₀ on an X-ray histogram)
@@ -104,11 +104,12 @@ table), and the writer rule is for those.
   manual Part 2's f₀ section (2026-10-04: checked against Table 6.1.1.3,
   0.0049 e at worst over s ≤ 2 Å⁻¹, and against cctbx `it1992` and GSAS-II
   `atmdata.py`, digit for digit)
-- [ ] Decide what Y³⁺ does past s = 2 Å⁻¹, where the fit leaves the free atom
-  (−0.11 e at 2.5, −0.57 e at 3.0, negative beyond 3.86) and ITC sends the
+- [x] Decide what Y³⁺ does past s = 2 Å⁻¹, where the fit leaves the free atom
+  (−0.11 e at 2.5, −0.57 e at 3.0, negative beyond 3.85) and ITC sends the
   reader to the free-atom curve. Today rietx evaluates the fit everywhere, as
   cctbx and GSAS-II do. A switch at s = 2 would put a step in f₀ that a
-  reflection crossing it during a stage would feel.
+  reflection crossing it during a stage would feel. (2026-10-04, the
+  maintainer: neutral Y from 2.149 Å⁻¹, where the two curves meet, so no step.)
 - [x] The maintainer's rule in every writer (GSAS-II CIF, GSAS `.EXP`, FullProf
   `.pcr`, TOPAS `.inp`): write the species rietx computed; where it
   substituted, write the neutral element and report it. The three
@@ -134,6 +135,135 @@ the spelling the issue's "fix direction" names.
 - Issues #553, #554, #555, #557, #558; PRs #568-#570, #572; PR #556 (#552).
 
 ## Handover log
+
+### 2026-10-04 (3rd session) — Y³⁺ hands over to neutral Y; closed
+
+**Closed.** The maintainer chose option (b) of the previous entry: past the
+range its *International Tables* fit covers, Y³⁺ now scatters as neutral Y,
+which is what the book advises and what every other ion in the table already
+does out there. The switch sits where the two curves meet, so nothing jumps.
+Only a pattern at a wavelength under 0.5 Å reaches it.
+
+*Done*: `scattering._itc_handover` finds, once per ion, the first s past
+2 Å⁻¹ where the ITC fit equals the neutral atom's Waasmaier-Kirfel curve
+(Y³⁺: 2.1489 Å⁻¹, 5.107 e; the curves differ there by 2e-15 e). `f0` evaluates
+both rows and picks with `xp.where` on s², so every backend takes the same
+path; the Gaussian sum moved into `_gaussians` unchanged, so every other
+species computes the same arithmetic. The module, `_ITC_IONS` and `f0`
+docstrings, the manual's f₀ paragraph and the 1.7.0 note say so.
+`test_y3plus_hands_over_to_neutral_y_where_the_two_curves_meet` fails without
+the switch (14.2 e at s = 6); `test_the_hand_over_puts_no_step_in_f0`;
+`test_y3plus_hands_over_to_neutral_y_under_jax_as_under_numpy` in
+`test_backend_jax.py`, which skips on `[dev]` and passed in a throwaway
+`[dev,jax]` venv (macOS arm64).
+
+*Deliberately not generalised*: the writers still write `Y+3`/`Y3+`. No
+format can state a curve that switches partway, and below 2 Å⁻¹ the fit and
+the tabulated ion agree to 0.005 e; GSAS-II and cctbx evaluate the same fit
+at every s, so past 2.149 Å⁻¹ they and rietx now differ by up to 0.57 e at
+3 Å⁻¹.
+
+*Review* (`/code-review high --fix` on this commit, ten findings). Fixed: the
+manual takes the hand-over from the package (`Y3_HANDOVER_STOL` in
+`conf.py`, rendering 2.149); `_itc_handover` brackets the *first* sign change
+on a 1001-point grid before `brentq`, as its docstring promises (Y³⁺ moves in
+the last bits only); the jax test runs under `backend.traced.active`; a
+slope in a docstring (about 2 e per Å⁻¹, not 4); 3.86 → 3.85 above.
+Declined, each for a reason:
+- *Frozen-per-stage discreteness.* The switch is an elementwise `xp.where`,
+  traceable and continuous; the residual keeps a kink, a slope change of
+  0.15 e per Å⁻¹ at one s, as at FCJ's quadrature split. Freezing the choice
+  per reflection at stage compile would trade the kink for a small step at
+  each stage boundary.
+- *A diagnostic per fit.* That was option (c), which the maintainer did not
+  choose; the value is the table's, as every other ion's is, and the 1.7.0
+  note states it.
+- *The writers.* Named above as deliberately not generalised.
+- *A Y³⁺ row in `test_cross_backend.py`.* No derivative path is new: nothing
+  differentiates f₀ analytically, and `where` is in every backend's
+  conformance suite.
+- *Caching the neutral row.* A regex and a second Gaussian sum per Y³⁺ site
+  per evaluation, microseconds.
+
+*Measured* (`[dev]`, macOS arm64, current with `origin/main`, nothing else
+running): fast selection 8234 passed, 159 skipped, in 2:36: +2 passed against
+the previous entry's tree, the two species tests; the jax test sits in a
+module that skips whole on `[dev]`, already counted as one skip. Each new
+test takes under 0.01 s. The full suite was not run: no acceptance dataset
+has a Y³⁺ site.
+
+### 2026-10-04 (2nd session) — the `.pcr` read by FullProf's rule; Y³⁺'s decision measured
+
+Every foreign writer's species is now checked the way the other program reads
+it. The FullProf file was the one still unchecked: a test now reads its atom
+type the way FullProf.2k was measured to, on X-ray and neutron files alike,
+and gets back the atom rietx computed in every case tried. No writer bug
+turned up. One limit stays: #558 measured three X-ray ions in FullProf's
+table, `ZR+4`, `O-2` and `CU+1`. So `NA+1`, `CL-1` and `Y+3` are checked for
+their spelling, not for being in the table. The WP's last task, what Y³⁺ does past sinθ/λ = 2 Å⁻¹, is measured
+below and waits on the maintainer.
+
+*Done* (a lane, checked and re-run here, `0efea364`). In
+`tests/test_projects_fullprof.py`, an oracle implements issue #558's measured
+lookup: X-ray, element + sign + magnitude, case-free; neutron, b on the
+type's first two characters unless a LINE-12 `NAM` names it.
+`test_the_fullprof_oracle_reproduces_the_measured_lookup` holds the oracle to
+every row of #558's table (16 X-ray, 17 neutron, the two LINE-12 rows) before
+it judges anything. `test_fullprofs_own_lookup_reads_the_written_typ_as_rietxs_species`
+writes a one-site file per label and resolves its type with the oracle, never
+the module's reader: X-ray `Zr4+ O2- Cu+ Cu1+ Na+ Cl- Y3+ Mn Fe+`, each
+with a LINE-12 dispersion row named as its type (added in review), neutron
+the same nine plus `D 2H 7Li 7Li1+`. `Fe+` resolves to neutral Fe and carries
+`FULLPROF_SPECIES_WRITTEN_NEUTRAL` on X-ray only. Pointing the oracle at the
+IUCr `Zr4+` spelling fails 7 X-ray cases with the expected message. #558's
+`NI60 0.28` → 2.807 fm row is left out of the self-test (0.28 × 10 is 2.8,
+and the issue does not say where the 0.007 comes from).
+
+*Measured* (`[dev]`, macOS arm64): `test_projects_fullprof.py` 218 → 241
+passed (+23); the acceptance files with `test_portability`, 505 passed. The
+fast selection after review, nothing else running: 8232 passed, 159 skipped,
+in 2:32. The two added tests take 0.07 s together
+(`tests.added_test_times`), so neither joins the slow tail. The tree is
+current with `origin/main`; the full suite was not run, the change being a
+test.
+
+*Review* (`/code-review high --fix`, seven findings, no writer bug). Fixed:
+the X-ray arm now checks the f′/f″ row is named as the written type (renaming
+it fails the test); the entry's claim is narrowed to spelling for the three
+ions #558 never measured; two docstrings; this block's counts. Declined: the
+test's own parse of rietx's ion label repeats `scattering`'s regex, kept so
+the oracle shares nothing with the module. The session's lane row has moved
+since (+$39.29, 42 %); the record keeps the figure measured at handover.
+
+**Y³⁺ past 2 Å⁻¹, for the maintainer's decision.** Computed from
+`_ITC_IONS`'s coefficients against rietx's neutral Y (Waasmaier-Kirfel,
+fitted to 6 Å⁻¹). The ITC fit minus neutral Y, in electrons: +0.013 at s = 2,
+−0.11 at 2.5, −0.57 at 3, −2.86 at 4, −7.3 at 5, −14.2 at 6; the fit itself
+crosses zero at s = 3.85. Over 0.6-2 Å⁻¹ the two differ by at most 0.061 e,
+and the neighbouring ions the DABAX table fits to 6 Å⁻¹ stay close to their
+neutral atoms over 1-6 Å⁻¹ (Rb⁺ 0.006 e, Sr²⁺ 0.013, Nb³⁺ 0.046, Zr⁴⁺ 0.155).
+So past ~1 Å⁻¹ an ion scatters as its neutral atom, which is why ITC sends
+the reader to the free-atom curve. **The two curves meet at s = 2.149 Å⁻¹**
+(f = 5.107 e). Switching there to neutral Y puts no step in f₀, only a kink,
+which the residual already tolerates elsewhere (FCJ's trapezoid). Where it
+matters: s > 2 needs λ under 0.5 Å at high angle (λ = 0.1 Å reaches 2.6 at
+30° 2θ); a Cu or Mo lab pattern stops at 0.63 or 1.36, and 11-BM's range at
+0.92. Three options: (a) keep the fit everywhere, as cctbx and GSAS-II do;
+(b) switch to neutral Y at 2.149 Å⁻¹, as ITC advises; (c) keep the fit and
+report when a Y³⁺ reflection lies past 2. The session's recommendation is (b).
+
+*Lanes* (`/wp-lanes` trial; `session_usage.py lanes`, whole session, five
+lanes): `pcr-fullprof-rule` estimated 20, took 16 lane requests at 301K main
+context, saved $0.34. `lamno3-acceptance` (WP-1327) estimated 40, took 89 at
+235K, saved $3.15. The session's trial row in `docs/milestones/process.md` is
+updated from three lanes to five: actual/estimated 1.91, saved $38.56, 41 %.
+The replay's selective policy with this session's numbers (u = 0K, mo = 10,
+d = 16K): −21 % over 423 sessions. At 300K main context and an 80K lane base,
+a lane pays from about 28 requests, so a 20-request estimate sits under the
+line and `pcr-fullprof-rule` was a near-miss.
+
+*Next*: the maintainer's choice on Y³⁺; (b) is a few lines in
+`scattering.f0` plus a manual sentence and a test at the crossing.
 
 - **2026-10-04** — **The rule is in the code.** A structure labelled with
   `Na+` or `Cl-` now scatters as the ions it names, and Y³⁺ is tabulated. A

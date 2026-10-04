@@ -31,6 +31,7 @@ counts, not only the values:
 import re
 from pathlib import Path
 
+import gemmi
 import pytest
 
 import rietx as rx
@@ -2403,6 +2404,170 @@ def test_a_line12_rietx_has_no_species_for_is_refused_at_read(tmp_path, line, jo
                                                                match):
     with pytest.raises(FullProfPcrError, match=match):
         read_fullprof_pcr(_with_line12(tmp_path, line, job))
+
+
+# ------------------------ the written Typ, read by FullProf's own rule (#558)
+#
+# The tests above check `fullprof_species`, the function. These read the
+# *file*: the atom line's Typ, and on a neutron file the LINE-12 user b,
+# resolved by the lookup FullProf.2k 8.20 was measured to make (issue #558).
+# The oracle shares nothing with this module's reader or with rietx's species
+# normalisers; the resolved species must be the one rietx computes.
+
+def _element(symbol):
+    """gemmi's element for an upper-case 1-2 letter ``symbol``, or ``None``.
+    gemmi reads leniently (``O-`` is O), so the spelling is checked back."""
+    if not re.fullmatch(r"[A-Z]{1,2}", symbol):
+        return None
+    element = gemmi.Element(symbol)
+    if element.atomic_number == 0 or element.name.upper() != symbol:
+        return None
+    return element.name
+
+
+def _fullprof_xray(typ):
+    """The X-ray scatterer FullProf reads for ``typ``: ``(element, charge)``,
+    or ``None`` where it stops ("Scattering coefficients NOT FOUND").
+
+    Measured (#558): case does not matter, and the key is the element, then
+    the sign, then the magnitude (``ZR+4``, ``O-2``, ``CU+1``). A digit-first
+    ion (``Zr4+``), a sign with no magnitude (``Cu+``) and a mass number
+    (``7Li``, ``7Li1+``) all stop the run. ``D`` runs as H. The oracle checks
+    the grammar and the element only. It cannot know which ions FullProf's
+    table holds, so table membership rests on the reporter's runs, which
+    covered ``ZR+4``, ``O-2`` and ``CU+1`` and no other ion.
+    """
+    m = re.fullmatch(r"([A-Z]{1,2})(?:([+-])(\d+))?", typ.upper())
+    if m is None or _element(m.group(1)) is None:
+        return None
+    symbol, sign, magnitude = m.groups()
+    charge = (1 if sign == "+" else -1) * int(magnitude) if sign else 0
+    return ("H" if symbol == "D" else _element(symbol)), charge
+
+
+def _fullprof_neutron(typ, user_b):
+    """What FullProf takes b from for ``typ`` on a neutron file: a LINE-12
+    user b in fm (a float), else the nuclide its own table holds, or ``None``
+    where it stops ("Scattering length NOT FOUND").
+
+    Measured (#558): a LINE-12 ``NAM`` naming the Typ gives its ``DFP``, and
+    outranks the table (``LI7 -0.222`` gives −2.22 fm, ``DEU 0.6671`` 6.67 fm;
+    every measured NAM was spelled as its Typ). Otherwise b is looked up on
+    the first two characters of Typ, case-free: ``ZR+4`` and ``Cu+`` give the
+    element, and ``O2-``, ``O-2``, ``7Li`` and ``2H`` stop the run. ``LI7``
+    and ``NI60`` give natural Li and Ni with no message, and ``D`` gives
+    deuterium.
+    """
+    if typ.upper() in user_b:
+        return user_b[typ.upper()]
+    key = typ.upper()[:2]
+    return "2H" if key == "D" else _element(key)
+
+
+#: Issue #558's measured rows, FullProf.2k 8.20 as a black box: Typ → what it
+#: read. ``None`` is a stop (NOT FOUND, or the parse error ``7Li1+`` raises).
+_MEASURED_XRAY = {
+    "ZR+4": ("Zr", 4), "Zr+4": ("Zr", 4), "O-2": ("O", -2), "CU+1": ("Cu", 1),
+    "Mn": ("Mn", 0), "MN": ("Mn", 0), "D": ("H", 0),
+    "Zr4+": None, "O2-": None, "Cu1+": None, "Cu+": None, "CU+": None,
+    "7Li": None, "2H": None, "60Ni": None, "7Li1+": None,
+}
+_MEASURED_NEUTRON = {
+    "Zr4+": "Zr", "ZR+4": "Zr", "Cu1+": "Cu", "Cu+": "Cu", "Mn": "Mn",
+    "O": "O", "D": "2H", "LI7": "Li", "NI60": "Ni", "NI58": "Ni",
+    "O2-": None, "O-2": None, "7Li": None, "2H": None, "60Ni": None,
+    "7LI": None, "60NI": None,
+}
+
+
+def test_the_fullprof_oracle_reproduces_the_measured_lookup():
+    """The oracle above is held to every row of #558's table, so it is
+    FullProf's rule rather than a second copy of the writer's."""
+    assert {t: _fullprof_xray(t) for t in _MEASURED_XRAY} == _MEASURED_XRAY
+    assert ({t: _fullprof_neutron(t, {}) for t in _MEASURED_NEUTRON}
+            == _MEASURED_NEUTRON)
+    assert _fullprof_neutron("LI7", {"LI7": -2.22}) == -2.22
+    assert _fullprof_neutron("DEU", {"DEU": 6.671}) == 6.671
+
+
+def _read_as_fullprof(text):
+    """``(job, typ, user_b, dispersion)`` of a one-site file: the control
+    line's Job, the atom line's Typ, LINE 12's ITY-0 user b in fm keyed by
+    ``NAM``, and the upper-cased ``NAM`` of each ITY-2 dispersion line. LINE
+    12 follows the title, the four fixed lines, the Nba background points and
+    the Nex excluded regions."""
+    lines = _lines(text)
+    control = lines[1].split()
+    job, nba, nex, nsc = (int(control[k]) for k in (0, 3, 4, 5))
+    start = 5 + nba + nex
+    user_b, dispersion = {}, set()
+    for line in lines[start:start + nsc]:
+        nam, dfp, _dfpp, ity = line.split()
+        if ity == "0":
+            user_b[nam.upper()] = float(dfp) * 10.0     # 10^-12 cm to fm
+        elif ity == "2":
+            dispersion.add(nam.upper())
+    (typ,) = [line.split()[1] for line in lines if line.split()[:1] == ["A0"]]
+    return job, typ, user_b, dispersion
+
+
+_SPELLED = ["Zr4+", "O2-", "Cu+", "Cu1+", "Na+", "Cl-", "Y3+", "Mn", "Fe+"]
+
+
+@pytest.mark.parametrize("species, neutron", [
+    *[(s, False) for s in _SPELLED],
+    *[(s, True) for s in [*_SPELLED, "D", "2H", "7Li", "7Li1+"]],
+])
+def test_fullprofs_own_lookup_reads_the_written_typ_as_rietxs_species(
+        tmp_path, species, neutron):
+    """The written file, read by FullProf's lookup (#558) rather than by this
+    module's reader. An X-ray Typ resolves to rietx's X-ray scatterer,
+    element and charge: ``Cu+`` is Cu⁺, and ``Fe+`` is neutral Fe, since
+    rietx's table has no Fe⁺. A neutron Typ resolves to rietx's nuclide, and
+    an isotope to rietx's b through LINE 12. A Typ stating a neutral atom
+    for an ion label carries FULLPROF_SPECIES_WRITTEN_NEUTRAL on an X-ray
+    file. A neutron file carries none, since the charge does not change b."""
+    from rietx.crystallography import neutron as nuclear
+    from rietx.crystallography import scattering
+    instrument = (rx.Instrument.constant_wavelength_neutron(1.5406) if neutron
+                  else _xray(1.5405929))
+    found: list = []
+    out = tmp_path / "one.pcr"
+    write_fullprof_pcr(_cubic(species), out, instrument=instrument,
+                       diagnostics=found)
+    job, typ, user_b, dispersion = _read_as_fullprof(
+        out.read_text(encoding="utf-8"))
+    assert job == (1 if neutron else 0)
+    said = [d.where for d in found
+            if d.code == "FULLPROF_SPECIES_WRITTEN_NEUTRAL"]
+    if neutron:
+        resolved = _fullprof_neutron(typ, user_b)
+        if isinstance(resolved, float):
+            computed = nuclear.b_coh(species)
+            assert resolved == pytest.approx(computed, abs=1e-6), (
+                f"{species!r} written as Typ {typ!r}: FullProf uses b = "
+                f"{resolved} fm, rietx computes {computed} fm")
+        else:
+            computed = nuclear.normalize_species(species)
+            assert resolved == computed, (
+                f"{species!r} written as Typ {typ!r}: FullProf reads "
+                f"{resolved}, rietx computes {computed}")
+        assert said == []
+        return
+    resolved = _fullprof_xray(typ)
+    symbol, magnitude, sign = re.fullmatch(
+        r"([A-Z][a-z]?)(\d*)([+-]?)", scattering.normalize_species(species)).groups()
+    computed = (symbol, (1 if sign == "+" else -1) * int(magnitude) if sign else 0)
+    assert resolved == computed, (
+        f"{species!r} written as Typ {typ!r}: FullProf reads {resolved}, "
+        f"rietx computes {computed}")
+    # The f'/f'' the writer states reach this Typ only under a NAM spelled as
+    # it (#568 review); without one FullProf uses its own, which differ.
+    assert typ.upper() in dispersion, (
+        f"{species!r} written as Typ {typ!r}: no LINE-12 dispersion row names "
+        f"it ({sorted(dispersion)})")
+    written_neutral = species.endswith(("+", "-")) and resolved[1] == 0
+    assert said == ([["phases.0.atoms.0.species"]] if written_neutral else [])
 
 
 # -- #568 review: every value written is guarded, and what is dropped is dropped

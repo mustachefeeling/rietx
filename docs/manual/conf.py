@@ -24,6 +24,7 @@ from sphinxcontrib.bibtex.style.referencing.author_year import AuthorYearReferen
 from rietx._about import DIST_NAME, DOCS_URL, REPO_URL
 from rietx.crystallography.atomic_volume import VOLUME_RATIO_BOUNDS, VOLUME_SCATTER
 from rietx.crystallography.dispersion import NEAR_EDGE_EV
+from rietx.crystallography.scattering import _itc_handover
 from rietx.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
 from rietx.examples import list_examples
 from rietx.gui.textdoc import FORMAT_VERSION as RXT_FORMAT_VERSION
@@ -198,6 +199,9 @@ myst_substitutions = {
     # same reason every other threshold here is: a retune must move the page.
     "MATURITY_MAX_RWP": MATURITY_MAX_RWP,
     "NEAR_EDGE_EV": NEAR_EDGE_EV,
+    # where Y³⁺'s ITC fit hands over to neutral Y (WP-1527).  The package
+    # computes it from the two curves, so the chapter quotes it.
+    "Y3_HANDOVER_STOL": f"{_itc_handover('Y3+'):.3f}",
     "NIGGLI_EPS_RELATIVE": NIGGLI_EPS_RELATIVE,
     "NODES_PER_FWHM": NODES_PER_FWHM,
     "PAWLEY_OVERLAP_FWHM_FRAC": PAWLEY_OVERLAP_FWHM_FRAC,

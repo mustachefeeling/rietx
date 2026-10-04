@@ -54,6 +54,7 @@ from rietx._about import DATA_PACKAGE
 from rietx.crystallography.scattering import (
     _ITC_IONS,
     SpeciesFallback,
+    _itc_handover,
     _load_table,
     detect_fallback,
     f0,
@@ -496,3 +497,33 @@ def test_an_itc_row_reads_through_the_same_eleven_slots():
     a, b, c = _ITC_IONS["Y3+"]
     assert row.shape == (11,)
     assert list(row) == [*a, 0.0, c, *b, 0.0]
+
+
+def _itc_fit(s):
+    a, b, c = _ITC_IONS["Y3+"]
+    s = np.asarray(s, dtype=float)
+    return sum(ai * np.exp(-bi * s * s) for ai, bi in zip(a, b)) + c
+
+
+def test_y3plus_hands_over_to_neutral_y_where_the_two_curves_meet():
+    """Past its 2 Å⁻¹ range the ITC fit leaves the free atom (−0.57 e at 3,
+    negative past 3.85), and ITC sends the reader to the free atom there.
+    The hand-over is where fit and neutral Y are equal: 2.149 Å⁻¹."""
+    h = _itc_handover("Y3+")
+    assert 2.0 < h < 2.2
+    assert _itc_fit(h) == pytest.approx(f0("Y", np.array([h]))[0], abs=1e-12)
+    below = np.array([0.0, 0.5, 1.0, 2.0, h])
+    np.testing.assert_allclose(f0("Y3+", below), _itc_fit(below), rtol=0, atol=1e-12)
+    above = np.array([np.nextafter(h, 3.0), 2.5, 3.0, 3.9, 6.0])
+    np.testing.assert_array_equal(f0("Y3+", above), f0("Y", above))
+    assert (f0("Y3+", above) > 0.0).all()
+
+
+def test_the_hand_over_puts_no_step_in_f0():
+    """A reflection whose s crosses the hand-over during a stage meets a kink
+    and no jump: either side of it f0 moves by its slope (~2 e per Å⁻¹)
+    times the distance, and no more."""
+    h = _itc_handover("Y3+")
+    step = 1e-9
+    either_side = f0("Y3+", np.array([h - step, h + step]))
+    assert abs(either_side[0] - either_side[1]) < 10 * 2 * step
