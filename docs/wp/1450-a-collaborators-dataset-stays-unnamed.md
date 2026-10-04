@@ -114,6 +114,7 @@ file from matching the wavelength pattern by accident.
 
 ```sh
 git grep -n -f <clone of yue-here/rietx-corpus-map>/patterns/wp1450.txt -- '*.py' '*.md'   # zero hits
+git grep -n -f <clone of yue-here/rietx-corpus-map>/patterns/wp1450_all_runs.txt -- '*.py' '*.md'   # zero hits: the series' other runs
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 .venv/bin/python -m ruff check src tests examples
 ```
