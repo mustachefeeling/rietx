@@ -185,6 +185,13 @@ Declined, each for a reason:
 - *Caching the neutral row.* A regex and a second Gaussian sum per Y³⁺ site
   per evaluation, microseconds.
 
+*Measured* (`[dev]`, macOS arm64, current with `origin/main`, nothing else
+running): fast selection 8234 passed, 159 skipped, in 2:36: +2 passed against
+the previous entry's tree, the two species tests; the jax test sits in a
+module that skips whole on `[dev]`, already counted as one skip. Each new
+test takes under 0.01 s. The full suite was not run: no acceptance dataset
+has a Y³⁺ site.
+
 ### 2026-10-04 (2nd session) — the `.pcr` read by FullProf's rule; Y³⁺'s decision measured
 
 Every foreign writer's species is now checked the way the other program reads
