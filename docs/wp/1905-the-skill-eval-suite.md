@@ -43,9 +43,24 @@ numbers. What a fresh session needs from it:
   two runs of one suite; `--ablation none` on the second skips a baseline arm
   that would repeat the first's.
 - **The pilot, 2026-10-04.** Two cases ran on Haiku and Sonnet for the
-  current body and WP-1904's prototype; its numbers and the four findings
-  that decide this protocol are the `### Inherited` entry below, and the
-  cases themselves are in `docs/wp/1904-eval/pilot/`.
+  current body and WP-1904's prototype; the cases, their graders, the build
+  script and every result JSON are in `docs/wp/1904-eval/pilot/`. Four
+  findings decide this protocol. (1) `fap-judge` is a ceiling on Sonnet: 4 of
+  4 in every arm for both bodies at N = 2; on Haiku it separates (4 of 4
+  with, 3 of 4 without). Keep it as Haiku's regression guard and build the
+  deciding cases from failures the current body shows. (2) A fit case
+  cannot run concurrently: four with-arm fits on four cores took 10-15 min
+  each inside the sandbox against 11 s for the same script outside, and two
+  of four cells timed out at 1 500 s. Measure one fit inside the sandbox
+  first, set `timeout_seconds` from it, run `-j 1`, one round at a time;
+  whether the sandbox's read-only venv also defeats the numba kernel cache
+  is unmeasured. (3) With-arm runs did more work than without-arm runs on
+  the from-scratch case (eight Le Bail passes, a report, a second fit), so
+  tokens and wall time per run are read-outs beside the score, and a run
+  that ends promising to write its report later scores as not written.
+  (4) One cell read files outside its workspace; keep the placement round's
+  `leak` read-out. Costs measured: Haiku $0.16 (judge) and $0.60 (fit) for
+  both arms; Sonnet $0.14-0.18 (judge) and $0.23-0.62 (fit) a run.
 - **Cases are written from failures, never from the body.** The sources on
   hand: issue #661's fourteen wrong turns (a reflection table without a fit,
   the flattened background paths, the width boxes, the isotope spellings);
@@ -81,28 +96,6 @@ numbers. What a fresh session needs from it:
   case that fits costs more and is measured in the first round. Every round
   passes `--max-cost-usd`, and the menu goes to the maintainer before any
   cell runs (WP-1504's rule).
-
-### Inherited
-
-- **From WP-1904 (2026-10-04), the pilot this suite grows from.** Four
-  findings decide the protocol. (1) `fap-judge` is a ceiling on Sonnet: 4 of
-  4 in every arm for both bodies at N = 2; on Haiku it separates (4 of 4
-  with, 3 of 4 without). Keep it as Haiku's regression guard and build the
-  deciding cases from failures the current body shows. (2) A fit case
-  cannot run concurrently: four with-arm fits on four cores took 10-15 min
-  each inside the sandbox against 11 s for the same script outside, and two
-  of four cells timed out at 1 500 s. Measure one fit inside the sandbox
-  first, set `timeout_seconds` from it, run `-j 1`, one round at a time;
-  whether the sandbox's read-only venv also defeats the numba kernel cache
-  is unmeasured. (3) With-arm runs did more work than without-arm runs on
-  the from-scratch case (eight Le Bail passes, a report, a second fit), so
-  tokens and wall time per run are read-outs beside the score, and a run
-  that ends promising to write its report later scores as not written.
-  (4) One cell read files outside its workspace; keep the placement round's
-  `leak` read-out. Costs measured: Haiku $0.16 (judge) and $0.60 (fit) for
-  both arms; Sonnet $0.14-0.18 (judge) and $0.23-0.62 (fit) a run. The two
-  cases, their graders, the build script and every result JSON are in
-  `docs/wp/1904-eval/pilot/`.
 
 ## Non-goals
 
