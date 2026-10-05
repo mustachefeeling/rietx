@@ -543,8 +543,8 @@ scope creep. Each item names what fenced it.
   texture (Von Dreele 1997; #131); difference Fourier / maximum-entropy maps
   (McCusker §6; the partition input exists in `lebail_update`, the consumer is
   structure completion; #197); internal-standard and amorphous QPA; **modulated
-  structures** (superspace — 1314 reads Jana's files without them; issue #258 holds
-  the shared design for the nuclear and magnetic cases). **Magnetic structures left
+  structures** (superspace — 1314 reads Jana's files without them; #258 the shared
+  design, #678 its cut, whose N-W1 landed as PR #682). **Magnetic structures left
   this fence 2026-09-02** for § Unscheduled's track (1326–1329); the incommensurate
   case, polarised neutrons and magnetic X-rays stay fenced (1327's non-goals).
   **Rigid bodies (#195), direct-space solution and stacking faults left it
