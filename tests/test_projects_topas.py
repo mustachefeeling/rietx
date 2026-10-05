@@ -16,6 +16,7 @@ import math
 import re
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 import rietx as rx
@@ -3911,15 +3912,14 @@ def test_write_topas_inp_writes_the_resolved_setting_not_the_bare_symbol(tmp_pat
     out = tmp_path / "spinel.inp"
     write_topas_inp(structure, out)
     text = out.read_text(encoding="utf-8")
-    assert resolved in text
+    assert 'space_group "Fd-3mS"' in text   # origin choice 1, in TOPAS's own spelling
 
     diagnostics: list = []
     model = read_topas_inp(out, diagnostics=diagnostics)
     # already-resolved on the way out, so the way back in states nothing to
-    # assume: `normalize_space_group` passes a colon-suffixed symbol through
-    # unrecognised, and the assumption diagnostic never fires on a phase that
-    # was never ambiguous to begin with.
-    assert model.phases[0].space_group == resolved
+    # assume: the `S` suffix is read as `:1` and the assumption diagnostic
+    # never fires on a phase that was never ambiguous to begin with.
+    assert get_spacegroup(model.phases[0].space_group).xhm() == resolved
     assert [d for d in diagnostics if "SETTING" in d.code] == []
 
 
@@ -4427,3 +4427,103 @@ def test_every_component_of_a_general_moment_keeps_its_flag(tmp_path):
     write_topas_inp(rx.Structure(phases=[phase]), path)
     line = _moment_line(path)
     assert "mlx @ " in line and "mly @ " in line and "mlz @ " in line, line
+
+
+# ---------------------------------------- what TOPAS accepts of a written group
+
+
+_HEX_ZNO = rx.Cell(a=rx.Parameter(value=3.2495), b=rx.Parameter(value=3.2495),
+                   c=rx.Parameter(value=5.2069), alpha=rx.Parameter(value=90.0),
+                   beta=rx.Parameter(value=90.0), gamma=rx.Parameter(value=120.0))
+
+
+def _atom(label, species, x, y, z, **kw):
+    return rx.Atom(label=label, species=species,
+                   x=rx.Parameter(value=x), y=rx.Parameter(value=y),
+                   z=rx.Parameter(value=z),
+                   biso=rx.Parameter(value=0.5, min=0.0, max=25.0), **kw)
+
+
+def _space_group_line(path: Path) -> str:
+    [line] = [ln for ln in path.read_text(encoding="utf-8").splitlines()
+              if ln.strip().startswith("space_group")]
+    return line.split('"')[1]
+
+
+@pytest.mark.parametrize("symbol, written", [
+    ("F d -3 m:1", "Fd-3mS"),     # TOPAS names no ":1": its first setting is the S suffix
+    ("P n -3 m:1", "Pn-3mS"),
+    ("P 4/n c c:1", "P4/nccS"),   # the bare symbol is the one TOPAS stops on here
+    ("P b a n:1", "P b a n"),     # S is not found for #50 and #68's axis permutations
+    ("F d -3 m:2", "F d -3 m:2"),  # the second setting is the one TOPAS suffixes
+    ("R -3 c:H", "R -3 c:H"),
+    ("R -3 c:R", "R -3 c:R"),
+    ("P 63 m c", "P 63 m c"),
+])
+def test_origin_choice_one_is_written_in_a_spelling_topas_accepts(
+        tmp_path, symbol, written):
+    """TOPAS 6 stops on ``space_group "F d -3 m:1"`` ("Space group not found in
+    sgcom5.cpp") and its Technical Reference suffixes only the second setting
+    (``I_41/A_M_D:2``).  Each spelling here was run through TOPAS 6 and
+    generates the operators of the group it names (the writer's own comment on
+    ``_topas_space_group`` has the survey), and each reads back as that group."""
+    structure = rx.Structure(phases=[rx.Phase(
+        name="p", space_group=symbol, cell=rx.Cell.cubic(5.43),
+        atoms=[_atom("A", "Si", 0.0, 0.0, 0.0)])])
+    path = tmp_path / "p.inp"
+    write_topas_inp(structure, path)
+    assert _space_group_line(path) == written
+    back = get_spacegroup(normalize_space_group(written))
+    assert back.xhm() == get_spacegroup(symbol).xhm()
+
+
+def test_a_written_first_setting_reads_back_without_an_assumption(tmp_path):
+    """The writer's ``Fd-3mS`` is TOPAS's own statement of the setting, so
+    reading it is a translation (``TOPAS_ORIGIN_TRANSLATED``), never the
+    ``SPACE_GROUP_SETTING_ASSUMED`` a bare symbol earns."""
+    structure = rx.Structure(phases=[rx.Phase(
+        name="p", space_group="F d -3 m:1", cell=rx.Cell.cubic(5.43),
+        atoms=[_atom("A", "Si", 0.0, 0.0, 0.0)])])
+    path = tmp_path / "p.inp"
+    write_topas_inp(structure, path)
+    assert _space_group_line(path) == "Fd-3mS"
+    diagnostics: list = []
+    model = read_topas_inp(path, diagnostics=diagnostics)
+    assert get_spacegroup(model.phases[0].space_group).xhm() == "F d -3 m:1"
+    assert not [d for d in diagnostics if d.code == "SPACE_GROUP_SETTING_ASSUMED"]
+
+
+def test_a_site_near_a_special_position_is_written_on_it(tmp_path):
+    """The ICSD's ``x 0.3333 y 0.6667`` for ZnO's 2b site.  rietx expands it at
+    1/3, 2/3 (2 positions); TOPAS read the rounded number as general and made
+    12 ("equivalent positions at a distance of 0.000325 Angstroms").  The
+    oracle is independent of rietx's tolerance: the written coordinates must
+    generate exactly 2 distinct positions at 1e-9."""
+    sg = get_spacegroup("P 63 m c")
+    structure = rx.Structure(phases=[rx.Phase(
+        name="zno", space_group="P 63 m c", cell=_HEX_ZNO,
+        atoms=[_atom("Zn1", "Zn", 0.3333, 0.6667, 0.0),
+               _atom("O1", "O", 0.3333, 0.6667, 0.382)])])
+    path = tmp_path / "zno.inp"
+    write_topas_inp(structure, path)
+    sites = [ln for ln in path.read_text(encoding="utf-8").splitlines() if "site " in ln]
+    for ln in sites:
+        tokens = ln.split()
+        x, y, z = (float(tokens[tokens.index(k) + 2]) for k in "xyz")
+        positions = {tuple(np.round((np.array(op.apply_to_xyz([x, y, z])) % 1.0
+                                     + 1e-12) % 1.0, 9))
+                     for op in sg.operations()}
+        assert len(positions) == 2, ln
+    # stored coordinates are the caller's and are not rewritten
+    assert structure.phases[0].atoms[0].x.value == 0.3333
+
+
+def test_a_general_position_is_written_as_stored(tmp_path):
+    """The negative arm: nothing near a special position, nothing moved."""
+    structure = rx.Structure(phases=[rx.Phase(
+        name="g", space_group="P 63 m c", cell=_HEX_ZNO,
+        atoms=[_atom("A", "Zn", 0.3, 0.21, 0.1)])])
+    path = tmp_path / "g.inp"
+    write_topas_inp(structure, path)
+    [site] = [ln for ln in path.read_text(encoding="utf-8").splitlines() if "site " in ln]
+    assert "x ! 0.3 y ! 0.21 z ! 0.1" in site
