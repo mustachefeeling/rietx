@@ -26,6 +26,7 @@ from ..model.forward import PAWLEY_OVERLAP_FWHM_FRAC
 from ..schemas.indexing import (
     PEAK_ASYMMETRY_MIN_SIGMA,
     PEAK_AXIAL_TAIL_MAX_FWHM,
+    PEAK_NO_INTENSITY_SIGMA,
     PEAK_POSITION_ESD_MAX_DEG,
     PEAK_REFUTED_SIGMA,
     PEAK_SATELLITE_MAX_RATIO,
@@ -282,8 +283,12 @@ def peaks_of_group(fit: GroupFit, group_index: int, wavelength: float
     refits *one* group and splices the result into a stored list — the flag
     translation must be this one and not a second reading of it.
 
-    **A component sitting at its zero intensity bound is flagged
-    ``no_intensity`` and is unusable** (WP-1110 item 14).  A peak reaches its
+    **A component whose intensity is not distinguishable from none is flagged
+    ``no_intensity`` and is unusable**: one under
+    :data:`~rietx.schemas.indexing.PEAK_NO_INTENSITY_SIGMA` (1) of its own esd,
+    which is how a "line" on a flank the background envelope under-tracks shows
+    itself (the net cleared detection's 5σ, the fit's intensity is a third of its
+    esd).  **And one sitting at its zero intensity bound** (WP-1110 item 14).  A peak reaches its
     window only through ``intensity × profile``, so one that refined to no
     intensity contributes nothing and its own position stops being
     identifiable — item 13's rule about a phase the data cannot see, one rank
@@ -331,7 +336,9 @@ def _flags_for(fit: GroupFit, j: int) -> list[PeakFlag]:
         flags.append("not_separable")
     if _axial_tail(fit, j):
         flags.append("axial_tail")
-    if float(fit.intensity[j]) <= BOUND_HIT_RTOL:
+    if (float(fit.intensity[j]) <= BOUND_HIT_RTOL
+            or float(fit.intensity[j])
+            < PEAK_NO_INTENSITY_SIGMA * float(fit.intensity_esd[j])):
         flags.append("no_intensity")
     if not (float(fit.two_theta_esd[j]) < PEAK_POSITION_ESD_MAX_DEG):
         flags.append("position_unmeasured")

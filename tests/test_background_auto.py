@@ -451,7 +451,11 @@ def test_a_line_with_no_position_never_reaches_a_consumer():
 
     # and nothing merely *imprecise* was caught with them: the bar is the axis,
     # not the peak's width, so a line uncertain by a degree still counts
-    kept = [p for p in peaks.usable() if p.two_theta_esd > p.fwhm]
+    # (the one such line on this pattern, at 65.69 deg with intensity 0.39 of its
+    # own esd, is now unusable for the other reason, PEAK_NO_INTENSITY_SIGMA, so
+    # the test looks at the components, not at what is still usable)
+    kept = [p for p in peaks.peaks
+            if p.two_theta_esd > p.fwhm and "position_unmeasured" not in p.flags]
     assert kept, (
         "every line whose esd exceeds its own width went, which is a wider "
         "rule than this one and needs its own measurement")

@@ -1133,11 +1133,12 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
         title="Refined to zero intensity",
         label="no intensity",
         description=(
-            "The component reached its zero-intensity bound, so it "
-            "contributes nothing to the window and its own position is no "
-            "longer identifiable: a peak reaches the data only through "
-            "intensity times profile. Unusable, and unlike the reported flags "
-            "there is no judgement left to make."
+            "The component reached its zero-intensity bound, or its fitted "
+            "intensity is under its own esd. It contributes nothing "
+            "measurable to the window and its own position is no longer "
+            "identifiable: a peak reaches the data only through intensity "
+            "times profile. Unusable, and unlike the reported flags there is "
+            "no judgement left to make."
         ),
     ),
     "duplicate_line": HelpEntry(
