@@ -125,6 +125,26 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-05, from the issue triage (issue #679): a displacive
+  candidate's group is a parent-lattice group at every k ≠ 0.** The rule is
+  the magnetic one with 1' switched off: `order_parameter_space`
+  (`isotropy.py:596`) stacks +D(g), so directions needing an element acting
+  as −D are never enumerated, and `_candidate_group` (`:1132`) emits
+  {R | v + Δ} on every coset, so the ε = −1 anti-translation appears as a
+  pure translation. The reporter's rule: {R_i | v_i + Δ} fixes a
+  displacement when ε(Δ)·D(g_i) does, a grey group on the ε(Δ) = +1
+  sublattice. *Checked at `32ef5a6`* with the reporter's script (3d of
+  `P m -3 m`, R point, against a random field's stabiliser under
+  `grey_little_group`): 11 of 11 candidates wrong; the S10 tilt irrep gives 4
+  directions where Howard & Stokes (1998, *Acta Cryst.* B54, 782) list six.
+  `verified` cannot see it (#607, below). **PR #680, from a fork, open**
+  (base `50777a95`): ε·D for both kinds, displacive elements only where
+  ε(Δ) = η with both 1' signs, a field-stabiliser oracle, the six subgroups
+  as BNS 140.542, 167.104, 74.555, 12.59, 15.86, 2.5. Unlike the issue, it
+  shows `magnetic_supercell` affected: the slow Ba₂FeSbSe₅ S3(a,b) test goes
+  from an order-2 group and 24 atoms to order 4 and 12, which moves 1419's
+  bullet "The declared operator list and the group are two different objects".
+
 - **2026-10-02, from the issue triage (issue #607): `MagneticCandidate.verified`
   never reads the operator list its docstring says it certifies.**
   `in_allowed_span` (`isotropy.py:956`) says the allowed-span helper "derives

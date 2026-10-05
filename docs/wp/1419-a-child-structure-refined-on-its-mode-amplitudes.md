@@ -161,6 +161,13 @@ the transposed rotation set is a group too and passes any dimension count.
 
 ### Inherited
 
+- **2026-10-05, from the issue triage (issue #679, recorded in
+  [1418](1418-the-magnetic-structure-is-determined.md)):** PR #680 makes a
+  displacive candidate's group the stabiliser of its own field. The
+  Ba₂FeSbSe₅ S3(a,b) child then states an order-4 group and 12 atoms, not
+  the order-2 sign-consistent subgroup and 24 atoms the bullet "The declared
+  operator list and the group are two different objects" was written from.
+
 - **2026-09-28, from [1338](1338-the-skills-own-gates.md): `references/diagnostics.md` is closed to growth.**
   Every skill file now has a ceiling and a budget below it
   (`tests/skill_caps.py`), and the budget fails a change that grows a file
