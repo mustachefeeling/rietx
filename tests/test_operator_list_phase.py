@@ -482,9 +482,11 @@ def test_the_ba2fesbse5_s3ab_child_is_built_instead_of_refused():
     # supercell._sign_consistent_operations keeps all four (checked by
     # propagating the field by the bare rotation); the previous order-2 set
     # was what the old grey rule left after that filter dropped its
-    # ε = −1 operations.  12 atoms: the child holds 32 (16 per parent cell,
-    # two parent cells), and the order-4 group's orbits leave 4 Ba, and 4 each
-    # of Fe and Se, whose mirror fixes y = 1/4 (the order-2 group left 24).
+    # ε = −1 operations.  12 atoms: the child holds 40 (the candidates'
+    # positions are 16 Ba on general 8d sites, 8 Fe on 4c and 16 Se on 8d: 20
+    # atoms per parent cell, two parent cells), and the order-4 group's orbits
+    # leave 16/4 Ba, 8/2 Fe and 16/4 Se, i.e. 4 each, Fe's mirror fixing
+    # y = 1/4 (the order-2 group left 16/2 + 8/1 + 16/2 = 24).
     assert set(statement.phase.symmetry_operations) == {
         "x,y,z", "x,-y+1/2,z", "-x+1/2,y+1/2,-z", "-x+1/2,-y,-z"}
     assert len(statement.phase.atoms) == 12

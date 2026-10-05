@@ -239,8 +239,8 @@ anti-translations enters exactly as for a moment, so the child lattice is the
 sublattice on which it is $+1$ and an element $\{R \mid \mathbf{v}+\Delta\}$
 belongs to the group when $\varepsilon(\Delta)\,D(R)$ fixes the displacement
 {cite}`stokeshatch1988`. The perovskite R-point tilt irrep then gives the six
-subgroups $I4/mcm$, $R\bar{3}c$, $Imma$, $C2/m$, $C2/c$, $P\bar{1}$ of Howard and
-Stokes (1998).
+subgroups $I4/mcm$, $R\bar{3}c$, $Imma$, $C2/m$, $C2/c$, $P\bar{1}$
+{cite}`howardstokes1998`.
 
 A candidate's own group also predicts which reflections it can never show
 intensity at, independent of the free amplitudes. For an operation
