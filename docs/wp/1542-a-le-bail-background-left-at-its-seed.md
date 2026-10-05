@@ -41,6 +41,24 @@ sits at its seed.
 this failure lowers Rwp. WP-1323 shipped in 1.6.0 and closed with this filed
 here (2026-10-03, at the maintainer's request).
 
+### Inherited
+
+- **2026-10-05, from the issue triage (issue #725): a second user asks for
+  §2 rule 5 as `auto_background`'s default, and the proposed default is the
+  start of this WP's own failure.** The proposal: `auto_background(data, …,
+  seed=True)` sets the Chebyshev constant term, or every P-spline
+  coefficient, to a low percentile of y_obs over the fitted range; `seed=False`
+  keeps today's zeros; the skill rule becomes "seed it yourself only for a
+  hand-built background". Not proposed: seeding inside the Le Bail stage.
+  Evidence: a CW neutron showcase run (λ ≈ 2.4 Å, FWHM ≈ 0.5°) whose unseeded
+  first pass sent every TCHZ term to its bound and whose seeded run did not;
+  not reproduced on lab silicon by the reporter. *Checked at `32ef5a6`*:
+  `auto_background` returns all-zero coefficients for both kinds (15 P-spline
+  and 5 Chebyshev on the issue's silicon, 5th percentile 893 counts), and the
+  first `lebail_update` runs at stage compile on `y_obs − 0`. Task 4 should
+  measure this seed beside the SNIP-held protocol, on the hump fixture and a
+  high-pedestal one. Whether a default changes is the maintainer's.
+
 ## Non-goals
 
 - The alternation's stop rule and keep-best (WP-1323, shipped).
