@@ -62,6 +62,24 @@ accepted cell is tested as the explanation of the leftovers.
 
 ### Inherited
 
+- **2026-10-05, from the issue triage (issue #728, part 1): an unvalidated
+  supercell can head the list when its sub-cell was never a candidate.** A
+  benchmark agent on `961f2eb5` indexed a synchrotron Si pattern (0.8257 Å,
+  ~100 picked lines, quick preset) to a 4× supercell graded `low`,
+  `not_validated`, and found the true cell by dividing the axes by hand.
+  *Checked at `32ef5a6`*: the issue reads `supercell_checks` as part of the
+  Le Bail validation, and it is not. Consensus runs it on every candidate
+  before validation (`consensus.py:511`), but only on listed pairs at
+  primitive-volume index 2-4, so a sub-cell no engine listed is never asked
+  (indexing/CLAUDE.md: a smaller-volume rival is invisible). A synthetic Si
+  pattern (4-80°, 17 lines, quick, 106.8 s) did not reproduce: truth cubic F
+  5.431 at rank 1, `low` from `predicted_but_absent` (the d-glide) and
+  `search_incomplete`. The ~100-line case was not rebuilt. Proposed: divide
+  each axis of every candidate by 2, 3, 4, compare indexed-line counts outside
+  the validation budget, and cap a candidate with a sub-cell explanation at
+  `medium`. That is the gate, which this WP's non-goals fence ("the blind
+  search itself"); where it lands is the maintainer's.
+
 - **2026-10-04, from [1323](1323-lebail-stop-rule.md), closed: the Le Bail
   background protocol is [1542](1542-a-le-bail-background-left-at-its-seed.md).**
   This WP's `Depends on:` names 1323 for "the Le Bail call and its background
