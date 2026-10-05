@@ -56,6 +56,23 @@ The row needs that check before it is written.
 
 ### Inherited
 
+- **2026-10-05, from the issue triage (issue #728, part 2): the skill shows
+  the extinction screen only on `best_or_none()`, so an agent re-ran
+  `index_pattern` to get a candidate to screen.** It looked for `.classes`
+  on the result (the field is `.candidates`) and rebuilt the search inside its
+  script. *Checked at `32ef5a6`*: the call the issue proposes exists, except
+  that `data` is required for the screen's Le Bail fits.
+  `determine_extinction_symbol(data, candidate, instrument, *, peaks=None, …)`
+  (`extinction.py:654`) takes any `CellCandidate`. `diagnostics-indexing.md`
+  (lines 188-202) screens `idx.best_or_none()` and says "do NOT take
+  candidates[0]", but not what to screen when it abstains, which is the
+  normal first outcome. `IndexingResult.classes` raises a bare
+  `AttributeError` with no pointer (`Base.__getattr__` lists fields only up to
+  12). A fifteenth row beside #661's fourteen: one line showing the screen on a
+  chosen `idx.candidates[i]`, placed cheapest first. `diagnostics-indexing.md`
+  is closed to growth, so it needs a cut or goes in the docstring. No new
+  signature is needed.
+
 - **From WP-1510 (2026-10-03): `api.md` has 95 B of headroom left.** WP-1539
   raised `API_INDEX_MAX_BYTES` to 39 600, and WP-1510's `index_pattern(formula=,
   temperature=)` took it to 39 700 at 39 605 B. The ceiling is now 300 B under

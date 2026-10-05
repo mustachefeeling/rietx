@@ -125,6 +125,46 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-05, from the issue triage (issue #724): `solve_magnetic`'s ranked
+  stage frees more nuclear parameters on a supercell child than the parent
+  has.** `SOLVE_STAGE_PATHS[1]` frees `phases.*.cell.*` and every
+  `.atoms.*.biso` on every candidate, and `reference_for` fits the nuclear
+  reference under the same stages minus the moments. The constant's comment
+  keeps coordinates out because a larger child asymmetric unit lets the
+  nuclear model absorb magnetic intensity; the issue says the same of cell and
+  Biso (1419's Context: 28 free child Biso alone took Ba₂FeSbSe₅'s Rwp
+  0.118 → 0.076, fork figures). *Checked at `32ef5a6`*: a three-site Pnma
+  parent at k = (½, 0, ½) (BNS 11.55) falls back to `nuclear_group="magnetic"`
+  (P 1 21/m 1, β 35.93°, 12 child atoms), where stage 2 frees 4 cell
+  parameters and 12 Biso against the parent's 3 and 3. A P4₂/mnm parent at
+  k = (0, 0, ½) stays on the `"parent"` route and frees 2 + 2, its parent's
+  count. `SupercellStatement.site_map` gives (parent atom, coset) per child.
+  Proposed: hold the child cell for a supercell statement, tie child Biso per
+  parent site (`tie_equal`, a `SOLVE_B_TIED_PER_PARENT_SITE` info row), and a
+  synthetic Pnma test. Open, the maintainer's: hold the cell or use 1419's
+  metric subspace, and whether the reference fit takes the same ties (ΔBIC
+  needs equal free sets).
+
+- **2026-10-05, from the issue triage (issue #679): a displacive
+  candidate's group is a parent-lattice group at every k ≠ 0.** The rule is
+  the magnetic one with 1' switched off: `order_parameter_space`
+  (`isotropy.py:596`) stacks +D(g), so directions needing an element acting
+  as −D are never enumerated, and `_candidate_group` (`:1132`) emits
+  {R | v + Δ} on every coset, so the ε = −1 anti-translation appears as a
+  pure translation. The reporter's rule: {R_i | v_i + Δ} fixes a
+  displacement when ε(Δ)·D(g_i) does, a grey group on the ε(Δ) = +1
+  sublattice. *Checked at `32ef5a6`* with the reporter's script (3d of
+  `P m -3 m`, R point, against a random field's stabiliser under
+  `grey_little_group`): 11 of 11 candidates wrong; the S10 tilt irrep gives 4
+  directions where Howard & Stokes (1998, *Acta Cryst.* B54, 782) list six.
+  `verified` cannot see it (#607, below). **PR #680, from a fork, open**
+  (base `50777a95`): ε·D for both kinds, displacive elements only where
+  ε(Δ) = η with both 1' signs, a field-stabiliser oracle, the six subgroups
+  as BNS 140.542, 167.104, 74.555, 12.59, 15.86, 2.5. Unlike the issue, it
+  shows `magnetic_supercell` affected: the slow Ba₂FeSbSe₅ S3(a,b) test goes
+  from an order-2 group and 24 atoms to order 4 and 12, which moves 1419's
+  bullet "The declared operator list and the group are two different objects".
+
 - **2026-10-02, from the issue triage (issue #607): `MagneticCandidate.verified`
   never reads the operator list its docstring says it certifies.**
   `in_allowed_span` (`isotropy.py:956`) says the allowed-span helper "derives

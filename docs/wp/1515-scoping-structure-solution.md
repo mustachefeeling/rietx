@@ -82,6 +82,47 @@ the whole surface with real agents.
 
 ### Inherited
 
+- **2026-10-05, from the issue triage (issue #677, follow-up to #562): a
+  second blind prototype run, and the design restated with space-group
+  competition before any `high`.** 89 cases from a private corpus (counts
+  only; the 23 earlier ones a subset). 79 reach a solve and 10 are refused
+  by name. 64 of 79 leaders are right under a site-RMS bar (RMS < 0.35 Å, no
+  site > 0.7 Å; the bar was chosen after seeing this run) and 58 under the
+  strict bar (every site < 0.3 Å). 51 are graded `high` and none of them is
+  wrong under the RMS bar (exact 95 % interval 0-7 %); 3 are wrong under the
+  strict bar. Every wrong leader is graded `low`. **The finding:** of six
+  wrong-space-group controls, five solved and one came back `high` (Imma
+  solved in Immm on a pseudo-hexagonal cell, where
+  `determine_extinction_symbol` abstains correctly). So the issue proposes
+  that `high` means "high, given this group" until groups are competed.
+  Candidates come from the unrefuted extinction classes, and only maximal
+  members are solved from scratch. All groups share one cost built on the
+  absence-free lattice group, and group leaders are compared by ΔBIC on
+  χ²_CI at N_clump (David 2004 eqs 20-22), never the raw channel count. A
+  subgroup descent is audited as the magnetic one is
+  (`MAGNETIC_SUBGROUP_PREFERRED`). `space_group_confidence` takes one of
+  `resolved`, `class_resolved`, `unresolved` or `not_competed`. Also
+  proposed:
+  - an extraction retry: a `max_iter` Le Bail fit is retried once at twice
+    the budget, and refused after that only above Rwp 0.25. That trigger
+    was set after seeing the run, so it is not a constant until measured on
+    NAC, FAP and the Kabova et al. (2025) VCT SI;
+  - a four-outcome acceptance table against a reference model, which is
+    first put through the same cost;
+  - the unsourced 1.2 Å clash floor goes, with radii from Shannon (ionic),
+    Pyykkö (covalent) and Pauling R(1) (metal-metal), and Cordero kept for
+    bond perception. The tables are in open PR #675, the reporter's, a
+    proposal not yet reviewed.
+
+  *Checked at `32ef5a6`*: `SolveCost.from_pawley` (`solve/cost.py:431`)
+  refuses `"unconverged"` and `"poor"` (Rwp above `MODEL_FAR_FROM_DATA_RWP`,
+  0.8) as the issue says, and `MAGNETIC_SUBGROUP_PREFERRED` exists
+  (`strategy/magnetic.py`). Nothing in the run is reproducible here, since
+  the corpus is private. Six questions close the issue, each with a default
+  ("the design as stated"): the caveat name, the statistic, the bounds
+  (3 classes, 6 groups), the four outcomes, the retry, and the radii. All
+  six are the maintainer's.
+
 - **2026-10-03, from [1902](1902-the-solve-cost-as-a-quadratic-form.md),
   closed: WP-1904 is reserved.** Decided 2026-10-02 on issue #562: the
   Wyckoff-class enumeration claims WP-1904, a separate module
