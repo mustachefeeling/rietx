@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P4 2026-09-30 — wording: the decision changes no number, and the guard it leans on has landed
+Priority: P2 2026-10-05 — was P4: #719, the post-solve clamp itself builds a zero-volume cell and fit() raises, so a Le Bail ladder loses that hypothesis
 
 ## Goal
 
@@ -40,6 +40,25 @@ put no box on `Cell`. Still open, and only if a measurement asks for it: a
 *visible* phase whose cell runs to a degenerate angle inside one stage. The
 guard neutralises and counts each probe. If it needs anything, it is a finding,
 not a bound.
+
+### Inherited
+
+- **2026-10-05, from the issue triage (issue #719): `clamp_cell_runaway`
+  can itself build a zero-volume cell, and `fit()` then raises
+  `DegenerateCellError`.** It clamps each free cell parameter to its own
+  safety window (`CELL_SAFETY_FRACTION` 0.15, `CELL_SAFETY_ANGLE_DEG` 6.0)
+  without asking whether the six make a cell, and `_run_stage` reads the
+  result in `_answer_significance` → `phase_support` (`refine.py:3513`,
+  `:3560`), outside the guards that wrap the solver. *Checked at `32ef5a6`*
+  with the reporter's snippet (P1 Le Bail of a wrong cell on synthetic
+  silicon, `[dev]`, Linux): `profile_only`'s 4th stage raises (the issue saw
+  it one plan later). The stage starts at det +55.46; TRF returns lengths of
+  −16200 to +1383 Å and angles past ±360°, every one det > 0, so no guard
+  fires; the clamp puts all six on window edges and that corner has det
+  −63.51. `multi.py:714` calls the same clamp. The reporter proposes no fix;
+  restoring the stage's start cell (the WP-1301 collapse-restore precedent)
+  or catching the raise where the answer is read is the maintainer's choice,
+  and either keeps 1528's "a finding, not a bound".
 
 ## Non-goals
 

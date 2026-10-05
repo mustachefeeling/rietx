@@ -43,6 +43,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1467](1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | P2 | — ([1318](1318-strain-surface.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1514](1514-scoping-rigid-bodies.md) | Scoping rigid bodies: the milestone that makes the parameter map nonlinear | P2 | — ([1319](1319-structure-interchange.md), [1515](1515-scoping-structure-solution.md), [1516](1516-scoping-stacking-faults.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
+| [1528](1528-the-cell-box-is-declined-where-the-cell-is-declared.md) | The cell box is declined where the cell is declared | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1542](1542-a-le-bail-background-left-at-its-seed.md) | A Le Bail background left at its seed | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1908](1908-a-tick-misses-the-displacement-shift.md) | A tick misses the displacement shift | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
@@ -459,7 +460,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1518](1518-dedup-weighs-a-difference-in-its-own-frame.md) | The dedup χ² test weighs a difference in the frame it was taken in | ✅ 2026-09-28 | — | — |
 | [1521](1521-compiled-kernels-active-means-they-ran.md) | `compiled_kernels_active` says the kernels ran, per tier, or says it does not know | ⬜ | P4 | — |
 | [1523](1523-a-phase-fitted-to-noise-passes-the-support-test.md) | A phase fitted to noise passes the support test | 🔄 2026-10-04 | P2 | — ([1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) soft) |
-| [1528](1528-the-cell-box-is-declined-where-the-cell-is-declared.md) | The cell box is declined where the cell is declared | ⬜ | P4 | — |
+| [1528](1528-the-cell-box-is-declined-where-the-cell-is-declared.md) | The cell box is declined where the cell is declared | ⬜ | P2 | — |
 | [1534](1534-a-scale-and-a-b-the-range-cannot-separate.md) | A scale and a B the fitted range cannot separate | ✅ 2026-10-04 | — | — |
 | [1535](1535-a-discarded-direction-reads-as-measured.md) | A direction the covariance discards reads as measured | ✅ 2026-10-02 | — | — |
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 🔄 2026-10-03 | P4 | — |
