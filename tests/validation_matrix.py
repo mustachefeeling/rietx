@@ -217,6 +217,16 @@ DATASETS: dict[str, Dataset] = {
         "every row referenced to it is characterisation: a moment the report "
         "supports below T_N and refuses above it",
         "characterisation"),
+    "lamno3_bt1": Dataset(
+        "gsas2_bt1_lamno3_50K.gsas",
+        "NIST BT-1 constant-wavelength neutron (lambda 1.5403 A, Cu(311)) "
+        "LaMnO3 at 50 K, below its ordering temperature, with the tutorial's "
+        "own structure file -- the GSAS-II Magnetic-I tutorial, vendored "
+        "verbatim.  k = 0, and two magnetic groups index every line.  The "
+        "tutorial quotes no moment, so every row referenced to it is "
+        "characterisation: which group the data prefers, and the shape of the "
+        "moment it carries",
+        "characterisation"),
 }
 
 
@@ -2318,6 +2328,38 @@ CLAIMS: tuple[Claim, ...] = (
         measured="|m| 0.067 +/- 0.83 mu_B (0.08 sigma, bar 3); Rwp 0.099241 "
                  "against 0.099242 nuclear-only (bar 1e-3 relative)",
     ),
+    # ---- LaMnO3 on BT-1: WP-1327's second dataset, k = 0 ----
+    Claim(
+        "test_acceptance_magnetic_lamno3", "test_the_50k_moment_is_supported_and_lies_along_a",
+        "lamno3_bt1", ("characterisation", "ceiling"),
+        "under Pn'ma' (BNS 62.448) a Mn3+ moment is reported supported, along "
+        "a with My held at zero as the tutorial holds it, below the spin-only "
+        "ceiling, and removes about half of the nuclear-only misfit",
+        reference="no reference magnitude: the tutorial quotes none.  The "
+                  "band's ceiling is Mn3+'s spin-only gS = 4 mu_B; its floor "
+                  "of 3.3 mu_B sits under every protocol variant measured "
+                  "(3.54-3.56 mu_B with the axial or Lorentzian widths freed "
+                  "or held) -- never a literature value",
+        measured="|m| 3.558 +/- 0.049 mu_B (73 sigma, bar 10; 9.1 esd under "
+                 "4 mu_B, bar 3), m = (3.543, 0, 0.325) mu_B: a-component "
+                 "0.996 of |m| (bar 0.98), polar angle 1.5 esd from 90 deg "
+                 "(bar 3); Rwp 0.0631 against 0.1381 nuclear-only (bar 0.6x)",
+    ),
+    Claim(
+        "test_acceptance_magnetic_lamno3", "test_pn_ma_beats_pnma_at_the_tutorials_pair",
+        "lamno3_bt1", ("characterisation",),
+        "the tutorial's discrimination: both candidate groups carry a "
+        "supported moment, along a under Pn'ma' and along c under Pnma, and "
+        "Pn'ma' fits better, overall and at the pair of lines at 33.3 and "
+        "34.4 deg 2theta the tutorial names",
+        reference="the Pnma fit on the same protocol.  The tutorial reads the "
+                  "same pair and reports Rwp ~8.7 % against ~10 % at its "
+                  "Step 7, a protocol not adopted here",
+        measured="Rwp 0.0631 against 0.0844 (ratio 0.75, bar 0.85); chi2 over "
+                 "32.8-35.0 deg 67 against 2711 (ratio 0.025, bar 0.1); Pnma "
+                 "|m| 3.335 +/- 0.079 mu_B, c-component 0.996 of |m| "
+                 "(bar 0.98)",
+    ),
 )
 
 
@@ -2603,6 +2645,14 @@ SUITE_INTROS: dict[str, str] = {
         "the report calls it unsupported and Rwp does not move. No moment "
         "here is certified, so the rows are characterisation -- the second "
         "is the one that separates no moment from a small invented one.",
+    "test_acceptance_magnetic_lamno3":
+        "The second moment dataset, and the k = 0 case: LaMnO3 at 50 K on "
+        "BT-1, from the GSAS-II Magnetic-I tutorial.  Two magnetic groups "
+        "index every line, so the suite asks the tutorial's own question of "
+        "both: Pn'ma' puts a supported moment along a and fits the pair of "
+        "lines at 33.3 and 34.4 deg that Pnma, with its moment along c, does "
+        "not.  The tutorial quotes no moment, so the rows are "
+        "characterisation.",
 }
 
 
