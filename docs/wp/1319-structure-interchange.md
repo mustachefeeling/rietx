@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: Coming from another code
 Depends on: —
-Priority: P3 2026-09-23 — a workaround covers both: edit the CIF, convert the XYZ
+Priority: P2 2026-10-05 — was P3: #711 and #712 are two silent wrong models from the CIF reader, on a path few fits hit (PR #717 fixes both); back to P3 when it lands
 
 ## Goal
 
@@ -57,6 +57,26 @@ formats are explicitly untrusted for aromatic/multiple-bond rigid bodies,
 stated here so no later WP builds bond perception on geometry alone.
 
 ### Inherited
+
+- **2026-10-05, from the issue triage (issues #711, #712):
+  `structure_from_cif` reads two things a CIF row states as if it had not
+  stated them.** #711: a special position quoted to four decimals, each
+  coordinate rounded on its own, can miss by 2e-4 (6e of `R -3 c :R`,
+  x + y = 0.6870 + 0.8132 = 1.5002), outside `SITE_TOL` = 1e-4
+  (`symmetry.py:677`, WP-1324's snap), so it expands as general at twice the
+  multiplicity while the row's `_atom_site_symmetry_multiplicity` says
+  otherwise; nothing in `src/` reads that column. #712: `if not u_iso:`
+  (`cif.py:395`) and `site.occ if site.occ else 1.0` (`:413`) treat a stated
+  zero as absent, gemmi giving 0.0 for both. *Checked at `32ef5a6`* with the
+  issues' CIFs: O1 reads multiplicity 12 against the stated 6, with no
+  diagnostic; `B_iso_or_equiv 0.000(75)` reads 0.5 Å² and occupancy 0 reads
+  1.0; a B of 0.0 written by `Structure.to_cif` (`0.0000 Biso`) reads back
+  0.5. **PR #717, from a fork, open**, fixes both: per-site statements read
+  from the block (a null is not one), a stated multiplicity reached by a move
+  ≤ 1e-3 **moves the stored coordinates** with
+  `SITE_SNAPPED_TO_SPECIAL_POSITION`, else a new warning
+  `CIF_SITE_MULTIPLICITY_DISAGREES`. Not covered: the writers, and a magCIF
+  with a multiplicity column. The coordinate move is the maintainer's call.
 
 - **2026-09-28, from the review of `solution case 1` (WP-1510 has the
   source): the XYZ slice has its consumer.** This file's Context says the
