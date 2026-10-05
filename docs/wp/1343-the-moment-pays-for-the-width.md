@@ -3,7 +3,7 @@
 Milestone: magnetic · Status: 🔄 2026-09-30 — PR #524 merged: 9 of 11 tasks done; open: a synthetic k = 0 no-esd case, the PNGs, and acceptance 4 on real k ≠ 0 data
 Depends on: 1327 (the moment, the magnetic |F_⊥|², the shared scale);
 1326 soft (the satellites that make the term identifiable)
-Priority: P3 2026-09-23 — waits on 1327; P2 when it lands, the moment then reading low in silence
+Priority: P2 2026-10-05 — was P3: `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` fires on a warm refit under `fit` (#729), a flag firing wrongly whose workaround is `run_stage`
 
 ## Goal
 
@@ -253,6 +253,25 @@ rule goes in the skill's magnetic reference as a written ordering row. Take
 the cheaper of the two at the time; the skill row is required either way.
 
 ### Inherited
+
+- **2026-10-05, from the issue triage (issue #729):
+  `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` fires on a warm refit through
+  `fit`, the third step its own docstring calls fine.**
+  `_stage_order_diagnostics` (`refine.py:5281`) counts as already freed only
+  `table.free_paths`. `run_stage` passes the working state's free set, but
+  `fit` passes `_prepare_table(restore=False)` (`refine.py:4068`), with
+  everything held. So under `fit` a single stage freeing the moment and a
+  width always reads as a cold start, and the message says "from a cold
+  start ... Neither number that comes back is a measurement of its own
+  quantity". *Checked at `32ef5a6`* with the issue's script (`_mnf2`, Poisson,
+  seed 3): `plan="magnetic_width"` reports nothing; the same stage refit
+  warm fires, both on a new `Refinement` built from `fitted_structure` and on
+  the same converged one; `run_stage` of that stage on the converged one is
+  silent. The moment stays 4.58505 ± 0.01907 μB and both widths stay 0.0, so
+  nothing traded. The check needs a discriminator it can compute, or a message
+  that states the condition instead of asserting a cold start (root CLAUDE.md,
+  WP-1118's rule). Which one is the maintainer's: the Refinement's own last
+  fit can show "warm" for the same object, and nothing can for a fresh one.
 
 - **2026-09-28, from [1338](1338-the-skills-own-gates.md): `references/diagnostics.md` is closed to growth.**
   Every skill file now has a ceiling and a budget below it
