@@ -398,6 +398,23 @@ cannot state is refused by name:
 
 The group's symbol rides as a comment and is not read back.
 
+A magnetic phase the `str` cannot state goes through P1. `write_topas_inp(structure,
+path, p1_expand=True)` writes every phase as the explicit list of the atoms of
+its cell, in `P 1`, each with its own moment, and a magnetic phase as
+`mag_space_group 1.1`. A k ≠ 0 supercell, a family group TOPAS has no number for
+and a non-standard setting all go through this way, because the restatement
+needs neither the parent k nor a group name. The list comes from
+`rietx.crystallography.magnetic.p1.restate_phase_in_p1`, which runs the forward
+model's own expansion: each position is `R·x + t`, each moment is
+`ε·det(R)·R·m` (an axial vector, with ε = −1 for a primed operation or an
+anti-translation) in crystal-axis μ_B, and each displacement tensor is rotated
+with its image. `predict()` on the restatement equals `predict()` on the
+original to about 1e-12, so the list also serves as a check on the moments of
+every atom of the cell. The species of a moment-bearing atom is written as its
+ion, which a neutron pattern does not notice. Every flag in the file is `!`: the
+ties that made the copies one parameter are not stated in P1, so free what you
+mean to refine in TOPAS yourself.
+
 ### A magnetic phase from a FullProf `.pcr`
 
 FullProf states a magnetic structure as a separate *pure magnetic* phase
