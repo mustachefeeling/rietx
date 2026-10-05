@@ -2048,8 +2048,12 @@ def test_write_fullprof_pcr_round_trips_both_r_lattice_axis_choices(tmp_path, sy
     out = tmp_path / "r.pcr"
     write_fullprof_pcr(structure, out)
     back = to_structure(read_fullprof_pcr(out))
+    # FullProf reads `R -3 c` as hexagonal axes whatever the cell says, so a
+    # rhombohedral-axes phase is written in hexagonal ones and comes back as
+    # the same lattice there (the tests below); the hexagonal one is unchanged.
+    expected = "R -3 c:H"
     assert (get_spacegroup(back.phases[0].space_group).xhm()
-           == get_spacegroup(symbol).xhm())
+           == get_spacegroup(expected).xhm())
 
 
 def test_write_fullprof_pcr_refuses_an_unreachable_origin_choice(tmp_path):
@@ -2841,3 +2845,82 @@ def test_a_written_ion_reads_back_and_a_substitution_is_named(tmp_path,
             if d.code == "FULLPROF_SPECIES_WRITTEN_NEUTRAL"]
     assert [d.where for d in rows] == (
         [["phases.0.atoms.1.species"]] if named else [])
+
+
+# ------------------------- a rhombohedral-axes phase: FullProf has no such axes
+
+
+def _corundum_type(symbol: str, a: float, alpha: float):
+    cell = rx.Cell(a=rx.Parameter(value=a), b=rx.Parameter(value=a),
+                   c=rx.Parameter(value=a), alpha=rx.Parameter(value=alpha),
+                   beta=rx.Parameter(value=alpha),
+                   gamma=rx.Parameter(value=alpha))
+    atoms = [rx.Atom(label="M1", species="Fe3+", x=rx.Parameter(value=0.1448),
+                     y=rx.Parameter(value=0.1448), z=rx.Parameter(value=0.1448),
+                     biso=rx.Parameter(value=0.4, vary=True)),
+             rx.Atom(label="O1", species="O2-", x=rx.Parameter(value=0.9407),
+                     y=rx.Parameter(value=0.5593), z=rx.Parameter(value=0.25),
+                     biso=rx.Parameter(value=0.5))]
+    return rx.Phase(name="corundum-type", space_group=symbol, cell=cell,
+                    atoms=atoms)
+
+
+def test_a_rhombohedral_axes_phase_is_written_in_hexagonal_axes(tmp_path):
+    """FullProf has no suffix for rhombohedral axes and reads ``R -3 c`` as
+    hexagonal: a ``5.42 5.42 5.42 55.3 55.3 55.3`` cell comes back as
+    ``5.42 5.42 5.42 90 90 120``, another crystal of three times the volume
+    (measured on FullProf.2k 8.50, black box).  The file now states the
+    hexagonal cell of the same lattice, and the diagnostic says so."""
+    phase = _corundum_type("R -3 c:R", 5.4226, 55.2757)
+    found: list = []
+    out = tmp_path / "r.pcr"
+    write_fullprof_pcr(rx.Structure(phases=[phase]), out, diagnostics=found)
+    [note] = [d for d in found if d.code == "FULLPROF_RHOMBOHEDRAL_RESTATED"]
+    assert note.where == ["phases.0"]
+    back = to_structure(read_fullprof_pcr(out)).phases[0]
+    a, b, c, al, be, ga = back.cell.lengths_angles()
+    assert (a, b) == (pytest.approx(5.03089, abs=2e-5), pytest.approx(5.03089, abs=2e-5))
+    assert c == pytest.approx(13.73724, abs=2e-5)
+    assert (al, be, ga) == (90.0, 90.0, 120.0)
+    import math
+    v_hex = a * b * c * math.sin(math.radians(120.0))
+    v_rh = 5.4226 ** 3 * math.sqrt(
+        1 - 3 * math.cos(math.radians(55.2757)) ** 2
+        + 2 * math.cos(math.radians(55.2757)) ** 3)
+    assert v_hex == pytest.approx(3.0 * v_rh, rel=1e-5)
+    assert get_spacegroup(back.space_group).xhm() == "R -3 c:H"
+
+
+def test_the_hexagonal_restatement_predicts_what_the_original_does(tmp_path):
+    """Same lattice, same atoms: the written file read back draws the original
+    pattern (the scale divided by 9 is what keeps the per-cell structure factor
+    equal), to the digits a `.pcr` carries."""
+    import numpy as np
+
+    original = _corundum_type("R -3 c:R", 5.4226, 55.2757)
+    out = tmp_path / "r.pcr"
+    write_fullprof_pcr(rx.Structure(phases=[original]), out)
+    back = to_structure(read_fullprof_pcr(out))
+    grid = np.arange(15.0, 100.0, 0.02)
+    inst = rx.Instrument.constant_wavelength_neutron(1.54)
+
+    def draw(structure):
+        return np.asarray(rx.Refinement(structure, inst, history=False)
+                          .predict(grid))
+
+    y0 = draw(rx.Structure(phases=[original]))
+    y1 = draw(back)
+    assert float(np.max(np.abs(y1 - y0)) / np.max(y0)) < 1e-4
+
+
+def test_the_hexagonal_phase_is_not_touched_and_says_nothing(tmp_path):
+    found: list = []
+    phase = _corundum_type("R -3 c:H", 4.9542, 90.0).model_copy(update={
+        "cell": rx.Cell(a=rx.Parameter(value=4.9542), b=rx.Parameter(value=4.9542),
+                        c=rx.Parameter(value=13.4213),
+                        alpha=rx.Parameter(value=90.0),
+                        beta=rx.Parameter(value=90.0),
+                        gamma=rx.Parameter(value=120.0))})
+    write_fullprof_pcr(rx.Structure(phases=[phase]), tmp_path / "h.pcr",
+                       diagnostics=found)
+    assert not [d for d in found if "RHOMBOHEDRAL" in d.code]

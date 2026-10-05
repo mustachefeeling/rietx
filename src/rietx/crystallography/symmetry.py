@@ -100,6 +100,91 @@ def refuse_operation_list(phase, fmt: str) -> None:
             f"(Structure.to_cif) carries the list")
 
 
+def restate_in_hexagonal_axes(phase, fmt: str):
+    """``(phase, restated)``: an R lattice on rhombohedral axes in hexagonal ones.
+
+    For a writer whose program has no rhombohedral axes: FullProf reads
+    ``R -3 c`` as hexagonal whatever the cell says (a rhombohedral ``a = b = c``,
+    ``α = β = γ`` cell comes back as ``a a a 90 90 120``, a different crystal of
+    another volume) and has no suffix to say otherwise, and GSAS-II's CIF import
+    gives up on ``R -3 c :R`` ("uses a space group setting not compatible with
+    GSAS-II"; both measured, black box).  The phase is the same lattice and the
+    same atoms in the hexagonal cell of the same group: ``a_h = 2 a_r sin(α/2)``,
+    ``c_h = a_r √(3 (1 + 2 cos α))``, and each position through the inverse of
+    the setting's change of basis.
+
+    The phase's scale is multiplied by (V_r / V_h)² = 1/9: a structure factor is
+    summed over the cell, and the hexagonal cell holds three rhombohedral ones,
+    so the same scale would draw a pattern nine times as strong.  With it,
+    ``predict()`` on the restatement equals ``predict()`` on the original.
+
+    A phase that is not on rhombohedral axes comes back untouched with
+    ``restated`` False.  Every restated coordinate and cell edge is held and
+    carries no esd, because the ties that made one rhombohedral parameter of
+    several hexagonal ones are not stated in the new setting.  An anisotropic
+    displacement tensor is refused by name rather than rotated: both writers
+    that call this refuse one already.
+    """
+    import numpy as np
+
+    sg = get_spacegroup(phase.space_group)
+    if sg.ext != "R":
+        return phase, False
+    if any(a.aniso is not None for a in phase.atoms):
+        raise ValueError(
+            f"phase {phase.name!r} cannot be written to {fmt}: it is on "
+            f"rhombohedral axes, which {fmt} cannot state, and restating it in "
+            f"hexagonal axes would have to rotate an anisotropic displacement "
+            f"tensor, which is not done here. Restate the phase in hexagonal "
+            f"axes (a, a, c, 90, 90, 120) first")
+    op = sg.basisop.inverse()
+    cell = phase.cell
+    rhombohedral = gemmi.UnitCell(
+        cell.a.value, cell.b.value, cell.c.value, cell.alpha.value,
+        cell.beta.value, cell.gamma.value)
+    hexagonal = rhombohedral.changed_basis_backward(sg.basisop, False)
+    ratio = (rhombohedral.volume / hexagonal.volume) ** 2
+    scale = phase.scale.model_copy(update={
+        "value": phase.scale.value * ratio,
+        "min": phase.scale.min * ratio, "max": phase.scale.max * ratio})
+
+    def held(parameter, value):
+        return parameter.model_copy(update={
+            "value": float(value), "vary": False, "expr": None,
+            "stderr": None})
+
+    new_cell = cell.model_copy(update={
+        "a": held(cell.a, hexagonal.a), "b": held(cell.b, hexagonal.b),
+        "c": held(cell.c, hexagonal.c), "alpha": held(cell.alpha, 90.0),
+        "beta": held(cell.beta, 90.0), "gamma": held(cell.gamma, 120.0)})
+    atoms = []
+    for atom in phase.atoms:
+        x = np.array(op.apply_to_xyz([atom.x.value, atom.y.value,
+                                      atom.z.value])) % 1.0
+        x[x >= 1.0 - 1e-12] = 0.0
+        atoms.append(atom.model_copy(update={
+            "x": held(atom.x, x[0]), "y": held(atom.y, x[1]),
+            "z": held(atom.z, x[2])}))
+    return phase.model_copy(update={
+        "space_group": sg.xhm().replace(":R", ":H"), "cell": new_cell,
+        "atoms": atoms, "scale": scale}), True
+
+
+def rhombohedral_restated_diagnostic(where: list[str], code: str,
+                                     program: str) -> Diagnostic:
+    """The report a writer makes for each phase :func:`restate_in_hexagonal_axes` moved."""
+    return Diagnostic(
+        level="warning", code=code, where=list(where),
+        message=(f"{len(where)} phase(s) were on rhombohedral axes, which "
+                 f"{program} cannot state, and are written in hexagonal axes "
+                 f"(a, a, c, 90, 90, 120) with every cell edge and coordinate "
+                 f"held and the scale divided by 9: the same crystal and the "
+                 f"same pattern"),
+        suggestion=f"free what you mean to refine in {program}; the "
+                   f"rhombohedral parameters are now several hexagonal ones "
+                   f"and the ties between them are not stated")
+
+
 def refuse_magnetic_phase(phase, fmt: str, why: str | None = None) -> None:
     """Refuse, by name, a phase carrying a magnetic group or a site moment.
 

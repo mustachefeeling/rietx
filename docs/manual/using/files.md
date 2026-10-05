@@ -727,6 +727,11 @@ bare-symbol convention already prefers (root CLAUDE.md's "an R lattice on
 rhombohedral axes" and "choice 2 wherever the bare symbol lands on choice
 1"). A phase whose resolved setting disagrees, most commonly origin choice 1,
 is refused by name instead of being silently written as the other setting.
+A phase on rhombohedral axes is written in hexagonal ones, because FullProf
+reads `R -3 c` as hexagonal whatever the cell says and GSAS-II's CIF import
+refuses the rhombohedral setting; `FULLPROF_RHOMBOHEDRAL_RESTATED` and
+`GSAS2_CIF_RHOMBOHEDRAL_RESTATED` say so, and the restated cell and coordinates
+are held.
 TOPAS and GSAS can both spell every setting, so neither owes that refusal. An
 anisotropic site is refused by the FullProf and GSAS writers, because
 `to_structure` refuses to assume a displacement-tensor convention on the way

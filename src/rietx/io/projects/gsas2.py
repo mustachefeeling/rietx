@@ -1739,10 +1739,13 @@ def from_structure(structure, *,
         refuse_magnetic_phase,
         refuse_operation_list,
         refuse_propagation_vector,
+        restate_in_hexagonal_axes,
+        rhombohedral_restated_diagnostic,
         setting_alternatives,
     )
 
     doc = gemmi.cif.Document()
+    rhombohedral: list[str] = []
     ambiguous: list[str] = []
     deuterium: list[tuple[str, str]] = []
     taken_names: set[str] = set()
@@ -1755,6 +1758,10 @@ def from_structure(structure, *,
                 "to a magCIF, whose magnetic loops GSAS-II's CIF import drops "
                 "without a warning (measured on GSAS-II 5.6.3)")
         refuse_operation_list(phase, "a GSAS-II phase CIF")
+        phase, restated = restate_in_hexagonal_axes(
+            phase, "a GSAS-II phase CIF")
+        if restated:
+            rhombohedral.append(f"phases.{index}")
         # The block writer below does write the magCIF loops, but GSAS-II's
         # own CIF import (v5.6.3, scriptable `add_phase`, measured on MnF2)
         # reads that file back as a nuclear phase — no magnetic group, every
@@ -1806,6 +1813,9 @@ def from_structure(structure, *,
 
     if diagnostics is not None:
         _report_cif(structure, ambiguous, diagnostics, deuterium)
+        if rhombohedral:
+            diagnostics.append(rhombohedral_restated_diagnostic(
+                rhombohedral, "GSAS2_CIF_RHOMBOHEDRAL_RESTATED", "GSAS-II"))
         from ...crystallography.scattering import written_neutral_diagnostics
         diagnostics.extend(written_neutral_diagnostics(
             structure, code="GSAS2_CIF_SPECIES_WRITTEN_NEUTRAL",
