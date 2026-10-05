@@ -716,6 +716,33 @@ def test_a_moment_already_free_is_not_a_first_freeing():
     assert _stage_order_diagnostics(step3, table, "rietveld") == []
 
 
+def test_a_warm_refit_of_a_measured_width_is_not_a_cold_start():
+    """A converged fit refit in one stage that frees the moment and the width
+    together is the order's own third step, and the width it starts from is not
+    zero.  The plan alone could not tell (``fit`` hands the check a table with
+    everything held), and the warning described a cold start to a caller whose
+    model had converged.  The same plan on a model whose width is still zero is
+    the cold start, and is still reported."""
+    from rietx.refine import _stage_order_diagnostics
+
+    both = rx.RefinementPlan(stages=[rx.Stage(
+        "both", ["phases.*.atoms.*.moment.dof*", "phases.*.magnetic_lor_size",
+                 "phases.*.scale"])])
+    ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
+
+    def table_for(width: float):
+        phase = _mnf2()
+        phase.magnetic_lor_size.value = width
+        table = ParameterTable(rx.Structure(phases=[phase]), ins)
+        table.set_vary(["*"], False)
+        return table
+
+    assert [d.code for d in _stage_order_diagnostics(
+        both, table_for(0.0), "rietveld")] == [
+            "STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT"]
+    assert _stage_order_diagnostics(both, table_for(0.3), "rietveld") == []
+
+
 def test_the_ordering_check_is_silent_on_a_plan_with_no_magnetic_width():
     from rietx.refine import _stage_order_diagnostics
 
