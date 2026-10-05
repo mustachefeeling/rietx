@@ -1171,8 +1171,13 @@ outside the list.
 
 #### The profile coefficients are centidegrees and the zero correction is not
 
-`Gsas2Term.degrees` is the conversion, and it exists for `U`, `V`, `W`, `X`, `Y`
-and `Z` only. `Zero` is already in degrees, which is where the two GSAS
+`Gsas2Term.degrees` is the unit conversion, and it exists for `U`, `V`, `W`, `X`,
+`Y` and `Z` only. For `U`, `V` and `W` it changes the unit and nothing else: the
+result is still a Gaussian *variance* in degrees², which is what GSAS-II states,
+so `profile.u/v/w` is 8 ln 2 times it, not equal to it. Setting
+`profile.u = terms["U"].degrees` gives a Gaussian 2.35 times too narrow; the
+`.instprm` paragraph above and `instprm_factor` (in `rietx.io.projects.gsas2`)
+carry the whole factor. `Zero` is already in degrees, which is where the two GSAS
 generations differ from each other, so a `None` there means "no conversion was
 needed" rather than "no conversion was made".
 
