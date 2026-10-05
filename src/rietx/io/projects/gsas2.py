@@ -366,6 +366,34 @@ def centidegree_factor(name: str) -> float | None:
     power = CW_CENTIDEGREE_POWER.get(name)
     return None if power is None else 100.0 ** power
 
+
+#: GSAS-II's ``U``, ``V`` and ``W`` are the coefficients of a Gaussian
+#: *variance* σ² in centidegrees², and rietx's ``profile.u/v/w`` those of the
+#: Gaussian FWHM² Γ_G² in degrees² (``ProfileTCHZ``): Γ² = 8 ln 2 · σ².  Measured
+#: against GSAS-II's own peak list in ``io/recipe.py`` (``GAUSS_CENTIDEG2_TO_DEG2``,
+#: ``tests/data/README.md`` § The convention table).
+GAUSSIAN_VARIANCE_TO_FWHM_SQUARED = 8.0 * math.log(2.0)
+
+
+def instprm_factor(name: str) -> float | None:
+    """What a rietx profile coefficient is multiplied by to give GSAS-II's.
+
+    The conversion of ``io/instrument_profile``'s ``.instprm`` reader (divides)
+    and writer (multiplies): :func:`centidegree_factor`'s unit change, and for
+    the Gaussian terms ``U``, ``V`` and ``W`` also the variance → FWHM² step,
+    which is a factor 8 ln 2 smaller than the centidegrees² alone (the writer's
+    ``U`` = ``u`` × 1e4 / 8 ln 2).  ``None``
+    for a name that is not a width.  :attr:`Gsas2Term.degrees` keeps the
+    quantity GSAS-II states (a variance, for ``U V W``), so a ``.gpx`` read is
+    unchanged.
+    """
+    factor = centidegree_factor(name)
+    if factor is None:
+        return None
+    if CW_CENTIDEGREE_POWER[name] == 2:
+        factor /= GAUSSIAN_VARIANCE_TO_FWHM_SQUARED
+    return factor
+
 #: The refine-flag letters a GSAS-II atom record carries at ``ct+1``.
 ATOM_REFINE_FLAGS: dict[str, str] = {
     "F": "site occupancy",
@@ -395,8 +423,8 @@ class Gsas2Term:
 
     ``value`` is the refined number GSAS-II last held and ``initial`` the one it
     started from, which the format keeps side by side.  ``degrees`` is the same
-    quantity in degrees where the unit is a power of centidegrees, and ``None``
-    where it is not — never a silent identity (:data:`CW_CENTIDEGREE_POWER`).
+    quantity in degrees where the unit is a power of centidegrees (so ``U V W``
+    stay a Gaussian *variance*, not a FWHM²), and ``None`` where it is not — never a silent identity (:data:`CW_CENTIDEGREE_POWER`).
     """
 
     name: str

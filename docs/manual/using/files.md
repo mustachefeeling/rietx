@@ -591,8 +591,10 @@ instrument = rx.read_gsas2_instprm("beamline.instprm", diagnostics=notes)
 
 It reads the constant-wavelength types, `PXC` (X-ray) and `PNC` (neutron), and
 a neutron file comes back with a `NeutronSource`. `U`, `V` and `W` are
-centidegrees squared and `X` and `Y` centidegrees, converted through the same
-factors the `.gpx` reader uses. `Zero` is already in degrees, and it means what
+the coefficients of a Gaussian variance in centidegrees squared and `X` and `Y`
+centidegrees of Lorentzian FWHM. `profile.u/v/w` are the coefficients of the
+Gaussian FWHM² in degrees², so they are the file's values × 8 ln 2 × 10⁻⁴ (the
+recipe reader's constant), and the writer divides back. `Zero` is already in degrees, and it means what
 `instrument.zero_shift` means: a constant added to the calculated 2θ. `SH/L` is
 GSAS-II's combined (S+H)/L, so it is split evenly into `axial_sl` and
 `axial_hl`, which is the symmetric Finger-Cox-Jephcoat reading and the only one

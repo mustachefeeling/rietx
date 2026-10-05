@@ -16,6 +16,7 @@ corroborated instead by ``gsas2_pbso4.gpx``, whose two histograms carry
 
 from __future__ import annotations
 
+import math
 import re
 from pathlib import Path
 
@@ -36,6 +37,7 @@ from rietx.io.projects.gsas2 import (
 DATA = Path(__file__).parent / "data"
 BNL = DATA / "gsas2_bnl.instprm"
 HB2A = DATA / "gsas2_hb2a.instprm"
+EIGHT_LN2 = 8.0 * math.log(2.0)
 
 
 def _calibrated() -> rx.Instrument:
@@ -114,17 +116,20 @@ def test_banks_are_split_on_their_headers():
 def test_a_real_neutron_calibration_reads_end_to_end():
     """``gsas2_hb2a.instprm``, HFIR's HB-2A: the corpus file that reads.
 
-    Its numbers are the file's own, converted through the ``.gpx`` reader's
-    centidegree factors: U, V and W are centidegrees squared and X, Y
-    centidegrees, while ``Zero`` is already degrees.
+    Its numbers are the file's own: U, V and W are a Gaussian variance in
+    centidegrees squared (so ``profile.u/v/w`` = value / 1e4 / 8 ln 2, the FWHM²
+    in degrees²) and X, Y centidegrees, while ``Zero`` is already degrees.
     """
     instrument = read_gsas2_instprm(HB2A)
     assert instrument.source.kind == "neutron_cw"
     assert instrument.source.wavelength.value == pytest.approx(
         2.4062686168735197, rel=1e-15)
-    assert instrument.profile.u.value == pytest.approx(798.889 / 1e4, rel=1e-15)
-    assert instrument.profile.v.value == pytest.approx(-444.367 / 1e4, rel=1e-15)
-    assert instrument.profile.w.value == pytest.approx(242.406 / 1e4, rel=1e-15)
+    assert instrument.profile.u.value == pytest.approx(
+        798.889 / 1e4 * EIGHT_LN2, rel=1e-15)
+    assert instrument.profile.v.value == pytest.approx(
+        -444.367 / 1e4 * EIGHT_LN2, rel=1e-15)
+    assert instrument.profile.w.value == pytest.approx(
+        242.406 / 1e4 * EIGHT_LN2, rel=1e-15)
     assert instrument.zero_shift.value == pytest.approx(
         -0.009602591470493875, rel=1e-15)
     # SH/L = 0.09 is GSAS-II's combined (S+H)/L
@@ -233,7 +238,7 @@ def test_a_multi_bank_file_needs_a_bank(tmp_path):
 
     chosen = read_gsas2_instprm(path, bank=2)
     assert chosen.source.lines[0].wavelength.value == pytest.approx(0.4139)
-    assert chosen.profile.w.value == pytest.approx(4.0 / 1e4, rel=1e-15)
+    assert chosen.profile.w.value == pytest.approx(4.0 / 1e4 * EIGHT_LN2, rel=1e-15)
 
 
 def test_a_bank_the_file_does_not_state_is_refused(tmp_path):
@@ -481,3 +486,53 @@ def test_a_file_stating_lam1_is_not_reported_as_missing_lam(tmp_path):
     # the items this file really does omit, and must not name the wavelength
     assert not re.search(r"\bLam\b", row.message)
     assert "SH/L" in row.message
+
+
+# ------------------------------------------------- the Gaussian convention (D1)
+
+
+def _written_items(inst, tmp_path):
+    out = tmp_path / "w.instprm"
+    rx.write_gsas2_instprm(inst, out)
+    return {k: float(v) for k, v in
+            read_instprm(out.read_text(encoding="utf-8"))[0].items.items()
+            if k in ("U", "V", "W", "X", "Y")}
+
+
+def test_the_written_gaussian_width_is_gsas2s_variance_not_a_fwhm_squared(tmp_path):
+    """GSAS-II states σ² = U tan²θ + V tanθ + W (centideg²) and draws a Gaussian
+    of FWHM √(8 ln 2 · σ²).  Evaluating *that* law on the written numbers must
+    give the FWHM rietx's own ``Γ_G² = u tan²θ + v tanθ + w`` states.
+
+    Written without the 8 ln 2, the same file makes GSAS-II's Gaussian
+    √(8 ln 2) = 2.35 times wider than the one rietx fitted.
+    """
+    inst = _calibrated()
+    items = _written_items(inst, tmp_path)
+    pr = inst.profile
+    for two_theta in (20.0, 60.0, 120.0):
+        t = math.tan(math.radians(two_theta / 2.0))
+        rietx_fwhm = math.sqrt(pr.u.value * t * t + pr.v.value * t + pr.w.value)
+        sigma2_centideg2 = items["U"] * t * t + items["V"] * t + items["W"]
+        gsas2_fwhm = math.sqrt(EIGHT_LN2 * sigma2_centideg2) / 100.0
+        assert gsas2_fwhm == pytest.approx(rietx_fwhm, rel=1e-12), two_theta
+
+
+def test_the_reader_takes_gsas2s_variance_to_rietxs_fwhm_squared(tmp_path):
+    """The inverse: U = 100 centideg² of variance is a Gaussian FWHM of
+    √(8 ln 2 · 100)/100 = 0.2355° at θ = 45°, and ``u`` is its square."""
+    path = tmp_path / "u.instprm"
+    path.write_text(
+        "#GSAS-II instrument parameter file; do not add/delete items!\n"
+        "Type:PXC\nLam:1.5\nPolariz.:0.7\nU:100.0\nV:0.0\nW:0.0\nX:0.0\n"
+        "Y:0.0\nZ:0.0\nSH/L:0.002\nZero:0.0\nAzimuth:0.0\nBank:1.0\n",
+        encoding="utf-8")
+    inst = read_gsas2_instprm(path)
+    fwhm = math.sqrt(inst.profile.u.value)       # tan(45°) = 1, V = W = 0
+    assert fwhm == pytest.approx(math.sqrt(EIGHT_LN2 * 100.0) / 100.0, rel=1e-12)
+
+
+def test_the_lorentzian_terms_keep_their_centidegree_factor(tmp_path):
+    """X and Y are FWHMs, not variances: no 8 ln 2 belongs on them."""
+    items = _written_items(_calibrated(), tmp_path)
+    assert items["X"] == pytest.approx(0.173e-2 * 100.0, rel=1e-12)

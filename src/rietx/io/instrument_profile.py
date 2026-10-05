@@ -83,7 +83,7 @@ from .projects.gsas2 import (
     INSTPRM_CW_DOUBLET,
     INSTPRM_CW_SINGLE,
     INSTPRM_DIFF_TYPES,
-    centidegree_factor,
+    instprm_factor,
     read_instprm,
     write_instprm,
 )
@@ -1285,14 +1285,14 @@ def _instprm_width(profile, letter: str, attr: str, value: float,
     GSAS-II letter.  The rule is one and the message is each format's own.
     """
     param = getattr(profile, attr)
-    factor = centidegree_factor(letter)
+    factor = instprm_factor(letter)
     assert factor is not None  # every letter here is in CW_CENTIDEGREE_POWER
     degrees = value / factor
     if param.transform == "softplus" and degrees < 0.0:
         raise ValueError(
             f"{p.name}: {letter} = {value:g} converts to "
             f"instrument.profile.{attr} = {degrees:g}, and this package's "
-            f"{'Gaussian variance' if attr == 'w' else 'Lorentzian FWHM'} term "
+            f"{'Gaussian FWHM²' if attr == 'w' else 'Lorentzian FWHM'} term "
             f"is softplus-bounded at zero — a width that is negative is not a "
             f"shape.  GSAS-II bounds none of U V W X Y Z, so a calibration "
             f"saved from a converged fit can carry one; reading it would "
@@ -1544,12 +1544,14 @@ def read_gsas2_instprm(path: str | Path, *, bank: int | None = None,
     a beamline calibration rather than a starting guess (the module docstring's
     calibrate → freeze → refine-sample workflow).
 
-    **The unit conversion** is the ``.gpx`` reader's, shared rather than
-    restated (:func:`~rietx.io.projects.gsas2.centidegree_factor`): U, V and W
-    are centidegrees squared and X, Y centidegrees, while ``Zero`` is already
-    in degrees, and ``SH/L`` and ``Polariz.`` are ratios.  GSAS-II's own
-    importer corroborates it from the other side, copying a GSAS-I ``.prm``'s
-    ``GU/GV/GW`` across unconverted and dividing its ``ZERO`` by 100.
+    **The unit conversion** is one function with the writer
+    (:func:`~rietx.io.projects.gsas2.instprm_factor`).  GSAS-II's ``U V W`` are
+    the coefficients of a Gaussian *variance* in centidegrees² and this
+    package's ``profile.u/v/w`` those of the Gaussian FWHM² in degrees², so
+    ``u = U × 8 ln 2 × 1e-4`` (Γ² = 8 ln 2 · σ²); ``X`` and ``Y`` are
+    centidegrees of Lorentzian FWHM, a factor 1e2.  ``Zero`` is already in
+    degrees, and ``SH/L`` and ``Polariz.`` are ratios.  The same constant
+    converts a recipe (:data:`~rietx.io.recipe.GAUSS_CENTIDEG2_TO_DEG2`).
 
     ``Zero`` is a **constant added to the calculated 2θ**, the same sense
     ``instrument.zero_shift`` has: GSAS-II corrects an observed position as
@@ -1595,8 +1597,9 @@ def from_instrument_gsas2(instrument: Instrument, *,
     grammars.
 
     What crosses is what the reader reads back: the wavelengths and the
-    doublet's ratio, the polarization, ``profile.u/v/w`` as ``U/V/W`` and
-    ``profile.x/y`` as ``X/Y`` multiplied back into centidegrees, the axial
+    doublet's ratio, the polarization, ``profile.u/v/w`` as ``U/V/W`` (÷ 8 ln 2,
+    FWHM² → variance, and × 1e4 into centidegrees²) and ``profile.x/y`` as
+    ``X/Y`` multiplied back into centidegrees, the axial
     divergence as ``SH/L``, ``zero_shift`` as ``Zero`` in degrees, and the
     geometry as ``Diff-type``.  ``Z`` is written at 0, the identity the reader
     requires it at.
@@ -1665,7 +1668,7 @@ def from_instrument_gsas2(instrument: Instrument, *,
         return repr(float(number))
 
     def centidegrees(letter: str, param) -> str:
-        factor = centidegree_factor(letter)
+        factor = instprm_factor(letter)
         return value(param.value * factor, f"profile.{letter.lower()}")
 
     shl = geometry.axial_sl.value + geometry.axial_hl.value

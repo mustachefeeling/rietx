@@ -774,8 +774,9 @@ def test_the_two_hb2a_files_cross_on_one_diffractometer():
     (2.4067 against 2.40627 Å — one monochromator, each file's own
     calibration of it), no Lorentzian width (X = Y = 0 in both).
 
-    Differ, legitimately: U V W (the Gaussian FWHM ratio runs 0.42-1.49
-    over 10-150° 2θ), the zero (0 against −0.0096°), the axial divergence
+    Differ, legitimately: U V W (the Gaussian FWHM ratio runs 0.18-0.63
+    over 10-150° 2θ, the ``.instprm`` read with GSAS-II's variance → FWHM²
+    8 ln 2; the ``.prm`` reader's own conversion is a separate question), the zero (0 against −0.0096°), the axial divergence
     (S/L + H/L 0.002 against SH/L 0.09), and the profile's bound box — the
     ``.prm`` lands on the neutron preset's coarse box, the ``.instprm`` on
     the default one (the two-routes gotcha WP-1312's 2026-09-23 entry
@@ -804,7 +805,7 @@ def test_the_two_hb2a_files_cross_on_one_diffractometer():
 
     ratios = [fwhm(prm.profile, tt) / fwhm(instprm.profile, tt)
               for tt in (10, 30, 60, 90, 120, 150)]
-    assert min(ratios) < 0.5 and max(ratios) > 1.4, ratios
+    assert min(ratios) < 0.2 and max(ratios) > 0.6, ratios
     assert prm.zero_shift.value == 0.0
     assert instprm.zero_shift.value == pytest.approx(-0.009602591470493875)
     axial_prm = prm.geometry.axial_sl.value + prm.geometry.axial_hl.value
