@@ -320,10 +320,11 @@ CUTOFF_FRACTION = 0.25
 #: transition inside the range.  Swept 0.80 to 0.99 on the two sample scans,
 #: it is the gentlest of these constants and the only monotone one: each
 #: boundary moves steadily, by tenths of a degree across the sweep, with no
-#: break anywhere.  0.90 is where both files agree with the data owner's own
-#: TOPAS window to within half a degree; a caller who wants the boundary
-#: further out or further in should pass ``onset_fraction`` rather than expect
-#: a different default to be more correct.
+#: break anywhere.  At 0.90 the leading boundary falls within half a degree of
+#: the window the data owner's own TOPAS refinements declare.  The trailing
+#: boundary falls a little further out.  A caller who wants the boundary
+#: further out or further in should pass ``onset_fraction`` rather than
+#: expect a different default to be more correct.
 CUTOFF_ONSET_FRACTION = 0.90
 
 #: Shortest collapse, in ° 2θ, that is reported at all.  Twice

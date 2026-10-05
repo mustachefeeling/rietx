@@ -1,9 +1,8 @@
 # WP-1450 — a collaborator's dataset stays unnamed
 
-Milestone: unscheduled · Status: 🔄 2026-09-24 — the redaction landed (PR #438); the two private-map tasks and the map-pattern acceptance grep remain, and are the maintainer's
+Milestone: unscheduled · Status: ✅ 2026-10-04 — closed: the map's patterns hit nothing on `main`, and the redaction shipped in 1.6.0
 Track: The repo's own process
 Depends on: —
-Priority: P1 2026-09-23 — the data owner asked; land it before 1.5.1 is cut, because the wheel ships `diagnostics.py` and `topas.py`; comments and docstrings only, so the job is small
 
 ## Goal
 
@@ -80,21 +79,31 @@ and the WP-1415 file is edited in the same PR.
 
 ## Tasks
 
-- [ ] The patterns file exists in `yue-here/rietx-corpus-map`: one pattern
+- [x] The patterns file exists in `yue-here/rietx-corpus-map`: one pattern
       per role (the run number, the compound, the instrument name, the
-      wavelength), as agreed on #417.
+      wavelength), as agreed on #417. **`patterns/wp1450.txt`, map commit
+      `2ea6e86` (2026-10-04).** The reporter wrote it, with several
+      spellings per role. A companion, `patterns/wp1450_all_runs.txt`,
+      lists every run of the series.
 - [x] Genericise every site above, keeping each threshold, its shape and
       the d-spacing at `diagnostics.py:893`. **PR #438 (`605a0e50`), plus
       the five sites and three numerals its review found beyond the list.**
 - [x] Where a record must say that a string was removed, name its role and
       never its value, in commits, the PR body and the handover alike.
       **#438's commit message, body and thread do; so does this file.**
-- [ ] If the corpus map should record the replaced numbers, add them there,
-      never to this tree.
+- [x] If the corpus map should record the replaced numbers, add them there,
+      never to this tree. **Not recorded (2026-10-04).** Nothing on `main`
+      was transcribed from them, so the map has no fixture to check them
+      against. The data owner asked that no derived number be public. The
+      map's row says the replaced text is not there.
 - [x] Tests: none new. The fast selection passes unchanged, since no
       behaviour moves. **Only the TOPAS test's example token changed.**
 - [x] Skill: none. No skill file names the dataset (checked at `644dff84`,
       and again on the merged tree, all three copies).
+- [x] Reword `CUTOFF_ONSET_FRACTION`'s comment the way `results.md` puts
+      it: within half a degree of the TOPAS window at the leading end, a
+      little further out at the trailing one. **Added 2026-10-04**, from the
+      follow-up #438's review asked for. No PR for it had opened by then.
 
 ## Acceptance
 
@@ -103,7 +112,8 @@ above and nothing else. The `'*.py' '*.md'` pathspecs keep a numeric data
 file from matching the wavelength pattern by accident.
 
 ```sh
-git grep -n -f <patterns file from yue-here/rietx-corpus-map> -- '*.py' '*.md'   # zero hits
+git grep -n -f <clone of yue-here/rietx-corpus-map>/patterns/wp1450.txt -- '*.py' '*.md'   # zero hits
+git grep -n -f <clone of yue-here/rietx-corpus-map>/patterns/wp1450_all_runs.txt -- '*.py' '*.md'   # zero hits: the series' other runs
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 .venv/bin/python -m ruff check src tests examples
 ```
@@ -113,6 +123,56 @@ git grep -n -f <patterns file from yue-here/rietx-corpus-map> -- '*.py' '*.md'  
 - Issue #417.
 
 ## Handover log
+
+### 2026-10-04 — closed: the map's patterns file exists and finds nothing
+
+The repository's own check now confirms the redaction. The reporter wrote a
+search list for every way the dataset could be named. It now lives in the
+private corpus map, and that is the list the Acceptance grep reads. On the
+tree this WP was filed against it finds exactly the thirty listed lines.
+On this branch it finds none. The replaced numbers stay out of the map. The
+last loose sentence in the code is fixed too: a comment claimed both ends
+of the scan matched the data owner's fit range, and only the leading end
+does.
+
+- *Done*: map commit `2ea6e86` adds `patterns/wp1450.txt` (54 patterns,
+  several spellings per role) and `patterns/wp1450_all_runs.txt` (every
+  run of the series), plus a row in `maps.md` § 3 and a line in its
+  README. Tasks 1 and 4 are ticked. Acceptance now names both lists. The
+  `CUTOFF_ONSET_FRACTION` comment follows `results.md`: the leading
+  boundary falls within half a degree of the TOPAS window, and the
+  trailing one a little further out. That was the follow-up #438's review
+  asked for. No PR for it had opened in ten days, so it is a ticked task
+  here.
+- *Measured*: on `644dff84` the list hits the thirty lines Context names,
+  line for line. It also hits them on `30d36911`, the tree just before
+  #438 merged. On this branch both lists hit nothing in `*.py` and `*.md`.
+  Without the pathspecs, `wp1450.txt` hits only the LaB₆ fixture JSON
+  float the reporter called a coincidence. The all-runs list hits public
+  data files only as digits inside longer numbers, such as the decimals of
+  a 2θ column in an 11-BM scan. Quoting one of those numbers here would
+  itself trip the grep. Fast selection: 8264 passed, 159 skipped,
+  0 failed, in 186.78 s (`[dev]` venv, macOS, Python 3.12). No test was
+  added, so the counts equal `main`'s. The full selection did not run,
+  because comments and docs move no measured number.
+- *Review* (`/code-review high --fix`): five findings, two fixed. The
+  Acceptance block gained the all-runs grep (`e97274e0`), and the comment's
+  trailing boundary got its own sentence (`236e3d10`). Declined: whether
+  the half-degree claim holds on one scan or both. `results.md` speaks of
+  one file, and the second file's sweep is not in the replaced text this
+  session saw, so the comment names no scope rather than guess one. The
+  other two findings were the entry and the Status line, which this
+  handover writes.
+- *Gotchas*: `git grep -f` with the 1528-line all-runs list ran past five
+  minutes over the tree, even with `-F`. `rg -F -w -f` answers in seconds.
+  The reporter's files arrived by email with a third,
+  `PRIVATE_replaced_text_wp1450.diff`. It is not in the map or this tree.
+- *Not in scope, still open*: issue #417's body quotes the run number and
+  the compound, and #274's names the instrument. Editing them is the
+  maintainer's call. Wheels from 1.2.0 to 1.5.0 still carry the strings,
+  as Non-goals says.
+- *Next*: none in this WP. The maintainer decides on the two issue bodies
+  and on whether to keep or delete the emailed diff.
 
 ### 2026-09-24 — the redaction landed from the reporter's PR
 
