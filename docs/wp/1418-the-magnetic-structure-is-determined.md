@@ -125,6 +125,26 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-05, from the issue triage (issue #724): `solve_magnetic`'s ranked
+  stage frees more nuclear parameters on a supercell child than the parent
+  has.** `SOLVE_STAGE_PATHS[1]` frees `phases.*.cell.*` and every
+  `.atoms.*.biso` on every candidate, and `reference_for` fits the nuclear
+  reference under the same stages minus the moments. The constant's comment
+  keeps coordinates out because a larger child asymmetric unit lets the
+  nuclear model absorb magnetic intensity; the issue says the same of cell and
+  Biso (1419's Context: 28 free child Biso alone took Ba₂FeSbSe₅'s Rwp
+  0.118 → 0.076, fork figures). *Checked at `32ef5a6`*: a three-site Pnma
+  parent at k = (½, 0, ½) (BNS 11.55) falls back to `nuclear_group="magnetic"`
+  (P 1 21/m 1, β 35.93°, 12 child atoms), where stage 2 frees 4 cell
+  parameters and 12 Biso against the parent's 3 and 3. A P4₂/mnm parent at
+  k = (0, 0, ½) stays on the `"parent"` route and frees 2 + 2, its parent's
+  count. `SupercellStatement.site_map` gives (parent atom, coset) per child.
+  Proposed: hold the child cell for a supercell statement, tie child Biso per
+  parent site (`tie_equal`, a `SOLVE_B_TIED_PER_PARENT_SITE` info row), and a
+  synthetic Pnma test. Open, the maintainer's: hold the cell or use 1419's
+  metric subspace, and whether the reference fit takes the same ties (ΔBIC
+  needs equal free sets).
+
 - **2026-10-05, from the issue triage (issue #679): a displacive
   candidate's group is a parent-lattice group at every k ≠ 0.** The rule is
   the magnetic one with 1' switched off: `order_parameter_space`
