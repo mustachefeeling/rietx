@@ -4347,3 +4347,59 @@ def test_a_defined_macro_a_read_macro_and_an_equation_are_not_unread_calls(tmp_p
                'prm t = Sin(1) + Max(1, 2);\n'
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
     assert read_topas_inp(inp).coverage.unread_calls == ()
+
+
+# --------------------------- a moment component its site symmetry forbids
+
+
+def _mnf2_ion(vary: bool):
+    """Rutile MnF2 (BNS 136.499): Mn on 2a with the moment along c only."""
+    from tests.test_magnetic import _mnf2
+
+    phase = _mnf2(vary=vary)
+    return phase.model_copy(update={"atoms": [
+        a.model_copy(update={"species": "Mn2+"}) if a.species == "Mn" else a
+        for a in phase.atoms]})
+
+
+def _moment_line(path: Path) -> str:
+    [line] = [ln for ln in path.read_text(encoding="utf-8").splitlines()
+              if "site Mn" in ln]
+    return line
+
+
+def test_a_forbidden_moment_component_is_written_held(tmp_path):
+    """TOPAS stops on ``mlx @ 0.0`` for a component the site symmetry forces to
+    zero ("Magnetic moment mlx of site Mn cannot be refined as it has no
+    derivative", abnormal termination).  Only the allowed component, mlz on
+    MnF2's 2a, carries the refine flag."""
+    path = tmp_path / "mnf2.inp"
+    write_topas_inp(rx.Structure(phases=[_mnf2_ion(vary=True)]), path)
+    line = _moment_line(path)
+    assert "mlx ! 0.0 mly ! 0.0 mlz @ " in line, line
+    back = to_structure(read_topas_inp(path)).phases[0]
+    assert back.atoms[0].moment.vary          # the reader gives all three the flag
+
+
+def test_a_held_moment_stays_held_on_every_component(tmp_path):
+    path = tmp_path / "held.inp"
+    write_topas_inp(rx.Structure(phases=[_mnf2_ion(vary=False)]), path)
+    line = _moment_line(path)
+    assert "@" not in line.split("mlx")[1], line
+
+
+def test_every_component_of_a_general_moment_keeps_its_flag(tmp_path):
+    """The negative arm: where the symmetry allows all three (P 1, group 1.1)
+    nothing is held back."""
+    phase = rx.Phase(
+        name="p1", space_group="P 1", cell=rx.Cell.cubic(4.0),
+        atoms=[rx.Atom(label="Mn", species="Mn2+", x=rx.Parameter(value=0.1),
+                       y=rx.Parameter(value=0.2), z=rx.Parameter(value=0.3),
+                       biso=rx.Parameter(value=0.4),
+                       moment=rx.Moment.from_values((1.0, 2.0, 3.0), "Mn2+",
+                                                    vary=True))],
+        magnetic_symmetry="1.1")
+    path = tmp_path / "general.inp"
+    write_topas_inp(rx.Structure(phases=[phase]), path)
+    line = _moment_line(path)
+    assert "mlx @ " in line and "mly @ " in line and "mlz @ " in line, line
