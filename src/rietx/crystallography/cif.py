@@ -20,7 +20,12 @@ from ..schemas.structure import (
 from . import magcif
 from .adp import U_NAMES, u_equivalent
 from .magnetic.scattering import check_group_is_structure_symmetry
-from .symmetry import OperatorGroup, snap_diagnostics, split_group_label
+from .symmetry import (
+    OperatorGroup,
+    site_orbit,
+    snap_diagnostics,
+    split_group_label,
+)
 
 
 def _strip_su(value: str) -> float:
@@ -389,10 +394,14 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
     # second parse is too
     disorder = (_disorder_columns(path, small.name)
                 if re.search(r"(?i)_atom_site_disorder", text) else {})
+    stated = _site_statements(path, small.name)
     for j, site in enumerate(small.sites):
         has_aniso = site.aniso.nonzero()
         u_iso = site.u_iso
-        if not u_iso:
+        said = stated.get(site.label, {})
+        # a displacement parameter the file states is the file's, zero included:
+        # `0.000(75)` is a number at the floor, not an absent column
+        if not u_iso and not said.get("iso"):
             # U_eq from the trace is an approximation (the exact form weights
             # by the metric — adp.u_equivalent); it only feeds the isotropic
             # fallback, where the tensor is being discarded anyway
@@ -410,7 +419,8 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
             x=Parameter(value=site.fract.x),
             y=Parameter(value=site.fract.y),
             z=Parameter(value=site.fract.z),
-            occ=Parameter(value=site.occ if site.occ else 1.0, min=0.0, max=1.5),
+            occ=Parameter(value=(site.occ if site.occ or said.get("occ")
+                                 else 1.0), min=0.0, max=1.5),
             biso=Parameter(value=b_iso, unit="A^2"),
             aniso=(AnisoU.from_values([site.aniso.u11, site.aniso.u22, site.aniso.u33,
                                        site.aniso.u12, site.aniso.u13, site.aniso.u23])
@@ -419,7 +429,9 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
             disorder_group=disorder.get(site.label, (None, None))[1],
         ))
 
+    stated_diagnostics = _snap_to_stated_multiplicity(sg, atoms, stated, path=path)
     if diagnostics is not None:
+        diagnostics.extend(stated_diagnostics)
         for raw, (canonical, note, where) in rewrites.items():
             diagnostics.append(Diagnostic(
                 level="info", code="CIF_SPECIES_NORMALISED",
@@ -580,6 +592,136 @@ def format_su(value: float, esd: float | None, *, decimals: int = 6) -> str:
         return f"{value:.{ndp}f}({su})"
     scale = 10 ** (-ndp)                    # esd ≥ ~10: su carries trailing zeros
     return f"{round(value / scale) * scale:.0f}({su * scale})"
+
+
+#: How far :func:`structure_from_cif` will move a site to reach the special
+#: position the file's own ``_atom_site_symmetry_multiplicity`` states.  A site
+#: quoted to four decimals can sit 2e-4 from it, each coordinate rounded on its
+#: own (the 6e site of rhombohedral-axes hematite: x + y = 1.5002), which the
+#: orbit tolerance (``symmetry.SITE_TOL``, 1e-4) reads as a general position
+#: of twice the multiplicity.  Three decimals is as coarse as a CIF is quoted.
+CIF_STATED_MULTIPLICITY_SNAP_TOL = 1e-3
+
+
+def _site_statements(path: str, name: str) -> dict[str, dict]:
+    """What each site label's row states, per column, where gemmi cannot say.
+
+    ``small.sites`` holds ``u_iso = 0`` and ``occ = 1`` for a column the file
+    does not carry and for one that states them, so "stated zero" and "absent"
+    are not told apart there.  Returns ``{label: {"iso": bool, "occ": bool,
+    "multiplicity": int | None}}`` read from the block itself; a null (``.``
+    or ``?``) is not a statement.  The multiplicity comes from
+    ``_atom_site_symmetry_multiplicity``, else the number leading a
+    ``_atom_site_Wyckoff_symbol`` (``6e``).
+    """
+    doc = gemmi.cif.read(path)
+    block = doc.find_block(name) or doc[0]
+    table = block.find("_atom_site_", [
+        "label", "?U_iso_or_equiv", "?B_iso_or_equiv", "?occupancy",
+        "?symmetry_multiplicity", "?Wyckoff_symbol"])
+    out: dict[str, dict] = {}
+    for row in table:
+        def stated(k):
+            return row.has(k) and not gemmi.cif.is_null(row[k])
+        multiplicity = None
+        if stated(4):
+            digits = re.match(r"\d+", gemmi.cif.as_string(row[4]).strip())
+            multiplicity = int(digits.group()) if digits else None
+        if multiplicity is None and stated(5):
+            digits = re.match(r"\d+", gemmi.cif.as_string(row[5]).strip())
+            multiplicity = int(digits.group()) if digits else None
+        out.setdefault(gemmi.cif.as_string(row[0]), {
+            "iso": stated(1) or stated(2), "occ": stated(3),
+            "multiplicity": multiplicity})
+    return out
+
+
+def _snap_to_stated_multiplicity(sg, atoms: list[Atom], stated: dict[str, dict],
+                                 *, path: str) -> list[Diagnostic]:
+    """Put a site on the special position its own row says it occupies.
+
+    Where the file states a multiplicity smaller than the one the stored
+    coordinates give, and moving the site by at most
+    :data:`CIF_STATED_MULTIPLICITY_SNAP_TOL` makes the orbit exactly the stated
+    size, the coordinates are **moved** there: left alone, the forward model
+    would put a multiple of the stated atoms in the cell (twice the oxygen of
+    hematite, absorbed by a displacement parameter nobody questions).  The
+    move is a statement of the file's own, recorded as
+    ``SITE_SNAPPED_TO_SPECIAL_POSITION``.  Where the file's multiplicity is not
+    reachable, or is larger than the computed one, nothing moves and
+    ``CIF_SITE_MULTIPLICITY_DISAGREES`` names the site: the coordinates and the
+    stated multiplicity are telling different things.
+    """
+    import numpy as np
+
+    moved: list[tuple[str, float, int, str]] = []
+    disagree: list[tuple[str, int, int, str]] = []
+    for j, atom in enumerate(atoms):
+        want = stated.get(atom.label, {}).get("multiplicity")
+        if want is None:
+            continue
+        xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
+        try:
+            have = site_orbit(sg, xyz).multiplicity
+        except ValueError:
+            continue
+        if have == want:
+            continue
+        where = f"phases.0.atoms.{j}"
+        if want < have:
+            try:
+                near = site_orbit(sg, xyz, tol=CIF_STATED_MULTIPLICITY_SNAP_TOL)
+            except ValueError:
+                near = None
+            if near is not None and near.multiplicity == want:
+                delta = near.position - xyz
+                delta -= np.rint(delta)
+                new = xyz + delta
+                for axis, value in zip(("x", "y", "z"), new, strict=True):
+                    setattr(atom, axis, getattr(atom, axis).model_copy(
+                        update={"value": float(value)}))
+                moved.append((atom.label, float(np.max(np.abs(delta))), want,
+                              where))
+                continue
+        disagree.append((atom.label, want, have, where))
+    out: list[Diagnostic] = []
+    if moved:
+        named = ", ".join(f"{lbl} ({shift:.1e} → multiplicity {m})"
+                          for lbl, shift, m, _ in moved[:4])
+        if len(moved) > 4:
+            named += f", and {len(moved) - 4} more"
+        out.append(Diagnostic(
+            level="warning", code="SITE_SNAPPED_TO_SPECIAL_POSITION",
+            where=[w for *_, w in moved],
+            message=(f"{len(moved)} site(s) in {path} state a multiplicity "
+                     f"their coordinates did not reach, and were moved onto "
+                     f"the special position that does: {named}. Largest shift "
+                     f"{max(s for _, s, _, _ in moved):.2e} in fractional "
+                     f"coordinates"),
+            suggestion="the stored coordinates are now the special position's "
+                       "own, as the file's `_atom_site_symmetry_multiplicity` "
+                       "(or Wyckoff symbol) states; each coordinate of the "
+                       "file was rounded on its own, so the shift is within "
+                       "what its quoted precision allows"))
+    if disagree:
+        named = ", ".join(f"{lbl} (file {want}, computed {have})"
+                          for lbl, want, have, _ in disagree[:4])
+        if len(disagree) > 4:
+            named += f", and {len(disagree) - 4} more"
+        out.append(Diagnostic(
+            level="warning", code="CIF_SITE_MULTIPLICITY_DISAGREES",
+            where=[w for *_, w in disagree],
+            message=(f"{len(disagree)} site(s) in {path} state a multiplicity "
+                     f"that differs from the one their coordinates give under "
+                     f"the stated space group, and moving them by at most "
+                     f"{CIF_STATED_MULTIPLICITY_SNAP_TOL:g} does not reach it: "
+                     f"{named}"),
+            suggestion="the coordinates and the stated multiplicity (or the "
+                       "space group's setting) tell different things, and the "
+                       "number of atoms in the cell, hence ZMV and every "
+                       "weight fraction, follows the coordinates. Check the "
+                       "setting and the site against the source"))
+    return out
 
 
 def _disorder_columns(path: str, name: str) -> dict[str, tuple[str | None, str | None]]:
