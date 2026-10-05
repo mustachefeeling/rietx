@@ -1252,6 +1252,14 @@ class Structure(Base):
                                   diagnostics=diagnostics)
 
     def to_cif(self, path: str | os.PathLike[str]) -> None:
+        """Write each phase as a CIF block: the crystal, and nothing about the specimen.
+
+        Cell, positions, occupancies, displacement parameters, and for a magnetic
+        phase the moments and their group.  The phase scale and the
+        sample-broadening, extinction and preferred-orientation fields
+        (``lor_size``, ``magnetic_lor_strain``, ``extinction`` …) are not CIF
+        items and are not written, so ``from_cif`` returns them at their defaults.
+        """
         from ..crystallography.cif import structure_to_cif
 
         structure_to_cif(self, path)
