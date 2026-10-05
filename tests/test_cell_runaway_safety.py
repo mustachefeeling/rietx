@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import pytest
 
 from rietx import Instrument, Refinement
@@ -900,3 +901,83 @@ def test_an_angle_outside_zero_to_180_is_clamped(beta):
     clamped = clamp_cell_runaway(table, start_values)
     assert [(p, old) for p, old, _ in clamped] == [("phases.0.cell.beta", beta)]
     assert 0.0 < clamped[0][2] < 180.0
+
+
+# ----------------------------------------------------------------------
+# The clamp must not hand back a cell with no volume (#283 / #289, one rank on)
+# ----------------------------------------------------------------------
+def _p1_table(cell):
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas.structure import lebail_scaffold
+
+    ins = Instrument.bragg_brentano(radiation="CuKa")
+    ins.background = BackgroundChebyshev.with_terms(3)
+    table = ParameterTable(lebail_scaffold("P 1", cell), ins)
+    table.set_vary(["phases.0.cell.*"], True)
+    return table
+
+
+TRICLINIC = [2.733385, 2.361025, 2.548007, 127.8106, 113.4292, 108.7994]
+CELL_NAMES = ("a", "b", "c", "alpha", "beta", "gamma")
+
+
+def test_a_clamp_that_lands_on_a_degenerate_corner_restores_the_start_cell():
+    """Each parameter is clamped to its own window, so three escaped angles
+    land on the window's corner, ``start + 6°`` each: here α, β, γ =
+    133.8°, 119.4°, 114.8°, a direct-metric determinant of −126.  The cell the
+    stage started with is the one a Le Bail stage can still evaluate."""
+    table = _p1_table(TRICLINIC)
+    start_values = table.decode(table.x0())
+    for name in CELL_NAMES:
+        entry = table.entries[table._paths[f"phases.0.cell.{name}"]]
+        entry.value = start_values[f"phases.0.cell.{name}"] * (
+            1.5 if name in "abc" else 1.4)             # far outside the window
+    clamped = clamp_cell_runaway(table, start_values)
+    assert len(clamped) == 6
+    for path, escaped, restored in clamped:
+        assert restored == pytest.approx(start_values[path]), path
+        assert table.entries[table._paths[path]].value == pytest.approx(
+            start_values[path])
+        assert escaped != pytest.approx(start_values[path])
+
+
+def test_a_clamp_that_stays_a_valid_cell_is_unchanged():
+    """The negative arm: one angle escaped, the cell clamped to its window edge
+    still has a positive determinant, and the clamp is what it always was."""
+    table = _p1_table(TRICLINIC)
+    start_values = table.decode(table.x0())
+    entry = table.entries[table._paths["phases.0.cell.alpha"]]
+    entry.value = start_values["phases.0.cell.alpha"] + 20.0
+    clamped = clamp_cell_runaway(table, start_values)
+    [(path, escaped, target)] = clamped
+    lo, hi = cell_window("alpha", start_values[path], -math.inf, math.inf,
+                         fraction=CELL_SAFETY_FRACTION,
+                         angle_deg=CELL_SAFETY_ANGLE_DEG)
+    assert path == "phases.0.cell.alpha" and target == pytest.approx(hi)
+    assert entry.value == pytest.approx(hi)
+
+
+def test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error(tmp_path):
+    """The public path: a P 1 Le Bail fit of a valid but wrong ~7 Å^3 cell on
+    synthetic silicon (``tests/_synthetic_silicon.py``), two
+    stages.  The second ended on the clamp's degenerate corner and raised
+    ``DegenerateCellError`` out of ``fit`` from ``phase_support``."""
+    import rietx as rx
+    from rietx.schemas.structure import lebail_scaffold
+    from tests._synthetic_silicon import silicon_pattern
+
+    # through a file, as the report reproduced it: the trajectory of this fit
+    # is pattern-dependent and the 4-decimal 2θ column is part of the pattern
+    path = tmp_path / "si_flat.xy"
+    pattern = silicon_pattern("flat")
+    np.savetxt(path, np.c_[pattern.two_theta, pattern.intensity], fmt="%.4f %.0f")
+    data = rx.read_pattern(path)
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    ins.background = rx.background.auto_background(data)
+    structure = lebail_scaffold("P 1", TRICLINIC)
+    for plan in ("profile_only", "lab_bragg_brentano"):
+        ref = rx.Refinement(structure, ins, history=False)
+        result = ref.fit(data, mode="lebail", plan=plan, telemetry=False,
+                         two_theta_limits=(8.0, 70.0))
+        assert 0.0 < float(result.statistics.rwp) < 1.0
+        structure, ins = ref.fitted_structure, ref.fitted_instrument

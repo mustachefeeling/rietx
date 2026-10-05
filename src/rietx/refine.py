@@ -1215,7 +1215,46 @@ def clamp_cell_runaway(table: ParameterTable, start_values: dict[str, float]
             target = min(max(e.value, lo), hi)
             clamped.append((e.path, float(e.value), float(target)))
             e.value = target
-    return clamped
+    return _revert_degenerate_clamps(table, start_values, clamped)
+
+
+def _revert_degenerate_clamps(table: ParameterTable,
+                              start_values: dict[str, float],
+                              clamped: list[tuple[str, float, float]]
+                              ) -> list[tuple[str, float, float]]:
+    """Put a phase's cell back at the stage's start where the clamp made it degenerate.
+
+    Each cell parameter is pulled back to its own window on its own, so a
+    triclinic cell whose three angles all escaped lands on the window's *corner*,
+    ``start + 6°`` on every angle, which can be a cell with no volume (a P1 Le
+    Bail stage on a wrong cell reached ``α, β, γ = 133.8°, 119.4°, 114.8°``: a
+    direct-metric determinant of −126).  Nothing downstream can use it —
+    ``lebail_update`` and ``phase_support`` evaluate the model there and raised
+    :class:`~rietx.crystallography.lattice.DegenerateCellError` out of
+    ``fit`` where #283/#289 promise a counted rejection.  A phase whose clamped
+    cell has a non-positive metric determinant keeps the cell it started the
+    stage with, which the stage's own residual evaluated, and the record says
+    so: the third element of each of its tuples is that start value.
+    """
+    from .crystallography.lattice import direct_metric_tensor
+
+    by_path = {e.path: e for e in table.entries}
+    names = ("a", "b", "c", "alpha", "beta", "gamma")
+    phases = {path.split(".")[1] for path, _escaped, _target in clamped}
+    reverted: set[str] = set()
+    for ip in sorted(phases):
+        paths = [f"phases.{ip}.cell.{n}" for n in names]
+        if not all(p in by_path for p in paths):
+            continue
+        values = [by_path[p].value for p in paths]
+        if float(np.linalg.det(np.asarray(direct_metric_tensor(*values)))) > 0.0:
+            continue
+        for path, _escaped, _target in clamped:
+            if path.startswith(f"phases.{ip}.cell."):
+                by_path[path].value = start_values[path]
+                reverted.add(path)
+    return [(path, escaped, float(start_values[path]) if path in reverted
+             else target) for path, escaped, target in clamped]
 
 
 def _vars_driven_cell_escapes(table: ParameterTable,
