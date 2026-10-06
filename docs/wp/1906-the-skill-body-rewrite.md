@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: The repo's own process
 Depends on: 1905 (the before-and-after it is judged by); 1532 soft (its fourteen rows land on the rewritten body)
-Priority: P3 2026-10-04 — waits on 1905's first round for its baseline; P2 when that lands, since every session that loads the skill pays the body's 8 700 tokens
+Priority: P2 2026-10-06 — 1905 measured the baseline, and on Haiku the body steers every from-scratch fit to a degenerate route; every session that loads the skill pays its 8 700 tokens
 
 ## Goal
 
@@ -102,9 +102,28 @@ restates what decides the design.
   a 7-weight score against an 8-weight one; `readout.py` rescores both on the
   same graders. And `fap-fit`'s cell windows are now measured and ask for
   value(esd), because the CIF's starting cell sat inside the pilot's windows:
-  the pilot's Haiku with-skill pass was on starting values. The baseline
-  round has not run; it waits on the maintainer's choice from the costed menu
-  in 1905's handover.
+  the pilot's Haiku with-skill pass was on starting values.
+- **From WP-1905 (2026-10-06), the baseline.** Today's body was measured on
+  Haiku and Sonnet at N = 3 (`tests/eval_skill/PROTOCOL.md` § Results; result
+  files in `docs/wp/1905-eval/round1/`). Compare a candidate's with-skill
+  arm against `B2.json` and `B.json`'s `fap-judge` rows on Haiku, and against
+  `C.json` on Sonnet. Five things bear on the rewrite.
+  - **Haiku's `fap-fit` is the deciding case.** All three with-skill runs
+    freed zero and displacement together and reported a = 9.3683(16) Å,
+    c = 6.8833(12) Å, outside the window. All three without the skill landed
+    inside it. The body's worked default is what Haiku follows, as the
+    prototype's Sonnet runs showed (above).
+  - **On Sonnet today's body passes every case 3 of 3**, so there the rewrite
+    can only be checked for regressions.
+  - **The no-skill arm is not skill-free on Sonnet.** It found the wheel's
+    copy (`rietx skill`, site-packages) in four of six fit-case runs. The
+    decision rule never reads that arm, but a case's role does.
+  - **Tier 0 found one over-trigger**: Sonnet loads the skill to convert a
+    CIF to POSCAR, three runs of three, which the description's "before
+    drawing a crystal structure from a CIF" invites. Haiku's four misses are
+    tier 0's absent fixtures, not the description.
+  - A build for a round needs `--venv DIR` outside `/Users`, `/tmp` and the
+    plugin root on macOS (PROTOCOL § Prerequisites).
 
 ## Non-goals
 

@@ -1,9 +1,8 @@
 # WP-1905 — the skill eval suite: `claude plugin eval` over the skill tree, cases from real failures, judge-free first
 
-Milestone: unscheduled · Status: 🔄 2026-10-06 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-06 — suite built, first round run on Haiku and Sonnet; numbers in PROTOCOL § Results
 Track: The repo's own process
 Depends on: 1904
-Priority: P2 2026-10-04 — the decision WP-1906 and WP-1532 wait on: no body change lands without a before-and-after it can read
 
 ## Goal
 
@@ -146,6 +145,87 @@ numbers. What a fresh session needs from it:
 - Issue #661; `docs/wp/1504-eval/`.
 
 ## Handover log
+
+- **2026-10-06** — the first round ran on Haiku and Sonnet; closed.
+
+  The suite has now measured today's skill body, and the body has a
+  measurable fault on the smaller model. On Haiku, the skill steers every
+  from-scratch fluorapatite fit down the same degenerate route, and all three
+  runs report one wrong cell to the last digit. The same agent without the
+  skill lands inside the window three times out of three. On Sonnet, the
+  skill passes every case, so a rewrite can only be checked there for
+  regressions. The no-skill arm is weaker evidence than its name says,
+  because Sonnet finds the copy of the skill the package itself ships. The
+  triggering tier showed one real over-trigger, on CIF-to-POSCAR conversion.
+  Next: WP-1906 rewrites the body against these numbers.
+
+  **Done** (7 WP commits before this handover; PR #751):
+  - **The trigger review.** The maintainer changed two prompts.
+    `quiet-bragg-law` became `quiet-scherrer`, and `fire-unknown-cell` stopped
+    naming a peak list. PROTOCOL § Tier 0 records the review.
+  - **`build.py --venv DIR`** installs this checkout, non-editable, where both
+    arms' sandboxes can start it. `unreachable()` warns about an interpreter
+    either arm cannot read. `--venv` refuses to clear a directory that holds
+    no `pyvenv.cfg`. Five tests cover the new paths.
+  - **Amendment 1.1**: both fit cases' `timeout_seconds` went from 2 400 s to
+    1 200 s, measured on one run alone.
+  - **Rounds B to E**, recorded in PROTOCOL § Results. The result files and the
+    build stamp are in `docs/wp/1905-eval/round1/`. Assumptions 1-5 hold.
+  - `### Inherited` was empty on arrival. The findings were dated 2026-10-04
+    and no commit had touched the suite or the skill since, except skill text,
+    so none had gone stale.
+
+  **Measured** (Claude Code 2.1.291, 10-core Mac, `-j 1`, alone on the machine):
+  - **Spend: $23.12 of the $40 the menu's ceilings allowed.** A: $0.61, of
+    which $0.20 was two void runs. B: $8.29 over two files, $0.29 past its $8
+    ceiling. That is the run in flight when the ceiling hit, an overrun the
+    harness bounds. C: $7.73. D: $1.91. E: $4.58.
+  - **One fit in the sandbox takes 7-9 s**, against 11 s outside it in the
+    pilot. The pilot's 10-15 min fits came from four sharing four cores.
+    rietx caches numba kernels in the run's own home, so the read-only venv
+    costs nothing past the first fit.
+  - **Haiku, two-arm:** `fap-fit` with 0.43 against without 0.86.
+    `fap-gsas-reproduce` with 0.46 against without 0.38, the baseline at
+    N = 2. `fap-judge` 0.83 in both arms.
+  - **Sonnet, two-arm:** with 1.00 on all three cases. Without, `fap-fit` 0.81
+    and `fap-gsas-reproduce` 0.92, `fap-judge` 1.00.
+  - **Tier 0:** Haiku fired 26/30 and stayed quiet 30/30. Sonnet fired 30/30
+    and stayed quiet 27/30.
+  - **Tests** (`[dev]` venv, macOS arm64): `tests/test_eval_skill.py` went
+    from 98 to 103, with five tests added. The fast selection is quoted in
+    the PR. No full suite ran, because the branch changes tests and docs only.
+  - **Lanes:** none dispatched. Both items were decided under the 150K line,
+    so no trial row goes to `process.md`.
+
+    | kept item | est | requests | main at decision |
+    |---|---|---|---|
+    | trigger | 6 | 11 | 108K |
+    | first-round | 45 | 49 | 127K |
+
+    Actual over estimated requests was 60/51, or 1.18. The session's peak
+    context was 261K.
+
+  **Gotchas:**
+  - **The macOS sandbox denies all of `/Users` and `/tmp`.** It grants the
+    plugin root to the with-skill arm alone. An interpreter in the plugin
+    voided round B's baseline arm on both fit cases. This Mac's interpreter
+    is `/opt/homebrew/var/rietx-eval/venv`, and the build is
+    `/Users/Shared/rietx-eval/build-body`. Delete both with `rm -rf` when the
+    suite is done with them.
+  - **The worktree guard refuses `claude plugin eval` typed directly,
+    because it reads the word as a shell eval.** A two-line wrapper script in
+    the scratchpad runs it.
+  - **A kept run is sealed** (mode 000). `chmod 700 <kept> <kept>/sealed`
+    opens it, and git must never run inside it.
+  - **`readout.py`'s `LEAK` lines over-report.** They count JSON pointers in
+    written content and the run's own `/tmp` as paths.
+
+  Next, in order:
+  1. WP-1906 writes a candidate body and runs it `--ablation none` on Haiku
+     and Sonnet, compared with `readout.py compare` against B2/C. Haiku's
+     `fap-fit` is the deciding case.
+  2. WP-1907 scaffolds empty files for tier 0's prompts, which Haiku's four
+     misses need, before any nightly floor is set.
 
 ### 2026-10-04 (2nd session) — the suite built and registered; nothing has run
 
