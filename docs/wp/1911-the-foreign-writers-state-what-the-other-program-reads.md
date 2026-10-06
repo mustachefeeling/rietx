@@ -258,9 +258,11 @@ a `tests/data/README.md` row.
 Part A first: it is the one silent wrong answer, and its refusal half can
 land alone before the transform exists.
 
-- [ ] **Decision (maintainer):** for a rhombohedral-axes phase, refuse by
+- [x] **Decision (maintainer):** for a rhombohedral-axes phase, refuse by
       name in the `.pcr` and GSAS-II writers, or write the hexagonal-axes
       equivalent. Recommended: refuse now, restate once the transform lands.
+      *Decided 2026-10-06: restate, through PR #733, which brings the
+      transform.*
 - [ ] A: `.pcr` writer refuses (or restates) an `R … :R` phase; the `:R` arm
       of `test_write_fullprof_pcr_round_trips_both_r_lattice_axis_choices`
       inverted; an oracle test with FullProf's measured rule (a bare R symbol
@@ -370,8 +372,9 @@ land alone before the transform exists.
     waiting on a rebase over #720; #713 (#709), held on the
     `API_INDEX_MAX_BYTES` raise; #733 (#716), reviewed with one citation to
     add. #733 *restates* a rhombohedral-axes phase, so it takes the
-    Part A decision below in the direction this WP did not recommend. That
-    decision is the maintainer's and is with them.
+    Part A decision below in the direction this WP did not recommend. The
+    maintainer accepted restating the same day, because #733 brings the
+    transform the recommendation was waiting for (comment on #733).
 
 - **2026-10-05** — created, from the 2026-10-05 issue triage (issues #715,
   #716, #721, #722, #723). Checked against the tree at 32ef5a6: #715's loop
