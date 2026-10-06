@@ -162,11 +162,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from ...crystallography.symmetry import (
     OperatorGroup,
     get_spacegroup,
     refuse_operation_list,
     setting_diagnostics,
+    site_orbit,
 )
 from ...schemas.common import Diagnostic, Parameter
 from ..formats.base import decode
@@ -4283,7 +4286,7 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     return structure
 
 
-def _tail(param: Parameter) -> str:
+def _tail(param: Parameter, value: float | None = None) -> str:
     """One value grammar, one direction: ``@ <value>`` (free) or ``! <value>``
     (held) — Technical Reference §2.1's ``@``/``!`` spellings, never the bare
     "a name is itself the refine flag" form, so nothing here depends on a
@@ -4302,7 +4305,8 @@ def _tail(param: Parameter) -> str:
     tail — held unconditionally, whatever its ``vary`` says — and a guard only
     the tail carried would have let exactly that one through.
     """
-    return f"{'@' if param.vary else '!'} {_number(param.value)}"
+    return (f"{'@' if param.vary else '!'} "
+            f"{_number(param.value if value is None else value)}")
 
 
 def _number(value: float) -> str:
@@ -4440,6 +4444,60 @@ def _magnetic_group_line(phase) -> str | None:
     return number
 
 
+#: Origin-choice-1 groups of these space-group numbers are the ones TOPAS 6
+#: stops on when written with its ``S`` suffix: they are axis permutations of
+#: #50 and #68, and only their bare symbols generate (checked over all 33
+#: groups with an origin choice).
+_TOPAS_NO_S_SUFFIX = frozenset({50, 68})
+
+
+def _topas_space_group(symbol: str) -> str:
+    """The space group as TOPAS's ``sgcom5`` names it.
+
+    ``get_spacegroup(...).xhm()`` spells origin choice 1 ``F d -3 m:1``, and
+    TOPAS stops on that ("Space group not found in sgcom5.cpp"): the Technical
+    Reference (``space_group``, p. 127) suffixes only the *second* setting
+    (``I_41/A_M_D:2``).  The first setting is spelled with TOPAS's own ``S``
+    (site-symmetry origin) suffix, ``Fd-3mS``, which :data:`_SG_SUFFIX` reads
+    back as ``:1`` and which is not an assumption on the way in the way a bare
+    symbol is.  Measured on TOPAS 6 over all 33 groups with an origin choice,
+    ``S`` generates the operators of the bare symbol in 24, is not found for
+    the nine axis permutations of #50 and #68 (written bare), and the bare
+    symbol alone stops on ``P 4/n c c``.  ``:2``, ``:H`` and ``:R`` are
+    accepted as written.
+    """
+    sg = get_spacegroup(symbol)
+    name = sg.xhm()
+    if not name.endswith(":1"):
+        return name
+    base = name[:-2]
+    return base if sg.number in _TOPAS_NO_S_SUFFIX else base.replace(" ", "") + "S"
+
+
+def _snapped_xyz(sg, atom) -> list[float]:
+    """The atom's coordinates, moved onto its special position if it sits near one.
+
+    rietx expands a site within ``SITE_TOL`` of a special position at that
+    position (:func:`~rietx.crystallography.symmetry.site_orbit`), so its
+    multiplicity is the special one while the *stored* coordinate stays the
+    caller's rounded number.  A program with a tighter tolerance reads the
+    rounded number as a general position: TOPAS, given ``x 0.3333 y 0.6667`` in
+    ``P 63 m c``, generates 12 positions where rietx's own forward model has 2,
+    and warns "equivalent positions at a distance of 0.000325 Angstroms".
+    The written number is the one rietx computes with.  A site already on its
+    position, or one whose orbit rietx refuses, is written as stored.
+    """
+    xyz = np.array([atom.x.value, atom.y.value, atom.z.value], dtype=float)
+    try:
+        orbit = site_orbit(sg, xyz)
+    except ValueError:
+        return xyz.tolist()
+    if not orbit.shift:
+        return xyz.tolist()
+    delta = orbit.position - xyz
+    return (xyz + delta - np.rint(delta)).tolist()
+
+
 def from_structure(structure: Structure, *,
                    diagnostics: list[Diagnostic] | None = None) -> str:
     """Serialise ``structure`` as TOPAS ``.inp`` text — the inverse of
@@ -4485,8 +4543,10 @@ def from_structure(structure: Structure, *,
     itself keeps about them on the way in, so this is symmetric rather than a
     new gap.
 
-    Space groups are written ``get_spacegroup(phase.space_group).xhm()``,
-    never the phase's own stored spelling: the ``:1``/``:2``/``:H``/``:R``
+    Space groups are written ``get_spacegroup(phase.space_group).xhm()``
+    (:func:`_topas_space_group`: origin choice 1 is TOPAS's ``S`` suffix, since
+    it has no ``:1`` and stops on one), never the phase's own stored spelling:
+    the ``:1``/``:2``/``:H``/``:R``
     suffix a bare symbol can leave ambiguous is what a reader may have
     *resolved* (root CLAUDE.md § "Where a file states its symmetry twice"),
     and re-exporting the stored string would launder that resolution back
@@ -4496,6 +4556,11 @@ def from_structure(structure: Structure, *,
     ``phase.space_group`` exactly as written; compare space groups with
     ``get_spacegroup(...).xhm()`` on both sides, not by string, since the
     written spacing (``"P n -3 m"``) need not match a caller's own.
+
+    **A site near a special position is written on it** (:func:`_snapped_xyz`):
+    TOPAS reads the ICSD's ``x 0.3333`` as a general position and generates a
+    multiple of the atoms rietx computes with.  The stored coordinate is
+    unchanged; a fit's free coordinate is written at the same value.
 
     A species is written as the atom rietx computes, in TOPAS's spelling
     (:func:`topas_species`), and none is refused. Where rietx computes the
@@ -4536,8 +4601,7 @@ def from_structure(structure: Structure, *,
         lines.append("str")
         lines.append(f'  phase_name "{phase.name}"')
         if magnetic_number is None:
-            sg = get_spacegroup(phase.space_group).xhm()
-            lines.append(f'  space_group "{sg}"')
+            lines.append(f'  space_group "{_topas_space_group(phase.space_group)}"')
         else:
             # No `space_group` beside it: TOPAS generates a magnetic `str`'s
             # atoms with the magnetic operators, and the reader derives the
@@ -4551,6 +4615,7 @@ def from_structure(structure: Structure, *,
                 lines.append(f"  ' magnetic group symbol (not read): {symbol}")
         lines.append(f"  scale {_tail(phase.scale)}")
         cell = phase.cell
+        nuclear = get_spacegroup(phase.space_group)
         for key, param in (("a", cell.a), ("b", cell.b), ("c", cell.c),
                            ("al", cell.alpha), ("be", cell.beta),
                            ("ga", cell.gamma)):
@@ -4578,8 +4643,10 @@ def from_structure(structure: Structure, *,
             # X-ray table's fallback (Fe4+ → Fe) is not what rietx computed.
             species = (topas_species(atom.species) if atom.moment is None
                        else _sign_first(atom.species))
-            site = (f"  site {atom.label} x {_tail(atom.x)} y {_tail(atom.y)} "
-                    f"z {_tail(atom.z)} occ {species} {_tail(atom.occ)}")
+            x, y, z = _snapped_xyz(nuclear, atom)
+            site = (f"  site {atom.label} x {_tail(atom.x, x)} "
+                    f"y {_tail(atom.y, y)} z {_tail(atom.z, z)} "
+                    f"occ {species} {_tail(atom.occ)}")
             if atom.aniso is not None:
                 # `to_structure` always builds an aniso site's `biso` held
                 # (`vary=False`) — it is the schema's inert record, not a
@@ -4615,8 +4682,6 @@ def _allowed_components(phase, atom) -> tuple[bool, bool, bool]:
     action is not the crystal-axis one (``axis_mixing``) cannot be asked, and
     every component is then taken as allowed, which is what was written before.
     """
-    import numpy as np
-
     try:
         basis = np.asarray(phase.magnetic_symmetry.group().allowed_moment_basis(
             np.array([atom.x.value, atom.y.value, atom.z.value])))
