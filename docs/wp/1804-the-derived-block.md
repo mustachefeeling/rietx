@@ -1,8 +1,8 @@
 # WP-1804 — the derived block: a nonlinear map applied after the affine one
 
-Milestone: rigid-bodies · Status: ⬜
+Milestone: rigid-bodies · Status: 🔄 2026-10-07 — built in PR #773 (merged `f5f35593`); the stage-boundary regeneration with a block remains
 Depends on: 1801, 1803 (the record)
-Priority: P2 2026-10-06 — every later body WP reads it; built in PR #773, under review
+Priority: P2 2026-10-06 — every later body WP reads it; built in PR #773, merged 2026-10-07
 
 ## Goal
 
@@ -56,13 +56,13 @@ v1.6 has shipped (2026-10), so WP-1514's "waits for v1.6" no longer holds.
 
 ## Tasks
 
-- [ ] `params/derived.py`: the block type, the closed-form frame and its cell derivative
-- [ ] `ParameterTable`: `derived`, `add_derived`, `local_jacobian`, the declared reach, the five readers switched; `add_derived` onto an unlocked row raises
-- [ ] `set_tie` refuses a locked or derived source, naming both paths
-- [ ] `optimize/least_squares.py`: `_column_extras` and the restraint block on the declared reach and the local Jacobian
-- [ ] `backend/traced.py`: the map after the matmul
+- [x] `params/derived.py`: the block type, the closed-form frame and its cell derivative
+- [x] `ParameterTable`: `derived`, `add_derived`, `local_jacobian`, the declared reach, the five readers switched; `add_derived` onto an unlocked row raises
+- [x] `set_tie` refuses a locked or derived source, naming both paths
+- [x] `optimize/least_squares.py`: `_column_extras` and the restraint block on the declared reach and the local Jacobian
+- [x] `backend/traced.py`: the map after the matmul
 - [ ] Tests: the acceptance below, including a toy-block row in `tests/test_cross_backend.py` and a stage-boundary regeneration with a block
-- [ ] Skill: none. No public verb and no diagnostic code; the block is internal until WP-1805.
+- [x] Skill: none. No public verb and no diagnostic code; the block is internal until WP-1805.
 
 ## Acceptance
 
@@ -95,6 +95,35 @@ Each is a check that can fail.
 - Issue #561; PR #596 (the record and the proposal this WP was cut from); WP-1803.
 
 ## Handover log
+
+- **2026-10-07** — PR #773 merged from outside as `f5f35593`, built by
+  @mustachefeeling. Gated together on a nine-PR stack replayed onto `main` at
+  `f99fab05` (stack `16a95cef`, macOS arm64, `[dev,jax]`). The whole suite
+  gave 8912 passed, 113 skipped and 2 failed. Both failures fail identically
+  on bare `main`: the `toy_anomalous` golden (#760) and
+  `test_the_reduction_map_takes_a_to_f_where_the_reduction_does`. After the
+  last merge, `main` at `a65dca1a` is content-identical to the gated tree.
+  - `params/derived.py` holds the block and the closed-form Cartesian frame.
+    `ParameterTable` gains `derived`, `add_derived`, `local_jacobian`,
+    `reach_block` and `derived_paths`. The covariance and restraint readers
+    take the local Jacobian. The reach readers take each block's declared
+    reach. On a table without a block both readings are C, so every existing
+    fit is unchanged.
+  - `set_tie` refuses a locked or derived source. `tie_source_refusal` is the
+    test, and `_apply_ties` and `replay` both drop such a recorded tie with a
+    reason. Round 3 added the `replay` half, so a checkout and a replay of one
+    node agree.
+  - `toy_body` is a `tests/test_cross_backend.py` config and crosses every
+    `METHODS` row. Its torch rows had not run anywhere at merge; the nightly
+    `torch` job is the first place they run.
+  - Still open: the stage-boundary regeneration with a block. The contributor
+    puts it with WP-1805's `bodies` config, so the tests task stays unticked.
+    Also open, from the round-2 review: a source that is itself tied, with
+    every one of its sources locked, has an empty C row and passes
+    `tie_source_refusal`. Nothing reaches that shape until the rigid-body
+    writer exists.
+  - Next: WP-1805, the `RigidBody` schema, which the contributor holds back
+    until this merge.
 
 - **2026-10-06** — created by WP-1803's re-cut, from #596's proposal and the
   contributor's 2026-10-06 update on #561. PR #773 builds it. The maintainer kept the

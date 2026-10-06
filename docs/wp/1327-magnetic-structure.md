@@ -1,6 +1,6 @@
 # WP-1327 — a magnetic structure: state it, refine it, report what the powder cannot see
 
-Milestone: magnetic · Status: 🔄 2026-10-04 — the k = 0 moment (PR #433), the operation-list phase (PR #448), k ≠ 0's magnetic supercell (PR #477) and the LaMnO₃ second dataset have landed; the analytic moment branch remains
+Milestone: magnetic · Status: 🔄 2026-10-07 — the k = 0 moment (PR #433), the operation-list phase (PR #448), k ≠ 0's magnetic supercell (PR #477), the LaMnO₃ second dataset and #612's refusals (PR #787) have landed; the analytic moment branch remains
 Depends on: 1326 (the satellite reflection list)
 Priority: P2 2026-09-23 — the open milestone's core; the moment and its hold start without 1326's list
 
@@ -414,6 +414,28 @@ rule above applies to the form factors.
   [1312](1312-neutron-followthrough.md) the joint-fit audit this term joins.
 
 ## Handover log
+
+### 2026-10-07 — #612's refusals landed from outside
+
+PR #787 merged as `d8765afa` and closed #612, the inherited item above. Gated
+together on a nine-PR stack replayed onto `main` at `f99fab05` (stack
+`16a95cef`, macOS arm64, `[dev,jax]`). The whole suite gave 8912 passed, 113
+skipped and 2 failed. Both failures fail identically on bare `main`: the
+`toy_anomalous` golden (#760) and
+`test_the_reduction_map_takes_a_to_f_where_the_reduction_does`. After the last
+merge, `main` at `a65dca1a` is content-identical to the gated tree.
+
+Rock salt at k = ½½½ is now refused by name on both `nuclear_group` branches,
+before any `Phase` is built. `lattice_cosets` takes an exact `|det P|` and
+refuses a fractional one. The parent branch tells its two refusals apart:
+`MagneticGroup.transformed` raises `LatticeNotPreserved` for a non-integral
+conjugated rotation (a k that lowers the class). The operation-count refusal
+names the transform, since a user `transform=` with no k reaches it. Both
+texts keep what `strategy.magnetic._supercell` matches on.
+
+MnO and NiO at the L point still get no supercell, only a named refusal, and
+`solve_magnetic` records it in its trials. A skill row in `magnetic.md` waits
+until agents meet the refusal. The analytic moment branch is untouched.
 
 ### 2026-10-04 — LaMnO₃, the second dataset, and fit plots
 

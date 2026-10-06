@@ -190,6 +190,29 @@ landed — #195 stays open for the fenced VESTA/Z-matrix/rigid-body parts.
 
 ## Handover log
 
+- **2026-10-07** — PR #765 (#764) merged from outside as `a65dca1a`. Gated
+  together on a nine-PR stack replayed onto `main` at `f99fab05` (stack
+  `16a95cef`, macOS arm64, `[dev,jax]`). The whole suite gave 8912 passed, 113
+  skipped and 2 failed. Both failures fail identically on bare `main`: the
+  `toy_anomalous` golden (#760) and
+  `test_the_reduction_map_takes_a_to_f_where_the_reduction_does`. After the
+  last merge, `main` at `a65dca1a` is content-identical to the gated tree.
+  - `structure_from_cif` never counts one atom twice. Twin images of a site
+    printed off a special position merge into one site
+    (`CIF_SITE_TWINS_MERGED`). A site listed twice is dropped
+    (`CIF_SITE_LISTED_TWICE`), and a copy differing in B, U^ij or disorder is
+    refused. Diagnostics carry labels until the site list is final, then
+    `_locate` rewrites only this call's rows, and a dropped label points at
+    the site it repeats.
+  - The rebase over #717 orders the two repairs. A stated multiplicity snaps
+    first, under its own diagnostic. The twin merge takes the sites no
+    statement covers. So #717's negative arm changed: a site 2e-4 off 6e with
+    no multiplicity column now merges to multiplicity 6 and says so, where it
+    stayed general (12) before. The review kept that reading, since twelve
+    atoms 1e-3 Å apart is the double count #764 reports.
+  - This WP's own tasks, checkCIF conformance and the XYZ importer, are
+    untouched.
+
 - **2026-10-06** — PR #717 (#711, #712) merged from outside as
   `0cbb1b70`. `Structure.from_cif` moves a site onto the special position
   its stated multiplicity names when the site lies within 1e-3 of it, and
