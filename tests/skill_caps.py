@@ -132,8 +132,12 @@ REFERENCE_BUDGET_BYTES = REFERENCE_MAX_BYTES - REFERENCE_GAP_BYTES
 #: writer can name the ion it wrote as its neutral atom.  Merged, the file is
 #: 39 698 B, and the ceiling is 300 B under the 40 kB truncation, so the next
 #: raise is the split.  A technique split (`api-magnetic.md`) is the
-#: alternative, and the maintainer's call.
-API_INDEX_MAX_BYTES = 39_700
+#: alternative, and the maintainer's call.  39 700 → 39 800 for `free=`, `scale=`
+#: and `instrument=` on `write_topas_inp` (#722), 33 B over: the file is 39 733 B
+#: and the ceiling 267 B under the 40 kB truncation. PR #713 raises it to the
+#: same 39 800 for `p1_expand=`; merged, the two leave the file near 39 740 B,
+#: and the split is the next step after this one.
+API_INDEX_MAX_BYTES = 39_800
 
 
 @dataclass(frozen=True)
