@@ -240,6 +240,15 @@ class RefinementState(Base):
     # ``apply_to_models`` writes values but not vary flags, so the free set has
     # to be carried alongside the models.
     free_paths: list[str] = Field(default_factory=list)
+    # Whether ``free_paths`` is a declaration (``set_vary``, a hold or tie edit,
+    # a stage) rather than "nothing declared yet", in which case the models'
+    # own ``vary`` flags are the free set.  A fact about the state, so it rides
+    # with it like ``ties`` and ``holds``: it cannot be read off the node's
+    # kind, since ``set_value``, ``edit_model``, ``set_variable`` and ``merge``
+    # snapshot the free set without declaring one.  A non-empty set is always a
+    # declaration; the flag only matters for an empty one.  Absent reads as
+    # "not declared", which is what every earlier document meant.
+    free_declared: bool = False
     two_theta_limits: tuple[float, float] | None = None
     reflections: list[ReflectionState] = Field(default_factory=list)
     # User constraints (WP-1070), path → the affine dependence declared for it.

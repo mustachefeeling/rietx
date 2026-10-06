@@ -1990,6 +1990,7 @@ class Refinement:
             instrument=self.instrument.model_copy(deep=True),
             mode=self._mode,
             free_paths=list(self._free_paths),
+            free_declared=self._free_set_declared,
             two_theta_limits=self._two_theta_limits,
             reflections=_extract_reflections(model or self._model),
             ties={p: s.model_copy(deep=True) for p, s in self._ties.items()},
@@ -2031,27 +2032,24 @@ class Refinement:
         """
         tree = self._require_history()
         node = tree[node_id]
-        # every node after the root was recorded with a declared free set, so
-        # an empty one there means "nothing free", not "read the model flags"
-        self._restore_state(node.state, declared=node.action.kind != "root")
+        self._restore_state(node.state)
         self._head_id = node.id
         tree.set_head(node.id)
         return self
 
-    def _restore_state(self, state: RefinementState, *,
-                       declared: bool | None = None) -> None:
+    def _restore_state(self, state: RefinementState) -> None:
         """Make ``state`` the working state; ``checkout`` and keep-best share it.
 
-        ``declared`` says whether the state's free set is a declaration (see
-        ``_free_set_declared``); a node does not record it, so the caller that
-        knows the node's kind says so, and a non-empty set always is one.
+        Whether its free set is a declaration (``_free_set_declared``) is the
+        state's own ``free_declared``; a non-empty set always is one, which is
+        what a document written before the field meant.
         """
         self.structure = state.structure.model_copy(deep=True)
         self.instrument = state.instrument.model_copy(deep=True)
         self._mode = state.mode
         self._two_theta_limits = state.two_theta_limits
         self._free_paths = list(state.free_paths)
-        self._free_set_declared = bool(state.free_paths) or bool(declared)
+        self._free_set_declared = bool(state.free_paths) or state.free_declared
         # the node's free set is the declared one (``_record_free_paths``), so
         # a checkout starts with no hold and the next stage takes its own
         self._held = []
@@ -4086,7 +4084,7 @@ class Refinement:
 
     def _keep_pass(self, result, state, head, fit_view) -> None:
         """Restore the pass ``_fit_lebail_alternation`` decided to keep."""
-        self._restore_state(state, declared=True)
+        self._restore_state(state)
         # ``_restore_state`` drops the fit's view of the values (it is what
         # ``checkout`` needs), but these *are* the values the kept pass
         # fitted, so ``result_``, ``report()``, ``predict()`` and the
@@ -4139,6 +4137,9 @@ class Refinement:
         self._mode = mode
         self._two_theta_limits = two_theta_limits
         self._free_paths = []
+        # the fit's stages declare the free set; until the first one does, the
+        # models' flags are it again, as for a fresh refinement
+        self._free_set_declared = False
         self._held = []
         # state summary() reads for the "protocol actually run" section —
         # nothing computes from these, they are only ever printed back

@@ -262,7 +262,10 @@ def test_set_vary_without_history_still_edits():
 
 
 def _declaring_only(path):
-    """``perturbed_models`` with every model ``vary`` flag cleared but ``path``'s."""
+    """``perturbed_models`` with every model ``vary`` flag cleared but ``path``'s.
+
+    ``path`` is a ``phases.…`` or ``instrument.…`` dot-path to a ``Parameter``.
+    """
     from pydantic import BaseModel
 
     from rietx.schemas.common import Parameter
@@ -280,7 +283,10 @@ def _declaring_only(path):
     structure, ins = perturbed_models()
     clear(structure)
     clear(ins)
-    structure.phases[0].lor_size.vary = True
+    target = structure if path.startswith("phases.") else ins
+    for part in path.split(".")[1 if target is ins else 0:]:
+        target = target[int(part)] if part.isdigit() else getattr(target, part)
+    target.vary = True
     return structure, ins
 
 
@@ -336,6 +342,62 @@ def test_a_checkout_of_an_all_held_node_keeps_it_all_held(ref, pattern):
     assert _free(ref)
     ref.checkout(empty)
     assert _free(ref) == []
+
+
+@pytest.mark.parametrize("edit", ["set_values", "edit", "add_variable", "merge"])
+def test_a_checkout_of_a_node_that_declared_nothing_keeps_the_model_flags(pattern, edit):
+    """``Project.open`` checks out the head, so a project whose last act was a
+    value edit must open with the model's own ``vary`` flags still the free set.
+
+    Those node kinds snapshot the free set without declaring one, so the node's
+    *kind* cannot say whether an empty set is a declaration (#788 review).
+    """
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins)
+    ref._ensure_history(pattern)
+    before = _free(ref)
+    assert before
+    if edit == "set_values":
+        ref.set_values({"instrument.profile.w": 0.02})
+    elif edit == "edit":
+        new = ref.structure.model_copy(deep=True)
+        new.phases[0].cell.a.value += 0.001
+        ref.edit(structure=new)
+    elif edit == "add_variable":
+        ref.add_variable("tilt", 0.1)
+    else:
+        ref.set_values({"instrument.profile.w": 0.02})
+        other = ref.history.head
+        ref.checkout(ref.history.root.id)
+        ref.set_values({"instrument.profile.v": -0.01})
+        ref.merge(other)
+    assert _free(ref) == before
+    ref.checkout(ref.history.head)
+    assert _free(ref) == before
+
+
+def test_a_declaration_survives_a_node_kind_that_does_not_declare(pattern):
+    """The other half: an all-held free set, then an edit, then a checkout."""
+    ref = rx.Refinement(*perturbed_models())
+    ref._ensure_history(pattern)
+    ref.set_vary(["*"], False)
+    assert _free(ref) == []
+    ref.set_values({"instrument.profile.w": 0.02})
+    ref.checkout(ref.history.head)
+    assert _free(ref) == []
+
+
+def test_a_state_without_free_declared_reads_as_not_declared():
+    """A document written before the field loads, and an empty set there is the
+    old reading (the models' flags)."""
+    from rietx.schemas.history import RefinementState
+
+    structure, ins = perturbed_models()
+    state = RefinementState(structure=structure, instrument=ins)
+    assert state.free_declared is False
+    dumped = state.model_dump(mode="json")
+    dumped.pop("free_declared")
+    assert RefinementState.model_validate(dumped).free_declared is False
 
 
 # ------------------------------------------------- user constraints (WP-1070)
