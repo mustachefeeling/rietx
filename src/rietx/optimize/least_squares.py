@@ -715,8 +715,12 @@ def _column_extras(table: ParameterTable) -> list[list[str]]:
     input rather than a special case: each analytic branch then declares the
     reach it can account for, and anything further falls to the whole-model FD
     column, which is exact because it decodes through C like the residual does.
+
+    Read off the table's **declared** reach (``reach_block``), which is C
+    itself unless a derived block is declared: a body DOF's column then also
+    moves every body atom row, though no C row says so (WP-1804).
     """
-    C, _ = table.constraint_block()
+    C = table.reach_block()
     free = table.free_paths
     csc = C.tocsc()
     paths = [e.path for e in table.entries]
@@ -965,7 +969,7 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
         if model.restraints is not None and n_table:
             # One unconditional matrix block below the data/penalty/Pawley rows:
             # ∂row/∂θ_c = (R_phys @ C)[i,c]·dφ/du[c], since decode gives
-            # p = C·to_physical(θ) + d.  Rietveld-only (the Pawley block is then
+            # p = C·to_physical(θ) + d (and the derived rows after it).  Rietveld-only (the Pawley block is then
             # empty, so restr_blk starts right after the penalty rows), and the
             # rows touch table θ only — no Pawley-intensity columns.
             restr0 = restr_blk.start
@@ -978,7 +982,11 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                 # comment).  √ matches restraint_residual: c_w weights S_G, the
                 # sum of these rows squared.
                 r_phys = r_phys * math.sqrt(model.restraint_weight_scale)
-            cmat = table.constraint_block()[0].toarray()  # C small: dense is fine
+            # ∂p/∂p_free at θ: C, with each derived row (a body atom's
+            # coordinates) the block's local Jacobian chained through C
+            # (WP-1804).  C small: dense is fine
+            cmat = table.local_jacobian(
+                np.asarray(theta_t, dtype=np.float64)).toarray()
             dpdu = np.array([dpdu_of(c, theta_t) for c in range(n_table)],
                             dtype=np.float64)
             J[restr0:restr0 + n_restraint, :n_table] = (r_phys @ cmat) * dpdu

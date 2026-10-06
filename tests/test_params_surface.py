@@ -969,3 +969,55 @@ def test_plan_info_modes_match_what_the_plan_can_free():
         structural = any(".atoms." in g for g in globs)
         if structural:
             assert info.modes == ("rietveld",), name
+
+
+def test_a_user_tie_whose_source_an_edit_locks_is_dropped_not_raised():
+    """The *source* half of ``_apply_ties``' rule (WP-1804).
+
+    ``set_tie`` refuses a locked source, which is right for a verb.  A stored
+    tie whose source a later model edit locked used to be flattened into d; it
+    must not now stop the build — a model edit never does — so it is dropped
+    with the reason beside the others, and the register is reconciled.
+    """
+    structure, ins = perturbed_models()
+    structure.phases[0].space_group = "P 1"
+    ref = rx.Refinement(structure, ins, history=False)
+    # alpha is free under P 1 and locked at 90° under P m -3 m
+    ref.tie("phases.0.atoms.1.biso", "phases.0.cell.alpha")
+    cubic = ref.structure.model_copy(deep=True)
+    cubic.phases[0].space_group = "P m -3 m"
+    with pytest.warns(UserWarning, match=r"atoms\.1\.biso.*source "
+                                         r"phases\.0\.cell\.alpha now structurally fixed"):
+        ref.edit(structure=cubic)
+    rows = {r.path: r for r in ref.parameters()}
+    assert rows["phases.0.atoms.1.biso"].tie is None
+    assert ref._ties == {}
+
+
+def test_replay_skips_a_recorded_tie_whose_source_is_now_fixed(pattern):
+    """``replay`` and ``checkout`` must agree about one node (WP-1804).
+
+    A node recorded before the source rule can hold a tie whose source a later
+    model edit locked (main's ``set_tie`` flattened it silently).  ``replay``
+    called ``set_tie`` on every recorded tie and raised; it now skips such a tie
+    with a warning, as ``_apply_ties`` does — the flattened tie had an empty C
+    row, so no count, value or statistic changes.
+    """
+    from rietx.refine import replay
+    structure, ins = perturbed_models()
+    structure.phases[0].space_group = "P 1"
+    ref = rx.Refinement(structure, ins)
+    ref.fit(pattern, plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale", ["phases.*.scale"], max_iter=5)]))
+    ref.tie("phases.0.atoms.1.biso", "phases.0.cell.alpha")
+    node = ref.history[ref.history.order[-1]]
+    cubic = node.state.structure.model_copy(deep=True)
+    cubic.phases[0].space_group = "P m -3 m"
+    # the node an old edit recorded: cubic model, the user tie still carried
+    node.state = node.state.model_copy(
+        update={"structure": cubic, "ties": dict(ref._ties)})
+    assert node.state.ties
+    with pytest.warns(UserWarning, match=r"atoms\.1\.biso.*source "
+                                         r"phases\.0\.cell\.alpha now structurally fixed"):
+        result = replay(ref.history, node.id, pattern)
+    assert result.statistics.n_free_parameters == len(node.state.free_paths)

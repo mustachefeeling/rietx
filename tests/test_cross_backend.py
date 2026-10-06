@@ -75,6 +75,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from rietx import Instrument
 from rietx.backend.linalg64 import (
     COLUMN_COSINE_MIN,
     COLUMN_REL_L2_MAX,
@@ -179,6 +180,34 @@ def _state_families_tied():
     table.apply_to_models(structure, ins)
     model = compile_model(structure, ins, pattern, mode="rietveld",
                           moving_paths=set(table.moving_paths))
+    return model, table, {}
+
+
+def _state_toy_body():
+    """A rigid body's atoms as a **derived block** (WP-1804): the toy C6Br body.
+
+    A derived row is a new derivative path with no row of C behind it, so the
+    asymmetry ``families_tied`` guards shows up one rank up.  The traced
+    backends differentiate ``decode`` through the block's ``xp`` twin, while
+    the numpy Jacobian has to *decide* a branch for the origin, rotation and
+    cell columns from the declared reach (``_column_extras`` →
+    ``reach_block``), and its restraint block chains ``R_phys`` through
+    ``local_jacobian``.  A bond restraint joins a body atom to the free Li, so
+    the restraint rows reach every body column; the fd, jax and torch rows
+    are three independent opinions on all of it.
+    """
+    from tests.test_derived_block import _build_block, _theta_at, _toy_pattern
+
+    table, _, structure = _build_block(restraint=True)
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    # a pose off the identity, so the rotation columns are not at their
+    # symmetric point; the origin and increment are free entries of the table
+    theta = _theta_at(table)
+    table.commit(theta)
+    table.apply_to_models(structure, ins)
+    model = compile_model(structure, ins, _toy_pattern(), mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    assert model.restraints is not None
     return model, table, {}
 
 
@@ -583,6 +612,7 @@ CONFIGS = {"families": _state_families,
            "families_voigt": _state_families_voigt,
            "families_tied": _state_families_tied,
            "families_variable": _state_families_variable,
+           "toy_body": _state_toy_body,
            "capillary_offsets": _state_capillary_offsets,
            "extra_components": _state_extra_components,
            "extra_peak": _state_extra_peak,
@@ -612,6 +642,7 @@ CONFIG_PARAMS = [
     _config("families_voigt"),
     _config("families_tied"),
     _config("families_variable"),
+    _config("toy_body"),
     _config("capillary_offsets"),
     _config("extra_components"),
     _config("extra_peak"),
@@ -1021,7 +1052,8 @@ def _same_signature(a: list[tuple], b: list[tuple]) -> bool:
                for pa, pb in zip(a, b, strict=True))
 
 
-def _stage_boundaries(data, structure, instrument, stages, *, mode="rietveld"):
+def _stage_boundaries(data, structure, instrument, stages, *, mode="rietveld",
+                      table=None):
     """Run a staged plan, reporting what each recompile did to the Jacobian.
 
     Mirrors ``Refinement._run_stage`` (free the stage's globs, drop structural
@@ -1039,7 +1071,8 @@ def _stage_boundaries(data, structure, instrument, stages, *, mode="rietveld"):
     """
     from rietx.refine import _carry_lebail
 
-    table = ParameterTable(structure, instrument)
+    if table is None:
+        table = ParameterTable(structure, instrument)
     table.set_vary(["*"], False)
     model = None
     prev_free: list[str] = []
@@ -1141,6 +1174,35 @@ def test_stage_boundary_continuity_rietveld():
     # bars are about (without this the assertion below would be vacuous)
     assert records[1]["frozen_state_moved"]
     _assert_boundaries(records, what="srm660c/rietveld")
+
+
+def test_stage_boundary_continuity_with_a_derived_block():
+    """The regeneration at a stage boundary, with a rigid body declared (WP-1804).
+
+    The body's atoms are derived rows: the pose stage moves them through the
+    block, so the window index ranges the next stage compiles are regenerated
+    from positions no row of C carries.  Same bars as the Rietveld case above.
+    ``frozen_state_moved`` asserts the last boundary did regenerate something,
+    or the continuity bars would compare a model with itself.
+    """
+    from tests.test_derived_block import _build_block, _toy_pattern
+
+    table, _, structure = _build_block(restraint=True)
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    records = _stage_boundaries(_toy_pattern(), structure, ins, [
+        Stage("scale", ["phases.*.scale"], max_iter=2),
+        Stage("pose", ["phases.*.rigid_bodies.*.origin.*",
+                       "phases.*.rigid_bodies.*.rotation.*"], max_iter=3),
+        Stage("cell", ["phases.*.cell.*"], max_iter=3),
+        Stage("pose_again", ["phases.*.rigid_bodies.*.origin.*"], max_iter=3),
+    ], table=table)
+    assert len(records) == 3
+    # a scale-only recompile is a pure function of the same values
+    assert records[0]["frobenius"] == 0.0
+    # the cell stage moved the cell, so the boundary after it regenerates the
+    # windows around body atoms whose rows come from the block
+    assert records[2]["frozen_state_moved"]
+    _assert_boundaries(records, what="toy_body/rietveld")
 
 
 @pytest.mark.parametrize("mode", ["lebail", "pawley"])

@@ -95,9 +95,11 @@ def cartesian_basis(a: float, b: float, c: float,
                     alpha: float, beta: float, gamma: float) -> np.ndarray:
     """Direct lattice vectors as columns of a Cartesian frame, M (Å).
 
-    Any M with MᵀM = G works — the choice of Cartesian orientation cancels in
-    every quantity reported here (eigenvalues, trace) — so the Cholesky factor
-    is used instead of a hand-written a-along-x convention.
+    The Cholesky factor of G with a positive diagonal is unique, and it is the
+    TOPAS/FullProf frame: x ∥ a, y in the a–b plane, z ∥ a × b.  The rigid-body
+    maps of ``params.derived`` use that same frame in closed form
+    (``derived.cartesian_frame``), pinned equal to this function over random
+    cells, so a body's orientation and an ADP's Cartesian axes share one frame.
     """
     g = direct_metric_tensor(a, b, c, alpha, beta, gamma)
     return np.linalg.cholesky(g).T
