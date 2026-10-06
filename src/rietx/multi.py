@@ -52,6 +52,7 @@ from .refine import (
     _WAVELENGTH_PINNED_BY_HELD_HISTOGRAM,
     SCALE_B_SEPARATION_FLOOR,
     SCALE_B_STEP,
+    CellClamp,
     _absorption_diagnostics,
     _absorption_record,
     _air_scatter_undeclared_diagnostics,
@@ -714,9 +715,9 @@ def _clamp_cell_runaway_multi(mtable, start_values: list[dict[str, float]]
         clamped = clamp_cell_runaway(table, start_values[h])
         if clamped:
             table.refresh_ties()
-        for path, old, new in clamped:
-            scoped = mtable._canonical(h, path)
-            seen[scoped] = (scoped, old, new)
+        for c in clamped:
+            scoped = mtable._canonical(h, c[0])
+            seen[scoped] = CellClamp(scoped, c[1], c[2], c.reverted)
     return list(seen.values())
 
 
