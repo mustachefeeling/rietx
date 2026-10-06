@@ -513,7 +513,7 @@ def anti_bump_restraints(phase, min_distance, *, sigma: float = 0.05,
     body_of = {label: b.name for b in getattr(phase, "rigid_bodies", [])
                for label in b.atoms}
     first = range(len(phase.atoms)) if atoms is None else atoms
-    shell = range(-MIN_IMAGE_SHELL, MIN_IMAGE_SHELL + 1)
+    astar = np.sqrt(np.diag(np.linalg.inv(g)))      # reciprocal axis lengths, 1/Å
     rows = []
     for i in first:
         ai = phase.atoms[i]
@@ -533,10 +533,17 @@ def anti_bump_restraints(phase, min_distance, *, sigma: float = 0.05,
                 img = rot @ x_j + tr
                 identity = (np.array_equal(rot, np.eye(3))
                             and np.allclose(tr - np.round(tr), 0.0))
-                for na in shell:
-                    for nb in shell:
-                        for nc in shell:
-                            n = np.array([na, nb, nc], dtype=np.float64)
+                # the shell is centred on the image's nearest lattice vector, so
+                # the list does not depend on which cell a coordinate is stored
+                # in (a body placed about any origin, a free atom anywhere)
+                centre = np.round(x_i - img)
+                # and wide enough for the cut: |Δx_k| ≤ (r0 + margin)·|a*_k|
+                reach = [range(-m, m + 1) for m in
+                         np.ceil((r0 + margin) * astar).astype(int) + 1]
+                for na in reach[0]:
+                    for nb in reach[1]:
+                        for nc in reach[2]:
+                            n = centre + np.array([na, nb, nc], dtype=np.float64)
                             if (same_body and identity
                                     and np.array_equal(n, -np.round(tr))):
                                 # the body's own copy: its geometry is the
@@ -551,5 +558,5 @@ def anti_bump_restraints(phase, min_distance, *, sigma: float = 0.05,
                                 rows.append(AntiBumpRestraint(
                                     atom_i=i, atom_j=j, min_distance=r0,
                                     sigma=sigma, weight=weight, op_index=mi,
-                                    translation=(na, nb, nc)))
+                                    translation=tuple(int(v) for v in n)))
     return rows

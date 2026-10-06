@@ -141,8 +141,8 @@ def test_the_pair_list_is_complete_and_states_no_unasked_minimum():
             if r0 is None:
                 continue
             for k, (R, t) in enumerate(zip(*sites.ops[j], strict=True)):
-                for n in np.ndindex(3, 3, 3):
-                    shift = np.array(n) - 1
+                for n in np.ndindex(11, 11, 11):     # exhaustive for a 10 Å cut
+                    shift = np.array(n) - 5
                     if body_pair and k == 0 and not shift.any():
                         continue          # op 0 of P-1 is the identity
                     dx = np.asarray(R) @ xyz[j] + np.asarray(t) + shift - xyz[i]
@@ -151,3 +151,28 @@ def test_the_pair_list_is_complete_and_states_no_unasked_minimum():
                         expected += 1
     assert len(rows) == expected > 0
     assert anti_bump_restraints(phase, 1.0, exclude_same_body=False, margin=0.4)
+
+
+def test_the_pair_list_does_not_depend_on_the_stored_cell():
+    """Shifting an atom by whole lattice vectors is the same structure, so the
+    pair list keeps the same contact: P2₁ toy, Li and the 2₁ image of an O
+    2.0 Å apart.  The shell about n = 0 lost it once the stored coordinates
+    sat two cells apart (a body placed about any origin, a free atom anywhere)."""
+    from rietx.schemas.structure import Atom, Cell, Phase
+    cell = Cell(a=Parameter(value=5.0), b=Parameter(value=6.0), c=Parameter(value=7.0),
+                alpha=Parameter(value=90.0), beta=Parameter(value=90.0),
+                gamma=Parameter(value=90.0))
+    for shift in ([0, 0, 0], [1, 0, 0], [2, 0, 0], [-3, 2, 1], [0, 0, 5]):
+        li = np.array([0.10, 0.10, 0.10]) + shift
+        o = np.array([-0.10, -0.40, -0.10 + 2.0 / 7.0])
+        ph = Phase(name="t", space_group="P 1 21 1", cell=cell, atoms=[
+            Atom(label="Li1", species="Li", x=Parameter(value=li[0]),
+                 y=Parameter(value=li[1]), z=Parameter(value=li[2])),
+            Atom(label="O1", species="O", x=Parameter(value=o[0]),
+                 y=Parameter(value=o[1]), z=Parameter(value=o[2]))])
+        rows = anti_bump_restraints(ph, {("Li", "O"): 2.5}, margin=0.0)
+        assert len(rows) == 1, shift
+        r = rows[0]
+        img = np.array([[-1, 0, 0], [0, 1, 0], [0, 0, -1]]) @ o + [0, 0.5, 0] + r.translation
+        d = (img - li) * [5.0, 6.0, 7.0]
+        assert float(np.linalg.norm(d)) == pytest.approx(2.0, abs=1e-9), shift
