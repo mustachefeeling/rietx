@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: magnetic · Status: 🔄 2026-10-06 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-06 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -833,3 +833,39 @@ not run it yet. *Next:* #565 part 2.
   `main` on that machine too). *Gotcha:* the merged child is smaller, so
   anything 1419 built on the 24-atom S3(a,b) child should be re-checked.
   *Next:* unchanged, #565 part 2.
+
+### 2026-10-06 (2nd session) — #607 and #608 landed from outside
+
+Two issue-triage items from this WP's Inherited list are now on `main`. A
+candidate's `verified` flag now checks the operator list it is labelled
+with, so a wrong anti-translation or time-reversal sign shows as a failure
+instead of a relabelled group. And the candidate table's domain column now
+counts domains: [G_k1′ : H] within one arm and [G1′ : H] over the star,
+where it used to print the conjugate-direction count, about half that.
+
+*Done:* PR #785 (`977371f5`, issue #607) adds
+`MagneticCandidate.verification_failure`. It runs two checks. First, every
+operation of `self.group` must leave each configuration unchanged under
+`_apply_domain`. Second, the existing per-atom stabiliser check runs.
+`in_allowed_span` is now `verification_failure() is None`, and each
+`verification_reason` says which check failed. PR #786 (`2fecaa4b`,
+issue #608) adds `CandidateSet.domain_counts()` (Izyumov, Naish & Ozerov 1991) and
+prints both counts as `domains/arm` and `domains`. The docstrings of
+`OrderParameterDirection.conjugates` and `isotropy_directions` now say what
+`conjugates` counts. Both were reviewed by `/pr-review` and gated in a
+four-PR stack (#778, #786, #785, #769) on `4b120b8a`. On macOS arm64,
+`[dev,jax]`, the fast suite gave 8469 passed, 103 skipped, 1 failed. The
+failure is the `toy_anomalous` golden, which also fails on bare `main` on
+macOS 26 (#760). The full `-m slow` suite gave 290 passed, 12 skipped,
+0 failed. `main` after the merges is content-identical to the gated tree.
+
+*Gotchas:* check 1 tests that the group fixes the family (H ⊆ the family's
+stabiliser), not that H is the whole stabiliser. The field-stabiliser
+oracle in `tests/test_magnetic_isotropy.py` remains the equality test.
+`domain_counts` raises if a candidate's order does not divide the grey
+little group's. Every candidate group is built from little-group elements,
+so the raise is unreachable, and `__str__` calls it unconditionally. #772
+(#565 part 2, also this WP's) edits the same `isotropy.py` and was not
+reviewed in this round.
+
+*Next:* unchanged, #565 part 2.
