@@ -4544,44 +4544,152 @@ def _rutile_with(**update):
     return rx.Structure(phases=[phase.model_copy(update=update)])
 
 
-def test_a_stephens_block_the_file_cannot_state_is_named(tmp_path):
-    """The written `str` states no widths, so a Stephens block goes out as a
-    phase without one. The file says nothing about it; the writer names it."""
+def _stephens_block(cell):
+    """c384dbd7's tetragonal block, four unequal symmetry-allowed patterns:
+    ``case_stephens_tetragonal``'s to the digit (the whole-input branch's
+    ``tests/topas_export_cases.py``, to dedupe on its rebase)."""
     from rietx.crystallography.stephens import S_NAMES
     from rietx.schemas.structure import StephensStrain
 
-    plain = _rutile_with()
-    iso = StephensStrain.isotropic(1500.0, plain.phases[0].cell)
+    iso = StephensStrain.isotropic(1500.0, cell)
     scaled = dict(s400=2.0, s040=2.0, s004=6.0, s220=0.4, s202=1.5, s022=1.5)
-    block = StephensStrain.from_values(
+    return StephensStrain.from_values(
         [v * scaled.get(n, 1.0) for n, v in zip(S_NAMES, iso.values())], vary=True)
-    diags: list = []
-    write_topas_inp(_rutile_with(microstrain=block), tmp_path / "s.inp",
-                    diagnostics=diags)
-    write_topas_inp(plain, tmp_path / "plain.inp")
-    assert (tmp_path / "s.inp").read_bytes() == (tmp_path / "plain.inp").read_bytes()
-    [named] = [d for d in diags if d.code == "TOPAS_FIELD_NOT_WRITTEN"]
-    assert named.level == "warning" and named.where == ["phases.0.microstrain"]
-    assert "'rutile'" in named.message and "Stephens" in named.message
+
+
+_LAMBDA = ("5.729577951308232e-05*D_spacing^2*Sqrt(Max((10105.597492347684)*H^4 + "
+           "(4042.238996939074)*H^2*K^2 + (36540.682150972265)*H^2*L^2 + "
+           "(10105.597492347684)*K^4 + (36540.682150972265)*K^2*L^2 + "
+           "(176169.22411161533)*L^4, 0))")
+
+
+def _all_widths(block):
+    def width(v):
+        return rx.Parameter(value=v, min=0.0, transform="softplus")
+    return dict(microstrain=block, lor_size=width(0.03), gauss_strain=width(0.02),
+                gauss_size=width(0.01))
+
+
+def test_the_written_width_lines_are_the_ones_topas_ran(tmp_path):
+    """The `str` states the Stephens block and the size and strain widths as
+    `lor_fwhm`/`gauss_fwhm` equations, character for character the lines
+    TOPAS-64 v6 ran for `test_topas_convolves_the_written_width_lines`'s
+    fixtures (and, for the strain alone, a third kit file), one line of each
+    at most, and names none of them."""
+    block = _stephens_block(_rutile_with().phases[0].cell)
+    cases = [
+        (_rutile_with(microstrain=block),
+         [f"  lor_fwhm = {_LAMBDA}*Tan(Th);"]),
+        (_rutile_with(**_all_widths(block)),
+         [f"  lor_fwhm = 0.03/Cos(Th) + {_LAMBDA}*Tan(Th);",
+          "  gauss_fwhm = Sqrt(0.02*Tan(Th)^2 + 0.01/Cos(Th)^2);"]),
+        # 1500 ppm isotropic strain, as `lor_strain` alone
+        (_rutile_with(lor_strain=rx.Parameter(value=0.08594366926962348, min=0.0)),
+         ["  lor_fwhm = 0.08594366926962348*Tan(Th);"]),
+    ]
+    for structure, expected in cases:
+        diags: list = []
+        write_topas_inp(structure, tmp_path / "w.inp", diagnostics=diags)
+        lines = (tmp_path / "w.inp").read_text().splitlines()
+        assert [ln for ln in lines if "_fwhm" in ln] == expected
+        assert sum(ln.startswith("  lor_fwhm") for ln in lines) == 1
+        assert sum(ln.startswith("  gauss_fwhm") for ln in lines) <= 1
+        # after the cell, before the first site
+        at = lines.index(expected[0])
+        assert lines[at - 1].startswith("  ga ") and lines[at + len(expected)].startswith(
+            "  site ")
+        assert not [d for d in diags if d.code == "TOPAS_FIELD_NOT_WRITTEN"]
+
+
+def test_topas_convolves_the_written_width_lines():
+    """The oracle: TOPAS-64 v6's zero-cycle Y_calc for a whole input whose `str`
+    carries the lines above, against rietx's `predict()` of the same model.
+
+    The model is `case_stephens_tetragonal`'s (the whole-input branch's
+    `tests/topas_export_cases.py`): rutile with the block at scale 2e-3,
+    neutrons at 1.594 Å, TCH U, V, W, X, Y = 0.05, -0.03, 0.04, 0.02, 0.01 and
+    a three-term Chebyshev background. TOPAS convolves a `str`-level width into
+    its peak type where rietx folds it into the TCH widths; that difference is
+    the 2e-3, the wrong-model arms an order of magnitude and more beyond it.
+    """
+    import numpy as np
+
+    from rietx.schemas.instrument import BackgroundChebyshev
+    from rietx.schemas.structure import StephensStrain
+
+    inst = rx.Instrument.constant_wavelength_neutron(1.594)
+    prof = inst.profile.model_copy(update={
+        k: getattr(inst.profile, k).model_copy(update={"value": v})
+        for k, v in zip("uvwxy", (0.05, -0.03, 0.04, 0.02, 0.01))})
+    inst = inst.model_copy(update={
+        "profile": prof, "background": BackgroundChebyshev(coefficients=[
+            rx.Parameter(value=v) for v in (300.0, -40.0, 15.0)])})
+    scale = rx.Parameter(value=2.0e-3, min=0.0, transform="softplus")
+    cell = _rutile_with().phases[0].cell
+    block = _stephens_block(cell)
+
+    def predict(x, **update):
+        structure = _rutile_with(scale=scale, **update)
+        return np.asarray(rx.Refinement(structure, inst, history=False).predict(x))
+
+    def miss(fixture, y):
+        return float(np.abs(fixture - y).max() / y.max())
+
+    data = Path(__file__).parent / "data"
+    lor = np.loadtxt(data / "topas_export_stephens_str_lor_fwhm_ycalc.txt")
+    widths = np.loadtxt(data / "topas_export_widths_str_ycalc.txt")
+    x = lor[:, 0]
+    assert len(x) == 2800 and np.array_equal(widths[:, 0], x)
+
+    iso = StephensStrain.isotropic(1500.0, cell, vary=False)
+    y_block = predict(x, microstrain=block)
+    assert miss(lor[:, 1], y_block) < 5e-3           # measured 2.04e-3
+    assert miss(lor[:, 1], predict(x, microstrain=iso)) > 10 * 2.04e-3   # 3.47e-2
+    assert miss(lor[:, 1], predict(x)) > 30 * 2.04e-3                    # 8.89e-2
+    assert miss(widths[:, 1], predict(x, **_all_widths(block))) < 5e-3   # 1.80e-3
+    assert miss(widths[:, 1], y_block) > 30 * 1.80e-3                    # 7.25e-2
+
+
+def test_the_reader_reports_the_width_lines_it_does_not_read(tmp_path):
+    """The round trip: the reader builds no width or block from the lines, and
+    reports them under "peak profile" rather than dropping them in silence."""
+    block = _stephens_block(_rutile_with().phases[0].cell)
+    for update, keywords in (({"microstrain": block}, ("lor_fwhm",)),
+                             (_all_widths(block), ("gauss_fwhm", "lor_fwhm"))):
+        write_topas_inp(_rutile_with(**update), tmp_path / "r.inp")
+        model = read_topas_inp(tmp_path / "r.inp")
+        (phase,) = to_structure(model).phases
+        assert phase.microstrain is None
+        assert all(getattr(phase, k).value == 0.0 for k in (
+            "lor_size", "lor_strain", "gauss_size", "gauss_strain"))
+        (hit,) = model.coverage.reported
+        assert hit.feature.name == "peak profile"
+        assert hit.keywords == keywords and hit.phases == ("rutile",)
 
 
 def test_what_the_file_states_whole_is_not_named(tmp_path):
-    """The negative arm: a phase at every identity names nothing, nor does an
-    all-zero Stephens block or r = 1. An isotropic strain is named by its own
-    path, and the file is the same bytes either way."""
+    """The negative arm: a phase at every identity names nothing and writes the
+    plain file, nor does an all-zero Stephens block or r = 1. An isotropic
+    strain is written as its one line, and only extinction is named."""
     from rietx.schemas.structure import PreferredOrientation, StephensStrain
 
+    write_topas_inp(_rutile_with(), tmp_path / "plain.inp")
+    plain = (tmp_path / "plain.inp").read_text()
     for quiet in (_rutile_with(),
                   _rutile_with(microstrain=StephensStrain.from_values([0.0] * 15)),
                   _rutile_with(preferred_orientation=PreferredOrientation(axis=(0, 0, 1)))):
         diags: list = []
         write_topas_inp(quiet, tmp_path / "q.inp", diagnostics=diags)
         assert diags == []
-    write_topas_inp(_rutile_with(), tmp_path / "plain.inp")
+        assert (tmp_path / "q.inp").read_text() == plain
     strained = _rutile_with(lor_strain=rx.Parameter(value=0.05, min=0.0),
                             extinction=rx.Parameter(value=40.0, min=0.0))
     diags = []
     write_topas_inp(strained, tmp_path / "iso.inp", diagnostics=diags)
-    assert (tmp_path / "iso.inp").read_bytes() == (tmp_path / "plain.inp").read_bytes()
+    written = (tmp_path / "iso.inp").read_text().splitlines()
+    assert [ln for ln in written if ln not in plain.splitlines()] == [
+        "  lor_fwhm = 0.05*Tan(Th);"]
+    assert len(written) == len(plain.splitlines()) + 1
     [named] = diags
-    assert named.where == ["phases.0.lor_strain", "phases.0.extinction"]
+    assert named.code == "TOPAS_FIELD_NOT_WRITTEN"
+    assert named.where == ["phases.0.extinction"]
