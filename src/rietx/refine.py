@@ -8724,20 +8724,37 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
         table.add_parameter(f"{VAR_PREFIX}{name}", prm.value, vary=prm.vary,
                             lo=prm.min, hi=prm.max, transform=prm.transform)
     table.set_vary(["*"], False)
+    applied_ties: dict = {}
+    dropped: list[str] = []
     for path, spec in state.ties.items():
         # the user constraints the node was recorded under: without them the
         # replayed model has a different parameter count from the one whose
         # statistics this call exists to reproduce (WP-1070)
-        table.set_tie(path, AffineTie(
-            terms=tuple((p, float(c)) for p, c in spec.terms),
-            const=float(spec.const)))
+        tie = AffineTie(terms=tuple((p, float(c)) for p, c in spec.terms),
+                        const=float(spec.const))
+        # A node recorded before WP-1804 can hold a tie whose source a later
+        # model edit locked.  ``_apply_ties`` drops it (and ``checkout`` with
+        # it); ``set_tie`` would raise, so replay and checkout would disagree
+        # about one node.  The flattened tie had an empty C row — never a
+        # column — so skipping it changes no count, value or statistic.
+        refused = table.tie_source_refusal(tie)
+        if refused is not None:
+            dropped.append(f"{path} (source {refused[0]} now structurally fixed)")
+            continue
+        table.set_tie(path, tie)
+        applied_ties[path] = spec
+    if dropped:
+        warnings.warn(
+            f"{len(dropped)} user tie(s) recorded on this node no longer apply "
+            f"to its model and were dropped: {'; '.join(dropped)}.",
+            UserWarning, stacklevel=2)
     # and the anchors, for ``_apply_ties``' reason (WP-1432): this table is
     # built from the node's *own* structure, whose coordinates already carry
     # whatever the recorded tie displaced them by.  Un-rebased, replay
     # answered for a model one displacement further on than the node it was
     # asked about — 0.2174 against the recorded 0.2084 — and nothing in the
     # answer said so.
-    table.rebase_anchored_dofs(state.ties)
+    table.rebase_anchored_dofs(applied_ties)
     table.refresh_ties()
     for path in state.free_paths:
         table.set_vary([path], True)
