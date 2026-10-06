@@ -400,6 +400,19 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
     ),
 }
 
+#: Fields a technique owns, kept out of ``api.md``'s field lists.  A field
+#: renders automatically wherever its model does, so a technique's field on an
+#: everyday type (``rx.Phase``) would land in the everyday index by the back
+#: door that the technique-index rule above closes for its verbs.  Each one
+#: belongs in the technique's own ``api-<technique>.md``; rigid bodies get that
+#: index in WP-1812, and until then their fields are deferred here exactly as
+#: ``tests/api_surface_deferred.txt`` defers them from the manual (WP-1805: no
+#: raised cap).  ``tests/test_skill.py`` holds every name here to a real field.
+TECHNIQUE_FIELDS: dict[str, frozenset[str]] = {
+    "rx.Phase": frozenset({"rigid_bodies"}),
+    "rx.ParameterRow": frozenset({"body"}),
+}
+
 HEADER = """# The API index
 
 Load it when you are about to call rietx and want the name, the signature or
@@ -577,11 +590,13 @@ def _doc_line(obj) -> str:
     return text
 
 
-def _model_fields(cls) -> list[str]:
+def _model_fields(cls, skip: frozenset[str] = frozenset()) -> list[str]:
     from pydantic_core import PydanticUndefined
 
     out = []
     for name, info in cls.model_fields.items():
+        if name in skip:
+            continue
         text = f"{name}: {_ann(info.annotation)}"
         if info.default_factory is not None:
             text += f" = {_default(info.default_factory())}"
@@ -603,7 +618,7 @@ def _dataclass_fields(cls) -> list[str]:
     return out
 
 
-def _entry(dotted: str) -> str:
+def _entry(dotted: str, technique: str | None = None) -> str:
     from pydantic import BaseModel
 
     obj = _resolve(dotted)
@@ -613,7 +628,8 @@ def _entry(dotted: str) -> str:
         keys = ", ".join(f"`{k}`" for k in obj)
         return f"- `{dotted}` — keys: {keys}"
     if inspect.isclass(obj) and issubclass(obj, BaseModel):
-        fields = ", ".join(_model_fields(obj))
+        skip = TECHNIQUE_FIELDS.get(dotted, frozenset()) if technique is None else frozenset()
+        fields = ", ".join(_model_fields(obj, skip))
         return f"- `{dotted}`{tail}\n  Fields: {fields}"
     if inspect.isclass(obj) and dataclasses.is_dataclass(obj):
         fields = ", ".join(_dataclass_fields(obj))
@@ -647,7 +663,7 @@ def render(technique: str | None = None) -> str:
         parts = [_technique_header(title, load)]
     for title, prose, names in sections:
         parts += [f"## {title}", "", prose, ""]
-        parts += [_entry(n) for n in names]
+        parts += [_entry(n, technique) for n in names]
         parts.append("")
     text = "\n".join(parts)
     assert " at 0x" not in text and "PydanticUndefined" not in text, text

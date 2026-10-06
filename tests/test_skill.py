@@ -541,6 +541,26 @@ def _generator():
     return mod
 
 
+def test_every_technique_field_is_a_field_and_deferred():
+    """`make_api_index.TECHNIQUE_FIELDS` keeps a technique's fields out of
+    `api.md` (WP-1805).  Each name must be a live field of its model, or a
+    rename leaves a dead skip behind, and each must be deferred from the
+    manual too, since nothing documents it until its technique index lands."""
+    import rietx as rx
+
+    deferred = set((ROOT / "tests" / "api_surface_deferred.txt")
+                   .read_text(encoding="utf-8").split())
+    skips = _generator().TECHNIQUE_FIELDS
+    assert skips
+    for dotted, names in skips.items():
+        cls = getattr(rx, dotted[len("rx."):])
+        for name in names:
+            assert name in cls.model_fields, (dotted, name)
+            assert f"{cls.__name__}.{name}" in deferred, (dotted, name)
+            assert f"`{name}:" not in API_INDEX.read_text(encoding="utf-8").split(
+                f"- `{dotted}`")[1].split("\n- ")[0], (dotted, name)
+
+
 def test_the_api_indexes_are_what_the_generator_renders():
     """`references/api.md` and every `api-<technique>.md` are generated and
     committed (they ship in the wheel with no build step), so the committed
