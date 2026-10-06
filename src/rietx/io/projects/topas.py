@@ -4537,12 +4537,19 @@ def from_structure(structure: Structure, *,
     ``Instrument`` — and cell/site bound windows (``min``/``max``) are
     dropped rather than written, since :func:`to_structure`'s own ``_p()``
     only ever narrows a *stated* bound and a Structure carries no window a
-    caller cannot already see on the ``Parameter`` itself. Extinction,
-    preferred orientation and sample broadening are not TOPAS constructs
-    :func:`to_structure` reads either, so a phase carrying a non-default
-    value there loses it in silence — the same silence :func:`to_structure`
-    itself keeps about them on the way in, so this is symmetric rather than a
-    new gap.
+    caller cannot already see on the ``Parameter`` itself. A phase's size
+    and strain widths and its Stephens anisotropic-strain block are written
+    as ``str``-level ``lor_fwhm``/``gauss_fwhm`` equations
+    (:func:`_width_lines`), after the cell and before the sites, which TOPAS
+    convolves into whatever peak type the input carries; a phase at every
+    identity writes none, so its file is what it always was. The
+    magnetic-only widths, extinction and preferred orientation have no
+    ``str``-level statement here, so a phase carrying a non-default value
+    there is written without it, and TOPAS computes narrower magnetic lines
+    or untextured, unextinguished intensities than rietx does. Pass
+    ``diagnostics=`` a list to have each such term named,
+    ``TOPAS_FIELD_NOT_WRITTEN``. None of these keywords is read back by
+    :func:`to_structure`; the reader reports them under ``coverage``.
 
     Space groups are written ``get_spacegroup(phase.space_group).xhm()``
     (:func:`_topas_space_group`: origin choice 1 is TOPAS's ``S`` suffix, since
@@ -4636,6 +4643,7 @@ def from_structure(structure: Structure, *,
                            ("al", cell.alpha), ("be", cell.beta),
                            ("ga", cell.gamma)):
             lines.append(f"  {key} {_tail(param)}")
+        lines.extend(_width_lines(phase))
         for atom in phase.atoms:
             if any(ch.isspace() for ch in atom.label) or any(
                     ch.isspace() for ch in atom.species):
@@ -4684,7 +4692,141 @@ def from_structure(structure: Structure, *,
         from ...crystallography.scattering import written_neutral_diagnostics
         diagnostics.extend(written_neutral_diagnostics(
             structure, code="TOPAS_SPECIES_WRITTEN_NEUTRAL", program="TOPAS"))
+        diagnostics.extend(_not_written_diagnostics(structure))
     return "\n".join(lines) + "\n"
+
+
+#: The degrees-per-radian × 10⁻⁶ of Stephens' equation (2), spelled once, so
+#: the written constant is the double ``stephens.strain_width_deg`` multiplies by.
+_STEPHENS_K = 180.0 / math.pi * 1e-6
+
+
+def _stephens_lambda_expr(block, spell) -> str | None:
+    """Λ(hkl), the Stephens block's tanθ coefficient, as a TOPAS expression.
+
+    Stephens (1999), J. Appl. Cryst. 32, 281, equation (2) as
+    :mod:`rietx.crystallography.stephens` states it:
+    Λ(hkl) = (180/π)·10⁻⁶·d²·√(Σ S_HKL h^H k^K l^L), in deg-2θ FWHM, with
+    S_HKL in 10⁻¹² Å⁻⁴ multiplying the literal monomials. TOPAS evaluates it
+    per reflection over ``H``, ``K``, ``L`` and ``D_spacing`` (Technical
+    Reference Table 2-3 lists ``lor_fwhm`` as a function of those), and
+    convolves a ``str``-level ``lor_fwhm`` analytically into FP and PV peak
+    types (§ 5.2). ``Max(…, 0)`` is rietx's ``where(sigma2 > 0)`` mask: a
+    point outside the physical cone gets zero width, not a complex one.
+
+    Monomials go in :data:`~rietx.crystallography.stephens.S_NAMES` order,
+    each coefficient with ``|S| > 1e-6·max(1, max|S|)``: the Laue-forced
+    zeros of a block seeded from the isotropic limit carry its roundoff
+    (measured −1.2e-12 to −4.6e-12 on a tetragonal case), which is not a
+    term. ``spell`` renders each coefficient (:func:`_number` here; a caller
+    writing refinable slots passes its own), so the string's *shape* is the
+    contract both callers share. ``None`` when no monomial survives.
+
+    Measured against TOPAS-64 v6 at zero cycles on a synthetic tetragonal
+    case (``tests/data/topas_export_stephens_str_lor_fwhm_ycalc.txt``):
+    2.0e-3 of the strongest peak from rietx's pattern, against 5.8e-4 where
+    the same Λ is folded into a TCH profile's widths. Neither form is the
+    exact Voigt: TOPAS's analytic convolution onto a PV peak type is its own
+    pseudo-Voigt approximation (Technical Reference § 5.6), as rietx's TCH
+    blend is, and the two approximations differ at the peak top by that
+    2e-3.
+    """
+    from ...crystallography.stephens import S_EXPONENTS
+
+    values = block.values()
+    floor = 1e-6 * max(1.0, max(abs(v) for v in values))
+    terms = []
+    for (h, k, l_), value in zip(S_EXPONENTS, values):
+        if abs(value) <= floor:
+            continue
+        factors = [name if power == 1 else f"{name}^{power}"
+                   for name, power in (("H", h), ("K", k), ("L", l_)) if power]
+        terms.append(f"({spell(value)})*" + "*".join(factors))
+    if not terms:
+        return None
+    return (f"{_number(_STEPHENS_K)}*D_spacing^2*Sqrt(Max("
+            + " + ".join(terms) + ", 0))")
+
+
+def _width_lines(phase, spell=_number) -> list[str]:
+    """The phase's sample widths as ``str``-level ``lor_fwhm``/``gauss_fwhm``.
+
+    The forward model's laws (:mod:`rietx.model.profiles.caglioti`):
+    Γ_L = lor_size/cosθ + (lor_strain + Λ(hkl))·tanθ and
+    Γ_G² = gauss_strain·tan²θ + gauss_size/cos²θ beside the instrument's
+    terms, Λ from :func:`_stephens_lambda_expr`. A Stephens block *locks*
+    ``lor_strain`` (``Phase._one_strain_model``) rather than zeroing it, and
+    the forward model adds the two, so both are written. Each zero part is
+    dropped, and a line with no part is not written, so a phase at every
+    identity writes nothing and its file is byte-identical to one written
+    before these lines existed.
+    """
+    size, strain = phase.lor_size.value, phase.lor_strain.value
+    block = phase.microstrain
+    aniso = None if block is None else _stephens_lambda_expr(block, spell)
+    lines = []
+    lor = []
+    if size != 0.0:
+        lor.append(f"{spell(size)}/Cos(Th)")
+    tan = ([spell(strain)] if strain != 0.0 else []) + ([aniso] if aniso else [])
+    if len(tan) == 1:
+        lor.append(f"{tan[0]}*Tan(Th)")
+    elif tan:
+        lor.append(f"({' + '.join(tan)})*Tan(Th)")
+    if lor:
+        lines.append(f"  lor_fwhm = {' + '.join(lor)};")
+    gauss = []
+    if phase.gauss_strain.value != 0.0:
+        gauss.append(f"{spell(phase.gauss_strain.value)}*Tan(Th)^2")
+    if phase.gauss_size.value != 0.0:
+        gauss.append(f"{spell(phase.gauss_size.value)}/Cos(Th)^2")
+    if gauss:
+        lines.append(f"  gauss_fwhm = Sqrt({' + '.join(gauss)});")
+    return lines
+
+
+#: The phase terms a ``str`` written here does not state, each zero at its
+#: identity. Away from zero each changes the computed pattern, and
+#: :func:`from_structure` writes no statement for any of them; the size and
+#: strain widths and the Stephens block are :func:`_width_lines`'.
+_PHASE_TERMS_NOT_WRITTEN = (
+    ("magnetic_lor_size", "the magnetic Lorentzian size width"),
+    ("magnetic_lor_strain", "the magnetic Lorentzian strain width"),
+    ("extinction", "the extinction coefficient"),
+)
+
+
+def _not_written_diagnostics(structure: Structure) -> list[Diagnostic]:
+    """``TOPAS_FIELD_NOT_WRITTEN``: each phase term away from its identity that
+    the written ``str`` does not state, so TOPAS computes the phase without it.
+
+    The magnetic-only widths (they apply to magnetic reflections alone, which
+    a structure-only ``str`` cannot single out), extinction and a preferred
+    orientation with r ≠ 1. One diagnostic per file; ``where`` names each term by
+    its parameter-table path (``…preferred_orientation.r``, not the block).
+    """
+    where, named = [], []
+    for i, phase in enumerate(structure.phases):
+        here = []
+        for name, what in _PHASE_TERMS_NOT_WRITTEN:
+            if getattr(phase, name).value != 0.0:
+                here.append((name, what))
+        po = phase.preferred_orientation
+        if po is not None and po.r.value != 1.0:
+            here.append(("preferred_orientation.r",
+                         "the March-Dollase preferred orientation"))
+        if here:
+            where += [f"phases.{i}.{name}" for name, _ in here]
+            named.append(f"{phase.name!r}: " + ", ".join(w for _, w in here))
+    if not named:
+        return []
+    return [Diagnostic(
+        level="warning", code="TOPAS_FIELD_NOT_WRITTEN",
+        message=("the file states no magnetic-only width, extinction or "
+                 "texture, so TOPAS computes each phase without what it "
+                 "carries here (" + "; ".join(named) + "); state them in "
+                 "TOPAS before comparing its pattern or its fit with rietx's"),
+        where=where)]
 
 
 def _allowed_components(phase, atom) -> tuple[bool, bool, bool]:
