@@ -124,7 +124,7 @@ jobs:
       - id: scope
         env:
           EVENT: ${{ github.event_name }}
-          PLANNING: '^(docs/(wp|milestones|releases)/|docs/(ROADMAP|DESIGN)\.md$|tests/test_docs_consistency\.py$)'
+          PLANNING: '^(docs/(wp|milestones|releases)/|docs/(ROADMAP|DESIGN)\.md$|tests/test_docs_consistency\.py$|\.claude/(commands|agents|skills/issue-review)/|\.claude/settings\.json$|\.claude/hooks/(handover_owed|no_top_level_cd|session_start|worktree_create|worktree_only|worktree_remove|wp_claim)\.py$)'
         run: |
           scope=code
           if [ "$EVENT" = pull_request ]; then
@@ -147,6 +147,20 @@ jobs:
     # `git grep`, which only the Popen record showed.  A test that
     # reads the planning set from a new file joins this list, or a docs-only
     # PR skips it and the nightly finds it.
+    #
+    # The session machinery under .claude/ joined the planning set on
+    # 2026-10-06, measured the same way over one fast run on main 443c0c1a.
+    # Nothing opens the commands, the agent definition, the issue-review skill
+    # or settings.json except test_no_stale_name's `git grep`.  The hooks
+    # listed by name are imported or run only by test_workflow_hooks.  Three
+    # paths stay code.  test_session_usage imports session_usage.py.
+    # test_merge_replay runs wp_index.py as a script, which the audit hook
+    # cannot see (the interpreter loads a script without an audited open), so
+    # a text search over tests/ covered that gap.  skills/rietx/ is the
+    # shipped skill, read by test_skill_cli.  A new hook is code until it is
+    # listed.  Ten unrelated test files show an `os.listdir` of .claude/hooks
+    # itself.  That is the import system listing a sys.path entry
+    # test_workflow_hooks added in the same worker, not a read.
     needs: changes
     if: needs.changes.outputs.scope == 'docs'
     runs-on: ubuntu-latest
