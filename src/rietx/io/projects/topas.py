@@ -4027,8 +4027,14 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     form :func:`write_topas_inp` writes a magnetic-only width in, and is merged
     back into it (:func:`~.topas_ties.split_magnetic_parts`), its moments onto
     the same-label sites. That form's phase terms TOPAS has no keyword for are
-    read back by the writer's names: ``p<i>_extinction``,
-    ``p<i>_magnetic_lor_size`` and ``p<i>_magnetic_lor_strain``.
+    read back by the names ``p<i>_extinction``, ``p<i>_magnetic_lor_size``
+    and ``p<i>_magnetic_lor_strain`` (no writer in this tree writes them
+    yet; each one read is reported as ``TOPAS_PHASE_TERM_READ``). The merge is
+    equal-or-refuse: the part's scale, cell, space group and each site's
+    position, element and occupancy must equal the nuclear ``str``'s, every
+    part site needs a nuclear counterpart, and the merge is reported as
+    ``TOPAS_MAGNETIC_PART_MERGED``. Every other refusal the part states stays in
+    force.
 
     ``scale="file"`` (the default) reads ``scale`` as the file states it.
     ``scale="rietx"`` converts it to rietx's convention from what the file says
@@ -4049,6 +4055,7 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     if scale not in ("file", "rietx"):
         raise ValueError(f"scale must be 'file' or 'rietx', not {scale!r}")
     scale_divisor = 1.0
+    reserved_read: list[tuple[int, str]] = []
     if scale == "rietx":
         if model.neutron:
             scale_divisor = 100.0
@@ -4059,7 +4066,6 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
                 f"{model.path or '<model>'}: scale='rietx' needs the file's "
                 f"radiation (neutron_data, or an LP_Factor for X-rays), and this "
                 f"file states neither, so TOPAS's scale cannot be converted")
-
 
     # **A phase belongs to a pattern, and this reader will not concatenate two.**
     # The manual's own keyword tree (Technical Reference S5.1) makes `str` a
@@ -4093,7 +4099,7 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
             f"them, or read `model.phases` (each carries its own `.dataset`).")
     else:
         phases_in = list(model.phases)
-    phases_in, magnetic_parts = split_magnetic_parts(phases_in)
+    phases_in, magnetic_parts = split_magnetic_parts(phases_in, model.path or "<model>")
     merged_part_names = {p.name for p in magnetic_parts.values()}
 
     # **Refuse the constructs whose absence would misrepresent the file**, and
@@ -4122,10 +4128,15 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
             f"scale and refine flags into a constant-wavelength model. Pass "
             f"dataset=N for a constant-wavelength dataset of this file, or "
             f"read `model.phases` for what the file states.")
-    building = {ph.name for ph in phases_in}
+    # A merged part is still a phase this call builds from: every refusal its
+    # str states stays in force, and only the `mag_only` that *makes* it a
+    # magnetic part is lifted (and only where no other phase states it).
+    building = {ph.name for ph in phases_in} | merged_part_names
     blocked = [h for h in model.coverage.refused
                if (not h.phases or building.intersection(h.phases))
-               and not (h.phases and set(h.phases) <= merged_part_names)]
+               and not (h.feature.name == "magnetic-only phase"
+                        and set(h.keywords) == {"mag_only"}
+                        and h.phases and set(h.phases) <= merged_part_names)]
     if blocked:
         raise TopasInpError(
             f"{model.path or '<model>'}: "
@@ -4304,7 +4315,8 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
                                    min=0.0, transform="softplus",
                                    **({"vary": ph.vary["scale"]}
                                       if "scale" in ph.vary else {})),
-                **_reserved_phase_terms(model, len(phases), RESERVED_PHASE_TERMS)))
+                **_reserved_phase_terms(model, len(phases), RESERVED_PHASE_TERMS,
+                                        reserved_read)))
             from ...crystallography.magnetic.scattering import check_group_is_structure_symmetry
             check_group_is_structure_symmetry(phases[-1])
         except TopasInpError:
@@ -4362,6 +4374,40 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     except Exception as exc:
         # e.g. a phase whose site lines were all inside a disabled #ifdef branch
         raise TopasInpError(f"{model.path or '<model>'}: {exc}") from exc
+    if diagnostics is not None:
+        for ip, ph in enumerate(phases_in):
+            part = magnetic_parts.get(ph.name)
+            if part is None:
+                continue
+            labels = {s.label for s in part.sites}
+            diagnostics.append(Diagnostic(
+                level="info", code="TOPAS_MAGNETIC_PART_MERGED",
+                where=[f"phases.{ip}.magnetic_symmetry"] + [
+                    f"phases.{ip}.atoms.{j}.moment"
+                    for j, s in enumerate(ph.sites) if s.label in labels],
+                message=(f"{model.path or '<model>'}: str {part.name!r} read as "
+                         f"the magnetic half of {ph.name!r} and merged into it: "
+                         f"its moments on {len(labels)} sites, its charge "
+                         f"state and its mag_space_group {part.mag_space_group!r}. "
+                         f"Its scale, cell, space group and each site's "
+                         f"position, element and occupancy were checked equal "
+                         f"to {ph.name!r}'s and are not carried separately"),
+                suggestion=("the file's two strs are one phase here, so refine "
+                            "the one scale; a file whose two disagree is "
+                            "refused, not merged")))
+        for ip, term in reserved_read:
+            diagnostics.append(Diagnostic(
+                level="info", code="TOPAS_PHASE_TERM_READ",
+                where=[f"phases.{ip}.{term}"],
+                message=(f"{model.path or '<model>'}: prm p{ip}_{term} read as "
+                         f"phase {ip}'s {term}. TOPAS has no keyword for it; "
+                         f"this reader takes the name p<i>_{term} to mean it "
+                         f"(the name a rietx-written file will give it), so a "
+                         f"file whose own parameter happens to carry that name "
+                         f"is read as this phase term"),
+                suggestion=("if the name is the file's own and means something "
+                            "else, set the phase term back on the built "
+                            "Structure")))
     if constraints is not None:
         found = derive_ties(model, phases_in, structure)
         constraints.ties.extend(found.ties)
@@ -4370,8 +4416,11 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     return structure
 
 
-def _reserved_phase_terms(model: TopasModel, ip: int, terms) -> dict:
-    """The phase terms the writer states under its own names (``p<i>_<term>``)."""
+def _reserved_phase_terms(model: TopasModel, ip: int, terms, reported=None) -> dict:
+    """The phase terms read from the names ``p<i>_<term>``, which TOPAS has no
+    keyword for. A file that states one is taken to mean it, so each one read
+    is appended to ``reported`` as ``(phase index, term)`` for
+    ``TOPAS_PHASE_TERM_READ``."""
     import rietx as rx
 
     out = {}
@@ -4379,6 +4428,8 @@ def _reserved_phase_terms(model: TopasModel, ip: int, terms) -> dict:
         read = model.symbols.get(f"p{ip}_{term}")
         if read is None or read.value is None:
             continue
+        if reported is not None:
+            reported.append((ip, term))
         out[term] = rx.Parameter(value=read.value, min=0.0, transform="softplus",
                                  vary=bool(read.vary))
     return out

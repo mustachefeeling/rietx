@@ -14,7 +14,7 @@ import pytest
 
 import rietx as rx
 from rietx.io.projects import topas
-from rietx.io.projects.topas_ties import TopasConstraints, affine_of, apply_ties
+from rietx.io.projects.topas_ties import TopasConstraints, TopasTie, affine_of, apply_ties
 
 CELL = "  a ! 5.0\n  b ! 6.0\n  c ! 7.0\n  al ! 90\n  be ! 90\n  ga ! 90\n"
 
@@ -174,3 +174,78 @@ def test_scale_rietx_takes_out_topas_constant(tmp_path):
 def test_the_extinction_is_read_back_by_the_writers_name(tmp_path):
     s, _ = _read(tmp_path, "prm !p0_extinction 8.5\nprm bQ 1.2\n" + NUCLEAR)
     assert s.phases[0].extinction.value == 8.5 and not s.phases[0].extinction.vary
+
+
+# ----------------------------------------------------------- review of #771
+
+def _diags(tmp_path, text, **kw):
+    path = tmp_path / "t.inp"
+    path.write_text(text, encoding="utf-8")
+    diags = []
+    s = topas.to_structure(topas.read_topas_inp(path), diagnostics=diags, **kw)
+    return s, {d.code: d for d in diags}
+
+
+def test_a_name_stated_at_two_values_is_refused(tmp_path):
+    text = NUCLEAR.replace("site A2 x ! 0.6 y ! 0.7 z ! 0.8 occ Ba ! 1 beq bA 0.7",
+                           "site A2 x ! 0.6 y ! 0.7 z ! 0.8 occ Ba ! 1 beq bA 0.8")
+    with pytest.raises(topas.TopasInpError, match="two values"):
+        _read(tmp_path, "prm bQ 1.2\n" + text)
+    _read(tmp_path, "prm bQ 1.2\n" + NUCLEAR)          # the agreeing arm still reads
+
+
+def test_apply_ties_says_what_it_did_not_apply(tmp_path):
+    s, cons = _read(tmp_path, "prm bQ 1.2\n" + NUCLEAR)
+    ref = rx.Refinement(s, rx.Instrument.constant_wavelength_neutron(2.4), history=False)
+    ref.tie("phases.0.atoms.1.biso", {"phases.0.atoms.3.biso": 1.0})   # already tied
+    cons.ties.append(TopasTie("phases.9.scale", [("phases.0.scale", 1.0)]))
+    n = len(cons.skipped)
+    apply_ties(ref, cons)
+    said = " ".join(cons.skipped[n:])
+    assert "phases.0.atoms.1.biso" in said and "already tied" in said
+    assert "phases.9.scale" in said and "no such parameter" in said
+
+
+def test_a_part_that_states_another_scale_cell_or_site_is_refused(tmp_path):
+    base = _magnetic(PART)
+    other_scale = base.replace('mag_space_group 1.1\n  scale s1 2.0', 'mag_space_group 1.1\n  scale s9 3.0')
+    with pytest.raises(topas.TopasInpError, match="scale"):
+        _read(tmp_path, other_scale)
+    other_cell = base.replace('mag_space_group 1.1\n  scale s1 2.0\n  a ! 5.0',
+                              'mag_space_group 1.1\n  scale s1 2.0\n  a ! 5.5')
+    with pytest.raises(topas.TopasInpError, match="cell 'a'"):
+        _read(tmp_path, other_cell)
+    moved = PART.replace("x ! 0.1 y ! 0.2 z ! 0.3", "x ! 0.15 y ! 0.2 z ! 0.3")
+    with pytest.raises(topas.TopasInpError, match="x of site 'Fe1'"):
+        _read(tmp_path, _magnetic(moved))
+    _read(tmp_path, base)                                  # the agreeing arm still merges
+
+
+def test_a_part_site_with_no_nuclear_counterpart_is_refused(tmp_path):
+    stray = PART + ("  site Fe9 x ! 0.4 y ! 0.4 z ! 0.4 occ Fe+3 ! 1 beq ! 0.5 "
+                    "mlx ! 0 mly ! 1 mlz ! 0 mag_only\n")
+    with pytest.raises(topas.TopasInpError, match="Fe9"):
+        _read(tmp_path, _magnetic(stray))
+
+
+def test_the_merge_is_reported(tmp_path):
+    _, codes = _diags(tmp_path, _magnetic(PART))
+    assert "TOPAS_MAGNETIC_PART_MERGED" in codes
+    assert "equal" in codes["TOPAS_MAGNETIC_PART_MERGED"].message
+
+
+def test_a_refusal_the_part_states_is_not_lifted_by_the_merge(tmp_path):
+    """Only the `mag_only` that makes it a part is lifted: a `scale_occ` inside
+    the part is still refused."""
+    scaled = PART.replace("mlz ! 0 mag_only\n", "mlz ! 0 mag_only scale_occ 1\n", 1)
+    with pytest.raises(topas.TopasInpError, match="scaled occupancy"):
+        _read(tmp_path, _magnetic(scaled))
+    with pytest.raises(topas.TopasInpError, match="mag_only"):
+        _read(tmp_path, _magnetic(PART.replace("mag_only\n", "mag_only_for_mag_sites\n", 1)))
+
+
+def test_each_reserved_phase_term_read_is_reported(tmp_path):
+    _, codes = _diags(tmp_path, "prm !p0_extinction 8.5\nprm bQ 1.2\n" + NUCLEAR)
+    assert "p0_extinction" in codes["TOPAS_PHASE_TERM_READ"].message
+    _, codes = _diags(tmp_path, "prm bQ 1.2\n" + NUCLEAR)
+    assert "TOPAS_PHASE_TERM_READ" not in codes

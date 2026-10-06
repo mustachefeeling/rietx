@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import ast
 import math
+import re
 from dataclasses import dataclass, field, replace
 
 import numpy as np
@@ -61,7 +62,57 @@ class TopasConstraints:
 
 # ------------------------------------------------------------- magnetic part
 
-def split_magnetic_parts(phases_in):
+def _close(a, b, rel=1e-9) -> bool:
+    if a is None or b is None:
+        return a is b
+    return abs(a - b) <= rel * max(1.0, abs(a), abs(b))
+
+
+def _element(species: str) -> str:
+    m = re.match(r"[A-Z][a-z]?", species or "")
+    return m.group(0) if m else species
+
+
+def _check_part_equals_nuclear(nuclear, part, path) -> None:
+    """Refuse a magnetic part that states anything the merge would discard
+    differently from the nuclear ``str``'s: its scale, cell, space group, and
+    each site's position, element and occupancy (``io/CLAUDE.md``: a project
+    reader refuses where a caller cannot see which part of the model is the
+    file's). Only the moments, flags, species charge and magnetic group are
+    the part's own, and they are what the merge takes."""
+    from .topas import TopasInpError
+
+    def refuse(what, a, b):
+        raise TopasInpError(
+            f"{path}: {part.name!r} is read as the magnetic half of "
+            f"{nuclear.name!r}, but they state {what} differently ({b!r} against "
+            f"{a!r}), and the merged phase has one. Make the two agree, or read "
+            f"`model.phases` for what each states.")
+
+    if not _close(nuclear.scale, part.scale):
+        refuse("scale", nuclear.scale, part.scale)
+    for key in sorted(set(nuclear.cell) | set(part.cell)):
+        if not _close(nuclear.cell.get(key), part.cell.get(key)):
+            refuse(f"cell {key!r}", nuclear.cell.get(key), part.cell.get(key))
+    if part.space_group and part.space_group != nuclear.space_group:
+        refuse("space_group", nuclear.space_group, part.space_group)
+    sites = {s.label: s for s in nuclear.sites}
+    for m in part.sites:
+        s = sites.get(m.label)
+        if s is None:
+            raise TopasInpError(
+                f"{path}: site {m.label!r} of {part.name!r} has no site of that "
+                f"label in {nuclear.name!r}, so its moment has nowhere to go. "
+                f"Merging would drop it; read `model.phases` for what the file "
+                f"states.")
+        for key in ("x", "y", "z", "occupancy"):
+            if not _close(getattr(s, key), getattr(m, key)):
+                refuse(f"{key} of site {m.label!r}", getattr(s, key), getattr(m, key))
+        if _element(s.species) != _element(m.species):
+            refuse(f"species of site {m.label!r}", s.species, m.species)
+
+
+def split_magnetic_parts(phases_in, path="<model>"):
     """``(phases, parts)``: each ``"<name> magnetic part"`` str whose every site
     is ``mag_only`` and carries a moment, merged into ``<name>``.
 
@@ -69,6 +120,11 @@ def split_magnetic_parts(phases_in):
     (matched by label), which is the model the writer split: TOPAS has one
     peak shape per ``str``, so a magnetic-only width needs a second ``str``
     (``topas_input``). ``parts`` maps the merged phase's name to its part.
+
+    The merge is **equal or refuse**: the part's scale, cell, space group and
+    each matched site's position, element and occupancy must equal the nuclear
+    ``str``'s, and every part site must have a nuclear counterpart
+    (:func:`_check_part_equals_nuclear`).
     """
     by_name = {ph.name: ph for ph in phases_in}
     parts = {}
@@ -80,6 +136,7 @@ def split_magnetic_parts(phases_in):
             continue
         if not all(s.mag_only and s.moment is not None for s in ph.sites):
             continue
+        _check_part_equals_nuclear(by_name[partner], ph, path)
         parts[partner] = ph
     if not parts:
         return list(phases_in), {}
@@ -104,8 +161,7 @@ def split_magnetic_parts(phases_in):
             stated.update({k: v for k, v in m.stated.items() if k in ("mlx", "mly", "mlz")})
             sites.append(replace(s, moment=dict(m.moment), vary=vary, stated=stated,
                                  species=m.species))
-        out.append(replace(ph, sites=sites, mag_space_group=part.mag_space_group,
-                           space_group=""))
+        out.append(replace(ph, sites=sites, mag_space_group=part.mag_space_group))
     return out, parts
 
 
@@ -227,6 +283,28 @@ def derive_ties(model, phases_in, structure) -> TopasConstraints:
             (name, c), = st.terms.items()
             if name not in carrier and c != 0.0:
                 carrier[name] = st
+    # A name stated at two values is two statements of one parameter: refused,
+    # not chosen between (the root rulebook's "a row the format states two
+    # ways"); a tie would otherwise move the later value onto the carrier's.
+    from .topas import TopasInpError
+
+    for st in stated:
+        if len(st.terms) != 1 or st.value is None:
+            continue
+        (name, c), = st.terms.items()
+        car = carrier.get(name)
+        if car is None or car is st or car.value is None:
+            continue
+        v = (st.value - st.const) / c
+        v0 = (car.value - car.const) / car.terms[name]
+        if not _close(v, v0, 1e-6):
+            raise TopasInpError(
+                f"{getattr(model, 'path', None) or '<model>'}: the name {name!r} "
+                f"is stated at two values, {v0!r} at {car.path} and {v!r} at "
+                f"{st.path}. A shared name is one parameter, so the file states "
+                f"it two ways; reading either would choose for the caller. "
+                f"Make them agree, or read `model.phases` for what each site "
+                f"states.")
     for st in stated:
         if any(n not in carrier for n in st.terms):
             out.skipped.append(f"{st.path}: depends on "
@@ -334,23 +412,38 @@ def _moment_ties(structure, moments, symbols, out: TopasConstraints) -> None:
 def apply_ties(refinement, constraints: TopasConstraints) -> list[str]:
     """Declare ``constraints`` on ``refinement``: the free set, then each tie.
 
-    Returns the paths tied. A tie the table refuses (a path symmetry already
-    ties, a source it holds) is skipped and named in the returned list's
-    companion, ``constraints.skipped``.
+    Returns the paths tied. Everything not applied is appended to
+    ``constraints.skipped`` with its reason: a path with no row, one already
+    tied (a symmetry tie, say), one the table holds locked, a path
+    ``set_vary`` declined, and a tie the table refuses.
     """
     rows = {r.path: r for r in refinement.parameters()}
-    want = [p for p, v in constraints.free.items() if v and p in rows
-            and rows[p].tie is None and not rows[p].locked]
-    hold = [p for p, v in constraints.free.items() if not v and p in rows
-            and rows[p].tie is None and not rows[p].locked]
-    if want:
-        refinement.set_vary(want, True)
-    if hold:
-        refinement.set_vary(hold, False)
+
+    def usable(path):
+        row = rows.get(path)
+        if row is None:
+            constraints.skipped.append(f"{path}: not applied, the model has no such parameter")
+        elif row.tie is not None:
+            constraints.skipped.append(f"{path}: not applied, already tied (symmetry or an "
+                                       f"earlier tie)")
+        elif row.locked:
+            constraints.skipped.append(f"{path}: not applied, the parameter is locked")
+        else:
+            return True
+        return False
+
+    for vary in (True, False):
+        want = [p for p, v in constraints.free.items() if bool(v) is vary and usable(p)]
+        if want:
+            changed = set(refinement.set_vary(want, vary))
+            for p in want:
+                row = rows[p]
+                if p not in changed and bool(row.vary) is not vary:
+                    constraints.skipped.append(
+                        f"{p}: set_vary({'free' if vary else 'hold'}) declined it")
     tied = []
     for t in constraints.ties:
-        row = rows.get(t.path)
-        if row is None or row.tie is not None:
+        if not usable(t.path):
             continue
         try:
             refinement.tie(t.path, dict(t.terms), offset=t.const)

@@ -385,9 +385,14 @@ named parameter) is read as held at the file's value, and
 The file that uses them typically restates the magnetic sites in a second
 `str`. Building that without the switch would count those sites' nuclear
 scattering twice, so it is refused by name rather than dropped. The one form read is
-the one `write_topas_inp` writes a magnetic-only width in: a
-`"<name> magnetic part"` `str` whose every site is `mag_only` and carries a
-moment is merged back into `<name>`, its moments onto the same-label sites
+a separate magnetic-only width, as a writer has to state it (TOPAS has one peak
+shape per `str`): a `"<name> magnetic part"` `str` whose every site is `mag_only`
+and carries a moment is merged back into `<name>`, its moments onto the
+same-label sites. The merge is equal or refuse: the part's scale, cell, space
+group and each site's position, element and occupancy must equal `<name>`'s,
+every part site needs a site of that label in `<name>`, and
+`TOPAS_MAGNETIC_PART_MERGED` reports the merge. Every other refusal the part
+states stays in force. `write_topas_inp` does not write this form yet.
 (What comes back, below).
 
 `rx.write_topas_inp` writes a magnetic phase back in the same form. The `str`
@@ -924,8 +929,12 @@ any other form keeps its value, and `constraints.skipped` says why.
 `scale="rietx"` converts TOPAS's scale back from what the file states about its
 radiation (÷ 100 under `neutron_data`, ÷ K under `LP_Factor`), and refuses a
 file stating neither. A `"<name> magnetic part"` `str` of `mag_only` sites is
-merged back into its phase, with the magnetic widths and the extinction read
-from the names the writer gives them.
+merged back into its phase where it agrees with it (see above), with the
+magnetic widths and the extinction read from the names `p<i>_magnetic_lor_size`,
+`p<i>_magnetic_lor_strain` and `p<i>_extinction`. TOPAS has no keyword for them,
+and a file whose own parameter carries one of those names is read as the phase
+term, so each one read is reported as `TOPAS_PHASE_TERM_READ`. A shared name
+stated at two values is refused.
 
 
 ### What each format states
