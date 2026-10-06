@@ -4674,7 +4674,7 @@ def _moment_tail(moment, cell, allowed=(True, True, True)) -> str:
 def write_topas_inp(structure: Structure, path: str | Path, *,
                     diagnostics: list[Diagnostic] | None = None,
                     p1_expand: bool = False) -> None:
-    """Write ``structure`` to ``path`` as a TOPAS ``.inp``. See
+    """Write ``structure`` as a TOPAS ``.inp``. See
     :func:`from_structure` for exactly what carries and what does not, and
     for ``p1_expand``."""
     Path(path).write_text(

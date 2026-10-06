@@ -26,10 +26,16 @@ arm of the tests.
   primed operation or an anti-translation), in the crystal-axis components, in
   μ_B, that :class:`~rietx.schemas.structure.Moment` stores.  Time reversal is
   therefore in the answer: dropping it from one operation changes the moment of
-  every image that operation reaches.
+  every image that operation reaches.  The axial action and the sign of time
+  reversal are those of the magnetic point-group tables (Litvin, 2013,
+  *Magnetic Group Tables*, IUCr; Bertaut, 1968, *Acta Cryst.* A**24**,
+  217, who writes the transform of an axial vector as det(R)·R).
 * A displacement tensor is the rotated ``U* → R·U*·Rᵀ`` of the structure factor
   (:func:`~rietx.crystallography.structure_factor._aniso_dw`), held in the CIF
-  ``U^ij`` convention.
+  ``U^ij`` convention.  ``U*`` is a tensor contracting with h twice, so it
+  transforms as R·U*·Rᵀ with R untransposed (Grosse-Kunstleve & Adams, 2002,
+  *J. Appl. Cryst.* **35**, 477, on the handling of anisotropic displacement
+  parameters under a symmetry operation).
 
 **Every parameter of the restatement is held.**  The copies are one value each:
 the ties that made them one parameter (a site symmetry, an operator relation,
