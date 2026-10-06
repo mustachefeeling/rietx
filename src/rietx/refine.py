@@ -1218,6 +1218,26 @@ def clamp_cell_runaway(table: ParameterTable, start_values: dict[str, float]
     return _revert_degenerate_clamps(table, start_values, clamped)
 
 
+class CellClamp(tuple):
+    """``(path, escaped_value, value)`` of one :func:`clamp_cell_runaway`
+    finding, unpackable as the plain triple it always was.
+
+    ``reverted`` is True where the clamped cell had no volume and the phase was
+    restored to the cell the stage started with, so ``value`` is that start
+    value and not a window edge.  A tuple subclass, not a fourth element, so
+    every ``for path, old, new in ...`` consumer and equality with a plain
+    triple stand.
+    """
+
+    reverted: bool
+
+    def __new__(cls, path: str, escaped: float, value: float,
+                reverted: bool = False):
+        self = super().__new__(cls, (path, escaped, value))
+        self.reverted = reverted
+        return self
+
+
 def _revert_degenerate_clamps(table: ParameterTable,
                               start_values: dict[str, float],
                               clamped: list[tuple[str, float, float]]
@@ -1234,7 +1254,8 @@ def _revert_degenerate_clamps(table: ParameterTable,
     ``fit`` where #283/#289 promise a counted rejection.  A phase whose clamped
     cell has a non-positive metric determinant keeps the cell it started the
     stage with, which the stage's own residual evaluated, and the record says
-    so: the third element of each of its tuples is that start value.
+    so: the third element of each of its tuples is that start value and the
+    tuple's ``reverted`` flag is set (:class:`CellClamp`).
     """
     from .crystallography.lattice import direct_metric_tensor
 
@@ -1253,8 +1274,9 @@ def _revert_degenerate_clamps(table: ParameterTable,
             if path.startswith(f"phases.{ip}.cell."):
                 by_path[path].value = start_values[path]
                 reverted.add(path)
-    return [(path, escaped, float(start_values[path]) if path in reverted
-             else target) for path, escaped, target in clamped]
+    return [CellClamp(path, escaped, float(start_values[path]), True)
+            if path in reverted else CellClamp(path, escaped, target)
+            for path, escaped, target in clamped]
 
 
 def _vars_driven_cell_escapes(table: ParameterTable,
@@ -1377,6 +1399,7 @@ def _cell_runaway_diagnostic(
 
     sentences = []
     value = None
+    reverted = [c[0] for c in cell_runaway if getattr(c, "reverted", False)]
     if cell_runaway:
         worst = max(cell_runaway, key=lambda t: abs(t[1] - t[2]))
         value = abs(worst[1] - worst[2])
@@ -1399,6 +1422,12 @@ def _cell_runaway_diagnostic(
             f"during solving and {'was' if len(cell_runaway) == 1 else 'were'} "
             f"pulled back to the window edge rather than left to reach "
             f"an unphysical value: {detail}")
+    if reverted:
+        sentences.append(
+            f"{', '.join(reverted)} {'was' if len(reverted) == 1 else 'were'} "
+            f"not pulled to the window edge but restored to this stage's "
+            f"starting cell, because the clamped cell had no volume (the "
+            f"right-hand value above is that starting value)")
     if unresolved:
         driver_detail = "; ".join(
             f"{driver} drives {', '.join(escaped)} outside its window"

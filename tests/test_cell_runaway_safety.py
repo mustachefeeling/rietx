@@ -941,6 +941,33 @@ def test_a_clamp_that_lands_on_a_degenerate_corner_restores_the_start_cell():
         assert escaped != pytest.approx(start_values[path])
 
 
+def test_a_reverted_phase_is_told_apart_from_a_clamped_one_in_the_record():
+    """The diagnostic must not say a restored cell was "pulled back to the
+    window edge": its right-hand value is the start, not an edge."""
+    table = _p1_table(TRICLINIC)
+    start_values = table.decode(table.x0())
+    for name in CELL_NAMES:
+        entry = table.entries[table._paths[f"phases.0.cell.{name}"]]
+        entry.value = start_values[f"phases.0.cell.{name}"] * (
+            1.5 if name in "abc" else 1.4)
+    reverted = clamp_cell_runaway(table, start_values)
+    assert all(c.reverted for c in reverted)
+    message = _cell_runaway_diagnostic(reverted).message
+    assert "restored to this stage's starting cell" in message
+    assert "no volume" in message
+
+    # positive arm for the old sentence: an ordinary clamp says nothing of it
+    table = _p1_table(TRICLINIC)
+    start_values = table.decode(table.x0())
+    entry = table.entries[table._paths["phases.0.cell.alpha"]]
+    entry.value = start_values["phases.0.cell.alpha"] + 20.0
+    clamped = clamp_cell_runaway(table, start_values)
+    assert not any(c.reverted for c in clamped)
+    message = _cell_runaway_diagnostic(clamped).message
+    assert "pulled back to the window edge" in message
+    assert "restored" not in message
+
+
 def test_a_clamp_that_stays_a_valid_cell_is_unchanged():
     """The negative arm: one angle escaped, the cell clamped to its window edge
     still has a positive determinant, and the clamp is what it always was."""
