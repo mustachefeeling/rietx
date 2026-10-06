@@ -80,15 +80,16 @@ def test_a_stated_multiplicity_puts_a_rounded_site_on_its_position(tmp_path):
     assert "O1" in snap.message and "multiplicity 6" in snap.message
 
 
-def test_without_a_stated_multiplicity_nothing_moves(tmp_path):
-    """The negative arm: the column is what does the work.  Without it the
-    2e-4 site is a general position, as it always was, and the stored
-    coordinates are the file's."""
+def test_without_a_stated_multiplicity_the_snap_is_not_the_one_that_acts(tmp_path):
+    """The negative arm: the column is what makes the *snap* act.  Without it
+    the 2e-4 site is no longer left a general position (its images sit ~1e-3 Å
+    from their twins, which ``CIF_SITE_TWINS_MERGED`` collapses and says so),
+    but nothing is reported as a snap to a stated multiplicity."""
     phase, found = _read(tmp_path, _cif([FE, O_ROUNDED]))
-    assert _multiplicity(phase, "O1") == 12
-    o = next(a for a in phase.atoms if a.label == "O1")
-    assert (o.x.value, o.y.value) == (0.687, 0.8132)
     assert not [d for d in found if "SNAPPED" in d.code]
+    [merged] = [d for d in found if d.code == "CIF_SITE_TWINS_MERGED"]
+    assert merged.where == ["phases.0.atoms.1"]
+    assert _multiplicity(phase, "O1") == 6
 
 
 def test_a_wyckoff_symbol_states_the_multiplicity_too(tmp_path):
