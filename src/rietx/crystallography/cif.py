@@ -448,7 +448,7 @@ def _distinguishing_field(a, b) -> str | None:
 
 
 def _drop_listed_twice(path, cell, atoms, twice, moment_labels, diagnostics,
-                       moments=None, group=None) -> set[int]:
+                       moments=None, group=None, repeats=None) -> set[int]:
     """Indices of sites that repeat another site's orbit, and are dropped.
 
     A copy is dropped only where nothing distinguishes it: the same occupancy,
@@ -458,7 +458,10 @@ def _drop_listed_twice(path, cell, atoms, twice, moment_labels, diagnostics,
     :data:`~.magcif.MOMENT_FORM_AGREEMENT_MU_B`).  Anything else is refused by
     name: choosing between two statements of one position is not a reader's
     call.  ``moments`` is ``None`` on the first pass, which settles the pairs
-    no moment touches; the second runs once the moments are read.
+    no moment touches; the second runs once the moments are read.  ``repeats``,
+    where given, collects ``{dropped label: label of the site it repeats}``, so
+    a diagnostic naming a site that is then dropped can be pointed at the
+    survivor.
     """
     dropped: set[int] = set()
     kept_as: dict[int, int] = {}
@@ -502,6 +505,8 @@ def _drop_listed_twice(path, cell, atoms, twice, moment_labels, diagnostics,
                     f"does not state")
         dropped.add(j)
         kept_as[j] = i
+        if repeats is not None:
+            repeats[b.label] = a.label
         while i in kept_as:     # the site it repeats was itself a repeat
             i = kept_as[i]
         if diagnostics is not None:
@@ -519,20 +524,31 @@ def _drop_listed_twice(path, cell, atoms, twice, moment_labels, diagnostics,
     return dropped
 
 
-def _locate(diagnostics, atoms, codes) -> None:
+def _locate(diagnostics, atoms, codes, *, start=0, repeats=None) -> None:
     """Rewrite the site labels the reader's own diagnostics carry in ``where`` as final paths.
 
     A site is dropped or merged after earlier diagnostics were written, so an
     index taken at the time names a neighbour afterwards.  Those diagnostics
     carry the label while sites change, and this turns it into
-    ``phases.0.atoms.<index>`` once the list is final.
+    ``phases.0.atoms.<index>`` once the list is final.  Only
+    ``diagnostics[start:]`` is rewritten: rows a caller's list held on entry
+    already carry final paths from an earlier read.  A label that was dropped
+    resolves, through ``repeats``, to the site it repeats.
     """
     index = {a.label: k for k, a in enumerate(atoms)}
-    for n, d in enumerate(diagnostics):
+    repeats = repeats or {}
+
+    def final(label):
+        while label not in index and label in repeats:
+            label = repeats[label]
+        return index.get(label)
+
+    for n in range(start, len(diagnostics)):
+        d = diagnostics[n]
         if d.code in codes:
             diagnostics[n] = d.model_copy(update={"where": [
-                f"phases.0.atoms.{index[label]}" for label in d.where
-                if label in index]})
+                f"phases.0.atoms.{k}" for k in map(final, d.where)
+                if k is not None]})
 
 
 def _magnetic_content(text: str) -> bool:
@@ -737,11 +753,11 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
     # second parse is too
     disorder = (_disorder_columns(path, small.name)
                 if re.search(r"(?i)_atom_site_disorder", text) else {})
-    stated = _site_statements(path, small.name)
+    site_statements = _site_statements(path, small.name)
     for site in small.sites:
         has_aniso = site.aniso.nonzero()
         u_iso = site.u_iso
-        said = stated.get(site.label, {})
+        said = site_statements.get(site.label, {})
         # a displacement parameter the file states is the file's, zero included:
         # `0.000(75)` is a number at the floor, not an absent column
         if not u_iso and not said.get("iso"):
@@ -771,13 +787,15 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
             disorder_group=disorder.get(site.label, (None, None))[1],
         ))
 
+    first_own = len(diagnostics) if diagnostics is not None else 0
+    repeats: dict[str, str] = {}
     atoms = _merge_twins(path, sg, cell, atoms, diagnostics)
     twice = _sites_listed_twice(sg, cell, atoms)
     moment_labels = (set(magcif._column(block, "_atom_site_moment.label"))
                      if block is not None else set())
     atoms_listed = atoms
     dropped = _drop_listed_twice(path, cell, atoms, twice, moment_labels,
-                                 diagnostics)
+                                 diagnostics, repeats=repeats)
     atoms = [a for k, a in enumerate(atoms) if k not in dropped]
 
     angles = {"alpha": cell.alpha, "beta": cell.beta, "gamma": cell.gamma}
@@ -794,7 +812,8 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
         if twice and magnetic_symmetry is not None:
             gone = {atoms_listed[k].label for k in _drop_listed_twice(
                 path, cell, atoms_listed, twice, moment_labels, diagnostics,
-                moments=moments, group=magnetic_symmetry.group())}
+                moments=moments, group=magnetic_symmetry.group(),
+                repeats=repeats)}
             for label in gone:
                 moments.pop(label, None)
             atoms = [a for a in atoms if a.label not in gone]
@@ -911,12 +930,13 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
                 assumed_ions=assumed_ions, assumed_g=assumed_g))
 
     # on the final site list, so the paths it carries name the site they are about
-    stated_diagnostics = _snap_to_stated_multiplicity(sg, atoms, stated, path=path)
+    stated_diagnostics = _snap_to_stated_multiplicity(sg, atoms, site_statements, path=path)
     if diagnostics is not None:
         # after the last site is merged or dropped, so every path below names
         # the site it is about
         diagnostics.extend(stated_diagnostics)
-        _locate(diagnostics, atoms, {"CIF_SITE_TWINS_MERGED", "CIF_SITE_LISTED_TWICE"})
+        _locate(diagnostics, atoms, {"CIF_SITE_TWINS_MERGED", "CIF_SITE_LISTED_TWICE"},
+                start=first_own, repeats=repeats)
         index = {a.label: k for k, a in enumerate(atoms)}
         for raw, (canonical, note, labels) in rewrites.items():
             diagnostics.append(Diagnostic(

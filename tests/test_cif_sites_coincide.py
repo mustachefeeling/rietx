@@ -261,3 +261,43 @@ def test_two_quoted_occupancies_summing_to_just_over_one_are_not_an_overfill(tmp
     atoms = structure_from_cif(path, diagnostics=diagnostics).phases[0].atoms
     assert [a.label for a in atoms] == ["Ni1", "O1", "Ni2"]
     assert not [d for d in diagnostics if d.code == "CIF_SITE_LISTED_TWICE"]
+
+
+def test_one_diagnostics_list_across_two_reads_keeps_the_first_reads_paths(tmp_path):
+    """``_locate`` rewrites this call's rows, never the ones the caller already holds."""
+    first = tmp_path / "first.cif"
+    first.write_text(_ROCKSALT_LABELLED.format(extra="").replace(
+        "O1 O1", "Ni2 Ni 0.5 0.5 0.0001 1\nO1 O1"), encoding="utf-8")
+    second = tmp_path / "second.cif"
+    second.write_text(_ROCKSALT.format(extra=""), encoding="utf-8")
+    diagnostics: list = []
+    structure_from_cif(first, diagnostics=diagnostics)
+    (before,) = [d for d in diagnostics if d.code == "CIF_SITE_LISTED_TWICE"]
+    assert before.where == ["phases.0.atoms.0"]
+    structure_from_cif(second, diagnostics=diagnostics)
+    (after,) = [d for d in diagnostics if d.code == "CIF_SITE_LISTED_TWICE"]
+    assert after.where == ["phases.0.atoms.0"]
+
+
+def test_a_merged_site_that_is_then_dropped_points_at_the_site_it_repeats(tmp_path):
+    path = tmp_path / "hex2.cif"
+    path.write_text(_HEX.format(x="0.828", y="0.656")
+                    + "Co2 Co 0.828 0.657 0.25 1\n", encoding="utf-8")
+    diagnostics: list = []
+    atoms = structure_from_cif(path, diagnostics=diagnostics).phases[0].atoms
+    assert [a.label for a in atoms] == ["Co1"]
+    merged = [d for d in diagnostics if d.code == "CIF_SITE_TWINS_MERGED"]
+    assert merged and all(d.where == ["phases.0.atoms.0"] for d in merged)
+
+
+def test_a_copy_that_differs_in_anisotropic_displacement_is_refused(tmp_path):
+    aniso = ("loop_\n_atom_site_aniso_label\n_atom_site_aniso_U_11\n"
+             "_atom_site_aniso_U_22\n_atom_site_aniso_U_33\n"
+             "_atom_site_aniso_U_12\n_atom_site_aniso_U_13\n_atom_site_aniso_U_23\n")
+    text = (_ROCKSALT.format(extra="Ni2 Ni 0.5 0.5 0.0001 1\n") + aniso
+            + "Ni1 0.005 0.005 0.005 0 0 0\nNi2 0.007 0.005 0.003 0 0 0\n"
+              "O1 0.005 0.005 0.005 0 0 0\n")
+    path = tmp_path / "twice.cif"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(ValueError, match="differ in anisotropic displacement"):
+        structure_from_cif(path, aniso=True)
