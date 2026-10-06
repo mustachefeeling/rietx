@@ -131,7 +131,16 @@ special position without being on it, as a file quoting five decimals often
 leaves one. Such a site has its orbit expanded at that position, so its
 multiplicity is the special one, and `SITE_SNAPPED_TO_SPECIAL_POSITION` names
 the site, the shift and the multiplicity. The stored coordinates are unchanged
-and the fit is unaffected. What the multiplicity decides is how many atoms the
+and the fit is unaffected, with one exception. Where the file states the
+multiplicity (`_atom_site_symmetry_multiplicity`, or the number in
+`_atom_site_Wyckoff_symbol`) and the site is within 1e-3 of the position that
+multiplicity names, the reader moves the site onto it, since the forward model
+would otherwise put twice the atoms in the cell; the same code names the move.
+A stated multiplicity the site cannot reach, or one larger than the coordinates
+give, moves nothing and reports `CIF_SITE_MULTIPLICITY_DISAGREES`. A stated B_iso
+of 0 or a stated occupancy of 0 is read as that value, not as a missing column
+that takes the default (0.5 Å², occupancy 1); a null `.` or `?` is not a
+statement. What the multiplicity decides is how many atoms the
 site puts in the cell, and so ZMV and every weight fraction; compare it against
 the file's own `_atom_site_symmetry_multiplicity`.
 
