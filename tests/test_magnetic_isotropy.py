@@ -23,6 +23,7 @@ The magnetic space-group numbers of arm A are **derived**, not quoted.  What
 they were checked against is written at the test.
 """
 
+import re
 from fractions import Fraction
 
 import numpy as np
@@ -1168,7 +1169,12 @@ def test_a_one_dimensional_irrep_has_exactly_one_direction():
 
 
 def test_conjugate_directions_are_collapsed_and_counted():
-    """[100], [010] and [001] are one candidate with three domains, not three candidates."""
+    """[100], [010] and [001] are one candidate with three conjugate directions.
+
+    Three orientations, not three candidates — and not three domains: each
+    orientation also has its time-reversed (180°) domain, which shares its
+    stabiliser and so is not counted here (issue #608).
+    """
     representation = modes.magnetic_representation("F m -3 m", (0, 0, 0), GAMMA)
     irrep = next(ir for ir in irreps.small_irreps("F m -3 m", GAMMA)
                  if modes.basis_vectors(representation, ir).multiplicity)
@@ -1187,6 +1193,88 @@ def test_the_candidate_set_prints_the_classic_table():
     assert "irrep" in text and "BNS" in text and "determinable" in text and "class" in text
     assert "62.448" in text
     assert text.count("\n") >= 6
+
+
+#: Issue #608's hand table, [G_k1′ : H] within one arm of the star, and the
+#: count over every arm: (parent, site, k, BNS, per arm, all arms).  MnF₂, LaMnO₃
+#: and Cr₂O₃ have the 180° pair only; MnO 15.90 has three orientations × 2 in
+#: the arm of k and four arms (the L-point star of F m -3 m).
+DOMAIN_CASES = [
+    ("P 4_2/m n m", (0, 0, 0), GAMMA, "136.499", 2, 2),
+    ("P n m a", (0, 0, 0), GAMMA, "62.448", 2, 2),
+    ("R -3 c", (0, 0, 0.3476), GAMMA, "167.106", 2, 2),
+    ("F m -3 m", (0, 0, 0), HALF, "15.90", 6, 24),
+]
+
+
+def _independent_domain_count(found, candidate):
+    """[G_k1′ : H] with no rietx group code: 2·|Ḡ_k|·(lattice points per cell) / |H|.
+
+    |Ḡ_k| counts gemmi's coset representatives R with Rᵀk ≡ k (reciprocal space
+    carries the transposed rotation, root ``CLAUDE.md``), the lattice points are
+    the parent's centrings times |det P|, and |H| is the number of operations
+    spglib finds on the generated structure, a non-magnetic general orbit of the
+    parent pinning the parent symmetry.
+    """
+    import gemmi
+    spglib = pytest.importorskip("spglib")
+    parent = gemmi.SpaceGroup(found.space_group.xhm())
+    k = np.array([float(c) for c in found.k])
+    centrings = [np.array(c, dtype=float) / 24 for c in parent.operations().cen_ops]
+    fixes = 0
+    for op in parent.operations().sym_ops:
+        d = np.array(op.rot, dtype=float).T @ k / 24 - k
+        fixes += bool(np.allclose(d, np.round(d))
+                      and all(abs(d @ t - round(d @ t)) < 1e-9 for t in centrings))
+    basis = np.array([[float(v) for v in row] for row in candidate.cell.basis])
+    grey = 2 * fixes * round(abs(np.linalg.det(basis)) * len(centrings))
+    general = {tuple(np.round(np.array(op.apply_to_xyz([0.1234, 0.2345, 0.3456])) % 1.0, 9))
+               for op in parent.operations()}
+    inverse = np.linalg.inv(basis)
+    span = int(np.ceil(np.abs(basis).sum(axis=1).max())) + 1
+    dummy = sorted({tuple(np.round(np.round(inverse @ (np.array(p) + np.array(n) - span), 9)
+                                   % 1.0, 9) % 1.0)
+                    for p in general for n in np.ndindex(*(2 * span + 1,) * 3)})
+    moments = candidate.moments(np.random.default_rng(5).normal(
+        size=candidate.free_amplitudes)) @ found.lattice
+    cell = (found.lattice, np.vstack([np.asarray(candidate.positions) % 1.0, dummy]),
+            [25] * len(candidate.positions) + [8] * len(dummy),
+            np.vstack([moments, np.zeros((len(dummy), 3))]))
+    data = spglib.get_magnetic_symmetry_dataset(cell, symprec=1e-4, mag_symprec=1e-3)
+    assert data is not None, candidate.label
+    assert grey % len(data.rotations) == 0
+    return grey // len(data.rotations)
+
+
+@pytest.mark.parametrize("case", DOMAIN_CASES, ids=[c[0] for c in DOMAIN_CASES])
+def test_the_table_prints_the_domain_count_not_the_conjugate_directions(case):
+    """Issue #608: the column called "domains" printed ``direction.conjugates``.
+
+    That is the number of conjugate directions, which leaves out the 180°
+    (time-reversed) domain, so it printed 1 / 1 / 1 / 3 here against the hand
+    count 2 / 2 / 2 / 6.  :meth:`CandidateSet.domain_counts` is checked three
+    ways: against the hand table, against a count that uses no rietx group code
+    (spglib's |H| on the generated structure), and against the cosets
+    :func:`isotropy._domain_operations` builds for the powder sums, on every
+    candidate of the set.  The printed table carries both numbers.
+    """
+    group, site, k, bns, per_arm, all_arms = case
+    found = isotropy.candidates(group, site, k)
+    counts = found.domain_counts()
+    little = irreps.little_group(found.space_group, found.k)
+    for candidate, (arm, total) in zip(found, counts):
+        assert arm == len(isotropy._domain_operations(candidate, little)), candidate.label
+        assert total == arm * len(irreps.star(found.space_group, found.k))
+    index = next(i for i, c in enumerate(found) if c.bns_number == bns)
+    candidate = found[index]
+    assert counts[index] == (per_arm, all_arms)
+    assert _independent_domain_count(found, candidate) == per_arm
+    assert candidate.direction.conjugates == per_arm // 2   # the number it printed
+    cells = [re.split(r"\s{2,}", line.strip()) for line in str(found).splitlines()]
+    header = next(c for c in cells if c[0] == "irrep")
+    assert header[4:6] == ["domains/arm", "domains"]
+    row = next(c for c in cells if c[:3] == [candidate.irrep_label, candidate.direction.label, bns])
+    assert row[4:6] == [str(per_arm), str(all_arms)]
 
 
 @pytest.mark.parametrize("case", ENGINE_CASES, ids=[f"{c[0]}@{c[2][0]}" for c in ENGINE_CASES])
