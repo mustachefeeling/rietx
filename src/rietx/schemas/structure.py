@@ -597,6 +597,46 @@ class BodyOrigin(Base):
         return (self.x.value, self.y.value, self.z.value)
 
 
+class BodyTorsion(Base):
+    """A rotation of declared body atoms about the line through two others (WP-1808).
+
+    TOPAS's ``Rotate_about_points`` (Coelho, *TOPAS-Academic V6 Technical
+    Reference*, § 10.22.4): the atoms in ``moves`` turn by ``angle`` (degrees,
+    right-handed about the axis from ``axis[0]`` to ``axis[1]``) in the body
+    frame, before the body's pose.  Looking from ``axis[0]`` to ``axis[1]``, a
+    positive twist turns ``moves`` clockwise, so a dihedral a–axis[0]–axis[1]–d
+    whose d moves changes by +angle (Klyne & Prelog 1960, the sign
+    ``_geom_torsion`` uses).  The moved set is **declared**, never derived from
+    bonds: it is the torsion's whole definition, and its Jacobian
+    (axis × (x − x_axis) per radian) is exact by construction.  Torsions apply
+    in list order, so a later torsion's axis may ride on an earlier one's moved
+    atoms.
+
+    **An anchored rotation, like the body's own** (WP-1805's record): what
+    refines is the increment ``phases.i.rigid_bodies.b.torsions.t.twist``
+    (degrees, zero at every table build), and every ``ParameterTable.commit``
+    composes it into ``angle`` and zeroes it.  About one axis composing is
+    addition, so the chart moves by a translation and a solver outcome needs no
+    re-charting.  ``angle`` is the record: the twist *from the template*, kept
+    in (−180, 180].
+    """
+
+    name: str
+    axis: tuple[str, str]
+    moves: list[str]
+    #: the record: the twist from the template (degrees), in (−180, 180]
+    angle: float = 0.0
+    #: free the twist at the next table build (a plan's ``turn_on`` glob
+    #: ``phases.*.rigid_bodies.*.torsions.*.twist`` does the same)
+    vary: bool = False
+
+    @model_validator(mode="after")
+    def _finite(self) -> "BodyTorsion":
+        if not math.isfinite(self.angle):
+            raise ValueError(f"torsion {self.name!r}: angle {self.angle!r} is not finite")
+        return self
+
+
 class RigidBody(Base):
     """A set of a phase's atoms that moves as one rigid template (WP-1805, #561).
 
@@ -639,6 +679,8 @@ class RigidBody(Base):
     #: free the three rotation DOFs at the next table build (a plan's
     #: ``turn_on`` glob ``phases.*.rigid_bodies.*.rotation.*`` does the same)
     rotation_vary: bool = False
+    #: named-bond torsions inside the body (WP-1808), applied in order
+    torsions: list[BodyTorsion] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _consistent(self) -> "RigidBody":
@@ -652,6 +694,20 @@ class RigidBody(Base):
             raise ValueError(f"rigid body {self.name!r} needs at least two atoms")
         if not all(math.isfinite(v) for t in self.template for v in t):
             raise ValueError(f"rigid body {self.name!r}: a template point is not finite")
+        members = set(self.atoms)
+        names = [t.name for t in self.torsions]
+        if len(names) != len(set(names)):
+            raise ValueError(f"rigid body {self.name!r} names a torsion twice: {names}")
+        for t in self.torsions:
+            if t.axis[0] == t.axis[1] or not set(t.axis) <= members:
+                raise ValueError(
+                    f"rigid body {self.name!r}, torsion {t.name!r}: the axis "
+                    f"{t.axis} must be two different atoms of the body")
+            if not t.moves or not set(t.moves) <= members or set(t.moves) & set(t.axis):
+                raise ValueError(
+                    f"rigid body {self.name!r}, torsion {t.name!r}: moves "
+                    f"{t.moves} must be body atoms off the axis, and at least "
+                    "one — a torsion that moves nothing is not a parameter")
         norm = math.sqrt(sum(v * v for v in self.orientation))
         # written to fail on NaN, which every comparison answers False to
         # (``rotation._check_unit_quaternion``'s form; #801)
