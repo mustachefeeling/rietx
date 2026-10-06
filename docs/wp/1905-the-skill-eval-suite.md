@@ -166,11 +166,24 @@ numbers. What a fresh session needs from it:
   - **`build.py --venv DIR`** installs this checkout, non-editable, where both
     arms' sandboxes can start it. `unreachable()` warns about an interpreter
     either arm cannot read. `--venv` refuses to clear a directory that holds
-    no `pyvenv.cfg`. Five tests cover the new paths.
+    no `pyvenv.cfg`. Seven tests cover the new paths, with the review's two.
   - **Amendment 1.1**: both fit cases' `timeout_seconds` went from 2 400 s to
     1 200 s, measured on one run alone.
   - **Rounds B to E**, recorded in PROTOCOL § Results. The result files and the
     build stamp are in `docs/wp/1905-eval/round1/`. Assumptions 1-5 hold.
+  - **`/code-review high --fix`** found eight issues in `build.py` and fixed
+    five, with two tests added. `--venv` now reinstalls the package by name,
+    because uv reuses a cached wheel of a local directory until
+    `pyproject.toml` changes. It refuses to clear the checkout's own venv. A
+    build that fails part-way stays clearable. The plugin-root check follows a
+    symlinked directory. The two POSIX path tests skip on Windows. No round's
+    numbers move: this branch never touched `src/`, so every build installed
+    main's code and main's copy of the skill. Three were declined. Linux
+    denies only the home directory, so the `/tmp` warning is a false alarm
+    there; it stays, as the tests assert it and the cost is a line of noise.
+    Forcing a system Python with `only-system` would fail outright where a
+    warning serves today. And `build.json` stamps HEAD although `--venv`
+    installs the working tree; a round should be built from a clean tree.
   - `### Inherited` was empty on arrival. The findings were dated 2026-10-04
     and no commit had touched the suite or the skill since, except skill text,
     so none had gone stale.
@@ -192,8 +205,15 @@ numbers. What a fresh session needs from it:
   - **Tier 0:** Haiku fired 26/30 and stayed quiet 30/30. Sonnet fired 30/30
     and stayed quiet 27/30.
   - **Tests** (`[dev]` venv, macOS arm64): `tests/test_eval_skill.py` went
-    from 98 to 103, with five tests added. The fast selection is quoted in
-    the PR. No full suite ran, because the branch changes tests and docs only.
+    from 98 to 105, with seven tests added, 0.07 s together by
+    `tests.added_test_times`. None joins the slow tail. The fast selection
+    (`-n auto`, alone on the machine, 3:09) gave 1 failed, 8367 passed and
+    160 skipped, 8528 in all. Main's count on this platform was not measured,
+    so the seven are the new tests' collection, not a difference of two runs.
+    The failure is main's. `test_numpy_path_bit_identical_to_golden[toy_anomalous]`
+    fails alone too, with the residual 1.6e-11 off the darwin-only golden,
+    and this branch touches no `src/`. Linux CI skips that golden. No full
+    suite ran, because the branch changes tests and docs only.
   - **Lanes:** none dispatched. Both items were decided under the 150K line,
     so no trial row goes to `process.md`.
 
