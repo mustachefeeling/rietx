@@ -28,7 +28,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1530](1530-the-topas-readers-last-silences.md) | The TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background | 2026-10-03 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 2026-10-03 | P4 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1543](1543-a-gsas-gaussian-width-is-a-variance.md) | A GSAS Gaussian width is a variance | 2026-10-06 | P1 | [Unscheduled](#unscheduled-coming-from-another-code) |
-| [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | 2026-10-01 | P2 | [rigid-bodies](#rigid-bodies) |
 | [1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) | The foreign writers state what the other program reads: the setting, the scale, the free set | 2026-10-06 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 
 ## Next, by priority
@@ -45,6 +44,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1528](1528-the-cell-box-is-declined-where-the-cell-is-declared.md) | The cell box is declined where the cell is declared | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1542](1542-a-le-bail-background-left-at-its-seed.md) | A Le Bail background left at its seed | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1804](1804-the-derived-block.md) | The derived block: a nonlinear map applied after the affine one | P2 | [1801](1801-rotation-mathematics.md), [1803](1803-the-body-seam-spike.md) | [rigid-bodies](#rigid-bodies) |
+| [1805](1805-the-rigid-body.md) | `RigidBody`: schema, collector, anchored rotation, the body's own rows | P2 | [1802](1802-the-fragment-type.md), [1804](1804-the-derived-block.md) | [rigid-bodies](#rigid-bodies) |
 | [1906](1906-the-skill-body-rewrite.md) | The skill body rewrite: under 5 000 tokens, rules first, evidence in the references, the contradictions resolved | P2 | [1905](1905-the-skill-eval-suite.md) ([1532](1532-the-skill-passages-a-driving-agent-needed.md) soft) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1908](1908-a-tick-misses-the-displacement-shift.md) | A tick misses the displacement shift | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
@@ -388,7 +389,17 @@ Not started and rated P1 or P2. The rest are in the tables below.
 |---|---|---|---|---|
 | [1801](1801-rotation-mathematics.md) | Rotation mathematics: the exponential map, its derivative, the canonical quaternion | ✅ 2026-10-01 | — | — |
 | [1802](1802-the-fragment-type.md) | The fragment: a body template with a frame and declared bonds | ✅ 2026-10-01 | — | — ([1801](1801-rotation-mathematics.md) soft) |
-| [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | 🔄 2026-10-01 | P2 | [1801](1801-rotation-mathematics.md) |
+| [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | ✅ 2026-10-06 | — | [1801](1801-rotation-mathematics.md) |
+| [1804](1804-the-derived-block.md) | The derived block: a nonlinear map applied after the affine one | ⬜ | P2 | [1801](1801-rotation-mathematics.md), [1803](1803-the-body-seam-spike.md) |
+| [1805](1805-the-rigid-body.md) | `RigidBody`: schema, collector, anchored rotation, the body's own rows | ⬜ | P2 | [1802](1802-the-fragment-type.md), [1804](1804-the-derived-block.md) |
+| [1806](1806-first-public-case-acridine-form-ix.md) | First public case: acridine form IX | ⬜ | P3 | [1805](1805-the-rigid-body.md) |
+| [1807](1807-a-body-on-a-special-position.md) | A body on a special position | ⬜ | P3 | [1805](1805-the-rigid-body.md) |
+| [1808](1808-torsions-on-named-rotatable-bonds.md) | Torsions on named rotatable bonds | ⬜ | P3 | [1802](1802-the-fragment-type.md), [1805](1805-the-rigid-body.md) |
+| [1809](1809-tether-planarity-and-anti-bump-restraints.md) | Tether, planarity and anti-bump restraints, pairs frozen per plan | ⬜ | P3 | — |
+| [1810](1810-hydrogens-riding-on-a-body.md) | Hydrogens riding on a body, CIF flags | ⬜ | P4 | [1805](1805-the-rigid-body.md) ([1806](1806-first-public-case-acridine-form-ix.md) soft) |
+| [1811](1811-bodies-in-a-series.md) | Bodies in a series | ⬜ | P3 | [1805](1805-the-rigid-body.md), [1333](1333-a-series-survives-one-pattern.md) |
+| [1812](1812-gui-textdoc-skill-and-manual-for-bodies.md) | GUI, textdoc, skill and manual for bodies | ⬜ | P4 | [1805](1805-the-rigid-body.md) |
+| [1813](1813-fragment-io.md) | Fragment I/O: XYZ, Z-matrix write, SMILES behind an extra | ⬜ | P4 | [1802](1802-the-fragment-type.md), [1319](1319-structure-interchange.md) |
 
 ## <a id="structure-solution"></a>structure-solution — a map, a cost and a search
 
