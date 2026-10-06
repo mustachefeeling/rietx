@@ -4424,9 +4424,11 @@ def _magnetic_group_line(phase) -> str | None:
             f"operations with time reversal dropped) is {family.xhm()!r}. A "
             f"TOPAS magnetic `str` generates its atoms with the magnetic "
             f"operators alone, so the sites listed for the larger group would "
-            f"each generate only part of their orbit. Restate the phase under "
-            f"{family.xhm()!r} (a magCIF read with nuclear_group='file' does "
-            f"this), or export a magCIF (Structure.to_cif)")
+            f"each generate only part of their orbit. List the sites of each "
+            f"parent orbit the magnetic group splits and state the phase "
+            f"under {family.xhm()!r} yourself (a CIF round trip with "
+            f"nuclear_group='file' keeps the parent's sites and does not "
+            f"restate them), or export a magCIF (Structure.to_cif)")
     for atom in moments:
         if atom.moment.ion != atom.species:
             raise ValueError(

@@ -4209,6 +4209,30 @@ def test_write_topas_inp_refuses_a_nuclear_group_above_the_family_group():
     _refused(phase, r"family group .* is 'P 1 21/c 1'")
 
 
+def test_the_family_group_refusal_does_not_name_a_remedy_that_loops(tmp_path):
+    """The refusal used to say "Restate the phase under 'P 1 21/c 1' (a magCIF
+    read with nuclear_group='file' does this)".  Followed literally, it does
+    not: the CIF round trip keeps the parent's sites under the parent's group
+    and the writer refuses the result again with the same text (5 of 5 cases
+    in an exporter benchmark).  The advice is gone, and this pins the loop
+    the old advice walked into, so a reader that does restate the phase turns
+    this test red and the message can name the route again."""
+    phase = _magnetic_phase("monoclinic").model_copy(update={
+        "space_group": "P n m a",
+        "cell": _magnetic_phase("orthorhombic").cell})
+    structure = rx.Structure(phases=[phase])
+    with pytest.raises(ValueError) as first:
+        write_topas_inp(structure, tmp_path / "a.inp")
+    assert "does this" not in str(first.value)
+    assert "Structure.to_cif" in str(first.value)
+
+    structure.to_cif(tmp_path / "a.cif")
+    restated = rx.Structure.from_cif(tmp_path / "a.cif", nuclear_group="file")
+    assert restated.phases[0].space_group == "P n m a"      # not restated
+    with pytest.raises(ValueError, match="family group"):
+        write_topas_inp(restated, tmp_path / "b.inp")
+
+
 def test_write_topas_inp_refuses_a_group_with_no_moment():
     phase = _magnetic_phase("oblique")
     bare = phase.model_copy(update={"atoms": [
