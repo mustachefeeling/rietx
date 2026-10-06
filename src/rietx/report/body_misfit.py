@@ -1,8 +1,8 @@
 """Does the data want a rigid body to be a different shape? (``RIGID_BODY_MISFIT``)
 
 A rigid body imposes a geometry, and a wrong one still refines to a converged
-fit with sensible esds.  Measured on a synthetic lactate pattern: the right body
-fitted at GOF 1.01, the same body with one C–C bond 0.3 Å too long at GOF 2.33
+fit with sensible esds.  Measured on a synthetic pattern of a small organic
+molecule: the right body fitted at GOF 1.01, the same body with one C–C bond 0.3 Å too long at GOF 2.33
 (Δχ² ≈ 1.7×10⁴ at equal parameter count), and nothing named the body —
 ``RESTRAINT_TENSION`` cannot fire for a body, which has no restraint rows.
 
