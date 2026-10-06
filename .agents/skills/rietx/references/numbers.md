@@ -20,7 +20,7 @@ failure:
 So:
 
 ```python
-report = ref.report(plan="lab_bragg_brentano")   # the plan supplies the Layer-2 veto
+report = ref.report(plan="mccusker_structural")  # the plan supplies the Layer-2 veto
 ```
 
 - **Layer 0** — model-free, always trustworthy: regions, per-region χ² share,
