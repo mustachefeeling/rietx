@@ -1,6 +1,6 @@
 # WP-1543 — a GSAS Gaussian width is a variance
 
-Milestone: unscheduled · Status: 🔄 2026-10-06 — PR #708 merged (the GSAS-II `.instprm`); the GSAS-I half is PR #739, open
+Milestone: unscheduled · Status: 🔄 2026-10-06 — PRs #708 and #739 merged (the GSAS-II and GSAS-I halves); the one-constant, GSAS-II-oracle and `PRCF` tasks remain
 Track: Coming from another code
 Depends on: —
 Priority: P1 2026-10-04 — if confirmed, every GSAS-I `.prm` and GSAS-II `.instprm`/`.gpx` instrument reads its Gaussian widths 2.35× too narrow, frozen, and a sample fit puts the rest into size and strain silently
@@ -122,6 +122,29 @@ Plus a figure: one GSAS-II-computed line drawn over rietx's from the same
 - [1327](1327-magnetic-structure.md), whose LaMnO₃ lane found it.
 
 ## Handover log
+
+- **2026-10-06 (2nd session)** — PR #739 (#735) merged as `226aafb5`.
+  `read_gsas_prm` and `write_gsas_prm` convert `GU`, `GV` and `GW` as
+  GSAS-I's Gaussian variance, and `rietx compare` seeds its GSAS-I protocol
+  the same way. Gated together on a seven-PR stack replayed onto `main` at `7c8a0316` (stack `ee39adb9`, macOS arm64, `[dev,jax]`). The fast suite gave 8523 passed, 103 skipped and 2 failed. Both failures fail identically on bare `main`: the `toy_anomalous` golden (#760) and a hypothesis case in `test_indexing_reduce.py`. The whole slow tier gave 291 passed and 12 skipped. After the last merge, `main` at `0cbb1b70` is content-identical to the gated tree.
+  - The FAP question from the last entry is answered. With axial divergence
+    and the preset's instrument Lorentzian removed, so that the model is
+    GSAS's CW function 2, `lor_size` lands 2.7 % from GSAS's LX under the
+    variance reading and 48 % away under the old one.
+    `test_fap_lorentzian_matches_gsas_lx_on_gsas_own_model` pins both arms,
+    with rows in `tests/validation_matrix.py` and `docs/VALIDATION.md`. The
+    old 5 % agreement was two errors cancelling. On the full protocol, which
+    also refines S/L, the 0.30 band on LX stays, with its reason in the
+    test. X = 0.001 is about 3 % of LX, so axial divergence carries nearly
+    all of that gap.
+  - Still open. `GAUSSIAN_VARIANCE_TO_FWHM_SQUARED` is defined in both
+    `gsas.py` and `gsas2.py`. Both are `8 ln 2` today, so the one-constant
+    task now has three spellings to fold, counting
+    `recipe.GAUSS_CENTIDEG2_TO_DEG2`. The module docstring of
+    `tests/test_acceptance_fap.py` (l. 43-49) quotes the new Lorentzian
+    beside the old Rwp, Rp and cell figures. The head values are 9.25 %,
+    7.12 % and +83/+82 ppm. The GSAS-II oracle task and the `PRCF` type-3
+    refusal are untouched.
 
 - **2026-10-06** — PR #708 (outside contributor, issue #705) merged as
   `b8f9b615`. The GSAS-II `.instprm` reader and writer now carry the

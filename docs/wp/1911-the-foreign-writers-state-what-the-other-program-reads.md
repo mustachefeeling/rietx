@@ -1,9 +1,9 @@
 # WP-1911 — the foreign writers state what the other program reads: the setting, the scale, the free set
 
-Milestone: unscheduled · Status: 🔄 2026-10-06 — PRs #720 and #731 merged from outside; the Part A decision is open
+Milestone: unscheduled · Status: 🔄 2026-10-06 — PRs #720, #731, #710, #733 and #713 merged from outside; #721's decision is due, now that #713 has landed
 Track: Coming from another code
 Depends on: — (#713 soft: the P1 restatement Part D builds on)
-Priority: P2 2026-10-05 — a rhombohedral-axes phase is written to FullProf as a different crystal with nothing raised (#716), on a path few fits run; the other four issues cost a user hand edits (P3 on their own)
+Priority: P3 2026-10-06 — was P2 for #716, which PR #733 fixed; the remaining issues cost a user hand edits
 
 ## Goal
 
@@ -354,6 +354,40 @@ land alone before the transform exists.
   keywords (specification only, per ATTRIBUTION.md).
 
 ## Handover log
+
+- **2026-10-06 (2nd session)** — Three more of this WP's inherited
+  fixes merged from the reporter's fork. Gated together on a seven-PR stack replayed onto `main` at `7c8a0316` (stack `ee39adb9`, macOS arm64, `[dev,jax]`). The fast suite gave 8523 passed, 103 skipped and 2 failed. Both failures fail identically on bare `main`: the `toy_anomalous` golden (#760) and a hypothesis case in `test_indexing_reduce.py`. The whole slow tier gave 291 passed and 12 skipped. After the last merge, `main` at `0cbb1b70` is content-identical to the gated tree.
+  - PR #710 (#706, #707) as `e99cc10b`. `write_topas_inp` writes origin
+    choice 1 as TOPAS's `S` suffix (`Fd-3mS`). It writes a site within 1e-4
+    of a special position on that position, so TOPAS generates the atoms
+    rietx computes with. The stored coordinate is unchanged.
+  - PR #733 (#716) as `0063397d`. `write_fullprof_pcr` and
+    `write_gsas2_phase_cif` restate an `R … :R` phase in hexagonal axes,
+    through `crystallography.symmetry.restate_in_hexagonal_axes`, which cites
+    ITA Vol. A Part 5. The scale is divided by 9, and
+    `FULLPROF_RHOMBOHEDRAL_RESTATED` and `GSAS2_CIF_RHOMBOHEDRAL_RESTATED`
+    report the restatement. This is Part A's writer half for those two
+    formats. The transform covers rhombohedral to hexagonal only, so the
+    general shared-transform task stays open. The A tasks stay unticked
+    until each is checked against its wording; the `.EXP` and `.pcr`-reader
+    tasks are untouched. #761 is the follow-up: write the hexagonal cell
+    free while the coordinates stay held.
+  - PR #713 (#709) as `f75f6b89`. `restate_phase_in_p1` and
+    `write_topas_inp(p1_expand=True)` write a phase as its cell's atom list
+    in `P 1`, with every flag held. That unblocks the maintainer decision on
+    #721's items 2-4, which waited for this PR. One gotcha: the expansion
+    uses the unsnapped coordinates. On 83 MAGNDATA entries that lights
+    absent rows at ≤ 4.5e-4 of the pattern maximum (the contributor's
+    measurement). #710's snap does not reach the P1 path, since nothing is
+    special in `P 1`.
+  - Still open from the same fork. #770 (Part B, `free=` and `scale=`) is
+    reviewed at round 2. Its blocker is that a result's symmetry-tied rows
+    are written as free parameters, so a cubic `b` and `c` refine
+    independently in TOPAS. It also needs a rebase over #713. #771 (Part D,
+    the TOPAS reader's ties and the magnetic-part merge) is reviewed at
+    round 2 with four items and needs a rebase over #710. #755 (C1's zero
+    shift) is a draft.
+  - Next: the maintainer decision on #721's items 2-4.
 
 - **2026-10-06** — Two of this WP's inherited TOPAS-writer fixes merged
   from the reporter's fork, gated together on a six-PR stack (macOS arm64,
