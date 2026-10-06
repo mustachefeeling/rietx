@@ -48,4 +48,4 @@ report = ref.report(plan="mccusker_structural")
 if report.abstained_reason:                                              # rule 18
     print("Layer 1 abstained:", report.abstained_kind, report.abstained_reason)
 print([u for u in report.unmatched if u.kind == "unmatched_obs"])        # rule 11
-print(ref.summary(deliverable="structure"))                              # §4b
+print(ref.summary(deliverable="structure", report=report))               # §4b
