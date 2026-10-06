@@ -85,8 +85,8 @@ CLAIM_HINT = "pick another WP, or /wp-start step 2 to see the whole table"
 # never from the tree, so its two keys in .git/config are the scan's one write.
 # The second half gives git its own conflict markers when the script declines
 # a merge, or when the checkout predates the script.  The check reads only
-# .git/config, because the /pr-review bench overrides the driver in its own
-# worktree config and the scan must not rewrite .git/config on every start there.
+# .git/config.  The /pr-review bench overrides the driver per command, with
+# `git -c`, so nothing it does ever makes the scan rewrite .git/config.
 MERGE_DRIVER = (
     "python3 .claude/hooks/wp_index.py --merge %O %A %B || git merge-file %A %O %B"
 )
