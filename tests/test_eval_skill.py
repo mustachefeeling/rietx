@@ -278,6 +278,38 @@ def test_a_relative_interpreter_is_written_absolute(tmp_path, monkeypatch):
     assert stamp["python"] == str(tmp_path / "venv" / "bin" / "python")
 
 
+def test_an_interpreter_outside_the_plugin_root_is_named_as_unreachable(tmp_path):
+    """macOS's sandbox denies `/Users` and `/tmp` and reads the plugin root, so
+    a `--python` anywhere else fails every fit in the run (2026-10-06, twice)."""
+    out = tmp_path / "p"
+    inside = out / B.RUNTIME / "bin" / "python"
+    assert not [w for w in B.unreachable(inside, out) if "plugin root" in w]
+    assert any("plugin root" in w for w in B.unreachable(Path("/opt/venv/bin/python"), out))
+
+
+def test_a_base_interpreter_under_tmp_is_named_as_unreachable(tmp_path):
+    out = tmp_path / "p"
+    (out / "bin").mkdir(parents=True)
+    link = out / "bin" / "python"
+    link.symlink_to("/private/tmp/somewhere/python3.12")
+    assert any("base interpreter" in w for w in B.unreachable(link, out))
+
+
+def test_venv_and_python_are_one_choice(tmp_path):
+    with pytest.raises(SystemExit, match="pass one"):
+        B.build(TREE, tmp_path / "p", python=Path("/opt/venv/bin/python"), venv=True)
+
+
+def test_venv_writes_its_interpreter_into_every_prompt(tmp_path, monkeypatch):
+    def fake(out: Path) -> Path:
+        return out / B.RUNTIME / "bin" / "python"
+    monkeypatch.setattr(B, "_runtime", fake)
+    out = tmp_path / "p"
+    stamp = B.build(TREE, out, venv=True, only=["fap-fit"])
+    assert stamp["python"] == str(out / B.RUNTIME / "bin" / "python")
+    assert stamp["python"] in (out / "evals" / "fap-fit" / "prompt.md").read_text(encoding="utf-8")
+
+
 def test_the_build_clears_only_its_own_output(tmp_path):
     keep = tmp_path / "mine"
     keep.mkdir()

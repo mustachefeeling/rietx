@@ -1,7 +1,7 @@
 """Build a `claude plugin eval` plugin from a skill tree and this suite's cases.
 
-    python tests/eval_skill/build.py <tree> <out> [--body FILE] [--python PATH]
-                                     [--case GLOB ...]
+    python tests/eval_skill/build.py <tree> <out> [--body FILE]
+                                     [--venv | --python PATH] [--case GLOB ...]
 
 WP-1905; `PROTOCOL.md` is the registration this instrument serves.
 
@@ -22,8 +22,13 @@ instructions to this script rather than files the harness reads:
 
 - ``@PYTHON@`` in ``prompt.md`` becomes the interpreter rietx is installed for
   (`--python`; default this checkout's ``.venv``). Run under Bash, the
-  harness's sandbox hides the home directory, so an interpreter under it cannot
-  start, and `build` says so rather than letting every fit fail in the run.
+  harness's sandbox decides what that interpreter can read. On Linux it hides
+  the home directory. On macOS it denies all of ``/Users`` and ``/tmp`` and
+  allows only the plugin root, the run's own home and the ``PATH``
+  directories (PROTOCOL.md § Prerequisites). `--venv` therefore installs this
+  checkout, non-editable, into ``<out>/runtime`` and uses that interpreter,
+  which works on both. `build` warns about an interpreter outside the plugin
+  root rather than letting every fit fail in the run.
 - ``inputs.txt`` lists what the run's workspace starts with, one per line:
   ``copy <repo path> [as <name>]``, or ``episode <name>`` for a generated set
   (`EPISODES`). `build` stages them into the case's ``files/`` and writes the
@@ -60,6 +65,11 @@ INPUTS = "inputs.txt"
 GENERATED = ("fixture.sh", "case.yaml", "files")
 #: Written into every build; its presence is what lets `build` clear `<out>`.
 STAMP = "build.json"
+#: Where `--venv` installs the interpreter, inside the plugin root because that
+#: is the one directory the sandbox lets a run read on every platform.
+RUNTIME = "runtime"
+#: Temporary roots the sandbox denies reads under (measured macOS 2026-10-06).
+TEMP_ROOTS = ("/tmp/", "/private/tmp/", "/var/folders/", "/private/var/folders/")
 #: The first words of every case's `description`: what its score is evidence
 #: of (PROTOCOL.md § Cases). A regression guard is one today's body passes and
 #: no skill fails; a deciding case is one today's body fails, the case a
@@ -142,6 +152,21 @@ def _clear(out: Path) -> None:
     shutil.rmtree(out)
 
 
+def _runtime(out: Path) -> Path:
+    """Install this checkout, non-editable, into ``<out>/RUNTIME``.
+
+    Non-editable, because an editable install imports the checkout's ``src``,
+    which lies under the home directory the sandbox denies.
+    """
+    venv = out / RUNTIME
+    subprocess.run(["uv", "venv", "-q", "--python", "3.12",
+                    "--python-preference", "system", str(venv)], check=True)
+    python = venv / "bin" / "python"
+    subprocess.run(["uv", "pip", "install", "-q", "--python", str(python), str(REPO)],
+                   check=True)
+    return python
+
+
 def _stage(case: Path, files: Path, python: Path, out: Path) -> None:
     files.mkdir(parents=True)
     for verb, source, name in parse_inputs((case / INPUTS).read_text(encoding="utf-8")):
@@ -167,10 +192,30 @@ def _scaffold(built: Path, name: str) -> None:
         encoding="utf-8")
 
 
+def unreachable(python: Path, out: Path) -> list[str]:
+    """Why a run's sandbox would refuse to start ``python``; empty when it can.
+
+    The interpreter must lie in the plugin root, and the base interpreter its
+    symlink resolves to must lie outside the home directory and ``/tmp``.
+    """
+    why = []
+    if out not in python.parents:
+        why.append(f"{python} is outside the plugin root {out}, and on macOS the "
+                   "sandbox lets a run read nothing else (pass --venv)")
+    base = python.resolve()
+    if Path.home() in base.parents or str(base).startswith(TEMP_ROOTS):
+        why.append(f"its base interpreter {base} lies under the home directory or "
+                   "/tmp, which the sandbox denies on every platform")
+    return why
+
+
 def build(tree: Path, out: Path, *, python: Path | None = None,
-          body: Path | None = None, only: list[str] | None = None) -> dict:
+          body: Path | None = None, only: list[str] | None = None,
+          venv: bool = False) -> dict:
     """Write the plugin to ``out`` and return what `STAMP` records."""
     tree, out = Path(tree).resolve(), Path(out).resolve()
+    if venv and python:
+        raise SystemExit("--venv and --python both name the interpreter: pass one")
     # Absolute, never resolved: a relative path names nothing in the run's
     # workspace or the episode's cwd, and resolving a venv's symlink would
     # name the base interpreter, which has no rietx.
@@ -178,10 +223,12 @@ def build(tree: Path, out: Path, *, python: Path | None = None,
     body = Path(body).absolute() if body is not None else None
     if not (tree / "SKILL.md").is_file():
         raise SystemExit(f"{tree} holds no SKILL.md: not a skill tree")
-    if Path.home() in python.parents or Path.home() in python.resolve().parents:
-        print(f"warning: {python} is under {Path.home()}, which the eval sandbox "
-              "hides; Bash in a run cannot start it (pass --python)", file=sys.stderr)
     _clear(out)
+    out.mkdir(parents=True)
+    if venv:
+        python = _runtime(out)
+    for why in unreachable(python, out):
+        print(f"warning: {why}; Bash in a run cannot start it", file=sys.stderr)
 
     skill = out / "skills" / "rietx"
     shutil.copytree(tree, skill, ignore=shutil.ignore_patterns("__pycache__", ".DS_Store"))
@@ -221,9 +268,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("out", type=Path, help="the plugin directory to write")
     ap.add_argument("--body", type=Path, help="a SKILL.md to put in the copied tree")
     ap.add_argument("--python", type=Path, help="the interpreter rietx is installed for")
+    ap.add_argument("--venv", action="store_true",
+                    help="install this checkout into <out>/runtime and use that interpreter")
     ap.add_argument("--case", action="append", help="build only cases matching this glob")
     args = ap.parse_args(argv)
-    stamp = build(args.tree, args.out, python=args.python, body=args.body, only=args.case)
+    stamp = build(args.tree, args.out, python=args.python, body=args.body, only=args.case,
+                  venv=args.venv)
     print(f"{args.out}: {len(stamp['cases'])} cases, SKILL.md {stamp['skill_sha256'][:12]}, "
           f"python {stamp['python']}")
     return 0

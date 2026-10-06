@@ -130,7 +130,7 @@ numbers. What a fresh session needs from it:
 
 ```sh
 .venv/bin/python -m pytest tests/test_eval_skill.py tests/test_skill.py -q
-.venv/bin/python tests/eval_skill/build.py docs/skill/rietx /tmp/skill-eval && claude plugin eval /tmp/skill-eval --case fap-judge --runs 1 --ablation none --model haiku --scaffold --allow-tools Bash --trust-plugin --no-publish --json /tmp/skill-eval.json
+.venv/bin/python tests/eval_skill/build.py docs/skill/rietx /tmp/skill-eval --venv && claude plugin eval /tmp/skill-eval --case fap-judge --runs 1 --ablation none --model haiku --scaffold --allow-tools Bash --trust-plugin --no-publish --json /tmp/skill-eval.json
 .venv/bin/python -m ruff check src tests examples
 ```
 

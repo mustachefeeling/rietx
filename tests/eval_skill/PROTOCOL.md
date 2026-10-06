@@ -213,14 +213,14 @@ beside the decision, not folded into it**, which matters for a candidate whose
   four cores took 10-15 min each against 11 s for the same script outside the
   sandbox, and two of four cells timed out at 1 500 s (WP-1904 finding 2).
   **Before the first scored round, one fit is measured inside the sandbox**,
-  alone on the machine, and both cases' `timeout_seconds` (2 400 s now, the
-  pilot's guess) is set from it. The measurement, the value chosen and why are
+  alone on the machine, and both cases' `timeout_seconds` (2 400 s at
+  registration, the pilot's guess) is set from it. The measurement, the value chosen and why are
   Amendment 1.1, dated, made before the first scored fit-case run; whether the
   sandbox's read-only venv defeats numba's kernel cache is read in the same
   measurement. Every round's `-j` is printed beside its wall times.
 
 ```sh
-.venv/bin/python tests/eval_skill/build.py docs/skill/rietx <out> --python <interpreter>
+.venv/bin/python tests/eval_skill/build.py docs/skill/rietx <out> --venv
 claude plugin eval <out> --model <haiku|sonnet> --judge-model sonnet --runs 3 \
     --scaffold --allow-tools Bash Write --trust-plugin --no-publish --keep-temp \
     --max-cost-usd <ceiling> --json <result>.json --tag fap [--ablation none] -j 1
@@ -235,9 +235,16 @@ claude plugin eval <out> --model <haiku|sonnet> --judge-model sonnet --runs 3 \
 - **A sandbox backend**: granted `Bash`, every command runs under Claude Code's
   OS sandbox, and with no backend each run is refused and scores about 0. On
   Linux that is `bubblewrap` and `socat`, which the pilot had to install.
-- **An interpreter outside the home directory** with rietx installed, passed as
-  `--python`: the sandbox hides the home directory, so an interpreter under it
-  cannot start, and `build.py` warns.
+- **An interpreter inside the plugin root**, built there by `build.py --venv`
+  (a non-editable install of the checkout). The sandbox decides what a run's
+  Bash can read. On Linux it hides the home directory. On macOS it denies all
+  of `/Users` and `/tmp`, and allows only the plugin root, the run's own home
+  and the `PATH` directories (read off a kept run's `config/settings.json`,
+  2026-10-06). Two runs on macOS were void for this: one interpreter lay in
+  Claude Code's temp directory and one in `/Users/Shared`. Neither could start,
+  and each run ended asking for a sandbox change. `build.py` warns about an
+  interpreter outside the plugin root, or one whose base lies under the home
+  directory or `/tmp`.
 - **The flags**: `--scaffold` (the fixtures), `--allow-tools Bash Write`,
   `--trust-plugin`, `--no-publish`, `--keep-temp` (the traces, which tokens, the
   route and leaks are read from and which the harness otherwise deletes), and
@@ -368,6 +375,29 @@ How the agent writes; whether its route was the body's worked default; the
 harness's own Δ, with against without inside one round, which the decision
 rule does not read (it compares body against body); anything about one model
 licensed by the other's round.
+
+## Amendments
+
+### Amendment 1.1, 2026-10-06: the fit cases' timeout, from one run alone
+
+Made before any scored fit-case run. One `fap-fit` run, Haiku, with-arm only
+(`--ablation none --runs 1`), alone on a 10-core Mac (macOS sandbox, Claude
+Code 2.1.291), built with `--venv`. It is not a scored run.
+
+- **The run took 271 s, 46 turns and $0.41.** Thirteen of its Bash calls ran
+  the agent's scripts, and each full fit took 7-9 s. That matches the pilot's
+  11 s outside the sandbox. So the sandbox costs a fit nothing, and the
+  pilot's 10-15 min came from four fits sharing four cores.
+- **The read-only venv does not defeat numba's kernel cache.** rietx caches
+  kernels in the run's own home (`~/.rietx/numba-cache`, 10 files in the kept
+  run), so each run compiles once, on its first fit.
+- **Both fit cases' `timeout_seconds` is now 1 200 s**, 4.4 times this run.
+  `max_turns` (60) bounds a run first, and at 60 turns this run's pace is
+  about 350 s. The margin covers Sonnet's slower turns and fits that do more
+  work. A timeout that binds would score a slow run as a failed one.
+- **Two earlier attempts were void** (§ Prerequisites): their interpreter lay
+  where the macOS sandbox denies reads, and neither run could start Python.
+  They cost $0.20 together, and neither is a measurement.
 
 ## Results
 
