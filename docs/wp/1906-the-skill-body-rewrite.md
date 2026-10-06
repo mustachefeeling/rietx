@@ -1,9 +1,8 @@
 # WP-1906 — the skill body rewrite: under 5 000 tokens, rules first, evidence in the references, the contradictions resolved
 
-Milestone: unscheduled · Status: 🔄 2026-10-06 — body rewritten and measured (rule holds on Haiku and Sonnet); one follow-up edit and its round left
+Milestone: unscheduled · Status: ✅ 2026-10-07 — body at 16 999 B, the decision rule holding on Haiku and Sonnet
 Track: The repo's own process
 Depends on: 1905 (the before-and-after it is judged by); 1532 soft (its fourteen rows land on the rewritten body)
-Priority: P2 2026-10-06 — 1905 measured the baseline, and on Haiku the body steers every from-scratch fit to a degenerate route; every session that loads the skill pays its 8 700 tokens
 
 ## Goal
 
@@ -177,6 +176,42 @@ restates what decides the design.
   Cryst.* **57**, 175 — the two sources the body's protocol rests on.
 
 ## Handover log
+
+- **2026-10-07** — Closed. The last task fixed the one loss the rewrite
+  had measured. On a task to reproduce another program's refinement, Sonnet
+  had copied the worked example and used generic wavelengths. One clause now
+  sends that task to the comparison rule, which names the file's
+  wavelengths. On the final body the decision rule holds on both models, and
+  Sonnet scores 1.00 on every case at fewer tokens than today's body on both
+  fit cases. The body is 16 999 B, 1 B under its budget, so anything WP-1532
+  adds to it is paid for by a cut.
+
+  *Done.* §10's opening: "To reproduce another program's fit, follow §4
+  instead". §4's comparison rule: "adopt its file's wavelengths, refined set,
+  held parameters and excluded regions". Six trims pay for both (an
+  introduction, the P-spline clause, rule 17's second sentence, §10's last
+  line, rules 12 and 20 by a few words).
+
+  *Measured* (round G, N = 3, against B and C; `tests/eval_skill/PROTOCOL.md`
+  § Round G, result files in `docs/wp/1906-eval/`). Sonnet: fap-fit 1.00,
+  fap-gsas-reproduce 1.00 (`file_wavelengths` 3 of 3, from 0 of 3 in F2),
+  fap-judge 1.00; tokens per run 838k → 482k and 1136k → 929k on the fit
+  cases. Haiku: fap-fit 0.43 → 1.00, fap-gsas-reproduce 0.46 → 0.38,
+  fap-judge 0.83 → 0.92. Haiku's reproduce runs parse FAP.EXP by hand and fail
+  the cell graders on both bodies, so `file_wavelengths` is the only
+  difference there. $4.74 for the round; $11.60 over the WP. Tests after the
+  edit ([dev] venv, darwin/arm64): `test_skill.py`, `test_skill_cli.py`,
+  `test_docs_consistency.py`, `test_manual.py`, 198 passed. No test was added
+  and nothing numeric moved, so the fast selection was not rerun. Its last run
+  is the entry below. No lane ran in this part: the item needed this session's
+  judgement and the maintainer's spend.
+
+  *Review.* Prose only since the last `/code-review`, so none ran: the
+  change is SKILL.md text, the protocol's Results and WP files.
+
+  Next: nothing on this WP. WP-1532's rows land on this body next, each paid
+  for by a cut (its Inherited). Measuring Opus on the suite is unpriced and
+  open.
 
 - **2026-10-06** — The skill's body is now a third shorter than before (16 996 B
   against 29 687), under the 5 000-token budget that survives compaction, and

@@ -57,7 +57,8 @@ The row needs that check before it is written.
 ### Inherited
 
 - **From WP-1906 (2026-10-06), the body these rows land on.** `SKILL.md`'s
-  body is 16 996 B against `SKILL_BUDGET_BYTES` (17 000), so every byte a
+  body is 16 999 B against `SKILL_BUDGET_BYTES` (17 000; WP-1906 closed
+  2026-10-07), so every byte a
   row adds to the body is paid by a cut there. Rules keep their numbers 1-22;
   the stop conditions are now 23-25. A row an agent needs at fit time takes
   the cheapest place first (`help.py`, a `Diagnostic.suggestion`, a
