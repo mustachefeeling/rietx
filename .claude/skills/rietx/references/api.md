@@ -31,13 +31,13 @@ Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities(
 - `rx.read_project_model(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> ProjectModel` — Read a refinement another program wrote, dispatching on *content*.
 - `rx.identify_project_format(path: str | Path) -> ProjectFormat` — Which registered project format claims `path` — the dispatch, once.
 - `rx.read_topas_inp(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> TopasModel` — Parse a `.inp`.
-- `rx.write_topas_inp(structure: Structure, path: str | Path, *, diagnostics: list[Diagnostic] | None = None, p1_expand: bool = False, free=None, scale=None, instrument=None)` — Write `structure` as a TOPAS `.inp`.
+- `rx.write_topas_inp(structure: Structure, path: str | Path, *, diagnostics: list[Diagnostic] | None = None, p1_expand: bool = False, free=None, scale=None, instrument=None)` — Write a TOPAS `.inp`.
 - `rx.read_fullprof_pcr(path: str | Path) -> FullProfModel` — Parse a `.pcr`.
 - `rx.write_fullprof_pcr(structure: Structure, path: str | Path, *, instrument: Instrument | None = None, diagnostics: list[Diagnostic] | None = None)` — Write `structure` to `path` as a FullProf `.pcr`.
 - `rx.read_gsas_exp(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> GsasModel` — Read a GSAS-I `.EXP` experiment file.
 - `rx.write_gsas_exp(structure: Structure, path: str | Path, *, title: str = '', diagnostics: list[Diagnostic] | None = None)` — Write `structure` to `path` as a GSAS-I `.EXP`.
 - `rx.read_gsas2_gpx(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> Gsas2Model` — Read a GSAS-II `.gpx` project file.
-- `rx.write_gsas2_phase_cif(structure, path: str | Path, *, diagnostics: list[Diagnostic] | None = None)` — Write `structure` to `path` as the phase CIF GSAS-II imports.
+- `rx.write_gsas2_phase_cif(structure, path: str | Path, *, diagnostics: list[Diagnostic] | None = None)` — Write the phase CIF GSAS-II imports.
 - `rx.read_gsas2_instprm(path: str | Path, *, bank: int | None = None, diagnostics: list[Diagnostic] | None = None) -> Instrument` — Read a GSAS-II `.instprm` file as a **frozen** `Instrument`.
 - `rx.write_gsas2_instprm(instrument: Instrument, path: str | Path, *, diagnostics: list[Diagnostic] | None = None)` — Write `instrument` to `path` as a GSAS-II `.instprm`.
 - `rx.Structure.from_cif(path: str | os.PathLike[str], *, phase_name: str | None = None, aniso: bool = False, moment_ions: dict[str, str] | None = None, moment_g: dict[str, float] | None = None, nuclear_group: Literal['auto', 'parent', 'file'] = 'auto', diagnostics: list | None = None) -> Structure` — Read a CIF, or a **magCIF**, into a `Structure`.

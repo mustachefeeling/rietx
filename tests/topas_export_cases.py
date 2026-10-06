@@ -2,8 +2,10 @@
 
 Each case is a model of ours, built here and nowhere else, so the oracle files
 in ``tests/data/topas_export_<case>_ycalc.txt`` (TOPAS-64 v6's Y_calc at zero
-cycles for the file :func:`rietx.write_topas_inp` writes for the case) and the
-tests that read them build exactly the same thing. Nothing here is measured
+cycles for a whole TOPAS input written from the case: the ``str`` block, the
+background, the zero shift and any extinction term, which
+:func:`rietx.write_topas_inp` does not write whole) and the tests that read
+them build exactly the same thing. Nothing here is measured
 data: every pattern is rietx's own ``predict()`` of the case, and TOPAS's
 answer is compared with it point for point.
 """

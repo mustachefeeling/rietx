@@ -5070,7 +5070,7 @@ def write_topas_inp(structure: Structure, path: str | Path, *,
                     diagnostics: list[Diagnostic] | None = None,
                     p1_expand: bool = False, free=None, scale=None,
                     instrument=None) -> None:
-    """Write ``structure`` as a TOPAS ``.inp``. See
+    """Write a TOPAS ``.inp``. See
     :func:`from_structure` for exactly what carries and what does not, and
     for ``p1_expand``, ``free``, ``scale`` and ``instrument``."""
     Path(path).write_text(

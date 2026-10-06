@@ -112,7 +112,45 @@ class _Row:
     hi: float
 
 
-def _rows_from(free: Any) -> tuple[dict[str, _Row] | None, set[str] | None, bool]:
+def _result_rows(parameters: Any, structure) -> dict[str, _Row]:
+    """The rows a ``RefinementResult`` states, with the symmetry ties restored.
+
+    A result lists a row iff it varied *or was tied* (``RefinedParameter``) and
+    carries no equation, so its ``vary=False`` rows are two things: a **user**
+    tie's copy (``Refinement.tie``), whose equation the result does not keep and
+    which is written as its own refined parameter, and a **symmetry** tie (a
+    cubic cell's ``b`` and ``c``, a special position's coordinates through its
+    site DOFs), which TOPAS has no business refining as a parameter of its own:
+    the structure rederives those from its own space groups, exactly as every
+    ``ParameterTable`` build does, and they are written from their sources.
+    """
+    from ...params.vector import ParameterTable
+    from ...schemas.instrument import Instrument
+
+    table = {e.path: e for e in ParameterTable(
+        structure, Instrument.constant_wavelength_neutron(1.0)).entries}
+    rows: dict[str, _Row] = {}
+    for p in parameters:
+        entry = table.get(p.path)
+        if not p.vary and entry is not None and entry.tie is not None:
+            rows[p.path] = _Row(float(p.value), False,
+                                ([(s, float(c)) for s, c in entry.tie.terms],
+                                 float(entry.tie.const)), -math.inf, math.inf)
+        else:
+            rows[p.path] = _Row(float(p.value), True, None, -math.inf, math.inf)
+    for r in list(rows.values()):
+        if r.tie is None:
+            continue
+        for src, _ in r.tie[0]:
+            if src not in rows:     # a held source: its value, nothing to refine
+                held = table.get(src)
+                rows[src] = _Row(float(held.value) if held is not None else 0.0,
+                                 False, None, -math.inf, math.inf)
+    return rows
+
+
+def _rows_from(free: Any, structure=None
+               ) -> tuple[dict[str, _Row] | None, set[str] | None, bool]:
     """``(rows, free_paths, has_ties)`` from whatever ``free=`` was given."""
     if free is None:
         return None, None, False
@@ -120,10 +158,9 @@ def _rows_from(free: Any) -> tuple[dict[str, _Row] | None, set[str] | None, bool
     if callable(parameters):          # a Refinement: the whole table, ties included
         free = parameters()
     elif parameters is not None:      # a RefinementResult: free set and tied copies
-        # A result lists a row iff it varied *or was tied* (RefinedParameter), so
-        # a ``vary=False`` row is a tied copy. Its equation is not in the result,
-        # so each copy is written as its own refined parameter.
-        return None, {p.path for p in parameters}, False
+        if structure is None:
+            return None, {p.path for p in parameters}, False
+        return _result_rows(parameters, structure), None, False
     items = list(free)
     if items and isinstance(items[0], str):
         return None, set(items), False
@@ -176,13 +213,17 @@ class RefinedSet:
 
     ``free`` is a ``Refinement`` (its ``parameters()``: the free set **and** every
     tie), a list of ``ParameterRow`` (the same), a ``RefinementResult`` (the free
-    set only) or an iterable of paths (the free set only). Without ties each
-    copy of a tied value is written as its own parameter, which
-    :attr:`has_ties` lets a caller report.
+    set and the symmetry ties; a user tie's copy is written free) or an iterable
+    of paths (the free set only). Without ties each copy of a tied value is
+    written as its own parameter, which :attr:`has_ties` lets a caller report.
     """
 
     def __init__(self, free: Any, structure=None):
-        self.rows, self.free_paths, self.has_ties = _rows_from(free)
+        self.rows, self.free_paths, self.has_ties = _rows_from(free, structure)
+        #: True when the rows came from a ``RefinementResult`` (symmetry ties
+        #: restored, user ties not kept)
+        self.from_result = (self.rows is not None and not callable(
+            getattr(free, "parameters", None)) and hasattr(free, "parameters"))
         self.structure = structure
         #: True when the free set is the structure's own stored flags (no ``free=``)
         self.from_stored_flags = False

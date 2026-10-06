@@ -781,10 +781,15 @@ what a test holds rietx to. The X-ray one is the Technical Reference's
 definition, with no TOPAS output in the tree to hold it yet. It needs
 `instrument=`, which says which radiation it is. `scale="rietx"` writes rietx's own number and says that it is not
 TOPAS's. Without `free=`, the file states each `Parameter.vary` as stored (a
-moment's modulus is free when any component's flag is), whether or not `scale=`
-or `instrument=` is given; with none of the three the writer writes exactly what
-it wrote before. A `RefinementResult` lists a tied copy beside the free
-parameters, so each copy is written as its own refined parameter.
+moment's modulus is free when any component's flag is, and its direction is
+held, where the older writer freed all three components), whether or not
+`scale=` or `instrument=` is given; with none of the three the writer writes
+exactly what it wrote before. A `RefinementResult` lists a tied copy beside the
+free parameters but not the equation: a symmetry tie (a cubic cell's `b` and
+`c`, a special position's coordinates) is rederived from the structure and
+written from its source, while a copy made by `Refinement.tie` is written as its
+own refined parameter. `p1_expand=True` cannot be combined with `free=`,
+`scale=` or `instrument=`.
 
 All three write space groups from `get_spacegroup(...).xhm()`, never a
 phase's own stored spelling, so a setting this build already resolved is not

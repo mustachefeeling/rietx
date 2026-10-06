@@ -11,8 +11,10 @@ it is given more:
   stated in a comment (#722).
 
 Everything here was written from the TOPAS Technical Reference (its keywords
-and its § 2 parameter grammar) and from TOPAS 6 runs as a black box; no TOPAS
-code or macro body was read.
+and its § 2 parameter grammar) and, for the neutron scale constant, from a TOPAS 6
+run as a black box; no TOPAS code or macro body was read. A moment's equations
+(``Sin``/``Cos`` of its angle DOFs, taken here in radians) and the X-ray scale
+constant have not been run in TOPAS.
 """
 
 from __future__ import annotations
@@ -172,7 +174,7 @@ def refined_text(structure, *, refined: RefinedSet, scale: str, instrument,
                  provenance: str) -> str:
     """The ``.inp`` text: the header (what the scale is), the ``prm``
     declarations the ties need, and one ``str`` per phase."""
-    from ...crystallography.symmetry import get_spacegroup
+    from .topas import _topas_space_group
 
     notes: list[str] = []
     factor = 1.0
@@ -181,10 +183,13 @@ def refined_text(structure, *, refined: RefinedSet, scale: str, instrument,
             raise ValueError("scale='topas' needs instrument= (the constant depends "
                              "on the radiation)")
         factor = topas_scale_factor(instrument)
+        xray = instrument.source.kind != "neutron_cw"
         notes.append(
             f"scale: TOPAS convention (LP_Factor, |F|^2 in "
-            f"{'barn' if instrument.source.kind == 'neutron_cw' else 'electrons^2'})"
-            f" = rietx Phase.scale x {number(factor)}")
+            f"{'electrons^2' if xray else 'barn'}) = rietx Phase.scale x "
+            f"{number(factor)}"
+            + (" (x K is the Technical Reference's definition, not yet checked "
+               "against a TOPAS output)" if xray else ""))
     else:
         notes.append("scale: rietx's own Phase.scale, NOT TOPAS's convention "
                      "(TOPAS's is x100 for neutrons, xK for X-rays)")
@@ -193,12 +198,16 @@ def refined_text(structure, *, refined: RefinedSet, scale: str, instrument,
     elif refined.rows is None and refined.free_paths is not None:
         notes.append("free set given without ties: a tied copy refines as its own "
                      "parameter (pass the Refinement to free= for the ties)")
+    elif refined.from_result:
+        notes.append("free set from a result: symmetry ties are written as "
+                     "equations over their sources; a user tie's copy refines "
+                     "as its own parameter (a result does not keep the tie)")
     body: list = []
     for ip, phase in enumerate(structure.phases):
         header = [f'phase_name "{phase.name}"']
         mag_number = magnetic_numbers.get(ip)
         if mag_number is None:
-            header.append(f'space_group "{get_spacegroup(phase.space_group).xhm()}"')
+            header.append(f'space_group "{_topas_space_group(phase.space_group)}"')
         else:
             header.append(f"mag_space_group {mag_number}")
         if phase.extinction.value != 0.0:

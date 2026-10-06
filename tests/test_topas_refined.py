@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 
 import rietx as rx
-from rietx.io.projects.topas import from_structure
+from rietx.io.projects.topas import TopasInpError, from_structure
 from rietx.io.projects.topas_refined import (
     NEUTRON_SCALE_FACTOR,
     Affine,
@@ -224,6 +224,50 @@ def test_a_result_keeps_its_tied_copies_free():
     assert "refines as its own parameter" in text
 
 
+def test_a_result_writes_a_symmetry_tied_row_from_its_source():
+    """Round-2 item 2: ``RefinementResult.parameters`` lists a cubic cell's ``b``
+    and ``c`` (``vary=False``, tied), and TOPAS refines a cubic cell as three
+    independent lengths if each is a free name of its own."""
+    from rietx.schemas.results import RefinedParameter
+
+    structure = rx.Structure(phases=[nacl()])
+    ref = rx.Refinement(structure, rx.Instrument.constant_wavelength_neutron(2.4),
+                        history=False)
+    ref.set_vary(["phases.0.cell.*"], True)
+    rows = [r for r in ref.parameters() if r.vary or r.tie is not None]
+    assert {"phases.0.cell.b", "phases.0.cell.c"} <= {r.path for r in rows if not r.vary}
+
+    class _Result:
+        parameters = [RefinedParameter(path=r.path, value=r.value, vary=r.vary)
+                      for r in rows]
+
+    text = from_structure(ref.fitted_structure, free=_Result())
+    cell = {m[1]: m[2] for m in re.finditer(r"^\s+(a|b|c) (.+)$", text, re.M)}
+    assert cell["a"].startswith("p0_cell_a")
+    # an equality tie is spelled as one shared name (§ 2.3)
+    assert cell["b"].startswith("p0_cell_a ") and cell["c"].startswith("p0_cell_a ")
+    assert "p0_cell_b" not in text and "p0_cell_c" not in text
+    # the same file the Refinement itself gives
+    assert text.count("p0_cell_a") == from_structure(
+        ref.fitted_structure, free=ref).count("p0_cell_a")
+
+
+def test_p1_expand_is_refused_beside_the_refined_set():
+    with pytest.raises(ValueError, match="p1_expand"):
+        from_structure(rx.Structure(phases=[_pnma()]), p1_expand=True, free=["x"])
+
+
+def test_the_refined_path_spells_the_space_group_as_the_plain_one_does():
+    """The refined path wrote ``xhm()`` where main's writer spells TOPAS's own
+    ``S`` suffix for origin choice 1 (`F d -3 m:1` stops TOPAS)."""
+    structure = rx.Structure(phases=[_pnma()])
+    structure.phases[0].space_group = "F d -3 m:1"
+    plain = re.search(r'space_group "(.*)"', from_structure(structure)).group(1)
+    assert plain == "Fd-3mS"
+    refined = from_structure(structure, free=[])
+    assert f'space_group "{plain}"' in refined
+
+
 def _read_back(structure, tmp_path, **kwargs):
     from rietx.io.projects.topas import read_topas_inp, to_structure
 
@@ -293,7 +337,7 @@ def test_a_free_moment_is_written_as_the_equation_the_site_symmetry_gives():
         assert eval(expr, {"__builtins__": {}}, env) * edge == pytest.approx(want, rel=1e-9)
 
 
-@pytest.mark.xfail(strict=True, reason="this package's reader does not yet read an "
+@pytest.mark.xfail(strict=True, raises=TopasInpError, reason="this package's reader does not yet read an "
                    "equation for `mlx` (#771): the round trip lands with whichever "
                    "of #770 and #771 merges second")
 def test_a_free_moment_is_read_back(tmp_path):
