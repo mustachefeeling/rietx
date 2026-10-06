@@ -1091,7 +1091,7 @@ class ParameterTable:
         #: too, being an atom-like site): with the rotations, the increments
         #: that restart at every build while the record moves, which is what
         #: :meth:`_refuse_body_increment_tie` refuses as a tie source
-        self._body_origin_dofs: set[str] = set()
+        self._body_origin_dofs: dict[str, tuple[str, ...]] = {}
         #: body base path → (q₀, R₀, E) as the last :meth:`commit` found them,
         #: so a stage that restores a collapsed phase to where it began can
         #: put the anchor back too (:meth:`restore_body_anchors`)
@@ -1352,7 +1352,8 @@ class ParameterTable:
             raise ValueError(f"rigid body {body.name!r}: {exc}") from None
         before = set(self._anchored_dofs)
         self._collect_atom_coords(f"{bbase}.origin", sg, body.origin)
-        self._body_origin_dofs.update(set(self._anchored_dofs) - before)
+        self._body_origin_dofs[bbase] = tuple(d for d in self._anchored_dofs
+                                              if d not in before)
         # the anchored-rotation kind: identity entries (radians) that a commit
         # composes into R₀ and zeroes, boxed so |δω| stays below the 2π where
         # the exponential map's Jacobian degenerates (WP-1803's handover)
@@ -1401,6 +1402,18 @@ class ParameterTable:
     def body_rows(self) -> dict[str, str]:
         """Every derived row a rigid body writes → that body's name (WP-1805)."""
         return {q: name for _, name, block in self._bodies for q in block.outputs}
+
+    def body_dofs(self) -> dict[str, str]:
+        """Every rigid body's own DOF → that body's name (WP-1805).
+
+        Its origin's displacement DOFs and its rotation DOFs, read off the data
+        :meth:`_collect_body` built.
+        """
+        out: dict[str, str] = {}
+        for bbase, name, _ in self._bodies:
+            out.update(dict.fromkeys(self._anchored_rotations[bbase], name))
+            out.update(dict.fromkeys(self._body_origin_dofs[bbase], name))
+        return out
 
     def body_bond_errors(self) -> dict[str, float]:
         """Per body, the largest |d_ij − d_ij(template)| over its atoms (Å).
@@ -2259,7 +2272,9 @@ class ParameterTable:
         """
         if any(path in paths for paths in self._anchored_rotations.values()):
             return "rotation"
-        return "origin" if path in self._body_origin_dofs else None
+        if any(path in dofs for dofs in self._body_origin_dofs.values()):
+            return "origin"
+        return None
 
     def _refuse_body_increment_tie(self, path: str, tie: AffineTie) -> None:
         """A body increment ties only to an increment of its own kind (WP-1805).
