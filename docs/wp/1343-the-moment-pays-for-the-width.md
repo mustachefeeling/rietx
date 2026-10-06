@@ -1,6 +1,6 @@
 # WP-1343 — the magnetic peaks are broader, and the moment pays for it
 
-Milestone: magnetic · Status: 🔄 2026-09-30 — PR #524 merged: 9 of 11 tasks done; open: a synthetic k = 0 no-esd case, the PNGs, and acceptance 4 on real k ≠ 0 data
+Milestone: magnetic · Status: 🔄 2026-10-06 — PR #734 merged (#729's warm-refit silence); 9 of 11 tasks done; open: a synthetic k = 0 no-esd case, the PNGs, and acceptance 4 on real k ≠ 0 data
 Depends on: 1327 (the moment, the magnetic |F_⊥|², the shared scale);
 1326 soft (the satellites that make the term identifiable)
 Priority: P2 2026-10-05 — was P3: `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` fires on a warm refit under `fit` (#729), a flag firing wrongly whose workaround is `run_stage`
@@ -415,6 +415,19 @@ the cheaper of the two at the time; the skill row is required either way.
   observed-width measurement this WP deliberately does not wait on.
 
 ## Handover log
+
+- **2026-10-06** — PR #734 (outside contributor, issue #729) merged as
+  `36765711`. `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` is now silent where
+  the width starts the stage above zero. The order the code describes starts
+  widths held at zero, so a width with a value is a refit of a measured one,
+  and the warm-refit false alarm of #729 is gone. The skill row in
+  `references/magnetic.md` says so, in all three copies. It was gated on a
+  six-PR stack replayed onto `65a78ab7`. On macOS arm64 with a `[dev,jax]`
+  venv the full suite gave 8724 passed, 110 skipped, 1 failed. The failure is
+  `test_backend_shim.py::test_numpy_path_bit_identical_to_golden[toy_anomalous]`,
+  which fails on bare `origin/main` on that machine too. No task below is
+  ticked by it, because #729 arrived as an inherited item. The three open
+  tasks are unchanged.
 
 - **2026-09-30** — A magnetic phase's magnetic peaks can now be broader
   than its nuclear ones, so a specimen whose magnetic order is coherent over

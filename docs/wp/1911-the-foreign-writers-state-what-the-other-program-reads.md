@@ -1,6 +1,6 @@
 # WP-1911 — the foreign writers state what the other program reads: the setting, the scale, the free set
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-06 — PRs #720 and #731 merged from outside; the Part A decision is open
 Track: Coming from another code
 Depends on: — (#713 soft: the P1 restatement Part D builds on)
 Priority: P2 2026-10-05 — a rhombohedral-axes phase is written to FullProf as a different crystal with nothing raised (#716), on a path few fits run; the other four issues cost a user hand edits (P3 on their own)
@@ -352,6 +352,26 @@ land alone before the transform exists.
   keywords (specification only, per ATTRIBUTION.md).
 
 ## Handover log
+
+- **2026-10-06** — Two of this WP's inherited TOPAS-writer fixes merged
+  from the reporter's fork, gated together on a six-PR stack (macOS arm64,
+  `[dev,jax]`, full suite 8724 passed, 110 skipped, 1 failed on a golden
+  that fails on bare `main` on that machine too).
+  - PR #720 (#714) as `68792ad1`. A moment component outside
+    `allowed_moment_basis` at the site is written `!`, so TOPAS no longer
+    stops on a component with no derivative. The basis is asked at the
+    stored coordinates with `SITE_TOL`, the tolerance #710's snap uses, so
+    the two agree once #710 lands. A coupled basis row such as (1, 1, 0)
+    still flags all three components. Part D's ties task owns that.
+  - PR #731 (#715) as `7ad82745`. The family-group refusal no longer names
+    `nuclear_group='file'` as its remedy, which looped. Part D's
+    `nuclear_group` task is untouched by it.
+  - Still open from the same fork: #710 (#706, #707), reviewed clean and
+    waiting on a rebase over #720; #713 (#709), held on the
+    `API_INDEX_MAX_BYTES` raise; #733 (#716), reviewed with one citation to
+    add. #733 *restates* a rhombohedral-axes phase, so it takes the
+    Part A decision below in the direction this WP did not recommend. That
+    decision is the maintainer's and is with them.
 
 - **2026-10-05** — created, from the 2026-10-05 issue triage (issues #715,
   #716, #721, #722, #723). Checked against the tree at 32ef5a6: #715's loop
