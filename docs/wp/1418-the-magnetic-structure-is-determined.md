@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: magnetic · Status: 🔄 2026-10-01 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-06 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -818,3 +818,18 @@ is stated in `PairVerdict`, not gated, and gating it is left to part 2's
 Farkas dual. `test_every_sampled_edge_prints_the_draws_it_actually_made` pins
 fit outcomes at one seed and `restarts=4`, and the nightly's Windows leg has
 not run it yet. *Next:* #565 part 2.
+
+- **2026-10-06** — #679's displacive isotropy group landed from outside: PR
+  #680 (`8c9bbc1a`). A displacive candidate's group now takes the coset
+  character ε(Δ), so an element acting as −D is enumerated and the
+  anti-translation is no longer emitted as a pure translation. The S10 tilt
+  irrep of `P m -3 m` at R now gives Howard & Stokes's (1998) six subgroups,
+  and the manual cites that paper beside them. The slow Ba₂FeSbSe₅ S3(a,b)
+  pin moves from an order-2 group with 24 atoms to order 4 with 12, and its
+  comment now gives the child's 40 atoms. The review took three rounds: the
+  re-pin, then the atom arithmetic and the citation. The last round was gated
+  on a six-PR stack replayed onto `65a78ab7` (macOS arm64, `[dev,jax]`, full
+  suite 8724 passed, 110 skipped, 1 failed on a golden that fails on bare
+  `main` on that machine too). *Gotcha:* the merged child is smaller, so
+  anything 1419 built on the 24-atom S3(a,b) child should be re-checked.
+  *Next:* unchanged, #565 part 2.
