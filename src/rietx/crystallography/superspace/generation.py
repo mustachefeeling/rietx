@@ -513,6 +513,12 @@ def _normaliser(basic: _Basic) -> tuple:
     P: lattice automorphism with P K P⁻¹ = K, one per coset K·P; p: every
     origin shift on the 1/24 grid with P g P⁻¹ ∈ G for the generators g,
     reduced modulo the lattice and with polar components zeroed.
+
+    These are the external blocks (S_R, S_v) of the equivalence map of
+    Stokes, Campbell & van Smaalen (2011), *Acta Cryst.* A**67**, 45,
+    eq. (13), restricted to maps that normalise the basic space group — the
+    change of basic cell of van Smaalen, Campbell & Stokes (2013),
+    *Acta Cryst.* A**69**, 75, § 3.1 and conclusions.
     """
     rots = basic.rotations
     rk = {_key9(r) for r in rots}

@@ -303,7 +303,12 @@ class SuperspaceOperator:
 
     def inverse(self) -> SuperspaceOperator:
         """The inverse operation: R⁻¹, ε, M′ = −εMR⁻¹, v′ = −R⁻¹v,
-        δ′ = −M′·v − εδ (the identity block of A(g)⁻¹A(g))."""
+        δ′ = −M′·v − εδ (the identity block of A(g)⁻¹A(g)).
+
+        A(g) is the augmented matrix of Stokes, Campbell & van Smaalen
+        (2011), *Acta Cryst.* A**67**, 45, eq. (1); the inverse is its matrix
+        inverse, written out in the blocks of their eqs (3)-(8).
+        """
         r = [[Fraction(x) for x in row] for row in self.rotation]
         inv = _inverse3(r)
         rinv = tuple(tuple(int(inv[i][j]) for j in range(3)) for i in range(3))
@@ -317,7 +322,11 @@ class SuperspaceOperator:
         return SuperspaceOperator(rinv, tuple(x % 1 for x in v2), e, m2, d2 % 1)
 
     def act(self, x, x4):
-        """Image of the superspace point (x, x₄): (Rx + v, M·x + εx₄ + δ)."""
+        """Image of the superspace point (x, x₄): (Rx + v, M·x + εx₄ + δ).
+
+        The augmented matrix of Stokes, Campbell & van Smaalen (2011),
+        *Acta Cryst.* A**67**, 45, eq. (1) applied to (x, x₄, 1).
+        """
         xv = np.asarray(x, dtype=float)
         r = np.asarray(self.rotation, dtype=float)
         x_new = r @ xv + np.array([float(t) for t in self.translation])
@@ -570,6 +579,13 @@ class SuperspaceGroup:
     set closes under composition modulo the lattice.
 
     ``symbol`` and ``number`` are labels only; nothing reads them back.
+    ``number`` has one writer, the caller: :meth:`from_operations` (or the
+    constructor) stores a four-part number (the numbering of Stokes, Campbell
+    & van Smaalen (2011), *Acta Cryst.* A**67**, 45, p. 47) verbatim and
+    unchecked.  Nothing in this package sets it — the generator does not
+    reproduce that numbering (:func:`~.generation.superspace_groups`), and
+    :func:`~.symbols.parse_symbol` and :meth:`transformed` leave it ``None`` —
+    so ``None`` means "not given", never "not numbered".
     """
 
     q: ModulationVector
@@ -883,7 +899,13 @@ class SuperspaceTransform:
         return ModulationVector(rat, tuple(free))
 
     def conjugate(self, op: SuperspaceOperator) -> SuperspaceOperator:
-        """S · A(op) · S⁻¹, reduced mod ℤ⁴."""
+        """S · A(op) · S⁻¹, reduced mod ℤ⁴.
+
+        The equivalence map of Stokes, Campbell & van Smaalen (2011),
+        *Acta Cryst.* A**67**, 45, eq. (13), applied to one operator; van
+        Smaalen, Campbell & Stokes (2013), *Acta Cryst.* A**69**, 75, § 2.1
+        state equivalence as the same map on the (3+d+1) augmented matrices.
+        """
         s = self.augmented()
         sinv = _inverse_n(s)
         g = _op_augmented(op)

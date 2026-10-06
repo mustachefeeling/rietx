@@ -195,6 +195,19 @@ def test_an_operation_inconsistent_with_q_is_refused():
         SuperspaceGroup(ModulationVector.parse("(0,0,γ)"), ops)
 
 
+def test_number_is_written_only_by_the_caller():
+    """``SuperspaceGroup.number`` has one writer, the caller (#682 review,
+    follow-up 1).  16.1.9.1 is P222(0,0,γ)000's four-part number as Stokes &
+    Campbell 2022 (Acta Cryst. A78, 364, p. 366) quote it; it is carried
+    verbatim, and nothing the package derives from the group invents one."""
+    gens = ("-x1,-x2,x3,x4", "x1,-x2,-x3,-x4")
+    g = SuperspaceGroup.from_operations("(0,0,γ)", gens, number="16.1.9.1")
+    assert g.number == "16.1.9.1"
+    assert SuperspaceGroup.from_operations("(0,0,γ)", gens).number is None
+    assert g.transformed(SuperspaceTransform.build(s_eps=-1)).number is None
+    assert all(h.number is None for h in superspace_groups(16))
+
+
 # ---------------------------------------------------------------------------
 # generation: counts from print
 # ---------------------------------------------------------------------------

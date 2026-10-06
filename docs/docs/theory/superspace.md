@@ -79,8 +79,8 @@ g_2 \;=\; S\,g_1\,S^{-1}.
 
 {source}`rietx.crystallography.superspace.equivalent`
 
-The generator counts 775 inequivalent groups over the 230 basic groups and
-24 Bravais classes of (3+1)D lattices, the numbers of {cite}`yamamoto1985` and
+The generator counts {{ N_SUPERSPACE_GROUPS_D1 }} inequivalent groups over the 230 basic groups and
+{{ N_BRAVAIS_CLASSES_D1 }} Bravais classes of (3+1)D lattices, the numbers of {cite}`yamamoto1985` and
 {cite}`stokes2011`, and the test suite asserts both. Groups are compared as
 operator lists under {eq}`ss-equivalence`, never as symbols: a symbol is
 unique only together with $\mathbf{q}$ and the reflection conditions, and
@@ -104,7 +104,7 @@ written 0, s, t, q or h for 0, 1/2, 1/3, 1/4 or 1/6, with $\mathbf{q}_r$ the
 rational part of $\mathbf{q}$. An $\varepsilon = -1$ generator always prints 0.
 When $\mathbf{q}_r \neq 0$, adding a lattice translation to a generator changes
 $\tau$, so a convention picks one: the printer follows the four steps of
-{cite}`stokes2011` § 5.2, and returns the ITC-C spelling for the eleven groups
+{cite}`stokes2011` § 5.2, and returns the ITC-C spelling for the {{ N_ITC_C_EXCEPTIONS }} groups
 where that convention and ITC-C differ.
 
 ## Commensurate sections
