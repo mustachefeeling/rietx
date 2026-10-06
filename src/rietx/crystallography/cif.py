@@ -207,6 +207,105 @@ def _gemmi_or_value_error(call, path: str, what: str):
         ) from exc
 
 
+#: Characters a CIF value takes from a word processor rather than a keyboard:
+#: the typographic quotes, which look like delimiters and are not ones.
+_TYPOGRAPHIC_QUOTES = "\u2018\u2019\u201c\u201d"
+
+
+def _syntax_fault(path: str, message: str) -> str | None:
+    """What is at the place gemmi stopped, in words, or ``None``.
+
+    gemmi reports a syntax error as ``file:line:column(offset): parse error``
+    and nothing else.  On the MAGNDATA mirror (2026-10-06 sweep) every such
+    stop is a malformed file, and nearly all have a cause that can be named
+    from the bytes of that line: a byte that is not UTF-8 (a MacRoman or
+    Latin-1 en dash in a CIF 2.0 file, which must be UTF-8), a typographic
+    quote standing where a CIF quote was meant, a control character, or a
+    quoted string not closed on its line.  Naming it turns "parse error" into
+    the one edit that fixes the file.
+    """
+    m = re.search(r":(\d+):(\d+)\(\d+\): (.*)$", message)
+    if m is None:
+        return None
+    line_no = int(m.group(1))
+    try:
+        lines = Path(path).read_bytes().split(b"\n")
+    except OSError:
+        return None
+    if not 0 < line_no <= len(lines):
+        return None
+    raw = lines[line_no - 1].rstrip(b"\r")
+    where = f"line {line_no}"
+    try:
+        line = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        byte = raw[exc.start]
+        return (f"{where}, column {exc.start + 1}: byte 0x{byte:02X} is not "
+                f"UTF-8 (a CIF 2.0 file must be UTF-8, and a CIF 1.1 file "
+                f"ASCII; 0x{byte:02X} is typically a character saved in a "
+                f"legacy encoding such as MacRoman or Latin-1, an en dash or "
+                f"an accented letter). Re-save the file as UTF-8, or replace "
+                f"the character")
+    quotes = [c for c in line if c in _TYPOGRAPHIC_QUOTES]
+    if quotes:
+        return (f"{where}: the value uses typographic quotes "
+                f"({' '.join(f'U+{ord(c):04X}' for c in sorted(set(quotes)))}), "
+                f"which CIF does not read as delimiters. Replace them with "
+                f"plain ' or \" quotes")
+    control = [c for c in line if ord(c) < 32 and c != "\t"]
+    if control:
+        return (f"{where}: the line holds a control character "
+                f"({' '.join(f'U+{ord(c):04X}' for c in sorted(set(control)))}), "
+                f"which no CIF value may contain. Delete it")
+    if "unterminated" in m.group(3):
+        return (f"{where}: a quoted value is not closed on this line. A CIF "
+                f"quoted string ends at a matching quote followed by "
+                f"whitespace on the same line; a value that runs over lines "
+                f"goes in a ;-delimited text field")
+    words = line.split()
+    if (len(words) >= 3 and words[0].startswith("_")
+            and words[1][:1] not in ("'", '"', "[", "{")):
+        return (f"{where}: the value of {words[0]} holds whitespace and is not "
+                f"quoted. Quote it so it reads as one "
+                f"value")
+    if (words and not words[0].startswith(("_", "#", "'", '"', ";"))
+            and words[0].lower() not in ("loop_", "global_")
+            and not words[0].lower().startswith(("data_", "save_"))
+            and re.fullmatch(r"[A-Za-z][\w.\-]*_[\w.\-]+", words[0])):
+        return (f"{where}: {words[0]!r} stands where a tag is expected, and a "
+                f"CIF tag starts with '_' — it looks like a tag that lost its "
+                f"underscore")
+    if any(ord(c) > 127 for c in line):
+        return (f"{where}: the line holds a non-ASCII character outside a "
+                f"quoted string; quote the value (CIF 2.0, UTF-8) or replace "
+                f"the character")
+    return None
+
+
+def _number_fault(path: str, block, tags, label: str | None = None) -> None:
+    """Raise naming a numeric item gemmi read as NaN, which is a malformed number.
+
+    gemmi returns NaN for a number it cannot parse (``5.12(3`` with the
+    parenthesis unclosed, ``8.6l(2)`` with a letter for a digit), and the NaN
+    then reached the schema as "value nan lies outside bounds" with no file,
+    tag or value in the message.  Called only once a NaN has been found.
+    """
+    for tag in tags:
+        values = ([block.find_value(tag)] if label is None else
+                  [row[1] for row in block.find("_atom_site_", ["label",
+                                                                tag[11:]])
+                   if row.str(0) == label])
+        for value in values:
+            if value is None or value in ("?", "."):
+                continue
+            if math.isnan(gemmi.cif.as_number(value)):
+                where = "" if label is None else f" for site {label!r}"
+                raise ValueError(
+                    f"{path}: {tag}{where} is {value!r}, which is not a CIF "
+                    f"number (digits, an optional exponent and an optional "
+                    f"standard uncertainty in parentheses, as in '5.4307(2)')")
+
+
 def _magnetic_content(text: str) -> bool:
     """Whether a CIF's text states a magnetic construct of any kind.
 
@@ -304,11 +403,31 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
         raise ValueError(
             f"nuclear_group={nuclear_group!r}: expected one of "
             f"{', '.join(map(repr, magcif.NUCLEAR_GROUP_CHOICES))}")
-    small = _gemmi_or_value_error(
-        lambda: gemmi.read_small_structure(path), path,
-        "could not be read as a small-molecule CIF")
+    try:
+        small = _gemmi_or_value_error(
+            lambda: gemmi.read_small_structure(path), path,
+            "could not be read as a small-molecule CIF")
+    except ValueError as exc:
+        fault = _syntax_fault(path, str(exc))
+        if fault is None:
+            raise
+        raise ValueError(f"{exc}. {fault}") from exc
     if not small.sites:
         raise ValueError(f"no atom sites found in {path}")
+    cell_values = (small.cell.a, small.cell.b, small.cell.c,
+                   small.cell.alpha, small.cell.beta, small.cell.gamma)
+    if any(math.isnan(v) for v in cell_values):
+        _number_fault(path, gemmi.cif.read(path).sole_block(),
+                      [f"_cell_{n}" for n in ("length_a", "length_b",
+                                              "length_c", "angle_alpha",
+                                              "angle_beta", "angle_gamma")])
+    for site in small.sites:
+        if any(math.isnan(v) for v in (site.fract.x, site.fract.y,
+                                       site.fract.z, site.occ)):
+            _number_fault(path, gemmi.cif.read(path).sole_block(),
+                          ["_atom_site_fract_x", "_atom_site_fract_y",
+                           "_atom_site_fract_z", "_atom_site_occupancy"],
+                          label=site.label)
     text = Path(path).read_text(encoding="utf-8", errors="replace")
 
     # The magnetic arm's two refusals run **before** anything is built and
