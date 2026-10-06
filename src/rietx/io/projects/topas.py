@@ -4540,9 +4540,12 @@ def from_structure(structure: Structure, *,
     caller cannot already see on the ``Parameter`` itself. Extinction,
     preferred orientation and sample broadening are not TOPAS constructs
     :func:`to_structure` reads either, so a phase carrying a non-default
-    value there loses it in silence — the same silence :func:`to_structure`
-    itself keeps about them on the way in, so this is symmetric rather than a
-    new gap.
+    value there is written without it. The file then states narrower lines
+    (or untextured, unextinguished intensities) than rietx computes, so pass
+    ``diagnostics=`` a list to have each such term named,
+    ``TOPAS_FIELD_NOT_WRITTEN``: a Stephens anisotropic-strain block with a
+    non-zero coefficient, a non-zero size or strain width, extinction, and a
+    preferred orientation with r ≠ 1.
 
     Space groups are written ``get_spacegroup(phase.space_group).xhm()``
     (:func:`_topas_space_group`: origin choice 1 is TOPAS's ``S`` suffix, since
@@ -4684,7 +4687,57 @@ def from_structure(structure: Structure, *,
         from ...crystallography.scattering import written_neutral_diagnostics
         diagnostics.extend(written_neutral_diagnostics(
             structure, code="TOPAS_SPECIES_WRITTEN_NEUTRAL", program="TOPAS"))
+        diagnostics.extend(_not_written_diagnostics(structure))
     return "\n".join(lines) + "\n"
+
+
+#: The phase terms a ``str`` written here does not state, each zero at its
+#: identity. Away from zero each changes the computed pattern, and
+#: :func:`from_structure` writes no statement for any of them.
+_PHASE_TERMS_NOT_WRITTEN = (
+    ("lor_size", "the Lorentzian size width"),
+    ("lor_strain", "the Lorentzian strain width"),
+    ("gauss_size", "the Gaussian size variance"),
+    ("gauss_strain", "the Gaussian strain variance"),
+    ("magnetic_lor_size", "the magnetic Lorentzian size width"),
+    ("magnetic_lor_strain", "the magnetic Lorentzian strain width"),
+    ("extinction", "the extinction coefficient"),
+)
+
+
+def _not_written_diagnostics(structure: Structure) -> list[Diagnostic]:
+    """``TOPAS_FIELD_NOT_WRITTEN``: each phase term away from its identity that
+    the written ``str`` does not state, so TOPAS computes the phase without it.
+
+    A Stephens block is named when any coefficient is non-zero: the file then
+    states the lines of a phase with no anisotropic strain, narrower than the
+    ones rietx computes. One diagnostic per file; ``where`` names each term.
+    """
+    where, named = [], []
+    for i, phase in enumerate(structure.phases):
+        here = []
+        block = phase.microstrain
+        if block is not None and any(v != 0.0 for v in block.values()):
+            here.append(("microstrain", "the Stephens anisotropic strain block"))
+        for name, what in _PHASE_TERMS_NOT_WRITTEN:
+            if getattr(phase, name).value != 0.0:
+                here.append((name, what))
+        po = phase.preferred_orientation
+        if po is not None and po.r.value != 1.0:
+            here.append(("preferred_orientation",
+                         "the March-Dollase preferred orientation"))
+        if here:
+            where += [f"phases.{i}.{name}" for name, _ in here]
+            named.append(f"{phase.name!r}: " + ", ".join(w for _, w in here))
+    if not named:
+        return []
+    return [Diagnostic(
+        level="warning", code="TOPAS_FIELD_NOT_WRITTEN",
+        message=("the file states no peak widths, extinction or texture, so "
+                 "TOPAS computes each phase without what it carries here ("
+                 + "; ".join(named) + "); state them in TOPAS before comparing "
+                 "its pattern or its fit with rietx's"),
+        where=where)]
 
 
 def _allowed_components(phase, atom) -> tuple[bool, bool, bool]:

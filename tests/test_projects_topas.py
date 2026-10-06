@@ -4527,3 +4527,61 @@ def test_a_general_position_is_written_as_stored(tmp_path):
     write_topas_inp(structure, path)
     [site] = [ln for ln in path.read_text(encoding="utf-8").splitlines() if "site " in ln]
     assert "x ! 0.3 y ! 0.21 z ! 0.1" in site
+
+
+def _rutile_with(**update):
+    """A synthetic tetragonal phase (rutile's cell and sites) with ``update``."""
+    def site(label, xyz, biso):
+        return rx.Atom(label=label, species=label, x=rx.Parameter(value=xyz[0]),
+                       y=rx.Parameter(value=xyz[1]), z=rx.Parameter(value=xyz[2]),
+                       biso=rx.Parameter(value=biso, min=0.0, max=25.0))
+    phase = rx.Phase(name="rutile", space_group="P 42/m n m",
+                     cell=rx.Cell(**{k: rx.Parameter(value=v) for k, v in zip(
+                         ("a", "b", "c", "alpha", "beta", "gamma"),
+                         (4.5937, 4.5937, 2.9587, 90.0, 90.0, 90.0))}),
+                     atoms=[site("Ti", (0.0, 0.0, 0.0), 0.5),
+                            site("O", (0.3053, 0.3053, 0.0), 0.7)])
+    return rx.Structure(phases=[phase.model_copy(update=update)])
+
+
+def test_a_stephens_block_the_file_cannot_state_is_named(tmp_path):
+    """The written `str` states no widths, so a Stephens block goes out as a
+    phase without one. The file says nothing about it; the writer names it."""
+    from rietx.crystallography.stephens import S_NAMES
+    from rietx.schemas.structure import StephensStrain
+
+    plain = _rutile_with()
+    iso = StephensStrain.isotropic(1500.0, plain.phases[0].cell)
+    scaled = dict(s400=2.0, s040=2.0, s004=6.0, s220=0.4, s202=1.5, s022=1.5)
+    block = StephensStrain.from_values(
+        [v * scaled.get(n, 1.0) for n, v in zip(S_NAMES, iso.values())], vary=True)
+    diags: list = []
+    write_topas_inp(_rutile_with(microstrain=block), tmp_path / "s.inp",
+                    diagnostics=diags)
+    write_topas_inp(plain, tmp_path / "plain.inp")
+    assert (tmp_path / "s.inp").read_bytes() == (tmp_path / "plain.inp").read_bytes()
+    [named] = [d for d in diags if d.code == "TOPAS_FIELD_NOT_WRITTEN"]
+    assert named.level == "warning" and named.where == ["phases.0.microstrain"]
+    assert "'rutile'" in named.message and "Stephens" in named.message
+
+
+def test_what_the_file_states_whole_is_not_named(tmp_path):
+    """The negative arm: a phase at every identity names nothing, nor does an
+    all-zero Stephens block or r = 1. An isotropic strain is named by its own
+    path, and the file is the same bytes either way."""
+    from rietx.schemas.structure import PreferredOrientation, StephensStrain
+
+    for quiet in (_rutile_with(),
+                  _rutile_with(microstrain=StephensStrain.from_values([0.0] * 15)),
+                  _rutile_with(preferred_orientation=PreferredOrientation(axis=(0, 0, 1)))):
+        diags: list = []
+        write_topas_inp(quiet, tmp_path / "q.inp", diagnostics=diags)
+        assert diags == []
+    write_topas_inp(_rutile_with(), tmp_path / "plain.inp")
+    strained = _rutile_with(lor_strain=rx.Parameter(value=0.05, min=0.0),
+                            extinction=rx.Parameter(value=40.0, min=0.0))
+    diags = []
+    write_topas_inp(strained, tmp_path / "iso.inp", diagnostics=diags)
+    assert (tmp_path / "iso.inp").read_bytes() == (tmp_path / "plain.inp").read_bytes()
+    [named] = diags
+    assert named.where == ["phases.0.lor_strain", "phases.0.extinction"]
