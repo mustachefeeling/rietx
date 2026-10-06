@@ -2936,6 +2936,81 @@ class Refinement:
         self._commit_hold_edit(table, held=new, unheld=[])
         return new
 
+    def hold_floating_origin(self) -> list[Diagnostic]:
+        """Hold one coordinate along every direction the origin floats in.
+
+        In a polar group (P 6₃ m c, P 4 m m, Pna2₁, Cc, P 1, …) every atom has
+        a free coordinate along the polar axis, and shifting the whole structure
+        along it changes no intensity, so a fit that frees them all has a flat
+        direction it walks and quotes an esd along (``FLAT_DIRECTION``, ρ = −1).
+        :func:`~rietx.crystallography.wyckoff.floating_origin_basis` gives those
+        directions; for each, this holds the first atom's displacement DOF whose
+        direction is that axis, with :meth:`hold`, so a plan that frees
+        ``phases.*.atoms.*.dof.*`` leaves it where it is and the other atoms'
+        coordinates are quoted relative to it.  Opt-in: nothing is held unless
+        this is called, and :meth:`unhold` takes the hold back.
+
+        Returns one ``ORIGIN_FIXED_ON_POLAR_AXIS`` (info) per phase that needed
+        a hold, naming the held parameters in ``where``, and an
+        ``ORIGIN_NOT_FIXED`` (warning) where a direction has no atom whose free
+        DOF runs along it (every atom then sits off that axis, or the basis
+        direction is a combination such as ``[1, 1, 0]``), so the flat
+        direction is still there.  A non-polar group returns ``[]``.
+        """
+        from .crystallography.symmetry import resolve_group
+        from .crystallography.wyckoff import (
+            coordinate_basis,
+            floating_origin_basis,
+            stabilizer_rotations,
+        )
+
+        out: list[Diagnostic] = []
+        for ip, phase in enumerate(self.structure.phases):
+            sg = resolve_group(phase.space_group, phase.symmetry_operations)
+            floating = floating_origin_basis(sg)
+            if len(floating) == 0:
+                continue
+            held: list[str] = []
+            unmatched: list[str] = []
+            for f in floating:
+                f = [int(v) for v in f]
+                path = None
+                for ia, atom in enumerate(phase.atoms):
+                    xyz = [atom.x.value, atom.y.value, atom.z.value]
+                    basis = coordinate_basis(stabilizer_rotations(sg, xyz))
+                    for k, row in enumerate(basis):
+                        row = [int(v) for v in row]
+                        if row == f or row == [-v for v in f]:
+                            path = f"phases.{ip}.atoms.{ia}.dof.{k}"
+                            break
+                    if path:
+                        break
+                if path is None:
+                    unmatched.append(str(f))
+                else:
+                    held.append(path)
+            if held:
+                self.hold(held)
+                out.append(Diagnostic(
+                    level="info", code="ORIGIN_FIXED_ON_POLAR_AXIS",
+                    message=(f"phase {ip} ({phase.space_group}) has a floating "
+                             f"origin: the whole structure can shift along "
+                             f"{[list(map(int, f)) for f in floating]} without "
+                             f"changing any intensity, so {', '.join(held)} "
+                             f"is held; the other coordinates along it are "
+                             f"relative to that atom"),
+                    where=held))
+            if unmatched:
+                out.append(Diagnostic(
+                    level="warning", code="ORIGIN_NOT_FIXED",
+                    message=(f"phase {ip} ({phase.space_group}) floats along "
+                             f"{', '.join(unmatched)} and no atom has a free "
+                             f"coordinate running exactly along it, so nothing "
+                             f"was held there and the fit keeps a flat "
+                             f"direction"),
+                    where=[f"phases.{ip}"]))
+        return out
+
     def unhold(self, path_globs: list[str] | str) -> list[str]:
         """Take back a hold.  Returns the paths released, sorted.
 

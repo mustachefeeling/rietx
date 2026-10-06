@@ -157,6 +157,35 @@ def coordinate_basis(rotations: list[np.ndarray]) -> np.ndarray:
     return _nullspace_int(rows, 3)
 
 
+def floating_origin_basis(space_group) -> np.ndarray:
+    """Integer basis of the origin shifts no intensity depends on, shape (k, 3).
+
+    The translations δ of the whole structure that commute with every
+    rotation of the group (R·δ = δ for all R): the continuous part of the
+    Euclidean normalizer, which is the polar axis of a polar group (``[0, 0, 1]``
+    for P 6₃ m c, P 4 m m and Pna2₁; ``[0, 1, 0]`` for unique-axis-b P 2₁; the
+    a-c plane for Cc; all three axes for P 1) and nothing for a non-polar one
+    (P 2₁2₁2₁, P n m a, F d -3 m: their origin choices are discrete).  Shifting
+    every atom by such a δ leaves the structure factor of every reflection
+    unchanged, so a fit that frees one coordinate of every atom along it has a
+    flat direction (``FLAT_DIRECTION``) and walks it.
+
+    Same algebra as :func:`coordinate_basis`, taken over the rotations of the
+    whole group rather than of one site's stabilizer.  Needs a group that has
+    operations (a symbol, or :class:`~rietx.crystallography.symmetry.
+    OperatorGroup`).
+    """
+    sg = as_group(space_group)
+    rotations = []
+    seen = set()
+    for op in sg.operations():
+        rot = tuple(tuple(int(round(v / 24)) for v in row) for row in op.rot)
+        if rot not in seen:
+            seen.add(rot)
+            rotations.append(np.array(rot, dtype=int))
+    return coordinate_basis(rotations)
+
+
 def adp_basis(rotations: list[np.ndarray]) -> np.ndarray:
     """Integer basis of allowed U^ij patterns, shape (m, 6).
 
