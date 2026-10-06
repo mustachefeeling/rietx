@@ -789,6 +789,12 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
 
     first_own = len(diagnostics) if diagnostics is not None else 0
     repeats: dict[str, str] = {}
+    # the file's own statement first: a site it says is on a special position is
+    # moved there under its own diagnostic, before the twin merge below can
+    # collapse it unannounced.  The rows carry labels until the list is final.
+    stated_diagnostics = _snap_to_stated_multiplicity(sg, atoms, site_statements, path=path)
+    if diagnostics is not None:
+        diagnostics.extend(stated_diagnostics)
     atoms = _merge_twins(path, sg, cell, atoms, diagnostics)
     twice = _sites_listed_twice(sg, cell, atoms)
     moment_labels = (set(magcif._column(block, "_atom_site_moment.label"))
@@ -929,13 +935,12 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
                 {a.label: (j, a) for j, a in enumerate(atoms)}, cell6,
                 assumed_ions=assumed_ions, assumed_g=assumed_g))
 
-    # on the final site list, so the paths it carries name the site they are about
-    stated_diagnostics = _snap_to_stated_multiplicity(sg, atoms, site_statements, path=path)
     if diagnostics is not None:
         # after the last site is merged or dropped, so every path below names
         # the site it is about
-        diagnostics.extend(stated_diagnostics)
-        _locate(diagnostics, atoms, {"CIF_SITE_TWINS_MERGED", "CIF_SITE_LISTED_TWICE"},
+        _locate(diagnostics, atoms, {"CIF_SITE_TWINS_MERGED", "CIF_SITE_LISTED_TWICE",
+                                      "SITE_SNAPPED_TO_SPECIAL_POSITION",
+                                      "CIF_SITE_MULTIPLICITY_DISAGREES"},
                 start=first_own, repeats=repeats)
         index = {a.label: k for k, a in enumerate(atoms)}
         for raw, (canonical, note, labels) in rewrites.items():
@@ -1084,7 +1089,7 @@ def _snap_to_stated_multiplicity(sg, atoms: list[Atom], stated: dict[str, dict],
             continue
         if have == want:
             continue
-        where = f"phases.0.atoms.{j}"
+        where = atom.label
         if want < have:
             try:
                 near = site_orbit(sg, xyz, tol=CIF_STATED_MULTIPLICITY_SNAP_TOL)
