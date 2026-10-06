@@ -27,7 +27,8 @@ The protocol for driving `rietx` on real data: the order of work, and the checks
 
 | When | Load |
 |---|---|
-| before any call; § In another program's file; § Out CIF and tables | [api](references/api.md) |
+| before any call; § Out CIF and tables | [api](references/api.md) |
+| another program's file (`.EXP`, `.prm`, `.gpx`, `.pcr`, `.inp`) to read | [api](references/api.md) § In |
 | a structure figure or a pattern plot | [api-figure](references/api-figure.md) |
 | §5 quoting or comparing a number; Layer 0/1/2 | [numbers](references/numbers.md) |
 | §7b-7f the phase is unknown: peaks, indexing, extinction | [diagnostics-indexing](references/diagnostics-indexing.md) |
@@ -52,7 +53,7 @@ Rietveld refinement locally fits a model you already believe. Check each row bef
 |---|---|
 | Every crystalline phase is modelled | `rx.Structure.from_cif` per phase, joined as `rx.Structure(phases=[*a.phases, *b.phases])`. A missing phase shows as `unmatched_obs` (rule 11) |
 | The starting cell is within ~1 % | the CIF, or `rx.index_pattern` (§7d). Peak windows are fixed per stage, so a peak further off is out of reach; the report answers `reindex_or_recheck_cell` |
-| The wavelength is right | the file header, a beamline `.prm` (`rx.read_gsas_prm`), or `rx.Instrument.bragg_brentano(radiation=...)`: `"CrKa"`, `"FeKa"`, `"CoKa"`, `"CuKa"`, `"MoKa"`, `"AgKa"`, suffix `1` for Kα1 only. No fit detects a wrong one. Never hand-enter a textbook value (§8.11) |
+| The wavelength is right | the file header, an instrument file (api § In), or `rx.Instrument.bragg_brentano(radiation=...)`: `"CrKa"`, `"FeKa"`, `"CoKa"`, `"CuKa"`, `"MoKa"`, `"AgKa"`, suffix `1` for Kα1 only. No fit detects a wrong one. Never hand-enter a textbook value (§8.11) |
 | The geometry is right | `rx.Instrument.bragg_brentano`, or `rx.Instrument.debye_scherrer(wavelength)` for a capillary. Each aberration exists only in its own geometry |
 | Intensities are raw counts | `rx.read_pattern` reads the file's esd column. Wrong weights make every esd wrong |
 | The starting width is within ×2 | `W` is the squared Gaussian FWHM at low angle (Γ_G² = U·tan²θ + V·tanθ + W; `rx.help_for("instrument.profile.w")`). Its default, 1e-3 deg², is a 0.03° synchrotron line. Seed `W ≈ (0.6·H)²`, `X ≈ 0.6·H`, with H the median `fwhm` of the strongest `rx.pick_peaks` peaks (§10): Gaussian and Lorentzian halves of 0.6·H combine to about H |
@@ -120,7 +121,7 @@ Judge in this order. `print(result)` shows per-stage status, the diagnostics, pr
 13. **Quote each esd with its trio.** Every esd already carries `statistics.esd_inflation`. Pass on `report.identifiability`'s raw χ²_red, the inflation and Durbin-Watson beside it.
 14. **Settle an exchange by a swap.** An `exchangeable=True` row in `report.identifiability.exchanges` (or a `.soft_modes` entry) says a held parameter may carry the same signal as a free one. `rx.report.compare_rivals(ref, data, finding)` fits each member alone, the other at its null. If its `chi2_ratio` (loser over winner) is at least `rx.report.RIVAL_DECISIVE_MIN_CHI2_RATIO` (1.10), adopt the winner with no caveat on that question. Below it, declare the pair unresolved or settle it by protocol. Never free both in one fit: that rides §3's ridge to a better Rwp. `result.statistics.identifiability_clause` carries the sentence to quote.
 15. **Read the background before Rwp.** In `report.background`, `worst_absorption` and `worst_absorption_path` say how much of a structural parameter the background can mimic. `off_region_chi2_reduced` and `off_region_durbin_watson` catch systematic misfit between the peaks, which rule 10 misses.
-16. **Then Rwp and GoF**, beside `background.rwp_background_subtracted`, which is the one that separates two fits of the same data.
+16. **Then Rwp and GoF**, beside `background.rwp_background_subtracted`, which separates two fits of the same data.
 17. **Read R factors last.** `result.phase_agreement` (`r_bragg`, `r_f`) flatters any model, because I(obs) is partitioned by I(calc). Never cite R_B as evidence that a correction helped, and never compare a trace phase's with the major phase's. Le Bail and Pawley have none.
 
 **Adding a parameter**: its t-ratio first, then ΔBIC at N/f² with f = `esd_inflation`; at raw N any χ² gain passes. `rx.report.compare_freed(restricted, full)` returns both. **Against another code**: adopt its refined set, held parameters and excluded regions, match the channel count, then compare.
@@ -197,4 +198,4 @@ Whether Rwp is still falling decides neither way. These are the structure-grade 
 
 **Report** the refined values with their esds, the unresolved diagnostics as systematics, the protocol you ran (plan, held parameters, excluded ranges, channel count) and `result.provenance` (version, backend, solver). Write files with `rx.write_refinement_cif` and `rx.write_qpa_table`.
 
-Theory, equations and the bibliography: <https://rietx.org/manual.html>.
+Theory and equations: <https://rietx.org/manual.html>.
