@@ -1240,3 +1240,31 @@ def test_lattice_cosets_refuses_a_fractional_det_p():
     with pytest.raises(ValueError, match=r"\|det P\| = 1/2"):
         lattice_cosets(basis)
     assert len(lattice_cosets(child_basis("P 4/m m m", HALF_C))) == 2   # positive arm
+
+
+@pytest.mark.parametrize("transform, blames_k", [
+    ("a,b,c/2;0,0,0", False),     # integral rotations, axes not lattice vectors
+    ("a/2,b,c;0,0,0", True),      # a 4-fold no longer maps the lattice onto one
+])
+def test_the_parent_branch_explains_the_check_that_failed(transform, blames_k):
+    """#787: ``MagneticGroup.transformed`` raises two refusals; the text keys on which.
+
+    A user-supplied ``transform=`` with no k reaches both on P 4/m m m.  Halving
+    c keeps every rotation integral but gives twice the operations |det P|
+    allows (the new axis is not a lattice vector), and the message must not
+    blame a k that is not there.  Halving a breaks the 4-fold's integrality,
+    which is the class-lowering case, and keeps its explanation and the
+    "onto a lattice" text the solver's fallback keys on.
+    """
+    cand = candidates("P 4/m m m", (0, 0, 0), HALF_C)[0]
+    with pytest.raises(ValueError) as caught:
+        magnetic_supercell(p4mmm_parent(), group=cand.group, transform=transform,
+                           magnetic_species="Mn", ion="Mn2+", magnitude=2.0)
+    text = str(caught.value)
+    assert type(caught.value) is ValueError
+    assert "nuclear_group='parent'" in text and repr(transform) in text
+    assert ("lowers the crystal class" in text) is blames_k
+    assert ("nuclear_group='magnetic' is the branch" in text) is blames_k
+    assert ("onto a lattice" in text) is blames_k
+    assert ("not a supercell of the parent cell" in text) is (not blames_k)
+    assert ("not a cell of this group" in text) is (not blames_k)

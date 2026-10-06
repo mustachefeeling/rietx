@@ -115,7 +115,7 @@ from ..symmetry import (
 )
 from . import isotropy as _isotropy
 from .moments import tilted_seed
-from .operators import MagneticGroup, format_transform
+from .operators import LatticeNotPreserved, MagneticGroup, format_transform
 from .scattering import check_group_is_structure_symmetry
 
 __all__ = [
@@ -1296,16 +1296,28 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
             # "this group"; the caller asked for the child cell and the
             # parent's group, so say that (issue #612).  Its text stays in the
             # message: ``strategy.magnetic._supercell`` keys its fallback on it.
+            # It raises two refusals and only one is a k lowering the class
+            # (#787): the other says the child cell's axes are not lattice
+            # vectors of the parent, which a user-supplied ``transform=`` with
+            # no k reaches, and blaming k there points at the wrong input.
+            head = (f"magnetic_supercell(nuclear_group='parent'): the parent's "
+                    f"space group {parent.space_group!r} is not a group of the "
+                    f"child cell {transform!r} ({exc}). ")
+            if isinstance(exc, LatticeNotPreserved):
+                raise ValueError(
+                    head + "The child lattice is not invariant under every "
+                    "operation of the parent's point group, which is what a k "
+                    "that lowers the crystal class does, so the parent's group "
+                    "cannot be the child's nuclear group. "
+                    "nuclear_group='magnetic' is the branch for such a k: it "
+                    "states the child under the magnetic group's own nuclear "
+                    "part.") from exc
             raise ValueError(
-                f"magnetic_supercell(nuclear_group='parent'): the parent's space "
-                f"group {parent.space_group!r} is not a group of the child cell "
-                f"{transform!r} ({exc}). The child lattice is not invariant "
-                f"under every operation of the parent's point group, which is "
-                f"what a k that lowers the crystal class does, so the parent's "
-                f"group cannot be the child's nuclear group. "
-                f"nuclear_group='magnetic' is the branch for such a k: it states "
-                f"the child under the magnetic group's own nuclear part."
-            ) from exc
+                head + "The child cell's axes are not all lattice vectors of "
+                "the parent's lattice, so it is not a supercell of the parent "
+                "cell; that is a property of the transform, not of k. Check "
+                "the transform: each axis of the child cell has to be an "
+                "integer combination of the parent's a, b, c.") from exc
     else:
         nuclear = _colourless(group)
         # **The little-group sign.**  A commensurate k != 0 little group is
