@@ -147,12 +147,12 @@ restates what decides the design.
       `{literalinclude}`s it, `tests/test_examples.py` runs it)
 - [ ] The § E gaps: each placed by the placement rule or declined with a
       reason, row by row in the handover
-- [ ] WP-1905's suite: the rewritten body against the current one, N = 3,
+- [x] WP-1905's suite: the rewritten body against the current one, N = 3,
       Haiku and Sonnet, tokens per run beside the score; the decision rule
       applied and recorded
-- [ ] `rietx skill --install . --copy`; `tests/test_skill.py` green; the
+- [x] `rietx skill --install . --copy`; `tests/test_skill.py` green; the
       budget met without raising a cap
-- [ ] Skill: this WP is the skill change
+- [x] Skill: this WP is the skill change
 
 ## Acceptance
 
