@@ -111,7 +111,11 @@ def restate_in_hexagonal_axes(phase, fmt: str):
     GSAS-II"; both measured, black box).  The phase is the same lattice and the
     same atoms in the hexagonal cell of the same group: ``a_h = 2 a_r sin(α/2)``,
     ``c_h = a_r √(3 (1 + 2 cos α))``, and each position through the inverse of
-    the setting's change of basis.
+    the setting's change of basis.  The cell relations and the basis change
+    are the rhombohedral-to-hexagonal transformation of Aroyo (ed.),
+    *International Tables for Crystallography*, Vol. A, 6th ed. (Wiley for the
+    IUCr, 2016), Part 5 (transformations of the coordinate system); the same
+    transformation is in Hahn (ed.), 5th ed. (Springer for the IUCr, 2005).
 
     The phase's scale is multiplied by (V_r / V_h)² = 1/9: a structure factor is
     summed over the cell, and the hexagonal cell holds three rhombohedral ones,
