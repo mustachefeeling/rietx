@@ -153,7 +153,7 @@ restates what decides the design.
 - [x] `rietx skill --install . --copy`; `tests/test_skill.py` green; the
       budget met without raising a cap
 - [x] Skill: this WP is the skill change
-- [ ] §10 says a task reproducing another program's refinement adopts
+- [x] §10 says a task reproducing another program's refinement adopts
       its protocol (its file's wavelengths, its refined set), not the worked
       default; one round on Haiku and Sonnet (Sonnet's F2 lost
       `file_wavelengths` 3 of 3 by copying §10)

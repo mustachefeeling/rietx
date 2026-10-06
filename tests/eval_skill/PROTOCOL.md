@@ -570,3 +570,29 @@ with-arm rows are complete and equal to B's on the two fit cases.
   handover carries the fix, which needs its own round.
 - **Tokens per run fall on six of nine rows.** Haiku's F2 `fap-gsas-reproduce`
   rose with one run that hit the 60-turn cap.
+
+### Round G, 2026-10-07: WP-1906's final body, one arm, N = 3
+
+Body `fe674fa99240`, F2's plus one clause in §10 ("To reproduce another
+program's fit, follow §4 instead") and "its file's wavelengths" in §4's
+comparison rule, paid for by four trims. The same venv and flags as F.
+Sonnet $2.92, 16 min; Haiku $1.82, 19 min.
+
+```
+round      case                 cur   cand     Δ     t    tok/run cur -> cand
+G sonnet   fap-fit              1.00  1.00  +0.00  1/7    838k -> 482k
+G sonnet   fap-gsas-reproduce   1.00  1.00  +0.00  1/8   1136k -> 929k
+G sonnet   fap-judge            1.00  1.00  +0.00  1/4     47k -> 54k
+G haiku    fap-fit              0.43  1.00  +0.57  1/7   1013k -> 957k
+G haiku    fap-gsas-reproduce   0.46  0.38  -0.08  1/8   1739k -> 1213k
+G haiku    fap-judge            0.83  0.92  +0.08  1/4    120k -> 70k
+```
+
+**The rule holds on both models**, and this is the body WP-1906 merges.
+
+- **Sonnet's `file_wavelengths` is back to 3 of 3**, from 0 of 3 in F2, so
+  the clause did what it was written for.
+- **Haiku still loses `file_wavelengths`** (0 of 3, against 2 of 3 on
+  today's body). Two of its runs parsed FAP.EXP by hand and never reached a
+  reader, and its cell graders fail on both bodies, so the case is beyond
+  Haiku either way.
