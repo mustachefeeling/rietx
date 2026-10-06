@@ -17,13 +17,13 @@ description: >-
   6\.88[5-7]. The graders also ask for value(esd) notation, because the CIF's
   starting cell (9.3717, 6.8859) lies inside any window that holds GSAS's.
   The pilot's Haiku with-arm run passed both cell graders on the starting
-  values while its refined a was 9.367913. timeout_seconds and max_turns are
-  set from the pilot (1 500 s timed out two of four cells under contention,
-  and one run used 29 turns), to be re-measured in the first round at -j 1.
+  values while its refined a was 9.367913. max_turns is set from the pilot
+  (one run used 29 turns). timeout_seconds is Amendment 1.1's: one run alone
+  in the macOS sandbox took 271 s and 46 turns, each fit 7-9 s.
 tags: [fit, fap]
 runs: 3
 max_turns: 60
-timeout_seconds: 2400
+timeout_seconds: 1200
 allowed_tools: [Read, Grep, Glob, Skill, Bash, Write]
 ---
 FAP.XRA is a lab powder pattern of fluorapatite, Ca5(PO4)3F, collected on a Bragg-Brentano diffractometer with Cu Kα radiation (doublet, no monochromator). fluorapatite.cif is the starting model. Refine the structure against the pattern with rietx and write me a short report.md: the refined cell parameters a and c with their esds in value(esd) notation, as in 1.2345(6) Å, and a list of which refined numbers you would not yet put in a paper and why.

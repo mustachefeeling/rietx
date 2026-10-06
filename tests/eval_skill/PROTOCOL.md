@@ -165,6 +165,13 @@ which `Skill` was called (of 30), and the **quiet rate**, runs of the ten
 cell runs before it; a prompt the review changes is changed, and quoted below,
 in an amendment made before the first tier-0 run.
 
+**Reviewed 2026-10-06, before any tier-0 run.** The maintainer changed two
+prompts and passed eighteen as written. `quiet-bragg-law` became
+`quiet-scherrer`. A textbook question repeated what `quiet-density` tests, and
+the near-miss that matters is a powder-XRD task with no refinement in it.
+`fire-unknown-cell` lost its contradiction: it named a peak list and then asked
+for a cell "from the powder pattern". The table quotes the reviewed text.
+
 | case | role | prompt |
 |---|---|---|
 | `fire-diagnostics` | Should fire. | After my rietx fit the report lists FLAT_DIRECTION and HIGH_CORRELATION. What should I change before I run it again? |
@@ -176,8 +183,8 @@ in an amendment made before the first tier-0 run.
 | `fire-quartz-rietveld` | Should fire. | I have a lab XRD pattern of quartz, quartz.xy (Cu Kα, Bragg-Brentano), and the quartz CIF. Run a Rietveld refinement with rietx and tell me the refined cell. |
 | `fire-rank-candidates` | Should fire. | We have twelve candidate structures from a crystal-structure-prediction run, as CIFs. Score each one against our measured powder pattern and rank them. |
 | `fire-caco3-fractions` | Should fire. | What are the weight fractions of calcite and aragonite in my CaCO3 powder? The pattern is caco3.xye from our Bruker D8, and I have a CIF for each phase. |
-| `fire-unknown-cell` | Should fire. | The peaks in peaks.txt come from a phase nobody has identified. Can you work out its unit cell from the powder pattern? |
-| `quiet-bragg-law` | Should not fire. | Explain Bragg's law in one paragraph and give the d-spacing formula for a cubic lattice. |
+| `fire-unknown-cell` | Should fire. | The pattern unknown.xy is from a phase nobody has identified. Work out its unit cell. |
+| `quiet-scherrer` | Should not fire. | A powder XRD peak at 2θ = 38.2° has a FWHM of 0.25° (Cu Kα). Estimate the crystallite size with the Scherrer equation and show the arithmetic. |
 | `quiet-chebyshev-numpy` | Should not fire. | Write a numpy function that fits a Chebyshev polynomial baseline to a 1D signal and returns the baseline. |
 | `quiet-checkcif` | Should not fire. | Run checkCIF-style validation on my single-crystal CIF and explain what an A-level alert about ADPs means. |
 | `quiet-cif-to-poscar` | Should not fire. | Convert structure.cif to a VASP POSCAR file, keeping the atom order of the CIF. |
@@ -206,14 +213,14 @@ beside the decision, not folded into it**, which matters for a candidate whose
   four cores took 10-15 min each against 11 s for the same script outside the
   sandbox, and two of four cells timed out at 1 500 s (WP-1904 finding 2).
   **Before the first scored round, one fit is measured inside the sandbox**,
-  alone on the machine, and both cases' `timeout_seconds` (2 400 s now, the
-  pilot's guess) is set from it. The measurement, the value chosen and why are
+  alone on the machine, and both cases' `timeout_seconds` (2 400 s at
+  registration, the pilot's guess) is set from it. The measurement, the value chosen and why are
   Amendment 1.1, dated, made before the first scored fit-case run; whether the
   sandbox's read-only venv defeats numba's kernel cache is read in the same
   measurement. Every round's `-j` is printed beside its wall times.
 
 ```sh
-.venv/bin/python tests/eval_skill/build.py docs/skill/rietx <out> --python <interpreter>
+.venv/bin/python tests/eval_skill/build.py docs/skill/rietx <out> --venv <venv dir>   # outside /Users, /tmp and <out>
 claude plugin eval <out> --model <haiku|sonnet> --judge-model sonnet --runs 3 \
     --scaffold --allow-tools Bash Write --trust-plugin --no-publish --keep-temp \
     --max-cost-usd <ceiling> --json <result>.json --tag fap [--ablation none] -j 1
@@ -228,9 +235,19 @@ claude plugin eval <out> --model <haiku|sonnet> --judge-model sonnet --runs 3 \
 - **A sandbox backend**: granted `Bash`, every command runs under Claude Code's
   OS sandbox, and with no backend each run is refused and scores about 0. On
   Linux that is `bubblewrap` and `socat`, which the pilot had to install.
-- **An interpreter outside the home directory** with rietx installed, passed as
-  `--python`: the sandbox hides the home directory, so an interpreter under it
-  cannot start, and `build.py` warns.
+- **An interpreter both arms can read**, built by `build.py --venv DIR` (a
+  non-editable install of the checkout). The sandbox decides what a run's Bash
+  can read. On Linux it hides the home directory. On macOS it denies all of
+  `/Users` and `/tmp`. It allows the run's own home and the `PATH`
+  directories, and the plugin root in the with-skill arm only (read off kept
+  runs' `config/settings.json`, 2026-10-06). So `DIR` lies outside `/Users`,
+  `/tmp` and the plugin root; on this Mac it was
+  `/opt/homebrew/var/rietx-eval/venv`, which needs no sudo. The wrong place
+  voided runs three times. An interpreter in Claude Code's temp directory or
+  in `/Users/Shared` could not start in either arm. One in the plugin root
+  served the with-skill arm and voided round B's baseline arm on both fit
+  cases. Each such run ends asking for a sandbox change. `build.py` warns
+  about an interpreter, or its base, that either arm cannot read.
 - **The flags**: `--scaffold` (the fixtures), `--allow-tools Bash Write`,
   `--trust-plugin`, `--no-publish`, `--keep-temp` (the traces, which tokens, the
   route and leaks are read from and which the harness otherwise deletes), and
@@ -362,8 +379,146 @@ harness's own Δ, with against without inside one round, which the decision
 rule does not read (it compares body against body); anything about one model
 licensed by the other's round.
 
+## Amendments
+
+### Amendment 1.1, 2026-10-06: the fit cases' timeout, from one run alone
+
+Made before any scored fit-case run. One `fap-fit` run, Haiku, with-arm only
+(`--ablation none --runs 1`), alone on a 10-core Mac (macOS sandbox, Claude
+Code 2.1.291), its interpreter in the plugin root. It is not a scored run,
+and a with-arm run is the one arm that location serves (§ Prerequisites).
+
+- **The run took 271 s, 46 turns and $0.41.** Thirteen of its Bash calls ran
+  the agent's scripts, and each full fit took 7-9 s. That matches the pilot's
+  11 s outside the sandbox. So the sandbox costs a fit nothing, and the
+  pilot's 10-15 min came from four fits sharing four cores.
+- **The read-only venv does not defeat numba's kernel cache.** rietx caches
+  kernels in the run's own home (`~/.rietx/numba-cache`, 10 files in the kept
+  run), so each run compiles once, on its first fit.
+- **Both fit cases' `timeout_seconds` is now 1 200 s**, 4.4 times this run.
+  `max_turns` (60) bounds a run first, and at 60 turns this run's pace is
+  about 350 s. The margin covers Sonnet's slower turns and fits that do more
+  work. A timeout that binds would score a slow run as a failed one.
+- **Two earlier attempts were void** (§ Prerequisites): their interpreter lay
+  where the macOS sandbox denies reads, and neither run could start Python.
+  They cost $0.20 together, and neither is a measurement.
+
+### Assumptions 1-4 checked, 2026-10-06, on Amendment 1.1's kept trace
+
+All four hold as written (§ Assumptions the first round checks). The trace
+holds transcript rows: 96 assistant, 45 user, 43 system, 1 result. Every
+assistant row carries `usage`, and the 96 rows are 45 API calls, so counting
+once per `message.id` is what keeps the token read-out from doubling. The
+`system` rows' `cwd` is the run's `home/cwd`, under the directory holding
+`out/trace.jsonl`. The skill names its base directory, and it lies in the
+plugin. Assumption 5 needs a two-arm round and is read off round B's `SCORE`
+lines.
+
 ## Results
 
-None yet. Each round appends its `readout.py show` output, the build's two
-hashes, its `-j`, its cost and the date; a comparison appends its
-`readout.py compare` output and the rule's verdict.
+Each round appends its `readout.py show` output, the build's two hashes, its
+`-j`, its cost and the date; a comparison appends its `readout.py compare`
+output and the rule's verdict. Result files are kept in
+`docs/wp/1905-eval/round1/`.
+
+### Round B, 2026-10-06: today's body, Haiku, two-arm, N = 3
+
+Build `SKILL.md` d424ccece23a, tree 604f4c2b2018, from commit eb7a0538.
+Claude Code 2.1.291, judge Sonnet, `-j 1`, alone on a 10-core Mac. Two
+result files make one round. `B.json` ran all three cases with the
+interpreter in the plugin root, which voided both fit cases' baseline arm
+(§ Prerequisites). So its `fap-judge` rows stand, and `B2.json` re-ran the
+two fit cases with the interpreter in `/opt/homebrew/var/rietx-eval/venv`.
+B2 reached B's $8 ceiling with one run left, so `fap-gsas-reproduce`'s
+baseline arm has N = 2. Together they cost $8.29 and 1 h 40 min of wall time (58 and 42 min).
+
+```
+case                       arm     n  score per run           pass  $/run judge s/run turns  tok/run  fired refs
+fap-fit                    with    3  0.43 0.43,0.43,0.43    0/3   0.270 0.012   200 18-33   1067k  3/3   -
+fap-fit                    without 3  0.86 0.86,0.86,0.86    0/3   0.385 0.010   230 39-61   1898k  0/3   -
+fap-gsas-reproduce         with    3  0.46 0.50,0.38,0.50    0/3   0.361 0.000   205 23-48   1726k  3/3   -
+fap-gsas-reproduce         without 2  0.38 0.38,0.38         0/2   0.556 0.000   310 4-60    3424k  0/2   -
+fap-judge                  with    3  0.83 1.00,0.75,0.75    1/3   0.109 0.038    60 5-7      120k  3/3   judging.md
+fap-judge                  without 3  0.83 0.75,0.75,1.00    1/3   0.068 0.028    41 3-4       54k  0/3   -
+```
+
+- **`fap-fit` is a deciding case today's body fails, and the baseline arm
+  passes it.** All three with-skill runs report a = 9.3683(16) Å and
+  c = 6.8833(12) Å, the same numbers to the last digit. That is the
+  degenerate route the case's description names: zero and displacement free
+  together, and FLAT_DIRECTION. Each report names that caveat, so
+  `caveats_named` passes and both cell graders fail. All three runs without
+  the skill improvised a route and landed inside both windows
+  (9.3709(4)-9.3728(6) Å), and none named a caveat. One of them hit 60 turns.
+- **`fap-gsas-reproduce` fails both cell graders in both arms.** The skill
+  adds the `rwp` grader in all three runs. `file_wavelengths` failed in one
+  with-skill run.
+- **`fap-judge` does not separate the arms on Haiku at N = 3** (0.83 each).
+  This repeats the pilot's ceiling on Sonnet, but on Haiku.
+- **No run opened a reference file** except `fap-judge`'s `judging.md`.
+- **Assumption 5 holds**: `readout.py show` printed no `SCORE` line over the
+  18 two-arm runs of `B.json` or the 11 of `B2.json`.
+- **The `LEAK` read-out over-reports.** It reads JSON pointer strings in an
+  agent's written content (`/cell/a`, `/atoms/6/z`) as paths, and `/tmp` in a
+  run's Bash is the run's own. Every other `LEAK` line in `B.json` is a
+  baseline run probing the plugin directory for the interpreter it could not
+  start.
+
+### Round C, 2026-10-06: today's body, Sonnet, two-arm, N = 3
+
+The same build as B2, `-j 1`, alone on the machine. $7.73 and 33 min.
+
+```
+case                       arm     n  score per run           pass  $/run judge s/run turns  tok/run  fired refs
+fap-fit                    with    3  1.00 1.00,1.00,1.00    3/3   0.470 0.012   143 15-29    838k  3/3   -
+fap-fit                    without 3  0.81 0.43,1.00,1.00    2/3   0.632 0.014   188 22-26   1194k  0/3   api.md,judging.md
+fap-gsas-reproduce         with    3  1.00 1.00,1.00,1.00    3/3   0.632 0.000   142 18-26   1136k  3/3   api.md,diagnostics-gsas.md
+fap-gsas-reproduce         without 3  0.92 0.75,1.00,1.00    2/3   0.560 0.000   117 20-26   1070k  0/3   api.md,diagnostics-gsas.md,numbers.md,surprises.md
+fap-judge                  with    3  1.00 1.00,1.00,1.00    3/3   0.163 0.040    39 5-5       47k  3/3   -
+fap-judge                  without 3  1.00 1.00,1.00,1.00    3/3   0.120 0.038    38 2-2       36k  0/3   -
+```
+
+- **Today's body passes every case 3 of 3 on Sonnet.** Both fit cases land
+  inside every window. On Sonnet the suite has no case today's body fails,
+  so a rewrite can only be measured there as a regression.
+- **The baseline arm is not skill-free on Sonnet.** The wheel ships the
+  skill (`rietx/data/skill/rietx/`, printed by `rietx skill`). All three
+  `fap-fit` baseline runs and one `fap-gsas-reproduce` baseline run found it
+  through the CLI or in site-packages and read `SKILL.md` or its references.
+  That is where the `refs` of a `without` row come from. Haiku's baseline
+  runs in B2 never looked. So on Sonnet, "without" means "without the skill
+  loaded at the start", and the harness's Δ understates what the skill adds.
+  The decision rule compares body against body and never reads this Δ, so it
+  is unaffected. A case's role (§ Cases) does read the baseline arm, so on
+  Sonnet that role is not established.
+- **`fap-judge` is a ceiling on Sonnet again** (1.00 in both arms), as in the
+  pilot.
+
+### Rounds D and E, 2026-10-06: tier 0, today's body, one arm, N = 3
+
+The same build, `--tag trigger --ablation none`, no `--scaffold`, no
+`--allow-tools`, `-j 1`. Haiku (D): $1.91, 14 min. Sonnet (E): $4.58, 11 min.
+
+| model | fire rate | quiet rate | misses |
+|---|---|---|---|
+| Haiku | 26/30 | 30/30 | `fire-judge-calibration` 2, `fire-caco3-fractions` 1, `fire-unknown-cell` 1 |
+| Sonnet | 30/30 | 27/30 | `quiet-cif-to-poscar` 3 |
+
+- **Haiku's four misses are the instrument's.** Tier 0 runs without fixtures,
+  so each of those prompts names a file the workspace lacks. In every miss the
+  agent looked for the file first, found nothing, and asked for it before any
+  fit, so the skill never loaded. The description asks for the skill before
+  the first `fit()`, and no fit was reached. The next tier-0 round should
+  scaffold an empty file per name the prompt gives, or word the prompts
+  without one. That is an amendment, made before that round runs.
+- **Sonnet's three misses are a real over-trigger.** It loads the skill to
+  convert a CIF to POSCAR in every run. The description invites it: "Read it
+  too before drawing a crystal structure from a CIF". That is evidence for
+  WP-1906's description rewrite.
+- **Sonnet opened the reference each task shape names** (`series.md`,
+  `batch.md`, `diagnostics-indexing.md`, `api-figure.md` and the rest).
+  Haiku opened none in four turns.
+- **"Of 30" counts every run.** 10 Haiku and 8 Sonnet runs ended at the
+  4-turn cap, and one Haiku run at the 180 s timeout. None of them is
+  void, because the grader reads the trace up to the stop, and each one
+  except one Haiku miss had fired or stayed quiet as its role asks.

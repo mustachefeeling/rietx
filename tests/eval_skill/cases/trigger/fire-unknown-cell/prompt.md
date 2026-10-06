@@ -7,4 +7,4 @@ max_turns: 4
 timeout_seconds: 180
 allowed_tools: [Read, Grep, Glob, Skill]
 ---
-The peaks in peaks.txt come from a phase nobody has identified. Can you work out its unit cell from the powder pattern?
+The pattern unknown.xy is from a phase nobody has identified. Work out its unit cell.

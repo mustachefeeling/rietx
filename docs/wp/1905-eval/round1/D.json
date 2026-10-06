@@ -1,0 +1,1954 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.291",
+  "startedAt": "2026-10-06T10:00:02.638Z",
+  "durationSeconds": 863,
+  "costUsd": 1.90680195,
+  "partial": false,
+  "suite": {
+    "root": "/Users/Shared/rietx-eval/build-body",
+    "ablation": "none",
+    "modelOverride": "haiku",
+    "judgeModel": "sonnet",
+    "tagFilters": [
+      "trigger"
+    ],
+    "threshold": 1,
+    "concurrency": 1,
+    "plugins": [
+      {
+        "name": "rietx-skill-eval",
+        "version": "0.0.0",
+        "path": "/Users/Shared/rietx-eval/build-body"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "fire-caco3-fractions",
+      "dir": "evals/trigger/fire-caco3-fractions",
+      "source": "prose",
+      "promptMarkdown": "What are the weight fractions of calcite and aragonite in my CaCO3 powder? The pattern is caco3.xye from our Bruker D8, and I have a CIF for each phase.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 6,
+            "costUsd": 0.0456833,
+            "judgeCostUsd": 0,
+            "durationSeconds": 15,
+            "startedAt": "2026-10-06T10:00:02.689Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-l9sAta/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.020387799999999998,
+            "judgeCostUsd": 0,
+            "durationSeconds": 8,
+            "startedAt": "2026-10-06T10:00:17.832Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-hbAqEa/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0723337,
+            "judgeCostUsd": 0,
+            "durationSeconds": 48,
+            "startedAt": "2026-10-06T10:00:25.924Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-pb5XEC/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.6666666666666666,
+        "passRate": 0.6666666666666666
+      }
+    },
+    {
+      "name": "fire-diagnostics",
+      "dir": "evals/trigger/fire-diagnostics",
+      "source": "prose",
+      "promptMarkdown": "After my rietx fit the report lists FLAT_DIRECTION and HIGH_CORRELATION. What should I change before I run it again?",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.040569400000000005,
+            "judgeCostUsd": 0,
+            "durationSeconds": 17,
+            "startedAt": "2026-10-06T10:01:13.754Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-AAaClr/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0405384,
+            "judgeCostUsd": 0,
+            "durationSeconds": 18,
+            "startedAt": "2026-10-06T10:01:30.740Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-epxZmo/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.040284,
+            "judgeCostUsd": 0,
+            "durationSeconds": 17,
+            "startedAt": "2026-10-06T10:01:48.565Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-FD3uWV/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "fire-draw-structure",
+      "dir": "evals/trigger/fire-draw-structure",
+      "source": "prose",
+      "promptMarkdown": "Draw the crystal structure in perovskite.cif as a PNG, with the octahedra shown and the view down the c axis.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.043730099999999994,
+            "judgeCostUsd": 0,
+            "durationSeconds": 11,
+            "startedAt": "2026-10-06T10:02:05.528Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-zzVKAY/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.043788799999999996,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T10:02:16.701Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-oj10vK/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 4,
+            "costUsd": 0.039684,
+            "judgeCostUsd": 0,
+            "durationSeconds": 12,
+            "startedAt": "2026-10-06T10:02:27.170Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-WyJyIf/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "fire-heating-series",
+      "dir": "evals/trigger/fire-heating-series",
+      "source": "prose",
+      "promptMarkdown": "I collected 40 powder patterns while heating from 25 to 800 °C. Refine them in sequence and plot the cell volume against temperature.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 7,
+            "costUsd": 0.04472059999999999,
+            "judgeCostUsd": 0,
+            "durationSeconds": 12,
+            "startedAt": "2026-10-06T10:02:39.351Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-k0OcZm/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.043708300000000005,
+            "judgeCostUsd": 0,
+            "durationSeconds": 13,
+            "startedAt": "2026-10-06T10:02:51.179Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-b9dbV7/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.07000755,
+            "judgeCostUsd": 0,
+            "durationSeconds": 30,
+            "startedAt": "2026-10-06T10:03:04.341Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-0yszdd/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "fire-judge-calibration",
+      "dir": "evals/trigger/fire-judge-calibration",
+      "source": "prose",
+      "promptMarkdown": "My student fitted our LaB6 standard with rietx and sent me the FitReport. Is it good enough to save as the instrument profile?",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 6,
+            "costUsd": 0.025992,
+            "judgeCostUsd": 0,
+            "durationSeconds": 12,
+            "startedAt": "2026-10-06T10:03:34.299Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-RhfqYs/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.016537200000000002,
+            "judgeCostUsd": 0,
+            "durationSeconds": 4,
+            "startedAt": "2026-10-06T10:03:46.283Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-rIbCgu/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0406672,
+            "judgeCostUsd": 0,
+            "durationSeconds": 16,
+            "startedAt": "2026-10-06T10:03:50.615Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-K9JRqw/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.3333333333333333,
+        "passRate": 0.3333333333333333
+      }
+    },
+    {
+      "name": "fire-lebail-cell",
+      "dir": "evals/trigger/fire-lebail-cell",
+      "source": "prose",
+      "promptMarkdown": "Do a Le Bail fit of my synchrotron pattern, sample.xye, so I get the lattice parameters without needing a structure model.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.0439796,
+            "judgeCostUsd": 0,
+            "durationSeconds": 12,
+            "startedAt": "2026-10-06T10:04:07.060Z",
+            "error": "exit 1: Reached maximum number of turns (4)",
+            "tracePath": "/private/tmp/e-tT8Zh4/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.045503299999999997,
+            "judgeCostUsd": 0,
+            "durationSeconds": 14,
+            "startedAt": "2026-10-06T10:04:18.991Z",
+            "error": "exit 1: Reached maximum number of turns (4)",
+            "tracePath": "/private/tmp/e-D5rjjg/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.042909100000000006,
+            "judgeCostUsd": 0,
+            "durationSeconds": 11,
+            "startedAt": "2026-10-06T10:04:33.169Z",
+            "error": "exit 1: Reached maximum number of turns (4)",
+            "tracePath": "/private/tmp/e-PBlf3m/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "fire-pawley-spacegroup",
+      "dir": "evals/trigger/fire-pawley-spacegroup",
+      "source": "prose",
+      "promptMarkdown": "Run a Pawley fit of pattern.xy in P6_3/m so I can check whether that space group accounts for every peak.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.041965600000000006,
+            "judgeCostUsd": 0,
+            "durationSeconds": 8,
+            "startedAt": "2026-10-06T10:04:43.841Z",
+            "error": "exit 1: Reached maximum number of turns (4)",
+            "tracePath": "/private/tmp/e-luvq3u/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.046233199999999995,
+            "judgeCostUsd": 0,
+            "durationSeconds": 28,
+            "startedAt": "2026-10-06T10:04:51.971Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-ssVWww/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 6,
+            "costUsd": 0.0446732,
+            "judgeCostUsd": 0,
+            "durationSeconds": 12,
+            "startedAt": "2026-10-06T10:05:19.839Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-wcbBzG/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "fire-quartz-rietveld",
+      "dir": "evals/trigger/fire-quartz-rietveld",
+      "source": "prose",
+      "promptMarkdown": "I have a lab XRD pattern of quartz, quartz.xy (Cu Kα, Bragg-Brentano), and the quartz CIF. Run a Rietveld refinement with rietx and tell me the refined cell.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.0435739,
+            "judgeCostUsd": 0,
+            "durationSeconds": 11,
+            "startedAt": "2026-10-06T10:05:32.306Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-zsgv0n/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 6,
+            "costUsd": 0.043838,
+            "judgeCostUsd": 0,
+            "durationSeconds": 11,
+            "startedAt": "2026-10-06T10:05:43.334Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-6aTZvs/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 6,
+            "costUsd": 0.043569000000000004,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T10:05:54.377Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-MUEW7Q/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "fire-rank-candidates",
+      "dir": "evals/trigger/fire-rank-candidates",
+      "source": "prose",
+      "promptMarkdown": "We have twelve candidate structures from a crystal-structure-prediction run, as CIFs. Score each one against our measured powder pattern and rank them.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 7,
+            "costUsd": 0.0436244,
+            "judgeCostUsd": 0,
+            "durationSeconds": 15,
+            "startedAt": "2026-10-06T10:06:03.622Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-fT6Ozc/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.0454402,
+            "judgeCostUsd": 0,
+            "durationSeconds": 13,
+            "startedAt": "2026-10-06T10:06:18.857Z",
+            "error": "exit 1: Reached maximum number of turns (4)",
+            "tracePath": "/private/tmp/e-NXKMxW/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0393338,
+            "judgeCostUsd": 0,
+            "durationSeconds": 13,
+            "startedAt": "2026-10-06T10:06:31.516Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-ymWCCk/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "fire-unknown-cell",
+      "dir": "evals/trigger/fire-unknown-cell",
+      "source": "prose",
+      "promptMarkdown": "The pattern unknown.xy is from a phase nobody has identified. Work out its unit cell.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.044005699999999995,
+            "judgeCostUsd": 0,
+            "durationSeconds": 12,
+            "startedAt": "2026-10-06T10:06:44.663Z",
+            "error": "exit 1: Reached maximum number of turns (4)",
+            "tracePath": "/private/tmp/e-ijhP9D/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 5,
+            "costUsd": 0.0240187,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T10:06:57.020Z",
+            "error": "exit 1: Reached maximum number of turns (4)",
+            "tracePath": "/private/tmp/e-bvI1Si/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.0436812,
+            "judgeCostUsd": 0,
+            "durationSeconds": 11,
+            "startedAt": "2026-10-06T10:07:05.906Z",
+            "error": "exit 1: Reached maximum number of turns (4)",
+            "tracePath": "/private/tmp/e-6j9XFc/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.6666666666666666,
+        "passRate": 0.6666666666666666
+      }
+    },
+    {
+      "name": "quiet-chebyshev-numpy",
+      "dir": "evals/trigger/quiet-chebyshev-numpy",
+      "source": "prose",
+      "promptMarkdown": "Write a numpy function that fits a Chebyshev polynomial baseline to a 1D signal and returns the baseline.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "stayed_quiet",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0199822,
+            "judgeCostUsd": 0,
+            "durationSeconds": 7,
+            "startedAt": "2026-10-06T10:07:17.307Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-iPdaNs/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 7,
+            "costUsd": 0.0399917,
+            "judgeCostUsd": 0,
+            "durationSeconds": 180,
+            "startedAt": "2026-10-06T10:07:24.456Z",
+            "error": "timed out after 180s",
+            "tracePath": "/private/tmp/e-nvoAdA/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0197692,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T10:10:24.497Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-Vuw1JG/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "quiet-checkcif",
+      "dir": "evals/trigger/quiet-checkcif",
+      "source": "prose",
+      "promptMarkdown": "Run checkCIF-style validation on my single-crystal CIF and explain what an A-level alert about ADPs means.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "stayed_quiet",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 4,
+            "costUsd": 0.024124999999999997,
+            "judgeCostUsd": 0,
+            "durationSeconds": 8,
+            "startedAt": "2026-10-06T10:10:33.596Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-nvjlvp/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.0198657,
+            "judgeCostUsd": 0,
+            "durationSeconds": 8,
+            "startedAt": "2026-10-06T10:10:41.999Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-uVNvST/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.019651699999999998,
+            "judgeCostUsd": 0,
+            "durationSeconds": 6,
+            "startedAt": "2026-10-06T10:10:49.977Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-e3EqPG/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "quiet-cif-to-poscar",
+      "dir": "evals/trigger/quiet-cif-to-poscar",
+      "source": "prose",
+      "promptMarkdown": "Convert structure.cif to a VASP POSCAR file, keeping the atom order of the CIF.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "stayed_quiet",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0215116,
+            "judgeCostUsd": 0,
+            "durationSeconds": 7,
+            "startedAt": "2026-10-06T10:10:56.077Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-zPQAJI/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 4,
+            "costUsd": 0.0246662,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T10:11:03.204Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-RCvBwZ/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0204979,
+            "judgeCostUsd": 0,
+            "durationSeconds": 6,
+            "startedAt": "2026-10-06T10:11:13.088Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-d41opE/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "quiet-concepts",
+      "dir": "evals/trigger/quiet-concepts",
+      "source": "prose",
+      "promptMarkdown": "In two sentences and with no code: what is the difference between a Rietveld refinement and a Le Bail extraction?",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "stayed_quiet",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0169602,
+            "judgeCostUsd": 0,
+            "durationSeconds": 5,
+            "startedAt": "2026-10-06T10:11:18.759Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-kYlPf6/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0176072,
+            "judgeCostUsd": 0,
+            "durationSeconds": 7,
+            "startedAt": "2026-10-06T10:11:24.176Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-fo81fc/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0172602,
+            "judgeCostUsd": 0,
+            "durationSeconds": 5,
+            "startedAt": "2026-10-06T10:11:31.054Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-5iyZfP/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "quiet-density",
+      "dir": "evals/trigger/quiet-density",
+      "source": "prose",
+      "promptMarkdown": "What is the theoretical density of NaCl, given its lattice parameter of 5.640 Å? Show the arithmetic.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "stayed_quiet",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.021452199999999998,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T10:11:36.410Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-rugDbJ/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0219292,
+            "judgeCostUsd": 0,
+            "durationSeconds": 12,
+            "startedAt": "2026-10-06T10:11:45.264Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-93HJbz/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.021264199999999997,
+            "judgeCostUsd": 0,
+            "durationSeconds": 11,
+            "startedAt": "2026-10-06T10:11:57.258Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-XKaSnW/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "quiet-raman-peak",
+      "dir": "evals/trigger/quiet-raman-peak",
+      "source": "prose",
+      "promptMarkdown": "Fit a Lorentzian to the Raman G band near 1580 cm⁻¹ in graphite.csv and report its centre and width.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "stayed_quiet",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 4,
+            "costUsd": 0.0246445,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T10:12:07.963Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-6suWSl/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0199116,
+            "judgeCostUsd": 0,
+            "durationSeconds": 6,
+            "startedAt": "2026-10-06T10:12:17.962Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-ruW3Xa/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 4,
+            "costUsd": 0.0232938,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T10:12:24.200Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-8nh8Zz/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "quiet-saxs-guinier",
+      "dir": "evals/trigger/quiet-saxs-guinier",
+      "source": "prose",
+      "promptMarkdown": "Plot the SAXS curve in saxs.dat on log-log axes and fit the Guinier region for the radius of gyration.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "stayed_quiet",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 4,
+            "costUsd": 0.023973200000000004,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T10:12:34.558Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-fBXZvT/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.0232997,
+            "judgeCostUsd": 0,
+            "durationSeconds": 7,
+            "startedAt": "2026-10-06T10:12:43.188Z",
+            "error": "exit 1: Reached maximum number of turns (4)",
+            "tracePath": "/private/tmp/e-Gsjxlq/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.026483700000000002,
+            "judgeCostUsd": 0,
+            "durationSeconds": 8,
+            "startedAt": "2026-10-06T10:12:50.437Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-DDbKY2/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "quiet-scherrer",
+      "dir": "evals/trigger/quiet-scherrer",
+      "source": "prose",
+      "promptMarkdown": "A powder XRD peak at 2θ = 38.2° has a FWHM of 0.25° (Cu Kα). Estimate the crystallite size with the Scherrer equation and show the arithmetic.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "stayed_quiet",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0202482,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T10:12:58.464Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-BBxnrd/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.020050199999999997,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T10:13:08.051Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-2V0J7A/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.019530199999999998,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T10:13:17.261Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-tXFHrC/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "quiet-shelxl",
+      "dir": "evals/trigger/quiet-shelxl",
+      "source": "prose",
+      "promptMarkdown": "I'm refining a single-crystal dataset in SHELXL and R1 is stuck at 9 %. What are the usual causes, in a short list?",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "stayed_quiet",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0185822,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T10:13:25.905Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-GJknPr/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0186272,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T10:13:35.127Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-xay8Bd/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0191982,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T10:13:44.286Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-MpkpEZ/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "quiet-xps-shoulder",
+      "dir": "evals/trigger/quiet-xps-shoulder",
+      "source": "prose",
+      "promptMarkdown": "My XPS C 1s spectrum has a shoulder at higher binding energy. How should I fit the components?",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "stayed_quiet",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "min": 0,
+            "max": 0,
+            "arm": "both"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0181602,
+            "judgeCostUsd": 0,
+            "durationSeconds": 8,
+            "startedAt": "2026-10-06T10:13:54.365Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-j3nzP9/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0196452,
+            "judgeCostUsd": 0,
+            "durationSeconds": 11,
+            "startedAt": "2026-10-06T10:14:02.405Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-hqVjD0/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0196382,
+            "judgeCostUsd": 0,
+            "durationSeconds": 12,
+            "startedAt": "2026-10-06T10:14:13.607Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-K23cLE/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "stayed_quiet",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 0..0)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 20,
+    "casesPassed": 17,
+    "overallScore": 0.9333333333333332,
+    "overallPassRate": 0.9333333333333332
+  }
+}

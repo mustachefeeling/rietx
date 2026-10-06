@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.291",
+  "startedAt": "2026-10-06T07:36:52.213Z",
+  "durationSeconds": 271,
+  "costUsd": 0.40738830000000004,
+  "partial": false,
+  "suite": {
+    "root": "/Users/Shared/rietx-eval/build-body",
+    "ablation": "none",
+    "modelOverride": "haiku",
+    "judgeModel": "sonnet",
+    "caseFilter": "fap-fit",
+    "threshold": 1,
+    "concurrency": 1,
+    "plugins": [
+      {
+        "name": "rietx-skill-eval",
+        "version": "0.0.0",
+        "path": "/Users/Shared/rietx-eval/build-body"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "fap-fit",
+      "dir": "evals/fap-fit",
+      "source": "mixed",
+      "promptMarkdown": "FAP.XRA is a lab powder pattern of fluorapatite, Ca5(PO4)3F, collected on a Bragg-Brentano diffractometer with Cu Kα radiation (doublet, no monochromator). fluorapatite.cif is the starting model. Refine the structure against the pattern with rietx and write me a short report.md: the refined cell parameters a and c with their esds in value(esd) notation, as in 1.2345(6) Å, and a list of which refined numbers you would not yet put in a paper and why.\n\nrietx is installed for the python interpreter /Users/Shared/rietx-eval/build-body/runtime/bin/python. Your working directory holds FAP.XRA and fluorapatite.cif.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 2400,
+      "maxTurns": 60,
+      "graders": [
+        {
+          "name": "caveats_named",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS only with concrete evidence; do not give the benefit of the doubt. Does the report name at least one specific refined quantity it declines to quote AND give a specific, checkable reason tied to this fit (for example: a named diagnostic code, a correlation between zero shift and sample displacement or between the cell and either of them, a background-flexibility screen, a bound hit, an undersampling warning)? A generic caveat (\"Rietveld esds are underestimated\") without a quantity and a fit-specific reason is FAIL.",
+          "config": {
+            "criteria": "PASS only with concrete evidence; do not give the benefit of the doubt. Does the report name at least one specific refined quantity it declines to quote AND give a specific, checkable reason tied to this fit (for example: a named diagnostic code, a correlation between zero shift and sample displacement or between the cell and either of them, a background-flexibility screen, a bound hit, an undersampling warning)? A generic caveat (\"Rietveld esds are underestimated\") without a quantity and a fit-specific reason is FAIL.",
+            "focus": {
+              "source": "file",
+              "path": "report.md"
+            }
+          }
+        },
+        {
+          "name": "cell_a",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "report.md"
+            },
+            "pattern": "9\\.37(0[89]|[12]\\d|3[0-4])\\d*\\s?\\(\\d+\\)",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "cell_c",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "report.md"
+            },
+            "pattern": "6\\.88(5[2-9]|6\\d|7[01])\\d*\\s?\\(\\d+\\)",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "ran_fit",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Bash",
+            "input_match": "python[0-9.]*\\s+[^\\s\"]+\\.py|\\.fit\\(|\\brefine\\("
+          }
+        },
+        {
+          "name": "report_written",
+          "type": "file_exists",
+          "weight": 1,
+          "config": {
+            "path": "report.md",
+            "exists": true
+          }
+        },
+        {
+          "name": "skill_fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "arm": "with-only"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.5,
+            "passed": false,
+            "turns": 46,
+            "costUsd": 0.40738830000000004,
+            "judgeCostUsd": 0.008898000000000001,
+            "durationSeconds": 271,
+            "startedAt": "2026-10-06T07:36:52.278Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-Fw9BCW/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "caveats_named",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "# Fluorapatite Structure Refinement Report\n\n## Refined Cell Parameters\n\n- **a** = 9.3678(17) Å\n- **c** = 6.8830(12) Å\n\nESD inflation factor (Bérar-Lelann): 2.836\n\n## Fit Quality\n\n- Rwp = 0.11%\n- χ² = 4.05\n- Durbin-Watson = 0.79 (ideal = 2.0, indicates serial correlation)\n\n## Parameters Not Yet Suitable for Publication\n\n### 1. **Zero Shift and Sample Displacement** (perfectly correlated, ρ = +1.000)\n\n**Why**: These two instrument corrections form a FLAT_DIRECTION in the Bragg-Brentano\ngeometry on a single histogram—the data cannot mathematically distinguish between\nthem. One refinement parameter equals a precise linear combination of the other.\nThis is a rank-deficiency of the measurement, not a fitting artifact.\n\n**Impact on Cell Parameter 'a'**: The cell parameter 'a' correlates with both at\nρ ≈ +0.998 and +0.997, meaning any uncertainty in 'a' is conditional on one of\nthe two instrument parameters being correct. The esd of 'a' cannot be quoted\nindependently.\n\n**How to resolve**: Collect data over a wider 2θ range (currently 15°–130°, good)\nor add a second histogram (e.g., a different wavelength, geometry, or capillary\norientation). Alternatively, hold one of the two at an independently known value\n(from a calibration standard) and refine the other.\n\n### 2. **Isotropic Displacement Parameters (Biso)** for all atoms\n\n**Why**: Every Biso is exchangeable with 'a', 'c', scale, background coefficients,\nand the correlated instrument parameters. A Biso absorbs intensity changes in place of\nbackground, peak height, or cell parameter shifts. The R² of exchangeability ranges\nfrom 0.04 (Ca F site) to 0.47 (Ca2), meaning up to 47% of the Biso variance is\nattributable to partners, not to Biso itself.\n\n**How to resolve**: Hold Biso values fixed at a literature or constrained value,\nrefine the structure without them, or collect powder diffraction data on a\nsynchrotron with higher resolution to separate individual-atom scattering.\n\n### 3. **Axial Geometry Corrections** (axial_sl, axial_hl)\n\n**Why**: These two axial slit corrections are perfectly anti-correlated (ρ = −1.000).\nLike zero shift and sample displacement, they form a FLAT_DIRECTION: the measurement\nrank is insufficient to separate them. Neither should be quoted individually.\n\n**How to resolve**: Hold one at a measured or calculated value from sample geometry\nand refine the other, or omit one and let the fit absorb its contribution into the other.\n\n## Data Quality Issues\n\n- **Pattern undersampled**: 4.6 steps across the median FWHM (guideline: 5).\n  Integrated intensities were measured at too coarse a step size. Re-collect at\n  Δ(2θ) ≈ FWHM/5 if precise intensities are needed.\n\n- **Unmatched observed peaks**: 11 peaks\n  do not match the model. Likely causes: impurities, missing phases, or misfitting.\n\n- **Systematic residual**: Durbin-Watson = 0.79 (<2.0 indicates positive\n  serial correlation). Residuals between peak regions are not random noise.\n"
+              },
+              {
+                "name": "cell_a",
+                "passed": false,
+                "weight": 2,
+                "explanation": "pattern not found in file report.md",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": false,
+                "weight": 2,
+                "explanation": "pattern not found in file report.md",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 16x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "report_written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "report.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill_fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.5,
+        "passRate": 0
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 0,
+    "overallScore": 0.5,
+    "overallPassRate": 0
+  }
+}

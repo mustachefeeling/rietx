@@ -26,13 +26,12 @@ description: >-
   row: quote atoms.j.z, never dof.k, which stayed under 0.002 in every run.
   Its window spans GSAS's 0.070641 and rietx's 0.07043(69) to 0.07069(58).
   A copy of FAP.EXP's own numbers passes all four value graders; only
-  `ran_fit` and `file_wavelengths` stand against it. timeout_seconds and
-  max_turns are set from the pilot's fap-fit, to be re-measured in the first
-  round at -j 1.
+  `ran_fit` and `file_wavelengths` stand against it. max_turns is set from
+  the pilot's fap-fit, and timeout_seconds from fap-fit's Amendment 1.1.
 tags: [fit, fap, gsas, reproduce]
 runs: 3
 max_turns: 60
-timeout_seconds: 2400
+timeout_seconds: 1200
 allowed_tools: [Read, Grep, Glob, Skill, Bash, Write]
 ---
 FAP.EXP is GSAS's converged Rietveld refinement of FAP.XRA, a powder pattern of fluorapatite, Ca5(PO4)3F, from a lab Bragg-Brentano diffractometer with Cu Kα radiation. I want to know whether rietx agrees with GSAS on these data, so reproduce that refinement with rietx: the same model, with the same parameters refined. Save the script you ran as reproduce.py, and write rietx's refined values to answer.json as {"a": ..., "c": ..., "o7_z": ..., "rwp": ...}: a and c in Å, o7_z the fractional z coordinate of the site labelled O7, and rwp as a fraction, not a percentage.

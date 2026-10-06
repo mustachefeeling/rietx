@@ -53,8 +53,19 @@ skill's numbers are rendered from the package rather than typed.
   run, so they are not nightly material as they stand. A CI job also needs a
   Claude Code install and credentials in the environment, and
   `readout.py show` reports the fire and quiet rates a floor would be set on.
-  The tier's twenty prompts still wait on the maintainer's review and have
-  never run, so no floor exists yet.
+- **From WP-1905 (2026-10-06), tier 0's first numbers, and the fixture it
+  needs first.** The twenty prompts were reviewed and ran at N = 3
+  (`tests/eval_skill/PROTOCOL.md` § Rounds D and E). Haiku fired 26 of 30 and
+  stayed quiet 30 of 30, at $1.91 and 14 min a round. Sonnet fired 30 of 30
+  and stayed quiet 27 of 30, at $4.58. All four of Haiku's misses are the
+  instrument's. Each prompt names a file tier 0 does not provide, the agent
+  asks for it before any fit, and the skill never loads. So scaffold an empty
+  file per name a prompt gives (a dated amendment) before a nightly floor is
+  set on Haiku's fire rate. Two more things for the job. `readout.py`'s
+  `LEAK` lines read JSON pointers in written content and the run's own `/tmp`
+  as paths, so a floor must not be set on them. And on macOS the sandbox
+  denies `/Users` and `/tmp`; Linux CI is the pilot's case and needs only an
+  interpreter outside the home directory.
 
 ## Non-goals
 
