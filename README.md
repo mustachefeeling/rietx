@@ -1,5 +1,7 @@
 # rietx
 
+> **Development fork.** This copy of rietx carries work in progress: branches for pull requests and experimental features under test, before they are proposed to the main project. Branches here may be unreviewed, rebased or deleted without notice, and `main` here can lag behind. For releases, documentation and issues, use [yue-here/rietx](https://github.com/yue-here/rietx) (`pip install rietx`).
+
 [![CI](https://github.com/yue-here/rietx/actions/workflows/ci.yml/badge.svg)](https://github.com/yue-here/rietx/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/rietx)](https://pypi.org/project/rietx/)
 
