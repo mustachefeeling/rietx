@@ -38,7 +38,8 @@ when you read a plan. A coordinate is free along the directions its site
 symmetry allows rather than in x, y and z. `ParameterTable` wires one
 `phases.*.atoms.*.dof.*` entry per allowed direction and ties x, y and z to
 them. A fully fixed special position contributes no entries at all, so the glob
-is always safe to use, and setting `vary=True` on such a coordinate raises.
+is always safe to use, and setting `vary=True` on such a coordinate raises
+(`ref.fix_special_positions()` clears the flag on every such coordinate, and says which).
 
 Anisotropic displacement parameters work the same way, through
 `phases.*.atoms.*.adp.*`, and so do the fifteen Stephens strain coefficients

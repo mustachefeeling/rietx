@@ -337,7 +337,7 @@ built, so an unknown symbol fails with a crystallographic message instead of a
 schema error. Coordinates do not refine as x, y and z: the table wires one
 degree of freedom per direction the site symmetry allows and ties the three
 coordinates to those, so a fully fixed special position contributes no free
-entries at all and `vary=True` on such a coordinate raises. [](model.md) has the
+entries at all and `vary=True` on such a coordinate raises (`Refinement.fix_special_positions()` clears it on every such coordinate). [](model.md) has the
 paths and what a tied row looks like.
 
 An atom has one displacement model. Set `aniso` and `biso` becomes an inert

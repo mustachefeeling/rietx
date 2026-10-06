@@ -1279,7 +1279,9 @@ class ParameterTable:
         if len(basis) == 0 and want_vary:
             raise ValueError(
                 f"{base} sits on a fully fixed special position; its site "
-                "symmetry allows no positional freedom — set vary=False")
+                "symmetry allows no positional freedom — set vary=False "
+                "(Refinement.fix_special_positions() does it for every such "
+                "site)")
         dof_paths = [f"{base}.dof.{k}" for k in range(len(basis))]
         for c_idx, c in enumerate(("x", "y", "z")):
             p: Parameter = getattr(atom, c)
