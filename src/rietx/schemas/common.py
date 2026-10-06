@@ -467,7 +467,10 @@ from .._nearmiss import did_you_mean
 #: ``RefinementResult.texture``, one ``PhaseTexture`` per textured phase.
 #: Additive and defaulted to ``None`` and empty, so every stored document
 #: loads and refines as before; an older build refuses either.
-SCHEMA_VERSION = "0.57"
+#: 0.57 → 0.58 (WP-1810): ``RigidBody.riding``, the body atoms that are riding
+#: hydrogens, and the CIF ``_atom_site_refinement_flags_posn`` /
+#: ``_atom_site_calc_flag`` columns a phase with a body now writes.  Additive.
+SCHEMA_VERSION = "0.58"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated
