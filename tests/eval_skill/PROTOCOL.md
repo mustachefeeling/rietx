@@ -416,6 +416,50 @@ lines.
 
 ## Results
 
-None yet. Each round appends its `readout.py show` output, the build's two
-hashes, its `-j`, its cost and the date; a comparison appends its
-`readout.py compare` output and the rule's verdict.
+Each round appends its `readout.py show` output, the build's two hashes, its
+`-j`, its cost and the date; a comparison appends its `readout.py compare`
+output and the rule's verdict. Result files are kept in
+`docs/wp/1905-eval/round1/`.
+
+### Round B, 2026-10-06: today's body, Haiku, two-arm, N = 3
+
+Build `SKILL.md` d424ccece23a, tree 604f4c2b2018, from commit eb7a0538.
+Claude Code 2.1.291, judge Sonnet, `-j 1`, alone on a 10-core Mac. Two
+result files make one round. `B.json` ran all three cases with the
+interpreter in the plugin root, which voided both fit cases' baseline arm
+(§ Prerequisites). So its `fap-judge` rows stand, and `B2.json` re-ran the
+two fit cases with the interpreter in `/opt/homebrew/var/rietx-eval/venv`.
+B2 reached B's $8 ceiling with one run left, so `fap-gsas-reproduce`'s
+baseline arm has N = 2. Together they cost $8.29 and 1 h 40 min of wall time (58 and 42 min).
+
+```
+case                       arm     n  score per run           pass  $/run judge s/run turns  tok/run  fired refs
+fap-fit                    with    3  0.43 0.43,0.43,0.43    0/3   0.270 0.012   200 18-33   1067k  3/3   -
+fap-fit                    without 3  0.86 0.86,0.86,0.86    0/3   0.385 0.010   230 39-61   1898k  0/3   -
+fap-gsas-reproduce         with    3  0.46 0.50,0.38,0.50    0/3   0.361 0.000   205 23-48   1726k  3/3   -
+fap-gsas-reproduce         without 2  0.38 0.38,0.38         0/2   0.556 0.000   310 4-60    3424k  0/2   -
+fap-judge                  with    3  0.83 1.00,0.75,0.75    1/3   0.109 0.038    60 5-7      120k  3/3   judging.md
+fap-judge                  without 3  0.83 0.75,0.75,1.00    1/3   0.068 0.028    41 3-4       54k  0/3   -
+```
+
+- **`fap-fit` is a deciding case today's body fails, and the baseline arm
+  passes it.** All three with-skill runs report a = 9.3683(16) Å and
+  c = 6.8833(12) Å, the same numbers to the last digit. That is the
+  degenerate route the case's description names: zero and displacement free
+  together, and FLAT_DIRECTION. Each report names that caveat, so
+  `caveats_named` passes and both cell graders fail. All three runs without
+  the skill improvised a route and landed inside both windows
+  (9.3709(4)-9.3728(6) Å), and none named a caveat. One of them hit 60 turns.
+- **`fap-gsas-reproduce` fails both cell graders in both arms.** The skill
+  adds the `rwp` grader in all three runs. `file_wavelengths` failed in one
+  with-skill run.
+- **`fap-judge` does not separate the arms on Haiku at N = 3** (0.83 each).
+  This repeats the pilot's ceiling on Sonnet, but on Haiku.
+- **No run opened a reference file** except `fap-judge`'s `judging.md`.
+- **Assumption 5 holds**: `readout.py show` printed no `SCORE` line over the
+  18 two-arm runs of `B.json` or the 11 of `B2.json`.
+- **The `LEAK` read-out over-reports.** It reads JSON pointer strings in an
+  agent's written content (`/cell/a`, `/atoms/6/z`) as paths, and `/tmp` in a
+  run's Bash is the run's own. Every other `LEAK` line in `B.json` is a
+  baseline run probing the plugin directory for the interpreter it could not
+  start.
