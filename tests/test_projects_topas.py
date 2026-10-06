@@ -4590,7 +4590,7 @@ def test_the_written_width_lines_are_the_ones_topas_ran(tmp_path):
     for structure, expected in cases:
         diags: list = []
         write_topas_inp(structure, tmp_path / "w.inp", diagnostics=diags)
-        lines = (tmp_path / "w.inp").read_text().splitlines()
+        lines = (tmp_path / "w.inp").read_text(encoding="utf-8").splitlines()
         assert [ln for ln in lines if "_fwhm" in ln] == expected
         assert sum(ln.startswith("  lor_fwhm") for ln in lines) == 1
         assert sum(ln.startswith("  gauss_fwhm") for ln in lines) <= 1
@@ -4674,19 +4674,19 @@ def test_what_the_file_states_whole_is_not_named(tmp_path):
     from rietx.schemas.structure import PreferredOrientation, StephensStrain
 
     write_topas_inp(_rutile_with(), tmp_path / "plain.inp")
-    plain = (tmp_path / "plain.inp").read_text()
+    plain = (tmp_path / "plain.inp").read_text(encoding="utf-8")
     for quiet in (_rutile_with(),
                   _rutile_with(microstrain=StephensStrain.from_values([0.0] * 15)),
                   _rutile_with(preferred_orientation=PreferredOrientation(axis=(0, 0, 1)))):
         diags: list = []
         write_topas_inp(quiet, tmp_path / "q.inp", diagnostics=diags)
         assert diags == []
-        assert (tmp_path / "q.inp").read_text() == plain
+        assert (tmp_path / "q.inp").read_text(encoding="utf-8") == plain
     strained = _rutile_with(lor_strain=rx.Parameter(value=0.05, min=0.0),
                             extinction=rx.Parameter(value=40.0, min=0.0))
     diags = []
     write_topas_inp(strained, tmp_path / "iso.inp", diagnostics=diags)
-    written = (tmp_path / "iso.inp").read_text().splitlines()
+    written = (tmp_path / "iso.inp").read_text(encoding="utf-8").splitlines()
     assert [ln for ln in written if ln not in plain.splitlines()] == [
         "  lor_fwhm = 0.05*Tan(Th);"]
     assert len(written) == len(plain.splitlines()) + 1
