@@ -290,6 +290,36 @@ def test_min_image_freezes_nearest_image():
     assert np.array_equal(n0, np.array([1.0, 0.0, 0.0]))
 
 
+def test_min_image_does_not_depend_on_the_stored_cell():
+    """The auto-search finds the same nearest image wherever the coordinates
+    are stored: shifting an atom by whole lattice vectors (a CIF that keeps a
+    molecule whole across a cell edge, a rigid body placed about any origin)
+    leaves its restrained distance unchanged.  P2₁ toy: Li at x = 0.10 and an
+    O whose 2₁ image sits 2.0 Å away; moved two cells along a, the old
+    {−1,0,1}³ shell about n = 0 could not reach that image."""
+    cell = Cell(a=Parameter(value=5.0), b=Parameter(value=6.0), c=Parameter(value=7.0),
+                alpha=Parameter(value=90.0), beta=Parameter(value=90.0),
+                gamma=Parameter(value=90.0))
+
+    def phase(shift):
+        li = np.array([0.10, 0.10, 0.10]) + shift
+        o = np.array([-0.10, -0.40, -0.10 + 2.0 / 7.0])   # 2₁ image: (0.10, 0.10, 0.10 − 2/7)
+        return Phase(name="t", space_group="P 1 21 1", cell=cell, atoms=[
+            Atom(label="Li1", species="Li", x=Parameter(value=li[0]),
+                 y=Parameter(value=li[1]), z=Parameter(value=li[2])),
+            Atom(label="O1", species="O", x=Parameter(value=o[0]),
+                 y=Parameter(value=o[1]), z=Parameter(value=o[2]))])
+
+    g = _metric_g(cell.lengths_angles())
+    for shift in ([0, 0, 0], [1, 0, 0], [2, 0, 0], [-3, 2, 1], [0, 0, 5]):
+        ph = phase(np.array(shift, dtype=np.float64))
+        sites = compile_phase_sites(ph)
+        x_i, x_j = _atom_xyz(ph, 0), _atom_xyz(ph, 1)
+        rot, tr, n = _resolve_image(sites, 1, x_i, x_j, None, (0, 0, 0), g)
+        dx = rot @ x_j + tr + n - x_i
+        assert float(np.sqrt(dx @ (g @ dx))) == pytest.approx(2.0, abs=1e-9), shift
+
+
 def test_min_image_refreezes_when_coordinates_move():
     """Frozen-per-stage: a recompile at moved coordinates re-resolves the image
     (the discrete choice tracks the coordinates between stages)."""

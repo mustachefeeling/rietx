@@ -156,6 +156,16 @@ def _resolve_image(sites, j, reference, base_xyz, op_index, translation, g):
     used verbatim.  Otherwise the minimum-image search enumerates the atom's
     frozen orbit ops × the ``{−1,0,1}³`` lattice shell and keeps the closest
     (non-coincident) image, measured with the compile-time metric ``g``.
+
+    The shell is centred, per op, on the lattice vector that brings the image
+    nearest ``reference`` (``round(reference − R·x − t)``), so the search does
+    not depend on which unit cell a coordinate happens to be stored in.  A
+    shell around n = 0 missed the image whenever the two stored coordinates
+    differed by more than about one cell after the operation — an atom at
+    x = 1.05 and its partner's ``−x`` image at x = −1.1 — and then froze a
+    distant image as "nearest".  Coordinates outside [0, 1) are ordinary: CIFs
+    store a molecule whole across a cell edge, and a rigid body places its
+    atoms about an origin anywhere.
     """
     ops_r, ops_t = sites.ops[j]
     m = len(ops_r)
@@ -171,10 +181,11 @@ def _resolve_image(sites, j, reference, base_xyz, op_index, translation, g):
     best: tuple[float, int, np.ndarray] | None = None
     for mi in range(m):
         img0 = ops_r[mi] @ base_xyz + ops_t[mi]
+        centre = np.round(reference - img0)
         for na in shell:
             for nb in shell:
                 for nc in shell:
-                    n = np.array([na, nb, nc], dtype=np.float64)
+                    n = centre + np.array([na, nb, nc], dtype=np.float64)
                     dx = img0 + n - reference
                     d2 = float(dx @ (g @ dx))
                     if d2 < _COINCIDENT_D2:
