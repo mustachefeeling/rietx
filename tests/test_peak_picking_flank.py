@@ -26,6 +26,9 @@ from tests._synthetic_silicon import A_SI, silicon_pattern
 FIRST_SI_LINE = 28.0      # Si 111 is at 28.44°; nothing real lies below this
 
 
+# the module fixtures ``flat`` and ``steep`` are shared by four tests: pin the module
+pytestmark = pytest.mark.xdist_group("peak-picking-flank")
+
 INSTRUMENT = rx.Instrument.bragg_brentano(radiation="CuKa")
 
 

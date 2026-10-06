@@ -526,8 +526,9 @@ PEAK_ASSUMED_ESD_DEG = 0.02
 #: deliberately **not** in :data:`PEAK_UNUSABLE_FLAGS`, and it is a flag of its
 #: own rather than a reuse of ``position_at_bound``, which means something
 #: else and caught only two of the five cases that motivated this.
-#: ``no_intensity`` — the component refined onto its zero intensity bound, so it
-#: contributes nothing to the window and its own position stops being
+#: ``no_intensity`` — the component refined onto its zero intensity bound, or
+#: sits under :data:`PEAK_NO_INTENSITY_SIGMA` of its own esd, so it contributes
+#: nothing the data can tell from zero and its own position stops being
 #: identifiable (a peak reaches the data only through ``intensity × profile``).
 #: It **is** unusable: unlike the report-do-not-refuse flags above, there is no
 #: judgement left for a consumer to make.  It stays in ``peaks`` for the same
