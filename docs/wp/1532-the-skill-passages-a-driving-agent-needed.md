@@ -56,6 +56,13 @@ The row needs that check before it is written.
 
 ### Inherited
 
+- **From WP-1906 (2026-10-06), the body these rows land on.** `SKILL.md`'s
+  body is 16 996 B against `SKILL_BUDGET_BYTES` (17 000), so every byte a
+  row adds to the body is paid by a cut there. Rules keep their numbers 1-22;
+  the stop conditions are now 23-25. A row an agent needs at fit time takes
+  the cheapest place first (`help.py`, a `Diagnostic.suggestion`, a
+  reference row) and the body last. A body change is measured as WP-1906's
+  was: `tests/eval_skill/PROTOCOL.md` § Rounds F1 and F2.
 - **2026-10-05, from the issue triage (issue #728, part 2): the skill shows
   the extinction screen only on `best_or_none()`, so an agent re-ran
   `index_pattern` to get a candidate to screen.** It looked for `.classes`

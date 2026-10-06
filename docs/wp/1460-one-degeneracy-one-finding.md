@@ -81,6 +81,16 @@ found `refine.py` (`_dedup_high_correlations`, the stage loop's
 `references/diagnostics.md`. The grep is a starting list, not the audit: a
 reader that keys on `where` without naming the code is the one it misses.
 
+### Inherited
+
+- **From WP-1906 (2026-10-06), a count on a skill's worked example.** The
+  P-spline default (`rx.auto_background(data)`) on FAP.XRA under
+  `mccusker_structural` reports 770 `HIGH_CORRELATION` findings and two
+  `FLAT_DIRECTION`, against none with `kind="chebyshev"` on the same fit
+  (cells equal to 2e-7 Å). So the skill's worked default uses a Chebyshev
+  background, and the body says nothing about the flood. When this WP lands,
+  the default can go back to the P-spline.
+
 ## Non-goals
 
 - Changing `correlation_guard` or `FLAT_DIRECTION_RHO` (WP-1454's non-goal too).

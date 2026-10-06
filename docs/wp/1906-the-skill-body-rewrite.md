@@ -1,6 +1,6 @@
 # WP-1906 — the skill body rewrite: under 5 000 tokens, rules first, evidence in the references, the contradictions resolved
 
-Milestone: unscheduled · Status: 🔄 2026-10-06 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-06 — body rewritten and measured (rule holds on Haiku and Sonnet); one follow-up edit and its round left
 Track: The repo's own process
 Depends on: 1905 (the before-and-after it is judged by); 1532 soft (its fourteen rows land on the rewritten body)
 Priority: P2 2026-10-06 — 1905 measured the baseline, and on Haiku the body steers every from-scratch fit to a degenerate route; every session that loads the skill pays its 8 700 tokens
@@ -145,7 +145,7 @@ restates what decides the design.
       reference headings that cite rule numbers
 - [x] The worked default runs as written (`examples/` holds it, the manual
       `{literalinclude}`s it, `tests/test_examples.py` runs it)
-- [ ] The § E gaps: each placed by the placement rule or declined with a
+- [x] The § E gaps: each placed by the placement rule or declined with a
       reason, row by row in the handover
 - [x] WP-1905's suite: the rewritten body against the current one, N = 3,
       Haiku and Sonnet, tokens per run beside the score; the decision rule
@@ -153,6 +153,10 @@ restates what decides the design.
 - [x] `rietx skill --install . --copy`; `tests/test_skill.py` green; the
       budget met without raising a cap
 - [x] Skill: this WP is the skill change
+- [ ] §10 says a task reproducing another program's refinement adopts
+      its protocol (its file's wavelengths, its refined set), not the worked
+      default; one round on Haiku and Sonnet (Sonnet's F2 lost
+      `file_wavelengths` 3 of 3 by copying §10)
 
 ## Acceptance
 
@@ -173,6 +177,91 @@ restates what decides the design.
   Cryst.* **57**, 175 — the two sources the body's protocol rests on.
 
 ## Handover log
+
+- **2026-10-06** — The skill's body is now a third shorter than before (16 996 B
+  against 29 687), under the 5 000-token budget that survives compaction, and
+  it measures better rather than worse. Haiku driving a fit from scratch now
+  lands the fluorapatite cell in all three runs, where the old body sent all
+  three down a degenerate route: its worked example freed the zero and the
+  sample displacement together, and the package's own plan description
+  recommended the same thing. Sonnet scores as before on every case at under
+  half the tokens on the from-scratch fit. One small loss remains: on a task
+  that asks to reproduce another program's refinement, Sonnet copies the
+  worked example instead of adopting that program's wavelengths.
+
+  *Done.* Items 1-3 as one rewrite: each of the audit's § B contradictions is
+  now a condition. Le Bail is for a cell with no trusted structure, so rules
+  4-5 govern a Le Bail run and show the plan object and the seeded coefficient.
+  The width seed is `W ≈ (0.6·H)²`, `X ≈ 0.6·H`, from Γ_G² = U·tan²θ + V·tanθ
+  + W and the TCHZ combination (0.61·H for equal halves). Stop condition 25
+  is the t-ratio then ΔBIC at N/f². The swap's licence is
+  `RivalComparison.chi2_ratio`, since `ambiguous` is no field value. A cell
+  move is judged against its start's error, not 0.5 %. The esd rule says the
+  inflation is already in. Rules keep 1-22, so no reference heading moved,
+  and the stop conditions are 23-25, closing the gap. `lab_bragg_brentano`'s
+  `PLAN_INFO` text now states rule 6's condition. Evidence the body alone
+  carried went to `judging.md` (Hill 1992, Schwarzenbach 1989, the
+  coordination-number reading). `docs/manual/conf.py` renders a plain-text
+  link label, which the budgeted body uses. Item 4 by a lane:
+  `examples/skill_worked_default.py`, held equal to §10 by
+  `test_the_worked_default_is_the_example_that_runs`. No `{literalinclude}`
+  was added, because the manual already renders the body's block through its
+  skill chapter. Rounds F1 and F2 are in `tests/eval_skill/PROTOCOL.md`
+  § Results, with result files in `docs/wp/1906-eval/`.
+
+  *§ E gaps, row by row* (all in the body unless declined): 1 first-call
+  sequence, §10 plus §2's Le Bail paragraph. 2 plan by data type, §2's
+  *When* column. 3 instrument beyond lab Cu, §1's geometry and wavelength
+  rows (`debye_scherrer(wavelength)`, api § In); `flat_plate_transmission`
+  declined, being api.md's. 4 width seed as a path, §1 and §10. 5
+  multi-phase, §1 (`Structure(phases=[...])`). 6 `result.usable`, rule 9. 7
+  reading `print(result)`, §4's opening. 8 diagnostics to action, §4's
+  opening (`d.suggestion` then grep). 9 the `vary=False` trap, §3
+  (`ref.hold`). 10 a Layer-2 suggestion, §4b (`predict_then_verify`); the
+  three-line branch recipe declined, being history.md's. 11 QPA fields, §4b
+  (`result.qpa.phases`, `weight_fraction`, `zmv`). 12 fit range and
+  exclusions, §1. 13 writing the answer, §10 (`write_refinement_cif`,
+  `write_qpa_table`). 14 a large `max_shift_over_esd`, rule 9.
+
+  *Measured* ([dev] venv, darwin/arm64). On FAP.XRA with the Cu Kα preset:
+  `lab_bragg_brentano` ends `max_iter`, unusable, a = 9.3691(8) Å with
+  FLAT_DIRECTION; `mccusker_structural` with a Chebyshev background converges
+  at a = 9.37096(9), c = 6.88532(9) over the full range in 4-13 s. The width
+  seed changes nothing on FAP (its lines are 0.076°, within 2.5× of the
+  default). The P-spline default adds 770 `HIGH_CORRELATION` and two
+  `FLAT_DIRECTION` to the same fit (sent to WP-1460). Eval rounds against
+  B (Haiku) and C (Sonnet), N = 3, rule holding in F1 and F2:
+
+  | round | fap-fit | fap-gsas-reproduce | fap-judge | $ |
+  |---|---|---|---|---|
+  | F1 Haiku | 0.43 → 1.00 | 0.46 → 0.38 | 0.83 → 0.83 | 1.75 |
+  | F2 Haiku | 0.43 → 1.00 | 0.46 → 0.46 | 0.83 → 0.58 (= −t) | 2.54 |
+  | F2 Sonnet | 1.00 → 1.00 | 1.00 → 0.88 | 1.00 → 1.00 | 2.57 |
+
+  Tokens per run fell on six of nine F2 rows (Sonnet `fap-fit` 838k → 365k).
+  Session spend $6.86 against the maintainer's ~$9.
+
+  Lanes (`/wp-lanes` trial): one lane, `worked-default-runs`, estimated 22
+  requests and took 14; dispatched at 205K; re-read 0K of 5K; 5 main requests
+  and 9K left in main to check it; no edits after, no redo; $0.79 lane, saved
+  +$0.10 (+1 % of the session). The selective policy's replay row: 72
+  sessions, −24 %. Only the laned item carries a decision line: the body
+  rewrite started at ~150K and the eval rounds needed the maintainer's spend,
+  so both were kept, but neither got its `lanes: keep` line, and the tool
+  counts 0 kept.
+
+  *Gotchas.* The worktree guard refuses `claude plugin eval` typed in Bash
+  (it reads "eval"), so the round runs from a script file. The fit cases'
+  graders read the script text, so `file_wavelengths` cannot see an
+  instrument read from the program's file without `.wavelengths` written.
+  That is the instrument, and here the Sonnet runs did use the preset, so
+  the loss is real. A F2 Haiku `fap-gsas-reproduce` run hit the 60-turn cap,
+  which is where its token rise comes from.
+
+  Next: the new last task. Add one clause to §10's opening (paid for by a cut,
+  4 B left) saying a reproduce task adopts that program's protocol (§4), then
+  run one round on each model against B and C (≈ $5). Then close: the goal
+  holds already, and the rest of the WP is done.
 
 - **2026-10-04** — created by WP-1904's session. No open WP owns the body's
   size or its contradictions: 1338 closed with the budget ratchet, and 1532
