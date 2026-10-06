@@ -909,8 +909,10 @@ class MagneticCandidate:
     ``verified`` is the outcome of :meth:`in_allowed_span` when
     :func:`candidates` was called with ``verify=True`` — ``None`` when it
     was not run (``verify=False``), ``True`` when this *one* candidate's own
-    family passed, ``False`` when it did not.  A failing candidate still
-    appears in the returned :class:`CandidateSet`, with ``verification_reason``
+    family is fixed by every operation of ``group`` and lies in what its
+    stabiliser allows, ``False`` when it is not (issue #607:
+    :meth:`verification_failure` says which check failed).  A failing
+    candidate still appears in the returned :class:`CandidateSet`, with ``verification_reason``
     stating why (Q-21): one bad candidate no longer hides the rest of its
     site's passing ones, which is what raising on the first failure used to
     do.  A caller that wants only verified candidates filters on this field;
@@ -971,17 +973,45 @@ class MagneticCandidate:
         return np.tensordot(a, self.configurations, axes=(0, 0))
 
     def in_allowed_span(self, *, atol: float = 1e-6) -> bool:
-        """Whether every pattern this family can carry is allowed by its own MSG.
+        """Whether every pattern this family can carry is fixed by its own MSG.
 
-        The two halves of the engine agreeing: :mod:`.modes` builds the pattern
-        from the irrep, this module derives the operator list from the
-        stabiliser, and the allowed-span helper derives the allowed subspace
-        back from that operator list.  A wrong vector action, a wrong
-        return-vector phase or a missing anti-translation each break it, and
-        none of them changes any dimension count.
+        True when :meth:`verification_failure` finds nothing; see there for
+        the two checks.
+        """
+        return self.verification_failure(atol=atol) is None
 
-        Which helper depends on ``kind``, because a moment and a displacement
-        are different kinds of vector: ``kind="magnetic"`` checks against
+    def verification_failure(self, *, atol: float = 1e-6) -> str | None:
+        """Why this family and its operator list disagree, or ``None`` if they do not.
+
+        The two halves of the engine checked against each other, twice.
+
+        1. **The operator list** (issue #607): every operation of
+           ``self.group`` — the object that is identified, labelled and handed
+           to the supercell builder — with its rotation, translation and
+           time-reversal sign, applied to every configuration
+           (:func:`_apply_domain`: positions permuted, a moment carried by
+           ε·det(R)·R, a displacement by R), must return that configuration
+           unchanged.  This is where a missing anti-translation, a wrong
+           time-reversal sign on an operator or a wrong relative sign between
+           two atoms shows: before #607 nothing read ``self.group`` here, and
+           dropping the anti-translation sign in :func:`_candidate_group`
+           relabelled all four MnO candidates (167.108 → 166.101, 12.63 →
+           12.58, 15.90 → 12.62, 2.7 → 2.4) with every one still verified.
+           It tests that the group fixes the family (H ⊆ stabiliser of the
+           family), not that the group is the *whole* stabiliser; the
+           field-stabiliser oracle in ``tests/test_magnetic_isotropy.py`` is
+           the test of equality.
+        2. **The stabiliser, atom by atom** (Q22): each atom's moment lies in
+           the subspace its own grey stabiliser elements allow, with the
+           return-vector phase of :mod:`.modes`.  It reads
+           ``self.direction.stabilizer`` and not ``self.group``, so it checks
+           the configurations against the isotropy subgroup the direction was
+           chosen for; check 1 checks them against the operator list built
+           from it.  A wrong vector action or a wrong return-vector phase
+           breaks it, and none of them changes any dimension count.
+
+        Which helper check 2 uses depends on ``kind``, because a moment and a
+        displacement are different kinds of vector: ``kind="magnetic"`` checks against
         :func:`~.operators.allowed_moment_basis`, the **axial** action
         ε·det(R)·R.  ``kind="displacive"`` checks against
         :func:`~.operators.allowed_displacement_basis`, the **polar** action
@@ -1032,6 +1062,22 @@ class MagneticCandidate:
         which never depended on time reversal — ``phase(i, j)`` is not one,
         it is a spatial return-vector fact both kinds need).
         """
+        vector = "moment" if self.kind == "magnetic" else "displacement"
+        for operation in self.group.all_operations():
+            try:
+                moved = _apply_domain(operation, self.positions, self.configurations,
+                                      kind=self.kind)
+            except RuntimeError as exc:
+                return (f"the operation {operation.xyz()!r} of {self.label}'s own "
+                        f"operator list ({self.bns_number}) does not map the site's "
+                        f"atoms onto themselves: {exc}")
+            worst = float(np.max(np.abs(moved - self.configurations))) \
+                if self.configurations.size else 0.0
+            if worst > atol:
+                return (f"the operation {operation.xyz()!r} of {self.label}'s own "
+                        f"operator list ({self.bns_number}) does not leave its {vector} "
+                        f"family invariant (largest change {worst:.3g}); the operator "
+                        f"list and the configurations disagree")
         basis_fn = (allowed_moment_basis if self.kind == "magnetic"
                     else allowed_displacement_basis)
         inverse = _exact_inverse(self.cell.basis)
@@ -1061,8 +1107,12 @@ class MagneticCandidate:
             basis = basis_fn(tuple(ops), phases=tuple(phases))
             for pattern in self.configurations:
                 if not in_span(basis, pattern[atom], atol=atol):
-                    return False
-        return True
+                    return (f"the {vector} of atom {atom} in {self.label} leaves the "
+                            f"subspace its own stabiliser elements allow (the "
+                            f"direction's isotropy subgroup with the return-vector "
+                            f"phase); the isotropy subgroup and the basis vectors "
+                            f"disagree")
+        return None
 
 
 def _rotation_in_cell(rotation, inverse, forward, *, label=None
@@ -1701,23 +1751,22 @@ def candidates(space_group, site_xyz, k, *, kind: str = "magnetic", cell=None,
                 positions=site_positions, configurations=configurations,
                 permutation=representation.permutation, parent_atoms=parent_index)
             if verify:
-                ok = candidate.in_allowed_span()
-                reason = None if ok else (
-                    f"the moment family of {candidate.label} in {sg.xhm()!r} at "
-                    f"k = {tuple(str(c) for c in kk)} leaves the allowed subspace of its "
-                    f"own magnetic space group ({candidate.bns_number}). The isotropy "
-                    f"subgroup and the basis vectors disagree; this is a bug, not a "
+                failure = candidate.verification_failure()
+                reason = None if failure is None else (
+                    f"{candidate.label} in {sg.xhm()!r} at k = "
+                    f"{tuple(str(c) for c in kk)}: {failure}. This is a bug, not a "
                     f"tolerance")
-                candidate = replace(candidate, verified=ok, verification_reason=reason)
+                candidate = replace(candidate, verified=failure is None,
+                                    verification_reason=reason)
             out.append(candidate)
     if verify and out and all(c.verified is False for c in out):
         names = ", ".join(c.label for c in out)
         raise RuntimeError(
             f"every candidate of the site {tuple(float(v) for v in site_xyz)} in "
-            f"{sg.xhm()!r} at k = {tuple(str(c) for c in kk)} ({names}) leaves the "
-            f"allowed subspace of its own magnetic space group; the isotropy "
-            f"subgroup and the basis vectors disagree for all of them, with "
-            f"nothing left to fall back on. This is a bug, not a tolerance")
+            f"{sg.xhm()!r} at k = {tuple(str(c) for c in kk)} ({names}) fails "
+            f"verification — its family is not fixed by its own operator list, or "
+            f"leaves what its stabiliser allows — with nothing left to fall back on "
+            f"(first: {out[0].verification_reason}). This is a bug, not a tolerance")
     return CandidateSet(space_group=sg,
                         site=tuple(float(v) for v in site_xyz), k=kk, kind=kind,
                         cell=mcell, lattice=lattice, representation=representation,

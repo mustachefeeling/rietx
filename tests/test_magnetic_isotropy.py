@@ -1209,6 +1209,136 @@ def test_every_configuration_is_invariant_under_its_own_group(case):
                 f"{candidate.label} is not fixed by {operation.xyz()!r}"
 
 
+#: The four public cases of issue #607 (parent, magnetic site, k): MnO, MnF₂,
+#: Cr₂O₃ and LaMnO₃, the parents and sites of :data:`PUBLISHED` and arm A.
+VERIFY_CASES = [
+    ("F m -3 m", (0, 0, 0), HALF),
+    ("P 4_2/m n m", (0, 0, 0), GAMMA),
+    ("R -3 c", (0, 0, 0.3476), GAMMA),
+    ("P n m a", (0, 0, 0), GAMMA),
+]
+
+
+def _planted_group(stabiliser_sign):
+    """``_candidate_group`` (magnetic branch) with the operator's time-reversal sign replaced.
+
+    ``stabiliser_sign(eta, eps, det)`` returns the sign the operator carries; the
+    honest rule is η·ε(Δ).  The test file's own copy of the loop, so a plant
+    changes the operator list and nothing else — the configurations, the
+    stabiliser and the permutation phases are untouched.
+    """
+    def build(little, cell, stabilizer, kind="magnetic"):
+        inverse = isotropy._exact_inverse(cell.basis)
+        forward = [[isotropy._frac(v) for v in row] for row in cell.basis]
+        operations = {}
+        for index, eta in stabilizer:
+            integral = isotropy._rotation_in_cell(little.rotations[index], inverse, forward)
+            det = round(float(np.linalg.det(np.array(little.rotations[index], dtype=float))))
+            for shift, eps in cell.translations:
+                t = [little.translations[index][i] + shift[i] for i in range(3)]
+                in_cell = [sum(inverse[i][j] * t[j] for j in range(3)) for i in range(3)]
+                operations.setdefault(MagneticOperator.build(
+                    integral, in_cell, stabiliser_sign(eta, eps, det)), None)
+        return MagneticGroup.from_operations(isotropy._close_operations(operations))
+    return build
+
+
+#: Issue #607's two plants: the anti-translation sign dropped (η·ε(Δ) → η), and
+#: a polar vector's sign read for an axial one (η·ε(Δ) → η·ε(Δ)·det R).
+PLANTS = {
+    "no-anti-translation": _planted_group(lambda eta, eps, det: eta),
+    "polar-for-axial": _planted_group(lambda eta, eps, det: eta * eps * det),
+}
+
+
+def _spglib_bns(found, candidate):
+    """spglib's BNS number for the structure the candidate generates (the oracle).
+
+    The magnetic atoms carry a random member of the family; one non-magnetic
+    *general* orbit of the parent pins the parent symmetry, because a special
+    site's own point set can have accidental extra symmetry (the hostile review
+    of 2026-10-02 measured it).  Nothing here reads the isotropy machinery
+    beyond the candidate's own positions and moments.
+    """
+    import gemmi
+    spglib = pytest.importorskip("spglib")
+    parent = gemmi.SpaceGroup(found.space_group.xhm())
+    general = {tuple(np.round(np.array(op.apply_to_xyz([0.1234, 0.2345, 0.3456])) % 1.0, 9))
+               for op in parent.operations()}
+    basis = np.array([[float(v) for v in row] for row in candidate.cell.basis])
+    inverse = np.linalg.inv(basis)
+    span = int(np.ceil(np.abs(basis).sum(axis=1).max())) + 1
+    dummy = set()
+    for point in general:
+        for shift in np.ndindex(*(2 * span + 1,) * 3):
+            x = inverse @ (np.array(point) + np.array(shift) - span)
+            dummy.add(tuple(np.round(np.round(x, 9) % 1.0, 9) % 1.0))
+    dummy = np.array(sorted(dummy))
+    rng = np.random.default_rng(3)
+    moments = candidate.moments(rng.normal(size=candidate.free_amplitudes)) @ found.lattice
+    cell = (found.lattice,
+            np.vstack([np.asarray(candidate.positions) % 1.0, dummy]),
+            [25] * len(candidate.positions) + [8] * len(dummy),
+            np.vstack([moments, np.zeros((len(dummy), 3))]))
+    data = spglib.get_magnetic_symmetry_dataset(cell, symprec=1e-4, mag_symprec=1e-3)
+    assert data is not None, candidate.label
+    return spglib.get_magnetic_spacegroup_type(data.uni_number).bns_number
+
+
+@pytest.mark.parametrize("case", VERIFY_CASES, ids=[c[0] for c in VERIFY_CASES])
+def test_the_honest_tree_verifies_and_spglib_agrees_with_every_label(case):
+    """Positive arm of issue #607: every candidate verifies, and its label is spglib's.
+
+    The plants below must turn ``verified`` False; this is the arm that says the
+    check does not do so on everything, and that the label it certifies is the
+    one an independent program reads off the generated structure.
+    """
+    group, site, k = case
+    found = isotropy.candidates(group, site, k)
+    assert len(found) > 0
+    for candidate in found:
+        assert candidate.verified is True, candidate.verification_reason
+        assert candidate.bns_number == _spglib_bns(found, candidate), candidate.label
+
+
+@pytest.mark.parametrize("plant", sorted(PLANTS))
+@pytest.mark.parametrize("case", VERIFY_CASES, ids=[c[0] for c in VERIFY_CASES])
+def test_verified_reads_the_operator_list(case, plant, monkeypatch):
+    """Issue #607: a wrong operator list fails ``verified``, label by label.
+
+    Before the fix ``in_allowed_span`` read only the direction's stabiliser and
+    the permutation phases, never ``self.group``, so dropping the
+    anti-translation sign relabelled all four MnO candidates (167.108 →
+    166.101, 12.63 → 12.58, 15.90 → 12.62, 2.7 → 2.4) and reading the
+    polar sign relabelled 22 of the 23 candidates here, with ``verified``
+    True on every one.  Now every candidate whose plant changed its operator
+    list fails, and the reason names an operation of that list.  The
+    no-anti-translation plant changes nothing at k = 0 (there is no
+    anti-translation to drop), and those candidates must stay verified.
+    """
+    group, site, k = case
+    honest = {c.label: c.group.all_operations()
+              for c in isotropy.candidates(group, site, k, verify=False)}
+    monkeypatch.setattr(isotropy, "_candidate_group", PLANTS[plant])
+    planted = isotropy.candidates(group, site, k, verify=False)
+    changed = 0
+    for candidate in planted:
+        failure = candidate.verification_failure()
+        if set(candidate.group.all_operations()) == set(honest[candidate.label]):
+            assert failure is None, (candidate.label, failure)
+            continue
+        changed += 1
+        assert not candidate.in_allowed_span(), candidate.label
+        assert failure is not None and "own operator list" in failure, candidate.label
+    if plant == "polar-for-axial" or k == HALF:
+        assert changed == len(planted)
+    else:
+        assert changed == 0
+    if changed == len(planted):
+        with pytest.raises(RuntimeError, match="not fixed by its own operator list"):
+            isotropy.candidates(group, site, k)
+
+
 def _field_stabiliser(operations, positions, field, kind, tol=1e-6):
     """The operations of ``operations`` that map the (position, vector) set onto itself.
 
