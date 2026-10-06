@@ -129,10 +129,18 @@ def _structure(n_body: int, extra_free: bool = True) -> Structure:
                                      transform="softplus"))])
 
 
-def _with_block(flip=False, r0=None, origin=(0.31, 0.42, 0.27)):
-    """A table with the toy body declared over atoms 0..6 of phase 0."""
+def _build_block(flip=False, r0=None, origin=(0.31, 0.42, 0.27), restraint=False):
+    """A (table, block, structure) with the toy body declared over atoms 0..6 of phase 0.
+
+    ``restraint`` puts a bond restraint between body atom 6 (the Br) and the
+    free Li (atom 7) in the structure first, so a model compiled from it has a
+    restraint block reaching across a body row.
+    """
     tmpl = _c6br_template()
     s = _structure(len(tmpl))
+    if restraint:
+        s.phases[0].restraints = [BondRestraint(atom_i=6, atom_j=7, target=2.0,
+                                                sigma=0.02, op_index=0)]
     table = ParameterTable(s, LAB)
     for k, v in zip("xyz", origin, strict=True):
         table.add_parameter(f"phases.0.rigid_bodies.0.origin.{k}", v, vary=True)
@@ -151,7 +159,17 @@ def _with_block(flip=False, r0=None, origin=(0.31, 0.42, 0.27)):
         [f"phases.0.rigid_bodies.0.origin.{k}" for k in "xyz"],
         [f"phases.0.rigid_bodies.0.rotation.{k}" for k in range(3)], outs, flip=flip)
     table.add_derived(block)
+    return table, block, s
+
+
+def _with_block(**kw):
+    table, block, _ = _build_block(**kw)
     return table, block
+
+
+def _toy_pattern() -> PatternData:
+    tt = np.arange(10.0, 60.0, 0.05)
+    return PatternData(two_theta=tt.tolist(), intensity=np.ones_like(tt).tolist())
 
 
 def _theta_at(table, rotation_deg=(3.0, -2.0, 1.5)):
@@ -434,3 +452,102 @@ def test_traced_decode_applies_the_block_and_matches_the_local_jacobian():
     # every free column here is identity-transform except the softplus scale,
     # which no body row reads
     assert np.allclose(jac, local, rtol=1e-10, atol=1e-13)
+
+
+# ------------------------------------- the least-squares readers of the block
+def _toy_model(table, structure):
+    table.apply_to_models(structure, LAB)
+    return compile_model(structure, LAB, _toy_pattern(), mode="rietveld",
+                         moving_paths=set(table.moving_paths))
+
+
+def test_column_extras_read_the_declared_reach_not_c():
+    """A body DOF's column moves every body atom row, though no row of C says so.
+
+    ``_column_extras`` is what sends such a column to the whole-model FD
+    instead of a closed-form branch that would return it short; reading C
+    (the pre-WP-1804 line) leaves the origin column standing for itself alone.
+    """
+    from rietx.optimize.least_squares import _column_extras
+
+    table, _ = _with_block()
+    extras = _column_extras(table)
+    for path in ("phases.0.rigid_bodies.0.origin.x",
+                 "phases.0.rigid_bodies.0.rotation.1",
+                 "phases.0.cell.a"):
+        got = set(extras[table.free_paths.index(path)])
+        assert {f"phases.0.atoms.{i}.{c}" for i in range(7) for c in "xyz"} <= got, path
+    # the free Li is not a body row: nothing extra on its own column
+    assert extras[table.free_paths.index("phases.0.atoms.7.dof.0")] == ["phases.0.atoms.7.x"]
+
+
+def test_restraint_rows_of_the_analytic_jacobian_chain_through_the_block():
+    """``_make_jacobian``'s restraint rows against a central FD of the residual.
+
+    The restraint here joins a body atom (a derived row) to the free Li.  The
+    analytic block is ``R_phys @ ∂p/∂p_free``; with C in that slot (the
+    pre-WP-1804 line) every body column of the restraint row is zero and the
+    cell columns are short by the body atom's share.
+    """
+    from rietx.optimize.least_squares import _make_jacobian, _make_residual
+
+    table, _, s = _build_block(restraint=True)
+    model = _toy_model(table, s)
+    assert model.restraints is not None
+    theta = _theta_at(table)
+    n_res = len(model.restraints.items)
+    jac = _make_jacobian(model, table)(theta)[-n_res:]
+    resid = _make_residual(model, table)
+    fd = np.zeros_like(jac)
+    for c in range(len(theta)):
+        h = 1e-6 * max(1.0, abs(theta[c]))
+        tp, tm = theta.copy(), theta.copy()
+        tp[c] += h
+        tm[c] -= h
+        fd[:, c] = (resid(tp)[-n_res:] - resid(tm)[-n_res:]) / (2 * h)
+    assert np.abs(jac).max() > 0.0
+    scale = np.abs(fd).max()
+    assert np.allclose(jac, fd, rtol=1e-5, atol=1e-6 * scale)
+    # and the body columns are the ones that matter: not all zero
+    body = [table.free_paths.index(f"phases.0.rigid_bodies.0.origin.{k}") for k in "xyz"]
+    assert np.abs(jac[:, body]).max() > 1e-3 * scale
+
+
+# ------------------------------------------------ declaration-order enforcement
+def test_add_derived_refuses_an_output_an_earlier_block_reads():
+    """The docstring's rule, enforced: blocks apply in one pass in declaration
+    order, so a later block writing an earlier block's input leaves the first
+    evaluated on a stale value."""
+
+    class _Copy(DerivedBlock):
+        def __init__(self, src, dst):
+            self.inputs, self.outputs = (src,), (dst,)
+
+        def evaluate(self, x):
+            return np.asarray(x, dtype=float)
+
+        def jacobian(self, x):
+            return np.eye(1)
+
+        def evaluate_traced(self, x):
+            return list(x)
+
+        def reach_pattern(self):
+            return np.ones((1, 1), dtype=bool)
+
+    def scratch_table():
+        table = ParameterTable(_structure(2), LAB)
+        for q in ("a", "b"):
+            table.add_parameter(f"phases.0.scratch.{q}", 0.0)
+            table.entries[table._paths[f"phases.0.scratch.{q}"]].locked = True
+        table._rebuild()
+        return table
+
+    table = scratch_table()
+    table.add_derived(_Copy("phases.0.scratch.a", "phases.0.scratch.b"))
+    with pytest.raises(ValueError, match="earlier derived block"):
+        table.add_derived(_Copy("phases.0.cell.a", "phases.0.scratch.a"))
+    # declared in dependency order, the same pair is accepted
+    ok = scratch_table()
+    ok.add_derived(_Copy("phases.0.cell.a", "phases.0.scratch.a"))
+    ok.add_derived(_Copy("phases.0.scratch.a", "phases.0.scratch.b"))

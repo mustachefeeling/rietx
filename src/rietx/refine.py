@@ -2380,9 +2380,17 @@ class Refinement:
             elif missing:
                 dropped.append(f"{path} (source {missing[0]} no longer exists)")
             else:
-                table.set_tie(path, AffineTie(
-                    terms=tuple((p, float(c)) for p, c in spec.terms),
-                    const=float(spec.const)))
+                tie = AffineTie(terms=tuple((p, float(c)) for p, c in spec.terms),
+                                const=float(spec.const))
+                refused = table.tie_source_refusal(tie)
+                if refused is not None:
+                    # a later model edit locked (or derived) the source: the
+                    # tie cannot move the target any more, and ``set_tie``
+                    # would raise, stopping a build a model edit must not stop
+                    dropped.append(f"{path} (source {refused[0]} now "
+                                   f"structurally fixed)")
+                    continue
+                table.set_tie(path, tie)
                 self._applied_ties.add(path)
         # A displacement DOF's anchor is the coordinate the model stores, and
         # that coordinate has already absorbed whatever the tie contributed at

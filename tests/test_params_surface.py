@@ -969,3 +969,26 @@ def test_plan_info_modes_match_what_the_plan_can_free():
         structural = any(".atoms." in g for g in globs)
         if structural:
             assert info.modes == ("rietveld",), name
+
+
+def test_a_user_tie_whose_source_an_edit_locks_is_dropped_not_raised():
+    """The *source* half of ``_apply_ties``' rule (WP-1804).
+
+    ``set_tie`` refuses a locked source, which is right for a verb.  A stored
+    tie whose source a later model edit locked used to be flattened into d; it
+    must not now stop the build — a model edit never does — so it is dropped
+    with the reason beside the others, and the register is reconciled.
+    """
+    structure, ins = perturbed_models()
+    structure.phases[0].space_group = "P 1"
+    ref = rx.Refinement(structure, ins, history=False)
+    # alpha is free under P 1 and locked at 90° under P m -3 m
+    ref.tie("phases.0.atoms.1.biso", "phases.0.cell.alpha")
+    cubic = ref.structure.model_copy(deep=True)
+    cubic.phases[0].space_group = "P m -3 m"
+    with pytest.warns(UserWarning, match=r"atoms\.1\.biso.*source "
+                                         r"phases\.0\.cell\.alpha now structurally fixed"):
+        ref.edit(structure=cubic)
+    rows = {r.path: r for r in ref.parameters()}
+    assert rows["phases.0.atoms.1.biso"].tie is None
+    assert ref._ties == {}

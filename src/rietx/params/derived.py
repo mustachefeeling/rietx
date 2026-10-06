@@ -14,7 +14,7 @@ A block is a closed-form map from declared *input* entries (physical values,
 in table units: Å, degrees, radians for an increment) to declared *output*
 entries.  The outputs are locked entries of the table: they have no row in C
 and no free column, so ``set_vary`` can never free one, and the block alone
-writes them.  Three things a block owes the table, each stated so a new kind
+writes them.  Four things a block owes the table, each stated so a new kind
 of block cannot leave one out:
 
 * :meth:`DerivedBlock.evaluate` — the map on the numpy path (``decode``,

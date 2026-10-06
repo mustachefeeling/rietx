@@ -1792,6 +1792,16 @@ class ParameterTable:
         for q in block.inputs:
             if q in own:
                 raise ValueError(f"derived block reads its own output {q!r}")
+        # an earlier block has already been evaluated on its inputs, so a later
+        # block may not write one of them: the earlier block would hold a value
+        # computed from the input's state before this write
+        earlier_inputs = {q for b in self.derived for q in b.inputs}
+        for q in block.outputs:
+            if q in earlier_inputs:
+                raise ValueError(
+                    f"{q!r} is an input of an earlier derived block, so this "
+                    "block cannot write it: blocks apply in declaration order "
+                    "and the earlier one would evaluate on a stale value")
         self.derived.append(block)
         self._rebuild()
         self._refresh_derived()
@@ -2010,6 +2020,25 @@ class ParameterTable:
                                   lo=lo, hi=hi, transform=transform))
         self._rebuild()
 
+    def tie_source_refusal(self, tie: AffineTie) -> tuple[str, str] | None:
+        """The first source of ``tie`` the affine block cannot carry, or ``None``.
+
+        A source that is locked or derived is flattened into d at its value of
+        the moment and never moves again: a locked row holds no column, and a
+        derived row is written after the matmul.  Measured before this refusal
+        (WP-1803): the dependent's C row emptied and it left ``moving_paths``
+        with no error.  The mirror of ``apply_value_scale``'s refusal of a
+        scaled source.  Returns ``(path, "derived" | "locked")``; one authority
+        for :meth:`set_tie`, which raises, and ``Refinement._apply_ties``,
+        which drops the tie and says so (a model edit never stops a build).
+        """
+        derived = self.derived_paths()
+        for src, _ in tie.terms:
+            j = self._paths.get(src)
+            if j is not None and (src in derived or self.entries[j].locked):
+                return src, "derived" if src in derived else "locked"
+        return None
+
     def set_tie(self, path: str, tie: AffineTie | None) -> None:
         """(Re)declare an entry as an affine function of other entries.
 
@@ -2023,21 +2052,13 @@ class ParameterTable:
         if e.locked:
             raise ValueError(f"cannot tie structurally locked parameter {path!r}")
         if tie is not None:
-            # A source the affine block cannot carry is flattened into d at
-            # its value of the moment and never moves again: a locked row
-            # holds no column, and a derived row is written after the matmul.
-            # Measured before this refusal (WP-1803): the dependent's C row
-            # emptied and it left ``moving_paths`` with no error.  The
-            # mirror of ``apply_value_scale``'s refusal of a scaled source.
-            derived = self.derived_paths()
-            for src, _ in tie.terms:
-                j = self._paths.get(src)
-                if j is not None and (src in derived or self.entries[j].locked):
-                    kind = "derived" if src in derived else "locked"
-                    raise ValueError(
-                        f"cannot tie {path!r} to {src!r}: the source is a "
-                        f"{kind} row, which the affine block cannot carry, so "
-                        f"{path!r} would be frozen at its present value")
+            reason = self.tie_source_refusal(tie)
+            if reason is not None:
+                src, kind = reason
+                raise ValueError(
+                    f"cannot tie {path!r} to {src!r}: the source is a "
+                    f"{kind} row, which the affine block cannot carry, so "
+                    f"{path!r} would be frozen at its present value")
         e.tie = tie
         if tie is not None:
             e.vary = False
