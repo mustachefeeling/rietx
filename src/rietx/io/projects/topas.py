@@ -4499,7 +4499,8 @@ def _snapped_xyz(sg, atom) -> list[float]:
 
 
 def from_structure(structure: Structure, *,
-                   diagnostics: list[Diagnostic] | None = None) -> str:
+                   diagnostics: list[Diagnostic] | None = None,
+                   p1_expand: bool = False) -> str:
     """Serialise ``structure`` as TOPAS ``.inp`` text — the inverse of
     :func:`to_structure`.
 
@@ -4570,6 +4571,17 @@ def from_structure(structure: Structure, *,
     its ion (``Fe4+`` → ``Fe+4``), since TOPAS reads the magnetic form factor
     from it and rietx computes the moment from that ion.
 
+    **``p1_expand=True``** writes every phase as the explicit list of the atoms
+    of its cell, in ``P 1``, each with its own moment
+    (:func:`~rietx.crystallography.magnetic.p1.restate_in_p1`, the model's own
+    expansion with time reversal and the axial rule), and a magnetic phase as
+    ``mag_space_group 1.1`` with the species set to the magnetic ion.  It is the
+    one route by which a magnetic phase the writer refuses (a k ≠ 0 supercell,
+    a family group TOPAS has no number for, a setting other than the standard
+    one) reaches TOPAS.  Every flag is written ``!``: the ties that made the
+    copies one parameter are not stated, so TOPAS refines nothing until the
+    caller frees what they choose.
+
     Four refusals besides the phase-name quote check above, the fourth being
     :func:`_tail`'s on a non-finite value. A label or
     species carrying whitespace: a ``site`` line is space-separated, so an
@@ -4581,6 +4593,10 @@ def from_structure(structure: Structure, *,
     """
     from ..._about import DIST_NAME
 
+    if p1_expand:
+        from ...crystallography.magnetic.p1 import restate_in_p1
+
+        structure = restate_in_p1(structure, species_as_ion=True)
     lines: list[str] = [f"' Written by {DIST_NAME}.io.projects.topas.write_topas_inp"]
     for phase in structure.phases:
         if '"' in phase.name:
@@ -4721,8 +4737,11 @@ def _moment_tail(moment, cell, allowed=(True, True, True)) -> str:
 
 
 def write_topas_inp(structure: Structure, path: str | Path, *,
-                    diagnostics: list[Diagnostic] | None = None) -> None:
-    """Write ``structure`` to ``path`` as a TOPAS ``.inp``. See
-    :func:`from_structure` for exactly what carries and what does not."""
-    Path(path).write_text(from_structure(structure, diagnostics=diagnostics),
-                          encoding="utf-8")
+                    diagnostics: list[Diagnostic] | None = None,
+                    p1_expand: bool = False) -> None:
+    """Write ``structure`` as a TOPAS ``.inp``. See
+    :func:`from_structure` for exactly what carries and what does not, and
+    for ``p1_expand``."""
+    Path(path).write_text(
+        from_structure(structure, diagnostics=diagnostics,
+                       p1_expand=p1_expand), encoding="utf-8")
