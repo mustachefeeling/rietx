@@ -724,11 +724,51 @@ class RigidBody(Base):
         return self
 
 
+class TetherRestraint(Base):
+    """A one-sided distance restraint: zero inside ``max_distance``, linear outside.
+
+    TOPAS's ``Distance_Restrain_Keep_Within`` (Coelho, *Technical Reference*,
+    p. 159) as a residual row √weight·max(0, d − max_distance)/sigma (WP-1809):
+    a free atom held near a body (the Li beside a lactate) without fixing the
+    distance.  Images as :class:`BondRestraint`.
+    """
+
+    atom_i: int
+    atom_j: int
+    max_distance: float = Field(gt=0.0)  # Å
+    sigma: float = Field(gt=0.0)  # Å
+    weight: float = Field(default=1.0, ge=0.0)
+    op_index: int | None = None
+    translation: tuple[int, int, int] = (0, 0, 0)
+
+
+class AntiBumpRestraint(Base):
+    """A one-sided distance restraint: zero beyond ``min_distance``, linear inside.
+
+    TOPAS's ``Distance_Restrain_Keep_Out`` / ``AI_Anti_Bump`` (Technical
+    Reference, pp. 118–121, 159) as a residual row
+    √weight·min(0, d − min_distance)/sigma (WP-1809).  A pair list is
+    **explicit** — each row names its two atoms and the image — and
+    :func:`rietx.model.restraints.anti_bump_restraints` builds one from a
+    structure once, so the row count is fixed for a plan (WP-1803's record:
+    pairs frozen per plan).
+    """
+
+    atom_i: int
+    atom_j: int
+    min_distance: float = Field(gt=0.0)  # Å
+    sigma: float = Field(gt=0.0)  # Å
+    weight: float = Field(default=1.0, ge=0.0)
+    op_index: int | None = None
+    translation: tuple[int, int, int] = (0, 0, 0)
+
+
 #: A soft observational restraint on one phase — a bond length, a bond angle,
 #: or a single parameter value.  Each contributes one residual row that is kept
 #: in the covariance (JᵀJ) but excluded from Rwp/Durbin-Watson/Bérar-Lelann
 #: (they are soft observations, not data — the standard Rietveld convention).
-Restraint = BondRestraint | AngleRestraint | ValueRestraint
+Restraint = (BondRestraint | AngleRestraint | ValueRestraint | TetherRestraint
+             | AntiBumpRestraint)
 
 
 class MagneticSymmetry(Base):

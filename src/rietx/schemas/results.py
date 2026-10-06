@@ -517,7 +517,7 @@ class RestraintRow(Base):
     """
 
     phase_index: int | None = None
-    kind: Literal["bond", "angle", "value"]
+    kind: Literal["bond", "angle", "value", "tether", "anti_bump"]
     atoms: list[int] | None = None                  # bond (2) / angle (3) indices
     path: str | None = None                         # value-restraint dot-path
     computed: float                                 # Å (bond), deg (angle), or value

@@ -359,6 +359,12 @@ $(R, \mathbf{t}, \mathbf{n})$ frozen per stage, the exact analogue of the
 frozen reflection list, so positions move smoothly inside a stage while the
 discrete image choice stays fixed.
 
+Two one-sided distance rows follow the same pattern: a tether contributes
+$\sqrt{w}\,\max(0, d - d_{\max})/\sigma$ and an anti-bump
+$\sqrt{w}\,\min(0, d - d_{\min})/\sigma$, each zero on its flat side. An
+anti-bump pair list is built once from the starting coordinates and kept for
+the whole plan, so the number of restraint rows never changes between stages.
+
 ## Weighting the restraints
 
 A stage scales every restraint at once. The minimised quantity is then
