@@ -729,7 +729,7 @@ class TetherRestraint(Base):
 
     TOPAS's ``Distance_Restrain_Keep_Within`` (Coelho, *Technical Reference*,
     p. 159) as a residual row √weight·max(0, d − max_distance)/sigma (WP-1809):
-    a free atom held near a body (the Li beside a lactate) without fixing the
+    a free atom held near a body (a counter-ion beside an anion) without fixing the
     distance.  Images as :class:`BondRestraint`.
     """
 
