@@ -378,7 +378,10 @@ from .._nearmiss import did_you_mean
 #: (template, origin, orientation quaternion) over the phase's own atoms.
 #: Additive and defaulted to empty, which builds exactly the table every
 #: earlier document built; an older build refuses a document carrying a body.
-SCHEMA_VERSION = "0.42"
+#: 0.42 → 0.43 (WP-1808): ``RigidBody.torsions``, named-bond torsions inside
+#: a body (axis, declared moved set, the angle record).  Additive and defaulted to
+#: empty, a body without one building exactly the 0.42 table.
+SCHEMA_VERSION = "0.43"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
