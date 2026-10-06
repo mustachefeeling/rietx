@@ -3707,7 +3707,7 @@ def write_fullprof_pcr(structure: Structure, path: str | Path, *,
                        instrument: Instrument | None = None,
                        diagnostics: list[Diagnostic] | None = None,
                        write_zero_shift: bool = False) -> None:
-    """Write a FullProf ``.pcr``. ``structure`` goes to ``path``; see
+    """Write a ``.pcr``. ``structure`` goes to ``path``; see
     :func:`from_structure` for exactly what carries and what does not."""
     Path(path).write_text(from_structure(structure, instrument=instrument,
                                          diagnostics=diagnostics,
