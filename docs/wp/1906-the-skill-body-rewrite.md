@@ -136,11 +136,11 @@ restates what decides the design.
 
 ## Tasks
 
-- [ ] Resolve the audit's § B contradictions, each as one condition clause
+- [x] Resolve the audit's § B contradictions, each as one condition clause
       checked on the package, and fix the width formula
-- [ ] Move the § D duplicates out: a link per rule to the row that holds the
+- [x] Move the § D duplicates out: a link per rule to the row that holds the
       evidence; cut the rhetoric classes the audit lists
-- [ ] Re-order: § 1-4 by stakes, the worked default and the stop conditions
+- [x] Re-order: § 1-4 by stakes, the worked default and the stop conditions
       inside the first 5 000 tokens; fix § numbering and rule 23; the
       reference headings that cite rule numbers
 - [ ] The worked default runs as written (`examples/` holds it, the manual

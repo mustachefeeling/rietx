@@ -407,8 +407,16 @@ _write_glossary()
 SKILL_BODY = _Path(__file__).parent / "_generated" / "skill-body.md"
 SKILL_TREE = _Path(__file__).parents[2] / "docs" / "skill" / "rietx"
 
-#: ``[`references/x.md`](references/x.md)`` and ``[`SKILL.md`](../SKILL.md)``
-_SKILL_LINK = _re.compile(r"\[(`[^`]+`)\]\((?:\.\./)?(?:references/)?[\w-]+\.md\)")
+#: ``[`references/x.md`](references/x.md)``, ``[`SKILL.md`](../SKILL.md)``
+#: and a plain-text label, ``[judging](references/judging.md)``, which the
+#: budgeted body uses because two backticks a link are bytes it pays for.
+_SKILL_LINK = _re.compile(r"\[(`[^`]+`|[\w-]+)\]\((?:\.\./)?(?:references/)?[\w-]+\.md\)")
+
+
+def _skill_label(match: _re.Match) -> str:
+    """A link's label as a code span, whether or not it was written as one."""
+    label = match.group(1)
+    return label if label.startswith("`") else f"`{label}`"
 
 
 def _demote(text: str, by: int) -> str:
@@ -462,7 +470,7 @@ def _write_skill() -> None:
         parts += ["", f"## Reference: {heading}", "",
                   _demote(text.split("\n", 1)[1].strip(), 1)]
 
-    rendered = _SKILL_LINK.sub(r"\1", "\n".join(parts)) + "\n"
+    rendered = _SKILL_LINK.sub(_skill_label, "\n".join(parts)) + "\n"
     SKILL_BODY.parent.mkdir(exist_ok=True)
     SKILL_BODY.write_text(rendered, encoding="utf-8")
 
