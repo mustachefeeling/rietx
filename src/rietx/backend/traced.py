@@ -106,6 +106,8 @@ def make_traced_decode(table, xp):
             f"traced decode has no rule for transform kind(s) {sorted(unknown)}; "
             "add it here and to params.transforms.to_physical together")
 
+    blocks = list(getattr(table, "derived", []))
+
     def decode(theta):
         p = theta
         for kind, mask in masks.items():
@@ -114,7 +116,14 @@ def make_traced_decode(table, xp):
         # scalarize: these 0-d values come from *indexing*, not from an op, so
         # a backend's own result guard has not seen them (identity everywhere
         # except torch-MPS — see backend.api.scalar_tensor_class)
-        return {path: xp.scalarize(full[i]) for i, path in enumerate(paths)}
+        values = {path: xp.scalarize(full[i]) for i, path in enumerate(paths)}
+        # the derived blocks after the matmul, in declaration order, exactly
+        # as ``ParameterTable.decode`` applies them (WP-1804)
+        for block in blocks:
+            out = block.evaluate_traced([values[q] for q in block.inputs])
+            for q, v in zip(block.outputs, out, strict=True):
+                values[q] = xp.scalarize(v)
+        return values
 
     return decode
 

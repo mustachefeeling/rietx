@@ -11,7 +11,14 @@ Compiles a (Structure, Instrument) pair into:
   cell ties are the identity-row special case; Wyckoff site constraints
   (``crystallography.wyckoff``) supply general rows;
 * the mapping between the free internal vector θ (what the optimiser sees)
-  and the full physical value dict consumed by the forward model.
+  and the full physical value dict consumed by the forward model;
+* zero or more **derived blocks** (``params.derived``, WP-1804) applied after
+  the affine matmul: closed-form nonlinear maps onto locked rows, a rigid
+  body's atoms being the case they exist for.  "Constant during a run" is a
+  property of the affine rows only; every reader that needs ∂p/∂θ takes
+  :meth:`ParameterTable.local_jacobian`, and every reader of *which* rows a
+  column reaches takes :meth:`ParameterTable.reach_block`.  Both are C itself
+  on a table that declares no block.
 
 The decode path is plain float/array arithmetic on a pre-built sparse
 matrix — no pydantic objects are touched per iteration.
@@ -53,6 +60,7 @@ from ..schemas.instrument import (
     Instrument,
 )
 from ..schemas.structure import MOMENT_COMPONENTS, Structure
+from .derived import DerivedBlock
 from .transforms import dphys_dinternal, internal_bounds, to_internal, to_physical
 
 #: Dot-path suffix of a source line's wavelength row.  One authority for the
@@ -1062,8 +1070,15 @@ class ParameterTable:
         #: compile build its own, so there is exactly one frame per site per
         #: stage and the table is its authority (issue #598).
         self._moment_frames: dict[str, np.ndarray] = {}
+        #: the nonlinear maps applied after the affine block, in order
+        #: (WP-1804, ``params.derived``).  Empty for every table that declares
+        #: no rigid body, and every reader below takes the affine path
+        #: bit-for-bit when it is.
+        self.derived: list[DerivedBlock] = []
         self._collect(structure, instrument)
         self._rebuild()
+        if self.derived:
+            self._refresh_derived()
 
     # -- collection ----------------------------------------------------
     def _add(self, path: str, p: Parameter, *, force_fixed: bool = False,
@@ -1720,6 +1735,125 @@ class ParameterTable:
         self._C = sparse.csr_matrix((c_vals, (c_rows, c_cols)), shape=(n, m))
         self._d = d
         self._tie_windows = self._derive_tie_windows(tied, d)
+        self._rebuild_derived()
+
+    # -- the derived blocks (WP-1804) ------------------------------------
+    def _rebuild_derived(self) -> None:
+        """Index every block's inputs/outputs and build the declared reach.
+
+        ``_reach`` has C's shape: an affine row carries C's own pattern, and a
+        derived row the union of the rows its declared inputs reach — so a
+        body atom row reaches the origin, rotation and cell columns whether or
+        not the rotation happens to leave it still at this θ.  Built once per
+        rebuild, like C, and read by every pattern reader instead of C.
+        """
+        blocks = getattr(self, "derived", [])
+        self._derived_idx: list[tuple[np.ndarray, np.ndarray]] = []
+        if not blocks:
+            self._reach = self._C
+            return
+        for block in blocks:
+            ins = np.array([self._paths[q] for q in block.inputs], dtype=np.intp)
+            outs = np.array([self._paths[q] for q in block.outputs], dtype=np.intp)
+            self._derived_idx.append((ins, outs))
+        reach = (abs(self._C) > 0.0).astype(np.float64).tolil()
+        for block, (ins, outs) in zip(blocks, self._derived_idx, strict=True):
+            pattern = block.reach_pattern()
+            for r, out in enumerate(outs):
+                row = sparse.csr_matrix((1, reach.shape[1]), dtype=np.float64)
+                for k in np.flatnonzero(pattern[r]):
+                    row = row + reach[int(ins[k])].tocsr()
+                reach[int(out)] = (abs(row) > 0.0).astype(np.float64)
+        self._reach = reach.tocsr()
+
+    def add_derived(self, block: DerivedBlock) -> None:
+        """Declare a nonlinear block after the affine one (WP-1804).
+
+        Every output must be an existing **locked** entry no earlier block
+        writes: the block is that row's only writer, as the space group is a
+        locked coordinate's.  Every input must exist and must not be written
+        by this block or a later one, so the blocks apply in one pass in
+        declaration order.  The outputs' values are written from the map at
+        once, so the table never holds a derived row that disagrees with it.
+        """
+        for q in (*block.inputs, *block.outputs):
+            if q not in self._paths:
+                raise ValueError(f"derived block names unknown parameter {q!r}")
+        written = {q for b in self.derived for q in b.outputs}
+        for q in block.outputs:
+            e = self.entries[self._paths[q]]
+            if not e.locked or e.tie is not None:
+                raise ValueError(
+                    f"{q!r} cannot be a derived row: a block's output must be "
+                    "a locked entry with no tie, which only the block writes")
+            if q in written:
+                raise ValueError(f"{q!r} is already written by another derived block")
+        own = set(block.outputs)
+        for q in block.inputs:
+            if q in own:
+                raise ValueError(f"derived block reads its own output {q!r}")
+        self.derived.append(block)
+        self._rebuild()
+        self._refresh_derived()
+
+    def derived_paths(self) -> frozenset[str]:
+        """Every entry a derived block writes."""
+        return frozenset(q for b in self.derived for q in b.outputs)
+
+    def _apply_derived(self, p: np.ndarray) -> None:
+        """Overwrite the derived rows of the physical vector ``p``, in order."""
+        for block, (ins, outs) in zip(self.derived, self._derived_idx, strict=True):
+            p[outs] = block.evaluate(p[ins])
+
+    def _refresh_derived(self) -> None:
+        """Write every derived row's entry value from its block.
+
+        Where a value changes outside a solve (a build, ``set_values``, a
+        commit) the derived rows follow it here — the slot
+        :meth:`_refresh_moment_components` holds for the moment.
+        """
+        if not self.derived:
+            return
+        p = np.array([e.value for e in self.entries], dtype=np.float64)
+        self._apply_derived(p)
+        for _, outs in self._derived_idx:
+            for i in outs:
+                self.entries[int(i)].value = float(p[int(i)])
+
+    def local_jacobian(self, theta: np.ndarray) -> sparse.csr_matrix:
+        """∂p_phys/∂p_free at θ (n_entries × n_free): C, with derived rows exact.
+
+        With no block this **is** C (the same object), so every reader that
+        switched from C to this is bit-identical on a table without a body.
+        With blocks, each derived row is its block's Jacobian chained through
+        the rows of its inputs — C's rows, or an earlier block's — so a body
+        atom's row carries the origin, rotation and cell columns at θ, where
+        the anchor rows of a linearisation would be 2.3–2.9 % off after a 3°
+        solve (WP-1803's record).
+        """
+        if not self.derived:
+            return self._C
+        p_free = np.array([to_physical(float(t), self.entries[i].transform)
+                           for t, i in zip(theta, self._free_idx, strict=True)],
+                          dtype=np.float64)
+        p = self._C @ p_free + self._d if len(p_free) else self._d.copy()
+        jac = self._C.toarray()
+        for block, (ins, outs) in zip(self.derived, self._derived_idx, strict=True):
+            x = p[ins]
+            jac[outs] = block.jacobian(x) @ jac[ins]
+            p[outs] = block.evaluate(x)
+        return sparse.csr_matrix(jac)
+
+    def reach_block(self) -> sparse.csr_matrix:
+        """C's sparsity with each derived row's **declared** reach (WP-1804).
+
+        What the pattern readers ask instead of C: :attr:`moving_paths`,
+        :meth:`column_reach`, :meth:`unmeasured_rows` and
+        ``optimize.least_squares._column_extras``.  The values are 1.0 where
+        a derived row reaches a column and C's own elsewhere; only the pattern
+        is a claim.  ``C`` itself on a table without a block.
+        """
+        return self._reach
 
     def _derive_tie_windows(self, tied: list[tuple[int, list[tuple[int, float]]]],
                             d: np.ndarray) -> dict[int, tuple[float, float]]:
@@ -1888,6 +2022,22 @@ class ParameterTable:
         e = self.entries[i]
         if e.locked:
             raise ValueError(f"cannot tie structurally locked parameter {path!r}")
+        if tie is not None:
+            # A source the affine block cannot carry is flattened into d at
+            # its value of the moment and never moves again: a locked row
+            # holds no column, and a derived row is written after the matmul.
+            # Measured before this refusal (WP-1803): the dependent's C row
+            # emptied and it left ``moving_paths`` with no error.  The
+            # mirror of ``apply_value_scale``'s refusal of a scaled source.
+            derived = self.derived_paths()
+            for src, _ in tie.terms:
+                j = self._paths.get(src)
+                if j is not None and (src in derived or self.entries[j].locked):
+                    kind = "derived" if src in derived else "locked"
+                    raise ValueError(
+                        f"cannot tie {path!r} to {src!r}: the source is a "
+                        f"{kind} row, which the affine block cannot carry, so "
+                        f"{path!r} would be frozen at its present value")
         e.tie = tie
         if tie is not None:
             e.vary = False
@@ -1950,6 +2100,7 @@ class ParameterTable:
             if e.tie is not None:
                 e.value = self._implied(e.tie, e.path)
         self._rebuild()  # held tied entries contribute to d through their values
+        self._refresh_derived()
 
     def rebase_anchored_dofs(self, paths: Iterable[str]) -> list[str]:
         """Take a user-tied displacement DOF back out of its coordinates' anchor.
@@ -2402,7 +2553,7 @@ class ParameterTable:
         (:meth:`Refinement.tie`) silently invalidates the freeze.  Read in
         entry order, so the answer does not depend on how θ was assembled.
         """
-        reach = np.asarray(abs(self._C).sum(axis=1)).ravel()
+        reach = np.asarray(abs(self._reach).sum(axis=1)).ravel()
         return [e.path for i, e in enumerate(self.entries) if reach[i] > 0.0]
 
     def column_reach(self) -> dict[str, list[str]]:
@@ -2429,7 +2580,7 @@ class ParameterTable:
         :attr:`free_paths`; the values are in entry order, so neither answer
         depends on how θ was assembled.
         """
-        csc = self._C.tocsc()
+        csc = self._reach.tocsc()
         out: dict[str, list[str]] = {}
         for j, path in enumerate(self.free_paths):
             sl = slice(csc.indptr[j], csc.indptr[j + 1])
@@ -2473,6 +2624,17 @@ class ParameterTable:
             for j, coeff in summed.items():
                 if coeff != 0.0:
                     deps.setdefault(j, set()).add(i)
+        # a derived row is reached by whatever reaches one of its declared
+        # inputs (the input itself, or anything the input follows), in block
+        # order so a later block reading an earlier one's output chains
+        for block, (ins, outs) in zip(self.derived, self._derived_idx, strict=True):
+            pattern = block.reach_pattern()
+            for r, out in enumerate(outs):
+                for k in np.flatnonzero(pattern[r]):
+                    src = int(ins[k])
+                    for j in range(len(self.entries)):
+                        if j == src or src in deps.get(j, ()):
+                            deps.setdefault(j, set()).add(int(out))
         return {e.path: [self.entries[k].path
                          for k in sorted({i, *deps.get(i, ())})]
                 for i, e in enumerate(self.entries)}
@@ -2664,6 +2826,9 @@ class ParameterTable:
                            for t, i in zip(theta, self._free_idx, strict=True)],
                           dtype=np.float64)
         p = self._C @ p_free + self._d if len(p_free) else self._d
+        if self.derived:
+            p = np.array(p, dtype=np.float64)   # never write into ``_d``
+            self._apply_derived(p)
         return {e.path: float(p[i]) for i, e in enumerate(self.entries)}
 
     def commit(self, theta: np.ndarray) -> np.ndarray | None:
@@ -2707,19 +2872,24 @@ class ParameterTable:
         reaches the tied rows as well, since a tie whose source measured
         nothing measured nothing.
         """
+        # C itself without a derived block; with one, each derived row is the
+        # block's local Jacobian at θ chained through its inputs (WP-1804)
+        jac = self.local_jacobian(theta)
         if correlation is None:
             # stays on the diagonal *vector*: this branch is the cheap one, and
             # a Pawley table's dense n×n would be tens of MB for a number that
             # never leaves the diagonal
             s = self._sigma_free_measured(theta, stderr_internal)
             with np.errstate(over="ignore", invalid="ignore"):
-                var = np.asarray(self._C.multiply(self._C) @ (s * s)).ravel()
+                var = np.asarray(jac.multiply(jac) @ (s * s)).ravel()
         else:
             cov = self._cov_free(theta, stderr_internal, correlation)
             with np.errstate(over="ignore", invalid="ignore"):
-                var = np.asarray(self._C.multiply(self._C @ cov).sum(axis=1)).ravel()
+                var = np.asarray(jac.multiply(jac @ cov).sum(axis=1)).ravel()
         var = np.maximum(var, 0.0)
-        touched = np.diff(self._C.indptr) > 0  # rows with any free source
+        # rows with any free source, read off the declared reach: a derived
+        # row whose Jacobian is zero at this θ still has its sources
+        touched = np.diff(self._reach.indptr) > 0
         # a propagated variance past the double range is an infinite one, and
         # absent for the same reason (WP-1463; ``_phys_sigma_free``)
         blind = self.unmeasured_rows(theta, stderr_internal) | ~np.isfinite(var)
@@ -2814,7 +2984,7 @@ class ParameterTable:
         if not bad.any():
             n = self._C.shape[0] if rows is None else len(rows)
             return np.zeros(n, dtype=bool)
-        c = self._C if rows is None else self._C[rows, :]
+        c = self._reach if rows is None else self._reach[rows, :]
         return np.asarray(abs(c) @ bad.astype(np.float64)).ravel() > 0.0
 
     def physical_covariance(self, theta: np.ndarray, stderr_internal: np.ndarray,
@@ -2833,7 +3003,7 @@ class ParameterTable:
         if not self._free_idx:
             return np.zeros((len(paths), len(paths)), dtype=np.float64)
         cov_free = self._cov_free(theta, stderr_internal, correlation)
-        c_rows = self._C[rows, :].toarray()
+        c_rows = self.local_jacobian(theta)[rows, :].toarray()
         return c_rows @ cov_free @ c_rows.T
 
     def apply_to_models(self, structure: Structure, instrument: Instrument,
@@ -2847,6 +3017,7 @@ class ParameterTable:
         CIF exporter write standard uncertainties.
         """
         self._refresh_moment_components()
+        self._refresh_derived()
         values = {e.path: e.value for e in self.entries}
         #: Every (parameter, path) the walk below reaches, written only once the
         #: walk is complete.  **The write is all-or-nothing**: the bound refusal
