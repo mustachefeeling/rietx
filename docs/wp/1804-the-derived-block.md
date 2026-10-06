@@ -74,8 +74,9 @@ Each is a check that can fail.
   wrong reader fails.
 - With the local Jacobian's cross-product sign flipped, the same test fails (the spike's
   planted sign gave ratios 0.17–2.5).
-- `reach_pattern()` on the planar body lists 42 rows for a rotation column whose
-  numeric reach is 28.
+- The declared reach lists a row whose numeric column is zero at θ: a pivot atom of the
+  toy block, under a rotation column. On the spike's planar body the same gap was 42
+  declared rows against 28 numeric.
 - The closed-form frame equals `cartesian_basis` to 1e-14 on 2000 random cells, and its
   `jax.jacfwd` is finite.
 - `set_tie` with a locked or derived source raises, naming both paths.
