@@ -4593,7 +4593,9 @@ def from_structure(structure: Structure, *,
             else:
                 site = f"{site} beq {_tail(atom.biso)}"
             if atom.moment is not None:
-                site = f"{site} {_moment_tail(atom.moment, cell)}"
+                tail = _moment_tail(atom.moment, cell,
+                                    _allowed_components(phase, atom))
+                site = f"{site} {tail}"
             lines.append(site)
     if diagnostics is not None:
         from ...crystallography.scattering import written_neutral_diagnostics
@@ -4602,7 +4604,30 @@ def from_structure(structure: Structure, *,
     return "\n".join(lines) + "\n"
 
 
-def _moment_tail(moment, cell) -> str:
+def _allowed_components(phase, atom) -> tuple[bool, bool, bool]:
+    """Which crystal-axis components of ``atom``'s moment its site symmetry allows.
+
+    A component outside the span of the magnetic group's allowed moments at the
+    site (:meth:`~rietx.crystallography.magnetic.operators.MagneticGroup.
+    allowed_moment_basis`) is zero by symmetry.  TOPAS refuses to refine it
+    ("Magnetic moment mlx of site Mn cannot be refined as it has no
+    derivative") and stops, so it is written held.  A setting whose integer
+    action is not the crystal-axis one (``axis_mixing``) cannot be asked, and
+    every component is then taken as allowed, which is what was written before.
+    """
+    import numpy as np
+
+    try:
+        basis = np.asarray(phase.magnetic_symmetry.group().allowed_moment_basis(
+            np.array([atom.x.value, atom.y.value, atom.z.value])))
+    except ValueError:
+        return (True, True, True)
+    if basis.size == 0:
+        return (False, False, False)
+    return tuple(bool(np.any(np.abs(basis[:, i]) > 1e-12)) for i in range(3))
+
+
+def _moment_tail(moment, cell, allowed=(True, True, True)) -> str:
     """``mlx … mly … mlz … [mg …]`` for one site: :func:`to_structure` inverted.
 
     The stored components are crystal-axis μ_B and ``mlx mly mlz`` are
@@ -4612,19 +4637,19 @@ def _moment_tail(moment, cell) -> str:
     moments on real edges 88 % come back to the bit and every other one
     within one ulp, and trying the quotient's two neighbours hit on none of
     the misses (``test_projects_topas``'s
-    ``test_write_topas_inp_moment_round_trips_within_one_ulp``).  One
-    refine flag for all three, because the block is what refines — the
+    ``test_write_topas_inp_moment_round_trips_within_one_ulp``).  The
     components' ``vary`` is the intent that frees the moment's DOFs
-    (:class:`~rietx.schemas.structure.Moment`) — and the reader gives all
-    three the flag any one of them carries.  ``mg`` is written only where the
-    model states a Landé g: ``None`` is the spin-only default, which TOPAS
-    takes from its own table.
+    (:class:`~rietx.schemas.structure.Moment`), written ``@`` on each component
+    the site's symmetry ``allowed`` and ``!`` on the others, which TOPAS cannot
+    refine; the reader gives all three the flag any one of them carries.
+    ``mg`` is written only where the model states a Landé g: ``None`` is the
+    spin-only default, which TOPAS takes from its own table.
     """
-    flag = "@" if moment.vary else "!"
-    parts = [f"{key} {flag} {_number(value / edge)}"
-             for key, value, edge in zip(
+    parts = [f"{key} {'@' if moment.vary and ok else '!'} "
+             f"{_number(value / edge)}"
+             for key, value, edge, ok in zip(
                  _MOMENT_COMPONENT_KEYS, moment.values(),
-                 (cell.a.value, cell.b.value, cell.c.value))]
+                 (cell.a.value, cell.b.value, cell.c.value), allowed)]
     if moment.g is not None:
         parts.append(f"mg ! {_number(moment.g)}")
     return " ".join(parts)
