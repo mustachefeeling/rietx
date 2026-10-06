@@ -591,8 +591,10 @@ instrument = rx.read_gsas2_instprm("beamline.instprm", diagnostics=notes)
 
 It reads the constant-wavelength types, `PXC` (X-ray) and `PNC` (neutron), and
 a neutron file comes back with a `NeutronSource`. `U`, `V` and `W` are
-centidegrees squared and `X` and `Y` centidegrees, converted through the same
-factors the `.gpx` reader uses. `Zero` is already in degrees, and it means what
+the coefficients of a Gaussian variance in centidegrees squared and `X` and `Y`
+centidegrees of Lorentzian FWHM. `profile.u/v/w` are the coefficients of the
+Gaussian FWHM² in degrees², so they are the file's values × 8 ln 2 × 10⁻⁴ (the
+recipe reader's constant), and the writer divides back. `Zero` is already in degrees, and it means what
 `instrument.zero_shift` means: a constant added to the calculated 2θ. `SH/L` is
 GSAS-II's combined (S+H)/L, so it is split evenly into `axial_sl` and
 `axial_hl`, which is the symmetric Finger-Cox-Jephcoat reading and the only one
@@ -1169,8 +1171,13 @@ outside the list.
 
 #### The profile coefficients are centidegrees and the zero correction is not
 
-`Gsas2Term.degrees` is the conversion, and it exists for `U`, `V`, `W`, `X`, `Y`
-and `Z` only. `Zero` is already in degrees, which is where the two GSAS
+`Gsas2Term.degrees` is the unit conversion, and it exists for `U`, `V`, `W`, `X`,
+`Y` and `Z` only. For `U`, `V` and `W` it changes the unit and nothing else: the
+result is still a Gaussian *variance* in degrees², which is what GSAS-II states,
+so `profile.u/v/w` is 8 ln 2 times it, not equal to it. Setting
+`profile.u = terms["U"].degrees` gives a Gaussian 2.35 times too narrow; the
+`.instprm` paragraph above and `instprm_factor` (in `rietx.io.projects.gsas2`)
+carry the whole factor. `Zero` is already in degrees, which is where the two GSAS
 generations differ from each other, so a `None` there means "no conversion was
 needed" rather than "no conversion was made".
 

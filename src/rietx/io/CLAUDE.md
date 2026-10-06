@@ -487,8 +487,8 @@ Four rules the readers do not need (WP-1118, four formats: `.inp`, `.pcr`,
   `projects/gsas.write_field`/`write_record` are public and
   `instrument_profile.py`'s `.prm` writer calls them. Two writers spelling one
   record two ways is how the two *readers* came to disagree about `ICONS`.
-  `projects/gsas2.centidegree_factor` is that rule on a *conversion*: the
-  `.gpx` reader divides by it, the `.instprm` writer multiplies.
+  `projects/gsas2.centidegree_factor` is that rule on a *conversion* (the
+  `.gpx` reader divides by it); `instprm_factor` adds 8 ln 2 for `.instprm`.
 - **Two programs can read one string opposite ways, so state the fact in the
   channel the *target* reads and name which reader takes which** (WP-1118).
   GSAS-II resolves a bare `F d -3 m` to origin choice 2 and answers a
