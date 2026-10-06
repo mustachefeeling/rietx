@@ -362,6 +362,65 @@ def test_fcj_windows_and_nodes_allocated_when_axial_free():
     assert int(live.phases[0].fcj_n.max()) > 0
 
 
+def _rutile_axial(axial: float, free: bool) -> rx.Refinement:
+    """Synthetic rutile with S/L = H/L = ``axial``, free or fixed (#774)."""
+    P = rx.Parameter
+    cell = rx.Cell(a=P(value=4.5937), b=P(value=4.5937), c=P(value=2.9587),
+                   alpha=P(value=90.0), beta=P(value=90.0), gamma=P(value=90.0))
+    atoms = [rx.Atom(label="Ti", species="Ti", x=P(value=0.0), y=P(value=0.0),
+                     z=P(value=0.0)),
+             rx.Atom(label="O", species="O", x=P(value=0.3053), y=P(value=0.3053),
+                     z=P(value=0.0))]
+    st = rx.Structure(phases=[rx.Phase(name="rutile", space_group="P42/mnm",
+                                       scale=P(value=8e-3), cell=cell, atoms=atoms)])
+    ins = rx.Instrument.bragg_brentano()
+    ins.profile.w.value = 8e-3
+    g = ins.geometry
+    g.axial_sl.value = g.axial_hl.value = axial
+    g.axial_sl.vary = g.axial_hl.vary = free
+    return rx.Refinement(st, ins)
+
+
+@pytest.mark.parametrize("axial", [0.01, 0.05])
+def test_predict_does_not_depend_on_the_free_set_for_positive_axial(axial):
+    """#774: the node count follows the axial *values*, so the same model
+    predicts the same pattern whether or not S/L, H/L are free — below the
+    sizing floor (0.01) as well as above it (0.05)."""
+    tt = np.arange(15.0, 80.0, 0.02)
+    y_fixed = _rutile_axial(axial, False).predict(tt)
+    y_free = _rutile_axial(axial, True).predict(tt)
+    assert np.max(np.abs(y_free - y_fixed)) <= 1e-12 * np.max(y_fixed)
+
+
+def test_axial_nodes_below_the_floor_match_whether_free_or_fixed():
+    from rietx.model.forward import AXIAL_SIZING_FLOOR
+    grid = np.arange(15.0, 80.0, 0.02)
+    pat = rx.PatternData(two_theta=grid.tolist(),
+                         intensity=np.ones_like(grid).tolist())
+    counts = []
+    for free in (False, True):
+        r = _rutile_axial(0.01, free)
+        moving = ({"instrument.geometry.axial_sl", "instrument.geometry.axial_hl"}
+                  if free else set())
+        counts.append(compile_model(r.structure, r.instrument, pat,
+                                    moving_paths=moving).phases[0].fcj_n)
+    assert 0.01 < AXIAL_SIZING_FLOOR
+    assert np.array_equal(counts[0], counts[1]) and counts[0].max() > 0
+
+
+def test_axial_free_at_zero_nodes_do_not_change_the_pattern(monkeypatch):
+    """The floor kept for a ratio refined off zero: at zero the kernel is the
+    identity, so the floored *node count* leaves ``predict()`` unchanged.  The
+    window half-width is a separate matter (``fcj_extent_deg`` is neutralised
+    here) and is not covered by this claim."""
+    import rietx.model.forward as fwd
+    monkeypatch.setattr(fwd, "fcj_extent_deg", lambda pos, sl, hl: np.zeros_like(pos))
+    tt = np.arange(15.0, 80.0, 0.02)
+    y_fixed = _rutile_axial(0.0, False).predict(tt)
+    y_free = _rutile_axial(0.0, True).predict(tt)
+    assert np.max(np.abs(y_free - y_fixed)) <= 1e-14 * np.max(y_fixed)
+
+
 # ---------------------------------------------------------------------------
 # synthetic doublet round-trip
 # ---------------------------------------------------------------------------
