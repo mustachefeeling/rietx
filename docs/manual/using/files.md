@@ -800,11 +800,13 @@ reader takes GSAS's `NI+2_58` back as `58Ni2+`, the ⁵⁸Ni isotope of the ion.
 Some things do not travel, because no `to_structure` builds them from its
 file. Common to all three: the emission profile and instrument geometry
 (`Instrument` is not part of what any of these readers returns), and cell and
-site bound windows. A TOPAS `str` written here states no peak widths, so a
-phase's size and strain widths, its Stephens anisotropic-strain block, its
-extinction and its preferred orientation are written without, and TOPAS
-computes narrower or untextured lines than rietx does. Pass
-`write_topas_inp(..., diagnostics=[])` to have each such term named,
+site bound windows. A TOPAS `str` written here states a phase's size and
+strain widths and its Stephens anisotropic-strain block as
+`lor_fwhm`/`gauss_fwhm` equations over `H`, `K`, `L`, `D_spacing` and `Th`
+(TOPAS convolves them into whatever peak type the input carries; TOPAS's
+Y_calc agrees with rietx to 2e-3 of the peak, where the isotropic block misses
+by 3e-2); its magnetic-only widths, extinction and preferred orientation are
+written without, and `write_topas_inp(..., diagnostics=[])` names each,
 `TOPAS_FIELD_NOT_WRITTEN`. FullProf-specific: the fitted 2θ range, the background and
 every control/output switch on a `.pcr` are protocol `to_structure` never
 reads into a `Structure`. `write_fullprof_pcr` fills them with safe, inert
