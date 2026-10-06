@@ -109,7 +109,8 @@ def test_verify_false_leaves_every_flag_none(k):
 # --------------------------------------------------------------------------
 
 def test_every_candidate_failing_still_raises(monkeypatch):
-    monkeypatch.setattr(MagneticCandidate, "in_allowed_span", lambda self, **kw: False)
+    monkeypatch.setattr(MagneticCandidate, "verification_failure",
+                        lambda self, **kw: "planted failure")
     with pytest.raises(RuntimeError, match="every candidate of the site"):
         candidates("P n m a", PNMA_MIRROR_SITE, K_HALF_HALF_0, kind="displacive", verify=True)
 
@@ -117,14 +118,15 @@ def test_every_candidate_failing_still_raises(monkeypatch):
 def test_a_partial_failure_does_not_raise(monkeypatch):
     """Sanity check on the guard itself: forcing only *one* candidate of a
     multi-candidate site to fail must not trip the all-failing raise."""
-    real = MagneticCandidate.in_allowed_span
+    real = MagneticCandidate.verification_failure
     calls = {"n": 0}
 
     def flaky(self, **kw):
         calls["n"] += 1
-        return calls["n"] != 1   # the first candidate built fails, the rest pass
+        # the first candidate built fails, the rest pass
+        return "planted failure" if calls["n"] == 1 else None
 
-    monkeypatch.setattr(MagneticCandidate, "in_allowed_span", flaky)
+    monkeypatch.setattr(MagneticCandidate, "verification_failure", flaky)
     cs = candidates("P n m a", PNMA_MIRROR_SITE, K_HALF_HALF_0, kind="displacive", verify=True)
     assert len(cs) >= 2
     assert sum(1 for c in cs if c.verified is False) == 1
@@ -142,8 +144,8 @@ def test_a_partial_failure_does_not_raise(monkeypatch):
     # 2026-09-22 by moving the `real = ...` binding below the `setattr`: this
     # line goes red ("assert <function ...flaky> is not <function ...flaky>")
     # while the one above it stays green.
-    assert MagneticCandidate.in_allowed_span is flaky
-    assert real is not MagneticCandidate.in_allowed_span
+    assert MagneticCandidate.verification_failure is flaky
+    assert real is not MagneticCandidate.verification_failure
 
 
 # --------------------------------------------------------------------------
