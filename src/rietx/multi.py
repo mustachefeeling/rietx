@@ -493,10 +493,14 @@ def _rehold_multi(models, mtable, held: list[str],
     if collapsed:
         for h, table in enumerate(mtable.tables):
             by_path = {e.path: e for e in table.entries}
-            for scoped in collapsed:
-                bare = mtable._unscope(h, scoped)
-                if bare is not None and bare in by_path:
-                    by_path[bare].value = start_values[h][bare]
+            bare_paths = [b for scoped in collapsed
+                          if (b := mtable._unscope(h, scoped)) is not None
+                          and b in by_path]
+            for bare in bare_paths:
+                by_path[bare].value = start_values[h][bare]
+            # the single runner's rule: a composed body turn lives in its
+            # anchor, so the anchor is restored with the zero (WP-1805)
+            table.restore_body_anchors(bare_paths)
             table.refresh_ties()
         mtable.set_vary(collapsed, False)
     if released:

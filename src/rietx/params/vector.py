@@ -27,7 +27,6 @@ matrix — no pydantic objects are touched per iteration.
 from __future__ import annotations
 
 import math
-import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
 
@@ -44,7 +43,6 @@ from ..crystallography.magnetic.moments import (
     moment_from_dofs,
     wrap_angle,
 )
-from ..crystallography.rotation import canonical_quaternion, quaternion_from_matrix
 from ..crystallography.stephens import S_NAMES, isotropic_coefficients, strain_basis
 from ..crystallography.symmetry import (
     cell_constraints,
@@ -70,11 +68,6 @@ from .transforms import dphys_dinternal, internal_bounds, to_internal, to_physic
 #: below and the ``WAVELENGTH_CALIBRATION`` diagnostic in ``refine.py`` (shared
 #: with the joint path in ``multi.py``).
 WAVELENGTH_SUFFIX = ".wavelength"
-
-#: A rigid body's increment entries (WP-1805): its rotation vector and its
-#: origin's displacement DOFs, the two that restart at zero at every build.
-_BODY_INCREMENT = re.compile(
-    r"^phases\.\d+\.rigid_bodies\.\d+\.(rotation|origin)\.(?:dof\.)?\d+$")
 
 #: The largest esd whose square is still a double (≈ 1.3e+154).  Past it a
 #: physical esd is read as unmeasured, as an infinite one is (WP-1463,
@@ -1085,11 +1078,34 @@ class ParameterTable:
         #: (body base path, body name, its block), in collection order
         #: (WP-1805): the write-back and the rigidity check walk this
         self._bodies: list[tuple[str, str, DerivedBlock]] = []
+        #: body base path → its rotation DOF paths: the **anchored-rotation**
+        #: kind (WP-1805).  An increment δω = E·θ composed into the body's
+        #: R₀ and zeroed at every :meth:`commit`, so its value is a step
+        #: within one stage and never a position.  Built where the anchor is
+        #: (:meth:`_collect_body`), never read off a path's name, for
+        #: ``_anchored_dofs``' reason; and never *in* ``_anchored_dofs``,
+        #: whose subtraction rule is wrong for a rotation by O(δω²)
+        #: (WP-1803's record), so nothing rebases one.
+        self._anchored_rotations: dict[str, tuple[str, ...]] = {}
+        #: a body origin's displacement DOFs (they are in ``_anchored_dofs``
+        #: too, being an atom-like site): with the rotations, the increments
+        #: that restart at every build while the record moves, which is what
+        #: :meth:`_refuse_body_increment_tie` refuses as a tie source
+        self._body_origin_dofs: set[str] = set()
+        #: body base path → (q₀, R₀, E) as the last :meth:`commit` found them,
+        #: so a stage that restores a collapsed phase to where it began can
+        #: put the anchor back too (:meth:`restore_body_anchors`)
+        self._precommit_anchor: dict[str, tuple] = {}
         self._collect(structure, instrument)
         self._rebuild()
-        if self.derived:
+        if self._bodies:
+            # the stored atoms are checked against their bodies before the
+            # blocks write them, so an edit of a body atom is refused rather
+            # than silently undone; ``add_derived`` then validates each block
+            # (locked outputs, declaration order, shapes) and writes its rows
             self._check_body_drift()
-            self._refresh_derived()
+            for _, _, block in self._bodies:
+                self.add_derived(block)
 
     # -- collection ----------------------------------------------------
     def _add(self, path: str, p: Parameter, *, force_fixed: bool = False,
@@ -1306,12 +1322,13 @@ class ParameterTable:
         site-symmetry basis.  A body whose origin sits on a special position is
         refused for now (``RIGID_BODY_NOT_INVARIANT``; WP-1807 takes the
         stabiliser's axial subspace for the rotation).  The rotation is an
-        **anchored increment** δω about the record's R₀, zero at every build
-        and bounded per component by ``RIGID_BODY_ROTATION_BOUND``; it is
-        never in ``_anchored_dofs``, whose subtraction rule is wrong for a
-        rotation by O(δω²) (WP-1803's record).
+        **anchored increment** δω = E·θ about the record's R₀, zero at every
+        build and every commit, bounded per component by
+        ``RIGID_BODY_ROTATION_BOUND``; it has as many DOFs as the template's
+        inertia rank (two for a linear body, ``params.bodies``), and it is
+        never in ``_anchored_dofs`` (:attr:`_anchored_rotations` says why).
+        The block is declared after collection, through :meth:`add_derived`.
         """
-        from ..crystallography.rotation import matrix_from_quaternion
         from ..schemas.structure import RIGID_BODY_ROTATION_BOUND
         from .bodies import RigidBodyBlock
 
@@ -1324,20 +1341,28 @@ class ParameterTable:
                 f"{phase.space_group!r}; a body on a special position is not "
                 "supported yet (WP-1807) — move the origin to a general "
                 "position")
+        index = {a.label: j for j, a in enumerate(phase.atoms)}
+        try:
+            block = RigidBodyBlock(
+                phase_base=base, body_base=bbase,
+                atom_bases=[f"{base}.atoms.{index[label]}" for label in body.atoms],
+                template=np.array(body.template, dtype=np.float64),
+                q0=np.array(body.orientation, dtype=np.float64))
+        except ValueError as exc:
+            raise ValueError(f"rigid body {body.name!r}: {exc}") from None
+        before = set(self._anchored_dofs)
         self._collect_atom_coords(f"{bbase}.origin", sg, body.origin)
-        for k in range(3):
+        self._body_origin_dofs.update(set(self._anchored_dofs) - before)
+        # the anchored-rotation kind: identity entries (radians) that a commit
+        # composes into R₀ and zeroes, boxed so |δω| stays below the 2π where
+        # the exponential map's Jacobian degenerates (WP-1803's handover)
+        paths = block.rotation_paths(bbase)
+        for path in paths:
             self.entries.append(Entry(
-                path=f"{bbase}.rotation.{k}", value=0.0, vary=body.rotation_vary,
+                path=path, value=0.0, vary=body.rotation_vary,
                 lo=-RIGID_BODY_ROTATION_BOUND, hi=RIGID_BODY_ROTATION_BOUND,
                 transform="identity"))
-        index = {a.label: j for j, a in enumerate(phase.atoms)}
-        block = RigidBodyBlock(
-            phase_base=base, body_base=bbase,
-            atom_bases=[f"{base}.atoms.{index[label]}" for label in body.atoms],
-            template=np.array(body.template, dtype=np.float64),
-            r0=np.asarray(matrix_from_quaternion(np.array(body.orientation)),
-                          dtype=np.float64))
-        self.derived.append(block)
+        self._anchored_rotations[bbase] = paths
         self._bodies.append((bbase, body.name, block))
 
     def _check_body_drift(self) -> None:
@@ -1352,18 +1377,16 @@ class ParameterTable:
         from ..schemas.structure import RIGID_BODY_DRIFT_TOL
         from .derived import cartesian_frame
 
-        if not self._bodies:
-            return
-        p = np.array([e.value for e in self.entries], dtype=np.float64)
-        stored = p.copy()
-        self._apply_derived(p)
+        values = np.array([e.value for e in self.entries], dtype=np.float64)
         for bbase, name, block in self._bodies:
+            x = values[[self._paths[q] for q in block.inputs]]
+            placed = block.evaluate(x)
             phase_base = bbase.split(".rigid_bodies.")[0]
-            cell = tuple(p[self._paths[f"{phase_base}.cell.{n}"]]
+            cell = tuple(values[self._paths[f"{phase_base}.cell.{n}"]]
                          for n in ("a", "b", "c", "alpha", "beta", "gamma"))
             m = np.asarray(cartesian_frame(cell), dtype=np.float64)
             rows = [self._paths[q] for q in block.outputs]
-            diff = (stored[rows] - p[rows]).reshape(-1, 3) @ m.T
+            diff = (values[rows] - placed).reshape(-1, 3) @ m.T
             worst = float(np.sqrt((diff * diff).sum(axis=1)).max())
             if worst > RIGID_BODY_DRIFT_TOL:
                 i = int(np.argmax((diff * diff).sum(axis=1)))
@@ -2208,11 +2231,15 @@ class ParameterTable:
             e.vary = False
         self._rebuild()
 
-    @staticmethod
-    def _body_increment_kind(path: str) -> str | None:
-        """``"rotation"``/``"origin"`` for a body increment entry, else ``None``."""
-        m = _BODY_INCREMENT.match(path)
-        return None if m is None else m.group(1)
+    def _body_increment_kind(self, path: str) -> str | None:
+        """``"rotation"``/``"origin"`` for a body increment entry, else ``None``.
+
+        Read off :attr:`_anchored_rotations` and :attr:`_body_origin_dofs`,
+        the data built where each increment is anchored, never off the name.
+        """
+        if any(path in paths for paths in self._anchored_rotations.values()):
+            return "rotation"
+        return "origin" if path in self._body_origin_dofs else None
 
     def _refuse_body_increment_tie(self, path: str, tie: AffineTie) -> None:
         """A body increment ties only to an increment of its own kind (WP-1805).
@@ -2367,6 +2394,19 @@ class ParameterTable:
         and are absolute.
         """
         return frozenset(self._anchored_dofs)
+
+    @property
+    def anchored_rotation_paths(self) -> frozenset[str]:
+        """Every rigid body's rotation DOFs, the anchored-rotation kind (WP-1805).
+
+        Zero at every build and every commit, which composes them into the
+        body's stored orientation, so the value a fit reports is the step its
+        last stage took and never an orientation; a reader comparing it across
+        fits compares nothing.  The quaternion record and the body atoms' rows
+        are what carry the answer.  Read off :attr:`_anchored_rotations`.
+        """
+        return frozenset(p for paths in self._anchored_rotations.values()
+                         for p in paths)
 
     @property
     def angle_dof_paths(self) -> frozenset[str]:
@@ -3030,11 +3070,16 @@ class ParameterTable:
         A moment block lands in its principal chart
         (:meth:`_canonicalise_moment_dofs`, #604), so the committed values can
         differ from ``decode(theta)`` there — the same moment, never a
-        different one.  The return is that method's: ``None`` when nothing
-        moved, else the ±1 per free column, which a caller still holding the
-        solver's outcome passes to
+        different one.  A rigid body's rotation composes (WP-1805): R₀ ←
+        Exp(δω)·R₀ and δω ← 0, the same pose in a new chart.
+
+        The return says how the chart moved, for a caller still holding the
+        solver's outcome to pass to
         :func:`~rietx.optimize.least_squares.rechart_outcome` with ``x0()``
-        so its ``theta``, Jacobian and correlations describe these values.
+        so its ``theta``, Jacobian and correlations describe these values:
+        ``None`` when nothing moved; the ±1 per free column when only a
+        moment flipped; the square matrix ∂θ_old/∂θ_new over the free columns
+        (:meth:`_chart_matrix`) when a body turned.
         """
         values = self.decode(theta)
         for e in self.entries:
@@ -3043,17 +3088,123 @@ class ParameterTable:
         # the moment components are locked entries fed by a *non-affine* map,
         # so the constraint block cannot carry them and they are derived here
         self._refresh_moment_components()
+        charts = self._compose_bodies(values) if self._bodies else {}
         self._rebuild()  # held-source contributions to d follow the new values
+        if charts:
+            self._refresh_derived()
         if self._bodies:
-            # a body committed non-rigid means the map and its record disagree
-            # (WP-1803: a stale anchor at 2e-3 Å against 1e-15 Å); the commit
-            # is where a stage's answer becomes the model, so it is checked here
-            bad = {n: e for n, e in self.body_bond_errors().items() if e > 1e-9}
-            if bad:
-                raise AssertionError(
-                    f"RIGID_BODY_TEMPLATE_DRIFT at commit: rigid bodies {bad} "
-                    "(largest |d − d_template| in Å) are not rigid")
-        return signs
+            self._check_committed_bodies(values)
+        if not charts:
+            return signs
+        for bbase, _, block in self._bodies:
+            if bbase in charts:
+                block.settle_anchor()
+        self._refresh_derived()
+        return self._chart_matrix(signs, charts)
+
+    def _compose_bodies(self, values: Mapping[str, float]) -> dict[str, np.ndarray]:
+        """R₀ ← Exp(δω)·R₀ and δω ← 0 for every body, at a commit (WP-1805).
+
+        The record (``docs/DESIGN.md`` § Parameter system, "An anchored
+        rotation composes"): every stage starts at the identity of the
+        exponential map.  Returns, per body that turned, the k × k matrix
+        ∂θ_old/∂θ_new of :meth:`RigidBodyBlock.commit_rotation`.  The previous
+        anchor is kept for :meth:`restore_body_anchors`.
+        """
+        charts: dict[str, np.ndarray] = {}
+        self._precommit_anchor = {}
+        for bbase, _, block in self._bodies:
+            paths = self._anchored_rotations[bbase]
+            anchor = (block.q0, block.r0, block.axes)
+            chart = block.commit_rotation([values[q] for q in paths])
+            if chart is None:
+                continue
+            self._precommit_anchor[bbase] = anchor
+            charts[bbase] = chart
+            for q in paths:
+                self.entries[self._paths[q]].value = 0.0
+        return charts
+
+    def _check_committed_bodies(self, answer: Mapping[str, float]) -> None:
+        """The commit-time guard: each body rigid, and where the solve put it.
+
+        Two failures, one test each, both to 1e-9 Å.  A body that is not rigid
+        in the committed cell means its anchor is not a rotation (WP-1803
+        measured a stale linearised anchor at 2e-3 Å against 1e-15 Å); atoms
+        that are rigid but no longer at the solver's answer mean the increment
+        was zeroed without being composed.  Either way the commit would make a
+        model that is not the stage's answer, so it raises rather than writes.
+        """
+        from .derived import cartesian_frame
+
+        bad = {n: e for n, e in self.body_bond_errors().items() if e > 1e-9}
+        moved: dict[str, float] = {}
+        for bbase, name, block in self._bodies:
+            phase_base = bbase.split(".rigid_bodies.")[0]
+            cell = tuple(answer[f"{phase_base}.cell.{n}"]
+                         for n in ("a", "b", "c", "alpha", "beta", "gamma"))
+            m = np.asarray(cartesian_frame(cell), dtype=np.float64)
+            gap = np.array([self.entries[self._paths[q]].value - answer[q]
+                            for q in block.outputs]).reshape(-1, 3) @ m.T
+            worst = float(np.sqrt((gap * gap).sum(axis=1)).max())
+            if worst > 1e-9:
+                moved[name] = worst
+        if bad or moved:
+            raise AssertionError(
+                "RIGID_BODY_TEMPLATE_DRIFT at commit: "
+                + (f"rigid bodies {bad} are not rigid (largest |d − d_template| "
+                   "in Å)" if bad else "")
+                + ("; " if bad and moved else "")
+                + (f"rigid bodies {moved} left the solver's answer (largest "
+                   "atom shift in Å)" if moved else ""))
+
+    def _chart_matrix(self, signs: np.ndarray | None,
+                      charts: Mapping[str, np.ndarray]) -> np.ndarray:
+        """∂θ_old/∂θ_new over the free columns, for ``rechart_outcome``.
+
+        The moment signs on the diagonal and each composed body's block on
+        its rotation columns (disjoint sets).  A rotation entry is an identity
+        transform, so its free column is its value or an affine image of
+        another's; the block is carried through C's rows as
+        pinv(A)·chart·A, A the rows of the body's rotation entries over the
+        columns that reach them.  That is exact when each rotation entry is its
+        own free column; a body with some rotation DOFs held or tied gets the
+        projection, because composing then changes which orientations the
+        held components leave reachable, and no matrix maps one family onto
+        the other.
+        """
+        n = len(self._free_idx)
+        out = np.diag(np.ones(n) if signs is None else np.asarray(signs, dtype=np.float64))
+        C = self._C.toarray()
+        for bbase, chart in charts.items():
+            rows = [self._paths[q] for q in self._anchored_rotations[bbase]]
+            a = C[rows]
+            cols = np.flatnonzero(np.abs(a).sum(axis=0) > 0.0)
+            if not len(cols):
+                continue
+            a = a[:, cols]
+            out[np.ix_(cols, cols)] = np.linalg.pinv(a) @ chart @ a
+        return out
+
+    def restore_body_anchors(self, paths: Iterable[str]) -> list[str]:
+        """Put back the anchor the last commit replaced, for bodies in ``paths``.
+
+        A stage that restores a collapsed phase to the values it started from
+        (``refine``'s support hold, WP-1301) sets each rotation DOF back to
+        its start, zero; after a commit composed the increment that is no
+        restore at all, since the turn now lives in R₀.  So the anchor is put
+        back with it.  Returns the body base paths restored.
+        """
+        wanted = set(paths)
+        done = []
+        for bbase, _, block in self._bodies:
+            if (bbase in self._precommit_anchor
+                    and wanted & set(self._anchored_rotations[bbase])):
+                block.restore_anchor(*self._precommit_anchor.pop(bbase))
+                done.append(bbase)
+        if done:
+            self._refresh_derived()
+        return done
 
     def stderr_physical(self, theta: np.ndarray, stderr_internal: np.ndarray,
                         correlation: np.ndarray | None = None) -> dict[str, float]:
@@ -3335,12 +3486,12 @@ class ParameterTable:
                 _refuse(path, v)
         for p, path in pending:
             _write(p, path)
-        # a body's orientation record is R = Exp(δω)·R₀, composed here into
-        # the canonical quaternion the next table anchors on at δω = 0
-        # (WP-1805); the increment itself is a step, like a coordinate DOF's
+        # a body's orientation record: R₀ as the commit composed it, which is
+        # the record itself, since a commit leaves δω = 0 (WP-1805).  A value
+        # set by hand and not committed (``set_values``, a series carry) is a
+        # pose Exp(δω)·R₀ not yet composed, written as the pose it describes
         for bbase, _, block in self._bodies:
             ip, b = (int(t) for t in bbase.split(".")[1::2][:2])
-            w = [values[f"{bbase}.rotation.{k}"] for k in range(3)]
-            q = canonical_quaternion(quaternion_from_matrix(block.orientation(w)))
+            q = block.orientation([values[p] for p in self._anchored_rotations[bbase]])
             structure.phases[ip].rigid_bodies[b].orientation = tuple(
                 float(v) for v in np.asarray(q))
