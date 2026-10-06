@@ -5698,6 +5698,9 @@ def _fixed_literal_diagnostics(stages, table: ParameterTable,
     preset names a phase literal.  **Not a user tie** either: that is the
     caller's own declaration, and its row says so.
 
+    **Silent when the stage frees the tie's sources itself**: ``cell.a`` and
+    ``cell.b`` named together on a cubic phase free ``a``, and ``b`` follows.
+
     A plan read, decided before the first stage like
     :func:`_stage_order_diagnostics`, and one diagnostic per path naming its
     stages, for :func:`_unknown_path_diagnostics`' reason.
@@ -5710,6 +5713,12 @@ def _fixed_literal_diagnostics(stages, table: ParameterTable,
             if (entry is None or not is_literal_path(glob)
                     or not glob.startswith("phases.") or glob in user_ties
                     or not (entry.locked or entry.tie is not None)):
+                continue
+            if entry.tie is not None and all(
+                    any(fnmatch.fnmatchcase(src, g) for g in stage.turn_on)
+                    for src, _ in entry.tie.terms):
+                # the same stage frees every source it follows, so it did
+                # get what it named: ``cell.a`` and ``cell.b`` side by side
                 continue
             names = asked.setdefault(glob, [])
             if stage.name not in names:
@@ -5744,6 +5753,7 @@ def _fixed_literal_diagnostics(stages, table: ParameterTable,
                      "freed for it"),
             where=[path], suggestion=fix))
     return out
+
 
 def _unknown_path_diagnostics(stage_results: list[StageResult],
                               known: list[str], *,

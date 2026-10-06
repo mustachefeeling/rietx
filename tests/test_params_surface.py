@@ -853,7 +853,6 @@ def test_a_single_stage_run_says_it_too(ref, pattern):
             if d.code == "STAGE_PATH_UNKNOWN"] == [[WAVELENGTH_TYPO]]
 
 
-
 @pytest.mark.parametrize("path, says", [
     # B on 6f (x, 1/2, 1/2): x follows the site's one direction, y is fixed
     ("phases.0.atoms.1.x", "follows phases.0.atoms.1.dof.0"),
@@ -901,6 +900,17 @@ def test_a_path_that_is_free_or_not_a_phase_literal_stays_silent(pattern, turn_o
     assert "STAGE_PATH_NOT_FREE" not in {d.code for d in result.diagnostics}
     if turn_on == ["phases.0.atoms.1.dof.*"]:
         assert "phases.0.atoms.1.dof.0" in result.stages[0].freed
+
+
+def test_a_tied_path_beside_its_own_source_stays_silent(pattern):
+    """Yue's cubic probe: ``cell.a`` and ``cell.b`` named together is a common
+    spelling, and the stage frees ``a`` with ``b`` following it."""
+    ref = rx.Refinement(*perturbed_models(), history=False)
+    result = ref.fit(pattern, plan=rx.RefinementPlan(stages=[
+        rx.Stage("cell", ["phases.0.scale", "phases.0.cell.a",
+                          "phases.0.cell.b"], max_iter=5)]))
+    assert "phases.0.cell.a" in result.stages[0].freed
+    assert "STAGE_PATH_NOT_FREE" not in {d.code for d in result.diagnostics}
 
 
 def test_a_users_own_tie_is_not_reported(ref, pattern):
