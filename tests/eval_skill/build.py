@@ -154,17 +154,23 @@ def _runtime(venv: Path) -> Path:
     """Install this checkout, non-editable, into a fresh venv at ``venv``.
 
     Non-editable, because an editable install imports the checkout's ``src``,
-    which lies under the home directory the sandbox denies.
+    which lies under the home directory the sandbox denies. Reinstalled by
+    name, because uv keys a local directory's built wheel on ``pyproject.toml``
+    alone and would otherwise install an older build of ``src``.
     """
+    from rietx._about import DIST_NAME
+
     if venv.exists():
         if not (venv / "pyvenv.cfg").is_file():
             raise SystemExit(f"{venv} exists and is not a venv, so it is left alone")
+        if venv.resolve() in (Path(sys.prefix).resolve(), (REPO / ".venv").resolve()):
+            raise SystemExit(f"{venv} is this checkout's own venv, so it is left alone")
         shutil.rmtree(venv)
     subprocess.run(["uv", "venv", "-q", "--python", "3.12",
                     "--python-preference", "system", str(venv)], check=True)
     python = venv / "bin" / "python"
-    subprocess.run(["uv", "pip", "install", "-q", "--python", str(python), str(REPO)],
-                   check=True)
+    subprocess.run(["uv", "pip", "install", "-q", "--python", str(python),
+                    "--reinstall-package", DIST_NAME, str(REPO)], check=True)
     return python
 
 
@@ -202,7 +208,10 @@ def unreachable(python: Path, out: Path) -> list[str]:
     read.
     """
     why = []
-    for path, what in ((python, str(python)), (python.resolve(), f"its base {python.resolve()}")):
+    # The directory resolved and the name kept: ``out`` is resolved, and a
+    # venv's interpreter is itself a symlink to its base.
+    here = python.parent.resolve() / python.name
+    for path, what in ((here, str(python)), (python.resolve(), f"its base {python.resolve()}")):
         if out == path or out in path.parents:
             why.append(f"{what} lies in the plugin root, which the baseline arm cannot "
                        "read (pass --venv DIR outside it)")
@@ -228,6 +237,9 @@ def build(tree: Path, out: Path, *, python: Path | None = None,
         raise SystemExit(f"{tree} holds no SKILL.md: not a skill tree")
     _clear(out)
     out.mkdir(parents=True)
+    # Stamped at once, so a build that fails part-way stays one `_clear` may
+    # remove; the full stamp replaces this one at the end.
+    (out / STAMP).write_text(json.dumps({"incomplete": True}) + "\n", encoding="utf-8")
     if venv:
         python = _runtime(Path(venv).absolute())
     for why in unreachable(python, out):

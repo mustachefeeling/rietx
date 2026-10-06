@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import sys
 import tomllib
 from fractions import Fraction
 from pathlib import Path
@@ -278,6 +279,12 @@ def test_a_relative_interpreter_is_written_absolute(tmp_path, monkeypatch):
     assert stamp["python"] == str(tmp_path / "venv" / "bin" / "python")
 
 
+#: The eval sandbox exists on macOS and Linux only, and `unreachable` reads
+#: POSIX roots, which a Windows path never starts with.
+POSIX_ONLY = pytest.mark.skipif(sys.platform == "win32", reason="the eval sandbox is POSIX-only")
+
+
+@POSIX_ONLY
 def test_an_interpreter_either_arm_cannot_start_is_named(tmp_path):
     """macOS's sandbox denies `/Users` and `/tmp`, and grants the plugin root to
     the with-skill arm alone (2026-10-06: two void runs, then a void baseline
@@ -289,6 +296,7 @@ def test_an_interpreter_either_arm_cannot_start_is_named(tmp_path):
         assert B.unreachable(denied, out), denied
 
 
+@POSIX_ONLY
 def test_a_base_interpreter_under_tmp_is_named(tmp_path):
     link = tmp_path / "python"
     link.symlink_to("/private/tmp/somewhere/python3.12")
@@ -307,6 +315,23 @@ def test_venv_refuses_to_clear_a_directory_that_is_not_one(tmp_path):
     with pytest.raises(SystemExit, match="left alone"):
         B._runtime(keep)
     assert (keep / "notes.txt").exists()
+
+
+def test_venv_refuses_to_clear_the_running_venv():
+    with pytest.raises(SystemExit, match="own venv"):
+        B._runtime(Path(sys.prefix))
+
+
+def test_a_build_that_fails_part_way_can_be_cleared(tmp_path, monkeypatch):
+    def fail(venv):
+        raise subprocess.CalledProcessError(1, "uv")
+
+    monkeypatch.setattr(B, "_runtime", fail)
+    out = tmp_path / "p"
+    with pytest.raises(subprocess.CalledProcessError):
+        B.build(TREE, out, venv=tmp_path / "v", only=["fap-fit"])
+    B._clear(out)
+    assert not out.exists()
 
 
 def test_venv_writes_its_interpreter_into_every_prompt(tmp_path, monkeypatch):
