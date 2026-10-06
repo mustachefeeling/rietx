@@ -42,8 +42,10 @@ reading the protocol is what made them visible:
 **Measured result** (2026-07-22, recorded in docs/milestones/v0.2.md):
 Rwp = 9.73 % against GSAS's 10.05 % and Rp = 7.76 % against its 7.66 %, on an
 identical 5750 channels — the two codes agree on fit quality to ~1 % relative.
-Refined sample broadening lands on GSAS's too: Lorentzian size 0.0323° vs its
-LX = 0.0335°.  The cell is a = 9.372807 Å, c = 6.886642 Å against GSAS's
+Refined sample broadening: Lorentzian size 0.0246° against GSAS's
+LX = 0.0335°.  That gap is the axial-divergence model GSAS's function 2 does
+not have (see ``test_fap_lorentzian_matches_gsas_lx_on_gsas_own_model``, which
+removes it and lands within 3 % of LX).  The cell is a = 9.372807 Å, c = 6.886642 Å against GSAS's
 9.371724(36) and 6.885867(37): **+116 and +113 ppm**.  That the two axes are
 offset by the *same relative* amount is the diagnostic — a uniform d-scale
 (peak-position convention) difference, not a shape or structural disagreement;
@@ -240,13 +242,13 @@ def test_fap_lab_rietveld_matches_gsas(fap_inputs, fap_fit):
     # this is the assertion that distinguishes "convention" from "wrong"
     assert abs((a / A_GSAS) - (c / C_GSAS)) < 1e-4
 
-    # refined sample broadening agrees with GSAS's LX to ~5 % (its LY is
-    # split differently between the two codes' strain conventions, so only
-    # the physical range is checked there)
-    # (GU GV GW read as the variance the manual says they are, #735: the held
-    # Gaussian is 2.35x wider in FWHM, Rwp 0.0970 -> 0.0925 against GSAS's
-    # 0.1005, and the Lorentzian this refinement needs moves 0.0328 -> 0.0246.
-    # The two codes mix Gaussian and Lorentzian differently, so the band is wider)
+    # Refined sample broadening against GSAS's LX (its LY is split differently
+    # between the two codes' strain conventions, so only the physical range is
+    # checked there).  This fit carries axial divergence (S/L refined) and the
+    # preset's instrument Lorentzian X = 0.001, neither of which GSAS's
+    # function 2 has, so rietx's lor_size sits below LX by what they absorb:
+    # 0.0246 against 0.0335.  The like-for-like comparison, with both removed,
+    # is test_fap_lorentzian_matches_gsas_lx_on_gsas_own_model.
     assert phase.lor_size.value == pytest.approx(0.0335, rel=0.30)
     assert 0.0 <= phase.lor_strain.value < 0.15
     # the instrument resolution function was held, as in GSAS
@@ -365,6 +367,56 @@ def test_tying_the_similar_atoms_bisos_buys_precision(fap_inputs, fap_fit):
     plot_result(tied, path=str(out / "fap_tied_bisos.png"))
     plot_result(tied, path=str(out / "fap_tied_bisos_lowangle.png"),
                 two_theta_range=(15.0, 35.0))
+
+
+def _fit_on_gsas_own_model(gaussian_variance_read_as_fwhm_squared: bool):
+    """The FAP protocol with the two things GSAS's function 2 lacks removed:
+    axial divergence (S/L, H/L held at 0 and not refined) and the preset's
+    instrument Lorentzian X = Y = 0.  What is left is the model the file's
+    ``GU GV GW LX LY`` were fitted under, so ``lor_size`` is comparable to LX.
+    """
+    data, structure, instrument = build_fap_inputs()
+    instrument.geometry.axial_sl.value = 0.0
+    instrument.geometry.axial_hl.value = 0.0
+    instrument.profile.x.value = 0.0
+    instrument.profile.y.value = 0.0
+    if not gaussian_variance_read_as_fwhm_squared:
+        # the pre-#735 reading: GU GV GW taken as the Gaussian FWHM^2 itself
+        instrument.profile.u.value = _TERMS["GU"].degrees
+        instrument.profile.v.value = _TERMS["GV"].degrees
+        instrument.profile.w.value = _TERMS["GW"].degrees
+    plan = _gsas_protocol_plan()
+    plan.stages = [s for s in plan.stages if s.name != "axial"]
+    ref = rx.Refinement(structure, instrument)
+    result = ref.fit(data, plan=plan)
+    return ref.fitted_structure.phases[0].lor_size.value, result.statistics.rwp
+
+
+def test_fap_lorentzian_matches_gsas_lx_on_gsas_own_model():
+    """The one GSAS-I reference output in the tree, read both ways (#739 review).
+
+    GSAS held ``GU GV GW`` and refined ``LX``, so with the rest of the model
+    matched, the Lorentzian rietx needs is GSAS's ``LX`` only if the held
+    Gaussian is the same width.  Measured (macOS arm64, 2026-10-06):
+
+    ============================  ==========  ===========  ======
+    ``GU GV GW`` read as          lor_size    vs LX 0.0335  Rwp
+    ============================  ==========  ===========  ======
+    variance (8 ln 2, the manual) 0.0326      -2.7 %        0.0953
+    FWHM² (before #735)           0.0497      +48 %         0.1090
+    ============================  ==========  ===========  ======
+
+    The old reading's 5 % agreement on the full protocol was a coincidence of
+    two errors: the axial-divergence term and the preset X, which GSAS has no
+    counterpart for, absorbed what the too-narrow Gaussian left over.
+    """
+    lor_variance, rwp_variance = _fit_on_gsas_own_model(True)
+    lor_fwhm2, rwp_fwhm2 = _fit_on_gsas_own_model(False)
+    lx = _TERMS["LX"].degrees
+    assert lx == pytest.approx(0.0335, rel=1e-3)
+    assert lor_variance == pytest.approx(lx, rel=0.05)
+    assert abs(lor_fwhm2 / lx - 1.0) > 0.25          # the old reading is not LX
+    assert rwp_variance < rwp_fwhm2
 
 
 def test_the_file_states_a_wider_free_set_than_this_plan(fap_inputs, fap_fit):
