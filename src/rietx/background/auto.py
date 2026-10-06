@@ -27,13 +27,17 @@ _KNOT_STEP_HUMPY_DEG = 3.0
 #: fewest fitted channels ``two_theta_limits`` may leave: ``compile_model``'s
 #: own floor, below which no fit runs (and ``diagnose`` divides by zero at 2)
 _MIN_FIT_CHANNELS = 10
+#: the low percentile of the fitted counts ``seed=True`` starts the background
+#: from: under every Bragg peak yet above the floor of the counting noise
+AUTO_BACKGROUND_SEED_PERCENTILE = 10.0
 
 
 def auto_background(data: PatternData, *, kind: str = "pspline",
                     diagnostics: PatternDiagnostics | None = None,
                     wavelength: float | None = None,
                     two_theta_limits: tuple[float, float] | None = None,
-                    source: object | None = None) -> Background:
+                    source: object | None = None,
+                    seed: bool = False) -> Background:
     """Build a background model sized to the pattern.
 
     ``kind="pspline"`` (default): penalized co-refined spline — knot spacing
@@ -53,6 +57,16 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
     ``source`` is the declared beam (:class:`~rietx.schemas.instrument.Source`),
     handed to ``diagnose`` so its contamination screen skips the searches the
     beam cannot need (WP-1445, WP-1539).  Without it the screen runs as before.
+
+    ``seed=False`` (default) returns every coefficient at 0.0.  That is the
+    start the skill's Le Bail rule 5 warns about: ``lebail_update`` runs at
+    stage compile, before the background has been fitted, so a pedestal that is
+    large against the peaks goes to the Bragg reflections.  ``seed=True`` starts
+    the background at the ``AUTO_BACKGROUND_SEED_PERCENTILE`` of the counts in
+    the fitted range: every P-spline coefficient (a spline whose coefficients
+    are equal is that constant) or a Chebyshev's constant term.  The air term,
+    where one is switched on, stays at its own start.  Whether this should be
+    the default is #725's question; the default is unchanged here.
     """
     if two_theta_limits is not None:
         lo, hi = (float(v) for v in two_theta_limits)
@@ -71,7 +85,10 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
     diag = diagnostics or diagnose(data, wavelength=wavelength, source=source)
     if kind == "chebyshev":
         sel = select_chebyshev_order(data)
-        return BackgroundChebyshev.with_terms(int(sel.selected))
+        cheb = BackgroundChebyshev.with_terms(int(sel.selected))
+        if seed and cheb.coefficients:
+            cheb.coefficients[0].value = _seed_level(data)
+        return cheb
     if kind != "pspline":
         raise ValueError(f"unknown background kind {kind!r}")
 
@@ -92,4 +109,17 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
     if diag.air_scatter_gain > AIR_SCATTER_TRIGGER:
         bkg.air_scatter = Parameter(value=1e-3, vary=True, min=0.0,
                                     transform="softplus")
+    if seed:
+        level = _seed_level(data)
+        for c in bkg.coefficients:
+            c.value = level
     return bkg
+
+
+def _seed_level(data: PatternData) -> float:
+    """The seed percentile of the counts ``data`` carries (already cropped to
+    the fitted range)."""
+    import numpy as np
+
+    return float(np.percentile(np.asarray(data.intensity, dtype=float),
+                               AUTO_BACKGROUND_SEED_PERCENTILE))
