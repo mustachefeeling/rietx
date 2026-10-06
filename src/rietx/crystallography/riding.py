@@ -11,7 +11,7 @@ measure:
   (Sheldrick 2015, *Acta Cryst.* C71, 3–8, and the SHELXL ``AFIX``/``HFIX``
   documentation it describes): aromatic and sp² C–H 0.93 Å, tertiary C–H
   0.98, CH₂ 0.97, CH₃ 0.96, hydroxyl O–H 0.82, N–H 0.86 Å.  These are the
-  room-temperature defaults the solve kits' templates already carry.
+  room-temperature defaults a molecular template usually carries.
 * **Neutron** data see the nucleus, so the length is the internuclear mean:
   Allen, Watson, Brammer, Orpen & Taylor, *International Tables for
   Crystallography* Vol. C (2006), § 9.5, Table 9.5.1.1 (pp. 801, 808), whose
@@ -21,8 +21,8 @@ measure:
   N–H row in the source rows held here, so ``"NH"`` has no neutron length and
   is refused rather than guessed.
 * **A joint X-ray + neutron fit takes the neutron lengths**: the hydrogen's
-  scattering signal is in the neutron histogram (Michael Gaultois's decision,
-  2026-10-06), and the X-ray pattern barely constrains it.  So
+  scattering signal is in the neutron histogram (a design choice of this
+  package), and the X-ray pattern barely constrains it.  So
   :func:`riding_radiation` answers ``"neutron"`` whenever any histogram is
   neutron.
 """
