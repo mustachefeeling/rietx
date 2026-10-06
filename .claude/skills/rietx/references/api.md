@@ -33,7 +33,7 @@ Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities(
 - `rx.read_topas_inp(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> TopasModel` — Parse a `.inp`.
 - `rx.write_topas_inp(structure: Structure, path: str | Path, *, diagnostics: list[Diagnostic] | None = None, p1_expand: bool = False)` — Write `structure` as a TOPAS `.inp`.
 - `rx.read_fullprof_pcr(path: str | Path) -> FullProfModel` — Parse a `.pcr`.
-- `rx.write_fullprof_pcr(structure: Structure, path: str | Path, *, instrument: Instrument | None = None, diagnostics: list[Diagnostic] | None = None)` — Write `structure` to `path` as a FullProf `.pcr`.
+- `rx.write_fullprof_pcr(structure: Structure, path: str | Path, *, instrument: Instrument | None = None, diagnostics: list[Diagnostic] | None = None, write_zero_shift: bool = False)` — Write a FullProf `.pcr`.
 - `rx.read_gsas_exp(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> GsasModel` — Read a GSAS-I `.EXP` experiment file.
 - `rx.write_gsas_exp(structure: Structure, path: str | Path, *, title: str = '', diagnostics: list[Diagnostic] | None = None)` — Write `structure` to `path` as a GSAS-I `.EXP`.
 - `rx.read_gsas2_gpx(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> Gsas2Model` — Read a GSAS-II `.gpx` project file.

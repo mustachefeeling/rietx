@@ -838,8 +838,9 @@ profile term FullProf's file would not state the same way is refused by name:
 an exact Voigt shape, a Stephens strain block, axial divergence, harmonics, a
 third emission line, a first line of weight 0, a negative second weight, and a
 non-finite wavelength, weight or width. So is every term the file writes only
-at its identity, wherever it is away from it: a zero shift, sample
-displacement or transparency, a capillary offset, absorption, surface
+at its identity, wherever it is away from it: a zero shift (unless
+`write_zero_shift=True`, which writes it as `Zero`, in degrees 2θ with rietx's
+sign, measured against FullProf 8.20), sample displacement or transparency, a capillary offset, absorption, surface
 roughness, a polarisation other than K = 0.5, a declared hump or peak,
 preferred orientation (r ≠ 1), extinction, and a partly occupied site. A written `.EXP` states no
 histograms at all, which is what a GSAS experiment file looks like before any
