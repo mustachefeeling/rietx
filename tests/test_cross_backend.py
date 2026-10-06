@@ -608,7 +608,74 @@ def _state_satellites():
     return model, table, {}
 
 
+def _state_bodies():
+    """A rigid body (WP-1805): its atoms are a derived block's rows (WP-1804).
+
+    The new derivative path: a body DOF's column reaches every body atom
+    through a nonlinear map applied after the affine matmul, so numpy takes
+    ``_peak_chain_column`` (which decodes through the block) and the traced
+    backends differentiate the block's ``evaluate_traced``.  WP-1803's C₆Br in
+    its triclinic cell, the rotation off zero and the cell free, so the frame's
+    cell partials and the rotation's left Jacobian are both away from their
+    trivial points; a bond restraint from a body atom to a free Li puts a
+    restraint row across the block (the analytic block's local Jacobian).
+    """
+    from rietx.crystallography.bodies import add_body
+    from rietx.schemas.common import Parameter
+    from rietx.schemas.pattern import PatternData
+    from rietx.schemas.structure import Atom, BondRestraint, Cell, Phase, Structure
+    from tests.test_rigid_body import c6br
+
+    P = Parameter
+    cell = Cell(a=P(value=7.21), b=P(value=8.13), c=P(value=9.47),
+                alpha=P(value=84.3), beta=P(value=97.6), gamma=P(value=104.2))
+    phase = Phase(name="body", space_group="P-1", cell=cell, atoms=[
+        Atom(label="Li", species="Li", x=P(value=0.71), y=P(value=0.12),
+             z=P(value=0.63))], scale=P(value=1e-2, min=0.0, transform="softplus"))
+    phase = add_body(phase, "c6br", [f"C{i}" for i in range(6)] + ["Br"],
+                     ["C"] * 6 + ["Br"], c6br(), (0.31, 0.42, 0.27),
+                     orientation=(0.9, 0.1, 0.2, 0.3), biso=2.0)
+    phase = phase.model_copy(update={"restraints": [
+        BondRestraint(atom_i=7, atom_j=0, target=3.0, sigma=0.05, op_index=0)]})
+    structure = Structure(phases=[Phase.model_validate(phase.model_dump())])
+    # the lab instrument, over 10-30° only: the traced backends unroll the
+    # per-reflection loop, and a triclinic cell to 120° is thousands of
+    # reflections — a compile, not a check
+    _, ins, _ = _lab_state()
+    tt = np.arange(10.0, 30.0, 0.02)
+    rng = np.random.default_rng(3)
+    pattern = PatternData(two_theta=tt.tolist(),
+                          intensity=(50.0 + 10.0 * rng.random(len(tt))).tolist())
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for glob in ("phases.0.rigid_bodies.0.origin.dof.*",
+                 "phases.0.rigid_bodies.0.rotation.*", "phases.0.cell.*",
+                 "phases.0.atoms.0.dof.*", "phases.0.scale"):
+        assert table.set_vary([glob], True), glob
+    theta = table.x0()
+    for k, v in enumerate((0.07, -0.04, 0.05)):
+        theta[table.free_paths.index(f"phases.0.rigid_bodies.0.rotation.{k}")] = v
+    table.commit(theta)
+    table.apply_to_models(structure, ins)
+    # rebuilt from the written-back record, as every stage does: the rotation
+    # is then composed into R₀ and starts at zero, so set it off zero again
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for glob in ("phases.0.rigid_bodies.0.origin.dof.*",
+                 "phases.0.rigid_bodies.0.rotation.*", "phases.0.cell.*",
+                 "phases.0.atoms.0.dof.*", "phases.0.scale"):
+        table.set_vary([glob], True)
+    theta = table.x0()
+    for k, v in enumerate((0.03, 0.02, -0.06)):
+        theta[table.free_paths.index(f"phases.0.rigid_bodies.0.rotation.{k}")] = v
+    table.commit(theta)
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    return model, table, {}
+
+
 CONFIGS = {"families": _state_families,
+           "bodies": _state_bodies,
            "families_voigt": _state_families_voigt,
            "families_tied": _state_families_tied,
            "families_variable": _state_families_variable,
@@ -649,6 +716,7 @@ CONFIG_PARAMS = [
     _config("magnetic"),
     _config("magnetic_width"),
     _config("satellites"),
+    _config("bodies"),
     _config("toy_lebail"),
     _config("toy_pawley"),
     _config("toy_rich"),

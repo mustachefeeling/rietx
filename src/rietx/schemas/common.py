@@ -379,7 +379,11 @@ from .._nearmiss import did_you_mean
 #: ``vary`` flags then are the free set).  Additive and defaulted to ``False``,
 #: the reading every earlier document had, so an old tree loads unchanged; an
 #: older build refuses a document carrying it (``extra="forbid"``).
-SCHEMA_VERSION = "0.42"
+#: 0.42 → 0.43 (WP-1805): ``Phase.rigid_bodies``, a list of ``RigidBody``
+#: (template, origin, orientation quaternion) over the phase's own atoms.
+#: Additive and defaulted to empty, which builds exactly the table every
+#: earlier document built; an older build refuses a document carrying a body.
+SCHEMA_VERSION = "0.43"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
