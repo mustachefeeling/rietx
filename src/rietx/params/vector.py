@@ -1867,6 +1867,13 @@ class ParameterTable:
         only at stage boundaries (``set_vary`` / ``commit`` / ``set_tie``),
         never inside a least-squares run, so the map is a constant matmul
         while the optimiser looks at it.
+
+        **The derived rows follow, here** (WP-1805, the #773 follow-up).  Every
+        writer that moves a value outside a solve ends in a rebuild — the
+        seeds, the anchored-DOF rebase, re-anchor and displacement, the tie
+        refresh — and any of them can move a block input (a softplus cell
+        length, a body origin), so the refresh is made where they all pass
+        rather than remembered by each.
         """
         self._paths = {e.path: i for i, e in enumerate(self.entries)}
         self._free_idx = [i for i, e in enumerate(self.entries) if e.vary and e.tie is None]
@@ -1901,6 +1908,8 @@ class ParameterTable:
         self._d = d
         self._tie_windows = self._derive_tie_windows(tied, d)
         self._rebuild_derived()
+        if self._derived_idx:
+            self._refresh_derived()
 
     # -- the derived blocks (WP-1804) ------------------------------------
     def _rebuild_derived(self) -> None:
@@ -1944,6 +1953,15 @@ class ParameterTable:
         for q in (*block.inputs, *block.outputs):
             if q not in self._paths:
                 raise ValueError(f"derived block names unknown parameter {q!r}")
+        # the shapes are checked before anything is registered: the rebuild
+        # below reads the reach pattern, and a block that failed there would
+        # be left half-declared (the #773 follow-up)
+        shape = (len(block.outputs), len(block.inputs))
+        pattern = np.asarray(block.reach_pattern())
+        if pattern.shape != shape or pattern.dtype != bool:
+            raise ValueError(
+                f"derived block's reach_pattern() is {pattern.dtype} "
+                f"{pattern.shape}; it must be bool {shape} (outputs × inputs)")
         written = {q for b in self.derived for q in b.outputs}
         for q in block.outputs:
             e = self.entries[self._paths[q]]
@@ -1994,6 +2012,8 @@ class ParameterTable:
         for _, outs in self._derived_idx:
             for i in outs:
                 self.entries[int(i)].value = float(p[int(i)])
+            # a derived row is held in the affine block, so ``d`` carries it
+            self._d[outs] = p[outs]
 
     def local_jacobian(self, theta: np.ndarray) -> sparse.csr_matrix:
         """∂p_phys/∂p_free at θ (n_entries × n_free): C, with derived rows exact.
@@ -2519,7 +2539,6 @@ class ParameterTable:
         moved += self._displace_body_rotations(orientations or {}, named)
         if moved:
             self._rebuild()
-            self._refresh_derived()
         return moved
 
     def _displace_body_rotations(self, orientations: Mapping[str, Iterable[float]],
@@ -3137,9 +3156,9 @@ class ParameterTable:
         # so the constraint block cannot carry them and they are derived here
         self._refresh_moment_components()
         charts = self._compose_bodies(values) if self._bodies else {}
-        self._rebuild()  # held-source contributions to d follow the new values
-        if charts:
-            self._refresh_derived()
+        # held-source contributions to d follow the new values, and the
+        # derived rows the composed anchors
+        self._rebuild()
         if self._bodies:
             self._check_committed_bodies(values)
         if not charts:

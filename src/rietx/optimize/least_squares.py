@@ -844,8 +844,15 @@ def _column_identities(table: ParameterTable, extras: list[list[str]]
     variable drives (``dof.0``) and what that in turn drives (``.x``, by site
     symmetry).  Where every reached path is direct — the equal-Biso case, four
     rows all following the variable — the rule changes nothing.
+
+    Read off the **declared** reach (``reach_block``), as ``_column_extras``
+    is (WP-1805, the #773 follow-up): a variable driving a body's origin also
+    moves every body atom row, which no C row says, and the extras returned
+    here replace ``_column_extras``' for that column.  A derived row's entry
+    there is 1.0 but never stands alone — it arrives with the input it
+    follows — so the unit-coefficient case below cannot be one.
     """
-    C, _ = table.constraint_block()
+    C = table.reach_block()
     csc = C.tocsc()
     paths = [e.path for e in table.entries]
     out: list[tuple[str, list[str]]] = []

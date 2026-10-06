@@ -429,3 +429,83 @@ def test_the_series_fences_skip_the_rotation_increment():
     rel = _relative_paths(body_structure(Q_TRUE), INS)
     assert {f"phases.0.rigid_bodies.0.rotation.{k}" for k in range(3)} <= rel
     assert "phases.0.atoms.0.x" not in rel
+
+
+# ------------------------------------------- the #773 follow-ups, in a body
+def test_a_variable_driving_a_body_phase_cell_takes_an_exact_column():
+    """``_column_identities`` reads the declared reach (WP-1805, the #773
+    follow-up).  A named variable driving ``cell.a`` of a phase with a body
+    moves every body atom (the cell is a live input), which no C row says:
+    read off C the column was named ``cell.a`` with no extras, a claim about
+    its reach that is false.  The column itself agreed with a central FD of
+    the residual either way on this tree (measured), since a cell column
+    takes the peak chain; the FD check stays as the guard on the dispatch."""
+    from rietx.optimize.least_squares import (
+        _column_extras,
+        _column_identities,
+        _make_jacobian,
+        _make_residual,
+    )
+
+    s = body_structure(Q_TRUE)
+    s.phases[0].space_group = "P1"
+    pattern = synthesize(s)
+    table = ParameterTable(s, INS)
+    table.set_vary(["*"], False)
+    table.add_parameter("vars.a", CELL[0], vary=True)
+    table.set_tie("phases.0.cell.a", AffineTie(terms=(("vars.a", 1.0),)))
+    table.set_vary(["phases.0.scale"], True)
+    col = table.free_paths.index("vars.a")
+    path, extras = _column_identities(table, _column_extras(table))[col]
+    assert path == "phases.0.cell.a"
+    assert "phases.0.atoms.3.y" in extras
+    model = compile_model(s, INS, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    theta = table.x0()
+    jac = _make_jacobian(model, table)(theta)[:, col]
+    resid = _make_residual(model, table)
+    h = 1e-6 * abs(theta[col])
+    tp, tm = theta.copy(), theta.copy()
+    tp[col] += h
+    tm[col] -= h
+    fd = (resid(tp) - resid(tm)) / (2 * h)
+    assert np.abs(jac - fd).max() < 1e-4 * np.abs(fd).max()
+
+
+def test_a_seeded_cell_length_moves_the_body_atoms_with_it():
+    """Every value writer ends in a rebuild, and the rebuild refreshes the
+    derived rows (WP-1805, the #773 follow-up): ``seed_softplus`` on a
+    softplus cell length moves a body's fractional coordinates, as a cell-only
+    stage does, and leaves them where the block puts them."""
+    s = body_structure(Q_TRUE)
+    s.phases[0].cell.a = Parameter(value=CELL[0], min=0.0, transform="softplus")
+    table = ParameterTable(s, INS)
+    before = table.decode(table.x0())["phases.0.atoms.0.x"]
+    assert table.seed_softplus(["phases.0.cell.a"], CELL[0] + 0.5)
+    stored = {e.path: e.value for e in table.entries}
+    block = table.derived[0]
+    placed = block.evaluate(np.array([stored[q] for q in block.inputs]))
+    assert np.array_equal(np.array([stored[q] for q in block.outputs]), placed)
+    assert stored["phases.0.atoms.0.x"] != before
+
+
+def test_add_derived_checks_the_reach_shape_before_registering():
+    from rietx.params.bodies import RigidBodyBlock
+
+    s = body_structure(Q_TRUE)
+    table = ParameterTable(s, INS)
+    good = table.derived[0]
+
+    class Short(RigidBodyBlock):
+        def reach_pattern(self):
+            return super().reach_pattern()[:, :-1]
+
+    bad = Short.__new__(Short)
+    bad.__dict__.update(good.__dict__)
+    bad.outputs = tuple(q.replace("atoms.", "atoms.") for q in good.outputs)
+    table.derived.clear()
+    table._rebuild()
+    n = len(table.derived)
+    with pytest.raises(ValueError, match="reach_pattern"):
+        table.add_derived(bad)
+    assert len(table.derived) == n
