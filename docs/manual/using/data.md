@@ -163,7 +163,12 @@ not seen before, and read `signal_cutoffs` first.
 
 `Structure` is a list of phases and nothing else. `Structure.phases` carries at
 least one; `Structure.from_cif` reads one out of a CIF and `Structure.to_cif`
-writes it back.
+writes it back. A CIF states the crystal and nothing that describes the specimen:
+the cell, the positions, occupancies and displacement parameters, and for a
+magnetic phase the moments and their group. The phase scale and the
+sample-broadening, extinction and preferred-orientation fields below are not CIF
+items, so they come back from `Structure.from_cif` at their defaults, the
+magnetic widths `magnetic_lor_size` and `magnetic_lor_strain` included.
 
 `Phase` is one crystalline phase. Its first four fields describe the crystal
 and the rest describe what this specimen did to the peaks.
