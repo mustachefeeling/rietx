@@ -7,4 +7,4 @@ max_turns: 4
 timeout_seconds: 180
 allowed_tools: [Read, Grep, Glob, Skill]
 ---
-Explain Bragg's law in one paragraph and give the d-spacing formula for a cubic lattice.
+A powder XRD peak at 2θ = 38.2° has a FWHM of 0.25° (Cu Kα). Estimate the crystallite size with the Scherrer equation and show the arithmetic.

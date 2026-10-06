@@ -165,6 +165,13 @@ which `Skill` was called (of 30), and the **quiet rate**, runs of the ten
 cell runs before it; a prompt the review changes is changed, and quoted below,
 in an amendment made before the first tier-0 run.
 
+**Reviewed 2026-10-06, before any tier-0 run.** The maintainer changed two
+prompts and passed eighteen as written. `quiet-bragg-law` became
+`quiet-scherrer`. A textbook question repeated what `quiet-density` tests, and
+the near-miss that matters is a powder-XRD task with no refinement in it.
+`fire-unknown-cell` lost its contradiction: it named a peak list and then asked
+for a cell "from the powder pattern". The table quotes the reviewed text.
+
 | case | role | prompt |
 |---|---|---|
 | `fire-diagnostics` | Should fire. | After my rietx fit the report lists FLAT_DIRECTION and HIGH_CORRELATION. What should I change before I run it again? |
@@ -176,8 +183,8 @@ in an amendment made before the first tier-0 run.
 | `fire-quartz-rietveld` | Should fire. | I have a lab XRD pattern of quartz, quartz.xy (Cu Kα, Bragg-Brentano), and the quartz CIF. Run a Rietveld refinement with rietx and tell me the refined cell. |
 | `fire-rank-candidates` | Should fire. | We have twelve candidate structures from a crystal-structure-prediction run, as CIFs. Score each one against our measured powder pattern and rank them. |
 | `fire-caco3-fractions` | Should fire. | What are the weight fractions of calcite and aragonite in my CaCO3 powder? The pattern is caco3.xye from our Bruker D8, and I have a CIF for each phase. |
-| `fire-unknown-cell` | Should fire. | The peaks in peaks.txt come from a phase nobody has identified. Can you work out its unit cell from the powder pattern? |
-| `quiet-bragg-law` | Should not fire. | Explain Bragg's law in one paragraph and give the d-spacing formula for a cubic lattice. |
+| `fire-unknown-cell` | Should fire. | The pattern unknown.xy is from a phase nobody has identified. Work out its unit cell. |
+| `quiet-scherrer` | Should not fire. | A powder XRD peak at 2θ = 38.2° has a FWHM of 0.25° (Cu Kα). Estimate the crystallite size with the Scherrer equation and show the arithmetic. |
 | `quiet-chebyshev-numpy` | Should not fire. | Write a numpy function that fits a Chebyshev polynomial baseline to a 1D signal and returns the baseline. |
 | `quiet-checkcif` | Should not fire. | Run checkCIF-style validation on my single-crystal CIF and explain what an A-level alert about ADPs means. |
 | `quiet-cif-to-poscar` | Should not fire. | Convert structure.cif to a VASP POSCAR file, keeping the atom order of the CIF. |

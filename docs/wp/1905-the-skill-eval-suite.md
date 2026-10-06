@@ -117,9 +117,9 @@ numbers. What a fresh session needs from it:
       the caveat by rubric), and one from issue #661 (the agent is handed a
       TOPAS `.inp` or a GSAS `.EXP` and asked to reproduce the fit; the
       mapping rows are the graders)
-- [ ] The trigger set, tier 0, with its twenty prompts reviewed by the
+- [x] The trigger set, tier 0, with its twenty prompts reviewed by the
       maintainer before any run — written 2026-10-04
-      (`tests/eval_skill/cases/trigger/`), the review outstanding
+      (`tests/eval_skill/cases/trigger/`), reviewed 2026-10-06 (two changed)
 - [ ] The first round: the current body on Haiku and Sonnet, N = 3, both
       arms, costed menu first; numbers to this file's handover and to
       WP-1906's `### Inherited`
