@@ -29,7 +29,9 @@ name: CI
 # tests).  On 2026-09-25, over main's last ten runs, the fast legs took
 # 13-19.5 min, bimodal by runner, and jax 20-21 min.  At 20 and 30 min the
 # caps cancelled py3.11 at 96 % on main (07952d4e) and twice on PR #463 with no
-# test failing, so they are 30 and 40.
+# test failing, so they are 30 and 40.  By 2026-10-04 the fast legs' median had
+# reached 26-30 min and py3.11 was cancelled at 30 on 16 passing jobs in 14
+# days (#745), so the fast legs are 40 as well.
 #
 # A docs-only PR skips the matrix through `changes`, never a path filter.  A
 # workflow a filter skips reports nothing, so a required check it carries
@@ -168,7 +170,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.scope == 'code'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
