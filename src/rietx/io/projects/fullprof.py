@@ -3543,10 +3543,18 @@ def from_structure(structure: Structure, *,
     # with an inert codeword, never the wavelength".
     body.append("0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0")
 
-    from ...crystallography.symmetry import refuse_propagation_vector
-    for phase in structure.phases:
+    from ...crystallography.symmetry import (
+        refuse_propagation_vector,
+        restate_in_hexagonal_axes,
+        rhombohedral_restated_diagnostic,
+    )
+    rhombohedral: list[str] = []
+    for index, phase in enumerate(structure.phases):
         refuse_operation_list(phase, "a FullProf `.pcr`")
         refuse_magnetic_phase(phase, "a FullProf `.pcr`")
+        phase, restated = restate_in_hexagonal_axes(phase, "a FullProf `.pcr`")
+        if restated:
+            rhombohedral.append(f"phases.{index}")
         refuse_propagation_vector(
             phase, "a FullProf `.pcr`",
             why="a .pcr's k (Nvk) on a nuclear phase makes FullProf compute a "
@@ -3668,6 +3676,9 @@ def from_structure(structure: Structure, *,
     # codewords this writer actually handed out.
     lines.append(str(counter[0]))
     lines.extend(body)
+    if diagnostics is not None and rhombohedral:
+        diagnostics.append(rhombohedral_restated_diagnostic(
+            rhombohedral, "FULLPROF_RHOMBOHEDRAL_RESTATED", "FullProf"))
     # A neutron file writes the element for every ion, and rietx's b is the
     # element's too, so nothing was substituted there.
     if diagnostics is not None and not neutron:
