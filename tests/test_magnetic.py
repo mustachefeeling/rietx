@@ -2110,8 +2110,9 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # ``SeriesEntry.magnetic`` 0.38, #599's moment flat axes 0.39, and
     # WP-1534's ``StageResult.scale_b_held`` 0.40, and WP-1323's
     # ``PlanSpec.lebail_passes`` 0.41, and WP-1805's ``Phase.rigid_bodies``
-    # 0.42, and WP-1808's ``RigidBody.torsions`` 0.43.
-    assert caps.schema_version == "0.43"
+    # 0.42, WP-1808's ``RigidBody.torsions`` 0.43, and WP-1809's one-sided
+    # distance restraints 0.44.
+    assert caps.schema_version == "0.44"
 
 
 def test_every_moment_dof_has_a_help_entry():

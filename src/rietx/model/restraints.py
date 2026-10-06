@@ -38,7 +38,12 @@ import numpy as np
 
 from ..backend import get_backend
 from ..crystallography.lattice import direct_metric_tensor
-from ..schemas.structure import AngleRestraint, BondRestraint
+from ..schemas.structure import (
+    AngleRestraint,
+    AntiBumpRestraint,
+    BondRestraint,
+    TetherRestraint,
+)
 
 _CELL_NAMES = ("a", "b", "c", "alpha", "beta", "gamma")
 _XYZ = ("x", "y", "z")
@@ -69,6 +74,9 @@ class _Bond:
     target: float
     sigma: float
     weight: float
+    #: ``None`` two-sided; ``"max"`` a tether (row only past the target),
+    #: ``"min"`` an anti-bump (row only inside it) — WP-1809
+    side: str | None = None
 
 
 @dataclass
@@ -121,13 +129,19 @@ def resolve_phase_restraints(phase, ip: int, sites, cell) -> list:
     g = _metric_g(cell)
     out: list = []
     for r in phase.restraints:
-        if isinstance(r, BondRestraint):
+        if isinstance(r, (BondRestraint, TetherRestraint, AntiBumpRestraint)):
             x_i = _atom_xyz(phase, r.atom_i)
             x_j = _atom_xyz(phase, r.atom_j)
             rot, tr, n = _resolve_image(sites, r.atom_j, x_i, x_j,
                                         r.op_index, r.translation, g)
+            if isinstance(r, TetherRestraint):
+                target, side = r.max_distance, "max"
+            elif isinstance(r, AntiBumpRestraint):
+                target, side = r.min_distance, "min"
+            else:
+                target, side = r.target, None
             out.append(_Bond(ip, r.atom_i, r.atom_j, rot, tr, n,
-                             r.target, r.sigma, r.weight))
+                             target, r.sigma, r.weight, side))
         elif isinstance(r, AngleRestraint):
             x_i = _atom_xyz(phase, r.atom_i)
             x_j = _atom_xyz(phase, r.atom_j)
@@ -215,7 +229,13 @@ def restraint_residual(compiled: CompiledRestraints, values: dict):
             computed, target = _angle_deg(it, values), it.target_deg
         else:  # _Value
             computed, target = values[it.path], it.target
-        rows.append((computed - target) * (math.sqrt(it.weight) / it.sigma))
+        dev = computed - target
+        side = getattr(it, "side", None)
+        if side == "max":          # a tether: nothing inside its range
+            dev = xp.maximum(dev, 0.0 * dev)
+        elif side == "min":        # an anti-bump: nothing beyond its range
+            dev = xp.minimum(dev, 0.0 * dev)
+        rows.append(dev * (math.sqrt(it.weight) / it.sigma))
     return xp.stack(rows)
 
 
@@ -357,6 +377,10 @@ def _bond_row_partials(r_phys, row, it, values, idx, pref) -> None:
     d = math.sqrt(float(dx @ gdx))
     if d <= 0.0:  # coincident atoms: leave the row zero (dead but not a crash)
         return
+    # a one-sided row (WP-1809) has zero slope on its flat side; at the kink
+    # itself the slope is taken as zero, the side the row value is on
+    if (it.side == "max" and d <= it.target) or (it.side == "min" and d >= it.target):
+        return
     # ∂d/∂x_i = −(GΔx)/d ; ∂d/∂x_j = Rᵀ(GΔx)/d ; ∂d/∂cell_q = ΔxᵀG_q Δx / 2d
     _scatter_xyz(r_phys, row, idx, ip, it.i, pref * (-gdx / d))
     _scatter_xyz(r_phys, row, idx, ip, it.j, pref * (it.R.T @ gdx / d))
@@ -419,7 +443,8 @@ def summarise_restraints(compiled: CompiledRestraints | None, values: dict,
     for it in compiled.items:
         if isinstance(it, _Bond):
             computed, target = _bond_value_np(it, values), it.target
-            kind, atoms, path, ph = "bond", [it.i, it.j], None, it.phase
+            kind = {"max": "tether", "min": "anti_bump"}.get(it.side, "bond")
+            atoms, path, ph = [it.i, it.j], None, it.phase
         elif isinstance(it, _Angle):
             computed, target = _angle_value_np(it, values), it.target_deg
             kind, atoms, path, ph = "angle", [it.i, it.j, it.k], None, it.phase
@@ -427,6 +452,10 @@ def summarise_restraints(compiled: CompiledRestraints | None, values: dict,
             computed, target = float(values[it.path]), it.target
             kind, atoms, path, ph = "value", None, it.path, it.phase
         dev = computed - target
+        if getattr(it, "side", None) == "max":
+            dev = max(dev, 0.0)
+        elif getattr(it, "side", None) == "min":
+            dev = min(dev, 0.0)
         dev_sig = dev / it.sigma
         chi2 += it.weight * dev_sig * dev_sig
         rows.append(RestraintRow(
@@ -435,3 +464,92 @@ def summarise_restraints(compiled: CompiledRestraints | None, values: dict,
             deviation=dev, deviation_over_sigma=dev_sig))
     return RestraintReport(rows=rows, restraint_chi2=chi2, n_restraints=len(rows),
                            weight_scale=float(weight_scale))
+
+
+# ----------------------------------------------------------------------
+# building an anti-bump pair list (WP-1809)
+# ----------------------------------------------------------------------
+def anti_bump_restraints(phase, min_distance, *, sigma: float = 0.05,
+                         weight: float = 1.0, margin: float = 0.5,
+                         atoms=None, exclude_same_body: bool = True) -> list:
+    """Every atom pair (with its symmetry image) that could bump, as rows.
+
+    The candidate list WP-1803's record calls for: built **once** from the
+    phase's present coordinates and kept for the plan, so the restraint row
+    count never moves between stages.  A pair enters when its image distance
+    is under its minimum plus ``margin`` (Å); a pair that later comes closer
+    from outside the list is not seen, which is what the margin is for.
+
+    ``min_distance`` is a number (every pair), a mapping from an unordered
+    species pair ``(a, b)`` to Å, or a callable ``(species_i, species_j) ->
+    Å | None``; a pair with no minimum gets no row (never a default nobody
+    stated — #677's rule).  ``atoms`` restricts the first atom of each pair
+    to those indices.  Two atoms of one rigid body are skipped by default **in
+    the same copy of the body** (identity operation, no lattice shift): their
+    distance is the template's, and a row would only fight the body; every
+    other image is a neighbouring molecule and keeps its row.
+
+    Images: every operation of the atom's orbit times the lattice shell
+    {−1, 0, 1}³, the identity image of an atom with itself excluded.  Rows
+    come back as :class:`~rietx.schemas.structure.AntiBumpRestraint` with
+    ``op_index``/``translation`` set, so the compiled image is the one
+    measured here.
+    """
+    from ..crystallography.structure_factor import compile_phase_sites
+    from ..schemas.structure import AntiBumpRestraint
+
+    if callable(min_distance):
+        rule = min_distance
+    elif isinstance(min_distance, (int, float)):
+        def rule(a, b, _r=float(min_distance)):
+            return _r
+    else:
+        table = {tuple(sorted(k)): float(v) for k, v in min_distance.items()}
+
+        def rule(a, b):
+            return table.get(tuple(sorted((a, b))))
+    sites = compile_phase_sites(phase)
+    g = _metric_g(phase.cell.lengths_angles())
+    body_of = {label: b.name for b in getattr(phase, "rigid_bodies", [])
+               for label in b.atoms}
+    first = range(len(phase.atoms)) if atoms is None else atoms
+    shell = range(-MIN_IMAGE_SHELL, MIN_IMAGE_SHELL + 1)
+    rows = []
+    for i in first:
+        ai = phase.atoms[i]
+        x_i = _atom_xyz(phase, i)
+        for j, aj in enumerate(phase.atoms):
+            if atoms is None and j < i:
+                continue
+            same_body = (exclude_same_body and ai.label in body_of
+                         and body_of.get(aj.label) == body_of[ai.label])
+            r0 = rule(ai.species, aj.species)
+            if r0 is None:
+                continue
+            ops_r, ops_t = sites.ops[j]
+            x_j = _atom_xyz(phase, j)
+            for mi in range(len(ops_r)):
+                rot, tr = np.asarray(ops_r[mi]), np.asarray(ops_t[mi])
+                img = rot @ x_j + tr
+                identity = (np.array_equal(rot, np.eye(3))
+                            and np.allclose(tr - np.round(tr), 0.0))
+                for na in shell:
+                    for nb in shell:
+                        for nc in shell:
+                            n = np.array([na, nb, nc], dtype=np.float64)
+                            if (same_body and identity
+                                    and np.array_equal(n, -np.round(tr))):
+                                # the body's own copy: its geometry is the
+                                # template's; every other image is another
+                                # molecule and is kept
+                                continue
+                            dx = img + n - x_i
+                            d2 = float(dx @ (g @ dx))
+                            if d2 < _COINCIDENT_D2:
+                                continue
+                            if math.sqrt(d2) < r0 + margin:
+                                rows.append(AntiBumpRestraint(
+                                    atom_i=i, atom_j=j, min_distance=r0,
+                                    sigma=sigma, weight=weight, op_index=mi,
+                                    translation=(na, nb, nc)))
+    return rows

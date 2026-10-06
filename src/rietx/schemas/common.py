@@ -381,7 +381,10 @@ from .._nearmiss import did_you_mean
 #: 0.42 → 0.43 (WP-1808): ``RigidBody.torsions``, named-bond torsions inside
 #: a body (axis, declared moved set, the angle record).  Additive and defaulted to
 #: empty, a body without one building exactly the 0.42 table.
-SCHEMA_VERSION = "0.43"
+#: 0.43 → 0.44 (WP-1809): ``TetherRestraint`` and ``AntiBumpRestraint`` join
+#: the ``Restraint`` union, and ``RestraintRow.kind`` gains ``"tether"`` and
+#: ``"anti_bump"``.  Additive: no existing document carries either.
+SCHEMA_VERSION = "0.44"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
