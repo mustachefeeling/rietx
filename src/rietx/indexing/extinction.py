@@ -657,8 +657,9 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
                                 two_theta_limits: tuple[float, float] | None = None,
                                 k_sigma: float = ABSENT_SIGMA,
                                 max_classes: int | None = None,
+                                refine_cell: bool = False,
                                 cancel=None) -> ExtinctionScreen:
-    """Rank the extinction classes compatible with an indexed lattice.
+    """Rank the extinction classes an indexed lattice admits.
 
     The pipeline, and the reason for each step:
 
@@ -680,6 +681,16 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     reported ``INDEX_BRAVAIS_AMBIGUOUS`` its ``system`` is the *conservative*
     reading, and a screen run in the higher symmetry would enumerate classes the
     lattice may not have.
+
+    ``refine_cell=False`` (default) holds the cell at ``candidate.cell``, so the
+    screen takes it as certified quality: a cell off by more than a few parts
+    in 10⁴ leaves a tan θ position error the shared fit's one shift cannot
+    absorb, and the true class can be refuted at an absent-line position (SRM
+    676a corundum: ``R - c -`` at the certified cell, ``R - - -`` once the cell
+    is scaled by 1.0008, #726).  ``refine_cell=True`` frees the cell in the
+    shared profile fit, after the shift and before the widths, and every class
+    is then screened at the refined cell (``ExtinctionScreen.cell`` is that
+    cell); the classes still differ only in their reflection sets.
 
     Cost is one refinement per surviving class (~0.1 s each on a 3750-point
     pattern, after a ~2 s profile fit).  ``max_classes`` caps it; the classes left
@@ -715,13 +726,23 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
         tt_max = float(np.max(np.asarray(data.two_theta)))
         if two_theta_limits is not None:
             tt_max = min(tt_max, float(two_theta_limits[1]))
-        profile = pre.fit(data, mode="lebail",
-                          plan=validation_plan(candidate, ins,
-                                               two_theta_max=tt_max),
+        plan = validation_plan(candidate, ins, two_theta_max=tt_max)
+        if refine_cell:
+            from ..strategy.staged import Stage
+
+            plan.stages.insert(2, Stage(
+                "cell", ["phases.*.cell.*"],
+                window_slack_deg=plan.stages[1].window_slack_deg))
+        profile = pre.fit(data, mode="lebail", plan=plan,
                           two_theta_limits=two_theta_limits,
                           telemetry=False)      # the screen's own, not a run
         screen.profile_rwp = float(profile.statistics.rwp)
         frozen = pre.fitted_instrument
+        if refine_cell:
+            refined = tuple(float(v) for v in
+                            pre.fitted_structure.phases[0].cell.lengths_angles())
+            candidate = candidate.model_copy(update={"cell": refined})
+            screen.cell = refined
         ref_fit, ref_result = _fit_class(candidate, data, frozen, symbol,
                                          two_theta_limits)
     except Exception as exc:                          # noqa: BLE001
