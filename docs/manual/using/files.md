@@ -384,7 +384,11 @@ named parameter) is read as held at the file's value, and
 `mag_only` and `mag_only_for_mag_sites` switch a site's nuclear scattering off.
 The file that uses them typically restates the magnetic sites in a second
 `str`. Building that without the switch would count those sites' nuclear
-scattering twice, so it is refused by name rather than dropped.
+scattering twice, so it is refused by name rather than dropped. The one form read is
+the one `write_topas_inp` writes a magnetic-only width in: a
+`"<name> magnetic part"` `str` whose every site is `mag_only` and carries a
+moment is merged back into `<name>`, its moments onto the same-label sites
+(What comes back, below).
 
 `rx.write_topas_inp` writes a magnetic phase back in the same form. The `str`
 states `mag_space_group` with the BNS number and no `space_group`, and each
@@ -895,6 +899,35 @@ reaches a `.pcr` with a magnetic phase. They are not flattened into one
 vocabulary: two formats' options that happened to share a name would not share
 a meaning.
 
+A TOPAS file states constraints the numbers do not carry: one parameter name
+written at several values, and equations over names (Technical Reference
+§ 2.3). `to_structure(constraints=TopasConstraints())` reads them back as
+rietx ties, and `apply_ties` declares them on a `Refinement`:
+
+<!-- api-doc: no-exec — needs a TOPAS file on disk -->
+```python
+from rietx.io.projects.topas import read_topas_inp, to_structure
+from rietx.io.projects.topas_ties import TopasConstraints, apply_ties
+
+cons = TopasConstraints()
+structure = to_structure(read_topas_inp("refined.out"), scale="rietx",
+                         constraints=cons)
+ref = rx.Refinement(structure, instrument)
+apply_ties(ref, cons)
+```
+
+A value that is exactly a name, or an equation affine in names, becomes a tie
+on the first value that carries that name alone. A moment stated as one name
+times a direction becomes a tie on the moment's DOFs: the modulus, and for an
+antiparallel copy the opposite direction (θ → π − θ, φ → φ + π). An equation in
+any other form keeps its value, and `constraints.skipped` says why.
+`scale="rietx"` converts TOPAS's scale back from what the file states about its
+radiation (÷ 100 under `neutron_data`, ÷ K under `LP_Factor`), and refuses a
+file stating neither. A `"<name> magnetic part"` `str` of `mag_only` sites is
+merged back into its phase, with the magnetic widths and the extinction read
+from the names the writer gives them.
+
+
 ### What each format states
 
 A model is what the file said, seeded with nothing. A value the file omitted
@@ -917,6 +950,9 @@ do.
 | `TopasModel.skipped_blocks` | phase blocks that stated no name, or neither a `space_group` nor a `mag_space_group`, recorded whether or not a diagnostics list was passed |
 | `TopasModel.coverage` | what the reader met and did not carry; see below |
 | `TopasModel.time_of_flight` | the datasets that are neutron time of flight, each with the constructs that said so; `to_structure` refuses their phases by name (issue #193), and a file whose every dataset is one states no `geometry` |
+| `TopasModel.symbols` | every parameter the file declares, by name, with its value and refine flag: what a name in an equation refers to (`to_structure(constraints=...)` reads ties from it) |
+| `TopasModel.neutron` | whether the file states `neutron_data` |
+| `TopasModel.lp_factor` | the angle of the file's `LP_Factor(c)`, or `None`; with `neutron`, what `to_structure(scale="rietx")` converts TOPAS's scale by |
 
 `read_fullprof_pcr` returns a `FullProfModel`:
 
