@@ -687,6 +687,10 @@ class RigidBody(Base):
     rotation_vary: bool = False
     #: named-bond torsions inside the body (WP-1808), applied in order
     torsions: list[BodyTorsion] = Field(default_factory=list)
+    #: member atoms that are riding hydrogens (WP-1810): their template
+    #: points are computed from a parent and a tabulated X–H length
+    #: (``crystallography.riding``), and a CIF writes them ``R``/``calc``
+    riding: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _consistent(self) -> "RigidBody":
@@ -704,6 +708,10 @@ class RigidBody(Base):
         names = [t.name for t in self.torsions]
         if len(names) != len(set(names)):
             raise ValueError(f"rigid body {self.name!r} names a torsion twice: {names}")
+        if not set(self.riding) <= members:
+            raise ValueError(
+                f"rigid body {self.name!r}: riding atoms "
+                f"{sorted(set(self.riding) - members)} are not body atoms")
         for t in self.torsions:
             if t.axis[0] == t.axis[1] or not set(t.axis) <= members:
                 raise ValueError(

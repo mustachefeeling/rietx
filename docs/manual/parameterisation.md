@@ -333,6 +333,13 @@ $\delta\varphi \leftarrow 0$. About one axis that composition is addition,
 so the chart moves by a translation and the esd of $\delta\varphi$ is the
 esd of $\varphi$.
 
+A hydrogen in a body rides with it, at a tabulated length from its parent atom
+that depends on what the data measure: the SHELXL riding defaults for X-ray
+data (C–H 0.93–0.98 Å, O–H 0.82 Å, the electron-density centroid) and the
+neutron means of the *International Tables* Vol. C § 9.5 for neutron data
+(C–H 1.06–1.10 Å, O–H 0.967 Å). A joint X-ray and neutron fit takes the
+neutron lengths, because the hydrogen signal is in the neutron histogram.
+
 ## Soft restraints
 
 A bond-length, angle or value restraint contributes one row to the residual

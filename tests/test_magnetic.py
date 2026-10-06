@@ -2112,9 +2112,10 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # ``PlanSpec.lebail_passes`` 0.41, #788's ``RefinementState.free_declared``
     # 0.42, WP-1805's ``Phase.rigid_bodies`` 0.43, WP-1930's
     # ``StageResult.seeded`` and ``.floor_unseeded`` 0.44, WP-1808's
-    # ``RigidBody.torsions`` 0.45, and WP-1809's one-sided distance
-    # restraints (``TetherRestraint``, ``AntiBumpRestraint``) 0.46.
-    assert caps.schema_version == "0.46"
+    # ``RigidBody.torsions`` 0.45, WP-1809's one-sided distance restraints
+    # (``TetherRestraint``, ``AntiBumpRestraint``) 0.46, and WP-1810's
+    # ``RigidBody.riding`` 0.47.
+    assert caps.schema_version == "0.47"
 
 
 def test_every_moment_dof_has_a_help_entry():

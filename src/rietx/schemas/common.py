@@ -396,7 +396,10 @@ from .._nearmiss import did_you_mean
 #: 0.45 → 0.46 (WP-1809): ``TetherRestraint`` and ``AntiBumpRestraint`` join
 #: the ``Restraint`` union, and ``RestraintRow.kind`` gains ``"tether"`` and
 #: ``"anti_bump"``.  Additive: no existing document carries either.
-SCHEMA_VERSION = "0.46"
+#: 0.46 → 0.47 (WP-1810): ``RigidBody.riding``, the body atoms that are riding
+#: hydrogens, and the CIF ``_atom_site_refinement_flags_posn`` /
+#: ``_atom_site_calc_flag`` columns a phase with a body now writes.  Additive.
+SCHEMA_VERSION = "0.47"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

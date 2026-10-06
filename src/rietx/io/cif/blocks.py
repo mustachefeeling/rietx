@@ -435,10 +435,25 @@ def write_structure_block(block, phase, *, kind: str = "structure",
                      for a in phase.atoms], multiplicities=multiplicities)
     after_cell.append(("_cell_volume",
                        number("_cell_volume", zmv.cell_volume, cell_volume_su)))
+    # WP-1810: a phase with a rigid body states which coordinates the body
+    # placed, cif_core's _atom_site_refinement_flags_posn ``G`` (rigid group)
+    # or ``R`` (riding), and _atom_site_calc_flag ``calc`` for a riding H.
+    # Only such a phase writes the columns, so every other block is unchanged.
+    bodies = phase.rigid_bodies
+    group = {lab for b in bodies for lab in b.atoms}
+    riding = {lab for b in bodies for lab in b.riding}
+    if bodies:
+        columns.append("refinement_flags_posn")
+        for row, a in zip(rows, phase.atoms, strict=True):
+            row.append(("R" if a.label in riding else "G") if a.label in group else ".")
     if not composition:
         columns.append("calc_flag")
         for row in rows:
             row.append("dum")
+    elif bodies:
+        columns.append("calc_flag")
+        for row, a in zip(rows, phase.atoms, strict=True):
+            row.append("calc" if a.label in riding else "d")
     if phase.atoms and composition:
         # zmv.z is already 1 for a composition that does not reduce
         # (qpa._formula_units), so its molar mass is the cell's

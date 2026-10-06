@@ -37,6 +37,7 @@ RigidBody.atoms
 RigidBody.name
 RigidBody.orientation
 RigidBody.origin
+RigidBody.riding
 RigidBody.rotation_vary
 RigidBody.template
 RigidBody.torsions

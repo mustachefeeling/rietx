@@ -83,6 +83,23 @@ def _plain_structures() -> list[rx.Structure]:
     return [*out, disordered]
 
 
+def _bodied_structure() -> rx.Structure:
+    """A phase with a rigid body carrying one riding H beside a free atom: the
+    site flags a body writes (WP-1810)."""
+    from rietx.crystallography.bodies import add_body, place_body_atoms
+    from rietx.crystallography.riding import set_riding_lengths
+
+    seed = rx.Atom(label="Li", species="Li", x=rx.Parameter(value=0.6),
+                   y=rx.Parameter(value=0.6), z=rx.Parameter(value=0.6))
+    phase = rx.Phase(name="m", space_group="P1", cell=rx.Cell.cubic(8.0),
+                     atoms=[seed])
+    phase = add_body(phase, "oh", ["O1", "H1"], ["O", "H"],
+                     [(0.0, 0.0, 0.0), (0.9, 0.0, 0.0)], (0.3, 0.3, 0.3))
+    body = set_riding_lengths(phase.rigid_bodies[0], {"H1": "OH"}, "xray")
+    return rx.Structure(phases=[place_body_atoms(
+        phase.model_copy(update={"rigid_bodies": [body]}))])
+
+
 def _lab_variant(result, ref):
     """(result, structure, instrument) for the items a lab fit reaches."""
     from rietx.schemas.results import AbsorptionCorrection
@@ -115,7 +132,7 @@ def written(fitted_lab6, tmp_path_factory) -> dict[str, set[str]]:  # noqa: F811
                                          (14.0, 6.0, 8.0, 90.0, 97.0, 90.0))])
 
     out = {kind: set() for kind in OUTPUT_KINDS}
-    for structure in [*plain, listed]:
+    for structure in [*plain, listed, _bodied_structure()]:
         structure_to_cif(structure, tmp / "s.cif")
         out["structure"] |= _read_tags(tmp / "s.cif")
         out["refinement"] |= _tags(refinement_cif_doc(no_geometry, structure,
