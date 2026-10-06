@@ -262,6 +262,19 @@ restates what decides the design.
   which `print(result)` does not). F1 and F2 measured the body before these
   edits, which change one argument and one word in it.
 
+  *Counts* ([dev] venv, darwin/arm64, fast selection, on origin/main
+  443c0c1a merged in): 8458 passed, 160 skipped, 1 failed, against 8455 /
+  160 / 1 on bare 443c0c1a with the same venv. That is +3, the three tests
+  added. The one failure, `test_numpy_path_bit_identical_to_golden
+  [toy_anomalous]` (residual off its golden by 1.6e-11), fails on bare main
+  too: it arrived with the merges of 2026-10-06, whose CI runs were each
+  cancelled by the next push, and this branch touches no numerics. The full
+  selection did not run: nothing here moves a measured number. Added-test
+  cost, one run under `-n auto`: `test_skill_worked_default_example_runs`
+  10.9 s, the two drift tests 0.00 s. The example test stays in the fast
+  tier for `test_examples.py`'s stated reason: a broken walkthrough should
+  fail on the push that broke it.
+
   *Gotchas.* The worktree guard refuses `claude plugin eval` typed in Bash
   (it reads "eval"), so the round runs from a script file. The fit cases'
   graders read the script text, so `file_wavelengths` cannot see an
