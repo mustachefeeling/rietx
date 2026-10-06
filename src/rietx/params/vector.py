@@ -2428,7 +2428,9 @@ class ParameterTable:
                          for k in range(1, len(frame)))
 
     def displace_anchored_dofs(self, coordinates: Mapping[str, float],
-                               named: Callable[[str], bool]) -> list[str]:
+                               named: Callable[[str], bool],
+                               orientations: Mapping[str, Iterable[float]] | None = None
+                               ) -> list[str]:
         """Set displacement DOFs so their coordinates reach ``coordinates``.
 
         The inverse of what a build does.  A build anchors each coordinate row
@@ -2454,6 +2456,18 @@ class ParameterTable:
         Sites are grouped by the rows their DOFs share, read off
         :attr:`_anchored_dofs` rather than off the path names, for the reason
         that attribute gives.  Returns the DOF paths set.
+
+        **A rigid body moves as a body** (WP-1805).  Its origin is a site like
+        any other, δo = o_target − o₀ through the rule above, exact for a
+        translation.  Its rotation is not: the subtraction rule is wrong by
+        O(δω²), 0.0147° at 3° (WP-1803's record), so the increment is set from
+        the record instead, δω = Log(R_target·R₀ᵀ), with R_target the unit
+        quaternion ``orientations`` gives for the body's base path
+        (``phases.i.rigid_bodies.b``).  A linear body's two DOFs take the
+        smallest turn carrying its axis R₀·u onto R_target·u, which lies in
+        their plane exactly (a spin about the axis moves no atom).  The body
+        moves when ``named`` admits one of its rotation DOFs or one of its
+        atoms' rows; a rotation DOF the caller tied is left alone.
         """
         groups: list[tuple[list[str], set[str]]] = []
         for dof, rows in self._anchored_dofs.items():
@@ -2502,8 +2516,42 @@ class ParameterTable:
                 e = self.entries[self._paths[p]]
                 if e.tie is not None:
                     e.value = self._implied(e.tie, p)
+        moved += self._displace_body_rotations(orientations or {}, named)
         if moved:
             self._rebuild()
+            self._refresh_derived()
+        return moved
+
+    def _displace_body_rotations(self, orientations: Mapping[str, Iterable[float]],
+                                 named: Callable[[str], bool]) -> list[str]:
+        """The rotation half of :meth:`displace_anchored_dofs` (its docstring)."""
+        from ..crystallography import rotation
+
+        moved: list[str] = []
+        for bbase, _, block in self._bodies:
+            target = orientations.get(bbase)
+            paths = self._anchored_rotations[bbase]
+            if target is None or not (any(named(p) for p in paths)
+                                      or any(named(q) for q in block.outputs)):
+                continue
+            r_t = np.asarray(rotation.matrix_from_quaternion(
+                np.asarray(tuple(target), dtype=np.float64)), dtype=np.float64)
+            if block.n_rot == 3:
+                omega = np.asarray(rotation.vector_from_matrix(r_t @ block.r0.T),
+                                   dtype=np.float64)
+            else:
+                u = np.cross(block.body_axes[:, 0], block.body_axes[:, 1])
+                a, b = block.r0 @ u, r_t @ u
+                axis = np.cross(a, b)
+                sin, cos = float(np.linalg.norm(axis)), float(a @ b)
+                omega = (np.zeros(3) if sin == 0.0
+                         else axis / sin * math.atan2(sin, cos))
+            theta, *_ = np.linalg.lstsq(block.axes, omega, rcond=None)
+            for path, value in zip(paths, theta, strict=True):
+                e = self.entries[self._paths[path]]
+                if e.tie is None:
+                    e.value = float(value)
+                    moved.append(path)
         return moved
 
     def reanchor_dofs(self, paths: Iterable[str],
