@@ -250,6 +250,18 @@ restates what decides the design.
   so both were kept, but neither got its `lanes: keep` line, and the tool
   counts 0 kept.
 
+  *Review* (`/code-review high --fix`, seven findings, four fixed after the
+  rounds ran). §10 now passes `report=report` to `summary()`, which otherwise
+  built a second report under `plan=None` and lost the plan's veto. §2 says
+  "Biso and ADPs" where "displacements" read as sample displacement.
+  `history.md`'s agent loop and `numbers.md`'s report call no longer name
+  `lab_bragg_brentano`: two siblings the rewrite missed. Declined: a wider
+  plain-label pattern in `conf.py` (no link in the tree needs it), a
+  friendlier error in the drift test's import lookup (it still catches the
+  drift), and §10 printing diagnostics three times (the loop prints `where`,
+  which `print(result)` does not). F1 and F2 measured the body before these
+  edits, which change one argument and one word in it.
+
   *Gotchas.* The worktree guard refuses `claude plugin eval` typed in Bash
   (it reads "eval"), so the round runs from a script file. The fit cases'
   graders read the script text, so `file_wavelengths` cannot see an
