@@ -151,7 +151,7 @@ covers (1119 § Gotchas).
 | v1.7 | The next release: what `main` carries when it is cut, and the milestones complete by then | 🔄 **accumulating since 2026-10-03** ([record](milestones/v1.7.md)) | written at the cut |
 | magnetic | The magnetic structure (was v1.6): the satellite, the moment, the determination, the mode amplitude — [§ magnetic](#magnetic--the-magnetic-structure) | 🔄 **opened 2026-09-18** ([record](milestones/magnetic.md)) | eleven rows written at the open, the record's § Acceptance; the measured half is still to come |
 | rietview | rietview (was v1.7): the structure figure an agent composes — cuts, extents, a figure that reports on itself, a real-agent measurement, the split — [§ rietview](#rietview--the-structure-figure-an-agent-composes) | ⬜ **queued 2026-09-27** | written at the open |
-| rigid-bodies | Rigid bodies (was v1.8): a fragment refined as one body, its atoms reported with esds — [WPs](wp/README.md#rigid-bodies): 1801-1803, the seam spike first, the rest cut from its record | ⬜ **queued 2026-09-30** | written at the open |
+| rigid-bodies | Rigid bodies (was v1.8): a fragment refined as one body, its atoms reported with esds — [WPs](wp/README.md#rigid-bodies): 1801-1813, the seam decided by 1803 and the rest cut from its record | ⬜ **queued 2026-09-30** | written at the open |
 | structure-solution | Structure solution (was v1.9): a difference-Fourier map, a cost from the Pawley intensities, direct-space search — [WPs](wp/README.md#structure-solution): 1901-1902, the map then the cost; #197 and #198 left the fence 2026-09-30 | ⬜ **queued 2026-09-30** | written at the open |
 | v2+ | FPA (with the peaks buffer), neutron TOF, texture, modulated structures, PDF, MCP server — [§ v2+](#v2--fenced) | ⬜ fenced | — |
 
@@ -402,7 +402,7 @@ The WPs are in [the index](wp/README.md#rietview).
 
 ### rigid-bodies — a fragment refined as one body
 
-Queued 2026-09-30 from issue #561. The seam is measured first (1803); the order is in WP-1514. [The WPs](wp/README.md#rigid-bodies).
+Queued 2026-09-30 from issue #561. The seam was measured first (1803) and the rest re-cut from its record on 2026-10-06: the derived block (1804), then `RigidBody` (1805), which every later WP needs. [The WPs](wp/README.md#rigid-bodies).
 
 ### structure-solution — a map, a cost and a search
 
