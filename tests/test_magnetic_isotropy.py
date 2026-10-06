@@ -2661,3 +2661,15 @@ def test_a_stored_known_answer_witness_reverifies_from_its_literals(known_answer
     assert isotropy._verify_witness(np.einsum("ki,skl,lj->sij", q, grams[b], q), witness)[0]
     assert not isotropy._verify_witness(grams[b], replace(witness, y=tuple(-y)))[0]
     assert not isotropy._verify_witness(grams[a], witness)[0]
+
+
+def test_the_quote_target_is_never_below_the_accept_floor():
+    """An anchor whose ratio is under 2·FARKAS_FLOOR must not drag the quoted point under the floor (review of #772, item 2)."""
+    stack = np.array([np.diag([1.0, 0.0]), np.diag([0.0, 1.0])])
+    y_mn = np.array([1.0, 0.0])                     # on the PSD boundary, ratio 0
+    anchor = np.array([1.0, 1.5 * isotropy.FARKAS_FLOOR])   # interior, ratio 1.5 floors
+    y = isotropy._quote_inside(stack, y_mn, anchor)
+    assert isotropy._spectrum_ratio(stack, y) >= isotropy.FARKAS_FLOOR
+    # the positive arm: an anchor well inside still quotes at the FARKAS_QUOTE target
+    y = isotropy._quote_inside(stack, y_mn, np.array([1.0, 1.0]))
+    assert isotropy._spectrum_ratio(stack, y) >= isotropy.FARKAS_QUOTE

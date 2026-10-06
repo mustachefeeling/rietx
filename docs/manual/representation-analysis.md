@@ -340,7 +340,9 @@ weak duality of semidefinite programming), and the draw is proved out of
 reach. Directions every shell matrix of the fitting family annihilates are
 projected out first, so that a family with an undeterminable amplitude can
 still be certified, and the certificate is checked in exact rational
-arithmetic before it counts. It also measures the separation: $1/\|\mathbf{y}\|$
+arithmetic before it counts. The check is a proof on the projected stack,
+with that kernel taken as structural; the record's `kernel_residual` says how
+far the floating-point stack departs from it. It also measures the separation: $1/\|\mathbf{y}\|$
 is a lower bound on the relative L2 distance from the draw to the other
 family's patterns, and the best fit residual an upper one, and the pair
 record carries that bracket as `d` with the certificate itself (`witness`)

@@ -1378,7 +1378,11 @@ class Witness:
     * ``weights`` — the per-shell weights the certificate was solved with,
       on every shell, or None.
     * ``kernel_dim``, ``kernel_residual`` — the common kernel's dimension
-      and max_s ‖G_s K‖₂/‖G_s‖₂ on it (≤ :data:`INTENSITY_RTOL`).
+      and max_s ‖G_s K‖₂/‖G_s‖₂ on it (≤ :data:`INTENSITY_RTOL`).  The
+      certificate is a proof on the *projected* stack, with the kernel taken
+      as structural (every G_s annihilating it); ``kernel_residual`` records
+      how far the float stack departs from that, which the exact check does
+      not cover.
     * ``ratio`` — λ_min/|λ|_max of M_P(y) on the projected stack, at least
       :data:`FARKAS_QUOTE` or half the interior anchor's.
     * ``rounding_bound`` — n ε + S ε κ_y with κ_y = Σ_s |y_s|‖G_s‖₂/‖M(y)‖₂:
@@ -1386,7 +1390,8 @@ class Witness:
       on every measured case, more than three decades below
       :data:`FARKAS_QUOTE`.
     * ``exact`` — the exact LDLᵀ of M_P(y), built in rationals from the
-      float y and the float projected stack (:func:`_exact_psd`).  A stored
+      float y and the float projected stack (:func:`_exact_psd`): exact for
+      the projected stack, not for the full one (see ``kernel_residual``).  A stored
       witness always has True: a False issues none.
     * ``d`` — (lower, upper) on the relative L2 distance from t̂ to ``b``'s
       image.  Lower: 1/‖y‖, since for every point k of the relaxed cone
@@ -1486,7 +1491,9 @@ class PairVerdict:
       accept floor :data:`FARKAS_FLOOR` on the projected dual; the quoted
       point at :data:`FARKAS_QUOTE`; the exact LDLᵀ of the quoted point as
       arbiter (:func:`_exact_psd`, which at that margin cannot disagree with
-      the float eigenvalue); and the ``rtol`` gate below.  Measured at
+      the float eigenvalue, and which certifies the *projected* stack, the
+      kernel being taken as structural, with its float residual recorded in
+      ``kernel_residual``); and the ``rtol`` gate below.  Measured at
       d_min 1.5 Å, general site, Linux x86-64: over 145 families of six
       cubic sets, kept kernel eigenvalues ≥ 2.8e-7 of the largest, dropped
       ones ≤ 8.2e-16 and kernel residuals ≤ 2.7e-13; on the known answer and
@@ -2736,14 +2743,14 @@ def _min_norm_certificate(grams: np.ndarray, t_hat: np.ndarray,
 
 
 def _quote_inside(grams: np.ndarray, y_mn: np.ndarray, anchor: np.ndarray) -> np.ndarray:
-    """The certificate to quote: the point of the segment y_mn → anchor nearest y_mn with ratio ≥ min(:data:`FARKAS_QUOTE`, anchor's/2).
+    """The certificate to quote: the point of the segment y_mn → anchor nearest y_mn with ratio ≥ min(:data:`FARKAS_QUOTE`, anchor's/2), never below :data:`FARKAS_FLOOR`.
 
     λ_min of M(y) is concave along the segment and y·t̂ = −1 holds on all of
     it, so a bisection on the fraction finds the point.  d moves by at most
     0.7 % (d_q/d_mn ≥ 0.9934 over the 49 witnesses of the known answer and
     ``P m -3 m`` at (0, 0, ½)).
     """
-    target = min(FARKAS_QUOTE, _spectrum_ratio(grams, anchor) / 2)
+    target = max(FARKAS_FLOOR, min(FARKAS_QUOTE, _spectrum_ratio(grams, anchor) / 2))
     if _spectrum_ratio(grams, y_mn) >= target:
         return y_mn
     lo, hi = 0.0, 1.0
@@ -2763,7 +2770,13 @@ def _exact_psd(grams: np.ndarray, y) -> bool:
     reduced by LDLᵀ without pivoting: PSD iff every pivot is ≥ 0 and a zero
     pivot has a zero remaining row (Peyrl & Parrilo 2008, *Theor. Comput.
     Sci.* **409**, 269, on rational certificates).  Exact for the stack as
-    floating point holds it, not for the stack exact arithmetic would build.
+    floating point holds it, not for the stack exact arithmetic would build,
+    and the stack here is the *projected* one: the caller passes PᵀG_sP, so
+    the proof concerns the full stack only to the extent that every G_s
+    annihilates the common kernel K, which the kernel is *taken* to do.  The
+    float stack departs from that by the kernel residual r_K ≤
+    :data:`INTENSITY_RTOL`, recorded in :attr:`Witness.kernel_residual` and
+    not covered by this check.
     At the quoted margin (:data:`FARKAS_QUOTE`, more than three decades
     above the rounding bound) it cannot disagree with the float eigenvalue:
     it is the arbiter by decision, and assurance in practice.
