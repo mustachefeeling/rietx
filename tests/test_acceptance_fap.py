@@ -53,9 +53,9 @@ the honest consistency band here.  Certificate-grade accuracy is claimed only
 by the SRM 660c test; neither code's cell is "truth" for this specimen.
 """
 
+import math
 from pathlib import Path
 
-import math
 import numpy as np
 import pytest
 

@@ -12,9 +12,9 @@ parser reads what the manual says and refuses what it does not.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
-import math
 import pytest
 
 import rietx as rx
@@ -1319,7 +1319,10 @@ def test_the_gsas1_and_gsas2_calibrations_of_one_instrument_agree(tmp_path):
     """One U V W (a variance, centidegrees²) written as a GSAS-I ``.prm`` and
     as a GSAS-II ``.instprm`` reads back as the same ``profile.u/v/w``."""
     from rietx.io.instrument_profile import (
-        from_instrument, from_instrument_gsas2, read_gsas2_instprm)
+        from_instrument,
+        from_instrument_gsas2,
+        read_gsas2_instprm,
+    )
     inst = _calibrated()
     a = tmp_path / "a.prm"
     a.write_text(from_instrument(inst), encoding="utf-8")

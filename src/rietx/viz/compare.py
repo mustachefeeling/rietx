@@ -313,8 +313,7 @@ def _build_fap(data_dir: Path) -> StandardInputs:
       f′/f″ either.  Adopting another code's protocol means adopting what it
       did not model as much as what it did.
     """
-    from ..io.projects.gsas import (
-        gaussian_fwhm_squared_degrees, read_gsas_exp, to_structure)
+    from ..io.projects.gsas import gaussian_fwhm_squared_degrees, read_gsas_exp, to_structure
     from ..io.readers import read_pattern
     from ..schemas.pattern import PatternData
 

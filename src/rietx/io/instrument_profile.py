@@ -64,8 +64,8 @@ from ..schemas.migrate import (
     schema_key,
 )
 from .projects.gsas import (
-    GAUSSIAN_VARIANCE_TO_FWHM_SQUARED,
     CW_PROFILE_COEFFICIENTS,
+    GAUSSIAN_VARIANCE_TO_FWHM_SQUARED,
     KEY_BYTES,
     GsasIcons,
     _naming_the_file,
