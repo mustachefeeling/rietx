@@ -4189,7 +4189,10 @@ class Refinement:
                 # confound it names is created by the stage list itself, so
                 # the report has to arrive before the first stage runs rather
                 # than after the answer it spoiled.
-                + _stage_order_diagnostics(plan, table, mode))
+                + _stage_order_diagnostics(plan, table, mode)
+                # a plan read too, and here for the same reason: a literal a
+                # stage cannot free is decided by the model before any stage
+                + _fixed_literal_diagnostics(plan.stages, table, self._ties))
             stage_results: list[StageResult] = []
             self.stage_reports_ = []
             outcome = None
@@ -4624,6 +4627,7 @@ class Refinement:
             # by hand.
             order = _stage_order_diagnostics(
                 RefinementPlan(stages=[stage]), table, mode)
+            order += _fixed_literal_diagnostics([stage], table, self._ties)
             try:
                 with self._abandon_on_cancel(cancel, stage.name, [], stream):
                     model, outcome, guard, freed, hold = self._run_stage(
@@ -5770,6 +5774,88 @@ def _hold_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
                     "held, the plan is doing less than its name suggests and "
                     "a narrower one would say so"),
     )]
+
+
+#: an atom's coordinate, which a site-symmetry table drives through
+#: ``….dof.k`` rather than freeing directly
+_COORDINATE_PATH = re.compile(r"^(phases\.\d+\.atoms\.\d+)\.[xyz]$")
+
+
+def _fixed_literal_diagnostics(stages, table: ParameterTable,
+                               user_ties) -> list[Diagnostic]:
+    """``STAGE_PATH_NOT_FREE`` — a literal phase path the model will not free.
+
+    ``STAGE_PATH_UNKNOWN``'s other half.  A literal names one parameter, and
+    when the model has that row but it is locked or follows a symmetry tie,
+    ``set_vary`` declines it in silence: the stage frees nothing for it,
+    converges, and the result looks like any other.  The measured case is an
+    oxygen on 16h in I4₁/amd: ``phases.0.atoms.2.x`` is fixed at 0 and ``y``
+    and ``z`` follow ``…dof.0``/``…dof.1``, so a stage naming a coordinate
+    left the site where it started.  The message names the paths that would
+    have freed it.
+
+    **Phase paths only.**  The shipped presets name instrument literals that
+    are locked on some geometries by design (``sample_displacement`` on a
+    capillary), and a preset reaching a component a model lacks is the
+    healthy miss ``STAGE_PATH_UNKNOWN`` stays silent on for patterns.  No
+    preset names a phase literal.  **Not a user tie** either: that is the
+    caller's own declaration, and its row says so.
+
+    **Silent when the stage frees the tie's sources itself**: ``cell.a`` and
+    ``cell.b`` named together on a cubic phase free ``a``, and ``b`` follows.
+
+    A plan read, decided before the first stage like
+    :func:`_stage_order_diagnostics`, and one diagnostic per path naming its
+    stages, for :func:`_unknown_path_diagnostics`' reason.
+    """
+    by_path = {e.path: e for e in table.entries}
+    asked: dict[str, list[str]] = {}
+    for stage in stages:
+        for glob in stage.turn_on:
+            entry = by_path.get(glob)
+            if (entry is None or not is_literal_path(glob)
+                    or not glob.startswith("phases.") or glob in user_ties
+                    or not (entry.locked or entry.tie is not None)):
+                continue
+            if entry.tie is not None and all(
+                    any(fnmatch.fnmatchcase(src, g) for g in stage.turn_on)
+                    for src, _ in entry.tie.terms):
+                # the same stage frees every source it follows, so it did
+                # get what it named: ``cell.a`` and ``cell.b`` side by side
+                continue
+            names = asked.setdefault(glob, [])
+            if stage.name not in names:
+                names.append(stage.name)
+    out = []
+    for path, names in asked.items():
+        which = (f"stage {names[0]!r}" if len(names) == 1 else
+                 f"stages {', '.join(repr(s) for s in names)}")
+        entry = by_path[path]
+        sources = ([] if entry.tie is None else
+                   [src for src, _ in entry.tie.terms])
+        why = ("is fixed by symmetry or by the model" if entry.locked else
+               f"follows {', '.join(sources)}")
+        site = _COORDINATE_PATH.match(path)
+        dofs = ([p for p in by_path if p.startswith(f"{site.group(1)}.dof.")]
+                if site else [])
+        if site and dofs:
+            fix = (f"free {site.group(1)}.dof.* ({', '.join(dofs)}): a site's "
+                   "coordinates are refined along the directions its site "
+                   "symmetry allows, and x, y and z follow them")
+        elif site:
+            fix = ("nothing to free: every coordinate of this site is fixed by "
+                   "its site symmetry")
+        elif sources:
+            fix = f"free {', '.join(sources)} instead; {path} moves with it"
+        else:
+            fix = ("nothing to free: ref.parameters() gives the row's "
+                   "held_because")
+        out.append(Diagnostic(
+            level="warning", code="STAGE_PATH_NOT_FREE",
+            message=(f"{which} asked for {path}, which {why}, so nothing was "
+                     "freed for it"),
+            where=[path], suggestion=fix))
+    return out
 
 
 def _unknown_path_diagnostics(stage_results: list[StageResult],
