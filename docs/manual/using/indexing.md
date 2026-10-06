@@ -153,7 +153,7 @@ and is described there.
 | `excluded` | the caller removed it | no |
 | `fit_failed` | the group solve did not converge, so the position is the seed | no |
 | `not_separable` | a component the fitter believes as a shape and disbelieves as a line | no |
-| `no_intensity` | it refined onto its zero intensity bound, so it locates nothing | no |
+| `no_intensity` | it refined onto its zero intensity bound, or to under its own esd, so it locates nothing | no |
 | `position_unmeasured` | its position esd reached 180°, the whole span a 2θ axis has, so it has no position | no |
 | `duplicate_line` | a better-measured component of another group already fitted this line | no |
 | `sigma_assumed` | σ was supplied rather than fitted | yes |

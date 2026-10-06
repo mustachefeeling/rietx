@@ -99,6 +99,10 @@ from .structure import Cell
 #: p = 0.0027), in both corundum searches.  Two pseudo-tetragonal LaB6
 #: descriptions went from ``"supported"`` to ``"undecided"`` over the
 #: half-volume rival, their seen extras all on the rival's lines.
+#: Also in 1.7: ``no_intensity`` is raised for a component whose fitted intensity
+#: is under :data:`PEAK_NO_INTENSITY_SIGMA` of its own esd, not only for one at
+#: its zero bound, so ``usable()`` drops 6 of 798 lines across the 16 IUCr
+#: round-robin lab patterns, all with I/σ_I < 1 (``cpd-4`` 78 → 77).
 INDEXING_THRESHOLDS_VERSION = "1.7"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
@@ -129,6 +133,24 @@ INDEXING_THRESHOLDS_VERSION = "1.7"
 #: :func:`rietx.indexing.pick.peaks_of_group`, which is public and called by the
 #: GUI editor, so it costs a signature rather than a constant.
 PEAK_POSITION_ESD_MAX_DEG = 180.0
+
+#: Fitted intensity, in units of its own esd, under which a component is
+#: **flagged ``no_intensity``**: it is indistinguishable from none.  The
+#: bar is 1σ, not the crystallographer's "unobserved reflection" 2σ(I): at 2σ
+#: the floor also dropped eight real, weak fluorapatite lines (I/σ_I 1.2–1.9)
+#: that the true cell indexes, and two slow indexing-acceptance rows moved.
+#:
+#: Detection's 5σ height test is on the *net* above an envelope
+#: (``peaks._debiased_envelope``) and the group fit's intensity esd is a separate
+#: number, so a flank the envelope under-tracks gives a net that clears 5σ and a
+#: fit whose intensity is a third of its own esd.  Forward-modelled silicon on a
+#: background falling from ~2300 to ~800 counts over 11–22°, with 8 true lines,
+#: kept 3–4 usable "lines" below its first reflection (I/σ_I 0.33–0.38) and
+#: ``index_pattern`` returned no cubic cell; cropped above the flank it returned
+#: the F-centred 5.431 Å cell.  Over the 798 usable lines of the 16 IUCr
+#: round-robin lab patterns the floor drops 6 (0.75 %); the 5th
+#: percentile is 4.9.
+PEAK_NO_INTENSITY_SIGMA = 1.0
 
 # ----------------------------------------------------------------------
 # Detection
@@ -504,8 +526,9 @@ PEAK_ASSUMED_ESD_DEG = 0.02
 #: deliberately **not** in :data:`PEAK_UNUSABLE_FLAGS`, and it is a flag of its
 #: own rather than a reuse of ``position_at_bound``, which means something
 #: else and caught only two of the five cases that motivated this.
-#: ``no_intensity`` — the component refined onto its zero intensity bound, so it
-#: contributes nothing to the window and its own position stops being
+#: ``no_intensity`` — the component refined onto its zero intensity bound, or
+#: sits under :data:`PEAK_NO_INTENSITY_SIGMA` of its own esd, so it contributes
+#: nothing the data can tell from zero and its own position stops being
 #: identifiable (a peak reaches the data only through ``intensity × profile``).
 #: It **is** unusable: unlike the report-do-not-refuse flags above, there is no
 #: judgement left for a consumer to make.  It stays in ``peaks`` for the same

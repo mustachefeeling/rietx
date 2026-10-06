@@ -1704,15 +1704,41 @@ def test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing(
     # different centrings is two different lattices (one predicts half the lines
     # of the other) and merging them would silently drop a hypothesis the figures
     # of merit are there to choose between".
-    assert len(res.candidates) == 2, [(c.centring, c.cell[0])
-                                      for c in res.candidates]
-    by_centring = {c.centring: c for c in res.candidates}
-    assert set(by_centring) == {"P", "I"}
-    for cand in res.candidates:
+    #
+    # **A third description is admitted, and it is not a regression** (#741).
+    # The 1σ floor on a component's own intensity (``PEAK_NO_INTENSITY_SIGMA``)
+    # takes nine lines out of the usable list (seven of them below 5.2°, flank
+    # components of no reflection of the phase), so the 100-line low-Q pool the
+    # twenty search lines are drawn from reaches nine lines deeper and four of
+    # the twenty change (3.2696, 12.2977, 13.5205, 14.4315 out; 15.3914,
+    # 15.7394, 16.0802, 16.7414 in).  The √2 sub-multiple P a = 7.2487 Å
+    # (= 10.2512/√2) has the same |Q| set as the I cell except the 321 class
+    # (h²+k²+l² = 14 and its kin), so it leaves 4 of the old twenty unindexed
+    # (8.664, 12.2977, 12.6967, 14.4315) and **3 of the new** (8.664, 12.6967,
+    # 15.7394), against the 3 the search is allowed
+    # (``REAL_DATA_N_UNINDEXED``).  The rule was met by one line; the
+    # candidate is graded by the panel as a poor description of the pattern:
+    # 177 of 267 lines indexed (66 %, I: 219 = 82 %), 82 % of the intensity
+    # (I: 96.8 %), M20 5.9 against I's 10.6.  It ranks last and stays ``low``.
+    assert len(res.candidates) in (2, 3), [(c.centring, c.cell[0])
+                                           for c in res.candidates]
+    main = [c for c in res.candidates
+            if abs(c.cell[0] / A_NAC - 1.0) < 2.0e-4]
+    sub = [c for c in res.candidates if c not in main]
+    by_centring = {c.centring: c for c in main}
+    assert set(by_centring) == {"P", "I"} and len(main) == 2
+    for cand in main:
         assert cand.found_by == ["svd", "trial_error"], cand.found_by
         assert cand.system == "cubic"
         da = cand.cell[0] / A_NAC - 1.0
         assert abs(da) < 2.0e-4, f"a = {cand.cell[0]:.5f} ({da * 1e6:+.0f} ppm)"
+    for cand in sub:
+        # nothing but the √2 sub-multiple, and it is the worse description
+        assert cand.system == "cubic" and cand.centring == "P"
+        assert abs(cand.cell[0] * 2.0 ** 0.5 / A_NAC - 1.0) < 2.0e-4, cand.cell[0]
+        assert cand.n_indexed < 0.75 * by_centring["I"].n_lines
+        assert cand.n_indexed < by_centring["I"].n_indexed
+        assert cand is res.candidates[-1]
 
     # and the whole profile picks between them, which is what it is for: the I
     # description predicts nothing that is not seen, the P description of the

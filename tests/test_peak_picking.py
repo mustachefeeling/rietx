@@ -1240,7 +1240,8 @@ def test_the_editor_marks_only_what_it_just_refitted():
 def test_no_two_usable_lines_share_a_position_on_a_crowded_lab_pattern():
     """``cpd-4`` offered 113 usable lines, 26 of them within 0.02° of another
     (a re-seed pass in one group's window had refitted its neighbour's line);
-    35 components now carry ``duplicate_line`` and none of the 78 left does."""
+    35 components now carry ``duplicate_line`` and none of the 77 left does (78 before the
+    intensity floor of ``PEAK_NO_INTENSITY_SIGMA``)."""
     import rietx as rx
     from tests.test_acceptance_qpa_roundrobin import DATA as QARR
     from tests.test_acceptance_qpa_roundrobin import qarr_instrument
@@ -1252,4 +1253,6 @@ def test_no_two_usable_lines_share_a_position_on_a_crowded_lab_pattern():
     usable = np.sort([p.two_theta for p in peaks.usable()])
     assert not np.any(np.diff(usable) < 0.02)
     assert sum("duplicate_line" in p.flags for p in peaks.peaks) == 35
-    assert len(usable) == 78
+    # 77 since the 1-sigma intensity floor (PEAK_NO_INTENSITY_SIGMA) flags one
+    # more component here, a line of intensity 0.42 of its own esd
+    assert len(usable) == 77
