@@ -28,7 +28,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1530](1530-the-topas-readers-last-silences.md) | The TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background | 2026-10-03 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 2026-10-03 | P4 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | 2026-10-01 | P2 | [rigid-bodies](#rigid-bodies) |
-| [1905](1905-the-skill-eval-suite.md) | The skill eval suite: `claude plugin eval` over the skill tree, cases from real failures, judge-free first | 2026-10-04 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1905](1905-the-skill-eval-suite.md) | The skill eval suite: `claude plugin eval` over the skill tree, cases from real failures, judge-free first | 2026-10-06 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 
 ## Next, by priority
 
@@ -562,7 +562,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1541](1541-cut-1-6-0.md) | Cut 1.6.0 from what main holds | ✅ 2026-10-03 | — | [1540](1540-a-milestone-is-named-a-release-is-numbered.md) |
 | [1903](1903-the-lane-trial-decides.md) | The lane trial decides whether a WP session sends long items to subagents | ⬜ | P4 | — |
 | [1904](1904-the-skill-evaluation-strategy.md) | The skill evaluation strategy: how the agent skill is measured, rewritten and kept in sync, decided on a pilot | ✅ 2026-10-04 | — | — |
-| [1905](1905-the-skill-eval-suite.md) | The skill eval suite: `claude plugin eval` over the skill tree, cases from real failures, judge-free first | 🔄 2026-10-04 | P2 | [1904](1904-the-skill-evaluation-strategy.md) |
+| [1905](1905-the-skill-eval-suite.md) | The skill eval suite: `claude plugin eval` over the skill tree, cases from real failures, judge-free first | 🔄 2026-10-06 | P2 | [1904](1904-the-skill-evaluation-strategy.md) |
 | [1906](1906-the-skill-body-rewrite.md) | The skill body rewrite: under 5 000 tokens, rules first, evidence in the references, the contradictions resolved | ⬜ | P3 | [1905](1905-the-skill-eval-suite.md) ([1532](1532-the-skill-passages-a-driving-agent-needed.md) soft) |
 | [1907](1907-the-skill-stays-in-sync.md) | The skill stays in sync: constants and formulas pinned to the package, a changed-surface check at review, the judge-free tier nightly | ⬜ | P3 | — ([1905](1905-the-skill-eval-suite.md) soft) |
 
