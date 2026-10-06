@@ -460,20 +460,35 @@ def magnetic_reflections(sg_symbol,
     the nuclear reflection list at all**, so a magnetic phase needs them added
     or its strongest peaks are simply not computed.
 
-    **Centring conditions are applied, except the ones the magnetic group
-    reverses.**  A parent centring translation t forbids every h with
-    h·t ∉ ℤ, and an ordinary magnetic group carries t unprimed, so its
-    magnetic structure factor obeys the same condition and those rows would
-    only be zero-intensity rows reaching every consumer :func:`merge_magnetic`
-    names.  A black-white lattice (BNS type IV) carries t *primed* — an
-    anti-centring, the moment reversed on translation — and there the
-    magnetic intensity sits exactly at h·t ∈ ℤ + ½, on the rows the nuclear
-    centring forbids.  So each parent centring is applied unless
-    ``magnetic_group`` holds it with time reversal −1.  ``magnetic_group``
-    ``None`` applies every centring, which is the ordinary case.  (gemmi's
-    ``systematic_absences`` is where the centring test lives, and skipping it
-    to keep the glide and screw rows skipped the centring with them; this
-    function applies it itself.)
+    **A row is kept where the magnetic group's own lattice lets some member
+    of its Laue orbit scatter.**  A pure translation (t, ε) of the magnetic
+    group — an operation whose rotation is the identity — gives
+    F_m(h) = ε·e^{2πi h·t}·F_m(h), so |F_m(h)|² is identically zero unless
+    e^{2πi h·t} = ε: h·t ∈ ℤ for an ordinary translation, h·t ∈ ℤ + ½ for an
+    anti-translation (the black-white lattices of the type-IV groups; Litvin,
+    2013, *Magnetic Group Tables*, IUCr, § 1.3 on the BNS lattice types).  A
+    row is a whole Laue orbit of the **parent**, and its intensity is the
+    orbit average, so it is kept when **any** member hR of that orbit passes
+    every such condition.  Two cases make the per-member test necessary, and
+    a test on the parent's centrings alone wrong:
+
+    * the magnetic lattice can be **primitive inside a centred parent** — a
+      zone-boundary k such as (1, 0, 0) of an F or I lattice, stated in the
+      parent's conventional cell with an integer k.  The parent's centrings
+      are then not translations of the magnetic group at all, neither plain
+      nor primed (the atoms they relate are reached by operations with a
+      rotation), and the magnetic intensity sits on exactly the rows those
+      centrings forbid;
+    * a translation the magnetic group keeps need not be invariant under the
+      parent's point group: (½, ½, 0) kept and (0, ½, ½), (½, 0, ½) primed is
+      the fcc type-I antiferromagnet, and the orbit of (1 0 2) holds members
+      that pass (h + k even) and members that fail.  Testing the
+      representative alone dropped or kept the whole orbit by which member
+      ``generate_reflections`` happened to list.
+
+    ``magnetic_group=None`` applies every parent centring, the ordinary case;
+    there the condition is the same for every member of an orbit, because a
+    group's centring set is invariant under its own point group.
 
     Glide and screw absences are not applied.  The Laue multiplicity is the
     parent group's, because that is what makes two reflections coincide in a
@@ -495,11 +510,15 @@ def magnetic_reflections(sg_symbol,
     keep = {tuple(map(int, h)) for h in allowed.hkl}
     mask = np.array([tuple(map(int, h)) not in keep for h in everything.hkl],
                     dtype=bool)
-    centrings = applied_centrings(as_group(sg_symbol), magnetic_group)
-    if len(centrings) and len(everything):
-        # h·t for every centring t, in 1/DEN units: integral iff divisible
-        phase = everything.hkl.astype(np.int64) @ centrings.T
-        mask &= np.all(phase % gemmi.Op.DEN == 0, axis=1)
+    if magnetic_group is None:
+        centrings = applied_centrings(as_group(sg_symbol))
+        if len(centrings) and len(everything):
+            # h·t for every centring t, in 1/DEN units: integral iff divisible
+            phase = everything.hkl.astype(np.int64) @ centrings.T
+            mask &= np.all(phase % gemmi.Op.DEN == 0, axis=1)
+    elif len(everything):
+        mask &= lattice_allows_orbit(everything.hkl, as_group(sg_symbol),
+                                     magnetic_group)
     return ReflectionSet(hkl=everything.hkl[mask],
                          multiplicity=everything.multiplicity[mask],
                          d=everything.d[mask],
@@ -507,28 +526,48 @@ def magnetic_reflections(sg_symbol,
                          operations=everything.operations)
 
 
-def applied_centrings(group, magnetic_group=None) -> np.ndarray:
-    """``(n, 3)`` int — the parent's non-trivial centrings a magnetic row must obey.
+def lattice_allows_orbit(hkl, group, magnetic_group) -> np.ndarray:
+    """``(N,)`` bool — whether some member of each row's Laue orbit can scatter magnetically.
 
-    In gemmi's 1/``Op.DEN`` units.  Every centring translation of ``group``
-    except the identity and except any the magnetic group carries as an
-    **anti**-centring (time reversal −1): under that one the magnetic
-    structure factor changes sign on translation, so the condition it imposes
-    is h·t ∈ ℤ + ½ rather than h·t ∈ ℤ, and the rows the nuclear centring
-    forbids are exactly the magnetic ones — the black-white lattices of the
-    type-IV groups (Litvin, 2013, *Magnetic Group Tables*, IUCr, § 1.3 on the
-    BNS lattice types).
+    ``hkl`` are representatives of Laue orbits of ``group`` (the parent); a
+    member is h·R for each rotation R of the parent.  A member passes when,
+    for every pure translation (t, ε) of ``magnetic_group``,
+    e^{2πi h·t} = ε (:func:`magnetic_reflections` has the derivation).  All
+    arithmetic is in gemmi's 1/``Op.DEN`` units, so the test is exact.
     """
     den = gemmi.Op.DEN
-    anti = set()
-    if magnetic_group is not None:
-        for op in magnetic_group.centerings:
-            if op.time_reversal == -1:
-                anti.add(tuple(int(round(float(c) * den)) % den
-                               for c in op.translation))
+    identity = ((1, 0, 0), (0, 1, 0), (0, 0, 1))
+    shifts, signs = [], []
+    for op in magnetic_group.all_operations():
+        if op.rotation != identity:
+            continue
+        t = tuple(int(round(float(c) * den)) % den for c in op.translation)
+        if not any(t):
+            continue
+        shifts.append(t)
+        signs.append(op.time_reversal)
+    h = np.asarray(hkl, dtype=np.int64)
+    if not shifts:
+        return np.ones(len(h), dtype=bool)
+    rotations = np.unique(np.array([np.asarray(op.rot, dtype=np.int64) // den
+                                    for op in group.operations()]), axis=0)
+    members = np.einsum("nj,rjk->nrk", h, rotations)          # (N, R, 3): h·R
+    phase = (members @ np.array(shifts, dtype=np.int64).T) % den   # (N, R, m)
+    want = np.where(np.array(signs) == 1, 0, den // 2)         # (m,)
+    return np.any(np.all(phase == want, axis=2), axis=1)
+
+
+def applied_centrings(group) -> np.ndarray:
+    """``(n, 3)`` int — the parent's non-trivial centrings a nuclear-lattice row must obey.
+
+    In gemmi's 1/``Op.DEN`` units: every centring translation of ``group``
+    except the identity.  A magnetic group's own lattice, primed or
+    anti-centred, is not read here; :func:`lattice_allows_orbit` applies it.
+    """
+    den = gemmi.Op.DEN
     kept = [tuple(int(c) % den for c in t)
             for t in group.operations().cen_ops]
-    kept = [t for t in kept if any(t) and t not in anti]
+    kept = [t for t in kept if any(t)]
     return np.array(kept, dtype=np.int64).reshape(-1, 3)
 
 
