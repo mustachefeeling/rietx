@@ -27,6 +27,7 @@ matrix — no pydantic objects are touched per iteration.
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
 
@@ -43,6 +44,7 @@ from ..crystallography.magnetic.moments import (
     moment_from_dofs,
     wrap_angle,
 )
+from ..crystallography.rotation import canonical_quaternion, quaternion_from_matrix
 from ..crystallography.stephens import S_NAMES, isotropic_coefficients, strain_basis
 from ..crystallography.symmetry import (
     cell_constraints,
@@ -68,6 +70,11 @@ from .transforms import dphys_dinternal, internal_bounds, to_internal, to_physic
 #: below and the ``WAVELENGTH_CALIBRATION`` diagnostic in ``refine.py`` (shared
 #: with the joint path in ``multi.py``).
 WAVELENGTH_SUFFIX = ".wavelength"
+
+#: A rigid body's increment entries (WP-1805): its rotation vector and its
+#: origin's displacement DOFs, the two that restart at zero at every build.
+_BODY_INCREMENT = re.compile(
+    r"^phases\.\d+\.rigid_bodies\.\d+\.(rotation|origin)\.(?:dof\.)?\d+$")
 
 #: The largest esd whose square is still a double (≈ 1.3e+154).  Past it a
 #: physical esd is read as unmeasured, as an infinite one is (WP-1463,
@@ -1075,9 +1082,13 @@ class ParameterTable:
         #: no rigid body, and every reader below takes the affine path
         #: bit-for-bit when it is.
         self.derived: list[DerivedBlock] = []
+        #: (body base path, body name, its block), in collection order
+        #: (WP-1805): the write-back and the rigidity check walk this
+        self._bodies: list[tuple[str, str, DerivedBlock]] = []
         self._collect(structure, instrument)
         self._rebuild()
         if self.derived:
+            self._check_body_drift()
             self._refresh_derived()
 
     # -- collection ----------------------------------------------------
@@ -1146,11 +1157,19 @@ class ParameterTable:
                 self._add(f"{base}.magnetic_lor_strain",
                           phase.magnetic_lor_strain, force_fixed=off)
             self._collect_microstrain(base, sg, phase)
+            owner = {label: body.name for body in phase.rigid_bodies
+                     for label in body.atoms}
             for j, atom in enumerate(phase.atoms):
-                self._collect_atom_coords(f"{base}.atoms.{j}", sg, atom)
+                if atom.label in owner:
+                    self._collect_body_atom_coords(f"{base}.atoms.{j}", atom,
+                                                   owner[atom.label])
+                else:
+                    self._collect_atom_coords(f"{base}.atoms.{j}", sg, atom)
                 self._add(f"{base}.atoms.{j}.occ", atom.occ)
                 self._collect_atom_adps(f"{base}.atoms.{j}", sg, atom)
                 self._collect_atom_moment(f"{base}.atoms.{j}", phase, atom)
+            for b, body in enumerate(phase.rigid_bodies):
+                self._collect_body(base, sg, phase, b, body)
 
         self._add("instrument.zero_shift", instrument.zero_shift)
         self._collect_instrument(instrument)
@@ -1260,6 +1279,129 @@ class ParameterTable:
             self._anchored_dofs[path] = tuple(
                 (f"{base}.{c}", float(basis[k][c_idx]))
                 for c_idx, c in enumerate(("x", "y", "z")) if basis[k][c_idx] != 0)
+
+    def _collect_body_atom_coords(self, base: str, atom, body: str) -> None:
+        """A body atom's x, y, z: locked rows its body's block writes (WP-1805).
+
+        No displacement DOF, no affine row: the coordinates are outputs of a
+        derived block (``params.bodies``), which is their one writer, as the
+        space group is a fixed special position's.  They still carry esds,
+        through the block's local Jacobian.  ``vary=True`` on one is refused in
+        the shape of the special-position refusal, naming what does refine.
+        """
+        if any(getattr(atom, c).vary for c in ("x", "y", "z")):
+            raise ValueError(
+                f"{base} ({atom.label!r}) is placed by rigid body {body!r}; its "
+                "coordinates are the body's — refine the body's origin and "
+                "rotation (phases.*.rigid_bodies.*.origin.dof.*, "
+                "phases.*.rigid_bodies.*.rotation.*) and set vary=False here")
+        for c in ("x", "y", "z"):
+            self._add(f"{base}.{c}", getattr(atom, c), force_fixed=True)
+
+    def _collect_body(self, base: str, sg, phase, b: int, body) -> None:
+        """A rigid body: origin DOFs, three rotation DOFs, and its block.
+
+        The origin is collected exactly as an atom's coordinates are
+        (:meth:`_collect_atom_coords`): anchored displacement DOFs on its
+        site-symmetry basis.  A body whose origin sits on a special position is
+        refused for now (``RIGID_BODY_NOT_INVARIANT``; WP-1807 takes the
+        stabiliser's axial subspace for the rotation).  The rotation is an
+        **anchored increment** δω about the record's R₀, zero at every build
+        and bounded per component by ``RIGID_BODY_ROTATION_BOUND``; it is
+        never in ``_anchored_dofs``, whose subtraction rule is wrong for a
+        rotation by O(δω²) (WP-1803's record).
+        """
+        from ..crystallography.rotation import matrix_from_quaternion
+        from ..schemas.structure import RIGID_BODY_ROTATION_BOUND
+        from .bodies import RigidBodyBlock
+
+        bbase = f"{base}.rigid_bodies.{b}"
+        xyz = np.array(body.origin.values())
+        if len(coordinate_basis(stabilizer_rotations(sg, xyz))) < 3:
+            raise ValueError(
+                f"RIGID_BODY_NOT_INVARIANT: rigid body {body.name!r} has its "
+                f"origin {tuple(xyz)} on a special position of "
+                f"{phase.space_group!r}; a body on a special position is not "
+                "supported yet (WP-1807) — move the origin to a general "
+                "position")
+        self._collect_atom_coords(f"{bbase}.origin", sg, body.origin)
+        for k in range(3):
+            self.entries.append(Entry(
+                path=f"{bbase}.rotation.{k}", value=0.0, vary=body.rotation_vary,
+                lo=-RIGID_BODY_ROTATION_BOUND, hi=RIGID_BODY_ROTATION_BOUND,
+                transform="identity"))
+        index = {a.label: j for j, a in enumerate(phase.atoms)}
+        block = RigidBodyBlock(
+            phase_base=base, body_base=bbase,
+            atom_bases=[f"{base}.atoms.{index[label]}" for label in body.atoms],
+            template=np.array(body.template, dtype=np.float64),
+            r0=np.asarray(matrix_from_quaternion(np.array(body.orientation)),
+                          dtype=np.float64))
+        self.derived.append(block)
+        self._bodies.append((bbase, body.name, block))
+
+    def _check_body_drift(self) -> None:
+        """Refuse a body whose stored atoms sit off its map (WP-1805).
+
+        ``RIGID_BODY_TEMPLATE_DRIFT``: measured in Å through the cell, against
+        :data:`~rietx.schemas.structure.RIGID_BODY_DRIFT_TOL`.  The write-back
+        stores exactly what the map computed, so only an edit of an atom the
+        body owns trips this — and silently moving that atom back would undo
+        the edit without a word, which is the table's no-diagnostics rule.
+        """
+        from ..schemas.structure import RIGID_BODY_DRIFT_TOL
+        from .derived import cartesian_frame
+
+        if not self._bodies:
+            return
+        p = np.array([e.value for e in self.entries], dtype=np.float64)
+        stored = p.copy()
+        self._apply_derived(p)
+        for bbase, name, block in self._bodies:
+            phase_base = bbase.split(".rigid_bodies.")[0]
+            cell = tuple(p[self._paths[f"{phase_base}.cell.{n}"]]
+                         for n in ("a", "b", "c", "alpha", "beta", "gamma"))
+            m = np.asarray(cartesian_frame(cell), dtype=np.float64)
+            rows = [self._paths[q] for q in block.outputs]
+            diff = (stored[rows] - p[rows]).reshape(-1, 3) @ m.T
+            worst = float(np.sqrt((diff * diff).sum(axis=1)).max())
+            if worst > RIGID_BODY_DRIFT_TOL:
+                i = int(np.argmax((diff * diff).sum(axis=1)))
+                atom = block.outputs[3 * i].rsplit(".", 1)[0]
+                raise ValueError(
+                    f"RIGID_BODY_TEMPLATE_DRIFT: {atom} sits {worst:.3g} Å from "
+                    f"where rigid body {name!r} places it.  A body owns its "
+                    "atoms' coordinates: move the body (its origin and "
+                    "orientation), or rewrite the atoms from it with "
+                    "rietx.crystallography.bodies.place_body_atoms")
+
+    def body_rows(self) -> dict[str, str]:
+        """Every derived row a rigid body writes → that body's name (WP-1805)."""
+        return {q: name for _, name, block in self._bodies for q in block.outputs}
+
+    def body_bond_errors(self) -> dict[str, float]:
+        """Per body, the largest |d_ij − d_ij(template)| over its atoms (Å).
+
+        The commit-time rigidity check (WP-1805): a body that is not rigid
+        in the committed cell to 1e-9 Å means the map and the record disagree
+        — WP-1803 measured a stale anchor at 2e-3 Å against 1e-15 Å.
+        """
+        from .derived import cartesian_frame
+
+        out: dict[str, float] = {}
+        values = {e.path: e.value for e in self.entries}
+        for bbase, name, block in self._bodies:
+            phase_base = bbase.split(".rigid_bodies.")[0]
+            cell = tuple(values[f"{phase_base}.cell.{n}"]
+                         for n in ("a", "b", "c", "alpha", "beta", "gamma"))
+            m = np.asarray(cartesian_frame(cell), dtype=np.float64)
+            x = np.array([values[q] for q in block.outputs]).reshape(-1, 3) @ m.T
+            x_in = np.array([values[q] for q in block.inputs])
+            t = block.body_points(x_in)
+            d = np.linalg.norm(x[:, None, :] - x[None, :, :], axis=2)
+            d0 = np.linalg.norm(t[:, None, :] - t[None, :, :], axis=2)
+            out[name] = float(np.abs(d - d0).max())
+        return out
 
     def _collect_atom_adps(self, base: str, sg, atom) -> None:
         """Displacement parameters: ``biso``, or aniso U^ij through DOFs.
@@ -2059,10 +2201,40 @@ class ParameterTable:
                     f"cannot tie {path!r} to {src!r}: the source is a "
                     f"{kind} row, which the affine block cannot carry, so "
                     f"{path!r} would be frozen at its present value")
+        if tie is not None:
+            self._refuse_body_increment_tie(path, tie)
         e.tie = tie
         if tie is not None:
             e.vary = False
         self._rebuild()
+
+    @staticmethod
+    def _body_increment_kind(path: str) -> str | None:
+        """``"rotation"``/``"origin"`` for a body increment entry, else ``None``."""
+        m = _BODY_INCREMENT.match(path)
+        return None if m is None else m.group(1)
+
+    def _refuse_body_increment_tie(self, path: str, tie: AffineTie) -> None:
+        """A body increment ties only to an increment of its own kind (WP-1805).
+
+        δω and δo restart at zero at every table build while the record moves,
+        so a dependent that does not restart with them reads the increment of
+        one build against the anchor of the next: WP-1803 measured the
+        dependent at 0.07 after the commit and back at 0.02 on the next build.
+        Both directions are refused, naming the pair; a body DOF may follow
+        another body DOF of the same kind, since both reset together.
+        """
+        target = self._body_increment_kind(path)
+        for src, _ in tie.terms:
+            kind = self._body_increment_kind(src)
+            if kind == target:
+                continue
+            if kind is not None or target == "rotation":
+                raise ValueError(
+                    f"cannot tie {path!r} to {src!r}: a rigid body's rotation "
+                    "and origin increments restart at zero at every build "
+                    "while its record moves, so only an increment of the same "
+                    "kind can follow one (or be followed by one)")
 
     def set_held(self, paths: str | Iterable[str], held: bool) -> list[str]:
         """Mark entries as the caller's declared hold.  Returns the ones that exist.
@@ -2872,6 +3044,15 @@ class ParameterTable:
         # so the constraint block cannot carry them and they are derived here
         self._refresh_moment_components()
         self._rebuild()  # held-source contributions to d follow the new values
+        if self._bodies:
+            # a body committed non-rigid means the map and its record disagree
+            # (WP-1803: a stale anchor at 2e-3 Å against 1e-15 Å); the commit
+            # is where a stage's answer becomes the model, so it is checked here
+            bad = {n: e for n, e in self.body_bond_errors().items() if e > 1e-9}
+            if bad:
+                raise AssertionError(
+                    f"RIGID_BODY_TEMPLATE_DRIFT at commit: rigid bodies {bad} "
+                    "(largest |d − d_template| in Å) are not rigid")
         return signs
 
     def stderr_physical(self, theta: np.ndarray, stderr_internal: np.ndarray,
@@ -3100,6 +3281,9 @@ class ParameterTable:
             if phase.microstrain is not None:
                 for name in S_NAMES:
                     put(getattr(phase.microstrain, name), f"{base}.microstrain.{name}")
+            for b, body in enumerate(phase.rigid_bodies):
+                for c in ("x", "y", "z"):
+                    put(getattr(body.origin, c), f"{base}.rigid_bodies.{b}.origin.{c}")
             for j, atom in enumerate(phase.atoms):
                 # coordinates too — without this, refined positions vanish at
                 # the next stage's recompile (models feed compile_phase_sites)
@@ -3151,3 +3335,12 @@ class ParameterTable:
                 _refuse(path, v)
         for p, path in pending:
             _write(p, path)
+        # a body's orientation record is R = Exp(δω)·R₀, composed here into
+        # the canonical quaternion the next table anchors on at δω = 0
+        # (WP-1805); the increment itself is a step, like a coordinate DOF's
+        for bbase, _, block in self._bodies:
+            ip, b = (int(t) for t in bbase.split(".")[1::2][:2])
+            w = [values[f"{bbase}.rotation.{k}"] for k in range(3)]
+            q = canonical_quaternion(quaternion_from_matrix(block.orientation(w)))
+            structure.phases[ip].rigid_bodies[b].orientation = tuple(
+                float(v) for v in np.asarray(q))

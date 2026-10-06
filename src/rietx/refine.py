@@ -309,7 +309,9 @@ def mode_fixed_path(path: str, mode: Mode) -> bool:
     # family is drawn only in Rietveld, so under an intensity model a free
     # width would be a dead column, as the moment it broadens (``.atoms.``)
     # already is here.
-    return (".atoms." in path
+    # A rigid body's origin and rotation (WP-1805) move nothing but its atoms'
+    # coordinates, so they are structural parameters too.
+    return (".atoms." in path or ".rigid_bodies." in path
             or (path.startswith("phases.") and path.endswith(".scale"))
             or ".source.lines." in path
             or _MAGNETIC_WIDTH_PATH.match(path) is not None)
@@ -2238,6 +2240,7 @@ class Refinement:
         # *makes* a variable fixed, and a row that then called it refinable
         # would invite the caller to free what the next stage fixes again.
         reach = table.entry_reach()
+        owned = table.body_rows()
         rows = []
         for e in table.entries:
             rows.append(ParameterRow(
@@ -2252,6 +2255,7 @@ class Refinement:
                             if e.path in reach
                             else mode_fixed_path(e.path, mode)),
                 needs_held_cell=e.path in blocked,
+                body=owned.get(e.path),
                 help_key=help_key_for(e.path),
             ))
         return rows
@@ -6331,8 +6335,11 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         p for d in (diagnostics if cell_runaway is None else cell_runaway)
         if d.code == "CELL_RUNAWAY" for p in d.where))
     params = []
+    # a derived row (a rigid body's atom, WP-1805) moves with θ as a tied row
+    # does and carries its esd through the block, so it is reported like one
+    derived = table.derived_paths()
     for e in table.entries:
-        if e.vary or e.tie is not None:
+        if e.vary or e.tie is not None or e.path in derived:
             params.append(RefinedParameter(
                 path=e.path, value=e.value, vary=e.vary,
                 stderr=(None if e.path in withheld

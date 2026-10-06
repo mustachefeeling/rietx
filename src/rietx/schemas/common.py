@@ -374,7 +374,11 @@ from .._nearmiss import did_you_mean
 #: Additive and defaulted to 1, the single run every earlier plan made; an older
 #: build refuses a document carrying it (``extra="forbid"``), which is the point
 #: of the bump.
-SCHEMA_VERSION = "0.41"
+#: 0.41 → 0.42 (WP-1805): ``Phase.rigid_bodies``, a list of ``RigidBody``
+#: (template, origin, orientation quaternion) over the phase's own atoms.
+#: Additive and defaulted to empty, which builds exactly the table every
+#: earlier document built; an older build refuses a document carrying a body.
+SCHEMA_VERSION = "0.42"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

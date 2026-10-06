@@ -143,6 +143,11 @@ class ParameterRow(Base):
     #: be false while ``held_because`` said nothing (the defaulted-``False``
     #: failure WP-1076 removes).
     needs_held_cell: bool = False
+    #: The rigid body whose map writes this row (WP-1805), or ``None``.  A
+    #: body atom's x, y, z are locked like a symmetry-fixed coordinate, and
+    #: this says which of the two holds it: the remedy differs (refine the
+    #: body's origin and rotation), so ``held_because`` names it first.
+    body: str | None = None
     #: The :data:`rietx.help.PARAMETER_HELP` glob whose entry describes this
     #: path, or ``None`` when no family claims it.  The only extra that is not
     #: a held-reason: it says what the parameter *is*, and it is a key rather
@@ -169,6 +174,9 @@ class ParameterRow(Base):
         after ``mode_fixed`` so that a Le Bail phase's held atom names the
         mode, which is the reason that would still hold if the hold went.
         """
+        if self.body is not None:
+            return (f"placed by rigid body {self.body!r}: refine its origin "
+                    "and rotation instead")
         if self.locked:
             return "structurally fixed by symmetry or by the model"
         if self.tie is not None:

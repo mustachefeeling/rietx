@@ -162,6 +162,20 @@ _CELL_ANGLE = HelpEntry(
     typical="90° or 120° when symmetry fixes it; 80-100° for a monoclinic β",
     anchor="peak-positions.html#lattice-metric-and-bragg-s-law",
 )
+_BODY_ORIGIN = HelpEntry(
+    title="Rigid-body origin",
+    description=(
+        "Where a rigid body's template origin sits, as fractional "
+        "coordinates. A record, like an atom's x, y and z: it follows the "
+        "body's origin degrees of freedom and is written back after each "
+        "stage. Free it with `phases.*.rigid_bodies.*.origin.dof.*`."
+    ),
+    unit=None, default=None,
+    typical="0 to 1",
+    anchor="parameterisation.html#rigid-bodies",
+)
+
+
 _ATOM_COORD = HelpEntry(
     title="Fractional coordinate",
     description=(
@@ -837,6 +851,35 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default=None,
         typical="0 to 1, in the same units as the coordinate it drives",
         anchor="parameterisation.html#site-symmetry-degrees-of-freedom",
+    ),
+    "phases.*.rigid_bodies.*.origin.x": _BODY_ORIGIN,
+    "phases.*.rigid_bodies.*.origin.y": _BODY_ORIGIN,
+    "phases.*.rigid_bodies.*.origin.z": _BODY_ORIGIN,
+    "phases.*.rigid_bodies.*.origin.dof.*": HelpEntry(
+        title="Rigid-body origin degree of freedom",
+        description=(
+            "One allowed direction of motion for a rigid body's origin, as for "
+            "an atom on its site: the body translates as one and every member "
+            "atom's coordinates follow. A step from where the fit began, like "
+            "an atom's coordinate degree of freedom."
+        ),
+        unit=None, default=None,
+        typical="a few hundredths, in the units of the coordinate it drives",
+        anchor="parameterisation.html#rigid-bodies",
+    ),
+    "phases.*.rigid_bodies.*.rotation.*": HelpEntry(
+        title="Rigid-body rotation increment",
+        description=(
+            "One component of the rotation vector, in radians, that turns a "
+            "rigid body about its origin from the orientation it started the "
+            "fit at; the three together are the rotation Exp(δω) applied to "
+            "the stored orientation. Zero at the start of every fit, and "
+            "composed into the body's stored quaternion when the fit is "
+            "written back. Bounded to ±π per component."
+        ),
+        unit=None, default=None,
+        typical="under 0.5 rad from a sensible start",
+        anchor="parameterisation.html#rigid-bodies",
     ),
     "phases.*.atoms.*.occ": HelpEntry(
         title="Site occupancy",
