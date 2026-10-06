@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: Coming from another code
 Depends on: —
-Priority: P2 2026-10-05 — was P3: #711 and #712 are two silent wrong models from the CIF reader, on a path few fits hit (PR #717 fixes both); back to P3 when it lands
+Priority: P3 2026-10-06 — was P2 for #711 and #712, which PR #717 fixed
 
 ## Goal
 
@@ -189,6 +189,17 @@ landed — #195 stays open for the fenced VESTA/Z-matrix/rigid-body parts.
 - https://checkcif.iucr.org/ — the conformance target.
 
 ## Handover log
+
+- **2026-10-06** — PR #717 (#711, #712) merged from outside as
+  `0cbb1b70`. `Structure.from_cif` moves a site onto the special position
+  its stated multiplicity names when the site lies within 1e-3 of it, and
+  `SITE_SNAPPED_TO_SPECIAL_POSITION` names the move.
+  `CIF_SITE_MULTIPLICITY_DISAGREES` reports a stated multiplicity the site
+  cannot reach. A stated zero B or occupancy now reads as zero. Gated together on a seven-PR stack replayed onto `main` at `7c8a0316` (stack `ee39adb9`, macOS arm64, `[dev,jax]`). The fast suite gave 8523 passed, 103 skipped and 2 failed. Both failures fail identically on bare `main`: the `toy_anomalous` golden (#760) and a hypothesis case in `test_indexing_reduce.py`. The whole slow tier gave 291 passed and 12 skipped. After the last merge, `main` at `0cbb1b70` is content-identical to the gated tree.
+  This WP's own tasks, checkCIF conformance and the XYZ importer, are
+  untouched. Still open from the same fork: PR #765 (#764, never count one
+  atom twice) is reviewed at round 2. It needs `_locate` limited to the
+  call's own diagnostics, and a rebase over #717.
 
 - **2026-09-01** — created, from issue #195's small slices (2026-09-01
   triage). Settled: checkCIF is hardening of an existing writer; first open

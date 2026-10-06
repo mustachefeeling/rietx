@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P2 2026-10-05 — was P4: #719, the post-solve clamp itself builds a zero-volume cell and fit() raises, so a Le Bail ladder loses that hypothesis
+Priority: P4 2026-10-06 — was P2 for #719, which PR #736 fixed; the docstring task remains
 
 ## Goal
 
@@ -84,6 +84,18 @@ not a bound.
 - Issue #283; WP-1321.
 
 ## Handover log
+
+- **2026-10-06** — PR #736 (#719) merged from outside as `3b8882b7`.
+  Where the clamp would leave a phase's cell with no volume,
+  `clamp_cell_runaway` now restores every free cell parameter of that phase
+  to the stage's starting values. `CELL_RUNAWAY` reports which parameters it
+  clamped and which it restored. The determinant is taken after
+  `refresh_ties()`, so a tied angle is read at the value the table would
+  hold. Gated together on a seven-PR stack replayed onto `main` at `7c8a0316` (stack `ee39adb9`, macOS arm64, `[dev,jax]`). The fast suite gave 8523 passed, 103 skipped and 2 failed. Both failures fail identically on bare `main`: the `toy_anomalous` golden (#760) and a hypothesis case in `test_indexing_reduce.py`. The whole slow tier gave 291 passed and 12 skipped. After the last merge, `main` at `0cbb1b70` is content-identical to the gated tree. This WP's own task, `Cell`'s docstring, is untouched. Gotcha:
+  nothing pins #719's symptom at fit level deterministically. The
+  public-path test only asserts that a `CELL_RUNAWAY` fired, because on
+  py3.13 its trajectory never reaches the degenerate corner. The restore is
+  pinned at table level.
 
 - **2026-09-30** — created, from the 2026-09-30 issue triage (issue #283).
   Checked against the tree at `e3e6486a`: the `Cell` fields are still bare

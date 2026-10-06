@@ -654,9 +654,26 @@ CLAIMS: tuple[Claim, ...] = (
                   "band, not 1e-4 A ground truth.  The esd window is "
                   "one-sided on purpose: ours carry Berar-Lelann inflation "
                   "and GSAS's do not",
-        measured="Rwp 0.0970 vs 0.1005, Rp 0.0774 vs 0.0766, cell +114/+112 "
-                 "ppm with the two agreeing inside 1e-4, at 2.5e-6 (the "
-                 "uniformity claim); channel count 5750 exactly",
+        measured="Rwp 0.0925 vs 0.1005, Rp 0.0712 vs 0.0766, cell +83/+82 "
+                 "ppm with the two agreeing inside 1e-4, at 2.7e-7 (the "
+                 "uniformity claim); channel count 5750 exactly (GU GV GW "
+                 "read as a Gaussian variance, #735; before: Rwp 0.0970, "
+                 "Rp 0.0774, cell +114/+112 ppm)",
+    ),
+    Claim(
+        "test_acceptance_fap",
+        "test_fap_lorentzian_matches_gsas_lx_on_gsas_own_model",
+        "fap", ("cross_code", "characterisation"),
+        "the sample Lorentzian rietx refines against GSAS's own LX, with the "
+        "two things GSAS's function 2 lacks (axial divergence, the preset's "
+        "instrument X) removed, and with the held Gaussian read both as the "
+        "variance the manual states and as the FWHM-squared it was once read as",
+        reference="FAP.EXP's LX = 3.35183 centideg = 0.0335 deg, a fitted "
+                  "output under held GU GV GW.  Bar rel=0.05 on the variance "
+                  "reading; the old reading must miss by more than 25 %, and "
+                  "the corrected one must have the lower Rwp",
+        measured="lor_size 0.0326 (-2.7 %, Rwp 0.0953) with the variance "
+                 "reading; 0.0497 (+48 %, Rwp 0.1090) with the old one",
     ),
     Claim(
         "test_acceptance_fap", "test_tying_the_similar_atoms_bisos_buys_precision",

@@ -1012,3 +1012,54 @@ def test_a_species_gsas2_would_import_as_another_element_is_refused(tmp_path,
     if "isotope" in match:
         assert "General" in str(exc.value) and "Isotope" in str(exc.value)
     assert not (tmp_path / "bad.cif").exists()
+
+
+# ------------------- a rhombohedral-axes phase: GSAS-II's CIF import has no such axes
+
+
+def _corundum_type_rhombohedral() -> rx.Phase:
+    cell = rx.Cell(a=rx.Parameter(value=5.4226), b=rx.Parameter(value=5.4226),
+                   c=rx.Parameter(value=5.4226), alpha=rx.Parameter(value=55.2757),
+                   beta=rx.Parameter(value=55.2757), gamma=rx.Parameter(value=55.2757))
+
+    def site(label, species, xyz):
+        return rx.Atom(label=label, species=species, x=rx.Parameter(value=xyz[0]),
+                       y=rx.Parameter(value=xyz[1]), z=rx.Parameter(value=xyz[2]),
+                       biso=rx.Parameter(value=0.4))
+    return rx.Phase(name="corundum-type", space_group="R -3 c:R", cell=cell,
+                    atoms=[site("M1", "Fe3+", (0.1448, 0.1448, 0.1448)),
+                           site("O1", "O2-", (0.9407, 0.5593, 0.25))])
+
+
+def test_a_rhombohedral_axes_phase_is_written_in_hexagonal_axes(tmp_path):
+    """GSAS-II 5.6.3's importer gives up on ``R -3 c :R`` ("Numbers of symmetry
+    elements from input (12) does not match GSAS-II's list (36) … a space group
+    setting not compatible with GSAS-II"; scriptable ``add_phase``, black box).
+    The CIF states the hexagonal cell of the same lattice instead, and the
+    diagnostic names it."""
+    found: list = []
+    out = tmp_path / "r.cif"
+    rx.write_gsas2_phase_cif(rx.Structure(phases=[_corundum_type_rhombohedral()]),
+                             out, diagnostics=found)
+    [note] = [d for d in found if d.code == "GSAS2_CIF_RHOMBOHEDRAL_RESTATED"]
+    assert note.where == ["phases.0"]
+    text = out.read_text(encoding="utf-8")
+    assert "R -3 c:H" in text and "_cell_angle_gamma 120" in text
+    back = rx.Structure.from_cif(out).phases[0]
+    a, _b, c, alpha, beta, gamma = back.cell.lengths_angles()
+    assert (a, c) == (pytest.approx(5.03089, abs=2e-5),
+                      pytest.approx(13.73724, abs=2e-5))
+    assert (alpha, beta, gamma) == (90.0, 90.0, 120.0)
+    assert len(back.atoms) == 2 and back.atoms[0].x.value == 0.0
+
+
+def test_a_hexagonal_phase_gets_no_restatement_note(tmp_path):
+    found: list = []
+    phase = _corundum_type_rhombohedral().model_copy(update={
+        "space_group": "R -3 c:H", "cell": rx.Cell(
+            a=rx.Parameter(value=5.0309), b=rx.Parameter(value=5.0309),
+            c=rx.Parameter(value=13.7372), alpha=rx.Parameter(value=90.0),
+            beta=rx.Parameter(value=90.0), gamma=rx.Parameter(value=120.0))})
+    rx.write_gsas2_phase_cif(rx.Structure(phases=[phase]), tmp_path / "h.cif",
+                             diagnostics=found)
+    assert not [d for d in found if "RHOMBOHEDRAL" in d.code]

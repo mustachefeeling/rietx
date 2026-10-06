@@ -1,8 +1,7 @@
 # WP-1803 — the body seam: a derived block, or a linearisation inside C
 
-Milestone: rigid-bodies · Status: 🔄 2026-10-01 — decision accepted, the typed `derived` block (#596); the re-cut of R2b onward is open
+Milestone: rigid-bodies · Status: ✅ 2026-10-06 — decision recorded (the typed `derived` block, #596); the rest re-cut as WP-1804 to WP-1813
 Depends on: 1801
-Priority: P2 2026-09-30 — the decision every later rigid-body WP waits on; it carries the six open questions of the 2026-09-30 review
 
 ## Goal
 
@@ -65,7 +64,7 @@ itself edits no repo file but DESIGN.md and may run now.
 
 - [x] Spike script in the scratchpad: the linearised body, the exact chain, the stretch and esd numbers
 - [x] The six answers, in DESIGN.md § Parameter system, with the measured figures
-- [ ] Re-cut the remaining chunks (R2b onward) as WPs from the record; R3 is sized L, with the anchored-rotation kind, tie refusals, `help.py`, `gui/src/lib/history.ts` PLACES and the `ParameterRow` field pin
+- [x] Re-cut the remaining chunks (R2b onward) as WPs from the record; R3 is sized L, with the anchored-rotation kind, tie refusals, `help.py`, `gui/src/lib/history.ts` PLACES and the `ParameterRow` field pin
 - [x] Skill: none
 
 ## Acceptance
@@ -78,6 +77,38 @@ The DESIGN.md clause exists and quotes the numbers. `tests/test_docs_consistency
 - Issue #561; WP-1514; the 2026-09-30 review in WP-1514's `### Inherited`.
 
 ## Handover log
+
+### 2026-10-06 — the re-cut, and closed
+
+The rigid-body milestone now has its full work list. Chunks R2b to R12 of issue #561 are
+WP-1804 to WP-1813, cut from the proposal in #596's description, so a session can pick
+up any of them from its own file. WP-1804 (the derived block) is the next one, and an
+open PR (#773) already builds it.
+
+*Done:* ten WP files, each from #596's text, with the maintainer's answers to the three
+questions the contributor raised on #561 on 2026-10-06:
+1. **Composition stays at commit** (the DESIGN.md record), not at write-back. So WP-1805
+   also extends `rechart_outcome` to carry the solver outcome into the composed chart.
+2. **Acridine's bar stays the published esds.** WP-1806 grows from S to M and starts
+   with the pdCIF reader fix and the authors' profile. It also measures how closely the
+   rigid template can fit the deposited atoms before setting any tolerance.
+3. **R2b keeps both body rows** (a toy-block cross-backend row and the stage-boundary
+   regeneration). `backend/traced.py` gains a path, and root CLAUDE.md requires the
+   cross-backend configs to grow with it.
+
+Further changes from #596's text:
+- WP-1805 carries this WP's 2026-10-01 note (bound |δω| or re-anchor past π) and keeps
+  the `Log` rule in `displace_anchored_dofs`. Public body verbs are deferred rather than
+  raising `api.md`'s cap.
+- WP-1809 records that an outside branch builds the anti-bump list in the caller rather
+  than at plan compile, a departure from the record that needs asking first.
+- WP-1810's dependency on WP-1806 is soft, since nothing in it reads that data.
+- R5 stays uncut, as #596 argued.
+
+*Not done:* issue #775's body-misfit diagnostic is not in the record and is not cut
+here; it goes to `/issue-review`. `docs/DESIGN.md` is unchanged, because every answer
+kept the record.
+*Next:* review #773 against WP-1804.
 
 ### 2026-10-01 (2nd session) — the decision accepted and merged
 

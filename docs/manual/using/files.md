@@ -131,7 +131,16 @@ special position without being on it, as a file quoting five decimals often
 leaves one. Such a site has its orbit expanded at that position, so its
 multiplicity is the special one, and `SITE_SNAPPED_TO_SPECIAL_POSITION` names
 the site, the shift and the multiplicity. The stored coordinates are unchanged
-and the fit is unaffected. What the multiplicity decides is how many atoms the
+and the fit is unaffected, with one exception. Where the file states the
+multiplicity (`_atom_site_symmetry_multiplicity`, or the number in
+`_atom_site_Wyckoff_symbol`) and the site is within 1e-3 of the position that
+multiplicity names, the reader moves the site onto it, since the forward model
+would otherwise put twice the atoms in the cell; the same code names the move.
+A stated multiplicity the site cannot reach, or one larger than the coordinates
+give, moves nothing and reports `CIF_SITE_MULTIPLICITY_DISAGREES`. A stated B_iso
+of 0 or a stated occupancy of 0 is read as that value, not as a missing column
+that takes the default (0.5 Å², occupancy 1); a null `.` or `?` is not a
+statement. What the multiplicity decides is how many atoms the
 site puts in the cell, and so ZMV and every weight fraction; compare it against
 the file's own `_atom_site_symmetry_multiplicity`.
 
@@ -398,6 +407,23 @@ cannot state is refused by name:
 
 The group's symbol rides as a comment and is not read back.
 
+A magnetic phase the `str` cannot state goes through P1. `write_topas_inp(structure,
+path, p1_expand=True)` writes every phase as the explicit list of the atoms of
+its cell, in `P 1`, each with its own moment, and a magnetic phase as
+`mag_space_group 1.1`. A k ≠ 0 supercell, a family group TOPAS has no number for
+and a non-standard setting all go through this way, because the restatement
+needs neither the parent k nor a group name. The list comes from
+`rietx.crystallography.magnetic.p1.restate_phase_in_p1`, which runs the forward
+model's own expansion: each position is `R·x + t`, each moment is
+`ε·det(R)·R·m` (an axial vector, with ε = −1 for a primed operation or an
+anti-translation) in crystal-axis μ_B, and each displacement tensor is rotated
+with its image. `predict()` on the restatement equals `predict()` on the
+original to about 1e-12, so the list also serves as a check on the moments of
+every atom of the cell. The species of a moment-bearing atom is written as its
+ion, which a neutron pattern does not notice. Every flag in the file is `!`: the
+ties that made the copies one parameter are not stated in P1, so free what you
+mean to refine in TOPAS yourself.
+
 ### A magnetic phase from a FullProf `.pcr`
 
 FullProf states a magnetic structure as a separate *pure magnetic* phase
@@ -493,9 +519,10 @@ PNCR` with profile function 3, reads too, onto
 record is defined by profile function rather than by radiation, so the same
 coefficients land in the same places. A neutron source has one wavelength and
 no polarization, so such a file's `POLA` and `KRATIO` are read and not applied,
-and a non-zero `LAM2` is refused. It converts `GU`/`GV`/`GW`
-from centidegrees² and `LX`/`LY` from centidegrees into the degrees² and degrees
-`ProfileTCHZ` uses. A file stating a Kα1/Kα2 doublet comes back with two
+and a non-zero `LAM2` is refused. `GU`/`GV`/`GW` are the
+coefficients of a Gaussian variance in centidegrees², and `profile.u/v/w` those of
+the Gaussian FWHM² in degrees², so they are the file's values × 8 ln 2 × 10⁻⁴;
+`LX`/`LY` are centidegrees, × 10⁻² into degrees. A file stating a Kα1/Kα2 doublet comes back with two
 emission lines, the second weighted by the `KRATIO` field, which is the Kα2/Kα1
 intensity ratio and so is what `EmissionLine.weight` means. A doublet with no
 `KRATIO` is refused: the conventional 0.5 would be the reader's number rather
@@ -729,6 +756,11 @@ bare-symbol convention already prefers (root CLAUDE.md's "an R lattice on
 rhombohedral axes" and "choice 2 wherever the bare symbol lands on choice
 1"). A phase whose resolved setting disagrees, most commonly origin choice 1,
 is refused by name instead of being silently written as the other setting.
+A phase on rhombohedral axes is written in hexagonal ones, because FullProf
+reads `R -3 c` as hexagonal whatever the cell says and GSAS-II's CIF import
+refuses the rhombohedral setting; `FULLPROF_RHOMBOHEDRAL_RESTATED` and
+`GSAS2_CIF_RHOMBOHEDRAL_RESTATED` say so, and the restated cell and coordinates
+are held.
 TOPAS and GSAS can both spell every setting, so neither owes that refusal. An
 anisotropic site is refused by the FullProf and GSAS writers, because
 `to_structure` refuses to assume a displacement-tensor convention on the way

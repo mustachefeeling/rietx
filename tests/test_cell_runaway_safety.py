@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import pytest
 
 from rietx import Instrument, Refinement
@@ -900,3 +901,182 @@ def test_an_angle_outside_zero_to_180_is_clamped(beta):
     clamped = clamp_cell_runaway(table, start_values)
     assert [(p, old) for p, old, _ in clamped] == [("phases.0.cell.beta", beta)]
     assert 0.0 < clamped[0][2] < 180.0
+
+
+# ----------------------------------------------------------------------
+# The clamp must not hand back a cell with no volume (#283 / #289, one rank on)
+# ----------------------------------------------------------------------
+def _p1_table(cell):
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas.structure import lebail_scaffold
+
+    ins = Instrument.bragg_brentano(radiation="CuKa")
+    ins.background = BackgroundChebyshev.with_terms(3)
+    table = ParameterTable(lebail_scaffold("P 1", cell), ins)
+    table.set_vary(["phases.0.cell.*"], True)
+    return table
+
+
+TRICLINIC = [2.733385, 2.361025, 2.548007, 127.8106, 113.4292, 108.7994]
+CELL_NAMES = ("a", "b", "c", "alpha", "beta", "gamma")
+
+
+def test_a_clamp_that_lands_on_a_degenerate_corner_restores_the_start_cell():
+    """Each parameter is clamped to its own window, so three escaped angles
+    land on the window's corner, ``start + 6°`` each: here α, β, γ =
+    133.8°, 119.4°, 114.8°, a direct-metric determinant of −126.  The cell the
+    stage started with is the one a Le Bail stage can still evaluate."""
+    table = _p1_table(TRICLINIC)
+    start_values = table.decode(table.x0())
+    for name in CELL_NAMES:
+        entry = table.entries[table._paths[f"phases.0.cell.{name}"]]
+        entry.value = start_values[f"phases.0.cell.{name}"] * (
+            1.5 if name in "abc" else 1.4)             # far outside the window
+    clamped = clamp_cell_runaway(table, start_values)
+    assert len(clamped) == 6
+    for path, escaped, restored in clamped:
+        assert restored == pytest.approx(start_values[path]), path
+        assert table.entries[table._paths[path]].value == pytest.approx(
+            start_values[path])
+        assert escaped != pytest.approx(start_values[path])
+
+
+def test_a_reverted_phase_is_told_apart_from_a_clamped_one_in_the_record():
+    """The diagnostic must not say a restored cell was "pulled back to the
+    window edge": its right-hand value is the start, not an edge."""
+    table = _p1_table(TRICLINIC)
+    start_values = table.decode(table.x0())
+    for name in CELL_NAMES:
+        entry = table.entries[table._paths[f"phases.0.cell.{name}"]]
+        entry.value = start_values[f"phases.0.cell.{name}"] * (
+            1.5 if name in "abc" else 1.4)
+    reverted = clamp_cell_runaway(table, start_values)
+    assert all(c.reverted for c in reverted)
+    message = _cell_runaway_diagnostic(reverted).message
+    assert "restored to this stage's starting values" in message
+    assert "no volume" in message
+
+    # positive arm for the old sentence: an ordinary clamp says nothing of it
+    table = _p1_table(TRICLINIC)
+    start_values = table.decode(table.x0())
+    entry = table.entries[table._paths["phases.0.cell.alpha"]]
+    entry.value = start_values["phases.0.cell.alpha"] + 20.0
+    clamped = clamp_cell_runaway(table, start_values)
+    assert not any(c.reverted for c in clamped)
+    message = _cell_runaway_diagnostic(clamped).message
+    assert "pulled back to the window edge" in message
+    assert "restored" not in message
+
+
+def test_the_determinant_is_taken_on_the_cell_the_table_would_hold():
+    """Rhombohedral axes, α free with β, γ ← α: start 100°, solved 140°.  The
+    clamp rewrites α alone (to 106°) and the ties are refreshed afterwards by
+    the caller, so a determinant read straight off the entries sees
+    (106°, 140°, 140°), a cell with no volume, though the cell the table holds
+    once ``β = γ = α`` follows is (106°, 106°, 106°) and is fine (review of
+    #736, round 2).  Positive arm: the phase is not reverted."""
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas.structure import lebail_scaffold
+
+    ins = Instrument.bragg_brentano(radiation="CuKa")
+    ins.background = BackgroundChebyshev.with_terms(3)
+    table = ParameterTable(
+        lebail_scaffold("R -3 m:R", [5.0, 5.0, 5.0, 100.0, 100.0, 100.0]), ins)
+    table.set_vary(["phases.0.cell.*"], True)
+    start_values = table.decode(table.x0())
+    by_path = {e.path: e for e in table.entries}
+    by_path["phases.0.cell.alpha"].value = 140.0
+    for tied in ("beta", "gamma"):
+        by_path[f"phases.0.cell.{tied}"].value = 140.0     # what commit leaves
+    clamped = clamp_cell_runaway(table, start_values)
+    assert [c[0] for c in clamped] == ["phases.0.cell.alpha"]
+    assert not any(c.reverted for c in clamped)
+    assert by_path["phases.0.cell.alpha"].value == pytest.approx(106.0)
+    for tied in ("beta", "gamma"):
+        assert by_path[f"phases.0.cell.{tied}"].value == pytest.approx(106.0)
+
+
+def test_a_reverted_phase_restores_every_free_cell_parameter():
+    """Three angles escape to the degenerate corner while ``a`` drifts inside
+    its window.  The record's claim is that the phase is back at the stage's
+    starting cell, so ``a`` is restored too and is reported as reverted, with
+    the solved value it was restored from."""
+    table = _p1_table(TRICLINIC)
+    start_values = table.decode(table.x0())
+    by_path = {e.path: e for e in table.entries}
+    for name in ("alpha", "beta", "gamma"):
+        by_path[f"phases.0.cell.{name}"].value = start_values[
+            f"phases.0.cell.{name}"] * 1.4
+    drifted = start_values["phases.0.cell.a"] * 1.01        # inside ±15 %
+    by_path["phases.0.cell.a"].value = drifted
+    found = clamp_cell_runaway(table, start_values)
+    assert len(found) == 6 and all(c.reverted for c in found)
+    for path in start_values:
+        if ".cell." in path:
+            assert by_path[path].value == pytest.approx(start_values[path]), path
+    [a_row] = [c for c in found if c[0] == "phases.0.cell.a"]
+    assert a_row[1] == pytest.approx(drifted)
+    assert a_row[2] == pytest.approx(start_values["phases.0.cell.a"])
+    message = _cell_runaway_diagnostic(found).message
+    assert "pulled back to the window edge" not in message
+    assert "restored to this stage's starting values" in message
+
+
+def test_a_clamp_that_stays_a_valid_cell_is_unchanged():
+    """The negative arm: one angle escaped, the cell clamped to its window edge
+    still has a positive determinant, and the clamp is what it always was."""
+    table = _p1_table(TRICLINIC)
+    start_values = table.decode(table.x0())
+    entry = table.entries[table._paths["phases.0.cell.alpha"]]
+    entry.value = start_values["phases.0.cell.alpha"] + 20.0
+    clamped = clamp_cell_runaway(table, start_values)
+    [(path, escaped, target)] = clamped
+    lo, hi = cell_window("alpha", start_values[path], -math.inf, math.inf,
+                         fraction=CELL_SAFETY_FRACTION,
+                         angle_deg=CELL_SAFETY_ANGLE_DEG)
+    assert path == "phases.0.cell.alpha" and target == pytest.approx(hi)
+    assert entry.value == pytest.approx(hi)
+
+
+def test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error(tmp_path):
+    """The public path: a P 1 Le Bail fit of a valid but wrong ~7 Å^3 cell on
+    synthetic silicon (``tests/_synthetic_silicon.py``), two
+    stages.  The second ended on the clamp's degenerate corner and raised
+    ``DegenerateCellError`` out of ``fit`` from ``phase_support``."""
+    import rietx as rx
+    from rietx.schemas.structure import lebail_scaffold
+    from tests._synthetic_silicon import silicon_pattern
+
+    # through a file, as the report reproduced it: the trajectory of this fit
+    # is pattern-dependent and the 4-decimal 2θ column is part of the pattern
+    path = tmp_path / "si_flat.xy"
+    pattern = silicon_pattern("flat")
+    np.savetxt(path, np.c_[pattern.two_theta, pattern.intensity], fmt="%.4f %.0f")
+    data = rx.read_pattern(path)
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    ins.background = rx.background.auto_background(data)
+    structure = lebail_scaffold("P 1", TRICLINIC)
+    findings = []
+    for plan in ("profile_only", "lab_bragg_brentano"):
+        ref = rx.Refinement(structure, ins, history=False)
+        result = ref.fit(data, mode="lebail", plan=plan, telemetry=False,
+                         two_theta_limits=(8.0, 70.0))
+        assert 0.0 < float(result.statistics.rwp) < 1.0
+        findings += [d for d in result.diagnostics if d.code == "CELL_RUNAWAY"]
+        # fit plot for visual inspection (tests/output/, gitignored)
+        from pathlib import Path
+
+        from rietx.viz.plots import plot_result
+        out = Path(__file__).parent / "output"
+        out.mkdir(exist_ok=True)
+        plot_result(result, path=str(out / f"cell_runaway_p1_lebail_{plan}.png"))
+        structure, ins = ref.fitted_structure, ref.fitted_instrument
+    # pin that the runaway guard was exercised.  Which of its two outcomes (a
+    # clamp, or a restore of a degenerate cell) this trajectory reaches depends
+    # on the platform's Python and BLAS: py3.13 CI clamps all six parameters and
+    # never reaches the degenerate corner.  The restore is pinned
+    # deterministically by the unit tests above, so here either message will do.
+    assert findings, "no CELL_RUNAWAY fired: the fit no longer reaches the guard"
+    assert all("restored to this stage's starting values" in d.message
+               or "pulled back to the window edge" in d.message
+               for d in findings), [d.message for d in findings]
