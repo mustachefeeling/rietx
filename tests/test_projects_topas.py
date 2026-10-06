@@ -4693,3 +4693,23 @@ def test_what_the_file_states_whole_is_not_named(tmp_path):
     [named] = diags
     assert named.code == "TOPAS_FIELD_NOT_WRITTEN"
     assert named.where == ["phases.0.extinction"]
+
+
+def test_every_named_term_is_a_parameter_table_path(tmp_path):
+    """``where`` is matched against ``ref.parameters()``, so each path must be
+    a real entry: texture is ``….preferred_orientation.r``, not the block."""
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas.instrument import Instrument
+    from rietx.schemas.structure import PreferredOrientation
+
+    structure = _rutile_with(
+        preferred_orientation=PreferredOrientation(
+            axis=(0, 0, 1), r=rx.Parameter(value=0.8, min=0.1, max=3.0)),
+        extinction=rx.Parameter(value=40.0, min=0.0))
+    diags: list = []
+    write_topas_inp(structure, tmp_path / "t.inp", diagnostics=diags)
+    [named] = diags
+    assert sorted(named.where) == ["phases.0.extinction",
+                                   "phases.0.preferred_orientation.r"]
+    table = ParameterTable(structure, Instrument.debye_scherrer(wavelength=1.5406))
+    assert set(named.where) <= {e.path for e in table.entries}

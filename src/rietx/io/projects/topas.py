@@ -4802,7 +4802,8 @@ def _not_written_diagnostics(structure: Structure) -> list[Diagnostic]:
 
     The magnetic-only widths (they apply to magnetic reflections alone, which
     a structure-only ``str`` cannot single out), extinction and a preferred
-    orientation with r ≠ 1. One diagnostic per file; ``where`` names each term.
+    orientation with r ≠ 1. One diagnostic per file; ``where`` names each term by
+    its parameter-table path (``…preferred_orientation.r``, not the block).
     """
     where, named = [], []
     for i, phase in enumerate(structure.phases):
@@ -4812,7 +4813,7 @@ def _not_written_diagnostics(structure: Structure) -> list[Diagnostic]:
                 here.append((name, what))
         po = phase.preferred_orientation
         if po is not None and po.r.value != 1.0:
-            here.append(("preferred_orientation",
+            here.append(("preferred_orientation.r",
                          "the March-Dollase preferred orientation"))
         if here:
             where += [f"phases.{i}.{name}" for name, _ in here]
