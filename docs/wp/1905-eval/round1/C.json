@@ -1,0 +1,1575 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.291",
+  "startedAt": "2026-10-06T09:26:22.018Z",
+  "durationSeconds": 1998,
+  "costUsd": 7.7307908,
+  "partial": false,
+  "suite": {
+    "root": "/Users/Shared/rietx-eval/build-body",
+    "ablation": "with-without",
+    "modelOverride": "sonnet",
+    "judgeModel": "sonnet",
+    "tagFilters": [
+      "fap"
+    ],
+    "threshold": 1,
+    "concurrency": 1,
+    "plugins": [
+      {
+        "name": "rietx-skill-eval",
+        "version": "0.0.0",
+        "path": "/Users/Shared/rietx-eval/build-body"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "fap-fit",
+      "dir": "evals/fap-fit",
+      "source": "mixed",
+      "promptMarkdown": "FAP.XRA is a lab powder pattern of fluorapatite, Ca5(PO4)3F, collected on a Bragg-Brentano diffractometer with Cu Kα radiation (doublet, no monochromator). fluorapatite.cif is the starting model. Refine the structure against the pattern with rietx and write me a short report.md: the refined cell parameters a and c with their esds in value(esd) notation, as in 1.2345(6) Å, and a list of which refined numbers you would not yet put in a paper and why.\n\nrietx is installed for the python interpreter /opt/homebrew/var/rietx-eval/venv/bin/python. Your working directory holds FAP.XRA and fluorapatite.cif.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 1200,
+      "maxTurns": 60,
+      "graders": [
+        {
+          "name": "caveats_named",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS only with concrete evidence; do not give the benefit of the doubt. Does the report name at least one specific refined quantity it declines to quote AND give a specific, checkable reason tied to this fit (for example: a named diagnostic code, a correlation between zero shift and sample displacement or between the cell and either of them, a background-flexibility screen, a bound hit, an undersampling warning)? A generic caveat (\"Rietveld esds are underestimated\") without a quantity and a fit-specific reason is FAIL.",
+          "config": {
+            "criteria": "PASS only with concrete evidence; do not give the benefit of the doubt. Does the report name at least one specific refined quantity it declines to quote AND give a specific, checkable reason tied to this fit (for example: a named diagnostic code, a correlation between zero shift and sample displacement or between the cell and either of them, a background-flexibility screen, a bound hit, an undersampling warning)? A generic caveat (\"Rietveld esds are underestimated\") without a quantity and a fit-specific reason is FAIL.",
+            "focus": {
+              "source": "file",
+              "path": "report.md"
+            }
+          }
+        },
+        {
+          "name": "cell_a",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "report.md"
+            },
+            "pattern": "9\\.37(0[89]|[12]\\d|3[0-4])\\d*\\s?\\(\\d+\\)",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "cell_c",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "report.md"
+            },
+            "pattern": "6\\.88(5[2-9]|6\\d|7[01])\\d*\\s?\\(\\d+\\)",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "ran_fit",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Bash",
+            "input_match": "python[0-9.]*\\s+[^\\s\"]+\\.py|\\.fit\\(|\\brefine\\("
+          }
+        },
+        {
+          "name": "report_written",
+          "type": "file_exists",
+          "weight": 1,
+          "config": {
+            "path": "report.md",
+            "exists": true
+          }
+        },
+        {
+          "name": "skill_fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "arm": "with-only"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 16,
+            "costUsd": 0.44951739999999996,
+            "judgeCostUsd": 0.013692,
+            "durationSeconds": 168,
+            "startedAt": "2026-10-06T09:26:22.063Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-883UY2/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "caveats_named",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "# Fluorapatite FAP.XRA – Rietveld refinement with rietx\n\nData: Bragg-Brentano, Cu Kα1+Kα2 doublet (no monochromator), 15.00–130.00° 2θ, step 0.02°.\nThe last two channels of the file are zeros (padding), so I fitted 15.0–129.9° (5746 points).\nModel: P6₃/m, starting model `fluorapatite.cif`. Background was a P-spline.\nSequence: Le Bail (cell + profile), then `lab_bragg_brentano`, then `mccusker_structural`.\nThe refined set was scale, background, cell, zero shift, Caglioti U/V/W, X/Y, axial divergence,\ncoordinates and Biso. Extinction was set to ~0 and had no effect.\nrietx 1.7.0.dev0, numpy backend, trf solver.\n\n## Refined cell (primary result)\n\n| | value | note |\n|---|---|---|\n| a | **9.37225(13) Å** | esd inflated ×1.93 (Bérar–Lelann); raw esd 0.000066 |\n| c | **6.88624(12) Å** | raw esd 0.000063 |\n\nFit quality: Rwp 8.40 %, Rexp 5.57 %, GoF 1.51, Durbin-Watson 1.15, max shift/esd 1e-4.\nHere zero shift was refined and sample displacement held at 0.\nThe refined zero shift was −0.037°.\n\n**These esds are statistical only and understate the real uncertainty (see the first item below).**\n\n## Refined numbers I would not yet put in a paper\n\n1. **The cell parameters themselves, despite their small esds.**\n   The result depends on how the zero shift and sample displacement are treated, and the data cannot choose:\n\n   | zero / displacement treatment | Rwp | a (Å) | c (Å) |\n   |---|---|---|---|\n   | zero free, displacement 0 (primary) | 8.40 % | 9.37225 | 6.88624 |\n   | zero 0, displacement free | 8.43 % | 9.37323 | 6.88696 |\n   | both free | 8.35 % | 9.36923 | 6.88401 |\n\n   - With both free, the pair is flagged `FLAT_DIRECTION` (ρ = +1.000). It also converges to an unphysical zero of −0.158° and displacement of −0.22 mm.\n   - Between treatments, a moves by ≈0.004 Å, about 60 raw esds, while Rwp changes by under 1 % of itself.\n   - A realistic uncertainty is therefore of order ±0.002 Å in a and ±0.001 Å in c, not ±0.0001 Å.\n   - This is a lab pattern with no internal standard, so the absolute cell cannot be certified from it.\n   - To publish a cell, re-measure with an internal standard (e.g. SRM 660c LaB₆) or calibrate with `lab_calibrate`.\n2. **Zero shift and sample displacement.** They are collinear here (ρ = 1.000), so neither is a measurement. Their esds are not meaningful, and displacement has no esd at all in the primary fit.\n3. **Biso values, especially F and the oxygens.**\n   - Values are F 1.04(17), O5 0.40(13), O6 0.49(13) and O7 0.46(9) Å², with Ca and P at 0.36–0.54 Å².\n   - They are correlated with scale, background and absorption, and the deliverable-level check lists exchangeable rows for each.\n   - No absorption or roughness correction was refined (the Bragg-Brentano µt is not refined), so they absorb that.\n   - The F value is also bias-prone because F is a weak scatterer sitting beside Ca.\n   - Their esds are inflated ×1.9 and still not independent of the background choice.\n4. **Atomic coordinates (and the bond lengths and angles derived from them).**\n   - There is no sign of a problem, since they stay within about 0.003 of the starting model.\n   - But the fit has DW 1.15, so there is residual serial correlation, and 4.6 steps per FWHM (`PATTERN_UNDERSAMPLED`) limits how well intensities were measured.\n   - 16 unmatched observed peaks were flagged in an earlier pass. I have not identified them, so a minor impurity phase or Kα2/Kβ tails are not excluded.\n   - Rwp 8.4 % with GoF 1.5 is not at the noise floor (χ² 2.3), so the model is incomplete somewhere.\n5. **Profile terms U, V, W (and the size/strain interpretation of X, Y).**\n   - rietx warns `RESOLUTION_UNCONSTRAINED`, because the pattern is predominantly Lorentzian (Gaussian carries ~42 % of the width).\n   - U, V and W are not determined by the data, and the Kα2 doublet and axial divergence are partly correlated with them.\n   - I would not interpret them physically or derive crystallite size or strain from them.\n6. **Ca1 z = 0.0014.** This site is within about 0.0014 of the special position z = 0, so it may really be z = 0 within error, but I did not test that.\n7. **Background and extinction.**\n   - The background has about 40 coefficients, and many show ρ ≈ 0.985 or higher. Their individual values mean nothing.\n   - The extinction parameter ended at ~0 with an esd larger than its value. It is effectively unrefined.\n\n## Protocol notes\n\n- Zero-valued padding channels were excluded by restricting 2θ to 15.0–129.9°. The file header says 90.000, but the data run to 130°.\n- No preferred orientation or roughness was applied.\n- Kα2/Kα1 ratio was left at the preset 0.5.\n- The scripts are not saved in the working directory. The numbers above are from the runs described.\n"
+              },
+              {
+                "name": "cell_a",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched 9\\.37(0[89]|[12]\\d|3[0-4])\\d*\\s?\\(\\d+\\)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched 6\\.88(5[2-9]|6\\d|7[01])\\d*\\s?\\(\\d+\\)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 7x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "report_written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "report.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill_fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 15,
+            "costUsd": 0.3597075999999999,
+            "judgeCostUsd": 0.010422000000000004,
+            "durationSeconds": 104,
+            "startedAt": "2026-10-06T09:29:09.785Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-nDNzgI/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "caveats_named",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "# Fluorapatite FAP.XRA: rietx refinement\n\nCu Kα doublet, Bragg-Brentano, 15–130° 2θ, 5753 points, P6₃/m. I ran a Le Bail fit with the `profile_only` plan, then a Rietveld fit with the `lab_bragg_brentano` plan. Zero shift was **held at 0**, and sample displacement was refined (−0.027 ± 0.002).\n\n## Cell (esds include the Bérar–Lelann inflation, ×3.15)\n\n- a = 9.3719(1) Å\n- c = 6.8860(1) Å\n\nRwp = 9.4 %, GoF = 1.7, Durbin-Watson = 0.97.\n\nRead these esds as a lower bound. The cell depends on which degenerate instrument term is refined (see below):\n\n| Variant | a (Å) | c (Å) |\n|---|---|---|\n| zero held, displacement refined (above) | 9.37185(13) | 6.88595(12) |\n| displacement held, zero refined | 9.37224(16) | 6.88623(14) |\n| displacement held, zero refined, range 15–120° | 9.37246(9) | 6.88639(8) |\n| mccusker_structural plan, displacement held | 9.37095(13) | 6.88532(12) |\n\nThe spread is about 0.0004 Å in a. A realistic uncertainty is a = 9.3719(4) Å and c = 6.8860(4) Å, at best.\n\nFitting zero and displacement together gave a = 9.3683(16) Å. I did not use that value, because the two are perfectly collinear and the cell is then not measured.\n\n## Not ready for a paper\n\n- **Zero shift and sample displacement.** They are perfectly collinear here (ρ = +1.000, `FLAT_DIRECTION`). I held one and fitted the other, so neither value is a measurement. Neither is the cell esd. The cell shifts by more than its esd depending on which one is held. A standard (`lab_calibrate`) or a wider range is needed to separate them.\n- **Axial divergence (axial_sl and axial_hl).** ρ = −1.000, the same kind of degeneracy. Quote neither.\n- **Background coefficients (41 of them).** They are correlated at ρ ≈ 1 and flagged `FLAT_DIRECTION`. The background is over-flexible and can absorb Biso and the scale, so those values are suspect.\n- **Atomic positions and Biso.** The default plan did not free them. They are still the CIF's (Hughes et al. 1989) values, so they are not refined results. The Biso values have exchangeability rows with the scale, cell, zero and background (R² up to 0.48), and the swap test was not run. I would not quote refined Biso values.\n- **All esds.** The residuals are strongly serially correlated (Durbin-Watson ≈ 0.97, inflation ×3.2). Raw χ²_red is 2.8. The esds are already inflated, but a misfit this large means systematic error probably dominates them.\n- **Misfit at the high-angle end.** The 126.7–131.5° region carries 16 % of χ², and 31.5–32.3° carries 7 %. There are 17 unmatched observed peaks. Layer 1 abstained, so the cause is not attributed. Trimming the range to 120° dropped Rwp to 8.3 % and moved a by about 0.0006 Å.\n- **Roughness stage.** It stopped on its iteration limit (`STAGE_MAX_ITER`), so no surface-roughness value is quotable.\n- **Intensities and R_Bragg.** The pattern is undersampled, with 4.6 steps per FWHM against the recommended 5 (`PATTERN_UNDERSAMPLED`). Integrated intensities, and therefore anything structural, are limited by the data collection.\n- **Ca1 site.** Its coordinate (1/3, 2/3, 0.0019) was snapped to a special position (`SITE_SNAPPED_TO_SPECIAL_POSITION`, shift 3e-11). The log says this is harmless but wants a check that the multiplicity agrees with the source. I did not verify that.\n\nSoftware: rietx 1.7.0.dev0, numpy backend, trf solver.\n"
+              },
+              {
+                "name": "cell_a",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched 9\\.37(0[89]|[12]\\d|3[0-4])\\d*\\s?\\(\\d+\\)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched 6\\.88(5[2-9]|6\\d|7[01])\\d*\\s?\\(\\d+\\)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 4x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "report_written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "report.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill_fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 29,
+            "costUsd": 0.6013406,
+            "judgeCostUsd": 0.010866,
+            "durationSeconds": 158,
+            "startedAt": "2026-10-06T09:30:53.465Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-fqVoAW/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "caveats_named",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "# Fluorapatite FAP.XRA: Rietveld refinement with rietx\n\nData: FAP.XRA, Cu Kα1/Kα2 doublet, Bragg-Brentano, 15–130° 2θ, 0.02° step, 5753 points. The file has no esd column, so counting-statistics weights were used. Starting model: fluorapatite.cif, P6₃/m. rietx 1.7.0.dev0.\n\nProtocol: Le Bail first, then Rietveld in stages. The stages were scale and a Chebyshev background, then one aberration term, then cell, widths, Kα2 weight, coordinates and Biso. Axial divergence and roughness were held. Stated esds include rietx's Bérar–Lelann serial-correlation inflation (×2.47).\n\nFinal fit: Rwp 9.2 %, Rexp 5.6 %, GoF 1.66, DW 1.0, R_Bragg 5.9 %.\n\n## Cell parameters (P6₃/m, hexagonal)\n\n| Fit | a (Å) | c (Å) | Rwp |\n|---|---|---|---|\n| zero shift free, displacement held at 0 (headline) | **9.37104(9)** | **6.88538(9)** | 9.19 % |\n| displacement free, zero held at 0 | 9.37238(8) | 6.88637(8) | 9.26 % |\n\nI quote the first row because it has the lower Rwp. The two rows differ by 0.0013 Å in a and 0.0010 Å in c. That is more than ten times the esd. The esds are therefore **statistical only**. A realistic uncertainty is about ±0.001 Å (see below).\n\n## What I would not yet put in a paper\n\n1. **The esds on a and c.** Zero shift and sample displacement are collinear. When both were freed together, rietx reported ρ = 1.000 between them. Which of the two I free moves the cell by about 14σ, and Rwp barely tells the two choices apart. Quote the cell as roughly 9.371(1) and 6.885(1) Å until the 2θ origin is pinned independently. A certified internal standard such as Si or LaB6, or a `lab_calibrate` run on a standard, would do that.\n2. **Peak profile parameters (U, V, W, X, Y).** rietx raised `RESOLUTION_UNCONSTRAINED`. The pattern is predominantly Lorentzian and the Gaussian terms are not determined by the data. U and V are barely above their esds, and V is negative. These are fitted artefacts, not a measurement of the instrument.\n3. **Axial divergence (held) and the Kα2/Kα1 ratio (0.46).** The two axial terms are perfectly anti-correlated when freed, so I held them at the preset. The Kα2 ratio absorbs other intensity and shape errors.\n4. **Displacement parameters (Biso, 0.39–1.09 Å²).** They are correlated with the scale and the background. The F site (1.09(25)) and the O sites have large esds. No absorption or roughness correction was refined, and these are the terms that bias Biso in lab data. They should not be interpreted individually.\n5. **Atomic coordinates and the bond lengths derived from them.** They have a plausible geometry. Intensity errors are likely, though, because of the unexplained residuals in item 6 and the coarse step size. The esds are statistical.\n6. **Unexplained residuals.** There are about 19 unmatched observed peaks above 5σ. The largest are near 25.9° and 31.9° (up to 16σ), on top of strong reflections, so they look like profile-shape misfit and not an impurity phase. The report's local attribution layer abstained. Rwp is about 1.65 times Rexp. The residual is correlated (DW ≈ 1.0), which is why the esds were inflated.\n7. **Sampling.** The step gives only 4.6 points across the FWHM, against the recommended 5. This is a data-collection limit, and the integrated intensities are less reliable because of it.\n8. **Background.** An automatic 40-coefficient pspline background became badly degenerate, with correlations of 1.000. I replaced it with a lower-order Chebyshev background. The background can still reproduce about 22 % of the Biso of Ca2 (`worst_absorption` 0.22), which feeds into item 4. I did not compare other backgrounds. The diagnostics and the ×2.47 esd inflation quoted above come from the displacement-free run, not the zero-free run.\n"
+              },
+              {
+                "name": "cell_a",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched 9\\.37(0[89]|[12]\\d|3[0-4])\\d*\\s?\\(\\d+\\)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched 6\\.88(5[2-9]|6\\d|7[01])\\d*\\s?\\(\\d+\\)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 5x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "report_written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "report.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill_fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0.42857142857142855,
+            "passed": false,
+            "turns": 24,
+            "costUsd": 0.6015012,
+            "judgeCostUsd": 0.012744000000000005,
+            "durationSeconds": 254,
+            "startedAt": "2026-10-06T09:33:31.273Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-luxtn5/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "caveats_named",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "# Fluorapatite (FAP.XRA) Rietveld refinement with rietx 1.7.0.dev0\n\nProtocol: Bragg-Brentano, Cu Kα1+Kα2 doublet, 15–130° 2θ (5753 points), start model fluorapatite.cif (P6₃/m).\nLe Bail pass (`profile_only`), then `lab_bragg_brentano`, then `mccusker_structural`. Background was a 41-term Chebyshev plus an air term from `auto_background`.\nFinal fit: Rwp 9.15 %, Rexp 5.58 %, GoF 1.64, χ² 2.7, Durbin-Watson 1.01, R_Bragg 6.1 %. The residual is clearly serially correlated.\n\n## Cell parameters\n\n| | value |\n|---|---|\n| a | **9.3683(16) Å** |\n| c | **6.8833(12) Å** |\n\nThese come from the fit where zero shift **and** sample displacement are both free (the `lab_bragg_brentano` fit). I am quoting these esds, not the smaller ones the structural stage prints.\n\nThe structural stage holds the displacement it inherits from the lab fit. That gives a = 9.36828(13) and c = 6.88332(12), with the same values. Those esds are about 13× smaller, and they are conditional on a displacement that is itself unmeasured (see below). The 13× tighter esds are not a measurement.\n\n## What I would not put in a paper yet\n\n1. **The cell esds, as printed.** The 0.00013 Å esds are conditional on a held sample displacement. Zero shift and displacement are a flat direction (ρ = +1.000, `FLAT_DIRECTION`), and cell sits on top of that. Other defensible protocols on the same data give different cells:\n   - Fresh fit with displacement held at 0 and zero free: a = 9.3709, c = 6.8853 (zero −0.052°).\n   - Zero held at 0, displacement free: a = 9.3732, c = 6.8870.\n   - Zero and displacement both free: a = 9.3683, c = 6.8833 (zero −0.188°, displacement −0.27 ± 0.11).\n\n   The spread across protocols is about 0.005 Å in a, about 20× the printed esd. The 9.3683(16) / 6.8833(12) above is the honest number for this data. Even that is a refinement of a zero of −0.19° on a single uncalibrated pattern. A fair accuracy statement needs an internal standard (Si or LaB₆) or the `lab_calibrate` two-step workflow.\n2. **Zero shift (−0.188°) and sample displacement (−0.27 ± 0.11).** They are collinear, so neither is measured on its own. The −0.19° zero is large for a lab goniometer and is probably absorbing displacement and transparency.\n3. **Peak-shape parameters U, V, W, X, Y, and any size or strain derived from them.** The pattern is mostly Lorentzian (`RESOLUTION_UNCONSTRAINED`). The Gaussian terms are fitted artefacts, and the instrument is not separated from the sample.\n4. **The Kα2 weight and axial divergence (S/L, H/L).** The two axial terms are perfectly anti-correlated (ρ = −1.000). The `roughness` stage of the lab fit also hit its iteration limit (`STAGE_MAX_ITER`), so that fit is not fully converged. The cell stage had converged.\n5. **Background coefficients and the air-scatter term.** 42 parameters are almost fully collinear (ρ ≈ 0.999–1.000; 800+ correlated pairs). None of them is individually meaningful. The background also trades off against Biso and scale, so it biases the displacement parameters.\n6. **Isotropic displacement parameters (Biso).** All are small (about 0.3–0.55 Å²) and strongly correlated with the background, scale, absorption and roughness. The oxygens are poorly determined: O5 0.28(24), O6 0.55(26), O7 0.53(18), F 1.30(35) Å², against Ca/P 0.39–0.48(7–10) Å². Treat O and F as unmeasured, and do not interpret the F value as disorder. The Ca/P values are plausible but not publication-grade.\n7. **Extinction.** It refined to about 1e-10 with an esd of 0.43, so it is zero within error. Report that it was not detected, not a value.\n8. **Atomic coordinates.** They are within about 0.001–0.003 of the starting model (esds 0.0005–0.0014), so they confirm the model rather than improve on it. I would not quote bond lengths from this single lab pattern. Ca1 sits on a special position (z ≈ 0.001(1)).\n9. **All esds, as a set.** The Bérar-Lelann inflation is about 3.4. The esds already include it, but residual serial correlation (DW ≈ 1.0) means they are still only a lower bound. Rwp 9.2 % against Rexp 5.6 % shows an unresolved misfit.\n10. **Data quality.** Steps per FWHM are 4.6, below the 5 the guidelines ask for (`PATTERN_UNDERSAMPLED`). This limits how well the intensities, and therefore Biso and the positions, can be quoted.\n\nReproduction scripts are not saved in the working directory. Only report.md was written.\n"
+              },
+              {
+                "name": "cell_a",
+                "passed": false,
+                "weight": 2,
+                "explanation": "pattern not found in file report.md",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": false,
+                "weight": 2,
+                "explanation": "pattern not found in file report.md",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 3x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "report_written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "report.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 22,
+            "costUsd": 0.5885967999999999,
+            "judgeCostUsd": 0.012552,
+            "durationSeconds": 147,
+            "startedAt": "2026-10-06T09:37:45.252Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-FRpLh5/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "caveats_named",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "# Fluorapatite (FAP.XRA) – rietx refinement\n\nProtocol: P6₃/m, Cu Kα1/Kα2 doublet (rietx `CuKa` preset), Bragg-Brentano, 15–130° 2θ, 5751 points, Poisson weights. The background is a 6-term Chebyshev. Zero shift is held at 0 and specimen displacement is refined. The Caglioti terms U, V, W, X, Y are refined. Fractional coordinates (site-symmetry DOFs) and Biso are refined. Rwp = 8.96 %, Rexp = 5.59 %, GoF 1.60, Durbin-Watson 1.02, 34 free parameters, max shift/esd 4e-4.\n\n## Cell\n\n| | refined, as rietx prints it (raw esd) | esd × 2.14 (Bérar-Lelann) |\n|---|---|---|\n| a | 9.37324(7) Å | 9.37324(15) Å |\n| c | 6.88697(7) Å | 6.88697(15) Å |\n\nThe raw esd treats the residuals as independent, and they aren't (DW 1.02, `esd_inflation` 2.14), so I would quote the inflated column.\n\n**Neither column covers the systematic error.** Refining the zero shift instead of the displacement fits equally well (Rwp 8.93 % against 8.96 %). It moves the cell to a = 9.37228, c = 6.88626 Å, which is 0.0010 Å (a) and 0.0007 Å (c) away. That is about 10× the inflated esd. The data cannot choose between zero and displacement. If this goes in a paper, I'd write a ≈ 9.3732(10) and c ≈ 6.8870(7) Å, and state which was held.\n\n## Numbers I would not yet put in a paper\n\n- **Cell esds as printed.** They are 2× too small from serial correlation. They are also much smaller than the zero/displacement ambiguity above (zero and displacement correlate at ρ = 1.000). A sample displacement of 0.065 mm and a zero of −0.037° are the same fit, so I would quote neither. The absolute cell also depends on the wavelengths. I used rietx's CuKa preset, not a calibrated value for this instrument. A 60 ppm wavelength difference lands directly on the cell (about 0.0005 Å). An external standard (e.g. LaB₆/Si, `lab_calibrate`) would fix zero and displacement and the wavelength together.\n- **All fractional coordinates.** None moved from the starting model by more than about 1.6 esd (Ca1 z; the rest are ≤ 1.2), so the refinement shows no significant change and the esds are of order 3e-4 to 9e-4. These are the starting (literature-descended) values, confirmed to the precision of this data. They are not new measurements. Bond lengths computed from them would carry the same limit.\n- **Biso, especially F (1.04(21) Å²) and the oxygens O5/O6/O7 (0.27(15), 0.47(16), 0.39(11) Å²).** Their relative esds are 15–50 %. Biso is correlated with the scale, the background (the 6-term background is stiff, so this is a mild point) and absorption/roughness. Those terms are not modelled, so a common offset is likely. The oxygen values do not differ significantly from each other (all within about 1.2 combined esds). The Ca and P values (0.36–0.48 Å²) are more believable, but I'd still treat the set as relative, not absolute. I did not tie the three O values. The data don't contradict a tie, but I haven't tested one.\n- **U, V, W, X, Y.** rietx flags `RESOLUTION_UNCONSTRAINED`. The pattern is mostly Lorentzian, so the Gaussian terms are not determined by the data. U and V are within about 1.5 esds of zero. X and Y mix instrument and sample broadening, so I report no crystallite size or microstrain from them.\n- **Background coefficients** (6 Chebyshev terms, large and alternating). They are not physical quantities. The background is also correlated with Biso.\n- **Scale factor.** It is arbitrary without a standard or a known composition, so it gives no phase fraction. Anything quantitative would need a calibration.\n- **Dispersion terms f′/f″.** I did not apply them. I have not tested their effect on Biso or the intensities.\n\n## Other caveats\n\n- The data have 4.6 steps per FWHM, below the usual guideline of 5 (`PATTERN_UNDERSAMPLED`). Integrated intensities, and therefore the coordinates and Biso, are limited by this and re-collection is the only remedy.\n- The fit is not perfect (χ² 2.6, Rwp/Rexp = 1.6). A few residual misfits remain, and I did not look for impurity phases beyond the model, so I'd read the unmatched-peak list before claiming a single-phase sample.\n- I fitted 15–130.0° (5751 points) and cut the last 2 points. A first run that included the 126.7–131.5° band had a large misfit there, which came from the cut edge. I haven't verified that the edge was the only cause.\n- Preferred orientation, extinction and surface roughness were not refined. A first run freeing extinction was not supported by ΔBIC.\n"
+              },
+              {
+                "name": "cell_a",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched 9\\.37(0[89]|[12]\\d|3[0-4])\\d*\\s?\\(\\d+\\)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched 6\\.88(5[2-9]|6\\d|7[01])\\d*\\s?\\(\\d+\\)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 2x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "report_written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "report.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 26,
+            "costUsd": 0.7056555999999999,
+            "judgeCostUsd": 0.016727999999999993,
+            "durationSeconds": 162,
+            "startedAt": "2026-10-06T09:40:11.990Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-Z723f3/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "caveats_named",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "# Fluorapatite (FAP.XRA) Rietveld refinement with rietx\n\n## Cell parameters (P6₃/m, Cu Kα1/Kα2 doublet, Bragg-Brentano)\n\n| | a (Å) | c (Å) |\n|---|---|---|\n| **Value to quote** | **9.3717(7)** | **6.8859(5)** |\n\nThe headline numbers are the midpoint of the two equally good refinements below. Their (esd) is half the spread between those two, because the two refinements differ by far more than either one's own esd.\n\n| Protocol (zero shift and sample displacement cannot both be refined) | a (Å) | c (Å) | Rwp | χ² |\n|---|---|---|---|---|\n| sample displacement refined (+0.0914(10)°), zero held at 0 | 9.37238(8) | 6.88637(8) | 9.26 % | 2.743 |\n| zero shift refined (−0.0510(5)°), displacement held at 0 | 9.37104(9) | 6.88538(9) | 9.19 % | 2.704 |\n\n- The fit esds are 8–9×10⁻⁵ Å. They already include the Bérar-Lelann serial-correlation inflation of 2.47.\n- The two protocols differ by 0.0013 Å in a (about 14 esd) and by 0.0010 Å in c (about 11 esd).\n- The swap between the two is a tie. The χ² ratio is 1.014, below rietx's decision threshold of 1.10, so the data cannot say which one is physical.\n- With zero and displacement both free they are perfectly correlated (ρ = +1.000). That fit gave a = 9.3683 and c = 6.8833, which I discarded.\n- The mid-point happens to coincide with the starting CIF (9.3717, 6.8859). The refinement did not move the cell from its starting model by more than the protocol ambiguity.\n\n### What was run\n- **Data and instrument:**\n  - 5753 points, 15.00–130.04° 2θ, step 0.02°.\n  - CuKα doublet (rietx `bragg_brentano`, weighted λ 1.5444 Å), no monochromator.\n  - Kα2/Kα1 ratio refined to 0.463(7).\n- **Background:** 16-coefficient Chebyshev polynomial, order chosen by `auto_background(kind=\"chebyshev\")`. The default P-spline background gave a heavily correlated background and a larger Rwp, 9.58 % instead of 9.26 % for the same protocol.\n- **Staged refinement:**\n  1. scale and background\n  2. displacement or zero\n  3. cell\n  4. W\n  5. U, V, X, Y\n  6. Kα2 weight\n  7. atomic coordinates (symmetry-allowed)\n  8. one Biso per atom\n- **Not refined:** occupancies, preferred orientation, extinction, roughness, axial divergence.\n- **Software:** rietx 1.7.0.dev0, numpy backend, trf solver, 45 free parameters.\n- **Fit quality:**\n  - Rwp 9.26 %, Rexp 5.59 %, GoF 1.66.\n  - Rwp with the background subtracted is 12.5 %.\n  - Durbin-Watson is 1.00.\n  - R_Bragg is 5.9 %.\n  - Converged, with max shift/esd of 8×10⁻⁵.\n\n## Refined numbers I would not yet put in a paper\n\n1. **The cell as a fit result, with its 0.00008 Å esd.** Zero shift and sample displacement are indistinguishable on this pattern (R² ≈ 0.99997). Which one is held moves a by 0.0013 Å. The honest uncertainty is about 0.0007 Å in a and 0.0005 Å in c, and that is still an assumption about the sample, not a measurement. A paper-quality cell needs an internal standard (Si or LaB₆ mixed in) or a calibrated instrument run, which fixes zero and displacement independently.\n2. **The zero shift and the sample displacement themselves.** Each is only a stand-in for the other. Either alone is a systematic, so neither is a measurement of the instrument.\n3. **U, V, W (profile width terms).** rietx raised `RESOLUTION_UNCONSTRAINED`. The pattern is predominantly Lorentzian, and the Gaussian terms are not determined by the data. V is negative (−0.0027) and U and W are barely above zero. This is a fitted artefact and says nothing about the instrument. The profile is adequate to fit the pattern, so only the individual values should not be quoted. No size or strain term was refined, so I give no crystallite size or microstrain.\n4. **Isotropic displacement parameters (Biso).** Values are positive and plausible: Ca1 0.56(7), Ca2 0.47(5), P 0.41(7), F 1.09(25), O5 0.39(18), O6 0.51(19), O7 0.43(13) Å². But:\n   - They are smooth-in-Q quantities that trade off against the scale and the background. rietx's background-absorption figure is 0.2 for Ca1, Ca2 and P, the worst being Ca2 at 0.22.\n   - The pattern is undersampled (4.6 steps per FWHM, below the recommended 5).\n   - The three oxygen values agree within their esds, so they are not distinguished from one another.\n   - Microabsorption and roughness were not modelled.\n5. **Atomic coordinates.** Every free coordinate stayed within about 1σ of the starting model (Ca1 z moved 0.0019 → 0.0013(6), the largest). The pattern did not contradict the starting structure, but this is not an independent structure determination. The coordinate esds (3–10×10⁻⁴) are derived from a fit whose residual is still serially correlated and misfits some peaks. Bond lengths from them (e.g. Ca1–O5 2.387(6) Å) inherit that. I would quote the geometry only as \"consistent with Hughes et al. 1989\".\n6. **Fixed occupancies.** All sites are held at 1.0, and the F site could hold OH or Cl. Nothing tests substitution here, so the composition Ca₅(PO₄)₃F is assumed, not refined.\n7. **The agreement indices as evidence of a good model.** Rwp 9.3 % and GoF 1.66 are not at the noise floor. Durbin-Watson is 1.0 and the background-subtracted Rwp is 12.5 %. The report's Layer 1 abstained as \"unreadable\" (44 % of the misfit lies in regions it could not attribute reliably). Peak-shape misfit is visible, and the unmatched-peak list includes strong reflections near 16.8°, 25.7° and 28.0°. These look like peak-shape misfit and not impurity phases, but I did not confirm that. R_Bragg (5.9 %) is not an independent measure of correctness.\n8. **Kα2/Kα1 ratio 0.463(7).** It is lower than the 0.5 seed. It is a nuisance parameter that absorbs filter and source details, so I would not quote it.\n\n## Not tested\n- Preferred orientation (the March–Dollase screen found none, detected = False), extinction, microabsorption and surface roughness were not refined.\n- Anisotropic peak broadening was screened (detected = False) but not modelled.\n"
+              },
+              {
+                "name": "cell_a",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched 9\\.37(0[89]|[12]\\d|3[0-4])\\d*\\s?\\(\\d+\\)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched 6\\.88(5[2-9]|6\\d|7[01])\\d*\\s?\\(\\d+\\)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 11x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "report_written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "report.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 0.8095238095238096,
+        "passRateWithout": 0.6666666666666666,
+        "delta": 0.19047619047619035
+      }
+    },
+    {
+      "name": "fap-gsas-reproduce",
+      "dir": "evals/fap-gsas-reproduce",
+      "source": "mixed",
+      "promptMarkdown": "FAP.EXP is GSAS's converged Rietveld refinement of FAP.XRA, a powder pattern of fluorapatite, Ca5(PO4)3F, from a lab Bragg-Brentano diffractometer with Cu Kα radiation. I want to know whether rietx agrees with GSAS on these data, so reproduce that refinement with rietx: the same model, with the same parameters refined. Save the script you ran as reproduce.py, and write rietx's refined values to answer.json as {\"a\": ..., \"c\": ..., \"o7_z\": ..., \"rwp\": ...}: a and c in Å, o7_z the fractional z coordinate of the site labelled O7, and rwp as a fraction, not a percentage.\n\nrietx is installed for the python interpreter /opt/homebrew/var/rietx-eval/venv/bin/python. Your working directory holds FAP.XRA and FAP.EXP.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 1200,
+      "maxTurns": 60,
+      "graders": [
+        {
+          "name": "cell_a",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "answer.json"
+            },
+            "pattern": "\"a\"\\s*:\\s*\"?9\\.37(1[6-9]|2[0-8]|2(?![0-9]))",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "cell_c",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "answer.json"
+            },
+            "pattern": "\"c\"\\s*:\\s*\"?6\\.88(5[7-9]|6[0-7]|6(?![0-9]))",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "file_wavelengths",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "reproduce.py"
+            },
+            "pattern": "1\\.54050*(?![0-9])|1\\.54430*(?![0-9])|\\.wavelengths\\b",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "o7_coordinate",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "answer.json"
+            },
+            "pattern": "\"o7_z\"\\s*:\\s*\"?0\\.0(69[7-9]|70|71(?![3-9])|7(?![0-9]))",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "ran_fit",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Bash",
+            "input_match": "python[0-9.]*\\s+[^\\s\"]+\\.py|\\.fit\\(|\\brefine\\("
+          }
+        },
+        {
+          "name": "rwp",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "answer.json"
+            },
+            "pattern": "\"rwp\"\\s*:\\s*\"?0\\.(08[5-9]|09|10|1(?![0-9])|11(?![5-9]))",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill_fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "arm": "with-only"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 26,
+            "costUsd": 0.7521942,
+            "judgeCostUsd": 0,
+            "durationSeconds": 176,
+            "startedAt": "2026-10-06T09:42:53.837Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-EXi9si/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "cell_a",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched \"a\"\\s*:\\s*\"?9\\.37(1[6-9]|2[0-8]|2(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched \"c\"\\s*:\\s*\"?6\\.88(5[7-9]|6[0-7]|6(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "file_wavelengths",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched 1\\.54050*(?![0-9])|1\\.54430*(?![0-9])|\\.wavelengths\\b",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "o7_coordinate",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \"o7_z\"\\s*:\\s*\"?0\\.0(69[7-9]|70|71(?![3-9])|7(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 3x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "rwp",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \"rwp\"\\s*:\\s*\"?0\\.(08[5-9]|09|10|1(?![0-9])|11(?![5-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill_fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 22,
+            "costUsd": 0.5825269999999999,
+            "judgeCostUsd": 0,
+            "durationSeconds": 124,
+            "startedAt": "2026-10-06T09:45:49.495Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-Xl4WvJ/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "cell_a",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched \"a\"\\s*:\\s*\"?9\\.37(1[6-9]|2[0-8]|2(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched \"c\"\\s*:\\s*\"?6\\.88(5[7-9]|6[0-7]|6(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "file_wavelengths",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched 1\\.54050*(?![0-9])|1\\.54430*(?![0-9])|\\.wavelengths\\b",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "o7_coordinate",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \"o7_z\"\\s*:\\s*\"?0\\.0(69[7-9]|70|71(?![3-9])|7(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "rwp",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \"rwp\"\\s*:\\s*\"?0\\.(08[5-9]|09|10|1(?![0-9])|11(?![5-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill_fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 18,
+            "costUsd": 0.560475,
+            "judgeCostUsd": 0,
+            "durationSeconds": 125,
+            "startedAt": "2026-10-06T09:47:53.649Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-SUyCKh/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "cell_a",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched \"a\"\\s*:\\s*\"?9\\.37(1[6-9]|2[0-8]|2(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched \"c\"\\s*:\\s*\"?6\\.88(5[7-9]|6[0-7]|6(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "file_wavelengths",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched 1\\.54050*(?![0-9])|1\\.54430*(?![0-9])|\\.wavelengths\\b",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "o7_coordinate",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \"o7_z\"\\s*:\\s*\"?0\\.0(69[7-9]|70|71(?![3-9])|7(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "rwp",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \"rwp\"\\s*:\\s*\"?0\\.(08[5-9]|09|10|1(?![0-9])|11(?![5-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill_fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0.75,
+            "passed": false,
+            "turns": 20,
+            "costUsd": 0.47130560000000005,
+            "judgeCostUsd": 0,
+            "durationSeconds": 120,
+            "startedAt": "2026-10-06T09:49:58.503Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-9Gwce3/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "cell_a",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched \"a\"\\s*:\\s*\"?9\\.37(1[6-9]|2[0-8]|2(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched \"c\"\\s*:\\s*\"?6\\.88(5[7-9]|6[0-7]|6(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "file_wavelengths",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched 1\\.54050*(?![0-9])|1\\.54430*(?![0-9])|\\.wavelengths\\b",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "o7_coordinate",
+                "passed": false,
+                "weight": 1,
+                "explanation": "pattern not found in file answer.json",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 2x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "rwp",
+                "passed": false,
+                "weight": 1,
+                "explanation": "pattern not found in file answer.json",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 25,
+            "costUsd": 0.5811687999999999,
+            "judgeCostUsd": 0,
+            "durationSeconds": 107,
+            "startedAt": "2026-10-06T09:51:58.129Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-h2l0zC/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "cell_a",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched \"a\"\\s*:\\s*\"?9\\.37(1[6-9]|2[0-8]|2(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched \"c\"\\s*:\\s*\"?6\\.88(5[7-9]|6[0-7]|6(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "file_wavelengths",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched 1\\.54050*(?![0-9])|1\\.54430*(?![0-9])|\\.wavelengths\\b",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "o7_coordinate",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \"o7_z\"\\s*:\\s*\"?0\\.0(69[7-9]|70|71(?![3-9])|7(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 2x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "rwp",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \"rwp\"\\s*:\\s*\"?0\\.(08[5-9]|09|10|1(?![0-9])|11(?![5-9]))",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 26,
+            "costUsd": 0.626384,
+            "judgeCostUsd": 0,
+            "durationSeconds": 125,
+            "startedAt": "2026-10-06T09:53:45.432Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-NTRgrD/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "cell_a",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched \"a\"\\s*:\\s*\"?9\\.37(1[6-9]|2[0-8]|2(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "cell_c",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched \"c\"\\s*:\\s*\"?6\\.88(5[7-9]|6[0-7]|6(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "file_wavelengths",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched 1\\.54050*(?![0-9])|1\\.54430*(?![0-9])|\\.wavelengths\\b",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "o7_coordinate",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \"o7_z\"\\s*:\\s*\"?0\\.0(69[7-9]|70|71(?![3-9])|7(?![0-9]))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "ran_fit",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "rwp",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched \"rwp\"\\s*:\\s*\"?0\\.(08[5-9]|09|10|1(?![0-9])|11(?![5-9]))",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 0.9166666666666666,
+        "passRateWithout": 0.6666666666666666,
+        "delta": 0.08333333333333337
+      }
+    },
+    {
+      "name": "fap-judge",
+      "dir": "evals/fap-judge",
+      "source": "mixed",
+      "promptMarkdown": "My colleague refined our fluorapatite pattern with `fit.py` and sent me what it printed, `fit_output.txt`. Which of the refined numbers can go in the paper as they stand, and what should they change before the next run?\n\nrietx is installed for the python interpreter /opt/homebrew/var/rietx-eval/venv/bin/python. Your working directory holds fit.py, fit_output.txt, FAP.XRA and fluorapatite.cif.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 900,
+      "maxTurns": 25,
+      "graders": [
+        {
+          "name": "biso_background",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer say that the displacement parameters (Biso), at least the one the background screen flagged, are not quotable because the 24-term background can absorb them, and that the background should be made stiffer (fewer terms, or another stiffer model) before quoting them?",
+          "config": {
+            "criteria": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer say that the displacement parameters (Biso), at least the one the background screen flagged, are not quotable because the 24-term background can absorb them, and that the background should be made stiffer (fewer terms, or another stiffer model) before quoting them?",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "cell_accuracy",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer say the cell parameters a and c are compromised or not quotable as accurate/absolute values while zero shift and sample displacement are refined together (their correlation with the cell is 0.99+), or that the cell needs the zero/displacement problem fixed first?",
+          "config": {
+            "criteria": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer say the cell parameters a and c are compromised or not quotable as accurate/absolute values while zero shift and sample displacement are refined together (their correlation with the cell is 0.99+), or that the cell needs the zero/displacement problem fixed first?",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "opened_reference",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "trace",
+            "pattern": "references/[a-z-]+\\.md",
+            "flags": "",
+            "match": "contains",
+            "arm": "with-only"
+          }
+        },
+        {
+          "name": "skill_fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?rietx\"",
+            "arm": "with-only"
+          }
+        },
+        {
+          "name": "undersampled",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer treat the undersampling (fewer than 5 steps per FWHM) as a data-collection limit, to be fixed by re-measuring with a finer step, rather than as something a refinement choice can fix?",
+          "config": {
+            "criteria": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer treat the undersampling (fewer than 5 steps per FWHM) as a data-collection limit, to be fixed by re-measuring with a finer step, rather than as something a refinement choice can fix?",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "zero_displacement",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer say that instrument.zero_shift and instrument.geometry.sample_displacement are not measured by this fit (they cannot both be quoted, or neither can), and that one must be fixed at an independently known value, calibrated on a standard, or otherwise separated before either is reported?",
+          "config": {
+            "criteria": "PASS only with concrete evidence in the answer; do not give the benefit of the doubt. Does the answer say that instrument.zero_shift and instrument.geometry.sample_displacement are not measured by this fit (they cannot both be quoted, or neither can), and that one must be fixed at an independently known value, calibrated on a standard, or otherwise separated before either is reported?",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.16418000000000005,
+            "judgeCostUsd": 0.04079400000000004,
+            "durationSeconds": 39,
+            "startedAt": "2026-10-06T09:55:50.045Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-rKPJIM/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "biso_background",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**Short answer: none of the refined numbers should go in the paper as they stand.** I read `fit.py` and `fit_output.txt` and did not rerun the fit. The fit converged (Rwp 0.0834, GoF 1.49), but the diagnostics show that most printed values are not determined by the data.\n\n**Number by number**\n\n| Number | Verdict | Why |\n|---|---|---|\n| `zero_shift` (−0.163) and `sample_displacement` (−0.228) | Don't quote either | ρ = +1.000 (`FLAT_DIRECTION`), so one direction is not measured at all. The esds are each conditional on the other value being right. |\n| Cell a = 9.369034(817), c = 6.883862(604) | Not as printed | Both correlate at ρ ≈ 0.995–0.997 with zero and displacement, and a with c at 0.994. The cell is only as good as the zero/displacement split, which the data can't make. The esds are too small, and the output doesn't show the Bérar-Lelann inflation. |\n| `axial_sl` and `axial_hl` (0.0201, 0.0202) | Don't quote | They sit at their starting 0.02, with esds larger than the values and ρ = −0.999. They were never measured. |\n| Biso values (0.36–1.03 Å²) | Don't quote | `BACKGROUND_ABSORPTION`: the 24-term Chebyshev background can reproduce part of the Biso column (R² = 0.27). The diagnostic says ADPs from this fit are biased even though Rwp looks good. |\n| U, V, W, and any size or strain from them | Don't quote | `RESOLUTION_UNCONSTRAINED`: the pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts. |\n| Rwp and GoF | Only as a descriptive pair, with the caveats | Rwp is flattered by what the background absorbs. |\n| Intensities generally | Limited | `PATTERN_UNDERSAMPLED`: 4.6 steps per FWHM against the 5 the guidelines ask for. That is a data-collection limit, and no refinement choice fixes it. |\n\nOne warning is harmless. `SITE_SNAPPED_TO_SPECIAL_POSITION` flags Ca1 at 3.3e-11 from the special position, so it is treated as multiplicity 4. That is the expected 4f site in P6₃/m, and it only matters for weight fractions. Check it against the CIF's multiplicity, but it needs no change to the fit.\n\n**What to change before the next run**\n\n1. **Separate zero and displacement.**\n   - Best option: run `lab_calibrate` on a certified standard (Si or LaB₆) with its cell held fixed. Then call `save_instrument_profile`, and `load_instrument_profile` before the fluorapatite fit. That also holds U, V and W at measured values.\n   - Fallback: fix one of zero or displacement at an independent value and refine the other. Say in the paper which one was held. Dropping the displacement from the plan is the simplest version.\n2. **Stop refining the axial divergence terms.** Hold `axial_sl` and `axial_hl` at known instrument values, or at most refine one. The `lab_bragg_brentano` plan's `lines_axial` stage frees both.\n3. **Stiffen the background.**\n   - Use far fewer than 24 Chebyshev terms, or a P-spline with a larger `lambda_smooth`.\n   - You can also size it with `rx.auto_background`.\n   - Check that `report.background.worst_absorption` falls, then refit and re-read the Biso values.\n   - Consider the structure stage's freed ADPs again only after that, and tie chemically equivalent sites only if their values agree within esds.\n4. **Report the protocol and inflated esds.** State the plan, the held parameters, the fitted range (15–130°) and the channel count. Take the esds from `result.statistics.esd_inflation` (Bérar-Lelann) and `report.identifiability`.\n5. **If the intensities or ADPs matter,** re-collect at a step near FWHM/5.\n\nAfter the changes, the cell is the most likely number to become quotable, with its inflated esd and the held zero or displacement named. Widening or adding data is what actually separates zero from displacement, if calibration isn't available."
+              },
+              {
+                "name": "cell_accuracy",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**Short answer: none of the refined numbers should go in the paper as they stand.** I read `fit.py` and `fit_output.txt` and did not rerun the fit. The fit converged (Rwp 0.0834, GoF 1.49), but the diagnostics show that most printed values are not determined by the data.\n\n**Number by number**\n\n| Number | Verdict | Why |\n|---|---|---|\n| `zero_shift` (−0.163) and `sample_displacement` (−0.228) | Don't quote either | ρ = +1.000 (`FLAT_DIRECTION`), so one direction is not measured at all. The esds are each conditional on the other value being right. |\n| Cell a = 9.369034(817), c = 6.883862(604) | Not as printed | Both correlate at ρ ≈ 0.995–0.997 with zero and displacement, and a with c at 0.994. The cell is only as good as the zero/displacement split, which the data can't make. The esds are too small, and the output doesn't show the Bérar-Lelann inflation. |\n| `axial_sl` and `axial_hl` (0.0201, 0.0202) | Don't quote | They sit at their starting 0.02, with esds larger than the values and ρ = −0.999. They were never measured. |\n| Biso values (0.36–1.03 Å²) | Don't quote | `BACKGROUND_ABSORPTION`: the 24-term Chebyshev background can reproduce part of the Biso column (R² = 0.27). The diagnostic says ADPs from this fit are biased even though Rwp looks good. |\n| U, V, W, and any size or strain from them | Don't quote | `RESOLUTION_UNCONSTRAINED`: the pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts. |\n| Rwp and GoF | Only as a descriptive pair, with the caveats | Rwp is flattered by what the background absorbs. |\n| Intensities generally | Limited | `PATTERN_UNDERSAMPLED`: 4.6 steps per FWHM against the 5 the guidelines ask for. That is a data-collection limit, and no refinement choice fixes it. |\n\nOne warning is harmless. `SITE_SNAPPED_TO_SPECIAL_POSITION` flags Ca1 at 3.3e-11 from the special position, so it is treated as multiplicity 4. That is the expected 4f site in P6₃/m, and it only matters for weight fractions. Check it against the CIF's multiplicity, but it needs no change to the fit.\n\n**What to change before the next run**\n\n1. **Separate zero and displacement.**\n   - Best option: run `lab_calibrate` on a certified standard (Si or LaB₆) with its cell held fixed. Then call `save_instrument_profile`, and `load_instrument_profile` before the fluorapatite fit. That also holds U, V and W at measured values.\n   - Fallback: fix one of zero or displacement at an independent value and refine the other. Say in the paper which one was held. Dropping the displacement from the plan is the simplest version.\n2. **Stop refining the axial divergence terms.** Hold `axial_sl` and `axial_hl` at known instrument values, or at most refine one. The `lab_bragg_brentano` plan's `lines_axial` stage frees both.\n3. **Stiffen the background.**\n   - Use far fewer than 24 Chebyshev terms, or a P-spline with a larger `lambda_smooth`.\n   - You can also size it with `rx.auto_background`.\n   - Check that `report.background.worst_absorption` falls, then refit and re-read the Biso values.\n   - Consider the structure stage's freed ADPs again only after that, and tie chemically equivalent sites only if their values agree within esds.\n4. **Report the protocol and inflated esds.** State the plan, the held parameters, the fitted range (15–130°) and the channel count. Take the esds from `result.statistics.esd_inflation` (Bérar-Lelann) and `report.identifiability`.\n5. **If the intensities or ADPs matter,** re-collect at a step near FWHM/5.\n\nAfter the changes, the cell is the most likely number to become quotable, with its inflated esd and the held zero or displacement named. Widening or adding data is what actually separates zero from displacement, if calibration isn't available."
+              },
+              {
+                "name": "opened_reference",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched references/[a-z-]+\\.md",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "skill_fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "undersampled",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**Short answer: none of the refined numbers should go in the paper as they stand.** I read `fit.py` and `fit_output.txt` and did not rerun the fit. The fit converged (Rwp 0.0834, GoF 1.49), but the diagnostics show that most printed values are not determined by the data.\n\n**Number by number**\n\n| Number | Verdict | Why |\n|---|---|---|\n| `zero_shift` (−0.163) and `sample_displacement` (−0.228) | Don't quote either | ρ = +1.000 (`FLAT_DIRECTION`), so one direction is not measured at all. The esds are each conditional on the other value being right. |\n| Cell a = 9.369034(817), c = 6.883862(604) | Not as printed | Both correlate at ρ ≈ 0.995–0.997 with zero and displacement, and a with c at 0.994. The cell is only as good as the zero/displacement split, which the data can't make. The esds are too small, and the output doesn't show the Bérar-Lelann inflation. |\n| `axial_sl` and `axial_hl` (0.0201, 0.0202) | Don't quote | They sit at their starting 0.02, with esds larger than the values and ρ = −0.999. They were never measured. |\n| Biso values (0.36–1.03 Å²) | Don't quote | `BACKGROUND_ABSORPTION`: the 24-term Chebyshev background can reproduce part of the Biso column (R² = 0.27). The diagnostic says ADPs from this fit are biased even though Rwp looks good. |\n| U, V, W, and any size or strain from them | Don't quote | `RESOLUTION_UNCONSTRAINED`: the pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts. |\n| Rwp and GoF | Only as a descriptive pair, with the caveats | Rwp is flattered by what the background absorbs. |\n| Intensities generally | Limited | `PATTERN_UNDERSAMPLED`: 4.6 steps per FWHM against the 5 the guidelines ask for. That is a data-collection limit, and no refinement choice fixes it. |\n\nOne warning is harmless. `SITE_SNAPPED_TO_SPECIAL_POSITION` flags Ca1 at 3.3e-11 from the special position, so it is treated as multiplicity 4. That is the expected 4f site in P6₃/m, and it only matters for weight fractions. Check it against the CIF's multiplicity, but it needs no change to the fit.\n\n**What to change before the next run**\n\n1. **Separate zero and displacement.**\n   - Best option: run `lab_calibrate` on a certified standard (Si or LaB₆) with its cell held fixed. Then call `save_instrument_profile`, and `load_instrument_profile` before the fluorapatite fit. That also holds U, V and W at measured values.\n   - Fallback: fix one of zero or displacement at an independent value and refine the other. Say in the paper which one was held. Dropping the displacement from the plan is the simplest version.\n2. **Stop refining the axial divergence terms.** Hold `axial_sl` and `axial_hl` at known instrument values, or at most refine one. The `lab_bragg_brentano` plan's `lines_axial` stage frees both.\n3. **Stiffen the background.**\n   - Use far fewer than 24 Chebyshev terms, or a P-spline with a larger `lambda_smooth`.\n   - You can also size it with `rx.auto_background`.\n   - Check that `report.background.worst_absorption` falls, then refit and re-read the Biso values.\n   - Consider the structure stage's freed ADPs again only after that, and tie chemically equivalent sites only if their values agree within esds.\n4. **Report the protocol and inflated esds.** State the plan, the held parameters, the fitted range (15–130°) and the channel count. Take the esds from `result.statistics.esd_inflation` (Bérar-Lelann) and `report.identifiability`.\n5. **If the intensities or ADPs matter,** re-collect at a step near FWHM/5.\n\nAfter the changes, the cell is the most likely number to become quotable, with its inflated esd and the held zero or displacement named. Widening or adding data is what actually separates zero from displacement, if calibration isn't available."
+              },
+              {
+                "name": "zero_displacement",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**Short answer: none of the refined numbers should go in the paper as they stand.** I read `fit.py` and `fit_output.txt` and did not rerun the fit. The fit converged (Rwp 0.0834, GoF 1.49), but the diagnostics show that most printed values are not determined by the data.\n\n**Number by number**\n\n| Number | Verdict | Why |\n|---|---|---|\n| `zero_shift` (−0.163) and `sample_displacement` (−0.228) | Don't quote either | ρ = +1.000 (`FLAT_DIRECTION`), so one direction is not measured at all. The esds are each conditional on the other value being right. |\n| Cell a = 9.369034(817), c = 6.883862(604) | Not as printed | Both correlate at ρ ≈ 0.995–0.997 with zero and displacement, and a with c at 0.994. The cell is only as good as the zero/displacement split, which the data can't make. The esds are too small, and the output doesn't show the Bérar-Lelann inflation. |\n| `axial_sl` and `axial_hl` (0.0201, 0.0202) | Don't quote | They sit at their starting 0.02, with esds larger than the values and ρ = −0.999. They were never measured. |\n| Biso values (0.36–1.03 Å²) | Don't quote | `BACKGROUND_ABSORPTION`: the 24-term Chebyshev background can reproduce part of the Biso column (R² = 0.27). The diagnostic says ADPs from this fit are biased even though Rwp looks good. |\n| U, V, W, and any size or strain from them | Don't quote | `RESOLUTION_UNCONSTRAINED`: the pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts. |\n| Rwp and GoF | Only as a descriptive pair, with the caveats | Rwp is flattered by what the background absorbs. |\n| Intensities generally | Limited | `PATTERN_UNDERSAMPLED`: 4.6 steps per FWHM against the 5 the guidelines ask for. That is a data-collection limit, and no refinement choice fixes it. |\n\nOne warning is harmless. `SITE_SNAPPED_TO_SPECIAL_POSITION` flags Ca1 at 3.3e-11 from the special position, so it is treated as multiplicity 4. That is the expected 4f site in P6₃/m, and it only matters for weight fractions. Check it against the CIF's multiplicity, but it needs no change to the fit.\n\n**What to change before the next run**\n\n1. **Separate zero and displacement.**\n   - Best option: run `lab_calibrate` on a certified standard (Si or LaB₆) with its cell held fixed. Then call `save_instrument_profile`, and `load_instrument_profile` before the fluorapatite fit. That also holds U, V and W at measured values.\n   - Fallback: fix one of zero or displacement at an independent value and refine the other. Say in the paper which one was held. Dropping the displacement from the plan is the simplest version.\n2. **Stop refining the axial divergence terms.** Hold `axial_sl` and `axial_hl` at known instrument values, or at most refine one. The `lab_bragg_brentano` plan's `lines_axial` stage frees both.\n3. **Stiffen the background.**\n   - Use far fewer than 24 Chebyshev terms, or a P-spline with a larger `lambda_smooth`.\n   - You can also size it with `rx.auto_background`.\n   - Check that `report.background.worst_absorption` falls, then refit and re-read the Biso values.\n   - Consider the structure stage's freed ADPs again only after that, and tie chemically equivalent sites only if their values agree within esds.\n4. **Report the protocol and inflated esds.** State the plan, the held parameters, the fitted range (15–130°) and the channel count. Take the esds from `result.statistics.esd_inflation` (Bérar-Lelann) and `report.identifiability`.\n5. **If the intensities or ADPs matter,** re-collect at a step near FWHM/5.\n\nAfter the changes, the cell is the most likely number to become quotable, with its inflated esd and the held zero or displacement named. Widening or adding data is what actually separates zero from displacement, if calibration isn't available."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.16405979999999995,
+            "judgeCostUsd": 0.04021799999999995,
+            "durationSeconds": 39,
+            "startedAt": "2026-10-06T09:56:29.304Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-62mtKG/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "biso_background",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**None of the refined numbers can go in the paper as they stand.** The \"converged\" status and Rwp 0.0834 / GoF 1.49 only show that the fit ran. Every parameter fails one of the guards in the output. I haven't re-run `fit.py`; this comes from reading `fit_output.txt`.\n\n**Number by number**\n\n| Quantity | Verdict | Why |\n|---|---|---|\n| `cell.a` = 9.36903, `cell.c` = 6.88386 | Don't quote | Both correlate at ρ≈0.995–0.997 with zero shift and sample displacement. Those two correlate with each other at ρ=+1.000 (`FLAT_DIRECTION`), so the data don't separate them. The ±0.0008 and ±0.0006 esds are conditional on the other parameters being right, so they are too small. |\n| `zero_shift` = −0.163, `sample_displacement` = −0.228 | Don't quote either | One direction of the pair isn't measured, and the report can't say which one. |\n| `axial_sl`, `axial_hl` | Don't quote | ρ=−0.999, and the esds (±0.024) are as large as the values (0.020). They stayed at the 0.02 start, so they weren't measured. |\n| Biso (Ca1 0.53, Ca2 0.43, P3 0.36, F4 1.03, O5 0.39, O6 0.49, O7 0.46) | Don't quote yet | `BACKGROUND_ABSORPTION` says the 24-term Chebyshev background can reproduce part of the ADPs (R²=0.27), so they are biased even though Rwp looks good. The data are also undersampled (4.6 steps per FWHM, below the 5 asked for), which hurts intensity-derived numbers. The esds carry no inflation factor, so none of them are quotable as printed. The values themselves are physically plausible. |\n| U, V, W, and any size or strain from them | Don't quote | The pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts (`RESOLUTION_UNCONSTRAINED`). |\n| Rwp 0.0834, GoF 1.49 | Fine as a descriptive, relative number | It doesn't validate anything above. |\n\nThe `SITE_SNAPPED_TO_SPECIAL_POSITION` warning on Ca1 is probably benign. Ca1 at (1/3, 2/3, z) is the 4f site in P6₃/m, and the shift is 3e-11. Confirm that `fluorapatite.cif` lists Ca1 with multiplicity 4.\n\nThe duplicated `BACKGROUND_ABSORPTION` line is just a repeated print.\n\n**What to change before the next run**\n\n1. **Break the zero/displacement/cell degeneracy.** Calibrate the instrument on a standard with a certified cell held fixed (`lab_calibrate`). Then `save_instrument_profile`, and `load_instrument_profile` before the FAP fit. That holds zero, displacement and U/V/W at measured values, so the cell is then a real measurement. If there's no standard, fix one of zero or displacement at an independently known value, refine the other, and say in the paper which one was held.\n2. **Stop refining both axial terms.** Hold `axial_sl` and `axial_hl` from the instrument geometry, or free only one of them.\n3. **Stiffen the background.** Use far fewer than 24 Chebyshev terms, or a P-spline with larger `lambda_smooth`, or `rx.auto_background` sized to the 15–130° range. Re-check `report.background.worst_absorption` and that the Biso values are stable when the background flexibility changes.\n4. **Report esds with their inflation.** Quote them with `statistics.esd_inflation` and `report.identifiability`, and state the protocol: plan, held parameters, range and channel count.\n5. **Recollect if the Biso values or intensities are going in the paper.** The 4.6 steps per FWHM is a collection limit, and no refinement choice recovers it. Use a step size near FWHM/5.\n\nOnce zero and displacement are separated and the background is stiffened, the cell should be quotable with its inflated esd. The Biso values need the stiffer background and ideally the finer step."
+              },
+              {
+                "name": "cell_accuracy",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**None of the refined numbers can go in the paper as they stand.** The \"converged\" status and Rwp 0.0834 / GoF 1.49 only show that the fit ran. Every parameter fails one of the guards in the output. I haven't re-run `fit.py`; this comes from reading `fit_output.txt`.\n\n**Number by number**\n\n| Quantity | Verdict | Why |\n|---|---|---|\n| `cell.a` = 9.36903, `cell.c` = 6.88386 | Don't quote | Both correlate at ρ≈0.995–0.997 with zero shift and sample displacement. Those two correlate with each other at ρ=+1.000 (`FLAT_DIRECTION`), so the data don't separate them. The ±0.0008 and ±0.0006 esds are conditional on the other parameters being right, so they are too small. |\n| `zero_shift` = −0.163, `sample_displacement` = −0.228 | Don't quote either | One direction of the pair isn't measured, and the report can't say which one. |\n| `axial_sl`, `axial_hl` | Don't quote | ρ=−0.999, and the esds (±0.024) are as large as the values (0.020). They stayed at the 0.02 start, so they weren't measured. |\n| Biso (Ca1 0.53, Ca2 0.43, P3 0.36, F4 1.03, O5 0.39, O6 0.49, O7 0.46) | Don't quote yet | `BACKGROUND_ABSORPTION` says the 24-term Chebyshev background can reproduce part of the ADPs (R²=0.27), so they are biased even though Rwp looks good. The data are also undersampled (4.6 steps per FWHM, below the 5 asked for), which hurts intensity-derived numbers. The esds carry no inflation factor, so none of them are quotable as printed. The values themselves are physically plausible. |\n| U, V, W, and any size or strain from them | Don't quote | The pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts (`RESOLUTION_UNCONSTRAINED`). |\n| Rwp 0.0834, GoF 1.49 | Fine as a descriptive, relative number | It doesn't validate anything above. |\n\nThe `SITE_SNAPPED_TO_SPECIAL_POSITION` warning on Ca1 is probably benign. Ca1 at (1/3, 2/3, z) is the 4f site in P6₃/m, and the shift is 3e-11. Confirm that `fluorapatite.cif` lists Ca1 with multiplicity 4.\n\nThe duplicated `BACKGROUND_ABSORPTION` line is just a repeated print.\n\n**What to change before the next run**\n\n1. **Break the zero/displacement/cell degeneracy.** Calibrate the instrument on a standard with a certified cell held fixed (`lab_calibrate`). Then `save_instrument_profile`, and `load_instrument_profile` before the FAP fit. That holds zero, displacement and U/V/W at measured values, so the cell is then a real measurement. If there's no standard, fix one of zero or displacement at an independently known value, refine the other, and say in the paper which one was held.\n2. **Stop refining both axial terms.** Hold `axial_sl` and `axial_hl` from the instrument geometry, or free only one of them.\n3. **Stiffen the background.** Use far fewer than 24 Chebyshev terms, or a P-spline with larger `lambda_smooth`, or `rx.auto_background` sized to the 15–130° range. Re-check `report.background.worst_absorption` and that the Biso values are stable when the background flexibility changes.\n4. **Report esds with their inflation.** Quote them with `statistics.esd_inflation` and `report.identifiability`, and state the protocol: plan, held parameters, range and channel count.\n5. **Recollect if the Biso values or intensities are going in the paper.** The 4.6 steps per FWHM is a collection limit, and no refinement choice recovers it. Use a step size near FWHM/5.\n\nOnce zero and displacement are separated and the background is stiffened, the cell should be quotable with its inflated esd. The Biso values need the stiffer background and ideally the finer step."
+              },
+              {
+                "name": "opened_reference",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched references/[a-z-]+\\.md",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "skill_fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "undersampled",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**None of the refined numbers can go in the paper as they stand.** The \"converged\" status and Rwp 0.0834 / GoF 1.49 only show that the fit ran. Every parameter fails one of the guards in the output. I haven't re-run `fit.py`; this comes from reading `fit_output.txt`.\n\n**Number by number**\n\n| Quantity | Verdict | Why |\n|---|---|---|\n| `cell.a` = 9.36903, `cell.c` = 6.88386 | Don't quote | Both correlate at ρ≈0.995–0.997 with zero shift and sample displacement. Those two correlate with each other at ρ=+1.000 (`FLAT_DIRECTION`), so the data don't separate them. The ±0.0008 and ±0.0006 esds are conditional on the other parameters being right, so they are too small. |\n| `zero_shift` = −0.163, `sample_displacement` = −0.228 | Don't quote either | One direction of the pair isn't measured, and the report can't say which one. |\n| `axial_sl`, `axial_hl` | Don't quote | ρ=−0.999, and the esds (±0.024) are as large as the values (0.020). They stayed at the 0.02 start, so they weren't measured. |\n| Biso (Ca1 0.53, Ca2 0.43, P3 0.36, F4 1.03, O5 0.39, O6 0.49, O7 0.46) | Don't quote yet | `BACKGROUND_ABSORPTION` says the 24-term Chebyshev background can reproduce part of the ADPs (R²=0.27), so they are biased even though Rwp looks good. The data are also undersampled (4.6 steps per FWHM, below the 5 asked for), which hurts intensity-derived numbers. The esds carry no inflation factor, so none of them are quotable as printed. The values themselves are physically plausible. |\n| U, V, W, and any size or strain from them | Don't quote | The pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts (`RESOLUTION_UNCONSTRAINED`). |\n| Rwp 0.0834, GoF 1.49 | Fine as a descriptive, relative number | It doesn't validate anything above. |\n\nThe `SITE_SNAPPED_TO_SPECIAL_POSITION` warning on Ca1 is probably benign. Ca1 at (1/3, 2/3, z) is the 4f site in P6₃/m, and the shift is 3e-11. Confirm that `fluorapatite.cif` lists Ca1 with multiplicity 4.\n\nThe duplicated `BACKGROUND_ABSORPTION` line is just a repeated print.\n\n**What to change before the next run**\n\n1. **Break the zero/displacement/cell degeneracy.** Calibrate the instrument on a standard with a certified cell held fixed (`lab_calibrate`). Then `save_instrument_profile`, and `load_instrument_profile` before the FAP fit. That holds zero, displacement and U/V/W at measured values, so the cell is then a real measurement. If there's no standard, fix one of zero or displacement at an independently known value, refine the other, and say in the paper which one was held.\n2. **Stop refining both axial terms.** Hold `axial_sl` and `axial_hl` from the instrument geometry, or free only one of them.\n3. **Stiffen the background.** Use far fewer than 24 Chebyshev terms, or a P-spline with larger `lambda_smooth`, or `rx.auto_background` sized to the 15–130° range. Re-check `report.background.worst_absorption` and that the Biso values are stable when the background flexibility changes.\n4. **Report esds with their inflation.** Quote them with `statistics.esd_inflation` and `report.identifiability`, and state the protocol: plan, held parameters, range and channel count.\n5. **Recollect if the Biso values or intensities are going in the paper.** The 4.6 steps per FWHM is a collection limit, and no refinement choice recovers it. Use a step size near FWHM/5.\n\nOnce zero and displacement are separated and the background is stiffened, the cell should be quotable with its inflated esd. The Biso values need the stiffer background and ideally the finer step."
+              },
+              {
+                "name": "zero_displacement",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**None of the refined numbers can go in the paper as they stand.** The \"converged\" status and Rwp 0.0834 / GoF 1.49 only show that the fit ran. Every parameter fails one of the guards in the output. I haven't re-run `fit.py`; this comes from reading `fit_output.txt`.\n\n**Number by number**\n\n| Quantity | Verdict | Why |\n|---|---|---|\n| `cell.a` = 9.36903, `cell.c` = 6.88386 | Don't quote | Both correlate at ρ≈0.995–0.997 with zero shift and sample displacement. Those two correlate with each other at ρ=+1.000 (`FLAT_DIRECTION`), so the data don't separate them. The ±0.0008 and ±0.0006 esds are conditional on the other parameters being right, so they are too small. |\n| `zero_shift` = −0.163, `sample_displacement` = −0.228 | Don't quote either | One direction of the pair isn't measured, and the report can't say which one. |\n| `axial_sl`, `axial_hl` | Don't quote | ρ=−0.999, and the esds (±0.024) are as large as the values (0.020). They stayed at the 0.02 start, so they weren't measured. |\n| Biso (Ca1 0.53, Ca2 0.43, P3 0.36, F4 1.03, O5 0.39, O6 0.49, O7 0.46) | Don't quote yet | `BACKGROUND_ABSORPTION` says the 24-term Chebyshev background can reproduce part of the ADPs (R²=0.27), so they are biased even though Rwp looks good. The data are also undersampled (4.6 steps per FWHM, below the 5 asked for), which hurts intensity-derived numbers. The esds carry no inflation factor, so none of them are quotable as printed. The values themselves are physically plausible. |\n| U, V, W, and any size or strain from them | Don't quote | The pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts (`RESOLUTION_UNCONSTRAINED`). |\n| Rwp 0.0834, GoF 1.49 | Fine as a descriptive, relative number | It doesn't validate anything above. |\n\nThe `SITE_SNAPPED_TO_SPECIAL_POSITION` warning on Ca1 is probably benign. Ca1 at (1/3, 2/3, z) is the 4f site in P6₃/m, and the shift is 3e-11. Confirm that `fluorapatite.cif` lists Ca1 with multiplicity 4.\n\nThe duplicated `BACKGROUND_ABSORPTION` line is just a repeated print.\n\n**What to change before the next run**\n\n1. **Break the zero/displacement/cell degeneracy.** Calibrate the instrument on a standard with a certified cell held fixed (`lab_calibrate`). Then `save_instrument_profile`, and `load_instrument_profile` before the FAP fit. That holds zero, displacement and U/V/W at measured values, so the cell is then a real measurement. If there's no standard, fix one of zero or displacement at an independently known value, refine the other, and say in the paper which one was held.\n2. **Stop refining both axial terms.** Hold `axial_sl` and `axial_hl` from the instrument geometry, or free only one of them.\n3. **Stiffen the background.** Use far fewer than 24 Chebyshev terms, or a P-spline with larger `lambda_smooth`, or `rx.auto_background` sized to the 15–130° range. Re-check `report.background.worst_absorption` and that the Biso values are stable when the background flexibility changes.\n4. **Report esds with their inflation.** Quote them with `statistics.esd_inflation` and `report.identifiability`, and state the protocol: plan, held parameters, range and channel count.\n5. **Recollect if the Biso values or intensities are going in the paper.** The 4.6 steps per FWHM is a collection limit, and no refinement choice recovers it. Use a step size near FWHM/5.\n\nOnce zero and displacement are separated and the background is stiffened, the cell should be quotable with its inflated esd. The Biso values need the stiffer background and ideally the finer step."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.16151919999999997,
+            "judgeCostUsd": 0.03853799999999999,
+            "durationSeconds": 38,
+            "startedAt": "2026-10-06T09:57:08.371Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-Eaitfc/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "biso_background",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**Short answer: none of the refined numbers can go in the paper as they stand.** I read `fit.py` and `fit_output.txt` but didn't rerun the fit. The fit converged (Rwp 0.0834, GoF 1.49), but the diagnostics undercut every parameter it printed.\n\n**Number by number**\n\n| Number | Verdict | Why |\n|---|---|---|\n| `cell.a`, `cell.c` | Don't quote | Both correlate at ρ≈0.995–0.997 with zero shift and sample displacement. Those two are themselves at ρ=+1.000, which `FLAT_DIRECTION` calls a rank deficiency. One direction is not measured, and each esd assumes the other parameter is right. The cell esds (0.0008 and 0.0006 Å) are therefore conditional and too small. |\n| `zero_shift`, `sample_displacement` | Don't quote | They are one parameter reported as two. The report says neither is more measured than the other. |\n| `axial_sl`, `axial_hl` | Don't quote | ρ=−0.999, and the esds (0.024) exceed the values (0.020). They are an artefact of the starting value. |\n| Biso (all seven) | Don't quote | `BACKGROUND_ABSORPTION` fires on the ADPs: the 24-term Chebyshev can absorb displacement parameters, so they are biased even with a good Rwp. The values are small (0.36–1.03 Å²), which fits that. The pattern is also undersampled (4.6 steps per FWHM, against 5 required), which limits how well intensities, and so ADPs, can be quoted. |\n| U, V, W, and any size or strain | Don't quote | `RESOLUTION_UNCONSTRAINED`: the pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts. |\n| Rwp 0.0834, GoF 1.49 | Quote only as the fit's relative figure | They say nothing about whether the parameters are right. |\n\nThe `BACKGROUND_ABSORPTION` message says the background reproduces \"most of\" the ADP, but the printed R² is only 0.27. The code is real, but the message text and the number don't match. I'd treat the ADPs as suspect, not as proven to be 100% biased.\n\n**What to change before the next run**\n\n1. **Break the zero/displacement degeneracy.** Fix one at an independently known value and refine the other, and state which one you held. The better route is to calibrate on a standard with its certified cell held fixed (`lab_calibrate`). Then `save_instrument_profile` and `load_instrument_profile`. That also fixes U, V and W at instrument values, which resolves the resolution warning. Widening the 2θ range or adding a second histogram would also separate them.\n2. **Stop refining `axial_sl` and `axial_hl`.** Hold them at the instrument values. They are only freed in the `lines_axial` stage, so remove or skip that part of the plan.\n3. **Stiffen the background.** Use far fewer than 24 Chebyshev terms, or `rx.auto_background`, or a P-spline with larger smoothing. Rerun and check that the Biso values are stable and that `worst_absorption` in `report.background` is low. Don't judge it by Rwp.\n4. **Check the Ca1 special-position warning.** Ca1 sits 3e-11 from a special position and was expanded with multiplicity 4. Compare that against the multiplicity in `fluorapatite.cif`. It doesn't affect this fit, but it matters for any weight fraction.\n5. **Don't read crystallite size or strain from this profile.** Treat them as unmeasured.\n6. **If the intensities must be quotable, recollect.** The undersampling (4.6 steps across the FWHM) is a data-collection limit that no refinement choice fixes. Use a step size near FWHM/5.\n\nWhen you report the rerun, include the protocol: which parameters were held, the 15–130° range and the background model. Quote the esds with the `esd_inflation` factor from `result.statistics`."
+              },
+              {
+                "name": "cell_accuracy",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**Short answer: none of the refined numbers can go in the paper as they stand.** I read `fit.py` and `fit_output.txt` but didn't rerun the fit. The fit converged (Rwp 0.0834, GoF 1.49), but the diagnostics undercut every parameter it printed.\n\n**Number by number**\n\n| Number | Verdict | Why |\n|---|---|---|\n| `cell.a`, `cell.c` | Don't quote | Both correlate at ρ≈0.995–0.997 with zero shift and sample displacement. Those two are themselves at ρ=+1.000, which `FLAT_DIRECTION` calls a rank deficiency. One direction is not measured, and each esd assumes the other parameter is right. The cell esds (0.0008 and 0.0006 Å) are therefore conditional and too small. |\n| `zero_shift`, `sample_displacement` | Don't quote | They are one parameter reported as two. The report says neither is more measured than the other. |\n| `axial_sl`, `axial_hl` | Don't quote | ρ=−0.999, and the esds (0.024) exceed the values (0.020). They are an artefact of the starting value. |\n| Biso (all seven) | Don't quote | `BACKGROUND_ABSORPTION` fires on the ADPs: the 24-term Chebyshev can absorb displacement parameters, so they are biased even with a good Rwp. The values are small (0.36–1.03 Å²), which fits that. The pattern is also undersampled (4.6 steps per FWHM, against 5 required), which limits how well intensities, and so ADPs, can be quoted. |\n| U, V, W, and any size or strain | Don't quote | `RESOLUTION_UNCONSTRAINED`: the pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts. |\n| Rwp 0.0834, GoF 1.49 | Quote only as the fit's relative figure | They say nothing about whether the parameters are right. |\n\nThe `BACKGROUND_ABSORPTION` message says the background reproduces \"most of\" the ADP, but the printed R² is only 0.27. The code is real, but the message text and the number don't match. I'd treat the ADPs as suspect, not as proven to be 100% biased.\n\n**What to change before the next run**\n\n1. **Break the zero/displacement degeneracy.** Fix one at an independently known value and refine the other, and state which one you held. The better route is to calibrate on a standard with its certified cell held fixed (`lab_calibrate`). Then `save_instrument_profile` and `load_instrument_profile`. That also fixes U, V and W at instrument values, which resolves the resolution warning. Widening the 2θ range or adding a second histogram would also separate them.\n2. **Stop refining `axial_sl` and `axial_hl`.** Hold them at the instrument values. They are only freed in the `lines_axial` stage, so remove or skip that part of the plan.\n3. **Stiffen the background.** Use far fewer than 24 Chebyshev terms, or `rx.auto_background`, or a P-spline with larger smoothing. Rerun and check that the Biso values are stable and that `worst_absorption` in `report.background` is low. Don't judge it by Rwp.\n4. **Check the Ca1 special-position warning.** Ca1 sits 3e-11 from a special position and was expanded with multiplicity 4. Compare that against the multiplicity in `fluorapatite.cif`. It doesn't affect this fit, but it matters for any weight fraction.\n5. **Don't read crystallite size or strain from this profile.** Treat them as unmeasured.\n6. **If the intensities must be quotable, recollect.** The undersampling (4.6 steps across the FWHM) is a data-collection limit that no refinement choice fixes. Use a step size near FWHM/5.\n\nWhen you report the rerun, include the protocol: which parameters were held, the 15–130° range and the background model. Quote the esds with the `esd_inflation` factor from `result.statistics`."
+              },
+              {
+                "name": "opened_reference",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched references/[a-z-]+\\.md",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "skill_fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "undersampled",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**Short answer: none of the refined numbers can go in the paper as they stand.** I read `fit.py` and `fit_output.txt` but didn't rerun the fit. The fit converged (Rwp 0.0834, GoF 1.49), but the diagnostics undercut every parameter it printed.\n\n**Number by number**\n\n| Number | Verdict | Why |\n|---|---|---|\n| `cell.a`, `cell.c` | Don't quote | Both correlate at ρ≈0.995–0.997 with zero shift and sample displacement. Those two are themselves at ρ=+1.000, which `FLAT_DIRECTION` calls a rank deficiency. One direction is not measured, and each esd assumes the other parameter is right. The cell esds (0.0008 and 0.0006 Å) are therefore conditional and too small. |\n| `zero_shift`, `sample_displacement` | Don't quote | They are one parameter reported as two. The report says neither is more measured than the other. |\n| `axial_sl`, `axial_hl` | Don't quote | ρ=−0.999, and the esds (0.024) exceed the values (0.020). They are an artefact of the starting value. |\n| Biso (all seven) | Don't quote | `BACKGROUND_ABSORPTION` fires on the ADPs: the 24-term Chebyshev can absorb displacement parameters, so they are biased even with a good Rwp. The values are small (0.36–1.03 Å²), which fits that. The pattern is also undersampled (4.6 steps per FWHM, against 5 required), which limits how well intensities, and so ADPs, can be quoted. |\n| U, V, W, and any size or strain | Don't quote | `RESOLUTION_UNCONSTRAINED`: the pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts. |\n| Rwp 0.0834, GoF 1.49 | Quote only as the fit's relative figure | They say nothing about whether the parameters are right. |\n\nThe `BACKGROUND_ABSORPTION` message says the background reproduces \"most of\" the ADP, but the printed R² is only 0.27. The code is real, but the message text and the number don't match. I'd treat the ADPs as suspect, not as proven to be 100% biased.\n\n**What to change before the next run**\n\n1. **Break the zero/displacement degeneracy.** Fix one at an independently known value and refine the other, and state which one you held. The better route is to calibrate on a standard with its certified cell held fixed (`lab_calibrate`). Then `save_instrument_profile` and `load_instrument_profile`. That also fixes U, V and W at instrument values, which resolves the resolution warning. Widening the 2θ range or adding a second histogram would also separate them.\n2. **Stop refining `axial_sl` and `axial_hl`.** Hold them at the instrument values. They are only freed in the `lines_axial` stage, so remove or skip that part of the plan.\n3. **Stiffen the background.** Use far fewer than 24 Chebyshev terms, or `rx.auto_background`, or a P-spline with larger smoothing. Rerun and check that the Biso values are stable and that `worst_absorption` in `report.background` is low. Don't judge it by Rwp.\n4. **Check the Ca1 special-position warning.** Ca1 sits 3e-11 from a special position and was expanded with multiplicity 4. Compare that against the multiplicity in `fluorapatite.cif`. It doesn't affect this fit, but it matters for any weight fraction.\n5. **Don't read crystallite size or strain from this profile.** Treat them as unmeasured.\n6. **If the intensities must be quotable, recollect.** The undersampling (4.6 steps across the FWHM) is a data-collection limit that no refinement choice fixes. Use a step size near FWHM/5.\n\nWhen you report the rerun, include the protocol: which parameters were held, the 15–130° range and the background model. Quote the esds with the `esd_inflation` factor from `result.statistics`."
+              },
+              {
+                "name": "zero_displacement",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**Short answer: none of the refined numbers can go in the paper as they stand.** I read `fit.py` and `fit_output.txt` but didn't rerun the fit. The fit converged (Rwp 0.0834, GoF 1.49), but the diagnostics undercut every parameter it printed.\n\n**Number by number**\n\n| Number | Verdict | Why |\n|---|---|---|\n| `cell.a`, `cell.c` | Don't quote | Both correlate at ρ≈0.995–0.997 with zero shift and sample displacement. Those two are themselves at ρ=+1.000, which `FLAT_DIRECTION` calls a rank deficiency. One direction is not measured, and each esd assumes the other parameter is right. The cell esds (0.0008 and 0.0006 Å) are therefore conditional and too small. |\n| `zero_shift`, `sample_displacement` | Don't quote | They are one parameter reported as two. The report says neither is more measured than the other. |\n| `axial_sl`, `axial_hl` | Don't quote | ρ=−0.999, and the esds (0.024) exceed the values (0.020). They are an artefact of the starting value. |\n| Biso (all seven) | Don't quote | `BACKGROUND_ABSORPTION` fires on the ADPs: the 24-term Chebyshev can absorb displacement parameters, so they are biased even with a good Rwp. The values are small (0.36–1.03 Å²), which fits that. The pattern is also undersampled (4.6 steps per FWHM, against 5 required), which limits how well intensities, and so ADPs, can be quoted. |\n| U, V, W, and any size or strain | Don't quote | `RESOLUTION_UNCONSTRAINED`: the pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts. |\n| Rwp 0.0834, GoF 1.49 | Quote only as the fit's relative figure | They say nothing about whether the parameters are right. |\n\nThe `BACKGROUND_ABSORPTION` message says the background reproduces \"most of\" the ADP, but the printed R² is only 0.27. The code is real, but the message text and the number don't match. I'd treat the ADPs as suspect, not as proven to be 100% biased.\n\n**What to change before the next run**\n\n1. **Break the zero/displacement degeneracy.** Fix one at an independently known value and refine the other, and state which one you held. The better route is to calibrate on a standard with its certified cell held fixed (`lab_calibrate`). Then `save_instrument_profile` and `load_instrument_profile`. That also fixes U, V and W at instrument values, which resolves the resolution warning. Widening the 2θ range or adding a second histogram would also separate them.\n2. **Stop refining `axial_sl` and `axial_hl`.** Hold them at the instrument values. They are only freed in the `lines_axial` stage, so remove or skip that part of the plan.\n3. **Stiffen the background.** Use far fewer than 24 Chebyshev terms, or `rx.auto_background`, or a P-spline with larger smoothing. Rerun and check that the Biso values are stable and that `worst_absorption` in `report.background` is low. Don't judge it by Rwp.\n4. **Check the Ca1 special-position warning.** Ca1 sits 3e-11 from a special position and was expanded with multiplicity 4. Compare that against the multiplicity in `fluorapatite.cif`. It doesn't affect this fit, but it matters for any weight fraction.\n5. **Don't read crystallite size or strain from this profile.** Treat them as unmeasured.\n6. **If the intensities must be quotable, recollect.** The undersampling (4.6 steps across the FWHM) is a data-collection limit that no refinement choice fixes. Use a step size near FWHM/5.\n\nWhen you report the rerun, include the protocol: which parameters were held, the 15–130° range and the background model. Quote the esds with the `esd_inflation` factor from `result.statistics`."
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.11650380000000007,
+            "judgeCostUsd": 0.038058000000000064,
+            "durationSeconds": 37,
+            "startedAt": "2026-10-06T09:57:46.357Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-uNqxjz/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "biso_background",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**Short answer:** none of the refined numbers should go in the paper as they stand. The fit converged (Rwp 0.0834, GoF 1.49), but the diagnostics undermine each parameter group. I read `fit.py` and `fit_output.txt` and didn't re-run the fit.\n\n**Each group of numbers**\n\n| Quantity | Verdict | Why |\n|---|---|---|\n| Zero shift (−0.163) and sample displacement (−0.228) | Don't quote either. | They have ρ = +1.000 (`FLAT_DIRECTION`). The data fix only one combination of them, so each esd is conditional on the other being right. |\n| Cell a (9.36903) and c (6.88386) | Don't quote as measured. | They correlate at ρ ≈ 0.995–0.997 with the two parameters above, so the esds of 0.0008 and 0.0006 are too small. Both cell lengths also moved about 0.003 Å from the CIF (9.3717, 6.8859), which is plausibly the zero/displacement ambiguity. |\n| `axial_sl` and `axial_hl` (0.0201, 0.0202) | Don't quote. | They are unchanged from the 0.02 starting values and have esds as large as the values themselves. They are also anti-correlated at ρ = −0.999, so the data don't determine them. |\n| Biso (0.36–1.03 Å²) | Don't quote yet. | `BACKGROUND_ABSORPTION` warns that the 24-term Chebyshev background can absorb part of the ADPs, which biases them even though Rwp looks good. The pattern is also slightly undersampled (4.6 steps across the FWHM, against the recommended 5). |\n| U, V, W profile widths | Not printed, but don't quote them or any size/strain from them. | The pattern is mostly Lorentzian, so the Gaussian terms are an artefact (`RESOLUTION_UNCONSTRAINED`). |\n| Rwp and GoF | Fine to report as fit statistics. | They say nothing about whether the individual parameters are right. |\n\n**One warning you can ignore:** `SITE_SNAPPED_TO_SPECIAL_POSITION` for Ca1 is benign. The shift is 3e-11, from rounding 0.3333333333 to 1/3. Multiplicity 4 is correct for the 4f site in P6₃/m (4 Ca1 + 6 Ca2 gives Ca₁₀ per cell). Nothing needs changing there.\n\n**What to change before the next run**\n\n1. **Break the zero/displacement degeneracy.** Free only one of them, and state in the paper which one was held. The better fix is an independent value from a `lab_calibrate` run on a standard. Widening the fitted range beyond 15–130° or adding a second histogram would also separate them. After that, re-check the cell esds.\n2. **Hold or drop the axial divergence refinement.** Fix `axial_sl` and `axial_hl` at known instrument values, or remove the `lines_axial` freeing. In `fit.py` they are set to 0.02 and then refined.\n3. **Stiffen the background.** Use far fewer than 24 Chebyshev terms, or switch to a P-spline with larger `lambda_smooth`. Then re-check that `BACKGROUND_ABSORPTION` disappears before trusting any Biso.\n4. **Fix the profile from a standard.** Run `lab_calibrate` on a standard with its certified cell held, then `save_instrument_profile`. Next, `load_instrument_profile` before this fit so U, V and W are held.\n5. **Data collection, if the intensities matter.** Re-collect at a step size near FWHM/5. No refinement choice fixes the 4.6 steps/FWHM undersampling.\n\nItems 1 and 3 together would likely make the cell and the ADPs quotable. The cell would still carry the caveat of whichever offset was held.\n\nI can make these edits to `fit.py` and re-run it if you want."
+              },
+              {
+                "name": "cell_accuracy",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**Short answer:** none of the refined numbers should go in the paper as they stand. The fit converged (Rwp 0.0834, GoF 1.49), but the diagnostics undermine each parameter group. I read `fit.py` and `fit_output.txt` and didn't re-run the fit.\n\n**Each group of numbers**\n\n| Quantity | Verdict | Why |\n|---|---|---|\n| Zero shift (−0.163) and sample displacement (−0.228) | Don't quote either. | They have ρ = +1.000 (`FLAT_DIRECTION`). The data fix only one combination of them, so each esd is conditional on the other being right. |\n| Cell a (9.36903) and c (6.88386) | Don't quote as measured. | They correlate at ρ ≈ 0.995–0.997 with the two parameters above, so the esds of 0.0008 and 0.0006 are too small. Both cell lengths also moved about 0.003 Å from the CIF (9.3717, 6.8859), which is plausibly the zero/displacement ambiguity. |\n| `axial_sl` and `axial_hl` (0.0201, 0.0202) | Don't quote. | They are unchanged from the 0.02 starting values and have esds as large as the values themselves. They are also anti-correlated at ρ = −0.999, so the data don't determine them. |\n| Biso (0.36–1.03 Å²) | Don't quote yet. | `BACKGROUND_ABSORPTION` warns that the 24-term Chebyshev background can absorb part of the ADPs, which biases them even though Rwp looks good. The pattern is also slightly undersampled (4.6 steps across the FWHM, against the recommended 5). |\n| U, V, W profile widths | Not printed, but don't quote them or any size/strain from them. | The pattern is mostly Lorentzian, so the Gaussian terms are an artefact (`RESOLUTION_UNCONSTRAINED`). |\n| Rwp and GoF | Fine to report as fit statistics. | They say nothing about whether the individual parameters are right. |\n\n**One warning you can ignore:** `SITE_SNAPPED_TO_SPECIAL_POSITION` for Ca1 is benign. The shift is 3e-11, from rounding 0.3333333333 to 1/3. Multiplicity 4 is correct for the 4f site in P6₃/m (4 Ca1 + 6 Ca2 gives Ca₁₀ per cell). Nothing needs changing there.\n\n**What to change before the next run**\n\n1. **Break the zero/displacement degeneracy.** Free only one of them, and state in the paper which one was held. The better fix is an independent value from a `lab_calibrate` run on a standard. Widening the fitted range beyond 15–130° or adding a second histogram would also separate them. After that, re-check the cell esds.\n2. **Hold or drop the axial divergence refinement.** Fix `axial_sl` and `axial_hl` at known instrument values, or remove the `lines_axial` freeing. In `fit.py` they are set to 0.02 and then refined.\n3. **Stiffen the background.** Use far fewer than 24 Chebyshev terms, or switch to a P-spline with larger `lambda_smooth`. Then re-check that `BACKGROUND_ABSORPTION` disappears before trusting any Biso.\n4. **Fix the profile from a standard.** Run `lab_calibrate` on a standard with its certified cell held, then `save_instrument_profile`. Next, `load_instrument_profile` before this fit so U, V and W are held.\n5. **Data collection, if the intensities matter.** Re-collect at a step size near FWHM/5. No refinement choice fixes the 4.6 steps/FWHM undersampling.\n\nItems 1 and 3 together would likely make the cell and the ADPs quotable. The cell would still carry the caveat of whichever offset was held.\n\nI can make these edits to `fit.py` and re-run it if you want."
+              },
+              {
+                "name": "undersampled",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**Short answer:** none of the refined numbers should go in the paper as they stand. The fit converged (Rwp 0.0834, GoF 1.49), but the diagnostics undermine each parameter group. I read `fit.py` and `fit_output.txt` and didn't re-run the fit.\n\n**Each group of numbers**\n\n| Quantity | Verdict | Why |\n|---|---|---|\n| Zero shift (−0.163) and sample displacement (−0.228) | Don't quote either. | They have ρ = +1.000 (`FLAT_DIRECTION`). The data fix only one combination of them, so each esd is conditional on the other being right. |\n| Cell a (9.36903) and c (6.88386) | Don't quote as measured. | They correlate at ρ ≈ 0.995–0.997 with the two parameters above, so the esds of 0.0008 and 0.0006 are too small. Both cell lengths also moved about 0.003 Å from the CIF (9.3717, 6.8859), which is plausibly the zero/displacement ambiguity. |\n| `axial_sl` and `axial_hl` (0.0201, 0.0202) | Don't quote. | They are unchanged from the 0.02 starting values and have esds as large as the values themselves. They are also anti-correlated at ρ = −0.999, so the data don't determine them. |\n| Biso (0.36–1.03 Å²) | Don't quote yet. | `BACKGROUND_ABSORPTION` warns that the 24-term Chebyshev background can absorb part of the ADPs, which biases them even though Rwp looks good. The pattern is also slightly undersampled (4.6 steps across the FWHM, against the recommended 5). |\n| U, V, W profile widths | Not printed, but don't quote them or any size/strain from them. | The pattern is mostly Lorentzian, so the Gaussian terms are an artefact (`RESOLUTION_UNCONSTRAINED`). |\n| Rwp and GoF | Fine to report as fit statistics. | They say nothing about whether the individual parameters are right. |\n\n**One warning you can ignore:** `SITE_SNAPPED_TO_SPECIAL_POSITION` for Ca1 is benign. The shift is 3e-11, from rounding 0.3333333333 to 1/3. Multiplicity 4 is correct for the 4f site in P6₃/m (4 Ca1 + 6 Ca2 gives Ca₁₀ per cell). Nothing needs changing there.\n\n**What to change before the next run**\n\n1. **Break the zero/displacement degeneracy.** Free only one of them, and state in the paper which one was held. The better fix is an independent value from a `lab_calibrate` run on a standard. Widening the fitted range beyond 15–130° or adding a second histogram would also separate them. After that, re-check the cell esds.\n2. **Hold or drop the axial divergence refinement.** Fix `axial_sl` and `axial_hl` at known instrument values, or remove the `lines_axial` freeing. In `fit.py` they are set to 0.02 and then refined.\n3. **Stiffen the background.** Use far fewer than 24 Chebyshev terms, or switch to a P-spline with larger `lambda_smooth`. Then re-check that `BACKGROUND_ABSORPTION` disappears before trusting any Biso.\n4. **Fix the profile from a standard.** Run `lab_calibrate` on a standard with its certified cell held, then `save_instrument_profile`. Next, `load_instrument_profile` before this fit so U, V and W are held.\n5. **Data collection, if the intensities matter.** Re-collect at a step size near FWHM/5. No refinement choice fixes the 4.6 steps/FWHM undersampling.\n\nItems 1 and 3 together would likely make the cell and the ADPs quotable. The cell would still carry the caveat of whichever offset was held.\n\nI can make these edits to `fit.py` and re-run it if you want."
+              },
+              {
+                "name": "zero_displacement",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**Short answer:** none of the refined numbers should go in the paper as they stand. The fit converged (Rwp 0.0834, GoF 1.49), but the diagnostics undermine each parameter group. I read `fit.py` and `fit_output.txt` and didn't re-run the fit.\n\n**Each group of numbers**\n\n| Quantity | Verdict | Why |\n|---|---|---|\n| Zero shift (−0.163) and sample displacement (−0.228) | Don't quote either. | They have ρ = +1.000 (`FLAT_DIRECTION`). The data fix only one combination of them, so each esd is conditional on the other being right. |\n| Cell a (9.36903) and c (6.88386) | Don't quote as measured. | They correlate at ρ ≈ 0.995–0.997 with the two parameters above, so the esds of 0.0008 and 0.0006 are too small. Both cell lengths also moved about 0.003 Å from the CIF (9.3717, 6.8859), which is plausibly the zero/displacement ambiguity. |\n| `axial_sl` and `axial_hl` (0.0201, 0.0202) | Don't quote. | They are unchanged from the 0.02 starting values and have esds as large as the values themselves. They are also anti-correlated at ρ = −0.999, so the data don't determine them. |\n| Biso (0.36–1.03 Å²) | Don't quote yet. | `BACKGROUND_ABSORPTION` warns that the 24-term Chebyshev background can absorb part of the ADPs, which biases them even though Rwp looks good. The pattern is also slightly undersampled (4.6 steps across the FWHM, against the recommended 5). |\n| U, V, W profile widths | Not printed, but don't quote them or any size/strain from them. | The pattern is mostly Lorentzian, so the Gaussian terms are an artefact (`RESOLUTION_UNCONSTRAINED`). |\n| Rwp and GoF | Fine to report as fit statistics. | They say nothing about whether the individual parameters are right. |\n\n**One warning you can ignore:** `SITE_SNAPPED_TO_SPECIAL_POSITION` for Ca1 is benign. The shift is 3e-11, from rounding 0.3333333333 to 1/3. Multiplicity 4 is correct for the 4f site in P6₃/m (4 Ca1 + 6 Ca2 gives Ca₁₀ per cell). Nothing needs changing there.\n\n**What to change before the next run**\n\n1. **Break the zero/displacement degeneracy.** Free only one of them, and state in the paper which one was held. The better fix is an independent value from a `lab_calibrate` run on a standard. Widening the fitted range beyond 15–130° or adding a second histogram would also separate them. After that, re-check the cell esds.\n2. **Hold or drop the axial divergence refinement.** Fix `axial_sl` and `axial_hl` at known instrument values, or remove the `lines_axial` freeing. In `fit.py` they are set to 0.02 and then refined.\n3. **Stiffen the background.** Use far fewer than 24 Chebyshev terms, or switch to a P-spline with larger `lambda_smooth`. Then re-check that `BACKGROUND_ABSORPTION` disappears before trusting any Biso.\n4. **Fix the profile from a standard.** Run `lab_calibrate` on a standard with its certified cell held, then `save_instrument_profile`. Next, `load_instrument_profile` before this fit so U, V and W are held.\n5. **Data collection, if the intensities matter.** Re-collect at a step size near FWHM/5. No refinement choice fixes the 4.6 steps/FWHM undersampling.\n\nItems 1 and 3 together would likely make the cell and the ADPs quotable. The cell would still carry the caveat of whichever offset was held.\n\nI can make these edits to `fit.py` and re-run it if you want."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.11801039999999999,
+            "judgeCostUsd": 0.037026,
+            "durationSeconds": 36,
+            "startedAt": "2026-10-06T09:58:23.611Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-tTwrre/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "biso_background",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Short answer: none of the refined parameters can go in the paper as they stand. The Rwp of 0.0834 and GoF of 1.49 are fine to report as fit statistics. I read the script and its printed output but didn't re-run the fit.\n\n**Why each group of numbers fails**\n\n- **Cell a and c (9.36903, 6.88386 Å).**\n  - The fit frees `zero_shift` and `sample_displacement` together, and they come out at ρ = +1.000. The data cannot separate them.\n  - Both cell axes correlate at 0.995–0.997 with each of them, so the cell esds (about 0.0008 and 0.0006 Å) are conditional on a shift that isn't measured.\n  - The cell has also moved from the starting CIF (9.3717 Å) by about 0.003 Å, roughly 3× the quoted esd. That may be a real difference or the shift absorbing error, and the fit can't say which.\n- **`zero_shift` (-0.163°) and `sample_displacement` (-0.228).** The report says to quote neither. One of them is unmeasured and it can't tell which.\n- **`axial_sl` and `axial_hl` (0.0201, 0.0202).**\n  - They sit at the starting 0.02 you set in the script, with esds of 0.024 and ρ = -0.999.\n  - They are unmeasured and just reflect the starting values.\n- **U, V, W.** The pattern is mostly Lorentzian (Γ_L exceeds Γ_G at 5162 of 5751 points), so the Gaussian terms are fitted artefacts. Don't quote the widths, and don't quote any size or strain derived from them.\n- **Biso values (0.36–1.03 Å²).**\n  - The 24-term Chebyshev background can absorb part of `atoms.1.biso` (Ca2). The report flags the ADPs as biased even though Rwp looks good.\n  - The warning names only Ca2, but the same background affects all seven values, so I'd treat them all as suspect.\n  - The pattern is also slightly undersampled (4.6 steps per FWHM against the recommended 5), so the intensities themselves aren't quotable. Only re-collecting fixes that.\n- **Ca1 \"snapped to special position\".** This one is harmless. Ca1 at (1/3, 2/3, z) is the 4f site in P6₃/m, and multiplicity 4 gives Ca₁₀ per cell with Ca2, which matches Ca5(PO4)3F with Z = 2. The shift is 3e-11, from rounding in the CIF.\n\n**What to change before the next run**\n\n1. **Zero and displacement.** Fix one at an independently known value, ideally from a `lab_calibrate` run on a standard with its certified cell held. Refine the other, or free them in different stages, and say in the paper which was held. Only then can the cell be quoted.\n2. **Axial divergence.** Hold `axial_sl` and `axial_hl` at their instrument values rather than refining both.\n3. **Profile.** Calibrate on a standard, then run `save_instrument_profile` and `load_instrument_profile`, so U, V and W are held at instrumental values.\n4. **Background.** Drop to far fewer Chebyshev terms, or use a P-spline with a larger `lambda_smooth` or coarser knots. Then re-check that `BACKGROUND_ABSORPTION` clears before trusting any Biso.\n5. **Staging.** Free the atom parameters only after the cell, shift and background are settled, and think about whether all seven Biso values need to be free.\n6. **Data collection.** If you need quotable intensities or ADPs, re-collect at a step size near FWHM/5. A wider range or a second histogram would also help separate the shift terms.\n\nThe duplicated `BACKGROUND_ABSORPTION` line in the output is the same warning printed twice, not two separate problems."
+              },
+              {
+                "name": "cell_accuracy",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Short answer: none of the refined parameters can go in the paper as they stand. The Rwp of 0.0834 and GoF of 1.49 are fine to report as fit statistics. I read the script and its printed output but didn't re-run the fit.\n\n**Why each group of numbers fails**\n\n- **Cell a and c (9.36903, 6.88386 Å).**\n  - The fit frees `zero_shift` and `sample_displacement` together, and they come out at ρ = +1.000. The data cannot separate them.\n  - Both cell axes correlate at 0.995–0.997 with each of them, so the cell esds (about 0.0008 and 0.0006 Å) are conditional on a shift that isn't measured.\n  - The cell has also moved from the starting CIF (9.3717 Å) by about 0.003 Å, roughly 3× the quoted esd. That may be a real difference or the shift absorbing error, and the fit can't say which.\n- **`zero_shift` (-0.163°) and `sample_displacement` (-0.228).** The report says to quote neither. One of them is unmeasured and it can't tell which.\n- **`axial_sl` and `axial_hl` (0.0201, 0.0202).**\n  - They sit at the starting 0.02 you set in the script, with esds of 0.024 and ρ = -0.999.\n  - They are unmeasured and just reflect the starting values.\n- **U, V, W.** The pattern is mostly Lorentzian (Γ_L exceeds Γ_G at 5162 of 5751 points), so the Gaussian terms are fitted artefacts. Don't quote the widths, and don't quote any size or strain derived from them.\n- **Biso values (0.36–1.03 Å²).**\n  - The 24-term Chebyshev background can absorb part of `atoms.1.biso` (Ca2). The report flags the ADPs as biased even though Rwp looks good.\n  - The warning names only Ca2, but the same background affects all seven values, so I'd treat them all as suspect.\n  - The pattern is also slightly undersampled (4.6 steps per FWHM against the recommended 5), so the intensities themselves aren't quotable. Only re-collecting fixes that.\n- **Ca1 \"snapped to special position\".** This one is harmless. Ca1 at (1/3, 2/3, z) is the 4f site in P6₃/m, and multiplicity 4 gives Ca₁₀ per cell with Ca2, which matches Ca5(PO4)3F with Z = 2. The shift is 3e-11, from rounding in the CIF.\n\n**What to change before the next run**\n\n1. **Zero and displacement.** Fix one at an independently known value, ideally from a `lab_calibrate` run on a standard with its certified cell held. Refine the other, or free them in different stages, and say in the paper which was held. Only then can the cell be quoted.\n2. **Axial divergence.** Hold `axial_sl` and `axial_hl` at their instrument values rather than refining both.\n3. **Profile.** Calibrate on a standard, then run `save_instrument_profile` and `load_instrument_profile`, so U, V and W are held at instrumental values.\n4. **Background.** Drop to far fewer Chebyshev terms, or use a P-spline with a larger `lambda_smooth` or coarser knots. Then re-check that `BACKGROUND_ABSORPTION` clears before trusting any Biso.\n5. **Staging.** Free the atom parameters only after the cell, shift and background are settled, and think about whether all seven Biso values need to be free.\n6. **Data collection.** If you need quotable intensities or ADPs, re-collect at a step size near FWHM/5. A wider range or a second histogram would also help separate the shift terms.\n\nThe duplicated `BACKGROUND_ABSORPTION` line in the output is the same warning printed twice, not two separate problems."
+              },
+              {
+                "name": "undersampled",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Short answer: none of the refined parameters can go in the paper as they stand. The Rwp of 0.0834 and GoF of 1.49 are fine to report as fit statistics. I read the script and its printed output but didn't re-run the fit.\n\n**Why each group of numbers fails**\n\n- **Cell a and c (9.36903, 6.88386 Å).**\n  - The fit frees `zero_shift` and `sample_displacement` together, and they come out at ρ = +1.000. The data cannot separate them.\n  - Both cell axes correlate at 0.995–0.997 with each of them, so the cell esds (about 0.0008 and 0.0006 Å) are conditional on a shift that isn't measured.\n  - The cell has also moved from the starting CIF (9.3717 Å) by about 0.003 Å, roughly 3× the quoted esd. That may be a real difference or the shift absorbing error, and the fit can't say which.\n- **`zero_shift` (-0.163°) and `sample_displacement` (-0.228).** The report says to quote neither. One of them is unmeasured and it can't tell which.\n- **`axial_sl` and `axial_hl` (0.0201, 0.0202).**\n  - They sit at the starting 0.02 you set in the script, with esds of 0.024 and ρ = -0.999.\n  - They are unmeasured and just reflect the starting values.\n- **U, V, W.** The pattern is mostly Lorentzian (Γ_L exceeds Γ_G at 5162 of 5751 points), so the Gaussian terms are fitted artefacts. Don't quote the widths, and don't quote any size or strain derived from them.\n- **Biso values (0.36–1.03 Å²).**\n  - The 24-term Chebyshev background can absorb part of `atoms.1.biso` (Ca2). The report flags the ADPs as biased even though Rwp looks good.\n  - The warning names only Ca2, but the same background affects all seven values, so I'd treat them all as suspect.\n  - The pattern is also slightly undersampled (4.6 steps per FWHM against the recommended 5), so the intensities themselves aren't quotable. Only re-collecting fixes that.\n- **Ca1 \"snapped to special position\".** This one is harmless. Ca1 at (1/3, 2/3, z) is the 4f site in P6₃/m, and multiplicity 4 gives Ca₁₀ per cell with Ca2, which matches Ca5(PO4)3F with Z = 2. The shift is 3e-11, from rounding in the CIF.\n\n**What to change before the next run**\n\n1. **Zero and displacement.** Fix one at an independently known value, ideally from a `lab_calibrate` run on a standard with its certified cell held. Refine the other, or free them in different stages, and say in the paper which was held. Only then can the cell be quoted.\n2. **Axial divergence.** Hold `axial_sl` and `axial_hl` at their instrument values rather than refining both.\n3. **Profile.** Calibrate on a standard, then run `save_instrument_profile` and `load_instrument_profile`, so U, V and W are held at instrumental values.\n4. **Background.** Drop to far fewer Chebyshev terms, or use a P-spline with a larger `lambda_smooth` or coarser knots. Then re-check that `BACKGROUND_ABSORPTION` clears before trusting any Biso.\n5. **Staging.** Free the atom parameters only after the cell, shift and background are settled, and think about whether all seven Biso values need to be free.\n6. **Data collection.** If you need quotable intensities or ADPs, re-collect at a step size near FWHM/5. A wider range or a second histogram would also help separate the shift terms.\n\nThe duplicated `BACKGROUND_ABSORPTION` line in the output is the same warning printed twice, not two separate problems."
+              },
+              {
+                "name": "zero_displacement",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Short answer: none of the refined parameters can go in the paper as they stand. The Rwp of 0.0834 and GoF of 1.49 are fine to report as fit statistics. I read the script and its printed output but didn't re-run the fit.\n\n**Why each group of numbers fails**\n\n- **Cell a and c (9.36903, 6.88386 Å).**\n  - The fit frees `zero_shift` and `sample_displacement` together, and they come out at ρ = +1.000. The data cannot separate them.\n  - Both cell axes correlate at 0.995–0.997 with each of them, so the cell esds (about 0.0008 and 0.0006 Å) are conditional on a shift that isn't measured.\n  - The cell has also moved from the starting CIF (9.3717 Å) by about 0.003 Å, roughly 3× the quoted esd. That may be a real difference or the shift absorbing error, and the fit can't say which.\n- **`zero_shift` (-0.163°) and `sample_displacement` (-0.228).** The report says to quote neither. One of them is unmeasured and it can't tell which.\n- **`axial_sl` and `axial_hl` (0.0201, 0.0202).**\n  - They sit at the starting 0.02 you set in the script, with esds of 0.024 and ρ = -0.999.\n  - They are unmeasured and just reflect the starting values.\n- **U, V, W.** The pattern is mostly Lorentzian (Γ_L exceeds Γ_G at 5162 of 5751 points), so the Gaussian terms are fitted artefacts. Don't quote the widths, and don't quote any size or strain derived from them.\n- **Biso values (0.36–1.03 Å²).**\n  - The 24-term Chebyshev background can absorb part of `atoms.1.biso` (Ca2). The report flags the ADPs as biased even though Rwp looks good.\n  - The warning names only Ca2, but the same background affects all seven values, so I'd treat them all as suspect.\n  - The pattern is also slightly undersampled (4.6 steps per FWHM against the recommended 5), so the intensities themselves aren't quotable. Only re-collecting fixes that.\n- **Ca1 \"snapped to special position\".** This one is harmless. Ca1 at (1/3, 2/3, z) is the 4f site in P6₃/m, and multiplicity 4 gives Ca₁₀ per cell with Ca2, which matches Ca5(PO4)3F with Z = 2. The shift is 3e-11, from rounding in the CIF.\n\n**What to change before the next run**\n\n1. **Zero and displacement.** Fix one at an independently known value, ideally from a `lab_calibrate` run on a standard with its certified cell held. Refine the other, or free them in different stages, and say in the paper which was held. Only then can the cell be quoted.\n2. **Axial divergence.** Hold `axial_sl` and `axial_hl` at their instrument values rather than refining both.\n3. **Profile.** Calibrate on a standard, then run `save_instrument_profile` and `load_instrument_profile`, so U, V and W are held at instrumental values.\n4. **Background.** Drop to far fewer Chebyshev terms, or use a P-spline with a larger `lambda_smooth` or coarser knots. Then re-check that `BACKGROUND_ABSORPTION` clears before trusting any Biso.\n5. **Staging.** Free the atom parameters only after the cell, shift and background are settled, and think about whether all seven Biso values need to be free.\n6. **Data collection.** If you need quotable intensities or ADPs, re-collect at a step size near FWHM/5. A wider range or a second histogram would also help separate the shift terms.\n\nThe duplicated `BACKGROUND_ABSORPTION` line in the output is the same warning printed twice, not two separate problems."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.1261438,
+            "judgeCostUsd": 0.037961999999999996,
+            "durationSeconds": 40,
+            "startedAt": "2026-10-06T09:58:59.933Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-gc9uOl/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "biso_background",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**None of the refined numbers can go in the paper as they stand.** The fit converged (Rwp 0.0834, GoF 1.49), but that doesn't make the parameters quotable. Every value below is judged from `fit_output.txt` and `fit.py`. I didn't rerun the fit.\n\n| Number | Verdict | Why |\n|---|---|---|\n| `zero_shift` (-0.163) and `sample_displacement` (-0.228) | Don't quote | ρ = +1.000. The data doesn't separate them, so one direction is not measured at all, and `FLAT_DIRECTION` says to quote neither. |\n| Cell a (9.36903) and c (6.88386) | Don't quote yet | Both correlate at ρ ≈ 0.995–0.997 with the zero/displacement pair, and a with c at 0.994. The esds (0.0008 and 0.0006) are conditional on the zero and displacement values being right. Cell a also sits 0.0027 Å below the starting CIF, which fits a zero-shift artefact. |\n| `axial_sl` and `axial_hl` (0.0201, 0.0202) | Don't quote | They are essentially the 0.02 starting values. Each esd (0.024) exceeds its value, and ρ = -0.999. |\n| Biso values (0.36–1.03 Å²) | Don't quote | `BACKGROUND_ABSORPTION` says the 24-term Chebyshev background can absorb the Ca2 Biso (R² = 0.27) and that the ADPs are biased even though Rwp looks good. `PATTERN_UNDERSAMPLED` (4.6 steps per FWHM against the 5 asked for) also limits intensity-derived quantities. F4, O5 and O6 have esds of 13–17%. |\n| U, V, W and any size or strain | Don't quote | The pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts. The output says not to quote the widths. |\n| Rwp 0.0834 and GoF 1.49 | Quotable as fit statistics only | They don't validate the parameters above. |\n\nThe `SITE_SNAPPED_TO_SPECIAL_POSITION` warning on Ca1 is benign. Ca1 is at (⅓, ⅔, z) with a 3e-11 rounding offset, which is the 4f site with multiplicity 4. That gives 10 Ca per cell, consistent with Ca5(PO4)3F and Z = 2. The `BACKGROUND_ABSORPTION` warning is printed twice, which is a duplicate rather than two problems.\n\n**What to change before the next run**\n1. **Break the zero/displacement degeneracy.** Calibrate on a standard with a certified cell (`lab_calibrate`) and fix the zero shift at that value. Then refine only sample displacement, and say in the paper which parameter was held. Don't free both in one fit, which is what the `lab_bragg_brentano` plan currently does. This also fixes the cell correlations.\n2. **Measure the instrument profile instead of refining it.** Use `lab_calibrate`, then `save_instrument_profile`, then `load_instrument_profile` before the fit. That holds U, V and W at instrumental values.\n3. **Fix the axial divergence values** to the actual goniometer geometry rather than refining `axial_sl` and `axial_hl`.\n4. **Stiffen the background.** Cut the Chebyshev terms well below 24, or use a P-spline with a larger `lambda_smooth` or coarser knots. Refit, and check that `BACKGROUND_ABSORPTION` clears before trusting any Biso.\n5. **Re-collect the data if the intensities matter.** A step of about 0.018° or finer would give at least 5 steps per FWHM. No refinement choice can fix this. The current step is 0.02°.\n\nIf you only need cell parameters, steps 1 and 3 are enough. For Biso you also need steps 4 and 5."
+              },
+              {
+                "name": "cell_accuracy",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**None of the refined numbers can go in the paper as they stand.** The fit converged (Rwp 0.0834, GoF 1.49), but that doesn't make the parameters quotable. Every value below is judged from `fit_output.txt` and `fit.py`. I didn't rerun the fit.\n\n| Number | Verdict | Why |\n|---|---|---|\n| `zero_shift` (-0.163) and `sample_displacement` (-0.228) | Don't quote | ρ = +1.000. The data doesn't separate them, so one direction is not measured at all, and `FLAT_DIRECTION` says to quote neither. |\n| Cell a (9.36903) and c (6.88386) | Don't quote yet | Both correlate at ρ ≈ 0.995–0.997 with the zero/displacement pair, and a with c at 0.994. The esds (0.0008 and 0.0006) are conditional on the zero and displacement values being right. Cell a also sits 0.0027 Å below the starting CIF, which fits a zero-shift artefact. |\n| `axial_sl` and `axial_hl` (0.0201, 0.0202) | Don't quote | They are essentially the 0.02 starting values. Each esd (0.024) exceeds its value, and ρ = -0.999. |\n| Biso values (0.36–1.03 Å²) | Don't quote | `BACKGROUND_ABSORPTION` says the 24-term Chebyshev background can absorb the Ca2 Biso (R² = 0.27) and that the ADPs are biased even though Rwp looks good. `PATTERN_UNDERSAMPLED` (4.6 steps per FWHM against the 5 asked for) also limits intensity-derived quantities. F4, O5 and O6 have esds of 13–17%. |\n| U, V, W and any size or strain | Don't quote | The pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts. The output says not to quote the widths. |\n| Rwp 0.0834 and GoF 1.49 | Quotable as fit statistics only | They don't validate the parameters above. |\n\nThe `SITE_SNAPPED_TO_SPECIAL_POSITION` warning on Ca1 is benign. Ca1 is at (⅓, ⅔, z) with a 3e-11 rounding offset, which is the 4f site with multiplicity 4. That gives 10 Ca per cell, consistent with Ca5(PO4)3F and Z = 2. The `BACKGROUND_ABSORPTION` warning is printed twice, which is a duplicate rather than two problems.\n\n**What to change before the next run**\n1. **Break the zero/displacement degeneracy.** Calibrate on a standard with a certified cell (`lab_calibrate`) and fix the zero shift at that value. Then refine only sample displacement, and say in the paper which parameter was held. Don't free both in one fit, which is what the `lab_bragg_brentano` plan currently does. This also fixes the cell correlations.\n2. **Measure the instrument profile instead of refining it.** Use `lab_calibrate`, then `save_instrument_profile`, then `load_instrument_profile` before the fit. That holds U, V and W at instrumental values.\n3. **Fix the axial divergence values** to the actual goniometer geometry rather than refining `axial_sl` and `axial_hl`.\n4. **Stiffen the background.** Cut the Chebyshev terms well below 24, or use a P-spline with a larger `lambda_smooth` or coarser knots. Refit, and check that `BACKGROUND_ABSORPTION` clears before trusting any Biso.\n5. **Re-collect the data if the intensities matter.** A step of about 0.018° or finer would give at least 5 steps per FWHM. No refinement choice can fix this. The current step is 0.02°.\n\nIf you only need cell parameters, steps 1 and 3 are enough. For Biso you also need steps 4 and 5."
+              },
+              {
+                "name": "undersampled",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**None of the refined numbers can go in the paper as they stand.** The fit converged (Rwp 0.0834, GoF 1.49), but that doesn't make the parameters quotable. Every value below is judged from `fit_output.txt` and `fit.py`. I didn't rerun the fit.\n\n| Number | Verdict | Why |\n|---|---|---|\n| `zero_shift` (-0.163) and `sample_displacement` (-0.228) | Don't quote | ρ = +1.000. The data doesn't separate them, so one direction is not measured at all, and `FLAT_DIRECTION` says to quote neither. |\n| Cell a (9.36903) and c (6.88386) | Don't quote yet | Both correlate at ρ ≈ 0.995–0.997 with the zero/displacement pair, and a with c at 0.994. The esds (0.0008 and 0.0006) are conditional on the zero and displacement values being right. Cell a also sits 0.0027 Å below the starting CIF, which fits a zero-shift artefact. |\n| `axial_sl` and `axial_hl` (0.0201, 0.0202) | Don't quote | They are essentially the 0.02 starting values. Each esd (0.024) exceeds its value, and ρ = -0.999. |\n| Biso values (0.36–1.03 Å²) | Don't quote | `BACKGROUND_ABSORPTION` says the 24-term Chebyshev background can absorb the Ca2 Biso (R² = 0.27) and that the ADPs are biased even though Rwp looks good. `PATTERN_UNDERSAMPLED` (4.6 steps per FWHM against the 5 asked for) also limits intensity-derived quantities. F4, O5 and O6 have esds of 13–17%. |\n| U, V, W and any size or strain | Don't quote | The pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts. The output says not to quote the widths. |\n| Rwp 0.0834 and GoF 1.49 | Quotable as fit statistics only | They don't validate the parameters above. |\n\nThe `SITE_SNAPPED_TO_SPECIAL_POSITION` warning on Ca1 is benign. Ca1 is at (⅓, ⅔, z) with a 3e-11 rounding offset, which is the 4f site with multiplicity 4. That gives 10 Ca per cell, consistent with Ca5(PO4)3F and Z = 2. The `BACKGROUND_ABSORPTION` warning is printed twice, which is a duplicate rather than two problems.\n\n**What to change before the next run**\n1. **Break the zero/displacement degeneracy.** Calibrate on a standard with a certified cell (`lab_calibrate`) and fix the zero shift at that value. Then refine only sample displacement, and say in the paper which parameter was held. Don't free both in one fit, which is what the `lab_bragg_brentano` plan currently does. This also fixes the cell correlations.\n2. **Measure the instrument profile instead of refining it.** Use `lab_calibrate`, then `save_instrument_profile`, then `load_instrument_profile` before the fit. That holds U, V and W at instrumental values.\n3. **Fix the axial divergence values** to the actual goniometer geometry rather than refining `axial_sl` and `axial_hl`.\n4. **Stiffen the background.** Cut the Chebyshev terms well below 24, or use a P-spline with a larger `lambda_smooth` or coarser knots. Refit, and check that `BACKGROUND_ABSORPTION` clears before trusting any Biso.\n5. **Re-collect the data if the intensities matter.** A step of about 0.018° or finer would give at least 5 steps per FWHM. No refinement choice can fix this. The current step is 0.02°.\n\nIf you only need cell parameters, steps 1 and 3 are enough. For Biso you also need steps 4 and 5."
+              },
+              {
+                "name": "zero_displacement",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**None of the refined numbers can go in the paper as they stand.** The fit converged (Rwp 0.0834, GoF 1.49), but that doesn't make the parameters quotable. Every value below is judged from `fit_output.txt` and `fit.py`. I didn't rerun the fit.\n\n| Number | Verdict | Why |\n|---|---|---|\n| `zero_shift` (-0.163) and `sample_displacement` (-0.228) | Don't quote | ρ = +1.000. The data doesn't separate them, so one direction is not measured at all, and `FLAT_DIRECTION` says to quote neither. |\n| Cell a (9.36903) and c (6.88386) | Don't quote yet | Both correlate at ρ ≈ 0.995–0.997 with the zero/displacement pair, and a with c at 0.994. The esds (0.0008 and 0.0006) are conditional on the zero and displacement values being right. Cell a also sits 0.0027 Å below the starting CIF, which fits a zero-shift artefact. |\n| `axial_sl` and `axial_hl` (0.0201, 0.0202) | Don't quote | They are essentially the 0.02 starting values. Each esd (0.024) exceeds its value, and ρ = -0.999. |\n| Biso values (0.36–1.03 Å²) | Don't quote | `BACKGROUND_ABSORPTION` says the 24-term Chebyshev background can absorb the Ca2 Biso (R² = 0.27) and that the ADPs are biased even though Rwp looks good. `PATTERN_UNDERSAMPLED` (4.6 steps per FWHM against the 5 asked for) also limits intensity-derived quantities. F4, O5 and O6 have esds of 13–17%. |\n| U, V, W and any size or strain | Don't quote | The pattern is mostly Lorentzian, so the Gaussian terms are fitted artefacts. The output says not to quote the widths. |\n| Rwp 0.0834 and GoF 1.49 | Quotable as fit statistics only | They don't validate the parameters above. |\n\nThe `SITE_SNAPPED_TO_SPECIAL_POSITION` warning on Ca1 is benign. Ca1 is at (⅓, ⅔, z) with a 3e-11 rounding offset, which is the 4f site with multiplicity 4. That gives 10 Ca per cell, consistent with Ca5(PO4)3F and Z = 2. The `BACKGROUND_ABSORPTION` warning is printed twice, which is a duplicate rather than two problems.\n\n**What to change before the next run**\n1. **Break the zero/displacement degeneracy.** Calibrate on a standard with a certified cell (`lab_calibrate`) and fix the zero shift at that value. Then refine only sample displacement, and say in the paper which parameter was held. Don't free both in one fit, which is what the `lab_bragg_brentano` plan currently does. This also fixes the cell correlations.\n2. **Measure the instrument profile instead of refining it.** Use `lab_calibrate`, then `save_instrument_profile`, then `load_instrument_profile` before the fit. That holds U, V and W at instrumental values.\n3. **Fix the axial divergence values** to the actual goniometer geometry rather than refining `axial_sl` and `axial_hl`.\n4. **Stiffen the background.** Cut the Chebyshev terms well below 24, or use a P-spline with a larger `lambda_smooth` or coarser knots. Refit, and check that `BACKGROUND_ABSORPTION` clears before trusting any Biso.\n5. **Re-collect the data if the intensities matter.** A step of about 0.018° or finer would give at least 5 steps per FWHM. No refinement choice can fix this. The current step is 0.02°.\n\nIf you only need cell parameters, steps 1 and 3 are enough. For Biso you also need steps 4 and 5."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 3,
+    "casesPassed": 3,
+    "overallScore": 1,
+    "overallPassRate": 1,
+    "meanDelta": 0.09126984126984124
+  }
+}

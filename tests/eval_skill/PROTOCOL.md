@@ -463,3 +463,33 @@ fap-judge                  without 3  0.83 0.75,0.75,1.00    1/3   0.068 0.028  
   run's Bash is the run's own. Every other `LEAK` line in `B.json` is a
   baseline run probing the plugin directory for the interpreter it could not
   start.
+
+### Round C, 2026-10-06: today's body, Sonnet, two-arm, N = 3
+
+The same build as B2, `-j 1`, alone on the machine. $7.73 and 33 min.
+
+```
+case                       arm     n  score per run           pass  $/run judge s/run turns  tok/run  fired refs
+fap-fit                    with    3  1.00 1.00,1.00,1.00    3/3   0.470 0.012   143 15-29    838k  3/3   -
+fap-fit                    without 3  0.81 0.43,1.00,1.00    2/3   0.632 0.014   188 22-26   1194k  0/3   api.md,judging.md
+fap-gsas-reproduce         with    3  1.00 1.00,1.00,1.00    3/3   0.632 0.000   142 18-26   1136k  3/3   api.md,diagnostics-gsas.md
+fap-gsas-reproduce         without 3  0.92 0.75,1.00,1.00    2/3   0.560 0.000   117 20-26   1070k  0/3   api.md,diagnostics-gsas.md,numbers.md,surprises.md
+fap-judge                  with    3  1.00 1.00,1.00,1.00    3/3   0.163 0.040    39 5-5       47k  3/3   -
+fap-judge                  without 3  1.00 1.00,1.00,1.00    3/3   0.120 0.038    38 2-2       36k  0/3   -
+```
+
+- **Today's body passes every case 3 of 3 on Sonnet.** Both fit cases land
+  inside every window. On Sonnet the suite has no case today's body fails,
+  so a rewrite can only be measured there as a regression.
+- **The baseline arm is not skill-free on Sonnet.** The wheel ships the
+  skill (`rietx/data/skill/rietx/`, printed by `rietx skill`). All three
+  `fap-fit` baseline runs and one `fap-gsas-reproduce` baseline run found it
+  through the CLI or in site-packages and read `SKILL.md` or its references.
+  That is where the `refs` of a `without` row come from. Haiku's baseline
+  runs in B2 never looked. So on Sonnet, "without" means "without the skill
+  loaded at the start", and the harness's Δ understates what the skill adds.
+  The decision rule compares body against body and never reads this Δ, so it
+  is unaffected. A case's role (§ Cases) does read the baseline arm, so on
+  Sonnet that role is not established.
+- **`fap-judge` is a ceiling on Sonnet again** (1.00 in both arms), as in the
+  pilot.
