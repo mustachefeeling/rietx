@@ -1,6 +1,6 @@
 # WP-1543 — a GSAS Gaussian width is a variance
 
-Milestone: unscheduled · Status: ⬜ 2026-10-04 — filed from WP-1327's LaMnO₃ lane; the conversion is unconfirmed against GSAS-II itself
+Milestone: unscheduled · Status: 🔄 2026-10-06 — PR #708 merged (the GSAS-II `.instprm`); the GSAS-I half is PR #739, open
 Track: Coming from another code
 Depends on: —
 Priority: P1 2026-10-04 — if confirmed, every GSAS-I `.prm` and GSAS-II `.instprm`/`.gpx` instrument reads its Gaussian widths 2.35× too narrow, frozen, and a sample fit puts the rest into size and strain silently
@@ -122,6 +122,22 @@ Plus a figure: one GSAS-II-computed line drawn over rietx's from the same
 - [1327](1327-magnetic-structure.md), whose LaMnO₃ lane found it.
 
 ## Handover log
+
+- **2026-10-06** — PR #708 (outside contributor, issue #705) merged as
+  `b8f9b615`. The GSAS-II `.instprm` reader and writer now carry the
+  8 ln 2 between a Gaussian variance and rietx's FWHM², through
+  `gsas2.instprm_factor`. `Gsas2Term.degrees` stays the unit change alone,
+  so a `.gpx` read is unchanged, and `files.md` now says so. The GSAS-II
+  half of the first task stands on the measured row in `tests/data/README.md`.
+  It was gated on a six-PR stack (macOS arm64, `[dev,jax]`, full suite 8724
+  passed, 110 skipped, 1 failed on a golden that fails on bare `main` on that
+  machine too). The GSAS-I half is PR #739 (#735), reviewed and not merged.
+  It needs a rebase over #708, and an explanation of why the FAP acceptance
+  moves away from GSAS's LX under the corrected Gaussian (about 5 % to about
+  27 %, with the bar widened from 0.20 to 0.30). Until that is answered, the
+  "one constant" and "tests pinned to GSAS-II's own numbers" tasks stay open.
+  After #739, `GAUSSIAN_VARIANCE_TO_FWHM_SQUARED` lives in two modules beside
+  `recipe.GAUSS_CENTIDEG2_TO_DEG2`.
 
 - **2026-10-04** — Filed from WP-1327's handover. The LaMnO₃ acceptance
   seeds its widths from a GSAS-I file with the recipe's 8 ln 2 constant
