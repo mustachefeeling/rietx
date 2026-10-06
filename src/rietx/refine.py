@@ -5298,7 +5298,11 @@ def _stage_order_diagnostics(plan, table,
     list, and ``RefinementPlan.magnetic_width`` builds it).
 
     What is reported is precisely a stage that frees a magnetic width **in the
-    same stage in which a moment DOF of the same phase is first freed**.
+    same stage in which a moment DOF of the same phase is first freed**, from a
+    width of zero: the order starts the widths held at zero, so a width that
+    already has a value is a refit of a measured one (the finalising step of
+    a converged fit), and the degeneracy the message describes is a cold
+    start's.
     Staging is cumulative, so a width freed after the moment's own stage does
     not appear here — that is the prescribed order — and a width freed beside
     a moment that has already converged is the third step, which is fine.  The
@@ -5322,6 +5326,7 @@ def _stage_order_diagnostics(plan, table,
     # stage — the moment and the widths together after the moment's own stage
     # converged — reads as the step the order prescribes, not as a cold start.
     seen: set[str] = set(table.free_paths)
+    start = table.decode(table.x0())
     for stage in plan.stages:
         # asked of the table, never restated here: ``would_free`` is
         # ``set_vary``'s own matcher, so a tied, locked or **held** row
@@ -5341,6 +5346,8 @@ def _stage_order_diagnostics(plan, table,
                   if (m := _MAGNETIC_WIDTH_PATH.match(p))}
         moments = {p.split(".")[1] for p in new if _MOMENT_DOF.match(p)}
         for ip in sorted(set(widths) & moments):
+            if float(start.get(widths[ip], 0.0)) > 0.0:
+                continue            # a width already measured: not a cold start
             out.append(Diagnostic(
                 level="warning", code="STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT",
                 where=[widths[ip], f"phases.{ip}.atoms.*.moment.dof*"],
