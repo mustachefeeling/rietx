@@ -509,3 +509,200 @@ def test_add_derived_checks_the_reach_shape_before_registering():
     with pytest.raises(ValueError, match="reach_pattern"):
         table.add_derived(bad)
     assert len(table.derived) == n
+
+
+# ------------------------------------------------------- the rows WP-1805 owes
+OUT = __import__("pathlib").Path(__file__).parent / "output"
+
+
+def _save_fit_png(result, name: str) -> None:
+    """obs/calc/diff to ``tests/output/`` (WP-1805's task list)."""
+    import matplotlib.pyplot as plt
+
+    from rietx.viz.plots import plot_result
+
+    OUT.mkdir(exist_ok=True)
+    plot_result(result, path=str(OUT / f"{name}.png"))
+    plt.close("all")
+
+
+def test_fit_pngs_for_the_three_and_ten_degree_starts():
+    pattern = synthesize(body_structure(Q_TRUE))
+    for off in (3.0, 10.0):
+        ref = Refinement(body_structure(_turned(Q_TRUE, off), origin=(0.33, 0.41, 0.26)),
+                         INS, history=False)
+        result = ref.fit(pattern, plan=RefinementPlan(stages=[
+            Stage("body", BODY_GLOBS, max_iter=200)]))
+        _save_fit_png(result, f"rigid_body_c6br_{int(off)}deg")
+        assert (OUT / f"rigid_body_c6br_{int(off)}deg.png").stat().st_size > 0
+
+
+def dibromoacetylene() -> np.ndarray:
+    """Br–C≡C–Br on a line: C≡C 1.20 Å, C–Br 1.79 Å (a linear template)."""
+    return np.array([[0.0, 0.0, z] for z in (-2.39, -0.60, 0.60, 2.39)])
+
+
+def linear_structure(q, origin=(0.31, 0.42, 0.27)) -> Structure:
+    seed = Atom(label="seed", species="C", x=Parameter(value=0.0),
+                y=Parameter(value=0.0), z=Parameter(value=0.0))
+    phase = Phase(name="c2br2", space_group="P-1", cell=_cell(), atoms=[seed],
+                  scale=Parameter(value=1e-2, min=0.0, transform="softplus"))
+    phase = add_body(phase, "c2br2", ["Br1", "C1", "C2", "Br2"],
+                     ["Br", "C", "C", "Br"], dibromoacetylene(), origin,
+                     orientation=q, biso=2.0)
+    phase = Phase.model_validate({**phase.model_dump(),
+                                  "atoms": phase.model_dump()["atoms"][1:]})
+    return Structure(phases=[phase])
+
+
+def _axis(q) -> np.ndarray:
+    return np.asarray(rotation.matrix_from_quaternion(np.asarray(q))) @ np.array([0, 0, 1.0])
+
+
+def test_a_linear_body_gets_two_rotation_dofs_and_recovers_its_axis():
+    """The inertia rank (WP-1805, ``Fragment``'s DOF count): a linear body has
+    two rotation DOFs, since a turn about its axis moves nothing and a third
+    would be a flat direction blinding every atom's esd.  Started 5° off, the
+    axis comes back within 0.1° with finite esds on every atom; and the
+    re-charted outcome of the linear chart matches a fresh solve too."""
+    from rietx.optimize.least_squares import rechart_outcome, run_least_squares
+
+    truth = linear_structure(Q_TRUE)
+    table = ParameterTable(truth, INS)
+    rot = sorted(p for p in table.anchored_rotation_paths)
+    assert rot == ["phases.0.rigid_bodies.0.rotation.0",
+                   "phases.0.rigid_bodies.0.rotation.1"]
+    pattern = synthesize(truth)
+    start = linear_structure(_turned(Q_TRUE, 5.0), origin=(0.32, 0.41, 0.26))
+    ref = Refinement(start, INS, history=False)
+    result = ref.fit(pattern, plan=RefinementPlan(stages=[
+        Stage("body", BODY_GLOBS, max_iter=200)]))
+    assert result.status == "converged"
+    fitted = ref.fitted_structure.phases[0].rigid_bodies[0].orientation
+    cos = float(np.clip(_axis(fitted) @ _axis(Q_TRUE), -1.0, 1.0))
+    assert math.degrees(math.acos(abs(cos))) < 0.1
+    for a in ref.fitted_structure.phases[0].atoms:
+        for c in "xyz":
+            assert getattr(a, c).stderr is not None and 0 < getattr(a, c).stderr < 0.01
+    assert "RIGID_BODY_UNSUPPORTED" not in {d.code for d in result.diagnostics}
+    _save_fit_png(result, "rigid_body_linear_5deg")
+    # the linear chart's re-chart, against a fresh solve on the committed values
+    model = compile_model(start, INS, pattern, mode="rietveld")
+    table = ParameterTable(start, INS)
+    table.set_vary(BODY_GLOBS, True)
+    outcome = run_least_squares(model, table, max_iter=200)
+    cols = [table.free_paths.index(p) for p in rot]
+    chart = table.commit(outcome.theta)
+    recharted = rechart_outcome(outcome, table.x0(), chart)
+    s = start.model_copy(deep=True)
+    table.apply_to_models(s, INS)
+    fresh_table = ParameterTable(s, INS)
+    fresh_table.set_vary(BODY_GLOBS, True)
+    fresh = run_least_squares(model, fresh_table, max_iter=200)
+    np.testing.assert_allclose(recharted.correlation, fresh.correlation, atol=2e-5)
+    np.testing.assert_allclose(recharted.stderr_internal[cols],
+                               fresh.stderr_internal[cols], rtol=2e-5)
+
+
+def test_a_dof_the_pattern_cannot_see_is_named_rigid_body_unsupported():
+    """``RIGID_BODY_UNSUPPORTED`` (WP-1805): a body whose turn moves only
+    zero-occupancy atoms — a heavy atom at its origin, two empty sites on a
+    line through it — refines its origin and measures nothing in rotation.
+    The finding names the two rotation DOFs, and only them."""
+    P = Parameter
+    atoms = [Atom(label="Fe", species="Fe", x=P(value=0.30), y=P(value=0.40),
+                  z=P(value=0.20)),
+             Atom(label="X1", species="O", x=P(value=0.38), y=P(value=0.40),
+                  z=P(value=0.20), occ=P(value=0.0)),
+             Atom(label="X2", species="O", x=P(value=0.22), y=P(value=0.40),
+                  z=P(value=0.20), occ=P(value=0.0)),
+             Atom(label="Na", species="Na", x=P(value=0.71), y=P(value=0.13),
+                  z=P(value=0.62))]
+    phase = Phase(name="t", space_group="P1", cell=_cell(), atoms=atoms,
+                  scale=P(value=1e-2, min=0.0, transform="softplus"))
+    body = body_from_atoms(phase, ["X1", "Fe", "X2"], "blind")
+    s = Structure(phases=[phase.model_copy(update={"rigid_bodies": [body]})])
+    pattern = synthesize(s)
+    s.phases[0].rigid_bodies[0].origin.x.value += 0.004
+    s = Structure(phases=[place_body_atoms(s.phases[0])])
+    ref = Refinement(s, INS, history=False)
+    result = ref.fit(pattern, plan=RefinementPlan(stages=[Stage("body", BODY_GLOBS)]))
+    found = [d for d in result.diagnostics if d.code == "RIGID_BODY_UNSUPPORTED"]
+    assert len(found) == 1
+    assert found[0].where == ["phases.0.rigid_bodies.0.rotation.0",
+                              "phases.0.rigid_bodies.0.rotation.1"]
+    assert result.parameter("phases.0.rigid_bodies.0.origin.dof.0").stderr is not None
+
+
+def test_a_hold_on_a_body_atom_row_raises_and_on_a_body_dof_holds():
+    ref = Refinement(body_structure(Q_TRUE), INS, history=False)
+    with pytest.raises(ValueError, match="placed by rigid body 'c6br'"):
+        ref.hold("phases.0.atoms.2.x")
+    with pytest.raises(ValueError, match="hold the body's own"):
+        ref.hold("phases.0.atoms.*.y")
+    assert ref.hold("phases.0.rigid_bodies.0.origin.dof.*")
+
+
+def test_the_public_tie_verb_refuses_a_body_row_and_a_rotation_source():
+    ref = Refinement(body_structure(Q_TRUE), INS, history=False)
+    with pytest.raises(ValueError, match="phases.0.atoms.0.x"):
+        ref.tie("phases.0.atoms.0.x", "phases.0.scale")
+    with pytest.raises(ValueError, match="phases.0.rigid_bodies.0.rotation.0"):
+        ref.tie("phases.0.atoms.0.occ", "phases.0.rigid_bodies.0.rotation.0")
+
+
+def test_replay_reproduces_the_body():
+    from rietx.refine import replay
+
+    pattern = synthesize(body_structure(Q_TRUE))
+    ref = Refinement(body_structure(_turned(Q_TRUE, 3.0)), INS)
+    result = ref.fit(pattern, plan=RefinementPlan(stages=[Stage("body", BODY_GLOBS)]))
+    again = replay(ref.history, ref.history.head, pattern)
+    for j in range(7):
+        for c in "xyz":
+            p = f"phases.0.atoms.{j}.{c}"
+            assert again.parameter(p).value == pytest.approx(
+                result.parameter(p).value, abs=1e-12)
+    assert again.statistics.rwp == pytest.approx(result.statistics.rwp, rel=1e-6)
+
+
+def test_the_textdoc_round_trip_reproduces_the_body(tmp_path):
+    """Render, parse, diff is a fixed point with a body declared; an edit of
+    the origin DOF and of a rotation DOF in the text moves the body as one,
+    rigidly, and the re-render is a fixed point again (WP-1805; the body's own
+    block in the document is WP-1812's)."""
+    import rietx as rx
+    from rietx.gui import textdoc as td
+    from tests.test_project import _write_xye
+
+    s = body_structure(Q_TRUE)
+    path = _write_xye(tmp_path / "body.xye", synthesize(s))
+    project = rx.Project.create(tmp_path / "body.rex", pattern=path, structure=s,
+                                instrument=INS, plan="mccusker_default")
+    text = td.render(project)
+    parsed = td.parse(text)
+    assert parsed.errors == []
+    delta, errors = td.changes(parsed, project)
+    assert errors == [] and delta.is_empty(), delta.as_dict()
+    edited = []
+    for line in text.splitlines():
+        head = line.split("#")[0].split()
+        if head[:1] in (["rigid_bodies.0.origin.dof.0"], ["rigid_bodies.0.rotation.2"]):
+            k = 2 if head[1] == "@" else 1
+            value = (float(head[k]) + 0.01 if head[0].endswith("dof.0") else 0.05)
+            line = "  " + " ".join([*head[:k], repr(value), *head[k + 1:]])
+        edited.append(line)
+    delta, errors = td.changes(td.parse("\n".join(edited) + "\n"), project)
+    assert errors == []
+    td.apply(project, delta)
+    moved = project.refinement.structure.phases[0]
+    body = moved.rigid_bodies[0]
+    assert body.origin.x.value == pytest.approx(0.31 + 0.01, abs=1e-12)
+    assert _angle_deg(body.orientation, Q_TRUE) == pytest.approx(math.degrees(0.05),
+                                                                 rel=1e-9)
+    frac = np.array([[a.x.value, a.y.value, a.z.value] for a in moved.atoms])
+    assert np.allclose(frac, body_fractional(body, moved.cell.lengths_angles()),
+                       atol=1e-12)
+    again = td.render(project)
+    delta, errors = td.changes(td.parse(again), project)
+    assert errors == [] and delta.is_empty()
