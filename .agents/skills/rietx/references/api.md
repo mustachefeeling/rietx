@@ -31,7 +31,7 @@ Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities(
 - `rx.read_project_model(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> ProjectModel` — Read a refinement another program wrote, dispatching on *content*.
 - `rx.identify_project_format(path: str | Path) -> ProjectFormat` — Which registered project format claims `path` — the dispatch, once.
 - `rx.read_topas_inp(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> TopasModel` — Parse a `.inp`.
-- `rx.write_topas_inp(structure: Structure, path: str | Path, *, diagnostics: list[Diagnostic] | None = None, p1_expand: bool = False, free=None, scale=None, instrument=None, pattern=None)` — Write.
+- `rx.write_topas_inp(structure: Structure, path: str | Path, *, diagnostics: list[Diagnostic] | None = None, p1_expand: bool | str = False, free=None, scale=None, instrument=None, pattern=None)` — Write.
 - `rx.read_fullprof_pcr(path: str | Path) -> FullProfModel` — Parse a `.pcr`.
 - `rx.write_fullprof_pcr(structure: Structure, path: str | Path, *, instrument: Instrument | None = None, diagnostics: list[Diagnostic] | None = None, write_zero_shift: bool = False)` — Write a `.pcr`.
 - `rx.read_gsas_exp(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> GsasModel` — Read a GSAS-I `.EXP` experiment file.

@@ -12,6 +12,8 @@ answer is compared with it point for point.
 
 from __future__ import annotations
 
+from fractions import Fraction
+
 import numpy as np
 
 import rietx as rx
@@ -109,8 +111,65 @@ def case_nacl_pspline():
     return ref, _pattern(ref, tt)
 
 
+def pbcm_child() -> Phase:
+    """A k = (½, 0, 0) child of a synthetic Pbcm parent (``magnetic_supercell``):
+    TOPAS has no ``mag_space_group`` for it, so the writer restates it in P1."""
+    from rietx.crystallography.magnetic.isotropy import candidates
+    from rietx.crystallography.magnetic.supercell import magnetic_supercell
+
+    parent = Phase(name="synthetic Pbcm", space_group="P b c m",
+                   cell=_cell(5.0, 9.0, 9.5),
+                   atoms=[_atom("Fe", "Fe", (0.25, 0.125, 0.25), 0.5),
+                          _atom("O", "O", (0.0, 0.375, 0.25), 0.8)])
+    cand = candidates(parent.space_group, (0.25, 0.125, 0.25),
+                      (Fraction(1, 2), 0, 0)).candidates[0]
+    return magnetic_supercell(parent, cand, magnetic_species="Fe", ion="Fe3+",
+                              magnitude=3.0).phase
+
+
+def case_child_magnetic():
+    """The Pbcm child with a magnetic-only Lorentzian width, a P-spline
+    background and FCJ axial divergence, refined as a plan would leave it: the
+    moment, the scale, the B and the magnetic width free, the anti-translation
+    partners tied and one B per parent site."""
+    from rietx.crystallography.magnetic.supercell import anti_translation_ties
+
+    child = pbcm_child()
+    child = child.model_copy(update={
+        "scale": P(value=5.0e-3, min=0.0, transform="softplus"),
+        "magnetic_lor_strain": P(value=0.3, min=0.0, transform="softplus")})
+    inst = _tchz(rx.Instrument.constant_wavelength_neutron(2.4),
+                 u=0.3, v=-0.2, w=0.1, x=0.05, y=0.02)
+    tt = np.arange(8.0, 120.0, 0.1)
+    knots = list(np.linspace(tt[0], tt[-1], 12))
+    geom = inst.geometry.model_copy(update={
+        "axial_sl": inst.geometry.axial_sl.model_copy(update={"value": 0.01}),
+        "axial_hl": inst.geometry.axial_hl.model_copy(update={"value": 0.02})})
+    inst = inst.model_copy(update={
+        "geometry": geom,
+        "background": BackgroundPSpline(
+            breakpoints=knots,
+            coefficients=[P(value=200.0 + 30.0 * np.cos(k / 3.0)) for k in range(14)],
+            lambda_smooth=1.0)})
+    ref = rx.Refinement(rx.Structure(phases=[child]), inst, history=False)
+    for t, so, sc, off in anti_translation_ties(child):
+        ref.tie(t, so, scale=sc, offset=off)
+    groups: dict[str, list[int]] = {}
+    for j, a in enumerate(child.atoms):
+        groups.setdefault(a.label.rsplit("_", 1)[0], []).append(j)
+    for js in groups.values():
+        if len(js) > 1:
+            ref.tie_equal([f"phases.0.atoms.{j}.biso" for j in js])
+    rows = {r.path: r for r in ref.parameters()}
+    free = ["phases.0.scale", "phases.0.magnetic_lor_strain"] + [
+        p for p, r in rows.items()
+        if r.tie is None and not r.locked and (p.endswith(".biso") or ".moment.dof" in p)]
+    ref.set_vary(free, True)
+    return ref, _pattern(ref, tt)
+
+
 CASES = {"nacl_neutron": case_nacl_neutron, "nacl_xray": case_nacl_xray,
-         "nacl_pspline": case_nacl_pspline}
+         "nacl_pspline": case_nacl_pspline, "child_magnetic": case_child_magnetic}
 
 
 def write_case(name, path):
@@ -118,5 +177,5 @@ def write_case(name, path):
     ref, pattern = CASES[name]()
     rx.write_topas_inp(ref.fitted_structure, path, free=ref,
                        instrument=ref.fitted_instrument, pattern=pattern,
-                       scale="topas")
+                       scale="topas", p1_expand="auto")
     return ref, pattern

@@ -10,7 +10,13 @@ module is what it calls when it is given more:
 * ``scale="topas"`` — the scale in TOPAS's convention, stated in a comment;
 * ``instrument=`` / ``pattern=`` — the data file, the wavelength, the neutron
   flag, the Lorentz-polarisation factor, the zero and displacement, the
-  background, the profile, the axial divergence and the extinction (issue #732).
+  background, the profile, the axial divergence and the extinction (issue #732);
+* ``p1_expand`` — a magnetic phase restated in P1, with every copy tied back to
+  the parameter it is a copy of (#721);
+* a magnetic phase with a magnetic-only width is written as two ``str``: the
+  nuclear part and a ``mag_only`` magnetic part whose Lorentzian widths carry
+  the extra term, which is rietx's own model term for term (§ The magnetic
+  width).
 
 Everything here was written from the TOPAS Technical Reference (keywords and
 equations) and from TOPAS 6 runs as a black box; no TOPAS code or macro body
@@ -135,7 +141,7 @@ def _moment_component_items(phase, ip, ia, atom, refined: RefinedSet,
 # ----------------------------------------------------------------- one phase
 
 def _site_items(phase, ip, ia, atom, refined, *, label, species, xyz_aff, xyz_now,
-                occ_aff, biso_aff, aniso, moment_rotation, with_moment):
+                occ_aff, biso_aff, aniso, moment_rotation, with_moment, mag_only):
     from .topas import _number  # the legacy writer's refusal of a non-finite value
 
     items: list = [f"  site {label}"]
@@ -152,6 +158,8 @@ def _site_items(phase, ip, ia, atom, refined, *, label, species, xyz_aff, xyz_no
         items += [" beq ", Slot(biso_aff, 1.0, atom.biso.value)]
     if with_moment and atom.moment is not None:
         items += _moment_component_items(phase, ip, ia, atom, refined, moment_rotation)
+    if mag_only:
+        items.append(" mag_only")
     items.append("\n")
     return items
 
@@ -163,11 +171,52 @@ def _aniso_affines(refined, ip, ia, atom):
              getattr(atom.aniso, k).value) for k in _ADP_KEYS]
 
 
+def _image_maps(phase, atom):
+    """``(rot, tran, shift, axial)`` per image of ``atom`` — the forward model's
+    own expansion (``structure_factor.select_orbit_ops``), in its order, with the
+    whole-cell shift that wraps each image into [0, 1) and the axial matrix of
+    each image's moment (``magnetic.scattering._axial_matrices``)."""
+    from ...crystallography.structure_factor import select_orbit_ops
+    from ...crystallography.symmetry import resolve_group
+
+    sg = resolve_group(phase.space_group, phase.symmetry_operations)
+    xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
+    rot, tran = select_orbit_ops(sg, xyz)
+    axial = None
+    if atom.moment is not None and phase.magnetic_symmetry is not None:
+        from ...crystallography.magnetic.scattering import _axial_matrices
+        axial = _axial_matrices(phase.magnetic_symmetry.group(), xyz, rot, tran,
+                                phase.name, atom.label)
+    out = []
+    for k in range(len(rot)):
+        pos = rot[k] @ xyz + tran[k]
+        wrapped = pos % 1.0
+        wrapped[wrapped >= 1.0 - 1e-12] = 0.0
+        out.append((np.asarray(rot[k], dtype=float), np.asarray(tran[k], dtype=float),
+                    wrapped - pos, None if axial is None else axial[k]))
+    return out
+
+
+def _aniso_image_matrix(rot, cell):
+    """The 6×6 linear map U^ij → U^ij of the image under ``rot`` (U* → R·U*·Rᵀ)."""
+    from ...crystallography.adp import reciprocal_axis_lengths, tensor_from_voigt, voigt_from_tensor
+
+    astar = np.asarray(reciprocal_axis_lengths(*cell), dtype=np.float64)
+    scale = astar[:, None] * astar[None, :]
+    m = np.zeros((6, 6))
+    for j in range(6):
+        u = np.zeros(6)
+        u[j] = 1.0
+        ustar = tensor_from_voigt(u) * scale
+        m[:, j] = voigt_from_tensor((rot @ ustar @ rot.T) / scale)
+    return m
+
+
 def phase_items(structure, ip, phase, refined: RefinedSet, *, scale_factor: float,
                 header: list[str], profile: list | None, extinction: list | None,
-                species_of) -> list:
-    """One ``str``, every number a :class:`~.topas_refined.Slot`; ``profile``
-    and ``extinction`` are the phase's peak-shape and ``scale_pks`` lines."""
+                p1: bool, part: str, species_of) -> list:
+    """One ``str``: ``part`` is ``"all"``, ``"nuclear"`` (no moments) or
+    ``"magnetic"`` (moment-bearing sites only, each ``mag_only``)."""
     items: list = ["str\n"]
     items += [f"  {h}\n" for h in header]
     items += ["  scale ", Slot(refined.affine(_p(ip, "scale"), phase.scale.value),
@@ -186,21 +235,53 @@ def phase_items(structure, ip, phase, refined: RefinedSet, *, scale_factor: floa
     from .topas import _snapped_xyz
 
     sg = get_spacegroup(phase.space_group)
+    cell6 = phase.cell.lengths_angles()
+    with_moment = part != "nuclear"
     for ia, atom in enumerate(phase.atoms):
-        # a site near a special position is written on it, as the str-only
-        # writer writes it (#710): TOPAS reads x 0.3333 as a general position
-        snapped = _snapped_xyz(sg, atom)
-        items += _site_items(
-            phase, ip, ia, atom, refined, label=atom.label,
-            species=species_of(atom, True),
-            xyz_aff=[refined.affine(_a(ip, ia, k), getattr(atom, k).value)
-                     + (now - getattr(atom, k).value)
-                     for k, now in zip(("x", "y", "z"), snapped)],
-            xyz_now=snapped,
-            occ_aff=refined.affine(_a(ip, ia, "occ"), atom.occ.value),
-            biso_aff=refined.affine(_a(ip, ia, "biso"), atom.biso.value),
-            aniso=_aniso_affines(refined, ip, ia, atom),
-            moment_rotation=None, with_moment=True)
+        if part == "magnetic" and atom.moment is None:
+            continue
+        species = species_of(atom, with_moment)
+        if not p1:
+            # a site near a special position is written on it, as the str-only
+            # writer writes it (#710): TOPAS reads x 0.3333 as a general position
+            snapped = _snapped_xyz(sg, atom)
+            items += _site_items(
+                phase, ip, ia, atom, refined, label=atom.label, species=species,
+                xyz_aff=[refined.affine(_a(ip, ia, k), getattr(atom, k).value)
+                         + (now - getattr(atom, k).value)
+                         for k, now in zip(("x", "y", "z"), snapped)],
+                xyz_now=snapped,
+                occ_aff=refined.affine(_a(ip, ia, "occ"), atom.occ.value),
+                biso_aff=refined.affine(_a(ip, ia, "biso"), atom.biso.value),
+                aniso=_aniso_affines(refined, ip, ia, atom),
+                moment_rotation=None, with_moment=with_moment,
+                mag_only=part == "magnetic")
+            continue
+        # P1: every image of the site, each tied to the parameters of the site
+        xyz_aff = [refined.affine(_a(ip, ia, k), getattr(atom, k).value)
+                   for k in ("x", "y", "z")]
+        aniso = _aniso_affines(refined, ip, ia, atom)
+        maps = _image_maps(phase, atom)
+        for k, (rot, tran, shift, axial) in enumerate(maps):
+            img = [sum((xyz_aff[j] * rot[i, j] for j in range(3)), Affine({}, 0.0))
+                   + float(tran[i] + shift[i]) for i in range(3)]
+            now = [float(sum(rot[i, j] * getattr(atom, "xyz"[j]).value for j in range(3))
+                         + tran[i] + shift[i]) for i in range(3)]
+            img_aniso = None
+            if aniso is not None:
+                mat = _aniso_image_matrix(rot, cell6)
+                img_aniso = []
+                for r in range(6):
+                    aff = sum((aniso[c][0] * mat[r, c] for c in range(6)), Affine({}, 0.0))
+                    img_aniso.append((aff, float(mat[r] @ np.array([v for _, v in aniso]))))
+            label = atom.label if len(maps) == 1 else f"{atom.label}_{k + 1}"
+            items += _site_items(
+                phase, ip, ia, atom, refined, label=label, species=species,
+                xyz_aff=img, xyz_now=now,
+                occ_aff=refined.affine(_a(ip, ia, "occ"), atom.occ.value),
+                biso_aff=refined.affine(_a(ip, ia, "biso"), atom.biso.value),
+                aniso=img_aniso, moment_rotation=axial, with_moment=with_moment,
+                mag_only=part == "magnetic")
     return items
 
 
@@ -239,12 +320,14 @@ def width_items(ip, phase, refined: RefinedSet) -> list:
 
 # ----------------------------------------------------------------- profile
 
-def _profile_items(instrument, ip, phase, refined: RefinedSet) -> list:
+def _profile_items(instrument, ip, phase, refined: RefinedSet, *, magnetic: bool) -> list:
     """``peak_type pv`` with rietx's TCHZ width laws written as equations.
 
     rietx: Γ_G² = (U + gauss_strain)·tan²θ + V·tanθ + W + gauss_size/cos²θ
     (floored at 1e-8 deg²), Γ_L = (X + lor_size)/cosθ + (Y + lor_strain)·tanθ
-    (``model.profiles.caglioti``). Γ and η are Thompson, Cox & Hastings
+    (``model.profiles.caglioti``), and the magnetic part adds
+    ``magnetic_lor_size``/``magnetic_lor_strain`` to the two Lorentzian terms
+    (``schemas.structure.Phase``). Γ and η are Thompson, Cox & Hastings
     (1987), *J. Appl. Cryst.* 20, 79. TOPAS ``Th`` is θ in radians, and
     ``pv_fwhm``/``pv_lor`` are the width and Lorentzian fraction of its ``pv``
     peak type (Technical Reference § 5.2); the profile keywords sit in the
@@ -274,6 +357,9 @@ def _profile_items(instrument, ip, phase, refined: RefinedSet) -> list:
     y = aff("instrument.profile.y", prof.y) + aff(_p(ip, "lor_strain"), phase.lor_strain)
     u = u + aff(_p(ip, "gauss_strain"), phase.gauss_strain)
     z = aff(_p(ip, "gauss_size"), phase.gauss_size)
+    if magnetic:
+        x = x + aff(_p(ip, "magnetic_lor_size"), phase.magnetic_lor_size)
+        y = y + aff(_p(ip, "magnetic_lor_strain"), phase.magnetic_lor_strain)
     g = (f"Sqrt(Max({{0}}*Tan(Th)^2 + {{1}}*Tan(Th) + {{2}} + {{3}}/Cos(Th)^2, "
          f"{number(_MIN_GAMMA_G2)}))")
     lor = "({4}/Cos(Th) + {5}*Tan(Th))"
@@ -593,8 +679,8 @@ def finger_items(sl: Affine, hl: Affine, radius: float) -> list:
 # ----------------------------------------------------------------- the file
 
 def whole_input(structure, *, refined: RefinedSet, scale: str, instrument=None,
-                pattern=None, data_name: str | None = None, species_of,
-                magnetic_numbers: dict[int, str | None],
+                pattern=None, data_name: str | None = None, p1: dict[int, bool],
+                species_of, magnetic_numbers: dict[int, str | None],
                 provenance: str) -> tuple[str, dict | None, list[str]]:
     """The ``.inp`` text, the data columns (or None) and the notes for its header."""
     from .topas import _topas_space_group
@@ -634,35 +720,56 @@ def whole_input(structure, *, refined: RefinedSet, scale: str, instrument=None,
         raise ValueError("pattern= needs instrument=: the data file is written with "
                          "the wavelength, background and zero that describe it")
     for ip, phase in enumerate(structure.phases):
-        header = [f'phase_name "{phase.name}"']
         mag_number = magnetic_numbers.get(ip)
-        if mag_number is None:
-            header.append(f'space_group "{_topas_space_group(phase.space_group)}"')
-        else:
-            header.append(f"mag_space_group {mag_number}")
-        if instrument is not None and any(
-                getattr(phase, n).value != 0.0 or refined.is_free(_p(ip, n))
-                for n in ("magnetic_lor_size", "magnetic_lor_strain")):
-            raise ValueError(
-                f"phase {phase.name!r} carries a magnetic-only width, which one TOPAS "
-                f"str cannot state (it has one peak shape); not written rather than "
-                f"dropped")
-        prof = (_profile_items(instrument, ip, phase, refined)
-                if instrument is not None else None)
-        ext = (_extinction_items(instrument, ip, phase, refined)
-               if instrument is not None else None)
-        if instrument is None and phase.extinction.value != 0.0:
-            notes.append(f"phase {phase.name!r}: extinction "
-                         f"{number(phase.extinction.value)} not written "
-                         f"(a scale_pks term, written with instrument=)")
-        body += phase_items(structure, ip, phase, refined, scale_factor=factor,
-                            header=header, profile=prof, extinction=ext,
-                            species_of=species_of)
+        is_p1 = p1.get(ip, False)
+        has_moments = any(a.moment is not None for a in phase.atoms)
+        # a magnetic-only width is a profile term: without instrument= the file
+        # has no profile, and TOPAS_FIELD_NOT_WRITTEN names it instead
+        mag_width = instrument is not None and has_moments and any(
+            refined.affine(_p(ip, n), getattr(phase, n).value).terms
+            or getattr(phase, n).value != 0.0
+            for n in ("magnetic_lor_size", "magnetic_lor_strain"))
+        if mag_width:
+            refined.named.update({_p(ip, "magnetic_lor_size"), _p(ip, "magnetic_lor_strain")})
+
+        def header(part):
+            name = phase.name if part != "magnetic" else f"{phase.name} magnetic part"
+            out = [f'phase_name "{name}"']
+            if part == "nuclear" or mag_number is None:
+                sg = "P 1" if is_p1 else _topas_space_group(phase.space_group)
+                out.append(f'space_group "{sg}"')
+            else:
+                out.append(f"mag_space_group {mag_number}")
+                if part == "magnetic":
+                    out.append("' the magnetic scattering of this phase only (mag_only):"
+                               " its Lorentzian widths carry the magnetic-only terms")
+            return out
+
+        parts = ["nuclear", "magnetic"] if mag_width else ["all"]
+        for part in parts:
+            prof = (_profile_items(instrument, ip, phase, refined,
+                                   magnetic=part == "magnetic")
+                    if instrument is not None else None)
+            ext = (_extinction_items(instrument, ip, phase, refined)
+                   if instrument is not None and part != "magnetic" else None)
+            if instrument is None and phase.extinction.value != 0.0:
+                notes.append(f"phase {phase.name!r}: extinction "
+                             f"{number(phase.extinction.value)} not written "
+                             f"(a scale_pks term, written with instrument=)")
+            body += phase_items(structure, ip, phase, refined, scale_factor=factor,
+                                header=header(part), profile=prof, extinction=ext,
+                                p1=is_p1, part=part, species_of=species_of)
+        if mag_width:
+            notes.append(
+                f"phase {phase.name!r}: written as two str, the nuclear part and the "
+                f"magnetic part (mag_only), sharing every parameter; the magnetic "
+                f"part's Lorentzian widths add magnetic_lor_size/_strain, which is "
+                f"rietx's magnetic-only width term for term")
     declarations = render_slots(body, refined)
     text = "".join(str(i) for i in body)
     head = [f"' Written by {provenance}"]
     head += [f"' {n}" for n in notes]
-    if instrument is not None and pattern is not None:
+    if instrument is not None:
         head += ["r_wp 0 r_exp 0 r_p 0 gof 0", "iters 100000",
                  "chi2_convergence_criteria 1e-07", "do_errors"]
     head += declarations
@@ -678,8 +785,9 @@ def write_data_file(path: Path, columns: dict) -> None:
 
 def from_structure_refined(structure, *, free: Any = None, scale: str | None = None,
                            instrument=None, pattern=None, data_name: str | None = None,
+                           p1_expand: bool | str = False, diagnostics=None,
                            names: dict | None = None) -> tuple[str, dict | None]:
-    """The refined-set path of :func:`~rietx.io.projects.topas.from_structure`."""
+    """The new path of :func:`~rietx.io.projects.topas.from_structure`."""
     from ..._about import DIST_NAME
     from .topas import _magnetic_group_line, _sign_first, refuse_operation_list, topas_species
 
@@ -688,34 +796,73 @@ def from_structure_refined(structure, *, free: Any = None, scale: str | None = N
     if scale not in ("rietx", "topas"):
         raise ValueError(f"scale must be 'rietx' or 'topas', not {scale!r}")
     neutron = instrument is not None and instrument.source.kind == "neutron_cw"
+    p1: dict[int, bool] = {}
     magnetic_numbers: dict[int, str | None] = {}
+    phases = []
     for ip, phase in enumerate(structure.phases):
         if '"' in phase.name or "\n" in phase.name or "\r" in phase.name:
             raise ValueError(f"phase name {phase.name!r} cannot be written to a TOPAS "
                              f"`.inp`: it carries a double quote or a line break")
         refuse_operation_list(phase, "a TOPAS `.inp`")
-        magnetic_numbers[ip] = _magnetic_group_line(phase, ion_species_ok=neutron)
         for atom in phase.atoms:
             if any(ch.isspace() or ch == "'" for ch in atom.label + atom.species):
                 raise ValueError(
                     f"phase {phase.name!r}: atom label {atom.label!r} / species "
                     f"{atom.species!r} carries whitespace or a single quote, which a "
                     f"`site` line cannot carry")
+        want_p1 = p1_expand is True
+        number_ = None
+        if not want_p1:
+            try:
+                # the group's verdict alone; the species is species_of's below
+                number_ = _magnetic_group_line(phase, ion_species_ok=True)
+            except ValueError:
+                if p1_expand != "auto" or phase.magnetic_symmetry is None:
+                    raise
+                want_p1 = True
+                if diagnostics is not None:
+                    from ...schemas.common import Diagnostic
+                    diagnostics.append(Diagnostic(
+                        level="info", code="TOPAS_PHASE_RESTATED_IN_P1",
+                        where=[f"phases.{ip}"],
+                        message=(f"phase {phase.name!r}: TOPAS has no "
+                                 f"mag_space_group for it as it stands (a k ≠ 0 "
+                                 f"supercell, an untabulated family group or a "
+                                 f"non-standard setting), so it is written in P1, "
+                                 f"every copy tied to the parameter it copies")))
+        if not want_p1 and not neutron:
+            _magnetic_group_line(phase)    # main's refusal of a species ≠ ion
+        if want_p1:
+            p1[ip] = True
+            magnetic_numbers[ip] = "1.1" if phase.magnetic_symmetry is not None else None
+        else:
+            magnetic_numbers[ip] = number_
+        phases.append(phase)
     stored = free is None
     refined = RefinedSet(stored_free_paths(structure) if stored else free, structure)
     refined.from_stored_flags = stored
 
     def species_of(atom, with_moment):
         # TOPAS reads a moment's form factor from the `occ` species, so a
-        # moment-bearing site states its ion; on a neutron pattern the nuclear
-        # length is the element's whatever the charge (showcase row M3)
-        if atom.moment is not None:
-            return _sign_first(atom.moment.ion if neutron else atom.species)
+        # moment-bearing site states its ion; a neutron's nuclear length is the
+        # element's, so that changes nothing else (showcase row M3)
+        if atom.moment is not None and (neutron or instrument is None
+                                        or atom.moment.ion == atom.species):
+            # with no instrument the radiation is unknown: the ion, as a P1
+            # restatement states it (a non-P1 phase was refused above)
+            return _sign_first(atom.moment.ion)
+        if atom.moment is not None and with_moment:
+            raise ValueError(
+                f"site {atom.label!r} has species {atom.species!r} and magnetic "
+                f"ion {atom.moment.ion!r}; TOPAS takes the magnetic form factor "
+                f"from the `occ` species, which on an X-ray pattern is also the "
+                f"charge density. Set the species to the ion first")
         return topas_species(atom.species)
 
     text, columns, _ = whole_input(
         structure, refined=refined, scale=scale, instrument=instrument, pattern=pattern,
-        data_name=data_name, species_of=species_of, magnetic_numbers=magnetic_numbers,
+        data_name=data_name, p1=p1, species_of=species_of,
+        magnetic_numbers=magnetic_numbers,
         provenance=f"{DIST_NAME}.io.projects.topas.write_topas_inp")
     if names is not None:
         names.update(refined.carriers)
