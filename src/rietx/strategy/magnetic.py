@@ -1510,6 +1510,20 @@ def _moment_rows(ref, result, structure
     return tuple(rows), n_moment, tuple(moment_pair_diagnostics(evidence))
 
 
+def _named_for_class(diagnostics, class_index: int, k) -> tuple[Diagnostic, ...]:
+    """``diagnostics`` of one class's moment rows, each message opening with the
+    class (and the propagation vector when it is not Γ) it came from.
+
+    The solution carries the pairs of **every** class of every k tried, and a
+    pair's ``where`` is two parameter paths that two classes share, so without
+    the class a pair found for a rival reads as the winner's (#742)."""
+    where = f"class {class_index}"
+    if any(c != 0 for c in k):
+        where += " (k = (" + ", ".join(str(c) for c in k) + "))"
+    return tuple(d.model_copy(update={"message": f"{where}: {d.message}"})
+                 for d in diagnostics)
+
+
 def _moment_correlations(ref, result):
     """The correlated pairs the degenerate-pair fold reads: every pair of free
     moment moduli, with ρ taken from the covariance their σ's came from.
@@ -2257,7 +2271,8 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                             limits))
                 moments, n_moment, pair_diag = _moment_rows(
                     ref, result, ref.fitted_structure)
-                pair_diagnostics.extend(pair_diag)
+                pair_diagnostics.extend(
+                    _named_for_class(pair_diag, index, kk))
                 dead = _dead_globs(plan, result)
                 if dead:
                     caveats.append(
