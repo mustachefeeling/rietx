@@ -393,7 +393,7 @@ same-label sites. The merge is equal or refuse: the part's scale, cell, space
 group and each site's position, element and occupancy must equal `<name>`'s,
 every part site needs a site of that label in `<name>`, and
 `TOPAS_MAGNETIC_PART_MERGED` reports the merge. Every other refusal the part
-states stays in force, and `read_topas_inp` does not list the merged `mag_only` among the refused. `write_topas_inp` does not write this form yet.
+states stays in force, and `read_topas_inp` does not list the merged `mag_only` among the refused. `write_topas_inp` writes this form with `instrument=`.
 (What comes back, below).
 
 `rx.write_topas_inp` writes a magnetic phase back in the same form. The `str`
@@ -433,6 +433,26 @@ every atom of the cell. The species of a moment-bearing atom is written as its
 ion, which a neutron pattern does not notice. Every flag in the file is `!`: the
 ties that made the copies one parameter are not stated in P1, so free what you
 mean to refine in TOPAS yourself.
+Beside `free=`, `scale=`, `instrument=` or `pattern=` the copies are tied
+instead: each is an equation over the parameter it copies
+(`mly = -0.1099*Fe1_moment_dof0;`, the moment a `prm` in μ_B), so the file
+refines as the model does, and the anti-translation partners of a supercell and
+a `tie_equal` across copies come out as one name. `p1_expand="auto"` restates
+only a phase TOPAS cannot name as it stands (a k ≠ 0 supercell, an untabulated
+family group, a non-standard setting), writes every other phase in its own
+group, and names each phase it restated, `TOPAS_PHASE_RESTATED_IN_P1`.
+
+A magnetic-only width (`magnetic_lor_size`, `magnetic_lor_strain`) has no
+keyword in a TOPAS `str`, which has one peak shape. So with `instrument=` a
+phase that carries one is written as two `str` sharing every parameter: the
+nuclear part, and `"<name> magnetic part"`, which lists only the
+moment-bearing sites, each `mag_only`, under the magnetic group, with the two
+widths added to its Lorentzian terms. That is rietx's model term for term,
+since nuclear and magnetic scattering do not interfere for unpolarised
+neutrons. Without `instrument=` the file has no profile to add them to,
+and `TOPAS_FIELD_NOT_WRITTEN` names them. TOPAS 6's zero-cycle pattern for such a file agrees with rietx's to
+3.6e-3 of the peak, against 5e-2 without the width
+(`tests/test_topas_p1_ties.py`).
 
 ### A magnetic phase from a FullProf `.pcr`
 
