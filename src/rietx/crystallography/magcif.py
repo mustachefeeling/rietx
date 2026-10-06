@@ -1357,6 +1357,78 @@ def _last_digit_half(text: str) -> float:
 MOMENT_FORM_AGREEMENT_MU_B = 0.02
 
 
+def moment_within_print(moment, row: dict[str, str], basis
+                        ) -> tuple[tuple[float, float, float], float] | None:
+    """The stated moment on its site's allowed subspace, where the print admits it.
+
+    A file prints each crystal-axis component to some number of decimals, so
+    the true moment lies anywhere in the box of half a unit in the last
+    printed place around the printed one (:func:`_last_digit_half`).  A
+    moment the operators constrain — m_y = 2·m_x on a site whose stabiliser
+    holds a two-fold along [1 2 0] — printed as 2.045, 4.089 is that box
+    around a point of the allowed line (2.0445, 4.089), and refusing it says
+    the file and its group disagree when they do not.
+
+    A bare ``0`` has a half-width of 0.5 μ_B, which would let a component the
+    file states as zero move by half a magnetic moment, so the box is also
+    capped: no component moves by more than
+    :data:`MOMENT_FORM_AGREEMENT_MU_B`, the size of a gap this module already
+    reads as round-off rather than contradiction.  Past it the file and its
+    group disagree and the refusal stands.
+
+    Returns ``(components, largest shift)`` for the point of the allowed
+    subspace nearest the printed moment in the box's own units (a Chebyshev
+    fit, solved exactly as a linear programme), or ``None`` where nothing is
+    to be moved — the moment already lies in the subspace, the row states no
+    crystal-axis components (a spherical or Cartesian row's precision is not
+    a box on these components), or no point of the subspace lies inside the
+    box and the cap, which leaves the refusal to the phase's own check
+    (:class:`~rietx.schemas.structure.Phase`, rule 2) exactly as before.
+    """
+    from scipy.optimize import linprog
+
+    from .magnetic.operators import in_span
+
+    m = np.asarray(moment.values(), dtype=np.float64)
+    b = np.asarray(basis, dtype=np.float64).reshape(-1, 3)
+    if in_span(b, m):
+        return None
+    row = _stated_items(row)
+    if not all(f"crystalaxis_{a}" in row for a in ("x", "y", "z")):
+        return None
+    half = np.array([_last_digit_half(row[f"crystalaxis_{a}"])
+                     for a in ("x", "y", "z")])
+    if np.any(half <= 0.0):
+        return None
+    k = len(b)
+    if k == 0:
+        target = np.zeros(3)
+        ratio = float(np.max(np.abs(m) / half))
+        if float(np.max(np.abs(m))) > MOMENT_FORM_AGREEMENT_MU_B:
+            return None
+    else:
+        # minimise t subject to |(Bᵀc − m)_i| <= t·half_i and <= the cap
+        cap = MOMENT_FORM_AGREEMENT_MU_B
+        a_ub = np.vstack([np.hstack([b.T, -half[:, None]]),
+                          np.hstack([-b.T, -half[:, None]]),
+                          np.hstack([b.T, np.zeros((3, 1))]),
+                          np.hstack([-b.T, np.zeros((3, 1))])])
+        b_ub = np.concatenate([m, -m, m + cap, cap - m])
+        cost = np.zeros(k + 1)
+        cost[-1] = 1.0
+        fit = linprog(cost, A_ub=a_ub, b_ub=b_ub,
+                      bounds=[(None, None)] * k + [(0.0, None)],
+                      method="highs")
+        if not fit.success:
+            return None
+        target = b.T @ fit.x[:k]
+        ratio = float(fit.x[-1])
+    if ratio > 1.0 + 1e-9:
+        return None
+    return (tuple(float(v) for v in target),
+            float(np.max(np.abs(target - m))))
+
+
 def read_moments(block, cell, path: str, *,
                  ions: dict[str, str] | None = None,
                  g_factors: dict[str, float] | None = None,

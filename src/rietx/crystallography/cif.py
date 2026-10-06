@@ -598,8 +598,41 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
 
         assumed_ions: dict[str, tuple[str, str]] = {}
         assumed_g: dict[str, float] = {}
-        for label, (moment, _row) in moments.items():
+        group = magnetic_symmetry.group()
+        for label, (moment, row) in moments.items():
             j, atom = by_label[label]
+            # A moment the operators constrain, printed to fewer decimals than
+            # the constraint needs, sits just off its allowed subspace; within
+            # half a unit in each printed place it is put on it, and said so
+            # (``CIF_MAGNETIC_MOMENT_ON_ALLOWED``), the moment counterpart of a
+            # site snapped onto its special position.  Beyond the print, the
+            # phase's own check refuses it as before.
+            moved = magcif.moment_within_print(
+                moment, row,
+                group.allowed_moment_basis((atom.x.value, atom.y.value,
+                                            atom.z.value)))
+            if moved is not None:
+                components, shift = moved
+                before = moment.values()
+                moment = moment.model_copy(update={
+                    f"crystalaxis_{a}": getattr(moment, f"crystalaxis_{a}")
+                    .model_copy(update={"value": v})
+                    for a, v in zip("xyz", components)})
+                if diagnostics is not None:
+                    diagnostics.append(Diagnostic(
+                        level="info", code="CIF_MAGNETIC_MOMENT_ON_ALLOWED",
+                        where=[f"phases.0.atoms.{j}.moment"], value=shift,
+                        message=(
+                            f"{path}: site {label!r}'s moment "
+                            f"{[round(v, 6) for v in before]} mu_B lies off "
+                            f"the subspace its site symmetry allows by no more "
+                            f"than the file's printed precision, and was put "
+                            f"on it: {[round(v, 6) for v in components]} "
+                            f"(largest component moved {shift:.2g} mu_B)"),
+                        suggestion=(
+                            "nothing to change: the file printed the "
+                            "components to fewer decimals than the symmetry "
+                            "relation between them needs")))
             # The ion is the one quantity a magCIF cannot state (there is no
             # such item in ``cif_mag.dic``), so it falls back on the site's own
             # type symbol and ``magnetic_diagnostics`` reports that it did. A

@@ -3079,3 +3079,126 @@ def test_a_fourier_component_phase_is_refused_naming_the_form(tmp_path):
     assert "Jbt = 5" in message
     assert "Fourier-component" in message
     assert "not** something this reader claims to know" in message
+
+
+# ------------------------------------------- a moment printed short of its relation
+
+_DIAGONAL_MOMENT = """data_diagonal
+_cell_length_a 4.0
+_cell_length_b 4.0
+_cell_length_c 5.0
+_cell_angle_alpha 90
+_cell_angle_beta 90
+_cell_angle_gamma 90
+_parent_space_group.name_H-M_alt 'P 4/m m m'
+_parent_space_group.child_transform_Pp_abc 'a,b,c;0,0,0'
+loop_
+_space_group_symop_magn_operation.id
+_space_group_symop_magn_operation.xyz
+1 x,y,z,+1
+2 -x,-y,z,-1
+3 -x,-y,-z,+1
+4 x,y,-z,-1
+5 y,x,-z,+1
+6 -y,-x,-z,-1
+7 -y,-x,z,+1
+8 y,x,z,-1
+loop_
+_space_group_symop_magn_centering.id
+_space_group_symop_magn_centering.xyz
+1 x,y,z,+1
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+Mn1 Mn 0 0 0 1
+loop_
+_atom_site_moment.label
+_atom_site_moment.crystalaxis_x
+_atom_site_moment.crystalaxis_y
+_atom_site_moment.crystalaxis_z
+Mn1 {mx} {my} 0
+"""
+
+
+def test_a_moment_printed_short_of_its_symmetry_relation_is_put_on_it(tmp_path):
+    """The two-fold along [1 1 0] (``y,x,-z,+1``) allows only m_x = m_y on the
+    origin, and a file printing the components to different decimals (2.001,
+    2.0) states a box that contains points of that line: it is read, on the
+    line, and ``CIF_MAGNETIC_MOMENT_ON_ALLOWED`` names the move.  The expected
+    moment is worked by hand: the box is ±5e-4 on x and ±0.05 on y, and the
+    point of m_x = m_y nearest the printed one in those units is where
+    |m − 2.001|/5e-4 = |m − 2.0|/0.05, m = 2.001 − 5e-4·0.001/0.0505."""
+    path = tmp_path / "diagonal.mcif"
+    path.write_text(_DIAGONAL_MOMENT.format(mx="2.001", my="2.0"),
+                    encoding="utf-8")
+    diagnostics: list = []
+    moment = structure_from_cif(path, diagnostics=diagnostics
+                                ).phases[0].atoms[0].moment
+    expected = 2.001 - 5e-4 * 0.001 / 0.0505
+    assert moment.values() == pytest.approx((expected, expected, 0.0),
+                                             abs=1e-12)
+    (hit,) = [d for d in diagnostics
+              if d.code == "CIF_MAGNETIC_MOMENT_ON_ALLOWED"]
+    assert hit.value == pytest.approx(0.001 - 5e-4 * 0.001 / 0.0505, abs=1e-12)
+
+
+def test_a_moment_off_its_relation_by_more_than_the_print_is_still_refused(tmp_path):
+    """2.2 against 2.0, each ±0.05: no point of m_x = m_y is in the box, so
+    the file and its group do disagree, and the phase's own check refuses it
+    exactly as before."""
+    path = tmp_path / "diagonal.mcif"
+    path.write_text(_DIAGONAL_MOMENT.format(mx="2.2", my="2.0"),
+                    encoding="utf-8")
+    with pytest.raises(ValidationError, match="not compatible with"):
+        structure_from_cif(path)
+
+
+def test_a_moment_already_on_its_relation_is_left_alone(tmp_path):
+    path = tmp_path / "diagonal.mcif"
+    path.write_text(_DIAGONAL_MOMENT.format(mx="2.0", my="2.0"),
+                    encoding="utf-8")
+    diagnostics: list = []
+    moment = structure_from_cif(path, diagnostics=diagnostics
+                                ).phases[0].atoms[0].moment
+    assert moment.values() == (2.0, 2.0, 0.0)
+    assert not [d for d in diagnostics
+                if d.code == "CIF_MAGNETIC_MOMENT_ON_ALLOWED"]
+
+
+_THREEFOLD_MOMENT = _DIAGONAL_MOMENT.replace("P 4/m m m", "P 2 3").replace(
+    """1 x,y,z,+1
+2 -x,-y,z,-1
+3 -x,-y,-z,+1
+4 x,y,-z,-1
+5 y,x,-z,+1
+6 -y,-x,-z,-1
+7 -y,-x,z,+1
+8 y,x,z,-1
+""", """1 x,y,z,+1
+2 z,x,y,+1
+3 y,z,x,+1
+""").replace("Mn1 {mx} {my} 0", "Mn1 {mx} {my} {mz}").replace(
+    "_cell_length_c 5.0", "_cell_length_c 4.0")
+
+
+def test_a_component_printed_as_a_bare_zero_is_not_moved_by_its_half_width(tmp_path):
+    """The three-fold along [1 1 1] allows only m_x = m_y = m_z.  ``0.5 0.5 0``
+    prints z as a bare ``0``, whose box is ±0.5 μ_B, so the print alone admits
+    (0.4545, 0.4545, 0.4545): a component the file states as zero moved 0.45
+    μ_B.  The shift cap (``MOMENT_FORM_AGREEMENT_MU_B``) refuses it, while a
+    genuinely rounded ``0.501 0.5 0.5`` (the same site) is still put on the
+    line."""
+    path = tmp_path / "threefold.mcif"
+    path.write_text(_THREEFOLD_MOMENT.format(mx="0.5", my="0.5", mz="0"),
+                    encoding="utf-8")
+    with pytest.raises(ValidationError, match="not compatible with"):
+        structure_from_cif(path)
+    path.write_text(_THREEFOLD_MOMENT.format(mx="0.501", my="0.5", mz="0.5"),
+                    encoding="utf-8")
+    moment = structure_from_cif(path).phases[0].atoms[0].moment
+    assert moment.values()[0] == pytest.approx(moment.values()[1], abs=1e-9)
+    assert moment.values()[1] == pytest.approx(moment.values()[2], abs=1e-9)
