@@ -388,3 +388,44 @@ def test_a_commit_that_skips_the_re_exponentiation_is_refused(monkeypatch):
     theta[table.free_paths.index("phases.0.rigid_bodies.0.rotation.1")] = math.radians(3.0)
     table.commit(theta)
     assert max(table.body_bond_errors().values()) < 1e-9
+
+
+# ------------------------------------------------------------ series carry
+def test_the_series_carry_sets_the_increment_by_log_not_by_subtraction():
+    """WP-1805: ``displace_anchored_dofs`` sets a body's increment from the
+    record, δω = Log(R_target·R₀ᵀ), and the series carry hands it the record.
+    Carried onto a model 3° and 0.02 off, the body lands on the source to
+    1e-12 — the orientation and every atom.  The subtraction rule (the
+    difference of the two records' rotation vectors) misses by 0.0147° at 3°
+    (WP-1803's record); not carrying the orientation at all misses by 3°."""
+    from rietx.sequential import _carry_into
+
+    source = body_structure(Q_TRUE)
+    start = body_structure(_turned(Q_TRUE, 3.0), origin=(0.33, 0.41, 0.26))
+    target = start.model_copy(deep=True)
+    ins = INS.model_copy(deep=True)
+    displaced = _carry_into(target, ins, (source, INS), ["*"])
+    assert {f"phases.0.rigid_bodies.0.rotation.{k}" for k in range(3)} <= set(displaced)
+    got = target.phases[0].rigid_bodies[0]
+    assert _angle_deg(got.orientation, Q_TRUE) < 1e-9
+    for a, b in zip(target.phases[0].atoms, source.phases[0].atoms, strict=True):
+        for c in "xyz":
+            assert abs(getattr(a, c).value - getattr(b, c).value) < 1e-12
+    ParameterTable(target, INS)                    # and it builds: no drift
+    # what the subtraction rule would have set, for scale
+    w_src = np.asarray(rotation.vector_from_quaternion(np.asarray(Q_TRUE)))
+    w_start = np.asarray(rotation.vector_from_quaternion(
+        np.asarray(start.phases[0].rigid_bodies[0].orientation)))
+    r_sub = (np.asarray(rotation.matrix_from_vector(w_src - w_start))
+             @ np.asarray(rotation.matrix_from_quaternion(
+                 np.asarray(start.phases[0].rigid_bodies[0].orientation))))
+    q_sub = rotation.canonical_quaternion(rotation.quaternion_from_matrix(r_sub))
+    assert _angle_deg(q_sub, Q_TRUE) > 1e-3
+
+
+def test_the_series_fences_skip_the_rotation_increment():
+    from rietx.sequential import _relative_paths
+
+    rel = _relative_paths(body_structure(Q_TRUE), INS)
+    assert {f"phases.0.rigid_bodies.0.rotation.{k}" for k in range(3)} <= rel
+    assert "phases.0.atoms.0.x" not in rel
