@@ -220,7 +220,7 @@ beside the decision, not folded into it**, which matters for a candidate whose
   measurement. Every round's `-j` is printed beside its wall times.
 
 ```sh
-.venv/bin/python tests/eval_skill/build.py docs/skill/rietx <out> --venv
+.venv/bin/python tests/eval_skill/build.py docs/skill/rietx <out> --venv <venv dir>   # outside /Users, /tmp and <out>
 claude plugin eval <out> --model <haiku|sonnet> --judge-model sonnet --runs 3 \
     --scaffold --allow-tools Bash Write --trust-plugin --no-publish --keep-temp \
     --max-cost-usd <ceiling> --json <result>.json --tag fap [--ablation none] -j 1
@@ -235,16 +235,19 @@ claude plugin eval <out> --model <haiku|sonnet> --judge-model sonnet --runs 3 \
 - **A sandbox backend**: granted `Bash`, every command runs under Claude Code's
   OS sandbox, and with no backend each run is refused and scores about 0. On
   Linux that is `bubblewrap` and `socat`, which the pilot had to install.
-- **An interpreter inside the plugin root**, built there by `build.py --venv`
-  (a non-editable install of the checkout). The sandbox decides what a run's
-  Bash can read. On Linux it hides the home directory. On macOS it denies all
-  of `/Users` and `/tmp`, and allows only the plugin root, the run's own home
-  and the `PATH` directories (read off a kept run's `config/settings.json`,
-  2026-10-06). Two runs on macOS were void for this: one interpreter lay in
-  Claude Code's temp directory and one in `/Users/Shared`. Neither could start,
-  and each run ended asking for a sandbox change. `build.py` warns about an
-  interpreter outside the plugin root, or one whose base lies under the home
-  directory or `/tmp`.
+- **An interpreter both arms can read**, built by `build.py --venv DIR` (a
+  non-editable install of the checkout). The sandbox decides what a run's Bash
+  can read. On Linux it hides the home directory. On macOS it denies all of
+  `/Users` and `/tmp`. It allows the run's own home and the `PATH`
+  directories, and the plugin root in the with-skill arm only (read off kept
+  runs' `config/settings.json`, 2026-10-06). So `DIR` lies outside `/Users`,
+  `/tmp` and the plugin root; on this Mac it was
+  `/opt/homebrew/var/rietx-eval/venv`, which needs no sudo. The wrong place
+  voided runs three times. An interpreter in Claude Code's temp directory or
+  in `/Users/Shared` could not start in either arm. One in the plugin root
+  served the with-skill arm and voided round B's baseline arm on both fit
+  cases. Each such run ends asking for a sandbox change. `build.py` warns
+  about an interpreter, or its base, that either arm cannot read.
 - **The flags**: `--scaffold` (the fixtures), `--allow-tools Bash Write`,
   `--trust-plugin`, `--no-publish`, `--keep-temp` (the traces, which tokens, the
   route and leaks are read from and which the harness otherwise deletes), and
@@ -382,7 +385,8 @@ licensed by the other's round.
 
 Made before any scored fit-case run. One `fap-fit` run, Haiku, with-arm only
 (`--ablation none --runs 1`), alone on a 10-core Mac (macOS sandbox, Claude
-Code 2.1.291), built with `--venv`. It is not a scored run.
+Code 2.1.291), its interpreter in the plugin root. It is not a scored run,
+and a with-arm run is the one arm that location serves (§ Prerequisites).
 
 - **The run took 271 s, 46 turns and $0.41.** Thirteen of its Bash calls ran
   the agent's scripts, and each full fit took 7-9 s. That matches the pilot's
@@ -398,6 +402,17 @@ Code 2.1.291), built with `--venv`. It is not a scored run.
 - **Two earlier attempts were void** (§ Prerequisites): their interpreter lay
   where the macOS sandbox denies reads, and neither run could start Python.
   They cost $0.20 together, and neither is a measurement.
+
+### Assumptions 1-4 checked, 2026-10-06, on Amendment 1.1's kept trace
+
+All four hold as written (§ Assumptions the first round checks). The trace
+holds transcript rows: 96 assistant, 45 user, 43 system, 1 result. Every
+assistant row carries `usage`, and the 96 rows are 45 API calls, so counting
+once per `message.id` is what keeps the token read-out from doubling. The
+`system` rows' `cwd` is the run's `home/cwd`, under the directory holding
+`out/trace.jsonl`. The skill names its base directory, and it lies in the
+plugin. Assumption 5 needs a two-arm round and is read off round B's `SCORE`
+lines.
 
 ## Results
 

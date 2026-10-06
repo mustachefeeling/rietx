@@ -278,35 +278,42 @@ def test_a_relative_interpreter_is_written_absolute(tmp_path, monkeypatch):
     assert stamp["python"] == str(tmp_path / "venv" / "bin" / "python")
 
 
-def test_an_interpreter_outside_the_plugin_root_is_named_as_unreachable(tmp_path):
-    """macOS's sandbox denies `/Users` and `/tmp` and reads the plugin root, so
-    a `--python` anywhere else fails every fit in the run (2026-10-06, twice)."""
-    out = tmp_path / "p"
-    inside = out / B.RUNTIME / "bin" / "python"
-    assert not [w for w in B.unreachable(inside, out) if "plugin root" in w]
-    assert any("plugin root" in w for w in B.unreachable(Path("/opt/venv/bin/python"), out))
+def test_an_interpreter_either_arm_cannot_start_is_named(tmp_path):
+    """macOS's sandbox denies `/Users` and `/tmp`, and grants the plugin root to
+    the with-skill arm alone (2026-10-06: two void runs, then a void baseline
+    arm), so only an interpreter outside all three serves both arms."""
+    out = Path("/opt/build")
+    assert B.unreachable(Path("/opt/rietx-eval/bin/python"), out) == []
+    for denied in (out / "runtime" / "bin" / "python", Path("/Users/Shared/v/bin/python"),
+                   Path("/private/tmp/v/bin/python"), Path.home() / "v" / "bin" / "python"):
+        assert B.unreachable(denied, out), denied
 
 
-def test_a_base_interpreter_under_tmp_is_named_as_unreachable(tmp_path):
-    out = tmp_path / "p"
-    (out / "bin").mkdir(parents=True)
-    link = out / "bin" / "python"
+def test_a_base_interpreter_under_tmp_is_named(tmp_path):
+    link = tmp_path / "python"
     link.symlink_to("/private/tmp/somewhere/python3.12")
-    assert any("base interpreter" in w for w in B.unreachable(link, out))
+    assert any("its base" in w for w in B.unreachable(link, Path("/opt/build")))
 
 
 def test_venv_and_python_are_one_choice(tmp_path):
     with pytest.raises(SystemExit, match="pass one"):
-        B.build(TREE, tmp_path / "p", python=Path("/opt/venv/bin/python"), venv=True)
+        B.build(TREE, tmp_path / "p", python=Path("/opt/venv/bin/python"), venv=tmp_path / "v")
+
+
+def test_venv_refuses_to_clear_a_directory_that_is_not_one(tmp_path):
+    keep = tmp_path / "v"
+    keep.mkdir()
+    (keep / "notes.txt").write_text("not a venv", encoding="utf-8")
+    with pytest.raises(SystemExit, match="left alone"):
+        B._runtime(keep)
+    assert (keep / "notes.txt").exists()
 
 
 def test_venv_writes_its_interpreter_into_every_prompt(tmp_path, monkeypatch):
-    def fake(out: Path) -> Path:
-        return out / B.RUNTIME / "bin" / "python"
-    monkeypatch.setattr(B, "_runtime", fake)
+    monkeypatch.setattr(B, "_runtime", lambda venv: venv / "bin" / "python")
     out = tmp_path / "p"
-    stamp = B.build(TREE, out, venv=True, only=["fap-fit"])
-    assert stamp["python"] == str(out / B.RUNTIME / "bin" / "python")
+    stamp = B.build(TREE, out, venv=tmp_path / "v", only=["fap-fit"])
+    assert stamp["python"] == str(tmp_path / "v" / "bin" / "python")
     assert stamp["python"] in (out / "evals" / "fap-fit" / "prompt.md").read_text(encoding="utf-8")
 
 
