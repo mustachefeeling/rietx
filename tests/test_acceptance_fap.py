@@ -55,11 +55,12 @@ by the SRM 660c test; neither code's cell is "truth" for this specimen.
 
 from pathlib import Path
 
+import math
 import numpy as np
 import pytest
 
 import rietx as rx
-from rietx.io.projects.gsas import to_structure
+from rietx.io.projects.gsas import gaussian_fwhm_squared_degrees, to_structure
 from rietx.schemas.instrument import BackgroundChebyshev, EmissionLine, Source
 
 DATA = Path(__file__).parent / "data"
@@ -161,9 +162,10 @@ def build_fap_inputs():
         # NOT model as much as what it did — the v0.2 lesson.
         dispersion=None)
     # GSAS GU, GV, GW — held, as their N flags say
-    instrument.profile.u.value = _TERMS["GU"].degrees
-    instrument.profile.v.value = _TERMS["GV"].degrees
-    instrument.profile.w.value = _TERMS["GW"].degrees
+    # GU GV GW are a Gaussian variance; u v w the Gaussian FWHM² (#735)
+    instrument.profile.u.value = gaussian_fwhm_squared_degrees(_TERMS["GU"])
+    instrument.profile.v.value = gaussian_fwhm_squared_degrees(_TERMS["GV"])
+    instrument.profile.w.value = gaussian_fwhm_squared_degrees(_TERMS["GW"])
     # S/L and H/L are near-degenerate (see Geometry docstring); refine one
     instrument.geometry.axial_sl.value = 0.02
     instrument.geometry.axial_hl.value = 0.02
@@ -241,11 +243,15 @@ def test_fap_lab_rietveld_matches_gsas(fap_inputs, fap_fit):
     # refined sample broadening agrees with GSAS's LX to ~5 % (its LY is
     # split differently between the two codes' strain conventions, so only
     # the physical range is checked there)
-    assert phase.lor_size.value == pytest.approx(0.0335, rel=0.20)
+    # (GU GV GW read as the variance the manual says they are, #735: the held
+    # Gaussian is 2.35x wider in FWHM, Rwp 0.0970 -> 0.0925 against GSAS's
+    # 0.1005, and the Lorentzian this refinement needs moves 0.0328 -> 0.0246.
+    # The two codes mix Gaussian and Lorentzian differently, so the band is wider)
+    assert phase.lor_size.value == pytest.approx(0.0335, rel=0.30)
     assert 0.0 <= phase.lor_strain.value < 0.15
     # the instrument resolution function was held, as in GSAS
-    assert ref.fitted_instrument.profile.u.value == pytest.approx(2e-4)
-    assert ref.fitted_instrument.profile.w.value == pytest.approx(5e-4)
+    assert ref.fitted_instrument.profile.u.value == pytest.approx(2e-4 * 8.0 * math.log(2.0))
+    assert ref.fitted_instrument.profile.w.value == pytest.approx(5e-4 * 8.0 * math.log(2.0))
     assert ref.fitted_instrument.zero_shift.value == 0.0
 
     # esds are Bérar-Lelann inflated; GSAS's are not, so ours must be larger

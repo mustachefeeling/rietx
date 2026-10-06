@@ -64,6 +64,7 @@ from ..schemas.migrate import (
     schema_key,
 )
 from .projects.gsas import (
+    GAUSSIAN_VARIANCE_TO_FWHM_SQUARED,
     CW_PROFILE_COEFFICIENTS,
     KEY_BYTES,
     GsasIcons,
@@ -341,22 +342,25 @@ def read_gsas_prm(path: str | Path, *,
 
         1 centidegree  = 1e-2 degree        =>  LX, LY          /= 1e2
         1 centidegree² = (1e-2 degree)²     =>  GU, GV, GW      /= 1e4
+        Gaussian variance σ² -> FWHM² (Γ² = 8 ln 2 · σ²)
+                                              =>  GU, GV, GW      *= 8 ln 2
+
+    ``GU GV GW`` are the coefficients of a Gaussian **variance**, σ² = GU tan²θ
+    + GV tanθ + GW (the GSAS manual, "CW profile functions", functions 3 and 4:
+    "The Gaussian variance of the peak, σ²"), and ``profile.u/v/w`` those of
+    the Gaussian FWHM², so the unit change is followed by the factor 8 ln 2
+    (#735; the same factor as the GSAS-II ``.instprm``'s ``U V W``, #705).
 
     S/L and H/L are already dimensionless ratios and cross unconverted.
-    Verified three ways (not merely derived): (1) the converted ``W`` at this
-    instrument's own angles sits at FWHM ≈ 0.0035-0.004°, inside the
-    ≈0.003-0.01° an 11-BM LaB6 line actually shows, and comfortably *below*
-    every measured total peak width in a real pattern from this instrument
-    (real specimen broadening can only add to the pure-instrument width, never
-    subtract from it — a wrongly-scaled ``÷1e2`` reading predicts an
-    "instrument-only" width that *exceeds* the narrowest observed peak, which
-    is not physically possible); (2) a GSAS ``.LST`` refinement log for this
-    exact instrument prints ``GU/GV/GW/S/L/H/L`` at the same numeric
-    magnitude as the ``.prm``, confirming the field order (``GU GV GW GP LX
-    LY S/L H/L …``) and that GSAS's own internal units are what the manual
-    says; (3) an independent rietx-fitted profile of the same beamline gives
-    ``W`` = 6.58e-6 deg² against this conversion's 6.30e-6 — a 4% agreement
-    between two different LaB6 fits taken years apart.
+    The unit change and the field order are corroborated by a GSAS ``.LST``
+    refinement log for this exact instrument, which prints ``GU/GV/GW/S/L/H/L``
+    at the same numeric magnitude as the ``.prm``.  The 8 ln 2 is the manual's
+    statement that these coefficients are a variance.  Two earlier checks, a
+    converted ``W`` landing inside the width an 11-BM LaB6 line shows and
+    agreeing to 4 % with a rietx-fitted ``W`` of the same beamline, were read
+    as confirming the unit change alone; both are consistent with it and
+    neither can tell a factor 2.35 from a specimen contribution, so they are
+    not evidence against the variance reading.
 
     **Every record is read by column**, through the grammar
     ``io/projects/gsas.py`` holds: a ``.prm``'s ``INS`` records and a
@@ -707,9 +711,9 @@ def _build_instrument(icons: GsasIcons,
                 wavelength=icons.lam2,
                 weight=Parameter(value=icons.ka2_ratio, min=0.0, max=2.0)))
         prof = instrument.profile
-        prof.u.value = gu / 1e4
-        prof.v.value = gv / 1e4
-        prof.w.value = gw / 1e4
+        prof.u.value = gu * _PRM_GAUSS_TO_DEG2
+        prof.v.value = gv * _PRM_GAUSS_TO_DEG2
+        prof.w.value = gw * _PRM_GAUSS_TO_DEG2
         prof.x.value = lx / 1e2
         prof.y.value = ly / 1e2
         instrument.geometry.axial_sl.value = sl
@@ -719,8 +723,8 @@ def _build_instrument(icons: GsasIcons,
             f"{p.name}: this bank states a value outside the range this "
             f"package's Instrument holds — ICONS LAM1 {icons.lam1}, LAM2 "
             f"{icons.lam2}, POLA {icons.polarization}, KRATIO "
-            f"{icons.ka2_ratio}; PRCF converted to U {gu / 1e4}, V "
-            f"{gv / 1e4}, W {gw / 1e4}, X {lx / 1e2}, Y {ly / 1e2}, S/L "
+            f"{icons.ka2_ratio}; PRCF converted to U {gu * _PRM_GAUSS_TO_DEG2}, V "
+            f"{gv * _PRM_GAUSS_TO_DEG2}, W {gw * _PRM_GAUSS_TO_DEG2}, X {lx / 1e2}, Y {ly / 1e2}, S/L "
             f"{sl}, H/L {hl}.  Read by column every one of those is the "
             f"file's own number rather than a field landing in the wrong "
             f"slot, so the calibration is refused here, naming the file, "
@@ -947,6 +951,11 @@ _PRM_CUTOFF = 0.001
 #: here as the multiplication it is so the two cannot drift apart.
 _PRM_CENTIDEG_SQUARED = 1e4
 _PRM_CENTIDEG = 1e2
+#: ``GU GV GW`` are the coefficients of a Gaussian *variance* in centidegrees²;
+#: ``profile.u/v/w`` those of the Gaussian FWHM² in degrees² (Γ² = 8 ln 2 · σ²).
+#: What a ``GU`` is multiplied by to give a ``u`` (the reader), and what a ``u``
+#: is divided by to give a ``GU`` (the writer).
+_PRM_GAUSS_TO_DEG2 = GAUSSIAN_VARIANCE_TO_FWHM_SQUARED / _PRM_CENTIDEG_SQUARED
 
 
 def from_instrument(instrument: Instrument, *, header: str = "",
@@ -1072,13 +1081,14 @@ def from_instrument(instrument: Instrument, *, header: str = "",
 
     profile, geometry = instrument.profile, instrument.geometry
     # The inverse of read_gsas_prm's conversion, written as the multiplication
-    # it is: GU/GV/GW are centidegrees squared and LX/LY centidegrees, while
+    # it is: GU/GV/GW are a Gaussian variance in centidegrees squared (÷ 8 ln 2
+    # from the FWHM² this package holds) and LX/LY centidegrees, while
     # S/L and H/L are ratios.  GP (position 4) and everything past position 8
     # are 0, which is the identity the reader requires them at.
     coefficients = [
-        profile.u.value * _PRM_CENTIDEG_SQUARED,
-        profile.v.value * _PRM_CENTIDEG_SQUARED,
-        profile.w.value * _PRM_CENTIDEG_SQUARED,
+        profile.u.value / _PRM_GAUSS_TO_DEG2,
+        profile.v.value / _PRM_GAUSS_TO_DEG2,
+        profile.w.value / _PRM_GAUSS_TO_DEG2,
         0.0,
         profile.x.value * _PRM_CENTIDEG,
         profile.y.value * _PRM_CENTIDEG,

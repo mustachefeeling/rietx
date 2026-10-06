@@ -313,7 +313,8 @@ def _build_fap(data_dir: Path) -> StandardInputs:
       f′/f″ either.  Adopting another code's protocol means adopting what it
       did not model as much as what it did.
     """
-    from ..io.projects.gsas import read_gsas_exp, to_structure
+    from ..io.projects.gsas import (
+        gaussian_fwhm_squared_degrees, read_gsas_exp, to_structure)
     from ..io.readers import read_pattern
     from ..schemas.pattern import PatternData
 
@@ -355,9 +356,10 @@ def _build_fap(data_dir: Path) -> StandardInputs:
                EmissionLine(wavelength=lam2, weight=_p(0.5, min=0.0, max=1.0))],
         polarization=_p(hist.polarization, min=0.0, max=1.0),
         dispersion=None)
-    ins.profile.u.value = terms["GU"].degrees     # held, as its N flag says
-    ins.profile.v.value = terms["GV"].degrees
-    ins.profile.w.value = terms["GW"].degrees
+    # held, as their N flags say; GU GV GW are a Gaussian variance (#735)
+    ins.profile.u.value = gaussian_fwhm_squared_degrees(terms["GU"])
+    ins.profile.v.value = gaussian_fwhm_squared_degrees(terms["GV"])
+    ins.profile.w.value = gaussian_fwhm_squared_degrees(terms["GW"])
     # S/L and H/L are near-degenerate (see Geometry docstring); refine one
     ins.geometry.axial_sl.value = 0.02
     ins.geometry.axial_hl.value = 0.02

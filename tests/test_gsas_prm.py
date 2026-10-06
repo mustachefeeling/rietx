@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import math
 import pytest
 
 import rietx as rx
@@ -137,10 +138,12 @@ def test_reads_the_dominant_case(tmp_path):
 
     assert inst.source.primary_wavelength == pytest.approx(0.5)
     assert inst.source.polarization.value == pytest.approx(0.990)
-    # GU/GV/GW: centidegrees^2 -> degrees^2 is /1e4; LX/LY: centidegrees -> degrees is /1e2
-    assert inst.profile.u.value == pytest.approx(1.0 / 1e4)
-    assert inst.profile.v.value == pytest.approx(-0.5 / 1e4)
-    assert inst.profile.w.value == pytest.approx(0.2 / 1e4)
+    # GU/GV/GW: a Gaussian variance in centidegrees^2, so /1e4 into degrees^2
+    # and x 8 ln 2 into the FWHM^2 profile.u/v/w hold (#735); LX/LY:
+    # centidegrees -> degrees is /1e2
+    assert inst.profile.u.value == pytest.approx(1.0 * _G / 1e4)
+    assert inst.profile.v.value == pytest.approx(-0.5 * _G / 1e4)
+    assert inst.profile.w.value == pytest.approx(0.2 * _G / 1e4)
     assert inst.profile.x.value == pytest.approx(0.15 / 1e2)
     assert inst.profile.y.value == pytest.approx(0.0)
     assert inst.geometry.axial_sl.value == pytest.approx(0.0011)
@@ -204,7 +207,7 @@ def test_short_counted_block_without_a_fifth_continuation_line(tmp_path):
     p = tmp_path / "short.prm"
     p.write_text(_prm(ncoef=16, coeffs=coeffs), encoding="utf-8")
     inst = read_gsas_prm(p)
-    assert inst.profile.w.value == pytest.approx(0.2 / 1e4)
+    assert inst.profile.w.value == pytest.approx(0.2 * _G / 1e4)
     assert inst.geometry.axial_hl.value == pytest.approx(0.0022)
 
 
@@ -499,6 +502,9 @@ def test_the_mapped_coefficients_are_the_one_tables_own_names():
 
 # -- the diagnostics channel, and the committed files nothing was reading ----
 
+#: Γ² = 8 ln 2 · σ²: GU GV GW are a Gaussian variance (#735)
+_G = 8.0 * math.log(2.0)
+
 DATA = Path(__file__).parent / "data"
 
 
@@ -710,7 +716,7 @@ HB2A_PRM = DATA / "gsas2_hb2a_cr2wo6.prm"
 def test_a_type_3_pncr_file_reads_onto_the_neutron_preset():
     """The file's own numbers, converted by the ``PXCR`` mapping: ``ICONS``
     LAM1 2.4067 Å; ``PRCF`` GU 701.3626, GV −1157.202, GW 558.7603
-    centidegrees² → deg² (÷1e4); LX = LY = 0; S/L = H/L = 0.001 cross
+    centidegrees² of Gaussian variance → FWHM² deg² (÷1e4, × 8 ln 2); LX = LY = 0; S/L = H/L = 0.001 cross
     unconverted.  The source is a :class:`NeutronSource` — one wavelength,
     no Kα₂, the polarisation term pinned at 1 — although the file writes
     ``POLA 0.990`` and ``KRATIO 0.500``."""
@@ -720,9 +726,9 @@ def test_a_type_3_pncr_file_reads_onto_the_neutron_preset():
     assert inst.source.harmonics == []
     assert inst.source.polarization.value == 1.0
     prof = inst.profile
-    assert prof.u.value == pytest.approx(701.3626 / 1e4, rel=1e-12)
-    assert prof.v.value == pytest.approx(-1157.202 / 1e4, rel=1e-12)
-    assert prof.w.value == pytest.approx(558.7603 / 1e4, rel=1e-12)
+    assert prof.u.value == pytest.approx(701.3626 * _G / 1e4, rel=1e-12)
+    assert prof.v.value == pytest.approx(-1157.202 * _G / 1e4, rel=1e-12)
+    assert prof.w.value == pytest.approx(558.7603 * _G / 1e4, rel=1e-12)
     assert prof.x.value == 0.0 and prof.y.value == 0.0
     assert inst.geometry.kind == "debye_scherrer"
     assert inst.geometry.axial_sl.value == 0.001
@@ -774,9 +780,9 @@ def test_the_two_hb2a_files_cross_on_one_diffractometer():
     (2.4067 against 2.40627 Å — one monochromator, each file's own
     calibration of it), no Lorentzian width (X = Y = 0 in both).
 
-    Differ, legitimately: U V W (the Gaussian FWHM ratio runs 0.18-0.63
-    over 10-150° 2θ, the ``.instprm`` read with GSAS-II's variance → FWHM²
-    8 ln 2; the ``.prm`` reader's own conversion is a separate question), the zero (0 against −0.0096°), the axial divergence
+    Differ, legitimately: U V W (the Gaussian FWHM ratio, ``.prm`` over
+    ``.instprm``, runs 0.42-1.49 over 10-150° 2θ with both readers converting
+    8 ln 2), the zero (0 against −0.0096°), the axial divergence
     (S/L + H/L 0.002 against SH/L 0.09), and the profile's bound box — the
     ``.prm`` lands on the neutron preset's coarse box, the ``.instprm`` on
     the default one (the two-routes gotcha WP-1312's 2026-09-23 entry
@@ -805,7 +811,13 @@ def test_the_two_hb2a_files_cross_on_one_diffractometer():
 
     ratios = [fwhm(prm.profile, tt) / fwhm(instprm.profile, tt)
               for tt in (10, 30, 60, 90, 120, 150)]
-    assert min(ratios) < 0.2 and max(ratios) > 0.6, ratios
+    # They are two calibrations (a different monochromator setting and
+    # resolution fit), so their widths differ with angle.  The spread of the
+    # ratio, 3.5 from its smallest to its largest, does not depend on whether
+    # the .instprm reader (#705) or the .prm reader (#735) carries the 8 ln 2:
+    # the level of the ratio does (0.42-1.49 with both, 0.98-3.5 with only
+    # this one), so the level is not asserted.
+    assert max(ratios) / min(ratios) > 3.0, ratios
     assert prm.zero_shift.value == 0.0
     assert instprm.zero_shift.value == pytest.approx(-0.009602591470493875)
     axial_prm = prm.geometry.axial_sl.value + prm.geometry.axial_hl.value
@@ -901,9 +913,13 @@ def test_the_unit_conversion_agrees_with_the_hand_transcription():
     hand = _xray_instrument()
 
     assert read.source.lines[0].wavelength.value == pytest.approx(LAM_XRAY)
+    # The hand transcription is the unit change alone (÷1e4), made before
+    # GU GV GW were known to be a variance; the reader multiplies the Gaussian
+    # terms by 8 ln 2 on top of it (#735).
     for term in ("u", "v", "w", "x", "y"):
+        k = _G if term in "uvw" else 1.0
         assert getattr(read.profile, term).value == pytest.approx(
-            getattr(hand.profile, term).value), (
+            k * getattr(hand.profile, term).value), (
             f"profile.{term}: reader and hand transcription disagree")
     # The axial pair is where the two *stop* agreeing, and the reader is the
     # one that is right: mg090.prm states S/L = H/L = 0.0011 at PRCF positions
@@ -1047,9 +1063,9 @@ def _calibrated() -> rx.Instrument:
     inst = rx.Instrument.debye_scherrer(wavelength=1.5405929, polarization=0.99)
     inst.source.lines.append(rx.EmissionLine(
         wavelength=1.5444274, weight=rx.Parameter(value=0.5, min=0.0, max=2.0)))
-    inst.profile.u.value = 1.163e-4
-    inst.profile.v.value = -0.126e-4
-    inst.profile.w.value = 0.063e-4
+    inst.profile.u.value = 1.163e-4 * _G
+    inst.profile.v.value = -0.126e-4 * _G
+    inst.profile.w.value = 0.063e-4 * _G
     inst.profile.x.value = 0.173e-2
     inst.profile.y.value = 0.0
     inst.geometry.axial_sl.value = 0.0011
@@ -1216,7 +1232,7 @@ def test_a_value_that_did_not_fit_its_field_is_named(tmp_path):
     its sibling reported one — a declared channel with no consumer, WP-1076's
     class in mirror image. A `PRCF` coefficient multiplied into centidegrees
     carries the product's own float noise, so a converged calibration reaches
-    it routinely: 0.0043710000000001 × 1e4 is 43.710000000000996.
+    it routinely: 0.0043710000000001 ÷ (8 ln 2 × 1e-4) is 7.882525029657254.
     """
     inst = _calibrated()
     inst.profile.u.value = 0.0043710000000001
@@ -1224,7 +1240,7 @@ def test_a_value_that_did_not_fit_its_field_is_named(tmp_path):
     from_instrument(inst, diagnostics=diagnostics)
     (row,) = [d for d in diagnostics if d.code == "GSAS_PRM_VALUE_NARROWED"]
     assert row.level == "info"
-    assert "43.710000000000996" in row.message
+    assert "7.882525029657254" in row.message
     assert row.where == ["PRCF GU"]
 
 
@@ -1283,3 +1299,33 @@ def test_an_overflowed_kratio_is_absent_and_reported(tmp_path):
     assert d.level == "warning"
     assert d.where == ["INS  1 ICONS"]
     assert "columns 67-77" in d.message
+
+
+def test_prm_gu_gv_gw_are_a_gaussian_variance_not_a_fwhm_squared(tmp_path):
+    """The GSAS manual (CW profile functions 3 and 4) defines σ² = GU tan²θ +
+    GV tanθ + GW (centidegrees²).  The Gaussian FWHM this package's
+    ``profile.u/v/w`` give at 2θ = 60° must be 2√(2 ln 2) · σ, in degrees."""
+    p = tmp_path / "var.prm"
+    p.write_text(_prm(), encoding="utf-8")
+    prof = read_gsas_prm(p).profile
+    t = math.tan(math.radians(30.0))
+    sigma_deg = math.sqrt(1.0 * t * t - 0.5 * t + 0.2) * 1e-2
+    fwhm = math.sqrt(prof.u.value * t * t + prof.v.value * t + prof.w.value)
+    assert fwhm == pytest.approx(2.0 * math.sqrt(2.0 * math.log(2.0)) * sigma_deg,
+                                 rel=1e-12)
+
+
+def test_the_gsas1_and_gsas2_calibrations_of_one_instrument_agree(tmp_path):
+    """One U V W (a variance, centidegrees²) written as a GSAS-I ``.prm`` and
+    as a GSAS-II ``.instprm`` reads back as the same ``profile.u/v/w``."""
+    from rietx.io.instrument_profile import (
+        from_instrument, from_instrument_gsas2, read_gsas2_instprm)
+    inst = _calibrated()
+    a = tmp_path / "a.prm"
+    a.write_text(from_instrument(inst), encoding="utf-8")
+    b = tmp_path / "b.instprm"
+    b.write_text(from_instrument_gsas2(inst), encoding="utf-8")
+    pa, pb = read_gsas_prm(a).profile, read_gsas2_instprm(b).profile
+    for name in "uvw":
+        assert getattr(pa, name).value == pytest.approx(
+            getattr(pb, name).value, rel=1e-6), name

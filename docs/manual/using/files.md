@@ -493,9 +493,10 @@ PNCR` with profile function 3, reads too, onto
 record is defined by profile function rather than by radiation, so the same
 coefficients land in the same places. A neutron source has one wavelength and
 no polarization, so such a file's `POLA` and `KRATIO` are read and not applied,
-and a non-zero `LAM2` is refused. It converts `GU`/`GV`/`GW`
-from centidegrees² and `LX`/`LY` from centidegrees into the degrees² and degrees
-`ProfileTCHZ` uses. A file stating a Kα1/Kα2 doublet comes back with two
+and a non-zero `LAM2` is refused. `GU`/`GV`/`GW` are the
+coefficients of a Gaussian variance in centidegrees², and `profile.u/v/w` those of
+the Gaussian FWHM² in degrees², so they are the file's values × 8 ln 2 × 10⁻⁴;
+`LX`/`LY` are centidegrees, × 10⁻² into degrees. A file stating a Kα1/Kα2 doublet comes back with two
 emission lines, the second weighted by the `KRATIO` field, which is the Kα2/Kα1
 intensity ratio and so is what `EmissionLine.weight` means. A doublet with no
 `KRATIO` is refused: the conventional 0.5 would be the reader's number rather
