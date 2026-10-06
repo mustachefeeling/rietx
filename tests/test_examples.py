@@ -122,6 +122,22 @@ def test_fap_lab_example_runs(fap_run):
         assert marker in out, f"fap_lab.py printed no {marker!r} line:\n{out}"
 
 
+@pytest.fixture(scope="module")
+def skill_worked_default_run():
+    return _run("skill_worked_default.py").stdout
+
+
+@pytest.mark.xdist_group("example-skill-worked-default")
+def test_skill_worked_default_example_runs(skill_worked_default_run):
+    """The skill body's § 10 block (WP-1906), which an agent copies as written:
+    it must converge on a real lab pattern and print the summary its checks
+    read.  `tests/test_skill.py` holds this script equal to the body."""
+    out = skill_worked_default_run
+    for marker in ("RefinementResult: converged", "Refinement.summary:",
+                   "deliverable: structure"):
+        assert marker in out, f"skill_worked_default.py printed no {marker!r} line:\n{out}"
+
+
 @pytest.mark.xdist_group("example-nac")
 def test_nac_example_writes_its_plot(nac_run):
     """`nac_11bm.py` swallows an ImportError around plotting so it still runs

@@ -850,6 +850,52 @@ def test_the_body_carries_the_judgement_core():
     assert "stop condition" in text.lower()
 
 
+# § 10's block is the one an agent copies, so `examples/skill_worked_default.py`
+# runs it (`tests/test_examples.py`).  The body cannot `{literalinclude}` the
+# script, because an agent reads SKILL.md raw, so the two are two copies and
+# this holds them equal.  Each side drops only the lines naming its files.
+WORKED_DEFAULT = ROOT / "examples" / "skill_worked_default.py"
+_WORKED_DEFAULT_FENCE = re.compile(r"^## 10\..*?^```python\n(.*?)^```", re.S | re.M)
+
+
+def _body_worked_default(text: str) -> list[str]:
+    block = _WORKED_DEFAULT_FENCE.search(text)
+    assert block, "SKILL.md has no ```python fence under its § 10 heading"
+    return [line for line in block.group(1).splitlines()
+            if not line.startswith("PATTERN, CIF =")]
+
+
+def _example_worked_default(text: str) -> list[str]:
+    lines = text.splitlines()
+    return [line for line in lines[lines.index("import numpy as np"):]
+            if not line.startswith(("DATA =", "PATTERN, CIF ="))]
+
+
+def _worked_default_drift(body: str, example: str) -> list[str]:
+    a, b = _body_worked_default(body), _example_worked_default(example)
+    return [f"line {n}: body {x!r} / example {y!r}"
+            for n, (x, y) in enumerate(zip(a, b), 1) if x != y] + (
+        [f"body has {len(a)} lines, example {len(b)}"] if len(a) != len(b) else [])
+
+
+def test_the_worked_default_is_the_example_that_runs():
+    drift = _worked_default_drift(SKILL.read_text(encoding="utf-8"),
+                                  WORKED_DEFAULT.read_text(encoding="utf-8"))
+    assert not drift, (
+        "SKILL.md § 10 and examples/skill_worked_default.py have drifted apart: "
+        f"{drift[:5]}. Edit both in the same change: the body is what an agent "
+        "copies, the example is what tests/test_examples.py runs")
+
+
+def test_the_worked_default_check_catches_the_drift_it_was_written_for():
+    body = SKILL.read_text(encoding="utf-8")
+    example = WORKED_DEFAULT.read_text(encoding="utf-8")
+    assert not _worked_default_drift(body, example)
+    assert _worked_default_drift(body, example.replace("[:12]", "[:10]"))
+    assert _worked_default_drift(body, example + "print(result.statistics)\n")
+    assert _worked_default_drift(body.replace("import rietx as rx\n", ""), example)
+
+
 def test_the_api_index_resolves_through_a_field_hop():
     """Liveness for the resolver itself: a pydantic field is not a class
     attribute, so a walk that used plain getattr would pass this file by

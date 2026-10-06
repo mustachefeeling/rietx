@@ -143,7 +143,7 @@ restates what decides the design.
 - [x] Re-order: § 1-4 by stakes, the worked default and the stop conditions
       inside the first 5 000 tokens; fix § numbering and rule 23; the
       reference headings that cite rule numbers
-- [ ] The worked default runs as written (`examples/` holds it, the manual
+- [x] The worked default runs as written (`examples/` holds it, the manual
       `{literalinclude}`s it, `tests/test_examples.py` runs it)
 - [ ] The § E gaps: each placed by the placement rule or declined with a
       reason, row by row in the handover

@@ -160,10 +160,10 @@ The package declines rather than return a confident wrong singleton, and the ref
 A Bragg-Brentano lab pattern and a CIF. Adapt the plan, and keep the checks.
 
 ```python
-PATTERN, CIF = "sample.xy", "phase.cif"
 import numpy as np
 import rietx as rx
 
+PATTERN, CIF = "sample.xy", "phase.cif"
 data = rx.read_pattern(PATTERN)
 structure = rx.Structure.from_cif(CIF)
 instrument = rx.Instrument.bragg_brentano(radiation="CuKa")
