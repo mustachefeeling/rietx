@@ -52,6 +52,7 @@ from rietx.crystallography.magnetic.form_factor import (
 )
 from rietx.crystallography.magnetic.operators import (
     MagneticGroup,
+    MagneticOperator,
     in_span,
     magnetic_group,
     moment_magnitude,
@@ -1146,6 +1147,125 @@ def test_a_black_white_lattice_keeps_the_rows_its_anti_centring_lights():
     rows = extra.hkl.tolist()
     assert rows and all(sum(h) % 2 == 1 for h in rows)
     assert [1, 0, 0] in rows and [1, 1, 1] in rows
+
+
+def _explicit_p1(name, cell, sites):
+    """The same structure as an explicit list: ``P 1``, magnetic group 1.1.
+
+    The oracle for the two tests below, independent of the orbit and lattice
+    bookkeeping under test: every atom of the cell written out with its own
+    moment, so ``predict()`` sums the cell directly.
+    """
+    import rietx as rx
+
+    atoms = [rx.Atom(label=f"M{i}", species="Mn", x=Parameter(value=x),
+                     y=Parameter(value=y), z=Parameter(value=z),
+                     biso=Parameter(value=0.4),
+                     moment=Moment.from_values(m, "Mn2+"))
+             for i, ((x, y, z), m) in enumerate(sites)]
+    return rx.Phase(name=name, space_group="P 1", cell=cell, atoms=atoms,
+                    magnetic_symmetry=MagneticSymmetry(operations=["x,y,z,+1"]))
+
+
+def _cubic_cell(a, c=None):
+    import rietx as rx
+
+    c = a if c is None else c
+    return rx.Cell(a=Parameter(value=a), b=Parameter(value=a),
+                   c=Parameter(value=c), alpha=Parameter(value=90.0),
+                   beta=Parameter(value=90.0), gamma=Parameter(value=90.0))
+
+
+def _neutron_predict(phase):
+    import rietx as rx
+
+    grid = np.arange(5.0, 120.0, 0.05)
+    ref = rx.Refinement(rx.Structure(phases=[phase]),
+                        rx.Instrument.constant_wavelength_neutron(1.5),
+                        history=False)
+    return np.asarray(ref.predict(grid))
+
+
+def _primed_for_mz(xyz_ops):
+    """Each operation with the ε that keeps a moment along c: ε = sign of (det R·R)_zz."""
+    out = []
+    for xyz in xyz_ops:
+        op = MagneticOperator.from_xyz(xyz + ",+1")
+        axial = op.determinant * op.matrix
+        out.append(f"{xyz},{'+1' if axial[2, 2] > 0 else '-1'}")
+    return out
+
+
+def test_a_kept_translation_the_parent_point_group_moves_keeps_every_lit_orbit():
+    """The fcc type-I antiferromagnet: (½,½,0) kept, (½,0,½) and (0,½,½) primed.
+
+    |F_m|² lives at h + k even with h + l odd, and that condition is not the
+    same across a Laue orbit of the cubic parent: (1 0 2) fails it, (2 0 1)
+    passes.  The row is the orbit, so it must be kept; testing the listed
+    representative alone dropped every orbit whose representative failed, and
+    the pattern lost magnetic intensity a P 1 statement of the same cell has.
+    """
+    import gemmi
+
+    import rietx as rx
+
+    point = [o.triplet() for o in gemmi.SpaceGroup("P 4/m m m").operations()]
+    group = MagneticSymmetry(
+        operations=_primed_for_mz(point),
+        centerings=["x,y,z,+1", "x+1/2,y+1/2,z,+1",
+                    "x+1/2,y,z+1/2,-1", "x,y+1/2,z+1/2,-1"])
+    m = (0.0, 0.0, 4.0)
+    cell = _cubic_cell(4.4)
+    symmetric = rx.Phase(
+        name="fcc", space_group="F m -3 m", cell=cell,
+        atoms=[rx.Atom(label="M0", species="Mn", x=Parameter(value=0.0),
+                       y=Parameter(value=0.0), z=Parameter(value=0.0),
+                       biso=Parameter(value=0.4),
+                       moment=Moment.from_values(m, "Mn2+"))],
+        magnetic_symmetry=group)
+    down = (0.0, 0.0, -4.0)
+    explicit = _explicit_p1("fcc", cell, [
+        ((0.0, 0.0, 0.0), m), ((0.5, 0.5, 0.0), m),
+        ((0.5, 0.0, 0.5), down), ((0.0, 0.5, 0.5), down)])
+    a, b = _neutron_predict(symmetric), _neutron_predict(explicit)
+    assert np.max(np.abs(a - b)) / np.max(a) < 1e-9
+
+
+def test_a_primitive_magnetic_lattice_in_a_centred_parent_keeps_its_rows():
+    """No centring at all: the body centre is reached by a primed operation with a rotation.
+
+    I 4/m m m with the atom at the origin and its body-centred image, related
+    by (−x+½,−y+½,−z+½)′ — an inversion through (¼,¼,¼) with time reversal —
+    so the moment reverses there and |F_m|² lives at h + k + l odd, every row
+    the I centring forbids.  The magnetic group holds no translation
+    (½,½,½), primed or not, so the parent's centring condition is not one the
+    magnetic structure factor obeys.  Applying it dropped the whole magnetic
+    pattern.
+    """
+    import rietx as rx
+
+    rotations = ["x,y,z", "-y,x,z", "-x,-y,z", "y,-x,z"]
+    inverted = ["-x+1/2,-y+1/2,-z+1/2", "y+1/2,-x+1/2,-z+1/2",
+                "x+1/2,y+1/2,-z+1/2", "-y+1/2,x+1/2,-z+1/2"]
+    group = MagneticSymmetry(
+        operations=[f"{o},+1" for o in rotations] + [f"{o},-1" for o in inverted])
+    m = (0.0, 0.0, 4.0)
+    cell = _cubic_cell(3.0, 6.0)
+    symmetric = rx.Phase(
+        name="bct", space_group="I 4/m m m", cell=cell,
+        atoms=[rx.Atom(label="M0", species="Mn", x=Parameter(value=0.0),
+                       y=Parameter(value=0.0), z=Parameter(value=0.0),
+                       biso=Parameter(value=0.4),
+                       moment=Moment.from_values(m, "Mn2+"))],
+        magnetic_symmetry=group)
+    explicit = _explicit_p1("bct", cell, [
+        ((0.0, 0.0, 0.0), m), ((0.5, 0.5, 0.5), (0.0, 0.0, -4.0))])
+    a, b = _neutron_predict(symmetric), _neutron_predict(explicit)
+    nuclear = _neutron_predict(symmetric.model_copy(update={
+        "magnetic_symmetry": None,
+        "atoms": [x.model_copy(update={"moment": None}) for x in symmetric.atoms]}))
+    assert np.max(b - nuclear) > 0.05 * np.max(b)        # a real magnetic signal
+    assert np.max(np.abs(a - b)) / np.max(a) < 1e-9
 
 
 def test_the_nuclear_term_is_exactly_zero_on_a_magnetic_only_row():
