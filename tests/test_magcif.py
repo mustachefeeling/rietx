@@ -3167,3 +3167,38 @@ def test_a_moment_already_on_its_relation_is_left_alone(tmp_path):
     assert moment.values() == (2.0, 2.0, 0.0)
     assert not [d for d in diagnostics
                 if d.code == "CIF_MAGNETIC_MOMENT_ON_ALLOWED"]
+
+
+_THREEFOLD_MOMENT = _DIAGONAL_MOMENT.replace("P 4/m m m", "P 2 3").replace(
+    """1 x,y,z,+1
+2 -x,-y,z,-1
+3 -x,-y,-z,+1
+4 x,y,-z,-1
+5 y,x,-z,+1
+6 -y,-x,-z,-1
+7 -y,-x,z,+1
+8 y,x,z,-1
+""", """1 x,y,z,+1
+2 z,x,y,+1
+3 y,z,x,+1
+""").replace("Mn1 {mx} {my} 0", "Mn1 {mx} {my} {mz}").replace(
+    "_cell_length_c 5.0", "_cell_length_c 4.0")
+
+
+def test_a_component_printed_as_a_bare_zero_is_not_moved_by_its_half_width(tmp_path):
+    """The three-fold along [1 1 1] allows only m_x = m_y = m_z.  ``0.5 0.5 0``
+    prints z as a bare ``0``, whose box is ±0.5 μ_B, so the print alone admits
+    (0.4545, 0.4545, 0.4545): a component the file states as zero moved 0.45
+    μ_B.  The shift cap (``MOMENT_FORM_AGREEMENT_MU_B``) refuses it, while a
+    genuinely rounded ``0.501 0.5 0.5`` (the same site) is still put on the
+    line."""
+    path = tmp_path / "threefold.mcif"
+    path.write_text(_THREEFOLD_MOMENT.format(mx="0.5", my="0.5", mz="0"),
+                    encoding="utf-8")
+    with pytest.raises(ValidationError, match="not compatible with"):
+        structure_from_cif(path)
+    path.write_text(_THREEFOLD_MOMENT.format(mx="0.501", my="0.5", mz="0.5"),
+                    encoding="utf-8")
+    moment = structure_from_cif(path).phases[0].atoms[0].moment
+    assert moment.values()[0] == pytest.approx(moment.values()[1], abs=1e-9)
+    assert moment.values()[1] == pytest.approx(moment.values()[2], abs=1e-9)
