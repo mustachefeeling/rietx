@@ -60,6 +60,7 @@ from functools import lru_cache
 from importlib.resources import files
 from typing import Literal
 
+from .._about import DATA_PACKAGE as _DATA_PACKAGE
 from .species import _parse_species, element_symbol
 
 _SHANNON_FILE = "r_ion_Shannon.dat"
@@ -122,7 +123,7 @@ class IonicRadius:
 @lru_cache(maxsize=None)
 def _shannon_rows() -> tuple[IonicRadius, ...]:
     """Parse ``r_ion_Shannon.dat`` once, in printed order (``kind`` ionic)."""
-    text = (files("rietx.data") / _SHANNON_FILE).read_text(encoding="utf-8")
+    text = (files(_DATA_PACKAGE) / _SHANNON_FILE).read_text(encoding="utf-8")
     rows = []
     for line in text.splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
@@ -142,7 +143,7 @@ def _shannon_rows() -> tuple[IonicRadius, ...]:
 @lru_cache(maxsize=None)
 def _pyykko_rows() -> dict[str, tuple[float, float]]:
     """Parse ``r_cov_Pyykko.dat`` once: symbol → (r₁, r₂) in pm, r₂ maybe nan."""
-    text = (files("rietx.data") / _PYYKKO_FILE).read_text(encoding="utf-8")
+    text = (files(_DATA_PACKAGE) / _PYYKKO_FILE).read_text(encoding="utf-8")
     table: dict[str, tuple[float, float]] = {}
     for line in text.splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
@@ -361,7 +362,7 @@ class MetallicRadius:
 @lru_cache(maxsize=None)
 def _pauling_rows() -> dict[str, MetallicRadius]:
     """Parse ``r_metal_Pauling.dat`` once: symbol → entry (``ligancy`` 1)."""
-    text = (files("rietx.data") / _PAULING_FILE).read_text(encoding="utf-8")
+    text = (files(_DATA_PACKAGE) / _PAULING_FILE).read_text(encoding="utf-8")
     table: dict[str, MetallicRadius] = {}
     for line in text.splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
