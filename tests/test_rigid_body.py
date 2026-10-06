@@ -184,7 +184,7 @@ def test_body_esds_equal_the_central_fd_chain():
     # the FD Jacobian is of θ, so the scale's column carries dφ/du already;
     # the scale reaches no body row, which makes the chain factor moot there
     for r, p in enumerate(rows):
-        assert esd[p] == pytest.approx(math.sqrt(var[r]), rel=1e-8), p
+        assert esd[p] == pytest.approx(math.sqrt(var[r]), rel=1e-9), p
 
 
 # ----------------------------------------------------------- the recovery
