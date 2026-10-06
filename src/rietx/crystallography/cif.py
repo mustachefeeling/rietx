@@ -320,6 +320,19 @@ def _number_fault(path: str, block, tags, label: str | None = None) -> None:
 #: printed off by 1e-3.
 TWIN_DISTANCE = 0.02
 
+#: Two occupancies agree, and two sites fill a position without overfilling it,
+#: to within this (absolute).  Occupancies are quoted to two or three decimals
+#: with su up to a few 1e-3, so two refined values summing to 1.004
+#: (0.523(1) + 0.481(1)) are a quoted split, not an overfill; 0.01 is the sum
+#: of two roundings to the second decimal, the coarsest a file prints.
+OCCUPANCY_TOLERANCE = 0.01
+
+#: Two statements of one site agree on their displacement to within this
+#: (U, Å²).  U is printed to four decimals, so two copies of one value differ
+#: by at most 1e-4; twice that leaves margin for a conversion through B.
+#: Isotropic B is held to the same bar through B = 8π²U.
+DUPLICATE_U_TOLERANCE = 2e-4
+
 
 def _cartesian_gap(cell, d) -> float:
     """|d| in Å for a fractional difference, taken to the nearest lattice image."""
@@ -340,12 +353,17 @@ def _merge_twins(path: str, sg, cell, atoms, diagnostics) -> list:
     doubled site is doubled with it — the site is taken at the special
     position its orbit collapses to, and ``CIF_SITE_TWINS_MERGED`` says so.
     A split site, whose images stay apart, is untouched.
+
+    The orbit of a site and its collapse onto a special position are those of
+    :func:`.symmetry.site_orbit`: International Tables for Crystallography
+    vol. A (Wyckoff positions), with the tolerance-based site-symmetry search
+    of Grosse-Kunstleve & Adams (2002), Acta Cryst. A58, 60.
     """
     from .symmetry import site_orbit
 
     reach = TWIN_DISTANCE / min(cell.a, cell.b, cell.c)
     out = []
-    for j, atom in enumerate(atoms):
+    for atom in atoms:
         xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
         tight = site_orbit(sg, xyz)
         loose = site_orbit(sg, xyz, tol=reach)
@@ -365,7 +383,7 @@ def _merge_twins(path: str, sg, cell, atoms, diagnostics) -> list:
         if diagnostics is not None:
             diagnostics.append(Diagnostic(
                 level="warning", code="CIF_SITE_TWINS_MERGED",
-                where=[f"phases.0.atoms.{j}"], value=gap,
+                where=[atom.label], value=gap,
                 message=(
                     f"{path}: site {atom.label!r} at "
                     f"{[round(float(v), 6) for v in xyz]} puts {tight.multiplicity} "
@@ -384,8 +402,12 @@ def _merge_twins(path: str, sg, cell, atoms, diagnostics) -> list:
 def _sites_listed_twice(sg, cell, atoms) -> list[tuple[int, int]]:
     """``(i, j)``: site j within :data:`TWIN_DISTANCE` of an image of site i, overfilling it.
 
-    Same species, occupancies summing above 1: one orbit listed twice, which
-    the forward model would count twice.
+    Same species, occupancies summing above 1 by more than
+    :data:`OCCUPANCY_TOLERANCE`: one orbit listed twice, which the forward
+    model would count twice.  Site j is on the orbit of site i when some
+    operation of the space group (International Tables vol. A; Grosse-Kunstleve
+    & Adams 2002, Acta Cryst. A58, 60) carries i within :data:`TWIN_DISTANCE`
+    of j.
     """
     ops = [(np.asarray(op.rot, dtype=np.float64) / gemmi.Op.DEN,
             np.asarray(op.tran, dtype=np.float64) / gemmi.Op.DEN)
@@ -395,7 +417,7 @@ def _sites_listed_twice(sg, cell, atoms) -> list[tuple[int, int]]:
         xb = np.array([b.x.value, b.y.value, b.z.value])
         for i in range(j):
             a = atoms[i]
-            if a.species != b.species or a.occ.value + b.occ.value <= 1.0 + 1e-3:
+            if a.species != b.species or a.occ.value + b.occ.value <= 1.0 + OCCUPANCY_TOLERANCE:
                 continue
             xa = np.array([a.x.value, a.y.value, a.z.value])
             if any(_cartesian_gap(cell, rot @ xa + tran - xb) <= TWIN_DISTANCE
@@ -404,12 +426,34 @@ def _sites_listed_twice(sg, cell, atoms) -> list[tuple[int, int]]:
     return pairs
 
 
+def _distinguishing_field(a, b) -> str | None:
+    """The first thing, besides occupancy, that tells site ``a`` from site ``b``, or ``None``.
+
+    Displacement to :data:`DUPLICATE_U_TOLERANCE`, the disorder assembly and
+    group exactly: a copy that differs in any of them says something the
+    site it repeats does not, so dropping it would discard a statement.
+    """
+    if abs(a.biso.value - b.biso.value) > 8.0 * math.pi ** 2 * DUPLICATE_U_TOLERANCE:
+        return f"isotropic B ({a.biso.value:.4g} and {b.biso.value:.4g} Å^2)"
+    if (a.aniso is None) != (b.aniso is None) or (
+            a.aniso is not None and any(
+                abs(u - v) > DUPLICATE_U_TOLERANCE
+                for u, v in zip(a.aniso.values(), b.aniso.values()))):
+        return "anisotropic displacement"
+    if a.disorder_assembly != b.disorder_assembly or a.disorder_group != b.disorder_group:
+        return (f"disorder assembly or group "
+                f"({(a.disorder_assembly, a.disorder_group)} and "
+                f"{(b.disorder_assembly, b.disorder_group)})")
+    return None
+
+
 def _drop_listed_twice(path, cell, atoms, twice, moment_labels, diagnostics,
                        moments=None, group=None) -> set[int]:
     """Indices of sites that repeat another site's orbit, and are dropped.
 
-    A copy is dropped only where nothing distinguishes it: the same occupancy
-    and, where either site carries a moment, the copy's moment equal to the
+    A copy is dropped only where nothing distinguishes it: the same occupancy,
+    displacement (isotropic B, and U^ij where read, to
+    :data:`DUPLICATE_U_TOLERANCE`) and disorder assembly and group, and, where either site carries a moment, the copy's moment equal to the
     image of the other's under the magnetic operation relating them (to
     :data:`~.magcif.MOMENT_FORM_AGREEMENT_MU_B`).  Anything else is refused by
     name: choosing between two statements of one position is not a reader's
@@ -417,6 +461,7 @@ def _drop_listed_twice(path, cell, atoms, twice, moment_labels, diagnostics,
     no moment touches; the second runs once the moments are read.
     """
     dropped: set[int] = set()
+    kept_as: dict[int, int] = {}
     for i, j in twice:
         a, b = atoms[i], atoms[j]
         has_moment = a.label in moment_labels or b.label in moment_labels
@@ -424,11 +469,17 @@ def _drop_listed_twice(path, cell, atoms, twice, moment_labels, diagnostics,
             continue
         what = (f"{path}: site {b.label!r} lies within {TWIN_DISTANCE} Å of an "
                 f"image of site {a.label!r}")
-        if abs(a.occ.value - b.occ.value) > 1e-3:
+        if abs(a.occ.value - b.occ.value) > OCCUPANCY_TOLERANCE:
             raise ValueError(
                 f"{what}, with occupancies {a.occ.value:g} and "
                 f"{b.occ.value:g}; together they overfill one position, and "
                 f"which statement the file means cannot be read off it")
+        differs = _distinguishing_field(a, b)
+        if differs is not None:
+            raise ValueError(
+                f"{what}, but they differ in {differs}; the copy would be "
+                f"dropped with that statement, and which one the file means "
+                f"cannot be read off it")
         if has_moment:
             mi, mj = moments.get(a.label), moments.get(b.label)
             xa = np.array([a.x.value, a.y.value, a.z.value])
@@ -450,10 +501,13 @@ def _drop_listed_twice(path, cell, atoms, twice, moment_labels, diagnostics,
                     f"position carries two moments, a supercell this file "
                     f"does not state")
         dropped.add(j)
+        kept_as[j] = i
+        while i in kept_as:     # the site it repeats was itself a repeat
+            i = kept_as[i]
         if diagnostics is not None:
             diagnostics.append(Diagnostic(
                 level="warning", code="CIF_SITE_LISTED_TWICE",
-                where=[f"phases.0.atoms.{i}"],
+                where=[atoms[i].label],
                 message=(f"{what}, with the same occupancy"
                          f"{' and the image moment' if has_moment else ''}: "
                          f"the file lists that orbit twice, which would count "
@@ -463,6 +517,22 @@ def _drop_listed_twice(path, cell, atoms, twice, moment_labels, diagnostics,
                             "coordinates are closer than any two atoms can "
                             "be")))
     return dropped
+
+
+def _locate(diagnostics, atoms, codes) -> None:
+    """Rewrite the site labels the reader's own diagnostics carry in ``where`` as final paths.
+
+    A site is dropped or merged after earlier diagnostics were written, so an
+    index taken at the time names a neighbour afterwards.  Those diagnostics
+    carry the label while sites change, and this turns it into
+    ``phases.0.atoms.<index>`` once the list is final.
+    """
+    index = {a.label: k for k, a in enumerate(atoms)}
+    for n, d in enumerate(diagnostics):
+        if d.code in codes:
+            diagnostics[n] = d.model_copy(update={"where": [
+                f"phases.0.atoms.{index[label]}" for label in d.where
+                if label in index]})
 
 
 def _magnetic_content(text: str) -> bool:
@@ -668,7 +738,7 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
     disorder = (_disorder_columns(path, small.name)
                 if re.search(r"(?i)_atom_site_disorder", text) else {})
     stated = _site_statements(path, small.name)
-    for j, site in enumerate(small.sites):
+    for site in small.sites:
         has_aniso = site.aniso.nonzero()
         u_iso = site.u_iso
         said = stated.get(site.label, {})
@@ -684,8 +754,7 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
         raw = site.type_symbol or site.element.name
         species, note = normalize_cif_species(raw)
         if note is not None:
-            rewrites.setdefault(raw, (species, note, []))[2].append(
-                f"phases.0.atoms.{j}.species")
+            rewrites.setdefault(raw, (species, note, []))[2].append(site.label)
         atoms.append(Atom(
             label=site.label,
             species=species,
@@ -710,18 +779,6 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
     dropped = _drop_listed_twice(path, cell, atoms, twice, moment_labels,
                                  diagnostics)
     atoms = [a for k, a in enumerate(atoms) if k not in dropped]
-    stated_diagnostics = _snap_to_stated_multiplicity(sg, atoms, stated, path=path)
-    if diagnostics is not None:
-        diagnostics.extend(stated_diagnostics)
-        for raw, (canonical, note, where) in rewrites.items():
-            diagnostics.append(Diagnostic(
-                level="info", code="CIF_SPECIES_NORMALISED",
-                message=(f"species {raw!r} in {path} read as "
-                         f"{canonical!r} ({note})"),
-                where=where))
-        diagnostics.extend(snap_diagnostics(
-            sg, [(a.label, (a.x.value, a.y.value, a.z.value)) for a in atoms],
-            source=path, prefix="phases.0"))
 
     angles = {"alpha": cell.alpha, "beta": cell.beta, "gamma": cell.gamma}
     angles = _correct_symmetry_angles(sg, angles, path, diagnostics)
@@ -852,6 +909,25 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
                 magnetic_symmetry,
                 {a.label: (j, a) for j, a in enumerate(atoms)}, cell6,
                 assumed_ions=assumed_ions, assumed_g=assumed_g))
+
+    # on the final site list, so the paths it carries name the site they are about
+    stated_diagnostics = _snap_to_stated_multiplicity(sg, atoms, stated, path=path)
+    if diagnostics is not None:
+        # after the last site is merged or dropped, so every path below names
+        # the site it is about
+        diagnostics.extend(stated_diagnostics)
+        _locate(diagnostics, atoms, {"CIF_SITE_TWINS_MERGED", "CIF_SITE_LISTED_TWICE"})
+        index = {a.label: k for k, a in enumerate(atoms)}
+        for raw, (canonical, note, labels) in rewrites.items():
+            diagnostics.append(Diagnostic(
+                level="info", code="CIF_SPECIES_NORMALISED",
+                message=(f"species {raw!r} in {path} read as "
+                         f"{canonical!r} ({note})"),
+                where=[f"phases.0.atoms.{index[label]}.species"
+                       for label in labels if label in index]))
+        diagnostics.extend(snap_diagnostics(
+            sg, [(a.label, (a.x.value, a.y.value, a.z.value)) for a in atoms],
+            source=path, prefix="phases.0"))
 
     phase = Phase(
         name=phase_name or (small.name or "phase_1"),

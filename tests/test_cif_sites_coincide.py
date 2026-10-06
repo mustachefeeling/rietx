@@ -57,7 +57,8 @@ def test_a_special_position_printed_off_by_its_rounding_is_read_on_it(tmp_path):
     structure = structure_from_cif(path, diagnostics=diagnostics)
     assert _orbit(structure) == 6                  # 6h, International Tables
     a = structure.phases[0].atoms[0]
-    assert (2 * a.x.value - a.y.value) % 1.0 == pytest.approx(0.0, abs=1e-12)
+    resid = 2 * a.x.value - a.y.value
+    assert abs(resid - round(resid)) < 1e-12     # periodic: -1e-16 is 0, not 1 - 1e-16
     (hit,) = [d for d in diagnostics if d.code == "CIF_SITE_TWINS_MERGED"]
     assert hit.value < 0.02
 
@@ -190,3 +191,73 @@ def test_a_magnetic_site_listed_twice_with_another_moment_is_refused(tmp_path):
     path.write_text(_MNF2.format(m2="4.6"), encoding="utf-8")
     with pytest.raises(magcif.MagCifError, match="two moments"):
         structure_from_cif(path)
+
+
+_ROCKSALT_LABELLED = _ROCKSALT.replace("O1 O 0.5", "O1 O1 0.5")
+
+
+def test_paths_name_the_site_they_are_about_after_a_site_is_dropped(tmp_path):
+    """Ni2 goes, so O1 is atom 1 of the phase and not atom 2 of the file."""
+    path = tmp_path / "twice.cif"
+    path.write_text(_ROCKSALT_LABELLED.format(extra="").replace(
+        "O1 O1", "Ni2 Ni 0.5 0.5 0.0001 1\nO1 O1"), encoding="utf-8")
+    diagnostics: list = []
+    atoms = structure_from_cif(path, diagnostics=diagnostics).phases[0].atoms
+    assert [a.label for a in atoms] == ["Ni1", "O1"]
+    (twice,) = [d for d in diagnostics if d.code == "CIF_SITE_LISTED_TWICE"]
+    assert twice.where == ["phases.0.atoms.0"]
+    (species,) = [d for d in diagnostics if d.code == "CIF_SPECIES_NORMALISED"]
+    assert species.where == ["phases.0.atoms.1.species"]
+
+
+def test_paths_name_the_site_after_the_magnetic_pass_drops_one(tmp_path):
+    path = tmp_path / "mnf2.mcif"
+    text = _MNF2.format(m2="-4.6").replace("F1 F 0.305", "F1 F1 0.305")
+    path.write_text(text, encoding="utf-8")
+    diagnostics: list = []
+    atoms = structure_from_cif(path, diagnostics=diagnostics).phases[0].atoms
+    assert [a.label for a in atoms] == ["Mn1", "F1"]
+    (species,) = [d for d in diagnostics if d.code == "CIF_SPECIES_NORMALISED"]
+    assert species.where == ["phases.0.atoms.1.species"]
+
+
+_WITH_B_AND_DISORDER = (_ROCKSALT.split("{extra}")[0]
+    .replace("_atom_site_occupancy\n",
+             "_atom_site_occupancy\n_atom_site_U_iso_or_equiv\n"
+             "_atom_site_disorder_assembly\n_atom_site_disorder_group\n")
+    .replace("Ni1 Ni 0 0 0 1", "Ni1 Ni 0 0 0 1 0.005 . .")
+    .replace("O1 O 0.5 0.5 0.5 1", "O1 O 0.5 0.5 0.5 1 0.005 . ."))
+
+
+@pytest.mark.parametrize("copy, field", [
+    ("Ni2 Ni 0.5 0.5 0.0001 1 0.02 . .\n", "isotropic B"),
+    ("Ni2 Ni 0.5 0.5 0.0001 1 0.005 A 1\n", "disorder"),
+])
+def test_a_copy_that_differs_in_displacement_or_disorder_is_refused(
+        tmp_path, copy, field):
+    """Not dropped unread: B and the disorder group are things a copy can state."""
+    path = tmp_path / "twice.cif"
+    path.write_text(_WITH_B_AND_DISORDER + copy, encoding="utf-8")
+    with pytest.raises(ValueError, match=f"differ in {field}"):
+        structure_from_cif(path)
+
+
+def test_a_copy_that_states_the_same_displacement_is_still_dropped(tmp_path):
+    """The positive arm of the two above."""
+    path = tmp_path / "twice.cif"
+    path.write_text(_WITH_B_AND_DISORDER + "Ni2 Ni 0.5 0.5 0.0001 1 0.005 . .\n",
+                    encoding="utf-8")
+    atoms = structure_from_cif(path).phases[0].atoms
+    assert [a.label for a in atoms] == ["Ni1", "O1"]
+
+
+def test_two_quoted_occupancies_summing_to_just_over_one_are_not_an_overfill(tmp_path):
+    """0.523 + 0.481 = 1.004: a refined split of one position, read as before."""
+    path = tmp_path / "split.cif"
+    path.write_text(_ROCKSALT.replace("Ni1 Ni 0 0 0 1", "Ni1 Ni 0 0 0 0.523")
+                    .format(extra="Ni2 Ni 0.5 0.5 0.0001 0.481\n"),
+                    encoding="utf-8")
+    diagnostics: list = []
+    atoms = structure_from_cif(path, diagnostics=diagnostics).phases[0].atoms
+    assert [a.label for a in atoms] == ["Ni1", "O1", "Ni2"]
+    assert not [d for d in diagnostics if d.code == "CIF_SITE_LISTED_TWICE"]
