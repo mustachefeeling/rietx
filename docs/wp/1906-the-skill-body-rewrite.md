@@ -1,6 +1,6 @@
 # WP-1906 — the skill body rewrite: under 5 000 tokens, rules first, evidence in the references, the contradictions resolved
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-06 — claimed by @yue-here
 Track: The repo's own process
 Depends on: 1905 (the before-and-after it is judged by); 1532 soft (its fourteen rows land on the rewritten body)
 Priority: P2 2026-10-06 — 1905 measured the baseline, and on Haiku the body steers every from-scratch fit to a degenerate route; every session that loads the skill pays its 8 700 tokens

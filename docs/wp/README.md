@@ -29,6 +29,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 2026-10-03 | P4 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1543](1543-a-gsas-gaussian-width-is-a-variance.md) | A GSAS Gaussian width is a variance | 2026-10-06 | P1 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1803](1803-the-body-seam-spike.md) | The body seam: a derived block, or a linearisation inside C | 2026-10-01 | P2 | [rigid-bodies](#rigid-bodies) |
+| [1906](1906-the-skill-body-rewrite.md) | The skill body rewrite: under 5 000 tokens, rules first, evidence in the references, the contradictions resolved | 2026-10-06 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) | The foreign writers state what the other program reads: the setting, the scale, the free set | 2026-10-06 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 
 ## Next, by priority
@@ -45,7 +46,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1528](1528-the-cell-box-is-declined-where-the-cell-is-declared.md) | The cell box is declined where the cell is declared | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1542](1542-a-le-bail-background-left-at-its-seed.md) | A Le Bail background left at its seed | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1906](1906-the-skill-body-rewrite.md) | The skill body rewrite: under 5 000 tokens, rules first, evidence in the references, the contradictions resolved | P2 | [1905](1905-the-skill-eval-suite.md) ([1532](1532-the-skill-passages-a-driving-agent-needed.md) soft) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1908](1908-a-tick-misses-the-displacement-shift.md) | A tick misses the displacement shift | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1910](1910-the-extinction-screen-at-a-small-cell-error.md) | The extinction screen at a small cell error, and the other centring | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
@@ -563,7 +563,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1903](1903-the-lane-trial-decides.md) | The lane trial decides whether a WP session sends long items to subagents | ⬜ | P4 | — |
 | [1904](1904-the-skill-evaluation-strategy.md) | The skill evaluation strategy: how the agent skill is measured, rewritten and kept in sync, decided on a pilot | ✅ 2026-10-04 | — | — |
 | [1905](1905-the-skill-eval-suite.md) | The skill eval suite: `claude plugin eval` over the skill tree, cases from real failures, judge-free first | ✅ 2026-10-06 | — | [1904](1904-the-skill-evaluation-strategy.md) |
-| [1906](1906-the-skill-body-rewrite.md) | The skill body rewrite: under 5 000 tokens, rules first, evidence in the references, the contradictions resolved | ⬜ | P2 | [1905](1905-the-skill-eval-suite.md) ([1532](1532-the-skill-passages-a-driving-agent-needed.md) soft) |
+| [1906](1906-the-skill-body-rewrite.md) | The skill body rewrite: under 5 000 tokens, rules first, evidence in the references, the contradictions resolved | 🔄 2026-10-06 | P2 | [1905](1905-the-skill-eval-suite.md) ([1532](1532-the-skill-passages-a-driving-agent-needed.md) soft) |
 | [1907](1907-the-skill-stays-in-sync.md) | The skill stays in sync: constants and formulas pinned to the package, a changed-surface check at review, the judge-free tier nightly | ⬜ | P3 | — ([1905](1905-the-skill-eval-suite.md) soft) |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement
