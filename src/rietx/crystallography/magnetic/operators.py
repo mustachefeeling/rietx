@@ -389,6 +389,16 @@ def _number_index() -> tuple[dict[str, int], dict[str, int]]:
     return bns, og
 
 
+class LatticeNotPreserved(ValueError):
+    """``MagneticGroup.transformed``: a conjugated rotation is not integral.
+
+    The new cell's lattice is not invariant under the group's point group.  A
+    marker for callers that must tell this from the other ``ValueError`` the
+    method raises (the operation count disagreeing with |det P|, which says the
+    target basis vectors are not lattice vectors); the text is unchanged.
+    """
+
+
 @dataclass(frozen=True)
 class MagneticGroup:
     """A magnetic space group as the two magCIF loops that state it.
@@ -569,7 +579,7 @@ class MagneticGroup:
             w = [[Fraction(int(v)) for v in row] for row in op.rotation]
             conj = _matmul(_matmul(p_matrix, w), inv)
             if any(v.denominator != 1 for row in conj for v in row):
-                raise ValueError(
+                raise LatticeNotPreserved(
                     f"transform {format_transform(p_matrix, shift)!r} sends "
                     f"{op.xyz()!r} to a non-integral rotation; it does not map "
                     f"this group's lattice onto a lattice")

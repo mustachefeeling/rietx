@@ -115,7 +115,7 @@ from ..symmetry import (
 )
 from . import isotropy as _isotropy
 from .moments import tilted_seed
-from .operators import MagneticGroup, format_transform
+from .operators import LatticeNotPreserved, MagneticGroup, format_transform
 from .scattering import check_group_is_structure_symmetry
 
 __all__ = [
@@ -497,7 +497,7 @@ def _child_triplets(group: MagneticGroup) -> tuple[str, ...]:
 
 
 def _unnamed_child(group: MagneticGroup, head: str, transform: str,
-                   detail: str) -> ChildGroup:
+                   detail: str, *, nuclear_group: str = "parent") -> ChildGroup:
     """A :class:`ChildGroup` stated as its operation list — or the old refusal.
 
     **One thing an operation list cannot supply by itself: the cell metric
@@ -514,6 +514,13 @@ def _unnamed_child(group: MagneticGroup, head: str, transform: str,
     the right call on this tree: building the phase anyway would move the
     failure from this function to the first compile, where the message would
     be about a crystal system rather than about a cell transform.
+
+    ``nuclear_group`` is the branch of :func:`magnetic_supercell` that asked,
+    and the refusal names it (issue #612): under ``"parent"`` the operation
+    list is the parent's space group carried into the child cell, and the
+    remedy is the other branch; under ``"magnetic"`` it is the magnetic group's
+    own nuclear part, which *is* the other branch, and what is missing is a
+    child cell whose axes are conventional for that group.
     """
     triplets = _child_triplets(group)
     label = unnamed_label(head, f"unnamed in {transform.split(';')[0]}")
@@ -522,6 +529,23 @@ def _unnamed_child(group: MagneticGroup, head: str, transform: str,
         closest = probe.closest_type.xhm()
         cell_constraints(probe)
     except ValueError as exc:
+        if nuclear_group == "magnetic":
+            raise ValueError(
+                f"magnetic_supercell(nuclear_group='magnetic'): the child cell "
+                f"{transform!r} carries the magnetic group's own nuclear part "
+                f"to an operation list that no Hermann-Mauguin symbol "
+                f"reproduces in that cell — {detail}. A phase can carry its "
+                f"own operation list (Phase.symmetry_operations), but not "
+                f"here: the list's point group and lattice name no tabulated "
+                f"group with this cell's axes ({exc}), so the cell's metric "
+                f"constraints are undefined. The group is not the problem; "
+                f"the cell is: this builder states the child in "
+                f"child_basis's cell, and choosing one whose axes are "
+                f"conventional for the magnetic group's nuclear part is the "
+                f"child-cell route, which it does not have yet (issue #612). "
+                f"Until then, restate the structure by hand in such a cell "
+                f"(group= with its transform=)."
+            ) from exc
         raise ValueError(
             f"magnetic_supercell(): the child cell {transform!r} carries the "
             f"parent's space group to an operation list that no "
@@ -562,7 +586,8 @@ def _unnamed_child(group: MagneticGroup, head: str, transform: str,
 
 
 def resolve_child_group(group: MagneticGroup, symbol: str | None,
-                        transform: str) -> ChildGroup:
+                        transform: str, *, nuclear_group: str = "parent"
+                        ) -> ChildGroup:
     """The child's nuclear group as a symbol if one generates it, else as a list.
 
     **What this used to do, and why it changed.**  A parent operation carrying
@@ -583,6 +608,9 @@ def resolve_child_group(group: MagneticGroup, symbol: str | None,
     check is the same set comparison it always was, and the *named* branch
     returns exactly what it returned before.  What changes is the unnamed
     branch, which now states the group instead of refusing to.
+
+    ``nuclear_group`` is :func:`magnetic_supercell`'s branch, passed through so
+    a refusal names the group it was handed (issue #612).
     """
     nuclear = _nuclear_operations(group)
     tried: list[str] = []
@@ -601,7 +629,7 @@ def resolve_child_group(group: MagneticGroup, symbol: str | None,
             group, head, transform,
             "spglib identifies no nuclear space-group *type* for this "
             "operation list at all, so the setting is not one its tables "
-            "recognise")
+            "recognise", nuclear_group=nuclear_group)
     # **Every setting of the identified type, not only its standard one.**
     # spglib identifies a *type*; which of its axis settings the child cell is
     # in is a separate fact, and the child cell's axes are whatever the
@@ -635,7 +663,8 @@ def resolve_child_group(group: MagneticGroup, symbol: str | None,
                   f"operation list, which is the same fact one step earlier")
     return _unnamed_child(
         group, symbol, transform,
-        f"spglib identifies the child's nuclear group as {symbol!r}, {detail}")
+        f"spglib identifies the child's nuclear group as {symbol!r}, {detail}",
+        nuclear_group=nuclear_group)
 
 
 def _cosets_of_the_operation_list(group: MagneticGroup
@@ -770,9 +799,23 @@ def lattice_cosets(basis) -> tuple[tuple[int, int, int], ...]:
     Enumerated by class rather than by a fundamental-domain test, so a transform
     with negative entries — which is what a database setting routinely gives,
     to keep a frame right-handed — is handled without a sign convention.
+
+    **|det P| must be a whole number**, and a fraction is refused by name
+    (issue #612).  A primitive cell of the magnetic lattice of a centred parent
+    can hold fewer lattice points than the parent's conventional cell (F m -3 m
+    at k = (½, ½, ½): |det P| = ½), and then there is no ℤ³/L_child to
+    enumerate — the old ``round`` made the count 0, the list empty, and the
+    child phase failed later as "has no atoms".
     """
     inverse = _isotropy._fraction_inverse(basis)
-    want = int(round(abs(np.linalg.det(_matrix_of(basis)))))
+    det = _exact_det(basis)
+    if det == 0 or det.denominator != 1:
+        raise ValueError(
+            f"lattice_cosets(): the child cell {_transform_string(basis)!r} has "
+            f"|det P| = {det}, which is not a whole number of conventional "
+            f"parent cells, so the integer lattice modulo the child lattice is "
+            f"not a set of cosets this function can list")
+    want = int(det)
     seen: dict[tuple[int, ...], tuple[int, int, int]] = {}
     span = 1
     while len(seen) < want and span <= 8:
@@ -793,6 +836,14 @@ def lattice_cosets(basis) -> tuple[tuple[int, int, int], ...]:
             f"lattice_supercell(): found {len(seen)} integer lattice cosets of "
             f"the child lattice where |det P| = {want} demands that many")
     return tuple(seen.values())
+
+
+def _exact_det(basis) -> Fraction:
+    """|det P| as an exact rational."""
+    m = [[Fraction(v) for v in row] for row in basis]
+    return abs(m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+               - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+               + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]))
 
 
 def _child_positions(parent_phase, basis, shift, cosets):
@@ -1215,7 +1266,6 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
         transform = format_transform([list(row) for row in basis], origin)
     _refuse_a_contradicting_bns_number(group, bns_number)
     p_child = [[Fraction(v) for v in row] for row in basis]
-    cosets = lattice_cosets(basis)
     parent_cell = parent.cell.lengths_angles()
     child_cell = _child_cell_parameters(parent_cell, basis)
 
@@ -1237,9 +1287,37 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
         # for some shifts and an orbit the child cannot hold for the rest.
         p_inverse = _isotropy._exact_inverse(p_child)
         child_origin = tuple(-v for v in _mat_vec(p_inverse, origin))
-        nuclear = _nuclear_group_of(
-            parent.space_group, parent.symmetry_operations).transformed(
-            format_transform(p_inverse, child_origin))
+        try:
+            nuclear = _nuclear_group_of(
+                parent.space_group, parent.symmetry_operations).transformed(
+                format_transform(p_inverse, child_origin))
+        except ValueError as exc:
+            # ``transformed`` speaks of the inverse map it was handed and of
+            # "this group"; the caller asked for the child cell and the
+            # parent's group, so say that (issue #612).  Its text stays in the
+            # message: ``strategy.magnetic._supercell`` keys its fallback on it.
+            # It raises two refusals and only one is a k lowering the class
+            # (#787): the other says the child cell's axes are not lattice
+            # vectors of the parent, which a user-supplied ``transform=`` with
+            # no k reaches, and blaming k there points at the wrong input.
+            head = (f"magnetic_supercell(nuclear_group='parent'): the parent's "
+                    f"space group {parent.space_group!r} is not a group of the "
+                    f"child cell {transform!r} ({exc}). ")
+            if isinstance(exc, LatticeNotPreserved):
+                raise ValueError(
+                    head + "The child lattice is not invariant under every "
+                    "operation of the parent's point group, which is what a k "
+                    "that lowers the crystal class does, so the parent's group "
+                    "cannot be the child's nuclear group. "
+                    "nuclear_group='magnetic' is the branch for such a k: it "
+                    "states the child under the magnetic group's own nuclear "
+                    "part.") from exc
+            raise ValueError(
+                head + "The child cell's axes are not all lattice vectors of "
+                "the parent's lattice, so it is not a supercell of the parent "
+                "cell; that is a property of the transform, not of k. Check "
+                "the transform: each axis of the child cell has to be an "
+                "integer combination of the parent's a, b, c.") from exc
     else:
         nuclear = _colourless(group)
         # **The little-group sign.**  A commensurate k != 0 little group is
@@ -1270,6 +1348,9 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     # a 1/7 does not survive.  An origin shift is free to put one there, so it
     # is refused by name rather than left to surface as an orbit that "does
     # not fit" the child cell.
+    _refuse_a_child_cell_smaller_than_the_parents(basis, transform, parent, k,
+                                                  nuclear_group)
+    cosets = lattice_cosets(basis)
     off_grid = sorted({str(v) for op in nuclear.all_operations()
                        for v in op.translation if 24 % Fraction(v).denominator})
     if off_grid:
@@ -1285,7 +1366,8 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     # group either way, so what used to stop the statement now only shortens
     # its label (#448).
     symbol = _identify_child_space_group(nuclear, lattice)
-    child_group = resolve_child_group(nuclear, symbol, transform)
+    child_group = resolve_child_group(nuclear, symbol, transform,
+                                      nuclear_group=nuclear_group)
     symbol = child_group.label
     diagnostics: tuple[Diagnostic, ...] = ()
     if not child_group.named:
@@ -1374,6 +1456,37 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
         group=group, site_map=tuple(site_map),
         k=None if k is None else tuple(str(c) for c in k),
         child_group_named=child_group.named, diagnostics=diagnostics)
+
+
+def _refuse_a_child_cell_smaller_than_the_parents(basis, transform: str, parent,
+                                                  k, nuclear_group: str) -> None:
+    """Refuse, by name, a child cell holding fewer lattice points than the parent's.
+
+    :func:`child_basis` returns a **primitive** cell of the magnetic lattice for
+    a centred parent, and for F m -3 m at k = (½, ½, ½) that cell is half the
+    conventional one (|det P| = ½).  The atoms are placed by the conventional
+    cell's own translations modulo the child lattice (:func:`lattice_cosets`),
+    which needs a whole number of conventional cells; before issue #612 the
+    count rounded to zero and the phase failed as "has no atoms".  Stating such
+    a child needs a cell conventional for its own group — the child-cell route,
+    not built — so this says so, on either branch.
+    """
+    det = _exact_det(basis)
+    if det.denominator == 1 and det != 0:
+        return
+    at_k = "" if k is None else f" for k = ({', '.join(str(c) for c in k)})"
+    raise ValueError(
+        f"magnetic_supercell(nuclear_group={nuclear_group!r}): the child cell "
+        f"{transform!r}{at_k} in {parent.space_group!r} has |det P| = {det}: it "
+        f"is a primitive cell of the magnetic lattice and holds fewer lattice "
+        f"points than the parent's conventional (centred) cell. This builder "
+        f"places the child's atoms by the conventional cell's translations "
+        f"modulo the child lattice, which needs |det P| to be a whole number, "
+        f"so it cannot state a child this small under either nuclear_group. "
+        f"Stating it needs a child cell whose axes are conventional for the "
+        f"magnetic group's nuclear part — the child-cell route, which this "
+        f"builder does not have yet (issue #612). Until then, restate the "
+        f"structure by hand in such a cell (group= with its transform=).")
 
 
 def _mat_mul(a, b):

@@ -1121,3 +1121,150 @@ def test_same_site_wraps_both_arguments():
     assert not _same_site((-0.1, 0.0, 0.0), (0.95, 0.0, 0.0))
     assert _same_site((-0.1, 0.0, 0.0), (0.9, 0.0, 0.0))     # positive arm
     assert _same_site((1.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+
+
+# ================================================ issue #612: rock salt at k = ½½½
+HALF_HALF_HALF = (Fraction(1, 2), Fraction(1, 2), Fraction(1, 2))
+
+
+def rock_salt_parent() -> Phase:
+    """The textbook MnO / NiO parent: F m -3 m, metal at 4a, O at 4b (exact)."""
+    return Phase(
+        name="rock salt", space_group="F m -3 m", cell=_cell(4.445, 4.445, 4.445, 90, 90, 90),
+        atoms=[
+            Atom(label="Mn", species="Mn", x=P(value=0.0), y=P(value=0.0),
+                 z=P(value=0.0), biso=P(value=0.3)),
+            Atom(label="O", species="O", x=P(value=0.5), y=P(value=0.5),
+                 z=P(value=0.5), biso=P(value=0.5)),
+        ])
+
+
+@pytest.mark.parametrize("bns", ["167.108", "12.63", "15.90", "2.7"])
+def test_rock_salt_at_the_l_point_is_refused_by_name_on_both_branches(bns):
+    """Issue #612: every refusal names its branch and its own cause.
+
+    Before, ``nuclear_group="parent"`` quoted the inverse transform and called
+    the parent's group the problem, ``"magnetic"`` said "carries the parent's
+    space group" on the branch that never uses it, and 2.7 ended in a raw
+    pydantic "has no atoms" because ``lattice_cosets`` rounded |det P| = ½ to
+    zero cosets.  The causes, stated now:
+
+    * ``"parent"``: the child lattice of k = (½,½,½) is not invariant under the
+      cubic point group (k lowers the class), so the parent's group is not a
+      group of the child cell.  The text ``MagneticGroup.transformed`` gave stays
+      inside the message, because ``strategy.magnetic._supercell`` keys its
+      fallback on "onto a lattice".
+    * ``"magnetic"``: ``child_basis`` gives a primitive cell of the magnetic
+      lattice, half the conventional cell, and atoms are placed by the
+      conventional cell's translations modulo the child lattice.  Stating it
+      needs a conventional child cell — the child-cell route, not built here —
+      so the message says so instead of failing later.
+    """
+    parent = rock_salt_parent()
+    found = candidates("F m -3 m", (0, 0, 0), HALF_HALF_HALF)
+    assert [c.bns_number for c in found] == ["167.108", "12.63", "15.90", "2.7"]
+    cand = next(c for c in found if c.bns_number == bns)
+    with pytest.raises(ValueError) as parent_branch:
+        magnetic_supercell(parent, cand, magnetic_species="Mn", ion="Mn2+",
+                           magnitude=4.5, nuclear_group="parent")
+    text = str(parent_branch.value)
+    assert type(parent_branch.value) is ValueError
+    assert "nuclear_group='parent'" in text
+    assert "'F m -3 m' is not a group of the child cell" in text
+    assert "b+c,a/2+b/2+c,a/2+b+c/2" in text           # the cell asked for, by name
+    assert "lowers the crystal class" in text
+    assert "onto a lattice" in text                     # the solver's fallback key
+    with pytest.raises(ValueError) as magnetic_branch:
+        magnetic_supercell(parent, cand, magnetic_species="Mn", ion="Mn2+",
+                           magnitude=4.5, nuclear_group="magnetic")
+    text = str(magnetic_branch.value)
+    assert type(magnetic_branch.value) is ValueError    # not pydantic's
+    assert "nuclear_group='magnetic'" in text
+    assert "|det P| = 1/2" in text
+    assert "child-cell route" in text and "#612" in text
+    assert "parent's space group" not in text
+    assert "has no atoms" not in text
+
+
+def test_the_solver_fallback_on_rock_salt_ends_in_the_named_refusal():
+    """``solve_magnetic``'s helper still falls back on the parent refusal (#612).
+
+    The parent branch's new wording keeps the integrality text, so the fallback
+    to ``nuclear_group="magnetic"`` still fires, and what reaches the caller is
+    the magnetic branch's named refusal rather than a pydantic error.
+    """
+    from rietx.strategy.magnetic import _supercell
+
+    cand = next(c for c in candidates("F m -3 m", (0, 0, 0), HALF_HALF_HALF)
+                if c.bns_number == "15.90")
+    with pytest.raises(ValueError, match=r"nuclear_group='magnetic'.*\|det P\| = 1/2"):
+        _supercell(rock_salt_parent(), cand, species="Mn", ions="Mn2+",
+                   magnitude=4.5, nuclear_group="parent")
+
+
+def test_the_magnetic_branch_refusal_names_the_magnetic_groups_nuclear_part():
+    """P 4/m m m at k = (0,0,½), 63.466: an orientation refusal on the right branch.
+
+    Issue #612's positive arm.  Three of the four candidates build under both
+    branches; 63.466 builds under ``"parent"`` and is refused under
+    ``"magnetic"``, whose nuclear part is a C-centred group with diagonal axes
+    in a, b, 2c.  That refusal used to say "carries the parent's space group"
+    and to recommend ``nuclear_group='magnetic'`` — the branch that refused.
+    """
+    parent = p4mmm_parent()
+    found = candidates("P 4/m m m", (0, 0, 0), HALF_C)
+    built = []
+    for cand in found:
+        for branch in ("parent", "magnetic"):
+            try:
+                magnetic_supercell(parent, cand, magnetic_species="Mn", ion="Mn2+",
+                                   magnitude=2.0, nuclear_group=branch)
+                built.append((cand.bns_number, branch))
+            except ValueError as exc:
+                assert (cand.bns_number, branch) == ("63.466", "magnetic"), str(exc)
+                text = str(exc)
+                assert "nuclear_group='magnetic'" in text
+                assert "magnetic group's own nuclear part" in text
+                assert "parent's space group" not in text
+                assert "State this structure in the magnetic group's nuclear part" \
+                    not in text                                  # not its own remedy
+                assert "child-cell route" in text
+    assert len(built) == 7
+
+
+def test_lattice_cosets_refuses_a_fractional_det_p():
+    """|det P| = ½ has no ℤ³/L_child to list; it used to return () (#612)."""
+    from rietx.crystallography.magnetic.supercell import lattice_cosets
+
+    basis = child_basis("F m -3 m", HALF_HALF_HALF)
+    with pytest.raises(ValueError, match=r"\|det P\| = 1/2"):
+        lattice_cosets(basis)
+    assert len(lattice_cosets(child_basis("P 4/m m m", HALF_C))) == 2   # positive arm
+
+
+@pytest.mark.parametrize("transform, blames_k", [
+    ("a,b,c/2;0,0,0", False),     # integral rotations, axes not lattice vectors
+    ("a/2,b,c;0,0,0", True),      # a 4-fold no longer maps the lattice onto one
+])
+def test_the_parent_branch_explains_the_check_that_failed(transform, blames_k):
+    """#787: ``MagneticGroup.transformed`` raises two refusals; the text keys on which.
+
+    A user-supplied ``transform=`` with no k reaches both on P 4/m m m.  Halving
+    c keeps every rotation integral but gives twice the operations |det P|
+    allows (the new axis is not a lattice vector), and the message must not
+    blame a k that is not there.  Halving a breaks the 4-fold's integrality,
+    which is the class-lowering case, and keeps its explanation and the
+    "onto a lattice" text the solver's fallback keys on.
+    """
+    cand = candidates("P 4/m m m", (0, 0, 0), HALF_C)[0]
+    with pytest.raises(ValueError) as caught:
+        magnetic_supercell(p4mmm_parent(), group=cand.group, transform=transform,
+                           magnetic_species="Mn", ion="Mn2+", magnitude=2.0)
+    text = str(caught.value)
+    assert type(caught.value) is ValueError
+    assert "nuclear_group='parent'" in text and repr(transform) in text
+    assert ("lowers the crystal class" in text) is blames_k
+    assert ("nuclear_group='magnetic' is the branch" in text) is blames_k
+    assert ("onto a lattice" in text) is blames_k
+    assert ("not a supercell of the parent cell" in text) is (not blames_k)
+    assert ("not a cell of this group" in text) is (not blames_k)
