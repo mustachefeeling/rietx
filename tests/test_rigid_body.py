@@ -203,15 +203,17 @@ def test_orientation_recovered_from_a_synthetic_pattern(off_deg):
     fitted = ref.fitted_structure.phases[0].rigid_bodies[0]
     err = _angle_deg(fitted.orientation, Q_TRUE)
     assert err < 0.1, f"orientation {err:.4f}° off"
-    # the increment the fit reports, against the increment the truth needs
-    r0 = np.asarray(rotation.matrix_from_quaternion(np.asarray(start.phases[0]
-                                                               .rigid_bodies[0].orientation)))
+    # the commit composed the turn into the record, so the increment reads
+    # zero and its esd is in the composed chart (WP-1805): the truth sits at
+    # δω = Log(R_true·R_fittedᵀ), which each esd has to cover
+    rf = np.asarray(rotation.matrix_from_quaternion(np.asarray(fitted.orientation)))
     rt = np.asarray(rotation.matrix_from_quaternion(Q_TRUE))
-    w_true = np.asarray(rotation.vector_from_matrix(rt @ r0.T))
+    w_true = np.asarray(rotation.vector_from_matrix(rt @ rf.T))
     for k in range(3):
         par = result.parameter(f"phases.0.rigid_bodies.0.rotation.{k}")
+        assert par.value == 0.0
         assert par.stderr is not None and par.stderr > 0
-        assert abs(par.value - w_true[k]) < 3 * par.stderr + 1e-9, (k, par.value, w_true[k])
+        assert abs(w_true[k]) < 3 * par.stderr, (k, w_true[k], par.stderr)
     # every body atom carries an esd (through the block's local Jacobian),
     # and the body is rigid in the fitted cell
     phase = ref.fitted_structure.phases[0]
@@ -236,8 +238,13 @@ def test_a_stale_anchor_is_caught_at_the_next_build():
     table.set_vary(BODY_GLOBS, True)
     theta = table.x0()
     theta[table.free_paths.index("phases.0.rigid_bodies.0.rotation.1")] = math.radians(3.0)
-    table.commit(theta)
+    chart = table.commit(theta)
     assert max(table.body_bond_errors().values()) < 1e-9
+    # composed at commit: the increment is zero, the anchor turned, and the
+    # outcome's chart matrix carries the rotation block
+    assert all(table.decode(table.x0())[f"phases.0.rigid_bodies.0.rotation.{k}"] == 0.0
+               for k in range(3))
+    assert np.ndim(chart) == 2
     good = s.model_copy(deep=True)
     table.apply_to_models(good, INS)
     ParameterTable(good, INS)                        # composed: builds
@@ -296,3 +303,88 @@ def test_a_body_round_trips_through_json_and_checkout():
     ref.set_values({"phases.0.scale": 1e-3})
     ref.checkout(head)
     assert ref.structure.phases[0].rigid_bodies[0].orientation == pytest.approx(fitted)
+
+
+# ------------------------------------------------------- composing at commit
+def _solve_body(off_deg: float):
+    """One body stage solved at the table level: (model, table, outcome)."""
+    from rietx.optimize.least_squares import run_least_squares
+
+    pattern = synthesize(body_structure(Q_TRUE))
+    start = body_structure(_turned(Q_TRUE, off_deg), origin=(0.33, 0.41, 0.26))
+    model = compile_model(start, INS, pattern, mode="rietveld")
+    table = ParameterTable(start, INS)
+    table.set_vary(BODY_GLOBS, True)
+    return start, model, table, run_least_squares(model, table, max_iter=200)
+
+
+def test_the_recharted_outcome_matches_a_fresh_solve_at_zero_increment():
+    """WP-1805: after the commit composes R₀ ← Exp(δω)·R₀, the outcome's
+    Jacobian and correlations describe the composed chart — the ones a solve
+    started at δω = 0 on the committed values measures.  Without the re-chart
+    (θ replaced, nothing else) the rotation block disagrees, which is what
+    makes this a test of the re-chart rather than of the solve."""
+    from dataclasses import replace
+
+    from rietx.optimize.least_squares import rechart_outcome, run_least_squares
+
+    start, model, table, outcome = _solve_body(10.0)
+    rot = [table.free_paths.index(f"phases.0.rigid_bodies.0.rotation.{k}")
+           for k in range(3)]
+    assert np.linalg.norm(outcome.theta[rot]) > math.radians(5.0)
+    chart = table.commit(outcome.theta)
+    recharted = rechart_outcome(outcome, table.x0(), chart)
+    naive = replace(outcome, theta=table.x0())
+    s = start.model_copy(deep=True)
+    table.apply_to_models(s, INS)
+    fresh_table = ParameterTable(s, INS)
+    fresh_table.set_vary(BODY_GLOBS, True)
+    assert fresh_table.free_paths == table.free_paths
+    # the same model: the origin DOFs differ only by where each table anchors
+    # them (a coordinate DOF is a step from its build), the rotation not at all
+    a, b = table.decode(table.x0()), fresh_table.decode(fresh_table.x0())
+    assert max(abs(a[p] - b[p]) for p in table.derived_paths()) < 1e-12
+    assert all(fresh_table.x0()[c] == 0.0 for c in rot)
+    fresh = run_least_squares(model, fresh_table, max_iter=200)
+    # the fresh solve starts on the answer and stays there
+    assert np.abs(fresh.theta[rot]).max() < 1e-6
+    # measured: 1.1e-6 and 5.5e-7 here, against 0.087 and 0.136 un-recharted
+    np.testing.assert_allclose(recharted.correlation, fresh.correlation, atol=2e-5)
+    np.testing.assert_allclose(recharted.stderr_internal, fresh.stderr_internal,
+                               rtol=2e-5)
+    np.testing.assert_allclose(recharted.jac[:, rot], fresh.jac[:, rot],
+                               rtol=1e-4, atol=1e-6 * np.abs(fresh.jac[:, rot]).max())
+    # columns the chart leaves alone keep their numbers bit for bit
+    other = [c for c in range(len(table.free_paths)) if c not in rot]
+    assert np.array_equal(recharted.jac[:, other], outcome.jac[:, other])
+    gap = np.abs(naive.correlation - fresh.correlation)[np.ix_(rot, rot)].max()
+    assert gap > 1e-2, gap
+
+
+def test_a_commit_that_skips_the_re_exponentiation_is_refused(monkeypatch):
+    """The commit-time guard (WP-1805): a body committed rigid to 1e-9 Å and
+    where the solve put it.  Two ways to skip the re-exponentiation, each
+    caught: compose to first order, (I + [δω]×)·R₀, and the body stops being
+    rigid; zero δω without composing, and it snaps back to R₀."""
+    from rietx.params import bodies
+
+    def first_order(omega, r0):
+        return (np.eye(3) + np.asarray(rotation.skew(omega))) @ r0
+
+    for broken, match in ((first_order, "not rigid"),
+                          (lambda omega, r0: r0, "left the solver's answer")):
+        table = ParameterTable(body_structure(Q_TRUE), INS)
+        table.set_vary(BODY_GLOBS, True)
+        theta = table.x0()
+        theta[table.free_paths.index("phases.0.rigid_bodies.0.rotation.1")] = \
+            math.radians(3.0)
+        monkeypatch.setattr(bodies, "compose_rotation", broken)
+        with pytest.raises(AssertionError, match=match):
+            table.commit(theta)
+        monkeypatch.undo()
+    table = ParameterTable(body_structure(Q_TRUE), INS)
+    table.set_vary(BODY_GLOBS, True)
+    theta = table.x0()
+    theta[table.free_paths.index("phases.0.rigid_bodies.0.rotation.1")] = math.radians(3.0)
+    table.commit(theta)
+    assert max(table.body_bond_errors().values()) < 1e-9

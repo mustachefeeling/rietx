@@ -655,20 +655,13 @@ def _state_bodies():
     theta = table.x0()
     for k, v in enumerate((0.07, -0.04, 0.05)):
         theta[table.free_paths.index(f"phases.0.rigid_bodies.0.rotation.{k}")] = v
+    # the commit composes the rotation into R₀ and zeroes it (WP-1805), so the
+    # anchor is off the identity and the increment is set off zero again by
+    # value, where the left Jacobian is away from its trivial point too
     table.commit(theta)
-    table.apply_to_models(structure, ins)
-    # rebuilt from the written-back record, as every stage does: the rotation
-    # is then composed into R₀ and starts at zero, so set it off zero again
-    table = ParameterTable(structure, ins)
-    table.set_vary(["*"], False)
-    for glob in ("phases.0.rigid_bodies.0.origin.dof.*",
-                 "phases.0.rigid_bodies.0.rotation.*", "phases.0.cell.*",
-                 "phases.0.atoms.0.dof.*", "phases.0.scale"):
-        table.set_vary([glob], True)
-    theta = table.x0()
     for k, v in enumerate((0.03, 0.02, -0.06)):
-        theta[table.free_paths.index(f"phases.0.rigid_bodies.0.rotation.{k}")] = v
-    table.commit(theta)
+        table.entries[table._paths[f"phases.0.rigid_bodies.0.rotation.{k}"]].value = v
+    table.refresh_ties()
     model = compile_model(structure, ins, pattern, mode="rietveld",
                           moving_paths=set(table.moving_paths))
     return model, table, {}

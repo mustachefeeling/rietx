@@ -532,19 +532,28 @@ class MultiParameterTable:
         return [self.tables[h].decode(thetas[h]) for h in range(len(self.tables))]
 
     def commit(self, theta: np.ndarray) -> np.ndarray | None:
-        """Each histogram's table commits its slice; the moment re-charting
-        signs (``ParameterTable.commit``, #604) come back on the combined
-        columns.  A shared column is committed from one value by every table
-        that holds it, and the chart is a function of the value, so the
-        tables agree on its sign."""
+        """Each histogram's table commits its slice; the re-charting
+        (``ParameterTable.commit``: moment signs, #604, or a body's composed
+        rotation, WP-1805) comes back on the combined columns.  A shared
+        column is committed from one value by every table that holds it, and
+        the chart is a function of the value, so the tables agree on it.  The
+        combined form is the widest any table returned: a vector of signs, or
+        the square matrix once one table's is."""
         thetas = self.split(theta)
-        combined = None
-        for h, table in enumerate(self.tables):
-            signs = table.commit(thetas[h])
-            if signs is not None:
-                if combined is None:
-                    combined = np.ones(len(theta), dtype=np.float64)
-                combined[self._col_map[h]] = signs
+        parts = [(h, chart) for h, table in enumerate(self.tables)
+                 if (chart := table.commit(thetas[h])) is not None]
+        if not parts:
+            return None
+        if all(np.ndim(chart) == 1 for _, chart in parts):
+            combined = np.ones(len(theta), dtype=np.float64)
+            for h, chart in parts:
+                combined[self._col_map[h]] = chart
+            return combined
+        combined = np.eye(len(theta))
+        for h, chart in parts:
+            cols = self._col_map[h]
+            combined[np.ix_(cols, cols)] = (np.diag(chart) if np.ndim(chart) == 1
+                                            else chart)
         return combined
 
     def apply_to_models(self) -> None:

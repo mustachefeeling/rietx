@@ -3767,6 +3767,9 @@ class Refinement:
                 by_path = {e.path: e for e in table.entries}
                 for path in collapsed:
                     by_path[path].value = start_values[path]
+                # a body's rotation restarts at zero either side of the
+                # commit, which composed the turn into its anchor (WP-1805)
+                table.restore_body_anchors(collapsed)
                 table.refresh_ties()  # dependents follow (b←a on a cubic cell)
                 # a collapsed combination is turned at the restored values,
                 # then held — the stage-start order

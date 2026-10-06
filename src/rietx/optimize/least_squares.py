@@ -268,19 +268,33 @@ class LSQOutcome:
 
 def rechart_outcome(outcome: LSQOutcome, theta: np.ndarray,
                     signs: np.ndarray | None) -> LSQOutcome:
-    """``outcome`` restated in the chart the table committed it in (#604).
+    """``outcome`` restated in the chart the table committed it in.
 
-    ``ParameterTable.commit`` moves a moment block's DOFs into the principal
-    chart (``moments.canonical_dofs``), the same moment in different numbers,
-    and returns the ±1 each free column was multiplied by.  ``theta`` is the
-    committed table's ``x0()``.  Every column-indexed field follows: a
-    Jacobian column and a residual cosine take the sign, a correlation takes
-    it on both sides, and an esd takes none, which is why a canonicalisation
-    can move no esd.  ``signs is None`` (nothing moved) returns ``outcome``.
+    ``theta`` is the committed table's ``x0()``; ``signs`` is what
+    ``ParameterTable.commit`` returned.  ``None`` (nothing moved) returns
+    ``outcome``.  Two shapes:
+
+    * a vector of ±1 per free column (#604): a moment block moved into its
+      principal chart, the same moment in different numbers.  A Jacobian
+      column and a residual cosine take the sign, a correlation takes it on
+      both sides, and an esd takes none, which is why a canonicalisation can
+      move no esd.
+    * the square matrix T = ∂θ_old/∂θ_new (WP-1805): a rigid body's rotation
+      composed into its anchor, R₀ ← Exp(δω)·R₀ and δω ← 0.  The Jacobian
+      follows the chain rule, J_new = J_old·T; the covariance transforms as
+      T⁻¹·Cov·T⁻ᵀ, which moves the rotation columns' esds and correlations to
+      what a solve started at δω = 0 on the committed values measures; a
+      residual cosine is re-read off the new columns (``‖r‖`` cancels, so the
+      old cosines and column norms suffice).  Columns T leaves alone keep
+      their numbers bit for bit.  A column whose esd is not finite (one that
+      measured nothing) cannot be carried through T⁻¹, so the block holding
+      it keeps its old esds and correlations.
     """
     if signs is None:
         return outcome
     s = np.asarray(signs, dtype=np.float64)
+    if s.ndim == 2:
+        return _rechart_matrix(outcome, theta, s)
 
     def padded(n: int) -> np.ndarray:
         # a Pawley block rides after the table columns and never moves
@@ -298,6 +312,64 @@ def rechart_outcome(outcome: LSQOutcome, theta: np.ndarray,
         cosine = np.asarray(cosine) * padded(len(cosine))
     return replace(outcome, theta=np.asarray(theta, dtype=np.float64), jac=jac,
                    correlation=corr, residual_cosine=cosine)
+
+
+def _rechart_matrix(outcome: LSQOutcome, theta: np.ndarray,
+                    t: np.ndarray) -> LSQOutcome:
+    """:func:`rechart_outcome` for a square chart matrix ``t`` (its docstring)."""
+    def padded(n: int) -> np.ndarray:
+        # a Pawley block rides after the table columns and never moves
+        if n <= len(t):
+            return t[:n, :n]
+        out = np.eye(n)
+        out[:len(t), :len(t)] = t
+        return out
+
+    touched = np.flatnonzero(np.abs(t - np.diag(np.diag(t))).sum(axis=0)
+                             + np.abs(t - np.diag(np.diag(t))).sum(axis=1) > 0.0)
+    jac_old = outcome.jac
+    jac = None if jac_old is None else np.asarray(jac_old) @ padded(np.shape(jac_old)[1])
+    stderr, corr = outcome.stderr_internal, outcome.correlation
+    if stderr is not None:
+        se = np.asarray(stderr, dtype=np.float64)
+        tm = padded(len(se))
+        if np.all(np.isfinite(se[touched])):
+            c = np.eye(len(se)) if corr is None else np.asarray(corr, dtype=np.float64)
+            cov = c * np.outer(se, se)
+            cov = np.where(np.isfinite(cov), cov, 0.0)
+            tinv = np.linalg.inv(tm)
+            new = tinv @ cov @ tinv.T
+            se_new = se.copy()
+            se_new[touched] = np.sqrt(np.diag(new)[touched])
+            if corr is not None:
+                with np.errstate(invalid="ignore", divide="ignore"):
+                    c_new = new / np.outer(se_new, se_new)
+                # only the touched rows and columns move; every other entry is
+                # the old correlation, bit for bit (a diagonal flip is a sign)
+                d = np.diag(tm)
+                keep = np.ones(len(se), dtype=bool)
+                keep[touched] = False
+                c_flip = c * np.outer(d, d)
+                corr = np.where(np.outer(keep, keep), c_flip, c_new)
+            stderr = se_new
+        elif corr is not None:
+            d = np.diag(tm)
+            corr = np.asarray(corr) * np.outer(d, d)
+    cosine = outcome.residual_cosine
+    if cosine is not None:
+        cos = np.asarray(cosine, dtype=np.float64)
+        if jac_old is None:
+            cos = cos * np.diag(padded(len(cos)))
+        else:
+            tm = padded(len(cos))
+            norm_old = np.linalg.norm(np.asarray(jac_old), axis=0)
+            norm_new = np.linalg.norm(jac, axis=0)
+            g = (cos * norm_old) @ tm          # ∝ J_newᵀ r; ‖r‖ cancels
+            with np.errstate(invalid="ignore", divide="ignore"):
+                cos = np.where(norm_new > 0.0, g / norm_new, 0.0)
+        cosine = cos
+    return replace(outcome, theta=np.asarray(theta, dtype=np.float64), jac=jac,
+                   stderr_internal=stderr, correlation=corr, residual_cosine=cosine)
 
 
 def _guarded_covariance(jac, fun, n_free: int, n_data: int
