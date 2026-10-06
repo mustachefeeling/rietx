@@ -193,7 +193,13 @@ FEATURES: tuple[Feature, ...] = (
            "uses it (a nuclear `str` beside a `mag_only_for_mag_sites` one "
            "restating the magnetic sites, as the Durham LaMnO3 tutorial does) "
            "would then count those sites' nuclear scattering twice, so the "
-           "keyword is not droppable with a diagnostic either"),
+           "keyword is not droppable with a diagnostic either. One form is "
+           "read, and the lift is made when the file is read, by the one "
+           "predicate `to_structure`'s merge uses: a "
+           "`\"<name> magnetic part\"` str of `mag_only` sites that carry a "
+           "moment, merged into `<name>` only where its scale, cell, space "
+           "group and sites equal the nuclear str's (`mag_only_for_mag_sites` "
+           "and any other use stay refused)"),
 
     # -------------------------------------------------------------- reported
     _f("peak profile", Stance.REPORTED,

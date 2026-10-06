@@ -356,6 +356,14 @@ class TopasSite:
     #: where the file said nothing, which is not the same as "held" — see
     #: :func:`refined`.
     vary: dict = field(default_factory=dict)
+    #: The site keyword ``mag_only``: this site's nuclear scattering is off.
+    mag_only: bool = False
+    #: How each value was stated, keyed as :attr:`vary` (plus ``"occ"`` and the
+    #: moment keys): the parameter *name* the file gave it and the *equation* it
+    #: was computed from, where it had either. A name shared by two values, or
+    #: an equation over names, is a constraint the numbers alone do not carry;
+    #: :mod:`.topas_ties` reads them back as rietx ties (#721 item 4).
+    stated: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -387,6 +395,9 @@ class TopasPhase:
     #: because no dependency here parses one, and the group then has to come
     #: from ``to_structure(magnetic_symmetry=...)``.
     mag_space_group: str | None = None
+    #: How the scale and each cell key were stated (name and equation), as
+    #: :attr:`TopasSite.stated`.
+    stated: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -514,6 +525,15 @@ class TopasModel:
     #: :func:`to_structure`; on the model for the reason ``coverage`` is, and
     #: empty for a file with none.
     time_of_flight: dict = field(default_factory=dict)
+    #: Every parameter the file declares (``prm``, a named value), by name,
+    #: each with its value and refine flag: what a name in an equation refers
+    #: to.
+    symbols: dict = field(default_factory=dict)
+    #: Whether the file states ``neutron_data``, and the ``LP_Factor`` angle it
+    #: states (``None`` where none): the two facts TOPAS's scale convention
+    #: depends on (``to_structure(scale="rietx")``).
+    neutron: bool = False
+    lp_factor: float | None = None
 
 
 def strip_comments(text: str) -> str:
@@ -2874,6 +2894,11 @@ def read_topas_inp(path: str | Path, *,
     # flag a value resolved *through* one of them has to inherit (`_symbol_reads`).
     symbol_reads = _symbol_reads(active)
     symbols = {name: read.value for name, read in symbol_reads.items()}
+    model.symbols = dict(symbol_reads)
+    _unq = _unquoted(active)
+    model.neutron = re.search(r"\bneutron_data\b", _unq) is not None
+    if lp := re.search(r"\bLP_Factor\(\s*(" + _NUM + r")\s*\)", _unq):
+        model.lp_factor = float(lp.group(1))
 
     # A `str` block ends at the next block opener of any kind, not at the next
     # `str`: see `_BLOCK_OPENERS` for the numbers, and `test_projects_topas.py`
@@ -3183,6 +3208,11 @@ def read_topas_inp(path: str | Path, *,
         phase.scale = read.value if read else None
         if read is not None and read.vary is not None:
             phase.vary["scale"] = read.vary
+        if read is not None:
+            phase.stated["scale"] = read
+        for key in ("a", "b", "c", "al", "be", "ga"):
+            if (cread := _read(key, _cell_search_text(chunk), symbols)) is not None:
+                phase.stated[key] = cread
         phase.weight_percent = _field("weight_percent", chunk, symbols)
 
         # Sites are split token-wise, not per line (WP-1118): TOPAS is
@@ -3206,6 +3236,7 @@ def read_topas_inp(path: str | Path, *,
                     f"{path}: {phase.name}: no label/occ in site: {text.strip()!r}")
             # One read per field, so the value and its flag come off one match.
             reads: dict[str, _Read] = {}
+            stated: dict[str, _Read] = {}
             for axis in "xyz":
                 read = _read(axis, text, symbols)
                 if read is None or read.value is None:
@@ -3303,6 +3334,7 @@ def read_topas_inp(path: str | Path, *,
                         f"states.")
                 moment = {} if moment is None else moment
                 moment[key] = mread.value
+                stated[key] = mread
                 if mread.vary is not None:
                     reads[key] = mread
             # A site carrying several `occ` tokens is a **mixed** site: one atom
@@ -3336,12 +3368,17 @@ def read_topas_inp(path: str | Path, *,
                     # site's index within it (both before their appends)
                     species_rewrites.setdefault(species, (norm_species, []))[1].append(
                         f"phases.{len(model.phases)}.atoms.{len(phase.sites)}.species")
+                site_stated = {**reads, **stated}
+                if occ_read is not None:
+                    site_stated["occ"] = occ_read
                 phase.sites.append(TopasSite(
                     label=label.group(1), species=norm_species,
                     occupancy=occupancy if occupancy is not None else 1.0,
                     beq=beq, adps=dict(adps) if adps is not None else None,
                     moment=dict(moment) if moment is not None else None,
                     vary=vary,
+                    mag_only=re.search(r"\bmag_only\b", text) is not None,
+                    stated=site_stated,
                     **{axis: reads[axis].value for axis in "xyz"}))
         # A site token that read no atom is a silently wrong structure factor, so
         # every segment produced at least one atom above or raised; the count of
@@ -3362,8 +3399,14 @@ def read_topas_inp(path: str | Path, *,
         covered.setdefault(m.group(1), set()).add(owner)
     # Set before the site-count guard's refusal has a chance to fire, so that on
     # every path where a model exists at all it carries its own coverage.
-    model.coverage = _coverage.classify(
-        covered, _unread_calls(_unquoted(active), stripped))
+    # A `"<name> magnetic part"` str of `mag_only` sites is the one form of
+    # `mag_only` this reader builds (`to_structure` merges it), so it is not
+    # among the refused: the same predicate the merge uses.
+    from .topas_ties import lift_magnetic_parts
+
+    model.coverage = lift_magnetic_parts(
+        _coverage.classify(covered, _unread_calls(_unquoted(active), stripped)),
+        model.phases)
 
     # A file-level count of `site` tokens, computed over THE masked text and so
     # independent of how the file was split into blocks (WP-1118). A splitter
@@ -3900,7 +3943,8 @@ def _magnetic_build_diagnostics(model: TopasModel, phases_in, specs,
 def to_structure(model: TopasModel, *, cell_limits: bool = True,
                  aniso: bool = False, dataset: int | None = None,
                  magnetic_symmetry=None,
-                 diagnostics: list[Diagnostic] | None = None):
+                 diagnostics: list[Diagnostic] | None = None,
+                 scale: str = "file", constraints=None):
     """Build a :class:`~rietx.schemas.Structure` from a parsed model.
 
     A **module-level** name, not a package export. WP-1118 is "read a refinement
@@ -3983,9 +4027,51 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     ``magnetic_symmetry={...}`` to build the magnetic model, or drop the
     moments from the phase to declare that the nuclear subset is what you want.
     ``mag_only``/``mag_only_for_mag_sites`` stay refused (:mod:`.coverage`'s
-    ``magnetic-only phase`` row says why dropping them is not an option).
+    ``magnetic-only phase`` row says why dropping them is not an option), with
+    one exception: a ``"<name> magnetic part"`` ``str`` whose every site is
+    ``mag_only`` and carries a moment is the magnetic half of ``<name>``, the
+    form :func:`write_topas_inp` writes a magnetic-only width in, and is merged
+    back into it (:func:`~.topas_ties.split_magnetic_parts`), its moments onto
+    the same-label sites. That form's phase terms TOPAS has no keyword for are
+    read back by the names ``p<i>_extinction``, ``p<i>_magnetic_lor_size``
+    and ``p<i>_magnetic_lor_strain`` (no writer in this tree writes them
+    yet; each one read is reported as ``TOPAS_PHASE_TERM_READ``). The merge is
+    equal-or-refuse: the part's scale, cell, space group and each site's
+    position, element and occupancy must equal the nuclear ``str``'s, every
+    part site needs a nuclear counterpart, and the merge is reported as
+    ``TOPAS_MAGNETIC_PART_MERGED``. Every other refusal the part states stays in
+    force.
+
+    ``scale="file"`` (the default) reads ``scale`` as the file states it.
+    ``scale="rietx"`` converts it to rietx's convention from what the file says
+    about its own radiation: ÷ 100 under ``neutron_data`` (TOPAS's |F|² is in
+    barn, rietx's in fm²), ÷ K under ``LP_Factor(c)`` for X-rays with
+    K = 1/(1 + cos² c); a file stating neither is refused, since the constant
+    is then unknown (#722).
+
+    ``constraints=`` a :class:`~.topas_ties.TopasConstraints` to have the
+    file's names and affine equations read back as ties
+    (:func:`~.topas_ties.derive_ties`); declare them on a ``Refinement`` with
+    :func:`~.topas_ties.apply_ties` (#721 item 4).
     """
     import rietx as rx
+
+    from .topas_ties import RESERVED_PHASE_TERMS, derive_ties, split_magnetic_parts
+
+    if scale not in ("file", "rietx"):
+        raise ValueError(f"scale must be 'file' or 'rietx', not {scale!r}")
+    scale_divisor = 1.0
+    reserved_read: list[tuple[int, str]] = []
+    if scale == "rietx":
+        if model.neutron:
+            scale_divisor = 100.0
+        elif model.lp_factor is not None:
+            scale_divisor = 1.0 / (1.0 + math.cos(math.radians(model.lp_factor)) ** 2)
+        else:
+            raise TopasInpError(
+                f"{model.path or '<model>'}: scale='rietx' needs the file's "
+                f"radiation (neutron_data, or an LP_Factor for X-rays), and this "
+                f"file states neither, so TOPAS's scale cannot be converted")
 
     # **A phase belongs to a pattern, and this reader will not concatenate two.**
     # The manual's own keyword tree (Technical Reference S5.1) makes `str` a
@@ -4019,6 +4105,8 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
             f"them, or read `model.phases` (each carries its own `.dataset`).")
     else:
         phases_in = list(model.phases)
+    phases_in, magnetic_parts = split_magnetic_parts(phases_in, model.path or "<model>")
+    merged_part_names = {p.name for p in magnetic_parts.values()}
 
     # **Refuse the constructs whose absence would misrepresent the file**, and
     # refuse them here rather than at read (:mod:`.coverage`). The split is the
@@ -4046,7 +4134,10 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
             f"scale and refine flags into a constant-wavelength model. Pass "
             f"dataset=N for a constant-wavelength dataset of this file, or "
             f"read `model.phases` for what the file states.")
-    building = {ph.name for ph in phases_in}
+    # A merged part is still a phase this call builds from, so every refusal
+    # its str states stays in force; the `mag_only` that *makes* it a part is
+    # not among them (`lift_magnetic_parts`, at read).
+    building = {ph.name for ph in phases_in} | merged_part_names
     blocked = [h for h in model.coverage.refused
                if not h.phases or building.intersection(h.phases)]
     if blocked:
@@ -4222,10 +4313,13 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
                 # phases across 9 files record `scale 0`, a phase refined to
                 # absent, and this repo already treats that as a real state
                 # (`weight_percent cBN_wtpct 0.000`). None is the only absence.
-                scale=rx.Parameter(value=1e-4 if ph.scale is None else ph.scale,
+                scale=rx.Parameter(value=(1e-4 if ph.scale is None
+                                          else ph.scale / scale_divisor),
                                    min=0.0, transform="softplus",
                                    **({"vary": ph.vary["scale"]}
-                                      if "scale" in ph.vary else {}))))
+                                      if "scale" in ph.vary else {})),
+                **_reserved_phase_terms(model, len(phases), RESERVED_PHASE_TERMS,
+                                        reserved_read)))
             from ...crystallography.magnetic.scattering import check_group_is_structure_symmetry
             check_group_is_structure_symmetry(phases[-1])
         except TopasInpError:
@@ -4283,7 +4377,66 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     except Exception as exc:
         # e.g. a phase whose site lines were all inside a disabled #ifdef branch
         raise TopasInpError(f"{model.path or '<model>'}: {exc}") from exc
+    if diagnostics is not None:
+        for ip, ph in enumerate(phases_in):
+            part = magnetic_parts.get(ph.name)
+            if part is None:
+                continue
+            labels = {s.label for s in part.sites}
+            diagnostics.append(Diagnostic(
+                level="info", code="TOPAS_MAGNETIC_PART_MERGED",
+                where=[f"phases.{ip}.magnetic_symmetry"] + [
+                    f"phases.{ip}.atoms.{j}.moment"
+                    for j, s in enumerate(ph.sites) if s.label in labels],
+                message=(f"{model.path or '<model>'}: str {part.name!r} read as "
+                         f"the magnetic half of {ph.name!r} and merged into it: "
+                         f"its moments on {len(labels)} sites, its charge "
+                         f"state and its mag_space_group {part.mag_space_group!r}. "
+                         f"Its scale, cell, space group and each site's "
+                         f"position, element and occupancy were checked equal "
+                         f"to {ph.name!r}'s and are not carried separately"),
+                suggestion=("the file's two strs are one phase here, so refine "
+                            "the one scale; a file whose two disagree is "
+                            "refused, not merged")))
+        for ip, term in reserved_read:
+            diagnostics.append(Diagnostic(
+                level="info", code="TOPAS_PHASE_TERM_READ",
+                where=[f"phases.{ip}.{term}"],
+                message=(f"{model.path or '<model>'}: prm p{ip}_{term} read as "
+                         f"phase {ip}'s {term}. TOPAS has no keyword for it; "
+                         f"this reader takes the name p<i>_{term} to mean it "
+                         f"(the name a rietx-written file will give it), so a "
+                         f"file whose own parameter happens to carry that name "
+                         f"is read as this phase term"),
+                suggestion=("if the name is the file's own and means something "
+                            "else, set the phase term back on the built "
+                            "Structure")))
+    if constraints is not None:
+        found = derive_ties(model, phases_in, structure)
+        constraints.ties.extend(found.ties)
+        constraints.free.update(found.free)
+        constraints.skipped.extend(found.skipped)
     return structure
+
+
+def _reserved_phase_terms(model: TopasModel, ip: int, terms, reported=None) -> dict:
+    """The phase terms read from the names ``p<i>_<term>``, which TOPAS has no
+    keyword for. A file that states one is taken to mean it, so each one read
+    is appended to ``reported`` as ``(phase index, term)`` for
+    ``TOPAS_PHASE_TERM_READ``."""
+    import rietx as rx
+
+    out = {}
+    for term in terms:
+        read = model.symbols.get(f"p{ip}_{term}")
+        if read is None or read.value is None:
+            continue
+        if reported is not None:
+            reported.append((ip, term))
+        out[term] = rx.Parameter(value=read.value, min=0.0, transform="softplus",
+                                 vary=bool(read.vary))
+    return out
+
 
 
 def _tail(param: Parameter, value: float | None = None) -> str:
