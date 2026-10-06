@@ -248,6 +248,10 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
         (FIT,), "joint-only, and the plan's (WP-1414): a stage's reach is "
                 "decided before any histogram is compiled"),
     # -- deliberately not computed ---------------------------------------------
+    "_fixed_literal_diagnostics": (
+        (ABSENT,), "not wired for a joint fit yet: its table scopes paths per "
+                   "histogram, so a literal phase path is matched there by "
+                   "_unreached_histogram_diagnostics' rules, not this one's"),
     "_hold_diagnostics": (
         (ABSENT,), "a joint fit has no hold verb, so no StageResult here "
                    "carries blocked_by_hold for HOLD_BLOCKED_PLAN to report"),

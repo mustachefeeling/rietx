@@ -1065,6 +1065,20 @@ because one plan runs every pattern of a series ([](series.md)). A misspelt
 family inside a glob looks exactly like a glob that correctly matched nothing,
 so no rule can report it, and `freed` is the place to look.
 
+A literal phase path can also name a row the model will not free. An atom's
+coordinates are refined along the directions its site symmetry allows, as
+`phases.0.atoms.2.dof.*`. Its `x`, `y` and `z` are each fixed by the site or
+follow those directions, and a cubic cell's `b` follows `a`. A stage naming
+such a path frees nothing for it, so the fit reports `STAGE_PATH_NOT_FREE` at
+`warning`, before the first stage runs, with the paths that would have freed it.
+An oxygen on 16h in I4₁/amd is the measured case: `phases.0.atoms.2.x` is fixed
+at 0, and `y` and `z` follow `dof.0` and `dof.1`. A path you tied yourself is
+not reported, being your own declaration, and neither is an instrument path.
+The shipped plans name `instrument.geometry.sample_displacement`, which a
+capillary geometry locks. A glob over-reaches the other way:
+`phases.0.atoms.2.*` frees the site's `occ` and `biso` beside its directions, so
+write `phases.0.atoms.2.dof.*` when you mean the position.
+
 One glob is reported all the same: a glob under a name a release retired. A
 saved project, history tree or `.rxt` is migrated as it is read
 ([](data.md)), but a plan you build in code is not, so a glob under

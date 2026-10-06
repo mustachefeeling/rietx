@@ -853,6 +853,77 @@ def test_a_single_stage_run_says_it_too(ref, pattern):
             if d.code == "STAGE_PATH_UNKNOWN"] == [[WAVELENGTH_TYPO]]
 
 
+
+@pytest.mark.parametrize("path, says", [
+    # B on 6f (x, 1/2, 1/2): x follows the site's one direction, y is fixed
+    ("phases.0.atoms.1.x", "follows phases.0.atoms.1.dof.0"),
+    ("phases.0.atoms.1.y", "is fixed by symmetry or by the model"),
+    # La on 1a: no direction at all
+    ("phases.0.atoms.0.z", "is fixed by symmetry or by the model"),
+    ("phases.0.cell.b", "follows phases.0.cell.a"),
+])
+def test_a_literal_the_model_will_not_free_says_which_path_would(pattern, path, says):
+    """``STAGE_PATH_UNKNOWN``'s other half: the row exists and is declined.
+
+    The measured case was an oxygen on 16h in I4₁/amd, named as
+    ``atoms.2.x``: the stage froze the site at its start and said nothing.
+    """
+    ref = rx.Refinement(*perturbed_models(), history=False)
+    result = ref.fit(pattern, plan=rx.RefinementPlan(stages=[
+        rx.Stage("only", ["phases.*.scale", path], max_iter=5)]))
+    assert path not in result.stages[0].freed
+    found = [d for d in result.diagnostics if d.code == "STAGE_PATH_NOT_FREE"]
+    assert len(found) == 1 and found[0].level == "warning"
+    assert found[0].where == [path]
+    assert f"stage 'only' asked for {path}, which {says}" in found[0].message
+    if path == "phases.0.atoms.1.x" or path == "phases.0.atoms.1.y":
+        assert found[0].suggestion.startswith(
+            "free phases.0.atoms.1.dof.* (phases.0.atoms.1.dof.0)")
+    elif path == "phases.0.atoms.0.z":
+        assert "every coordinate of this site is fixed" in found[0].suggestion
+    else:
+        assert found[0].suggestion.startswith("free phases.0.cell.a instead")
+    assert not [d for d in result.diagnostics if d.code == "STAGE_PATH_UNKNOWN"]
+
+
+@pytest.mark.parametrize("turn_on", [
+    # the positive arm: the path the warning suggests frees the site
+    ["phases.0.atoms.1.dof.*"],
+    # a pattern is a sweep, and a sweep declining rows is how plans work
+    ["phases.*.atoms.*.x"],
+    # the shipped presets name it, and a capillary locks it
+    ["instrument.geometry.sample_displacement"],
+], ids=["dof-glob", "pattern", "instrument-literal"])
+def test_a_path_that_is_free_or_not_a_phase_literal_stays_silent(pattern, turn_on):
+    ref = rx.Refinement(*perturbed_models(), history=False)
+    result = ref.fit(pattern, plan=rx.RefinementPlan(stages=[
+        rx.Stage("only", ["phases.*.scale", *turn_on], max_iter=5)]))
+    assert "STAGE_PATH_NOT_FREE" not in {d.code for d in result.diagnostics}
+    if turn_on == ["phases.0.atoms.1.dof.*"]:
+        assert "phases.0.atoms.1.dof.0" in result.stages[0].freed
+
+
+def test_a_users_own_tie_is_not_reported(ref, pattern):
+    ref.tie_equal(BISOS)
+    result = ref.run_stage(pattern, rx.Stage("b", [BISOS[1]], max_iter=5))
+    assert "STAGE_PATH_NOT_FREE" not in {d.code for d in result.diagnostics}
+
+
+def test_a_declined_literal_is_one_finding_naming_its_stages_and_run_stage_says_it(
+        ref, pattern):
+    result = rx.Refinement(*perturbed_models(), history=False).fit(
+        pattern, plan=rx.RefinementPlan(stages=[
+            rx.Stage("first", ["phases.*.scale", "phases.0.cell.b"], max_iter=5),
+            rx.Stage("second", ["phases.*.scale", "phases.0.cell.b"], max_iter=5)]))
+    found = [d for d in result.diagnostics if d.code == "STAGE_PATH_NOT_FREE"]
+    assert len(found) == 1
+    assert found[0].message.startswith("stages 'first', 'second' asked for")
+
+    single = ref.run_stage(pattern, rx.Stage("x", ["phases.0.atoms.1.x"], max_iter=5))
+    assert [d.where for d in single.diagnostics
+            if d.code == "STAGE_PATH_NOT_FREE"] == [["phases.0.atoms.1.x"]]
+
+
 #: the hump family under WP-1102's name and under the one it retired
 HUMPS = "instrument.extra_components.*"
 RETIRED_HUMPS = "instrument.background_peaks.*"
