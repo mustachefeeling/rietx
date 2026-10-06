@@ -3463,8 +3463,8 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     # simply never passed the argument must not silently get that.  Only an
     # explicit set — even an empty one — licenses the gates.
     gate_off_states = moving_paths is not None
-    # FCJ sizing values (floored when the axial parameters are about to
-    # refine).  The aberration's weight is the overlap trapezoid of height
+    # FCJ sizing values (floored below ``AXIAL_SIZING_FLOOR`` whether or not
+    # the axial parameters are free, #774).  The aberration's weight is the overlap trapezoid of height
     # 2·min(S/L, H/L), so it can act this stage only if **both** apertures
     # can be positive — a value already above zero, or a path the stage can
     # move.  One aperture pinned at 0 with only the other freed (the QPA

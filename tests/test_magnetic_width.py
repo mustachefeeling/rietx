@@ -256,7 +256,7 @@ def test_naming_a_width_in_moving_paths_builds_the_family_from_zero():
 
 @pytest.mark.parametrize("size", [0.05, SIZE])
 def test_magnetic_width_pattern_does_not_depend_on_the_free_set(size):
-    """#774, magnetic twin: a width below ``MAGNETIC_SIZING_FLOOR`` (0.05) is
+    """#774, magnetic twin: a width below ``MAGNETIC_SIZING_FLOOR`` (0.1) is
     floored by value, so freeing it does not change the windows or the
     pattern; above the floor (SIZE) nothing moved either way."""
     y = []
