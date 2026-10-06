@@ -19,7 +19,7 @@ metadata:
 
 # Refining powder diffraction data with rietx
 
-The protocol for driving `rietx` on real data: the order of work, and the checks before you believe a number. Rwp ranks fits of the same data over the same channels. It certifies nothing else (rule 16).
+How to drive `rietx` on real data: the order of work, and the checks before you believe a number. Rwp ranks fits of the same data over the same channels. It certifies nothing else (rule 16).
 
 ## Routing
 
@@ -59,7 +59,7 @@ Rietveld refinement locally fits a model you already believe. Check each row bef
 | The starting width is within ×2 | `W` is the squared Gaussian FWHM at low angle (Γ_G² = U·tan²θ + V·tanθ + W; `rx.help_for("instrument.profile.w")`). Its default, 1e-3 deg², is a 0.03° synchrotron line. Seed `W ≈ (0.6·H)²`, `X ≈ 0.6·H`, with H the median `fwhm` of the strongest `rx.pick_peaks` peaks (§10): Gaussian and Lorentzian halves of 0.6·H combine to about H |
 | The fitted range is yours | `fit(two_theta_limits=(lo, hi))`, and the same tuple to `rx.auto_background`. `PatternData.excluded_regions` drops intervals |
 
-Never subtract a background, because that breaks the weights. Hold an estimated one additively (`rx.BackgroundFixedPlusChebyshev`), or co-refine one: `rx.auto_background(data, kind="chebyshev")`, or the default P-spline under a smoothness penalty. A measured blank is `BackgroundFixedPlusChebyshev.from_pattern(blank)` (§8.29).
+Never subtract a background, because that breaks the weights. Hold an estimated one additively (`rx.BackgroundFixedPlusChebyshev`), or co-refine one: `rx.auto_background(data, kind="chebyshev")`, or the default penalised P-spline. A measured blank is `BackgroundFixedPlusChebyshev.from_pattern(blank)` (§8.29).
 
 ---
 
@@ -117,14 +117,14 @@ Judge in this order. `print(result)` shows per-stage status, the diagnostics, pr
 9. **Status and guards first.** `result.usable` is false when the fit did not converge or carries an `"error"` diagnostic: read no value from it. Then `result.diagnostics`, then `result.statistics.max_shift_over_esd`. Above 0.1 under `converged`, a direction is still walking: bound it, or find its correlated partner (rule 7).
 10. **Read the difference curve by region**: `report.regions` (local Rwp, χ² share) and `cumulative_chi2_breakpoints`.
 11. **Read the unmatched peaks.** In `report.unmatched`, `unmatched_obs` is an impurity or a missing phase. `unmatched_calc` is a modelled phase that is absent, or an absence error; read it in Rietveld mode only. `result.tick_hkl` names `result.ticks` by index.
-12. **Check that the values are possible**: no negative Biso, no occupancy above 1, no cell moved further than its start could have been off, no non-ellipsoid ADP. Read the bonds and angles in `result.geometry` too, which nothing scores for you. A `None` esd means no covariance or fixed by symmetry, never zero.
+12. **Check that the values are possible**: no negative Biso, no occupancy above 1, no cell moved further than its start could have been off, no non-ellipsoid ADP. Read the bonds and angles in `result.geometry` too, which nothing scores. A `None` esd means no covariance or fixed by symmetry, never zero.
 13. **Quote each esd with its trio.** Every esd already carries `statistics.esd_inflation`. Pass on `report.identifiability`'s raw χ²_red, the inflation and Durbin-Watson beside it.
 14. **Settle an exchange by a swap.** An `exchangeable=True` row in `report.identifiability.exchanges` (or a `.soft_modes` entry) says a held parameter may carry the same signal as a free one. `rx.report.compare_rivals(ref, data, finding)` fits each member alone, the other at its null. If its `chi2_ratio` (loser over winner) is at least `rx.report.RIVAL_DECISIVE_MIN_CHI2_RATIO` (1.10), adopt the winner with no caveat on that question. Below it, declare the pair unresolved or settle it by protocol. Never free both in one fit: that rides §3's ridge to a better Rwp. `result.statistics.identifiability_clause` carries the sentence to quote.
 15. **Read the background before Rwp.** In `report.background`, `worst_absorption` and `worst_absorption_path` say how much of a structural parameter the background can mimic. `off_region_chi2_reduced` and `off_region_durbin_watson` catch systematic misfit between the peaks, which rule 10 misses.
 16. **Then Rwp and GoF**, beside `background.rwp_background_subtracted`, which separates two fits of the same data.
-17. **Read R factors last.** `result.phase_agreement` (`r_bragg`, `r_f`) flatters any model, because I(obs) is partitioned by I(calc). Never cite R_B as evidence that a correction helped, and never compare a trace phase's with the major phase's. Le Bail and Pawley have none.
+17. **Read R factors last.** `result.phase_agreement` (`r_bragg`, `r_f`) flatters any model, because I(obs) is partitioned by I(calc). Never cite R_B as evidence a correction helped, nor compare a trace phase's with the major's. Le Bail and Pawley have none.
 
-**Adding a parameter**: its t-ratio first, then ΔBIC at N/f² with f = `esd_inflation`; at raw N any χ² gain passes. `rx.report.compare_freed(restricted, full)` returns both. **Against another code**: adopt its refined set, held parameters and excluded regions, match the channel count, then compare.
+**Adding a parameter**: its t-ratio first, then ΔBIC at N/f² with f = `esd_inflation`; at raw N any χ² gain passes. `rx.report.compare_freed(restricted, full)` returns both. **Against another code**: adopt its file's wavelengths, refined set, held parameters and excluded regions, match the channel count, then compare.
 
 ---
 
@@ -150,7 +150,7 @@ The package declines rather than return a confident wrong singleton, and the ref
 
 18. **Propagate an abstention.** With `report.abstained_reason` set, branch on `report.abstained_kind` and do not read `report.attribution`. `INDEX_ABSTAINED` lists candidates for inspection.
 19. **Adopt a cell from `IndexingResult.best_or_none()`, not from a rank.** `None` is the usual first outcome: act on each candidate's refuting `confidence_caveats` first (§7c). Adopting an ungated cell is your stated decision, and a refinement checks it (§7d).
-20. **A failed gate names no cause.** With `region.gates_passed` false, read `region.gate_failures`; the coefficients are for display only.
+20. **A failed gate names no cause.** With `region.gates_passed` false, read `region.gate_failures`; its coefficients are display only.
 21. **Report collinear answers as unresolved.** A non-separable trend, `PAWLEY_OVERLAP_UNRESOLVED`, `INDEX_GEOMETRIC_AMBIGUITY`, `EXTINCTION_GROUPS_NOT_SEPARABLE`: extend the range, report both, or carry the list forward. A group's sum is the datum.
 22. **Quote no held or unquotable value as measured.** `PHASE_UNCONSTRAINED`, `STEPHENS_STRAIN_NOT_POSITIVE`, `BOUND_HIT`, `HARMONIC_HELD`: the number did not come from the data, whatever its esd or the Rwp.
 
@@ -158,7 +158,7 @@ The package declines rather than return a confident wrong singleton, and the ref
 
 ## 10. A worked default
 
-A Bragg-Brentano lab pattern and a CIF. Adapt the plan, and keep the checks.
+A Bragg-Brentano lab pattern and a CIF. Adapt the plan, and keep the checks. To reproduce another program's fit, follow §4 instead.
 
 ```python
 import numpy as np
@@ -194,7 +194,7 @@ print(ref.summary(deliverable="structure", report=report))               # §4b
 24. `report.abstained_reason` is unset and `report.attribution` attributes no remaining region above the significance gate; and
 25. the next parameter group fails its t-ratio or ΔBIC at N/f² (§4), or trips a guard.
 
-Whether Rwp is still falling decides neither way. These are the structure-grade conditions; §4b's last column gives the earlier stops for the other deliverables.
+Whether Rwp is still falling decides neither way. These are the structure-grade conditions; §4b's last column gives the other deliverables' stops.
 
 **Report** the refined values with their esds, the unresolved diagnostics as systematics, the protocol you ran (plan, held parameters, excluded ranges, channel count) and `result.provenance` (version, backend, solver). Write files with `rx.write_refinement_cif` and `rx.write_qpa_table`.
 
