@@ -62,10 +62,15 @@ class TopasConstraints:
 
 # ------------------------------------------------------------- magnetic part
 
-def _close(a, b, rel=1e-9) -> bool:
+def _close(a, b, rel=1e-9, floor=1.0) -> bool:
+    """Equal to within ``rel`` of the larger magnitude, which is at least
+    ``floor``. The default floor of 1 makes the test absolute below 1, right for
+    a coordinate or a cell length; a *scale* or a shared name needs ``floor=0``,
+    because a TOPAS scale of 1e-6 against one of 1.5e-6 is a 50 % disagreement
+    that a floor of 1 would call equal."""
     if a is None or b is None:
         return a is b
-    return abs(a - b) <= rel * max(1.0, abs(a), abs(b))
+    return abs(a - b) <= rel * max(floor, abs(a), abs(b))
 
 
 def _element(species: str) -> str:
@@ -89,7 +94,7 @@ def _check_part_equals_nuclear(nuclear, part, path) -> None:
             f"{a!r}), and the merged phase has one. Make the two agree, or read "
             f"`model.phases` for what each states.")
 
-    if not _close(nuclear.scale, part.scale):
+    if not _close(nuclear.scale, part.scale, floor=0.0):
         refuse("scale", nuclear.scale, part.scale)
     for key in sorted(set(nuclear.cell) | set(part.cell)):
         if not _close(nuclear.cell.get(key), part.cell.get(key)):
@@ -112,6 +117,39 @@ def _check_part_equals_nuclear(nuclear, part, path) -> None:
             refuse(f"species of site {m.label!r}", s.species, m.species)
 
 
+def magnetic_part_names(phases_in) -> set[str]:
+    """Names of the ``"<name> magnetic part"`` str's that
+    :func:`split_magnetic_parts` merges: the partner ``<name>`` is present and
+    every site of the part is ``mag_only`` and carries a moment. The one
+    predicate, so the reader's coverage and the merge cannot disagree."""
+    names = {ph.name for ph in phases_in}
+    return {ph.name for ph in phases_in
+            if ph.name.endswith(MAGNETIC_PART_SUFFIX) and ph.sites
+            and ph.name[: -len(MAGNETIC_PART_SUFFIX)] in names
+            and all(s.mag_only and s.moment is not None for s in ph.sites)}
+
+
+def lift_magnetic_parts(coverage, phases_in):
+    """``coverage`` with the ``mag_only`` of each mergeable magnetic part no
+    longer a refusal: the file states it in the one form this reader builds, so
+    ``read_topas_inp`` must not warn that ``to_structure`` refuses it. Any other
+    use (``mag_only_for_mag_sites``, a ``mag_only`` str that is no part, or one
+    the equality check then refuses) stays refused."""
+    parts = magnetic_part_names(phases_in)
+    if not parts:
+        return coverage
+    refused = []
+    for h in coverage.refused:
+        if (h.feature.name == "magnetic-only phase" and h.keywords == ("mag_only",)
+                and h.phases):
+            rest = tuple(p for p in h.phases if p not in parts)
+            if not rest:
+                continue
+            h = replace(h, phases=rest)
+        refused.append(h)
+    return replace(coverage, refused=tuple(refused))
+
+
 def split_magnetic_parts(phases_in, path="<model>"):
     """``(phases, parts)``: each ``"<name> magnetic part"`` str whose every site
     is ``mag_only`` and carries a moment, merged into ``<name>``.
@@ -127,15 +165,12 @@ def split_magnetic_parts(phases_in, path="<model>"):
     (:func:`_check_part_equals_nuclear`).
     """
     by_name = {ph.name: ph for ph in phases_in}
+    mergeable = magnetic_part_names(phases_in)
     parts = {}
     for ph in phases_in:
-        if not ph.name.endswith(MAGNETIC_PART_SUFFIX) or not ph.sites:
+        if ph.name not in mergeable:
             continue
         partner = ph.name[: -len(MAGNETIC_PART_SUFFIX)]
-        if partner not in by_name:
-            continue
-        if not all(s.mag_only and s.moment is not None for s in ph.sites):
-            continue
         _check_part_equals_nuclear(by_name[partner], ph, path)
         parts[partner] = ph
     if not parts:
@@ -286,21 +321,31 @@ def derive_ties(model, phases_in, structure) -> TopasConstraints:
     # A name stated at two values is two statements of one parameter: refused,
     # not chosen between (the root rulebook's "a row the format states two
     # ways"); a tie would otherwise move the later value onto the carrier's.
+    # The moment components are statements too: ``mlx mA 2`` and ``mlx mA 3`` are
+    # one name at two values. Compared relative to the larger value with no
+    # floor (a TOPAS scale of 1e-6 is real), at 1e-6: three decades looser than
+    # the merge's 1e-9 because a value is recovered through a division and an
+    # offset, and far tighter than the six or seven figures a .inp prints (sized
+    # against that print precision, not measured on a file).
     from .topas import TopasInpError
 
-    for st in stated:
+    seen: dict[str, tuple[float, str]] = {}
+    moment_stated = [st for _, comps in moments.values() for st in comps.values()]
+    for st in stated + moment_stated:
         if len(st.terms) != 1 or st.value is None:
             continue
         (name, c), = st.terms.items()
-        car = carrier.get(name)
-        if car is None or car is st or car.value is None:
+        if c == 0.0:
             continue
         v = (st.value - st.const) / c
-        v0 = (car.value - car.const) / car.terms[name]
-        if not _close(v, v0, 1e-6):
+        if name not in seen:
+            seen[name] = (v, st.path)
+            continue
+        v0, where0 = seen[name]
+        if not _close(v, v0, 1e-6, floor=0.0):
             raise TopasInpError(
                 f"{getattr(model, 'path', None) or '<model>'}: the name {name!r} "
-                f"is stated at two values, {v0!r} at {car.path} and {v!r} at "
+                f"is stated at two values, {v0!r} at {where0} and {v!r} at "
                 f"{st.path}. A shared name is one parameter, so the file states "
                 f"it two ways; reading either would choose for the caller. "
                 f"Make them agree, or read `model.phases` for what each site "
@@ -414,12 +459,13 @@ def apply_ties(refinement, constraints: TopasConstraints) -> list[str]:
 
     Returns the paths tied. Everything not applied is appended to
     ``constraints.skipped`` with its reason: a path with no row, one already
-    tied (a symmetry tie, say), one the table holds locked, a path
+    tied (a symmetry tie, say), one the table holds locked, one the
+    caller holds (never freed over a hold), a path
     ``set_vary`` declined, and a tie the table refuses.
     """
     rows = {r.path: r for r in refinement.parameters()}
 
-    def usable(path):
+    def usable(path, freeing=False):
         row = rows.get(path)
         if row is None:
             constraints.skipped.append(f"{path}: not applied, the model has no such parameter")
@@ -428,12 +474,19 @@ def apply_ties(refinement, constraints: TopasConstraints) -> list[str]:
                                        f"earlier tie)")
         elif row.locked:
             constraints.skipped.append(f"{path}: not applied, the parameter is locked")
+        elif freeing and row.held:
+            # `set_vary` raises on a literal held path, which would abort the
+            # call before any tie is declared: a hold is the caller's own
+            # declaration, so it is named and left standing.
+            constraints.skipped.append(f"{path}: not freed, the refinement holds it "
+                                       f"(`unhold` it first if the file's flag should win)")
         else:
             return True
         return False
 
     for vary in (True, False):
-        want = [p for p, v in constraints.free.items() if bool(v) is vary and usable(p)]
+        want = [p for p, v in constraints.free.items()
+                if bool(v) is vary and usable(p, freeing=vary)]
         if want:
             changed = set(refinement.set_vary(want, vary))
             for p in want:

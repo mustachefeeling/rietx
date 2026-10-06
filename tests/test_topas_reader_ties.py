@@ -241,7 +241,9 @@ def test_a_refusal_the_part_states_is_not_lifted_by_the_merge(tmp_path):
     with pytest.raises(topas.TopasInpError, match="scaled occupancy"):
         _read(tmp_path, _magnetic(scaled))
     with pytest.raises(topas.TopasInpError, match="mag_only"):
-        _read(tmp_path, _magnetic(PART.replace("mag_only\n", "mag_only_for_mag_sites\n", 1)))
+        # a part that *is* merged (every site `mag_only` and magnetic) and
+        # also states the other keyword: only the `mag_only` alone is lifted
+        _read(tmp_path, _magnetic(PART.replace("mag_only\n", "mag_only mag_only_for_mag_sites\n", 1)))
 
 
 def test_each_reserved_phase_term_read_is_reported(tmp_path):
@@ -249,3 +251,56 @@ def test_each_reserved_phase_term_read_is_reported(tmp_path):
     assert "p0_extinction" in codes["TOPAS_PHASE_TERM_READ"].message
     _, codes = _diags(tmp_path, "prm bQ 1.2\n" + NUCLEAR)
     assert "TOPAS_PHASE_TERM_READ" not in codes
+
+
+# ----------------------------------------------------------- round 2 of #771
+
+def test_apply_ties_names_a_held_path_instead_of_aborting(tmp_path):
+    s, cons = _read(tmp_path, "prm bQ 1.2\n" + NUCLEAR)
+    ref = rx.Refinement(s, rx.Instrument.constant_wavelength_neutron(2.4), history=False)
+    ref.hold("phases.0.atoms.0.biso")
+    n = len(cons.skipped)
+    tied = apply_ties(ref, cons)                       # raised ValueError before
+    said = " ".join(cons.skipped[n:])
+    assert "phases.0.atoms.0.biso" in said and "holds it" in said
+    assert "phases.0.atoms.1.biso" in tied             # the ties were still declared
+
+
+def test_a_moment_name_stated_at_two_values_is_refused(tmp_path):
+    two = (PART.replace("mly = 0.16666666666666666*m1;", "mly mA 3")
+               .replace("mly = -0.16666666666666666*m1;", "mly mA 4"))
+    with pytest.raises(topas.TopasInpError, match="two values"):
+        _read(tmp_path, _magnetic(two))
+    same = (PART.replace("mly = 0.16666666666666666*m1;", "mly mA 3")
+                .replace("mly = -0.16666666666666666*m1;", "mly mA 3"))
+    _read(tmp_path, _magnetic(same))                   # the agreeing arm still reads
+
+
+def test_a_small_scale_is_compared_relative_to_itself(tmp_path):
+    """TOPAS scales live near 1e-6; an absolute floor of 1 called 1e-6 and
+    1.5e-6 equal, for a shared name and for the merge's scale check."""
+    small = NUCLEAR.replace("beq bA 0.7\n  site A2", "beq bA 1e-6\n  site A2")
+    small = small.replace("occ Ba ! 1 beq bA 0.7\n  site A3", "occ Ba ! 1 beq bA 1.5e-6\n  site A3")
+    with pytest.raises(topas.TopasInpError, match="two values"):
+        _read(tmp_path, "prm bQ 1.2\n" + small)
+    base = _magnetic(PART).replace("scale s1 2.0", "scale s1 1e-6", 1)
+    with pytest.raises(topas.TopasInpError, match="scale"):
+        _read(tmp_path, base.replace("mag_space_group 1.1\n  scale s1 2.0",
+                                     "mag_space_group 1.1\n  scale s9 1.5e-6"))
+    _read(tmp_path, base.replace("mag_space_group 1.1\n  scale s1 2.0",
+                                 "mag_space_group 1.1\n  scale s1 1e-6"))
+
+
+def test_a_mergeable_part_is_not_warned_about_as_refused(tmp_path):
+    path = tmp_path / "t.inp"
+    path.write_text(_magnetic(PART), encoding="utf-8")
+    diags = []
+    model = topas.read_topas_inp(path, diagnostics=diags)
+    assert not model.coverage.refused
+    assert "TOPAS_FEATURE_REFUSED" not in {d.code for d in diags}
+    # the positive arms: any other use of the keyword is still refused, at read
+    path.write_text(_magnetic(PART.replace("mag_only\n", "mag_only_for_mag_sites\n", 1)),
+                    encoding="utf-8")
+    assert topas.read_topas_inp(path).coverage.refused
+    path.write_text(_magnetic(PART.replace(" mag_only\n", "\n", 1)), encoding="utf-8")
+    assert topas.read_topas_inp(path).coverage.refused

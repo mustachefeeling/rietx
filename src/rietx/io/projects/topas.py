@@ -3399,8 +3399,14 @@ def read_topas_inp(path: str | Path, *,
         covered.setdefault(m.group(1), set()).add(owner)
     # Set before the site-count guard's refusal has a chance to fire, so that on
     # every path where a model exists at all it carries its own coverage.
-    model.coverage = _coverage.classify(
-        covered, _unread_calls(_unquoted(active), stripped))
+    # A `"<name> magnetic part"` str of `mag_only` sites is the one form of
+    # `mag_only` this reader builds (`to_structure` merges it), so it is not
+    # among the refused: the same predicate the merge uses.
+    from .topas_ties import lift_magnetic_parts
+
+    model.coverage = lift_magnetic_parts(
+        _coverage.classify(covered, _unread_calls(_unquoted(active), stripped)),
+        model.phases)
 
     # A file-level count of `site` tokens, computed over THE masked text and so
     # independent of how the file was split into blocks (WP-1118). A splitter
@@ -4128,15 +4134,12 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
             f"scale and refine flags into a constant-wavelength model. Pass "
             f"dataset=N for a constant-wavelength dataset of this file, or "
             f"read `model.phases` for what the file states.")
-    # A merged part is still a phase this call builds from: every refusal its
-    # str states stays in force, and only the `mag_only` that *makes* it a
-    # magnetic part is lifted (and only where no other phase states it).
+    # A merged part is still a phase this call builds from, so every refusal
+    # its str states stays in force; the `mag_only` that *makes* it a part is
+    # not among them (`lift_magnetic_parts`, at read).
     building = {ph.name for ph in phases_in} | merged_part_names
     blocked = [h for h in model.coverage.refused
-               if (not h.phases or building.intersection(h.phases))
-               and not (h.feature.name == "magnetic-only phase"
-                        and set(h.keywords) == {"mag_only"}
-                        and h.phases and set(h.phases) <= merged_part_names)]
+               if not h.phases or building.intersection(h.phases)]
     if blocked:
         raise TopasInpError(
             f"{model.path or '<model>'}: "

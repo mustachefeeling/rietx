@@ -392,7 +392,7 @@ same-label sites. The merge is equal or refuse: the part's scale, cell, space
 group and each site's position, element and occupancy must equal `<name>`'s,
 every part site needs a site of that label in `<name>`, and
 `TOPAS_MAGNETIC_PART_MERGED` reports the merge. Every other refusal the part
-states stays in force. `write_topas_inp` does not write this form yet.
+states stays in force, and `read_topas_inp` does not list the merged `mag_only` among the refused. `write_topas_inp` does not write this form yet.
 (What comes back, below).
 
 `rx.write_topas_inp` writes a magnetic phase back in the same form. The `str`
@@ -934,7 +934,9 @@ magnetic widths and the extinction read from the names `p<i>_magnetic_lor_size`,
 `p<i>_magnetic_lor_strain` and `p<i>_extinction`. TOPAS has no keyword for them,
 and a file whose own parameter carries one of those names is read as the phase
 term, so each one read is reported as `TOPAS_PHASE_TERM_READ`. A shared name
-stated at two values is refused.
+stated at two values, a moment component's included, is refused (to 1e-6 of the
+larger value, so a scale of 1e-6 against 1.5e-6 is two values). `apply_ties`
+names a path the refinement holds in `constraints.skipped` and leaves it held.
 
 
 ### What each format states
