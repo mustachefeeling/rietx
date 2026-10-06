@@ -685,7 +685,10 @@ class OrderParameterDirection:
     ISOTROPY-style ``label`` — ``(a, 0, 0)``, ``(a, a, 0)``, ``(a, b, 0)`` — is
     that subspace written as a general vector, and is **gauge-dependent**
     (module docstring, convention 4).  ``stabilizer`` is the isotropy subgroup
-    as grey-little-group *elements*.
+    as grey-little-group *elements*.  ``conjugates`` is how many distinct
+    stabilisers are conjugate to this one in the grey little group — the
+    orientation domains within one arm of the star — which is not the domain
+    count (issue #608): see :meth:`CandidateSet.domain_counts`.
     """
 
     label: str
@@ -778,9 +781,14 @@ def isotropy_directions(space: OrderParameterSpace, *, limit: int = 512,
     With ``conjugacy`` (the default) directions related by an element of the
     grey little group are collapsed to one, and :attr:`OrderParameterDirection.
     conjugates` counts how many were: conjugate stabilisers are the same
-    structure in a different **domain**, so listing all of [100], [010] and
-    [001] as candidates would put three copies of one model in the table and
-    then discover that a powder cannot tell them apart.  Setting it False gives
+    structure in a different **orientation**, so listing all of [100], [010]
+    and [001] as candidates would put three copies of one model in the table
+    and then discover that a powder cannot tell them apart.  That count is
+    [G_k1′ : N(H)], the conjugate directions, and not the number of domains
+    [G_k1′ : H] (issue #608): 1′ normalises every H and is in no magnetic one,
+    so the time-reversed (180°) domain shares its direction's stabiliser and is
+    never counted here — the count is at most half the domains, and 1 for a
+    general direction.  :meth:`CandidateSet.domain_counts` gives the domains.  Setting it False gives
     every distinct stabiliser, which is what a domain census wants.
 
     For a one-dimensional irrep there is exactly one direction, whatever the
@@ -1439,9 +1447,10 @@ class PairVerdict:
 class CandidateSet:
     """Every candidate magnetic model for one (parent, site, k), and their classes.
 
-    ``__str__`` prints the classic table: irrep, direction, BNS number, magnetic
-    cell, free amplitudes, the amplitudes a powder can determine, absences and
-    the powder-equivalence class, marked **P** when every relation that
+    ``__str__`` prints the classic table: irrep, direction, BNS number, MSG
+    type, the domain counts of :meth:`domain_counts` (within one arm of the
+    star, and over all of them), free amplitudes, the amplitudes a powder can
+    determine, absences and the powder-equivalence class, marked **P** when every relation that
     bounds the class is proved and **S** when one of them is sampled, followed
     by every sampled pair with its draw counts.
 
@@ -1475,6 +1484,42 @@ class CandidateSet:
 
     def __getitem__(self, index):
         return self.candidates[index]
+
+    def domain_counts(self) -> tuple[tuple[int, int], ...]:
+        """Per candidate, the number of domains within one arm and over the whole star.
+
+        A domain is an image of the model under a parent operation its own group
+        H does not contain, time reversal included, so the domains within one
+        arm of the star of k are the cosets of H in the grey little group,
+        [G_k1′ : H] — the same cosets :func:`_domain_operations` builds for the
+        powder sums, counted here as an order ratio — and over the whole star
+        there are [G1′ : H] = [G1′ : G_k1′]·[G_k1′ : H], the first factor being
+        the number of arms (Izyumov, Naish & Ozerov, 1991).  Both are exact
+        integers.  Neither enters an intensity: a powder averages over the
+        domains already.
+
+        This is not :attr:`OrderParameterDirection.conjugates`, which counts
+        conjugate *directions* and leaves out the 180° (time-reversed) domain
+        (issue #608): for MnF₂ 136.499 it is 1 against 2 domains, for MnO 15.90
+        3 against 6 within one arm and 24 over the four arms.
+        """
+        if not self.candidates:
+            return ()
+        little = self.candidates[0].permutation.little
+        grey = _candidate_group(little, self.cell,
+                                tuple((i, eps) for i in range(little.order)
+                                      for eps in (1, -1)),
+                                ).order
+        arms = len(_irreps.star(self.space_group, self.k))
+        out = []
+        for candidate in self.candidates:
+            order = candidate.group.order
+            if grey % order:
+                raise RuntimeError(  # pragma: no cover - a subgroup always divides
+                    f"{candidate.label} has order {order}, which does not divide the "
+                    f"grey little group's {grey}; it is not a subgroup of it")
+            out.append((grey // order, grey // order * arms))
+        return tuple(out)
 
     def class_of(self, index: int) -> int | None:
         """Which powder-equivalence class a candidate is in, or None if not computed."""
@@ -1540,9 +1585,10 @@ class CandidateSet:
                  f"  ({self.cell.index} parent lattice coset(s), "
                  f"{'anti-translation' if self.cell.doubled else 'no anti-translation'})",
                  ""]
-        cols = ("irrep", "direction", "BNS", "type", "domains", "free",
-                "determinable", "absences", "class")
-        widths = [7, 14, 10, 5, 8, 5, 13, 9, 6]
+        cols = ("irrep", "direction", "BNS", "type", "domains/arm", "domains",
+                "free", "determinable", "absences", "class")
+        widths = [7, 14, 10, 5, 11, 8, 5, 13, 9, 6]
+        domains = self.domain_counts()
         lines.append("  ".join(name.ljust(w) for name, w in zip(cols, widths)))
         marks = [self._class_proved(c) for c in range(len(self.classes))]
         for i, candidate in enumerate(self.candidates):
@@ -1553,12 +1599,16 @@ class CandidateSet:
                    candidate.direction.label,
                    candidate.bns_number,
                    str(candidate.msg_type or "-"),
-                   str(candidate.direction.conjugates),
+                   str(domains[i][0]),
+                   str(domains[i][1]),
                    str(candidate.free_amplitudes),
                    "-" if not self.determinable else str(self.determinable[i]),
                    "-" if not self.absences else str(self.absences[i]),
                    "-" if klass is None else f"{klass}{mark}")
             lines.append("  ".join(str(v).ljust(w) for v, w in zip(row, widths)))
+        arms = len(_irreps.star(self.space_group, self.k))
+        lines.append(f"domains/arm: [G_k1' : H], the domains within one arm of the star "
+                     f"of k; domains: over all {arms} arm(s)")
         if self.relations:
             lines.extend(self._relation_lines())
         return "\n".join(lines)
