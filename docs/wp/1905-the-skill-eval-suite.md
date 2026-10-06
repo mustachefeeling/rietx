@@ -120,9 +120,10 @@ numbers. What a fresh session needs from it:
 - [x] The trigger set, tier 0, with its twenty prompts reviewed by the
       maintainer before any run — written 2026-10-04
       (`tests/eval_skill/cases/trigger/`), reviewed 2026-10-06 (two changed)
-- [ ] The first round: the current body on Haiku and Sonnet, N = 3, both
+- [x] The first round: the current body on Haiku and Sonnet, N = 3, both
       arms, costed menu first; numbers to this file's handover and to
-      WP-1906's `### Inherited`
+      WP-1906's `### Inherited` — run 2026-10-06 (rounds B-E, PROTOCOL
+      § Results, files in `docs/wp/1905-eval/round1/`)
 - [x] Tests, `tests/test_eval_skill.py`; the suite out of the wheel
 - [x] Skill: none — the suite measures the skill and adds no rule to it
 

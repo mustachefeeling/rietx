@@ -493,3 +493,32 @@ fap-judge                  without 3  1.00 1.00,1.00,1.00    3/3   0.120 0.038  
   Sonnet that role is not established.
 - **`fap-judge` is a ceiling on Sonnet again** (1.00 in both arms), as in the
   pilot.
+
+### Rounds D and E, 2026-10-06: tier 0, today's body, one arm, N = 3
+
+The same build, `--tag trigger --ablation none`, no `--scaffold`, no
+`--allow-tools`, `-j 1`. Haiku (D): $1.91, 14 min. Sonnet (E): $4.58, 11 min.
+
+| model | fire rate | quiet rate | misses |
+|---|---|---|---|
+| Haiku | 26/30 | 30/30 | `fire-judge-calibration` 2, `fire-caco3-fractions` 1, `fire-unknown-cell` 1 |
+| Sonnet | 30/30 | 27/30 | `quiet-cif-to-poscar` 3 |
+
+- **Haiku's four misses are the instrument's.** Tier 0 runs without fixtures,
+  so each of those prompts names a file the workspace lacks. In every miss the
+  agent looked for the file first, found nothing, and asked for it before any
+  fit, so the skill never loaded. The description asks for the skill before
+  the first `fit()`, and no fit was reached. The next tier-0 round should
+  scaffold an empty file per name the prompt gives, or word the prompts
+  without one. That is an amendment, made before that round runs.
+- **Sonnet's three misses are a real over-trigger.** It loads the skill to
+  convert a CIF to POSCAR in every run. The description invites it: "Read it
+  too before drawing a crystal structure from a CIF". That is evidence for
+  WP-1906's description rewrite.
+- **Sonnet opened the reference each task shape names** (`series.md`,
+  `batch.md`, `diagnostics-indexing.md`, `api-figure.md` and the rest).
+  Haiku opened none in four turns.
+- **"Of 30" counts every run.** 10 Haiku and 8 Sonnet runs ended at the
+  4-turn cap, and one Haiku run at the 180 s timeout. None of them is
+  void, because the grader reads the trace up to the stop, and each one
+  except one Haiku miss had fired or stayed quiet as its role asks.
