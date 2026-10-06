@@ -1208,9 +1208,18 @@ def write_structure_block(block, phase: Phase, *,
     # ordered structure is byte-identical to what this writer wrote before
     disorder = [k for k in ("disorder_assembly", "disorder_group")
                 if any(getattr(a, k) is not None for a in phase.atoms)]
+    # WP-1810: a phase with a rigid body states which coordinates the body
+    # placed — cif_core's _atom_site_refinement_flags_posn ``G`` (rigid group)
+    # or ``R`` (riding), and _atom_site_calc_flag ``calc`` for a riding H —
+    # and only such a phase writes the columns, so every other file is
+    # byte-identical to what this writer wrote before
+    bodies = getattr(phase, "rigid_bodies", [])
+    group = {lab for b in bodies for lab in b.atoms}
+    riding = {lab for b in bodies for lab in b.riding}
+    flags = ["refinement_flags_posn", "calc_flag"] if bodies else []
     loop = block.init_loop("_atom_site_", [
         "label", "type_symbol", "fract_x", "fract_y", "fract_z",
-        "occupancy", "B_iso_or_equiv", "adp_type", *disorder,
+        "occupancy", "B_iso_or_equiv", "adp_type", *disorder, *flags,
     ])
     for a in phase.atoms:
         if a.aniso is None:
@@ -1224,6 +1233,8 @@ def write_structure_block(block, phase: Phase, *,
             _fmt(a.occ, 4), b_eq, kind,
             *("." if getattr(a, k) is None else gemmi.cif.quote(getattr(a, k))
               for k in disorder),
+            *(([("R" if a.label in riding else "G") if a.label in group else ".",
+                "calc" if a.label in riding else "d"]) if flags else []),
         ])
     aniso = [a for a in phase.atoms if a.aniso is not None]
     if aniso:
