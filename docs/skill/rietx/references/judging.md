@@ -63,6 +63,10 @@ than a statement about constraint.
 `_geom_contact_*` and `_geom_angle_*` loops, with the symmetry codes resolvable
 against the `_space_group_symop_operation_xyz` loop it writes beside them.
 
+## Step 12 — a rigid body's shape: `RIGID_BODY_MISFIT`
+
+A body that refines to a good pose can still be the wrong molecule, and nothing in a normal fit names it: a synthetic body with one bond 0.3 Å long converged at GOF 2.33 against 1.01 and raised no code. Before quoting a body's geometry or calling a solve solved, run `rietx.report.body_misfit.rigid_body_misfit(ref, data)` once (two short trial fits per body). `RIGID_BODY_MISFIT` (warning) means the restrained free atoms beat the body by both Hamilton (p < 0.001) and ΔBIC > 10 at N/f²; the message names the template bonds and angles the data moved most, in restraint σ. Fix the template, never the threshold.
+
 ## §2 rules 4-5 — the two Le Bail measurements
 
 **Alternate under a cap, and keep the best pass.** On PbSO4 pass 1 ends at Rwp 20.756 % with an unphysical Caglioti **V = +0.0615**; passes 2-4 reach 10.247 % with the curve sane. On Tb2BaCoO5 a later pass rose, 17.3 % → 18.7 %. `plan.lebail_passes` stops at the first pass that does not lower Rwp and keeps the best. `LEBAIL_ALTERNATION_STOPPED` names the stop; `non_monotone` or a cap hit is no fixed point. Rwp % per pass (Measured: 11-BM LaB6+cBN, `profile_only`): exact cells 16.821, 16.907, pass 1 kept; 0.3 % off, a fixed point at 16.967; 2 % off, 230, 207, 175, 195, pass 3 kept.
