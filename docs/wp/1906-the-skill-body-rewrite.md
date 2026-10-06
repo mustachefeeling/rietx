@@ -74,7 +74,7 @@ restates what decides the design.
   measurement of the direction, not the rewrite: it is in
   `docs/wp/1904-eval/SKILL.compressed.txt` to be read, not copied.
 
-### Inherited
+### Measured inputs (folded from Inherited on arrival, 2026-10-06)
 
 - **From WP-1904 (2026-10-04), the prototype's numbers.** The prototype
   body (`docs/wp/1904-eval/SKILL.compressed.txt`) is 16 401 B and 5 297
