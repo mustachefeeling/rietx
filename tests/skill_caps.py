@@ -136,7 +136,7 @@ REFERENCE_BUDGET_BYTES = REFERENCE_MAX_BYTES - REFERENCE_GAP_BYTES
 #: for that call rather than made for it): `Phase.rigid_bodies` (37 B) and
 #: `ParameterRow.body` (21 B) here, and the two one-sided restraint kinds in
 #: `Phase.restraints`' union one chunk later (WP-1809, 38 B), took the file to
-#: 39 82x B with nothing in it that can be cut.  100 B under the truncation.
+#: 39 782 B with nothing in it that can be cut.  100 B under the truncation.
 API_INDEX_MAX_BYTES = 39_900
 
 
