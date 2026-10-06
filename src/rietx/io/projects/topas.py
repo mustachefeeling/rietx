@@ -4754,7 +4754,8 @@ def from_structure(structure: Structure, *,
     ``RefinementResult`` or a list of paths, which carry no ties. ``scale=
     "topas"`` writes the scale in TOPAS's convention (× 100 for neutrons, × K for
     X-rays, :func:`~.topas_refined.topas_scale_factor`) and needs
-    ``instrument=``, which names the radiation; ``"rietx"`` writes rietx's. The
+    ``instrument=``, which names the radiation; ``"rietx"`` writes rietx's. Without
+    ``free=`` the stored ``Parameter.vary`` flags are the free set. The
     file's header says which. ``names=`` a dict to collect ``{TOPAS name: (path,
     a, b)}``, the named value being ``a·path + b``. Without ``free``, ``scale``
     and ``instrument`` nothing below changes. ``p1_expand=True`` cannot be
@@ -5067,8 +5068,8 @@ def _moment_tail(moment, cell, allowed=(True, True, True)) -> str:
 
 def write_topas_inp(structure: Structure, path: str | Path, *,
                     diagnostics: list[Diagnostic] | None = None,
-                    p1_expand: bool = False, free=None,
-                    scale: str | None = None, instrument=None) -> None:
+                    p1_expand: bool = False, free=None, scale=None,
+                    instrument=None) -> None:
     """Write ``structure`` as a TOPAS ``.inp``. See
     :func:`from_structure` for exactly what carries and what does not, and
     for ``p1_expand``, ``free``, ``scale`` and ``instrument``."""

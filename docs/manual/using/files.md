@@ -775,12 +775,16 @@ as its own parameter and the header says so.
 `scale="topas"` writes the scale in TOPAS's convention and says so in the
 header: rietx's × 100 for constant-wavelength neutrons (TOPAS states |F|² in
 barn, rietx in fm²) and × K for X-rays (TOPAS's `LP_Factor` is rietx's Lp
-divided by the polarisation constant K). Both constants were measured against
-TOPAS 6 output, and `tests/data/topas_export_nacl_neutron_ycalc.txt` is the
-one a test holds rietx to. It needs `instrument=`, which says which radiation
-it is. `scale="rietx"` writes rietx's own number and says that it is not
-TOPAS's. Without `free=`, `scale=` and `instrument=` the writer writes exactly
-what it wrote before: each `Parameter.vary` as `@`/`!` and rietx's scale.
+divided by the polarisation constant K). The neutron constant was measured
+against TOPAS 6 output, and `tests/data/topas_export_nacl_neutron_ycalc.txt` is
+what a test holds rietx to. The X-ray one is the Technical Reference's
+definition, with no TOPAS output in the tree to hold it yet. It needs
+`instrument=`, which says which radiation it is. `scale="rietx"` writes rietx's own number and says that it is not
+TOPAS's. Without `free=`, the file states each `Parameter.vary` as stored (a
+moment's modulus is free when any component's flag is), whether or not `scale=`
+or `instrument=` is given; with none of the three the writer writes exactly what
+it wrote before. A `RefinementResult` lists a tied copy beside the free
+parameters, so each copy is written as its own refined parameter.
 
 All three write space groups from `get_spacegroup(...).xhm()`, never a
 phase's own stored spelling, so a setting this build already resolved is not

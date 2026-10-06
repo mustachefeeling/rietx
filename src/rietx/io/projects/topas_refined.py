@@ -32,14 +32,17 @@ copy of a tied value would refine as its own parameter (#721 item 3).
   bounds (§ 2.10, Table 2-1).
 
 **The scale.** rietx's scale multiplies M·|F|²·Lp per cell; TOPAS's multiplies
-its own ``I_no_scale_pks`` and its ``LP_Factor``. Both constants were measured
-against TOPAS 6 output (black box; no TOPAS code read): for neutrons TOPAS's
-|F|² is in barn, rietx's in fm², so a TOPAS intensity at the same scale is
-0.01 × rietx's (``I_no_scale_pks`` = 0.01 × rietx M·|F|² for fifteen species
-and isotopes, to 2e-16); for X-rays ``LP_Factor(c)`` is rietx's
-Lp = (K + (1 − K) cos² 2θ)/(sin² θ cos θ) divided by K, with cos² c = (1 − K)/K
-(to 5e-8). So TOPAS's scale is rietx's × 100 for neutrons and × K for X-rays
-(:func:`topas_scale_factor`).
+its own ``I_no_scale_pks`` and its ``LP_Factor``. For neutrons TOPAS's |F|² is
+in barn, rietx's in fm², so a TOPAS intensity at the same scale is 0.01 × rietx's
+(measured against TOPAS 6 output as a black box, no TOPAS code read:
+``I_no_scale_pks`` = 0.01 × rietx M·|F|² for fifteen species and isotopes, to
+2e-16, and ``tests/data/topas_export_nacl_neutron_ycalc.txt`` holds the constant
+in a test). For X-rays ``LP_Factor(c)`` is, **by the Technical Reference's
+definition and not yet held by an output in this tree**, rietx's
+Lp = (K + (1 − K) cos² 2θ)/(sin² θ cos θ) divided by K, with cos² c = (1 − K)/K.
+So TOPAS's scale is rietx's × 100 for neutrons and × K for X-rays
+(:func:`topas_scale_factor`); the X-ray constant needs an oracle file like the
+neutron one before it can be called measured.
 """
 
 from __future__ import annotations
@@ -58,7 +61,8 @@ def topas_scale_factor(instrument) -> float:
     """TOPAS's ``scale`` over rietx's ``Phase.scale`` for ``instrument``'s source.
 
     Neutron (constant wavelength): 100. X-ray: the polarisation constant K,
-    because TOPAS's ``LP_Factor`` is rietx's Lp divided by K. Refused for a
+    because TOPAS's ``LP_Factor`` is rietx's Lp divided by K (the Technical
+    Reference's definition; no output in this tree holds it). Refused for a
     source this convention has not been measured for (time of flight).
     """
     source = instrument.source
@@ -115,9 +119,11 @@ def _rows_from(free: Any) -> tuple[dict[str, _Row] | None, set[str] | None, bool
     parameters = getattr(free, "parameters", None)
     if callable(parameters):          # a Refinement: the whole table, ties included
         free = parameters()
-    elif parameters is not None:      # a RefinementResult: the free set, no ties
-        return None, {p.path for p in parameters
-                      if getattr(p, "vary", True)}, False
+    elif parameters is not None:      # a RefinementResult: free set and tied copies
+        # A result lists a row iff it varied *or was tied* (RefinedParameter), so
+        # a ``vary=False`` row is a tied copy. Its equation is not in the result,
+        # so each copy is written as its own refined parameter.
+        return None, {p.path for p in parameters}, False
     items = list(free)
     if items and isinstance(items[0], str):
         return None, set(items), False
@@ -129,6 +135,35 @@ def _rows_from(free: Any) -> tuple[dict[str, _Row] | None, set[str] | None, bool
         hi = math.inf if r.hi is None else float(r.hi)
         rows[r.path] = _Row(float(r.value), bool(r.vary) and tie is None, tie, lo, hi)
     return rows, None, True
+
+
+def stored_free_paths(structure) -> set[str]:
+    """The paths whose own stored ``Parameter.vary`` is set: what the writer
+    states when ``free=`` is not given. A moment's modulus (``moment.dof0``) is
+    free when any component's flag is; its angles are not."""
+    free: set[str] = set()
+
+    def note(path: str, param) -> None:
+        if param is not None and param.vary:
+            free.add(path)
+
+    for ip, phase in enumerate(structure.phases):
+        note(f"phases.{ip}.scale", phase.scale)
+        for attr in ("a", "b", "c", "alpha", "beta", "gamma"):
+            note(f"phases.{ip}.cell.{attr}", getattr(phase.cell, attr))
+        for ia, atom in enumerate(phase.atoms):
+            for key in ("x", "y", "z", "occ", "biso"):
+                note(f"phases.{ip}.atoms.{ia}.{key}", getattr(atom, key))
+            if atom.aniso is not None:
+                for key in ("u11", "u22", "u33", "u12", "u13", "u23"):
+                    note(f"phases.{ip}.atoms.{ia}.{key}",
+                         getattr(atom.aniso, key))
+            if atom.moment is not None and any(
+                    q.vary for q in (atom.moment.crystalaxis_x,
+                                     atom.moment.crystalaxis_y,
+                                     atom.moment.crystalaxis_z)):
+                free.add(f"phases.{ip}.atoms.{ia}.moment.dof0")
+    return free
 
 
 _NAME_CHARS = re.compile(r"[^A-Za-z0-9_]")
@@ -149,6 +184,8 @@ class RefinedSet:
     def __init__(self, free: Any, structure=None):
         self.rows, self.free_paths, self.has_ties = _rows_from(free)
         self.structure = structure
+        #: True when the free set is the structure's own stored flags (no ``free=``)
+        self.from_stored_flags = False
         self._names: dict[str, str] = {}
         self._taken: set[str] = set()
         self._seen: dict[str, float] = {}

@@ -134,6 +134,10 @@ def test_the_scale_is_written_in_topas_units_and_says_so():
 
 
 def test_the_scale_constants():
+    """Restates the implementation's formula, so it **cannot fail** and holds
+    nothing: the neutron × 100 is held by the fixture test below, and the X-ray
+    × K has no oracle in this tree (taken from the Technical Reference's
+    ``LP_Factor`` definition; see ``topas_refined``'s docstring)."""
     assert topas_scale_factor(rx.Instrument.constant_wavelength_neutron(2.0)) == 100.0
     xray = rx.Instrument.bragg_brentano(radiation="CuKa")
     assert topas_scale_factor(xray) == pytest.approx(xray.source.polarization.value)
@@ -171,3 +175,128 @@ def test_the_name_of_a_path():
 def test_affine_arithmetic():
     a = Affine({"p": 1.0}, 0.5) * 2.0 + Affine({"p": -2.0, "q": 1.0}, 1.0)
     assert a.terms == {"q": 1.0} and a.const == 2.0
+
+
+# ---------------------------------------------------------------- review of #770
+
+def _stored_flags_phase():
+    """The phase as an input file leaves it: the stored flags are the free set."""
+    phase = _pnma()
+    phase.cell.a.vary = True
+    phase.atoms[0].x.vary = True
+    phase.atoms[1].biso.vary = True
+    phase.scale.vary = True
+    return rx.Structure(phases=[phase])
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"scale": "topas", "instrument": rx.Instrument.constant_wavelength_neutron(2.4)},
+    {"scale": "rietx"},
+    {"instrument": rx.Instrument.constant_wavelength_neutron(2.4)},
+], ids=["topas", "rietx", "instrument"])
+def test_scale_or_instrument_without_free_keeps_the_stored_flags(kwargs):
+    """Review item 1: ``scale=``/``instrument=`` alone took the new path with an
+    empty free set and wrote every parameter ``!``, against ``files.md``'s
+    'each ``Parameter.vary`` as ``@``/``!``'."""
+    text = from_structure(_stored_flags_phase(), **kwargs)
+    assert re.search(r"\ba p0_cell_a 10\.0\b", text)
+    assert re.search(r"\bx A1_x 0\.17\b", text)
+    assert re.search(r"beq B1_biso 0\.7", text)
+    assert re.search(r"scale p0_scale ", text)
+    assert "b ! 6.0" in text and "y ! 0.02" in text      # held stays held
+    assert "free set: each Parameter.vary as stored" in text
+
+
+def test_a_result_keeps_its_tied_copies_free():
+    """Review item 2: a result lists a row iff it varied *or was tied*, so a
+    ``vary=False`` row is a tied copy, which the note says 'refines as its own
+    parameter'."""
+    from rietx.schemas.results import RefinedParameter
+
+    class _Result:
+        parameters = [
+            RefinedParameter(path="phases.0.atoms.1.biso", value=0.7),
+            RefinedParameter(path="phases.0.atoms.2.biso", value=0.7, vary=False)]
+
+    text = from_structure(_stored_flags_phase(), free=_Result())
+    assert "beq B1_biso 0.7" in _site(text, "B1")
+    assert re.search(r"beq B2_biso 0\.7", _site(text, "B2"))
+    assert "refines as its own parameter" in text
+
+
+def _read_back(structure, tmp_path, **kwargs):
+    from rietx.io.projects.topas import read_topas_inp, to_structure
+
+    out = tmp_path / "refined.inp"
+    out.write_text(from_structure(structure, **kwargs), encoding="utf-8")
+    return to_structure(read_topas_inp(out)).phases[0]
+
+
+def test_the_refined_file_is_read_back_by_this_packages_own_reader(tmp_path):
+    """Review item 3: export, re-import, compare field by field. The name-as-flag
+    grammar reads back as a refined value, an equation as a held one carrying the
+    equation's value, and bounds on the cell travel."""
+    ref = _ref()
+    ref.tie_equal(["phases.0.atoms.1.biso", "phases.0.atoms.2.biso"])
+    ref.tie("phases.0.atoms.0.biso", "phases.0.atoms.1.biso", scale=2.0, offset=-0.7)
+    want = ref.fitted_structure.phases[0]
+    got = _read_back(ref.fitted_structure, tmp_path, free=ref, scale="rietx")
+    for w, g in zip(want.atoms, got.atoms):
+        assert g.label == w.label
+        for key in ("x", "y", "z", "biso"):
+            assert getattr(g, key).value == pytest.approx(getattr(w, key).value, abs=1e-12)
+    # the general site refines x, y, z; the mirror sites hold y
+    assert [getattr(got.atoms[0], k).vary for k in "xyz"] == [True, True, True]
+    for atom in got.atoms[1:]:
+        assert [getattr(atom, k).vary for k in "xyz"] == [True, False, True]
+    assert got.atoms[0].biso.vary is False                # an equation, not a parameter
+    assert got.atoms[1].biso.vary and got.atoms[2].biso.vary
+    for key in ("a", "b", "c"):
+        assert getattr(got.cell, key).value == pytest.approx(getattr(want.cell, key).value)
+    assert got.scale.value == pytest.approx(want.scale.value)
+
+
+def _moment_ref(vary: bool):
+    from tests.test_projects_topas import _magnetic_phase
+
+    phase = _magnetic_phase("oblique", vary=vary)
+    ref = rx.Refinement(rx.Structure(phases=[phase]),
+                        rx.Instrument.constant_wavelength_neutron(2.4), history=False)
+    return ref, phase
+
+
+def test_a_held_moment_is_read_back(tmp_path):
+    ref, phase = _moment_ref(vary=False)
+    got = _read_back(ref.fitted_structure, tmp_path, free=ref).atoms[0].moment
+    assert got.values() == pytest.approx(phase.atoms[0].moment.values(), rel=1e-12)
+    assert not got.crystalaxis_x.vary
+
+
+def test_a_free_moment_is_written_as_the_equation_the_site_symmetry_gives():
+    """The moment branches (``_moment_component_items``, ``Expr``) evaluated, not
+    only written: the declared ``prm`` values put into the written ``mlx``/
+    ``mly``/``mlz`` equations give the moment back in TOPAS's fractional basis
+    (μ_B over the edge)."""
+    import math
+
+    ref, phase = _moment_ref(vary=True)
+    text = from_structure(ref.fitted_structure, free=ref)
+    names = {m[1]: float(m[2]) for m in re.finditer(r"^prm (\S+) (\S+)", text, re.M)}
+    assert len(names) == 3                                   # modulus and two angles
+    site = _site(text, "Fe1")
+    cell = phase.cell
+    edges = (cell.a.value, cell.b.value, cell.c.value)
+    env = {"Sin": math.sin, "Cos": math.cos, **names}
+    for key, edge, want in zip(("mlx", "mly", "mlz"), edges,
+                               phase.atoms[0].moment.values()):
+        expr = re.search(rf"\b{key} = (.*?);", site).group(1)
+        assert eval(expr, {"__builtins__": {}}, env) * edge == pytest.approx(want, rel=1e-9)
+
+
+@pytest.mark.xfail(strict=True, reason="this package's reader does not yet read an "
+                   "equation for `mlx` (#771): the round trip lands with whichever "
+                   "of #770 and #771 merges second")
+def test_a_free_moment_is_read_back(tmp_path):
+    ref, phase = _moment_ref(vary=True)
+    got = _read_back(ref.fitted_structure, tmp_path, free=ref).atoms[0].moment
+    assert got.values() == pytest.approx(phase.atoms[0].moment.values(), rel=1e-9)

@@ -28,6 +28,7 @@ from .topas_refined import (
     Slot,
     number,
     render_slots,
+    stored_free_paths,
     topas_scale_factor,
 )
 
@@ -187,7 +188,9 @@ def refined_text(structure, *, refined: RefinedSet, scale: str, instrument,
     else:
         notes.append("scale: rietx's own Phase.scale, NOT TOPAS's convention "
                      "(TOPAS's is x100 for neutrons, xK for X-rays)")
-    if refined.rows is None and refined.free_paths is not None:
+    if refined.from_stored_flags:
+        notes.append("free set: each Parameter.vary as stored (no free= given)")
+    elif refined.rows is None and refined.free_paths is not None:
         notes.append("free set given without ties: a tied copy refines as its own "
                      "parameter (pass the Refinement to free= for the ties)")
     body: list = []
@@ -234,7 +237,9 @@ def from_structure_refined(structure, *, free: Any = None, scale: str | None = N
                     f"phase {phase.name!r}: atom label {atom.label!r} / species "
                     f"{atom.species!r} carries whitespace or a single quote, which a "
                     f"`site` line cannot carry")
-    refined = RefinedSet(free, structure)
+    stored = free is None
+    refined = RefinedSet(stored_free_paths(structure) if stored else free, structure)
+    refined.from_stored_flags = stored
 
     def species_of(atom, with_moment):
         # a magnetic site keeps its ion, as the legacy writer does
