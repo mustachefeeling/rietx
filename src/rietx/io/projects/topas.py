@@ -4725,10 +4725,11 @@ def _stephens_lambda_expr(block, spell) -> str | None:
     Measured against TOPAS-64 v6 at zero cycles on a synthetic tetragonal
     case (``tests/data/topas_export_stephens_str_lor_fwhm_ycalc.txt``):
     2.0e-3 of the strongest peak from rietx's pattern, against 5.8e-4 where
-    the same Λ is folded into a TCH profile's widths. The difference is the
-    TCH approximation's, not this line's: a pseudo-Voigt convolved with a
-    Lorentzian is broader at the top than the TCH pseudo-Voigt of the summed
-    widths, and Lorentzian FWHMs add exactly under convolution.
+    the same Λ is folded into a TCH profile's widths. Neither form is the
+    exact Voigt: TOPAS's analytic convolution onto a PV peak type is its own
+    pseudo-Voigt approximation (Technical Reference § 5.6), as rietx's TCH
+    blend is, and the two approximations differ at the peak top by that
+    2e-3.
     """
     from ...crystallography.stephens import S_EXPONENTS
 
