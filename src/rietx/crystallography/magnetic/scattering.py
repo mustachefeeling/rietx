@@ -511,7 +511,7 @@ def magnetic_reflections(sg_symbol,
     mask = np.array([tuple(map(int, h)) not in keep for h in everything.hkl],
                     dtype=bool)
     if magnetic_group is None:
-        centrings = applied_centrings(as_group(sg_symbol), None)
+        centrings = applied_centrings(as_group(sg_symbol))
         if len(centrings) and len(everything):
             # h·t for every centring t, in 1/DEN units: integral iff divisible
             phase = everything.hkl.astype(np.int64) @ centrings.T
@@ -557,28 +557,17 @@ def lattice_allows_orbit(hkl, group, magnetic_group) -> np.ndarray:
     return np.any(np.all(phase == want, axis=2), axis=1)
 
 
-def applied_centrings(group, magnetic_group=None) -> np.ndarray:
-    """``(n, 3)`` int — the parent's non-trivial centrings a magnetic row must obey.
+def applied_centrings(group) -> np.ndarray:
+    """``(n, 3)`` int — the parent's non-trivial centrings a nuclear-lattice row must obey.
 
-    In gemmi's 1/``Op.DEN`` units.  Every centring translation of ``group``
-    except the identity and except any the magnetic group carries as an
-    **anti**-centring (time reversal −1): under that one the magnetic
-    structure factor changes sign on translation, so the condition it imposes
-    is h·t ∈ ℤ + ½ rather than h·t ∈ ℤ, and the rows the nuclear centring
-    forbids are exactly the magnetic ones — the black-white lattices of the
-    type-IV groups (Litvin, 2013, *Magnetic Group Tables*, IUCr, § 1.3 on the
-    BNS lattice types).
+    In gemmi's 1/``Op.DEN`` units: every centring translation of ``group``
+    except the identity.  A magnetic group's own lattice, primed or
+    anti-centred, is not read here; :func:`lattice_allows_orbit` applies it.
     """
     den = gemmi.Op.DEN
-    anti = set()
-    if magnetic_group is not None:
-        for op in magnetic_group.centerings:
-            if op.time_reversal == -1:
-                anti.add(tuple(int(round(float(c) * den)) % den
-                               for c in op.translation))
     kept = [tuple(int(c) % den for c in t)
             for t in group.operations().cen_ops]
-    kept = [t for t in kept if any(t) and t not in anti]
+    kept = [t for t in kept if any(t)]
     return np.array(kept, dtype=np.int64).reshape(-1, 3)
 
 
