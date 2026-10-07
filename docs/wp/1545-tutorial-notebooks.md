@@ -119,7 +119,7 @@ and what the difference curve shows; QPA.
 - [x] 05 Sequential fits.
 - [ ] The designed views WP-1544 deferred, built only where a notebook needs
   one (`FitReport`, `ExtinctionScreen`).
-- [ ] `docs/RELEASING.md` step and the root CLAUDE.md sentence.
+- [x] `docs/RELEASING.md` step and the root CLAUDE.md sentence.
 - [ ] Skill: a pointer to the tutorials in `references/`, or "none" and why.
 
 ## Acceptance

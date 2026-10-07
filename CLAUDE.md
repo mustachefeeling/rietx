@@ -863,7 +863,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   Sphinx never rendered and a guard walking it must exclude them, not widen itself.
 - **A walkthrough has one authority, and it is `examples/`.** The manual `{literalinclude}`s those
   scripts and `tests/test_examples.py` runs them, so a worked example is code that ran. Never write
-  a third copy.
+  a third copy. The tutorial notebooks are a generated projection of `examples/tutorials/NN_*.py`
+  (`build.py` there; edit the script, never the `.ipynb`), executed by `tests/test_tutorials.py`.
 
 ## Roadmap & how to work on it
 
