@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: Render what the fit already knows
 Depends on: 1544 (readable objects in a notebook)
-Priority: P3 2026-10-07 — the manual and `examples/` cover each task; this is the teaching path for people who will drive rietx through an agent
+Priority: P2 2026-10-07 — was P3: 1544, its one blocker, closed; the teaching path for people who will drive rietx through an agent
 
 ## Goal
 

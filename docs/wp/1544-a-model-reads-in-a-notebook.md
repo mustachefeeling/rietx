@@ -1,9 +1,8 @@
 # WP-1544 — a model reads in a notebook
 
-Milestone: unscheduled · Status: 🔄 2026-10-07 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-07 — objects print as trees and views, figures show in a notebook, pre-fit ticks (PR #810)
 Track: Render what the fit already knows
 Depends on: —
-Priority: P2 2026-10-07 — a named user's demo notebook prints megabyte one-liners, and WP-1545's tutorials wait on this
 
 ## Goal
 
@@ -188,6 +187,81 @@ call's image exactly once in both import orders.
 - Pydantic v2 `BaseModel.__repr_args__`.
 
 ## Handover log
+
+### 2026-10-07 — closed: objects print readably, and figures show in a notebook
+
+A rietx object can now be printed or shown in a notebook cell and read. A
+pattern used to print every channel, a result most of a megabyte, and a model
+one long line. Now each prints as a short tree or a designed view, and the
+same text reaches a terminal, a log and an agent's transcript. The larger find
+was in plotting. Measured in a real kernel, no rietx figure had ever shown an
+image in Jupyter, and the first plot call disabled matplotlib for the rest of
+the session. That is fixed and pinned by a test that runs a kernel.
+`data.plot(model=ref)` now draws a model's reflection ticks before any fit.
+That gives the tutorials (WP-1545) a "does my cell match my data" step.
+
+**Done** (commits `26e43f27` … `4ab33fdb` on `wp1544-notebook-display`):
+- `Base.__repr_args__` elides any long sequence. `Base.__str__` is a field
+  tree. `Base._repr_pretty_` hands `str` to IPython.
+- Designed `__str__` views for `PatternData`, `PatternDiagnostics` (stated
+  reading order, `_READING_ORDER`), `IndexingResult` (the CLI printer moved
+  here), `ParameterRow`, `Refinement`, `RefinementTree`. `StructureFigure` got
+  `_repr_png_` and a short repr.
+- HTML tables for the result's parameters, `Refinement`'s varying rows and
+  `IndexingResult`'s candidates (`_display.py`, private).
+- `viz.plots._pyplot`: Agg is forced except in a Jupyter kernel.
+  `_handed_back` detaches a returned figure from pyplot on the inline backend.
+- `plot_pattern(..., model=)`, using `stage_ticks` on a model compiled as
+  `predict` compiles.
+- Docs: `results.md` gets a notebook section and a corrected `diagnose`
+  table. `data.md` documents `model=`. The 1.7.0 notes are staged, and root
+  CLAUDE.md has one bullet.
+- A `notebooks` extra (`ipykernel`, `nbclient`, `nbformat`) is in `[dev]`.
+
+**Measured** (macOS arm64, `[dev,notebooks]` venv; ipykernel 7.4.0, IPython
+9.17.1, matplotlib 3.11.2). Text/plain sizes in a kernel, before → after: `data`
+79 607 → 191; `instrument` 2 988 → 748; `structure` 6 781 → 1 117; `diagnose`
+500 → 448; `result` 495 796 → 2 497 (plus 6 015 of HTML); `ref.parameters()`
+19 473 → 3 484. Figures per cell after the fix: a bare plot 1 (was 0 before
+the fix, 2 when Agg was simply dropped); `;` 0; `fig = …` 0; a later
+`plt.show()` 1, with the backend still inline. A rietx figure at `dpi=300`
+embeds a 259 kB PNG. `IndexingResult.__str__` equals the old CLI printer byte
+for byte on a validated and an unvalidated silicon search. Fast suite
+`-m "not slow"`: 8594 passed, 167 skipped, 1 failed. passed+skipped+failed is
+8762, +25 on `origin/main`, all of them `tests/test_display.py`. Another
+pytest process was running, so its wall time is not quoted. The added tests
+cost 4.29 s over 25 cases on that run. The tail is the kernel test at 3.19 s,
+and it stays in the fast tier: it is the only guard of the notebook plotting
+bug, and per-push execution is its value. No full suite was run, because
+nothing here moves a measured number.
+
+**Review** (`/code-review high --fix`): 10 findings, 6 acted on.
+- Five were fixed by the pass: a dict of model lists printed `None`; a nested
+  label doubled its colon; a nested designed view was bypassed; the vary count
+  included held and mode-fixed rows; `plot_indexing`'s figures were never drawn
+  in a notebook.
+- One was a skip I reversed: leaving any resolved backend alone stopped
+  forcing Agg in a script whose matplotlibrc names a GUI backend. Agg is now
+  forced everywhere but a kernel.
+- Declined: `_model_ticks` keys by phase name, and a magnetic phase gets one
+  row where `result.ticks` splits it. Both copy what `refine._build_result`
+  does, so the class fix belongs there. Also declined: `Refinement`'s table is
+  built twice per displayed cell (3.1 ms on FAP; a cache would go stale on
+  `set_values`), and `IndexingResult`'s HTML formats candidates beside its
+  text, which is cleanup only.
+
+**Gotchas.**
+- `tests/conftest.py` pins `MPLBACKEND=Agg` and a kernel inherits it, so the
+  kernel test starts its kernel without it.
+- `test_backend_shim.py::…[toy_anomalous]` fails on bare `main` in this venv
+  (numpy 2.5.3, checked on `origin/main`'s source). It is already recorded in
+  WPs 1418, 1534 and 1906.
+- Under ipympl (`%matplotlib widget`) a returned figure is untested and may
+  still show twice, because `_handed_back` recognises only `inline`.
+
+**Next:** WP-1545, the tutorial notebooks. Its Context carries what this
+session measured that it needs: the silicon indexing abstention, and the
+259 kB-per-figure cost that decides whether the notebooks pass `dpi=`.
 
 - **2026-10-07** — created. No open WP owns notebook display; the index has no
   row for notebooks, reprs or Jupyter. The plan had a fresh adversarial review
