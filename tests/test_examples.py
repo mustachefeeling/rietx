@@ -123,7 +123,7 @@ def test_skill_worked_default_example_runs(skill_worked_default_run):
 @pytest.mark.xdist_group("example-nac")
 def test_nac_example_writes_its_plot(nac_run):
     """`nac_11bm.py` swallows an ImportError around plotting so it still runs
-    without the `viz` extra.  With matplotlib installed that except-branch must
+    on an install that lacks matplotlib.  With it installed that except-branch must
     not be the one taken, or a broken renderer passes as a clean run."""
     pytest.importorskip("matplotlib")
     _, before = nac_run

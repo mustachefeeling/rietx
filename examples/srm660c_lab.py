@@ -141,7 +141,7 @@ def main() -> None:
         plot_for_vlm(result, report, path=str(OUT / "srm660c_vlm.png"))
         print("\nwrote examples/srm660c_fit.png and srm660c_vlm.png")
     except ImportError:
-        print("\n(install '[viz]' for the plots)")
+        print("\n(matplotlib is missing from this environment, so no plots)")
     # the interactive page needs nothing beyond a base install
     from rietx.viz import write_html
     write_html(result, str(OUT / "srm660c_fit.html"))

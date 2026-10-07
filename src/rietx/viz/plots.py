@@ -299,7 +299,10 @@ def _check_panel_args(style: str, x_axis: str, y_scale: str,
 
 
 def _pyplot():
-    """``matplotlib.pyplot``, or an error naming the extra.
+    """``matplotlib.pyplot``, or an error naming what to install.
+
+    Matplotlib is a dependency since WP-1545; an install made with
+    ``--no-deps`` or a distribution's package can still lack it.
 
     A script, the CLI and the GUI server get the Agg canvas, because a GUI
     backend drawing off the main thread fails on macOS. A Jupyter kernel's
@@ -314,7 +317,8 @@ def _pyplot():
             matplotlib.use("Agg", force=False)
         import matplotlib.pyplot as plt
     except ImportError as exc:  # pragma: no cover
-        raise ImportError(f"plotting needs matplotlib: pip install '{DIST_NAME}[viz]'") from exc
+        raise ImportError(f"plotting needs matplotlib, a {DIST_NAME} dependency this "
+                          "environment lacks: pip install matplotlib") from exc
     return plt
 
 

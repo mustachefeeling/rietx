@@ -365,7 +365,7 @@ reads the two together, as `status == "converged"` with no diagnostic at level
 The curves are on the result as `RefinementResult.y_obs`,
 `RefinementResult.y_calc` and `RefinementResult.y_background`, over
 `RefinementResult.two_theta`. `RefinementResult.plot` writes an
-observed/calculated/difference figure with matplotlib (the `viz` extra).
+observed/calculated/difference figure with matplotlib.
 [](results.md) goes through the rest of the object field by field: the
 structure R-factors, the bonding geometry, and the two counts that say whether
 the pattern supported the model.

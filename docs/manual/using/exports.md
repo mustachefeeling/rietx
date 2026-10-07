@@ -85,9 +85,8 @@ by at most 8e-6 of the peak height, all of them in peak tails at a window edge.
 
 `RefinementResult.plot` draws the standard panel [](quickstart.md) opens with:
 observed points, the calculated line, the `obs − calc` difference on the same
-axis at the same scale, and one row of reflection ticks per phase. It needs
-matplotlib (the `viz` extra), and it returns the figure, so passing `path=`
-is optional.
+axis at the same scale, and one row of reflection ticks per phase. It draws
+with matplotlib and returns the figure, so passing `path=` is optional.
 
 `two_theta_range=` is a window and not a crop. The intensity scale and the rows
 below it are built from what the window contains, so a zoom into a weak region
