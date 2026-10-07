@@ -3155,9 +3155,11 @@ def test_the_full_stack_guard_refuses_a_kernel_the_quoted_margin_cannot_cover():
     A kernel direction coupled at r_K ≈ 5e-10 passes the 1e-9 pre-screen
     but gives ρ_max ≈ 0.03 < :data:`isotropy.KERNEL_AMPLITUDE_RATIO`: the
     dual is solved (its optimum is returned) and the certificate refused.
-    At r_K ≈ 1e-13 the same draw certifies with ρ_max ≈ 15 recorded on the
-    witness, and the inequality the record states is checked on random
-    amplitudes with kernel share up to ρ_max: y·I(b) > 0 on all of them.
+    At r_K ≈ 1e-13 the same draw certifies with ρ_max ≈ 30 recorded on the
+    witness; that number is rebuilt from the bound's own parts (r_K, Λ, Y
+    and the quoted margin), so a wrong formula shows, and the inequality
+    the record states is checked on random amplitudes with kernel share
+    up to ρ_max: y·I(b) > 0 on all of them.
     Without a kernel ρ_max is infinite.  A stored witness is re-verified
     with the same guard: the accepted one holds against its own stack and
     fails against the 5e-10 stack, whose kernel its margin cannot cover.
@@ -3179,10 +3181,17 @@ def test_the_full_stack_guard_refuses_a_kernel_the_quoted_margin_cannot_cover():
     assert isotropy.KERNEL_AMPLITUDE_RATIO <= rho < 1e3
     assert rho == pytest.approx(isotropy._kernel_amplitude_ratio(tight, parts["y"]))
     assert isotropy._kernel_amplitude_ratio(SYNTHETIC_STACK, np.array([1.0, 1.0, -0.5])) == np.inf
-    # the inequality the record states, on the full (unprojected) float stack
+    # the recorded number is the documented bound, rebuilt here from its parts
     g = tight / np.max(np.abs(tight))
-    k, p, _ = isotropy._common_kernel(g)
+    k, p, r_k = isotropy._common_kernel(g)
     m = np.einsum("s,sij->ij", parts["y"], g)
+    spectrum = np.linalg.eigvalsh(p.T @ m @ p)
+    lam = float(np.max(np.abs(spectrum)))
+    big_y = float(sum(abs(y_s) * np.linalg.norm(g_s, 2) for y_s, g_s in zip(parts["y"], g)))
+    x = (spectrum[0] / lam) * lam / (r_k * big_y)
+    assert rho == pytest.approx(-1.0 + np.sqrt(1.0 + x), rel=1e-12)
+    assert r_k * big_y * (2 * rho + rho ** 2) == pytest.approx(spectrum[0], rel=1e-9)
+    # the inequality the record states, on the full (unprojected) float stack
     rng = np.random.default_rng(7)
     for _ in range(200):
         u = rng.normal(size=p.shape[1])
