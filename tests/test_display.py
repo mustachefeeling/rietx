@@ -154,6 +154,18 @@ def test_an_indexing_result_prints_its_candidates_and_verdict():
     assert "NO CELL" in html and "found by" not in html, "the table replaces the lines"
 
 
+def test_a_peak_list_prints_one_row_per_peak():
+    """The generic tree spent fourteen lines a peak (WP-1545's notebook 03)."""
+    from rietx.schemas.indexing import PeakList
+    peaks = PeakList.from_positions([21.07, 26.22, 27.22], 1.5406)
+    text = str(peaks)
+    lines = text.splitlines()
+    assert lines[0].startswith("PeakList: 3 peaks, 3 usable")
+    assert len(lines) == 2 + 3 and "26.2200" in lines[3]
+    html = peaks._repr_html_()
+    assert html.count("<tr>") == 4 and "26.2200" in html
+
+
 def test_pre_fit_ticks_are_where_the_fit_puts_its_own(fap):
     """One answer to where a tick goes: drawn from the fitted refinement, the
     pre-fit rows are the result's own ticks over the same range."""

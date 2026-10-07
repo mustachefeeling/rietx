@@ -114,11 +114,13 @@ and what the difference curve shows; QPA.
 - [x] `build.py`, the README and the test harness, with notebook 01.
 - [x] 02 Simple Rietveld, replacing `examples/fap_lab.py`, with the landing
   page and `test_examples.py` repointed.
-- [ ] 03 Peaks, indexing, Le Bail.
+- [x] 03 Peaks, indexing, Le Bail.
 - [x] 04 Peak shape and microstructure.
 - [x] 05 Sequential fits.
-- [ ] The designed views WP-1544 deferred, built only where a notebook needs
-  one (`FitReport`, `ExtinctionScreen`).
+- [x] The designed views WP-1544 deferred, built only where a notebook needs
+  one (`FitReport`, `ExtinctionScreen`). Notebook 03 needed one for
+  `PeakList` (fourteen lines a peak in the generic tree); no notebook prints a
+  `FitReport` or an `ExtinctionScreen`, so neither was built.
 - [x] `docs/RELEASING.md` step and the root CLAUDE.md sentence.
 - [x] Skill: a pointer to the tutorials in `references/`, or "none" and why.
   None (2026-10-07): the notebooks teach a person to check an agent, and each

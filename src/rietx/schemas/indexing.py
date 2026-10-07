@@ -793,6 +793,40 @@ class PeakList(Base):
     def intensity(self) -> np.ndarray:
         return np.array([p.intensity for p in self.usable()], dtype=np.float64)
 
+    def __str__(self) -> str:
+        """One row per peak between a count line and every diagnostic (WP-1545).
+
+        The generic tree spent fourteen lines on each peak, so a 105-line list
+        printed 1500 lines.  It reads fields only; ``usable`` is a filter over
+        each peak's flags, as :meth:`IndexingResult.best_or_none` is over the
+        candidates.
+        """
+        head, rows, tail = self._text_sections()
+        return "\n".join(head + rows + tail)
+
+    def _text_sections(self) -> tuple[list[str], list[str], list[str]]:
+        head = [f"PeakList: {len(self.peaks)} peaks, {len(self.usable())} usable, "
+                f"{self.two_theta_min:g}–{self.two_theta_max:g}° 2θ, "
+                f"λ = {self.wavelength:g} Å, source {self.source}",
+                f"  {'#':>3}  {'two_theta':>10}  {'two_theta_esd':>13}  {'intensity':>10}  "
+                f"{'fwhm':>6}  {'origin':7}  flags"]
+        rows = [f"  {i:>3}  {p.two_theta:10.4f}  {p.two_theta_esd:13.4f}  "
+                f"{p.intensity:10.1f}  {p.fwhm:6.3f}  {p.origin:7}  {', '.join(p.flags)}".rstrip()
+                for i, p in enumerate(self.peaks)]
+        tail = [f"  [{d.level:^7}] {d.code}: {d.message}" for d in self.diagnostics]
+        return head, rows, tail
+
+    def _repr_html_(self) -> str:
+        """The peaks as a table between the count line and the diagnostics."""
+        from .._display import pre_html, table_html
+        head, _, tail = self._text_sections()
+        rows = [(str(i), f"{p.two_theta:.4f}", f"{p.two_theta_esd:.4f}",
+                 f"{p.intensity:.1f}", f"{p.fwhm:.3f}", p.origin, ", ".join(p.flags))
+                for i, p in enumerate(self.peaks)]
+        table = table_html(("#", "two_theta", "two_theta_esd", "intensity", "fwhm",
+                            "origin", "flags"), rows) if rows else ""
+        return pre_html(head[0]) + table + (pre_html("\n".join(tail)) if tail else "")
+
     @classmethod
     def from_positions(cls, two_theta: np.ndarray, wavelength: float, *,
                        intensity: np.ndarray | None = None,
