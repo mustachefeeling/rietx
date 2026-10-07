@@ -115,7 +115,7 @@ and what the difference curve shows; QPA.
 - [x] 02 Simple Rietveld, replacing `examples/fap_lab.py`, with the landing
   page and `test_examples.py` repointed.
 - [ ] 03 Peaks, indexing, Le Bail.
-- [ ] 04 Peak shape and microstructure.
+- [x] 04 Peak shape and microstructure.
 - [ ] 05 Sequential fits.
 - [ ] The designed views WP-1544 deferred, built only where a notebook needs
   one (`FitReport`, `ExtinctionScreen`).
