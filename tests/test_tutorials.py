@@ -14,7 +14,9 @@ builder's to refresh.
 
 from __future__ import annotations
 
+import html
 import importlib.util
+import re
 import shutil
 from pathlib import Path
 
@@ -33,10 +35,22 @@ _spec.loader.exec_module(build)
 
 SOURCES = build.sources()
 
-#: What `docs/landing/src/index.html` quotes from a tutorial's printed output,
-#: so a rename that breaks the quote fails here rather than on the published page.
-QUOTED = {"02_simple_rietveld": ("converged", "Rwp=", "SITE_SNAPPED_TO_SPECIAL_POSITION",
-                                 "PATTERN_UNDERSAMPLED")}
+#: The tutorial whose first fit `docs/landing/src/index.html` shows, code and output.
+LANDING_TUTORIAL = "02_simple_rietveld"
+LANDING_PAGE = REPO_ROOT / "docs" / "landing" / "src" / "index.html"
+
+
+def _landing_box() -> tuple[str, str]:
+    """The landing page's code box and output panel, as plain text."""
+    section = re.search(r'<section[^>]*id="example".*?</section>',
+                        LANDING_PAGE.read_text(encoding="utf-8"), re.S).group(0)
+    code, out = (html.unescape(re.sub(r"<[^>]+>", "", pre))
+                 for pre in re.findall(r"<pre[^>]*>(.*?)</pre>", section, re.S))
+    return code, out
+
+
+def _flat(text: str) -> str:
+    return " ".join(text.split())
 
 
 def _committed(path: Path):
@@ -63,10 +77,28 @@ def test_tutorial_executes_clean(path):
     for cell in plots:
         kinds = {k for out in cell.outputs for k in out.get("data", {})}
         assert "image/png" in kinds, f"{path.stem}: {cell.source.splitlines()[-1]!r} showed no image"
-    printed = "".join(out.get("text", "") for c in nb.cells if c.cell_type == "code"
-                      for out in c.outputs)
-    missing = [m for m in QUOTED.get(path.stem, ()) if m not in printed]
-    assert missing == [], f"{path.stem} no longer prints {missing}, which the landing page quotes"
+    if path.stem == LANDING_TUTORIAL:
+        printed = "".join(out.get("text", "") for c in nb.cells if c.cell_type == "code"
+                          for out in c.outputs)
+        quoted = re.findall(r"\] ([A-Z_]+):", _landing_box()[1])
+        missing = [code for code in quoted if code not in printed]
+        assert missing == [], f"{path.stem} no longer prints {missing}, which the landing page quotes"
+
+
+def test_the_landing_box_is_the_tutorial():
+    """Every line of the landing page's code box is in the tutorial's first fit,
+    and every stretch of its output panel between cuts (`…`) is in that cell's
+    committed output, so the published numbers are the ones the builder drew.
+
+    The box names bare files where the tutorial reads the copies in the wheel."""
+    code, out = _landing_box()
+    nb = _committed(TUTORIALS / f"{LANDING_TUTORIAL}.py")
+    cell = next(c for c in nb.cells if c.cell_type == "code" and "ref.fit(" in c.source)
+    source = {_flat(line.replace("examples_dir() / ", "")) for line in cell.source.splitlines()}
+    assert [ln for ln in code.splitlines() if ln.strip() and _flat(ln) not in source] == []
+    printed = _flat("".join(o.get("text", "") for o in cell.outputs))
+    stale = [piece for piece in map(_flat, out.split("…")) if piece and piece not in printed]
+    assert stale == [], "the landing page's output panel no longer matches the tutorial"
 
 
 def test_committed_notebooks_are_their_sources():

@@ -34,7 +34,7 @@ from pathlib import Path
 import rietx as rx
 from rietx.examples import examples_dir
 
-data = rx.read_pattern(examples_dir() / "FAP.XRA")
+data = rx.read_pattern(examples_dir() / "FAP.XRA")  # GSAS raw format
 structure = rx.Structure.from_cif(examples_dir() / "fluorapatite.cif")
 instrument = rx.Instrument.bragg_brentano(radiation="CuKa")
 instrument.geometry.axial_sl.value = 0.02  # axial divergence
@@ -42,7 +42,8 @@ instrument.geometry.axial_hl.value = 0.02
 instrument.background = rx.BackgroundChebyshev.with_terms(6)
 
 ref = rx.Refinement(structure, instrument)
-result = ref.fit(data, plan="mccusker_structural", two_theta_limits=(15, 130))
+result = ref.fit(data, plan="mccusker_structural",
+                 two_theta_limits=(15, 130))
 
 print(f"{result.status}  Rwp={result.statistics.rwp:.4f}  "
       f"GoF={result.statistics.gof:.2f}")
