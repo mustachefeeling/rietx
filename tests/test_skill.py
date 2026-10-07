@@ -659,6 +659,23 @@ def test_every_technique_field_is_a_field_and_deferred():
                 f"- `{dotted}`")[1].split("\n- ")[0], (dotted, name)
 
 
+def test_every_technique_member_is_a_deferred_name():
+    """`make_api_index.TECHNIQUE_MEMBERS` elides a technique's union members
+    from `api.md` (WP-1809); each must be a live export and deferred from the
+    manual, and absent from the rendered index."""
+    import rietx as rx
+
+    deferred = set((ROOT / "tests" / "api_surface_deferred.txt")
+                   .read_text(encoding="utf-8").split())
+    members = _generator().TECHNIQUE_MEMBERS
+    assert members
+    text = API_INDEX.read_text(encoding="utf-8")
+    for name in members:
+        assert hasattr(rx, name), name
+        assert name in deferred, name
+        assert name not in text, name
+
+
 def test_the_api_indexes_are_what_the_generator_renders():
     """`references/api.md` and every `api-<technique>.md` are generated and
     committed (they ship in the wheel with no build step), so the committed
