@@ -2948,7 +2948,10 @@ class Refinement:
         direction is that axis, with :meth:`hold`, so a plan that frees
         ``phases.*.atoms.*.dof.*`` leaves it where it is and the other atoms'
         coordinates are quoted relative to it.  Opt-in: nothing is held unless
-        this is called, and :meth:`unhold` takes the hold back.
+        this is called, and :meth:`unhold` takes the hold back.  The
+        alternative is a least-squares restraint on the mean coordinate along
+        the axis, which keeps an esd on every atom (Flack & Schwarzenbach, 1988,
+        Acta Cryst. A44, 499); it is not implemented here.
 
         Returns one ``ORIGIN_FIXED_ON_POLAR_AXIS`` (info) per phase that needed
         a hold, naming the held parameters in ``where``, and an

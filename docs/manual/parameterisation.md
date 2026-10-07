@@ -78,7 +78,24 @@ satisfy $R\,\delta = \delta$, so the coordinate basis spans
 
 {source}`rietx.crystallography.wyckoff.coordinate_basis`
 
-({cite}`itc-a` sect. 8.3.2). The $U^{ij}$ tensor transforms as $U \to R\,U
+({cite}`itc-a` sect. 8.3.2). The same intersection taken over every rotation
+of the group, not one site's, gives the origin shifts that change no structure
+factor,
+
+```{math}
+:label: par-origin
+
+\bigcap_{R\in G} \ker(R - I)
+```
+
+{source}`rietx.crystallography.wyckoff.floating_origin_basis`
+
+({cite}`itc-a` Part 15): the polar axis of a polar group, nothing for a
+non-polar one. A fit freeing a coordinate of every atom along it has a flat
+direction; fixing it by holding one atom's coordinate, as
+`Refinement.hold_floating_origin` does, leaves the others' esds measured
+relative to that atom, where a restraint on the mean coordinate would spread
+them {cite}`flack1988`. The $U^{ij}$ tensor transforms as $U \to R\,U
 R^\top$ under a rotation acting on fractional coordinates, so the allowed
 ADP pattern spans the invariant subspace of that action on symmetric 3×3
 matrices {cite}`peterse1966` (cross-checked against the cctbx tables

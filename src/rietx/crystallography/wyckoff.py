@@ -162,7 +162,8 @@ def floating_origin_basis(space_group) -> np.ndarray:
 
     The translations δ of the whole structure that commute with every
     rotation of the group (R·δ = δ for all R): the continuous part of the
-    Euclidean normalizer, which is the polar axis of a polar group (``[0, 0, 1]``
+    Euclidean normalizer (International Tables for Crystallography Vol. A,
+    Hahn, 2005, Part 15, normalizers of space groups), which is the polar axis of a polar group (``[0, 0, 1]``
     for P 6₃ m c, P 4 m m and Pna2₁; ``[0, 1, 0]`` for unique-axis-b P 2₁; the
     a-c plane for Cc; all three axes for P 1) and nothing for a non-polar one
     (P 2₁2₁2₁, P n m a, F d -3 m: their origin choices are discrete).  Shifting
