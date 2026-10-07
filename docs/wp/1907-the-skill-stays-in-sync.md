@@ -74,7 +74,7 @@ skill's numbers are rendered from the package rather than typed.
       either rendered by `docs/skill/make_api_index.py`'s machinery from the
       package (a substitution table, committed output) or asserted by a test
       against the attribute it quotes; the width formula fixed by it
-- [ ] A changed-surface step in CI's lint job: the public names, plan names,
+- [x] A changed-surface step in CI's lint job: the public names, plan names,
       diagnostic codes and `help.py` keys a PR changes, crossed against the
       skill tree's mentions, printed as the rows to re-read; failing only on a
       name that vanished

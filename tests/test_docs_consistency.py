@@ -1163,27 +1163,21 @@ def _protocol_text() -> str:
 def _engine_codes() -> set[str]:
     """Every UPPER_SNAKE ``code="..."`` keyword literal under src/rietx.
 
-    ``gui/`` is excluded on purpose: the GUI server's session codes
-    (NOT_FOUND, RUN_IN_FLIGHT, ...) share the shape but are a separate
-    namespace with no protocol rows — §7's namespace note (`references/diagnostics.md`) declares the
-    split.  The lowercase ``GateFailure`` codes fall out of the shape filter
-    and are covered by the vocabulary test instead.
+    One walk with CI's changed-surface report (``tests.skill_surface``), which
+    runs it on a base revision's text; ``is_engine_source`` says why ``gui/``
+    is excluded.  The lowercase ``GateFailure`` codes fall out of the shape
+    filter and are covered by the vocabulary test instead.
     """
     import ast
 
+    from tests.skill_surface import diagnostic_codes, is_engine_source
+
     codes: set[str] = set()
     for py in sorted(SRC.rglob("*.py")):
-        if "gui" in py.relative_to(SRC).parts:
-            continue
-        tree = ast.parse(py.read_text(encoding="utf-8"), filename=str(py))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            for kw in node.keywords:
-                if (kw.arg == "code" and isinstance(kw.value, ast.Constant)
-                        and isinstance(kw.value.value, str)
-                        and re.fullmatch(r"[A-Z][A-Z0-9_]+", kw.value.value)):
-                    codes.add(kw.value.value)
+        rel = py.relative_to(ROOT).as_posix()
+        if is_engine_source(rel):
+            codes |= diagnostic_codes(
+                ast.parse(py.read_text(encoding="utf-8"), filename=str(py)))
     return codes
 
 
