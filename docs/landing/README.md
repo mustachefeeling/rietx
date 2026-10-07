@@ -49,10 +49,11 @@ repository, so a fork builds the whole thing with no secret and no fetch.
 - The fluorapatite example is the first fit in
   `examples/tutorials/02_simple_rietveld.py` (WP-1545), shown with bare file
   names where the tutorial reads the copies shipped in the wheel.
-  `tests/test_tutorials.py` executes it on every push. It also holds every line
-  of the code box to that cell, and every stretch of the output panel between
-  `…` cuts to the cell's committed output. So rebuilding the notebook with new
-  numbers fails the test until the panel is refreshed.
+  `tests/test_tutorials.py` executes it on every push. It also holds the code
+  box to that cell line for line, less only import lines. It holds every
+  stretch of the output panel between `…` cuts to the cell's committed output,
+  in order. So rebuilding the notebook with new numbers fails the test until
+  the panel is refreshed.
 - `rietx._about.DOCS_URL` stays `https://rietx.org`, and `help.py`'s anchors are
   `page.html#id`, so neither moved.
 

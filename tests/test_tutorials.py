@@ -43,14 +43,21 @@ LANDING_PAGE = REPO_ROOT / "docs" / "landing" / "src" / "index.html"
 def _landing_box() -> tuple[str, str]:
     """The landing page's code box and output panel, as plain text."""
     section = re.search(r'<section[^>]*id="example".*?</section>',
-                        LANDING_PAGE.read_text(encoding="utf-8"), re.S).group(0)
-    code, out = (html.unescape(re.sub(r"<[^>]+>", "", pre))
-                 for pre in re.findall(r"<pre[^>]*>(.*?)</pre>", section, re.S))
+                        LANDING_PAGE.read_text(encoding="utf-8"), re.S)
+    assert section, f"{LANDING_PAGE.name} has no example section"
+    pres = re.findall(r"<pre[^>]*>(.*?)</pre>", section.group(0), re.S)
+    assert len(pres) == 2, f"the example section holds {len(pres)} <pre> blocks, not code and output"
+    code, out = (html.unescape(re.sub(r"<[^>]+>", "", pre)) for pre in pres)
     return code, out
 
 
 def _flat(text: str) -> str:
     return " ".join(text.split())
+
+
+def _printed(cells) -> str:
+    """Everything the code cells printed, in order."""
+    return "".join(o.get("text", "") for c in cells if c.cell_type == "code" for o in c.outputs)
 
 
 def _committed(path: Path):
@@ -78,27 +85,43 @@ def test_tutorial_executes_clean(path):
         kinds = {k for out in cell.outputs for k in out.get("data", {})}
         assert "image/png" in kinds, f"{path.stem}: {cell.source.splitlines()[-1]!r} showed no image"
     if path.stem == LANDING_TUTORIAL:
-        printed = "".join(out.get("text", "") for c in nb.cells if c.cell_type == "code"
-                          for out in c.outputs)
-        quoted = re.findall(r"\] ([A-Z_]+):", _landing_box()[1])
+        printed = _printed(nb.cells)
+        out = _landing_box()[1]
+        codes = re.findall(r"\] ([A-Z_]+):", out)
+        assert codes, "found no diagnostic code in the landing page's output panel"
+        quoted = [out.split()[0], *codes]  # the status word, then each code
         missing = [code for code in quoted if code not in printed]
         assert missing == [], f"{path.stem} no longer prints {missing}, which the landing page quotes"
 
 
 def test_the_landing_box_is_the_tutorial():
-    """Every line of the landing page's code box is in the tutorial's first fit,
-    and every stretch of its output panel between cuts (`…`) is in that cell's
-    committed output, so the published numbers are the ones the builder drew.
+    """The landing page's code box is the tutorial's first fit, line for line and
+    in order, less only import lines.  Every stretch of its output panel between
+    cuts (`…`) is in that cell's committed output, in order, and a panel ending
+    without a cut ends where the output does.  So the published numbers are the
+    ones the builder drew.
 
     The box names bare files where the tutorial reads the copies in the wheel."""
     code, out = _landing_box()
     nb = _committed(TUTORIALS / f"{LANDING_TUTORIAL}.py")
     cell = next(c for c in nb.cells if c.cell_type == "code" and "ref.fit(" in c.source)
-    source = {_flat(line.replace("examples_dir() / ", "")) for line in cell.source.splitlines()}
-    assert [ln for ln in code.splitlines() if ln.strip() and _flat(ln) not in source] == []
-    printed = _flat("".join(o.get("text", "") for o in cell.outputs))
-    stale = [piece for piece in map(_flat, out.split("…")) if piece and piece not in printed]
+    box = [_flat(ln) for ln in code.splitlines() if ln.strip()]
+    source = [_flat(ln.replace("examples_dir() / ", "")) for ln in cell.source.splitlines()
+              if ln.strip()]
+    kept = [ln for ln in source if ln in box or not ln.startswith(("import ", "from "))]
+    assert kept == box, "the landing page's code box is not the tutorial's fit cell"
+    printed = _flat(_printed([cell]))
+    pieces = [p for p in map(_flat, out.split("…")) if p]
+    stale, at = [], 0
+    for piece in pieces:
+        found = printed.find(piece, at)
+        if found < 0:
+            stale.append(piece)
+        else:
+            at = found + len(piece)
     assert stale == [], "the landing page's output panel no longer matches the tutorial"
+    if not out.rstrip().endswith("…"):
+        assert printed.endswith(pieces[-1]), "the tutorial prints more than the panel shows, uncut"
 
 
 def test_committed_notebooks_are_their_sources():
