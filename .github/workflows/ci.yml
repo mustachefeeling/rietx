@@ -101,6 +101,13 @@ jobs:
         # HEAD^1 is the base, as in `changes`, hence fetch-depth 2.
         if: github.event_name == 'pull_request'
         run: .venv/bin/python -m tests.skill_caps
+      - name: Skill rows to re-read
+        # The public names, plan names, diagnostic codes and help keys this
+        # change touches, each with the skill rows that mention it, in the run
+        # summary.  It fails only on a removed name the skill still names
+        # (WP-1907).  Same base as the step above.
+        if: github.event_name == 'pull_request'
+        run: .venv/bin/python -m tests.skill_surface
 
   changes:
     # Which suite this run needs, as `scope`: `docs` when every file the PR

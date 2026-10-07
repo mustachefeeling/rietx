@@ -71,6 +71,15 @@ shows up there.
 
 ### Inherited
 
+- **From WP-1907 (2026-10-07), a trial row and two miscounts**
+  (`f69c397c`). Two lanes, both at or above 164K: `changed-surface`
+  (est. 25, took 21) and `eval-on-demand` (est. 30, took 41), +$0.78 saved,
+  8 % of the session, 0K re-read. The tool printed kept 0 and fixed 0. The
+  session wrote two `lanes: keep` lines, and it fixed the second lane's
+  workflow by a Python rewrite after the lane returned. So the kept count
+  missed lines the session wrote, and *main edits after* counts the Edit tool
+  only. The row in `process.md` carries the corrected figures and a note.
+
 - **From WP-1534 (2026-10-02), the third trial row** (`c77ba4ec`, a cloud
   session). One lane, `act-on-it`, was dispatched at 242K: an estimated 45
   requests that took 143. It saved $5.17, 24% of the session. The main

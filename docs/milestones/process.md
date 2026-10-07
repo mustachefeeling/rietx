@@ -1173,10 +1173,16 @@ work holds up. `/wp-lanes` runs the selective policy in a real WP session, and
 | 2026-10-03 | 38257a74 | 1 | 1 | 74K | 27 | 72K | 2.18 | 1 / 0 | +5.17 | +18% |
 | 2026-10-04 | d1d1ba33 | 2 | 1 | 3K | 11 | 27K | 1.60 | 2 / 0 | +3.23 | +19% |
 | 2026-10-06 | 23ba0bb7 | 1 | 0 | 0K | 5 | 9K | 0.64 | 0 / 0 | +0.10 | +1% |
+| 2026-10-07 | f69c397c | 2 | 2 | 0K | 6 | 17K | 1.10 | 1 / 0 | +0.78 | +8% |
 
 Session 38257a74 (WP-1523) resumed its one lane by `SendMessage` with a
 revised design after the first report. The tool counts that as no redo, and the
 lane's 182 requests span both rounds.
+
+Session f69c397c (WP-1907) is entered as kept 2 and fixed 1 where the tool
+printed 0 and 0. It kept two items under written `lanes: keep` lines, and it
+fixed the second lane's workflow (a model input) by a Python rewrite. The tool
+did not count that edit.
 
 Whether `/wp-start` step 6b takes the rule waits for a few rows. Until then
 the policy lives only in `/wp-lanes`.
