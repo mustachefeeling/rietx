@@ -78,6 +78,30 @@ The missing piece is a pre-fit overlay of the model's reflection ticks. It
 answers SKILL §1's "is the cell within about 1 % and is λ right?" before any
 fit. `viz/snapshot.stage_ticks` already builds ticks from a compiled model.
 
+**Baseline, measured 2026-10-07 in a real kernel** (ipykernel 7.4.0,
+IPython 9.17.1, matplotlib 3.11.2, nbclient 0.11.0, macOS; FAP data and
+`examples/fap_lab.py`'s fit). Sizes are the cell's text/plain output in
+characters. No object produced any text/html.
+
+| Cell | Output |
+|---|---|
+| `data` | 79 607 |
+| `instrument` / `structure` | 2 988 / 6 781 |
+| `rx.diagnose(data, wavelength=1.5406)` | 500 |
+| `result` | 495 796 |
+| `ref.parameters()` | 19 473 |
+| `ref` | 40 (`<rietx.refine.Refinement object at 0x…>`) |
+| `print(data)` / `print(instrument)` | 79 591 / 2 972 |
+
+**No rietx plot shows an image in a kernel, in either import order.**
+`result.plot()` as a cell's last line displays only its 35-character text,
+`<Figure size … with 1 Axes>`. `fig = result.plot()` and `data.plot();` display
+nothing. Afterwards `matplotlib.get_backend()` reads `Agg`, and a plain
+`plt.plot([1, 2]); plt.show()` emits "FigureCanvasAgg is non-interactive, and
+thus cannot be shown" with no image. That holds whether pyplot was imported
+before the first rietx plot or not. One rietx plot call therefore disables
+matplotlib for the rest of the session.
+
 ## Non-goals
 
 - **No new public names.** An opt-in zoomable fit (`rx.viz.interactive`) was
@@ -95,7 +119,7 @@ fit. `viz/snapshot.stage_ticks` already builds ticks from a compiled model.
 
 ## Tasks
 
-- [ ] **Baseline probe.** Add a `notebooks` extra (`ipykernel`, `nbclient`,
+- [x] **Baseline probe.** Add a `notebooks` extra (`ipykernel`, `nbclient`,
   `nbformat`) that `[dev]` includes, after checking cp314 wheels for pyzmq and
   debugpy. Execute a scratchpad probe notebook with nbclient and record
   repr/str/text-plain sizes for every object in the table. Record matplotlib
