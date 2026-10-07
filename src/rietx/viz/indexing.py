@@ -27,6 +27,7 @@ number printed beside it.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from contextvars import ContextVar
 
 import numpy as np
 
@@ -57,8 +58,16 @@ def _pyplot():
     return pyplot()
 
 
+#: Set while :func:`plot_indexing` composes its figures.  It returns a dict,
+#: which a notebook prints as text, so a figure detached by ``_handed_back``
+#: would never be drawn; left with pyplot, each is drawn once as the cell ends.
+_COMPOSING: ContextVar[bool] = ContextVar("_COMPOSING", default=False)
+
+
 def _handed_back(fig):
     """:func:`rietx.viz.plots._handed_back`: one rule for a notebook's figures."""
+    if _COMPOSING.get():
+        return fig
     from .plots import _handed_back as handed_back
     return handed_back(fig)
 
@@ -407,9 +416,26 @@ def plot_indexing(result, peaks, *, data=None, instrument=None,
       candidate carries one.
 
     ``path`` is a stem: each figure is saved as ``f"{path}_{name}.png"``.
-    Figures are returned open either way — closing is the caller's, exactly
-    as :func:`rietx.plot` behaves.
+    Figures are returned open either way, and closing them is the caller's.
+    They stay with pyplot even in a notebook, unlike a single figure: the
+    dict prints as text, so the inline backend draws each one as the cell ends.
     """
+    token = _COMPOSING.set(True)
+    try:
+        figures = _compose_indexing(result, peaks, data=data, instrument=instrument,
+                                    candidate=candidate, n=n, validation=validation,
+                                    dpi=dpi)
+    finally:
+        _COMPOSING.reset(token)
+    if path is not None:
+        for name, fig in figures.items():
+            fig.savefig(f"{path}_{name}.png")
+    return figures
+
+
+def _compose_indexing(result, peaks, *, data, instrument, candidate, n,
+                      validation, dpi) -> dict:
+    """:func:`plot_indexing`'s figures, in drawing order."""
     figures: dict = {}
     figures["peaks"] = plot_peak_list(peaks, data, dpi=dpi)
 
@@ -435,10 +461,6 @@ def plot_indexing(result, peaks, *, data=None, instrument=None,
             # anyway: the two detector lists are what separate a wrong metric
             # from an oversized one, and they need no refit
             figures["validation"] = plot_validation(chosen.lebail, dpi=dpi)
-
-    if path is not None:
-        for name, fig in figures.items():
-            fig.savefig(f"{path}_{name}.png")
     return figures
 
 

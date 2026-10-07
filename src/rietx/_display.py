@@ -161,12 +161,11 @@ def _leaf(value) -> str | None:
         value = summarise(value)
         if isinstance(value, _Elided):
             return value.text
-        if isinstance(value, dict):
-            parts = [f"{k}: {_leaf(v)}" for k, v in value.items()]
-        else:
-            parts = [_leaf(v) for v in value]
-        if any(p is None for p in parts):
+        leaves = [_leaf(v) for v in (value.values() if isinstance(value, dict) else value)]
+        if any(p is None for p in leaves):
             return None
+        parts = ([f"{k}: {p}" for k, p in zip(value, leaves, strict=True)]
+                 if isinstance(value, dict) else leaves)
         bra, ket = ("{", "}") if isinstance(value, dict) else ("[", "]")
         return bra + ", ".join(parts) + ket
     return repr(value) if isinstance(value, str) else str(value)
@@ -202,34 +201,43 @@ def _tree_lines(model, indent: str, order=None, show_empty=False) -> list[str]:
         if leaf is not None and not long_container:
             lines.append(f"{indent}{name}: {leaf}")
         elif _is_model(value):
-            one = _one_line(value)
-            if one is not None:
-                lines.append(f"{indent}{name}: {one}")
-            else:
-                lines.append(f"{indent}{name}: {type(value).__name__}")
-                lines += _tree_lines(value, indent + "  ")
+            lines += _model_lines(f"{indent}{name}: ", value, indent + "  ")
         else:
             lines += _container_lines(name, value, indent)
     return lines
+
+
+def _designed(model) -> bool:
+    """Whether ``model``'s class draws its own view (overrides ``Base.__str__``)."""
+    from .schemas.common import Base
+    return type(model).__str__ is not Base.__str__
+
+
+def _model_lines(prefix: str, model, indent: str) -> list[str]:
+    """A nested model after ``prefix``: its designed view when it has one,
+    else on one line when it fits, else as a tree indented by ``indent``."""
+    if _designed(model):
+        first, *rest = str(model).splitlines() or [""]
+        return [prefix + first] + [indent + line for line in rest]
+    one = _one_line(model)
+    if one is not None:
+        return [prefix + one]
+    return [prefix + type(model).__name__] + _tree_lines(model, indent)
 
 
 def _container_lines(name, value, indent: str) -> list[str]:
     items = list(value.items()) if isinstance(value, dict) else list(enumerate(value))
     lines = [f"{indent}{name}: {len(items)} {_kind([v for _, v in items])}"]
     for key, item in items[:TREE_ROWS]:
-        label = f"[{key}]" if isinstance(value, (list, tuple)) else f"{key}:"
+        key_text = f"[{key}]" if isinstance(value, (list, tuple)) else str(key)
+        label = key_text if isinstance(value, (list, tuple)) else key_text + ":"
         leaf = _leaf(item)
         if leaf is not None:
             lines.append(f"{indent}  {label} {leaf}")
-            continue
-        one = _one_line(item) if _is_model(item) else None
-        if one is not None:
-            lines.append(f"{indent}  {label} {one}")
         elif _is_model(item):
-            lines.append(f"{indent}  {label} {type(item).__name__}")
-            lines += _tree_lines(item, indent + "    ")
+            lines += _model_lines(f"{indent}  {label} ", item, indent + "    ")
         else:
-            lines += _container_lines(label, item, indent + "  ")
+            lines += _container_lines(key_text, item, indent + "  ")
     if len(items) > TREE_ROWS:
         lines.append(f"{indent}  … {len(items) - TREE_ROWS} more")
     return lines
@@ -342,7 +350,7 @@ def refinement_parts(ref) -> tuple[list[str], list, int]:
     except Exception as exc:   # a display never raises over a model it is showing
         head.append(f"  parameters: not available ({type(exc).__name__}: {exc})")
         return head, [], 0
-    free = [r for r in rows if r.vary]
+    free = [r for r in rows if row_state(r) == "vary"]   # a held vary flag is not free
     head.append(f"  parameters: {len(free)} of {len(rows)} vary; "
                 "ref.parameters() lists every row")
     return head, free, len(rows)
