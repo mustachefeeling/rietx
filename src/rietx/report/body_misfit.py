@@ -165,7 +165,7 @@ def rigid_body_misfit(ref, data, *, free: tuple[str, ...] = (
             bb = f"phases.{ip}.rigid_bodies.{b}"
             _, res_a = _fit(base.model_copy(deep=True), instrument, data,
                             [*free, f"{bb}.origin.dof.*", f"{bb}.rotation.*",
-                             f"{bb}.torsions.*.angle"], max_iter, mode)
+                             f"{bb}.torsions.*.twist"], max_iter, mode)
             # the released arm: same model, this body's atoms freed and held
             # by restraints at the geometry the body placed them in
             members, bonds, angles = _template_geometry(phase, body)
