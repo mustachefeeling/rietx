@@ -152,7 +152,7 @@ matplotlib for the rest of the session.
 - [x] **Pre-fit ticks.** `plot_pattern(data, model=ref)` and
   `data.plot(model=ref)` draw the reflection ticks of a `Refinement` from
   `stage_ticks`, before any fit.
-- [ ] **Docs.** Fix `results.md:431-445` and the `diagnostics.py` docstring.
+- [x] **Docs.** Fix `results.md:431-445` and the `diagnostics.py` docstring.
   Add a short section on reading objects in a notebook or terminal to
   `using/results.md`. Document `model=` in `using/data.md`. Add a
   compatibility note for the changed `__str__` text and the backend change.

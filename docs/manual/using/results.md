@@ -429,18 +429,19 @@ validity.
 ### Everything else `diagnose` measures
 
 The object that call returns is a `PatternDiagnostics`, and the two sampling
-fields above are two of its seventeen. The rest describe the pattern itself, with
-no model involved, and they are what the background chapter's defaults are chosen
-from.
+fields above are two of its eighteen. The rest describe the pattern itself, with
+no model involved. `auto_background` reads two of them to choose its defaults:
+`amorphous_hump_score` and `air_scatter_gain`. `print(d)` lists every field,
+starting with `signal_cutoffs`, and prints an empty finding as `none`.
 
 | Field | Is | Reads as |
 |---|---|---|
 | `PatternDiagnostics.n_points` | channels in the file | |
 | `PatternDiagnostics.two_theta_min`, `PatternDiagnostics.two_theta_max` | the range, in degrees | |
 | `PatternDiagnostics.noise_sigma_median` | the median channel noise | the scale a peak height is significant against |
-| `PatternDiagnostics.peak_fraction` | share of channels more than 3σ above the background envelope | how much of the pattern is peak rather than background |
-| `PatternDiagnostics.n_peaks` | resolved peaks found | |
-| `PatternDiagnostics.peak_density_per_deg` | those per degree 2θ | above roughly 2/deg the pattern is dense, which favours a stiff baseline and a low background order |
+| `PatternDiagnostics.peak_fraction` | share of channels more than 3σ above the background envelope | a statement in units of σ. A file whose σ is smaller than √y raises it with the pattern unchanged, so it is no measure of how much of the pattern is peak |
+| `PatternDiagnostics.n_peaks` | maxima above a height floor, with no prominence bar | an over-count by design: a strong peak's noisy top carries several maxima, and a synthetic 13-line pattern counts 27. `n_peaks_measured` is the count of peaks that were measured |
+| `PatternDiagnostics.peak_density_per_deg` | `n_peaks` per degree 2θ | the same over-count per degree. Nothing in rietx reads it |
 | `PatternDiagnostics.signal_to_background` | near-maximum net signal over the median background level | |
 | `PatternDiagnostics.air_scatter_gain` | how much of the envelope's cubic-fit residual variance a 1/(2θ) column explains | a nested-model test for the low-angle air-scatter rise; a high value is what turns the 1/x background term on |
 | `PatternDiagnostics.amorphous_hump_score` | RMS of the envelope residual after both the cubic and the 1/x term, over the median level | what is left is genuinely broad non-polynomial structure (amorphous content, capillary glass), and calls for a more flexible background |
@@ -890,6 +891,59 @@ three purposes are refused there by name, and `Refinement.summary
 ```python
 print(series.summary(deliverable="series"))
 ```
+
+## Reading an object in a notebook or a terminal
+
+Every rietx object prints as text you can read, and a notebook cell shows the
+same text. A model prints as an indented tree with one line per parameter: its
+value with the esd in brackets, its unit, and `(vary)` when it is free. Fields
+that are `None` or empty are left out. A long sequence prints as a count and a
+range in `repr` and in `print` alike, so a pattern never prints its channels:
+
+```python
+from rietx import PatternData
+
+data = PatternData(two_theta=[10.0 + 0.02 * i for i in range(500)],
+                   intensity=[100.0 + i for i in range(500)])
+print(data)
+```
+
+```text
+PatternData of 500 points, 10–19.98° 2θ, median step 0.02°
+  intensity: <500 floats 100…599>
+  sigma: None
+  excluded_regions: none
+  metadata: none
+```
+
+The numbers are still there. `data.tt()`, `data.y()` and the result's `y_calc`
+are the arrays.
+
+A few objects print a view of their own:
+
+| Object | Prints |
+|---|---|
+| `PatternData` | the range and step, then whether σ came with the file |
+| `PatternDiagnostics` | every field, `signal_cutoffs` first, an empty finding as `none` |
+| `RefinementResult` | the termination view in [Printing a result](#printing-a-result) |
+| `IndexingResult` | what `rietx index` prints: the candidates, the verdict, every diagnostic |
+| `Refinement` | its phases, mode, last fit and the parameters that vary |
+| `ParameterRow` | `path  value(esd)  state` on one line, so `ref.parameters()` reads as a table |
+| `RefinementTree` | `summary()`, the tree with Rwp on each node |
+
+A `Refinement` reads only its own fields when it prints. It never calls
+`summary()`, which builds a report, and a notebook asks for every displayed
+object twice. In a notebook the tabular parts arrive as HTML tables: a
+result's refined parameters, a refinement's varying parameters, and an
+indexing result's candidates. A `StructureFigure` from `render_structure`
+displays as its picture.
+
+A figure behaves in a notebook as any returned value does. A bare
+`result.plot()` shows the figure once. A trailing `;`, or `fig = result.plot()`,
+shows nothing, and `fig` on its own line shows it. rietx leaves the notebook's
+plotting backend alone, so `plt.show()` keeps working afterwards. A script, the
+CLI and the GUI draw on matplotlib's Agg canvas unless a backend was already
+chosen.
 
 (progress-lines)=
 

@@ -612,11 +612,11 @@ class PatternDiagnostics(Base):
       definition alone rather than redefine a shipped number — the two measures
       below were the ones making a claim about *lines*, and they no longer move
       at all).
-    * ``peak_density_per_deg`` — resolved-peak count per degree 2θ; dense
-      patterns (≳2/deg) favour stiff baselines and low background order.
-      Its census takes :data:`SAMPLING_HEIGHT_FRACTION`'s floor, so it counts
-      lines rather than the envelope's tracking error and does not move with
-      the declared σ.
+    * ``peak_density_per_deg`` — ``n_peaks`` per degree 2θ.  Its census takes
+      :data:`SAMPLING_HEIGHT_FRACTION`'s floor, so it counts lines rather than
+      the envelope's tracking error and does not move with the declared σ.  It
+      keeps no prominence bar, so it over-counts (27 on a 13-line synthetic
+      pattern, :func:`diagnose`), and nothing in the package reads it.
     * ``signal_to_background`` — near-maximum net signal (99.9th percentile)
       over the median background level.
     * ``air_scatter_gain`` — fraction of the cubic-fit residual variance of
