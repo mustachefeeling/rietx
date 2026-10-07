@@ -1159,7 +1159,7 @@ get cheaper.
 **The trial.** The replay assumed three numbers: *u*, the main session's
 requests per lane, and what a lane leaves in the main context. It also assumed
 that a session can tell a long item before starting it, and that a lane's
-work holds up. `/wp-lanes` runs the selective policy in a real WP session, and
+work holds up. `/wp-lanes` ran the selective policy in a real WP session, and
 `session_usage.py lanes` measures all five. One row per trial session:
 
 | date | session | lanes | kept | re-read (*u*) | main requests per lane | left in main | actual / estimated requests | lanes fixed / redone | saved | of the session |
@@ -1178,7 +1178,62 @@ Session 38257a74 (WP-1523) resumed its one lane by `SendMessage` with a
 revised design after the first report. The tool counts that as no redo, and the
 lane's 182 requests span both rounds.
 
-Whether `/wp-start` step 6b takes the rule waits for a few rows. Until then
-the policy lives only in `/wp-lanes`.
-[WP-1903](../wp/1903-the-lane-trial-decides.md) makes the decision once three
-rows are in.
+**The decision: adopted** (2026-10-08,
+[WP-1903](../wp/1903-the-lane-trial-decides.md)). The rule is now `/wp-start`
+step 6c, with its thresholds unchanged: lane an item once the main context is
+over 150K and the item's estimate is 20 requests or more. `/wp-lanes` is
+deleted. `/wp-handover` step 3b and `session_usage.py` stay, so every session
+that lanes still adds a row above.
+
+The trial cleared the bar WP-1903 proposed. That bar asked for a saving of at
+least 10% from the re-run's selective row, at most one lane in five redone,
+and review findings on lane code no worse than usual.
+
+- *Rows.* Nine sessions sent 24 items to lanes. Every session came out ahead,
+  by a median 21% and $90.82 in total. Two lanes were redone, both in
+  e6ef1126.
+- *Re-measured.* Seven of the nine sessions could be measured again with the
+  script at `2d6e632a`. The two cloud sessions, c77ba4ec and d1d1ba33, kept
+  no transcript. Each of the seven came out larger than its row. The five
+  measured on 2026-10-08 matched their rows in every column but the saving
+  and its share. The script changed after
+  the rows were written, so the rows stay as committed. Today's figures, as
+  saved $ and share of the session: ec2ca17f +3.58 (+23%), 46f97a56 +23.08,
+  6dc4faa1 +1.88 (+13%), e6ef1126 +21.77 (+34%), 0433c291 +46.34 (+44%),
+  38257a74 +7.42 (+22%), 23ba0bb7 +0.41.
+- *Re-run.* The trial's medians were *u* 3K, 10 main requests a lane and 16K
+  left in main. On 2026-10-08 the replay over one machine's 195 WP sessions
+  (2026-08-20 to 2026-10-04) put the selective rule at −20%, −17% and −12% for
+  *u* = 3K, 20K and 40K. At *u* = 20K it gave −8% with *mo* doubled and 20K
+  left in main, and −11% with one lane in five redone. The other machine's 46
+  sessions gave −18%, −15% and −12% on 2026-10-07. The measured inputs move
+  the crossover up: at an 80K lane base, an item at 150K now breaks even at
+  65 requests, against the table's 50.
+- *Threshold.* The saving is flat across nearby thresholds. On the 195
+  sessions, at *u* = 20K:
+
+  | policy, on the item's actual requests | items laned | saving | *mo* doubled, 20K left |
+  |---|---|---|---|
+  | main > 150K, item ≥ 20 | 424 | −16.6% | −8.3% |
+  | main > 150K, item ≥ 30 | 276 | −17.5% | −12.0% |
+  | main > 150K, item ≥ 40 | 175 | −15.9% | −12.4% |
+  | main > 200K, item ≥ 20 | 359 | −15.2% | −7.3% |
+  | item ≥ its crossover length | 246 | −17.7% | −12.4% |
+
+  The replay reads an item's actual length. A session reads its estimate,
+  and the trial's estimates ran short by a median 1.6×. An estimate of 20 is
+  therefore an item of about 30, which is the row that holds up best. The
+  rule keeps its 20.
+- *Quality.* The handover reviews found two correctness bugs in lane code. In
+  WP-1534 a phase released mid-stage skipped the new probe, on a second entry
+  path the prompt had not named. In WP-1527 the TOPAS writer dropped a
+  magnetic site's ion. A WP-1510 lane died on the 600 s stream watchdog during
+  a long test run, under a memory rule a lane cannot see. Step 6c's prompt
+  now names every code path the change reaches, restates the memory rules
+  that bear on the item with the command-length one always among them, and
+  asks for a decision line on every item.
+
+Two things stay unmeasured. The *fixed / redone* column closes at the lane's
+commit, so a fix the handover review lands later is not in it. And the review
+findings are the only evidence on whether lane code is as good as the main
+session's.

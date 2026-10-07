@@ -99,7 +99,7 @@ shows up there.
 - [x] Read each trial session's handover entry for the quality evidence
       above. List the review findings on lane-written code, and what the lane
       prompts lacked.
-- [ ] Decide, then land the decision:
+- [x] Decide, then land the decision:
       - **adopt**: move the rule into `/wp-start` step 6b with thresholds read
         off the re-run's crossover table, delete `/wp-lanes`, and keep
         `/wp-handover` step 3b, since it only fires when lanes ran;
@@ -107,9 +107,9 @@ shows up there.
         and ask for more trial rows;
       - **withdraw**: delete `/wp-lanes` and `/wp-handover` step 3b, keep
         `session_usage.py`, and close this WP 🛑 with the reason.
-- [ ] Write the decision and its evidence at the end of process.md § Lanes
+- [x] Write the decision and its evidence at the end of process.md § Lanes
       within a WP.
-- [ ] Skill: none. The agent skill is for driving rietx, and this is a rule
+- [x] Skill: none. The agent skill is for driving rietx, and this is a rule
       for changing it (root CLAUDE.md § Roadmap, the three destinations).
 
 **A bar to start from**, proposed 2026-10-01 and not yet agreed with the
