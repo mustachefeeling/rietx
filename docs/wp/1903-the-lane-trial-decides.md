@@ -1,6 +1,6 @@
 # WP-1903 — The lane trial decides whether a WP session sends long items to subagents
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-07 — claimed by @yue-here
 Track: The repo's own process
 Depends on: —
 Priority: P4 2026-10-01 — was P3 (cost only: the replay put the saving at about a fifth of a WP session's bill): down a rung until three trial rows are in the record
