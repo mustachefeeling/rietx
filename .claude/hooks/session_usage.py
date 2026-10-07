@@ -356,7 +356,8 @@ def baseline(us: list[float], mo: int, d: int) -> None:
         for m, v in sorted(bases.items()) if len(v) >= 5))
 
     ref = sum(replay(t, lambda m, n: False, 0) for t in ts)
-    print(f"\nreplay (modelled reads and writes ${ref:.0f}; mo={mo}, d={_k(d)}), saving by policy:")
+    print(f"\nreplay (modelled reads and writes ${ref:.0f}; mo={mo}, d={_k(d)}),"
+          " change by policy (negative is a saving):")
     print("| policy | items laned | " + " | ".join(f"u = {_k(u)}" for u in us) + " |")
     print("|---|---|" + "---|" * len(us))
     rows = list(POLICIES) + [
@@ -371,14 +372,14 @@ def baseline(us: list[float], mo: int, d: int) -> None:
             cells.append(f"{(new - ref) / ref:+.0%}")
         print(f"| {name} | {tally['laned']} | " + " | ".join(cells) + " |")
     u = us[len(us) // 2]
-    print(f"\nby the session's peak context (selective policy, u = {_k(u)}):")
+    print(f"\nby the session's peak context (selective policy, u = {_k(u)}; negative is a saving):")
     for lo, hi in ((0, 300_000), (300_000, 450_000), (450_000, 10**9)):
         sel = [t for t in ts if lo <= max(r.context for r in t.requests) < hi]
         a = sum(replay(t, lambda m, n: False, 0) for t in sel)
         b = sum(replay(t, POLICIES[2][1], u, mo=mo, d=d) for t in sel)
         # an empty band (a fresh container holds one session) has nothing to save
-        saving = f"{(a - b) / a:.0%}" if a else "n/a"
-        print(f"  {_k(lo)}-{_k(hi) if hi < 10**9 else 'up'}: {len(sel)} sessions, saving {saving}")
+        change = f"{(b - a) / a:+.0%}" if a else "n/a"
+        print(f"  {_k(lo)}-{_k(hi) if hi < 10**9 else 'up'}: {len(sel)} sessions, change {change}")
     _, o, r, w5, w1 = PRICES["opus"]
     print("\nitem length (requests) at which a lane pays, by main context:")
     for base in (80_000, 110_000):
