@@ -2024,7 +2024,8 @@ def test_every_cross_class_pair_of_the_pnma_candidates_is_proved():
                 assert dark[v.b] - dark[v.a], (v, "b is dark nowhere a is lit")
     assert sum(v.draws for v in found.relations) == 0
     assert _table_marks(found) == ["P"] * 4
-    assert "proved 6 (absence 6, subspace 0, farkas 0); sampled 0" in str(found)
+    assert ("proved 6 (absence 6, subspace 0, isometry 0, farkas 0, propagated 0); sampled 0"
+            in str(found))
 
 
 def test_a_subspace_certificate_is_a_separation_a_fit_confirms():
@@ -2082,27 +2083,36 @@ KNOWN_ANSWER = ("P n -3 m:1", P21C_SITE, P21C_K)
 def test_s1_against_s2_of_the_cubic_known_answer_is_sampled_not_proved():
     """S1 and S2 light the same shells and span the same intensities, so their verdicts are draws.
 
-    Nothing in this module's certificates separates them — their spans
-    coincide to 4e-15 both ways — so every S1/S2 direction of the full
-    twelve-family set is sampled or unresolved, never proved, whatever the
-    draws say.  The positive arm is in the same set: S3 and S4 are dark at
-    shells S1 and S2 light, so all 36 directions from an S1 or S2 family to
-    an S3 or S4 one are proved.  One draw and one restart, since what is
-    asserted is which verdicts the draws were *asked* for, not what they
-    answered (19 s at restarts 4, most of it fits).
+    No family-level certificate separates them — their spans coincide to
+    4e-15 both ways, and they are not isometric (issue #565 part 3's
+    acceptance: S1 against S2 gets no isometry) — so every S1/S2 direction
+    of the full twelve-family set is sampled or unresolved at one draw,
+    never proved, whatever the draws say.  Two positive arms in the same
+    set: S3 and S4 are dark at shells S1 and S2 light, so all 36 directions
+    from an S1 or S2 family to an S3 or S4 one are proved; and the two
+    rank-1 copies of each irrep *are* isometric, proved both ways with no
+    draw.  One draw and one restart, since what is asserted is which
+    verdicts the draws were *asked* for, not what they answered (19 s at
+    restarts 4, most of it fits).
     """
     found = isotropy.candidates(*KNOWN_ANSWER)
     relations = isotropy.powder_relations(found, isotropy.reflections(found.lattice, 1.5),
                                           draws=1, restarts=1)
     irrep = [c.irrep_label for c in found]
+    label = [c.label for c in found]
     between = [v for v in relations if {irrep[v.a], irrep[v.b]} == {"S1", "S2"}]
     assert len(between) == 18
-    assert all(v.certificate not in ("absence", "subspace") for v in between)
+    assert all(v.certificate not in ("absence", "subspace", "isometry") for v in between)
     assert any(v.status.startswith("sampled") and v.draws > 0 for v in between)
     across = [v for v in relations
               if irrep[v.a] in ("S1", "S2") and irrep[v.b] in ("S3", "S4")]
     assert len(across) == 36
     assert all(v.status == "proved-not" for v in across)
+    copies = [v for v in relations if "(rank 1)" in label[v.a] and "(rank 1)" in label[v.b]
+              and irrep[v.a] == irrep[v.b]]
+    assert len(copies) == 8
+    assert all((v.status, v.certificate, v.draws) == ("proved-contained", "isometry", 0)
+               for v in copies)
 
 
 def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
@@ -2111,22 +2121,27 @@ def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
     :func:`isotropy._normalised_draw` is wrapped to log which family each
     draw came from, and the log must be, draw for draw, the sequence the
     relations claim: each tested pair in order, a → b then b → a, ``draws``
-    of each.  The printed n must be those numbers.  The set is five families
-    of the cubic known-answer case (two S1, two S2, one S3) at restarts 4,
-    which holds sampled-contained directions (3 draws, within an irrep),
-    Farkas-proved ones stopped early at their witness draw (2 to 4 of 12 at
-    this seed, across irreps: all four S1 → S2 directions), unresolved and
-    family-proved ones (none), so a count that ignored the early stop or
-    charged a proved pair would show, and so would a draw spent on a pair
-    already proved distinct, or on the other direction of a Farkas-proved
-    one.  Before part 2 of issue #565 the four S1 → S2 directions were
-    ``sampled-not`` at the same draws; the witness draw is the draw a fit
-    failed on, so the log is the same.
+    of each.  The printed n must be those numbers.  The set is six families
+    of the cubic known-answer case (two S1 rank-1 copies and S1(a,b), two S2
+    copies, one S3) at restarts 4, which holds sampled-contained directions
+    (3 draws, within an irrep: S1(rank 1)#1 ↔ S1(a,b)), isometry-proved
+    ones (the two rank-1 copies of S1 and of S2, nothing drawn), one
+    Farkas-proved direction stopped early at its witness draw
+    (S1(rank 1)#1 → S2(rank 1)#1 at draw 4 of 12 at this seed), the three
+    S1 → S2 copy directions it is propagated to (nothing drawn), the
+    S1(a,b) → S2 directions (drawn, since S1(a,b) has no isometric copy),
+    unresolved and family-proved ones, so a count that ignored the early
+    stop or charged a proved pair would show, and so would a draw spent on
+    a pair already proved distinct, on a direction a propagated proof had
+    settled, or on the other direction of a Farkas-proved one.  Before
+    part 3 of issue #565 every S1 → S2 copy direction was drawn and
+    certified on its own (2 to 4 draws each).
     """
     from dataclasses import replace
 
     found = isotropy.candidates(*KNOWN_ANSWER)
-    labels = ["S1(rank 1)#1", "S1(rank 1)#2", "S2(rank 1)#1", "S2(rank 1)#2", "S3(rank 1)#1"]
+    labels = ["S1(rank 1)#1", "S1(rank 1)#2", "S1(a,b)", "S2(rank 1)#1", "S2(rank 1)#2",
+              "S3(rank 1)#1"]
     subset = replace(found, candidates=tuple(c for c in found if c.label in labels))
     assert [c.label for c in subset] == labels
     log = []
@@ -2138,15 +2153,21 @@ def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
 
     monkeypatch.setattr(isotropy, "_normalised_draw", counting)
     result = isotropy.analyse(subset, d_min=1.5, restarts=4)
-    # the S1 and S2 classes rest on draws; S3 is proved apart from all four
-    assert _table_marks(result) == ["S", "S", "S", "S", "P"]
+    # the S1 class rests on the sampled S1(a,b) edge; S2's two copies are proved
+    # equal and proved apart from every S1 family; S3 is proved apart from all
+    assert _table_marks(result) == ["S", "S", "S", "P", "P", "P"]
     statuses = {v.status for v in result.relations}
-    assert {"sampled-contained", "unresolved", "proved-not"} <= statuses
+    assert {"sampled-contained", "unresolved", "proved-not", "proved-contained"} <= statuses
     assert all((v.reason is not None) == (v.status == "unresolved") for v in result.relations)
     farkas = [v for v in result.relations if v.certificate == "farkas"]
     assert {(labels[v.a], labels[v.b]) for v in farkas} == {
-        (f"S1(rank 1)#{p}", f"S2(rank 1)#{q}") for p in (1, 2) for q in (1, 2)}
+        ("S1(rank 1)#1", "S2(rank 1)#1"), ("S1(a,b)", "S2(rank 1)#1")}
     assert all(0 < v.draws < isotropy.CROSS_IRREP_DRAWS for v in farkas)
+    carried = [v for v in result.relations if v.certificate == "propagated"]
+    assert {(labels[v.a], labels[v.b]) for v in carried} == {
+        ("S1(rank 1)#1", "S2(rank 1)#2"), ("S1(rank 1)#2", "S2(rank 1)#1"),
+        ("S1(rank 1)#2", "S2(rank 1)#2"), ("S1(a,b)", "S2(rank 1)#2")}
+    assert all(v.status == "proved-not" and v.draws == 0 for v in carried)
     expected = []
     for (i, j), pair in _pairs(result.relations, len(subset)).items():
         for v in pair:
@@ -2154,14 +2175,16 @@ def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
             if v.certificate == "farkas":          # proved by a witness: its draw's index
                 assert v.draws == v.witness.draw and v.undecided_draws == 0, v
                 assert (other.status, other.reason, other.draws) == ("unresolved", "settled", 0)
-            elif v.status == "proved-not":         # by a family certificate: nothing drawn
+            elif v.status == "proved-not":         # by a family certificate or carried: nothing drawn
                 assert v.draws == other.draws == 0, pair
         for v in pair:
             expected += [labels[v.a]] * v.draws
             assert (v.draws > 0) == (v.status.startswith("sampled") or v.certificate == "farkas")
     assert log == expected
     proved_lines = [line for line in str(result).splitlines() if " ⊄ " in line]
-    assert [line.split("  draw ")[1] for line in proved_lines] == [str(v.draws) for v in farkas]
+    assert [line.split("  draw ")[1] for line in proved_lines if "  via " not in line] == \
+        [str(v.draws) for v in farkas]
+    assert sum("  via " in line for line in proved_lines) == len(carried)
 
     printed = [line for line in str(result).splitlines()
                if line.startswith("  ") and " n = " in line]
@@ -2182,14 +2205,17 @@ def test_the_default_draws_are_twelve_across_irreps_and_three_within(monkeypatch
 
     Every fit is replaced by a perfect reproduction, so each sampled
     direction runs its whole budget and ``draws`` *is* the budget.  The set
-    is the draw-count test's five cubic families: S1 → S2 pairs are across
-    irreps, S1 → S1 and S2 → S2 inside one, and S3 is proved apart, so it
-    is never drawn.
+    is the draw-count test's six cubic families: S1 → S2 pairs are across
+    irreps, S1(rank 1) → S1(a,b) inside one (the two rank-1 copies of an
+    irrep are isometric since part 3 of issue #565, proved and not drawn,
+    so the within-irrep budget is read off the direction against the (a,b)
+    plane), and S3 is proved apart, so it is never drawn.
     """
     from dataclasses import replace
 
     found = isotropy.candidates(*KNOWN_ANSWER)
-    labels = ["S1(rank 1)#1", "S1(rank 1)#2", "S2(rank 1)#1", "S2(rank 1)#2", "S3(rank 1)#1"]
+    labels = ["S1(rank 1)#1", "S1(rank 1)#2", "S1(a,b)", "S2(rank 1)#1", "S2(rank 1)#2",
+              "S3(rank 1)#1"]
     subset = replace(found, candidates=tuple(c for c in found if c.label in labels))
     reflections = isotropy.reflections(found.lattice, 1.5)
     monkeypatch.setattr(isotropy, "_certify_draw",
@@ -2214,12 +2240,16 @@ def test_the_cubic_known_answer_has_four_classes_at_the_default_draws():
     default 12 across irreps some draw of every such pair is not.  The
     classes are a sampled verdict at one seed (20260906), so this pins the
     protocol.  Since part 2 of issue #565 the separations are proved: of
-    the 54 cross-irrep pairs, 36 by absence (S1/S2 against S3/S4) and 17
-    by a stored Farkas witness, each re-verified here from its t and y; the
-    18th, S1(rank 1)#2 → S2(a,b), is ``sampled-not`` with a negative dual
-    (no certificate exists for that draw; part 3's isometry carries it from
-    S1(rank 1)#1's).  The witnesses' d_lo run from 0.0013 to 0.032.
-    50-200 s on one core by machine load and tree, hence slow.
+    the 54 cross-irrep pairs, 36 by absence (S1/S2 against S3/S4) and 18
+    by a Farkas witness, found on the pair or carried to it from an
+    isometric copy (part 3: the rank-1 copies of each irrep are proved
+    equal, so a witness against one is a witness against the other), each
+    re-verified here from its t and y against the pair's own stack.  Before
+    part 3 the 18th, S1(rank 1)#2 → S2(a,b), was ``sampled-not`` with a
+    negative dual (no certificate exists for *its* draw); the proof it
+    carries now is S1(rank 1)#1 → S2(a,b)'s.  The witnesses' d_lo run from
+    0.0013 to 0.032.  50-200 s on one core by machine load and tree, hence
+    slow.
     """
     found = isotropy.analyse(isotropy.candidates(*KNOWN_ANSWER), d_min=1.5)
     by_irrep = {}
@@ -2229,6 +2259,7 @@ def test_the_cubic_known_answer_has_four_classes_at_the_default_draws():
     assert len(found.classes) == 4
 
     irrep = [c.irrep_label for c in found]
+    label = [c.label for c in found]
     cross = [pair for (i, j), pair in _pairs(found.relations, len(found)).items()
              if irrep[i] != irrep[j]]
     assert len(cross) == 54
@@ -2236,37 +2267,53 @@ def test_the_cubic_known_answer_has_four_classes_at_the_default_draws():
     for pair in cross:
         proof = next((v.certificate for v in pair if v.status == "proved-not"), None)
         by[proof] = by.get(proof, 0) + 1
-    assert by == {"absence": 36, "farkas": 17, None: 1}
-    failed = [v for v in found.relations if v.status == "sampled-not"]
-    assert [(found[v.a].label, found[v.b].label) for v in failed] == [("S1(rank 1)#2", "S2(a,b)")]
-    assert failed[0].dual < 0.0 and failed[0].witness is None
+    assert by["absence"] == 36 and by["farkas"] + by["propagated"] == 18 and None not in by
+    assert by["farkas"] >= 4             # one found draw per (S1 family, S2 family-or-copy class) at least
+    assert not [v for v in found.relations if v.status == "sampled-not"]
+    copies = [v for v in found.relations if v.certificate == "isometry"]
+    assert {(label[v.a], label[v.b]) for v in copies} == {
+        (f"{s}(rank 1)#{p}", f"{s}(rank 1)#{q}") for s in ("S1", "S2", "S3", "S4")
+        for p, q in ((1, 2), (2, 1))}
     reflections = isotropy.reflections(found.lattice, 1.5)
     canonical = [isotropy._canonical_basis(c) for c in found]
-    farkas = [v for v in found.relations if v.certificate == "farkas"]
-    for v in farkas:
-        g = isotropy.gram(isotropy.structure_factors(canonical[v.b], reflections),
-                          reflections.shells)
-        assert isotropy._verify_witness(g, v.witness)[0], v
+    grams = {}
+    proved = [v for v in found.relations if v.certificate in ("farkas", "propagated")]
+    assert all(v.status == "proved-not" and v.witness is not None for v in proved)
+    for v in proved:
+        if v.b not in grams:
+            grams[v.b] = isotropy.gram(isotropy.structure_factors(canonical[v.b], reflections),
+                                       reflections.shells)
+        assert isotropy._verify_witness(grams[v.b], v.witness)[0], v
         assert v.d[0] <= v.d[1]
-    assert 1e-3 < min(v.d[0] for v in farkas) and max(v.d[0] for v in farkas) < 0.05
+        if v.certificate == "propagated":
+            source = next(s for s in proved if (s.a, s.b) == v.via)
+            assert source.certificate == "farkas" and v.witness is source.witness
+            assert irrep[source.a] == irrep[v.a] and irrep[source.b] == irrep[v.b]
+    assert 1e-3 < min(v.d[0] for v in proved) and max(v.d[0] for v in proved) < 0.05
 
 
 def test_the_certificates_run_on_a_pair_union_find_has_already_joined(monkeypatch):
     """A join is transitive and a proof is not, so a joined pair still gets its certificates.
 
-    The draw-count test's five cubic families, every fit replaced by a
+    The draw-count test's six cubic families, every fit replaced by a
     perfect reproduction, so S1 ∪ S2 is one class.  The positive arm: the
-    certificates of S1(rank 1)#1 ↔ S3 are withheld, so that pair is drawn
-    and joined, and S3 joins the class through it — as a later certificate
+    certificates of S1(a,b) ↔ S3 are withheld, so that pair is drawn and
+    joined, and S3 joins the class through it — as a later certificate
     that is not an equivalence (a stored Farkas witness, issue #565 part 2)
     can leave a proved separation inside a class.  Every other S3 pair is
     then reached already joined, and must still carry its ``proved-not``;
     the S1/S2 pairs reached joined carry ``reason="joined"`` and no draws.
+    The withheld partner is S1(a,b) and not, as before part 3, a rank-1
+    copy: withholding S1(rank 1)#1 ↔ S3 no longer opens the pair, because
+    S1(rank 1)#1 ≅ S1(rank 1)#2 and S1(rank 1)#2 ⊄ S3 by absence, so the
+    proof is carried (``propagated``) and S3 stays apart — the second
+    arm below.
     """
     from dataclasses import replace
 
     found = isotropy.candidates(*KNOWN_ANSWER)
-    labels = ["S1(rank 1)#1", "S1(rank 1)#2", "S2(rank 1)#1", "S2(rank 1)#2", "S3(rank 1)#1"]
+    labels = ["S1(rank 1)#1", "S1(rank 1)#2", "S1(a,b)", "S2(rank 1)#1", "S2(rank 1)#2",
+              "S3(rank 1)#1"]
     subset = replace(found, candidates=tuple(c for c in found if c.label in labels))
     reflections = isotropy.reflections(found.lattice, 1.5)
     monkeypatch.setattr(isotropy, "_certify_draw",
@@ -2274,22 +2321,36 @@ def test_the_certificates_run_on_a_pair_union_find_has_already_joined(monkeypatc
     real = isotropy._certify
 
     def withheld(a, b, *args):
-        return None if {a, b} == {0, 4} else real(a, b, *args)
+        return None if {a, b} == {2, 5} else real(a, b, *args)
 
     monkeypatch.setattr(isotropy, "_certify", withheld)
     classes, relations = isotropy._classify(subset, reflections, draws=3,
                                             seed=20260906, rtol=1e-4, restarts=1)
-    assert classes == ((0, 1, 2, 3, 4),)
+    assert classes == ((0, 1, 2, 3, 4, 5),)
     pairs = _pairs(relations, len(subset))
     for (i, j), pair in pairs.items():
-        if 4 in (i, j) and 0 not in (i, j):
+        if 5 in (i, j) and 2 not in (i, j):
             assert any(v.status == "proved-not" and v.certificate is not None
                        for v in pair), pair
             assert all(v.draws == 0 for v in pair), pair
     joined = [v for v in relations if v.reason == "joined"]
     assert joined
     assert all(v.draws == 0 and v.status == "unresolved" for v in joined)
-    assert all(4 not in (v.a, v.b) for v in joined)
+    assert all(5 not in (v.a, v.b) for v in joined)
+
+    def withheld_copy(a, b, *args):
+        return None if {a, b} == {0, 5} else real(a, b, *args)
+
+    monkeypatch.setattr(isotropy, "_certify", withheld_copy)
+    classes, relations = isotropy._classify(subset, reflections, draws=3,
+                                            seed=20260906, rtol=1e-4, restarts=1)
+    assert classes == ((0, 1, 2, 3, 4), (5,))
+    verdicts = {(v.a, v.b): v for v in relations}
+    carried = verdicts[(0, 5)]
+    assert (carried.status, carried.certificate, carried.via, carried.draws) == \
+        ("proved-not", "propagated", (1, 5), 0)
+    assert verdicts[(1, 5)].certificate == "absence"
+    assert (verdicts[(5, 0)].status, verdicts[(5, 0)].reason) == ("unresolved", "settled")
 
 
 #: A site 10⁻⁴ off the origin of ``P m -3 m``, where 21 of the 28 families
@@ -2508,9 +2569,10 @@ def test_a_stored_synthetic_witness_reverifies_and_its_negation_does_not():
     y = parts["y"]
     witness = isotropy.Witness(
         draw=1, t=tuple(SYNTHETIC_OUT), live=(0, 1, 2), y=tuple(y), weights=None,
-        kernel_dim=0, kernel_residual=0.0, ratio=parts["ratio"],
-        rounding_bound=parts["rounding_bound"], exact=True,
+        kernel_dim=0, kernel_residual=0.0, kernel_amplitude_ratio=float("inf"),
+        ratio=parts["ratio"], rounding_bound=parts["rounding_bound"], exact=True,
         d=(1.0 / float(np.linalg.norm(y)), 1.0))
+    assert parts["kernel_amplitude_ratio"] == float("inf")
     holds, ratio, off = isotropy._verify_witness(SYNTHETIC_STACK, witness)
     assert holds and ratio >= isotropy.FARKAS_FLOOR and off <= 1e-12
     from dataclasses import replace
@@ -2668,19 +2730,22 @@ def test_the_gate_reads_rtol_with_the_root_s_factor(monkeypatch, pm3mx_stack):
 def test_a_proved_separation_inside_a_joined_class_is_reported(monkeypatch, known_answer_stack):
     """Union-find can join two families a witness has proved apart; the table must say so.
 
-    Four known-answer families, every draw stubbed to be reproduced except
+    Three known-answer families, every draw stubbed to be reproduced except
     those of S1(rank 1)#1 → S2(rank 1)#1, which run for real and certify at
     draw 4 at this seed (20260906).  S2(rank 1)#1 then joins the class
-    through the stubbed S1(rank 1)#2 pair, so one class holds a
+    through the stubbed S1(a,b) pair, so one class holds a
     ``proved-not``/``farkas`` direction: it is marked S, the separation is
     printed with its d bracket, and the class is named as holding one.
     This is the shape ``F -4 3 m`` Γ takes at seed 2 (S4 ⊄ S5 inside
-    S4 ∪ S5).
+    S4 ∪ S5).  The joining family is S1(a,b) rather than part 2's
+    S1(rank 1)#2, because a rank-1 copy is isometric to S1(rank 1)#1 since
+    part 3 and inherits its proof, which closes the join this test is
+    about; S1(a,b) has no isometric copy.
     """
     from dataclasses import replace
 
     found, reflections, canonical, grams, dark, labels = known_answer_stack
-    names = ["S1(rank 1)#1", "S1(rank 1)#2", "S2(rank 1)#1", "S2(rank 1)#2"]
+    names = ["S1(rank 1)#1", "S1(a,b)", "S2(rank 1)#1"]
     subset = replace(found, candidates=tuple(c for c in found if c.label in names))
     target = grams[labels.index("S2(rank 1)#1")]
     drawn = []
@@ -2698,31 +2763,38 @@ def test_a_proved_separation_inside_a_joined_class_is_reported(monkeypatch, know
     monkeypatch.setattr(isotropy, "_normalised_draw", logging)
     monkeypatch.setattr(isotropy, "_certify_draw", selective)
     result = isotropy.analyse(subset, d_min=1.5, restarts=4)
-    assert result.classes == ((0, 1, 2, 3),)
-    assert _table_marks(result) == ["S"] * 4
+    assert result.classes == ((0, 1, 2),)
+    assert _table_marks(result) == ["S"] * 3
     there = next(v for v in result.relations if (v.a, v.b) == (0, 2))
     assert (there.status, there.certificate, there.draws) == ("proved-not", "farkas", 4)
     lo, hi = there.d
     text = str(result)
     assert f"S1(rank 1)#1 ⊄ S2(rank 1)#1  d ∈ [{lo:.2g}, {hi:.2g}]  draw 4" in text
     assert "classes holding a proved separation (part 5 of issue #565 splits them): 0" in text
-    assert "proved 1 (absence 0, subspace 0, farkas 1)" in text
+    assert "proved 1 (absence 0, subspace 0, isometry 0, farkas 1, propagated 0)" in text
 
 
 @pytest.mark.xdist_group("magnetic-known-answer")
-def test_the_s1_s2_pairs_of_the_known_answer_are_proved_by_stored_witnesses(known_answer_stack):
-    """S1 against S2 of the known answer: every pair the certificate proves, at the default draws and restarts 4.
+def test_a_separation_proved_on_one_copy_appears_on_the_other(known_answer_stack):
+    """S1 against S2 of the known answer at restarts 4: every S1 → S2 direction is proved, four by a found witness and five by propagation.
 
-    The six S1 and S2 families.  At seed 20260906 seven of the nine
-    S1 → S2 directions certify (pinned below, with the draw each stops
-    at); the other two are ``sampled-not`` with a negative dual: no
-    certificate exists for that draw.  At restarts 32 the second of them,
-    S1(a,b) → S2(rank 1)#2, is reproduced at draw 4 and certified at draw 10
-    instead (measured, not pinned: about 2× the time).  Every witness is
-    re-verified from its stored t and y alone, sits at ratio ≥
+    The six S1 and S2 families.  The two rank-1 copies of each irrep are
+    isometric, so the pair loop draws one direction per (S1 copy class or
+    S1(a,b)) × (S2 copy class or S2(a,b)) and carries the proof to the
+    copies: at seed 20260906 the four drawn directions certify (pinned
+    below, with the draw each stops at), and the five others are
+    ``propagated`` with ``via`` naming the source, ``draws`` 0 and the
+    source's witness.  Issue #565 part 3's acceptance row: the two
+    directions part 2 left ``sampled-not`` with a negative dual
+    (S1(rank 1)#2 → S2(a,b) and S1(a,b) → S2(rank 1)#2, whose own draws
+    have no certificate) are now proved by the copy's witness.  Every
+    witness, found or carried, is re-verified from its stored t and y
+    against the *target's own* stack (a carried one against the copy's,
+    which the congruence makes valid), sits at ratio ≥
     :data:`isotropy.FARKAS_QUOTE`, passes the exact check, has
     d_lo ≤ d_up and clears the gate.  No physical floor: the smallest d_lo
-    is 0.0049, below the 1e-2 a floor might be tempted to set.
+    is 0.0071, below the 1e-2 a floor might be tempted to set.  Part 2
+    drew all nine directions here (56.7 s at review); this draws four.
     """
     from dataclasses import replace
 
@@ -2732,29 +2804,45 @@ def test_the_s1_s2_pairs_of_the_known_answer_are_proved_by_stored_witnesses(know
     classes, relations = isotropy._classify(subset, reflections, draws=None, seed=20260906,
                                             rtol=1e-4, restarts=4)
     result = replace(subset, classes=classes, relations=relations)
+    assert classes == ((0, 1, 2), (3, 4, 5))
     farkas = {(names[v.a], names[v.b]): v for v in result.relations if v.certificate == "farkas"}
     assert {key: v.draws for key, v in farkas.items()} == {
-        ("S1(rank 1)#1", "S2(rank 1)#1"): 4, ("S1(rank 1)#1", "S2(rank 1)#2"): 3,
-        ("S1(rank 1)#1", "S2(a,b)"): 3, ("S1(rank 1)#2", "S2(rank 1)#1"): 2,
-        ("S1(rank 1)#2", "S2(rank 1)#2"): 2, ("S1(a,b)", "S2(rank 1)#1"): 4,
-        ("S1(a,b)", "S2(a,b)"): 3}
-    failed = [v for v in result.relations if v.status == "sampled-not"]
-    assert {(names[v.a], names[v.b]) for v in failed} == {
-        ("S1(rank 1)#2", "S2(a,b)"), ("S1(a,b)", "S2(rank 1)#2")}
-    assert all(v.dual is not None and v.dual < 0.0 and v.witness is None for v in failed)
-    for (a, b), v in farkas.items():
+        ("S1(rank 1)#1", "S2(rank 1)#1"): 4, ("S1(rank 1)#1", "S2(a,b)"): 3,
+        ("S1(a,b)", "S2(rank 1)#1"): 4, ("S1(a,b)", "S2(a,b)"): 3}
+    carried = {(names[v.a], names[v.b]): v for v in result.relations
+               if v.certificate == "propagated"}
+    assert {key: (names[v.via[0]], names[v.via[1]]) for key, v in carried.items()} == {
+        ("S1(rank 1)#1", "S2(rank 1)#2"): ("S1(rank 1)#1", "S2(rank 1)#1"),
+        ("S1(rank 1)#2", "S2(rank 1)#1"): ("S1(rank 1)#1", "S2(rank 1)#1"),
+        ("S1(rank 1)#2", "S2(rank 1)#2"): ("S1(rank 1)#1", "S2(rank 1)#1"),
+        ("S1(rank 1)#2", "S2(a,b)"): ("S1(rank 1)#1", "S2(a,b)"),
+        ("S1(a,b)", "S2(rank 1)#2"): ("S1(a,b)", "S2(rank 1)#1")}
+    assert all(v.status == "proved-not" and v.draws == 0 for v in carried.values())
+    assert not [v for v in result.relations if v.status == "sampled-not"]
+    irrep = {c.label: c.irrep_label for c in subset}
+    assert all(v.status == "proved-not" for v in result.relations
+               if irrep[names[v.a]] == "S1" and irrep[names[v.b]] == "S2")
+    isometric = {(names[v.a], names[v.b]) for v in result.relations
+                 if v.certificate == "isometry"}
+    assert isometric == {("S1(rank 1)#1", "S1(rank 1)#2"), ("S1(rank 1)#2", "S1(rank 1)#1"),
+                         ("S2(rank 1)#1", "S2(rank 1)#2"), ("S2(rank 1)#2", "S2(rank 1)#1")}
+    for (a, b), v in {**farkas, **carried}.items():
         w = v.witness
         holds, ratio, off = isotropy._verify_witness(grams[labels.index(b)], w)
         assert holds and off <= 1e-9 and ratio >= isotropy.FARKAS_FLOOR, (a, b)
         assert w.exact and w.ratio >= isotropy.FARKAS_QUOTE and w.rounding_bound < 1e-13
+        assert w.kernel_amplitude_ratio == float("inf") and w.kernel_dim == 0
         assert v.d == w.d and w.d[0] == pytest.approx(1.0 / np.linalg.norm(w.y))
         assert w.d[0] <= w.d[1]
         live = np.isin(np.arange(len(w.t)), w.live)
         assert w.d[0] >= isotropy._gate(1e-4, np.asarray(w.t), live)
         assert v.dual >= isotropy.FARKAS_FLOOR
+    for key, v in carried.items():
+        assert v.witness is farkas[(names[v.via[0]], names[v.via[1]])].witness
     assert min(v.d[0] for v in farkas.values()) < 1e-2
     printed = [line for line in str(result).splitlines() if " ⊄ " in line]
-    assert len(printed) == len(farkas)
+    assert len(printed) == len(farkas) + len(carried)
+    assert sum(" via " in line for line in printed) == len(carried)
     for line in printed:
         lo, hi = (float(x) for x in line.split("d ∈ [")[1].split("]")[0].split(", "))
         assert lo <= hi
@@ -2870,8 +2958,8 @@ def test_a_stored_known_answer_witness_reverifies_from_its_literals(known_answer
     y = np.array(KNOWN_WITNESS_Y)
     witness = isotropy.Witness(
         draw=2, t=KNOWN_WITNESS_T, live=KNOWN_WITNESS_LIVE, y=KNOWN_WITNESS_Y, weights=None,
-        kernel_dim=0, kernel_residual=0.0, ratio=1e-10, rounding_bound=7.9e-15, exact=True,
-        d=(1.0 / float(np.linalg.norm(y)), 0.00495))
+        kernel_dim=0, kernel_residual=0.0, kernel_amplitude_ratio=float("inf"), ratio=1e-10,
+        rounding_bound=7.9e-15, exact=True, d=(1.0 / float(np.linalg.norm(y)), 0.00495))
     holds, ratio, off = isotropy._verify_witness(grams[b], witness)
     assert holds and ratio >= isotropy.FARKAS_FLOOR and off <= 1e-9
     assert witness.d[0] == pytest.approx(0.00494, rel=2e-3)
@@ -2891,3 +2979,262 @@ def test_the_quote_target_is_never_below_the_accept_floor():
     # the positive arm: an anchor well inside still quotes at the FARKAS_QUOTE target
     y = isotropy._quote_inside(stack, y_mn, np.array([1.0, 1.0]))
     assert isotropy._spectrum_ratio(stack, y) >= isotropy.FARKAS_QUOTE
+
+
+# --------------------------------------------------------------------------
+# II. The isometry certificate, its propagation and the full-stack guard
+#     (issue #565, part 3)
+# --------------------------------------------------------------------------
+
+@pytest.mark.xdist_group("magnetic-known-answer")
+def test_the_rank_one_copies_of_each_known_answer_irrep_are_isometric(known_answer_stack):
+    """Issue #565 part 3's acceptance: the two rank-1 copies of each irrep certify at residual ≤ 1e-12, and the claim holds on a draw.
+
+    For S1 to S4 of ``P n -3 m:1`` at (0, 0, ½): an orthogonal Q with
+    QᵀG^#2_sQ = G^#1_s, one-dimensional intertwiner space, both residuals
+    ≤ :data:`isotropy.ISOMETRY_RESIDUAL` (measured ≤ 1.3e-14 and ≤ 1e-13),
+    and the statement it proves checked by the route it replaces: a random
+    amplitude x of copy #1 and Qx of copy #2 give the same intensity on
+    every shell to 1e-13 of the largest.  The stored record re-verifies
+    against the two stacks, and fails against −Q's transpose-free
+    corruption (a Q with one row negated is still orthogonal and is not an
+    intertwiner) and against another irrep's stack.
+    """
+    found, reflections, canonical, grams, dark, labels = known_answer_stack
+    rng = np.random.default_rng(3)
+    for irrep in ("S1", "S2", "S3", "S4"):
+        a, b = labels.index(f"{irrep}(rank 1)#1"), labels.index(f"{irrep}(rank 1)#2")
+        record = isotropy._isometry(grams[a], grams[b])
+        assert record is not None, irrep
+        assert record.residual <= isotropy.ISOMETRY_RESIDUAL
+        assert record.orthogonality <= isotropy.ISOMETRY_RESIDUAL
+        assert record.dimension == 1 and record.driver == "gesdd"
+        q = np.asarray(record.q)
+        assert q.shape == (18, 18)
+        x = rng.normal(size=18)
+        own, image = (grams[a] @ x) @ x, (grams[b] @ (q @ x)) @ (q @ x)
+        assert float(np.max(np.abs(own - image))) <= 1e-13 * float(np.max(own))
+        assert isotropy._verify_isometry(grams[a], grams[b], record)[0]
+        from dataclasses import replace
+
+        flipped = q.copy()
+        flipped[0] *= -1.0
+        corrupt = replace(record, q=tuple(tuple(row) for row in flipped))
+        holds, residual, orthogonality = isotropy._verify_isometry(grams[a], grams[b], corrupt)
+        assert not holds and orthogonality <= 1e-12 and residual > 1e-3
+        other = labels.index("S2(rank 1)#1" if irrep != "S2" else "S1(rank 1)#1")
+        assert not isotropy._verify_isometry(grams[a], grams[other], record)[0]
+
+
+def test_a_singular_or_absent_intertwiner_is_no_isometry():
+    """The negative arms, synthetic: a family inside a larger one, two with different spectra, equal images with no intertwiner, two of different size, a zero stack.
+
+    A_s = diag(a_s, 0) against B_s = diag(a_s, b_s) with b_s ≠ a_s, 0: the
+    intertwiner space is spanned by e₁e₁ᵀ alone, a *singular* matrix whose
+    scaled copy has ‖QᵀQ − I‖ = 1 and congruence residual 1, while B's
+    image (every (a_s x², b_s y²)) is strictly larger than A's, so both
+    checks refuse what a containment could not be certified as.  Its
+    spectra differ too, so :func:`isotropy._isometry` refuses it before
+    any SVD (the operator is not built).  The quadrant (x², y²) and the
+    projector pair (x², (x + y)²/2) have the *same* image and no
+    intertwiner at all: no isometry proves nothing, and the pair is left
+    to the draws.  The positive arm beside them: a swap of the amplitude
+    axes certifies.  A size mismatch and a zero stack are not applicable.
+    """
+    a = np.array([np.diag([1.0, 0.0]), np.diag([2.0, 0.0])])
+    b = np.array([np.diag([1.0, 3.0]), np.diag([2.0, 1.0])])
+    basis, driver = isotropy._intertwiners(a, b)
+    assert driver == "gesdd" and basis.shape[0] == 1
+    assert np.allclose(np.abs(basis[0]), np.diag([1.0, 0.0]), atol=1e-12)
+    q, orthogonality = isotropy._orthogonal_in_span(basis)
+    assert orthogonality == pytest.approx(1.0) and isotropy._congruence_residual(a, b, q) > 0.5
+    scaled = isotropy._trace_scaled(a, b)
+    assert scaled is not None and not isotropy._spectra_agree(*scaled)
+    calls = []
+    real = isotropy._intertwiners
+
+    def counting(*args):
+        calls.append(1)
+        return real(*args)
+
+    import unittest.mock
+
+    with unittest.mock.patch.object(isotropy, "_intertwiners", counting):
+        assert isotropy._isometry(a, b) is None
+        assert calls == []
+        quadrant = np.array([np.diag([1.0, 0.0]), np.diag([0.0, 1.0])])
+        projector = np.array([np.diag([1.0, 0.0]), 0.5 * np.ones((2, 2))])
+        assert isotropy._spectra_agree(*isotropy._trace_scaled(quadrant, projector))
+        assert isotropy._isometry(quadrant, projector) is None
+        assert calls == [1]
+        assert isotropy._intertwiners(quadrant, projector)[0].shape[0] == 0
+        swapped = np.array([np.diag([1.0, 1.0]), np.diag([0.0, 2.0])])
+        same = np.array([np.diag([1.0, 1.0]), np.diag([2.0, 0.0])])
+        record = isotropy._isometry(same, swapped)
+        assert record is not None and record.residual <= isotropy.ISOMETRY_RESIDUAL
+    # equal spectra on every shell, A ⊊ B, and a two-dimensional intertwiner
+    # space holding only singular matrices: the alternating projection's
+    # polar factor is orthogonal and is not an intertwiner, so the
+    # congruence residual is what refuses it
+    inner = np.array([np.diag([1.0, 1.0, 0.0]), np.diag([1.0, 0.0, 0.0])])
+    outer = np.array([np.diag([1.0, 1.0, 0.0]), np.diag([0.0, 0.0, 1.0])])
+    assert isotropy._spectra_agree(*isotropy._trace_scaled(inner, outer))
+    basis, _ = isotropy._intertwiners(inner, outer)
+    assert basis.shape[0] == 2
+    assert all(np.linalg.matrix_rank(m, tol=1e-9) == 1 for m in basis)
+    q, orthogonality = isotropy._orthogonal_in_span(basis)
+    assert orthogonality <= 1e-12 and isotropy._congruence_residual(inner, outer, q) > 0.5
+    assert isotropy._isometry(inner, outer) is None
+    assert isotropy._isometry(a, np.zeros((2, 3, 3))) is None
+    assert isotropy._isometry(a, np.zeros_like(a)) is None
+    assert isotropy._isometry(np.zeros_like(a), np.zeros_like(a)) is None
+
+
+def test_an_isometry_is_found_in_a_multi_dimensional_intertwiner_space_and_up_to_scale():
+    """The positive arm, synthetic: A_s = diag(a_s, a_s, b_s) against B_s = 3·Q₀ᵀA_sQ₀ for a random orthogonal Q₀.
+
+    The commutant of A is the 2 × 2 block times the last diagonal entry,
+    five-dimensional, so the intertwiner space of (A, B) has dimension 5
+    and the alternating projection must land on an orthogonal element;
+    the factor 3 is removed by the trace scaling, since a scale is
+    refinable.  The certificate re-verifies, and B with one shell scaled
+    on its own (no longer one overall scale) gets none.
+    """
+    rng = np.random.default_rng(11)
+    q0, _ = np.linalg.qr(rng.normal(size=(3, 3)))
+    a = np.array([np.diag([1.0, 1.0, 0.5]), np.diag([0.2, 0.2, 2.0]), np.diag([1.5, 1.5, 0.1])])
+    b = 3.0 * np.einsum("ki,skl,lj->sij", q0, a, q0)
+    record = isotropy._isometry(a, b)
+    assert record is not None
+    assert record.dimension == 5
+    assert record.residual <= isotropy.ISOMETRY_RESIDUAL
+    assert record.orthogonality <= isotropy.ISOMETRY_RESIDUAL
+    q = np.asarray(record.q)
+    x = rng.normal(size=3)
+    assert np.allclose((a @ x) @ x, ((b @ (q @ x)) @ (q @ x)) / 3.0, rtol=1e-12, atol=0.0)
+    assert isotropy._verify_isometry(a, b, record)[0]
+    lopsided = b.copy()
+    lopsided[1] *= 1.01
+    assert isotropy._isometry(a, lopsided) is None
+
+
+def test_the_intertwiner_svd_falls_back_to_gesvd_when_gesdd_does_not_converge(monkeypatch):
+    """LAPACK's gesdd failed on two ``F m -3 m`` Γ families; the same SVD by gesvd answers, and the driver is recorded."""
+    a = np.array([np.diag([1.0, 2.0]), np.diag([3.0, 1.0])])
+    b = a[:, ::-1, ::-1].copy()                     # the swap: an isometry
+    operator_shape = (a.shape[0] * 4, 4)
+    real = np.linalg.svd
+    calls = []
+
+    def flaky(matrix, *args, **kwargs):
+        if matrix.shape == operator_shape:
+            calls.append(matrix.shape)
+            raise np.linalg.LinAlgError("SVD did not converge")
+        return real(matrix, *args, **kwargs)
+
+    monkeypatch.setattr(np.linalg, "svd", flaky)
+    record = isotropy._isometry(a, b)
+    assert record is not None and record.driver == "gesvd" and calls == [operator_shape]
+    assert record.residual <= isotropy.ISOMETRY_RESIDUAL
+    monkeypatch.setattr(np.linalg, "svd", real)
+    assert isotropy._isometry(a, b).driver == "gesdd"
+
+
+def _coupled_stack(eps):
+    """The synthetic stack with a third amplitude that only shell 0 sees, through (1, 0, ε)(1, 0, ε)ᵀ: a kernel at residual about ε."""
+    padded = np.zeros((3, 3, 3))
+    padded[:, :2, :2] = SYNTHETIC_STACK
+    v = np.array([1.0, 0.0, eps])
+    padded[0] = np.outer(v, v)
+    return padded
+
+
+def test_the_full_stack_guard_refuses_a_kernel_the_quoted_margin_cannot_cover():
+    """The promise made on #772: the kernel guard is tied to the quoted margin, and the certificate states what the full stack proves.
+
+    A kernel direction coupled at r_K ≈ 5e-10 passes the 1e-9 pre-screen
+    but gives ρ_max ≈ 0.03 < :data:`isotropy.KERNEL_AMPLITUDE_RATIO`: the
+    dual is solved (its optimum is returned) and the certificate refused.
+    At r_K ≈ 1e-13 the same draw certifies with ρ_max ≈ 15 recorded on the
+    witness, and the inequality the record states is checked on random
+    amplitudes with kernel share up to ρ_max: y·I(b) > 0 on all of them.
+    Without a kernel ρ_max is infinite.  A stored witness is re-verified
+    with the same guard: the accepted one holds against its own stack and
+    fails against the 5e-10 stack, whose kernel its margin cannot cover.
+    Under :data:`isotropy.INTENSITY_RTOL` alone (part 2's guard) both
+    stacks would certify.
+    """
+    loose = _coupled_stack(5e-10)
+    _, kernel, residual = isotropy._live_projection(loose)
+    assert kernel == 1 and 1e-10 < residual < isotropy.INTENSITY_RTOL
+    dual, parts = isotropy._farkas_certificate(loose, SYNTHETIC_OUT)
+    assert dual is not None and dual >= isotropy.FARKAS_FLOOR and parts is None
+
+    tight = _coupled_stack(1e-13)
+    _, kernel, residual = isotropy._live_projection(tight)
+    assert kernel == 1 and 0.0 < residual < 1e-12
+    dual, parts = isotropy._farkas_certificate(tight, SYNTHETIC_OUT)
+    assert parts is not None and parts["kernel_dim"] == 1
+    rho = parts["kernel_amplitude_ratio"]
+    assert isotropy.KERNEL_AMPLITUDE_RATIO <= rho < 1e3
+    assert rho == pytest.approx(isotropy._kernel_amplitude_ratio(tight, parts["y"]))
+    assert isotropy._kernel_amplitude_ratio(SYNTHETIC_STACK, np.array([1.0, 1.0, -0.5])) == np.inf
+    # the inequality the record states, on the full (unprojected) float stack
+    g = tight / np.max(np.abs(tight))
+    k, p, _ = isotropy._common_kernel(g)
+    m = np.einsum("s,sij->ij", parts["y"], g)
+    rng = np.random.default_rng(7)
+    for _ in range(200):
+        u = rng.normal(size=p.shape[1])
+        v = rng.normal(size=k.shape[1])
+        v *= rho * np.linalg.norm(u) / np.linalg.norm(v) * rng.uniform(0.0, 1.0)
+        b = p @ u + k @ v
+        assert float(b @ m @ b) > 0.0
+
+    witness = isotropy.Witness(
+        draw=1, t=tuple(SYNTHETIC_OUT), live=(0, 1, 2), y=tuple(parts["y"]), weights=None,
+        kernel_dim=1, kernel_residual=parts["kernel_residual"], kernel_amplitude_ratio=rho,
+        ratio=parts["ratio"], rounding_bound=parts["rounding_bound"], exact=True,
+        d=(1.0 / float(np.linalg.norm(parts["y"])), 1.0))
+    assert isotropy._verify_witness(tight, witness)[0]
+    holds, ratio, off = isotropy._verify_witness(loose, witness)
+    assert not holds and ratio >= isotropy.FARKAS_FLOOR and off <= 1e-9
+
+
+def test_propagation_carries_only_proofs_and_refuses_two_that_disagree():
+    """:func:`isotropy._propagate` on hand-built verdicts: copies inherit a proof, a sample carries nothing, a proved contradiction raises.
+
+    Five candidates, 0 ≅ 1 and 3 ≅ 4 (2 alone).  A ``farkas`` 0 → 3
+    reaches (0, 4), (1, 3) and (1, 4): an undecided direction, a sampled
+    one and an unresolved one are all replaced, with ``via`` (0, 3) and the
+    source's witness-less ``d``; a direction already proved the same way
+    is left as it was; one proved the *other* way raises.  A sampled
+    source and a propagated source carry nothing.
+    """
+    copies = [0, 0, 2, 3, 3]
+    source = isotropy.PairVerdict(0, 3, "proved-not", "farkas", 4, 0, d=(0.01, 0.1), dual=1e-6)
+    verdicts = {(1, 3): isotropy.PairVerdict(1, 3, "sampled-contained", None, 12, 0),
+                (1, 4): isotropy.PairVerdict(1, 4, "unresolved", None, reason="joined"),
+                (3, 0): isotropy.PairVerdict(3, 0, "sampled-contained", None, 2, 0),
+                (0, 2): isotropy.PairVerdict(0, 2, "sampled-contained", None, 3, 0)}
+    isotropy._propagate(source, verdicts, list(copies), 5)
+    for key in ((0, 4), (1, 3), (1, 4)):
+        v = verdicts[key]
+        assert (v.status, v.certificate, v.draws, v.via, v.d, v.dual) == \
+            ("proved-not", "propagated", 0, (0, 3), (0.01, 0.1), 1e-6), key
+    assert verdicts[(3, 0)].status == "sampled-contained"        # the other direction is not the source's
+    assert verdicts[(0, 2)].status == "sampled-contained"        # 2 is nobody's copy
+    assert (0, 3) not in verdicts                                # the source itself is the caller's
+    kept = isotropy.PairVerdict(1, 3, "proved-not", "absence")
+    verdicts[(1, 3)] = kept
+    isotropy._propagate(source, verdicts, list(copies), 5)
+    assert verdicts[(1, 3)] is kept
+    verdicts[(1, 4)] = isotropy.PairVerdict(1, 4, "proved-contained", "absence")
+    with pytest.raises(RuntimeError, match="two certificates disagree"):
+        isotropy._propagate(source, verdicts, list(copies), 5)
+    fresh = {}
+    isotropy._propagate(isotropy.PairVerdict(0, 3, "sampled-not", None, 5, 1), fresh,
+                        list(copies), 5)
+    isotropy._propagate(isotropy.PairVerdict(0, 3, "proved-not", "propagated", via=(1, 4)),
+                        fresh, list(copies), 5)
+    assert fresh == {}
