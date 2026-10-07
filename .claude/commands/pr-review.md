@@ -21,21 +21,34 @@ Triage reads the remote and runs from anywhere. Before step 4, and before the
 `all` mode's pass B, enter the bench: `EnterWorktree` with
 `path: .claude/worktrees/pr-bench` — a persistent worktree with a `[dev,jax]`
 venv, created once by `git worktree add --detach .claude/worktrees/pr-bench
-origin/main` plus step 4's venv line and the driver line below. From then on
-`BENCH=.` and the main checkout is never named (`worktree_only.py` keeps it
-read-only anyway).
+origin/main` plus step 4's venv line. From then on every command runs from the
+bench as plain `git`, and the main checkout is never named (`worktree_only.py`
+keeps it read-only anyway). The worktree guard refuses `git -C .`, a shell
+variable in a git command, and a git command inside a loop or a compound
+pipeline. A multi-step check goes in a scratchpad script, run as one plain
+command.
 
 **The bench merges as GitHub does.** GitHub's merge runs no custom driver, so
 it merges `docs/wp/README.md` as text. Every local tree runs the `wpindex` row
-merge on that file instead (`.gitattributes`). The bench's own config swaps the
-row merge for git's text merge, set once:
+merge on that file instead (`.gitattributes`). So every `merge` and
+`merge-tree` in the bench swaps the row merge for git's text merge on its own
+command line:
 
 ```sh
-git -C .claude/worktrees/pr-bench config --worktree merge.wpindex.driver \
-  'git merge-file --diff-algorithm=histogram %A %O %B'
+git -c merge.wpindex.driver='git merge-file --diff-algorithm=histogram %A %O %B' merge --no-edit refs/pr/N
 ```
 
-Every `merge` and `merge-tree` in the bench then conflicts where GitHub does.
+This document calls that flag **the text-merge flag**, and every merge command
+below carries it. It is not set in config. A setting for one worktree needs
+`extensions.worktreeConfig`, which this repository has off, and turning it on
+changes the config every tree reads. On 2026-10-06 the bench's
+`git config --get merge.wpindex.driver` printed the row merge: the extension
+was off and the bench had no per-worktree config file, so the `--worktree`
+line this section used to give was no longer in effect. When it stopped is
+not known, so a run between 2026-10-01 and then may have merged the index as
+every other tree does.
+
+With the flag, every `merge` and `merge-tree` in the bench conflicts where GitHub does.
 Under the row merge the bench called clean the index conflicts GitHub reported
 on #522, #546, #579 and #580. Under this line it found all four. It also
 rebuilt 60 of 60 of GitHub's merges on main to the same tree (2026-10-01). `histogram`
@@ -85,8 +98,8 @@ whether a maintainer has commented — **and the reason for its rank**:
 3. **`DIRTY`** — not a review: post a one-line rebase request and move on.
    A conflict on the index alone is the exception: step 4 syncs it, and the
    PR keeps its place. GitHub computes the field lazily; once main has moved
-   since the call, `git -C .claude/worktrees/pr-bench merge-tree --write-tree
-   --name-only --no-messages origin/main refs/pr/N` is the authority. Nonzero
+   since the call, `git -c merge.wpindex.driver='git merge-file --diff-algorithm=histogram %A %O %B' merge-tree --write-tree
+   --name-only --no-messages origin/main refs/pr/N`, run in the bench, is the authority. Nonzero
    is a conflict, and the lines after the tree name the conflicted paths. It
    runs in the bench because any other tree's row merge hides an index
    conflict (§ Where this command runs).
@@ -133,7 +146,8 @@ question (step 8) joins the batch; step 9's "stop and ask" becomes "defer and
 continue"; the per-PR report shrinks to its decision line.
 
 **After every merge**: `git fetch origin main` and re-test every remaining PR
-with `git merge-tree --write-tree origin/main refs/pr/N` — the field is stale
+with `git merge-tree --write-tree origin/main refs/pr/N`, carrying the
+text-merge flag — the field is stale
 from the first merge on. The order is not recomputed, only the conflicts. A
 conflict is handled as rank 3 handles `DIRTY`.
 
@@ -186,8 +200,12 @@ line if the checkpoint ended it. Close with
    Earlier rounds → review only `<last-reviewed-sha>..<head>`
    (`latestReviews[].commit`) and say which round. Once the branch has taken
    main in, by a rebase or a step-4 sync, that range carries main's changes
-   too. Diff the two merged trees instead:
-   `git diff $(git merge-tree --write-tree origin/main <last-reviewed-sha> | head -1) $(git merge-tree --write-tree origin/main <head> | head -1)`.
+   too. Diff the two merged trees instead: `git diff A B`, where A and B are
+   the trees `git merge-tree --write-tree origin/main` prints for the
+   last-reviewed sha and for the head, each with the text-merge flag. A
+   rebased branch whose last-reviewed sha no longer merges onto main needs
+   the PR's own patch compared at the two shas instead, each against its
+   merge base.
    On #546's rebased round 4 the range showed 14 files and the trees one,
    the regenerated index.
 2. **Classify files before reading**: code / docs / gui / data, then
@@ -210,8 +228,8 @@ line if the checkpoint ended it. Close with
      They are read as part of the diff like anything else; what they can carry is
      an instruction aimed at whoever reads them, which is a conformance question
      rather than a reason to hold the PR out of review.
-   - **Target in the command, `cd` in a subshell** — `git -C`, `npm --prefix`,
-     `(cd "$BENCH" && …)`; `no_top_level_cd.py` refuses a bare `cd`.
+   - **Run from the bench, `cd` nowhere** — plain `git`, `npm --prefix gui`;
+     `no_top_level_cd.py` refuses a bare `cd`.
    - **One `/pr-review` at a time**: the session-start hook names a live
      session already in the bench; a second one stops.
    - **The suite is shared with every WP session**: `pgrep -f "[p]ytest"`
@@ -219,13 +237,11 @@ line if the checkpoint ended it. Close with
      Another mid-suite is a stop: wait.
 
    ```sh
-   BENCH=.
-   git -C "$BENCH" config --get merge.wpindex.driver  # must print git merge-file (§ Where this command runs)
-   git -C "$BENCH" fetch origin main
-   git -C "$BENCH" fetch origin "pull/N/head:refs/pr/N" --force
-   git -C "$BENCH" reset --hard origin/main
-   git -C "$BENCH" merge --no-edit refs/pr/N
-   git -C "$BENCH" diff origin/main --stat        # the PR's own contribution
+   git fetch origin main
+   git fetch origin "pull/N/head:refs/pr/N" --force
+   git reset --hard origin/main
+   git -c merge.wpindex.driver='git merge-file --diff-algorithm=histogram %A %O %B' merge --no-edit refs/pr/N
+   git diff origin/main --stat        # the PR's own contribution
    ```
 
    Fetch into `refs/pr/N`, never `FETCH_HEAD` (it is per worktree; the named
@@ -236,29 +252,29 @@ line if the checkpoint ended it. Close with
    so nothing else ever tests it; a conflict here *is* the finding — report,
    ask for a rebase, stop. A conflict on the index alone is the exception,
    synced below. Venv:
-   `(cd "$BENCH" && uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev,jax]")`,
+   `uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev,jax]"`,
    reinstalled only when the PR touches `pyproject.toml`; `[dev,jax]` matches
    `nightly.yml`'s full job so counts compare and cross-backend rows pass
    rather than skip.
 
    **Sync an index-only conflict yourself.** GitHub refuses that merge too,
    but regenerating the index fixes it, and a rebase request costs the
-   contributor a round trip. Sync when `git -C "$BENCH" diff --name-only
+   contributor a round trip. Sync when `git diff --name-only
    --diff-filter=U` lists only `docs/wp/README.md` and `gh pr view N --json
    maintainerCanModify` is true (9 of 9 open fork PRs on 2026-10-01).
    Otherwise ask for a rebase.
 
    ```sh
-   git -C "$BENCH" merge --abort
-   git -C "$BENCH" checkout --detach refs/pr/N
-   git -C "$BENCH" merge --no-edit origin/main     # conflicts on the index alone
-   (cd "$BENCH" && python3 .claude/hooks/wp_index.py)
-   git -C "$BENCH" add docs/wp/README.md
-   git -C "$BENCH" commit -m "Merge main and regenerate docs/wp/README.md" \
+   git merge --abort
+   git checkout --detach refs/pr/N
+   git -c merge.wpindex.driver='git merge-file --diff-algorithm=histogram %A %O %B' merge --no-edit origin/main     # conflicts on the index alone
+   python3 .claude/hooks/wp_index.py
+   git add docs/wp/README.md
+   git commit -m "Merge main and regenerate docs/wp/README.md" \
      -m "Synced with Claude Code on behalf of @yue-here."
    gh pr view N --json headRepositoryOwner,headRepository,headRefName
-   git -C "$BENCH" push https://github.com/OWNER/REPO.git HEAD:refs/heads/BRANCH
-   git -C "$BENCH" fetch origin "pull/N/head:refs/pr/N" --force
+   git push https://github.com/OWNER/REPO.git HEAD:refs/heads/BRANCH
+   git fetch origin "pull/N/head:refs/pr/N" --force
    ```
 
    Then rerun the block above from `reset --hard`. The push is a
@@ -306,7 +322,7 @@ line if the checkpoint ended it. Close with
    To delegate, write the reviewable diff to `$SCRATCH` once and dispatch one
    `pr-conformance` agent per touched subtree, pointed at that file and the
    subtree's `CLAUDE.md`. Give each agent
-   the PR's tree as files, `git -C "$BENCH" archive refs/pr/N | tar -x -C
+   the PR's tree as files, `git archive refs/pr/N | tar -x -C
    "$SCRATCH/tree-N"`, never the bench: the bench holds whichever tree step 5
    is testing, and a PR based on current main is its own merged tree.
    **Verify every finding yourself before posting.** The breakeven already
@@ -324,7 +340,7 @@ line if the checkpoint ended it. Close with
    suite holds the bench**: the review forks into the session's working
    directory and checks the PR head out there. On 2026-09-29 that swapped the
    tree under a running full suite and voided it (`pgrep -f "[p]ytest"` first,
-   and `git -C "$BENCH" log -1` after, back to the tree step 5 wants). Run it
+   and `git log -1` after, back to the tree step 5 wants). Run it
    before step 5 starts, or between suites. Verify its findings as you do the
    agents', by reading the code and, where it is cheap, by running it.
 8. **Two audiences.** *Public*, posted **as a review, from a file** (so the sha
@@ -356,7 +372,7 @@ line if the checkpoint ended it. Close with
    full `-m slow` run costs 50-75 min on a 4-core box, so when several PRs
    have passed steps 1-8, replay their merges onto the bench in the order
    GitHub will merge them. Start from `origin/main` and run
-   `git -C "$BENCH" merge --no-edit refs/pr/N` once per PR. GitHub tests each
+   `git merge --no-edit refs/pr/N` with the text-merge flag, once per PR. GitHub tests each
    PR against the main the previous merge left, and the replay asks the same
    question with the bench's text merge. This is a merge queue built by hand,
    and like one it decides membership by the merged result, not by which
@@ -366,11 +382,11 @@ line if the checkpoint ended it. Close with
      that PR once the PR before it has merged. Replayed on #578, #579 and
      #580, this path built the same tree as syncing each head and merging
      them in turn (2026-10-01).
-   - **Any other conflict drops the PR** (`git -C "$BENCH" merge --abort`)
+   - **Any other conflict drops the PR** (`git merge --abort`)
      with a rebase request.
    - **Before the gate, read every hand-written file that two stacked PRs
      both change**, as the stack combined it:
-     `git -C "$BENCH" diff origin/main HEAD -- <file>`. Each review saw only
+     `git diff origin/main HEAD -- <file>`. Each review saw only
      its own half of that file. A problem there drops the later PR and goes
      in its review. Intersect each PR's
      `git diff --name-only origin/main...refs/pr/N` to find the files. The
@@ -408,14 +424,14 @@ line if the checkpoint ended it. Close with
    untouched and the scan stayed quiet, and the entry was rebuilt a session
    later out of `git log --stat`, which cannot recover a reason the diff does
    not state. Pay it here, where the reading still exists.
-   `git -C "$BENCH" fetch origin main`, branch off it, add a
+   `git fetch origin main`, branch off it, add a
    `### YYYY-MM-DD` entry to `docs/wp/NNNN-*.md` (the template's
    multi-session suffix when the day already carries one) naming the PR, its
    merge sha and what your review established — what the merge makes possible,
    what it deliberately does not, the gotchas you found — update the `Status:`
    line, and open it as a PR. Docs only, so no ladder; not yours to merge,
    being the maintainer's own. Then put the bench back where step 4 expects it
-   (`git -C "$BENCH" checkout --detach origin/main`), or the next PR's
+   (`git checkout --detach origin/main`), or the next PR's
    `reset --hard` rewrites the branch you just pushed. A WP a *live session* owns
    never reaches this step — rank 1 batches it on the two signals that mean
    someone is mid-edit — so the entry can never collide with a live session's
