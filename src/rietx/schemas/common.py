@@ -484,6 +484,18 @@ class Base(BaseModel):
             raise AttributeError(f"{plain}; its fields are {fields}")
         raise AttributeError(plain)
 
+    def __repr_args__(self):
+        """Pydantic's fields, with every long sequence shown as a count and a
+        range (WP-1544).
+
+        This is the one place a long array is kept out of a repr, and so out of
+        ``str``, ``print``, a traceback and a notebook cell's text, since
+        pydantic's ``__str__`` is its repr. A pattern's repr was 1.4 MB.
+        """
+        from .._display import summarise
+        for name, value in super().__repr_args__():
+            yield name, summarise(value)
+
 
 class Parameter(Base):
     """A single refinable scalar.

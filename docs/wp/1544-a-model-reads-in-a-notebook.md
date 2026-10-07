@@ -126,7 +126,7 @@ matplotlib for the rest of the session.
   in both import orders: whether the image appears, appears once or twice, and
   whether a later `plt.plot(); plt.show()` still renders. Record the inline
   PNG size at `dpi=300`. The numbers go in this file's handover.
-- [ ] **`Base.__repr_args__` elision.** A list, tuple or array longer than
+- [x] **`Base.__repr_args__` elision.** A list, tuple or array longer than
   eight items renders as a count and a range (`<5753 floats 15.0…130.04>`), or
   as a count and a type for a list of models (`<212 Reflection>`).
 - [ ] **A text tree for nested models.** `Base.__str__` becomes an indented
