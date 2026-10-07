@@ -746,6 +746,51 @@ rx.write_gsas_exp(structure, "exported.EXP", title="my experiment")
 back = rx.read_gsas_exp("exported.EXP")
 ```
 
+#### After a fit: the refined set, its ties and TOPAS's scale
+
+A plan *replaces* the vary flags at each stage, so after
+`ref.fit(data, plan=...)` the fitted structure carries every flag as the input
+had it, and a file written from it states almost nothing refinable. The free
+set and the ties live in `Refinement.parameters()`. Hand the refinement to
+`write_topas_inp` and the file states both:
+
+<!-- api-doc: no-exec — needs a fitted Refinement and writes a file -->
+```python
+rx.write_topas_inp(ref.fitted_structure, "refined.inp", free=ref,
+                   scale="topas", instrument=ref.fitted_instrument)
+```
+
+Each free parameter is written under a name derived from its path (`Ba1_x`,
+`Fe1_biso`, `p0_scale`), because in TOPAS a name is itself the refine flag
+(Technical Reference § 2.1), and each tie as TOPAS states one (§ 2.3): a
+`tie_equal` group is one name written at every member, any other affine tie an
+equation over its source's name (`beq = 2.0*B1_biso - 0.7;`), and a coordinate
+refined through its site-symmetry DOF is named after the coordinate. A source
+no written value carries alone is declared with `prm`. The parameter's finite
+bounds are written as `min`/`max`, since TOPAS's own default windows are not
+rietx's. `free=` also takes a `RefinementResult` or a list of paths, which
+carry the free set but no ties, so each copy of a tied value is then written
+as its own parameter and the header says so.
+
+`scale="topas"` writes the scale in TOPAS's convention and says so in the
+header: rietx's × 100 for constant-wavelength neutrons (TOPAS states |F|² in
+barn, rietx in fm²) and × K for X-rays (TOPAS's `LP_Factor` is rietx's Lp
+divided by the polarisation constant K). The neutron constant was measured
+against TOPAS 6 output, and `tests/data/topas_export_nacl_neutron_ycalc.txt` is
+what a test holds rietx to. The X-ray one is the Technical Reference's
+definition, with no TOPAS output in the tree to hold it yet. It needs
+`instrument=`, which says which radiation it is. `scale="rietx"` writes rietx's own number and says that it is not
+TOPAS's. Without `free=`, the file states each `Parameter.vary` as stored (a
+moment's modulus is free when any component's flag is, and its direction is
+held, where the older writer freed all three components), whether or not
+`scale=` or `instrument=` is given; with none of the three the writer writes
+exactly what it wrote before. A `RefinementResult` lists a tied copy beside the
+free parameters but not the equation: a symmetry tie (a cubic cell's `b` and
+`c`, a special position's coordinates) is rederived from the structure and
+written from its source, while a copy made by `Refinement.tie` is written as its
+own refined parameter. `p1_expand=True` cannot be combined with `free=`,
+`scale=` or `instrument=`.
+
 All three write space groups from `get_spacegroup(...).xhm()`, never a
 phase's own stored spelling, so a setting this build already resolved is not
 laundered back into an ambiguous symbol. The TOPAS writer spells an ion
