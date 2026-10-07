@@ -1699,6 +1699,13 @@ class IndexingResult(Base):
         :meth:`best_or_none` is the one rule it calls, a filter over the
         candidates.
         """
+        head, candidates, tail = self._text_sections()
+        return "\n".join(head + candidates + tail)
+
+    def _text_sections(self) -> tuple[list[str], list[str], list[str]]:
+        """The run line, the candidate lines, and the verdict with every
+        diagnostic: :meth:`__str__` joins them, ``_repr_html_`` swaps the middle
+        one for a table."""
         result = self
         lines: list[str] = []
         lines.append(f"engines: {', '.join(result.engines_run) or 'none'}   "
@@ -1710,6 +1717,7 @@ class IndexingResult(Base):
             lines.append(f"search INCOMPLETE in: {', '.join(incomplete)} — a negative "
                          "result there is not evidence")
         lines.append("")
+        head, lines = lines, []
         if not result.candidates:
             lines.append("no candidate cell in the systems searched.")
         for i, c in enumerate(result.candidates, start=1):
@@ -1725,6 +1733,7 @@ class IndexingResult(Base):
                             if c.lebail is not None else ""))
             if c.confidence_caveats:
                 lines.append(f"      not higher because: {', '.join(c.confidence_caveats)}")
+        candidates, lines = lines, []
         best = result.best_or_none()
         lines.append("")
         if best is None:
@@ -1744,8 +1753,25 @@ class IndexingResult(Base):
             for diag in c.diagnostics:
                 lines.append(f"  [{diag.level:^7}] {diag.code} (candidate "
                              f"{c.system} {c.centring} V={c.volume:.1f}): {diag.message}")
+        return head, candidates, lines
 
-        return "\n".join(lines)
+    def _repr_html_(self) -> str:
+        """The candidates as a table between the run line and the verdict."""
+        from .._display import pre_html, table_html
+        head, _, tail = self._text_sections()
+        rows = []
+        for i, c in enumerate(self.candidates, start=1):
+            a, b, cc, al, be, ga = c.cell
+            rows.append((str(i), c.confidence, f"{c.system} {c.centring}",
+                         f"{a:.5f} {b:.5f} {cc:.5f}", f"{al:.3f} {be:.3f} {ga:.3f}",
+                         f"{c.volume:.2f}", f"{c.n_indexed}/{c.n_lines}",
+                         f"{c.chi2_red:.2f}",
+                         f"{c.lebail.rwp:.4f}" if c.lebail is not None else "",
+                         ", ".join(c.confidence_caveats)))
+        table = table_html(("#", "confidence", "lattice", "a b c (Å)", "α β γ (°)",
+                            "V (Å³)", "indexed", "chi2_red", "Le Bail Rwp",
+                            "confidence_caveats"), rows) if rows else ""
+        return pre_html("\n".join(head)) + table + pre_html("\n".join(tail))
 
     def best_or_none(self) -> CellCandidate | None:
         """The single candidate, or None.

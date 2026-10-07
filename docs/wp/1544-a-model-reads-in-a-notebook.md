@@ -141,7 +141,7 @@ matplotlib for the rest of the session.
   CLI prints `str(result)`. `Refinement`: phases, mode, free count, last
   status, history head and the parameter table. `RefinementTree`: `summary()`.
   `StructureFigure`: `_repr_png_` from its RGBA array.
-- [ ] **HTML projection for tables only.** `_repr_html_` on the result's
+- [x] **HTML projection for tables only.** `_repr_html_` on the result's
   parameter and diagnostic rows, `Refinement`'s parameter table and
   `IndexingResult`'s candidates. One row builder feeds both renderers, in a
   private `src/rietx/_display.py`.

@@ -130,6 +130,29 @@ def test_a_structure_figure_shows_its_picture(fap):
     assert len(repr(fig)) < 100
 
 
+def test_a_result_html_is_its_text_and_its_parameter_table(fap):
+    result = fap["result"]
+    html = result._repr_html_()
+    assert html.startswith("<pre>RefinementResult: ")
+    assert html.count("<tr>") == 1 + len(result.parameters)
+
+
+def test_an_indexing_result_prints_its_candidates_and_verdict():
+    from rietx.schemas.common import Provenance
+    from rietx.schemas.indexing import CellCandidate, IndexingResult
+    cand = CellCandidate(cell=(5.43, 5.43, 5.43, 90, 90, 90), cell_esd=(1e-4,) * 3 + (0,) * 3,
+                         system="cubic")
+    res = IndexingResult(candidates=[cand], engines_run=["svd"], systems_searched=["cubic"],
+                         provenance=Provenance(package_version="test",
+                                               created_utc="2026-10-07T00:00:00Z"))
+    text = str(res)
+    assert text.splitlines()[0].startswith("engines: svd   systems: cubic")
+    assert "5.43000 5.43000 5.43000 Å" in text and "NO CELL" in text
+    html = res._repr_html_()
+    assert html.count("<tr>") == 2 and "5.43000 5.43000 5.43000" in html
+    assert "NO CELL" in html and "found by" not in html, "the table replaces the lines"
+
+
 @pytest.mark.parametrize("name", ["data", "instrument", "structure", "result", "ref"])
 def test_ipython_text_plain_stays_short(fap, name):
     """What a notebook *stores*: text/plain is saved beside any HTML, so a
