@@ -60,11 +60,12 @@ print(f"dead channels:              {diag.dead_channels or 'none'}")
 # ## Build a model and check it against the data
 #
 # A Le Bail fit needs a cell, a space group and an instrument.
-# The cell and space group come from the GSAS experiment file shipped beside the pattern.
+# The cell and space group come from a CIF of fluorapatite shipped beside the pattern.
+# The CIF has atoms too, which a Le Bail fit ignores.
 # The instrument is a Bragg-Brentano diffractometer with a copper Kα doublet.
 
 # %%
-structure = rx.read_project_model(examples_dir() / "FAP.EXP").to_structure()
+structure = rx.Structure.from_cif(examples_dir() / "fluorapatite.cif")
 
 instrument = rx.Instrument.bragg_brentano(radiation="CuKa")
 instrument.background = rx.BackgroundChebyshev.with_terms(6)

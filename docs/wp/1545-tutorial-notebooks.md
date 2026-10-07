@@ -112,7 +112,7 @@ and what the difference curve shows; QPA.
 ## Tasks
 
 - [x] `build.py`, the README and the test harness, with notebook 01.
-- [ ] 02 Simple Rietveld, replacing `examples/fap_lab.py`, with the landing
+- [x] 02 Simple Rietveld, replacing `examples/fap_lab.py`, with the landing
   page and `test_examples.py` repointed.
 - [ ] 03 Peaks, indexing, Le Bail.
 - [ ] 04 Peak shape and microstructure.
