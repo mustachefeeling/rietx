@@ -88,10 +88,10 @@ British spelling):
   and the result abstains with `bravais_ambiguous`. Notebook 03's synthetic
   phase must be measured the same way before it is chosen, and the abstention
   may itself be the lesson.
-- A rietx figure at the default `dpi=300` embeds a 259 kB PNG in a notebook
-  (`result.plot()` on FAP). Five notebooks of about five figures each would
-  commit about 6.5 MB per rebuild. Pass `dpi=` in the notebooks, or decide a
-  notebook default with a compatibility note. WP-1544 left `fig.dpi` alone.
+- A rietx figure in a notebook is encoded for a screen since WP-1544's
+  follow-up: 69 kB of base64 for the FAP fit figure, where it was 259 kB. Five
+  notebooks of about five figures each commit about 1.7 MB per rebuild. Pass no
+  `dpi=` for this; it would change only files.
 - In a kernel, `result.plot()` as a cell's last line shows the figure once. A
   trailing `;` or an assignment shows nothing (WP-1544).
 - `SeriesResult` prints its `summary()` and has no HTML table. `FitReport`,

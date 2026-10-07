@@ -944,6 +944,14 @@ shows nothing, and `fig` on its own line shows it. rietx leaves the notebook's
 plotting backend alone, so `plt.show()` keeps working afterwards. A script, the
 CLI and the GUI draw on matplotlib's Agg canvas, as before.
 
+A notebook stores every figure it shows, so a figure in a cell is encoded for
+a screen rather than for print. It is a PNG at twice a 100-dpi screen, sharp
+on a high-density display, drawn at its designed width, with a 256-colour
+palette. The FAP fit figure takes 52 kB this way against 194 kB at its own
+300 dpi, and 98.84 % of its pixels are unchanged. The rest are antialiased
+edges. A file written with `path=` or `fig.savefig()` keeps the figure's own
+dpi and full colour, and a figure you draw yourself is encoded as before.
+
 (progress-lines)=
 
 ## Progress

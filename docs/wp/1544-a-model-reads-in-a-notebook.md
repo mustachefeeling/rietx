@@ -188,6 +188,39 @@ call's image exactly once in both import orders.
 
 ## Handover log
 
+### 2026-10-07 (follow-up) — a notebook figure is encoded for a screen
+
+A figure shown in a notebook cell is now a quarter of the size and as clear.
+The notebook stored each rietx figure at the figure's own 300 dpi, sized for
+print, and the browser then shrank it. Now a cell gets the encoding notebooks
+recommend: twice a 100-dpi screen with its display width declared, and a
+256-colour palette. Files written to disk are untouched.
+
+**Done.** Every rietx figure is a private `Figure` subclass
+(`viz.plots._figure_class`, passed as `FigureClass` at all nine creation
+sites). `_notebook_png` encodes it, and is registered as IPython's PNG
+formatter for that subclass alone. `_repr_png_` answers where no formatter is
+registered.
+
+**Measured** (macOS arm64, `[dev,notebooks]`). Encoding the FAP fit figure:
+RGBA at 300 dpi 194.3 kB; at 200 dpi 123.6 kB; with a 256-colour palette at
+200 dpi 51.9 kB (64 colours 42.9, 16 colours 34.9). The 256 palette leaves
+98.84 % of pixels exact and 99.94 % within 8/255, worst 31/255, all on
+antialiased edges. SVG is 932 kB, because 5 753 markers each become a path, so
+it was ruled out. In a kernel the result figure's stored base64 fell from
+259 124 to 69 204 characters and the pattern figure's from 132 320 to 34 392. A
+plain matplotlib figure in the same session stays at 22 016 with no width
+metadata. NAC (two phases) encodes at 47 kB and the dark style at 62 kB, and
+both were checked by eye at display size.
+
+**Gotcha.** IPython ranks a formatter registered for a type above
+`_repr_mimebundle_` and `_repr_png_`, and the inline backend registers one for
+`Figure` that a subclass inherits through its MRO. A method on the subclass is
+therefore read only where no backend registered a formatter. The registration
+for the subclass is what takes effect in a notebook.
+
+**Next:** WP-1545 is unchanged, and its Context now carries these figures.
+
 ### 2026-10-07 — closed: objects print readably, and figures show in a notebook
 
 A rietx object can now be printed or shown in a notebook cell and read. A
