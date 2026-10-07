@@ -83,11 +83,44 @@ for row in ref.parameters():
 # An atom on a mirror plane has two, and one on a three-fold axis has one.
 # The coordinates follow from the `dof` values, so the symmetry always holds.
 #
+# ## A constraint between three atoms
+#
+# Fluorapatite has three oxygen sites in its phosphate group: O5, O6 and O7.
+# Their displacement parameters (Biso, the mean-square vibration amplitude times 8π²) are expected to be similar.
+# Check that against the data before constraining anything.
+
+# %%
+OXYGENS = ["phases.0.atoms.4.biso", "phases.0.atoms.5.biso", "phases.0.atoms.6.biso"]
+for path in OXYGENS:
+    p = result.parameter(path)
+    print(f"{path:24} {p.value:.3f} +/- {p.stderr:.3f} Å²")
+
+# %% [markdown]
+# Each value lies within about one esd of the others.
+# The data cannot tell them apart, so refining one shared value loses nothing and spends two fewer parameters.
+# `tie_equal` makes the second and third follow the first.
+# We refit with the same plan, so the tie is the only difference from the first fit.
+
+# %%
+ref.tie_equal(OXYGENS)
+tied = ref.fit(data, plan="mccusker_structural", two_theta_limits=(15, 130))
+
+print(f"free parameters: {result.statistics.n_free_parameters} before, "
+      f"{tied.statistics.n_free_parameters} after")
+p = tied.parameter(OXYGENS[0])
+print(f"shared oxygen Biso: {p.value:.3f} +/- {p.stderr:.3f} Å²")
+print(f"Rwp: {result.statistics.rwp:.4f} before, {tied.statistics.rwp:.4f} after")
+
+# %% [markdown]
+# The shared esd is smaller than any of the three separate ones.
+# That is what the constraint bought.
+# Rwp barely moved, and it could not have shown the gain: a constraint is judged by its premise and its esds.
+#
 # ## Two parameters the data cannot separate
 #
 # A flat-plate diffractometer has two corrections that shift every peak: the zero shift (constant in 2θ) and the specimen displacement (proportional to cos θ).
 # The `lab_bragg_brentano` plan frees both.
-# Run it from where the first fit ended and see what happens.
+# Run it from where the tied fit ended and see what happens.
 
 # %%
 both = ref.fit(data, plan="lab_bragg_brentano", two_theta_limits=(15, 130))
@@ -106,10 +139,10 @@ for d in both.diagnostics:
 # The cure is to hold one of the pair at a value known from outside this fit.
 # GSAS's own refinement of this file held the zero shift at 0 and refined the displacement.
 # We do the same.
-# First go back to the first fit: every fit is a node in the refinement's history, and `checkout` restores one.
+# First go back to the tied fit: every fit is a node in the refinement's history, and `checkout` restores one, tie included.
 
 # %%
-ref.checkout(result.node_id)
+ref.checkout(tied.node_id)
 ref.set_values({"instrument.zero_shift": 0.0})
 ref.hold(["instrument.zero_shift"])
 
@@ -129,39 +162,14 @@ for d in held.diagnostics:
 # A plan sets which parameters vary at each stage, so it would free a parameter marked `vary=False`.
 # A hold outranks the plan.
 #
-# ## A constraint between three atoms
-#
-# Fluorapatite has three oxygen sites in its phosphate group: O5, O6 and O7.
-# Their displacement parameters (Biso, the mean-square vibration amplitude times 8π²) are expected to be similar.
-# Check that against the data before constraining anything.
+# `lab_bragg_brentano` refines the profile and the instrument, not the atoms.
+# Refine the structure once more, with the zero shift held, the displacement as just measured, and the tie in place.
 
 # %%
-OXYGENS = ["phases.0.atoms.4.biso", "phases.0.atoms.5.biso", "phases.0.atoms.6.biso"]
-for path in OXYGENS:
-    p = result.parameter(path)
-    print(f"{path:24} {p.value:.3f} +/- {p.stderr:.3f} Å²")
-
-# %% [markdown]
-# Each value lies within about one esd of the others.
-# The data cannot tell them apart, so refining one shared value loses nothing and spends two fewer parameters.
-# `tie_equal` makes the second and third follow the first.
-
-# %%
-ref.tie_equal(OXYGENS)
 final = ref.fit(data, plan="mccusker_structural", two_theta_limits=(15, 130))
-
-print(f"free parameters: {result.statistics.n_free_parameters} before, "
-      f"{final.statistics.n_free_parameters} after")
-p = final.parameter(OXYGENS[0])
-print(f"shared oxygen Biso: {p.value:.3f} +/- {p.stderr:.3f} Å²")
-print(f"Rwp: {result.statistics.rwp:.4f} before, {final.statistics.rwp:.4f} after")
+print(f"{final.status}  Rwp={final.statistics.rwp:.4f}")
 
 # %% [markdown]
-# The count fell by three: two for the tie, and one for the zero shift held above.
-# The shared esd is smaller than any of the three separate ones.
-# That is what the constraint bought.
-# Rwp barely moved, and it could not have shown the gain: a constraint is judged by its premise and its esds.
-#
 # ## Is the structure chemically sensible?
 #
 # A fit can match the pattern with atoms in impossible places.
