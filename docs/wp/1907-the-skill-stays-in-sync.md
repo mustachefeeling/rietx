@@ -44,6 +44,14 @@ skill's numbers are rendered from the package rather than typed.
 
 ### Inherited
 
+- **From WP-1906 (2026-10-06), one sync mechanism already in place.** The
+  body's worked default (§10) is held line for line equal to
+  `examples/skill_worked_default.py` by
+  `test_the_worked_default_is_the_example_that_runs`, and
+  `tests/test_examples.py` runs that script. And `PLAN_INFO`'s
+  `lab_bragg_brentano` text recommended a plan the skill's rule 6 forbids on
+  one uncalibrated pattern; a recommendation in package text is a constant
+  this WP's check could also pin against the skill.
 - **From WP-1905 (2026-10-04), what "the judge-free tier" is.** The harness
   filters cases by tag, not grader type, so the judge-free run is
   `--tag trigger --ablation none` with neither `--scaffold` nor

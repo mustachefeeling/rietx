@@ -701,9 +701,13 @@ PLAN_INFO: dict[str, PlanInfo] = {
             "(Finger-Cox-Jephcoat) apertures refine with the widths."),
         modes=("rietveld",),
         when_to_use=(
-            "A single lab pattern with no instrument calibration to hand — it "
-            "refines specimen and instrument effects together, so read the "
-            "correlation guards before quoting a width."),
+            "A lab pattern where something outside the fit pins the zero or "
+            "the displacement (a calibrated goniometer, an internal "
+            "standard). It frees both in one stage, and unpinned they are "
+            "collinear with the cell, so on one uncalibrated pattern use "
+            "mccusker_default or mccusker_structural, which free the zero "
+            "alone. It refines specimen and instrument effects together, so "
+            "read the correlation guards before quoting a width."),
     ),
     "lab_calibrate": PlanInfo(
         title="Lab: calibrate on a standard",

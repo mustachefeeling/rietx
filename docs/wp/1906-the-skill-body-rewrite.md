@@ -1,9 +1,8 @@
 # WP-1906 — the skill body rewrite: under 5 000 tokens, rules first, evidence in the references, the contradictions resolved
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-10-07 — body at 16 999 B, the decision rule holding on Haiku and Sonnet
 Track: The repo's own process
 Depends on: 1905 (the before-and-after it is judged by); 1532 soft (its fourteen rows land on the rewritten body)
-Priority: P2 2026-10-06 — 1905 measured the baseline, and on Haiku the body steers every from-scratch fit to a degenerate route; every session that loads the skill pays its 8 700 tokens
 
 ## Goal
 
@@ -74,7 +73,7 @@ restates what decides the design.
   measurement of the direction, not the rewrite: it is in
   `docs/wp/1904-eval/SKILL.compressed.txt` to be read, not copied.
 
-### Inherited
+### Measured inputs (folded from Inherited on arrival, 2026-10-06)
 
 - **From WP-1904 (2026-10-04), the prototype's numbers.** The prototype
   body (`docs/wp/1904-eval/SKILL.compressed.txt`) is 16 401 B and 5 297
@@ -136,23 +135,27 @@ restates what decides the design.
 
 ## Tasks
 
-- [ ] Resolve the audit's § B contradictions, each as one condition clause
+- [x] Resolve the audit's § B contradictions, each as one condition clause
       checked on the package, and fix the width formula
-- [ ] Move the § D duplicates out: a link per rule to the row that holds the
+- [x] Move the § D duplicates out: a link per rule to the row that holds the
       evidence; cut the rhetoric classes the audit lists
-- [ ] Re-order: § 1-4 by stakes, the worked default and the stop conditions
+- [x] Re-order: § 1-4 by stakes, the worked default and the stop conditions
       inside the first 5 000 tokens; fix § numbering and rule 23; the
       reference headings that cite rule numbers
-- [ ] The worked default runs as written (`examples/` holds it, the manual
+- [x] The worked default runs as written (`examples/` holds it, the manual
       `{literalinclude}`s it, `tests/test_examples.py` runs it)
-- [ ] The § E gaps: each placed by the placement rule or declined with a
+- [x] The § E gaps: each placed by the placement rule or declined with a
       reason, row by row in the handover
-- [ ] WP-1905's suite: the rewritten body against the current one, N = 3,
+- [x] WP-1905's suite: the rewritten body against the current one, N = 3,
       Haiku and Sonnet, tokens per run beside the score; the decision rule
       applied and recorded
-- [ ] `rietx skill --install . --copy`; `tests/test_skill.py` green; the
+- [x] `rietx skill --install . --copy`; `tests/test_skill.py` green; the
       budget met without raising a cap
-- [ ] Skill: this WP is the skill change
+- [x] Skill: this WP is the skill change
+- [x] §10 says a task reproducing another program's refinement adopts
+      its protocol (its file's wavelengths, its refined set), not the worked
+      default; one round on Haiku and Sonnet (Sonnet's F2 lost
+      `file_wavelengths` 3 of 3 by copying §10)
 
 ## Acceptance
 
@@ -173,6 +176,152 @@ restates what decides the design.
   Cryst.* **57**, 175 — the two sources the body's protocol rests on.
 
 ## Handover log
+
+- **2026-10-07** — Closed. The last task fixed the one loss the rewrite
+  had measured. On a task to reproduce another program's refinement, Sonnet
+  had copied the worked example and used generic wavelengths. One clause now
+  sends that task to the comparison rule, which names the file's
+  wavelengths. On the final body the decision rule holds on both models, and
+  Sonnet scores 1.00 on every case at fewer tokens than today's body on both
+  fit cases. The body is 16 999 B, 1 B under its budget, so anything WP-1532
+  adds to it is paid for by a cut.
+
+  *Done.* §10's opening: "To reproduce another program's fit, follow §4
+  instead". §4's comparison rule: "adopt its file's wavelengths, refined set,
+  held parameters and excluded regions". Six trims pay for both (an
+  introduction, the P-spline clause, rule 17's second sentence, §10's last
+  line, rules 12 and 20 by a few words).
+
+  *Measured* (round G, N = 3, against B and C; `tests/eval_skill/PROTOCOL.md`
+  § Round G, result files in `docs/wp/1906-eval/`). Sonnet: fap-fit 1.00,
+  fap-gsas-reproduce 1.00 (`file_wavelengths` 3 of 3, from 0 of 3 in F2),
+  fap-judge 1.00; tokens per run 838k → 482k and 1136k → 929k on the fit
+  cases. Haiku: fap-fit 0.43 → 1.00, fap-gsas-reproduce 0.46 → 0.38,
+  fap-judge 0.83 → 0.92. Haiku's reproduce runs parse FAP.EXP by hand and fail
+  the cell graders on both bodies, so `file_wavelengths` is the only
+  difference there. $4.74 for the round; $11.60 over the WP. Tests after the
+  edit ([dev] venv, darwin/arm64): `test_skill.py`, `test_skill_cli.py`,
+  `test_docs_consistency.py`, `test_manual.py`, 198 passed. No test was added
+  and nothing numeric moved, so the fast selection was not rerun. Its last run
+  is the entry below. No lane ran in this part: the item needed this session's
+  judgement and the maintainer's spend.
+
+  *Review.* Prose only since the last `/code-review`, so none ran: the
+  change is SKILL.md text, the protocol's Results and WP files.
+
+  Next: nothing on this WP. WP-1532's rows land on this body next, each paid
+  for by a cut (its Inherited). Measuring Opus on the suite is unpriced and
+  open.
+
+- **2026-10-06** — The skill's body is now a third shorter than before (16 996 B
+  against 29 687), under the 5 000-token budget that survives compaction, and
+  it measures better rather than worse. Haiku driving a fit from scratch now
+  lands the fluorapatite cell in all three runs, where the old body sent all
+  three down a degenerate route: its worked example freed the zero and the
+  sample displacement together, and the package's own plan description
+  recommended the same thing. Sonnet scores as before on every case at under
+  half the tokens on the from-scratch fit. One small loss remains: on a task
+  that asks to reproduce another program's refinement, Sonnet copies the
+  worked example instead of adopting that program's wavelengths.
+
+  *Done.* Items 1-3 as one rewrite: each of the audit's § B contradictions is
+  now a condition. Le Bail is for a cell with no trusted structure, so rules
+  4-5 govern a Le Bail run and show the plan object and the seeded coefficient.
+  The width seed is `W ≈ (0.6·H)²`, `X ≈ 0.6·H`, from Γ_G² = U·tan²θ + V·tanθ
+  + W and the TCHZ combination (0.61·H for equal halves). Stop condition 25
+  is the t-ratio then ΔBIC at N/f². The swap's licence is
+  `RivalComparison.chi2_ratio`, since `ambiguous` is no field value. A cell
+  move is judged against its start's error, not 0.5 %. The esd rule says the
+  inflation is already in. Rules keep 1-22, so no reference heading moved,
+  and the stop conditions are 23-25, closing the gap. `lab_bragg_brentano`'s
+  `PLAN_INFO` text now states rule 6's condition. Evidence the body alone
+  carried went to `judging.md` (Hill 1992, Schwarzenbach 1989, the
+  coordination-number reading). `docs/manual/conf.py` renders a plain-text
+  link label, which the budgeted body uses. Item 4 by a lane:
+  `examples/skill_worked_default.py`, held equal to §10 by
+  `test_the_worked_default_is_the_example_that_runs`. No `{literalinclude}`
+  was added, because the manual already renders the body's block through its
+  skill chapter. Rounds F1 and F2 are in `tests/eval_skill/PROTOCOL.md`
+  § Results, with result files in `docs/wp/1906-eval/`.
+
+  *§ E gaps, row by row* (all in the body unless declined): 1 first-call
+  sequence, §10 plus §2's Le Bail paragraph. 2 plan by data type, §2's
+  *When* column. 3 instrument beyond lab Cu, §1's geometry and wavelength
+  rows (`debye_scherrer(wavelength)`, api § In); `flat_plate_transmission`
+  declined, being api.md's. 4 width seed as a path, §1 and §10. 5
+  multi-phase, §1 (`Structure(phases=[...])`). 6 `result.usable`, rule 9. 7
+  reading `print(result)`, §4's opening. 8 diagnostics to action, §4's
+  opening (`d.suggestion` then grep). 9 the `vary=False` trap, §3
+  (`ref.hold`). 10 a Layer-2 suggestion, §4b (`predict_then_verify`); the
+  three-line branch recipe declined, being history.md's. 11 QPA fields, §4b
+  (`result.qpa.phases`, `weight_fraction`, `zmv`). 12 fit range and
+  exclusions, §1. 13 writing the answer, §10 (`write_refinement_cif`,
+  `write_qpa_table`). 14 a large `max_shift_over_esd`, rule 9.
+
+  *Measured* ([dev] venv, darwin/arm64). On FAP.XRA with the Cu Kα preset:
+  `lab_bragg_brentano` ends `max_iter`, unusable, a = 9.3691(8) Å with
+  FLAT_DIRECTION; `mccusker_structural` with a Chebyshev background converges
+  at a = 9.37096(9), c = 6.88532(9) over the full range in 4-13 s. The width
+  seed changes nothing on FAP (its lines are 0.076°, within 2.5× of the
+  default). The P-spline default adds 770 `HIGH_CORRELATION` and two
+  `FLAT_DIRECTION` to the same fit (sent to WP-1460). Eval rounds against
+  B (Haiku) and C (Sonnet), N = 3, rule holding in F1 and F2:
+
+  | round | fap-fit | fap-gsas-reproduce | fap-judge | $ |
+  |---|---|---|---|---|
+  | F1 Haiku | 0.43 → 1.00 | 0.46 → 0.38 | 0.83 → 0.83 | 1.75 |
+  | F2 Haiku | 0.43 → 1.00 | 0.46 → 0.46 | 0.83 → 0.58 (= −t) | 2.54 |
+  | F2 Sonnet | 1.00 → 1.00 | 1.00 → 0.88 | 1.00 → 1.00 | 2.57 |
+
+  Tokens per run fell on six of nine F2 rows (Sonnet `fap-fit` 838k → 365k).
+  Session spend $6.86 against the maintainer's ~$9.
+
+  Lanes (`/wp-lanes` trial): one lane, `worked-default-runs`, estimated 22
+  requests and took 14; dispatched at 205K; re-read 0K of 5K; 5 main requests
+  and 9K left in main to check it; no edits after, no redo; $0.79 lane, saved
+  +$0.10 (+1 % of the session). The selective policy's replay row: 72
+  sessions, −24 %. Only the laned item carries a decision line: the body
+  rewrite started at ~150K and the eval rounds needed the maintainer's spend,
+  so both were kept, but neither got its `lanes: keep` line, and the tool
+  counts 0 kept.
+
+  *Review* (`/code-review high --fix`, seven findings, four fixed after the
+  rounds ran). §10 now passes `report=report` to `summary()`, which otherwise
+  built a second report under `plan=None` and lost the plan's veto. §2 says
+  "Biso and ADPs" where "displacements" read as sample displacement.
+  `history.md`'s agent loop and `numbers.md`'s report call no longer name
+  `lab_bragg_brentano`: two siblings the rewrite missed. Declined: a wider
+  plain-label pattern in `conf.py` (no link in the tree needs it), a
+  friendlier error in the drift test's import lookup (it still catches the
+  drift), and §10 printing diagnostics three times (the loop prints `where`,
+  which `print(result)` does not). F1 and F2 measured the body before these
+  edits, which change one argument and one word in it.
+
+  *Counts* ([dev] venv, darwin/arm64, fast selection, on origin/main
+  443c0c1a merged in): 8458 passed, 160 skipped, 1 failed, against 8455 /
+  160 / 1 on bare 443c0c1a with the same venv. That is +3, the three tests
+  added. The one failure, `test_numpy_path_bit_identical_to_golden
+  [toy_anomalous]` (residual off its golden by 1.6e-11), fails on bare main
+  too: it arrived with the merges of 2026-10-06, whose CI runs were each
+  cancelled by the next push, and this branch touches no numerics. The full
+  selection did not run: nothing here moves a measured number. Added-test
+  cost, one run under `-n auto`: `test_skill_worked_default_example_runs`
+  10.9 s, the two drift tests 0.00 s. The example test stays in the fast
+  tier for `test_examples.py`'s stated reason: a broken walkthrough should
+  fail on the push that broke it.
+
+  *Gotchas.* The worktree guard refuses `claude plugin eval` typed in Bash
+  (it reads "eval"), so the round runs from a script file. The fit cases'
+  graders read the script text, so `file_wavelengths` cannot see an
+  instrument read from the program's file without `.wavelengths` written.
+  That is the instrument, and here the Sonnet runs did use the preset, so
+  the loss is real. A F2 Haiku `fap-gsas-reproduce` run hit the 60-turn cap,
+  which is where its token rise comes from.
+
+  Next: the new last task. Add one clause to §10's opening (paid for by a cut,
+  4 B left) saying a reproduce task adopts that program's protocol (§4), then
+  run one round on each model against B and C (≈ $5). Then close: the goal
+  holds already, and the rest of the WP is done.
 
 - **2026-10-04** — created by WP-1904's session. No open WP owns the body's
   size or its contradictions: 1338 closed with the budget ratchet, and 1532

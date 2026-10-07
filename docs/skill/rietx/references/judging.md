@@ -46,6 +46,8 @@ was visible at 7σ).
 
 ## Step 12 — the geometry table's esds
 
+McCusker §11 ranks the geometry with the profile fit and above every R value, so it is read before step 16. The number of rows naming an atom is its coordination number.
+
 `stderr` is propagated through the *whole* covariance, as McCusker §10 requires of any derived quantity. `stderr_diagonal` beside it ignores the correlations. Quote the first; use the pair when
 you need to say how much the correlations mattered (measured on 11-BM NAC,
 dropping them moves an esd by ×0.71 to ×1.15, in *both* directions, so a
@@ -111,6 +113,8 @@ mode-fixed path is refused too, because the mode already fixes it.
 
 ## Step 13 — why the inflation is not a measurement, and why the trio travels
 
+Scaling variances by GoF² alone is "highly questionable" (Schwarzenbach, 1989), which is why the trio travels instead of a rescaled esd.
+
 The Bérar-Lelann factor has an expected value of √1.269 ≈ 1.13 even for white residuals: chance same-sign neighbours give E[S″]/E[S] = 1.269 under the
 paper's eqs (10)-(12) (`optimize.statistics.berar_lelann_factor`; quadrature,
 checked by simulation). It is one scalar applied to every esd, so it says how
@@ -122,7 +126,7 @@ underestimated).
 
 The round robins measured why the ingredients matter: the same data refined
 under different protocols spread by up to ×17–25 of the quoted esds on cell
-dimensions (Hill, 1992; Hill & Cranswick, 1994, *J. Appl. Cryst.* **27**, 802),
+dimensions (Hill, 1992, *J. Appl. Cryst.* **25**, 589; Hill & Cranswick, 1994, *J. Appl. Cryst.* **27**, 802),
 explained by §3's first degeneracy row (the cell compensating 2θ-scale errors). Durbin-Watson is in the trio because serial correlation makes the raw esds untrustworthy, and its d stays discriminating where Rwp and
 GoF do not (Hill & Flack, 1987, *J. Appl. Cryst.* **20**, 356).
 
@@ -160,6 +164,8 @@ lands on §3's degenerate ridge and reports the unconstrained combination at a
 it. The swap runs each rival **alone**; the ridge runs them **together**.
 
 ## Step 16 — what background-subtracted Rwp separates
+
+Rwp is a relative number. Eighteen refinements of one PbSO₄ dataset returned Rwp 8.2–20.0 % (Hill 1992). It is dominated by the strongest peaks and the background level, so it ranks fits of the same data over the same channels and nothing else.
 
 A sharp LaB₆ fit and one under 0.6° of broadening both report Rwp **0.0137**,
 and background-subtracted they read 0.0490 and 0.0766. Raw Rwp is flattered by

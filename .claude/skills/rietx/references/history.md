@@ -76,7 +76,7 @@ The canonical agent loop:
 
 ```python
 ref = rx.Refinement(structure, instrument, history="session.jsonl")
-ref.fit(data, plan="lab_bragg_brentano")
+ref.fit(data, plan="mccusker_default")
 ref.history.tag(ref.history.head, "baseline")
 
 # try a hypothesis on a branch — rollback is structural, not manual

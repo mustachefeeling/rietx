@@ -522,3 +522,77 @@ The same build, `--tag trigger --ablation none`, no `--scaffold`, no
   4-turn cap, and one Haiku run at the 180 s timeout. None of them is
   void, because the grader reads the trace up to the stop, and each one
   except one Haiku miss had fired or stayed quiet as its role asks.
+
+### Rounds F1 and F2, 2026-10-06: WP-1906's rewritten body, one arm, N = 3
+
+The candidate is the committed tree on WP-1906's branch, built with
+`--venv /opt/homebrew/var/rietx-eval/venv-1906` (that branch installed, so
+its `PLAN_INFO` text too) and run `--ablation none`, `-j 1`, alone on the
+machine, Claude Code 2.1.292. Result files are in `docs/wp/1906-eval/`.
+F1 ran body `4817ba7315d2` on Haiku ($1.75, 18 min). F2 ran body
+`49d39c540f15`, F1's plus one routing row, on Haiku ($2.54, 41 min) and
+Sonnet ($2.57, 11 min).
+
+```
+round      case                 cur   cand     Δ     t    tok/run cur -> cand
+F1 haiku   fap-fit              0.43  1.00  +0.57  1/7   1013k -> 781k
+F1 haiku   fap-gsas-reproduce   0.46  0.38  -0.08  1/8   1739k -> 1247k
+F1 haiku   fap-judge            0.83  0.83  +0.00  1/4    120k -> 81k
+F2 haiku   fap-fit              0.43  1.00  +0.57  1/7   1013k -> 1029k
+F2 haiku   fap-gsas-reproduce   0.46  0.46  +0.00  1/8   1739k -> 2441k
+F2 haiku   fap-judge            0.83  0.58  -0.25  1/4    120k -> 111k
+F2 sonnet  fap-fit              1.00  1.00  +0.00  1/7    838k -> 365k
+F2 sonnet  fap-gsas-reproduce   1.00  0.88  -0.12  1/8   1136k -> 741k
+F2 sonnet  fap-judge            1.00  1.00  +0.00  1/4     47k -> 54k
+```
+
+`cur` is `B.json` on Haiku and `C.json` on Sonnet. **The rule holds on both
+models for F2**, and held for F1. Paired with `B2.json` it reads undecided,
+because B2 is `partial` from its own baseline arm's cost ceiling, while its
+with-arm rows are complete and equal to B's on the two fit cases.
+
+- **Haiku's `fap-fit` passes 3 of 3 in both rounds**, against 0 of 3. The
+  old worked default ran `lab_bragg_brentano`, which frees zero and
+  displacement together; the new one runs `mccusker_structural`.
+- **F1 lost `file_wavelengths` on Haiku** (2 of 3 runs to 0 of 3). Two runs
+  called `read_gsas_prm`, which F1's wavelength row named, and none
+  `read_gsas_exp`. F2 restored the routing row for another program's file.
+- **F2's `fap-judge` sits on the bar on Haiku** (Δ = −t, which the rule's
+  strict "<" passes). The judge's votes are unanimous FAILs, so the loss is
+  the agent's. `undersampled` failed in 0 of 3 F1 runs and 3 of 3 F2 runs
+  under identical §4 and §4b text, and in 1 of 3 of today's body's: Haiku's
+  spread at N = 3, not the body.
+- **F2's Sonnet `fap-gsas-reproduce` loses `file_wavelengths` in every
+  run.** Each reads FAP.EXP with `read_project_model`, then builds the
+  `CuKa` preset and runs `mccusker_structural`, though its own comment says
+  GSAS refined the displacement. The cell windows pass either way. The worked
+  default is copied into a task §4's "adopt its protocol" governs; WP-1906's
+  handover carries the fix, which needs its own round.
+- **Tokens per run fall on six of nine rows.** Haiku's F2 `fap-gsas-reproduce`
+  rose with one run that hit the 60-turn cap.
+
+### Round G, 2026-10-07: WP-1906's final body, one arm, N = 3
+
+Body `fe674fa99240`, F2's plus one clause in §10 ("To reproduce another
+program's fit, follow §4 instead") and "its file's wavelengths" in §4's
+comparison rule, paid for by four trims. The same venv and flags as F.
+Sonnet $2.92, 16 min; Haiku $1.82, 19 min.
+
+```
+round      case                 cur   cand     Δ     t    tok/run cur -> cand
+G sonnet   fap-fit              1.00  1.00  +0.00  1/7    838k -> 482k
+G sonnet   fap-gsas-reproduce   1.00  1.00  +0.00  1/8   1136k -> 929k
+G sonnet   fap-judge            1.00  1.00  +0.00  1/4     47k -> 54k
+G haiku    fap-fit              0.43  1.00  +0.57  1/7   1013k -> 957k
+G haiku    fap-gsas-reproduce   0.46  0.38  -0.08  1/8   1739k -> 1213k
+G haiku    fap-judge            0.83  0.92  +0.08  1/4    120k -> 70k
+```
+
+**The rule holds on both models**, and this is the body WP-1906 merges.
+
+- **Sonnet's `file_wavelengths` is back to 3 of 3**, from 0 of 3 in F2, so
+  the clause did what it was written for.
+- **Haiku still loses `file_wavelengths`** (0 of 3, against 2 of 3 on
+  today's body). Two of its runs parsed FAP.EXP by hand and never reached a
+  reader, and its cell graders fail on both bodies, so the case is beyond
+  Haiku either way.
