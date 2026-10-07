@@ -758,13 +758,28 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
     return _handed_back(fig)
 
 
+def _model_ticks(ref, data) -> dict[str, list[float]]:
+    """Each phase's reflection positions over ``data``'s range, at ``ref``'s
+    parameters as they stand: compiled as :meth:`Refinement.predict` compiles,
+    placed by :func:`~rietx.viz.snapshot.stage_ticks`, keyed by phase name."""
+    from ..model.forward import compile_model
+    from ..params.vector import ParameterTable
+    from .snapshot import stage_ticks
+    table = ParameterTable(ref.structure, ref.instrument)
+    compiled = compile_model(ref.structure, ref.instrument, data, mode="rietveld",
+                             moving_paths=set(table.moving_paths))
+    rows = stage_ticks(compiled, table.decode(table.x0()), max_per_phase=10**9)
+    names = [p.name for p in ref.structure.phases]
+    return {names[int(key.split()[-1])]: row["two_theta"] for key, row in rows.items()}
+
+
 def plot_pattern(data, *, path: str | None = None,
                  two_theta_range: tuple[float, float] | None = None,
                  x_axis: str = "two_theta", wavelength: float | None = None,
                  y_scale: str = "linear", style: str = "light",
                  figsize: tuple[float, float] | None = None,
                  font_size: float = BASE, dpi: int = 300,
-                 title: str | None = None):
+                 title: str | None = None, model=None):
     """A measured pattern on its own, before any model exists.
 
     The data panel of :func:`plot_result` with nothing modelled in it: the same
@@ -787,8 +802,18 @@ def plot_pattern(data, *, path: str | None = None,
     mean on :func:`plot_result`; the default size is the result panel's own,
     so a before-and-after pair lines up.  A :class:`PatternData` carries no
     wavelength either, so λ on the 2θ axis, and Q or d, need ``wavelength=``.
+
+    ``model``, a :class:`~rietx.Refinement`, adds one row of reflection ticks
+    per phase under the data, where the result panel puts them, at the
+    parameters as they stand and before any fit (WP-1544): the check that the
+    cell is close and λ is right before a fit is asked to find either. The
+    positions are :func:`rietx.viz.snapshot.stage_ticks`', every emission line
+    included. A row sits below the data floor, so it needs the linear axis.
     """
     _check_panel_args(style, x_axis, y_scale, wavelength)
+    if model is not None and y_scale != "linear":
+        raise ValueError("model= draws its tick rows below the data floor, "
+                         "which only a linear intensity axis has room for")
     plt = _pyplot()
     from matplotlib.ticker import MaxNLocator
 
@@ -805,6 +830,10 @@ def plot_pattern(data, *, path: str | None = None,
     if x.size > 1 and x[0] > x[-1]:
         # mirrored rather than reversed, as the result panel does it
         x, y_obs = x[::-1], y_obs[::-1]
+    rows = ([(name, _x_values(np.asarray(pos, dtype=float), x_axis, wavelength)[0])
+             for name, pos in _model_ticks(model, data).items()]
+            if model is not None else [])
+    n_rows = len(rows)
 
     with _style_context(plt, style, font_size):
         if figsize is None:
@@ -846,8 +875,30 @@ def plot_pattern(data, *, path: str | None = None,
         u_head = u_top + 0.20 * u_span
         base = floor if y_scale == "log" else min(floor, 0.0)
 
+        row_y, row_floor = [], floor
+        if n_rows:
+            # the result panel's inline rows, with no residual between them and
+            # the data: the first row sits a small gap under the floor
+            head = float(inverse(u_head))
+            span = top - floor or 1.0
+            line_frac = (1.35 * font_size / 72.0) / (ax.get_position().height
+                                                     * fig.get_size_inches()[1])
+            denom = 1.0 - line_frac * (n_rows + 0.6)
+            rows_top = floor - 0.03 * span
+            row_gap = (line_frac * (head - rows_top) / denom if denom > 0.35
+                       else 0.10 * span)
+            row_y = [rows_top - (i + 1) * row_gap for i in range(n_rows)]
+            row_floor = row_y[-1] - 0.6 * row_gap
+            marker = _hkl_marker()
+            for i, ((_, positions), y) in enumerate(zip(rows, row_y, strict=True)):
+                pos = positions[(positions >= x0) & (positions <= x1)]
+                colour = (hue["tick"] if n_rows == 1
+                          else hue["phase"][i % len(hue["phase"])])
+                ax.plot(pos, np.full(pos.size, y), ls="none", marker=marker,
+                        ms=1.1 * font_size, mfc=colour, mec=colour, mew=0)
+
         ax.set_xlim(x0, x1)
-        ax.set_ylim(floor, float(inverse(u_head)))
+        ax.set_ylim(row_floor, float(inverse(u_head)))
         ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
         u_bottom = _intensity_axis(ax, y_scale, forward, inverse, base, top,
                                    u_top, u_head)
@@ -858,10 +909,16 @@ def plot_pattern(data, *, path: str | None = None,
         fig_h = fig.get_size_inches()[1]
         ax_h_in = ax.get_position().height * fig_h
         min_gap = 1.15 * font_size * (u_head - u_bottom) / (ax_h_in * 72.0)
-        ax.text(x1 + 0.012 * (x1 - x0),
+        x_gut = x1 + 0.012 * (x1 - x0)
+        ax.text(x_gut,
                 float(inverse(max(u_bottom, float(forward(floor))) + 0.55 * min_gap)),
                 "observed", color=hue["obs"], ha="left", va="center",
                 clip_on=False)
+        for i, ((name, _), y) in enumerate(zip(rows, row_y, strict=True)):
+            colour = (hue["tick"] if n_rows == 1
+                      else hue["phase"][i % len(hue["phase"])])
+            ax.text(x_gut, y, name, color=colour, ha="left", va="center",
+                    clip_on=False)
         _title(ax, title, font_size)
 
         if path is not None:

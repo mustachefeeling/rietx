@@ -95,8 +95,9 @@ class PatternData(Base):
                     show_empty=True, head=head)
 
     def plot(self, path: str | None = None, **kw):
-        """Draw the pattern with no model: :func:`rietx.viz.plots.plot_pattern`,
-        the peer of :meth:`RefinementResult.plot`, forwarding ``**kw``."""
+        """Draw the pattern: :func:`rietx.viz.plots.plot_pattern`, the peer of
+        :meth:`RefinementResult.plot`, forwarding ``**kw``; ``model=ref`` adds a
+        :class:`~rietx.Refinement`'s reflection ticks before any fit."""
         from ..viz.plots import plot_pattern
 
         return plot_pattern(self, path=path, **kw)

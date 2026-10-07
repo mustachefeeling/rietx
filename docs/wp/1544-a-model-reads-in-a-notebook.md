@@ -149,7 +149,7 @@ matplotlib for the rest of the session.
   when a kernel is running or a backend is already resolved, and keep Agg for
   the GUI and CLI. One plot call gives one image. `fig.dpi` does not change
   silently.
-- [ ] **Pre-fit ticks.** `plot_pattern(data, model=ref)` and
+- [x] **Pre-fit ticks.** `plot_pattern(data, model=ref)` and
   `data.plot(model=ref)` draw the reflection ticks of a `Refinement` from
   `stage_ticks`, before any fit.
 - [ ] **Docs.** Fix `results.md:431-445` and the `diagnostics.py` docstring.

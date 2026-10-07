@@ -154,6 +154,34 @@ def test_an_indexing_result_prints_its_candidates_and_verdict():
     assert "NO CELL" in html and "found by" not in html, "the table replaces the lines"
 
 
+def test_pre_fit_ticks_are_where_the_fit_puts_its_own(fap):
+    """One answer to where a tick goes: drawn from the fitted refinement, the
+    pre-fit rows are the result's own ticks over the same range."""
+    import numpy as np
+
+    from rietx.viz.plots import _model_ticks
+    drawn = _model_ticks(fap["ref"], fap["data"])
+    (name, own), = fap["result"].ticks.items()
+    lo, hi = fap["result"].two_theta[0], fap["result"].two_theta[-1]
+    pos = np.asarray(drawn[name])
+    pos = pos[(pos >= lo) & (pos <= hi)]
+    own = np.asarray(own)
+    own = own[(own >= lo) & (own <= hi)]
+    assert pos.size == own.size and np.allclose(pos, own, atol=1e-5)
+
+
+def test_pre_fit_ticks_draw_one_row_per_phase_and_need_a_linear_axis(fap):
+    pytest.importorskip("matplotlib")
+    ref = rx.Refinement(fap["structure"], fap["instrument"])
+    fig = fap["data"].plot(model=ref, two_theta_range=(25, 40), dpi=72)
+    texts = [t.get_text() for t in fig.axes[0].texts]
+    assert texts == ["observed", "fluorapatite"]
+    with pytest.raises(ValueError, match="linear intensity axis"):
+        fap["data"].plot(model=ref, y_scale="log")
+    import matplotlib.pyplot as plt
+    plt.close("all")
+
+
 def test_a_plot_in_a_kernel_shows_once_and_leaves_the_backend_alone():
     """Measured before WP-1544: no rietx figure showed an image in a kernel,
     and one plot call left the session on Agg, so a plain ``plt.show()``
