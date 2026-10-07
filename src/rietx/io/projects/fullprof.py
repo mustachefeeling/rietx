@@ -3116,7 +3116,8 @@ def _radiation(instrument: Instrument | None) -> tuple[int, float, float, float]
         f"Ratio)")
 
 
-def _refuse_dropped_instrument(instrument: Instrument | None) -> None:
+def _refuse_dropped_instrument(instrument: Instrument | None, *,
+                               write_zero_shift: bool = False) -> None:
     """Refuse an instrument term the file drops, wherever it is away from its
     identity (``io/CLAUDE.md`` § Project writers; the ``.prm`` writer's
     ``zero_shift`` is the precedent): at its identity the dropped value states
@@ -3130,8 +3131,9 @@ def _refuse_dropped_instrument(instrument: Instrument | None) -> None:
     if instrument is None:
         return
     geometry = instrument.geometry
-    held = [("instrument.zero_shift", instrument.zero_shift.value),
-            ("instrument.geometry.sample_displacement", geometry.sample_displacement.value),
+    held = [] if write_zero_shift else [
+        ("instrument.zero_shift", instrument.zero_shift.value)]
+    held += [("instrument.geometry.sample_displacement", geometry.sample_displacement.value),
             ("instrument.geometry.sample_transparency", geometry.sample_transparency.value),
             ("instrument.geometry.capillary_offset_along_beam",
              geometry.capillary_offset_along_beam.value),
@@ -3304,7 +3306,8 @@ def _widths(phase, instrument: Instrument | None) -> list[float]:
 
 def from_structure(structure: Structure, *,
                    instrument: Instrument | None = None,
-                   diagnostics: list[Diagnostic] | None = None) -> str:
+                   diagnostics: list[Diagnostic] | None = None,
+                   write_zero_shift: bool = False) -> str:
     """Serialise ``structure`` as a FullProf ``.pcr`` — the inverse of
     :func:`to_structure`.
 
@@ -3347,8 +3350,17 @@ def from_structure(structure: Structure, *,
       ``dispersion=None``, would be refused by that reader (a ``Structure``
       carries no dispersion), so the writer refuses them, naming the atom.
 
-    What still does not travel, at its identity: the zero shift, sample
-    displacement and transparency, the capillary offsets, absorption (no
+    ``write_zero_shift=True`` (default ``False``, which refuses a non-zero zero
+    shift as below) writes ``instrument.zero_shift`` as the ``.pcr``'s ``Zero``,
+    with its codeword held.  The convention is measured against FullProf 8.20
+    (black box): ``Zero`` is in degrees 2θ and has rietx's sign, a constant
+    added to the calculated 2θ, so ``Zero = +0.1`` moves a line by +0.1° where
+    ``zero_shift = +0.1`` does, and the calculated patterns agree to 9e-5 of
+    their maximum (4.4e-2 at the opposite sign).  :func:`read_fullprof_pcr`
+    reads it back as ``FullProfModel.zero_shift["zero"]``.  (#723, first item.)
+
+    What still does not travel, at its identity: the zero shift (unless
+    ``write_zero_shift``), sample displacement and transparency, the capillary offsets, absorption (no
     ``mu_r``/``mu_t``/specimen dimension, and not a transmission plate),
     surface roughness, a polarisation other than K = 0.5, declared extra
     components, preferred orientation (none, or r = 1) and extinction (0).
@@ -3427,7 +3439,7 @@ def from_structure(structure: Structure, *,
 
     job, lambda1, lambda2, ratio = _radiation(instrument)
     neutron = job == 1
-    _refuse_dropped_instrument(instrument)
+    _refuse_dropped_instrument(instrument, write_zero_shift=write_zero_shift)
     for phase in structure.phases:
         # A non-finite value is refused before anything else, for all three
         # foreign-format writers at once (WP-1118). `Parameter` does not forbid
@@ -3541,7 +3553,9 @@ def from_structure(structure: Structure, *,
     # Structure carries maps onto it, so every value is inert and every
     # codeword held — `lambda_slot`'s own docstring calls it "a stale number
     # with an inert codeword, never the wavelength".
-    body.append("0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0")
+    zero = (float(instrument.zero_shift.value)
+            if write_zero_shift and instrument is not None else 0.0)
+    body.append(f"{zero!r} 0.0 0.0 0.0 0.0 0.0 1.0 0.0")
 
     from ...crystallography.symmetry import (
         refuse_propagation_vector,
@@ -3691,9 +3705,11 @@ def from_structure(structure: Structure, *,
 
 def write_fullprof_pcr(structure: Structure, path: str | Path, *,
                        instrument: Instrument | None = None,
-                       diagnostics: list[Diagnostic] | None = None) -> None:
-    """Write ``structure`` to ``path`` as a FullProf ``.pcr``. See
+                       diagnostics: list[Diagnostic] | None = None,
+                       write_zero_shift: bool = False) -> None:
+    """Write a ``.pcr``. ``structure`` goes to ``path``; see
     :func:`from_structure` for exactly what carries and what does not."""
     Path(path).write_text(from_structure(structure, instrument=instrument,
-                                         diagnostics=diagnostics),
+                                         diagnostics=diagnostics,
+                                         write_zero_shift=write_zero_shift),
                           encoding="utf-8")
