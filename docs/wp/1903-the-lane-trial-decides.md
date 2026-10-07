@@ -1,9 +1,8 @@
 # WP-1903 — The lane trial decides whether a WP session sends long items to subagents
 
-Milestone: unscheduled · Status: 🔄 2026-10-07 — evidence in, decision leaning adopt; paused to re-measure seven trial sessions on the second machine
+Milestone: unscheduled · Status: ✅ 2026-10-08 — adopted: the lane rule is /wp-start step 6c, /wp-lanes deleted
 Track: The repo's own process
 Depends on: —
-Priority: P3 2026-10-07 — was P4 until three trial rows were in; nine are, and the decision waits only on re-measuring seven sessions on the second machine
 
 ## Goal
 
@@ -137,6 +136,65 @@ python3 .claude/hooks/session_usage.py baseline --u U --mo MO --d D
   Haiku 4.5 $1, $5, $0.10, $1.25, $2. They are `PRICES` in the script.
 
 ## Handover log
+
+- **2026-10-08** — **Adopted.** A WP session now sends a long checklist item
+  to a subagent once its context passes 150K. The rule lives in `/wp-start`
+  as step 6c, and `/wp-lanes` is gone. The check the last session left open
+  came back clean. The five trial sessions whose transcripts were on this
+  machine all re-measured as savings, each larger than its committed row, and
+  the redo count stayed at 2. A sweep of nearby thresholds found the saving
+  flat, so the numbers did not change. They now carry a reason: estimates run
+  short by 1.6×, which puts an estimate of 20 on the replay's most robust row.
+  The decision rests on the bar proposed on 2026-10-01, and nobody has
+  explicitly confirmed it. It is cheap to reverse.
+
+  *Done.*
+  - `3607f1bf`: step 6c in `/wp-start`, carrying `/wp-lanes` steps 2-5 and
+    three new prompt rules. Name every code path the change reaches (both
+    trial bugs sat on an unnamed path). Restate the memory rules, always
+    including the ~8-minute command limit (the WP-1510 watchdog death). Write
+    a decision line for every item. `/wp-lanes` deleted. `/wp-handover` step
+    3b, `session_usage.py`'s docstrings and the test's docstring now point at
+    step 6c.
+  - `ae5a3037`: the decision and its evidence at the end of process.md
+    § Lanes within a WP, and the tasks ticked.
+  - Two deviations from the task text. The rule is a new step 6c instead of
+    a bullet in 6b, because 6b is about reading and the lane protocol runs to
+    seven bullets. The thresholds come from the sweep below instead of the
+    crossover table. Read alone, that table would raise the bar to 65
+    requests at 150K and lane fewer items for no better saving.
+
+  *Measured* (2026-10-08, this Mac, script at `2d6e632a`).
+  - `lanes` on the five local sessions. Every column matched its row except
+    the saving: ec2ca17f +3.58 (row +2.77), 6dc4faa1 +1.88 (+1.32),
+    e6ef1126 +21.77 (+17.77), 0433c291 +46.34 (+38.56), 38257a74 +7.42
+    (+5.17). Rows left as committed, with today's figures in process.md.
+  - `baseline --u 3000 --u 20000 --u 40000 --mo 10 --d 16000`: 195 WP
+    sessions, 2026-08-20 to 2026-10-04. Selective −20% / −17% / −12%. At
+    u = 20K, mo doubled with d = 20K gave −8%, and one lane in five redone
+    gave −11%. Peak-context bands +3% (68 sessions), −11% (71), −24% (56).
+    Crossover at an 80K base: 65 requests at 150K main, 42 at 200K, 28 at
+    300K.
+  - Threshold sweep, a scratchpad script over `replay` (u = 20K, mo 10,
+    d 16K): 150K/≥20 −16.6% (424 laned), 150K/≥30 −17.5% (276), 150K/≥40
+    −15.9% (175), 200K/≥20 −15.2%, 100K/≥20 −18.2%, crossover-following
+    −17.7% (246). Pessimistic (mo ×2, d 20K): −8.3%, −12.0%, −12.4%, −7.3%,
+    −9.6%, −12.4%.
+  - Acceptance pytest line: 112 passed (`.venv` with `[dev]`, macOS). Ruff
+    clean on `.claude/hooks` and the test.
+  - No lanes this session (step 3b does not apply). It has one
+    implementation item, and the context never passed 150K before it.
+
+  *Gotchas.* The worktree guard refuses `python3 $S/script.py` with a shell
+  variable in the path. Write the script with the Write tool and call it by
+  its literal path.
+
+  *Next.* Nothing is owed here. The first sessions under step 6c add rows to
+  process.md's table through `/wp-handover` step 3b. If those rows turn
+  negative in more than one session, or lanes are redone more than one time
+  in five, reopen the question with a new WP. The two unmeasured things are
+  in process.md: fixes the review lands after a lane's commit, and lane code
+  quality beyond review findings.
 
 - **2026-10-07** — **The trial says lanes pay, and the decision waits on one
   check.** Nine sessions sent 24 items to lanes, and every session came out
