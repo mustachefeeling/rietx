@@ -139,14 +139,19 @@ result = ref.fit(data, plan=<span class="s">"mccusker_structural"</span>,
   <div class="sec-head"><h2>Features</h2></div>
   <ul class="feat">
     <li><strong>Rietveld, Le Bail and Pawley</strong><span>Multi-phase, X-ray and constant-wavelength neutron. <a href="https://rietx.org/using/concepts.html">Concepts</a></span></li>
+    <li><strong>Magnetic structures</strong><span>Moments refined on constant-wavelength neutron data, read and written as magCIF. In progress. <a href="https://rietx.org/using/refining.html#a-moment-stated-and-refined">Magnetic</a></span></li>
     <li><strong>Reads common file formats</strong><span>.xy/.xye, GSAS, pdCIF, .chi, Rigaku .ras/.rasx, Bruker .uxd/.brml/.raw, PANalytical .xrdml/.udf, Philips .rd/.sd. <a href="https://rietx.org/using/files.html">Files</a></span></li>
-    <li><strong>Speaks other languages</strong><span>Opens TOPAS, FullProf, GSAS and PowderLine formats. (Rietica, XND, etc. in progress) <a href="https://rietx.org/using/files.html#refinement-files-another-program-wrote">Formats</a> · <a href="https://rietx.org/using/recipe.html">PowderLine</a></span></li>
+    <li><strong>Speaks other languages</strong><span>Reads and writes TOPAS, FullProf, GSAS and PowderLine formats. (Rietica, XND, etc. in progress) <a href="https://rietx.org/using/files.html#refinement-files-another-program-wrote">Formats</a> · <a href="https://rietx.org/using/recipe.html">PowderLine</a></span></li>
     <li><strong>Phase quantification</strong><span>Weight fractions with esds propagated through the full covariance, and a flag when a phase is not determined by the data. <a href="https://rietx.org/using/qpa.html">QPA</a></span></li>
     <li><strong>Series</strong><span>Designed from the ground up for robust sequential refinement. <a href="https://rietx.org/using/series.html">Series</a></span></li>
+    <li><strong>Joint refinement</strong><span>Several patterns in one fit with shared parameters, including X-ray and neutron together. <a href="https://rietx.org/using/series.html#a-joint-fit-shares-parameters-instead">Joint fits</a></span></li>
     <li><strong>Reporting beyond Rwp</strong><span>Common refinement heuristics reported in words alongside numbers. This helps both humans and agents interpret refinement results. <a href="https://rietx.org/using/report.html">FitReport</a></span></li>
     <li><strong>History tree</strong><span>Every refinement stage is a restorable checkpoint. You can fork, compare, merge. <a href="https://rietx.org/using/history.html">History</a></span></li>
+    <li><strong>Live run viewer</strong><span>Every fit records itself. <code>rietx watch</code> shows a running fit in the browser and can stop it. <a href="https://rietx.org/using/refining.html#watching-a-run">Watching a run</a></span></li>
+    <li><strong>Structure figures</strong><span>Draw a structure to a PNG from Python, with polyhedra and any view direction. <a href="https://rietx.org/using/exports.html#a-figure-of-the-structure">Figures</a></span></li>
     <li><strong>Indexing</strong><span>Robust automatic peak picking and three available indexing engines. <a href="https://rietx.org/using/indexing.html">Indexing</a></span></li>
     <li><strong>Corrections</strong><span>Axial divergence, displacement and transparency, absorption, preferred orientation, anisotropic displacement and strain, anomalous dispersion. <a href="https://rietx.org/using/model.html">Model</a></span></li>
+    <li><strong>Constraints and restraints</strong><span>Ties, holds, named variables, and restraints on bond lengths and angles. <a href="https://rietx.org/using/constraints.html">Constraints</a></span></li>
     <li><strong>Solvers and backends</strong><span>Very fast compiled kernel; trust-region and Levenberg–Marquardt on an analytic Jacobian; optional JAX and PyTorch backends for fully differentiable refinements. <a href="https://rietx.org/estimation.html">Estimation</a></span></li>
     <li><strong>For agents</strong><span>Ships with an agent skill summarising refinement heuristics and <code>rietx</code> features. Works with most coding agents. <code>rietx skill --install</code>. <a href="#quickstart">Quickstart</a> · <a href="https://rietx.org/using/agents.html">Agents</a></span></li>
   </ul>
@@ -160,11 +165,11 @@ result = ref.fit(data, plan=<span class="s">"mccusker_structural"</span>,
   <div class="tablewrap"><table class="vt">
     <thead><tr><th>Data</th><th>What is checked</th><th>Result</th><th>Referenced to</th></tr></thead>
     <tbody>
-      <tr><td>NIST SRM 660c LaB₆, lab Cu Kα (the certification measurement)</td><td>Lattice parameter</td><td>a = 4.156895(25) Å<br>+28 ppm</td><td><a href="https://tsapps.nist.gov/srmext/certificates/660c.pdf">NIST certificate</a>, cell recomputed for the measurement's 20.85 °C: 4.156780 Å</td></tr>
+      <tr><td>NIST SRM 660c LaB₆, lab Cu Kα (the certification measurement)</td><td>Lattice parameter</td><td>a = 4.156895(21) Å<br>+28 ppm</td><td><a href="https://tsapps.nist.gov/srmext/certificates/660c.pdf">NIST certificate</a>, cell recomputed for the measurement's 20.85 °C: 4.156780 Å</td></tr>
       <tr><td>NIST SRM 676a corundum, lab Cu Kα</td><td>Axial ratio c/a</td><td>+30 ppm</td><td><a href="https://tsapps.nist.gov/srmext/certificates/676a.pdf">NIST certificate</a>: a = 4.759355(80), c = 12.99231(15) Å (k = 2)</td></tr>
       <tr><td>IUCr CPD QPA round robin, sample 1: eight corundum, zincite and fluorite mixtures</td><td>Weight fractions</td><td>worst error 1.39 wt %</td><td>The weighed compositions. The participants' spread was 6 wt % on major phases (<a href="https://doi.org/10.1107/S0021889801007476">Madsen et al. 2001</a>)</td></tr>
-      <tr><td>Fluorapatite, GSAS-II tutorial data, lab Cu Kα</td><td>Cross-code, same protocol</td><td>Rwp 0.0973 vs 0.1005<br>cell +116 / +113 ppm</td><td>GSAS's converged fit of the same file (<a href="https://github.com/AdvancedPhotonSource/GSAS-II-tutorials">FAP.EXP</a>); the uniform cell offset is a d-scale convention</td></tr>
-      <tr><td>APS 11-BM, SRM 660b LaB₆ with cubic BN</td><td>Two-phase QPA</td><td>LaB₆ 17.84 ± 0.34 wt %</td><td>TOPAS: 17.907 and 17.950 wt % from its two models of the pattern (no weighed composition exists)</td></tr>
+      <tr><td>Fluorapatite, GSAS-II tutorial data, lab Cu Kα</td><td>Cross-code, same protocol</td><td>Rwp 0.0925 vs 0.1005<br>cell +83 / +82 ppm</td><td>GSAS's converged fit of the same file (<a href="https://github.com/AdvancedPhotonSource/GSAS-II-tutorials">FAP.EXP</a>); the uniform cell offset is a d-scale convention</td></tr>
+      <tr><td>APS 11-BM, SRM 660b LaB₆ with cubic BN</td><td>Two-phase QPA</td><td>LaB₆ 17.874 ± 0.314 wt %</td><td>TOPAS: 17.907 and 17.950 wt % from its two models of the pattern (no weighed composition exists)</td></tr>
       <tr><td>NIST SRM 676a corundum, peak list only</td><td>Indexing</td><td>correct cell first<br>a +122, c +28 ppm</td><td>The certificate cell; 51 of 55 lines indexed, graded low on its own caveats rather than accepted</td></tr>
     </tbody>
   </table></div>
