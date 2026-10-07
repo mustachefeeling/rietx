@@ -813,7 +813,13 @@ class PeakList(Base):
         rows = [f"  {i:>3}  {p.two_theta:10.4f}  {p.two_theta_esd:13.4f}  "
                 f"{p.intensity:10.1f}  {p.fwhm:6.3f}  {p.origin:7}  {', '.join(p.flags)}".rstrip()
                 for i, p in enumerate(self.peaks)]
-        tail = [f"  [{d.level:^7}] {d.code}: {d.message}" for d in self.diagnostics]
+        # ``where`` names lines no row shows, such as the Kα2 aliases dropped
+        # before the list was built, so it prints as IndexingResult's does
+        tail = []
+        for d in self.diagnostics:
+            tail.append(f"  [{d.level:^7}] {d.code}: {d.message}")
+            if d.where:
+                tail.append(f"           at: {', '.join(d.where)}")
         return head, rows, tail
 
     def _repr_html_(self) -> str:
