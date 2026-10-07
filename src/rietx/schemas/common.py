@@ -374,7 +374,12 @@ from .._nearmiss import did_you_mean
 #: Additive and defaulted to 1, the single run every earlier plan made; an older
 #: build refuses a document carrying it (``extra="forbid"``), which is the point
 #: of the bump.
-SCHEMA_VERSION = "0.41"
+#: 0.41 → 0.42 (#788): ``RefinementState.free_declared``, whether a node's
+#: ``free_paths`` is a declaration or "nothing declared yet" (the models' own
+#: ``vary`` flags then are the free set).  Additive and defaulted to ``False``,
+#: the reading every earlier document had, so an old tree loads unchanged; an
+#: older build refuses a document carrying it (``extra="forbid"``).
+SCHEMA_VERSION = "0.42"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

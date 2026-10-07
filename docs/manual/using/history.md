@@ -132,13 +132,14 @@ default, which keeps a plain stage's line short.
 | `RefinementState.instrument` | the instrument, as of this node |
 | `RefinementState.mode` | the intensity mode the node was recorded in |
 | `RefinementState.free_paths` | the dot-paths that were free |
+| `RefinementState.free_declared` | whether that list is a declaration, an empty one included |
 | `RefinementState.two_theta_limits` | the fitted range |
 | `RefinementState.ties` | the user constraints in force |
 | `RefinementState.variables` | the named variables declared, by name |
 | `RefinementState.holds` | the paths held against a plan's globs |
 | `RefinementState.reflections` | extracted or refined intensities, per phase |
 
-The last five are carried because the models do not hold them. A vary flag
+The last six are carried because the models do not hold them. A vary flag
 survives in the models, and the free set after globbing does not. A symmetry tie
 is rederived from the space group on every table build, while a tie you declared
 is not derivable from anything. A node without them would restore a model with
@@ -149,6 +150,12 @@ not a property of the models, and a {ref}`named variable <named-variables>` is
 not in them at all, since there is no field for it to be written to. The node is
 its only record, and a checkout that dropped it would restore ties naming a
 parameter that no longer exists.
+
+`RefinementState.free_declared` is the fact that makes an empty `free_paths`
+readable. Until something declares a free set, the models' own `vary` flags are
+it; afterwards the list is, empty or not. A node's kind cannot say which, since
+an edit of a value snapshots the free set without declaring one. A node written
+before the field reads as not declared, as it always did.
 
 `RefinementState.holds` is the same argument again, for a different reason.
 A hold is a refusal rather than a value, so nothing in the models could encode
