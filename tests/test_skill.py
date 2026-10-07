@@ -521,6 +521,97 @@ def test_the_corpus_gate_fails_each_broken_shape():
     assert _corpus_problems("x", doc("**A** and **B**.", "A, run 1"))        # ambiguous
 
 
+# --- an evidence tag's WP, read against the index (WP-1907) ---------------
+#
+# A `(Measured: WP-NNNN …)` tag carries no date, so a measurement a later WP
+# overturned reads as current.  The WP it names is the date: that WP must be a
+# row of the index, and when another WP file says it **supersedes** it, the
+# tag must name the superseder too, which is the re-read the row needs.  The
+# grammar is the phrase the WP files already use for an overturned claim
+# ("supersedes WP-1023"), never a "superseded in part" note, which records a
+# finding that *earlier* work had overtaken (`/wp-start` step 5).
+
+WP_DIR = ROOT / "docs" / "wp"
+_ANY_TAG = re.compile(r"\*\((Measured|Hypothesis): (.+?)\)\*", re.S)
+_WP_REF = re.compile(r"WP-(\d{4})\b")
+_SUPERSEDES = re.compile(r"\b[Ss]upersedes WP-(\d{4})\b")
+#: Every file whose tags are read: the generated `api*.md` carry none.
+_TAG_FILES = [SKILL, *(p for p in REFERENCES if p not in API_INDEXES)]
+
+
+def _tagged_wps(text: str) -> list[tuple[str, set[str]]]:
+    """``(tag body, the WPs it names)`` for every evidence tag in ``text``."""
+    return [(" ".join(m.group(2).split()), set(_WP_REF.findall(m.group(2))))
+            for m in _ANY_TAG.finditer(text)]
+
+
+def _index_rows() -> set[str]:
+    index = (WP_DIR / "README.md").read_text(encoding="utf-8")
+    return set(re.findall(r"^\| \[(\d{4})\]\(", index, re.M))
+
+
+def _superseders(texts: dict[str, str]) -> dict[str, set[str]]:
+    """``{superseded WP: the WPs whose files say they supersede it}``."""
+    out: dict[str, set[str]] = {}
+    for number, text in texts.items():
+        for old in _SUPERSEDES.findall(text):
+            if old != number:
+                out.setdefault(old, set()).add(number)
+    return out
+
+
+def _tag_problems(name: str, text: str, index: set[str],
+                  superseders: dict[str, set[str]]) -> list[str]:
+    problems = []
+    for body, wps in _tagged_wps(text):
+        for wp in sorted(wps - index):
+            problems.append(f"{name}: a tag names WP-{wp}, which is not a row of "
+                            f"docs/wp/README.md (renumbered?): {body[:100]!r}")
+        for wp in sorted(wps & superseders.keys()):
+            missing = superseders[wp] - wps
+            if missing:
+                later = ", ".join(f"WP-{n}" for n in sorted(missing))
+                problems.append(
+                    f"{name}: a tag rests on WP-{wp}, which {later} says it "
+                    f"supersedes; re-read the row and name {later} in its tag: "
+                    f"{body[:100]!r}")
+    return problems
+
+
+def _wp_texts() -> dict[str, str]:
+    return {p.name[:4]: p.read_text(encoding="utf-8")
+            for p in sorted(WP_DIR.glob("[0-9][0-9][0-9][0-9]-*.md"))}
+
+
+def test_the_tag_gate_has_tags_and_a_supersession_to_read():
+    """Collector liveness for both halves: tags naming a WP exist, and the
+    supersession grammar has at least one real instance in the WP files."""
+    named = [wps for p in _TAG_FILES for _, wps in _tagged_wps(p.read_text(encoding="utf-8"))
+             if wps]
+    assert named, "no evidence tag in the skill names a WP; the index check reads nothing"
+    assert _superseders(_wp_texts()), (
+        "no WP file says it 'supersedes WP-NNNN'; the supersession half reads "
+        "nothing, so its grammar has drifted from what the WP files write")
+
+
+@pytest.mark.parametrize("path", _TAG_FILES, ids=lambda p: p.name)
+def test_every_wp_an_evidence_tag_names_is_indexed_and_not_superseded(path: Path):
+    problems = _tag_problems(path.name, path.read_text(encoding="utf-8"),
+                             _index_rows(), _superseders(_wp_texts()))
+    assert not problems, "\n".join(problems)
+
+
+def test_the_tag_gate_fails_each_broken_shape():
+    index, sup = {"1403", "1500"}, {"1403": {"1500"}}
+    assert not _tag_problems("x", "*(Measured: WP-1500 — a run)*", index, sup)
+    assert not _tag_problems("x", "*(Measured: WP-1403, re-read in WP-1500)*", index, sup)
+    assert _tag_problems("x", "*(Measured: WP-1403 — a run)*", index, sup)   # superseded
+    assert _tag_problems("x", "*(Measured: WP-9999 — a run)*", index, sup)   # no such WP
+    assert _superseders({"1500": "This supersedes WP-1403.",
+                         "1403": "Superseded in part, 2026-09-15: WP-1300"}) == {
+        "1403": {"1500"}}
+
+
 def test_every_dotted_name_in_the_api_index_resolves():
     """The API index cannot name something the package does not have."""
     text = API_INDEX.read_text(encoding="utf-8")

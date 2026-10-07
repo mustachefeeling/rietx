@@ -80,7 +80,7 @@ skill's numbers are rendered from the package rather than typed.
       name that vanished
 - [ ] `nightly.yml`: WP-1905's judge-free tier on Haiku, `--max-cost-usd`
       set, the floor per case recorded in `PROTOCOL.md`
-- [ ] `(Measured: …)` tags name their WP; a test reads each against the index
+- [x] `(Measured: …)` tags name their WP; a test reads each against the index
 - [ ] Tests for each of the above
 - [ ] Skill: none — this WP guards the skill and adds no rule to it
 
