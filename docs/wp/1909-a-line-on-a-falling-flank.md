@@ -1,6 +1,6 @@
 # WP-1909 — a line on a falling flank, at a third of its own esd
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-07 — the 1σ floor landed from outside (PR #741); the threshold history, the census and the PNGs remain
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-05 — a defect that fires wrongly: three unflagged false lines cost the indexer the true cell, and cropping the range is the workaround; indexing is a path few fits run
@@ -130,6 +130,31 @@ round-robin table shows which real lines, if any, the repair removed.
   WP-1110 item 14 (`no_intensity`); WP-1510 (`duplicate_line`).
 
 ## Handover log
+
+- **2026-10-07** — PR #741 merged from outside as `ccd2e298` and closed #718.
+  Gated together on a nine-PR stack replayed onto `main` at `f99fab05` (stack
+  `16a95cef`, macOS arm64, `[dev,jax]`). The whole suite gave 8912 passed, 113
+  skipped and 2 failed. Both failures fail identically on bare `main`: the
+  `toy_anomalous` golden (#760) and
+  `test_the_reduction_map_takes_a_to_f_where_the_reduction_does`. After the
+  last merge, `main` at `a65dca1a` is content-identical to the gated tree.
+  That run includes `tests/test_acceptance_indexing.py`.
+  - `pick_peaks` flags a component whose intensity is under 1σ of its own esd
+    `no_intensity` (`PEAK_NO_INTENSITY_SIGMA`). The `PeakFlag` comment names
+    the floor.
+  - On 11-BM NAC the floor removes nine of 276 usable lines. The 20-of-100
+    low-Q search pool then reaches deeper, and a third candidate survives:
+    cubic P at 10.2512/√2 Å. It indexes 177 of 267 lines (I: 219), ranks last
+    and stays `low`.
+    `test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing`
+    now admits that one candidate and no other.
+  - Not done. `INDEXING_THRESHOLDS_VERSION` stays `"1.7"`, which is
+    unreleased; its history entry owes a clause for the 1σ floor, and
+    `indexing/CLAUDE.md` owes its dossier line. Task 2's table of repairs (a)
+    and (b) across the IUCr lists is not recorded here, and neither are the
+    width census or the PNGs. The tasks stay unticked until each is checked
+    against its wording.
+  - Next: the threshold history clause and the dossier line.
 
 - **2026-10-05** — created, from the 2026-10-05 issue triage (issue #718).
   Checked against the tree at 32ef5a6: the issue's generator reproduces the

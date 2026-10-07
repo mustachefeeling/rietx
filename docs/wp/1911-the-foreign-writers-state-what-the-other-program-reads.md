@@ -1,6 +1,6 @@
 # WP-1911 — the foreign writers state what the other program reads: the setting, the scale, the free set
 
-Milestone: unscheduled · Status: 🔄 2026-10-06 — PRs #720, #731, #710, #733 and #713 merged from outside; #721's decision is due, now that #713 has landed
+Milestone: unscheduled · Status: 🔄 2026-10-07 — PRs #720, #731, #710, #733, #713, #771 and #782 merged from outside; #770 (Part B's writer) needs a rebase; #721's decision is due
 Track: Coming from another code
 Depends on: — (#713 soft: the P1 restatement Part D builds on)
 Priority: P3 2026-10-06 — was P2 for #716, which PR #733 fixed; the remaining issues cost a user hand edits
@@ -354,6 +354,38 @@ land alone before the transform exists.
   keywords (specification only, per ATTRIBUTION.md).
 
 ## Handover log
+
+- **2026-10-07** — Two more of this WP's PRs merged from the reporter's fork.
+  Gated together on a nine-PR stack replayed onto `main` at `f99fab05` (stack
+  `16a95cef`, macOS arm64, `[dev,jax]`). The whole suite gave 8912 passed, 113
+  skipped and 2 failed. Both failures fail identically on bare `main`: the
+  `toy_anomalous` golden (#760) and
+  `test_the_reduction_map_takes_a_to_f_where_the_reduction_does`. After the
+  last merge, `main` at `a65dca1a` is content-identical to the gated tree.
+  - PR #771 (#721 item 4, #722's reader half) as `712367bb`.
+    `to_structure(constraints=TopasConstraints())` reads a TOPAS file's shared
+    names and affine equations back as ties, and `apply_ties` declares them. A
+    held path lands in `constraints.skipped` instead of aborting the call. A
+    name stated at two values is refused, moment components included, to 1e-6
+    of the larger value with no absolute floor, since a TOPAS scale sits near
+    1e-6. `to_structure(scale="rietx")` converts TOPAS's scale. A `"<name>
+    magnetic part"` `str` merges back into its phase where it equals the
+    nuclear `str`, and `read_topas_inp` no longer lists that `mag_only` as
+    refused. This is the reader half of Part D's ties task and Part B's scale;
+    the writer half is #770.
+  - PR #782 (#781) as `a075740e`. `write_topas_inp`'s `str` states the size
+    and strain widths and the Stephens block as `lor_fwhm`/`gauss_fwhm`
+    equations. TOPAS's `Y_calc` agrees with rietx to 2e-3 of the peak, against
+    3e-2 for the isotropic block. `TOPAS_FIELD_NOT_WRITTEN` names the
+    magnetic-only widths, extinction and preferred orientation, each by its
+    parameter-table path. The size widths are written in degrees, so they hold
+    only at the file's one wavelength.
+  - Still open from the same fork. #770 (Part B, `free=` and `scale=`) answers
+    round 2, including the symmetry-tied rows, and conflicts with #771 and
+    #782; a rebase is requested. Its X-ray `× K` constant and the moment
+    equations' radians are not yet checked against a TOPAS run. #755 (C1's
+    zero shift) is a draft.
+  - Next: the maintainer decision on #721's items 2-4.
 
 - **2026-10-06 (2nd session)** — Three more of this WP's inherited
   fixes merged from the reporter's fork. Gated together on a seven-PR stack replayed onto `main` at `7c8a0316` (stack `ee39adb9`, macOS arm64, `[dev,jax]`). The fast suite gave 8523 passed, 103 skipped and 2 failed. Both failures fail identically on bare `main`: the `toy_anomalous` golden (#760) and a hypothesis case in `test_indexing_reduce.py`. The whole slow tier gave 291 passed and 12 skipped. After the last merge, `main` at `0cbb1b70` is content-identical to the gated tree.
