@@ -38,6 +38,20 @@ context rather than the byte cap, and the authored heuristics for the same
 technique live in `references/<technique>.md` under the shape rule (root
 CLAUDE.md § skill), which is an authored file and not a generated one.
 
+**A task shape the body already routes gets one too, and `api.md` is split by
+shape, never by size.**  `api-io.md` holds the readers and writers for another
+program's file (TOPAS, FullProf, GSAS, GSAS-II, a PowderLine recipe): a session
+reaches them only with such a file in front of it, and the body's routing table
+named that situation before the file existed.  It took `api.md` from 39 694 to
+33 208 B (2026-10-07), the cap history in `tests/skill_caps.py` having run out
+of raises.  An alphabetical or per-module split was measured and declined: no
+session knows which half or module holds a name it has not met, so it loads
+them all.  **Where a name lands** is decided once, by whoever adds it to
+``SECTIONS`` or to a ``TECHNIQUES`` entry (the coverage gate in
+`tests/test_skill.py` refuses a verb placed nowhere, and another refuses one
+placed twice); a new keyword or field lands in whichever file already holds
+its name, with no decision at all.
+
 **Rendering is deliberately its own.**  ``str(inspect.signature(f))`` quotes
 every annotation under ``from __future__ import annotations`` and pydantic's
 evaluated annotations print differently across Python versions
@@ -72,79 +86,11 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "from memory (§1). **A file extension does not name a format here**: "
         "dispatch is on content, and a declined `.raw` names the six vendors "
         "who write one and picks none, so read the refusal rather than the "
-        "suffix (Measured: WP-1407). **Handed another program's input "
-        "file** — a "
-        "PowderLine `GSASII_Rietveld` recipe — read it with `rx.read_recipe` "
-        "rather than parsing it yourself: it returns the model, the instrument "
-        "and a plan together, and a unit it could not carry says so as a "
-        "`RECIPE_*` diagnostic. "
-        "`rx.read_gsas_prm` reads a GSAS-I `.prm` instrument-parameter file "
-        "(the dominant one-bank, constant-wavelength case; a neutron "
-        "time-of-flight file and every other GSAS profile function are "
-        "refused by name). A Kα1/Kα2 doublet there comes back as two "
-        "emission lines, the second weighted by the file's own `KRATIO`, so "
-        "do not add a Kα2 line yourself after reading one "
-        "(Measured: WP-1118). `rx.write_gsas_prm` is its inverse, and the one "
-        "writer here whose payload is *not* the refine flags: an "
-        "instrument-parameter file is a calibration, so it goes out frozen. It "
-        "refuses a non-zero `zero_shift` — `ICONS`' `ZERO` has no established "
-        "unit here and a guess is wrong by 100× — so zero it and let the "
-        "receiving program refine it. "
-        "`rx.read_gsas2_instprm`/`rx.write_gsas2_instprm` are that pair one "
-        "program over, for GSAS-II's text calibration: `PXC` and `PNC` banks, "
-        "and a **negative** width "
-        "coefficient refused rather than clamped, which 2 of the 4 "
-        "constant-wavelength files in GSAS-II's own tutorial corpus trip "
-        "(Measured: WP-1118). "
-        "**Handed another program's whole refinement** — a "
-        "TOPAS `.inp`, a FullProf `.pcr`, a GSAS `.EXP` — call "
-        "`rx.read_project_model`, which "
-        "dispatches on content and returns what the file stated plus a "
-        "`.to_structure()` carrying the file's **own refine flags**, the half "
-        "nobody can rebuild from a CIF plus a pattern (Measured: WP-1118 — six "
-        "agents handed a hand-transcribed series all named the transcription as "
-        "the hardest part of the work). Read `.format.reports_at` to know which "
-        "call takes your `diagnostics=` list: a `.inp` reports at read, a `.pcr` "
-        "at `to_structure`, a `.EXP` at both. A GSAS `.EXP` carries the whole "
-        "experiment rather than one phase, so read the wavelengths, excluded "
-        "regions and refined profile terms off `model.stated` — a `Structure` "
-        "cannot hold them. **A blank field there "
-        "is not a zero**: `ka2_ratio` is `None` where the file states no "
-        "Ka2/Ka1 ratio, and the 0.5 one field earlier is the polarization — "
-        "both are conventionally 0.5 (Measured: WP-1118). A GSAS-II `.gpx` reads through the same door and "
-        "carries two things the older formats cannot: the constraints, and the "
-        "`vary_list` naming every variable the run refined. It is a **pickle**, so "
-        "the reader resolves an allow-list and refuses any other global by name "
-        "without reading the file (Measured: WP-1118). "
-        "`to_structure` refuses a phase with no sites and keeps a negative "
-        "`Uiso`, both of which real projects contain. **Two codes, two goodness-of-fit "
-        "conventions**: a `.gpx`’s `gof` is the square root of reduced χ² and a "
-        "`.EXP`’s `reduced_chi2` is not a root at all, so comparing your fit with "
-        "either file’s figure means knowing which one it quoted (Measured: "
-        "WP-1118). "
-        "**All four formats write back**: `rx.write_topas_inp`, "
-        "`rx.write_fullprof_pcr` and `rx.write_gsas_exp` are each format's "
-        "`to_structure` inverse, a file "
-        "whose refine flags reproduce the `Structure`'s `vary` exactly and "
-        "whose space group is `get_spacegroup(...).xhm()`, never the phase's "
-        "stored spelling. FullProf's grammar has no origin/axis suffix at all, so "
-        "`write_fullprof_pcr` refuses a phase whose resolved setting a bare "
-        "symbol cannot reach — most often origin choice 1 (Measured: WP-1118). "
-        "A `.EXP` is the one written by **column**, so it reports what narrowed "
-        "to fit a field and which merged refine flags it freed; pass "
-        "`diagnostics=[]` for both (a `Biso` always narrows, the file storing "
-        "`Uiso`). GSAS-II has no project file to write, so it takes the pair it "
-        "imports: `rx.write_gsas2_phase_cif` for the phases and "
-        "`rx.write_gsas2_instprm` for the machine. That CIF states the setting "
-        "three ways, because GSAS-II reads a bare `F d -3 m` as origin choice 2 "
-        "where gemmi reads choice 1 (Measured: WP-1118).",
-        ("rx.read_pattern", "rx.read_pdcif", "rx.read_recipe",
-         "rx.read_gsas_prm", "rx.write_gsas_prm", "rx.read_project_model",
-         "rx.identify_project_format", "rx.read_topas_inp", "rx.write_topas_inp",
-         "rx.read_fullprof_pcr", "rx.write_fullprof_pcr",
-         "rx.read_gsas_exp", "rx.write_gsas_exp", "rx.read_gsas2_gpx",
-         "rx.write_gsas2_phase_cif",
-         "rx.read_gsas2_instprm", "rx.write_gsas2_instprm",
+        "suffix (Measured: WP-1407). **Handed another program's file** — a "
+        "TOPAS `.inp`, a FullProf `.pcr`, a GSAS `.EXP` or `.prm`, a GSAS-II "
+        "`.gpx` or `.instprm`, a PowderLine recipe — or writing one for it: "
+        "the readers and writers are in `api-io.md`.",
+        ("rx.read_pattern", "rx.read_pdcif",
          "rx.Structure.from_cif",
          "rx.Instrument.bragg_brentano", "rx.Instrument.debye_scherrer",
          "rx.estimate_mu_r", "rx.auto_background", "rx.diagnose",
@@ -239,15 +185,13 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "Out",
         "Files and figures. `rx.format_su` renders a value with its esd as "
         "`1.2345(12)`; `plot_for_vlm` is the montage §5 allows as a check on a "
-        "conclusion already reached from numbers. `rx.write_recipe_tables` is "
-        "the return leg of `rx.read_recipe` — a finished refinement as "
-        "PowderLine's four tables, for a pipeline that dispatched the job here. "
-        "A picture of the structure is `rx.viz.render_structure`, and of a "
+        "conclusion already reached from numbers. A file for another program "
+        "is written by `api-io.md`'s writers. A picture of the structure is `rx.viz.render_structure`, and of a "
         "pattern before any model `rx.viz.plot_pattern`, both in "
         "`api-figure.md`.",
         ("rx.write_refinement_cif", "rx.write_qpa_table",
          "rx.write_reflection_table", "rx.reflection_table",
-         "rx.write_recipe_tables", "rx.format_su",
+         "rx.format_su",
          "rx.viz.plot_result", "rx.viz.plot_for_vlm",
          "rietx.viz.html.write_html"),
     ),
@@ -368,6 +312,97 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "figure and its numbers. `title=` names either figure; the "
                 "default draws none.",
                 ("rx.viz.plot_pattern",),
+            ),
+        ),
+    ),
+    "io": (
+        "The other programs' files index",
+        "Load it when another program's file is in front of you — a TOPAS "
+        "`.inp`, a FullProf `.pcr`, a GSAS `.EXP` or `.prm`, a GSAS-II `.gpx` "
+        "or `.instprm`, a PowderLine recipe — or when you are to write one "
+        "for that program. A pattern file is `rx.read_pattern`'s, in `api.md`.",
+        (
+            (
+                "A recipe or an instrument file",
+                "**Handed another program's input "
+                "file** — a "
+                "PowderLine `GSASII_Rietveld` recipe — read it with `rx.read_recipe` "
+                "rather than parsing it yourself: it returns the model, the instrument "
+                "and a plan together, and a unit it could not carry says so as a "
+                "`RECIPE_*` diagnostic. `rx.write_recipe_tables` is "
+                "the return leg of `rx.read_recipe` — a finished refinement as "
+                "PowderLine's four tables, for a pipeline that dispatched the job here. "
+                "`rx.read_gsas_prm` reads a GSAS-I `.prm` instrument-parameter file "
+                "(the dominant one-bank, constant-wavelength case; a neutron "
+                "time-of-flight file and every other GSAS profile function are "
+                "refused by name). A Kα1/Kα2 doublet there comes back as two "
+                "emission lines, the second weighted by the file's own `KRATIO`, so "
+                "do not add a Kα2 line yourself after reading one "
+                "(Measured: WP-1118). `rx.write_gsas_prm` is its inverse, and the one "
+                "writer here whose payload is *not* the refine flags: an "
+                "instrument-parameter file is a calibration, so it goes out frozen. It "
+                "refuses a non-zero `zero_shift` — `ICONS`' `ZERO` has no established "
+                "unit here and a guess is wrong by 100× — so zero it and let the "
+                "receiving program refine it. "
+                "`rx.read_gsas2_instprm`/`rx.write_gsas2_instprm` are that pair one "
+                "program over, for GSAS-II's text calibration: `PXC` and `PNC` banks, "
+                "and a **negative** width "
+                "coefficient refused rather than clamped, which 2 of the 4 "
+                "constant-wavelength files in GSAS-II's own tutorial corpus trip "
+                "(Measured: WP-1118).",
+                ("rx.read_recipe", "rx.write_recipe_tables",
+                 "rx.read_gsas_prm", "rx.write_gsas_prm",
+                 "rx.read_gsas2_instprm", "rx.write_gsas2_instprm"),
+            ),
+            (
+                "Another program's whole refinement",
+                "**Handed another program's whole refinement** — a "
+                "TOPAS `.inp`, a FullProf `.pcr`, a GSAS `.EXP` — call "
+                "`rx.read_project_model`, which "
+                "dispatches on content and returns what the file stated plus a "
+                "`.to_structure()` carrying the file's **own refine flags**, the half "
+                "nobody can rebuild from a CIF plus a pattern (Measured: WP-1118 — six "
+                "agents handed a hand-transcribed series all named the transcription as "
+                "the hardest part of the work). Read `.format.reports_at` to know which "
+                "call takes your `diagnostics=` list: a `.inp` reports at read, a `.pcr` "
+                "at `to_structure`, a `.EXP` at both. A GSAS `.EXP` carries the whole "
+                "experiment rather than one phase, so read the wavelengths, excluded "
+                "regions and refined profile terms off `model.stated` — a `Structure` "
+                "cannot hold them. **A blank field there "
+                "is not a zero**: `ka2_ratio` is `None` where the file states no "
+                "Ka2/Ka1 ratio, and the 0.5 one field earlier is the polarization — "
+                "both are conventionally 0.5 (Measured: WP-1118). A GSAS-II `.gpx` reads through the same door and "
+                "carries two things the older formats cannot: the constraints, and the "
+                "`vary_list` naming every variable the run refined. It is a **pickle**, so "
+                "the reader resolves an allow-list and refuses any other global by name "
+                "without reading the file (Measured: WP-1118). "
+                "`to_structure` refuses a phase with no sites and keeps a negative "
+                "`Uiso`, both of which real projects contain. **Two codes, two goodness-of-fit "
+                "conventions**: a `.gpx`’s `gof` is the square root of reduced χ² and a "
+                "`.EXP`’s `reduced_chi2` is not a root at all, so comparing your fit with "
+                "either file’s figure means knowing which one it quoted (Measured: "
+                "WP-1118). "
+                "**All four formats write back**: `rx.write_topas_inp`, "
+                "`rx.write_fullprof_pcr` and `rx.write_gsas_exp` are each format's "
+                "`to_structure` inverse, a file "
+                "whose refine flags reproduce the `Structure`'s `vary` exactly and "
+                "whose space group is `get_spacegroup(...).xhm()`, never the phase's "
+                "stored spelling. FullProf's grammar has no origin/axis suffix at all, so "
+                "`write_fullprof_pcr` refuses a phase whose resolved setting a bare "
+                "symbol cannot reach — most often origin choice 1 (Measured: WP-1118). "
+                "A `.EXP` is the one written by **column**, so it reports what narrowed "
+                "to fit a field and which merged refine flags it freed; pass "
+                "`diagnostics=[]` for both (a `Biso` always narrows, the file storing "
+                "`Uiso`). GSAS-II has no project file to write, so it takes the pair it "
+                "imports: `rx.write_gsas2_phase_cif` for the phases and "
+                "`rx.write_gsas2_instprm` for the machine. That CIF states the setting "
+                "three ways, because GSAS-II reads a bare `F d -3 m` as origin choice 2 "
+                "where gemmi reads choice 1 (Measured: WP-1118).",
+                ("rx.read_project_model", "rx.identify_project_format",
+                 "rx.read_topas_inp", "rx.write_topas_inp",
+                 "rx.read_fullprof_pcr", "rx.write_fullprof_pcr",
+                 "rx.read_gsas_exp", "rx.write_gsas_exp", "rx.read_gsas2_gpx",
+                 "rx.write_gsas2_phase_cif"),
             ),
         ),
     ),

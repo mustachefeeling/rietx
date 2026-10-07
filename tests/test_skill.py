@@ -111,15 +111,58 @@ def test_the_body_is_within_its_caps():
 @pytest.mark.parametrize("path", REFERENCES, ids=lambda p: p.name)
 def test_every_reference_file_is_within_its_cap(path: Path):
     generated = path in API_INDEXES
-    cap = API_INDEX_MAX_BYTES if generated else REFERENCE_MAX_BYTES
+    cap = skill_caps.api_index_ceiling(path) if generated else REFERENCE_MAX_BYTES
     size = len(path.read_bytes())
     assert size <= cap, (
         f"{path.name} is {size} B (cap {cap}); "
         + ("the generator renders one signature per public name, so this is "
-           "the public API outgrowing the file: narrow what "
-           "make_api_index.py renders, or split the index."
+           "the public API outgrowing the file: move a task shape's names to "
+           "an api-<shape>.md (make_api_index.py's TECHNIQUES), on the "
+           "criterion tests/skill_caps.py's API_INDEX_MAX_BYTES records."
            if generated else "split it.")
     )
+
+
+def test_api_md_keeps_its_own_ceiling_and_a_new_index_needs_no_line():
+    """`api.md`'s ceiling carries its raise history; a technique index without
+    a line of its own takes the technique default, so creating one edits no
+    list (the reason `API_INDEXES` is a glob)."""
+    assert skill_caps.api_index_ceiling(API_INDEX) == API_INDEX_MAX_BYTES
+    unnamed = REFERENCE_DIR / "api-not-a-technique-yet.md"
+    assert (skill_caps.api_index_ceiling(unnamed)
+            == skill_caps.API_TECHNIQUE_INDEX_MAX_BYTES)
+    named = {p.name for p in API_INDEXES}
+    dead = sorted(set(skill_caps.API_INDEX_CEILINGS) - named)
+    assert not dead, f"a ceiling for an index the generator no longer writes: {dead}"
+
+
+def test_no_name_has_an_entry_row_in_two_api_indexes():
+    """A split moves a name; it never copies one.  Two rows for one name are
+    two signatures that a later edit to `SECTIONS` can let drift apart, and
+    the reader routed to either file cannot tell which is current."""
+    seen: dict[str, str] = {}
+    twice = []
+    for path in API_INDEXES:
+        for name in re.findall(r"^- `((?:rx|rietx)\.[A-Za-z0-9_.]+)",
+                               path.read_text(encoding="utf-8"), re.M):
+            if name in seen:
+                twice.append(f"{name}: {seen[name]} and {path.name}")
+            seen[name] = path.name
+    assert len(seen) > 100, f"only {len(seen)} entry rows found — the regex broke"
+    assert not twice, twice
+
+
+@pytest.mark.parametrize("path", [p for p in API_INDEXES if p != API_INDEX],
+                         ids=lambda p: p.name)
+def test_every_dotted_name_in_a_technique_index_resolves(path: Path):
+    """`api.md`'s check below, over every `api-<technique>.md`: a name moved
+    out of `api.md` by a split keeps its guard."""
+    text = path.read_text(encoding="utf-8")
+    names = {m.rstrip(".") for m in DOTTED.findall(text)}
+    assert names, f"{path.name}: no dotted name found — the regex broke"
+    for name in sorted(names):
+        dotted = name if name.startswith("rietx.") else "rietx." + name[len("rx."):]
+        resolve_dotted(dotted, path.name)
 
 
 # --- the budgets (#247) -----------------------------------------------------

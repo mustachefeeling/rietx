@@ -133,7 +133,37 @@ REFERENCE_BUDGET_BYTES = REFERENCE_MAX_BYTES - REFERENCE_GAP_BYTES
 #: 39 698 B, and the ceiling is 300 B under the 40 kB truncation, so the next
 #: raise is the split.  A technique split (`api-magnetic.md`) is the
 #: alternative, and the maintainer's call.
+#:
+#: **The split happened** (2026-10-07), so this number has not moved again.
+#: The readers and writers for another program's file went to `api-io.md`, a
+#: shape the body's routing table already named, taking `api.md` from 39 694
+#: to 33 208 B.  The criterion is the shape, as for `diagnostics.md`'s splits
+#: above, never a byte count (`make_api_index.py`'s docstring has the options
+#: declined).  Measured before the split, `api.md` grew 2 719 B in the 16 days
+#: to 2026-10-07, all but 151 B of it in the everyday types that stayed, so the
+#: 6 492 B of room is about a month; the next seam is a shape too (series,
+#: history and projects, 3.3 kB, routed by §9 and §9b).
 API_INDEX_MAX_BYTES = 39_700
+#: A technique index's ceiling: the same 40 kB truncation, at the 1 kB margin
+#: `api.md` started from (39 000, before WP-1343) rather than the 300 B it was
+#: raised to.  Any `api-<technique>.md` without a line of its own below takes
+#: it, so the pull request that creates one has no list to edit (the reason
+#: `tests/test_skill.py`'s ``API_INDEXES`` is a glob).
+API_TECHNIQUE_INDEX_MAX_BYTES = 39_000
+#: A generated index's own ceiling, where it has a history to record.
+API_INDEX_CEILINGS: dict[str, int] = {
+    "api.md": API_INDEX_MAX_BYTES,
+    # Born 2026-10-07 at 7 436 B: sixteen signatures (2 621 B) and their
+    # prose, 6 486 B net out of `api.md`, under a 588 B header.  The technique
+    # default, since nothing yet argues for another number; TOF's calibration
+    # reader (`read_gsas_tof_iparm`, 196 B) lands here, not in `api.md`.
+    "api-io.md": API_TECHNIQUE_INDEX_MAX_BYTES,
+}
+
+
+def api_index_ceiling(path: Path) -> int:
+    """The ceiling of the generated index at ``path``."""
+    return API_INDEX_CEILINGS.get(path.name, API_TECHNIQUE_INDEX_MAX_BYTES)
 
 
 @dataclass(frozen=True)
@@ -161,7 +191,7 @@ def caps() -> list[Cap]:
     out = [Cap(SKILL, SKILL_MAX_BYTES, SKILL_BUDGET_BYTES)]
     for path in sorted(REFERENCE_DIR.glob("*.md")):
         if path.name.startswith("api"):
-            out.append(Cap(path, API_INDEX_MAX_BYTES, None))
+            out.append(Cap(path, api_index_ceiling(path), None))
         else:
             out.append(Cap(path, REFERENCE_MAX_BYTES, REFERENCE_BUDGET_BYTES))
     return out
