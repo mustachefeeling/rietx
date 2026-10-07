@@ -182,6 +182,10 @@ python3 .claude/hooks/session_usage.py baseline --u U --mo MO --d D
     −9.6%, −12.4%.
   - Acceptance pytest line: 117 passed after the review's five cases (112 before) (`.venv` with `[dev]`, macOS). Ruff
     clean on `.claude/hooks` and the test.
+  - Fast selection on main merged in (`ff2f52a5`): 8765 passed, 166 skipped,
+    1 xfailed (`.venv` with `[dev]`, macOS, 210 s). The only added test is
+    the review's five-case decision-line test, 0.01 s in total. Main moved
+    under the branch, so no before-and-after count is quoted.
   - No lanes this session (step 3b does not apply). It has one
     implementation item, and the context never passed 150K before it.
 
