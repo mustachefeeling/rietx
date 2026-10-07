@@ -1999,8 +1999,7 @@ class ParameterTable:
                     "block cannot write it: blocks apply in declaration order "
                     "and the earlier one would evaluate on a stale value")
         self.derived.append(block)
-        self._rebuild()
-        self._refresh_derived()
+        self._rebuild()            # which refreshes the derived rows too
 
     def derived_paths(self) -> frozenset[str]:
         """Every entry a derived block writes."""
