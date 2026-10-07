@@ -1,9 +1,8 @@
 # WP-1907 — the skill stays in sync: constants and formulas pinned to the package, a changed-surface check at review, the judge-free tier nightly
 
-Milestone: unscheduled · Status: 🔄 2026-10-07 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-07 — the body's numbers checked against the package, a changed-surface report in CI, evidence tags read against the index, tier 0 on demand with a weekly model watch
 Track: The repo's own process
 Depends on: 1905 soft (the nightly tier is its suite)
-Priority: P3 2026-10-04 — a wrong number in the skill is a wrong turn an agent takes with the docstrings there to recover from; P2 if a stale constant is found to have cost a user a fit
 
 ## Goal
 
@@ -102,6 +101,87 @@ skill's numbers are rendered from the package rather than typed.
   `tests/test_manual.py` (the substitution pattern); `docs/skill/make_api_index.py`.
 
 ## Handover log
+
+- **2026-10-07** — closed in one session, under the lane trial. The skill
+  body's numbers and formulas are now checked against the package, so a
+  changed default or a reordered ratio fails a test that names the row. The
+  first pass found two rules that were wrong. Rule 14 read `chi2_ratio` as
+  loser over winner, but the package orders it held over partner, so an agent
+  whose held parameter won would have called a settled pair unresolved. Rule 7
+  said "0.98 or more" for a guard that fires strictly above. A pull request now
+  prints the skill rows that quote any public name, plan, diagnostic code or
+  help key it touches, and fails only when it removes a name the skill still
+  uses. An evidence tag must name a WP in the index, and the tag must also name
+  any WP that later superseded it. The model-drift check runs on demand, since
+  the maintainer has a subscription and no API credits. A weekly job opens an
+  issue when the models page lists a new Haiku or Sonnet ID.
+
+  *Done.* `tests/test_skill_claims.py`: sixteen claims, each checked against
+  the package attribute it quotes, and six numbers declared not to be claims,
+  each with its reason. Any other number in the body fails. `tests/skill_surface.py`
+  runs in CI's lint job, and `_engine_codes` now shares its AST walk. The
+  evidence-tag gate is in `test_skill.py`. `.github/workflows/skill-eval.yml`
+  runs tier 0 on Haiku or Sonnet, using `CLAUDE_CODE_OAUTH_TOKEN` or
+  `ANTHROPIC_API_KEY`, and stops green when neither is set.
+  `.github/workflows/model-watch.yml` reads the models page and checks it
+  against `tests/eval_skill/models_seen.txt`. PROTOCOL.md gained § Floors and
+  Amendment 1.2: nine trigger cases now start with an empty file of the name
+  their prompt gives, through a new `empty` verb in `build.py`. `floors.json`
+  is empty. Inherited was pruned on arrival and folded into Context. WP-1906
+  had already fixed the width seed and `PLAN_INFO`'s `lab_bragg_brentano`
+  text, and the Context paragraph says so. Item 3 was re-scoped from nightly
+  to on demand at the maintainer's word.
+
+  *Measured.* The fast suite on the `[dev]` venv, macOS arm64, alone on the
+  machine: 8654 passed, 167 skipped, 3 failed. Two failures were the committed
+  skill copies, which were re-synced afterwards and pass. The third is
+  `test_backend_shim[toy_anomalous]`, which fails on bare `main` (#760,
+  WP-1905's log). The branch adds 94 cases in 24 functions, 5.97 s in total.
+  The slowest is the tag-to-index check, at 2.66 s over 16 cases. Main was not
+  re-measured, so the +94 is the added count, not a measured delta. The full
+  suite did not run: no `src/` changed. The lane measurement:
+
+  | lane | est | requests | main at dispatch | re-read | main requests | left in main | saved $ |
+  |---|---|---|---|---|---|---|---|
+  | changed-surface | 25 | 21 | 164K | 0K | 5 | 14K | +0.23 |
+  | eval-on-demand | 30 | 41 | 200K | 0K of 5K | 8 | 20K | +0.54 |
+
+  The trial row saved +$0.78, 8 % of the session. The tool printed kept 0 and
+  fixed 0. The true figures are 2 kept, and 1 lane fixed by a Python rewrite
+  that the tool does not count; WP-1903's Inherited has both. In the replay,
+  the selective policy saves 21 % across 73 sessions.
+
+  *Review.* `/code-review high --fix` reported nine findings and fixed six:
+  - a renamed file's names are now read at the base (`--no-renames`);
+  - the changed-line diff is limited to `src/rietx/*.py`, so a GUI rebuild no
+    longer floods it;
+  - a model ID needs a version digit;
+  - the eval workflow's token is read-only;
+  - a WP that is ⬜ or 🛑 supersedes nothing;
+  - two stale doc lines.
+  This session fixed a seventh: a run with no score now counts against no
+  floor. Two were declined. Word-like names in src comments still count as
+  touched, because telling a comment from code on a partial diff line needs a
+  redesign, and the step only reports. `tier0_rates` still counts
+  `score == 1` while the floors count `passed`, two definitions that agree on
+  a one-grader case.
+
+  *Gotchas.* The claims pass covers the body only, and the numbers in the
+  references are not classified. That is deliberate: the references carry
+  measurements, which the tag gate dates. The 29 corpus-tagged rows name a
+  campaign rather than a WP, as the corpus rule asks. The Context paragraph
+  counted 96 tags. The gate's grammar finds 46 closing tags, in four files.
+  `fire-judge-calibration` names no file, so it gets none, and two of Round
+  D's four Haiku misses stay unexplained. `claude plugin eval` has not yet run
+  with an OAuth token.
+
+  *Next.* First, the maintainer runs `claude setup-token` and stores the
+  result as the repository secret `CLAUDE_CODE_OAUTH_TOKEN`. Then they
+  dispatch skill-eval on Haiku. That first run shows whether the harness
+  accepts the token, and its dated § Results entry sets the floors. The margin
+  each floor sits below the run's passes is still to be decided. After that,
+  dispatch it when model-watch opens an issue, and add the new IDs to
+  `models_seen.txt`.
 
 - **2026-10-04** — created by WP-1904's session. No open WP owns skill drift:
   1338's gates are names and bytes, 1507 is the WP index. Next: the claims
