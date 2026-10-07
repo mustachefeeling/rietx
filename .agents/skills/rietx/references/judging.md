@@ -70,7 +70,7 @@ against the `_space_group_symop_operation_xyz` loop it writes beside them.
 **A known structure is no Le Bail job.** One staged Rietveld calibration took 43.8 s against ~40 min of Le Bail (#210).
 
 **Seed the background first.** `auto_background` chooses the knot spacing or the Chebyshev *order* but starts every coefficient at **0.0**, so the first `lebail_update` runs *before* the background is fitted. It partitions `max(y_obs − 0, 0)` (the whole pedestal) and gives it to the Bragg reflections. Measured on a synthetic pattern whose background is 5× its
-strongest peak: cycle one claims **571×** the true Bragg intensity.
+strongest peak: cycle one claims **571×** the true Bragg intensity. `seed=True` starts them at a low percentile of the counts.
 
 **The cell is the weaker half.** Peterson (2005, *Powder Diffr.* **20**, 14)
 fitted triclinic tricalcium silicate at NSLS X7A. The Le Bail fit won on both
