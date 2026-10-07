@@ -22,7 +22,10 @@ skill's numbers are rendered from the package rather than typed.
   omits `magnetic_width` (a routing choice, fine); `RIVAL_DECISIVE_MIN_CHI2_RATIO`,
   the `W` default and the three verbs it names resolve; the width seed
   `W ≈ (FWHM/2)²` contradicts the package's Caglioti form and the body's own
-  example, and no test could see it. The manual solves this class with MyST
+  example, and no test could see it. *(Superseded in part 2026-10-07: WP-1906's
+  rewrite fixed the width seed — SKILL.md §1 now gives Γ_G² = U·tan²θ + V·tanθ
+  + W and `W ≈ (0.6·H)²` — and `PLAN_INFO["lab_bragg_brentano"]` no longer
+  recommends what rule 6 forbids. The class is unguarded still.)* The manual solves this class with MyST
   substitutions injected from the live package in `conf.py`
   (`tests/test_manual.py`); the skill is plain Markdown shipped in the wheel,
   so the equivalent is a **generated-and-committed** pass, as `api.md` is.
@@ -41,39 +44,23 @@ skill's numbers are rendered from the package rather than typed.
   carry no commit or date, so a measurement that a later WP overturned reads
   as current. A tag that names the WP that measured it can be checked
   against the WP index for a later WP that cites and supersedes it.
-
-### Inherited
-
-- **From WP-1906 (2026-10-06), one sync mechanism already in place.** The
-  body's worked default (§10) is held line for line equal to
-  `examples/skill_worked_default.py` by
-  `test_the_worked_default_is_the_example_that_runs`, and
-  `tests/test_examples.py` runs that script. And `PLAN_INFO`'s
-  `lab_bragg_brentano` text recommended a plan the skill's rule 6 forbids on
-  one uncalibrated pattern; a recommendation in package text is a constant
-  this WP's check could also pin against the skill.
-- **From WP-1905 (2026-10-04), what "the judge-free tier" is.** The harness
-  filters cases by tag, not grader type, so the judge-free run is
-  `--tag trigger --ablation none` with neither `--scaffold` nor
-  `--allow-tools`: twenty one-grader cases, no fixture, no fit, no shell
-  (`tests/eval_skill/PROTOCOL.md` § Tier 0). The fit cases carry an `llm`
-  grader and need a sandbox backend (`bubblewrap`, `socat`) and minutes per
-  run, so they are not nightly material as they stand. A CI job also needs a
-  Claude Code install and credentials in the environment, and
-  `readout.py show` reports the fire and quiet rates a floor would be set on.
-- **From WP-1905 (2026-10-06), tier 0's first numbers, and the fixture it
-  needs first.** The twenty prompts were reviewed and ran at N = 3
-  (`tests/eval_skill/PROTOCOL.md` § Rounds D and E). Haiku fired 26 of 30 and
-  stayed quiet 30 of 30, at $1.91 and 14 min a round. Sonnet fired 30 of 30
-  and stayed quiet 27 of 30, at $4.58. All four of Haiku's misses are the
-  instrument's. Each prompt names a file tier 0 does not provide, the agent
-  asks for it before any fit, and the skill never loads. So scaffold an empty
-  file per name a prompt gives (a dated amendment) before a nightly floor is
-  set on Haiku's fire rate. Two more things for the job. `readout.py`'s
-  `LEAK` lines read JSON pointers in written content and the run's own `/tmp`
-  as paths, so a floor must not be set on them. And on macOS the sandbox
-  denies `/Users` and `/tmp`; Linux CI is the pilot's case and needs only an
-  interpreter outside the home directory.
+- **One sync mechanism is already in place** (WP-1906). The body's worked
+  default (§10) is held line for line equal to `examples/skill_worked_default.py`
+  by `test_the_worked_default_is_the_example_that_runs`, and
+  `tests/test_examples.py` runs that script. A recommendation in package text
+  (`PLAN_INFO.when_to_use`) is a constant the claims check can pin too.
+- **What "the judge-free tier" is** (WP-1905). The harness filters cases by
+  tag, so tier 0 is `--tag trigger --ablation none` with neither `--scaffold`
+  nor `--allow-tools`: twenty one-grader cases, no fixture, no fit, no shell
+  (`tests/eval_skill/PROTOCOL.md` § Tier 0). The fit cases need a sandbox
+  backend and minutes a run, so they are not nightly material. A CI job needs
+  a Claude Code install (≥ 2.1.289) and credentials, and `readout.py show`
+  reports the fire and quiet rates a floor is set on. Rounds D and E (N = 3):
+  Haiku fired 26/30 and stayed quiet 30/30 at $1.91 and 14 min; all four
+  misses are prompts naming a file tier 0 does not provide, so scaffold an
+  empty file per name (a dated amendment) before a floor is set on Haiku's
+  fire rate. `readout.py`'s `LEAK` lines are not floor material. Linux CI
+  needs only an interpreter outside the home directory.
 
 ## Non-goals
 
