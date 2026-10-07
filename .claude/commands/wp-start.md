@@ -193,6 +193,55 @@ Run the session-start ritual. The SessionStart hook's report
    - **Under the bar, read it yourself.** An agent starts from its own base
      context, so a small read saves little or nothing delegated, and checking
      the agent's answer adds requests of its own.
+6c. **Send a long item to a lane once the context is large.** A *lane* is a
+   subagent that does one checklist item while this session waits. This
+   session then checks its diff and commits it. It pays for the reason step 6b
+   gives: every request here re-reads the whole context, and a lane starts at
+   about 70K. In WP-1903's trial, nine sessions sent 24 items to lanes and
+   every session came out ahead, by a median 21% of its bill
+   (`docs/milestones/process.md` § Lanes within a WP).
+   - **Decide each item when you start it.** Read the main context with
+     `python3 .claude/hooks/session_usage.py context <session-id>`. The id is
+     the name of the directory that holds your scratchpad. Then estimate the
+     item's requests, a request being one round of tool calls. Implementing
+     and testing a feature usually passes 20. A doc edit, an index
+     regeneration or a one-line fix usually does not.
+   - **Lane the item if the context is over 150K and the estimate is 20 or
+     more.** Keep anything else. Estimates ran short by a median 1.6× in the
+     trial, so an estimate of 20 is an item of about 30, and the replay's most
+     robust rows lane from there.
+   - **Keep an item that needs the user or a decision partway**, whatever its
+     size. The trial's one lane that needed a redesign sent mid-way re-read
+     74K of this session's files, against a median of 3K. The handover is
+     never laned.
+   - **Write the decision as a line of its own** for every item, kept ones
+     too: `lanes: keep <item> ~<N>` or `lanes: lane <item> ~<N>`, with the
+     checklist item's short name and the estimate. The measurement compares
+     each estimate with what happened. Three trial sessions measured items
+     that had no line, so those items have no estimate.
+   - **Dispatch with one `Agent` call**: `subagent_type: general-purpose` on
+     the default model, description exactly `lane: <item> ~<N>`. The
+     measurement finds lanes by that prefix. Run one lane at a time, in this
+     worktree, with no `isolation`. Wait for its notification and leave its
+     files alone meanwhile.
+   - **The prompt carries what a lane cannot see.** A lane loads the
+     CLAUDE.md files but no MEMORY.md, and it knows nothing this session
+     learned. Give it the WP file's path and the item verbatim. Give it what
+     this session found as `file:line` pointers, without the text. Name
+     **every code path the change reaches**: both bugs the trial's reviews
+     found in lane code sat on a path the prompt left out. Restate each memory
+     rule that bears on the item in a line, and always this one: a foreground
+     command running past about 8 minutes kills the lane, so background it.
+     Give the acceptance as the fast selection for the touched area, never the
+     full suite. Tell it to leave git and the WP file alone, and to end with a
+     report under 300 words: files changed, tests run with their counts, and
+     anything unresolved with `file:line`.
+   - **Check it, then commit it.** Read the diff by file, re-run the lane's
+     tests and fix small things here. If the lane got the item wrong, dispatch
+     again with the same description. Commit with the `WP-NNNN:` prefix and
+     tick the item in the same commit (step 6). `/wp-handover` step 3b
+     measures the lanes, and its diff review covers their code like any
+     other.
 7. **Restate before starting**: the checklist item being started, the WP's
    acceptance command, and the session scope — this WP only; finish →
    `/wp-handover` → stop.

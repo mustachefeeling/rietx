@@ -1,4 +1,4 @@
-"""The session-usage script behind the lane trial (.claude/hooks/session_usage.py).
+"""The session-usage script that measures lanes (.claude/hooks/session_usage.py).
 
 It is stdlib-only and lives outside the package, so it is loaded by file path,
 like the workflow hooks in test_workflow_hooks.py, and driven against

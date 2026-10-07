@@ -1,17 +1,17 @@
 """What a WP session's tokens cost, and what lanes would save or did save.
 
 A *lane* is a subagent that does one checklist item while the main session
-waits, then checks the diff and commits it (`/wp-lanes`).  This script reads
+waits, then checks the diff and commits it (`/wp-start` step 6c).  This script reads
 Claude Code's transcripts under ~/.claude/projects and answers three ways:
 
     python3 .claude/hooks/session_usage.py context SESSION_ID   # the main context now
-    python3 .claude/hooks/session_usage.py lanes SESSION_ID     # measure a /wp-lanes session
+    python3 .claude/hooks/session_usage.py lanes SESSION_ID     # measure a session that ran lanes
     python3 .claude/hooks/session_usage.py baseline [--u N] [--mo N] [--d N]
 
 The session id is the name of the session's scratchpad directory.  `baseline`
 reads every WP session of this repository on this machine (a session that made
 a `WP-NNNN:` commit), splits each at its WP commits into items, and replays the
-items under lane policies.  `lanes` measures a session run under `/wp-lanes`,
+items under lane policies.  `lanes` measures a session that dispatched lanes,
 whose dispatches carry the description `lane: <item> ~N` and whose decisions
 carry a line `lanes: keep|lane <item> ~N`.  It prints the three numbers the
 replay had to assume (what a lane re-reads, how many main requests a lane
@@ -268,7 +268,7 @@ def subagent_dirs(main: Path) -> list[Path]:
 
     Beside ``main`` until the session enters a worktree.  After that its own
     transcript stays where it started while its agents land under the
-    worktree's project directory, so a /wp-lanes session that enters its tree
+    worktree's project directory, so a lane session that enters its tree
     second, as /wp-start says to, found none of its five lanes (WP-1531).
     """
     dirs = [main.parent / main.stem / "subagents"]
@@ -391,7 +391,7 @@ def baseline(us: list[float], mo: int, d: int) -> None:
 
 
 def measure_lanes(main: Path) -> dict:
-    """Per lane and per kept item of one /wp-lanes session, measured."""
+    """Per lane and per kept item of one session that ran lanes, measured."""
     t = parse(main)
     subdirs = subagent_dirs(main)
     _, o, r, w5, w1 = PRICES["opus"]
