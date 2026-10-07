@@ -942,8 +942,7 @@ A figure behaves in a notebook as any returned value does. A bare
 `result.plot()` shows the figure once. A trailing `;`, or `fig = result.plot()`,
 shows nothing, and `fig` on its own line shows it. rietx leaves the notebook's
 plotting backend alone, so `plt.show()` keeps working afterwards. A script, the
-CLI and the GUI draw on matplotlib's Agg canvas unless a backend was already
-chosen.
+CLI and the GUI draw on matplotlib's Agg canvas, as before.
 
 (progress-lines)=
 

@@ -302,15 +302,15 @@ def _pyplot():
     """``matplotlib.pyplot``, or an error naming the extra.
 
     A script, the CLI and the GUI server get the Agg canvas, because a GUI
-    backend drawing off the main thread fails on macOS. A backend somebody
-    already chose is left alone: a Jupyter kernel's inline one above all
-    (WP-1544). Forcing Agg there made every rietx figure display as
-    ``<Figure size …>`` text, and the next ``plt.show()`` in the session
-    warned that Agg "cannot be shown", whichever was imported first.
+    backend drawing off the main thread fails on macOS. A Jupyter kernel's
+    backend is left alone (WP-1544). Forcing Agg there made every rietx
+    figure display as ``<Figure size …>`` text, and the next ``plt.show()``
+    in the session warned that Agg "cannot be shown", whichever was imported
+    first.
     """
     try:
         import matplotlib
-        if not _backend_chosen(matplotlib):
+        if not _in_kernel():
             matplotlib.use("Agg", force=False)
         import matplotlib.pyplot as plt
     except ImportError as exc:  # pragma: no cover
@@ -336,15 +336,13 @@ def _handed_back(fig):
     return fig
 
 
-def _backend_chosen(matplotlib) -> bool:
-    """Whether the backend is somebody's choice rather than matplotlib's
-    pending default: running in an IPython kernel, ``MPLBACKEND`` set (an
-    ipykernel sets it to the inline backend), or a backend already resolved."""
+def _in_kernel() -> bool:
+    """Whether this process is a Jupyter kernel, whose backend (inline, or
+    whatever ``%matplotlib`` chose) is the notebook's to keep.  Only there:
+    a script whose matplotlibrc names a GUI backend still gets Agg, because
+    ``summary(plot=)`` and the GUI server draw off the main thread."""
     import sys
-    if "ipykernel" in sys.modules:
-        return True
-    getter = getattr(matplotlib.rcParams, "_get_backend_or_none", None)
-    return getter is not None and getter() is not None
+    return "ipykernel" in sys.modules
 
 
 def _style_context(plt, style: str, font_size: float):
