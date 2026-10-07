@@ -62,7 +62,8 @@ def topas_scale_factor(instrument) -> float:
 
     Neutron (constant wavelength): 100. X-ray: the polarisation constant K,
     because TOPAS's ``LP_Factor`` is rietx's Lp divided by K (the Technical
-    Reference's definition; no output in this tree holds it). Refused for a
+    Reference's definition; measured at K = 0.5 against TOPAS 6's Y_calc,
+    ``tests/data/topas_export_nacl_xray_ycalc.txt``). Refused for a
     source this convention has not been measured for (time of flight).
     """
     source = instrument.source
@@ -230,6 +231,9 @@ class RefinedSet:
         self._names: dict[str, str] = {}
         self._taken: set[str] = set()
         self._seen: dict[str, float] = {}
+        #: paths always written under their name, held (``prm !name``) or free:
+        #: the phase terms a reader can find only by name (``topas_ties``)
+        self.named: set[str] = set()
         #: TOPAS value / rietx value of each named source, set by :func:`render_slots`
         self.source_factor: dict[str, float] = {}
         #: ``{TOPAS name: (source path, a, b)}``: the named TOPAS value is
@@ -250,6 +254,9 @@ class RefinedSet:
 
     def affine(self, path: str, value: float, _depth: int = 0) -> Affine:
         """The written quantity at ``path`` (now ``value``) over the free sources."""
+        if path in self.named and not self.is_free(path):
+            self._seen[path] = float(value)
+            return Affine({path: 1.0}, 0.0)
         if self.rows is None:
             if self.free_paths is not None and path in self.free_paths:
                 self._seen[path] = float(value)
@@ -513,8 +520,10 @@ def render_slots(items: Iterable[Any], refined: RefinedSet) -> list[str]:
         if path in carried:
             continue
         value = refined.source_value(path)
+        held = not refined.is_free(path)
         refined.carriers[refined.name(path)] = (path, source_factor[path], 0.0)
         declarations.append(
-            f"prm {refined.name(path)} {number(value * source_factor[path])}"
-            f"{bounds(path, source_factor[path])}")
+            f"prm {'!' if held else ''}{refined.name(path)} "
+            f"{number(value * source_factor[path])}"
+            f"{'' if held else bounds(path, source_factor[path])}")
     return declarations

@@ -1,0 +1,266 @@
+"""``write_topas_inp(instrument=, pattern=)``: a whole TOPAS input (#732 item 1).
+
+Two kinds of evidence. What the file states is checked against the model it
+came from (each keyword, each number). What TOPAS **computes** from it is
+checked against TOPAS-64 v6's own Y_calc at zero cycles for the same cases
+(``tests/data/topas_export_*_ycalc.txt``, program output for inputs of ours,
+``tests/topas_export_cases.py``): rietx's ``predict()`` must reproduce it, and a
+positive arm with one term changed must not, so the comparison can see the
+term it is about.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+import rietx as rx
+from rietx.background.models import pspline_penalty_scale, second_difference_matrix
+from rietx.io.projects.topas_input import _bspline_pieces
+from tests.topas_export_cases import case_nacl_neutron, case_nacl_pspline, case_nacl_xray
+
+DATA = Path(__file__).parent / "data"
+#: TOPAS against rietx at zero cycles, largest |ΔY| over the largest Y. Measured
+#: 2.2e-3 (neutron), 2.4e-3 (X-ray), 2.6e-3 (P-spline and FCJ axial): TOPAS
+#: integrates whole Lorentzian tails where rietx's windows hold 98 % of the area
+#: (model.forward.WINDOW_AREA_TOL), and averages Y_calc over the data step.
+ORACLE_TOL = 1e-2
+
+
+def _oracle(name, ref):
+    x, y_topas = np.loadtxt(DATA / f"topas_export_{name}_ycalc.txt", unpack=True)
+    y = np.asarray(ref.predict(x))
+    return x, y_topas, float(np.abs(y_topas - y).max() / y.max())
+
+
+def _write(case, tmp_path, **kw):
+    ref, pattern = case()
+    path = tmp_path / "case.inp"
+    rx.write_topas_inp(ref.fitted_structure, path, free=ref,
+                       instrument=ref.fitted_instrument, pattern=pattern,
+                       scale="topas", **kw)
+    return ref, pattern, path.read_text(encoding="utf-8"), path
+
+
+def test_the_whole_input_states_the_instrument_and_the_data(tmp_path):
+    ref, pattern, text, path = _write(case_nacl_neutron, tmp_path)
+    assert 'xdd "case.xye" xye_format' in text
+    assert "weighting = 1 / SigmaYobs^2;" in text
+    assert "neutron_data" in text and "LP_Factor(90)" in text
+    assert "la 1.0 lo 1.594 lh 1e-06" in text
+    assert "th2_offset ! 0.02" in text
+    assert "bkg ! 300.0 -40.0 15.0 -5.0" in text
+    assert "peak_type pv" in text and "pv_fwhm = " in text and "pv_lor = " in text
+    assert re.search(r"convolution_step \d+", text)
+    data = np.loadtxt(path.with_name("case.xye"))
+    assert np.allclose(data[:, 0], pattern.tt()) and np.allclose(data[:, 2], pattern.sig())
+
+
+def test_the_neutron_case_is_what_topas_computes():
+    ref, _ = case_nacl_neutron()
+    _, _, err = _oracle("nacl_neutron", ref)
+    assert err < ORACLE_TOL
+    # positive arm: without the extinction the file states, TOPAS is not matched
+    s = ref.fitted_structure.model_copy(deep=True)
+    s.phases[0].extinction.value = 0.0
+    _, _, arm = _oracle("nacl_neutron", rx.Refinement(s, ref.fitted_instrument,
+                                                      history=False))
+    assert arm > 4 * err          # measured 1.07e-2 against 2.2e-3
+
+
+def test_the_xray_case_is_what_topas_computes():
+    """LP_Factor(0) for K = 0.5, the scale × K, a Kα doublet, and a specimen
+    displacement written as rietx's own law in a th2_offset equation."""
+    ref, _ = case_nacl_xray()
+    _, _, err = _oracle("nacl_xray", ref)
+    assert err < ORACLE_TOL
+    inst = ref.fitted_instrument.model_copy(deep=True)
+    inst.geometry.sample_displacement.value = -0.05      # the sign, reversed
+    _, _, arm = _oracle("nacl_xray", rx.Refinement(ref.fitted_structure, inst,
+                                                   history=False))
+    assert arm > 2 * ORACLE_TOL
+
+
+def test_the_xray_file_states_lp_and_the_doublet(tmp_path):
+    _, _, text, _ = _write(case_nacl_xray, tmp_path)
+    assert "LP_Factor(0)" in text and "neutron_data" not in text
+    assert "la 0.5 lo 1.5444274" in text
+    assert "th2_offset = -2*Rad*(0.05)*Cos(Th)/217.5;" in text
+    assert "rietx Phase.scale x 0.5" in text
+
+
+def test_a_pspline_is_written_as_its_own_pieces_and_penalty(tmp_path):
+    ref, pattern, text, _ = _write(case_nacl_pspline, tmp_path)
+    bkg = ref.fitted_instrument.background
+    assert text.count("fit_obj = ") == len(bkg.coefficients)
+    assert text.count("penalty = ") == len(bkg.coefficients) - 2
+    assert "pen_weight = 1;" in text
+    w = np.sqrt(bkg.lambda_smooth) * pspline_penalty_scale(
+        pattern.sig()[pattern.in_range_mask()], len(bkg.coefficients))
+    first = re.search(r"penalty = \(([-\d.e+]+)\*", text)
+    assert float(first.group(1)) == pytest.approx(w, rel=1e-12)
+    assert second_difference_matrix(len(bkg.coefficients)).shape[0] == text.count("penalty = ")
+
+
+def test_the_pspline_case_is_what_topas_computes():
+    """rietx's P-spline and FCJ axial divergence, as TOPAS fit_obj pieces, penalty
+    terms and Finger_et_al: TOPAS's Y_calc, and its own penalty sum at zero
+    cycles, printed as P = 32.039846 against rietx's Σr² (TOPAS-64 v6, same
+    run as the Y_calc file)."""
+    ref, pattern = case_nacl_pspline()
+    _, _, err = _oracle("nacl_pspline", ref)
+    assert err < ORACLE_TOL
+    inst = ref.fitted_instrument.model_copy(deep=True)
+    inst.geometry.axial_sl.value = 0.0
+    inst.geometry.axial_hl.value = 0.0
+    _, _, arm = _oracle("nacl_pspline", rx.Refinement(ref.fitted_structure, inst,
+                                                      history=False))
+    assert arm > 3 * err          # measured 1.07e-2 against 2.6e-3
+    bkg = ref.fitted_instrument.background
+    c = np.array([p.value for p in bkg.coefficients])
+    w = np.sqrt(bkg.lambda_smooth) * pspline_penalty_scale(
+        pattern.sig()[pattern.in_range_mask()], len(c))
+    r = w * (second_difference_matrix(len(c)) @ c)
+    assert float(r @ r) == pytest.approx(32.039846, abs=5e-7)
+
+
+def test_the_bspline_pieces_are_the_basis():
+    from rietx.background.models import bspline_design_matrix
+
+    knots = np.linspace(5.0, 95.0, 10)
+    x = np.linspace(5.0, 94.99, 333)
+    design = bspline_design_matrix(x, knots)
+    for k in range(design.shape[0]):
+        pieces = _bspline_pieces(knots, k)
+        y = np.zeros_like(x)
+        for lo, hi, a in pieces:
+            m = (x >= lo) & (x < hi)
+            u = x[m] - lo
+            y[m] = sum(an * u ** n for n, an in enumerate(a))
+        assert np.allclose(y, design[k], atol=1e-12)
+
+
+def test_the_finger_lengths_are_twice_the_ratios_times_the_radius(tmp_path):
+    _, _, text, _ = _write(case_nacl_pspline, tmp_path)
+    assert "prm rx_fcj_s2 = 435.0*(0.01);" in text
+    assert "prm rx_fcj_h2 = 435.0*(geom_axial_hl);" in text      # free: by name
+    assert "Finger_et_al(=rx_fcj_s2;, =rx_fcj_h2;)" in text
+
+
+def test_pattern_needs_the_instrument(tmp_path):
+    ref, pattern = case_nacl_neutron()
+    with pytest.raises(ValueError, match="needs instrument="):
+        rx.write_topas_inp(ref.fitted_structure, tmp_path / "x.inp", pattern=pattern)
+
+
+def test_an_absorption_correction_is_refused_by_name(tmp_path):
+    ref, pattern = case_nacl_neutron()
+    inst = ref.fitted_instrument.model_copy(update={
+        "geometry": ref.fitted_instrument.geometry.model_copy(update={"mu_r": 0.3})})
+    with pytest.raises(ValueError, match="mu_r"):
+        rx.write_topas_inp(ref.fitted_structure, tmp_path / "x.inp", instrument=inst,
+                           pattern=pattern)
+
+
+def _broadened():
+    """The neutron case with a Lorentzian size and a Gaussian strain width."""
+    ref, pattern = case_nacl_neutron()
+    s = ref.fitted_structure.model_copy(deep=True)
+    s.phases[0].lor_size.value = 0.03
+    s.phases[0].gauss_strain.value = 0.02
+    return rx.Refinement(s, ref.fitted_instrument, history=False), pattern
+
+
+def _width_lines(text):
+    return [ln for ln in text.splitlines()
+            if ln.startswith("  lor_fwhm") or ln.startswith("  gauss_fwhm")]
+
+
+def test_the_widths_are_stated_once(tmp_path):
+    """A whole input folds the sample widths into ``pv_fwhm``/``pv_lor`` and
+    writes no ``str``-level width line beside them (TOPAS would convolve the
+    widths in twice); a ``free=``-only file has no profile, so it states them
+    as the structure-only writer's lines, a free width over its name."""
+    ref, pattern = _broadened()
+    s = ref.fitted_structure
+    rx.write_topas_inp(s, tmp_path / "whole.inp", free=ref,
+                       instrument=ref.fitted_instrument, pattern=pattern)
+    whole = (tmp_path / "whole.inp").read_text(encoding="utf-8")
+    assert "pv_fwhm = " in whole and _width_lines(whole) == []
+
+    rx.write_topas_inp(s, tmp_path / "free.inp", free=ref)
+    rx.write_topas_inp(s, tmp_path / "str.inp")
+    free = (tmp_path / "free.inp").read_text(encoding="utf-8")
+    assert "peak_type" not in free
+    assert _width_lines(free) == _width_lines(
+        (tmp_path / "str.inp").read_text(encoding="utf-8")) == [
+        "  lor_fwhm = 0.03/Cos(Th);", "  gauss_fwhm = Sqrt(0.02*Tan(Th)^2);"]
+
+    ref.set_vary(["phases.0.lor_size"], True)
+    rx.write_topas_inp(s, tmp_path / "freed.inp", free=ref)
+    freed = (tmp_path / "freed.inp").read_text(encoding="utf-8")
+    assert _width_lines(freed)[0] == "  lor_fwhm = (p0_lor_size)/Cos(Th);"
+    assert re.search(r"^prm p0_lor_size 0\.03\b", freed, re.MULTILINE)
+
+
+def test_a_free_width_at_zero_is_still_written(tmp_path):
+    """A free term TOPAS must be able to move is written though it is zero."""
+    ref, _ = case_nacl_neutron()
+    ref.set_vary(["phases.0.gauss_size"], True)
+    rx.write_topas_inp(ref.fitted_structure, tmp_path / "z.inp", free=ref)
+    text = (tmp_path / "z.inp").read_text(encoding="utf-8")
+    assert _width_lines(text) == ["  gauss_fwhm = Sqrt((p0_gauss_size)/Cos(Th)^2);"]
+
+
+def test_what_each_path_does_not_state_is_named(tmp_path):
+    """``TOPAS_FIELD_NOT_WRITTEN``: a whole input writes the extinction, so it
+    names the texture alone; a ``free=``-only file names both."""
+    from rietx.schemas.structure import PreferredOrientation
+
+    ref, pattern = case_nacl_neutron()
+    s = ref.fitted_structure.model_copy(deep=True)
+    s.phases[0].preferred_orientation = PreferredOrientation(
+        axis=(0, 0, 1), r=rx.Parameter(value=0.8, min=0.1, max=3.0))
+    assert s.phases[0].extinction.value != 0.0
+    whole, free = [], []
+    rx.write_topas_inp(s, tmp_path / "w.inp", free=ref, diagnostics=whole,
+                       instrument=ref.fitted_instrument, pattern=pattern)
+    rx.write_topas_inp(s, tmp_path / "f.inp", free=ref, diagnostics=free)
+    [named] = [d for d in whole if d.code == "TOPAS_FIELD_NOT_WRITTEN"]
+    assert named.where == ["phases.0.preferred_orientation.r"]
+    assert "texture" in named.message and "extinction" not in named.message
+    [named] = [d for d in free if d.code == "TOPAS_FIELD_NOT_WRITTEN"]
+    assert sorted(named.where) == ["phases.0.extinction",
+                                   "phases.0.preferred_orientation.r"]
+
+
+def test_a_site_near_a_special_position_is_written_on_it(tmp_path):
+    """The refined writer writes ZnO's rounded ``x 0.3333 y 0.6667`` on its 2b
+    position, as the structure-only writer does: TOPAS reads the rounded
+    number as a general position and generates 12 atoms where rietx has 2."""
+    from rietx.crystallography.symmetry import get_spacegroup
+
+    def p(v):
+        return rx.Parameter(value=v)
+
+    sg = get_spacegroup("P 63 m c")
+    structure = rx.Structure(phases=[rx.Phase(
+        name="zno", space_group="P 63 m c",
+        cell=rx.Cell(a=p(3.25), b=p(3.25), c=p(5.2), alpha=p(90.0), beta=p(90.0),
+                     gamma=p(120.0)),
+        atoms=[rx.Atom(label="Zn1", species="Zn", x=p(0.3333), y=p(0.6667), z=p(0.0)),
+               rx.Atom(label="O1", species="O", x=p(0.3333), y=p(0.6667), z=p(0.382))])])
+    rx.write_topas_inp(structure, tmp_path / "zno.inp", free=[])
+    sites = [ln for ln in (tmp_path / "zno.inp").read_text(encoding="utf-8").splitlines()
+             if ln.startswith("  site ")]
+    assert len(sites) == 2
+    for ln in sites:
+        tokens = ln.split()
+        x, y, z = (float(tokens[tokens.index(k) + 2]) for k in "xyz")
+        positions = {tuple(np.round((np.array(op.apply_to_xyz([x, y, z])) % 1.0
+                                     + 1e-12) % 1.0, 9)) for op in sg.operations()}
+        assert len(positions) == 2, ln
+    assert structure.phases[0].atoms[0].x.value == 0.3333

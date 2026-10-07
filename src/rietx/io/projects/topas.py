@@ -4486,7 +4486,7 @@ def _operation_set(group) -> frozenset[str]:
     return frozenset(op.wrap().triplet() for op in group.operations())
 
 
-def _magnetic_group_line(phase) -> str | None:
+def _magnetic_group_line(phase, *, ion_species_ok: bool = False) -> str | None:
     """The ``mag_space_group`` value to write for ``phase``, or a refusal.
 
     ``None`` for a nuclear phase.  TOPAS names a magnetic group only by its
@@ -4587,7 +4587,10 @@ def _magnetic_group_line(phase) -> str | None:
             f"nuclear_group='file' keeps the parent's sites and does not "
             f"restate them), or export a magCIF (Structure.to_cif)")
     for atom in moments:
-        if atom.moment.ion != atom.species:
+        # On a neutron pattern the `occ` species can state the ion: the nuclear
+        # length is the element's whatever the charge, so writing the ion
+        # changes the magnetic form factor only, to the one rietx computed
+        if atom.moment.ion != atom.species and not ion_species_ok:
             raise ValueError(
                 f"{where}: site {atom.label!r} has species {atom.species!r} "
                 f"and magnetic ion {atom.moment.ion!r}, and TOPAS takes the "
@@ -4655,6 +4658,7 @@ def from_structure(structure: Structure, *,
                    diagnostics: list[Diagnostic] | None = None,
                    p1_expand: bool = False,
                    free=None, scale: str | None = None, instrument=None,
+                   pattern=None, data_name: str | None = None,
                    names: dict | None = None) -> str:
     """Serialise ``structure`` as TOPAS ``.inp`` text — the inverse of
     :func:`to_structure`.
@@ -4761,6 +4765,23 @@ def from_structure(structure: Structure, *,
     and ``instrument`` nothing below changes. ``p1_expand=True`` cannot be
     combined with them (the free paths name the structure as given).
 
+    **A whole input** (#732): with ``instrument=`` the ``str`` also carries the
+    peak shape (rietx's TCHZ width laws as ``pv_fwhm``/``pv_lor`` equations) and
+    the Sabine extinction (a ``scale_pks`` equation), and with ``pattern=`` as
+    well the file is a whole input: the ``xdd`` block naming ``data_name`` (the
+    data written beside it by :func:`write_topas_inp`), the weighting, the
+    emission lines, ``neutron_data``, ``LP_Factor``, zero and displacement, the
+    background (a P-spline as ``fit_obj`` pieces with its smoothing penalty),
+    FCJ axial divergence as ``Finger_et_al`` and the calculation step
+    (:mod:`.topas_input`). On a neutron pattern a moment-bearing site's
+    species is written as its moment ion. A term with no TOPAS statement here is
+    refused by name. The sample widths are stated once: folded into
+    ``pv_fwhm``/``pv_lor`` with ``instrument=``, as :func:`_width_lines`'
+    ``str``-level lines without it (a free width written over its name). A
+    whole input names only a preferred orientation with r ≠ 1 under
+    ``TOPAS_FIELD_NOT_WRITTEN``, the one phase term it neither writes nor
+    refuses.
+
     Four refusals besides the phase-name quote check above, the fourth being
     :func:`_tail`'s on a non-finite value. A label or
     species carrying whitespace: a ``site`` line is space-separated, so an
@@ -4773,24 +4794,24 @@ def from_structure(structure: Structure, *,
     from ..._about import DIST_NAME
 
     if p1_expand and (free is not None or scale is not None
-                      or instrument is not None):
+                      or instrument is not None or pattern is not None):
         raise ValueError(
-            "p1_expand=True cannot be combined with free=, scale= or "
-            "instrument=: the free paths name the structure as given, and the "
+            "p1_expand=True cannot be combined with free=, scale=, instrument= "
+            "or pattern=: the free paths name the structure as given, and the "
             "P 1 restatement renames its atoms")
     if p1_expand:
         from ...crystallography.magnetic.p1 import restate_in_p1
 
         structure = restate_in_p1(structure, species_as_ion=True)
-    if free is not None or scale is not None or instrument is not None:
+    if (free is not None or scale is not None or instrument is not None
+            or pattern is not None):
         from .topas_input import from_structure_refined
 
-        text = from_structure_refined(structure, free=free, scale=scale,
-                                      instrument=instrument, names=names)
+        text, _ = from_structure_refined(structure, free=free, scale=scale,
+                                         instrument=instrument, pattern=pattern,
+                                         data_name=data_name, names=names)
         if diagnostics is not None:
-            from ...crystallography.scattering import written_neutral_diagnostics
-            diagnostics.extend(written_neutral_diagnostics(
-                structure, code="TOPAS_SPECIES_WRITTEN_NEUTRAL", program="TOPAS"))
+            diagnostics.extend(_refined_diagnostics(structure, instrument))
         return text
     lines: list[str] = [f"' Written by {DIST_NAME}.io.projects.topas.write_topas_inp"]
     for phase in structure.phases:
@@ -4889,7 +4910,12 @@ def from_structure(structure: Structure, *,
 _STEPHENS_K = 180.0 / math.pi * 1e-6
 
 
-def _stephens_lambda_expr(block, spell) -> str | None:
+def _spell_number(value: float, key: str) -> str:
+    """The default ``spell`` of :func:`_width_lines`: the number, whatever the term."""
+    return _number(value)
+
+
+def _stephens_lambda_expr(block, spell=_spell_number, keep=None) -> str | None:
     """Λ(hkl), the Stephens block's tanθ coefficient, as a TOPAS expression.
 
     Stephens (1999), J. Appl. Cryst. 32, 281, equation (2) as
@@ -4906,8 +4932,10 @@ def _stephens_lambda_expr(block, spell) -> str | None:
     each coefficient with ``|S| > 1e-6·max(1, max|S|)``: the Laue-forced
     zeros of a block seeded from the isotropic limit carry its roundoff
     (measured −1.2e-12 to −4.6e-12 on a tetragonal case), which is not a
-    term. ``spell`` renders each coefficient (:func:`_number` here; a caller
-    writing refinable slots passes its own), so the string's *shape* is the
+    term, unless ``keep(key)`` says it is free. ``spell(value, key)`` renders
+    each coefficient, ``key`` its phase-relative path (``microstrain.s400``):
+    the number here, a refinable slot in the refined writer
+    (:func:`~.topas_input.width_items`), so the string's *shape* is the
     contract both callers share. ``None`` when no monomial survives.
 
     Measured against TOPAS-64 v6 at zero cycles on a synthetic tetragonal
@@ -4919,24 +4947,25 @@ def _stephens_lambda_expr(block, spell) -> str | None:
     blend is, and the two approximations differ at the peak top by that
     2e-3.
     """
-    from ...crystallography.stephens import S_EXPONENTS
+    from ...crystallography.stephens import S_EXPONENTS, S_NAMES
 
     values = block.values()
     floor = 1e-6 * max(1.0, max(abs(v) for v in values))
     terms = []
-    for (h, k, l_), value in zip(S_EXPONENTS, values):
-        if abs(value) <= floor:
+    for s_name, (h, k, l_), value in zip(S_NAMES, S_EXPONENTS, values):
+        key = f"microstrain.{s_name}"
+        if abs(value) <= floor and not (keep is not None and keep(key)):
             continue
         factors = [name if power == 1 else f"{name}^{power}"
                    for name, power in (("H", h), ("K", k), ("L", l_)) if power]
-        terms.append(f"({spell(value)})*" + "*".join(factors))
+        terms.append(f"({spell(value, key)})*" + "*".join(factors))
     if not terms:
         return None
     return (f"{_number(_STEPHENS_K)}*D_spacing^2*Sqrt(Max("
             + " + ".join(terms) + ", 0))")
 
 
-def _width_lines(phase, spell=_number) -> list[str]:
+def _width_lines(phase, spell=_spell_number, keep=None) -> list[str]:
     """The phase's sample widths as ``str``-level ``lor_fwhm``/``gauss_fwhm``.
 
     The forward model's laws (:mod:`rietx.model.profiles.caglioti`):
@@ -4947,16 +4976,22 @@ def _width_lines(phase, spell=_number) -> list[str]:
     the forward model adds the two, so both are written. Each zero part is
     dropped, and a line with no part is not written, so a phase at every
     identity writes nothing and its file is byte-identical to one written
-    before these lines existed.
+    before these lines existed. ``spell``/``keep`` are
+    :func:`_stephens_lambda_expr`'s, over every term (``lor_size``…): the
+    refined writer keeps a free term at zero, which TOPAS must be able to move.
     """
+    def on(key, value):
+        return value != 0.0 or (keep is not None and keep(key))
+
     size, strain = phase.lor_size.value, phase.lor_strain.value
     block = phase.microstrain
-    aniso = None if block is None else _stephens_lambda_expr(block, spell)
+    aniso = None if block is None else _stephens_lambda_expr(block, spell, keep)
     lines = []
     lor = []
-    if size != 0.0:
-        lor.append(f"{spell(size)}/Cos(Th)")
-    tan = ([spell(strain)] if strain != 0.0 else []) + ([aniso] if aniso else [])
+    if on("lor_size", size):
+        lor.append(f"{spell(size, 'lor_size')}/Cos(Th)")
+    tan = (([spell(strain, "lor_strain")] if on("lor_strain", strain) else [])
+           + ([aniso] if aniso else []))
     if len(tan) == 1:
         lor.append(f"{tan[0]}*Tan(Th)")
     elif tan:
@@ -4964,10 +4999,10 @@ def _width_lines(phase, spell=_number) -> list[str]:
     if lor:
         lines.append(f"  lor_fwhm = {' + '.join(lor)};")
     gauss = []
-    if phase.gauss_strain.value != 0.0:
-        gauss.append(f"{spell(phase.gauss_strain.value)}*Tan(Th)^2")
-    if phase.gauss_size.value != 0.0:
-        gauss.append(f"{spell(phase.gauss_size.value)}/Cos(Th)^2")
+    if on("gauss_strain", phase.gauss_strain.value):
+        gauss.append(f"{spell(phase.gauss_strain.value, 'gauss_strain')}*Tan(Th)^2")
+    if on("gauss_size", phase.gauss_size.value):
+        gauss.append(f"{spell(phase.gauss_size.value, 'gauss_size')}/Cos(Th)^2")
     if gauss:
         lines.append(f"  gauss_fwhm = Sqrt({' + '.join(gauss)});")
     return lines
@@ -4984,19 +5019,23 @@ _PHASE_TERMS_NOT_WRITTEN = (
 )
 
 
-def _not_written_diagnostics(structure: Structure) -> list[Diagnostic]:
+def _not_written_diagnostics(structure: Structure, *,
+                             whole: bool = False) -> list[Diagnostic]:
     """``TOPAS_FIELD_NOT_WRITTEN``: each phase term away from its identity that
     the written ``str`` does not state, so TOPAS computes the phase without it.
 
     The magnetic-only widths (they apply to magnetic reflections alone, which
     a structure-only ``str`` cannot single out), extinction and a preferred
-    orientation with r ≠ 1. One diagnostic per file; ``where`` names each term by
-    its parameter-table path (``…preferred_orientation.r``, not the block).
+    orientation with r ≠ 1. ``whole``: the file is a whole input
+    (``instrument=``), which writes the extinction as ``scale_pks`` and refuses a
+    magnetic-only width, so only the texture is left to name. One diagnostic
+    per file; ``where`` names each term by its parameter-table path
+    (``…preferred_orientation.r``, not the block).
     """
     where, named = [], []
     for i, phase in enumerate(structure.phases):
         here = []
-        for name, what in _PHASE_TERMS_NOT_WRITTEN:
+        for name, what in () if whole else _PHASE_TERMS_NOT_WRITTEN:
             if getattr(phase, name).value != 0.0:
                 here.append((name, what))
         po = phase.preferred_orientation
@@ -5010,11 +5049,23 @@ def _not_written_diagnostics(structure: Structure) -> list[Diagnostic]:
         return []
     return [Diagnostic(
         level="warning", code="TOPAS_FIELD_NOT_WRITTEN",
-        message=("the file states no magnetic-only width, extinction or "
-                 "texture, so TOPAS computes each phase without what it "
+        message=("the file states no "
+                 + ("texture" if whole else
+                    "magnetic-only width, extinction or texture")
+                 + ", so TOPAS computes each phase without what it "
                  "carries here (" + "; ".join(named) + "); state them in "
                  "TOPAS before comparing its pattern or its fit with rietx's"),
         where=where)]
+
+
+def _refined_diagnostics(structure: Structure, instrument) -> list[Diagnostic]:
+    """What the refined writer (:mod:`.topas_input`) reports: the neutral
+    species, and the phase terms its file does not state."""
+    from ...crystallography.scattering import written_neutral_diagnostics
+
+    return (written_neutral_diagnostics(
+                structure, code="TOPAS_SPECIES_WRITTEN_NEUTRAL", program="TOPAS")
+            + _not_written_diagnostics(structure, whole=instrument is not None))
 
 
 def _allowed_components(phase, atom) -> tuple[bool, bool, bool]:
@@ -5069,11 +5120,31 @@ def _moment_tail(moment, cell, allowed=(True, True, True)) -> str:
 def write_topas_inp(structure: Structure, path: str | Path, *,
                     diagnostics: list[Diagnostic] | None = None,
                     p1_expand: bool = False, free=None, scale=None,
-                    instrument=None) -> None:
-    """Write a TOPAS ``.inp``. See
+                    instrument=None, pattern=None) -> None:
+    """Write a ``.inp``. See
     :func:`from_structure` for exactly what carries and what does not, and
-    for ``p1_expand``, ``free``, ``scale`` and ``instrument``."""
-    Path(path).write_text(
-        from_structure(structure, diagnostics=diagnostics,
-                       p1_expand=p1_expand, free=free, scale=scale,
-                       instrument=instrument), encoding="utf-8")
+    for ``p1_expand``, ``free``, ``scale``, ``instrument`` and ``pattern``.
+    With ``pattern=`` the data are written beside it as ``<stem>.xye`` (2θ,
+    intensity and the σ rietx fits with), which the ``xdd`` line names."""
+    path = Path(path)
+    if pattern is None:
+        path.write_text(
+            from_structure(structure, diagnostics=diagnostics,
+                           p1_expand=p1_expand, free=free, scale=scale,
+                           instrument=instrument), encoding="utf-8")
+        return
+    if p1_expand:
+        raise ValueError(
+            "p1_expand=True cannot be combined with pattern=: the free paths "
+            "name the structure as given, and the P 1 restatement renames its "
+            "atoms")
+    from .topas_input import from_structure_refined, write_data_file
+
+    data_name = f"{path.stem}.xye"
+    text, columns = from_structure_refined(
+        structure, free=free, scale=scale, instrument=instrument, pattern=pattern,
+        data_name=data_name)
+    if diagnostics is not None:
+        diagnostics.extend(_refined_diagnostics(structure, instrument))
+    write_data_file(path.with_name(data_name), columns)
+    path.write_text(text, encoding="utf-8")
