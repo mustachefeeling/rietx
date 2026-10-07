@@ -1,6 +1,6 @@
 # WP-1910 — the extinction screen at a small cell error, and the other centring
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-07 — PR #747 (`refine_cell=True`, opt-in, and the contract in the manual) merged from outside; the default and point 2 are open
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-05 — a silent wrong answer on a path few fits run: at +0.06 % the screen refutes certified corundum's class and returns one whose members exclude it, nothing names the cell, and the skill's own recipe screens the unrefined index cell
@@ -116,9 +116,11 @@ and is not proposed here. No code is ported.
       Add the margin both ways at finer steps, and the same scan on FAP
       (`P 63 - -`) and the synthetic monoclinic, so the contract quotes a
       margin per pattern, not one number.
-- [ ] Maintainer decision on point 1, recorded here: document only; refine
+- [x] Maintainer decision on point 1, recorded here: document only; refine
       the cell in the shared fit; a caution (code name settled at review);
-      or a combination.
+      or a combination. *Decided 2026-10-06 on PR #747: document the
+      contract and add `refine_cell=True` as an option, default unchanged;
+      the caution is not decided.*
 - [ ] Land it. If the shared fit changes, the FAP, NAC and corundum rows of
       `tests/test_extinction_symbol.py` must keep their classes.
 - [ ] Maintainer decision on point 2: a new caveat or screen diagnostic for a
@@ -166,3 +168,53 @@ are out of its reach.
   and WP-1542 are a ghost threshold and a Le Bail background. WP-1025, 1077,
   1449 and 1451, which built, gated and ranked the screen or share its word,
   are ✅. *Next:* task 1.
+- **2026-10-07** — PR #747 (#726, point 1) merged from the reporter's fork
+  as `2a1cb5a`. It was gated on `main` at `57aa2c1` plus #811, #788, #755
+  and #770, the stack merging ahead of it, plus #747 (`3afc93e`; Linux,
+  4 cores, `[dev,jax]`):
+  - ruff is clean;
+  - the fast suite gave 8796 passed, 118 skipped and 1 xfailed;
+  - the slow tier, run in two halves, gave 287 passed, 9 skipped and
+    1 failed. `test_pair_diagnostic_class.py::test_every_pair_on_a_solution_names_a_class_whose_rows_carry_it`
+    fails identically on bare `57aa2c1`.
+
+  After the merge, `main` is content-identical to `main` + #747 as tested.
+  That tree differs from the gated one only by #814's WP-1911 entry, and
+  `test_docs_consistency` and `test_skill` pass on it.
+  - **What landed.**
+    - `determine_extinction_symbol(..., refine_cell=True)` inserts a `cell`
+      stage after the shift and before the widths of the shared absence-free
+      fit. It then screens every class, the reference included, at that
+      refined cell, so the classes still differ only in their reflection
+      sets. `ExtinctionScreen.cell` is the refined cell.
+    - The default `False` screens exactly as before.
+    - `docs/manual/using/indexing.md` states the contract: the screen holds
+      the candidate's cell.
+    - The skill's `EXTINCTION_FORBIDDEN_INTENSITY` row says a held cell off
+      by about 10⁻³ refutes the true class, and names the remedy.
+    - `tests/test_extinction_refine_cell.py` pins both arms on the corundum
+      fixture at ×1.0012:
+      - held: the class is refuted;
+      - refined: `R - c -` with `R 3 c:H` and `R -3 c:H`, at a cell nearer
+        the certificate.
+  - **What it deliberately does not do.**
+    - The default is unchanged, so this WP's acceptance (×1.0008 returns
+      `R - c -` or names the cell) still fails unless the caller opts in.
+      "Land it" stays open on that decision.
+    - The `CELL_OFFSET_REFUTES_CLASS` caution and point 2 (the centring
+      twin) are not in it.
+    - Task 1's per-pattern margins (FAP, the synthetic monoclinic) were not
+      measured.
+    - The manual's corundum numbers in that section were not re-measured.
+  - **Gotchas, from review.**
+    - The docstring first said ×1.0008, the reporter's figure from another
+      instrument. It now says ×1.0012, the factor the test measures. This
+      WP's table has the flip from ×1.0006 on the suite's fixture.
+    - `api.md` sat 21 bytes under its cap, so the function's summary line
+      was shortened to fit the new keyword.
+    - The new test builds the corundum inputs outside
+      `test_extinction_symbol.py`'s `extinction-symbol` xdist group, about
+      5 s. Give it the group if a second test joins.
+  - *Next:* the maintainer decision on the default (opting in moves the
+    FAP, NAC and corundum rows only for callers who opt in), then task 1's
+    margins and point 2.
