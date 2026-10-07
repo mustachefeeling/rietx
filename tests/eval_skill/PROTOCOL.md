@@ -161,6 +161,10 @@ grant a near-miss has only the read-only tools its case lists. Its read-out is t
 which `Skill` was called (of 30), and the **quiet rate**, runs of the ten
 "Should not fire." prompts in which it was not (of 30).
 
+Since Amendment 1.2 (2026-10-07), tier 0 passes `--scaffold`. Nine cases
+start with an empty file of the name their prompt gives. Tier 0 still passes
+no `--allow-tools`.
+
 **Tier 0 waits on the maintainer's review of its twenty prompts.** No tier-0
 cell runs before it; a prompt the review changes is changed, and quoted below,
 in an amendment made before the first tier-0 run.
@@ -224,7 +228,7 @@ beside the decision, not folded into it**, which matters for a candidate whose
 claude plugin eval <out> --model <haiku|sonnet> --judge-model sonnet --runs 3 \
     --scaffold --allow-tools Bash Write --trust-plugin --no-publish --keep-temp \
     --max-cost-usd <ceiling> --json <result>.json --tag fap [--ablation none] -j 1
-# tier 0: the same build, --tag trigger --ablation none, without --scaffold and --allow-tools
+# tier 0: the same build, --tag trigger --ablation none, with --scaffold and without --allow-tools (Amendment 1.2)
 .venv/bin/python tests/eval_skill/readout.py show <result>.json
 ```
 
@@ -335,6 +339,29 @@ candidate run and Δ is negative, `compare` flags the case, and the failing
 body (the harness documentation's own rule). A rule that fails is recorded
 here with the cases that failed it, and the change does not merge in that form.
 
+## Floors
+
+Tier 0 on Haiku also runs in CI, in `.github/workflows/skill-eval.yml`. It runs
+only when the maintainer dispatches it, and a dispatch is the pick § Price
+asks for. That run has no candidate to compare with, so it reads each case
+against a floor. A case's floor is the fewest of its N = 3 runs that must pass.
+
+The floors live in `floors.json` beside this file, keyed first by model as
+`--model` names it and then by case. `readout.py floors RESULT.json` prints
+the fire and quiet rates and each case's passes beside its floor. It exits 1
+only when a case passed fewer runs than its floor. A model or a case with no
+floor fails nothing, and the output says so.
+
+`floors.json` starts empty. The first tier-0 run under Amendment 1.2 sets the
+floors in a dated entry under § Results. The entry names its result file and
+gives each floor with the reason for it. A floor changes only by another dated
+entry.
+
+`.github/workflows/model-watch.yml` says when a run is due. Each week it reads
+the public models page. When the page lists a Haiku or Sonnet ID missing from
+`models_seen.txt`, it opens one issue. A page that yields no ID fails that
+job.
+
 ## Price
 
 **Every round passes `--max-cost-usd`**, a ceiling on the run's list-price
@@ -413,6 +440,43 @@ once per `message.id` is what keeps the token read-out from doubling. The
 `out/trace.jsonl`. The skill names its base directory, and it lies in the
 plugin. Assumption 5 needs a two-arm round and is read off round B's `SCORE`
 lines.
+
+### Amendment 1.2, 2026-10-07: tier 0 scaffolds the files its prompts name
+
+Made after Rounds D and E and before the next tier-0 run. Haiku missed four
+"Should fire." runs in Round D. Each prompt names a file or a report the
+workspace lacked. In every miss the agent looked for it, found nothing, and
+asked for it before any fit, so the skill never loaded. Those misses measured
+the workspace. They did not measure the description.
+
+From this date, each trigger case whose prompt names a file starts with an
+empty file of that name. The case's `inputs.txt` lists it as `empty <name>`,
+a verb `build.py` gained for this. `--scaffold` copies it in through the
+`fixture.sh` the build writes, the mechanism the `fap-*` cases use. The
+prompts are unchanged. An empty file gives the agent a path to find and no
+data to fit.
+
+| case | file |
+|---|---|
+| `fire-caco3-fractions` | `caco3.xye` |
+| `fire-draw-structure` | `perovskite.cif` |
+| `fire-lebail-cell` | `sample.xye` |
+| `fire-pawley-spacegroup` | `pattern.xy` |
+| `fire-quartz-rietveld` | `quartz.xy` |
+| `fire-unknown-cell` | `unknown.xy` |
+| `quiet-cif-to-poscar` | `structure.cif` |
+| `quiet-raman-peak` | `graphite.csv` |
+| `quiet-saxs-guinier` | `saxs.dat` |
+
+- **The near-misses get their files too.** A should-fire prompt and a
+  near-miss then meet the same kind of workspace.
+- **Tier 0 now passes `--scaffold` and still no `--allow-tools`.** A case has
+  only the read-only tools it lists, as before.
+- **`fire-judge-calibration` gets no file.** Its prompt names a FitReport and
+  gives no file name, so there is no name to scaffold. Two of Round D's four
+  misses were this case, and this amendment leaves them as they were.
+- **Rounds D and E are not pooled with later rounds.** Their workspace held
+  none of these files.
 
 ## Results
 

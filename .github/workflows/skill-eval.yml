@@ -1,0 +1,92 @@
+name: skill-eval
+
+# The skill eval's judge-free tier, Haiku by default (WP-1907): tier 0 of
+# tests/eval_skill/PROTOCOL.md, twenty triggering prompts at N = 3, then
+# `readout.py floors`, which fails only on a case below its recorded floor.
+#
+# On demand only.  The maintainer has a Claude subscription and no API
+# credits, so the run spends that subscription's usage, and model-watch.yml
+# opens an issue when a run is due.  It authenticates with the
+# CLAUDE_CODE_OAUTH_TOKEN secret (`claude setup-token`), or ANTHROPIC_API_KEY
+# if that is set instead.  With neither, the job says so and stops green.
+#
+# Tier 0 grants no shell (PROTOCOL.md § Tier 0), so no sandbox backend is
+# installed and the build needs no rietx: build.py and readout.py are stdlib.
+# The build's warning that a run's Bash cannot start its interpreter is moot.
+# Only the trigger cases are built, since the placement episode behind
+# fap-judge runs a fit.  --max-cost-usd is a list-price estimate, about twice
+# the round's cost on that model (Round D, Haiku $1.91; Round E, Sonnet $4.58),
+# and a run that reaches it is partial and red.
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        # the two agent models PROTOCOL.md runs; floors are keyed by this name
+        description: "Agent model"
+        type: choice
+        options: [haiku, sonnet]
+        default: haiku
+
+jobs:
+  tier0:
+    name: tier 0 (${{ inputs.model }}, judge-free)
+    runs-on: ubuntu-latest
+    # Round D took 14 min at -j 1; a runaway guard, never a timer
+    timeout-minutes: 45
+    steps:
+      - id: auth
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN$ANTHROPIC_API_KEY" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY secret, so the skill eval did not run."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.auth.outputs.ok == 'true'
+        uses: actions/checkout@v7
+      - if: steps.auth.outputs.ok == 'true'
+        uses: astral-sh/setup-uv@v7
+      - if: steps.auth.outputs.ok == 'true'
+        run: uv venv --python 3.13
+      - if: steps.auth.outputs.ok == 'true'
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+      - name: Build the trigger cases
+        if: steps.auth.outputs.ok == 'true'
+        run: >-
+          .venv/bin/python tests/eval_skill/build.py docs/skill/rietx "$RUNNER_TEMP/plugin"
+          --case 'fire-*' --case 'quiet-*'
+      - name: Tier 0
+        if: steps.auth.outputs.ok == 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MODEL: ${{ inputs.model }}
+          MAX_COST: ${{ inputs.model == 'sonnet' && '10' || '4' }}
+        # Exit 1 is a case under --threshold, which the floors judge instead;
+        # 2 is a partial run, and that stays red.
+        run: |
+          [ -n "$ANTHROPIC_API_KEY" ] || unset ANTHROPIC_API_KEY
+          [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || unset CLAUDE_CODE_OAUTH_TOKEN
+          claude plugin eval "$RUNNER_TEMP/plugin" --model "$MODEL" --runs 3 --scaffold \
+            --trust-plugin --no-publish --keep-temp --max-cost-usd "$MAX_COST" \
+            --json tier0.json --tag trigger --ablation none -j 1 || [ $? -eq 1 ]
+      - name: Read-outs
+        if: steps.auth.outputs.ok == 'true'
+        run: .venv/bin/python tests/eval_skill/readout.py show tier0.json
+      - name: Floors
+        if: steps.auth.outputs.ok == 'true'
+        run: .venv/bin/python tests/eval_skill/readout.py floors tier0.json
+      - name: Upload the result
+        if: always() && steps.auth.outputs.ok == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: skill-eval-tier0-${{ inputs.model }}
+          path: tier0.json
+          if-no-files-found: warn
+          retention-days: 90

@@ -78,11 +78,15 @@ skill's numbers are rendered from the package rather than typed.
       diagnostic codes and `help.py` keys a PR changes, crossed against the
       skill tree's mentions, printed as the rows to re-read; failing only on a
       name that vanished
-- [ ] `nightly.yml`: WP-1905's judge-free tier on Haiku, `--max-cost-usd`
-      set, the floor per case recorded in `PROTOCOL.md`
+- [x] ~~`nightly.yml`~~ `skill-eval.yml`, on demand (re-scoped 2026-10-07 by
+      the maintainer: a subscription, no API credits, so no nightly spend):
+      WP-1905's judge-free tier, Haiku or Sonnet, `--max-cost-usd` set, floors
+      in `floors.json` under PROTOCOL.md § Floors; `model-watch.yml` opens an
+      issue weekly when the models page lists a new Haiku or Sonnet ID
 - [x] `(Measured: …)` tags name their WP; a test reads each against the index
-- [ ] Tests for each of the above
-- [ ] Skill: none — this WP guards the skill and adds no rule to it
+- [x] Tests for each of the above
+- [x] Skill: none — this WP guards the skill and adds no rule to it (two
+      body rules corrected to what the package does, rules 7 and 14)
 
 ## Acceptance
 
