@@ -3163,8 +3163,17 @@ class ParameterTable:
         ``None`` when nothing moved; the ±1 per free column when only a
         moment flipped; the square matrix ∂θ_old/∂θ_new over the free columns
         (:meth:`_chart_matrix`) when a body turned.
+
+        A body that fails the commit-time guard (:meth:`_check_committed_bodies`)
+        raises ``ValueError`` with the table as it was before the call: the
+        guard can only run on the composed anchors, so the commit is undone
+        rather than left half-written for a caller that catches it (#801).
         """
         values = self.decode(theta)
+        if self._bodies:
+            before = ([e.value for e in self.entries],
+                      [(b.q0, b.r0, b.axes) for _, _, b in self._bodies],
+                      dict(self._precommit_anchor))
         for e in self.entries:
             e.value = values[e.path]
         signs = self._canonicalise_moment_dofs()
@@ -3176,7 +3185,16 @@ class ParameterTable:
         # derived rows the composed anchors
         self._rebuild()
         if self._bodies:
-            self._check_committed_bodies(values)
+            try:
+                self._check_committed_bodies(values)
+            except ValueError:
+                old_values, anchors, self._precommit_anchor = before
+                for e, v in zip(self.entries, old_values, strict=True):
+                    e.value = v
+                for (_, _, block), anchor in zip(self._bodies, anchors, strict=True):
+                    block.restore_anchor(*anchor)
+                self._rebuild()
+                raise
         if not charts:
             return signs
         for bbase, _, block in self._bodies:
@@ -3216,7 +3234,9 @@ class ParameterTable:
         measured a stale linearised anchor at 2e-3 Å against 1e-15 Å); atoms
         that are rigid but no longer at the solver's answer mean the increment
         was zeroed without being composed.  Either way the commit would make a
-        model that is not the stage's answer, so it raises rather than writes.
+        model that is not the stage's answer, so it refuses: ``ValueError``,
+        the error :meth:`__init__`'s drift check raises, which :meth:`commit`
+        turns into a no-op before re-raising.
         """
         from .derived import cartesian_frame
 
@@ -3233,7 +3253,7 @@ class ParameterTable:
             if worst > 1e-9:
                 moved[name] = worst
         if bad or moved:
-            raise AssertionError(
+            raise ValueError(
                 "RIGID_BODY_TEMPLATE_DRIFT at commit: "
                 + (f"rigid bodies {bad} are not rigid (largest |d − d_template| "
                    "in Å)" if bad else "")

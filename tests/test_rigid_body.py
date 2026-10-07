@@ -378,10 +378,15 @@ def test_a_commit_that_skips_the_re_exponentiation_is_refused(monkeypatch):
         theta = table.x0()
         theta[table.free_paths.index("phases.0.rigid_bodies.0.rotation.1")] = \
             math.radians(3.0)
+        before = table.decode(table.x0())
+        r0 = table._bodies[0][2].r0
         monkeypatch.setattr(bodies, "compose_rotation", broken)
-        with pytest.raises(AssertionError, match=match):
+        # a refusal, not an internal assert, and the table as it was (#801)
+        with pytest.raises(ValueError, match=match):
             table.commit(theta)
         monkeypatch.undo()
+        assert table.decode(table.x0()) == before
+        assert table._bodies[0][2].r0 is r0
     table = ParameterTable(body_structure(Q_TRUE), INS)
     table.set_vary(BODY_GLOBS, True)
     theta = table.x0()
