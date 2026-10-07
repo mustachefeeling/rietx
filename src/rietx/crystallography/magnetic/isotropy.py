@@ -161,6 +161,15 @@ axial transformation law** M(R**r** + **t**) = θ·det(R)·R·M(**r**) this modu
 domain action uses.
 Rodríguez-Carvajal, J. (1993). *Physica B* **192**, 55, eq. (1) — the sign
 convention for M⊥ written above.
+Vandenberghe, L. & Boyd, S. (1996). *SIAM Rev.* **38**, 49 — weak duality
+for semidefinite programs, the Farkas certificate of :class:`Witness`.
+Boyd, S. & Vandenberghe, L. (2004). *Convex Optimization*. Cambridge
+University Press, §§ 3.1.5 and 8.1 — concavity of λ_min, and the distance to
+a convex cone as a dual norm problem.
+Householder, A. S. (1958). *J. ACM* **5**, 339 — the reflector behind the
+basis of t̂⊥.
+Peyrl, H. & Parrilo, P. A. (2008). *Theor. Comput. Sci.* **409**, 269 —
+exact rational checks of semidefinite certificates.
 Stokes, H. T. & Hatch, D. M. (1988). *Isotropy Subgroups of the 230
 Crystallographic Space Groups*. Singapore: World Scientific.
 Campbell, B. J., Stokes, H. T., Tanner, D. E. & Hatch, D. M. (2006).
@@ -244,6 +253,34 @@ INTENSITY_RTOL = 1e-9
 #: answer (an estimate, not a measurement).
 CROSS_IRREP_DRAWS = 12
 WITHIN_IRREP_DRAWS = 3
+
+#: The Farkas certificate's accept floor (issue #565, decision 2): a draw is
+#: certified only when the projected dual's optimum, λ_min/|λ|_max of
+#: Σ_s y_s G_s on the kernel-projected stack, is at least this.  Below it no
+#: certificate is issued for that draw and the restarts decide it.
+#: Measured on this module's own streams at seed 20260906, d_min 1.5 Å,
+#: Linux x86-64: the 49 accepted draws of the known answer (17) and of
+#: ``P m -3 m`` at (0, 0, ½) (32) have optima 6.4e-10 to 2.0e-5, and the six
+#: draws that ended ``sampled-not`` have −3.0e-6 and below, so the floor
+#: sits 2.8 decades under the smallest accepted optimum.
+FARKAS_FLOOR = 1e-12
+
+#: The projected ratio the quoted certificate is moved inside to: the
+#: min-norm point sits on the PSD boundary to rounding (ratios −4e-16 to
+#: 2e-16 on the 49 draws above), where an exact check can go either way
+#: between machines, so the certificate stored and checked is the nearest
+#: point toward the interior with at least this ratio (or half the interior
+#: anchor's, when that is lower).  Two decades above :data:`FARKAS_FLOOR`;
+#: the per-certificate rounding bound (≤ 3.4e-14 measured) is more than
+#: three decades below it.
+FARKAS_QUOTE = 1e-10
+
+#: The restart after which a failed fit is handed to the Farkas dual.  The
+#: dual and the minimum-norm solve cost 0.16-0.45 s (medians) per certified
+#: draw at 8-36 amplitudes, Linux x86-64; on a draw a later restart
+#: reproduces the dual is wasted, and on a certified one it saves every
+#: remaining restart.
+DUAL_AFTER_RESTART = 1
 
 #: Shortest axis of the default compatible cell, Å.  Only ratios of intensities
 #: are ever compared, so the scale sets nothing but which reflections fall
@@ -1367,14 +1404,74 @@ RELATION_STATUSES = ("proved-contained", "proved-not", "sampled-contained",
                      "sampled-not", "unresolved")
 
 #: The certificates a ``proved-*`` :class:`PairVerdict` can rest on in this
-#: release.
-RELATION_CERTIFICATES = ("absence", "subspace")
+#: release: ``absence`` and ``subspace`` hold for a whole family,
+#: ``farkas`` for one stored draw (its :class:`Witness`).
+RELATION_CERTIFICATES = ("absence", "subspace", "farkas")
 
 #: Why an ``unresolved`` :class:`PairVerdict` was not decided: ``settled``,
 #: its pair was already decided distinct by the other direction; ``joined``,
 #: its two candidates were already in one class through other pairs, so no
 #: draw was spent on it (the certificates still ran, and none applied).
 UNRESOLVED_REASONS = ("settled", "joined")
+
+
+@dataclass(frozen=True)
+class Witness:
+    """A Farkas certificate that one draw of ``a`` is out of ``b``'s reach, stored so it can be re-checked without the generator.
+
+    I_s(x) = xᵀ G_s x = tr(G_s xxᵀ), so every intensity vector ``b`` can
+    produce is (tr G_s X)_s for some X ⪰ 0.  A vector y with
+    M(y) = Σ_s y_s G_s ⪰ 0 and y·t < 0 then proves that no X ⪰ 0, hence no
+    amplitude vector of ``b``, gives t, since y·(tr G_s X)_s = tr(M(y) X) ≥ 0
+    (weak duality; Vandenberghe & Boyd 1996, *SIAM Rev.* **38**, 49).
+    Everything is on ``b``'s live shells, with the common kernel of ``b``'s
+    stack projected out first (:func:`_live_projection`).
+
+    * ``draw`` — 1-based index of the draw in its direction's stream.
+    * ``t`` — the draw's intensity vector on every shell of the reflection
+      set, as drawn (unit total moment).
+    * ``live`` — the shells y is on: those ``b`` can light and the fit kept.
+    * ``y`` — the quoted certificate on ``live``, normalised to y·t̂ = −1
+      with t̂ the unit (weighted) target on ``live``.
+    * ``weights`` — the per-shell weights the certificate was solved with,
+      on every shell, or None.
+    * ``kernel_dim``, ``kernel_residual`` — the common kernel's dimension
+      and max_s ‖G_s K‖₂/‖G_s‖₂ on it (≤ :data:`INTENSITY_RTOL`).  The
+      certificate is a proof on the *projected* stack, with the kernel taken
+      as structural (every G_s annihilating it); ``kernel_residual`` records
+      how far the float stack departs from that, which the exact check does
+      not cover.
+    * ``ratio`` — λ_min/|λ|_max of M_P(y) on the projected stack, at least
+      :data:`FARKAS_QUOTE` or half the interior anchor's.
+    * ``rounding_bound`` — n ε + S ε κ_y with κ_y = Σ_s |y_s|‖G_s‖₂/‖M(y)‖₂:
+      how far rounding in forming M(y) can move ``ratio``.  At most 3.4e-14
+      on every measured case, more than three decades below
+      :data:`FARKAS_QUOTE`.
+    * ``exact`` — the exact LDLᵀ of M_P(y), built in rationals from the
+      float y and the float projected stack (:func:`_exact_psd`): exact for
+      the projected stack, not for the full one (see ``kernel_residual``).  A stored
+      witness always has True: a False issues none.
+    * ``d`` — (lower, upper) on the relative L2 distance from t̂ to ``b``'s
+      image.  Lower: 1/‖y‖, since for every point k of the relaxed cone
+      ‖t̂ − k‖·‖y‖ ≥ y·(k − t̂) ≥ 1, with equality at the minimum-norm y
+      (Boyd & Vandenberghe 2004, *Convex Optimization*, § 8.1).  Upper: the
+      smallest relative L2 residual ‖I(x) − t‖₂/‖t‖₂ on ``live`` among the
+      restarts actually made, which is one on a certified draw, so the
+      bracket is loose there.  With ``weights``, both are of the weighted
+      vectors.
+    """
+
+    draw: int
+    t: tuple[float, ...]
+    live: tuple[int, ...]
+    y: tuple[float, ...]
+    weights: tuple[float, ...] | None
+    kernel_dim: int
+    kernel_residual: float
+    ratio: float
+    rounding_bound: float
+    exact: bool
+    d: tuple[float, float]
 
 
 @dataclass(frozen=True)
@@ -1392,23 +1489,30 @@ class PairVerdict:
       (every shell is a systematic absence), so ``b``'s zero model
       reproduces all of it.  ``certificate`` is ``"absence"``.
     * ``proved-not`` — no model of ``b`` reproduces almost any model of
-      ``a``, for a reason that holds for the whole family (``certificate``,
-      below).  No draw is made.
+      ``a``, for a reason that holds for the whole family, and no draw is
+      made; or (``farkas``) no model of ``b`` reproduces one drawn model of
+      ``a`` to ``rtol``, and ``draws`` is that draw's index
+      (``certificate``, below).
     * ``sampled-contained`` — every one of ``draws`` random models of ``a``
       was reproduced by a fit of ``b`` to ``rtol``.  A statement about those
       draws, not about the family (:func:`powder_equivalent`, mechanism B).
-    * ``sampled-not`` — a draw was not reproduced by any restart of the fit.
-      ``draws`` counts the draws made, that last one included, and
-      ``undecided_draws`` is 1: a fit's failure is not a proof (mechanism A).
+    * ``sampled-not`` — a draw was not reproduced by any restart of the fit,
+      and no Farkas certificate cleared the gate for it.  ``draws`` counts
+      the draws made, that last one included, and ``undecided_draws`` is 1:
+      a fit's failure is not a proof (mechanism A).  ``dual`` is the
+      projected dual's optimum on that draw: negative means no certificate
+      exists for it (the relaxation is feasible: a rank gap or a fit that
+      failed).
     * ``unresolved`` — nothing decided this direction: no certificate
       applied and no draw was made, for the ``reason``
       :data:`UNRESOLVED_REASONS` names (``draws`` is 0).
 
     **"Proved" means proved on the Gram stack built in floating point, to
     this module's tolerances, for almost every model of** ``a`` — not of
-    the exact stack, and not of every model.  The two thresholds each
-    certificate reads are stated with it below, with the gap measured
-    around each.
+    the exact stack, and not of every model — **or, for** ``farkas``, **for
+    the one stored model of** ``a`` **its** :class:`Witness` **holds**.
+    The thresholds each certificate reads are stated with it below, with
+    the gap measured around each.
 
     ``certificate`` is one of :data:`RELATION_CERTIFICATES`, or ``None`` for
     a status that is not proved:
@@ -1434,6 +1538,27 @@ class PairVerdict:
       stack with a singular value inside (1e-12, 1e-6) of its largest has
       no gap to cut at and gives no subspace certificate
       (:func:`_intensity_span`).
+    * ``farkas`` — one draw t of ``a`` is out of ``b``'s reach, by a
+      vector y with Σ_s y_s G_s ⪰ 0 and y·t < 0 on ``b``'s live shells
+      (:class:`Witness`, which is stored as ``witness`` and states the
+      argument).  A statement about that draw, and so about ``a``'s family
+      only in that it contains it: ``a`` ⊄ ``b``.  Tried on a draw whose
+      first fit failed (:data:`DUAL_AFTER_RESTART`).  Thresholds: the
+      common-kernel cut at :data:`INTENSITY_RTOL` of the largest eigenvalue
+      of Σ_s G_s, with the kernel residual guarded at the same value; the
+      accept floor :data:`FARKAS_FLOOR` on the projected dual; the quoted
+      point at :data:`FARKAS_QUOTE`; the exact LDLᵀ of the quoted point as
+      arbiter (:func:`_exact_psd`, which at that margin cannot disagree with
+      the float eigenvalue, and which certifies the *projected* stack, the
+      kernel being taken as structural, with its float residual recorded in
+      ``kernel_residual``); and the ``rtol`` gate below.  Measured at
+      d_min 1.5 Å, general site, Linux x86-64: over 145 families of six
+      cubic sets, kept kernel eigenvalues ≥ 2.8e-7 of the largest, dropped
+      ones ≤ 8.2e-16 and kernel residuals ≤ 2.7e-13; on the known answer and
+      ``P m -3 m`` at (0, 0, ½), accepted dual optima 6.4e-10 to 2.0e-5,
+      refused ones on the draws that ended ``sampled-not`` ≤ −3.0e-6, and
+      rounding bounds ≤ 3.4e-14.  ``d`` is the witness's bracket on the
+      relative L2 distance from the draw to ``b``'s image.
 
     **The two directions of proof are not equally safe.**  A false
     separation costs one extra refinement; a false containment silently
@@ -1444,22 +1569,37 @@ class PairVerdict:
     exact; any later one that is gated on a tolerance must print its
     residual relative to the stack it was measured on.
 
-    Neither certificate says by how much two patterns differ, only that they
-    differ; the distance comes with the certificates that measure it
-    (issue #565).
+    The absence and subspace certificates do not say by how much two
+    patterns differ, only that they differ.  The Farkas certificate does:
+    ``d`` = (lower, upper) brackets the relative L2 distance from its draw
+    to ``b``'s image, lower = 1/‖y‖, upper = the best relative residual of
+    the restarts made (one, on a certified draw, so the upper end is loose).
 
-    **A certificate does not read** ``rtol``.  The draws call a model of
-    ``a`` reproduced when the fit of ``b`` agrees to ``rtol`` (default
-    1e-4); the certificates' cuts are fixed.  A certificate and the draws
-    can therefore disagree on a pair whose ``a`` is above the cut and below
-    ``rtol``: for absence, ``a``'s largest relative Gram block on the
-    shells ``b`` is dark at; for subspace, the leak sine.  Measured over
-    every ``proved-not`` pair of five sets (``P m -3 m`` at four sites and
-    ``P n m a`` at one, d_min 1.5 Å), the smallest such margin was 4.1e-2,
-    so at the default nothing moves.  A caller passing an ``rtol`` above
-    about 4e-2 gets certificates that split pairs the draws would have
-    joined.  That is the cheap direction (one extra refinement), and the
-    margin is not checked against ``rtol``.
+    **A family-level certificate does not read** ``rtol``.  The draws call
+    a model of ``a`` reproduced when the fit of ``b`` agrees to ``rtol``
+    (default 1e-4); the absence and subspace cuts are fixed.  Such a
+    certificate and the draws can therefore disagree on a pair whose ``a``
+    is above the cut and below ``rtol``: for absence, ``a``'s largest
+    relative Gram block on the shells ``b`` is dark at; for subspace, the
+    leak sine.  Measured over every ``proved-not`` pair of five sets
+    (``P m -3 m`` at four sites and ``P n m a`` at one, d_min 1.5 Å), the
+    smallest such margin was 4.1e-2, so at the default nothing moves.  A
+    caller passing an ``rtol`` above about 4e-2 gets certificates that split
+    pairs the draws would have joined.  That is the cheap direction (one
+    extra refinement), and the margin is not checked against ``rtol``.
+
+    **The Farkas certificate is the exception: it is gated on** ``rtol``.
+    Over the S_live shells it is on, every model I of ``b`` has
+    max_s |I_s − t_s|/max|t| ≥ ‖I_live − t_live‖₂/(√S_live·max|t|)
+    ≥ d_lo·‖t_live‖₂/(√S_live·max|t|), so a certificate with
+    **d_lo ≥ rtol·√S_live·max|t|/‖t_live‖₂** proves that no restart could
+    reproduce the draw to ``rtol``: ``proved-not`` is then the module's own
+    definition at the caller's ``rtol``, and a draw a later restart would
+    reproduce can never be certified.  Below the gate the certificate is
+    still a proof that the draw is out of ``b``'s exact reach; it is stored
+    as ``witness`` with its ``d``, and the restarts decide the status.  With
+    ``weights`` the gate reads the unweighted bound derived from the same
+    certificate (:func:`_certify_draw`).
 
     **The plan for the later parts of issue #565**, fixed here so that the
     names do not move: a verdict carried from another pair by a proved
@@ -1470,6 +1610,13 @@ class PairVerdict:
     strongly a direction is known and a transfer is as strong as its
     sources; the certificate names the argument, and a ``via`` field naming
     the source pair arrives with it.
+
+    ``d``, ``witness`` and ``dual`` are set only by the draws:
+    ``proved-not``/``farkas`` carries all three; ``sampled-not`` carries
+    ``dual`` when the dual ran on its last draw, and a witness below the
+    gate when one was found; ``sampled-contained`` carries a witness only
+    when a draw was certified below the gate and then reproduced to
+    ``rtol``.  Everything is a tuple, so the record stays hashable.
     """
 
     a: int
@@ -1479,6 +1626,9 @@ class PairVerdict:
     draws: int = 0
     undecided_draws: int = 0
     reason: str | None = None
+    d: tuple[float, float] | None = None
+    witness: Witness | None = None
+    dual: float | None = None
 
     @property
     def proved(self) -> bool:
@@ -1663,6 +1813,28 @@ class CandidateSet:
             lines.extend(self._relation_lines())
         return "\n".join(lines)
 
+    def _separation_lines(self) -> list[str]:
+        """Every Farkas certificate with its d bracket, then the classes that hold a proved separation."""
+        label = [c.label for c in self.candidates]
+        proved = [v for v in self.relations if v.certificate == "farkas"]
+        below = [v for v in self.relations if v.certificate is None and v.witness is not None]
+        lines = []
+        if proved:
+            lines.append("proved separations (farkas), d ∈ [1/‖y‖, best fit residual]:")
+            lines += [f"  {label[v.a]} ⊄ {label[v.b]}  d ∈ [{v.d[0]:.2g}, {v.d[1]:.2g}]"
+                      f"  draw {v.draws}" for v in proved]
+        if below:
+            lines.append("certificates below the rtol gate (the draws decide), d ∈ [1/‖y‖, best fit residual]:")
+            lines += [f"  {label[v.a]} ⊄ {label[v.b]}  d ∈ [{v.d[0]:.2g}, {v.d[1]:.2g}]"
+                      f"  {v.status}" for v in below]
+        holding = [c for c, members in enumerate(self.classes)
+                   if any(v.status == "proved-not" and v.a in members and v.b in members
+                          for v in self.relations)]
+        if holding:
+            lines.append("classes holding a proved separation (part 5 of issue #565 splits them): "
+                         + ", ".join(str(c) for c in holding))
+        return lines
+
     def _relation_lines(self) -> list[str]:
         """The pair counts by provenance, then every sampled pair with its draws."""
         verdicts = {(v.a, v.b): v for v in self.relations}
@@ -1683,6 +1855,7 @@ class CandidateSet:
                  + f"); sampled {len(sampled)}; joined, not drawn {untested}"]
         lines.append("class P: every relation bounding the class is proved; "
                      "S: one rests on draws or on nothing")
+        lines.extend(self._separation_lines())
         if sampled:
             lines.append("sampled pairs, n = draws a → b, b → a:")
         for there, back in sampled:
@@ -2422,19 +2595,50 @@ def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
     is caught here — a solver raising for any other reason is a defect and
     surfaces (Yue's review of #389, 2026-09-18).
     """
-    from scipy.optimize import least_squares
-
     target = np.asarray(target, dtype=np.float64)
-    scale = float(np.max(np.abs(target))) or 1.0
-    dark = _dark_shells(grams)
     if rtol is not None:
-        floor = float(np.max(np.abs(target[dark]), initial=0.0)) / scale
+        floor = _absence_floor(target, grams)
         if floor > rtol:
             return floor
-    keep = ~(dark & (np.abs(target) <= INTENSITY_RTOL * scale))
+    return _restarts(target, grams, rng, restarts=restarts, rtol=rtol)[0]
+
+
+def _absence_floor(target: np.ndarray, grams: np.ndarray) -> float:
+    """The largest target on a shell the fit counts dark, relative to max target: a residual no amplitude can lower."""
+    scale = float(np.max(np.abs(target))) or 1.0
+    return float(np.max(np.abs(target[_dark_shells(grams)]), initial=0.0)) / scale
+
+
+def _fit_rows(target: np.ndarray, grams: np.ndarray) -> np.ndarray:
+    """The shells :func:`_fit_residual` fits: all but those dark for the family and zero in the target."""
+    scale = float(np.max(np.abs(target))) or 1.0
+    return ~(_dark_shells(grams) & (np.abs(target) <= INTENSITY_RTOL * scale))
+
+
+def _restarts(target: np.ndarray, grams: np.ndarray, rng, *, restarts: int,
+              rtol: float | None, rows: np.ndarray | None = None,
+              weights: np.ndarray | None = None) -> tuple[float, float]:
+    """The restart loop of :func:`_fit_residual`: (smallest ‖I − t‖∞ relative to max t, smallest relative L2 residual).
+
+    The first is :func:`_fit_residual`'s return value, with its early stop at
+    ``rtol``.  The second is min over the restarts made of
+    ‖w∘(I(x) − t)‖₂/‖w∘t‖₂ on ``rows`` (every fitted shell when None, unit
+    ``weights`` when None), the upper end of a :class:`Witness`'s ``d``.
+    Both draw on ``rng`` exactly as :func:`_fit_residual` always has, one
+    normal vector per restart, so splitting the loop in two consumes the
+    same stream as running it whole.
+    """
+    from scipy.optimize import least_squares
+
+    scale = float(np.max(np.abs(target))) or 1.0
+    keep = _fit_rows(target, grams)
     if not np.any(keep):
-        return 0.0
+        return 0.0, 0.0
     g, t = grams[keep], target[keep]
+    rows = keep if rows is None else rows
+    w = np.ones(len(target)) if weights is None else np.asarray(weights, dtype=np.float64)
+    wt = w[rows] * target[rows]
+    wt_norm = float(np.linalg.norm(wt)) or 1.0
 
     def residual(b):
         return (g @ b) @ b - t
@@ -2442,7 +2646,7 @@ def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
     def jacobian(b):
         return 2.0 * (g @ b)
 
-    best = np.inf
+    best, best_l2 = np.inf, np.inf
     n = grams.shape[1]
     method = "lm" if t.size >= n else "trf"
     for _ in range(restarts):
@@ -2450,15 +2654,405 @@ def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
         fit = least_squares(residual, start, jac=jacobian, method=method,
                             xtol=1e-14, ftol=1e-14, gtol=1e-14, max_nfev=4000)
         best = min(best, float(np.max(np.abs(fit.fun))))
+        model = (grams[rows] @ fit.x) @ fit.x
+        best_l2 = min(best_l2, float(np.linalg.norm(w[rows] * model - wt)) / wt_norm)
         if rtol is not None and best / scale <= rtol:
             break
-    return best / scale
+    return best / scale, best_l2
+
+
+# --------------------------------------------------------------------------
+# the Farkas certificate of one draw (issue #565, part 2)
+
+def _householder_complement(u: np.ndarray) -> np.ndarray:
+    """Orthonormal columns spanning u⊥, for a unit vector u: columns 2… of one Householder reflector.
+
+    H = I − 2vvᵀ/vᵀv with v = u − αe₁, α = −sign(u₁), maps u to αe₁, and H
+    is symmetric and orthogonal, so its first column is u/α and the others
+    are an orthonormal basis of u⊥ (Householder 1958, *J. ACM* **5**, 339).
+    No SVD: the basis is a closed form of u.
+    """
+    m = u.shape[0]
+    alpha = -1.0 if u[0] >= 0.0 else 1.0
+    v = u.astype(np.float64).copy()
+    v[0] -= alpha
+    vv = float(v @ v)
+    h = np.eye(m)
+    if vv > 0.0:
+        h -= (2.0 / vv) * np.outer(v, v)
+    return h[:, 1:]
+
+
+def _spectrum_ratio(grams: np.ndarray, y: np.ndarray) -> float:
+    """λ_min/|λ|_max of M(y) = Σ_s y_s G_s."""
+    w = np.linalg.eigvalsh(np.einsum("s,sij->ij", y, grams))
+    return float(w[0] / max(float(np.max(np.abs(w))), 1e-300))
+
+
+def _live_projection(grams: np.ndarray) -> tuple[np.ndarray, int, float]:
+    """The stack with its common kernel projected out: (PᵀG_sP scaled to max 1, kernel dimension, kernel residual).
+
+    One ``eigh`` of Σ_s G_s (stack scaled to max 1): directions with
+    eigenvalue ≤ :data:`INTENSITY_RTOL` of the largest are the common kernel
+    K, since every G_s is PSD and Σ_s G_s u = 0 forces G_s u = 0.  On K every
+    M(y) vanishes, so M(y) ⪰ 0 exactly when PᵀM(y)P ⪰ 0 for P the
+    orthonormal complement, and a strict certificate becomes possible where
+    the full M(y) has a structural zero eigenvalue.  The cut errs toward
+    keeping a direction: a kept near-kernel direction only weakens the
+    certificate, a dropped live one would make it invalid, which is what the
+    kernel residual r_K = max_s ‖G_s K‖₂/‖G_s‖₂ guards (the caller refuses a
+    certificate above :data:`INTENSITY_RTOL`).  Measured on 145 families of
+    six cubic sets at the general site, d_min 1.5 Å (Linux x86-64): dropped
+    relative eigenvalues ≤ 8.2e-16, kept ones ≥ 2.8e-7, r_K ≤ 2.7e-13.
+    """
+    g = grams / max(float(np.max(np.abs(grams))), 1e-300)
+    w, v = np.linalg.eigh(g.sum(axis=0))
+    kernel = int(np.sum(w <= INTENSITY_RTOL * max(float(w[-1]), 1e-300)))
+    residual = 0.0
+    if kernel:
+        k = v[:, :kernel]
+        residual = max(float(np.linalg.norm(x @ k, 2)) / max(float(np.linalg.norm(x, 2)), 1e-300)
+                       for x in g)
+        p = v[:, kernel:]
+        g = np.einsum("ki,skl,lj->sij", p, g, p)
+        g = g / max(float(np.max(np.abs(g))), 1e-300)
+    return g, kernel, residual
+
+
+def _farkas_dual(grams: np.ndarray, t_hat: np.ndarray) -> tuple[float, np.ndarray]:
+    """max λ_min(Σ_s y_s G_s) over y·t̂ = −1, as (λ_min/|λ|_max at the maximiser, y).
+
+    λ_min is concave and the constraint affine (Boyd & Vandenberghe 2004,
+    § 3.1.5), so a local ascent finds the optimum.  y = −t̂ + N z with N the
+    :func:`_householder_complement` of t̂; BFGS on the smooth concave
+    surrogate −τ log tr exp(−M/τ), within τ log n of λ_min, at τ = 10⁻¹ …
+    10⁻⁶ from z = 0; one exact eigenvalue at the end.  One live shell leaves
+    the single point −t̂.  ``grams`` is scaled to max 1, as
+    :func:`_live_projection` returns it.
+    """
+    from scipy.optimize import minimize
+    from scipy.special import logsumexp, softmax
+
+    y0 = -t_hat
+    n_shells = t_hat.shape[0]
+    z = np.zeros(n_shells - 1)
+    if n_shells > 1:
+        basis = _householder_complement(t_hat)
+
+        def surrogate(tau):
+            def f(z):
+                w, v = np.linalg.eigh(np.einsum("s,sij->ij", y0 + basis @ z, grams))
+                p = softmax(-w / tau)
+                grad = np.einsum("sij,ik,jk,k->s", grams, v, v, p)
+                return tau * logsumexp(-w / tau), -(basis.T @ grad)
+            return f
+
+        for tau in (1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6):
+            z = minimize(surrogate(tau), z, jac=True, method="BFGS",
+                         options={"gtol": 1e-12, "maxiter": 2000}).x
+        y = y0 + basis @ z
+    else:
+        y = y0
+    return _spectrum_ratio(grams, y), y
+
+
+def _min_norm_certificate(grams: np.ndarray, t_hat: np.ndarray,
+                          y_dual: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """The minimum-norm certificate, min ‖y‖ on M(y) ⪰ 0 and y·t̂ = −1, and an interior anchor: (y_mn, anchor).
+
+    1/‖y_mn‖ is the distance from t̂ to the cone of (tr G_s X)_s, X ⪰ 0
+    (Boyd & Vandenberghe 2004, § 8.1), and any feasible y bounds it from
+    below.  ``y_dual`` is :func:`_farkas_dual`'s maximiser, strictly
+    feasible and usually of enormous norm (the dual is unbounded when a
+    certificate exists).  The anchor is on the ray from −t̂ through it, at
+    twice where the ratio first exceeds min(10⁻⁹, half the maximiser's)
+    (bisection), a moderate-norm interior point.  From there a barrier
+    method (Boyd & Vandenberghe 2004, § 11.3): ‖y‖² − μ log det M(y) on
+    y = −t̂ + N z, each μ centred by Newton steps with the exact Hessian
+    2I + μ[tr(M⁻¹G_s M⁻¹G_r)] and a backtracking line search that keeps
+    M(y) ≻ 0 (a Cholesky factor must exist), μ divided by 10 from ‖anchor‖²
+    until n μ ≤ 10⁻¹² ‖y‖², which bounds ‖y‖² above its minimum by that.
+    The centred points are unique, so y_mn depends neither on the
+    maximiser's drift nor on the platform's rounding beyond the tolerance
+    (measured: d agrees to 1e-11 between macOS arm64 and Linux x86-64, where
+    a BFGS barrier stopped on "precision loss" at points 3.7× apart in d).
+    One live shell: both are −t̂.
+    """
+    y0 = -t_hat
+    if t_hat.shape[0] == 1:
+        return y0, y0
+    basis = _householder_complement(t_hat)
+    z_dual = basis.T @ (y_dual - y0)
+    threshold = min(1e-9, _spectrum_ratio(grams, y_dual) / 2)
+    lo, hi = 0.0, 1.0
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        if _spectrum_ratio(grams, y0 + mid * (basis @ z_dual)) > threshold:
+            hi = mid
+        else:
+            lo = mid
+    z = z_dual
+    for factor in (2.0, 1.0):
+        if _spectrum_ratio(grams, y0 + basis @ (factor * hi * z_dual)) > 0.0:
+            z = factor * hi * z_dual
+            break
+    anchor = y0 + basis @ z
+    n = grams.shape[1]
+
+    def barrier(z, mu):
+        """(value, M⁻¹) at z, or (inf, None) where M(y) is not positive definite."""
+        y = y0 + basis @ z
+        m = np.einsum("s,sij->ij", y, grams)
+        try:
+            chol = np.linalg.cholesky(m)
+            inverse = np.linalg.inv(m)
+        except np.linalg.LinAlgError:       # not positive definite, or singular to rounding
+            return np.inf, None
+        value = float(y @ y) - 2.0 * mu * float(np.sum(np.log(np.diag(chol))))
+        if not np.isfinite(value):
+            return np.inf, None
+        return value, 0.5 * (inverse + inverse.T)
+
+    mu = float(anchor @ anchor)
+    for _ in range(64):
+        value, inverse = barrier(z, mu)
+        for _ in range(100):
+            y = y0 + basis @ z
+            b = np.einsum("ij,sjk->sik", inverse, grams)          # M⁻¹ G_s
+            grad = basis.T @ (2.0 * y - mu * np.einsum("sii->s", b))
+            hess = basis.T @ (2.0 * np.eye(len(y)) + mu * np.einsum("sij,rji->sr", b, b)) @ basis
+            step = -np.linalg.solve(hess, grad)
+            decrement = -float(grad @ step)
+            if decrement <= 1e-14 * float(y @ y):
+                break
+            s = 1.0
+            for _ in range(60):
+                trial, trial_inverse = barrier(z + s * step, mu)
+                if trial <= value - 0.25 * s * decrement:
+                    break
+                s *= 0.5
+            else:
+                break
+            z, value, inverse = z + s * step, trial, trial_inverse
+        y = y0 + basis @ z
+        if n * mu <= 1e-12 * float(y @ y):
+            break
+        mu /= 10.0
+    return y0 + basis @ z, anchor
+
+
+def _quote_inside(grams: np.ndarray, y_mn: np.ndarray, anchor: np.ndarray) -> np.ndarray:
+    """The certificate to quote: the point of the segment y_mn → anchor nearest y_mn with ratio ≥ min(:data:`FARKAS_QUOTE`, anchor's/2), never below :data:`FARKAS_FLOOR`.
+
+    λ_min of M(y) is concave along the segment and y·t̂ = −1 holds on all of
+    it, so a bisection on the fraction finds the point.  d moves by at most
+    0.7 % (d_q/d_mn ≥ 0.9934 over the 49 witnesses of the known answer and
+    ``P m -3 m`` at (0, 0, ½)).
+    """
+    target = max(FARKAS_FLOOR, min(FARKAS_QUOTE, _spectrum_ratio(grams, anchor) / 2))
+    if _spectrum_ratio(grams, y_mn) >= target:
+        return y_mn
+    lo, hi = 0.0, 1.0
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        if _spectrum_ratio(grams, (1 - mid) * y_mn + mid * anchor) >= target:
+            hi = mid
+        else:
+            lo = mid
+    return (1 - hi) * y_mn + hi * anchor
+
+
+def _exact_psd(grams: np.ndarray, y) -> bool:
+    """Whether Σ_s y_s G_s is PSD in exact arithmetic, for the float y and the float stack.
+
+    The matrix is built in :class:`fractions.Fraction` from the floats and
+    reduced by LDLᵀ without pivoting: PSD iff every pivot is ≥ 0 and a zero
+    pivot has a zero remaining row (Peyrl & Parrilo 2008, *Theor. Comput.
+    Sci.* **409**, 269, on rational certificates).  Exact for the stack as
+    floating point holds it, not for the stack exact arithmetic would build,
+    and the stack here is the *projected* one: the caller passes PᵀG_sP, so
+    the proof concerns the full stack only to the extent that every G_s
+    annihilates the common kernel K, which the kernel is *taken* to do.  The
+    float stack departs from that by the kernel residual r_K ≤
+    :data:`INTENSITY_RTOL`, recorded in :attr:`Witness.kernel_residual` and
+    not covered by this check.
+    At the quoted margin (:data:`FARKAS_QUOTE`, more than three decades
+    above the rounding bound) it cannot disagree with the float eigenvalue:
+    it is the arbiter by decision, and assurance in practice.
+    """
+    n_shells, n, _ = grams.shape
+    yf = [Fraction(float(v)) for v in y]
+    gf = [[[Fraction(float(grams[s, i, j])) for j in range(n)] for i in range(n)]
+          for s in range(n_shells)]
+    a = [[sum((yf[s] * gf[s][i][j] for s in range(n_shells)), Fraction(0)) if j >= i
+          else Fraction(0) for j in range(n)] for i in range(n)]
+    for i in range(n):
+        for j in range(i):
+            a[i][j] = a[j][i]          # the float G_s are symmetric only to rounding
+    for k in range(n):
+        pivot = a[k][k]
+        if pivot < 0:
+            return False
+        if pivot == 0:
+            if any(a[k][j] != 0 for j in range(k + 1, n)):
+                return False
+            continue
+        for i in range(k + 1, n):
+            if a[k][i] == 0:
+                continue
+            f = a[k][i] / pivot
+            for j in range(i, n):
+                a[i][j] -= f * a[k][j]
+    return True
+
+
+def _certificate_stack(grams_live: np.ndarray, target_live: np.ndarray,
+                       weights_live: np.ndarray | None) -> tuple[np.ndarray, np.ndarray]:
+    """The (weighted) live stack and unit target a certificate is solved on: (w_s G_s, w∘t/‖w∘t‖)."""
+    if weights_live is None:
+        return grams_live, target_live / float(np.linalg.norm(target_live))
+    g = grams_live * weights_live[:, None, None]
+    t = weights_live * target_live
+    return g, t / float(np.linalg.norm(t))
+
+
+def _farkas_certificate(grams_live: np.ndarray, target_live: np.ndarray,
+                        weights_live: np.ndarray | None = None) -> tuple[float | None, dict | None]:
+    """The projected dual's optimum and, when it clears :data:`FARKAS_FLOOR`, the quoted certificate: (dual, parts).
+
+    ``parts`` holds y (quoted, on the live shells, y·t̂ = −1), the projected
+    stack's kernel data, ratio, rounding bound and the exact check; None
+    when the dual is below the floor, the kernel residual is above
+    :data:`INTENSITY_RTOL` (dual None too: nothing is solved), the quoted
+    ratio is below the floor, or the exact check fails.
+    """
+    g, t_hat = _certificate_stack(grams_live, target_live, weights_live)
+    projected, kernel, residual = _live_projection(g)
+    if residual > INTENSITY_RTOL:
+        return None, None
+    dual, y_dual = _farkas_dual(projected, t_hat)
+    if dual < FARKAS_FLOOR:
+        return dual, None
+    y_mn, anchor = _min_norm_certificate(projected, t_hat, y_dual)
+    y = _quote_inside(projected, y_mn, anchor)
+    ratio = _spectrum_ratio(projected, y)
+    if ratio < FARKAS_FLOOR or not _exact_psd(projected, y):
+        return dual, None
+    eps = float(np.finfo(np.float64).eps)
+    m = np.einsum("s,sij->ij", y, projected)
+    kappa = float(np.sum(np.abs(y) * np.array([np.linalg.norm(x, 2) for x in projected]))) \
+        / max(float(np.linalg.norm(m, 2)), 1e-300)
+    n_shells, n = projected.shape[:2]
+    return dual, {"y": y, "kernel_dim": kernel, "kernel_residual": residual, "ratio": ratio,
+                  "rounding_bound": n * eps + n_shells * eps * kappa, "exact": True}
+
+
+def _gate(rtol: float, target: np.ndarray, live: np.ndarray) -> float:
+    """g = rtol·√S_live·max|t|/‖t_live‖₂: a certificate with d_lo ≥ g proves no restart can reach ``rtol``.
+
+    For every model I of ``b`` the fit's residual is
+    r_∞ = max_s |I_s − t_s|/max|t| over the fitted shells, which include
+    ``live``, so r_∞ ≥ ‖I_live − t_live‖₂/(√S_live·max|t|)
+    ≥ d_lo·‖t_live‖₂/(√S_live·max|t|).  d_lo ≥ g then gives r_∞ ≥ rtol for
+    every model: the draw is not reproduced at the caller's own ``rtol``.
+    """
+    scale = float(np.max(np.abs(target)))
+    return rtol * float(np.sqrt(np.count_nonzero(live))) * scale \
+        / float(np.linalg.norm(target[live]))
+
+
+def _verify_witness(grams_b: np.ndarray, witness: Witness) -> tuple[bool, float, float]:
+    """Re-check a stored :class:`Witness` against ``b``'s stack: (holds, projected ratio, |y·t̂ + 1|).
+
+    Rebuilds the (weighted) live stack from ``grams_b`` and the stored t,
+    projects out its common kernel afresh, and requires |y·t̂ + 1| ≤ 1e-9,
+    projected ratio ≥ :data:`FARKAS_FLOOR` and the exact LDLᵀ.  The stored
+    t is an intensity vector, so a change of either family's amplitude basis
+    leaves the check intact (M(y) and y·t move by congruence and not at
+    all).
+    """
+    live = np.asarray(witness.live, dtype=np.int64)
+    t = np.asarray(witness.t, dtype=np.float64)[live]
+    w = None if witness.weights is None else np.asarray(witness.weights)[live]
+    g, t_hat = _certificate_stack(grams_b[live], t, w)
+    projected, _, residual = _live_projection(g)
+    y = np.asarray(witness.y, dtype=np.float64)
+    off = abs(float(y @ t_hat) + 1.0)
+    ratio = _spectrum_ratio(projected, y)
+    holds = (residual <= INTENSITY_RTOL and off <= 1e-9 and ratio >= FARKAS_FLOOR
+             and _exact_psd(projected, y))
+    return bool(holds), ratio, off
+
+
+def _certify_draw(target: np.ndarray, grams_b: np.ndarray, dark_b: np.ndarray, rng, *,
+                  restarts: int, rtol: float, draw: int,
+                  weights: np.ndarray | None = None
+                  ) -> tuple[bool, bool, Witness | None, float | None]:
+    """One draw of ``a`` against ``b``: (reproduced, proved not, witness, dual).
+
+    :func:`_fit_residual`'s loop, with the Farkas dual after restart
+    :data:`DUAL_AFTER_RESTART`: the absence floor first, then that many
+    restarts; if none reproduces the draw to ``rtol``, the certificate is
+    solved on ``b``'s live shells (lit for ``b`` by the scale-free test,
+    ``dark_b``, and fitted).  A certificate that passes the exact check and
+    the gate (:func:`_gate`: d_lo ≥ g, with d_lo from the unweighted bound
+    when ``weights`` are given) ends the draw proved, with no more restarts;
+    otherwise the remaining restarts run as before and decide it, and a
+    certificate below the gate rides along as the witness.  The generator is
+    consumed exactly as :func:`_fit_residual` consumes it up to the point the
+    draw is decided.
+
+    With ``weights`` the certificate is solved on w_s G_s and w∘t, so d is
+    the weighted distance; its unweighted bound is
+    y_u = (w∘y_w)·‖t‖/‖w∘t‖, which has y_u·t̂ = −1 and M(y_u) a positive
+    multiple of the weighted M(y_w), so it is a certificate for the
+    unweighted problem and the gate reads 1/‖y_u‖.  The fit and its ``rtol``
+    stay unweighted.
+    """
+    if _absence_floor(target, grams_b) > rtol:
+        return False, False, None, None
+    first = min(DUAL_AFTER_RESTART, restarts)
+    keep = _fit_rows(target, grams_b)
+    live = keep & ~dark_b
+    w = None if weights is None else np.asarray(weights, dtype=np.float64)
+    r_inf, r_l2 = _restarts(target, grams_b, rng, restarts=first, rtol=rtol,
+                            rows=live, weights=w)
+    if r_inf <= rtol:
+        return True, False, None, None
+    witness, dual = None, None
+    if np.any(live) and float(np.linalg.norm(target[live])) > 0.0:
+        dual, parts = _farkas_certificate(grams_b[live], target[live],
+                                          None if w is None else w[live])
+        if parts is not None:
+            y = parts["y"]
+            d_lo = 1.0 / float(np.linalg.norm(y))
+            if w is None:
+                d_gate = d_lo
+            else:
+                tw = w[live] * target[live]
+                y_u = w[live] * y * float(np.linalg.norm(target[live])) / float(np.linalg.norm(tw))
+                d_gate = 1.0 / float(np.linalg.norm(y_u))
+            witness = Witness(
+                draw=draw, t=tuple(float(v) for v in target),
+                live=tuple(int(s) for s in np.flatnonzero(live)),
+                y=tuple(float(v) for v in y),
+                weights=None if w is None else tuple(float(v) for v in w),
+                kernel_dim=parts["kernel_dim"], kernel_residual=parts["kernel_residual"],
+                ratio=parts["ratio"], rounding_bound=parts["rounding_bound"],
+                exact=parts["exact"], d=(d_lo, r_l2))
+            if d_gate >= _gate(rtol, target, live):
+                return False, True, witness, dual
+    more_inf, more_l2 = _restarts(target, grams_b, rng, restarts=restarts - first, rtol=rtol,
+                                  rows=live, weights=w)
+    if witness is not None and more_l2 < witness.d[1]:
+        witness = replace(witness, d=(witness.d[0], more_l2))
+    return more_inf <= rtol, False, witness, dual
 
 
 def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
                       refl: ReflectionSet, *, draws: int | None = None, seed: int = 20260906,
                       rtol: float = 1e-4, restarts: int = 32,
-                      little: LittleGroup | None = None) -> bool:
+                      little: LittleGroup | None = None, weights=None) -> bool:
     """Whether a powder pattern to ``refl``'s d limit can tell two candidates apart.
 
     **The definition, taken here.**  A and B are *powder-equivalent* when each
@@ -2485,12 +3079,21 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     draw the pair goes through the certificates :class:`PairVerdict`
     states: a shell one family lights and the other cannot, or an intensity
     span not inside the other's, proves the pair *distinct* for almost
-    every model, and then nothing is drawn.  The only equality the
-    certificates in this release prove is between two families with no
-    pattern at all, so any other ``True`` rests on the draws below, and so
-    does a ``False`` no certificate gave;
+    every model, and then nothing is drawn.  During the draws, a draw no
+    restart reproduces can be **proved** out of the other family's reach
+    by a Farkas certificate (``farkas``, :class:`Witness`), at the caller's
+    ``rtol``; then "distinct" is proved too, of that stored draw.  The only
+    equality the certificates in this release prove is between two families
+    with no pattern at all, so any other ``True`` rests on the draws below,
+    and so does a ``False`` no certificate gave;
     :func:`powder_relations` returns which, direction by direction, with the
     number of draws each made.
+
+    ``weights``, optional, is one positive number per shell of ``refl``
+    (σ⁻¹ or f²·L, say): the Farkas certificate is then solved on the
+    weighted stack, so its ``d`` is the weighted relative distance.  It
+    changes which point is quoted and what ``d`` reads, not what is
+    proved: the gate and the fit's ``rtol`` stay unweighted.
 
     **Both sampled verdicts are statistical, for different reasons** (issue #455).
     What is exact: a family with no powder pattern at this d limit is
@@ -2502,9 +3105,10 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     still gave a partition that moved with the rotation at each of three
     seeds (2 to 4 classes over the nine runs).  What is not exact:
 
-    * **"Distinguishable" can be a failure to fit** (mechanism A).  It is
-      returned when, for one draw, all ``restarts`` random starts of the
-      other family's fit stop above ``rtol``.  The fit's global minimum is
+    * **"Distinguishable" can be a failure to fit** (mechanism A), where no
+      certificate proved it.  It is returned when, for one draw, all
+      ``restarts`` random starts of the other family's fit stop above
+      ``rtol`` and the Farkas dual finds no certificate above the gate.  The fit's global minimum is
       zero whenever the answer should be "equivalent", but a restart can
       stop in a local minimum, and restarts on one draw are not independent
       trials: they share the draw, and some draws have a dominant wrong
@@ -2536,6 +3140,7 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     ``seed``, ``draws`` and ``restarts``, and across machines agrees only as
     far as the fits' floating point does.
     """
+    weights = _shell_weights(weights, refl)
     if little is None:
         little = _irreps.little_group(a.space_group, a.k)
     a, b = _canonical_basis(a), _canonical_basis(b)
@@ -2543,13 +3148,14 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     fb = structure_factors(b, refl, little=little)
     return _powder_equivalent(a, b, fa, fb, gram(fa, refl.shells), gram(fb, refl.shells),
                               refl, draws=_draws_for(a, b, draws), seed=seed, rtol=rtol,
-                              restarts=restarts)
+                              restarts=restarts, weights=weights)
 
 
 def _powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
                        fa: np.ndarray, fb: np.ndarray, ga: np.ndarray, gb: np.ndarray,
                        refl: ReflectionSet, *,
-                       draws: int, seed: int, rtol: float, restarts: int) -> bool:
+                       draws: int, seed: int, rtol: float, restarts: int,
+                       weights: np.ndarray | None = None) -> bool:
     """:func:`powder_equivalent` on canonical candidates whose factors and grams are built.
 
     ``ga``/``gb`` are ``gram(fa, refl.shells)``/``gram(fb, refl.shells)``, the
@@ -2560,8 +3166,23 @@ def _powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     dark = [_certificate_dark(ga, silent[0]), _certificate_dark(gb, silent[1])]
     spans = [_intensity_span(ga), _intensity_span(gb)]
     there, back = _pair_verdicts(0, 1, (a, b), (ga, gb), silent, dark, spans, refl,
-                                 draws=draws, seed=seed, rtol=rtol, restarts=restarts)
+                                 draws=draws, seed=seed, rtol=rtol, restarts=restarts,
+                                 weights=weights)
     return bool(there.contained and back.contained)
+
+
+def _shell_weights(weights, refl: ReflectionSet) -> np.ndarray | None:
+    """``weights`` as one positive finite float per shell of ``refl``, or None; anything else is refused by name."""
+    if weights is None:
+        return None
+    w = np.asarray(weights, dtype=np.float64).reshape(-1)
+    if w.shape[0] != len(refl.shells):
+        raise ValueError(f"weights has {w.shape[0]} entries and the reflection set has "
+                         f"{len(refl.shells)} shells: one weight per shell, in refl.shells order")
+    if not np.all(np.isfinite(w)) or not np.all(w > 0.0):
+        raise ValueError("weights must be positive and finite on every shell: a zero weight "
+                         "would drop a shell from the certificate, not down-weight it")
+    return w
 
 
 def _draws_for(a: MagneticCandidate, b: MagneticCandidate, draws: int | None) -> int:
@@ -2588,20 +3209,27 @@ def _silent(factors: np.ndarray) -> bool:
 
 def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
                    refl: ReflectionSet, *, draws: int, seed: int, rtol: float,
-                   restarts: int) -> tuple[PairVerdict, PairVerdict]:
+                   restarts: int, weights: np.ndarray | None = None
+                   ) -> tuple[PairVerdict, PairVerdict]:
     """The two directed verdicts of one pair: certificates first, then the draws.
 
-    A pair a certificate settles distinct is not drawn at all, and its other
-    direction is recorded ``unresolved`` (``reason="settled"``) unless a
-    certificate settles that too.  Otherwise each direction not proved
-    contained is sampled, i → j first, on one generator seeded with
+    A pair a family-level certificate settles distinct is not drawn at all,
+    and its other direction is recorded ``unresolved`` (``reason="settled"``)
+    unless a certificate settles that too.  Otherwise each direction not
+    proved contained is sampled, i → j first, on one generator seeded with
     ``seed`` — the stream, draw for draw, that this pair's test consumed
     before the certificates existed, so a pair no certificate settles gets
-    the verdict it always had.  The draws stop at the first one not
-    reproduced, as they always did.  ``draws`` on the verdict counts every
-    draw taken from the generator: one whose pattern is zero everywhere is
-    counted as reproduced, since ``b``'s zero model reproduces it, and is
-    not fitted.
+    the verdict it always had.  Each draw goes through
+    :func:`_certify_draw`: a draw its Farkas certificate proves out of reach
+    at ``rtol`` ends the direction ``proved-not`` (``farkas``, ``draws`` =
+    that draw's index, the :class:`Witness` and its ``d`` attached), and
+    the other direction is ``settled``.  The draws stop at the first one not
+    reproduced, certified or not, as they always did; an uncertified one is
+    ``sampled-not`` with the dual's optimum in ``dual`` (negative: no
+    certificate exists for that draw) and any certificate below the gate as
+    its witness.  ``draws`` on the verdict counts every draw taken from the
+    generator: one whose pattern is zero everywhere is counted as
+    reproduced, since ``b``'s zero model reproduces it, and is not fitted.
     """
     proved = {(i, j): _certify(i, j, dark, spans, silent),
               (j, i): _certify(j, i, dark, spans, silent)}
@@ -2614,28 +3242,42 @@ def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
         if proved[(a, b)] is not None:
             out.append(proved[(a, b)])
             continue
-        if out and out[0].status == "sampled-not":
+        if out and out[0].status in ("sampled-not", "proved-not"):
             out.append(PairVerdict(a, b, "unresolved", reason="settled"))
             continue
         made = 0
         verdict = None
+        below_gate = None
         for _ in range(draws):
             amplitudes = _normalised_draw(canonical[a], refl.lattice, rng)
             made += 1
             target = (grams[a] @ amplitudes) @ amplitudes
             if float(np.max(np.abs(target))) <= 0.0:
                 continue
-            if _fit_residual(target, grams[b], rng, restarts=restarts, rtol=rtol) > rtol:
-                verdict = PairVerdict(a, b, "sampled-not", None, made, 1)
+            reproduced, certified, witness, dual = _certify_draw(
+                target, grams[b], dark[b], rng, restarts=restarts, rtol=rtol, draw=made,
+                weights=weights)
+            if certified:
+                verdict = PairVerdict(a, b, "proved-not", "farkas", made, 0,
+                                      d=witness.d, witness=witness, dual=dual)
                 break
-        out.append(verdict or PairVerdict(a, b, "sampled-contained", None, made, 0))
+            if not reproduced:
+                verdict = PairVerdict(a, b, "sampled-not", None, made, 1,
+                                      d=None if witness is None else witness.d,
+                                      witness=witness, dual=dual)
+                break
+            below_gate = below_gate or witness
+        out.append(verdict or PairVerdict(
+            a, b, "sampled-contained", None, made, 0,
+            d=None if below_gate is None else below_gate.d, witness=below_gate))
     return out[0], out[1]
 
 
 def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | None,
-              seed: int, rtol: float, restarts: int
+              seed: int, rtol: float, restarts: int, weights=None
               ) -> tuple[tuple[tuple[int, ...], ...], tuple[PairVerdict, ...]]:
     """:func:`equivalence_classes` and :func:`powder_relations` from one pass over the pairs."""
+    weights = _shell_weights(weights, refl)
     little = _irreps.little_group(candidate_set.space_group, candidate_set.k)
     n = len(candidate_set)
     canonical = [_canonical_basis(c) for c in candidate_set]
@@ -2668,7 +3310,8 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | 
                 continue
             there, back = _pair_verdicts(i, j, canonical, grams, silent, dark, spans, refl,
                                          draws=_draws_for(canonical[i], canonical[j], draws),
-                                         seed=seed, rtol=rtol, restarts=restarts)
+                                         seed=seed, rtol=rtol, restarts=restarts,
+                                         weights=weights)
             verdicts[(i, j)], verdicts[(j, i)] = there, back
             if there.contained and back.contained:
                 parent[find(j)] = find(i)
@@ -2682,7 +3325,7 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | 
 
 def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
                         draws: int | None = None, seed: int = 20260906, rtol: float = 1e-4,
-                        restarts: int = 32) -> tuple[tuple[int, ...], ...]:
+                        restarts: int = 32, weights=None) -> tuple[tuple[int, ...], ...]:
     """Connected components of :func:`powder_equivalent` over a candidate set.
 
     Members of one class are models a powder pattern to this d limit cannot
@@ -2692,19 +3335,25 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
     Each pair is settled by a certificate where one applies — a shell one
     family lights and the other cannot, or an intensity span not inside the
     other's (:class:`PairVerdict`) — and by :func:`powder_equivalent`'s
-    draws otherwise.  The certificates in this release prove two candidates
-    *distinct*, or two with no pattern at all equal, so every other join
-    here rests on draws, and union-find carries
+    draws otherwise, where a draw no fit reproduces can itself be proved
+    out of reach (``farkas``).  The certificates in this release prove two
+    candidates *distinct*, or two with no pattern at all equal, so every
+    other join here rests on draws, and union-find carries
     each sampled verdict further: one false "equivalent" joins two classes,
     and one false "distinguishable" splits a class only if no other chain of
     pairs joins it.  Read the count as measured at this ``seed``, ``draws``
     and ``restarts``, not as a property of the group;
-    :func:`powder_relations` says which pair rests on what.  Each
+    :func:`powder_relations` says which pair rests on what.  A proved
+    separation can therefore sit inside a class that sampled pairs joined
+    (``S7`` ⊄ ``S8`` with ``S7`` ~ ``S10`` ~ ``S8``): the printed table
+    names such classes, and issue #565's part 5 splits them.  Each
     candidate's basis is made canonical and its structure factors and
     :func:`gram` stack built once, rather than once per pair or per draw.
     Cost: an equivalent pair mostly stops at its first restart, while a
-    distinguishable one no certificate settles pays the full ``restarts``
-    once.
+    distinguishable one no family-level certificate settles pays one
+    restart and a Farkas dual when the draw is certified, and the full
+    ``restarts`` once when it is not.  ``weights`` is
+    :func:`powder_equivalent`'s.
 
     ``draws`` is per direction.  Left at ``None`` it is
     :data:`CROSS_IRREP_DRAWS` for a pair of two irreps and
@@ -2717,12 +3366,12 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
     single-process tasks).
     """
     return _classify(candidate_set, refl, draws=draws, seed=seed, rtol=rtol,
-                     restarts=restarts)[0]
+                     restarts=restarts, weights=weights)[0]
 
 
 def powder_relations(candidate_set: CandidateSet, refl: ReflectionSet, *,
                      draws: int | None = None, seed: int = 20260906, rtol: float = 1e-4,
-                     restarts: int = 32) -> tuple[PairVerdict, ...]:
+                     restarts: int = 32, weights=None) -> tuple[PairVerdict, ...]:
     """Every directed verdict behind :func:`equivalence_classes`, with how each was decided.
 
     One :class:`PairVerdict` per ordered pair (a, b), sorted: proved by a
@@ -2731,21 +3380,27 @@ def powder_relations(candidate_set: CandidateSet, refl: ReflectionSet, *,
     The certificates run on every ordered pair; the draws are skipped on a
     pair union-find has already joined.  The same pass, the same
     generator streams and the same partition as :func:`equivalence_classes`
-    with these arguments.  A certificate does not read ``rtol``: see
-    :class:`PairVerdict` for the measured margin.
+    with these arguments.  A family-level certificate does not read
+    ``rtol``; the Farkas one is gated on it (:class:`PairVerdict` states
+    both).  A ``farkas`` verdict carries its :class:`Witness` and ``d``;
+    ``weights`` is :func:`powder_equivalent`'s.
     """
     return _classify(candidate_set, refl, draws=draws, seed=seed, rtol=rtol,
-                     restarts=restarts)[1]
+                     restarts=restarts, weights=weights)[1]
 
 
 def analyse(candidate_set: CandidateSet, *, d_min: float = 1.5,
             draws: int | None = None, seed: int = 20260906, rtol: float = 1e-4,
-            restarts: int = 32) -> CandidateSet:
+            restarts: int = 32, weights=None) -> CandidateSet:
     """Fill in the absences, the determinable amplitudes, the equivalence classes and their relations.
 
     Returns a new :class:`CandidateSet` whose ``__str__`` prints the whole
     classic table.  The reflection list is the magnetic cell's own to ``d_min``,
     on the cell the set was built with.
+
+    ``weights``, when given, has one entry per shell of
+    ``reflections(candidate_set.lattice, d_min)`` (see
+    :func:`powder_equivalent`).
 
     Every column it fills is magnetic neutron intensity, so a
     ``kind="displacive"`` set is refused by name rather than given plausible
@@ -2777,7 +3432,7 @@ def analyse(candidate_set: CandidateSet, *, d_min: float = 1.5,
             little=little, factors=factors))
         absences.append(systematic_absences(candidate, refl, little=little).total)
     classes, relations = _classify(candidate_set, refl, draws=draws, seed=seed,
-                                   rtol=rtol, restarts=restarts)
+                                   rtol=rtol, restarts=restarts, weights=weights)
     return CandidateSet(
         space_group=candidate_set.space_group, site=candidate_set.site,
         k=candidate_set.k, kind=candidate_set.kind, cell=candidate_set.cell,

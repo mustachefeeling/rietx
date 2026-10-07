@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: magnetic · Status: 🔄 2026-10-06 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-07 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -869,3 +869,42 @@ so the raise is unreachable, and `__str__` calls it unconditionally. #772
 reviewed in this round.
 
 *Next:* unchanged, #565 part 2.
+
+### 2026-10-07 — #565's isotropy certificates, part 2 of 5
+
+A pair of candidate families can now be proved apart one draw at a time. A
+draw of family `a` that `b`'s first fit misses goes to a Farkas dual on `b`'s
+live shells. A certificate y with M(y) ⪰ 0 and y·t < 0 proves that no
+amplitude vector of `b` gives that draw. Part 2 of issue #565 landed from
+outside: PR #772 (`ade590d5`), merged as `9481a4a0` by `/pr-review` after two
+rounds. Each `PairVerdict` now carries `d`, `witness` and `dual`. `d` brackets
+the relative L2 distance from the draw to `b`'s image, and the frozen
+`Witness` lets `_verify_witness` re-check a certificate without the
+generator. `weights=` is a new keyword on the four entry points.
+
+*Done:* round 1 found two items. The exact LDLᵀ certifies the projected stack
+PᵀG_sP, while its docstring read as a proof about the full stack. Round 2
+states the claim as it stands: the kernel is taken as structural, and
+`kernel_residual` records what the exact check does not cover. The quote
+target is now floored at `FARKAS_FLOOR`, pinned by
+`test_the_quote_target_is_never_below_the_accept_floor`. Round 2 was gated on
+`2651649a` merged with the PR (macOS arm64, `[dev,jax]`, nothing else
+running). The fast suite gave 8640 passed, 106 skipped, 2 failed. Both
+failures also fail on bare `main` on that machine: the `toy_anomalous`
+golden (#760) and
+`test_indexing_reduce.py::test_the_reduction_map_takes_a_to_f_where_the_reduction_does`,
+which is green on Linux CI. The full `-m slow` suite gave 292 passed,
+12 skipped, 0 failed. `main` after the merge is content-identical to the gated
+tree.
+
+*Gotchas:* the contributor plans to restate the claim on the full stack in
+part 3 by tightening the kernel guard. A guard on r_K alone cannot make M(y)
+PSD on the full stack, because the kernel block is not sign-definite. It can
+bound the kernel's share of Σ y_s I_s only given a bound on the moment's
+amplitude along K, and the round-2 review asks part 3 to say which it proves.
+`test_the_s1_s2_pairs_of_the_known_answer_are_proved_by_stored_witnesses`
+took 56.7 s in round 1, the slowest fast test. The review lists four cost
+cuts the contributor deferred to later parts. `Witness.exact` can only be
+True and nothing reads it yet.
+
+*Next:* #565 part 3 (isometry, span, propagation).
