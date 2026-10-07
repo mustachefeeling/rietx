@@ -866,7 +866,7 @@ def _column_identities(table: ParameterTable, extras: list[list[str]]
     csc = table.reach_block().tocsc()
     coef = table.constraint_block()[0].tocsc()
     paths = [e.path for e in table.entries]
-    out: list[tuple[str, list[str]]] = []
+    out: list[tuple[str, list[str], bool]] = []
     for c, path in enumerate(table.free_paths):
         if not is_variable_path(path):
             out.append((path, extras[c], not extras[c]))
