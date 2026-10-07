@@ -53,6 +53,23 @@ def test_a_conflict_the_driver_resolves_counts_only_as_text(tmp_path: Path) -> N
     assert got["driver"][0] == 0
 
 
+def test_edits_apart_on_both_sides_merge_clean_as_text(tmp_path: Path) -> None:
+    """The text merge must run: a driver git cannot start also reports a conflict."""
+    root = _repo(tmp_path)
+    _write(root, "docs/wp/README.md", "a\nb\nc\nd\ne\nf\n")
+    _git(root, "commit", "-qam", "longer")
+    _git(root, "checkout", "-qb", "side")
+    _write(root, "docs/wp/README.md", "A\nb\nc\nd\ne\nf\n")
+    _git(root, "commit", "-qam", "side")
+    _git(root, "checkout", "-q", "main")
+    _write(root, "docs/wp/README.md", "a\nb\nc\nd\ne\nF\n")
+    _git(root, "commit", "-qam", "main")
+    _git(root, "merge", "-q", "side", "-m", "merge")
+    got = replay(root, "2000-01-01", driver="cp %B %A")
+    assert got["merges"][0] == 1
+    assert got["text"][0] == 0
+
+
 def test_a_header_change_that_also_edits_roadmap_is_flagged(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     _write(root, "docs/wp/README.md", "a\nb\nfiled\n")

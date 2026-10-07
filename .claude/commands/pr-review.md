@@ -21,7 +21,8 @@ Triage reads the remote and runs from anywhere. Before step 4, and before the
 `all` mode's pass B, enter the bench: `EnterWorktree` with
 `path: .claude/worktrees/pr-bench` — a persistent worktree with a `[dev,jax]`
 venv, created once by `git worktree add --detach .claude/worktrees/pr-bench
-origin/main` plus step 4's venv line. From then on every command runs from the
+origin/main` plus step 4's venv line and, run in the bench,
+`git config --worktree merge.wpindex.driver 'git merge-file %A %O %B'`. From then on every command runs from the
 bench as plain `git`, and the main checkout is never named (`worktree_only.py`
 keeps it read-only anyway). The worktree guard refuses `git -C .`, a shell
 variable in a git command, and a git command inside a loop or a compound
@@ -35,25 +36,31 @@ merge on that file instead (`.gitattributes`). So every `merge` and
 command line:
 
 ```sh
-git -c merge.wpindex.driver='git merge-file --diff-algorithm=histogram %A %O %B' merge --no-edit refs/pr/N
+git -c merge.wpindex.driver='git merge-file %A %O %B' merge --no-edit refs/pr/N
 ```
 
 This document calls that flag **the text-merge flag**, and every merge command
-below carries it. It is not set in config. A setting for one worktree needs
-`extensions.worktreeConfig`, which this repository has off, and turning it on
-changes the config every tree reads. On 2026-10-06 the bench's
-`git config --get merge.wpindex.driver` printed the row merge: the extension
-was off and the bench had no per-worktree config file, so the `--worktree`
-line this section used to give was no longer in effect. When it stopped is
-not known, so a run between 2026-10-01 and then may have merged the index as
-every other tree does.
+below carries it. Since 2026-10-07 the bench also sets the same line in its
+own config, so a command that drops the flag still merges as text.
+`extensions.worktreeConfig` is on for the repository, and in the bench
+`git config --get merge.wpindex.driver` must print the line above. Every other
+tree reads the row merge from `.git/config`.
 
-With the flag, every `merge` and `merge-tree` in the bench conflicts where GitHub does.
-Under the row merge the bench called clean the index conflicts GitHub reported
-on #522, #546, #579 and #580. Under this line it found all four. It also
-rebuilt 60 of 60 of GitHub's merges on main to the same tree (2026-10-01). `histogram`
-is the algorithm git's own merge uses. Plain `merge-file` runs myers, and myers
-disagreed with git's merge on 6 of 1500 random merges.
+The line takes no `--diff-algorithm`. Apple's git 2.39.5 has no such option on
+`merge-file`, and nor has 2.43. A driver git cannot start exits nonzero, and
+git reports every merge that reaches it as a conflict. The flag carried
+`--diff-algorithm=histogram` from 2026-10-01 to 2026-10-07. Rebuilt with it on
+2026-10-07, main's last 60 merges gave 6 conflicts. Those were exactly the 6
+merges that changed the index on both sides, and GitHub had merged all of them
+clean. Without the option all 60 rebuilt to GitHub's tree. A false conflict
+there sends step 4 to sync a branch that needed no sync.
+
+The cost is the diff algorithm. Plain `merge-file` runs myers, while git's own
+merge runs histogram, and the two disagreed on 6 of 1500 random merges. Under
+the row merge the bench called clean the index conflicts GitHub reported on
+#522, #546, #579 and #580. The histogram line reported all four, but it
+reports a conflict on every two-sided index merge, so that check shows
+nothing. They have not been re-checked under this line.
 
 ## Triage — the no-argument mode
 
@@ -98,7 +105,7 @@ whether a maintainer has commented — **and the reason for its rank**:
 3. **`DIRTY`** — not a review: post a one-line rebase request and move on.
    A conflict on the index alone is the exception: step 4 syncs it, and the
    PR keeps its place. GitHub computes the field lazily; once main has moved
-   since the call, `git -c merge.wpindex.driver='git merge-file --diff-algorithm=histogram %A %O %B' merge-tree --write-tree
+   since the call, `git -c merge.wpindex.driver='git merge-file %A %O %B' merge-tree --write-tree
    --name-only --no-messages origin/main refs/pr/N`, run in the bench, is the authority. Nonzero
    is a conflict, and the lines after the tree name the conflicted paths. It
    runs in the bench because any other tree's row merge hides an index
@@ -240,7 +247,7 @@ line if the checkpoint ended it. Close with
    git fetch origin main
    git fetch origin "pull/N/head:refs/pr/N" --force
    git reset --hard origin/main
-   git -c merge.wpindex.driver='git merge-file --diff-algorithm=histogram %A %O %B' merge --no-edit refs/pr/N
+   git -c merge.wpindex.driver='git merge-file %A %O %B' merge --no-edit refs/pr/N
    git diff origin/main --stat        # the PR's own contribution
    ```
 
@@ -267,7 +274,7 @@ line if the checkpoint ended it. Close with
    ```sh
    git merge --abort
    git checkout --detach refs/pr/N
-   git -c merge.wpindex.driver='git merge-file --diff-algorithm=histogram %A %O %B' merge --no-edit origin/main     # conflicts on the index alone
+   git -c merge.wpindex.driver='git merge-file %A %O %B' merge --no-edit origin/main     # conflicts on the index alone
    python3 .claude/hooks/wp_index.py
    git add docs/wp/README.md
    git commit -m "Merge main and regenerate docs/wp/README.md" \
