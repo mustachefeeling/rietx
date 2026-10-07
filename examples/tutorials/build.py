@@ -49,6 +49,8 @@ def parse(path: Path) -> list[tuple[str, str]]:
         if m:
             cells.append(("markdown" if m["markdown"] else "code", []))
             continue
+        if line.lstrip().startswith(("# %%", "#%%")):
+            raise ValueError(f"{path.name}:{n}: a cell marker this builder does not read")
         if not cells:
             raise ValueError(f"{path.name}:{n}: text before the first '# %%' marker")
         kind, body = cells[-1]
@@ -112,6 +114,8 @@ def problems(nb) -> list[str]:
 
 def execute(path: Path):
     """The executed notebook, never written: a test calls this too."""
+    from jupyter_client.kernelspec import KernelSpecManager
+    from jupyter_client.manager import AsyncKernelManager
     from nbclient import NotebookClient
 
     from rietx._about import TELEMETRY_ENV
@@ -120,8 +124,14 @@ def execute(path: Path):
     env = {k: v for k, v in os.environ.items() if k != "MPLBACKEND"}  # the kernel's own, as a reader's
     env[TELEMETRY_ENV] = "0"
     env["PYTHONUTF8"] = "1"
-    NotebookClient(nb, timeout=900, kernel_name="python3", record_timing=False,
-                   resources={"metadata": {"path": str(HERE)}}).execute(env=env)
+    # The kernel is this interpreter's ipykernel.  A looked-up "python3" spec
+    # can be a user-level one naming another environment's python, which then
+    # executes the notebook against whatever rietx that environment holds.
+    # A client handed its manager shuts the kernel down only when told to.
+    km = AsyncKernelManager(kernel_name="python3",
+                            kernel_spec_manager=KernelSpecManager(kernel_dirs=[]))
+    NotebookClient(nb, km=km, timeout=900, record_timing=False,
+                   resources={"metadata": {"path": str(HERE)}}).execute(env=env, cleanup_kc=True)
     nb.metadata.get("language_info", {}).pop("version", None)  # the builder's Python patch release
     return nb
 
