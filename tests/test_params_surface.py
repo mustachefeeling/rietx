@@ -260,6 +260,146 @@ def test_set_vary_without_history_still_edits():
     assert ref.structure.phases[0].cell.a.value == 4.2
 
 
+
+def _declaring_only(path):
+    """``perturbed_models`` with every model ``vary`` flag cleared but ``path``'s.
+
+    ``path`` is a ``phases.…`` or ``instrument.…`` dot-path to a ``Parameter``.
+    """
+    from pydantic import BaseModel
+
+    from rietx.schemas.common import Parameter
+
+    def clear(obj):
+        if isinstance(obj, Parameter):
+            obj.vary = False
+        elif isinstance(obj, BaseModel):
+            for name in type(obj).model_fields:
+                clear(getattr(obj, name))
+        elif isinstance(obj, (list, tuple)):
+            for o in obj:
+                clear(o)
+
+    structure, ins = perturbed_models()
+    clear(structure)
+    clear(ins)
+    target = structure if path.startswith("phases.") else ins
+    for part in path.split(".")[1 if target is ins else 0:]:
+        target = target[int(part)] if part.isdigit() else getattr(target, part)
+    target.vary = True
+    return structure, ins
+
+
+def _free(ref):
+    return sorted(r.path for r in ref.parameters() if r.vary)
+
+
+@pytest.mark.parametrize("also_free", [[], ["instrument.zero_shift"]],
+                         ids=["the-last-free-path", "one-of-two"])
+def test_holding_a_model_declared_path_outlasts_the_next_set_vary(also_free):
+    """``set_vary(path, False)`` is a declaration, and an empty one is too.
+
+    The models' ``vary`` flags are the declaration only until the refinement
+    has one of its own.  Holding the *last* free path used to leave an empty
+    free set that read as "none declared yet", so the next table build went
+    back to the model flags: the row reported free again, and the next
+    ``set_vary`` folded it into the declared set, where ``run_stage`` refined
+    it.  The second case is the positive arm: with another path still free the
+    hold always held.
+    """
+    ref = rx.Refinement(*_declaring_only("phases.0.lor_size"), history=False)
+    if also_free:
+        ref.set_vary(also_free)
+    assert _free(ref) == sorted(["phases.0.lor_size", *also_free])
+
+    assert ref.set_vary(["phases.0.lor_size"], False) == ["phases.0.lor_size"]
+    assert _free(ref) == sorted(also_free)
+
+    ref.set_vary(["phases.0.scale"])
+    assert _free(ref) == sorted(["phases.0.scale", *also_free])
+
+
+def test_a_stage_after_holding_the_last_free_path_leaves_it_held(pattern):
+    ref = rx.Refinement(*_declaring_only("phases.0.lor_size"), history=False)
+    ref.set_vary(["phases.0.lor_size"], False)
+    ref.set_vary(["instrument.background.*"])
+    result = ref.run_stage(pattern, rx.Stage("scale", ["phases.0.scale"], max_iter=5))
+    refined = {p.path for p in result.parameters}
+    assert "phases.0.scale" in refined
+    assert "phases.0.lor_size" not in refined
+
+
+def test_a_checkout_of_an_all_held_node_keeps_it_all_held(ref, pattern):
+    """A node after the root records a declared free set, empty or not."""
+    ref.fit(pattern, plan=SHORT)
+    fitted = ref.history.head
+    assert _free(ref)
+    ref.set_vary(["*"], False)
+    empty = ref.history.head
+    assert _free(ref) == []
+
+    ref.checkout(fitted)
+    assert _free(ref)
+    ref.checkout(empty)
+    assert _free(ref) == []
+
+
+@pytest.mark.parametrize("edit", ["set_values", "edit", "add_variable", "merge"])
+def test_a_checkout_of_a_node_that_declared_nothing_keeps_the_model_flags(pattern, edit):
+    """``Project.open`` checks out the head, so a project whose last act was a
+    value edit must open with the model's own ``vary`` flags still the free set.
+
+    Those node kinds snapshot the free set without declaring one, so the node's
+    *kind* cannot say whether an empty set is a declaration (#788 review).
+    """
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins)
+    ref._ensure_history(pattern)
+    before = _free(ref)
+    assert before
+    if edit == "set_values":
+        ref.set_values({"instrument.profile.w": 0.02})
+    elif edit == "edit":
+        new = ref.structure.model_copy(deep=True)
+        new.phases[0].cell.a.value += 0.001
+        ref.edit(structure=new)
+    elif edit == "add_variable":
+        ref.add_variable("tilt", 0.1)
+    else:
+        ref.set_values({"instrument.profile.w": 0.02})
+        other = ref.history.head
+        ref.checkout(ref.history.root.id)
+        ref.set_values({"instrument.profile.v": -0.01})
+        ref.merge(other)
+    assert _free(ref) == before
+    ref.checkout(ref.history.head)
+    assert _free(ref) == before
+
+
+def test_a_declaration_survives_a_node_kind_that_does_not_declare(pattern):
+    """The other half: an all-held free set, then an edit, then a checkout."""
+    ref = rx.Refinement(*perturbed_models())
+    ref._ensure_history(pattern)
+    ref.set_vary(["*"], False)
+    assert _free(ref) == []
+    ref.set_values({"instrument.profile.w": 0.02})
+    ref.checkout(ref.history.head)
+    assert _free(ref) == []
+
+
+def test_a_state_without_free_declared_reads_as_not_declared():
+    """A document written before the field loads, and an empty set there is the
+    old reading (the models' flags)."""
+    from rietx.schemas.history import RefinementState
+
+    structure, ins = perturbed_models()
+    state = RefinementState(structure=structure, instrument=ins)
+    assert state.free_declared is False
+    dumped = state.model_dump(mode="json")
+    dumped.pop("free_declared")
+    assert RefinementState.model_validate(dumped).free_declared is False
+
+
 # ------------------------------------------------- user constraints (WP-1070)
 BISOS = ["phases.0.atoms.0.biso", "phases.0.atoms.1.biso"]
 

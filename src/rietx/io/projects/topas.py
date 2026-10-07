@@ -4653,7 +4653,9 @@ def _snapped_xyz(sg, atom) -> list[float]:
 
 def from_structure(structure: Structure, *,
                    diagnostics: list[Diagnostic] | None = None,
-                   p1_expand: bool = False) -> str:
+                   p1_expand: bool = False,
+                   free=None, scale: str | None = None, instrument=None,
+                   names: dict | None = None) -> str:
     """Serialise ``structure`` as TOPAS ``.inp`` text — the inverse of
     :func:`to_structure`.
 
@@ -4742,6 +4744,23 @@ def from_structure(structure: Structure, *,
     copies one parameter are not stated, so TOPAS refines nothing until the
     caller frees what they choose.
 
+    **After a fit** (#722, #721 item 3): ``free=`` a ``Refinement`` writes the
+    fit's free set and its ties instead of the stored flags, which a plan-driven
+    fit leaves ``False``; each free parameter under a name derived from its path
+    (a name is TOPAS's refine flag, Technical Reference § 2.1) and each tie as an
+    equation over its source's name or, for an equality, as one shared name
+    (§ 2.3), with the source's finite bounds as ``min``/``max``
+    (:mod:`.topas_input`, :mod:`.topas_refined`). ``free=`` also takes a
+    ``RefinementResult`` or a list of paths, which carry no ties. ``scale=
+    "topas"`` writes the scale in TOPAS's convention (× 100 for neutrons, × K for
+    X-rays, :func:`~.topas_refined.topas_scale_factor`) and needs
+    ``instrument=``, which names the radiation; ``"rietx"`` writes rietx's. Without
+    ``free=`` the stored ``Parameter.vary`` flags are the free set. The
+    file's header says which. ``names=`` a dict to collect ``{TOPAS name: (path,
+    a, b)}``, the named value being ``a·path + b``. Without ``free``, ``scale``
+    and ``instrument`` nothing below changes. ``p1_expand=True`` cannot be
+    combined with them (the free paths name the structure as given).
+
     Four refusals besides the phase-name quote check above, the fourth being
     :func:`_tail`'s on a non-finite value. A label or
     species carrying whitespace: a ``site`` line is space-separated, so an
@@ -4753,10 +4772,26 @@ def from_structure(structure: Structure, *,
     """
     from ..._about import DIST_NAME
 
+    if p1_expand and (free is not None or scale is not None
+                      or instrument is not None):
+        raise ValueError(
+            "p1_expand=True cannot be combined with free=, scale= or "
+            "instrument=: the free paths name the structure as given, and the "
+            "P 1 restatement renames its atoms")
     if p1_expand:
         from ...crystallography.magnetic.p1 import restate_in_p1
 
         structure = restate_in_p1(structure, species_as_ion=True)
+    if free is not None or scale is not None or instrument is not None:
+        from .topas_input import from_structure_refined
+
+        text = from_structure_refined(structure, free=free, scale=scale,
+                                      instrument=instrument, names=names)
+        if diagnostics is not None:
+            from ...crystallography.scattering import written_neutral_diagnostics
+            diagnostics.extend(written_neutral_diagnostics(
+                structure, code="TOPAS_SPECIES_WRITTEN_NEUTRAL", program="TOPAS"))
+        return text
     lines: list[str] = [f"' Written by {DIST_NAME}.io.projects.topas.write_topas_inp"]
     for phase in structure.phases:
         if '"' in phase.name:
@@ -5033,10 +5068,12 @@ def _moment_tail(moment, cell, allowed=(True, True, True)) -> str:
 
 def write_topas_inp(structure: Structure, path: str | Path, *,
                     diagnostics: list[Diagnostic] | None = None,
-                    p1_expand: bool = False) -> None:
-    """Write ``structure`` as a TOPAS ``.inp``. See
+                    p1_expand: bool = False, free=None, scale=None,
+                    instrument=None) -> None:
+    """Write a TOPAS ``.inp``. See
     :func:`from_structure` for exactly what carries and what does not, and
-    for ``p1_expand``."""
+    for ``p1_expand``, ``free``, ``scale`` and ``instrument``."""
     Path(path).write_text(
         from_structure(structure, diagnostics=diagnostics,
-                       p1_expand=p1_expand), encoding="utf-8")
+                       p1_expand=p1_expand, free=free, scale=scale,
+                       instrument=instrument), encoding="utf-8")
