@@ -178,9 +178,14 @@ class ParameterRow(Base):
         reasons come first, because no verb lifts them.  A hold comes next,
         being the caller's own and liftable with ``unhold``; it is reported
         after ``mode_fixed`` so that a Le Bail phase's held atom names the
-        mode, which is the reason that would still hold if the hold went.
+        mode, which is the reason that would still hold if the hold went.  The
+        same rule puts the mode before a body: under Le Bail or Pawley the
+        body's origin and rotation are force-fixed too, so "refine them
+        instead" would send the caller to a refusal (#801).
         """
         if self.body is not None:
+            if self.mode_fixed:
+                return "force-fixed by the intensity mode (lebail/pawley)"
             return (f"placed by rigid body {self.body!r}: refine its origin "
                     "and rotation instead")
         if self.locked:

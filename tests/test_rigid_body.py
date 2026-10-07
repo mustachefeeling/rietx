@@ -830,3 +830,15 @@ def test_add_body_refuses_a_label_the_phase_already_has():
     with pytest.raises(ValueError, match="'C0'"):
         add_body(phase, "dup", ["C0", "X1"], ["C", "C"],
                  [(0.0, 0.0, 0.0), (1.4, 0.0, 0.0)], (0.6, 0.6, 0.6))
+
+
+def test_a_body_atom_under_le_bail_names_the_mode():
+    """Under Le Bail the body's origin and rotation are force-fixed too, so
+    "refine its origin and rotation instead" sent the caller to a refusal;
+    the mode is the reason that would still hold (#801)."""
+    ref = Refinement(body_structure(Q_TRUE), INS, history=False)
+    for mode in ("lebail", "pawley"):
+        row = {r.path: r for r in ref.parameters(mode=mode)}["phases.0.atoms.2.x"]
+        assert row.held_because == "force-fixed by the intensity mode (lebail/pawley)"
+    row = {r.path: r for r in ref.parameters(mode="rietveld")}["phases.0.atoms.2.x"]
+    assert row.held_because.startswith("placed by rigid body 'c6br'")
