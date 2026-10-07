@@ -325,8 +325,12 @@ def _rechart_matrix(outcome: LSQOutcome, theta: np.ndarray,
         out[:len(t), :len(t)] = t
         return out
 
-    touched = np.flatnonzero(np.abs(t - np.diag(np.diag(t))).sum(axis=0)
-                             + np.abs(t - np.diag(np.diag(t))).sum(axis=1) > 0.0)
+    # a column is touched wherever T differs from a signed identity: an
+    # off-diagonal entry, or a diagonal one that is not ±1 (a rotation DOF
+    # held beside a turn about its neighbour's axis scales its own column,
+    # with nothing off the diagonal; #801)
+    off = np.abs(t - np.diag(np.sign(np.diag(t))))
+    touched = np.flatnonzero(off.sum(axis=0) + off.sum(axis=1) > 0.0)
     jac_old = outcome.jac
     jac = None if jac_old is None else np.asarray(jac_old) @ padded(np.shape(jac_old)[1])
     stderr, corr = outcome.stderr_internal, outcome.correlation
@@ -346,20 +350,21 @@ def _rechart_matrix(outcome: LSQOutcome, theta: np.ndarray,
                     c_new = new / np.outer(se_new, se_new)
                 # only the touched rows and columns move; every other entry is
                 # the old correlation, bit for bit (a diagonal flip is a sign)
-                d = np.diag(tm)
+                d = np.sign(np.diag(tm))
                 keep = np.ones(len(se), dtype=bool)
                 keep[touched] = False
                 c_flip = c * np.outer(d, d)
                 corr = np.where(np.outer(keep, keep), c_flip, c_new)
             stderr = se_new
         elif corr is not None:
-            d = np.diag(tm)
+            # a correlation takes only the sign of a diagonal scale
+            d = np.sign(np.diag(tm))
             corr = np.asarray(corr) * np.outer(d, d)
     cosine = outcome.residual_cosine
     if cosine is not None:
         cos = np.asarray(cosine, dtype=np.float64)
         if jac_old is None:
-            cos = cos * np.diag(padded(len(cos)))
+            cos = cos * np.sign(np.diag(padded(len(cos))))  # a cosine is scale-free
         else:
             tm = padded(len(cos))
             norm_old = np.linalg.norm(np.asarray(jac_old), axis=0)

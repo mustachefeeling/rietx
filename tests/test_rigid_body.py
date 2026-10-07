@@ -759,3 +759,49 @@ def test_a_variable_at_a_non_unit_coefficient_takes_an_exact_column(target, c):
     tm[col] -= h
     fd = (resid(tp) - resid(tm)) / (2 * h)
     assert np.abs(jac - fd).max() < 1e-6 * np.abs(fd).max()
+
+
+def _fake_outcome(theta, se, corr):
+    from rietx.optimize.least_squares import LSQOutcome
+
+    return LSQOutcome(theta=theta, cost_initial=1.0, cost_final=1.0, n_iterations=1,
+                      status="converged", jac=None, stderr_internal=se,
+                      correlation=corr)
+
+
+def test_a_held_rotation_dof_beside_a_turn_is_recharted():
+    """``rotation.2`` held, ω along x: the chart on the free (x, y) block is
+    diag(1, 1 − c·|ω|²), nothing off the diagonal (#801).  Read as a sign
+    flip, the y column's esd stayed 4.1104 against T⁻¹·Cov·T⁻ᵀ's 4.1415,
+    and its correlation diagonal came out 0.985.  A column is touched
+    wherever T differs from a signed identity, and the non-finite branch
+    takes only the sign of a diagonal scale."""
+    from rietx.optimize.least_squares import rechart_outcome
+
+    table = ParameterTable(body_structure(Q_TRUE), INS)
+    table.set_vary(["phases.*.scale", "phases.*.rigid_bodies.*.origin.dof.*",
+                    "phases.0.rigid_bodies.0.rotation.0",
+                    "phases.0.rigid_bodies.0.rotation.1"], True)
+    free = table.free_paths
+    x, y = (free.index(f"phases.0.rigid_bodies.0.rotation.{k}") for k in (0, 1))
+    theta = table.x0()
+    theta[x] = 0.3
+    n = len(theta)
+    a = np.random.default_rng(1).normal(size=(n, n))
+    cov = a @ a.T + n * np.eye(n)
+    se = np.sqrt(np.diag(cov))
+    corr = cov / np.outer(se, se)
+    t = table.commit(theta)
+    assert t[y, y] != pytest.approx(1.0) and t[x, y] == t[y, x] == 0.0
+    out = rechart_outcome(_fake_outcome(theta, se, corr), table.x0(), t)
+    tinv = np.linalg.inv(t)
+    new = tinv @ cov @ tinv.T
+    se_true = np.sqrt(np.diag(new))
+    np.testing.assert_allclose(out.stderr_internal, se_true, rtol=1e-12)
+    np.testing.assert_allclose(out.correlation, new / np.outer(se_true, se_true),
+                               atol=1e-12)
+    for c in (out.correlation,
+              rechart_outcome(_fake_outcome(theta, np.where(np.arange(n) == y, np.inf, se),
+                                            corr), table.x0(), t).correlation):
+        assert np.abs(np.diag(c) - 1.0).max() < 1e-12
+        assert np.linalg.eigvalsh(c).min() > 0.0
