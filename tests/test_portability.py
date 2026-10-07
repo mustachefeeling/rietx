@@ -157,7 +157,9 @@ def _text_io_calls(tree: ast.AST, source: str) -> list[tuple[ast.Call, str]]:
         # cannot be given.  _NOT_FILE_IO cannot express this: it substring-
         # matches the receiver, and "os" matches any receiver spelling those
         # letters, so the exemption is an exact-receiver test instead.
-        if name == "open" and receiver == "os":
+        # Pillow's Image.open is the same case: it returns an image and takes
+        # no `encoding=` (WP-1544's notebook figure encoder reads one back).
+        if name == "open" and receiver in ("os", "Image"):
             continue
         if any(bad in receiver for bad in _NOT_FILE_IO):
             continue

@@ -219,6 +219,13 @@ both were checked by eye at display size.
 therefore read only where no backend registered a formatter. The registration
 for the subclass is what takes effect in a notebook.
 
+Fast suite `-m "not slow"` on this change: 8594 passed, 167 skipped, 2 failed.
+That is 8763 in total, +1 for the new encoding test. One failure is the
+known `toy_anomalous` golden. The other was `test_portability` flagging
+Pillow's `Image.open` as text I/O. It now sits beside `os.open` in that test's
+exact-receiver exemption, and the file passes (14). Another pytest process was
+running, so no wall time is quoted.
+
 **Next:** WP-1545 is unchanged, and its Context now carries these figures.
 
 ### 2026-10-07 — closed: objects print readably, and figures show in a notebook
