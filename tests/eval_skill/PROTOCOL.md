@@ -350,7 +350,9 @@ against a floor. A case's floor is the fewest of its N = 3 runs that must pass.
 The floors live in `floors.json` beside this file, keyed first by model as
 `--model` names it and then by case. `readout.py floors RESULT.json` prints
 the fire and quiet rates and each case's passes beside its floor. It exits 1
-only when a case passed fewer runs than its floor. A model or a case with no
+only when a case passed fewer runs than its floor. A run with no score, an
+error of the harness rather than of the agent, counts against no floor and is
+printed as errored. A model or a case with no
 floor fails nothing, and the output says so.
 
 `floors.json` starts empty. The first tier-0 run under Amendment 1.2 sets the

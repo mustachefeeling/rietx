@@ -648,6 +648,15 @@ def test_floors_fail_only_a_case_below_its_floor():
     assert below == [] and any(line.startswith("no floors recorded for haiku yet") for line in lines)
 
 
+def test_an_errored_run_counts_against_no_floor():
+    round_ = _tier0_round()
+    round_["cases"][0]["arms"]["with"][2]["passed"] = None   # f: pass, pass, errored
+    lines, below = R.check_floors(round_, {"haiku": {"f": 3}})
+    assert below == [] and any("2/3 passed, 1 errored, floor 3" in line for line in lines)
+    round_["cases"][0]["arms"]["with"][1]["passed"] = False  # f: pass, fail, errored
+    assert R.check_floors(round_, {"haiku": {"f": 3}})[1] == ["f"]
+
+
 def test_the_floors_cli_exits_on_a_case_below_and_starts_with_none_recorded(tmp_path, capsys):
     assert R.load(R.FLOORS) == {}  # PROTOCOL.md § Floors: the first real run records them
     result, floors = tmp_path / "r.json", tmp_path / "floors.json"

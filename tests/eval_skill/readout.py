@@ -446,7 +446,8 @@ def check_floors(summary: dict, floors: dict) -> tuple[list[str], list[str]]:
 
     ``floors`` maps a model, as the round passed it to ``--model``, to each
     case's fewest passing runs. A case with no floor, or a model with none,
-    fails nothing, and the lines say so.
+    fails nothing, and the lines say so. A run with no score (``passed`` is
+    None) is printed as errored and counts against no floor.
     """
     model = summary["model"]
     mine = floors.get(model) or {}
@@ -459,11 +460,15 @@ def check_floors(summary: dict, floors: dict) -> tuple[list[str], list[str]]:
     below = []
     for case in summary["cases"]:
         runs = case["arms"].get("with") or []
-        passed = sum(bool(r["passed"]) for r in runs)
+        passed = sum(r["passed"] is True for r in runs)
+        # a run with no score is the harness's (a timeout, a rate limit), so it
+        # counts against nothing: below only if it misses with those passing too
+        errored = sum(r["passed"] is None for r in runs)
         floor = mine.get(case["name"])
-        low = floor is not None and passed < floor
-        lines.append(f"{case['name']:26s} {passed}/{len(runs)} passed, floor "
-                     f"{'-' if floor is None else floor}" + ("  BELOW" if low else ""))
+        low = floor is not None and passed + errored < floor
+        lines.append(f"{case['name']:26s} {passed}/{len(runs)} passed"
+                     + (f", {errored} errored" if errored else "")
+                     + f", floor {'-' if floor is None else floor}" + ("  BELOW" if low else ""))
         if low:
             below.append(case["name"])
     ran = {c["name"] for c in summary["cases"]}
