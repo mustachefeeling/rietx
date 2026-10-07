@@ -2,6 +2,7 @@
 
     python tests/eval_skill/readout.py show    RESULT.json [--build BUILD.json] [--json]
     python tests/eval_skill/readout.py compare CURRENT.json CANDIDATE.json [CURRENT.json CANDIDATE.json ...]
+    python tests/eval_skill/readout.py floors  RESULT.json [--floors FLOORS.json]
 
 WP-1905; `PROTOCOL.md` § Read-outs and § The decision rule are what this
 computes. `show` prints one round per case and arm: the comparable score of
@@ -12,7 +13,9 @@ errors and void runs are listed under the table, never dropped. `compare` takes
 rounds in (today's body, candidate) pairs on one model and applies the decision
 rule to each pair: exit 0 when it holds, 1 when a case loses more than one
 grader's worth, 2 when a pair cannot be decided (a partial round, two models,
-N short of 3 after void or unscored runs, graders that differ).
+N short of 3 after void or unscored runs, graders that differ). `floors` reads
+one round against ``floors.json`` (PROTOCOL.md § Floors) and exits 1 only on a
+case that passed fewer runs than its recorded floor.
 
 **The score is recomputed, never read off the harness.** A two-arm run drops
 every `tool_used: Skill` and `arm: with-only` grader from both arms, and
@@ -54,6 +57,8 @@ from tests.eval_skill.build import STAMP  # noqa: E402
 
 #: Runs per arm the decision rule reads (PROTOCOL.md § Models, N).
 N = 3
+#: Per model, per case: the fewest passing runs of `N` (PROTOCOL.md § Floors).
+FLOORS = HERE / "floors.json"
 #: Directories any run may name besides its own, the loaded skill's and the
 #: interpreter's environment.
 SYSTEM = tuple(PurePosixPath(p) for p in
@@ -434,6 +439,44 @@ def render_compare(out: dict, current: str, candidate: str) -> str:
     return "\n".join(lines)
 
 
+# --- the floors --------------------------------------------------------------
+
+def check_floors(summary: dict, floors: dict) -> tuple[list[str], list[str]]:
+    """The lines to print and the cases below their floor, for one round.
+
+    ``floors`` maps a model, as the round passed it to ``--model``, to each
+    case's fewest passing runs. A case with no floor, or a model with none,
+    fails nothing, and the lines say so. A run with no score (``passed`` is
+    None) is printed as errored and counts against no floor.
+    """
+    model = summary["model"]
+    mine = floors.get(model) or {}
+    rates = tier0_rates(summary)
+    lines = [f"model {model}" + (", tier 0: " + ", ".join(
+        f"{k} rate {hit}/{n}" for k, (hit, n) in sorted(rates.items())) if rates else "")]
+    if not mine:
+        lines.append(f"no floors recorded for {model} yet, so no case can fail "
+                     "(PROTOCOL.md § Floors)")
+    below = []
+    for case in summary["cases"]:
+        runs = case["arms"].get("with") or []
+        passed = sum(r["passed"] is True for r in runs)
+        # a run with no score is the harness's (a timeout, a rate limit), so it
+        # counts against nothing: below only if it misses with those passing too
+        errored = sum(r["passed"] is None for r in runs)
+        floor = mine.get(case["name"])
+        low = floor is not None and passed + errored < floor
+        lines.append(f"{case['name']:26s} {passed}/{len(runs)} passed"
+                     + (f", {errored} errored" if errored else "")
+                     + f", floor {'-' if floor is None else floor}" + ("  BELOW" if low else ""))
+        if low:
+            below.append(case["name"])
+    ran = {c["name"] for c in summary["cases"]}
+    lines += [f"{name}: has a floor and is not in this round" for name in sorted(set(mine) - ran)]
+    lines.append(f"floors: {len(below)} below ({', '.join(below)})" if below else "floors: none below")
+    return lines, below
+
+
 EXIT = {"holds": 0, "fails": 1, "undecided": 2}
 
 
@@ -446,7 +489,14 @@ def main(argv: list[str] | None = None) -> int:
     show.add_argument("--json", action="store_true", help="print every read-out as JSON")
     pair = sub.add_parser("compare", help="the decision rule, per (current, candidate) pair")
     pair.add_argument("results", type=Path, nargs="+")
+    floors = sub.add_parser("floors", help="one round against each case's recorded floor")
+    floors.add_argument("result", type=Path, help="aggregate-result.json, or --json's file")
+    floors.add_argument("--floors", type=Path, default=FLOORS, help="default: %(default)s")
     args = ap.parse_args(argv)
+    if args.verb == "floors":
+        lines, below = check_floors(summarise(load(args.result)), load(args.floors))
+        print("\n".join(lines))
+        return 1 if below else 0
     if args.verb == "show":
         summary = summarise(load(args.result), load(args.build) if args.build else None)
         print(json.dumps(summary, indent=1) if args.json else render(summary, args.result.name))

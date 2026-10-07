@@ -1,0 +1,50 @@
+name: model-watch
+
+# A reminder to run skill-eval.yml when a new Haiku or Sonnet model appears
+# (WP-1907).  tests/eval_skill/model_watch.py reads the public models page and
+# names any ID missing from tests/eval_skill/models_seen.txt; this job then
+# opens one issue, unless an open one with the same title exists.  It needs no
+# credential.  A page that yields no ID fails the job red, so a moved page
+# cannot leave the reminder silently dead.
+
+on:
+  schedule:
+    # 07:00 UTC on Mondays
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - id: watch
+        # stdlib only, so the runner's own python serves
+        run: python3 tests/eval_skill/model_watch.py
+      - name: Open the reminder
+        if: steps.watch.outputs.new != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW: ${{ steps.watch.outputs.new }}
+          TITLE: "Skill eval: a new Haiku or Sonnet model is listed"
+        run: |
+          if gh issue list --state open --limit 200 --json title --jq '.[].title' | grep -Fxq "$TITLE"; then
+            echo "An open issue already carries this title; not opening another."
+            exit 0
+          fi
+          {
+            echo "The models page lists IDs that tests/eval_skill/models_seen.txt does not:"
+            echo
+            for id in $NEW; do echo "- \`$id\`"; done
+            echo
+            echo "Run the skill-eval workflow (Actions, skill-eval, Run workflow) with the model the new ID is, and read its floors step."
+            echo "Then add the IDs above to tests/eval_skill/models_seen.txt."
+            echo
+            echo "_Opened by model-watch.yml, a workflow Claude wrote for WP-1907._"
+          } > body.md
+          gh issue create --title "$TITLE" --body-file body.md

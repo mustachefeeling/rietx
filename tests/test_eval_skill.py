@@ -130,14 +130,14 @@ def test_every_fixture_source_exists(case):
     for verb, source, _ in rows:
         if verb == "copy":
             assert (REPO / source).is_file(), source
-        else:
+        elif verb == "episode":
             assert source in B.EPISODES
 
 
 def test_inputs_refuse_what_they_cannot_read():
-    assert B.parse_inputs("copy a/b.txt as c.txt\n# note\nepisode placement\n") == [
-        ("copy", "a/b.txt", "c.txt"), ("episode", "placement", "")]
-    for bad in ("cp a b", "copy a b c", "episode nowhere", "copy"):
+    assert B.parse_inputs("copy a/b.txt as c.txt\n# note\nepisode placement\nempty d.xy\n") == [
+        ("copy", "a/b.txt", "c.txt"), ("episode", "placement", ""), ("empty", "", "d.xy")]
+    for bad in ("cp a b", "copy a b c", "episode nowhere", "copy", "empty", "empty a b"):
         with pytest.raises(ValueError, match="line 1"):
             B.parse_inputs(bad)
 
@@ -170,6 +170,30 @@ def test_the_trigger_set_is_balanced_and_scored_in_both_arms():
         else:
             assert role == "Should not fire." and g["min"] == g["max"] == 0, case.name
     assert {r: len(v) for r, v in roles.items()} == {"Should fire.": 10, "Should not fire.": 10}
+
+
+#: A file name as a tier-0 prompt gives one: `quartz.xy`, `structure.cif`.
+FILE_NAME = re.compile(r"\b[A-Za-z][\w-]*\.[a-z]{2,4}\b")
+
+
+@pytest.mark.parametrize("case", sorted((B.CASES / "trigger").iterdir()), ids=lambda c: c.name)
+def test_every_file_a_trigger_prompt_names_starts_empty_in_its_workspace(case):
+    """PROTOCOL.md § Amendment 1.2: a prompt naming a file the workspace lacks
+    measures the workspace, so each name is an `empty` row of the case's inputs."""
+    _, body = _front(case / "prompt.md")
+    rows = B.parse_inputs((case / B.INPUTS).read_text(encoding="utf-8")) \
+        if (case / B.INPUTS).exists() else []
+    assert sorted(FILE_NAME.findall(body)) == sorted(n for v, _, n in rows if v == "empty")
+    assert all(v == "empty" for v, _, _ in rows), "tier 0 is handed names, never data"
+
+
+def test_an_empty_input_scaffolds_an_empty_file(built, tmp_path):
+    out, _ = built
+    case = out / "evals" / "trigger" / "fire-quartz-rietveld"
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    subprocess.run(["bash", str(case / "fixture.sh")], cwd=ws, check=True, env={"PATH": "/usr/bin:/bin"})
+    assert [(p.name, p.stat().st_size) for p in ws.iterdir()] == [("quartz.xy", 0)]
 
 
 def test_fap_judge_quotes_the_placement_rubric():
@@ -598,3 +622,76 @@ def test_the_cli_shows_a_round_beside_its_build_and_exits_on_the_rule(tmp_path, 
     assert f"note: both rounds name one plugin directory, {tmp_path}" in decided
     with pytest.raises(SystemExit):
         R.main(["compare", str(cur)])
+
+
+# --- the floors and the model watch (WP-1907) --------------------------------
+
+_FIRE = [_g("fired", "tool_used", tool="Skill", arm="both")]
+_QUIET = [_g("fired", "tool_used", tool="Skill", arm="both", min=0, max=0)]
+
+
+def _tier0_round() -> dict:
+    return R.summarise(_doc("haiku", {"f": (_FIRE, [[True], [True], [False]], None),
+                                      "q": (_QUIET, [[True]] * 3, None)}, ablation="none"))
+
+
+def test_floors_fail_only_a_case_below_its_floor():
+    round_ = _tier0_round()
+    lines, below = R.check_floors(round_, {"haiku": {"f": 2, "q": 3}})
+    assert below == [] and lines[0] == "model haiku, tier 0: fire rate 2/3, quiet rate 3/3"
+    lines, below = R.check_floors(round_, {"haiku": {"f": 3, "gone": 1}})
+    assert below == ["f"]
+    assert "gone: has a floor and is not in this round" in lines  # said, never failed
+    assert lines[-1] == "floors: 1 below (f)"
+    # Another model's floors are not this round's.
+    lines, below = R.check_floors(round_, {"sonnet": {"f": 3}})
+    assert below == [] and any(line.startswith("no floors recorded for haiku yet") for line in lines)
+
+
+def test_an_errored_run_counts_against_no_floor():
+    round_ = _tier0_round()
+    round_["cases"][0]["arms"]["with"][2]["passed"] = None   # f: pass, pass, errored
+    lines, below = R.check_floors(round_, {"haiku": {"f": 3}})
+    assert below == [] and any("2/3 passed, 1 errored, floor 3" in line for line in lines)
+    round_["cases"][0]["arms"]["with"][1]["passed"] = False  # f: pass, fail, errored
+    assert R.check_floors(round_, {"haiku": {"f": 3}})[1] == ["f"]
+
+
+def test_the_floors_cli_exits_on_a_case_below_and_starts_with_none_recorded(tmp_path, capsys):
+    assert R.load(R.FLOORS) == {}  # PROTOCOL.md § Floors: the first real run records them
+    result, floors = tmp_path / "r.json", tmp_path / "floors.json"
+    result.write_text(json.dumps(_doc("haiku", {"f": (_FIRE, [[True], [False], [False]], None)},
+                                      ablation="none")), encoding="utf-8")
+    assert R.main(["floors", str(result)]) == 0
+    assert "no floors recorded for haiku yet" in capsys.readouterr().out
+    floors.write_text(json.dumps({"haiku": {"f": 2}}), encoding="utf-8")
+    assert R.main(["floors", str(result), "--floors", str(floors)]) == 1
+    assert "f                          1/3 passed, floor 2  BELOW" in capsys.readouterr().out
+
+
+_PAGE = """<a href="/claude-haiku-4-5-system-card">card</a>
+<code>claude-haiku-4-5-20251001</code> <code>anthropic.claude-haiku-4-5-20251001-v1:0</code>
+<code>claude-haiku-4-5@20251001</code> <code>claude-sonnet-5-5</code> <code>claude-opus-5-5</code>"""
+
+
+def test_the_model_watch_reads_haiku_and_sonnet_ids_without_their_noise():
+    from tests.eval_skill import model_watch as W
+
+    found = W.model_ids(_PAGE)
+    assert found == {"claude-haiku-4-5", "claude-haiku-4-5-20251001", "claude-sonnet-5-5"}
+    assert W.new_ids(found, W.seen_ids("# note\nclaude-haiku-4-5\n\nclaude-sonnet-5-5  # x\n")) == [
+        "claude-haiku-4-5-20251001"]
+    seen = W.seen_ids(W.SEEN.read_text(encoding="utf-8"))
+    assert seen and all(W.model_ids(s) == {s} for s in seen), "the seeded list reads as IDs"
+
+
+def test_the_model_watch_fails_on_a_page_with_no_id_and_reports_new_ones(tmp_path, monkeypatch, capsys):
+    from tests.eval_skill import model_watch as W
+
+    out = tmp_path / "github_output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    assert W.main(page="<html>moved</html>") == 1  # a dead watch is red, never quiet
+    assert not out.exists()
+    assert W.main(page=_PAGE + " claude-sonnet-9") == 0
+    assert out.read_text(encoding="utf-8") == "new=claude-sonnet-9\n"
+    assert "new: claude-sonnet-9" in capsys.readouterr().out

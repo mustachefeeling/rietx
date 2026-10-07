@@ -1,0 +1,2 @@
+# The file the prompt names, empty: PROTOCOL.md § Amendments, 2026-10-07.
+empty sample.xye
