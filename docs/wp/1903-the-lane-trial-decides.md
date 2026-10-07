@@ -176,6 +176,9 @@ python3 .claude/hooks/session_usage.py baseline --u U --mo MO --d D
 
   *Measured* (2026-10-07, this Mac; the replay reads 46 WP sessions from
   2026-09-20 on, since older transcripts have aged out).
+  - The acceptance's pytest line: 112 passed (`.venv` with `[dev]`, macOS).
+    No test was added. The fast selection did not run, because the branch
+    changes only a hook script's printed labels and docs.
   - Trial medians over the nine rows: re-read 3K, 10 main requests per lane,
     16K left in main, actual/estimated requests 1.60. Weighted per lane
     instead: 0K, 8, 15K.
