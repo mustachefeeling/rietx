@@ -1135,6 +1135,7 @@ if klass is not None:
 | `two_theta_limits` | the whole pattern | the range classes are enumerated and judged over |
 | `k_sigma` | 3 | the matching window, in units of each line's σ |
 | `max_classes` | `None` | cap the number of classes fitted |
+| `refine_cell` | `False` | free the cell in the shared profile fit, so every class is screened at the refined cell (`ExtinctionScreen.cell`) |
 | `cancel` | `None` | cooperative cancellation |
 
 The pipeline is one shared profile fit of the absence-free lattice group, a
@@ -1144,6 +1145,16 @@ reference, and finally a direct absence test: intensity at a position the class
 forbids refutes it, with the hkl named. Every class is fitted with the shared
 instrument frozen, so no class can compensate a missing reflection with a wider
 peak.
+
+The cell is held at the candidate's, so it has to be good. With
+`refine_cell=False` a cell off by a few parts in 10⁴ leaves a tan θ position
+error that the shared fit's one shift cannot absorb, and a line the true class
+forbids then shows intensity at its position: on the IUCr round-robin SRM 676a
+corundum (`tests/data/qarr/corundum.prn`) the certified cell gives `R - c -`
+and the same cell scaled by 1.0012 gives `R - - -`, whose members exclude
+`R -3 c`. Refine the cell by Le Bail first and screen that, or pass
+`refine_cell=True`, which frees it inside the shared fit (after the shift,
+before the widths); the classes still differ only in their reflection sets.
 
 The candidate's `CellCandidate.system` is taken as given rather than
 re-screened, because when the Bravais screen reported an ambiguity that field
