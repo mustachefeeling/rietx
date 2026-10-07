@@ -221,6 +221,20 @@ coefficient at its floor, filed as WP-1914) and gave evidence to three open WPs.
   fails every rung (`SEQUENTIAL_RWP_OUTLIER`, Rwp 0.97) and its successor is
   reseeded.
 
+- Fast selection on this branch with `main` merged at `57aa2c1f` (1544's
+  merge), `[dev]`, macOS arm64, alone on the machine: 8713 passed, 167
+  skipped, 2 failed in 4:06. One failure was this branch's: the stale-name
+  guard matched an old three-letter token inside base64 figures, fixed by
+  skipping `.ipynb` image lines. The other,
+  `test_backend_shim[toy_anomalous]` (1.6e-11 off its golden), fails on bare
+  `main` too and in 1544's tree; WP-1905's log and #760 own it. Added: 18
+  cases in 10 functions, minus `test_examples.py`'s two FAP cases, so +16 by
+  count; `main` was not re-measured. `test_tutorial_executes_clean` costs
+  65.3 s over 5 cases in one run: 03 at 25.3 s and 02 at 20.7 s are the fast
+  tier's 9th and 10th slowest. They stay unmarked because per-push execution
+  is the guard's value (`test_examples.py`'s reason), and both sit under the
+  tier's 57 s top.
+
 **Gotchas.**
 - `fit_peaks` on a whole picked list is no way to edit it: naming 97 of 105
   picks left 27 usable (unnamed neighbours flag their windows) and the index
