@@ -229,6 +229,22 @@ machine, `main` not moved since `57aa2c1f`: 8722 passed, 167 skipped, 1 failed
 (`toy_anomalous`, bare `main`'s) in 3:48. Total 8889 to 8890, this session's
 one added test; it costs under 0.01 s.
 
+**CI's py3.14 failure, after the merge of `main`.** Notebook 03's index cell
+wrote `qspace.py:404: RuntimeWarning: invalid value encountered in matmul` to
+stderr, with the runner's home path, so the build's guard refused it. An
+orthorhombic candidate whose lines leave one axis unconstrained has a zero
+A..F term and an infinite variance. `refine_candidate` propagated that as 0·inf
+before `cell_from_af` rejected the metric. OpenBLAS raises the flag and
+Accelerate does not (a 3×3 product with one inf: 8 NaNs, no warning, on this
+Mac). A probe reading the values found 15 such fits in the notebook's search,
+every one rejected. Fixed in `refine_candidate` by checking the metric first.
+Unit replay (`tests.unit_replay`, corundum and `synthmono_ip`, 15 units): every
+digest identical before and after. Indexing core, engines, consensus and
+tutorial tests: 175 passed, 1 skipped. Deliberately not generalised: a
+*surviving* candidate with a dead cross term still gets NaN for every esd
+(triclinic, eleven `h0l`/`0k0` lines: all six), and its fix changes the Bravais
+screen's tolerance and the dedup, so it is filed as WP-1915.
+
 **Gotchas.**
 - The earlier entry's "`QUOTED` in `tests/test_tutorials.py`" gotcha is now:
   any change to notebook 02's first cell or its output fails
