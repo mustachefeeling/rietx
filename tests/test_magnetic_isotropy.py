@@ -3270,10 +3270,10 @@ def test_propagation_carries_only_proofs_and_refuses_two_that_disagree():
                 (3, 0): isotropy.PairVerdict(3, 0, "sampled-contained", None, 2, 0),
                 (0, 2): isotropy.PairVerdict(0, 2, "sampled-contained", None, 3, 0)}
     isotropy._propagate(source, verdicts, list(copies), 5)
-    for key in ((0, 4), (1, 3), (1, 4)):
+    for key, spent in {(0, 4): 0, (1, 3): 12, (1, 4): 0}.items():   # a drawn direction keeps its 12 draws
         v = verdicts[key]
         assert (v.status, v.certificate, v.draws, v.via, v.d, v.dual) == \
-            ("proved-not", "propagated", 0, (0, 3), (0.01, 0.1), 1e-6), key
+            ("proved-not", "propagated", spent, (0, 3), (0.01, 0.1), 1e-6), key
     assert verdicts[(3, 0)].status == "sampled-contained"        # the other direction is not the source's
     assert verdicts[(0, 2)].status == "sampled-contained"        # 2 is nobody's copy
     assert (0, 3) not in verdicts                                # the source itself is the caller's
