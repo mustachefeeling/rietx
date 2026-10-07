@@ -159,6 +159,12 @@ class ParameterRow(Base):
         return (not self.locked and self.tie is None and not self.mode_fixed
                 and not self.held and not self.needs_held_cell)
 
+    def __str__(self) -> str:
+        """``path  value(esd)  state`` on one line, so a list of rows reads as
+        a table (WP-1544)."""
+        from .._display import parameter_cells
+        return "  ".join(parameter_cells(self))
+
     @property
     def held_because(self) -> str:
         """Why this row cannot be freed, or ``""`` when it can be.

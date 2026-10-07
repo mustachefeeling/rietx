@@ -83,6 +83,17 @@ class PatternData(Base):
             mask &= ~((tt >= lo) & (tt <= hi))
         return mask
 
+    def __str__(self) -> str:
+        """The range and step on one line, then what was measured beside it
+        (WP-1544). ``sigma: None`` and an empty ``excluded_regions`` are printed,
+        because whether the file carried σ decides the weights."""
+        from .._display import tree
+        tt = self.tt()
+        head = (f"PatternData of {tt.size} points, {tt[0]:g}–{tt[-1]:g}° 2θ, "
+                f"median step {float(np.median(np.diff(tt))):.4g}°")
+        return tree(self, order=("intensity", "sigma", "excluded_regions", "metadata"),
+                    show_empty=True, head=head)
+
     def plot(self, path: str | None = None, **kw):
         """Draw the pattern with no model: :func:`rietx.viz.plots.plot_pattern`,
         the peer of :meth:`RefinementResult.plot`, forwarding ``**kw``."""

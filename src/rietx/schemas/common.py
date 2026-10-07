@@ -496,6 +496,21 @@ class Base(BaseModel):
         for name, value in super().__repr_args__():
             yield name, summarise(value)
 
+    def __str__(self) -> str:
+        """An indented field tree, one line per parameter (WP-1544).
+
+        ``repr`` stays pydantic's one line, for logs and debugging; ``str`` and
+        ``print`` are for reading. A schema with a designed view (a result's
+        termination view) overrides this.
+        """
+        from .._display import tree
+        return tree(self)
+
+    def _repr_pretty_(self, p, cycle) -> None:
+        """IPython's text: the same as ``print``, so a notebook cell and a
+        terminal agree."""
+        p.text(f"{type(self).__name__}(...)" if cycle else str(self))
+
 
 class Parameter(Base):
     """A single refinable scalar.

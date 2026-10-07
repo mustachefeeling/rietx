@@ -129,12 +129,12 @@ matplotlib for the rest of the session.
 - [x] **`Base.__repr_args__` elision.** A list, tuple or array longer than
   eight items renders as a count and a range (`<5753 floats 15.0…130.04>`), or
   as a count and a type for a list of models (`<212 Reflection>`).
-- [ ] **A text tree for nested models.** `Base.__str__` becomes an indented
+- [x] **A text tree for nested models.** `Base.__str__` becomes an indented
   field tree, one line per `Parameter`: value(esd) through
   `crystallography.cif.format_su`, unit through `help.UNIT_DISPLAY`, vary and
   bounds. `Base._repr_pretty_` returns `str(self)`. First grep `src` for
   `str(model)` and f-string uses whose text a message or test depends on.
-- [ ] **Designed text views** where a tree is the wrong shape, reading fields
+- [x] **Designed text views** where a tree is the wrong shape, reading fields
   only. `PatternData`: points, range, step, σ source, excluded regions,
   metadata. `PatternDiagnostics`: fields in its docstring's reading order.
   `IndexingResult`: `cli._print_index` (`cli.py:342-383`) moves here, and the
