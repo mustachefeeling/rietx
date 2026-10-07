@@ -687,7 +687,7 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     in 10⁴ leaves a tan θ position error the shared fit's one shift cannot
     absorb, and the true class can be refuted at an absent-line position (SRM
     676a corundum: ``R - c -`` at the certified cell, ``R - - -`` once the cell
-    is scaled by 1.0008, #726).  ``refine_cell=True`` frees the cell in the
+    is scaled by 1.0012, the factor the test measures, #726).  ``refine_cell=True`` frees the cell in the
     shared profile fit, after the shift and before the widths, and every class
     is then screened at the refined cell (``ExtinctionScreen.cell`` is that
     cell); the classes still differ only in their reflection sets.
