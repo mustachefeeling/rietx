@@ -847,3 +847,24 @@ def test_a_body_atom_under_le_bail_names_the_mode():
         assert row.held_because == "force-fixed by the intensity mode (lebail/pawley)"
     row = {r.path: r for r in ref.parameters(mode="rietveld")}["phases.0.atoms.2.x"]
     assert row.held_because.startswith("placed by rigid body 'c6br'")
+
+
+def test_an_antiparallel_carry_turns_the_linear_body_half_way():
+    """A linear body's carried axis flipped by 180° (#801).  Exactly, sin = 0
+    read as parallel: δω = 0, the end atoms swapped.  Here, as built, sin is
+    6e-17 of rounding, and the cross product's noise along the axis — which
+    E's plane drops — shortened the half turn: 9.7e-6 off in a coordinate.
+    Now the axis is projected normal to the body's, and every atom lands."""
+    from rietx.sequential import _carry_into
+
+    r = np.asarray(rotation.matrix_from_quaternion(np.asarray(Q_TRUE)))
+    flip = r @ np.asarray(rotation.matrix_from_vector(np.array([math.pi, 0.0, 0.0])))
+    q_flip = rotation.canonical_quaternion(rotation.quaternion_from_matrix(flip))
+    source = linear_structure(Q_TRUE)
+    target = linear_structure(q_flip)
+    a0, b0 = target.phases[0].atoms[0], source.phases[0].atoms[0]
+    assert abs(a0.x.value - b0.x.value) + abs(a0.y.value - b0.y.value) > 1e-2
+    _carry_into(target, INS.model_copy(deep=True), (source, INS), ["*"])
+    for a, b in zip(target.phases[0].atoms, source.phases[0].atoms, strict=True):
+        for c in "xyz":
+            assert abs(getattr(a, c).value - getattr(b, c).value) < 1e-12

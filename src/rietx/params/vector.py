@@ -2579,8 +2579,21 @@ class ParameterTable:
                 a, b = block.r0 @ u, r_t @ u
                 axis = np.cross(a, b)
                 sin, cos = float(np.linalg.norm(axis)), float(a @ b)
-                omega = (np.zeros(3) if sin == 0.0
-                         else axis / sin * math.atan2(sin, cos))
+                # near antiparallel the cross product is rounding noise, with
+                # a component along ``a`` that E's plane would drop, shortening
+                # the turn (1e-5 in a coordinate at sin = 6e-17); any axis
+                # normal to ``a`` is exact there, so project onto that plane
+                axis = axis - (axis @ a) * a
+                norm = float(np.linalg.norm(axis))
+                if norm != 0.0:
+                    omega = axis / norm * math.atan2(sin, cos)
+                elif cos > 0.0:
+                    omega = np.zeros(3)
+                else:
+                    # exactly antiparallel: a half turn about any axis normal
+                    # to the body's, and E's first column is one (#801)
+                    e0 = block.axes[:, 0]
+                    omega = math.pi * e0 / np.linalg.norm(e0)
             theta, *_ = np.linalg.lstsq(block.axes, omega, rcond=None)
             for path, value in zip(paths, theta, strict=True):
                 e = self.entries[self._paths[path]]
