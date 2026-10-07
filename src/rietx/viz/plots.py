@@ -318,6 +318,82 @@ def _pyplot():
     return plt
 
 
+#: What a figure shown in a notebook cell is encoded at (WP-1544): twice a
+#: 100-dpi screen, so it is sharp on a HiDPI display and is drawn at its
+#: designed size by the width the bundle declares, and a 256-colour palette.
+#: Measured on the FAP fit figure: 194 kB as a 300-dpi RGBA PNG, 52 kB this
+#: way, with 98.84 % of pixels unchanged and the rest antialiased edges within
+#: 31/255. A file written with ``path=`` or ``savefig`` is untouched.
+_NOTEBOOK_DPI = 100
+_NOTEBOOK_DENSITY = 2
+_NOTEBOOK_COLOURS = 256
+
+_FIGURE_CLASS = None
+
+
+def _figure_class():
+    """The ``Figure`` every rietx plot draws on: matplotlib's own, with a
+    notebook encoding of its own (:data:`_NOTEBOOK_DPI`).
+
+    IPython ranks a PNG formatter registered for a type above any method on
+    the object, and the inline backend registers one for ``Figure``, which a
+    subclass inherits through its MRO. So the encoder is registered for this
+    subclass alone, in a running IPython: the caller's own figures keep the
+    backend's formatter. ``_repr_png_`` answers where no formatter is
+    registered at all. Built on first use, because this module imports
+    matplotlib lazily.
+    """
+    global _FIGURE_CLASS
+    if _FIGURE_CLASS is None:
+        from matplotlib.figure import Figure
+
+        class _NotebookFigure(Figure):
+            def _repr_png_(self):
+                return _notebook_png(self)
+
+        _FIGURE_CLASS = _NotebookFigure
+    _register_notebook_png(_FIGURE_CLASS)
+    return _FIGURE_CLASS
+
+
+def _register_notebook_png(cls) -> None:
+    """Point a running IPython's PNG formatter at :func:`_notebook_png` for
+    ``cls``. Nothing happens outside IPython, or once it is done."""
+    import sys
+    if "IPython" not in sys.modules:
+        return
+    from IPython import get_ipython
+    shell = get_ipython()
+    if shell is None:
+        return
+    formatter = shell.display_formatter.formatters["image/png"]
+    if cls not in formatter.type_printers:
+        formatter.for_type(cls, _notebook_png)
+
+
+def _notebook_png(fig) -> tuple[bytes, dict]:
+    """``fig`` as a notebook shows it: a PNG at :data:`_NOTEBOOK_DENSITY` times
+    :data:`_NOTEBOOK_DPI`, palette-quantised without dithering, with its width
+    and height in CSS pixels so the frontend draws it at its designed size.
+    ``(data, metadata)``, the pair an IPython formatter may return."""
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=_NOTEBOOK_DPI * _NOTEBOOK_DENSITY,
+                bbox_inches="tight", facecolor=fig.get_facecolor())
+    image = Image.open(io.BytesIO(buf.getvalue())).convert("RGB")
+    palette = image.quantize(colors=_NOTEBOOK_COLOURS,
+                             method=Image.Quantize.MEDIANCUT,
+                             dither=Image.Dither.NONE)
+    out = io.BytesIO()
+    palette.save(out, format="PNG", optimize=True)
+    width, height = image.size
+    return out.getvalue(), {"width": width // _NOTEBOOK_DENSITY,
+                            "height": height // _NOTEBOOK_DENSITY}
+
+
 def _handed_back(fig):
     """``fig``, detached from pyplot when the backend is a notebook's inline one.
 
@@ -563,7 +639,7 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
             figsize = (7.6, 4.4) if inline else (7.6, 5.6)
         left, right, top_m, bottom_m = 0.13, 0.805, 0.965, 0.125
         if inline:
-            fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+            fig, ax = plt.subplots(figsize=figsize, dpi=dpi, FigureClass=_figure_class())
             axd = None
             hspace = 0.0
         else:
@@ -577,7 +653,7 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
             upper_in = avail - gap_in - lower_in
             hspace = gap_in / (0.5 * (upper_in + lower_in))
             fig, (ax, axd) = plt.subplots(
-                2, 1, figsize=figsize, dpi=dpi, sharex=True,
+                2, 1, figsize=figsize, dpi=dpi, FigureClass=_figure_class(), sharex=True,
                 gridspec_kw={"height_ratios": [upper_in, lower_in]})
         # explicit margins rather than tight_layout: the gutter on the right is
         # reserved for the labels, and the row spacing below needs to know the
@@ -836,7 +912,7 @@ def plot_pattern(data, *, path: str | None = None,
     with _style_context(plt, style, font_size):
         if figsize is None:
             figsize = (7.6, 4.4)
-        fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+        fig, ax = plt.subplots(figsize=figsize, dpi=dpi, FigureClass=_figure_class())
         fig.subplots_adjust(left=0.13, right=0.805, top=0.965, bottom=0.125)
 
         x0, x1 = float(x.min()), float(x.max())
@@ -964,7 +1040,7 @@ def plot_for_vlm(result: RefinementResult, report=None, *,
 
     regions = sorted(report.regions, key=lambda r: -r.chi2_share)[:n_regions]
     n_cols = max(len(regions), 1)
-    fig = plt.figure(figsize=(3.2 * max(n_cols, 3), 8.5), dpi=dpi)
+    fig = plt.figure(figsize=(3.2 * max(n_cols, 3), 8.5), dpi=dpi, FigureClass=_figure_class())
     gs = fig.add_gridspec(3, n_cols, height_ratios=[2.2, 1.0, 1.6], hspace=0.45)
 
     # -- panel 1: full pattern
@@ -1075,7 +1151,7 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     outliers = {e.label for e in series.entries if e.above_fence}
 
     fig, axes = plt.subplots(len(paths), 1, figsize=(8, 2.4 * len(paths)),
-                             dpi=dpi, sharex=True, squeeze=False)
+                             dpi=dpi, FigureClass=_figure_class(), sharex=True, squeeze=False)
     for ax, name in zip(axes[:, 0], paths, strict=True):
         traj = series.resolve_trajectory(name)
         x, value, sd = traj.arrays()

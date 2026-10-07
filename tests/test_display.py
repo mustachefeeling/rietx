@@ -207,6 +207,35 @@ def test_a_plot_in_a_kernel_shows_once_and_leaves_the_backend_alone():
     backend = "".join(o.get("text", "") for o in nb.cells[-1].outputs)
     assert "inline" in backend
 
+    # the notebook encoding reached the rietx figure (132 320 base64 chars at
+    # the figure's own 300 dpi, 34 392 encoded), and only the rietx figure
+    rietx_out = next(o for o in nb.cells[1].outputs if "image/png" in o.get("data", {}))
+    assert len(rietx_out["data"]["image/png"]) < 60_000
+    assert rietx_out["metadata"]["image/png"]["width"] < 800
+    plain_out = next(o for o in nb.cells[-1].outputs if "image/png" in o.get("data", {}))
+    assert "width" not in plain_out.get("metadata", {}).get("image/png", {})
+
+
+def test_a_notebook_figure_is_encoded_for_a_screen_and_files_are_not(fap, tmp_path):
+    """Twice a 100-dpi screen, a 256-colour palette, drawn at half its pixel
+    width; ``savefig`` still writes the figure's own dpi in full colour."""
+    pytest.importorskip("matplotlib")
+    import io
+
+    from PIL import Image
+
+    fig = fap["data"].plot()
+    data, md = fig._repr_png_()
+    image = Image.open(io.BytesIO(data))
+    assert image.mode == "P"
+    assert md == {"width": image.size[0] // 2, "height": image.size[1] // 2}
+    fig.savefig(tmp_path / "file.png")
+    saved = Image.open(tmp_path / "file.png")
+    assert saved.mode == "RGBA"
+    assert saved.size[0] == round(fig.get_figwidth() * fig.dpi) and fig.dpi == 300
+    import matplotlib.pyplot as plt
+    plt.close("all")
+
 
 @pytest.mark.parametrize("name", ["data", "instrument", "structure", "result", "ref"])
 def test_ipython_text_plain_stays_short(fap, name):
