@@ -116,7 +116,7 @@ and what the difference curve shows; QPA.
   page and `test_examples.py` repointed.
 - [ ] 03 Peaks, indexing, Le Bail.
 - [x] 04 Peak shape and microstructure.
-- [ ] 05 Sequential fits.
+- [x] 05 Sequential fits.
 - [ ] The designed views WP-1544 deferred, built only where a notebook needs
   one (`FitReport`, `ExtinctionScreen`).
 - [ ] `docs/RELEASING.md` step and the root CLAUDE.md sentence.
