@@ -52,8 +52,8 @@ re-reading its own diff.
    - **Between them go the working details** for the successor: *Done* /
      *Measured* / *In flight* / *Gotchas*, written for someone who has read
      only this WP file and CLAUDE.md.
-3b. **Measure this session's lanes**, if it ran under `/wp-lanes` (an `Agent`
-   call whose description starts `lane:`). Run
+3b. **Measure this session's lanes**, if it dispatched any under `/wp-start`
+   step 6c (an `Agent` call whose description starts `lane:`). Run
    `python3 .claude/hooks/session_usage.py lanes <session-id>`, where the id
    is the name of the directory that holds your scratchpad. Put its tables
    under the entry's *Measured*. Append its `trial row` to the table in

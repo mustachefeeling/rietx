@@ -1,4 +1,4 @@
-"""The session-usage script behind the lane trial (.claude/hooks/session_usage.py).
+"""The session-usage script that measures lanes (.claude/hooks/session_usage.py).
 
 It is stdlib-only and lives outside the package, so it is loaded by file path,
 like the workflow hooks in test_workflow_hooks.py, and driven against
@@ -161,3 +161,17 @@ def test_a_lane_written_under_the_worktree_is_found(tmp_path: Path, monkeypatch)
     ])
     (lane,) = su.measure_lanes(main)["lanes"]
     assert lane["item"] == "item 2" and lane["requests"] == 2
+
+
+@pytest.mark.parametrize("line", [
+    "lanes: keep item 1 ~8",
+    "`lanes: keep item 1 ~8`",
+    "- lanes: keep item 1 ~8",
+    "**lanes: keep item 1 ~8**",
+    "> lanes: keep item 1 ~8",
+])
+def test_a_decision_line_wrapped_in_markdown_is_still_read(line: str) -> None:
+    """`/wp-start` step 6c shows the form in backticks, so a session may copy
+    them; three trial sessions lost decision lines for a reason never found."""
+    assert su.DECISION.findall(f"Starting the item.\n{line}\nThen prose.") == [
+        ("keep", "item 1", "8")]

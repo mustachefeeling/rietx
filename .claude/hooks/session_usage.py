@@ -1,17 +1,17 @@
 """What a WP session's tokens cost, and what lanes would save or did save.
 
 A *lane* is a subagent that does one checklist item while the main session
-waits, then checks the diff and commits it (`/wp-lanes`).  This script reads
+waits, then checks the diff and commits it (`/wp-start` step 6c).  This script reads
 Claude Code's transcripts under ~/.claude/projects and answers three ways:
 
     python3 .claude/hooks/session_usage.py context SESSION_ID   # the main context now
-    python3 .claude/hooks/session_usage.py lanes SESSION_ID     # measure a /wp-lanes session
+    python3 .claude/hooks/session_usage.py lanes SESSION_ID     # measure a session that ran lanes
     python3 .claude/hooks/session_usage.py baseline [--u N] [--mo N] [--d N]
 
 The session id is the name of the session's scratchpad directory.  `baseline`
 reads every WP session of this repository on this machine (a session that made
 a `WP-NNNN:` commit), splits each at its WP commits into items, and replays the
-items under lane policies.  `lanes` measures a session run under `/wp-lanes`,
+items under lane policies.  `lanes` measures a session that dispatched lanes,
 whose dispatches carry the description `lane: <item> ~N` and whose decisions
 carry a line `lanes: keep|lane <item> ~N`.  It prints the three numbers the
 replay had to assume (what a lane re-reads, how many main requests a lane
@@ -52,7 +52,9 @@ LANE_BASE = 64_000          # an Opus 5.5 agent's first request here (median)
 DISPATCH_OUT = 2_000        # output tokens the main session spends on one dispatch prompt
 COMMIT = re.compile(r"git (?:-C \S+ )?commit")
 WP_MSG = re.compile(r"WP-(\d{4}):")
-DECISION = re.compile(r"^lanes: (keep|lane) (.+?) ~(\d+)\b", re.M)
+# A line of its own, though markdown may wrap it: `/wp-start` step 6c shows the
+# form in backticks, and a bullet, quote or bold copy of it is still the decision.
+DECISION = re.compile(r"^[ \t>*_`-]*lanes: (keep|lane) (.+?) ~(\d+)\b", re.M)
 LANE_PREFIX = "lane:"
 EDITS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 BASH_CLASSES = (
@@ -268,7 +270,7 @@ def subagent_dirs(main: Path) -> list[Path]:
 
     Beside ``main`` until the session enters a worktree.  After that its own
     transcript stays where it started while its agents land under the
-    worktree's project directory, so a /wp-lanes session that enters its tree
+    worktree's project directory, so a lane session that enters its tree
     second, as /wp-start says to, found none of its five lanes (WP-1531).
     """
     dirs = [main.parent / main.stem / "subagents"]
@@ -356,7 +358,8 @@ def baseline(us: list[float], mo: int, d: int) -> None:
         for m, v in sorted(bases.items()) if len(v) >= 5))
 
     ref = sum(replay(t, lambda m, n: False, 0) for t in ts)
-    print(f"\nreplay (modelled reads and writes ${ref:.0f}; mo={mo}, d={_k(d)}), saving by policy:")
+    print(f"\nreplay (modelled reads and writes ${ref:.0f}; mo={mo}, d={_k(d)}),"
+          " change by policy (negative is a saving):")
     print("| policy | items laned | " + " | ".join(f"u = {_k(u)}" for u in us) + " |")
     print("|---|---|" + "---|" * len(us))
     rows = list(POLICIES) + [
@@ -371,14 +374,14 @@ def baseline(us: list[float], mo: int, d: int) -> None:
             cells.append(f"{(new - ref) / ref:+.0%}")
         print(f"| {name} | {tally['laned']} | " + " | ".join(cells) + " |")
     u = us[len(us) // 2]
-    print(f"\nby the session's peak context (selective policy, u = {_k(u)}):")
+    print(f"\nby the session's peak context (selective policy, u = {_k(u)}; negative is a saving):")
     for lo, hi in ((0, 300_000), (300_000, 450_000), (450_000, 10**9)):
         sel = [t for t in ts if lo <= max(r.context for r in t.requests) < hi]
         a = sum(replay(t, lambda m, n: False, 0) for t in sel)
         b = sum(replay(t, POLICIES[2][1], u, mo=mo, d=d) for t in sel)
         # an empty band (a fresh container holds one session) has nothing to save
-        saving = f"{(a - b) / a:.0%}" if a else "n/a"
-        print(f"  {_k(lo)}-{_k(hi) if hi < 10**9 else 'up'}: {len(sel)} sessions, saving {saving}")
+        change = f"{(b - a) / a:+.0%}" if a else "n/a"
+        print(f"  {_k(lo)}-{_k(hi) if hi < 10**9 else 'up'}: {len(sel)} sessions, change {change}")
     _, o, r, w5, w1 = PRICES["opus"]
     print("\nitem length (requests) at which a lane pays, by main context:")
     for base in (80_000, 110_000):
@@ -390,7 +393,7 @@ def baseline(us: list[float], mo: int, d: int) -> None:
 
 
 def measure_lanes(main: Path) -> dict:
-    """Per lane and per kept item of one /wp-lanes session, measured."""
+    """Per lane and per kept item of one session that ran lanes, measured."""
     t = parse(main)
     subdirs = subagent_dirs(main)
     _, o, r, w5, w1 = PRICES["opus"]
