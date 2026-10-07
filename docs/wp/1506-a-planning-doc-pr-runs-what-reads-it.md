@@ -226,6 +226,44 @@ gh run list --workflow ci.yml --limit 10 --json headBranch,conclusion,createdAt,
 
 ## Handover log
 
+### 2026-10-06 — the planning set takes the session machinery
+
+PR #798 changed only `.claude/commands/pr-review.md` and a comment in
+`.claude/hooks/session_start.py`, and it ran the full matrix, because
+nothing under `.claude/` was in the planning set. The maintainer asked for
+the set to cover that kind of change.
+
+Measured as task 1 was, over one fast run on main `443c0c1a` (macOS arm64,
+`[dev,jax]`, 8523 passed, 103 skipped, 2 failed, both known on main). The
+audit hook was loaded through a temporary `.pth` file, because Homebrew's
+Python already ships a `sitecustomize`. It logged every open, listing and
+`git grep` under `.claude/`, tagged with the running test:
+
+- The four commands, `agents/pr-conformance.md`, the issue-review skill and
+  `settings.json` are opened by no test. `test_no_stale_name`'s `git grep`
+  reads them as it reads every tracked file.
+- `handover_owed`, `no_top_level_cd`, `session_start`, `worktree_create`,
+  `worktree_only`, `worktree_remove` and `wp_claim` are imported or run only
+  by `test_workflow_hooks`.
+- Three paths stay code:
+  - `session_usage.py`, which `test_session_usage` imports;
+  - `wp_index.py`, which `test_merge_replay` runs as a script;
+  - `skills/rietx/`, the shipped skill, which `test_skill_cli` reads.
+- The audit hook misses a script started as a program, because the
+  interpreter loads it without an audited open. A text search over `tests/`
+  for every file name above covered that gap, and it is how `wp_index.py`'s
+  second reader was found.
+- Ten unrelated test files logged an `os.listdir` of `.claude/hooks`. That
+  is the import system listing a `sys.path` entry that `test_workflow_hooks`
+  added in the same worker, not a read.
+
+`ci.yml`'s pattern now names those paths, and a hook not listed by name
+stays code. `tests/CLAUDE.md` § CI says the same. Checked against sample
+file lists with the pattern applied as the `changes` job applies it. #798's
+two files route to docs, and each of the three code paths, a new hook and
+`settings.local.json` route to code. This PR edits `ci.yml`, so it runs the
+full matrix itself. Task 7, the cut from two weeks of timings, is untouched.
+
 ### 2026-09-27 (2nd session, after the merge) — the skip is live
 
 The maintainer merged PR #504 at 13:55 UTC and moved branch protection to

@@ -276,13 +276,13 @@ CI runs the same commands (`.github/`). Per push and per ready PR (`ci.yml`):
 ruff + the fast suite across 3.11–3.14 plus a `[dev,jax]` fast job, Linux.
 **A PR changing only the planning set runs the tests that read it instead**
 (the `docs` job, WP-1506), so a new test reading `docs/wp/`, the milestones,
-releases, ROADMAP or DESIGN joins that job's list, or a docs-only PR skips it
-until the nightly. Branch protection requires `lint` and `ci-ok`, the job that
-says whether the suite `changes` chose passed. **A draft PR runs ruff
-alone**, the matrix waiting for `gh pr ready` (`ci.yml`'s header). Nightly
-(`nightly.yml`): the full suite `[dev,jax]` on Linux, the Windows fast suite
-(the OS classifier's backing and the release pre-upload gate), macOS fast +
-the informational goldens step (the guard in `test_backend_shim.py` is the
+releases, ROADMAP, DESIGN or listed `.claude/` files joins its list, or a
+docs-only PR skips it until the nightly. Branch protection requires `lint` and
+`ci-ok`, the job that says whether the suite `changes` chose passed. **A draft
+PR runs ruff alone**, the matrix waiting for `gh pr ready` (`ci.yml`'s header).
+Nightly (`nightly.yml`): the full suite `[dev,jax]` on Linux, the Windows fast
+suite (the OS classifier's backing and the release pre-upload gate), macOS fast
+plus the informational goldens step (the guard in `test_backend_shim.py` is the
 local half of that trade), and `[torch]`. **Read spend from the Actions usage
 page or `gh run list`, never from comments or this file**: a written
 cross-workflow total rots — one sat at 303 against a measured ≈495.
