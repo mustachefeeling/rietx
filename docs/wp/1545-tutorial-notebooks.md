@@ -126,6 +126,18 @@ and what the difference curve shows; QPA.
   checklist is drawn from `SKILL.md` §4 and §4b, so an agent would read them
   for no rule it lacks. They also ship in the repository, not the wheel.
 
+**The maintainer's review round (2026-10-07):**
+
+- [x] Authorship at the top of each notebook and the README.
+- [x] The install as a `%pip` cell, never executed by a build.
+- [x] 01 explains `ftol` in the stage lines.
+- [x] A history summary that does not run off the screen (`HistoryTree.summary`).
+- [x] The `.rex` project layout, in 02.
+- [x] 03 names the GUI's Peaks tab and its gestures.
+- [x] matplotlib a dependency, `viz` kept as an empty extra, the docs swept.
+- [x] 05: a series is a list; loading one from files under two naming conventions.
+- [x] 05: `carry` written out and explained.
+
 ## Acceptance
 
 Every notebook executes in the fast tier. The committed `.ipynb` cells equal
@@ -143,6 +155,46 @@ their sources. No output carries a home path.
 - Data provenance and licences: `tests/data/README.md`.
 
 ## Handover log
+
+### 2026-10-07 (2nd entry) — the maintainer's review round
+
+The maintainer read the notebooks and asked for nine changes, all made on
+this branch. Two reach beyond the notebooks. `pip install rietx` now installs
+matplotlib, because every tutorial and the landing page draw figures, and a
+base install that could not draw them was the one people met. And a
+refinement's history prints as a graph whose straight runs stay in one column,
+because indenting every stage put notebook 02's 51 nodes far off the right of
+the screen; agents read that same text.
+
+**Done.**
+- `HistoryTree.summary` indents a fork, never a step, with a loop for a chain
+  (a 1000-node chain no longer recurses 1000 deep). Test pins both halves; the
+  quickstart's quoted tree was re-captured from `nac_11bm.py` (same numbers),
+  and `using/history.md` describes the new shape.
+- matplotlib ≥ 3.10.5 is a dependency: the first release whose wheels cover
+  cp314 (3.10.0-3.10.4 have none, measured on PyPI), the rule numba's floor
+  follows. `viz = []` stays, as `gui = []` did. The import is still lazy and the
+  `--no-deps` guard names matplotlib itself. README, `using/install.md`
+  (dependency table, extras table with the missing `notebooks` row),
+  `exports.md`, `files.md`, `quickstart.md`, ATTRIBUTION and the staged notes
+  follow; the landing page already said `pip install rietx`. Historical WP
+  files and `releases/1.6.0.md` keep their `[viz]`.
+- `build.py`: a `# %pip …` line becomes a `%pip` magic, and a cell of nothing
+  else is never executed. Tested both ways.
+- Notebooks: authorship under each title; a version note (1.7 is not on PyPI
+  yet, so the GitHub install is given); 01 explains `ftol` and max shift/esd;
+  02 reads the history and saves a `.rex` project (one line per entry, what it
+  holds); 03's GUI section with the four gestures and a checked link to
+  `using/gui-guide.html#peaks`; 05 writes the series as `scan8`-`scan14` with a
+  CSV log, shows lexical sort putting `scan10` first, sorts by number, parses a
+  temperature from a name, fits the loaded list (identical to the in-memory
+  one), and passes `carry=["*"]` with its meaning from `_carry_into`.
+
+**Measured** (macOS arm64, `[dev]`): matplotlib and its dependencies install
+to about 58 MB against about 265 MB for the rest of rietx (llvmlite alone is
+126 MB).
+
+**Next:** as below, plus the same landing-box decision.
 
 ### 2026-10-07 — closed
 
