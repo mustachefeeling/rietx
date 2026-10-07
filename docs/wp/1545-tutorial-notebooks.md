@@ -176,6 +176,20 @@ coefficient at its floor, filed as WP-1914) and gave evidence to three open WPs.
 - `docs/RELEASING.md` step 1, the root CLAUDE.md sentence, staged notes in
   `docs/releases/1.7.0.md`, narrative in `docs/milestones/v1.7.md`.
 - No skill pointer (item 8 says why). WP-1914 filed.
+- The skill's `INDEX_PREDICTED_BUT_ABSENT` row said to prefer a smaller cell;
+  it now allows a glide or screw axis in a correct one, tagged with this WP's
+  aragonite measurement (net zero bytes: the file is over its budget).
+- `/code-review high --fix` found seven. Five fixed by the pass: the build
+  runs this interpreter's kernel (a user-level `python3` spec can name another
+  venv), `parse` refuses an unknown `# %%` marker, a `PeakList` diagnostic
+  prints its `where`, `test_tutorials` guards the strings the landing page
+  quotes (`QUOTED`), notebook 01 prints `+/-` esds. One fixed by hand:
+  notebook 02's tie was compared against a fit from a different start, so it
+  now comes before the hold. One declined, for the maintainer: the landing
+  page's code box is labelled `02_simple_rietveld.py` but shows lines the
+  notebook does not run (`build_report`, `plot(path=)`), and its output panel
+  predates this WP (esd 0.00010 against today's 0.00008, "175 fitted peaks"
+  against 76). It is public copy.
 
 **Measured** (macOS arm64, `[dev]`, which carries `notebooks`):
 - Build wall clock, kernel start included: 01 about 8 s, 01+02 about 12 s,
@@ -187,8 +201,10 @@ coefficient at its floor, filed as WP-1914) and gave evidence to three open WPs.
   in χ² on one fit of this pattern, so the notebook ranks results instead.
 - 02: `lab_bragg_brentano` from the converged fit puts zero~displacement at
   ρ = +1.000 and the cell esd ×12; zero held at 0 (GSAS's protocol) gives
-  displacement 0.0632(15) mm and `HOLD_BLOCKED_PLAN`. The phosphate-O Biso tie
-  takes 0.264(149), 0.467(157), 0.385(109) to 0.383(77) Å². P-O 1.526-1.574 Å.
+  displacement 0.0632(15) mm and `HOLD_BLOCKED_PLAN`. The phosphate-O Biso tie,
+  refit under the same plan from the first fit, takes 0.264(149), 0.467(157),
+  0.385(109) to 0.377(76) Å², 35 to 33 free parameters, Rwp 0.0893 to 0.0894.
+  P-O 1.526-1.574 Å.
 - 03: aragonite (COD 9000229), orthorhombic only, V 200-250 Å³, d ≤ 8.5 Å: 105
   picks, 59 usable, truth first from all three engines, `low` for
   `predicted_but_absent` and `indexed_fraction_low`, abstains; two builds
@@ -225,7 +241,8 @@ coefficient at its floor, filed as WP-1914) and gave evidence to three open WPs.
 fixture with 5 false picks in 59).
 
 **Next:** merge #810 (1544) first, then this PR, whose diff shows 1544's
-commits until then. Then WP-1914, the one defect this found, P3. The tutorials
+commits until then. Decide the landing page's code box: trim it to notebook
+02's first cell and refresh its output panel, or leave it as an excerpt. Then WP-1914, the one defect this found, P3. The tutorials
 listed as gaps in the README (backgrounds and humps, Kβ, a second phase, QPA)
 are not filed; file them if the notebooks earn readers.
 
