@@ -712,6 +712,7 @@ def test_the_textdoc_round_trip_reproduces_the_body(tmp_path):
     delta, errors = td.changes(td.parse(again), project)
     assert errors == [] and delta.is_empty()
 
+
 # ------------------------------------------------------- review round 1 (#801)
 def _pspline_ins() -> Instrument:
     from rietx.schemas.instrument import BackgroundPSpline
