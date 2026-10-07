@@ -128,7 +128,7 @@ for i, r in enumerate(passes, 1):
 best = min(passes, key=lambda r: r.statistics.rwp)
 ref.checkout(best.node_id)
 a, c = best.parameter("phases.0.cell.a"), best.parameter("phases.0.cell.c")
-print(f"kept pass {passes.index(best) + 1}: a = {a.value:.5f}({a.stderr:.5f}) Å, c = {c.value:.5f}({c.stderr:.5f}) Å")
+print(f"kept pass {passes.index(best) + 1}: a = {a.value:.5f} +/- {a.stderr:.5f} Å, c = {c.value:.5f} +/- {c.stderr:.5f} Å")
 
 # %% [markdown]
 # Every pass is a node in the refinement's history, and `ref.checkout` restores the model to the one we kept.

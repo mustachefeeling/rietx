@@ -33,6 +33,11 @@ _spec.loader.exec_module(build)
 
 SOURCES = build.sources()
 
+#: What `docs/landing/src/index.html` quotes from a tutorial's printed output,
+#: so a rename that breaks the quote fails here rather than on the published page.
+QUOTED = {"02_simple_rietveld": ("converged", "Rwp=", "SITE_SNAPPED_TO_SPECIAL_POSITION",
+                                 "PATTERN_UNDERSAMPLED")}
+
 
 def _committed(path: Path):
     return nbformat.reads(path.with_suffix(".ipynb").read_text(encoding="utf-8"), as_version=4)
@@ -58,6 +63,10 @@ def test_tutorial_executes_clean(path):
     for cell in plots:
         kinds = {k for out in cell.outputs for k in out.get("data", {})}
         assert "image/png" in kinds, f"{path.stem}: {cell.source.splitlines()[-1]!r} showed no image"
+    printed = "".join(out.get("text", "") for c in nb.cells if c.cell_type == "code"
+                      for out in c.outputs)
+    missing = [m for m in QUOTED.get(path.stem, ()) if m not in printed]
+    assert missing == [], f"{path.stem} no longer prints {missing}, which the landing page quotes"
 
 
 def test_committed_notebooks_are_their_sources():
@@ -106,4 +115,8 @@ def test_parse_refuses_what_it_cannot_round_trip(tmp_path):
         build.parse(bad)
     bad.write_text("# %% [markdown]\nno hash\n", encoding="utf-8", newline="\n")
     with pytest.raises(ValueError, match="must start"):
+        build.parse(bad)
+    bad.write_text("# %% [markdown]\n# text\n# %% A titled cell\nx = 1\n",
+                   encoding="utf-8", newline="\n")
+    with pytest.raises(ValueError, match="does not read"):
         build.parse(bad)
