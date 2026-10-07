@@ -1307,7 +1307,7 @@ def _supercell(parent, candidate, *, species, ions, magnitude, nuclear_group,
         magnitude=magnitude, nuclear_group="magnetic"), "magnetic")
 
 
-def _fit(structure, instrument, data, plan, ties=None, limits=None):
+def _fit(structure, instrument, data, plan, ties=None, limits=None, hold=()):
     """One trial fit, with the anti-centring ties applied before anything moves.
 
     ``limits`` is the incoming nuclear fit's own 2θ range, and passing it is a
@@ -1317,10 +1317,16 @@ def _fit(structure, instrument, data, plan, ties=None, limits=None):
     be compared with a different N on different data, and the mask would not
     even line up — measured, as a shape error, on a pattern whose first two
     detector channels were excluded.
+
+    ``hold`` is a list of globs the fit may not move, whatever a stage names
+    (``Refinement.hold``): a plan's own spelling of one cannot free it, the
+    continuation fits included.
     """
     from ..refine import Refinement
 
     ref = Refinement(structure, instrument.model_copy(deep=True))
+    if hold:
+        ref.hold(list(hold))
     for target, source, scale, offset in (ties or ()):
         ref.tie(target, source, scale=scale, offset=offset)
     # ``telemetry=False`` on every fit here: a fit whose result the package
@@ -1418,11 +1424,20 @@ def _parent_site_ties(statement) -> tuple[tuple[str, str, float, float], ...]:
 
 
 def _without_cell(plan: RefinementPlan) -> RefinementPlan:
-    """``plan`` with every ``phases.*.cell.*`` entry left out of every stage."""
-    return RefinementPlan(stages=[
+    """``plan`` with every ``phases.*.cell.*`` entry left out of every stage.
+
+    Only the exact spelling: a plan naming the cell another way is held by
+    ``_fit(hold=_CELL_HOLD)``, which is what actually keeps it fixed.  Every
+    other field of the plan is kept.
+    """
+    return replace(plan, stages=[
         replace(stage, turn_on=[p for p in stage.turn_on
                                 if p != "phases.*.cell.*"])
         for stage in plan.stages])
+
+
+#: the globs a tied (``tie_to_parent``) trial holds, whatever its plan names
+_CELL_HOLD = ("phases.*.cell.*",)
 
 
 def _starts(child_structure, instrument, data, plan, zero: bool,
@@ -1450,8 +1465,9 @@ def _starts(child_structure, instrument, data, plan, zero: bool,
     ties = None if zero else anti_translation_ties(child_structure.phases[0], 0)
     if extra_ties:
         ties = list(ties or ()) + list(extra_ties)
+    hold = _CELL_HOLD if extra_ties else ()
     out = [("flat", *_fit(child_structure, instrument, data, plan, ties,
-                          limits))]
+                          limits, hold))]
     if len(owners) < 2:
         return out
     for keep in owners:
@@ -1460,10 +1476,10 @@ def _starts(child_structure, instrument, data, plan, zero: bool,
                     else anti_translation_ties(reduced.phases[0], 0))
         if extra_ties:
             cut_ties = list(cut_ties or ()) + list(extra_ties)
-        leg, _first = _fit(reduced, instrument, data, plan, cut_ties, limits)
+        leg, _first = _fit(reduced, instrument, data, plan, cut_ties, limits, hold)
         released = _release(leg.fitted_structure, child_structure)
         out.append((f"{keep} only, then released",
-                    *_fit(released, instrument, data, plan, ties, limits)))
+                    *_fit(released, instrument, data, plan, ties, limits, hold)))
     return out
 
 
@@ -2249,7 +2265,8 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
             _r, res = _fit(bare, instrument, data,
                            _without_cell(nuclear_plan) if extra_ties
                            else nuclear_plan,
-                           list(extra_ties) or None, limits=limits)
+                           list(extra_ties) or None, limits=limits,
+                           hold=_CELL_HOLD if extra_ties else ())
             if res.status != "converged":
                 caveats.append(
                     f"the nuclear reference of a {len(child.atoms)}-atom "

@@ -54,6 +54,31 @@ def test_the_cell_leaves_every_stage_and_nothing_else_does():
     assert held.stages[1].max_iter == 7 and held.stages[1].name == "all"
 
 
+def test_the_cell_drop_keeps_the_plans_own_fields():
+    from rietx.strategy.magnetic import _without_cell
+
+    plan = rx.RefinementPlan(
+        stages=[rx.Stage("all", ["phases.*.cell.*", "phases.*.scale"])],
+        intermediate_ftol=None, lebail_passes=3)
+    held = _without_cell(plan)
+    assert held.intermediate_ftol is None and held.lebail_passes == 3
+    assert held.correlation_guard == plan.correlation_guard
+
+
+def test_a_plan_spelling_the_cell_another_way_cannot_free_it():
+    ref, data, _truth = _fixture()
+    c = ref.fitted_structure.phases[0].cell.c.value
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("moment", ["phases.*.atoms.*.moment.dof*", "phases.*.scale"]),
+        rx.Stage("all", ["phases.*.scale", "phases.0.cell.*",
+                         "phases.*.atoms.*.biso"])])
+    tied = rx.solve_magnetic(ref, data, tie_to_parent=True, plan=plan,
+                             sites=["Mn1"], ion="Mn3+", k=(0, 0, "1/2"))
+    assert tied.verdict == "solved", tied.reason
+    cell = tied.best._structure.phases[0].cell
+    assert cell.c.value == pytest.approx(2 * c, abs=1e-12)
+
+
 def test_a_tied_trial_holds_the_child_cell_and_the_per_parent_biso():
     ref, data, _truth = _fixture()
     parent = ref.fitted_structure.phases[0]
