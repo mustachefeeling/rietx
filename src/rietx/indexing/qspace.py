@@ -399,11 +399,17 @@ def refine_candidate(q: np.ndarray, q_esd: np.ndarray, hkl: np.ndarray, *,
         resid_w = (q_of_two_theta(corrected, wavelength) - m @ theta) * w
 
     af = basis.T @ theta
+    # The metric is checked before the covariance is formed.  A direction no
+    # line constrains leaves its A..F term at zero and its variance infinite,
+    # and the propagation below meets that infinity as 0·inf, which OpenBLAS
+    # reports and Accelerate does not (WP-1545: 15 rejected fits warned on
+    # Linux in one search).  Such a metric is no lattice, so it raises here.
+    cell = cell_from_af(af)
     cov, chi2_red = _covariance(jac, resid_w)
     n_free = basis.shape[0]
     cov_af = basis.T @ cov[:n_free, :n_free] @ basis
     return CandidateFit(
-        af=af, cov_af=cov_af, cell=cell_from_af(af),
+        af=af, cov_af=cov_af, cell=cell,
         cell_esd=cell_esds(af, cov_af), system=system, n_lines=len(qv),
         chi2_red=chi2_red, residual_q=resid_w / w,
         shift_template=shift_template, shift_coefficient=shift,

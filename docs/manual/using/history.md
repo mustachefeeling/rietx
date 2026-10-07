@@ -295,8 +295,9 @@ each with id, label, action, status, free-parameter count, Rwp, GoF and χ².
 nodes, as `path: (before, after)` pairs. Across the model edit in the
 walkthrough, 44 paths differ between the Le Bail node and the final one.
 
-`RefinementTree.summary` prints the tree as indented text with an Rwp per node,
-`*` on the head and tags in brackets. `RefinementTree.to_mermaid` prints the
+`RefinementTree.summary` prints the tree as text with an Rwp per node, `*` on
+the head and tags in brackets. A straight run of nodes stays in one column, and
+each branch of a fork is indented one level. `RefinementTree.to_mermaid` prints the
 same tree as a mermaid graph. [](files.md) has both, beside the log they are
 read from.
 

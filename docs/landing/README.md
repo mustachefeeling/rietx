@@ -19,7 +19,7 @@ rather than the top bar, which has no room for a fourth item at 320 px.
 | `build_demo.py` | `python build_demo.py <bundle dir> data/demo.json 2` — the animation payload from the contributor's `curves.npz` + `metadata.csv`, decimated by the third argument (**always 2** for the committed file; see § The payload below). Refuses to write if any filename, scan index or specimen token from the bundle reaches the output |
 | `data/transcript.json` | what the pane shows around the log: `prompt` (the run's prompt, cut to a few lines), `head` (the stdout before the series), `marks` (lines that land on a given frame: the chunk boundaries, the finalise summary), `report` (the agent's closing words, cut) and `note`. Cuts are marked `[…]`, file names and paths are bracketed stand-ins. `python tools/check_transcript.py <bundle dir> data/transcript.json` refuses any pattern filename, scan index, specimen tag, machine path or person from the bundle |
 | `data/demo.json` | the built payload, **committed**, 0.99 MB: 275 × 649 obs and calc as base64 Int16, weight fractions, the gas/temperature programme. Each frame carries `t` (the file's clock, s) and `tm` (the plotted clock, min: the six pauses of 18–58 min between scans count as one 74 s interval; `pauses` lists them). Phases carry `name`, `html` and `support`; the three support phases are named `support 1`–`3` rather than by formula: `build_demo.phase_columns` takes their columns from the bundle's own header, in header order, so their names are in neither the payload nor the builder — and deliberately not in `build.LEAK` either, since a denylist publishes what it denies. Segments carry the atmosphere text and a colour `key` (`n2`, `h2`, `air`). `decimation` and `steps_per_fwhm` record the redaction. No filenames |
-| `img/` | `fap-light/dark.png` from `examples/fap_lab.py`; `gui-history-light/dark.png`, the GUI at 1440×900 @2x with 24 nodes in 3 lanes |
+| `img/` | `fap-light/dark.png` from the first fit in `examples/tutorials/02_simple_rietveld.py` (drawn when it was `examples/fap_lab.py`, before WP-1545); `gui-history-light/dark.png`, the GUI at 1440×900 @2x with 24 nodes in 3 lanes |
 | `tools/gui_shots.js` | builds the three-lane history in a running GUI (`rietx gui --port 8799 --no-open --state-dir …`, then `POST /api/examples/open {"name":"fap"}`) and screenshots it. Needs `playwright-core` and the cached Chromium; run from any directory with `PWC=<node_modules/playwright-core> OUT=<dir> node gui_shots.js` |
 | `tools/page_shots.js` | full-page screenshots of the built page in both themes at a given width |
 | `tools/check_transcript.py` | the leak check for the transcript; `build.py` runs the same token list over the whole page |
@@ -46,9 +46,14 @@ repository, so a fork builds the whole thing with no secret and no fetch.
   the manual on every run.
 - `dist/`, `site/` and `preview.html` are gitignored — one page built three ways.
   `data/` is **not**, and § The payload says why.
-- The fluorapatite example is `examples/fap_lab.py`, with `fluorapatite.cif`
-  beside it, so `tests/test_examples.py` runs it and the manual can
-  `literalinclude` it.
+- The fluorapatite example is the first fit in
+  `examples/tutorials/02_simple_rietveld.py` (WP-1545), shown with bare file
+  names where the tutorial reads the copies shipped in the wheel.
+  `tests/test_tutorials.py` executes it on every push. It also holds the code
+  box to that cell line for line, less only import lines. It holds every
+  stretch of the output panel between `…` cuts to the cell's committed output,
+  in order. So rebuilding the notebook with new numbers fails the test until
+  the panel is refreshed.
 - `rietx._about.DOCS_URL` stays `https://rietx.org`, and `help.py`'s anchors are
   `page.html#id`, so neither moved.
 

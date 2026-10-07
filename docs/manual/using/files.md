@@ -1725,8 +1725,7 @@ rather than a parser. Take `structure` from `Refinement.fitted_structure`, which
 is where the refined values and their esds are.
 
 `viz.html.write_html` writes the interactive page, and `RefinementResult.plot`
-writes the static figure. The page needs nothing beyond a base install. The
-figure needs the `viz` extra.
+writes the static figure. Both work on a base install.
 
 :::{admonition} For agents
 :class: agent

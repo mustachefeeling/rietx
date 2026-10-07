@@ -34,7 +34,7 @@ which is the backlog this rule exists to prevent.
 
 1. Set `pyproject.version`. The convention is in
    [CLAUDE.md](../CLAUDE.md) and ROADMAP protocol rule 6: a release is numbered
-   at its cut (WP-1540). **Two things follow it and neither is automatic.** Reinstall
+   at its cut (WP-1540). **Three things follow it and none is automatic.** Reinstall
    (`uv pip install -e ".[dev]"`), because `rietx.__version__` is
    `importlib.metadata.version()` and reads the dist-info written at install
    time — until you do, every number the suite measures is stamped with the old
@@ -42,7 +42,11 @@ which is the backlog this rule exists to prevent.
    and re-sync the two committed copies with `rietx skill --install . --copy`;
    `test_metadata_values_are_strings_and_the_version_is_the_packages` fails
    until both are done, and it fails *after* the reinstall rather than before,
-   which is the order that hides it.
+   which is the order that hides it. Last, rebuild the tutorial notebooks with
+   `python examples/tutorials/build.py` and commit them, so the tagged tree's
+   outputs come from the release itself (WP-1545). Their version stamp is
+   checked to major.minor only, so nothing fails at the cut; the move to the
+   next minor's `.dev0` fails `tests/test_tutorials.py` until they are rebuilt.
 2. Write `docs/releases/X.Y.Z.md`. It becomes the GitHub release body verbatim,
    so it is written for a reader upgrading, not for a maintainer. The
    precedents are [1.0.0](releases/1.0.0.md), a milestone, and

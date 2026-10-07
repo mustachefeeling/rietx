@@ -8,8 +8,7 @@
 ## Installation
 
 ```sh
-pip install rietx            # Python >= 3.11; numpy/scipy core, compiled kernels on
-pip install "rietx[viz]"     # + matplotlib figures
+pip install rietx            # Python >= 3.11; numpy/scipy core, compiled kernels, matplotlib figures
 ```
 
 ## Example refinement

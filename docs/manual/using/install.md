@@ -91,11 +91,13 @@ was built from. [](quickstart.md) is the first refinement.
 | `gemmi` ≥ 0.6.5 | CIF reading, space groups, symmetry operations |
 | `spglib` ≥ 2.4 | site symmetry, Wyckoff positions, cell reduction |
 | `numba` ≥ 0.63 | compiles the peak kernels ({ref}`the-compiled-kernels`) |
+| `matplotlib` ≥ 3.10.5 | figures: `RefinementResult.plot`, `PatternData.plot` and the report figures |
 
-Those six are the whole install, and nothing in that list is optional or
-lazily imported. It reads patterns and CIFs, applies every correction, runs the
-staged refinement machinery, builds the report, indexes an unknown cell, and
-keeps projects and history.
+Those seven are the whole install, and nothing in that list is optional.
+Matplotlib is imported only when a figure is drawn, so `import rietx` does not
+load it. The install reads patterns and CIFs, applies every correction, runs
+the staged refinement machinery, builds the report, draws the figures, indexes
+an unknown cell, and keeps projects and history.
 
 ## Optional extras
 
@@ -103,19 +105,20 @@ No extra changes a refined number. Name one in brackets to install it, quoting
 the argument because `zsh` reads bare brackets as a glob:
 
 ```sh
-pip install "rietx[viz]"           # one extra
-pip install "rietx[viz,jax]"       # several, comma-separated, no spaces
+pip install "rietx[jax]"           # one extra
+pip install "rietx[jax,docs]"      # several, comma-separated, no spaces
 uv pip install -e ".[dev]"         # from a source checkout
 ```
 
 | Extra | Installs | Purpose |
 |---|---|---|
-| `viz` | matplotlib | Plots. `RefinementResult.plot` and the report figures need it. The interactive page `viz.html.write_html` writes does not. |
+| `viz` | nothing | Empty since 1.7, and kept so an existing `rietx[viz]` install line still works. Matplotlib is now a dependency. |
 | `gui` | nothing | Empty, and kept so an existing `rietx[gui]` install line still works. The refinement GUI, `rietx gui`, runs on a base install. Its built front end is committed inside the package with every library it draws with. |
 | `jax` | jax | The `backend="jax"` Jacobian (`jacfwd`, chunked). |
 | `torch` | torch | Experimental. `backend="torch"` (CPU fp64) and `backend="torch-mps"` (Apple GPU, necessarily fp32). About 500 MB, and slower than numpy on this hardware. It buys an independent opinion in the Jacobian-agreement matrix, and the forward model as a differentiable layer. It does not buy speed. |
 | `docs` | sphinx, myst-parser, sphinxcontrib-bibtex, sphinx-design, furo | Builds this manual. |
-| `dev` | the `docs` and `viz` extras, pytest, pytest-xdist, hypothesis, ruff | The test suite. |
+| `notebooks` | ipykernel, nbclient, nbformat | Executes notebooks headless: the tutorial builder in `examples/tutorials/` and the display tests. Jupyter itself is yours to install. |
+| `dev` | the `docs` and `notebooks` extras, pytest, pytest-xdist, hypothesis, ruff | The test suite. |
 
 :::{note}
 `backend="numpy"` is the default and the only backend a refinement needs. The
@@ -250,8 +253,8 @@ prints its own counts, and those counts depend on the extras installed: `jax` an
 
 ## Troubleshooting
 
-`zsh: no matches found: rietx[viz]`. `zsh` expanded the brackets as a glob.
-Quote the argument: `pip install "rietx[viz]"`.
+`zsh: no matches found: rietx[jax]`. `zsh` expanded the brackets as a glob.
+Quote the argument: `pip install "rietx[jax]"`.
 
 `rietx.__version__` reads `0.0.0+dev`. No distribution of that name is
 installed, and what you imported is a source checkout sitting on `sys.path`

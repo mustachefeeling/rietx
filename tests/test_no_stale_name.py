@@ -85,6 +85,11 @@ def _tracked_hits() -> dict[str, list[str]]:
     hits: dict[str, list[str]] = {}
     for line in out.splitlines():
         path, _, rest = line.partition(":")
+        # A committed notebook's figure is one base64 line, and a three-letter
+        # token matched without case turns up in it by chance, about twice in
+        # 70 kB (WP-1545).  Its prose and code are still read.
+        if path.endswith(".ipynb") and rest.partition(":")[2].lstrip().startswith('"image/'):
+            continue
         hits.setdefault(path, []).append(rest)
     return hits
 

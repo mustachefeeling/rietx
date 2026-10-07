@@ -75,12 +75,21 @@ dependencies = [
     # 0.61.  A lower floor would resolve fine in practice — pip takes the
     # newest anyway — and strand a 3.14 user who pinned.  Measured on 0.67.0.
     "numba>=0.63",
+    # Required since WP-1545, an extra (`viz`) before it.  A figure is how most
+    # people read a fit, and every tutorial and the landing page draw one, so a
+    # base install that could not was the install people were judged by.  The
+    # cost is ~58 MB with its dependencies (pillow, fonttools, contourpy,
+    # kiwisolver, pyparsing, cycler) against ~265 MB for the rest.  The floor
+    # is where matplotlib's wheels first cover cp314 (3.10.5), the numba rule
+    # above.  `viz.plots._pyplot` still imports it lazily, so `import rietx`
+    # pays nothing for it.
+    "matplotlib>=3.10.5",
 ]
 
 [project.optional-dependencies]
-# matplotlib alone since WP-1461: the interactive page `write_html` writes
-# inlines the uPlot committed under src/rietx/viz/static, so it needs nothing.
-viz = ["matplotlib>=3.8"]
+# Empty since WP-1545, which made matplotlib a dependency, and kept so
+# `pip install 'rietx[viz]'` still works, as `gui` below is.
+viz = []
 # Empty since WP-1462, and kept so `pip install 'rietx[gui]'` still works: the
 # built frontend is committed under src/rietx/gui/static with every library it
 # draws with (uPlot, and the structure viewer's own renderer), so the GUI needs
@@ -114,12 +123,11 @@ docs = [
 # which brings its own kernel.
 notebooks = ["ipykernel>=6.29", "nbclient>=0.10", "nbformat>=5.10"]
 dev = [
-    # Three user-facing extras ride along rather than being restated here: docs
+    # Two user-facing extras ride along rather than being restated here: docs
     # so tests/test_manual.py builds the theory manual in the standard suite
-    # instead of importorskip-ing out, viz so the renderers' tests have the
-    # matplotlib they render with, at the floor declared above, and notebooks
-    # so the display tests meet a real kernel.
-    "rietx[docs,viz,notebooks]",
+    # instead of importorskip-ing out, and notebooks so the display tests and
+    # the tutorials meet a real kernel.
+    "rietx[docs,notebooks]",
     "pytest>=8",
     # `-n auto --dist loadgroup` is how the suite is meant to be run; the
     # expensive shared fixtures are pinned to a worker by xdist_group marks
