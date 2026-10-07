@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: 🔄 2026-10-07 — evidence in, decision leaning adopt; paused to re-measure seven trial sessions on the second machine
 Track: The repo's own process
 Depends on: —
-Priority: P4 2026-10-01 — was P3 (cost only: the replay put the saving at about a fifth of a WP session's bill): down a rung until three trial rows are in the record
+Priority: P3 2026-10-07 — was P4 until three trial rows were in; nine are, and the decision waits only on re-measuring seven sessions on the second machine
 
 ## Goal
 
@@ -68,6 +68,16 @@ shows up there.
   items, and expect long sessions.
 - `baseline` re-reads whatever transcripts the machine holds, so its numbers
   drift from the record's. Quote the run's date with them.
+- *Lanes fixed / redone* counts main edits only up to the lane's commit. A
+  fix that review lands later reads 0. Row c77ba4ec (WP-1534) reads 0 / 0,
+  yet `/wp-handover`'s review found one correctness gap in its lane's code,
+  fixed in its own commit. Read the handover entries before applying the
+  redo half of the bar.
+- Row c77ba4ec may undercount its kept items. Two of its seven decision
+  lines, `lanes: keep measure-first ~8` and `lanes: keep guidelines ~1`, did
+  not reach the kept-item table. Both opened a text block that went on with
+  prose, which `DECISION`'s multiline `^` should accept. The cause is
+  unchecked, and the transcript is in a cloud container.
 
 ## Non-goals
 
