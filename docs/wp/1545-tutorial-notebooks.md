@@ -1,6 +1,6 @@
 # WP-1545 — tutorial notebooks
 
-Milestone: unscheduled · Status: 🔄 2026-10-07 — reopened for the maintainer's review rounds; every task done, PR #812 open
+Milestone: unscheduled · Status: 🔄 2026-10-07 — in the maintainer's review rounds (two done); every task done, PR #812 open
 Track: Render what the fit already knows
 Depends on: 1544 (readable objects in a notebook)
 
@@ -138,6 +138,13 @@ and what the difference curve shows; QPA.
 - [x] 05: a series is a list; loading one from files under two naming conventions.
 - [x] 05: `carry` written out and explained.
 
+**The second round (2026-10-07):**
+
+- [x] The landing page's code box is notebook 02's first cell, its output panel
+  is that cell's committed output, and a test holds both there.
+- [x] Can uPlot replace matplotlib in the library? Answered no, with the
+  measurements in the handover entry; nothing changed.
+
 ## Acceptance
 
 Every notebook executes in the fast tier. The committed `.ipynb` cells equal
@@ -155,6 +162,62 @@ their sources. No output carries a home path.
 - Data provenance and licences: `tests/data/README.md`.
 
 ## Handover log
+
+### 2026-10-07 (4th entry) — the second review round: the landing box, and uPlot
+
+The landing page's example now shows exactly what notebook 02 runs and
+prints. Before, its code had three lines the notebook never ran, and its
+output had numbers from before this WP. A test now compares the whole box with
+the committed notebook. So a rebuild that changes a number fails until the
+page is refreshed. The maintainer also asked whether uPlot could replace
+matplotlib in the library. It cannot, because uPlot needs a browser to draw
+anything. So matplotlib stays a dependency for figures and nothing changed.
+
+**Done.**
+- `docs/landing/src/index.html`: the box is notebook 02's first cell with bare
+  file names, without `build_report`, `report.summary` or `plot(path=)`. The
+  panel is that cell's committed output: esds 0.00008 (was 0.00010), 4.6 steps
+  over 76 peaks (was 4.7 over 175), and `RESOLUTION_UNCONSTRAINED` added. The
+  report-summary block is gone.
+- Notebook 02 gained the box's `# GSAS raw format` comment, and its `fit` call
+  is wrapped as the box wraps it. Its outputs did not move on rebuild.
+- `tests/test_tutorials.py`: `QUOTED` (four strings, a second copy) is gone.
+  `test_the_landing_box_is_the_tutorial` reads both `<pre>` blocks from the
+  page. Every code line must be a line of the cell, with `examples_dir() / `
+  dropped. Every stretch of the panel between `…` cuts must be in the cell's
+  committed output. It reads committed output, not a live run, because the
+  panel quotes counts such as "4786 of 5751" that another platform could move.
+  The live execute test now takes its codes from the panel itself. Both halves
+  were made to fail once (the unwrapped `fit` line; an esd set back to
+  0.00010).
+- `docs/landing/README.md` says what the test holds.
+- The figure was redrawn from the notebook's first fit in both styles. It was
+  pixel-identical to the committed PNGs, so `img/` is untouched.
+
+**Measured, for the uPlot answer** (macOS arm64, `[dev]` venv):
+- matplotlib 28 MB, Pillow 13 MB, fontTools 14 MB, the rest of its
+  dependencies about 3 MB: about 58 MB. llvmlite alone is 126 MB.
+- `[viz]` held matplotlib and plotly until WP-1461 put the vendored uPlot
+  under `write_html`. So `rx.viz.write_html` already needs no Python package.
+  Its inlined scripts are about 170 kB (uPlot 51, svgcanvas 61, rxplot 59)
+  before data, against a 69 kB PNG for the FAP fit.
+- A uPlot figure cannot be a PNG without a browser, so `plot_for_vlm` and
+  `path=` need matplotlib. In a committed notebook it would show nothing on
+  GitHub, or in Jupyter until the notebook is trusted. `uplot-python` on
+  conda-forge is a browser wrapper too. The only matplotlib-free raster route
+  is Pillow drawing by hand, a rewrite of `viz/plots.py`'s 1233 lines.
+
+**Gotchas.**
+- The earlier entry's "`QUOTED` in `tests/test_tutorials.py`" gotcha is now:
+  any change to notebook 02's first cell or its output fails
+  `test_the_landing_box_is_the_tutorial`. Copy the cell and the output into
+  `docs/landing/src/index.html` (wrap at about 56 columns, cut with `…`).
+- `build.py` prints `[IPKernelApp] WARNING | Kernel is running over TCP` on
+  this machine. That is the kernel's own stderr, not a cell's, and the build
+  succeeds.
+
+**Next:** the maintainer's next round, if any. Otherwise close the WP with
+the closed entry's narrative and merge #812.
 
 ### 2026-10-07 (3rd entry) — paused for /clear; resume here
 
@@ -194,7 +257,8 @@ same narrative, when the maintainer says the review is over.
 - The first code cell of every notebook must stay the `%pip install` cell
   (`test_a_notebook_opens_by_installing_and_never_ran_it`).
 - Notebook 02 must keep printing what the landing page quotes (`QUOTED` in
-  `tests/test_tutorials.py`).
+  `tests/test_tutorials.py`; superseded by the 4th entry, which made the
+  whole landing box a test).
 - The README must list every notebook; `tests/test_example_projects.py`
   must find each `TUTORIAL_ONLY` file named in some tutorial.
 
