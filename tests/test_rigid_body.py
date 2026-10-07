@@ -706,3 +706,56 @@ def test_the_textdoc_round_trip_reproduces_the_body(tmp_path):
     again = td.render(project)
     delta, errors = td.changes(td.parse(again), project)
     assert errors == [] and delta.is_empty()
+
+# ------------------------------------------------------- review round 1 (#801)
+def _pspline_ins() -> Instrument:
+    from rietx.schemas.instrument import BackgroundPSpline
+
+    ins = INS.model_copy(deep=True)
+    bp = list(np.linspace(8.0, 70.0, 8))
+    ins.background = BackgroundPSpline(
+        breakpoints=bp, lambda_smooth=5.0,
+        coefficients=[Parameter(value=30.0 + 3.0 * k) for k in range(len(bp) + 2)])
+    return ins
+
+
+@pytest.mark.parametrize("target", ["phases.0.scale", "instrument.background.c3"])
+@pytest.mark.parametrize("c", [1.0, 0.5, -2.0])
+def test_a_variable_at_a_non_unit_coefficient_takes_an_exact_column(target, c):
+    """A variable reaching one path at c ≠ 1 is not that path's column (#801).
+    Read off ``reach_block`` every coefficient was 1.0 once a body existed,
+    and with ``extra`` empty the closed-form scale branch took the column
+    anyway — jac/fd = 1/c, measured 2.0 and −0.5, and on ``main`` without a
+    body too.  A background coefficient is closed-form at any c, penalty
+    rows included (the FD fallback writes none).  Measured after: 1.7e-10
+    and 2.0e-11 of the column's scale."""
+    from rietx.optimize.least_squares import _make_jacobian, _make_residual
+
+    ins = _pspline_ins()
+    s = body_structure(Q_TRUE)
+    s.phases[0].space_group = "P1"
+    blank = PatternData(two_theta=np.arange(8.0, 70.0, 0.02).tolist(),
+                        intensity=np.zeros(3100).tolist())
+    model = compile_model(s, ins, blank, mode="rietveld")
+    base = ParameterTable(s, ins)
+    y = model.evaluate(base.decode(base.x0()))
+    pattern = PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
+    table = ParameterTable(s, ins)
+    assert table.derived                          # a body is present
+    table.set_vary(["*"], False)
+    v0 = table.decode(table.x0())[target]
+    table.add_parameter("vars.b", v0 / c, vary=True)
+    table.set_tie(target, AffineTie(terms=(("vars.b", c),)))
+    table.set_vary(["phases.0.atoms.0.biso"], True)
+    col = table.free_paths.index("vars.b")
+    model = compile_model(s, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    theta = table.x0()
+    jac = _make_jacobian(model, table)(theta)[:, col]
+    resid = _make_residual(model, table)
+    h = 1e-5 * abs(theta[col])
+    tp, tm = theta.copy(), theta.copy()
+    tp[col] += h
+    tm[col] -= h
+    fd = (resid(tp) - resid(tm)) / (2 * h)
+    assert np.abs(jac - fd).max() < 1e-6 * np.abs(fd).max()

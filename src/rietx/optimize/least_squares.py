@@ -802,8 +802,8 @@ def _column_extras(table: ParameterTable) -> list[list[str]]:
 
 
 def _column_identities(table: ParameterTable, extras: list[list[str]]
-                       ) -> list[tuple[str, list[str]]]:
-    """Per free column, the ``(path, extra)`` the dispatch below should read.
+                       ) -> list[tuple[str, list[str], bool]]:
+    """Per free column, the ``(path, extra, own)`` the dispatch below should read.
 
     Identity for every model parameter, so an unconstrained or dot-path-tied
     model dispatches exactly as it did before this existed.
@@ -831,7 +831,11 @@ def _column_identities(table: ParameterTable, extras: list[list[str]]
       ``_peak_chain_column`` (it perturbs θ and decodes, so every coefficient
       and constant is carried) and ``_structural_column`` (it reads the atom's
       rows out of C).  The closed-form linear branches exclude themselves,
-      since each requires an empty ``extra``.
+      since each requires ``own``: true where the column is its named path's
+      own (nothing else reached, at coefficient 1), false for one path at any
+      other coefficient, whose ``extra`` is empty too.  Testing ``extra``
+      alone let a variable at c = 0.5 onto a scale take ``_scale_column``,
+      a column 2× the truth (#801, on ``main`` as well as with a body).
 
     Which of the reached paths *names* the column matters, and it is chosen
     rather than taken.  C's rows are in table order, so the lowest one is an
@@ -848,17 +852,19 @@ def _column_identities(table: ParameterTable, extras: list[list[str]]
     Read off the **declared** reach (``reach_block``), as ``_column_extras``
     is (WP-1805, the #773 follow-up): a variable driving a body's origin also
     moves every body atom row, which no C row says, and the extras returned
-    here replace ``_column_extras``' for that column.  A derived row's entry
-    there is 1.0 but never stands alone — it arrives with the input it
-    follows — so the unit-coefficient case below cannot be one.
+    here replace ``_column_extras``' for that column.  The *pattern* comes
+    from there and the *coefficient* from C itself: a table with a block
+    stores 1.0 at every entry of its reach, so read there every variable
+    reaching one row looked like a unit tie (#801).  A derived row has no C
+    entry and never stands alone — it arrives with the input it follows.
     """
-    C = table.reach_block()
-    csc = C.tocsc()
+    csc = table.reach_block().tocsc()
+    coef = table.constraint_block()[0].tocsc()
     paths = [e.path for e in table.entries]
     out: list[tuple[str, list[str]]] = []
     for c, path in enumerate(table.free_paths):
         if not is_variable_path(path):
-            out.append((path, extras[c]))
+            out.append((path, extras[c], not extras[c]))
             continue
         sl = slice(csc.indptr[c], csc.indptr[c + 1])
         reach = [(paths[r], v) for r, v in zip(csc.indices[sl], csc.data[sl],
@@ -874,11 +880,11 @@ def _column_identities(table: ParameterTable, extras: list[list[str]]
             # a declared variable nothing follows: it moves no row at all, so
             # its column is zero however it is built, and the FD path says that
             # in one residual evaluation without claiming a branch
-            out.append((path, extras[c]))
-        elif len(reach) == 1 and reach[0][1] == 1.0:
-            out.append((reach[0][0], []))
+            out.append((path, extras[c], False))
         else:
-            out.append((reach[0][0], [q for q, _ in reach[1:]]))
+            unit = (len(reach) == 1
+                    and coef[table._paths[reach[0][0]], c] == 1.0)
+            out.append((reach[0][0], [q for q, _ in reach[1:]], unit))
     return out
 
 
@@ -938,7 +944,17 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
     # the same distinction ``ParameterTable.moving_paths`` draws one rank down.
     # Read off ``identities``, so a variable contributes the physical paths it
     # drives rather than a ``vars.*`` name that answers every predicate "no".
-    reach = {q for name, extra in identities for q in (name, *extra)}
+    reach = {q for name, extra, _ in identities for q in (name, *extra)}
+    # A column reaching background coefficients only is linear in θ whatever
+    # its coefficients, so its closed form is Σₖ C[k, c]·(basis row k), read
+    # off C — the one closed form that needs no ``own``.  Without it a
+    # variable at c ≠ 1 fell to the FD fallback, which writes no penalty row
+    # (#801).  ``None`` for every other column.
+    coef_c = table.constraint_block()[0].tocsc()
+    bkg_mix = [np.array([[bkg_cols[q], coef_c[table._paths[q], c]]
+                         for q in (path, *extra)])
+               if all(q in bkg_cols for q in (path, *extra)) else None
+               for c, (path, extra, _) in enumerate(identities)]
 
     def dpdu_of(c: int, theta: np.ndarray) -> float:
         e = table.entries[table._paths[free[c]]]
@@ -976,17 +992,17 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                                                profile_derivs=need_profile)
             return bases
 
-        for c, (path, extra) in enumerate(identities):
-            if path in bkg_cols and not extra:
+        for c, (path, extra, own) in enumerate(identities):
+            if bkg_mix[c] is not None:
                 # y is linear in the coefficient: ∂y/∂c_n = basis row; the
                 # penalty rows are linear too (√λ·D₂), chain-ruled through
                 # the transform for the (softplus-bounded) air term
-                n = bkg_cols[path]
+                n, w = bkg_mix[c][:, 0].astype(np.intp), bkg_mix[c][:, 1]
                 dpdu = dpdu_of(c, theta_t)
-                J[:n_data, c] = -sqrt_w * model.bkg_design[n] * dpdu
+                J[:n_data, c] = -sqrt_w * (w @ model.bkg_design[n]) * dpdu
                 if n_bkg_pen:
-                    J[n_data:n_data + n_bkg_pen, c] = model.bkg_penalty[:, n] * dpdu
-            elif path in axial_paths and not extra:
+                    J[n_data:n_data + n_bkg_pen, c] = model.bkg_penalty[:, n] @ w * dpdu
+            elif path in axial_paths and own:
                 b = get_bases()
                 if b.axial_ok:
                     J[:n_data, c] = -sqrt_w * _axial_column(
@@ -1002,12 +1018,12 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                     model, table, get_bases(), values, c,
                     int(dof.group(1)), int(dof.group(2)), rows, grad)
             elif ((po := _PO_PATH.match(path)) and model.mode == "rietveld"
-                    and not extra
+                    and own
                     and not model.mag_split(int(po.group(1)))):
                 J[:n_data, c] = -sqrt_w * dpdu_of(c, theta_t) * _po_column(
                     model, get_bases(), values, int(po.group(1)))
             elif ((sc := _SCALE_PATH.match(path)) and model.mode == "rietveld"
-                    and not extra and values[path] > 0.0):
+                    and own and values[path] > 0.0):
                 # exactly linear, so no perturbed ``phase_peaks``; the scale
                 # test is the 0/0 fence _scale_column's docstring names, and
                 # a phase sitting at zero falls through to the FD path below

@@ -2057,9 +2057,10 @@ class ParameterTable:
 
         What the pattern readers ask instead of C: :attr:`moving_paths`,
         :meth:`column_reach`, :meth:`unmeasured_rows` and
-        ``optimize.least_squares._column_extras``.  The values are 1.0 where
-        a derived row reaches a column and C's own elsewhere; only the pattern
-        is a claim.  ``C`` itself on a table without a block.
+        ``optimize.least_squares._column_extras``.  Only the pattern is a
+        claim: on a table with a block every stored value is 1.0, so a
+        coefficient is read off :meth:`constraint_block`, never here (#801).
+        ``C`` itself on a table without a block.
         """
         return self._reach
 
