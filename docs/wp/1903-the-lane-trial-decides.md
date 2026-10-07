@@ -159,6 +159,14 @@ python3 .claude/hooks/session_usage.py baseline --u U --mo MO --d D
     WP-1523 read +26% and −31% from one run as a contradiction. They were
     the same verdict: at its 74K re-read, lanes cost more. Both blocks now
     print a change, and both headers say negative is a saving.
+  - Review (`/code-review high --fix`, five findings, `bdc1d818`). Fixed:
+    the prune had dropped two facts, now Gotchas (the fixed/redone column
+    misses fixes landed after a lane's commit; c77ba4ec may undercount its
+    kept items). Re-rated Priority to P3, its P4 condition having lapsed.
+    Covered by this entry: the re-run output. Declined: making `lanes`
+    print negative-is-a-saving like `baseline`, since that flips all nine
+    committed rows; the adopt bar reads "the selective row at −10% or
+    lower" against `baseline`.
 
   *Which session is which WP.* ec2ca17f WP-1529; 46f97a56 WP-1531 (with
   1533); c77ba4ec WP-1534, a cloud container; 6dc4faa1 WP-1323; e6ef1126
