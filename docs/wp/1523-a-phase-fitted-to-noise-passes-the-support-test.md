@@ -154,6 +154,11 @@ not measure it there.
   `_models(START_SCALES)` on `np.arange(25, 33, 0.01)`, plan
   `[Stage("s", BIG), Stage("s2", BIG)]`. WP-1534's narrow tests leave Fe out
   because of it.
+- **From WP-1903, 2026-10-07: the two signs your lane entry left open were
+  one verdict.** `baseline`'s policy table printed a change in cost and its
+  peak-context bands a saving, so +26% and −31% both said lanes cost more at
+  your 74K re-read. Both blocks now print a change, negative a saving
+  (`2d6e632a`). Nothing in this WP needs to change; delete this on arrival.
 
 ## Non-goals
 

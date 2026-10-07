@@ -1,6 +1,6 @@
 # WP-1903 — The lane trial decides whether a WP session sends long items to subagents
 
-Milestone: unscheduled · Status: 🔄 2026-10-07 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-07 — evidence in, decision leaning adopt; paused to re-measure seven trial sessions on the second machine
 Track: The repo's own process
 Depends on: —
 Priority: P4 2026-10-01 — was P3 (cost only: the replay put the saving at about a fifth of a WP session's bill): down a rung until three trial rows are in the record
@@ -83,10 +83,10 @@ shows up there.
 - [x] Wait for three trial rows, with at least six lanes among them. Each
       comes from a WP session started with `/wp-lanes NNNN`. Those sessions
       commit their rows under their own WP numbers.
-- [ ] Re-run the replay with the trial's medians,
+- [x] Re-run the replay with the trial's medians,
       `python3 .claude/hooks/session_usage.py baseline --u U --mo MO --d D`,
       and put its output in this WP's handover entry with the run's date.
-- [ ] Read each trial session's handover entry for the quality evidence
+- [x] Read each trial session's handover entry for the quality evidence
       above. List the review findings on lane-written code, and what the lane
       prompts lacked.
 - [ ] Decide, then land the decision:
@@ -127,6 +127,133 @@ python3 .claude/hooks/session_usage.py baseline --u U --mo MO --d D
   Haiku 4.5 $1, $5, $0.10, $1.25, $2. They are `PRICES` in the script.
 
 ## Handover log
+
+- **2026-10-07** — **The trial says lanes pay, and the decision waits on one
+  check.** Nine sessions sent 24 items to lanes, and every session came out
+  ahead on the cost model, by a median 21%. Re-run with the trial's measured
+  inputs, the replay still has the selective rule cutting modelled reads and
+  writes by 18%, and by 11-14% under pessimistic settings. Two lanes wrote a
+  correctness bug that the handover review caught, and both bugs came from
+  something the lane prompt did not carry. The maintainer leans towards
+  adopting, but first wants the seven trial sessions whose transcripts are
+  not on this machine re-measured on the other computer, which holds them.
+  This session ran under `/wp-lanes` and dispatched no lane, because its only
+  implementation item was a three-line fix.
+
+  *Done.*
+  - Inherited pruned (`b0e9c0d7`). Both entries were trial rows already in
+    process.md's table, and 1534's "re-run on the maintainer's machine" is
+    this session's re-run.
+  - `baseline` prints one sign convention (`2d6e632a`). The policy table
+    printed a change in cost and the peak-context bands a saving, so
+    WP-1523 read +26% and −31% from one run as a contradiction. They were
+    the same verdict: at its 74K re-read, lanes cost more. Both blocks now
+    print a change, and both headers say negative is a saving.
+
+  *Which session is which WP.* ec2ca17f WP-1529; 46f97a56 WP-1531 (with
+  1533); c77ba4ec WP-1534, a cloud container; 6dc4faa1 WP-1323; e6ef1126
+  WP-1510; 0433c291 WP-1527 (with 1504's round E); 38257a74 WP-1523;
+  d1d1ba33 WP-1905, a cloud container; 23ba0bb7 WP-1906. Only 46f97a56 and
+  23ba0bb7 are on this machine.
+
+  *Measured* (2026-10-07, this Mac; the replay reads 46 WP sessions from
+  2026-09-20 on, since older transcripts have aged out).
+  - Trial medians over the nine rows: re-read 3K, 10 main requests per lane,
+    16K left in main, actual/estimated requests 1.60. Weighted per lane
+    instead: 0K, 8, 15K.
+  - `baseline --u 3000 --u 20000 --u 40000 --mo 10 --d 16000`:
+
+    | policy | items laned | u = 3K | u = 20K | u = 40K |
+    |---|---|---|---|---|
+    | lane every item | 421 | +9% | +20% | +33% |
+    | lane when main > 200K | 308 | +16% | +23% | +32% |
+    | lane when main > 150K and item >= 20 requests | 73 | −18% | −15% | −12% |
+    | same, mo doubled and d = 20K | 73 | −11% | −8% | −5% |
+    | same, one lane in five redone | 73 | −14% | −11% | −7% |
+
+    By peak context (selective, u = 20K): under 300K +1% (17 sessions),
+    300-450K −7% (13), above 450K −21% (17). Crossover at an 80K lane base:
+    65 requests at 150K main, 42 at 200K, 33 at 250K, 28 at 300K, 22 at
+    400K. Lane bases measured 66-79K, so the 80K row is the one to read.
+  - The same 46 sessions under the original assumptions (`--u 0 --u 20000
+    --u 40000`, mo 5, d 8K): selective −23% / −20% / −17%. The record's 174
+    gave −28% / −23% / −19%. So the measured inputs cost about 3-5 points,
+    and the shrunken window about 5.
+  - Totals over the nine rows: $90.82 saved; 2 of 24 lanes redone (8%),
+    both in WP-1510; 11 of 24 edited by the main session after return. 3 of
+    24 lanes lost money, $0.54-1.65 each, all in WP-1510 and all 22 requests
+    or fewer. Lanes that won saved up to $7.56.
+  - **Re-measuring the two local sessions today gives larger savings than
+    the record's rows.** 46f97a56 reads +$23.08 over its five lanes (row
+    +16.73) and 23ba0bb7 +$0.41 (row +0.10). The script changed after those
+    rows were written (`subagent_dirs` and later), so the rows may be
+    conservative. This is one reason to re-measure the other seven.
+  - Models: `/wp-lanes` says general-purpose on the default model, so a lane
+    inherits the main session's. Every lane with a model column ran Opus 5.5
+    except one in WP-1510, `duplicate_line surface sync`, on Sonnet 5.5,
+    which lost $1.65. The other seven sessions' tables lack the column.
+
+  *Quality evidence* (task 3), from each session's handover entry.
+  - WP-1534: one correctness bug in lane code. A phase released mid-stage
+    skipped the new probe, because the prompt named one entry path and not
+    the second. Caught by the review.
+  - WP-1527: the review fixed the TOPAS writer, written by the
+    `1527-writers-rule` lane, which had dropped a magnetic site's ion.
+  - WP-1510: the first corundum lane died on the 600 s stream watchdog
+    during a long test run. The re-dispatch was told to keep commands under
+    8 min. That rule is in the maintainer's memory, which a lane cannot see.
+  - WP-1523: the lane needed a revised design sent by `SendMessage` after
+    its first report. It re-read 74K and left 72K in main, both far above
+    every other lane. It was an item needing a decision partway, which the
+    rule already says to keep.
+  - WP-1531, 1529, 1323, 1905, 1906: no review finding attributed to lane
+    code. WP-1531's lanes deviated from their prompts on sound, reported
+    calls, as 1534's did.
+  - Decision lines went missing in three sessions (1534 twice, 1539 for two
+    items, 1906 for two kept items). The kept-item table then has no
+    estimate for them. Whether 1534's two failed `DECISION` or were never
+    written plainly is still unchecked; its transcript was in a cloud
+    container.
+
+  *The other computer.* Pull this branch (`iterative-plotting-parasol`), then
+  from its worktree:
+
+  ```sh
+  for s in ec2ca17f c77ba4ec 6dc4faa1 e6ef1126 0433c291 38257a74 d1d1ba33; do
+    f=$(find ~/.claude/projects -name "$s*.jsonl" | head -1)
+    echo "== $s ${f:-MISSING}"
+    [ -n "$f" ] && python3 .claude/hooks/session_usage.py lanes "$(basename "$f" .jsonl)"
+  done
+  python3 .claude/hooks/session_usage.py baseline --u 3000 --u 20000 --u 40000 --mo 10 --d 16000
+  ```
+
+  `lanes` takes the full id, never a prefix, hence the `find`. Compare each
+  session's printed trial row with its row in process.md § Lanes within a
+  WP: saved $, lanes fixed / redone, re-read, left in main. Expect c77ba4ec
+  and d1d1ba33 to be missing, since they ran in cloud containers. That
+  machine's `baseline` reads a different set of sessions, so quote its date
+  and session count beside the row above.
+
+  *Gotchas.* The record's rows were written by different versions of
+  `session_usage.py`, so a row and today's re-measure of the same session
+  disagree. Correct a row only with a note saying which script version
+  measured it. `.claude/hooks/worktree_only.py` refuses a `git grep` over
+  `origin/main` here; use plain `grep -r` over the tree.
+
+  *Next*, in order:
+  1. Run the block above on the other computer. If the re-measured savings
+     stay positive and the redo count stays at 2, adopt. If they turn
+     negative in more than one session, report back before deciding.
+  2. Adopt, as the maintainer leans: move the rule (150K, 20 requests,
+     unchanged) into `/wp-start` step 6b with the dispatch protocol from
+     `/wp-lanes` steps 3-5, and add three prompt rules: name every code
+     path the change reaches, restate the memory rules that bear on the
+     item (the 8-minute command limit among them), and write a decision
+     line for every item. Delete `/wp-lanes` and repoint the three
+     references to it (`wp-handover.md` step 3b, `session_usage.py`'s
+     docstring, process.md). Keep step 3b and the script.
+  3. Write the decision and its evidence at the end of process.md § Lanes
+     within a WP, then close ✅.
 
 - **2026-10-01** — created. No open WP owns session token economics. 1506 and
   1507, the two open ones on this track, are about CI and the WP index.
