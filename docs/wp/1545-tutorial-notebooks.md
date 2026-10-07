@@ -1,6 +1,6 @@
 # WP-1545 — tutorial notebooks
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-07 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: 1544 (readable objects in a notebook)
 Priority: P2 2026-10-07 — was P3: 1544, its one blocker, closed; the teaching path for people who will drive rietx through an agent
