@@ -87,6 +87,18 @@ is graded `medium` at rank 3 while the true cubic F is `low`
 table, and the regenerated skill `api.md`. `tests/test_acceptance_indexing.py`
 runs before close, since the peak list feeds every engine.
 
+### Inherited
+
+- **2026-10-07, from WP-1545: a reproducible synthetic fixture.**
+  `examples/tutorials/03_peaks_indexing_lebail.py` synthesises aragonite
+  (Cu Kα, 10-80°, seed 0) and calls `pick_peaks` with a default instrument.
+  Of 59 usable lines, 5 sit more than 0.03° from every reflection of the
+  refined true cell, all weak (areas 9-39 against a strongest line of about
+  2200): 26.619° (0.33° from the nearest), 53.371° (0.18°), 79.334°, 56.202° and
+  46.013°. The index of that list ranks the truth first with
+  `indexed_fraction_low` (50/59). If this WP's census needs a pattern whose
+  truth is known exactly, this one is.
+
 ## Non-goals
 
 - `PEAK_MIN_HEIGHT_SIGMA` itself, and the ghost screen's threshold (WP-1447).

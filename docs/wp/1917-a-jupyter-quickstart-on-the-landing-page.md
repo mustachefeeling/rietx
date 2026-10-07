@@ -1,0 +1,122 @@
+# WP-1917 — a Jupyter quickstart on the landing page, opened in Colab at the release
+
+Milestone: unscheduled · Status: ⬜
+Track: Render what the fit already knows
+Depends on: 1916 (the manual pages it links)
+Priority: P4 2026-10-07 — P3 once rietx 1.7 is on PyPI: the notebooks need 1.7 and PyPI serves 1.6.0, so a live Colab link fails today
+
+## Goal
+
+The landing page's hero carries a "Jupyter quickstart" button beside "Agent
+quickstart". It opens to the five tutorial notebooks. Each row reads it in the
+manual, opens it in Colab, or downloads the `.ipynb`. Every Colab link opens
+the notebook as tagged at the latest release, so its `%pip install rietx`
+installs the version it was built with.
+
+## Context
+
+**Why it waits.** Every notebook needs rietx 1.7 or later (WP-1545). PyPI
+served 1.6.0 on 2026-10-07. `pages.yml` deploys on every push to `main`, so a
+Colab link merged before the 1.7 release would install 1.6 in its first cell
+and fail on the next one. Read and download links work today. The button ships
+whole, so this WP waits for 1.7 rather than shipping a button with a dead
+column.
+
+**Why a tag and not `main`.** `main`'s notebooks are built against the next
+`.dev0` and may call API that PyPI does not have yet. The tagged tree's
+notebooks are rebuilt by the release itself (`docs/RELEASING.md` step 1, last
+sentence), so `blob/vX.Y.Z/examples/tutorials/NN_slug.ipynb` and
+`pip install rietx` at that release agree. The URL form is
+`https://colab.research.google.com/github/<owner>/<repo>/blob/<tag>/<path>`,
+with `<owner>/<repo>` read from `_about.REPO_URL`, never spelled.
+
+The manual's own source links chose `main` over a tag (`docs/manual/conf.py`,
+the note above `_SOURCE_REF`). That choice derived the tag from
+`pyproject.version`, which named an untagged release on 2026-09-14 and would
+have 404'd. This WP reads the newest `v*` tag from git itself, so that failure
+does not apply. Two consequences:
+- `pages.yml`'s `actions/checkout` must fetch tags (`fetch-tags: true`, or
+  `fetch-depth: 0`). The default shallow checkout has none.
+- `docs/landing/build.py` refuses to build when it finds no tag. A silent
+  fallback to `main` is the failure this WP exists to avoid.
+
+**The rows are derived.** `examples/tutorials/README.md` already holds a
+hand-written table of the five. A third copy on the landing page would drift.
+So `build.py` reads each notebook's title off its first markdown cell's `# `
+heading and finds the notebooks by `examples/tutorials/build.py`'s `SOURCES`
+glob. A sixth tutorial then appears with no edit here. Keep the row to its
+title and three links; the landing register is few words (memory:
+landing-page-register).
+
+**The hero.** It holds one `<details class="qs" id="quickstart">` today, with
+its JS in `src/index.html` (any `#quickstart` link opens it; the copy button
+serialises the prompt). The second disclosure gets its own id. Give both the
+same `name` attribute so opening one closes the other (exclusive `<details>`,
+Chrome 120, Safari 17.2, Firefox 130). Check the pair at 320 px, the narrowest
+width the top bar is designed for.
+
+**What other parts of the page already say.**
+- The Python API section's "Get started here" links `using/quickstart.html`.
+  After WP-1916 that URL is the tutorials index, so it needs no edit.
+- That section's code box is notebook 02's first cell, held equal to the
+  committed notebook by a test (WP-1545's second review round). Its bar may
+  gain an "Open in Colab" link to 02. Leave the code itself alone.
+
+**Unmeasured, and only the maintainer can measure it.** Whether Colab's
+preinstalled numpy or matplotlib makes `%pip install rietx` ask for a runtime
+restart. It needs a Google sign-in, so the maintainer runs each notebook once
+from its tagged Colab URL. If a restart is needed, the notebook's opening
+markdown says so in one line.
+
+**The "until 1.7" lines.** Each notebook's opening cell and
+`examples/tutorials/README.md` say "Until rietx 1.7 is on PyPI, install it from
+GitHub instead". They must go **before** the 1.7 cut, so the tagged notebooks
+do not carry a stale line into Colab. That task can land as soon as this WP
+starts; the rest waits.
+
+### Inherited
+
+## Non-goals
+
+- The manual's tutorial chapter and the quickstart rename (WP-1916).
+- Binder (minutes to start) and JupyterLite (no numba in Pyodide).
+- A Colab badge inside the notebooks themselves.
+
+## Tasks
+
+- [ ] Before the 1.7 cut: drop the "until 1.7" lines from the five `.py`
+  sources and the README, then rebuild the notebooks.
+- [ ] `build.py`: the newest `v*` tag, a refusal when there is none, and the
+  rows derived from the notebooks; `pages.yml` fetches tags.
+- [ ] The "Jupyter quickstart" disclosure in the hero, exclusive with the agent
+  one; checked at 320 px in light and dark.
+- [ ] Tests in `tests/test_landing.py`: the built page has one row per notebook
+  by glob; every Colab URL names the tag `build.py` found; every Read link
+  resolves to a page the manual builds.
+- [ ] The maintainer's Colab run of each notebook at the tag, its result
+  recorded in the handover.
+- [ ] Skill: none. The page is for people, and the agent quickstart is unchanged.
+
+## Acceptance
+
+After 1.7 is on PyPI, every Colab link on the deployed page opens a notebook
+that runs top to bottom on a fresh Colab runtime.
+
+```sh
+.venv/bin/python docs/landing/build.py --site
+.venv/bin/python -m pytest tests/test_landing.py tests/test_tutorials.py -q
+.venv/bin/python -m ruff check src tests examples docs/landing
+```
+
+## References
+
+- Colab's GitHub URL form: https://colab.research.google.com/github/
+- `docs/landing/README.md`, the landing page's rulebook.
+
+## Handover log
+
+- **2026-10-07** — created. No open WP owns this: WP-1545 (🔄, in review)
+  covers the notebooks and not their exposure, and WP-1331 and 1411, which
+  built the landing page and its links home, are closed. Split from WP-1916
+  because its gate is the 1.7 release and 1916's is none. Next: the "until 1.7"
+  task, before the cut.

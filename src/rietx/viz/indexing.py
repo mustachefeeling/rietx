@@ -27,10 +27,9 @@ number printed beside it.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from contextvars import ContextVar
 
 import numpy as np
-
-from .._about import DIST_NAME
 
 #: Observed data, calculated model, and the recessive marks — the tokens
 #: ``viz.plots`` already uses, restated here rather than imported so the two
@@ -54,14 +53,29 @@ CANDIDATE_COLORS = ("#1f5fa8", "#c23b22", "#2a9d2a", "#7a1fa8",
 
 
 def _pyplot():
-    try:
-        import matplotlib
-        matplotlib.use("Agg", force=False)
-        import matplotlib.pyplot as plt
-    except ImportError as exc:  # pragma: no cover
-        raise ImportError("plotting needs matplotlib: "
-                          f"pip install '{DIST_NAME}[viz]'") from exc
-    return plt
+    """:func:`rietx.viz.plots._pyplot`: one rule for when Agg is forced."""
+    from .plots import _pyplot as pyplot
+    return pyplot()
+
+
+#: Set while :func:`plot_indexing` composes its figures.  It returns a dict,
+#: which a notebook prints as text, so a figure detached by ``_handed_back``
+#: would never be drawn; left with pyplot, each is drawn once as the cell ends.
+_COMPOSING: ContextVar[bool] = ContextVar("_COMPOSING", default=False)
+
+
+def _figure_class():
+    """:func:`rietx.viz.plots._figure_class`: one notebook encoding."""
+    from .plots import _figure_class as figure_class
+    return figure_class()
+
+
+def _handed_back(fig):
+    """:func:`rietx.viz.plots._handed_back`: one rule for a notebook's figures."""
+    if _COMPOSING.get():
+        return fig
+    from .plots import _handed_back as handed_back
+    return handed_back(fig)
 
 
 def _two_theta_of_q(q: np.ndarray, wavelength: float) -> np.ndarray:
@@ -97,7 +111,7 @@ def plot_peak_list(peaks, data=None, *, path: str | None = None,
                        dtype=bool)
     assumed = all("sigma_assumed" in p.flags for p in usable) if usable else False
 
-    fig, ax = plt.subplots(figsize=(11, 4.5), dpi=dpi)
+    fig, ax = plt.subplots(figsize=(11, 4.5), dpi=dpi, FigureClass=_figure_class())
     if data is not None:
         x = np.asarray(data.two_theta, dtype=np.float64)
         y = np.asarray(data.intensity, dtype=np.float64)
@@ -132,7 +146,7 @@ def plot_peak_list(peaks, data=None, *, path: str | None = None,
     fig.tight_layout()
     if path is not None:
         fig.savefig(path)
-    return fig
+    return _handed_back(fig)
 
 
 def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
@@ -183,7 +197,7 @@ def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
     tt_hi = float(peaks.two_theta_max)
 
     fig, (ax, axt) = plt.subplots(
-        2, 1, figsize=(11, 2.2 + 0.62 * len(shown)), dpi=dpi, sharex=True,
+        2, 1, figsize=(11, 2.2 + 0.62 * len(shown)), dpi=dpi, FigureClass=_figure_class(), sharex=True,
         gridspec_kw={"height_ratios": [1.5, 0.55 + 0.42 * len(shown)]})
 
     scale = float(inten.max()) if len(inten) and inten.max() > 0 else 1.0
@@ -282,7 +296,7 @@ def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
     fig.tight_layout()
     if path is not None:
         fig.savefig(path)
-    return fig
+    return _handed_back(fig)
 
 
 def plot_validation(validation, result=None, *, path: str | None = None,
@@ -307,7 +321,7 @@ def plot_validation(validation, result=None, *, path: str | None = None,
                            dtype=np.float64)
 
     if result is None:
-        fig, ax = plt.subplots(figsize=(11, 3.2), dpi=dpi)
+        fig, ax = plt.subplots(figsize=(11, 3.2), dpi=dpi, FigureClass=_figure_class())
         ax.vlines(absent, 0.0, 1.0, lw=1.0, color=ABSENT,
                   label=f"predicted but absent ({len(absent)})")
         ax.vlines(unmatched, -1.0, 0.0, lw=1.0, color=UNMATCHED,
@@ -319,14 +333,14 @@ def plot_validation(validation, result=None, *, path: str | None = None,
         fig.tight_layout()
         if path is not None:
             fig.savefig(path)
-        return fig
+        return _handed_back(fig)
 
     tt = np.asarray(result.two_theta)
     y_obs = np.asarray(result.y_obs)
     y_calc = np.asarray(result.y_calc)
     y_bkg = np.asarray(result.y_background)
     fig, (ax, axd) = plt.subplots(
-        2, 1, figsize=(11, 6.4), dpi=dpi, sharex=True,
+        2, 1, figsize=(11, 6.4), dpi=dpi, FigureClass=_figure_class(), sharex=True,
         gridspec_kw={"height_ratios": [3, 1]})
     ax.plot(tt, y_obs, ".", ms=2.0, color=OBS, label="observed", zorder=2)
     ax.plot(tt, y_calc, "-", lw=1.0, color=CALC, label="Le Bail", zorder=3)
@@ -352,7 +366,7 @@ def plot_validation(validation, result=None, *, path: str | None = None,
     fig.tight_layout()
     if path is not None:
         fig.savefig(path)
-    return fig
+    return _handed_back(fig)
 
 
 def _window_from_result(result, peaks) -> np.ndarray:
@@ -408,9 +422,26 @@ def plot_indexing(result, peaks, *, data=None, instrument=None,
       candidate carries one.
 
     ``path`` is a stem: each figure is saved as ``f"{path}_{name}.png"``.
-    Figures are returned open either way — closing is the caller's, exactly
-    as :func:`rietx.plot` behaves.
+    Figures are returned open either way, and closing them is the caller's.
+    They stay with pyplot even in a notebook, unlike a single figure: the
+    dict prints as text, so the inline backend draws each one as the cell ends.
     """
+    token = _COMPOSING.set(True)
+    try:
+        figures = _compose_indexing(result, peaks, data=data, instrument=instrument,
+                                    candidate=candidate, n=n, validation=validation,
+                                    dpi=dpi)
+    finally:
+        _COMPOSING.reset(token)
+    if path is not None:
+        for name, fig in figures.items():
+            fig.savefig(f"{path}_{name}.png")
+    return figures
+
+
+def _compose_indexing(result, peaks, *, data, instrument, candidate, n,
+                      validation, dpi) -> dict:
+    """:func:`plot_indexing`'s figures, in drawing order."""
     figures: dict = {}
     figures["peaks"] = plot_peak_list(peaks, data, dpi=dpi)
 
@@ -436,10 +467,6 @@ def plot_indexing(result, peaks, *, data=None, instrument=None,
             # anyway: the two detector lists are what separate a wrong metric
             # from an oversized one, and they need no refit
             figures["validation"] = plot_validation(chosen.lebail, dpi=dpi)
-
-    if path is not None:
-        for name, fig in figures.items():
-            fig.savefig(f"{path}_{name}.png")
     return figures
 
 

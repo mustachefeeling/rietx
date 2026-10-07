@@ -105,6 +105,17 @@ class StructureFigure:
         # not hand out the figure's own buffer
         return image.copy() if copy else image
 
+    def __repr__(self) -> str:
+        """Size, atom count and path, not the pixels: a notebook stores this
+        beside the picture (WP-1544)."""
+        h, w = self.image.shape[:2]
+        return (f"StructureFigure({w}×{h} px, {len(self.atoms)} atoms drawn, "
+                f"path={self.path!r})")
+
+    def _repr_png_(self) -> bytes:
+        """The picture, so a notebook cell holding a figure shows it (WP-1544)."""
+        return _png_bytes(self.image, None)
+
     def to_px(self, points) -> np.ndarray:
         """Where Cartesian points land in ``image``, in pixels.
 
@@ -579,6 +590,11 @@ def _empty(image: np.ndarray, bg) -> float:
 def _png(path: Path, image: np.ndarray, dpi: float | None) -> None:
     """RGBA, 8 bits, straight alpha as the PNG standard has it, with an
     ``sRGB`` chunk and, when ``dpi`` is given, a ``pHYs`` chunk (D7, D13)."""
+    path.write_bytes(_png_bytes(image, dpi))
+
+
+def _png_bytes(image: np.ndarray, dpi: float | None) -> bytes:
+    """The PNG :func:`_png` writes, as bytes."""
     height, width, _ = image.shape
 
     def chunk(kind: bytes, data: bytes) -> bytes:
@@ -593,7 +609,7 @@ def _png(path: Path, image: np.ndarray, dpi: float | None) -> None:
         per_metre = round(float(dpi) / 0.0254)
         parts.append(chunk(b"pHYs", struct.pack(">IIB", per_metre, per_metre, 1)))
     parts += [chunk(b"IDAT", zlib.compress(raw, 6)), chunk(b"IEND", b"")]
-    path.write_bytes(b"".join(parts))
+    return b"".join(parts)
 
 
 def render_structure(structure, phase: int = 0, *, mode: str = "ball", view="opening",

@@ -1161,7 +1161,7 @@ requests per lane, and what a lane leaves in the main context. It also assumed
 that a session can tell a long item before starting it, and that a lane's
 work holds up. `/wp-lanes` ran the selective policy in a real WP session, and
 `session_usage.py lanes` measures all five. One row per session that ran
-lanes, the nine trial sessions first:
+lanes, the ten trial sessions first:
 
 | date | session | lanes | kept | re-read (*u*) | main requests per lane | left in main | actual / estimated requests | lanes fixed / redone | saved | of the session |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -1174,10 +1174,16 @@ lanes, the nine trial sessions first:
 | 2026-10-03 | 38257a74 | 1 | 1 | 74K | 27 | 72K | 2.18 | 1 / 0 | +5.17 | +18% |
 | 2026-10-04 | d1d1ba33 | 2 | 1 | 3K | 11 | 27K | 1.60 | 2 / 0 | +3.23 | +19% |
 | 2026-10-06 | 23ba0bb7 | 1 | 0 | 0K | 5 | 9K | 0.64 | 0 / 0 | +0.10 | +1% |
+| 2026-10-07 | f69c397c | 2 | 2 | 0K | 6 | 17K | 1.10 | 1 / 0 | +0.78 | +8% |
 
 Session 38257a74 (WP-1523) resumed its one lane by `SendMessage` with a
 revised design after the first report. The tool counts that as no redo, and the
 lane's 182 requests span both rounds.
+
+Session f69c397c (WP-1907) is entered as kept 2 and fixed 1 where the tool
+printed 0 and 0. It kept two items under written `lanes: keep` lines, and it
+fixed the second lane's workflow (a model input) by a Python rewrite. The tool
+did not count that edit.
 
 **The decision: adopted** (2026-10-08,
 [WP-1903](../wp/1903-the-lane-trial-decides.md)). The rule is now `/wp-start`
@@ -1192,17 +1198,18 @@ and review findings on lane code no worse than usual. Nobody confirmed the bar
 before the decision, and the quality leg has no measured baseline for
 "usual".
 
-- *Rows.* Nine sessions sent 24 items to lanes. Every session came out ahead,
-  by a median 21% and $90.82 in total. Two lanes were redone, both in
+- *Rows.* Ten sessions sent 26 items to lanes. Every session came out ahead,
+  by a median 20% and $91.60 in total. Two lanes were redone, both in
   e6ef1126.
-- *Re-measured.* Seven of the nine sessions could be measured again with the
+- *Re-measured.* Seven of the first nine sessions were measured again with the
   script at `2d6e632a`. The two cloud sessions, c77ba4ec and d1d1ba33, kept
   no transcript. Each of the seven came out larger than its row. 46f97a56 and
   23ba0bb7 were measured on 2026-10-07 and the other five on 2026-10-08.
   Those five matched their rows in every column but the saving and its
-  share. The script changed after
-  the rows were written, so the rows stay as committed. Today's figures, as
-  saved $ and share of the session: ec2ca17f +3.58 (+23%), 46f97a56 +23.08,
+  share. The script changed after the rows were written, so the rows stay as
+  committed. The tenth, f69c397c, landed after the re-measure was planned and
+  was not re-measured. The re-measured figures, as saved $ and share of the
+  session: ec2ca17f +3.58 (+23%), 46f97a56 +23.08,
   6dc4faa1 +1.88 (+13%), e6ef1126 +21.77 (+34%), 0433c291 +46.34 (+44%),
   38257a74 +7.42 (+22%), 23ba0bb7 +0.41.
 - *Re-run.* The trial's medians were *u* 3K, 10 main requests a lane and 16K
@@ -1239,6 +1246,8 @@ before the decision, and the quality leg has no measured baseline for
   asks for a decision line on every item.
 
 Two things stay unmeasured. The *fixed / redone* column closes at the lane's
-commit, so a fix the handover review lands later is not in it. And the review
+commit, so a fix the handover review lands later is not in it. It also sees
+only the Edit-family tools, so a fix written through Bash reads 0 (f69c397c's
+note above). And the review
 findings are the only evidence on whether lane code is as good as the main
 session's.

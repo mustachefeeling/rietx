@@ -305,7 +305,7 @@ def _index(argv: list[str]) -> int:
     result = index_pattern(data=data, instrument=instrument,
                            spec=spec, preset=args.preset, engines=engine_names,
                            validate=not args.no_validate)
-    _print_index(result)
+    print(result)
     if args.json:
         from pathlib import Path
 
@@ -337,52 +337,6 @@ def _print_ceiling(spec, engine_names, *, validate: bool) -> None:
     if est.unmodelled:
         print(f"NOT modelled: engine(s) {', '.join(est.unmodelled)} — "
               "the worst case above omits their cost")
-
-
-def _print_index(result) -> None:
-    print(f"engines: {', '.join(result.engines_run) or 'none'}   "
-          f"systems: {', '.join(result.systems_searched) or 'none'}   "
-          f"lines: {result.n_usable_lines}   "
-          f"validated: {'yes' if result.validated else 'no'}")
-    incomplete = [s for s, done in result.search_complete.items() if not done]
-    if incomplete:
-        print(f"search INCOMPLETE in: {', '.join(incomplete)} — a negative "
-              "result there is not evidence")
-    print()
-    if not result.candidates:
-        print("no candidate cell in the systems searched.")
-    for i, c in enumerate(result.candidates, start=1):
-        a, b, cc, al, be, ga = c.cell
-        print(f"{i:2}. [{c.confidence:^6}] {c.system} {c.centring}"
-              f"   {a:.5f} {b:.5f} {cc:.5f} Å  {al:.3f} {be:.3f} {ga:.3f}°"
-              f"   V = {c.volume:.2f} Å³")
-        print(f"      found by {', '.join(c.found_by)};  indexed "
-              f"{c.n_indexed}/{c.n_lines} lines;  chi2_red {c.chi2_red:.2f}"
-              + (f";  Le Bail Rwp {c.lebail.rwp:.4f}, "
-                 f"{c.lebail.predicted_but_absent} of "
-                 f"{c.lebail.n_reflections} reflections absent"
-                 if c.lebail is not None else ""))
-        if c.confidence_caveats:
-            print(f"      not higher because: {', '.join(c.confidence_caveats)}")
-    best = result.best_or_none()
-    print()
-    if best is None:
-        print("NO CELL: the result abstains — see the diagnostics below.")
-    else:
-        print(f"CELL: {best.system} {best.centring} "
-              f"{best.cell[0]:.5f} {best.cell[1]:.5f} {best.cell[2]:.5f} Å "
-              f"{best.cell[3]:.3f} {best.cell[4]:.3f} {best.cell[5]:.3f}°")
-    for diag in result.diagnostics:
-        print(f"  [{diag.level:^7}] {diag.code}: {diag.message}")
-        # ``where`` is load-bearing for the run-level codes — it is the field
-        # that names which systems INDEX_BUDGET_EXHAUSTED left truncated or
-        # unreached, which no message prose restates
-        for entry in diag.where:
-            print(f"           - {entry}")
-    for c in result.candidates:
-        for diag in c.diagnostics:
-            print(f"  [{diag.level:^7}] {diag.code} (candidate "
-                  f"{c.system} {c.centring} V={c.volume:.1f}): {diag.message}")
 
 
 if __name__ == "__main__":

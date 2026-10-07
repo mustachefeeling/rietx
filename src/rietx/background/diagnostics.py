@@ -33,6 +33,7 @@ observation.
 from __future__ import annotations
 
 import warnings
+from typing import ClassVar
 
 import numpy as np
 from pydantic import Field
@@ -611,11 +612,11 @@ class PatternDiagnostics(Base):
       definition alone rather than redefine a shipped number — the two measures
       below were the ones making a claim about *lines*, and they no longer move
       at all).
-    * ``peak_density_per_deg`` — resolved-peak count per degree 2θ; dense
-      patterns (≳2/deg) favour stiff baselines and low background order.
-      Its census takes :data:`SAMPLING_HEIGHT_FRACTION`'s floor, so it counts
-      lines rather than the envelope's tracking error and does not move with
-      the declared σ.
+    * ``peak_density_per_deg`` — ``n_peaks`` per degree 2θ.  Its census takes
+      :data:`SAMPLING_HEIGHT_FRACTION`'s floor, so it counts lines rather than
+      the envelope's tracking error and does not move with the declared σ.  It
+      keeps no prominence bar, so it over-counts (27 on a 13-line synthetic
+      pattern, :func:`diagnose`), and nothing in the package reads it.
     * ``signal_to_background`` — near-maximum net signal (99.9th percentile)
       over the median background level.
     * ``air_scatter_gain`` — fraction of the cubic-fit residual variance of
@@ -680,6 +681,24 @@ class PatternDiagnostics(Base):
     coverage_regions: list[CoverageRegion] = Field(default_factory=list)
     signal_cutoffs: list[SignalCutoff] = Field(default_factory=list)
     dead_channels: list[DeadChannelRun] = Field(default_factory=list)
+
+    #: The order ``print`` shows the fields in (WP-1544): what bounds the range
+    #: first, then the sampling, then what a background is built from, and the
+    #: σ-relative census last. Every field appears once (``tests/test_display.py``).
+    _READING_ORDER: ClassVar[tuple[str, ...]] = (
+        "signal_cutoffs", "dead_channels", "coverage_plateau", "coverage_regions",
+        "steps_per_fwhm", "n_peaks_measured", "contamination",
+        "air_scatter_gain", "amorphous_hump_score", "baseline_lambda",
+        "signal_to_background", "noise_sigma_median",
+        "peak_fraction", "n_peaks", "peak_density_per_deg")
+
+    def __str__(self) -> str:
+        """Every field in :attr:`_READING_ORDER`, an empty list printed as
+        ``none`` because here "checked, and nothing" is the finding."""
+        from .._display import tree
+        head = (f"PatternDiagnostics of {self.n_points} points, "
+                f"{self.two_theta_min:g}–{self.two_theta_max:g}° 2θ")
+        return tree(self, order=self._READING_ORDER, show_empty=True, head=head)
 
 
 def background_envelope(two_theta: np.ndarray, y: np.ndarray, *,

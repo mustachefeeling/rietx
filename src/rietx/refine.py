@@ -1860,6 +1860,13 @@ class Refinement:
         self._mode: Mode = "rietveld"
         self._two_theta_limits: tuple[float, float] | None = None
         self._free_paths: list[str] = []
+        #: whether ``_free_paths`` is a declaration.  Until something declares a
+        #: free set (``set_vary``, a hold or tie edit, a stage) the models' own
+        #: ``vary`` flags are the caller's declaration; afterwards the list is,
+        #: **including when it is empty**.  Read from the list alone, holding
+        #: the last free path would hand the decision back to the model flags
+        #: and resurrect every parameter the caller had just fixed.
+        self._free_set_declared = False
         #: paths the *last* stage held because the data could not see their
         #: phase (WP-1301).  Carried between stages rather than lifted at the
         #: end of one, because the free set a stage ends with is the set its
@@ -1983,6 +1990,7 @@ class Refinement:
             instrument=self.instrument.model_copy(deep=True),
             mode=self._mode,
             free_paths=list(self._free_paths),
+            free_declared=self._free_set_declared,
             two_theta_limits=self._two_theta_limits,
             reflections=_extract_reflections(model or self._model),
             ties={p: s.model_copy(deep=True) for p, s in self._ties.items()},
@@ -2030,12 +2038,18 @@ class Refinement:
         return self
 
     def _restore_state(self, state: RefinementState) -> None:
-        """Make ``state`` the working state; ``checkout`` and keep-best share it."""
+        """Make ``state`` the working state; ``checkout`` and keep-best share it.
+
+        Whether its free set is a declaration (``_free_set_declared``) is the
+        state's own ``free_declared``; a non-empty set always is one, which is
+        what a document written before the field meant.
+        """
         self.structure = state.structure.model_copy(deep=True)
         self.instrument = state.instrument.model_copy(deep=True)
         self._mode = state.mode
         self._two_theta_limits = state.two_theta_limits
         self._free_paths = list(state.free_paths)
+        self._free_set_declared = bool(state.free_paths) or state.free_declared
         # the node's free set is the declared one (``_record_free_paths``), so
         # a checkout starts with no hold and the next stage takes its own
         self._held = []
@@ -2086,6 +2100,7 @@ class Refinement:
         ref._mode = self._mode
         ref._two_theta_limits = self._two_theta_limits
         ref._free_paths = list(self._free_paths)
+        ref._free_set_declared = self._free_set_declared
         ref._ties = {p: s.model_copy(deep=True) for p, s in self._ties.items()}
         ref._variables = {n: v.model_copy(deep=True)
                           for n, v in self._variables.items()}
@@ -2199,13 +2214,30 @@ class Refinement:
         set — so a fresh table (which reads them) is the honest answer rather
         than an all-fixed one.
         """
-        if self._free_paths:
+        if self._free_paths or self._free_set_declared:
             return self._prepare_table(restore=True)
         table = ParameterTable(self.structure, self.instrument)
         self._declare_variables(table)
         self._apply_ties(table)
         self._apply_holds(table)
         return table
+
+    def __str__(self) -> str:
+        """What this refinement holds, read off its fields: phases, mode, the
+        last fit's status and the parameters that vary (WP-1544).
+
+        Never :meth:`summary`, which builds a report and can run fits: a
+        notebook calls this twice per displayed cell.
+        """
+        from ._display import refinement_text
+        return refinement_text(self)
+
+    def _repr_pretty_(self, p, cycle) -> None:
+        p.text(str(self))
+
+    def _repr_html_(self) -> str:
+        from ._display import refinement_html
+        return refinement_html(self)
 
     def parameters(self, *, mode: Mode | None = None) -> list[ParameterRow]:
         """Every parameter as data — fixed, locked and tied rows included.
@@ -2311,6 +2343,7 @@ class Refinement:
             declared = set(hits)
             self._held = [p for p in self._held if p not in declared]
         self._free_paths = list(table.free_paths)
+        self._free_set_declared = True
         if self.history is None:
             return hits
         node = self.history.add(
@@ -2632,7 +2665,7 @@ class Refinement:
             path, prm.value, vary=prm.vary, lo=prm.min, hi=prm.max,
             transform=prm.transform)
         self._variables[name] = prm
-        if prm.vary and self._free_paths:
+        if prm.vary and (self._free_paths or self._free_set_declared):
             # ``_free_paths`` is the *declared* free set, and once a stage has
             # recorded one it is what ``_prepare_table`` restores — it clears
             # every vary flag and replays that list.  A variable declared
@@ -2932,6 +2965,7 @@ class Refinement:
         measured with the parameter free no longer describes this state.
         """
         self._free_paths = list(table.free_paths)
+        self._free_set_declared = True
         self._invalidate_fit()
         if self.history is None:
             return
@@ -3032,6 +3066,7 @@ class Refinement:
         table.refresh_ties()  # a new dependent takes its source's value at once
         self._write_back(table)
         self._free_paths = list(table.free_paths)
+        self._free_set_declared = True
         # the fitted curve, its statistics and its esds all described a model
         # with a different parameter count
         self._invalidate_fit()
@@ -3385,6 +3420,7 @@ class Refinement:
         held = set(self._held)
         self._free_paths = [e.path for e in table.entries
                             if e.vary or e.path in held]
+        self._free_set_declared = True
 
     @contextmanager
     def _abandon_on_cancel(self, cancel, stage_name: str, completed: list, stream):
@@ -4118,6 +4154,9 @@ class Refinement:
         self._mode = mode
         self._two_theta_limits = two_theta_limits
         self._free_paths = []
+        # the fit's stages declare the free set; until the first one does, the
+        # models' flags are it again, as for a fresh refinement
+        self._free_set_declared = False
         self._held = []
         # state summary() reads for the "protocol actually run" section —
         # nothing computes from these, they are only ever printed back

@@ -2924,3 +2924,44 @@ def test_the_hexagonal_phase_is_not_touched_and_says_nothing(tmp_path):
     write_fullprof_pcr(rx.Structure(phases=[phase]), tmp_path / "h.pcr",
                        diagnostics=found)
     assert not [d for d in found if "RHOMBOHEDRAL" in d.code]
+
+
+# --- write_zero_shift: #723's first item, opt-in -----------------------------
+
+
+def test_the_zero_shift_is_written_as_the_pcrs_zero_only_when_asked():
+    """FullProf 8.20 (black box, measured in #723's PR): ``Zero``
+    is degrees 2θ with rietx's sign, so ``Zero = +0.1`` moves a line +0.1° as
+    ``zero_shift = +0.1`` does, and the patterns agree to 9e-5 of their maximum
+    (4.4e-2 at the opposite sign).  Here: the value reaches the file, the
+    default still refuses, and the codeword stays held."""
+    inst = _xray(1.5405929)
+    inst.zero_shift.value = 0.0431
+    with pytest.raises(ValueError, match="instrument.zero_shift is 0.0431"):
+        from_structure(_cubic("Mn"), instrument=inst)
+
+    text = from_structure(_cubic("Mn"), instrument=inst, write_zero_shift=True)
+    line = next(ln for ln in text.splitlines()
+                if ln.startswith("0.0431 "))
+    fields = line.split()
+    assert float(fields[0]) == 0.0431 and len(fields) == 8
+    assert fields[1] == "0.0"                      # held
+    assert fields[2:6] == ["0.0", "0.0", "0.0", "0.0"]
+
+    # the reader sees the same number
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "z.pcr"
+        path.write_text(text, encoding="utf-8")
+        model = read_fullprof_pcr(path)
+    assert model.zero_shift["zero"].value == 0.0431
+    assert model.zero_shift["zero"].vary is False
+
+
+def test_the_default_file_is_unchanged_by_the_option():
+    inst = _xray(1.5405929)
+    plain = from_structure(_cubic("Mn"), instrument=inst)
+    assert from_structure(_cubic("Mn"), instrument=inst,
+                          write_zero_shift=True) == plain      # zero_shift = 0

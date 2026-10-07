@@ -8,8 +8,7 @@
 ## Installation
 
 ```sh
-pip install rietx            # Python >= 3.11; numpy/scipy core, compiled kernels on
-pip install "rietx[viz]"     # + matplotlib figures
+pip install rietx            # Python >= 3.11; numpy/scipy core, compiled kernels, matplotlib figures
 ```
 
 ## Example refinement
@@ -61,8 +60,15 @@ t5544a638  13 nodes  data=11BM_NAC.fxye
 
 - Multi-phase Rietveld, Le Bail and Pawley
 - X-ray and constant-wavelength [neutron](https://rietx.org/using/data.html#a-neutron-source) data
+- [Magnetic refinement](https://rietx.org/using/refining.html#a-moment-stated-and-refined) (in progress)
+- [Joint refinement](https://rietx.org/using/series.html#a-joint-fit-shares-parameters-instead) of several patterns
 - Preset [staged plans](https://rietx.org/using/concepts.html#refinement-plans)
 - Extensively documented [forward model](https://rietx.org/forward-model.html)
+- [Corrections](https://rietx.org/corrections.html): axial divergence, displacement and
+  transparency, absorption, preferred orientation, anisotropic displacement and strain,
+  anomalous dispersion
+- [Constraints and restraints](https://rietx.org/using/constraints.html)
+- [Quantitative phase analysis](https://rietx.org/using/qpa.html)
 - [Multiple solvers](https://rietx.org/estimation.html#solvers)
 - Optional [JAX & torch differentiable backends](https://rietx.org/using/install.html#optional-extras) 
 - [Readers](https://rietx.org/using/files.html) for many standard formats including
@@ -71,6 +77,7 @@ t5544a638  13 nodes  data=11BM_NAC.fxye
 - [Another program's refinement, read in](https://rietx.org/using/files.html#refinement-files-another-program-wrote):
   `read_project_model` opens a TOPAS `.inp` or a FullProf `.pcr` by content,
   refine flags included
+- [Writers](https://rietx.org/using/files.html#writing-one-back) for TOPAS, FullProf, GSAS and GSAS-II files
 - The [`FitReport`](https://rietx.org/using/report.html), an output bundle designed for agentic consumption. 
 - A git-style branchable [refinement history](https://rietx.org/using/history.html)
 - [Sequential refinements](https://rietx.org/using/series.html)
@@ -84,6 +91,11 @@ t5544a638  13 nodes  data=11BM_NAC.fxye
 - [PowderLine recipe interchange](https://rietx.org/using/recipe.html): read a
   pipeline's recipe, write its four tables back
 - [GUI mode](https://rietx.org/using/gui-quickstart.html) `rietx gui`
+- [Live run viewer](https://rietx.org/using/refining.html#watching-a-run) `rietx watch`
+- [Settings comparison](https://rietx.org/using/cli.html#rietx-compare-did-that-correction-help) `rietx compare`
+- [Structure figures](https://rietx.org/using/exports.html#a-figure-of-the-structure) `rx.viz.render_structure`
+- [Jupyter display](https://rietx.org/using/results.html#reading-an-object-in-a-notebook-or-a-terminal)
+  and [tutorial notebooks](https://github.com/yue-here/rietx/tree/main/examples/tutorials)
 
 ## Validation
 
@@ -113,7 +125,7 @@ contributor is an agent.
 ## License and credits
 
 MIT. Algorithms are independently implemented from the published literature, with sources cited in the manual. A full list of sources is also provided in
-[ATTRIBUTION.md](https://github.com/yue-here/rietx/blob/main/ATTRIBUTION.md).
+[ATTRIBUTION.md](https://github.com/yue-here/rietx/blob/main/ATTRIBUTION.md),
 and test-data provenance is listed in
 [tests/data/README.md](https://github.com/yue-here/rietx/blob/main/tests/data/README.md).
 CIF and symmetry handling uses

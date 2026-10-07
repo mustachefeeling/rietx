@@ -1342,8 +1342,11 @@ def test_a_run_that_moved_invalidates_the_tag(tmp_path):
         _, _, etag = _conditional(base)
         assert _conditional(base, etag)[0] == 304
 
+        # a different length from the first write: ``read_run`` caches on
+        # (inode, size, mtime_ns), and a Linux mtime ticks only every few ms,
+        # so a same-length rewrite inside one tick reads back as the old row
         (run / runs.STATUS_FILE).write_text(
-            json.dumps({"state": "running", "stage": "biso", "rwp": 0.2}),
+            json.dumps({"state": "running", "stage": "microstrain", "rwp": 0.2}),
             encoding="utf-8")
         # past the index TTL, which is what bounds how soon a write is seen;
         # the tag is about the payload and the TTL is about the walk
@@ -1352,7 +1355,7 @@ def test_a_run_that_moved_invalidates_the_tag(tmp_path):
 
     assert status == 200
     assert moved != etag
-    assert json.loads(body)["runs"][0]["status"]["stage"] == "biso"
+    assert json.loads(body)["runs"][0]["status"]["stage"] == "microstrain"
 
 
 def test_a_row_carries_no_clock_of_its_own(tmp_path):

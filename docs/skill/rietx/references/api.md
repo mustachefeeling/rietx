@@ -31,13 +31,13 @@ Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities(
 - `rx.read_project_model(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> ProjectModel` — Read a refinement another program wrote, dispatching on *content*.
 - `rx.identify_project_format(path: str | Path) -> ProjectFormat` — Which registered project format claims `path` — the dispatch, once.
 - `rx.read_topas_inp(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> TopasModel` — Parse a `.inp`.
-- `rx.write_topas_inp(structure: Structure, path: str | Path, *, diagnostics: list[Diagnostic] | None = None, p1_expand: bool = False)` — Write `structure` as a TOPAS `.inp`.
+- `rx.write_topas_inp(structure: Structure, path: str | Path, *, diagnostics: list[Diagnostic] | None = None, p1_expand: bool = False, free=None, scale=None, instrument=None)` — Write a TOPAS `.inp`.
 - `rx.read_fullprof_pcr(path: str | Path) -> FullProfModel` — Parse a `.pcr`.
-- `rx.write_fullprof_pcr(structure: Structure, path: str | Path, *, instrument: Instrument | None = None, diagnostics: list[Diagnostic] | None = None)` — Write `structure` to `path` as a FullProf `.pcr`.
+- `rx.write_fullprof_pcr(structure: Structure, path: str | Path, *, instrument: Instrument | None = None, diagnostics: list[Diagnostic] | None = None, write_zero_shift: bool = False)` — Write a `.pcr`.
 - `rx.read_gsas_exp(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> GsasModel` — Read a GSAS-I `.EXP` experiment file.
 - `rx.write_gsas_exp(structure: Structure, path: str | Path, *, title: str = '', diagnostics: list[Diagnostic] | None = None)` — Write `structure` to `path` as a GSAS-I `.EXP`.
 - `rx.read_gsas2_gpx(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> Gsas2Model` — Read a GSAS-II `.gpx` project file.
-- `rx.write_gsas2_phase_cif(structure, path: str | Path, *, diagnostics: list[Diagnostic] | None = None)` — Write `structure` to `path` as the phase CIF GSAS-II imports.
+- `rx.write_gsas2_phase_cif(structure, path: str | Path, *, diagnostics: list[Diagnostic] | None = None)` — Write the phase CIF GSAS-II imports.
 - `rx.read_gsas2_instprm(path: str | Path, *, bank: int | None = None, diagnostics: list[Diagnostic] | None = None) -> Instrument` — Read a GSAS-II `.instprm` file as a **frozen** `Instrument`.
 - `rx.write_gsas2_instprm(instrument: Instrument, path: str | Path, *, diagnostics: list[Diagnostic] | None = None)` — Write `instrument` to `path` as a GSAS-II `.instprm`.
 - `rx.Structure.from_cif(path: str | os.PathLike[str], *, phase_name: str | None = None, aniso: bool = False, moment_ions: dict[str, str] | None = None, moment_g: dict[str, float] | None = None, nuclear_group: Literal['auto', 'parent', 'file'] = 'auto', diagnostics: list | None = None) -> Structure` — Read a CIF, or a **magCIF**, into a `Structure`.
@@ -195,7 +195,7 @@ Peaks, then a cell, then the extinction symbol — the closed loop of §7b-7f, e
 - `rx.pick_peaks(data: PatternData, instrument: Instrument, *, two_theta_range: tuple[float, float] | None = None, shoulders: bool = True, flag_contamination: bool = True) -> PeakList` — Every resolvable line in `data`, with a fitted position and its esd.
 - `rx.fit_peaks(data: PatternData, instrument: Instrument, positions: np.ndarray | list[float], *, two_theta_range: tuple[float, float] | None = None) -> PeakList` — Profile-fit **exactly** the peaks at `positions` — no structure, no space group, no refinement.
 - `rx.index_pattern(peaks: PeakList | None = None, *, data: PatternData | None = None, instrument: Instrument | None = None, spec=None, preset: str | None = None, engines: Sequence[str] | None = None, quality=None, shift_from_pairs: bool = True, validate: bool = True, check_top: int | None = None, two_theta_limits: tuple[float, float] | None = None, formula: str | None = None, temperature: float = 298.0, events=None, cancel=None)` — Find the unit cell — or say, in the shape of the answer, that it cannot.
-- `rx.determine_extinction_symbol(data: PatternData, candidate: CellCandidate, instrument: Instrument, *, peaks: PeakList | None = None, two_theta_limits: tuple[float, float] | None = None, k_sigma: float = 3.0, max_classes: int | None = None, cancel=None) -> ExtinctionScreen` — Rank the extinction classes compatible with an indexed lattice.
+- `rx.determine_extinction_symbol(data: PatternData, candidate: CellCandidate, instrument: Instrument, *, peaks: PeakList | None = None, two_theta_limits: tuple[float, float] | None = None, k_sigma: float = 3.0, max_classes: int | None = None, refine_cell: bool = False, cancel=None) -> ExtinctionScreen` — Rank the extinction classes of a lattice.
 
 ## Out
 

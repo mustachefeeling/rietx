@@ -49,7 +49,15 @@ LICENCES = {
     # because the fap standard *reads its protocol from it* (WP-1118) rather
     # than restating the numbers, so the file is an input and not a reference.
     "FAP.EXP": "Argonne/APS tutorial data (U.S. Government work)",
+    # Transcribed from FAP.EXP, so the same fence again.
+    "fluorapatite.cif": "Argonne/APS tutorial data (U.S. Government work)",
 }
+
+#: Shipped for the tutorial notebooks (WP-1545) and read by no standard.  A
+#: tutorial starts from a CIF because a reader's own phase arrives as one, and
+#: `_build_fap` reads its structure from FAP.EXP.  Listing it in the standard's
+#: `files` would declare an input the build never opens.
+TUTORIAL_ONLY = {"fluorapatite.cif"}
 
 
 def test_this_build_carries_examples():
@@ -66,7 +74,15 @@ def test_the_list_is_in_bijection_with_the_data_directory():
     on_disk = {str(p.relative_to(examples_dir()))
                for p in examples_dir().rglob("*") if p.is_file()}
     claimed = {f for name in NAMES for f in STANDARD_BY_KEY[name].files}
-    assert on_disk == claimed
+    assert on_disk == claimed | TUTORIAL_ONLY
+
+
+def test_a_tutorial_only_file_has_a_tutorial():
+    """The other half of the exemption above: a file kept for the tutorials
+    is still read by one, or it is a file with no user."""
+    tutorials = Path(__file__).resolve().parent.parent / "examples" / "tutorials"
+    text = "".join(p.read_text(encoding="utf-8") for p in tutorials.glob("[0-9][0-9]_*.py"))
+    assert [f for f in sorted(TUTORIAL_ONLY) if f not in text] == []
 
 
 def test_every_shipped_file_has_a_stated_licence():

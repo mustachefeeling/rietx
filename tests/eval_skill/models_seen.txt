@@ -1,0 +1,15 @@
+# Haiku and Sonnet model IDs the skill eval has been told about (WP-1907).
+# model_watch.py opens an issue for any ID the models page lists and this
+# file lacks. Add an ID here once the skill-eval workflow has run on it.
+# Seeded 2026-10-07 from the page as it read that day.
+claude-haiku-3
+claude-haiku-3-5
+claude-haiku-4-5
+claude-haiku-4-5-20251001
+claude-sonnet-3-5
+claude-sonnet-3-7
+claude-sonnet-4
+claude-sonnet-4-5
+claude-sonnet-4-6
+claude-sonnet-5
+claude-sonnet-5-5

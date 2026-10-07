@@ -197,8 +197,8 @@ Run the session-start ritual. The SessionStart hook's report
    subagent that does one checklist item while this session waits. This
    session then checks its diff and commits it. It pays for the reason step 6b
    gives: every request here re-reads the whole context, and a lane starts at
-   about 70K. In WP-1903's trial, nine sessions sent 24 items to lanes and
-   every session came out ahead, by a median 21% of what it would have cost
+   about 70K. In WP-1903's trial, ten sessions sent 26 items to lanes and
+   every session came out ahead, by a median 20% of what it would have cost
    without lanes (`docs/milestones/process.md` § Lanes within a WP).
    - **Decide each item when you start it.** Read the main context with
      `python3 .claude/hooks/session_usage.py context <session-id>`. The id is

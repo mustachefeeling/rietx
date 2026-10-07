@@ -322,18 +322,18 @@ Six things in it are moves that any later refinement repeats:
   ```text
   t5544a638  13 nodes  data=11BM_NAC.fxye
    n0000  root                   —
-  └─  n0001  stage:bkg              Rwp 3.1772
-     └─  n0002  stage:zero             Rwp 1.0407
-        └─  n0003  stage:cell             Rwp 0.1683
-           └─  n0004  stage:profile_w        Rwp 0.1592
-              └─  n0005  stage:profile          Rwp 0.1435  [lebail]
-                 └─  n0006  edit_model:add CaF2 impurity phase —
-                    └─  n0007  stage:scale_bkg        Rwp 0.1199
-                       └─  n0008  stage:zero             Rwp 0.1199
-                          └─  n0009  stage:cell             Rwp 0.0959
-                             └─  n0010  stage:profile_w        Rwp 0.0959
-                                └─  n0011  stage:profile          Rwp 0.0957
-                                   └─ *n0012  stage:biso             Rwp 0.0933
+   n0001  stage:bkg              Rwp 3.1772
+   n0002  stage:zero             Rwp 1.0407
+   n0003  stage:cell             Rwp 0.1683
+   n0004  stage:profile_w        Rwp 0.1592
+   n0005  stage:profile          Rwp 0.1435  [lebail]
+   n0006  edit_model:add CaF2 impurity phase —
+   n0007  stage:scale_bkg        Rwp 0.1199
+   n0008  stage:zero             Rwp 0.1199
+   n0009  stage:cell             Rwp 0.0959
+   n0010  stage:profile_w        Rwp 0.0959
+   n0011  stage:profile          Rwp 0.0957
+  *n0012  stage:biso             Rwp 0.0933
   ```
 
   [](history.md) is the whole record.
@@ -365,7 +365,7 @@ reads the two together, as `status == "converged"` with no diagnostic at level
 The curves are on the result as `RefinementResult.y_obs`,
 `RefinementResult.y_calc` and `RefinementResult.y_background`, over
 `RefinementResult.two_theta`. `RefinementResult.plot` writes an
-observed/calculated/difference figure with matplotlib (the `viz` extra).
+observed/calculated/difference figure with matplotlib.
 [](results.md) goes through the rest of the object field by field: the
 structure R-factors, the bonding geometry, and the two counts that say whether
 the pattern supported the model.

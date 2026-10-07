@@ -80,7 +80,7 @@
     <p>A straightforward Python interface for scripting or Jupyter notebooks. Get started <a href="https://rietx.org/using/quickstart.html">here</a>.</p>
   </div>
   <div class="two">
-    <div class="codebox"><div class="bar"><span>fap_lab.py</span></div>
+    <div class="codebox"><div class="bar"><span>02_simple_rietveld.py</span></div>
 <pre><span class="k">import</span> rietx <span class="k">as</span> rx
 
 data = rx.read_pattern(<span class="s">"FAP.XRA"</span>)          <span class="c"># GSAS raw format</span>
@@ -100,27 +100,22 @@ result = ref.fit(data, plan=<span class="s">"mccusker_structural"</span>,
     p = result.parameter(<span class="s">f"phases.0.cell.{name}"</span>)
     <span class="k">print</span>(<span class="s">f"  {name} = {p.value:.5f} +/- {p.stderr:.5f} A"</span>)
 <span class="k">for</span> d <span class="k">in</span> result.diagnostics:
-    <span class="k">print</span>(<span class="s">f"  [{d.level}] {d.code}: {d.message}"</span>)
-
-report = rx.build_report(result)
-<span class="k">print</span>(report.summary)
-result.plot(path=<span class="s">"fap_fit.png"</span>)</pre></div>
+    <span class="k">print</span>(<span class="s">f"  [{d.level}] {d.code}: {d.message}"</span>)</pre></div>
     <div class="codebox"><div class="bar"><span>output</span></div>
 <pre class="out"><span class="g">converged</span>  Rwp=0.0893  GoF=1.60
-  a = 9.37228 +/- 0.00010 A
-  c = 6.88626 +/- 0.00009 A
+  a = 9.37228 +/- 0.00008 A
+  c = 6.88626 +/- 0.00008 A
   [warning] <span class="w">SITE_SNAPPED_TO_SPECIAL_POSITION</span>: 1 site(s) in
     phase 'fluorapatite' sit within 0.0001 of a special
     position of 'P 63/m' without being on it, and were
     expanded at it: Ca1 (3.3e-11 → multiplicity 4) …
-  [warning] <span class="w">PATTERN_UNDERSAMPLED</span>: 4.7 steps across the FWHM
-    (median over 175 fitted peaks) — below the 5 the
-    guidelines ask for
-Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
-  4 unmatched observed peak(s); remaining 48 regions carry
-  30% of χ²; fitted instrument.zero_shift = -0.0365505
-  stands 67σ from 0 but is exchangeable with the held
-  instrument.geometry.sample_displacement …</pre></div>
+  [warning] <span class="w">RESOLUTION_UNCONSTRAINED</span>: U, V, W refined on a
+    predominantly Lorentzian pattern (Γ_L exceeds Γ_G at
+    4786 of 5751 fitted points; the Gaussian carries 41%
+    of the width) …
+  [warning] <span class="w">PATTERN_UNDERSAMPLED</span>: 4.6 steps across the FWHM
+    (median over 76 fitted peaks) — below the 5 the
+    guidelines ask for</pre></div>
   </div>
   <figure class="fig">
     <img class="only-light" src="%%IMG:fap-light%%" alt="Observed, calculated and difference curves for the fluorapatite refinement, 15 to 130 degrees two-theta, with the reflection tick row" width="2069" height="1307">
@@ -145,7 +140,7 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
   <ul class="feat">
     <li><strong>Rietveld, Le Bail and Pawley</strong><span>Multi-phase, X-ray and constant-wavelength neutron. <a href="https://rietx.org/using/concepts.html">Concepts</a></span></li>
     <li><strong>Reads common file formats</strong><span>.xy/.xye, GSAS, pdCIF, .chi, Rigaku .ras/.rasx, Bruker .uxd/.brml/.raw, PANalytical .xrdml/.udf, Philips .rd/.sd. <a href="https://rietx.org/using/files.html">Files</a></span></li>
-    <li><strong>Speaks other languages</strong><span>Opens TOPAS, FullProf and PowderLine formats. (GSAS, Rietica, XND, etc. in progress) <a href="https://rietx.org/using/files.html#refinement-files-another-program-wrote">Formats</a> · <a href="https://rietx.org/using/recipe.html">PowderLine</a></span></li>
+    <li><strong>Speaks other languages</strong><span>Opens TOPAS, FullProf, GSAS and PowderLine formats. (Rietica, XND, etc. in progress) <a href="https://rietx.org/using/files.html#refinement-files-another-program-wrote">Formats</a> · <a href="https://rietx.org/using/recipe.html">PowderLine</a></span></li>
     <li><strong>Phase quantification</strong><span>Weight fractions with esds propagated through the full covariance, and a flag when a phase is not determined by the data. <a href="https://rietx.org/using/qpa.html">QPA</a></span></li>
     <li><strong>Series</strong><span>Designed from the ground up for robust sequential refinement. <a href="https://rietx.org/using/series.html">Series</a></span></li>
     <li><strong>Reporting beyond Rwp</strong><span>Common refinement heuristics reported in words alongside numbers. This helps both humans and agents interpret refinement results. <a href="https://rietx.org/using/report.html">FitReport</a></span></li>

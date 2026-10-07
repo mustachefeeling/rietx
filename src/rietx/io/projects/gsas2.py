@@ -2020,7 +2020,7 @@ def _report_cif(structure, ambiguous: list[str],
 
 def write_gsas2_phase_cif(structure, path: str | Path, *,
                           diagnostics: list[Diagnostic] | None = None) -> None:
-    """Write ``structure`` to ``path`` as the phase CIF GSAS-II imports.
+    """Write the phase CIF GSAS-II imports.
 
     One data block per phase, which is what GSAS-II's importer offers a choice
     between.  See :func:`from_structure` for what crosses, and

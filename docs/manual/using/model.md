@@ -285,6 +285,11 @@ five of the six are held, and the one hit is the whole of the freedom. Paths the
 current mode force-fixes are the exception to the rule: `set_vary` will free
 them, and a stage then drops them again, reporting them as `mode_fixed`.
 
+The `vary` flags on the models you passed in are the starting declaration, and
+only that. Once `set_vary`, a hold, a tie or a stage has declared a free set,
+that set is the one the table reads, even when it is empty. So holding the last
+free path leaves nothing free, whatever the model's own flag says.
+
 The GUI calls the same verb from its Model panel: a box beside each value frees
 that one path, and a held value shows which of the four reasons holds it in
 place of the box. The atom table's `vary` column is the one box that names a

@@ -1,6 +1,6 @@
 # WP-1911 — the foreign writers state what the other program reads: the setting, the scale, the free set
 
-Milestone: unscheduled · Status: 🔄 2026-10-07 — PRs #720, #731, #710, #733, #713, #771 and #782 merged from outside; #770 (Part B's writer) needs a rebase; #721's decision is due
+Milestone: unscheduled · Status: 🔄 2026-10-07 — PRs #720, #731, #710, #733, #713, #771, #782, #770 (Part B's TOPAS writer) and #755 (C1's `Zero`) merged from outside; #721's decision is due
 Track: Coming from another code
 Depends on: — (#713 soft: the P1 restatement Part D builds on)
 Priority: P3 2026-10-06 — was P2 for #716, which PR #733 fixed; the remaining issues cost a user hand edits
@@ -354,6 +354,55 @@ land alone before the transform exists.
   keywords (specification only, per ATTRIBUTION.md).
 
 ## Handover log
+
+- **2026-10-07 (2nd session)** — Two more of this WP's PRs merged from the
+  reporter's fork. They were gated together on a four-PR stack replayed onto
+  `main` at `57aa2c1` (stack `5af37056`, Linux, 4 cores, `[dev,jax]`):
+  - ruff is clean;
+  - the fast suite gave 8795 passed, 118 skipped and 1 xfailed;
+  - the slow tier, run in two halves, gave 287 passed, 9 skipped and 1 failed.
+    `test_pair_diagnostic_class.py::test_every_pair_on_a_solution_names_a_class_whose_rows_carry_it`
+    fails identically on bare `main`.
+
+  After the last merge, `main` at `9a3955b` is content-identical to the gated
+  tree.
+  - PR #770 (#722) as `9a3955b`. `write_topas_inp(free=, scale=, instrument=)`
+    writes the fit's free set and ties:
+    - a free parameter goes under a name derived from its path;
+    - a `tie_equal` group is one shared name;
+    - any other affine tie is an equation over its source, with `prm` where no
+      written value carries the source;
+    - finite bounds are written as `min`/`max`.
+
+    `free=` takes a `Refinement` (ties included), a `RefinementResult` or a
+    list of paths. For a result, the symmetry ties are rederived from the
+    structure's own table and written from their source, and a user tie's
+    copy is written as its own parameter. `scale="topas"` writes × 100 for
+    neutrons, held by `topas_export_nacl_neutron_ycalc.txt`. It writes × K
+    for X-rays, which is the Technical Reference's definition with no TOPAS
+    output in the tree yet. Without the new keywords the file is byte for byte
+    what 1.6.0 wrote. Without `free=`, the stored flags are written.
+  - This is Part B's writer half for TOPAS only. The B tasks stay unticked:
+    the `.pcr`, `.EXP` and GSAS-II writers take neither keyword, and the
+    FullProf constants and the X-ray TOPAS constant are not committed.
+    `test_a_free_moment_is_read_back` is a strict xfail with
+    `raises=TopasInpError`. It still xfails with #771 on `main`, because
+    #771's reader does not read `mlx = …;`. The marker flips when that read
+    lands.
+  - Gotcha, checked in review: a result's coordinate DOFs are steps from the
+    fit's start. Written beside a fitted structure, they still read back to
+    the fitted coordinates exactly, under both `free=ref` and
+    `free=ref.result_`. That was probed on a displaced Pnma, so there is no
+    double count.
+  - PR #755 (#723 item 1) as `0ce4b9a`. `write_fullprof_pcr(...,
+    write_zero_shift=True)` writes `instrument.zero_shift` as `Zero`, with
+    its codeword held. The default still refuses a non-zero zero shift, and
+    the default file is pinned byte for byte. The convention (degrees 2θ,
+    rietx's sign) was measured by the contributor against FullProf 8.20 as a
+    black box. That run's output is not committed, so the tree holds the sign
+    only in prose. C1 stays unticked: `SyCos` and `Occ` remain.
+  - Next: the maintainer decision on #721's items 2-4. #723's package
+    decision is still open, beyond its first item.
 
 - **2026-10-07** — Two more of this WP's PRs merged from the reporter's fork.
   Gated together on a nine-PR stack replayed onto `main` at `f99fab05` (stack

@@ -185,6 +185,15 @@ python3 .claude/hooks/session_usage.py baseline --u U --mo MO --d D
   - No lanes this session (step 3b does not apply). It has one
     implementation item, and the context never passed 150K before it.
 
+  *A tenth row.* Merging main brought WP-1907's session f69c397c: two lanes,
+  +$0.78, 8%. The decision's figures now count ten sessions and 26 lanes,
+  median 20%, $91.60 in total. That session's entry names two miscounts the
+  tool still has. A kept item under a written `lanes: keep` line can be
+  missing from the table, and *main edits after* sees only the Edit-family
+  tools, so a fix made by a Python rewrite through Bash reads 0. The
+  review's `DECISION` widening may explain the first. The second is open,
+  and it means *fixed* undercounts.
+
   *Review* (`/code-review high --fix`, nine findings, seven fixed by the
   pass). `DECISION` now accepts a decision line wrapped in markdown (a
   backtick, bullet, bold or quote), with five test cases. Step 6c shows the

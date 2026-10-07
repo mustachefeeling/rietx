@@ -383,9 +383,9 @@ def test_the_example_the_page_quotes_is_a_script_that_runs(site_html):
     """`examples/` is the one authority for a worked walkthrough (root
     CLAUDE.md).  The page presents its own syntax-highlighted copy, so this
     checks the script exists and is the one the suite runs; what it *prints* is
-    `tests/test_examples.py`'s question."""
-    assert (REPO_ROOT / "examples" / "fap_lab.py").is_file()
-    assert "fap_lab.py" in site_html
+    `tests/test_tutorials.py`'s question (WP-1545)."""
+    assert (REPO_ROOT / "examples" / "tutorials" / "02_simple_rietveld.py").is_file()
+    assert "02_simple_rietveld.py" in site_html
 
 
 def test_build_py_site_runs_and_writes_the_files_it_names(build):

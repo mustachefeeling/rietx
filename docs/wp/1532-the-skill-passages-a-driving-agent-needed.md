@@ -56,6 +56,13 @@ The row needs that check before it is written.
 
 ### Inherited
 
+- **From WP-1907 (2026-10-07), a number in the body is now a claim.**
+  `tests/test_skill_claims.py` fails on any number in `SKILL.md` that is
+  neither a `CLAIMS` row (checked against the package) nor a `NOT_CLAIMS` row
+  (with its reason). A passage this WP adds to the body that quotes a value
+  adds its row in the same change. A `(Measured: WP-NNNN …)` tag must name a
+  WP that is in the index (`test_skill.py`).
+
 - **From WP-1906 (2026-10-06), the body these rows land on.** `SKILL.md`'s
   body is 16 999 B against `SKILL_BUDGET_BYTES` (17 000; WP-1906 closed
   2026-10-07), so every byte a

@@ -30,8 +30,9 @@ instructions to this script rather than files the harness reads:
   interpreter. `build` warns about an interpreter either arm cannot start,
   rather than letting every fit in that arm fail in the run.
 - ``inputs.txt`` lists what the run's workspace starts with, one per line:
-  ``copy <repo path> [as <name>]``, or ``episode <name>`` for a generated set
-  (`EPISODES`). `build` stages them into the case's ``files/`` and writes the
+  ``copy <repo path> [as <name>]``, ``empty <name>`` for an empty file a
+  prompt names (tier 0's, PROTOCOL.md § Amendments, 2026-10-07), or
+  ``episode <name>`` for a generated set (`EPISODES`). `build` stages them into the case's ``files/`` and writes the
   ``fixture.sh`` and ``case.yaml`` that copy them in under ``--scaffold``. The
   scaffold runs with no variable naming the case, so the path is written in
   absolute at build time, which is why a build is not portable between machines.
@@ -112,13 +113,15 @@ def parse_inputs(text: str) -> list[tuple[str, str, str]]:
         words = line.split()
         if words[0] == "copy" and len(words) in (2, 4) and (len(words) == 2 or words[2] == "as"):
             rows.append(("copy", words[1], words[3] if len(words) == 4 else Path(words[1]).name))
+        elif words[0] == "empty" and len(words) == 2:
+            rows.append(("empty", "", words[1]))
         elif words[0] == "episode" and len(words) == 2:
             if words[1] not in EPISODES:
                 raise ValueError(f"line {n}: no episode {words[1]!r} (have {sorted(EPISODES)})")
             rows.append(("episode", words[1], ""))
         else:
-            raise ValueError(f"line {n}: expected `copy <path> [as <name>]` "
-                             f"or `episode <name>`, got {raw!r}")
+            raise ValueError(f"line {n}: expected `copy <path> [as <name>]`, "
+                             f"`empty <name>` or `episode <name>`, got {raw!r}")
     return rows
 
 
@@ -182,6 +185,8 @@ def _stage(case: Path, files: Path, python: Path, out: Path) -> None:
             if not src.is_file():
                 raise SystemExit(f"{case / INPUTS}: no file {source}")
             shutil.copyfile(src, files / name)
+        elif verb == "empty":
+            (files / name).touch()
         else:
             built = out / "episodes" / source
             if not built.exists():
