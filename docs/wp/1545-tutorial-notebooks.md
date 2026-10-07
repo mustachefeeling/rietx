@@ -120,7 +120,10 @@ and what the difference curve shows; QPA.
 - [ ] The designed views WP-1544 deferred, built only where a notebook needs
   one (`FitReport`, `ExtinctionScreen`).
 - [x] `docs/RELEASING.md` step and the root CLAUDE.md sentence.
-- [ ] Skill: a pointer to the tutorials in `references/`, or "none" and why.
+- [x] Skill: a pointer to the tutorials in `references/`, or "none" and why.
+  None (2026-10-07): the notebooks teach a person to check an agent, and each
+  checklist is drawn from `SKILL.md` §4 and §4b, so an agent would read them
+  for no rule it lacks. They also ship in the repository, not the wheel.
 
 ## Acceptance
 
