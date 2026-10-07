@@ -484,6 +484,33 @@ class Base(BaseModel):
             raise AttributeError(f"{plain}; its fields are {fields}")
         raise AttributeError(plain)
 
+    def __repr_args__(self):
+        """Pydantic's fields, with every long sequence shown as a count and a
+        range (WP-1544).
+
+        This is the one place a long array is kept out of a repr, and so out of
+        ``str``, ``print``, a traceback and a notebook cell's text, since
+        pydantic's ``__str__`` is its repr. A pattern's repr was 1.4 MB.
+        """
+        from .._display import summarise
+        for name, value in super().__repr_args__():
+            yield name, summarise(value)
+
+    def __str__(self) -> str:
+        """An indented field tree, one line per parameter (WP-1544).
+
+        ``repr`` stays pydantic's one line, for logs and debugging; ``str`` and
+        ``print`` are for reading. A schema with a designed view (a result's
+        termination view) overrides this.
+        """
+        from .._display import tree
+        return tree(self)
+
+    def _repr_pretty_(self, p, cycle) -> None:
+        """IPython's text: the same as ``print``, so a notebook cell and a
+        terminal agree."""
+        p.text(f"{type(self).__name__}(...)" if cycle else str(self))
+
 
 class Parameter(Base):
     """A single refinable scalar.

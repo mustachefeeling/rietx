@@ -108,12 +108,18 @@ docs = [
     "sphinx-design>=0.6",
     "furo>=2024.1",
 ]
+# What executes a notebook headless (WP-1544): the display tests run an
+# object through IPython's own formatter, and the tutorials (WP-1545) are
+# built and checked by executing them.  Not needed to *use* a notebook,
+# which brings its own kernel.
+notebooks = ["ipykernel>=6.29", "nbclient>=0.10", "nbformat>=5.10"]
 dev = [
-    # Two user-facing extras ride along rather than being restated here: docs so
-    # tests/test_manual.py builds the theory manual in the standard suite
+    # Three user-facing extras ride along rather than being restated here: docs
+    # so tests/test_manual.py builds the theory manual in the standard suite
     # instead of importorskip-ing out, viz so the renderers' tests have the
-    # matplotlib they render with, at the floor declared above.
-    "rietx[docs,viz]",
+    # matplotlib they render with, at the floor declared above, and notebooks
+    # so the display tests meet a real kernel.
+    "rietx[docs,viz,notebooks]",
     "pytest>=8",
     # `-n auto --dist loadgroup` is how the suite is meant to be run; the
     # expensive shared fixtures are pinned to a worker by xdist_group marks

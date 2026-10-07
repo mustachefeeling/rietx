@@ -2207,6 +2207,23 @@ class Refinement:
         self._apply_holds(table)
         return table
 
+    def __str__(self) -> str:
+        """What this refinement holds, read off its fields: phases, mode, the
+        last fit's status and the parameters that vary (WP-1544).
+
+        Never :meth:`summary`, which builds a report and can run fits: a
+        notebook calls this twice per displayed cell.
+        """
+        from ._display import refinement_text
+        return refinement_text(self)
+
+    def _repr_pretty_(self, p, cycle) -> None:
+        p.text(str(self))
+
+    def _repr_html_(self) -> str:
+        from ._display import refinement_html
+        return refinement_html(self)
+
     def parameters(self, *, mode: Mode | None = None) -> list[ParameterRow]:
         """Every parameter as data — fixed, locked and tied rows included.
 

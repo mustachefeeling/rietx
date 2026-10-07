@@ -1410,6 +1410,17 @@ class RefinementResult(Base):
                 return p
         raise KeyError(path)
 
+    def _repr_html_(self) -> str:
+        """The termination view, then the refined parameters as a table
+        (WP-1544). The text is what ``print`` gives; the table is the same
+        numbers as ``parameters``."""
+        from .._display import _number, pre_html, table_html
+        rows = [(p.path, _number(p.value, p.stderr),
+                 "" if p.at_bound is None else str(p.at_bound).lower())
+                for p in self.parameters]
+        table = table_html(("path", "value", "at_bound"), rows) if rows else ""
+        return pre_html(str(self)) + table
+
     def __str__(self) -> str:
         """The termination view a bare result can answer (WP-1302): per-stage
         status, every diagnostic, provenance, agreement indices last.

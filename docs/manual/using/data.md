@@ -147,6 +147,20 @@ The figure is the 11-BM NAC pattern of the [](quickstart.md), drawn with
 figure with the fit taken out. A `PatternData` carries no wavelength, so λ on
 the 2θ axis, and a Q or d axis, need `wavelength=`.
 
+`model=` takes a `Refinement` and draws one row of reflection ticks per phase
+under the data, where a fit's figure puts them. The positions are the model's
+as it stands, every emission line included, and no fit runs. This is the look
+that says whether a starting cell is close and the wavelength is right. A cell
+1 % too large puts every FAP tick visibly to the left of its peak. The rows sit
+below the data floor, so `model=` needs the linear intensity axis and refuses
+any other `y_scale`.
+
+<!-- api-doc: no-exec — compiles a model over a measured pattern -->
+```python
+ref = rietx.Refinement(structure, instrument)
+data.plot(model=ref, two_theta_range=(25, 40))
+```
+
 Never subtract an estimated background from `intensity`. Hold it additively
 with `BackgroundFixedPlusChebyshev` or co-refine it under the smoothness penalty
 of `BackgroundPSpline`. Subtracting changes the counting statistics that

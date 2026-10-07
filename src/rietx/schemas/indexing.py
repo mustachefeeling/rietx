@@ -1691,6 +1691,88 @@ class IndexingResult(Base):
     thresholds_version: str = INDEXING_THRESHOLDS_VERSION
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 
+    def __str__(self) -> str:
+        """The candidate table, the verdict and every diagnostic (WP-1544).
+
+        ``rietx index`` prints exactly this, so the CLI, a script's ``print``
+        and a notebook cell are one view. It reads fields only:
+        :meth:`best_or_none` is the one rule it calls, a filter over the
+        candidates.
+        """
+        head, candidates, tail = self._text_sections()
+        return "\n".join(head + candidates + tail)
+
+    def _text_sections(self) -> tuple[list[str], list[str], list[str]]:
+        """The run line, the candidate lines, and the verdict with every
+        diagnostic: :meth:`__str__` joins them, ``_repr_html_`` swaps the middle
+        one for a table."""
+        result = self
+        lines: list[str] = []
+        lines.append(f"engines: {', '.join(result.engines_run) or 'none'}   "
+                     f"systems: {', '.join(result.systems_searched) or 'none'}   "
+                     f"lines: {result.n_usable_lines}   "
+                     f"validated: {'yes' if result.validated else 'no'}")
+        incomplete = [s for s, done in result.search_complete.items() if not done]
+        if incomplete:
+            lines.append(f"search INCOMPLETE in: {', '.join(incomplete)} — a negative "
+                         "result there is not evidence")
+        lines.append("")
+        head, lines = lines, []
+        if not result.candidates:
+            lines.append("no candidate cell in the systems searched.")
+        for i, c in enumerate(result.candidates, start=1):
+            a, b, cc, al, be, ga = c.cell
+            lines.append(f"{i:2}. [{c.confidence:^6}] {c.system} {c.centring}"
+                         f"   {a:.5f} {b:.5f} {cc:.5f} Å  {al:.3f} {be:.3f} {ga:.3f}°"
+                         f"   V = {c.volume:.2f} Å³")
+            lines.append(f"      found by {', '.join(c.found_by)};  indexed "
+                         f"{c.n_indexed}/{c.n_lines} lines;  chi2_red {c.chi2_red:.2f}"
+                         + (f";  Le Bail Rwp {c.lebail.rwp:.4f}, "
+                            f"{c.lebail.predicted_but_absent} of "
+                            f"{c.lebail.n_reflections} reflections absent"
+                            if c.lebail is not None else ""))
+            if c.confidence_caveats:
+                lines.append(f"      not higher because: {', '.join(c.confidence_caveats)}")
+        candidates, lines = lines, []
+        best = result.best_or_none()
+        lines.append("")
+        if best is None:
+            lines.append("NO CELL: the result abstains — see the diagnostics below.")
+        else:
+            lines.append(f"CELL: {best.system} {best.centring} "
+                         f"{best.cell[0]:.5f} {best.cell[1]:.5f} {best.cell[2]:.5f} Å "
+                         f"{best.cell[3]:.3f} {best.cell[4]:.3f} {best.cell[5]:.3f}°")
+        for diag in result.diagnostics:
+            lines.append(f"  [{diag.level:^7}] {diag.code}: {diag.message}")
+            # ``where`` is load-bearing for the run-level codes — it is the field
+            # that names which systems INDEX_BUDGET_EXHAUSTED left truncated or
+            # unreached, which no message prose restates
+            for entry in diag.where:
+                lines.append(f"           - {entry}")
+        for c in result.candidates:
+            for diag in c.diagnostics:
+                lines.append(f"  [{diag.level:^7}] {diag.code} (candidate "
+                             f"{c.system} {c.centring} V={c.volume:.1f}): {diag.message}")
+        return head, candidates, lines
+
+    def _repr_html_(self) -> str:
+        """The candidates as a table between the run line and the verdict."""
+        from .._display import pre_html, table_html
+        head, _, tail = self._text_sections()
+        rows = []
+        for i, c in enumerate(self.candidates, start=1):
+            a, b, cc, al, be, ga = c.cell
+            rows.append((str(i), c.confidence, f"{c.system} {c.centring}",
+                         f"{a:.5f} {b:.5f} {cc:.5f}", f"{al:.3f} {be:.3f} {ga:.3f}",
+                         f"{c.volume:.2f}", f"{c.n_indexed}/{c.n_lines}",
+                         f"{c.chi2_red:.2f}",
+                         f"{c.lebail.rwp:.4f}" if c.lebail is not None else "",
+                         ", ".join(c.confidence_caveats)))
+        table = table_html(("#", "confidence", "lattice", "a b c (Å)", "α β γ (°)",
+                            "V (Å³)", "indexed", "chi2_red", "Le Bail Rwp",
+                            "confidence_caveats"), rows) if rows else ""
+        return pre_html("\n".join(head)) + table + pre_html("\n".join(tail))
+
     def best_or_none(self) -> CellCandidate | None:
         """The single candidate, or None.
 

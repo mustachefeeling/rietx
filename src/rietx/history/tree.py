@@ -211,6 +211,14 @@ class RefinementTree:
     def __len__(self) -> int:
         return len(self.order)
 
+    def __str__(self) -> str:
+        """:meth:`summary`, so ``print(tree)`` and a notebook cell draw the tree
+        (WP-1544)."""
+        return self.summary()
+
+    def _repr_pretty_(self, p, cycle) -> None:
+        p.text(str(self))
+
     def __contains__(self, key: str) -> bool:
         return key in self.nodes or key in self.refs
 

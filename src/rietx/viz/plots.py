@@ -299,14 +299,126 @@ def _check_panel_args(style: str, x_axis: str, y_scale: str,
 
 
 def _pyplot():
-    """``matplotlib.pyplot`` on the Agg canvas, or an error naming the extra."""
+    """``matplotlib.pyplot``, or an error naming the extra.
+
+    A script, the CLI and the GUI server get the Agg canvas, because a GUI
+    backend drawing off the main thread fails on macOS. A Jupyter kernel's
+    backend is left alone (WP-1544). Forcing Agg there made every rietx
+    figure display as ``<Figure size …>`` text, and the next ``plt.show()``
+    in the session warned that Agg "cannot be shown", whichever was imported
+    first.
+    """
     try:
         import matplotlib
-        matplotlib.use("Agg", force=False)
+        if not _in_kernel():
+            matplotlib.use("Agg", force=False)
         import matplotlib.pyplot as plt
     except ImportError as exc:  # pragma: no cover
         raise ImportError(f"plotting needs matplotlib: pip install '{DIST_NAME}[viz]'") from exc
     return plt
+
+
+#: What a figure shown in a notebook cell is encoded at (WP-1544): twice a
+#: 100-dpi screen, so it is sharp on a HiDPI display and is drawn at its
+#: designed size by the width the bundle declares, and a 256-colour palette.
+#: Measured on the FAP fit figure: 194 kB as a 300-dpi RGBA PNG, 52 kB this
+#: way, with 98.84 % of pixels unchanged and the rest antialiased edges within
+#: 31/255. A file written with ``path=`` or ``savefig`` is untouched.
+_NOTEBOOK_DPI = 100
+_NOTEBOOK_DENSITY = 2
+_NOTEBOOK_COLOURS = 256
+
+_FIGURE_CLASS = None
+
+
+def _figure_class():
+    """The ``Figure`` every rietx plot draws on: matplotlib's own, with a
+    notebook encoding of its own (:data:`_NOTEBOOK_DPI`).
+
+    IPython ranks a PNG formatter registered for a type above any method on
+    the object, and the inline backend registers one for ``Figure``, which a
+    subclass inherits through its MRO. So the encoder is registered for this
+    subclass alone, in a running IPython: the caller's own figures keep the
+    backend's formatter. ``_repr_png_`` answers where no formatter is
+    registered at all. Built on first use, because this module imports
+    matplotlib lazily.
+    """
+    global _FIGURE_CLASS
+    if _FIGURE_CLASS is None:
+        from matplotlib.figure import Figure
+
+        class _NotebookFigure(Figure):
+            def _repr_png_(self):
+                return _notebook_png(self)
+
+        _FIGURE_CLASS = _NotebookFigure
+    _register_notebook_png(_FIGURE_CLASS)
+    return _FIGURE_CLASS
+
+
+def _register_notebook_png(cls) -> None:
+    """Point a running IPython's PNG formatter at :func:`_notebook_png` for
+    ``cls``. Nothing happens outside IPython, or once it is done."""
+    import sys
+    if "IPython" not in sys.modules:
+        return
+    from IPython import get_ipython
+    shell = get_ipython()
+    if shell is None:
+        return
+    formatter = shell.display_formatter.formatters["image/png"]
+    if cls not in formatter.type_printers:
+        formatter.for_type(cls, _notebook_png)
+
+
+def _notebook_png(fig) -> tuple[bytes, dict]:
+    """``fig`` as a notebook shows it: a PNG at :data:`_NOTEBOOK_DENSITY` times
+    :data:`_NOTEBOOK_DPI`, palette-quantised without dithering, with its width
+    and height in CSS pixels so the frontend draws it at its designed size.
+    ``(data, metadata)``, the pair an IPython formatter may return."""
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=_NOTEBOOK_DPI * _NOTEBOOK_DENSITY,
+                bbox_inches="tight", facecolor=fig.get_facecolor())
+    image = Image.open(io.BytesIO(buf.getvalue())).convert("RGB")
+    palette = image.quantize(colors=_NOTEBOOK_COLOURS,
+                             method=Image.Quantize.MEDIANCUT,
+                             dither=Image.Dither.NONE)
+    out = io.BytesIO()
+    palette.save(out, format="PNG", optimize=True)
+    width, height = image.size
+    return out.getvalue(), {"width": width // _NOTEBOOK_DENSITY,
+                            "height": height // _NOTEBOOK_DENSITY}
+
+
+def _handed_back(fig):
+    """``fig``, detached from pyplot when the backend is a notebook's inline one.
+
+    The inline backend draws every figure pyplot holds when a cell ends, and
+    Jupyter draws a returned figure as the cell's value, so a bare
+    ``result.plot()`` showed twice; after it, figures stopped flushing and
+    surfaced in a later cell's ``plt.show()`` (measured, WP-1544). Detached,
+    the returned figure is the cell's one output, and a trailing ``;`` hides it
+    as IPython means it to. Everywhere else pyplot keeps the figure, so a
+    script's own ``plt.show()`` still finds it.
+    """
+    import matplotlib
+    import matplotlib.pyplot as plt
+    if "inline" in matplotlib.get_backend():
+        plt.close(fig)
+    return fig
+
+
+def _in_kernel() -> bool:
+    """Whether this process is a Jupyter kernel, whose backend (inline, or
+    whatever ``%matplotlib`` chose) is the notebook's to keep.  Only there:
+    a script whose matplotlibrc names a GUI backend still gets Agg, because
+    ``summary(plot=)`` and the GUI server draw off the main thread."""
+    import sys
+    return "ipykernel" in sys.modules
 
 
 def _style_context(plt, style: str, font_size: float):
@@ -527,7 +639,7 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
             figsize = (7.6, 4.4) if inline else (7.6, 5.6)
         left, right, top_m, bottom_m = 0.13, 0.805, 0.965, 0.125
         if inline:
-            fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+            fig, ax = plt.subplots(figsize=figsize, dpi=dpi, FigureClass=_figure_class())
             axd = None
             hspace = 0.0
         else:
@@ -541,7 +653,7 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
             upper_in = avail - gap_in - lower_in
             hspace = gap_in / (0.5 * (upper_in + lower_in))
             fig, (ax, axd) = plt.subplots(
-                2, 1, figsize=figsize, dpi=dpi, sharex=True,
+                2, 1, figsize=figsize, dpi=dpi, FigureClass=_figure_class(), sharex=True,
                 gridspec_kw={"height_ratios": [upper_in, lower_in]})
         # explicit margins rather than tight_layout: the gutter on the right is
         # reserved for the labels, and the row spacing below needs to know the
@@ -717,7 +829,22 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
 
         if path is not None:
             fig.savefig(path)
-    return fig
+    return _handed_back(fig)
+
+
+def _model_ticks(ref, data) -> dict[str, list[float]]:
+    """Each phase's reflection positions over ``data``'s range, at ``ref``'s
+    parameters as they stand: compiled as :meth:`Refinement.predict` compiles,
+    placed by :func:`~rietx.viz.snapshot.stage_ticks`, keyed by phase name."""
+    from ..model.forward import compile_model
+    from ..params.vector import ParameterTable
+    from .snapshot import stage_ticks
+    table = ParameterTable(ref.structure, ref.instrument)
+    compiled = compile_model(ref.structure, ref.instrument, data, mode="rietveld",
+                             moving_paths=set(table.moving_paths))
+    rows = stage_ticks(compiled, table.decode(table.x0()), max_per_phase=10**9)
+    names = [p.name for p in ref.structure.phases]
+    return {names[int(key.split()[-1])]: row["two_theta"] for key, row in rows.items()}
 
 
 def plot_pattern(data, *, path: str | None = None,
@@ -726,7 +853,7 @@ def plot_pattern(data, *, path: str | None = None,
                  y_scale: str = "linear", style: str = "light",
                  figsize: tuple[float, float] | None = None,
                  font_size: float = BASE, dpi: int = 300,
-                 title: str | None = None):
+                 title: str | None = None, model=None):
     """A measured pattern on its own, before any model exists.
 
     The data panel of :func:`plot_result` with nothing modelled in it: the same
@@ -749,8 +876,18 @@ def plot_pattern(data, *, path: str | None = None,
     mean on :func:`plot_result`; the default size is the result panel's own,
     so a before-and-after pair lines up.  A :class:`PatternData` carries no
     wavelength either, so λ on the 2θ axis, and Q or d, need ``wavelength=``.
+
+    ``model``, a :class:`~rietx.Refinement`, adds one row of reflection ticks
+    per phase under the data, where the result panel puts them, at the
+    parameters as they stand and before any fit (WP-1544): the check that the
+    cell is close and λ is right before a fit is asked to find either. The
+    positions are :func:`rietx.viz.snapshot.stage_ticks`', every emission line
+    included. A row sits below the data floor, so it needs the linear axis.
     """
     _check_panel_args(style, x_axis, y_scale, wavelength)
+    if model is not None and y_scale != "linear":
+        raise ValueError("model= draws its tick rows below the data floor, "
+                         "which only a linear intensity axis has room for")
     plt = _pyplot()
     from matplotlib.ticker import MaxNLocator
 
@@ -767,11 +904,15 @@ def plot_pattern(data, *, path: str | None = None,
     if x.size > 1 and x[0] > x[-1]:
         # mirrored rather than reversed, as the result panel does it
         x, y_obs = x[::-1], y_obs[::-1]
+    rows = ([(name, _x_values(np.asarray(pos, dtype=float), x_axis, wavelength)[0])
+             for name, pos in _model_ticks(model, data).items()]
+            if model is not None else [])
+    n_rows = len(rows)
 
     with _style_context(plt, style, font_size):
         if figsize is None:
             figsize = (7.6, 4.4)
-        fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+        fig, ax = plt.subplots(figsize=figsize, dpi=dpi, FigureClass=_figure_class())
         fig.subplots_adjust(left=0.13, right=0.805, top=0.965, bottom=0.125)
 
         x0, x1 = float(x.min()), float(x.max())
@@ -808,8 +949,30 @@ def plot_pattern(data, *, path: str | None = None,
         u_head = u_top + 0.20 * u_span
         base = floor if y_scale == "log" else min(floor, 0.0)
 
+        row_y, row_floor = [], floor
+        if n_rows:
+            # the result panel's inline rows, with no residual between them and
+            # the data: the first row sits a small gap under the floor
+            head = float(inverse(u_head))
+            span = top - floor or 1.0
+            line_frac = (1.35 * font_size / 72.0) / (ax.get_position().height
+                                                     * fig.get_size_inches()[1])
+            denom = 1.0 - line_frac * (n_rows + 0.6)
+            rows_top = floor - 0.03 * span
+            row_gap = (line_frac * (head - rows_top) / denom if denom > 0.35
+                       else 0.10 * span)
+            row_y = [rows_top - (i + 1) * row_gap for i in range(n_rows)]
+            row_floor = row_y[-1] - 0.6 * row_gap
+            marker = _hkl_marker()
+            for i, ((_, positions), y) in enumerate(zip(rows, row_y, strict=True)):
+                pos = positions[(positions >= x0) & (positions <= x1)]
+                colour = (hue["tick"] if n_rows == 1
+                          else hue["phase"][i % len(hue["phase"])])
+                ax.plot(pos, np.full(pos.size, y), ls="none", marker=marker,
+                        ms=1.1 * font_size, mfc=colour, mec=colour, mew=0)
+
         ax.set_xlim(x0, x1)
-        ax.set_ylim(floor, float(inverse(u_head)))
+        ax.set_ylim(row_floor, float(inverse(u_head)))
         ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
         u_bottom = _intensity_axis(ax, y_scale, forward, inverse, base, top,
                                    u_top, u_head)
@@ -820,15 +983,21 @@ def plot_pattern(data, *, path: str | None = None,
         fig_h = fig.get_size_inches()[1]
         ax_h_in = ax.get_position().height * fig_h
         min_gap = 1.15 * font_size * (u_head - u_bottom) / (ax_h_in * 72.0)
-        ax.text(x1 + 0.012 * (x1 - x0),
+        x_gut = x1 + 0.012 * (x1 - x0)
+        ax.text(x_gut,
                 float(inverse(max(u_bottom, float(forward(floor))) + 0.55 * min_gap)),
                 "observed", color=hue["obs"], ha="left", va="center",
                 clip_on=False)
+        for i, ((name, _), y) in enumerate(zip(rows, row_y, strict=True)):
+            colour = (hue["tick"] if n_rows == 1
+                      else hue["phase"][i % len(hue["phase"])])
+            ax.text(x_gut, y, name, color=colour, ha="left", va="center",
+                    clip_on=False)
         _title(ax, title, font_size)
 
         if path is not None:
             fig.savefig(path)
-    return fig
+    return _handed_back(fig)
 
 
 def plot_for_vlm(result: RefinementResult, report=None, *,
@@ -857,12 +1026,7 @@ def plot_for_vlm(result: RefinementResult, report=None, *,
     if not str(path).lower().endswith(".png"):
         raise ValueError("plot_for_vlm writes PNG only (JPEG artifacts destroy "
                          "thin peak/difference lines); pass a .png path")
-    try:
-        import matplotlib
-        matplotlib.use("Agg", force=False)
-        import matplotlib.pyplot as plt
-    except ImportError as exc:  # pragma: no cover
-        raise ImportError(f"plotting needs matplotlib: pip install '{DIST_NAME}[viz]'") from exc
+    plt = _pyplot()
 
     if report is None:
         from ..report import build_layer0
@@ -876,7 +1040,7 @@ def plot_for_vlm(result: RefinementResult, report=None, *,
 
     regions = sorted(report.regions, key=lambda r: -r.chi2_share)[:n_regions]
     n_cols = max(len(regions), 1)
-    fig = plt.figure(figsize=(3.2 * max(n_cols, 3), 8.5), dpi=dpi)
+    fig = plt.figure(figsize=(3.2 * max(n_cols, 3), 8.5), dpi=dpi, FigureClass=_figure_class())
     gs = fig.add_gridspec(3, n_cols, height_ratios=[2.2, 1.0, 1.6], hspace=0.45)
 
     # -- panel 1: full pattern
@@ -927,7 +1091,7 @@ def plot_for_vlm(result: RefinementResult, report=None, *,
         axr.tick_params(labelsize=7)
 
     fig.savefig(path, format="png")
-    return fig
+    return _handed_back(fig)
 
 
 def plot_trajectory(series, paths, *, path: str | None = None,
@@ -966,12 +1130,7 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     left-hand titles stay the parameter each one draws; absent by default,
     and the default figure is unchanged by it.
     """
-    try:
-        import matplotlib
-        matplotlib.use("Agg", force=False)
-        import matplotlib.pyplot as plt
-    except ImportError as exc:  # pragma: no cover
-        raise ImportError(f"plotting needs matplotlib: pip install '{DIST_NAME}[viz]'") from exc
+    plt = _pyplot()
 
     if isinstance(paths, str):
         paths = [paths]
@@ -992,7 +1151,7 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     outliers = {e.label for e in series.entries if e.above_fence}
 
     fig, axes = plt.subplots(len(paths), 1, figsize=(8, 2.4 * len(paths)),
-                             dpi=dpi, sharex=True, squeeze=False)
+                             dpi=dpi, FigureClass=_figure_class(), sharex=True, squeeze=False)
     for ax, name in zip(axes[:, 0], paths, strict=True):
         traj = series.resolve_trajectory(name)
         x, value, sd = traj.arrays()
@@ -1067,4 +1226,4 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     fig.tight_layout()
     if path is not None:
         fig.savefig(path)
-    return fig
+    return _handed_back(fig)

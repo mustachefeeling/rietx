@@ -345,9 +345,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   a **coherent domain size**, never `particle_radius_um`, quoted as an order of magnitude
   with its K and beside its separability verdict.
 - **Weights**: the file's esd column when present (readers), Poisson √max(y,1) only as fallback.
-  Never subtract an estimated background — hold it additively
-  (`BackgroundFixedPlusChebyshev`) or co-refine it under a smoothness penalty
-  (`BackgroundPSpline`).
+  Never subtract an estimated background — hold it additively (`BackgroundFixedPlusChebyshev`) or
+  co-refine it under a smoothness penalty (`BackgroundPSpline`).
 - **The observation count is reflections, not points — and it gates nothing** (WP-1071).
   `n_points` is the algorithm's N; McCusker §9's warning is that refining against it outruns the
   data in silence (22 003 points against 132 reflections on 11-BM NAC). `optimize.statistics` is
@@ -577,6 +576,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   with the chart module every browser chart shares (`viz/static/rxplot.mjs` over a vendored
   uPlot, WP-1461), redrawing in place so the zoom survives a stage. The page it replaced cost
   the fit's thread 4.51-6.03 MB a stage; `rietx html` writes one on demand, module inlined.
+- **A display reads fields and never computes; a designed view is a `__str__` override** (WP-1544;
+  the three rules and the figure rule are `_display.py`'s docstring and `viz.plots._pyplot`'s).
 - **A per-stage charge is judged on the shortest fit, never the typical one** (WP-1413): it is
   near-constant, so `nac` at 0.354 s spends 50 ms on six snapshots against a 17.7 ms budget.
   **That one is paid** (WP-1438): a ratio is the wrong test where the absolute charge is 50 ms,
@@ -618,16 +619,15 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   `--read-only` clears both. **Which project a run is in is `runs.project_of`** — two live
   layouts, `<name>.rex/live/<run id>` and `<name>.rex/live` itself, and three readers had
   open-coded one each until one offered a GUI command `None` for every recorded run.
-- **Stop's seam**: `runs.CANCEL_FILE` is the whole
-  cross-process seam, a **request rather than a flag**: an unknown word in it is declined
-  into `RunStatus.declined`, because an old recorder meeting a newer watcher's `pause` must
-  not stop the fit. The probe hangs on the **unthinned evaluation boundary**, through the
-  token the solver already reads, since the recorder gets control only at an event and
-  WP-1404's thinning would leave it firing once a *stage*. A recorded fit therefore always
-  carries a token, ending `_abandon_on_cancel`'s "an ordinary fit pays nothing" (1.002-1.004×,
-  measured before it was spent; that docstring holds the numbers). **Who asked is a fact
-  about the record** (`RunStatus.cancelled_by`) and never about the exception — downstream, a
-  human's stop and the caller's own `token.cancel()` are one cooperative read.
+- **Stop's seam**: `runs.CANCEL_FILE` is the whole cross-process seam, a **request rather than a
+  flag**: an unknown word in it is declined into `RunStatus.declined`, because an old recorder
+  meeting a newer watcher's `pause` must not stop the fit. The probe hangs on the **unthinned
+  evaluation boundary**, through the token the solver already reads, since the recorder gets
+  control only at an event and WP-1404's thinning would leave it firing once a *stage*. A recorded
+  fit therefore always carries a token, ending `_abandon_on_cancel`'s "an ordinary fit pays
+  nothing" (1.002-1.004×, measured before it was spent; that docstring holds the numbers). **Who
+  asked is a fact about the record** (`RunStatus.cancelled_by`) and never about the exception —
+  downstream, a human's stop and the caller's own `token.cancel()` are one cooperative read.
 - **A poll asks for what the reader can hold, and a row carrying a clock can never be
   told it has not changed** (WP-1427). Two rules from measuring one page. The console is a
   tail over a pane of `MAX_LINES`, so the **page** names that cap on the route (`limit`) and
@@ -811,12 +811,11 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
 - `RefinementResult.ticks` carries **every emission line's** positions, not just the primary —
   otherwise Layer 0 flags each Kα2 peak as an unindexed impurity (a real bug, caught by the
   misfit-injection suite). **Which reflection each tick is rides beside it, built where the
-  positions are** (WP-1438): `tick_hkl` and `stage_ticks`' `hkl` are pinned to their positions
-  by index and carried through the same filter, sort and cap, because a second derivation of
-  the pairing could come apart with nothing able to say which half was lying. `ticks` keeps its
-  shape — four readers want a list of positions and none of them wants this. Two reflections
-  land at the same 2θ to every decimal, so a **position is not a key**: pair by index or not at
-  all.
+  positions are** (WP-1438): `tick_hkl` and `stage_ticks`' `hkl` are pinned to their positions by
+  index and carried through the same filter, sort and cap, because a second derivation of the
+  pairing could come apart with nothing able to say which half was lying. `ticks` keeps its shape
+  — four readers want a list of positions and none of them wants this. Two reflections land at the
+  same 2θ to every decimal, so a **position is not a key**: pair by index or not at all.
 - Tests, timing, budgets, CI, and what each key dataset can prove: `tests/CLAUDE.md` (loads under
   `tests/`; provenance and every reference value in `tests/data/README.md`); headline rules in
   Commands above.
