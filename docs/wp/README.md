@@ -537,6 +537,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1533](1533-what-the-promo-agent-reached-around.md) | What the promo agent reached around: a cell frame with no switch, a stick width in a module constant, a score that argues against the axis view, and the furniture every script rebuilds | ✅ 2026-10-02 | — | — ([1531](1531-what-the-promo-figures-found.md) soft) |
 | [1544](1544-a-model-reads-in-a-notebook.md) | A model reads in a notebook | ✅ 2026-10-07 | — | — |
 | [1545](1545-tutorial-notebooks.md) | Tutorial notebooks | 🔄 2026-10-07 | — | [1544](1544-a-model-reads-in-a-notebook.md) |
+| [1916](1916-the-tutorials-in-the-manual.md) | The tutorials in the manual, and the quickstart is a notebook | ⬜ | P3 | [1545](1545-tutorial-notebooks.md) |
+| [1917](1917-a-jupyter-quickstart-on-the-landing-page.md) | A Jupyter quickstart on the landing page, opened in Colab at the release | ⬜ | P4 | [1916](1916-the-tutorials-in-the-manual.md) |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
 
