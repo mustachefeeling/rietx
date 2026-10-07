@@ -70,7 +70,7 @@ skill's numbers are rendered from the package rather than typed.
 
 ## Tasks
 
-- [ ] A claims pass: every numeric constant and formula the body quotes is
+- [x] A claims pass: every numeric constant and formula the body quotes is
       either rendered by `docs/skill/make_api_index.py`'s machinery from the
       package (a substitution table, committed output) or asserted by a test
       against the attribute it quotes; the width formula fixed by it
