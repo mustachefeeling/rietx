@@ -329,28 +329,43 @@ class RefinementTree:
 
     # -- rendering ------------------------------------------------------
     def summary(self) -> str:
-        """An indented tree with Rwp per node; ``*`` marks HEAD."""
+        """The tree with Rwp per node; ``*`` marks HEAD.
+
+        Indentation marks a fork, never a step: a node with one child is
+        followed by that child in the same column, as ``git log --graph``
+        draws a straight history.  Indenting every child put a 40-stage chain
+        40 levels deep and made the text wider than the screen (WP-1545).
+        """
         head = self.head
         lines = [f"{self.header.tree_id}  {len(self.order)} nodes"
                  f"  data={self.header.data_source or self.header.data_fingerprint[:8]}"]
 
-        def render(node: HistoryNode, prefix: str, last: bool, top: bool) -> None:
-            branch = "" if top else ("└─ " if last else "├─ ")
+        def line(node: HistoryNode, prefix: str) -> str:
             mark = "*" if node.id == head else " "
             rwp = node.rwp
             stat = f"Rwp {rwp:.4f}" if rwp is not None else "—"
             name = f"{node.action.kind}:{node.action.name}".rstrip(":")
             tags = [k for k, v in self.refs.items() if v == node.id and k != HEAD]
             tag = f"  [{', '.join(sorted(tags))}]" if tags else ""
-            lines.append(f"{prefix}{branch}{mark}{node.id}  {name:<22} {stat}{tag}")
+            return f"{prefix}{mark}{node.id}  {name:<22} {stat}{tag}"
+
+        def render(node: HistoryNode, first: str, rest: str) -> None:
+            # a chain is a loop rather than a recursion, so its length is not
+            # bounded by the interpreter's stack
+            lines.append(line(node, first))
             kids = self.children(node.id)
-            child_prefix = prefix + ("" if top else ("   " if last else "│  "))
+            while len(kids) == 1:
+                node = kids[0]
+                lines.append(line(node, rest))
+                kids = self.children(node.id)
             for i, kid in enumerate(kids):
-                render(kid, child_prefix, i == len(kids) - 1, False)
+                last = i == len(kids) - 1
+                render(kid, rest + ("└─ " if last else "├─ "),
+                       rest + ("   " if last else "│  "))
 
         root = self.root
         if root is not None:
-            render(root, "", True, True)
+            render(root, "", "")
         return "\n".join(lines)
 
     def to_mermaid(self) -> str:

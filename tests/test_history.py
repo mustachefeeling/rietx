@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import math
+import re
 from pathlib import Path
 
 import pytest
@@ -391,6 +392,25 @@ def test_summary_and_mermaid_render(fitted):
     mermaid = ref.history.to_mermaid()
     assert mermaid.startswith("graph TD")
     assert "-->" in mermaid
+
+
+def test_summary_indents_a_fork_and_not_a_chain(pattern):
+    """A straight history stays in one column; each branch of a fork is one
+    level in (WP-1545: a 40-stage chain had been 40 levels wide)."""
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins)
+    first = ref.fit(pattern, plan=SHORT)
+    straight = ref.history.summary().splitlines()[1:]
+    assert not any(ch in "".join(straight) for ch in "├└│")
+
+    ref.fit(pattern, plan=SHORT)                 # one branch off the first fit's end
+    ref.checkout(first.node_id)
+    ref.fit(pattern, plan=SHORT)                 # and a second
+    forked = ref.history.summary().splitlines()[1:]
+    branch_starts = [s for s in forked if s.startswith(("├─ ", "└─ "))]
+    assert len(branch_starts) == 2
+    prefixes = [re.match(r"^(.*?)[ *]n\d{4}", s).group(1) for s in forked]
+    assert max(map(len, prefixes)) == 3, "\n".join(forked)
 
 
 def test_restoring_dropped_paths_warns(pattern):
