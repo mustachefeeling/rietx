@@ -805,3 +805,18 @@ def test_a_held_rotation_dof_beside_a_turn_is_recharted():
                                             corr), table.x0(), t).correlation):
         assert np.abs(np.diag(c) - 1.0).max() < 1e-12
         assert np.linalg.eigvalsh(c).min() > 0.0
+
+
+def test_a_nan_orientation_is_refused():
+    """``abs(norm − 1) > tol`` is False for NaN, so a NaN quaternion
+    validated and every body atom decoded to NaN (#801)."""
+    import json
+
+    origin = {c: {"value": 0.1} for c in "xyz"}
+    doc = {"name": "b", "atoms": ["A", "B"], "template": [[0, 0, 0], [1.4, 0, 0]],
+           "origin": origin}
+    with pytest.raises(ValueError, match="not a unit quaternion"):
+        RigidBody.model_validate({**doc, "orientation": (math.nan, 0.0, 0.0, 0.0)})
+    text = json.dumps(doc)[:-1] + ', "orientation": ["NaN", 0, 0, 0]}'
+    with pytest.raises(ValueError, match="not a unit quaternion"):
+        RigidBody.model_validate_json(text)

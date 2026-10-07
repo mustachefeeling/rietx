@@ -653,7 +653,9 @@ class RigidBody(Base):
         if not all(math.isfinite(v) for t in self.template for v in t):
             raise ValueError(f"rigid body {self.name!r}: a template point is not finite")
         norm = math.sqrt(sum(v * v for v in self.orientation))
-        if abs(norm - 1.0) > 1e-9:
+        # written to fail on NaN, which every comparison answers False to
+        # (``rotation._check_unit_quaternion``'s form; #801)
+        if not abs(norm - 1.0) <= 1e-9:
             raise ValueError(
                 f"rigid body {self.name!r}: orientation {self.orientation} is "
                 f"not a unit quaternion (|q| = {norm!r})")
