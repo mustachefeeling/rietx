@@ -1578,7 +1578,7 @@ class PairVerdict:
       made; or (``farkas``) no model of ``b`` reproduces one drawn model of
       ``a`` to ``rtol``, and ``draws`` is that draw's index
       (``certificate``, below); or carried from an isometric copy
-      (``propagated``, ``draws`` 0).
+      (``propagated``, ``draws`` 0 unless it was drawn first).
     * ``sampled-contained`` — every one of ``draws`` random models of ``a``
       was reproduced by a fit of ``b`` to ``rtol``.  A statement about those
       draws, not about the family (:func:`powder_equivalent`, mechanism B).
@@ -1670,7 +1670,8 @@ class PairVerdict:
       other, and a stored witness re-verifies against ``b``'s own stack
       (a congruence preserves M(y) ⪰ 0 and y·t).  Only a proved verdict is
       carried; a sampled one stays where it was drawn, and a direction
-      with a propagated verdict is not drawn at all (``draws`` 0).
+      with a propagated verdict is not drawn once the proof arrives
+      (``draws`` 0), keeping the draws it had consumed if it was drawn first.
 
     **The two directions of proof are not equally safe.**  A false
     separation costs one extra refinement; a false containment silently
@@ -3552,8 +3553,13 @@ def _isometry_verdicts(i: int, j: int, grams_i: np.ndarray, grams_j: np.ndarray,
     record = _isometry(grams_i, grams_j)
     if record is None:
         return {}
+    # Q acts on a's amplitudes (QᵀG^j Q = G^i), so the (j, i) record is its transpose,
+    # with the two residuals re-measured on the reversed stacks
+    back = replace(record, q=tuple(zip(*record.q)))
+    _, residual, orthogonality = _verify_isometry(grams_j, grams_i, back)
+    back = replace(back, residual=residual, orthogonality=orthogonality)
     return {(i, j): PairVerdict(i, j, "proved-contained", "isometry", isometry=record),
-            (j, i): PairVerdict(j, i, "proved-contained", "isometry", isometry=record)}
+            (j, i): PairVerdict(j, i, "proved-contained", "isometry", isometry=back)}
 
 
 def _shell_weights(weights, refl: ReflectionSet) -> np.ndarray | None:
@@ -3783,7 +3789,10 @@ def _propagate(source: PairVerdict, verdicts: dict[tuple[int, int], PairVerdict]
                         f"({source.a}, {source.b}) is {source.status} by {source.certificate}; "
                         f"one of the two certificates is wrong")
                 continue
-            verdicts[(a, b)] = PairVerdict(a, b, source.status, "propagated", 0, 0,
+            # a direction already drawn keeps the draws it consumed: the proof
+            # replaces its verdict, not the count of what was spent on it
+            spent = current.draws if current is not None else 0
+            verdicts[(a, b)] = PairVerdict(a, b, source.status, "propagated", spent, 0,
                                            d=source.d, witness=source.witness,
                                            dual=source.dual, via=(source.a, source.b))
 

@@ -2200,6 +2200,37 @@ def test_every_sampled_edge_prints_the_draws_it_actually_made(monkeypatch):
             assert ("not reproduced" in shown) == (v.undecided_draws > 0)
 
 
+def test_a_carried_proof_keeps_the_draws_of_the_direction_it_replaces(monkeypatch):
+    """With the higher-index copy first in line for the proof, the lower-index copy's drawn direction is replaced and still counts its draws.
+
+    The set is the draw-count test's, ordered ``[S1(rank 1)#2, S1(rank 1)#1,
+    S1(a,b)... ]`` reduced to the case that matters: S1(rank 1)#2 → S2(a,b)
+    is drawn first and ends without a proof, S1(rank 1)#1 → S2(a,b) is
+    later proved by Farkas and carried to it.  The log of draws each family
+    actually consumed must equal the sum of the printed ``draws``.
+    """
+    from dataclasses import replace
+
+    found = isotropy.candidates(*KNOWN_ANSWER)
+    labels = ["S1(rank 1)#2", "S1(rank 1)#1", "S2(a,b)"]
+    pick = {c.label: c for c in found}
+    subset = replace(found, candidates=tuple(pick[name] for name in labels))
+    log = []
+    real = isotropy._normalised_draw
+
+    def counting(candidate, lattice, rng):
+        log.append(candidate.label)
+        return real(candidate, lattice, rng)
+
+    monkeypatch.setattr(isotropy, "_normalised_draw", counting)
+    result = isotropy.analyse(subset, d_min=1.5, restarts=4)
+    assert sum(v.draws for v in result.relations) == len(log)
+    replaced = [v for v in result.relations
+                if v.certificate == "propagated" and v.draws > 0]
+    assert [(labels[v.a], labels[v.b]) for v in replaced] == [("S1(rank 1)#2", "S2(a,b)")]
+    assert replaced[0].status == "proved-not" and replaced[0].via == (1, 2)
+
+
 def test_the_default_draws_are_twelve_across_irreps_and_three_within(monkeypatch):
     """Issue #565's decision 3: 12 draws per direction between irreps, 3 inside one; a number overrides both.
 
@@ -3024,6 +3055,18 @@ def test_the_rank_one_copies_of_each_known_answer_irrep_are_isometric(known_answ
         assert not holds and orthogonality <= 1e-12 and residual > 1e-3
         other = labels.index("S2(rank 1)#1" if irrep != "S2" else "S1(rank 1)#1")
         assert not isotropy._verify_isometry(grams[a], grams[other], record)[0]
+        # both directions of the verdict re-verify against the stacks they sit on:
+        # the (b, a) record holds Qᵀ, which acts on b's amplitudes
+        silent = [bool(not np.any(g)) for g in grams]
+        spans = [isotropy._intensity_span(g) for g in grams]
+        both = isotropy._isometry_verdicts(a, b, grams[a], grams[b], dark, spans, silent)
+        assert set(both) == {(a, b), (b, a)}
+        for (u, w), v in both.items():
+            holds, residual, orthogonality = isotropy._verify_isometry(
+                grams[u], grams[w], v.isometry)
+            assert holds, (irrep, u, w)
+            assert v.isometry.residual == pytest.approx(residual, abs=1e-15)
+        assert np.allclose(both[(b, a)].isometry.q, np.asarray(both[(a, b)].isometry.q).T)
 
 
 def test_a_singular_or_absent_intertwiner_is_no_isometry():
