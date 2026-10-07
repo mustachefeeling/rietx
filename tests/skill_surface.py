@@ -21,7 +21,7 @@ revision is read with `git show` and never imported:
   of them fnmatch globs over dot-paths.
 
 **Touched** means added, removed, or present as a whole token on a changed
-(+/-) line of ``git diff <base> -- src/``.  **Mentioned** means a whole token on
+(+/-) line of ``git diff <base> -- 'src/rietx/*.py'``.  **Mentioned** means a whole token on
 a skill row.  A name spelled like an English word, letters with at most a
 leading capital (`seed`, `scan`, `Phase`, `Structure`), counts only in code:
 inside a backtick span or a fenced block, since prose uses those words too.  A help
@@ -284,7 +284,10 @@ def measure(rev: str) -> list[Touch]:
     src = ROOT / "src" / "rietx"
     now = {p.relative_to(ROOT).as_posix(): p.read_text(encoding="utf-8")
            for p in sorted(src.rglob("*.py"))}
-    changed = set(_git("diff", "--name-only", rev, "--", "src/rietx").stdout.split())
+    # --no-renames: a detected rename lists only the new path, so the old
+    # file's names would never be read at the base and a removal could not fail.
+    changed = set(_git("diff", "--no-renames", "--name-only", rev, "--",
+                       "src/rietx").stdout.split())
     changed |= set(_git("ls-files", "--others", "--exclude-standard", "--",
                         "src/rietx").stdout.split())
     then = {rel: text for rel, text in now.items() if rel not in changed}
@@ -293,7 +296,11 @@ def measure(rev: str) -> list[Touch]:
             shown = _git("show", f"{rev}:{rel}")
             if shown.returncode == 0:
                 then[rel] = shown.stdout
-    diff = _git("diff", "--no-color", "--no-ext-diff", "-U0", rev, "--", "src/").stdout
+    # Python only, as the vocabularies are: the committed GUI dist under src/
+    # is minified onto a few long lines, and one rebuild would put every
+    # word-like name on a changed line.
+    diff = _git("diff", "--no-color", "--no-ext-diff", "-U0", rev, "--",
+                "src/rietx/*.py").stdout
     return touches(vocabulary(then), vocabulary(now), changed_lines(diff),
                    skill_rows())
 

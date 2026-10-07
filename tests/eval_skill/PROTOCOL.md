@@ -341,7 +341,8 @@ here with the cases that failed it, and the change does not merge in that form.
 
 ## Floors
 
-Tier 0 on Haiku also runs in CI, in `.github/workflows/skill-eval.yml`. It runs
+Tier 0 also runs in CI, on Haiku unless Sonnet is picked, in
+`.github/workflows/skill-eval.yml`. It runs
 only when the maintainer dispatches it, and a dispatch is the pick § Price
 asks for. That run has no candidate to compare with, so it reads each case
 against a floor. A case's floor is the fewest of its N = 3 runs that must pass.

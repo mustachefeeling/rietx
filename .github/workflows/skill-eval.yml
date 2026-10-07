@@ -28,6 +28,9 @@ on:
         options: [haiku, sonnet]
         default: haiku
 
+permissions:
+  contents: read
+
 jobs:
   tier0:
     name: tier 0 (${{ inputs.model }}, judge-free)

@@ -26,7 +26,9 @@ HERE = Path(__file__).resolve().parent
 PAGE = "https://docs.claude.com/en/docs/about-claude/models/overview"
 SEEN = HERE / "models_seen.txt"
 #: The two agent models the suite runs (PROTOCOL.md § Models, N).
-ID = re.compile(r"claude-(?:haiku|sonnet)(?:-[a-z0-9]+)*")
+#: A version digit must follow the family, or a slug such as
+#: ``claude-sonnet-pricing`` would read as a new model every week.
+ID = re.compile(r"claude-(?:haiku|sonnet)-\d[a-z0-9]*(?:-[a-z0-9]+)*")
 #: Words the page glues onto an ID that are not part of it: a system card's
 #: link, and Bedrock's version suffix (read off the page 2026-10-07).
 NOISE = re.compile(r"-(?:system-card|v\d+)$")

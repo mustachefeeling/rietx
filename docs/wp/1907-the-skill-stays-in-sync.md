@@ -52,7 +52,8 @@ skill's numbers are rendered from the package rather than typed.
 - **What "the judge-free tier" is** (WP-1905). The harness filters cases by
   tag, so tier 0 is `--tag trigger --ablation none` with neither `--scaffold`
   nor `--allow-tools`: twenty one-grader cases, no fixture, no fit, no shell
-  (`tests/eval_skill/PROTOCOL.md` § Tier 0). The fit cases need a sandbox
+  (`tests/eval_skill/PROTOCOL.md` § Tier 0). Amendment 1.2 since adds
+  `--scaffold`, for the empty files the prompts name. The fit cases need a sandbox
   backend and minutes a run, so they are not nightly material. A CI job needs
   a Claude Code install (≥ 2.1.289) and credentials, and `readout.py show`
   reports the fire and quiet rates a floor is set on. Rounds D and E (N = 3):

@@ -578,9 +578,16 @@ def _tag_problems(name: str, text: str, index: set[str],
     return problems
 
 
+#: A WP not started (⬜) or stopped (🛑) has overturned nothing yet, so its
+#: "supersedes" is a plan and asks no tag to name it.
+_STATUS = re.compile(r"Status: (\S+)")
+
+
 def _wp_texts() -> dict[str, str]:
-    return {p.name[:4]: p.read_text(encoding="utf-8")
-            for p in sorted(WP_DIR.glob("[0-9][0-9][0-9][0-9]-*.md"))}
+    texts = {p.name[:4]: p.read_text(encoding="utf-8")
+             for p in sorted(WP_DIR.glob("[0-9][0-9][0-9][0-9]-*.md"))}
+    return {n: t for n, t in texts.items()
+            if (m := _STATUS.search(t)) is None or m.group(1) not in ("⬜", "🛑")}
 
 
 def test_the_tag_gate_has_tags_and_a_supersession_to_read():
