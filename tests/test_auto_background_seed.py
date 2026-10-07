@@ -76,17 +76,16 @@ def test_the_seed_is_taken_over_the_fitted_range_only(pedestal_pattern):
 def test_a_seeded_start_gives_the_first_le_bail_pass_a_better_answer(pedestal_pattern):
     """The case rule 5 of the skill describes, measured on this pattern: left
     at zero the first Le Bail pass hands the pedestal to the reflections and
-    the profile wanders (Rwp 0.0605, Lorentzian X 0.057 against 0.001 true);
-    seeded it lands at Rwp 0.0437 and X = 0.  Asserted as the direction only."""
+    the profile wanders; seeded it lands lower (Rwp 0.0605 against 0.0437 on
+    macOS).  Asserted as the Rwp direction only: the refined Lorentzian X is not
+    portable (CI's linux/jax job had the zero start at 5e-11 and the seeded one
+    at 0.019, the reverse of macOS), so no claim rests on it."""
     def first_pass(seed: bool):
         ins = _neutron()
         ins.background = rx.auto_background(
             pedestal_pattern, two_theta_limits=(10.0, 150.0), seed=seed)
         ref = rx.Refinement(rx.Structure(phases=[_phase(0.02)]), ins)
         result = ref.fit(pedestal_pattern, mode="lebail", plan="profile_only")
-        return result.statistics.rwp, ref.fitted_instrument.profile.x.value
+        return result.statistics.rwp
 
-    rwp_zero, x_zero = first_pass(False)
-    rwp_seeded, x_seeded = first_pass(True)
-    assert rwp_seeded < rwp_zero
-    assert x_seeded < x_zero
+    assert first_pass(True) < first_pass(False)
