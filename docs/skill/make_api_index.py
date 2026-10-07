@@ -413,6 +413,13 @@ TECHNIQUE_FIELDS: dict[str, frozenset[str]] = {
     "rx.ParameterRow": frozenset({"body"}),
 }
 
+#: Union members a technique owns, elided from a field's rendered annotation
+#: for the same reason: ``Phase.restraints`` is an everyday field, but the
+#: tether and anti-bump kinds are the rigid-body track's, and their verbs get
+#: their own index in WP-1812 (WP-1809: no raised cap).  Deferred from the
+#: manual in ``tests/api_surface_deferred.txt`` meanwhile.
+TECHNIQUE_MEMBERS: frozenset[str] = frozenset({"TetherRestraint", "AntiBumpRestraint"})
+
 HEADER = """# The API index
 
 Load it when you are about to call rietx and want the name, the signature or
@@ -597,7 +604,10 @@ def _model_fields(cls, skip: frozenset[str] = frozenset()) -> list[str]:
     for name, info in cls.model_fields.items():
         if name in skip:
             continue
-        text = f"{name}: {_ann(info.annotation)}"
+        ann = _ann(info.annotation)
+        for member in TECHNIQUE_MEMBERS:
+            ann = ann.replace(f" | {member}", "")
+        text = f"{name}: {ann}"
         if info.default_factory is not None:
             text += f" = {_default(info.default_factory())}"
         elif info.default is not PydanticUndefined:
