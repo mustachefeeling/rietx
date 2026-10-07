@@ -461,7 +461,7 @@ def test_a_variable_driving_a_body_phase_cell_takes_an_exact_column():
     table.set_tie("phases.0.cell.a", AffineTie(terms=(("vars.a", 1.0),)))
     table.set_vary(["phases.0.scale"], True)
     col = table.free_paths.index("vars.a")
-    path, extras = _column_identities(table, _column_extras(table))[col]
+    path, extras, _ = _column_identities(table, _column_extras(table))[col]
     assert path == "phases.0.cell.a"
     assert "phases.0.atoms.3.y" in extras
     model = compile_model(s, INS, pattern, mode="rietveld",
