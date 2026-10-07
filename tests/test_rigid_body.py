@@ -820,3 +820,13 @@ def test_a_nan_orientation_is_refused():
     text = json.dumps(doc)[:-1] + ', "orientation": ["NaN", 0, 0, 0]}'
     with pytest.raises(ValueError, match="not a unit quaternion"):
         RigidBody.model_validate_json(text)
+
+
+def test_add_body_refuses_a_label_the_phase_already_has():
+    """``add_body`` validates what it returns (#801): ``model_copy`` skipped
+    the phase's checks, so a duplicate label built two atoms of one name and
+    raised only at the next JSON round trip."""
+    phase = body_structure(Q_TRUE).phases[0]
+    with pytest.raises(ValueError, match="'C0'"):
+        add_body(phase, "dup", ["C0", "X1"], ["C", "C"],
+                 [(0.0, 0.0, 0.0), (1.4, 0.0, 0.0)], (0.6, 0.6, 0.6))

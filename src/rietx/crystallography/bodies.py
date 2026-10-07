@@ -110,8 +110,12 @@ def add_body(phase: Phase, name: str, labels: Sequence[str],
              y=Parameter(value=float(f[1])), z=Parameter(value=float(f[2])),
              occ=Parameter(value=occ), biso=Parameter(value=biso))
         for lab, sp, f in zip(labels, species, frac, strict=True)]
-    return phase.model_copy(update={
-        "atoms": atoms, "rigid_bodies": [*phase.rigid_bodies, body]}, deep=True)
+    # validated, not ``model_copy``'d: the phase's own checks (a label the
+    # phase already has, an atom in two bodies) then raise here, where the
+    # mistake is made, rather than at the next JSON round trip (#801)
+    return Phase.model_validate({
+        **phase.model_dump(), "atoms": [a.model_dump() for a in atoms],
+        "rigid_bodies": [*phase.model_dump()["rigid_bodies"], body.model_dump()]})
 
 
 def place_body_atoms(phase: Phase) -> Phase:
