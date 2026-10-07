@@ -1,9 +1,8 @@
 # WP-1545 — tutorial notebooks
 
-Milestone: unscheduled · Status: 🔄 2026-10-07 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-07 — closed; five notebooks, one session, stacked on 1544's PR
 Track: Render what the fit already knows
 Depends on: 1544 (readable objects in a notebook)
-Priority: P2 2026-10-07 — was P3: 1544, its one blocker, closed; the teaching path for people who will drive rietx through an agent
 
 ## Goal
 
@@ -144,6 +143,91 @@ their sources. No output carries a home path.
 - Data provenance and licences: `tests/data/README.md`.
 
 ## Handover log
+
+### 2026-10-07 — closed
+
+Someone who drives rietx through an agent can now work through five short
+notebooks and come away able to check that agent's fit: a Le Bail quickstart, a
+staged Rietveld refinement, peaks and indexing, peak shape and microstructure,
+and sequential fits. Three of them grade the fit against a synthetic truth the
+reader can see. The rest run on the real FAP pattern. Each notebook is generated
+from a script, runs in a kernel on every push, and ends with checks drawn from
+the agent skill. Building them found one unowned defect (a size read off a
+coefficient at its floor, filed as WP-1914) and gave evidence to three open WPs.
+
+**Done.**
+- `examples/tutorials/build.py`: percent-format source to executed notebook,
+  byte-identical across rebuilds on one machine (cell ids positional, no timing,
+  `language_info.version` dropped, `TELEMETRY_ENV` from `_about`). Refuses
+  stderr, an error or the home path. `--check` compares cells and the
+  major.minor stamp, never outputs.
+- `tests/test_tutorials.py`: by glob; executes each notebook; a cell ending on
+  `.plot(` must show a PNG; committed cells equal source; committed outputs
+  publishable; README lists every notebook; three guard-can-fail tests.
+- Notebooks 01-05 and their README rows. 02 replaces `examples/fap_lab.py`
+  (decided with the user): its first fit is the landing page's code, the
+  landing box is relabelled, `fluorapatite.cif` ships in the wheel, and
+  `tests/test_example_projects.py` exempts it from the standards bijection as
+  `TUTORIAL_ONLY` (no standard's build reads it) with a test that a tutorial
+  does.
+- `PeakList.__str__`/`_repr_html_` (notebook 03 needed it; the tree spent 14
+  lines a peak). No `FitReport` or `ExtinctionScreen` view: no notebook prints
+  one.
+- `docs/RELEASING.md` step 1, the root CLAUDE.md sentence, staged notes in
+  `docs/releases/1.7.0.md`, narrative in `docs/milestones/v1.7.md`.
+- No skill pointer (item 8 says why). WP-1914 filed.
+
+**Measured** (macOS arm64, `[dev]`, which carries `notebooks`):
+- Build wall clock, kernel start included: 01 about 8 s, 01+02 about 12 s,
+  03 about 21 s (16-17 s of it the index search), 04 and 05 under 10 s each.
+- 01: `auto_background` on FAP Le Bail gives 832 `HIGH_CORRELATION` rows (770
+  with limits) against 0 for a 6-term Chebyshev; Le Bail passes 0.0982, 0.0875,
+  0.0882, so pass 2 is kept via `checkout(result.node_id)`. `history.best`
+  ranks by frozen-compile figures, which differed from a result's own by 11 %
+  in χ² on one fit of this pattern, so the notebook ranks results instead.
+- 02: `lab_bragg_brentano` from the converged fit puts zero~displacement at
+  ρ = +1.000 and the cell esd ×12; zero held at 0 (GSAS's protocol) gives
+  displacement 0.0632(15) mm and `HOLD_BLOCKED_PLAN`. The phosphate-O Biso tie
+  takes 0.264(149), 0.467(157), 0.385(109) to 0.383(77) Å². P-O 1.526-1.574 Å.
+- 03: aragonite (COD 9000229), orthorhombic only, V 200-250 Å³, d ≤ 8.5 Å: 105
+  picks, 59 usable, truth first from all three engines, `low` for
+  `predicted_but_absent` and `indexed_fraction_low`, abstains; two builds
+  byte-identical. YBCO (COD 9007744) was ruled out: 69-116 s and
+  budget-truncated even narrowed. A background agent's survey of aragonite,
+  cerussite and forsterite found every glide-extinction phase capped at `low`
+  the same way. Le Bail of the candidate: Rwp 0.071 then 0.061, cell within
+  1.4 esd of the truth.
+- 04: calibration recovers U, V, W, X, Y within about an esd; sample
+  298.9(12) Å against 300, 9.65(24)e-4 against 1e-3. Uncalibrated: same Rwp
+  0.0464, size 284 Å, strain 1.15e-3, Gaussian size 2186(431) Å.
+- 05: expansion 4.998e-6 against 5.000e-6 per K, each point within 1.5 esd;
+  a 2 % jump recovered and flagged `SEQUENTIAL_DISCONTINUITY`; a 5 % jump
+  fails every rung (`SEQUENTIAL_RWP_OUTLIER`, Rwp 0.97) and its successor is
+  reseeded.
+
+**Gotchas.**
+- `fit_peaks` on a whole picked list is no way to edit it: naming 97 of 105
+  picks left 27 usable (unnamed neighbours flag their windows) and the index
+  took 39 s. Notebook 03 sends editing to the GUI's Peaks panel.
+- A rietx figure shows through its own display hook under any backend, so
+  `MPLBACKEND=Agg` in the suite does not hide one; a trailing `;` does.
+- The 5 % frame converged to Rwp 0.97 and still seeded its successor (which
+  was then reseeded). Only a diverged frame is quarantined. Left as is; it is
+  `sequential.py`'s design.
+- `read_project_model(FAP.EXP)`'s `GSAS_EXP_BACKGROUND_NOT_CARRIED` message
+  prints the file's absolute path. Seen, not filed: no owner, and minor.
+- `worktree_create.py` run by hand on an existing branch still prints "from
+  origin/main".
+
+**Forward references:** 1460 (the tutorials' Chebyshev workaround; rewrite
+01's paragraph when it lands), 1542 (the indexer's validation Le Bail at Rwp
+0.257 calls 96 of 105 peaks impurities), 1909 (a reproducible synthetic
+fixture with 5 false picks in 59).
+
+**Next:** merge #810 (1544) first, then this PR, whose diff shows 1544's
+commits until then. Then WP-1914, the one defect this found, P3. The tutorials
+listed as gaps in the README (backgrounds and humps, Kβ, a second phase, QPA)
+are not filed; file them if the notebooks earn readers.
 
 - **2026-10-07** — created alongside WP-1544. No open WP owns tutorials or
   notebooks.

@@ -90,6 +90,13 @@ reader that keys on `where` without naming the code is the one it misses.
   (cells equal to 2e-7 Å). So the skill's worked default uses a Chebyshev
   background, and the body says nothing about the flood. When this WP lands,
   the default can go back to the P-spline.
+- **From WP-1545 (2026-10-07), the tutorials took the same workaround.**
+  Notebook 01's Le Bail fit of FAP.XRA under `profile_only` reported 832
+  `HIGH_CORRELATION` rows with `rx.auto_background(data)` (770 with
+  `two_theta_limits=(15, 130)`) against none with a 6-term Chebyshev. Notebooks
+  01 and 02 use the Chebyshev, and 01's prose names the flood as the reason.
+  When this WP lands, rewrite that paragraph in
+  `examples/tutorials/01_quickstart.py` and rebuild the notebook.
 
 ## Non-goals
 

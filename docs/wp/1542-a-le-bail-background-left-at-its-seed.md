@@ -58,6 +58,16 @@ here (2026-10-03, at the maintainer's request).
   first `lebail_update` runs at stage compile on `y_obs − 0`. Task 4 should
   measure this seed beside the SNIP-held protocol, on the hump fixture and a
   high-pedestal one. Whether a default changes is the maintainer's.
+- **2026-10-07, from WP-1545 (notebook 03): the indexer's own validation Le
+  Bail may be a sibling.** On a synthetic aragonite pattern (Cu Kα, 10-80°,
+  flat 200-count background, reproducible from
+  `examples/tutorials/03_peaks_indexing_lebail.py`) the true cell's validation
+  fit returns Rwp 0.257 and `INDEX_IMPURITY_LINES` says 96 of 105 observed
+  peaks are unmatched. A Le Bail fit of the same candidate with the constant
+  term seeded at the 5th percentile reaches 0.071 then 0.061 over two passes,
+  and matches every peak. Not measured: whether the validation fit seeds its
+  background at all. The tutorial tells the reader the impurity count follows
+  from the poor fit.
 
 ## Non-goals
 
