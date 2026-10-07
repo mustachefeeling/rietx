@@ -38,7 +38,7 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
                     two_theta_limits: tuple[float, float] | None = None,
                     source: object | None = None,
                     seed: bool = False) -> Background:
-    """Build a background model sized to the pattern.
+    """Background sized to the data.
 
     ``kind="pspline"`` (default): penalized co-refined spline — knot spacing
     from the amorphous-hump score, moderate fixed λ (the second-difference
