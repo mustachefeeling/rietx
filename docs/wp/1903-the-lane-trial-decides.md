@@ -150,8 +150,8 @@ python3 .claude/hooks/session_usage.py baseline --u U --mo MO --d D
 
   *Done.*
   - `3607f1bf`: step 6c in `/wp-start`, carrying `/wp-lanes` steps 2-5 and
-    three new prompt rules. Name every code path the change reaches (both
-    trial bugs sat on an unnamed path). Restate the memory rules, always
+    three new prompt rules. Name every code path the change reaches (WP-1534's
+    lane bug sat on an unnamed path; WP-1527's entry gives no cause). Restate the memory rules, always
     including the ~8-minute command limit (the WP-1510 watchdog death). Write
     a decision line for every item. `/wp-lanes` deleted. `/wp-handover` step
     3b, `session_usage.py`'s docstrings and the test's docstring now point at
@@ -180,10 +180,24 @@ python3 .claude/hooks/session_usage.py baseline --u U --mo MO --d D
     −15.9% (175), 200K/≥20 −15.2%, 100K/≥20 −18.2%, crossover-following
     −17.7% (246). Pessimistic (mo ×2, d 20K): −8.3%, −12.0%, −12.4%, −7.3%,
     −9.6%, −12.4%.
-  - Acceptance pytest line: 112 passed (`.venv` with `[dev]`, macOS). Ruff
+  - Acceptance pytest line: 117 passed after the review's five cases (112 before) (`.venv` with `[dev]`, macOS). Ruff
     clean on `.claude/hooks` and the test.
   - No lanes this session (step 3b does not apply). It has one
     implementation item, and the context never passed 150K before it.
+
+  *Review* (`/code-review high --fix`, nine findings, seven fixed by the
+  pass). `DECISION` now accepts a decision line wrapped in markdown (a
+  backtick, bullet, bold or quote), with five test cases. Step 6c shows the
+  form in backticks, and three trial sessions lost lines for an unchecked
+  cause. process.md now says the bar was never confirmed and its quality leg
+  has no baseline. It also repoints the section intro at step 6c, retitles
+  the table for post-trial rows, names which sessions were re-measured on
+  which day, and adds the 100K row to the threshold table. Step 6c's share is
+  now "of what it would have cost without lanes". I softened "both bugs sat
+  on an unnamed path" to the WP-1534 case, which is the only one the
+  evidence shows. Declined: a test pinning `baseline`'s printed sign
+  convention (a test on printed text, low risk), and renaming the script's
+  `trial row:` label, which step 3b quotes.
 
   *Gotchas.* The worktree guard refuses `python3 $S/script.py` with a shell
   variable in the path. Write the script with the Write tool and call it by

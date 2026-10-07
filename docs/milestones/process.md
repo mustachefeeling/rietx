@@ -11,7 +11,7 @@ a one-line table per bump; the reasoning is here. Since 2026-09-30 it also
 holds [what a session's reading costs](#what-a-sessions-reading-costs), the
 measurement behind the delegation rules in `/pr-review`, `/wp-start` and
 `/wp-handover`. Since 2026-10-01 it holds [lanes within a
-WP](#lanes-within-a-wp), the replay behind the `/wp-lanes` trial.
+WP](#lanes-within-a-wp), the replay and trial behind `/wp-start` step 6c.
 
 ## The rule
 
@@ -1160,7 +1160,8 @@ get cheaper.
 requests per lane, and what a lane leaves in the main context. It also assumed
 that a session can tell a long item before starting it, and that a lane's
 work holds up. `/wp-lanes` ran the selective policy in a real WP session, and
-`session_usage.py lanes` measures all five. One row per trial session:
+`session_usage.py lanes` measures all five. One row per session that ran
+lanes, the nine trial sessions first:
 
 | date | session | lanes | kept | re-read (*u*) | main requests per lane | left in main | actual / estimated requests | lanes fixed / redone | saved | of the session |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -1187,16 +1188,19 @@ that lanes still adds a row above.
 
 The trial cleared the bar WP-1903 proposed. That bar asked for a saving of at
 least 10% from the re-run's selective row, at most one lane in five redone,
-and review findings on lane code no worse than usual.
+and review findings on lane code no worse than usual. Nobody confirmed the bar
+before the decision, and the quality leg has no measured baseline for
+"usual".
 
 - *Rows.* Nine sessions sent 24 items to lanes. Every session came out ahead,
   by a median 21% and $90.82 in total. Two lanes were redone, both in
   e6ef1126.
 - *Re-measured.* Seven of the nine sessions could be measured again with the
   script at `2d6e632a`. The two cloud sessions, c77ba4ec and d1d1ba33, kept
-  no transcript. Each of the seven came out larger than its row. The five
-  measured on 2026-10-08 matched their rows in every column but the saving
-  and its share. The script changed after
+  no transcript. Each of the seven came out larger than its row. 46f97a56 and
+  23ba0bb7 were measured on 2026-10-07 and the other five on 2026-10-08.
+  Those five matched their rows in every column but the saving and its
+  share. The script changed after
   the rows were written, so the rows stay as committed. Today's figures, as
   saved $ and share of the session: ec2ca17f +3.58 (+23%), 46f97a56 +23.08,
   6dc4faa1 +1.88 (+13%), e6ef1126 +21.77 (+34%), 0433c291 +46.34 (+44%),
@@ -1218,6 +1222,7 @@ and review findings on lane code no worse than usual.
   | main > 150K, item ≥ 30 | 276 | −17.5% | −12.0% |
   | main > 150K, item ≥ 40 | 175 | −15.9% | −12.4% |
   | main > 200K, item ≥ 20 | 359 | −15.2% | −7.3% |
+  | main > 100K, item ≥ 20 | — | −18.2% | −9.6% |
   | item ≥ its crossover length | 246 | −17.7% | −12.4% |
 
   The replay reads an item's actual length. A session reads its estimate,

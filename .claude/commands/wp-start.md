@@ -198,8 +198,8 @@ Run the session-start ritual. The SessionStart hook's report
    session then checks its diff and commits it. It pays for the reason step 6b
    gives: every request here re-reads the whole context, and a lane starts at
    about 70K. In WP-1903's trial, nine sessions sent 24 items to lanes and
-   every session came out ahead, by a median 21% of its bill
-   (`docs/milestones/process.md` § Lanes within a WP).
+   every session came out ahead, by a median 21% of what it would have cost
+   without lanes (`docs/milestones/process.md` § Lanes within a WP).
    - **Decide each item when you start it.** Read the main context with
      `python3 .claude/hooks/session_usage.py context <session-id>`. The id is
      the name of the directory that holds your scratchpad. Then estimate the
@@ -228,8 +228,8 @@ Run the session-start ritual. The SessionStart hook's report
      CLAUDE.md files but no MEMORY.md, and it knows nothing this session
      learned. Give it the WP file's path and the item verbatim. Give it what
      this session found as `file:line` pointers, without the text. Name
-     **every code path the change reaches**: both bugs the trial's reviews
-     found in lane code sat on a path the prompt left out. Restate each memory
+     **every code path the change reaches**. In WP-1534 a lane's bug sat on a
+     second entry path the prompt left out. Restate each memory
      rule that bears on the item in a line, and always this one: a foreground
      command running past about 8 minutes kills the lane, so background it.
      Give the acceptance as the fast selection for the touched area, never the

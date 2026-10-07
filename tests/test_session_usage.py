@@ -161,3 +161,17 @@ def test_a_lane_written_under_the_worktree_is_found(tmp_path: Path, monkeypatch)
     ])
     (lane,) = su.measure_lanes(main)["lanes"]
     assert lane["item"] == "item 2" and lane["requests"] == 2
+
+
+@pytest.mark.parametrize("line", [
+    "lanes: keep item 1 ~8",
+    "`lanes: keep item 1 ~8`",
+    "- lanes: keep item 1 ~8",
+    "**lanes: keep item 1 ~8**",
+    "> lanes: keep item 1 ~8",
+])
+def test_a_decision_line_wrapped_in_markdown_is_still_read(line: str) -> None:
+    """`/wp-start` step 6c shows the form in backticks, so a session may copy
+    them; three trial sessions lost decision lines for a reason never found."""
+    assert su.DECISION.findall(f"Starting the item.\n{line}\nThen prose.") == [
+        ("keep", "item 1", "8")]

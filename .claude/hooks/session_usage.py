@@ -52,7 +52,9 @@ LANE_BASE = 64_000          # an Opus 5.5 agent's first request here (median)
 DISPATCH_OUT = 2_000        # output tokens the main session spends on one dispatch prompt
 COMMIT = re.compile(r"git (?:-C \S+ )?commit")
 WP_MSG = re.compile(r"WP-(\d{4}):")
-DECISION = re.compile(r"^lanes: (keep|lane) (.+?) ~(\d+)\b", re.M)
+# A line of its own, though markdown may wrap it: `/wp-start` step 6c shows the
+# form in backticks, and a bullet, quote or bold copy of it is still the decision.
+DECISION = re.compile(r"^[ \t>*_`-]*lanes: (keep|lane) (.+?) ~(\d+)\b", re.M)
 LANE_PREFIX = "lane:"
 EDITS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 BASH_CLASSES = (
