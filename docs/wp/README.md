@@ -29,6 +29,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 2026-10-03 | P4 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1543](1543-a-gsas-gaussian-width-is-a-variance.md) | A GSAS Gaussian width is a variance | 2026-10-06 | P1 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1804](1804-the-derived-block.md) | The derived block: a nonlinear map applied after the affine one | 2026-10-07 | P2 | [rigid-bodies](#rigid-bodies) |
+| [1907](1907-the-skill-stays-in-sync.md) | The skill stays in sync: constants and formulas pinned to the package, a changed-surface check at review, the judge-free tier nightly | 2026-10-07 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | 2026-10-07 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) | The foreign writers state what the other program reads: the setting, the scale, the free set | 2026-10-07 | P3 | [Unscheduled](#unscheduled-coming-from-another-code) |
 
@@ -572,7 +573,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1904](1904-the-skill-evaluation-strategy.md) | The skill evaluation strategy: how the agent skill is measured, rewritten and kept in sync, decided on a pilot | ✅ 2026-10-04 | — | — |
 | [1905](1905-the-skill-eval-suite.md) | The skill eval suite: `claude plugin eval` over the skill tree, cases from real failures, judge-free first | ✅ 2026-10-06 | — | [1904](1904-the-skill-evaluation-strategy.md) |
 | [1906](1906-the-skill-body-rewrite.md) | The skill body rewrite: under 5 000 tokens, rules first, evidence in the references, the contradictions resolved | ✅ 2026-10-07 | — | [1905](1905-the-skill-eval-suite.md) ([1532](1532-the-skill-passages-a-driving-agent-needed.md) soft) |
-| [1907](1907-the-skill-stays-in-sync.md) | The skill stays in sync: constants and formulas pinned to the package, a changed-surface check at review, the judge-free tier nightly | ⬜ | P3 | — ([1905](1905-the-skill-eval-suite.md) soft) |
+| [1907](1907-the-skill-stays-in-sync.md) | The skill stays in sync: constants and formulas pinned to the package, a changed-surface check at review, the judge-free tier nightly | 🔄 2026-10-07 | P3 | — ([1905](1905-the-skill-eval-suite.md) soft) |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement
 

@@ -1,6 +1,6 @@
 # WP-1907 — the skill stays in sync: constants and formulas pinned to the package, a changed-surface check at review, the judge-free tier nightly
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-07 — claimed by @yue-here
 Track: The repo's own process
 Depends on: 1905 soft (the nightly tier is its suite)
 Priority: P3 2026-10-04 — a wrong number in the skill is a wrong turn an agent takes with the docstrings there to recover from; P2 if a stale constant is found to have cost a user a fit
