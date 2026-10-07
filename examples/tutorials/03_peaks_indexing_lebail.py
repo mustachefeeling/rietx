@@ -1,12 +1,14 @@
 # %% [markdown]
 # # Peaks, indexing and a Le Bail check
 #
+# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
+#
 # When the phase is unknown there is no CIF to start from.
 # The cell has to come from the peak positions alone: find the peaks, then search for a cell that puts a reflection under each one.
 # That search is called indexing.
 # We index a synthetic pattern whose answer we know, read why rietx declines to name a single cell, and check the best candidate with a Le Bail fit.
 #
-# **You need** `pip install "rietx[viz]"`.
+# **You need** rietx 1.7 or later, which the next cell installs.
 # Notebook 01 introduces Le Bail fitting.
 #
 # **The data** is synthetic aragonite, CaCO₃, made from its published structure: Dal Negro and Ungaretti (1971), *American Mineralogist* 56, 768, as entry 9000229 of the Crystallography Open Database (public domain).
@@ -14,6 +16,12 @@
 #
 # **Runtime** is under a minute on a laptop, most of it the indexing search.
 #
+# Until rietx 1.7 is on PyPI, install it from GitHub instead: `%pip install git+https://github.com/yue-here/rietx`.
+
+# %%
+# %pip install rietx
+
+# %% [markdown]
 # ## A synthetic pattern
 
 # %%
@@ -88,9 +96,24 @@ chosen = rx.fit_peaks(data, lab, [26.22, 27.22, 33.13])
 chosen
 
 # %% [markdown]
-# To edit the list the indexer reads, dropping a false line or adding a missed one, use the Peaks panel of `rietx gui`.
-# Each line you add there is measured by `fit_peaks`.
 # Rebuilding a whole list from edited positions in code works less well: a real line you leave out still has intensity, and its neighbours absorb it.
+#
+# ## The same work in the GUI
+#
+# Editing a peak list is easier by hand, and rietx has a graphical mode for it.
+# Run `rietx gui` in a terminal, open or create a project with your pattern, and choose the Peaks tab.
+# The plot then becomes an editing surface:
+#
+# | Gesture | Does |
+# |---|---|
+# | click empty space | add a line, measured by `fit_peaks` |
+# | drag a marker | move it |
+# | shift-click | exclude a line from indexing |
+# | right-click | remove it |
+#
+# The same tab runs the indexing search, draws a candidate's predicted lines over the pattern, and adopts a candidate as the starting point of a Le Bail fit.
+# Every gesture also has a typed equivalent in the panel.
+# The [GUI guide](https://rietx.org/using/gui-guide.html#peaks) covers the tab in full.
 #
 # ## Index
 #

@@ -1,16 +1,24 @@
 # %% [markdown]
 # # Sequential fits
 #
+# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
+#
 # An in-situ experiment measures one specimen many times while something changes: temperature, time, pressure, gas.
 # rietx fits such a series pattern by pattern, starting each fit from the answer before it.
 # That warm start makes each fit fast, but it also means a mistake can travel down the chain.
 # We fit a synthetic heating ramp whose answer we know, then break it twice to see what the series reports.
 #
-# **You need** `pip install "rietx[viz]"`.
+# **You need** rietx 1.7 or later, which the next cell installs.
 # Notebook 02 introduces plans and a single refinement.
 #
 # **Runtime** is under a minute on a laptop.
 #
+# Until rietx 1.7 is on PyPI, install it from GitHub instead: `%pip install git+https://github.com/yue-here/rietx`.
+
+# %%
+# %pip install rietx
+
+# %% [markdown]
 # ## A synthetic heating ramp
 #
 # The specimen is LaB₆ on a synchrotron capillary instrument.
@@ -18,6 +26,8 @@
 # We write the structure as a short CIF and make each pattern from the true model with Poisson noise.
 
 # %%
+import csv
+import re
 import tempfile
 from pathlib import Path
 
@@ -80,15 +90,83 @@ def starting_model():
 LABELS = [f"{t} K" for t in TEMPERATURES]
 
 # %% [markdown]
-# ## Fit the series
+# ## A series is a list of patterns
 #
-# `refine_sequential` fits the patterns in order.
-# Each fit starts from the parameters the previous one finished with.
-# `carry` chooses which parameters pass along the chain, and the default `("*",)` passes all of them.
+# `refine_sequential` takes the series as an ordinary Python list of `PatternData`, one per measurement, in the order to fit them.
+# `x` is a list of the same length giving each pattern's place along the series (temperature here), and `labels` names each one.
+# Nothing else ties them together, so the order of the list is the order of the chain.
 
 # %%
-series = rx.refine_sequential(patterns, *starting_model(), plan="mccusker_default",
-                              x=TEMPERATURES, x_label="T (K)", labels=LABELS)
+print(type(patterns).__name__, len(patterns), type(patterns[0]).__name__)
+print(patterns[0])
+
+# %% [markdown]
+# ## Loading a real series from files
+#
+# A real series arrives as a folder of files, and the work is putting them in the right order with the right temperature.
+# Here we write our synthetic patterns out as an instrument might, numbered by scan, with the temperatures in a separate log.
+
+# %%
+folder = work / "ramp"
+folder.mkdir()
+for scan, (pattern, temperature) in enumerate(zip(patterns, TEMPERATURES), start=8):
+    rows = "".join(f"{t:.4f} {y:.0f}\n" for t, y in zip(pattern.two_theta, pattern.intensity))
+    (folder / f"scan{scan}.xy").write_text(rows, encoding="utf-8")
+log = "scan,temperature_K\n" + "".join(
+    f"{scan},{t}\n" for scan, t in enumerate(TEMPERATURES, start=8))
+(folder / "temperatures.csv").write_text(log, encoding="utf-8")
+
+print([p.name for p in sorted(folder.glob("*.xy"))])
+
+# %% [markdown]
+# Sorting the file names gives the wrong order: `scan10` sorts before `scan8`, because names compare as text, character by character.
+# Sort by the number in the name instead, and take each temperature from the log rather than assuming the order.
+
+# %%
+def scan_number(path):
+    return int(re.search(r"\d+", path.stem).group())
+
+
+files = sorted(folder.glob("*.xy"), key=scan_number)
+with open(folder / "temperatures.csv", encoding="utf-8", newline="") as handle:
+    temperature_of = {int(row["scan"]): float(row["temperature_K"]) for row in csv.DictReader(handle)}
+
+loaded = [rx.read_pattern(path) for path in files]
+loaded_x = [temperature_of[scan_number(path)] for path in files]
+print([path.name for path in files])
+print(loaded_x)
+
+# %% [markdown]
+# Other naming conventions need only a different key.
+# When the temperature is in the file name itself, read it with a regular expression and sort on it.
+
+# %%
+names = ["LaB6_1000K.xye", "LaB6_300K.xye", "LaB6_650.5K.xye"]
+
+
+def temperature_in_name(name):
+    return float(re.search(r"([\d.]+)K", name).group(1))
+
+
+print(sorted(names, key=temperature_in_name))
+
+# %% [markdown]
+# A timestamp in the name sorts correctly as text only when it is written largest unit first, as in `2026-10-07T14-05-00`.
+# Whatever the convention, print the sorted names and their `x` values once, as above, before fitting.
+#
+# ## Fit the series
+#
+# `refine_sequential` fits the patterns in order, starting each fit from the parameters the previous one finished with.
+# The `carry` argument says which parameters pass along the chain.
+# It is a list of parameter-path globs, as in a plan's stages.
+# A parameter matching one starts each fit from the previous fit's value, and any other starts from the starting model.
+# `["*"]` carries everything, and it is the default, written out here.
+# Narrow it only when a parameter must provably not be chained.
+# For example, `carry=["phases.*", "instrument.zero_shift"]` would restart the background and peak widths at every pattern.
+
+# %%
+series = rx.refine_sequential(loaded, *starting_model(), carry=["*"], plan="mccusker_default",
+                              x=loaded_x, x_label="T (K)", labels=LABELS)
 print(series)
 
 # %% [markdown]

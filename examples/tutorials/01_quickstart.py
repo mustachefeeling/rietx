@@ -1,11 +1,13 @@
 # %% [markdown]
 # # Quickstart: look at a pattern, then fit it with Le Bail
 #
+# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
+#
 # We read a laboratory powder pattern, look at it, and fit its cell and peak shapes.
 # The fit uses no atomic positions.
 # By the end you can read a fit's summary in the order the package intends, and say whether a cell from it is worth quoting.
 #
-# **You need** Python 3.11 or later and `pip install "rietx[viz]"`.
+# **You need** Python 3.11 or later and rietx 1.7 or later, which the next cell installs.
 # You should be comfortable running a Jupyter cell.
 # You do not need to have refined anything before.
 #
@@ -14,6 +16,11 @@
 # Its provenance and licence are in the repository's `tests/data/README.md`.
 #
 # **Runtime** is under a minute on a laptop.
+#
+# Until rietx 1.7 is on PyPI, install it from GitHub instead: `%pip install git+https://github.com/yue-here/rietx`.
+
+# %%
+# %pip install rietx
 
 # %%
 import numpy as np
@@ -106,6 +113,10 @@ result
 # Read the summary from the top.
 #
 # 1. **Status.** Every stage converged.
+#    Each stage line gives the iterations it took and its `ftol`, the relative drop in the cost below which the stage stops.
+#    Every stage but the last stops at `1e-06`, because each later stage refines its parameters again.
+#    The last runs to the solver's default, `1e-9`, and that is the answer the result reports.
+#    `max|Δθ|/esd` on the last line is the largest final step of any parameter, in units of its own esd. McCusker et al. (1999) treat 0.1 or less as converged.
 # 2. **Diagnostics.** These outrank every statistic.
 #    `PATTERN_UNDERSAMPLED` is the step count from `diagnose` again.
 #    `FROZEN_COMPILE_STALE` says the peak windows were sized at the values the last stage started from, and the cell has moved since.

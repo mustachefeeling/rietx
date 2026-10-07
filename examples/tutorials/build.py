@@ -7,7 +7,10 @@ an edit goes to the ``.py`` and this file regenerates the notebook.
 
 The source format is the subset of jupytext's percent format that a
 notebook needs: ``# %%`` opens a code cell, ``# %% [markdown]`` a markdown
-cell whose lines each start ``# ``.  A file opens with a marker.
+cell whose lines each start ``# ``.  A file opens with a marker.  A code line
+``# %pip …`` is a magic kept as a comment so the script stays python; the
+notebook carries it uncommented, as jupytext does.  A cell of nothing but
+``%pip`` lines is never executed: a build or a test must not install anything.
 
     python examples/tutorials/build.py              # rebuild every notebook
     python examples/tutorials/build.py 01_quickstart  # rebuild one
@@ -60,6 +63,8 @@ def parse(path: Path) -> list[tuple[str, str]]:
             line = line[2:]
         elif kind == "markdown":
             line = ""
+        elif line.startswith("# %pip "):
+            line = line[2:]
         body.append(line.rstrip() if kind == "markdown" else line)
     out = []
     for kind, body in cells:
@@ -95,6 +100,12 @@ def _notebook(path: Path):
     return nb
 
 
+def _installs(cell) -> bool:
+    """A code cell that only installs packages."""
+    lines = [s for s in cell.source.splitlines() if s.strip()]
+    return cell.cell_type == "code" and bool(lines) and all(s.startswith("%pip ") for s in lines)
+
+
 def problems(nb) -> list[str]:
     """What makes an executed notebook unfit to commit."""
     home = str(Path.home())
@@ -121,6 +132,8 @@ def execute(path: Path):
     from rietx._about import TELEMETRY_ENV
 
     nb = _notebook(path)
+    held = {i: c for i, c in enumerate(nb.cells) if _installs(c)}
+    nb.cells = [c for i, c in enumerate(nb.cells) if i not in held]
     env = {k: v for k, v in os.environ.items() if k != "MPLBACKEND"}  # the kernel's own, as a reader's
     env[TELEMETRY_ENV] = "0"
     env["PYTHONUTF8"] = "1"
@@ -133,6 +146,8 @@ def execute(path: Path):
     NotebookClient(nb, km=km, timeout=900, record_timing=False,
                    resources={"metadata": {"path": str(HERE)}}).execute(env=env, cleanup_kc=True)
     nb.metadata.get("language_info", {}).pop("version", None)  # the builder's Python patch release
+    for i in sorted(held):
+        nb.cells.insert(i, held[i])        # unexecuted: no count, no output
     return nb
 
 

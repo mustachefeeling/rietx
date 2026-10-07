@@ -1,16 +1,24 @@
 # %% [markdown]
 # # Peak shape and microstructure
 #
+# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
+#
 # A peak's width has two sources: the instrument, and the specimen's own small crystallites and strain.
 # To measure the specimen you have to know the instrument first.
 # We calibrate a synthetic instrument on a standard, save it, and use it to measure crystallite size and microstrain in a synthetic sample.
 # Because both patterns are synthetic, we know the answers and can grade the fit.
 #
-# **You need** `pip install "rietx[viz]"`.
+# **You need** rietx 1.7 or later, which the next cell installs.
 # Notebook 02 introduces plans and the parameter table.
 #
 # **Runtime** is under a minute on a laptop.
 #
+# Until rietx 1.7 is on PyPI, install it from GitHub instead: `%pip install git+https://github.com/yue-here/rietx`.
+
+# %%
+# %pip install rietx
+
+# %% [markdown]
 # ## How widths combine
 #
 # Each peak is a pseudo-Voigt: a Gaussian and a Lorentzian convolved.

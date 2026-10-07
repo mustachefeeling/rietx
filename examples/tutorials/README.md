@@ -4,7 +4,10 @@ Executed notebooks that build a working picture of what rietx does with a powder
 They are written for people who drive rietx through an agent and need to judge its work, and they serve anyone learning the package.
 Each notebook ends with a list of checks to make on an agent's fit.
 
-Every notebook runs after `pip install "rietx[viz]"` in a Jupyter kernel.
+*Written by Claude Code, Anthropic's coding agent, for the rietx project.*
+
+Every notebook needs rietx 1.7 or later, and its first code cell installs it with `%pip install rietx`.
+Until 1.7 is on PyPI, install from GitHub instead: `%pip install git+https://github.com/yue-here/rietx`.
 The data ships inside the package, so no download is needed.
 
 | Notebook | What it teaches | Data and licence | Runtime |

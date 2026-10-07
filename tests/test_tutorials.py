@@ -79,6 +79,20 @@ def test_committed_outputs_are_fit_to_publish(path):
     assert build.problems(_committed(path)) == []
 
 
+@pytest.mark.parametrize("path", SOURCES, ids=lambda p: p.stem)
+def test_a_notebook_opens_by_installing_and_never_ran_it(path):
+    """A reader's first cell installs rietx; a build must not install anything."""
+    code = [c for c in _committed(path).cells if c.cell_type == "code"]
+    assert code[0].source.startswith("%pip install "), code[0].source
+    assert code[0].execution_count is None and code[0].outputs == []
+
+
+def test_parse_uncomments_a_pip_magic(tmp_path):
+    src = tmp_path / "00_pip.py"
+    src.write_text("# %%\n# %pip install rietx\n", encoding="utf-8", newline="\n")
+    assert build.parse(src) == [("code", "%pip install rietx")]
+
+
 def test_the_readme_lists_every_tutorial():
     readme = (TUTORIALS / "README.md").read_text(encoding="utf-8")
     missing = [p.with_suffix(".ipynb").name for p in SOURCES

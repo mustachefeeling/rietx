@@ -1,11 +1,13 @@
 # %% [markdown]
 # # A simple Rietveld refinement
 #
+# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
+#
 # We refine the fluorapatite structure against the pattern notebook 01 fitted with Le Bail.
 # This time the peak intensities come from the atoms, so the fit can move them.
 # Along the way we look at the plan's stages, the parameter table, two parameters the data cannot tell apart, and a constraint between three atoms.
 #
-# **You need** `pip install "rietx[viz]"`.
+# **You need** rietx 1.7 or later, which the next cell installs.
 # Notebook 01 introduces the pattern and how to read a fit's summary.
 #
 # **The data** is `FAP.XRA` from the GSAS-II `LabData` tutorial, with a CIF transcribed from the same tutorial's experiment file.
@@ -14,11 +16,21 @@
 #
 # **Runtime** is under a minute on a laptop.
 #
+# Until rietx 1.7 is on PyPI, install it from GitHub instead: `%pip install git+https://github.com/yue-here/rietx`.
+
+# %%
+# %pip install rietx
+
+# %% [markdown]
 # ## A first refinement
 #
 # This is the example on the rietx home page.
 
 # %%
+import json
+import tempfile
+from pathlib import Path
+
 import rietx as rx
 from rietx.examples import examples_dir
 
@@ -195,6 +207,11 @@ for bond in final.geometry.bonds:
 print(ref.history.summary())
 
 # %% [markdown]
+# Read it from the top.
+# A straight run of stages stays in one column.
+# Where we checked out an earlier node and fitted again, the history forks, and each branch is indented one level: `├─` for the first and `└─` for the last.
+# `*` marks the node the model stands at now.
+#
 # ## The verdict for a declared purpose
 #
 # What counts as finished depends on what the fit is for.
@@ -219,6 +236,39 @@ print(ref.summary(deliverable="structure"))
 final.plot()
 
 # %% [markdown]
+# ## Saving the work as a project
+#
+# Everything so far lives in this Python session and goes when it ends.
+# A project keeps a refinement on disk as a directory whose name ends `.rex`.
+# The GUI opens the same directory (`rietx gui fluorapatite.rex`), so a project started in code can be continued by hand, and the reverse.
+#
+# `Project.create` takes the pattern file, the models and the protocol, and starts a history of its own.
+# `project.fit()` refines and records each stage there.
+
+# %%
+work = Path(tempfile.mkdtemp())
+project = rx.Project.create(work / "fluorapatite.rex", pattern=examples_dir() / "FAP.XRA",
+                            structure=ref.structure, instrument=ref.instrument,
+                            plan="mccusker_structural", two_theta_limits=(15, 130))
+saved = project.fit()
+project.save()
+print(saved.status)
+for item in sorted((work / "fluorapatite.rex").iterdir()):
+    print(f"{item.name + ('/' if item.is_dir() else ''):16} {item.stat().st_size if item.is_file() else ''}")
+print(sorted(json.loads((work / "fluorapatite.rex" / "project.json").read_text(encoding="utf-8"))))
+
+# %% [markdown]
+# Each entry holds one kind of fact, and no fact is stored twice.
+#
+# - `FAP.XRA` is the pattern, copied byte for byte. `project.json` records its checksum, which reader opened it, and a fingerprint of the numbers that reader produced. A changed file and a changed reader can then be told apart.
+# - `project.json` holds the settings: the plan, the fitted range, excluded regions, and the GUI's own choices. It holds no refined values.
+# - `history.jsonl` holds every node of the history, one JSON line each, appended as each stage finishes. The node at its head is the working state, so the refined values live here.
+# - `live/` holds each run's record while it happens, which `rietx watch` and the GUI draw from.
+# - `exports/` is where exported files go, such as a CIF of the refined structure.
+#
+# `rx.Project.open` reopens a project in code.
+# Every verb writes into the directory, so to look at someone's project without changing it, open a copy (`rietx gui --scratch` makes one).
+#
 # ## Checking an agent's work
 #
 # When an agent reports a structure refinement, check these in order.
