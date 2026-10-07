@@ -30,8 +30,6 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from .._about import DIST_NAME
-
 #: Observed data, calculated model, and the recessive marks — the tokens
 #: ``viz.plots`` already uses, restated here rather than imported so the two
 #: modules stay independently readable.
@@ -54,14 +52,15 @@ CANDIDATE_COLORS = ("#1f5fa8", "#c23b22", "#2a9d2a", "#7a1fa8",
 
 
 def _pyplot():
-    try:
-        import matplotlib
-        matplotlib.use("Agg", force=False)
-        import matplotlib.pyplot as plt
-    except ImportError as exc:  # pragma: no cover
-        raise ImportError("plotting needs matplotlib: "
-                          f"pip install '{DIST_NAME}[viz]'") from exc
-    return plt
+    """:func:`rietx.viz.plots._pyplot`: one rule for when Agg is forced."""
+    from .plots import _pyplot as pyplot
+    return pyplot()
+
+
+def _handed_back(fig):
+    """:func:`rietx.viz.plots._handed_back`: one rule for a notebook's figures."""
+    from .plots import _handed_back as handed_back
+    return handed_back(fig)
 
 
 def _two_theta_of_q(q: np.ndarray, wavelength: float) -> np.ndarray:
@@ -132,7 +131,7 @@ def plot_peak_list(peaks, data=None, *, path: str | None = None,
     fig.tight_layout()
     if path is not None:
         fig.savefig(path)
-    return fig
+    return _handed_back(fig)
 
 
 def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
@@ -282,7 +281,7 @@ def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
     fig.tight_layout()
     if path is not None:
         fig.savefig(path)
-    return fig
+    return _handed_back(fig)
 
 
 def plot_validation(validation, result=None, *, path: str | None = None,
@@ -319,7 +318,7 @@ def plot_validation(validation, result=None, *, path: str | None = None,
         fig.tight_layout()
         if path is not None:
             fig.savefig(path)
-        return fig
+        return _handed_back(fig)
 
     tt = np.asarray(result.two_theta)
     y_obs = np.asarray(result.y_obs)
@@ -352,7 +351,7 @@ def plot_validation(validation, result=None, *, path: str | None = None,
     fig.tight_layout()
     if path is not None:
         fig.savefig(path)
-    return fig
+    return _handed_back(fig)
 
 
 def _window_from_result(result, peaks) -> np.ndarray:

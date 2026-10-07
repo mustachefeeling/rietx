@@ -9,6 +9,7 @@ One FAP fit is shared by the module, so it sits on one xdist worker.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -151,6 +152,32 @@ def test_an_indexing_result_prints_its_candidates_and_verdict():
     html = res._repr_html_()
     assert html.count("<tr>") == 2 and "5.43000 5.43000 5.43000" in html
     assert "NO CELL" in html and "found by" not in html, "the table replaces the lines"
+
+
+def test_a_plot_in_a_kernel_shows_once_and_leaves_the_backend_alone():
+    """Measured before WP-1544: no rietx figure showed an image in a kernel,
+    and one plot call left the session on Agg, so a plain ``plt.show()``
+    afterwards warned and drew nothing. With Agg no longer forced, a bare
+    call showed twice and later figures leaked into the next ``plt.show()``."""
+    nbformat = pytest.importorskip("nbformat")
+    nbclient = pytest.importorskip("nbclient")
+    cells = [f"import rietx as rx\ndata = rx.read_pattern({str(DATA / 'FAP.XRA')!r})",
+             "data.plot()",
+             "data.plot();",
+             "fig = data.plot()",
+             "import matplotlib, matplotlib.pyplot as plt\n"
+             "plt.plot([1, 2]); plt.show()\nprint(matplotlib.get_backend())"]
+    nb = nbformat.v4.new_notebook(cells=[nbformat.v4.new_code_cell(c) for c in cells])
+    # the suite pins MPLBACKEND=Agg (conftest), and a kernel honours it as a
+    # choice, so this kernel starts without it, as a notebook's does
+    env = {k: v for k, v in os.environ.items() if k != "MPLBACKEND"}
+    nbclient.NotebookClient(nb, timeout=120, kernel_name="python3").execute(env=env)
+
+    def images(cell):
+        return sum("image/png" in o.get("data", {}) for o in cell.outputs)
+    assert [images(c) for c in nb.cells[1:]] == [1, 0, 0, 1]
+    backend = "".join(o.get("text", "") for o in nb.cells[-1].outputs)
+    assert "inline" in backend
 
 
 @pytest.mark.parametrize("name", ["data", "instrument", "structure", "result", "ref"])

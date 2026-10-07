@@ -299,14 +299,52 @@ def _check_panel_args(style: str, x_axis: str, y_scale: str,
 
 
 def _pyplot():
-    """``matplotlib.pyplot`` on the Agg canvas, or an error naming the extra."""
+    """``matplotlib.pyplot``, or an error naming the extra.
+
+    A script, the CLI and the GUI server get the Agg canvas, because a GUI
+    backend drawing off the main thread fails on macOS. A backend somebody
+    already chose is left alone: a Jupyter kernel's inline one above all
+    (WP-1544). Forcing Agg there made every rietx figure display as
+    ``<Figure size …>`` text, and the next ``plt.show()`` in the session
+    warned that Agg "cannot be shown", whichever was imported first.
+    """
     try:
         import matplotlib
-        matplotlib.use("Agg", force=False)
+        if not _backend_chosen(matplotlib):
+            matplotlib.use("Agg", force=False)
         import matplotlib.pyplot as plt
     except ImportError as exc:  # pragma: no cover
         raise ImportError(f"plotting needs matplotlib: pip install '{DIST_NAME}[viz]'") from exc
     return plt
+
+
+def _handed_back(fig):
+    """``fig``, detached from pyplot when the backend is a notebook's inline one.
+
+    The inline backend draws every figure pyplot holds when a cell ends, and
+    Jupyter draws a returned figure as the cell's value, so a bare
+    ``result.plot()`` showed twice; after it, figures stopped flushing and
+    surfaced in a later cell's ``plt.show()`` (measured, WP-1544). Detached,
+    the returned figure is the cell's one output, and a trailing ``;`` hides it
+    as IPython means it to. Everywhere else pyplot keeps the figure, so a
+    script's own ``plt.show()`` still finds it.
+    """
+    import matplotlib
+    import matplotlib.pyplot as plt
+    if "inline" in matplotlib.get_backend():
+        plt.close(fig)
+    return fig
+
+
+def _backend_chosen(matplotlib) -> bool:
+    """Whether the backend is somebody's choice rather than matplotlib's
+    pending default: running in an IPython kernel, ``MPLBACKEND`` set (an
+    ipykernel sets it to the inline backend), or a backend already resolved."""
+    import sys
+    if "ipykernel" in sys.modules:
+        return True
+    getter = getattr(matplotlib.rcParams, "_get_backend_or_none", None)
+    return getter is not None and getter() is not None
 
 
 def _style_context(plt, style: str, font_size: float):
@@ -717,7 +755,7 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
 
         if path is not None:
             fig.savefig(path)
-    return fig
+    return _handed_back(fig)
 
 
 def plot_pattern(data, *, path: str | None = None,
@@ -828,7 +866,7 @@ def plot_pattern(data, *, path: str | None = None,
 
         if path is not None:
             fig.savefig(path)
-    return fig
+    return _handed_back(fig)
 
 
 def plot_for_vlm(result: RefinementResult, report=None, *,
@@ -857,12 +895,7 @@ def plot_for_vlm(result: RefinementResult, report=None, *,
     if not str(path).lower().endswith(".png"):
         raise ValueError("plot_for_vlm writes PNG only (JPEG artifacts destroy "
                          "thin peak/difference lines); pass a .png path")
-    try:
-        import matplotlib
-        matplotlib.use("Agg", force=False)
-        import matplotlib.pyplot as plt
-    except ImportError as exc:  # pragma: no cover
-        raise ImportError(f"plotting needs matplotlib: pip install '{DIST_NAME}[viz]'") from exc
+    plt = _pyplot()
 
     if report is None:
         from ..report import build_layer0
@@ -927,7 +960,7 @@ def plot_for_vlm(result: RefinementResult, report=None, *,
         axr.tick_params(labelsize=7)
 
     fig.savefig(path, format="png")
-    return fig
+    return _handed_back(fig)
 
 
 def plot_trajectory(series, paths, *, path: str | None = None,
@@ -966,12 +999,7 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     left-hand titles stay the parameter each one draws; absent by default,
     and the default figure is unchanged by it.
     """
-    try:
-        import matplotlib
-        matplotlib.use("Agg", force=False)
-        import matplotlib.pyplot as plt
-    except ImportError as exc:  # pragma: no cover
-        raise ImportError(f"plotting needs matplotlib: pip install '{DIST_NAME}[viz]'") from exc
+    plt = _pyplot()
 
     if isinstance(paths, str):
         paths = [paths]
@@ -1067,4 +1095,4 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     fig.tight_layout()
     if path is not None:
         fig.savefig(path)
-    return fig
+    return _handed_back(fig)

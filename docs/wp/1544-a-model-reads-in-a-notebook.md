@@ -145,7 +145,7 @@ matplotlib for the rest of the session.
   parameter and diagnostic rows, `Refinement`'s parameter table and
   `IndexingResult`'s candidates. One row builder feeds both renderers, in a
   private `src/rietx/_display.py`.
-- [ ] **Matplotlib in a kernel**, as the probe dictates. Skip `matplotlib.use`
+- [x] **Matplotlib in a kernel**, as the probe dictates. Skip `matplotlib.use`
   when a kernel is running or a backend is already resolved, and keep Agg for
   the GUI and CLI. One plot call gives one image. `fig.dpi` does not change
   silently.
