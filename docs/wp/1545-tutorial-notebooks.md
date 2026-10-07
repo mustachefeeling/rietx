@@ -206,6 +206,28 @@ anything. So matplotlib stays a dependency for figures and nothing changed.
   GitHub, or in Jupyter until the notebook is trusted. `uplot-python` on
   conda-forge is a browser wrapper too. The only matplotlib-free raster route
   is Pillow drawing by hand, a rewrite of `viz/plots.py`'s 1233 lines.
+- Asked again for a lighter package, measured on PyPI and in a scratch venv.
+  lets-plot 4.11 is the one that writes a PNG with no browser and no system
+  library: 6.9 MB wheel, 36 MB installed with Pillow, 1.5 s for a 5751-point
+  figure. Against it: the rewrite, two `SyntaxWarning`s and a `Fontconfig
+  error` on stderr (the builder refuses stderr), and a 19 MB Kotlin binary
+  whose platform coverage was not checked. vl-convert is 29.7 MB; plotly's
+  kaleido and bokeh need a browser; cairosvg needs system cairo.
+  **The maintainer decided: matplotlib stays.**
+
+**Review.** `/code-review high --fix` on `d4cd2217` found eight. Five fixed in
+`2a69fb65`: the box is compared in order (imports aside), output stretches in
+order and an uncut panel must end where the output does, the live check
+carries the status word and fails on a panel with no codes, and
+`_landing_box` names the page when its shape changes. Declined: deriving
+`LANDING_TUTORIAL` from the box label (`test_landing.py` names it too, so one
+change removes no copy), and `test_landing.py`'s docstring, incomplete rather
+than wrong.
+
+**Suite.** Fast selection on the final tree, `[dev]`, macOS arm64, alone on the
+machine, `main` not moved since `57aa2c1f`: 8722 passed, 167 skipped, 1 failed
+(`toy_anomalous`, bare `main`'s) in 3:48. Total 8889 to 8890, this session's
+one added test; it costs under 0.01 s.
 
 **Gotchas.**
 - The earlier entry's "`QUOTED` in `tests/test_tutorials.py`" gotcha is now:
