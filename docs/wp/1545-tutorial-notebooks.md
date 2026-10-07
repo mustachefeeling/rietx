@@ -1,6 +1,6 @@
 # WP-1545 — tutorial notebooks
 
-Milestone: unscheduled · Status: ✅ 2026-10-07 — closed; five notebooks, one session, stacked on 1544's PR
+Milestone: unscheduled · Status: 🔄 2026-10-07 — reopened for the maintainer's review rounds; every task done, PR #812 open
 Track: Render what the fit already knows
 Depends on: 1544 (readable objects in a notebook)
 
@@ -155,6 +155,48 @@ their sources. No output carries a home path.
 - Data provenance and licences: `tests/data/README.md`.
 
 ## Handover log
+
+### 2026-10-07 (3rd entry) — paused for /clear; resume here
+
+The maintainer is reviewing the notebooks in rounds and will send more
+changes. Everything asked so far is done, pushed and in PR #812, and the fast
+suite is green apart from bare `main`'s `toy_anomalous`. The WP is reopened
+(🔄) only so the next session finds it in flight. Close it again, with the
+same narrative, when the maintainer says the review is over.
+
+**Resume.**
+- Worktree `.claude/worktrees/wp1545-tutorial-notebooks`, branch
+  `wp1545-tutorial-notebooks`, `[dev]` venv built (carries `notebooks`). From
+  the main checkout, `EnterWorktree path:` to it. The branch is up to date with
+  `origin/main` as of `5520f4a6`'s merge; `git fetch` and merge before testing.
+- PR #812 is ready, not draft, base `main`. Edit its body for each round
+  (`gh pr edit 812 --body-file …`); the body keeps a "Review round" section.
+- Edit `examples/tutorials/NN_*.py`, never the `.ipynb`. Rebuild with
+  `.venv/bin/python examples/tutorials/build.py [NN_slug]` (5 notebooks about
+  60 s), then `build.py --check` and `pytest tests/test_tutorials.py`. Read a
+  built notebook's outputs with `nbformat` (every text output, and decode each
+  `image/png` to look at it); no helper for this is committed.
+- Each review round so far: edit, rebuild, read every changed output against
+  its prose, commit per change, update the handover entry and the PR body,
+  fast suite once at the end (`-m "not slow"`, 3-4 min).
+
+**Waiting on the maintainer.**
+- The landing page's code box is labelled `02_simple_rietveld.py` but shows
+  `build_report`, `print(report.summary)` and `plot(path="fap_fit.png")`,
+  which notebook 02 does not run. Its output panel predates this WP (esd
+  0.00010 against today's 0.00008, "4.7 steps … 175 fitted peaks" against
+  4.6 and 76). It is public copy: trim the box to the notebook's first cell
+  and refresh the panel, or leave it as an excerpt.
+
+**Gotchas for a round.**
+- An import added to a notebook goes in its first code cell (ruff E402).
+- A new text I/O call in `examples/` names `encoding=` (`test_portability`).
+- The first code cell of every notebook must stay the `%pip install` cell
+  (`test_a_notebook_opens_by_installing_and_never_ran_it`).
+- Notebook 02 must keep printing what the landing page quotes (`QUOTED` in
+  `tests/test_tutorials.py`).
+- The README must list every notebook; `tests/test_example_projects.py`
+  must find each `TUTORIAL_ONLY` file named in some tutorial.
 
 ### 2026-10-07 (2nd entry) — the maintainer's review round
 
