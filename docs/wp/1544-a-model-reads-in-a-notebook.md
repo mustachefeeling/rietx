@@ -157,14 +157,17 @@ matplotlib for the rest of the session.
   `using/results.md`. Document `model=` in `using/data.md`. Add a
   compatibility note for the changed `__str__` text and the backend change.
   Add the three display rules to the root CLAUDE.md Conventions.
-- [ ] **Tests** (`tests/test_display.py`). The repr and str of every object in
+- [x] **Tests** (`tests/test_display.py`). The repr and str of every object in
   the table stay under a ceiling on real fixtures. The tree renders for
   `Instrument` and `Structure`. HTML escapes `<`. Displaying a fitted
   `Refinement` writes no run and runs no fit. With IPython installed, the
   `DisplayFormatter`'s text/plain stays under the ceiling. The CLI's `index`
-  output is byte-identical after the move.
-- [ ] Skill: one row on reading objects (`print(x)` and `x` in a notebook are
-  both short now), or "none" if the body already says it.
+  output is byte-identical after the move. (The last was checked once, against
+  the old printer from git on two real indexing results. A suite test would
+  need a whole indexing run.)
+- [x] Skill: none. The cheapest place for this guidance is the package's own
+  output (WP-1338), and that output is now readable: an agent that prints an
+  object reads the tree with nothing extra to learn. The body is over budget.
 
 ## Acceptance
 

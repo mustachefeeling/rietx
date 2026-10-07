@@ -82,6 +82,22 @@ British spelling):
 - Each notebook ends with a "checking an agent's work" box mapped to SKILL §4.
 - Load the `rietx` skill before writing any fit.
 
+**Measured while building WP-1544** (2026-10-07, macOS arm64, `[dev,notebooks]`):
+- Synthetic silicon (`tests/_synthetic_silicon.py`, cubic F) searched over
+  cubic and tetragonal ranks a tetragonal I sub-cell first, with cubic F third,
+  and the result abstains with `bravais_ambiguous`. Notebook 03's synthetic
+  phase must be measured the same way before it is chosen, and the abstention
+  may itself be the lesson.
+- A rietx figure at the default `dpi=300` embeds a 259 kB PNG in a notebook
+  (`result.plot()` on FAP). Five notebooks of about five figures each would
+  commit about 6.5 MB per rebuild. Pass `dpi=` in the notebooks, or decide a
+  notebook default with a compatibility note. WP-1544 left `fig.dpi` alone.
+- In a kernel, `result.plot()` as a cell's last line shows the figure once. A
+  trailing `;` or an assignment shows nothing (WP-1544).
+- `SeriesResult` prints its `summary()` and has no HTML table. `FitReport`,
+  `ExtinctionScreen` and `Capabilities` print the generic tree. Build a view
+  only where a notebook needs one.
+
 ## Non-goals
 
 - Rendering the notebooks in the manual (myst-nb or nbsphinx). That is a
