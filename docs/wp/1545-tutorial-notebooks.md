@@ -192,7 +192,9 @@ the screen; agents read that same text.
 
 **Measured** (macOS arm64, `[dev]`): matplotlib and its dependencies install
 to about 58 MB against about 265 MB for the rest of rietx (llvmlite alone is
-126 MB).
+126 MB). Fast selection on the final tree, alone on the machine: 8721 passed,
+167 skipped, 1 failed (`toy_anomalous`, bare `main`'s), in 3:36. The total
+moved 8882 → 8889, exactly this round's 7 added cases.
 
 **Next:** as below, plus the same landing-box decision.
 
