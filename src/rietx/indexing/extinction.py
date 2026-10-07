@@ -659,7 +659,7 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
                                 max_classes: int | None = None,
                                 refine_cell: bool = False,
                                 cancel=None) -> ExtinctionScreen:
-    """Rank the extinction classes an indexed lattice admits.
+    """Rank the extinction classes of a lattice.
 
     The pipeline, and the reason for each step:
 
