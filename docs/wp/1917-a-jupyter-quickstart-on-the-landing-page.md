@@ -2,8 +2,8 @@
 
 Milestone: unscheduled · Status: 🔄 2026-10-09 — claimed by @yue-here
 Track: Render what the fit already knows
-Depends on: 1916 (the manual pages it links)
-Priority: P4 2026-10-07 — P3 once rietx 1.7 is on PyPI: the notebooks need 1.7 and PyPI serves 1.6.0, so a live Colab link fails today
+Depends on: 1916 (the manual pages it links; ✅ 2026-10-08, PR #826)
+Priority: P3 2026-10-09 — rietx 1.7.0 is on PyPI and tagged, so the Colab links can go live
 
 ## Goal
 
@@ -15,7 +15,8 @@ installs the version it was built with.
 
 ## Context
 
-**Why it waits.** Every notebook needs rietx 1.7 or later (WP-1545). PyPI
+**Why it waited** (superseded 2026-10-09: v1.7.0 is tagged at a9eaebb4 and
+on PyPI, so the gate is open). Every notebook needs rietx 1.7 or later (WP-1545). PyPI
 served 1.6.0 on 2026-10-07. `pages.yml` deploys on every push to `main`, so a
 Colab link merged before the 1.7 release would install 1.6 in its first cell
 and fail on the next one. Read and download links work today. The button ships
@@ -70,22 +71,20 @@ markdown says so in one line.
 
 **The "until 1.7" lines.** Each notebook's opening cell and
 `examples/tutorials/README.md` say "Until rietx 1.7 is on PyPI, install it from
-GitHub instead". They must go **before** the 1.7 cut, so the tagged notebooks
-do not carry a stale line into Colab. That task can land as soon as this WP
-starts; the rest waits.
+GitHub instead". They were meant to go before the 1.7 cut. Superseded in part
+2026-10-09: the cut came first, so the v1.7.0 notebooks carry the line into
+Colab until the next release's tag. The line is stale but harmless there,
+since its condition is now false and `%pip install rietx` installs 1.7.0.
+`main` drops it now.
 
-### Inherited
-
-- **2026-10-08, from WP-1916 (PR #826).** `using/quickstart.html` is now the
-  tutorials index, a table of the five notebooks with a `{download}` link each
-  (`docs/manual/using/quickstart.md`). If this WP adds "Open in Colab" links, a
-  column in that table is the manual's place for them.
-  `tests/test_manual.py::test_every_tutorial_renders_with_its_outputs_and_the_quickstart_links_it`
-  reads that page's article body, and needs widening if Colab links become
-  required. The build copies notebooks from `examples/tutorials/` on every run,
-  so dropping the "until 1.7" lines needs no manual edit. The dependency on
-  1916 is discharged once #826 merges. The gate is still 1.7 on PyPI, so the
-  priority is unchanged.
+**The manual's tutorials index** (from WP-1916, PR #826).
+`using/quickstart.html` is a table of the five notebooks with a `{download}`
+link each (`docs/manual/using/quickstart.md`). A Colab column in that table is
+the manual's place for Colab links.
+`tests/test_manual.py::test_every_tutorial_renders_with_its_outputs_and_the_quickstart_links_it`
+reads that page's article body, and needs widening if the column becomes
+required. The manual copies notebooks from `examples/tutorials/` on every build,
+so dropping the "until 1.7" lines needs no manual edit.
 
 ## Non-goals
 
@@ -95,7 +94,7 @@ starts; the rest waits.
 
 ## Tasks
 
-- [ ] Before the 1.7 cut: drop the "until 1.7" lines from the five `.py`
+- [ ] Drop the "until 1.7" lines from the five `.py`
   sources and the README, then rebuild the notebooks.
 - [ ] `build.py`: the newest `v*` tag, a refusal when there is none, and the
   rows derived from the notebooks; `pages.yml` fetches tags.

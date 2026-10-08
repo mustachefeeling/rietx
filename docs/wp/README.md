@@ -40,7 +40,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) | The foreign writers state what the other program reads: the setting, the scale, the free set | 2026-10-08 | P3 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1912](1912-a-polar-axis-has-no-origin.md) | A polar axis has no origin, and the fit walks along it | 2026-10-08 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1913](1913-what-the-benchmark-agents-wrote-by-hand.md) | What the benchmark agents wrote by hand: a mixed site, a special-position retry loop, and `.esd` | 2026-10-08 | P3 | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
-| [1917](1917-a-jupyter-quickstart-on-the-landing-page.md) | A Jupyter quickstart on the landing page, opened in Colab at the release | 2026-10-09 | P4 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
+| [1917](1917-a-jupyter-quickstart-on-the-landing-page.md) | A Jupyter quickstart on the landing page, opened in Colab at the release | 2026-10-09 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 
 ## Next, by priority
 
@@ -560,7 +560,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1544](1544-a-model-reads-in-a-notebook.md) | A model reads in a notebook | ✅ 2026-10-07 | — | — |
 | [1545](1545-tutorial-notebooks.md) | Tutorial notebooks | 🔄 2026-10-07 | — | [1544](1544-a-model-reads-in-a-notebook.md) |
 | [1916](1916-the-tutorials-in-the-manual.md) | The tutorials in the manual, and the quickstart is a notebook | ✅ 2026-10-08 | — | [1545](1545-tutorial-notebooks.md) |
-| [1917](1917-a-jupyter-quickstart-on-the-landing-page.md) | A Jupyter quickstart on the landing page, opened in Colab at the release | 🔄 2026-10-09 | P4 | [1916](1916-the-tutorials-in-the-manual.md) |
+| [1917](1917-a-jupyter-quickstart-on-the-landing-page.md) | A Jupyter quickstart on the landing page, opened in Colab at the release | 🔄 2026-10-09 | P3 | [1916](1916-the-tutorials-in-the-manual.md) |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
 
