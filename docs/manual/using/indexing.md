@@ -1209,6 +1209,16 @@ absence holds. The third test is why `n_testable` is `None` until
 `ExtinctionCandidate.screened`. It is a question about the class's own fit, so
 before that fit the count is unknown rather than zero.
 
+Screening a candidate you just indexed takes the candidate, the pattern and
+the peaks it came from, in one call; `IndexingResult.candidates` is the list
+(there is no `.classes`):
+
+<!-- api-doc: no-exec — one Le Bail fit per surviving class -->
+```python
+idx = rx.index_pattern(peaks, data=data, instrument=ins)
+screen = rx.determine_extinction_symbol(data, idx.candidates[0], ins, peaks=peaks)
+```
+
 Refutation is one-sided by construction. A class asserts absences, so intensity
 where it forbids one contradicts it. A class claiming too few absences asserts
 nothing the data can falsify, and is outranked rather than refuted.
