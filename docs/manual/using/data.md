@@ -89,7 +89,10 @@ arrive in order of their d-spacing. This build reads one and refines none:
 there is no flight-time forward model yet. `Refinement`, `refine`,
 `MultiHistogramRefinement`, `refine_sequential`, `index_pattern`, `pick_peaks`,
 `determine_extinction_symbol`, `auto_background`, `diagnose`,
-`PatternData.plot` and the project container each raise on a flight time or a
+`PatternData.plot`, the project container, every other entry that computes
+from a pattern (`suggest`, `profile_fraction`, `replay`, `solve_magnetic`,
+`fit_peaks`, the background selectors, the indexing plots) and the
+constant-wavelength instrument writers each raise on a flight time or a
 `neutron_tof` instrument, naming the axis, its unit and the entry point that
 closed, rather than computing an angle from a microsecond.
 

@@ -2029,6 +2029,9 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     from ..crystallography.satellites import zone_boundary_candidates
     from ..params.vector import ParameterTable
     from ..report.layer2 import delta_bic
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(data, "solve_magnetic()")
 
     if refinement.result_ is None or refinement._model is None:
         raise RuntimeError(

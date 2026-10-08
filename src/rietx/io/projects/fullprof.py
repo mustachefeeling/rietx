@@ -3709,6 +3709,10 @@ def write_fullprof_pcr(structure: Structure, path: str | Path, *,
                        write_zero_shift: bool = False) -> None:
     """Write a ``.pcr``. ``structure`` goes to ``path``; see
     :func:`from_structure` for exactly what carries and what does not."""
+    from ...schemas.pattern import require_two_theta
+
+    if instrument is not None:
+        require_two_theta(None, "write_fullprof_pcr()", instrument=instrument)
     Path(path).write_text(from_structure(structure, instrument=instrument,
                                          diagnostics=diagnostics,
                                          write_zero_shift=write_zero_shift),

@@ -375,6 +375,9 @@ def detect_peaks(data: PatternData, instrument: Instrument, *,
     excluded channels are removed rather than masked, because a window that
     straddles a gap has no meaningful frozen background.
     """
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(data, "detect_peaks()", instrument=instrument)
     mask = data.in_range_mask()
     tt_all, y_all, sig_all = data.tt(), data.y(), data.sig()
     if two_theta_range is not None:

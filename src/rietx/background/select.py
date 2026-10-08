@@ -106,6 +106,9 @@ def select_chebyshev_order(data: PatternData, *, max_order: int = 16,
     measured curve away and describe the same shape itself — BIC prefers it, and
     the scale that comes back is then a number about the polynomial.
     """
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(data, "select_chebyshev_order()")
     mask = data.in_range_mask()
     tt, y, sigma = data.tt()[mask], data.y()[mask], data.sig()[mask]
     keep = peak_mask(tt, y, sigma, baseline_lambda=baseline_lambda)
@@ -157,6 +160,9 @@ def select_arpls_lambda(data: PatternData, *,
     is reported for the evidence table but whiteness decides, because the
     baseline is not a parametric fit with a countable k.
     """
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(data, "select_arpls_lambda()")
     mask = data.in_range_mask()
     tt, y, sigma = data.tt()[mask], data.y()[mask], data.sig()[mask]
     keep = peak_mask(tt, y, sigma)

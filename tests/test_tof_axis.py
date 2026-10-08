@@ -1146,6 +1146,116 @@ def test_compile_model_is_the_backstop(tof_pattern, cw_models):
     _assert_authored(exc, "compile_model()")
 
 
+def _remaining_entries(tof_pattern, structure, instrument):
+    """Every other public entry that takes a pattern and computes from it.
+
+    Each refuses at its own door, before anything it would check first (a fit
+    that has not run, a history that is off): the axis is the earlier fact,
+    and a refusal that names ``compile_model()`` or ``tt()`` points the caller
+    at a function they never called.
+    """
+    from rietx.background import select_arpls_lambda, select_chebyshev_order
+    from rietx.indexing import detect_peaks, validate_by_lebail
+    from rietx.schemas.indexing import CellCandidate
+
+    ref = rx.Refinement(structure, instrument, history=False)
+    candidate = CellCandidate(cell=(SI_A, SI_A, SI_A, 90.0, 90.0, 90.0),
+                              cell_esd=(1e-4,) * 3 + (0.0,) * 3,
+                              system="cubic", centring="F")
+    return [
+        ("Refinement.run_stage()",
+         lambda: ref.run_stage(tof_pattern, rx.Stage(name="s", turn_on=["*.scale"]))),
+        ("Refinement.predict()", lambda: ref.predict(tof_pattern)),
+        ("Refinement.suggest()", lambda: ref.suggest(tof_pattern)),
+        ("Refinement.profile_fraction()",
+         lambda: ref.profile_fraction(tof_pattern, 0)),
+        ("Refinement.cherry_pick()", lambda: ref.cherry_pick("n0001", tof_pattern)),
+        ("replay()", lambda: rx.replay(None, "n0001", tof_pattern)),
+        ("solve_magnetic()", lambda: rx.solve_magnetic(ref, tof_pattern)),
+        ("fit_peaks()", lambda: rx.fit_peaks(tof_pattern, instrument, [1500.0])),
+        ("detect_peaks()", lambda: detect_peaks(tof_pattern, instrument)),
+        ("validate_by_lebail()",
+         lambda: validate_by_lebail(candidate, tof_pattern, instrument)),
+        ("select_arpls_lambda()", lambda: select_arpls_lambda(tof_pattern)),
+        ("select_chebyshev_order()", lambda: select_chebyshev_order(tof_pattern)),
+    ]
+
+
+def test_every_remaining_pattern_entry_refuses_by_its_own_name(tof_pattern,
+                                                                 cw_models):
+    structure, instrument = cw_models
+    for where, call in _remaining_entries(tof_pattern, structure, instrument):
+        with pytest.raises(ValueError) as exc:
+            call()
+        _assert_authored(exc, where)
+
+
+def test_a_project_reopened_on_a_flight_time_is_refused(tmp_path, cw_models):
+    """``Project.open`` asks again rather than trusting the create: the pattern
+    file sits beside an editable ``project.json``, so a bank can arrive there
+    with a matching hash."""
+    import hashlib
+    import json
+
+    structure, instrument = cw_models
+    cw = tmp_path / "si.xye"
+    cw.write_text("\n".join(f"{10.0 + 0.05 * i} {1.0 + i % 7} 0.5"
+                            for i in range(400)) + "\n", encoding="utf-8")
+    proj = tmp_path / "proj.rex"
+    rx.Project.create(proj, pattern=cw, structure=structure,
+                      instrument=instrument)
+    doc_path = proj / "project.json"
+    doc = json.loads(doc_path.read_text(encoding="utf-8"))
+    stored = proj / doc["patterns"][0]["filename"]
+    stored.write_text("' The X-axis unit is: Time-of-flight\n"
+                      + "\n".join(f"{7000.0 + 3.0 * i} {1.0 + i} 0.5"
+                                   for i in range(50)) + "\n", encoding="utf-8")
+    doc["patterns"][0]["sha256"] = hashlib.sha256(stored.read_bytes()).hexdigest()
+    doc_path.write_text(json.dumps(doc), encoding="utf-8")
+    with pytest.raises(ValueError) as exc:
+        rx.Project.open(proj)
+    _assert_authored(exc, "Project.open()")
+
+
+def test_the_indexing_plots_refuse_a_tof_pattern(tof_pattern, cw_models):
+    """They draw the pattern under 2θ peak positions, so a flight time would be
+    drawn on a degree axis beside them."""
+    pytest.importorskip("matplotlib")
+    from rietx.viz import plot_indexing, plot_peak_list
+
+    _, instrument = cw_models
+    with pytest.raises(ValueError) as exc:
+        plot_peak_list(None, tof_pattern)
+    _assert_authored(exc, "plot_peak_list()")
+    with pytest.raises(ValueError) as exc:
+        plot_indexing(None, None, data=tof_pattern, instrument=instrument)
+    _assert_authored(exc, "plot_indexing()")
+
+
+def test_the_instrument_writers_refuse_a_bank_by_name(tmp_path, cw_models):
+    """Each writes a constant-wavelength instrument, and on a bank reached an
+    ``AttributeError`` for a wavelength or a harmonic it does not have."""
+    structure, _ = cw_models
+    bank = rx.Instrument.tof_neutron_bank(difc=5123.45, two_theta_bank_deg=90.0)
+    for where, call in (
+            ("write_gsas_prm()", lambda: rx.write_gsas_prm(bank, tmp_path / "b.prm")),
+            ("write_gsas2_instprm()",
+             lambda: rx.write_gsas2_instprm(bank, tmp_path / "b.instprm")),
+            ("write_fullprof_pcr()",
+             lambda: rx.write_fullprof_pcr(structure, tmp_path / "b.pcr",
+                                           instrument=bank)),
+            ("write_topas_inp()",
+             lambda: rx.write_topas_inp(structure, tmp_path / "b.inp",
+                                        instrument=bank))):
+        with pytest.raises(ValueError) as exc:
+            call()
+        message = str(exc.value)
+        assert message.startswith(where), message
+        assert "neutron_tof bank" in message
+        assert "issue #193" in message
+    assert not list(tmp_path.iterdir())
+
+
 def test_a_tof_instrument_is_refused_at_construction(cw_models):
     """The mistake seen from the other side, refused before anything reads a
     wavelength the source does not have.

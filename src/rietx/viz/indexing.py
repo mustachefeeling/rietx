@@ -102,6 +102,10 @@ def plot_peak_list(peaks, data=None, *, path: str | None = None,
     whole list rather than of a line (every entry of a ``from_positions`` list
     carries it), so it belongs in the title, where it says once what it means.
     """
+    from ..schemas.pattern import require_two_theta
+
+    if data is not None:
+        require_two_theta(data, "plot_peak_list()")
     plt = _pyplot()
     usable = peaks.usable()
     tt = np.array([p.two_theta for p in usable], dtype=np.float64)
@@ -426,6 +430,10 @@ def plot_indexing(result, peaks, *, data=None, instrument=None,
     They stay with pyplot even in a notebook, unlike a single figure: the
     dict prints as text, so the inline backend draws each one as the cell ends.
     """
+    from ..schemas.pattern import require_two_theta
+
+    if data is not None or instrument is not None:
+        require_two_theta(data, "plot_indexing()", instrument=instrument)
     token = _COMPOSING.set(True)
     try:
         figures = _compose_indexing(result, peaks, data=data, instrument=instrument,

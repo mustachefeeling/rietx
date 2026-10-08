@@ -1186,6 +1186,9 @@ def write_gsas_prm(instrument: Instrument, path: str | Path, *,
     ``I HEAD`` record holds whatever the experimenter typed.  See
     :func:`from_instrument` for what carries and what does not.
     """
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(None, "write_gsas_prm()", instrument=instrument)
     Path(path).write_bytes(
         from_instrument(instrument, header=header,
                         diagnostics=diagnostics).encode("latin-1"))
@@ -1807,6 +1810,9 @@ def write_gsas2_instprm(instrument: Instrument, path: str | Path, *,
     decodes.  See :func:`from_instrument_gsas2` for what crosses and what does
     not.
     """
+    from ..schemas.pattern import require_two_theta
+
+    require_two_theta(None, "write_gsas2_instprm()", instrument=instrument)
     Path(path).write_text(
         from_instrument_gsas2(instrument, diagnostics=diagnostics),
         encoding="utf-8")

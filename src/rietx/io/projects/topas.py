@@ -5123,6 +5123,10 @@ def write_topas_inp(structure: Structure, path: str | Path, *,
     for ``p1_expand``, ``free``, ``scale``, ``instrument`` and ``pattern``.
     With ``pattern=`` the data are written beside it as ``<stem>.xye`` (2θ,
     intensity and the σ rietx fits with), which the ``xdd`` line names."""
+    from ...schemas.pattern import require_two_theta
+
+    if instrument is not None or pattern is not None:
+        require_two_theta(pattern, "write_topas_inp()", instrument=instrument)
     path = Path(path)
     if pattern is None:
         path.write_text(
