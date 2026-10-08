@@ -125,6 +125,58 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-08, from the issue triage (issue #795): M-8 proposed as a
+  scored search.** The reporter proposes one search for a magnetic k and a
+  nuclear modulation vector, both the position hypothesis Q = H + m·k on a
+  known parent. On synthetic position lists (Pnma, CW neutrons, 0.12° match
+  radius) a bare count saturates: under a null of ten random peaks the best
+  k on a 0.02 grid matches 10 of 10. A local chance rate (Poisson-binomial
+  over the share of a ±5° band each candidate's windows cover) ranks a
+  planted line k first in 40 of 40, with the threshold taken from a
+  per-pattern shuffle null. A 0.02 grid lost every general k; a 0.01 grid
+  found them. The floor is about 2 + 2 per free component, plus 2 with
+  contaminating peaks. A pseudo-tetragonal metric yields an x ↔ z partner the
+  positions cannot separate. Proposed rules: the result carries no `.k`;
+  equivalents include the metric's pseudo-symmetric images; residue
+  iteration reports several transitions as several rows; `K_SEARCH_AT_CHANCE`
+  and `K_SEARCH_FEW_PEAKS` warn. Chunks K0 (peak picking on a residual), K1
+  (the search), K2 (1326's arm reads it), K3 (real k, LS refinement, rational
+  partners), K4 (powder class over Fourier components), K5 (refinable k as
+  `Modulation.q`), K6 (unknown parent), K7 (a second k). The reporter is
+  holding it until more of their open PRs land.
+  Checked against the tree at `5d1f5f67`: `as_propagation_vector`
+  (`crystallography/satellites.py:135`) refuses a component past
+  `K_MAX_DENOMINATOR`; `SatelliteCandidate` (`report/schemas.py:591`) carries
+  `matched_fraction` and no chance baseline; `_k_from_the_report`
+  (`strategy/magnetic.py:939`) and `indexing.ambiguity.lattice_point_group`
+  (`:474`) exist as named; `ModulationVector` and `SuperspaceGroup` exist
+  (`crystallography/superspace/`, PR #682) and no `Modulation.q` does. Two
+  things the issue does not say: `indexing/pick.py:49` already defines
+  `pick_peaks(data, instrument)`, so K0 extends it or takes another name; and
+  `minus_k_is_k`'s docstring (`satellites.py:185`) does cite "Physica B 192,
+  55, § Propagation vectors", while this WP's References and 1326's put that
+  section in the FullProf manual. The paper was not re-read here. No count
+  was re-measured.
+  Fences: K5 is a refinable incommensurate vector, and modulated structures
+  are v2+ (this WP's non-goals, ROADMAP § v2+). K6 indexes the strongest
+  lines and searches the residue, which sits beside the fenced "multi-phase
+  indexing of the residual" (ROADMAP § v2+, Indexing). An incommensurate k
+  reported as a *position* hypothesis is in M-8's text and outside the fence.
+  Decisions the session needs, the maintainer's:
+  1. Placement: `indexing/kvector.py` under `src/rietx/indexing/CLAUDE.md`
+     (no singleton, budgets, chance-normalised), with `report/satellites.py`
+     as its consumer, or a second generator inside the report arm.
+  2. First form: the rational grid (denominator ≤ 64) as K1 now, or K1 with K3
+     after N-W3's real-k positions. The issue offers to split N-W3's
+     position half out of #678 for this.
+  3. Schema: new fields on `SatelliteCandidate` with a schema and
+     `REPORT_THRESHOLDS` bump, or a `KSearchResult` beside
+     `SatelliteEvidence`. 1326's Inherited entry from WP-1541 already
+     proposes moving both satellite types into `rietx.report.satellites` as
+     provisional.
+  4. Which of K3, K4, K6 and K7 this WP takes, and which wait behind the
+     fence or another WP. K4's complex S_k is M-11a's object.
+
 - **2026-10-05, from the issue triage (issue #724): `solve_magnetic`'s ranked
   stage frees more nuclear parameters on a supercell child than the parent
   has.** `SOLVE_STAGE_PATHS[1]` frees `phases.*.cell.*` and every
