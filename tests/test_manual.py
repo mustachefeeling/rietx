@@ -10,6 +10,7 @@ entry is cited.  These tests are what make each of those claims executable.
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import re
 import subprocess
 import sys
@@ -298,6 +299,72 @@ def test_the_brand_links_to_the_landing_page(built_manual):
         f"sidebar/brand.html moved under the fork in docs/manual/_templates/?\n"
         + "\n".join(wrong[:10])
     )
+
+
+# The tutorial notebooks (WP-1916).  `conf.py` copies them in at build by
+# `build.py`'s own glob, so the set is read from there too: a sixth tutorial
+# reaches these tests with no edit, and fails the index test until
+# `using/quickstart.md` lists it.
+_TUTORIALS = MANUAL_DIR.parent.parent / "examples" / "tutorials"
+
+
+def _tutorial_notebooks() -> list[Path]:
+    spec = importlib.util.spec_from_file_location("_tutorials_build", _TUTORIALS / "build.py")
+    build = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build)
+    return [s.with_suffix(".ipynb") for s in build.sources(_TUTORIALS)]
+
+
+@pytest.mark.xdist_group("manual-build")
+def test_the_build_copies_exactly_the_committed_tutorials(built_manual):
+    """`using/tutorials/` holds each committed notebook byte for byte, and nothing else.
+
+    The directory is gitignored and rewritten by every build, so a copy left
+    over from a renamed tutorial would render as a page nobody can edit.
+    """
+    _, result = built_manual
+    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    notebooks = _tutorial_notebooks()
+    assert len(notebooks) >= 5, f"found {len(notebooks)} tutorials under {_TUTORIALS}"
+    copies = MANUAL_DIR / "using" / "tutorials"
+    assert sorted(p.name for p in copies.glob("*.ipynb")) == [nb.name for nb in notebooks]
+    for nb in notebooks:
+        assert (copies / nb.name).read_bytes() == nb.read_bytes(), f"{nb.name} copy is stale"
+
+
+@pytest.mark.xdist_group("manual-build")
+def test_every_tutorial_renders_with_its_outputs_and_the_quickstart_links_it(built_manual):
+    """Each notebook is a page carrying its committed outputs, reached from the quickstart.
+
+    Execution is off at build, so a page shows exactly the outputs the
+    notebook was committed with.  myst-nb draws each code cell that has
+    outputs as one `cell_output` container, and the count is compared with the
+    notebook's own: a build that dropped the outputs would still be green.
+    """
+    import json
+
+    out, result = built_manual
+    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    # The page body only: furo's sidebar links every toctree entry on every
+    # page, so a link test over the whole file passes with the table row gone.
+    index = (out / "using" / "quickstart.html").read_text(encoding="utf-8")
+    index = index.split('<article role="main"', 1)[1].split("</article>", 1)[0]
+    problems: list[str] = []
+    for nb in _tutorial_notebooks():
+        page = out / "using" / "tutorials" / f"{nb.stem}.html"
+        if not page.is_file():
+            problems.append(f"{nb.stem}: no page")
+            continue
+        cells = json.loads(nb.read_text(encoding="utf-8"))["cells"]
+        want = sum(1 for c in cells if c["cell_type"] == "code" and c.get("outputs"))
+        got = page.read_text(encoding="utf-8").count('class="cell_output')
+        if got != want:
+            problems.append(f"{nb.stem}: {got} rendered outputs, notebook has {want}")
+        if f'href="tutorials/{nb.stem}.html"' not in index:
+            problems.append(f"{nb.stem}: the quickstart does not link its page")
+        if not re.search(rf'href="\.\./_downloads/[0-9a-f]+/{re.escape(nb.name)}"', index):
+            problems.append(f"{nb.stem}: the quickstart offers no download")
+    assert not problems, "\n".join(problems)
 
 
 def test_the_tch_coefficients_in_print_are_the_ones_the_code_runs():

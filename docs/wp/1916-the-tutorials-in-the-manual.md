@@ -99,7 +99,7 @@ landing's "Agent quickstart" is WP-1917's neighbour and untouched here.
 - [x] `using/quickstart.md` → `using/first-refinement.md`, every link repointed,
   and a new `using/quickstart.md` index over the five notebooks with download
   links; `manual.md` toctree and Part 1 intro updated.
-- [ ] Tests: the manual builds with the five notebook pages present; a test
+- [x] Tests: the manual builds with the five notebook pages present; a test
   holds the copied set equal to `examples/tutorials/` by glob; the rendered
   index links all five. Look at one rendered page in light and dark.
 - [ ] Skill: none. The notebooks teach a person to check an agent, and WP-1545
