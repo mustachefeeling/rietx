@@ -51,9 +51,9 @@ FitReport: Rwp=0.0933 GoF=3.54; 53 regions, top 15 shown (74% of χ²); 53 unmat
 Refinement history (every stage is a restorable checkpoint):
 t5544a638  13 nodes  data=11BM_NAC.fxye
  n0000  root                   —
-└─  n0001  stage:bkg              Rwp 3.1772
-   …
-                                 └─ *n0012  stage:biso             Rwp 0.0933
+ n0001  stage:bkg              Rwp 3.1772
+ …
+*n0012  stage:biso             Rwp 0.0933
 ```
 
 ## Current features
