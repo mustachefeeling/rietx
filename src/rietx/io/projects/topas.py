@@ -5121,7 +5121,7 @@ def write_topas_inp(structure: Structure, path: str | Path, *,
                     diagnostics: list[Diagnostic] | None = None,
                     p1_expand: bool = False, free=None, scale=None,
                     instrument=None, pattern=None) -> None:
-    """Write a ``.inp``. See
+    """Write. See
     :func:`from_structure` for exactly what carries and what does not, and
     for ``p1_expand``, ``free``, ``scale``, ``instrument`` and ``pattern``.
     With ``pattern=`` the data are written beside it as ``<stem>.xye`` (2θ,
