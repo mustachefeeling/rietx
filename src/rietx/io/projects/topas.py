@@ -322,17 +322,14 @@ class TopasSite:
     #: ``_atom_site_moment.crystalaxis_*``, unit vectors along a, b, c) is
     #: ``(mlx·|a|, mly·|b|, mlz·|c|)`` — a per-axis scale on every cell, never a
     #: rotation. Stored here as the file writes it; :func:`to_structure`
-    #: converts. The evidence is the TOPAS Technical Reference § 13 "Magnetic
-    #: Structure Refinement": Fmagc = L·Fmag with m = {mlx, mly, mlz} and L the
-    #: Cartesian lattice matrix, which is m_Cartesian = L·m, and its two macros
-    #: ``MM_CrystalAxis_Display`` (mxc = mlx·a, myc = mly·b, mzc = mlz·c) and
-    #: ``MM_CrystalAxis_Refine`` (mlx = mxc/a). The Durham LaMnO₃ magnetic
-    #: tutorial prints both sides, ``mlx mly mlz`` beside
-    #: ``MM_CrystalAxis_Display``, and its display values are those three
-    #: products to the printed digits. One sentence in the same reference
-    #: points elsewhere —
-    #: the ``mlx`` keyword entry calls them "Cartesian components" — and its
-    #: own formula and both macros contradict it, so it is not followed. It is
+    #: converts. The evidence is the TOPAS 6 Technical Reference § 9 "Magnetic
+    #: Structure Refinement", p. 65: Fmagc = L·Fmag with m = {mlx, mly, mlz}
+    #: and L "the Cartesian lattice parameters in 3x3 matrix form", which is
+    #: m_Cartesian = L·m. The Durham LaMnO₃ magnetic tutorial prints
+    #: ``mlx mly mlz`` beside the values TOPAS reports for its
+    #: ``MM_CrystalAxis_Display`` line, and those values are mlx·a, mly·b,
+    #: mlz·c to the printed digits (TOPAS output; the macro's body is not
+    #: evidence here). It is
     #: also **measured** (2026-09-25, TOPAS-64 v6): one Mn²⁺ site in BNS 1.1 on
     #: a 5.2 / 6.9 / 8.4 Å, β = 115° cell with ``mlx 0.4 mly -0.3 mlz 0.3``.
     #: TOPAS's magnetic intensity ratios over 54 strong equal-d pairs
@@ -3891,15 +3888,15 @@ def _magnetic_build_diagnostics(model: TopasModel, phases_in, specs,
                      f"fractional-basis components (m = mlx*a + mly*b + "
                      f"mlz*c) and stored as crystal-axis mu_B, (mlx*|a|, "
                      f"mly*|b|, mlz*|c|)"),
-            suggestion=("the reading is the TOPAS Technical Reference § 13 "
-                        "(Fmagc = L*Fmag; MM_CrystalAxis_Display gives mxc = "
-                        "mlx*a), and it is measured: TOPAS 6's own calculated "
+            suggestion=("the reading is the TOPAS 6 Technical Reference § 9, "
+                        "p. 65 (Fmagc = L*Fmag, m = {mlx, mly, mlz}), and it "
+                        "is measured: TOPAS 6's own calculated "
                         "magnetic intensities on a monoclinic cell match it "
                         "pair by pair and in |m|, and match neither a "
                         "crystal-axis nor a Cartesian reading; a file's "
                         "MM_CrystalAxis_Display values are the stored "
                         "components, to check against")))
-        # `mg` is refinable in TOPAS (Technical Reference § 13: "The Lande
+        # `mg` is refinable in TOPAS (Technical Reference § 9, p. 66: "The Lande
         # splitting factor can be refined using the site-dependent parameter
         # mg") and `Moment.g` is a plain float, so a refined g arrives held at
         # the file's value: one free parameter fewer than the file's own
@@ -4260,8 +4257,8 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
             if s.moment is not None and ph.name in magnetic_specs:
                 # `mlx/mly/mlz` are fractional-basis components (see
                 # `TopasSite.moment`), so the crystal-axis mu_B rietx stores is
-                # each one times its own edge in Å — `MM_CrystalAxis_Display`'s
-                # mxc = mlx*a — never a rotation, on any cell. The edges are
+                # each one times its own edge in Å (measured against TOPAS 6,
+                # 2026-09-25) — never a rotation, on any cell. The edges are
                 # the ones the `Cell` below is built from. A component the file
                 # did not state is 0, which is what a moment along one axis
                 # writes. The ion is the
@@ -4490,7 +4487,7 @@ def _magnetic_group_line(phase, *, ion_species_ok: bool = False) -> str | None:
     """The ``mag_space_group`` value to write for ``phase``, or a refusal.
 
     ``None`` for a nuclear phase.  TOPAS names a magnetic group only by its
-    BNS number or symbol from its own table (Technical Reference § 13,
+    BNS number or symbol from its own table (Technical Reference § 9, p. 65,
     ``[mag_space_group $symbol]``; there is no operator-list form), and
     :func:`to_structure` resolves a number to spglib's **standard-setting**
     operators.  So the writer states the number exactly when the phase's

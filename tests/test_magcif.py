@@ -2190,7 +2190,7 @@ def test_a_topas_magnetic_phase_reads_with_the_moments_in_place(tmp_path):
     ("mg 1.9", False),
 ])
 def test_a_refined_lande_g_is_reported_held(tmp_path, mg, refined):
-    """#603: `mg` is refinable in TOPAS (Technical Reference § 13, "The Lande
+    """#603: `mg` is refinable in TOPAS (Technical Reference § 9, p. 66, "The Lande
     splitting factor can be refined using the site-dependent parameter mg")
     and `Moment.g` is a plain float, so a refined g arrives held at the
     file's value. The read said nothing; it now says so, naming the site."""
@@ -2339,8 +2339,8 @@ def test_a_topas_moment_in_the_tutorials_syntax_is_fractional(tmp_path):
     ``mag_space_group``-only ``str`` are fractional-basis components, so the
     stored crystal-axis moment is each times its edge.
 
-    The Technical Reference § 13 states it twice (Fmagc = L·Fmag with
-    m = {mlx, mly, mlz}; ``MM_CrystalAxis_Display`` as mxc = mlx·a), and the
+    The TOPAS 6 Technical Reference § 9, p. 65 states it (Fmagc = L·Fmag with
+    m = {mlx, mly, mlz}), a TOPAS 6 run measured it (2026-09-25), and the
     oblique-cell test below pins the conversion against TOPAS's L·m. This one
     pins the tutorial's *syntax*: the ``prm`` route, the ``;:`` values, and a
     ``str`` with no ``space_group``. The old crystal-axis reading stored

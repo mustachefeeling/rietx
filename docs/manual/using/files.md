@@ -363,10 +363,11 @@ refuses a phase that states moments under a symbol until you pass
 `mlx mly mlz` are components in the fractional basis,
 m = mlx·a + mly·b + mlz·c with the edges in Å. The stored
 crystal-axis moment is therefore (mlx·|a|, mly·|b|, mlz·|c|). This is a
-per-axis scale, never a rotation. It is the TOPAS Technical Reference's own
-reading, § 13: Fmagc = L·Fmag, and its `MM_CrystalAxis_Display` macro gives
-mxc = mlx·a. A file's `MM_CrystalAxis_Display` line is the number to compare
-with. On the Durham LaMnO₃ tutorial it agrees to the printed digits. It is
+per-axis scale, never a rotation. It is the TOPAS 6 Technical Reference's own
+reading, § 9, p. 65: Fmagc = L·Fmag, with m = {mlx, mly, mlz} and L the
+Cartesian lattice matrix. The values TOPAS reports on a file's
+`MM_CrystalAxis_Display` line are the numbers to compare with. On the Durham
+LaMnO₃ tutorial they agree to the printed digits. It is
 also measured against TOPAS's own calculated intensities. On a monoclinic
 cell with β = 115° and a moment on all three axes, TOPAS 6's magnetic
 intensity ratios between reflections of equal d match this reading on every
@@ -376,7 +377,7 @@ one by about 80 %. With the moment along b alone, where the three readings
 coincide, all three match, which shows the comparison can tell them apart.
 
 `mg` is the site's Landé g, which enters only the ⟨j₂⟩ weight of the
-magnetic form factor. TOPAS can refine it (Technical Reference § 13), but
+magnetic form factor. TOPAS can refine it (Technical Reference § 9, p. 66), but
 `Moment.g` is a fixed number. So an `mg` the file refines (`mg @ 1.9`, or a
 named parameter) is read as held at the file's value, and
 `TOPAS_MOMENT_G_HELD` names each such site.
@@ -837,8 +838,7 @@ stands: the data beside it as `<stem>.xye` (2θ, intensity and the σ rietx fits
 with, from the first to the last fitted point), and the `xdd` block that
 describes them. Every term is the one rietx fits, written from TOPAS's
 documented keywords and checked against TOPAS 6 at zero cycles
-(`tests/test_topas_whole_input.py`; the X-ray extinction is the one term not
-checked, and is refused):
+(`tests/test_topas_whole_input.py`):
 
 | rietx | written as |
 |---|---|
@@ -851,7 +851,7 @@ checked, and is refused):
 | P-spline background | one `fit_obj` per B-spline basis function, and its smoothing penalty as `penalty` terms with `pen_weight = 1;` |
 | TCHZ profile, sample broadening | `peak_type pv` with rietx's width laws as `pv_fwhm`/`pv_lor` equations |
 | FCJ axial divergence (S/L, H/L) | `Finger_et_al(2·S/L·Rs, 2·H/L·Rs)` |
-| Sabine extinction, neutron | a `scale_pks` equation over TOPAS's own \|F\|² (×100, barn to fm²). An X-ray extinction is refused by name: its unit has not been measured against TOPAS |
+| Sabine extinction | a `scale_pks` equation over TOPAS's own \|F\|²: ×100 for neutrons (barn to fm²), ×1 for X-rays (electrons² in both programs), each measured against TOPAS |
 | excluded regions inside the range | `exclude` |
 
 Three of these are not what a TOPAS user would write by hand, for measured
