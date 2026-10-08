@@ -40,9 +40,23 @@ def test_a_propagation_vector_off_gamma_is_named_too():
 @pytest.mark.slow
 @pytest.mark.xdist_group("magnetic-solve-two-site")
 def test_every_pair_on_a_solution_names_a_class_whose_rows_carry_it():
-    """The two-site Pnma set of ``test_magnetic_solve``: two of its four classes
-    pair their moduli, under the same paths, with different quadrature sums.
-    Each message names its own class, and that class's trial carries the pair."""
+    """The two-site Pnma set of ``test_magnetic_solve``: every class's pair is
+    reported under the same two paths, so only the class tells them apart.
+    Each message names its own class, and that class's trial carries the pair.
+
+    How many classes pair is not asserted, because it depends on the machine
+    (#820). Class 2, the flat model, pairs at ρ = −1.0000 everywhere. The
+    winner, class 0, reaches the same minimum everywhere (χ²_red 1.0574465,
+    Mn1 3.498 and Mn2 0.700 μ_B, the stated moments). Its ρ(Mn1, Mn2) is
+    −0.962 in one macOS arm64 venv and −0.498 on Linux x86-64, either side of
+    ``MOMENT_PAIR_RHO_MIN`` = 0.95. That venv reports two pairs; Linux and
+    another macOS venv report one. A count of two has failed on Linux since
+    the commit that added it. Mn1 (4b)
+    and Mn2 (4a) are related by c/2, so l-even and l-odd reflections can
+    measure m₁ + m₂ and m₁ − m₂ separately. Linux's esds there, 0.002 and
+    0.004 μ_B, say the true point is not a flat valley. Why the Mac's
+    covariance differs at the same χ² is a separate question, left open in
+    #820."""
     from tests import test_magnetic_solve as T
 
     instrument = T.neutron()
@@ -58,7 +72,7 @@ def test_every_pair_on_a_solution_names_a_class_whose_rows_carry_it():
 
     pairs = [d for d in solution.diagnostics
              if d.code == "MOMENT_PAIR_DEGENERATE"]
-    assert len(pairs) >= 2, [d.message for d in solution.diagnostics]
+    assert pairs, [d.message for d in solution.diagnostics]
     assert len({tuple(d.where) for d in pairs}) == 1   # the shared paths
     classes = set()
     for d in pairs:
