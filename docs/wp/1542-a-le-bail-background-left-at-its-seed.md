@@ -49,6 +49,9 @@ here (2026-10-03, at the maintainer's request).
   `BACKGROUND_ORDER_AT_CAP` finding, which are WP-1931's. No new evidence
   for the seed itself; the 2026-10-05 entry's "whether a default changes is
   the maintainer's" still stands, now asked by two issues.
+  Decided 2026-10-08: the default stays `seed=False` until task 4 has
+  measured the seed beside the SNIP-held protocol; the choice is made then,
+  from those numbers.
 
 - **2026-10-08, from the issue triage (issue #740): a second case of this
   WP's failure, with a sharper reading of its mechanism.** The reporter's
