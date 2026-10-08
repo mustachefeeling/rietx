@@ -92,9 +92,9 @@ it. In either part a name in code font is the field and not the statistic:
 ## Part 1: Using rietx
 
 The chapters run in the order a first session with the package runs: install
-it, get one fit to the end, learn what the objects hold and how their parameters
-are addressed, run a staged refinement and control it, read the numbers and the
-report, go back to any state the fit passed through, then the specialised jobs
+it, work through the tutorial notebooks, get one fit to the end, learn what the
+objects hold and how their parameters are addressed, run a staged refinement and
+control it, read the numbers and the report, go back to any state the fit passed through, then the specialised jobs
 (indexing, series, quantitative phase analysis, exports, the CLI) and the API a
 program drives. The closing chapter is the stability promise.
 
@@ -104,6 +104,7 @@ program drives. The closing chapter is the stability promise.
 
 using/install
 using/quickstart
+using/first-refinement
 using/data
 using/model
 using/concepts

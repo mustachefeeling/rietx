@@ -83,7 +83,7 @@ by at most 8e-6 of the peak height, all of them in peak tails at a window edge.
 (plotting-the-fit)=
 ## Plotting the fit
 
-`RefinementResult.plot` draws the standard panel [](quickstart.md) opens with:
+`RefinementResult.plot` draws the standard panel [](first-refinement.md) opens with:
 observed points, the calculated line, the `obs − calc` difference on the same
 axis at the same scale, and one row of reflection ticks per phase. It draws
 with matplotlib and returns the figure, so passing `path=` is optional.
