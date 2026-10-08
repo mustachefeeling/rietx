@@ -125,6 +125,39 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-08, from the issue triage (issue #820): two slow `solve_magnetic`
+  tests fail on main, and the first has a regression window.**
+  `tests/test_pair_diagnostic_class.py::test_every_pair_on_a_solution_names_a_class_whose_rows_carry_it`
+  expects two `MOMENT_PAIR_DEGENERATE` diagnostics on the two-site Pnma
+  solution and gets one. `tests/test_magnetic_solve_acceptance.py::test_the_150k_pattern_has_nothing_to_solve`
+  fails `assert not any(t.supported for t in refined)`.
+  Window for the first: the nightly's Linux full job was green at `7e9489ad`
+  (2026-10-06, run 37462593887) and red at `565e8f1d` (2026-10-07, run
+  37619420371), with the one failure being this test. Between them landed
+  #763 (`magnetic_reflections` keeps an orbit some member of which the
+  magnetic lattice lets scatter, so the reflection set `solve_magnetic` fits
+  changes), #743 (the message names its class), #772 (isotropy certificates)
+  and twenty-odd docs and skill merges. Nobody has bisected. A probe of the
+  test's own setup on this tree shows the classes: 0 and 3 refine
+  `converged`, `supported`, ΔBIC +18460 and +2832, with no pair folded; class 1
+  stops on `max_iter` at ΔBIC +504, supported; class 2 converges at ΔBIC
+  -31, unsupported, and is the one pair (sum 0.141 ± 5.402). The test's
+  docstring says two classes pair their moduli. So either #763 made two
+  classes' moduli separable (the test's expectation is stale) or the fit now
+  reaches a different minimum in them. That is the question a session on this
+  WP answers first, by running the probe at `7e9489ad` and at `87ca4934`
+  (#743's merge) before touching the assertion. Class 1 ending on `max_iter`
+  is worth a look in either case: a stage that ran out of budget is a
+  `fit_status` the test does not check.
+  The second test has no window: only its macOS arm64 failure is recorded
+  (the issue; the nightly Linux job passes it). It failed here too (pair value
+  and `supported` per the issue's 0.606; not re-read), so it is platform
+  dependent on a 2.3σ-against-3σ pair test (the docstring's 0.59 ± 0.26),
+  which any change to the fit's last digits can cross.
+  Checked against the tree at 5d1f5f67 (this worktree's `.venv`, macOS
+  arm64, `-n 0`): both fail as the issue says. First test 311 s, second 404 s.
+  No open PR or issue cites #820.
+
 - **2026-10-08, from the issue triage (issue #795): M-8 proposed as a
   scored search.** The reporter proposes one search for a magnetic k and a
   nuclear modulation vector, both the position hypothesis Q = H + m·k on a
