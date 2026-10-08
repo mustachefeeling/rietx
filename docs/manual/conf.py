@@ -13,6 +13,8 @@ import dataclasses as _dataclasses
 import importlib as _importlib
 import inspect as _inspect
 import re as _re
+import shutil as _shutil
+from importlib import util as _importlib_util
 from importlib.metadata import version as _dist_version
 from pathlib import Path as _Path
 
@@ -72,8 +74,10 @@ author = "rietx developers"
 release = _dist_version(DIST_NAME)
 version = release
 
+# `myst_nb` in place of `myst_parser`: it runs myst-parser underneath, so every
+# `myst_*` setting below still applies, and it adds `.ipynb` as a source.
 extensions = [
-    "myst_parser",
+    "myst_nb",
     "sphinx_design",
     "sphinxcontrib.bibtex",
     "sphinxcontrib.mermaid",
@@ -96,6 +100,13 @@ mermaid_init_config = {
     "startOnLoad": False,
     "flowchart": {"subGraphTitleMargin": {"top": 6, "bottom": 12}},
 }
+
+# The tutorial notebooks render with the outputs they were committed with.
+# `examples/tutorials/build.py` writes those outputs and
+# `tests/test_tutorials.py` executes every notebook on every push, so the page
+# shows what the tests ran.  Executing again here would make the manual's
+# numbers a second run's.
+nb_execution_mode = "off"
 
 bibtex_bibfiles = ["references.bib"]
 # `alpha` still formats and sorts the list, by author then year, which is the
@@ -184,7 +195,7 @@ myst_substitutions = {
     "Z_CHECK_SILENT_ABOVE": f"{0.5 / Z_INTEGER_TOLERANCE:g}",
     # How many example projects the wheel carries.  A *count* in prose is the
     # same class of stale number as a retuned threshold, and it rots the same
-    # silent way: `using/quickstart.md` said "Three" while the page's own
+    # silent way: `using/first-refinement.md` said "Three" while the page's own
     # listing showed two, because a standard whose data may not ship in the
     # wheel leaves `list_examples()` and nothing reads the sentence again.
     "N_EXAMPLES": len(list_examples()),
@@ -384,6 +395,49 @@ def _write_glossary() -> None:
 
 
 _write_glossary()
+
+
+# ----------------------------------------------------------------------
+# The tutorial notebooks (WP-1916)
+#
+# The notebooks live in `examples/tutorials/`, beside the scripts they are
+# built from, and Sphinx reads only its own source tree.  So each build copies
+# them into `using/tutorials/`, which is gitignored; `using/quickstart.md` is
+# their toctree.  It cannot be `_generated/`, which `exclude_patterns` keeps
+# out of the sources.  The set is `build.py`'s own glob, so a sixth tutorial
+# needs no edit here, and a copy whose source is gone is deleted.
+# `tests/test_manual_api.py` globs `using/` for `*.md` only, so the copies do
+# not make the suite depend on whether a build has run.
+# ----------------------------------------------------------------------
+
+TUTORIALS_SRC = _Path(__file__).resolve().parents[2] / "examples" / "tutorials"
+TUTORIALS_DST = _Path(__file__).parent / "using" / "tutorials"
+
+
+def _tutorial_notebooks() -> list[_Path]:
+    spec = _importlib_util.spec_from_file_location("_tutorials_build", TUTORIALS_SRC / "build.py")
+    build = _importlib_util.module_from_spec(spec)
+    spec.loader.exec_module(build)
+    return [s.with_suffix(".ipynb") for s in build.sources(TUTORIALS_SRC)]
+
+
+def _copy_tutorials() -> None:
+    notebooks = _tutorial_notebooks()
+    missing = [nb.name for nb in notebooks if not nb.is_file()]
+    if missing:
+        raise RuntimeError(
+            f"tutorial scripts with no committed notebook: {missing} -- run "
+            "examples/tutorials/build.py")
+    TUTORIALS_DST.mkdir(exist_ok=True)
+    for stale in set(TUTORIALS_DST.glob("*.ipynb")) - {TUTORIALS_DST / nb.name for nb in notebooks}:
+        stale.unlink()
+    for nb in notebooks:
+        # copy2 keeps the mtime, so Sphinx rereads a page only when its
+        # notebook changed.
+        _shutil.copy2(nb, TUTORIALS_DST / nb.name)
+
+
+_copy_tutorials()
 
 
 # ----------------------------------------------------------------------

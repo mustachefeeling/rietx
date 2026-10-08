@@ -93,7 +93,7 @@ landing's "Agent quickstart" is WP-1917's neighbour and untouched here.
 
 ## Tasks
 
-- [ ] `docs` extra gains `myst-nb`; `conf.py` swaps the extension, sets
+- [x] `docs` extra gains `myst-nb`; `conf.py` swaps the extension, sets
   `nb_execution_mode = "off"`, and copies the notebooks into a gitignored
   `using/tutorials/` at build.
 - [ ] `using/quickstart.md` → `using/first-refinement.md`, every link repointed,

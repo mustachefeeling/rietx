@@ -105,7 +105,11 @@ jax = ["jax>=0.4.30"]
 torch = ["torch>=2.2"]
 docs = [
     "sphinx>=7.4",
+    # Stays a direct pin: myst-nb asks only for myst-parser>=1, and conf.py's
+    # `myst_*` settings are myst-parser's.
     "myst-parser>=3",
+    # The tutorial notebooks as manual pages (WP-1916), with execution off.
+    "myst-nb>=1.1",
     "sphinxcontrib-bibtex>=2.6",
     # Part 1's diagrams.  >=2.1 because that is where the extension's own
     # theme detection reads `body[data-theme]` and re-renders on a
