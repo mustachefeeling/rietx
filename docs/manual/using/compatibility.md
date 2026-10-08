@@ -155,7 +155,8 @@ to move are declared rather than left to be inferred:
   exported at the top level and may change in any release.
 - Rigid bodies are provisional, and are named here because their types live in
   `rietx.schemas.structure` beside stable ones. `RigidBody`, `BodyOrigin`,
-  `Phase.rigid_bodies`, `ParameterRow.body` and the builders in
+  the phase field that holds them, the parameter row's field that names a
+  row's body, and the builders in
   `rietx.crystallography.bodies` shipped in 1.7.0 as the first piece of a
   milestone that is still open. Torsions inside a body, riding hydrogens and a
   fragment library are still to come, and each may add fields or change what

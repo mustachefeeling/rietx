@@ -17,6 +17,8 @@ BodyOrigin.z
 MomentEvidence.paired_magnitude
 MomentEvidence.paired_magnitude_esd
 MomentEvidence.paired_with
+ParameterRow.body
+Phase.rigid_bodies
 RigidBody.atoms
 RigidBody.name
 RigidBody.orientation
