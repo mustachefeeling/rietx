@@ -395,6 +395,64 @@ def test_a_commit_that_skips_the_re_exponentiation_is_refused(monkeypatch):
     assert max(table.body_bond_errors().values()) < 1e-9
 
 
+def test_a_joint_commit_one_histogram_refuses_leaves_every_table_as_it_was(
+        monkeypatch):
+    """``MultiParameterTable.commit`` is one commit, not one per histogram: a
+    table that refuses (#801's guard) puts back every table committed before
+    it — entries, rotation anchor, and the anchor a later restore steps back
+    to — so the histograms never disagree on a shared column."""
+    from rietx.params.multi import MultiParameterTable
+
+    ins2 = Instrument.debye_scherrer(wavelength=0.7107)
+    mt = MultiParameterTable(body_structure(Q_TRUE), [INS, ins2])
+    mt.set_vary(BODY_GLOBS, True)
+    rot = mt.free_paths.index("phases.0.rigid_bodies.0.rotation.1")
+
+    def state():
+        return [([e.value for e in t.entries],
+                 [(b.q0.copy(), b.r0.copy(), b.axes.copy()) for _, _, b in t._bodies],
+                 {k: tuple(np.copy(a) for a in v)
+                  for k, v in t._precommit_anchor.items()})
+                for t in mt.tables]
+
+    def same(a, b):
+        for (va, anc_a, pre_a), (vb, anc_b, pre_b) in zip(a, b, strict=True):
+            assert va == vb
+            for x, y in zip(anc_a, anc_b, strict=True):
+                assert all(np.array_equal(u, v) for u, v in zip(x, y, strict=True))
+            assert pre_a.keys() == pre_b.keys()
+            assert all(np.array_equal(u, v) for k in pre_a
+                       for u, v in zip(pre_a[k], pre_b[k], strict=True))
+
+    # a commit that goes through, so there is an anchor to step back to
+    theta = mt.x0()
+    theta[rot] = math.radians(3.0)
+    mt.commit(theta)
+    mt._rebuild_columns()
+    before = state()
+    decoded = [t.decode(t.x0()) for t in mt.tables]
+
+    theta = mt.x0()
+    theta[rot] = math.radians(2.0)
+    theta[mt.free_paths.index("phases.0.rigid_bodies.0.origin.dof.0")] += 1e-3
+
+    def refuse(answer):
+        raise ValueError("RIGID_BODY_TEMPLATE_DRIFT at commit: forced")
+
+    monkeypatch.setattr(mt.tables[1], "_check_committed_bodies", refuse)
+    with pytest.raises(ValueError, match="forced"):
+        mt.commit(theta)
+    same(state(), before)
+    assert [t.decode(t.x0()) for t in mt.tables] == decoded
+    # positive arm: the same θ, unrefused, does move both tables
+    monkeypatch.undo()
+    mt.commit(theta)
+    after = state()
+    for (va, anc_a, _), (vb, anc_b, _) in zip(before, after, strict=True):
+        assert va != vb
+        assert not np.array_equal(anc_a[0][1], anc_b[0][1])
+
+
 # ------------------------------------------------------------ series carry
 def test_the_series_carry_sets_the_increment_by_log_not_by_subtraction():
     """WP-1805: ``displace_anchored_dofs`` sets a body's increment from the

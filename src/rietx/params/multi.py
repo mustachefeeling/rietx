@@ -538,10 +538,20 @@ class MultiParameterTable:
         column is committed from one value by every table that holds it, and
         the chart is a function of the value, so the tables agree on it.  The
         combined form is the widest any table returned: a vector of signs, or
-        the square matrix once one table's is."""
+        the square matrix once one table's is.
+
+        One commit, not one per histogram: a table that refuses (a rigid body
+        failing the commit-time guard, #801) puts back every table, so the
+        histograms never disagree on a shared column, and the error goes on."""
         thetas = self.split(theta)
-        parts = [(h, chart) for h, table in enumerate(self.tables)
-                 if (chart := table.commit(thetas[h])) is not None]
+        before = [table._commit_state() for table in self.tables]
+        try:
+            parts = [(h, chart) for h, table in enumerate(self.tables)
+                     if (chart := table.commit(thetas[h])) is not None]
+        except ValueError:
+            for table, state in zip(self.tables, before, strict=True):
+                table._restore_commit_state(state)
+            raise
         if not parts:
             return None
         if all(np.ndim(chart) == 1 for _, chart in parts):
