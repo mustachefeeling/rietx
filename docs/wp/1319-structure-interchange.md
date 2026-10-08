@@ -58,6 +58,31 @@ stated here so no later WP builds bond perception on geometry alone.
 
 ### Inherited
 
+- **2026-10-08, from the issue triage (issue #752): a COD CIF with no
+  type-symbol column reads, then fails at compile on a label like `O-h3`.**
+  The reporter's file is COD 9001547 (spangolite, an AMCSD entry). It has
+  `_atom_site_label` and no `_atom_site_type_symbol`, so `Structure.from_cif`
+  takes the species from the label. A plain label (`Cu1`, `O2`, `H3`) is
+  rewritten to its element with a `CIF_SPECIES_NORMALISED` note. A label that
+  carries a separator or a suffix after the element (`O-h3`, `O-H7A`) is left
+  as the species, and the refusal comes later, at the first evaluation
+  (`ValueError: phase '9001547' atom 7 ('O-h3'): cannot read an element symbol
+  from species 'O-h3'`), because the compile boundary has no diagnostics
+  channel. The class is the labels `cif._SITE_LABEL` (`^[A-Za-z]{1,2}\d+$`)
+  does not match: `O1A`, `Cu1A`, `O-h3`, `Ow1`, `Fe(1)`, `C1_2` all come back
+  untouched from `normalize_cif_species`. The decision that belongs here: how
+  far a label may be read when the file states no type symbol. A hydrate's
+  `Ho1` (hydroxyl hydrogen) already reads as holmium under today's rule, so a
+  wider rule needs the formula sum (`_chemical_formula_sum`) as a check on the
+  elements it may produce. Whatever is chosen is a repair at read with a
+  `Diagnostic`, per `io/CLAUDE.md`, and the unreadable remainder should
+  refuse at read with the label named, not at predict.
+  Checked against the tree at 5d1f5f67: reproduced. `Structure.from_cif` on
+  the file returns 17 atoms with 8 `CIF_SPECIES_NORMALISED` notes and a
+  `SITE_SNAPPED_TO_SPECIAL_POSITION` warning for Cl and Al; `Refinement(...)
+  .predict` then raises as quoted. No count of COD files in this class was
+  measured.
+
 - **2026-10-08, from the issue triage (issue #756): the checkCIF task, proposed
   as a CIF module.** #756 replaces #195 item 3 with a design. A new package
   `rietx/io/cif/` would hold four things: a tag registry, one number rule,
