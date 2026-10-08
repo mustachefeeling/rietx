@@ -17,6 +17,16 @@ is chunk R6 of issue #561, sized S.
   `RIGID_BODY_NOT_INVARIANT` already fires on diacetylene (an outside branch, 2026-10-06).
 - A disordered body is stored at occupancy 1/|G_s| with `Atom.disorder_group`.
 
+### Inherited
+
+- **2026-10-08, from WP-1805 (answer c to #801): two free turn directions are
+  refused.** A body's free turn directions must number 0, 1 or 3, since two turns
+  combined produce the third and the re-chart cannot be exact on two. A site
+  stabiliser's axial-vector invariant subspace always has dimension 0, 1 or 3 (a
+  mirror or a 2-fold leaves one axis, two axes leave none), so a body on a special
+  position never trips the refusal. A test that a stabiliser-derived basis passes it
+  is cheap and pins that.
+
 ## Non-goals
 
 - Torsions (WP-1808).

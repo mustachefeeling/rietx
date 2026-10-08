@@ -322,6 +322,10 @@ coordinates while its geometry in Å stays fixed, which is what a rigid molecule
 breathing cell does; and a hold is honoured on the body's own DOFs (origin, rotation),
 never on a body atom's coordinate row, which the body owns as symmetry owns a special
 position.
+A hold or tie on the rotation must leave 0, 1 or all of a body's turn
+directions free: two turns compose into the third, so two free directions are not
+closed under composition and no re-chart maps them exactly (WP-1805, answered
+2026-10-08, measured there).
 
 *An anchored rotation composes.* R₀ ← Exp(δω)·R₀ and δω ← 0 at every commit; the record
 is the absolute unit quaternion with w ≥ 0 (WP‑1801). The subtraction rule of
