@@ -15,15 +15,15 @@ between each phase's ``Mustrain;mx`` and ``Mustrain;i``, then returns a
 **negative** crystallite size for the monoclinic phase, while TOPAS returns
 5×10⁸ µm — no size broadening at all.  ``tests/data/README.md`` § v1.3 has the
 full table.  What this suite measures is where this package lands in that
-argument, and the answer is close to TOPAS: **11-93 ppm on all five free cell
-parameters**, at Rwp 7.333 % against TOPAS's 7.326 %, while sitting the same
-1 004-2 575 ppm from GSAS-II that TOPAS does.
+argument, and the answer is close to TOPAS: **10-98 ppm on all five free cell
+parameters**, at Rwp 7.328 % against TOPAS's 7.326 %, while sitting the same
+365-2 570 ppm from GSAS-II that TOPAS does.
 
 LaB6 is the other kind of fixture — an instrument-profile calibration with the
 SRM cell **held**, so there is no cell to compare and the check is the profile
 itself: this fit's drawn peak widths against the widths GSAS-II's own
 ``y_calc`` shows, reflection by reflection.  Three model differences are stated
-rather than fitted around, and together they are why the Rwp is 8.86 % against
+rather than fitted around, and together they are why the Rwp is 8.80 % against
 GSAS-II's 6.53 % (and beside TOPAS's 8.52 %):
 
 1. GSAS-II's ``Z``, a constant Lorentzian term, has no counterpart here.
@@ -175,7 +175,7 @@ def test_drx_agrees_with_topas_far_more_closely_than_the_engines_agree(drx):
                                  abs(1e6 * (value - t[key]) / t[key]))
             worst_engine_gap = max(worst_engine_gap,
                                    abs(1e6 * (t[key] - g[key]) / g[key]))
-    assert worst_to_topas < 200.0        # measured 93 ppm
+    assert worst_to_topas < 200.0        # measured 98 ppm
     assert worst_engine_gap > 1000.0     # measured 2 668 ppm
     assert worst_to_topas < worst_engine_gap / 10.0
 

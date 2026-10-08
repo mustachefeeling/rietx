@@ -16,7 +16,7 @@ case as a success story):
 Adding the three anisotropic Stephens patterns to brucite improves Rwp from
 18.62 % to 17.84 %, and that improvement passes *both* statistical tests for
 the added parameters — Hamilton's R-ratio test at α = 0.05 and ΔBIC, +22.4 at
-N/f² on the 1.6.0 tree (+592 at raw N).
+N/f² on the 1.7.0 tree (+592 at raw N).
 It is nonetheless **physically inadmissible**: the refinement drives σ²(M)
 negative on 12 of the 43 fitted reflections, and the fit stops at max_iter
 rather than converging.  σ² is a variance; a negative one is not a large
@@ -62,8 +62,8 @@ seed    LM Rwp               LM σ² < 0           TRF Rwp              TRF σ²
 3000    0.17819              0 of 43             0.17819              0 of 43
 ======  ===================  ==================  ===================  ==============
 
-Measured before 1.6.0. Re-run on the 1.6.0 tree, the TRF column reads 13, 7,
-0 and 0 of 43, and seed 800 gives LM 0.18162 against TRF 0.17844.
+Measured before 1.6.0. Re-run on the 1.7.0 tree, the TRF column reads 14, 7,
+0 and 0 of 43, and seed 800 gives LM 0.17946 against TRF 0.17844.
 
 So: the constraint holds from **every** start, which is what it promised, and
 the unconstrained driver leaves the cone from the low seeds only.  But the
@@ -332,7 +332,7 @@ def test_corundum_block_is_inert_and_hamilton_blesses_it_only_at_raw_n(
     meaningful.  This test used to read that as ΔBIC being the statistic to
     trust, because raw-N ΔBIC refuses corundum (−15).  Issue #270 showed
     raw-N ΔBIC blessing a 1σ occupancy the same way, so both tests are read
-    at N/f² now (WP-1417), and there both refuse (ΔBIC −17.8).  Read it as a
+    at N/f² now (WP-1417), and there both refuse (ΔBIC −18.6).  Read it as a
     statement about the tests, not about corundum.
     """
     plain_ref, plain = corundum_plain
@@ -385,7 +385,7 @@ def test_constrained_solver_keeps_brucite_inside_the_cone():
     brucite, seed 800   Rwp     reflections σ² < 0
     ==================  ======  ===================
     TRF, unconstrained  17.84   7 of 43
-    LM, cone enforced   18.16   0 of 43
+    LM, cone enforced   17.95   0 of 43
     ==================  ======  ===================
 
     A fit that is inadmissible on 7 of its 43 reflections is not a better fit

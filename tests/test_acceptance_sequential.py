@@ -7,12 +7,13 @@ composition, which swings from 1 to 94 wt % across the set.  That makes them a
 deliberately **hostile** series, and the right one for this WP: it is exactly
 where a naive "carry everything" warm start was expected to hurt.
 
-It does not.  Measured here: 2863 iterations unchained, 904 with the scales
-excluded from the carry and re-seeded per pattern, **838 carrying everything**
-— at identical Rwp (0.1278) and identical weight fractions.  The expectation
+It does not.  Measured here (1.7.0, under WP-1123's intermediate_ftol): 1826
+iterations unchained, 725 with the scales excluded from the carry and
+re-seeded per pattern, **627 carrying everything** — at identical mean Rwp
+(0.1305) and weight fractions within 0.15 wt %.  The expectation
 that a 1 → 94 wt % scale swing needs a narrower carry is refuted, and the
 module keeps both passes so the number stays measured rather than assumed.
-What the series does establish is that chaining is worth 3.2x in iterations
+What the series does establish is that chaining is worth 2.5x in iterations
 for the same answer.
 
 The protocol is imported wholesale from ``test_acceptance_qpa_roundrobin`` —
@@ -222,7 +223,7 @@ def test_warm_start_iteration_cost_is_reported(chained, chained_all,
     """The headline warm-start number, reported rather than gated.
 
     Whether a warm start pays on a series whose composition swings by 90 wt %
-    is a measurement, and it does: ~900 iterations against 2863 unchained, for
+    is a measurement, and it does: ~700 iterations against 1826 unchained, for
     the same fractions.  Which `carry` policy gets there is measured too, and
     the difference is small in iterations and nil in Rwp — so what is
     *asserted* is only the part that would matter to a user: neither chain

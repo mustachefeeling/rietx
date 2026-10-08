@@ -290,7 +290,7 @@ def test_tying_the_similar_atoms_bisos_buys_precision(fap_inputs, fap_fit):
     also what Rwp does here: it moves by +0.05 % relative, i.e. the constraint
     costs no fit quality and could not have shown that it bought anything.
 
-    Measured 2026-10-02, ``[dev]`` on darwin/arm64, with the esds carrying
+    Measured 2026-10-08, ``[dev]`` on darwin/arm64, with the esds carrying
     Bérar & Lelann's eqs (10)-(12) factor (#674; fits are deterministic, only
     the wall clock is machine state):
 
@@ -298,18 +298,18 @@ def test_tying_the_similar_atoms_bisos_buys_precision(fap_inputs, fap_fit):
     ..                          free          tied
     ==========================  ============  ============
     free parameters             20            18
-    Rwp                         0.096957      0.097002
-    B(O5) / Å²                  0.2834(1421)  0.4263(704)
-    B(O6) / Å²                  0.5288(1497)  0.4263(704)
-    B(O7) / Å²                  0.4361(1008)  0.4263(704)
+    Rwp                         0.092498      0.092546
+    B(O5) / Å²                  0.3647(1513)  0.5150(754)
+    B(O6) / Å²                  0.6016(1590)  0.5150(754)
+    B(O7) / Å²                  0.5377(1078)  0.5150(754)
     ==========================  ============  ============
 
-    The three free values are mutually consistent — they sit 1.01, 0.68 and
-    0.10 of their own esds from the tied value — which is the premise §7 asks
+    The three free values are mutually consistent — they sit 0.99, 0.54 and
+    0.21 of their own esds from the tied value — which is the premise §7 asks
     the experimenter to check before constraining.  (Under the pre-1.6 run-sum
     factor, whose esds were 27 % wider here, every interval contained it.)  The
-    tied esd 0.0704 is tighter than the best of the three free ones (0.1008)
-    and slightly tighter than their inverse-variance combination (0.0721),
+    tied esd 0.0754 is tighter than the best of the three free ones (0.1078)
+    and slightly tighter than their inverse-variance combination (0.0769),
     because the constrained fit uses the correlations between the three sites
     and a naive weighted mean does not.
     """
