@@ -326,6 +326,18 @@ are the reasons `unhold` cannot lift. The parameter listing reads a held row
 through `ParameterRow.held`, and [](model.md) has the field beside the other
 four held-reasons.
 
+In a polar space group (P 6₃ m c, P 4 m m, Pna2₁, C c, P 1) the origin along the polar
+axis is one more thing a hold is for: every atom has a free coordinate along it,
+the whole structure can slide along it without changing any intensity, and a plan
+that frees them all walks the pair and quotes an esd for what the data does not
+fix. `Refinement.hold_floating_origin` holds, for each such direction, the first
+atom's displacement DOF that runs along it, and returns an
+`ORIGIN_FIXED_ON_POLAR_AXIS` diagnostic naming it (`ORIGIN_NOT_FIXED` when no
+atom's DOF runs exactly along a direction). Nothing is held unless you call it, a
+non-polar group returns an empty list, and `unhold` takes the hold back. The
+directions themselves come from
+`rietx.crystallography.wyckoff.floating_origin_basis(space_group)`.
+
 The stage that wanted the parameter says so. `StageResult.blocked_by_hold`
 names what its glob matched and could not free, and the fit raises
 `HOLD_BLOCKED_PLAN` at `info` naming the paths and the stages. Nothing is

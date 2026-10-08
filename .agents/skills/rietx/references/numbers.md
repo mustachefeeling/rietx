@@ -92,3 +92,13 @@ reached from numbers, not to reach one. The Δ/σ panel is the literature's own
 recommendation for human plots too (Toby, 2024: the weighted difference shows
 the weighting, stops intense regions dominating with statistically
 insignificant deviations, and sits on an absolute scale with expectation 1).
+
+**A polar group's origin along its axis is not measured.** In P 6₃ m c, P 4 m m,
+Pna2₁ and the other polar groups the whole structure can slide along the polar
+axis without changing any intensity, so every z a plan frees along it is quoted
+with a small esd for a number the data does not fix (`FLAT_DIRECTION`, ρ = −1).
+`ref.hold_floating_origin()` holds one atom's coordinate along each such axis
+before the fit and returns `ORIGIN_FIXED_ON_POLAR_AXIS` (info; `where` names the
+held DOF, `unhold` takes it back): read the other atoms' z as relative to it.
+`ORIGIN_NOT_FIXED` (warning) says a direction had no atom to hold, so the flat
+direction is still there. Nothing is held unless you call it.
