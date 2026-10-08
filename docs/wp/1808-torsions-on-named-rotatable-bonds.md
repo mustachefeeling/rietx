@@ -21,6 +21,16 @@ and refines with an esd. This is chunk R7 of issue #561, sized M.
   an absolute parameter wrapped at write-back. About one axis that equals composing, but
   WP-1805's commit rule governs.
 
+### Inherited
+
+- **2026-10-08, from WP-1805 (answer a to #801): torsions are the second kind that
+  folds at commit.** The maintainer chose to keep a body's rotation kind on its
+  `RigidBodyBlock`, with no `Entry` field and no further side dict on the table. A
+  torsion composed at commit is the second user, so build the general form here: each
+  block names the inputs it folds and returns its piece of ∂θ_old/∂θ_new, and
+  `ParameterTable.commit` loops over blocks. The moment sign flip (#604) can join it.
+  Ceres's `Manifold` on a parameter block is the same pattern.
+
 ## Non-goals
 
 - Refinable Z-matrix internals on free atoms (issue #759).
