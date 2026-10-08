@@ -14,6 +14,7 @@ when it exists, else empty and the page draws its placeholder.  `%%NOTEBOOKS%%` 
 Jupyter quickstart's rows, one per tutorial notebook at the release (see `release_tag`).
 """
 import base64
+import functools
 import html as _html
 import importlib.util
 import json
@@ -75,8 +76,10 @@ class Notebook:
         return self.path.rsplit("/", 1)[1]
 
 
-def notebooks(ref: str, repo: Path = REPO) -> list[Notebook]:
-    """Every tutorial notebook at `ref`, in file order, read from git rather than the tree."""
+@functools.cache
+def notebooks(ref: str, repo: Path = REPO) -> tuple[Notebook, ...]:
+    """Every tutorial notebook at `ref`, in file order, read from git rather than the tree.
+    Cached: the site build reads it for the downloads and again for the page's rows."""
     def git(*args: str) -> bytes:
         return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, check=True).stdout
     found = []
@@ -89,10 +92,10 @@ def notebooks(ref: str, repo: Path = REPO) -> list[Notebook]:
         found.append(Notebook(f"{TUTORIALS}/{path}", title[2:].strip(), data))
     if not found:
         raise SystemExit(f"no tutorial notebook in {TUTORIALS} at {ref}")
-    return found
+    return tuple(found)
 
 
-def notebook_rows(ref: str, books: list[Notebook]) -> str:
+def notebook_rows(ref: str, books: tuple[Notebook, ...]) -> str:
     """The Jupyter quickstart's list: each notebook's title, then Read, Colab, Download."""
     repo = ABOUT.REPO_URL.removeprefix("https://github.com/")
     rows = []

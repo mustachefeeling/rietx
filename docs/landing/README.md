@@ -39,7 +39,8 @@ Nothing is outstanding here; both items below are in.
 builds the manual with `html_extra_path = ["../landing/site"]` and
 `root_doc = "manual"`. The landing page lands at `/`, the manual at
 `/manual.html`, and no other URL moved. Everything the page needs is in the
-repository, so a fork builds the whole thing with no secret and no fetch.
+repository, so a fork builds the whole thing with no secret. The one fetch is
+the release tags, which the Jupyter quickstart reads (below).
 
 - `docs/manual/conf.py` adds `html_extra_path` only when `docs/landing/site`
   exists: `-W` makes a missing entry an error, and `tests/test_manual.py` builds

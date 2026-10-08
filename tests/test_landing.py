@@ -298,7 +298,7 @@ def test_the_inline_build_stays_a_fragment(build):
     document inside a document."""
     assert build.DEMO.exists(), "the payload is committed; this should not be conditional"
     for name in build.PAGES:
-        assert not build.assemble(False, name).lstrip().lower().startswith("<!doctype"), name
+        assert not build.assemble(False, name, REF).lstrip().lower().startswith("<!doctype"), name
 
 
 def test_the_page_fetches_the_payload_it_does_not_inline(site_html):
