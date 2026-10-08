@@ -151,6 +151,7 @@ def fit_peaks(data: PatternData, instrument: Instrument,
     :meth:`PeakList.usable` is still the screened view and ``peaks`` still
     holds everything with its reasons attached.
     """
+    require_two_theta(data, "fit_peaks()", instrument=instrument)
     pos = np.sort(np.asarray(positions, dtype=np.float64).ravel())
     if not len(pos):
         raise ValueError("fit_peaks needs at least one position to fit")

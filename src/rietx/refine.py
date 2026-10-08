@@ -3278,6 +3278,8 @@ class Refinement:
         ``action_kind`` (an instrument width, an atom DOF) is an expected
         disagreement, not an inconsistency.
         """
+        require_two_theta(data, "Refinement.suggest()",
+                          instrument=self.instrument)
         from .strategy.suggest import (
             SUGGEST_SEED_ROUGHNESS,
             SUGGEST_SEED_STEPHENS,
@@ -3428,6 +3430,8 @@ class Refinement:
         a fit must have run.  Why the axis is the width and not the scale is
         :mod:`rietx.strategy.fraction_profile`'s docstring.
         """
+        require_two_theta(data, "Refinement.profile_fraction()",
+                          instrument=self.instrument)
         from .strategy.fraction_profile import profile_fraction
 
         return profile_fraction(self, data, phase, axes=axes, fwhm=fwhm)
@@ -3560,6 +3564,8 @@ class Refinement:
         branch (and, in v0.5, on a different sample via
         ``SequentialRefinement``).
         """
+        require_two_theta(data, "Refinement.cherry_pick()",
+                          instrument=self.instrument)
         tree = self._require_history()
         node = tree[node_id]
         if node.action.kind != "stage":
@@ -9291,6 +9297,7 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
     the extracted intensities in place — inspecting a checkpoint must not
     change it.
     """
+    require_two_theta(data, "replay()")
     node = tree[node_id]
     expected = tree.header.data_fingerprint
     if expected:

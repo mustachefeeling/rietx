@@ -411,6 +411,7 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     ``lebail = None``, which reads as ``not_validated`` (capping): the honest
     state, and the same one an unreached candidate was always in.
     """
+    require_two_theta(data, "validate_by_lebail()", instrument=instrument)
     from ..optimize.cancel import RefinementCancelled
     from ..refine import Refinement
     from ..report.layer0 import build_layer0
