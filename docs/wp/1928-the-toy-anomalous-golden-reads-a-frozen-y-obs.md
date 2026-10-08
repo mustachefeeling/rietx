@@ -1,9 +1,8 @@
 # WP-1928 — the toy_anomalous golden reads a frozen y_obs
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-10-08 — landed from outside (PR #828, merged as `63af9e1b`); passes on macOS 26 and 27
 Track: The repo's own process
 Depends on: —
-Priority: P2 2026-10-08 — a check that fires wrongly on every macOS 26 machine, recorded as a known failure by ten WPs' sessions
 
 ## Goal
 
@@ -32,16 +31,14 @@ reproduce on a second run; the maintainer confirms on 27.
 Checked against the tree at `5d1f5f67`: `_state_toy_anomalous` is at
 `tests/test_backend_shim.py:424` as named. The failure was not re-run here.
 
-### Inherited
-
 ## Non-goals
 
 - Re-capturing any other golden, or changing the Linux policy.
 
 ## Tasks
 
-- [ ] Freeze `y_obs` for `toy_anomalous`, re-capture its golden, regenerate per `tests/data/README.md`
-- [ ] Skill: none, since a test fixture changes nothing an agent driving rietx reads
+- [x] Freeze `y_obs` for `toy_anomalous`, re-capture its golden, regenerate per `tests/data/README.md`
+- [x] Skill: none, since a test fixture changes nothing an agent driving rietx reads
 
 ## Acceptance
 
@@ -61,3 +58,14 @@ passes on macOS 26 arm64 and on macOS 27.
   Checked against the tree at `5d1f5f67`: the state builder is where the
   issue says; no open WP owns it: ten WPs cite #760 only as a known failure.
   Decided 2026-10-08 by the maintainer: the contributor opens the PR.
+- **2026-10-08** — PR #828 (mustachefeeling) merged as `63af9e1b`, closing
+  issue #760. `_state_toy_anomalous` reads
+  `tests/data/backend_goldens/toy_anomalous_y_obs.npy`, captured on macOS
+  26.7.1 arm64, and only that golden was re-captured. Against the old capture
+  only `residual` and `jacobian` moved; `y_calc` stayed bit-identical. The
+  acceptance command gave 19 passed, 0 skipped on macOS 26.6.2 arm64 (round 1)
+  and on macOS 27.0.1 arm64 (round 2, `[dev,jax]`, merged onto `05d33eac`).
+  The full suite on that merged tree had one failure from outside the PR: the
+  Cr₂WO₆ 150 K "nothing to solve" test, which is #820 and fails on `main`
+  alone on the same machine. The ten WPs that record #760 as a known failure
+  were not edited: their entries are dated records.
