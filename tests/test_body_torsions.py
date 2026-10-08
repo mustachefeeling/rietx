@@ -345,8 +345,79 @@ def test_a_commit_that_skips_the_composition_is_refused(monkeypatch):
     table.set_vary(["phases.*.rigid_bodies.*.torsions.*.twist"], True)
     monkeypatch.setattr(RigidBodyBlock, "commit_torsions",
                         lambda self, twists: bool(np.any(twists)))
-    with pytest.raises(AssertionError, match="left the solver's answer"):
+    with pytest.raises(ValueError, match="left the solver's answer"):
         table.commit(_twisted_theta(table, 6.0))
+
+
+def test_a_refused_commit_puts_the_torsion_anchor_back(monkeypatch):
+    """#801's rollback covers the torsion: a commit the guard refuses leaves
+    φ₀, the rotation anchor and every entry as they were before the call, and
+    the anchors a later ``restore_body_anchors`` reads are still those of the
+    last commit that went through.  Forced on a real composition, so φ₀ has
+    moved (16 → 21) before the guard runs."""
+    table = ParameterTable(_structure(10.0), INS)
+    table.set_vary(["phases.*.rigid_bodies.*.torsions.*.twist",
+                    "phases.*.rigid_bodies.*.rotation.*"], True)
+    block = table.derived[0]
+    table.commit(_twisted_theta(table, 6.0))
+    assert block.phi0[0] == 16.0
+    values = [e.value for e in table.entries]
+    anchor = (block.q0.copy(), block.r0.copy(), block.axes.copy())
+
+    def refuse(self, answer):
+        raise ValueError("forced")
+
+    monkeypatch.setattr(ParameterTable, "_check_committed_bodies", refuse)
+    theta = _twisted_theta(table, 5.0)
+    theta[table.free_paths.index("phases.0.rigid_bodies.0.rotation.0")] = 0.05
+    with pytest.raises(ValueError, match="forced"):
+        table.commit(theta)
+    assert block.phi0[0] == 16.0
+    assert [e.value for e in table.entries] == values
+    for now, then in zip((block.q0, block.r0, block.axes), anchor, strict=True):
+        assert np.array_equal(now, then)
+    # the restore still steps back over the commit that went through
+    assert table.restore_body_anchors([TWIST]) == ["phases.0.rigid_bodies.0"]
+    assert block.phi0[0] == 10.0
+
+
+def test_a_joint_commit_one_histogram_refuses_puts_every_torsion_anchor_back(
+        monkeypatch):
+    """#825's joint rollback covers the torsion: when the second histogram's
+    table refuses, the first table, which composed its twist (φ₀ 16 → 21)
+    before the refusal, gets φ₀ and the anchors a later
+    ``restore_body_anchors`` reads back, so the histograms never disagree on
+    the torsion."""
+    from rietx.params.multi import MultiParameterTable
+
+    ins2 = Instrument.debye_scherrer(wavelength=0.7107)
+    mt = MultiParameterTable(_structure(10.0), [INS, ins2])
+    mt.set_vary(["phases.*.rigid_bodies.*.torsions.*.twist"], True)
+    twist = mt.free_paths.index(TWIST)
+    blocks = [t.derived[0] for t in mt.tables]
+    theta = mt.x0()
+    theta[twist] = 6.0
+    mt.commit(theta)
+    mt._rebuild_columns()
+    assert [b.phi0[0] for b in blocks] == [16.0, 16.0]
+
+    def refuse(answer):
+        raise ValueError("forced")
+
+    monkeypatch.setattr(mt.tables[1], "_check_committed_bodies", refuse)
+    theta = mt.x0()
+    theta[twist] = 5.0
+    with pytest.raises(ValueError, match="forced"):
+        mt.commit(theta)
+    assert [b.phi0[0] for b in blocks] == [16.0, 16.0]
+    # the restore still steps back over the commit that went through
+    assert mt.tables[0].restore_body_anchors([TWIST]) == ["phases.0.rigid_bodies.0"]
+    assert blocks[0].phi0[0] == 10.0
+    # positive arm: the same θ, unrefused, composes the twist in both tables
+    blocks[0].restore_torsions([16.0])
+    monkeypatch.undo()
+    mt.commit(theta)
+    assert [b.phi0[0] for b in blocks] == [21.0, 21.0]
 
 
 def test_a_collapsed_phase_restore_puts_the_torsion_anchor_back():

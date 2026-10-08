@@ -3385,13 +3385,16 @@ class ParameterTable:
     def _commit_state(self) -> tuple:
         """What :meth:`commit` changes, for :meth:`_restore_commit_state`.
 
-        The entries' values, each body's anchor, and the anchors a later
-        :meth:`restore_body_anchors` steps back to.  An anchor is rebound at a
-        commit, never written in place, so holding the arrays is enough.
+        The entries' values, each body's anchor and torsion anchors (WP-1808),
+        and the anchors a later :meth:`restore_body_anchors` steps back to.  An
+        anchor is rebound at a commit, never written in place, so holding the
+        arrays is enough.
         """
         return ([e.value for e in self.entries],
                 [(b.q0, b.r0, b.axes) for _, _, b in self._bodies],
-                dict(self._precommit_anchor))
+                dict(self._precommit_anchor),
+                [b.phi0 for _, _, b in self._bodies],
+                dict(self._precommit_torsions))
 
     def _restore_commit_state(self, state: tuple) -> None:
         """Put the table back as :meth:`_commit_state` found it.
@@ -3400,12 +3403,15 @@ class ParameterTable:
         joint commit that another histogram's table refused
         (:meth:`MultiParameterTable.commit`).
         """
-        old_values, anchors, precommit = state
+        old_values, anchors, precommit, phi0s, precommit_torsions = state
         self._precommit_anchor = dict(precommit)
+        self._precommit_torsions = dict(precommit_torsions)
         for e, v in zip(self.entries, old_values, strict=True):
             e.value = v
-        for (_, _, block), anchor in zip(self._bodies, anchors, strict=True):
+        for (_, _, block), anchor, phi0 in zip(self._bodies, anchors, phi0s,
+                                               strict=True):
             block.restore_anchor(*anchor)
+            block.restore_torsions(phi0)
         self._rebuild()
 
     def _compose_bodies(self, values: Mapping[str, float]) -> dict[str, np.ndarray]:
