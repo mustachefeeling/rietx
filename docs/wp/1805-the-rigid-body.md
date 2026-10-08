@@ -1,6 +1,6 @@
 # WP-1805 — `RigidBody`: schema, collector, anchored rotation, the body's own rows
 
-Milestone: rigid-bodies · Status: ⬜
+Milestone: rigid-bodies · Status: 🔄 2026-10-08 — every task landed from outside (PR #801, merged as `089f24bc`); the PR's three design questions wait on the maintainer before close
 Depends on: 1802, 1804
 Priority: P2 2026-10-06 — the feature the milestone was opened for; every later body WP depends on it
 
@@ -66,14 +66,15 @@ round trips, the hold-on-a-body-atom test and the inertia-rank DOF count.
 
 ## Tasks
 
-- [ ] Schema: `RigidBody`, `BodyOrigin`, `Phase.rigid_bodies`, SCHEMA bump
-- [ ] Collector: origin and rotation DOFs, the derived block, the refusals by name
-- [ ] Anchored rotation: compose at commit, re-chart the outcome, bound |δω|; `displace_anchored_dofs` by `Log`
-- [ ] Commit-time rigidity guard; Le Bail force-fix; `ParameterRow.body` and `held_because`
-- [ ] `help.py` rows, `PLACES`, manual Part 2 equation for the body map
-- [ ] Cross-backend `bodies` config
-- [ ] Tests: the acceptance below + obs/calc/diff PNGs to `tests/output/`
-- [ ] Skill: a reference row for each new diagnostic code (`test_every_engine_diagnostic_code_has_a_protocol_row`)
+- [x] Schema: `RigidBody`, `BodyOrigin`, `Phase.rigid_bodies`, SCHEMA bump
+- [x] Collector: origin and rotation DOFs, the derived block, the refusals by name
+- [x] Anchored rotation: compose at commit, re-chart the outcome, bound |δω|; `displace_anchored_dofs` by `Log`
+- [x] Commit-time rigidity guard; Le Bail force-fix; `ParameterRow.body` and `held_because`
+- [x] `help.py` rows, `PLACES`, manual Part 2 equation for the body map (rows for the
+      paths; rows for the three codes are open question 2 of the 2026-10-08 entry)
+- [x] Cross-backend `bodies` config
+- [x] Tests: the acceptance below + obs/calc/diff PNGs to `tests/output/`
+- [x] Skill: a reference row for each new diagnostic code (`test_every_engine_diagnostic_code_has_a_protocol_row`)
 
 ## Acceptance
 
@@ -104,3 +105,31 @@ round trips, the hold-on-a-body-atom test and the inertia-rank DOF count.
   kept composition at commit (the record) over the write-back alternative on #561, so
   this WP also extends `rechart_outcome`. The `Log` rule in `displace_anchored_dofs`
   stays here, as the record says, rather than moving to WP-1811 as #561 proposed.
+- **2026-10-08** — every task landed from outside: PR #801 (head `3ba3d8ec`),
+  merged as `089f24bc` by `/pr-review` after three rounds. The PR body maps each
+  acceptance row to its test in `tests/test_rigid_body.py`. Round 1 found five
+  items, each fixed and pinned by a reverting test. A variable at c ≠ 1 got a
+  wrong analytic column once a table held a body, because `reach_block()` is
+  0/1 there. A diagonal chart that is not ±1 was handled as a sign flip. A NaN
+  orientation validated. `add_body` returned an unvalidated phase. Under Le Bail
+  or Pawley, `held_because` named the body before the mode. The c ≠ 1 column was
+  wrong on `main` without a body too, and the fix covers both. The schema went to
+  0.43, after #788's 0.42. *Gate:* stacked with #744, #776 and #746 on `5d1f5f67`
+  (`0c674af8`, macOS arm64, `[dev,jax]`, nothing else running). The fast suite
+  gave 8899 passed, 107 skipped, 1 xfailed, 0 failed. `-m slow` gave 290 passed,
+  12 skipped, 2 failed, and both also fail on `main` alone (#820). The GUI dist
+  rebuilt byte-identical, vitest gave 586 passed, and `svelte-check` 0 errors.
+  `main` after the merges is content-identical to that tree. *Open, the
+  maintainer's:* the PR's three questions had no explicit answer in review.
+  (1) The anchored-rotation kind is table data (`_anchored_rotations`) rather than
+  an `Entry` field, so `ParameterRow`'s field pin is unchanged; is that the
+  equivalent the record allows? (2) `help.py` has no arm for diagnostic codes, so
+  `RIGID_BODY_UNSUPPORTED` has a skill row and a `suggestion`, and the two
+  `ValueError` codes name their remedy; does `help.py` gain a codes arm? (3) With
+  some rotation DOFs held or tied, the re-chart is a projection,
+  pinv(A)·chart·A, exact only when all of a body's rotation DOFs are free or for
+  a single axis; accept that, or decline to compose such a body? *Gotchas:*
+  `restore_body_anchors` is a step every restorer has to remember. Capturing the
+  anchors with `start_values` would cover a third restorer, and the contributor
+  left that and slicing `_chart_matrix` unfiled by agreement. *Next:* answer the
+  three questions, then close, or carry them to WP-1807.

@@ -1,6 +1,6 @@
 # WP-1542 — a Le Bail background left at its seed
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-08 — #725's opt-in `auto_background(seed=True)` landed from outside (PR #744); every task remains
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-03 — a background too low reads as a good Le Bail fit and feeds every structure fit after it; a path few fits run
@@ -113,3 +113,18 @@ within their no-hump values.
   open WP owns a too-stiff background: the open rows of the index carry no
   Le Bail or background protocol, and 1530's held background is a TOPAS
   reader's. *Next:* task 1.
+- **2026-10-08** — #725's proposal landed from outside as an opt-in: PR #744
+  (head `ecea30f4`), merged as `ba732997` by `/pr-review` after three rounds.
+  `auto_background(data, seed=True)` starts the Chebyshev constant term, or every
+  P-spline coefficient, at a low percentile of y_obs over the fitted range.
+  `seed=False` is the default and keeps today's zeros. SKILL.md §2 rule 5 and
+  `references/judging.md` now name the call in place of the hand recipe. The
+  default is unchanged, and #725 stays open on whether it moves. *What it does
+  not do:* none of this WP's tasks. A seeded background can still stay at its
+  seed while a width grows, so tasks 1-3 measure what they did before. Task 4
+  now compares this seed with the SNIP-held protocol rather than with a hand
+  seed. *Gate:* stacked with #776, #746 and #801 on `5d1f5f67`; the results are
+  in WP-1805's 2026-10-08 entry. The only slow failures are #820's, which also
+  fail on `main`. *Gotcha:* `test_skill_claims.py` classifies every number in
+  the skill body, so a rule-5 edit that drops a number must drop its row too.
+  Round 2 caught that. *Next:* task 1.
