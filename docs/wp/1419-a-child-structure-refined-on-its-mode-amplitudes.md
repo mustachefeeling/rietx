@@ -1,6 +1,6 @@
 # WP-1419 — a child structure refined on its mode amplitudes
 
-Milestone: magnetic · Status: ⬜
+Milestone: magnetic · Status: 🔄 2026-10-08 — the move #418 decided (C0a, PR #842) landed from outside; C0b and the entry point are open
 Depends on: 1418 (the mode vectors: irreps, projection, isotropy subgroups);
 1327 soft (the operator-list phase both would share)
 Priority: P3 2026-09-23 — waits on 1418's mode vectors; P2 when they land
@@ -498,6 +498,31 @@ every shipped fixture are bit-identical.
   `operator-list-basis`, as a reference implementation only.
 
 ## Handover log
+
+- **2026-10-08** — the first step of #418's decision landed from outside. PR #842
+  (head `823f39d8`) merged as `5981c23b`.
+  *Done.* `crystallography/magnetic/irreps.py` and `modes.py` moved to
+  `crystallography/representation/` by `git mv`, byte-identical. There are no
+  shims, as decided on 2026-09-23, so the old module paths raise
+  `ModuleNotFoundError`. Every import and dotted reference in `src/`, `tests/`,
+  the manual's `{source}` links, `ATTRIBUTION.md` and the `pyproject.toml`
+  comment moved with them. The new package's `__init__.py` is a docstring only.
+  The contributor asked whether `representation` is the right name, and the
+  maintainer kept it. C0b and WP-1919's subgroup generator land beside these
+  files under it.
+  *Not done.* The kind-neutral half of `magnetic/isotropy.py` is C0b, a second
+  PR held until #565's part 4 stops editing that file. Here `isotropy.py` changes
+  only in its import block. No Task is ticked, because the move is a sequencing
+  step and not one of them. WP-1452's spglib-to-moyo work rebases over it.
+  *Checked here.* On the merged tree no `magnetic.irreps`, `magnetic.modes`,
+  `magnetic/irreps` or `magnetic/modes` survives outside dated notes in this WP
+  and in 1418. `tests/api_surface.py`'s `PROVISIONAL_MODULES` keys
+  `rietx.strategy.magnetic`, so no name changed tier.
+  *Gate:* merged onto `main` `3b9aad52` as `aa8687f1`, macOS arm64,
+  `[dev,jax]`: fast 8944 passed, 109 skipped, 1 xfailed, 1 failed (the
+  `test_indexing_reduce` reduction-map row, failing on `main` alone); `-m slow`
+  290 passed, 14 skipped, two of them WP-1449's budget-stopped indexing rows.
+  `main` after the merge equals that tree.
 
 ### 2026-09-18 — the four rulings, and the fence that was built through (reconstructed post hoc)
 
