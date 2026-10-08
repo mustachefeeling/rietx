@@ -1,6 +1,6 @@
 # WP-1911 — the foreign writers state what the other program reads: the setting, the scale, the free set
 
-Milestone: unscheduled · Status: 🔄 2026-10-07 — PRs #720, #731, #710, #733, #713, #771, #782, #770 (Part B's TOPAS writer) and #755 (C1's `Zero`) merged from outside; #721's decision is due
+Milestone: unscheduled · Status: 🔄 2026-10-08 — PRs #720, #731, #710, #733, #713, #771, #782, #770 (Part B's TOPAS writer), #755 (C1's `Zero`) and #815 (#732's whole TOPAS input) merged from outside; #721's decision is due
 Track: Coming from another code
 Depends on: — (#713 soft: the P1 restatement Part D builds on)
 Priority: P3 2026-10-06 — was P2 for #716, which PR #733 fixed; the remaining issues cost a user hand edits
@@ -407,6 +407,31 @@ land alone before the transform exists.
   keywords (specification only, per ATTRIBUTION.md).
 
 ## Handover log
+
+- **2026-10-08** — `write_topas_inp` can now write a whole input TOPAS runs as it
+  stands, from #732's `### Inherited` item. PR #815 (head `49225d22`) merged as
+  `4f64a0e6` after two rounds.
+  *Done.* `instrument=` and `pattern=` write the data beside the file as
+  `<stem>.xye`, the wavelength, `neutron_data`, `LP_Factor`, zero and
+  displacement, the background (a P-spline as `fit_obj` pieces), the TCHZ widths
+  as `pv_fwhm`/`pv_lor`, FCJ as `Finger_et_al` and Sabine extinction as
+  `scale_pks`. Three TOPAS 6 Y_calc files back it. Round 1 asked for five things,
+  all done: journals on the physics, an X-ray extinction refused by name (its unit
+  is unmeasured; the ×100 is the neutron conversion measured on
+  `case_nacl_neutron`), the `TOPAS_FIELD_NOT_WRITTEN` row split into its two
+  cases, `Dispersion()` declared on `case_nacl_xray` (on 2.4e-3 against off
+  4.4e-2), and a refused `xdd` name holding a quote or line break.
+  *Gate:* stacked with the run's other merges (#829, #825, #809, #754, #749, #815)
+  on `main` `a3f9140a` as `166d362e`, macOS 26.6.2 arm64, `[dev,jax]`. The full
+  suite, fast and slow together, gave 9231 passed, 116 skipped, 1 xfailed and 2
+  failed. Both failures also fail on `main` alone on that machine: `toy_anomalous`
+  (#760, which open PR #828 fixes) and a hypothesis counterexample in
+  `test_indexing_reduce.py`. `main` after the merges is content-identical to that
+  tree.
+  *Gotchas.* `api.md` sat at its cap on `main`, so the PR cut `write_topas_inp`'s
+  summary line to "Write.". The next PR adding a verb meets the same cap. #732's
+  reader half is WP-1455's.
+  *Next:* #721's decision, as before.
 
 - **2026-10-07 (2nd session)** — Two more of this WP's PRs merged from the
   reporter's fork. They were gated together on a four-PR stack replayed onto
