@@ -59,6 +59,18 @@ An outside branch builds most of this (`2cc57ca4`, listed on #561 on 2026-10-06)
 composes at write-back and lacks `RIGID_BODY_UNSUPPORTED`, the replay and textdoc
 round trips, the hold-on-a-body-atom test and the inertia-rank DOF count.
 
+### Inherited
+
+- **2026-10-08, from the issue triage (issue #824): a joint commit is not
+  atomic.** `MultiParameterTable.commit` (`params/multi.py`) commits its tables
+  in turn with no rollback. Since #801 a table's commit-time body guard
+  restores only its own state, so a refusal on histogram 1 leaves histogram 0
+  committed. The reporter measured a body turned 2° on one table and not the
+  other, shared atom rows apart by up to 0.0086. In PR #825 (mustachefeeling,
+  open), which snapshots every table before committing any and restores all
+  on a `ValueError`. Its claim was read against the issue and agrees.
+  Checked against the tree at `8a47e888`: not re-run.
+
 ## Non-goals
 
 - Special positions (WP-1807), torsions (WP-1808), restraints (WP-1809), hydrogens

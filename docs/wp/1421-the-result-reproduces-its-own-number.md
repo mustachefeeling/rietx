@@ -85,6 +85,41 @@ on the thread on 2026-09-23: a fix is in progress on their fork, off
 `wp_claim.py status` cannot see the claim yet. A session picking this WP
 checks the thread and `gh pr list` first.
 
+- **2026-10-08, from the issue triage (issue #774): the same cause, one
+  caller over. `Refinement.predict()` at fixed values depends on the free
+  set.** With FCJ axial divergence on, `compile_model(moving_paths=...)`
+  raises `sl_eff`/`hl_eff` to `AXIAL_SIZING_FLOOR` (0.02) only when an axial
+  ratio is free, so the quadrature node count (`fcj_node_count`) and the
+  window half-width differ between two models holding identical values.
+  The magnetic width has the same shape (`MAGNETIC_SIZING_FLOOR`). This WP's
+  thesis is "what a state records and what rebuilding from it produces are
+  two objects"; #774 is that thesis for a *free set* where #272 was for a
+  *stage start*. Rutile toy, axial 0.01, `predict()` free against fixed:
+  max|dy|/max(y) = 1.12e-4 (2.2e-4 on a TOPAS-export read-back with the
+  file's flags); at 0.05 it is 0. The reporter's PR #776 (open) implements
+  option (a) of the issue: apply the floor by value whenever the value
+  is positive, so `predict()` reads values and not the free set; the floor
+  for the optimiser is kept for a parameter that is exactly zero and free.
+  Measured by the PR: node count at S/L = H/L = 0.01 goes 8 to 10 at most,
+  warm `predict()` 3.27 to 3.30 ms, and a fixed ratio far below the floor (LaB6
+  at 2.5e-4) goes from 0 to 64 nodes; two pinned numbers move
+  (`test_recipe.py::test_this_pattern_cannot_distinguish_the_sh_l_split`,
+  `test_magnetic_width.py::test_reflection_support_counts_the_magnetic_component`).
+  Open for the maintainer's ruling (options a, b, c in the issue): the PR's
+  *zero case*. Free and fixed at exactly zero still differ by 1.66e-4
+  (measured here) because the window half-width still grows with the floored
+  ratios, and making that value-only means widening every window at zero
+  axial divergence. Sizing by value also does not remove the stage-start
+  freeze #272 measured, so task 2 (the statistics block names its compile)
+  stands whichever option is taken.
+  Checked against the tree at 5d1f5f67: reproduced. The issue's snippet gives
+  1.12e-4 at 0.01 and 0 at 0.05, matching its quoted output on 8c9bbc1a, and
+  1.66e-4 at exactly zero. `AXIAL_SIZING_FLOOR` and the `moving_paths` sizing
+  are unchanged on `origin/main` since the issue; PR #776 (head b188b6cf,
+  base 9a3955bc) agrees with the issue on every number it shares (1.12e-4
+  before, exact after; the magnetic 1.09e-3 is the PR's own measurement) and
+  on leaving the zero case to the maintainer.
+
 **From WP-1342 (2026-09-19).** `StageResult` gained `held_reach`, a
 `dict[str, list[str]]` written on every stage beside `held`. It is state a
 replay has to reproduce, and it is the first *mapping* on that record rather

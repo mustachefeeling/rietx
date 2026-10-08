@@ -125,6 +125,91 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-08, from the issue triage (issue #820): two slow `solve_magnetic`
+  tests fail on main, and the first has a regression window.**
+  `tests/test_pair_diagnostic_class.py::test_every_pair_on_a_solution_names_a_class_whose_rows_carry_it`
+  expects two `MOMENT_PAIR_DEGENERATE` diagnostics on the two-site Pnma
+  solution and gets one. `tests/test_magnetic_solve_acceptance.py::test_the_150k_pattern_has_nothing_to_solve`
+  fails `assert not any(t.supported for t in refined)`.
+  Window for the first: the nightly's Linux full job was green at `7e9489ad`
+  (2026-10-06, run 37462593887) and red at `565e8f1d` (2026-10-07, run
+  37619420371), with the one failure being this test. Between them landed
+  #763 (`magnetic_reflections` keeps an orbit some member of which the
+  magnetic lattice lets scatter, so the reflection set `solve_magnetic` fits
+  changes), #743 (the message names its class), #772 (isotropy certificates)
+  and twenty-odd docs and skill merges. Nobody has bisected. A probe of the
+  test's own setup on this tree shows the classes: 0 and 3 refine
+  `converged`, `supported`, ΔBIC +18460 and +2832, with no pair folded; class 1
+  stops on `max_iter` at ΔBIC +504, supported; class 2 converges at ΔBIC
+  -31, unsupported, and is the one pair (sum 0.141 ± 5.402). The test's
+  docstring says two classes pair their moduli. So either #763 made two
+  classes' moduli separable (the test's expectation is stale) or the fit now
+  reaches a different minimum in them. That is the question a session on this
+  WP answers first, by running the probe at `7e9489ad` and at `87ca4934`
+  (#743's merge) before touching the assertion. Class 1 ending on `max_iter`
+  is worth a look in either case: a stage that ran out of budget is a
+  `fit_status` the test does not check.
+  The second test has no window: only its macOS arm64 failure is recorded
+  (the issue; the nightly Linux job passes it). It failed here too (pair value
+  and `supported` per the issue's 0.606; not re-read), so it is platform
+  dependent on a 2.3σ-against-3σ pair test (the docstring's 0.59 ± 0.26),
+  which any change to the fit's last digits can cross.
+  Checked against the tree at 5d1f5f67 (this worktree's `.venv`, macOS
+  arm64, `-n 0`): both fail as the issue says. First test 311 s, second 404 s.
+  No open PR or issue cites #820.
+
+- **2026-10-08, from the issue triage (issue #795): M-8 proposed as a
+  scored search.** The reporter proposes one search for a magnetic k and a
+  nuclear modulation vector, both the position hypothesis Q = H + m·k on a
+  known parent. On synthetic position lists (Pnma, CW neutrons, 0.12° match
+  radius) a bare count saturates: under a null of ten random peaks the best
+  k on a 0.02 grid matches 10 of 10. A local chance rate (Poisson-binomial
+  over the share of a ±5° band each candidate's windows cover) ranks a
+  planted line k first in 40 of 40, with the threshold taken from a
+  per-pattern shuffle null. A 0.02 grid lost every general k; a 0.01 grid
+  found them. The floor is about 2 + 2 per free component, plus 2 with
+  contaminating peaks. A pseudo-tetragonal metric yields an x ↔ z partner the
+  positions cannot separate. Proposed rules: the result carries no `.k`;
+  equivalents include the metric's pseudo-symmetric images; residue
+  iteration reports several transitions as several rows; `K_SEARCH_AT_CHANCE`
+  and `K_SEARCH_FEW_PEAKS` warn. Chunks K0 (peak picking on a residual), K1
+  (the search), K2 (1326's arm reads it), K3 (real k, LS refinement, rational
+  partners), K4 (powder class over Fourier components), K5 (refinable k as
+  `Modulation.q`), K6 (unknown parent), K7 (a second k). The reporter is
+  holding it until more of their open PRs land.
+  Checked against the tree at `5d1f5f67`: `as_propagation_vector`
+  (`crystallography/satellites.py:135`) refuses a component past
+  `K_MAX_DENOMINATOR`; `SatelliteCandidate` (`report/schemas.py:591`) carries
+  `matched_fraction` and no chance baseline; `_k_from_the_report`
+  (`strategy/magnetic.py:939`) and `indexing.ambiguity.lattice_point_group`
+  (`:474`) exist as named; `ModulationVector` and `SuperspaceGroup` exist
+  (`crystallography/superspace/`, PR #682) and no `Modulation.q` does. Two
+  things the issue does not say: `indexing/pick.py:49` already defines
+  `pick_peaks(data, instrument)`, so K0 extends it or takes another name; and
+  `minus_k_is_k`'s docstring (`satellites.py:185`) does cite "Physica B 192,
+  55, § Propagation vectors", while this WP's References and 1326's put that
+  section in the FullProf manual. The paper was not re-read here. No count
+  was re-measured.
+  Fences: K5 is a refinable incommensurate vector, and modulated structures
+  are v2+ (this WP's non-goals, ROADMAP § v2+). K6 indexes the strongest
+  lines and searches the residue, which sits beside the fenced "multi-phase
+  indexing of the residual" (ROADMAP § v2+, Indexing). An incommensurate k
+  reported as a *position* hypothesis is in M-8's text and outside the fence.
+  Decisions the session needs, the maintainer's:
+  1. Placement: `indexing/kvector.py` under `src/rietx/indexing/CLAUDE.md`
+     (no singleton, budgets, chance-normalised), with `report/satellites.py`
+     as its consumer, or a second generator inside the report arm.
+  2. First form: the rational grid (denominator ≤ 64) as K1 now, or K1 with K3
+     after N-W3's real-k positions. The issue offers to split N-W3's
+     position half out of #678 for this.
+  3. Schema: new fields on `SatelliteCandidate` with a schema and
+     `REPORT_THRESHOLDS` bump, or a `KSearchResult` beside
+     `SatelliteEvidence`. 1326's Inherited entry from WP-1541 already
+     proposes moving both satellite types into `rietx.report.satellites` as
+     provisional.
+  4. Which of K3, K4, K6 and K7 this WP takes, and which wait behind the
+     fence or another WP. K4's complex S_k is M-11a's object.
+
 - **2026-10-05, from the issue triage (issue #724): `solve_magnetic`'s ranked
   stage frees more nuclear parameters on a supercell child than the parent
   has.** `SOLVE_STAGE_PATHS[1]` frees `phases.*.cell.*` and every

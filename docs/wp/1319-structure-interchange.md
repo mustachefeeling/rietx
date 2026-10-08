@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: Coming from another code
 Depends on: —
-Priority: P3 2026-10-06 — was P2 for #711 and #712, which PR #717 fixed
+Priority: P2 2026-10-08 — was P3: #756 measured the writer raising gemmi's bare error on two phase names and writing a file gemmi cannot read
 
 ## Goal
 
@@ -57,6 +57,94 @@ formats are explicitly untrusted for aromatic/multiple-bond rigid bodies,
 stated here so no later WP builds bond perception on geometry alone.
 
 ### Inherited
+
+- **2026-10-08, from the issue triage (issue #752): a COD CIF with no
+  type-symbol column reads, then fails at compile on a label like `O-h3`.**
+  The reporter's file is COD 9001547 (spangolite, an AMCSD entry). It has
+  `_atom_site_label` and no `_atom_site_type_symbol`, so `Structure.from_cif`
+  takes the species from the label. A plain label (`Cu1`, `O2`, `H3`) is
+  rewritten to its element with a `CIF_SPECIES_NORMALISED` note. A label that
+  carries a separator or a suffix after the element (`O-h3`, `O-H7A`) is left
+  as the species, and the refusal comes later, at the first evaluation
+  (`ValueError: phase '9001547' atom 7 ('O-h3'): cannot read an element symbol
+  from species 'O-h3'`), because the compile boundary has no diagnostics
+  channel. The class is the labels `cif._SITE_LABEL` (`^[A-Za-z]{1,2}\d+$`)
+  does not match: `O1A`, `Cu1A`, `O-h3`, `Ow1`, `Fe(1)`, `C1_2` all come back
+  untouched from `normalize_cif_species`. The decision that belongs here: how
+  far a label may be read when the file states no type symbol. A hydrate's
+  `Ho1` (hydroxyl hydrogen) already reads as holmium under today's rule, so a
+  wider rule needs the formula sum (`_chemical_formula_sum`) as a check on the
+  elements it may produce. Whatever is chosen is a repair at read with a
+  `Diagnostic`, per `io/CLAUDE.md`, and the unreadable remainder should
+  refuse at read with the label named, not at predict.
+  Checked against the tree at 5d1f5f67: reproduced. `Structure.from_cif` on
+  the file returns 17 atoms with 8 `CIF_SPECIES_NORMALISED` notes and a
+  `SITE_SNAPPED_TO_SPECIAL_POSITION` warning for Cl and Al; `Refinement(...)
+  .predict` then raises as quoted. No count of COD files in this class was
+  measured.
+
+- **2026-10-08, from the issue triage (issue #756): the checkCIF task, proposed
+  as a CIF module.** #756 replaces #195 item 3 with a design. A new package
+  `rietx/io/cif/` would hold four things: a tag registry, one number rule,
+  one block assembler and a validation hook. The registry is checked against
+  vendored COMCIFS DDLm dictionaries (`cif_core.dic` 3.3.0, `cif_pd.dic` 2.5,
+  `cif_mag.dic` 0.9.9; CC BY 4.0, into `tests/data/` with `ATTRIBUTION.md`
+  rows). The writers `Structure.to_cif`, `write_refinement_cif` and the
+  GSAS-II phase CIF move onto it. The GSAS-II one becomes a declared profile
+  over the registry. checkCIF is the oracle for the core and pd blocks, run
+  by hand on public or synthetic files only. `cif_mag.dic` is the oracle for
+  the magnetic block, since checkCIF has no magnetic arm. The reporter's
+  comment of 2026-10-06 cuts it into seven PRs off `main`: C-a registry, C-b
+  number rule, C-c structure block, C-d pdCIF pattern block, C-e multi-block
+  layout with `structure_from_cif(block=)` and su on read, C-f magCIF parent
+  record, C-g validation hook with the VRF template and the GSAS-II profile.
+  A checkCIF baseline on today's two refinement CIFs (FAP, NAC + CaF₂) goes
+  before C-c.
+  Checked against the tree at `5d1f5f67`:
+  - The writer is as described. `write_structure_block` (`cif.py:1172`)
+    writes the stored symbol under the deprecated
+    `_symmetry_space_group_name_H-M` (`:1198`). It writes no `_alt`, Hall or
+    IT number, no `_atom_type` loop, no `_cell_volume` and no
+    `_audit_conform`. It writes B, not U. A symop loop appears only for an
+    operator-list phase. Angles and occupancies carry four decimals, so
+    90.00004 is written `90.0000`.
+  - Measured with `Structure.to_cif` on `cod_1000055.cif`: two phases named
+    `ph 1` and `ph-1` raise `RuntimeError: Block with such name already
+    exists: ph_1`. A label `La 1` writes a file gemmi cannot parse.
+  - `io/exporters.py` writes `_pd_proc_2theta_corrected` (`:514`) and
+    `_pd_proc_intensity_total_su` (`:516`).
+  - `scattering.written_species` is used by the GSAS, GSAS-II and FullProf
+    writers and not by `crystallography/cif.py`.
+  - `test_magcif.py:997` pins that the parent k is lost on a round trip.
+    `cif.py:1240` says so in a comment.
+  - The two citations: `pdcif.py:3-4` cites Toby (2003) 36, 1240, and
+    `exporters.py:22` cites 36, 1285. Neither page was re-read here.
+  - No dictionary file is in `tests/data/`. 1328's handover says the magCIF
+    tag list is hand-copied from `cif_mag.dic`.
+  Decisions the session needs, all the maintainer's (#756 § 7 lists twelve
+  with defaults; these are the ones that change this file's scope):
+  1. Whether this WP takes the whole module or only C-a to C-c, with C-d,
+     C-e and C-g filed after. The XYZ half shares no seam with it, so
+     whether the XYZ task leaves for its own WP is the same question.
+  2. C-f overlaps two other owners. WP-1911 Part D's first task already
+     offers "`to_cif` writes `_parent_space_group.name_H-M_alt`", and the
+     parent record it writes is what #757's I-b reads. The 2026-09-02 entry
+     below says magCIF is 1328's, and 1328 closed on 2026-10-03. So which WP
+     owns C-f is open.
+  3. Vendoring the dictionaries whole (about 2 MB) or a generated extract of
+     names, aliases and deprecation flags with a regenerating script.
+  4. The su rule. The default keeps `format_su`'s two significant figures and
+     `SU_REFERENCE`. Values with no su become the shortest round-tripping
+     `repr`.
+  5. The deprecated `_symmetry_space_group_name_H-M`: written beside `_alt`
+     for one release behind a flag, or dropped. The 2026-09-02 entry below
+     already asks for `xhm()` in place of the stored string.
+  6. Who runs checkCIF, and whether the first report is posted on #756
+     before C-c starts.
+  7. Registering the `rietx` CIF prefix for `_rietx_atom_site_moment.*`.
+  Out of this WP: the ionic bond criterion and torsions (#759, the rigid-body
+  track), msCIF (#678, v2+), and the superspace-group number the reporter's
+  third comment asks never to be written unchecked.
 
 - **2026-10-05, from the issue triage (issues #711, #712):
   `structure_from_cif` reads two things a CIF row states as if it had not

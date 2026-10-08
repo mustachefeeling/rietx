@@ -212,6 +212,59 @@ a `tests/data/README.md` row.
 
 ### Inherited
 
+- **2026-10-08, from the issue triage (issue #732): a whole TOPAS input, the
+  Chebyshev domain, and the GSAS-I `ZERO` unit.** The issue lists the eleven
+  edits an agent made by hand to every exported `.inp` in a 20-case benchmark.
+  It proposes four steps in order: `write_topas_inp(instrument=, pattern=)`
+  writing a file TOPAS runs as it stands; the Chebyshev fit domain stored on
+  the background model; `read_topas_inp(...).to_instrument()`; and the GSAS-I
+  `ZERO` unit once a GSAS-I run can measure it. This WP owns the writer half,
+  because a whole input is Part B's writer carried from the `str` to the file.
+  *Checked against the tree at 5d1f5f67*:
+  - `write_topas_inp` takes `instrument=` already (PR #770), and on `main`
+    it uses it only to pick the scale convention for `scale="topas"`. No
+    `pattern=` exists. No data file, `lam`, `LP_Factor`, `th2_offset`,
+    `bkg`, peak type, `exclude` or extinction line is written
+    (`topas.py:4689-4707`).
+  - `BackgroundChebyshev` stores coefficients only. The domain is the
+    compiled grid's own `tt.min()`/`tt.max()`
+    (`background/models.py:88`), so a coefficient list read alone cannot be
+    evaluated on the range it was fitted on.
+  - `write_gsas_prm` still refuses a non-zero `zero_shift`
+    (`instrument_profile.py:1043`). WP-1118 closed with that unit open, and
+    no open WP measures it.
+  - `to_structure` builds no `Instrument` (its docstring says so). WP-1455
+    (⬜) owns that reader half, for `TCHZ_Peak_Type`; the same issue is noted
+    there.
+
+  **PR #815 (fork, open, head f1ef0462) implements step 1** and claims WP-1911.
+  It writes `pattern=` as a `<stem>.xye` from the first to the last fitted
+  point, `lam`, `neutron_data`, `LP_Factor`, a `th2_offset` equation for
+  zero and displacement, `bkg` for a Chebyshev, the P-spline as `fit_obj`
+  basis functions with `penalty` rows, `peak_type pv` with rietx's width laws
+  as `pv_fwhm`/`pv_lor`, `Finger_et_al`, Sabine extinction as `scale_pks`,
+  and interior `exclude` ranges. That covers the issue's items 1-6, 10 and
+  11; #770 already covered item 8. Two items stay out: a March-Dollase
+  preferred orientation (named, not written) and the hkl-table output (item
+  7, not mentioned in the PR). The PR's design differs from the issue in two
+  places, and both agree with what the issue wanted. It writes the P-spline
+  exactly where the issue proposed refusing it or refitting a Chebyshev, on a
+  measurement (refitted, TOPAS reached Rwp 4.30 % against rietx's 4.73 %).
+  And it writes no `TCHZ_Peak_Type`, so no letters need swapping. It refuses
+  `shape="voigt"`, a Stephens block, absorption, capillary offsets,
+  transparency, a λ/n harmonic and extra components by name. Its fixtures are
+  TOPAS 6 zero-cycle `Y_calc` for synthetic NaCl inputs (2.2e-3 to 2.6e-3 of
+  the peak). Its Ba₂FeSbSe₅ end-to-end run is cited (Maier et al. 2021,
+  *Phys. Rev. B* 103, 054115) and no file of it is committed. It lands
+  `api.md` at exactly `API_INDEX_MAX_BYTES` (39 700) by shortening a
+  docstring, so #808's split decision is in its path.
+
+  What this leaves here: steps 2 and 4 as tasks, with no PR yet. Step 2 is
+  smaller after #815, whose `.xye` puts the series on its own range. It
+  still matters for a coefficient list written or read without its pattern.
+  Step 4 waits for a GSAS-I run, with the precedent of #755's FullProf `Zero`
+  (measured as a black box, and its output still uncommitted).
+
 - **2026-10-05, from the issue triage (issues #706, #707, #714, #709): four
   more TOPAS-writer defects, each in an open PR from the reporter's fork.**
   None has a fix on `main`. All four are in this WP's family: the writer's

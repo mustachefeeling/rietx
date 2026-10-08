@@ -78,6 +78,25 @@ That is consistent with the guess about `Rs` above, and it does not verify it.
 Two sessions have now zeroed the Gaussian by hand, so what TOPAS does with a
 negative variance is still the open question.
 
+- **2026-10-08, from the issue triage (issue #732, step 3): the reader half
+  of a whole TOPAS input.** #732 asks for `read_topas_inp(...).to_instrument()`
+  for the parts the writer states, so that an instrument can round-trip
+  through a `.inp` as it already does through `.instprm`, `.prm` and the
+  profile JSON. This WP's task "Read `TCHZ_Peak_Type(…)` from an `.inp` into
+  an `Instrument`" is that reader. The writer half went to WP-1911 with the
+  rest of the issue. *Checked against the tree at 5d1f5f67*: `to_structure`
+  builds no `Instrument`. `read_gsas_prm`, `read_gsas2_instprm` and
+  `load_instrument_profile` each return one. Two facts move the work here:
+  - The contributor reports measuring the X ↔ Y letter swap against TOPAS 6
+    (#732's "M3"). That is the measurement this WP's first task asks for.
+    The run's output is not in the tree, so it is evidence to ask for, not
+    a constant to adopt.
+  - PR #815 (open) writes the profile as `peak_type pv` with `pv_fwhm` and
+    `pv_lor` equations, never as `TCHZ_Peak_Type`. A reader that reads only
+    the macro would not read back what rietx writes. The reader task should
+    say which forms it reads: the macro (what users bring), the writer's
+    equations (what a round trip needs), or both.
+
 ## Non-goals
 
 - Fundamental parameters beyond one radius (`Rp`, TOPAS's full axial model).

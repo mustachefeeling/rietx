@@ -110,7 +110,7 @@ release numbered at its cut ([notes](releases/1.6.0.md)).
 opened 2026-09-18 as v1.6; rietview, rigid-bodies and structure-solution were
 queued as v1.7, v1.8 and v1.9. Threads #286, #426, #561 and #562 quote those
 numbers, so each row in § Milestones says which it was. **Neutron TOF stays at
-[§ v2+](#v2--fenced)** behind issue #193.
+[§ v2+](#v2--fenced)** behind issue #193, but for its T-1 cut ([1927](wp/1927-tof-t1-the-axis-and-its-readers.md), 2026-10-08).
 
 **Ten silent-answer fixes have landed since 1.5.0** (1434, 1435, 1432,
 1342, 1415, 1442, 1414, 1454, 1456, 1465), staged in the notes and narrated
@@ -532,10 +532,10 @@ scope creep. Each item names what fenced it.
   ([1122](wp/1122-compiled-peaks-buffer.md) measured shape reuse below break-even
   without one); neutron **TOF** (CW landed in 1134; issue #193; the energy-dependent
   resonant absorption at S(Q), #113) — **built through rather than deferred**: the
-  fork's branch is visible (`tof-cleanroom-20260923`), and **decided 2026-09-24:
-  held until magnetic (then v1.6) closes**, then taken on that branch in its own cuts (T-1, T-2/T-3,
-  T-5), with #442 (a bank's force-fixed CW width rows under 1414's "matched, not
-  freed") going with T-1, and #618 (Mantid's instrument values: with provenance,
+  fork's branch is visible (`tof-cleanroom-20260923`); **decided 2026-09-24: held until magnetic
+  closes**, then cut T-1, T-2/T-3, T-5; **amended 2026-10-08: T-1 (axis, readers) taken now as
+  [1927](wp/1927-tof-t1-the-axis-and-its-readers.md)**, the rest still waiting, with #442 (a bank's CW
+  width rows) decided inside T-1, and #618 (Mantid's instrument values: with provenance,
   never the files) — and issue #362 lists the constant-wavelength reads
   (`CompiledModel.tt`, `line_wavelengths`, `sigma_measured`; `viz/snapshot.py` and
   23 more sites) a second compiled-model class meets, so the accessor seam it
@@ -544,8 +544,8 @@ scope creep. Each item names what fenced it.
   (McCusker §6; the partition input exists in `lebail_update`, the consumer is
   structure completion; #197); internal-standard and amorphous QPA; **modulated
   structures** (superspace — 1314 reads Jana's files without them; #258 the shared
-  design, #678 its cut, whose N-W1 landed as PR #682). **Magnetic structures left
-  this fence 2026-09-02** for § Unscheduled's track (1326–1329); the incommensurate
+  design, #678 its cut, N-W1 landed as PR #682; **decided 2026-10-08:** N-W2's group half and
+  N-W3 open after T-1 merges, one WP per chunk). **Magnetic structures left this fence 2026-09-02** for § Unscheduled's track (1326–1329); the incommensurate
   case, polarised neutrons and magnetic X-rays stay fenced (1327's non-goals).
   **Rigid bodies (#195), direct-space solution and stacking faults left it
   2026-09-28** for scoping in § Unscheduled (1514–1516; DESIGN.md has why).
