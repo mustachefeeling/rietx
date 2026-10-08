@@ -161,6 +161,13 @@ the transposed rotation set is a group too and passes any dimension count.
 
 ### Inherited
 
+- **2026-10-08, from WP-1546 (the 1.7.0 cut): the modules C0a and C0b move
+  have shipped.** PR #842 moved `irreps.py` and `modes.py` without shims on
+  the premise that neither had been released. The 1.6.0 wheel on PyPI ships
+  both, and `isotropy.py` too. So each move is a break for code importing the
+  old path, and the release notes must record it the day it lands. The 1.7.0
+  notes record C0a under Code to check. C0b's move of `isotropy.py` belongs in
+  the 1.8.0 staging file.
 - **2026-10-08, from the issue triage (issue #286, the reporter's comment of
   2026-10-06): the mode vectors carry no physical length today.** Decision 2
   above chooses the amplitude's unit. The reporter measured why it cannot

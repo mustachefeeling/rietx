@@ -36,9 +36,9 @@ where there is nothing is assigned ~nothing and produces **no negative residual
 to detect**.  What the detector then finds is 5σ noise excursions that happen to
 sit near a tick.  Measured on a synthetic LaB₆ pattern (Poisson noise, 15-145° 2θ
 at 0.02°, the protocol ``tests/test_indexing_consensus.py`` pins),
-``unmatched_calc`` fired on **17 of the certified cell's own 28 reflections** and
-on 94 of a doubled cell's 153 — 61 % either way, so it does not separate them at
-all.  :func:`absent_reflections` asks the question directly instead — is there net
+``unmatched_calc`` fired on **19 of the certified cell's own 28 reflections** and
+on 84 of a doubled cell's 153 — 68 % against 55 %, no more often on the wrong
+cell, so it does not separate them at all.  :func:`absent_reflections` asks the question directly instead — is there net
 intensity above the *fitted* background at this position? — and separates them
 cleanly: 0 of 28 against 117 of 153.
 
@@ -198,9 +198,9 @@ def absent_reflections(two_theta: np.ndarray, y_obs: np.ndarray,
     rather than alone.  **Measured how bad that gets** (WP-1043, magnetite's P
     rival): the count's inputs are the *candidate's own fit's* to buy, and a
     wrong candidate needing intensity under 163 predicted reflections bought it
-    by driving the co-refined background **negative** (mean −11 counts —
+    by driving the co-refined background **negative** (mean −5.8 counts —
     nothing floors it at the physical zero), at which point net cleared 3σ at
-    every channel and zero of 163 read absent; with the correct candidate's
+    99.6 % of channels and zero of 163 read absent; with the correct candidate's
     background under the same positions, 8-14 absences return.  The acceptance
     row regenerates that pathology, and the repair direction — inputs the
     candidate cannot buy — is recorded there, with an Rwp ratio ruled out.

@@ -174,9 +174,12 @@ def test_srm660c_extinction_does_no_harm(srm660c_baseline):
     The stage is warm-extended onto the shared baseline instead of re-running
     the whole plan with it appended.  Same computation — ``run_stage`` restores
     the cumulative free set at the converged values before freeing the stage's
-    globs — and verified as such on this dataset before landing: Rwp
-    0.08661400134185289, a 4.15689532165777, ext 2.0752594286350413e-10 either
-    way, to the last digit."""
+    globs — and verified as such on this dataset before landing, then
+    re-measured on the 1.7.0 tree: warm-extend Rwp 0.086678434456, a
+    4.15689552151728, ext 5.0e-10; whole plan Rwp 0.086678434458, a
+    4.15689552247627.  Rwp agrees to 2e-12 and a to 1e-9 Å, not to the last
+    digit, the extinction having converged to a different point on its
+    flat floor."""
     data, ref_base, _baseline = srm660c_baseline
 
     ref = ref_base.branch()

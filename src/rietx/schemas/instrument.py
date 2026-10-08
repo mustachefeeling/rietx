@@ -427,7 +427,7 @@ class Dispersion(Base):
     model.  Neglecting it is not a neutral simplification: it mis-scales every
     reflection of a species by ((Z + f′)² + f″²)/Z² − 1, which is −16 % for
     ZnO at Cu Kα and +7 % for CaF₂, and unequal effects across phases bias QPA
-    weight fractions directly (measured: RMS error 2.26 → 0.69 wt % on the
+    weight fractions directly (measured: RMS error 2.26 → 0.64 wt % on the
     IUCr round robin).
 
     Set ``source.dispersion = None`` to decline it and reproduce the ≤ v0.6
@@ -1424,7 +1424,7 @@ class HumpComponent(_InheritsDeclaredDefaults):
     ==============================  ======  ========  ============  ================
     Chebyshev, 3 terms                   3  0.119977  0.414(65)                    0
     that **+ one peak**              3 + 3  0.082503  0.421(10)                    0
-    Chebyshev, 6 terms                   6  0.088597  0.422(25)                    0
+    Chebyshev, 6 terms                   6  0.088596  0.422(25)                    0
     that **+ one peak**              6 + 3  0.077152  0.4235(66)                   0
     ==============================  ======  ========  ============  ================
 

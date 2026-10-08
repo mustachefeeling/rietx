@@ -800,7 +800,7 @@ VARIANTS: tuple[Variant, ...] = (
     Variant("dispersion", "+ anomalous f′, f″",
             "Cromer-Liberman dispersion on every species. Watch the displacement "
             "parameters and (multi-phase) the QPA fractions, not Rwp — measured "
-            "on the round robin this took QPA RMS error 2.26 → 0.69 wt %.",
+            "on the round robin this took QPA RMS error 2.26 → 0.64 wt %.",
             _with_dispersion),
     Variant("voigt", "+ true Voigt peak shape",
             "Exact Gaussian⊗Lorentzian instead of the TCHZ pseudo-Voigt "

@@ -345,8 +345,8 @@ column, and a tied parameter is not one — it is reconstructed from its source
 after the solve — so a dependent's own limits have to reach the solver through
 the tie or not at all. They do: `dependent = coefficient · source + offset`
 inverts to a range on the source, intersected over every dependent that source
-drives and with whatever the source declares itself. `Atom.biso` is `[0, 25] Å²`,
-so under `ref.tie("phases.0.atoms.2.biso", "phases.0.atoms.0.biso", scale=2.0)`
+drives and with whatever the source declares itself. Declare `Atom.biso` `[0, 25] Å²` and under
+`ref.tie("phases.0.atoms.2.biso", "phases.0.atoms.0.biso", scale=2.0)`
 the master is given a ceiling of **12.5** whatever its own `max` says, and
 `BOUND_HIT` names the master when a stage stops there. Measured: master 0.66 and
 dependent 0.33 under a declared dependent ceiling of 0.33 at coefficient 0.5,

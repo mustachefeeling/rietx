@@ -122,7 +122,7 @@ reflection-pair screen detects:
 dataset          pairs (``constant``)  against reference  SVD Ze
 ===============  ==================  ==================  ==========
 SRM 660c LaB6    +0.0359             +0.0367             **+0.0329**
-qarr corundum    −0.0670             −0.0650             **−0.0666**
+qarr corundum    −0.0673             −0.0650             **−0.0674**
 ===============  ==================  ==================  ==========
 
 The three see different things — the pair screen sees only harmonic pairs among

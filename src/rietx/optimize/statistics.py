@@ -878,8 +878,9 @@ def structure_r_factors(i_obs: np.ndarray, i_calc: np.ndarray,
     weighted fit barely constrains counts as much as one that dominates it, and
     a minor phase's windows sit under the major phase's peaks, so the counts the
     major phase failed to describe are handed out too.  Measured on 11-BM NAC
-    with its 1.35 wt % CaF₂ (WP-1069's handover): 0.052 against 0.385, the whole
-    of the impurity's misfit in four reflections at I(obs)/I(calc) ≈ 2.2, every
+    with its 1.34 wt % CaF₂ (WP-1069, re-measured on the 1.7.0 tree): 0.048
+    against 0.377, the whole of the impurity's misfit in four reflections at
+    I(obs)/I(calc) of 2.2 to 2.3, every
     one of them under a strong NAC peak.  The weighted variant that answers this
     (Cox & Papoular, 1996, *Mater. Sci. Forum* **228-231**, 233) is not computed
     here.

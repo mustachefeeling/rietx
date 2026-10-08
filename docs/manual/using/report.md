@@ -76,8 +76,8 @@ raises `KeyError` when there is none, so branch on the list or catch it.
 last section covers.
 
 Reports are not small. Measured on the 11-BM NAC walkthrough
-([](first-refinement.md)), the Le Bail report serializes to 36 kB and the two-phase
-Rietveld report to 81 kB.
+([](first-refinement.md)), the Le Bail report serializes to 38 kB and the two-phase
+Rietveld report to 85 kB.
 
 ## Layer 0: statistics independent of the model
 
@@ -126,8 +126,8 @@ and 12.44°. Cluster the positions before counting anything.
 tick, and Le Bail or Pawley extraction assigns a reflection with nothing under
 it almost nothing, so most of the residual the detector looks for is gone. What
 survives does not separate a right cell from a wrong one. Measured on a
-synthetic LaB₆ pattern, it fired on 17 of the certified cell's own 28
-reflections and on 94 of a doubled cell's 153, which is 61 % either way. The
+synthetic LaB₆ pattern, it fired on 19 of the certified cell's own 28
+reflections and on 84 of a doubled cell's 153, which is 68 % against 55 %: no more often on the wrong cell. The
 count that does separate them is `LeBailValidation.predicted_but_absent`
 ([](indexing.md)). The blind direction is the one de Wolff's M₂₀ has, and
 Oishi-Tomiyasu's reversed figure of merit exists to close it
@@ -270,7 +270,7 @@ immature fit and would be least available exactly when it is most needed.
 | `TextureAnalysis.caveat` | evidence elsewhere in the report that manufactures this signature | currently strong unmatched observed peaks: un-modelled intensity leaks into the per-reflection extraction, so an impurity can read as texture. A detection carrying a caveat measures the residual, not the specimen |
 
 Measured on NAC: both phases report `detected=False` while carrying a best axis,
-(2 1 0) at r² 0.12 for the major phase and (2 0 1) at 0.35 for the impurity. The
+(2 1 0) at r² 0.12 for the major phase and (2 1 0) at 0.35 for the impurity. The
 runners-up score 0.11 and 0.34, so neither axis is distinguishable from its
 alternative, which is the state the field exists to report.
 
@@ -372,7 +372,7 @@ region and no attribution can reach it.
 The last pair is context and never a finding, so nothing triggers on it.
 Measured on two converged LaB₆ controls, a sharp fit and one under 0.6° of extra
 broadening both report Rwp 0.0137 while background-subtracted they read 0.0490
-and 0.0766 at a background share of 0.89. Every background-dominated
+and 0.0768 at a background share of 0.89. Every background-dominated
 pattern crosses any useful threshold, so a trigger would fire on every lab fit.
 Read it wherever a raw Rwp is about to be quoted.
 
@@ -456,7 +456,7 @@ intensity, removes most of the misfit, so every line is indexed and the profile
 is right, and the intensity model (structure, contents, occupancies) is what is
 wrong. Phase identification is then safe at any absolute Rwp. Measured on a
 pore-proxy fixture with a guest scatterer present in the data only, the ratio is
-2.38 against ≤ 1.00 on every position and profile control: a wrong cell or zero
+2.89 against ≤ 1.00 on every position and profile control: a wrong cell or zero
 displaces the partition's peaks identically, so the gap stays flat and cannot be
 confused with a position error. A ratio near 1 says intensities are not where the
 remaining misfit lives, and it never says the fit is good.
@@ -518,7 +518,7 @@ suggestions, and the texture actions, whose evidence is per-reflection, carry
 null instead. And it is no bound on what applying the action achieves. It bounds
 the misfit the linear model attributes inside the gated regions, while a
 refinement also moves regions that failed a gate and stretches no region entry
-covers (measured: 16.19 predicted against 16.33 observed for `refine_cell`).
+covers (measured: 16.16 predicted against 16.31 observed for `refine_cell`).
 
 The action a position trend maps to is chosen by geometry, for the same reason
 the templates are: `refine_sample_displacement` on a flat plate,
@@ -682,7 +682,7 @@ deliberately carries no curves, regions or per-region attribution, because those
 are the evidence for statements the summary already makes, and a rung is a
 pointer to a state you can then ask about rather than a substitute for asking. It
 costs what that implies: measured on the NAC Le Bail plan, the five rungs are
-2.5 to 2.6 kB each against 36 kB for the full report.
+2.5 to 2.6 kB each against 38 kB for the full report.
 
 | Field | Is | Reads as |
 |---|---|---|

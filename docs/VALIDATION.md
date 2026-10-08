@@ -51,7 +51,7 @@ Asserts no accuracy at all.  Either the *shape* of a known systematic (that a ce
 
 ### `prediction`
 
-A parameter-free prediction written down **before** the measurement, then checked.  The strongest evidence in this repo and the rarest: the capillary correction's ΔB = c(µR)·λ²/2 predicted 0.0166542 Å² and the refits moved every Biso by 0.0166542, and the dispersion prediction (each phase's Bragg-power ratio, no free parameters) beat itself — predicted RMS 0.83 wt %, measured 0.69.
+A parameter-free prediction written down **before** the measurement, then checked.  The strongest evidence in this repo and the rarest: the capillary correction's ΔB = c(µR)·λ²/2 predicted 0.0166542 Å² and the refits moved every Biso by 0.0166542, and the dispersion prediction (each phase's Bragg-power ratio, no free parameters) beat itself — predicted RMS 0.83 wt %, measured 0.64.
 
 ### `ceiling`
 
@@ -202,7 +202,7 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 **Referenced to:** TOPAS refines it to 0.19890; the 2e-3 band is tighter than this fit's own esd of 2.3e-3
 
-**Measured:** x = 0.19838 (shared-broadening plan), 5.2e-4 from TOPAS
+**Measured:** x = 0.19839 (shared-broadening plan), 5.1e-4 from TOPAS
 
 #### `test_rwp_is_worse_than_topas_and_the_reason_is_the_peak_shape`
 
@@ -212,7 +212,7 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 **Referenced to:** TOPAS fits PVII_Peak_Type with six free shape parameters; rietx offers TCHZ and a true Voigt. The band is one-sided and loose on purpose: it catches a regression, it does not certify the profile
 
-**Measured:** Rwp 0.1645 against TOPAS's 0.0810; 84.5 % of chi2 sits in the 9 % of channels that are more than half Bragg, mean delta/sigma +0.49 -- a shape deficit at the peak tops, not a background or scale one
+**Measured:** Rwp 0.1648 against TOPAS's 0.0810; 84.5 % of chi2 sits in the 9 % of channels that are more than half Bragg, mean delta/sigma +0.49 -- a shape deficit at the peak tops, not a background or scale one
 
 #### `test_the_qpa_agrees_with_topas_within_its_own_esd`
 
@@ -222,7 +222,7 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 **Referenced to:** TOPAS's two shipped models of this histogram give LaB6 17.907 and 17.950 wt %, so the reference is an interval 0.043 wt % wide, not a number; no weighed composition exists and none is claimed
 
-**Measured:** LaB6 17.874 +- 0.314 wt %, 0.033 outside the interval, i.e. 0.11 of its own esd
+**Measured:** LaB6 17.841 +- 0.314 wt %, 0.066 outside the interval, i.e. 0.21 of its own esd
 
 #### `test_the_lowest_rwp_is_the_worst_answer`
 
@@ -232,7 +232,7 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 **Referenced to:** Lorentzian FWHMs add, so instrument X,Y and per-phase lor_size/lor_strain are one quantity split three ways; the expected signature is |rho| -> 1 and an Rwp that improves while the partition degrades
 
-**Measured:** rho = -1.000 (phases.0.lor_strain ~ instrument.profile.y) and +1.000 between the two phases' strains; Rwp 0.1294 degenerate vs 0.1645 identifiable, QPA 16.542 vs 17.874 wt % -- the better Rwp is 6.9 sigma outside TOPAS's interval
+**Measured:** rho = -1.000 (phases.0.lor_strain ~ instrument.profile.y) and +1.000 between the two phases' strains; Rwp 0.1297 degenerate vs 0.1648 identifiable, QPA 16.574 vs 17.841 wt % -- the better Rwp is 6.7 sigma outside TOPAS's interval
 
 #### `test_the_correlation_diagnostic_separates_the_two`
 
@@ -266,7 +266,7 @@ The absolute lab anchor. NIST's own SRM 660c certification measurement, refined 
 
 **Referenced to:** the cell must return to its own unextinguished value within the same 2e-4 A band; the extinction parameter itself is one-sided (< 1e-2 from a 1e-3 seed)
 
-**Measured:** extinction 5.0e-10 from a 1e-3 seed; Rwp 0.0866784, a 4.1568955 — the warm-extend path agrees with the whole plan to 2e-11 in Rwp and 1e-9 A in a
+**Measured:** extinction 5.0e-10 from a 1e-3 seed; Rwp 0.0866784, a 4.1568955 — the warm-extend path agrees with the whole plan to 2e-12 in Rwp and 1e-9 A in a
 
 ### `tests/test_acceptance_srm676a.py`
 
@@ -280,7 +280,7 @@ The second absolute anchor, and the sharper one — but only on the axial ratio,
 
 **Referenced to:** NIST SRM 676a certificate a = 4.759355(80), c = 12.99231(15) A (k = 2, 22.5 C).  c/a's relative k=2 uncertainty is ~21 ppm and the bar is 100 ppm — a small multiple of it.  The absolute bar is 600 ppm, nowhere near certificate grade, and the uniformity check |da - dc| < 1.5e-4 is what stops an esd laundering a many-sigma systematic
 
-**Measured:** c/a +30 ppm; absolute axes -312 / -282 ppm with |da - dc| within 3.1e-5; Rwp 14.6 %, GoF 1.63 against a GoF floor of 1.5-1.9 for analytical-PSF lab fits (Cline 2015)
+**Measured:** c/a +30 ppm; absolute axes -312 / -282 ppm with |da - dc| within 3.0e-5; Rwp 14.6 %, GoF 1.63 against a GoF floor of 1.5-1.9 for analytical-PSF lab fits (Cline 2015)
 
 #### `test_the_two_descriptions_of_the_r_lattice_refine_to_the_same_cell`
 
@@ -290,7 +290,7 @@ The second absolute anchor, and the sharper one — but only on the axial ratio,
 
 **Referenced to:** ITA's rhombohedral/hexagonal relations for an R lattice (a_H = 2 a_R sin(alpha/2), c_H = a_R sqrt(3 + 6 cos alpha), V_H = 3 V_R) as the identity bar, and this package's own hexagonal-axes Le Bail fit of the same pattern from the same physical starting lattice as the own_result bar.  **No certificate claim**: the +-1e-3 band against SRM 676a is a sanity check that the fit found the right lattice, not a graded comparison — this is Le Bail with only w/u/v/x/y and lor_size free, deliberately looser than the Rietveld row above, which owns this specimen's certificate claim.  Registered because WP-1036 made the RHOMBOHEDRAL description representable at all; before it, c refined free of a and all three angles were locked, so this row could not have been written
 
-**Measured:** a = b = c and alpha = beta = gamma bitwise after the fit; alpha walks 54.987 -> 55.288 from a 0.3 deg displacement (certificate 55.287); the two descriptions agree to 2.0e-10 (a) and 3.5e-11 (c) relative with Rwp equal to six decimals; V_H = 3 V_R to 1e-9; against the certificate a -328 / c -336 ppm, the same uniform d-scale systematic the Rietveld row measures at -312 / -282; Rwp 0.147, GoF 1.64
+**Measured:** a = b = c and alpha = beta = gamma bitwise after the fit; alpha walks 54.987 -> 55.288 from a 0.3 deg displacement (certificate 55.287); the two descriptions agree to 5.6e-9 (a) and 1.5e-8 (c) relative with Rwp equal to five decimals; V_H = 3 V_R to 1e-9; against the certificate a -328 / c -336 ppm, the same uniform d-scale systematic the Rietveld row measures at -312 / -282; Rwp 0.147, GoF 1.64
 
 ### `tests/test_acceptance_powderline.py`
 
@@ -314,7 +314,7 @@ The only fixtures carrying **two** reference engines, and they disagree: 2665 pp
 
 **Referenced to:** the two engines' own spread on the same five free cell parameters.  A one-sided claim on purpose: it asserts WHERE in the argument this answer falls, not that either engine is right.  GSAS-II reports two SVD singularities and 100 % Mustrain;mx/;i correlation on this recipe and returns a negative crystallite size for phase 1, so neither reference is truth here
 
-**Measured:** worst deviation from TOPAS 93 ppm (bar 200) against an engine-to-engine gap of 2668 ppm (bar 1000); the ratio asserted under a tenth
+**Measured:** worst deviation from TOPAS 98 ppm (bar 200) against an engine-to-engine gap of 2668 ppm (bar 1000); the ratio asserted under a tenth
 
 #### `test_drx_rwp_is_reported_beside_both_engines_and_gated_at_neither`
 
@@ -324,7 +324,7 @@ The only fixtures carrying **two** reference engines, and they disagree: 2665 pp
 
 **Referenced to:** deliberately nothing: an Rwp comparison is never this package's evidence, and the two references disagree by 3.5 percentage points on this specimen anyway.  The assertion is a 0.15 ceiling plus a 0.01 band on TOPAS, which is a sanity check and not an accuracy claim
 
-**Measured:** Rwp 7.329 % against TOPAS's 7.326 % and GSAS-II's 10.83 %
+**Measured:** Rwp 7.328 % against TOPAS's 7.326 % and GSAS-II's 10.83 %
 
 #### `test_drx_phase_scales_are_the_same_answer_as_topas`
 
@@ -364,7 +364,7 @@ The only fixtures carrying **two** reference engines, and they disagree: 2665 pp
 
 **Referenced to:** nothing, for the reason the DRX row gives; a 0.12 ceiling and a 0.01 band on TOPAS, which shares neither Z nor the negative-Y clamp with GSAS-II
 
-**Measured:** Rwp 8.857 % against TOPAS's 8.519 % and GSAS-II's 6.53 %
+**Measured:** Rwp 8.799 % against TOPAS's 8.519 % and GSAS-II's 6.53 %
 
 #### `test_lab6_declares_the_three_model_differences_it_has`
 
@@ -430,9 +430,9 @@ The one cross-code comparison. GSAS-II's converged fluorapatite tutorial, with i
 
 **Claims:** a user constraint on three chemically equivalent sites reduces the parameter count and tightens the esd, without moving the values the free refinement measured
 
-**Referenced to:** the same protocol's own free fit on the same 5750 channels, the only difference being the tie.  The esd bar is referenced twice: to the best of the three free esds (0.1008 A^2) and to their inverse-variance combination (0.0721), which is what the constraint has to beat to have recovered the information rather than merely divided by root-N.  The identity half is that the three tied rows carry the *same* value and esd to 1e-12, since they are one parameter.  Rwp is deliberately not a referent: it moves by 0.05 % of itself, so no bar on it could distinguish a good constraint from a bad one
+**Referenced to:** the same protocol's own free fit on the same 5750 channels, the only difference being the tie.  The esd bar is referenced twice: to the best of the three free esds (0.1078 A^2) and to their inverse-variance combination (0.0769), which is what the constraint has to beat to have recovered the information rather than merely divided by root-N.  The identity half is that the three tied rows carry the *same* value and esd to 1e-12, since they are one parameter.  Rwp is deliberately not a referent: it moves by 0.05 % of itself, so no bar on it could distinguish a good constraint from a bad one
 
-**Measured:** 20 -> 18 free parameters, 287.5 -> 319.4 points per parameter; B(O) 0.2834(1421) / 0.5288(1497) / 0.4361(1008) free against 0.4263(704) tied, the three free values 1.01 / 0.68 / 0.10 of their own esds from the tied value (esds with Berar-Lelann eqs (10)-(12), #674); the four untied Biso sites move by < 0.5 sigma
+**Measured:** 20 -> 18 free parameters, 287.5 -> 319.4 points per parameter; B(O) 0.3647(1513) / 0.6016(1590) / 0.5377(1078) free against 0.5150(754) tied, the three free values 0.99 / 0.54 / 0.21 of their own esds from the tied value (esds with Berar-Lelann eqs (10)-(12), #674); the four untied Biso sites move by < 0.5 sigma
 
 #### `test_the_file_states_a_wider_free_set_than_this_plan`
 
@@ -442,7 +442,7 @@ The one cross-code comparison. GSAS-II's converged fluorapatite tutorial, with i
 
 **Referenced to:** FAP.EXP's own refine flags, read by rx.read_gsas_exp and converted to rietx dot-paths through to_structure.  The file states 28 variables in its REFN GDNFT record, and the flags reconstruct that exactly: 2 cell + 12 coordinate DOFs + 7 Biso structural, plus 1 histogram scale, 3 background terms and 3 profile terms.  This is an identity check against a number the file states somewhere else, not a tolerance
 
-**Measured:** this plan frees 20 parameters and GSAS freed 28; the whole difference is the 12 coordinate DOFs, which no stage here turns on.  Everything else the file frees, this plan frees too.  Freeing them measured 2026-10-03: Rwp 0.096957 -> 0.096677, cell +114.5/+111.9 -> +114.4/+111.7 ppm, no wall-clock change, still converged — so closing the gap is nearly free and is a deliberate change with its own numbers rather than a silent one
+**Measured:** this plan frees 20 parameters and GSAS freed 28; the whole difference is the 12 coordinate DOFs, which no stage here turns on.  Everything else the file frees, this plan frees too.  Freeing them measured 2026-10-08: Rwp 0.092498 -> 0.092314, cell +82.5/+82.3 -> +82.3/+81.9 ppm, no wall-clock change, still converged — so closing the gap is nearly free and is a deliberate change with its own numbers rather than a silent one
 
 ### `tests/test_acceptance_nac.py`
 
@@ -474,7 +474,7 @@ The synchrotron vertical slice, and the FitReport's impurity claim: CaF2 is foun
 
 **Claims:** Refinement.summary()'s shape (WP-1302: sections, labels, ordering) survives untouched when only a number moves — no accuracy claim, a text-shape regression bar only, referenced to a masked golden file
 
-**Measured:** 28 lines (summary(deliverable='qpa') on the two-phase Rietveld fit); str(result) alone is 12
+**Measured:** 29 lines (summary(deliverable='qpa') on the two-phase Rietveld fit); str(result) alone is 12
 
 ### `tests/test_acceptance_qpa_roundrobin.py`
 
@@ -498,7 +498,7 @@ Quantitative phase analysis against weighed truth, at tolerances referenced to w
 
 **Referenced to:** the weighed composition is truth; the tolerance is the published participant spread (Madsen 2001 Fig. 2), 6.0 wt % for majors and 2.0 for traces below 5 wt %.  Never sigma(W): those esds are 0.1-0.8 wt %, several times below the measured errors
 
-**Measured:** worst 5.13 wt % (1f zincite), traces <= 1.3, RMS 2.26; closure exact to 1e-6
+**Measured:** worst 4.97 wt % (1f zincite), traces <= 1.2, RMS 2.20; closure exact to 1e-6
 
 #### `test_sample1_bias_has_the_dispersion_shape`
 
@@ -530,7 +530,7 @@ Quantitative phase analysis against weighed truth, at tolerances referenced to w
 
 **Referenced to:** participant spread again on the fractions; the March coefficient is judged as physics (r < 1 means platy, and 0.4 < r < 0.9 is far enough from the r = 1 identity to be a detection rather than a fitted nothing)
 
-**Measured:** r ~ 0.68; worst fraction 2.9 wt %; H Biso held at exactly 2.5
+**Measured:** r ~ 0.67; worst fraction 2.8 wt %; H Biso held at exactly 2.5
 
 #### `test_sample4_microabsorption_characterised_not_hidden`
 
@@ -538,9 +538,9 @@ Quantitative phase analysis against weighed truth, at tolerances referenced to w
 
 **Claims:** the round robin's designed Brindley-defeating sample fails in the documented direction, the muR fence fires, and the correction moves two of three phases the right way
 
-**Referenced to:** **no accuracy band is claimed** — this specimen is meant to defeat the correction.  What is asserted is the sign and rough size of each error, that BRINDLEY_OUTSIDE_REGIME names magnetite, and that tau < 1 < tau holds across the absorption contrast.  Zircon is deliberately NOT asserted to improve (measured -9.2 to -9.4)
+**Referenced to:** **no accuracy band is claimed** — this specimen is meant to defeat the correction.  What is asserted is the sign and rough size of each error, that BRINDLEY_OUTSIDE_REGIME names magnetite, and that tau < 1 < tau holds across the absorption contrast.  Zircon is deliberately NOT asserted to improve (measured -9.1 to -9.3)
 
-**Measured:** corundum +24, zircon -15, magnetite -9 wt %
+**Measured:** corundum +24, magnetite -15, zircon -9 wt %
 
 **Diagnostics:** `BRINDLEY_OUTSIDE_REGIME`
 
@@ -556,7 +556,7 @@ The same round robin with anomalous scattering applied — a pre-registered, par
 
 **Referenced to:** the weighed composition at 2.5 wt %, tightened from the participant spread's 6.0/2.0 — the tightening IS the claim, and it was written down before the refits
 
-**Measured:** worst 1.39 wt % (was 5.13)
+**Measured:** worst 1.23 wt % (was 5.13)
 
 #### `test_the_microabsorption_shape_was_mostly_dispersion`
 
@@ -564,9 +564,9 @@ The same round robin with anomalous scattering applied — a pre-registered, par
 
 **Claims:** the signed bias v0.3 attributed to microabsorption collapses when dispersion is applied — a v0.3 conclusion re-derived, not merely a number improved
 
-**Referenced to:** the frozen V03_ERRORS table (the eight measured signed wt % errors from milestones/v0.3.md), phase by phase.  The prediction was parameter-free and beat itself: predicted RMS 0.83, measured 0.69
+**Referenced to:** the frozen V03_ERRORS table (the eight measured signed wt % errors from milestones/v0.3.md), phase by phase.  The prediction was parameter-free and beat itself: predicted RMS 0.83, measured 0.64
 
-**Measured:** RMS 2.26 -> 0.69 wt %; zincite's -1 wt % mean bias goes to |mean| < 1.0
+**Measured:** RMS 2.26 -> 0.64 wt %; zincite's -1 wt % mean bias goes to |mean| < 1.0
 
 #### `test_zincite_cell_does_not_move`
 
@@ -586,7 +586,7 @@ The same round robin with anomalous scattering applied — a pre-registered, par
 
 **Referenced to:** physical plausibility, not a reference value — B(O) below 0.1 A^2 is a parameter pinned on a bound, and 0.2-1.2 is the range an oxide oxygen actually occupies.  Rwp is asserted only one-sided, because this is exactly a case where the fit statistic does not see the fix
 
-**Measured:** B(O) 0.022 -> 0.429 A^2
+**Measured:** B(O) 0.037 -> 0.447 A^2
 
 #### `test_srm660c_lattice_parameter_is_untouched`
 
@@ -642,7 +642,7 @@ A correction that provably cannot improve the fit, on real data. The whole of it
 
 **Referenced to:** the analytic prediction DeltaB = c(muR)*lambda^2/2, computed before the refits.  Rwp and the cell are held to 1e-6 and 1e-9 A **between two of our own fits** — referenced to floating point, not to any external value, because Rouse's expression factors exactly into a Debye-Waller shape
 
-**Measured:** Delta Rwp 4.0e-9, Delta a -3.9e-11 A, every Biso +0.01687 against a predicted 0.016875
+**Measured:** Delta Rwp 4.0e-9, Delta a -3.8e-11 A, every Biso +0.01687 against a predicted 0.016875
 
 #### `test_fit_quality_and_the_circular_cell`
 
@@ -686,7 +686,7 @@ A warm-started chain over the round robin: what changes when only the starting p
 
 **Referenced to:** this package's own independent fits under the same protocol, at 1 wt % and 0.005 in Rwp — generous rather than tight, and framed in participant-spread units because that is what the quantity means
 
-**Measured:** mean Rwp 0.1305 either way; QPA identical to the v0.3 record
+**Measured:** mean Rwp 0.1305 either way; chained and independent weight fractions within 0.15 wt %
 
 #### `test_cells_are_stable_across_the_series`
 
@@ -704,9 +704,9 @@ A warm-started chain over the round robin: what changes when only the starting p
 
 **Claims:** the headline iteration saving is printed and only divergence is gated — the number is a finding, not a bar
 
-**Referenced to:** **deliberately not asserted.** 2863 iterations unchained, 1623 re-walking the staged plan warm, 904 with the plan collapsed; the carry-glob hypothesis was refuted at 838. Gating a speed number would turn machine noise into a test failure
+**Referenced to:** **deliberately not asserted.** Before WP-1123's intermediate_ftol: 2863 iterations unchained, 1623 re-walking the staged plan warm, 904 with the plan collapsed; the carry-glob hypothesis was refuted at 838. Gating a speed number would turn machine noise into a test failure
 
-**Measured:** 904 vs 2863 iterations at identical mean Rwp
+**Measured:** 725 vs 1826 iterations at identical mean Rwp (627 carrying everything)
 
 #### `test_the_hostile_series_exercises_the_reseed_fence`
 
@@ -742,7 +742,7 @@ Anisotropic strain, and the matrix's canonical inadmissibility result — an imp
 
 **Referenced to:** **no accuracy claim.** Hamilton at alpha = 0.05 and Delta BIC both pass at N/f^2 (WP-1417), while at most one of the four S_HKL coefficients lies 2 sigma from zero; the strain-variance cone sigma^2(M) >= 0 fails on 7 of 43 reflections, so STEPHENS_STRAIN_NOT_POSITIVE fires and no S_HKL is quotable.  The r ~ 0.65 March coefficient is checked against WP-0310's own measurement on the same material
 
-**Measured:** Rwp 18.62 -> 17.84 %, Delta BIC +22.4 at N/f^2 (N_eff 479, f 3.889; +592.5 at raw N), 3 parameters added, anisotropy at its 1e6 cap (narrowest direction at zero strain; bar 3.0)
+**Measured:** Rwp 18.62 -> 17.84 %, Delta BIC +22.4 at N/f^2 (N_eff 479, f 3.889; +592.3 at raw N), 3 parameters added, anisotropy at its 1e6 cap (narrowest direction at zero strain; bar 3.0)
 
 **Diagnostics:** `STEPHENS_STRAIN_NOT_POSITIVE`
 
@@ -754,7 +754,7 @@ Anisotropic strain, and the matrix's canonical inadmissibility result — an imp
 
 **Referenced to:** the Layer-1 strain diagnostic's own thresholds (not detected, R^2 < 0.5, anisotropy < 2.0) plus the derived pattern count for R-3c
 
-**Measured:** anisotropy 1.80x, 4 patterns, 64 reflections; never leaves the cone at any seed
+**Measured:** anisotropy 2.02x, 4 patterns, 64 reflections; never leaves the cone at any seed
 
 #### `test_corundum_block_is_inert_and_hamilton_blesses_it_only_at_raw_n`
 
@@ -774,7 +774,7 @@ Anisotropic strain, and the matrix's canonical inadmissibility result — an imp
 
 **Referenced to:** the physics constraint itself: sigma^2(M) > 0 on all 43 reflections, with the optimum sitting on the cone face.  Rwp is bounded loosely and is expected to be WORSE than the unconstrained fit's
 
-**Measured:** 0 of 43 violations; Rwp 0.18162 against TRF's 0.17844
+**Measured:** 0 of 43 violations; Rwp 0.17946 against TRF's 0.17844
 
 #### `test_unconstrained_solver_leaves_the_cone_on_the_same_data`
 
@@ -784,7 +784,7 @@ Anisotropic strain, and the matrix's canonical inadmissibility result — an imp
 
 **Referenced to:** the same cone test, opposite direction — at least 5 of 43 reflections violating, plus the guard diagnostic
 
-**Measured:** 7 of 43 violations at the pinned seed; 13/7/0/0 across the four-seed sweep, which is why that row carries starts=4
+**Measured:** 7 of 43 violations at the pinned seed; 14/7/0/0 across the four-seed sweep, which is why that row carries starts=4
 
 **Diagnostics:** `STEPHENS_STRAIN_NOT_POSITIVE`
 
@@ -900,7 +900,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** Bergmann et al. wrote the shift 'would be consistent with a systematic specimen-displacement error' and had no way to check, every program of the day fitting one constant zeropoint.  fit_shift_model fits three physical causes as nested single fits.  The prediction written down before the measurement is quality.py's: over a short low-angle range the templates are collinear and no cause is attributable
 
-**Measured:** max_collinearity 1.0000 and separable=False on all ten sets over their 6-31 deg span.  Magnitude: PDF 43-1748 carries +0.062 deg and 46-1964 +0.058, not the quoted 0.10 -- so subtracting 0.100 overshoots to -0.039 and -0.043, which is why Table 5 does not show C as uniformly easier than A
+**Measured:** max_collinearity 1.0000 and separable=False on all ten sets over their 6-31 deg span.  Magnitude: PDF 43-1748 carries +0.080 deg and 46-1964 +0.058, not the quoted 0.10 -- so subtracting 0.100 overshoots to -0.020 and -0.043, which is why Table 5 does not show C as uniformly easier than A
 
 #### `test_a_certified_lab_pattern_indexes_and_is_graded_honestly`
 
@@ -910,7 +910,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** NIST SRM 676a a = 4.759355(80), c = 12.99231(15) A (k = 2). Both axes are asserted at 150 ppm.  An earlier version of this row asserted c as a RANGE of 1000-5000 ppm and called it 'what an uncalibrated lab pattern costs'; it was not, it was dichotomy's duplicate-leaf hash skipping the leaf that held the certificate's c (WP-1026, _box_key)
 
-**Measured:** ranked first, trigonal R, a +122 ppm and c +28 ppm, 51 of 55 lines, chi2_red 0.70.  Confidence low on three caveats: engines_disagree, predicted_but_absent (12 -- the R-3c c-glide, not an oversized cell) and fom_panel_disagrees.  best_or_none() returns None.  WP-1038 cleared two of the former four: the shift is now MEASURED before the search from harmonic reflection pairs (-0.0639 deg, against an independently known -0.065), so shift_allowance_assumed no longer fires, and the measured window indexes 51 lines rather than 49, crossing the 0.9 bar unaided.  The wider window costs 21 ppm on a (+101 -> +122) and is recorded rather than hidden: a window that cannot rule out a constant must stay at |c| everywhere, where the true cos(theta) deviation has fallen to 0.26|c| by 150 deg
+**Measured:** ranked first, trigonal R, a +110 ppm and c +57 ppm, 45 of 47 lines, chi2_red 0.67.  Confidence low on three caveats: engines_disagree, predicted_but_absent (11 -- the R-3c c-glide, not an oversized cell) and fom_panel_disagrees.  best_or_none() returns None.  WP-1038 cleared two of the former four: the shift is now MEASURED before the search from harmonic reflection pairs (-0.0641 deg, against an independently known -0.065), so shift_allowance_assumed no longer fires, and the measured window crosses the 0.9 bar unaided (indexed fraction 0.957).  WP-1110 and WP-1510 took two no_intensity components and five duplicate copies out of the usable list, so the row reads 45 of 47 where it read 51 of 55 (the 49-line and +101 ppm figures of the assumed 0.05 deg window are WP-1038's, not re-run).  The wider window is not free: a window that cannot rule out a constant must stay at |c| everywhere, where the true cos(theta) deviation has fallen to 0.26|c| by 150 deg
 
 **Diagnostics:** `INDEX_SHIFT_FROM_PAIRS`
 
@@ -922,7 +922,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** The displacement was measured independently against the certificate as a -0.065 deg cos(theta) term (WP-1023).  This row never supplies it: the search fits the template after each candidate survives, from the pattern alone.  The cell and the figures of merit are asserted TOGETHER, because f_n's stated blind spot is that a refined shift can manufacture a large figure of merit on its own
 
-**Measured:** fitted shift -0.0726 +/- 0.0181 deg; a +122 -> -93 ppm, c +28 -> -140 ppm; M20 22.5 -> 83.5, F_N 16.1 -> 65.5, Le Bail Rwp 0.282 -> 0.225.  Since WP-1038 the two mechanisms are cleanly separated: the pair-MEASURED magnitude widens the window and finds lines (both calls index 51 of 55, so indexed_fraction_low has already cleared before the template is declared), and the DECLARED shape is what moves the cell.  Three routes to one systematic, none told the answer: -0.0639 from pairs pre-search, -0.0726 from the post-candidate fit, -0.065 measured against the certificate.  Still low, on caveats that have nothing to do with the shift
+**Measured:** fitted shift -0.0749 +/- 0.0187 deg; a +110 -> -114 ppm, c +57 -> -109 ppm, c/a -54 -> +5 ppm; M20 23.7 -> 160.0, F_N 16.6 -> 114.9, Le Bail Rwp 0.285 -> 0.224.  Since WP-1038 the two mechanisms are cleanly separated: the pair-MEASURED magnitude widens the window and finds lines (both calls index 45 of 47, so indexed_fraction_low has already cleared before the template is declared), and the DECLARED shape is what moves the cell.  Three routes to one systematic, none told the answer: -0.0641 from pairs pre-search, -0.0749 from the post-candidate fit, -0.065 measured against the certificate.  Still low, on caveats that have nothing to do with the shift
 
 **Diagnostics:** `INDEX_SHIFT_FROM_PAIRS`
 
@@ -934,7 +934,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** NIST's own recorded specimen displacement, -0.07877 mm at R = 217.5 mm, PREDICTS +0.0415 deg cos(theta) parameter-free through model.corrections; the reference-based screen fits +0.0367 +/- 0.0015 against it.  The reflection-pair method (Dong, Wu & Chen 1999) sees neither: only harmonic pairs among the list's own lines, m sin(theta) = sin(theta'), which hold for any lattice
 
-**Measured:** +0.0345 deg from 10 agreeing pairs of 19 admitted, z = 16.6 against 200 structureless replicates -- within 0.4 sigma of the reference-based fit it never saw, and 0.83 of the geometric prediction (the same 0.75-1.0 band the reference-based screen sits in, for the same reason).  separable is False: constant and cos_theta concentrate within one pair of each other, so a MAGNITUDE is measured and a CAUSE is not
+**Measured:** +0.0345 deg from 10 agreeing pairs of 19 admitted, z = 16.9 against 200 structureless replicates -- within 0.4 sigma of the reference-based fit it never saw, and 0.83 of the geometric prediction (the same 0.75-1.0 band the reference-based screen sits in, for the same reason).  separable is False: constant and cos_theta concentrate within one pair of each other, so a MAGNITUDE is measured and a CAUSE is not
 
 **Diagnostics:** `INDEX_SHIFT_FROM_PAIRS`
 
@@ -954,9 +954,9 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Claims:** the same three-way agreement on the lab specimen with the larger shift, and the line the column is NOT allowed to rescue
 
-**Referenced to:** as above, against -0.0670 deg from harmonic pairs and -0.0650 deg measured against the SRM 676a certificate
+**Referenced to:** as above, against -0.0673 deg from harmonic pairs and -0.0650 deg measured against the SRM 676a certificate
 
-**Measured:** -0.0666 deg, within 0.002 of both.  Needs trim=1: the list opens on a 5.17 deg edge artifact 3.9x beyond the longest d the lattice allows, which breaks eq. (4)'s weighting outright.  A line no lattice can index is not a shifted line, and the column does not pretend otherwise
+**Measured:** -0.0674 deg, within 0.003 of both.  Needs trim=1: the list opens on a 5.17 deg edge artifact 3.9x beyond the longest d the lattice allows, which breaks eq. (4)'s weighting outright.  A line no lattice can index is not a shifted line, and the column does not pretend otherwise
 
 #### `test_one_shift_is_measured_from_a_multi_phase_pattern`
 
@@ -966,7 +966,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** Dong, Wu & Chen (1999) sec. 3's second example: two of its eleven pairs come from an NiO impurity and agree with the other nine.  Reproduced here on bundled data -- the IUCr round-robin's three-phase mixture (corundum + zincite + fluorite) against the single-phase corundum specimen run on the same diffractometer
 
-**Measured:** corundum -0.0639 deg (against -0.065 measured independently vs the certificate); cpd-1a -0.0382 deg, both at z >= 4.  The two agree to 0.026 deg, well inside what a specimen-mounting difference between the two mounts produces
+**Measured:** corundum -0.0641 deg (against -0.065 measured independently vs the certificate); cpd-1a -0.0091 deg (a separate fit of its 16 fluorite lines gives -0.0095 +/- 0.0023), z 8.4 and 4.6.  The two do not agree, and need not: a cos(theta) shift is specimen displacement, set per mount (cpd-1a read -0.0382 until WP-1510, when two of its five pairs turned out to be one line fitted twice)
 
 **Diagnostics:** `INDEX_SHIFT_FROM_PAIRS`
 
@@ -976,9 +976,9 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Claims:** the peak list this package produces from a real lab pattern contains components that are profile-shape repair rather than lines, and they are flagged rather than reported
 
-**Referenced to:** detect_peaks proposes 41 groups with ONE seed each; the fitter returns 63 components.  The row asserts the flagged ones are weak satellites of much stronger lines -- the geometry no dBIC can refuse, because dBIC judges two models that both fail (chi2_red 17.4 at n=1, 4.6 at n=2)
+**Referenced to:** detect_peaks proposes 41 groups with ONE seed each; the fitter returns 62 components.  The row asserts the flagged ones are weak satellites of much stronger lines -- the geometry no dBIC can refuse, because dBIC judges two models that both fail (chi2_red 17.4 at n=1, 4.6 at n=2)
 
-**Measured:** 8 of 63 flagged not_separable, >=50 usable; before the fix neither engine could index this certified pattern at all
+**Measured:** 8 of 62 flagged not_separable, 47 usable (50 before WP-1510 took out five duplicate copies); before the fix neither engine could index this certified pattern at all
 
 #### `test_a_three_phase_mixture_abstains`
 
@@ -998,7 +998,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** P m -3 m extinguishes nothing, so if predicted_but_absent means what WP-1026 read it to mean -- space-group extinctions counted against the LATTICE group, the only model that exists before determine_extinction_symbol runs -- it must be silent here and is 11-12 on R-3c corundum.  The cell bar is 200 ppm and is set by a defect this same file measures, not by the data: a tighter one would assert the tail components below do not exist
 
-**Measured:** cubic P ranked first, a -127 ppm against the CIF's 4.156780 A; predicted_but_absent 0 of 30 and predicted_seen_fraction 1.000 against corundum's 0.86.  Still low, but the caveat list has been shrinking by evidence and is now ONE: fom_panel_disagrees.  WP-1038 cleared shift_allowance_assumed (this pattern's +0.0345 deg is measured from harmonic pairs before the search), and WP-1039 cleared engines_disagree -- trial_error was not failing to find the certified cell, it was solving from the wrong base lines, because its pool took the lowest-Q lines of the whole list and five of this pattern's low-angle components are not lines of the phase.  Drawn from the strongest-N selection instead, BOTH engines find it.  Agreement was necessary and not sufficient: a cubic-only search now promotes to high, this four-system one does not.  best_or_none() returns None
+**Measured:** cubic P ranked first, a -127 ppm against the CIF's 4.156780 A; predicted_but_absent 0 of 30 and predicted_seen_fraction 1.000 against corundum's 0.58.  Still low, but the caveat list has been shrinking by evidence and is now ONE: fom_panel_disagrees.  WP-1038 cleared shift_allowance_assumed (this pattern's +0.0345 deg is measured from harmonic pairs before the search), and WP-1039 cleared engines_disagree -- trial_error was not failing to find the certified cell, it was solving from the wrong base lines, because its pool took the lowest-Q lines of the whole list and five of this pattern's low-angle components are not lines of the phase.  Drawn from the strongest-N selection instead, BOTH engines find it.  Agreement was necessary and not sufficient: a cubic-only search now promotes to high, this four-system one does not.  best_or_none() returns None
 
 **Diagnostics:** `INDEX_SHIFT_ALLOWANCE`
 
@@ -1020,7 +1020,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** A literature cell for the mineral (Zigan & Rothbauer, P -3 m 1, a = 3.142, c = 4.766 A), never a certificate for this specimen -- whose a sits +1750 ppm from it, 30x the goniometer-radius floor.  So the bar is 3e-3 and asserts lattice type and centring, never a ppm figure.  WP-1026's measurement was taken before WP-1030's prunes, WP-1039's search-line ordering, WP-1040's third engine and WP-1041's dedup key, and was never a row, so it was never re-run
 
-**Measured:** truth ranked FIRST (was: every one of twelve candidates a supercell, c x 3.002 first, the truth in none of them).  a = 3.1475, c = 4.7698.  Forward coverage cannot separate them -- 31, 31 and 32 of 37 lines, the supercells indexing MORE -- while predicted_seen_fraction reads 0.86 against 0.43 and 0.32, near the exact 1/2 and 1/3 an exact supercell must give.  Still low on indexed_fraction_low (31/37) and predicted_but_absent (1 of 29, the 6_3 screw); best_or_none() returns None.  RANK RE-MEASURED 2026-09-22 (WP-1442): an a x 2 supercell had taken the rank on one extra panel line, 34 against 33, and WP-1446 measured that the peak list alone cannot order the pair.  RANK RESTORED 2026-09-27 (WP-1449) by the supercell check: of the 25 added lines no extinction could remove, 2 sit on an observed line where chance puts 2.6 (p = 0.76), so the a x 2 cell sits below the truth with supercell_refuted.  Measured on a finished search (900 s a unit, [dev], Linux x86-64): truth first and second (hexagonal, trigonal), a x 2 third and fourth.  The rank reads the order, so it waits for a finished search
+**Measured:** truth ranked FIRST (was: every one of twelve candidates a supercell, c x 3.002 first, the truth in none of them).  a = 3.1476, c = 4.7697.  Forward coverage cannot separate them -- 25 of 29 lines for the truth and the c x 2 cell alike (it read 31, 31 and 32 of 37, the supercells indexing MORE, before the peak list lost its duplicate copies) -- while predicted_seen_fraction reads 0.86 against 0.43, the exact 1/2 an exact supercell must give (no c x 3 cell is in the list any more; it read 0.32).  Still low on indexed_fraction_low (25/29) and predicted_but_absent (1 of 29, the 6_3 screw); best_or_none() returns None.  RANK RE-MEASURED 2026-09-22 (WP-1442): an a x 2 supercell had taken the rank on one extra panel line, 34 against 33, and WP-1446 measured that the peak list alone cannot order the pair.  RANK RESTORED 2026-09-27 (WP-1449) by the supercell check: of the 25 added lines no extinction could remove, 2 sit on an observed line where chance puts 2.6 (p = 0.76), so the a x 2 cell sits below the truth with supercell_refuted.  Measured on a finished search (900 s a unit, [dev], Linux x86-64): truth first and second (hexagonal, trigonal), a x 2 third and fourth; on a finished 1.7.0 search (52 s, [dev], darwin/arm64) the c x 2 cells are third and fourth and the a x 2 ones fifth and sixth.  The rank reads the order, so it waits for a finished search
 
 #### `test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival`
 
@@ -1030,7 +1030,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** A literature cell (F d -3 m, a = 8.3941 A), so 1e-3 and no ppm claim.  The inversion is referenced to nothing external: it is asserted structurally, as the presence of predicted_but_absent on the correct cell and its ABSENCE on the wrong one -- and since WP-1043 the mechanism is regenerated, not quoted
 
-**Measured:** cubic F first at -334 ppm, its P description of identical axes second; predicted_seen_fraction 0.46 against 0.19 and n_indexed identical at 21 of 23, so the reversed member is the whole separation.  The gate then gives F low and P medium: F d -3 m's d-glide refutes the CORRECT cell (2 of 52) while P's Le Bail fit predicts 163 reflections on a 23-line pattern and reports ZERO absent.  WP-1043 measured why: the detector's inputs are the candidate's to buy -- the rival's own fit drives the co-refined background NEGATIVE (mean -11 counts; no physical floor in the validation plan), so net clears 3 sigma at 100 % of channels and nothing can read absent; with the truth's background under the same positions 8-14 absences return, while swapping widths alone (inflated 2-3x in both fits) restores none.  Rwp 0.25 against 0.79 is the same corrupted fit seen by a different instrument, so it stays surfaced and never ranked on.  best_or_none() returns None either way
+**Measured:** cubic F first at -334 ppm, its P description of identical axes second; predicted_seen_fraction 0.46 against 0.19 and n_indexed identical at 17 of 17, so the reversed member is the whole separation.  The detector then fires on the truth and not on the rival: F d -3 m's d-glide refutes the CORRECT cell (3 of 52) while P's Le Bail fit predicts 163 reflections on a 17-line pattern and reports ZERO absent.  The grade no longer inverts: both are low, P held there by supercell_refuted and engines_disagree (it was medium before WP-1449 and WP-1510 refuted the P description as an index-2 superlattice, and the list lost six lines).  WP-1043 measured why: the detector's inputs are the candidate's to buy -- the rival's own fit drives the co-refined background NEGATIVE (mean -5.8 counts; no physical floor in the validation plan), so net clears 3 sigma at 99.6 % of channels and nothing can read absent; with the truth's background under the same positions 8-14 absences return, while swapping widths alone (inflated 2-3x in both fits) restores none.  Rwp 0.22 against 0.71 is the same corrupted fit seen by a different instrument, so it stays surfaced and never ranked on.  best_or_none() returns None either way
 
 #### `test_the_tail_components_escape_not_separable_and_are_flagged_by_cause`
 
@@ -1090,11 +1090,11 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 `certificate` `characterisation` · dataset `srm660c`
 
-**Claims:** with every piece of evidence supplied the gate reaches high for the first time on real data and the cell lands 2 ppm from a certified value -- and best_or_none() still declines, because the a*sqrt2 supercell reaches high too
+**Claims:** with every piece of evidence supplied the gate reaches high for the first time on real data and the cell lands 5 ppm from a certified value -- and best_or_none() still declines, because the a*sqrt2 supercell reaches high too
 
 **Referenced to:** An attribution probe, not a protocol: the off-lattice components are identified USING the certificate, which no user of an unknown phase can do.  What it establishes is that the pipeline's arithmetic is sound to the ppm and that what stands between it and a blind certified answer is a peak list.  Three things are supplied -- the five off-lattice components removed, the systematic measured rather than assumed, the cos_theta template declared
 
-**Measured:** a = 4.156772 A, -2 ppm, M20 1120, ZERO caveats, confidence high -- a first on real data, against -127 ppm with none of the three.  But best_or_none() is None: the a*sqrt2 cell (5.878564) reached high in BOTH its I and P descriptions, all three engines finding all three cells; since WP-1449 the P one is refuted as an index-2 superlattice of the I one (supercell_refuted, low) and the I one still reaches high.  The 'best_or_none() non-None' claim recorded here before WP-1041 held only while trial_error's scale-invariant dedup key could return one cubic candidate per search, denying the supercells its vote -- the flagship result was protected by a bug rather than by the gate.  Everything that refutes the supercell is measured and ungated: Rwp 0.098 vs 0.250/0.664, predicted_seen_fraction 1.00 vs 0.88/0.49, m_rev 890 vs 6.2/1.8, unmatched_observed 17 vs 91/136, while the one gated detector (predicted_but_absent) reads 0 for all three.  Also measured: declaring the screen's own sigma_sys (0.0078, the residual the template LEAVES) returns no candidate at all, because the search matches uncorrected positions and needs the shift's amplitude (0.037) instead -- 4.3x apart
+**Measured:** a = 4.156801 A, +5 ppm, M20 3266, ZERO caveats, confidence high -- a first on real data, against -127 ppm with none of the three.  But best_or_none() is None: the a*sqrt2 cell (5.878605) reached high in BOTH its I and P descriptions, all three engines finding all three cells; since WP-1449 the P one is refuted as an index-2 superlattice of the I one (supercell_refuted, low) and the I one still reaches high.  The 'best_or_none() non-None' claim recorded here before WP-1041 held only while trial_error's scale-invariant dedup key could return one cubic candidate per search, denying the supercells its vote -- the flagship result was protected by a bug rather than by the gate.  Everything that refutes the supercell is measured and ungated: Rwp 0.100 vs 0.861/0.660, predicted_seen_fraction 1.00 vs 0.88/0.49, m_rev 2245 vs 6.8/1.9, unmatched_observed 20 vs 166/124, while the one gated detector (predicted_but_absent) reads 0 for all three.  Also measured: declaring the probe-trimmed screen's own sigma_sys (0.0078, the residual the template LEAVES) gives a window 4.9x too tight for the shift's amplitude (0.038): the search matches uncorrected positions, and only svd, which fits a zero error inside the search (ze +0.033), still finds the certified cell (+5 ppm), which one engine cannot promote past low
 
 **Diagnostics:** `INDEX_SHIFT_ALLOWANCE` asserted *absent*
 
@@ -1118,7 +1118,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** Kihara & Donnay (1985) for ZnO wurtzite.  A LITERATURE cell for the mineral, never a certificate for this specimen -- brucite in the same series sits +1750 ppm from its own literature cell, 30x the goniometer-radius floor, which is why these rows assert lattice type and centring at a lab d-scale level and not a ppm number
 
-**Measured:** a -217 ppm, c -186 ppm; ALL 27 usable lines indexed; M20 902; both engines.  predicted_but_absent = 4 (the 6_3 screw and c-glide of P 6_3 m c, invisible to the lattice hexagonal P), so graded low and best_or_none() is None
+**Measured:** a -217 ppm, c -185 ppm; ALL 27 usable lines indexed; M20 910; both engines.  predicted_but_absent = 4 (the 6_3 screw and c-glide of P 6_3 m c, invisible to the lattice hexagonal P), so graded low and best_or_none() is None
 
 #### `test_a_centred_tetragonal_lattice_is_recovered_with_its_centring`
 
@@ -1128,7 +1128,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** Hazen & Finger (1979) for ZrSiO4.  Two centrings of one metric are deliberately NOT merged (engines.dedup_groups) because they predict different numbers of lines; the panel chooses.  The primitive twin indexes exactly as many OBSERVED lines, so forward coverage cannot separate them -- only coverage scored in the other direction can
 
-**Measured:** tetragonal I ranked first, a +207 ppm and c +1906 ppm, 66 of 68 lines; the P twin ties on n_indexed and loses on predicted_seen_fraction 0.59 against 0.31.  predicted_but_absent = 7 (4_1 screw and glides on top of the centring); low, best_or_none() None
+**Measured:** tetragonal I ranked first, a +140 ppm and c +2011 ppm, 45 of 56 lines; the P twin indexes 44 and loses on predicted_seen_fraction 0.53 against 0.27.  predicted_but_absent = 6 (4_1 screw and glides on top of the centring); low, best_or_none() None
 
 #### `test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing`
 
@@ -1138,7 +1138,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** lambda = 0.4139 A to 57.4 deg gives d_min = 0.43 A, at which a 10.25 A cubic cell exceeds engines.reflection_ceiling_ok -- the crash guard in front of every generate_reflections call -- so the dichotomy rejects its first box.  search_svd sizes its prediction set from the CURRENT trial metric under Coelho's N_c/N_o gate, and search_trial_error solves the metric from a few base lines; neither meets that resolution
 
-**Measured:** zero boxes explored by the dichotomy, premise unchanged; svd AND trial_error both return a = 10.2512 A, +19 ppm from the certified 10.2510, in both the P and the I description of identical axes.  Le Bail chooses: I predicts 0 of 837 absent at Rwp 0.154, P predicts 92 of 1668 at Rwp 0.204.  The panel does NOT -- borda leads with P 4-3 on margins of 0.4 % and 0.01 % against m_rev separating them 516x (356.1 vs 0.69) and m_sym 318x; pinned until 2026-09-27, when the supercell check inverted it (WP-1449): the P description is an index-2 superlattice of the I cell, and 1 of its 187 added lines no extinction could remove sits on an observed line at p0 = 0.034 (p = 1.0), so P now sits below I with supercell_refuted.  No aggregate of the panel was needed.  Still low / best_or_none() None on engines_disagree.  This row has now turned over TWICE -- 'cannot be indexed' died in WP-1040, 'only svd can' in WP-1041, where trial_error turned out to have reached the cell all along and discarded it: its dedup key was scale-invariant (every cubic candidate hashing to one entry) and carried no centring across the centring loop, so P claimed the metric and I was dropped unscored.  Three recorded no-goes have died on this one dataset.  A recorded no-go inherits the defects of the run that produced it
+**Measured:** zero boxes explored by the dichotomy, premise unchanged; svd AND trial_error both return a = 10.2512 A, +19 ppm from the certified 10.2510, in both the P and the I description of identical axes.  Le Bail chooses: I predicts 0 of 837 absent at Rwp 0.155, P predicts 80 of 1668 at Rwp 0.193.  The panel does NOT -- borda leads with P 4-3 on margins of 0.5 % and 0.01 % against m_rev separating them 693x (970.1 vs 1.40) and m_sym 399x; pinned until 2026-09-27, when the supercell check inverted it (WP-1449): the P description is an index-2 superlattice of the I cell, and 1 of its 187 added lines no extinction could remove sits on an observed line at p0 = 0.030 (p = 1.0), so P now sits below I with supercell_refuted.  No aggregate of the panel was needed.  Still low / best_or_none() None on engines_disagree.  This row has now turned over TWICE -- 'cannot be indexed' died in WP-1040, 'only svd can' in WP-1041, where trial_error turned out to have reached the cell all along and discarded it: its dedup key was scale-invariant (every cubic candidate hashing to one entry) and carried no centring across the centring loop, so P claimed the metric and I was dropped unscored.  Three recorded no-goes have died on this one dataset.  A recorded no-go inherits the defects of the run that produced it
 
 **Diagnostics:** `INDEX_SEARCH_INCOMPLETE`, `INDEX_ABSTAINED`
 
@@ -1150,7 +1150,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** GSAS's own converged FAP.EXP cell for this exact pattern.  The band is 500 ppm, NOT the refinement suite's +-300: an indexed cell has no displacement parameter and absorbs the displacement instead, worth a measured 127 ppm on SRM 660c and ~180 on SRM 676a.  The row asserts MEMBERSHIP and REFUSAL rather than rank, because writing it as 'rank 0 is the answer' would mean tuning the panel on a dataset whose reference is another code's fit
 
-**Measured:** a +258 ppm, c +325 ppm, found by EVERY engine, 178 of 185 lines.  Ranked FOURTH until WP-1046, below three cells 966-1396 ppm out that index 152 and score a higher M20; it leads since, because those three are one engine's and corroboration is the ranking's first key.  The panel was NOT touched and still prefers a wrong cell -- the row now pins that directly.  best_or_none() None and nothing reaches high, which is the half that did not move
+**Measured:** a +123 ppm, c +414 ppm, found by EVERY engine, 131 of 136 lines.  Ranked FOURTH until WP-1046, below three cells 966-1396 ppm out that index 152 and score a higher M20 (today's single-engine cells scoring a higher M20 are 607-1028 ppm out and index 110-119); it leads since, because those three are one engine's and corroboration is the ranking's first key.  The panel was NOT touched and still prefers a wrong cell -- the row now pins that directly.  best_or_none() None and nothing reaches high, which is the half that did not move
 
 #### `test_an_unidentified_pattern_stays_unidentified`
 
@@ -1160,7 +1160,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** Every other real-data row has a known answer and measures whether it is found; this measures the opposite half, which no benchmark can.  The trap it guards is that forward coverage READS like a solution -- the leaders index 73 of 74 lines.  What refuses them is M20 an order below anything publishable (de Wolff's own guidance is M20 > 10; the bethanechol synchrotron set reaches 197 in this same file)
 
-**Measured:** 12 candidates, all low, M20 ~4.6, none validated, best_or_none() None; systems_searched reported and search_complete False on two of the four, so the null is not dressed up as an exhausted domain
+**Measured:** 12 candidates, all low, M20 3.1-4.7, none validated, best_or_none() None; systems_searched reported and search_complete False on two of the four, so the null is not dressed up as an exhausted domain
 
 **Diagnostics:** `INDEX_ABSTAINED`, `INDEX_SEARCH_INCOMPLETE`
 
@@ -1176,7 +1176,7 @@ A parameter that is exactly degenerate in one histogram and measurable in severa
 
 **Referenced to:** each histogram against **its own solo fit** on the same protocol -- our own results either side of one change, so the bar is the 10 % degradation being an order larger on one histogram than the other, not any external value
 
-**Measured:** neutron Rwp 0.05259 alone -> 0.06223 jointly (+18 %); X-ray 0.09364 -> 0.09373 (+0.1 %), a ratio of ~200
+**Measured:** neutron Rwp 0.05259 alone -> 0.06226 jointly (+18 %); X-ray 0.09364 -> 0.09373 (+0.1 %), a ratio of ~200
 
 #### `test_freeing_the_neutron_wavelength_recovers_its_fit`
 
@@ -1186,7 +1186,7 @@ A parameter that is exactly degenerate in one histogram and measurable in severa
 
 **Referenced to:** the same three fits as the row above.  Deliberately a loose band: two independently converged fits differ by more than their own ftol, so the bars are 'more than half the way back' and 'not past the solo floor', never a figure
 
-**Measured:** 0.06223 held -> 0.05502 freed, against a 0.05259 solo floor: 75 % of the gap recovered; X-ray unchanged to 0.03 %
+**Measured:** 0.06226 held -> 0.05502 freed, against a 0.05259 solo floor: 75 % of the gap recovered; X-ray unchanged to 0.03 %
 
 #### `test_the_refined_wavelength_is_the_solo_cell_disagreement`
 
@@ -1196,7 +1196,7 @@ A parameter that is exactly degenerate in one histogram and measurable in severa
 
 **Referenced to:** the ratio of the two SOLO cells, computed without freeing anything, is a prediction for how far the neutron lambda must move.  The 20 % band is the scatter two separately converged single-histogram fits carry, not a tolerance
 
-**Measured:** solo cells 10.342905 vs 10.340285 A = +253 ppm; refined lambda 1.540400 -> 1.5407969(843) A = +257.6 ppm, agreeing to 2 %; the move is 4.7x its own esd
+**Measured:** solo cells 10.342905 vs 10.340285 A = +253 ppm; refined lambda 1.540400 -> 1.5407968(843) A = +257.6 ppm, agreeing to 2 %; the move is 4.7x its own esd
 
 #### `test_the_diagnostic_reports_the_ppm_and_nothing_claims_rwp`
 
@@ -1336,7 +1336,7 @@ The single-histogram refinable wavelength, on NIST SRM 640c silicon at APS 11-BM
 
 **Referenced to:** this package's own arms under one fixed protocol: three fits differing only in how three parameters are spent (Chebyshev-3, Chebyshev-3+peak, Chebyshev-6).  Not referenced to any external number -- the identification of the feature is separate evidence (11-BM's published empty-Kapton blank and air-scatter scans, provenance in tests/data/README.md, neither committed nor read here)
 
-**Measured:** Rwp 0.119977 -> 0.082503 with the peak (-31.2 % relative) against 0.088597 with three more polynomial terms (-26.2 %); the bar is a 1.15x margin on the ordering and the measured ratio is 1.19x.  Biso(Si) 0.414(65) -> 0.421(10), GoF 1.9695 -> 1.3544, zero HIGH_CORRELATION
+**Measured:** Rwp 0.119977 -> 0.082503 with the peak (-31.2 % relative) against 0.088596 with three more polynomial terms (-26.2 %); the bar is a 1.15x margin on the ordering and the measured ratio is 1.19x.  Biso(Si) 0.414(65) -> 0.421(10), GoF 1.9695 -> 1.3544, zero HIGH_CORRELATION
 
 **Diagnostics:** `HIGH_CORRELATION` asserted *absent*
 
@@ -1448,7 +1448,7 @@ A magnetic moment on real neutron data, and the refusal of one. The pair is one 
 
 **Referenced to:** no certified moment exists; the band 1.9-2.3 mu_B is an envelope around GSAS-II's own 2.121 +/- 0.019 on the tutorial's steps (a black-box run, protocol NOT adopted) and the 2026-09-23 re-run's 2.078 +/- 0.066 from the tutorial's ICSD start -- never a cross-code bar
 
-**Measured:** |m| 2.125 +/- 0.048 mu_B (44 sigma, bar 10), a-component 0.9997 of |m|; Rwp 0.1042 against 0.2047 nuclear-only (bar 0.65x)
+**Measured:** |m| 2.124 +/- 0.048 mu_B (44 sigma, bar 10), a-component 0.9998 of |m|; Rwp 0.1042 against 0.2035 nuclear-only (bar 0.65x)
 
 #### `test_the_4k_moment_does_not_depend_on_its_in_plane_seed`
 
@@ -1458,7 +1458,7 @@ A magnetic moment on real neutron data, and the refusal of one. The pair is one 
 
 **Referenced to:** the same protocol from the other in-plane seed
 
-**Measured:** |m| agrees to 4e-6 mu_B (8e-5 esd; bar 0.1 esd); Rwp to 3.5e-10 relative
+**Measured:** |m| agrees to 3e-6 mu_B (7e-5 esd; bar 0.1 esd); Rwp to 1.2e-9 relative
 
 #### `test_the_150k_null_finds_no_moment`
 
@@ -1482,7 +1482,7 @@ The second moment dataset, and the k = 0 case: LaMnO3 at 50 K on BT-1, from the 
 
 **Referenced to:** no reference magnitude: the tutorial quotes none.  The band's ceiling is Mn3+'s spin-only gS = 4 mu_B; its floor of 3.3 mu_B sits under every protocol variant measured (3.54-3.56 mu_B with the axial or Lorentzian widths freed or held) -- never a literature value
 
-**Measured:** |m| 3.558 +/- 0.049 mu_B (73 sigma, bar 10; 9.1 esd under 4 mu_B, bar 3), m = (3.543, 0, 0.325) mu_B: a-component 0.996 of |m| (bar 0.98), polar angle 1.5 esd from 90 deg (bar 3); Rwp 0.0631 against 0.1381 nuclear-only (bar 0.6x)
+**Measured:** |m| 3.558 +/- 0.048 mu_B (73 sigma, bar 10; 9.1 esd under 4 mu_B, bar 3), m = (3.543, 0, 0.325) mu_B: a-component 0.996 of |m| (bar 0.98), polar angle 1.5 esd from 90 deg (bar 3); Rwp 0.0631 against 0.1381 nuclear-only (bar 0.6x)
 
 #### `test_pn_ma_beats_pnma_at_the_tutorials_pair`
 
@@ -1504,7 +1504,7 @@ default, and measured the question rather than inheriting the recommendation.
 information the caller does not already have*. Capillary absorption wants muR,
 roughness a surface, Stephens a strain model, March-Dollase a habit — dispersion
 wants the species and the wavelength, both already in the model. Neglecting it
-costs RMS 2.26 -> 0.69 wt % on round-robin QPA.
+costs RMS 2.26 -> 0.64 wt % on round-robin QPA.
 
 **The anchors survive.** SRM 660c's cell does not move (4.156895 A either way).
 SRM 676a's certificate-grade c/a moves +30.1 -> +30.5 ppm against a 100 ppm bar —
@@ -1546,7 +1546,7 @@ should know about before trusting a number, each with what would close it.
 
 - **The SRM 660c certificate band is not reached and is not claimed.** Measured +28 ppm against a certificate uncertainty of +-8e-6 A.  The residual is a characterised cotTheta/sin2Theta aberration — equatorial divergence, tube tails, monochromator passband — which is the fundamental-parameters territory fenced to v2, not a tuning gap.
 
-- **GoF does not reach 1 on lab data and should not be expected to.** Cline et al. (2015) put the floor for analytical-PSF fits on this instrument class at 1.5-1.9; FPA reaches 1.08.  Measured 1.61 on corundum with Rexp ~ 8.9 %, so Rwp 14.4 % is mostly counting statistics.  A policy demanding GoF -> 1 would be demanding FPA.
+- **GoF does not reach 1 on lab data and should not be expected to.** Cline et al. (2015) put the floor for analytical-PSF fits on this instrument class at 1.5-1.9; FPA reaches 1.08.  Measured 1.63 on corundum with Rexp ~ 8.9 %, so Rwp 14.6 % is mostly counting statistics.  A policy demanding GoF -> 1 would be demanding FPA.
 
 - **The Apple-GPU (MPS) evidence is maintainer-machine-only.** Every torch-mps assertion is gated on torch.backends.mps.is_available(), which is False on hosted macOS runners.  The all-fp32 refinement landing 3.5e-8 A from numpy fp64 is real-hardware evidence for the fp64-host boundary, and no CI job reproduces it.  A green macOS job must not be read as 'MPS verified'.
 

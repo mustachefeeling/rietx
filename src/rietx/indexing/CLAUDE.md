@@ -44,7 +44,7 @@ mandatory** — the FoM panel sees ≤20 lines, so `validate_by_lebail`'s
 `predicted_but_absent` is what catches an oversized cell (117 of 153 for a
 doubled cell against 0 of 28 for the truth, Rwp moving only 0.216 → 0.379);
 Layer 0's `unmatched_calc` **cannot** serve (Le Bail assigns ~nothing to a
-phantom, so it fires 61 % either way), nor `unmatched_observed` as a caveat
+phantom, so it fires on 68 % of the truth's reflections against 55 % of a doubled cell's), nor `unmatched_observed` as a caveat
 (its level is the *specimen's* — 10-188 across 21 correct candidates —
 comparative only, WP-1041). **The validation fit holds the cell**, freeing
 exactly one peak-position parameter from the candidate's own shift template.

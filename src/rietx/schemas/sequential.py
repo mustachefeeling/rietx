@@ -67,8 +67,8 @@ class SeriesEntry(Base):
     #: I(calc) — so a phase whose reflections sit under a stronger phase's peaks
     #: receives the intensity it predicted and scores well for having predicted
     #: it.  The bias is in the definition, not in the fit, and in-repo the
-    #: arithmetic runs the *other* way to intuition: 11-BM NAC's 1.35 wt% CaF₂
-    #: impurity scores R_B 0.385 against the major phase's 0.052, the whole
+    #: arithmetic runs the *other* way to intuition: 11-BM NAC's 1.34 wt% CaF₂
+    #: impurity scores R_B 0.377 against the major phase's 0.048, the whole
     #: misfit sitting in four reflections under strong NAC peaks (WP-1069).  A
     #: *low* R_B on a trace phase is therefore as consistent with a fully
     #: overlapped, self-fulfilling partition as with a real phase, and nothing

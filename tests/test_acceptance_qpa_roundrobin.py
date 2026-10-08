@@ -42,7 +42,7 @@ into a wider band.  **WP-0504 re-derived that shape**: it is mostly the
 purpose, so its numbers stay comparable to v0.3), not microabsorption as v0.3
 supposed — see the shape test's docstring and
 ``test_acceptance_dispersion.py``, where enabling it takes the overall RMS
-error from 2.26 to 0.69 wt %.  Sample 2:
+error from 2.26 to 0.64 wt %.  Sample 2:
 worst 2.9 wt % with brucite March-Dollase r ≈ 0.68 (< 1 = platy in
 Bragg-Brentano reflection geometry, the expected habit).  Sample 4
 uncorrected: corundum +24, magnetite −15, zircon −9 wt %; Brindley with
@@ -360,8 +360,8 @@ def test_sample1_bias_has_the_dispersion_shape(sample1_results):
     different factor — 1.0542 corundum, 0.8441 zincite, 1.0728 fluorite — and
     QPA divides one phase's scale by another's.  That predicts all three signs
     with no free parameters.  Enabling the correction and refitting under this
-    identical protocol takes the overall RMS error from 2.26 to 0.69 wt % and
-    the worst |ΔW| from 5.13 to 1.39 (``test_acceptance_dispersion.py``).
+    identical protocol takes the overall RMS error from 2.26 to 0.64 wt % and
+    the worst |ΔW| from 5.13 to 1.23 (``test_acceptance_dispersion.py``).
 
     Microabsorption is real and still present in the ~0.7 wt % that remains;
     it is no longer the leading term.  Asserting the shape pins the

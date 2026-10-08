@@ -977,9 +977,9 @@ def test_the_2004_zeroshift_hypothesis_cannot_be_tested_on_these_data(bench):
     is False on all ten.  A measured "cannot tell" is a result; a guess is not.
 
     What *is* determined is the magnitude, and it disagrees with the paper's own
-    round number: against the published cell, PDF 43-1748 carries +0.062° and
+    round number: against the published cell, PDF 43-1748 carries +0.080° and
     46-1964 +0.058°, not 0.10°.  Subtracting 0.100 to make the C and D sets
-    therefore overshoots — measured, it leaves them at −0.039° and −0.043°, which
+    therefore overshoots — measured, it leaves them at −0.020° and −0.043°, which
     is why C is *not* uniformly easier than A.
     """
     seen = []
@@ -1341,8 +1341,8 @@ def test_a_hexagonal_lab_pattern_recovers_its_lattice(zincite_index):
     """ZnO wurtzite: the truth ranked first, by both engines, on lab data.
 
     The cleanest of the round-robin recoveries and the one that shows the panel
-    working rather than being overridden — a = −217 ppm and c = −186 ppm from
-    Kihara & Donnay's cell, **all 27 usable lines indexed**, M₂₀ = 902, and both
+    working rather than being overridden — a = −217 ppm and c = −185 ppm from
+    Kihara & Donnay's cell, **all 27 usable lines indexed**, M₂₀ = 910, and both
     engines agree.
 
     It is graded ``low`` anyway, on three caveats that each name something real,
@@ -1384,14 +1384,14 @@ def test_a_centred_tetragonal_lattice_is_recovered_with_its_centring(zircon_inde
     one metric stay *separate* candidates, because they predict different numbers
     of lines, and the figure-of-merit panel is what chooses between them
     (``engines.dedup_groups``).  Here it chooses correctly — tetragonal **I**,
-    a +207 ppm and c +1906 ppm from Hazen & Finger's cell.
+    a +140 ppm and c +2011 ppm from Hazen & Finger's cell.
 
     Note which figure does the choosing, and note that the obvious one cannot.
     The primitive twin of the same metric is also in the list and indexes within
     one line of the centred cell, because a cell predicting twice as many
     reflections matches at least as many observed ones at a shared metric.
     What separates them is
-    ``predicted_seen_fraction``, 0.57 for I against 0.28 for P, since half of what
+    ``predicted_seen_fraction``, 0.53 for I against 0.27 for P, since half of what
     P predicts is not there.  That is coverage scored *in both directions*, which
     is the whole reason the panel is a panel — and forward coverage alone would
     rank the wrong twin first.
@@ -1546,30 +1546,32 @@ def _brucite_truth(res):
 def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
         magnetite_index):
     """WP-1026's other recorded failure — and the ranking is right where the
-    **gate** is backwards.
+    **detector** is backwards (the grade was too, until WP-1449 and WP-1510).
 
     Re-measured, the cubic **F** truth is ranked first at −334 ppm and the
     primitive description of the identical metric is second, which is the panel
     working: ``predicted_seen_fraction`` reads 0.46 against 0.19, since three
     quarters of what a P cell predicts on an F lattice is not there.
 
-    **The gate then grades them the wrong way round, and the mechanism is one
+    **The detector then reads them the wrong way round, and the mechanism is one
     this package already documents at half strength.**  CLAUDE.md says to read a
     ``predicted_but_absent`` firing as "this cell predicts lines the pattern
     lacks" and never as "this cell is too big", because a *space-group*
     extinction refutes a correct cell — F d -3 m's d-glide does exactly that
-    here, 2 of 52.  What is new is the other half: the P rival's Le Bail fit
-    predicts **163** reflections on a 23-line pattern and reports **zero**
+    here, 3 of 52.  What is new is the other half: the P rival's Le Bail fit
+    predicts **163** reflections on a 17-line pattern and reports **zero**
     absent, because a Le Bail extraction with seven free intensities per observed
     line can put intensity wherever it is asked to.  So the detector fires on the
-    truth and is silent on the rival, and the rival ends **medium** where the
-    truth is **low**.
+    truth and is silent on the rival.  The rival used to end **medium** where the
+    truth is **low**; since WP-1449 and WP-1510 refute it as an index-2
+    superlattice it ends **low** too (``supercell_refuted``), so on the 1.7.0
+    tree the inversion is in the detector and no longer in the grade.
 
     **Measured (WP-1043): the detector's inputs are the candidate's to buy,
     and the background is the one it buys.**  The validation frees the
     background with no physical floor, and the rival's own fit drives it
-    **negative** — mean −11 counts on a pattern whose 5th percentile is 9 — so
-    net-above-background clears 3σ at 100 % of channels and nothing can read
+    **negative** — mean −5.8 counts on a pattern whose 5th percentile is 9 — so
+    net-above-background clears 3σ at 99.6 % of channels and nothing can read
     absent.  The decomposition is a 2×2 swap: with the *truth's* background
     under the rival's positions the absences return (8 of 163 at the fit's
     widths, 14 at the peak list's measured 0.54°, both fits also inflating
@@ -1577,7 +1579,7 @@ def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
     restores none — the background dominates, and the sign is the finding:
     the WP guessed "a raised background", but a raised background makes
     *more* absences, not fewer.  The formerly unexplained Rwp separation
-    (0.25 against 0.79) is the same fact seen by a different instrument — the
+    (0.22 against 0.71) is the same fact seen by a different instrument — the
     corrupted fit that blinds the detector is the fit Rwp reads — which is
     why surfacing Rwp to a reader is honest while wiring an Rwp ratio into
     the gate stays ruled out (WP-1020: a Le Bail Rwp rewards flexibility).
@@ -1610,7 +1612,7 @@ def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
         "forward coverage should be identical — if it is not, this row is no "
         "longer about the reversed direction")
 
-    # …and the gate grades them backwards, for the reason in the docstring
+    # …and the detector reads them backwards, for the reason in the docstring
     assert best.lebail is not None and rival.lebail is not None
     assert best.lebail.predicted_but_absent > 0, (
         "F d -3 m's d-glide should refute the *correct* cell here")
@@ -1636,7 +1638,7 @@ def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
     net = np.asarray(rival_fit.y_obs) - bkg
     assert bkg.mean() < 0.0, (
         f"the bought input: the rival's co-refined background should sit "
-        f"below zero (measured mean −11 counts), got {bkg.mean():.1f}")
+        f"below zero (measured mean −5.8 counts), got {bkg.mean():.1f}")
     assert np.mean(net > 3.0 * np.asarray(rival_fit.sigma)) > 0.99, (
         "with a negative background every channel reads as net intensity, "
         "and a detector asking 'is there nothing here' can never fire")
@@ -1769,7 +1771,7 @@ def test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing(
     #
     # The order no longer rests on the panel alone.  The P description is an
     # index-2 superlattice of the I cell, and of the 187 lines it adds that no
-    # extinction could remove, 1 sits on an observed line at p0 = 0.034
+    # extinction could remove, 1 sits on an observed line at p0 = 0.030
     # (p = 1.0).  So the supercell check refutes it, and it sits directly below
     # the I cell with `supercell_refuted` (WP-1449).  Measured on a finished
     # search (`[dev]`, Linux x86-64).
@@ -1800,8 +1802,8 @@ def test_the_cross_code_cell_leads_because_the_engines_agree_on_it(fap_index):
     agreement rather than accuracy, at ``FAP_INDEXING_PPM`` — which is *not* the
     refinement suite's ±300 ppm, for the reason that constant records.
 
-    The candidate that meets that band indexes 178 of 185 lines at a = +258 ppm,
-    c = +325 ppm, and is the one **every engine that ran found**.  Until WP-1046
+    The candidate that meets that band indexes 131 of 136 lines at a = +123 ppm,
+    c = +414 ppm, and is the one **every engine that ran found**.  Until WP-1046
     it was **ranked fourth**, below three cells 966-1396 ppm out that index
     *fewer* lines (152) but score a higher M₂₀ — the ordering M₂₀ produces when a
     slightly wrong metric matches a subset of lines more tightly than the right
@@ -2631,8 +2633,8 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     3. ``shift_template="cos_theta"`` declared, so the measured displacement is
        taken out of the cell instead of absorbed into it.
 
-    With all three: **a = 4.156772 Å, −2 ppm** from the NIST certification CIF's
-    own cell for this data block, M₂₀ = 1113, zero caveats.  Against the −127 ppm
+    With all three: **a = 4.156801 Å, +5 ppm** from the NIST certification CIF's
+    own cell for this data block, M₂₀ = 3266, zero caveats.  Against the −127 ppm
     the same pattern gives with none of them.  So the arithmetic of the whole
     pipeline is sound to the part-per-million and what stands between it and a
     blind certified answer is a peak list — which is the useful form of this
@@ -2647,7 +2649,7 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     positions: the template is fitted by ``refine_with_shift`` only after a
     candidate survives, so the window still has to span the shift itself.  What
     the search needs is the shift's **amplitude** (0.038°, identical under both
-    trims), and this fixture declares that.  The two quantities differ by 4.3×
+    trims), and this fixture declares that.  The two quantities differ by 4.9×
     (probe) to 15× (flags) and only one of them indexes; filed to WP-1028.
     Since WP-1045 the spec field is named ``shift_allowance_deg``, so the wrong
     number no longer shares the argument's name — the declaration below now
@@ -2671,7 +2673,7 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     # **And `best_or_none()` is None anyway, because another cell also reaches
     # `high` — a defect this row used to hide rather than one WP-1041 caused.**
     #
-    # It is the a·√2 cell (5.878564 = 4.156772 × 1.414214), found by all three
+    # It is the a·√2 cell (5.878605 = 4.156801 × 1.414214), found by all three
     # engines in its I and P descriptions.  Until WP-1449 both reached `high`.
     # The P description is an index-2 superlattice of the I one, and the lines
     # it adds that no extinction could remove are absent, so the supercell check
@@ -2723,7 +2725,7 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
 
     # and the trap, **which one engine no longer falls into** (WP-1040 task 3).
     # Declaring the residual scatter (0.0078°) rather than the amplitude
-    # (0.038°) gives the search a window 4.3× too tight to span the shift, and
+    # (0.038°) gives the search a window 4.9× too tight to span the shift, and
     # until the zero-error column landed that returned nothing at all.  It now
     # returns the certified cell at **+5 ppm**, because `search_svd` no longer
     # needs the window to span a shift it can *measure*: Coelho's Ze column
@@ -2757,7 +2759,7 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     tight = index_pattern(probe, data=data, instrument=ins, spec=spec,
                           preset="full")
     assert tight.candidates, (
-        "a window 4.3× too tight now finds nothing again — if the zero-error "
+        "a window 4.9× too tight now finds nothing again — if the zero-error "
         "column changed, this is where it shows first")
     _skip_unless_finished(tight)
     recovered = tight.candidates[0]
@@ -2782,7 +2784,7 @@ SVD_ZERO_ERROR_ROWS = {
     "lab6": ((A_SRM660C,) * 3 + (90.0, 90.0, 90.0), "cubic", "P", 0,
              0.0359, 0.0367),
     "corundum": ((A_SRM676A, A_SRM676A, C_SRM676A, 90.0, 90.0, 120.0),
-                 "trigonal", "R", 1, -0.0670, -0.0650),
+                 "trigonal", "R", 1, -0.0673, -0.0650),
 }
 
 
@@ -2846,7 +2848,7 @@ def test_the_svd_zero_error_is_a_third_road_to_the_anchors_shift(lab6_peaks):
 def test_the_svd_zero_error_is_a_third_road_to_corundums_shift(corundum_peaks):
     """The same three-way check on the lab specimen with the larger shift.
 
-    **−0.0666°** against **−0.0670°** from pairs and **−0.0650°** measured
+    **−0.0674°** against **−0.0673°** from pairs and **−0.0650°** measured
     against the certificate.  Corundum needs ``trim=1``: its list opens on the
     5.17° edge artifact, 3.9× beyond the longest d the lattice allows, and that
     one line breaks eq. (4)'s weighting outright (``svd.py`` rule 4).  The

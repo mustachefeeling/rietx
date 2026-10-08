@@ -61,13 +61,13 @@ carries the same conditioning as every other esd the package reports.
 ### A worked mixture
 
 Fitting `cpd-1e` of the IUCr round-robin (corundum, zincite and fluorite,
-weighed at 55.12, 15.25 and 29.62 wt %) reaches Rwp 0.126 and gives:
+weighed at 55.12, 15.25 and 29.62 wt %) reaches Rwp 0.128 and gives:
 
 | Phase | W (%) | esd | Z | Z·M | V (Å³) | Weighed | Error |
 |---|---|---|---|---|---|---|---|
-| corundum | 57.33 | 0.52 | 6 | 611.77 | 254.75 | 55.12 | +2.21 |
-| zincite | 12.93 | 0.27 | 2 | 162.76 | 47.60 | 15.25 | −2.32 |
-| fluorite | 29.74 | 0.45 | 4 | 312.30 | 163.09 | 29.62 | +0.12 |
+| corundum | 57.26 | 0.44 | 6 | 611.77 | 254.75 | 55.12 | +2.14 |
+| zincite | 12.98 | 0.23 | 2 | 162.76 | 47.60 | 15.25 | −2.27 |
+| fluorite | 29.76 | 0.38 | 4 | 312.30 | 163.09 | 29.62 | +0.14 |
 
 The errors are well inside the published participant spread for this sample,
 and they are much larger than the esds. That is the normal state of affairs and
@@ -283,9 +283,9 @@ gives:
 
 | Phase | µ (cm⁻¹) | µR | τ | W (%) | Error | Corrected (%) | Error |
 |---|---|---|---|---|---|---|---|
-| corundum | 125.8 | 0.006 | 1.009 | 74.69 | +24.23 | 71.04 | +20.58 |
-| magnetite | 1134.8 | 0.567 | 0.520 | 4.57 | −15.07 | 8.43 | −11.21 |
-| zircon | 379.8 | 0.057 | 0.969 | 20.74 | −9.16 | 20.53 | −9.37 |
+| corundum | 125.8 | 0.006 | 1.009 | 74.62 | +24.16 | 70.96 | +20.50 |
+| magnetite | 1134.8 | 0.567 | 0.520 | 4.60 | −15.04 | 8.48 | −11.16 |
+| zircon | 379.8 | 0.057 | 0.969 | 20.78 | −9.12 | 20.56 | −9.34 |
 
 Read that table as three separate statements. The uncorrected errors have the
 microabsorption shape, the two absorbing phases suppressed and the weakly

@@ -79,12 +79,12 @@ diagnostic, provenance, agreement indices last.
 RefinementResult: converged (rietveld)
   stage scale_bkg: converged (10 it, ftol=1e-06)
   ...
-  stage biso: converged (8 it, ftol=solver default), max|Δθ|/esd=0.000
+  stage biso: converged (9 it, ftol=solver default), max|Δθ|/esd=0.000
   diagnostics: 2 unresolved
     WARNING BOUND_HIT: phases.1.atoms.0.biso refined to its bound — widen the bound or fix the parameter
     INFO CAPILLARY_OFFSET_UNAVAILABLE: ...
-  provenance: rietx 1.3.0, backend=numpy, solver=trf
-  Rwp 0.0933 / Rexp 0.0264 (GoF 3.53), Rp 0.0623, χ² 12.5, DW 0.18
+  provenance: rietx 1.7.0, backend=numpy, solver=trf
+  Rwp 0.0933 / Rexp 0.0264 (GoF 3.54), Rp 0.0625, χ² 12.5, DW 0.18
 ```
 
 `RefinementResult.status` is a plain string, one of `converged`, `max_iter` and
@@ -271,7 +271,7 @@ phase: Na2Ca3Al2F14, I 21 3, a=10.257 A, 6 asymmetric atoms
 Le Bail:  status=converged  Rwp=0.1435  GoF=5.44  a=10.251214 A
 Rietveld: status=converged  Rwp=0.0933  GoF=3.54
           a = 10.251216 +/- 0.000040 A (COD reference 10.257(1); high-accuracy powder ~10.2497-10.2506)
-          [warning] BOUND_HIT: phases.1.atoms.0.biso refined to its bound (ρ=+0.187, 1.7e-27 esd from the limit)
+          [warning] BOUND_HIT: phases.1.atoms.0.biso refined to its bound (ρ=+0.187, 1.6e-27 esd from the limit)
 ```
 
 It goes on to print the report summary, its five worst regions, and the history
