@@ -285,8 +285,8 @@ print(f"usable {len(empty.usable())} of {len(empty.peaks)}")
 ```
 
 ```text
-intensity 8e-16   esd(2θ) 3e+15°
-flags ['position_at_bound', 'no_intensity']
+intensity 3e-18   esd(2θ) 7e+17°
+flags ['position_at_bound', 'no_intensity', 'position_unmeasured']
 usable 0 of 1
 ```
 
@@ -295,7 +295,7 @@ is yours to see and remove, and a call that silently returns fewer peaks than
 you asked for is a call you cannot check. It is also not a measurement. A peak
 reaches the data only through intensity × profile, so a component at zero
 intensity has no gradient on its own position. What comes back is wherever the
-solve left it, and the esd of 3e+15° is the honest statement of that.
+solve left it, and the esd of 7e+17° is the honest statement of that.
 `PeakList.usable` drops it for you, and `PeakList.peaks` keeps the reason.
 
 ### The neighbour you did not name
@@ -1232,7 +1232,7 @@ unasked question, which must not read as a clean answer.
 On the GSAS-II fluorapatite tutorial pattern the screen enumerates seven
 classes over 15–90° in about two seconds and returns `P 63 - -`, whose members
 are `P 63`, `P 63/m` and `P 63 2 2`, with one condition, `00l: l = 2n`, and
-ΔBIC −21.8 against the absence-free class. That is a complete answer rather than
+ΔBIC −15.7 against the absence-free class. That is a complete answer rather than
 a hedge. The mirror and the two-folds that separate those three produce no
 absences at all, so no counting time distinguishes them, and
 `EXTINCTION_GROUPS_NOT_SEPARABLE` says so. Choosing inside a class is chemistry
@@ -1253,19 +1253,20 @@ a neighbour's tail, not even a total one, can manufacture a refutation.
 
 That is what returns the right answer here. α-Al₂O₃ is certified `R -3 c`, and
 over 20–90° with the widths seeded from the peak list the screen returns
-`R - c -` = {`R 3 c`, `R -3 c`} at ΔBIC −218, with five testable positions all
+`R - c -` = {`R 3 c`, `R -3 c`} at ΔBIC −3434, with six testable positions all
 absent: the certified group listed, never chosen, beside the
 non-centrosymmetric partner no counting time separates from it.
 
 Read `ExtinctionScreen.profile_rwp` before believing a refutation anyway. Every
 class is fitted with the shared instrument frozen, so a poor shared fit is a
 poor screen, and the gate above bounds what a neighbour can do rather than what
-a wrong profile can. Same specimen, same certified cell, over the whole 5–150°
-range with the round-robin instrument's declared widths: the shared fit reaches
-Rwp 0.270 against 0.149, its fitted peaks come out a third too wide, four
-forbidden positions read as occupied, and the certified class is refuted. So
-give the screen a range and a width law its profile fit can actually match, and
-read `ExtinctionScreen.profile_rwp` to check that it did.
+a wrong profile can. Same specimen, same certified cell, over the whole 5–150° range with the
+round-robin instrument's declared widths: the shared fit reaches Rwp 0.262, four
+forbidden positions read as occupied, and the certified class is refuted. The
+20–90° arm above reads 0.259, so on this specimen the Rwp is poor in both and
+does not tell them apart. Give the screen a range and a width law its profile
+fit can actually match, and read `ExtinctionScreen.profile_rwp` to check that it
+did.
 
 Refutation still outranks ΔBIC wherever a testable position does carry
 intensity. A class asserts absences, and no amount of evidence for it buys back

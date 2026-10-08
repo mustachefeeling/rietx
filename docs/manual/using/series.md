@@ -155,8 +155,8 @@ lower, at 3.95 % against 4.29 % (WP-1459).
 Carrying everything is cheap even when it looks reckless. Measured on the eight
 IUCr round-robin sample-1 mixtures (three phases, one goniometer, 7251 points
 each over 5–150°, and a composition that swings from 1.8 to 94.2 wt % across the
-set), the chain took 816 least-squares iterations against 2789 for the same
-eight patterns fitted independently, a factor of 3.4, and every pattern
+set), the chain took 627 least-squares iterations against 1826 for the same
+eight patterns fitted independently, a factor of 2.9, and every pattern
 converged on its first rung.
 
 `prepare` is for what a `carry` glob cannot express: a parameter that must be
@@ -763,9 +763,9 @@ under `on_error="raise"` no longer costs the forward chain, which is on
 
 `SeriesResult.n_iterations` counts the chain the result reports, which under
 `direction="both"` is the forward one. It is not what the run cost:
-`result.backward.n_iterations` is the rest. On the round-robin series both
-chains come to 816, against a wall clock of 33.7 s forward and 83.7 s for
-`"both"`.
+`result.backward.n_iterations` is the rest. On the round-robin series the
+forward chain comes to 627 and the backward one to 2212, against a wall clock
+of 5-8 s forward and about 28 s for `"both"`.
 
 ## Telemetry, history and cancellation
 
@@ -911,9 +911,9 @@ f(s), while a nucleus's scattering length b follows no such order. Corundum
 ranks its two sites oppositely: f(0) is 13 electrons for Al and 8 for O, while
 b is 3.449 fm for Al and 5.803 fm for O (Sears's table, which is what
 `b_Sears.dat` holds). On synthetic corundum patterns with a known answer, the
-X-ray pattern alone determined z(Al) about three times better than the neutron
+X-ray pattern alone determined z(Al) about 3.5 times better than the neutron
 pattern alone, and x(O) about as well. Refined jointly, the esd of z(Al) was
-0.95 to 0.97 of the X-ray pattern's own, and the esd of x(O) 0.58 to 0.69 of it.
+0.94 to 0.97 of the X-ray pattern's own, and the esd of x(O) 0.65 to 0.68 of it.
 The neutron histogram bought the oxygen and left the aluminium to the X-rays.
 In the same fits the two scales, 3.5 times apart, and two zero shifts of
 opposite sign each came back on their own histogram's value.
@@ -1139,8 +1139,8 @@ A pooled Rwp is never quoted alone. Stacking patterns into one residual
 means a single pooled number can hide a badly fitting histogram, which is the
 failure this package's reporting exists to prevent, so each histogram reports
 its own. Measured on two LaB₆ patterns of the same crystal at λ = 0.41390 Å
-(4200 points) and λ = 0.71070 Å (8000 points), the pooled Rwp was 0.0516 while
-the two histograms were at 0.0414 and 0.0613. The pooled figure describes
+(4200 points) and λ = 0.71070 Å (8000 points), the pooled Rwp was 0.0514 while
+the two histograms were at 0.0411 and 0.0613. The pooled figure describes
 neither.
 
 `HistogramResult.weight` is 1.0 at unit weight, where each point's own esd
@@ -1155,10 +1155,10 @@ per pattern. Reports are per-histogram for the same reason the statistics are.
 ### What the joint fit bought
 
 On those two LaB₆ patterns the shared cell came back identical in both entries
-of `MultiHistogramRefinement.fitted_structures`, a = 4.156604 Å against the
-4.15660 Å the patterns were built from and +1.0 ppm out, while the per-histogram
+of `MultiHistogramRefinement.fitted_structures`, a = 4.156597 Å against the
+4.15660 Å the patterns were built from and −0.6 ppm out, while the per-histogram
 zero
-shifts separated correctly, 0.006019° and −0.009974° against the 0.006° and
+shifts separated correctly, 0.005997° and −0.010008° against the 0.006° and
 −0.010° that went in. Its esd was 2.43 × 10⁻⁶ Å, against 4.70 × 10⁻⁶ and
 2.83 × 10⁻⁶ from the two patterns refined singly: 1.94× and 1.17× better than
 either alone, which is the joint fit's whole argument.

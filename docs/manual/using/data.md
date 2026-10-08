@@ -326,7 +326,7 @@ the six values as a tuple.
 | `Atom.species` | str | required | the scattering species: `"La"`, `"B"`, `"Fe3+"` |
 | `Atom.x`, `Atom.y`, `Atom.z` | `Parameter` | required | fractional coordinates |
 | `Atom.occ` | `Parameter` | 1.0, in [0, 1.5] | site occupancy |
-| `Atom.biso` | `Parameter` | 0.5 Å², in [0, 25] | isotropic displacement, B = 8π²·U |
+| `Atom.biso` | `Parameter` | 0.5 Å², unbounded | isotropic displacement, B = 8π²·U |
 | `Atom.aniso` | `AnisoU` or None | `None` | anisotropic displacement, CIF U^ij, {eq}`int-dw-aniso` |
 | `Atom.moment` | `Moment` or None | `None` | a magnetic moment in crystal-axis components, μ_B, {eq}`int-Fmag`; needs `Phase.magnetic_symmetry` beside it |
 | `Atom.disorder_assembly` | str or None | `None` | the CIF's `_atom_site_disorder_assembly`: a cluster of disordered sites that is locally ordered |
@@ -945,7 +945,7 @@ the blind scan runs to 12 terms and the same scan with the curve held selects 2.
 statistics, and the channel weight becomes σ² + s²·σ_f² rather than σ² alone.
 That is what makes a short blank scan worse than a long one. The weight then
 depends on the scale, so Rwp is not comparable between two fits that declare
-different ones. The 11-BM arm held at 1.0 reads 0.074012 against its own σ and
+different ones. The 11-BM arm held at 1.0 reads 0.074011 against its own σ and
 0.079311 against the specimen's σ alone. Score a scan of scales under one σ, or
 the minimum moves: under each fit's own σ it sits at 0.90, and under one common
 σ at 0.85, where the refined scale is.
@@ -1083,14 +1083,14 @@ jointly with the polynomial at the end.
 |---|---|---|---|---|---|
 | Chebyshev, 3 terms | 3 | 0.119977 | 1.9695 | 0.414(65) | 0 |
 | Chebyshev-3 + one hump | 3 + 3 | 0.082503 | 1.3544 | 0.421(10) | 0 |
-| Chebyshev, 6 terms | 6 | 0.088597 | 1.4545 | 0.422(25) | 0 |
+| Chebyshev, 6 terms | 6 | 0.088596 | 1.4544 | 0.422(25) | 0 |
 | Chebyshev-6 + one hump | 6 + 3 | 0.077152 | 1.2666 | 0.4235(66) | 0 |
 
 Three peak parameters beat three polynomial ones. The first two rows differ by
 three numbers, and so do the first and third: three peak parameters against
 three extra polynomial coefficients, the same cost to the same fit. The peak
 takes Rwp from 0.119977 to 0.082503, a fall of 0.037 or 31 % relative; three
-more Chebyshev terms take it to 0.088597, 26 %. That is the whole comparison,
+more Chebyshev terms take it to 0.088596, 26 %. That is the whole comparison,
 and it is a fair one only because the parameter counts match.
 
 The peak releases the Bragg intensity instead of competing with it. Biso(Si)

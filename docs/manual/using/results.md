@@ -50,9 +50,10 @@ result says so as `FROZEN_COMPILE_STALE`, both figures in its message. The
 esds are not re-measured: they are the last solve's, read off its Jacobian.
 To reproduce the number yourself, compile `Refinement.fitted_structure` and
 `Refinement.fitted_instrument` with `moving_paths` set to the paths in
-`result.parameters`. A compile claiming nothing moves sizes the peak
-quadrature for the values alone, and on the Si SRM 640c acceptance fixture
-that alone moves χ² by 1.4 %.
+`result.parameters`. The peak quadrature is sized from the parameter values,
+free or not, so a compile claiming nothing moves gives the same χ² on the
+Si SRM 640c acceptance fixture (88 283.25 either way). Up to 1.6.0 that claim
+alone moved it by 1.4 %.
 
 The literature is not consistent about which of the two is called χ². The IUCr
 guidelines {cite}`mccusker1999` write χ² = Rwp/Rexp and say it should approach 1;
@@ -101,9 +102,9 @@ weighted (the sums count every reflection alike, whatever its counting
 statistics), so a reflection the fit barely constrains weighs as much as one
 that dominates it, and a minor phase's windows sit under
 the major phase's peaks, where the counts the major phase failed to describe are
-handed out too. Measured on the 11-BM NAC pattern with its 1.35 wt % CaF₂
-impurity: NAC reads R_B 0.052 and the impurity 0.385, with the whole of the
-impurity's misfit in four reflections at I(obs)/I(calc) ≈ 2.2, every one of
+handed out too. Measured on the 11-BM NAC pattern with its 1.34 wt % CaF₂
+impurity: NAC reads R_B 0.048 and the impurity 0.377, with the whole of the
+impurity's misfit in four reflections at I(obs)/I(calc) of 2.2 to 2.3, every one of
 them under a strong NAC peak with a large positive residual. Read R_B beside the
 phase's weight fraction, and treat a trace phase's value as a question rather
 than a measurement.
@@ -537,7 +538,7 @@ bounded at zero: a residual leaning the other way is a direction the term
 cannot take. On that pattern it reads 0.13 with the rise, where declaring the
 term cuts χ² by 24 %, and nothing on the control, where declaring it cuts
 nothing. A weaker rise that `LOW_ANGLE_UNMODELLED` misses, because it runs on
-under the first lines, still reads 0.011. Where the spline can draw 1/(2θ) on its
+under the first lines, still reads 0.012. Where the spline can draw 1/(2θ) on its
 own, the projected column is small and the code is silent. The remedy is in
 the suggestion: declare the term and refit.
 
