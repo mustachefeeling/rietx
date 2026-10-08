@@ -209,7 +209,28 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
             magnetic_symmetry=MagneticSymmetry.model_validate("136.499"),
         )]),
          Instrument(source=Source(lines=[EmissionLine(wavelength=1.540598)]))),
+        # A rigid body (WP-1805): its origin, origin DOFs and rotation
+        # increment are families no other model declares.  Two atoms placed
+        # by ``body_from_atoms`` in a P1 cell, so the body decodes them back.
+        (Structure(phases=[_body_phase()]),
+         Instrument(source=Source(lines=[EmissionLine(wavelength=1.540598)]))),
     ]
+
+
+def _body_phase() -> Phase:
+    from rietx.crystallography.bodies import body_from_atoms
+
+    phase = Phase(
+        name="body", space_group="P1",
+        cell=Cell(a=Parameter(value=6.0), b=Parameter(value=7.0),
+                  c=Parameter(value=8.0), alpha=Parameter(value=90.0),
+                  beta=Parameter(value=90.0), gamma=Parameter(value=90.0)),
+        atoms=[Atom(label="C1", species="C", x=Parameter(value=0.1),
+                    y=Parameter(value=0.2), z=Parameter(value=0.3)),
+               Atom(label="O1", species="O", x=Parameter(value=0.3),
+                    y=Parameter(value=0.2), z=Parameter(value=0.3))])
+    return phase.model_copy(update={"rigid_bodies": [
+        body_from_atoms(phase, ["C1", "O1"], "co")]})
 
 
 def _all_models() -> list[tuple[Structure, Instrument]]:

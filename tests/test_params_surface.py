@@ -43,10 +43,14 @@ SHORT = rx.RefinementPlan(stages=[
 #: with another parameter's state, which is why it cannot be an ``Entry.locked``
 #: flag and has to be recomputed each time the surface is read.
 #:
+#: ``body`` (WP-1805) names the rigid body writing a row, which outranks
+#: ``locked`` in ``held_because`` because its remedy differs — and is
+#: outranked by ``mode_fixed``, which force-fixes that remedy too.
+#:
 #: ``help_key`` (WP-1202) is not a held-reason at all: it names the
 #: ``rietx.help`` family that describes the path, which is a fact about the
 #: path's *shape* and so belongs to no single entry.
-DELIBERATE_EXTRAS = {"esd", "mode_fixed", "needs_held_cell", "help_key"}
+DELIBERATE_EXTRAS = {"esd", "mode_fixed", "needs_held_cell", "help_key", "body"}
 
 
 @pytest.fixture(scope="module")

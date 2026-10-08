@@ -309,7 +309,9 @@ def mode_fixed_path(path: str, mode: Mode) -> bool:
     # family is drawn only in Rietveld, so under an intensity model a free
     # width would be a dead column, as the moment it broadens (``.atoms.``)
     # already is here.
-    return (".atoms." in path
+    # A rigid body's origin and rotation (WP-1805) move nothing but its atoms'
+    # coordinates, so they are structural parameters too.
+    return (".atoms." in path or ".rigid_bodies." in path
             or (path.startswith("phases.") and path.endswith(".scale"))
             or ".source.lines." in path
             or _MAGNETIC_WIDTH_PATH.match(path) is not None)
@@ -2270,6 +2272,7 @@ class Refinement:
         # *makes* a variable fixed, and a row that then called it refinable
         # would invite the caller to free what the next stage fixes again.
         reach = table.entry_reach()
+        owned = table.body_rows()
         rows = []
         for e in table.entries:
             rows.append(ParameterRow(
@@ -2284,6 +2287,7 @@ class Refinement:
                             if e.path in reach
                             else mode_fixed_path(e.path, mode)),
                 needs_held_cell=e.path in blocked,
+                body=owned.get(e.path),
                 help_key=help_key_for(e.path),
             ))
         return rows
@@ -2911,6 +2915,19 @@ class Refinement:
             raise ValueError(f"unknown parameter path: {glob!r}")
         hits = sorted(p for p in known
                       if any(fnmatch.fnmatchcase(p, g) for g in globs))
+        # a body owns its atoms' coordinates as symmetry owns a special
+        # position, and the hold that means anything is on the body's own
+        # DOFs (WP-1805's record); a glob sweeping body rows is refused too,
+        # since holding half of what it names would be a silent partial hold
+        owned = table.body_rows()
+        if blocked := [p for p in hits if p in owned]:
+            names = sorted({owned[p] for p in blocked})
+            raise ValueError(
+                f"cannot hold {blocked[0]!r}"
+                + (f" and {len(blocked) - 1} more" if len(blocked) > 1 else "")
+                + f": placed by rigid body {names[0]!r}; hold the body's own "
+                "origin and rotation instead (phases.*.rigid_bodies.*.origin.dof.*, "
+                "phases.*.rigid_bodies.*.rotation.*)")
         new = [p for p in hits if p not in self._user_holds]
         if not new:
             return []
@@ -3763,6 +3780,9 @@ class Refinement:
                 by_path = {e.path: e for e in table.entries}
                 for path in collapsed:
                     by_path[path].value = start_values[path]
+                # a body's rotation restarts at zero either side of the
+                # commit, which composed the turn into its anchor (WP-1805)
+                table.restore_body_anchors(collapsed)
                 table.refresh_ties()  # dependents follow (b←a on a cubic cell)
                 # a collapsed combination is turned at the restored values,
                 # then held — the stage-start order
@@ -6370,8 +6390,11 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         p for d in (diagnostics if cell_runaway is None else cell_runaway)
         if d.code == "CELL_RUNAWAY" for p in d.where))
     params = []
+    # a derived row (a rigid body's atom, WP-1805) moves with θ as a tied row
+    # does and carries its esd through the block, so it is reported like one
+    derived = table.derived_paths()
     for e in table.entries:
-        if e.vary or e.tie is not None:
+        if e.vary or e.tie is not None or e.path in derived:
             params.append(RefinedParameter(
                 path=e.path, value=e.value, vary=e.vary,
                 stderr=(None if e.path in withheld
@@ -6593,6 +6616,11 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # A crystallite smaller than solved refinements normally report — the size
     # twin of the flag above (bound: params.vector.size_cap, one tier up).
     diagnostics = diagnostics + _size_flag_diagnostics(model, values, structure)
+
+    # A free rigid-body DOF the data gave no gradient (WP-1805): named, never
+    # left to read as a body that refined
+    if stderr_internal is not None:
+        diagnostics = diagnostics + _rigid_body_unsupported(table, params)
 
     # The width census against the answer's own widths (WP-1336, issue #249):
     # the one width check that looks at the data rather than at a refined
@@ -8717,6 +8745,37 @@ def _width_census_diagnostics(model: CompiledModel, values: dict[str, float],
         if np.all(np.isfinite(fw)):
             modelled[ip] = (structure.phases[ip].name, float(np.median(fw)))
     return refinement_width_diagnostics(measured, modelled)
+
+
+def _rigid_body_unsupported(table: ParameterTable,
+                            params: list[RefinedParameter]) -> list[Diagnostic]:
+    """``RIGID_BODY_UNSUPPORTED``: a free body DOF that measured nothing.
+
+    One finding per body, ``where`` its DOFs whose column had no gradient at
+    all (``ParameterTable.unmeasured_free``, so the esd is absent rather than
+    infinite).  The commonest cause is a body whose atoms the pattern cannot
+    see in that direction: a turn that moves only zero-occupancy atoms, or one
+    about an axis the template is symmetric under.  Every body atom row then
+    carries no esd either, which the rows already say; this says which DOF
+    did it.  A body a stage *held* (an absent phase, WP-1301) is
+    ``PHASE_UNCONSTRAINED``'s, never this.
+    """
+    owner = table.body_dofs()
+    free = set(table.free_paths)
+    blind: dict[str, list[str]] = {}
+    for row in params:
+        if row.path in owner and row.path in free and row.stderr is None:
+            blind.setdefault(owner[row.path], []).append(row.path)
+    return [Diagnostic(
+        level="warning", code="RIGID_BODY_UNSUPPORTED", where=paths,
+        message=(f"rigid body {name!r}: {len(paths)} free degree(s) of freedom "
+                 f"measured nothing ({', '.join(paths)}); the pattern does not "
+                 "move with them, so their values and every body atom's esd are "
+                 "not measurements"),
+        suggestion=("hold them (Refinement.hold) and refit, or check the body: "
+                    "a zero-occupancy atom, or a template symmetric about the "
+                    "axis, leaves a turn the data cannot see"))
+        for name, paths in blind.items()]
 
 
 def _size_flag_diagnostics(model: CompiledModel, values: dict[str, float],

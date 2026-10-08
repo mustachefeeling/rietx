@@ -256,6 +256,41 @@ or the caller holds is left where it is. The chart still has a cut at
 $\phi = \pm\pi$, so the series fences compare an angle across patterns
 modulo a turn.
 
+## Rigid bodies
+
+A rigid body is a set of a phase's atoms placed by one template. The atoms'
+coordinates are not parameters of their own: they are the output of a
+nonlinear map applied after the affine block, the *derived block* of the
+parameter table,
+
+```{math}
+:label: par-body
+
+\mathbf{x}_i \;=\; \mathbf{o} \;+\; M^{-1}(a, b, c, \alpha, \beta, \gamma)\,
+\operatorname{Exp}(E\,\boldsymbol{\theta})\, R_0\, \mathbf{T}_i ,
+```
+
+{source}`rietx.params.bodies.RigidBodyBlock`
+
+with $\mathbf{T}_i$ the template point in Å, $R_0$ the stored orientation,
+$\delta\boldsymbol{\omega} = E\,\boldsymbol{\theta}$ the refined rotation
+increment (a rotation vector; Solà et al.'s left-plus increment
+{cite}`sola2018`), $\mathbf{o}$ the origin and $M$ the closed-form Cartesian
+frame with $\mathbf{a}$ along $x$ and $\mathbf{b}$ in the $xy$ plane. There
+are as many rotation parameters $\boldsymbol{\theta}$ as the template's
+inertia rank: three, with $E = I$, for any body that is not linear; two for a
+linear one, $E$'s columns perpendicular to its axis, since a turn about the
+axis moves nothing. Every commit composes the increment into the record,
+$R_0 \leftarrow \operatorname{Exp}(\delta\boldsymbol{\omega})\,R_0$ and
+$\boldsymbol{\theta} \leftarrow 0$, so each stage starts where the exponential
+map's Jacobian is the identity. The cell
+is a live input, so a body keeps its geometry in Å while the cell refines.
+The origin refines like an atom's coordinates, on its site-symmetry degrees of
+freedom. Each body atom's esd comes through the map's exact Jacobian at the
+refined parameters, chained through the covariance of the origin, rotation and
+cell. A distance between two atoms of one body has no esd, because the template
+fixes it.
+
 ## Soft restraints
 
 A bond-length, angle or value restraint contributes one row to the residual

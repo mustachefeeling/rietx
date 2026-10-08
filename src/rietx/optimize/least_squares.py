@@ -268,19 +268,33 @@ class LSQOutcome:
 
 def rechart_outcome(outcome: LSQOutcome, theta: np.ndarray,
                     signs: np.ndarray | None) -> LSQOutcome:
-    """``outcome`` restated in the chart the table committed it in (#604).
+    """``outcome`` restated in the chart the table committed it in.
 
-    ``ParameterTable.commit`` moves a moment block's DOFs into the principal
-    chart (``moments.canonical_dofs``), the same moment in different numbers,
-    and returns the ±1 each free column was multiplied by.  ``theta`` is the
-    committed table's ``x0()``.  Every column-indexed field follows: a
-    Jacobian column and a residual cosine take the sign, a correlation takes
-    it on both sides, and an esd takes none, which is why a canonicalisation
-    can move no esd.  ``signs is None`` (nothing moved) returns ``outcome``.
+    ``theta`` is the committed table's ``x0()``; ``signs`` is what
+    ``ParameterTable.commit`` returned.  ``None`` (nothing moved) returns
+    ``outcome``.  Two shapes:
+
+    * a vector of ±1 per free column (#604): a moment block moved into its
+      principal chart, the same moment in different numbers.  A Jacobian
+      column and a residual cosine take the sign, a correlation takes it on
+      both sides, and an esd takes none, which is why a canonicalisation can
+      move no esd.
+    * the square matrix T = ∂θ_old/∂θ_new (WP-1805): a rigid body's rotation
+      composed into its anchor, R₀ ← Exp(δω)·R₀ and δω ← 0.  The Jacobian
+      follows the chain rule, J_new = J_old·T; the covariance transforms as
+      T⁻¹·Cov·T⁻ᵀ, which moves the rotation columns' esds and correlations to
+      what a solve started at δω = 0 on the committed values measures; a
+      residual cosine is re-read off the new columns (``‖r‖`` cancels, so the
+      old cosines and column norms suffice).  Columns T leaves alone keep
+      their numbers bit for bit.  A column whose esd is not finite (one that
+      measured nothing) cannot be carried through T⁻¹, so the block holding
+      it keeps its old esds and correlations.
     """
     if signs is None:
         return outcome
     s = np.asarray(signs, dtype=np.float64)
+    if s.ndim == 2:
+        return _rechart_matrix(outcome, theta, s)
 
     def padded(n: int) -> np.ndarray:
         # a Pawley block rides after the table columns and never moves
@@ -298,6 +312,69 @@ def rechart_outcome(outcome: LSQOutcome, theta: np.ndarray,
         cosine = np.asarray(cosine) * padded(len(cosine))
     return replace(outcome, theta=np.asarray(theta, dtype=np.float64), jac=jac,
                    correlation=corr, residual_cosine=cosine)
+
+
+def _rechart_matrix(outcome: LSQOutcome, theta: np.ndarray,
+                    t: np.ndarray) -> LSQOutcome:
+    """:func:`rechart_outcome` for a square chart matrix ``t`` (its docstring)."""
+    def padded(n: int) -> np.ndarray:
+        # a Pawley block rides after the table columns and never moves
+        if n <= len(t):
+            return t[:n, :n]
+        out = np.eye(n)
+        out[:len(t), :len(t)] = t
+        return out
+
+    # a column is touched wherever T differs from a signed identity: an
+    # off-diagonal entry, or a diagonal one that is not ±1 (a rotation DOF
+    # held beside a turn about its neighbour's axis scales its own column,
+    # with nothing off the diagonal; #801)
+    off = np.abs(t - np.diag(np.sign(np.diag(t))))
+    touched = np.flatnonzero(off.sum(axis=0) + off.sum(axis=1) > 0.0)
+    jac_old = outcome.jac
+    jac = None if jac_old is None else np.asarray(jac_old) @ padded(np.shape(jac_old)[1])
+    stderr, corr = outcome.stderr_internal, outcome.correlation
+    if stderr is not None:
+        se = np.asarray(stderr, dtype=np.float64)
+        tm = padded(len(se))
+        if np.all(np.isfinite(se[touched])):
+            c = np.eye(len(se)) if corr is None else np.asarray(corr, dtype=np.float64)
+            cov = c * np.outer(se, se)
+            cov = np.where(np.isfinite(cov), cov, 0.0)
+            tinv = np.linalg.inv(tm)
+            new = tinv @ cov @ tinv.T
+            se_new = se.copy()
+            se_new[touched] = np.sqrt(np.diag(new)[touched])
+            if corr is not None:
+                with np.errstate(invalid="ignore", divide="ignore"):
+                    c_new = new / np.outer(se_new, se_new)
+                # only the touched rows and columns move; every other entry is
+                # the old correlation, bit for bit (a diagonal flip is a sign)
+                d = np.sign(np.diag(tm))
+                keep = np.ones(len(se), dtype=bool)
+                keep[touched] = False
+                c_flip = c * np.outer(d, d)
+                corr = np.where(np.outer(keep, keep), c_flip, c_new)
+            stderr = se_new
+        elif corr is not None:
+            # a correlation takes only the sign of a diagonal scale
+            d = np.sign(np.diag(tm))
+            corr = np.asarray(corr) * np.outer(d, d)
+    cosine = outcome.residual_cosine
+    if cosine is not None:
+        cos = np.asarray(cosine, dtype=np.float64)
+        if jac_old is None:
+            cos = cos * np.sign(np.diag(padded(len(cos))))  # a cosine is scale-free
+        else:
+            tm = padded(len(cos))
+            norm_old = np.linalg.norm(np.asarray(jac_old), axis=0)
+            norm_new = np.linalg.norm(jac, axis=0)
+            g = (cos * norm_old) @ tm          # ∝ J_newᵀ r; ‖r‖ cancels
+            with np.errstate(invalid="ignore", divide="ignore"):
+                cos = np.where(norm_new > 0.0, g / norm_new, 0.0)
+        cosine = cos
+    return replace(outcome, theta=np.asarray(theta, dtype=np.float64), jac=jac,
+                   stderr_internal=stderr, correlation=corr, residual_cosine=cosine)
 
 
 def _guarded_covariance(jac, fun, n_free: int, n_data: int
@@ -730,8 +807,8 @@ def _column_extras(table: ParameterTable) -> list[list[str]]:
 
 
 def _column_identities(table: ParameterTable, extras: list[list[str]]
-                       ) -> list[tuple[str, list[str]]]:
-    """Per free column, the ``(path, extra)`` the dispatch below should read.
+                       ) -> list[tuple[str, list[str], bool]]:
+    """Per free column, the ``(path, extra, own)`` the dispatch below should read.
 
     Identity for every model parameter, so an unconstrained or dot-path-tied
     model dispatches exactly as it did before this existed.
@@ -759,7 +836,11 @@ def _column_identities(table: ParameterTable, extras: list[list[str]]
       ``_peak_chain_column`` (it perturbs θ and decodes, so every coefficient
       and constant is carried) and ``_structural_column`` (it reads the atom's
       rows out of C).  The closed-form linear branches exclude themselves,
-      since each requires an empty ``extra``.
+      since each requires ``own``: true where the column is its named path's
+      own (nothing else reached, at coefficient 1), false for one path at any
+      other coefficient, whose ``extra`` is empty too.  Testing ``extra``
+      alone let a variable at c = 0.5 onto a scale take ``_scale_column``,
+      a column 2× the truth (#801, on ``main`` as well as with a body).
 
     Which of the reached paths *names* the column matters, and it is chosen
     rather than taken.  C's rows are in table order, so the lowest one is an
@@ -772,14 +853,23 @@ def _column_identities(table: ParameterTable, extras: list[list[str]]
     variable drives (``dof.0``) and what that in turn drives (``.x``, by site
     symmetry).  Where every reached path is direct — the equal-Biso case, four
     rows all following the variable — the rule changes nothing.
+
+    Read off the **declared** reach (``reach_block``), as ``_column_extras``
+    is (WP-1805, the #773 follow-up): a variable driving a body's origin also
+    moves every body atom row, which no C row says, and the extras returned
+    here replace ``_column_extras``' for that column.  The *pattern* comes
+    from there and the *coefficient* from C itself: a table with a block
+    stores 1.0 at every entry of its reach, so read there every variable
+    reaching one row looked like a unit tie (#801).  A derived row has no C
+    entry and never stands alone — it arrives with the input it follows.
     """
-    C, _ = table.constraint_block()
-    csc = C.tocsc()
+    csc = table.reach_block().tocsc()
+    coef = table.constraint_block()[0].tocsc()
     paths = [e.path for e in table.entries]
-    out: list[tuple[str, list[str]]] = []
+    out: list[tuple[str, list[str], bool]] = []
     for c, path in enumerate(table.free_paths):
         if not is_variable_path(path):
-            out.append((path, extras[c]))
+            out.append((path, extras[c], not extras[c]))
             continue
         sl = slice(csc.indptr[c], csc.indptr[c + 1])
         reach = [(paths[r], v) for r, v in zip(csc.indices[sl], csc.data[sl],
@@ -795,11 +885,11 @@ def _column_identities(table: ParameterTable, extras: list[list[str]]
             # a declared variable nothing follows: it moves no row at all, so
             # its column is zero however it is built, and the FD path says that
             # in one residual evaluation without claiming a branch
-            out.append((path, extras[c]))
-        elif len(reach) == 1 and reach[0][1] == 1.0:
-            out.append((reach[0][0], []))
+            out.append((path, extras[c], False))
         else:
-            out.append((reach[0][0], [q for q, _ in reach[1:]]))
+            unit = (len(reach) == 1
+                    and coef[table._paths[reach[0][0]], c] == 1.0)
+            out.append((reach[0][0], [q for q, _ in reach[1:]], unit))
     return out
 
 
@@ -859,7 +949,17 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
     # the same distinction ``ParameterTable.moving_paths`` draws one rank down.
     # Read off ``identities``, so a variable contributes the physical paths it
     # drives rather than a ``vars.*`` name that answers every predicate "no".
-    reach = {q for name, extra in identities for q in (name, *extra)}
+    reach = {q for name, extra, _ in identities for q in (name, *extra)}
+    # A column reaching background coefficients only is linear in θ whatever
+    # its coefficients, so its closed form is Σₖ C[k, c]·(basis row k), read
+    # off C — the one closed form that needs no ``own``.  Without it a
+    # variable at c ≠ 1 fell to the FD fallback, which writes no penalty row
+    # (#801).  ``None`` for every other column.
+    coef_c = table.constraint_block()[0].tocsc()
+    bkg_mix = [np.array([[bkg_cols[q], coef_c[table._paths[q], c]]
+                         for q in (path, *extra)])
+               if all(q in bkg_cols for q in (path, *extra)) else None
+               for c, (path, extra, _) in enumerate(identities)]
 
     def dpdu_of(c: int, theta: np.ndarray) -> float:
         e = table.entries[table._paths[free[c]]]
@@ -897,17 +997,17 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                                                profile_derivs=need_profile)
             return bases
 
-        for c, (path, extra) in enumerate(identities):
-            if path in bkg_cols and not extra:
+        for c, (path, extra, own) in enumerate(identities):
+            if bkg_mix[c] is not None:
                 # y is linear in the coefficient: ∂y/∂c_n = basis row; the
                 # penalty rows are linear too (√λ·D₂), chain-ruled through
                 # the transform for the (softplus-bounded) air term
-                n = bkg_cols[path]
+                n, w = bkg_mix[c][:, 0].astype(np.intp), bkg_mix[c][:, 1]
                 dpdu = dpdu_of(c, theta_t)
-                J[:n_data, c] = -sqrt_w * model.bkg_design[n] * dpdu
+                J[:n_data, c] = -sqrt_w * (w @ model.bkg_design[n]) * dpdu
                 if n_bkg_pen:
-                    J[n_data:n_data + n_bkg_pen, c] = model.bkg_penalty[:, n] * dpdu
-            elif path in axial_paths and not extra:
+                    J[n_data:n_data + n_bkg_pen, c] = model.bkg_penalty[:, n] @ w * dpdu
+            elif path in axial_paths and own:
                 b = get_bases()
                 if b.axial_ok:
                     J[:n_data, c] = -sqrt_w * _axial_column(
@@ -923,12 +1023,12 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                     model, table, get_bases(), values, c,
                     int(dof.group(1)), int(dof.group(2)), rows, grad)
             elif ((po := _PO_PATH.match(path)) and model.mode == "rietveld"
-                    and not extra
+                    and own
                     and not model.mag_split(int(po.group(1)))):
                 J[:n_data, c] = -sqrt_w * dpdu_of(c, theta_t) * _po_column(
                     model, get_bases(), values, int(po.group(1)))
             elif ((sc := _SCALE_PATH.match(path)) and model.mode == "rietveld"
-                    and not extra and values[path] > 0.0):
+                    and own and values[path] > 0.0):
                 # exactly linear, so no perturbed ``phase_peaks``; the scale
                 # test is the 0/0 fence _scale_column's docstring names, and
                 # a phase sitting at zero falls through to the FD path below

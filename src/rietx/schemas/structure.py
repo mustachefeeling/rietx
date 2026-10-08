@@ -566,6 +566,102 @@ class ValueRestraint(Base):
     weight: float = Field(default=1.0, ge=0.0)
 
 
+#: How far (Å) a body atom's stored coordinates may sit from where its body
+#: places it before a table refuses to build (``RIGID_BODY_TEMPLATE_DRIFT``).
+#: The write-back stores what the map computed, so a fitted model drifts by
+#: roundoff only (≤ 1e-14 Å measured); anything past this is an edit of an atom
+#: the body owns, which is the body's to make (``crystallography.bodies.
+#: place_body_atoms``).
+RIGID_BODY_DRIFT_TOL = 1e-6
+
+#: The default box on each component of a body's rotation increment (rad).  The
+#: increment's Jacobian J_l is singular only at |δω| = 2π (``crystallography.
+#: rotation``), and a box of ±π keeps |δω| ≤ π√3 < 2π; WP-1803's review asked
+#: for the increment to be bounded or re-anchored before it could get there.
+RIGID_BODY_ROTATION_BOUND = math.pi
+
+
+class BodyOrigin(Base):
+    """A rigid body's origin: the point (0, 0, 0) of its template, fractional.
+
+    Refined like an atom's coordinates (WP-1805): anchored displacement DOFs
+    ``…origin.dof.k`` on the origin's site-symmetry basis, so the three values
+    here are a record that the table re-anchors at every build.
+    """
+
+    x: Parameter
+    y: Parameter
+    z: Parameter
+
+    def values(self) -> tuple[float, float, float]:
+        return (self.x.value, self.y.value, self.z.value)
+
+
+class RigidBody(Base):
+    """A set of a phase's atoms that moves as one rigid template (WP-1805, #561).
+
+    The body owns its atoms' coordinates: atom ``atoms[i]`` sits at
+
+        x_i = o + M⁻¹(cell) · R · T_i,
+
+    with ``T_i`` = ``template[i]`` (Cartesian Å in the body frame, the frame's
+    origin at the body origin), R the orientation and o the origin (fractional),
+    M the closed-form Cartesian frame (x ∥ a, y in the a–b plane;
+    ``params.derived.cartesian_frame``).  The cell is a live input, so a body
+    keeps its geometry in Å while the cell refines (WP-1803's record).
+
+    **What refines**: the origin (``phases.i.rigid_bodies.b.origin.dof.k``, as
+    an atom's coordinates do) and the orientation, as an anchored rotation
+    increment ``phases.i.rigid_bodies.b.rotation.{0,1,2}`` (radians, the
+    rotation vector δω of R = Exp(δω)·R₀; zero at every table build).  The
+    member atoms' x, y, z are locked rows the body writes and that carry esds;
+    their occupancy and displacement parameters stay the atoms' own.
+
+    **The record**: ``orientation`` is R₀ as the unit quaternion (w, x, y, z)
+    in the canonical form w ≥ 0 (``crystallography.rotation``); a fit writes
+    Exp(δω)·R₀ back here, and the next table starts from it at δω = 0.  The
+    atoms' stored coordinates are a record too, written from the map, and a
+    table refuses to build when they disagree with it by more than
+    :data:`RIGID_BODY_DRIFT_TOL` (``RIGID_BODY_TEMPLATE_DRIFT``).
+
+    Build one with ``rietx.crystallography.bodies`` (``body_from_atoms`` for
+    atoms already placed, ``add_body`` to place a template as new atoms).
+    """
+
+    name: str
+    #: labels of the member atoms in ``Phase.atoms``, in template order
+    atoms: list[str]
+    #: Cartesian template coordinates (Å), one per member atom, body frame
+    template: list[tuple[float, float, float]]
+    origin: BodyOrigin
+    #: R₀ as a unit quaternion (w, x, y, z), canonical (w ≥ 0)
+    orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    #: free the three rotation DOFs at the next table build (a plan's
+    #: ``turn_on`` glob ``phases.*.rigid_bodies.*.rotation.*`` does the same)
+    rotation_vary: bool = False
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "RigidBody":
+        if len(self.atoms) != len(set(self.atoms)):
+            raise ValueError(f"rigid body {self.name!r} lists an atom twice")
+        if len(self.atoms) != len(self.template):
+            raise ValueError(
+                f"rigid body {self.name!r}: {len(self.atoms)} atoms but "
+                f"{len(self.template)} template points")
+        if len(self.atoms) < 2:
+            raise ValueError(f"rigid body {self.name!r} needs at least two atoms")
+        if not all(math.isfinite(v) for t in self.template for v in t):
+            raise ValueError(f"rigid body {self.name!r}: a template point is not finite")
+        norm = math.sqrt(sum(v * v for v in self.orientation))
+        # written to fail on NaN, which every comparison answers False to
+        # (``rotation._check_unit_quaternion``'s form; #801)
+        if not abs(norm - 1.0) <= 1e-9:
+            raise ValueError(
+                f"rigid body {self.name!r}: orientation {self.orientation} is "
+                f"not a unit quaternion (|q| = {norm!r})")
+        return self
+
+
 #: A soft observational restraint on one phase — a bond length, a bond angle,
 #: or a single parameter value.  Each contributes one residual row that is kept
 #: in the covariance (JᵀJ) but excluded from Rwp/Durbin-Watson/Bérar-Lelann
@@ -896,6 +992,39 @@ class Phase(_InheritsDeclaredDefaults):
     # from Rwp/Durbin-Watson/Bérar-Lelann.  Rietveld-mode only (Le Bail/Pawley
     # do not compute structural coordinates for a bond/angle to differentiate).
     restraints: list[Restraint] = Field(default_factory=list)
+    # Rigid bodies over this phase's own atoms (WP-1805).  Empty default ⇒
+    # exactly off: a phase declaring none builds the table it always built.
+    rigid_bodies: list[RigidBody] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _bodies_name_their_atoms(self) -> "Phase":
+        """Every body atom exists once in this phase and in one body only.
+
+        An atom in two bodies would have two writers (``RIGID_BODY_SHARED_ATOM``):
+        a joint between bodies is a restraint across them, never a shared atom.
+        """
+        if not self.rigid_bodies:
+            return self
+        labels = [a.label for a in self.atoms]
+        owner: dict[str, str] = {}
+        names = [b.name for b in self.rigid_bodies]
+        if len(names) != len(set(names)):
+            raise ValueError(f"phase {self.name!r}: two rigid bodies share a name")
+        for body in self.rigid_bodies:
+            for label in body.atoms:
+                n = labels.count(label)
+                if n != 1:
+                    raise ValueError(
+                        f"rigid body {body.name!r} names atom {label!r}, which "
+                        f"phase {self.name!r} has {n} times; a body atom must "
+                        "be one labelled atom")
+                if label in owner:
+                    raise ValueError(
+                        f"RIGID_BODY_SHARED_ATOM: atom {label!r} is in rigid "
+                        f"bodies {owner[label]!r} and {body.name!r}; join two "
+                        "bodies by a restraint across them instead")
+                owner[label] = body.name
+        return self
 
     @field_validator("symmetry_operations", mode="before")
     @classmethod

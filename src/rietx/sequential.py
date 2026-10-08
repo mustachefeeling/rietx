@@ -657,7 +657,12 @@ def _carry_into(structure: Structure, instrument: Instrument,
         value = previous.get(e.path)
         if value is not None and named(e.path):
             e.value = value
-    displaced = table.displace_anchored_dofs(previous, named)
+    # a rigid body carries its record, the quaternion and the origin, never
+    # its increment (WP-1805): the increment reads zero on a fresh table
+    orientations = {f"phases.{ip}.rigid_bodies.{b}": body.orientation
+                    for ip, phase in enumerate(source[0].phases)
+                    for b, body in enumerate(phase.rigid_bodies)}
+    displaced = table.displace_anchored_dofs(previous, named, orientations)
     # Hold everything, then read the affine map back: tied entries (crystal-
     # system cell ties, Wyckoff coordinate DOFs, site-symmetry ADP patterns)
     # are re-derived from whatever their sources now hold, so a narrow carry
@@ -2275,12 +2280,16 @@ def _relative_paths(structure: Structure, instrument: Instrument) -> frozenset[s
 
     Its displacement DOFs (:attr:`ParameterTable.anchored_dof_paths`): each is
     measured from where its fit began, which in a chain is the neighbour's
-    answer (WP-1333).  The one list every judgement across patterns skips —
-    both fences here, and the GUI's disagreement column, which must abstain
-    where they do.  Taken from the models the chain was handed, since nothing
-    in a ``SeriesEntry`` says a path is relative.
+    answer (WP-1333).  A rigid body's rotation DOFs too
+    (:attr:`ParameterTable.anchored_rotation_paths`, WP-1805), which a commit
+    zeroes, so they read the step a fit's last stage took.  The one list every
+    judgement across patterns skips — both fences here, and the GUI's
+    disagreement column, which must abstain where they do.  Taken from the
+    models the chain was handed, since nothing in a ``SeriesEntry`` says a
+    path is relative.
     """
-    return ParameterTable(structure, instrument).anchored_dof_paths
+    table = ParameterTable(structure, instrument)
+    return table.anchored_dof_paths | table.anchored_rotation_paths
 
 
 def _angle_paths(structure: Structure, instrument: Instrument) -> frozenset[str]:
