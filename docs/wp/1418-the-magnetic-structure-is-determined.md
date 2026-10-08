@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: magnetic · Status: 🔄 2026-10-07 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-08 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -908,3 +908,33 @@ cuts the contributor deferred to later parts. `Witness.exact` can only be
 True and nothing reads it yet.
 
 *Next:* #565 part 3 (isometry, span, propagation).
+
+### 2026-10-08 — #724's `tie_to_parent` opt-in
+
+A k ≠ 0 trial can now take its nuclear freedom from the parent. The Inherited
+entry for issue #724 landed from outside as an opt-in: PR #746 (head
+`190f9f7e`), merged as `05a4fbe2` by `/pr-review` after four rounds.
+`solve_magnetic(tie_to_parent=True)` holds the child cell at the parent-derived
+cell through `Refinement.hold("phases.*.cell.*")`, on every fit of a tied trial.
+It also ties the child Biso of each parent site to one another, and the nuclear
+reference takes the same holds and ties, so ΔBIC compares equal free sets.
+`SOLVE_B_TIED_PER_PARENT_SITE` (info) says it was applied. The default is
+`False`, and the result is then what it was before.
+
+*Done:* round 2 found a plan spelling the cell another way (`phases.0.cell.*`)
+could free the child cell. The hold fixes that, pinned by
+`test_a_plan_spelling_the_cell_another_way_cannot_free_it`. `_without_cell` is
+`dataclasses.replace`, so the plan keeps its own fields. The trial fits pass
+`telemetry=False`. *Gate:* stacked with #744, #776 and #801 on `5d1f5f67`; the
+results are in WP-1805's 2026-10-08 entry. The two slow failures are #820's,
+and both are in this WP's area: `test_pair_diagnostic_class.py` (red on the
+Linux nightly since #743) and the Cr₂WO₆ 150 K "nothing to solve" test (red on
+macOS arm64 only). Both also fail on `main` without this PR.
+
+*Open, the maintainer's:* whether `tie_to_parent` becomes the default, which the
+issue proposes. The ΔBIC comparison of free against tied child B on planted
+values is the test that would show the option earns that. The contributor was
+told that mode amplitudes are WP-1419's, and to check with the maintainer
+before opening its first PR.
+
+*Next:* #820, then #565 part 3 (PR #809, waiting on a rebase).
