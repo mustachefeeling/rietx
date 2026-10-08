@@ -253,7 +253,10 @@ def test_this_pattern_cannot_distinguish_the_sh_l_split(lab6):
     even = profile(total / 2.0, total / 2.0)
     uneven = profile(total * 0.75, total * 0.25)
     scale = float(np.max(even) - np.min(even))
-    assert float(np.max(np.abs(even - uneven))) < 1e-6 * scale
+    # S/L here is far below the sizing floor, so since #774 it is drawn with
+    # the floor's quadrature nodes (it was 0 nodes, an exact 0.0 difference,
+    # when only the free set could raise it); the split now shows at 2.7e-4
+    assert float(np.max(np.abs(even - uneven))) < 1e-3 * scale
 
 
 # --- the refusals -----------------------------------------------------------

@@ -254,6 +254,18 @@ def test_naming_a_width_in_moving_paths_builds_the_family_from_zero():
     assert MAGNETIC_SIZING_FLOOR > 0.0
 
 
+@pytest.mark.parametrize("size", [0.05, SIZE])
+def test_magnetic_width_pattern_does_not_depend_on_the_free_set(size):
+    """#774, magnetic twin: a width below ``MAGNETIC_SIZING_FLOOR`` (0.1) is
+    floored by value, so freeing it does not change the windows or the
+    pattern; above the floor (SIZE) nothing moved either way."""
+    y = []
+    for moving in (["phases.0.scale"], ["phases.0.magnetic_lor_size"]):
+        model, _t, v = _state(_mnf2(size=size), moving=moving)
+        y.append(np.asarray(model.evaluate(v), dtype=np.float64))
+    assert np.max(np.abs(y[0] - y[1])) <= 1e-12 * np.max(y[0])
+
+
 def test_a_nonzero_value_builds_the_family_even_with_no_claim():
     """A converged fit replayed through the public ``compile_model`` draws the
     width it converged to; only the *off* state is skipped."""
@@ -1141,13 +1153,15 @@ def test_reflection_support_counts_the_magnetic_component():
     assert np.all(sup[mag_rows[live[mag_rows]]] > 0.0)
     assert np.all(sup[nuc_rows[live[nuc_rows]]] > 0.0)
 
-    # the same phase at a width small enough to leave the windows unchanged
-    # reads as its unsplit twin within the width change
+    # the same phase at a width small enough to leave the *profile* unchanged
+    # reads as its unsplit twin within the width change.  The magnetic windows
+    # are sized at the floor by value (#774), so they are wider than the
+    # unsplit phase's and the agreement is to the clipped tails (7e-6 measured)
     tiny, _t2, vt = _state(_mnf2(strain=1e-9), moving=None)
     plain, _t3, vp = _state(_mnf2(), moving=None)
     assert tiny.mag_split(0) and not plain.mag_split(0)
     assert np.allclose(tiny.reflection_support(0, vt)[0],
-                       plain.reflection_support(0, vp)[0], rtol=1e-6, atol=0)
+                       plain.reflection_support(0, vp)[0], rtol=2e-5, atol=0)
 
 
 def test_the_reflection_census_sees_the_magnetic_component():

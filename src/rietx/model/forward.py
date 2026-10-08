@@ -219,10 +219,12 @@ def window_fwhm_mult(eta: np.ndarray) -> np.ndarray:
         hi = np.where(too_wide, mid, hi)
         lo = np.where(too_wide, lo, mid)
     return hi
-#: when the axial S/L, H/L parameters are about to be *refined* from zero,
-#: quadrature nodes are sized as if they were at least this large, so the
-#: finite-difference Jacobian sees a live parameter instead of a frozen
-#: zero-node profile
+#: quadrature nodes are sized as if the axial S/L, H/L were at least this
+#: large.  Applied **by value** whenever both are positive, so that
+#: ``predict()`` at given values does not depend on which parameters are free
+#: (#774); and, for the optimiser, when either is about to be *refined* from
+#: zero, so the finite-difference Jacobian sees a live parameter instead of a
+#: frozen zero-node profile
 AXIAL_SIZING_FLOOR = 0.02
 
 #: WP-1343.  When a magnetic broadening term is about to be *refined* from
@@ -3461,8 +3463,8 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     # simply never passed the argument must not silently get that.  Only an
     # explicit set — even an empty one — licenses the gates.
     gate_off_states = moving_paths is not None
-    # FCJ sizing values (floored when the axial parameters are about to
-    # refine).  The aberration's weight is the overlap trapezoid of height
+    # FCJ sizing values (floored below ``AXIAL_SIZING_FLOOR`` whether or not
+    # the axial parameters are free, #774).  The aberration's weight is the overlap trapezoid of height
     # 2·min(S/L, H/L), so it can act this stage only if **both** apertures
     # can be positive — a value already above zero, or a path the stage can
     # move.  One aperture pinned at 0 with only the other freed (the QPA
@@ -3477,7 +3479,9 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     can_hl = geom.axial_hl.value > 0.0 or "instrument.geometry.axial_hl" in moving_paths
     sl_eff = geom.axial_sl.value
     hl_eff = geom.axial_hl.value
-    if axial_free and can_sl and can_hl:
+    # the floor follows the values alone once both are positive (#774); only
+    # the refine-from-zero case still reads the plan
+    if (sl_eff > 0.0 and hl_eff > 0.0) or (axial_free and can_sl and can_hl):
         sl_eff = max(sl_eff, AXIAL_SIZING_FLOOR)
         hl_eff = max(hl_eff, AXIAL_SIZING_FLOOR)
     fcj_on = sl_eff > 0.0 and hl_eff > 0.0
@@ -3676,10 +3680,15 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             # clipped by them, which is the FCJ-node-sizing failure one
             # correction over.  ``MAGNETIC_SIZING_FLOOR`` is the same kind of
             # number ``AXIAL_SIZING_FLOOR`` is and is applied the same way.
-            floor = (MAGNETIC_SIZING_FLOOR if mag_size_path in moving_paths
-                     else 0.0)
-            floor_e = (MAGNETIC_SIZING_FLOOR if mag_strain_path in moving_paths
-                       else 0.0)
+            # a width already above zero is floored by value, so the pattern
+            # does not depend on whether it is free (#774); only the
+            # refine-from-zero case reads the plan
+            floor = (MAGNETIC_SIZING_FLOOR
+                     if (mag_size_path in moving_paths
+                         or phase.magnetic_lor_size.value > 0.0) else 0.0)
+            floor_e = (MAGNETIC_SIZING_FLOOR
+                       if (mag_strain_path in moving_paths
+                           or phase.magnetic_lor_strain.value > 0.0) else 0.0)
             _size_family(win_mag, fcj_n_mag,
                          max(phase.magnetic_lor_size.value, floor),
                          max(phase.magnetic_lor_strain.value, floor_e),
