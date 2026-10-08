@@ -125,6 +125,35 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-08, from the second issue triage (issue #835): an analytic
+  threshold for M-8's chance score, in place of the per-pattern shuffles.**
+  The #795 entry below sets M-8's reporting threshold as the 99th percentile
+  of 100 shuffled searches (4.77 decades at N = 6, 5.26 at N = 10, on a
+  132 650-point grid). #835 proposes the Poisson-binomial tail at α / N_eff,
+  N_eff being the stratum's grid points over the points per resolution
+  element, after the periodogram literature: Baluev (2008, *MNRAS* 385,
+  1279-1285) for the extreme-value bound and VanderPlas (2018, *ApJS* 236,
+  16, § 7) for oversampling about 5× per element. One 20-shuffle arm stays as
+  the calibration control. Acceptance as proposed: the analytic 99 %
+  threshold within 0.3 decade of 4.77 and 5.26, else the oversampling factor
+  is tuned once. Cost: one search instead of 100. Nothing to check against
+  the tree, since M-8 is unbuilt (Tasks, unchecked). The peak floor and the
+  two diagnostics #795 proposes are unchanged. A session building M-8
+  measures both nulls on the same grid before choosing.
+
+- **2026-10-08, from the second issue triage (issue #831): why #820's pair
+  count is machine-dependent.** Class 0 reaches one minimum on both
+  machines; its moduli esds and ρ follow where the solver stopped beside
+  the azimuth φ = π, a stationary direction both moments sit on. That
+  near-dead column, Jacobi-equilibrated to full weight, gives ρ −0.96 on
+  macOS and −0.50 on Linux, which is why macOS pairs class 0 and Linux does
+  not. With the azimuth columns left out of JᵀJ, both machines give ρ −0.20,
+  so class 0 has no degenerate pair. PR #829 (count ≥ 1 rather than ≥ 2) is
+  consistent with this. The general fix is WP-1929's; this WP's part is
+  that `MOMENT_DIRECTION_SUPPORT`'s hold does not catch a second-order-only
+  direction (the 0.1 rad probe correctly sees it as determined), and 1929's
+  decision may move what that hold covers.
+
 - **2026-10-08, from the issue triage (issue #820): two slow `solve_magnetic`
   tests fail on main, and the first has a regression window.**
   `tests/test_pair_diagnostic_class.py::test_every_pair_on_a_solution_names_a_class_whose_rows_carry_it`
