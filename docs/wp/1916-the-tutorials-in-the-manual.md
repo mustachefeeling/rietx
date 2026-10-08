@@ -1,6 +1,6 @@
 # WP-1916 — the tutorials in the manual, and the quickstart is a notebook
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-08 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: 1545 (the notebooks)
 Priority: P3 2026-10-07 — the notebooks are readable on GitHub today, so a workaround covers it; nothing waits on it but WP-1917
