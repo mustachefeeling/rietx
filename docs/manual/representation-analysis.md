@@ -25,7 +25,7 @@ G_{\mathbf{k}} \;=\; \{\, g = (R, \mathbf{v}) \in G \;:\;
 R^\top \mathbf{k} \equiv \mathbf{k} \pmod{L^*} \,\},
 ```
 
-{source}`rietx.crystallography.magnetic.irreps.little_group`
+{source}`rietx.crystallography.representation.irreps.little_group`
 
 with $L^*$ the true reciprocal lattice of the cell, which is a proper
 sublattice of the integer $hkl$ grid whenever the cell is centred. A moment
@@ -49,7 +49,7 @@ D(g_i)\,D(g_j) \;=\; \omega(g_i, g_j)\, D(g_i g_j),
 \omega(g_i, g_j) \;=\; \exp(-2\pi i\, \mathbf{k}\cdot\mathbf{a}_{ij}),
 ```
 
-{source}`rietx.crystallography.magnetic.irreps.factor_system`
+{source}`rietx.crystallography.representation.irreps.factor_system`
 
 a projective representation with factor system $\omega$ rather than an
 ordinary one. $\omega \equiv 1$ away from the zone boundary, where every
@@ -89,7 +89,7 @@ action on the moment each atom carries,
 \Gamma_{\mathrm{mag}} \;=\; \Gamma_{\mathrm{perm}} \otimes \Gamma_{\mathrm{axial}},
 ```
 
-{source}`rietx.crystallography.magnetic.modes.magnetic_representation`
+{source}`rietx.crystallography.representation.modes.magnetic_representation`
 
 a $3N$-dimensional representation of $G_{\mathbf{k}}$. Replacing
 $\Gamma_{\mathrm{axial}}$ (moment, $\det(R)R$) with $\Gamma_{\mathrm{polar}}$
@@ -105,7 +105,7 @@ W^{\nu}_{lm} \;=\; \frac{d_\nu}{|P_{\mathbf{k}}|}
 \sum_{g} \overline{D_\nu(g)_{lm}}\;\Gamma_{\mathrm{mag}}(g)
 ```
 
-{source}`rietx.crystallography.magnetic.modes.basis_vectors`
+{source}`rietx.crystallography.representation.modes.basis_vectors`
 
 The construction is {cite}`izyumov1991`'s (his eqn (2.12), p. 19, and its
 $G_{\mathbf{k}}$ form (9.1), p. 67). The $d_\nu/|P_{\mathbf{k}}|$ prefactor is
@@ -176,7 +176,7 @@ permutation matrix entry carries that vector as a phase,
 \Gamma_{\mathrm{perm}}(g)_{\pi(j)\,j} \;=\; \exp(-2\pi i\, \mathbf{k}\cdot\mathbf{a}_g),
 ```
 
-{source}`rietx.crystallography.magnetic.modes.permutation_representation`
+{source}`rietx.crystallography.representation.modes.permutation_representation`
 
 with every other entry of column $j$ zero. This is why an atom's own phase
 enters rather than one global phase for the operation: two atoms of the same
