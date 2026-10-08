@@ -114,15 +114,6 @@ def _background_zero():
         assert [c.value for c in bg.coefficients] == [0.0] * len(bg.coefficients), kind
 
 
-def _pspline_partition_of_unity():
-    from rietx.background.models import bspline_design_matrix
-
-    data = _pattern()
-    bg = rx.auto_background(data, kind="pspline")
-    basis = bspline_design_matrix(data.two_theta, np.asarray(bg.breakpoints))
-    assert basis.sum(axis=0) == pytest.approx(1.0, abs=1e-12)
-
-
 def _correlation_guard():
     """Defaults only: the comparison is strict (``abs(ρ) > guard`` in
     `strategy/staged.py` and `multi.py`), which is why the body says
@@ -183,7 +174,6 @@ CLAIMS: dict[str, Callable[[], None]] = {
     "| size · strain | 1/cosθ · tanθ |": _size_strain_signatures,
     "or the default penalised P-spline": _background_zero,
     "starts every coefficient at 0.0": _background_zero,
-    "(the basis sums to 1)": _pspline_partition_of_unity,
     "Above a correlation of 0.98 (`HIGH_CORRELATION`)": _correlation_guard,
     "(`occ₁ = 1 − occ₀` is `scale=-1, offset=1`)": _complementary_occupancy,
     "Above 0.1 under `converged`": _shift_band,

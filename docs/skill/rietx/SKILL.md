@@ -84,7 +84,7 @@ Free parameters in groups, cumulatively, each group converged before the next (M
 **Le Bail** (`mode="lebail"`, plan `profile_only`) is for a cell without a trusted structure: an indexing check, intensities for structure solution, a cell independent of any model. With a CIF, run the Rietveld plan directly (judging.md § rules 4-5). Where reflections crowd, check a Le Bail cell against a structural model before you quote it.
 
 4. **Set `lebail_passes` (say 8) on a plan object**: `plan = rx.RefinementPlan.profile_only(); plan.lebail_passes = 8`. The run stops at the first pass that does not lower Rwp, keeps the best, and names the stop (`LEBAIL_ALTERNATION_STOPPED`).
-5. **Seed the background before a Le Bail run.** `rx.auto_background` starts every coefficient at 0.0, so the first partition gives the whole pedestal to the reflections. Set a low percentile of `data.intensity` on a Chebyshev's first coefficient, or on every P-spline coefficient (the basis sums to 1).
+5. **Seed the background before a Le Bail run: `rx.auto_background(data, seed=True)`.** The default starts every coefficient at 0.0, so the first partition gives the whole pedestal to the reflections; `seed=True` starts them at a low percentile of the counts.
 
 ---
 
