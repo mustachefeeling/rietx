@@ -30,6 +30,10 @@ TREE = REPO / "docs" / "skill" / "rietx"
 PROTOCOL = B.HERE / "PROTOCOL.md"
 #: WP-1904's result documents: real harness output, kept with the pilot.
 PILOT = REPO / "docs" / "wp" / "1904-eval" / "pilot"
+#: The eval sandbox exists on macOS and Linux only, so its scaffolds run under
+#: `bash` with a POSIX `PATH`, and the paths it records start at a POSIX root,
+#: which a Windows path never does.
+POSIX_ONLY = pytest.mark.skipif(sys.platform == "win32", reason="the eval sandbox is POSIX-only")
 
 #: `claude plugin eval`'s vocabulary (https://code.claude.com/docs/en/plugin-evals,
 #: § Eval suite reference, read 2026-10-04). An unknown prompt.md key is an
@@ -187,6 +191,7 @@ def test_every_file_a_trigger_prompt_names_starts_empty_in_its_workspace(case):
     assert all(v == "empty" for v, _, _ in rows), "tier 0 is handed names, never data"
 
 
+@POSIX_ONLY
 def test_an_empty_input_scaffolds_an_empty_file(built, tmp_path):
     out, _ = built
     case = out / "evals" / "trigger" / "fire-quartz-rietveld"
@@ -265,6 +270,7 @@ def test_the_build_carries_the_tree_it_was_handed(built):
     assert sorted(stamp["cases"]) == sorted(_id(c) for c in _cases())
 
 
+@POSIX_ONLY
 def test_the_build_writes_the_interpreter_and_the_scaffold(built, tmp_path):
     out, _ = built
     for rel in map(_id, _cases()):
@@ -301,11 +307,6 @@ def test_a_relative_interpreter_is_written_absolute(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     stamp = B.build(TREE, tmp_path / "p", python=Path("venv/bin/python"), only=["none"])
     assert stamp["python"] == str(tmp_path / "venv" / "bin" / "python")
-
-
-#: The eval sandbox exists on macOS and Linux only, and `unreachable` reads
-#: POSIX roots, which a Windows path never starts with.
-POSIX_ONLY = pytest.mark.skipif(sys.platform == "win32", reason="the eval sandbox is POSIX-only")
 
 
 @POSIX_ONLY
@@ -481,6 +482,7 @@ def _episode(ws: Path, base: str = f"{PLUGIN}/skills/rietx") -> list[dict]:
     ]
 
 
+@POSIX_ONLY
 def test_a_trace_gives_tokens_the_route_and_its_leaks(tmp_path):
     ws = tmp_path / "claude-eval-x" / "work"
     path = _trace(tmp_path, _episode(ws))
