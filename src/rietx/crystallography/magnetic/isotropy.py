@@ -3851,9 +3851,13 @@ def _transfers(verdicts: dict[tuple[int, int], PairVerdict], copies: list[int],
     outside ``b``.  Nothing sampled is ever read as a containment, and
     nothing is upgraded without a certificate: a direction a transfer
     refutes keeps the draws it had consumed, as a propagated proof does.
+    Every productive pass settles at least one of the n(n − 1) directions
+    for good, so the loop is bounded by that count; a pass that is still
+    moving beyond it means a proof was overwritten, and raises rather than
+    spin.
     """
     fits: dict[tuple[int, int], np.ndarray | None] = {}
-    while True:
+    for _ in range(n * (n - 1) + 1):
         moved = False
         contained = [(v.a, v.b) for v in verdicts.values() if v.status == "proved-contained"]
         for key in sorted(verdicts):
@@ -3898,6 +3902,8 @@ def _transfers(verdicts: dict[tuple[int, int], PairVerdict], copies: list[int],
                         verdicts, copies, n)
         if not moved:
             return
+    raise RuntimeError("the transfer pass did not settle within n(n - 1) rounds: a proved "
+                       "verdict was replaced, which no certificate may do")
 
 
 def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
