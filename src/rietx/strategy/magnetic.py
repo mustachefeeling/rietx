@@ -100,7 +100,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from fractions import Fraction
 from pathlib import Path
 
@@ -1307,7 +1307,7 @@ def _supercell(parent, candidate, *, species, ions, magnitude, nuclear_group,
         magnitude=magnitude, nuclear_group="magnetic"), "magnetic")
 
 
-def _fit(structure, instrument, data, plan, ties=None, limits=None):
+def _fit(structure, instrument, data, plan, ties=None, limits=None, hold=()):
     """One trial fit, with the anti-centring ties applied before anything moves.
 
     ``limits`` is the incoming nuclear fit's own 2θ range, and passing it is a
@@ -1317,10 +1317,16 @@ def _fit(structure, instrument, data, plan, ties=None, limits=None):
     be compared with a different N on different data, and the mask would not
     even line up — measured, as a shape error, on a pattern whose first two
     detector channels were excluded.
+
+    ``hold`` is a list of globs the fit may not move, whatever a stage names
+    (``Refinement.hold``): a plan's own spelling of one cannot free it, the
+    continuation fits included.
     """
     from ..refine import Refinement
 
     ref = Refinement(structure, instrument.model_copy(deep=True))
+    if hold:
+        ref.hold(list(hold))
     for target, source, scale, offset in (ties or ()):
         ref.tie(target, source, scale=scale, offset=offset)
     # ``telemetry=False`` on every fit here: a fit whose result the package
@@ -1403,8 +1409,39 @@ def _release(fitted, seeded):
     return Structure(phases=[phase.model_copy(update={"atoms": atoms})])
 
 
+def _parent_site_ties(statement) -> tuple[tuple[str, str, float, float], ...]:
+    """Ties that make every child Biso the Biso of the first child atom of the
+    same parent atom (``SupercellStatement.site_map``), as ``_fit`` takes them."""
+    first: dict[int, int] = {}
+    ties = []
+    for i, (parent_atom, _coset) in enumerate(statement.site_map):
+        if parent_atom not in first:
+            first[parent_atom] = i
+            continue
+        ties.append((f"phases.0.atoms.{i}.biso",
+                     f"phases.0.atoms.{first[parent_atom]}.biso", 1.0, 0.0))
+    return tuple(ties)
+
+
+def _without_cell(plan: RefinementPlan) -> RefinementPlan:
+    """``plan`` with every ``phases.*.cell.*`` entry left out of every stage.
+
+    Only the exact spelling: a plan naming the cell another way is held by
+    ``_fit(hold=_CELL_HOLD)``, which is what actually keeps it fixed.  Every
+    other field of the plan is kept.
+    """
+    return replace(plan, stages=[
+        replace(stage, turn_on=[p for p in stage.turn_on
+                                if p != "phases.*.cell.*"])
+        for stage in plan.stages])
+
+
+#: the globs a tied (``tie_to_parent``) trial holds, whatever its plan names
+_CELL_HOLD = ("phases.*.cell.*",)
+
+
 def _starts(child_structure, instrument, data, plan, zero: bool,
-            owners: Sequence[str], limits=None):
+            owners: Sequence[str], limits=None, extra_ties=()):
     """Every start for one candidate, converged; the flat one plus one per site.
 
     **Why a sweep at all.**  A moment stage with several magnetic sites is not
@@ -1426,18 +1463,23 @@ def _starts(child_structure, instrument, data, plan, zero: bool,
     A single-site class has one start, because there is nothing to hold out.
     """
     ties = None if zero else anti_translation_ties(child_structure.phases[0], 0)
+    if extra_ties:
+        ties = list(ties or ()) + list(extra_ties)
+    hold = _CELL_HOLD if extra_ties else ()
     out = [("flat", *_fit(child_structure, instrument, data, plan, ties,
-                          limits))]
+                          limits, hold))]
     if len(owners) < 2:
         return out
     for keep in owners:
         reduced = _keep_only(child_structure, owners, keep)
         cut_ties = (None if zero
                     else anti_translation_ties(reduced.phases[0], 0))
-        leg, _first = _fit(reduced, instrument, data, plan, cut_ties, limits)
+        if extra_ties:
+            cut_ties = list(cut_ties or ()) + list(extra_ties)
+        leg, _first = _fit(reduced, instrument, data, plan, cut_ties, limits, hold)
         released = _release(leg.fitted_structure, child_structure)
         out.append((f"{keep} only, then released",
-                    *_fit(released, instrument, data, plan, ties, limits)))
+                    *_fit(released, instrument, data, plan, ties, limits, hold)))
     return out
 
 
@@ -1915,7 +1957,8 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                    tie_r: float = SOLVE_TIE_R_MAGNETIC,
                    k_trials: int = SOLVE_K_TRIALS,
                    k_tie_width: float = SOLVE_K_TIE_DELTA_BIC,
-                   cif_dir=None) -> MagneticSolution:
+                   cif_dir=None,
+                   tie_to_parent: bool = False) -> MagneticSolution:
     """Determine a magnetic structure from a converged nuclear fit, or abstain.
 
     ``refinement`` is a :class:`rietx.Refinement` that has **already fitted**
@@ -1955,6 +1998,15 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     ``plan`` overrides :data:`SOLVE_STAGE_PATHS` for both the trials and the
     nuclear reference; pass one whose stages differ only by the moment paths,
     or ΔBIC stops meaning what it says.
+
+    ``tie_to_parent=True`` (default ``False``, which is the behaviour above
+    unchanged) takes a k ≠ 0 trial's nuclear freedom from the parent: the child
+    cell is held at the parent-derived cell (``phases.*.cell.*`` leaves every
+    stage) and the child Biso of one parent atom are tied to one another
+    (``SupercellStatement.site_map``), for the trial **and** for the nuclear
+    reference it is scored against, so ΔBIC still compares models that free the
+    same set.  A k = 0 trial is not touched.  Reported as
+    ``SOLVE_B_TIED_PER_PARENT_SITE`` (info) on the solution.  Proposed in #724.
 
     ``cif_dir`` writes one magCIF per refined class (:meth:`
     MagneticSolution.write_magcifs`).  Nothing is written without it.
@@ -2192,24 +2244,29 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     #: (``run_k`` extends this) — merged into the result's own diagnostics
     #: below, beside K_VECTOR_UNSEPARATED.
     pair_diagnostics: list[Diagnostic] = []
+    #: the one ``SOLVE_B_TIED_PER_PARENT_SITE`` row, once a trial has been tied
+    tied_note: list[Diagnostic] = []
 
     #: (k, class index) → the reference tuple that class's ΔBIC was measured
     #: against, so the reported nuclear numbers are the winner's, not whichever
     #: child cell happened to be built first
     reference_of: dict[tuple, tuple] = {}
 
-    def reference_for(child_structure) -> tuple:
+    def reference_for(child_structure, extra_ties=()) -> tuple:
         child = child_structure.phases[0]
         key = (child.space_group, tuple(round(v, 9)
                                         for v in child.cell.lengths_angles()),
-               len(child.atoms))
+               len(child.atoms), tuple(extra_ties))
         if key not in references:
             bare = Structure(phases=[child.model_copy(update={
                 "atoms": [a.model_copy(update={"moment": None})
                           for a in child.atoms],
                 "magnetic_symmetry": None})])
-            _r, res = _fit(bare, instrument, data, nuclear_plan,
-                           limits=limits)
+            _r, res = _fit(bare, instrument, data,
+                           _without_cell(nuclear_plan) if extra_ties
+                           else nuclear_plan,
+                           list(extra_ties) or None, limits=limits,
+                           hold=_CELL_HOLD if extra_ties else ())
             if res.status != "converged":
                 caveats.append(
                     f"the nuclear reference of a {len(child.atoms)}-atom "
@@ -2232,6 +2289,7 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
         for index, (members, representative, site_label) in enumerate(classes):
             candidate = representative
             drift = None
+            extra = ()
             try:
                 if zero:
                     child = _state_k0(parent, candidate, magnetic, magnitude,
@@ -2260,20 +2318,33 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                             f"coordinates are correspondingly less constrained; "
                             f"they are held here, as they must be")
                     child_structure = Structure(phases=[statement.phase])
-                reference_of[(kk, index)] = reference_for(child_structure)
+                    if tie_to_parent:
+                        extra = _parent_site_ties(statement)
+                        if not tied_note:
+                            tied_note.append(Diagnostic(
+                                level="info", code="SOLVE_B_TIED_PER_PARENT_SITE",
+                                message=(
+                                    "tie_to_parent: a k != 0 trial holds the "
+                                    "child cell at the parent-derived cell and "
+                                    "ties the child Biso of one parent atom to "
+                                    "one another, for the trial and for its "
+                                    "nuclear reference; coordinates stay held "
+                                    "as before")))
+                trial_plan = _without_cell(plan) if extra else plan
+                reference_of[(kk, index)] = reference_for(child_structure, extra)
                 chi2_ref, p_ref = reference_of[(kk, index)][:2]
                 owners = [label for _j, label, _i in magnetic
                           if any(a.moment is not None
                                  and _moment_owner(a.label, [label]) == label
                                  for a in child_structure.phases[0].atoms)]
                 (start, ref, result), n_starts, n_minima = _best_start(
-                    _starts(child_structure, instrument, data, plan, zero, owners,
-                            limits))
+                    _starts(child_structure, instrument, data, trial_plan, zero,
+                            owners, limits, extra))
                 moments, n_moment, pair_diag = _moment_rows(
                     ref, result, ref.fitted_structure)
                 pair_diagnostics.extend(
                     _named_for_class(pair_diag, index, kk))
-                dead = _dead_globs(plan, result)
+                dead = _dead_globs(trial_plan, result)
                 if dead:
                     caveats.append(
                         f"class {index}: the stage free list names "
@@ -2444,7 +2515,8 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
         n_magnetic_channels=int(mask.sum()), caveats=tuple(caveats),
         k_trials=k_trial_rows,
         diagnostics=k_diagnostics + tuple(pair_diagnostics)
-                   + tuple(ion_g_diagnostics) + descent_diagnostics,
+                   + tuple(ion_g_diagnostics) + descent_diagnostics
+                   + tuple(tied_note),
         subgroup_audit=subgroup_audit, subgroup_note=subgroup_note,
         _instrument=instrument)
     if cif_dir is not None:

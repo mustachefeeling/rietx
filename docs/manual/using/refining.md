@@ -718,7 +718,7 @@ One refusal: a non-neutron histogram, by name. Everything else is reported.
 | `MagneticSolution.caveats` | what the run wants you to know | includes ΔBIC's raw-channel-count N |
 | `MagneticSolution.write_magcifs` | writes one magCIF per refined class and returns the paths | nothing is written unless you call it or pass `cif_dir=` |
 | `MagneticSolution.k_trials` | one `KTrialSummary` per propagation vector actually refined | length 1 unless a runner-up k was within the satellite step's own offset margin of the winner (`k_trials=` option, default 2) |
-| `MagneticSolution.diagnostics` | structured diagnostics beside `MagneticSolution.caveats` | `K_VECTOR_UNSEPARATED` (info) and `MAGNETIC_SUBGROUP_PREFERRED` (warning) among them |
+| `MagneticSolution.diagnostics` | structured diagnostics beside `MagneticSolution.caveats` | `K_VECTOR_UNSEPARATED` (info), `SOLVE_B_TIED_PER_PARENT_SITE` (info, with `tie_to_parent=True`) and `MAGNETIC_SUBGROUP_PREFERRED` (warning) among them |
 | `MagneticSolution.margin` | the winner's ΔBIC over the best *other eligible* class | `None` on an abstention or when there is no second eligible class (never negative). Diffing `trials[0]` against `trials[1]` by hand can be negative, when `trials[1]` is not itself eligible |
 | `MagneticSolution.subgroup_audit` | the winner's own maximal magnetic subgroups at its k, each refit from its solution and compared by ΔBIC (one `SubgroupAudit` per subgroup found) | empty when the k was not zero (not warm-started yet) or none of the classes already enumerated is a genuine subgroup |
 | `MagneticSolution.subgroup_note` | one sentence: which subgroup beat the winner and by how much, that none did, or why the audit was not attempted | always set on a solved verdict |
