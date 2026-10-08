@@ -247,12 +247,44 @@ INTENSITY_RTOL = 1e-9
 #: the known answer rather than two.  The 3 within an irrep is not measured
 #: the same way: the 8 % was counted on cross-irrep pairs only, and the
 #: reason the issue gives for 3 — two directions of one irrep are isometric
-#: copies — is the isometry certificate of issue #565's part 3, not yet in
-#: this module.  It also applies to two different directions of one irrep,
-#: which are not copies; 12 there would cost about 4 min more on the known
-#: answer (an estimate, not a measurement).
+#: copies — is now the isometry certificate (:class:`Isometry`), which
+#: settles the rank-1 copies of one irrep without a draw.  The 3 therefore
+#: applies only to two *different* directions of one irrep, which are not
+#: copies (a rank-1 direction against the (a,b) plane); 12 there would cost
+#: about 4 min more on the known answer (an estimate, not a measurement).
 CROSS_IRREP_DRAWS = 12
 WITHIN_IRREP_DRAWS = 3
+
+#: The isometry certificate's accept bound (issue #565, part 3): the relative
+#: congruence residual max_s ‖QᵀG^B_sQ − G^A_s‖_max / max|G^A| and the
+#: orthogonality deviation ‖QᵀQ − I‖₂ of the quoted Q must both be at most
+#: this.  Both are printed with the verdict, since an equality certificate
+#: is the direction a false answer silently drops a distinguishable model
+#: in.  Measured (macOS arm64 and Linux x86-64, d_min 1.5 Å): the rank-1
+#: copies of each irrep of the cubic ``P n -3 m:1`` and ``P m -3 m`` at
+#: (0, 0, ½) certify at residuals ≤ 3e-14 (the 2026-09-30 spike: 163
+#: certificates over six cubic sets at 9.8e-16 to 2.9e-14), while a pair
+#: that is not isometric has no intertwiner at all (an empty nullspace, the
+#: smallest relative singular value ≥ 7e-2), so the bound separates nothing
+#: measured and only fences round-off.
+ISOMETRY_RESIDUAL = 1e-12
+
+#: The full-stack guard of a Farkas certificate (issue #565, part 3, the
+#: promise made on #772).  The exact check certifies the *projected* stack;
+#: on the full float stack the kernel block of M(y) is not sign-definite, so
+#: no bound on the kernel residual alone makes M(y) PSD.  What follows
+#: instead, for an amplitude b = Pu + Kv (live and kernel components), is
+#: bᵀM(y)b ≥ ratio·Λ‖u‖² − r_K·Y·(2‖u‖‖v‖ + ‖v‖²) with ratio the quoted
+#: margin, Λ = ‖PᵀM(y)P‖₂, Y = Σ_s |y_s|‖G_s‖₂ and r_K the kernel residual:
+#: positive, hence a refutation of I(b) = t, for every b whose kernel
+#: component is at most ρ_max = −1 + √(1 + ratio·Λ/(r_K·Y)) times its live
+#: one (:func:`_kernel_amplitude_ratio`).  A certificate is issued only when
+#: ρ_max is at least this, i.e. the kernel may carry as much amplitude as the
+#: live directions do; at the quoted 1e-10 and the measured κ_y = Y/Λ ≤ 14
+#: that is r_K ≤ 2.4e-12, 2.6 decades under :data:`INTENSITY_RTOL`.
+#: Measured on the 20 kernel certificates of ``P m -3 m`` at (0, 0, ½)
+#: (macOS arm64, restarts 4): ρ_max 14.9 to 143, r_K ≤ 1.5e-13.
+KERNEL_AMPLITUDE_RATIO = 1.0
 
 #: The Farkas certificate's accept floor (issue #565, decision 2): a draw is
 #: certified only when the projected dual's optimum, λ_min/|λ|_max of
@@ -1404,9 +1436,10 @@ RELATION_STATUSES = ("proved-contained", "proved-not", "sampled-contained",
                      "sampled-not", "unresolved")
 
 #: The certificates a ``proved-*`` :class:`PairVerdict` can rest on in this
-#: release: ``absence`` and ``subspace`` hold for a whole family,
-#: ``farkas`` for one stored draw (its :class:`Witness`).
-RELATION_CERTIFICATES = ("absence", "subspace", "farkas")
+#: release: ``absence``, ``subspace`` and ``isometry`` hold for a whole
+#: family, ``farkas`` for one stored draw (its :class:`Witness`), and
+#: ``propagated`` carries any of them from an isometric copy (``via``).
+RELATION_CERTIFICATES = ("absence", "subspace", "isometry", "farkas", "propagated")
 
 #: Why an ``unresolved`` :class:`PairVerdict` was not decided: ``settled``,
 #: its pair was already decided distinct by the other direction; ``joined``,
@@ -1436,11 +1469,23 @@ class Witness:
     * ``weights`` — the per-shell weights the certificate was solved with,
       on every shell, or None.
     * ``kernel_dim``, ``kernel_residual`` — the common kernel's dimension
-      and max_s ‖G_s K‖₂/‖G_s‖₂ on it (≤ :data:`INTENSITY_RTOL`).  The
-      certificate is a proof on the *projected* stack, with the kernel taken
+      and r_K = max_s ‖G_s K‖₂/‖G_s‖₂ on it (≤ :data:`INTENSITY_RTOL`).  The
+      exact check is a proof on the *projected* stack, with the kernel taken
       as structural (every G_s annihilating it); ``kernel_residual`` records
-      how far the float stack departs from that, which the exact check does
-      not cover.
+      how far the float stack departs from that, and
+      ``kernel_amplitude_ratio`` is what that departure still leaves proved
+      on the full stack.
+    * ``kernel_amplitude_ratio`` — ρ_max (:data:`KERNEL_AMPLITUDE_RATIO`,
+      :func:`_kernel_amplitude_ratio`): on the full float stack of the live
+      shells, no amplitude vector of ``b`` whose component along the kernel
+      is at most ρ_max times its component along the live directions
+      reproduces ``t``.  Infinite when there is no kernel or r_K = 0, where
+      the full-stack claim is unconditional; at least
+      :data:`KERNEL_AMPLITUDE_RATIO` on every stored witness, since a smaller
+      one issues none.  On the exact stack (r_K = 0) the claim covers every
+      amplitude vector; the kernel block of M(y) is not sign-definite, so no
+      guard makes M(y) itself PSD on the full stack, and this is the claim
+      that *does* follow.
     * ``ratio`` — λ_min/|λ|_max of M_P(y) on the projected stack, at least
       :data:`FARKAS_QUOTE` or half the interior anchor's.
     * ``rounding_bound`` — n ε + S ε κ_y with κ_y = Σ_s |y_s|‖G_s‖₂/‖M(y)‖₂:
@@ -1449,7 +1494,8 @@ class Witness:
       :data:`FARKAS_QUOTE`.
     * ``exact`` — the exact LDLᵀ of M_P(y), built in rationals from the
       float y and the float projected stack (:func:`_exact_psd`): exact for
-      the projected stack, not for the full one (see ``kernel_residual``).  A stored
+      the projected stack; the full stack is covered by
+      ``kernel_amplitude_ratio`` to the amplitude bound it states.  A stored
       witness always has True: a False issues none.
     * ``d`` — (lower, upper) on the relative L2 distance from t̂ to ``b``'s
       image.  Lower: 1/‖y‖, since for every point k of the relaxed cone
@@ -1468,10 +1514,46 @@ class Witness:
     weights: tuple[float, ...] | None
     kernel_dim: int
     kernel_residual: float
+    kernel_amplitude_ratio: float
     ratio: float
     rounding_bound: float
     exact: bool
     d: tuple[float, float]
+
+
+@dataclass(frozen=True)
+class Isometry:
+    """An orthogonal Q with QᵀG^B_sQ = G^A_s on every shell: ``a`` and ``b`` have the same powder image, proved.
+
+    I_A(x) = xᵀG^A_sx = (Qx)ᵀG^B_s(Qx) = I_B(Qx) for every amplitude vector
+    x, and Q is invertible, so every pattern of either family is a pattern
+    of the other: the two are powder-equivalent to this d limit, for every
+    model and with no draw.  Because Qᵀ = Q⁻¹ the congruence is the linear
+    condition G^B_sQ = QG^A_s, so Q is found in the nullspace of the
+    (S·n², n²) intertwiner operator by one SVD (:func:`_intertwiners`) and
+    then checked; the proof is the two residuals below, not the nullspace
+    cut (:data:`ISOMETRY_RESIDUAL`).  Orthogonality is not decoration: the
+    congruence alone gives image(A) ⊆ image(B), the reverse needs Q
+    invertible, and a *singular* intertwiner exists exactly when B's image
+    is the larger one.  Stored so that :func:`_verify_isometry` can re-check
+    the certificate against both stacks without the SVD; the stacks are in
+    the canonical amplitude bases (:func:`_canonical_basis`).
+
+    * ``q`` — Q, row by row, acting on ``a``'s amplitudes.
+    * ``residual`` — max_s ‖QᵀG^B_sQ − G^A_s‖_max / max_s‖G^A_s‖_max, so
+      |I_A(x) − I_B(Qx)| ≤ residual · max|G^A| · ‖x‖² on every shell.
+    * ``orthogonality`` — ‖QᵀQ − I‖₂.
+    * ``dimension`` — the intertwiner space's dimension; 1 for the rank-1
+      copies of one irrep, where Q is unique up to sign.
+    * ``driver`` — the LAPACK driver that gave the nullspace: ``"gesdd"``,
+      or ``"gesvd"`` where gesdd did not converge (:func:`_svd_rows`).
+    """
+
+    q: tuple[tuple[float, ...], ...]
+    residual: float
+    orthogonality: float
+    dimension: int
+    driver: str
 
 
 @dataclass(frozen=True)
@@ -1487,12 +1569,16 @@ class PairVerdict:
 
     * ``proved-contained`` — ``a`` has no powder pattern to this d limit
       (every shell is a systematic absence), so ``b``'s zero model
-      reproduces all of it.  ``certificate`` is ``"absence"``.
+      reproduces all of it (``certificate`` ``"absence"``); or ``a`` and
+      ``b`` have the same image, by an orthogonal congruence of their Gram
+      stacks (``"isometry"``, both directions at once, no draw made); or
+      the verdict is carried from an isometric copy (``"propagated"``).
     * ``proved-not`` — no model of ``b`` reproduces almost any model of
       ``a``, for a reason that holds for the whole family, and no draw is
       made; or (``farkas``) no model of ``b`` reproduces one drawn model of
       ``a`` to ``rtol``, and ``draws`` is that draw's index
-      (``certificate``, below).
+      (``certificate``, below); or carried from an isometric copy
+      (``propagated``, ``draws`` 0 unless it was drawn first).
     * ``sampled-contained`` — every one of ``draws`` random models of ``a``
       was reproduced by a fit of ``b`` to ``rtol``.  A statement about those
       draws, not about the family (:func:`powder_equivalent`, mechanism B).
@@ -1545,29 +1631,57 @@ class PairVerdict:
       only in that it contains it: ``a`` ⊄ ``b``.  Tried on a draw whose
       first fit failed (:data:`DUAL_AFTER_RESTART`).  Thresholds: the
       common-kernel cut at :data:`INTENSITY_RTOL` of the largest eigenvalue
-      of Σ_s G_s, with the kernel residual guarded at the same value; the
-      accept floor :data:`FARKAS_FLOOR` on the projected dual; the quoted
-      point at :data:`FARKAS_QUOTE`; the exact LDLᵀ of the quoted point as
-      arbiter (:func:`_exact_psd`, which at that margin cannot disagree with
-      the float eigenvalue, and which certifies the *projected* stack, the
-      kernel being taken as structural, with its float residual recorded in
-      ``kernel_residual``); and the ``rtol`` gate below.  Measured at
-      d_min 1.5 Å, general site, Linux x86-64: over 145 families of six
-      cubic sets, kept kernel eigenvalues ≥ 2.8e-7 of the largest, dropped
-      ones ≤ 8.2e-16 and kernel residuals ≤ 2.7e-13; on the known answer and
-      ``P m -3 m`` at (0, 0, ½), accepted dual optima 6.4e-10 to 2.0e-5,
-      refused ones on the draws that ended ``sampled-not`` ≤ −3.0e-6, and
-      rounding bounds ≤ 3.4e-14.  ``d`` is the witness's bracket on the
-      relative L2 distance from the draw to ``b``'s image.
+      of Σ_s G_s, with the kernel residual pre-screened at the same value
+      (nothing is solved above it); the accept floor :data:`FARKAS_FLOOR`
+      on the projected dual; the quoted point at :data:`FARKAS_QUOTE`; the
+      exact LDLᵀ of the quoted point as arbiter (:func:`_exact_psd`, which
+      at that margin cannot disagree with the float eigenvalue, and which
+      certifies the *projected* stack, the kernel being taken as
+      structural); the full-stack guard :data:`KERNEL_AMPLITUDE_RATIO`,
+      tied to the quoted margin, under which the certificate holds on the
+      full float stack for every amplitude of ``b`` whose kernel component
+      is at most ``kernel_amplitude_ratio`` times its live one (and for
+      every amplitude on the exact stack); and the ``rtol`` gate below.
+      Measured at d_min 1.5 Å, general site, Linux x86-64: over 145
+      families of six cubic sets, kept kernel eigenvalues ≥ 2.8e-7 of the
+      largest, dropped ones ≤ 8.2e-16 and kernel residuals ≤ 2.7e-13; on
+      the known answer and ``P m -3 m`` at (0, 0, ½), accepted dual optima
+      6.4e-10 to 2.0e-5, refused ones on the draws that ended
+      ``sampled-not`` ≤ −3.0e-6, rounding bounds ≤ 3.4e-14, and ρ_max 14.9
+      to 143 on the 20 certificates against a family with a kernel.  ``d``
+      is the witness's bracket on the relative L2 distance from the draw to
+      ``b``'s image.
+    * ``isometry`` — ``a`` and ``b`` have the same number of amplitudes and
+      an orthogonal Q with QᵀG^B_sQ = G^A_s on every shell, so
+      I_A(x) = I_B(Qx) and the two images coincide (:class:`Isometry`,
+      stored as ``isometry`` with its residuals; both directions are
+      ``proved-contained`` at once).  Thresholds: the nullspace cut at
+      :data:`INTENSITY_RTOL`, which the proof does not rest on, and
+      :data:`ISOMETRY_RESIDUAL` on the congruence and orthogonality
+      residuals, which it does.  The rank-1 copies of one irrep are the
+      measured case (residuals ≤ 3e-14); two irreps' copies have an empty
+      intertwiner space and get no certificate.  Equality is the direction
+      a false certificate silently drops a distinguishable model in, so the
+      residual is printed with every such verdict.
+    * ``propagated`` — ``a`` ≅ ``a′`` and ``b`` ≅ ``b′`` by isometry, and
+      the direction ``a′`` → ``b′`` was proved; ``via`` names that pair and
+      ``status``, ``d``, ``witness`` and ``dual`` are its.  Exact: the two
+      images are the same sets, so every statement about one holds of the
+      other, and a stored witness re-verifies against ``b``'s own stack
+      (a congruence preserves M(y) ⪰ 0 and y·t).  Only a proved verdict is
+      carried; a sampled one stays where it was drawn, and a direction
+      with a propagated verdict is not drawn once the proof arrives
+      (``draws`` 0), keeping the draws it had consumed if it was drawn first.
 
     **The two directions of proof are not equally safe.**  A false
     separation costs one extra refinement; a false containment silently
     drops a distinguishable model.  So a containment certificate needs an
     exact arbiter or a printed relative residual, and a separation
     certificate needs a measured gap between its threshold and the values
-    it cuts.  The only containment in this release, the silent family, is
-    exact; any later one that is gated on a tolerance must print its
-    residual relative to the stack it was measured on.
+    it cuts.  The two containments in this release: the silent family,
+    which is exact, and the isometry, which is gated on a tolerance and
+    therefore prints its residual relative to the stack it was measured on
+    (:class:`Isometry`).
 
     The absence and subspace certificates do not say by how much two
     patterns differ, only that they differ.  The Farkas certificate does:
@@ -1605,18 +1719,21 @@ class PairVerdict:
     names do not move: a verdict carried from another pair by a proved
     containment (a transfer, part 4, and the consistency rule of part 5
     that uses it to refute a sampled join) is a **certificate** value
-    (``"transfer"``), not a status.  Its status is ``proved-not`` or
-    ``proved-contained`` like any other proof, since a status says how
-    strongly a direction is known and a transfer is as strong as its
-    sources; the certificate names the argument, and a ``via`` field naming
-    the source pair arrives with it.
+    (``"transfer"``), not a status, exactly as ``propagated`` is.  Its
+    status is ``proved-not`` or ``proved-contained`` like any other proof,
+    since a status says how strongly a direction is known and a transfer is
+    as strong as its sources; the certificate names the argument, and
+    ``via`` names the source pair.
 
-    ``d``, ``witness`` and ``dual`` are set only by the draws:
-    ``proved-not``/``farkas`` carries all three; ``sampled-not`` carries
+    ``d``, ``witness`` and ``dual`` are set only by the draws, or carried:
+    ``proved-not``/``farkas`` carries all three, and so does a
+    ``propagated`` verdict whose source does; ``sampled-not`` carries
     ``dual`` when the dual ran on its last draw, and a witness below the
     gate when one was found; ``sampled-contained`` carries a witness only
     when a draw was certified below the gate and then reproduced to
-    ``rtol``.  Everything is a tuple, so the record stays hashable.
+    ``rtol``.  ``isometry`` is set on an ``isometry`` verdict and on
+    nothing else; ``via`` on a ``propagated`` one.  Everything is a tuple,
+    so the record stays hashable.
     """
 
     a: int
@@ -1629,6 +1746,8 @@ class PairVerdict:
     d: tuple[float, float] | None = None
     witness: Witness | None = None
     dual: float | None = None
+    isometry: Isometry | None = None
+    via: tuple[int, int] | None = None
 
     @property
     def proved(self) -> bool:
@@ -1814,15 +1933,27 @@ class CandidateSet:
         return "\n".join(lines)
 
     def _separation_lines(self) -> list[str]:
-        """Every Farkas certificate with its d bracket, then the classes that hold a proved separation."""
+        """Every isometry with its residual, every Farkas certificate with its d bracket and what it was carried to, then the classes that hold a proved separation."""
         label = [c.label for c in self.candidates]
+        isometric = [v for v in self.relations if v.certificate == "isometry" and v.a < v.b]
         proved = [v for v in self.relations if v.certificate == "farkas"]
+        carried = [v for v in self.relations
+                   if v.certificate == "propagated" and v.status == "proved-not"]
         below = [v for v in self.relations if v.certificate is None and v.witness is not None]
         lines = []
+        if isometric:
+            lines.append("proved equal (isometry), congruence residual:")
+            lines += [f"  {label[v.a]} ≅ {label[v.b]}  residual {v.isometry.residual:.1e}"
+                      for v in isometric]
         if proved:
             lines.append("proved separations (farkas), d ∈ [1/‖y‖, best fit residual]:")
             lines += [f"  {label[v.a]} ⊄ {label[v.b]}  d ∈ [{v.d[0]:.2g}, {v.d[1]:.2g}]"
                       f"  draw {v.draws}" for v in proved]
+        if carried:
+            lines.append("proved separations carried by isometry (propagated):")
+            lines += [f"  {label[v.a]} ⊄ {label[v.b]}  via {label[v.via[0]]} ⊄ {label[v.via[1]]}"
+                      + (f"  d ∈ [{v.d[0]:.2g}, {v.d[1]:.2g}]" if v.d is not None else "")
+                      for v in carried]
         if below:
             lines.append("certificates below the rtol gate (the draws decide), d ∈ [1/‖y‖, best fit residual]:")
             lines += [f"  {label[v.a]} ⊄ {label[v.b]}  d ∈ [{v.d[0]:.2g}, {v.d[1]:.2g}]"
@@ -2549,6 +2680,181 @@ def _certify(a: int, b: int, dark: list[np.ndarray], spans: list[np.ndarray],
     return None
 
 
+# --------------------------------------------------------------------------
+# the isometry certificate (issue #565, part 3)
+
+def _svd_rows(rows: np.ndarray) -> tuple[np.ndarray, np.ndarray, str]:
+    """Singular values and right singular vectors of ``rows``, (s, vt, driver): gesdd, and gesvd where gesdd does not converge.
+
+    numpy's divide-and-conquer driver (gesdd) failed to converge on the
+    7290 × 729 intertwiner operator of two ``F m -3 m`` Γ families in the
+    2026-09-30 sweep; LAPACK's QR-iteration driver (gesvd), the same
+    decomposition by another route, did not.  The driver that answered is
+    recorded on the certificate (:attr:`Isometry.driver`).
+    """
+    try:
+        _, s, vt = np.linalg.svd(rows, full_matrices=False)
+        return s, vt, "gesdd"
+    except np.linalg.LinAlgError:
+        from scipy.linalg import svd
+
+        _, s, vt = svd(rows, full_matrices=False, lapack_driver="gesvd")
+        return s, vt, "gesvd"
+
+
+def _spectra_agree(ga: np.ndarray, gb: np.ndarray) -> bool:
+    """Whether every shell's eigenvalues agree to :data:`INTENSITY_RTOL` of max|G^A|: necessary for a congruence, and cheap.
+
+    An orthogonal congruence is a similarity, so it preserves each shell's
+    spectrum; by Weyl's inequality a congruence with residual r moves no
+    eigenvalue by more than n·r·max|G^A|, which at :data:`ISOMETRY_RESIDUAL`
+    is three decades under this cut for any n this module meets.  A pair
+    that fails here gets no SVD; one that passes is not yet proved.
+    """
+    scale = max(float(np.max(np.abs(ga))), 1e-300)
+    for a, b in zip(ga, gb):
+        if float(np.max(np.abs(np.linalg.eigvalsh(a) - np.linalg.eigvalsh(b)))) > INTENSITY_RTOL * scale:
+            return False
+    return True
+
+
+def _intertwiners(ga: np.ndarray, gb: np.ndarray) -> tuple[np.ndarray, str]:
+    """An orthonormal basis of {Q : G^B_sQ = QG^A_s for every s}, as (d, n, n), and the SVD driver that gave it.
+
+    In column-major vec, vec(G^B_sQ − QG^A_s) = (I ⊗ G^B_s − G^A_sᵀ ⊗ I)·vec(Q),
+    so the intertwiner space is the nullspace of that (S·n², n²) operator,
+    cut at :data:`INTENSITY_RTOL` of its largest singular value.  The
+    stacks arrive scaled by :func:`_isometry`, so the cut is scale-free;
+    the proof never rests on it (:class:`Isometry`).  The operator holds
+    S·n⁴ doubles (282 MB at S = 21, n = 36), the largest array this module
+    builds.
+    """
+    n = ga.shape[1]
+    eye = np.eye(n)
+    rows = np.concatenate([np.kron(eye, gb[s]) - np.kron(ga[s].T, eye) for s in range(ga.shape[0])])
+    s, vt, driver = _svd_rows(rows)
+    rank = int(np.sum(s > INTENSITY_RTOL * max(float(s[0]), 1e-300)))
+    null = vt[rank:]
+    if null.shape[0] == 0:
+        return np.zeros((0, n, n)), driver
+    return np.stack([v.reshape(n, n, order="F") for v in null]), driver
+
+
+def _orthogonal_in_span(basis: np.ndarray) -> tuple[np.ndarray | None, float]:
+    """An orthogonal matrix in span(basis), as (Q, ‖QᵀQ − I‖₂), or (None, inf) for an empty span.
+
+    One dimension: Q₀ is unique up to scale, and the only candidate is
+    Q₀/√c with c = tr(Q₀ᵀQ₀)/n; its orthogonality deviation says whether
+    Q₀ᵀQ₀ was cI at all.  More: alternating projection between the span
+    and the orthogonal group (the polar factor UVᵀ is the nearest
+    orthogonal matrix), from 20 seeded starts, up to 500 steps each,
+    keeping the polar factor whose distance to the span is smallest.  That
+    factor is orthogonal to rounding, and whether it is an intertwiner is
+    what :func:`_congruence_residual` then measures.  Any orthogonal
+    element of the span proves the same statement, so which one a platform
+    lands on changes nothing.
+    """
+    if basis.shape[0] == 0:
+        return None, np.inf
+    n = basis.shape[1]
+    eye = np.eye(n)
+    if basis.shape[0] == 1:
+        q0 = basis[0]
+        c = float(np.trace(q0.T @ q0)) / n
+        if c <= 0.0:
+            return None, np.inf
+        q = q0 / np.sqrt(c)
+        return q, float(np.linalg.norm(q.T @ q - eye, 2))
+    flat = basis.reshape(basis.shape[0], -1).T              # (n², d), orthonormal columns
+    rng = np.random.default_rng(0)
+    best, best_gap = None, np.inf
+    for _ in range(20):
+        q = (flat @ rng.normal(size=flat.shape[1])).reshape(n, n)
+        for _ in range(500):
+            u, _, vt = np.linalg.svd(q)
+            polar = u @ vt
+            step = (flat @ (flat.T @ polar.ravel())).reshape(n, n)
+            moved = float(np.linalg.norm(step - q, 2))
+            q = step
+            if moved <= 1e-15:
+                break
+        u, _, vt = np.linalg.svd(q)
+        polar = u @ vt
+        gap = float(np.linalg.norm(q - polar, 2))
+        if gap < best_gap:
+            best, best_gap = polar, gap
+    return best, float(np.linalg.norm(best.T @ best - eye, 2))
+
+
+def _congruence_residual(ga: np.ndarray, gb: np.ndarray, q: np.ndarray) -> float:
+    """max_s ‖QᵀG^B_sQ − G^A_s‖_max relative to max|G^A|: the certificate's own check."""
+    image = np.einsum("ki,skl,lj->sij", q, gb, q)
+    return float(np.max(np.abs(image - ga))) / max(float(np.max(np.abs(ga))), 1e-300)
+
+
+def _trace_scaled(grams_a: np.ndarray, grams_b: np.ndarray) -> tuple[np.ndarray, np.ndarray] | None:
+    """Both stacks divided by their own Σ_s tr G_s, an orthogonal invariant, or None when either is zero.
+
+    A scale factor is refinable, so two families whose images agree up to
+    one overall intensity scale are one model to a powder; dividing each
+    stack by its total trace puts such a pair at exactly the same scale,
+    where max|G| (not invariant under Q) would not.
+    """
+    ta, tb = float(np.einsum("sii->", grams_a)), float(np.einsum("sii->", grams_b))
+    if ta <= 0.0 or tb <= 0.0:
+        return None
+    return grams_a / ta, grams_b / tb
+
+
+def _isometry(grams_a: np.ndarray, grams_b: np.ndarray) -> Isometry | None:
+    """The isometry certificate of two Gram stacks, or None: an orthogonal Q with QᵀG^B_sQ = G^A_s on every shell.
+
+    None when the amplitude counts differ, when either stack is zero
+    (the silent family is the absence certificate's), when a shell's
+    spectra differ (:func:`_spectra_agree`, no SVD then), when the
+    intertwiner space is empty, or when the orthogonal element found fails
+    either residual at :data:`ISOMETRY_RESIDUAL`.  Both stacks are
+    trace-scaled first (:func:`_trace_scaled`), so the residual is of the
+    scaled stacks and the certificate reads "the same image up to one
+    intensity scale".
+    """
+    if grams_a.shape != grams_b.shape or grams_a.shape[1] == 0:
+        return None
+    scaled = _trace_scaled(grams_a, grams_b)
+    if scaled is None:
+        return None
+    ga, gb = scaled
+    if not _spectra_agree(ga, gb):
+        return None
+    basis, driver = _intertwiners(ga, gb)
+    q, orthogonality = _orthogonal_in_span(basis)
+    if q is None or orthogonality > ISOMETRY_RESIDUAL:
+        return None
+    residual = _congruence_residual(ga, gb, q)
+    if residual > ISOMETRY_RESIDUAL:
+        return None
+    return Isometry(q=tuple(tuple(float(v) for v in row) for row in q), residual=residual,
+                    orthogonality=orthogonality, dimension=int(basis.shape[0]), driver=driver)
+
+
+def _verify_isometry(grams_a: np.ndarray, grams_b: np.ndarray, record: Isometry
+                     ) -> tuple[bool, float, float]:
+    """Re-check a stored :class:`Isometry` against the two stacks: (holds, congruence residual, orthogonality).
+
+    No SVD: the stored Q is trace-scaled against the stacks and the two
+    residuals recomputed, each required at :data:`ISOMETRY_RESIDUAL`.
+    """
+    q = np.asarray(record.q, dtype=np.float64)
+    scaled = None if grams_a.shape != grams_b.shape else _trace_scaled(grams_a, grams_b)
+    if scaled is None or q.shape != grams_a.shape[1:]:
+        return False, np.inf, np.inf
+    ga, gb = scaled
+    orthogonality = float(np.linalg.norm(q.T @ q - np.eye(q.shape[0]), 2))
+    residual = _congruence_residual(ga, gb, q)
+    holds = residual <= ISOMETRY_RESIDUAL and orthogonality <= ISOMETRY_RESIDUAL
+    return bool(holds), residual, orthogonality
+
+
 def _fit_residual(target: np.ndarray, grams: np.ndarray, rng, *,
                   restarts: int = 32, rtol: float | None = None) -> float:
     """Smallest ‖I(b) − target‖∞ a family reaches over random starts, relative to max target.
@@ -2706,17 +3012,60 @@ def _live_projection(grams: np.ndarray) -> tuple[np.ndarray, int, float]:
     relative eigenvalues ≤ 8.2e-16, kept ones ≥ 2.8e-7, r_K ≤ 2.7e-13.
     """
     g = grams / max(float(np.max(np.abs(grams))), 1e-300)
-    w, v = np.linalg.eigh(g.sum(axis=0))
-    kernel = int(np.sum(w <= INTENSITY_RTOL * max(float(w[-1]), 1e-300)))
-    residual = 0.0
+    k, p, residual = _common_kernel(g)
+    kernel = k.shape[1]
     if kernel:
-        k = v[:, :kernel]
-        residual = max(float(np.linalg.norm(x @ k, 2)) / max(float(np.linalg.norm(x, 2)), 1e-300)
-                       for x in g)
-        p = v[:, kernel:]
         g = np.einsum("ki,skl,lj->sij", p, g, p)
         g = g / max(float(np.max(np.abs(g))), 1e-300)
     return g, kernel, residual
+
+
+def _common_kernel(g: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
+    """The common kernel of a stack scaled to max 1: (K, P, r_K), orthonormal kernel and complement, and max_s ‖g_sK‖₂/‖g_s‖₂.
+
+    One ``eigh`` of Σ_s g_s; the cut is :func:`_live_projection`'s, which
+    is built on this, as is :func:`_kernel_amplitude_ratio`, so the two
+    read one kernel.
+    """
+    w, v = np.linalg.eigh(g.sum(axis=0))
+    kernel = int(np.sum(w <= INTENSITY_RTOL * max(float(w[-1]), 1e-300)))
+    k, p = v[:, :kernel], v[:, kernel:]
+    residual = 0.0
+    if kernel:
+        residual = max(float(np.linalg.norm(x @ k, 2)) / max(float(np.linalg.norm(x, 2)), 1e-300)
+                       for x in g)
+    return k, p, residual
+
+
+def _kernel_amplitude_ratio(grams: np.ndarray, y: np.ndarray) -> float:
+    """ρ_max = −1 + √(1 + ratio·Λ/(r_K·Y)): the amplitude bound along the kernel under which y refutes the draw on the full stack.
+
+    On the live stack scaled to max 1, g_s, with K its common kernel, P the
+    complement, M = Σ_s y_s g_s and b = Pu + Kv,
+
+        bᵀMb ≥ ratio·Λ‖u‖² − r_K·Y·(2‖u‖‖v‖ + ‖v‖²),
+
+    since ‖PᵀMK‖₂ and ‖KᵀMK‖₂ are each at most Σ_s |y_s|‖g_sK‖₂ ≤ r_K·Y,
+    with Λ = ‖PᵀMP‖₂, ratio = λ_min(PᵀMP)/Λ, Y = Σ_s |y_s|‖g_s‖₂ and r_K
+    :func:`_common_kernel`'s residual.  The right side is positive for
+    every u ≠ 0 and ‖v‖ ≤ ρ‖u‖ exactly when r_K·Y·(2ρ + ρ²) < ratio·Λ, and
+    then y·I(b) = bᵀMb > 0 > y·t refutes I(b) = t; ρ_max is the largest
+    such ρ.  Infinite when the stack has no kernel or r_K = 0 (the claim is
+    then unconditional), 0 when PᵀMP is not positive definite.
+    :data:`KERNEL_AMPLITUDE_RATIO` is the least ρ_max a certificate is
+    issued at.
+    """
+    g = grams / max(float(np.max(np.abs(grams))), 1e-300)
+    k, p, residual = _common_kernel(g)
+    if k.shape[1] == 0 or residual <= 0.0:
+        return float("inf")
+    w = np.linalg.eigvalsh(p.T @ np.einsum("s,sij->ij", y, g) @ p)
+    lam = float(np.max(np.abs(w)))
+    ratio = float(w[0]) / max(lam, 1e-300)
+    if ratio <= 0.0:
+        return 0.0
+    big_y = float(np.sum(np.abs(np.asarray(y)) * np.linalg.norm(g, 2, axis=(1, 2))))
+    return float(-1.0 + np.sqrt(1.0 + ratio * lam / (residual * big_y)))
 
 
 def _farkas_dual(grams: np.ndarray, t_hat: np.ndarray) -> tuple[float, np.ndarray]:
@@ -2842,12 +3191,14 @@ def _min_norm_certificate(grams: np.ndarray, t_hat: np.ndarray,
 
 
 def _quote_inside(grams: np.ndarray, y_mn: np.ndarray, anchor: np.ndarray) -> np.ndarray:
-    """The certificate to quote: the point of the segment y_mn → anchor nearest y_mn with ratio ≥ min(:data:`FARKAS_QUOTE`, anchor's/2), never below :data:`FARKAS_FLOOR`.
+    """The certificate to quote: the point of the segment y_mn → anchor nearest y_mn with ratio ≥ min(:data:`FARKAS_QUOTE`, anchor's/2), the target floored at :data:`FARKAS_FLOOR`.
 
     λ_min of M(y) is concave along the segment and y·t̂ = −1 holds on all of
     it, so a bisection on the fraction finds the point.  d moves by at most
     0.7 % (d_q/d_mn ≥ 0.9934 over the 49 witnesses of the known answer and
-    ``P m -3 m`` at (0, 0, ½)).
+    ``P m -3 m`` at (0, 0, ½)).  An anchor whose own ratio is under the
+    floor ends the bisection at the anchor, which is then under it too, and
+    the caller refuses it (review of #772, round 2).
     """
     target = max(FARKAS_FLOOR, min(FARKAS_QUOTE, _spectrum_ratio(grams, anchor) / 2))
     if _spectrum_ratio(grams, y_mn) >= target:
@@ -2875,7 +3226,9 @@ def _exact_psd(grams: np.ndarray, y) -> bool:
     annihilates the common kernel K, which the kernel is *taken* to do.  The
     float stack departs from that by the kernel residual r_K ≤
     :data:`INTENSITY_RTOL`, recorded in :attr:`Witness.kernel_residual` and
-    not covered by this check.
+    not covered by this check; what the full float stack still proves under
+    that residual is :attr:`Witness.kernel_amplitude_ratio`
+    (:func:`_kernel_amplitude_ratio`).
     At the quoted margin (:data:`FARKAS_QUOTE`, more than three decades
     above the rounding bound) it cannot disagree with the float eigenvalue:
     it is the arbiter by decision, and assurance in practice.
@@ -2921,10 +3274,13 @@ def _farkas_certificate(grams_live: np.ndarray, target_live: np.ndarray,
     """The projected dual's optimum and, when it clears :data:`FARKAS_FLOOR`, the quoted certificate: (dual, parts).
 
     ``parts`` holds y (quoted, on the live shells, y·t̂ = −1), the projected
-    stack's kernel data, ratio, rounding bound and the exact check; None
-    when the dual is below the floor, the kernel residual is above
-    :data:`INTENSITY_RTOL` (dual None too: nothing is solved), the quoted
-    ratio is below the floor, or the exact check fails.
+    stack's kernel data, the full-stack amplitude bound ρ_max
+    (:func:`_kernel_amplitude_ratio`), ratio, rounding bound and the exact
+    check; None when the dual is below the floor, the kernel residual is
+    above :data:`INTENSITY_RTOL` (dual None too: nothing is solved), the
+    quoted ratio is below the floor, the exact check fails, or ρ_max is
+    below :data:`KERNEL_AMPLITUDE_RATIO` (the guard tied to the quoted
+    margin: solved, and refused).
     """
     g, t_hat = _certificate_stack(grams_live, target_live, weights_live)
     projected, kernel, residual = _live_projection(g)
@@ -2938,12 +3294,16 @@ def _farkas_certificate(grams_live: np.ndarray, target_live: np.ndarray,
     ratio = _spectrum_ratio(projected, y)
     if ratio < FARKAS_FLOOR or not _exact_psd(projected, y):
         return dual, None
+    rho = _kernel_amplitude_ratio(g, y)
+    if rho < KERNEL_AMPLITUDE_RATIO:
+        return dual, None
     eps = float(np.finfo(np.float64).eps)
     m = np.einsum("s,sij->ij", y, projected)
     kappa = float(np.sum(np.abs(y) * np.array([np.linalg.norm(x, 2) for x in projected]))) \
         / max(float(np.linalg.norm(m, 2)), 1e-300)
     n_shells, n = projected.shape[:2]
-    return dual, {"y": y, "kernel_dim": kernel, "kernel_residual": residual, "ratio": ratio,
+    return dual, {"y": y, "kernel_dim": kernel, "kernel_residual": residual,
+                  "kernel_amplitude_ratio": rho, "ratio": ratio,
                   "rounding_bound": n * eps + n_shells * eps * kappa, "exact": True}
 
 
@@ -2966,10 +3326,12 @@ def _verify_witness(grams_b: np.ndarray, witness: Witness) -> tuple[bool, float,
 
     Rebuilds the (weighted) live stack from ``grams_b`` and the stored t,
     projects out its common kernel afresh, and requires |y·t̂ + 1| ≤ 1e-9,
-    projected ratio ≥ :data:`FARKAS_FLOOR` and the exact LDLᵀ.  The stored
+    projected ratio ≥ :data:`FARKAS_FLOOR`, the exact LDLᵀ, and the
+    full-stack guard ρ_max ≥ :data:`KERNEL_AMPLITUDE_RATIO`.  The stored
     t is an intensity vector, so a change of either family's amplitude basis
     leaves the check intact (M(y) and y·t move by congruence and not at
-    all).
+    all) — which is also why a witness carried to an isometric copy of
+    ``b`` re-verifies against that copy's own stack.
     """
     live = np.asarray(witness.live, dtype=np.int64)
     t = np.asarray(witness.t, dtype=np.float64)[live]
@@ -2980,7 +3342,8 @@ def _verify_witness(grams_b: np.ndarray, witness: Witness) -> tuple[bool, float,
     off = abs(float(y @ t_hat) + 1.0)
     ratio = _spectrum_ratio(projected, y)
     holds = (residual <= INTENSITY_RTOL and off <= 1e-9 and ratio >= FARKAS_FLOOR
-             and _exact_psd(projected, y))
+             and _exact_psd(projected, y)
+             and _kernel_amplitude_ratio(g, y) >= KERNEL_AMPLITUDE_RATIO)
     return bool(holds), ratio, off
 
 
@@ -3038,6 +3401,7 @@ def _certify_draw(target: np.ndarray, grams_b: np.ndarray, dark_b: np.ndarray, r
                 y=tuple(float(v) for v in y),
                 weights=None if w is None else tuple(float(v) for v in w),
                 kernel_dim=parts["kernel_dim"], kernel_residual=parts["kernel_residual"],
+                kernel_amplitude_ratio=parts["kernel_amplitude_ratio"],
                 ratio=parts["ratio"], rounding_bound=parts["rounding_bound"],
                 exact=parts["exact"], d=(d_lo, r_l2))
             if d_gate >= _gate(rtol, target, live):
@@ -3082,9 +3446,11 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     every model, and then nothing is drawn.  During the draws, a draw no
     restart reproduces can be **proved** out of the other family's reach
     by a Farkas certificate (``farkas``, :class:`Witness`), at the caller's
-    ``rtol``; then "distinct" is proved too, of that stored draw.  The only
-    equality the certificates in this release prove is between two families
-    with no pattern at all, so any other ``True`` rests on the draws below,
+    ``rtol``; then "distinct" is proved too, of that stored draw.  The
+    equalities the certificates prove are two: two families with no
+    pattern at all, and two whose Gram stacks are orthogonally congruent
+    (``isometry``, :class:`Isometry`: the rank-1 copies of one irrep), so
+    any other ``True`` rests on the draws below,
     and so does a ``False`` no certificate gave;
     :func:`powder_relations` returns which, direction by direction, with the
     number of draws each made.
@@ -3165,10 +3531,35 @@ def _powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     silent = [_silent(fa), _silent(fb)]
     dark = [_certificate_dark(ga, silent[0]), _certificate_dark(gb, silent[1])]
     spans = [_intensity_span(ga), _intensity_span(gb)]
+    decided = _isometry_verdicts(0, 1, ga, gb, dark, spans, silent)
     there, back = _pair_verdicts(0, 1, (a, b), (ga, gb), silent, dark, spans, refl,
                                  draws=draws, seed=seed, rtol=rtol, restarts=restarts,
-                                 weights=weights)
+                                 weights=weights, decided=decided)
     return bool(there.contained and back.contained)
+
+
+def _isometry_verdicts(i: int, j: int, grams_i: np.ndarray, grams_j: np.ndarray, dark, spans,
+                       silent) -> dict[tuple[int, int], PairVerdict]:
+    """Both directions of the isometry certificate on one pair, or an empty dict.
+
+    Tried only on a pair the family-level certificates leave open: an
+    isometric pair has the same dark shells and the same intensity span, so
+    an absence or subspace verdict on either direction rules it out, and a
+    silent family is the absence certificate's.
+    """
+    if _certify(i, j, dark, spans, silent) is not None or \
+            _certify(j, i, dark, spans, silent) is not None:
+        return {}
+    record = _isometry(grams_i, grams_j)
+    if record is None:
+        return {}
+    # Q acts on a's amplitudes (QᵀG^j Q = G^i), so the (j, i) record is its transpose,
+    # with the two residuals re-measured on the reversed stacks
+    back = replace(record, q=tuple(zip(*record.q)))
+    _, residual, orthogonality = _verify_isometry(grams_j, grams_i, back)
+    back = replace(back, residual=residual, orthogonality=orthogonality)
+    return {(i, j): PairVerdict(i, j, "proved-contained", "isometry", isometry=record),
+            (j, i): PairVerdict(j, i, "proved-contained", "isometry", isometry=back)}
 
 
 def _shell_weights(weights, refl: ReflectionSet) -> np.ndarray | None:
@@ -3209,10 +3600,15 @@ def _silent(factors: np.ndarray) -> bool:
 
 def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
                    refl: ReflectionSet, *, draws: int, seed: int, rtol: float,
-                   restarts: int, weights: np.ndarray | None = None
+                   restarts: int, weights: np.ndarray | None = None,
+                   decided: dict[tuple[int, int], PairVerdict] | None = None
                    ) -> tuple[PairVerdict, PairVerdict]:
     """The two directed verdicts of one pair: certificates first, then the draws.
 
+    ``decided`` holds verdicts settled before this pair was reached, by
+    the isometry certificate or by propagation from an isometric copy
+    (:func:`_classify`); a direction the family-level certificates leave
+    open takes its entry there, and is not drawn.
     A pair a family-level certificate settles distinct is not drawn at all,
     and its other direction is recorded ``unresolved`` (``reason="settled"``)
     unless a certificate settles that too.  Otherwise each direction not
@@ -3231,8 +3627,9 @@ def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
     generator: one whose pattern is zero everywhere is counted as
     reproduced, since ``b``'s zero model reproduces it, and is not fitted.
     """
-    proved = {(i, j): _certify(i, j, dark, spans, silent),
-              (j, i): _certify(j, i, dark, spans, silent)}
+    decided = decided or {}
+    proved = {key: _certify(*key, dark, spans, silent) or decided.get(key)
+              for key in ((i, j), (j, i))}
     if any(v is not None and v.status == "proved-not" for v in proved.values()):
         return tuple(proved[key] or PairVerdict(*key, "unresolved", reason="settled")
                      for key in ((i, j), (j, i)))
@@ -3276,7 +3673,21 @@ def _pair_verdicts(i: int, j: int, canonical, grams, silent, dark, spans,
 def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | None,
               seed: int, rtol: float, restarts: int, weights=None
               ) -> tuple[tuple[tuple[int, ...], ...], tuple[PairVerdict, ...]]:
-    """:func:`equivalence_classes` and :func:`powder_relations` from one pass over the pairs."""
+    """:func:`equivalence_classes` and :func:`powder_relations` from one pass over the pairs.
+
+    Three passes, the first two cheap.  (1) The family-level certificates
+    on every ordered pair, and the isometry certificate on every pair they
+    leave open; isometric candidates are grouped (union-find over the
+    isometry verdicts, ``copies``), and every proved verdict is carried to
+    the pairs of copies (:func:`_propagate`).  (2) The pair loop as before,
+    i < j in order, each direction drawn only if nothing has decided it;
+    a Farkas proof is carried to the copies the moment it is found, so a
+    later pair of copies is not drawn.  Union-find over the equivalent
+    pairs joins as it always did, on the pair's own two verdicts; a
+    propagated proof that lands on a pair an earlier sampled join made
+    replaces the sampled verdict and leaves the join (the table names the
+    class, part 5 splits it).  Nothing sampled is carried.
+    """
     weights = _shell_weights(weights, refl)
     little = _irreps.little_group(candidate_set.space_group, candidate_set.k)
     n = len(candidate_set)
@@ -3287,22 +3698,34 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | 
     dark = [_certificate_dark(g, quiet) for g, quiet in zip(grams, silent)]
     spans = [_intensity_span(g) for g in grams]
     parent = list(range(n))
+    copies = list(range(n))
 
-    def find(i: int) -> int:
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
+    def find(i: int, tree: list[int] = parent) -> int:
+        while tree[i] != i:
+            tree[i] = tree[tree[i]]
+            i = tree[i]
         return i
 
     verdicts: dict[tuple[int, int], PairVerdict] = {}
+    certified = {(i, j): _certify(i, j, dark, spans, silent)
+                 for i in range(n) for j in range(n) if i != j}
     for i in range(n):
         for j in range(i + 1, n):
+            both = _isometry_verdicts(i, j, grams[i], grams[j], dark, spans, silent)
+            if both:
+                verdicts.update(both)
+                copies[find(j, copies)] = find(i, copies)
+    for v in certified.values():
+        if v is not None:
+            _propagate(v, verdicts, copies, n)
+    for i in range(n):
+        for j in range(i + 1, n):
+            decided = {key: verdicts[key] for key in ((i, j), (j, i)) if key in verdicts}
             if find(i) == find(j):
                 # joined through other pairs: the certificates still run, since
                 # a proof is not transitive the way a join is and a later rule
                 # reads every one; only the draws are skipped
-                proved = {key: _certify(*key, dark, spans, silent)
-                          for key in ((i, j), (j, i))}
+                proved = {key: certified[key] or decided.get(key) for key in ((i, j), (j, i))}
                 reason = "settled" if any(v is not None and v.status == "proved-not"
                                           for v in proved.values()) else "joined"
                 for key, v in proved.items():
@@ -3311,8 +3734,11 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | 
             there, back = _pair_verdicts(i, j, canonical, grams, silent, dark, spans, refl,
                                          draws=_draws_for(canonical[i], canonical[j], draws),
                                          seed=seed, rtol=rtol, restarts=restarts,
-                                         weights=weights)
+                                         weights=weights, decided=decided)
             verdicts[(i, j)], verdicts[(j, i)] = there, back
+            for v in (there, back):
+                if v.certificate == "farkas":
+                    _propagate(v, verdicts, copies, n)
             if there.contained and back.contained:
                 parent[find(j)] = find(i)
     groups: dict[int, list[int]] = {}
@@ -3321,6 +3747,54 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | 
     classes = tuple(tuple(members) for members in
                     sorted(groups.values(), key=lambda m: m[0]))
     return classes, tuple(verdicts[key] for key in sorted(verdicts))
+
+
+def _propagate(source: PairVerdict, verdicts: dict[tuple[int, int], PairVerdict],
+               copies: list[int], n: int) -> None:
+    """Carry a proved verdict to every ordered pair of isometric copies of its two ends (issue #565, part 3).
+
+    ``copies`` is the union-find forest over the isometry verdicts; a and
+    b are copies when they share a root.  For every (a, b) with a ≅
+    ``source.a`` and b ≅ ``source.b``, other than the source itself: a
+    direction already proved must agree with the source (two proofs that
+    disagree are a defect in a certificate, and raise rather than pick);
+    anything else — undecided, sampled, unresolved — is replaced by the
+    source's status under certificate ``propagated``, ``via`` the source
+    pair, with its ``d``, ``witness`` and ``dual`` (the witness is about the
+    draw and a stack congruent to b's, so it re-verifies against b's own).
+    A sampled source carries nothing: only a ``proved-*`` status is read.
+    """
+    if not source.proved or source.certificate == "propagated":
+        return
+
+    def root(i: int) -> int:
+        while copies[i] != i:
+            copies[i] = copies[copies[i]]
+            i = copies[i]
+        return i
+
+    ra, rb = root(source.a), root(source.b)
+    for a in range(n):
+        if root(a) != ra:
+            continue
+        for b in range(n):
+            if b == a or root(b) != rb or (a, b) == (source.a, source.b):
+                continue
+            current = verdicts.get((a, b))
+            if current is not None and current.proved:
+                if current.status != source.status:
+                    raise RuntimeError(
+                        f"two certificates disagree: pair ({a}, {b}) is {current.status} by "
+                        f"{current.certificate}, while its isometric copy "
+                        f"({source.a}, {source.b}) is {source.status} by {source.certificate}; "
+                        f"one of the two certificates is wrong")
+                continue
+            # a direction already drawn keeps the draws it consumed: the proof
+            # replaces its verdict, not the count of what was spent on it
+            spent = current.draws if current is not None else 0
+            verdicts[(a, b)] = PairVerdict(a, b, source.status, "propagated", spent, 0,
+                                           d=source.d, witness=source.witness,
+                                           dual=source.dual, via=(source.a, source.b))
 
 
 def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
@@ -3336,19 +3810,21 @@ def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,
     family lights and the other cannot, or an intensity span not inside the
     other's (:class:`PairVerdict`) — and by :func:`powder_equivalent`'s
     draws otherwise, where a draw no fit reproduces can itself be proved
-    out of reach (``farkas``).  The certificates in this release prove two
-    candidates *distinct*, or two with no pattern at all equal, so every
-    other join here rests on draws, and union-find carries
-    each sampled verdict further: one false "equivalent" joins two classes,
-    and one false "distinguishable" splits a class only if no other chain of
-    pairs joins it.  Read the count as measured at this ``seed``, ``draws``
-    and ``restarts``, not as a property of the group;
-    :func:`powder_relations` says which pair rests on what.  A proved
-    separation can therefore sit inside a class that sampled pairs joined
-    (``S7`` ⊄ ``S8`` with ``S7`` ~ ``S10`` ~ ``S8``): the printed table
-    names such classes, and issue #565's part 5 splits them.  Each
-    candidate's basis is made canonical and its structure factors and
-    :func:`gram` stack built once, rather than once per pair or per draw.
+    out of reach (``farkas``).  The certificates prove two candidates
+    *distinct*, or two equal when one has no pattern at all or the two are
+    isometric copies (``isometry``), and a proof carries to every pair of
+    isometric copies (``propagated``), so every other join here rests on
+    draws, and union-find carries each sampled verdict further: one false
+    "equivalent" joins two classes, and one false "distinguishable" splits
+    a class only if no other chain of pairs joins it.  Read the count as
+    measured at this ``seed``, ``draws`` and ``restarts``, not as a
+    property of the group; :func:`powder_relations` says which pair rests
+    on what.  A proved separation can therefore sit inside a class that
+    sampled pairs joined (``S7`` ⊄ ``S8`` with ``S7`` ~ ``S10`` ~ ``S8``):
+    the printed table names such classes, and issue #565's part 5 splits
+    them.  Each candidate's basis is made canonical and its structure
+    factors and :func:`gram` stack built once, rather than once per pair or
+    per draw.
     Cost: an equivalent pair mostly stops at its first restart, while a
     distinguishable one no family-level certificate settles pays one
     restart and a Farkas dual when the draw is certified, and the full
@@ -3378,7 +3854,8 @@ def powder_relations(candidate_set: CandidateSet, refl: ReflectionSet, *,
     certificate, sampled with the number of draws actually made, or
     unresolved where nothing tested that direction, with its ``reason``.
     The certificates run on every ordered pair; the draws are skipped on a
-    pair union-find has already joined.  The same pass, the same
+    pair union-find has already joined and on a direction a proof reached
+    through an isometric copy (``propagated``).  The same pass, the same
     generator streams and the same partition as :func:`equivalence_classes`
     with these arguments.  A family-level certificate does not read
     ``rtol``; the Farkas one is gated on it (:class:`PairVerdict` states
