@@ -151,8 +151,16 @@ to move are declared rather than left to be inferred:
   measured on a synthetic ramp and one two-pattern pair, and the rule that
   folds two chains' brackets has already changed once. The builder for a
   k ≠ 0 supercell, `magnetic_supercell`, and the P1 restatement of a magnetic
-  phase, `restate_phase_in_p1`, are not exported at the top level and may
-  change in any release.
+  phase or structure, `restate_phase_in_p1` and `restate_in_p1`, are not
+  exported at the top level and may change in any release.
+- Rigid bodies are provisional, and are named here because their types live in
+  `rietx.schemas.structure` beside stable ones. `RigidBody`, `BodyOrigin`,
+  `Phase.rigid_bodies`, `ParameterRow.body` and the builders in
+  `rietx.crystallography.bodies` shipped in 1.7.0 as the first piece of a
+  milestone that is still open. Torsions inside a body, riding hydrogens and a
+  fragment library are still to come, and each may add fields or change what
+  a body refines. A document that carries a body needs schema 0.43, and a build
+  older than 1.7.0 refuses it.
 - The foreign-refinement readers are provisional as a subsystem.
   `read_project_model`, `identify_project_format`, `read_topas_inp`,
   `read_fullprof_pcr`, `read_gsas_exp` and the per-format models they answer

@@ -130,7 +130,8 @@ Use one where the data cannot separate two quantities and chemistry says they
 need not be separated. Two of the cases the guidelines {cite}`mccusker1999`
 recommend are available here: equal displacement parameters across atoms in the
 same environment, and occupancies that must sum to a known total. The third,
-rigid bodies, is not.
+rigid bodies, arrived in 1.7.0 as a provisional first piece
+(`Phase.rigid_bodies`; [](compatibility.md)).
 
 <!-- api-doc: no-exec — it needs the reader's own structure and instrument -->
 ```python
