@@ -102,7 +102,7 @@ landing's "Agent quickstart" is WP-1917's neighbour and untouched here.
 - [x] Tests: the manual builds with the five notebook pages present; a test
   holds the copied set equal to `examples/tutorials/` by glob; the rendered
   index links all five. Look at one rendered page in light and dark.
-- [ ] Skill: none. The notebooks teach a person to check an agent, and WP-1545
+- [x] Skill: none. The notebooks teach a person to check an agent, and WP-1545
   already decided the skill gains no pointer.
 
 ## Acceptance
