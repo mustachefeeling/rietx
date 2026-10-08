@@ -73,7 +73,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..crystallography.lattice import two_theta_deg
-from ..crystallography.magnetic.irreps import star
+from ..crystallography.representation.irreps import star
 from ..crystallography.satellites import (
     KCandidate,
     check_candidate_denominators,

@@ -188,12 +188,12 @@ from fractions import Fraction
 
 import numpy as np
 
+from ..representation import irreps as _irreps
+from ..representation import modes as _modes
+from ..representation.irreps import KVector, LittleGroup, SmallIrrep, as_kvector
+from ..representation.modes import IrrepBasis, PermutationRepresentation, SiteRepresentation
 from ..wyckoff import _compatible_lattice
-from . import irreps as _irreps
-from . import modes as _modes
 from . import operators as _operators
-from .irreps import KVector, LittleGroup, SmallIrrep, as_kvector
-from .modes import IrrepBasis, PermutationRepresentation, SiteRepresentation
 from .operators import (
     IDENTITY,
     MagneticGroup,

@@ -57,8 +57,8 @@ import gemmi
 import numpy as np
 import pytest
 
-from rietx.crystallography.magnetic import modes
-from rietx.crystallography.magnetic.irreps import (
+from rietx.crystallography.representation import modes
+from rietx.crystallography.representation.irreps import (
     inversion_parity,
     little_group,
     small_irreps,
@@ -771,8 +771,8 @@ def test_total_free_real_amplitudes_counts_a_conjugate_pair_once():
     3N = 12; a conjugate pair is one physically irreducible representation and
     the total must close on 3N.
     """
-    from rietx.crystallography.magnetic.irreps import small_irreps
-    from rietx.crystallography.magnetic.modes import magnetic_representation, mode_table
+    from rietx.crystallography.representation.irreps import small_irreps
+    from rietx.crystallography.representation.modes import magnetic_representation, mode_table
 
     rep = magnetic_representation("P 4", (0.13, 0.27, 0.41), (0, 0, 0))
     table = mode_table(rep, small_irreps("P 4", (0, 0, 0)))

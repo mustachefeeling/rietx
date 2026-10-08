@@ -29,7 +29,7 @@ from fractions import Fraction
 import numpy as np
 import pytest
 
-from rietx.crystallography.magnetic import irreps, isotropy, modes
+from rietx.crystallography.magnetic import isotropy
 from rietx.crystallography.magnetic.operators import (
     MagneticGroup,
     MagneticOperator,
@@ -38,6 +38,7 @@ from rietx.crystallography.magnetic.operators import (
     identify,
     in_span,
 )
+from rietx.crystallography.representation import irreps, modes
 
 GAMMA = (Fraction(0), Fraction(0), Fraction(0))
 HALF = (Fraction(1, 2), Fraction(1, 2), Fraction(1, 2))
