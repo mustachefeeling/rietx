@@ -104,6 +104,23 @@ another protocol. Re-measure before editing the section.
 form of the screen. Its full posterior is a v2 fence (`extinction.py:100-104`)
 and is not proposed here. No code is ported.
 
+### Inherited
+
+- **2026-10-08, from WP-1546 (the 1.7.0 cut).** The "seen in passing"
+  mismatch above is re-measured and bisected. The manual's numbers were the
+  shipped protocol's until the WP-1112 merge (`e794a9e4`, #80, 2026-08-21):
+  every commit before it gives shared-fit Rwp 0.1491 and ΔBIC −218, and every
+  commit from it gives 0.2586 and −3434 over six testable positions. So 1.6.0
+  already shipped the move. Over 5-150° the shared fit now reads 0.262, so its
+  Rwp no longer separates the 20-90° arm from the wide one, where it was 0.149
+  against 0.270. Whether WP-1112 corrected the shared fit or broke it is
+  unexamined. The cut made `using/indexing.md` (about lines 1256-1268) and the
+  skill's `references/diagnostics-indexing.md` quote what the code does, and
+  dropped "fitted peaks a third too wide", which it could not re-measure. The
+  bisect script is `m_bisect.py` in WP-1546's session scratchpad, which is not
+  kept. Its method was the suite's `corundum_inputs` and
+  `determine_extinction_symbol` over `T.CORUNDUM_RANGE` on each commit's `src`.
+
 ## Non-goals
 
 - Loosening the absence test or `_model_is_quiet` (WP-1077).
