@@ -96,16 +96,16 @@ so dropping the "until 1.7" lines needs no manual edit.
 
 - [x] Drop the "until 1.7" lines from the five `.py`
   sources and the README, then rebuild the notebooks.
-- [ ] `build.py`: the newest `v*` tag, a refusal when there is none, and the
+- [x] `build.py`: the newest `v*` tag, a refusal when there is none, and the
   rows derived from the notebooks; `pages.yml` fetches tags.
-- [ ] The "Jupyter quickstart" disclosure in the hero, exclusive with the agent
+- [x] The "Jupyter quickstart" disclosure in the hero, exclusive with the agent
   one; checked at 320 px in light and dark.
-- [ ] Tests in `tests/test_landing.py`: the built page has one row per notebook
+- [x] Tests in `tests/test_landing.py`: the built page has one row per notebook
   by glob; every Colab URL names the tag `build.py` found; every Read link
   resolves to a page the manual builds.
 - [ ] The maintainer's Colab run of each notebook at the tag, its result
   recorded in the handover.
-- [ ] Skill: none. The page is for people, and the agent quickstart is unchanged.
+- [x] Skill: none. The page is for people, and the agent quickstart is unchanged.
 
 ## Acceptance
 

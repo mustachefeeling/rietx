@@ -12,10 +12,10 @@ rather than the top bar, which has no room for a fourth item at 320 px.
 | path | what |
 |---|---|
 | `src/shell.html` | what every page shares: the stylesheet, the top bar, the theme control, the footer. Placeholders `%%TITLE%%`, `%%DESCRIPTION%%`, `%%NOTE%%` (from `build.PAGES`), `%%MAIN%%` (the page), `%%FAVICON%%` |
-| `src/index.html` | the landing page's `<main>` and its scripts: the hero's copy buttons and quickstart disclosure, the animation. Placeholders `%%IMG:…%%`, `%%DEMO%%`, `%%TRANSCRIPT%%`. The hero draws a command to copy flat and tinted, like code, and every bordered box as a button or a link. The agent quickstart is a `<details>` on its own line whose button grows into the prompt; any `#quickstart` link opens it too. Its prompt is written once, as markup, and `tests/test_landing.py` runs its install and skill commands |
+| `src/index.html` | the landing page's `<main>` and its scripts: the hero's copy buttons and quickstart disclosure, the animation. Placeholders `%%IMG:…%%`, `%%DEMO%%`, `%%TRANSCRIPT%%`. The hero draws a command to copy flat and tinted, like code, and every bordered box as a button or a link. The agent quickstart is a `<details>` on its own line whose button grows into the prompt; any `#quickstart` link opens it too. Its prompt is written once, as markup, and `tests/test_landing.py` runs its install and skill commands. The Jupyter quickstart below it is a second `<details>` sharing its `name`, so opening one closes the other; its rows are `%%NOTEBOOKS%%` |
 | `src/why.html` | the essay's `<main>`. The words are the maintainer's, verbatim; only the links were added |
 | `src/favicon.svg` | the manual's favicon recoloured to the accent (`#d8660c` light, `#ff9d4d` dark) |
-| `build.py` | `python build.py` → `dist/<page>.html` (everything inlined); `python build.py --site` → `site/` with every page, `img/`, `data/`, `favicon.svg`. `PAGES` lists the pages, each with its title, description and footer line; a new page is a row there and a file in `src/` |
+| `build.py` | `python build.py` → `dist/<page>.html` (everything inlined); `python build.py --site` → `site/` with every page, `img/`, `data/`, `notebooks/`, `favicon.svg`. The Jupyter quickstart's rows, Colab links and `notebooks/` downloads are the tutorial notebooks at the newest `vX.Y.Z` tag, read from git; with no tag it refuses, and `--ref HEAD` builds from another ref (§ How it is built). `PAGES` lists the pages, each with its title, description and footer line; a new page is a row there and a file in `src/` |
 | `build_demo.py` | `python build_demo.py <bundle dir> data/demo.json 2` — the animation payload from the contributor's `curves.npz` + `metadata.csv`, decimated by the third argument (**always 2** for the committed file; see § The payload below). Refuses to write if any filename, scan index or specimen token from the bundle reaches the output |
 | `data/transcript.json` | what the pane shows around the log: `prompt` (the run's prompt, cut to a few lines), `head` (the stdout before the series), `marks` (lines that land on a given frame: the chunk boundaries, the finalise summary), `report` (the agent's closing words, cut) and `note`. Cuts are marked `[…]`, file names and paths are bracketed stand-ins. `python tools/check_transcript.py <bundle dir> data/transcript.json` refuses any pattern filename, scan index, specimen tag, machine path or person from the bundle |
 | `data/demo.json` | the built payload, **committed**, 0.99 MB: 275 × 649 obs and calc as base64 Int16, weight fractions, the gas/temperature programme. Each frame carries `t` (the file's clock, s) and `tm` (the plotted clock, min: the six pauses of 18–58 min between scans count as one 74 s interval; `pauses` lists them). Phases carry `name`, `html` and `support`; the three support phases are named `support 1`–`3` rather than by formula: `build_demo.phase_columns` takes their columns from the bundle's own header, in header order, so their names are in neither the payload nor the builder — and deliberately not in `build.LEAK` either, since a denylist publishes what it denies. Segments carry the atmosphere text and a colour `key` (`n2`, `h2`, `air`). `decimation` and `steps_per_fwhm` record the redaction. No filenames |
@@ -54,6 +54,12 @@ repository, so a fork builds the whole thing with no secret and no fetch.
   stretch of the output panel between `…` cuts to the cell's committed output,
   in order. So rebuilding the notebook with new numbers fails the test until
   the panel is refreshed.
+- The Jupyter quickstart links the notebooks at the **newest release tag**, never
+  at `main` (WP-1917). `main`'s notebooks are built against the next `.dev0`, so
+  a Colab link to them could call API that `%pip install rietx` does not
+  install. The workflow fetches the `v*` tags for this, and `build.py` refuses
+  when it finds none rather than falling back to `main`. The test suite builds
+  at `HEAD`, because CI's shallow checkouts carry no tags.
 - `rietx._about.DOCS_URL` stays `https://rietx.org`, and `help.py`'s anchors are
   `page.html#id`, so neither moved.
 

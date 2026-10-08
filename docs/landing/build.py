@@ -1,7 +1,8 @@
 """Assemble the landing page and the pages beside it.
 
   python build.py            -> dist/<page>.html  everything inlined (one file a page; what the artifact shows)
-  python build.py --site     -> site/             every page + img/ + data/demo.json, for a web server
+  python build.py --site     -> site/             every page + img/ + data/demo.json + notebooks/, for a web server
+  python build.py --ref HEAD                      the notebooks at a ref other than the newest release tag
 
 `src/shell.html` is what every page shares: the stylesheet, the top bar, the theme control
 and the footer.  Each page in PAGES is a `<main>` (and any script of its own) in `src/`,
@@ -9,17 +10,100 @@ dropped into the shell at `%%MAIN%%`; the table gives its title, its description
 footer's line saying who wrote it.  `%%IMG:name%%` becomes a data URI (inline) or
 `img/<name>.png` (site); `%%DEMO%%` is data/demo.json inline, or empty for the site build,
 where the page fetches data/demo.json at load; `%%TRANSCRIPT%%` is data/transcript.json
-when it exists, else empty and the page draws its placeholder.
+when it exists, else empty and the page draws its placeholder.  `%%NOTEBOOKS%%` is the
+Jupyter quickstart's rows, one per tutorial notebook at the release (see `release_tag`).
 """
 import base64
+import html as _html
+import importlib.util
+import json
 import re
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
+from fnmatch import fnmatch
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+REPO = HERE.parents[1]
 SHELL = HERE / "src" / "shell.html"
+
+
+def _by_path(name: str, path: Path):
+    """A module imported by path: the page builds from a checkout without rietx installed."""
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+ABOUT = _by_path("_landing_about", REPO / "src" / "rietx" / "_about.py")
+TUTORIALS = "examples/tutorials"
+#: The tutorials' own glob, so a sixth notebook gets a row with no edit here.
+SOURCES = _by_path("_landing_tutorials", REPO / TUTORIALS / "build.py").SOURCES
+COLAB = "https://colab.research.google.com/github/"
+
+
+# The Jupyter quickstart's notebooks come from the newest release tag, never from `main`
+# (WP-1917).  `main`'s notebooks are built against the next `.dev0` and may call API that
+# PyPI does not have, while a tagged notebook's `%pip install rietx` installs the release it
+# was built with.  The tag is read from git, not from `pyproject.version`, which names a
+# release before it is tagged (the manual's `_SOURCE_REF` note).  With no tag the build
+# refuses: falling back to `main` is the failure this exists to avoid.  The Pages workflow
+# fetches tags for this; a test passes `HEAD`, since CI's shallow checkouts carry none.
+def release_tag(repo: Path = REPO) -> str:
+    """The newest `vX.Y.Z` tag in `repo`, by version order."""
+    tags = subprocess.run(["git", "-C", str(repo), "tag", "--list", "v*"],
+                          capture_output=True, text=True, check=True).stdout.split()
+    versions = [(tuple(map(int, m.groups())), t) for t in tags
+                if (m := re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)", t))]
+    if not versions:
+        raise SystemExit(f"no vX.Y.Z tag in {repo}: the Jupyter quickstart links the notebooks "
+                         f"at the newest release (fetch tags, or pass --ref)")
+    return max(versions)[1]
+
+
+@dataclass(frozen=True)
+class Notebook:
+    path: str       # repository-relative, e.g. examples/tutorials/01_quickstart.ipynb
+    title: str      # the first markdown cell's `# ` heading
+    data: bytes     # the file at the ref, byte for byte, for the site's download copy
+
+    @property
+    def name(self) -> str:
+        return self.path.rsplit("/", 1)[1]
+
+
+def notebooks(ref: str, repo: Path = REPO) -> list[Notebook]:
+    """Every tutorial notebook at `ref`, in file order, read from git rather than the tree."""
+    def git(*args: str) -> bytes:
+        return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, check=True).stdout
+    found = []
+    for path in sorted(git("ls-tree", "--name-only", f"{ref}:{TUTORIALS}").decode().split()):
+        if not (path.endswith(".ipynb") and fnmatch(path.removesuffix(".ipynb") + ".py", SOURCES)):
+            continue
+        data = git("show", f"{ref}:{TUTORIALS}/{path}")
+        cell = next(c for c in json.loads(data)["cells"] if c["cell_type"] == "markdown")
+        title = next(line for line in "".join(cell["source"]).splitlines() if line.startswith("# "))
+        found.append(Notebook(f"{TUTORIALS}/{path}", title[2:].strip(), data))
+    if not found:
+        raise SystemExit(f"no tutorial notebook in {TUTORIALS} at {ref}")
+    return found
+
+
+def notebook_rows(ref: str, books: list[Notebook]) -> str:
+    """The Jupyter quickstart's list: each notebook's title, then Read, Colab, Download."""
+    repo = ABOUT.REPO_URL.removeprefix("https://github.com/")
+    rows = []
+    for nb in books:
+        stem = nb.name.removesuffix(".ipynb")
+        rows.append(
+            f'<li><span class="nb-title">{_html.escape(nb.title)}</span><span class="nb-links">'
+            f'<a href="{ABOUT.DOCS_URL}/using/tutorials/{stem}.html">Read</a>'
+            f'<a href="{COLAB}{repo}/blob/{ref}/{nb.path}">Colab</a>'
+            f'<a href="notebooks/{nb.name}" download>Download</a></span></li>')
+    return "\n".join(rows)
 
 
 @dataclass(frozen=True)
@@ -104,7 +188,8 @@ DOCUMENT = """<!doctype html>
 """
 
 
-def assemble(site: bool, name: str = "index.html") -> str:
+def assemble(site: bool, name: str = "index.html", ref: str | None = None) -> str:
+    """One page; `ref` is where its notebooks are read, the newest release tag when None."""
     page = PAGES[name]
     html = SHELL.read_text(encoding="utf-8")
     html = html.replace("%%MAIN%%", (HERE / "src" / name).read_text(encoding="utf-8").strip())
@@ -124,6 +209,9 @@ def assemble(site: bool, name: str = "index.html") -> str:
         html = html.replace("%%DEMO%%", "" if site else DEMO.read_text(encoding="utf-8"))
     tr = TRANSCRIPT.read_text(encoding="utf-8").strip() if TRANSCRIPT.exists() else ""
     html = html.replace("%%TRANSCRIPT%%", tr)
+    if "%%NOTEBOOKS%%" in html:
+        ref = ref or release_tag()
+        html = html.replace("%%NOTEBOOKS%%", notebook_rows(ref, notebooks(ref)))
     assert "%%" not in html, f"unfilled placeholder in {name}"
     bad = leaks(html)
     if bad:
@@ -132,6 +220,7 @@ def assemble(site: bool, name: str = "index.html") -> str:
 
 if __name__ == "__main__":
     site = "--site" in sys.argv
+    ref = sys.argv[sys.argv.index("--ref") + 1] if "--ref" in sys.argv else release_tag()
     if site:
         out = HERE / "site"
         shutil.rmtree(out, ignore_errors=True)
@@ -147,11 +236,15 @@ if __name__ == "__main__":
             shutil.copy(DEMO, out / "data" / "demo.json")
         if TRANSCRIPT.exists():
             shutil.copy(TRANSCRIPT, out / "data" / "transcript.json")
+        # The downloads are the notebooks at the same ref as the Colab links, so the two agree.
+        (out / "notebooks").mkdir()
+        for nb in notebooks(ref):
+            (out / "notebooks" / nb.name).write_bytes(nb.data)
         for name in PAGES:
-            (out / name).write_text(assemble(True, name), encoding="utf-8")
+            (out / name).write_text(assemble(True, name, ref), encoding="utf-8")
     else:
         out = HERE / "dist"
         out.mkdir(exist_ok=True)
         for name in PAGES:
-            (out / name).write_text(assemble(False, name), encoding="utf-8")
+            (out / name).write_text(assemble(False, name, ref), encoding="utf-8")
     print("wrote", out)

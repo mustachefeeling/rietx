@@ -15,7 +15,7 @@
        The prompt is written once, as markup.  `.v-pip` and `.v-git` are the two install
        lines; the radios pick one by CSS alone, and the copy button serialises what is
        showing, each `code` wrapped in backticks.  Every link to #quickstart opens it. -->
-  <details class="qs" id="quickstart">
+  <details class="qs" id="quickstart" name="quickstart">
     <summary>Agent quickstart<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
     <!-- Three layers, each drawn once: what the person does (plain text), the one choice
          that changes the prompt, and the prompt itself, set apart as text to copy. -->
@@ -38,6 +38,18 @@
           </ol>
         </div>
       </div>
+    </div>
+  </details>
+  <!-- The tutorial notebooks.  It shares the agent quickstart's `name`, so opening one closes
+       the other.  The rows are build.py's, one per notebook at the newest release tag, and
+       every Colab link and download is that tagged file (WP-1917). -->
+  <details class="qs" id="notebooks" name="quickstart">
+    <summary>Jupyter quickstart<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+    <div class="qs-body">
+      <p class="qs-lead">Tutorial notebooks, each under a minute. Read one in the manual, open it in Colab, or download it. Its first cell installs <code>rietx</code>.</p>
+      <ul class="nb-list">
+%%NOTEBOOKS%%
+      </ul>
     </div>
   </details>
   <span class="sr" id="copy-status" role="status"></span>
