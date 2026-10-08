@@ -91,16 +91,32 @@ def test_the_xray_case_is_what_topas_computes():
     assert off > 4 * err          # measured 4.4e-2 against 2.4e-3
 
 
-def test_an_xray_extinction_is_refused_until_it_is_measured(tmp_path):
-    """No TOPAS run backs the X-ray |F|² unit, so the term is not written."""
+def _xray_extinction(value):
     ref, pattern = case_nacl_xray()
     s = ref.fitted_structure.model_copy(deep=True)
-    s.phases[0].extinction.value = 5.0
-    with pytest.raises(ValueError, match="extinction.*X-ray|X-ray.*not been measured"):
-        rx.write_topas_inp(s, tmp_path / "x.inp", free=ref,
-                           instrument=ref.fitted_instrument, pattern=pattern,
-                           scale="topas")
-    assert not (tmp_path / "x.inp").exists()
+    s.phases[0].extinction.value = value
+    return rx.Refinement(s, ref.fitted_instrument, history=False), pattern
+
+
+def test_an_xray_extinction_is_written_in_electrons_squared(tmp_path):
+    """TOPAS's X-ray ``A01^2 + B01^2 + A11^2 + B11^2`` is rietx's |F|² (factor
+    1, where the neutron term has 100), measured against TOPAS 6's zero-cycle
+    Y_calc of this case at extinction 20 (``topas_export_nacl_xray_ext20``)."""
+    ref, pattern = _xray_extinction(20.0)
+    rx.write_topas_inp(ref.fitted_structure, tmp_path / "x.inp", free=ref,
+                       instrument=ref.fitted_instrument, pattern=pattern,
+                       scale="topas")
+    text = (tmp_path / "x.inp").read_text(encoding="utf-8")
+    (line,) = [ln for ln in text.splitlines() if "scale_pks" in ln]
+    assert "*(A01^2 + B01^2 + A11^2 + B11^2)*(1.5405929/Get(cell_volume))^2" in line
+    assert "100*" not in line
+    _, _, err = _oracle("nacl_xray_ext20", ref)
+    assert err < ORACLE_TOL          # measured 2.6e-3, the case's own floor
+    # positive arms: no extinction, and the neutron factor 100, both miss
+    for value in (0.0, 20.0 * 100):
+        arm_ref, _ = _xray_extinction(value)
+        _, _, arm = _oracle("nacl_xray_ext20", arm_ref)
+        assert arm > 4 * err         # measured 2.4e-1 and 3.7
 
 
 @pytest.mark.parametrize("stem", ['a"b', "a\nb", "a\rb"])
