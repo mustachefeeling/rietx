@@ -43,6 +43,46 @@ here (2026-10-03, at the maintainer's request).
 
 ### Inherited
 
+- **2026-10-08, from the issue triage (issue #740): a second case of this
+  WP's failure, with a sharper reading of its mechanism.** The reporter's
+  synthetic LaMnO3-like Pnma pattern (CW neutron, 2.4 Å, background
+  300 + 2·2θ) at the true cell and profile, background free and seeded at the
+  10th percentile of y (SKILL.md §2 rule 5), gives Rwp 1.62 % under one Le Bail
+  stage at 100 or 400 `lebail_cycles`, against 1.09 % for the Rietveld fit
+  of the true structure and 1.06 % for Pawley. The deficit is at 90-150°, where
+  the weak dense reflections sit. The reporter's open question was whether the
+  EM partition or its weights cause it. A probe points away from
+  both: the Le Bail intensities are partitioned at stage start against the
+  *seed* background (the same point as the 2026-10-05 entry above), and
+  re-partitioning on the fitted background closes the gap. The mechanism
+  (intensities absorbing the seed's deficit where reflections are dense) is
+  the reading the numbers fit, not something the probe isolated.
+  Measured: after the one stage the fitted background sits at 0.88 of the
+  true one at 100° and 0.95 at 140° (0.99 at 20° and 60°), and the residual rms
+  by 20° band, starting at 10°, is 0.94 0.89 0.97 1.07 1.85 2.34 1.74. Two
+  stages in a row (100 cycles each, so the second partitions on the background
+  the first fitted) end at 1.18 %, three at 1.10 % with bands 0.94 0.87 0.94
+  1.04 1.01 1.16 1.05. One stage seeded at the Rietveld fit's own background
+  ends at 1.09 %. The seed here is 346 counts against a true background of
+  580 at 140°. This differs from the case 1542 was filed on
+  in one respect: there the free intensities absorbed a hump and Rwp *fell*;
+  here a low pedestal seed leaves Rwp *above* the structure's, so the finding
+  1542 task 3 designs should fire on the background having moved a long way
+  from its seed across stages, not only on a width growing. It also sharpens
+  task 4: the comparison of protocols should include "partition again after
+  the background solve", since a second stage does it for free.
+  Not tested: the reporter's second observation, that a `profile_only` run on
+  the pattern's own passes rises 1.72, 1.81, 1.82, 1.82 %. It is the same
+  seed in the first pass, but the rise across passes was not reproduced.
+  Checked against the tree at 5d1f5f67: reproduced to the digit. Rietveld
+  0.0109; Le Bail 0.0456 / 0.0163 / 0.0162 at 3 / 100 / 400 cycles; Pawley
+  0.0106 (the reporter's script, 5 s on this machine). `lebail_update` runs at
+  stage start (`refine.py:3565`, on `table.x0()`) and after the solve
+  (`refine.py:3864`); the reported Rwp equals the one recomputed from the
+  returned `y_calc` (0.0163 both). No other open WP owns
+  it: 1323 (the stop rule) is shipped, 1511 chooses between cells and 1545 is
+  the notebook that reproduces the 03 case.
+
 - **2026-10-05, from the issue triage (issue #725): a second user asks for
   §2 rule 5 as `auto_background`'s default, and the proposed default is the
   start of this WP's own failure.** The proposal: `auto_background(data, …,
