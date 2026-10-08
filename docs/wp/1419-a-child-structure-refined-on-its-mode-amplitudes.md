@@ -161,6 +161,28 @@ the transposed rotation set is a group too and passes any dimension count.
 
 ### Inherited
 
+- **2026-10-08, from the issue triage (issue #286, the reporter's comment of
+  2026-10-06): the mode vectors carry no physical length today.** Decision 2
+  above chooses the amplitude's unit. The reporter measured why it cannot
+  be left to the basis. `basis_vectors` Gram–Schmidts the projected vectors
+  in `crystal_metric(space_group)`, the Reynolds average of a generic metric
+  whose scale is whatever `wyckoff._compatible_lattice` returns. The
+  subspaces do not depend on that metric. The lengths do: on one structure,
+  Σ|e|² over the child cell for a unit-amplitude mode varied by about 3×
+  across the k points tried. Nothing refines an amplitude yet, so no number
+  on `main` is wrong. The reporter proposes AMPLIMODES' convention as the
+  answer to decision 2: Σ mult·|ε|² = 1 over a primitive cell of the
+  **child** lattice, displacements in Å, orthogonal in the same sum
+  (Perez-Mato, Orobengoa & Aroyo 2010, *Acta Cryst.* A66, 558, eqs. 3-4).
+  Normalising over the parent's primitive cell differs by √(index). They
+  also propose a helper such as `normalise_in_cell(basis, lattice)` and a
+  known-answer test: a perovskite tilt amplitude in Å against a published
+  decomposition, with AMPLIMODES/ISODISTORT used only as black boxes.
+  Checked against the tree at `5d1f5f67`: `basis_vectors`
+  (`crystallography/magnetic/modes.py:973`) and `crystal_metric` (`:338`)
+  exist as named. The factor of 3 was not re-measured. The choice between
+  this and the furthest-atom-moves-1-Å rule above stays this WP's decision.
+
 - **2026-10-05, from the issue triage (issue #679, recorded in
   [1418](1418-the-magnetic-structure-is-determined.md)):** PR #680 makes a
   displacive candidate's group the stabiliser of its own field. The
