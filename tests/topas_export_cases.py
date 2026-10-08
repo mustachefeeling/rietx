@@ -16,7 +16,7 @@ import numpy as np
 
 import rietx as rx
 from rietx.schemas.common import Parameter as P
-from rietx.schemas.instrument import BackgroundChebyshev, BackgroundPSpline
+from rietx.schemas.instrument import BackgroundChebyshev, BackgroundPSpline, Dispersion
 from rietx.schemas.structure import Atom, Cell, Phase
 
 
@@ -73,7 +73,11 @@ def case_nacl_xray():
     geom = inst.geometry.model_copy(update={
         "sample_displacement": inst.geometry.sample_displacement.model_copy(
             update={"value": 0.05})})
+    # declared, not inherited: TOPAS 6's Y_calc carries the anomalous term, and
+    # rietx matches it with dispersion on (2.4e-3), not off (4.4e-2)
+    source = inst.source.model_copy(update={"dispersion": Dispersion()})
     inst = inst.model_copy(update={
+        "source": source,
         "geometry": geom,
         "background": BackgroundChebyshev(coefficients=[
             P(value=v) for v in (50.0, -10.0, 4.0)])})

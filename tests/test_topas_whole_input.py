@@ -82,6 +82,36 @@ def test_the_xray_case_is_what_topas_computes():
     _, _, arm = _oracle("nacl_xray", rx.Refinement(ref.fitted_structure, inst,
                                                    history=False))
     assert arm > 2 * ORACLE_TOL
+    # the dispersion the case declares is the setting TOPAS's Y_calc carries
+    assert ref.fitted_instrument.source.dispersion is not None
+    inst = ref.fitted_instrument.model_copy(deep=True)
+    inst.source.dispersion = None
+    _, _, off = _oracle("nacl_xray", rx.Refinement(ref.fitted_structure, inst,
+                                                   history=False))
+    assert off > 4 * err          # measured 4.4e-2 against 2.4e-3
+
+
+def test_an_xray_extinction_is_refused_until_it_is_measured(tmp_path):
+    """No TOPAS run backs the X-ray |F|² unit, so the term is not written."""
+    ref, pattern = case_nacl_xray()
+    s = ref.fitted_structure.model_copy(deep=True)
+    s.phases[0].extinction.value = 5.0
+    with pytest.raises(ValueError, match="extinction.*X-ray|X-ray.*not been measured"):
+        rx.write_topas_inp(s, tmp_path / "x.inp", free=ref,
+                           instrument=ref.fitted_instrument, pattern=pattern,
+                           scale="topas")
+    assert not (tmp_path / "x.inp").exists()
+
+
+@pytest.mark.parametrize("stem", ['a"b', "a\nb", "a\rb"])
+def test_a_data_file_name_the_xdd_line_cannot_hold_is_refused(tmp_path, stem):
+    ref, pattern = case_nacl_neutron()
+    out = tmp_path / f"{stem}.inp"
+    with pytest.raises(ValueError, match="xdd"):
+        rx.write_topas_inp(ref.fitted_structure, out, free=ref,
+                           instrument=ref.fitted_instrument, pattern=pattern,
+                           scale="topas")
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_the_xray_file_states_lp_and_the_doublet(tmp_path):

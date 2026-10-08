@@ -244,13 +244,13 @@ def _profile_items(instrument, ip, phase, refined: RefinedSet) -> list:
 
     rietx: Γ_G² = (U + gauss_strain)·tan²θ + V·tanθ + W + gauss_size/cos²θ
     (floored at 1e-8 deg²), Γ_L = (X + lor_size)/cosθ + (Y + lor_strain)·tanθ
-    (``model.profiles.caglioti``). Γ and η are TCH's
-    (1987). TOPAS ``Th`` is θ in radians, and ``pv_fwhm``/``pv_lor`` are the
-    width and Lorentzian fraction of its ``pv`` peak type (Technical Reference §
-    5.2); the profile keywords sit in the ``str`` because a TOPAS peak shape is
-    a phase's. TOPAS's own TCHZ macro writes the Lorentzian as ``x tanθ +
-    y/cosθ``, the letters swapped against rietx's X and Y; here no letter is
-    used, so there is nothing to swap.
+    (``model.profiles.caglioti``). Γ and η are Thompson, Cox & Hastings
+    (1987), *J. Appl. Cryst.* 20, 79. TOPAS ``Th`` is θ in radians, and
+    ``pv_fwhm``/``pv_lor`` are the width and Lorentzian fraction of its ``pv``
+    peak type (Technical Reference § 5.2); the profile keywords sit in the
+    ``str`` because a TOPAS peak shape is a phase's. The widths are written as
+    equations in rietx's own terms, by their physics (size ↔ 1/cosθ, strain ↔
+    tanθ), so no program's X/Y letters are involved.
     """
     prof = instrument.profile
     kind = getattr(prof, "shape", None)
@@ -290,25 +290,36 @@ def _profile_items(instrument, ip, phase, refined: RefinedSet) -> list:
 
 
 def _extinction_items(instrument, ip, phase, refined: RefinedSet) -> list:
-    """rietx's Sabine (1988) extinction as a ``scale_pks`` equation.
+    """rietx's Sabine extinction as a ``scale_pks`` equation.
+
+    Sabine (1988), *Acta Cryst.* A44, 368; Sabine, Von Dreele & Jørgensen
+    (1988), *Acta Cryst.* A44, 374 (the references ``model.extinction`` lists).
 
     E = E_B sin²θ + E_L cos²θ with x = ext·|F|²·(λ/V)²·Xpol, E_B = (1 + x)^-½,
     and E_L the six-term series for x ≤ 1 and √(2/πx)(1 − 1/(8x)) above
     (``model.extinction``). TOPAS states |F|² per reflection as
     ``A01^2 + B01^2 + A11^2 + B11^2`` (Technical Reference § 10.2.2,
     ``F2_Merged``) and the cell volume as ``Get(cell_volume)``; a neutron |F|²
-    there is in barn, rietx's in fm², hence the 100. Written only when the
-    extinction is on or free.
+    there is in barn, rietx's in fm², hence the 100 (measured against TOPAS 6,
+    ``case_nacl_neutron``). Written only when the extinction is on or free. An
+    X-ray extinction is **refused**: no TOPAS run has measured the unit of its
+    |F|² (``case_nacl_xray`` has extinction 0), and the neutron factor is a
+    unit conversion that does not carry over by assumption.
     """
     path = _p(ip, "extinction")
     if phase.extinction.value == 0.0 and not refined.is_free(path):
         return []
+    if instrument.source.kind != "neutron_cw":
+        raise ValueError(
+            f"phase {phase.name!r} has an extinction ({path}) on a "
+            f"{instrument.source.kind!r} source; TOPAS's X-ray |F|² unit has "
+            f"not been measured against its own output, so the term is refused "
+            f"rather than written on an assumed unit. Set it to 0 and held, or "
+            f"write the structure alone (no instrument=)")
     refined.named.add(path)       # read back by name (topas_ties)
     ext = refined.affine(path, phase.extinction.value)
-    neutron = instrument.source.kind == "neutron_cw"
     lam = float(instrument.source.lines[0].wavelength.value)
-    unit = "100*" if neutron else ""
-    f2 = f"{unit}(A01^2 + B01^2 + A11^2 + B11^2)"
+    f2 = "100*(A01^2 + B01^2 + A11^2 + B11^2)"
     xv = (f"({{0}}*{f2}*({number(lam)}/Get(cell_volume))^2*{number(_SABINE_XPOL)}"
           f"*(1 + Cos(2*Th)^2)/2)")
     c = _SABINE_LAUE
@@ -464,7 +475,13 @@ def _convolution_step(instrument, tt) -> int:
 def _lp_factor(instrument) -> str:
     """``LP_Factor(c)``: neutron 90° (Lp = 1/(sin²θ cosθ)); X-ray
     cos² c = (1 − K)/K (measured against TOPAS 6 to 5e-8, K = 0.5, 0.5556,
-    0.99). A K below ½ has no ``LP_Factor`` and is refused."""
+    0.99). A K below ½ has no ``LP_Factor`` and is refused.
+
+    rietx's own factor is ``model.corrections.lorentz_polarization``,
+    Lp = [K + (1 − K)cos²2θ]/(sin²θ cosθ) (International Tables for
+    Crystallography vol. C, § 6.2; Klug & Alexander 1974, ch. 5); the TOPAS
+    statement above is matched to it by the measurement, not derived from
+    TOPAS's definition."""
     if instrument.source.kind == "neutron_cw":
         return "LP_Factor(90)"
     k = float(instrument.source.polarization.value)
@@ -502,6 +519,11 @@ def instrument_items(instrument, pattern, refined: RefinedSet, data_name: str,
         raise ValueError("a λ/n harmonic has no TOPAS statement in this writer")
     if instrument.extra_components:
         raise ValueError("Instrument.extra_components have no TOPAS statement here")
+    if any(ch in data_name for ch in '"\r\n'):
+        raise ValueError(
+            f"data file name {data_name!r} cannot be written to a TOPAS `.inp`: "
+            f"the `xdd` line holds it in double quotes, so a quote or a line "
+            f"break splits the card. Rename the output file")
     tt, y, s, mask = _fit_points(pattern)
     radius = float(geom.goniometer_radius_mm or DEFAULT_RADIUS_MM)
     items: list = [f"xdd \"{data_name}\" xye_format\n",
@@ -528,8 +550,9 @@ def instrument_items(instrument, pattern, refined: RefinedSet, data_name: str,
     sd = geom.sample_displacement
     sd_aff = refined.affine("instrument.geometry.sample_displacement", sd.value)
     if sd_aff.terms or sd_aff.const != 0.0:
-        # rietx's own displacement law, Δ2θ = -(2·s/R)·cosθ rad (Wilson 1963;
-        # Klug & Alexander 1974; model.corrections.displacement_shift_deg),
+        # rietx's own displacement law, Δ2θ = -(2·s/R)·cosθ rad (Wilson 1963,
+        # Mathematical Theory of X-ray Powder Diffractometry, ch. 4; Klug &
+        # Alexander 1974, ch. 5; model.corrections.displacement_shift_deg),
         # as a th2_offset equation in degrees (Rad = 180/π); the sign and the
         # unit measured against TOPAS 6 on the X-ray case
         items += ["  th2_offset = ", Expr(f"-2*Rad*{{0}}*Cos(Th)/{number(radius)}",
@@ -539,7 +562,8 @@ def instrument_items(instrument, pattern, refined: RefinedSet, data_name: str,
     hl = refined.affine("instrument.geometry.axial_hl", geom.axial_hl.value) \
         if getattr(geom, "axial_hl", None) is not None else Affine({}, 0.0)
     if sl.terms or hl.terms or sl.const or hl.const:
-        # FCJ (1994) S/L and H/L as TOPAS's Finger_et_al(s2, h2), whose
+        # Finger, Cox & Jephcoat (1994), J. Appl. Cryst. 27, 892: S/L and H/L
+        # as TOPAS's Finger_et_al(s2, h2), whose
         # arguments are the full sample and receiving-slit lengths (Technical
         # Reference § 12.2.4): s2 = 2·(S/L)·Rs. Measured against TOPAS 6
         # (S/L = H/L = 0.01, Rs 217.5): largest residual 2.2e-3 of the peak on
@@ -550,7 +574,9 @@ def instrument_items(instrument, pattern, refined: RefinedSet, data_name: str,
 
 
 def finger_items(sl: Affine, hl: Affine, radius: float) -> list:
-    """FCJ (1994) S/L and H/L as TOPAS's ``Finger_et_al(s2, h2)``.
+    """FCJ S/L and H/L as TOPAS's ``Finger_et_al(s2, h2)``.
+
+    Finger, Cox & Jephcoat (1994), *J. Appl. Cryst.* 27, 892.
 
     Its arguments are the full sample and receiving-slit lengths in mm
     (Technical Reference § 12.2.4), so s2 = 2·(S/L)·Rs and h2 = 2·(H/L)·Rs:

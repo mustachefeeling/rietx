@@ -837,7 +837,8 @@ stands: the data beside it as `<stem>.xye` (2θ, intensity and the σ rietx fits
 with, from the first to the last fitted point), and the `xdd` block that
 describes them. Every term is the one rietx fits, written from TOPAS's
 documented keywords and checked against TOPAS 6 at zero cycles
-(`tests/test_topas_whole_input.py`):
+(`tests/test_topas_whole_input.py`; the X-ray extinction is the one term not
+checked, and is refused):
 
 | rietx | written as |
 |---|---|
@@ -850,7 +851,7 @@ documented keywords and checked against TOPAS 6 at zero cycles
 | P-spline background | one `fit_obj` per B-spline basis function, and its smoothing penalty as `penalty` terms with `pen_weight = 1;` |
 | TCHZ profile, sample broadening | `peak_type pv` with rietx's width laws as `pv_fwhm`/`pv_lor` equations |
 | FCJ axial divergence (S/L, H/L) | `Finger_et_al(2·S/L·Rs, 2·H/L·Rs)` |
-| Sabine extinction | a `scale_pks` equation over TOPAS's own \|F\|² |
+| Sabine extinction, neutron | a `scale_pks` equation over TOPAS's own \|F\|² (×100, barn to fm²). An X-ray extinction is refused by name: its unit has not been measured against TOPAS |
 | excluded regions inside the range | `exclude` |
 
 Three of these are not what a TOPAS user would write by hand, for measured
