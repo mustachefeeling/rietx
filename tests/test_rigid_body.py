@@ -142,6 +142,59 @@ def test_a_body_on_a_special_position_is_refused_for_now():
         ParameterTable(s, INS)
 
 
+def _sulfate_on_the_pnma_mirror() -> Structure:
+    """PbSO₄'s SO₄, Hill (1992) *J. Appl. Cryst.* 25, 589, Table 7: S, O1, O2
+    on the 4c mirror and O3 general, so the body's centroid is general."""
+    P = Parameter
+    cell = Cell(a=P(value=8.482), b=P(value=5.398), c=P(value=6.959),
+                alpha=P(value=90.0), beta=P(value=90.0), gamma=P(value=90.0))
+    atoms = [Atom(label=lab, species=sp, x=P(value=x), y=P(value=y), z=P(value=z))
+             for lab, sp, x, y, z in [("Pb", "Pb", 0.1879, 0.25, 0.1667),
+                                      ("S", "S", 0.0633, 0.25, 0.6842),
+                                      ("O1", "O", 0.908, 0.25, 0.596),
+                                      ("O2", "O", 0.194, 0.25, 0.543),
+                                      ("O3", "O", 0.082, 0.026, 0.809)]]
+    phase = Phase(name="pbso4", space_group="P n m a", cell=cell, atoms=atoms)
+    body = body_from_atoms(phase, ["S", "O1", "O2", "O3"], "SO4",
+                           rotation_vary=True, origin_vary=True)
+    return Structure(phases=[Phase.model_validate(
+        {**phase.model_dump(), "rigid_bodies": [body.model_dump()]})])
+
+
+def _bromine_on_the_p1bar_centre() -> Structure:
+    """A three-atom body with Br on the ½,½,½ centre and its centroid general."""
+    P = Parameter
+    atoms = [Atom(label=lab, species=sp, x=P(value=x), y=P(value=y), z=P(value=z))
+             for lab, sp, x, y, z in [("Br", "Br", 0.5, 0.5, 0.5),
+                                      ("Ca", "C", 0.69, 0.5, 0.5),
+                                      ("Cb", "C", 0.55, 0.68, 0.5)]]
+    phase = Phase(name="tri", space_group="P-1", cell=_cell(), atoms=atoms)
+    body = body_from_atoms(phase, ["Br", "Ca", "Cb"], "tri", rotation_vary=True)
+    return Structure(phases=[Phase.model_validate(
+        {**phase.model_dump(), "rigid_bodies": [body.model_dump()]})])
+
+
+@pytest.mark.parametrize(("build", "atom", "order"), [
+    (_sulfate_on_the_pnma_mirror, "S", 2), (_bromine_on_the_p1bar_centre, "Br", 2)])
+def test_a_body_atom_on_a_special_position_is_refused_naming_it(build, atom, order):
+    """The origin check alone let a body over mirror atoms build: a turn moved S,
+    O1, O2 off the mirror inside the stage, and the next stage's compile counted
+    8 S and 24 O in a cell of 4 and 16, converged at Rwp 25 % against 3.5 %
+    with no diagnostic.  The refusal names the first atom a site fixes."""
+    s = build()
+    phase = s.phases[0]
+    body = phase.rigid_bodies[0]
+    # the origin is general in both cases, so only the atom check can refuse
+    from rietx.crystallography.symmetry import resolve_group
+    from rietx.crystallography.wyckoff import stabilizer_rotations
+    sg = resolve_group(phase.space_group, phase.symmetry_operations)
+    assert len(stabilizer_rotations(sg, np.array(body.origin.values()))) == 1
+    with pytest.raises(ValueError, match=(
+            rf"RIGID_BODY_NOT_INVARIANT: rigid body {body.name!r} has its atom "
+            rf"{atom!r} .* \(site symmetry of order {order}\)")):
+        ParameterTable(s, INS)
+
+
 def test_parameter_rows_say_which_body_holds_a_coordinate():
     ref = Refinement(body_structure(Q_TRUE), INS, history=False)
     rows = {r.path: r for r in ref.parameters()}

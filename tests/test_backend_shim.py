@@ -431,6 +431,15 @@ def _state_toy_anomalous():
     edge at Cu Kα, so f′ = −1.55 is large, and an anisotropic Zn site plus a
     free polar-axis z run the correction through *both* structural derivative
     kernels.
+
+    The observed pattern is **read, not simulated** (WP-1928).  It was once
+    evaluated here at a perturbed copy of the model (``cell.a + 0.004``,
+    ``atoms[1].z + 0.003``, +25 flat), and that evaluation goes through libm,
+    so it moved with the macOS major: 26 → 27 shifted ``residual`` and
+    ``jacobian`` while ``y_calc`` stayed bit-identical (#760).  The pattern is
+    input data, not code under test, so it is frozen in
+    ``backend_goldens/toy_anomalous_y_obs.npy`` (provenance in
+    ``tests/data/README.md``) and the gate now tests only the shim path.
     """
     from rietx.schemas.instrument import Dispersion
     from rietx.schemas.structure import AnisoU, Structure
@@ -447,15 +456,9 @@ def _state_toy_anomalous():
     instrument.profile.w.value = 1.2e-2
     instrument.background = BackgroundChebyshev.with_terms(4)
     grid = np.arange(28.0, 95.0, 0.02)
-    empty = PatternData(two_theta=grid.tolist(),
-                        intensity=np.zeros_like(grid).tolist())
-    sim = structure.model_copy(deep=True)
-    sim.phases[0].cell.a.value += 0.004
-    sim.phases[0].atoms[1].z.value += 0.003
-    sim_model = compile_model(sim, instrument, empty, mode="rietveld")
-    sim_table = ParameterTable(sim, instrument)
-    y = sim_model.evaluate(sim_table.decode(sim_table.x0())) + 25.0
-    pattern = PatternData(two_theta=sim_model.tt.tolist(), intensity=y.tolist())
+    y = np.load(GOLDEN_DIR / "toy_anomalous_y_obs.npy")
+    assert y.shape == grid.shape, f"frozen y_obs {y.shape} != grid {grid.shape}"
+    pattern = PatternData(two_theta=grid.tolist(), intensity=y.tolist())
 
     table = ParameterTable(structure, instrument)
     _free(table, [

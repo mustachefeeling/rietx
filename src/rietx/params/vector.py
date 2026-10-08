@@ -1321,9 +1321,9 @@ class ParameterTable:
 
         The origin is collected exactly as an atom's coordinates are
         (:meth:`_collect_atom_coords`): anchored displacement DOFs on its
-        site-symmetry basis.  A body whose origin sits on a special position is
-        refused for now (``RIGID_BODY_NOT_INVARIANT``; WP-1807 takes the
-        stabiliser's axial subspace for the rotation).  The rotation is an
+        site-symmetry basis.  A body whose origin, or any of whose atoms, sits
+        on a special position is refused for now (``RIGID_BODY_NOT_INVARIANT``;
+        WP-1807 takes the stabiliser's axial subspace for the rotation).  The rotation is an
         **anchored increment** δω = E·θ about the record's R₀, zero at every
         build and every commit, bounded per component by
         ``RIGID_BODY_ROTATION_BOUND``; it has as many DOFs as the template's
@@ -1344,6 +1344,26 @@ class ParameterTable:
                 "supported yet (WP-1807) — move the origin to a general "
                 "position")
         index = {a.label: j for j, a in enumerate(phase.atoms)}
+        # the origin is not the only point a site can fix: a member atom on a
+        # special position keeps its coset split for the stage while the body
+        # turns it off the site, and the next compile counts |G_x| times as
+        # many images (S, O1, O2 of PbSO4 on the Pnma mirror: 8 S and 24 O in
+        # a cell of 4 and 16).  Keyed on the stabiliser the forward model's
+        # multiplicity is read from (``wyckoff.stabilizer_rotations``)
+        for label in body.atoms:
+            atom = phase.atoms[index[label]]
+            at = np.array([atom.x.value, atom.y.value, atom.z.value])
+            order = len(stabilizer_rotations(sg, at))
+            if order > 1:
+                raise ValueError(
+                    f"RIGID_BODY_NOT_INVARIANT: rigid body {body.name!r} has its "
+                    f"atom {label!r} at {tuple(float(v) for v in at)} on a "
+                    f"special position of {phase.space_group!r} (site symmetry "
+                    f"of order {order}); a turn of the body moves it off the "
+                    f"site and the next stage counts {order}× its images, and a "
+                    "body on a special position is not supported yet (WP-1807) "
+                    "— refine that atom outside the body, or state the "
+                    "structure in a subgroup where its site is general")
         try:
             block = RigidBodyBlock(
                 phase_base=base, body_base=bbase,

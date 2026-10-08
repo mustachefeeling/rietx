@@ -298,28 +298,25 @@ def _extinction_items(instrument, ip, phase, refined: RefinedSet) -> list:
     E = E_B sin²θ + E_L cos²θ with x = ext·|F|²·(λ/V)²·Xpol, E_B = (1 + x)^-½,
     and E_L the six-term series for x ≤ 1 and √(2/πx)(1 − 1/(8x)) above
     (``model.extinction``). TOPAS states |F|² per reflection as
-    ``A01^2 + B01^2 + A11^2 + B11^2`` (Technical Reference § 10.2.2,
-    ``F2_Merged``) and the cell volume as ``Get(cell_volume)``; a neutron |F|²
-    there is in barn, rietx's in fm², hence the 100 (measured against TOPAS 6,
-    ``case_nacl_neutron``). Written only when the extinction is on or free. An
-    X-ray extinction is **refused**: no TOPAS run has measured the unit of its
-    |F|² (``case_nacl_xray`` has extinction 0), and the neutron factor is a
-    unit conversion that does not carry over by assumption.
+    ``A01^2 + B01^2 + A11^2 + B11^2`` (Technical Reference § 10.2.2, p. 71,
+    eqs. 10-10 and 10-12) and the cell volume as ``Get(cell_volume)``. Its unit
+    is measured against TOPAS 6, never assumed: a neutron |F|² there is in barn,
+    rietx's in fm², hence the 100 (``case_nacl_neutron``); an X-ray |F|² is in
+    electrons², rietx's unit, hence 1 (``case_nacl_xray`` at extinction 20:
+    TOPAS's Y_calc matched at 2.6e-3, the factor 100 misses by 0.79, and its
+    A01..B11 sum is 1.0008 × rietx's |F|² per reflection). λ is the first
+    emission line's, for every line. Written only when the extinction is on or
+    free.
     """
     path = _p(ip, "extinction")
     if phase.extinction.value == 0.0 and not refined.is_free(path):
         return []
-    if instrument.source.kind != "neutron_cw":
-        raise ValueError(
-            f"phase {phase.name!r} has an extinction ({path}) on a "
-            f"{instrument.source.kind!r} source; TOPAS's X-ray |F|² unit has "
-            f"not been measured against its own output, so the term is refused "
-            f"rather than written on an assumed unit. Set it to 0 and held, or "
-            f"write the structure alone (no instrument=)")
     refined.named.add(path)       # read back by name (topas_ties)
     ext = refined.affine(path, phase.extinction.value)
     lam = float(instrument.source.lines[0].wavelength.value)
-    f2 = "100*(A01^2 + B01^2 + A11^2 + B11^2)"
+    f2 = "(A01^2 + B01^2 + A11^2 + B11^2)"
+    if instrument.source.kind == "neutron_cw":
+        f2 = "100*" + f2          # barn -> fm²
     xv = (f"({{0}}*{f2}*({number(lam)}/Get(cell_volume))^2*{number(_SABINE_XPOL)}"
           f"*(1 + Cos(2*Th)^2)/2)")
     c = _SABINE_LAUE

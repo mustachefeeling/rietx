@@ -795,7 +795,7 @@ def allowed_moment_basis(operations, *, phases=None, transpose: bool = False,
     to all +1, which is the ordinary, already-resolved magnetic-space-group
     case this function has always served — passing it changes nothing for
     every caller but ``isotropy.MagneticCandidate.in_allowed_span``, which
-    computes each phase from :mod:`~rietx.crystallography.magnetic.modes`'s
+    computes each phase from :mod:`~rietx.crystallography.representation.modes`'s
     ``SiteRepresentation.permutation.phases``.
 
     The three other keyword flags exist **only** so a test can build the wrong

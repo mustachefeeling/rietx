@@ -1,6 +1,6 @@
 # WP-1911 — the foreign writers state what the other program reads: the setting, the scale, the free set
 
-Milestone: unscheduled · Status: 🔄 2026-10-08 — PRs #720, #731, #710, #733, #713, #771, #782, #770 (Part B's TOPAS writer), #755 (C1's `Zero`) and #815 (#732's whole TOPAS input) merged from outside; #721's decision is due
+Milestone: unscheduled · Status: 🔄 2026-10-08 — PRs #720, #731, #710, #733, #713, #771, #782, #770 (Part B's TOPAS writer), #755 (C1's `Zero`) and #815 (#732's whole TOPAS input) and #839 (its X-ray extinction) merged from outside; #721's decision is due
 Track: Coming from another code
 Depends on: — (#713 soft: the P1 restatement Part D builds on)
 Priority: P3 2026-10-06 — was P2 for #716, which PR #733 fixed; the remaining issues cost a user hand edits
@@ -407,6 +407,31 @@ land alone before the transform exists.
   keywords (specification only, per ATTRIBUTION.md).
 
 ## Handover log
+
+- **2026-10-08 (2nd session)** — the whole TOPAS input now writes an X-ray
+  extinction. PR #839 (head `fb34a211`) merged as `3b9aad52`.
+  *Done.* The refusal #815 shipped is gone, because a TOPAS 6 run measured the unit
+  it was waiting for. On `case_nacl_xray` at extinction 20, TOPAS's
+  `A01^2 + B01^2 + A11^2 + B11^2` is rietx's |F|² in electrons² (1.0008 per
+  reflection on average), so the X-ray `scale_pks` term carries factor 1. The
+  neutron term keeps its 100. `tests/data/topas_export_nacl_xray_ext20_ycalc.txt`
+  is the new oracle (README row checked: size, sha256, CRLF). Re-measured here on
+  the merged tree, `predict()` misses it by 2.6e-3 of rietx's peak, against 0.243
+  at extinction 0 and 3.75 with the neutron factor. The PR also moves every TOPAS
+  citation to the printed v6 Technical Reference by section and page (§ 9 for the
+  magnetic keywords, which earlier text called § 13). Nothing now cites a macro body,
+  and `ATTRIBUTION.md` names the web page only for what v6 lacks.
+  *Gotchas.* The term uses the first emission line's λ for every line, while
+  rietx's forward model passes each line its own. Kα₂'s x is 0.5 % larger, inside
+  the 2.6e-3 match, and the docstring says so. Part B's "state what the other
+  program reads" may want it recorded rather than only documented. The
+  `_extinction_items` docstring's "misses by 0.79" is the same factor-100 miss over
+  TOPAS's peak, where the test's 3.7 is over rietx's. Both were raised as
+  follow-ups on the PR.
+  *Gate:* stacked with #841 on `main` `63af9e1b` as `5c82b0c2`, macOS arm64,
+  `[dev,jax]`: fast 8944 passed, 109 skipped, 1 xfailed, 1 failed (the
+  `test_indexing_reduce` reduction-map row, failing on `main` alone); `-m slow`
+  290 passed, 14 skipped.
 
 - **2026-10-08** — `write_topas_inp` can now write a whole input TOPAS runs as it
   stands, from #732's `### Inherited` item. PR #815 (head `49225d22`) merged as
