@@ -1,6 +1,6 @@
 # WP-1319 — structure interchange: checkCIF conformance, and a bare XYZ importer
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-09 — claimed by @yue-here
 Track: Coming from another code
 Depends on: —
 Priority: P2 2026-10-08 — was P3: #756 measured the writer raising gemmi's bare error on two phase names and writing a file gemmi cannot read
