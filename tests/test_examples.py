@@ -88,7 +88,7 @@ def srm660c_run():
 
 @pytest.mark.xdist_group("example-nac")
 def test_nac_11bm_example_runs(nac_run):
-    """The quickstart walkthrough: read, Le Bail, add the impurity the report
+    """The first-refinement walkthrough: read, Le Bail, add the impurity the report
     flagged, Rietveld, report, history."""
     out, _ = nac_run
     for marker in ("Le Bail:", "Rietveld:", "FitReport:", "best node by Rwp:"):

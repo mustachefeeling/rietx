@@ -1,7 +1,7 @@
 # Quickstart
 
-Five executed notebooks teach the package on a laboratory pattern and on synthetic
-ones.
+The tutorials are {{ N_TUTORIALS }} executed notebooks, on a laboratory pattern
+and on synthetic ones.
 Each runs in under a minute, and the data ships inside the package.
 Read a notebook here with its outputs, or download it and run it yourself.
 Its first code cell installs `rietx`.

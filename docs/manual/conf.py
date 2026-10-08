@@ -421,7 +421,7 @@ def _tutorial_notebooks() -> list[_Path]:
     return [s.with_suffix(".ipynb") for s in build.sources(TUTORIALS_SRC)]
 
 
-def _copy_tutorials() -> None:
+def _copy_tutorials() -> int:
     notebooks = _tutorial_notebooks()
     missing = [nb.name for nb in notebooks if not nb.is_file()]
     if missing:
@@ -435,9 +435,11 @@ def _copy_tutorials() -> None:
         # copy2 keeps the mtime, so Sphinx rereads a page only when its
         # notebook changed.
         _shutil.copy2(nb, TUTORIALS_DST / nb.name)
+    return len(notebooks)
 
 
-_copy_tutorials()
+# The count the quickstart's prose quotes, for the reason `N_EXAMPLES` exists.
+myst_substitutions["N_TUTORIALS"] = _copy_tutorials()
 
 
 # ----------------------------------------------------------------------

@@ -372,7 +372,7 @@ def hump() -> None:
 
 
 def refinement_figures():
-    """The 11-BM NAC fit: the quickstart's panel, and the impurity peak.
+    """The 11-BM NAC fit: the first refinement's panel, and the impurity peak.
 
     Returns the Rietveld result, which `geometry_esds` draws from — one
     refinement, three figures.
@@ -398,7 +398,7 @@ def refinement_figures():
 
         # The CaF2 111 line at 7.52 deg: the Le Bail model does not contain the
         # impurity, so the report flags an unmatched observed peak there.  This
-        # is the concrete version of "Le Bail first" in the quickstart.
+        # is the concrete version of "Le Bail first" in the first refinement.
         hue = rx.viz.plots.PALETTES[style]
         with _rc(style):
             fig, axes = plt.subplots(1, 2, figsize=(WIDTH, 2.8), sharey=True,
@@ -435,7 +435,7 @@ def refinement_figures():
 def pattern_figure(data) -> None:
     """The NAC pattern as read, before any model: `plot_pattern` (WP-1444).
 
-    The same `data` the fit figures are drawn from, so it is the quickstart's
+    The same `data` the fit figures are drawn from, so it is the first refinement's
     panel with the model taken out and the two can be read as a pair.  No
     title: in the manual the caption is the title, as for every other figure.
     """
