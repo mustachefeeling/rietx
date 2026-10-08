@@ -72,6 +72,31 @@ macOS arm64): the macOS row reproduces to every printed digit. χ²_red
 `RESOLUTION_UNCONSTRAINED`. The Linux row was not reproduced here (no Linux
 machine; the nightly does not print χ²).
 
+**Decided 2026-10-08 (maintainer), after a precedent search.**
+
+- **Package:** a stage that frees a softplus row sitting on its floor starts
+  it a short way inside, through `Stage.seed`'s existing path. This is #836's
+  third item. The seed's size and where it comes from are this WP's to
+  measure and state in the docstring.
+- **LaB₆ + cBN:** option (a) with the Gaussian held. `profile.y` starts
+  inside its floor, and u, v and w are held, because at that minimum the data
+  cannot determine them (Γ_G² < 0 at 98-100 % of points). Option (b) has no
+  precedent found. Option (c) is refused: on macOS the data put `y` at
+  0.0376 ± 0.0014, 26σ from zero.
+- **Order:** the reporter measures (a) with the Gaussian held on both
+  platforms before it is adopted, then VALIDATION.md's row is re-measured.
+  Asked on the issue the same day.
+
+The precedents: MINUIT warns that a transformed parameter at its limit sees
+a zero derivative and can stay blocked there, which is this WP's mechanism.
+TOPAS gives width parameters a positive minimum (`pv_fwhm` 1e-6, `la` 1e-5,
+`lh`/`lg` 0.001; Technical Reference Table 2.1) and applies limits inside
+its solver, so a parameter at its minimum still sees its real slope. GSAS-II
+sets no limits by default. scipy's TRF moves a start strictly inside its own
+bounds, but rietx's floor is the softplus transform and not a scipy bound
+(`internal_bounds` maps a lower bound ≤ 1e-12 to −∞), so that protection
+does not apply.
+
 ### Inherited
 
 (empty)
@@ -90,12 +115,12 @@ machine; the nightly does not print χ²).
       reporter offers. Confirm or refute the bound-scaling reading of #700.
 - [ ] Count the exposure: of the acceptance suites and the six presets, which
       free a softplus row at its floor, and which of those end on it.
-- [ ] Decide the protocol (option a with the clamped Gaussian held, option b,
-      or the row held with the reason in the plan), measured on LaB₆ + cBN
-      and BT-1 on both platforms. Record `Decided YYYY-MM-DD: …` here.
-- [ ] The package side: `Stage` seeds a floor row it frees, or
-      `SOFTPLUS_FREED_AT_FLOOR` fires naming it (#836 item 3). Seeding goes
-      through `Stage.seed`'s existing path, never a new one.
+- [ ] The decided protocol on LaB₆ + cBN, option (a) with u, v and w held,
+      measured on both platforms (the reporter's run, or this WP's on Linux
+      CI), and on BT-1 to see whether it moves.
+- [ ] The package side: `Stage` seeds a floor row it frees (#836 item 3),
+      through `Stage.seed`'s existing path, with the seed's size and source in
+      the docstring. A diagnostic only if a caller can still free one unseeded.
 - [ ] A χ² or Rwp band on `test_acceptance_lab6_cbn.py` tight enough to see
       12.5 against 9.7 (the reporter suggests Rwp within 2 % of the
       re-measured value), run on both nightly platforms.
@@ -121,6 +146,8 @@ printed digit on both.
 
 - Issues #832, #831, #836; PR #700 (WP-1534).
 - WP-1541 (the re-measure the published row came from), WP-1929, WP-1914.
+- TOPAS 5 Technical Reference, § 2.5 and Table 2.1 (default limits); ROOT
+  `TMinuit` documentation, parameter limits.
 - Coleman, T. F. & Li, Y. (1996). *SIAM J. Optim.* 6, 418-445 (the
   trust-region reflective method scipy's TRF implements, strictly feasible
   iterates).
@@ -133,5 +160,6 @@ printed digit on both.
   open WP owns it: 1534, whose merge is the bisect's step, is closed; 1541,
   which wrote the published row, is closed; 1929 takes the esds and 1914 the
   after-fit reading. Rated P1 for the published number no platform
-  reproduces. The protocol choice is the maintainer's; the reporter offers to
-  measure either option on both platforms.
+  reproduces. Decided the same day by the maintainer: seed a floor row a
+  stage frees, and option (a) with the Gaussian held for LaB₆ + cBN, measured
+  by the reporter on both platforms before it is adopted.

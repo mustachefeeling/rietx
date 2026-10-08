@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
 Depends on: — (1930 soft: the floor-seeded row, which moves the minimum rather than the esds)
-Priority: P2 2026-10-08 — a P1 row moved down one: a reported esd 2-10× apart on two machines at one χ², nothing flagged; the fix reverses two documented choices (WP-1463's tiny-column rule and `MOMENT_DIRECTION_SUPPORT`'s), so nothing starts before the maintainer decides
+Priority: P1 2026-10-08 — was P2: the maintainer decided (condition on a floor row), so nothing waits; a reported esd 2-10× apart on two machines at one χ², nothing flagged
 
 ## Goal
 
@@ -114,6 +114,36 @@ answer) or *marginalised over* (kept, WP-1463's reading). Conditioning makes
 every esd point-independent; marginalising is what 1463 shipped for an absent
 phase. Either is defensible, and they cannot both hold for the same row.
 
+**Decided 2026-10-08 (maintainer): condition.** A row on its floor, as
+`staged.bound_untested` names it, is treated as fixed for every other
+parameter's esd, and reports no esd of its own. A caller who wants a number
+for it gets a one-sided interval (#836 item 4). A moment angle at a
+stationary symmetry direction is treated the same way, so only the modulus
+carries an esd. Proposal 1, a relative cutoff on the column norm, is not
+adopted: it keys on a column being small, and a tiny column away from a
+floor is still live (WP-1463's case).
+
+The precedents the decision rests on, gathered on the day:
+
+- GSAS-II (`GSASIIstrMain.dropOOBvars`): a parameter past a limit is set to
+  the limit, given esd 0 and frozen out of later refinements. Its other esds
+  in that run still come from the matrix that included it.
+- TOPAS (Technical Reference § 2.5): limits sit inside the solver (BCCG), and
+  a parameter ending near one is tagged `_LIMIT_MIN_#`. Its forum's advice is
+  to fix such a parameter where the limit is physical.
+- MINUIT and lmfit: a transformed parameter's error is meaningless near its
+  limit, because d(external)/d(internal) ≈ 0. The remedy is the error
+  analysis redone without the limit, or a profile interval (MINOS).
+- Self & Liang (1987): an estimate on the boundary has no symmetric
+  sampling distribution, so no Wald esd.
+
+What this reverses, in the commit that lands the rule: root CLAUDE.md's
+WP-1463 clause and `normal_covariance`'s docstring, for a row on its floor.
+An absent phase's scale is such a row, so the other phases' QPA esds become
+conditional on it. WP-1463's stated goal (one answer whether the scale ended
+at 1e-135 or at 1e-179) still holds. `MOMENT_DIRECTION_SUPPORT`'s comment is
+rewritten in the same change.
+
 ### Inherited
 
 (empty)
@@ -128,18 +158,20 @@ phase. Either is defensible, and they cannot both hold for the same row.
 
 ## Tasks
 
-- [ ] The decision above, recorded here as `Decided YYYY-MM-DD: …`, with
-      WP-1463's absent-phase case measured both ways (the other phases' QPA
-      esds conditioned on and marginalised over the floor scale).
+- [ ] Measure WP-1463's absent-phase case both ways before changing it (the
+      other phases' QPA esds conditioned on and marginalised over the floor
+      scale), and record the before and after here.
 - [ ] A fixture that reproduces the platform split on one machine: the BT-1
       fit with `profile.y`'s final internal coordinate set to −514 and to
       −25.5, `profile.x`'s esd compared.
 - [ ] The chosen rule in `optimize/statistics.py` (one place, `normal_factors`
       and `normal_covariance` both), with its threshold's source in the
       docstring. Find every consumer of `live` and `unmeasured_rows`.
-- [ ] Moment angles at a stationary direction, if the decision takes them:
-      either leave the normal matrix or extend `MOMENT_DIRECTION_SUPPORT`'s
-      hold, and rewrite that constant's comment either way.
+- [ ] Moment angles at a stationary direction: leave the normal matrix (or
+      extend `MOMENT_DIRECTION_SUPPORT`'s hold to them, whichever keeps one
+      authority), and rewrite that constant's comment.
+- [ ] `profile_interval(path)`, the one-sided interval for a row on its
+      floor (Venzon & Moolgavkar 1988).
 - [ ] The diagnostic naming what was left out (`STATIONARY_COLUMN` or the
       decision's name), with `Diagnostic.suggestion` text.
 - [ ] Siblings: `indexing/peakfit` shares `normal_factors` (the docstring
@@ -172,6 +204,11 @@ its floor moves by more than 1 % without a line in the handover saying why.
 - van der Sluis, A. (1969). *Numer. Math.* 14, 14-23 (equilibration).
 - Golub, G. H. & Van Loan, C. F. *Matrix Computations*, § 5.4 (rank-revealing
   tolerance).
+- Self, S. G. & Liang, K.-Y. (1987). *J. Am. Statist. Assoc.* 82, 605-610
+  (estimates on the boundary of the parameter space).
+- GSAS-II `GSASIIstrMain.dropOOBvars` (gsas-ii.readthedocs.io); TOPAS 5
+  Technical Reference § 2.4-2.5; ROOT `TMinuit` documentation, parameter
+  limits; lmfit, "Bounds Implementation".
 - Venzon, D. J. & Moolgavkar, S. H. (1988). *Appl. Statist.* 37, 87-94,
   doi:10.2307/2347496 (profile-likelihood interval).
 
@@ -182,5 +219,6 @@ its floor moves by more than 1 % without a line in the handover saying why.
   reproduces to every printed digit; `live = d > 0.0` at the three places
   named. No open WP owns the covariance's dead-column test: 1463 and 1535,
   which last changed it, are closed; 1915 is the indexing side's propagation;
-  1914 reads a floor coefficient after the fit. Waiting on the maintainer's
-  decision between conditioning and marginalising a floor row.
+  1914 reads a floor coefficient after the fit. Decided the same day by the
+  maintainer, after a precedent search (GSAS-II, TOPAS, MINUIT, lmfit, Self &
+  Liang): condition on a floor row; re-rated P1.
