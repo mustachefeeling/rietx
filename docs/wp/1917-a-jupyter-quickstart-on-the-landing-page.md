@@ -1,6 +1,6 @@
 # WP-1917 — a Jupyter quickstart on the landing page, opened in Colab at the release
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-09 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: 1916 (the manual pages it links)
 Priority: P4 2026-10-07 — P3 once rietx 1.7 is on PyPI: the notebooks need 1.7 and PyPI serves 1.6.0, so a live Colab link fails today
