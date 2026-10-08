@@ -94,7 +94,7 @@ so dropping the "until 1.7" lines needs no manual edit.
 
 ## Tasks
 
-- [ ] Drop the "until 1.7" lines from the five `.py`
+- [x] Drop the "until 1.7" lines from the five `.py`
   sources and the README, then rebuild the notebooks.
 - [ ] `build.py`: the newest `v*` tag, a refusal when there is none, and the
   rows derived from the notebooks; `pages.yml` fetches tags.
