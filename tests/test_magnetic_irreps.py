@@ -38,7 +38,7 @@ import gemmi
 import numpy as np
 import pytest
 
-from rietx.crystallography.magnetic.irreps import (
+from rietx.crystallography.representation.irreps import (
     LittleGroup,
     as_kvector,
     canonical_kvector,

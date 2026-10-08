@@ -942,7 +942,7 @@ def test_the_g_default_also_threads_through_the_k_nonzero_supercell_route():
 # operator list has none.  That reasoning does not hold for this engine (M-6,
 # WP-1418: every small irrep is built from the little group's own
 # operators, projectively, with no tabulated-number lookup anywhere in
-# ``crystallography.magnetic.irreps``/``isotropy``), so the parent's group is
+# ``crystallography.representation.irreps``/``crystallography.magnetic.isotropy``), so the parent's group is
 # now resolved from its operators via the same ``OperatorGroup``
 # ``Phase.symmetry_operations`` uses everywhere else, and threaded through
 # instead of refusing before either candidate enumeration or the k ≠ 0
