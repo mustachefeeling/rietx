@@ -558,6 +558,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1517](1517-the-eight-steers-replayed.md) | The eight steers, replayed: does the package raise what the person caught? | ⬜ | P3 | — |
 | [1913](1913-what-the-benchmark-agents-wrote-by-hand.md) | What the benchmark agents wrote by hand: a mixed site, a special-position retry loop, and `.esd` | ⬜ | P3 | — |
 | [1919](1919-maximal-subgroups-generated-from-the-operators.md) | Maximal subgroups, their conjugacy classes, (P, p) and Wyckoff splittings, generated from the group's own operators | ⬜ | P3 | — ([1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) |
+| [1921](1921-the-users-own-structure-database-indexed.md) | The user's own structure database, indexed: is this phase or this cell already known? | ⬜ | P3 | — |
 
 ### <a id="unscheduled-the-repo-s-own-process"></a>The repo's own process
 
