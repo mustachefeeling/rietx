@@ -599,3 +599,4 @@ Not started and rated P1 or P2. The rest are in the tables below.
 |---|---|---|---|---|
 | [1325](1325-parametric-series.md) | Parametric series: a parameter as a function of the series axis | ⬜ | P3 | — ([1119](1119-named-variables.md) soft) |
 | [1925](1925-anomalous-scattering-above-70-kev.md) | Anomalous scattering above 70 keV | ⬜ | P3 | — ([1532](1532-the-skill-passages-a-driving-agent-needed.md) soft) |
+| [1926](1926-the-exact-voigt-is-a-supported-shape.md) | The exact Voigt is a supported shape: its cost, its width, its exports and its bound | ⬜ | P3 | — (#815 soft) |
