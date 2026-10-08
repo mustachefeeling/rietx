@@ -1,6 +1,6 @@
 # WP-1912 — a polar axis has no origin, and the fit walks along it
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-08 — the opt-in `hold_floating_origin()` landed from outside (PR #749); the default #727 asks for is the maintainer's decision
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-05 — the default structural preset reaches it on every polar space group with a free coordinate, and the CIF it writes carries an absolute coordinate hundreds of cells out with an esd; flagged only by `FLAT_DIRECTION` on the result, so not P1
@@ -144,6 +144,31 @@ with each moved number named.
   WP-0302, WP-1432, WP-1435; `schemas/params.py` (`needs_held_cell`).
 
 ## Handover log
+
+- **2026-10-08** — a caller can now hold a polar group's floating origin in one
+  call, and the fit then stops walking the structure along the polar axis. Nothing
+  changes for a caller who does not ask. PR #749 (#727, head `f9f3c27e`) merged as
+  `9465d2cf` after four rounds, behind an opt-in decided on the PR.
+  *Done.* `wyckoff.floating_origin_basis(space_group)` returns the translations
+  that commute with every rotation of the group (ITA Part 15).
+  `Refinement.hold_floating_origin()` holds, per direction, the first atom whose
+  free site DOF runs exactly along it, through `hold`, so `unhold` lifts it. It
+  returns `ORIGIN_FIXED_ON_POLAR_AXIS` (info), or `ORIGIN_NOT_FIXED` where no DOF
+  runs exactly along a direction. Part 2 has the equation, Part 1 a paragraph in
+  `concepts.md`, and the skill a paragraph in `references/numbers.md`. On
+  synthetic ZnO the held fit keeps Zn where it started and loses `FLAT_DIRECTION`.
+  *Gate:* stacked with the run's other merges (#829, #825, #809, #754, #749, #815)
+  on `main` `a3f9140a` as `166d362e`, macOS 26.6.2 arm64, `[dev,jax]`. The full
+  suite, fast and slow together, gave 9231 passed, 116 skipped, 1 xfailed and 2
+  failed. Both failures also fail on `main` alone on that machine: `toy_anomalous`
+  (#760, which open PR #828 fixes) and a hypothesis counterexample in
+  `test_indexing_reduce.py`. `main` after the merges is content-identical to that
+  tree.
+  *Not done here.* The tasks above assume the fix lives in `ParameterTable` by
+  default. What landed is a `Refinement` verb nobody runs by accident, and the
+  hold-or-centroid choice (Flack & Schwarzenbach 1988) is still open.
+  *Next:* the maintainer decides #727's default; the remaining tasks follow from
+  it.
 
 - **2026-10-05** — created, from the 2026-10-05 issue triage (issue #727).
   Checked against the tree at 32ef5a6: the issue's snippet lists both ZnO z

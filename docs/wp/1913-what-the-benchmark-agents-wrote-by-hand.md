@@ -1,6 +1,6 @@
 # WP-1913 — what the benchmark agents wrote by hand: a mixed site, a special-position retry loop, and `.esd`
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-08 — part 4's opt-in `fix_special_positions()` landed from outside (PR #754); part 4's default and parts 3 and 5 remain
 Track: Data and metadata in, a structure out
 Depends on: —
 Priority: P3 2026-10-05 — a workaround covers each: the by-hand ties are documented, the refusal names its fix, and `.esd` gets a field-list pointer
@@ -122,6 +122,25 @@ set it replaces, to the same numbers. `.esd` on a `RefinedParameter` names
   tiny column is live).
 
 ## Handover log
+
+- **2026-10-08** — a caller whose model marks a fixed special position as
+  refinable can now clear every such flag in one call instead of meeting the
+  refusal atom by atom. PR #754 (#728 items 4 and 2, head `b1c82ff9`) merged as
+  `133d6287` after three rounds, behind an opt-in decided on the PR.
+  *Done.* `Refinement.fix_special_positions()` clears `vary` on every coordinate
+  of a fully fixed special position and returns the paths. The table's refusal now
+  names the method. Item 2 is documentation only: the indexing manual shows the
+  one-call `determine_extinction_symbol(data, idx.candidates[0], ...)` screen.
+  *Gate:* stacked with the run's other merges (#829, #825, #809, #754, #749, #815)
+  on `main` `a3f9140a` as `166d362e`, macOS 26.6.2 arm64, `[dev,jax]`. The full
+  suite, fast and slow together, gave 9231 passed, 116 skipped, 1 xfailed and 2
+  failed. Both failures also fail on `main` alone on that machine: `toy_anomalous`
+  (#760, which open PR #828 fixes) and a hypothesis counterexample in
+  `test_indexing_reduce.py`. `main` after the merges is content-identical to that
+  tree.
+  *Not done here.* Part 4's task above is the default (`__init__` building the
+  table as `edit` does). Parts 3 and 5 are untouched. #728's item 1 is WP-1511's.
+  *Next:* the maintainer's decision on which of the three are wanted.
 
 - **2026-10-05** — created, from the 2026-10-05 issue triage (issue #728,
   parts 3-5). Checked against the tree at 32ef5a6: part 4 reproduced

@@ -1,6 +1,6 @@
 # WP-1805 — `RigidBody`: schema, collector, anchored rotation, the body's own rows
 
-Milestone: rigid-bodies · Status: 🔄 2026-10-08 — every original task landed from outside (PR #801, merged as `089f24bc`). The maintainer answered #801's three questions, and two follow-ups they opened remain
+Milestone: rigid-bodies · Status: 🔄 2026-10-08 — every original task landed from outside (PR #801, merged as `089f24bc`). The maintainer answered #801's three questions, and two follow-ups they opened remain. #824's joint-commit rollback landed (PR #825)
 Depends on: 1802, 1804
 Priority: P2 2026-10-06 — the feature the milestone was opened for; every later body WP depends on it
 
@@ -135,6 +135,26 @@ round trips, the hold-on-a-body-atom test and the inertia-rank DOF count.
   arXiv:1711.02508, §7.2: the filter's reset step is the re-chart's precedent.
 
 ## Handover log
+
+- **2026-10-08** (3rd session) — a joint fit over several histograms can no longer
+  leave its tables disagreeing about a body after a refused commit. PR #825 (#824,
+  head `7ebbd942`) merged as `14b4ee71`, so the `### Inherited` #824 item is done.
+  *Done.* `MultiParameterTable.commit` snapshots every table before committing any
+  and restores all of them on a `ValueError`. The snapshot and restore are
+  `ParameterTable._commit_state` / `_restore_commit_state`, factored out of #801's
+  single-table refusal, so both paths share them. The review checked that the
+  restore also undoes what a table that committed successfully ran
+  (`settle_anchor`, `_refresh_derived`, `_d`).
+  *Gate:* stacked with the run's other merges (#829, #825, #809, #754, #749, #815)
+  on `main` `a3f9140a` as `166d362e`, macOS 26.6.2 arm64, `[dev,jax]`. The full
+  suite, fast and slow together, gave 9231 passed, 116 skipped, 1 xfailed and 2
+  failed. Both failures also fail on `main` alone on that machine: `toy_anomalous`
+  (#760, which open PR #828 fixes) and a hypothesis counterexample in
+  `test_indexing_reduce.py`. `main` after the merges is content-identical to that
+  tree.
+  *Gotchas.* PR #823 (WP-1808, torsions) edits the same snapshot and now needs a
+  rebase: its φ₀ copies and `_precommit_torsions` go into the two new methods.
+  *Next:* the two open tasks above, then close.
 
 - **2026-10-08** (2nd session) — the maintainer answered #801's three questions, so
   the WP can close once two small follow-ups land. The rotation kind stays table data,

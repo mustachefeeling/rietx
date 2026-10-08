@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: magnetic · Status: 🔄 2026-10-08 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-08 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746), #565's certificates part 3 (PR #809), #820's first test made machine-independent (PR #829); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -1052,3 +1052,37 @@ told that mode amplitudes are WP-1419's, and to check with the maintainer
 before opening its first PR.
 
 *Next:* #820, then #565 part 3 (PR #809, waiting on a rebase).
+
+### 2026-10-08 (2nd session) — #565's certificates part 3, and #820's first test
+
+Two more of this WP's PRs merged from outside. Two candidate models whose
+shell-intensity matrices differ by one orthogonal change of amplitude basis are
+now proved powder-equivalent without a draw, and every verdict proved for one is
+carried to the other. Separately, the slow pair-diagnostic test no longer fails on
+Linux.
+
+*Done.* PR #809 (#565 part 3 of 5, head `af235c21`) merged as `209f0a8f` after two
+rounds. Round 1 found two defects, each fixed with a test that fails on the old
+source: the `(j, i)` isometry verdict carried Q where it needs Qᵀ, and a carried
+proof replaced a drawn direction and reset its `draws` to 0. PR #829 (head
+`f87d46f6`) merged as `119c0b19`. It answers the first half of the #820 item under
+`### Inherited`: the test never passed on Linux, from the commit that added it, so
+the stale part was the expectation. Class 0's ρ(Mn1, Mn2) is −0.498 on Linux and
+−0.962 on one Mac venv, either side of `MOMENT_PAIR_RHO_MIN` = 0.95, so the test
+now asserts at least one pair.
+
+*Gate:* stacked with the run's other merges (#829, #825, #809, #754, #749, #815)
+on `main` `a3f9140a` as `166d362e`, macOS 26.6.2 arm64, `[dev,jax]`. The full
+suite, fast and slow together, gave 9231 passed, 116 skipped, 1 xfailed and 2
+failed. Both failures also fail on `main` alone on that machine: `toy_anomalous`
+(#760, which open PR #828 fixes) and a hypothesis counterexample in
+`test_indexing_reduce.py`. `main` after the merges is content-identical to that
+tree.
+
+*Gotchas.* The Mac's class 0 covariance is 3-10× wider at the same χ², and one of
+its class 0 stages ends on `STAGE_MAX_ITER`. That is still open on #820, with the
+150 K test. Round 1's non-blocking list for #809 (Part 2 equations for the
+congruence and the guard, a Weyl citation, `_svd_rows` returning `None`, the
+repeated `_certify`, chain-only isometries) was left by agreement.
+
+*Next:* #820's second half, then #565 parts 4 and 5.
