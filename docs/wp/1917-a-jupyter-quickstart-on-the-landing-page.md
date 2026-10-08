@@ -76,6 +76,17 @@ starts; the rest waits.
 
 ### Inherited
 
+- **2026-10-08, from WP-1916 (PR #826).** `using/quickstart.html` is now the
+  tutorials index, a table of the five notebooks with a `{download}` link each
+  (`docs/manual/using/quickstart.md`). If this WP adds "Open in Colab" links, a
+  column in that table is the manual's place for them.
+  `tests/test_manual.py::test_every_tutorial_renders_with_its_outputs_and_the_quickstart_links_it`
+  reads that page's article body, and needs widening if Colab links become
+  required. The build copies notebooks from `examples/tutorials/` on every run,
+  so dropping the "until 1.7" lines needs no manual edit. The dependency on
+  1916 is discharged once #826 merges. The gate is still 1.7 on PyPI, so the
+  priority is unchanged.
+
 ## Non-goals
 
 - The manual's tutorial chapter and the quickstart rename (WP-1916).

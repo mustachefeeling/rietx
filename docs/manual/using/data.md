@@ -142,8 +142,8 @@ assert fig.get_axes()[0].get_title() == "as read"
 :alt: The 11-BM NAC pattern as read: observed intensity as markers against 2θ, with the wavelength on the axis and no model
 ```
 
-The figure is the 11-BM NAC pattern of the [](quickstart.md), drawn with
-`data.plot(wavelength=0.4139090)` and no model. It is the quickstart's fit
+The figure is the 11-BM NAC pattern from [](first-refinement.md), drawn with
+`data.plot(wavelength=0.4139090)` and no model. It is that chapter's fit
 figure with the fit taken out. A `PatternData` carries no wavelength, so λ on
 the 2θ axis, and a Q or d axis, need `wavelength=`.
 

@@ -97,6 +97,8 @@ docs/manual/_build/
 
 # Generated at Sphinx build time from rietx.help (docs/manual/conf.py).
 docs/manual/_generated/
+# Copied at Sphinx build time from examples/tutorials/ (docs/manual/conf.py).
+docs/manual/using/tutorials/
 
 # The landing page (docs/landing/, WP-1331).  Three rules, and they are here
 # rather than beside the rules they answer because ORDER decides: the last

@@ -1577,7 +1577,7 @@ that is in neither the file nor the model: a node cannot say what was excluded
 when it ran. `Project.fitted_mask` is the one authority for which channels the
 next run fits. An inverted or empty interval is refused rather than reordered.
 
-The two settings compose. On the 11-BM pattern of [](quickstart.md), limits of
+The two settings compose. On the 11-BM pattern of [](first-refinement.md), limits of
 2–24° leave 22 003 of 59 498 channels in the residual, and excluding 7.4–7.6°
 as well leaves 21 803.
 

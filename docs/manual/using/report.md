@@ -76,7 +76,7 @@ raises `KeyError` when there is none, so branch on the list or catch it.
 last section covers.
 
 Reports are not small. Measured on the 11-BM NAC walkthrough
-([](quickstart.md)), the Le Bail report serializes to 36 kB and the two-phase
+([](first-refinement.md)), the Le Bail report serializes to 36 kB and the two-phase
 Rietveld report to 81 kB.
 
 ## Layer 0: statistics independent of the model

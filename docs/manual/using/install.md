@@ -78,7 +78,7 @@ python -c "import rietx; print(rietx.__version__)"
 ```
 
 That prints the version you installed, {{ release }} for the copy this manual
-was built from. [](quickstart.md) is the first refinement.
+was built from. Then start with [](quickstart.md).
 
 ## Requirements
 

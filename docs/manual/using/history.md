@@ -180,7 +180,7 @@ intensities are not computed from the structure.
 Le Bail intensities are seeded flat and refined by a fixed-point loop, so they
 are path-dependent. They cannot be recovered from the structure, the instrument
 and the pattern. Storing them is what makes a Le Bail checkpoint restorable at
-all. In the walkthrough of [](quickstart.md) the Le Bail node carries 129
+all. In the walkthrough of [](first-refinement.md) the Le Bail node carries 129
 extracted intensities and the Rietveld nodes carry none, because in Rietveld
 mode the structure computes them.
 
