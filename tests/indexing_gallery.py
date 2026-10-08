@@ -270,8 +270,8 @@ DATASETS: dict[str, dict[str, str]] = {
     },
     "magnetite": {
         "specimen": "magnetite", "step": "Indexed over cubic",
-        "asserts": "the cubic F truth ranked first, and the gate grading it "
-                   "<i>below</i> its own primitive rival.",
+        "asserts": "the cubic F truth ranked first, and the absence detector "
+                   "firing on it while its own primitive rival reads zero.",
     },
     "fluorite": {
         "specimen": "fluorite",

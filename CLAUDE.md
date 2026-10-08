@@ -104,7 +104,7 @@ writes nothing), so `watch` reads meta, status and snapshot too; `runs.liveness_
 related specimens). `sequential.py` (`SequentialRefinement`/`refine_sequential`) →
 `SeriesResult`: per-pattern summaries + parameter *trajectories*, one history tree per pattern
 (pinned by `TreeHeader.data_fingerprint`), linked by annotation notes. Not `multi.py`, which
-stacks patterns into **one joint residual**. Chaining buys ≈2.5× in iterations and nothing in
+stacks patterns into **one joint residual**. Chaining buys ≈3× in iterations and nothing in
 accuracy, and its trajectory is path-dependent by construction → `direction="both"` runs the
 chain each way and flags parameters the two disagree on (`SEQUENTIAL_PATH_DEPENDENT`), the only
 check separating a measured trajectory from an ordering artefact. A rejected warm fit

@@ -41,8 +41,8 @@ stays perfectly good.
 
 What an operator must know, all measured:
 
-- **Chaining is worth ~2.5x in iterations, not in accuracy.**  On the eight
-  round-robin sample-1 mixtures: 1826 iterations unchained, 725 chained,
+- **Chaining is worth ~3x in iterations, not in accuracy.**  On the eight
+  round-robin sample-1 mixtures: 1826 iterations unchained, 627 chained,
   weight fractions within 0.15 wt %.  Use it to make a long series
   affordable, never to make an individual fit better.
 - **What licenses a chain is physical continuity, and a *tray* has none** — so

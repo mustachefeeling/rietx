@@ -1504,7 +1504,7 @@ default, and measured the question rather than inheriting the recommendation.
 information the caller does not already have*. Capillary absorption wants muR,
 roughness a surface, Stephens a strain model, March-Dollase a habit — dispersion
 wants the species and the wavelength, both already in the model. Neglecting it
-costs RMS 2.26 -> 0.69 wt % on round-robin QPA.
+costs RMS 2.26 -> 0.64 wt % on round-robin QPA.
 
 **The anchors survive.** SRM 660c's cell does not move (4.156895 A either way).
 SRM 676a's certificate-grade c/a moves +30.1 -> +30.5 ppm against a 100 ppm bar —

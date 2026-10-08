@@ -427,7 +427,7 @@ class Dispersion(Base):
     model.  Neglecting it is not a neutral simplification: it mis-scales every
     reflection of a species by ((Z + f′)² + f″²)/Z² − 1, which is −16 % for
     ZnO at Cu Kα and +7 % for CaF₂, and unequal effects across phases bias QPA
-    weight fractions directly (measured: RMS error 2.26 → 0.69 wt % on the
+    weight fractions directly (measured: RMS error 2.26 → 0.64 wt % on the
     IUCr round robin).
 
     Set ``source.dispersion = None`` to decline it and reproduce the ≤ v0.6

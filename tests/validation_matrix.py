@@ -1822,10 +1822,10 @@ CLAIMS: tuple[Claim, ...] = (
                   "OBSERVED lines, so forward coverage cannot separate them -- "
                   "only coverage scored in the other direction can",
         measured="tetragonal I ranked first, a +140 ppm and c +2011 ppm, 45 of 56 "
-                "lines; the P twin indexes 44 and loses on "
-                "predicted_seen_fraction 0.53 against 0.27.  "
-                "predicted_but_absent = 6 (4_1 screw and glides on top of the "
-                "centring); low, best_or_none() None",
+                 "lines; the P twin indexes 44 and loses on "
+                 "predicted_seen_fraction 0.53 against 0.27.  "
+                 "predicted_but_absent = 6 (4_1 screw and glides on top of the "
+                 "centring); low, best_or_none() None",
     ),
     Claim(
         "test_acceptance_indexing",
@@ -2466,7 +2466,7 @@ INTERMEDIATE_FTOL_DEFAULT = 1e-6
 #:   information the caller does not already have** — capillary absorption
 #:   wants µR, roughness a surface, Stephens a strain model, March-Dollase a
 #:   habit; dispersion wants the species and the wavelength, both already in
-#:   the model.  Neglecting it costs RMS 2.26 → 0.69 wt % on round-robin QPA.
+#:   the model.  Neglecting it costs RMS 2.26 → 0.64 wt % on round-robin QPA.
 #: * *Anchors survive.*  SRM 660c's cell does not move (4.156895 Å either
 #:   way).  SRM 676a's certificate-grade c/a moves +30.1 → +30.5 ppm against a
 #:   100 ppm bar — measured for this WP, since WP-0504 never checked it.
@@ -2812,7 +2812,7 @@ def render_markdown() -> str:
       "absorption wants muR,\nroughness a surface, Stephens a strain model, "
       "March-Dollase a habit — dispersion\nwants the species and the "
       "wavelength, both already in the model. Neglecting it\ncosts RMS 2.26 "
-      "-> 0.69 wt % on round-robin QPA.\n")
+      "-> 0.64 wt % on round-robin QPA.\n")
     w("**The anchors survive.** SRM 660c's cell does not move (4.156895 A "
       "either way).\nSRM 676a's certificate-grade c/a moves +30.1 -> +30.5 "
       "ppm against a 100 ppm bar —\nmeasured for this WP, since WP-0504 never "

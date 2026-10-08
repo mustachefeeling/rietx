@@ -561,7 +561,7 @@ a magnetic component with no intensity (a zero moment), or the term on its
 softplus floor. On the Cr₂WO₆ tutorial pattern at 4 K
 (k = 0, with magnetic-only intensity on the parent's absences) the size term
 comes back 0.034 ± 0.013°, 2.6 esds and so unmeasured, the strain term on its
-floor with no esd (also unmeasured), and the moment moves 2.125 ± 0.039 → 2.171 ± 0.043 μ_B. On
+floor with no esd (also unmeasured), and the moment moves 2.124 ± 0.048 → 2.171 ± 0.043 μ_B. On
 the 150 K pattern, which has no order, both terms come back with esds tens to thousands
 of times their values.
 

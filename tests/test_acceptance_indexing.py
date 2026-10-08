@@ -1546,14 +1546,14 @@ def _brucite_truth(res):
 def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
         magnetite_index):
     """WP-1026's other recorded failure — and the ranking is right where the
-    **gate** is backwards.
+    **detector** is backwards (the grade was too, until WP-1449 and WP-1510).
 
     Re-measured, the cubic **F** truth is ranked first at −334 ppm and the
     primitive description of the identical metric is second, which is the panel
     working: ``predicted_seen_fraction`` reads 0.46 against 0.19, since three
     quarters of what a P cell predicts on an F lattice is not there.
 
-    **The gate then grades them the wrong way round, and the mechanism is one
+    **The detector then reads them the wrong way round, and the mechanism is one
     this package already documents at half strength.**  CLAUDE.md says to read a
     ``predicted_but_absent`` firing as "this cell predicts lines the pattern
     lacks" and never as "this cell is too big", because a *space-group*
@@ -1571,7 +1571,7 @@ def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
     and the background is the one it buys.**  The validation frees the
     background with no physical floor, and the rival's own fit drives it
     **negative** — mean −5.8 counts on a pattern whose 5th percentile is 9 — so
-    net-above-background clears 3σ at 100 % of channels and nothing can read
+    net-above-background clears 3σ at 99.6 % of channels and nothing can read
     absent.  The decomposition is a 2×2 swap: with the *truth's* background
     under the rival's positions the absences return (8 of 163 at the fit's
     widths, 14 at the peak list's measured 0.54°, both fits also inflating
@@ -1612,7 +1612,7 @@ def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
         "forward coverage should be identical — if it is not, this row is no "
         "longer about the reversed direction")
 
-    # …and the gate grades them backwards, for the reason in the docstring
+    # …and the detector reads them backwards, for the reason in the docstring
     assert best.lebail is not None and rival.lebail is not None
     assert best.lebail.predicted_but_absent > 0, (
         "F d -3 m's d-glide should refute the *correct* cell here")
@@ -2673,7 +2673,7 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     # **And `best_or_none()` is None anyway, because another cell also reaches
     # `high` — a defect this row used to hide rather than one WP-1041 caused.**
     #
-    # It is the a·√2 cell (5.878605 = 4.156772 × 1.414214), found by all three
+    # It is the a·√2 cell (5.878605 = 4.156801 × 1.414214), found by all three
     # engines in its I and P descriptions.  Until WP-1449 both reached `high`.
     # The P description is an index-2 superlattice of the I one, and the lines
     # it adds that no extinction could remove are absent, so the supercell check
@@ -2784,7 +2784,7 @@ SVD_ZERO_ERROR_ROWS = {
     "lab6": ((A_SRM660C,) * 3 + (90.0, 90.0, 90.0), "cubic", "P", 0,
              0.0359, 0.0367),
     "corundum": ((A_SRM676A, A_SRM676A, C_SRM676A, 90.0, 90.0, 120.0),
-                 "trigonal", "R", 1, -0.0670, -0.0650),
+                 "trigonal", "R", 1, -0.0673, -0.0650),
 }
 
 

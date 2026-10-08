@@ -1068,8 +1068,8 @@ Read `IndexingResult.evidence` rather than the gate alone, and read
 `CandidateEvidence.lebail_rwp` beside the two detector counts instead of scoring
 on it. The three together are what let a reader notice that a detector
 has failed: on one measured pair, the correct cell reads
-`predicted_but_absent` 2 and its wrong rival reads 0, which is backwards, while
-Rwp reads 0.25 against 0.79. A reasoner given both can see that; the gate, reading
+`predicted_but_absent` 3 and its wrong rival reads 0, which is backwards, while
+Rwp reads 0.22 against 0.71. A reasoner given both can see that; the gate, reading
 one number, cannot. This is an argument for surfacing Rwp, never for ranking on
 it.
 
