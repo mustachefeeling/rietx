@@ -498,6 +498,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1923](1923-a-candidate-in-its-conventional-setting.md) | A candidate is reported as a lattice in its conventional setting, and the reduction is an exact change of basis | ⬜ | P2 | — ([1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) soft) |
 | [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md) | An esd follows where the solver stopped beside a flat column | ⬜ | P2 | — ([1930](1930-a-width-freed-on-its-floor-leaves-it-by-rounding.md) soft) |
 | [1930](1930-a-width-freed-on-its-floor-leaves-it-by-rounding.md) | A width freed on its floor leaves it by rounding | ⬜ | P1 | — |
+| [1931](1931-the-background-order-scan-runs-to-its-cap.md) | The background order scan runs to its cap | ⬜ | P3 | — ([1542](1542-a-le-bail-background-left-at-its-seed.md) soft) |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 
