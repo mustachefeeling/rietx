@@ -3183,9 +3183,7 @@ class ParameterTable:
         """
         values = self.decode(theta)
         if self._bodies:
-            before = ([e.value for e in self.entries],
-                      [(b.q0, b.r0, b.axes) for _, _, b in self._bodies],
-                      dict(self._precommit_anchor))
+            before = self._commit_state()
         for e in self.entries:
             e.value = values[e.path]
         signs = self._canonicalise_moment_dofs()
@@ -3200,12 +3198,7 @@ class ParameterTable:
             try:
                 self._check_committed_bodies(values)
             except ValueError:
-                old_values, anchors, self._precommit_anchor = before
-                for e, v in zip(self.entries, old_values, strict=True):
-                    e.value = v
-                for (_, _, block), anchor in zip(self._bodies, anchors, strict=True):
-                    block.restore_anchor(*anchor)
-                self._rebuild()
+                self._restore_commit_state(before)
                 raise
         if not charts:
             return signs
@@ -3214,6 +3207,32 @@ class ParameterTable:
                 block.settle_anchor()
         self._refresh_derived()
         return self._chart_matrix(signs, charts)
+
+    def _commit_state(self) -> tuple:
+        """What :meth:`commit` changes, for :meth:`_restore_commit_state`.
+
+        The entries' values, each body's anchor, and the anchors a later
+        :meth:`restore_body_anchors` steps back to.  An anchor is rebound at a
+        commit, never written in place, so holding the arrays is enough.
+        """
+        return ([e.value for e in self.entries],
+                [(b.q0, b.r0, b.axes) for _, _, b in self._bodies],
+                dict(self._precommit_anchor))
+
+    def _restore_commit_state(self, state: tuple) -> None:
+        """Put the table back as :meth:`_commit_state` found it.
+
+        Undoes a commit this table refused (#801), or one it made inside a
+        joint commit that another histogram's table refused
+        (:meth:`MultiParameterTable.commit`).
+        """
+        old_values, anchors, precommit = state
+        self._precommit_anchor = dict(precommit)
+        for e, v in zip(self.entries, old_values, strict=True):
+            e.value = v
+        for (_, _, block), anchor in zip(self._bodies, anchors, strict=True):
+            block.restore_anchor(*anchor)
+        self._rebuild()
 
     def _compose_bodies(self, values: Mapping[str, float]) -> dict[str, np.ndarray]:
         """R₀ ← Exp(δω)·R₀ and δω ← 0 for every body, at a commit (WP-1805).
