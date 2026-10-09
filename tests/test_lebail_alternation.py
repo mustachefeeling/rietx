@@ -34,8 +34,9 @@ CODE = "LEBAIL_ALTERNATION_STOPPED"
 #: Rwp is quoted from a converged TRF fit, whose stopping point moves with the
 #: platform's libm.  Before WP-1930 the exact-cell pass 1 read 0.168210 on
 #: macOS arm64 and 0.168236-0.168238 on Linux x86-64 (CI, py3.11/3.12 and jax),
-#: a spread of 2.8e-5.  The bar is 3.6 times that, because the passes it must
-#: separate are closer now: +0.3 %'s two passes are 3.3e-4 apart.
+#: a spread of 2.8e-5.  The bar is 3.6 times that, and it holds on every leg
+#: for each pass a test keeps.  A discarded pass is asserted by order only,
+#: since +0.3 %'s pass 2 spreads 1.5e-4 across platforms.
 RWP_PLATFORM_SPREAD = 1e-4
 
 
@@ -94,7 +95,7 @@ def test_one_pass_is_the_plain_fit_and_says_nothing(pattern):
 
 
 def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(pattern):
-    """+0.3 % cells: 13.718 then 13.751, and the loop sits at pass 1."""
+    """+0.3 % cells: 13.718 then a worse pass 2, and the loop sits at pass 1."""
     ref = _refinement(1.003)
     result = _fit(ref, pattern, 8)
     stop = _stop(result)
@@ -103,11 +104,16 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(patter
     assert "pass 1 of 2 was kept" in stop.message
     assert result.statistics.rwp == pytest.approx(0.137176, abs=RWP_PLATFORM_SPREAD)
     assert stop.value == result.statistics.rwp
-    # the per-pass table the message prints, read as numbers, to the spread
-    # RWP_PLATFORM_SPREAD names, in per cent
+    # the per-pass table the message prints, read as numbers.  Pass 1 is the
+    # kept answer and is pinned to RWP_PLATFORM_SPREAD, in per cent.  Pass 2
+    # is the discarded one, and only its order is the claim: it read 13.751
+    # on macOS arm64 and 13.766 on Linux x86-64 (PR #849's CI, every leg), a
+    # spread of 1.5e-4 that no bar separating the two passes could carry.
     table = [float(v) for v in re.search(
         r"Rwp % per pass: ([\d., ]+)\)", stop.message).group(1).split(",")]
-    assert table == pytest.approx([13.718, 13.751], abs=100 * RWP_PLATFORM_SPREAD)
+    assert len(table) == 2
+    assert table[0] == pytest.approx(13.718, abs=100 * RWP_PLATFORM_SPREAD)
+    assert table[1] > table[0]
     assert CODE in str(result)              # the termination view carries it
     # the GUI's run record carries the verdict, since no panel shows a
     # result's diagnostics and a node cannot hold this one

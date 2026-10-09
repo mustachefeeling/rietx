@@ -195,6 +195,28 @@ printed digit on both.
 
 ## Handover log
 
+- **2026-10-09, after the PR's Linux CI** — two fast tests failed on every
+  Linux leg and passed on macOS. Both were bars on a number rounding now
+  chooses.
+
+  *Le Bail alternation.* At +0.3 %, pass 1 read 13.718 on both platforms.
+  Pass 2 read 13.766 on Linux and 13.751 on macOS, a 1.5e-4 spread against
+  the 1e-4 bar. Pass 2 is the discarded pass, so the test now pins pass 1
+  and asserts only that pass 2 is worse.
+
+  *Wrong triclinic cell* (`test_cell_runaway_safety.py`). Linux returned
+  Rwp 1.1e9 under `converged`, where the test wanted below 1. Ten nudges of
+  k·1e-14 to `profile.w` on macOS: on `main` both plans read 0.3316 every
+  time; with the seed the second plan read 0.33-6.55, and 1.8e7 at k = −20.
+  Neither is a fit. On `main` U and V went negative, so every peak drew at
+  the 1e-4° floor and only the background was fitted. With the seed some
+  runs take the widths to their upper bounds, and the frozen windows cut
+  those peaks short while solving. The test's claim is that `fit` returns
+  instead of raising, so it now asserts a finite, positive Rwp beside the
+  `CELL_RUNAWAY` it already pinned. It passes in all ten nudged runs.
+  `FROZEN_COMPILE_STALE` called that gap of 3.1e4 % "not biased" at `info`.
+  That claim went to WP-1421 § Inherited, which owns the message.
+
 - **2026-10-09** — LaB₆ + cBN now has one answer on every machine, and the
   package no longer leaves a freed width on its floor for rounding to decide.
   The split was never Linux against macOS: on one Mac, a 3e-14 change to one
