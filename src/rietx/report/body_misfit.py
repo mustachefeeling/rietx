@@ -16,6 +16,15 @@ internal trial (``telemetry=False``, no history):
   (observational restraints, Waser 1963, *Acta Cryst.* **16**, 1091), with the
   same ``free`` globs.
 
+Both arms are history-free
+:meth:`~rietx.refine.Refinement._trial` trials, so they carry
+the caller's declarations (2θ limits, user ties, named variables, holds,
+backend, solver).  A tie, variable-bearing tie or hold on a path of the released
+body — or of a later body of its phase, whose index the removal shifts — cannot
+mean the same thing in the released arm and is dropped there; the row's
+``dropped`` lists each.  The body arm torsion glob ``torsions.*.twist`` frees
+nothing until WP-1808's torsions (#823) land.
+
 The two are compared on the **data** χ² (restraint rows excluded, as every
 ``Statistics`` field is) with the package's two model-comparison tests, both at
 the effective sample size N/f² (``optimize.statistics.effective_sample_size``,
@@ -30,6 +39,12 @@ molecule's noise-fitting look significant.
 **Where.**  The released arm's bond and angle deviations from the template, in
 units of their restraint σ, ranked; the message names the worst three.
 
+**Not found.**  A template bond wrong by more than ``BOND_SLACK_ANG`` beyond
+its covalent-radii sum is not found as a bond, so it is neither restrained in
+the released arm nor named: the geometry table's criterion applies to the
+template as placed.  The check is blind to that large-error case; read it as
+"the data want a different shape", never as "the template is right".
+
 It is never run inside ``fit()``: it costs two refinements per body, so a
 caller asks for it once, before quoting a body's geometry or calling a solve
 solved.
@@ -38,7 +53,7 @@ solved.
 from __future__ import annotations
 
 import math
-import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -69,6 +84,8 @@ class BodyMisfitRow:
     delta_bic: float
     fires: bool
     deviations: list[tuple[str, float, float, float]] = field(default_factory=list)
+    #: declarations of the caller's that could not follow into the released arm
+    dropped: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -78,7 +95,12 @@ class BodyMisfitResult:
 
 
 def _element(species: str) -> str:
-    return re.match(r"[A-Z][a-z]?", species).group(0)
+    """``crystallography.species.element_symbol``, the one parser: a label gemmi
+    maps to its 1.0 Å placeholder is refused there, and would otherwise change
+    which pairs count as bonds."""
+    from ..crystallography.species import element_symbol
+
+    return element_symbol(species)
 
 
 def _template_geometry(phase, body):
@@ -127,22 +149,55 @@ def _identity_op(sites, j) -> int:
     raise ValueError(f"atom {j}'s orbit holds no identity operation")
 
 
-def _fit(structure, instrument, data, globs, max_iter, mode):
-    from ..refine import Refinement
+def _later_bodies(ip: int, b: int):
+    """The matcher for paths of body ``b`` of phase ``ip`` or of a later body,
+    whose index removing ``b`` shifts."""
+    import re
+    pat = re.compile(rf"phases\.{ip}\.rigid_bodies\.(\d+)\.")
+
+    def hit(path: str) -> bool:
+        m = pat.match(path)
+        return m is not None and int(m.group(1)) >= b
+    return hit
+
+
+def _fit(ref, structure, data, globs, max_iter, drop=None):
+    """One arm: a trial over the caller's declarations, on ``structure``.
+
+    ``drop`` (a path predicate) removes the ties and holds that could not mean
+    the same thing on ``structure``; the paths dropped are returned.
+    """
     from ..strategy.staged import RefinementPlan, Stage
 
-    ref = Refinement(structure, instrument, history=False)
-    res = ref.fit(data, mode=mode, telemetry=False, plan=RefinementPlan(stages=[
-        Stage("misfit_check", list(globs), max_iter=max_iter)]))
-    return ref, res
+    trial = ref._trial(record=False)
+    dropped: list[str] = []
+    if drop is not None:
+        for path in [p for p, s in trial._ties.items()
+                     if drop(p) or any(drop(q) for q, _ in s.terms)]:
+            del trial._ties[path]
+            dropped.append(f"tie {path}")
+        for path in sorted(p for p in trial._user_holds if drop(p)):
+            trial._user_holds.discard(path)
+            dropped.append(f"hold {path}")
+    trial.edit(structure=structure)
+    res = trial.fit(data, mode=ref._mode, telemetry=False,
+                    two_theta_limits=ref._two_theta_limits,
+                    plan=RefinementPlan(stages=[
+                        Stage("misfit_check", list(globs), max_iter=max_iter)]))
+    return trial, res, dropped
 
 
 def rigid_body_misfit(ref, data, *, free: tuple[str, ...] = (
         "phases.*.scale", "instrument.background.*"),
         alpha: float = MISFIT_ALPHA, bic_threshold: float = MISFIT_BIC,
         bond_sigma: float = 0.02, angle_sigma: float = 2.0,
-        max_iter: int = 200) -> BodyMisfitResult:
+        max_iter: int = 200,
+        on_arm: Callable[[str, str, object], None] | None = None) -> BodyMisfitResult:
     """Test every rigid body of ``ref``'s fitted model against ``data``.
+
+    ``ref`` must have been fitted: both arms start from its refined state, and
+    from an unrefined pose a badly placed body would read as a misshapen one.
+    ``on_arm(body, "body" | "released", result)`` sees each arm's result.
 
     ``free`` are the non-body globs both arms refine (the scale and background
     by default; add the profile or a free atom's DOFs to match your plan).
@@ -151,21 +206,26 @@ def rigid_body_misfit(ref, data, *, free: tuple[str, ...] = (
     that the data can say which bond it disagrees with.  Returns a row per
     body and a ``RIGID_BODY_MISFIT`` warning per body that fails.
     """
+    if ref.result_ is None:
+        raise ValueError(
+            "rigid_body_misfit needs a fitted Refinement: both arms start from "
+            "its refined state, and from an unrefined pose a badly placed body "
+            "would read as a misshapen one. Call ref.fit(...) first.")
     from ..crystallography.structure_factor import compile_phase_sites
     from ..optimize.statistics import _chi2_absolute, effective_sample_size
     from .layer2 import delta_bic, hamilton_justified
 
     base: Structure = ref.fitted_structure.model_copy(deep=True)
-    instrument = ref.fitted_instrument.model_copy(deep=True)
-    mode = getattr(ref, "_mode", "rietveld")
     rows: list[BodyMisfitRow] = []
     diagnostics: list[Diagnostic] = []
     for ip, phase in enumerate(base.phases):
         for b, body in enumerate(phase.rigid_bodies):
             bb = f"phases.{ip}.rigid_bodies.{b}"
-            _, res_a = _fit(base.model_copy(deep=True), instrument, data,
-                            [*free, f"{bb}.origin.dof.*", f"{bb}.rotation.*",
-                             f"{bb}.torsions.*.twist"], max_iter, mode)
+            _, res_a, _ = _fit(ref, base.model_copy(deep=True), data,
+                               [*free, f"{bb}.origin.dof.*", f"{bb}.rotation.*",
+                                f"{bb}.torsions.*.twist"], max_iter)
+            if on_arm is not None:
+                on_arm(body.name, "body", res_a)
             # the released arm: same model, this body's atoms freed and held
             # by restraints at the geometry the body placed them in
             members, bonds, angles = _template_geometry(phase, body)
@@ -181,9 +241,12 @@ def rigid_body_misfit(ref, data, *, free: tuple[str, ...] = (
                 "restraints": [*phase.restraints, *restraints]}, deep=True)
             released = base.model_copy(deep=True)
             released.phases[ip] = released_phase
-            ref_b, res_b = _fit(released, instrument, data,
-                                [*free, *(f"phases.{ip}.atoms.{j}.dof.*" for j in members)],
-                                max_iter, mode)
+            ref_b, res_b, dropped = _fit(
+                ref, released, data,
+                [*free, *(f"phases.{ip}.atoms.{j}.dof.*" for j in members)],
+                max_iter, drop=_later_bodies(ip, b))
+            if on_arm is not None:
+                on_arm(body.name, "released", res_b)
             sa, sb = res_a.statistics, res_b.statistics
             chi_a, chi_b = _chi2_absolute(sa), _chi2_absolute(sb)
             n = int(sa.n_points)
@@ -229,7 +292,7 @@ def rigid_body_misfit(ref, data, *, free: tuple[str, ...] = (
                 phase_index=ip, body=body.name, chi2_body=chi_a, chi2_released=chi_b,
                 n_points=n, n_effective=n_eff, n_free_body=k_a, n_added=added,
                 f_statistic=f_stat, p_value=p, delta_bic=dbic, fires=fires,
-                deviations=devs)
+                deviations=devs, dropped=dropped)
             rows.append(row)
             if fires:
                 worst = "; ".join(
@@ -241,7 +304,9 @@ def rigid_body_misfit(ref, data, *, free: tuple[str, ...] = (
                              f"a body — χ² {chi_a:.4g} → {chi_b:.4g} for {added} more "
                              f"parameters, Hamilton p = {p:.2g}, ΔBIC = {dbic:.1f} at "
                              f"N_eff = {n_eff:.0f}.  Largest released deviations "
-                             f"from the template: {worst}"),
+                             f"from the template: {worst}"
+                             + (f".  Not carried into the released arm: "
+                                f"{'; '.join(dropped)}" if dropped else "")),
                     where=[f"phases.{ip}.atoms.{j}" for j in members],
                     suggestion=("the template is the likeliest cause: check the "
                                 "named bond and angle values against their source, "
