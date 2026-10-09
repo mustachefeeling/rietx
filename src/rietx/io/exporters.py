@@ -579,8 +579,9 @@ def refinement_cif_doc(result: RefinementResult, structure: Structure,
 def write_refinement_cif(result: RefinementResult, structure: Structure,
                          instrument: Instrument, path: str | Path, *,
                          pattern: PatternData | None = None) -> None:
-    """Write a refinement CIF: structure (values + esds), R-factors, wavelength,
-    profile/background description, and the observed/calculated pattern loop.
+    """Write a refinement CIF: the structure with esds, the fit, and the pattern.
+
+    The fit is its R factors, wavelength, and profile and background models.
 
     ``structure`` must carry the refined values and their ``stderr`` (a fit
     leaves them on ``Refinement.fitted_structure``).  The pattern loop uses the
