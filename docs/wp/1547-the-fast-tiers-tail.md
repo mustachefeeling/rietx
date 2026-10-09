@@ -159,7 +159,7 @@ only if the last task moves Python versions into the nightly.
       the middle two in the nightly.
 - [x] `ci.yml`'s header: one line saying `-n auto` is 2 workers on this
       runner, and that `-n logical` was measured to buy nothing (this WP).
-- [ ] Skill: none. This changes how the repo is tested, not how rietx is
+- [x] Skill: none. This changes how the repo is tested, not how rietx is
       driven.
 
 ## Acceptance
