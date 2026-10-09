@@ -1,21 +1,36 @@
 """WP-1323: the Le Bail alternation has a stop rule, and the package owns it.
 
 The pattern is 11-BM LaB6 + cBN, Le Bail scaffolds, ``profile_only``.  It is the
-in-tree stand-in for issue #210's multi-phase lab pattern, and it shows the same
-three shapes depending on where the cells start: +0.3 % gives a pass 2 that is
-*worse* than pass 1, +0.4 % converges, and +2 % never settles.  Starts outside
-1.000-1.004 of the cells diverge whatever the loop does.
+in-tree stand-in for issue #210's multi-phase lab pattern.  It shows three
+shapes depending on where the cells start.  At +0.3 % pass 2 comes back *worse*
+than pass 1.  At +0.4 % the passes converge.  At +2 % they never settle.
 
-The per-pass numbers were re-measured in WP-1930.  Its floor seed started
-``instrument.profile.y`` off its softplus floor, where it had stayed, and every
-pass came down by about 3 percentage points of Rwp: the exact cells' pass 1 read
-16.821 % before and 14.220 % after.  The shapes moved with them, so each test now
-starts where its shape is.  Before that they were the hand loop's (WP-1323).
+The fast tests fit 5.1-25° (``LIMITS``), under half the range the hand loop
+used, and a fit costs a quarter to a fifth of one at 5.1-50° (WP-1547).  The
+three shapes hold there.  The converging one starts at -0.15 %, because +0.4 %
+sits on an edge at 5.1-25°: WP-1936's step for ``u`` and ``v`` turns it into a
+worse-pass start.  -0.15 % converges with or without that step on macOS, and
+without it on Linux.  How many passes it takes depends on the platform, so its
+test asserts the shape and not the count.  A start of +0.6 % or more diverges at
+5.1-25° whatever the
+loop does.  Every Rwp the fast tests pin was measured at 5.1-25°.  The one
+``slow`` test keeps 5.1-50° (``WIDE_LIMITS``), where its pins were measured.
+
+At 5.1-50° the per-pass numbers were re-measured in WP-1930.  Its floor seed
+started ``instrument.profile.y`` off its softplus floor, where it had stayed,
+and every pass came down by about 3 percentage points of Rwp: the exact cells'
+pass 1 read 16.821 % before and 14.220 % after.
+
+The tests that only read a fit share it through a module fixture, each pinned
+to one worker by its ``xdist_group``.  A history, a run directory and an event
+callback each leave the fit bit-identical: Rwp and every parameter were equal
+with and without them at +0.3 % and +0.4 % (WP-1547).
 """
 
 from __future__ import annotations
 
 import dataclasses
+import json
 import re
 from pathlib import Path
 
@@ -29,14 +44,16 @@ from rietx.strategy.staged import resolve_plan
 
 DATA = Path(__file__).parent / "data"
 PATTERN = DATA / "11BM_LaB6_cBN_mg2044.xye"
-LIMITS = (5.1, 50.0)
+LIMITS = (5.1, 25.0)
+WIDE_LIMITS = (5.1, 50.0)
 CODE = "LEBAIL_ALTERNATION_STOPPED"
 #: Rwp is quoted from a converged TRF fit, whose stopping point moves with the
-#: platform's libm.  Before WP-1930 the exact-cell pass 1 read 0.168210 on
-#: macOS arm64 and 0.168236-0.168238 on Linux x86-64 (CI, py3.11/3.12 and jax),
-#: a spread of 2.8e-5.  The bar is 3.6 times that, and it holds on every leg
-#: for each pass a test keeps.  A discarded pass is asserted by order only,
-#: since +0.3 %'s pass 2 spreads 1.5e-4 across platforms.
+#: platform's libm.  Before WP-1930 the exact-cell pass 1 at 5.1-50° read
+#: 0.168210 on macOS arm64 and 0.168236-0.168238 on Linux x86-64 (CI,
+#: py3.11/3.12 and jax), a spread of 2.8e-5.  The bar is 3.6 times that, and it
+#: holds on every leg for each pass a test keeps.  A discarded pass is asserted
+#: by order only, since +0.3 %'s pass 2 at 5.1-50° spread 1.5e-4 across
+#: platforms.
 RWP_PLATFORM_SPREAD = 1e-4
 
 
@@ -66,9 +83,9 @@ def _plan(passes: int):
                                lebail_passes=passes)
 
 
-def _fit(ref, data, passes: int):
+def _fit(ref, data, passes: int, limits=LIMITS):
     return ref.fit(data, mode="lebail", plan=_plan(passes),
-                   two_theta_limits=LIMITS, telemetry=False)
+                   two_theta_limits=limits, telemetry=False)
 
 
 def _stop(result):
@@ -84,6 +101,44 @@ def _plot(result, name):
     plot_result(result, path=str(out / name))
 
 
+@pytest.fixture(scope="module")
+def exact(pattern):
+    """Exact cells at a cap of 3 passes, with no history."""
+    ref = _refinement(1.0)
+    return ref, _fit(ref, pattern, 3)
+
+
+@pytest.fixture(scope="module")
+def worse(pattern):
+    """+0.3 % cells with a history: pass 1 kept, pass 2 discarded."""
+    ref = _refinement(1.003, history=True)
+    return ref, _fit(ref, pattern, 8)
+
+
+@pytest.fixture(scope="module")
+def converging(pattern, tmp_path_factory):
+    """-0.15 % cells recorded to a run directory.  The run state is read from
+    ``status.json`` at each pass's ``fit_start`` and ``fit_end``."""
+    from rietx import runs
+    root = tmp_path_factory.mktemp("lebail-runs")
+    states = []
+
+    def on_event(e):
+        if e["kind"] in ("fit_start", "fit_end"):
+            status = [p / "status.json" for p in root.iterdir() if p.is_dir()]
+            if status and status[0].exists():
+                states.append(json.loads(status[0].read_text(encoding="utf-8"))["state"])
+
+    was = runs.set_enabled(True)
+    try:
+        result = rx.Refinement.fit(_refinement(0.9985), pattern, mode="lebail",
+                                   plan=_plan(8), two_theta_limits=LIMITS,
+                                   telemetry=str(root), events=on_event)
+    finally:
+        runs.set_enabled(was)
+    return result, root, states
+
+
 def test_one_pass_is_the_plain_fit_and_says_nothing(pattern):
     """``lebail_passes=1`` is every fit made before the field: no loop, no row."""
     plain = _refinement(1.0).fit(data=pattern, mode="lebail",
@@ -94,25 +149,24 @@ def test_one_pass_is_the_plain_fit_and_says_nothing(pattern):
     assert not [d for d in one.diagnostics if d.code == CODE]
 
 
-def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(pattern):
-    """+0.3 % cells: 13.718 then a worse pass 2, and the loop sits at pass 1."""
-    ref = _refinement(1.003)
-    result = _fit(ref, pattern, 8)
+@pytest.mark.xdist_group("lebail-worse")
+def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(worse):
+    """+0.3 % cells: 13.845 then a worse pass 2, and the loop sits at pass 1."""
+    ref, result = worse
     stop = _stop(result)
     assert stop.level == "warning"
     assert "did not lower Rwp" in stop.message
     assert "pass 1 of 2 was kept" in stop.message
-    assert result.statistics.rwp == pytest.approx(0.137176, abs=RWP_PLATFORM_SPREAD)
+    assert result.statistics.rwp == pytest.approx(0.138453, abs=RWP_PLATFORM_SPREAD)
     assert stop.value == result.statistics.rwp
     # the per-pass table the message prints, read as numbers.  Pass 1 is the
     # kept answer and is pinned to RWP_PLATFORM_SPREAD, in per cent.  Pass 2
-    # is the discarded one, and only its order is the claim: it read 13.751
-    # on macOS arm64 and 13.766 on Linux x86-64 (PR #849's CI, every leg), a
-    # spread of 1.5e-4 that no bar separating the two passes could carry.
+    # is the discarded one, and only its order is the claim.  It read 13.865
+    # on macOS arm64, the fixed point every converging start reaches here.
     table = [float(v) for v in re.search(
         r"Rwp % per pass: ([\d., ]+)\)", stop.message).group(1).split(",")]
     assert len(table) == 2
-    assert table[0] == pytest.approx(13.718, abs=100 * RWP_PLATFORM_SPREAD)
+    assert table[0] == pytest.approx(13.845, abs=100 * RWP_PLATFORM_SPREAD)
     assert table[1] > table[0]
     assert CODE in str(result)              # the termination view carries it
     # the GUI's run record carries the verdict, since no panel shows a
@@ -124,38 +178,39 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(patter
     # the kept pass is the one the Refinement answers from afterwards
     assert ref.result_ is result
     assert ref.report() is not None
-    _plot(result, "lebail_alternation_exact.png")
+    _plot(result, "lebail_alternation_worse.png")
 
 
-def test_a_converging_run_is_not_cut_short_and_ends_at_a_fixed_point(pattern):
-    """+0.4 % cells: 17.032, 14.118, 14.036, 14.032, then a fixed point.
+@pytest.mark.xdist_group("lebail-converging")
+def test_a_converging_run_is_not_cut_short_and_ends_at_a_fixed_point(converging):
+    """-0.15 % cells: each pass lower than the last until two are level.
 
-    The claim is the stop rule: the loop ends on a pass that no longer lowers
-    Rwp, inside the cap, and keeps the last pass.  Where it ends is rounding's
-    choice.  Under WP-1936's FD step the first four passes agree across
-    platforms to every printed digit, and pass 5 splits.  macOS arm64 drops to
-    13.774 and stops at pass 6 on 13.773.  Linux x86-64 stops at pass 5 on
-    14.031 (PR #855's CI, every leg), the answer both reached before WP-1936.
-    So the shared passes are pinned and the end is bounded by them.
+    The shape is the claim, and the pass it stops on is not.  The path splits by
+    platform from pass 3: macOS read 18.810, 14.150, 13.949, 13.933, 13.932,
+    and Linux 18.810, 14.150, 13.927, 13.908, 13.905, 13.905 (PR #857's CI).
+    PR #855's pin at 5.1-50° split the same way, pass 6 against pass 5.
     """
-    result = _fit(_refinement(1.004), pattern, 8)
+    from rietx.refine import LEBAIL_CONVERGED_REL
+    result, _, _ = converging
     stop = _stop(result)
     assert stop.level == "info"
     assert "fixed point" in stop.message
     table = [float(v) for v in re.search(
         r"Rwp % per pass: ([\d., ]+)\)", stop.message).group(1).split(",")]
-    assert 5 <= len(table) < 8, table
-    assert f"pass {len(table)} of {len(table)} was kept" in stop.message
-    assert table[:4] == pytest.approx([17.032, 14.118, 14.036, 14.032],
-                                      abs=100 * RWP_PLATFORM_SPREAD)
-    assert result.statistics.rwp * 100 == pytest.approx(table[-1], abs=1e-3)
-    assert result.statistics.rwp * 100 <= table[3]
+    assert len(table) >= 4                       # not cut short
+    assert all(b < a for a, b in zip(table[:-2], table[1:-1]))
+    assert table[-1] <= table[-2] * (1 + LEBAIL_CONVERGED_REL) + 1e-3  # level, in %
+    kept = int(re.search(r"pass (\d+) of", stop.message).group(1))
+    assert kept in (len(table) - 1, len(table))
+    # 0.139321 on macOS and 0.139050 on Linux: a spread of 2.7e-4, so the bar
+    # is 1e-3, wider than RWP_PLATFORM_SPREAD, which a single pass carries
+    assert result.statistics.rwp == pytest.approx(0.1392, abs=1e-3)
     _plot(result, "lebail_alternation_converged.png")
 
 
 def test_the_cap_is_a_cap_and_says_it_truncated(pattern):
     """Two passes of a run that was still falling: truncated, not finished."""
-    result = _fit(_refinement(1.004), pattern, 2)
+    result = _fit(_refinement(0.9985), pattern, 2)
     stop = _stop(result)
     assert stop.level == "warning"
     assert "cap of 2 passes" in stop.message
@@ -168,20 +223,20 @@ def test_the_state_the_loop_keeps_is_the_state_a_hand_loop_would_continue_from(p
     loop never had.  Seeding the restored intensities does exactly that: the
     +2 % start measured 254.09 % against the loop's 194.56 % on pass 4."""
     ref = _refinement(1.02)
-    result = _fit(ref, pattern, 8)
+    result = _fit(ref, pattern, 8, limits=WIDE_LIMITS)
     stop = _stop(result)
     assert "pass 3 of 4 was kept" in stop.message
     assert result.statistics.rwp == pytest.approx(1.75104, abs=1e-4)
     nxt = ref.fit(pattern, mode="lebail", plan="profile_only",
-                  two_theta_limits=LIMITS, telemetry=False)
+                  two_theta_limits=WIDE_LIMITS, telemetry=False)
     assert nxt.statistics.rwp == pytest.approx(1.94562, abs=1e-4)
     _plot(result, "lebail_alternation_wander_kept.png")
 
 
-def test_the_passes_mark_their_history_nodes_and_the_head_stands_in_the_kept_one(pattern):
+@pytest.mark.xdist_group("lebail-worse")
+def test_the_passes_mark_their_history_nodes_and_the_head_stands_in_the_kept_one(worse):
     """Pass 1 kept, pass 2 discarded: the notes say which nodes are whose."""
-    ref = _refinement(1.003, history=True)
-    _fit(ref, pattern, 6)
+    ref, _ = worse
     tree = ref.history
     notes = {i: tree.nodes[i].notes for i in tree.order}
     assert notes[tree.order[0]] == {}                    # the root is no pass's
@@ -194,9 +249,9 @@ def test_the_passes_mark_their_history_nodes_and_the_head_stands_in_the_kept_one
     assert tree.nodes[tree.head].notes["lebail_pass"] == "1"
 
 
-def test_without_a_history_the_marking_writes_and_raises_nothing(pattern):
-    ref = _refinement(1.0)
-    _fit(ref, pattern, 3)
+@pytest.mark.xdist_group("lebail-exact")
+def test_without_a_history_the_marking_writes_and_raises_nothing(exact):
+    ref, _ = exact
     assert ref.history is None
 
 
@@ -210,19 +265,13 @@ def test_the_field_crosses_the_mirror_both_ways_and_refuses_zero():
         PlanSpec(stages=[], lebail_passes=0)
 
 
-def test_an_alternation_is_one_run_directory_not_one_per_pass(pattern, tmp_path):
+@pytest.mark.xdist_group("lebail-converging")
+def test_an_alternation_is_one_run_directory_not_one_per_pass(converging):
     """``rietx watch`` lists a job once; a pass each drew N rows (WP-1403)."""
-    from rietx import runs
-    was = runs.set_enabled(True)
-    try:
-        # 0.4 % off: five passes before it settles, so several would record
-        result = rx.Refinement.fit(_refinement(1.004), pattern, mode="lebail",
-                                   plan=_plan(4), two_theta_limits=LIMITS,
-                                   telemetry=str(tmp_path))
-    finally:
-        runs.set_enabled(was)
+    result, root, _ = converging
     assert _stop(result).value == result.statistics.rwp
-    dirs = [p for p in tmp_path.iterdir() if p.is_dir()]
+    # several passes before it settles, so a directory per pass would show
+    dirs = [p for p in root.iterdir() if p.is_dir()]
     assert len(dirs) == 1
     assert (dirs[0] / "meta.json").exists()
 
@@ -244,40 +293,23 @@ def test_a_cancel_in_a_later_pass_leaves_the_best_pass_standing(pattern):
         ref.fit(pattern, mode="lebail", plan=_plan(8), two_theta_limits=LIMITS,
                 telemetry=False, events=on_event, cancel=token)
     assert ref.result_ is not None
-    assert ref.result_.statistics.rwp == pytest.approx(0.137176, abs=RWP_PLATFORM_SPREAD)
+    assert ref.result_.statistics.rwp == pytest.approx(0.138453, abs=RWP_PLATFORM_SPREAD)
 
 
-def test_the_refinement_records_the_cap_it_was_asked_for(pattern):
-    ref = _refinement(1.0)
-    result = ref.fit(pattern, mode="lebail", plan=_plan(3),
-                     two_theta_limits=LIMITS, telemetry=False)
+@pytest.mark.xdist_group("lebail-exact")
+def test_the_refinement_records_the_cap_it_was_asked_for(exact):
+    ref, result = exact
     assert ref._last_plan.lebail_passes == 3
     assert result is ref.result_
 
 
-def test_a_pass_ending_is_not_the_run_ending(pattern, tmp_path):
+@pytest.mark.xdist_group("lebail-converging")
+def test_a_pass_ending_is_not_the_run_ending(converging):
     """Each pass emits a ``fit_end``; a recorder that read "done" off the first
     told ``rietx watch`` the job had finished while passes 2..N still ran."""
-    import json
-
-    from rietx import runs
-    states = []
-
-    def on_event(e):
-        if e["kind"] in ("fit_start", "fit_end"):
-            status = [p / "status.json" for p in tmp_path.iterdir() if p.is_dir()]
-            if status and status[0].exists():
-                states.append(json.loads(status[0].read_text(encoding="utf-8"))["state"])
-
-    was = runs.set_enabled(True)
-    try:
-        rx.Refinement.fit(_refinement(1.004), pattern, mode="lebail",
-                          plan=_plan(4), two_theta_limits=LIMITS,
-                          telemetry=str(tmp_path), events=on_event)
-    finally:
-        runs.set_enabled(was)
+    _, root, states = converging
     assert len(states) >= 4 and set(states) == {"running"}
-    final = json.loads(next(tmp_path.glob("*/status.json")).read_text(encoding="utf-8"))
+    final = json.loads(next(root.glob("*/status.json")).read_text(encoding="utf-8"))
     assert final["state"] == "done"
 
 
@@ -300,6 +332,6 @@ def test_a_cancel_part_way_through_a_later_pass_restores_the_best_pass(pattern):
         ref.fit(pattern, mode="lebail", plan=_plan(8), two_theta_limits=LIMITS,
                 telemetry=False, events=on_event, cancel=token)
     kept = ref.result_
-    assert kept.statistics.rwp == pytest.approx(0.137176, abs=RWP_PLATFORM_SPREAD)
+    assert kept.statistics.rwp == pytest.approx(0.138453, abs=RWP_PLATFORM_SPREAD)
     cell = {p.path: p.value for p in kept.parameters}["phases.0.cell.a"]
     assert ref.structure.phases[0].cell.a.value == pytest.approx(cell, abs=1e-9)

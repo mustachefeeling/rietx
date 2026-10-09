@@ -125,6 +125,14 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-09, from WP-1547.** The 230-group sweeps in
+  `test_magnetic_isotropy.py` (the Γ sweep, the real-amplitude count) and
+  `test_magnetic_irreps.py` (Burnside, Frobenius-Schur, the spgrep tables)
+  take a `SWEEPS` parameter. The fast tier runs a trap-chosen sample of 23
+  groups (`tests/space_group_sample.py`), and the `all-230` cases are `slow`.
+  A new sweep over the groups takes the same parameter. A timing of
+  `isotropy.analyse` read from the fast tier's junit now measures the sample;
+  read the nightly's `[all-230]` rows for the whole sweep.
 - **2026-10-09, from WP-1930 (PR #849).** `SOLVE_STAGE_PATHS`'
   "all" stage (`strategy/magnetic.py:213`) frees `phases.*.gauss_strain` beside
   `instrument.profile.u` and `phases.*.lor_size` beside `instrument.profile.x`,

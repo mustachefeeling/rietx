@@ -10,12 +10,23 @@ whole value of an example guard (`test_examples.py`'s docstring).  So each
 notebook is sized to fit the fast tier.  The executed notebook is never written:
 outputs move with the machine that drew them, and the committed ones are the
 builder's to refresh.
+
+**CI executes them on its newest Python leg alone** (WP-1547).  The other legs
+set `RIETX_TUTORIALS=skip` and skip rather than deselect, so passed+skipped
+agrees across the matrix.  What only the newest Python can break is a
+notebook's own: a cell printing a new DeprecationWarning to stderr, or a kernel
+release lagging the interpreter.  The rietx calls behind each cell run on every
+leg through the rest of the suite.  Syntax newer than the 3.11 floor fails ruff,
+whose target is py311.  A stdlib name newer than 3.11 in a tutorial's own cells
+passes every check, and that is the trade.  The nightly executes them on 3.13,
+on Linux, Windows and macOS.
 """
 
 from __future__ import annotations
 
 import html
 import importlib.util
+import os
 import re
 import shutil
 from pathlib import Path
@@ -69,6 +80,8 @@ def test_there_are_tutorials():
     assert SOURCES, f"no {build.SOURCES} under {TUTORIALS}"
 
 
+@pytest.mark.skipif(os.environ.get("RIETX_TUTORIALS") == "skip",
+                    reason="CI executes the notebooks on its newest Python leg (WP-1547)")
 @pytest.mark.parametrize("path", SOURCES, ids=lambda p: p.stem)
 def test_tutorial_executes_clean(path):
     """No error, no stderr, no home path, and a figure where a cell plots.

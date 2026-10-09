@@ -172,6 +172,9 @@ right, and why brucite with a Stephens block is chaotic under any step.
   before. The PR's first CI run failed on all four Linux legs over this,
   because the first re-pin froze the macOS side. The test now asserts the
   stop rule and the four shared passes, and bounds the end by them.
+  #857 (WP-1547) then rewrote the file at 5.1-25° on the same rule, and the
+  merge took its version whole. Its two pinned runs (+0.3 %, +2 %) read the
+  same to six digits under the old step and this one, on macOS arm64.
 - *Not generalised, on purpose.* Seventeen test oracles copy the old
   `1e-6 · max(1, |θ|)` step (`test_restraints`, `test_voigt`, `test_pawley` and
   others). They are whole-model references on wide lab peaks and pass, so they

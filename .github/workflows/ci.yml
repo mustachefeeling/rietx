@@ -63,6 +63,10 @@ name: CI
 #
 # The full suite (slow real-data acceptance included), macOS, Windows and
 # torch run in nightly.yml.
+#
+# `-n auto` is 2 workers here.  The 4-vCPU runner has 2 physical cores, and
+# xdist counts physical cores once psutil imports.  `-n logical` was measured
+# to buy nothing: four workers each ran at about half speed (WP-1547).
 
 on:
   push:
@@ -196,6 +200,11 @@ jobs:
       fail-fast: false
       matrix:
         python: ["3.11", "3.12", "3.13", "3.14"]
+        # the newest leg executes the tutorials.  Dropping its version from
+        # the list above makes this a leg of its own, so they never go unrun.
+        include:
+          - python: "3.14"
+            tutorials: run
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -212,7 +221,10 @@ jobs:
         # still passes, but silently refits.  The junit file carries each
         # test's setup, call and teardown time, uploaded below: the numbers the
         # next cut to this job's time is chosen from (tests/CLAUDE.md § Budgets
-        # in tests).
+        # in tests).  The tutorial notebooks execute on the newest Python
+        # alone (tests/test_tutorials.py says what that trades).
+        env:
+          RIETX_TUTORIALS: ${{ matrix.tutorials || 'skip' }}
         run: >-
           .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
           --junitxml=junit.xml -o junit_duration_report=total
@@ -243,6 +255,8 @@ jobs:
         # jit-compile bound; an actions/cache of tests/.jax_cache was measured
         # not to help (8:18 warm against 8:12 cold — weekly.yml's note, kept
         # with the job it explains), so there is no cache step.
+        env:
+          RIETX_TUTORIALS: skip
         run: >-
           .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
           --junitxml=junit.xml -o junit_duration_report=total

@@ -56,6 +56,7 @@ from rietx.crystallography.representation.irreps import (
     small_irreps_of,
     star,
 )
+from tests.space_group_sample import TRAP_SAMPLE
 
 HALF = Fraction(1, 2)
 
@@ -87,6 +88,11 @@ ORACLE_CANNOT_DO = frozenset({("I 21 21 21", (HALF, HALF, HALF)),
                               ("I b c a", (HALF, HALF, HALF))})
 
 ALL_SETTINGS = tuple(gemmi.find_spacegroup_by_number(n).xhm() for n in range(1, 231))
+
+#: The sweeps run over the trap-chosen sample in the fast tier and over all 230
+#: groups in the nightly (``tests/space_group_sample.py``, WP-1547).
+SWEEPS = [pytest.param(tuple(ALL_SETTINGS[n - 1] for n in TRAP_SAMPLE), id="sample"),
+          pytest.param(ALL_SETTINGS, id="all-230", marks=pytest.mark.slow)]
 
 #: The spgrep the oracle's *refusal* counts below were measured on, 2026-09-06,
 #: beside spglib 2.7.0 and gemmi 0.7.5.  ``pyproject.toml`` declares
@@ -334,7 +340,8 @@ def test_the_zone_boundary_irreps_of_pnma_have_no_inversion_parity_at_all():
 
 @pytest.mark.parametrize("k_set", [ZONE_BOUNDARY_SET, FRACTIONAL_K_SET],
                          ids=["zone-boundary", "denominators-3-4-6"])
-def test_burnside_and_character_orthonormality_over_all_230_space_groups(k_set):
+@pytest.mark.parametrize("settings", SWEEPS)
+def test_burnside_and_character_orthonormality_over_all_230_space_groups(settings, k_set):
     """Σ dim² = |G_k/T| and ⟨χ_α, χ_β⟩ = |G_k/T|·δ_αβ, for every group and k.
 
     Both are properties of the ω-twisted group algebra and hold whatever the
@@ -343,7 +350,7 @@ def test_burnside_and_character_orthonormality_over_all_230_space_groups(k_set):
     """
     worst = 0.0
     pairs = 0
-    for symbol in ALL_SETTINGS:
+    for symbol in settings:
         for k in k_set:
             little = little_group(symbol, k)
             irreps = small_irreps_of(little)
@@ -352,7 +359,7 @@ def test_burnside_and_character_orthonormality_over_all_230_space_groups(k_set):
             chars = np.array([x.characters for x in irreps])
             gram = chars.conj() @ chars.T / little.order
             worst = max(worst, float(np.max(np.abs(gram - np.eye(len(irreps))))))
-    assert pairs == 230 * len(k_set)
+    assert pairs == len(settings) * len(k_set)
     assert worst < 1e-10, f"character orthonormality off by {worst:.2e}"
 
 
@@ -536,7 +543,8 @@ def test_a_bcc_p_point_has_one_two_dimensional_projective_irrep():
             assert irreps[0].reality == "complex"
 
 
-def test_the_frobenius_schur_class_agrees_with_the_character_it_implies():
+@pytest.mark.parametrize("settings", SWEEPS)
+def test_the_frobenius_schur_class_agrees_with_the_character_it_implies(settings):
     """A real or pseudoreal irrep has a real character; a complex one need not.
 
     Self-consistency of the indicator against the definition it comes from,
@@ -544,7 +552,7 @@ def test_the_frobenius_schur_class_agrees_with_the_character_it_implies():
     independent construction is the physically-irreducible oracle test below.
     """
     seen = set()
-    for symbol in ALL_SETTINGS:
+    for symbol in settings:
         for k in ZONE_BOUNDARY_SET:
             little = little_group(symbol, k)
             for irrep in small_irreps_of(little):
@@ -641,7 +649,8 @@ def test_centred_lattices_agree_with_the_spgrep_oracle(symbol):
         assert tables_agree(mine, theirs), (symbol, k)
 
 
-def test_character_tables_agree_with_the_spgrep_oracle_for_all_230_groups():
+@pytest.mark.parametrize("settings", SWEEPS)
+def test_character_tables_agree_with_the_spgrep_oracle_for_all_230_groups(settings):
     """The sweep: 230 settings × the {0, 1/2}³ k set, characters compared exactly.
 
     Counts are asserted, not just the absence of a failure, so a silently
@@ -651,12 +660,13 @@ def test_character_tables_agree_with_the_spgrep_oracle_for_all_230_groups():
     the version that behaviour was measured on, since a refusal is spgrep's
     business and ``pyproject.toml`` puts no ceiling on it
     (``MEASURED_SPGREP_VERSION``).  The coverage guard does not depend on any
-    of that: ``checked + declined`` is every (setting, k) pair, 230 × 8.
+    of that: ``checked + declined`` is every (setting, k) pair, 230 × 8.  The
+    sample holds both declined pairs, so its counts pin the same way.
     """
     spgrep_core = pytest.importorskip("spgrep")
     pinned = _counts_are_pinned(spgrep_core)
     checked = agreed = declined = 0
-    for symbol in ALL_SETTINGS:
+    for symbol in settings:
         for k in ZONE_BOUNDARY_SET:
             if (symbol, k) in ORACLE_CANNOT_DO:
                 # the refusal asserted here is **spgrep's**, so the call under
@@ -687,9 +697,12 @@ def test_character_tables_agree_with_the_spgrep_oracle_for_all_230_groups():
             agreed += bool(tables_agree(mine, theirs))
     # ours, on every version: nothing disagreed, and nothing was skipped
     assert agreed == checked
-    assert checked + declined == len(ALL_SETTINGS) * len(ZONE_BOUNDARY_SET) == 1840
+    assert checked + declined == len(settings) * len(ZONE_BOUNDARY_SET)
+    assert len(ALL_SETTINGS) * len(ZONE_BOUNDARY_SET) == 1840
     if pinned:
-        assert (checked, agreed, declined) == (1838, 1838, 2)
+        refused = len(ORACLE_CANNOT_DO)
+        assert (checked, agreed, declined) == (
+            len(settings) * len(ZONE_BOUNDARY_SET) - refused,) * 2 + (refused,)
     assert spgrep_core.__name__ == "spgrep"
 
 
