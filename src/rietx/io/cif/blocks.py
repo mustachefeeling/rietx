@@ -371,7 +371,10 @@ def write_structure_block(block, phase, *, kind: str = "structure",
                           probe: str | None = None,
                           moment_magnitude_esds: dict[str, float] | None = None,
                           created: str | None = None,
-                          composition: bool = True) -> None:
+                          composition: bool = True,
+                          cell_volume_su: float | None = None,
+                          dispersion: dict[str, tuple[float, float, str]] | None = None
+                          ) -> None:
     """Write one phase's structure block into a gemmi CIF ``block``.
 
     ``kind`` is ``"structure"`` or ``"refinement"``, which adds ``cif_pd.dic``
@@ -381,7 +384,13 @@ def write_structure_block(block, phase, *, kind: str = "structure",
     ``composition=False`` leaves out everything read off the sites as
     chemistry (formula, Z, Mr, density, the ``_atom_type`` loop): a Le Bail or
     Pawley phase's atoms are a scaffold, and ``C8`` from its dummy carbon is a
-    fiction (``refine._symmetry_silence_diagnostics``).  A
+    fiction (``refine._symmetry_silence_diagnostics``), so its sites are
+    marked ``_atom_site_calc_flag dum`` instead.  ``cell_volume_su`` is the
+    volume's esd through the cell covariance
+    (:func:`~rietx.model.geometry.cell_volumes`), which a refinement has and a
+    structure does not (decision 6).  ``dispersion`` maps each site's species to
+    the (f′, f″, source) a fit computed with, written into the ``_atom_type``
+    loop.  A
     magnetic phase adds the magCIF half (:mod:`rietx.crystallography.magcif`)
     and ``cif_mag.dic``.  The module docstring says what is written and why;
     the references are there.
@@ -420,10 +429,16 @@ def write_structure_block(block, phase, *, kind: str = "structure",
     chemistry: list[tuple[str, str]] = []
     after_cell: list[tuple[str, str]] = []
     type_rows: list[list[str]] = []
+    anomalous: dict[str, list[str]] = {}
     zmv = phase_zmv(None, phase.cell.lengths_angles(),
                     [(a.species, a.x.value, a.y.value, a.z.value, a.occ.value)
                      for a in phase.atoms], multiplicities=multiplicities)
-    after_cell.append(("_cell_volume", number("_cell_volume", zmv.cell_volume)))
+    after_cell.append(("_cell_volume",
+                       number("_cell_volume", zmv.cell_volume, cell_volume_su)))
+    if not composition:
+        columns.append("calc_flag")
+        for row in rows:
+            row.append("dum")
     if phase.atoms and composition:
         # zmv.z is already 1 for a composition that does not reduce
         # (qpa._formula_units), so its molar mass is the cell's
@@ -441,6 +456,12 @@ def write_structure_block(block, phase, *, kind: str = "structure",
         in_cell: dict[str, float] = {}
         for sym, atom, m in zip(types, phase.atoms, multiplicities, strict=True):
             in_cell[sym] = in_cell.get(sym, 0.0) + atom.occ.value * m
+            if dispersion is not None:
+                fp, fpp, source = dispersion[atom.species]
+                anomalous.setdefault(sym, [
+                    number("_atom_type_scat_dispersion_real", fp, where=sym),
+                    number("_atom_type_scat_dispersion_imag", fpp, where=sym),
+                    text("_atom_type_scat_dispersion_source", source)])
         for sym, count in in_cell.items():
             type_rows.append([
                 text("_atom_type_symbol", sym),
@@ -449,6 +470,7 @@ def write_structure_block(block, phase, *, kind: str = "structure",
                 *([text("_atom_type_description", notes[sym]) if sym in notes else "."]
                   if notes else []),
                 text("_atom_type_scat_source", _scat_source(sym, probe)),
+                *anomalous.get(sym, []),
             ])
 
     for tag, value in [*pairs]:
@@ -464,7 +486,8 @@ def write_structure_block(block, phase, *, kind: str = "structure",
     if type_rows:
         tloop = block.init_loop("_atom_type_", [
             "symbol", "number_in_cell", *(["description"] if notes else []),
-            "scat_source"])
+            "scat_source", *(["scat_dispersion_real", "scat_dispersion_imag",
+                              "scat_dispersion_source"] if anomalous else [])])
         for row in type_rows:
             tloop.add_row(row)
     write_sites(block, columns, rows, aniso)

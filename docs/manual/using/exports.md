@@ -508,6 +508,7 @@ the structure, for a caller that holds those instead of a `Refinement`.
 | `ReflectionRow.intensity` | the modelled integrated intensity of this row |
 | `ReflectionRow.satellite_order` | the m of Q = H + m·k, 0 on every nuclear reflection |
 | `ReflectionRow.component` | `"total"`, or `"nuclear"`/`"magnetic"` where a magnetic width is active |
+| `ReflectionRow.phase_index` | the phase's index in the structure, which holds where two phases share a name |
 
 Four of those need care.
 

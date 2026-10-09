@@ -200,3 +200,37 @@ def write_pattern_block(block, result, wavelength: float, pattern=None) -> None:
     loop = block.init_loop("", tags)
     for row in rows:
         loop.add_row(row)
+
+
+def write_reflection_loop(block, rows, structure) -> None:
+    """The ``_refln`` loop: each reflection once, with its phase, d and F².
+
+    One row per reflection at the primary line, since d and |F|² do not depend
+    on the line.  ``_pd_refln_phase_id`` is the phase's 1-based position in the
+    file, the id the phase table of the multi-block layout names (issue #756
+    § 2.2, WP-1933's C-e).  A satellite of a modulated phase is left out, since
+    its index needs four numbers the flat loop has no column for, and so is the
+    magnetic share of a split row.  ``_refln_F_squared_calc`` is the
+    structure's |F|² in Rietveld mode, and ``.`` on a phase carrying moments,
+    whose stored |F|² is the nuclear share alone (``ReflectionRow``).
+    """
+    kept = [r for r in rows if r.line == 0 and r.satellite_order == 0
+            and r.component != "magnetic"]
+    if not kept:
+        return
+    with_f2 = any(r.f_squared is not None for r in kept)
+    table = []
+    for r in kept:
+        row = [str(r.h), str(r.k), str(r.l), str(r.phase_index + 1),
+               number("_refln_d_spacing", r.d, where=f"{r.h} {r.k} {r.l}")]
+        if with_f2:
+            magnetic = structure.phases[r.phase_index].magnetic_symmetry is not None
+            row.append("." if r.f_squared is None or magnetic else
+                       number("_refln_F_squared_calc", r.f_squared,
+                              where=f"{r.h} {r.k} {r.l}"))
+        table.append(row)
+    loop = block.init_loop("", [
+        "_refln_index_h", "_refln_index_k", "_refln_index_l", "_pd_refln_phase_id",
+        "_refln_d_spacing", *(["_refln_F_squared_calc"] if with_f2 else [])])
+    for row in table:
+        loop.add_row(row)

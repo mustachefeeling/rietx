@@ -134,6 +134,10 @@ def written(fitted_lab6, tmp_path_factory) -> dict[str, set[str]]:  # noqa: F811
     # a Cu doublet, an applied absorption and a refined extinction: the
     # wavelength loop and the items 11-BM LaB6 never needs
     out["refinement"] |= _tags(refinement_cif_doc(*_lab_variant(result, ref)))
+    # a Le Bail result: its scaffold sites are marked as dummies
+    out["refinement"] |= _tags(refinement_cif_doc(
+        no_geometry.model_copy(update={"mode": "lebail"}), ref.fitted_structure,
+        instrument))
     # GSAS-II's phase CIF refuses a group stated only as a list, so the
     # operator-list phase is not offered to it
     for structure in plain:

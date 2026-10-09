@@ -519,6 +519,79 @@ def test_the_experiment_and_refinement_items(fitted_lab6):
     assert profile.startswith("Voigt") and "TCHZ" not in profile
 
 
+def test_a_cubic_cell_volume_esd_is_three_a_squared_sigma_a(fitted_lab6):
+    """V = a³ with one free length, so σ(V) = 3a²σ(a) exactly, and the
+    refinement CIF's ``_cell_volume`` carries it."""
+    from rietx.io.exporters import refinement_cif_doc
+
+    ref, result, _data = fitted_lab6
+    (row,) = result.cell_volumes
+    a = result.parameter("phases.0.cell.a")
+    assert row.volume == pytest.approx(a.value ** 3, rel=1e-12)
+    assert row.stderr == pytest.approx(3 * a.value ** 2 * a.stderr, rel=1e-9)
+    block = refinement_cif_doc(result, ref.fitted_structure, ref.fitted_instrument)[0]
+    assert block.find_value("_cell_volume") == format_su(row.volume, row.stderr)
+
+
+def test_the_atom_types_state_the_dispersion_the_fit_used(fitted_lab6):
+    """f′ and f″ at the source's wavelength, the forward model's own numbers;
+    none where the fit applied none (checkCIF's PLAT981/PLAT986)."""
+    from rietx.crystallography.dispersion import resolve
+    from rietx.io.exporters import refinement_cif_doc
+
+    ref, result, _data = fitted_lab6
+    instrument = ref.fitted_instrument
+    block = refinement_cif_doc(result, ref.fitted_structure, instrument)[0]
+    rows = {r[0]: r for r in block.find(["_atom_type_symbol",
+                                         "_atom_type_scat_dispersion_real",
+                                         "_atom_type_scat_dispersion_imag",
+                                         "_atom_type_scat_dispersion_source"])}
+    lam = tuple(line.wavelength.value for line in instrument.source.lines)
+    for atom in ref.fitted_structure.phases[0].atoms:
+        f = resolve([atom.species], lam)[atom.species]
+        row = rows[atom.species]
+        assert float(row[1]) == f.real and float(row[2]) == f.imag
+        assert "Cromer" in row[3]
+
+    declined = instrument.model_copy(deep=True)
+    declined.source.dispersion = None
+    block = refinement_cif_doc(result, ref.fitted_structure, declined)[0]
+    assert not block.find_loop("_atom_type_scat_dispersion_real")
+
+
+def test_the_reflection_loop_lists_each_reflection_once(fitted_lab6, tmp_path):
+    """``_refln``: one row per reflection at the primary line, hkl, the phase's
+    id, d and |F|² as the reflection table computes them."""
+    ref, _result, _data = fitted_lab6
+    out = tmp_path / "refl.cif"
+    ref.write_cif(out)
+    block = gemmi.cif.read(str(out)).sole_block()
+    written = list(block.find(["_refln_index_h", "_refln_index_k", "_refln_index_l",
+                               "_pd_refln_phase_id", "_refln_d_spacing",
+                               "_refln_F_squared_calc"]))
+    rows = [r for r in ref.reflection_table() if r.line == 0]
+    assert len(written) == len(rows) > 0
+    for w, r in zip(written, rows, strict=True):
+        assert (int(w[0]), int(w[1]), int(w[2])) == (r.h, r.k, r.l)
+        assert w[3] == "1"
+        assert gemmi.cif.as_number(w[4]) == pytest.approx(r.d, rel=1e-15)
+        assert gemmi.cif.as_number(w[5]) == pytest.approx(r.f_squared, rel=1e-15)
+
+
+def test_a_le_bail_cell_volume_carries_its_esd(fitted_lab6):
+    """σ(V) in every mode: a Le Bail cell is refined as surely as a Rietveld
+    one, and its scaffold atoms take nothing from it."""
+    _ref, _result, data = fitted_lab6
+    structure = make_lab6()
+    ref = Refinement(structure, Instrument.debye_scherrer(wavelength=0.4139),
+                     history=False)
+    result = ref.fit(data, mode="lebail", plan="mccusker_default")
+    (row,) = result.cell_volumes
+    a = result.parameter("phases.0.cell.a")
+    assert a.stderr is not None
+    assert row.stderr == pytest.approx(3 * a.value ** 2 * a.stderr, rel=1e-9)
+
+
 def test_refinement_result_arrays_are_faithful(fitted_lab6, tmp_path):
     """The calc/background columns are written too, not just obs."""
     ref, result, data = fitted_lab6
@@ -547,6 +620,9 @@ def test_a_le_bail_cif_states_no_composition_from_its_scaffold(fitted_lab6):
                     or bool(block.find_loop(t))) is stated for t in chemistry), mode
         assert block.find_value("_space_group_name_H-M_alt") is not None
         assert block.find_value("_cell_volume") is not None
+        # ...and marks its sites as the dummies they are (#756 § 2.1)
+        flags = set(block.find_loop("_atom_site_calc_flag"))
+        assert flags == (set() if stated else {"dum"}), mode
 
 
 def test_refinement_cif_carries_the_geom_loops(fitted_lab6, tmp_path):
@@ -596,6 +672,16 @@ def test_refinement_cif_carries_the_geom_loops(fitted_lab6, tmp_path):
     # the value tag is the bare '_geom_angle' the dictionary aliases, never a
     # '_geom_angle_value' invented by prefixing
     assert "_geom_angle_value" not in text
+    # a symmetry code is part of the key, so it is never unknown; bonded rows
+    # are flagged for publication and contacts are not; the method is stated
+    for tag in ("_geom_bond_site_symmetry_2", "_geom_contact_site_symmetry_2",
+                "_geom_angle_site_symmetry_3"):
+        assert "?" not in list(block.find_loop(tag)), tag
+    assert set(block.find_loop("_geom_bond_publ_flag")) == {"yes"}
+    assert set(block.find_loop("_geom_contact_publ_flag")) == {"no"}
+    assert set(block.find_loop("_geom_angle_publ_flag")) == {"yes"}
+    assert "full covariance" in " ".join(
+        block.find_value("_geom_special_details").split())
 
 
 def test_refinement_helpers_smoke(fitted_lab6, tmp_path):

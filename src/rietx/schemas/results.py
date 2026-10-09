@@ -618,6 +618,24 @@ class GeometryAngle(Base):
     symmetry_3: str | None = "."
 
 
+class CellVolume(Base):
+    """One phase's unit-cell volume in Å³, with its esd (WP-1933).
+
+    The esd goes through the whole covariance of the six cell entries
+    (:func:`~rietx.model.geometry.cell_volumes`), so a crystal-system tie and
+    the correlation between, say, a and c in a hexagonal cell both reach it.
+    esd conventions are :class:`GeometryDistance`'s exactly: ``None`` where
+    nothing the volume depends on was refined, or where a source measured
+    nothing, and ``stderr_diagonal`` the number with the refined parameters'
+    correlations dropped.
+    """
+
+    phase_index: int
+    volume: float                     # Å³
+    stderr: float | None = None
+    stderr_diagonal: float | None = None
+
+
 class GeometryTable(Base):
     """Bonding geometry of the converged model, with propagated esds (WP-1072).
 
@@ -1224,6 +1242,11 @@ class RefinementResult(Base):
     # (WP-1072) — see :class:`GeometryTable`.  Rietveld-only, and None when the
     # result did not come from a fit that had a compiled model to search.
     geometry: GeometryTable | None = None
+
+    # Each phase's cell volume with its esd through the cell covariance
+    # (WP-1933), in every mode, since a Le Bail cell is a measurement too —
+    # see :class:`CellVolume`.  None when the result did not come from a fit.
+    cell_volumes: list[CellVolume] | None = None
 
     # Coherent domain size and microstrain as physical numbers (WP-1131) — see
     # :class:`PhaseMicrostructure`.  A carrier for the same reason ``geometry``
