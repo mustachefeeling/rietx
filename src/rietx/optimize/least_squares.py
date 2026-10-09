@@ -377,7 +377,8 @@ def _rechart_matrix(outcome: LSQOutcome, theta: np.ndarray,
                    stderr_internal=stderr, correlation=corr, residual_cosine=cosine)
 
 
-def _guarded_covariance(jac, fun, n_free: int, n_data: int
+def _guarded_covariance(jac, fun, n_free: int, n_data: int,
+                        condition: np.ndarray | None = None
                         ) -> tuple[np.ndarray | None, np.ndarray | None,
                                    str | None]:
     """:func:`covariance_estimates`, with an eigensolver failure made absent.
@@ -394,7 +395,8 @@ def _guarded_covariance(jac, fun, n_free: int, n_data: int
     non-convergence with; anything else is a defect and stays loud.
     """
     try:
-        stderr, corr = covariance_estimates(jac, fun, n_free, n_data=n_data)
+        stderr, corr = covariance_estimates(jac, fun, n_free, n_data=n_data,
+                                            condition=condition)
     except np.linalg.LinAlgError as exc:
         return None, None, repr(exc)
     return stderr, corr, None
@@ -1802,7 +1804,8 @@ def run_multi_least_squares(models: list[CompiledModel],
 
 
 def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,
-                         n_data: int | None = None
+                         n_data: int | None = None,
+                         condition: np.ndarray | None = None
                          ) -> tuple[np.ndarray, np.ndarray]:
     """Esds and correlation matrix from the weighted Jacobian at the solution.
 
@@ -1851,7 +1854,7 @@ def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,
     data = fun if n_data is None else fun[:n_data]
     # ``normal_covariance`` in its two factors, so the esd below can be taken
     # where the product overflows
-    k, inv_d, _chi2_red = normal_factors(jac, data, n_free)
+    k, inv_d, _chi2_red = normal_factors(jac, data, n_free, condition=condition)
     live = inv_d > 0.0
     cov = covariance_from_factors(k, inv_d)
     # Normalise the correlation by the *raw* (un-inflated) sqrt-diagonal so it is
