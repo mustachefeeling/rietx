@@ -313,8 +313,11 @@ def test_corundum_is_reported_isotropic(corundum_plain):
     # the ratio of an *insignificant* diagnostic fit (r² here is ~1e-5) is
     # noise, and it drifted from ~1.9 to ~2.02 when WP-1112 resized the
     # evaluation windows — the isotropic verdict is carried by ``detected``
-    # and ``r2`` above; this bar only keeps the quoted magnitude honest
-    assert strain.anisotropy < 2.5
+    # and ``r2`` above; this bar only keeps the quoted magnitude honest.
+    # WP-1930's floor seed moved it to 4.51 at the same χ²_red (2.65601 in
+    # both arms): the Lorentzian split is a flat direction here (lor_strain
+    # 1e-4 against 1.4e-3), and the ratio rides it
+    assert strain.anisotropy < 6.0
     assert strain.n_patterns == 4       # R-3c → Laue -3m
     assert strain.n_reflections_used > 40
 

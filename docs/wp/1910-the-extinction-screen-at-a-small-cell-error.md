@@ -106,6 +106,14 @@ and is not proposed here. No code is ported.
 
 ### Inherited
 
+- **2026-10-09, from WP-1930 (PR #849).** `validation_plan` called
+  without `two_theta_max` takes the 6° cap of `VALIDATION_SLACK_BOUNDS_DEG`,
+  and on FAP its `profile` stage then never converges (max_iter at 100, 400 and
+  2000 alike). `determine_extinction_symbol` always passes it, so only tests
+  call it bare: `test_extinction_symbol.py`'s FAP 003-window test did, and now
+  passes it; the corundum call near its line 738 still does, and passes.
+  Making the argument required, or deriving it in the fit, was not measured.
+
 - **2026-10-08, from WP-1546 (the 1.7.0 cut).** The "seen in passing"
   mismatch above is re-measured and bisected. The manual's numbers were the
   shipped protocol's until the WP-1112 merge (`e794a9e4`, #80, 2026-08-21):
