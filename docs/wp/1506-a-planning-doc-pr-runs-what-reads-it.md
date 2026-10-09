@@ -129,6 +129,12 @@ the tail today, in local serial seconds:
   on `--stdin -z`, and the index half lists the index (`git ls-files -z`)
   rather than naming the paths, for the same argv reason. Both halves were
   made to fail on purpose. Nothing is left here for this item.
+- **From WP-1547 (2026-10-09): task 7 moved to
+  [1547](1547-the-fast-tiers-tail.md).** The two weeks of junit timings it
+  waited for are measured there, and the median fast leg rose from 21.7 to
+  31.1 min in a week, mostly from three files. The cut's candidates (the
+  sweeps, sharding, a smaller PR matrix) are 1547's tasks now. With task 7
+  gone this WP has no open item, so the next session here can close it.
 
 ## Non-goals
 
