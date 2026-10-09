@@ -161,6 +161,32 @@ and their sources are in the 2026-10-09 handover entry and at
 https://claude.ai/artifact/CYGoz3cF63QUJ345z4zKMY. The maintainer will
 choose after the next session probes them.
 
+**Measured 2026-10-09, second session: the coordinates, not the reporting
+rule** (macOS arm64, `[dev]`, tree `35f4ac14`). Twelve acceptance fits, five
+starts each, every unlocked start value multiplied by (1 + k·1e-14). Spread is
+χ²'s relative range across the five.
+
+| fit | softplus + TRF (today) | physical + TRF | physical + LM, BVLS step |
+|---|---|---|---|
+| LaB₆ + cBN (pre-1930 plan) | 9.69–12.51 | 9.661408, 2e-12 | 9.687–9.688 |
+| LaB₆ degenerate | 5.47–12.82 | 5.450264, 3e-11 | 5.4397, 2e-5 |
+| BT-1, `profile.x` esd | 0.0032 / 0.0066 / 0.0089 | 0.0098437 | 0.0098437 |
+| brucite (iso) | 8.3131166, 5e-8 | 8.3474, max_iter | 8.3131166, 2e-11 |
+| corundum | 2.6560076, 5e-8 | 2.659–2.665, max_iter | 2.6560076, 1e-11 |
+| NAC, FAP, Si 640c, capillary, absent phase | agree | agree | agree |
+
+Physical coordinates (softplus entries made identity with `lo = max(lo, 0)`)
+remove both splits under TRF. TRF's Coleman-Li scaling then crawls on the QARR
+fits, where u, w, `gauss_size`, `gauss_strain` and `lor_strain` press on 0
+together. The LM driver (`optimize/lm.py`) with its BCCG step replaced by
+`scipy.optimize.lsq_linear(method="bvls")` fixes that. It still stops early
+stages at their cap and lands LaB₆ on a higher basin. Ruled out: `dogbox`
+(χ²_red 556 on the absent phase), `x_scale="jac"` (no change), a
+tolerance pin around TRF (never fired), and physical-step FD with softplus kept
+(LaB₆ trapped at 12.478; BT-1 still flips once u passes exp underflow). The
+probe scripts and the uncommitted toggles (`RIETX_PHYS_FD`, `RIETX_LM_BVLS`)
+are described in the 2026-10-09 handover entry.
+
 ### Inherited
 
 (empty)
