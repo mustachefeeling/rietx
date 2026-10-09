@@ -105,6 +105,15 @@ def written(fitted_lab6, tmp_path_factory) -> dict[str, set[str]]:  # noqa: F811
                                                       instrument))
     ref.write_cif(tmp / "r.cif")
     out["refinement"] |= _read_tags(tmp / "r.cif")
+    # a pattern stating σ, with one measured point past the fitted range: the
+    # intensity spelling that carries an su, and the excluded-regions item
+    step = result.two_theta[-1] - result.two_theta[-2]
+    measured = rx.PatternData(
+        two_theta=[*result.two_theta, result.two_theta[-1] + step],
+        intensity=[*result.y_obs, result.y_obs[-1]],
+        sigma=[*result.sigma, result.sigma[-1]])
+    out["refinement"] |= _tags(refinement_cif_doc(no_geometry, ref.fitted_structure,
+                                                  instrument, pattern=measured))
     # GSAS-II's phase CIF refuses a group stated only as a list, so the
     # operator-list phase is not offered to it
     for structure in plain:

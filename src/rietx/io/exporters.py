@@ -44,6 +44,7 @@ from ..schemas.instrument import (
     BackgroundPSpline,
     Instrument,
 )
+from ..schemas.pattern import PatternData
 from ..schemas.results import (
     GeometryTable,
     PhaseAgreement,
@@ -53,6 +54,7 @@ from ..schemas.results import (
 from ..schemas.structure import Structure
 from .cif.blocks import block_name, write_document, write_structure_block
 from .cif.numbers import number, text
+from .cif.powder import write_pattern_block
 
 _CELL_KEYS = ("a", "b", "c", "alpha", "beta", "gamma")
 
@@ -378,7 +380,6 @@ def _write_refinement_metadata(block, result: RefinementResult,
             ("_refine_ls_goodness_of_fit_all", st.gof))]:
         block.set_pair(tag, value)
     block.set_pair("_refine_ls_number_parameters", str(st.n_free_parameters))
-    block.set_pair("_pd_proc_number_of_points", str(st.n_points))
     # McCusker et al. (1999) §10: "In any publication, the method used to
     # calculate the e.s.d.'s should be stated."  The inflation factor alone
     # does not state it — a reader cannot tell what it multiplied — so the base
@@ -508,31 +509,6 @@ def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int) -> Non
                           a.symmetry_3 or "?"])
 
 
-def _write_pattern_loop(block, result: RefinementResult) -> None:
-    """The observed/calculated pattern as a pdCIF loop ``read_pdcif`` reads."""
-    tt = result.two_theta
-    if not tt:
-        return
-    n = len(tt)
-    yb = result.y_background or [0.0] * n
-    sig = result.sigma or [0.0] * n
-    tags = ("_pd_proc_2theta_corrected", "_pd_proc_intensity_total",
-            "_pd_proc_intensity_total_su", "_pd_calc_intensity_total",
-            "_pd_proc_intensity_bkg_calc")
-    columns = (tt, result.y_obs, sig, result.y_calc, yb)
-    # refused through the one rule, but written at eight figures: ``repr``
-    # here grew a refinement CIF 1.5-1.7x with digits of float noise, and the
-    # pattern block's own digits are WP-1933's C-d (su in parentheses)
-    for tag, column in zip(tags, columns, strict=True):
-        bad = np.flatnonzero(~np.isfinite(np.asarray(column, dtype=np.float64)))
-        if bad.size:   # the rule names the first non-finite point and refuses
-            number(tag, column[bad[0]], where=f"point {bad[0]}")
-    rows = [[_g(column[i]) for column in columns] for i in range(n)]
-    loop = block.init_loop("", list(tags))
-    for row in rows:
-        loop.add_row(row)
-
-
 def _moment_esds(result: RefinementResult, ip: int,
                  phase) -> dict[str, float]:
     """A refined moment's esd, per site label, for the magCIF ``magnitude_su``.
@@ -564,7 +540,8 @@ def _moment_esds(result: RefinementResult, ip: int,
 
 
 def refinement_cif_doc(result: RefinementResult, structure: Structure,
-                       instrument: Instrument) -> gemmi.cif.Document:
+                       instrument: Instrument, *,
+                       pattern: PatternData | None = None) -> gemmi.cif.Document:
     """Build the refinement CIF as a gemmi document (see :func:`write_refinement_cif`)."""
     doc = gemmi.cif.Document()
     agreement = {row.name: row for row in result.phase_agreement}
@@ -594,12 +571,14 @@ def refinement_cif_doc(result: RefinementResult, structure: Structure,
             # a single-phase export is one self-contained block that both
             # read_pdcif (pattern) and structure_from_cif (structure) re-read
             _write_refinement_metadata(block, result, instrument)
-            _write_pattern_loop(block, result)
+            write_pattern_block(block, result,
+                                instrument.source.primary_wavelength, pattern)
     return doc
 
 
 def write_refinement_cif(result: RefinementResult, structure: Structure,
-                         instrument: Instrument, path: str | Path) -> None:
+                         instrument: Instrument, path: str | Path, *,
+                         pattern: PatternData | None = None) -> None:
     """Write a refinement CIF: structure (values + esds), R-factors, wavelength,
     profile/background description, and the observed/calculated pattern loop.
 
@@ -612,5 +591,10 @@ def write_refinement_cif(result: RefinementResult, structure: Structure,
     writes one block per phase and each re-reads as a structure, but the
     pattern loop and refinement scalars live on the first block only, and
     nothing reassembles N blocks into one refinement.
+
+    ``pattern`` is the pattern the fit was given.  With it the profile loop
+    carries every measured point, a weight of 0 marking each the fit did not
+    use; without it, only the fitted points (:mod:`rietx.io.cif.powder`).
     """
-    write_document(refinement_cif_doc(result, structure, instrument), path)
+    write_document(refinement_cif_doc(result, structure, instrument,
+                                      pattern=pattern), path)

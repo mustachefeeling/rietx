@@ -12,7 +12,7 @@ themselves are vendored under ``tests/data`` and never shipped.
 reads the dictionaries, and asserts three things: every written tag is a row
 here, every row is written by some writer (so no row outlives its writer), and
 every row's tag is defined and not deprecated, with its ``definition_id``,
-``purpose`` and ``contents`` the dictionary's own.  Two tags break the last
+``purpose`` and ``contents`` the dictionary's own.  One tag breaks the last
 rule today and sit on :data:`KNOWN_VIOLATIONS`, which the same test holds to
 shrinking.  The writers read ``contents``: :func:`~rietx.io.cif.numbers.text`
 refuses whitespace in a single-token tag by it.
@@ -68,8 +68,6 @@ PRIVATE_TAGS: frozenset[str] = frozenset(_MAGCIF_PRIVATE)
 #: each; the registry test fails if this set gains a member or keeps one that
 #: no longer violates.
 KNOWN_VIOLATIONS: frozenset[str] = frozenset({
-    # undefined in cif_pd.dic 2.5.0; the pattern block of WP-1933 (C-d) replaces it
-    "_pd_proc_intensity_total_su",
     # alias of _space_group.name_H-M_full deprecated 2003-10-04; the structure
     # block dropped it (C-c), and gsas2.py writes it on purpose for GSAS-II
     # until WP-1933's C-g declares that file's profile
@@ -187,11 +185,22 @@ _TAGS: tuple[Tag, ...] = (
         ("_geom_angle_site_symmetry_1", "_geom_angle.site_symmetry_1", "Composite", "Symop"),
         ("_geom_angle_site_symmetry_2", "_geom_angle.site_symmetry_2", "Composite", "Symop"),
         ("_geom_angle_site_symmetry_3", "_geom_angle.site_symmetry_3", "Composite", "Symop"),
-        ("_pd_proc_2theta_corrected", "_pd_proc.2theta_corrected", "Measurand", "Real"),
-        ("_pd_proc_intensity_total", "_pd_proc.intensity_total", "Measurand", "Real"),
-        ("_pd_proc_intensity_total_su", None, None, "Real"),
+        # the pattern block (io/cif/powder.py)
+        ("_pd_meas_2theta_scan", "_pd_meas.2theta_scan", "Measurand", "Real"),
+        ("_pd_meas_intensity_total", "_pd_meas.intensity_total", "Measurand", "Real"),
+        ("_pd_meas_counts_total", "_pd_meas.counts_total", "Number", "Integer"),
+        ("_pd_proc_ls_weight", "_pd_proc.ls_weight", "Number", "Real"),
+        ("_pd_proc_d_spacing", "_pd_proc.d_spacing", "Measurand", "Real"),
         ("_pd_calc_intensity_total", "_pd_calc.intensity_total", "Number", "Real"),
         ("_pd_proc_intensity_bkg_calc", "_pd_proc.intensity_bkg_calc", "Measurand", "Real"),
+        ("_pd_meas_number_of_points", "_pd_meas.number_of_points", "Number", "Integer"),
+        ("_pd_meas_2theta_range_min", "_pd_meas.2theta_range_min", "Number", "Real"),
+        ("_pd_meas_2theta_range_max", "_pd_meas.2theta_range_max", "Number", "Real"),
+        ("_pd_meas_2theta_range_inc", "_pd_meas.2theta_range_inc", "Number", "Real"),
+        ("_pd_proc_2theta_range_min", "_pd_proc.2theta_range_min", "Number", "Real"),
+        ("_pd_proc_2theta_range_max", "_pd_proc.2theta_range_max", "Number", "Real"),
+        ("_pd_proc_info_excluded_regions", "_pd_proc.info_excluded_regions",
+         "Describe", "Text"),
     ),
     # the GSAS-II phase CIF (io/projects/gsas2.from_structure): the bare
     # symbol GSAS-II reads first, and the B its import was measured on

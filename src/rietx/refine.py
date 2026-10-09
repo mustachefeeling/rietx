@@ -1913,6 +1913,9 @@ class Refinement:
         self._last_plan: RefinementPlan | None = None
         self._sigma_from_file: bool | None = None
         self._excluded_regions: list[tuple[float, float]] = []
+        #: the pattern the last fit or stage was given, every measured point
+        #: included, for :meth:`write_cif`'s pattern block (WP-1933)
+        self._fit_pattern: PatternData | None = None
 
     # ------------------------------------------------------------------
     # history plumbing
@@ -4296,6 +4299,7 @@ class Refinement:
         self._last_plan = plan
         self._sigma_from_file = data.sigma is not None
         self._excluded_regions = list(data.excluded_regions)
+        self._fit_pattern = data
         tree = self._ensure_history(data, plan)
         stream = _attach_progress(as_event_stream(events), progress)
         # Attached beside the caller's stream, never inside it: the recorder
@@ -4772,6 +4776,7 @@ class Refinement:
         ttl = two_theta_limits if two_theta_limits is not None else self._two_theta_limits
         self._mode = mode
         self._two_theta_limits = ttl
+        self._fit_pattern = data
         # the trajectory belongs to the last *fit*: one stage on top of it
         # leaves rungs that describe states this one no longer stands on
         self.stage_reports_ = []
@@ -5293,12 +5298,16 @@ class Refinement:
 
     def write_cif(self, path) -> None:
         """Write a refinement CIF: structure with esds, R-factors, wavelength,
-        profile/background description, and the observed/calculated pattern."""
+        profile/background description, and the observed/calculated pattern.
+
+        The pattern loop carries every point of the pattern the last fit was
+        given, with weight 0 on the ones it did not fit."""
         from .io.exporters import write_refinement_cif
 
         if self.result_ is None:
             raise RuntimeError("call fit() first")
-        write_refinement_cif(self.result_, self.structure, self.instrument, path)
+        write_refinement_cif(self.result_, self.structure, self.instrument, path,
+                             pattern=self._fit_pattern)
 
     def write_qpa_table(self, path, **kw) -> None:
         """Write the QPA weight-fraction table (crystalline-only caveat included)."""

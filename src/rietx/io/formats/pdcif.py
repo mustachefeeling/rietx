@@ -8,6 +8,7 @@ prefer and how a weight becomes a σ.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import numpy as np
@@ -16,10 +17,11 @@ from ...schemas.common import Diagnostic
 from ...schemas.pattern import PatternData
 from .base import PatternFormat, ascending, pattern_data
 
-#: pdCIF tag alternatives, in preference order
-_PDCIF_TT = ("_pd_proc_2theta_corrected", "_pd_meas_2theta_scan",
+#: pdCIF tag alternatives, in preference order.  A refinement CIF this build
+#: writes states the measured grid and intensities (``io/cif/powder.py``).
+_PDCIF_TT = ("_pd_meas_2theta_scan", "_pd_proc_2theta_corrected",
              "_pd_meas_2theta_range_inc")
-_PDCIF_Y = ("_pd_proc_intensity_total", "_pd_meas_intensity_total",
+_PDCIF_Y = ("_pd_meas_intensity_total", "_pd_proc_intensity_total",
             "_pd_meas_counts_total")
 _PDCIF_SU = ("_pd_proc_intensity_total_su", "_pd_proc_intensity_total_esd",
              "_pd_meas_intensity_total_su", "_pd_meas_intensity_total_esd")
@@ -34,10 +36,13 @@ def read_pdcif(path: str | Path, *, block: str | None = None,
     ``…_meas`` and a ``…_calc`` block with identical tags); by default the
     first block containing a recognised 2θ + intensity loop is used.
 
-    σ handling: an explicit ``…_su``/``…_esd`` column wins; otherwise
+    σ handling: an explicit ``…_su``/``…_esd`` column wins; then an su in
+    parentheses on every intensity (``1234(35)``, the form the DDLm
+    dictionaries make equivalent to a ``_su`` item); otherwise
     ``_pd_proc_ls_weight`` is interpreted as the least-squares weight
-    w = 1/σ² (its pdCIF definition), so σ = 1/√w.  With neither present,
-    ``sigma`` is left unset and the Poisson fallback applies downstream.
+    w = 1/σ² (its pdCIF definition), so σ = 1/√w.  With none of these, or a
+    weight of 0 on any point, ``sigma`` is left unset and the Poisson fallback
+    applies downstream.
     """
     import gemmi
 
@@ -61,8 +66,11 @@ def read_pdcif(path: str | Path, *, block: str | None = None,
 
     sigma = None
     su = _first_loop(chosen, _PDCIF_SU)
+    stated = _parenthesised_su(chosen, _PDCIF_Y)
     if su is not None and len(su) == len(y):
         sigma = su
+    elif stated is not None and len(stated) == len(y):
+        sigma = stated
     else:
         wt = _first_loop(chosen, ("_pd_proc_ls_weight",))
         if wt is not None and len(wt) == len(y) and np.all(wt > 0):
@@ -83,6 +91,28 @@ def _first_loop(b, tags: tuple[str, ...]) -> np.ndarray | None:
         if len(col) > 0:
             return np.array([gemmi.cif.as_number(v) for v in col], dtype=np.float64)
     return None
+
+
+def _parenthesised_su(b, tags: tuple[str, ...]) -> np.ndarray | None:
+    """The su written in parentheses on the first present column, if every
+    value carries one (``12.5(3)`` is 0.3): the digits count in the last
+    decimal place the value states (Hall, Allen & Brown 1991)."""
+    for tag in tags:
+        col = b.find_loop(tag)
+        if len(col) == 0:
+            continue
+        out = []
+        for v in col:
+            m = _SU.fullmatch(v)
+            if m is None:
+                return None
+            decimals = len(m["frac"] or "")
+            out.append(int(m["su"]) * 10.0 ** (int(m["exp"] or 0) - decimals))
+        return np.array(out, dtype=np.float64)
+    return None
+
+
+_SU = re.compile(r"[+-]?\d*(?:\.(?P<frac>\d*))?\((?P<su>\d+)\)(?:[eE](?P<exp>[+-]?\d+))?")
 
 
 PDCIF = PatternFormat(

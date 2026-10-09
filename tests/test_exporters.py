@@ -338,6 +338,7 @@ TRUE_A = 4.15660
 TRUE_ZERO = 0.008
 TRUE_SCALE = 5e-4
 TRUE_W = 2.5e-4
+EXCLUDED = (20.0, 20.05)
 
 
 @pytest.fixture(scope="module")
@@ -361,7 +362,10 @@ def fitted_lab6():
     y = model.evaluate(table.decode(table.x0()))
     rng = np.random.default_rng(7)
     y = rng.poisson(np.maximum(y, 1.0)).astype(float)
-    data = PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
+    # an interior excluded region, so the CIF's pattern loop has measured
+    # points the fit did not use (WP-1933 C-d)
+    data = PatternData(two_theta=model.tt.tolist(), intensity=y.tolist(),
+                       excluded_regions=[EXCLUDED])
 
     structure = make_lab6()
     structure.phases[0].cell.a.value = TRUE_A + 0.004
@@ -397,18 +401,78 @@ def test_refinement_cif_round_trips_through_readers(fitted_lab6, tmp_path):
     assert "_cell_length_a" in text
     assert "(" in text.split("_cell_length_a")[1].split("\n")[0]
 
-    # 2. the observed pattern re-reads through read_pdcif, matching the fit grid
+    # 2. the observed pattern re-reads through read_pdcif: every measured
+    #    point, the excluded ones included, as the counts they were
     pat = read_pdcif(out)
-    assert len(pat.two_theta) == len(result.two_theta)
-    np.testing.assert_allclose(pat.two_theta, result.two_theta, rtol=0, atol=1e-5)
-    np.testing.assert_allclose(pat.intensity, result.y_obs, rtol=1e-6, atol=1e-3)
-    assert pat.sigma is not None                       # the _su column round-trips
+    assert len(pat.two_theta) == len(data.two_theta) > len(result.two_theta)
+    np.testing.assert_allclose(pat.two_theta, data.two_theta, rtol=1e-8)  # 8 figures
+    np.testing.assert_array_equal(pat.intensity, data.intensity)
 
     # 3. refinement metadata is present
     assert "_diffrn_radiation_wavelength" in text
     assert "_pd_proc_ls_prof_wR_factor" in text        # Rwp
     assert "TCHZ" in text                              # profile description
     assert "Chebyshev" in text                         # background description
+
+
+def test_the_pattern_loop_weights_the_unfitted_points_zero(fitted_lab6, tmp_path):
+    """Every measured point is deposited, and ``_pd_proc_ls_weight`` says which
+    the fit used: 1/σ² of the fit's σ, else 0, with no calculated value there.
+    Counts with no stated σ go out as ``_pd_meas_counts_total``, on the
+    measured, uncorrected grid; the excluded stretch is stated in words."""
+    ref, result, data = fitted_lab6
+    out = tmp_path / "w.cif"
+    ref.write_cif(out)
+    block = gemmi.cif.read(str(out)).sole_block()
+    tt = np.array([float(v) for v in block.find_loop("_pd_meas_2theta_scan")])
+    w = np.array([float(v) for v in block.find_loop("_pd_proc_ls_weight")])
+    calc = list(block.find_loop("_pd_calc_intensity_total"))
+    excluded = w == 0.0
+    n_out = len(data.two_theta) - len(result.two_theta)
+    assert excluded.sum() == n_out > 0
+    assert np.all((tt[excluded] >= EXCLUDED[0] - 1e-9) & (tt[excluded] <= EXCLUDED[1]))
+    np.testing.assert_allclose(w[~excluded], 1.0 / np.asarray(result.sigma) ** 2,
+                               rtol=1e-7)
+    assert all(calc[i] == "." for i in np.flatnonzero(excluded))
+    assert block.find_loop("_pd_meas_counts_total")
+    assert not block.find_loop("_pd_proc_2theta_corrected")
+    assert block.find_value("_pd_meas_number_of_points") == str(len(data.two_theta))
+    assert block.find_value("_pd_proc_number_of_points") == str(len(result.two_theta))
+    assert f"20.05 deg ({n_out} points)" in block.find_value(
+        "_pd_proc_info_excluded_regions")
+    d = np.array([float(v) for v in block.find_loop("_pd_proc_d_spacing")])
+    lam = ref.instrument.source.primary_wavelength
+    np.testing.assert_allclose(d, lam / (2 * np.sin(np.radians(tt) / 2)), rtol=1e-7)
+
+
+def test_a_stated_sigma_rides_in_parentheses_and_reads_back(fitted_lab6, tmp_path):
+    """A pattern whose file stated σ writes ``_pd_meas_intensity_total`` as
+    ``value(su)``, and ``read_pdcif`` takes σ from there."""
+    from rietx.io.exporters import write_refinement_cif
+
+    ref, result, _data = fitted_lab6
+    sigma = np.sqrt(np.maximum(result.y_obs, 1.0)) * 1.5
+    measured = PatternData(two_theta=result.two_theta, intensity=result.y_obs,
+                           sigma=sigma.tolist())
+    out = tmp_path / "s.cif"
+    write_refinement_cif(result, ref.fitted_structure, ref.fitted_instrument, out,
+                         pattern=measured)
+    block = gemmi.cif.read(str(out)).sole_block()
+    assert "(" in block.find_loop("_pd_meas_intensity_total")[0]
+    back = read_pdcif(out)
+    # two significant figures of su survive the file
+    np.testing.assert_allclose(back.sigma, sigma, rtol=0.05)
+
+
+def test_a_pattern_that_was_not_fitted_is_refused(fitted_lab6):
+    from rietx.io.exporters import refinement_cif_doc
+
+    ref, result, _data = fitted_lab6
+    shifted = PatternData(two_theta=(np.asarray(result.two_theta) + 1e-3).tolist(),
+                          intensity=result.y_obs)
+    with pytest.raises(ValueError, match="not the one this result was fitted to"):
+        refinement_cif_doc(result, ref.fitted_structure, ref.fitted_instrument,
+                           pattern=shifted)
 
 
 def test_refinement_result_arrays_are_faithful(fitted_lab6, tmp_path):
