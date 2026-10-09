@@ -53,6 +53,15 @@ from rietx.io.projects.topas import (
 )
 from rietx.io.projects.topas import to_structure as topas_to_structure
 
+
+@pytest.fixture(autouse=True)
+def _one_creation_date(monkeypatch):
+    """Two files written a moment apart compare byte for byte only while they
+    carry one ``_audit_creation_date``, and a run crossing midnight would not."""
+    from rietx.io.cif import blocks
+
+    monkeypatch.setattr(blocks, "_today", lambda: "2026-10-09")
+
 # ===========================================================================
 # fixtures — typed, cited, not vendored
 # ===========================================================================

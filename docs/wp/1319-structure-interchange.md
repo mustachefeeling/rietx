@@ -138,6 +138,43 @@ No file has a syntax error. The alerts fall in four classes:
   atom count, 0.17 and 0.33 and 0.04) is not the four-decimal occupancy: every
   FAP occupancy is 1.0, so it is checkCIF's moiety split.
 
+**checkCIF after C-c, 2026-10-09** (same settings; the four files rewritten by
+the C-c tree; then the two `to_cif` files again after the `scat_source` fix
+below). A counts per block, baseline → after: LaB₆ `to_cif` 22 → 18, fluorapatite
+`to_cif` 22 → 18, FAP refinement 6 → 3, NAC block 6 → 3, CaF₂ block 14 → 11; B
+stays 0 everywhere, and no syntax error. Every alert of the structure-block
+class is gone from every block (SYMM001, SYMM004, PLAT124, PLAT125, PLAT043,
+PLAT044, PLAT045, PLAT104). Calculated and reported agree on all five blocks for
+volume, space group, Hall symbol, formula, Mr, Dx and Z, and checkCIF reads the
+space group with the deprecated tag absent, which confirms decision 3. The
+residuals each have an owner:
+
+- **Single-crystal items and instrument data**, answered by the VRF template
+  (1933's C-g): EXPT005, DIFF003, ATOM007, GEOM001-008, PLAT029, PLAT183-185,
+  PLAT197, PLAT198, PLAT699, PLAT880-883, PLAT005, PLAT808.
+- **su a structure cannot carry** (decision 6): PLAT141, PLAT143 and PLAT151 on
+  the `to_cif` files. PLAT151 on the refinement CIFs is σ(V), C-d's.
+- **The refinement items, 1933's C-d**: REFI015, PLAT742 (an angle without su),
+  PLAT802 (two profile-text lines over 80 characters).
+- **New, and 1933's**: PLAT981 and PLAT986 (G) ask for f′ and f″. The `_atom_type`
+  loop exists now, and the fit uses anomalous dispersion by default, so a
+  refinement CIF can state `_atom_type_scat_dispersion_real`/`_imag` at its
+  wavelength.
+- **checkCIF's own reading**: FORMU01 (G) on both NAC blocks counts no F, because
+  its formula parser drops the anion type `F1-`. That spelling is the
+  dictionary's grammar (`written_species`), so it stays. PLAT004, PLAT092,
+  PLAT202, PLAT304, PLAT434, PLAT720, PLAT794 are about the chemistry.
+
+**A long `_atom_type_scat_source` stops PLATON.** The first C-c run cited both
+tables in full on a file naming no experiment (113 characters a row). checkCIF
+then left every computed-against-reported row empty and ran no PLAT test on the
+two `to_cif` files, while still reporting "No syntax errors". Two probes
+isolated it: the same LaB₆ file with the item removed, or cut to 40 characters,
+ran in full, and a 119-character `_atom_site` row did not stop it. The writer
+now cites author and year (`blocks.SCAT_SOURCE_MAX`, held by test). A silent
+PLATON reads as a clean report, so a later run that comes back with an empty
+value table means this class again.
+
 ### Inherited
 
 ## Non-goals
@@ -178,7 +215,7 @@ No file has a syntax error. The alerts fall in four classes:
       `fluorapatite.cif`) and the NAC + CaF₂ one (`examples/nac_11bm.py`), as
       `main` writes them, plus `to_cif` of LaB₆ (`cod_1000055.cif`) and
       fluorapatite. Record the alerts here; draft the #756 comment for approval.
-- [ ] **C-c, the structure block** (`io/cif/blocks.py`): the symmetry items above,
+- [x] **C-c, the structure block** (`io/cif/blocks.py`): the symmetry items above,
       `_atom_type` loop through `written_species`, U not B,
       `_atom_site_site_symmetry_multiplicity`, formula/Z/Mr/Dx/V, `_audit_*` with
       `_audit_conform`, unique block names, the magic line. `Structure.to_cif` and
@@ -187,8 +224,14 @@ No file has a syntax error. The alerts fall in four classes:
       while `gsas2.py:1830` writes it on purpose for GSAS-II, until 1933's C-g
       declares that writer's profile. A space in a label, duplicate block names and a
       digitless ion are each refused or respelled by name. G1-G3 (#756 § 2) on
-      LaB₆, NAC, fluorapatite and an operator-list phase.
-- [ ] **checkCIF after C-c** on the same four files. SYMM001, SYMM004, PLAT124,
+      LaB₆, NAC, fluorapatite and an operator-list phase. Landed with: U
+      chosen as the double the reader turns back into the stored B
+      (`blocks.u_from_b`; plain division reads back an ulp off for 12.6 % of B
+      values), colliding block names respelled with the phase index, an
+      untabulated ion written neutral with `_atom_type_description` saying so,
+      and an operator-list phase stating an IT number and Hall symbol only when
+      gemmi finds the exact operation set.
+- [x] **checkCIF after C-c** on the same four files. SYMM001, SYMM004, PLAT124,
       PLAT125, PLAT043, PLAT044, PLAT045 and PLAT104 gone from every block; the
       tests SYMM004 suppressed (CELLZ_01, CHEMW_03, SYMMG_01) run and raise
       nothing; the space group read from `_alt`. Every residual alert carries a

@@ -34,12 +34,10 @@ import gemmi
 import numpy as np
 
 # format_su is imported from here by the manual's export chapter
-from ..crystallography.cif import format_su, write_structure_block  # noqa: F401
+from ..crystallography.cif import format_su  # noqa: F401
 from ..crystallography.lattice import d_spacings
-from ..crystallography.symmetry import resolve_group
 from ..model.components import COMPONENT_AGGREGATE
 from ..model.forward import CompiledModel
-from ..model.geometry import symmetry_operations
 from ..schemas.instrument import (
     BackgroundChebyshev,
     BackgroundFixedPlusChebyshev,
@@ -53,6 +51,7 @@ from ..schemas.results import (
     RefinementResult,
 )
 from ..schemas.structure import Structure
+from .cif.blocks import block_name, write_document, write_structure_block
 from .cif.numbers import number, text
 
 _CELL_KEYS = ("a", "b", "c", "alpha", "beta", "gamma")
@@ -435,8 +434,7 @@ def _write_phase_agreement(block, row: PhaseAgreement | None) -> None:
         block.set_pair("_refine_ls_number_reflns", str(row.n_reflections))
 
 
-def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int,
-                          space_group) -> None:
+def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int) -> None:
     """``_geom_bond`` / ``_geom_contact`` / ``_geom_angle`` for one phase.
 
     Tag names are the COMCIFS core dictionary's, checked rather than
@@ -456,15 +454,15 @@ def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int,
     two different bonds rather than one bond twice.
 
     A ``_geom_*_site_symmetry_*`` code is an index into a **listed** operation
-    order, so this writes ``_space_group_symop_operation_xyz`` beside it.
-    Without that loop the codes would point at whatever order a reader's own
-    expansion of the Hermann-Mauguin symbol happened to produce — a silent
-    reindexing, which is worse than no code at all.  ``space_group`` is
-    therefore the group :func:`~rietx.crystallography.symmetry.resolve_group`
-    returns for the phase, never its label: for a phase carrying its own
-    operation list that is the list, in the order the bond search indexed.  ``?`` appears where an
-    image needs a lattice shift the one-digit code cannot express; the
-    distance is unaffected (:mod:`rietx.model.geometry`).
+    order.  The structure block (:func:`rietx.io.cif.blocks.write_structure_block`)
+    writes that list on every block, in
+    :func:`~rietx.model.geometry.symmetry_operations`' order over the group
+    :func:`~rietx.crystallography.symmetry.resolve_group` returns, which is the
+    order the bond search indexed; without it the codes would point at whatever
+    order a reader's own expansion of the Hermann-Mauguin symbol produced.  So
+    this writes no second loop.  ``?`` appears where an image needs a lattice
+    shift the one-digit code cannot express; the distance is unaffected
+    (:mod:`rietx.model.geometry`).
 
     Standard uncertainties ride in the value as ``1.8548(12)``, the notation
     :func:`~rietx.crystallography.cif.format_su` writes for every other
@@ -480,11 +478,6 @@ def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int,
     angles = [a for a in geometry.angles if a.phase_index == ip]
     if not distances and not angles:
         return
-    symops = symmetry_operations(space_group)
-    loop = block.init_loop("_space_group_symop_", ["id", "operation_xyz"])
-    for idx, triplet in enumerate(symops):
-        loop.add_row([str(idx + 1),
-                      text("_space_group_symop_operation_xyz", triplet)])
     for tag, rows in (("_geom_bond_", [d for d in distances if d.bonded]),
                       ("_geom_contact_", [d for d in distances if not d.bonded])):
         if not rows:
@@ -572,13 +565,15 @@ def _moment_esds(result: RefinementResult, ip: int,
 def refinement_cif_doc(result: RefinementResult, structure: Structure,
                        instrument: Instrument) -> gemmi.cif.Document:
     """Build the refinement CIF as a gemmi document (see :func:`write_refinement_cif`)."""
-    import re
-
     doc = gemmi.cif.Document()
     agreement = {row.name: row for row in result.phase_agreement}
+    probe = "neutron" if instrument.source.kind == "neutron_cw" else "xray"
+    taken: set[str] = set()
     for ip, phase in enumerate(structure.phases):
-        block = doc.add_new_block(re.sub(r"\W+", "_", phase.name) or f"phase_{ip}")
-        write_structure_block(block, phase,
+        block = doc.add_new_block(block_name(phase.name, ip, taken))
+        # the structure block, its operation loop included: the geometry
+        # loops' symmetry codes below index it
+        write_structure_block(block, phase, kind="refinement", probe=probe,
                               moment_magnitude_esds=_moment_esds(result, ip, phase))
         # Structure-sensitive R factors, on the phase's *own* block: both tags
         # are core-dictionary `_refine_ls` items, whose scope is the structure
@@ -589,13 +584,7 @@ def refinement_cif_doc(result: RefinementResult, structure: Structure,
         # factors are: the labels a _geom_ loop names are that block's
         # _atom_site labels, and a code is resolved against that block's symop
         # loop.  Nothing is written when the fit produced no table.
-        # ``resolve_group``, never the label: the symmetry codes index the
-        # operation order the bond search used, which is the phase's own list
-        # when it carries one, and a bracketed label names no tabulated group
-        # at all (review of #433, finding 3)
-        _write_geometry_loops(
-            block, result.geometry, ip,
-            resolve_group(phase.space_group, phase.symmetry_operations))
+        _write_geometry_loops(block, result.geometry, ip)
         if ip == 0:
             # refinement scalars + the pattern loop live on the first block, so
             # a single-phase export is one self-contained block that both
@@ -620,4 +609,4 @@ def write_refinement_cif(result: RefinementResult, structure: Structure,
     pattern loop and refinement scalars live on the first block only, and
     nothing reassembles N blocks into one refinement.
     """
-    refinement_cif_doc(result, structure, instrument).write_file(str(path))
+    write_document(refinement_cif_doc(result, structure, instrument), path)

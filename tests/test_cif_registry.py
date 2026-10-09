@@ -71,13 +71,15 @@ def _read_tags(path: Path) -> set[str]:
 def _plain_structures() -> list[rx.Structure]:
     """Structures reaching every tag of the non-magnetic structure block:
     LaB6, NAC with its anisotropic tensors, fluorapatite, and fluorapatite
-    with one site in a disorder group."""
+    with one site in a disorder group and another an ion the X-ray table
+    lacks (``Ca+``, written neutral with an ``_atom_type_description``)."""
     out = [rx.Structure.from_cif(str(DATA / name), aniso=True)
            for name in ("cod_1000055.cif", "cod_1000236.cif", "fluorapatite.cif")]
     disordered = rx.Structure.from_cif(str(DATA / "fluorapatite.cif"))
-    site = disordered.phases[0].atoms[0]
-    disordered.phases[0].atoms[0] = site.model_copy(
+    atoms = disordered.phases[0].atoms
+    atoms[0] = atoms[0].model_copy(
         update={"disorder_assembly": "A", "disorder_group": "1"})
+    atoms[1] = atoms[1].model_copy(update={"species": "Ca+"})
     return [*out, disordered]
 
 

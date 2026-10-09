@@ -70,13 +70,14 @@ PRIVATE_TAGS: frozenset[str] = frozenset(_MAGCIF_PRIVATE)
 KNOWN_VIOLATIONS: frozenset[str] = frozenset({
     # undefined in cif_pd.dic 2.5.0; the pattern block of WP-1933 (C-d) replaces it
     "_pd_proc_intensity_total_su",
-    # alias of _space_group.name_H-M_full deprecated 2003-10-04; C-c drops it
-    # from the structure block, and gsas2.py writes it on purpose for GSAS-II
+    # alias of _space_group.name_H-M_full deprecated 2003-10-04; the structure
+    # block dropped it (C-c), and gsas2.py writes it on purpose for GSAS-II
+    # until WP-1933's C-g declares that file's profile
     "_symmetry_space_group_name_H-M",
 })
 
 _STRUCTURE = frozenset({"structure", "refinement", "gsas2"})
-_LISTED = frozenset({"structure", "refinement"})
+_BLOCK = frozenset({"structure", "refinement"})
 _REFINEMENT = frozenset({"refinement"})
 _GSAS2 = frozenset({"gsas2"})
 _MAGNETIC = frozenset({"magnetic"})
@@ -89,7 +90,8 @@ def _rows(kinds: frozenset[str],
 
 
 _TAGS: tuple[Tag, ...] = (
-    # the structure block (crystallography/cif.write_structure_block)
+    # the structure block (io/cif/blocks.py), the parts the GSAS-II phase CIF
+    # shares with it
     *_rows(
         _STRUCTURE,
         ("_cell_length_a", "_cell.length_a", "Measurand", "Real"),
@@ -98,7 +100,7 @@ _TAGS: tuple[Tag, ...] = (
         ("_cell_angle_alpha", "_cell.angle_alpha", "Measurand", "Real"),
         ("_cell_angle_beta", "_cell.angle_beta", "Measurand", "Real"),
         ("_cell_angle_gamma", "_cell.angle_gamma", "Measurand", "Real"),
-        ("_symmetry_space_group_name_H-M", "_space_group.name_H-M_full", "Describe", "Text"),
+        ("_space_group_name_H-M_alt", "_space_group.name_H-M_alt", "Encode", "Text"),
         ("_space_group_symop_operation_xyz", "_space_group_symop.operation_xyz",
          "Encode", "Text"),
         ("_atom_site_label", "_atom_site.label", "Encode", "Word"),
@@ -107,7 +109,6 @@ _TAGS: tuple[Tag, ...] = (
         ("_atom_site_fract_y", "_atom_site.fract_y", "Measurand", "Real"),
         ("_atom_site_fract_z", "_atom_site.fract_z", "Measurand", "Real"),
         ("_atom_site_occupancy", "_atom_site.occupancy", "Measurand", "Real"),
-        ("_atom_site_B_iso_or_equiv", "_atom_site.B_iso_or_equiv", "Measurand", "Real"),
         ("_atom_site_adp_type", "_atom_site.ADP_type", "State", "Text"),
         ("_atom_site_disorder_assembly", "_atom_site.disorder_assembly", "Encode", "Word"),
         ("_atom_site_disorder_group", "_atom_site.disorder_group", "Encode", "Word"),
@@ -119,8 +120,33 @@ _TAGS: tuple[Tag, ...] = (
         ("_atom_site_aniso_U_13", "_atom_site_aniso.U_13", "Measurand", "Real"),
         ("_atom_site_aniso_U_23", "_atom_site_aniso.U_23", "Measurand", "Real"),
     ),
-    # the operation ids: GSAS-II's loop has none
-    *_rows(_LISTED, ("_space_group_symop_id", "_space_group_symop.id", "Number", "Integer")),
+    # the rest of the structure block, which the GSAS-II phase CIF does not
+    # write until its profile is declared (WP-1933 C-g); its operation loop
+    # has no ids
+    *_rows(
+        _BLOCK,
+        ("_audit_creation_date", "_audit.creation_date", "Encode", "DateTime"),
+        ("_audit_creation_method", "_audit.creation_method", "Describe", "Text"),
+        ("_audit_conform_dict_name", "_audit_conform.dict_name", "Encode", "Text"),
+        ("_audit_conform_dict_version", "_audit_conform.dict_version", "Encode", "Word"),
+        ("_chemical_formula_sum", "_chemical_formula.sum", "Encode", "Text"),
+        ("_chemical_formula_weight", "_chemical_formula.weight", "Number", "Real"),
+        ("_cell_volume", "_cell.volume", "Measurand", "Real"),
+        ("_cell_formula_units_Z", "_cell.formula_units_Z", "Number", "Real"),
+        ("_space_group_crystal_system", "_space_group.crystal_system", "State", "Text"),
+        ("_space_group_IT_number", "_space_group.IT_number", "Number", "Integer"),
+        ("_space_group_name_Hall", "_space_group.name_Hall", "Encode", "Text"),
+        ("_space_group_symop_id", "_space_group_symop.id", "Number", "Integer"),
+        ("_exptl_crystal_density_diffrn", "_exptl_crystal.density_diffrn",
+         "Measurand", "Real"),
+        ("_atom_type_symbol", "_atom_type.symbol", "Encode", "Word"),
+        ("_atom_type_number_in_cell", "_atom_type.number_in_cell", "Number", "Real"),
+        ("_atom_type_description", "_atom_type.description", "Describe", "Text"),
+        ("_atom_type_scat_source", "_atom_type_scat.source", "Describe", "Text"),
+        ("_atom_site_U_iso_or_equiv", "_atom_site.U_iso_or_equiv", "Measurand", "Real"),
+        ("_atom_site_site_symmetry_multiplicity",
+         "_atom_site.site_symmetry_multiplicity", "Number", "Integer"),
+    ),
     # the refinement CIF (io/exporters.py)
     *_rows(
         _REFINEMENT,
@@ -167,9 +193,13 @@ _TAGS: tuple[Tag, ...] = (
         ("_pd_calc_intensity_total", "_pd_calc.intensity_total", "Number", "Real"),
         ("_pd_proc_intensity_bkg_calc", "_pd_proc.intensity_bkg_calc", "Measurand", "Real"),
     ),
-    # the GSAS-II phase CIF (io/projects/gsas2.from_structure)
-    *_rows(_GSAS2,
-           ("_space_group_name_H-M_alt", "_space_group.name_H-M_alt", "Encode", "Text")),
+    # the GSAS-II phase CIF (io/projects/gsas2.from_structure): the bare
+    # symbol GSAS-II reads first, and the B its import was measured on
+    *_rows(
+        _GSAS2,
+        ("_symmetry_space_group_name_H-M", "_space_group.name_H-M_full", "Describe", "Text"),
+        ("_atom_site_B_iso_or_equiv", "_atom_site.B_iso_or_equiv", "Measurand", "Real"),
+    ),
     # the magCIF block (crystallography/magcif.write_magnetic_block)
     *_rows(
         _MAGNETIC,

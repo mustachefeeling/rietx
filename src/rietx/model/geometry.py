@@ -173,8 +173,8 @@ def symmetry_operations(space_group) -> list[str]:
     """The ``x,y,z`` triplets of ``space_group``, in gemmi's listing order.
 
     A symmetry code is an index into a listed order, so it means nothing
-    without one: the CIF exporter writes this loop whenever it writes a code
-    (:func:`~rietx.io.exporters.refinement_cif_doc`), rather than leaving a
+    without one: every CIF structure block writes this loop
+    (:func:`~rietx.io.cif.blocks.write_structure_block`), rather than leaving a
     reader to re-derive the order from the Hermann-Mauguin symbol and hope it
     matches.
     """

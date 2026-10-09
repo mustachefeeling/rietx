@@ -1718,11 +1718,13 @@ def from_structure(structure, *,
     imports: this CIF for the phases, and an ``.instprm``
     (:func:`~rietx.io.instrument_profile.write_gsas2_instprm`) for the machine.
     The cell, the sites, their occupancies and their displacement parameters are
-    written by the same :func:`~rietx.crystallography.cif.write_structure_block`
-    every CIF this package writes uses, because GSAS-II's importer reads exactly
-    those tags: ``_atom_site_b_iso_or_equiv`` divided by 8π² into its own Uiso,
-    ``adp_type`` of ``Uani`` to mark an anisotropic site, and the separate
-    ``_atom_site_aniso_*`` loop keyed by label.
+    written by the parts of the structure block (:mod:`rietx.io.cif.blocks`)
+    GSAS-II's importer was measured on: ``_atom_site_b_iso_or_equiv`` divided
+    by 8π² into its own Uiso, ``adp_type`` of ``Uani`` to mark an anisotropic
+    site, and the separate ``_atom_site_aniso_*`` loop keyed by label.  The rest
+    of the structure block (U, the ``_atom_type`` loop, the cell contents, the
+    Hall symbol) is not written here until this file's profile is declared
+    (WP-1933, C-g).
 
     **The setting is written three times, because two readers disagree about
     one string** (WP-1118).  ``F d -3 m`` is two groups, and GSAS-II resolves a
@@ -1761,7 +1763,6 @@ def from_structure(structure, *,
     """
     import gemmi
 
-    from ...crystallography.cif import write_structure_block
     from ...crystallography.symmetry import (
         get_spacegroup,
         refuse_magnetic_phase,
@@ -1771,6 +1772,7 @@ def from_structure(structure, *,
         rhombohedral_restated_diagnostic,
         setting_alternatives,
     )
+    from ..cif.blocks import block_name, cell_pairs, site_rows, write_sites
     from ..cif.numbers import text
 
     doc = gemmi.cif.Document()
@@ -1820,17 +1822,21 @@ def from_structure(structure, *,
             phase = phase.model_copy(update={"atoms": [
                 atom.model_copy(update={"species": sp})
                 for atom, sp in zip(phase.atoms, typed, strict=True)]})
-        block = doc.add_new_block(_block_name(phase.name, index, taken_names))
         sg = get_spacegroup(phase.space_group)
         resolved = sg.xhm()
         bare = resolved.split(":")[0]
-        # Set before the block is built so the two symbols sit together: the
-        # block writer sets the bare tag itself, in place, a few lines on.
+        # every value formatted before the block exists, so a refusal leaves
+        # no half-written block behind
+        cell = cell_pairs(phase)
+        sites = site_rows(phase, adp="B")
+        block = doc.add_new_block(block_name(phase.name, index, taken_names))
         block.set_pair("_space_group_name_H-M_alt",
                        text("_space_group_name_H-M_alt", resolved))
-        write_structure_block(block, phase)
+        for tag, value in cell:
+            block.set_pair(tag, value)
         block.set_pair("_symmetry_space_group_name_H-M",
                        text("_symmetry_space_group_name_H-M", bare))
+        write_sites(block, *sites)
         loop = block.init_loop("_space_group_symop_", ["operation_xyz"])
         for op in sg.operations():
             loop.add_row([text("_space_group_symop_operation_xyz", op.triplet())])
@@ -1901,29 +1907,10 @@ def gsas2_cif_species(species: str) -> str:
     return written
 
 
-def _block_name(name: str, index: int, taken: set[str]) -> str:
-    """One CIF data-block name, unique within the document.
-
-    A block name is a **key**, and ``\\W+`` collapses distinct phase names onto
-    one — ``"phase 1"`` and ``"phase-1"`` both become ``phase_1``, and a
-    two-phase mixture of one material under one name needs no collapsing at
-    all.  gemmi answers a duplicate with a bare ``RuntimeError``, so the
-    ordinary case never reached a file; the phase's index is what distinguishes
-    them, being the one thing a phase carries that is unique by construction.
-    """
-    stem = re.sub(r"\W+", "_", name) or f"phase_{index}"
-    chosen, suffix = stem, index
-    while chosen in taken:
-        chosen = f"{stem}_{suffix}"
-        suffix += 1
-    taken.add(chosen)
-    return chosen
-
-
 def _refuse_unquotable(phase, index: int) -> None:
     """A site name a CIF loop cannot carry, refused before the loop is built.
 
-    ``write_structure_block`` adds a label and a species as **bare** loop
+    The site loop (:func:`rietx.io.cif.blocks.site_rows`) adds a label and a species as **bare** loop
     values, so whitespace inside either splits one row into two and the block
     comes back "wrong number of values in loop" from any CIF reader, gemmi's
     included.  The ``.inp``, ``.pcr`` and ``.EXP`` writers each refuse the same

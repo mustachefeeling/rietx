@@ -78,6 +78,26 @@ with the label named. No count of COD files in this class was measured.
 
 ### Inherited
 
+- **2026-10-09, from [1319](1319-structure-interchange.md)'s C-c: five loose
+  ends the structure block left for the reader, the pattern block and C-g.**
+  (1) `structure_from_cif` reads a stated multiplicity only under the deprecated
+  `_atom_site_symmetry_multiplicity` (`cif.py` `_site_statements`, PR #717's
+  check), so the current `_atom_site_site_symmetry_multiplicity` the writer now
+  emits goes unread. C-e. (2) A mass number stays in `_atom_type_symbol`
+  (`57Fe`) so the round trip holds, though the dictionary's grammar puts digits
+  only before a charge (`blocks._types`). (3) A Le Bail or Pawley dummy atom is
+  counted in the formula, Z, Mr and Dx; #756 § 2.1's `_atom_site_calc_flag dum`
+  is not written. (4) checkCIF's PLAT981/PLAT986 (G) ask for f′ and f″, which a
+  refinement CIF knows at its wavelength (`_atom_type_scat_dispersion_*`). C-d.
+  (5) The GSAS-II phase CIF still writes B and the deprecated
+  `_symmetry_space_group_name_H-M` by calling the block's parts, so that tag
+  stays on `registry.KNOWN_VIOLATIONS` until C-g declares the profile. Also
+  from 1319's checkCIF runs: an `_atom_type_scat_source` of 113 characters made
+  PLATON skip every test while the report still said "No syntax errors"
+  (`blocks.SCAT_SOURCE_MAX` holds it at 40). So a report whose value table comes
+  back empty is a silent PLATON and never a clean file. Recorded run settings
+  and alert lists: 1319's Context.
+
 ## Non-goals
 
 - **Not C-a, C-b or C-c**: [1319](1319-structure-interchange.md). **Not C-f**:
