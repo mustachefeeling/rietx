@@ -213,11 +213,13 @@ printed digit on both.
   seed; brucite 8.313117. Free-triple plan at 1e-3°: 9.661408 at every
   perturbation, `w` on its floor and the resolution diagnostics firing, so the
   hold stands; at 0.05° it stopped at 9.8402. Degenerate plan: one minimum,
-  χ²_red 5.934160, LaB₆ 16.850 ± 0.192 (5.5σ out). Fast suite 0 failed after
-  the fixes (last full fast run 2 failed, 8895 passed, 172 skipped, with one
-  other pytest on the machine; both since fixed and re-run). Full suite on the
-  bare branch: 3 failed, 9180 passed, 183 skipped in 20:57, alone; the three
-  are fixed and each re-run green. Lanes:
+  χ²_red 5.934160, LaB₆ 16.850 ± 0.192 (5.5σ out). On the bare branch the
+  full suite found three slow failures (FAP window, corundum, two-site pair),
+  fixed above. On `main` merged in (8 commits, `5aaec31b`): fast 8905 passed,
+  172 skipped, 0 failed, 8:40 with three other pytest processes running; full
+  9190 passed, 184 skipped, 0 failed, 30:02, nothing else running at its start.
+  The 13 added fast tests cost 1.91 s together, the dearest 0.59 s. Main moved
+  under the branch, so the delta is not attributable test by test. Lanes:
 
   | lane | est | requests | main at dispatch | lane $ | saved $ |
   |---|---|---|---|---|---|
