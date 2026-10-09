@@ -83,8 +83,11 @@ rather than looking for them.
       on its floor. The fp64 rows' bar is `REL_L2_MAX` = 5e-3, which a 1 %
       column already fails, so no bar moved. The `sharp_widths` config is the
       coverage that was missing; it fails under the old step.
-- [ ] The step-invariance check: the twelve-fit grid at three step constants,
+- [x] The step-invariance check: the twelve-fit grid at three step constants,
       in both coordinate systems. No minimum moves by more than 1e-6 relative.
+      Holds for every fit whose endpoint is reproducible at one step (2026-10-09
+      handover has the table). Brucite with the Stephens block is not: a 1e-12
+      change to the step spans 3.3e-5 in χ² under either rule.
 - [ ] Tests, and every golden that moves listed in the handover with its
       reason.
 - [ ] Skill: none expected (no new code or verb).
