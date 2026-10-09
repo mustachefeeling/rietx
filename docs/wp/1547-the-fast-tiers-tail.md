@@ -253,10 +253,18 @@ the filing PR #856 had merged):
 - `tests/CLAUDE.md` sits at its cap; a clause added there pays with a cut.
 - **+0.4 % sits on an edge at 25°.** Under PR #855's step for `u` and `v`
   (WP-1936) it comes back worse on pass 2 instead of converging. So the
-  converging fixture and the cap test start at −0.15 %, which converges in
-  five passes to Rwp 0.139321 on main and 0.139322 merged with #855. All 13
-  Le Bail tests pass on both trees. #855 still conflicts in this file as
-  text. Whichever merges second takes this branch's version of it.
+  converging fixture and the cap test start at −0.15 %, which converges on
+  macOS with and without #855. All 13 Le Bail tests pass there on both trees.
+  #855 still conflicts in this file as text. Whichever merges second takes
+  this branch's version of it.
+- **A converging run's pass count is a platform reading.** At −0.15 % on
+  main, macOS took five passes to 13.932 and Linux six to 13.905 (run
+  37996829339): the paths split at pass 3. #855's own pin at 50° failed on
+  its Linux legs the same way, pass 5 against its macOS pass 6. So the
+  converging test asserts the shape: at least four passes, each lower than
+  the last until a level one, the kept pass last or second-last. Its Rwp
+  bar is 1e-3, for a measured spread of 2.7e-4. A test that pins which pass
+  a converging alternation stops on senses the platform.
 - PR #853 (WP-1418, `isotropy.py`) merges cleanly. The isotropy sweeps, sample
   and full, passed on the merge, so the 140-candidate pin holds.
 

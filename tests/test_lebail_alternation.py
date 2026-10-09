@@ -9,8 +9,10 @@ The fast tests fit 5.1-25° (``LIMITS``), under half the range the hand loop
 used, and a fit costs a quarter to a fifth of one at 5.1-50° (WP-1547).  The
 three shapes hold there.  The converging one starts at -0.15 %, because +0.4 %
 sits on an edge at 5.1-25°: WP-1936's step for ``u`` and ``v`` turns it into a
-worse-pass start.  -0.15 % converges in five passes to the same Rwp with or
-without that step.  A start of +0.6 % or more diverges at 5.1-25° whatever the
+worse-pass start.  -0.15 % converges with or without that step on macOS, and
+without it on Linux.  How many passes it takes depends on the platform, so its
+test asserts the shape and not the count.  A start of +0.6 % or more diverges at
+5.1-25° whatever the
 loop does.  Every Rwp the fast tests pin was measured at 5.1-25°.  The one
 ``slow`` test keeps 5.1-50° (``WIDE_LIMITS``), where its pins were measured.
 
@@ -181,15 +183,28 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(worse)
 
 @pytest.mark.xdist_group("lebail-converging")
 def test_a_converging_run_is_not_cut_short_and_ends_at_a_fixed_point(converging):
-    """-0.15 % cells: 18.810, 14.150, 13.949, 13.933, 13.932 and nothing more."""
+    """-0.15 % cells: each pass lower than the last until two are level.
+
+    The shape is the claim, and the pass it stops on is not.  The path splits by
+    platform from pass 3: macOS read 18.810, 14.150, 13.949, 13.933, 13.932,
+    and Linux 18.810, 14.150, 13.927, 13.908, 13.905, 13.905 (PR #857's CI).
+    PR #855's pin at 5.1-50° split the same way, pass 6 against pass 5.
+    """
+    from rietx.refine import LEBAIL_CONVERGED_REL
     result, _, _ = converging
     stop = _stop(result)
     assert stop.level == "info"
     assert "fixed point" in stop.message
-    # passes 4 and 5 are level to within LEBAIL_CONVERGED_REL, so which of the
-    # two is kept is the platform's libm.  That five ran is the claim.
-    assert re.search(r"pass [45] of 5 was kept", stop.message)
-    assert result.statistics.rwp == pytest.approx(0.139321, abs=RWP_PLATFORM_SPREAD)
+    table = [float(v) for v in re.search(
+        r"Rwp % per pass: ([\d., ]+)\)", stop.message).group(1).split(",")]
+    assert len(table) >= 4                       # not cut short
+    assert all(b < a for a, b in zip(table[:-2], table[1:-1]))
+    assert table[-1] <= table[-2] * (1 + LEBAIL_CONVERGED_REL) + 1e-3  # level, in %
+    kept = int(re.search(r"pass (\d+) of", stop.message).group(1))
+    assert kept in (len(table) - 1, len(table))
+    # 0.139321 on macOS and 0.139050 on Linux: a spread of 2.7e-4, so the bar
+    # is 1e-3, wider than RWP_PLATFORM_SPREAD, which a single pass carries
+    assert result.statistics.rwp == pytest.approx(0.1392, abs=1e-3)
     _plot(result, "lebail_alternation_converged.png")
 
 
@@ -255,7 +270,7 @@ def test_an_alternation_is_one_run_directory_not_one_per_pass(converging):
     """``rietx watch`` lists a job once; a pass each drew N rows (WP-1403)."""
     result, root, _ = converging
     assert _stop(result).value == result.statistics.rwp
-    # five passes before it settles, so a directory per pass would show
+    # several passes before it settles, so a directory per pass would show
     dirs = [p for p in root.iterdir() if p.is_dir()]
     assert len(dirs) == 1
     assert (dirs[0] / "meta.json").exists()
