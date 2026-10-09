@@ -2584,6 +2584,10 @@ def test_no_shipped_fixture_carries_a_magnetic_construct_without_a_stance():
         if path.is_dir() or path.suffix in (".xye", ".fxye", ".xy", ".dat",
                                             ".raw", ".png"):
             continue
+        # the vendored COMCIFS dictionaries define every magnetic tag and
+        # state no magnetic structure, so they are not fixtures a reader meets
+        if "cif_dictionaries" in path.relative_to(root).parts:
+            continue
         try:
             text = path.read_text(encoding="utf-8", errors="strict")
         except (UnicodeDecodeError, OSError):

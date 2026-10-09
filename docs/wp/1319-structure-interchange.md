@@ -155,9 +155,10 @@ No file has a syntax error. The alerts fall in four classes:
 
 - [x] Vendor the six COMCIFS files into `tests/data/cif_dictionaries/` with
       `ATTRIBUTION.md` and `tests/data/README.md` rows; amend the magCIF row.
-- [ ] **C-a, the tag registry** (`io/cif/registry.py`): flat name, DDLm
-      `_definition.id`, category and key, purpose, units, deprecation, output
-      kinds. A meta-test: written ⊆ registry ⊆ dictionary, nothing deprecated.
+- [x] **C-a, the tag registry** (`io/cif/registry.py`): flat name, DDLm
+      `_definition.id`, purpose and output kinds; units, category and key were
+      dropped as nothing reads them, and deprecation is computed from the
+      dictionary by the test rather than stored (82 rows, 3 private). A meta-test: written ⊆ registry ⊆ dictionary, nothing deprecated.
       Today's two violations (`_pd_proc_intensity_total_su`,
       `_symmetry_space_group_name_H-M`) sit on an allow-list a test holds to
       shrinking. A planted undefined tag fails. No written byte changes.
@@ -176,7 +177,9 @@ No file has a syntax error. The alerts fall in four classes:
       `_atom_site_site_symmetry_multiplicity`, formula/Z/Mr/Dx/V, `_audit_*` with
       `_audit_conform`, unique block names, the magic line. `Structure.to_cif` and
       `write_refinement_cif`'s structure part move onto it; the deprecated tag
-      leaves the allow-list. A space in a label, duplicate block names and a
+      leaves the `structure` and `refinement` kinds. It stays on the allow-list
+      while `gsas2.py:1830` writes it on purpose for GSAS-II, until 1933's C-g
+      declares that writer's profile. A space in a label, duplicate block names and a
       digitless ion are each refused or respelled by name. G1-G3 (#756 § 2) on
       LaB₆, NAC, fluorapatite and an operator-list phase.
 - [ ] **checkCIF after C-c** on the same four files. SYMM001, SYMM004, PLAT124,
