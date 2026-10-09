@@ -89,6 +89,7 @@ from rietx.optimize.least_squares import (
     _make_jacobian,
     _make_residual,
     _multi_closures,
+    fd_step,
     run_least_squares,
 )
 from rietx.params.vector import VAR_PREFIX, AffineTie, ParameterTable
@@ -113,7 +114,9 @@ KINK_PATHS = frozenset({"instrument.geometry.axial_sl",
 #: column's — below it the value is transform-floor noise, not a derivative
 DEAD_COL_FRAC = 1e-6
 
-#: FD step, the same rule as the v0.2 harness (applied ±h, centrally)
+#: the multi-histogram reference's FD step, the v0.2 harness's rule (applied
+#: ±h, centrally); the single-histogram reference takes the package's own
+#: ``fd_step`` (WP-1936)
 FD_STEP = 1e-6
 
 
@@ -830,7 +833,7 @@ def _central_fd_jacobian(config, model, table):
     def jacobian(theta: np.ndarray) -> np.ndarray:
         cols = []
         for c in range(len(theta)):
-            h = FD_STEP * max(typicals[c], abs(theta[c]))
+            h = fd_step(theta[c], typicals[c])
             tp, tm = theta.copy(), theta.copy()
             tp[c] += h
             tm[c] -= h
