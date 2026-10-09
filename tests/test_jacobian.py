@@ -15,10 +15,11 @@ from rietx import Instrument, PatternData
 from rietx.model.forward import compile_model
 from rietx.optimize.least_squares import (
     _column_extras,
+    _fd_typicals,
     _make_jacobian,
     _make_residual,
 )
-from rietx.params.vector import AffineTie, ParameterTable
+from rietx.params.vector import FLOOR_SEEDS, AffineTie, ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.structure import Atom, Cell, Phase, Structure
 from tests.test_coordinates import make_rutile
@@ -550,3 +551,27 @@ def test_a_dead_phase_takes_the_fd_path_rather_than_dividing_by_its_scale():
     tp[c] += h
     fd = (residual(tp) - residual(theta)) / h
     np.testing.assert_array_equal(column, fd)
+
+
+def test_a_width_is_stepped_by_its_unit_and_everything_else_by_one():
+    """WP-1936: an identity row with a width's unit takes FLOOR_SEEDS' size.
+
+    ``u``, ``v`` (deg²) and the zero shift (deg) are identity rows with a width
+    unit.  ``w``, ``x``, ``y`` are softplus, whose θ is already logarithmic,
+    and the cell has no unit, so all of those keep 1.
+    """
+    structure = make_rutile()
+    ins = Instrument.bragg_brentano()
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    paths = ["phases.0.cell.a", "instrument.zero_shift",
+             *(f"instrument.profile.{n}" for n in "uvwxy")]
+    for path in paths:
+        assert table.set_vary([path], True), path
+    typical = dict(zip(table.free_paths, _fd_typicals(table), strict=True))
+    assert typical == {
+        "phases.0.cell.a": 1.0, "instrument.zero_shift": FLOOR_SEEDS["deg"],
+        "instrument.profile.u": FLOOR_SEEDS["deg^2"],
+        "instrument.profile.v": FLOOR_SEEDS["deg^2"],
+        "instrument.profile.w": 1.0, "instrument.profile.x": 1.0,
+        "instrument.profile.y": 1.0}
