@@ -1,6 +1,6 @@
 # WP-1933 — the CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook
 
-Milestone: unscheduled · Status: 🔄 2026-10-09 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-09 — C-d landed (#854); C-e waits on 1918's I-c, #752 on a decision
 Track: Coming from another code
 Depends on: 1319 (#756, #752)
 Priority: P2 2026-10-09 — was P3 until 1319 landed the registry, number rule and structure block it builds on; #756's later chunks, a named user waiting
@@ -202,6 +202,65 @@ the NAC + CaF₂ file reads back with its su.
 - Toby, B. H. (2006), ITC Vol. G ch. 3.3 and 4.2 — the pdCIF block layout and items.
 
 ## Handover log
+
+### 2026-10-09 (2nd session) — C-d landed: the pattern block, checked by checkCIF
+
+A refinement CIF from this package now deposits every measured point and says
+which ones the fit used. It states the experiment and the method: the probe,
+every emission line with its weight, the geometry, the absorption and the last
+shift over su. Each phase's cell volume now has an esd from the whole
+covariance, in every fit mode, and the CIF writes it. checkCIF finds no syntax
+error, and the pattern-level alerts are gone. The A alerts left are the
+single-crystal and instrument items the VRF template (C-g) answers. The phase
+table and the links between blocks are not done. They belong to the multi-block
+layout (C-e), which waits for WP-1918.
+
+- **Done.** Claimed (PR #854, stacked on #851, base `main`). Inherited folded
+  into Context and Tasks: all five entries were from 1319's close the same day
+  and still held. C-d in four commits (`9b99fd14`, `7ac7f64e`, `0071e887`,
+  `278ad847`) with the record (`8eb52895`). Context has the four choices C-d
+  made (QPA to C-e, PO as a sentence, no constraint count, the `_refln` loop
+  through `write_cif` alone) and the checkCIF table. Staged in
+  `releases/1.8.0.md`: the renamed pattern tags under § Files that change, and
+  § New.
+- **`/code-review high --fix`** found ten and fixed eight (`74e83188`). The
+  weights now use `RefinementResult.sig()`, the root rule for a weighted
+  residual. `_fit_pattern` is recorded beside `result_`, so a cancelled fit
+  keeps the previous result with its own pattern. `read_pdcif` pairs σ with the
+  intensity column it chose. `text()` wraps what it moves to a text field. The
+  Gaussian broadening terms state deg², now read off each `Parameter.unit`.
+  `_geom_special_details` states the method only where a row has an su. Two
+  helpers became one. Declined, one each way: the reader's 2θ and intensity
+  preference, which this branch had flipped for nothing, is restored, so a
+  foreign pdCIF stating both reads as before. Folding `cell_volumes` into
+  `_sigmas` is left: one rule for a `None` esd now lives in two places.
+- **Measured.** FAP (`test_acceptance_fap`'s protocol, Rwp 0.0925): 5753 points
+  read back, weight 0 on the three excluded. NAC + CaF₂ (`examples/nac_11bm.py`,
+  Rwp 0.0933): 59 498 points written against 22 003 fitted, a 2.5 MB file. σ(V)
+  1077.274(13) and 163.1862(62) Å³. checkCIF A/B/C/G: FAP 3/0/1/4, NAC block
+  3/0/3/6, CaF₂ block 11/0/0/13 (Context). Fast selection on `main` (`ba9659fd`)
+  merged into the branch, `[dev]`, darwin arm64, nothing else running: 8941
+  passed, 172 skipped, 1 xfailed in 3:41. Against 1319's 8929 + 172, +12: eleven
+  added cases and one more `test_every_base_subclass_survives_the_new_getattr`
+  case for `CellVolume`; no new skip. `added_test_times`: the 11 cost 1.03 s
+  together, the dearest 0.24 s, so none joins the slow tail. The full selection
+  was not run: nothing here moves a fitted number. No lanes.
+- **Gotchas.** `docs/skill/rietx/references/api.md` is 39 690 B against its
+  39 700 B cap, and `tests/skill_caps.py` says the next raise is the split, the
+  maintainer's call. The next public keyword or `RefinementResult` field fails
+  there. A pair that gemmi writes on the tag's line passes 80 columns however
+  short the text, so `numbers.text` owns that rule. A dataclass field after
+  defaulted ones needs a default, so `ReflectionRow.phase_index` defaults to 0,
+  and its one writer, `reflection_table`, always sets it. #756 § 6 names WP-1815
+  for the torsion loop, and no WP file of that number exists here, so the
+  geometry-loop rules (publ_flag, no `?` rows) have no owner to inherit them.
+- **Next**, in order:
+  1. #752's decision, how far a label is read without a type symbol, from the
+     maintainer. It is the one item workable today.
+  2. C-e, once 1918's I-c lands (or the maintainer lifts that order): the trio,
+     the QPA phase table, a wavelength each phase block can reach (PLAT982/983),
+     `structure_from_cif(block=)`, su and the current multiplicity tag on read.
+  3. C-g last, with the VRF reasons Context lists.
 
 - **2026-10-09** — created by 1319's session, from #756's C-d, C-e and C-g and
   1319's inherited reader entries (#752, and the two 1118 setting findings). No open
