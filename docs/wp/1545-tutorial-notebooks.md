@@ -97,6 +97,16 @@ British spelling):
   `ExtinctionScreen` and `Capabilities` print the generic tree. Build a view
   only where a notebook needs one.
 
+### Inherited
+
+- **2026-10-09, from WP-1547.** CI now executes the notebooks on the py3.14
+  leg alone. The other legs set `RIETX_TUTORIALS=skip`, which skips
+  `test_tutorial_executes_clean` and nothing else. `test_tutorials.py`'s
+  docstring states the trade: a stdlib name newer than 3.11 in a tutorial's
+  own cells passes every check. The nightly still executes them on 3.13 on
+  three operating systems. A local run executes them as before. If PR #812
+  rewrites that docstring, keep the paragraph.
+
 ## Non-goals
 
 - Rendering the notebooks in the manual (myst-nb or nbsphinx). That is a
