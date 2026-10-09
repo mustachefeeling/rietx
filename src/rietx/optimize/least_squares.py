@@ -565,11 +565,33 @@ def _gather_per_line(lay, arrays) -> np.ndarray:
     return lay.gather([(a,) for a in arrays], 0)
 
 
+#: The relative forward-difference step every FD column of
+#: :func:`_make_jacobian` is taken with, through :func:`fd_step`.
+FD_STEP = 1e-6
+
+
+def fd_step(theta_c: float, typical: float = 1.0) -> float:
+    """The forward-difference step for one column of θ.
+
+    ``FD_STEP · max(typical, |θ_c|)``: relative to the coordinate's size, and
+    absolute at ``typical`` near zero (Dennis & Schnabel 1996, *Numerical
+    Methods for Unconstrained Optimization and Nonlinear Equations*, SIAM,
+    § 5.4).  Both FD sites call it, so one rule sizes every column.
+    """
+    return FD_STEP * max(typical, abs(theta_c))
+
+
+def _fd_typicals(table: ParameterTable) -> np.ndarray:
+    """Each free column's typical size, the ``typical`` of :func:`fd_step`."""
+    return np.ones(len(table.free_paths), dtype=np.float64)
+
+
 def _peak_chain_column(model: CompiledModel, table: ParameterTable,
                        bases: DerivativeBases, theta: np.ndarray,
                        values: dict[str, float], c: int, path: str,
                        intensities: list[np.ndarray] | None = None,
-                       affected: "list[int] | range | None" = None) -> np.ndarray:
+                       affected: "list[int] | range | None" = None,
+                       typical: float = 1.0) -> np.ndarray:
     """∂y/∂θ_c via the analytic bases + per-reflection scalar FD.
 
     Only the phases the column touches are re-derived (``phases.2.…`` leaves
@@ -589,7 +611,7 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
     term whose coefficients are nonzero under a ``profile_derivs=False``
     build still raises through :func:`_require_basis`, naming the path.
     """
-    h = 1e-6 * max(1.0, abs(theta[c]))
+    h = fd_step(theta[c], typical)
     tp = theta.copy()
     tp[c] += h
     values_p = table.decode(tp)
@@ -963,6 +985,8 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                if all(q in bkg_cols for q in (path, *extra)) else None
                for c, (path, extra, _) in enumerate(identities)]
 
+    typicals = _fd_typicals(table)
+
     def dpdu_of(c: int, theta: np.ndarray) -> float:
         e = table.entries[table._paths[free[c]]]
         return dphys_dinternal(float(theta[c]), e.transform)
@@ -1041,7 +1065,8 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                     and p not in axial_paths for p in extra):
                 J[:n_data, c] = -sqrt_w * _peak_chain_column(
                     model, table, get_bases(), theta_t, values, c, path, intens,
-                    affected=_affected_phases(model, path, extra))
+                    affected=_affected_phases(model, path, extra),
+                    typical=typicals[c])
             else:
                 fd_cols.append(c)
 
@@ -1058,7 +1083,7 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
             # which is why analytic columns for them are not worth writing.
             r0 = sqrt_w * (model.y_obs - model.evaluate(values, intens))
             for c in fd_cols:
-                h = 1e-6 * max(1.0, abs(theta_t[c]))
+                h = fd_step(theta_t[c], typicals[c])
                 tp = theta_t.copy()
                 tp[c] += h
                 rp = sqrt_w * (model.y_obs - model.evaluate(table.decode(tp), intens))
