@@ -267,6 +267,12 @@ its floor moves by more than 1 % without a line in the handover saying why.
     0.003221 (−514). The physical-space column, (r(y=2e-7) − r(y=1e-7))/1e-7 ×
     expit(u), gives 0.0098437 at all three, with `profile.y` 0.018101. Rwp is
     0.05258840377637 at all three.
+  - *Suite.* The fast selection on the final tree (macOS arm64, `[dev]`) gave
+    8872 passed, 172 skipped and 1 xfailed in 9:18. Another session's pytest was
+    running beside it. The branch adds two tests, at 0.00 s each by junit.
+    No local baseline was taken, so the +2 is CI's to confirm. The full
+    selection did not run: nothing passes `condition`, so no measured number
+    can move.
   - *Literature* (✓ read in source). Self & Liang 1987 eq. 2.2 ✓: the others
     are Gaussian conditional on the bound. Theory agrees: Geyer 1994 ✓
     (abstract), Andrews 1999 (via a restatement). SAS PROC NLIN ✓ ("an active
@@ -301,6 +307,18 @@ its floor moves by more than 1 % without a line in the handover saying why.
     dp/du at u = −514, because the tanh form rounds to 0. A research agent
     pointed at `~/Zotero` alone missed Schwarzenbach 1989, Madsen 2001 and
     Scarlett 2002, which are in `~/Zotero yue-here/storage`.
+  - *Review* (`/code-review high --fix`, 9 findings). Fixed 5: a held 1e-170
+    column put a NaN on its own diagonal (0 × inf after the rescale); a
+    wrong-length `condition` was silently misread; the Self & Liang citation
+    was missing from the docstring; the test's `allclose` kept the default
+    atol; and the held branch now scales only the kept block. Left 4 for the
+    choice, because each depends on it:
+    - the held row's esd comes back 0.0, where the reporting rule wants
+      `None` plus a one-sided interval;
+    - `condition` has no caller yet (remove it if option 1-3 makes it
+      unnecessary);
+    - χ²_red still divides by N − n_free with columns held;
+    - `discarded_directions` and the residual cosine do not take the mask.
   - *Next.* (1) Probe option 1 on BT-1 at both stopping points and on
     LaB₆ + cBN along both platforms' paths. The memory note on reproducing a
     platform split locally gives the 1e-14 nudge. (2) If it closes both
