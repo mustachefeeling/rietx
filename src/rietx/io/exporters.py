@@ -52,7 +52,7 @@ from ..schemas.results import (
 )
 from ..schemas.structure import Structure
 from .cif.blocks import block_name, write_document, write_structure_block
-from .cif.numbers import number, text
+from .cif.numbers import LINE_MAX, number, text
 from .cif.powder import write_pattern_block, write_reflection_loop
 
 _CELL_KEYS = ("a", "b", "c", "alpha", "beta", "gamma")
@@ -320,10 +320,10 @@ _SAMPLE_BROADENING = (("gauss_size", "Gaussian size"), ("gauss_strain", "Gaussia
 
 
 def _wrapped(paragraphs: list[str]) -> str:
-    """CIF text lines no longer than 80 characters (checkCIF's PLAT802)."""
+    """CIF text lines no longer than 80 characters with the field's ";" (PLAT802)."""
     import textwrap
 
-    return "\n".join(textwrap.fill(p, width=80, break_long_words=False)
+    return "\n".join(textwrap.fill(p, width=LINE_MAX - 1, break_long_words=False)
                      for p in paragraphs)
 
 
@@ -707,7 +707,8 @@ def _dispersion(instrument: Instrument, phase) -> dict[str, tuple[float, float, 
     :func:`~rietx.crystallography.dispersion.resolve` is the forward model's own
     call, so the file states the numbers the fit computed with.  ``None`` where
     the fit applied no dispersion: a neutron source, or ``dispersion=None``.
-    Cromer & Liberman (1970, 1981) for the table.
+    Rounded to the four decimals the table states.  Cromer & Liberman (1970,
+    1981) for the table.
     """
     from ..crystallography.dispersion import normalize_element, resolve
 
@@ -718,7 +719,10 @@ def _dispersion(instrument: Instrument, phase) -> dict[str, tuple[float, float, 
     species = [a.species for a in phase.atoms]
     values = resolve(species, tuple(line.wavelength.value for line in source.lines),
                      overrides)
-    return {sp: (f.real, f.imag, _DISPERSION_GIVEN if normalize_element(sp) in overrides
+    # four decimals, the table's own precision: an interpolation has no su to
+    # state, and its seventeen-digit repr pushed a type row past 80 columns
+    return {sp: (round(f.real, 4), round(f.imag, 4),
+                 _DISPERSION_GIVEN if normalize_element(sp) in overrides
                  else _DISPERSION_SOURCE)
             for sp, f in values.items()}
 

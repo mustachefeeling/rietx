@@ -438,8 +438,8 @@ def test_the_pattern_loop_weights_the_unfitted_points_zero(fitted_lab6, tmp_path
     assert not block.find_loop("_pd_proc_2theta_corrected")
     assert block.find_value("_pd_meas_number_of_points") == str(len(data.two_theta))
     assert block.find_value("_pd_proc_number_of_points") == str(len(result.two_theta))
-    assert f"20.05 deg ({n_out} points)" in block.find_value(
-        "_pd_proc_info_excluded_regions")
+    assert f"20.05 deg ({n_out} points)" in " ".join(
+        block.find_value("_pd_proc_info_excluded_regions").split())
     d = np.array([float(v) for v in block.find_loop("_pd_proc_d_spacing")])
     lam = ref.instrument.source.primary_wavelength
     np.testing.assert_allclose(d, lam / (2 * np.sin(np.radians(tt) / 2)), rtol=1e-7)
@@ -550,7 +550,7 @@ def test_the_atom_types_state_the_dispersion_the_fit_used(fitted_lab6):
     for atom in ref.fitted_structure.phases[0].atoms:
         f = resolve([atom.species], lam)[atom.species]
         row = rows[atom.species]
-        assert float(row[1]) == f.real and float(row[2]) == f.imag
+        assert float(row[1]) == round(f.real, 4) and float(row[2]) == round(f.imag, 4)
         assert "Cromer" in row[3]
 
     declined = instrument.model_copy(deep=True)
@@ -590,6 +590,17 @@ def test_a_le_bail_cell_volume_carries_its_esd(fitted_lab6):
     a = result.parameter("phases.0.cell.a")
     assert a.stderr is not None
     assert row.stderr == pytest.approx(3 * a.value ** 2 * a.stderr, rel=1e-9)
+
+
+def test_every_line_of_a_refinement_cif_fits_in_80_columns(fitted_lab6, tmp_path):
+    """checkCIF's PLAT802 counts each longer record: a type row carrying f′
+    and f″ at seventeen digits, and the excluded-regions sentence, both drew it."""
+    ref, _result, _data = fitted_lab6
+    out = tmp_path / "w.cif"
+    ref.write_cif(out)
+    long = [line for line in out.read_text(encoding="utf-8").splitlines()
+            if len(line) > 80]
+    assert long == []
 
 
 def test_refinement_result_arrays_are_faithful(fitted_lab6, tmp_path):
