@@ -236,8 +236,14 @@ value table means this class again.
       tests SYMM004 suppressed (CELLZ_01, CHEMW_03, SYMMG_01) run and raise
       nothing; the space group read from `_alt`. Every residual alert carries a
       written reason (the baseline's classes above).
-- [ ] Manual (`using/` export page and Part 2 if a convention is stated), `help.py`
-      if a name is added, and the skill row or "none" and why.
+- [x] Manual (`using/` export page and Part 2 if a convention is stated), `help.py`
+      if a name is added, and the skill row or "none" and why. `files.md`
+      § Exports gains what the structure block states, and its GSAS-II paragraph
+      says that writer keeps B; `exports.md` drops "byte for byte what it always
+      was" and says the CIF writers write a no-su value as its shortest
+      round-tripping text. Part 2 states no CIF convention. `help.py`: no name
+      added. Skill: none, since the export calls are unchanged and what the files
+      state is in the files and the manual.
 
 ## Acceptance
 
