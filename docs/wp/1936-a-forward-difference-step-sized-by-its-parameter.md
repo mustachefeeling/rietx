@@ -172,6 +172,23 @@ right, and why brucite with a Stephens block is chaotic under any step.
   others). They are whole-model references on wide lab peaks and pass, so they
   stay. The diagnostic FD probes in `refine.py` (`SCALE_B_STEP`, the magnetic
   axis probe) carry their own justified steps and are not Jacobian columns.
+  The multi-histogram central-FD reference in `test_cross_backend` keeps the
+  old step: `MULTI_GLOBS` frees only the softplus `w`, so nothing it covers
+  moves.
+- *Review* (`/code-review high --fix`). Six findings. Fixed: a named variable
+  with no unit that drives `u` or `v` kept the step of 1 (1.8e-3 and 9.5e-3 off
+  on `sharp_widths`). It now reads the row `_column_identities` names, divided
+  by its coefficient in C (9.3e-8, 9.9e-8), with a test. Also fixed: a spacing
+  slip, the matrix reference copying the step rule instead of calling
+  `fd_step`, a docstring that called every row bounded at 0 a width, and a
+  1.8 note that named only `u` and `v`. Declined: the multi reference (above).
+- *Counts* (macOS arm64, `[dev,jax]`, `origin/main` `deed30b5` merged). Fast
+  selection: 9054 passed, 112 skipped, 1 xfailed. This WP added 9 cases: 2
+  test functions (0.01 s together) and 7 `sharp_widths` rows, of which 4 pass,
+  2 skip without torch and 1 skips for having no axial column. Full
+  selection: green, 9346 passed, 119 skipped, 1 xfailed. Not a quotable
+  count: two other sessions' pytest processes were running when it
+  launched, so the nightly is the figure to trust.
 - *Session.* Cut from WP-1930's unmerged branch, since this WP reads
   `FLOOR_SEEDS`. #849 merged mid-session and `origin/main` was merged in.
   Forward references went to WP-1937 (the LaB₆ table's TRF row is the old
