@@ -14,8 +14,9 @@ to ``origin/main``.  A test counts as added when the working tree adds its
 ``def`` line since the fork from BASE and removes none of that name in that
 module, so a renamed test is listed and one whose signature changed is not.  An
 untracked test file counts whole.  Each row sums setup, call and teardown over
-the test's parameter cases.  A shared fixture's setup lands on whichever test
-used it first, on that worker.
+the test's parameter cases that ran.  A skipped case is left out, so a test
+skipped throughout reads as absent.  A shared fixture's setup lands on
+whichever test used it first, on that worker.
 """
 
 from __future__ import annotations
@@ -55,6 +56,8 @@ def times(junit: str, added: set[tuple[str, str]]) -> dict[tuple[str, str], list
         modules_of[test].append(module)
     rows: dict[tuple[str, str], list[float]] = defaultdict(list)
     for case in ET.parse(junit).iter("testcase"):
+        if case.find("skipped") is not None:
+            continue        # a skip's seconds say nothing of what the test costs
         name = _CASE_SUFFIX.split(case.get("name", ""), maxsplit=1)[0]
         classname = case.get("classname", "")
         for module in modules_of.get(name, ()):
@@ -101,7 +104,7 @@ def main(argv: list[str]) -> int:
         where = f"{module.replace('.', '/')}.py::{test}"
         print(f"{sum(ts):8.2f} s  {where}  ({len(ts)} case{'' if len(ts) == 1 else 's'})")
     for module, test in sorted(added - rows.keys()):
-        print(f"{'absent':>10}  {module.replace('.', '/')}.py::{test}  (not in this run)")
+        print(f"{'absent':>10}  {module.replace('.', '/')}.py::{test}  (not run here)")
     print(f"{sum(map(sum, rows.values())):8.2f} s  over {len(rows)} added tests")
     print("per file:")
     for module, (total, n) in sorted(per_file(rows).items(), key=lambda kv: -kv[1][0]):

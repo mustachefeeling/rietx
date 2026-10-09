@@ -647,7 +647,8 @@ def test_the_sweep_over_the_230_settings_at_gamma(numbers):
     inside its own group's allowed span, and **not one of type IV** — which is
     the derived statement that a zero propagation vector cannot produce an
     anti-translation.  The trap sample gives 140 of them (2026-10-09).  The
-    whole sweep took 49.9 s on a CI leg, so it runs nightly (WP-1547).
+    whole sweep took 44-50 s on CI legs (WP-1506, WP-1547), so it runs
+    nightly.
     """
     total, types = 0, {}
     for setting in _standard_settings(numbers):

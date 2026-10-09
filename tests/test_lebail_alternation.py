@@ -173,7 +173,7 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(worse)
     # the kept pass is the one the Refinement answers from afterwards
     assert ref.result_ is result
     assert ref.report() is not None
-    _plot(result, "lebail_alternation_exact.png")
+    _plot(result, "lebail_alternation_worse.png")
 
 
 @pytest.mark.xdist_group("lebail-converging")

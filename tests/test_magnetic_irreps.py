@@ -700,7 +700,9 @@ def test_character_tables_agree_with_the_spgrep_oracle_for_all_230_groups(settin
     assert checked + declined == len(settings) * len(ZONE_BOUNDARY_SET)
     assert len(ALL_SETTINGS) * len(ZONE_BOUNDARY_SET) == 1840
     if pinned:
-        assert (checked, agreed, declined) == (len(settings) * 8 - 2,) * 2 + (2,)
+        refused = len(ORACLE_CANNOT_DO)
+        assert (checked, agreed, declined) == (
+            len(settings) * len(ZONE_BOUNDARY_SET) - refused,) * 2 + (refused,)
     assert spgrep_core.__name__ == "spgrep"
 
 

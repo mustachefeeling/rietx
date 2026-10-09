@@ -31,12 +31,15 @@ def test_a_def_counts_only_when_added_under_tests_and_not_also_removed():
 
 
 def test_cases_sum_by_function_and_a_class_member_matches_its_module(tmp_path):
-    """``@grp`` is the suffix xdist's loadgroup appends to a grouped test."""
+    """``@grp`` is the suffix xdist's loadgroup appends to a grouped test.
+    A skipped case is no cost, so it adds no seconds."""
     junit = tmp_path / "junit.xml"
     junit.write_text(
         "<testsuites><testsuite>"
         '<testcase classname="tests.test_a" name="test_new[1]" time="1.5"/>'
         '<testcase classname="tests.test_a" name="test_new[2]" time="2.0"/>'
+        '<testcase classname="tests.test_a" name="test_new[3]" time="0.01">'
+        '<skipped message="not this leg"/></testcase>'
         '<testcase classname="tests.test_a" name="test_newer" time="9"/>'
         '<testcase classname="tests.test_ab" name="test_new" time="7"/>'
         '<testcase classname="tests.sub.test_b.TestK" name="test_method" time="0.25"/>'

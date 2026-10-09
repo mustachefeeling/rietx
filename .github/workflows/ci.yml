@@ -200,6 +200,11 @@ jobs:
       fail-fast: false
       matrix:
         python: ["3.11", "3.12", "3.13", "3.14"]
+        # the newest leg executes the tutorials.  Dropping its version from
+        # the list above makes this a leg of its own, so they never go unrun.
+        include:
+          - python: "3.14"
+            tutorials: run
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -219,7 +224,7 @@ jobs:
         # in tests).  The tutorial notebooks execute on the newest Python
         # alone (tests/test_tutorials.py says what that trades).
         env:
-          RIETX_TUTORIALS: ${{ matrix.python == '3.14' && 'run' || 'skip' }}
+          RIETX_TUTORIALS: ${{ matrix.tutorials || 'skip' }}
         run: >-
           .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
           --junitxml=junit.xml -o junit_duration_report=total
