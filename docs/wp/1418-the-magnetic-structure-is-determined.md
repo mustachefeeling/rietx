@@ -125,6 +125,17 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-09, from WP-1930 (PR #849).** `SOLVE_STAGE_PATHS`'
+  "all" stage (`strategy/magnetic.py:213`) frees `phases.*.gauss_strain` beside
+  `instrument.profile.u` and `phases.*.lor_size` beside `instrument.profile.x`,
+  which are exactly degenerate on one histogram. The floor seed now starts the
+  two phase widths off their floor, and on the two-site Pnma set they come back
+  at ρ = ±1.000 with `x` and `u`, a degeneracy the floor had hidden. Their
+  correlation with the moments is ≤ 0.007, so no moment moved. The same seed
+  let class 0's moment stage converge where it hit `max_iter`, so its pair
+  report vanished (#820): `test_pair_diagnostic_class`'s naming check moved to
+  the 150 K Cr₂WO₆ solution.
+
 - **2026-10-08, from the second issue triage (issue #835): an analytic
   threshold for M-8's chance score, in place of the per-pattern shuffles.**
   The #795 entry below sets M-8's reporting threshold as the 99th percentile

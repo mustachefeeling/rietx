@@ -39,24 +39,23 @@ def test_a_propagation_vector_off_gamma_is_named_too():
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("magnetic-solve-two-site")
-def test_every_pair_on_a_solution_names_a_class_whose_rows_carry_it():
-    """The two-site Pnma set of ``test_magnetic_solve``: every class's pair is
-    reported under the same two paths, so only the class tells them apart.
-    Each message names its own class, and that class's trial carries the pair.
+def test_the_two_site_set_reaches_one_minimum_and_pairs_nothing():
+    """The two-site Pnma set of ``test_magnetic_solve``, which carried this
+    file's end-to-end naming check until WP-1930 showed both its pairs were
+    stopping points.
 
-    How many classes pair is not asserted, because it depends on the machine
-    (#820). Class 2, the flat model, pairs at ρ = −1.0000 everywhere. The
-    winner, class 0, reaches the same minimum everywhere (χ²_red 1.0574465,
-    Mn1 3.498 and Mn2 0.700 μ_B, the stated moments). Its ρ(Mn1, Mn2) is
-    −0.962 in one macOS arm64 venv and −0.498 on Linux x86-64, either side of
-    ``MOMENT_PAIR_RHO_MIN`` = 0.95. That venv reports two pairs; Linux and
-    another macOS venv report one. A count of two has failed on Linux since
-    the commit that added it. Mn1 (4b)
-    and Mn2 (4a) are related by c/2, so l-even and l-odd reflections can
-    measure m₁ + m₂ and m₁ − m₂ separately. Linux's esds there, 0.002 and
-    0.004 μ_B, say the true point is not a flat valley. Why the Mac's
-    covariance differs at the same χ² is a separate question, left open in
-    #820."""
+    Mn1 (4b) and Mn2 (4a) are related by c/2, so l-even and l-odd reflections
+    measure m₁ + m₂ and m₁ − m₂ separately, and the true point is not a flat
+    valley.  The winner, class 0, pairs or not by where the walk stops: issue
+    #820 measured ρ(Mn1, Mn2) at −0.962 in one macOS venv and −0.498 on Linux,
+    either side of ``MOMENT_PAIR_RHO_MIN`` = 0.95, at one χ².  With the floor
+    seed the "all" stage starts ``lor_size`` and ``gauss_strain`` off their
+    floor, class 0's moment stage converges where it hit ``max_iter`` before,
+    and ρ is −0.114 with Linux's esds.  Class 2, the flat model, collapses to
+    m ≈ 0, where |F_m|² ∝ m² leaves no column to correlate.  The naming check
+    moved to the 150 K Cr₂WO₆ solution, whose pair is structural
+    (``test_magnetic_solve_acceptance``).
+    """
     from tests import test_magnetic_solve as T
 
     instrument = T.neutron()
@@ -70,19 +69,12 @@ def test_every_pair_on_a_solution_names_a_class_whose_rows_carry_it():
     ref = T.nuclear_fit(T.two_site(), data, instrument)
     solution = rx.solve_magnetic(ref, data, sites=["Mn1", "Mn2"], ion="Mn3+")
 
-    pairs = [d for d in solution.diagnostics
-             if d.code == "MOMENT_PAIR_DEGENERATE"]
-    assert pairs, [d.message for d in solution.diagnostics]
-    assert len({tuple(d.where) for d in pairs}) == 1   # the shared paths
-    classes = set()
-    for d in pairs:
-        assert d.message.startswith("class "), d.message
-        index = int(d.message.split(":")[0].split()[1])
-        trial = next(t for t in solution.trials if t.class_index == index)
-        assert any(r.paired_with for r in trial.moments), (index, d.message)
-        classes.add(index)
-    assert len(classes) == len(pairs)
-    # and a class whose rows are not paired is named by no message
-    unpaired = {t.class_index for t in solution.trials
-                if not any(r.paired_with for r in t.moments)}
-    assert not classes & unpaired
+    assert not [d.message for d in solution.diagnostics
+                if d.code == "MOMENT_PAIR_DEGENERATE"]
+    winner = next(t for t in solution.trials if t.class_index == 0)
+    assert winner.n_minima == 1
+    m1, m2 = winner.moments
+    assert m1.magnitude == pytest.approx(3.5, abs=0.01)
+    assert m2.magnitude == pytest.approx(0.7, abs=0.01)
+    # Linux's esds before the seed were 0.002 and 0.004 μ_B
+    assert m1.esd < 0.01 and m2.esd < 0.01

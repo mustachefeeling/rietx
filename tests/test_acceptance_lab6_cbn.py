@@ -51,6 +51,8 @@ tests/data/README.md):
 * Dispersion declined explicitly (WP-1001 made it the default): at 0.4137 Å
   every species here is far above its K edge, but "nearly inert" is a
   measurement and not a licence to leave the setting implicit.
+* The Gaussian triple ``u, v, w`` is **held** at the start values, a
+  departure from the .inp taken in WP-1930; ``PLAN_SHARED`` says why.
 
 **What this test is really about is the broadening parameterisation**, and the
 headline is that the *lowest* Rwp is the *worst* answer.  See
@@ -165,7 +167,6 @@ _BASE = [
     rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
     rx.Stage("displacement", ["instrument.geometry.sample_displacement"]),
     rx.Stage("cell_cbn", ["phases.1.cell.*"]),
-    rx.Stage("profile_w", ["instrument.profile.w"]),
 ]
 _TAIL = [
     rx.Stage("coordinates", ["phases.*.atoms.*.dof.*"]),
@@ -204,10 +205,20 @@ _TAIL = [
 #: LaB6 value.  That says the certificate's 0.7 µm is inconsistent with this
 #: instrument's resolution *as this profile parameterises it*, which points at
 #: the PVII/FPA gap below rather than at a different held number.
+#:
+#: **The Gaussian triple is held** (WP-1930, issue #832).  With ``u, v, w``
+#: free, this histogram had two minima and rounding chose between them: a
+#: 3e-14 relative change to ``w``'s start moved χ²_red from 9.69 to 12.48, with
+#: ``instrument.profile.y`` left on its softplus floor, and Linux and macOS
+#: reported one each.  The floor seed (``params.vector.FLOOR_SEEDS``) gives one
+#: minimum, χ²_red 9.84, but there Γ_G² < 0 at 98-100 % of points, so the data
+#: cannot determine ``u, v, w`` and their esds come back absent or at ρ = ±1.
+#: Held at 11-BM's sharp start (Γ_G² = ``w`` = 2e-5 deg²), the fit reaches
+#: χ²_red 10.1518 on both platforms to 1e-12, with every esd finite and no
+#: resolution or correlation diagnostic.
 PLAN_SHARED = rx.RefinementPlan(stages=[
     *_BASE,
-    rx.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
-                         "instrument.profile.x", "instrument.profile.y"]),
+    rx.Stage("profile", ["instrument.profile.x", "instrument.profile.y"]),
     *_TAIL,
 ])
 
@@ -215,8 +226,7 @@ PLAN_SHARED = rx.RefinementPlan(stages=[
 #: fixture rather than deleted because it is the control for the finding below.
 PLAN_DEGENERATE = rx.RefinementPlan(stages=[
     *_BASE,
-    rx.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
-                         "instrument.profile.x", "instrument.profile.y"]),
+    rx.Stage("profile", ["instrument.profile.x", "instrument.profile.y"]),
     rx.Stage("size_strain", ["phases.*.lor_size", "phases.*.lor_strain"]),
     *_TAIL,
 ])
@@ -352,76 +362,35 @@ def test_the_lowest_rwp_is_the_worst_answer(shared, degenerate):
 def test_the_correlation_diagnostic_separates_the_two(shared, degenerate):
     """And it separates them *without* being told which is which.
 
-    ``HIGH_CORRELATION`` is silent about **the broadening split** on the
-    identifiable fit and fires on the degenerate one at ρ → 1.  A user who
-    never compared the two would still be told which numbers are not
-    quotable, which is the whole purpose of the diagnostic channel.
+    ``HIGH_CORRELATION`` is silent on the identifiable fit and fires on the
+    degenerate one at ρ → 1.  A user who never compared the two would still be
+    told which numbers are not quotable, which is the whole purpose of the
+    diagnostic channel.
 
-    **The bar is the phase broadening terms, not an empty list, and the
-    reason is measured.**  This assertion read ``corr(shared) == []`` until
-    the bounds fix of issue #204, when it began failing on
-    ``instrument.profile.u ~ instrument.profile.v``.  That is not a
-    degeneracy the fix introduced.  The Gaussian triple ``u, v, w`` is
-    flat in *both* builds — this plan frees all three on an instrument whose
-    ``w`` starts at 2e-5, and the pair sat at **ρ = −0.9793 before the fix
-    against a 0.98 guard, i.e. 0.0007 under the bar**, with ρ(v, w) = −0.947
-    and ρ(u, w) = +0.882 beside it.  Bounding ``biso`` reparameterises the
-    solve, which moved the landing point along that already-flat direction to
-    ρ(u, v) = −0.9918 and ρ(v, w) = −0.9822 — at an Rwp 0.026 pp *better*
-    (0.164550 against 0.164806) and a QPA 0.03 pp closer to TOPAS.  So the
-    old assertion was passing on 7e-4 of margin over a flat direction, which
-    is a coin flip across platforms and BLAS builds rather than a property of
-    the model.  Neither ρ is the truer number: they are two stopping points on
-    one flat valley, and only one of them is the one a user gets.
-
-    **And "no bound is reached, so the optimum cannot move" is false here**,
-    which is the natural objection to the paragraph above.  ``run_least_squares``
-    passes ``bounds=(lo, hi)`` to scipy unconditionally, and TRF scales each
-    direction by the distance to the bound the *gradient points at* — ``ub - x``
-    where ``g < 0``, ``x - lb`` where ``g > 0``, and 1 only where that bound is
-    infinite (``CL_scaling_vector``, scipy ``optimize/_lsq/common.py``).  So a
-    ``biso`` at 0.44 under (0, 25) goes from a step scale of 1 to one of 0.44
-    where the gradient pushes it down and 24.56 where it pushes it up, the
-    trust region is shaped differently in those directions, and the walk stops
-    elsewhere in the same valley — with nothing at a bound at any point.  Not
-    an algorithm switch either: ``u`` and ``v`` carry finite declared bounds
-    already, so this fit was in ``trf_bounds`` both before and after.
-
-    Asserting on the phase terms keeps what this suite is *for* — the
-    Lorentzian split of ``lor_size``/``lor_strain`` against instrument
-    ``X, Y``, which is why ``PLAN_SHARED`` exists and is the thing
-    ``PLAN_DEGENERATE`` controls for.  Making the Gaussian triple
-    identifiable too would mean holding ``w`` (or ``u``), and that moves every
-    number this suite measures against TOPAS — a protocol change, deliberately
-    not smuggled in with a bounds fix.
+    **Silence is the bar again since WP-1930.**  Until then this plan freed
+    the Gaussian triple ``u, v, w``, which is flat on this histogram, and the
+    assertion was a separation: ρ(u, v) sat at −0.9793 against a 0.98 guard
+    before the bounds fix of issue #204 and at −0.9918 after it, two stopping
+    points in one flat valley.  TRF scales each direction by its distance to
+    the bound the gradient points at (``CL_scaling_vector``, scipy
+    ``optimize/_lsq/common.py``), so bounding ``biso`` moved the walk, and
+    unbounding it again (#700) moved it once more.  The same valley let
+    rounding choose between two minima (issue #832).  Holding the triple, the
+    protocol change this docstring once declined to smuggle into a bounds fix,
+    is now the protocol, and nothing on the shared fit is flagged.
     """
     def corr(result):
         return [d for d in result.diagnostics if d.code == "HIGH_CORRELATION"]
 
     # ``where`` rather than ``message``: the paths are a structured field and
     # the message is prose that may be reworded.
+    assert corr(shared) == [], (
+        "HIGH_CORRELATION on the identifiable fit: "
+        f"{[(d.where, d.message) for d in corr(shared)]}")
+
     finding = ("phases.0.lor_size", "phases.0.lor_strain",
                "phases.1.lor_size", "phases.1.lor_strain",
                "instrument.profile.y")
-    split = [d for d in corr(shared)
-             if any(p in finding for p in (d.where or []))]
-    assert split == [], (
-        "the identifiable plan's broadening split is no longer identifiable: "
-        f"{[(d.where, d.message) for d in split]}")
-
-    # Asserted as a separation, not as silence.  The Gaussian Caglioti triple
-    # is flat in both builds and the 0.98 guard sits *inside* ρ(u, v)'s range
-    # on this histogram, so whether it is flagged is a property of where the
-    # walk stopped.  What must stay true is that nothing *else* is flagged:
-    # a new degeneracy anywhere outside that triple fails here.
-    caglioti = {"instrument.profile.u", "instrument.profile.v",
-                "instrument.profile.w"}
-    stragglers = [d for d in corr(shared)
-                  if not set(d.where or []) <= caglioti]
-    assert stragglers == [], (
-        "HIGH_CORRELATION on the identifiable fit outside the Gaussian "
-        f"Caglioti triple: {[(d.where, d.message) for d in stragglers]}")
-
     flagged = corr(degenerate)
     assert flagged, "the degenerate fit raised no HIGH_CORRELATION at all"
     assert any(set(d.where or []) & set(finding) for d in flagged), (
@@ -445,3 +414,38 @@ def test_rwp_is_worse_than_topas_and_the_reason_is_the_peak_shape(shared):
     move once the broadening is identifiable.
     """
     assert TOPAS["rwp"] < shared.statistics.rwp < 4.0 * TOPAS["rwp"]
+
+
+#: The shared fit's Rwp, measured on macOS arm64 and Linux x86-64 (issue #832,
+#: 2026-10-08) and again here (WP-1930): 0.168656, χ²_red 10.15182, the two
+#: platforms agreeing to 1e-12 relative.
+SHARED_RWP = 0.168656
+
+
+def test_the_shared_fit_reaches_one_minimum_on_every_platform(shared):
+    """Issue #832: the same tree reached Rwp 0.18696 on Linux and 0.16478 on
+    macOS, and every assertion above passed at both.
+
+    The band is the reporter's, 2 % about the measured value: it fails at
+    either old minimum (11 % high and 2.3 % low) while leaving the
+    cross-platform spread, 1e-12, a margin of ten orders.  The record says how
+    the minimum was made single: the ``profile`` stage started
+    ``instrument.profile.y`` off its softplus floor.
+    """
+    assert shared.statistics.rwp == pytest.approx(SHARED_RWP, rel=0.02)
+    profile = next(s for s in shared.stages if s.name == "profile")
+    assert set(profile.seeded) == {"instrument.profile.y"}
+
+
+def test_the_fits_render(shared, degenerate):
+    """obs/calc/diff panels for looking at (tests/CLAUDE.md): Rwp hides a
+    locally bad fit, and here the *higher* Rwp is the right answer."""
+    import matplotlib.pyplot as plt
+
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    for name, result in (("shared", shared), ("degenerate", degenerate)):
+        result.plot(path=str(out / f"lab6_cbn_{name}.png"))
+        result.plot(path=str(out / f"lab6_cbn_{name}_zoom.png"),
+                    two_theta_range=(5.1, 12.0))
+    plt.close("all")
