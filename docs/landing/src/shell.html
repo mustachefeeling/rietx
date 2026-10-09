@@ -131,7 +131,8 @@ p{margin:0}
 /* The two quickstarts, agent and Jupyter: each a <details> drawn as a button, the pair on one
    row, which grows into its panel when opened.  The bordered box is the control, open or closed, so the prompt inside
    it takes no box of its own.  Its label and chevron stay where they were, so the button
-   reads as the same thing grown rather than replaced.  The open one takes the whole row and is
+   reads as the same thing grown rather than replaced.  The Jupyter one is the exception: it
+   opens from the row's start.  The open one takes the whole row and is
    drawn over its neighbour, which hides once the growth has covered it, so it leaves the tab
    order too.  A browser without exclusive <details> can open both; the second then takes a
    row of its own. */
@@ -147,6 +148,12 @@ p{margin:0}
 /* With the first one open the second's column loses its neighbour and moves left, so it hides
    at once rather than show the move. */
 .qs-row:has(> .qs:first-child[open]) > .qs:last-child{transition:none}
+/* On closing, the panel keeps the whole row, and its place on top, until it has shrunk.  Back in
+   its own column at once, it set that column's width while still 644 px wide, and the page
+   scrolled sideways for a few frames between 421 and about 880 px (chromium, measured).  The
+   neighbour shows again only then too. */
+.qs-row > .qs:not([open]){transition:width .2s ease,visibility 0s .2s,z-index 0s .2s,
+  grid-column 0s .2s allow-discrete,grid-row 0s .2s allow-discrete}
 /* The row needs 408 px: buttons of 169 and 179 px (Chromium, measured), the 12 px gap and two
    24 px gutters.  Below that the two stack, and the open one spans both rows. */
 @media (max-width:420px){
@@ -170,7 +177,7 @@ p{margin:0}
 .qs{interpolate-size:allow-keywords;transition:width .2s ease}
 .qs::details-content{block-size:0;overflow:hidden;transition:block-size .2s ease,content-visibility .2s allow-discrete}
 .qs[open]::details-content{block-size:auto}
-@media (prefers-reduced-motion:reduce){.qs,.qs .chev{transition:none}}
+@media (prefers-reduced-motion:reduce){.qs,.qs .chev,.qs-row > .qs:not([open]){transition:none}}
 @media (prefers-reduced-motion:reduce){.qs::details-content{transition:none}}
 /* `fit-content` is re-measured on every frame, and the prompt is in the box from the moment
    it opens, so its long lines set the start of the growth: it began near the full row and
