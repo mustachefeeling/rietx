@@ -78,10 +78,16 @@ def build_demo():
     return module
 
 
+#: Where every build here reads the notebooks.  The page links the newest release tag,
+#: and CI's shallow checkouts carry no tags, so the suite builds at `HEAD` and the tag
+#: lookup is asserted on a repository of its own (WP-1917).
+REF = "HEAD"
+
+
 @pytest.fixture(scope="module")
 def site_html(build) -> str:
     """The landing page's site build, assembled without writing anything."""
-    return build.assemble(True)
+    return build.assemble(True, ref=REF)
 
 
 #: Every page `build.py` serves, read off its own table so a new page is covered by
@@ -92,7 +98,7 @@ PAGE_NAMES = list(_build_module().PAGES)
 @pytest.fixture(scope="module", params=PAGE_NAMES)
 def any_page(request, build) -> tuple[str, str]:
     """(name, site build) for each page in turn."""
-    return request.param, build.assemble(True, request.param)
+    return request.param, build.assemble(True, request.param, REF)
 
 
 # ----------------------------------------------------------------------
@@ -292,7 +298,7 @@ def test_the_inline_build_stays_a_fragment(build):
     document inside a document."""
     assert build.DEMO.exists(), "the payload is committed; this should not be conditional"
     for name in build.PAGES:
-        assert not build.assemble(False, name).lstrip().lower().startswith("<!doctype"), name
+        assert not build.assemble(False, name, REF).lstrip().lower().startswith("<!doctype"), name
 
 
 def test_the_page_fetches_the_payload_it_does_not_inline(site_html):
@@ -343,6 +349,7 @@ def test_every_relative_link_resolves_to_something_the_build_writes(any_page, bu
     name, page = any_page
     written = {"favicon.svg", "data/demo.json", "data/transcript.json"}
     written |= set(build.IMAGES.values()) | set(build.PAGES)
+    written |= {f"notebooks/{nb.name}" for nb in build.notebooks(REF)}
     for link in _links(page):
         if link.startswith("#"):
             assert f'id="{link[1:]}"' in page, f"{name}: {link!r} names an id the page does not carry"
@@ -356,7 +363,7 @@ def test_every_relative_link_resolves_to_something_the_build_writes(any_page, bu
             f"{name}: {link!r} is not written by build.py --site (it writes {sorted(written)})"
         )
         if fragment:
-            assert f'id="{fragment}"' in build.assemble(True, path), (
+            assert f'id="{fragment}"' in build.assemble(True, path, REF), (
                 f"{name}: {link!r} names an id {path} does not carry")
 
 
@@ -393,7 +400,7 @@ def test_build_py_site_runs_and_writes_the_files_it_names(build):
     payload through.  It writes into `docs/landing/site`, which is gitignored,
     exactly as `tests/test_examples.py` accepts the scripts' PNGs."""
     result = subprocess.run(
-        [sys.executable, str(LANDING / "build.py"), "--site"],
+        [sys.executable, str(LANDING / "build.py"), "--site", "--ref", REF],
         capture_output=True, text=True, cwd=REPO_ROOT,
     )
     assert result.returncode == 0, f"build.py --site failed:\n{result.stdout}\n{result.stderr}"
@@ -403,6 +410,11 @@ def test_build_py_site_runs_and_writes_the_files_it_names(build):
     assert (site / "favicon.svg").is_file()
     for rel in build.IMAGES.values():
         assert (site / rel).is_file(), f"build.py --site wrote no {rel}"
+    # A download is the file the Colab link opens: the notebook at the ref, byte for byte.
+    for nb in build.notebooks(REF):
+        shown = subprocess.run(["git", "-C", str(REPO_ROOT), "show", f"{REF}:{nb.path}"],
+                               capture_output=True, check=True).stdout
+        assert (site / "notebooks" / nb.name).read_bytes() == shown, nb.name
 
 
 # ----------------------------------------------------------------------
@@ -442,3 +454,83 @@ def test_the_quickstart_skill_command_writes_the_file_it_says_to_read(site_html,
     monkeypatch.chdir(tmp_path)
     assert cli.main(command.split()[1:]) == 0
     assert (tmp_path / path).is_file(), f"{command!r} wrote no {path}"
+
+
+# ----------------------------------------------------------------------
+# The Jupyter quickstart (WP-1917): one row a notebook, linked at the release
+# ----------------------------------------------------------------------
+
+def _rows(page: str) -> list[str]:
+    block = re.search(r'<ul class="nb-list">(.*?)</ul>', page, re.S)
+    assert block, "no Jupyter quickstart on the landing page"
+    return re.findall(r"<li>(.*?)</li>", block.group(1), re.S)
+
+
+def test_the_jupyter_quickstart_has_one_row_per_notebook(site_html):
+    """The rows follow the tutorials' own glob, so a sixth notebook gets a row with
+    no edit to the page, and each row's title is its notebook's heading."""
+    spec = importlib.util.spec_from_file_location(
+        "_landing_tutorials_test", REPO_ROOT / "examples" / "tutorials" / "build.py")
+    tutorials = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tutorials)
+    sources = tutorials.sources()
+    rows = _rows(site_html)
+    assert len(rows) == len(sources), f"{len(rows)} rows for {len(sources)} tutorials"
+    for row, source in zip(rows, sources):
+        heading = next(line for line in source.read_text(encoding="utf-8").splitlines()
+                       if line.startswith("# # "))
+        assert f'<span class="nb-title">{_html.escape(heading[4:].strip())}</span>' in row, source.name
+        assert row.count(f"{source.stem}.ipynb") == 2 and f"/{source.stem}.html" in row, source.name
+
+
+def test_every_colab_link_opens_the_notebook_at_the_ref(site_html, build):
+    """Colab opens the file at the ref the page was built at, which the Pages build
+    takes to be the newest release tag, so the notebook's `%pip install rietx`
+    installs the version it was built with."""
+    repo = build.ABOUT.REPO_URL.removeprefix("https://github.com/")
+    prefix = f"https://colab.research.google.com/github/{repo}/blob/{REF}/"
+    links = re.findall(r'href="(https://colab\.research\.google\.com/[^"]+)"', site_html)
+    assert len(links) == len(_rows(site_html))
+    for link in links:
+        assert link.startswith(prefix), link
+        found = subprocess.run(["git", "-C", str(REPO_ROOT), "cat-file", "-e", f"{REF}:{link[len(prefix):]}"])
+        assert found.returncode == 0, f"{link} names no file at {REF}"
+
+
+def test_every_read_link_is_a_page_the_manual_builds(site_html):
+    """A Read link lands on the notebook's manual page, which exists while the
+    tutorials index lists it in its toctree (`using/quickstart.md`, WP-1916)."""
+    index = (REPO_ROOT / "docs" / "manual" / "using" / "quickstart.md").read_text(encoding="utf-8")
+    toctree = re.search(r"```\{toctree\}(.*?)```", index, re.S).group(1).split()
+    reads = re.findall(r'href="https://rietx\.org/using/(tutorials/[^"]+)\.html">Read</a>', site_html)
+    assert len(reads) == len(_rows(site_html))
+    for page in reads:
+        assert page in toctree, f"using/{page}.html is not in the manual's tutorials toctree"
+
+
+def test_each_quickstart_toggle_controls_a_panel_that_starts_hidden(site_html):
+    """One disclosure button per panel, none pressed and every panel hidden at
+    load, so the page opens on the row of buttons.  That opening one closes the
+    other is the script's, and a browser check's to see."""
+    controls = re.findall(r'<button class="btn qs-toggle" type="button" aria-expanded="false" '
+                          r'aria-controls="([\w-]+)"', site_html)
+    panels = re.findall(r'<div class="qs-panel" id="([\w-]+)" hidden="until-found">', site_html)
+    assert sorted(controls) == sorted(panels) == ["notebooks", "quickstart"], (controls, panels)
+    assert not re.search(r'<button[^>]*aria-expanded="true"', site_html)
+
+
+def test_the_release_tag_is_the_newest_and_its_absence_refuses(build, tmp_path):
+    """By version order, not by name, and only `vX.Y.Z`: this repository also
+    carries tags like `guillemot-study`.  With none the build refuses, since a
+    fallback to `main` would link notebooks PyPI cannot run."""
+    def git(*args):
+        subprocess.run(["git", "-C", str(tmp_path), "-c", "commit.gpgsign=false",
+                        "-c", "tag.gpgSign=false", "-c", "user.name=t", "-c", "user.email=t@example.com",
+                        *args], check=True, capture_output=True)
+    git("init", "-q")
+    git("commit", "-q", "--allow-empty", "-m", "start")
+    with pytest.raises(SystemExit, match="no vX.Y.Z tag"):
+        build.release_tag(tmp_path)
+    for tag in ("v1.9.0", "v1.10.0", "v1.11.0rc1", "guillemot-study", "v2"):
+        git("tag", tag)
+    assert build.release_tag(tmp_path) == "v1.10.0"
