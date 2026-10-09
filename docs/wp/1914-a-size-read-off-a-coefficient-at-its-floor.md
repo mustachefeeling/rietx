@@ -40,6 +40,17 @@ ratios (`_agreement`) then compare a real reading against this one.
 (WP-1545) prints the table above in its "Measure the sample" cell. The
 notebook reads the rows with their esds and does not print the ratios.
 
+### Inherited
+
+- **2026-10-09, from WP-1929: what "at its floor" means is being settled
+  there.** The test is `staged.bound_untested`, and the reporting rule the
+  literature supports is that a row on its floor keeps its value, has no
+  symmetric esd, and offers a one-sided interval (Self & Liang 1987;
+  Currie 1995 § 3.7.3.1 Note 2). WP-1929 may also give softplus a finite
+  floor, which would turn "a tiny positive number" into an active bound
+  that this reader can test directly. Quote 1929's rule here; do not
+  settle it twice.
+
 ## Tasks
 
 - [ ] Decide what "at its floor" means for a softplus coefficient: an internal

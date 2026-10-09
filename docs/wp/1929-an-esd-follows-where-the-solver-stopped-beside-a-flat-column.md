@@ -1,6 +1,6 @@
 # WP-1929 — an esd follows where the solver stopped beside a flat column
 
-Milestone: unscheduled · Status: 🔄 2026-10-09 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-09 — decision re-opened by measurement; next session probes a finite softplus floor
 Track: What fires, and what stays silent
 Depends on: — (1930 soft: the floor-seeded row, which moves the minimum rather than the esds)
 Priority: P1 2026-10-08 — was P2: the maintainer decided (condition on a floor row), so nothing waits; a reported esd 2-10× apart on two machines at one χ², nothing flagged
@@ -144,6 +144,23 @@ conditional on it. WP-1463's stated goal (one answer whether the scale ended
 at 1e-135 or at 1e-179) still holds. `MOMENT_DIRECTION_SUPPORT`'s comment is
 rewritten in the same change.
 
+**Superseded in part, 2026-10-09: the premise, and the decision is open
+again.** The 10-08 choice rested on "conditioning makes every esd
+point-independent; marginalising is what 1463 shipped", which read as if
+only conditioning could be. Measured, both can. The BT-1 split is a Jacobian
+column made of rounding noise: `optimize/least_squares.py:592` differences
+with h = 1e-6·max(1, |u|) in internal coordinates, which at u = −25.5 moves
+`profile.y` by about 2e-16 and the widths by less than an ulp. Taken on the
+width and chained by dp/du, the column gives `profile.x` 0.0098437 at
+u = −25.54, −25.5 and −514. Both platforms' figures (0.00664, 0.00322) were
+artefacts. The literature still favours conditioning for the other esds
+(Self & Liang 1987 eq. 2.2; SAS PROC NLIN; sIPOPT), and a one-sided interval
+with the value kept for the floor row (Currie 1995 § 3.7.3.1 Note 2). The
+root is shared with WP-1930: softplus has no finite floor. The four options
+and their sources are in the 2026-10-09 handover entry and at
+https://claude.ai/artifact/CYGoz3cF63QUJ345z4zKMY. The maintainer will
+choose after the next session probes them.
+
 ### Inherited
 
 (empty)
@@ -158,7 +175,7 @@ rewritten in the same change.
 
 ## Tasks
 
-- [ ] Measure WP-1463's absent-phase case both ways before changing it (the
+- [x] Measure WP-1463's absent-phase case both ways before changing it (the
       other phases' QPA esds conditioned on and marginalised over the floor
       scale), and record the before and after here.
 - [ ] A fixture that reproduces the platform split on one machine: the BT-1
@@ -213,6 +230,85 @@ its floor moves by more than 1 % without a line in the handover saying why.
   doi:10.2307/2347496 (profile-likelihood interval).
 
 ## Handover log
+
+- **2026-10-09** — The platform split in these esds is not a statistical
+  ambiguity. It is a derivative computed below rounding. A softplus row near
+  zero is differenced by a step that moves the width less than its last digit,
+  so the column is noise, and the noise sets its neighbours' esds. Computed
+  properly, the marginal esds agree at every stopping point. That removes the
+  premise the 10-08 decision stood on, so nothing was built past one helper.
+  The same root explains WP-1930's split minimum, which raises a fix higher
+  up the pipeline: give softplus a finite floor. A literature and code search
+  still backs conditioning for the other esds, a kept value and a one-sided
+  interval for the floor row, and an upper limit for an absent phase.
+  Explainer for the maintainer: https://claude.ai/artifact/CYGoz3cF63QUJ345z4zKMY.
+  - *Done.* `b48cafd1`: `statistics.normal_factors(condition=)` gives the
+    others the submatrix inverse and the held column a zero row of K,
+    so it propagates as a constant, never as unmeasured. The mask is threaded
+    through `covariance_estimates` and `_guarded_covariance`, and nothing
+    passes it yet. Two tests in `test_covariance_scaling.py` cover it, and
+    bit-identity holds when nothing is held. Forward references went to
+    1930's and 1914's `### Inherited`.
+  - *Measured (macOS arm64, `[dev]`).* Task 1, the absent-phase fixture
+    (`test_absent_phase._absent_phase_inputs`, scale moved to u after each
+    solve as `fit_absent_at` does), final stage:
+
+    | u (scale) | reading | W present | absent scale esd | `cell.a` esd |
+    |---|---|---|---|---|
+    | natural (4.2e-135), −380, −700 | marginalise | 1.0 ± 2.2145e-5 | 5.664e-9 | 4.30798e-6 |
+    | same three | condition | 1.0 ± 0.0 | 0.0 | 4.30798e-6 |
+    | −800 (0.0) | today | esd `None` | `None` | 4.30798e-6 |
+
+    The marginal esds agree to 1e-15 across the three u. Neighbours that
+    are uncorrelated with the scale move at 1e-7 (Andrews 1999: the choice
+    matters only when correlated). BT-1, `test_acceptance_wavelength._solo(1)`,
+    `profile.y`'s internal coordinate set after each solve: today's column
+    gives `profile.x` 0.006639 (u = −25.54, natural), 0.007920 (−25.5) and
+    0.003221 (−514). The physical-space column, (r(y=2e-7) − r(y=1e-7))/1e-7 ×
+    expit(u), gives 0.0098437 at all three, with `profile.y` 0.018101. Rwp is
+    0.05258840377637 at all three.
+  - *Literature* (✓ read in source). Self & Liang 1987 eq. 2.2 ✓: the others
+    are Gaussian conditional on the bound. Theory agrees: Geyer 1994 ✓
+    (abstract), Andrews 1999 (via a restatement). SAS PROC NLIN ✓ ("an active
+    inequality … is treated as an equality"), sIPOPT ✓ and Ceres ✓ condition.
+    The tools that ignore bounds marginalise: R `optim` ✓, scipy `curve_fit` ✓,
+    lmfit ✓, COPASI ✓ and MINUIT HESSE ✓. TOPAS ✓ marginalises with physical
+    derivatives and floors of 1e-11 (scale) and 1e-6 (widths). GSAS-II ✓
+    writes 0.0 and freezes the parameter; that is the pattern to avoid.
+    Currie 1995 § 3.7.3.1 Note 2 ✓ says to report the estimate and its
+    uncertainty, never "zero". León-Reina 2016 ✓ sets quantification at
+    3× the esd. No code differences in physical space and chains (Minuit2 ✓
+    sizes an internal step against function noise), but every one treats a
+    noise column as a defect. `strategy/fraction_profile.py` already has
+    the pinned-refit and Δχ² machinery `profile_interval` needs, so nothing
+    needs porting. lmfit `conf_interval` and pyPESTO (BSD-3) are the reference
+    algorithms.
+  - *Options*, highest in the pipeline first.
+    1. A finite internal floor for softplus at TOPAS's defaults.
+    2. The physical value with a box bound, against DESIGN.md:268's
+       unmeasured "hard lower bounds stall TRF".
+    3. Hold a row once it reaches its floor (GSAS-II, NONMEM, WP-1301's
+       pattern).
+    4. Physical-space differencing at `:592` and `:1061`, then condition in
+       the statistics.
+
+    The reporting rule is the same in all four.
+  - *Gotchas.* The scratch probes monkeypatched
+    `rietx.optimize.least_squares.least_squares` to move one coordinate after
+    each solve and re-evaluate `fun`/`jac` (the `fit_absent_at` pattern), and
+    `rietx.refine.run_least_squares` to learn the column index. Run them with
+    `RIETX_TELEMETRY=0 PYTHONPATH=.`. `scipy.special.expit` is needed for
+    dp/du at u = −514, because the tanh form rounds to 0. A research agent
+    pointed at `~/Zotero` alone missed Schwarzenbach 1989, Madsen 2001 and
+    Scarlett 2002, which are in `~/Zotero yue-here/storage`.
+  - *Next.* (1) Probe option 1 on BT-1 at both stopping points and on
+    LaB₆ + cBN along both platforms' paths. The memory note on reproducing a
+    platform split locally gives the 1e-14 nudge. (2) If it closes both
+    splits, tell the WP-1930 session before its seed lands. (3) Bring the
+    numbers to the maintainer for the choice, then build that option with
+    the reporting rule: condition, value kept, `profile_interval`, a
+    diagnostic, and an upper limit for an absent phase. Task 2's fixture and
+    tasks 3-10 wait on that choice.
 
 - **2026-10-08** — created, from the 2026-10-08 issue triage (issues #831,
   #836). Checked against the tree at `a3f9140a`: the BT-1 macOS half
