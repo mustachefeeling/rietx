@@ -1102,11 +1102,14 @@ CLAIMS: tuple[Claim, ...] = (
         "qarr", ("characterisation", "ceiling"),
         "the control: an isotropic specimen must be reported isotropic, and "
         "must never leave the cone",
-        reference="the Layer-1 strain diagnostic's own thresholds "
-                  "(not detected, R^2 < 0.5, anisotropy < 2.0) plus the "
-                  "derived pattern count for R-3c",
-        measured="anisotropy 2.02x, 4 patterns, 64 reflections; never "
-                 "leaves the cone at any seed",
+        reference="the Layer-1 strain diagnostic's own verdict (not "
+                  "detected, R^2 < 0.5) plus the derived pattern count for "
+                  "R-3c; the anisotropy ratio of an insignificant fit is a "
+                  "runaway guard at 6, not a threshold",
+        measured="R^2 = 0, anisotropy 4.51x, 4 patterns, 64 reflections; "
+                 "2.02x with WP-1930's floor seed off, at the same chi2_red "
+                 "2.65601, so the ratio rides the Lorentzian split's flat "
+                 "direction; never leaves the cone at any seed",
     ),
     Claim(
         "test_acceptance_stephens",
