@@ -874,12 +874,22 @@ def test_the_two_hb2a_files_cross_on_one_diffractometer():
     ratios = [fwhm(prm.profile, tt) / fwhm(instprm.profile, tt)
               for tt in (10, 30, 60, 90, 120, 150)]
     # They are two calibrations (a different monochromator setting and
-    # resolution fit), so their widths differ with angle.  The spread of the
-    # ratio, 3.5 from its smallest to its largest, does not depend on whether
-    # the .instprm reader (#705) or the .prm reader (#735) carries the 8 ln 2:
-    # the level of the ratio does (0.42-1.49 with both, 0.98-3.5 with only
-    # this one), so the level is not asserted.
+    # resolution fit), so their widths differ with angle, 3.5 from the
+    # ratio's smallest to its largest.  Both files state a variance in
+    # centideg² and both readers convert it by one constant, so the ratio is
+    # the two files' own σ ratio exactly (0.42-1.49).  One reader with the
+    # 8 ln 2 and one without, the state between #705 and #735, moved it to
+    # 0.98-3.5 while the spread held.
     assert max(ratios) / min(ratios) > 3.0, ratios
+
+    def sigma(u, v, w, two_theta):
+        t = np.tan(np.radians(two_theta / 2))
+        return np.sqrt(u * t * t + v * t + w)
+
+    for tt, ratio in zip((10, 30, 60, 90, 120, 150), ratios, strict=True):
+        stated = (sigma(7.013626e+02, -1.157202e+03, 5.587603e+02, tt)
+                  / sigma(798.889, -444.367, 242.406, tt))
+        assert ratio == pytest.approx(stated, rel=1e-12), tt
     assert prm.zero_shift.value == 0.0
     assert instprm.zero_shift.value == pytest.approx(-0.009602591470493875)
     axial_prm = prm.geometry.axial_sl.value + prm.geometry.axial_hl.value

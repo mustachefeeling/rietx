@@ -75,7 +75,9 @@ fit can still converge well, and the microstructure it reports is wrong.
       (`caglioti.GAUSSIAN_VARIANCE_TO_FWHM_SQUARED`; `gsas.py`, `gsas2.py`,
       `instrument_profile.py` import it and `recipe.GAUSS_CENTIDEG2_TO_DEG2`
       derives from it, bit-identical. #739 rewrote the docstring.)
-- [ ] Tests pinned to GSAS-II's own numbers, not to a round trip.
+- [x] Tests pinned to GSAS-II's own numbers, not to a round trip. (GSAS-II's
+      drawn LaB6 peaks, task 1's test; its peak list's `sigma_squared`,
+      `test_recipe.py`; GSAS's own `LX`, `test_acceptance_fap.py`, #739.)
 - [x] The 1.7.0 notes: a frozen GSAS instrument's widths move, and so does
       every sample-broadening number fitted on one. (Shipped in
       `docs/releases/1.7.0.md`, l. 14.)
@@ -89,9 +91,11 @@ fit can still converge well, and the microstructure it reports is wrong.
       `GSAS_PRM_PROFILE_SET_DEFAULTED`; a refused set 1 names a type-3 set.
       `BT1_Cu311.inst` set 3 then meets the `ICONS ZERO = 0.04` refusal,
       whose unit WP-1911 owns.)
-- [ ] Re-check `tests/test_gsas_prm.py`'s cross of `gsas2_hb2a.instprm`
+- [x] Re-check `tests/test_gsas_prm.py`'s cross of `gsas2_hb2a.instprm`
       against `gsas2_hb2a_cr2wo6.prm`, which says U V W "differ, the two
-      being different calibrations".
+      being different calibrations". (It holds: the raw variances differ, and
+      the FWHM ratio is now asserted equal to their σ ratio, which pins both
+      readers to one conversion.)
 
 ## Acceptance
 
