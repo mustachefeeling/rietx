@@ -41,6 +41,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      # The release tags, each at depth 1: the landing page's Jupyter quickstart links the
+      # notebooks at the newest one, and build.py refuses without one (WP-1917).  The
+      # default depth-1 checkout has no tags.  This fetch added 23 MB, measured 2026-10-09.
+      - run: git fetch --depth=1 origin '+refs/tags/v*:refs/tags/v*'
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
