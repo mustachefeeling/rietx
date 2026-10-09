@@ -1,4 +1,4 @@
-# WP-1933 — a forward-difference step sized by its parameter
+# WP-1936 — a forward-difference step sized by its parameter
 
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
@@ -32,7 +32,7 @@ macOS arm64, `[dev]`, tree `35f4ac14`, softplus entries made identity with
   softplus step gave 1.7e-5.
 - The step chooses the basin. Physical coordinates under TRF reach χ²_red
   9.661408 at h = 1e-6, 9.689010 at 1e-7 and 9.686655 at 1e-8. Under the LM
-  driver with a BVLS step (WP-1934): 9.687–9.688, then 9.840220 at both
+  driver with a BVLS step (WP-1937): 9.687–9.688, then 9.840220 at both
   smaller steps. Each point is a genuine minimum: each driver polishes the
   other's endpoint and stays there. The valley is `RESOLUTION_UNCONSTRAINED`
   (the Gaussian triple clamped), which WP-1930's protocol now holds.
@@ -63,7 +63,7 @@ rather than looking for them.
 
 ## Non-goals
 
-- The coordinates themselves: WP-1935. This WP lands first and is correct in
+- The coordinates themselves: WP-1938. This WP lands first and is correct in
   either coordinate system.
 - Which minimum LaB₆ + cBN *should* reach: WP-1930's held protocol decides
   that.

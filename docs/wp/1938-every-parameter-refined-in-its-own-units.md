@@ -1,9 +1,9 @@
-# WP-1935 — every parameter refined in its own units
+# WP-1938 — every parameter refined in its own units
 
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
-Depends on: 1933 (the FD step), 1934 (a driver that handles widths on zero)
-Priority: P2 2026-10-09 — the base WP-1929's P1 rests on, but nothing in it can start until 1933 and 1934 land
+Depends on: 1936 (the FD step), 1937 (a driver that handles widths on zero)
+Priority: P2 2026-10-09 — the base WP-1929's P1 rests on, but nothing in it can start until 1936 and 1937 land
 
 ## Goal
 
@@ -26,13 +26,13 @@ gradient vanishes, so rounding chooses whether a floored width ever leaves
 starts nudged by 1e-14. With softplus entries made identity and
 `lo = max(lo, 0)` (a monkeypatch of `ParameterTable.__init__`), TRF reached
 one minimum on every fit except where TRF's own bound handling crawls
-(WP-1934), and BT-1's `profile.x` esd was 0.0098437 at every stopping point,
+(WP-1937), and BT-1's `profile.x` esd was 0.0098437 at every stopping point,
 the value a hand-computed physical column gives.
 
 **What a softplus coordinate was buying.** Log-like steps for a value near
 zero, so a floored width stops moving and redundant widths settle (why
 brucite and corundum converge under softplus + TRF). An active-set driver
-(WP-1934) does that explicitly. A per-parameter FD scale (WP-1933) replaces
+(WP-1937) does that explicitly. A per-parameter FD scale (WP-1936) replaces
 the relative step softplus gave by accident.
 
 **Readers that branch on the word** (the adversarial review's list, and a grep
@@ -80,7 +80,7 @@ a poor basin). VALIDATION.md's rows and the landing page are re-measured.
 ## Non-goals
 
 - The esd rule for a row on its bound, and the floor diagnostic: WP-1929.
-- The driver (WP-1934) and the FD step (WP-1933).
+- The driver (WP-1937) and the FD step (WP-1936).
 - Moment angles at a stationary direction: already identity, so untouched
   here (WP-1929 task 4).
 

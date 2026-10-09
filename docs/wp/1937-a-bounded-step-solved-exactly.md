@@ -1,9 +1,9 @@
-# WP-1934 — a bounded step solved exactly
+# WP-1937 — a bounded step solved exactly
 
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
-Depends on: 1933 soft (a step constant moves the LaB₆ basin under either driver, so compare drivers after it)
-Priority: P1 2026-10-09 — the second rung under WP-1929's P1; physical coordinates (WP-1935) cannot become the default until a driver handles widths pressed on zero, and TRF does not
+Depends on: 1936 soft (a step constant moves the LaB₆ basin under either driver, so compare drivers after it)
+Priority: P1 2026-10-09 — the second rung under WP-1929's P1; physical coordinates (WP-1938) cannot become the default until a driver handles widths pressed on zero, and TRF does not
 
 ## Goal
 
@@ -42,7 +42,7 @@ Twelve fits × five starts nudged by (1 + k·1e-14):
 | brucite | 8.3474, max_iter | 8.3131166, spread 1.5e-11 |
 | corundum | 2.659–2.665, max_iter | 2.6560076, spread 1.0e-11 |
 | NAC, FAP, Si 640c, BT-1 ×2, capillary, absent phase | one minimum | the same minimum, 37–135 iterations against 32–156 |
-| LaB₆ + cBN | 9.661408 | 9.687–9.688 (both genuine minima; WP-1933) |
+| LaB₆ + cBN | 9.661408 | 9.687–9.688 (both genuine minima; WP-1936) |
 
 The adversarial review counted 97 BVLS solves on LaB₆ and 242 on brucite:
 96 of 195 returned status 3 (unconstrained solution feasible), the rest status
@@ -88,8 +88,8 @@ task changes shape.
 
 ## Non-goals
 
-- The coordinates (WP-1935) and the esd rule (WP-1929).
-- The FD step (WP-1933).
+- The coordinates (WP-1938) and the esd rule (WP-1929).
+- The FD step (WP-1936).
 
 ## Tasks
 

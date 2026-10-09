@@ -1,9 +1,9 @@
 # WP-1929 — an esd follows where the solver stopped beside a flat column
 
-Milestone: unscheduled · Status: 🔄 2026-10-09 — decided: physical coordinates (1933-1935), then marginal esds with a bound flag here
+Milestone: unscheduled · Status: 🔄 2026-10-09 — decided: physical coordinates (1936-1938), then marginal esds with a bound flag here
 Track: What fires, and what stays silent
-Depends on: 1935 (physical coordinates, which remove the point-dependence this WP reports on)
-Priority: P2 2026-10-09 — was P1: the cause moved into 1933-1935, which carry the P1; what remains here (the reporting rule and the floor diagnostic) waits on 1935
+Depends on: 1938 (physical coordinates, which remove the point-dependence this WP reports on)
+Priority: P2 2026-10-09 — was P1: the cause moved into 1936-1938, which carry the P1; what remains here (the reporting rule and the floor diagnostic) waits on 1938
 
 ## Goal
 
@@ -191,18 +191,18 @@ are described in the 2026-10-09 handover entry.
 
 An adversarial review of that proposal (same day) found four things, each
 checked here. The FD step chooses LaB₆'s basin in physical coordinates
-(WP-1933). `bound_findings`' esd window flags `profile.u = −0.0016 ± 2359`
+(WP-1936). `bound_findings`' esd window flags `profile.u = −0.0016 ± 2359`
 on brucite as at its bound of −0.05, so a rule keyed on it would act on rows
 nowhere near a bound. The LM driver reports a stage already at its minimum as
 `"diverged"` (`lm.py:373`) and caps outer iterations where TRF caps
-evaluations (WP-1934). Readers branching on the word `"softplus"` would
-silently stop acting (WP-1935).
+evaluations (WP-1937). Readers branching on the word `"softplus"` would
+silently stop acting (WP-1938).
 
 **Decided 2026-10-09 (maintainer), replacing the 10-08 decision.**
 
-- **Base:** physical coordinates with native bounds (WP-1935), an FD step
-  sized per parameter (WP-1933), and a driver whose bounded step is exact
-  (WP-1934).
+- **Base:** physical coordinates with native bounds (WP-1938), an FD step
+  sized per parameter (WP-1936), and a driver whose bounded step is exact
+  (WP-1937).
 - **Reporting:** marginal esds with a flag, TOPAS's behaviour. A row on its
   bound keeps its value and its marginal esd and is flagged. Its neighbours'
   esds are marginalised over it. In physical coordinates both readings are
@@ -212,7 +212,7 @@ silently stop acting (WP-1935).
   Self & Liang's sampling distribution lies between the two. The held-fixed
   esd (`normal_factors(condition=)`, `b48cafd1`) and a profile interval stay
   available as tools.
-- **The flag** keys on the driver's exact active set (WP-1934 exposes it),
+- **The flag** keys on the driver's exact active set (WP-1937 exposes it),
   never on the esd window. A physical floor gets its own diagnostic, because
   `BOUND_HIT`'s "widen the bound or fix the parameter" would fire on every
   width that refines to zero.
@@ -235,12 +235,12 @@ silently stop acting (WP-1935).
       other phases' QPA esds conditioned on and marginalised over the floor
       scale), and record the before and after here.
 - [x] Probe the options and take the decision (2026-10-09: physical
-      coordinates in WP-1933-1935; marginal esds with a flag here).
+      coordinates in WP-1936-1938; marginal esds with a flag here).
 - [ ] A fixture that reproduces the platform split on one machine, nudging
       BT-1's start by 1e-14 as the grid did. It fails on today's softplus and
-      passes after WP-1935, with one `profile.x` esd.
+      passes after WP-1938, with one `profile.x` esd.
 - [ ] The flag: `RefinedParameter.at_bound` and `BOUND_HIT` read the driver's
-      active set (WP-1934), with `bound_findings`' esd window kept only where
+      active set (WP-1937), with `bound_findings`' esd window kept only where
       a driver gives none. A physical floor gets its own code and
       `Diagnostic.suggestion`, so a width refined to zero is not told to
       widen its bound.
