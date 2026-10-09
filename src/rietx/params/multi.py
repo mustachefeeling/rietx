@@ -394,6 +394,25 @@ class MultiParameterTable:
             self._rebuild_columns()
         return seeded
 
+    def seed_floor(self, scoped_paths: list[str]) -> tuple[dict[str, float], list[str]]:
+        """Lift freed softplus rows off their floor (per histogram); see the
+        single-histogram :meth:`ParameterTable.seed_floor`."""
+        seeded: dict[str, float] = {}
+        unseeded: list[str] = []
+        for h, table in enumerate(self.tables):
+            want = [self._unscope(h, p) for p in scoped_paths
+                    if self._owner(p) in (None, h)]
+            lifted, left = table.seed_floor([w for w in want if w is not None])
+            # once per shared column, as :meth:`set_vary` returns it
+            for p, value in lifted.items():
+                seeded.setdefault(self._canonical(h, p), value)
+            for p in left:
+                if self._canonical(h, p) not in unseeded:
+                    unseeded.append(self._canonical(h, p))
+        if seeded:
+            self._rebuild_columns()
+        return seeded, unseeded
+
     # -- combined column layout ----------------------------------------
     def _rebuild_columns(self) -> None:
         """Recompute the shared/per-histogram combined column layout.

@@ -97,6 +97,30 @@ bounds, but rietx's floor is the softplus transform and not a scipy bound
 (`internal_bounds` maps a lower bound ≤ 1e-12 to −∞), so that protection
 does not apply.
 
+**Measured 2026-10-09** (this worktree's `[dev]` venv, macOS arm64; the
+handover log has the tables).
+
+- **Rounding picks the minimum on one machine.** On the shipped plan,
+  multiplying `w`'s start by (1 + k·1e-14) for k = ±1, ±3, ±7, 20 put five
+  of seven starts at χ²_red 12.4753, `y` on its floor: Linux's number to
+  every digit. The unperturbed macOS start is the minority outcome.
+- **#700 is the trigger, not the cause.** With `biso` bounded (0, 25) again,
+  k = 0 gives the published 9.661528, and k = −1 still lands on the floor
+  (12.95). The floor trap predates #700, which moved where the coin lands.
+- **Exposure.** Six presets free `instrument.profile.y` on its floor in
+  their `profile` stage, on all three instrument presets, and
+  `lab_sample_refine` frees the four phase widths on theirs. Extinction,
+  roughness and the magnetic widths were already seeded. A hump's height
+  (counts) and an extra peak's area are the floor rows left with no size.
+- **The held protocol** reaches χ²_red 10.1518150 at every seed from 0 to
+  0.05° and every perturbation, the reporter's two-platform 10.15182. BT-1's
+  `y` goes back to its floor from every seed (χ²_red 1.9279825 throughout).
+- **The seed is 1e-3°, not 0.05°.** At 0.05° nine synthetic suites whose
+  true width is zero ran out of iterations or moved, and the free-Gaussian
+  plan stopped at 9.84. At 1e-3° all nine pass unchanged and the free plan
+  reaches 9.661408 at every perturbation, with `w` on its floor and the
+  resolution diagnostics firing, so holding the Gaussian still stands.
+
 ### Inherited
 
 (empty)
@@ -110,26 +134,29 @@ does not apply.
 
 ## Tasks
 
-- [ ] Reproduce the Linux minimum on one machine: the `biso` stage started
+- [x] Reproduce the Linux minimum on one machine: the `biso` stage started
       from each platform's `profile`-stage end state, or the probe the
       reporter offers. Confirm or refute the bound-scaling reading of #700.
-- [ ] Count the exposure: of the acceptance suites and the six presets, which
+- [x] Count the exposure: of the acceptance suites and the six presets, which
       free a softplus row at its floor, and which of those end on it.
-- [ ] The decided protocol on LaB₆ + cBN, option (a) with u, v and w held,
+- [x] The decided protocol on LaB₆ + cBN, option (a) with u, v and w held,
       measured on both platforms (the reporter's run, or this WP's on Linux
       CI), and on BT-1 to see whether it moves.
-- [ ] The package side: `Stage` seeds a floor row it frees (#836 item 3),
+- [x] The package side: `Stage` seeds a floor row it frees (#836 item 3),
       through `Stage.seed`'s existing path, with the seed's size and source in
       the docstring. A diagnostic only if a caller can still free one unseeded.
 - [ ] A χ² or Rwp band on `test_acceptance_lab6_cbn.py` tight enough to see
       12.5 against 9.7 (the reporter suggests Rwp within 2 % of the
-      re-measured value), run on both nightly platforms.
-- [ ] Re-measure VALIDATION.md's row and the landing page's copy on the
+      re-measured value), run on both nightly platforms. *Landed and green
+      on macOS 2026-10-09; the Linux nightly after merge is the second run.*
+- [x] Re-measure VALIDATION.md's row and the landing page's copy on the
       chosen protocol (`docs/landing/README.md` says how the page's numbers
       are rebuilt).
-- [ ] Tests, with obs/calc/diff PNGs to `tests/output/`.
-- [ ] Skill: if a diagnostic lands, its `references/judging.md` row; if the
+- [x] Tests, with obs/calc/diff PNGs to `tests/output/`.
+- [x] Skill: if a diagnostic lands, its `references/judging.md` row; if the
       protocol is a rule an agent applies by hand, SKILL.md §2's seed rule.
+      *The row went to `diagnostics.md`, beside the stage codes, paid for by
+      two cuts; no hand rule, since the package now seeds.*
 
 ## Acceptance
 

@@ -172,7 +172,7 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 **Referenced to:** Rexp depends only on the data, its esds and the free parameter count, so agreement is a protocol check and not a model one; TOPAS records 0.0529264 over start_X 5.1
 
-**Measured:** Rexp 0.0529317 against TOPAS's 0.0529264, 1.0e-4 relative (P = 29 free here; the fit answers are bit-stable, only Rexp moved with main's parameter count); 44895 of the file's 49496 channels fitted
+**Measured:** Rexp 0.0529335 against TOPAS's 0.0529264, 1.3e-4 relative (P = 26 free here, the Gaussian triple held since WP-1930; Rexp moves with the parameter count and nothing else); 44895 of the file's 49496 channels fitted
 
 #### `test_the_file_esds_are_used_rather_than_poisson`
 
@@ -192,7 +192,7 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 **Referenced to:** TOPAS's two models give 3.616463 and 3.616466 A, 0.8 ppm apart; the 50 ppm band is cross-code consistency with headroom, the same status as the FAP suite's 300 ppm, and is NOT a truth claim about cBN's lattice parameter
 
-**Measured:** a = 3.616514 A, +14 ppm from TOPAS
+**Measured:** a = 3.616521(17) A, +16 ppm from TOPAS
 
 #### `test_the_one_free_coordinate_agrees`
 
@@ -212,7 +212,7 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 **Referenced to:** TOPAS fits PVII_Peak_Type with six free shape parameters; rietx offers TCHZ and a true Voigt. The band is one-sided and loose on purpose: it catches a regression, it does not certify the profile
 
-**Measured:** Rwp 0.1648 against TOPAS's 0.0810; 84.5 % of chi2 sits in the 9 % of channels that are more than half Bragg, mean delta/sigma +0.49 -- a shape deficit at the peak tops, not a background or scale one
+**Measured:** Rwp 0.1687 against TOPAS's 0.0810; 88 % of chi2 sits in the 11 % of channels where the calculated Bragg part is more than half the total, mean delta/sigma +1.10 -- a shape deficit at the peak tops, not a background or scale one
 
 #### `test_the_qpa_agrees_with_topas_within_its_own_esd`
 
@@ -222,7 +222,7 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 **Referenced to:** TOPAS's two shipped models of this histogram give LaB6 17.907 and 17.950 wt %, so the reference is an interval 0.043 wt % wide, not a number; no weighed composition exists and none is claimed
 
-**Measured:** LaB6 17.841 +- 0.314 wt %, 0.066 outside the interval, i.e. 0.21 of its own esd
+**Measured:** LaB6 17.791 +- 0.319 wt %, 0.116 outside the interval, i.e. 0.36 of its own esd
 
 #### `test_the_lowest_rwp_is_the_worst_answer`
 
@@ -232,7 +232,7 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 **Referenced to:** Lorentzian FWHMs add, so instrument X,Y and per-phase lor_size/lor_strain are one quantity split three ways; the expected signature is |rho| -> 1 and an Rwp that improves while the partition degrades
 
-**Measured:** rho = -1.000 (phases.0.lor_strain ~ instrument.profile.y) and +1.000 between the two phases' strains; Rwp 0.1297 degenerate vs 0.1648 identifiable, QPA 16.574 vs 17.841 wt % -- the better Rwp is 6.7 sigma outside TOPAS's interval
+**Measured:** rho = -1.000 (phases.0.lor_strain ~ instrument.profile.y) and +1.000 between the two phases' strains; Rwp 0.1289 degenerate vs 0.1687 identifiable, QPA 16.850 vs 17.791 wt % -- the better Rwp is 5.5 sigma outside TOPAS's interval
 
 #### `test_the_correlation_diagnostic_separates_the_two`
 
@@ -242,7 +242,27 @@ Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic B
 
 **Referenced to:** the diagnostic channel must separate an identifiable parameterisation from a flat one on its own evidence
 
-**Measured:** 0 findings on the shared-broadening plan, 6 on the degenerate plan
+**Measured:** 0 findings on the shared-broadening plan, 15 on the degenerate plan
+
+#### `test_the_shared_fit_reaches_one_minimum_on_every_platform`
+
+`characterisation` `ceiling` · dataset `lab6_cbn`
+
+**Claims:** the shared-broadening fit reaches one minimum whatever the platform's rounding, and its profile stage records the floor seed that made it single
+
+**Referenced to:** issue #832: the same tree reached Rwp 0.18696 on Linux and 0.16478 on macOS. The 2 % band about the two-platform measurement is the reporter's, and it fails at either old minimum
+
+**Measured:** Rwp 0.168656, chi2_red 10.15182 on macOS arm64 and Linux x86-64, agreeing to 1e-12 relative; eight rounding-level changes to w's start on one machine give the same digits
+
+#### `test_the_fits_render`
+
+`ceiling` · dataset `lab6_cbn`
+
+**Claims:** both fits draw obs/calc/diff panels for looking at
+
+**Referenced to:** existence, not a number -- a ceiling row
+
+**Measured:** four PNGs written to tests/output/, lab6_cbn_shared.png, lab6_cbn_degenerate.png and a 5.1-12 deg zoom of each
 
 ### `tests/test_acceptance_srm660c.py`
 
