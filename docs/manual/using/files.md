@@ -543,7 +543,12 @@ refusal says which reason applies to which. A time-of-flight file puts something
 onto the axis that `ProfileTCHZ`'s constant-wavelength Caglioti/TCH law cannot
 express. A profile function other than 3 is refused under `PXCR` and `PNCR`
 alike, naming the type the file carries, because each function has its own
-coefficient layout and no verified one exists here for the others. A GSAS `.LST` refinement output has no reader and is transcribed
+coefficient layout and no verified one exists here for the others. A bank may
+offer several profile functions side by side as profile sets `PRCF1`,
+`PRCF2`…, and `profile_set=` names the one to read. Without it the reader reads
+set 1, as GSAS-II's importer does, and reports `GSAS_PRM_PROFILE_SET_DEFAULTED`
+when the file offers more than one. A refused set 1 names any type-3 set the
+file also states. A GSAS `.LST` refinement output has no reader and is transcribed
 by hand. A GSAS `.EXP`, a TOPAS `.inp` and a FullProf `.pcr` are whole
 refinements rather than instrument files, and have their own readers in the
 next section.

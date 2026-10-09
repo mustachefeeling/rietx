@@ -79,11 +79,16 @@ fit can still converge well, and the microstructure it reports is wrong.
 - [x] The 1.7.0 notes: a frozen GSAS instrument's widths move, and so does
       every sample-broadening number fitted on one. (Shipped in
       `docs/releases/1.7.0.md`, l. 14.)
-- [ ] `read_gsas_prm` refuses a bank whose first `PRCF` record is not type
+- [x] `read_gsas_prm` refuses a bank whose first `PRCF` record is not type
       3, even when the bank also states a type-3 record, as `BT1_Cu311.inst`
       does (functions 1, 2 and 3). Decide whether to read the type-3 one, or
       at least name it in the refusal, once the conversion is settled. From
-      WP-1327's review.
+      WP-1327's review. (Both: `profile_set=` selects a set, as `scan=` and
+      `dataset=` do; the default stays set 1, which is what GSAS-II's
+      `SetPowderInstParms` reads; a multi-set file says so with
+      `GSAS_PRM_PROFILE_SET_DEFAULTED`; a refused set 1 names a type-3 set.
+      `BT1_Cu311.inst` set 3 then meets the `ICONS ZERO = 0.04` refusal,
+      whose unit WP-1911 owns.)
 - [ ] Re-check `tests/test_gsas_prm.py`'s cross of `gsas2_hb2a.instprm`
       against `gsas2_hb2a_cr2wo6.prm`, which says U V W "differ, the two
       being different calibrations".

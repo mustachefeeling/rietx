@@ -276,10 +276,10 @@ def test_multi_bank_pxcr_is_refused(tmp_path):
 
 
 def test_duplicate_prcf1_header_for_one_bank_is_refused(tmp_path):
-    """The one real file that declares its profile function twice under one
-    bank (a stock GSAS example stacking types 2/3/4 with placeholder values)
-    is ambiguous about which applies — refused rather than picking the first
-    or the last silently."""
+    """One profile set declared twice under one bank is ambiguous about which
+    applies — refused rather than picking the first or the last silently.
+    Several *different* sets side by side are a choice the caller makes
+    (``profile_set``, below)."""
     p = tmp_path / "duplicate.prm"
     p.write_text(_prm(extra_headers=("INS  1PRCF1     3   19   0.00100",
                                      "INS  1PRCF11   0.0   0.0   0.0   0.0",
@@ -290,6 +290,68 @@ def test_duplicate_prcf1_header_for_one_bank_is_refused(tmp_path):
                  encoding="utf-8")
     with pytest.raises(ValueError, match="more than once"):
         read_gsas_prm(p)
+
+
+def _prcf_set(n: int, function: int, coeffs: tuple[float, ...]) -> str:
+    """One ``PRCFn`` block, four coefficients to a continuation record."""
+    lines = [f"INS  1PRCF{n}     {function}   {len(coeffs)}   0.00100"]
+    for k in range(0, len(coeffs), 4):
+        lines.append(f"INS  1PRCF{n}{k // 4 + 1}   "
+                     + "   ".join(f"{v:.6f}" for v in coeffs[k:k + 4]))
+    return "\n".join(lines) + "\n"
+
+
+#: Set 3 of the multi-set files below: GU GV GW, GP, LX LY, S/L H/L, then
+#: eleven zeros to type 3's nineteen.
+_SET3 = (2.0, -1.0, 0.5, 0.0, 0.3, 0.0, 0.004, 0.003) + (0.0,) * 11
+
+
+def test_a_type_1_set_beside_a_type_3_one_is_refused_naming_the_type_3_set(tmp_path):
+    """``BT1_Cu311.inst`` from GSAS-II's tutorials offers profile types 1, 2
+    and 3 as sets 1, 2 and 3.  Set 1 is the one read by default, as GSAS-II's
+    importer reads it, and type 1 is refused; the refusal names set 3."""
+    p = tmp_path / "sets.prm"
+    p.write_text(_prm(prcf_type=1, ncoef=6, coeffs=(2.0, -1.0, 0.5, 5.0, 0.0, 0.0))
+                 + _prcf_set(3, 3, _SET3), encoding="utf-8")
+    with pytest.raises(ValueError, match=r"type-3 profile as set 3; "
+                                         r"read_gsas_prm\(\.\.\., profile_set=3\)"):
+        read_gsas_prm(p)
+
+    notes: list = []
+    inst = read_gsas_prm(p, profile_set=3, diagnostics=notes)
+    assert inst.profile.u.value == pytest.approx(2.0e-4 * _G, rel=1e-12)
+    assert inst.profile.x.value == pytest.approx(0.3e-2, rel=1e-12)
+    assert inst.geometry.axial_sl.value == pytest.approx(0.004)
+    assert inst.geometry.axial_hl.value == pytest.approx(0.003)
+    # a set the caller named is not a default
+    assert "GSAS_PRM_PROFILE_SET_DEFAULTED" not in {d.code for d in notes}
+
+
+def test_several_type_3_sets_read_the_first_and_say_so(tmp_path):
+    p = tmp_path / "sets.prm"
+    p.write_text(_prm() + _prcf_set(2, 3, _SET3), encoding="utf-8")
+    notes: list = []
+    first = read_gsas_prm(p, diagnostics=notes)
+    assert first.profile.x.value == pytest.approx(0.15e-2, rel=1e-12)
+    defaulted = [d for d in notes if d.code == "GSAS_PRM_PROFILE_SET_DEFAULTED"]
+    assert len(defaulted) == 1
+    assert "set 1 (type 3), set 2 (type 3)" in defaulted[0].message
+    assert read_gsas_prm(p, profile_set=2).profile.x.value == pytest.approx(
+        0.3e-2, rel=1e-12)
+
+
+def test_a_profile_set_the_file_does_not_state_is_refused_naming_those_it_does(tmp_path):
+    p = tmp_path / "one.prm"
+    p.write_text(_prm(), encoding="utf-8")
+    with pytest.raises(ValueError, match=r"profile_set=2, and bank 1 states "
+                                         r"profile set\(s\) 1"):
+        read_gsas_prm(p, profile_set=2)
+
+
+def test_bt1_cu311_names_its_type_3_set():
+    """The real file: set 1 is type 1, and the refusal points at set 3."""
+    with pytest.raises(ValueError, match="profile_set=3"):
+        read_gsas_prm(DATA / "gsas2_bt1_cu311.inst")
 
 
 def test_a_written_idamp_does_not_move_the_fields_after_it(tmp_path):
