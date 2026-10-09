@@ -165,8 +165,13 @@ right, and why brucite with a Stephens block is chaotic under any step.
 - *Goldens moved.* `toy_rich` and `srm660c` (darwin/arm64), the `u` and `v`
   columns only, each closer to jax: `srm660c` `u` 8.8e-4 → 1.5e-7 and `v`
   2.1e-4 → 2.7e-7; `toy_rich` `u` 1.3e-5 → 4.7e-6 and `v` 1.8e-5 → 3.0e-6.
-  `test_lebail_alternation`'s +0.4 % run now stops at pass 6 on Rwp 13.773 %,
-  where it stopped at pass 5 on 14.031 %.
+  `test_lebail_alternation`'s +0.4 % run now splits by platform at pass 5.
+  It agrees to every printed digit for four passes (17.032, 14.118, 14.036,
+  14.032). Then macOS arm64 drops to 13.774 and stops at pass 6 on 13.773,
+  and Linux x86-64 stops at pass 5 on 14.031, the answer both reached
+  before. The PR's first CI run failed on all four Linux legs over this,
+  because the first re-pin froze the macOS side. The test now asserts the
+  stop rule and the four shared passes, and bounds the end by them.
 - *Not generalised, on purpose.* Seventeen test oracles copy the old
   `1e-6 · max(1, |θ|)` step (`test_restraints`, `test_voigt`, `test_pawley` and
   others). They are whole-model references on wide lab peaks and pass, so they

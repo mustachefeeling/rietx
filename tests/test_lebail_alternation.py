@@ -128,18 +128,28 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(patter
 
 
 def test_a_converging_run_is_not_cut_short_and_ends_at_a_fixed_point(pattern):
-    """+0.4 % cells: 17.032, 14.118, 14.036, 14.032, 13.774, 13.773, and stop.
+    """+0.4 % cells: 17.032, 14.118, 14.036, 14.032, then a fixed point.
 
-    WP-1936 re-measured it.  It sized the FD step of ``u`` and ``v`` by their
-    unit, their columns moved, and pass 5 then found a lower point.  Before,
-    the run stopped at pass 5 on 14.031.
+    The claim is the stop rule: the loop ends on a pass that no longer lowers
+    Rwp, inside the cap, and keeps the last pass.  Where it ends is rounding's
+    choice.  Under WP-1936's FD step the first four passes agree across
+    platforms to every printed digit, and pass 5 splits.  macOS arm64 drops to
+    13.774 and stops at pass 6 on 13.773.  Linux x86-64 stops at pass 5 on
+    14.031 (PR #855's CI, every leg), the answer both reached before WP-1936.
+    So the shared passes are pinned and the end is bounded by them.
     """
     result = _fit(_refinement(1.004), pattern, 8)
     stop = _stop(result)
     assert stop.level == "info"
     assert "fixed point" in stop.message
-    assert "pass 6 of 6 was kept" in stop.message
-    assert result.statistics.rwp == pytest.approx(0.137728, abs=RWP_PLATFORM_SPREAD)
+    table = [float(v) for v in re.search(
+        r"Rwp % per pass: ([\d., ]+)\)", stop.message).group(1).split(",")]
+    assert 5 <= len(table) < 8, table
+    assert f"pass {len(table)} of {len(table)} was kept" in stop.message
+    assert table[:4] == pytest.approx([17.032, 14.118, 14.036, 14.032],
+                                      abs=100 * RWP_PLATFORM_SPREAD)
+    assert result.statistics.rwp * 100 == pytest.approx(table[-1], abs=1e-3)
+    assert result.statistics.rwp * 100 <= table[3]
     _plot(result, "lebail_alternation_converged.png")
 
 
