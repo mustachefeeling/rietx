@@ -88,9 +88,9 @@ rather than looking for them.
       Holds for every fit whose endpoint is reproducible at one step (2026-10-09
       handover has the table). Brucite with the Stephens block is not: a 1e-12
       change to the step spans 3.3e-5 in χ² under either rule.
-- [ ] Tests, and every golden that moves listed in the handover with its
+- [x] Tests, and every golden that moves listed in the handover with its
       reason.
-- [ ] Skill: none expected (no new code or verb).
+- [x] Skill: none expected (no new code or verb). None needed.
 
 ## Acceptance
 
