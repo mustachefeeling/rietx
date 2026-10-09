@@ -146,7 +146,7 @@ only if the last task moves Python versions into the nightly.
 - [x] The sweeps: a trap-chosen sample in the fast tier, the whole sweep
       marked `slow`. The commit names the sample and the trap each member
       covers.
-- [ ] `test_tutorials.py`: run it on one Python leg, or nightly. The
+- [x] `test_tutorials.py`: run it on one Python leg, or nightly. The
       decision states what a notebook could break on one Python version and
       not another.
 - [ ] `tests/added_test_times.py`: add a per-file total for the added tests,
@@ -157,7 +157,7 @@ only if the last task moves Python versions into the nightly.
       still over about 20 min, shard by recorded junit time with groups kept
       whole, and trim the PR matrix to the oldest and newest Python, with
       the middle two in the nightly.
-- [ ] `ci.yml`'s header: one line saying `-n auto` is 2 workers on this
+- [x] `ci.yml`'s header: one line saying `-n auto` is 2 workers on this
       runner, and that `-n logical` was measured to buy nothing (this WP).
 - [ ] Skill: none. This changes how the repo is tested, not how rietx is
       driven.
