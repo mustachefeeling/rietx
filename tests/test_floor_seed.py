@@ -76,9 +76,9 @@ def test_only_a_row_on_its_floor_is_lifted(value, lifted):
 
 def test_a_box_narrower_than_the_seed_takes_half_its_width():
     structure, ins = perturbed_models()
-    ins.profile.y.max = 0.02
+    ins.profile.y.max = FLOOR_SEEDS["deg"]
     seeded, _ = ParameterTable(structure, ins).seed_floor(["instrument.profile.y"])
-    assert seeded == {"instrument.profile.y": 0.01}
+    assert seeded == {"instrument.profile.y": FLOOR_SEEDS["deg"] / 2}
 
 
 def test_a_unit_with_no_size_is_left_and_named():
