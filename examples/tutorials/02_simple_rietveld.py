@@ -15,8 +15,6 @@
 # Fluorapatite, Ca₅(PO₄)₃F, has seven atomic sites in space group P6₃/m.
 #
 # **Runtime** is under a minute on a laptop.
-#
-# Until rietx 1.7 is on PyPI, install it from GitHub instead: `%pip install git+https://github.com/yue-here/rietx`.
 
 # %%
 # %pip install rietx
