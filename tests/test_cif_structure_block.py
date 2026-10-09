@@ -345,6 +345,16 @@ def test_two_phase_names_one_block_name_get_two_blocks(tmp_path):
     assert [b.name for b in doc] == ["ph_1", "ph_1_1", "PH_1_2"]
 
 
+def test_a_non_ascii_phase_name_gives_an_ascii_block_the_reader_takes(tmp_path):
+    """A CIF 1.1 block name is ASCII, and ``data_α_Fe`` behind the magic line
+    was a file the package's own reader refused."""
+    structure = _caf2()
+    structure.phases[0].name = "α-CaF₂"
+    path, doc = _written(structure, tmp_path)
+    assert doc.sole_block().name == "_CaF_"
+    assert rx.Structure.from_cif(str(path)).phases[0].name == "_CaF_"
+
+
 def test_a_label_with_a_space_is_refused_by_name_and_nothing_is_written(tmp_path):
     structure = _caf2()
     structure.phases[0].atoms[0].label = "Ca 1"

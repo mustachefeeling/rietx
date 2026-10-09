@@ -39,8 +39,11 @@ the ``_audit_conform`` loop naming the dictionaries and versions the tags were
 checked against (``tests/test_cif_registry.py``), with no location item since
 a path is not portable (ITC Vol. G ch. 3.1).
 
-A refusal raises before anything is set on the block: every value is formatted
-first (:mod:`rietx.io.cif.numbers`).
+A refusal in the structure half raises before anything is set on the block:
+every value is formatted first (:mod:`rietx.io.cif.numbers`).  The magnetic
+half reads the cell back off the block, so it runs after that half is set and
+a refusal there leaves the structure items in place; every caller here then
+discards the document, so no file is written.
 
 References
 ----------
@@ -157,10 +160,12 @@ def block_name(name: str, index: int, taken: set[str]) -> str:
     answers a duplicate with a bare ``RuntimeError``, so neither reached a
     file.  The phase's index distinguishes them, being the one thing a phase
     carries that is unique by construction; the reader names a phase after its
-    block, so the respelled name is what comes back.  Hall, Allen & Brown
-    (1991) for the block-name rule.
+    block, so the respelled name is what comes back.  The class is ASCII: a
+    CIF 1.1 block name is ASCII only, and ``data_α_Fe`` behind the magic line
+    is a file :func:`~rietx.crystallography.cif.structure_from_cif` refuses.
+    Hall, Allen & Brown (1991) for the block-name rule.
     """
-    stem = re.sub(r"\W+", "_", name) or f"phase_{index}"
+    stem = re.sub(r"\W+", "_", name, flags=re.ASCII) or f"phase_{index}"
     chosen, suffix = stem, index
     # CIF block names are case-insensitive, and so is gemmi's duplicate check
     while chosen.lower() in taken:
@@ -288,7 +293,8 @@ def _hill(counts: dict[str, float], z: int, reduced: bool) -> str:
             k = int(round(n))
             parts.append(element if k == 1 else f"{element}{k}")
         elif n > 0.0:
-            parts.append(f"{element}{f'{n:.4f}'.rstrip('0').rstrip('.')}")
+            count = f"{n:.4f}".rstrip("0").rstrip(".")
+            parts.append(element if count == "1" else f"{element}{count}")
     return " ".join(parts)
 
 
@@ -321,8 +327,7 @@ def site_rows(phase, *, adp: str, types: list[str] | None = None
     for j, a in enumerate(phase.atoms):
         if a.aniso is not None:
             u_eq = u_equivalent(a.aniso.values(), cell6)
-            iso = number(iso_tag, u_eq if adp == "U" else 8.0 * math.pi ** 2 * u_eq,
-                         where=a.label)
+            iso = number(iso_tag, u_eq if adp == "U" else b_from_u(u_eq), where=a.label)
             kind = "Uani"
         elif adp == "U":
             su = None if a.biso.stderr is None else a.biso.stderr / (8.0 * math.pi ** 2)
@@ -365,13 +370,18 @@ def write_sites(block, columns: list[str], rows: list[list[str]],
 def write_structure_block(block, phase, *, kind: str = "structure",
                           probe: str | None = None,
                           moment_magnitude_esds: dict[str, float] | None = None,
-                          created: str | None = None) -> None:
+                          created: str | None = None,
+                          composition: bool = True) -> None:
     """Write one phase's structure block into a gemmi CIF ``block``.
 
     ``kind`` is ``"structure"`` or ``"refinement"``, which adds ``cif_pd.dic``
     to the ``_audit_conform`` loop; ``probe`` (``"xray"``, ``"neutron"`` or
     ``None`` for a file that names no experiment) chooses what
-    ``_atom_type_scat_source`` cites; ``created`` overrides today's date.  A
+    ``_atom_type_scat_source`` cites; ``created`` overrides today's date.
+    ``composition=False`` leaves out everything read off the sites as
+    chemistry (formula, Z, Mr, density, the ``_atom_type`` loop): a Le Bail or
+    Pawley phase's atoms are a scaffold, and ``C8`` from its dummy carbon is a
+    fiction (``refine._symmetry_silence_diagnostics``).  A
     magnetic phase adds the magCIF half (:mod:`rietx.crystallography.magcif`)
     and ``cif_mag.dic``.  The module docstring says what is written and why;
     the references are there.
@@ -414,14 +424,16 @@ def write_structure_block(block, phase, *, kind: str = "structure",
                     [(a.species, a.x.value, a.y.value, a.z.value, a.occ.value)
                      for a in phase.atoms], multiplicities=multiplicities)
     after_cell.append(("_cell_volume", number("_cell_volume", zmv.cell_volume)))
-    if phase.atoms:
-        reduced = _reduces(zmv.element_counts)
-        z = zmv.z if reduced else 1
+    if phase.atoms and composition:
+        # zmv.z is already 1 for a composition that does not reduce
+        # (qpa._formula_units), so its molar mass is the cell's
+        z = zmv.z
         chemistry = [
             ("_chemical_formula_sum",
-             text("_chemical_formula_sum", _hill(zmv.element_counts, z, reduced))),
+             text("_chemical_formula_sum",
+                  _hill(zmv.element_counts, z, _reduces(zmv.element_counts)))),
             ("_chemical_formula_weight",
-             number("_chemical_formula_weight", zmv.cell_mass / z)),
+             number("_chemical_formula_weight", zmv.molar_mass)),
         ]
         after_cell.append(("_cell_formula_units_Z", str(z)))
         symmetry = [*symmetry, ("_exptl_crystal_density_diffrn",

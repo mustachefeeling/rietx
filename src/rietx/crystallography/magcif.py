@@ -1592,23 +1592,19 @@ def write_magnetic_block(block, phase, *,
     if magnetic is None:
         return
     refuse_contradicting_numbers(magnetic, getattr(phase, "name", "?"))
-    loop = block.init_loop("_space_group_symop_magn_operation.", ["id", "xyz"])
-    for i, xyz in enumerate(magnetic.operations, start=1):
-        loop.add_row([str(i), text("_space_group_symop_magn_operation.xyz", xyz)])
-    loop = block.init_loop("_space_group_symop_magn_centering.", ["id", "xyz"])
-    for i, xyz in enumerate(magnetic.centerings, start=1):
-        loop.add_row([str(i), text("_space_group_symop_magn_centering.xyz", xyz)])
-    for tag, value in (
+    # every value of this half is formatted before its first is set, so a
+    # refused moment leaves no operator loop behind it
+    operations = [[str(i), text("_space_group_symop_magn_operation.xyz", xyz)]
+                  for i, xyz in enumerate(magnetic.operations, start=1)]
+    centerings = [[str(i), text("_space_group_symop_magn_centering.xyz", xyz)]
+                  for i, xyz in enumerate(magnetic.centerings, start=1)]
+    metadata = [(tag, text(tag, str(value))) for tag, value in (
             ("_space_group_magn.number_BNS", magnetic.bns_number),
             ("_space_group_magn.name_BNS", magnetic.symbol),
             ("_space_group_magn.number_OG", magnetic.og_number),
             ("_space_group_magn.transform_BNS_Pp_abc",
-             _transform_or_none(magnetic.setting))):
-        if value:
-            block.set_pair(tag, text(tag, str(value)))
+             _transform_or_none(magnetic.setting))) if value]
     sites = [a for a in phase.atoms if a.moment is not None]
-    if not sites:
-        return
     cell6 = _printed_cell(block, phase)
     esds = magnitude_esds or {}
     axes = ("crystalaxis_x", "crystalaxis_y", "crystalaxis_z")
@@ -1629,6 +1625,16 @@ def write_magnetic_block(block, phase, *,
             text("_rietx_atom_site_moment.ion", m.ion, where=where),
             "." if m.g is None
             else _moment_number("_rietx_atom_site_moment.g", m.g, where)])
+    loop = block.init_loop("_space_group_symop_magn_operation.", ["id", "xyz"])
+    for row in operations:
+        loop.add_row(row)
+    loop = block.init_loop("_space_group_symop_magn_centering.", ["id", "xyz"])
+    for row in centerings:
+        loop.add_row(row)
+    for tag, value in metadata:
+        block.set_pair(tag, value)
+    if not sites:
+        return
     loop = block.init_loop("_atom_site_moment.", [
         "label", *axes, *(f"{n}_su" for n in axes), "magnitude", "magnitude_su"])
     for row in rows:

@@ -524,8 +524,9 @@ def _write_pattern_loop(block, result: RefinementResult) -> None:
     # here grew a refinement CIF 1.5-1.7x with digits of float noise, and the
     # pattern block's own digits are WP-1933's C-d (su in parentheses)
     for tag, column in zip(tags, columns, strict=True):
-        for i in range(n):
-            number(tag, column[i], where=f"point {i}")   # refuses a non-finite
+        bad = np.flatnonzero(~np.isfinite(np.asarray(column, dtype=np.float64)))
+        if bad.size:   # the rule names the first non-finite point and refuses
+            number(tag, column[bad[0]], where=f"point {bad[0]}")
     rows = [[_g(column[i]) for column in columns] for i in range(n)]
     loop = block.init_loop("", list(tags))
     for row in rows:
@@ -573,8 +574,11 @@ def refinement_cif_doc(result: RefinementResult, structure: Structure,
         block = doc.add_new_block(block_name(phase.name, ip, taken))
         # the structure block, its operation loop included: the geometry
         # loops' symmetry codes below index it
+        # outside rietveld the atoms are a scaffold, so the block states no
+        # composition read off them
         write_structure_block(block, phase, kind="refinement", probe=probe,
-                              moment_magnitude_esds=_moment_esds(result, ip, phase))
+                              moment_magnitude_esds=_moment_esds(result, ip, phase),
+                              composition=result.mode == "rietveld")
         # Structure-sensitive R factors, on the phase's *own* block: both tags
         # are core-dictionary `_refine_ls` items, whose scope is the structure
         # in the block, not the pattern.  So a multi-phase export gives each
