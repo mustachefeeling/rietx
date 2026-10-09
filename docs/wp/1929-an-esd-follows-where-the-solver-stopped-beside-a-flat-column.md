@@ -1,16 +1,18 @@
 # WP-1929 — an esd follows where the solver stopped beside a flat column
 
-Milestone: unscheduled · Status: 🔄 2026-10-09 — decision re-opened by measurement; next session probes a finite softplus floor
+Milestone: unscheduled · Status: 🔄 2026-10-09 — decided: physical coordinates (1933-1935), then marginal esds with a bound flag here
 Track: What fires, and what stays silent
-Depends on: — (1930 soft: the floor-seeded row, which moves the minimum rather than the esds)
-Priority: P1 2026-10-08 — was P2: the maintainer decided (condition on a floor row), so nothing waits; a reported esd 2-10× apart on two machines at one χ², nothing flagged
+Depends on: 1935 (physical coordinates, which remove the point-dependence this WP reports on)
+Priority: P2 2026-10-09 — was P1: the cause moved into 1933-1935, which carry the P1; what remains here (the reporting rule and the floor diagnostic) waits on 1935
 
 ## Goal
 
 A fit reports the same esds on every platform when it reaches the same
-minimum. A column that vanishes analytically at the answer (a parameter on
-its softplus floor, a moment angle at a stationary direction) no longer
-decides its neighbours' esds by where rounding left the solver.
+minimum. A row on its bound keeps its value and its marginal esd, is flagged
+as on its bound by the driver's exact active set, and leaves its neighbours'
+esds marginalised over it. A held-fixed esd or a profile interval is
+available on request. A moment angle at a stationary direction no longer
+decides its neighbours' esds.
 
 ## Context
 
@@ -187,6 +189,34 @@ tolerance pin around TRF (never fired), and physical-step FD with softplus kept
 probe scripts and the uncommitted toggles (`RIETX_PHYS_FD`, `RIETX_LM_BVLS`)
 are described in the 2026-10-09 handover entry.
 
+An adversarial review of that proposal (same day) found four things, each
+checked here. The FD step chooses LaB₆'s basin in physical coordinates
+(WP-1933). `bound_findings`' esd window flags `profile.u = −0.0016 ± 2359`
+on brucite as at its bound of −0.05, so a rule keyed on it would act on rows
+nowhere near a bound. The LM driver reports a stage already at its minimum as
+`"diverged"` (`lm.py:373`) and caps outer iterations where TRF caps
+evaluations (WP-1934). Readers branching on the word `"softplus"` would
+silently stop acting (WP-1935).
+
+**Decided 2026-10-09 (maintainer), replacing the 10-08 decision.**
+
+- **Base:** physical coordinates with native bounds (WP-1935), an FD step
+  sized per parameter (WP-1933), and a driver whose bounded step is exact
+  (WP-1934).
+- **Reporting:** marginal esds with a flag, TOPAS's behaviour. A row on its
+  bound keeps its value and its marginal esd and is flagged. Its neighbours'
+  esds are marginalised over it. In physical coordinates both readings are
+  point-independent, so the 10-08 premise no longer separates them. The
+  marginal reading is the larger (σ_m ≥ σ_c) and continuous, while the
+  conditional one jumps by 1/(1 − ρ²) when a row crosses the at-bound test.
+  Self & Liang's sampling distribution lies between the two. The held-fixed
+  esd (`normal_factors(condition=)`, `b48cafd1`) and a profile interval stay
+  available as tools.
+- **The flag** keys on the driver's exact active set (WP-1934 exposes it),
+  never on the esd window. A physical floor gets its own diagnostic, because
+  `BOUND_HIT`'s "widen the bound or fix the parameter" would fire on every
+  width that refines to zero.
+
 ### Inherited
 
 (empty)
@@ -204,19 +234,31 @@ are described in the 2026-10-09 handover entry.
 - [x] Measure WP-1463's absent-phase case both ways before changing it (the
       other phases' QPA esds conditioned on and marginalised over the floor
       scale), and record the before and after here.
-- [ ] A fixture that reproduces the platform split on one machine: the BT-1
-      fit with `profile.y`'s final internal coordinate set to −514 and to
-      −25.5, `profile.x`'s esd compared.
-- [ ] The chosen rule in `optimize/statistics.py` (one place, `normal_factors`
-      and `normal_covariance` both), with its threshold's source in the
-      docstring. Find every consumer of `live` and `unmeasured_rows`.
+- [x] Probe the options and take the decision (2026-10-09: physical
+      coordinates in WP-1933-1935; marginal esds with a flag here).
+- [ ] A fixture that reproduces the platform split on one machine, nudging
+      BT-1's start by 1e-14 as the grid did. It fails on today's softplus and
+      passes after WP-1935, with one `profile.x` esd.
+- [ ] The flag: `RefinedParameter.at_bound` and `BOUND_HIT` read the driver's
+      active set (WP-1934), with `bound_findings`' esd window kept only where
+      a driver gives none. A physical floor gets its own code and
+      `Diagnostic.suggestion`, so a width refined to zero is not told to
+      widen its bound.
+- [ ] `statistics.normal_covariance`'s docstring and root CLAUDE.md's
+      equilibration clause state the marginal rule. Find every consumer of
+      `live` and `unmeasured_rows`, and say which still apply once no column
+      is a softplus floor.
+- [ ] The held-fixed esd as a tool: expose `normal_factors(condition=)`
+      through a public call, or remove it if `profile_interval` covers the
+      need. Settle χ²_red's degrees of freedom and `discarded_directions`
+      under it.
+- [ ] `profile_interval(path)`, the one-sided interval for a row on its
+      bound (Venzon & Moolgavkar 1988). `strategy/fraction_profile.py` has the
+      pinned-refit and Δχ² machinery.
 - [ ] Moment angles at a stationary direction: leave the normal matrix (or
       extend `MOMENT_DIRECTION_SUPPORT`'s hold to them, whichever keeps one
-      authority), and rewrite that constant's comment.
-- [ ] `profile_interval(path)`, the one-sided interval for a row on its
-      floor (Venzon & Moolgavkar 1988).
-- [ ] The diagnostic naming what was left out (`STATIONARY_COLUMN` or the
-      decision's name), with `Diagnostic.suggestion` text.
+      authority), and rewrite that constant's comment. Physical coordinates do
+      not touch this half: the azimuth is already identity.
 - [ ] Siblings: `indexing/peakfit` shares `normal_factors` (the docstring
       says so); WP-1915's indexing propagation reads the same covariance.
 - [ ] The analytic azimuth column at φ = π: check it against an exact oracle
@@ -234,7 +276,7 @@ are described in the 2026-10-09 handover entry.
 .venv/bin/python -m ruff check src tests examples
 ```
 
-The fixture's `profile.x` esd is the same at both internal coordinates. The
+The fixture's `profile.x` esd is 0.0098437 at every nudged start. The
 #831 class 0 moduli esds agree across the two platforms to 1 % (the
 reporter offered to run Linux). No acceptance-suite esd of a parameter off
 its floor moves by more than 1 % without a line in the handover saying why.
