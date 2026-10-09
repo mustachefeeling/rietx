@@ -51,29 +51,6 @@ workflow. A Gaussian FWHM 2.35× too narrow, held, leaves the rest of each
 peak to the sample: `gauss_size`/`gauss_strain`, or the Lorentzian terms. The
 fit can still converge well, and the microstructure it reports is wrong.
 
-### Inherited
-
-- **2026-10-05, from the issue triage (issue #705): GSAS-II's `.instprm`
-  is confirmed a variance against GSAS-II itself, and PR #708 fixes that
-  pair alone.** The reporter ran GSAS-II 5.6 as a black box at zero cycles on
-  `.instprm` + phase CIFs written from rietx fits (lab, synchrotron, CW
-  neutron): every pattern with a Gaussian term was 2.35× too wide, ÷ 8 ln 2
-  brought each to the known floors, and a Lorentzian-only profile agreed
-  either way. That is task 1 for this path, though no GSAS-II output is in
-  the tree. *Checked at `32ef5a6`* with the issue's script: GSAS-II's law on
-  the written U, V, W draws 2.3548× rietx's FWHM at 30°, 60°, 120°; reading
-  U = 100 gives a 0.100° FWHM at θ = 45° where GSAS-II draws 0.2355°.
-  **PR #708, from a fork, open**: `gsas2.instprm_factor` (÷ 8 ln 2 on U V W)
-  in the reader, writer and negative-width refusal, tests on GSAS-II's law
-  rather than a round trip, `.gpx`'s `Gsas2Term.degrees` left a variance and
-  documented so. Left here, by its "Not covered" and the maintainer's PR
-  review: the `.prm` reader (`instrument_profile.py:710-712`) and writer
-  (`:1079-1081`); the `.EXP` route, where `viz/compare.py:358-360` and
-  `tests/test_acceptance_fap.py:164-166` hold `GsasProfileTerm.degrees` (a
-  variance) as `profile.u/v/w`; and `:346`'s verification (3). GSAS-I needs
-  no runner: `:1551` records GSAS-II importing a `.prm`'s GU/GV/GW
-  unconverted, and the HB-2A cross (`test_gsas_prm.py:777`) shifts by √(8 ln 2).
-
 ## Non-goals
 
 - FullProf's and TOPAS's widths: FullProf's U, V, W are a FWHM² already.
@@ -94,8 +71,9 @@ fit can still converge well, and the microstructure it reports is wrong.
 - [ ] One constant for the conversion, used by every path, and the
       `read_gsas_prm` docstring's three-way verification rewritten.
 - [ ] Tests pinned to GSAS-II's own numbers, not to a round trip.
-- [ ] The 1.7.0 notes: a frozen GSAS instrument's widths move, and so does
-      every sample-broadening number fitted on one.
+- [x] The 1.7.0 notes: a frozen GSAS instrument's widths move, and so does
+      every sample-broadening number fitted on one. (Shipped in
+      `docs/releases/1.7.0.md`, l. 14.)
 - [ ] `read_gsas_prm` refuses a bank whose first `PRCF` record is not type
       3, even when the bank also states a type-3 record, as `BT1_Cu311.inst`
       does (functions 1, 2 and 3). Decide whether to read the type-3 one, or
