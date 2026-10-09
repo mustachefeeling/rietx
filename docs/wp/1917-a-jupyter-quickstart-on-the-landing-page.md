@@ -107,7 +107,7 @@ so dropping the "until 1.7" lines needs no manual edit.
   recorded in the handover. It asked for a restart (2026-10-09 entry).
 - [x] The matplotlib floor at Colab's preinstalled 3.10.0 below Python 3.14,
   so the install needs no restart.
-- [x] The two quickstarts on one row, the open one drawn over the other.
+- [x] The two quickstarts as a row of toggle buttons over one panel.
 - [ ] After the next release: one notebook re-run in Colab with no restart
   prompt and no "until 1.7" line.
 - [x] Skill: none. The page is for people, and the agent quickstart is unchanged.
@@ -138,9 +138,11 @@ that runs top to bottom on a fresh Colab runtime.
   (`pyproject.toml`, an environment marker). That reaches Colab only with the
   next PyPI release, as does dropping the "Until rietx 1.7" line, since both
   live in the tagged tree and on PyPI. So no notebook gains a restart line.
-  The hero's two quickstarts now share one row; the open one spans it, drawn
-  over its neighbour, and below 420 px the pair stacks. The Jupyter lead is the
-  maintainer's copy.
+  The hero's two quickstarts are now a row of toggle buttons over one panel
+  at a time. The buttons never move, switching is one click, and the pressed
+  button carries the state. A first version had the open panel grow over its
+  neighbour; the maintainer saw it flicker on close, and the toggles replaced
+  it. The Jupyter lead is the maintainer's copy.
 
   *Measured.* Colab's set (googlecolab/backend-info, 2026-10-09): Python
   3.13.16, matplotlib 3.10.0, numba 0.61.2, numpy 2.1.3. A Python 3.13 venv
@@ -148,24 +150,37 @@ that runs top to bottom on a fresh Colab runtime.
   this tree leaves it at 3.10.0. Both upgrade numba, which Colab does not
   import at startup and the warning did not name. On matplotlib 3.10.0 the
   viz, figure, indexing-plot, structure-render, tutorial and example tests
-  gave 228 passed, 1 skipped (`[dev]` venv, macOS). The hero at 1280, 421,
-  420 and 320 px in both themes: no horizontal scroll, the hidden button
-  leaves the tab order (chromium, playwright). Sampled every frame for 400 ms
-  after each open and close at 1280, 700, 430 and 420 px: no frame scrolls
-  sideways. Before the review fix, closing scrolled for 2 to 8 frames between
-  421 and about 880 px. The fast suite gave 8875 passed, 172 skipped,
+  gave 228 passed, 1 skipped (`[dev]` venv, macOS). The toggles in chromium
+  (playwright): no horizontal scroll at 1280, 375 or 320 px in either theme;
+  both buttons at identical positions over 25 frames of a switch; copy takes
+  the chosen install line; a `#quickstart` link from the footer opens the
+  agent panel, scrolls the row under the top bar and focuses its button;
+  without script both panels show and the buttons hide. The grow-over version
+  had scrolled the page for 2 to 8 frames on close between 421 and about
+  880 px, and its three discrete flips at 0.2 s were the flicker. The fast
+  suite, on the grow-over tree, gave 8875 passed, 172 skipped,
   1 xfailed (`[dev]` venv, macOS, beside another session's pytest), no tests
   added. The full suite did not run: a lower floor installs nothing new here.
 
-  *Review* (`/code-review high --fix`). Fixed: the closed neighbour reappeared
-  over the shrinking panel, and the closing panel scrolled the page. A closing
-  panel now keeps the row and its place on top for 0.2 s, by delayed discrete
-  transitions on `grid-column`, `grid-row` and `z-index`. The CSS comment and
-  README now say what the CSS does. Declined: more slack at the 420 px
-  breakpoint (it is measured, and moving it wants a measurement per browser);
-  a CI job pinned at matplotlib 3.10.0 (a new job, outside this diff, so
-  nothing yet holds the floor true); two clicks to switch panels (the
-  requested design).
+  *Review.* `/code-review high --fix` read the grow-over version. Its fixes to
+  that CSS went with it; the one finding that outlives it is declined: no CI
+  job pins matplotlib 3.10.0, so nothing yet holds the lowered floor true. The
+  toggle commit had its own `/code-review medium --fix` pass. Fixed: a
+  `#quickstart` link focused the first button by position, now the one that
+  controls the agent panel; and closed panels were plain `hidden`, which
+  find-in-page cannot reach where a closed `<details>` could. They are now
+  `hidden="until-found"`, and a `beforematch` opens the matched panel through
+  the toggle state (chromium: a text-fragment URL for "Sequential fits"
+  opened the Jupyter panel and pressed its button; the closed row stays
+  40 px). Declined: a browser test that opening one closes the other (none
+  of this page's tests drives a browser, and `test_watch_browser.py`'s is
+  local-only); the instant hide of the panel being switched away from.
+
+  *Gotchas.* The test that pinned the exclusive `<details>` now pins one
+  toggle per panel, every panel hidden and no button pressed at load; that
+  opening one closes the other is the script's and was checked in a browser
+  only. A playwright click on a quickstart radio's label times out, since the
+  input sits over it by design: click the input.
 
   Next: a release carries both fixes to Colab; then the maintainer re-runs one
   notebook there to confirm no restart prompt.
