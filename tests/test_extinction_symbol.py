@@ -554,7 +554,13 @@ def test_fap_would_be_refuted_by_the_background_null_model(fap_screen):
 
     data, cand, instrument = _fap_inputs()
     pre = Refinement(structure_from_candidate(cand), instrument, history=False)
-    pre.fit(data, mode="lebail", plan=validation_plan(cand, instrument),
+    # ``two_theta_max`` as ``determine_extinction_symbol`` passes it: without
+    # it the plan takes the 6° slack cap, its profile stage never converges,
+    # and where it stopped moved with WP-1930's floor seed (over_model 1.1
+    # unseeded, 20.1 seeded).  With it both arms converge to this docstring's
+    # 0.89 FWHM, +27.7 σ and −3.7 σ.
+    pre.fit(data, mode="lebail",
+            plan=validation_plan(cand, instrument, two_theta_max=90.0),
             two_theta_limits=(15.0, 90.0))
     frozen = pre.fitted_instrument
     # 003's *fitted* position, from the absence-free fit that still predicts it —
