@@ -19,13 +19,13 @@
     <button class="btn qs-toggle" type="button" aria-expanded="false" aria-controls="quickstart">Agent quickstart<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
     <button class="btn qs-toggle" type="button" aria-expanded="false" aria-controls="notebooks">Jupyter quickstart<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
   </div>
-  <noscript><style>.qs-tabs{display:none}.qs-panel[hidden]{display:block}</style></noscript>
+  <noscript><style>.qs-tabs{display:none}.qs-panel[hidden]{display:block;content-visibility:visible;margin-top:16px}</style></noscript>
   <!-- The agent quickstart.  The prompt is written once, as markup.  `.v-pip` and `.v-git`
        are the two install lines; the radios pick one by CSS alone, and the copy button
        serialises what is showing, each `code` wrapped in backticks.  Three layers, each
        drawn once: what the person does (plain text), the one choice that changes the
        prompt, and the prompt itself, set apart as text to copy. -->
-  <div class="qs-panel" id="quickstart" hidden>
+  <div class="qs-panel" id="quickstart" hidden="until-found">
     <p class="qs-lead">Open Claude Code, Codex or another coding agent in the folder that holds your data, then paste in this prompt.</p>
     <div class="qs-src" role="radiogroup" aria-labelledby="qs-src-lbl">
       <span id="qs-src-lbl">Install rietx from</span>
@@ -47,7 +47,7 @@
   </div>
   <!-- The tutorial notebooks.  The rows are build.py's, one per notebook at the newest
        release tag, and every Colab link and download is that tagged file (WP-1917). -->
-  <div class="qs-panel" id="notebooks" hidden>
+  <div class="qs-panel" id="notebooks" hidden="until-found">
     <p class="qs-lead">Hands on <code>rietx</code> tutorials. Choose ‘Colab’ to run them live in your browser.</p>
     <ul class="nb-list">
 %%NOTEBOOKS%%
@@ -208,15 +208,21 @@ result = ref.fit(data, plan=<span class="s">"mccusker_structural"</span>,
     for (const b of toggles){
       const on = b.getAttribute("aria-controls") === id;
       b.setAttribute("aria-expanded", String(on));
-      document.getElementById(b.getAttribute("aria-controls")).hidden = !on;
+      document.getElementById(b.getAttribute("aria-controls")).hidden = on ? false : "until-found";
     }
   }
   for (const b of toggles) b.addEventListener("click", () =>
     show(b.getAttribute("aria-expanded") === "true" ? null : b.getAttribute("aria-controls")));
+  // A closed panel is `hidden="until-found"`, so find-in-page reaches its text, as it did a
+  // closed <details>; a match opens the panel through the same toggle state.
+  for (const b of toggles){
+    const id = b.getAttribute("aria-controls");
+    document.getElementById(id).addEventListener("beforematch", () => show(id));
+  }
   function reveal(){
     show("quickstart");
     row.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-    toggles[0].focus({ preventScroll: true });
+    row.querySelector('[aria-controls="quickstart"]').focus({ preventScroll: true });
   }
   document.addEventListener("click", e => {
     const a = e.target.closest('a[href="#quickstart"]');

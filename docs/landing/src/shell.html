@@ -137,9 +137,12 @@ p{margin:0}
 .qs-toggle .chev{margin-right:-4px;transition:transform .2s}
 .qs-toggle[aria-expanded="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
 .qs-toggle[aria-expanded="true"] .chev{transform:rotate(180deg)}
-/* No `display` here: a rule setting one would outrank `[hidden]`.  The fade is progressive;
-   a browser without @starting-style shows the panel at once. */
-.qs-panel{max-width:680px;margin-top:16px;transition:opacity .2s ease}
+/* No `display` here: a rule setting one would outrank `[hidden]`.  A closed panel is
+   `hidden="until-found"`, which keeps an empty box where the browser supports it, so only an
+   open one takes the margin.  The fade is progressive; a browser without @starting-style
+   shows the panel at once. */
+.qs-panel{max-width:680px;transition:opacity .2s ease}
+.qs-panel:not([hidden]){margin-top:16px}
 @starting-style{.qs-panel{opacity:0}}
 /* Three layers, two type sizes.  What the person does is the panel's body text.  The choice
    that changes the prompt is a small label row.  The prompt is set apart on the tinted ground

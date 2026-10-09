@@ -514,7 +514,7 @@ def test_each_quickstart_toggle_controls_a_panel_that_starts_hidden(site_html):
     other is the script's, and a browser check's to see."""
     controls = re.findall(r'<button class="btn qs-toggle" type="button" aria-expanded="false" '
                           r'aria-controls="([\w-]+)"', site_html)
-    panels = re.findall(r'<div class="qs-panel" id="([\w-]+)" hidden>', site_html)
+    panels = re.findall(r'<div class="qs-panel" id="([\w-]+)" hidden="until-found">', site_html)
     assert sorted(controls) == sorted(panels) == ["notebooks", "quickstart"], (controls, panels)
     assert not re.search(r'<button[^>]*aria-expanded="true"', site_html)
 
