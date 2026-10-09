@@ -527,3 +527,26 @@ def test_a_body_with_a_torsion_round_trips_through_json_and_textdoc(tmp_path):
                        atol=1e-12)
     delta, errors = td.changes(td.parse(td.render(project)), project)
     assert errors == [] and delta.is_empty()
+
+
+def test_a_zero_length_axis_is_refused_by_the_torsions_name():
+    """Two coincident axis points, or an earlier torsion that carries one axis
+    atom onto the other, divided by |T_b − T_a| = 0 and put NaN on every atom
+    of the body with no error (NaN < tol is False); both are refused, naming
+    the torsion by its declared name."""
+    def block(template, torsions, angles=(0.0, 0.0)):
+        return RigidBodyBlock(phase_base="p", body_base="b", atom_bases=["a0", "a1", "a2", "a3"],
+                              template=np.array(template, dtype=float),
+                              q0=(1.0, 0.0, 0.0, 0.0), torsions=torsions,
+                              angles=angles[:len(torsions)],
+                              names=["hinge", "flap"][:len(torsions)])
+    # coincident axis points in the template itself
+    coincident = [(0, 0, 0), (1, 0, 0), (1, 0, 0), (0.5, 1.2, 0.3)]
+    with pytest.raises(ValueError, match="'hinge' has a zero-length axis"):
+        block(coincident, [(1, 2, [3])])
+    # atoms 2 and 3 are 1.4 Å apart in the template, but the first torsion's
+    # 90° turn about the x axis carries atom 2 onto atom 3
+    chained = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (1, 0, 1)]
+    block(chained, [(0, 1, [2]), (2, 3, [0])], angles=(0.0, 0.0))       # builds at φ₀ = 0
+    with pytest.raises(ValueError, match="'flap' has a zero-length axis"):
+        block(chained, [(0, 1, [2]), (2, 3, [0])], angles=(90.0, 0.0))

@@ -605,7 +605,7 @@ class BodyTorsion(Base):
     right-handed about the axis from ``axis[0]`` to ``axis[1]``) in the body
     frame, before the body's pose.  Looking from ``axis[0]`` to ``axis[1]``, a
     positive twist turns ``moves`` clockwise, so a dihedral a–axis[0]–axis[1]–d
-    whose d moves changes by +angle (Klyne & Prelog 1960, the sign
+    whose d moves changes by +angle (Klyne & Prelog 1960, *Experientia* 16, 521, the sign
     ``_geom_torsion`` uses).  The moved set is **declared**, never derived from
     bonds: it is the torsion's whole definition, and its Jacobian
     (axis × (x − x_axis) per radian) is exact by construction.  Torsions apply
@@ -618,13 +618,15 @@ class BodyTorsion(Base):
     composes it into ``angle`` and zeroes it.  About one axis composing is
     addition, so the chart moves by a translation and a solver outcome needs no
     re-charting.  ``angle`` is the record: the twist *from the template*, kept
-    in (−180, 180].
+    in (−180, 180] **at the first commit**: a value written outside that range
+    is stored as written and wrapped when a commit composes it.
     """
 
     name: str
     axis: tuple[str, str]
     moves: list[str]
-    #: the record: the twist from the template (degrees), in (−180, 180]
+    #: the record: the twist from the template (degrees); wrapped into
+    #: (−180, 180] at commit
     angle: float = 0.0
     #: free the twist at the next table build (a plan's ``turn_on`` glob
     #: ``phases.*.rigid_bodies.*.torsions.*.twist`` does the same)
@@ -642,7 +644,7 @@ class RigidBody(Base):
 
     The body owns its atoms' coordinates: atom ``atoms[i]`` sits at
 
-        x_i = o + M⁻¹(cell) · R · T_i,
+        x_i = o + M⁻¹(cell) · R · T_i(φ),
 
     with ``T_i`` = ``template[i]`` (Cartesian Å in the body frame, the frame's
     origin at the body origin), R the orientation and o the origin (fractional),
@@ -655,7 +657,11 @@ class RigidBody(Base):
     increment ``phases.i.rigid_bodies.b.rotation.{0,1,2}`` (radians, the
     rotation vector δω of R = Exp(δω)·R₀; zero at every table build).  The
     member atoms' x, y, z are locked rows the body writes and that carry esds;
-    their occupancy and displacement parameters stay the atoms' own.
+    their occupancy and displacement parameters stay the atoms' own.  Declared
+    ``torsions`` (WP-1808) turn named atoms of the template about a bond before
+    the pose, T_i(φ) being the template after them; each refines as an anchored
+    twist increment ``phases.i.rigid_bodies.b.torsions.t.twist`` (degrees, zero
+    at every build) composed into its record ``BodyTorsion.angle`` at commit.
 
     **The record**: ``orientation`` is R₀ as the unit quaternion (w, x, y, z)
     in the canonical form w ≥ 0 (``crystallography.rotation``); a fit writes

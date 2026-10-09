@@ -77,7 +77,8 @@ def wrap_degrees(angle: float) -> float:
 def _rodrigues(d, u, c, s):
     """R·d for the right-handed rotation by (cos, sin) = (c, s) about unit u.
 
-    Rodrigues (1840): R·d = d cos φ + (u × d) sin φ + u (u·d)(1 − cos φ).
+    Rodrigues (1840, *J. Math. Pures Appl.* 5, 380):
+    R·d = d cos φ + (u × d) sin φ + u (u·d)(1 − cos φ).
     ``d`` is one point (3,) or a stack (m, 3).
     """
     cross = np.cross(u, d)
@@ -92,9 +93,9 @@ def apply_torsions(points: np.ndarray, torsions, angles_deg) -> np.ndarray:
     ``torsions`` is a sequence of ``(axis_a, axis_b, moves)`` index triples
     into ``points``; torsion t turns ``moves`` by ``angles_deg[t]`` about the
     line from point ``axis_a`` to point ``axis_b`` (TOPAS's
-    ``Rotate_about_points``, Coelho, *TOPAS-Academic V6 Technical Reference*,
-    § 10.22.4), with the axis read off the points **as earlier torsions left
-    them**.
+    ``Rotate_about_points``, Coelho 2018, *J. Appl. Cryst.* 51, 210;
+    *TOPAS-Academic V6 Technical Reference*, § 10.22.4), with the axis read
+    off the points **as earlier torsions left them**.
     """
     pts = np.array(points, dtype=np.float64)
     for (ia, ib, moves), ang in zip(torsions, angles_deg, strict=True):
@@ -141,7 +142,7 @@ class RigidBodyBlock(DerivedBlock):
     N_CELL = 6
 
     def __init__(self, *, phase_base: str, body_base: str, atom_bases: list[str],
-                 template: np.ndarray, q0, torsions=(), angles=()):
+                 template: np.ndarray, q0, torsions=(), angles=(), names=()):
         self.template = np.asarray(template, dtype=np.float64)
         #: the template-frame axes the rotation DOFs turn about, (3, k)
         self.body_axes = rotation_axes(self.template)
@@ -151,6 +152,8 @@ class RigidBodyBlock(DerivedBlock):
                          for a, b, m in torsions]
         #: φ₀, each torsion's anchor (degrees): its record, composed at commit
         self.phi0 = np.array(angles, dtype=np.float64).reshape(len(self.torsions))
+        #: each torsion's declared name, for the refusals that name it
+        self.names = [str(n) for n in names] or [str(t) for t in range(len(self.torsions))]
         self._refuse_still_torsions()
         self.inputs = (
             *(f"{phase_base}.cell.{n}" for n in CELL_NAMES),
@@ -165,17 +168,28 @@ class RigidBodyBlock(DerivedBlock):
 
         Read at the anchor, with the earlier torsions applied, since that is
         the geometry the torsion turns.  Its column would be identically zero:
-        a parameter the data can never see, refused rather than reported.
+        a parameter the data can never see, refused rather than reported.  An
+        axis shorter than ``TORSION_STILL_TOL`` is refused too, before it is
+        divided by: two coincident template points, or an earlier torsion that
+        carried one axis atom onto the other, would otherwise put NaN on every
+        atom of the body with no error.
         """
         pts = np.array(self.template, dtype=np.float64)
         for t, (ia, ib, moves) in enumerate(self.torsions):
             a = pts[ia]
-            u = (pts[ib] - a) / np.linalg.norm(pts[ib] - a)
+            length = float(np.linalg.norm(pts[ib] - a))
+            if not length >= TORSION_STILL_TOL:
+                raise ValueError(
+                    f"torsion {self.names[t]!r} has a zero-length axis: its two "
+                    f"axis atoms are {length:.3g} Å apart (read at the anchor, "
+                    "with the earlier torsions applied), so the axis direction "
+                    "is undefined")
+            u = (pts[ib] - a) / length
             d = pts[moves] - a
             off = np.linalg.norm(d - np.outer(d @ u, u), axis=1)
             if off.max() < TORSION_STILL_TOL:
                 raise ValueError(
-                    f"torsion {t} moves nothing: every atom it moves lies on its "
+                    f"torsion {self.names[t]!r} moves nothing: every atom it moves lies on its "
                     "axis line, so its twist has no effect on the structure")
             phi = self.phi0[t] * _DEG
             pts[moves] = a + _rodrigues(d, u, np.cos(phi), np.sin(phi))

@@ -1424,7 +1424,8 @@ class ParameterTable:
                 q0=np.array(body.orientation, dtype=np.float64),
                 torsions=[(member[t.axis[0]], member[t.axis[1]],
                            [member[m] for m in t.moves]) for t in body.torsions],
-                angles=[t.angle for t in body.torsions])
+                angles=[t.angle for t in body.torsions],
+                names=[t.name for t in body.torsions])
         except ValueError as exc:
             raise ValueError(f"rigid body {body.name!r}: {exc}") from None
         before = set(self._anchored_dofs)
@@ -3335,14 +3336,17 @@ class ParameterTable:
         (:meth:`_canonicalise_moment_dofs`, #604), so the committed values can
         differ from ``decode(theta)`` there — the same moment, never a
         different one.  A rigid body's rotation composes (WP-1805): R₀ ←
-        Exp(δω)·R₀ and δω ← 0, the same pose in a new chart.
+        Exp(δω)·R₀ and δω ← 0, the same pose in a new chart; a torsion's twist
+        composes by addition, φ₀ ← φ₀ + δφ and δφ ← 0 (WP-1808).
 
         The return says how the chart moved, for a caller still holding the
         solver's outcome to pass to
         :func:`~rietx.optimize.least_squares.rechart_outcome` with ``x0()``
         so its ``theta``, Jacobian and correlations describe these values:
         ``None`` when nothing moved; the ±1 per free column when only a
-        moment flipped; the square matrix ∂θ_old/∂θ_new over the free columns
+        moment flipped; all ones when only a torsion twist moved (composing
+        about one axis is addition, so the chart moves by a translation); the
+        square matrix ∂θ_old/∂θ_new over the free columns
         (:meth:`_chart_matrix`) when a body turned.
 
         A body that fails the commit-time guard (:meth:`_check_committed_bodies`)

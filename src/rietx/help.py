@@ -886,9 +886,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         description=(
             "The turn, in degrees, of a body's declared moving atoms about the "
             "line through its two axis atoms, from the torsion's stored angle. "
-            "A dihedral that ends on a moved atom changes by the same amount. "
+            "A dihedral a–axis[0]–axis[1]–d whose d end is a moved atom changes by "
+            "the same amount, and one whose a end is moved by minus it. "
             "Zero at the start of every fit, and added into the torsion's "
-            "stored angle (kept in (−180, 180]) at every stage's commit."
+            "stored angle (wrapped into (−180, 180]) at every stage's commit."
         ),
         unit=None, default=None,
         typical="a few degrees to a few tens of degrees from a sensible start",
