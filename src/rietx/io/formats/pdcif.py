@@ -18,13 +18,15 @@ from ...schemas.pattern import PatternData
 from .base import PatternFormat, ascending, pattern_data
 
 #: pdCIF tag alternatives, in preference order.  A refinement CIF this build
-#: writes states the measured grid and intensities (``io/cif/powder.py``).
-_PDCIF_TT = ("_pd_meas_2theta_scan", "_pd_proc_2theta_corrected",
+#: writes states one grid and one intensity, the measured ones
+#: (``io/cif/powder.py``), so the order decides only a foreign file stating
+#: both, and is kept as it was so such a file reads as it did.
+_PDCIF_TT = ("_pd_proc_2theta_corrected", "_pd_meas_2theta_scan",
              "_pd_meas_2theta_range_inc")
-_PDCIF_Y = ("_pd_meas_intensity_total", "_pd_proc_intensity_total",
+_PDCIF_Y = ("_pd_proc_intensity_total", "_pd_meas_intensity_total",
             "_pd_meas_counts_total")
-_PDCIF_SU = ("_pd_proc_intensity_total_su", "_pd_proc_intensity_total_esd",
-             "_pd_meas_intensity_total_su", "_pd_meas_intensity_total_esd")
+#: an su column is the intensity column's own: ``<intensity tag>`` + one of these
+_PDCIF_SU_SUFFIXES = ("_su", "_esd")
 
 
 def read_pdcif(path: str | Path, *, block: str | None = None,
@@ -64,9 +66,12 @@ def read_pdcif(path: str | Path, *, block: str | None = None,
     if len(tt) != len(y):
         raise ValueError(f"2θ and intensity loops differ in length in {p}")
 
+    # σ is read off the column y came from, never another one's: a file stating
+    # both a measured and a processed intensity has an su for each
+    y_tag = next(t for t in _PDCIF_Y if len(chosen.find_loop(t)) > 0)
     sigma = None
-    su = _first_loop(chosen, _PDCIF_SU)
-    stated = _parenthesised_su(chosen, _PDCIF_Y)
+    su = _first_loop(chosen, tuple(y_tag + s for s in _PDCIF_SU_SUFFIXES))
+    stated = _parenthesised_su(chosen, (y_tag,))
     if su is not None and len(su) == len(y):
         sigma = su
     elif stated is not None and len(stated) == len(y):

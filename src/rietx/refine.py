@@ -4299,7 +4299,6 @@ class Refinement:
         self._last_plan = plan
         self._sigma_from_file = data.sigma is not None
         self._excluded_regions = list(data.excluded_regions)
-        self._fit_pattern = data
         tree = self._ensure_history(data, plan)
         stream = _attach_progress(as_event_stream(events), progress)
         # Attached beside the caller's stream, never inside it: the recorder
@@ -4421,6 +4420,9 @@ class Refinement:
                 declared_wavelengths=declared_wavelengths,
                 cell_runaway=answer_runaway,
                 significance=answer_significance)
+            # beside result_, never at entry: a call that is cancelled or fails
+            # leaves the previous result and the pattern it was fitted to
+            self._fit_pattern = data
             _apply_esds(table, self.result_, self.structure, self.instrument)
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
@@ -4776,7 +4778,6 @@ class Refinement:
         ttl = two_theta_limits if two_theta_limits is not None else self._two_theta_limits
         self._mode = mode
         self._two_theta_limits = ttl
-        self._fit_pattern = data
         # the trajectory belongs to the last *fit*: one stage on top of it
         # leaves rungs that describe states this one no longer stands on
         self.stage_reports_ = []
@@ -4896,6 +4897,9 @@ class Refinement:
                 guard=guard, max_shift_over_esd=outcome.max_shift_over_esd,
                 declared_wavelengths=declared_wavelengths,
                 significance=hold.significance)
+            # beside result_, never at entry: a call that is cancelled or fails
+            # leaves the previous result and the pattern it was fitted to
+            self._fit_pattern = data
             _apply_esds(table, self.result_, self.structure, self.instrument)
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,

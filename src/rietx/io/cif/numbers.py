@@ -39,6 +39,7 @@ References
 from __future__ import annotations
 
 import math
+import textwrap
 
 import gemmi
 
@@ -95,8 +96,9 @@ def text(tag: str, value: str, *, where: str | None = None) -> str:
     A tag whose dictionary ``_type.contents`` is a single token
     (:data:`SINGLE_TOKEN_CONTENTS`) refuses whitespace and the empty string.
     Every other text is quoted by ``gemmi.cif.quote``, which leaves a value
-    that needs no quotes as it stands, and a value that would carry its tag
-    past :data:`LINE_MAX` columns becomes a text field on lines of its own.  Quoting per Hall, Allen & Brown (1991);
+    that needs no quotes as it stands.  A value that would carry its tag past
+    :data:`LINE_MAX` columns becomes a text field on lines of its own, wrapped
+    so no line passes it either.  Quoting per Hall, Allen & Brown (1991);
     contents per ``cif_core.dic`` 3.3.0.
     """
     from .registry import TAGS
@@ -111,7 +113,8 @@ def text(tag: str, value: str, *, where: str | None = None) -> str:
     quoted = gemmi.cif.quote(value)
     # a pair is written on one line, and checkCIF's PLAT802 counts a record
     # past 80 characters: a value that would carry its tag past it goes on a
-    # line of its own, as a text field (Hall, Allen & Brown 1991)
+    # line of its own, as a text field (Hall, Allen & Brown 1991), wrapped so
+    # the field's own lines fit too, its ";" included
     if "\n" not in value and len(tag) + 1 + len(quoted) > LINE_MAX:
-        return f";{value}\n;"
+        return f";{textwrap.fill(value, width=LINE_MAX - 1, break_long_words=False)}\n;"
     return quoted

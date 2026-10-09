@@ -313,8 +313,8 @@ def write_qpa_table(qpa: QuantitativePhaseAnalysis, path: str | Path, *,
 # ======================================================================
 
 
-#: Each per-phase sample-broadening parameter the profile text names, with
-#: its unit (``schemas.structure.Phase``; all in degrees 2θ).
+#: Each per-phase sample-broadening parameter the profile text names; its
+#: unit is the parameter's own (the Gaussian pair are variances, deg²).
 _SAMPLE_BROADENING = (("gauss_size", "Gaussian size"), ("gauss_strain", "Gaussian strain"),
                       ("lor_size", "Lorentzian size"), ("lor_strain", "Lorentzian strain"))
 
@@ -327,9 +327,9 @@ def _wrapped(paragraphs: list[str]) -> str:
                      for p in paragraphs)
 
 
-def _value(p) -> str:
-    """A parameter in a text field, with its su in parentheses where it has one."""
-    return number("_pd_proc_ls_profile_function", p.value, p.stderr)
+def _value(p, tag: str = "_pd_proc_ls_profile_function") -> str:
+    """A parameter's value with its su in parentheses where it has one."""
+    return number(tag, p.value, p.stderr)
 
 
 def _profile_description(instrument: Instrument, structure: Structure | None = None
@@ -351,11 +351,11 @@ def _profile_description(instrument: Instrument, structure: Structure | None = N
         f"Axial divergence: S/L={_value(geom.axial_sl)}, H/L={_value(geom.axial_hl)}.",
     ]
     for phase in (structure.phases if structure is not None else []):
-        terms = [f"{label}={_value(getattr(phase, name))}"
+        terms = [f"{label}={_value(getattr(phase, name))} {getattr(phase, name).unit}"
                  for name, label in _SAMPLE_BROADENING
                  if getattr(phase, name).vary or getattr(phase, name).value != 0.0]
         if terms:
-            lines.append(f"Phase {phase.name}, sample broadening in deg: "
+            lines.append(f"Phase {phase.name}, sample broadening: "
                          + ", ".join(terms) + ".")
     return _wrapped(lines)
 
@@ -429,15 +429,11 @@ def _wavelengths(instrument: Instrument) -> list[tuple[str, str]]:
     """Each line's wavelength and relative weight, through the number rule."""
     source = instrument.source
     if source.kind == "neutron_cw":
-        return [(_parameter_number("_diffrn_radiation_wavelength", source.wavelength),
+        return [(_value(source.wavelength, "_diffrn_radiation_wavelength"),
                  "1.0")]
-    return [(_parameter_number("_diffrn_radiation_wavelength", line.wavelength),
-             _parameter_number("_diffrn_radiation_wavelength_wt", line.weight))
+    return [(_value(line.wavelength, "_diffrn_radiation_wavelength"),
+             _value(line.weight, "_diffrn_radiation_wavelength_wt"))
             for line in source.lines]
-
-
-def _parameter_number(tag: str, p) -> str:
-    return number(tag, p.value, p.stderr)
 
 
 def _special_details(result: RefinementResult, structure: Structure) -> list[str]:
@@ -470,7 +466,7 @@ def _special_details(result: RefinementResult, structure: Structure) -> list[str
             hkl = " ".join(str(i) for i in po.axis)
             out.append(f"Preferred orientation of {phase.name}: March-Dollase "
                        f"(Dollase 1986), axis the normal to ({hkl}), r="
-                       f"{_parameter_number('_pd_proc_ls_special_details', po.r)}.")
+                       f"{_value(po.r, '_pd_proc_ls_special_details')}.")
     if st.rwp_background_subtracted is not None:
         out.append("Rwp with the background subtracted: "
                    f"{st.rwp_background_subtracted:.4f}.")
@@ -526,12 +522,15 @@ def _write_refinement_metadata(block, result: RefinementResult,
         pairs.append(("_exptl_absorpt_correction_type", "none"))
     details = _special_details(result, structure)
     if details:
-        pairs.append(("_pd_proc_ls_special_details", gemmi.cif.quote(_wrapped(details))))
+        pairs.append(("_pd_proc_ls_special_details",
+                      text("_pd_proc_ls_special_details", _wrapped(details))))
     pairs += [
         ("_pd_proc_ls_profile_function",
-         gemmi.cif.quote(_profile_description(instrument, structure))),
+         text("_pd_proc_ls_profile_function",
+              _profile_description(instrument, structure))),
         ("_pd_proc_ls_background_function",
-         gemmi.cif.quote(_wrapped([_background_description(instrument)]))),
+         text("_pd_proc_ls_background_function",
+              _wrapped([_background_description(instrument)]))),
     ]
     lines = _wavelengths(instrument)
     for tag, value in pairs:
@@ -560,7 +559,7 @@ def _write_extinction(block, phase) -> None:
                  "_refine_ls_extinction_method",
                  "Sabine (1988) primary extinction; coefficient D^2 in um^2")),
              ("_refine_ls_extinction_coef",
-              _parameter_number("_refine_ls_extinction_coef", ext))]
+              _value(ext, "_refine_ls_extinction_coef"))]
     for tag, value in pairs:
         block.set_pair(tag, value)
 
@@ -675,23 +674,31 @@ def _write_geometry_loops(block, result: RefinementResult, ip: int) -> None:
                 for k, label in enumerate((a.atom_1, a.atom_2, a.atom_3), start=1)),
               number("_geom_angle", a.angle, a.stderr),
               a.symmetry_1, a.symmetry_2, a.symmetry_3, "yes"] for a in angles_codable]))
-    details = ["Standard uncertainties of distances and angles are propagated "
-               "through the full covariance of the refined parameters, cell "
-               "included (McCusker et al. 1999, J. Appl. Cryst. 32, 36, section 10)"
-               + (", with the Berar-Lelann factor" if result.statistics.esd_inflation
-                  is not None else "") + ".",
-               "A value written without su depends on nothing refined, or is "
-               "fixed by symmetry."]
+    # each sentence only where a written row is what it describes: stating
+    # a method no row used is a claim (_special_details' rule)
+    sus = [r.stderr for r in codable] + [a.stderr for a in angles_codable]
+    details = []
+    if any(su is not None for su in sus):
+        details.append(
+            "Standard uncertainties of distances and angles are propagated "
+            "through the full covariance of the refined parameters, cell "
+            "included (McCusker et al. 1999, J. Appl. Cryst. 32, 36, section 10)"
+            + (", with the Berar-Lelann factor" if result.statistics.esd_inflation
+               is not None else "") + ".")
+    if any(su is None for su in sus):
+        details.append("A value written without su depends on nothing refined, "
+                       "or is fixed by symmetry.")
     if dropped:
         details.append(f"{dropped} row{'s' if dropped > 1 else ''} whose image "
                        "needs a lattice translation beyond the one-digit symmetry "
                        f"code {'are' if dropped > 1 else 'is'} left out.")
-    special = gemmi.cif.quote(_wrapped(details))
+    special = text("_geom_special_details", _wrapped(details)) if details else None
     for tag, columns, rows in loops:
         loop = block.init_loop(tag, columns)
         for row in rows:
             loop.add_row(row)
-    block.set_pair("_geom_special_details", special)
+    if special is not None:
+        block.set_pair("_geom_special_details", special)
 
 
 #: ``_atom_type_scat_dispersion_source`` for the bundled table and for a

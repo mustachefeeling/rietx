@@ -41,12 +41,9 @@ References
 
 from __future__ import annotations
 
-import math
-import textwrap
-
 import numpy as np
 
-from .numbers import LINE_MAX, number, text
+from .numbers import number, text
 
 
 def _g(x: float) -> str:
@@ -129,7 +126,9 @@ def pattern_items(result, wavelength: float, pattern=None
                       else np.asarray(pattern.sigma, dtype=np.float64))
         mask = _fitted(result, pattern)
 
-    sig = np.asarray(result.sigma or [math.nan] * n_fit, dtype=np.float64)
+    # the σ the fit weighted by: RefinementResult.sig() is the one authority
+    # (a pre-v0.2 result carries none and gets the fit's own fallback)
+    sig = result.sig()
     calc = np.asarray(result.y_calc, dtype=np.float64)
     bkg = np.asarray(result.y_background or [0.0] * n_fit, dtype=np.float64)
     weight = np.zeros(tt.size)
@@ -185,11 +184,10 @@ def pattern_items(result, wavelength: float, pattern=None
     if runs:
         clauses = [f"2theta {_g(lo)} to {_g(hi)} deg ({n} point{'s' if n > 1 else ''})"
                    for lo, hi, n in runs]
-        # lines of at most 80 characters, the text field's ";" included (PLAT802)
+        # text() wraps it in lines checkCIF reads (PLAT802)
         pairs.append(("_pd_proc_info_excluded_regions", text(
-            "_pd_proc_info_excluded_regions", textwrap.fill(
-                "Not fitted, weight 0 in the profile loop: " + "; ".join(clauses),
-                width=LINE_MAX - 1, break_long_words=False))))
+            "_pd_proc_info_excluded_regions",
+            "Not fitted, weight 0 in the profile loop: " + "; ".join(clauses))))
     return pairs, tags, rows
 
 
