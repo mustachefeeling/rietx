@@ -248,15 +248,41 @@ the filing PR #856 had merged):
 **Gotchas:**
 
 - The worse-pass margin at 25° is 0.020 points of Rwp. Linux and macOS
-  disagreed by 0.015 on the discarded pass at 50°. The PR's CI legs are the
-  first Linux reading at 25°; a red `table[1] > table[0]` there means a
-  wider margin is needed.
+  disagreed by 0.015 on the discarded pass at 50°. It held on all five legs
+  of run 37992022325, the first Linux reading at 25°.
 - `tests/CLAUDE.md` sits at its cap; a clause added there pays with a cut.
+- **+0.4 % sits on an edge at 25°.** Under PR #855's step for `u` and `v`
+  (WP-1936) it comes back worse on pass 2 instead of converging. So the
+  converging fixture and the cap test start at −0.15 %, which converges in
+  five passes to Rwp 0.139321 on main and 0.139322 merged with #855. All 13
+  Le Bail tests pass on both trees. #855 still conflicts in this file as
+  text. Whichever merges second takes this branch's version of it.
+- PR #853 (WP-1418, `isotropy.py`) merges cleanly. The isotropy sweeps, sample
+  and full, passed on the merge, so the 140-candidate pin holds.
+
+**CI, run 37992022325** (f16953c7, one run each, so a direction rather
+than a measurement; legs on one tree differ by up to 1.6×):
+
+- "Fast suite" step, py3.11/3.12/3.13/3.14 and jax: 30.7, 26.4, 25.0,
+  26.1 and 18.9 min. Base run 37988294011: 39.8 (cancelled), 30.8, 35.1,
+  28.2 and 35.5. The median Python leg fell from about 33 min to about 26.
+- py3.13 test time: 2943 s, with the Le Bail file at 217 s. The base's
+  py3.12 total was 3635 s, with the Le Bail file at 1076 s.
+  `test_magnetic_isotropy` is now the largest file, at 453 s, from tests
+  outside the sweeps (WP-1418's question).
+- py3.11 failed one test this branch does not touch:
+  `test_fit_usable.py::test_issue_243_reproduction_reads_unusable_while_converged`
+  returned `max_iter`, not `converged`. It passed on #849's last py3.11 run
+  with the same source and identical package versions. Locally it passes
+  with the compiled tier on and off, and its dearest stage used 112 of 400
+  evaluations. The fit ends at Rwp 155 %, the #243 shape, so its solver
+  path is erratic. The test declares no compiled path, and its owner
+  WP-1336 is closed. Not filed yet: the maintainer's call.
 
 Next:
 
-1. Read the PR's CI legs: the Le Bail pins on Linux, and the per-leg
-   "Fast suite" time against the base run's.
+1. Read the new run's py3.11 leg. A pass there supports the flaky reading of
+   the `test_fit_usable` failure.
 2. After the merge, re-measure ten main runs (the open task). Shard and trim
    the PR matrix only if the median Python leg is still over about 20 min.
 3. Then check that each `slow` case added here passed once in the nightly
