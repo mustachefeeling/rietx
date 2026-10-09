@@ -143,7 +143,7 @@ only if the last task moves Python versions into the nightly.
       hand loop's at 5.1-50°, so a narrower window re-measures each one. A
       test that still costs over about 30 s on CI says in its docstring why
       it is fast, or moves to `slow`.
-- [ ] The sweeps: a trap-chosen sample in the fast tier, the whole sweep
+- [x] The sweeps: a trap-chosen sample in the fast tier, the whole sweep
       marked `slow`. The commit names the sample and the trap each member
       covers.
 - [ ] `test_tutorials.py`: run it on one Python leg, or nightly. The
