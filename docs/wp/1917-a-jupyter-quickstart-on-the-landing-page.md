@@ -125,6 +125,30 @@ that runs top to bottom on a fresh Colab runtime.
 
 ## Handover log
 
+- **2026-10-09, second session** — the maintainer's Colab run answered the
+  open question. `%pip install rietx` does ask for a runtime restart, naming
+  `matplotlib` and `mpl_toolkits`. Colab preinstalls matplotlib 3.10.0 and
+  imports it at startup, and 1.7.0's floor of 3.10.5 makes pip upgrade it.
+  The floor is now 3.10 on Python 3.11 to 3.13 and stays 3.10.5 on 3.14
+  (`pyproject.toml`, an environment marker). That reaches Colab only with the
+  next PyPI release, as does dropping the "Until rietx 1.7" line, since both
+  live in the tagged tree and on PyPI. So no notebook gains a restart line.
+  The hero's two quickstarts now share one row; the open one spans it, drawn
+  over its neighbour, and below 420 px the pair stacks. The Jupyter lead is the
+  maintainer's copy.
+
+  *Measured.* Colab's set (googlecolab/backend-info, 2026-10-09): Python
+  3.13.16, matplotlib 3.10.0, numba 0.61.2, numpy 2.1.3. A Python 3.13 venv
+  holding those three, dry-run: `rietx==1.7.0` upgrades matplotlib to 3.11.2,
+  this tree leaves it at 3.10.0. Both upgrade numba, which Colab does not
+  import at startup and the warning did not name. On matplotlib 3.10.0 the
+  viz, figure, indexing-plot, structure-render, tutorial and example tests
+  gave 228 passed, 1 skipped (`[dev]` venv, macOS). The hero at 1280, 421,
+  420 and 320 px in both themes: no horizontal scroll, the hidden button
+  leaves the tab order (chromium, playwright).
+
+  Next: a release carries both fixes to Colab; then the maintainer re-runs one
+  notebook there to confirm no restart prompt.
 - **2026-10-09** — the landing page now has a "Jupyter quickstart" beside the
   agent one. Opening either closes the other. It lists the five tutorial
   notebooks, and each can be read in the manual, opened in Colab or downloaded.
