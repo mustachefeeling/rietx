@@ -397,12 +397,26 @@ class MultiParameterTable:
     def seed_floor(self, scoped_paths: list[str]) -> tuple[dict[str, float], list[str]]:
         """Lift freed softplus rows off their floor (per histogram); see the
         single-histogram :meth:`ParameterTable.seed_floor`."""
+        wants = []
+        for h in range(len(self.tables)):
+            want = [self._unscope(h, p) for p in scoped_paths
+                    if self._owner(p) in (None, h)]
+            wants.append([w for w in want if w is not None])
+        # a shared column takes the smallest seed any histogram's box allows,
+        # so every histogram writes one column value (:meth:`seed_softplus`'s
+        # rule): a box is physical, and each histogram divides it by its own
+        # value scale
+        smallest: dict[str, float] = {}
+        for h, table in enumerate(self.tables):
+            for p, value in table.seed_floor(wants[h], write=False)[0].items():
+                c = self._canonical(h, p)
+                smallest[c] = min(value, smallest.get(c, value))
         seeded: dict[str, float] = {}
         unseeded: list[str] = []
         for h, table in enumerate(self.tables):
-            want = [self._unscope(h, p) for p in scoped_paths
-                    if self._owner(p) in (None, h)]
-            lifted, left = table.seed_floor([w for w in want if w is not None])
+            lifted, left = table.seed_floor(
+                wants[h], cap={p: smallest[self._canonical(h, p)]
+                               for p in wants[h] if self._canonical(h, p) in smallest})
             # once per shared column, as :meth:`set_vary` returns it
             for p, value in lifted.items():
                 seeded.setdefault(self._canonical(h, p), value)

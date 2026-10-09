@@ -2477,7 +2477,8 @@ class Refinement:
         """
         for name, prm in self._variables.items():
             table.add_parameter(f"{VAR_PREFIX}{name}", prm.value, vary=prm.vary,
-                                lo=prm.min, hi=prm.max, transform=prm.transform)
+                                lo=prm.min, hi=prm.max, transform=prm.transform,
+                                unit=prm.unit)
 
     def _write_back(self, table: ParameterTable) -> None:
         """``apply_to_models``, plus the one thing it structurally cannot do.
@@ -2708,7 +2709,7 @@ class Refinement:
         # happens before the register is touched
         self._working_table().add_parameter(
             path, prm.value, vary=prm.vary, lo=prm.min, hi=prm.max,
-            transform=prm.transform)
+            transform=prm.transform, unit=prm.unit)
         self._variables[name] = prm
         if prm.vary and (self._free_paths or self._free_set_declared):
             # ``_free_paths`` is the *declared* free set, and once a stage has
@@ -5971,6 +5972,12 @@ def _hold_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
 _COORDINATE_PATH = re.compile(r"^(phases\.\d+\.atoms\.\d+)\.[xyz]$")
 
 
+def _stage_list(names: list[str]) -> str:
+    """``stage 'a'`` or ``stages 'a', 'b'``, for a per-path diagnostic."""
+    return (f"stage {names[0]!r}" if len(names) == 1 else
+            f"stages {', '.join(repr(s) for s in names)}")
+
+
 def _fixed_literal_diagnostics(stages, table: ParameterTable,
                                user_ties) -> list[Diagnostic]:
     """``STAGE_PATH_NOT_FREE`` — a literal phase path the model will not free.
@@ -6018,8 +6025,7 @@ def _fixed_literal_diagnostics(stages, table: ParameterTable,
                 names.append(stage.name)
     out = []
     for path, names in asked.items():
-        which = (f"stage {names[0]!r}" if len(names) == 1 else
-                 f"stages {', '.join(repr(s) for s in names)}")
+        which = _stage_list(names)
         entry = by_path[path]
         sources = ([] if entry.tie is None else
                    [src for src, _ in entry.tie.terms])
@@ -6097,8 +6103,7 @@ def _unknown_path_diagnostics(stage_results: list[StageResult],
             by_path.setdefault(path, []).append(sr.name)
     out = []
     for path, stages in by_path.items():
-        which = (f"stage {stages[0]!r}" if len(stages) == 1 else
-                 f"stages {', '.join(repr(s) for s in stages)}")
+        which = _stage_list(stages)
         current = retired_spelling(path)
         if current is not None:
             out.append(Diagnostic(
@@ -6144,8 +6149,7 @@ def _floor_unseeded_diagnostics(stage_results: list[StageResult]
             by_path.setdefault(path, []).append(sr.name)
     out = []
     for path, stages in by_path.items():
-        which = (f"stage {stages[0]!r}" if len(stages) == 1 else
-                 f"stages {', '.join(repr(s) for s in stages)}")
+        which = _stage_list(stages)
         out.append(Diagnostic(
             level="warning", code="SOFTPLUS_FREED_AT_FLOOR",
             message=(f"{which} freed {path} on its softplus floor, where its "
@@ -9164,7 +9168,8 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
         # unknown parameter".  Declared *before* the ties, exactly as
         # ``_prepare_table`` does it.
         table.add_parameter(f"{VAR_PREFIX}{name}", prm.value, vary=prm.vary,
-                            lo=prm.min, hi=prm.max, transform=prm.transform)
+                            lo=prm.min, hi=prm.max, transform=prm.transform,
+                            unit=prm.unit)
     table.set_vary(["*"], False)
     applied_ties: dict = {}
     dropped: list[str] = []

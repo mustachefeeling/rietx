@@ -2273,16 +2273,20 @@ class ParameterTable:
     # -- table surgery (used by Wyckoff constraint wiring) -------------
     def add_parameter(self, path: str, value: float, *, vary: bool = False,
                       lo: float = -np.inf, hi: float = np.inf,
-                      transform: str = "identity") -> None:
+                      transform: str = "identity",
+                      unit: str | None = None) -> None:
         """Append a synthetic parameter (e.g. a Wyckoff displacement DOF).
 
         Synthetic paths must not collide with existing entries; pick names
-        outside the model tree, e.g. ``phases.0.atoms.2.dof.0``.
+        outside the model tree, e.g. ``phases.0.atoms.2.dof.0``.  ``unit`` is
+        recorded as :meth:`_add` records a model parameter's, so a named
+        variable sized like the width it replaces gets that width's floor seed.
         """
         if path in self._paths:
             raise ValueError(f"parameter {path!r} already exists")
         self.entries.append(Entry(path=path, value=value, vary=vary,
                                   lo=lo, hi=hi, transform=transform))
+        self._units[path] = unit
         self._rebuild()
 
     def tie_source_refusal(self, tie: AffineTie) -> tuple[str, str] | None:
@@ -2890,7 +2894,8 @@ class ParameterTable:
             self._rebuild()
         return seeded
 
-    def seed_floor(self, paths: list[str]) -> tuple[dict[str, float], list[str]]:
+    def seed_floor(self, paths: list[str], cap: dict[str, float] | None = None,
+                   *, write: bool = True) -> tuple[dict[str, float], list[str]]:
         """Start each freed softplus row sitting on its floor a short way inside.
 
         A row is on its floor at or below :data:`SOFTPLUS_FLOOR_VALUE` (in
@@ -2900,6 +2905,11 @@ class ParameterTable:
         rows on the floor are touched, so a start a caller chose is never
         overwritten: issue #499 was a seed that lifted every row below it,
         the moment and the scale included.
+
+        ``cap`` maps a path to a ceiling on its seed in column units.  A joint
+        table passes it so a shared column takes one seed in every histogram,
+        since each histogram's box divides by its own value scale.
+        ``write=False`` returns what would be seeded and changes nothing.
 
         Returns ``(seeded, unseeded)``: the paths lifted with the column value
         each now starts at, and the floor rows whose unit has no seed.
@@ -2919,10 +2929,12 @@ class ParameterTable:
                 unseeded.append(path)
                 continue
             # a box narrower than the seed takes half its own width instead
-            seed = min(seed, 0.5 * e.hi / scale)
-            e.value = seed * scale
+            seed = min(seed, 0.5 * e.hi / scale,
+                       (cap or {}).get(path, float("inf")))
+            if write:
+                e.value = seed * scale
             seeded[path] = seed
-        if seeded:
+        if seeded and write:
             self._rebuild()
         return seeded, unseeded
 

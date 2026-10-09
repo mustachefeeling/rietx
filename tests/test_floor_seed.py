@@ -81,6 +81,27 @@ def test_a_box_narrower_than_the_seed_takes_half_its_width():
     assert seeded == {"instrument.profile.y": FLOOR_SEEDS["deg"] / 2}
 
 
+def test_a_named_variable_is_seeded_by_its_declared_unit():
+    """A variable declared like the width it replaces is that width to the fit."""
+    structure, ins = perturbed_models()
+    table = ParameterTable(structure, ins)
+    table.add_parameter("vars.w", 0.0, vary=True, lo=0.0, transform="softplus",
+                        unit="deg")
+    seeded, unseeded = table.seed_floor(["vars.w"])
+    assert seeded == {"vars.w": FLOOR_SEEDS["deg"]} and unseeded == []
+
+
+def test_a_cap_lowers_the_seed_and_a_dry_run_writes_nothing():
+    """The joint table's two halves: one seed per shared column, asked first."""
+    structure, ins = perturbed_models()
+    table = ParameterTable(structure, ins)
+    path = "instrument.profile.y"
+    assert table.seed_floor([path], write=False)[0] == {path: FLOOR_SEEDS["deg"]}
+    assert {e.path: e.value for e in table.entries}[path] == 0.0
+    seeded, _ = table.seed_floor([path], cap={path: 1e-4})
+    assert seeded == {path: 1e-4}
+
+
 def test_a_unit_with_no_size_is_left_and_named():
     structure, ins = _with_a_flat_hump()
     table = ParameterTable(structure, ins)
