@@ -70,14 +70,19 @@ rather than looking for them.
 
 ## Tasks
 
-- [ ] Choose the scale: `help.py`'s typical range, `FLOOR_SEEDS`' unit table,
+- [x] Choose the scale: `help.py`'s typical range, `FLOOR_SEEDS`' unit table,
       or analytic width columns. Measure each against central differences on
       the LaB₆ + cBN and brucite endpoints, every free column.
-- [ ] One step function used by both FD sites, with the scale's source in its
-      docstring.
-- [ ] Tighten `COLUMN_REL_L2_MAX` (or add a per-family bar) so a 1 % column
+      `FLOOR_SEEDS` for an identity row, measured against the jax Jacobian.
+      `help.py`'s `typical` is prose with no live authority, and analytic
+      width columns were not needed.
+- [x] One step function used by both FD sites, with the scale's source in its
+      docstring. `least_squares.fd_step` and `_fd_typicals`.
+- [x] Tighten `COLUMN_REL_L2_MAX` (or add a per-family bar) so a 1 % column
       error fails `tests/test_cross_backend.py`, and add a config with a width
-      on its floor.
+      on its floor. The fp64 rows' bar is `REL_L2_MAX` = 5e-3, which a 1 %
+      column already fails, so no bar moved. The `sharp_widths` config is the
+      coverage that was missing; it fails under the old step.
 - [ ] The step-invariance check: the twelve-fit grid at three step constants,
       in both coordinate systems. No minimum moves by more than 1e-6 relative.
 - [ ] Tests, and every golden that moves listed in the handover with its

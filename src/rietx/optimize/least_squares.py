@@ -43,6 +43,7 @@ from ..model.forward import accumulate_planes as _accumulate
 from ..model.restraints import restraint_partials
 from ..params.transforms import dphys_dinternal
 from ..params.vector import (
+    FLOOR_SEEDS,
     ParameterTable,
     is_variable_path,
     size_cap,
@@ -576,14 +577,45 @@ def fd_step(theta_c: float, typical: float = 1.0) -> float:
     ``FD_STEP · max(typical, |θ_c|)``: relative to the coordinate's size, and
     absolute at ``typical`` near zero (Dennis & Schnabel 1996, *Numerical
     Methods for Unconstrained Optimization and Nonlinear Equations*, SIAM,
-    § 5.4).  Both FD sites call it, so one rule sizes every column.
+    § 5.4).  Both FD sites call it, so one rule sizes every column, and
+    :func:`_fd_typicals` says what ``typical`` is.
     """
     return FD_STEP * max(typical, abs(theta_c))
 
 
 def _fd_typicals(table: ParameterTable) -> np.ndarray:
-    """Each free column's typical size, the ``typical`` of :func:`fd_step`."""
-    return np.ones(len(table.free_paths), dtype=np.float64)
+    """Each free column's typical size, the ``typical`` of :func:`fd_step`.
+
+    An identity row whose unit is a width's takes
+    :data:`~rietx.params.vector.FLOOR_SEEDS`' size for that unit (WP-1936).
+    Every other row takes 1, the step it always had.  A softplus row's θ is
+    close to the logarithm of its value, so a step of 1e-6 there is already
+    relative in the value.
+
+    **Why a width needs its own size.**  The peak chain differences the
+    reflection widths, and a width is curved on the scale of the peak's own
+    variance, not on a scale of 1.  At 1 the step on a Caglioti term is
+    absolute: on LaB₆ + cBN (11-BM, Γ² ≈ 1e-4 deg²) it put 1.4e-3 into ``v``'s
+    column and 1.5e-2 into ``w``'s once ``w`` was an identity row on its
+    floor, against the jax Jacobian.  At ``FLOOR_SEEDS``' sizes every width
+    column on that fit and on lab brucite is within 5e-7 of jax at
+    ``FD_STEP`` = 1e-6.  At 1e-7 and 1e-8 the worst is 2e-5, and it grows as
+    the step shrinks, which is rounding.  A size below the true curvature
+    scale costs only rounding, and ``FD_STEP`` leaves eight decades of room
+    for it.
+
+    The size is in **column units**, which is what the floor seed is in
+    already (:meth:`~rietx.params.vector.ParameterTable.seed_floor`'s
+    write), so a value-scaled joint column needs no factor.
+    """
+    out = np.ones(len(table.free_paths), dtype=np.float64)
+    for c, path in enumerate(table.free_paths):
+        if table.entries[table._paths[path]].transform != "identity":
+            continue
+        size = FLOOR_SEEDS.get(table._units.get(path))
+        if size is not None:
+            out[c] = size
+    return out
 
 
 def _peak_chain_column(model: CompiledModel, table: ParameterTable,
