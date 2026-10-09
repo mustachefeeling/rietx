@@ -1,9 +1,9 @@
 # WP-1917 — a Jupyter quickstart on the landing page, opened in Colab at the release
 
-Milestone: unscheduled · Status: 🔄 2026-10-09 — built and tested; waits on the maintainer's Colab run of each notebook at v1.7.0
+Milestone: unscheduled · Status: 🔄 2026-10-09 — live; the Colab restart is fixed on main and reaches Colab with the next release
 Track: Render what the fit already knows
 Depends on: 1916 (the manual pages it links; ✅ 2026-10-08, PR #826)
-Priority: P3 2026-10-09 — rietx 1.7.0 is on PyPI and tagged, so the Colab links can go live
+Priority: P3 2026-10-09 — what remains waits on the next release
 
 ## Goal
 
@@ -103,8 +103,13 @@ so dropping the "until 1.7" lines needs no manual edit.
 - [x] Tests in `tests/test_landing.py`: the built page has one row per notebook
   by glob; every Colab URL names the tag `build.py` found; every Read link
   resolves to a page the manual builds.
-- [ ] The maintainer's Colab run of each notebook at the tag, its result
-  recorded in the handover.
+- [x] The maintainer's Colab run of each notebook at the tag, its result
+  recorded in the handover. It asked for a restart (2026-10-09 entry).
+- [x] The matplotlib floor at Colab's preinstalled 3.10.0 below Python 3.14,
+  so the install needs no restart.
+- [x] The two quickstarts on one row, the open one drawn over the other.
+- [ ] After the next release: one notebook re-run in Colab with no restart
+  prompt and no "until 1.7" line.
 - [x] Skill: none. The page is for people, and the agent quickstart is unchanged.
 
 ## Acceptance
@@ -125,7 +130,7 @@ that runs top to bottom on a fresh Colab runtime.
 
 ## Handover log
 
-- **2026-10-09, second session** — the maintainer's Colab run answered the
+- **2026-10-09** — (second session) the maintainer's Colab run answered the
   open question. `%pip install rietx` does ask for a runtime restart, naming
   `matplotlib` and `mpl_toolkits`. Colab preinstalls matplotlib 3.10.0 and
   imports it at startup, and 1.7.0's floor of 3.10.5 makes pip upgrade it.
