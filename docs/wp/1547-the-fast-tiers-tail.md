@@ -136,7 +136,7 @@ only if the last task moves Python versions into the nightly.
 
 ## Tasks
 
-- [ ] `test_lebail_alternation.py`: share the two repeated fits through
+- [x] `test_lebail_alternation.py`: share the two repeated fits through
       module fixtures, and measure whether a narrower 2θ window keeps the
       three shapes the module docstring names (pass 2 worse at exact cells,
       convergence at +0.3 %, no settling at +2 %). Every quoted Rwp is the
