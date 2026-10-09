@@ -89,6 +89,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ...crystallography.symmetry import setting_diagnostics
+from ...model.profiles.caglioti import GAUSSIAN_VARIANCE_TO_FWHM_SQUARED
 from ...schemas.common import Diagnostic
 
 if TYPE_CHECKING:
@@ -140,21 +141,20 @@ CW_CENTIDEG_POWER: dict[str, int] = {
 }
 
 
-#: GSAS-I's ``GU``, ``GV`` and ``GW`` are the coefficients of a Gaussian
-#: *variance*, σ² = GU tan²θ + GV tanθ + GW (+ GP / cos²θ), in centidegrees²
-#: (Larson & Von Dreele 2004, § "CW profile functions", profile functions 3
-#: and 4: "The Gaussian variance of the peak, σ², varies with 2Θ as …").
-#: ``ProfileTCHZ``'s ``u/v/w`` are those of the Gaussian FWHM² in degrees²,
-#: and Γ² = 8 ln 2 · σ², so a ``GU/GV/GW`` in degrees² becomes a ``u/v/w`` by
-#: this factor.  :attr:`GsasProfileTerm.degrees` keeps the quantity the file
-#: states (a variance), as :attr:`~rietx.io.projects.gsas2.Gsas2Term.degrees`
-#: does for ``.gpx``.
-GAUSSIAN_VARIANCE_TO_FWHM_SQUARED = 8.0 * math.log(2.0)
-
-
 def gaussian_fwhm_squared_degrees(term: "GsasProfileTerm") -> float:
     """``term`` (``GU``, ``GV`` or ``GW``) as a coefficient of the Gaussian
-    FWHM² in degrees², which is what ``ProfileTCHZ.u/v/w`` hold."""
+    FWHM² in degrees², which is what ``ProfileTCHZ.u/v/w`` hold.
+
+    GSAS-I's ``GU``, ``GV`` and ``GW`` are the coefficients of a Gaussian
+    *variance*, σ² = GU tan²θ + GV tanθ + GW (+ GP / cos²θ), in centidegrees²
+    (Larson & Von Dreele 2004, § "CW profile functions", profile functions 3
+    and 4: "The Gaussian variance of the peak, σ², varies with 2Θ as …").
+    Γ² = 8 ln 2 · σ², so a ``GU/GV/GW`` in degrees² becomes a ``u/v/w`` by
+    :data:`~rietx.model.profiles.caglioti.GAUSSIAN_VARIANCE_TO_FWHM_SQUARED`.
+    :attr:`GsasProfileTerm.degrees` keeps the quantity the file states (a
+    variance), as :attr:`~rietx.io.projects.gsas2.Gsas2Term.degrees` does for
+    ``.gpx``.
+    """
     if term.name not in ("GU", "GV", "GW") or term.degrees is None:
         raise ValueError(f"{term.name!r} is not a Gaussian variance coefficient "
                          f"(GU, GV, GW)")

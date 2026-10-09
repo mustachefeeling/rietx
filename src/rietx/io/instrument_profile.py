@@ -39,6 +39,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from .._about import PROFILE_FORMAT_KEY
+from ..model.profiles.caglioti import GAUSSIAN_VARIANCE_TO_FWHM_SQUARED
 from ..schemas.common import SCHEMA_VERSION, Diagnostic
 from ..schemas.instrument import (
     BackgroundChebyshev,
@@ -65,7 +66,6 @@ from ..schemas.migrate import (
 )
 from .projects.gsas import (
     CW_PROFILE_COEFFICIENTS,
-    GAUSSIAN_VARIANCE_TO_FWHM_SQUARED,
     KEY_BYTES,
     GsasIcons,
     _naming_the_file,

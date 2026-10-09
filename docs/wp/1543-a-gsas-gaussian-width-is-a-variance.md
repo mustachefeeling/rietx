@@ -70,8 +70,11 @@ fit can still converge well, and the microstructure it reports is wrong.
 - [ ] Audit every reader and writer of a GSAS or GSAS-II width
       (`git grep -n 'centidegree_factor\|_PRM_CENTIDEG\|/ 1e4\|1e-4'` under
       `src/rietx/io/`) and list each with its convention.
-- [ ] One constant for the conversion, used by every path, and the
+- [x] One constant for the conversion, used by every path, and the
       `read_gsas_prm` docstring's three-way verification rewritten.
+      (`caglioti.GAUSSIAN_VARIANCE_TO_FWHM_SQUARED`; `gsas.py`, `gsas2.py`,
+      `instrument_profile.py` import it and `recipe.GAUSS_CENTIDEG2_TO_DEG2`
+      derives from it, bit-identical. #739 rewrote the docstring.)
 - [ ] Tests pinned to GSAS-II's own numbers, not to a round trip.
 - [x] The 1.7.0 notes: a frozen GSAS instrument's widths move, and so does
       every sample-broadening number fitted on one. (Shipped in

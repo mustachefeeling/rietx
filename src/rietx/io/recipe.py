@@ -108,7 +108,11 @@ import numpy as np
 from ..crystallography.dispersion import dispersion
 from ..crystallography.lattice import cell_volume
 from ..model.forward import seed_phase_scales
-from ..model.profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
+from ..model.profiles.caglioti import (
+    GAUSSIAN_VARIANCE_TO_FWHM_SQUARED,
+    gaussian_fwhm,
+    lorentzian_fwhm,
+)
 from ..params.vector import background_parameters, extra_component_parameters
 from ..schemas.common import Diagnostic, Parameter
 from ..schemas.instrument import (
@@ -142,7 +146,7 @@ __all__ = ["Recipe", "RecipeError", "read_recipe", "write_recipe_tables"]
 
 #: GSAS-II Gaussian variance (centideg²) → a Caglioti FWHM² term (deg²).
 #: 8·ln2 turns a variance into a FWHM², 1e-4 turns centideg² into deg².
-GAUSS_CENTIDEG2_TO_DEG2 = 8.0 * math.log(2.0) * 1e-4
+GAUSS_CENTIDEG2_TO_DEG2 = GAUSSIAN_VARIANCE_TO_FWHM_SQUARED * 1e-4
 
 #: GSAS-II Lorentzian FWHM (centideg) → deg.
 CENTIDEG_TO_DEG = 1e-2
@@ -951,7 +955,7 @@ def _read_extra_components(peaks: dict, pattern: PatternData,
                 where=[f"instrument.extra_components.{i}.fwhm"]))
 
         fwhm = (5.0 if sig is None
-                else max(abs(sig) * math.sqrt(8.0 * math.log(2.0))
+                else max(abs(sig) * math.sqrt(GAUSSIAN_VARIANCE_TO_FWHM_SQUARED)
                          * CENTIDEG_TO_DEG, 1e-3))
         peak = HumpComponent(
             position=Parameter(value=0.0 if pos is None else float(pos),
