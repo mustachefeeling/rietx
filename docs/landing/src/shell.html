@@ -128,13 +128,33 @@ p{margin:0}
 .copy.copied .i-done{display:block}
 .copy.copied{color:var(--ok)}
 
-/* The two quickstarts, agent and Jupyter: each a <details> drawn as a button on its own line,
-   which grows into its panel when opened.  The bordered box is the control, open or closed, so the prompt inside
+/* The two quickstarts, agent and Jupyter: each a <details> drawn as a button, the pair on one
+   row, which grows into its panel when opened.  The bordered box is the control, open or closed, so the prompt inside
    it takes no box of its own.  Its label and chevron stay where they were, so the button
-   reads as the same thing grown rather than replaced. */
-.qs{width:fit-content;max-width:100%;margin-top:12px;border:1px solid var(--rule-strong);border-radius:8px;
+   reads as the same thing grown rather than replaced.  The open one takes the whole row and is
+   drawn over its neighbour, which hides once the growth has covered it, so it leaves the tab
+   order too.  A browser without exclusive <details> can open both; the second then takes a
+   row of its own. */
+.qs-row{display:grid;grid-template-columns:max-content max-content minmax(0,1fr);align-items:start;
+  gap:12px;margin-top:12px}
+.qs{grid-row:1;width:fit-content;max-width:100%;border:1px solid var(--rule-strong);border-radius:8px;
   background:var(--surface);scroll-margin-top:76px}
-.qs[open]{width:680px}
+.qs:first-child{grid-column:1}
+.qs:last-child{grid-column:2}
+.qs-row > .qs[open]{grid-column:1 / -1;position:relative;z-index:1;width:680px}
+.qs-row > .qs[open] ~ .qs[open]{grid-row:2}
+.qs-row:has(> .qs[open]) > .qs:not([open]){visibility:hidden;transition:visibility 0s .2s}
+/* With the first one open the second's column loses its neighbour and moves left, so it hides
+   at once rather than show the move. */
+.qs-row:has(> .qs:first-child[open]) > .qs:last-child{transition:none}
+/* The row needs 408 px: buttons of 169 and 179 px (Chromium, measured), the 12 px gap and two
+   24 px gutters.  Below that the two stack, and the open one spans both rows. */
+@media (max-width:420px){
+  .qs-row{grid-template-columns:minmax(0,1fr)}
+  .qs:last-child{grid-column:1;grid-row:2}
+  .qs-row > .qs[open]{grid-row:1 / span 2}
+  .qs-row > .qs[open] ~ .qs[open]{grid-row:3}
+}
 .qs > summary{display:flex;align-items:center;gap:8px;height:38px;padding:0 15px;list-style:none;cursor:pointer;
   border-radius:7px;font-weight:500;font-size:.95rem;color:var(--ink);user-select:none}
 .qs > summary::-webkit-details-marker{display:none}

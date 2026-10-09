@@ -10,6 +10,9 @@
     <a class="btn" href="https://github.com/yue-here/rietx">GitHub</a>
     <a class="btn" href="why.html">Why rietx?</a>
   </div>
+  <!-- The two quickstarts sit on one row.  The open one spans the row and is drawn over the
+       other, which hides once covered (shell.html, .qs-row). -->
+  <div class="qs-row">
   <!-- The quickstart is a button that grows into the prompt: a <details> whose summary is
        the button, so the open state, the keyboard and the announcement are the browser's.
        The prompt is written once, as markup.  `.v-pip` and `.v-git` are the two install
@@ -46,12 +49,13 @@
   <details class="qs" id="notebooks" name="quickstart">
     <summary>Jupyter quickstart<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
     <div class="qs-body">
-      <p class="qs-lead">Tutorial notebooks, each under a minute. Read one in the manual, open it in Colab, or download it. Its first cell installs <code>rietx</code>.</p>
+      <p class="qs-lead">Hands on <code>rietx</code> tutorials. Choose ‘Colab’ to run them live in your browser.</p>
       <ul class="nb-list">
 %%NOTEBOOKS%%
       </ul>
     </div>
   </details>
+  </div>
   <span class="sr" id="copy-status" role="status"></span>
 </div></section>
 
