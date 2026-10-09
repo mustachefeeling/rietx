@@ -111,7 +111,7 @@ operator loop; two resolver paths give `F d -3 m:2` and `:1`) is 1933's.
 
 ## Tasks
 
-- [ ] Vendor the six COMCIFS files into `tests/data/cif_dictionaries/` with
+- [x] Vendor the six COMCIFS files into `tests/data/cif_dictionaries/` with
       `ATTRIBUTION.md` and `tests/data/README.md` rows; amend the magCIF row.
 - [ ] **C-a, the tag registry** (`io/cif/registry.py`): flat name, DDLm
       `_definition.id`, category and key, purpose, units, deprecation, output
