@@ -583,7 +583,9 @@ def fd_step(theta_c: float, typical: float = 1.0) -> float:
     return FD_STEP * max(typical, abs(theta_c))
 
 
-def _fd_typicals(table: ParameterTable) -> np.ndarray:
+def _fd_typicals(table: ParameterTable,
+                 identities: list[tuple[str, list[str], bool]] | None = None
+                 ) -> np.ndarray:
     """Each free column's typical size, the ``typical`` of :func:`fd_step`.
 
     An identity row that is a **width** takes
@@ -607,22 +609,41 @@ def _fd_typicals(table: ParameterTable) -> np.ndarray:
     degrees, and position is linear in them, so a small step removes no
     truncation and adds rounding: at 1e-3° the zero-shift column moved from
     2e-9 to 3e-6 against jax on every golden state.  An offset can be
-    negative and a width cannot, so a row is a width when its lower bound is
-    at least 0.  A deg² row is a Caglioti term of a variance and is one
-    whatever its bound, since ``u`` and ``v`` may go negative.
+    negative and a width cannot, so a row is sized as a width when its lower
+    bound is at least 0.  A deg² row is a Caglioti term of a variance and is
+    sized whatever its bound, since ``u`` and ``v`` may go negative.  The test
+    also admits a position or an angle a caller bounded above 0.  Its step
+    is unchanged while |θ| exceeds the size, which holds for every such row
+    the package builds.
 
     The size is in **column units**, which is what the floor seed is in
     already (:meth:`~rietx.params.vector.ParameterTable.seed_floor`'s
     write), so a value-scaled joint column needs no factor.
+
+    **A named variable with no unit of its own is sized by what it drives.**
+    Its name says nothing, so the row read is the one
+    :func:`_column_identities` names for the column, and the size is divided
+    by that row's coefficient in C.  Read off the name, a ``vars.U`` driving
+    ``u`` kept the step of 1, and on the ``sharp_widths`` state of
+    ``tests/test_cross_backend.py`` its column kept the old 1.8e-3 error.
     """
+    if identities is None:
+        identities = _column_identities(table, _column_extras(table))
+    coef = table.constraint_block()[0].tocsc()
     out = np.ones(len(table.free_paths), dtype=np.float64)
     for c, path in enumerate(table.free_paths):
-        e = table.entries[table._paths[path]]
-        unit = table._units.get(path)
+        if table.entries[table._paths[path]].transform != "identity":
+            continue
+        row, unit, k = path, table._units.get(path), 1.0
+        if unit is None and is_variable_path(path) and identities[c][0] != path:
+            row = identities[c][0]
+            unit = table._units.get(row)
+            k = abs(float(coef[table._paths[row], c]))
         size = FLOOR_SEEDS.get(unit)
-        if (e.transform == "identity" and size is not None
-                and (e.lo >= 0.0 or unit == "deg^2")):
-            out[c] = size
+        if (size is not None and k > 0.0
+                and (table.entries[table._paths[row]].lo >= 0.0
+                     or unit == "deg^2")):
+            out[c] = size / k
     return out
 
 
@@ -1025,7 +1046,7 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                if all(q in bkg_cols for q in (path, *extra)) else None
                for c, (path, extra, _) in enumerate(identities)]
 
-    typicals = _fd_typicals(table)
+    typicals = _fd_typicals(table, identities)
 
     def dpdu_of(c: int, theta: np.ndarray) -> float:
         e = table.entries[table._paths[free[c]]]

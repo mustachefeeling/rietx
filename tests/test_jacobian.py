@@ -19,7 +19,7 @@ from rietx.optimize.least_squares import (
     _make_jacobian,
     _make_residual,
 )
-from rietx.params.vector import FLOOR_SEEDS, AffineTie, ParameterTable
+from rietx.params.vector import FLOOR_SEEDS, VAR_PREFIX, AffineTie, ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.structure import Atom, Cell, Phase, Structure
 from tests.test_coordinates import make_rutile
@@ -579,3 +579,19 @@ def test_a_width_is_stepped_by_its_unit_and_everything_else_by_one():
         "instrument.profile.v": FLOOR_SEEDS["deg^2"],
         "instrument.profile.w": 1.0, "instrument.profile.x": FLOOR_SEEDS["deg"],
         "instrument.profile.y": 1.0}
+
+
+def test_a_variable_with_no_unit_is_stepped_by_the_width_it_drives():
+    """A ``vars.*`` column is sized by its reach, never by its name.
+
+    ``vars.U`` carries no unit, so read off its own row it would keep the step
+    of 1.  It drives ``u`` at coefficient 2, so its size is half of ``u``'s.
+    """
+    table = ParameterTable(make_rutile(), Instrument.bragg_brentano())
+    table.set_vary(["*"], False)
+    table.add_parameter(f"{VAR_PREFIX}U", 0.0, vary=True, lo=-1.0, hi=1.0)
+    table.set_tie("instrument.profile.u",
+                  AffineTie(terms=((f"{VAR_PREFIX}U", 2.0),), const=0.0))
+    table.refresh_ties()
+    typical = dict(zip(table.free_paths, _fd_typicals(table), strict=True))
+    assert typical == {f"{VAR_PREFIX}U": FLOOR_SEEDS["deg^2"] / 2.0}

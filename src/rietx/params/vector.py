@@ -1045,7 +1045,7 @@ SOFTPLUS_FLOOR_VALUE = 1e-9
 #: **A second reader.**  The finite-difference step of an identity width row
 #: is sized by the same table (``optimize.least_squares._fd_typicals``,
 #: WP-1936), so a new width unit belongs here for both reasons.
-FLOOR_SEEDS: dict[str, float] ={"deg": 1e-3, "deg^2": 1e-3 ** 2, "um^2": 1e-3}
+FLOOR_SEEDS: dict[str, float] = {"deg": 1e-3, "deg^2": 1e-3 ** 2, "um^2": 1e-3}
 
 
 class ParameterTable:
