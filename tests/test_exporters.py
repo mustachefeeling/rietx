@@ -475,6 +475,50 @@ def test_a_pattern_that_was_not_fitted_is_refused(fitted_lab6):
                            pattern=shifted)
 
 
+def test_the_experiment_and_refinement_items(fitted_lab6):
+    """The items a reader needs beside the numbers: the probe, the method, the
+    geometry, every emission line with its weight, the restraint count, the
+    last shift over su, the absorption applied or ``none``, extinction on the
+    phase's block, and profile text in lines checkCIF reads (≤ 80 columns)
+    naming the shape the fit computed and every value with its su."""
+    from rietx.io.exporters import refinement_cif_doc
+    from tests.test_cif_registry import _lab_variant
+
+    ref, result, _data = fitted_lab6
+    block = refinement_cif_doc(result, ref.fitted_structure, ref.fitted_instrument)[0]
+    assert block.find_value("_diffrn_radiation_probe") == "x-ray"
+    assert block.find_value("_pd_calc_method").strip("'") == "Rietveld Refinement"
+    assert "Debye-Scherrer" in block.find_value("_pd_instr_geometry")
+    assert block.find_value("_diffrn_radiation_wavelength") is not None
+    assert block.find_value("_refine_ls_number_restraints") == "0"
+    assert float(block.find_value("_refine_ls_shift/su_max")) == pytest.approx(
+        result.statistics.max_shift_over_esd)
+    assert block.find_value("_exptl_absorpt_correction_type") == "none"
+    assert block.find_value("_refine_ls_extinction_coef") is None
+    profile = gemmi.cif.as_string(block.find_value("_pd_proc_ls_profile_function"))
+    assert "TCHZ" in profile
+    w = result.parameter("instrument.profile.w")
+    assert f"W={format_su(w.value, w.stderr)}" in profile
+    for tag in ("_pd_proc_ls_profile_function", "_pd_proc_ls_background_function",
+                "_pd_proc_ls_special_details"):
+        lines = gemmi.cif.as_string(block.find_value(tag)).splitlines()
+        assert lines and max(len(line) for line in lines) <= 80, tag
+
+    lab, structure, instrument = _lab_variant(result, ref)
+    instrument.profile.shape = "voigt"
+    block = refinement_cif_doc(lab, structure, instrument)[0]
+    rows = list(block.find(["_diffrn_radiation_wavelength",
+                            "_diffrn_radiation_wavelength_id",
+                            "_diffrn_radiation_wavelength_wt"]))
+    assert [row[1] for row in rows] == ["1", "2"]
+    assert float(rows[0][2]) == 1.0 and 0.0 < float(gemmi.cif.as_number(rows[1][2])) < 1.0
+    assert block.find_value("_exptl_absorpt_correction_type") == "cylinder"
+    assert "Rouse" in block.find_value("_exptl_absorpt_process_details")
+    assert block.find_value("_refine_ls_extinction_coef") is not None
+    profile = gemmi.cif.as_string(block.find_value("_pd_proc_ls_profile_function"))
+    assert profile.startswith("Voigt") and "TCHZ" not in profile
+
+
 def test_refinement_result_arrays_are_faithful(fitted_lab6, tmp_path):
     """The calc/background columns are written too, not just obs."""
     ref, result, data = fitted_lab6
