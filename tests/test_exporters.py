@@ -421,6 +421,26 @@ def test_refinement_result_arrays_are_faithful(fitted_lab6, tmp_path):
     assert "_pd_proc_intensity_bkg_calc" in text
 
 
+def test_a_le_bail_cif_states_no_composition_from_its_scaffold(fitted_lab6):
+    """Outside rietveld the atoms stand in for a structure nobody supplied, so
+    the refinement CIF states the cell and the setting and no formula, Z, Mr,
+    density or atom types read off them (WP-1319's review)."""
+    from rietx.io.exporters import refinement_cif_doc
+
+    ref, result, _data = fitted_lab6
+    chemistry = ("_chemical_formula_sum", "_chemical_formula_weight",
+                 "_cell_formula_units_Z", "_exptl_crystal_density_diffrn",
+                 "_atom_type_symbol")
+    for mode, stated in (("rietveld", True), ("lebail", False), ("pawley", False)):
+        doc = refinement_cif_doc(result.model_copy(update={"mode": mode}),
+                                 ref.fitted_structure, ref.fitted_instrument)
+        block = doc[0]
+        assert all((block.find_value(t) is not None
+                    or bool(block.find_loop(t))) is stated for t in chemistry), mode
+        assert block.find_value("_space_group_name_H-M_alt") is not None
+        assert block.find_value("_cell_volume") is not None
+
+
 def test_refinement_cif_carries_the_geom_loops(fitted_lab6, tmp_path):
     """``_geom_bond`` / ``_geom_contact`` / ``_geom_angle``, resolvable as written.
 

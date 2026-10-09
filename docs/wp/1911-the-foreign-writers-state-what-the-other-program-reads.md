@@ -212,6 +212,26 @@ a `tests/data/README.md` row.
 
 ### Inherited
 
+- **2026-10-09, from [1319](1319-structure-interchange.md): #756's C-f is this
+  WP's.** The maintainer split issue #756's CIF writer module across three WPs:
+  1319 takes the registry, the number rule and the structure block (C-a to C-c),
+  [1933](1933-the-cif-module-beyond-the-structure-block.md) takes the pattern
+  block, the multi-block layout and the validation hook, and C-f comes here
+  because Part D already writes `_parent_space_group.name_H-M_alt`. C-f, as #756
+  § 2.3 and the reporter's comment of 2026-10-06 state it: write
+  `_parent_space_group.name_H-M_alt`, `_parent_space_group.child_transform_Pp_abc`
+  and `_parent_propagation_vector.kxkykz` whenever
+  `MagneticSymmetry.propagation_vector_parent` is set; always write the nuclear
+  group's `_space_group_symop` loop; keep the nuclear `_space_group_name_H-M_alt`
+  beside the magnetic loops; add `cif_mag.dic` to 1319's registry test (1319
+  vendors it into `tests/data/`). Acceptance: `test_magcif.py:997`'s assertion that
+  the parent k is lost is inverted, and the `write_magcifs` docstring
+  (`strategy/magnetic.py:673-676`), which says the parent is kept, becomes true.
+  It depends on 1319's C-a and C-c, and on #757's I-b fixing the parent record's
+  field names. The structure block it extends drops the deprecated
+  `_symmetry_space_group_name_H-M` (1319's decision 3), which the GSAS-II phase
+  CIF's profile keeps until 1933's C-g declares it.
+
 - **2026-10-08, from the issue triage (issue #732): a whole TOPAS input, the
   Chebyshev domain, and the GSAS-I `ZERO` unit.** The issue lists the eleven
   edits an agent made by hand to every exported `.inp` in a 20-case benchmark.

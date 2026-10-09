@@ -956,8 +956,9 @@ rx.write_gsas2_phase_cif(structure, "exported.cif")
 back = rx.Structure.from_cif("exported.cif")
 ```
 
-Its atom tags are the ones GSAS-II's own importer reads, so the file is the
-package's ordinary structure block with the symmetry stated three times. That
+Its atom tags are the ones GSAS-II's own importer reads, so the file keeps B
+(`_atom_site_B_iso_or_equiv`) where every other CIF here writes U, and states
+the symmetry three times. That
 is not belt and braces. GSAS-II resolves a bare two-origin symbol such as
 `F d -3 m` to origin choice 2, and calls choice 1 a setting not compatible with
 it; gemmi, and so this package, resolves the same string to choice 1. No single
@@ -1777,6 +1778,27 @@ own library generated would name a different atom. The loops list each bond
 once, unlike `GeometryTable`, whose audience is a chemist counting neighbours
 rather than a parser. Take `structure` from `Refinement.fitted_structure`, which
 is where the refined values and their esds are.
+
+Every CIF this package writes, `Structure.to_cif` included, opens each phase
+with the same structure block. It names the setting in three ways. The
+resolved Hermann-Mauguin symbol goes under `_space_group_name_H-M_alt`, beside
+the Hall symbol, the IT number and the crystal system. The full
+`_space_group_symop_` loop follows, which is the loop the geometry codes index.
+An H-M symbol cannot fix the origin, and the Hall symbol or the operations can,
+so a bare `F d -3 m` never reaches the file. The deprecated
+`_symmetry_space_group_name_H-M` is not written. Displacements are U
+(`_atom_site_U_iso_or_equiv`), with each site's multiplicity beside it. The
+block also states the formula, Z, Mr, the calculated density and the cell
+volume, an `_atom_type` loop, and the dictionaries it conforms to
+(`cif_core.dic` 3.3.0, plus `cif_pd.dic` 2.5.0 in a refinement CIF). A value
+with an esd is written in su notation. A value without one is written as the
+shortest text that reads back as the same number, so a β of 90.00004 survives a
+round trip. Two phases whose names collapse to one block name (`ph 1` and
+`ph-1`) get distinct blocks. A label with a space and a non-finite number are
+refused by name before the file is written. Run through IUCr checkCIF, a
+structure-only file reports the same volume, symmetry, formula, Mr, density and
+Z that checkCIF computes. Its remaining alerts ask for single-crystal and
+instrument items a powder structure does not have.
 
 `viz.html.write_html` writes the interactive page, and `RefinementResult.plot`
 writes the static figure. Both work on a base install.

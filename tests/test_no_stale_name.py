@@ -74,6 +74,9 @@ ALLOWED = {
     # the WP index's row for WP-1062, whose title is its subject; generated
     # from that file's heading since WP-1507 moved the rows out of ROADMAP
     "docs/wp/README.md",
+    # the TiO₂ phase, not the old package: a vendored COMCIFS dictionary's
+    # _pd_prep example names an anatase specimen (WP-1319)
+    "tests/data/cif_dictionaries/cif_pd.dic",
 }
 
 
