@@ -61,10 +61,12 @@ fit can still converge well, and the microstructure it reports is wrong.
 
 ## Tasks
 
-- [ ] Confirm against GSAS-II itself, not rietx: a committed GSAS-II
+- [x] Confirm against GSAS-II itself, not rietx: a committed GSAS-II
       project or recipe output with both an instrument's U, V, W and a
       computed pattern (the recipe reader's LaB6 is one), read through
       `read_gsas2_instprm` and drawn by rietx, peak FWHM against GSAS-II's.
+      (`test_gsas2_instprm.py::test_gsas2s_own_lab6_peaks_have_the_width_the_read_instprm_draws`:
+      24 isolated lines within 0.21 %, the old reading at 0.42-0.53×.)
 - [ ] Audit every reader and writer of a GSAS or GSAS-II width
       (`git grep -n 'centidegree_factor\|_PRM_CENTIDEG\|/ 1e4\|1e-4'` under
       `src/rietx/io/`) and list each with its convention.
