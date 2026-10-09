@@ -31,10 +31,15 @@ C-f (magCIF parent record) is [1911](1911-the-foreign-writers-state-what-the-oth
   close (`refine.py`). `io/exporters.py:514` writes `_pd_proc_2theta_corrected` for
   an uncorrected grid and `:516` writes the undefined `_pd_proc_intensity_total_su`
   (both checked at `5d1f5f67`). The second empties 1319's registry allow-list.
-  Acceptance: `read_pdcif` reads back 5753 FAP points with weight 0 on the two
-  excluded.
+  Acceptance: `read_pdcif` reads back 5753 FAP points with weight 0 on the
+  excluded ones (three, 130.00-130.04°; "two" here was #756's count, superseded
+  2026-10-09 by the acceptance test's own comment and the measurement).
+  **Landed 2026-10-09**, record below.
 - **C-e, the multi-block layout and the reader** (C-W3). Overall, phase and pattern
-  blocks with the `_pd_block_id` trio beside `_audit_block_code`;
+  blocks with the `_pd_block_id` trio beside `_audit_block_code`, and the QPA
+  phase table (`_pd_phase_block_id`, `_pd_phase_mass_%`), which is that trio's
+  table and moved here from C-d; the wavelength on every phase block or
+  reachable from it (below, PLAT982/983);
   `structure_from_cif(block=)`; su on read (today the reader drops all 22 su of
   `fap_refinement.cif`, reading through `gemmi.read_small_structure`). The NAC +
   CaF₂ file that `structure_from_cif` refuses on `main` reads block by block. Land
@@ -43,6 +48,63 @@ C-f (magCIF parent record) is [1911](1911-the-foreign-writers-state-what-the-oth
   declared profile over the registry, and the recorded checkCIF alert lists as
   fixtures. Before a magnetic block is written the hook calls #758's
   `validate_magnetic_phase`, and a phase carrying `MAGNETIC_P1_MISMATCH` is refused.
+
+**C-d as landed, 2026-10-09** (`io/cif/powder.py`, `io/exporters.py`,
+`model/geometry.cell_volumes`). Four choices the design left open:
+
+- **QPA went to C-e.** The phase table's key, `_pd_phase.id` and
+  `_pd_phase_mass.phase_id`, has no flat alias in `cif_pd.dic` 2.5.0, and
+  decision 7 keys phases by the deprecated DDL1 trio. So the table is C-e's.
+  `_pd_refln_phase_id` is the phase's 1-based position, the id that table will
+  name.
+- **March-Dollase PO is a sentence** in `_pd_proc_ls_special_details`, with r and
+  its su. `_pd_proc_ls_pref_orient_corr` is deprecated in 2.5.0 and its
+  replacement `_pd_pref_orient_March_Dollase.*` is dotted only (decision 2).
+- **No `_refine_ls_number_constraints`.** The result carries no count of ties,
+  and the dictionary counts symmetry ties as constraints too, so a number read
+  off the user's ties would understate it. Left for whoever adds the count.
+- **The `_refln` loop is `Refinement.write_cif`'s alone**
+  (`refinement_cif_doc(reflections=)`), since only a fit's compiled model builds
+  the rows. `write_refinement_cif` takes `pattern=` and nothing more:
+  `docs/skill/rietx/references/api.md` stands at 39 690 B against its 39 700 B
+  cap, and `tests/skill_caps.py` says the next raise is the split, the
+  maintainer's call. The next public keyword or `RefinementResult` field needs it.
+
+Beyond the design: `RefinementResult.cell_volumes` (`CellVolume`) holds σ(V) in
+every mode, exactly 3a²σ(a) on a cubic cell; `ReflectionRow.phase_index`; the
+profile text named TCHZ for a Voigt fit and now names the shape computed;
+`numbers.text` moves a value that would carry its tag past 80 columns to a text
+field (the class behind PLAT802); f′/f″ are written at the table's four decimals.
+
+**checkCIF after C-d, 2026-10-09** (settings as 1319's; tree `0071e887` plus the
+80-column fix, FAP before that fix, which touched nothing it writes over 80;
+submissions 14-16 of the day's 30). The FAP file is 326 kB and the NAC + CaF₂ one
+2.5 MB, its 59 498 measured points against 22 003 fitted.
+
+| file (block) | A | B | C | G |
+|---|---|---|---|---|
+| FAP refinement | 3 | 0 | 1 | 4 |
+| NAC refinement (NAC block) | 3 | 0 | 3 | 6 |
+| NAC refinement (CaF₂ block) | 11 | 0 | 0 | 13 |
+
+No syntax error, and the calculated/reported table is present on every block.
+Against 1319's after-C-c run the A counts are unchanged and every A alert is
+C-g's: DIFF003, PLAT197, PLAT198 on the pattern block, and the single-crystal
+items (EXPT005, ATOM007, PLAT183-185, PLAT699, PLAT880-881) on CaF₂. Gone:
+REFI015, PLAT802, PLAT151. The residuals each have a reason for C-g's VRF:
+
+- **PLAT742 (C), an angle without su**: FAP's O5-P3-O6 and NAC's F2-Al1-F1 and
+  Al1-F1-Na1. Each depends on nothing the fit refined: coordinates held, and
+  the free cell lengths scale the arms' plane evenly (b = a in hexagonal FAP,
+  a cubic NAC cell). Our missing su is exact, and checkCIF, which does not know
+  the b = a tie, prints (1). `_geom_special_details` says so in words.
+- **PLAT982/983 (G) on CaF₂**: Ca's f′ 0.0960 and f″ 0.1052 against "IT values"
+  0.2262 and 0.3064, which are Ca's at Mo Kα. The CaF₂ block states no
+  wavelength, which sits on the pattern block, so checkCIF compared at its
+  default. C-e's layout answers it.
+- **PLAT981/986 (G) on FAP**: no f′/f″, because the GSAS protocol declines
+  dispersion. Expected.
+- FORMU01, PLAT092, PLAT304, PLAT434, PLAT720, PLAT794: as in 1319's Context.
 
 **The reader's setting** (from [1118](1118-foreign-model-files.md), 2026-09-16,
 moved here from 1319). A CIF can state its setting in three places, and gemmi's
@@ -108,7 +170,7 @@ and alert lists are in 1319's Context.
 
 ## Tasks
 
-- [ ] C-d, the pdCIF pattern block, f′/f″ in the `_atom_type` loop and the dummy
+- [x] C-d, the pdCIF pattern block, f′/f″ in the `_atom_type` loop and the dummy
       site's `calc_flag`, with its checkCIF re-run.
 - [ ] C-e, the multi-block layout, `structure_from_cif(block=)`, su and the current
       multiplicity tag on read; the
