@@ -227,13 +227,31 @@ printed digit on both.
   Selective policy (lane when main > 150K and item ≥ 20): −21 % over 90
   replayed sessions.
 
+  *Review* (`/code-review high --fix`, 10 findings). Fixed: a named
+  variable lost its unit, so `vars.X` was never floor-seeded; a shared joint
+  column could take two seeds through per-histogram box caps; three copies of
+  the stage-list wording became `_stage_list`; a floored `.scale` fired the
+  new warning against PHASE_UNCONSTRAINED's advice and is now left to it; the
+  manual overclaimed that every width is softplus; the 1.8 notes and record
+  now stage the change. Declined, with reasons: re-seeding a row a later stage
+  names again is what "a stage that frees it" means, and the answer stage
+  converges it back (BT-1); the TOPAS protocol departure is the maintainer's
+  decided option (a), documented in the suite. Open: `suggest()` still probes
+  every floor candidate at a flat 1e-3 (`SUGGEST_SEED_SOFTPLUS`,
+  `refine.py` near the `seed_softplus(cand_paths` call), so a deg² width is
+  probed from a start no stage takes; and `RWP_PLATFORM_SPREAD` 1e-4 in the
+  Le Bail alternation suite rests on the pre-seed Linux spread, which the PR's
+  Linux CI measures.
+
   *Gotchas.* The acceptance's second platform is unrun: the reporter measured
   the held protocol on Linux (10.15182, 1e-12 agreement), but not this tree's
   seed. Other suites' VALIDATION rows were not swept for moved figures; only
   the tests that failed were re-measured.
 
-  Next: (1) watch the first Linux nightly after merge for the band, then tick
-  it and close; (2) ask the reporter whether their fit recorder can sweep this
+  Next: (1) watch the PR's Linux CI for the alternation suite's 1e-4 bar,
+  and the first Linux nightly after merge for the band, then tick it and
+  close; (2) size `suggest()`'s probe seed by unit through `seed_floor`,
+  re-measuring its ranked rows; (3) ask the reporter whether their fit recorder can sweep this
   PR against `main` for VALIDATION rows that moved silently, and re-measure
   what it finds (their Cr₂WO₆ 0.2047 → 0.2035 is #700's and still stale).
 
