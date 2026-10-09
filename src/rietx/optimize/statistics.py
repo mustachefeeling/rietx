@@ -128,7 +128,10 @@ def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
 
     ``condition`` is a boolean mask of columns held fixed (WP-1929): every
     other column's covariance is the inverse of the normal matrix without
-    them, and their own rows and columns of ``K`` are exactly zero.  A
+    them, and their own rows and columns of ``K`` are exactly zero (Self &
+    Liang, 1987, *J. Am. Stat. Assoc.* **82**, 605, eq. 2.2: once a
+    parameter sits on its bound, the others are Gaussian conditional on
+    it).  A
     conditioned column is therefore a *constant* to anything propagated
     through the result, never an unmeasured one, so its ``1/d`` is kept
     nonzero even where its gradient is.  Nothing conditioned, or ``None``,
@@ -151,6 +154,9 @@ def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     inv_d = np.where(live, 1.0 / np.where(live, d, 1.0), 0.0)
     held = (np.zeros(len(d), dtype=bool) if condition is None
             else np.asarray(condition, dtype=bool))
+    if held.shape != d.shape:
+        raise ValueError(f"condition must be a boolean mask of {len(d)} "
+                         f"columns, got shape {held.shape}")
     if not held.any():
         k = np.linalg.pinv(JTJ * np.outer(inv_d, inv_d), rcond=PINV_RCOND,
                            hermitian=True) * scale
@@ -161,14 +167,17 @@ def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
         sub = np.ix_(keep, keep)
         k = np.zeros_like(JTJ)
         if len(keep):
-            k[sub] = np.linalg.pinv((JTJ * np.outer(inv_d, inv_d))[sub],
+            k[sub] = np.linalg.pinv(JTJ[sub] * np.outer(inv_d[keep], inv_d[keep]),
                                     rcond=PINV_RCOND, hermitian=True) * scale
-        # a held column is a constant, so it must not read as gradient-free
-        # (``covariance_from_factors`` turns 1/d = 0 into infinite variance);
-        # its K row is zero, so the value multiplies nothing
-        inv_d = np.where(held & ~live, 1.0, inv_d)
     if s is not None:
         inv_d = inv_d * s
+    if held.any():
+        # a held column is a constant, so it must not read as gradient-free
+        # (``covariance_from_factors`` turns 1/d = 0 into infinite variance).
+        # Its K row is zero, so 1/d multiplies nothing, and it is set to 1
+        # after the rescale: a tiny column's 1/d·s squares past the double
+        # range, and 0 × inf would put a NaN on its diagonal
+        inv_d = np.where(held, 1.0, inv_d)
     return k, inv_d, chi2_red
 
 

@@ -518,7 +518,7 @@ def test_a_held_column_is_a_constant_to_everything_else():
     keep = np.flatnonzero(~held)
     k_sub, d_sub, _ = normal_factors(jac[:, keep], resid, 4)
     assert np.allclose(cov[np.ix_(keep, keep)],
-                       covariance_from_factors(k_sub, d_sub), rtol=1e-12)
+                       covariance_from_factors(k_sub, d_sub), rtol=1e-12, atol=0.0)
     assert not cov[2].any() and not cov[:, 2].any()
 
     # a held column with no gradient at all is still a constant
@@ -526,6 +526,17 @@ def test_a_held_column_is_a_constant_to_everything_else():
     dead[:, 2] = 0.0
     k, inv_d, _ = normal_factors(dead, resid, 4, condition=held)
     assert np.isfinite(covariance_from_factors(k, inv_d)).all()
+
+    # and so is one so small that its 1/d squares past the double range
+    # (a softplus scale at its floor, WP-1463): 0 × inf must not be a NaN
+    tiny = jac.copy()
+    tiny[:, 2] *= 1e-170
+    k, inv_d, _ = normal_factors(tiny, resid, 4, condition=held)
+    cov = covariance_from_factors(k, inv_d)
+    assert np.isfinite(cov).all() and not cov[2].any()
+
+    with pytest.raises(ValueError, match="boolean mask of 4"):
+        normal_factors(jac, resid, 4, condition=np.array([2]))
 
 
 def test_nothing_held_is_the_unconditioned_arithmetic_bit_for_bit():
