@@ -299,6 +299,50 @@ its floor moves by more than 1 % without a line in the handover saying why.
 
 ## Handover log
 
+### 2026-10-09 (2nd session) — physical coordinates decided, filed as 1936-1938
+
+Both platform splits come from refining widths and scales in softplus
+coordinates. Near zero, softplus makes a column too small to difference and a
+gradient too small to escape, so rounding chooses the esds and sometimes the
+minimum. Refining in physical units with ordinary bounds gave one minimum and
+one esd on every fit tried. The exception is where scipy's TRF crawls with
+several widths pressed on zero, and the package's LM driver fixes that once
+its bounded step is solved exactly. The maintainer chose that base and
+reversed the 10-08 reporting rule: esds stay marginal, and a row on its bound
+is flagged. Nothing was built. The work is filed as three WPs, and this one
+keeps the reporting rule.
+
+- *Done.* `67dfa21f` the grid in Context; `56941860` the decision, the
+  rewritten Goal and Tasks, and WP-1936 (FD step sized per parameter), 1937
+  (an exact bounded step in the LM driver, then the default), 1938 (physical
+  coordinates). `befc2ebc` renumbered those from 1933-1935, because the CIF
+  session holds 1933 (PR #854). `main` merged in (`e9ef5369`).
+- *Measured* (macOS arm64, `[dev]`, tree `35f4ac14`). The Context table, plus
+  the step sweep in 1936 and the driver table in 1937. The arms run were
+  softplus, physical, unbounded and physical-step FD, each under TRF, dogbox,
+  TRF with `x_scale="jac"`, LM, LM with BVLS, and a TRF pin wrapper. Each arm
+  ran on 11-12 acceptance fits with 3-5 nudged starts. Wall clock was not
+  quoted, since the machine was shared.
+- *Review.* An adversarial review (Fable, high effort) found four problems.
+  The FD step chooses LaB₆'s basin. The esd-window bound test flags
+  `profile.u = −0.0016 ± 2359` as at its bound. The LM driver reports
+  "diverged" at a minimum and caps differently. Readers branch on
+  `"softplus"`. The first two were re-measured here and hold. All four are
+  tasks in 1936-1938.
+- *Not run.* The fast and full suites. This session's commits are docs only,
+  and the probe toggles were reverted before the merge. The branch's one code
+  change is still `b48cafd1`/`37c318e7`, whose counts are in the first entry.
+- *Gotchas.* The probe kit (`probe_bounds.py`, `run.sh`, `table.py`) lived
+  in the session scratchpad and is gone. Rebuild it from the Context
+  paragraph: a monkeypatch of `ParameterTable.__init__` for the coordinates,
+  one of `refine.run_least_squares` for the driver, and an env toggle at the
+  two FD sites. `rietx.refine` resolves to the function, so take the module
+  from `sys.modules`. The worktree guard refuses inline heredoc python.
+- *Next.* (1) WP-1936, the FD step, which is correct in either coordinate
+  system and decides which basin the other two are measured against. (2)
+  WP-1937, the driver. (3) WP-1938, the coordinates. (4) This WP's flag,
+  floor diagnostic and `profile_interval`, keyed on 1937's active set.
+
 - **2026-10-09** — The platform split in these esds is not a statistical
   ambiguity. It is a derivative computed below rounding. A softplus row near
   zero is differenced by a step that moves the width less than its last digit,

@@ -42,14 +42,15 @@ notebook reads the rows with their esds and does not print the ratios.
 
 ### Inherited
 
-- **2026-10-09, from WP-1929: what "at its floor" means is being settled
-  there.** The test is `staged.bound_untested`, and the reporting rule the
-  literature supports is that a row on its floor keeps its value, has no
-  symmetric esd, and offers a one-sided interval (Self & Liang 1987;
-  Currie 1995 § 3.7.3.1 Note 2). WP-1929 may also give softplus a finite
-  floor, which would turn "a tiny positive number" into an active bound
-  that this reader can test directly. Quote 1929's rule here; do not
-  settle it twice.
+- **2026-10-09, from WP-1929 (2nd session): a floor becomes an ordinary
+  bound, and the driver says which rows sit on it.** Decided by the
+  maintainer: WP-1938 refines every parameter in physical units with native
+  bounds, so a coefficient at its floor is at its `min`, with no tiny
+  positive softplus value to interpret. WP-1937 exposes the driver's exact
+  active set on `LSQOutcome`, and WP-1929 keys `at_bound` on it. A row on its
+  bound keeps its value and its marginal esd, flagged. So this WP's first
+  task becomes "read the flag", and it waits on 1937-1938. `bound_untested`,
+  the test the earlier entry named, is deleted by 1938.
 
 ## Tasks
 
