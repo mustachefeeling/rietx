@@ -383,7 +383,7 @@ from .._nearmiss import did_you_mean
 #: (template, origin, orientation quaternion) over the phase's own atoms.
 #: Additive and defaulted to empty, which builds exactly the table every
 #: earlier document built; an older build refuses a document carrying a body.
-#: 0.44 → 0.45 (yue-here/rietx issue #193, the time-of-flight readers and
+#: 0.43 → 0.44 (yue-here/rietx issue #193, the time-of-flight readers and
 #: axis): ``PatternData.two_theta`` becomes ``list[float] | None`` beside a new
 #: ``PatternData.tof`` (µs), exactly one of the two set; ``Instrument.source``
 #: gains a third arm, ``TOFSource`` (``kind="neutron_tof"``: DIFC/DIFA/TZERO/
@@ -392,10 +392,9 @@ from .._nearmiss import did_you_mean
 #: ``PatternData.axis``.  Every stored document loads unchanged — each has a
 #: ``two_theta`` — and a 2θ pattern serializes apart from the new nulls, and
 #: refines, exactly as before.  A ``neutron_tof`` source is read and never
-#: refined in this build.  The open PR #823 claims 0.44; this rung is
-#: written as 0.44 → 0.45 so that it follows it, and whichever of the two
-#: lands last renumbers.
-SCHEMA_VERSION = "0.45"
+#: refined in this build.  The open PR #823 also claims 0.44, and
+#: whichever of the two lands last renumbers.
+SCHEMA_VERSION = "0.44"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
