@@ -10,51 +10,49 @@
     <a class="btn" href="https://github.com/yue-here/rietx">GitHub</a>
     <a class="btn" href="why.html">Why rietx?</a>
   </div>
-  <!-- The two quickstarts sit on one row.  The open one spans the row and is drawn over the
-       other, which hides once covered (shell.html, .qs-row). -->
+  <!-- The two quickstarts: a disclosure button each, `aria-expanded` and `aria-controls`,
+       over the panel it shows.  Opening one closes the other, and every link to #quickstart
+       opens the agent one (the script below).  Without script both panels show and the
+       buttons do not. -->
   <div class="qs-row">
-  <!-- The quickstart is a button that grows into the prompt: a <details> whose summary is
-       the button, so the open state, the keyboard and the announcement are the browser's.
-       The prompt is written once, as markup.  `.v-pip` and `.v-git` are the two install
-       lines; the radios pick one by CSS alone, and the copy button serialises what is
-       showing, each `code` wrapped in backticks.  Every link to #quickstart opens it. -->
-  <details class="qs" id="quickstart" name="quickstart">
-    <summary>Agent quickstart<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
-    <!-- Three layers, each drawn once: what the person does (plain text), the one choice
-         that changes the prompt, and the prompt itself, set apart as text to copy. -->
-    <div class="qs-body">
-      <p class="qs-lead">Open Claude Code, Codex or another coding agent in the folder that holds your data, then paste in this prompt.</p>
-      <div class="qs-src" role="radiogroup" aria-labelledby="qs-src-lbl">
-        <span id="qs-src-lbl">Install rietx from</span>
-        <label><input type="radio" name="qs-src" value="pip" checked><span>PyPI</span></label>
-        <span class="dot" aria-hidden="true">·</span>
-        <label><input type="radio" name="qs-src" value="git"><span>GitHub (latest)</span></label>
-      </div>
-      <div class="qs-block">
-        <div class="qs-head"><span>Prompt</span><button class="qs-copy copy" id="qs-copy" type="button"><svg class="i-copy" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg><svg class="i-done" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span class="lbl">Copy</span></button></div>
-        <div class="qs-prompt" id="qs-prompt">
-          <p>I want to refine powder diffraction data with rietx (https://rietx.org). My data and any structure files (CIFs) are in this folder.</p>
-          <ol>
-            <li>Create a Python virtual environment here with Python 3.11 or newer. <span class="v-pip">Install rietx into it: <code>pip install rietx</code></span><span class="v-git">Install the latest development version of rietx into it: <code>pip install git+https://github.com/yue-here/rietx</code></span></li>
-            <li>Install the rietx agent skill with <code>rietx skill --install</code>. Then read <code>.agents/skills/rietx/SKILL.md</code>.</li>
-            <li>Look at the files in this folder and tell me what they are. Propose a refinement plan before you run it.</li>
-          </ol>
-        </div>
+  <div class="qs-tabs">
+    <button class="btn qs-toggle" type="button" aria-expanded="false" aria-controls="quickstart">Agent quickstart<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+    <button class="btn qs-toggle" type="button" aria-expanded="false" aria-controls="notebooks">Jupyter quickstart<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+  </div>
+  <noscript><style>.qs-tabs{display:none}.qs-panel[hidden]{display:block}</style></noscript>
+  <!-- The agent quickstart.  The prompt is written once, as markup.  `.v-pip` and `.v-git`
+       are the two install lines; the radios pick one by CSS alone, and the copy button
+       serialises what is showing, each `code` wrapped in backticks.  Three layers, each
+       drawn once: what the person does (plain text), the one choice that changes the
+       prompt, and the prompt itself, set apart as text to copy. -->
+  <div class="qs-panel" id="quickstart" hidden>
+    <p class="qs-lead">Open Claude Code, Codex or another coding agent in the folder that holds your data, then paste in this prompt.</p>
+    <div class="qs-src" role="radiogroup" aria-labelledby="qs-src-lbl">
+      <span id="qs-src-lbl">Install rietx from</span>
+      <label><input type="radio" name="qs-src" value="pip" checked><span>PyPI</span></label>
+      <span class="dot" aria-hidden="true">·</span>
+      <label><input type="radio" name="qs-src" value="git"><span>GitHub (latest)</span></label>
+    </div>
+    <div class="qs-block">
+      <div class="qs-head"><span>Prompt</span><button class="qs-copy copy" id="qs-copy" type="button"><svg class="i-copy" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg><svg class="i-done" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span class="lbl">Copy</span></button></div>
+      <div class="qs-prompt" id="qs-prompt">
+        <p>I want to refine powder diffraction data with rietx (https://rietx.org). My data and any structure files (CIFs) are in this folder.</p>
+        <ol>
+          <li>Create a Python virtual environment here with Python 3.11 or newer. <span class="v-pip">Install rietx into it: <code>pip install rietx</code></span><span class="v-git">Install the latest development version of rietx into it: <code>pip install git+https://github.com/yue-here/rietx</code></span></li>
+          <li>Install the rietx agent skill with <code>rietx skill --install</code>. Then read <code>.agents/skills/rietx/SKILL.md</code>.</li>
+          <li>Look at the files in this folder and tell me what they are. Propose a refinement plan before you run it.</li>
+        </ol>
       </div>
     </div>
-  </details>
-  <!-- The tutorial notebooks.  It shares the agent quickstart's `name`, so opening one closes
-       the other.  The rows are build.py's, one per notebook at the newest release tag, and
-       every Colab link and download is that tagged file (WP-1917). -->
-  <details class="qs" id="notebooks" name="quickstart">
-    <summary>Jupyter quickstart<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
-    <div class="qs-body">
-      <p class="qs-lead">Hands on <code>rietx</code> tutorials. Choose ‘Colab’ to run them live in your browser.</p>
-      <ul class="nb-list">
+  </div>
+  <!-- The tutorial notebooks.  The rows are build.py's, one per notebook at the newest
+       release tag, and every Colab link and download is that tagged file (WP-1917). -->
+  <div class="qs-panel" id="notebooks" hidden>
+    <p class="qs-lead">Hands on <code>rietx</code> tutorials. Choose ‘Colab’ to run them live in your browser.</p>
+    <ul class="nb-list">
 %%NOTEBOOKS%%
-      </ul>
-    </div>
-  </details>
+    </ul>
+  </div>
   </div>
   <span class="sr" id="copy-status" role="status"></span>
 </div></section>
@@ -194,7 +192,7 @@ result = ref.fit(data, plan=<span class="s">"mccusker_structural"</span>,
 </main>
 
 <script>
-/* ---------- the hero's two copy buttons, and the quickstart disclosure ---------- */
+/* ---------- the hero's two copy buttons, and the quickstart toggles ---------- */
 // Its own script, because the animation's returns early on a page without a payload.
 (function(){
   "use strict";
@@ -202,13 +200,23 @@ result = ref.fit(data, plan=<span class="s">"mccusker_structural"</span>,
   const status = document.getElementById("copy-status");
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // The quickstart is a <details>, so its own summary opens and closes it.  Every link to
-  // #quickstart, wherever that link sits, opens it too: a fragment that names the element
-  // itself does not, so a link would otherwise land on a closed button.
+  // Each toggle shows its own panel and hides the other; the pressed one hides its own.
+  // Every link to #quickstart opens the agent panel and scrolls to the row, buttons and
+  // all: a fragment naming a hidden element would land on nothing.
+  const row = panel.closest(".qs-row"), toggles = row.querySelectorAll(".qs-toggle");
+  function show(id){
+    for (const b of toggles){
+      const on = b.getAttribute("aria-controls") === id;
+      b.setAttribute("aria-expanded", String(on));
+      document.getElementById(b.getAttribute("aria-controls")).hidden = !on;
+    }
+  }
+  for (const b of toggles) b.addEventListener("click", () =>
+    show(b.getAttribute("aria-expanded") === "true" ? null : b.getAttribute("aria-controls")));
   function reveal(){
-    panel.open = true;
-    panel.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-    panel.querySelector("summary").focus({ preventScroll: true });
+    show("quickstart");
+    row.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    toggles[0].focus({ preventScroll: true });
   }
   document.addEventListener("click", e => {
     const a = e.target.closest('a[href="#quickstart"]');
