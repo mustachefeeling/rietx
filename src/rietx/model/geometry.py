@@ -486,3 +486,60 @@ def geometry_table(model, table, theta: np.ndarray, structure, *,
     return GeometryTable(distances=distances, angles=angles,
                          bond_slack=BOND_SLACK_ANG, contact_max=CONTACT_MAX_ANG,
                          notes=notes)
+
+
+# ----------------------------------------------------------------------
+# the cell volume (WP-1933)
+# ----------------------------------------------------------------------
+def _volume_and_gradient(a, b, c, alpha, beta, gamma) -> tuple[float, np.ndarray]:
+    """V and ∂V/∂(a, b, c, α, β, γ), the angles in degrees.
+
+    V = abc·√(1 − cos²α − cos²β − cos²γ + 2 cosα cosβ cosγ) (Giacovazzo et
+    al. 2011, *Fundamentals of Crystallography*, 3rd ed., eq. 2.1).
+    """
+    ca, cb, cg = (math.cos(math.radians(x)) for x in (alpha, beta, gamma))
+    root = math.sqrt(1.0 - ca * ca - cb * cb - cg * cg + 2.0 * ca * cb * cg)
+    v = a * b * c * root
+    per_degree = math.pi / 180.0
+    # ∂root/∂α = sinα (cosα − cosβ cosγ) / root, and likewise for β and γ
+    grad = np.array([
+        v / a, v / b, v / c,
+        *(a * b * c * math.sin(math.radians(x)) * (cx - cy * cz) / root * per_degree
+          for x, cx, cy, cz in ((alpha, ca, cb, cg), (beta, cb, ca, cg),
+                                (gamma, cg, ca, cb)))])
+    return v, grad
+
+
+def cell_volumes(table, theta: np.ndarray, structure, *,
+                 stderr_internal=None, correlation=None):
+    """Each phase's cell volume, its esd through the cell covariance.
+
+    σ²(V) = gᵀ·Cov·g with g = ∂V/∂(a, b, c, α, β, γ), the covariance built by
+    ``ParameterTable.physical_covariance`` over the six cell entries, so a tie
+    (b ← a) and a correlation both reach it (McCusker et al. 1999 § 10).  An esd
+    is ``None`` on the terms :func:`_sigmas` states: no covariance, nothing
+    refined, a cancelling variance, or a source that measured nothing.  Every
+    mode, since the cell of a Le Bail or Pawley fit is refined as surely as a
+    Rietveld one's.
+    """
+    from ..schemas.results import CellVolume
+
+    values = table.decode(theta)
+    out = []
+    for ip in range(len(structure.phases)):
+        paths = [f"phases.{ip}.cell.{k}" for k in _CELL_NAMES]
+        v, g = _volume_and_gradient(*(values[p] for p in paths))
+        sig = sig_d = None
+        if stderr_internal is not None:
+            full = table.physical_covariance(theta, stderr_internal, correlation, paths)
+            diag = table.physical_covariance(theta, stderr_internal, None, paths)
+            blind = table.unmeasured_rows(theta, stderr_internal,
+                                          [table._paths[q] for q in paths])
+            var = float(g @ full @ g)
+            floor = VARIANCE_CANCELLATION_FLOOR * float(np.abs(g) @ np.abs(full) @ np.abs(g))
+            if not (np.abs(g[blind]) > 0.0).any() and var > max(floor, 0.0):
+                sig = math.sqrt(var)
+                sig_d = math.sqrt(max(float(g @ diag @ g), 0.0))
+        out.append(CellVolume(phase_index=ip, volume=v, stderr=sig,
+                              stderr_diagonal=sig_d))
+    return out

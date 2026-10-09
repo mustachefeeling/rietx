@@ -44,15 +44,16 @@ from ..schemas.instrument import (
     BackgroundPSpline,
     Instrument,
 )
+from ..schemas.pattern import PatternData
 from ..schemas.results import (
-    GeometryTable,
     PhaseAgreement,
     QuantitativePhaseAnalysis,
     RefinementResult,
 )
 from ..schemas.structure import Structure
 from .cif.blocks import block_name, write_document, write_structure_block
-from .cif.numbers import number, text
+from .cif.numbers import LINE_MAX, number, text
+from .cif.powder import write_pattern_block, write_reflection_loop
 
 _CELL_KEYS = ("a", "b", "c", "alpha", "beta", "gamma")
 
@@ -125,6 +126,9 @@ class ReflectionRow:
     #: built, one row of each per (line, reflection) rather than one row
     #: silently carrying the nuclear share alone (WP-1343).
     component: str = "total"
+    #: the phase's index in the structure: a link that holds where two phases
+    #: share a name (WP-1933, the refinement CIF's ``_pd_refln_phase_id``)
+    phase_index: int = 0
 
 
 REFLECTION_COLUMNS = (
@@ -180,7 +184,7 @@ def reflection_table(model: CompiledModel, values: dict[str, float],
                         f_squared=None if f2 is None else float(f2[j]),
                         intensity=float(intensity[j]),
                         satellite_order=0 if order is None else int(order[j]),
-                        component=component,
+                        component=component, phase_index=ip,
                     ))
 
         if model.mag_split(ip):
@@ -309,14 +313,51 @@ def write_qpa_table(qpa: QuantitativePhaseAnalysis, path: str | Path, *,
 # ======================================================================
 
 
-def _profile_description(instrument: Instrument) -> str:
-    prof = instrument.profile
-    return ("TCHZ pseudo-Voigt (Thompson-Cox-Hastings) with Finger-Cox-Jephcoat "
-            "axial divergence; Caglioti Gaussian U,V,W = "
-            f"{prof.u.value:.6g},{prof.v.value:.6g},{prof.w.value:.6g} deg^2(2theta), "
-            f"Lorentzian X,Y = {prof.x.value:.6g},{prof.y.value:.6g} deg; "
-            f"FCJ S/L,H/L = {instrument.geometry.axial_sl.value:.4g},"
-            f"{instrument.geometry.axial_hl.value:.4g}")
+#: Each per-phase sample-broadening parameter the profile text names; its
+#: unit is the parameter's own (the Gaussian pair are variances, deg²).
+_SAMPLE_BROADENING = (("gauss_size", "Gaussian size"), ("gauss_strain", "Gaussian strain"),
+                      ("lor_size", "Lorentzian size"), ("lor_strain", "Lorentzian strain"))
+
+
+def _wrapped(paragraphs: list[str]) -> str:
+    """CIF text lines no longer than 80 characters with the field's ";" (PLAT802)."""
+    import textwrap
+
+    return "\n".join(textwrap.fill(p, width=LINE_MAX - 1, break_long_words=False)
+                     for p in paragraphs)
+
+
+def _value(p, tag: str = "_pd_proc_ls_profile_function") -> str:
+    """A parameter's value with its su in parentheses where it has one."""
+    return number(tag, p.value, p.stderr)
+
+
+def _profile_description(instrument: Instrument, structure: Structure | None = None
+                         ) -> str:
+    """The profile function as CIF text, every value with its su.
+
+    The shape is the one the fit computed (``ProfileTCHZ.shape``), and each
+    phase's sample broadening is stated beside the instrument's, since the
+    widths add (Gaussian variances, Lorentzian FWHMs).
+    """
+    prof, geom = instrument.profile, instrument.geometry
+    shape = ("Voigt (exact convolution)" if prof.shape == "voigt" else
+             "TCHZ pseudo-Voigt (Thompson, Cox & Hastings 1987)")
+    lines = [
+        f"{shape} with Finger, Cox & Jephcoat (1994) axial divergence.",
+        f"Caglioti Gaussian FWHM^2 in deg^2: U={_value(prof.u)}, "
+        f"V={_value(prof.v)}, W={_value(prof.w)}.",
+        f"Lorentzian FWHM in deg: X={_value(prof.x)}, Y={_value(prof.y)}.",
+        f"Axial divergence: S/L={_value(geom.axial_sl)}, H/L={_value(geom.axial_hl)}.",
+    ]
+    for phase in (structure.phases if structure is not None else []):
+        terms = [f"{label}={_value(getattr(phase, name))} {getattr(phase, name).unit}"
+                 for name, label in _SAMPLE_BROADENING
+                 if getattr(phase, name).vary or getattr(phase, name).value != 0.0]
+        if terms:
+            lines.append(f"Phase {phase.name}, sample broadening: "
+                         + ", ".join(terms) + ".")
+    return _wrapped(lines)
 
 
 def _background_description(instrument: Instrument) -> str:
@@ -363,42 +404,164 @@ def _background_description(instrument: Instrument) -> str:
     return base
 
 
-def _write_refinement_metadata(block, result: RefinementResult,
-                               instrument: Instrument) -> None:
+#: ``_pd_calc_method`` per fit mode (``cif_pd.dic`` gives it as free text).
+_CALC_METHOD = {"rietveld": "Rietveld Refinement",
+                "lebail": "Le Bail profile decomposition",
+                "pawley": "Pawley profile decomposition"}
+
+#: ``_pd_instr_geometry`` per ``Geometry.kind``.
+_INSTR_GEOMETRY = {"bragg_brentano": "Bragg-Brentano, flat-plate reflection",
+                   "debye_scherrer": "Debye-Scherrer, capillary transmission",
+                   "flat_plate_transmission": "flat-plate transmission"}
+
+#: ``_exptl_absorpt_correction_type`` per ``AbsorptionCorrection.method``: the
+#: dictionary's enumeration, and the source of each expression.
+_ABSORPTION = {
+    "rouse_cylinder": ("cylinder", "Rouse, Cooper, York & Chakera (1970) cylinder"),
+    "flat_plate_reflection": ("analytical", "flat plate in reflection, ITC C Table "
+                              "6.3.3.1 case (2)"),
+    "flat_plate_transmission": ("analytical", "flat plate in transmission, ITC C "
+                                "Table 6.3.3.1 case (3a)"),
+}
+
+
+def _wavelengths(instrument: Instrument) -> list[tuple[str, str]]:
+    """Each line's wavelength and relative weight, through the number rule."""
+    source = instrument.source
+    if source.kind == "neutron_cw":
+        return [(_value(source.wavelength, "_diffrn_radiation_wavelength"),
+                 "1.0")]
+    return [(_value(line.wavelength, "_diffrn_radiation_wavelength"),
+             _value(line.weight, "_diffrn_radiation_wavelength_wt"))
+            for line in source.lines]
+
+
+def _special_details(result: RefinementResult, structure: Structure) -> list[str]:
+    """``_pd_proc_ls_special_details``: what no item states, one sentence each.
+
+    The esd method, McCusker et al. (1999) § 10: "In any publication, the
+    method used to calculate the e.s.d.'s should be stated."  The inflation
+    factor alone does not state it, so the base estimator is named first and
+    the factor second.  Written only when the result carries esds: describing
+    a method nothing used is a claim.  A March-Dollase correction, whose items
+    ``cif_pd.dic`` 2.5 defines only in dotted form (``_pd_pref_orient_March_
+    Dollase.*``) and whose flat ``_pd_proc_ls_pref_orient_corr`` it deprecates
+    (issue #756 § 3).  And the Rwp with the background removed, which no item
+    holds.
+    """
     st = result.statistics
-    lam = instrument.source.primary_wavelength
-    # R-factors (Toby 2006); pdCIF profile-fit tags so a powder reader picks
-    # them up, and the plain _refine_ls tags for the rest.  Formatted before
-    # the first is set, so a refused value leaves the block as it was.
-    for tag, value in [(tag, number(tag, value)) for tag, value in (
-            ("_diffrn_radiation_wavelength", lam),
-            ("_pd_proc_ls_prof_wR_factor", st.rwp),
-            ("_pd_proc_ls_prof_R_factor", st.rp),
-            ("_pd_proc_ls_prof_wR_expected", st.rexp),
-            ("_refine_ls_goodness_of_fit_all", st.gof))]:
-        block.set_pair(tag, value)
-    block.set_pair("_refine_ls_number_parameters", str(st.n_free_parameters))
-    block.set_pair("_pd_proc_number_of_points", str(st.n_points))
-    # McCusker et al. (1999) §10: "In any publication, the method used to
-    # calculate the e.s.d.'s should be stated."  The inflation factor alone
-    # does not state it — a reader cannot tell what it multiplied — so the base
-    # estimator is named first and the factor second, in that order.  Written
-    # only when the result actually carries esds: a replay or evaluate-only
-    # result has none, and describing a method nothing used is a claim.
+    out = []
     if any(p.stderr is not None for p in result.parameters):
-        esd_method = ("esds are the square roots of the diagonal of "
-                      "chi^2_red * (J^T J)^-1, J the Jacobian of the weighted "
-                      "residual at convergence")
+        esd = ("Standard uncertainties are the square roots of the diagonal of "
+               "chi^2_red (J^T J)^-1, J the Jacobian of the weighted residual at "
+               "convergence")
         if st.esd_inflation is not None:
-            esd_method += (", then multiplied by the Berar-Lelann "
-                           f"serial-correlation factor {st.esd_inflation:.3g} "
-                           "(Berar & Lelann, 1991, J. Appl. Cryst. 24, 1, "
-                           "homogeneous correction, eqs 10-12)")
-        block.set_pair("_pd_proc_ls_special_details", gemmi.cif.quote(esd_method))
-    block.set_pair("_pd_proc_ls_profile_function",
-                   gemmi.cif.quote(_profile_description(instrument)))
-    block.set_pair("_pd_proc_ls_background_function",
-                   gemmi.cif.quote(_background_description(instrument)))
+            esd += (", multiplied by the Berar-Lelann serial-correlation factor "
+                    f"{st.esd_inflation:.3g} (Berar & Lelann 1991, J. Appl. Cryst. "
+                    "24, 1, eqs 10-12)")
+        out.append(esd + ".")
+    for phase in structure.phases:
+        po = phase.preferred_orientation
+        if po is not None and (po.r.vary or po.r.value != 1.0):
+            hkl = " ".join(str(i) for i in po.axis)
+            out.append(f"Preferred orientation of {phase.name}: March-Dollase "
+                       f"(Dollase 1986), axis the normal to ({hkl}), r="
+                       f"{_value(po.r, '_pd_proc_ls_special_details')}.")
+    if st.rwp_background_subtracted is not None:
+        out.append("Rwp with the background subtracted: "
+                   f"{st.rwp_background_subtracted:.4f}.")
+    return out
+
+
+def _write_refinement_metadata(block, result: RefinementResult,
+                               instrument: Instrument,
+                               structure: Structure) -> None:
+    """The refinement's scalars and the experiment's, on the pattern block.
+
+    R factors per Toby (2006), the pdCIF profile tags so a powder reader finds
+    them.  Every value is formatted before the first is set, so a refused value
+    leaves the block as it was.
+    """
+    from .._about import DIST_NAME
+    from ..refine import _VERSION
+
+    st = result.statistics
+    pairs = [(tag, number(tag, value)) for tag, value in (
+        ("_pd_proc_ls_prof_wR_factor", st.rwp),
+        ("_pd_proc_ls_prof_R_factor", st.rp),
+        ("_pd_proc_ls_prof_wR_expected", st.rexp),
+        ("_refine_ls_goodness_of_fit_all", st.gof))]
+    pairs += [
+        ("_refine_ls_number_parameters", str(st.n_free_parameters)),
+        ("_refine_ls_number_restraints",
+         str(result.restraints.n_restraints
+             if result.restraints is not None and result.restraints.n_restraints
+             else 0)),
+    ]
+    if st.max_shift_over_esd is not None:
+        pairs.append(("_refine_ls_shift/su_max",
+                      number("_refine_ls_shift/su_max", st.max_shift_over_esd)))
+    pairs += [
+        ("_computing_structure_refinement",
+         text("_computing_structure_refinement", f"{DIST_NAME} {_VERSION}")),
+        ("_pd_calc_method", text("_pd_calc_method", _CALC_METHOD[result.mode])),
+        ("_pd_instr_geometry",
+         text("_pd_instr_geometry", _INSTR_GEOMETRY[instrument.geometry.kind])),
+        ("_diffrn_radiation_probe", "neutron" if instrument.source.kind == "neutron_cw"
+         else "x-ray"),
+    ]
+    absorption = result.absorption
+    if absorption is not None and absorption.skipped is None:
+        kind, source = _ABSORPTION[absorption.method]
+        pairs += [("_exptl_absorpt_correction_type", kind),
+                  ("_exptl_absorpt_process_details", text(
+                      "_exptl_absorpt_process_details",
+                      f"{source}, mu*length = {absorption.mu_r:.4g} "
+                      f"({absorption.mu_r_source})"))]
+    else:
+        pairs.append(("_exptl_absorpt_correction_type", "none"))
+    details = _special_details(result, structure)
+    if details:
+        pairs.append(("_pd_proc_ls_special_details",
+                      text("_pd_proc_ls_special_details", _wrapped(details))))
+    pairs += [
+        ("_pd_proc_ls_profile_function",
+         text("_pd_proc_ls_profile_function",
+              _profile_description(instrument, structure))),
+        ("_pd_proc_ls_background_function",
+         text("_pd_proc_ls_background_function",
+              _wrapped([_background_description(instrument)]))),
+    ]
+    lines = _wavelengths(instrument)
+    for tag, value in pairs:
+        block.set_pair(tag, value)
+    if len(lines) == 1:
+        block.set_pair("_diffrn_radiation_wavelength", lines[0][0])
+    else:
+        loop = block.init_loop("_diffrn_radiation_wavelength", ["", "_id", "_wt"])
+        for i, (lam, wt) in enumerate(lines, start=1):
+            loop.add_row([lam, str(i), wt])
+
+
+def _write_extinction(block, phase) -> None:
+    """``_refine_ls_extinction_*`` on a phase's block, when its fit used one.
+
+    The coefficient is :attr:`~rietx.schemas.structure.Phase.extinction`, the
+    squared mosaic-block size in µm² of Sabine's (1988) primary-extinction
+    model (``model/extinction.py``), and the method text says so, since the
+    dictionary leaves a coefficient's meaning to its method.  Nothing is
+    written for a phase that neither refined it nor set it off zero.
+    """
+    ext = phase.extinction
+    if not ext.vary and ext.value == 0.0:
+        return
+    pairs = [("_refine_ls_extinction_method", text(
+                 "_refine_ls_extinction_method",
+                 "Sabine (1988) primary extinction; coefficient D^2 in um^2")),
+             ("_refine_ls_extinction_coef",
+              _value(ext, "_refine_ls_extinction_coef"))]
+    for tag, value in pairs:
+        block.set_pair(tag, value)
 
 
 def _write_phase_agreement(block, row: PhaseAgreement | None) -> None:
@@ -434,7 +597,7 @@ def _write_phase_agreement(block, row: PhaseAgreement | None) -> None:
         block.set_pair("_refine_ls_number_reflns", str(row.n_reflections))
 
 
-def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int) -> None:
+def _write_geometry_loops(block, result: RefinementResult, ip: int) -> None:
     """``_geom_bond`` / ``_geom_contact`` / ``_geom_angle`` for one phase.
 
     Tag names are the COMCIFS core dictionary's, checked rather than
@@ -444,6 +607,8 @@ def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int) -> Non
     "both bonding and nonbonding" distances, which is exactly the split
     between the first two categories; ``_geom_angle`` carries only the bonded
     ones, because an angle between two contacts is not a shape anybody reads.
+    A bonded row and an angle carry ``publ_flag yes`` and a contact ``no``,
+    the dictionary's default (ITC Vol. G ch. 4.1, pp. 236-238).
 
     :class:`~rietx.schemas.results.GeometryTable` lists every atom's whole
     environment, so a bond between two sites is in it twice, once from each
@@ -458,19 +623,22 @@ def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int) -> Non
     writes that list on every block, in
     :func:`~rietx.model.geometry.symmetry_operations`' order over the group
     :func:`~rietx.crystallography.symmetry.resolve_group` returns, which is the
-    order the bond search indexed; without it the codes would point at whatever
-    order a reader's own expansion of the Hermann-Mauguin symbol produced.  So
-    this writes no second loop.  ``?`` appears where an image needs a lattice
-    shift the one-digit code cannot express; the distance is unaffected
-    (:mod:`rietx.model.geometry`).
+    order the bond search indexed.  So this writes no second loop.  The codes
+    are part of each category's key in ``cif_core.dic``, and a key cannot be
+    unknown, so a row whose image needs a lattice shift the one-digit code
+    cannot express is left out of the loop and counted in
+    ``_geom_special_details`` (issue #756 § 6), where it was ``?`` before.
 
     Standard uncertainties ride in the value as ``1.8548(12)``, the notation
     :func:`~rietx.crystallography.cif.format_su` writes for every other
     refined number here — never a separate ``_su`` column that a reader may or
     may not pick up.  A row whose esd is ``None`` (nothing it depends on was
-    refined) is written as a plain number rather than an invented zero, its
-    shortest ``repr`` (:func:`rietx.io.cif.numbers.number`).
+    refined, or symmetry fixes it) is written as a plain number rather than an
+    invented zero, its shortest ``repr`` (:func:`rietx.io.cif.numbers.number`),
+    and ``_geom_special_details`` says so with the method (McCusker et al. 1999
+    § 10).
     """
+    geometry = result.geometry
     if geometry is None:
         return
     distances = [d for d in geometry.distances
@@ -478,59 +646,92 @@ def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int) -> Non
     angles = [a for a in geometry.angles if a.phase_index == ip]
     if not distances and not angles:
         return
-    for tag, rows in (("_geom_bond_", [d for d in distances if d.bonded]),
-                      ("_geom_contact_", [d for d in distances if not d.bonded])):
-        if not rows:
-            continue
-        loop = block.init_loop(tag, ["atom_site_label_1", "atom_site_label_2",
-                                     "distance", "site_symmetry_1",
-                                     "site_symmetry_2"])
-        for d in rows:
-            loop.add_row([text(f"{tag}atom_site_label_1", d.atom_1),
-                          text(f"{tag}atom_site_label_2", d.atom_2),
-                          number(f"{tag}distance", d.distance, d.stderr),
-                          d.symmetry_1 or "?", d.symmetry_2 or "?"])
-    if angles:
+    codable = [d for d in distances if d.symmetry_1 and d.symmetry_2]
+    angles_codable = [a for a in angles
+                      if a.symmetry_1 and a.symmetry_2 and a.symmetry_3]
+    dropped = len(distances) - len(codable) + len(angles) - len(angles_codable)
+    loops = []
+    for tag, rows, flag in (("_geom_bond_", [d for d in codable if d.bonded], "yes"),
+                            ("_geom_contact_", [d for d in codable if not d.bonded],
+                             "no")):
+        if rows:
+            loops.append((tag, ["atom_site_label_1", "atom_site_label_2", "distance",
+                                "site_symmetry_1", "site_symmetry_2", "publ_flag"],
+                          [[text(f"{tag}atom_site_label_1", d.atom_1),
+                            text(f"{tag}atom_site_label_2", d.atom_2),
+                            number(f"{tag}distance", d.distance, d.stderr),
+                            d.symmetry_1, d.symmetry_2, flag] for d in rows]))
+    if angles_codable:
         # the angle *value* is the one tag here whose flat DDL1 alias is not
         # ``<category>_<object>``: ``_geom_angle.value`` aliases to a bare
         # ``_geom_angle``, so this loop cannot share a prefix with its columns
-        loop = block.init_loop("", [
+        loops.append(("", [
             "_geom_angle_atom_site_label_1", "_geom_angle_atom_site_label_2",
             "_geom_angle_atom_site_label_3", "_geom_angle",
             "_geom_angle_site_symmetry_1", "_geom_angle_site_symmetry_2",
-            "_geom_angle_site_symmetry_3"])
-        for a in angles:
-            loop.add_row([*(text(f"_geom_angle_atom_site_label_{k}", label)
-                            for k, label in enumerate(
-                                (a.atom_1, a.atom_2, a.atom_3), start=1)),
-                          number("_geom_angle", a.angle, a.stderr),
-                          a.symmetry_1 or "?", a.symmetry_2 or "?",
-                          a.symmetry_3 or "?"])
+            "_geom_angle_site_symmetry_3", "_geom_angle_publ_flag"],
+            [[*(text(f"_geom_angle_atom_site_label_{k}", label)
+                for k, label in enumerate((a.atom_1, a.atom_2, a.atom_3), start=1)),
+              number("_geom_angle", a.angle, a.stderr),
+              a.symmetry_1, a.symmetry_2, a.symmetry_3, "yes"] for a in angles_codable]))
+    # each sentence only where a written row is what it describes: stating
+    # a method no row used is a claim (_special_details' rule)
+    sus = [r.stderr for r in codable] + [a.stderr for a in angles_codable]
+    details = []
+    if any(su is not None for su in sus):
+        details.append(
+            "Standard uncertainties of distances and angles are propagated "
+            "through the full covariance of the refined parameters, cell "
+            "included (McCusker et al. 1999, J. Appl. Cryst. 32, 36, section 10)"
+            + (", with the Berar-Lelann factor" if result.statistics.esd_inflation
+               is not None else "") + ".")
+    if any(su is None for su in sus):
+        details.append("A value written without su depends on nothing refined, "
+                       "or is fixed by symmetry.")
+    if dropped:
+        details.append(f"{dropped} row{'s' if dropped > 1 else ''} whose image "
+                       "needs a lattice translation beyond the one-digit symmetry "
+                       f"code {'are' if dropped > 1 else 'is'} left out.")
+    special = text("_geom_special_details", _wrapped(details)) if details else None
+    for tag, columns, rows in loops:
+        loop = block.init_loop(tag, columns)
+        for row in rows:
+            loop.add_row(row)
+    if special is not None:
+        block.set_pair("_geom_special_details", special)
 
 
-def _write_pattern_loop(block, result: RefinementResult) -> None:
-    """The observed/calculated pattern as a pdCIF loop ``read_pdcif`` reads."""
-    tt = result.two_theta
-    if not tt:
-        return
-    n = len(tt)
-    yb = result.y_background or [0.0] * n
-    sig = result.sigma or [0.0] * n
-    tags = ("_pd_proc_2theta_corrected", "_pd_proc_intensity_total",
-            "_pd_proc_intensity_total_su", "_pd_calc_intensity_total",
-            "_pd_proc_intensity_bkg_calc")
-    columns = (tt, result.y_obs, sig, result.y_calc, yb)
-    # refused through the one rule, but written at eight figures: ``repr``
-    # here grew a refinement CIF 1.5-1.7x with digits of float noise, and the
-    # pattern block's own digits are WP-1933's C-d (su in parentheses)
-    for tag, column in zip(tags, columns, strict=True):
-        bad = np.flatnonzero(~np.isfinite(np.asarray(column, dtype=np.float64)))
-        if bad.size:   # the rule names the first non-finite point and refuses
-            number(tag, column[bad[0]], where=f"point {bad[0]}")
-    rows = [[_g(column[i]) for column in columns] for i in range(n)]
-    loop = block.init_loop("", list(tags))
-    for row in rows:
-        loop.add_row(row)
+#: ``_atom_type_scat_dispersion_source`` for the bundled table and for a
+#: caller's measured pair (``Dispersion.overrides``).  Author and year, for
+#: :data:`~rietx.io.cif.blocks.SCAT_SOURCE_MAX`'s reason.
+_DISPERSION_SOURCE = "Cromer & Liberman (1981)"
+_DISPERSION_GIVEN = "given (Dispersion.overrides)"
+
+
+def _dispersion(instrument: Instrument, phase) -> dict[str, tuple[float, float, str]] | None:
+    """{species: (f′, f″, source)} at the source's wavelength, as the fit used them.
+
+    :func:`~rietx.crystallography.dispersion.resolve` is the forward model's own
+    call, so the file states the numbers the fit computed with.  ``None`` where
+    the fit applied no dispersion: a neutron source, or ``dispersion=None``.
+    Rounded to the four decimals the table states.  Cromer & Liberman (1970,
+    1981) for the table.
+    """
+    from ..crystallography.dispersion import normalize_element, resolve
+
+    source = instrument.source
+    if source.kind == "neutron_cw" or source.dispersion is None or not phase.atoms:
+        return None
+    overrides = source.dispersion.overrides or {}
+    species = [a.species for a in phase.atoms]
+    values = resolve(species, tuple(line.wavelength.value for line in source.lines),
+                     overrides)
+    # four decimals, the table's own precision: an interpolation has no su to
+    # state, and its seventeen-digit repr pushed a type row past 80 columns
+    return {sp: (round(f.real, 4), round(f.imag, 4),
+                 _DISPERSION_GIVEN if normalize_element(sp) in overrides
+                 else _DISPERSION_SOURCE)
+            for sp, f in values.items()}
 
 
 def _moment_esds(result: RefinementResult, ip: int,
@@ -564,12 +765,16 @@ def _moment_esds(result: RefinementResult, ip: int,
 
 
 def refinement_cif_doc(result: RefinementResult, structure: Structure,
-                       instrument: Instrument) -> gemmi.cif.Document:
+                       instrument: Instrument, *,
+                       pattern: PatternData | None = None,
+                       reflections: list[ReflectionRow] | None = None
+                       ) -> gemmi.cif.Document:
     """Build the refinement CIF as a gemmi document (see :func:`write_refinement_cif`)."""
     doc = gemmi.cif.Document()
     agreement = {row.name: row for row in result.phase_agreement}
     probe = "neutron" if instrument.source.kind == "neutron_cw" else "xray"
     taken: set[str] = set()
+    volume_su = {row.phase_index: row.stderr for row in result.cell_volumes or []}
     for ip, phase in enumerate(structure.phases):
         block = doc.add_new_block(block_name(phase.name, ip, taken))
         # the structure block, its operation loop included: the geometry
@@ -578,30 +783,39 @@ def refinement_cif_doc(result: RefinementResult, structure: Structure,
         # composition read off them
         write_structure_block(block, phase, kind="refinement", probe=probe,
                               moment_magnitude_esds=_moment_esds(result, ip, phase),
-                              composition=result.mode == "rietveld")
+                              composition=result.mode == "rietveld",
+                              cell_volume_su=volume_su.get(ip),
+                              dispersion=_dispersion(instrument, phase))
         # Structure-sensitive R factors, on the phase's *own* block: both tags
         # are core-dictionary `_refine_ls` items, whose scope is the structure
         # in the block, not the pattern.  So a multi-phase export gives each
         # phase its own pair, which is how they are read.
         _write_phase_agreement(block, agreement.get(phase.name))
+        _write_extinction(block, phase)
         # Bonding geometry, on the phase's own block for the same reason the R
         # factors are: the labels a _geom_ loop names are that block's
         # _atom_site labels, and a code is resolved against that block's symop
         # loop.  Nothing is written when the fit produced no table.
-        _write_geometry_loops(block, result.geometry, ip)
+        _write_geometry_loops(block, result, ip)
         if ip == 0:
             # refinement scalars + the pattern loop live on the first block, so
             # a single-phase export is one self-contained block that both
             # read_pdcif (pattern) and structure_from_cif (structure) re-read
-            _write_refinement_metadata(block, result, instrument)
-            _write_pattern_loop(block, result)
+            _write_refinement_metadata(block, result, instrument, structure)
+            write_pattern_block(block, result,
+                                instrument.source.primary_wavelength, pattern)
+            if reflections:
+                write_reflection_loop(block, reflections, structure)
     return doc
 
 
 def write_refinement_cif(result: RefinementResult, structure: Structure,
-                         instrument: Instrument, path: str | Path) -> None:
-    """Write a refinement CIF: structure (values + esds), R-factors, wavelength,
-    profile/background description, and the observed/calculated pattern loop.
+                         instrument: Instrument, path: str | Path, *,
+                         pattern: PatternData | None = None) -> None:
+    """Write a refinement CIF: structure, fit and pattern.
+
+    The structure carries its esds.  The fit is its R factors, wavelength,
+    and profile and background models.
 
     ``structure`` must carry the refined values and their ``stderr`` (a fit
     leaves them on ``Refinement.fitted_structure``).  The pattern loop uses the
@@ -612,5 +826,13 @@ def write_refinement_cif(result: RefinementResult, structure: Structure,
     writes one block per phase and each re-reads as a structure, but the
     pattern loop and refinement scalars live on the first block only, and
     nothing reassembles N blocks into one refinement.
+
+    ``pattern`` is the pattern the fit was given.  With it the profile loop
+    carries every measured point, a weight of 0 marking each the fit did not
+    use; without it, only the fitted points (:mod:`rietx.io.cif.powder`).
+    :meth:`~rietx.Refinement.write_cif` also writes the ``_refln`` loop, from
+    the reflection table only a fit's compiled model can build
+    (:func:`refinement_cif_doc`'s ``reflections``).
     """
-    write_document(refinement_cif_doc(result, structure, instrument), path)
+    write_document(refinement_cif_doc(result, structure, instrument,
+                                      pattern=pattern), path)

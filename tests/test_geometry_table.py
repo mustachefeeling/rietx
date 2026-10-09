@@ -550,3 +550,18 @@ def test_a_real_fit_recovers_the_synthesised_geometry():
     from rietx.viz.plots import plot_result
 
     plot_result(result, path=str(OUT / "geometry_rutile_fit.png"))
+
+
+@pytest.mark.parametrize("cell", [(5.1, 6.3, 7.7, 81.0, 97.5, 112.0),
+                                  (4.0, 4.0, 9.0, 90.0, 90.0, 120.0)])
+def test_the_volume_gradient_is_the_volume_s_derivative(cell):
+    """∂V/∂(a, b, c, α, β, γ) against a central difference, angles in degrees."""
+    v, grad = geom._volume_and_gradient(*cell)
+    assert v == pytest.approx(gemmi.UnitCell(*cell).volume, rel=1e-12)
+    for k in range(6):
+        h = 1e-6 * (1.0 if k < 3 else 10.0)
+        up, down = list(cell), list(cell)
+        up[k] += h
+        down[k] -= h
+        fd = (geom._volume_and_gradient(*up)[0] - geom._volume_and_gradient(*down)[0]) / (2 * h)
+        assert grad[k] == pytest.approx(fd, rel=1e-7, abs=1e-9)

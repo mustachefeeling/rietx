@@ -83,6 +83,23 @@ def _plain_structures() -> list[rx.Structure]:
     return [*out, disordered]
 
 
+def _lab_variant(result, ref):
+    """(result, structure, instrument) for the items a lab fit reaches."""
+    from rietx.schemas.results import AbsorptionCorrection
+
+    structure = ref.fitted_structure.model_copy(deep=True)
+    structure.phases[0].extinction.vary = True
+    instrument = ref.fitted_instrument.model_copy(deep=True)
+    instrument.source = rx.Instrument.bragg_brentano().source
+    absorbed = result.model_copy(update={
+        "geometry": None,
+        "absorption": AbsorptionCorrection(
+            method="rouse_cylinder", mu_r=0.3, mu_r_source="given",
+            wavelength=instrument.source.primary_wavelength,
+            equivalent_delta_biso=0.01)})
+    return absorbed, structure, instrument
+
+
 @pytest.fixture(scope="module")
 def written(fitted_lab6, tmp_path_factory) -> dict[str, set[str]]:  # noqa: F811
     """The tags each output kind writes, measured on its writer's output."""
@@ -105,6 +122,22 @@ def written(fitted_lab6, tmp_path_factory) -> dict[str, set[str]]:  # noqa: F811
                                                       instrument))
     ref.write_cif(tmp / "r.cif")
     out["refinement"] |= _read_tags(tmp / "r.cif")
+    # a pattern stating σ, with one measured point past the fitted range: the
+    # intensity spelling that carries an su, and the excluded-regions item
+    step = result.two_theta[-1] - result.two_theta[-2]
+    measured = rx.PatternData(
+        two_theta=[*result.two_theta, result.two_theta[-1] + step],
+        intensity=[*result.y_obs, result.y_obs[-1]],
+        sigma=[*result.sigma, result.sigma[-1]])
+    out["refinement"] |= _tags(refinement_cif_doc(no_geometry, ref.fitted_structure,
+                                                  instrument, pattern=measured))
+    # a Cu doublet, an applied absorption and a refined extinction: the
+    # wavelength loop and the items 11-BM LaB6 never needs
+    out["refinement"] |= _tags(refinement_cif_doc(*_lab_variant(result, ref)))
+    # a Le Bail result: its scaffold sites are marked as dummies
+    out["refinement"] |= _tags(refinement_cif_doc(
+        no_geometry.model_copy(update={"mode": "lebail"}), ref.fitted_structure,
+        instrument))
     # GSAS-II's phase CIF refuses a group stated only as a list, so the
     # operator-list phase is not offered to it
     for structure in plain:

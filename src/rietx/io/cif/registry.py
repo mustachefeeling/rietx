@@ -12,7 +12,7 @@ themselves are vendored under ``tests/data`` and never shipped.
 reads the dictionaries, and asserts three things: every written tag is a row
 here, every row is written by some writer (so no row outlives its writer), and
 every row's tag is defined and not deprecated, with its ``definition_id``,
-``purpose`` and ``contents`` the dictionary's own.  Two tags break the last
+``purpose`` and ``contents`` the dictionary's own.  One tag breaks the last
 rule today and sit on :data:`KNOWN_VIOLATIONS`, which the same test holds to
 shrinking.  The writers read ``contents``: :func:`~rietx.io.cif.numbers.text`
 refuses whitespace in a single-token tag by it.
@@ -68,8 +68,6 @@ PRIVATE_TAGS: frozenset[str] = frozenset(_MAGCIF_PRIVATE)
 #: each; the registry test fails if this set gains a member or keeps one that
 #: no longer violates.
 KNOWN_VIOLATIONS: frozenset[str] = frozenset({
-    # undefined in cif_pd.dic 2.5.0; the pattern block of WP-1933 (C-d) replaces it
-    "_pd_proc_intensity_total_su",
     # alias of _space_group.name_H-M_full deprecated 2003-10-04; the structure
     # block dropped it (C-c), and gsas2.py writes it on purpose for GSAS-II
     # until WP-1933's C-g declares that file's profile
@@ -152,6 +150,42 @@ _TAGS: tuple[Tag, ...] = (
         _REFINEMENT,
         ("_diffrn_radiation_wavelength", "_diffrn_radiation_wavelength.value",
          "Measurand", "Real"),
+        ("_diffrn_radiation_wavelength_id", "_diffrn_radiation_wavelength.id",
+         "Key", "Word"),
+        ("_diffrn_radiation_wavelength_wt", "_diffrn_radiation_wavelength.wt",
+         "Number", "Real"),
+        ("_diffrn_radiation_probe", "_diffrn_radiation.probe", "State", "Text"),
+        ("_computing_structure_refinement", "_computing.structure_refinement",
+         "Describe", "Text"),
+        ("_pd_calc_method", "_pd_calc.method", "Describe", "Text"),
+        ("_pd_instr_geometry", "_pd_instr.geometry", "Describe", "Text"),
+        ("_refine_ls_number_restraints", "_refine_ls.number_restraints",
+         "Number", "Integer"),
+        ("_refine_ls_shift/su_max", "_refine_ls.shift_over_su_max", "Number", "Real"),
+        ("_exptl_absorpt_correction_type", "_exptl_absorpt.correction_type",
+         "State", "Text"),
+        ("_exptl_absorpt_process_details", "_exptl_absorpt.process_details",
+         "Describe", "Text"),
+        ("_refine_ls_extinction_method", "_refine_ls.extinction_method",
+         "Describe", "Text"),
+        ("_refine_ls_extinction_coef", "_refine_ls.extinction_coef", "Measurand", "Real"),
+        ("_atom_type_scat_dispersion_real", "_atom_type_scat.dispersion_real",
+         "Number", "Real"),
+        ("_atom_type_scat_dispersion_imag", "_atom_type_scat.dispersion_imag",
+         "Number", "Real"),
+        ("_atom_type_scat_dispersion_source", "_atom_type_scat.dispersion_source",
+         "Describe", "Text"),
+        ("_atom_site_calc_flag", "_atom_site.calc_flag", "State", "Text"),
+        ("_geom_bond_publ_flag", "_geom_bond.publ_flag", "State", "Text"),
+        ("_geom_contact_publ_flag", "_geom_contact.publ_flag", "State", "Text"),
+        ("_geom_angle_publ_flag", "_geom_angle.publ_flag", "State", "Text"),
+        ("_geom_special_details", "_geom.special_details", "Describe", "Text"),
+        ("_refln_index_h", "_refln.index_h", "Number", "Integer"),
+        ("_refln_index_k", "_refln.index_k", "Number", "Integer"),
+        ("_refln_index_l", "_refln.index_l", "Number", "Integer"),
+        ("_pd_refln_phase_id", "_pd_refln.phase_id", "Link", "Text"),
+        ("_refln_d_spacing", "_refln.d_spacing", "Number", "Real"),
+        ("_refln_F_squared_calc", "_refln.F_squared_calc", "Measurand", "Real"),
         ("_pd_proc_ls_prof_wR_factor", "_pd_proc_ls.prof_wR_factor", "Number", "Real"),
         ("_pd_proc_ls_prof_R_factor", "_pd_proc_ls.prof_R_factor", "Number", "Real"),
         ("_pd_proc_ls_prof_wR_expected", "_pd_proc_ls.prof_wR_expected", "Number", "Real"),
@@ -187,11 +221,22 @@ _TAGS: tuple[Tag, ...] = (
         ("_geom_angle_site_symmetry_1", "_geom_angle.site_symmetry_1", "Composite", "Symop"),
         ("_geom_angle_site_symmetry_2", "_geom_angle.site_symmetry_2", "Composite", "Symop"),
         ("_geom_angle_site_symmetry_3", "_geom_angle.site_symmetry_3", "Composite", "Symop"),
-        ("_pd_proc_2theta_corrected", "_pd_proc.2theta_corrected", "Measurand", "Real"),
-        ("_pd_proc_intensity_total", "_pd_proc.intensity_total", "Measurand", "Real"),
-        ("_pd_proc_intensity_total_su", None, None, "Real"),
+        # the pattern block (io/cif/powder.py)
+        ("_pd_meas_2theta_scan", "_pd_meas.2theta_scan", "Measurand", "Real"),
+        ("_pd_meas_intensity_total", "_pd_meas.intensity_total", "Measurand", "Real"),
+        ("_pd_meas_counts_total", "_pd_meas.counts_total", "Number", "Integer"),
+        ("_pd_proc_ls_weight", "_pd_proc.ls_weight", "Number", "Real"),
+        ("_pd_proc_d_spacing", "_pd_proc.d_spacing", "Measurand", "Real"),
         ("_pd_calc_intensity_total", "_pd_calc.intensity_total", "Number", "Real"),
         ("_pd_proc_intensity_bkg_calc", "_pd_proc.intensity_bkg_calc", "Measurand", "Real"),
+        ("_pd_meas_number_of_points", "_pd_meas.number_of_points", "Number", "Integer"),
+        ("_pd_meas_2theta_range_min", "_pd_meas.2theta_range_min", "Number", "Real"),
+        ("_pd_meas_2theta_range_max", "_pd_meas.2theta_range_max", "Number", "Real"),
+        ("_pd_meas_2theta_range_inc", "_pd_meas.2theta_range_inc", "Number", "Real"),
+        ("_pd_proc_2theta_range_min", "_pd_proc.2theta_range_min", "Number", "Real"),
+        ("_pd_proc_2theta_range_max", "_pd_proc.2theta_range_max", "Number", "Real"),
+        ("_pd_proc_info_excluded_regions", "_pd_proc.info_excluded_regions",
+         "Describe", "Text"),
     ),
     # the GSAS-II phase CIF (io/projects/gsas2.from_structure): the bare
     # symbol GSAS-II reads first, and the B its import was measured on
