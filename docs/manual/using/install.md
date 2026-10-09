@@ -91,7 +91,7 @@ was built from. Then start with [](quickstart.md).
 | `gemmi` ≥ 0.6.5 | CIF reading, space groups, symmetry operations |
 | `spglib` ≥ 2.4 | site symmetry, Wyckoff positions, cell reduction |
 | `numba` ≥ 0.63 | compiles the peak kernels ({ref}`the-compiled-kernels`) |
-| `matplotlib` ≥ 3.10.5 | figures: `RefinementResult.plot`, `PatternData.plot` and the report figures |
+| `matplotlib` ≥ 3.10 (≥ 3.10.5 on Python 3.14) | figures: `RefinementResult.plot`, `PatternData.plot` and the report figures |
 
 Those seven are the whole install, and nothing in that list is optional.
 Matplotlib is imported only when a figure is drawn, so `import rietx` does not
