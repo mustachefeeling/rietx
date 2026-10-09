@@ -554,14 +554,18 @@ def test_a_dead_phase_takes_the_fd_path_rather_than_dividing_by_its_scale():
 
 
 def test_a_width_is_stepped_by_its_unit_and_everything_else_by_one():
-    """WP-1936: an identity row with a width's unit takes FLOOR_SEEDS' size.
+    """WP-1936: an identity width takes FLOOR_SEEDS' size for its unit.
 
-    ``u``, ``v`` (deg²) and the zero shift (deg) are identity rows with a width
-    unit.  ``w``, ``x``, ``y`` are softplus, whose θ is already logarithmic,
-    and the cell has no unit, so all of those keep 1.
+    ``u`` and ``v`` are deg² terms of a variance, so they are widths although
+    they may go negative.  ``x`` is declared identity here, and a deg row
+    bounded at 0 is a width.  The zero shift is in degrees too, but it is an
+    offset that may go negative, so it keeps 1.  So do the softplus ``w`` and
+    ``y``, whose θ is already logarithmic, and the unitless cell.
     """
     structure = make_rutile()
     ins = Instrument.bragg_brentano()
+    ins.profile.x = Parameter(value=1e-3, min=0.0, max=1.0, unit="deg",
+                              transform="identity")
     table = ParameterTable(structure, ins)
     table.set_vary(["*"], False)
     paths = ["phases.0.cell.a", "instrument.zero_shift",
@@ -570,8 +574,8 @@ def test_a_width_is_stepped_by_its_unit_and_everything_else_by_one():
         assert table.set_vary([path], True), path
     typical = dict(zip(table.free_paths, _fd_typicals(table), strict=True))
     assert typical == {
-        "phases.0.cell.a": 1.0, "instrument.zero_shift": FLOOR_SEEDS["deg"],
+        "phases.0.cell.a": 1.0, "instrument.zero_shift": 1.0,
         "instrument.profile.u": FLOOR_SEEDS["deg^2"],
         "instrument.profile.v": FLOOR_SEEDS["deg^2"],
-        "instrument.profile.w": 1.0, "instrument.profile.x": 1.0,
+        "instrument.profile.w": 1.0, "instrument.profile.x": FLOOR_SEEDS["deg"],
         "instrument.profile.y": 1.0}

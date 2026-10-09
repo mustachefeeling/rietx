@@ -586,8 +586,8 @@ def fd_step(theta_c: float, typical: float = 1.0) -> float:
 def _fd_typicals(table: ParameterTable) -> np.ndarray:
     """Each free column's typical size, the ``typical`` of :func:`fd_step`.
 
-    An identity row whose unit is a width's takes
-    :data:`~rietx.params.vector.FLOOR_SEEDS`' size for that unit (WP-1936).
+    An identity row that is a **width** takes
+    :data:`~rietx.params.vector.FLOOR_SEEDS`' size for its unit (WP-1936).
     Every other row takes 1, the step it always had.  A softplus row's θ is
     close to the logarithm of its value, so a step of 1e-6 there is already
     relative in the value.
@@ -600,9 +600,16 @@ def _fd_typicals(table: ParameterTable) -> np.ndarray:
     floor, against the jax Jacobian.  At ``FLOOR_SEEDS``' sizes every width
     column on that fit and on lab brucite is within 5e-7 of jax at
     ``FD_STEP`` = 1e-6.  At 1e-7 and 1e-8 the worst is 2e-5, and it grows as
-    the step shrinks, which is rounding.  A size below the true curvature
-    scale costs only rounding, and ``FD_STEP`` leaves eight decades of room
-    for it.
+    the step shrinks, which is rounding.
+
+    **Which rows are widths.**  A unit cannot say, because a zero shift and a
+    peak position are in degrees too.  They are offsets on a 2θ of tens of
+    degrees, and position is linear in them, so a small step removes no
+    truncation and adds rounding: at 1e-3° the zero-shift column moved from
+    2e-9 to 3e-6 against jax on every golden state.  An offset can be
+    negative and a width cannot, so a row is a width when its lower bound is
+    at least 0.  A deg² row is a Caglioti term of a variance and is one
+    whatever its bound, since ``u`` and ``v`` may go negative.
 
     The size is in **column units**, which is what the floor seed is in
     already (:meth:`~rietx.params.vector.ParameterTable.seed_floor`'s
@@ -610,10 +617,11 @@ def _fd_typicals(table: ParameterTable) -> np.ndarray:
     """
     out = np.ones(len(table.free_paths), dtype=np.float64)
     for c, path in enumerate(table.free_paths):
-        if table.entries[table._paths[path]].transform != "identity":
-            continue
-        size = FLOOR_SEEDS.get(table._units.get(path))
-        if size is not None:
+        e = table.entries[table._paths[path]]
+        unit = table._units.get(path)
+        size = FLOOR_SEEDS.get(unit)
+        if (e.transform == "identity" and size is not None
+                and (e.lo >= 0.0 or unit == "deg^2")):
             out[c] = size
     return out
 

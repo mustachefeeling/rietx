@@ -128,13 +128,18 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(patter
 
 
 def test_a_converging_run_is_not_cut_short_and_ends_at_a_fixed_point(pattern):
-    """+0.4 % cells: 17.116, 14.123, 14.037, 14.032, 14.031 and nothing more."""
+    """+0.4 % cells: 17.032, 14.118, 14.036, 14.032, 13.774, 13.773, and stop.
+
+    WP-1936 re-measured it.  It sized the FD step of ``u`` and ``v`` by their
+    unit, their columns moved, and pass 5 then found a lower point.  Before,
+    the run stopped at pass 5 on 14.031.
+    """
     result = _fit(_refinement(1.004), pattern, 8)
     stop = _stop(result)
     assert stop.level == "info"
     assert "fixed point" in stop.message
-    assert "pass 5 of 5 was kept" in stop.message
-    assert result.statistics.rwp == pytest.approx(0.140312, abs=RWP_PLATFORM_SPREAD)
+    assert "pass 6 of 6 was kept" in stop.message
+    assert result.statistics.rwp == pytest.approx(0.137728, abs=RWP_PLATFORM_SPREAD)
     _plot(result, "lebail_alternation_converged.png")
 
 
