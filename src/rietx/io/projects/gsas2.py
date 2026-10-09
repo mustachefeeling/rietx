@@ -1771,6 +1771,7 @@ def from_structure(structure, *,
         rhombohedral_restated_diagnostic,
         setting_alternatives,
     )
+    from ..cif.numbers import text
 
     doc = gemmi.cif.Document()
     rhombohedral: list[str] = []
@@ -1825,12 +1826,14 @@ def from_structure(structure, *,
         bare = resolved.split(":")[0]
         # Set before the block is built so the two symbols sit together: the
         # block writer sets the bare tag itself, in place, a few lines on.
-        block.set_pair("_space_group_name_H-M_alt", gemmi.cif.quote(resolved))
+        block.set_pair("_space_group_name_H-M_alt",
+                       text("_space_group_name_H-M_alt", resolved))
         write_structure_block(block, phase)
-        block.set_pair("_symmetry_space_group_name_H-M", gemmi.cif.quote(bare))
+        block.set_pair("_symmetry_space_group_name_H-M",
+                       text("_symmetry_space_group_name_H-M", bare))
         loop = block.init_loop("_space_group_symop_", ["operation_xyz"])
         for op in sg.operations():
-            loop.add_row([gemmi.cif.quote(op.triplet())])
+            loop.add_row([text("_space_group_symop_operation_xyz", op.triplet())])
         # Asked of the **bare** symbol, which is what is being written: the
         # stored one may already name its setting, and that is exactly the
         # phase whose setting the bare tag cannot carry.

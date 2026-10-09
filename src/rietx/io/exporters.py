@@ -33,7 +33,8 @@ from pathlib import Path
 import gemmi
 import numpy as np
 
-from ..crystallography.cif import format_su, write_structure_block
+# format_su is imported from here by the manual's export chapter
+from ..crystallography.cif import format_su, write_structure_block  # noqa: F401
 from ..crystallography.lattice import d_spacings
 from ..crystallography.symmetry import resolve_group
 from ..model.components import COMPONENT_AGGREGATE
@@ -52,6 +53,7 @@ from ..schemas.results import (
     RefinementResult,
 )
 from ..schemas.structure import Structure
+from .cif.numbers import number, text
 
 _CELL_KEYS = ("a", "b", "c", "alpha", "beta", "gamma")
 
@@ -61,7 +63,8 @@ def _cell(values: dict[str, float], ip: int) -> tuple[float, ...]:
 
 
 def _g(x: float) -> str:
-    """A compact, round-trippable float string for column files."""
+    """A compact float string for the CSV tables; a CIF's numbers go through
+    :func:`rietx.io.cif.numbers.number` instead."""
     return f"{x:.8g}"
 
 
@@ -365,13 +368,16 @@ def _write_refinement_metadata(block, result: RefinementResult,
                                instrument: Instrument) -> None:
     st = result.statistics
     lam = instrument.source.primary_wavelength
-    block.set_pair("_diffrn_radiation_wavelength", _g(lam))
     # R-factors (Toby 2006); pdCIF profile-fit tags so a powder reader picks
-    # them up, and the plain _refine_ls tags for the rest.
-    block.set_pair("_pd_proc_ls_prof_wR_factor", _g(st.rwp))
-    block.set_pair("_pd_proc_ls_prof_R_factor", _g(st.rp))
-    block.set_pair("_pd_proc_ls_prof_wR_expected", _g(st.rexp))
-    block.set_pair("_refine_ls_goodness_of_fit_all", _g(st.gof))
+    # them up, and the plain _refine_ls tags for the rest.  Formatted before
+    # the first is set, so a refused value leaves the block as it was.
+    for tag, value in [(tag, number(tag, value)) for tag, value in (
+            ("_diffrn_radiation_wavelength", lam),
+            ("_pd_proc_ls_prof_wR_factor", st.rwp),
+            ("_pd_proc_ls_prof_R_factor", st.rp),
+            ("_pd_proc_ls_prof_wR_expected", st.rexp),
+            ("_refine_ls_goodness_of_fit_all", st.gof))]:
+        block.set_pair(tag, value)
     block.set_pair("_refine_ls_number_parameters", str(st.n_free_parameters))
     block.set_pair("_pd_proc_number_of_points", str(st.n_points))
     # McCusker et al. (1999) §10: "In any publication, the method used to
@@ -420,9 +426,11 @@ def _write_phase_agreement(block, row: PhaseAgreement | None) -> None:
     if row is None:
         return
     if row.r_bragg is not None:
-        block.set_pair("_refine_ls_R_I_factor", _g(row.r_bragg))
+        block.set_pair("_refine_ls_R_I_factor",
+                       number("_refine_ls_R_I_factor", row.r_bragg))
     if row.r_f is not None:
-        block.set_pair("_refine_ls_R_factor_all", _g(row.r_f))
+        block.set_pair("_refine_ls_R_factor_all",
+                       number("_refine_ls_R_factor_all", row.r_f))
     if row.n_reflections:
         block.set_pair("_refine_ls_number_reflns", str(row.n_reflections))
 
@@ -462,7 +470,8 @@ def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int,
     :func:`~rietx.crystallography.cif.format_su` writes for every other
     refined number here — never a separate ``_su`` column that a reader may or
     may not pick up.  A row whose esd is ``None`` (nothing it depends on was
-    refined) is written as a plain number rather than an invented zero.
+    refined) is written as a plain number rather than an invented zero, its
+    shortest ``repr`` (:func:`rietx.io.cif.numbers.number`).
     """
     if geometry is None:
         return
@@ -474,7 +483,8 @@ def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int,
     symops = symmetry_operations(space_group)
     loop = block.init_loop("_space_group_symop_", ["id", "operation_xyz"])
     for idx, triplet in enumerate(symops):
-        loop.add_row([str(idx + 1), gemmi.cif.quote(triplet)])
+        loop.add_row([str(idx + 1),
+                      text("_space_group_symop_operation_xyz", triplet)])
     for tag, rows in (("_geom_bond_", [d for d in distances if d.bonded]),
                       ("_geom_contact_", [d for d in distances if not d.bonded])):
         if not rows:
@@ -483,8 +493,9 @@ def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int,
                                      "distance", "site_symmetry_1",
                                      "site_symmetry_2"])
         for d in rows:
-            loop.add_row([d.atom_1, d.atom_2, format_su(d.distance, d.stderr,
-                                                        decimals=4),
+            loop.add_row([text(f"{tag}atom_site_label_1", d.atom_1),
+                          text(f"{tag}atom_site_label_2", d.atom_2),
+                          number(f"{tag}distance", d.distance, d.stderr),
                           d.symmetry_1 or "?", d.symmetry_2 or "?"])
     if angles:
         # the angle *value* is the one tag here whose flat DDL1 alias is not
@@ -496,8 +507,10 @@ def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int,
             "_geom_angle_site_symmetry_1", "_geom_angle_site_symmetry_2",
             "_geom_angle_site_symmetry_3"])
         for a in angles:
-            loop.add_row([a.atom_1, a.atom_2, a.atom_3,
-                          format_su(a.angle, a.stderr, decimals=3),
+            loop.add_row([*(text(f"_geom_angle_atom_site_label_{k}", label)
+                            for k, label in enumerate(
+                                (a.atom_1, a.atom_2, a.atom_3), start=1)),
+                          number("_geom_angle", a.angle, a.stderr),
                           a.symmetry_1 or "?", a.symmetry_2 or "?",
                           a.symmetry_3 or "?"])
 
@@ -510,18 +523,20 @@ def _write_pattern_loop(block, result: RefinementResult) -> None:
     n = len(tt)
     yb = result.y_background or [0.0] * n
     sig = result.sigma or [0.0] * n
-    loop = block.init_loop("", [
-        "_pd_proc_2theta_corrected",
-        "_pd_proc_intensity_total",
-        "_pd_proc_intensity_total_su",
-        "_pd_calc_intensity_total",
-        "_pd_proc_intensity_bkg_calc",
-    ])
-    for i in range(n):
-        loop.add_row([
-            _g(tt[i]), _g(result.y_obs[i]), _g(sig[i]),
-            _g(result.y_calc[i]), _g(yb[i]),
-        ])
+    tags = ("_pd_proc_2theta_corrected", "_pd_proc_intensity_total",
+            "_pd_proc_intensity_total_su", "_pd_calc_intensity_total",
+            "_pd_proc_intensity_bkg_calc")
+    columns = (tt, result.y_obs, sig, result.y_calc, yb)
+    # refused through the one rule, but written at eight figures: ``repr``
+    # here grew a refinement CIF 1.5-1.7x with digits of float noise, and the
+    # pattern block's own digits are WP-1933's C-d (su in parentheses)
+    for tag, column in zip(tags, columns, strict=True):
+        for i in range(n):
+            number(tag, column[i], where=f"point {i}")   # refuses a non-finite
+    rows = [[_g(column[i]) for column in columns] for i in range(n)]
+    loop = block.init_loop("", list(tags))
+    for row in rows:
+        loop.add_row(row)
 
 
 def _moment_esds(result: RefinementResult, ip: int,

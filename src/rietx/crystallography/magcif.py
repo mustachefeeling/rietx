@@ -1510,14 +1510,14 @@ def symmform_rank(symmform: str) -> int | None:
 # writing
 # ---------------------------------------------------------------------------
 
-def _moment_number(value: float) -> str:
+def _moment_number(tag: str, value: float, where: str | None = None) -> str:
     """A moment quantity as the shortest text that reads back as the same double.
 
     ``repr``, and *not* the ``value(su)`` notation
-    :func:`~rietx.crystallography.cif.format_su` uses for every other number in
-    a rietx CIF — this is the one place that convention is the wrong one, for a
-    measured reason.  A refined moment's esd is routinely 0.05-0.9 μ_B
-    (WP-1327: 2.0785 ± 0.0655 on Cr₂WO₆, 0.0666 ± 0.878 on the null arm), so two
+    :func:`~rietx.crystallography.cif.format_su` uses for every number in a
+    rietx CIF that carries its su — this is the one place that convention is
+    the wrong one, for a measured reason.  A refined moment's esd is routinely
+    0.05-0.9 μ_B (WP-1327: 2.0785 ± 0.0655 on Cr₂WO₆, 0.0666 ± 0.878 on the null arm), so two
     significant figures of su leaves the *value* quoted to one or two decimals
     — ``0.1(9)`` for a modulus of 0.0666.  The dictionary's own ``_su`` items
     carry the uncertainty instead, which is what they are for.
@@ -1535,8 +1535,14 @@ def _moment_number(value: float) -> str:
     already accepted, so write → read returns it bit for bit and
     read → write → read is a fixed point from the first read on.  The Landé g
     was fixed the same way.
+
+    Since WP-1319 that is the rule for every number written without an su, so
+    this is :func:`rietx.io.cif.numbers.number` with none, refusing a
+    non-finite value by ``tag`` and ``where`` (Hall, Allen & Brown 1991).
     """
-    return repr(float(value))
+    from ..io.cif.numbers import number
+
+    return number(tag, value, where=where)
 
 
 def write_magnetic_block(block, phase, *,
@@ -1579,6 +1585,7 @@ def write_magnetic_block(block, phase, *,
       dictionary defines and without which a round trip loses which form factor
       the refinement used.
     """
+    from ..io.cif.numbers import text
     from .magnetic.operators import moment_magnitude
 
     magnetic = getattr(phase, "magnetic_symmetry", None)
@@ -1587,10 +1594,10 @@ def write_magnetic_block(block, phase, *,
     refuse_contradicting_numbers(magnetic, getattr(phase, "name", "?"))
     loop = block.init_loop("_space_group_symop_magn_operation.", ["id", "xyz"])
     for i, xyz in enumerate(magnetic.operations, start=1):
-        loop.add_row([str(i), _quote(xyz)])
+        loop.add_row([str(i), text("_space_group_symop_magn_operation.xyz", xyz)])
     loop = block.init_loop("_space_group_symop_magn_centering.", ["id", "xyz"])
     for i, xyz in enumerate(magnetic.centerings, start=1):
-        loop.add_row([str(i), _quote(xyz)])
+        loop.add_row([str(i), text("_space_group_symop_magn_centering.xyz", xyz)])
     for tag, value in (
             ("_space_group_magn.number_BNS", magnetic.bns_number),
             ("_space_group_magn.name_BNS", magnetic.symbol),
@@ -1598,30 +1605,37 @@ def write_magnetic_block(block, phase, *,
             ("_space_group_magn.transform_BNS_Pp_abc",
              _transform_or_none(magnetic.setting))):
         if value:
-            block.set_pair(tag, _quote(str(value)))
+            block.set_pair(tag, text(tag, str(value)))
     sites = [a for a in phase.atoms if a.moment is not None]
     if not sites:
         return
     cell6 = _printed_cell(block, phase)
     esds = magnitude_esds or {}
-    loop = block.init_loop("_atom_site_moment.", [
-        "label", "crystalaxis_x", "crystalaxis_y", "crystalaxis_z",
-        "crystalaxis_x_su", "crystalaxis_y_su", "crystalaxis_z_su",
-        "magnitude", "magnitude_su"])
+    axes = ("crystalaxis_x", "crystalaxis_y", "crystalaxis_z")
+    rows, private = [], []
     for atom in sites:
-        m = atom.moment
-        components = [getattr(m, n) for n in
-                      ("crystalaxis_x", "crystalaxis_y", "crystalaxis_z")]
-        loop.add_row(
-            [atom.label]
-            + [_moment_number(p.value) for p in components]
+        m, where = atom.moment, atom.label
+        components = [getattr(m, n) for n in axes]
+        rows.append(
+            [text("_atom_site_moment.label", where)]
+            + [_moment_number(f"_atom_site_moment.{n}", p.value, where)
+               for n, p in zip(axes, components, strict=True)]
             + [_number_or_dot(p.stderr) for p in components]
-            + [_moment_number(moment_magnitude(m.values(), cell6)),
+            + [_moment_number("_atom_site_moment.magnitude",
+                              moment_magnitude(m.values(), cell6), where),
                _number_or_dot(esds.get(atom.label))])
+        private.append([
+            text("_rietx_atom_site_moment.label", where),
+            text("_rietx_atom_site_moment.ion", m.ion, where=where),
+            "." if m.g is None
+            else _moment_number("_rietx_atom_site_moment.g", m.g, where)])
+    loop = block.init_loop("_atom_site_moment.", [
+        "label", *axes, *(f"{n}_su" for n in axes), "magnitude", "magnitude_su"])
+    for row in rows:
+        loop.add_row(row)
     loop = block.init_loop("_rietx_atom_site_moment.", ["label", "ion", "g"])
-    for atom in sites:
-        loop.add_row([atom.label, _quote(atom.moment.ion),
-                      "." if atom.moment.g is None else repr(atom.moment.g)])
+    for row in private:
+        loop.add_row(row)
 
 
 def refuse_contradicting_numbers(magnetic, phase_name: str) -> None:
@@ -1661,9 +1675,8 @@ def refuse_contradicting_numbers(magnetic, phase_name: str) -> None:
 def _printed_cell(block, phase) -> tuple[float, ...]:
     """The cell as the block states it, which is the cell every reader sees.
 
-    ``write_structure_block`` prints a cell angle to four decimals, or to its
-    esd's precision, so a refined β = 100.123456789(12) goes out as
-    ``100.1235(12)``.  A magnitude computed on the unrounded angle then
+    ``write_structure_block`` prints a cell angle to its esd's precision, so a
+    refined β = 100.123456789(12) goes out as ``100.1235(12)``.  A magnitude computed on the unrounded angle then
     disagrees with the components on the printed one: 1.8e-6 μ_B on a
     (3.12, 0, 3.12) moment, where a ``repr``-precision magnitude and repr
     components state a precision of 6e-11 μ_B, so the reader refused its own
@@ -1683,22 +1696,17 @@ def _printed_cell(block, phase) -> tuple[float, ...]:
     return tuple(gemmi.cif.as_number(v) for v in values)
 
 
-def _quote(text: str) -> str:
-    import gemmi
-
-    return gemmi.cif.quote(text)
-
-
 def _number_or_dot(value: float | None) -> str:
     """A moment esd, or CIF's ``.`` for one there is no value of.
 
     ``.`` is *inapplicable*, which is the right word: a component written back
     from a modulus DOF has no esd of its own (WP-1327), and writing ``0`` there
-    would state a moment known exactly.
+    would state a moment known exactly.  :func:`rietx.io.cif.numbers.su_or_dot`
+    (Hall, Allen & Brown 1991).
     """
-    if value is None or not math.isfinite(value):
-        return "."
-    return _moment_number(value)
+    from ..io.cif.numbers import su_or_dot
+
+    return su_or_dot(value)
 
 
 def _transform_or_none(setting: str | None) -> str | None:

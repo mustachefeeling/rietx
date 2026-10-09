@@ -4,9 +4,10 @@ gemmi 0.7.5 cannot read these files: they are CIF 2.0, and gemmi rejects a
 CIF 2.0 list (``_a [1 2]``), so ``cif_core.dic`` fails at its line 139.  This
 module reads just enough of CIF 2.0 to answer the registry test's three
 questions about a tag name — is it defined, under which ``_definition.id``,
-and is this spelling deprecated — and the ``_type.purpose`` beside them.  It
-is a test helper and not a general parser: it keeps every save frame's single
-items and loop columns and nothing else, and it does not validate.
+and is this spelling deprecated — and the ``_type.purpose`` and
+``_type.contents`` beside them.  It is a test helper and not a general parser:
+it keeps every save frame's single items and loop columns and nothing else,
+and it does not validate.
 
 The grammar is the CIF 2.0 syntax (Bernstein et al. 2016, *J. Appl. Cryst.*
 **49**, 277): ``#`` comments, ``;`` text fields at a line start, strings in
@@ -15,8 +16,9 @@ single or double quotes or in triples of either, nestable ``[ … ]`` lists and
 semantics read are DDLm's (Spadaccini & Hall 2012, *J. Chem. Inf. Model.*
 **52**, 1907): ``_alias.definition_id`` with ``_alias.deprecation_date`` (``.``
 meaning "not deprecated"), ``_definition_replaced`` marking a whole definition
-deprecated, and ``_import.get`` pulling ``_type.purpose`` in from the
-``templ_attr.cif``/``templ_enum.cif`` frames a definition names.
+deprecated, and ``_import.get`` pulling ``_type.purpose`` and
+``_type.contents`` in from the ``templ_attr.cif``/``templ_enum.cif`` frames a
+definition names.
 """
 
 from __future__ import annotations
@@ -166,6 +168,7 @@ class Lookup:
     """What a dictionary says about one tag *spelling*."""
     definition_id: str
     purpose: str | None
+    contents: str | None
     deprecated: bool
     source: str           # the dictionary file defining it
 
@@ -199,6 +202,7 @@ class Dictionaries:
                 category = (self._one(frame, "_name.category_id") or "").lower()
                 gone = self._replaced(frame) or category in replaced
                 purpose = self._attribute(frame, "_type.purpose")
+                contents = self._attribute(frame, "_type.contents")
                 spellings = [(did, gone)]
                 dates = frame.get("_alias.deprecation_date", [])
                 for k, alias in enumerate(frame.get("_alias.definition_id", [])):
@@ -206,7 +210,7 @@ class Dictionaries:
                     spellings.append((alias, gone or dated))
                 for spelling, deprecated in spellings:
                     self._by_name.setdefault(
-                        spelling.lower(), Lookup(did, purpose, deprecated, name))
+                        spelling.lower(), Lookup(did, purpose, contents, deprecated, name))
 
     @staticmethod
     def _one(frame: dict[str, list], tag: str) -> str | None:

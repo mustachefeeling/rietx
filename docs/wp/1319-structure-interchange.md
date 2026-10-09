@@ -135,8 +135,8 @@ No file has a syntax error. The alerts fall in four classes:
   PLAT808, PLAT980.
 - **About the chemistry, not the file**: PLAT004, PLAT092 (11-BM's wavelength),
   PLAT202, PLAT434 (F…F contacts), PLAT720 (labels), PLAT794. PLAT304 (non-integer
-  atom count, 0.17 and 0.33 and 0.04) may be the four-decimal occupancy C-b removes;
-  check it after C-b.
+  atom count, 0.17 and 0.33 and 0.04) is not the four-decimal occupancy: every
+  FAP occupancy is 1.0, so it is checkCIF's moiety split.
 
 ### Inherited
 
@@ -162,12 +162,18 @@ No file has a syntax error. The alerts fall in four classes:
       Today's two violations (`_pd_proc_intensity_total_su`,
       `_symmetry_space_group_name_H-M`) sit on an allow-list a test holds to
       shrinking. A planted undefined tag fails. No written byte changes.
-- [ ] **C-b, one number rule** (`io/cif/numbers.py`): esd values through
+- [x] **C-b, one number rule** (`io/cif/numbers.py`): esd values through
       `format_su`; values without one as the shortest round-tripping `repr`;
       moments keep `repr` + `_su`; non-finite values and whitespace refused by tag.
       The five formatters routed through it. A 90.00004 angle and a 0.33333
       occupancy round-trip bit-identically (both fail on `main`). `SU_REFERENCE`
-      and every CIF test stay green.
+      and every CIF test stay green. Landed with `Tag.contents` from the
+      dictionary, so a Word/Code/Symop value refuses whitespace (a disorder
+      group with a space included) and other text is quoted. A non-finite R
+      factor or pattern point is refused too. The pattern loop keeps `.8g`:
+      `repr` there grew the refinement CIFs 1.5-1.7× (FAP 233 → 388 KB, NAC
+      924 → 1364 KB) with float noise, and its digits are 1933's C-d. One pin
+      moved (`test_aniso_adp.py:483`, `0.005000` → the exact `0.005`).
 - [x] **checkCIF baseline**: the FAP refinement CIF (`tests/data/FAP.XRA` +
       `fluorapatite.cif`) and the NAC + CaF₂ one (`examples/nac_11bm.py`), as
       `main` writes them, plus `to_cif` of LaB₆ (`cod_1000055.cif`) and

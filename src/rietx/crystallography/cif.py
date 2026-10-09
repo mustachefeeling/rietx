@@ -1164,9 +1164,16 @@ def _disorder_columns(path: str, name: str) -> dict[str, tuple[str | None, str |
     return out
 
 
-def _fmt(p: Parameter, decimals: int) -> str:
-    """A CIF number from a :class:`Parameter`, su included when known."""
-    return format_su(p.value, p.stderr, decimals=decimals)
+def _fmt(tag: str, p: Parameter, where: str | None = None) -> str:
+    """A CIF number from a :class:`Parameter`, su included when known.
+
+    The one number rule (:func:`rietx.io.cif.numbers.number`): ``value(su)``
+    with an su, else the shortest ``repr`` that reads back as the same double,
+    and a non-finite value refused naming ``tag`` and ``where``.
+    """
+    from ..io.cif.numbers import number
+
+    return number(tag, p.value, p.stderr, where=where)
 
 
 def write_structure_block(block, phase: Phase, *,
@@ -1185,17 +1192,42 @@ def write_structure_block(block, phase: Phase, *,
     ignores the aniso loop still sees the right isotropic magnitude rather
     than a stale starting estimate.  Standard uncertainties are written for
     any parameter whose ``stderr`` is set (see
-    ``ParameterTable.apply_to_models``).  Shared with the refinement exporter
+    ``ParameterTable.apply_to_models``), and every other number as the shortest
+    ``repr`` that reads back as the same double (:mod:`rietx.io.cif.numbers`,
+    which also refuses a non-finite value, and whitespace in a label or a
+    species, naming the tag).  Shared with the refinement exporter
     (``io/exporters.py``), which appends refinement + pattern loops to the
     same block.
     """
+    from ..io.cif.numbers import number, text
+
     c = phase.cell
     cell6 = c.lengths_angles()
-    for name in ("a", "b", "c"):
-        block.set_pair(f"_cell_length_{name}", _fmt(getattr(c, name), 6))
-    for name in ("alpha", "beta", "gamma"):
-        block.set_pair(f"_cell_angle_{name}", _fmt(getattr(c, name), 4))
-    block.set_pair("_symmetry_space_group_name_H-M", gemmi.cif.quote(phase.space_group))
+    # every value is formatted before the first is set, so a refusal leaves
+    # the block, and the file, unwritten
+    cell = {f"_cell_length_{n}": _fmt(f"_cell_length_{n}", getattr(c, n))
+            for n in ("a", "b", "c")}
+    cell |= {f"_cell_angle_{n}": _fmt(f"_cell_angle_{n}", getattr(c, n))
+             for n in ("alpha", "beta", "gamma")}
+    rows = []
+    for a in phase.atoms:
+        if a.aniso is None:
+            b_eq, kind = _fmt("_atom_site_B_iso_or_equiv", a.biso, a.label), "Biso"
+        else:
+            b_eq = number("_atom_site_B_iso_or_equiv",
+                          8.0 * math.pi ** 2 * u_equivalent(a.aniso.values(), cell6),
+                          where=a.label)
+            kind = "Uani"
+        rows.append([
+            text("_atom_site_label", a.label),
+            text("_atom_site_type_symbol", a.species, where=a.label),
+            *(_fmt(f"_atom_site_fract_{n}", getattr(a, n), a.label) for n in "xyz"),
+            _fmt("_atom_site_occupancy", a.occ, a.label), b_eq, kind,
+        ])
+    for tag, value in cell.items():
+        block.set_pair(tag, value)
+    block.set_pair("_symmetry_space_group_name_H-M",
+                   text("_symmetry_space_group_name_H-M", phase.space_group))
     if phase.symmetry_operations is not None:
         # the list is the group, in the order a symmetry code indexes; a
         # bracketed label alone names nothing a reader can expand.  The
@@ -1203,7 +1235,8 @@ def write_structure_block(block, phase: Phase, *,
         # same list (``resolve_group``), so the two cannot disagree.
         ops = block.init_loop("_space_group_symop_", ["id", "operation_xyz"])
         for idx, triplet in enumerate(phase.symmetry_operations):
-            ops.add_row([str(idx + 1), gemmi.cif.quote(triplet)])
+            ops.add_row([str(idx + 1),
+                         text("_space_group_symop_operation_xyz", triplet)])
     # the two disorder columns only when a site declares one, so a file of an
     # ordered structure is byte-identical to what this writer wrote before
     disorder = [k for k in ("disorder_assembly", "disorder_group")
@@ -1212,17 +1245,11 @@ def write_structure_block(block, phase: Phase, *,
         "label", "type_symbol", "fract_x", "fract_y", "fract_z",
         "occupancy", "B_iso_or_equiv", "adp_type", *disorder,
     ])
-    for a in phase.atoms:
-        if a.aniso is None:
-            b_eq, kind = _fmt(a.biso, 4), "Biso"
-        else:
-            b_eq = f"{8.0 * math.pi ** 2 * u_equivalent(a.aniso.values(), cell6):.4f}"
-            kind = "Uani"
+    for a, row in zip(phase.atoms, rows, strict=True):
         loop.add_row([
-            a.label, a.species,
-            _fmt(a.x, 6), _fmt(a.y, 6), _fmt(a.z, 6),
-            _fmt(a.occ, 4), b_eq, kind,
-            *("." if getattr(a, k) is None else gemmi.cif.quote(getattr(a, k))
+            *row,
+            *("." if getattr(a, k) is None
+              else text(f"_atom_site_{k}", getattr(a, k), where=a.label)
               for k in disorder),
         ])
     aniso = [a for a in phase.atoms if a.aniso is not None]
@@ -1231,8 +1258,10 @@ def write_structure_block(block, phase: Phase, *,
             "label", "U_11", "U_22", "U_33", "U_12", "U_13", "U_23",
         ])
         for a in aniso:
-            uloop.add_row([a.label] + [_fmt(getattr(a.aniso, n), 5)
-                                       for n in U_NAMES])
+            uloop.add_row([text("_atom_site_aniso_label", a.label)]
+                          + [_fmt(f"_atom_site_aniso_U_{n[1:]}",
+                                  getattr(a.aniso, n), a.label)
+                             for n in U_NAMES])
     # The magnetic half, when the phase carries one: the operator and centring
     # loops, the BNS/OG metadata and the moments with their esds
     # (``crystallography.magcif``).  Not the parent k: a supercell phase is

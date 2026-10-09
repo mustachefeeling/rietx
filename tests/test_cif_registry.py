@@ -186,12 +186,15 @@ def test_every_written_tag_is_defined_and_current(written, dictionaries):
 
 
 def test_each_row_states_the_dictionarys_definition_id_and_purpose(dictionaries):
+    """And its ``_type.contents``, which the writer quotes or refuses a value
+    by (``io/cif/numbers.text``).  A tag no dictionary defines states its own."""
     wrong = {}
     for name, tag in TAGS.items():
         hit = dictionaries.lookup(name)
-        stated = (tag.definition_id, tag.purpose)
-        actual = (None, None) if hit is None else (hit.definition_id, hit.purpose)
-        if stated != actual:
+        stated = (tag.definition_id, tag.purpose, tag.contents)
+        actual = ((None, None, tag.contents) if hit is None else
+                  (hit.definition_id, hit.purpose, hit.contents))
+        if stated != actual or not tag.contents:
             wrong[name] = (stated, actual)
     assert wrong == {}
 

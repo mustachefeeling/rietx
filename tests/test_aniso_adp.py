@@ -479,8 +479,9 @@ def test_cif_export_writes_standard_uncertainties(tmp_path):
     assert "0.006000(120)" in text or "0.00600(12)" in text
     assert "0.0010000(31)" in text
     assert "4.59370(25)" in text
-    # a parameter with no esd stays a plain number — never an implied one
-    assert "0.005000\n" in text or " 0.00500 " in text or "0.00500" in text
+    # a parameter with no esd stays a plain number — never an implied one —
+    # written as its shortest repr (WP-1319 C-b), so U33 = 0.005 is "0.005"
+    assert " 0.005 " in text
 
     back = structure_from_cif(str(out), aniso=True)
     assert back.phases[0].atoms[0].aniso.u11.value == pytest.approx(0.006, abs=1e-9)
