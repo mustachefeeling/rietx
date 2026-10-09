@@ -1,6 +1,6 @@
 # WP-1930 — a width freed on its floor leaves it by rounding
 
-Milestone: unscheduled · Status: 🔄 2026-10-09 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-09 — PR #849 ready; the band's Linux run is the nightly after merge
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P1 2026-10-08 — a published acceptance number (VALIDATION.md, the landing page) that `main` reproduces on no platform, χ²_red 12.48 on Linux against 9.69 on macOS, every assertion green; `profile.y` defaults to 0.0, its floor, and six preset plans free it there
@@ -180,6 +180,62 @@ printed digit on both.
   iterates).
 
 ## Handover log
+
+- **2026-10-09** — LaB₆ + cBN now has one answer on every machine, and the
+  package no longer leaves a freed width on its floor for rounding to decide.
+  The split was never Linux against macOS: on one Mac, a 3e-14 change to one
+  start value reproduced Linux's 12.48 in five of seven tries, and it did so
+  before #700 too. The fix is two parts: the Gaussian triple held, as decided,
+  giving χ²_red 10.1518 everywhere, and a package-wide floor seed at 1e-3 of a
+  width's unit. The larger 0.05° seed was tried and refuted; it broke nine
+  suites whose true width is zero. Three published numbers moved with the
+  protocol: QPA 17.791 ± 0.319 wt % (was 17.874), Rwp 0.1687, cBN +16 ppm.
+
+  *Done.* `ParameterTable.seed_floor` + `FLOOR_SEEDS`/`SOFTPLUS_FLOOR_VALUE`
+  (`params/vector.py`), called after `Stage.seed` in `_run_stage` and
+  `multi.py`; `StageResult.seeded`/`.floor_unseeded` (schema 0.43 → 0.44);
+  `SOFTPLUS_FREED_AT_FLOOR` for a floor row with no seed size (a hump's
+  height). `test_acceptance_lab6_cbn.py`: triple held in both plans, silence
+  restored in the correlation test, a 2 % Rwp band, render test. Re-baselined
+  with reasons: the Le Bail alternation scenarios (every pass ~3 pp lower, so
+  the shapes moved to +0.3 % and +0.4 % starts), NAC's `at_bound` count, the
+  GUI last rung (as-optimised staleness, 8e-6), corundum's anisotropy bar
+  (rides a flat direction, 2.02 → 4.51 at one χ²), FAP's window test (now
+  runs the screen's own `two_theta_max`), the two-site magnetic pair test
+  (pairs were stopping points; naming check moved to the 150 K solution).
+  VALIDATION.md, the landing row, the manual's `StageResult` table and the
+  skill's diagnostics row (net −63 B) updated. API index cap 39 700 → 39 800,
+  WP-1920 owning the split.
+
+  *Measured* (`[dev]`, macOS arm64). Seed sweep (0 / 1e-3 / 1e-2 / 0.05°, two
+  perturbations each): LaB₆ held χ²_red 10.1518150 in every arm, 47-52 →
+  41-45 → 36-40 iterations; BT-1 1.9279825, `y` back on its floor from every
+  seed; brucite 8.313117. Free-triple plan at 1e-3°: 9.661408 at every
+  perturbation, `w` on its floor and the resolution diagnostics firing, so the
+  hold stands; at 0.05° it stopped at 9.8402. Degenerate plan: one minimum,
+  χ²_red 5.934160, LaB₆ 16.850 ± 0.192 (5.5σ out). Fast suite 0 failed after
+  the fixes (last full fast run 2 failed, 8895 passed, 172 skipped, with one
+  other pytest on the machine; both since fixed and re-run). Full suite on the
+  bare branch: 3 failed, 9180 passed, 183 skipped in 20:57, alone; the three
+  are fixed and each re-run green. Lanes:
+
+  | lane | est | requests | main at dispatch | lane $ | saved $ |
+  |---|---|---|---|---|---|
+  | fap-window | 20 | 23 | 385K | 1.01 | +0.97 |
+  | magnetic-pair | 20 | 35 | 392K | 1.45 | +1.31 |
+
+  Selective policy (lane when main > 150K and item ≥ 20): −21 % over 90
+  replayed sessions.
+
+  *Gotchas.* The acceptance's second platform is unrun: the reporter measured
+  the held protocol on Linux (10.15182, 1e-12 agreement), but not this tree's
+  seed. Other suites' VALIDATION rows were not swept for moved figures; only
+  the tests that failed were re-measured.
+
+  Next: (1) watch the first Linux nightly after merge for the band, then tick
+  it and close; (2) ask the reporter whether their fit recorder can sweep this
+  PR against `main` for VALIDATION rows that moved silently, and re-measure
+  what it finds (their Cr₂WO₆ 0.2047 → 0.2035 is #700's and still stale).
 
 - **2026-10-08** — created, from the 2026-10-08 issue triage (issue #832,
   and #836's third item). Checked against the tree at `a3f9140a`: the macOS
