@@ -56,7 +56,7 @@ from .model.forward import (
     Mode,
     compile_model,
 )
-from .model.geometry import geometry_table
+from .model.geometry import cell_volumes, geometry_table
 from .model.microstructure import microstructure_table
 from .model.profiles.caglioti import (
     SCHERRER_K,
@@ -1919,6 +1919,9 @@ class Refinement:
         self._last_plan: RefinementPlan | None = None
         self._sigma_from_file: bool | None = None
         self._excluded_regions: list[tuple[float, float]] = []
+        #: the pattern the last fit or stage was given, every measured point
+        #: included, for :meth:`write_cif`'s pattern block (WP-1933)
+        self._fit_pattern: PatternData | None = None
 
     # ------------------------------------------------------------------
     # history plumbing
@@ -4433,6 +4436,9 @@ class Refinement:
                 declared_wavelengths=declared_wavelengths,
                 cell_runaway=answer_runaway,
                 significance=answer_significance)
+            # beside result_, never at entry: a call that is cancelled or fails
+            # leaves the previous result and the pattern it was fitted to
+            self._fit_pattern = data
             _apply_esds(table, self.result_, self.structure, self.instrument)
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
@@ -4910,6 +4916,9 @@ class Refinement:
                 guard=guard, max_shift_over_esd=outcome.max_shift_over_esd,
                 declared_wavelengths=declared_wavelengths,
                 significance=hold.significance)
+            # beside result_, never at entry: a call that is cancelled or fails
+            # leaves the previous result and the pattern it was fitted to
+            self._fit_pattern = data
             _apply_esds(table, self.result_, self.structure, self.instrument)
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
@@ -5312,12 +5321,19 @@ class Refinement:
 
     def write_cif(self, path) -> None:
         """Write a refinement CIF: structure with esds, R-factors, wavelength,
-        profile/background description, and the observed/calculated pattern."""
-        from .io.exporters import write_refinement_cif
+        profile/background description, and the observed/calculated pattern.
+
+        The pattern loop carries every point of the pattern the last fit was
+        given, with weight 0 on the ones it did not fit, and the reflection loop
+        each reflection's phase, d and |F|²."""
+        from .io.cif.blocks import write_document
+        from .io.exporters import refinement_cif_doc
 
         if self.result_ is None:
             raise RuntimeError("call fit() first")
-        write_refinement_cif(self.result_, self.structure, self.instrument, path)
+        write_document(refinement_cif_doc(self.result_, self.structure,
+                                          self.instrument, pattern=self._fit_pattern,
+                                          reflections=self.reflection_table()), path)
 
     def write_qpa_table(self, path, **kw) -> None:
         """Write the QPA weight-fraction table (crystalline-only caveat included)."""
@@ -6693,6 +6709,8 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     geometry = geometry_table(model, table, theta, structure,
                               stderr_internal=stderr_internal,
                               correlation=correlation)
+    volumes = cell_volumes(table, theta, structure,
+                           stderr_internal=stderr_internal, correlation=correlation)
 
     # The widths read as a coherent domain size and a Δd/d (WP-1131), built
     # here for geometry's reason — the esds come off the same final Jacobian —
@@ -6863,6 +6881,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         sigma=model.sigma.tolist(),
         ticks=ticks, tick_hkl=tick_hkl,
         qpa=qpa, restraints=restraints_report, geometry=geometry,
+        cell_volumes=volumes,
         microstructure=microstructure,
         phase_agreement=_phase_agreement(model, values, structure),
         data_support=support,

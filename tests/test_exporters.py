@@ -338,6 +338,7 @@ TRUE_A = 4.15660
 TRUE_ZERO = 0.008
 TRUE_SCALE = 5e-4
 TRUE_W = 2.5e-4
+EXCLUDED = (20.0, 20.05)
 
 
 @pytest.fixture(scope="module")
@@ -361,7 +362,10 @@ def fitted_lab6():
     y = model.evaluate(table.decode(table.x0()))
     rng = np.random.default_rng(7)
     y = rng.poisson(np.maximum(y, 1.0)).astype(float)
-    data = PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
+    # an interior excluded region, so the CIF's pattern loop has measured
+    # points the fit did not use (WP-1933 C-d)
+    data = PatternData(two_theta=model.tt.tolist(), intensity=y.tolist(),
+                       excluded_regions=[EXCLUDED])
 
     structure = make_lab6()
     structure.phases[0].cell.a.value = TRUE_A + 0.004
@@ -397,18 +401,206 @@ def test_refinement_cif_round_trips_through_readers(fitted_lab6, tmp_path):
     assert "_cell_length_a" in text
     assert "(" in text.split("_cell_length_a")[1].split("\n")[0]
 
-    # 2. the observed pattern re-reads through read_pdcif, matching the fit grid
+    # 2. the observed pattern re-reads through read_pdcif: every measured
+    #    point, the excluded ones included, as the counts they were
     pat = read_pdcif(out)
-    assert len(pat.two_theta) == len(result.two_theta)
-    np.testing.assert_allclose(pat.two_theta, result.two_theta, rtol=0, atol=1e-5)
-    np.testing.assert_allclose(pat.intensity, result.y_obs, rtol=1e-6, atol=1e-3)
-    assert pat.sigma is not None                       # the _su column round-trips
+    assert len(pat.two_theta) == len(data.two_theta) > len(result.two_theta)
+    np.testing.assert_allclose(pat.two_theta, data.two_theta, rtol=1e-8)  # 8 figures
+    np.testing.assert_array_equal(pat.intensity, data.intensity)
 
     # 3. refinement metadata is present
     assert "_diffrn_radiation_wavelength" in text
     assert "_pd_proc_ls_prof_wR_factor" in text        # Rwp
     assert "TCHZ" in text                              # profile description
     assert "Chebyshev" in text                         # background description
+
+
+def test_the_pattern_loop_weights_the_unfitted_points_zero(fitted_lab6, tmp_path):
+    """Every measured point is deposited, and ``_pd_proc_ls_weight`` says which
+    the fit used: 1/σ² of the fit's σ, else 0, with no calculated value there.
+    Counts with no stated σ go out as ``_pd_meas_counts_total``, on the
+    measured, uncorrected grid; the excluded stretch is stated in words."""
+    ref, result, data = fitted_lab6
+    out = tmp_path / "w.cif"
+    ref.write_cif(out)
+    block = gemmi.cif.read(str(out)).sole_block()
+    tt = np.array([float(v) for v in block.find_loop("_pd_meas_2theta_scan")])
+    w = np.array([float(v) for v in block.find_loop("_pd_proc_ls_weight")])
+    calc = list(block.find_loop("_pd_calc_intensity_total"))
+    excluded = w == 0.0
+    n_out = len(data.two_theta) - len(result.two_theta)
+    assert excluded.sum() == n_out > 0
+    assert np.all((tt[excluded] >= EXCLUDED[0] - 1e-9) & (tt[excluded] <= EXCLUDED[1]))
+    np.testing.assert_allclose(w[~excluded], 1.0 / np.asarray(result.sigma) ** 2,
+                               rtol=1e-7)
+    assert all(calc[i] == "." for i in np.flatnonzero(excluded))
+    assert block.find_loop("_pd_meas_counts_total")
+    assert not block.find_loop("_pd_proc_2theta_corrected")
+    assert block.find_value("_pd_meas_number_of_points") == str(len(data.two_theta))
+    assert block.find_value("_pd_proc_number_of_points") == str(len(result.two_theta))
+    assert f"20.05 deg ({n_out} points)" in " ".join(
+        block.find_value("_pd_proc_info_excluded_regions").split())
+    d = np.array([float(v) for v in block.find_loop("_pd_proc_d_spacing")])
+    lam = ref.instrument.source.primary_wavelength
+    np.testing.assert_allclose(d, lam / (2 * np.sin(np.radians(tt) / 2)), rtol=1e-7)
+
+
+def test_a_stated_sigma_rides_in_parentheses_and_reads_back(fitted_lab6, tmp_path):
+    """A pattern whose file stated σ writes ``_pd_meas_intensity_total`` as
+    ``value(su)``, and ``read_pdcif`` takes σ from there."""
+    from rietx.io.exporters import write_refinement_cif
+
+    ref, result, _data = fitted_lab6
+    sigma = np.sqrt(np.maximum(result.y_obs, 1.0)) * 1.5
+    measured = PatternData(two_theta=result.two_theta, intensity=result.y_obs,
+                           sigma=sigma.tolist())
+    out = tmp_path / "s.cif"
+    write_refinement_cif(result, ref.fitted_structure, ref.fitted_instrument, out,
+                         pattern=measured)
+    block = gemmi.cif.read(str(out)).sole_block()
+    assert "(" in block.find_loop("_pd_meas_intensity_total")[0]
+    back = read_pdcif(out)
+    # two significant figures of su survive the file
+    np.testing.assert_allclose(back.sigma, sigma, rtol=0.05)
+
+
+def test_a_pattern_that_was_not_fitted_is_refused(fitted_lab6):
+    from rietx.io.exporters import refinement_cif_doc
+
+    ref, result, _data = fitted_lab6
+    shifted = PatternData(two_theta=(np.asarray(result.two_theta) + 1e-3).tolist(),
+                          intensity=result.y_obs)
+    with pytest.raises(ValueError, match="not the one this result was fitted to"):
+        refinement_cif_doc(result, ref.fitted_structure, ref.fitted_instrument,
+                           pattern=shifted)
+
+
+def test_the_experiment_and_refinement_items(fitted_lab6):
+    """The items a reader needs beside the numbers: the probe, the method, the
+    geometry, every emission line with its weight, the restraint count, the
+    last shift over su, the absorption applied or ``none``, extinction on the
+    phase's block, and profile text in lines checkCIF reads (≤ 80 columns)
+    naming the shape the fit computed and every value with its su."""
+    from rietx.io.exporters import refinement_cif_doc
+    from tests.test_cif_registry import _lab_variant
+
+    ref, result, _data = fitted_lab6
+    block = refinement_cif_doc(result, ref.fitted_structure, ref.fitted_instrument)[0]
+    assert block.find_value("_diffrn_radiation_probe") == "x-ray"
+    assert block.find_value("_pd_calc_method").strip("'") == "Rietveld Refinement"
+    assert "Debye-Scherrer" in block.find_value("_pd_instr_geometry")
+    assert block.find_value("_diffrn_radiation_wavelength") is not None
+    assert block.find_value("_refine_ls_number_restraints") == "0"
+    assert float(block.find_value("_refine_ls_shift/su_max")) == pytest.approx(
+        result.statistics.max_shift_over_esd)
+    assert block.find_value("_exptl_absorpt_correction_type") == "none"
+    assert block.find_value("_refine_ls_extinction_coef") is None
+    profile = gemmi.cif.as_string(block.find_value("_pd_proc_ls_profile_function"))
+    assert "TCHZ" in profile
+    w = result.parameter("instrument.profile.w")
+    assert f"W={format_su(w.value, w.stderr)}" in profile
+    for tag in ("_pd_proc_ls_profile_function", "_pd_proc_ls_background_function",
+                "_pd_proc_ls_special_details"):
+        lines = gemmi.cif.as_string(block.find_value(tag)).splitlines()
+        assert lines and max(len(line) for line in lines) <= 80, tag
+
+    lab, structure, instrument = _lab_variant(result, ref)
+    instrument.profile.shape = "voigt"
+    block = refinement_cif_doc(lab, structure, instrument)[0]
+    rows = list(block.find(["_diffrn_radiation_wavelength",
+                            "_diffrn_radiation_wavelength_id",
+                            "_diffrn_radiation_wavelength_wt"]))
+    assert [row[1] for row in rows] == ["1", "2"]
+    assert float(rows[0][2]) == 1.0 and 0.0 < float(gemmi.cif.as_number(rows[1][2])) < 1.0
+    assert block.find_value("_exptl_absorpt_correction_type") == "cylinder"
+    assert "Rouse" in block.find_value("_exptl_absorpt_process_details")
+    assert block.find_value("_refine_ls_extinction_coef") is not None
+    profile = gemmi.cif.as_string(block.find_value("_pd_proc_ls_profile_function"))
+    assert profile.startswith("Voigt") and "TCHZ" not in profile
+
+
+def test_a_cubic_cell_volume_esd_is_three_a_squared_sigma_a(fitted_lab6):
+    """V = a³ with one free length, so σ(V) = 3a²σ(a) exactly, and the
+    refinement CIF's ``_cell_volume`` carries it."""
+    from rietx.io.exporters import refinement_cif_doc
+
+    ref, result, _data = fitted_lab6
+    (row,) = result.cell_volumes
+    a = result.parameter("phases.0.cell.a")
+    assert row.volume == pytest.approx(a.value ** 3, rel=1e-12)
+    assert row.stderr == pytest.approx(3 * a.value ** 2 * a.stderr, rel=1e-9)
+    block = refinement_cif_doc(result, ref.fitted_structure, ref.fitted_instrument)[0]
+    assert block.find_value("_cell_volume") == format_su(row.volume, row.stderr)
+
+
+def test_the_atom_types_state_the_dispersion_the_fit_used(fitted_lab6):
+    """f′ and f″ at the source's wavelength, the forward model's own numbers;
+    none where the fit applied none (checkCIF's PLAT981/PLAT986)."""
+    from rietx.crystallography.dispersion import resolve
+    from rietx.io.exporters import refinement_cif_doc
+
+    ref, result, _data = fitted_lab6
+    instrument = ref.fitted_instrument
+    block = refinement_cif_doc(result, ref.fitted_structure, instrument)[0]
+    rows = {r[0]: r for r in block.find(["_atom_type_symbol",
+                                         "_atom_type_scat_dispersion_real",
+                                         "_atom_type_scat_dispersion_imag",
+                                         "_atom_type_scat_dispersion_source"])}
+    lam = tuple(line.wavelength.value for line in instrument.source.lines)
+    for atom in ref.fitted_structure.phases[0].atoms:
+        f = resolve([atom.species], lam)[atom.species]
+        row = rows[atom.species]
+        assert float(row[1]) == round(f.real, 4) and float(row[2]) == round(f.imag, 4)
+        assert "Cromer" in row[3]
+
+    declined = instrument.model_copy(deep=True)
+    declined.source.dispersion = None
+    block = refinement_cif_doc(result, ref.fitted_structure, declined)[0]
+    assert not block.find_loop("_atom_type_scat_dispersion_real")
+
+
+def test_the_reflection_loop_lists_each_reflection_once(fitted_lab6, tmp_path):
+    """``_refln``: one row per reflection at the primary line, hkl, the phase's
+    id, d and |F|² as the reflection table computes them."""
+    ref, _result, _data = fitted_lab6
+    out = tmp_path / "refl.cif"
+    ref.write_cif(out)
+    block = gemmi.cif.read(str(out)).sole_block()
+    written = list(block.find(["_refln_index_h", "_refln_index_k", "_refln_index_l",
+                               "_pd_refln_phase_id", "_refln_d_spacing",
+                               "_refln_F_squared_calc"]))
+    rows = [r for r in ref.reflection_table() if r.line == 0]
+    assert len(written) == len(rows) > 0
+    for w, r in zip(written, rows, strict=True):
+        assert (int(w[0]), int(w[1]), int(w[2])) == (r.h, r.k, r.l)
+        assert w[3] == "1"
+        assert gemmi.cif.as_number(w[4]) == pytest.approx(r.d, rel=1e-15)
+        assert gemmi.cif.as_number(w[5]) == pytest.approx(r.f_squared, rel=1e-15)
+
+
+def test_a_le_bail_cell_volume_carries_its_esd(fitted_lab6):
+    """σ(V) in every mode: a Le Bail cell is refined as surely as a Rietveld
+    one, and its scaffold atoms take nothing from it."""
+    _ref, _result, data = fitted_lab6
+    structure = make_lab6()
+    ref = Refinement(structure, Instrument.debye_scherrer(wavelength=0.4139),
+                     history=False)
+    result = ref.fit(data, mode="lebail", plan="mccusker_default")
+    (row,) = result.cell_volumes
+    a = result.parameter("phases.0.cell.a")
+    assert a.stderr is not None
+    assert row.stderr == pytest.approx(3 * a.value ** 2 * a.stderr, rel=1e-9)
+
+
+def test_every_line_of_a_refinement_cif_fits_in_80_columns(fitted_lab6, tmp_path):
+    """checkCIF's PLAT802 counts each longer record: a type row carrying f′
+    and f″ at seventeen digits, and the excluded-regions sentence, both drew it."""
+    ref, _result, _data = fitted_lab6
+    out = tmp_path / "w.cif"
+    ref.write_cif(out)
+    long = [line for line in out.read_text(encoding="utf-8").splitlines()
+            if len(line) > 80]
+    assert long == []
 
 
 def test_refinement_result_arrays_are_faithful(fitted_lab6, tmp_path):
@@ -419,6 +611,29 @@ def test_refinement_result_arrays_are_faithful(fitted_lab6, tmp_path):
     text = out.read_text(encoding="utf-8")
     assert "_pd_calc_intensity_total" in text
     assert "_pd_proc_intensity_bkg_calc" in text
+
+
+def test_a_le_bail_cif_states_no_composition_from_its_scaffold(fitted_lab6):
+    """Outside rietveld the atoms stand in for a structure nobody supplied, so
+    the refinement CIF states the cell and the setting and no formula, Z, Mr,
+    density or atom types read off them (WP-1319's review)."""
+    from rietx.io.exporters import refinement_cif_doc
+
+    ref, result, _data = fitted_lab6
+    chemistry = ("_chemical_formula_sum", "_chemical_formula_weight",
+                 "_cell_formula_units_Z", "_exptl_crystal_density_diffrn",
+                 "_atom_type_symbol")
+    for mode, stated in (("rietveld", True), ("lebail", False), ("pawley", False)):
+        doc = refinement_cif_doc(result.model_copy(update={"mode": mode}),
+                                 ref.fitted_structure, ref.fitted_instrument)
+        block = doc[0]
+        assert all((block.find_value(t) is not None
+                    or bool(block.find_loop(t))) is stated for t in chemistry), mode
+        assert block.find_value("_space_group_name_H-M_alt") is not None
+        assert block.find_value("_cell_volume") is not None
+        # ...and marks its sites as the dummies they are (#756 § 2.1)
+        flags = set(block.find_loop("_atom_site_calc_flag"))
+        assert flags == (set() if stated else {"dum"}), mode
 
 
 def test_refinement_cif_carries_the_geom_loops(fitted_lab6, tmp_path):
@@ -468,6 +683,16 @@ def test_refinement_cif_carries_the_geom_loops(fitted_lab6, tmp_path):
     # the value tag is the bare '_geom_angle' the dictionary aliases, never a
     # '_geom_angle_value' invented by prefixing
     assert "_geom_angle_value" not in text
+    # a symmetry code is part of the key, so it is never unknown; bonded rows
+    # are flagged for publication and contacts are not; the method is stated
+    for tag in ("_geom_bond_site_symmetry_2", "_geom_contact_site_symmetry_2",
+                "_geom_angle_site_symmetry_3"):
+        assert "?" not in list(block.find_loop(tag)), tag
+    assert set(block.find_loop("_geom_bond_publ_flag")) == {"yes"}
+    assert set(block.find_loop("_geom_contact_publ_flag")) == {"no"}
+    assert set(block.find_loop("_geom_angle_publ_flag")) == {"yes"}
+    assert "full covariance" in " ".join(
+        block.find_value("_geom_special_details").split())
 
 
 def test_refinement_helpers_smoke(fitted_lab6, tmp_path):
