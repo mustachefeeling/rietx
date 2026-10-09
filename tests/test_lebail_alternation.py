@@ -5,10 +5,13 @@ in-tree stand-in for issue #210's multi-phase lab pattern.  It shows three
 shapes depending on where the cells start.  At +0.3 % pass 2 comes back *worse*
 than pass 1.  At +0.4 % the passes converge.  At +2 % they never settle.
 
-The fast tests fit 5.1-25° (``LIMITS``), under half the range the hand loop used.  The
-three shapes hold there at the same starts, and a fit costs a quarter to a fifth
-of one at 5.1-50° (WP-1547).  A start of +0.6 % or more diverges there whatever
-the loop does.  Every Rwp the fast tests pin was measured at 5.1-25°.  The one
+The fast tests fit 5.1-25° (``LIMITS``), under half the range the hand loop
+used, and a fit costs a quarter to a fifth of one at 5.1-50° (WP-1547).  The
+three shapes hold there.  The converging one starts at -0.15 %, because +0.4 %
+sits on an edge at 5.1-25°: WP-1936's step for ``u`` and ``v`` turns it into a
+worse-pass start.  -0.15 % converges in five passes to the same Rwp with or
+without that step.  A start of +0.6 % or more diverges at 5.1-25° whatever the
+loop does.  Every Rwp the fast tests pin was measured at 5.1-25°.  The one
 ``slow`` test keeps 5.1-50° (``WIDE_LIMITS``), where its pins were measured.
 
 At 5.1-50° the per-pass numbers were re-measured in WP-1930.  Its floor seed
@@ -112,7 +115,7 @@ def worse(pattern):
 
 @pytest.fixture(scope="module")
 def converging(pattern, tmp_path_factory):
-    """+0.4 % cells recorded to a run directory.  The run state is read from
+    """-0.15 % cells recorded to a run directory.  The run state is read from
     ``status.json`` at each pass's ``fit_start`` and ``fit_end``."""
     from rietx import runs
     root = tmp_path_factory.mktemp("lebail-runs")
@@ -126,7 +129,7 @@ def converging(pattern, tmp_path_factory):
 
     was = runs.set_enabled(True)
     try:
-        result = rx.Refinement.fit(_refinement(1.004), pattern, mode="lebail",
+        result = rx.Refinement.fit(_refinement(0.9985), pattern, mode="lebail",
                                    plan=_plan(8), two_theta_limits=LIMITS,
                                    telemetry=str(root), events=on_event)
     finally:
@@ -178,7 +181,7 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(worse)
 
 @pytest.mark.xdist_group("lebail-converging")
 def test_a_converging_run_is_not_cut_short_and_ends_at_a_fixed_point(converging):
-    """+0.4 % cells: 14.346, 13.930, 13.893, 13.865, 13.866 and nothing more."""
+    """-0.15 % cells: 18.810, 14.150, 13.949, 13.933, 13.932 and nothing more."""
     result, _, _ = converging
     stop = _stop(result)
     assert stop.level == "info"
@@ -186,13 +189,13 @@ def test_a_converging_run_is_not_cut_short_and_ends_at_a_fixed_point(converging)
     # passes 4 and 5 are level to within LEBAIL_CONVERGED_REL, so which of the
     # two is kept is the platform's libm.  That five ran is the claim.
     assert re.search(r"pass [45] of 5 was kept", stop.message)
-    assert result.statistics.rwp == pytest.approx(0.138653, abs=RWP_PLATFORM_SPREAD)
+    assert result.statistics.rwp == pytest.approx(0.139321, abs=RWP_PLATFORM_SPREAD)
     _plot(result, "lebail_alternation_converged.png")
 
 
 def test_the_cap_is_a_cap_and_says_it_truncated(pattern):
     """Two passes of a run that was still falling: truncated, not finished."""
-    result = _fit(_refinement(1.004), pattern, 2)
+    result = _fit(_refinement(0.9985), pattern, 2)
     stop = _stop(result)
     assert stop.level == "warning"
     assert "cap of 2 passes" in stop.message
