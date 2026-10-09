@@ -113,6 +113,7 @@ def _column_in_range(col: np.ndarray) -> np.ndarray:
 
 def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
                    chi2_floor: bool = False,
+                   condition: np.ndarray | None = None,
                    what: str = "residual entering the covariance solve",
                    ) -> tuple[np.ndarray, np.ndarray, float]:
     """The equilibrated inverse ``K`` and the column scales ``1/d``.
@@ -124,6 +125,14 @@ def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     caller wanting the esd forms ``(1/d)·√K`` and never the variance.
     ``1/d`` is 0 on a gradient-free column, and ``chi2_red`` is the raw
     Σr²/(N−P).  See :func:`normal_covariance` for everything else.
+
+    ``condition`` is a boolean mask of columns held fixed (WP-1929): every
+    other column's covariance is the inverse of the normal matrix without
+    them, and their own rows and columns of ``K`` are exactly zero.  A
+    conditioned column is therefore a *constant* to anything propagated
+    through the result, never an unmeasured one, so its ``1/d`` is kept
+    nonzero even where its gradient is.  Nothing conditioned, or ``None``,
+    is the unconditioned arithmetic bit for bit.
     """
     require_fp64(resid, what)
     jac = to_host_fp64(jac)
@@ -140,8 +149,24 @@ def normal_factors(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     d = np.sqrt(np.diag(JTJ))
     live = d > 0.0
     inv_d = np.where(live, 1.0 / np.where(live, d, 1.0), 0.0)
-    k = np.linalg.pinv(JTJ * np.outer(inv_d, inv_d), rcond=PINV_RCOND,
-                       hermitian=True) * scale
+    held = (np.zeros(len(d), dtype=bool) if condition is None
+            else np.asarray(condition, dtype=bool))
+    if not held.any():
+        k = np.linalg.pinv(JTJ * np.outer(inv_d, inv_d), rcond=PINV_RCOND,
+                           hermitian=True) * scale
+    else:
+        # the submatrix, not the full one with zeroed rows: the same numbers
+        # on the kept block whatever the held columns contained
+        keep = np.flatnonzero(~held)
+        sub = np.ix_(keep, keep)
+        k = np.zeros_like(JTJ)
+        if len(keep):
+            k[sub] = np.linalg.pinv((JTJ * np.outer(inv_d, inv_d))[sub],
+                                    rcond=PINV_RCOND, hermitian=True) * scale
+        # a held column is a constant, so it must not read as gradient-free
+        # (``covariance_from_factors`` turns 1/d = 0 into infinite variance);
+        # its K row is zero, so the value multiplies nothing
+        inv_d = np.where(held & ~live, 1.0, inv_d)
     if s is not None:
         inv_d = inv_d * s
     return k, inv_d, chi2_red
