@@ -193,10 +193,10 @@ brucite ranks a supercell first, and cut, the truth in one run of two.
 `_skip_unless_finished` reads each unit's clock against the recorded budget,
 never `search_complete` (a cap sets it too); a *found* claim stays live.
 
-**The fast tier grows by its tail, so its guard is a report** (WP-1506). A
-handover quotes each added test's seconds from its fast run's junit file
-(`python -m tests.added_test_times`), and one joining the slow tail says why it
-is not `slow`. CI uploads the same file per leg (`junit-*`, kept 30 days).
+**The fast tier grows by its tail, so its guard is a report** (WP-1506): each
+added test's seconds and each file's total (`python -m tests.added_test_times`),
+and one joining the tail says why it is not `slow`. **Local seconds understate a
+CI leg by 3-4×**, so it reads CI's `junit-*` file when the branch has one (WP-1547).
 
 ## Quoting numbers
 

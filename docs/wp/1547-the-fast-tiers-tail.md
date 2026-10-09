@@ -1,6 +1,6 @@
 # WP-1547 — the fast tier's tail is cut back, and its report reads CI's seconds
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-09 — five of six tasks landed (PR #857); the ten-run re-measure waits for the merge
 Track: The repo's own process
 Depends on: —
 Priority: P2 2026-10-09 — a cost item with the maintainer at the wall: every code PR waits 32-37 min, and the median leg rose 43 % in one week
@@ -136,20 +136,20 @@ only if the last task moves Python versions into the nightly.
 
 ## Tasks
 
-- [ ] `test_lebail_alternation.py`: share the two repeated fits through
+- [x] `test_lebail_alternation.py`: share the two repeated fits through
       module fixtures, and measure whether a narrower 2θ window keeps the
       three shapes the module docstring names (pass 2 worse at exact cells,
       convergence at +0.3 %, no settling at +2 %). Every quoted Rwp is the
       hand loop's at 5.1-50°, so a narrower window re-measures each one. A
       test that still costs over about 30 s on CI says in its docstring why
       it is fast, or moves to `slow`.
-- [ ] The sweeps: a trap-chosen sample in the fast tier, the whole sweep
+- [x] The sweeps: a trap-chosen sample in the fast tier, the whole sweep
       marked `slow`. The commit names the sample and the trap each member
       covers.
-- [ ] `test_tutorials.py`: run it on one Python leg, or nightly. The
+- [x] `test_tutorials.py`: run it on one Python leg, or nightly. The
       decision states what a notebook could break on one Python version and
       not another.
-- [ ] `tests/added_test_times.py`: add a per-file total for the added tests,
+- [x] `tests/added_test_times.py`: add a per-file total for the added tests,
       and let `/wp-handover` read the PR's CI `junit-py3.13` artifact when
       one exists, falling back to the local file. tests/CLAUDE.md § Budgets
       in tests gains one clause: local seconds understate CI by 3-4×.
@@ -157,9 +157,9 @@ only if the last task moves Python versions into the nightly.
       still over about 20 min, shard by recorded junit time with groups kept
       whole, and trim the PR matrix to the oldest and newest Python, with
       the middle two in the nightly.
-- [ ] `ci.yml`'s header: one line saying `-n auto` is 2 workers on this
+- [x] `ci.yml`'s header: one line saying `-n auto` is 2 workers on this
       runner, and that `-n logical` was measured to buy nothing (this WP).
-- [ ] Skill: none. This changes how the repo is tested, not how rietx is
+- [x] Skill: none. This changes how the repo is tested, not how rietx is
       driven.
 
 ## Acceptance
@@ -185,6 +185,116 @@ gh run view <id> --json jobs   # each "fast py3.x" job's "Fast suite" step
 - Runs 36362163974, 37100295315, 37966391017, 37978210348; PR #810.
 
 ## Handover log
+
+### 2026-10-09 (2nd session) — the tail cut lands; the ten-run re-measure waits for the merge
+
+The fast tier's three named costs are cut, and no assertion was lost. The
+Le Bail tests now fit under half the angular range and share their fits. All
+three behaviours they pin still appear there, at the same starting cells. The
+space-group sweeps run a 23-group sample, chosen by trap, on every push. The
+whole sweeps run nightly. The tutorials execute on one Python leg instead of
+five. Whether this brings a leg back to about 20 minutes is not yet known.
+Ten main runs after the merge decide it, and they decide whether sharding is
+needed.
+
+**Done** (PR #857, branch `wp1547-fast-tier-cut`, cut fresh from main because
+the filing PR #856 had merged):
+
+- Le Bail: `LIMITS` is 5.1-25°. +0.3 % keeps pass 1 (13.845, then 13.865),
+  +0.4 % converges over five passes, and +2 % never settles. The slow test
+  keeps 5.1-50° (`WIDE_LIMITS`), since its pins were checked on Linux in
+  #849. Three module fixtures (`exact`, `worse`, `converging`) share fits,
+  each in its own `xdist_group`. History, a run directory and an event
+  callback each left the fit bit-identical (Rwp and every parameter, at
+  +0.3 % and +0.4 %), so sharing is honest. The converging test accepts pass
+  4 or 5 as kept, because at 25° the two are level within
+  `LEBAIL_CONVERGED_REL`.
+- Sweeps: `tests/space_group_sample.py` holds 23 groups, each named with its
+  trap. Six sweeps take `[sample]` fast and `[all-230]`/`[all-564]` slow.
+  The real-amplitude count joined the five the WP named: same shape, 41.7 s
+  on CI. A new test asserts that the sample covers all 16 (system, centring)
+  pairs.
+- Tutorials: the py3.14 leg executes them, through a matrix `include`. The
+  other legs skip through `RIETX_TUTORIALS=skip`. The trade is stated in
+  `test_tutorials.py`'s docstring.
+- `added_test_times.py` prints per-file totals and leaves skipped cases out.
+  `/wp-handover` step 7 reads CI's `junit-py3.14` when the branch has one.
+  `tests/CLAUDE.md` gained the 3-4× clause and stays at its 302-line cap.
+- `ci.yml`'s header records that `-n auto` means 2 workers here.
+- `/code-review high --fix` made six fixes, committed as one, listed in its
+  commit. Declined: renaming the sweep tests. Their ids say which case ran,
+  and a rename would move every id this WP quotes.
+- Forward references: WP-1418 (sampled magnetic sweeps), WP-1545 (tutorials
+  on one leg).
+
+**Measured:**
+
+- Probe fits at the old and new window, run beside each other on a loaded
+  machine: +0.3 % took 10.6 s at 50° and 2.7 s at 25°; +0.4 % took 23.1 s
+  and 4.4 s. Starts of +0.6 % and above diverge at 25°. A worse-pass start
+  holds from +0.30 % to +0.52 %.
+- Base run 37988294011 (deed30b5, py3.12 leg): the Le Bail file cost 1076 s
+  of test time, not the 590 s of run 37978210348. #849 sits between them.
+  The six sweeps cost 156 s and the tutorials 119 s.
+- This branch's fast run, `[dev]`, macOS arm64, Python 3.12, load average
+  33-47: Le Bail about 31 s of test time; the samples 2-16 s each.
+  The two added tests read 0.00 s each, per file too.
+- Count: fast passed+skipped 9148 (8975 passed, 172 skipped, 1 xfailed)
+  against 9146 at the base (CI py3.12 junit). That is exactly the two added
+  tests. The seven `all-*` cases are `slow`, so the full selection moves by
+  +9. The full suite was not run: the change is test-only. Every slow case
+  it added or touched passed locally: the seven sweeps and the Le Bail wander.
+
+**Gotchas:**
+
+- The worse-pass margin at 25° is 0.020 points of Rwp. Linux and macOS
+  disagreed by 0.015 on the discarded pass at 50°. It held on all five legs
+  of run 37992022325, the first Linux reading at 25°.
+- `tests/CLAUDE.md` sits at its cap; a clause added there pays with a cut.
+- **+0.4 % sits on an edge at 25°.** Under PR #855's step for `u` and `v`
+  (WP-1936) it comes back worse on pass 2 instead of converging. So the
+  converging fixture and the cap test start at −0.15 %, which converges on
+  macOS with and without #855. All 13 Le Bail tests pass there on both trees.
+  #855 still conflicts in this file as text. Whichever merges second takes
+  this branch's version of it.
+- **A converging run's pass count is a platform reading.** At −0.15 % on
+  main, macOS took five passes to 13.932 and Linux six to 13.905 (run
+  37996829339): the paths split at pass 3. #855's own pin at 50° failed on
+  its Linux legs the same way, pass 5 against its macOS pass 6. So the
+  converging test asserts the shape: at least four passes, each lower than
+  the last until a level one, the kept pass last or second-last. Its Rwp
+  bar is 1e-3, for a measured spread of 2.7e-4. A test that pins which pass
+  a converging alternation stops on senses the platform.
+- PR #853 (WP-1418, `isotropy.py`) merges cleanly. The isotropy sweeps, sample
+  and full, passed on the merge, so the 140-candidate pin holds.
+
+**CI, run 37992022325** (f16953c7, one run each, so a direction rather
+than a measurement; legs on one tree differ by up to 1.6×):
+
+- "Fast suite" step, py3.11/3.12/3.13/3.14 and jax: 30.7, 26.4, 25.0,
+  26.1 and 18.9 min. Base run 37988294011: 39.8 (cancelled), 30.8, 35.1,
+  28.2 and 35.5. The median Python leg fell from about 33 min to about 26.
+- py3.13 test time: 2943 s, with the Le Bail file at 217 s. The base's
+  py3.12 total was 3635 s, with the Le Bail file at 1076 s.
+  `test_magnetic_isotropy` is now the largest file, at 453 s, from tests
+  outside the sweeps (WP-1418's question).
+- py3.11 failed one test this branch does not touch:
+  `test_fit_usable.py::test_issue_243_reproduction_reads_unusable_while_converged`
+  returned `max_iter`, not `converged`. It passed on #849's last py3.11 run
+  with the same source and identical package versions. Locally it passes
+  with the compiled tier on and off, and its dearest stage used 112 of 400
+  evaluations. The fit ends at Rwp 155 %, the #243 shape, so its solver
+  path is erratic. The test declares no compiled path, and its owner
+  WP-1336 is closed. Not filed yet: the maintainer's call.
+
+Next:
+
+1. Read the new run's py3.11 leg. A pass there supports the flaky reading of
+   the `test_fit_usable` failure.
+2. After the merge, re-measure ten main runs (the open task). Shard and trim
+   the PR matrix only if the median Python leg is still over about 20 min.
+3. Then check that each `slow` case added here passed once in the nightly
+   `full` job, which acceptance requires.
 
 - **2026-10-09** — Filed. The suite is a normal size for its code, and CI
   slowed because about 60 slow tests grew faster than the rest. The worker

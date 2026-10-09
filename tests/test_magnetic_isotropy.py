@@ -39,9 +39,27 @@ from rietx.crystallography.magnetic.operators import (
     in_span,
 )
 from rietx.crystallography.representation import irreps, modes
+from tests.space_group_sample import TRAP_SAMPLE
 
 GAMMA = (Fraction(0), Fraction(0), Fraction(0))
 HALF = (Fraction(1, 2), Fraction(1, 2), Fraction(1, 2))
+
+#: The 230-setting sweeps run over the trap-chosen sample in the fast tier and
+#: over every group in the nightly (``tests/space_group_sample.py``, WP-1547).
+SWEEPS = [pytest.param(frozenset(TRAP_SAMPLE), id="sample"),
+          pytest.param(frozenset(range(1, 231)), id="all-230", marks=pytest.mark.slow)]
+
+
+def _standard_settings(numbers):
+    """The first ITB setting of each group whose number is in ``numbers``."""
+    import gemmi
+
+    settings = {}
+    for entry in gemmi.spacegroup_table_itb():
+        if entry.number in numbers and entry.number not in settings:
+            settings[entry.number] = entry.xhm()
+    assert len(settings) == len(numbers)
+    return list(settings.values())
 
 
 # --------------------------------------------------------------------------
@@ -620,54 +638,45 @@ def test_every_candidate_configuration_lies_in_its_own_groups_allowed_span(case)
         assert candidate.in_allowed_span(), candidate.label
 
 
-def test_the_sweep_over_the_230_settings_at_gamma():
+@pytest.mark.parametrize("numbers", SWEEPS)
+def test_the_sweep_over_the_230_settings_at_gamma(numbers):
     """Every standard setting, one special site, every candidate consistent.
 
     Measured 2026-09-06 on spglib 2.7.0 / gemmi 0.7.5: **1199 candidates over
     the 230 standard settings**, every one identified, every configuration
     inside its own group's allowed span, and **not one of type IV** — which is
     the derived statement that a zero propagation vector cannot produce an
-    anti-translation.  About 15 s, so not marked slow.
+    anti-translation.  The trap sample gives 140 of them (2026-10-09).  The
+    whole sweep took 44-50 s on CI legs (WP-1506, WP-1547), so it runs
+    nightly.
     """
-    import gemmi
-
-    settings, seen = [], set()
-    for entry in gemmi.spacegroup_table_itb():
-        if entry.number in seen:
-            continue
-        seen.add(entry.number)
-        settings.append(entry.xhm())
-    assert len(settings) == 230
-
     total, types = 0, {}
-    for setting in settings:
+    for setting in _standard_settings(numbers):
         found = isotropy.candidates(setting, (0, 0, 0), GAMMA)   # verify=True inside
         total += len(found)
         for candidate in found:
             assert candidate.identification is not None, f"{setting} {candidate.label}"
             types[candidate.msg_type] = types.get(candidate.msg_type, 0) + 1
-    assert total == 1199
-    assert types == {1: 305, 3: 894}
+    if len(numbers) == 230:
+        assert (total, types) == (1199, {1: 305, 3: 894})
+    else:
+        assert (total, types) == (140, {1: 36, 3: 104})
 
 
-def test_the_real_amplitude_count_closes_at_three_n():
+@pytest.mark.parametrize("numbers", SWEEPS)
+def test_the_real_amplitude_count_closes_at_three_n(numbers):
     """Σ over the kept irreps of the free real amplitudes is 3N, at every setting.
 
     It closes only because a genuinely complex irrep and its conjugate are one
     physically irreducible representation and only one of the pair is kept; with
     both, P4 at Γ on a general site gives 3 + 6 + 6 + 3 = 18 against 3N = 12.
     """
-    import gemmi
-
-    seen, mismatches = set(), []
-    for entry in gemmi.spacegroup_table_itb():
-        if entry.number in seen:
-            continue
-        seen.add(entry.number)
+    mismatches = []
+    for setting in _standard_settings(numbers):
         for site in ((0, 0, 0), (0.11, 0.13, 0.17)):
-            representation = modes.magnetic_representation(entry.xhm(), site, GAMMA)
+            representation = modes.magnetic_representation(setting, site, GAMMA)
             kept, total = [], 0
-            for irrep in irreps.small_irreps(entry.xhm(), GAMMA):
+            for irrep in irreps.small_irreps(setting, GAMMA):
                 if isotropy._is_conjugate_of_a_kept_irrep(irrep, kept):
                     continue
                 basis = modes.basis_vectors(representation, irrep)
@@ -676,7 +685,7 @@ def test_the_real_amplitude_count_closes_at_three_n():
                 kept.append(irrep)
                 total += basis.free_real_amplitudes
             if total != 3 * representation.n_atoms:
-                mismatches.append((entry.xhm(), site, total, 3 * representation.n_atoms))
+                mismatches.append((setting, site, total, 3 * representation.n_atoms))
     assert mismatches == []
 
 
