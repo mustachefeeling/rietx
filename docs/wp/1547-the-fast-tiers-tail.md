@@ -116,6 +116,17 @@ junit timings, choose the next cut". The timings it waited for are the three
 snapshots above, and its candidates are the sweeps, sharding and a smaller PR
 matrix, all carried here.
 
+**If the nightly is reshaped, take the probe line with it** (WP-1519's note,
+carried from 1506 at its close). Each nightly "Record the environment" step
+(`full`, `windows`, `macos`) pastes the same line printing
+`row_local_product` and `stacked_pinv_exact`. Those two indexing probes pick
+an exact slower path on a platform whose BLAS or LAPACK fails them. The
+nightly runs at `-q` without `-rs`, so these lines are the only record of
+which path each OS took. A third probe or a rename needs three identical
+edits, and a missed one drops that platform's answer silently. A YAML anchor
+or one script every leg calls would fix it. It is low stakes, and in scope
+only if the last task moves Python versions into the nightly.
+
 ## Non-goals
 
 - Why `isotropy.analyse` is slow: WP-1418.
@@ -180,8 +191,8 @@ gh run view <id> --json jobs   # each "fast py3.x" job's "Fast suite" step
   count is ruled out: halving it changed nothing. The maintainer asked why
   CI takes so long and whether the suite is a normal size. Open WP-1506 owned
   the cut as its task 7, but its scope is the docs-only skip. So the cut moved
-  here, 1506 got an Inherited entry, and its Priority dropped to P4 (only the
-  close remains). No forward reference went to 1545: its PR #812 is open, and
+  here, and the maintainer had 1506 closed on the same PR (#856). Its open
+  WP-1519 note about the nightly probe line now sits in this Context. No forward reference went to 1545: its PR #812 is open, and
   where the tutorials run is this WP's decision. The measurements come from
   `gh run list`, job logs, junit artifacts and peer tarballs, all counted with
   one tokenize-based script. The scripts were scratch and not kept. Docs only:
