@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: 🔄 2026-09-27 — live on main since PR #504 merged and branch protection moved to `lint` and `ci-ok`; the cut chosen from two weeks of junit timings remains, from about 2026-10-11
 Track: The repo's own process
 Depends on: — (the branch-protection change is the maintainer's, by hand)
-Priority: P3 2026-09-27 — was P2: the skip is live; what remains is a cost-only cut that waits two weeks for data
+Priority: P4 2026-10-09 — was P3: task 7 moved to 1547, so what remains is the close
 
 ## Goal
 

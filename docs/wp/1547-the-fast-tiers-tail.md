@@ -175,10 +175,17 @@ gh run view <id> --json jobs   # each "fast py3.x" job's "Fast suite" step
 
 ## Handover log
 
-- **2026-10-09** — Filed by a session the maintainer asked why CI takes so
-  long and whether the suite is a normal size. Open WP-1506 owned the cut
-  ("task 7"), but its scope is the docs-only skip, so the cut moved here and
-  1506 got an Inherited entry saying so. The measurements are that session's,
-  from `gh run list`, job logs, junit artifacts, and peer tarballs counted
-  with one tokenize-based script. Next: the Le Bail file, the largest single
-  item at 5 wall-min a leg.
+- **2026-10-09** — Filed. The suite is a normal size for its code, and CI
+  slowed because about 60 slow tests grew faster than the rest. The worker
+  count is ruled out: halving it changed nothing. The maintainer asked why
+  CI takes so long and whether the suite is a normal size. Open WP-1506 owned
+  the cut as its task 7, but its scope is the docs-only skip. So the cut moved
+  here, 1506 got an Inherited entry, and its Priority dropped to P4 (only the
+  close remains). No forward reference went to 1545: its PR #812 is open, and
+  where the tutorials run is this WP's decision. The measurements come from
+  `gh run list`, job logs, junit artifacts and peer tarballs, all counted with
+  one tokenize-based script. The scripts were scratch and not kept. Docs only:
+  no review pass, no suite run beyond the docs job's four files (124 passed,
+  macOS arm64, `[dev]`). Next: the Le Bail file, the largest single item at
+  5 wall-min a leg. Its re-measured CI leg decides whether the sweeps and
+  tutorials are enough or sharding is needed.
