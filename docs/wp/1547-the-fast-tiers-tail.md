@@ -149,7 +149,7 @@ only if the last task moves Python versions into the nightly.
 - [x] `test_tutorials.py`: run it on one Python leg, or nightly. The
       decision states what a notebook could break on one Python version and
       not another.
-- [ ] `tests/added_test_times.py`: add a per-file total for the added tests,
+- [x] `tests/added_test_times.py`: add a per-file total for the added tests,
       and let `/wp-handover` read the PR's CI `junit-py3.13` artifact when
       one exists, falling back to the local file. tests/CLAUDE.md § Budgets
       in tests gains one clause: local seconds understate CI by 3-4×.

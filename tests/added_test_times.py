@@ -8,7 +8,8 @@ of its worker-seconds (WP-1506).  A wall-clock assertion would be a load sensor
     python -m tests.added_test_times JUNIT [BASE]
 
 JUNIT comes from a run with ``--junitxml=JUNIT -o junit_duration_report=total``:
-the handover's own fast run, or a CI leg's ``junit-*`` artifact.  BASE defaults
+a CI leg's ``junit-*`` artifact when the branch has one, else the handover's own
+fast run, whose seconds understate a CI leg's by 3-4× (WP-1547).  BASE defaults
 to ``origin/main``.  A test counts as added when the working tree adds its
 ``def`` line since the fork from BASE and removes none of that name in that
 module, so a renamed test is listed and one whose signature changed is not.  An
@@ -62,6 +63,18 @@ def times(junit: str, added: set[tuple[str, str]]) -> dict[tuple[str, str], list
     return dict(rows)
 
 
+def per_file(rows: dict[tuple[str, str], list[float]]) -> dict[str, tuple[float, int]]:
+    """Each module's total seconds over its added tests, and how many there are.
+
+    Twelve Le Bail tests of one to two minutes each were never seen as one
+    five-minute file, because every row was judged alone (WP-1547)."""
+    files: dict[str, tuple[float, int]] = {}
+    for (module, _), ts in rows.items():
+        total, n = files.get(module, (0.0, 0))
+        files[module] = (total + sum(ts), n + 1)
+    return files
+
+
 def _untracked_as_diff() -> str:
     """Untracked test files as a diff adding every line, which ``git diff`` omits."""
     paths = subprocess.run(
@@ -90,6 +103,9 @@ def main(argv: list[str]) -> int:
     for module, test in sorted(added - rows.keys()):
         print(f"{'absent':>10}  {module.replace('.', '/')}.py::{test}  (not in this run)")
     print(f"{sum(map(sum, rows.values())):8.2f} s  over {len(rows)} added tests")
+    print("per file:")
+    for module, (total, n) in sorted(per_file(rows).items(), key=lambda kv: -kv[1][0]):
+        print(f"{total:8.2f} s  {module.replace('.', '/')}.py  ({n} added test{'' if n == 1 else 's'})")
     return 0
 
 

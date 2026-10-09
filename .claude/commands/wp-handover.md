@@ -112,10 +112,16 @@ re-reading its own diff.
    **Give the fast run a junit file and quote what the added tests cost.**
    Add `--junitxml=<scratchpad>/junit.xml -o junit_duration_report=total` to
    the fast command, then run `.venv/bin/python -m tests.added_test_times
-   <scratchpad>/junit.xml`. The entry quotes its rows as one run's figures on
-   the named machine. They rank a test against the tail and do not time it.
-   A test that joins the fast tier's slow tail says why it is not marked
-   `slow` (`tests/CLAUDE.md` § Budgets in tests).
+   <junit>`. **Prefer CI's file when the branch has one**, because local
+   seconds understate a CI leg by 3-4× (WP-1547). A PR readied once has one:
+   `gh run list --workflow ci.yml --branch "$(git branch --show-current)"
+   --status completed --limit 1 --json databaseId,headSha`, then
+   `gh run download <id> -n junit-py3.13 -D <scratchpad>/ci`, and name the
+   sha it ran on. Otherwise pass the local file. The entry quotes the rows and
+   the per-file totals as one run's figures on the named machine. They rank a
+   test or a file against the tail and do not time it. A test or a file that
+   joins the fast tier's slow tail says why it is not marked `slow`
+   (`tests/CLAUDE.md` § Budgets in tests).
 
    **Check nothing else is mid-suite before the full selection** — one `pgrep`,
    `tests/CLAUDE.md` § Running. A `/pr-review` or another WP session may be

@@ -1,6 +1,6 @@
 """The handover's report on added tests (``tests/added_test_times.py``, WP-1506)."""
 
-from tests.added_test_times import added_tests, times
+from tests.added_test_times import added_tests, per_file, times
 
 DIFF = """\
 diff --git a/tests/test_a.py b/tests/test_a.py
@@ -45,3 +45,11 @@ def test_cases_sum_by_function_and_a_class_member_matches_its_module(tmp_path):
     assert times(str(junit), added_tests(DIFF)) == {
         ("tests.test_a", "test_new"): [1.5, 2.0],
         ("tests.sub.test_b", "test_method"): [0.25, 0.5]}
+
+
+def test_a_file_totals_its_added_tests_so_many_short_ones_show_as_one_long():
+    """Twelve one-minute tests in one file were never read as twelve minutes."""
+    rows = {("tests.test_a", "test_one"): [1.5, 2.0],
+            ("tests.test_a", "test_two"): [4.0],
+            ("tests.sub.test_b", "test_method"): [0.25]}
+    assert per_file(rows) == {"tests.test_a": (7.5, 2), "tests.sub.test_b": (0.25, 1)}
