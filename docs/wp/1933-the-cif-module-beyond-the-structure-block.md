@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: Coming from another code
 Depends on: 1319 (#756, #752)
-Priority: P3 2026-10-09 — was P2 as #756's later chunks: nothing here starts before 1319's registry, number rule and structure block land
+Priority: P2 2026-10-09 — was P3 until 1319 landed the registry, number rule and structure block it builds on; #756's later chunks, a named user waiting
 
 ## Goal
 
@@ -85,9 +85,11 @@ with the label named. No count of COD files in this class was measured.
   check), so the current `_atom_site_site_symmetry_multiplicity` the writer now
   emits goes unread. C-e. (2) A mass number stays in `_atom_type_symbol`
   (`57Fe`) so the round trip holds, though the dictionary's grammar puts digits
-  only before a charge (`blocks._types`). (3) A Le Bail or Pawley dummy atom is
-  counted in the formula, Z, Mr and Dx; #756 § 2.1's `_atom_site_calc_flag dum`
-  is not written. (4) checkCIF's PLAT981/PLAT986 (G) ask for f′ and f″, which a
+  only before a charge (`blocks._types`). (3) A Le Bail or Pawley refinement CIF
+  states no formula, Z, Mr, density or `_atom_type` loop, since its atoms are a
+  scaffold (`blocks.write_structure_block(composition=)`, from the result's
+  mode); its dummy site is still written without #756 § 2.1's
+  `_atom_site_calc_flag dum`. (4) checkCIF's PLAT981/PLAT986 (G) ask for f′ and f″, which a
   refinement CIF knows at its wavelength (`_atom_type_scat_dispersion_*`). C-d.
   (5) The GSAS-II phase CIF still writes B and the deprecated
   `_symmetry_space_group_name_H-M` by calling the block's parts, so that tag

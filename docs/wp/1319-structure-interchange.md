@@ -1,9 +1,8 @@
 # WP-1319 — the CIF writer on one registry: tags, numbers and the structure block, checked by checkCIF
 
-Milestone: unscheduled · Status: 🔄 2026-10-09 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-09 — #756's C-a, C-b and C-c landed, checked by checkCIF before and after
 Track: Coming from another code
 Depends on: —
-Priority: P2 2026-10-08 — was P3: #756 measured the writer raising gemmi's bare error on two phase names and writing a file gemmi cannot read
 
 ## Goal
 
@@ -175,8 +174,6 @@ now cites author and year (`blocks.SCAT_SOURCE_MAX`, held by test). A silent
 PLATON reads as a clean report, so a later run that comes back with an empty
 value table means this class again.
 
-### Inherited
-
 ## Non-goals
 
 - **Not C-d, C-e or C-g**: [1933](1933-the-cif-module-beyond-the-structure-block.md).
@@ -274,6 +271,71 @@ VESTA, Z-matrix and rigid-body parts.
 - https://checkcif.iucr.org/ — the conformance oracle.
 
 ## Handover log
+
+### 2026-10-09 — closed: the CIF writer on one registry, checked by checkCIF
+
+A CIF written by this package now passes IUCr checkCIF's consistency tests.
+Before this session, checkCIF skipped those tests on our files, and the files
+reported no volume, formula, density or Z for it to check. Now checkCIF computes
+the same values the file states, on all five blocks of four public test files.
+The remaining alerts ask for single-crystal and instrument items a powder
+structure does not have, and each has a named owner. Every tag the writers emit
+is checked against the official dictionaries by a test, so a misspelled or
+deprecated tag can no longer ship silently. Numbers without an esd now
+round-trip exactly. One trap was found on the way: a long citation in one item
+made checkCIF skip every test while still saying "no syntax errors". The next
+CIF work (the pattern block, the multi-block layout, the validation hook) is
+WP-1933, now P2.
+
+- **Done.** Scope decided with the maintainer (below). The six COMCIFS files
+  vendored (`d7cd3266`). The baseline checkCIF run on four files, recorded in
+  Context and posted on #756 with approval
+  (https://github.com/yue-here/rietx/issues/756#issuecomment-6076102134).
+  C-a `rietx.io.cif.registry` + `tests/test_cif_registry.py` + `tests/cif_dictionary.py`
+  (`b600b756`). C-b `rietx.io.cif.numbers` (`1509b0f2`). C-c `rietx.io.cif.blocks`
+  (`527c86bc`). The after-C-c checkCIF run, recorded in Context. Manual
+  (`e8e5b57e`). Review fixes (`4746dc4f`). Staged in `releases/1.8.0.md`
+  (§ Files that change, § Refusals that are new) and narrated in the v1.8 record.
+- **Scope decisions (maintainer, 2026-10-09):** C-a to C-c here; C-d, C-e, C-g
+  to the new 1933; C-f to 1911; the XYZ read to 1813, which already owned it.
+  Dictionaries vendored whole. The session drove checkCIF and posted on #756.
+  The deprecated `_symmetry_space_group_name_H-M` dropped with no flag, which
+  checkCIF confirmed by reading `_alt` (Context, decision 3).
+- **`/code-review high --fix`** found eight. Six were fixed by the pass. One
+  was fixed here: a Le Bail or Pawley refinement CIF stated a formula, Z and
+  density computed from its dummy carbon, and now states none. One was
+  declined: `su_or_dot` writes a zero su as `0.0`, as the code before this WP
+  did. The fixes: an ASCII-only block name (a phase named `α-Fe` wrote a file our
+  own reader refused), the magCIF half formatting before it sets, one finiteness
+  check per pattern column, Z and Mr read from `phase_zmv`, a Hill count of one
+  left out, the GSAS-II B column through `b_from_u`.
+- **Measured.** checkCIF A counts, baseline → after C-c: LaB₆ `to_cif` 22 → 18,
+  fluorapatite `to_cif` 22 → 18, FAP refinement 6 → 3, NAC 6 → 3, CaF₂ 14 → 11;
+  B 0 throughout (13 submissions, all public files). `repr` in the pattern loop
+  would have grown the refinement CIFs 1.5-1.7×, so it keeps eight figures. B →
+  U → B by plain division is an ulp off for 12.6 % of B values (lane C-c, 400 000
+  values); `blocks.u_from_b` makes it exact wherever a double reaches B. Lanes
+  (`session_usage.py lanes`): C-a est 30, 64 requests, +0.25 $; C-b est 25, 78,
+  +2.72 $; C-c est 40, 89, +1.86 $; kept the manual, est 12, 6. Session +4.83 $,
+  +14 %; actual/estimated 2.18. The selective policy's replay row: 92 sessions,
+  −1 %.
+- **Tests.** Added 54 cases in the fast tier, none a skip:
+  `test_cif_registry.py` 14, `test_cif_numbers.py` 9, `test_cif_structure_block.py`
+  30, `test_exporters.py` 1. Fast selection on `main` (`8f1bf1a1`) merged into
+  the branch, `[dev]`, darwin arm64, no other suite running: `1 failed, 8928
+  passed, 172 skipped, 1 xfailed` in 6:04. The failure was this entry naming the
+  package's old name, reworded and re-run green, so the tree is 8929 passed and
+  172 skipped. Skips held at 172 through every lane's run. `added_test_times`:
+  the 45 added functions cost 2.01 s together, the dearest 0.64 s
+  (`test_every_written_tag_is_in_the_registry`), so none joins the slow tail.
+  The full selection was not run: nothing here moves a fitted number.
+- **Gotchas.** Vendoring data into `tests/data/` turned two whole-tree scans red
+  (`test_magcif`'s stance scan; `test_no_stale_name`, on a TiO₂ example in `cif_pd.dic`); the C-a lane
+  fixed both. A checkCIF report whose Calculated/Reported table is empty is a
+  silent PLATON, never a clean file. Five loose ends went to 1933's Inherited.
+- **Next:** 1933, starting with C-d (the pattern block), since its σ(V), f′/f″
+  and profile-text alerts are the refinement CIF's remaining C-level items; then
+  C-e, landing after #757's I-c, which edits the same reader lines.
 
 - **2026-10-09** — claimed (PR #851), and the scope decided with the maintainer.
   The WP now holds #756's C-a, C-b and C-c with the checkCIF baseline. The
