@@ -150,7 +150,22 @@ that runs top to bottom on a fresh Colab runtime.
   viz, figure, indexing-plot, structure-render, tutorial and example tests
   gave 228 passed, 1 skipped (`[dev]` venv, macOS). The hero at 1280, 421,
   420 and 320 px in both themes: no horizontal scroll, the hidden button
-  leaves the tab order (chromium, playwright).
+  leaves the tab order (chromium, playwright). Sampled every frame for 400 ms
+  after each open and close at 1280, 700, 430 and 420 px: no frame scrolls
+  sideways. Before the review fix, closing scrolled for 2 to 8 frames between
+  421 and about 880 px. The fast suite gave 8875 passed, 172 skipped,
+  1 xfailed (`[dev]` venv, macOS, beside another session's pytest), no tests
+  added. The full suite did not run: a lower floor installs nothing new here.
+
+  *Review* (`/code-review high --fix`). Fixed: the closed neighbour reappeared
+  over the shrinking panel, and the closing panel scrolled the page. A closing
+  panel now keeps the row and its place on top for 0.2 s, by delayed discrete
+  transitions on `grid-column`, `grid-row` and `z-index`. The CSS comment and
+  README now say what the CSS does. Declined: more slack at the 420 px
+  breakpoint (it is measured, and moving it wants a measurement per browser);
+  a CI job pinned at matplotlib 3.10.0 (a new job, outside this diff, so
+  nothing yet holds the floor true); two clicks to switch panels (the
+  requested design).
 
   Next: a release carries both fixes to Colab; then the maintainer re-runs one
   notebook there to confirm no restart prompt.
