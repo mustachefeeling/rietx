@@ -96,6 +96,48 @@ operator loop) and never the stored string. checkCIF cannot catch this: a bare
 symbol is valid CIF that means something else. The reader half (gemmi ignores the
 operator loop; two resolver paths give `F d -3 m:2` and `:1`) is 1933's.
 
+**The checkCIF baseline, 2026-10-09** (tree `d7cd3266`, writers as on `main`
+`29377b8f`; checkCIF's web form, "Validation of CIF only", HTML report, VRF for A
+and B, CCDC duplicate check off; PLATON of 2026-06-20, check.def of 2026-06-19).
+Four files: `to_cif` of LaB₆ (`cod_1000055.cif`) and of `fluorapatite.cif`; the
+FAP refinement CIF (`test_acceptance_fap`'s GSAS protocol, Rwp 0.0925); the NAC +
+CaF₂ one (`examples/nac_11bm.py`, Rwp 0.0933). Reports and the files are not
+committed; they are reproducible from the tree at that sha.
+
+| file (block) | A | B | C | G |
+|---|---|---|---|---|
+| LaB₆ `to_cif` | 22 | 0 | 1 | 8 |
+| fluorapatite `to_cif` | 22 | 0 | 3 | 10 |
+| FAP refinement | 6 | 0 | 3 | 7 |
+| NAC refinement (NAC block) | 6 | 0 | 5 | 9 |
+| NAC refinement (CaF₂ block) | 14 | 0 | 1 | 16 |
+
+No file has a syntax error. The alerts fall in four classes:
+
+- **The structure block's, so C-c's**: SYMM001 (`_symmetry_cell_setting`
+  missing; A, every block), SYMM004 + PLAT124 (no symop loop; A, the `to_cif`
+  files), PLAT125 (no Hall symbol; C), PLAT043 and PLAT044 (Mr and Dx reported as
+  0; A), PLAT045 and PLAT104 (Z and crystal system; G), PLAT141/143 (no su on the
+  cell of a `to_cif` file; C, expected, since a `Structure` carries no esd).
+  SYMM004 states that CELLZ_01, CHEMW_03, REFLT_03, SYMMG_01 and SYMMG_02 were
+  **not performed** for want of the symop loop. So #756's expected positive arm
+  (CELLZ01, CHEMW03, DENSD01, SYMMG01, PLAT123 firing on the baseline) does not
+  hold: those tests are silent today, and C-c's job is to make them run and pass.
+  checkCIF reported the space group from the deprecated tag (`P 63/m` read back);
+  whether it reads `_space_group_name_H-M_alt` alone is the check on decision 3.
+- **The pattern block's and the refinement items', so 1933's**: REFI015
+  (`_refine_ls_shift/su_max`; C), PLAT742 (a geometry angle written without su;
+  C), PLAT802 (records over 80 characters, the profile text lines; G), DIFF003,
+  PLAT197, PLAT198 (instrument and temperature; A, data the package does not hold
+  and the VRF template answers).
+- **Single-crystal-only, answered by the VRF template (1933's C-g)**: EXPT005,
+  ATOM007, GEOM001-008, PLAT029, PLAT183-185, PLAT699, PLAT880-883, PLAT005,
+  PLAT808, PLAT980.
+- **About the chemistry, not the file**: PLAT004, PLAT092 (11-BM's wavelength),
+  PLAT202, PLAT434 (F…F contacts), PLAT720 (labels), PLAT794. PLAT304 (non-integer
+  atom count, 0.17 and 0.33 and 0.04) may be the four-decimal occupancy C-b removes;
+  check it after C-b.
+
 ### Inherited
 
 ## Non-goals
@@ -125,7 +167,7 @@ operator loop; two resolver paths give `F d -3 m:2` and `:1`) is 1933's.
       The five formatters routed through it. A 90.00004 angle and a 0.33333
       occupancy round-trip bit-identically (both fail on `main`). `SU_REFERENCE`
       and every CIF test stay green.
-- [ ] **checkCIF baseline**: the FAP refinement CIF (`tests/data/FAP.XRA` +
+- [x] **checkCIF baseline**: the FAP refinement CIF (`tests/data/FAP.XRA` +
       `fluorapatite.cif`) and the NAC + CaF₂ one (`examples/nac_11bm.py`), as
       `main` writes them, plus `to_cif` of LaB₆ (`cod_1000055.cif`) and
       fluorapatite. Record the alerts here; draft the #756 comment for approval.
@@ -137,9 +179,11 @@ operator loop; two resolver paths give `F d -3 m:2` and `:1`) is 1933's.
       leaves the allow-list. A space in a label, duplicate block names and a
       digitless ion are each refused or respelled by name. G1-G3 (#756 § 2) on
       LaB₆, NAC, fluorapatite and an operator-list phase.
-- [ ] **checkCIF after C-c** on the same four files. CELLZ01, CHEMW03, DENSD01,
-      SYMMG01 and PLAT123 gone from the `to_cif` files; every residual alert carries
-      a written reason.
+- [ ] **checkCIF after C-c** on the same four files. SYMM001, SYMM004, PLAT124,
+      PLAT125, PLAT043, PLAT044, PLAT045 and PLAT104 gone from every block; the
+      tests SYMM004 suppressed (CELLZ_01, CHEMW_03, SYMMG_01) run and raise
+      nothing; the space group read from `_alt`. Every residual alert carries a
+      written reason (the baseline's classes above).
 - [ ] Manual (`using/` export page and Part 2 if a convention is stated), `help.py`
       if a name is added, and the skill row or "none" and why.
 
@@ -152,8 +196,9 @@ operator loop; two resolver paths give `F d -3 m:2` and `:1`) is 1933's.
 ```
 
 The bar: the registry test fails on a planted undefined or deprecated tag; the
-recorded checkCIF reports show the five computed-against-reported alerts above gone
-from the structure-only files, each residual alert with a written reason.
+recorded checkCIF report after C-c shows the structure block's alerts (the
+baseline's first class) gone from every block, with each residual alert carrying a
+written reason.
 
 The shipping PR comments on #756 (C-a to C-c landed, report attached) and on #195
 (its checkCIF slice landed; XYZ moved to 1813). #195 stays open for the fenced
