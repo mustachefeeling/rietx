@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
-Depends on: 1936 soft (a step constant moves the LaB₆ basin under either driver, so compare drivers after it)
+Depends on: 1936 soft, landed 2026-10-09 (a step constant moved the LaB₆ basin under either driver; it no longer does)
 Priority: P1 2026-10-09 — the second rung under WP-1929's P1; physical coordinates (WP-1938) cannot become the default until a driver handles widths pressed on zero, and TRF does not
 
 ## Goal
@@ -84,7 +84,14 @@ task changes shape.
 
 ### Inherited
 
-(empty)
+- **From WP-1936 (2026-10-09): the step is fixed, and the LaB₆ basin moved
+  with it.** The Caglioti `u`, `v` and any identity width bounded at 0 now
+  take a forward-difference step sized by their unit (`least_squares.fd_step`,
+  `_fd_typicals`). LaB₆ + cBN with `u v w x y` free then reaches χ²_red
+  9.840220 under physical + TRF at FD_STEP 1e-6, 1e-7 and 1e-8 (spread
+  2.4e-10), and 9.793673 under softplus + TRF. The table's TRF row above
+  (9.661408) is the old step's basin, so compare drivers against the new one.
+  Brucite and corundum under physical + TRF still stop on `max_iter`.
 
 ## Non-goals
 

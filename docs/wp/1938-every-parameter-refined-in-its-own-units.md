@@ -2,8 +2,8 @@
 
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
-Depends on: 1936 (the FD step), 1937 (a driver that handles widths on zero)
-Priority: P2 2026-10-09 — the base WP-1929's P1 rests on, but nothing in it can start until 1936 and 1937 land
+Depends on: 1936 (the FD step, landed 2026-10-09), 1937 (a driver that handles widths on zero)
+Priority: P2 2026-10-09 — the base WP-1929's P1 rests on; WP-1936 landed, so only 1937 still blocks it
 
 ## Goal
 
@@ -75,7 +75,21 @@ a poor basin). VALIDATION.md's rows and the landing page are re-measured.
 
 ### Inherited
 
-(empty)
+- **From WP-1936 (2026-10-09): the FD step is one more reader that branches on
+  the transform.** `least_squares._fd_typicals` sizes a column's step by
+  `FLOOR_SEEDS` only when the row is `identity` *and* its lower bound is at
+  least 0, or its unit is deg². A softplus row keeps 1, its θ being
+  logarithmic. Under physical coordinates with `lo = max(lo, 0)` every width
+  qualifies. A width given a negative lower bound would not, and would go
+  back to an absolute step. The bound is how an offset (zero shift, peak
+  position, both in degrees) is told from a width.
+- **Two baselines that are not minima.** Brucite with the Stephens block under
+  softplus + TRF spans χ²_red 7.635871–7.636119 across four FD steps that
+  differ by 1e-12, and two of eight runs stop on `max_iter`, under the old step
+  and the new. LaB₆ + cBN with `u v w x y` free now reaches 9.793673 under
+  softplus and 9.840220 under physical coordinates, each at every step, so the
+  two coordinate systems no longer meet on that fit (both met at 9.6614 under
+  the old step).
 
 ## Non-goals
 
