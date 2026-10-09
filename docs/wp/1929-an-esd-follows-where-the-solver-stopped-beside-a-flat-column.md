@@ -219,7 +219,15 @@ silently stop acting (WP-1938).
 
 ### Inherited
 
-(empty)
+- **2026-10-09, from WP-1930 (PR #849).** The floor seed this WP soft-depended
+  on has landed: a stage now starts a freed softplus row sitting on its floor
+  at 1e-3 of its unit (`params.vector.FLOOR_SEEDS`), and records it in
+  `StageResult.seeded`. It moves the minimum, never the esds, so this WP's
+  question stands. Three cases it surfaced, all at one χ² with the parameter
+  values apart: brucite's `instrument.profile.y` lands between 0.08 and 0.14
+  under rounding-level start changes (χ²_red 8.313117 throughout); corundum's
+  `lor_strain` reads 1e-4 seeded against 1.4e-3 unseeded (χ²_red 2.65601 both);
+  BT-1's `y` goes back to its floor from every seed, at values from 0 to 3e-10.
 
 ## Non-goals
 

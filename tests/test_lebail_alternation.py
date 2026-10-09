@@ -2,10 +2,15 @@
 
 The pattern is 11-BM LaB6 + cBN, Le Bail scaffolds, ``profile_only``.  It is the
 in-tree stand-in for issue #210's multi-phase lab pattern, and it shows the same
-three shapes depending on where the cells start: the exact cells give a pass 2
-that is *worse* than pass 1, +0.3 % converges, and +2 % never settles.  The
-per-pass numbers each test quotes are the hand loop's, measured before the
-alternation moved into ``fit`` (WP-1323 handover).
+three shapes depending on where the cells start: +0.3 % gives a pass 2 that is
+*worse* than pass 1, +0.4 % converges, and +2 % never settles.  Starts outside
+1.000-1.004 of the cells diverge whatever the loop does.
+
+The per-pass numbers were re-measured in WP-1930.  Its floor seed started
+``instrument.profile.y`` off its softplus floor, where it had stayed, and every
+pass came down by about 3 percentage points of Rwp: the exact cells' pass 1 read
+16.821 % before and 14.220 % after.  The shapes moved with them, so each test now
+starts where its shape is.  Before that they were the hand loop's (WP-1323).
 """
 
 from __future__ import annotations
@@ -27,11 +32,12 @@ PATTERN = DATA / "11BM_LaB6_cBN_mg2044.xye"
 LIMITS = (5.1, 50.0)
 CODE = "LEBAIL_ALTERNATION_STOPPED"
 #: Rwp is quoted from a converged TRF fit, whose stopping point moves with the
-#: platform's libm.  The exact-cell pass 1 reads 0.168210 on macOS arm64 and
-#: 0.168236-0.168238 on Linux x86-64 (CI, py3.11/3.12 and jax), a spread of
-#: 2.8e-5 where the bar had been 2e-5.  3e-4 is ten times that, and pass 2 of
-#: the same run (0.16907) is still 8.6e-4 away, so the bar separates the passes.
-RWP_PLATFORM_SPREAD = 3e-4
+#: platform's libm.  Before WP-1930 the exact-cell pass 1 read 0.168210 on
+#: macOS arm64 and 0.168236-0.168238 on Linux x86-64 (CI, py3.11/3.12 and jax),
+#: a spread of 2.8e-5.  The bar is 3.6 times that, and it holds on every leg
+#: for each pass a test keeps.  A discarded pass is asserted by order only,
+#: since +0.3 %'s pass 2 spreads 1.5e-4 across platforms.
+RWP_PLATFORM_SPREAD = 1e-4
 
 
 @pytest.fixture(scope="module")
@@ -89,21 +95,25 @@ def test_one_pass_is_the_plain_fit_and_says_nothing(pattern):
 
 
 def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(pattern):
-    """Exact cells: the hand loop read 16.821 then 16.907 and sat there."""
-    ref = _refinement(1.0)
+    """+0.3 % cells: 13.718 then a worse pass 2, and the loop sits at pass 1."""
+    ref = _refinement(1.003)
     result = _fit(ref, pattern, 8)
     stop = _stop(result)
     assert stop.level == "warning"
     assert "did not lower Rwp" in stop.message
     assert "pass 1 of 2 was kept" in stop.message
-    assert result.statistics.rwp == pytest.approx(0.16821, abs=RWP_PLATFORM_SPREAD)
+    assert result.statistics.rwp == pytest.approx(0.137176, abs=RWP_PLATFORM_SPREAD)
     assert stop.value == result.statistics.rwp
-    # the per-pass table the message prints, read as numbers: as text it was
-    # "16.821, 16.907" on macOS and "16.824, 16.905" on Linux (the same spread
-    # RWP_PLATFORM_SPREAD names, in per cent)
+    # the per-pass table the message prints, read as numbers.  Pass 1 is the
+    # kept answer and is pinned to RWP_PLATFORM_SPREAD, in per cent.  Pass 2
+    # is the discarded one, and only its order is the claim: it read 13.751
+    # on macOS arm64 and 13.766 on Linux x86-64 (PR #849's CI, every leg), a
+    # spread of 1.5e-4 that no bar separating the two passes could carry.
     table = [float(v) for v in re.search(
         r"Rwp % per pass: ([\d., ]+)\)", stop.message).group(1).split(",")]
-    assert table == pytest.approx([16.821, 16.907], abs=100 * RWP_PLATFORM_SPREAD)
+    assert len(table) == 2
+    assert table[0] == pytest.approx(13.718, abs=100 * RWP_PLATFORM_SPREAD)
+    assert table[1] > table[0]
     assert CODE in str(result)              # the termination view carries it
     # the GUI's run record carries the verdict, since no panel shows a
     # result's diagnostics and a node cannot hold this one
@@ -118,19 +128,19 @@ def test_a_pass_that_comes_back_worse_stops_the_loop_and_pass_one_is_kept(patter
 
 
 def test_a_converging_run_is_not_cut_short_and_ends_at_a_fixed_point(pattern):
-    """+0.3 % cells: 16.987, 16.969, 16.967 and nothing more to gain."""
-    result = _fit(_refinement(1.003), pattern, 8)
+    """+0.4 % cells: 17.116, 14.123, 14.037, 14.032, 14.031 and nothing more."""
+    result = _fit(_refinement(1.004), pattern, 8)
     stop = _stop(result)
     assert stop.level == "info"
     assert "fixed point" in stop.message
-    assert "pass 3 of 3 was kept" in stop.message
-    assert result.statistics.rwp == pytest.approx(0.16967, abs=RWP_PLATFORM_SPREAD)
+    assert "pass 5 of 5 was kept" in stop.message
+    assert result.statistics.rwp == pytest.approx(0.140312, abs=RWP_PLATFORM_SPREAD)
     _plot(result, "lebail_alternation_converged.png")
 
 
 def test_the_cap_is_a_cap_and_says_it_truncated(pattern):
     """Two passes of a run that was still falling: truncated, not finished."""
-    result = _fit(_refinement(1.003), pattern, 2)
+    result = _fit(_refinement(1.004), pattern, 2)
     stop = _stop(result)
     assert stop.level == "warning"
     assert "cap of 2 passes" in stop.message
@@ -155,7 +165,7 @@ def test_the_state_the_loop_keeps_is_the_state_a_hand_loop_would_continue_from(p
 
 def test_the_passes_mark_their_history_nodes_and_the_head_stands_in_the_kept_one(pattern):
     """Pass 1 kept, pass 2 discarded: the notes say which nodes are whose."""
-    ref = _refinement(1.0, history=True)
+    ref = _refinement(1.003, history=True)
     _fit(ref, pattern, 6)
     tree = ref.history
     notes = {i: tree.nodes[i].notes for i in tree.order}
@@ -190,8 +200,8 @@ def test_an_alternation_is_one_run_directory_not_one_per_pass(pattern, tmp_path)
     from rietx import runs
     was = runs.set_enabled(True)
     try:
-        # 0.3 % off: three passes before it settles, so several would record
-        result = rx.Refinement.fit(_refinement(1.003), pattern, mode="lebail",
+        # 0.4 % off: five passes before it settles, so several would record
+        result = rx.Refinement.fit(_refinement(1.004), pattern, mode="lebail",
                                    plan=_plan(4), two_theta_limits=LIMITS,
                                    telemetry=str(tmp_path))
     finally:
@@ -203,9 +213,9 @@ def test_an_alternation_is_one_run_directory_not_one_per_pass(pattern, tmp_path)
 
 
 def test_a_cancel_in_a_later_pass_leaves_the_best_pass_standing(pattern):
-    """Pass 1 is the best on exact cells; a cancel during pass 2 restores it."""
+    """Pass 1 is the best at +0.3 %; a cancel during pass 2 restores it."""
     from rietx.optimize.cancel import CancelToken, RefinementCancelled
-    ref = _refinement(1.0)
+    ref = _refinement(1.003)
     token = CancelToken()
     seen = []
 
@@ -219,7 +229,7 @@ def test_a_cancel_in_a_later_pass_leaves_the_best_pass_standing(pattern):
         ref.fit(pattern, mode="lebail", plan=_plan(8), two_theta_limits=LIMITS,
                 telemetry=False, events=on_event, cancel=token)
     assert ref.result_ is not None
-    assert ref.result_.statistics.rwp == pytest.approx(0.16821, abs=RWP_PLATFORM_SPREAD)
+    assert ref.result_.statistics.rwp == pytest.approx(0.137176, abs=RWP_PLATFORM_SPREAD)
 
 
 def test_the_refinement_records_the_cap_it_was_asked_for(pattern):
@@ -246,7 +256,7 @@ def test_a_pass_ending_is_not_the_run_ending(pattern, tmp_path):
 
     was = runs.set_enabled(True)
     try:
-        rx.Refinement.fit(_refinement(1.003), pattern, mode="lebail",
+        rx.Refinement.fit(_refinement(1.004), pattern, mode="lebail",
                           plan=_plan(4), two_theta_limits=LIMITS,
                           telemetry=str(tmp_path), events=on_event)
     finally:
@@ -260,7 +270,7 @@ def test_a_cancel_part_way_through_a_later_pass_restores_the_best_pass(pattern):
     """The in-flight pass's completed stages stand after a cancel, so the state
     is neither pass 1's nor its own end unless the loop puts it back."""
     from rietx.optimize.cancel import CancelToken, RefinementCancelled
-    ref = _refinement(1.0)
+    ref = _refinement(1.003)
     token = CancelToken()
     fits, ends = [], []
 
@@ -275,6 +285,6 @@ def test_a_cancel_part_way_through_a_later_pass_restores_the_best_pass(pattern):
         ref.fit(pattern, mode="lebail", plan=_plan(8), two_theta_limits=LIMITS,
                 telemetry=False, events=on_event, cancel=token)
     kept = ref.result_
-    assert kept.statistics.rwp == pytest.approx(0.16821, abs=RWP_PLATFORM_SPREAD)
+    assert kept.statistics.rwp == pytest.approx(0.137176, abs=RWP_PLATFORM_SPREAD)
     cell = {p.path: p.value for p in kept.parameters}["phases.0.cell.a"]
     assert ref.structure.phases[0].cell.a.value == pytest.approx(cell, abs=1e-9)

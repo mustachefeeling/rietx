@@ -1005,6 +1005,45 @@ def _magnetic_component_drawn(phase, instrument) -> bool:
         return False
 
 
+#: A softplus entry at or below this value is on its floor (WP-1930).  The
+#: transform clamps a stored 0 to 1e-12 (``transforms._SOFTPLUS_MIN``), and a
+#: fit that ends on the floor leaves the value near there: 1e-12 on one
+#: platform and 3e-11 on the other in issue #832's sweep.  This bar is 30× above
+#: the larger.  At 1e-9 the softplus slope is 1e-9, so a row that far down
+#: carries no gradient a solver can act on, and no width or coefficient that
+#: small is a measurement.
+SOFTPLUS_FLOOR_VALUE = 1e-9
+
+#: The value a stage starts a freed softplus row at when the row sits on its
+#: floor, keyed by the unit its :class:`Parameter` declares (WP-1930, #836).
+#:
+#: **Why a seed at all.**  At the floor the softplus slope is 1e-12, so the row's
+#: Jacobian column is twelve orders below its neighbours.  A Gauss-Newton step
+#: there predicts a change in cost below the cost's own rounding, so whether the
+#: trust region ever lifts the row is decided by the last bits.  On LaB₆ + cBN a
+#: 3e-14 relative change to one start value moved χ²_red from 9.69 to 12.48,
+#: with ``instrument.profile.y`` left on its floor.  MINUIT's manual warns of
+#: the same thing for any transformed parameter at its limit.
+#:
+#: **The sizes.**  A width in deg 2θ starts at 1e-3°, the extinction stage's
+#: own seed.  A Gaussian variance in deg² starts at its square, so it adds the
+#: same 1e-3° to the FWHM.  An extinction coefficient in µm² starts at 1e-3 too.
+#: At 1e-3 the softplus slope is 1e-3, nine orders above the floor's, and a
+#: seed that small is cheap to walk back where the data put the width at zero.
+#: Measured on 11-BM LaB₆ + cBN, BT-1 neutron and lab Cu Kα brucite: every seed
+#: from 1e-3° to 0.05° reached one χ² per fit, under rounding-level changes to
+#: the start as well.  The larger seed saved a few iterations on the sharp
+#: instrument (36-40 against 41-45).  It cost more elsewhere: at 0.05° nine
+#: synthetic suites whose true width is zero ran out of iterations or moved,
+#: and LaB₆ + cBN with its Gaussian free stopped at χ²_red 9.84 rather than
+#: 9.66.  WP-1930's log has the tables.
+#:
+#: A row with any other unit has no natural size: a background hump's height
+#: is in counts, and its scale is the data's.  It is left where it is and
+#: reported (``SOFTPLUS_FREED_AT_FLOOR``).
+FLOOR_SEEDS: dict[str, float] = {"deg": 1e-3, "deg^2": 1e-3 ** 2, "um^2": 1e-3}
+
+
 class ParameterTable:
     """The tree-to-flat-θ machinery behind a fit — internal, not the agent surface.
 
@@ -1061,6 +1100,11 @@ class ParameterTable:
         #: table's arithmetic is untouched: the rebuild writes the literal 1.0
         #: it always wrote, and ``x0``/``bounds`` skip the lookup's branch.
         self._value_scale: dict[str, float] = {}
+        #: path → the unit its :class:`Parameter` declared, for every entry
+        #: :meth:`_add` built.  Read by :meth:`seed_floor` alone, which sizes a
+        #: floor seed by unit; kept beside :class:`Entry` rather than in it,
+        #: because ``Entry`` mirrors ``ParameterRow`` field for field.
+        self._units: dict[str, str | None] = {}
         #: atom base path (``phases.0.atoms.2``) → the orthonormal frame of
         #: that site's allowed moment subspace, in crystal-axis rows.  Built
         #: here from the declared cell, rebuilt at every stage start by
@@ -1115,6 +1159,7 @@ class ParameterTable:
             lo=p.min, hi=p.max, transform=p.transform, tie=tie,
             locked=force_fixed,
         ))
+        self._units[path] = p.unit
 
     def _collect(self, structure: Structure, instrument: Instrument) -> None:
         for ip, phase in enumerate(structure.phases):
@@ -2228,16 +2273,20 @@ class ParameterTable:
     # -- table surgery (used by Wyckoff constraint wiring) -------------
     def add_parameter(self, path: str, value: float, *, vary: bool = False,
                       lo: float = -np.inf, hi: float = np.inf,
-                      transform: str = "identity") -> None:
+                      transform: str = "identity",
+                      unit: str | None = None) -> None:
         """Append a synthetic parameter (e.g. a Wyckoff displacement DOF).
 
         Synthetic paths must not collide with existing entries; pick names
-        outside the model tree, e.g. ``phases.0.atoms.2.dof.0``.
+        outside the model tree, e.g. ``phases.0.atoms.2.dof.0``.  ``unit`` is
+        recorded as :meth:`_add` records a model parameter's, so a named
+        variable sized like the width it replaces gets that width's floor seed.
         """
         if path in self._paths:
             raise ValueError(f"parameter {path!r} already exists")
         self.entries.append(Entry(path=path, value=value, vary=vary,
                                   lo=lo, hi=hi, transform=transform))
+        self._units[path] = unit
         self._rebuild()
 
     def tie_source_refusal(self, tie: AffineTie) -> tuple[str, str] | None:
@@ -2844,6 +2893,55 @@ class ParameterTable:
         if seeded:
             self._rebuild()
         return seeded
+
+    def seed_floor(self, paths: list[str], cap: dict[str, float] | None = None,
+                   *, write: bool = True) -> tuple[dict[str, float], list[str]]:
+        """Start each freed softplus row sitting on its floor a short way inside.
+
+        A row is on its floor at or below :data:`SOFTPLUS_FLOOR_VALUE` (in
+        column units, as :meth:`seed_softplus` reads a seed).  It is lifted to
+        :data:`FLOOR_SEEDS`' value for its unit, times its value scale, or
+        to half its upper bound where that is lower.  Only
+        rows on the floor are touched, so a start a caller chose is never
+        overwritten: issue #499 was a seed that lifted every row below it,
+        the moment and the scale included.
+
+        ``cap`` maps a path to a ceiling on its seed in column units.  A joint
+        table passes it so a shared column takes one seed in every histogram,
+        since each histogram's box divides by its own value scale.
+        ``write=False`` returns what would be seeded and changes nothing.
+
+        Returns ``(seeded, unseeded)``: the paths lifted with the column value
+        each now starts at, and the floor rows whose unit has no seed, a
+        ``.scale`` excepted.
+        """
+        seeded: dict[str, float] = {}
+        unseeded: list[str] = []
+        for path in paths:
+            i = self._paths.get(path)
+            if i is None:
+                continue
+            e = self.entries[i]
+            scale = self._value_scale.get(path, 1.0)
+            if e.transform != "softplus" or e.value > SOFTPLUS_FLOOR_VALUE * scale:
+                continue
+            seed = FLOOR_SEEDS.get(self._units.get(path))
+            if seed is None:
+                # a scale on its floor is a phase or curve the data cannot see,
+                # which PHASE_UNCONSTRAINED reports (WP-1301); starting it
+                # positive is the advice that report exists to withhold
+                if not path.endswith(".scale"):
+                    unseeded.append(path)
+                continue
+            # a box narrower than the seed takes half its own width instead
+            seed = min(seed, 0.5 * e.hi / scale,
+                       (cap or {}).get(path, float("inf")))
+            if write:
+                e.value = seed * scale
+            seeded[path] = seed
+        if seeded and write:
+            self._rebuild()
+        return seeded, unseeded
 
     def seed_stephens(self, paths: list[str], microstrain: float) -> list[str]:
         """Put a freed but still all-zero Stephens block on the isotropic ray.

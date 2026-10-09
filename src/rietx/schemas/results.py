@@ -943,6 +943,23 @@ class StageResult(Base):
     #: only on a result stored before the field, for :attr:`unknown_paths`'
     #: reason.  It feeds ``STAGE_FREED_NOTHING``.
     unreached_histograms: dict[int, list[str]] | None = None
+    #: each row this stage lifted before solving, and the value it started at
+    #: in column units (WP-1930).  Two writers put a row here: the stage's own
+    #: :attr:`~rietx.strategy.staged.Stage.seed`, and the floor seed, which
+    #: starts a freed softplus row sitting on its floor at its unit's
+    #: :data:`~rietx.params.vector.FLOOR_SEEDS` value.  The floor seed exists
+    #: because a fit's minimum otherwise depended on rounding: on LaB₆ + cBN
+    #: one platform reached χ²_red 9.69 and the other 12.48, with
+    #: ``instrument.profile.y`` left on its floor (issue #832).  ``None`` means
+    #: a result stored before the field; every runner writes a mapping, and an
+    #: empty one is a stage that lifted nothing.
+    seeded: dict[str, float] | None = None
+    #: freed softplus rows this stage left on their floor, because their unit
+    #: has no seed size (a hump's height is in counts).  Their columns are
+    #: twelve orders below their neighbours, so whether the solver moves them
+    #: is decided by rounding.  It feeds ``SOFTPLUS_FREED_AT_FLOOR``.  ``None``
+    #: on a result stored before the field, for :attr:`seeded`'s reason.
+    floor_unseeded: list[str] | None = None
 
 
 class HistogramResult(Base):

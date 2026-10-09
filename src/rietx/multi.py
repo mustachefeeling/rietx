@@ -72,6 +72,7 @@ from .refine import (
     _extra_peak_tick_support,
     _far_from_data_diagnostics,
     _flat_moment_scan,
+    _floor_unseeded_diagnostics,
     _guard_diagnostics,
     _harmonic_diagnostics,
     _judge_magnetic_groups,
@@ -235,6 +236,9 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
         (FIT,), "a probe count summed over the joint search"),
     "_unknown_path_diagnostics": (
         (FIT,), "a stage's globs are the plan's, matched against every table"),
+    "_floor_unseeded_diagnostics": (
+        (FIT,), "a stage's seed is decided once, against every table, before "
+                "the joint solve (WP-1930)"),
     "_max_iter_diagnostics": (
         (FIT,), "a stage's budget is spent by the one joint solve"),
     "_phase_support_diagnostics": (
@@ -859,8 +863,14 @@ class MultiHistogramRefinement:
                 # and a cumulative plan need not name its cell again
                 self.mtable.set_vary(carried_hold, True)
                 carried_hold = []
+            seeded: dict[str, float] = {}
             if stage.seed:
-                self.mtable.seed_softplus(freed, stage.seed)
+                seeded = dict.fromkeys(
+                    self.mtable.seed_softplus(freed, stage.seed), stage.seed)
+            # and any freed row still on its floor (WP-1930), the
+            # single-histogram runner's rule and its reason
+            floor_seeded, floor_unseeded = self.mtable.seed_floor(freed)
+            seeded.update(floor_seeded)
             self.mtable.apply_to_models()
             # the single-histogram runner's rule (``_run_stage``, #598): the
             # moment frames follow the cell this stage starts from, and the
@@ -993,7 +1003,8 @@ class MultiHistogramRefinement:
                 scale_b_held=dict(scale_b_held),
                 moment_flat_axes=kept_axes,
                 moment_turned=[b for b in kept_axes if b in moment_turned],
-                unknown_paths=unknown_paths, unreached_histograms=unreached))
+                unknown_paths=unknown_paths, unreached_histograms=unreached,
+                seeded=seeded, floor_unseeded=floor_unseeded))
 
         assert models is not None and outcome is not None
         self._models = models
@@ -1271,6 +1282,7 @@ class MultiHistogramRefinement:
             listing="[e.path for t in ref.mtable.tables for e in t.entries]")
         diagnostics = diagnostics + _unreached_histogram_diagnostics(
             stage_results, [h.label for h in histograms])
+        diagnostics = diagnostics + _floor_unseeded_diagnostics(stage_results)
         # a stage's budget is spent by the one joint solve (FIT)
         diagnostics = diagnostics + _max_iter_diagnostics(stage_results)
         # one CELL_RUNAWAY per stage that fired the joint clamp above,

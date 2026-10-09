@@ -363,6 +363,12 @@ class _StageHold:
     #: for ``blocked_by_hold``'s reason: decided before the solve, unchanged
     #: by it, and delivered to the two ``StageResult`` call sites this way
     unknown_paths: list[str] = dataclasses.field(default_factory=list)
+    #: ``StageResult.seeded`` and ``.floor_unseeded`` (WP-1930), riding here
+    #: for the same reason: decided before the solve, and unrecoverable after
+    #: it, when the seeded row has moved and the unseeded one may have left
+    #: its floor.
+    seeded: dict[str, float] = dataclasses.field(default_factory=dict)
+    floor_unseeded: list[str] = dataclasses.field(default_factory=list)
     #: ``(path, escaped_value, clamped_value)`` for every free cell parameter
     #: ``clamp_cell_runaway`` pulled back this stage — empty on every stage
     #: that never leaves the safety window, which is every stage measured so
@@ -2474,7 +2480,8 @@ class Refinement:
         """
         for name, prm in self._variables.items():
             table.add_parameter(f"{VAR_PREFIX}{name}", prm.value, vary=prm.vary,
-                                lo=prm.min, hi=prm.max, transform=prm.transform)
+                                lo=prm.min, hi=prm.max, transform=prm.transform,
+                                unit=prm.unit)
 
     def _write_back(self, table: ParameterTable) -> None:
         """``apply_to_models``, plus the one thing it structurally cannot do.
@@ -2705,7 +2712,7 @@ class Refinement:
         # happens before the register is touched
         self._working_table().add_parameter(
             path, prm.value, vary=prm.vary, lo=prm.min, hi=prm.max,
-            transform=prm.transform)
+            transform=prm.transform, unit=prm.unit)
         self._variables[name] = prm
         if prm.vary and (self._free_paths or self._free_set_declared):
             # ``_free_paths`` is the *declared* free set, and once a stage has
@@ -3648,10 +3655,17 @@ class Refinement:
                 if mode_fixed_column(reach.get(path, [path]), mode):
                     table.set_vary([path], False)
                     freed.remove(path)
+        seeded: dict[str, float] = {}
         if stage.seed:
             # lift softplus coefficients (e.g. extinction) off the zero floor
             # so TRF has a live gradient this stage
-            table.seed_softplus(freed, stage.seed)
+            seeded = dict.fromkeys(table.seed_softplus(freed, stage.seed),
+                                   stage.seed)
+        # and any freed row still on its floor, at its unit's size (WP-1930):
+        # there the row's column is 1e-12 of its neighbours and whether the
+        # solver lifts it is decided by rounding
+        floor_seeded, floor_unseeded = table.seed_floor(freed)
+        seeded.update(floor_seeded)
         if stage.strain_seed:
             # the Stephens DOFs are identity-transform, so the softplus seed
             # above never sees them; put an all-zero block on the isotropic ray
@@ -4040,6 +4054,7 @@ class Refinement:
             reach={c: list(v) for c, v in held_reach.items()},
             scale_b_held=dict(scale_b_held),
             blocked_by_hold=blocked_by_hold, unknown_paths=unknown_paths,
+            seeded=seeded, floor_unseeded=floor_unseeded,
             cell_runaway=list(cell_runaway),
             cell_runaway_unresolved=[(d, list(e)) for d, e in cell_runaway_unresolved],
             # Le Bail and Pawley read the screen alone, which the result
@@ -4408,6 +4423,7 @@ class Refinement:
             diagnostics.extend(_hold_diagnostics(stage_results))
             diagnostics.extend(_unknown_path_diagnostics(
                 stage_results, [e.path for e in table.entries]))
+            diagnostics.extend(_floor_unseeded_diagnostics(stage_results))
 
             self.result_ = _build_result(
                 model, table, outcome.theta, mode=mode, status=outcome.status,
@@ -4602,6 +4618,7 @@ class Refinement:
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths,
+                seeded=hold.seeded, floor_unseeded=hold.floor_unseeded,
                 # checked, trivially: one histogram has no elsewhere
                 unreached_histograms={},
             ))
@@ -4853,13 +4870,15 @@ class Refinement:
                 moment_flat_axes=hold.moment_flat_axes,
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
-                unknown_paths=hold.unknown_paths, unreached_histograms={})
+                unknown_paths=hold.unknown_paths, unreached_histograms={},
+                seeded=hold.seeded, floor_unseeded=hold.floor_unseeded)
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and
             # before the node, so the node carries what the result carries
             diagnostics.extend(_hold_diagnostics([stage_result]))
             diagnostics.extend(_unknown_path_diagnostics(
                 [stage_result], [e.path for e in table.entries]))
+            diagnostics.extend(_floor_unseeded_diagnostics([stage_result]))
 
             # before the node is recorded, which is where `_run_plan` writes it
             # too; the two call sites must not disagree about when a stage's
@@ -5969,6 +5988,12 @@ def _hold_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
 _COORDINATE_PATH = re.compile(r"^(phases\.\d+\.atoms\.\d+)\.[xyz]$")
 
 
+def _stage_list(names: list[str]) -> str:
+    """``stage 'a'`` or ``stages 'a', 'b'``, for a per-path diagnostic."""
+    return (f"stage {names[0]!r}" if len(names) == 1 else
+            f"stages {', '.join(repr(s) for s in names)}")
+
+
 def _fixed_literal_diagnostics(stages, table: ParameterTable,
                                user_ties) -> list[Diagnostic]:
     """``STAGE_PATH_NOT_FREE`` — a literal phase path the model will not free.
@@ -6016,8 +6041,7 @@ def _fixed_literal_diagnostics(stages, table: ParameterTable,
                 names.append(stage.name)
     out = []
     for path, names in asked.items():
-        which = (f"stage {names[0]!r}" if len(names) == 1 else
-                 f"stages {', '.join(repr(s) for s in names)}")
+        which = _stage_list(names)
         entry = by_path[path]
         sources = ([] if entry.tie is None else
                    [src for src, _ in entry.tie.terms])
@@ -6095,8 +6119,7 @@ def _unknown_path_diagnostics(stage_results: list[StageResult],
             by_path.setdefault(path, []).append(sr.name)
     out = []
     for path, stages in by_path.items():
-        which = (f"stage {stages[0]!r}" if len(stages) == 1 else
-                 f"stages {', '.join(repr(s) for s in stages)}")
+        which = _stage_list(stages)
         current = retired_spelling(path)
         if current is not None:
             out.append(Diagnostic(
@@ -6121,6 +6144,37 @@ def _unknown_path_diagnostics(stage_results: list[StageResult],
                         f"it ({listing} lists every path this model "
                         "has), or write a glob if the stage is meant to reach "
                         "a component some models do not declare"),
+        ))
+    return out
+
+
+def _floor_unseeded_diagnostics(stage_results: list[StageResult]
+                                ) -> list[Diagnostic]:
+    """``SOFTPLUS_FREED_AT_FLOOR`` — a stage freed a row it could not seed.
+
+    The floor seed (``ParameterTable.seed_floor``, WP-1930) lifts a freed
+    softplus row off its floor by its unit, and a unit with no size is left
+    where it is.  There the row's column is twelve orders below its
+    neighbours, so whether the solver moves it is decided by rounding, and two
+    platforms can reach two minima (issue #832).  One diagnostic per path,
+    naming the stages, for :func:`_unknown_path_diagnostics`' reason.
+    """
+    by_path: dict[str, list[str]] = {}
+    for sr in stage_results:
+        for path in sr.floor_unseeded or ():
+            by_path.setdefault(path, []).append(sr.name)
+    out = []
+    for path, stages in by_path.items():
+        which = _stage_list(stages)
+        out.append(Diagnostic(
+            level="warning", code="SOFTPLUS_FREED_AT_FLOOR",
+            message=(f"{which} freed {path} on its softplus floor, where its "
+                     "gradient is 1e-12 of its neighbours', so whether it "
+                     "moved off zero is decided by rounding"),
+            where=[path],
+            suggestion=("start it inside its floor: give the parameter a "
+                        "positive value before the fit, or give the stage a "
+                        "seed (Stage(..., seed=...)) of a size it can reach"),
         ))
     return out
 
@@ -9133,7 +9187,8 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
         # unknown parameter".  Declared *before* the ties, exactly as
         # ``_prepare_table`` does it.
         table.add_parameter(f"{VAR_PREFIX}{name}", prm.value, vary=prm.vary,
-                            lo=prm.min, hi=prm.max, transform=prm.transform)
+                            lo=prm.min, hi=prm.max, transform=prm.transform,
+                            unit=prm.unit)
     table.set_vary(["*"], False)
     applied_ties: dict = {}
     dropped: list[str] = []
