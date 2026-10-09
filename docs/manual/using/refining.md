@@ -1067,9 +1067,11 @@ because one plan runs every pattern of a series ([](series.md)). A misspelt
 family inside a glob looks exactly like a glob that correctly matched nothing,
 so no rule can report it, and `freed` is the place to look.
 
-A stage starts a freed width a short way inside its floor. A width is a
-softplus parameter, and at zero its slope is 1e-12. There the solver cannot
-tell whether moving it helps, so two machines can stop at different answers.
+A stage starts a freed width a short way inside its floor. Most width terms
+are softplus parameters, and at zero a softplus slope is 1e-12. There the
+solver cannot tell whether moving it helps, so two machines can stop at
+different answers. Caglioti `U` and `V` are not softplus, since they may go
+negative, so they are never seeded.
 When a stage frees one that sits on its floor, it first starts it at a small
 value for its unit. A width in degrees starts at 1e-3°, a Gaussian variance in
 deg² at its square, and an extinction coefficient at 1e-3 µm².

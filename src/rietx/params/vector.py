@@ -2912,7 +2912,8 @@ class ParameterTable:
         ``write=False`` returns what would be seeded and changes nothing.
 
         Returns ``(seeded, unseeded)``: the paths lifted with the column value
-        each now starts at, and the floor rows whose unit has no seed.
+        each now starts at, and the floor rows whose unit has no seed, a
+        ``.scale`` excepted.
         """
         seeded: dict[str, float] = {}
         unseeded: list[str] = []
@@ -2926,7 +2927,11 @@ class ParameterTable:
                 continue
             seed = FLOOR_SEEDS.get(self._units.get(path))
             if seed is None:
-                unseeded.append(path)
+                # a scale on its floor is a phase or curve the data cannot see,
+                # which PHASE_UNCONSTRAINED reports (WP-1301); starting it
+                # positive is the advice that report exists to withhold
+                if not path.endswith(".scale"):
+                    unseeded.append(path)
                 continue
             # a box narrower than the seed takes half its own width instead
             seed = min(seed, 0.5 * e.hi / scale,

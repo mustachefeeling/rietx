@@ -111,6 +111,15 @@ def test_a_unit_with_no_size_is_left_and_named():
     assert {e.path: e.value for e in table.entries}[path] == 0.0
 
 
+def test_a_collapsed_scale_is_left_to_the_support_report():
+    """A scale on its floor is an absent phase, PHASE_UNCONSTRAINED's case
+    (WP-1301), so the floor seed neither lifts it nor asks for a start."""
+    structure, ins = perturbed_models()
+    structure.phases[0].scale.value = 1e-12
+    seeded, unseeded = ParameterTable(structure, ins).seed_floor(["phases.0.scale"])
+    assert seeded == {} and unseeded == []
+
+
 def test_a_fit_records_what_each_stage_seeded(pattern):
     structure, ins = perturbed_models()
     result = rx.Refinement(structure, ins, history=False).fit(pattern, plan=PROFILE)
