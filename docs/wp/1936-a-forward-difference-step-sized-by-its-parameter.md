@@ -1,6 +1,6 @@
 # WP-1936 — a forward-difference step sized by its parameter
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-09 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P1 2026-10-09 — the first rung under WP-1929's P1; on the LaB₆ + cBN fit the step constant alone chooses between two minima 0.27 % apart, and today's identity widths `u`, `v` already carry a 1.4e-3 column error that nothing flags
