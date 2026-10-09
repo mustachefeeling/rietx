@@ -99,7 +99,21 @@ does not apply.
 
 ### Inherited
 
-(empty)
+- **2026-10-09, from WP-1929: the floor's column is rounding noise, and a
+  finite softplus floor may make the seed unnecessary.** The Jacobian
+  differences each column with h = 1e-6·max(1, |u|) in *internal*
+  coordinates (`optimize/least_squares.py:592`, and `:1061` for the FD
+  fallback). At u ≈ −27.6 that step moves the width by about 3e-17, below
+  its own last digit, so the gradient TRF sees at a freed floor row is noise.
+  This is the mechanism 1930's Context describes as "depends on rounding".
+  On BT-1, differencing the width itself and chaining by dp/du made the esds
+  agree to 1e-8 at u = −25.54, −25.5 and −514. WP-1929's session proposed
+  probing a **finite internal floor** for softplus parameters, at TOPAS's
+  defaults (widths 1e-6, scale 1e-11; TOPAS 5 Technical Reference § 2.5).
+  There dp/du ≈ 1e-6, which is enough for both an accurate column and a usable
+  gradient. If that probe closes the LaB₆ + cBN split, it replaces this WP's
+  seed. Read 1929's 2026-10-09 handover entry and
+  https://claude.ai/artifact/CYGoz3cF63QUJ345z4zKMY before landing the seed.
 
 ## Non-goals
 

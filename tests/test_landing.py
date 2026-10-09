@@ -508,11 +508,15 @@ def test_every_read_link_is_a_page_the_manual_builds(site_html):
         assert page in toctree, f"using/{page}.html is not in the manual's tutorials toctree"
 
 
-def test_the_two_quickstarts_close_each_other(site_html):
-    """Exclusive `<details>`: one `name` for both, so opening one closes the other."""
-    found = re.findall(r'<details class="qs" id="([\w-]+)" name="([\w-]+)"', site_html)
-    assert sorted(i for i, _ in found) == ["notebooks", "quickstart"], found
-    assert len({n for _, n in found}) == 1, found
+def test_each_quickstart_toggle_controls_a_panel_that_starts_hidden(site_html):
+    """One disclosure button per panel, none pressed and every panel hidden at
+    load, so the page opens on the row of buttons.  That opening one closes the
+    other is the script's, and a browser check's to see."""
+    controls = re.findall(r'<button class="btn qs-toggle" type="button" aria-expanded="false" '
+                          r'aria-controls="([\w-]+)"', site_html)
+    panels = re.findall(r'<div class="qs-panel" id="([\w-]+)" hidden="until-found">', site_html)
+    assert sorted(controls) == sorted(panels) == ["notebooks", "quickstart"], (controls, panels)
+    assert not re.search(r'<button[^>]*aria-expanded="true"', site_html)
 
 
 def test_the_release_tag_is_the_newest_and_its_absence_refuses(build, tmp_path):
