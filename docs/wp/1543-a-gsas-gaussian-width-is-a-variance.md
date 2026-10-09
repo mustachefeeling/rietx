@@ -1,6 +1,6 @@
 # WP-1543 — a GSAS Gaussian width is a variance
 
-Milestone: unscheduled · Status: 🔄 2026-10-06 — PRs #708 and #739 merged (the GSAS-II and GSAS-I halves); the one-constant, GSAS-II-oracle and `PRCF` tasks remain
+Milestone: unscheduled · Status: 🔄 2026-10-10 — claimed by @yue-here; the one-constant, GSAS-II-oracle and `PRCF` tasks remain
 Track: Coming from another code
 Depends on: —
 Priority: P1 2026-10-04 — if confirmed, every GSAS-I `.prm` and GSAS-II `.instprm`/`.gpx` instrument reads its Gaussian widths 2.35× too narrow, frozen, and a sample fit puts the rest into size and strain silently
