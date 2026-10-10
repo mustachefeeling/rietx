@@ -1,6 +1,6 @@
 """Suite-wide hygiene and the fixtures that share an expensive refinement.
 
-Four things live here, in the order they have to happen:
+Five things live here, in the order they have to happen:
 
 1. **Headless matplotlib.**  Every test refinement writes obs/calc/diff PNGs
    (CLAUDE.md's Tests convention), so ``MPLBACKEND=Agg`` is set before anything
@@ -27,6 +27,11 @@ Four things live here, in the order they have to happen:
    ``xdist_group`` marks refits the shared fixtures and mis-measures every
    wall-clock budget, both without failing, so ``pytest_configure`` refuses it
    rather than leaving it to be noticed in a ``--durations`` list.
+5. **The ``--shard K/N`` selection.**  A CI fast leg runs as N jobs, because
+   its two-core runner gives no more workers to add (WP-1547).  Each job keeps
+   shard K of the collected files, split by recorded seconds with every file
+   and every ``xdist_group`` whole (``tests/shards.py``).  It runs after
+   ``-m``'s own deselection, so the split is of the tier being run.
 
 Shared expensive results (``sample1_results``, ``srm660c_baseline``,
 ``cr2wo6_nuclear``) are
@@ -141,6 +146,51 @@ def pytest_configure(config: pytest.Config) -> None:
             f"they assert. Both are silent. Pass --dist {REQUIRED_DIST} "
             "(CLAUDE.md § Commands), or -n 0 to run serially."
         )
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--shard", metavar="K/N", default=None,
+        help="run shard K of N: whole files, xdist groups kept together, "
+             "split by tests/shard_times.json (tests/shards.py)")
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Keep the items of shard K's files, after every other selection has run.
+
+    Under xdist the controller collects nothing: each worker collects, runs
+    this hook and reports its list, and xdist refuses a run whose workers
+    disagree.  So the split is a function of the items alone.  ``shards.assign``
+    breaks every tie by name, never by collection order or a clock.
+    """
+    spec = getattr(config.option, "shard", None)
+    if spec is None:
+        return
+    from tests import shards
+
+    try:
+        k, n = shards.parse(spec)
+    except ValueError as exc:
+        raise pytest.UsageError(str(exc)) from None
+    files: list[str] = []
+    pairs: list[tuple[str, str | None]] = []
+    for item in items:
+        try:
+            file = item.path.relative_to(config.rootpath).as_posix()
+        except ValueError:
+            file = item.path.as_posix()
+        files.append(file)
+        # xdist joins every xdist_group mark an item carries; each joins here
+        names = [m.args[0] if m.args else m.kwargs.get("name", "default")
+                 for m in item.iter_markers("xdist_group")]
+        pairs += [(file, str(name)) for name in names] or [(file, None)]
+    mine, _ = shards.assign(shards.units(pairs), shards.recorded_seconds(), n)[k - 1]
+    selected = [item for item, file in zip(items, files, strict=True) if file in mine]
+    deselected = [item for item, file in zip(items, files, strict=True) if file not in mine]
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+    items[:] = selected
 
 
 @pytest.fixture(autouse=True)

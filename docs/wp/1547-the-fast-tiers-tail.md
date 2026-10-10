@@ -183,7 +183,7 @@ only if the last task moves Python versions into the nightly.
       still over about 20 min, shard by recorded junit time with groups kept
       whole, and trim the PR matrix to the oldest and newest Python, with
       the middle two in the nightly. (Six runs, not ten: every one was over.)
-- [ ] Shard each fast leg in two by recorded junit time, every `xdist_group`
+- [x] Shard each fast leg in two by recorded junit time, every `xdist_group`
       and every file whole (`tests/shards.py`, `tests/shard_times.json`).
 - [ ] `ci.yml` runs py3.11, py3.14 and jax, two shards each. py3.12 runs in
       the nightly, where `full` already covers 3.13. The nightly's three
@@ -197,17 +197,22 @@ only if the last task moves Python versions into the nightly.
 
 ## Acceptance
 
-- Over ten consecutive successful main runs after the last task lands, the
-  median of the four Python legs' "Fast suite" step is 20 min or under.
+- Over ten consecutive successful main runs after the shards land, the
+  median run's slowest fast job is 20 min or under. A job is timed from its
+  start to its end, setup included, since each shard pays its own. (Amended
+  2026-10-10: the bar was the median of four Python legs' "Fast suite" step,
+  which no longer exists once a leg is two jobs. A run waits for its slowest
+  job, so that is what the bar now reads.)
 - Every test that left the fast tier passes once in the nightly's `full` job.
-- Fast passed+skipped moves by exactly the tests added minus those marked
-  `slow`, quoted with venv and platform.
+- Each leg's passed+skipped, summed over its two shards, equals the
+  unsharded fast count at the same commit. The fast count moves by exactly
+  the tests added minus those marked `slow`, quoted with venv and platform.
 
 ```sh
 gh run list --workflow ci.yml --branch main --event push --status success --limit 10 --json databaseId
-gh run view <id> --json jobs   # each "fast py3.x" job's "Fast suite" step
+gh run view <id> --json jobs   # each "fast …" job's startedAt to completedAt; take the largest
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
-.venv/bin/python -m pytest -n auto --dist loadgroup -m slow tests/test_lebail_alternation.py tests/test_magnetic_irreps.py
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow" --shard 1/2   # and 2/2
 ```
 
 ## References
