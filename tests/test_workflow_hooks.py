@@ -170,6 +170,22 @@ def test_heading_entries_count_as_entries(repo: Path) -> None:
     assert hook.handover_findings(repo) == []
 
 
+def test_the_window_is_days_so_a_busy_day_cannot_hide_a_miss(repo: Path) -> None:
+    """The scan read the last 50 commits until 2026-10-10, when main took 88 in
+    one day and two WPs a day behind sat 99 and 101 commits back, unflagged.
+    The window now ends at HEAD's date and reaches back ``WINDOW_DAYS``."""
+    write_wp(repo, "9009", "🔄 2026-08-01 — in flight", ["2026-08-01"])
+    commit_wp(repo, "9009", "2026-08-02", code=True)
+    for i in range(60):
+        _git(repo, "commit", "-q", "--allow-empty", "-m", f"other work {i}",
+             date="2026-08-03")
+    (finding,) = hook.handover_findings(repo)
+    assert (finding.wp, finding.basis) == ("9009", "date")
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "a fortnight on",
+         date="2026-08-20")
+    assert hook.handover_findings(repo) == []
+
+
 def test_repo_line_measures_against_origin_main(repo: Path, tmp_path: Path) -> None:
     """The local ``main`` is whatever was last fetched into it; on 2026-08-26 it
     sat 91 commits stale and the scan called a merged branch "ahead 90"."""
