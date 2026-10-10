@@ -1,6 +1,6 @@
 # WP-1940 — the kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential
 
-Milestone: unscheduled · Status: 🔄 2026-10-10 — task 1 landed (PR #862, trigger 1.33×, bit-neutral); both packaging decisions taken, the crate (task 4) next
+Milestone: unscheduled · Status: 🔄 2026-10-10 — the crate, both owed platforms and the release workflow landed (PR #862); waiting on the maintainer's PyPI publisher and the kernels-v1.0.0 tag
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: 1939
 Priority: P2 2026-10-10 — the decision is taken (Rust, § Decisions) and every agent install pays numba's 143 MB and warm-up until this lands; the first task is a bit-neutral 1.4× that ships on its own
@@ -386,6 +386,139 @@ with the guard green is a pass.
 - `docs/RELEASING.md` (build from the tag, never by hand).
 
 ## Handover log
+
+### 2026-10-10 (3rd session) — the crate, both owed platforms, and the release workflow
+
+The Rust kernels now live in this repository as their own package,
+`rietx-kernels`, and every call checks its arguments before it writes. They
+match numba bit for bit on all five platforms the wheel ships for. Windows
+and Intel macOS were measured for the first time, and both agree. A
+workflow builds, tests and publishes the five wheels, and its first run was
+green; nothing is on PyPI yet. The maintainer confirmed the separate package
+after asking why the kernels do not ship inside rietx. They also chose to
+publish today's bit-identical kernels first, and decided numba leaves rietx
+entirely at the migration. One finding outside the plan: an Intel Mac cannot
+install rietx today, because numba ships no wheel there.
+
+*Done.*
+- **Task 4.** `examples/aot_spike/rust/` moved to `kernels/` (`git mv`) as
+  `rietx-kernels` 1.0.0, module `rietx_kernels`, abi3-py311,
+  `codegen-units = 1`, fat LTO. `KERNEL_ABI` is the crate's major version,
+  parsed at compile time, beside `__version__`. The loops are unchanged.
+  Each binding now checks before releasing the GIL:
+  - outputs share no byte with each other or with any input, by address
+    range, so a partial overlap and an aliased `phi` are caught as well as
+    `out is x`;
+  - every plane is C-contiguous. This is a fourth fix of the review's class:
+    rust-numpy's `as_slice` accepts a Fortran-ordered plane, which the loops
+    would read transposed;
+  - node planes have `phi`'s shape and `phi` has one row per `rows` entry;
+    per-row arrays have one entry per row of `x`;
+  - row indices and window widths go through `usize::try_from`, the row
+    range is checked, `spell` is 0 or 1, `n_terms` is 1 to 4, and the
+    scatter's windows sit inside `y` and inside every plane they read.
+- `tests/test_rietx_kernels.py`: 27 cases after the review, each a well-formed call with one
+  defect, the well-formed call as control. It skips at module level until
+  the wheel is a dependency, so CI counts it as one skip. Removing
+  `omega_fcj`'s disjointness and row checks turned exactly the 9 cases that
+  rest on them red.
+- rietx's sdist excludes `/kernels`; `.gitignore` ignores `kernels/target/`.
+- **Task 2.** The bench counts which arm each call took (`ARM`), and
+  `--gate` exits 1 unless `rietx_kernels` imports and no call differs. The
+  gate was made to fail both ways once. A temporary workflow on a throwaway
+  branch (run 38046325707, branch deleted) ran the pass on Windows x64 and
+  macOS x86_64.
+- **Release machinery.** `.github/workflows/kernels.yml`: five wheels (1939's
+  matrix, macOS x86_64 cross-built), each tested on its own platform at
+  Python 3.11 with the refusals and `--gate`, published on a `kernels-v*`
+  tag push through the `pypi` environment after tag-on-main and
+  version checks. It also runs on a pull request touching the crate.
+  `RELEASING.md` § The kernel wheel has the procedure, the pending
+  publisher, and the pin rule: a breaking interface change bumps the major,
+  and a new kernel is a minor that raises rietx's pin floor.
+- § Decisions items 6-8 recorded (separate package confirmed; bit-identical
+  1.0.0 first, so the migration re-pins nothing and the exponential's 1.1.0
+  carries the one re-pin; numba out of all three tiers at the migration).
+  Item 3 marked superseded in part. Tasks 9 and 10 rewritten to match, and a
+  "1.0.0 on PyPI, then the pin" task added.
+- Forward references: 1505 (rietview's numba shim needs another answer),
+  1521 (nothing left after the migration that 1940 does not do), 1538 (the
+  occlusion kernel goes into the crate), 1926 (the Voigt kernel is a minor
+  kernel release).
+- `/code-review high --fix` reported seven findings and five were fixed, in
+  three commits. A row listed twice in `rows` is now refused: two pool
+  chunks would write it at once, a data race the crate's docstring claimed
+  the checks prevent. The gate counts only the wheel's mismatches and fails
+  on a kernel no case called. `kernels.yml` also triggers on
+  `_kernels_numba.py`, `compiled.py` and `bench_refinement.py`. The README
+  no longer claims a pin rietx does not have yet. Two were declined. An
+  early return from `_splits` on a one-worker pool would make the pool test
+  depend on the suite's thread count, for a small saving. Folding `_splits`
+  into `_spread` would change the hook the bench wraps.
+
+*Measured.* Local rows: `[dev]` venv plus the crate built with `maturin
+develop --release`, darwin/arm64, python 3.12.10, numpy 2.5.3, numba 0.68.0,
+rustc 1.99.0, machine idle.
+
+| platform | run | numba / numpy | calls differing | serial kernel time, rust vs numba (trigger · cpd-1a) |
+|---|---|---|---|---|
+| darwin/arm64 | local | 0.68.0 / 2.5.3 | 0 | 1.08× · 1.30× |
+| Windows x64 | 38046325707 | 0.68.0 / 2.5.3 | 0 | 1.02× · 1.31× |
+| macOS x86_64, built natively | 38046325707 | 0.62.1 / 2.3.5 | 0 | 1.07× · 1.23× |
+| macOS x86_64, cross-built wheel, py3.11 | 38069237206 | 0.62.1 / 2.3.5 | 0 | 1.09× · 1.25× |
+
+- Arms: in both fits on every platform, `n_terms` 1, 2 and 4 ran and 3
+  never did; `spell` 0 and 1 both ran; `has_ax` both ran in trigger. The
+  three-term scatter is covered only by `test_compiled_kernels.py`'s arity
+  test.
+- `kernels.yml` run 38069237206: wheels built in 35-74 s, platform tests in
+  57-117 s, all five green under `--gate`.
+- A clean release build of the crate takes 8.6 s here. The toolchain is
+  ~480 MB (`~/.rustup` 445 MB, `~/.cargo` 37 MB).
+- numba's macOS x86_64 wheels on PyPI: 0.60.0, 0.61.0 and 0.62.0 have one;
+  0.63.0 and 0.68.0 have none.
+- The numpy twins' cost is § The other two numba tiers' table: indexing
+  1.03-1.09× on WP-1508's real patterns; the figure 5-8× on one small
+  structure.
+- Fast suite on the final tree: 9009 passed, 177 skipped, 1 xfailed, 8:03
+  with another session's suite running. Against the 2nd session's 8982
+  passed on this branch that is +27, the 27 cases of
+  `tests/test_rietx_kernels.py`, which pass here because the crate is built
+  into this venv. CI has no wheel yet, so there the file is one
+  module-level skip: passed unchanged, skipped +1. The 27 cases cost 0.03 s
+  in this run (`tests.added_test_times` on the local junit file).
+- The gate passed again after the review's row check, but its seconds were
+  taken beside that other suite (numba's own kernel time read 3× the idle
+  run), so no ratio from it is quoted.
+- The full suite was not run: no file under `src/` changed, so no measured
+  number can move.
+
+*Gotchas.*
+- A probe that imports `rietx.model._kernels_numba` directly skips
+  `compiled._redirect_cache`, so numba writes its cache beside the source
+  and `test_the_disk_cache_lands_in_the_state_dir_and_not_beside_the_source`
+  fails. Import through `compiled`, or delete the `.nbi`/`.nbc` files.
+- `cargo build` of the crate fails to link on macOS, because an extension
+  module needs `-undefined dynamic_lookup`. Build through maturin:
+  `maturin develop --release --uv -m kernels/Cargo.toml` with
+  `VIRTUAL_ENV` set to the worktree's venv.
+- `release.yml` fires on every published GitHub release, so a kernel
+  release is a tag push and never a GitHub release.
+- `gh api .../jobs/<id>/logs` refuses a log with terminal escapes unless
+  given `--allow-escape-sequences`.
+
+*Next.*
+1. The maintainer: add the pending publisher on PyPI (project
+   `rietx-kernels`, owner `yue-here`, repository `rietx`, workflow
+   `kernels.yml`, environment `pypi`); merge #862; tag `kernels-v1.0.0` on
+   that `main` commit and push the tag; approve the deployment.
+2. Once 1.0.0 is on PyPI, the `compiled.py` PR: the wheel loads, the pin
+   `rietx-kernels>=1,<2`, numba out of all three tiers, the agreement
+   reference moved to the numpy path (bench and `kernels.yml`), and the docs
+   and skill rows that name numba. It moves no number.
+3. The vectorised exponential with the relaxed rule, as 1.1.0, the one
+   re-pin, its guard sized on the 2.2e-1 esd of the 2nd session.
+4. The rasteriser port (or WP-1505 first), then multiversioning.
 
 ### 2026-10-10 (2nd session) — task 1 landed, and both packaging decisions taken
 
