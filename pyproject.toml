@@ -75,7 +75,7 @@ dependencies = [
     # people read a fit, and every tutorial and the landing page draw one, so a
     # base install that could not was the install people were judged by.  The
     # cost is ~58 MB with its dependencies (pillow, fonttools, contourpy,
-    # kiwisolver, pyparsing, cycler) against ~265 MB for the rest.
+    # kiwisolver, pyparsing, cycler) against ~124 MB for the rest.
     # `viz.plots._pyplot` still imports it lazily, so `import rietx` pays
     # nothing for it.
     #
