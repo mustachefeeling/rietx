@@ -628,5 +628,5 @@ def id_plane(pk: dict, frame: Frame) -> IdPlane:
     ids = np.full((frame.height, frame.width), -1, dtype=np.int32)
     seen = np.zeros(len(atom_box), dtype=np.int64)
     _ids_numpy(pk, frame, atom_box, half_box, ids, seen)
-    front =np.bincount(ids[ids >= 0], minlength=len(atom_box) + len(half_box))[:len(atom_box)]
+    front = np.bincount(ids[ids >= 0], minlength=len(atom_box) + len(half_box))[:len(atom_box)]
     return IdPlane(ids=ids, seen=seen, front=front, index=pk["index"])

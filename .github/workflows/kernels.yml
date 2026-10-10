@@ -33,8 +33,9 @@ name: Kernels
 # The `test` job installs this run's wheel, never the index's, and checks that
 # it did.  Its reference is the numpy path, the arithmetic RIETX_COMPILED=0
 # runs.  numba was the reference until WP-1940 removed it from rietx.  Three
-# checks: the refusals, tests/test_compiled_kernels.py on the wheel and then
-# on the numpy path, and the agreement pass.  That pass compares every kernel
+# checks: the refusals, tests/test_compiled_kernels.py, and the agreement
+# pass.  That test file runs once: each of its comparisons sets both paths
+# itself, so a second run under RIETX_COMPILED=0 would repeat it.  That pass compares every kernel
 # call inside two real fits and fails on a call past its bar (`--gate`; the
 # bars are in the bench's docstring).  The numpy path itself lives in
 # src/rietx/model/forward.py.  ci.yml's fast suite tests a change there
@@ -144,10 +145,8 @@ jobs:
           PY
       - name: The refusals
         run: '"$PY" -m pytest tests/test_rietx_kernels.py'
-      - name: The kernel tests, on the wheel and on the numpy path
-        run: |
-          "$PY" -m pytest tests/test_compiled_kernels.py
-          RIETX_COMPILED=0 "$PY" -m pytest tests/test_compiled_kernels.py
+      - name: The kernel tests, the wheel against the numpy path
+        run: '"$PY" -m pytest tests/test_compiled_kernels.py'
       - name: Agreement with the numpy path inside two real fits
         run: '"$PY" examples/aot_spike/bench_aot_kernels.py --cases cpd-1a,trigger --skip 2,3 --gate'
 

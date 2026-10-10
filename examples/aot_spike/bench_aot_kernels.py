@@ -448,18 +448,19 @@ def pool_engagement(setup) -> None:
 def _theta_gap(ref: dict, got: dict) -> str:
     """How far one arm's final parameters sit from the numpy path's.
 
-    A path present on one side only, or a value differing where no positive
-    esd exists to scale it, is counted rather than dropped, so a difference
-    never reads as 0 esd.
+    A path present on one side only, a value differing where no positive esd
+    exists to scale it, or an esd differing beside an equal value, is counted
+    rather than dropped, so a difference never reads as 0 esd.
     """
     if got == ref:
         return "bit-identical"
-    worst, unscaled = 0.0, 0
+    worst, unscaled, esd_only = 0.0, 0, 0
     for path, (v, e) in ref.items():
         if path not in got:
             continue
-        gv = got[path][0]
+        gv, ge = got[path]
         if gv == v:
+            esd_only += ge != e
             continue
         gap = abs(gv - v) / e if e and e > 0 else float("nan")
         if gap != gap:
@@ -472,6 +473,8 @@ def _theta_gap(ref: dict, got: dict) -> str:
         out += f", {unscaled} differing with no esd to scale (or NaN)"
     if missing:
         out += f", {missing} paths on one side only"
+    if esd_only:
+        out += f", {esd_only} with the same value and another esd"
     return out
 
 
