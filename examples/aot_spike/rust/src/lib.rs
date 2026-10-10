@@ -37,11 +37,21 @@ impl P {
     }
 }
 
-fn out2(a: &Bound<'_, PyArray2<f64>>) -> PyResult<(P, usize)> {
+/// An output plane as a raw pointer, checked as numba and Cython check one:
+/// C-contiguous, writeable, and the same shape as `x`.  The loops write
+/// through the pointer at `x`'s indices, and `x`'s slices are bounds-checked,
+/// so the shape check is what keeps every write inside the plane.
+fn out2(a: &Bound<'_, PyArray2<f64>>, like: &[usize]) -> PyResult<P> {
     if !a.is_c_contiguous() {
         return Err(PyValueError::new_err("output plane must be C-contiguous"));
     }
-    Ok((P(a.data()), a.shape()[1]))
+    if unsafe { (*a.as_array_ptr()).flags } & numpy::npyffi::NPY_ARRAY_WRITEABLE == 0 {
+        return Err(PyValueError::new_err("output plane must be writeable"));
+    }
+    if a.shape() != like {
+        return Err(PyValueError::new_err("output plane must have x's shape"));
+    }
+    Ok(P(a.data()))
 }
 
 fn sl<'a, T: numpy::Element>(a: &'a PyReadonlyArray1<'_, T>) -> PyResult<&'a [T]> {
@@ -290,10 +300,10 @@ fn omega_sym(
     lo: usize,
     hi: usize,
 ) -> PyResult<()> {
-    let (o, ow) = out2(out)?;
+    let o = out2(out, x.shape())?;
     let (x, xw) = pl(&x)?;
     let (rows, pos, w1, w2, width) = (sl(&rows)?, sl(&pos)?, sl(&w1)?, sl(&w2)?, sl(&width)?);
-    py.detach(|| unsafe { omega_sym_loop(o.get(), ow, x, xw, rows, pos, w1, w2, width, spell, lo, hi) });
+    py.detach(|| unsafe { omega_sym_loop(o.get(), xw, x, xw, rows, pos, w1, w2, width, spell, lo, hi) });
     Ok(())
 }
 
@@ -313,12 +323,12 @@ fn omega_fcj(
     lo: usize,
     hi: usize,
 ) -> PyResult<()> {
-    let (o, ow) = out2(out)?;
+    let o = out2(out, x.shape())?;
     let (x, xw) = pl(&x)?;
     let (rows, w1, w2, width) = (sl(&rows)?, sl(&w1)?, sl(&w2)?, sl(&width)?);
     let ((phi, nn), (om, _)) = (pl(&phi)?, pl(&om)?);
     py.detach(|| unsafe {
-        omega_fcj_loop(o.get(), ow, x, xw, rows, w1, w2, width, phi, om, nn, spell, lo, hi)
+        omega_fcj_loop(o.get(), xw, x, xw, rows, w1, w2, width, phi, om, nn, spell, lo, hi)
     });
     Ok(())
 }
@@ -340,11 +350,12 @@ fn bases_sym(
     lo: usize,
     hi: usize,
 ) -> PyResult<()> {
-    let ((a, ow), (b, _), (c, _), (d, _)) = (out2(omega)?, out2(d_pos)?, out2(d_gamma)?, out2(d_eta)?);
+    let xs = x.shape();
+    let (a, b, c, d) = (out2(omega, xs)?, out2(d_pos, xs)?, out2(d_gamma, xs)?, out2(d_eta, xs)?);
     let (x, xw) = pl(&x)?;
     let (rows, pos, w1, w2, width) = (sl(&rows)?, sl(&pos)?, sl(&w1)?, sl(&w2)?, sl(&width)?);
     py.detach(|| unsafe {
-        bases_sym_loop(a.get(), b.get(), c.get(), d.get(), ow, x, xw, rows, pos, w1, w2, width, lo, hi)
+        bases_sym_loop(a.get(), b.get(), c.get(), d.get(), xw, x, xw, rows, pos, w1, w2, width, lo, hi)
     });
     Ok(())
 }
@@ -376,15 +387,21 @@ fn bases_fcj(
     lo: usize,
     hi: usize,
 ) -> PyResult<()> {
-    let ((a, ow), (b, _), (c, _), (d, _)) = (out2(omega)?, out2(d_pos)?, out2(d_gamma)?, out2(d_eta)?);
-    let ((s, _), (h, _)) = (out2(d_sl)?, out2(d_hl)?);
+    let xs = x.shape();
+    let (a, b, c, d) = (out2(omega, xs)?, out2(d_pos, xs)?, out2(d_gamma, xs)?, out2(d_eta, xs)?);
+    // without axial columns the caller passes empty placeholders, never written
+    let (s, h) = if has_ax {
+        (out2(d_sl, xs)?, out2(d_hl, xs)?)
+    } else {
+        (P(std::ptr::null_mut()), P(std::ptr::null_mut()))
+    };
     let (x, xw) = pl(&x)?;
     let (rows, w1, w2, width) = (sl(&rows)?, sl(&w1)?, sl(&w2)?, sl(&width)?);
     let ((phi, nn), (om, _), (dphi, _), (dom, _)) = (pl(&phi)?, pl(&om)?, pl(&dphi)?, pl(&dom)?);
     let ((dphi_sl, _), (dom_sl, _), (dphi_hl, _), (dom_hl, _)) =
         (pl(&dphi_sl)?, pl(&dom_sl)?, pl(&dphi_hl)?, pl(&dom_hl)?);
     py.detach(|| unsafe {
-        bases_fcj_loop([a.get(), b.get(), c.get(), d.get(), s.get(), h.get()], ow, x, xw, rows, w1, w2, width, phi, om,
+        bases_fcj_loop([a.get(), b.get(), c.get(), d.get(), s.get(), h.get()], xw, x, xw, rows, w1, w2, width, phi, om,
                        dphi, dom, dphi_sl, dom_sl, dphi_hl, dom_hl, nn, has_ax, lo, hi)
     });
     Ok(())
