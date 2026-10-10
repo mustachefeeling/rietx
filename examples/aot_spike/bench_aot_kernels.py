@@ -24,7 +24,10 @@ rest of the package cannot tell.  Three measurements:
 2. **End to end.**  ``_KERNELS`` swapped wholesale, the whole fit timed, arms
    interleaved (bench_refinement rule 2), on the default thread count.  The
    final parameter vector is compared to numba's: identical, or the largest
-   difference in esd units.
+   difference in esd units.  A ``numba, inline`` arm runs with the pool's
+   worker count forced to 1, so what the pool buys is a row of the same table;
+   before it, one counted fit reports each kernel's calls and seconds, inline
+   against pooled, as ``compiled._splits`` decided them (WP-1940).
 3. **Startup**: import, and numba's cached and cold compile, each in a fresh
    process.
 
@@ -231,11 +234,45 @@ def agreement(case: str, numba: dict, cands: dict[str, dict]) -> None:
           + " |")
 
 
+def pool_engagement(setup) -> None:
+    """One numba fit, each pooled-kernel call counted and timed by the way
+    ``compiled._splits`` sent it.  The entry points evaluate ``_splits`` as
+    ``_spread``'s last argument, so the decision lands just before the call."""
+    calls: dict[tuple[str, bool], list[float]] = {}
+    splits, spread = compiled._splits, compiled._spread
+    last: list = [None]
+
+    def counted_splits(kernel, *a):
+        last[0] = (kernel, splits(kernel, *a))
+        return last[0][1]
+
+    def timed_spread(fn, n_rows, split):
+        t0 = time.perf_counter()
+        spread(fn, n_rows, split)
+        calls.setdefault(last[0], []).append(time.perf_counter() - t0)
+
+    compiled._splits, compiled._spread = counted_splits, timed_spread
+    try:
+        _fit(setup)
+    finally:
+        compiled._splits, compiled._spread = splits, spread
+    print("| kernel | inline calls | inline s | pooled calls | pooled s |")
+    print("|---|---|---|---|---|")
+    for k in OUTPUTS:
+        inl, pooled = calls.get((k, False), []), calls.get((k, True), [])
+        if inl or pooled:
+            print(f"| {k} | {len(inl)} | {sum(inl):.3f} | {len(pooled)} | "
+                  f"{sum(pooled):.3f} |")
+    print()
+
+
 def end_to_end(case: str, numba: dict, cands: dict[str, dict], repeats: int) -> None:
+    workers = compiled._pool()._max_workers
     print(f"\n## 2. End to end, {case}, {repeats} interleaved repeats "
-          f"(threads = {compiled.n_threads()})\n")
+          f"(threads = {workers})\n")
     setup = _cases()[case]()
-    arms = {"numpy": None, "numba": numba, **cands}
+    pool_engagement(setup)
+    arms = {"numpy": None, "numba": numba, "numba, inline": numba, **cands}
     walls: dict[str, list[float]] = {a: [] for a in arms}
     finals: dict[str, list[dict[str, tuple[float, float | None]]]] = {
         a: [] for a in arms}
@@ -249,11 +286,14 @@ def end_to_end(case: str, numba: dict, cands: dict[str, dict], repeats: int) -> 
             else:
                 compiled._KERNELS = arms[arm]
                 was = compiled.set_enabled(True)
+            if arm == "numba, inline":
+                compiled._POOL_WORKERS = 1
             try:
                 wall, res = _fit(setup)
             finally:
                 compiled.set_enabled(was)
                 compiled._KERNELS = numba
+                compiled._POOL_WORKERS = workers
             walls[arm].append(wall)
             finals[arm].append({p.path: (p.value, p.stderr) for p in res.parameters})
             rwp[arm] = res.statistics.rwp

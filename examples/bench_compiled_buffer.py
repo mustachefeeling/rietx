@@ -94,11 +94,11 @@ from rietx import _about  # noqa: E402
 # **Everything here is timed serially**, and the setting must land before any
 # pool is built.  Both sides of this comparison are row-parallel over disjoint
 # output rows, so threading multiplies them together and cancels out of the
-# ratio — but ``compiled._spread`` only engages the pool above
-# ``_THREAD_MIN_ROWS`` (512), and the exact path splits by FCJ *bucket* while a
-# reconstruction splits by row.  Left alone, a 564-row phase compares a
-# threaded buffer against a serial exact path and reports a win that is the
-# pool's.
+# ratio — but ``compiled._spread`` engages the pool per call, on that call's
+# estimated work (``compiled._splits``), and the exact path splits by FCJ
+# *bucket* while a reconstruction splits by row.  Left alone, one side's calls
+# can pass the threshold while the other's do not, and the comparison reports
+# a win that is the pool's.
 os.environ.setdefault(_about.COMPILED_THREADS_ENV, "1")
 
 import bench_peaks_buffer as proto  # noqa: E402

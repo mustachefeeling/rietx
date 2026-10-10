@@ -64,6 +64,17 @@ serial kernel (0.28 s in the first process, 0.06 s thereafter).  The pool is
 shared because building one per call costs more than half the win (6.0 ms
 against 2.8 ms, measured).
 
+**A call engages the pool on its estimated work, never on its row count**
+(:func:`_splits`, WP-1940).  An FCJ row carries 8-40 quadrature nodes across
+its window and costs 3-10 µs; a symmetric row costs a fraction of one.  So
+the 512-row floor this replaced was wrong both ways: the pool never ran in the
+trigger fit, whose largest FCJ call had 494 rows, and it split symmetric calls
+too small to pay.  Splitting lost under 80 µs of serial work and won over it
+on every kernel measured, and the trigger fit's large FCJ calls ran 2.6-4.3×
+faster at 8 workers on darwin/arm64.
+Whether a call splits cannot change its output, so the threshold is a speed
+setting and never a numerical one.
+
 The scatter is the exception and stays single-threaded: its rows write into
 overlapping windows, so splitting it by rows is a data race, and the order the
 additions arrive in is the whole of its bit-identity claim.
@@ -110,9 +121,17 @@ SPELL_BASIS = 1
 #: mis-served.
 MAX_TERMS = 4
 
-#: Rows below this in one bucket run inline: at a few hundred rows the pool's
-#: submit-and-collect costs more than the extra cores buy.
-_THREAD_MIN_ROWS = 512
+#: Serial nanoseconds per element of each kernel's work, an element being one
+#: window point of one row for one quadrature node (a symmetric row has one).
+#: Measured on darwin/arm64 inside the trigger, nac and cpd-1a fits (WP-1940);
+#: the bases carry three to five partials beside Ω, hence ~2.4× the forward.
+_NS_PER_ELEMENT = {"omega_sym": 1.8, "omega_fcj": 2.7,
+                   "bases_sym": 5.5, "bases_fcj": 6.5}
+
+#: A call splits across the pool once its estimated serial time reaches this.
+#: Splitting lost under 80 µs and won over it on every kernel (the pool's
+#: dispatch is ~30 µs a call), so this sits just above the crossover.
+_THREAD_MIN_NS = 100_000.0
 
 _EMPTY_1D = np.zeros(0)
 _EMPTY_2D = np.zeros((0, 0))
@@ -325,8 +344,33 @@ def _pool() -> ThreadPoolExecutor:
     return _POOL
 
 
-def _spread(fn, n_rows: int) -> None:
-    """Run ``fn(lo, hi)`` over ``n_rows`` rows, split across the pool.
+def _splits(kernel: str, rows: np.ndarray, width: np.ndarray, n_nodes: int,
+            w_max: int) -> bool:
+    """Is one call's estimated serial time enough to pay for the pool?
+
+    The estimate is the call's elements (each row's window width, times its
+    nodes) at :data:`_NS_PER_ELEMENT`.  It predicts a call's inline time to a
+    log correlation of 0.999 on trigger's FCJ calls, where the row count alone
+    reaches 0.98, because rows differ in their node count (8-40) and window
+    width.  A row floor of 512 was what this replaced: no FCJ
+    call in trigger reached it, so the pool never ran there, while a 512-row
+    symmetric call over a narrow window is ~30 µs of work that splitting slows
+    to 0.2-0.5×.
+
+    The padded width bounds every row's from above, so a call it rules out
+    costs nothing to rule out.  Only a call that might split pays for the sum.
+    Which way this goes cannot change a bit of the output: rows are disjoint
+    and each is computed whole inside one chunk.
+    """
+    per = _NS_PER_ELEMENT[kernel] * n_nodes
+    if len(rows) * w_max * per < _THREAD_MIN_NS:
+        return False
+    return float(width[rows].sum()) * per >= _THREAD_MIN_NS
+
+
+def _spread(fn, n_rows: int, split: bool) -> None:
+    """Run ``fn(lo, hi)`` over ``n_rows`` rows, split across the pool when
+    ``split`` (:func:`_splits`) says the call can pay for it.
 
     Row ranges are disjoint in the output planes, so no lock is needed; the
     kernels release the GIL for the duration of the call, which is what makes a
@@ -339,7 +383,7 @@ def _spread(fn, n_rows: int) -> None:
     for no reason.  The environment is therefore read once, when the pool is
     built.
     """
-    if n_rows < _THREAD_MIN_ROWS:
+    if not split:
         fn(0, n_rows)
         return
     pool = _pool()
@@ -406,9 +450,10 @@ def omega_symmetric(out: np.ndarray, x: np.ndarray, rows: np.ndarray,
     if not len(rows):
         return True
     rows = _c(rows, np.int64)
-    args = (out, _c(x), rows, _c(pos), _c(w1), _c(w2), _c(width, np.int64),
-            spell)
-    _spread(lambda lo, hi: k["omega_sym"](*args, lo, hi), len(rows))
+    width = _c(width, np.int64)
+    args = (out, _c(x), rows, _c(pos), _c(w1), _c(w2), width, spell)
+    _spread(lambda lo, hi: k["omega_sym"](*args, lo, hi), len(rows),
+            _splits("omega_sym", rows, width, 1, x.shape[1]))
     return True
 
 
@@ -428,9 +473,10 @@ def omega_fcj(out: np.ndarray, x: np.ndarray, rows: np.ndarray,
     if not len(rows):
         return True
     rows = _c(rows, np.int64)
-    args = (out, _c(x), rows, _c(w1), _c(w2), _c(width, np.int64),
-            _c(phi), _c(om), spell)
-    _spread(lambda lo, hi: k["omega_fcj"](*args, lo, hi), len(rows))
+    width = _c(width, np.int64)
+    args = (out, _c(x), rows, _c(w1), _c(w2), width, _c(phi), _c(om), spell)
+    _spread(lambda lo, hi: k["omega_fcj"](*args, lo, hi), len(rows),
+            _splits("omega_fcj", rows, width, phi.shape[1], x.shape[1]))
     return True
 
 
@@ -445,9 +491,11 @@ def bases_symmetric(omega: np.ndarray, d_pos: np.ndarray, d_gamma: np.ndarray,
     if not len(rows):
         return True
     rows = _c(rows, np.int64)
+    width = _c(width, np.int64)
     args = (omega, d_pos, d_gamma, d_eta, _c(x), rows, _c(pos), _c(w1),
-            _c(w2), _c(width, np.int64))
-    _spread(lambda lo, hi: k["bases_sym"](*args, lo, hi), len(rows))
+            _c(w2), width)
+    _spread(lambda lo, hi: k["bases_sym"](*args, lo, hi), len(rows),
+            _splits("bases_sym", rows, width, 1, x.shape[1]))
     return True
 
 
@@ -479,8 +527,10 @@ def bases_fcj(omega: np.ndarray, d_pos: np.ndarray, d_gamma: np.ndarray,
     else:
         dphi_sl = dom_sl = dphi_hl = dom_hl = _EMPTY_2D
         sl_out = hl_out = _EMPTY_2D
+    width = _c(width, np.int64)
     args = (omega, d_pos, d_gamma, d_eta, sl_out, hl_out, _c(x), rows,
-            _c(w1), _c(w2), _c(width, np.int64), _c(phi), _c(om), _c(dphi),
+            _c(w1), _c(w2), width, _c(phi), _c(om), _c(dphi),
             _c(dom), dphi_sl, dom_sl, dphi_hl, dom_hl, has_ax)
-    _spread(lambda lo, hi: k["bases_fcj"](*args, lo, hi), len(rows))
+    _spread(lambda lo, hi: k["bases_fcj"](*args, lo, hi), len(rows),
+            _splits("bases_fcj", rows, width, phi.shape[1], x.shape[1]))
     return True

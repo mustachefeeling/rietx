@@ -40,6 +40,13 @@ tasks and are not reopened here.
 3. **Optimisations land with the migration.** The goldens re-pin once at the
    migration; bundling the exponential saves a second re-pin. The threading
    fix is bit-neutral and ships first, under numba.
+4. **A hard dependency, with no platform markers and no sdist** (taken
+   later the same day). pip then fails loudly where no wheel exists, which
+   beats a silent slow path. musllinux and free-threaded (abi3t) wheels are
+   added when someone asks.
+5. **The crate lives in this repository under `kernels/`**, polars' shape
+   (taken later the same day). It releases on its own tag namespace,
+   `kernels-vN.M`, through one `maturin-action` workflow on that tag.
 
 ### What 1939 established
 
@@ -83,11 +90,12 @@ PyO3 distribution by the same maintainer, pinned as a floor
   3.13t/3.14t, where numba does ship wheels today) and any future target. The
   three honest shapes are a hard dependency with no markers and no sdist
   (pip fails loudly where no wheel exists), markers, or an optional extra.
-  **Open decision, § Decisions owed.**
+  **Decided: the first, § Decisions item 4.**
 - **Where the crate lives and how it releases.** polars keeps both
   distributions in one repository; pydantic-core has its own. `RELEASING.md`
   builds from a tag, so one repository needs a second tag namespace
-  (`kernels-vN.M`) or a path filter. **Open decision.**
+  (`kernels-vN.M`) or a path filter. **Decided: one repository, § Decisions
+  item 5.**
 
 **Measurement.** Windows and macOS x86_64 built wheels and never ran the
 agreement pass; the Windows maths library is the one not yet shown shared
@@ -226,15 +234,16 @@ their fallbacks.
 
 ### Decisions owed
 
-- Hard dependency without markers (and no sdist), markers, or an optional
-  extra. *Recommended:* hard dependency without markers, since a loud
-  failure where no wheel exists beats a silent slow path, with musllinux and
-  abi3t wheels added when someone asks.
-- Crate location and tag namespace. *Recommended:* in this repository under
-  `kernels/`, polars' shape, tag `kernels-vN.M`, one `maturin-action`
-  workflow on that tag.
-- The threshold's shape in task 1: a per-kernel row floor is one constant per
-  kernel; a work product needs the summed width, which the caller has.
+None remain. The maintainer took the first two on 2026-10-10 (§ Decisions
+items 4 and 5), and measurement settled the third:
+
+- **The threshold's shape in task 1 is a work product**, which needs nothing
+  from the caller. Rows × nodes × the plane's padded width bounds the work
+  for free, and the summed width is paid only by a call that bound does not
+  rule out. On trigger's FCJ calls the work predicts inline time at log
+  correlation 0.999 (rows alone 0.98), and a 512-row symmetric call is
+  30-60 µs of work that splitting slowed to 0.2-0.5×, so a row floor is wrong
+  for the symmetric kernels too.
 
 ## Non-goals
 
@@ -246,7 +255,7 @@ measurement. FPA and the peaks buffer stay fenced (1122).
 
 ## Tasks
 
-- [ ] Threading on work: `_THREAD_MIN_ROWS` replaced by a per-kernel floor
+- [x] Threading on work: `_THREAD_MIN_ROWS` replaced by a per-kernel floor
       or a work product in `compiled.py`; `bench_aot_kernels.py` reports
       pooled against inline calls; trigger end to end before and after, as
       ranges, in the handover. Under numba, bit-neutral, its own PR.
