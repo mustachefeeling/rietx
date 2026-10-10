@@ -474,23 +474,31 @@ def anti_bump_restraints(phase, min_distance, *, sigma: float = 0.05,
                          atoms=None, exclude_same_body: bool = True) -> list:
     """Every atom pair (with its symmetry image) that could bump, as rows.
 
-    The candidate list WP-1803's record calls for: built **once** from the
-    phase's present coordinates and kept for the plan, so the restraint row
-    count never moves between stages.  A pair enters when its image distance
-    is under its minimum plus ``margin`` (Å); a pair that later comes closer
-    from outside the list is not seen, which is what the margin is for.
+    The candidate list, built **once** from the phase's present coordinates
+    by the caller, who appends the rows to ``Phase.restraints``; explicit rows
+    are kept for every stage, so the restraint row count never moves between
+    stages.  (WP-1803's record has the engine freeze the list at plan compile;
+    this builder is the caller-side form of the same freeze.)  A pair enters
+    when its image distance is under its minimum plus ``margin`` (Å); a pair
+    that later comes closer from outside the list is not seen, and nothing
+    names it yet, which is what the margin is for.
 
     ``min_distance`` is a number (every pair), a mapping from an unordered
     species pair ``(a, b)`` to Å, or a callable ``(species_i, species_j) ->
     Å | None``; a pair with no minimum gets no row (never a default nobody
     stated — #677's rule).  ``atoms`` restricts the first atom of each pair
-    to those indices.  Two atoms of one rigid body are skipped by default **in
+    to those indices; every atom is then a second atom, so a pair of two
+    listed atoms comes back once per order.  Two atoms of one rigid body are skipped by default **in
     the same copy of the body** (identity operation, no lattice shift): their
     distance is the template's, and a row would only fight the body; every
     other image is a neighbouring molecule and keeps its row.
 
-    Images: every operation of the atom's orbit times the lattice shell
-    {−1, 0, 1}³, the identity image of an atom with itself excluded.  Rows
+    Images: every operation of the second atom's orbit, times a lattice shell
+    centred on the image's nearest lattice vector to the first atom and
+    ⌈(r₀ + margin)·|a*ₖ|⌉ + 1 cells wide along each axis, so the list does not
+    depend on which cell a coordinate is stored in.  A coincident image (an
+    atom with itself, or on a special position with its own image) gets no
+    row.  Rows
     come back as :class:`~rietx.schemas.structure.AntiBumpRestraint` with
     ``op_index``/``translation`` set, so the compiled image is the one
     measured here.
