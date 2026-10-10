@@ -1573,7 +1573,9 @@ class Isometry:
 
     * ``q`` — Q, row by row, acting on ``a``'s amplitudes.
     * ``residual`` — max_s ‖QᵀG^B_sQ − G^A_s‖_max / max_s‖G^A_s‖_max, so
-      |I_A(x) − I_B(Qx)| ≤ residual · max|G^A| · ‖x‖² on every shell.
+      |I_A(x) − I_B(Qx)| ≤ n_a · residual · max|G^A| · ‖x‖² on every shell
+      (|xᵀΔx| ≤ n_a‖Δ‖_max‖x‖² for a max-entry norm, n_a the amplitudes of
+      ``a``).
     * ``orthogonality`` — ‖QᵀQ − I‖₂.
     * ``dimension`` — the intertwiner space's dimension; 1 for the rank-1
       copies of one irrep, where Q is unique up to sign.
@@ -1617,7 +1619,9 @@ class Containment:
       amplitude bases (:func:`_canonical_basis`).
     * ``scale`` — c = tr Σ_s G^A_s / tr Σ_s EᵀG^B_sE.
     * ``residual`` — max_s ‖G^A_s − c·EᵀG^B_sE‖_max / max_s ‖G^A_s‖_max, so
-      |I_A(x) − c·I_B(Ex)| ≤ residual · max|G^A| · ‖x‖² on every shell.
+      |I_A(x) − c·I_B(Ex)| ≤ n_a · residual · max|G^A| · ‖x‖² on every shell
+      (|xᵀΔx| ≤ n_a‖Δ‖_max‖x‖² for a max-entry norm, n_a the amplitudes of
+      ``a``).
     * ``pattern_residual`` — ‖C_A − EᵀC_B‖/‖C_A‖ of the moment patterns E
       was fitted on (zero when ``a``'s patterns lie in ``b``'s span, as a
       rank-1 direction's do in its (a,b) plane's); diagnostic only.
@@ -1670,6 +1674,13 @@ class Transfer:
     * ``fit`` — ‖Î_c − t̂‖₂, how closely ``c`` reached the draw (relative).
     * ``float_stack`` — μ < :data:`TRANSFER_FLOAT_STACK`, printed as
       "proved on the float Gram stack".
+    * ``kernel_dim``, ``kernel_residual`` — the dimension of ``b``'s common
+      kernel and its r_K.  Where r_K > 0, ``lambda_prime``, ``gamma`` and
+      ``mu`` are those of :func:`_transfer_margin`: the cone then covers
+      ``b``'s amplitudes with a kernel component up to
+      :data:`KERNEL_AMPLITUDE_RATIO` times the live one, not only the live
+      directions (a kernel-free stack, or r_K = 0, is unconditional and
+      unchanged).
     """
 
     x: tuple[float, ...]
@@ -1684,6 +1695,8 @@ class Transfer:
     shells: int
     fit: float
     float_stack: bool
+    kernel_dim: int
+    kernel_residual: float
 
 
 @dataclass(frozen=True)
@@ -1826,8 +1839,10 @@ class PairVerdict:
       gives a′ ⊄ b for every a ⊆ a′ (the point is a′'s too; ``witness``,
       ``d`` and ``dual`` carry whole and re-verify against ``b``), and
       a ⊄ c for every c ⊆ b (the point is outside the smaller cone; the
-      witness is carried as evidence on ``b``'s stack, ``via`` naming it,
-      and ``d`` is (lower, 1), the zero model bounding the distance).  ⊆ is
+      witness is carried as evidence on ``b``'s stack, ``via`` naming it —
+      it verifies against the b of ``via``, the stack it was issued on, not
+      against the verdict's own b — and ``d`` is (lower, 1), the zero model
+      bounding the distance).  ⊆ is
       read from ``proved-contained`` verdicts only, never from a sampled
       one.
     * ``transfer`` — the sign-free fit transfer, issue #565 item 6: a
@@ -1903,8 +1918,11 @@ class PairVerdict:
     ``sampled-contained`` carries a witness only when a draw was certified
     below the gate and then reproduced to ``rtol``.  ``isometry`` is set
     on an ``isometry`` verdict, ``containment`` on a ``span`` one and
-    ``transfer`` on a ``transfer`` one, and on nothing else; ``via`` on a
-    ``propagated``, ``containment`` or ``transfer`` one.  Everything is a
+    ``transfer`` on a ``transfer`` one, and on a ``propagated`` or
+    ``containment`` one whose source has it (the record is the source's: its
+    ``x`` is in the amplitude basis of the source's c, ``via[0]`` of a
+    propagated verdict, and verifies against that family's stack, not the
+    copy's); ``via`` on a ``propagated``, ``containment`` or ``transfer`` one.  Everything is a
     tuple, so the record stays hashable.
     """
 
@@ -3355,6 +3373,44 @@ def _cone_margin(grams: np.ndarray, y_hat: np.ndarray) -> tuple[float, float, fl
     return lam, gamma, lam / max(gamma, 1e-300)
 
 
+def _transfer_margin(g: np.ndarray, y_hat: np.ndarray) -> tuple[float, float, float, int, float]:
+    """(λ′, Γ, μ, kernel dimension, r_K) of ŷ on ``b``'s certificate stack: every image point of ``b`` has cos(ŷ, I) ≥ μ.
+
+    On a stack without a kernel, or with an exact one (r_K = 0), this is
+    :func:`_cone_margin` on the projected stack, whose claim is
+    unconditional.  Where r_K > 0 the projected stack covers only
+    amplitudes along the live directions, and a model of ``b`` is
+    b = Pu + Kv: on the stack scaled to max 1, g_s, with M = Σ_s ŷ_s g_s
+    and Y = Σ_s |ŷ_s|‖g_s‖₂,
+
+        ŷ·I(b) = bᵀMb ≥ (λ′_P − r_K·Y·(2ρ + ρ²))‖u‖²,   ‖I(b)‖ ≤ Γ(1 + ρ²)‖u‖²,
+
+    for ‖v‖ ≤ ρ‖u‖ (the cross and kernel blocks of M are each at most r_K·Y
+    in 2-norm, as in :func:`_kernel_amplitude_ratio`), λ′_P the projected
+    eigenvalue after its backward error and Γ = (Σ_s ‖g_s‖₂²)^½ on the full
+    stack.  The cone then holds for every amplitude of ``b`` whose kernel
+    component is at most ρ = :data:`KERNEL_AMPLITUDE_RATIO` times its live
+    one, the same statement a Farkas witness makes (``kernel_amplitude_ratio``),
+    and the returned Γ is Γ(1 + ρ²), so that μ = λ′/Γ as in the record.
+    The margins read against this go down to 1.7e-9 and r_K is accepted up
+    to :data:`INTENSITY_RTOL`, so the term is not negligible where the
+    transfer is tightest.
+    """
+    projected, kernel, residual = _live_projection(g)
+    if kernel == 0 or residual <= 0.0:
+        return (*_cone_margin(projected, y_hat), kernel, residual)
+    g1 = g / max(float(np.max(np.abs(g))), 1e-300)
+    _, p, _ = _common_kernel(g1)
+    w = np.linalg.eigvalsh(p.T @ np.einsum("s,sij->ij", y_hat, g1) @ p)
+    eps = float(np.finfo(np.float64).eps)
+    norms = np.linalg.norm(g1, 2, axis=(1, 2))
+    ratio = KERNEL_AMPLITUDE_RATIO
+    lam = float(w[0]) - g1.shape[1] * eps * float(np.max(np.abs(w))) \
+        - residual * float(np.sum(np.abs(y_hat) * norms)) * (2.0 * ratio + ratio ** 2)
+    gamma = float(np.sqrt(np.sum(norms ** 2))) * (1.0 + ratio ** 2)
+    return lam, gamma, lam / max(gamma, 1e-300), kernel, residual
+
+
 def _farkas_dual(grams: np.ndarray, t_hat: np.ndarray) -> tuple[float, np.ndarray]:
     """max λ_min(Σ_s y_s G_s) over y·t̂ = −1, as (λ_min/|λ|_max at the maximiser, y).
 
@@ -3749,11 +3805,11 @@ def _fit_transfer(witness: Witness, grams_b: np.ndarray, dark_b: np.ndarray,
     w = None if witness.weights is None else np.asarray(witness.weights, dtype=np.float64)
     w_live = None if w is None else w[live]
     g, t_hat = _certificate_stack(grams_b[live], t[live], w_live)
-    projected, _, residual = _live_projection(g)
+    projected, kernel, residual = _live_projection(g)
     if residual > INTENSITY_RTOL:
         return False, None
     y_hat = np.asarray(witness.interior, dtype=np.float64)
-    lam, gamma, mu = _cone_margin(projected, y_hat)
+    lam, gamma, mu, _, _ = _transfer_margin(g, y_hat)
     if mu <= 0.0:
         return False, None
     gc = grams_c / max(float(np.max(np.abs(grams_c))), 1e-300)
@@ -3778,7 +3834,8 @@ def _fit_transfer(witness: Witness, grams_b: np.ndarray, dark_b: np.ndarray,
     fit = float(np.linalg.norm(i_live / norm_i - t_hat))
     record = Transfer(x=tuple(float(v) for v in x), cos=cos, mu=mu, rho=rho, lambda_prime=lam,
                       gamma=gamma, kappa=kappa, n_b=int(n_b), n_c=int(n_c), shells=int(shells),
-                      fit=fit, float_stack=bool(mu < TRANSFER_FLOAT_STACK))
+                      fit=fit, float_stack=bool(mu < TRANSFER_FLOAT_STACK),
+                      kernel_dim=int(kernel), kernel_residual=float(residual))
     return bool(cos < mu - rho), record
 
 
@@ -4300,8 +4357,10 @@ def _propagate(source: PairVerdict, verdicts: dict[tuple[int, int], PairVerdict]
     disagree are a defect in a certificate, and raise rather than pick);
     anything else — undecided, sampled, unresolved — is replaced by the
     source's status under certificate ``propagated``, ``via`` the source
-    pair, with its ``d``, ``witness`` and ``dual`` (the witness is about the
-    draw and a stack congruent to b's, so it re-verifies against b's own).
+    pair, with its ``d``, ``witness``, ``dual`` and ``transfer`` (the witness is
+    about the draw and a stack congruent to b's, so it re-verifies against
+    b's own; a transfer's ``x`` stays in the amplitude basis of the *source's*
+    c, ``via[0]``, and verifies against that family's stack).
     A sampled source carries nothing: only a ``proved-*`` status is read.
     """
     if not source.proved or source.certificate == "propagated":
@@ -4334,7 +4393,8 @@ def _propagate(source: PairVerdict, verdicts: dict[tuple[int, int], PairVerdict]
             spent = current.draws if current is not None else 0
             verdicts[(a, b)] = PairVerdict(a, b, source.status, "propagated", spent, 0,
                                            d=source.d, witness=source.witness,
-                                           dual=source.dual, via=(source.a, source.b))
+                                           dual=source.dual, transfer=source.transfer,
+                                           via=(source.a, source.b))
 
 
 def equivalence_classes(candidate_set: CandidateSet, refl: ReflectionSet, *,

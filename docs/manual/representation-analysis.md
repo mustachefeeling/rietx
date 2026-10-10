@@ -338,11 +338,12 @@ every family containing $A$, and is out of reach of every family inside
 $B$ (`containment`, naming its source). It also travels to a third family
 $C$ that reproduces the draw, by a bound that reads no sign: the
 certificate's direction $\hat{\mathbf{y}}$ puts the whole of $B$'s image
-inside the cone $\cos(\hat{\mathbf{y}}, \mathbf{I}) \ge \mu$, and $C$'s
+(where $B$'s stack has a near-kernel, its amplitudes with a kernel component
+no larger than the live one) inside the cone $\cos(\hat{\mathbf{y}}, \mathbf{I}) \ge \mu$, and $C$'s
 exact image point at the draw, formed from its fitted amplitudes with
 their component along $C$'s own kernel projected out, lies below
-$\mu - \rho$, $\rho$ a stated rounding allowance (`transfer`, with every
-number printed; a margin $\mu$ below $10^{-8}$ is labelled "proved on the
+$\mu - \rho$, $\rho$ a stated rounding allowance (`transfer`, stored with
+every number, the cosine and $\mu - \rho$ printed; a margin $\mu$ below $10^{-8}$ is labelled "proved on the
 float Gram stack"). A transfer that does not fire is undecided, never
 "equal", and nothing sampled is ever read as a containment. Every other
 "equivalent", and every

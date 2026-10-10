@@ -3580,6 +3580,7 @@ def _f43m_arm(f43m_stack, monkeypatch):
     return subset, reflections, witness, state
 
 
+@pytest.mark.slow
 @pytest.mark.xdist_group("magnetic-f43m")
 def test_the_containment_transfers_carry_the_f43m_witness_to_every_s4_family(f43m_stack,
                                                                              monkeypatch):
@@ -3628,6 +3629,11 @@ def test_the_containment_transfers_carry_the_f43m_witness_to_every_s4_family(f43
     labels = f43m_stack[5]
     for key in (("S4(rank 2)#2", "S5(rank 2)#1"), ("S4(a,b,c)", "S5(rank 2)#1")):
         assert isotropy._verify_witness(grams[labels.index(key[1])], v[key].witness)[0]
+    # a containment verdict's witness verifies against the b of its ``via`` pair, the stack it
+    # was issued on, rule 2's carried witness included (its own b is the smaller family)
+    for r in relations:
+        if r.certificate == "containment":
+            assert isotropy._verify_witness(grams[labels.index(names[r.via[1]])], r.witness)[0], r
     reverse = v[("S4(rank 1)#1", "S5(rank 1)#3")]
     assert (reverse.via, reverse.d) == ((0, 6), (found.d[0], 1.0))
     assert all(r.status == "proved-not" for r in relations
@@ -3648,6 +3654,7 @@ def test_the_containment_transfers_carry_the_f43m_witness_to_every_s4_family(f43
     assert "classes holding a proved separation (part 5 of issue #565 splits them): 0" in text
 
 
+@pytest.mark.slow
 @pytest.mark.xdist_group("magnetic-f43m")
 def test_the_fit_transfer_reaches_the_families_the_containments_would_have(f43m_stack,
                                                                             monkeypatch):
@@ -3754,7 +3761,7 @@ def test_transfers_read_only_proved_containments_and_refuse_a_contradiction():
 
     record = isotropy.Transfer(x=(1.0, 0.0), cos=-1e-12, mu=1e-6, rho=1e-11, lambda_prime=1e-6,
                                gamma=1.0, kappa=1.0, n_b=2, n_c=2, shells=3, fit=1e-12,
-                               float_stack=False)
+                               float_stack=False, kernel_dim=0, kernel_residual=0.0)
     verdicts = fresh()
     verdicts[(0, 3)] = isotropy.PairVerdict(0, 3, "proved-not", "transfer", 4, 0, d=(0.01, 0.1),
                                             witness=witness, transfer=record, via=(2, 3))
@@ -3767,6 +3774,105 @@ def test_transfers_read_only_proved_containments_and_refuse_a_contradiction():
     with pytest.raises(RuntimeError, match="two certificates disagree"):
         isotropy._transfers(verdicts, list(range(n)), grams, dark, silent, n=n, seed=1,
                             rtol=1e-4, restarts=2)
+
+
+def _kernel_stack(d: float, r: float) -> np.ndarray:
+    """Three shells of a 3-amplitude ``b`` whose third amplitude is a near-kernel: shell s is a_s·I on (0, 1), a coupling r to the kernel direction and r²·2/a_s on it, a = (1 + d, 1, 2)."""
+    shells = []
+    for a in (1.0 + d, 1.0, 2.0):
+        shells.append(np.array([[a, 0.0, r], [0.0, a, 0.0], [r, 0.0, 2.0 * r * r / a]]))
+    return np.array(shells)
+
+
+def _kernel_witness():
+    """A witness whose interior ŷ = (1, −1, 0)/√2 puts M(ŷ) = (d/√2)·I on the live directions: the margin is d/√2 over Γ, as small as the stack's d."""
+    return isotropy.Witness(
+        draw=1, t=(1.0, 1.0, 1.0), live=(0, 1, 2), y=(1.0, -1.0, 0.0), weights=None,
+        kernel_dim=1, kernel_residual=0.0, kernel_amplitude_ratio=float("inf"), ratio=1e-9,
+        rounding_bound=1e-15, exact=True, d=(0.01, 0.1),
+        interior=(1.0 / np.sqrt(2.0), -1.0 / np.sqrt(2.0), 0.0), margin=1e-9)
+
+
+def test_the_fit_transfer_reads_the_kernel_leak_of_the_stack_it_bounds():
+    """A cone margin on b's projected stack is not a margin on b's full stack: r_K·Y·(2ρ + ρ²) is subtracted, and a margin it exceeds fires nothing.
+
+    ``b`` has a near-kernel (coupling r = 2e-9, r_K ≈ 5e-10, accepted: r_K ≤
+    :data:`isotropy.INTENSITY_RTOL`); ``c`` is a one-amplitude family
+    whose image point is (1, 3, 1), at cos(ŷ, I_c) = −0.43, far below any
+    positive margin.  Reviewer's item 1 on #853: with d = 2e-9 the
+    projected margin is positive (1.4e-9 over Γ), so a bound read on the
+    projected stack alone fires, while a model of ``b`` with a kernel
+    component as large as its live one can leave the cone by 3·r_K·Y =
+    2.1e-9; the transfer then declines.  Positive arms: the same family
+    at d = 1 (the margin dwarfs the leak) fires, with the cone narrowed by
+    the 1 + ρ² of the norm bound, and at r = 0 (an exact kernel) it
+    fires at any d, the record carrying both kernel numbers.
+    """
+    dark = np.zeros(3, dtype=bool)
+    grams_c = np.array([1.0, 3.0, 1.0]).reshape(3, 1, 1)
+    witness = _kernel_witness()
+    y_hat = np.array(witness.interior)
+
+    thin = _kernel_stack(2e-9, 2e-9)
+    projected, kernel, residual = isotropy._live_projection(thin)
+    assert kernel == 1 and 4e-10 < residual <= isotropy.INTENSITY_RTOL
+    assert isotropy._cone_margin(projected, y_hat)[2] > 0.0      # what the old code read, and fired on
+    assert isotropy._fit_transfer(witness, thin, dark, grams_c, [1.0]) == (False, None)
+    assert isotropy._transfer_margin(thin, y_hat)[2] < 0.0
+
+    wide = _kernel_stack(1.0, 2e-9)
+    fires, record = isotropy._fit_transfer(witness, wide, dark, grams_c, [1.0])
+    assert fires and record.cos < -0.4 and record.kernel_dim == 1
+    assert 4e-10 < record.kernel_residual <= isotropy.INTENSITY_RTOL
+    lam, gamma, mu = isotropy._cone_margin(isotropy._live_projection(wide)[0], y_hat)
+    assert 0.0 < record.mu < mu and record.mu == pytest.approx(record.lambda_prime / record.gamma)
+
+    exact = _kernel_stack(2e-9, 0.0)
+    fires, record = isotropy._fit_transfer(witness, exact, dark, grams_c, [1.0])
+    assert fires and record.kernel_dim == 1 and record.kernel_residual < 1e-15 and record.mu > 0.0
+    assert isotropy._verify_transfer(witness, exact, dark, grams_c, record)
+
+
+def test_a_propagated_transfer_verdict_keeps_its_record_and_is_not_fitted_again():
+    """:func:`isotropy._propagate` carries ``transfer`` to the isometric copies, so :func:`isotropy._transfers`' loop, which skips a verdict with a record, skips the copy too.
+
+    Reviewer's item 2 on #853: the copy (2, 1) of a ``transfer`` verdict
+    (0, 1) came out ``propagated`` with ``transfer=None``, and the loop
+    read its witness (0's draw, not a point of 2's image) as 2's own and
+    fitted every third family to it.  Here 0 ≅ 2, nothing else is an
+    isometric copy, and the fit is stubbed to count its calls: none may be
+    made, for the source or its copy.
+    """
+    _, parts = isotropy._farkas_certificate(SYNTHETIC_STACK, SYNTHETIC_OUT)
+    witness = isotropy.Witness(
+        draw=1, t=tuple(SYNTHETIC_OUT), live=(0, 1, 2), y=tuple(parts["y"]), weights=None,
+        kernel_dim=0, kernel_residual=0.0, kernel_amplitude_ratio=float("inf"),
+        ratio=parts["ratio"], rounding_bound=parts["rounding_bound"], exact=True,
+        d=(0.01, 0.1), interior=tuple(parts["interior"]), margin=parts["margin"])
+    record = isotropy.Transfer(x=(1.0, 0.0), cos=-1e-12, mu=1e-6, rho=1e-11, lambda_prime=1e-6,
+                               gamma=1.0, kappa=1.0, n_b=2, n_c=2, shells=3, fit=1e-12,
+                               float_stack=False, kernel_dim=0, kernel_residual=0.0)
+    n = 4
+    verdicts = {(i, j): isotropy.PairVerdict(i, j, "unresolved", None, reason="joined")
+                for i in range(n) for j in range(n) if i != j}
+    verdicts[(0, 1)] = isotropy.PairVerdict(0, 1, "proved-not", "transfer", d=(0.01, 0.1),
+                                            witness=witness, transfer=record, via=(3, 1))
+    copies = [0, 1, 0, 3]
+    isotropy._propagate(verdicts[(0, 1)], verdicts, copies, n)
+    copy = verdicts[(2, 1)]
+    assert (copy.status, copy.certificate, copy.via) == ("proved-not", "propagated", (0, 1))
+    assert copy.transfer is record and copy.witness is witness
+
+    calls = []
+    original = isotropy._transfer_fit
+    isotropy._transfer_fit = lambda *args, **kwargs: calls.append(args) or None
+    try:
+        isotropy._transfers(verdicts, copies, [SYNTHETIC_STACK] * n,
+                            [np.zeros(3, dtype=bool)] * n, [False] * n, n=n, seed=1, rtol=1e-4,
+                            restarts=2)
+    finally:
+        isotropy._transfer_fit = original
+    assert calls == []
 
 
 def test_the_fit_transfer_reads_the_margin_and_not_the_sign():
