@@ -43,11 +43,11 @@ def _fitted(stretch: float):
     return ref, pattern
 
 
-def _png(arms):
+def _png(arms, stem="body_misfit"):
     """An ``on_arm`` hook saving each arm's obs/calc/diff (tests/CLAUDE.md § Running)."""
     def hook(body, arm, result):
         arms.append((arm, result))
-        trb._save_fit_png(result, f"body_misfit_{body}_{arm}")
+        trb._save_fit_png(result, f"{stem}_{body}_{arm}")
     return hook
 
 
@@ -146,7 +146,8 @@ def test_the_arms_carry_the_callers_declarations():
     ref.fit(pattern, two_theta_limits=(10.0, 40.0), plan=RefinementPlan(stages=[
         Stage("body", trb.BODY_GLOBS, max_iter=200)]))
     arms: list = []
-    out = ref.check_rigid_bodies(pattern, on_arm=lambda b, a, r: arms.append(r))
+    out = ref.check_rigid_bodies(pattern, on_arm=_png(arms, "body_misfit_limited"))
+    arms = [r for _, r in arms]
     assert all(r.statistics.n_points < n_full for r in arms)
     assert all(r.statistics.n_points == arms[0].statistics.n_points for r in arms)
     (row,) = out.rows
@@ -181,6 +182,6 @@ def test_an_interior_bond_error_fires_and_is_named():
     ref = Refinement(_chain_structure(0.3), trb.INS, history=False)
     ref.fit(pattern, plan=RefinementPlan(stages=[
         Stage("body", trb.BODY_GLOBS, max_iter=200)]))
-    (row,) = ref.check_rigid_bodies(pattern).rows
+    (row,) = ref.check_rigid_bodies(pattern, on_arm=_png([], "body_misfit_chain")).rows
     assert row.fires
     assert "C0–C6" in [d[0] for d in row.deviations[:3]]
