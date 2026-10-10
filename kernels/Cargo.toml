@@ -1,6 +1,8 @@
 # The major version is the kernel interface number, KERNEL_ABI: rietx pins
-# `rietx-kernels>=N,<N+1` and re-checks the integer at import (WP-1940).
-# Bump it with any change to a kernel's name, arguments or output planes.
+# `rietx-kernels>=N.M,<N+1` and re-checks the integer at import (WP-1940).
+# Bump it with any change to a kernel's name, arguments or output planes.  A
+# new kernel bumps the minor, and N.M is the minor that added the newest
+# kernel rietx calls.
 [package]
 name = "rietx-kernels"
 version = "1.1.0"
