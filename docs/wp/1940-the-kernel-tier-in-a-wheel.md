@@ -64,12 +64,23 @@ why the kernels are not shipped inside rietx:
    pydantic-core, jsonschema on rpds-py.
 7. **1.0.0 publishes the bit-identical kernels.** The migration then moves no
    number. The vectorised exponential ships as 1.1.0 and carries the one
-   golden re-pin, so each release has one effect.
+   golden re-pin, so each release has one effect. *Superseded in part
+   2026-10-10 (4th session) by item 9:* the exponential is 1.2.0.
 8. **numba leaves all three tiers at the migration.** Both other tiers keep a
    bit-exact numpy twin, which is each one's test oracle, so neither port
    blocks the drop (§ The other two numba tiers has the cost). The indexing
    traversal stays on numpy. The rasteriser is ported afterwards. This
    replaces the interim extra the task list carried.
+
+One more, taken 2026-10-10 in the 4th session, on a measurement that moved
+the premise of item 8:
+
+9. **The rasteriser port is the next kernel release, 1.1.0, and the
+   vectorised exponential moves to 1.2.0.** On numpy, `view="auto"` takes
+   1.30-1.36 s on the NAC cell at 400 px, against 92 ms on numba, and 22.6 s
+   at 3143 atoms, against 565 ms. Item 8 was taken on § The other two numba
+   tiers' 5-8×, which timed plain renders only. numba still leaves the figure
+   in the `compiled.py` PR.
 
 ### What 1939 established
 
@@ -323,8 +334,8 @@ measurement. FPA and the peaks buffer stay fenced (1122).
       (SLEEF is Boost-licensed, ARM optimized-routines MIT, numpy's SIMD `exp`
       BSD; GPL sources are concepts only), state its bound, loop interchange
       in the two FCJ kernels, the bound asserted, goldens re-pinned once;
-      measured against the serial numbers above. Released as 1.1.0, with
-      the relaxed rule (§ Decisions item 7).
+      measured against the serial numbers above. Released as 1.2.0, with
+      the relaxed rule (§ Decisions items 7 and 9).
 - [ ] x86-64-v3 multiversioning, measured on the Linux x86_64 runner against
       1939's 0.85–0.97×.
 - [x] Release machinery: `kernels.yml` (five wheels, each tested on its own
@@ -339,8 +350,9 @@ measurement. FPA and the peaks buffer stay fenced (1122).
       compiled-tier clause rewritten; the figure on its numpy rasteriser;
       `pyproject`'s dependency comment rewritten.
 - [ ] Port the rasteriser into the crate against its bit-exact numpy twin
-      (`raster.py`'s docstring) and the figure tests; a minor release. If
-      WP-1505 moves the figure into rietview first, the port goes there.
+      (`raster.py`'s docstring) and the figure tests; released as 1.1.0,
+      the next kernel release (§ Decisions item 9). If WP-1505 moves the
+      figure into rietview first, the port goes there.
 - [ ] Tests: the guard, the bars, the branch counters, `test_capabilities`'s
       new flag writer, `test_compiled_kernels.py` on both paths; the fast
       selection's passed+skipped delta quoted. When numba leaves, the
