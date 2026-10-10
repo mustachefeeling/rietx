@@ -247,7 +247,12 @@ in 20 minutes is known only after ten main runs on the merged tree.
   is the first run after the kernel wheel replaced numba (#864, WP-1940's
   first half). The record has a numpy and a jax profile, because
   `test_cross_backend.py` costs 391 s on the jax leg and 16 s elsewhere.
-  `tests/test_shards.py` holds 23 cases. A lane built this.
+  `tests/test_shards.py` holds 26 cases. A lane built this.
+- A module skipped at import is reported by shard 1 alone (886f5c93). Such
+  a module has no item for the split to place. On CI's first sharded run
+  every shard counted its skip, and py3.14's two shards summed to 9223 cases
+  against the base's 9192 plus 23 added. The eight extra were jax, torch and
+  six browser files.
 - `ci.yml`: py3.11, py3.14 and jax, two shards each. The artifacts are
   `junit-py3.14-1` and so on.
 - `nightly.yml`: a `py312` fast job. `tests/record_environment.py` replaces
@@ -280,19 +285,24 @@ in 20 minutes is known only after ten main runs on the merged tree.
 
 **Measured:**
 
-- Fast, `[dev]`, macOS arm64, Python 3.12, no other pytest running, load
-  6-12: 9038 passed, 177 skipped, 1 xfailed. passed+skipped+xfailed is 9216.
-  The base is 9192, from CI's py3.12 junit at 33fe516e (run 38091884560).
-  The 24 added cases are 23 in `test_shards.py` and 1 in
-  `test_added_test_times.py`. Wall 4:13.
-- Collection, same venv, before the review's one added case: 9207
-  unsharded, 4377 at `1/2` and 4830 at `2/2`. The shards are disjoint and
+- Fast on the final tree, `[dev]`, macOS arm64, Python 3.12, no other
+  pytest running: 9041 passed, 177 skipped, 1 xfailed, so 9219 in all. The
+  base is 9192 cases in CI's py3.12 and py3.14 junit at 33fe516e (run
+  38091884560). The 27 added cases are 26 in `test_shards.py` and 1 in
+  `test_added_test_times.py`. Wall 4:36.
+- First sharded CI run, 38093251416 on 953c3639, dispatched on the branch.
+  One run, so a direction only. Job walls, setup included: py3.11 13.3 and
+  15.0 min, py3.14 10.7 and 11.1, jax 15.1 and 16.7. The slowest job was
+  16.7 min. Test seconds per shard: py3.11 1497 and 1698, py3.14 1159 and
+  1258, jax 1717 and 1924. Shard 2 is the heavier by 8-13 % on every leg.
+- The end-to-end row cost 4.8 s on CI's py3.14, well short of the tail.
+- Collection, same venv, before the last four added cases: 9207 unsharded, 4377 at `1/2` and 4830 at `2/2`. The shards are disjoint and
   their union is the unsharded list. Estimated shard seconds are 1492 and
   1492 under numpy, 1186 and 1186 under jax. The fast tier's one multi-file
   unit is `test_help.py`, `test_landing.py` and `test_manual.py`
   (`manual-build`).
 - Added tests, local junit: `test_shards.py` 9.94 s, of which 9.88 s is the
-  end-to-end row. It starts pytest three times.
+  end-to-end row. It starts pytest three times. The machine was loaded.
 - Lane, `session_usage.py lanes`: shard-mechanism, estimate 25, actual 24
   requests, dispatched at 186K. Its re-read was 5K of 9K. Main made 22
   requests while it ran. Lane $1.24, saved −$1.12 (−17 % of the session).
@@ -322,7 +332,7 @@ Next:
    once) and the tail (`test_magnetic_isotropy`, WP-1418).
 3. Check that the nightly's `py312` job runs green once.
 4. Refresh the record from a sharded main run if one leg's two shards
-   differ by more than a few minutes.
+   differ by more than a few minutes. The first run had them 0.4-1.7 min apart.
 
 ### 2026-10-10 — a fix from WP-1936's session (reconstructed post hoc)
 
