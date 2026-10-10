@@ -185,7 +185,7 @@ only if the last task moves Python versions into the nightly.
       the middle two in the nightly. (Six runs, not ten: every one was over.)
 - [x] Shard each fast leg in two by recorded junit time, every `xdist_group`
       and every file whole (`tests/shards.py`, `tests/shard_times.json`).
-- [ ] `ci.yml` runs py3.11, py3.14 and jax, two shards each. py3.12 runs in
+- [x] `ci.yml` runs py3.11, py3.14 and jax, two shards each. py3.12 runs in
       the nightly, where `full` already covers 3.13. The nightly's three
       copies of the environment line become one module every leg calls.
 - [x] `added_test_times.py` reads a directory of shard files, and
