@@ -375,7 +375,8 @@ class _Shadow:
 
 def agreement(case: str, wheel: dict) -> tuple[int, set[str], bool]:
     """Print the table; return how many calls missed their bar, which kernels
-    the fit called, and whether the twins reproduced the numpy path."""
+    the fit called, and the twins check: ``"same"``, ``"drifted"``, or
+    ``"unchecked"`` where the numpy path does not reproduce itself."""
     print(f"\n## 1. Agreement with the numpy path inside one {case} fit "
           "(threads = 1)\n")
     shadow = _Shadow(wheel)
@@ -419,8 +420,9 @@ def agreement(case: str, wheel: dict) -> tuple[int, set[str], bool]:
         print(f"| {k} | {shadow.calls[k]} | {ran} | {shadow.same.get(k, 0)} | "
               f"{shadow.rel.get(k, 0.0):.1e} | {shadow.ulps.get(k, 0.0):.0f} | "
               f"{bar} | {past} |")
-    faithful = gap == "bit-identical" or noise != "bit-identical"
-    return sum(shadow.past.values()), set(shadow.calls), faithful
+    twins = ("unchecked" if noise != "bit-identical"
+             else "same" if gap == "bit-identical" else "drifted")
+    return sum(shadow.past.values()), set(shadow.calls), twins
 
 
 def pool_engagement(setup) -> None:
@@ -578,7 +580,7 @@ def main(argv: list[str] | None = None) -> int:
           f"{platform.python_version()}, numpy {np.__version__}, rietx_kernels "
           f"{rietx_kernels.__version__} (interface {rietx_kernels.KERNEL_ABI}), "
           f"rietx {rx.__version__}")
-    past, called, drifted = 0, set(), []
+    past, called, drifted, unchecked = 0, set(), [], []
     for case in args.cases.split(","):
         if "1" not in skip:
             # serial: ``_spread`` runs a kernel inline when the pool it reads
@@ -586,13 +588,13 @@ def main(argv: list[str] | None = None) -> int:
             pool = compiled._pool()
             compiled._POOL_WORKERS = 1
             try:
-                bad, ran, faithful = agreement(case, wheel)
+                bad, ran, twins = agreement(case, wheel)
             finally:
                 compiled._POOL_WORKERS = pool._max_workers
             past += bad
             called |= ran
-            if not faithful:
-                drifted.append(case)
+            {"drifted": drifted, "unchecked": unchecked}.get(
+                twins, []).append(case)
         if "2" not in skip:
             end_to_end(case, wheel, args.repeats)
     if "3" not in skip:
@@ -608,8 +610,10 @@ def main(argv: list[str] | None = None) -> int:
                   f"{', '.join(never) or 'none'}; the twins left the numpy "
                   f"path in: {', '.join(drifted) or 'none'}")
             return 1
-        print("GATE: every kernel was called, every call met its bar, and "
-              "the twins reproduced the numpy path")
+        print("GATE: every kernel was called and every call met its bar; "
+              "the twins reproduced the numpy path"
+              + (f" except where it does not reproduce itself: "
+                 f"{', '.join(unchecked)}" if unchecked else ""))
     return 0
 
 
