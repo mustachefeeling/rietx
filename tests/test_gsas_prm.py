@@ -276,10 +276,10 @@ def test_multi_bank_pxcr_is_refused(tmp_path):
 
 
 def test_duplicate_prcf1_header_for_one_bank_is_refused(tmp_path):
-    """The one real file that declares its profile function twice under one
-    bank (a stock GSAS example stacking types 2/3/4 with placeholder values)
-    is ambiguous about which applies — refused rather than picking the first
-    or the last silently."""
+    """One profile set declared twice under one bank is ambiguous about which
+    applies — refused rather than picking the first or the last silently.
+    Several *different* sets side by side are a choice the caller makes
+    (``profile_set``, below)."""
     p = tmp_path / "duplicate.prm"
     p.write_text(_prm(extra_headers=("INS  1PRCF1     3   19   0.00100",
                                      "INS  1PRCF11   0.0   0.0   0.0   0.0",
@@ -290,6 +290,93 @@ def test_duplicate_prcf1_header_for_one_bank_is_refused(tmp_path):
                  encoding="utf-8")
     with pytest.raises(ValueError, match="more than once"):
         read_gsas_prm(p)
+
+
+def _prcf_set(n: int, function: int, coeffs: tuple[float, ...]) -> str:
+    """One ``PRCFn`` block, four coefficients to a continuation record."""
+    lines = [f"INS  1PRCF{n}     {function}   {len(coeffs)}   0.00100"]
+    for k in range(0, len(coeffs), 4):
+        lines.append(f"INS  1PRCF{n}{k // 4 + 1}   "
+                     + "   ".join(f"{v:.6f}" for v in coeffs[k:k + 4]))
+    return "\n".join(lines) + "\n"
+
+
+#: Set 3 of the multi-set files below: GU GV GW, GP, LX LY, S/L H/L, then
+#: eleven zeros to type 3's nineteen.
+_SET3 = (2.0, -1.0, 0.5, 0.0, 0.3, 0.0, 0.004, 0.003) + (0.0,) * 11
+
+
+def test_a_type_1_set_beside_a_type_3_one_is_refused_naming_the_type_3_set(tmp_path):
+    """``BT1_Cu311.inst`` from GSAS-II's tutorials offers profile types 1, 2
+    and 3 as sets 1, 2 and 3.  Set 1 is the one read by default, as GSAS-II's
+    importer reads it, and type 1 is refused; the refusal names set 3."""
+    p = tmp_path / "sets.prm"
+    p.write_text(_prm(prcf_type=1, ncoef=6, coeffs=(2.0, -1.0, 0.5, 5.0, 0.0, 0.0))
+                 + _prcf_set(3, 3, _SET3), encoding="utf-8")
+    with pytest.raises(ValueError, match=r"type-3 profile as set 3; "
+                                         r"read_gsas_prm\(\.\.\., profile_set=3\)"):
+        read_gsas_prm(p)
+
+    notes: list = []
+    inst = read_gsas_prm(p, profile_set=3, diagnostics=notes)
+    assert inst.profile.u.value == pytest.approx(2.0e-4 * _G, rel=1e-12)
+    assert inst.profile.x.value == pytest.approx(0.3e-2, rel=1e-12)
+    assert inst.geometry.axial_sl.value == pytest.approx(0.004)
+    assert inst.geometry.axial_hl.value == pytest.approx(0.003)
+    # a set the caller named is not a default
+    assert "GSAS_PRM_PROFILE_SET_DEFAULTED" not in {d.code for d in notes}
+
+
+def test_several_type_3_sets_read_the_first_and_say_so(tmp_path):
+    p = tmp_path / "sets.prm"
+    p.write_text(_prm() + _prcf_set(2, 3, _SET3), encoding="utf-8")
+    notes: list = []
+    first = read_gsas_prm(p, diagnostics=notes)
+    assert first.profile.x.value == pytest.approx(0.15e-2, rel=1e-12)
+    defaulted = [d for d in notes if d.code == "GSAS_PRM_PROFILE_SET_DEFAULTED"]
+    assert len(defaulted) == 1
+    assert "set 1 (type 3), set 2 (type 3)" in defaulted[0].message
+    assert read_gsas_prm(p, profile_set=2).profile.x.value == pytest.approx(
+        0.3e-2, rel=1e-12)
+
+
+def test_a_profile_set_the_file_does_not_state_is_refused_naming_those_it_does(tmp_path):
+    p = tmp_path / "one.prm"
+    p.write_text(_prm(), encoding="utf-8")
+    with pytest.raises(ValueError, match=r"profile_set=2, and bank 1 states "
+                                         r"profile set\(s\) 1"):
+        read_gsas_prm(p, profile_set=2)
+
+
+def test_a_file_with_no_set_1_is_refused_rather_than_read_from_another(tmp_path):
+    """Set 1 is the default because GSAS-II reads set 1, so a file stating
+    only set 2 is not silently read as if it were."""
+    p = tmp_path / "two.prm"
+    p.write_text(_prm().replace("PRCF1", "PRCF2"), encoding="utf-8")
+    with pytest.raises(ValueError, match=r"set 1 is the one read, and bank 1 "
+                                         r"states profile set\(s\) 2"):
+        read_gsas_prm(p)
+    assert read_gsas_prm(p, profile_set=2).profile.x.value == pytest.approx(
+        0.15e-2, rel=1e-12)
+
+
+def test_an_overflowed_prcf_cutoff_is_reported_once(tmp_path):
+    """The set listing and the set read share one read of each header, so an
+    optional field that overflowed is one row, not two."""
+    p = tmp_path / "overflow.prm"
+    p.write_text(_prm().replace("INS  1PRCF1     3   19   0.00100",
+                                "INS  1PRCF1     3   19" + "*" * 10),
+                 encoding="utf-8")
+    notes: list = []
+    read_gsas_prm(p, diagnostics=notes)
+    assert [d.where for d in notes if d.code == "GSAS_FIELD_OVERFLOW"] == [
+        ["INS  1PRCF1"]]
+
+
+def test_bt1_cu311_names_its_type_3_set():
+    """The real file: set 1 is type 1, and the refusal points at set 3."""
+    with pytest.raises(ValueError, match="profile_set=3"):
+        read_gsas_prm(DATA / "gsas2_bt1_cu311.inst")
 
 
 def test_a_written_idamp_does_not_move_the_fields_after_it(tmp_path):
@@ -812,12 +899,22 @@ def test_the_two_hb2a_files_cross_on_one_diffractometer():
     ratios = [fwhm(prm.profile, tt) / fwhm(instprm.profile, tt)
               for tt in (10, 30, 60, 90, 120, 150)]
     # They are two calibrations (a different monochromator setting and
-    # resolution fit), so their widths differ with angle.  The spread of the
-    # ratio, 3.5 from its smallest to its largest, does not depend on whether
-    # the .instprm reader (#705) or the .prm reader (#735) carries the 8 ln 2:
-    # the level of the ratio does (0.42-1.49 with both, 0.98-3.5 with only
-    # this one), so the level is not asserted.
+    # resolution fit), so their widths differ with angle, 3.5 from the
+    # ratio's smallest to its largest.  Both files state a variance in
+    # centideg² and both readers convert it by one constant, so the ratio is
+    # the two files' own σ ratio exactly (0.42-1.49).  One reader with the
+    # 8 ln 2 and one without, the state between #705 and #735, moved it to
+    # 0.98-3.5 while the spread held.
     assert max(ratios) / min(ratios) > 3.0, ratios
+
+    def sigma(u, v, w, two_theta):
+        t = np.tan(np.radians(two_theta / 2))
+        return np.sqrt(u * t * t + v * t + w)
+
+    for tt, ratio in zip((10, 30, 60, 90, 120, 150), ratios, strict=True):
+        stated = (sigma(7.013626e+02, -1.157202e+03, 5.587603e+02, tt)
+                  / sigma(798.889, -444.367, 242.406, tt))
+        assert ratio == pytest.approx(stated, rel=1e-12), tt
     assert prm.zero_shift.value == 0.0
     assert instprm.zero_shift.value == pytest.approx(-0.009602591470493875)
     axial_prm = prm.geometry.axial_sl.value + prm.geometry.axial_hl.value
