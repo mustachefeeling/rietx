@@ -7,6 +7,9 @@ __pycache__/
 uv.lock
 dist/
 build/
+# WP-1939's spike extensions: cargo's output and the in-place Cython builds
+examples/aot_spike/rust/target/
+examples/aot_spike/cython/*.so
 .pytest_cache/
 .hypothesis/
 .coverage
