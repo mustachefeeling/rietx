@@ -18,7 +18,7 @@ from types import SimpleNamespace
 import pytest
 
 from tests import shards
-from tests.conftest import pytest_collection_modifyitems
+from tests.conftest import pytest_collection_modifyitems, pytest_make_collect_report
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -88,6 +88,21 @@ def test_a_malformed_or_out_of_range_shard_is_a_usage_error(spec):
     config = SimpleNamespace(option=SimpleNamespace(shard=spec))
     with pytest.raises(pytest.UsageError, match="--shard"):
         pytest_collection_modifyitems(config, [])
+
+
+@pytest.mark.parametrize(("spec", "reported"), [(None, True), ("1/2", True), ("2/2", False)])
+def test_a_module_skipped_at_import_is_reported_by_shard_one_alone(spec, reported):
+    """Such a module has no item to place, and each shard counted its skip
+    until the second shard learned to drop it: eight extra on CI's py3.14."""
+    module = object.__new__(pytest.Module)
+    module.config = SimpleNamespace(option=SimpleNamespace(shard=spec))
+    report = pytest.CollectReport("tests/test_x.py", "skipped",
+                                  ("tests/test_x.py", 1, "Skipped: no torch"), [])
+    wrapper = pytest_make_collect_report(module)
+    next(wrapper)
+    with pytest.raises(StopIteration) as done:
+        wrapper.send(report)
+    assert done.value.value.skipped is reported
 
 
 def test_no_shard_option_leaves_the_collection_alone():

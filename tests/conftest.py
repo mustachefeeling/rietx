@@ -196,6 +196,33 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     items[:] = selected
 
 
+@pytest.hookimpl(wrapper=True)
+def pytest_make_collect_report(collector: pytest.Collector):
+    """Report a module skipped at import from shard 1 alone.
+
+    A module-level ``importorskip`` skips the file before it has an item, so
+    the selection above cannot place it, and every shard reported its skip.
+    On CI's first sharded run the py3.14 leg's two shards summed to eight
+    more than the unsharded count: jax, torch and six browser files (WP-1547).
+    A leg's passed+skipped must sum to the unsharded total, because that total
+    is how a module that never ran gets seen (tests/CLAUDE.md § Quoting
+    numbers).
+    """
+    report = yield
+    spec = getattr(collector.config.option, "shard", None)
+    if spec is not None and report.skipped and isinstance(collector, pytest.Module):
+        from tests import shards
+
+        try:
+            k, _ = shards.parse(spec)
+        except ValueError:
+            return report   # pytest_collection_modifyitems raises the usage error
+        if k != 1:
+            report.outcome = "passed"
+            report.longrepr = None
+    return report
+
+
 @pytest.fixture(autouse=True)
 def _close_figures():
     yield
