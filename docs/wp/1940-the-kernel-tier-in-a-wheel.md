@@ -1,6 +1,6 @@
 # WP-1940 — the kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential
 
-Milestone: unscheduled · Status: 🔄 2026-10-10 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-10 — task 1 landed (PR #862, trigger 1.33×, bit-neutral); both packaging decisions taken, the crate (task 4) next
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: 1939
 Priority: P2 2026-10-10 — the decision is taken (Rust, § Decisions) and every agent install pays numba's 143 MB and warm-up until this lands; the first task is a bit-neutral 1.4× that ships on its own
@@ -334,6 +334,95 @@ with the guard green is a pass.
 - `docs/RELEASING.md` (build from the tag, never by hand).
 
 ## Handover log
+
+### 2026-10-10 (2nd session) — task 1 landed, and both packaging decisions taken
+
+The kernel thread pool now splits a call when the call's estimated work can
+pay for it, instead of when the call has many rows. The trigger fit, the one
+benchmark whose time sits in the FCJ kernels, now takes 4.2-4.7 s on this Mac
+instead of 5.6-5.9 s, and every output keeps its bits. The other two benchmark
+fits did not move. The maintainer also took the two decisions this WP owed:
+rietx will depend on the kernel wheel outright, with no markers and no sdist,
+and the crate lives in this repository. No Rust work has started.
+
+*Done.*
+- `compiled._splits` estimates a call's serial time as its elements (rows ×
+  nodes × summed window width) at `_NS_PER_ELEMENT`, one measured cost per
+  kernel. It splits from `_THREAD_MIN_NS` = 100 µs. The padded width bounds
+  the work for free, so only a call that bound does not rule out pays for the
+  sum. `_THREAD_MIN_ROWS` is gone, and `_spread` takes the decision as an
+  argument.
+- `bench_aot_kernels.py` section 2 opens with one counted fit (each kernel's
+  calls and seconds, inline against pooled) and gains a `numba, inline` arm.
+- Two tests in `test_compiled_kernels.py`: the predicate on real call shapes,
+  and every plane bit-identical with every call forced through a four-worker
+  pool. The second was made to fail once by dropping a row per chunk.
+- `bench_compiled_buffer.py`'s comment no longer names the row floor.
+- § Decisions items 4 and 5 recorded. The threshold's shape is settled in
+  § Decisions owed, which is now empty.
+- `/code-review high --fix` found no correctness bug. Two fixes landed:
+  the split test asserts that each kernel it names actually split, and the
+  bench counts a split on a one-worker pool as inline. Three findings were
+  declined. Chunking by cumulative width instead of equal rows, and scaling
+  the threshold by worker count, are both speed changes that need measuring
+  first, the second on the CI runner's two cores. The width sum paid on a
+  one-worker pool costs ~1 µs on a call of at least 100 µs.
+
+*Measured.* `[dev]` venv, darwin/arm64 (4 performance and 6 efficiency
+cores, 8 pool workers), python 3.12.10, numpy 2.5.3, numba 0.68.0. No other
+suite was running during any timing; one had been at the session's start,
+and the timing waited for it.
+- **The crossover.** Calls sampled from the trigger, nac and cpd-1a fits,
+  replayed inline and split into 4, 8, 16 and 32 chunks (scratchpad probe).
+  At 8 chunks, calls of 40-80 µs inline lost (0.73× `bases_fcj`, 0.82×
+  `bases_sym`). Calls of 80-160 µs won (1.54-1.62×), and FCJ calls over
+  320 µs won 2.6-4.3×. 16 chunks were no better than 8 on large calls, and
+  32 were worse.
+- **The estimate.** On trigger's FCJ calls, inline time correlates with
+  rows × nodes × summed width at log 0.999, and with rows alone at 0.98.
+  Padded over summed width is 1.11 on FCJ buckets and 1.04-1.73 on symmetric
+  ones. ns per element: `omega_sym` 1.83, `omega_fcj` 2.75, `bases_sym`
+  5.07-5.50, `bases_fcj` 6.46.
+- **End to end, before and after** (5 interleaved repeats, the row floor
+  restored by patching `_splits`): trigger 5.58-5.93 s on the row floor,
+  4.24-4.70 s on work, 5.58-5.81 s inline. nac 0.40-0.47 / 0.39-0.41 /
+  0.40-0.41 s. cpd-1a 1.57-2.00 / 1.49-2.30 / 1.50-2.30 s. Final θ was
+  bit-identical across arms on all three.
+- **The acceptance bench** (`--cases trigger,cpd-1a --repeats 5`): trigger
+  numba 4.23-4.29 s, numba inline 5.60-5.74 s, numpy 10.97-11.07 s. Pooled
+  calls: `omega_fcj` 1143 of 5981, `bases_fcj` 798 of 3320. cpd-1a numba
+  1.49-1.69 s against inline 1.50-1.59 s, with 90 of 597 `bases_sym` calls
+  pooled. Startup: numba warm with a cache hit 0.89-1.07 s, cold 1.41-1.50 s,
+  tier off 0.71-0.72 s.
+- **The numpy path's trigger answer sits 2.2e-1 esd from numba's** on
+  today's main. 1939 measured 5.3e-2. Nothing measured says which change
+  moved it; #855 (WP-1936's step scaling) merged in between, which is a
+  hypothesis only. Task 3's fit-level guard is sized on this number, not on
+  1939's.
+- **Fast suite**: 8982 passed, 177 skipped, 1 xfailed, 3:28. The 3 added
+  cases are +3 to `test_compiled_kernels.py` (14 → 17 collected) and cost
+  0.06 s in that run. The full suite was not run, because splitting cannot
+  change an output, and the suite runs one kernel thread per xdist worker,
+  where nothing splits.
+
+*Gotchas.*
+- The suite never splits a call (conftest's one thread per worker), so a
+  split test builds its own pool.
+- At 8 workers on this chip the large calls gain 2.6-4.3×, not 8×. More
+  chunks did not help, so efficiency-core imbalance is not shown to be the
+  limit.
+- A timing of the pool beside another session's suite measures that suite.
+  Check `ps` before timing.
+
+*Next.*
+1. Task 4, the crate into `kernels/` with its three code fixes. Both
+   decisions it waited on are taken.
+2. Task 2 against that crate, since the two owed platforms (Windows, macOS
+   x86_64) run its wheel through a temporary workflow.
+3. Task 5, then task 3 with the guard sized on the 2.2e-1 esd above, then
+   task 6.
+4. When the Linux runner runs the bench (task 7), measure the threshold at
+   2 workers, which is the declined review finding 4.
 
 ### 2026-10-10 — filed from 1939's review session
 
