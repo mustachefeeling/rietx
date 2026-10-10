@@ -265,3 +265,87 @@ def test_callback_sees_every_accepted_point():
                 callback=lambda x, cost: seen.append(cost))
     assert len(seen) >= 2
     assert seen == sorted(seen, reverse=True)   # accepted steps only ⇒ monotone
+
+
+# ----------------------------------------------------------------------
+# the bounded step (WP-1937): exact, and on its bound rather than near it
+# ----------------------------------------------------------------------
+def _kkt_violation(A, b, step, lo, hi):
+    """Largest breach of the bounded quadratic's optimality conditions.
+
+    The model is ½ΔᵀAΔ − bᵀΔ, so its gradient is g = AΔ − b: zero on a free
+    variable, ≥ 0 on one held at its lower bound, ≤ 0 at its upper.
+    """
+    g = A @ step - b
+    at_lo = np.isclose(step, lo, rtol=0.0, atol=1e-12)
+    at_hi = np.isclose(step, hi, rtol=0.0, atol=1e-12)
+    free = ~(at_lo | at_hi)
+    return max(np.max(np.abs(g[free]), initial=0.0),
+               np.max(-g[at_lo], initial=0.0),
+               np.max(g[at_hi], initial=0.0))
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_step_is_the_exact_minimiser_of_the_bounded_model(seed):
+    """The step satisfies the bounded quadratic's KKT conditions to round-off,
+    where BCCG stopped once ‖AΔ − b‖² had fallen 10⁴-fold."""
+    rng = np.random.default_rng(seed)
+    J = rng.standard_normal((60, 6)) @ np.diag([1e3, 1.0, 1.0, 1e-2, 5.0, 1.0])
+    A = J.T @ J
+    b = rng.standard_normal(6) * np.sqrt(np.diag(A))
+    x = np.zeros(6)
+    lo = np.array([-np.inf, -0.1, 0.0, -np.inf, -1e-3, 0.0])
+    hi = np.array([np.inf, 0.1, np.inf, 1e-3, np.inf, 0.0 + 1e-9])
+    step, side = lm._solve_step(A, b, 0.0, x, lo, hi, n_rows=60)
+    assert np.all(step >= lo - 1e-15) and np.all(step <= hi + 1e-15)
+    scale = np.max(np.abs(b))
+    assert _kkt_violation(A, b, step, lo, hi) < 1e-9 * scale
+    assert np.any(side != 0), "the case was meant to bind at least one bound"
+
+
+def test_a_rank_deficient_system_gets_a_finite_minimum_norm_step():
+    """Two identical columns: A is singular at λ = 0, and the cut discards the
+    null direction rather than stepping along it without limit."""
+    rng = np.random.default_rng(7)
+    J = rng.standard_normal((40, 3))
+    J = np.column_stack([J, J[:, 0]])
+    A, b = J.T @ J, J.T @ rng.standard_normal(40)
+    inf = np.full(4, np.inf)
+    step, _ = lm._solve_step(A, b, 0.0, np.zeros(4), -inf, inf, n_rows=40)
+    assert np.all(np.isfinite(step))
+    assert step[0] == pytest.approx(step[3], rel=1e-9)
+    assert np.allclose(A @ step, b, atol=1e-9 * np.max(np.abs(b)))
+
+
+def test_widths_pressed_on_zero_together_reach_the_bound_exactly():
+    """Several non-negative terms whose free optimum is negative, coupled
+    through near-collinear columns — WP-1929's QARR shape in miniature.  The
+    driver lands each on 0.0 exactly, and the residual's descent direction
+    points out of the box there."""
+    rng = np.random.default_rng(11)
+    x_axis = np.linspace(-3.0, 3.0, 200)
+    basis = np.column_stack([np.exp(-(x_axis / w) ** 2) for w in (1.0, 1.05, 1.1, 1.15)])
+    basis = np.column_stack([basis, np.ones_like(x_axis)])
+    truth = np.array([0.0, 0.0, 0.0, 0.0, 1.0])
+    y = basis @ truth - 0.05 * basis[:, 1] + 0.001 * rng.standard_normal(len(x_axis))
+    # floors at awkward values, so that x + (lo − x) computed through the
+    # step's scaling need not round back to lo
+    floor = np.array([0.1, 1.0 / 3.0, 0.7, 2.0 / 7.0])
+
+    def residual(t):
+        return basis @ np.concatenate([t[:4] - floor, t[4:]]) - y
+
+    def jacobian(t):
+        return basis
+
+    lo = np.concatenate([floor, [-np.inf]])
+    hi = np.full(5, np.inf)
+    out = lm.minimize(residual, jacobian, np.array([0.9, 0.9, 0.9, 0.9, 0.5]),
+                      lo=lo, hi=hi, max_iter=50)
+    assert out.status > 0
+    pinned = out.x[:4] == floor
+    assert pinned.sum() >= 2
+    grad = basis.T @ residual(out.x)       # ½∇S
+    assert np.all(grad[:4][pinned] > 0.0)  # S would fall only below the bound
+    # and nothing is left a rounding error above its floor
+    assert np.all(pinned | (out.x[:4] - floor > 1e-9))

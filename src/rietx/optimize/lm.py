@@ -2,8 +2,11 @@
 
 Gauss-Newton normal equations with the adaptive Marquardt constant of Coelho,
 A. A. (2018). *J. Appl. Cryst.* **51**, 428-435 ("Optimum Levenberg-Marquardt
-constant determination for nonlinear least-squares"), solved by the
-bound-constrained conjugate gradient of :mod:`.bccg` (Coelho 2005).
+constant determination for nonlinear least-squares"), each damped step solved
+exactly inside the parameter box by bounded-variable least squares (Stark, P.
+B. & Parker, R. L. (1995). *Comput. Statist.* **10**, 129-141; WP-1937).  The
+paper pairs the schedule with the bound-constrained conjugate gradient of
+:mod:`.bccg` (Coelho 2005), which this driver used until WP-1937.
 Independent implementation from the papers; TOPAS is closed source and none of
 it was consulted.
 
@@ -77,9 +80,9 @@ from dataclasses import dataclass
 from typing import Callable
 
 import numpy as np
+from scipy.optimize import lsq_linear
 
 from ..backend.linalg64 import require_fp64, to_host_fp64
-from . import bccg
 
 #: λ schedule constants, Coelho (2018) equation (9).  λ starts at 0 (pure
 #: Gauss-Newton) and is dimensionless because the system is pre-conditioned.
@@ -113,6 +116,10 @@ _FEASIBLE_FRACTION = 0.995
 #: relative slack below which a linear-inequality row counts as *active* and is
 #: treated as an equality for the step (see ``LinearInequality.project_step``).
 _ACTIVE_TOL = 1e-9
+#: eigenvalues of the equilibrated normal matrix below this × (number of
+#: residual rows) × λmax are discarded from the step: the scale of the
+#: rounding error in one entry of JᵀJ (see :func:`_solve_step`).
+_EIGEN_CUT_PER_ROW = float(np.finfo(np.float64).eps)
 
 
 @dataclass(frozen=True)
@@ -128,9 +135,11 @@ class LinearInequality:
     short of the constraint surface, which keeps *every* iterate feasible.
 
     A box is the special case ``T = ±I``; it is not routed through here,
-    because BCCG's in-loop clamping handles boxes better than truncation does
-    (the paper's own Pawley measurement: Rwp 3.901 in 16 iterations vs 4.351 in
-    84).  Truncation is the fallback for rows a box cannot express.
+    because the step solves boxes exactly (:func:`_solve_step`) where
+    truncation stops short of them.  Coelho (2005) measured the same gap for
+    bounds inside the solve against bounds applied after it (Pawley, Rwp 3.901
+    in 16 iterations against 4.351 in 84).  Truncation is the fallback for rows
+    a box cannot express.
 
     ``T`` is (n_rows, n_free) and frozen for the whole least-squares run — the
     same frozen-per-stage discipline the hkl list and window ranges follow.
@@ -311,9 +320,10 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
         accepted = False
         exhausted = False
         for _inner in range(_INNER_MAX):
-            step = _solve_step(A, b, lam, x, lo, hi)
+            step, side = _solve_step(A, b, lam, x, lo, hi, n_rows=len(r))
             if not np.any(step):
                 break
+            solved = step
             for iq in ineqs:
                 step = iq.project_step(x, step)
             tau = min((iq.max_feasible_fraction(x, step) for iq in ineqs), default=1.0)
@@ -322,15 +332,21 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
                 n_truncated += 1
             floor = -_PREDICTED_FLOOR * max(abs(s), 1.0)
             x_try = _clip_to_bounds(x + step, lo, hi)
+            if step is solved:
+                # a variable the solve put on a bound lands on it exactly:
+                # (lo − x)·d/d need not round back to lo − x, and the active
+                # set is read as x == bound
+                x_try = np.where(side < 0, lo, np.where(side > 0, hi, x_try))
             step = x_try - x            # the *taken* step, after every clamp
             promise = -float(step @ b)
             if promise >= 0.0:
                 # Not a descent direction *for the model* — which is a
-                # statement about the model, not the objective.  At λ = 0 on a
-                # near-singular A the truncated CG can return an ascent step
-                # (measured on brucite: ‖Δ‖ ≈ 2e10 promising +1.7e5), and
-                # clipping a long step against the box can do the same.  Both
-                # are what λ exists for: damp and retry.
+                # statement about the model, not the objective.  The exact
+                # bounded solve cannot return one, since Δ = 0 is feasible and
+                # its model value is zero.  The inequality projection can, and
+                # so could BCCG's truncated CG before WP-1937 (measured on
+                # brucite: ‖Δ‖ ≈ 2e10 promising +1.7e5).  Either is what λ
+                # exists for: damp and retry.
                 lam = _next_lambda(lam, None, 0.0)
                 continue
             if promise > floor:
@@ -395,17 +411,56 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
 
 
 def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
-                lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
-    """One damped Gauss-Newton step, bounds enforced inside the CG loop.
+                lo: np.ndarray, hi: np.ndarray, *, n_rows: int
+                ) -> tuple[np.ndarray, np.ndarray]:
+    """One damped Gauss-Newton step, solved exactly inside the box (WP-1937).
 
+    Minimises the model ``½ΔᵀA_λΔ − bᵀΔ`` subject to ``lo − x ≤ Δ ≤ hi − x``.
     λ rides on the *pre-conditioned* diagonal (A_ii = 1), so adding ``lam`` to
     a copy of A scaled to unit diagonal is the same thing as Marquardt's
-    multiplicative form and keeps the published constants meaningful.  BCCG
-    bounds the *step*, so the parameter box ``lo ≤ x + Δ ≤ hi`` becomes
-    ``lo − x ≤ Δ ≤ hi − x``.
+    multiplicative form and keeps the published constants meaningful.
+
+    The bounded quadratic is handed to bounded-variable least squares (Stark &
+    Parker 1995, ``scipy.optimize.lsq_linear(method="bvls")``) as the square
+    system ``R = Λ^½Vᵀ``, ``c = Λ^-½Vᵀb`` from the eigendecomposition of the
+    equilibrated A, for which ``‖RΔ − c‖² = ΔᵀAΔ − 2bᵀΔ + const``.  BVLS is an
+    active-set method: a variable it holds is *on* its bound, never near it,
+    and its solve is exact rather than the truncated CG of :mod:`.bccg`.  That
+    is the case scipy's TRF cannot handle — several widths pressed on zero
+    together, where its interior scaling crawls (WP-1929's grid).
+
+    **The eigenvalue cut** (:data:`_EIGEN_CUT_PER_ROW`): A is formed as JᵀJ,
+    so each equilibrated entry is an inner product over m = ``n_rows`` terms
+    of two unit-norm columns, and carries a rounding error up to
+    γₘ = m·u/(1 − m·u) with u = ε/2 (Higham 2002, §3.1).  An eigenvalue below
+    ``m·ε·λmax`` is at that error's scale, so its direction is discarded and
+    the step there is zero, BVLS solving the remaining rank-deficient system
+    to minimum norm.  The cut binds only near λ = 0: a damped system has every
+    eigenvalue at or above λ.
+
+    Returns the step and which bound each variable was solved onto (−1 lower,
+    +1 upper, 0 neither), so the caller can land those variables *exactly* on
+    the bound the solve chose.
     """
+    n = len(b)
     d = np.sqrt(np.maximum(np.diag(A), 0.0))
     d = np.where(d > 0.0, d, 1.0)
-    A_lam = A + lam * np.diag(d * d)
-    out = bccg.solve(A_lam, b, lo=lo - x, hi=hi - x)
-    return out.x
+    inv_d = 1.0 / d
+    A_s = A * np.outer(inv_d, inv_d)
+    A_s[np.diag_indices(n)] += lam
+    b_s = b * inv_d
+    w, V = np.linalg.eigh(A_s)
+    w_max = float(w[-1]) if n else 0.0
+    keep = w > _EIGEN_CUT_PER_ROW * max(n_rows, n) * w_max
+    side = np.zeros(n, dtype=np.int8)
+    if w_max <= 0.0 or not np.any(keep):
+        return np.zeros(n), side
+    root = np.sqrt(w[keep])
+    Vk = V[:, keep]
+    R = root[:, None] * Vk.T
+    c = (Vk.T @ b_s) / root
+    lb, ub = (lo - x) * d, (hi - x) * d
+    out = lsq_linear(R, c, bounds=(lb, ub), method="bvls")
+    side[out.active_mask < 0] = -1
+    side[out.active_mask > 0] = 1
+    return out.x * inv_d, side
