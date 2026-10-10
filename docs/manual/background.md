@@ -214,6 +214,15 @@ P-spline λ), and the estimator's λ.
   contiguous, which makes the test slightly conservative, in the safe
   direction.
 
+A scan can end at its cap without either ingredient deciding: BIC still
+falling at `max_order` and $d$ short of the stop. The order returned is then
+the cap and not a choice, and the selection says so with
+`BACKGROUND_ORDER_AT_CAP`, naming the cap and the last $d$. On the 11-BM
+Si 640c pattern this is the default's outcome, and a higher cap returns the
+higher cap: each term gains 50-800 in BIC against a penalty $\ln m \approx 10$,
+and the masked residual's serial correlation comes from profile misfit, which
+no polynomial removes (issue #833).
+
 {source}`rietx.background.select`
 
 ## Background flexibility and bias
