@@ -96,8 +96,10 @@ a poor basin). VALIDATION.md's rows and the landing page are re-measured.
     default stays, since every old record was TRF. Keep `"trf"` selectable.
     Rewrite `lm.py`'s module docstring: re-measure "not a speed play" and
     "prefer the default driver on a texture plan" with
-    `examples/bench_solver.py`. Rewrite `docs/manual/estimation.md` §
-    Solvers (add `stark1995`), `using/refining.md` near the
+    `examples/bench_solver.py`. In `docs/manual/estimation.md` § Solvers
+    the step paragraph and `stark1995` landed with 1937; its first sentence
+    (the default) and the speed paragraph change here. So do
+    `using/refining.md` near the
     `solver="trf"` example and the `n_constraint_truncations` paragraph, and
     `using/first-refinement.md`'s `solver=trf` provenance line. Every text
     saying the Stephens cone is a guard "under the default TRF driver"

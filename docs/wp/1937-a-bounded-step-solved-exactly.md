@@ -224,7 +224,11 @@ converges.
     WP-1938, since either change moves converged fits: `lsq_linear`'s status
     is ignored (BVLS can stop at status 2), and `eigh` is recomputed per λ.
     `examples/tutorials/02_simple_rietveld.ipynb`'s committed output still
-    prints "2 it"; it changes at the next notebook rebuild.
+    prints "2 it"; it changes at the next notebook rebuild. The step-7 audit
+    found the manual's theory chapter still describing the LM step as
+    conjugate gradients; `docs/manual/estimation.md` § Solvers now says BVLS
+    up to 128 parameters, citing `stark1995` (no Crossref record, so it joins
+    `NO_DOI` in `tests/test_manual.py`).
   - *A finding superseded.* Context said `n_iterations` was nfev on one
     driver and outer iterations on the other. Both already read `res.nfev`;
     only the manual called it iterations.
