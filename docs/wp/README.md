@@ -50,7 +50,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 
 | WP | Title | Priority | Depends on | Section |
 |---|---|---|---|---|
-| [1937](1937-a-bounded-step-solved-exactly.md) | A bounded step solved exactly | P1 | — ([1936](1936-a-forward-difference-step-sized-by-its-parameter.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1938](1938-every-parameter-refined-in-its-own-units.md) | Every parameter refined in its own units | P1 | [1936](1936-a-forward-difference-step-sized-by-its-parameter.md), [1937](1937-a-bounded-step-solved-exactly.md) ([1940](1940-the-kernel-tier-in-a-wheel.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1341](1341-a-joint-fit-has-no-report.md) | A joint fit has no report | P2 | — ([1312](1312-neutron-followthrough.md), [1335](1335-the-report-costs-more-than-the-fit.md), [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) soft) | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | P2 | — ([1333](1333-a-series-survives-one-pattern.md), [1342](1342-a-freeze-that-reads-names.md), [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1467](1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | P2 | — ([1318](1318-strain-surface.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
@@ -62,7 +62,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1923](1923-a-candidate-in-its-conventional-setting.md) | A candidate is reported as a lattice in its conventional setting, and the reduction is an exact change of basis | P2 | — ([1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1924](1924-a-monoclinic-search-inside-its-ceiling.md) | A monoclinic search stays inside its ceiling and its memory | P2 | — ([1520](1520-a-search-refines-each-assignment-once.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1927](1927-tof-t1-the-axis-and-its-readers.md) | TOF T-1: the time-of-flight axis and its readers | P2 | — | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
-| [1938](1938-every-parameter-refined-in-its-own-units.md) | Every parameter refined in its own units | P2 | [1936](1936-a-forward-difference-step-sized-by-its-parameter.md), [1937](1937-a-bounded-step-solved-exactly.md) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -507,8 +506,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1931](1931-the-background-order-scan-runs-to-its-cap.md) | The background order scan runs to its cap | ⬜ | P3 | — ([1542](1542-a-le-bail-background-left-at-its-seed.md) soft) |
 | [1932](1932-two-candidates-compared-across-a-reduction-boundary.md) | Two candidates compared across a reduction boundary | ⬜ | P3 | — ([1923](1923-a-candidate-in-its-conventional-setting.md), [1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) soft) |
 | [1936](1936-a-forward-difference-step-sized-by-its-parameter.md) | A forward-difference step sized by its parameter | ✅ 2026-10-09 | — | — |
-| [1937](1937-a-bounded-step-solved-exactly.md) | A bounded step solved exactly | ⬜ | P1 | — ([1936](1936-a-forward-difference-step-sized-by-its-parameter.md) soft) |
-| [1938](1938-every-parameter-refined-in-its-own-units.md) | Every parameter refined in its own units | ⬜ | P2 | [1936](1936-a-forward-difference-step-sized-by-its-parameter.md), [1937](1937-a-bounded-step-solved-exactly.md) |
+| [1937](1937-a-bounded-step-solved-exactly.md) | A bounded step solved exactly | ✅ 2026-10-10 | — | — ([1936](1936-a-forward-difference-step-sized-by-its-parameter.md) soft) |
+| [1938](1938-every-parameter-refined-in-its-own-units.md) | Every parameter refined in its own units | ⬜ | P1 | [1936](1936-a-forward-difference-step-sized-by-its-parameter.md), [1937](1937-a-bounded-step-solved-exactly.md) ([1940](1940-the-kernel-tier-in-a-wheel.md) soft) |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 

@@ -788,6 +788,9 @@ class StageResult(Base):
 
     name: str
     status: Literal["converged", "max_iter", "diverged"]
+    #: residual evaluations the solve made, the start included: scipy's
+    #: ``nfev`` on both drivers, and the unit ``Stage.max_iter`` × 4 caps
+    #: (``NFEV_PER_ITERATION``, WP-1937)
     n_iterations: int
     cost_initial: float
     cost_final: float
@@ -1029,7 +1032,7 @@ def _stage_lines(stages: list[StageResult], max_shift_over_esd: float | None) ->
     lines = []
     for i, s in enumerate(stages):
         ftol = f"{s.ftol:.0e}" if s.ftol is not None else "solver default"
-        line = f"  stage {s.name}: {s.status} ({s.n_iterations} it, ftol={ftol})"
+        line = f"  stage {s.name}: {s.status} ({s.n_iterations} evals, ftol={ftol})"
         if i == len(stages) - 1 and max_shift_over_esd is not None:
             line += f", max|Δθ|/esd={max_shift_over_esd:.3f}"
         lines.append(line)

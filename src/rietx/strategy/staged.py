@@ -109,7 +109,7 @@ class Stage:
     name: str
     turn_on: list[str]  # path globs, e.g. "phases.*.cell.*"
     #: solver iterations this stage may take.  Approximate rather than exact:
-    #: scipy's TRF caps *evaluations*, not iterations, so this becomes
+    #: both drivers cap *evaluations*, not iterations, so this becomes
     #: ``max_iter x optimize.least_squares.NFEV_PER_ITERATION`` — sized from
     #: the measured worst-case trial-point rejection rate so a stage needing
     #: max_iter genuine iterations is never cut short.  A runaway guard, never

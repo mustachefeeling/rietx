@@ -256,6 +256,19 @@ class LSQOutcome:
     #: Optimization* 2nd ed. ch. 12 and 16: an active set is identified by the
     #: multiplier, never by proximity.
     residual_cosine: np.ndarray | None = None
+    #: the driver's own active set, **table columns only** (indexes like
+    #: :attr:`theta`): −1 held at the lower bound, +1 at the upper, 0 neither,
+    #: scipy's ``active_mask`` convention (WP-1937).  The two drivers differ in
+    #: how much it can know.  ``lm`` is exact: the variable sits *on* its
+    #: bound and the gradient there pushes outward, so its multiplier is
+    #: positive (:attr:`.lm.LMOutcome.active_mask`).  That holds up to
+    #: ``lm.BVLS_MAX_COLUMNS``; a larger system (a Pawley block) takes BCCG's
+    #: step, which can stop just off a bound.  ``trf`` reports scipy's
+    #: mask, set within ``XTOL`` of a bound whatever the gradient, because its
+    #: iterates stay strictly inside; a width TRF parks 7.6e-6 above its floor
+    #: (WP-1929, brucite) is not in it.  ``None`` only at the zero-parameter
+    #: early return.  WP-1929's at-bound flag is the reader it was built for.
+    active_bounds: np.ndarray | None = None
     #: ``repr`` of the ``LinAlgError`` the esd computation raised *after* the
     #: solve returned, or ``None`` when it did not (WP-1333, issue #225).  A
     #: failed eigensolve is not a failed fit: :attr:`theta` is the solver's
@@ -418,6 +431,27 @@ def _residual_cosine(jac, fun) -> np.ndarray | None:
     # a column of 1e-170 squares to zero and would read as "not held" (WP-1463)
     denom = column_norms(j) * np.linalg.norm(f)
     return np.divide(j.T @ f, denom, out=np.zeros(j.shape[1]), where=denom > 0)
+
+
+def _feasible_start(x0: np.ndarray, lo: np.ndarray, hi: np.ndarray,
+                    solver: str) -> np.ndarray:
+    """The start each driver is handed.  TRF requires it strictly inside the
+    bounds, so it is nudged 1e-12 off any it sits on.  The LM driver is handed
+    it on the bound: nudged, a stage restarting from a held value takes a first
+    step under the fp64 floor, stops there, and returns the value 1e-12 off
+    its bound and out of :attr:`LSQOutcome.active_bounds` (WP-1937)."""
+    if not len(x0):
+        return x0
+    if solver == "lm":
+        return np.clip(x0, lo, hi)
+    return np.clip(x0, lo + 1e-12, hi - 1e-12)
+
+
+def _active_bounds(res, n: int) -> np.ndarray:
+    """The driver's active set over its first ``n`` columns — see
+    :attr:`LSQOutcome.active_bounds`.  Both result shapes carry it as
+    ``active_mask``."""
+    return np.asarray(res.active_mask, dtype=np.int8)[:n].copy()
 
 
 def _lebail_snapshot(model: CompiledModel) -> list[np.ndarray] | None:
@@ -1285,7 +1319,7 @@ def _free_values(table: ParameterTable, theta: np.ndarray) -> list[float]:
     return [float(values[p]) for p in table.free_paths]
 
 
-def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_iter, ftol,
+def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_nfev, ftol,
                 inequalities, events, stage: str, track=None, table=None):
     """Run the bounded-LM driver, adapted to the scipy result shape.
 
@@ -1319,7 +1353,7 @@ def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_iter, ftol,
         events.emit("eval", **data)
 
     return lm_mod.minimize(residual, jacobian, x0, lo=lo, hi=hi,
-                           max_iter=max_iter, ftol=ftol,
+                           max_nfev=max_nfev, ftol=ftol,
                            inequalities=inequalities,
                            callback=accept_cb if track is not None else None,
                            on_trial=trial_cb if events is not None else None)
@@ -1664,8 +1698,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         lo = np.concatenate([lo, plo])
         hi = np.concatenate([hi, phi])
     n_aux = len(x0) - n_table
-    # TRF requires x0 strictly inside the bounds
-    x0 = np.clip(x0, lo + 1e-12, hi - 1e-12) if len(x0) else x0
+    x0 = _feasible_start(x0, lo, hi, solver)
 
     r0 = residual(x0)
     # invariant 2: whatever built the columns, the residual is fp64 on host —
@@ -1679,18 +1712,19 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                           n_degenerate_cell_probes=cell_guard.n_degenerate)
 
     n_truncated = 0
+    # one budget, in residual evaluations, for both drivers (WP-1937)
+    max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
         # the strain cone is built against the *starting* point, because
         # feasibility is maintained rather than restored (see the builder)
         cone = strain_cone_inequalities(model, table, x0[:n_table])
-        res = _lm_outcome(residual, jacobian, x0, lo, hi, max_iter=max_iter,
+        res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
                           ftol=ftol, inequalities=cone, events=events, stage=stage,
                           track=tracker, table=table)
         n_truncated = res.n_truncated
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=XTOL, gtol=GTOL,
-                            max_nfev=max_iter * NFEV_PER_ITERATION)
+                            ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
@@ -1720,6 +1754,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     return LSQOutcome(res.x[:n_table], cost0, float(res.cost), int(res.nfev), status,
                       jac_table, stderr, corr, n_aux=n_aux, solver=solver,
                       residual_cosine=cos_table,
+                      active_bounds=_active_bounds(res, n_table),
                       n_constraint_truncations=n_truncated,
                       max_shift_over_esd=_final_shift_over_esd(
                           table, tracker.step(), stderr_full, corr, n_table),
@@ -1854,7 +1889,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     _freeze_cell_windows_multi(models, mtable)
     x0 = mtable.x0()
     lo, hi = mtable.bounds()
-    x0 = np.clip(x0, lo + 1e-12, hi - 1e-12) if len(x0) else x0
+    x0 = _feasible_start(x0, lo, hi, solver)
     r0 = residual(x0)
     require_fp64(r0, "least-squares residual")
     cost0 = 0.5 * float(r0 @ r0)
@@ -1863,13 +1898,13 @@ def run_multi_least_squares(models: list[CompiledModel],
                           solver=solver,
                           n_degenerate_cell_probes=cell_guard.n_degenerate)
 
+    max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
-        res = _lm_outcome(residual, jacobian, x0, lo, hi, max_iter=max_iter,
+        res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
                           ftol=ftol, inequalities=[], events=None, stage="")
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=XTOL, gtol=GTOL,
-                            max_nfev=max_iter * NFEV_PER_ITERATION)
+                            ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
@@ -1884,6 +1919,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     return LSQOutcome(res.x, cost0, float(res.cost), int(res.nfev), status,
                       jac_data, stderr, corr, solver=solver,
                       residual_cosine=_residual_cosine(res.jac, res.fun),
+                      active_bounds=_active_bounds(res, len(res.x)),
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
                       covariance_error=covariance_error)

@@ -1,10 +1,10 @@
 Refinement.summary: converged (rietveld)
-  stage scale_bkg: converged (# it, ftol=#e#)
-  stage zero: converged (# it, ftol=#e#)
-  stage cell: converged (# it, ftol=#e#)
-  stage profile_w: converged (# it, ftol=#e#)
-  stage profile: converged (# it, ftol=#e#)
-  stage biso: converged (# it, ftol=solver default), max|Δθ|/esd=#
+  stage scale_bkg: converged (# evals, ftol=#e#)
+  stage zero: converged (# evals, ftol=#e#)
+  stage cell: converged (# evals, ftol=#e#)
+  stage profile_w: converged (# evals, ftol=#e#)
+  stage profile: converged (# evals, ftol=#e#)
+  stage biso: converged (# evals, ftol=solver default), max|Δθ|/esd=#
   diagnostics: # unresolved
     WARNING BOUND_HIT: phases.#atoms.#biso refined to its bound (ρ=#, #e# esd from the limit) — widen the bound or fix the parameter
     INFO CAPILLARY_OFFSET_UNAVAILABLE: this capillary geometry declares no goniometer radius, so the eq (#) specimen-offset aberrations are held at zero — which is not the same statement as having measured them to be zero — set instrument.geometry.goniometer_radius_mm if the diffractometer's is known; an unmodelled offset of this kind lands in the cell as a uniform d-scale error, moving both axes together, which leaves an axial ratio looking better than either axis deserves
