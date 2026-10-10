@@ -39,6 +39,7 @@ import platform
 import subprocess
 import sys
 import types
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -267,6 +268,81 @@ def test_the_forward_agrees_with_the_scalar_loop_on_fcj_data():
         got = model._phase_component_batched(ip, values)
         want = model._phase_component_scalar(ip, values)
         assert _rel(got, want) < 1e-13
+
+
+# -- the pool -----------------------------------------------------------------
+def test_the_pool_engages_on_work_never_on_rows():
+    """The 512-row floor this replaced (WP-1940) was wrong both ways.  No call
+    of the trigger fit reached it, so its 1.6 ms FCJ calls ran on one core,
+    while a 512-row symmetric call over a narrow window is tens of µs of work
+    that splitting slows to 0.2-0.5×."""
+    def splits(kernel, n_rows, nodes, width, w_max):
+        return compiled._splits(kernel, np.arange(n_rows),
+                                np.full(n_rows, width, dtype=np.int64), nodes,
+                                w_max)
+
+    # the trigger fit's largest FCJ call, measured at 1.6 ms (omega) inline
+    assert splits("omega_fcj", 494, 8, 151, 167)
+    assert splits("bases_fcj", 494, 8, 151, 167)
+    # more rows than the old floor, too little work to pay for the dispatch
+    assert not splits("omega_sym", 512, 1, 20, 30)
+    assert not splits("bases_sym", 512, 1, 20, 30)
+    # one padded bound, two summed widths: the sum decides, not the padding
+    assert not splits("omega_sym", 2000, 1, 10, 100)
+    assert splits("omega_sym", 2000, 1, 50, 100)
+
+
+@pytest.mark.parametrize("axial", [False, True])
+def test_a_split_call_lands_on_the_inline_bits(monkeypatch, axial):
+    """Rows are disjoint and each is computed whole inside one chunk, so where
+    the threshold sits must not move a bit of any plane.  Asserted with every
+    call forced through a four-worker pool, since the suite runs one kernel
+    thread per xdist worker and would otherwise never split at all.
+
+    ``axial=False`` reaches the two symmetric kernels, ``axial=True`` the two
+    FCJ ones with the axial planes built.
+    """
+    model, values = _model(axial=axial)
+    compiled.set_enabled(True)
+    compiled.warm(block=True)
+
+    def planes():
+        out = [model._phase_component_batched(ip, values)
+               for ip in range(len(model.phases))]
+        for p in model.derivative_bases(values).planes:
+            out += [a for a in (p.omega, p.d_pos, p.d_gamma, p.d_eta, p.d_sl,
+                                p.d_hl) if a is not None]
+        return out
+
+    monkeypatch.setattr(compiled, "_THREAD_MIN_NS", float("inf"))
+    want = planes()
+    pool = ThreadPoolExecutor(max_workers=4)
+    real, submitted = pool.submit, []
+    monkeypatch.setattr(
+        pool, "submit", lambda *a: submitted.append(a) or real(*a))
+    monkeypatch.setattr(compiled, "_POOL", pool)
+    monkeypatch.setattr(compiled, "_POOL_WORKERS", 4)
+    monkeypatch.setattr(compiled, "_THREAD_MIN_NS", 0.0)
+    real_splits, split = compiled._splits, set()
+
+    def counted(kernel, *a):
+        s = real_splits(kernel, *a)
+        if s:
+            split.add(kernel)
+        return s
+
+    monkeypatch.setattr(compiled, "_splits", counted)
+    try:
+        got = planes()
+    finally:
+        pool.shutdown()
+    assert submitted, "nothing reached the pool, so nothing was compared"
+    reached = ({"omega_fcj", "bases_fcj"} if axial
+               else {"omega_sym", "bases_sym"})
+    assert reached <= split, f"never split: {sorted(reached - split)}"
+    assert len(got) == len(want)
+    for g, w in zip(got, want):
+        assert _bits_equal(g, w)
 
 
 # -- the contract -------------------------------------------------------------

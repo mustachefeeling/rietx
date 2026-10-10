@@ -42,6 +42,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md) | An esd follows where the solver stopped beside a flat column | 2026-10-09 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1930](1930-a-width-freed-on-its-floor-leaves-it-by-rounding.md) | A width freed on its floor leaves it by rounding | 2026-10-09 | P1 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
+| [1940](1940-the-kernel-tier-in-a-wheel.md) | The kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential | 2026-10-10 | P2 | [Unscheduled](#unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement) |
 
 ## Next, by priority
 
@@ -61,7 +62,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1923](1923-a-candidate-in-its-conventional-setting.md) | A candidate is reported as a lattice in its conventional setting, and the reduction is an exact change of basis | P2 | — ([1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1924](1924-a-monoclinic-search-inside-its-ceiling.md) | A monoclinic search stays inside its ceiling and its memory | P2 | — ([1520](1520-a-search-refines-each-assignment-once.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1927](1927-tof-t1-the-axis-and-its-readers.md) | TOF T-1: the time-of-flight axis and its readers | P2 | — | [Unscheduled](#unscheduled-the-specimen-is-not-an-angle-and-the-neutron-follow-through) |
-| [1940](1940-the-kernel-tier-in-a-wheel.md) | The kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential | P2 | [1939](1939-an-ahead-of-time-kernel-spike.md) | [Unscheduled](#unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -621,4 +621,4 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1925](1925-anomalous-scattering-above-70-kev.md) | Anomalous scattering above 70 keV | ⬜ | P3 | — ([1532](1532-the-skill-passages-a-driving-agent-needed.md) soft) |
 | [1926](1926-the-exact-voigt-is-a-supported-shape.md) | The exact Voigt is a supported shape: its cost, its width, its exports and its bound | ⬜ | P3 | — (#815 soft) |
 | [1939](1939-an-ahead-of-time-kernel-spike.md) | An ahead-of-time kernel spike: Rust, C or Cython against numba | ✅ 2026-10-10 | — | — |
-| [1940](1940-the-kernel-tier-in-a-wheel.md) | The kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential | ⬜ | P2 | [1939](1939-an-ahead-of-time-kernel-spike.md) |
+| [1940](1940-the-kernel-tier-in-a-wheel.md) | The kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential | 🔄 2026-10-10 | P2 | [1939](1939-an-ahead-of-time-kernel-spike.md) |
