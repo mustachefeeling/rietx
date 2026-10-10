@@ -84,6 +84,26 @@ def test_a_class_with_no_tabulated_length_is_refused():
         riding_length("SH", "xray")
 
 
+def test_an_unknown_label_and_an_h_on_its_parent_are_refused_by_name():
+    body = _methanol_phase().rigid_bodies[0]
+    with pytest.raises(ValueError, match="no atoms \\['H9'\\]"):
+        set_riding_lengths(body, {"H9": "CH3"}, "xray")
+    pts = [list(p) for p in body.template]
+    pts[body.atoms.index("HO")] = list(pts[body.atoms.index("O1")])
+    on_parent = body.model_copy(update={"template": [tuple(p) for p in pts]})
+    with pytest.raises(ValueError, match="'HO' sits on its parent 'O1'"):
+        set_riding_lengths(on_parent, CLASSES, "xray")
+
+
+def test_a_second_call_never_takes_a_riding_h_as_a_parent():
+    body = _methanol_phase().rigid_bodies[0]
+    once = set_riding_lengths(body, {"H1": "CH3"}, "neutron")
+    twice = set_riding_lengths(once, {"HO": "OH"}, "neutron")
+    assert twice.riding == ["H1", "HO"]
+    assert _len(twice, "O1", "HO") == pytest.approx(0.967, abs=1e-12)
+    assert _len(twice, "C1", "H1") == pytest.approx(1.059, abs=1e-12)
+
+
 def test_cif_flags_body_atoms_riding_h_and_free_atoms(tmp_path):
     import gemmi
 

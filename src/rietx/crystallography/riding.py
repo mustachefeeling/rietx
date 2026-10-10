@@ -43,6 +43,10 @@ RIDING_LENGTHS: dict[str, dict[str, float | None]] = {
 }
 
 
+#: Å: an H closer than this to its parent gives no parent→H direction
+RIDING_MIN_SEPARATION = 1e-6
+
+
 def riding_radiation(instruments) -> str:
     """``"neutron"`` if any histogram is a neutron one, else ``"xray"``.
 
@@ -75,22 +79,40 @@ def set_riding_lengths(body, classes: Mapping[str, str], radiation: str):
     """A copy of ``body`` with each riding H at its class's length from its parent.
 
     ``classes`` maps an H label to its bond class (``"CH3"``, ``"OH"``, …).
-    The parent is the nearest non-hydrogen atom of the template, and the H
-    moves along the parent→H direction only, so every angle about the parent
-    is kept.  The H labels are recorded in ``RigidBody.riding``, which is what
-    the CIF writer flags ``R``/``calc``.
+    The parent is the nearest template atom that is neither in ``classes`` nor
+    already in ``body.riding`` (the template carries no species, so a label is
+    what marks an H), and the H moves along the parent→H direction only, so
+    every angle about the parent is kept.  An H label that is not a body atom,
+    and an H that sits on its parent (no direction to keep), are refused by
+    name.  The H labels are recorded in ``RigidBody.riding``, which is what the
+    CIF writer flags ``R``/``calc``; the copy is validated, as a constructed
+    body is.
     """
+    from ..schemas.structure import RigidBody
+
     labels = list(body.atoms)
+    unknown = sorted(set(classes) - set(labels))
+    if unknown:
+        raise ValueError(f"rigid body {body.name!r} has no atoms {unknown}")
     pts = np.asarray(body.template, dtype=np.float64).copy()
-    heavy = [i for i, lab in enumerate(labels) if lab not in classes]
+    heavy = [i for i, lab in enumerate(labels)
+             if lab not in classes and lab not in body.riding]
     if not heavy:
         raise ValueError(f"rigid body {body.name!r} has no parent atom for its H")
     for h, cls in classes.items():
+        length = riding_length(cls, radiation)
         i = labels.index(h)
         d = np.linalg.norm(pts[heavy] - pts[i], axis=1)
         parent = heavy[int(np.argmin(d))]
         v = pts[i] - pts[parent]
-        pts[i] = pts[parent] + v / np.linalg.norm(v) * riding_length(cls, radiation)
+        norm = float(np.linalg.norm(v))
+        if not norm > RIDING_MIN_SEPARATION:
+            raise ValueError(
+                f"rigid body {body.name!r}: {h!r} sits on its parent "
+                f"{labels[parent]!r} ({norm:.3g} Å apart), so it has no "
+                "direction to ride along")
+        pts[i] = pts[parent] + v / norm * length
     riding = sorted(set(body.riding) | set(classes), key=labels.index)
-    return body.model_copy(update={
+    return RigidBody.model_validate({
+        **body.model_dump(),
         "template": [tuple(float(c) for c in p) for p in pts], "riding": riding})
