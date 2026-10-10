@@ -323,11 +323,23 @@ def test_a_split_call_lands_on_the_inline_bits(monkeypatch, axial):
     monkeypatch.setattr(compiled, "_POOL", pool)
     monkeypatch.setattr(compiled, "_POOL_WORKERS", 4)
     monkeypatch.setattr(compiled, "_THREAD_MIN_NS", 0.0)
+    real_splits, split = compiled._splits, set()
+
+    def counted(kernel, *a):
+        s = real_splits(kernel, *a)
+        if s:
+            split.add(kernel)
+        return s
+
+    monkeypatch.setattr(compiled, "_splits", counted)
     try:
         got = planes()
     finally:
         pool.shutdown()
     assert submitted, "nothing reached the pool, so nothing was compared"
+    reached = ({"omega_fcj", "bases_fcj"} if axial
+               else {"omega_sym", "bases_sym"})
+    assert reached <= split, f"never split: {sorted(reached - split)}"
     assert len(got) == len(want)
     for g, w in zip(got, want):
         assert _bits_equal(g, w)

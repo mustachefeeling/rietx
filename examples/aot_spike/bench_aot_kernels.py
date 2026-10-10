@@ -243,8 +243,10 @@ def pool_engagement(setup) -> None:
     last: list = [None]
 
     def counted_splits(kernel, *a):
-        last[0] = (kernel, splits(kernel, *a))
-        return last[0][1]
+        s = splits(kernel, *a)
+        # a one-worker pool runs a split call inline, so it is not "pooled"
+        last[0] = (kernel, s and compiled._POOL_WORKERS > 1)
+        return s
 
     def timed_spread(fn, n_rows, split):
         t0 = time.perf_counter()
