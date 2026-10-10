@@ -37,10 +37,11 @@ Conventions (documented by physics, per the CLAUDE.md rule — codes differ)
 * S_HKL are carried **in units of 10⁻¹² Å⁻⁴** — the 10⁻¹² of (1) and the 10⁻⁶
   of (2) are one convention seen twice.  It makes the isotropic limit read
   directly in ppm (:func:`isotropic_coefficients`) and it is *load-bearing
-  numerically*: the shared finite-difference step in
-  ``optimize/least_squares._peak_chain_column`` is ``1e-6·max(1, |θ|)``, i.e.
-  absolute below 1, so a coefficient at its physical ~10⁻⁸ Å⁻⁴ magnitude would
-  be differenced with a step 100× its own value.  Do not "tidy" these to
+  numerically*: the shared finite-difference step
+  (``optimize/least_squares.fd_step``) is ``1e-6·max(1, |θ|)`` for a row
+  whose unit has no typical size, i.e. absolute below 1, so a coefficient at
+  its physical ~10⁻⁸ Å⁻⁴ magnitude would be differenced with a step 100× its
+  own value.  Do not "tidy" these to
   physical Å⁻⁴.
 * S_HKL multiply the **literal monomials** of (1).  Other codes fold symmetry
   multiplicities into their templates (writing the cubic S220 term as

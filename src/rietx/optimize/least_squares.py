@@ -43,6 +43,7 @@ from ..model.forward import accumulate_planes as _accumulate
 from ..model.restraints import restraint_partials
 from ..params.transforms import dphys_dinternal
 from ..params.vector import (
+    FLOOR_SEEDS,
     ParameterTable,
     is_variable_path,
     size_cap,
@@ -565,11 +566,93 @@ def _gather_per_line(lay, arrays) -> np.ndarray:
     return lay.gather([(a,) for a in arrays], 0)
 
 
+#: The relative forward-difference step every FD column of
+#: :func:`_make_jacobian` is taken with, through :func:`fd_step`.
+FD_STEP = 1e-6
+
+
+def fd_step(theta_c: float, typical: float = 1.0) -> float:
+    """The forward-difference step for one column of θ.
+
+    ``FD_STEP · max(typical, |θ_c|)``: relative to the coordinate's size, and
+    absolute at ``typical`` near zero (Dennis & Schnabel 1996, *Numerical
+    Methods for Unconstrained Optimization and Nonlinear Equations*, SIAM,
+    § 5.4).  Both FD sites call it, so one rule sizes every column, and
+    :func:`_fd_typicals` says what ``typical`` is.
+    """
+    return FD_STEP * max(typical, abs(theta_c))
+
+
+def _fd_typicals(table: ParameterTable,
+                 identities: list[tuple[str, list[str], bool]] | None = None
+                 ) -> np.ndarray:
+    """Each free column's typical size, the ``typical`` of :func:`fd_step`.
+
+    An identity row that is a **width** takes
+    :data:`~rietx.params.vector.FLOOR_SEEDS`' size for its unit (WP-1936).
+    Every other row takes 1, the step it always had.  A softplus row's θ is
+    close to the logarithm of its value, so a step of 1e-6 there is already
+    relative in the value.
+
+    **Why a width needs its own size.**  The peak chain differences the
+    reflection widths, and a width is curved on the scale of the peak's own
+    variance, not on a scale of 1.  At 1 the step on a Caglioti term is
+    absolute: on LaB₆ + cBN (11-BM, Γ² ≈ 1e-4 deg²) it put 1.4e-3 into ``v``'s
+    column and 1.5e-2 into ``w``'s once ``w`` was an identity row on its
+    floor, against the jax Jacobian.  At ``FLOOR_SEEDS``' sizes every width
+    column on that fit and on lab brucite is within 5e-7 of jax at
+    ``FD_STEP`` = 1e-6.  At 1e-7 and 1e-8 the worst is 2e-5, and it grows as
+    the step shrinks, which is rounding.
+
+    **Which rows are widths.**  A unit cannot say, because a zero shift and a
+    peak position are in degrees too.  They are offsets on a 2θ of tens of
+    degrees, and position is linear in them, so a small step removes no
+    truncation and adds rounding: at 1e-3° the zero-shift column moved from
+    2e-9 to 3e-6 against jax on every golden state.  An offset can be
+    negative and a width cannot, so a row is sized as a width when its lower
+    bound is at least 0.  A deg² row is a Caglioti term of a variance and is
+    sized whatever its bound, since ``u`` and ``v`` may go negative.  The test
+    also admits a position or an angle a caller bounded above 0.  Its step
+    is unchanged while |θ| exceeds the size, which holds for every such row
+    the package builds.
+
+    The size is in **column units**, which is what the floor seed is in
+    already (:meth:`~rietx.params.vector.ParameterTable.seed_floor`'s
+    write), so a value-scaled joint column needs no factor.
+
+    **A named variable with no unit of its own is sized by what it drives.**
+    Its name says nothing, so the row read is the one
+    :func:`_column_identities` names for the column, and the size is divided
+    by that row's coefficient in C.  Read off the name, a ``vars.U`` driving
+    ``u`` kept the step of 1, and on the ``sharp_widths`` state of
+    ``tests/test_cross_backend.py`` its column kept the old 1.8e-3 error.
+    """
+    if identities is None:
+        identities = _column_identities(table, _column_extras(table))
+    coef = table.constraint_block()[0].tocsc()
+    out = np.ones(len(table.free_paths), dtype=np.float64)
+    for c, path in enumerate(table.free_paths):
+        if table.entries[table._paths[path]].transform != "identity":
+            continue
+        row, unit, k = path, table._units.get(path), 1.0
+        if unit is None and is_variable_path(path) and identities[c][0] != path:
+            row = identities[c][0]
+            unit = table._units.get(row)
+            k = abs(float(coef[table._paths[row], c]))
+        size = FLOOR_SEEDS.get(unit)
+        if (size is not None and k > 0.0
+                and (table.entries[table._paths[row]].lo >= 0.0
+                     or unit == "deg^2")):
+            out[c] = size / k
+    return out
+
+
 def _peak_chain_column(model: CompiledModel, table: ParameterTable,
                        bases: DerivativeBases, theta: np.ndarray,
                        values: dict[str, float], c: int, path: str,
                        intensities: list[np.ndarray] | None = None,
-                       affected: "list[int] | range | None" = None) -> np.ndarray:
+                       affected: "list[int] | range | None" = None,
+                       typical: float = 1.0) -> np.ndarray:
     """∂y/∂θ_c via the analytic bases + per-reflection scalar FD.
 
     Only the phases the column touches are re-derived (``phases.2.…`` leaves
@@ -589,7 +672,7 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
     term whose coefficients are nonzero under a ``profile_derivs=False``
     build still raises through :func:`_require_basis`, naming the path.
     """
-    h = 1e-6 * max(1.0, abs(theta[c]))
+    h = fd_step(theta[c], typical)
     tp = theta.copy()
     tp[c] += h
     values_p = table.decode(tp)
@@ -963,6 +1046,8 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                if all(q in bkg_cols for q in (path, *extra)) else None
                for c, (path, extra, _) in enumerate(identities)]
 
+    typicals = _fd_typicals(table, identities)
+
     def dpdu_of(c: int, theta: np.ndarray) -> float:
         e = table.entries[table._paths[free[c]]]
         return dphys_dinternal(float(theta[c]), e.transform)
@@ -1041,7 +1126,8 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                     and p not in axial_paths for p in extra):
                 J[:n_data, c] = -sqrt_w * _peak_chain_column(
                     model, table, get_bases(), theta_t, values, c, path, intens,
-                    affected=_affected_phases(model, path, extra))
+                    affected=_affected_phases(model, path, extra),
+                    typical=typicals[c])
             else:
                 fd_cols.append(c)
 
@@ -1058,7 +1144,7 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
             # which is why analytic columns for them are not worth writing.
             r0 = sqrt_w * (model.y_obs - model.evaluate(values, intens))
             for c in fd_cols:
-                h = 1e-6 * max(1.0, abs(theta_t[c]))
+                h = fd_step(theta_t[c], typicals[c])
                 tp = theta_t.copy()
                 tp[c] += h
                 rp = sqrt_w * (model.y_obs - model.evaluate(table.decode(tp), intens))

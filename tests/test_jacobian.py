@@ -15,10 +15,11 @@ from rietx import Instrument, PatternData
 from rietx.model.forward import compile_model
 from rietx.optimize.least_squares import (
     _column_extras,
+    _fd_typicals,
     _make_jacobian,
     _make_residual,
 )
-from rietx.params.vector import AffineTie, ParameterTable
+from rietx.params.vector import FLOOR_SEEDS, VAR_PREFIX, AffineTie, ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.structure import Atom, Cell, Phase, Structure
 from tests.test_coordinates import make_rutile
@@ -550,3 +551,47 @@ def test_a_dead_phase_takes_the_fd_path_rather_than_dividing_by_its_scale():
     tp[c] += h
     fd = (residual(tp) - residual(theta)) / h
     np.testing.assert_array_equal(column, fd)
+
+
+def test_a_width_is_stepped_by_its_unit_and_everything_else_by_one():
+    """WP-1936: an identity width takes FLOOR_SEEDS' size for its unit.
+
+    ``u`` and ``v`` are deg² terms of a variance, so they are widths although
+    they may go negative.  ``x`` is declared identity here, and a deg row
+    bounded at 0 is a width.  The zero shift is in degrees too, but it is an
+    offset that may go negative, so it keeps 1.  So do the softplus ``w`` and
+    ``y``, whose θ is already logarithmic, and the unitless cell.
+    """
+    structure = make_rutile()
+    ins = Instrument.bragg_brentano()
+    ins.profile.x = Parameter(value=1e-3, min=0.0, max=1.0, unit="deg",
+                              transform="identity")
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    paths = ["phases.0.cell.a", "instrument.zero_shift",
+             *(f"instrument.profile.{n}" for n in "uvwxy")]
+    for path in paths:
+        assert table.set_vary([path], True), path
+    typical = dict(zip(table.free_paths, _fd_typicals(table), strict=True))
+    assert typical == {
+        "phases.0.cell.a": 1.0, "instrument.zero_shift": 1.0,
+        "instrument.profile.u": FLOOR_SEEDS["deg^2"],
+        "instrument.profile.v": FLOOR_SEEDS["deg^2"],
+        "instrument.profile.w": 1.0, "instrument.profile.x": FLOOR_SEEDS["deg"],
+        "instrument.profile.y": 1.0}
+
+
+def test_a_variable_with_no_unit_is_stepped_by_the_width_it_drives():
+    """A ``vars.*`` column is sized by its reach, never by its name.
+
+    ``vars.U`` carries no unit, so read off its own row it would keep the step
+    of 1.  It drives ``u`` at coefficient 2, so its size is half of ``u``'s.
+    """
+    table = ParameterTable(make_rutile(), Instrument.bragg_brentano())
+    table.set_vary(["*"], False)
+    table.add_parameter(f"{VAR_PREFIX}U", 0.0, vary=True, lo=-1.0, hi=1.0)
+    table.set_tie("instrument.profile.u",
+                  AffineTie(terms=((f"{VAR_PREFIX}U", 2.0),), const=0.0))
+    table.refresh_ties()
+    typical = dict(zip(table.free_paths, _fd_typicals(table), strict=True))
+    assert typical == {f"{VAR_PREFIX}U": FLOOR_SEEDS["deg^2"] / 2.0}
