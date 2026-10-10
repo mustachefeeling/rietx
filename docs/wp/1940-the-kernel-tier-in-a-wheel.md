@@ -39,7 +39,9 @@ tasks and are not reopened here.
    (§ The relaxed rule).
 3. **Optimisations land with the migration.** The goldens re-pin once at the
    migration; bundling the exponential saves a second re-pin. The threading
-   fix is bit-neutral and ships first, under numba.
+   fix is bit-neutral and ships first, under numba. *Superseded in part
+   2026-10-10 (3rd session) by item 7:* the Rust kernels are bit-identical to
+   numba on all five platforms, so the migration re-pins nothing.
 4. **A hard dependency, with no platform markers and no sdist** (taken
    later the same day). pip then fails loudly where no wheel exists, which
    beats a silent slow path. musllinux and free-threaded (abi3t) wheels are
@@ -47,6 +49,27 @@ tasks and are not reopened here.
 5. **The crate lives in this repository under `kernels/`**, polars' shape
    (taken later the same day). It releases on its own tag namespace,
    `kernels-vN.M`, through one `maturin-action` workflow on that tag.
+
+Three more, taken 2026-10-10 in the 3rd session, after the maintainer asked
+why the kernels are not shipped inside rietx:
+
+6. **A separate distribution, confirmed.** Inside, rietx's build would move
+   from hatchling to maturin, every weekly cut would build five wheels, and
+   every install from source would need a Rust toolchain: each worktree, each
+   CI job, each contributor, and `pip install git+…`, the development-build
+   route. Separate keeps rietx pure Python. The kernel source changed once
+   (2026-08-22) across the six rietx releases since. Both shapes have
+   precedent. Inside: cryptography, markupsafe, pyyaml, charset-normalizer.
+   Separate: transformers on tokenizers and safetensors, pydantic on
+   pydantic-core, jsonschema on rpds-py.
+7. **1.0.0 publishes the bit-identical kernels.** The migration then moves no
+   number. The vectorised exponential ships as 1.1.0 and carries the one
+   golden re-pin, so each release has one effect.
+8. **numba leaves all three tiers at the migration.** Both other tiers keep a
+   bit-exact numpy twin, which is each one's test oracle, so neither port
+   blocks the drop (§ The other two numba tiers has the cost). The indexing
+   traversal stays on numpy. The rasteriser is ported afterwards. This
+   replaces the interim extra the task list carried.
 
 ### What 1939 established
 
@@ -229,16 +252,28 @@ Dropping numba from the dependencies waits on `indexing/_kernels_numba.py`
 own soft import) and `viz/figure3d/_kernels_numba.py` (442, the rasteriser,
 `raster.py` declines on failure). Both allocate arrays inside the kernels,
 which in Rust is rust-numpy array creation rather than a slice argument.
-Neither was spiked. The interim shape once the model tier ships: numba
-becomes an extra that only those two tiers import, and the base install runs
-their fallbacks.
+Neither was spiked. *Superseded 2026-10-10 (3rd session) by § Decisions
+item 8:* numba leaves without either port. What each numpy twin costs:
+
+| tier | numba | numpy | source |
+|---|---|---|---|
+| indexing, four real patterns | — | 1.03–1.09× slower | WP-1508's table |
+| indexing, synthetic monoclinic | 10.0 s | 194.8–205.6 s | WP-1508's table |
+| figure, 1000 px | 0.051–0.078 s | 0.346–0.357 s | `cod_1000055`, this Mac |
+| figure, 2000 px | 0.138–0.176 s | 1.169–1.170 s | same |
+
+The figure rows are one small structure, three and two renders, `[dev]`
+venv, darwin/arm64, machine idle. Every real pattern WP-1508 measured is
+bound by its leaves, which the compiled traversal does not reach. The
+synthetic row is a box-bound search no real pattern has shown.
 
 **An Intel Mac cannot install rietx today** (found 2026-10-10, 3rd session).
 numba ships no macOS x86_64 wheel from 0.63 (PyPI's file lists: 0.62.0 has
 `macosx_10_15_x86_64`, 0.63.0 and 0.68.0 have none), and 0.63 is rietx's
 floor. So pip must build llvmlite from source, which needs an LLVM
-toolchain. The kernel wheel cross-builds for that platform, so task 9's
-extra is what makes the base install work there again.
+toolchain. The kernel wheel cross-builds for that platform, so dropping
+numba at the migration (§ Decisions item 8) is what makes the base install
+work there again.
 
 ### Decisions owed
 
@@ -255,10 +290,9 @@ items 4 and 5), and measurement settled the third:
 
 ## Non-goals
 
-Porting the indexing traversal and the figure rasteriser is listed as a task
-because the dependency cannot drop without them, but each is its own
-commit series against its own equivalence test and may become its own WP
-once the model tier ships. A rayon pool (item 4) waits on item 1's
+Porting the indexing traversal: its numpy loop costs 3-9 % on real patterns
+(§ Decisions item 8). The rasteriser port is a task, and may become its own
+WP once the model tier ships. A rayon pool (item 4) waits on item 1's
 measurement. FPA and the peaks buffer stay fenced (1122).
 
 ## Tasks
@@ -282,26 +316,33 @@ measurement. FPA and the peaks buffer stay fenced (1122).
       once and reaches `capabilities()`; `_SURFACE_FLAGS`/`features` updated;
       the numba model kernels and the cache-directory and warm-thread
       machinery removed from the model tier; `install.md` and
-      `compatibility.md` say what changed.
+      `compatibility.md` say what changed. One PR with numba's removal and
+      the pin, opened once 1.0.0 is on PyPI (§ Decisions item 7).
 - [ ] Vectorised exponential: choose and license-check an implementation
       (SLEEF is Boost-licensed, ARM optimized-routines MIT, numpy's SIMD `exp`
       BSD; GPL sources are concepts only), state its bound, loop interchange
       in the two FCJ kernels, the bound asserted, goldens re-pinned once;
-      measured against the serial numbers above.
+      measured against the serial numbers above. Released as 1.1.0, with
+      the relaxed rule (§ Decisions item 7).
 - [ ] x86-64-v3 multiversioning, measured on the Linux x86_64 runner against
       1939's 0.85–0.97×.
-- [ ] Release: the wheel workflow (five jobs, 36–79 s each in 1939's run), the
-      tag namespace, the agreement pass and the bounds run on every wheel
-      platform in CI, a section in `RELEASING.md`; `pyproject` pins
-      `rietx-kernels>=N,<N+1`.
-- [ ] numba demoted to an extra for the indexing and figure tiers;
-      `pyproject`'s dependency comment rewritten.
-- [ ] Port the indexing traversal against `test_acceptance_indexing.py` and
-      its unit equivalence tests; port the rasteriser against its own; numba
-      removed.
+- [ ] Release machinery: `kernels.yml` (five wheels, each tested on its own
+      platform with the refusals and the `--gate` agreement pass, published
+      on a `kernels-v*` tag) and `RELEASING.md` § The kernel wheel.
+- [ ] 1.0.0 on PyPI (the maintainer's pending publisher, tag and approval),
+      then `pyproject` pins `rietx-kernels>=1,<2` in the `compiled.py` PR.
+- [ ] numba removed from the dependencies in the `compiled.py` PR
+      (§ Decisions item 8): the indexing traversal on its numpy loop, its
+      numba twin and `test_indexing_kernels.py`'s compiled half deleted, and
+      the indexing CLAUDE.md's "compiled twin" rule rewritten; the figure on
+      its numpy rasteriser; `pyproject`'s dependency comment rewritten.
+- [ ] Port the rasteriser into the crate against its bit-exact numpy twin
+      (`raster.py`'s docstring) and the figure tests; a minor release.
 - [ ] Tests: the guard, the bars, the branch counters, `test_capabilities`'s
       new flag writer, `test_compiled_kernels.py` on both paths; the fast
-      selection's passed+skipped delta quoted.
+      selection's passed+skipped delta quoted. When numba leaves, the
+      agreement pass's reference moves from numba to the numpy path, in the
+      bench and in `kernels.yml`'s `test` job.
 - [ ] Skill: `references/diagnostics-indexing.md`'s `compiled_kernels`
       paragraph rewritten (no numba to omit; a wheel that imports or does
       not), and `install.md`'s agent admonition. No body change: an agent
