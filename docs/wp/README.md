@@ -43,6 +43,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1929](1929-an-esd-follows-where-the-solver-stopped-beside-a-flat-column.md) | An esd follows where the solver stopped beside a flat column | 2026-10-09 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1930](1930-a-width-freed-on-its-floor-leaves-it-by-rounding.md) | A width freed on its floor leaves it by rounding | 2026-10-09 | P1 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
+| [1939](1939-an-ahead-of-time-kernel-spike.md) | An ahead-of-time kernel spike: Rust, C or Cython against numba | 2026-10-10 | — | [Unscheduled](#unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement) |
 
 ## Next, by priority
 
@@ -622,3 +623,4 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1325](1325-parametric-series.md) | Parametric series: a parameter as a function of the series axis | ⬜ | P3 | — ([1119](1119-named-variables.md) soft) |
 | [1925](1925-anomalous-scattering-above-70-kev.md) | Anomalous scattering above 70 keV | ⬜ | P3 | — ([1532](1532-the-skill-passages-a-driving-agent-needed.md) soft) |
 | [1926](1926-the-exact-voigt-is-a-supported-shape.md) | The exact Voigt is a supported shape: its cost, its width, its exports and its bound | ⬜ | P3 | — (#815 soft) |
+| [1939](1939-an-ahead-of-time-kernel-spike.md) | An ahead-of-time kernel spike: Rust, C or Cython against numba | 🔄 2026-10-10 | — | — |
