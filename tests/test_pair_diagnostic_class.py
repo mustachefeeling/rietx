@@ -39,7 +39,7 @@ def test_a_propagation_vector_off_gamma_is_named_too():
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("magnetic-solve-two-site")
-def test_the_two_site_set_reaches_one_minimum_and_pairs_nothing():
+def test_the_two_site_winner_reaches_one_minimum_and_pairs_nothing():
     """The two-site Pnma set of ``test_magnetic_solve``, which carried this
     file's end-to-end naming check until WP-1930 showed both its pairs were
     stopping points.
@@ -51,10 +51,17 @@ def test_the_two_site_set_reaches_one_minimum_and_pairs_nothing():
     either side of ``MOMENT_PAIR_RHO_MIN`` = 0.95, at one χ².  With the floor
     seed the "all" stage starts ``lor_size`` and ``gauss_strain`` off their
     floor, class 0's moment stage converges where it hit ``max_iter`` before,
-    and ρ is −0.114 with Linux's esds.  Class 2, the flat model, collapses to
-    m ≈ 0, where |F_m|² ∝ m² leaves no column to correlate.  The naming check
-    moved to the 150 K Cr₂WO₆ solution, whose pair is structural
+    and ρ is −0.114 with Linux's esds.  The naming check moved to the 150 K
+    Cr₂WO₆ solution, whose pair is structural
     (``test_magnetic_solve_acceptance``).
+
+    Class 2, the flat model, is still a stopping point, so only the winner is
+    asserted to pair nothing.  On macOS arm64 and on Intel Xeon CI runners
+    all three of its starts stop at m ≈ 0, where |F_m|² ∝ m² has no gradient
+    and no column to correlate.  On AMD EPYC 7763 runners two of the three
+    reach m₁ ≈ m₂ ≈ 0.097, χ² lower by 41, where ρ = −0.99997 and the pair is
+    named (0.137 +/- 5.738 μ_B).  Same commit, same wheels: the runner's CPU
+    decides (#865).
     """
     from tests import test_magnetic_solve as T
 
@@ -69,9 +76,11 @@ def test_the_two_site_set_reaches_one_minimum_and_pairs_nothing():
     ref = T.nuclear_fit(T.two_site(), data, instrument)
     solution = rx.solve_magnetic(ref, data, sites=["Mn1", "Mn2"], ion="Mn3+")
 
-    assert not [d.message for d in solution.diagnostics
-                if d.code == "MOMENT_PAIR_DEGENERATE"]
+    pairs = [d.message for d in solution.diagnostics
+             if d.code == "MOMENT_PAIR_DEGENERATE"]
+    assert not [m for m in pairs if m.startswith("class 0")], pairs
     winner = next(t for t in solution.trials if t.class_index == 0)
+    assert not any(r.paired_with for r in winner.moments)
     assert winner.n_minima == 1
     m1, m2 = winner.moments
     assert m1.magnitude == pytest.approx(3.5, abs=0.01)
