@@ -187,6 +187,14 @@ spglib convention, as PRs against the migration branch once it exists.
 
 ## Handover log
 
+- **2026-10-10** (reconstructed post hoc) — A session fixing main's red CI
+  landed `b0d5c521` under this WP's prefix (PR #861, merged as `f52167e9`).
+  It raised the floor to `spglib>=2.8`, deleted `UNI_NOT_IDENTIFIABLE` and
+  repinned five fast tests that had asserted the 2.7.0 defect. It also
+  rewrote the Priority line. The details are under `### Inherited`
+  (2026-10-10). No task is ticked, because the commit did none of the
+  migration. *Next:* task 1, unchanged.
+
 - **2026-09-23** — created, from the 2026-09-23 issue triage (issue #426).
   Checked against the tree at `644dff84`: ten `spglib.` calls in three files,
   plus `isotropy.py`'s error import since PR #389. The timing and the four
