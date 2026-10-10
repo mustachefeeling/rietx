@@ -108,7 +108,7 @@ task changes shape.
       thing. Read every consumer of `"diverged"` and `n_iterations`.
 - [x] The active set on `LSQOutcome`, from both drivers (TRF's
       `active_mask` is the fallback).
-- [ ] Pawley at its largest fixture: BVLS against BCCG, time and answer; the
+- [x] Pawley at its largest fixture: BVLS against BCCG, time and answer; the
       size rule if one is needed.
 - [ ] The twelve-fit grid plus the Pawley, Le Bail, multi-histogram,
       magnetic and sequential suites under the new driver, in both coordinate

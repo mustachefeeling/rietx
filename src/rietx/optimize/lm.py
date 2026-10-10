@@ -6,7 +6,9 @@ constant determination for nonlinear least-squares"), each damped step solved
 exactly inside the parameter box by bounded-variable least squares (Stark, P.
 B. & Parker, R. L. (1995). *Comput. Statist.* **10**, 129-141; WP-1937).  The
 paper pairs the schedule with the bound-constrained conjugate gradient of
-:mod:`.bccg` (Coelho 2005), which this driver used until WP-1937.
+:mod:`.bccg` (Coelho 2005), which this driver used for every step until
+WP-1937 and still uses above :data:`BVLS_MAX_COLUMNS`, where only a Pawley
+block reaches.
 Independent implementation from the papers; TOPAS is closed source and none of
 it was consulted.
 
@@ -83,6 +85,7 @@ import numpy as np
 from scipy.optimize import lsq_linear
 
 from ..backend.linalg64 import require_fp64, to_host_fp64
+from . import bccg
 
 #: λ schedule constants, Coelho (2018) equation (9).  λ starts at 0 (pure
 #: Gauss-Newton) and is dimensionless because the system is pre-conditioned.
@@ -120,6 +123,16 @@ _ACTIVE_TOL = 1e-9
 #: residual rows) × λmax are discarded from the step: the scale of the
 #: rounding error in one entry of JᵀJ (see :func:`_solve_step`).
 _EIGEN_CUT_PER_ROW = float(np.finfo(np.float64).eps)
+#: Largest system the step solves exactly by BVLS; above it the step is
+#: BCCG's (:func:`_solve_step`).  Measured on Pawley-shaped systems (one
+#: banded column per reflection plus 13 dense ones, macOS arm64, WP-1937):
+#: a BVLS solve costs 2-34 ms at 128 columns, 0.13-0.8 s at 400, 1.5-11 s at
+#: 1000 and 10-177 s at 2000, the range spanning few to most intensities on
+#: their floor.  BCCG costs at most 22 ms at every size, and reaches a model
+#: value 5-22 % short of the exact minimum.  Every table-only stage in the
+#: acceptance fits is far below the cut, so only a Pawley block crosses it;
+#: on NAC's (142 columns) the two steps reach the same answer.
+BVLS_MAX_COLUMNS = 128
 
 
 @dataclass(frozen=True)
@@ -471,13 +484,21 @@ def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
     to minimum norm.  The cut binds only near λ = 0: a damped system has every
     eigenvalue at or above λ.
 
+    **Above** :data:`BVLS_MAX_COLUMNS` the step is BCCG's, inexact and fast.
+    scipy's BVLS refactors the free set from scratch at each active-set change,
+    so its cost grows as n³ times the number of changes, and a Pawley block
+    appends one column per reflection.
+
     Returns the step and which bound each variable was solved onto (−1 lower,
     +1 upper, 0 neither), so the caller can land those variables *exactly* on
-    the bound the solve chose.
+    the bound the solve chose.  BCCG reports none.
     """
     n = len(b)
     d = np.sqrt(np.maximum(np.diag(A), 0.0))
     d = np.where(d > 0.0, d, 1.0)
+    if n > BVLS_MAX_COLUMNS:
+        out = bccg.solve(A + lam * np.diag(d * d), b, lo=lo - x, hi=hi - x)
+        return out.x, np.zeros(n, dtype=np.int8)
     inv_d = 1.0 / d
     A_s = A * np.outer(inv_d, inv_d)
     A_s[np.diag_indices(n)] += lam

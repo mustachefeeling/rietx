@@ -378,3 +378,25 @@ def test_widths_pressed_on_zero_together_reach_the_bound_exactly():
     assert np.all(pinned | (out.x[:4] - floor > 1e-9))
     # the active set is exactly the pinned floors
     assert out.active_mask.tolist() == [-1 if p else 0 for p in pinned] + [0]
+
+
+def test_a_block_above_the_bvls_cut_takes_the_bccg_step(monkeypatch):
+    """A Pawley-sized system is solved by BCCG, inside the same box; BVLS's
+    cost grows as n³ per active-set change (``BVLS_MAX_COLUMNS``)."""
+    from rietx.optimize import bccg
+
+    n = lm.BVLS_MAX_COLUMNS + 1
+    rng = np.random.default_rng(5)
+    J = rng.standard_normal((3 * n, n))
+    A, b = J.T @ J, J.T @ rng.standard_normal(3 * n)
+    lo, hi = np.zeros(n), np.full(n, np.inf)
+    calls = []
+    real = bccg.solve
+    monkeypatch.setattr(bccg, "solve", lambda *a, **k: calls.append(1) or real(*a, **k))
+    step, side = lm._solve_step(A, b, 0.0, np.zeros(n), lo, hi, n_rows=3 * n)
+    assert calls and not side.any()
+    assert np.all(step >= 0.0)
+    calls.clear()
+    small, _ = lm._solve_step(A[:-1, :-1], b[:-1], 0.0, np.zeros(n - 1),
+                              lo[:-1], hi[:-1], n_rows=3 * n)
+    assert not calls and np.all(small >= 0.0)
