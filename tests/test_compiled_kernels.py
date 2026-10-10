@@ -469,6 +469,9 @@ def test_capabilities_says_why_the_kernels_did_not_load(monkeypatch):
     assert caps.features["compiled_kernels"] is False
     assert caps.compiled_kernels_unavailable == compiled.unavailable()
     assert "kernel interface" in caps.compiled_kernels_unavailable
+    # forcing the switch on cannot make a declined tier run (WP-1521)
+    compiled.set_enabled(True)
+    assert rx.capabilities().features["compiled_kernels_active"] is False
 
 
 def test_the_pin_is_the_kernel_interface_and_numba_is_gone():

@@ -600,9 +600,10 @@ def _features() -> dict[str, bool]:
         # wheel of another interface is declined.  The second is whether the
         # next residual will use the kernels, which ``RIETX_COMPILED=0``
         # decides.  ``Capabilities.compiled_kernels_unavailable`` says why the
-        # first is false.
+        # first is false.  A switch forced on over a wheel that did not load
+        # still runs numpy, so the second needs the first (WP-1521).
         "compiled_kernels": compiled.available(),
-        "compiled_kernels_active": compiled.enabled(),
+        "compiled_kernels_active": compiled.enabled() and compiled.available(),
         # delivery (WP-1058): whether a fit can hand back the report at every
         # stage boundary as well as at the end.  Asked of the keyword that
         # turns it on, because the envelope whose field this used to read was
