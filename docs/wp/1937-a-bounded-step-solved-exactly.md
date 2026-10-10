@@ -106,7 +106,7 @@ task changes shape.
 - [x] Status and budget parity: a stage already at its minimum is
       `converged`; one budget unit for both drivers; `n_iterations` means one
       thing. Read every consumer of `"diverged"` and `n_iterations`.
-- [ ] The active set on `LSQOutcome`, from both drivers (TRF's
+- [x] The active set on `LSQOutcome`, from both drivers (TRF's
       `active_mask` is the fallback).
 - [ ] Pawley at its largest fixture: BVLS against BCCG, time and answer; the
       size rule if one is needed.

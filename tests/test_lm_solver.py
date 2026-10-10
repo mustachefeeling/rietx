@@ -376,3 +376,5 @@ def test_widths_pressed_on_zero_together_reach_the_bound_exactly():
     assert np.all(grad[:4][pinned] > 0.0)  # S would fall only below the bound
     # and nothing is left a rounding error above its floor
     assert np.all(pinned | (out.x[:4] - floor > 1e-9))
+    # the active set is exactly the pinned floors
+    assert out.active_mask.tolist() == [-1 if p else 0 for p in pinned] + [0]

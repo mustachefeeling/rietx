@@ -243,6 +243,13 @@ class LMOutcome:
     #: inner loop found nothing downhill even at large λ), ``max_nfev`` (the
     #: evaluation budget, TRF's token for the same stop).
     termination: str = "max_nfev"
+    #: the bounds that hold the returned point, scipy's ``active_mask``
+    #: convention (−1 lower, +1 upper, 0 neither) and exact: the variable sits
+    #: *on* the bound, the step having landed it there, and the gradient at
+    #: the returned point pushes it outward, so its multiplier is positive
+    #: (WP-1937).  scipy's TRF reports the same field within ``xtol`` of a
+    #: bound whatever the gradient, its iterates being strictly feasible.
+    active_mask: np.ndarray | None = None
 
 
 def _clip_to_bounds(x: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
@@ -424,10 +431,16 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     n_jev += 1
     at_bounds = (np.isclose(x, lo) & np.isfinite(lo)) | (np.isclose(x, hi) & np.isfinite(hi))
     n_bound_hits = int(np.count_nonzero(at_bounds))
+    # ½∇S = Jᵀr: positive means S falls as the variable decreases
+    half_grad = to_host_fp64(J).T @ r
+    active = np.zeros(len(x), dtype=np.int8)
+    active[(x == lo) & (half_grad > 0.0)] = -1
+    active[(x == hi) & (half_grad < 0.0)] = 1
     return LMOutcome(x=x, fun=r, jac=J, cost=0.5 * s, nfev=n_fev, njev=n_jev,
                      n_outer=n_outer, status=status, lambda_final=lam,
                      n_bound_hits=n_bound_hits, n_truncated=n_truncated,
-                     n_stalled=n_stalled, termination=termination)
+                     n_stalled=n_stalled, termination=termination,
+                     active_mask=active)
 
 
 def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,

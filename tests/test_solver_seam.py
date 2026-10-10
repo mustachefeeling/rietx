@@ -263,6 +263,32 @@ def test_both_drivers_count_and_cap_residual_evaluations(pattern, solver,
     assert capped.n_iterations == NFEV_PER_ITERATION
 
 
+@pytest.mark.parametrize("solver", SOLVERS)
+def test_the_active_set_names_a_scale_held_by_its_ceiling(pattern, solver):
+    """A phase scale capped at half its true value is held there.  Each driver
+    reports it in ``active_bounds``, and only that column; the LM driver's
+    value sits on the bound exactly."""
+    from rietx.model.forward import compile_model
+    from rietx.optimize.least_squares import run_least_squares
+    from rietx.params.vector import ParameterTable
+    from tests.test_refine_synthetic import TRUE_SCALE
+
+    structure, ins = perturbed_models()
+    structure.phases[0].scale.value = 0.3 * TRUE_SCALE
+    structure.phases[0].scale.max = 0.5 * TRUE_SCALE
+    model = compile_model(structure, ins, pattern, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    table.set_vary(["phases.*.scale", "instrument.background.*"], True)
+    out = run_least_squares(model, table, solver=solver)
+
+    k = table.free_paths.index("phases.0.scale")
+    expected = np.zeros(len(table.free_paths), dtype=np.int8)
+    expected[k] = 1
+    assert out.active_bounds.tolist() == expected.tolist()
+    if solver == "lm":
+        assert out.theta[k] == table.bounds()[1][k]
+
+
 # -- what the iteration budget means (WP-1109) ----------------------------
 
 def _spy_least_squares(monkeypatch):

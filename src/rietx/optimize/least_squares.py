@@ -256,6 +256,17 @@ class LSQOutcome:
     #: Optimization* 2nd ed. ch. 12 and 16: an active set is identified by the
     #: multiplier, never by proximity.
     residual_cosine: np.ndarray | None = None
+    #: the driver's own active set, **table columns only** (indexes like
+    #: :attr:`theta`): −1 held at the lower bound, +1 at the upper, 0 neither,
+    #: scipy's ``active_mask`` convention (WP-1937).  The two drivers differ in
+    #: how much it can know.  ``lm`` is exact: the variable sits *on* its
+    #: bound and the gradient there pushes outward, so its multiplier is
+    #: positive (:attr:`.lm.LMOutcome.active_mask`).  ``trf`` reports scipy's
+    #: mask, set within ``XTOL`` of a bound whatever the gradient, because its
+    #: iterates stay strictly inside; a width TRF parks 7.6e-6 above its floor
+    #: (WP-1929, brucite) is not in it.  ``None`` only at the zero-parameter
+    #: early return.  WP-1929's at-bound flag is the reader it was built for.
+    active_bounds: np.ndarray | None = None
     #: ``repr`` of the ``LinAlgError`` the esd computation raised *after* the
     #: solve returned, or ``None`` when it did not (WP-1333, issue #225).  A
     #: failed eigensolve is not a failed fit: :attr:`theta` is the solver's
@@ -418,6 +429,13 @@ def _residual_cosine(jac, fun) -> np.ndarray | None:
     # a column of 1e-170 squares to zero and would read as "not held" (WP-1463)
     denom = column_norms(j) * np.linalg.norm(f)
     return np.divide(j.T @ f, denom, out=np.zeros(j.shape[1]), where=denom > 0)
+
+
+def _active_bounds(res, n: int) -> np.ndarray:
+    """The driver's active set over its first ``n`` columns — see
+    :attr:`LSQOutcome.active_bounds`.  Both result shapes carry it as
+    ``active_mask``."""
+    return np.asarray(res.active_mask, dtype=np.int8)[:n].copy()
 
 
 def _lebail_snapshot(model: CompiledModel) -> list[np.ndarray] | None:
@@ -1721,6 +1739,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     return LSQOutcome(res.x[:n_table], cost0, float(res.cost), int(res.nfev), status,
                       jac_table, stderr, corr, n_aux=n_aux, solver=solver,
                       residual_cosine=cos_table,
+                      active_bounds=_active_bounds(res, n_table),
                       n_constraint_truncations=n_truncated,
                       max_shift_over_esd=_final_shift_over_esd(
                           table, tracker.step(), stderr_full, corr, n_table),
@@ -1885,6 +1904,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     return LSQOutcome(res.x, cost0, float(res.cost), int(res.nfev), status,
                       jac_data, stderr, corr, solver=solver,
                       residual_cosine=_residual_cosine(res.jac, res.fun),
+                      active_bounds=_active_bounds(res, len(res.x)),
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
                       covariance_error=covariance_error)
