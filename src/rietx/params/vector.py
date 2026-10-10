@@ -1041,6 +1041,10 @@ SOFTPLUS_FLOOR_VALUE = 1e-9
 #: A row with any other unit has no natural size: a background hump's height
 #: is in counts, and its scale is the data's.  It is left where it is and
 #: reported (``SOFTPLUS_FREED_AT_FLOOR``).
+#:
+#: **A second reader.**  The finite-difference step of an identity width row
+#: is sized by the same table (``optimize.least_squares._fd_typicals``,
+#: WP-1936), so a new width unit belongs here for both reasons.
 FLOOR_SEEDS: dict[str, float] = {"deg": 1e-3, "deg^2": 1e-3 ** 2, "um^2": 1e-3}
 
 
