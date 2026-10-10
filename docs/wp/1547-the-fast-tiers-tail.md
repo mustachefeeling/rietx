@@ -127,6 +127,18 @@ edits, and a missed one drops that platform's answer silently. A YAML anchor
 or one script every leg calls would fix it. It is low stakes, and in scope
 only if the last task moves Python versions into the nightly.
 
+### Inherited
+
+- **2026-10-10, from WP-1936's session: #857's merge turned main's py3.11 leg
+  red.** `test_fit_usable.py::test_issue_243_reproduction_reads_unusable_while_converged`
+  read `max_iter` where it pins `converged` (run 38002319163, every other leg
+  green). The fixture was chaotic, not wrong: unseeded, its later stages
+  wander, and a 1e-12 change to the FD step moved the final Rwp from 1.56 to
+  2243. The fix on branch `wp1547-issue243-flake` runs the reproduction's
+  first three stages, which reach the same answer at every nudge. Read it
+  when the ten-run re-measure counts flaky legs. This one was rounding, not
+  a slow test, and what moved py3.11's rounding at #857 is not established.
+
 ## Non-goals
 
 - Why `isotropy.analyse` is slow: WP-1418.
