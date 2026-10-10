@@ -1,6 +1,6 @@
 # WP-1547 — the fast tier's tail is cut back, and its report reads CI's seconds
 
-Milestone: unscheduled · Status: 🔄 2026-10-09 — five of six tasks landed (PR #857); the ten-run re-measure waits for the merge
+Milestone: unscheduled · Status: 🔄 2026-10-10 — claimed by @yue-here
 Track: The repo's own process
 Depends on: —
 Priority: P2 2026-10-09 — a cost item with the maintainer at the wall: every code PR waits 32-37 min, and the median leg rose 43 % in one week
