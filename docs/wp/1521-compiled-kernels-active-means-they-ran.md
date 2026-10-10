@@ -54,6 +54,15 @@ an install where it imports and a build fails (both builds are
 bit-identical to their numpy paths or to a stated bar. What is wrong is a
 report about speed.
 
+### Inherited
+
+- **2026-10-10, from WP-1939.** If the numba tier is replaced by kernels
+  compiled into a wheel (1939's verdict names Rust, and the decision is the
+  user's), nothing is built at run time. A failed build becomes a failed
+  import, which `available()` already answers. This WP's model-tier half would
+  then be moot; the indexing tier's half stands until its kernels move too.
+  Read 1939 § Verdict before starting here.
+
 ## Non-goals
 
 The tiers' fallback behaviour (correct as it is: decline, never raise, one path

@@ -1,6 +1,6 @@
 # WP-1939 — an ahead-of-time kernel spike: Rust, C or Cython against numba
 
-Milestone: unscheduled · Status: 🔄 2026-10-10 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-10 — spike done, verdict Rust; whether to replace numba waits on the user's packaging decision
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: —
 
@@ -102,7 +102,7 @@ kernel call of the trigger fit (23 303 calls) and of cpd-1a (8 247):
 | Rust | 0 | bit-identical | bit-identical |
 | Cython, `-ffp-contract=off` | 0 | bit-identical | bit-identical |
 | Cython, Limited API, `-ffp-contract=off` | 0 (trigger) | not run | not run |
-| Cython, clang default | all 11 270 scatters, 1 131 of 1 148 symmetric Ω | 4.8e-2 esd | 5.7e-4 esd |
+| Cython, clang default | every kernel: all 11 270 scatters and 6 449 FCJ Ω, 1 131 of 1 148 symmetric Ω, and the bases | 4.8e-2 esd | 5.7e-4 esd |
 | numpy (the fallback) | — | 5.3e-2 esd | bit-identical |
 
 Clang's default fuses multiply-adds within a statement. That moves the
@@ -167,7 +167,7 @@ agreement pass on GitHub's runners, gcc 13.3.0, glibc 2.39:
 | runner | Rust | Cython, contract off | Cython, Limited API | Cython, gcc default | serial ×numba, trigger: Rust · Cython |
 |---|---|---|---|---|---|
 | ubuntu x86_64 | 0 differing | 0 | 0 | 0 | 0.93× · 1.00× |
-| ubuntu aarch64 | 0 | 0 | 0 | every scatter, every FCJ Ω | 1.21× · 1.03× |
+| ubuntu aarch64 | 0 | 0 | 0 | every kernel, as on darwin | 1.21× · 1.03× |
 
 So on glibc numba's `exp` and Rust's are the same function, and WP-1115's
 3e-17 is between numba and numpy alone. gcc's default contraction is silent
@@ -218,7 +218,7 @@ per-process warm-up, and the cache-directory and warm-thread machinery in
 built at run time: the extension imports or it does not. The costs:
 
 - A second distribution, `rietx-kernels`, with its own release workflow: five
-  wheel jobs, about 80 s each.
+  wheel jobs, 36–79 s each in one run.
 - A Rust toolchain for anyone who edits a kernel.
 - 956 more lines to port: the indexing traversal (514) and the figure
   rasteriser (442). Neither was spiked.
@@ -277,7 +277,9 @@ uv pip install --python .venv/bin/python examples/aot_spike/rust/target/wheels/*
 .venv/bin/python -m ruff check src tests examples
 ```
 
-The bench prints § Spike's tables. Its agreement pass is the go/no-go
+The bench prints § Spike's agreement, serial, end-to-end and startup tables.
+The per-call, size, Linux and packaging figures came from one-off runs.
+The bench's agreement pass is the go/no-go
 criterion: zero differing calls for every candidate built with contraction
 off, on every platform it runs on.
 
@@ -303,6 +305,76 @@ off, on every platform it runs on.
 
 ## Handover log
 
-- **2026-10-10** — Filed. No open WP owns ahead-of-time kernels: 1115 shipped
-  and closed, 1122 is the peaks buffer, 1508 the indexing traversal, 1521 the
+### 2026-10-10 — filed, spiked, and the verdict is Rust
+
+If numba is replaced, the replacement should be Rust, and it would be for
+packaging, never for speed. All three ahead-of-time candidates ran the five
+model kernels inside real fits at 1.01–1.08× numba, and Rust and Cython
+agreed with numba on every kernel call on macOS and on both Linux
+architectures. What separates them is that Rust keeps that agreement by the
+language's rules, while C and Cython keep it only behind a compiler flag. One
+build without the flag moved a fit by 4.8e-2 esd with nothing raised.
+Replacing numba would drop 143 MB, the `numpy<2.6` ceiling and up to 0.6 s of
+warm-up per process. It would cost a second distribution and a Rust toolchain
+for kernel edits. That trade is the user's to make.
+
+*Done.*
+
+- Filed this WP. No open WP owned ahead-of-time kernels: 1115 shipped and
+  closed, 1122 is the peaks buffer, 1508 the indexing traversal, 1521 the
   capability flag.
+- § Precedent, from one research agent's web reading. Its wheel counts and
+  pins were re-read here from PyPI.
+- `examples/aot_spike/`: the Rust crate, the Cython module, and
+  `bench_aot_kernels.py`.
+- A temporary workflow (`spike-aot.yml`, run 38033895299) for the Linux
+  agreement and the wheel matrix. It was deleted in the next commit.
+- § Spike and § Verdict. WP-1521's `### Inherited` notes that the model-tier
+  half of its question goes away with a wheel.
+
+*Measured.* Every figure is in § Spike, with venv and platform: `[dev]` plus
+maturin, cython and setuptools, darwin/arm64, python 3.12.10. The Linux rows
+are GitHub's ubuntu x86_64 and aarch64 runners.
+
+- The fast and full selections were not run. Nothing under `src/` or
+  `tests/` changed, and no test was added.
+- The machine was under a load of 38–100 from another session from about
+  08:13. The Limited-API per-call figure and the second trigger agreement pass
+  come from that window. Their bits are good and their seconds are not.
+
+*Review.* `/code-review high --fix` made ten findings and fixed nine of them
+in three commits:
+
+- the bench counted per plane, its ulp distance could wrap, and it compared
+  only the last repeat;
+- Rust's outputs accepted a read-only or misshapen plane;
+- the ignore rules were repo-wide;
+- a single wall-clock figure appeared in the text.
+
+It left the darwin default-contraction row to me. That row under-reported the
+kernels it moved and is corrected.
+
+*Gotchas.*
+
+- rust-numpy refuses two live writable borrows of one array, and `_spread`
+  makes exactly that call pattern.
+- A Rust loop written as a closure over captured slices runs at 0.59×. As a
+  free function it runs at 1.52× (§ Spike, the two traps).
+- `maturin` needs `[tool.maturin] module-name` when the distribution name has
+  a hyphen.
+- The Rust toolchain is rustup's minimal profile in `~/.cargo`, off PATH.
+- This machine has no container runtime, so a Linux question goes to a
+  branch workflow.
+
+*Next.* The user decides whether to replace numba. If yes, file the build WP
+with § Verdict's three design points as its Context:
+
+1. Port the model kernels into a `rietx-kernels` distribution, with the
+   agreement pass as its test, run on every wheel platform in CI.
+2. Port the indexing traversal (514 lines) and the figure rasteriser (442),
+   each against its own equivalence test.
+3. Drop numba from the dependencies.
+
+Before step 1, measure whether an x86-64-v3 target recovers the 0.85–0.97×
+on Linux x86_64's FCJ kernels. If no, close this WP 🛑 with the verdict
+standing for whenever numpy 2.6 forces the question.
