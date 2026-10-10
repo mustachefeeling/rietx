@@ -233,6 +233,13 @@ Neither was spiked. The interim shape once the model tier ships: numba
 becomes an extra that only those two tiers import, and the base install runs
 their fallbacks.
 
+**An Intel Mac cannot install rietx today** (found 2026-10-10, 3rd session).
+numba ships no macOS x86_64 wheel from 0.63 (PyPI's file lists: 0.62.0 has
+`macosx_10_15_x86_64`, 0.63.0 and 0.68.0 have none), and 0.63 is rietx's
+floor. So pip must build llvmlite from source, which needs an LLVM
+toolchain. The kernel wheel cross-builds for that platform, so task 9's
+extra is what makes the base install work there again.
+
 ### Decisions owed
 
 None remain. The maintainer took the first two on 2026-10-10 (§ Decisions
@@ -260,7 +267,7 @@ measurement. FPA and the peaks buffer stay fenced (1122).
       or a work product in `compiled.py`; `bench_aot_kernels.py` reports
       pooled against inline calls; trigger end to end before and after, as
       ranges, in the handover. Under numba, bit-neutral, its own PR.
-- [ ] Branch counters in the agreement pass (`n_terms` arms, `spell`,
+- [x] Branch counters in the agreement pass (`n_terms` arms, `spell`,
       `has_ax`), and the pass run on Windows and macOS x86_64 (a temporary
       workflow, as 1939 did), closing 1939's two owed platforms.
 - [ ] The relaxed rule written: root CLAUDE.md's compiled-tier clause,
