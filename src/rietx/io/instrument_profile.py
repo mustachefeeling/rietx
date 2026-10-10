@@ -68,6 +68,7 @@ from .projects.gsas import (
     CW_PROFILE_COEFFICIENTS,
     KEY_BYTES,
     GsasIcons,
+    GsasPrcfHeader,
     _naming_the_file,
     read_icons,
     read_prcf_header,
@@ -403,11 +404,11 @@ def read_gsas_prm(path: str | Path, *, profile_set: int | None = None,
     **A bank may offer several profile sets**, each its own ``PRCFn`` block
     (``BT1_Cu311.inst`` from GSAS-II's tutorials states types 1, 2 and 3 as
     sets 1, 2 and 3).  ``profile_set`` names the one to read, as ``scan=``
-    names a scan in :func:`~rietx.read_pattern`.  Left ``None``, the
-    lowest-numbered set is read, which is set 1 and what GSAS-II's own
-    importer reads, and a file offering more than one says so.  A set that is
-    not type 3 is refused, and the refusal names a type-3 set when the file
-    offers one.
+    names a scan in :func:`~rietx.read_pattern`.  Left ``None``, set 1 is
+    read, which is what GSAS-II's own importer reads, and a file offering more
+    than one says so; a file with no set 1 is refused, naming the sets it
+    does state.  A set that is not type 3 is refused, and the refusal names a
+    type-3 set when the file offers one.
 
     Similarly for ``PRCF``: only the eight coefficients this package has room
     for are read, **named from the one table that names them**
@@ -447,14 +448,13 @@ def read_gsas_prm(path: str | Path, *, profile_set: int | None = None,
       row describes a record **this file carried**: the ``IRAD``/``ITYP`` row
       is absent for a file holding neither, and the "past position 8" clause
       is absent for a ``PRCF`` declaring exactly eight.
-    * ``GSAS_PRM_PROFILE_SET_DEFAULTED`` — the bank offers more than one
-      profile set and ``profile_set`` named none, so the lowest-numbered set
-      was read.
     * ``GSAS_PRM_GEOMETRY_ASSUMED`` — always, because a ``.prm`` states no
       geometry at all and this reader returns
       :meth:`Instrument.debye_scherrer` (``PXCR``) or
       :meth:`Instrument.constant_wavelength_neutron` (``PNCR``), both
       Debye-Scherrer.
+    * ``GSAS_PRM_PROFILE_SET_DEFAULTED`` — the bank offers more than one
+      profile set and ``profile_set`` named none, so set 1 was read.
 
     A ``PNCR`` file differs in three places, each because a
     :class:`~rietx.schemas.instrument.NeutronSource` has one wavelength and
@@ -462,7 +462,7 @@ def read_gsas_prm(path: str | Path, *, profile_set: int | None = None,
     such files still write) and ``KRATIO`` are read and not applied, named
     in the ``ICONS`` row of ``GSAS_PRM_FIELD_DROPPED``.
 
-    That second one matters more than a dropped zero.  ``Geometry.kind``
+    ``GSAS_PRM_GEOMETRY_ASSUMED`` matters more than a dropped zero.  ``Geometry.kind``
     selects the position correction and its suggested action
     (``report/layer1.POSITION_TEMPLATES``,
     ``layer2._POSITION_ACTIONS_BY_GEOMETRY``), and the two geometries'
@@ -517,19 +517,23 @@ def read_gsas_prm(path: str | Path, *, profile_set: int | None = None,
     # have been read either way.
     neutron = htype == _HTYPE_PNCR
     sets = _prcf_sets(records)
-    chosen = min(sets, default=1) if profile_set is None else profile_set
-    if profile_set is not None and profile_set not in sets:
+    # Set 1 by default, as GSAS-II's importer reads it, never "the lowest
+    # stated": a file with no PRCF1 is not one GSAS-II reads either.
+    chosen = 1 if profile_set is None else profile_set
+    if chosen not in sets and (sets or profile_set is not None):
+        asked = (f"profile_set={profile_set!r}" if profile_set is not None
+                 else "no profile_set was named, so set 1 is the one read")
         raise ValueError(
-            f"{p.name}: profile_set={profile_set!r}, and bank 1 states "
+            f"{p.name}: {asked}, and bank 1 states "
             f"profile set(s) {', '.join(map(str, sorted(sets))) or 'none'}")
-    prof_type, coeffs = _read_prcf(records, p, chosen)
+    prof_type, coeffs = _read_prcf(records, p, chosen, sets.get(chosen))
     if prof_type != _PRCF_TYPE_3:
         what = _PRCF_TYPE_REFUSALS.get(prof_type)
         # The file may offer a type-3 set beside the one read (BT1_Cu311.inst
         # states types 1, 2 and 3), and a refusal that names it is one the
         # caller can act on.
-        offered = [n for n, t in sorted(sets.items())
-                   if t == _PRCF_TYPE_3 and n != chosen]
+        offered = [n for n, h in sorted(sets.items())
+                   if h.function == _PRCF_TYPE_3 and n != chosen]
         other = (
             f"  This file also states a type-3 profile as set "
             f"{offered[0]}; read_gsas_prm(..., profile_set={offered[0]}) "
@@ -661,8 +665,8 @@ def read_gsas_prm(path: str | Path, *, profile_set: int | None = None,
                 message=f"{p.name}: {record} — {what}",
                 where=[record]))
         if profile_set is None and len(sets) > 1:
-            offered = ", ".join(f"set {n} (type {t})"
-                                for n, t in sorted(sets.items()))
+            offered = ", ".join(f"set {n} (type {h.function})"
+                                for n, h in sorted(sets.items()))
             diagnostics.append(Diagnostic(
                 level="warning", code="GSAS_PRM_PROFILE_SET_DEFAULTED",
                 message=(f"{p.name}: bank 1 offers {len(sets)} profile sets, "
@@ -881,25 +885,31 @@ def _read_icons(records: list[tuple[str, str]], p: Path, *,
     return icons
 
 
-def _prcf_sets(records: list[tuple[str, str]]) -> dict[int, int | None]:
-    """Every profile set bank 1 states, as {set number: profile type}.
+def _prcf_sets(records: list[tuple[str, str]]) -> dict[int, GsasPrcfHeader]:
+    """Every profile set bank 1 states, as {set number: its first header}.
 
     A ``.prm`` may offer several profile functions for one bank, each under its
     own header ``PRCFn`` (``BT1_Cu311.inst`` states types 1, 2 and 3 as sets 1,
     2 and 3, with the same ``GU GV GW`` in each).  GSAS-II's importer reads set
     1 alone (``GSASIIfiles.SetPowderInstParms``).  A type this file leaves blank
     is ``None`` here and refused by :func:`_read_prcf` if that set is read.
+
+    Each header is read **once**, here: an optional field that overflowed is
+    reported by :func:`~rietx.io.projects.gsas._naming_the_file` once per read,
+    so a second read of the same header would report it twice.
     """
-    sets: dict[int, int | None] = {}
+    sets: dict[int, GsasPrcfHeader] = {}
     for name, payload in records:
-        if len(name) == 5 and name.startswith("PRCF") and name[4].isdigit():
-            sets.setdefault(int(name[4]),
-                            read_prcf_header(payload).function)
+        if (len(name) == 5 and name.startswith("PRCF")
+                and name[4].isdecimal() and int(name[4]) not in sets):
+            sets[int(name[4])] = read_prcf_header(payload,
+                                                  required=("function",))
     return sets
 
 
-def _read_prcf(records: list[tuple[str, str]], p: Path,
-               profile_set: int) -> tuple[int | None, list[float]]:
+def _read_prcf(records: list[tuple[str, str]], p: Path, profile_set: int,
+               header: GsasPrcfHeader | None
+               ) -> tuple[int | None, list[float]]:
     """Read bank 1's ``PRCFn`` block for set ``n``: (profile type, coefficients).
 
     The **header** is a fixed-format record like every other, read by column
@@ -928,7 +938,7 @@ def _read_prcf(records: list[tuple[str, str]], p: Path,
             f"{p.name}: expected exactly one {key} header for bank 1, found "
             f"{len(headers)} — a bank declaring one profile set more than "
             f"once is ambiguous about which applies, not a richer instrument")
-    header = read_prcf_header(headers[0], required=("function",))
+    assert header is not None    # one header under ``key``, so _prcf_sets read it
     prof_type, ncoef = header.function, header.n_coefficients
     if prof_type is None:
         raise ValueError(

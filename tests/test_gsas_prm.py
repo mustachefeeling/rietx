@@ -348,6 +348,31 @@ def test_a_profile_set_the_file_does_not_state_is_refused_naming_those_it_does(t
         read_gsas_prm(p, profile_set=2)
 
 
+def test_a_file_with_no_set_1_is_refused_rather_than_read_from_another(tmp_path):
+    """Set 1 is the default because GSAS-II reads set 1, so a file stating
+    only set 2 is not silently read as if it were."""
+    p = tmp_path / "two.prm"
+    p.write_text(_prm().replace("PRCF1", "PRCF2"), encoding="utf-8")
+    with pytest.raises(ValueError, match=r"set 1 is the one read, and bank 1 "
+                                         r"states profile set\(s\) 2"):
+        read_gsas_prm(p)
+    assert read_gsas_prm(p, profile_set=2).profile.x.value == pytest.approx(
+        0.15e-2, rel=1e-12)
+
+
+def test_an_overflowed_prcf_cutoff_is_reported_once(tmp_path):
+    """The set listing and the set read share one read of each header, so an
+    optional field that overflowed is one row, not two."""
+    p = tmp_path / "overflow.prm"
+    p.write_text(_prm().replace("INS  1PRCF1     3   19   0.00100",
+                                "INS  1PRCF1     3   19" + "*" * 10),
+                 encoding="utf-8")
+    notes: list = []
+    read_gsas_prm(p, diagnostics=notes)
+    assert [d.where for d in notes if d.code == "GSAS_FIELD_OVERFLOW"] == [
+        ["INS  1PRCF1"]]
+
+
 def test_bt1_cu311_names_its_type_3_set():
     """The real file: set 1 is type 1, and the refusal points at set 3."""
     with pytest.raises(ValueError, match="profile_set=3"):
