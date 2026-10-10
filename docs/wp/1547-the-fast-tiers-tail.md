@@ -188,7 +188,7 @@ only if the last task moves Python versions into the nightly.
 - [ ] `ci.yml` runs py3.11, py3.14 and jax, two shards each. py3.12 runs in
       the nightly, where `full` already covers 3.13. The nightly's three
       copies of the environment line become one module every leg calls.
-- [ ] `added_test_times.py` reads a directory of shard files, and
+- [x] `added_test_times.py` reads a directory of shard files, and
       `/wp-handover` step 7 downloads both py3.14 shards.
 - [x] `ci.yml`'s header: one line saying `-n auto` is 2 workers on this
       runner, and that `-n logical` was measured to buy nothing (this WP).

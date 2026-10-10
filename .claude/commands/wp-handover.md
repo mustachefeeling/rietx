@@ -116,10 +116,11 @@ re-reading its own diff.
    seconds understate a CI leg by 3-4× (WP-1547). A PR readied once has one:
    `gh run list --workflow ci.yml --branch "$(git branch --show-current)"
    --status completed --limit 5 --json databaseId,headSha,conclusion`, then
-   `gh run download <id> -n junit-py3.14 -D <scratchpad>/ci` on the newest
-   run that has the artifact, and name the sha it ran on. A draft's run and a
-   cancelled one have none. Read the py3.14 leg because it alone executes the
-   tutorials. Otherwise pass the local file. The entry quotes the rows and
+   `gh run download <id> -p 'junit-py3.14-*' -D <scratchpad>/ci` on the
+   newest run that has the artifacts, and name the sha it ran on. A draft's
+   run and a cancelled one have none. Pass the directory, since the leg runs
+   as two shards with a file each. Read the py3.14 leg because it alone
+   executes the tutorials. Otherwise pass the local file. The entry quotes the rows and
    the per-file totals as one run's figures on the named machine. They rank a
    test or a file against the tail and do not time it. A test or a file that
    joins the fast tier's slow tail says why it is not marked `slow`
