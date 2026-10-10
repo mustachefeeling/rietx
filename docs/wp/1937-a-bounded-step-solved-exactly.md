@@ -210,7 +210,8 @@ converges.
     rerun green after its fix (`db311116`). The branch adds 10 test functions
     (17 cases, +11 in `test_lm_solver.py` and +6 in `test_solver_seam.py`,
     checked by collecting origin/main's versions), 0.90 s in this run, none
-    in the tail. FULL_SUITE_LINE
+    in the tail. Full selection on `0d5218d5`, which is current main merged in (main had not moved): 9298
+    passed, 186 skipped, 1 xfailed, none failed; no other pytest was running at its start.
     Lanes: one, the grid (estimated 40 requests, took 162; lane $10.94 against
     $19.78 in-session, +$8.61 saved, +25 % of the session); one kept, Pawley
     (estimated 12, took 16). The replay's selective policy: −23 % at u = 0K.
