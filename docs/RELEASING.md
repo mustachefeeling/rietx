@@ -130,9 +130,12 @@ built from `kernels/` (WP-1940). It has its own version and its own workflow,
 only when the kernels change. The weekly rietx cut does not touch it.
 
 Its major version is the kernel interface number, `rietx_kernels.KERNEL_ABI`,
-and rietx pins that major version. Bump the major for any change to a kernel's
-name, arguments or output planes, and move rietx's pin in the same pull
-request. Bump the minor for anything else, including a change of arithmetic.
+and rietx pins that major version. Bump the major for any change to an
+existing kernel's name, arguments or output planes, and move rietx's pin in
+the same pull request. Bump the minor for anything else: a new kernel, or a
+change of arithmetic. When rietx starts calling a new kernel, raise the pin's
+floor to the minor that added it, because an older wheel of the same major
+lacks it.
 
 1. Set `version` in `kernels/Cargo.toml`. A build updates `kernels/Cargo.lock`
    to match. Commit both.

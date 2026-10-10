@@ -116,6 +116,14 @@ bound on what sticks add. The multishadow number is the WP's to measure.
 - `gui/src/panels/Structure3D.svelte`: the toggle.
 - `scene.LOOK`, if D2's constants become shared look values.
 
+### Inherited
+
+- **2026-10-10, from WP-1940 (3rd session).** numba leaves rietx at the
+  kernel migration (1940 § Decisions item 8), and the rasteriser's numba
+  twin is deleted then. The task "the numba kernel, held bit-identical to
+  the numpy path" becomes a kernel in `kernels/src/lib.rs` once 1940 ports
+  the rasteriser, or the numpy path alone before that.
+
 ## Non-goals
 
 - Ambient occlusion in the SVG (WP-1536). Darkening per pixel has no vector

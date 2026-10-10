@@ -312,8 +312,9 @@ measurement. FPA and the peaks buffer stay fenced (1122).
       decided home, with the three code fixes (distinct-buffer check, per-plane
       shape check against `phi`, checked index conversion), `KERNEL_ABI`,
       `module-name`, abi3-py311, `codegen-units = 1`, `lto = "fat"`.
-- [ ] `compiled.py` loads the wheel: import, ABI check, decline that warns
-      once and reaches `capabilities()`; `_SURFACE_FLAGS`/`features` updated;
+- [ ] `compiled.py` loads the wheel: import, ABI check (a kernel the wheel
+      lacks declines the same way), decline that warns once and reaches
+      `capabilities()`; `_SURFACE_FLAGS`/`features` updated;
       the numba model kernels and the cache-directory and warm-thread
       machinery removed from the model tier; `install.md` and
       `compatibility.md` say what changed. One PR with numba's removal and
@@ -334,10 +335,12 @@ measurement. FPA and the peaks buffer stay fenced (1122).
 - [ ] numba removed from the dependencies in the `compiled.py` PR
       (§ Decisions item 8): the indexing traversal on its numpy loop, its
       numba twin and `test_indexing_kernels.py`'s compiled half deleted, and
-      the indexing CLAUDE.md's "compiled twin" rule rewritten; the figure on
-      its numpy rasteriser; `pyproject`'s dependency comment rewritten.
+      the indexing CLAUDE.md's "compiled twin" rule and root CLAUDE.md's
+      compiled-tier clause rewritten; the figure on its numpy rasteriser;
+      `pyproject`'s dependency comment rewritten.
 - [ ] Port the rasteriser into the crate against its bit-exact numpy twin
-      (`raster.py`'s docstring) and the figure tests; a minor release.
+      (`raster.py`'s docstring) and the figure tests; a minor release. If
+      WP-1505 moves the figure into rietview first, the port goes there.
 - [ ] Tests: the guard, the bars, the branch counters, `test_capabilities`'s
       new flag writer, `test_compiled_kernels.py` on both paths; the fast
       selection's passed+skipped delta quoted. When numba leaves, the
