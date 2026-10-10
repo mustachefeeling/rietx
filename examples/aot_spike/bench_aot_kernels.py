@@ -27,7 +27,10 @@ Three measurements:
    inputs, and the twin's outputs are the ones the fit goes on with.  So the
    fit is the numpy path's, and its final parameters must be bit-identical to
    a second fit run with the tier switched off.  That proves the twins are the
-   fallback on every call these fits make.  Serial: the pool's worker count is
+   fallback on every call these fits make.  A third fit, the numpy path again,
+   says whether the comparison can be made at all.  On macOS x86_64 under
+   numpy 2.4.6 two identical numpy-path fits in one process differ by up to
+   ~1e-3 esd (WP-1940), and there the twins' gap is reported, never gated.  Serial: the pool's worker count is
    forced to 1, so each call covers all its rows.  The comparison is over the
    rows the call wrote, in window.  Per kernel the table gives the calls, the
    calls that were bit-identical, the largest relative difference (the largest
@@ -385,11 +388,20 @@ def agreement(case: str, wheel: dict) -> tuple[int, set[str], bool]:
     was = compiled.set_enabled(False)
     try:
         _w, on_numpy = _fit(setup)
+        _w, again = _fit(setup)
     finally:
         compiled.set_enabled(was)
-    gap = _theta_gap({p.path: (p.value, p.stderr) for p in on_numpy.parameters},
-                     {p.path: (p.value, p.stderr) for p in on_twins.parameters})
-    print(f"The fit on the twins' outputs, against the numpy path: {gap}.\n")
+    final = {p.path: (p.value, p.stderr) for p in on_numpy.parameters}
+    gap = _theta_gap(final, {p.path: (p.value, p.stderr)
+                             for p in on_twins.parameters})
+    noise = _theta_gap(final, {p.path: (p.value, p.stderr)
+                               for p in again.parameters})
+    print(f"The fit on the twins' outputs, against the numpy path: {gap}.")
+    if noise != "bit-identical":
+        print(f"The numpy path against itself: {noise}.  It does not reproduce "
+              "itself here, so the twins cannot be checked against it, and "
+              "their gap is reported, not gated.")
+    print()
     print("| kernel | calls | arms ran (calls) | bit-identical | max rel | "
           "max ulp | bar | past the bar |")
     print("|---|---|---|---|---|---|---|---|")
@@ -407,7 +419,8 @@ def agreement(case: str, wheel: dict) -> tuple[int, set[str], bool]:
         print(f"| {k} | {shadow.calls[k]} | {ran} | {shadow.same.get(k, 0)} | "
               f"{shadow.rel.get(k, 0.0):.1e} | {shadow.ulps.get(k, 0.0):.0f} | "
               f"{bar} | {past} |")
-    return sum(shadow.past.values()), set(shadow.calls), gap == "bit-identical"
+    faithful = gap == "bit-identical" or noise != "bit-identical"
+    return sum(shadow.past.values()), set(shadow.calls), faithful
 
 
 def pool_engagement(setup) -> None:
