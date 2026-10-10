@@ -27,9 +27,10 @@ resumes where it stopped.  Nothing here is a wall-clock number.
 
 Measured 2026-10-10 (macOS arm64, ``[dev]``, ``src`` at ``790c7ce7``): fits
 over the 1e-9 bar were 3 of 14 under softplus + TRF (today's default), 7
-under softplus + LM, 4 under physical + TRF and 2 under physical + LM
-(brucite at 1.1e-8, brucite + Stephens at 1.6e-6).  The handover entry of
-``docs/wp/1937-a-bounded-step-solved-exactly.md`` has the full table.
+under softplus + LM, 4 under physical + TRF and 2 under physical + LM.  On
+the WP's final tree, whose LM start is no longer nudged off its bounds,
+physical + LM misses on brucite + Stephens alone (2.1e-6).  The handover
+entry of ``docs/wp/1937-a-bounded-step-solved-exactly.md`` has the tables.
 """
 
 from __future__ import annotations

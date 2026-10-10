@@ -81,7 +81,9 @@ a poor basin). VALIDATION.md's rows and the landing page are re-measured.
   five starts nudged by 1e-14, macOS arm64, `[dev]`, `src` at `790c7ce7`),
   fits whose χ²_red spread is over 1e-9: softplus + TRF (today) 3, softplus
   + LM 7, physical + TRF 4 with `max_iter` on brucite, corundum and brucite +
-  Stephens, physical + LM 2 with no `max_iter` anywhere. Residual
+  Stephens, physical + LM 2 with no `max_iter` anywhere. On 1937's final tree,
+  whose LM start is no longer nudged 1e-12 off a bound (`4708b855`),
+  physical + LM misses on brucite + Stephens alone. Residual
   evaluations over twelve fits: 1292 today, 1065 physical + LM, 2717
   physical + TRF. In softplus coordinates the exact LM step drives widths to
   u ≈ −400, their columns die, and stages end on `ftol_runs` after moving
@@ -107,14 +109,17 @@ a poor basin). VALIDATION.md's rows and the landing page are re-measured.
     builds no cone under LM (`run_multi_least_squares`), so the guard still
     fires there. Regenerate the skill's `api.md`. PNGs for the fits whose
     answer moves.
-  - *Task: brucite's valley.* Physical + LM spreads 1.1e-8 on brucite
-    (isotropic). Two exactly degenerate Lorentzian pairs (`profile.y` with
-    `lor_strain`, `profile.x` with `lor_size`) split differently per start,
-    and `axial_sl` ends at 0.2 or under 3e-10. A final ftol of 1e-12 leaves
-    1.4e-8. Hypothesis: the Γ_G² < 0 clamp (`u` = −0.049) makes the
-    objective piecewise at that level. Today's default reaches 1.7e-9 on the
-    same fit. Establish the mechanism, then fix it or give brucite its own
-    bar with the reason.
+  - *Task: brucite's valley.* Physical + LM spread 1.1e-8 on brucite
+    (isotropic) at `790c7ce7`. Two exactly degenerate Lorentzian pairs
+    (`profile.y` with `lor_strain`, `profile.x` with `lor_size`) split
+    differently per start, and `axial_sl` ended at 0.2 or under 3e-10. A
+    final ftol of 1e-12 left 1.4e-8. Hypothesis: the Γ_G² < 0 clamp (`u` =
+    −0.049) makes the objective piecewise at that level. On 1937's final
+    tree the five starts agree to 2.8e-10, but the pairs are still
+    degenerate, so the agreement may be this platform's luck. Today's
+    default reaches 1.7e-9. Rerun it on Linux and after the coordinates
+    land; if it splits again, establish the mechanism, then fix it or give
+    brucite its own bar with the reason.
   - *Task: the cone stall.* Physical + LM spreads 1.6e-6 on brucite +
     Stephens. `sample_broadening` truncates 8 steps against the strain cone
     and stops `exhausted_fp64`, and the S_HKL differ at 7e-5 relative. BVLS
@@ -156,6 +161,13 @@ a poor basin). VALIDATION.md's rows and the landing page are re-measured.
     +5.5e-8, Si 640c +7.5e-8, corundum +1.4e-7 (inside today's own
     five-start range); NAC Pawley Rwp 0.13478 against 0.13628. Above 128
     columns the LM step is still BCCG's (`lm.BVLS_MAX_COLUMNS`).
+  - *Two review findings 1937 declined, both moving converged fits if
+    changed.* `lm._solve_step` ignores `lsq_linear`'s status. BVLS can stop
+    at status 2 (cost change under `tol`·cost, where the cost carries
+    ½‖c‖²); the review saw it on 125 of 400 random ill-conditioned systems,
+    each step feasible and still downhill, so no harm was shown. And the
+    step recomputes `eigh` for every λ trial, though the eigenvectors do not
+    depend on λ. Measure either on the grid before changing it.
 
 - **From WP-1936 (2026-10-09): the FD step is one more reader that branches on
   the transform.** `least_squares._fd_typicals` sizes a column's step by
