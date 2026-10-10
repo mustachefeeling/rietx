@@ -235,7 +235,8 @@ $1/\cos\theta$ one.
 
 The default profile approximates the Voigt (Gaussian ⊗ Lorentzian) as a
 linear blend with a single FWHM $\Gamma$ [deg 2θ] and a mixing fraction
-$\eta$:
+$\eta$. Its argument is the offset $x = 2\theta - 2\theta_k$ from reflection
+$k$'s Bragg position:
 
 ```{math}
 :label: prof-pv
