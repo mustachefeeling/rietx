@@ -295,6 +295,11 @@ in 20 minutes is known only after ten main runs on the merged tree.
   15.0 min, py3.14 10.7 and 11.1, jax 15.1 and 16.7. The slowest job was
   16.7 min. Test seconds per shard: py3.11 1497 and 1698, py3.14 1159 and
   1258, jax 1717 and 1924. Shard 2 is the heavier by 8-13 % on every leg.
+- Second sharded run, 38094285221 on 886f5c93, with the skip-report fix.
+  Each leg's cases summed over its two shards: py3.11 9219, py3.14 9219,
+  jax 9231. The base's own legs had 9192, 9192 and 9204, so each moved by
+  exactly the 27 added. Job walls: py3.11 11.6 and 11.9 min, py3.14 13.4 and
+  13.9, jax 9.7 and 10.6. The slowest job was 13.9 min.
 - The end-to-end row cost 4.8 s on CI's py3.14, well short of the tail.
 - Collection, same venv, before the last four added cases: 9207 unsharded, 4377 at `1/2` and 4830 at `2/2`. The shards are disjoint and
   their union is the unsharded list. Estimated shard seconds are 1492 and
