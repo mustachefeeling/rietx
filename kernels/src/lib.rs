@@ -57,6 +57,11 @@
 //!
 //! The loops keep their slice bounds checks too; WP-1939 measured no speed in
 //! removing them.
+//!
+//! The structure figure's rasteriser is the other module, `raster.rs`, with a
+//! header of its own.  It joined in 1.1.0 (WP-1940 § Decisions item 9).  Its
+//! oracle is `rietx/viz/figure3d/raster.py`, and its bar is the bit on every
+//! platform, because it calls no library function.
 
 use numpy::{
     Element, PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2,
@@ -65,6 +70,8 @@ use numpy::{
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::f64::consts::{LN_2, PI};
+
+mod raster;
 
 const K4LN2: f64 = 4.0 * LN_2;
 
@@ -86,12 +93,12 @@ fn err<T>(msg: impl Into<String>) -> PyResult<T> {
 
 /// A raw output pointer that may cross into `Python::detach`.
 #[derive(Clone, Copy)]
-struct P(*mut f64);
-unsafe impl Send for P {}
-unsafe impl Sync for P {}
-impl P {
+struct P<T>(*mut T);
+unsafe impl<T> Send for P<T> {}
+unsafe impl<T> Sync for P<T> {}
+impl<T> P<T> {
     /// a method, so a closure captures the Send wrapper and not its field
-    fn get(self) -> *mut f64 {
+    fn get(self) -> *mut T {
         self.0
     }
 }
@@ -126,7 +133,7 @@ fn disjoint(outs: &[Span], ins: &[Span]) -> PyResult<()> {
 /// Cython checked one: C-contiguous, writeable, and `x`'s shape.  The loops
 /// write through the pointer at `x`'s indices, and `x`'s slices are
 /// bounds-checked, so the shape check is what keeps every write inside it.
-fn out2(name: &str, a: &Bound<'_, PyArray2<f64>>, like: [usize; 2]) -> PyResult<(P, Span)> {
+fn out2(name: &str, a: &Bound<'_, PyArray2<f64>>, like: [usize; 2]) -> PyResult<(P<f64>, Span)> {
     if !a.is_c_contiguous() {
         return err(format!("{name} must be C-contiguous"));
     }
@@ -635,5 +642,7 @@ fn rietx_kernels(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(omega_fcj, m)?)?;
     m.add_function(wrap_pyfunction!(bases_sym, m)?)?;
     m.add_function(wrap_pyfunction!(bases_fcj, m)?)?;
+    m.add_function(wrap_pyfunction!(raster::render_rows, m)?)?;
+    m.add_function(wrap_pyfunction!(raster::id_plane, m)?)?;
     Ok(())
 }

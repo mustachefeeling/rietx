@@ -124,7 +124,7 @@ makes step 6 a real gate rather than a formality.
 
 ## The kernel wheel
 
-rietx's compiled model kernels are a second distribution, `rietx-kernels`,
+rietx's compiled kernels are a second distribution, `rietx-kernels`,
 built from `kernels/` (WP-1940). It has its own version and its own workflow,
 [`.github/workflows/kernels.yml`](../.github/workflows/kernels.yml). It releases
 only when the kernels change. The weekly rietx cut does not touch it.

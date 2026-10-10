@@ -85,6 +85,16 @@ the list is rietx's by nature.
 
 ### Inherited
 
+- **2026-10-10, from WP-1940 (5th session, PRs #867 and #868).** The
+  rasteriser is now in `rietx-kernels` 1.1.0 (`kernels/src/raster.rs`, #867),
+  held to the numpy rasteriser on the bit by `tests/test_raster_kernels.py`.
+  #868 makes rietx call it, so `model.compiled` is back in the figure's import
+  boundary (`tests/test_figure_boundary.py`): its switch, its pool and the
+  loaded kernels. A figure moved into rietview therefore needs
+  `rietx-kernels>=1.1` and its own route to the tier's switch and pool, or it
+  draws on numpy at 14-40× the time. With the wheel, `view="auto"` takes
+  90-107 ms on the NAC cell at 400 px.
+
 - **2026-10-10, from WP-1940 (4th session, PR #864).** The figure's numba path is
   deleted in that PR, so the rasteriser runs its numpy twin. `view="auto"`
   takes 1.30-1.36 s on the NAC cell at 400 px (92 ms on numba) and 22.6 s at
