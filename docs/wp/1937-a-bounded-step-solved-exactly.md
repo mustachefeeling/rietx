@@ -103,7 +103,7 @@ task changes shape.
 - [x] The BVLS step in `lm._solve_step`, with the eigenvalue cutoff's source
       in its docstring, and `tests/test_lm_solver.py`'s r_u = 1 calibration
       still exact.
-- [ ] Status and budget parity: a stage already at its minimum is
+- [x] Status and budget parity: a stage already at its minimum is
       `converged`; one budget unit for both drivers; `n_iterations` means one
       thing. Read every consumer of `"diverged"` and `n_iterations`.
 - [ ] The active set on `LSQOutcome`, from both drivers (TRF's

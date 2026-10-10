@@ -219,10 +219,16 @@ class LMOutcome:
     fun: np.ndarray            # residual at x (fp64, freshly evaluated)
     jac: np.ndarray            # Jacobian at x
     cost: float                # ½·rᵀr, scipy's convention
+    #: residual evaluations, the initial one included — scipy's ``nfev``, and
+    #: the unit both drivers' budget is in (WP-1937)
     nfev: int
     njev: int
     n_outer: int
-    status: int                # >0 converged, 0 max_iter, <0 diverged
+    #: >0 converged, 0 budget spent.  Never negative: like scipy's TRF, which
+    #: returns −1 only from MINPACK's ``method="lm"``, this driver accepts only
+    #: steps that lower S, so a run that found nothing downhill stopped at a
+    #: point it could not improve rather than diverging from one (WP-1937)
+    status: int
     lambda_final: float = 0.0
     n_bound_hits: int = 0
     n_truncated: int = 0       # steps shortened by a linear-inequality row
@@ -234,8 +240,9 @@ class LMOutcome:
     #: ``ftol_runs`` (relative decrease under ftol for three consecutive outer
     #: iterations — Coelho's rule), ``exhausted_fp64`` (every remaining step
     #: promises less than fp64 can measure against S), ``no_descent`` (the
-    #: inner loop found nothing downhill even at large λ), ``max_iter``.
-    termination: str = "max_iter"
+    #: inner loop found nothing downhill even at large λ), ``max_nfev`` (the
+    #: evaluation budget, TRF's token for the same stop).
+    termination: str = "max_nfev"
 
 
 def _clip_to_bounds(x: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
@@ -264,7 +271,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
              jacobian: Callable[[np.ndarray], np.ndarray],
              x0: np.ndarray, *,
              lo: np.ndarray, hi: np.ndarray,
-             max_iter: int = 100,
+             max_nfev: int = 400,
              ftol: float = 1e-9,
              inequalities: list[LinearInequality] | None = None,
              callback: Callable[[np.ndarray, float], None] | None = None,
@@ -275,13 +282,17 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
 
     Two nested loops, exactly Coelho (2018) Fig. 1: the outer one recomputes A
     and b at an accepted point; the inner one raises λ until a step lowers S.
-    ``max_iter`` bounds the outer loop; the inner loop is bounded separately so
-    a hopeless point cannot spin forever.
+    ``max_nfev`` caps residual evaluations, the initial one included, which is
+    what scipy's ``max_nfev`` caps, so one budget means one thing on both
+    drivers (WP-1937).  The inner loop is also bounded on its own, so a point
+    with nothing downhill cannot spin.
 
     Termination: relative decrease in S below ``ftol`` for three consecutive
     outer iterations (Coelho's own criterion — a single small step is not
     convergence, it is a small step), or an inner loop that cannot find any
-    downhill step even at large λ.
+    downhill step even at large λ.  Both are convergence, including at the
+    first outer iteration: a stage that starts at its minimum has nothing
+    downhill to find.
 
     ``callback(x, cost)`` fires on each *accepted* point; ``on_trial(x_try,
     cost, accepted, lam, step_norm)`` fires once per trial the residual
@@ -305,10 +316,10 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     n_stalled = 0
     status = 0
     n_outer = 0
-    termination = "max_iter"
+    termination = "max_nfev"
 
-    for outer in range(max_iter):
-        n_outer = outer + 1
+    while n_fev < max_nfev:
+        n_outer += 1
         J = jacobian(x)
         n_jev += 1
         # invariant 2: cond(JᵀJ) = cond(J)², so the normal equations are the one
@@ -319,9 +330,12 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
 
         accepted = False
         exhausted = False
+        spent = False
         for _inner in range(_INNER_MAX):
             step, side = _solve_step(A, b, lam, x, lo, hi, n_rows=len(r))
             if not np.any(step):
+                # the model's minimum over the box is where we stand
+                exhausted = True
                 break
             solved = step
             for iq in ineqs:
@@ -355,6 +369,9 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
                 # every further λ increase promises less still
                 exhausted = True
                 break
+            if n_fev >= max_nfev:
+                spent = True
+                break
             r_try = residual(x_try)
             n_fev += 1
             s_try = float(r_try @ r_try)
@@ -377,24 +394,27 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
                 small_runs = small_runs + 1 if rel < ftol else 0
                 break
             lam = _next_lambda(lam, None, 0.0)
+        if spent:
+            break
         if not accepted:
             # No downhill step exists that the cost can resolve.  That is
-            # convergence once we have moved at all — and *not* always because
-            # a minimum was reached: an objective with a corner (the FCJ
-            # profile at S/L = H/L is one, and the default instrument starts
-            # both apertures equal) presents a linearised model that promises
-            # descent in a direction the true function climbs.  ``n_stalled``
-            # records it; the correlation guard reports the degeneracy.
+            # convergence, on the first outer iteration as on any later one,
+            # since a stage can start at its minimum (WP-1937; it reported
+            # "diverged" before, and a series quarantines on that word) — and
+            # *not* always because a minimum was reached: an objective with a
+            # corner (the FCJ profile at S/L = H/L is one, and the default
+            # instrument starts both apertures equal) presents a linearised
+            # model that promises descent in a direction the true function
+            # climbs.  ``n_stalled`` records it; the correlation guard reports
+            # the degeneracy.  TRF says ``xtol`` at the same point.
             n_stalled = _INNER_MAX if not exhausted else 0
-            status = 1 if outer > 0 else -1
+            status = 1
             termination = "exhausted_fp64" if exhausted else "no_descent"
             break
         if small_runs >= _CONVERGED_RUNS:
             status = 1
             termination = "ftol_runs"
             break
-    else:
-        status = 0                            # ran out of outer iterations
 
     # J must be the Jacobian *at the returned point* — covariance_estimates
     # reads it together with ``fun``, and a stale one silently mis-scales

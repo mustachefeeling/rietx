@@ -1285,7 +1285,7 @@ def _free_values(table: ParameterTable, theta: np.ndarray) -> list[float]:
     return [float(values[p]) for p in table.free_paths]
 
 
-def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_iter, ftol,
+def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_nfev, ftol,
                 inequalities, events, stage: str, track=None, table=None):
     """Run the bounded-LM driver, adapted to the scipy result shape.
 
@@ -1319,7 +1319,7 @@ def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_iter, ftol,
         events.emit("eval", **data)
 
     return lm_mod.minimize(residual, jacobian, x0, lo=lo, hi=hi,
-                           max_iter=max_iter, ftol=ftol,
+                           max_nfev=max_nfev, ftol=ftol,
                            inequalities=inequalities,
                            callback=accept_cb if track is not None else None,
                            on_trial=trial_cb if events is not None else None)
@@ -1679,18 +1679,19 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                           n_degenerate_cell_probes=cell_guard.n_degenerate)
 
     n_truncated = 0
+    # one budget, in residual evaluations, for both drivers (WP-1937)
+    max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
         # the strain cone is built against the *starting* point, because
         # feasibility is maintained rather than restored (see the builder)
         cone = strain_cone_inequalities(model, table, x0[:n_table])
-        res = _lm_outcome(residual, jacobian, x0, lo, hi, max_iter=max_iter,
+        res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
                           ftol=ftol, inequalities=cone, events=events, stage=stage,
                           track=tracker, table=table)
         n_truncated = res.n_truncated
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=XTOL, gtol=GTOL,
-                            max_nfev=max_iter * NFEV_PER_ITERATION)
+                            ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
@@ -1863,13 +1864,13 @@ def run_multi_least_squares(models: list[CompiledModel],
                           solver=solver,
                           n_degenerate_cell_probes=cell_guard.n_degenerate)
 
+    max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
-        res = _lm_outcome(residual, jacobian, x0, lo, hi, max_iter=max_iter,
+        res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
                           ftol=ftol, inequalities=[], events=None, stage="")
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=XTOL, gtol=GTOL,
-                            max_nfev=max_iter * NFEV_PER_ITERATION)
+                            ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))

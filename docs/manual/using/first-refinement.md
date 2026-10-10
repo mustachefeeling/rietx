@@ -77,9 +77,9 @@ diagnostic, provenance, agreement indices last.
 
 ```text
 RefinementResult: converged (rietveld)
-  stage scale_bkg: converged (10 it, ftol=1e-06)
+  stage scale_bkg: converged (10 evals, ftol=1e-06)
   ...
-  stage biso: converged (9 it, ftol=solver default), max|Δθ|/esd=0.000
+  stage biso: converged (9 evals, ftol=solver default), max|Δθ|/esd=0.000
   diagnostics: 2 unresolved
     WARNING BOUND_HIT: phases.1.atoms.0.biso refined to its bound — widen the bound or fix the parameter
     INFO CAPILLARY_OFFSET_UNAVAILABLE: ...

@@ -136,12 +136,39 @@ def test_linear_problem_converges_in_one_step():
     assert out.status > 0
 
 
+def test_a_start_at_the_minimum_is_converged():
+    """Nothing downhill on the first outer iteration is convergence, as on any
+    later one (WP-1937; it was ``status = -1``, read as "diverged")."""
+    residual, jacobian, ref = _linear_problem()
+    out = lm.minimize(residual, jacobian, ref.copy(),
+                      lo=_UNBOUNDED[0], hi=_UNBOUNDED[1])
+    assert out.status > 0
+    assert out.termination in {"exhausted_fp64", "no_descent"}
+
+
+def test_the_budget_is_in_residual_evaluations():
+    """``max_nfev`` caps what scipy's ``max_nfev`` caps: residual evaluations,
+    the initial one included."""
+    residual, jacobian, _ = _rosenbrock()
+    calls = []
+
+    def counting(t):
+        calls.append(t)
+        return residual(t)
+
+    out = lm.minimize(counting, jacobian, np.array([-1.2, 1.0]),
+                      lo=np.full(2, -np.inf), hi=np.full(2, np.inf), max_nfev=7)
+    assert out.nfev == len(calls) == 7
+    assert out.status == 0
+    assert out.termination == "max_nfev"
+
+
 @pytest.mark.parametrize("start", [[-1.2, 1.0], [2.0, 2.0], [0.0, 0.0]])
 def test_rosenbrock(start):
     residual, jacobian, ref = _rosenbrock()
     out = lm.minimize(residual, jacobian, np.array(start, dtype=float),
                       lo=np.full(2, -np.inf), hi=np.full(2, np.inf),
-                      max_iter=400)
+                      max_nfev=1600)
     assert np.allclose(out.x, ref, atol=1e-5)
 
 
@@ -151,7 +178,7 @@ def test_matches_scipy_trf_on_a_nonlinear_fit():
     x0 = np.array([1.0, -0.3, 0.0])
     lo, hi = np.full(3, -np.inf), np.full(3, np.inf)
 
-    ours = lm.minimize(residual, jacobian, x0.copy(), lo=lo, hi=hi, max_iter=200)
+    ours = lm.minimize(residual, jacobian, x0.copy(), lo=lo, hi=hi, max_nfev=800)
     theirs = scipy_lsq(residual, x0.copy(), jac=jacobian, method="trf",
                        ftol=1e-12, xtol=1e-12, gtol=1e-12)
 
@@ -184,7 +211,7 @@ def test_bounds_are_never_violated():
         else:
             lo[i] = 0.5 * free[i]
 
-    out = lm.minimize(residual, jacobian, np.zeros(4), lo=lo, hi=hi, max_iter=200)
+    out = lm.minimize(residual, jacobian, np.zeros(4), lo=lo, hi=hi, max_nfev=800)
     assert np.all(out.x >= lo - 1e-12)
     assert np.all(out.x <= hi + 1e-12)
     assert out.n_bound_hits > 0
@@ -207,7 +234,7 @@ def test_linear_inequality_keeps_every_iterate_feasible():
 
     out = lm.minimize(residual, jacobian, np.zeros(4),
                       lo=np.full(4, -np.inf), hi=np.full(4, np.inf),
-                      inequalities=[cone], max_iter=300)
+                      inequalities=[cone], max_nfev=1200)
 
     assert not cone.violated(out.x).any()
     assert out.n_truncated > 0
@@ -219,13 +246,13 @@ def test_inactive_inequality_changes_nothing():
     residual, jacobian, _ = _exponential_problem()
     x0 = np.array([1.0, -0.3, 0.0])
     lo, hi = np.full(3, -np.inf), np.full(3, np.inf)
-    free = lm.minimize(residual, jacobian, x0.copy(), lo=lo, hi=hi, max_iter=200)
+    free = lm.minimize(residual, jacobian, x0.copy(), lo=lo, hi=hi, max_nfev=800)
 
     T = np.zeros((1, 3))
     T[0, 0] = 1.0
     slack = lm.LinearInequality(T=T, c=np.array([1e6]), label="slack")
     constrained = lm.minimize(residual, jacobian, x0.copy(), lo=lo, hi=hi,
-                              inequalities=[slack], max_iter=200)
+                              inequalities=[slack], max_nfev=800)
 
     assert constrained.n_truncated == 0
     assert np.allclose(constrained.x, free.x)
@@ -341,7 +368,7 @@ def test_widths_pressed_on_zero_together_reach_the_bound_exactly():
     lo = np.concatenate([floor, [-np.inf]])
     hi = np.full(5, np.inf)
     out = lm.minimize(residual, jacobian, np.array([0.9, 0.9, 0.9, 0.9, 0.5]),
-                      lo=lo, hi=hi, max_iter=50)
+                      lo=lo, hi=hi, max_nfev=200)
     assert out.status > 0
     pinned = out.x[:4] == floor
     assert pinned.sum() >= 2

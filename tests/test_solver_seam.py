@@ -187,7 +187,7 @@ def test_lm_eval_stream_carries_every_measured_trial(pattern):
     terminations = [e["data"]["termination"] for e in seen
                     if e["kind"] == "stage_end"]
     assert terminations and all(
-        t in {"ftol_runs", "exhausted_fp64", "no_descent", "max_iter"}
+        t in {"ftol_runs", "exhausted_fp64", "no_descent", "max_nfev"}
         for t in terminations), terminations
     for stage, evals in per_stage.items():
         assert all(np.isfinite(e["cost"]) for e in evals)
@@ -197,6 +197,70 @@ def test_lm_eval_stream_carries_every_measured_trial(pattern):
         accepted = [e["cost"] for e in evals if e["accepted"]]
         assert accepted == sorted(accepted, reverse=True), \
             f"{stage} accepted cost went back up"
+
+
+# -- one status vocabulary and one budget for both drivers (WP-1937) ----------
+
+def _scale_and_background_stage(pattern):
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
+
+    structure, ins = perturbed_models()
+    model = compile_model(structure, ins, pattern, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    table.set_vary(["phases.*.scale", "instrument.background.*"], True)
+    return model, table
+
+
+@pytest.mark.parametrize("solver", SOLVERS)
+def test_a_stage_that_starts_at_its_minimum_converges(pattern, solver):
+    """The LM driver called this "diverged" until WP-1937, because its first
+    outer iteration found nothing downhill; a series quarantines on that word.
+    TRF has never said it for a valid input, and neither driver does now."""
+    from rietx.optimize.least_squares import run_least_squares
+
+    model, table = _scale_and_background_stage(pattern)
+    first = run_least_squares(model, table, solver=solver)
+    assert first.status == "converged"
+    table.commit(first.theta)
+    again = run_least_squares(model, table, solver=solver)
+    assert again.status == "converged", again.termination
+    assert again.cost_final <= first.cost_final * (1 + 1e-12)
+
+
+@pytest.mark.parametrize("solver", SOLVERS)
+def test_both_drivers_count_and_cap_residual_evaluations(pattern, solver,
+                                                         monkeypatch):
+    """``n_iterations`` is the residual evaluations a solve made, the initial
+    one included, and ``max_iter`` caps it at ``max_iter × NFEV_PER_ITERATION``
+    on both drivers.  The LM driver capped *outer iterations* before WP-1937,
+    so a stage given the same ``max_iter`` could spend about 4× fewer
+    evaluations than under TRF, and a series' first-rung bound (which divides
+    an evaluation budget by the same constant) was 4× tighter on it."""
+    import rietx.optimize.least_squares as ls
+    from rietx.optimize.least_squares import NFEV_PER_ITERATION, run_least_squares
+
+    model, table = _scale_and_background_stage(pattern)
+    calls = {"n": 0}
+    real = ls._make_residual
+
+    def counting(*args, **kwargs):
+        inner = real(*args, **kwargs)
+
+        def residual(theta):
+            calls["n"] += 1
+            return inner(theta)
+        return residual
+
+    monkeypatch.setattr(ls, "_make_residual", counting)
+    unbounded = run_least_squares(model, table, solver=solver)
+    # run_least_squares measures the start once before handing it over
+    assert unbounded.n_iterations == calls["n"] - 1
+
+    model, table = _scale_and_background_stage(pattern)
+    capped = run_least_squares(model, table, solver=solver, max_iter=1)
+    assert capped.status == "max_iter"
+    assert capped.n_iterations == NFEV_PER_ITERATION
 
 
 # -- what the iteration budget means (WP-1109) ----------------------------
