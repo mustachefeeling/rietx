@@ -261,7 +261,9 @@ class LSQOutcome:
     #: scipy's ``active_mask`` convention (WP-1937).  The two drivers differ in
     #: how much it can know.  ``lm`` is exact: the variable sits *on* its
     #: bound and the gradient there pushes outward, so its multiplier is
-    #: positive (:attr:`.lm.LMOutcome.active_mask`).  ``trf`` reports scipy's
+    #: positive (:attr:`.lm.LMOutcome.active_mask`).  That holds up to
+    #: ``lm.BVLS_MAX_COLUMNS``; a larger system (a Pawley block) takes BCCG's
+    #: step, which can stop just off a bound.  ``trf`` reports scipy's
     #: mask, set within ``XTOL`` of a bound whatever the gradient, because its
     #: iterates stay strictly inside; a width TRF parks 7.6e-6 above its floor
     #: (WP-1929, brucite) is not in it.  ``None`` only at the zero-parameter

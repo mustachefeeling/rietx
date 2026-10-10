@@ -252,7 +252,8 @@ class LMOutcome:
     #: :data:`~.least_squares._TRF_TERMINATION`'s vocabulary:
     #: ``ftol_runs`` (relative decrease under ftol for three consecutive outer
     #: iterations — Coelho's rule), ``exhausted_fp64`` (every remaining step
-    #: promises less than fp64 can measure against S), ``no_descent`` (the
+    #: promises less than fp64 can measure against S, a zero step included:
+    #: the bounded model's minimum is the current point), ``no_descent`` (the
     #: inner loop found nothing downhill even at large λ), ``max_nfev`` (the
     #: evaluation budget, TRF's token for the same stop).
     termination: str = "max_nfev"
@@ -260,7 +261,9 @@ class LMOutcome:
     #: convention (−1 lower, +1 upper, 0 neither) and exact: the variable sits
     #: *on* the bound, the step having landed it there, and the gradient at
     #: the returned point pushes it outward, so its multiplier is positive
-    #: (WP-1937).  scipy's TRF reports the same field within ``xtol`` of a
+    #: (WP-1937).  Exact up to :data:`BVLS_MAX_COLUMNS`; above it the step is
+    #: BCCG's, which can leave a variable just off its bound and so out of
+    #: this set.  scipy's TRF reports the same field within ``xtol`` of a
     #: bound whatever the gradient, its iterates being strictly feasible.
     active_mask: np.ndarray | None = None
 
