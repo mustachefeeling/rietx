@@ -66,11 +66,12 @@ dependencies = [
     # warns once and says why in `capabilities()`.  `RIETX_COMPILED=0`
     # (`_about.COMPILED_ENV`) switches the tier off at runtime.
     #
-    # The range is `model.compiled.KERNEL_ABI`, the kernel interface number.
-    # A major release of the wheel is a breaking interface change.  A new
-    # kernel is a minor release, and raises this floor.  docs/RELEASING.md
-    # § The kernel wheel has the procedure.
-    "rietx-kernels>=1,<2",
+    # The ceiling is `model.compiled.KERNEL_ABI` + 1, the kernel interface
+    # number.  A major release of the wheel is a breaking interface change.
+    # The floor is `model.compiled.KERNEL_FLOOR`.  A new kernel is a minor
+    # release, and raises it: 1.1 added the structure figure's rasteriser.
+    # docs/RELEASING.md § The kernel wheel has the procedure.
+    "rietx-kernels>=1.1,<2",
     # Required since WP-1545, an extra (`viz`) before it.  A figure is how most
     # people read a fit, and every tutorial and the landing page draw one, so a
     # base install that could not was the install people were judged by.  The

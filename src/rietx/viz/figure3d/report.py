@@ -139,8 +139,9 @@ def probe(scene: dict, geometry: Mapping, size, margin: float, fit: Callable,
                  size=small, margin=margin, fit=fit)
 
 
-def look(p: Probe, R) -> Look:
-    """The figure seen from rotation ``R`` through a small id pass."""
+def look(p: Probe, R, compiled_path: bool | None = None) -> Look:
+    """The figure seen from rotation ``R`` through a small id pass.
+    ``compiled_path`` forces :func:`.raster.id_plane`'s path for a test."""
     R = np.asarray(R, dtype=np.float64)
     pk = raster.pack_ids(p.arrays, R)
     boxes = [pk["atom_reach"], pk["half_reach"]]
@@ -154,7 +155,7 @@ def look(p: Probe, R) -> Look:
         extent = (float(box[:, 0].min()), float(box[:, 1].max()),
                   float(box[:, 2].min()), float(box[:, 3].max()))
     frame = p.fit(extent, p.size, p.margin)
-    plane = raster.id_plane(pk, frame)
+    plane = raster.id_plane(pk, frame, compiled_path)
     judged = ~p.boundary & (plane.seen > 0)
     covered = judged & (plane.front < (1.0 - HIDDEN_SHARE) * plane.seen)
     n = int(judged.sum())
@@ -212,7 +213,7 @@ def directions(limit: int = SEARCH_INDEX) -> list[list[int]]:
                                       sum(x < 0 for x in d), next(x for x in d if x) < 0, d))
 
 
-def choose_view(geometry: Mapping, p: Probe, up, turn):
+def choose_view(geometry: Mapping, p: Probe, up, turn, compiled_path: bool | None = None):
     """The low-index view with the least hidden, then the least empty.
 
     Each candidate is a direction [u, v, w] toward the viewer with the
@@ -231,7 +232,7 @@ def choose_view(geometry: Mapping, p: Probe, up, turn):
         except ValueError as exc:   # an up= along this direction cannot be up
             refused = refused or exc
             continue
-        seen = look(p, R)
+        seen = look(p, R, compiled_path)
         tried.append((seen.hidden, seen.empty, rank, view))
     if not tried:
         raise refused

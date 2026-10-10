@@ -443,7 +443,7 @@ def test_a_decline_warns_once_and_never_when_the_numpy_path_was_chosen(
     assert len(runtime) == 1, [str(w.message) for w in runtime]
     text = str(runtime[0].message)
     assert compiled.unavailable() in text
-    pin = f"rietx-kernels>={compiled.KERNEL_ABI},<{compiled.KERNEL_ABI + 1}"
+    pin = f"rietx-kernels>={compiled.KERNEL_FLOOR},<{compiled.KERNEL_ABI + 1}"
     assert f'pip install "{pin}"' in text
     assert f"{COMPILED_ENV}=0" in text
 
@@ -475,14 +475,16 @@ def test_capabilities_says_why_the_kernels_did_not_load(monkeypatch):
 
 
 def test_the_pin_is_the_kernel_interface_and_numba_is_gone():
-    """``pyproject``'s range and :data:`compiled.KERNEL_ABI` are one number
-    written twice, so a bump of either alone fails here."""
+    """``pyproject``'s range is :data:`compiled.KERNEL_FLOOR` and
+    :data:`compiled.KERNEL_ABI` written a second time, so a bump of either
+    alone fails here.  The floor is a minor of the interface's major."""
     path = Path(__file__).resolve().parents[1] / "pyproject.toml"
     project = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
     deps = project["dependencies"]
-    abi = compiled.KERNEL_ABI
+    abi, floor = compiled.KERNEL_ABI, compiled.KERNEL_FLOOR
+    assert floor.split(".")[0] == str(abi)
     assert [d for d in deps if d.startswith("rietx-kernels")] == [
-        f"rietx-kernels>={abi},<{abi + 1}"]
+        f"rietx-kernels>={floor},<{abi + 1}"]
     every = deps + [d for extra in project["optional-dependencies"].values()
                     for d in extra]
     assert not [d for d in every if d.lower().startswith(("numba", "llvmlite"))]

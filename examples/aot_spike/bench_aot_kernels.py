@@ -381,7 +381,8 @@ def agreement(case: str, wheel: dict) -> tuple[int, set[str], bool]:
           "(threads = 1)\n")
     shadow = _Shadow(wheel)
     setup = _cases()[case]()
-    compiled._KERNELS = {k: shadow.wrap(k) for k in OUTPUTS}
+    # only the model's kernels are shadowed; the figure's pass through
+    compiled._KERNELS = {**wheel, **{k: shadow.wrap(k) for k in OUTPUTS}}
     try:
         _w, on_twins = _fit(setup)
     finally:
