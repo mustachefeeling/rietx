@@ -31,7 +31,10 @@
 //!   the outputs `x`'s, the node planes `phi`'s (`pl`, `same_shape`);
 //! - every row index and window width the call touches is in range before the
 //!   loops convert it with `as usize`, which would wrap a negative one
-//!   (`check_rows`, `check_windows`).
+//!   (`check_rows`, `check_windows`);
+//! - no row appears twice in `rows`, because `compiled._spread` hands disjoint
+//!   ranges of one `rows` to concurrent calls, and a repeated row would be
+//!   written by two threads at once (`check_rows`).
 //!
 //! The loops keep their slice bounds checks too; WP-1939 measured no speed in
 //! removing them.
@@ -161,15 +164,23 @@ fn index(v: i64, below: usize, what: &str) -> PyResult<usize> {
     }
 }
 
-/// The rows `rows[lo..hi]` a call touches: each a row of `x` (`n` rows,
-/// `w` wide), each window inside it.  `width` was checked by `per_row`.
+/// The rows a call may touch: each a row of `x` (`n` rows, `w` wide), each
+/// window inside it, and none listed twice.  The whole of `rows` is checked,
+/// never only `rows[lo..hi]`: concurrent calls share one `rows` with
+/// disjoint ranges, and a row repeated across two ranges is a data race no
+/// single range can see.  `width` was checked by `per_row`.
 fn check_rows(rows: &[i64], width: &[i64], lo: usize, hi: usize, n: usize, w: usize)
               -> PyResult<()> {
     if lo > hi || hi > rows.len() {
         return err(format!("row range {lo}..{hi} outside 0..{}", rows.len()));
     }
-    for &j in &rows[lo..hi] {
-        index(width[index(j, n, "row")?], w + 1, "window width")?;
+    let mut seen = vec![false; n];
+    for &j in rows {
+        let u = index(j, n, "row")?;
+        if std::mem::replace(&mut seen[u], true) {
+            return err(format!("row {j} appears twice in rows"));
+        }
+        index(width[u], w + 1, "window width")?;
     }
     Ok(())
 }

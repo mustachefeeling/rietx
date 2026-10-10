@@ -68,6 +68,9 @@ DEFECTS = {
                           "phi has 3"),
     "negative row": (lambda c: c.update(rows=_i64(0, -1, 3, 5)), "row -1"),
     "row past x": (lambda c: c.update(rows=_i64(0, N, 3, 5)), f"row {N}"),
+    # two pool chunks of one call would write row 2 at once
+    "repeated row": (lambda c: c.update(rows=_i64(0, 2, 3, 2), lo=0, hi=2),
+                     "row 2 appears twice"),
     "negative width": (lambda c: c.update(width=_i64(9, 7, -1, 4, 9, 8)),
                        "window width -1"),
     "width past x": (lambda c: c.update(width=_i64(9, 7, W + 1, 4, 9, 8)),
