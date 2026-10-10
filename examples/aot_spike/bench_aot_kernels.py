@@ -18,7 +18,7 @@ rest of the package cannot tell.  Three measurements:
 1. **Agreement, per call, inside a real fit.**  One fit runs on numba with every
    kernel call shadowed: the outputs are snapshotted, each candidate is run on
    the same inputs, and its outputs are compared to numba's bit for bit.  Serial
-   (``RIETX_COMPILED_THREADS=1``), so the per-call seconds summed beside the
+   (the pool's worker count forced to 1), so the per-call seconds summed beside the
    comparison are a serial kernel-time ratio.  The order the implementations
    run in rotates per call, so no one of them always meets a warm cache.
 2. **End to end.**  ``_KERNELS`` swapped wholesale, the whole fit timed, arms
@@ -67,11 +67,12 @@ OUTPUTS = {
 }
 
 CANDIDATES = ("rietx_kernels_rs", "rietx_kernels_cy", "rietx_kernels_cy_abi3",
-              "rietx_kernels_cy_default")
+              "rietx_kernels_cy_default", "rietx_kernels_cy_default_abi3")
 LABEL = {"numba": "numba", "rietx_kernels_rs": "rust",
          "rietx_kernels_cy": "cython (contract off)",
          "rietx_kernels_cy_abi3": "cython abi3 (contract off)",
-         "rietx_kernels_cy_default": "cython (clang default)"}
+         "rietx_kernels_cy_default": "cython (clang default)",
+         "rietx_kernels_cy_default_abi3": "cython abi3 (clang default)"}
 
 
 def _candidates() -> dict[str, dict]:
@@ -99,6 +100,54 @@ def _fit(setup):
     result = ref.fit(setup.data, plan=setup.plan, mode=setup.mode,
                      two_theta_limits=setup.limits)
     return time.perf_counter() - t0, result
+
+
+def _ordered(a: np.ndarray) -> np.ndarray:
+    """Doubles as int64s that sort the way the values do (−0.0 maps to +0.0)."""
+    i = a.view(np.int64)
+    return np.where(i < 0, np.int64(np.iinfo(np.int64).min) - i, i)
+
+
+def _max_ulps(a: np.ndarray, b: np.ndarray) -> float:
+    """Largest ulp distance between two planes, exact across a sign change.
+
+    Subtracting raw bit patterns wraps when the signs differ, so the distance
+    is taken on the ordered integers, in uint64, where it cannot overflow.
+    """
+    oa, ob = _ordered(a), _ordered(b)
+    hi = np.maximum(oa, ob).view(np.uint64)
+    lo = np.minimum(oa, ob).view(np.uint64)
+    return float((hi - lo).max())
+
+
+def _theta_gap(ref: dict, got: dict) -> str:
+    """How far one arm's final parameters sit from numba's.
+
+    A path present on one side only, or a value differing where no positive
+    esd exists to scale it, is counted rather than dropped, so a difference
+    never reads as 0 esd.
+    """
+    if got == ref:
+        return "bit-identical"
+    worst, unscaled = 0.0, 0
+    for path, (v, e) in ref.items():
+        if path not in got:
+            continue
+        gv = got[path][0]
+        if gv == v:
+            continue
+        gap = abs(gv - v) / e if e and e > 0 else float("nan")
+        if gap != gap:
+            unscaled += 1
+        else:
+            worst = max(worst, gap)
+    out = f"max {worst:.1e} esd"
+    missing = len(ref.keys() - got.keys()) + len(got.keys() - ref.keys())
+    if unscaled:
+        out += f", {unscaled} differing with no esd to scale (or NaN)"
+    if missing:
+        out += f", {missing} paths on one side only"
+    return out
 
 
 class _Shadow:
@@ -133,12 +182,15 @@ class _Shadow:
                 results[name] = [args[i].copy() for i in outs]
             ref = results["numba"]
             for name in self.cands:
+                # a call differs once, however many of its planes do
+                differs = False
                 for a, b in zip(ref, results[name]):
                     if not np.array_equal(a.view(np.int64), b.view(np.int64)):
-                        self.bad[(kname, name)] = self.bad.get((kname, name), 0) + 1
-                        diff = np.abs(a.view(np.int64) - b.view(np.int64))
+                        differs = True
                         self.ulps[(kname, name)] = max(
-                            self.ulps.get((kname, name), 0), float(diff.max()))
+                            self.ulps.get((kname, name), 0), _max_ulps(a, b))
+                if differs:
+                    self.bad[(kname, name)] = self.bad.get((kname, name), 0) + 1
             for i, a in zip(outs, ref):
                 args[i][...] = a
 
@@ -185,7 +237,8 @@ def end_to_end(case: str, numba: dict, cands: dict[str, dict], repeats: int) -> 
     setup = _cases()[case]()
     arms = {"numpy": None, "numba": numba, **cands}
     walls: dict[str, list[float]] = {a: [] for a in arms}
-    final: dict[str, dict[str, tuple[float, float | None]]] = {}
+    finals: dict[str, list[dict[str, tuple[float, float | None]]]] = {
+        a: [] for a in arms}
     rwp: dict[str, float] = {}
     for rep in range(repeats):
         order = list(arms)
@@ -202,23 +255,17 @@ def end_to_end(case: str, numba: dict, cands: dict[str, dict], repeats: int) -> 
                 compiled.set_enabled(was)
                 compiled._KERNELS = numba
             walls[arm].append(wall)
-            final[arm] = {p.path: (p.value, p.stderr) for p in res.parameters}
+            finals[arm].append({p.path: (p.value, p.stderr) for p in res.parameters})
             rwp[arm] = res.statistics.rwp
-    ref = final["numba"]
+    # every repeat against numba's first, so an arm that varies run to run
+    # (numba's own repeats included) cannot pass on its last repeat alone
+    ref = finals["numba"][0]
     print("| arm | wall min–max s | median | ×numba (median) | Rwp | final θ vs numba |")
     print("|---|---|---|---|---|---|")
     med_nb = statistics.median(walls["numba"])
     for arm, ws in walls.items():
-        got = final[arm]
-        if got == ref:
-            same = "bit-identical"
-        else:
-            worst = 0.0
-            for path, (v, e) in ref.items():
-                gv = got.get(path, (np.nan, None))[0]
-                if e and e > 0:
-                    worst = max(worst, abs(gv - v) / e)
-            same = f"max {worst:.1e} esd"
+        gaps = sorted({_theta_gap(ref, got) for got in finals[arm]})
+        same = " / ".join(gaps)
         print(f"| {LABEL.get(arm, arm)} | {min(ws):.2f}–{max(ws):.2f} | "
               f"{statistics.median(ws):.2f} | {med_nb / statistics.median(ws):.2f}× | "
               f"{rwp[arm]:.6f} | {same} |")
@@ -244,7 +291,7 @@ def startup() -> None:
         except ImportError:
             continue
         rows.append((f"+ import {mod}", _time_subprocess(f"import numpy, {mod}")))
-    warm = ("from rietx.model import compiled; import time; t=time.perf_counter(); "
+    warm = ("from rietx.model import compiled; "
             "compiled.warm(block=True); assert compiled._KERNELS")
     rows.append(("+ rietx, numba warm (cache hit)", _time_subprocess(warm)))
     with tempfile.TemporaryDirectory() as d:
