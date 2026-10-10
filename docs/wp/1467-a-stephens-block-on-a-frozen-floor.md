@@ -175,6 +175,13 @@ Debye-Waller factor is not floored, so there is no hinge to lean on.
 
 ### Inherited
 
+- **2026-10-10, from WP-1937: the flip to `solver="lm"` moved to WP-1938.**
+  This WP's suggestion that names `solver="lm"` changes shape only when 1938
+  makes it the default. Measured there, in physical coordinates: brucite +
+  Stephens under LM stalls against the cone (χ²_red spread 1.6e-6 over five
+  starts nudged by 1e-14, 8 truncated steps in `sample_broadening`).
+  WP-1938 owns that stall as a task.
+
 - **2026-09-28, from [1338](1338-the-skills-own-gates.md): `references/diagnostics.md` is closed to growth.**
   Every skill file now has a ceiling and a budget below it
   (`tests/skill_caps.py`), and the budget fails a change that grows a file

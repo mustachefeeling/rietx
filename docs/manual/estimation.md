@@ -368,12 +368,15 @@ refinement across patterns {cite}`stinton2007` is out of scope.
 
 The default driver is scipy's Trust Region Reflective. The bounded
 Levenberg-Marquardt alternative implements Coelho's adaptive Marquardt
-constant {cite}`coelho2018` over the bound-constrained conjugate-gradient
-solve of the normal equations {cite}`coelho2005` (conjugate gradients per
-{cite}`hestenes1952,polak1971`), with the system diagonally pre-conditioned to
+constant {cite}`coelho2018`, with the system diagonally pre-conditioned to
 $A_{ii} = 1$. That pre-conditioning makes λ dimensionless and lets the published
-constants transfer. Conventions: $A = J^\top J$, $b = -J^\top r$, and the
-paper's objective $S = r^\top r$ is $\chi^2$.
+constants transfer. Each damped step is solved exactly inside the parameter
+bounds by bounded-variable least squares {cite}`stark1995`, so a parameter the
+step puts on a bound lands on it. Above 128 parameters, a size only a Pawley
+block reaches, the exact solve grows too slow, and the step is the
+bound-constrained conjugate gradient of {cite}`coelho2005` (conjugate gradients
+per {cite}`hestenes1952,polak1971`). Conventions: $A = J^\top J$,
+$b = -J^\top r$, and the paper's objective $S = r^\top r$ is $\chi^2$.
 
 The driver earns its place on constraint vocabulary rather than speed. Box
 bounds are enforced inside the linear solve, and linear inequalities on

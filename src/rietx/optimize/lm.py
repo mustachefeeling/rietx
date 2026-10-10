@@ -2,8 +2,13 @@
 
 Gauss-Newton normal equations with the adaptive Marquardt constant of Coelho,
 A. A. (2018). *J. Appl. Cryst.* **51**, 428-435 ("Optimum Levenberg-Marquardt
-constant determination for nonlinear least-squares"), solved by the
-bound-constrained conjugate gradient of :mod:`.bccg` (Coelho 2005).
+constant determination for nonlinear least-squares"), each damped step solved
+exactly inside the parameter box by bounded-variable least squares (Stark, P.
+B. & Parker, R. L. (1995). *Comput. Statist.* **10**, 129-141; WP-1937).  The
+paper pairs the schedule with the bound-constrained conjugate gradient of
+:mod:`.bccg` (Coelho 2005), which this driver used for every step until
+WP-1937 and still uses above :data:`BVLS_MAX_COLUMNS`, where only a Pawley
+block reaches.
 Independent implementation from the papers; TOPAS is closed source and none of
 it was consulted.
 
@@ -77,6 +82,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 import numpy as np
+from scipy.optimize import lsq_linear
 
 from ..backend.linalg64 import require_fp64, to_host_fp64
 from . import bccg
@@ -113,6 +119,20 @@ _FEASIBLE_FRACTION = 0.995
 #: relative slack below which a linear-inequality row counts as *active* and is
 #: treated as an equality for the step (see ``LinearInequality.project_step``).
 _ACTIVE_TOL = 1e-9
+#: eigenvalues of the equilibrated normal matrix below this × (number of
+#: residual rows) × λmax are discarded from the step: the scale of the
+#: rounding error in one entry of JᵀJ (see :func:`_solve_step`).
+_EIGEN_CUT_PER_ROW = float(np.finfo(np.float64).eps)
+#: Largest system the step solves exactly by BVLS; above it the step is
+#: BCCG's (:func:`_solve_step`).  Measured on Pawley-shaped systems (one
+#: banded column per reflection plus 13 dense ones, macOS arm64, WP-1937):
+#: a BVLS solve costs 2-34 ms at 128 columns, 0.13-0.8 s at 400, 1.5-11 s at
+#: 1000 and 10-177 s at 2000, the range spanning few to most intensities on
+#: their floor.  BCCG costs at most 22 ms at every size, and reaches a model
+#: value 5-22 % short of the exact minimum.  Every table-only stage in the
+#: acceptance fits is far below the cut, so only a Pawley block crosses it;
+#: on NAC's (142 columns) the two steps reach the same answer.
+BVLS_MAX_COLUMNS = 128
 
 
 @dataclass(frozen=True)
@@ -128,9 +148,11 @@ class LinearInequality:
     short of the constraint surface, which keeps *every* iterate feasible.
 
     A box is the special case ``T = ±I``; it is not routed through here,
-    because BCCG's in-loop clamping handles boxes better than truncation does
-    (the paper's own Pawley measurement: Rwp 3.901 in 16 iterations vs 4.351 in
-    84).  Truncation is the fallback for rows a box cannot express.
+    because the step solves boxes exactly (:func:`_solve_step`) where
+    truncation stops short of them.  Coelho (2005) measured the same gap for
+    bounds inside the solve against bounds applied after it (Pawley, Rwp 3.901
+    in 16 iterations against 4.351 in 84).  Truncation is the fallback for rows
+    a box cannot express.
 
     ``T`` is (n_rows, n_free) and frozen for the whole least-squares run — the
     same frozen-per-stage discipline the hkl list and window ranges follow.
@@ -210,10 +232,16 @@ class LMOutcome:
     fun: np.ndarray            # residual at x (fp64, freshly evaluated)
     jac: np.ndarray            # Jacobian at x
     cost: float                # ½·rᵀr, scipy's convention
+    #: residual evaluations, the initial one included — scipy's ``nfev``, and
+    #: the unit both drivers' budget is in (WP-1937)
     nfev: int
     njev: int
     n_outer: int
-    status: int                # >0 converged, 0 max_iter, <0 diverged
+    #: >0 converged, 0 budget spent.  Never negative: like scipy's TRF, which
+    #: returns −1 only from MINPACK's ``method="lm"``, this driver accepts only
+    #: steps that lower S, so a run that found nothing downhill stopped at a
+    #: point it could not improve rather than diverging from one (WP-1937)
+    status: int
     lambda_final: float = 0.0
     n_bound_hits: int = 0
     n_truncated: int = 0       # steps shortened by a linear-inequality row
@@ -224,9 +252,20 @@ class LMOutcome:
     #: :data:`~.least_squares._TRF_TERMINATION`'s vocabulary:
     #: ``ftol_runs`` (relative decrease under ftol for three consecutive outer
     #: iterations — Coelho's rule), ``exhausted_fp64`` (every remaining step
-    #: promises less than fp64 can measure against S), ``no_descent`` (the
-    #: inner loop found nothing downhill even at large λ), ``max_iter``.
-    termination: str = "max_iter"
+    #: promises less than fp64 can measure against S, a zero step included:
+    #: the bounded model's minimum is the current point), ``no_descent`` (the
+    #: inner loop found nothing downhill even at large λ), ``max_nfev`` (the
+    #: evaluation budget, TRF's token for the same stop).
+    termination: str = "max_nfev"
+    #: the bounds that hold the returned point, scipy's ``active_mask``
+    #: convention (−1 lower, +1 upper, 0 neither) and exact: the variable sits
+    #: *on* the bound, the step having landed it there, and the gradient at
+    #: the returned point pushes it outward, so its multiplier is positive
+    #: (WP-1937).  Exact up to :data:`BVLS_MAX_COLUMNS`; above it the step is
+    #: BCCG's, which can leave a variable just off its bound and so out of
+    #: this set.  scipy's TRF reports the same field within ``xtol`` of a
+    #: bound whatever the gradient, its iterates being strictly feasible.
+    active_mask: np.ndarray | None = None
 
 
 def _clip_to_bounds(x: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
@@ -255,7 +294,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
              jacobian: Callable[[np.ndarray], np.ndarray],
              x0: np.ndarray, *,
              lo: np.ndarray, hi: np.ndarray,
-             max_iter: int = 100,
+             max_nfev: int = 400,
              ftol: float = 1e-9,
              inequalities: list[LinearInequality] | None = None,
              callback: Callable[[np.ndarray, float], None] | None = None,
@@ -266,13 +305,17 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
 
     Two nested loops, exactly Coelho (2018) Fig. 1: the outer one recomputes A
     and b at an accepted point; the inner one raises λ until a step lowers S.
-    ``max_iter`` bounds the outer loop; the inner loop is bounded separately so
-    a hopeless point cannot spin forever.
+    ``max_nfev`` caps residual evaluations, the initial one included, which is
+    what scipy's ``max_nfev`` caps, so one budget means one thing on both
+    drivers (WP-1937).  The inner loop is also bounded on its own, so a point
+    with nothing downhill cannot spin.
 
     Termination: relative decrease in S below ``ftol`` for three consecutive
     outer iterations (Coelho's own criterion — a single small step is not
     convergence, it is a small step), or an inner loop that cannot find any
-    downhill step even at large λ.
+    downhill step even at large λ.  Both are convergence, including at the
+    first outer iteration: a stage that starts at its minimum has nothing
+    downhill to find.
 
     ``callback(x, cost)`` fires on each *accepted* point; ``on_trial(x_try,
     cost, accepted, lam, step_norm)`` fires once per trial the residual
@@ -287,6 +330,11 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
 
     r = residual(x)
     require_fp64(r, "least-squares residual")
+    if not np.all(np.isfinite(r)):
+        # scipy's TRF refuses the same start in the same words.  Run on, every
+        # trial compares against S = nan and is rejected, which now reads as
+        # convergence rather than the first-iteration "diverged" it was.
+        raise ValueError("Residuals are not finite in the initial point.")
     s = float(r @ r)
     n_fev, n_jev = 1, 0
     lam = 0.0
@@ -296,10 +344,10 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     n_stalled = 0
     status = 0
     n_outer = 0
-    termination = "max_iter"
+    termination = "max_nfev"
 
-    for outer in range(max_iter):
-        n_outer = outer + 1
+    while n_fev < max_nfev:
+        n_outer += 1
         J = jacobian(x)
         n_jev += 1
         # invariant 2: cond(JᵀJ) = cond(J)², so the normal equations are the one
@@ -310,10 +358,14 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
 
         accepted = False
         exhausted = False
+        spent = False
         for _inner in range(_INNER_MAX):
-            step = _solve_step(A, b, lam, x, lo, hi)
+            step, side = _solve_step(A, b, lam, x, lo, hi, n_rows=len(r))
             if not np.any(step):
+                # the model's minimum over the box is where we stand
+                exhausted = True
                 break
+            solved = step
             for iq in ineqs:
                 step = iq.project_step(x, step)
             tau = min((iq.max_feasible_fraction(x, step) for iq in ineqs), default=1.0)
@@ -322,15 +374,21 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
                 n_truncated += 1
             floor = -_PREDICTED_FLOOR * max(abs(s), 1.0)
             x_try = _clip_to_bounds(x + step, lo, hi)
+            if step is solved:
+                # a variable the solve put on a bound lands on it exactly:
+                # (lo − x)·d/d need not round back to lo − x, and the active
+                # set is read as x == bound
+                x_try = np.where(side < 0, lo, np.where(side > 0, hi, x_try))
             step = x_try - x            # the *taken* step, after every clamp
             promise = -float(step @ b)
             if promise >= 0.0:
                 # Not a descent direction *for the model* — which is a
-                # statement about the model, not the objective.  At λ = 0 on a
-                # near-singular A the truncated CG can return an ascent step
-                # (measured on brucite: ‖Δ‖ ≈ 2e10 promising +1.7e5), and
-                # clipping a long step against the box can do the same.  Both
-                # are what λ exists for: damp and retry.
+                # statement about the model, not the objective.  The exact
+                # bounded solve cannot return one, since Δ = 0 is feasible and
+                # its model value is zero.  The inequality projection can, and
+                # so could BCCG's truncated CG before WP-1937 (measured on
+                # brucite: ‖Δ‖ ≈ 2e10 promising +1.7e5).  Either is what λ
+                # exists for: damp and retry.
                 lam = _next_lambda(lam, None, 0.0)
                 continue
             if promise > floor:
@@ -338,6 +396,9 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
                 # measure against S: trying it would sample rounding noise, and
                 # every further λ increase promises less still
                 exhausted = True
+                break
+            if n_fev >= max_nfev:
+                spent = True
                 break
             r_try = residual(x_try)
             n_fev += 1
@@ -361,24 +422,27 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
                 small_runs = small_runs + 1 if rel < ftol else 0
                 break
             lam = _next_lambda(lam, None, 0.0)
+        if spent:
+            break
         if not accepted:
             # No downhill step exists that the cost can resolve.  That is
-            # convergence once we have moved at all — and *not* always because
-            # a minimum was reached: an objective with a corner (the FCJ
-            # profile at S/L = H/L is one, and the default instrument starts
-            # both apertures equal) presents a linearised model that promises
-            # descent in a direction the true function climbs.  ``n_stalled``
-            # records it; the correlation guard reports the degeneracy.
+            # convergence, on the first outer iteration as on any later one,
+            # since a stage can start at its minimum (WP-1937; it reported
+            # "diverged" before, and a series quarantines on that word) — and
+            # *not* always because a minimum was reached: an objective with a
+            # corner (the FCJ profile at S/L = H/L is one, and the default
+            # instrument starts both apertures equal) presents a linearised
+            # model that promises descent in a direction the true function
+            # climbs.  ``n_stalled`` records it; the correlation guard reports
+            # the degeneracy.  TRF says ``xtol`` at the same point.
             n_stalled = _INNER_MAX if not exhausted else 0
-            status = 1 if outer > 0 else -1
+            status = 1
             termination = "exhausted_fp64" if exhausted else "no_descent"
             break
         if small_runs >= _CONVERGED_RUNS:
             status = 1
             termination = "ftol_runs"
             break
-    else:
-        status = 0                            # ran out of outer iterations
 
     # J must be the Jacobian *at the returned point* — covariance_estimates
     # reads it together with ``fun``, and a stale one silently mis-scales
@@ -388,24 +452,77 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     n_jev += 1
     at_bounds = (np.isclose(x, lo) & np.isfinite(lo)) | (np.isclose(x, hi) & np.isfinite(hi))
     n_bound_hits = int(np.count_nonzero(at_bounds))
+    # ½∇S = Jᵀr: positive means S falls as the variable decreases
+    half_grad = to_host_fp64(J).T @ r
+    active = np.zeros(len(x), dtype=np.int8)
+    active[(x == lo) & (half_grad > 0.0)] = -1
+    active[(x == hi) & (half_grad < 0.0)] = 1
     return LMOutcome(x=x, fun=r, jac=J, cost=0.5 * s, nfev=n_fev, njev=n_jev,
                      n_outer=n_outer, status=status, lambda_final=lam,
                      n_bound_hits=n_bound_hits, n_truncated=n_truncated,
-                     n_stalled=n_stalled, termination=termination)
+                     n_stalled=n_stalled, termination=termination,
+                     active_mask=active)
 
 
 def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
-                lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
-    """One damped Gauss-Newton step, bounds enforced inside the CG loop.
+                lo: np.ndarray, hi: np.ndarray, *, n_rows: int
+                ) -> tuple[np.ndarray, np.ndarray]:
+    """One damped Gauss-Newton step, solved exactly inside the box (WP-1937).
 
+    Minimises the model ``½ΔᵀA_λΔ − bᵀΔ`` subject to ``lo − x ≤ Δ ≤ hi − x``.
     λ rides on the *pre-conditioned* diagonal (A_ii = 1), so adding ``lam`` to
     a copy of A scaled to unit diagonal is the same thing as Marquardt's
-    multiplicative form and keeps the published constants meaningful.  BCCG
-    bounds the *step*, so the parameter box ``lo ≤ x + Δ ≤ hi`` becomes
-    ``lo − x ≤ Δ ≤ hi − x``.
+    multiplicative form and keeps the published constants meaningful.
+
+    The bounded quadratic is handed to bounded-variable least squares (Stark &
+    Parker 1995, ``scipy.optimize.lsq_linear(method="bvls")``) as the square
+    system ``R = Λ^½Vᵀ``, ``c = Λ^-½Vᵀb`` from the eigendecomposition of the
+    equilibrated A, for which ``‖RΔ − c‖² = ΔᵀAΔ − 2bᵀΔ + const``.  BVLS is an
+    active-set method: a variable it holds is *on* its bound, never near it,
+    and its solve is exact rather than the truncated CG of :mod:`.bccg`.  That
+    is the case scipy's TRF cannot handle — several widths pressed on zero
+    together, where its interior scaling crawls (WP-1929's grid).
+
+    **The eigenvalue cut** (:data:`_EIGEN_CUT_PER_ROW`): A is formed as JᵀJ,
+    so each equilibrated entry is an inner product over m = ``n_rows`` terms
+    of two unit-norm columns, and carries a rounding error up to
+    γₘ = m·u/(1 − m·u) with u = ε/2 (Higham 2002, §3.1).  An eigenvalue below
+    ``m·ε·λmax`` is at that error's scale, so its direction is discarded and
+    the step there is zero, BVLS solving the remaining rank-deficient system
+    to minimum norm.  The cut binds only near λ = 0: a damped system has every
+    eigenvalue at or above λ.
+
+    **Above** :data:`BVLS_MAX_COLUMNS` the step is BCCG's, inexact and fast.
+    scipy's BVLS refactors the free set from scratch at each active-set change,
+    so its cost grows as n³ times the number of changes, and a Pawley block
+    appends one column per reflection.
+
+    Returns the step and which bound each variable was solved onto (−1 lower,
+    +1 upper, 0 neither), so the caller can land those variables *exactly* on
+    the bound the solve chose.  BCCG reports none.
     """
+    n = len(b)
     d = np.sqrt(np.maximum(np.diag(A), 0.0))
     d = np.where(d > 0.0, d, 1.0)
-    A_lam = A + lam * np.diag(d * d)
-    out = bccg.solve(A_lam, b, lo=lo - x, hi=hi - x)
-    return out.x
+    if n > BVLS_MAX_COLUMNS:
+        out = bccg.solve(A + lam * np.diag(d * d), b, lo=lo - x, hi=hi - x)
+        return out.x, np.zeros(n, dtype=np.int8)
+    inv_d = 1.0 / d
+    A_s = A * np.outer(inv_d, inv_d)
+    A_s[np.diag_indices(n)] += lam
+    b_s = b * inv_d
+    w, V = np.linalg.eigh(A_s)
+    w_max = float(w[-1]) if n else 0.0
+    keep = w > _EIGEN_CUT_PER_ROW * max(n_rows, n) * w_max
+    side = np.zeros(n, dtype=np.int8)
+    if w_max <= 0.0 or not np.any(keep):
+        return np.zeros(n), side
+    root = np.sqrt(w[keep])
+    Vk = V[:, keep]
+    R = root[:, None] * Vk.T
+    c = (Vk.T @ b_s) / root
+    lb, ub = (lo - x) * d, (hi - x) * d
+    out = lsq_linear(R, c, bounds=(lb, ub), method="bvls")
+    side[out.active_mask < 0] = -1
+    side[out.active_mask > 0] = 1
+    return out.x * inv_d, side

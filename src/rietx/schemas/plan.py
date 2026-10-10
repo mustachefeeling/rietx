@@ -73,7 +73,7 @@ class StageSpec(Base):
         default_factory=list,
         description="dot-path globs freed this stage, e.g. 'phases.*.cell.*'")
     max_iter: int = Field(100, description=(
-        "approximate solver iterations for this stage; TRF caps "
+        "approximate solver iterations for this stage; both drivers cap "
         "evaluations rather than iterations, so it is scaled by the "
         "measured worst-case rejection rate (NFEV_PER_ITERATION)"))
     ftol: float | None = Field(None, gt=0.0, description=(

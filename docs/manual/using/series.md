@@ -234,7 +234,7 @@ a few kB. The curves stay reachable on `SequentialRefinement.results_`.
 | `SeriesResult.x` | the axis: the coordinate given, or the pattern index |
 | `SeriesResult.labels` | one label per entry |
 | `SeriesResult.rwp` | one Rwp per entry |
-| `SeriesResult.n_iterations` | least-squares iterations summed over the entries: the reported chain, not the run |
+| `SeriesResult.n_iterations` | residual evaluations summed over the entries: the reported chain, not the run |
 
 It iterates, indexes and has a length, so `for entry in result` walks the
 patterns in order.
@@ -254,7 +254,7 @@ patterns in order.
 | `SeriesEntry.qpa` | the phase quantities, when the fit produced them |
 | `SeriesEntry.phase_agreement` | per-phase `PhaseAgreement` (R_Bragg, R_F), empty outside Rietveld mode |
 | `SeriesEntry.diagnostics` | that pattern's own diagnostics |
-| `SeriesEntry.n_iterations` | iterations over every attempt on this pattern |
+| `SeriesEntry.n_iterations` | residual evaluations over every attempt on this pattern |
 | `SeriesEntry.reseeded` | the warm start was rejected and the pattern was refitted cold |
 | `SeriesEntry.rwp_warm` | Rwp the first, warm attempt reached, set whenever the ladder escalated |
 | `SeriesEntry.rung` | which attempt produced these values: `"warm"`, `"warm_staged"` or `"cold"` |

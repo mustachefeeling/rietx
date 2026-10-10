@@ -15,6 +15,18 @@ computed.
 
 ### Inherited
 
+- **2026-10-10, from WP-1937: `"diverged"` now has no writer.** scipy's TRF
+  never returns a negative status for a valid input (−1 comes only from
+  MINPACK's `method="lm"`), and WP-1937 stopped the LM driver returning one
+  for a stage that starts at its minimum. So `StageResult.status`'s
+  `"diverged"` member, and the series quarantine and `SEQUENTIAL_UNRECOVERED`
+  keyed on it (`sequential._reseed_needed`, the quarantine branch on
+  `entry.status != "diverged"`), are reached only by test fakes. Name a
+  writer (a non-finite cost, say) or retire the member for new results while
+  old files still read. Also from 1937: both drivers now cap
+  `max_iter × NFEV_PER_ITERATION` residual evaluations, and the LM driver's
+  budget stop says `max_nfev`, as TRF's does.
+
 - **2026-09-30, from the issue triage (issue #538): `StageResult.n_iterations`
   is scipy's `nfev`, not an iteration count, and this WP's ε / p90 rule must
   be stated in the unit the field holds.** *Reproduced at `e3e6486a`* with

@@ -193,7 +193,7 @@ mode the structure computes them.
 |---|---|
 | `NodeMetrics.statistics` | the `Statistics` block, or `None` on a node that ran no fit |
 | `NodeMetrics.status` | `converged`, `max_iter` or `diverged`; `None` where no fit ran |
-| `NodeMetrics.n_iterations` | least-squares iterations taken |
+| `NodeMetrics.n_iterations` | residual evaluations the solve made, as `StageResult.n_iterations` |
 | `NodeMetrics.cost_initial` | the cost the stage started from |
 | `NodeMetrics.cost_final` | the cost it reached |
 | `NodeMetrics.stderr` | esds by dot-path, in physical units |
