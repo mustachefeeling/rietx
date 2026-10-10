@@ -290,7 +290,7 @@ def run_cell(fit: str, arm: str, out: Path) -> None:
     if coord == "physical":
         _install_physical()
     _install_solver(solver, calls)
-    with out.open("w", encoding="utf-8") as fh:
+    with out.open("w", encoding="utf-8", newline="\n") as fh:
         for k in STARTS:
             calls.clear()
             row = {"fit": fit, "arm": arm, "k": k}
@@ -322,8 +322,10 @@ def _spawn(fit: str, arm: str, out: Path) -> str:
     path = _cell_path(out, fit, arm)
     if len(_rows(path)) == len(STARTS):
         return f"{fit} {arm}: kept"
-    env = dict(os.environ, RIETX_TELEMETRY="0", MPLBACKEND="Agg",
-               RIETX_COMPILED_THREADS="1")
+    from rietx._about import COMPILED_THREADS_ENV, TELEMETRY_ENV
+
+    env = dict(os.environ, MPLBACKEND="Agg",
+               **{TELEMETRY_ENV: "0", COMPILED_THREADS_ENV: "1"})
     t0 = time.time()
     rc = subprocess.call([sys.executable, __file__, "--cell", fit, arm, str(path)],
                          cwd=ROOT, env=env)
