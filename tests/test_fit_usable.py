@@ -10,6 +10,7 @@ terms names the width with ``PEAK_WIDTH_LAW_MISMATCH``, and the same pattern
 with the size term freed does not.
 """
 
+import dataclasses
 from pathlib import Path
 from typing import get_args
 
@@ -192,7 +193,7 @@ def test_a_visible_minor_phase_still_takes_part(four_times_broad):
 
 # -- #243: status and diagnostics read one way about one solve ----------------
 
-def _nac(seeded: bool):
+def _nac(seeded: bool, n_stages: int | None = None):
     if not (DATA / "11BM_NAC.fxye").exists():
         pytest.skip("11-BM NAC dataset not present")
     data = rx.read_pattern(DATA / "11BM_NAC.fxye")
@@ -202,16 +203,25 @@ def _nac(seeded: bool):
     if seeded:  # as examples/nac_11bm.py seeds it
         ins.profile.w.value = 2e-5
         ins.profile.x.value = 2e-3
+    plan = rx.RefinementPlan.lab_sample_refine()
+    if n_stages is not None:
+        plan = dataclasses.replace(plan, stages=plan.stages[:n_stages])
     return Refinement(structure, ins).fit(
-        data, mode="lebail", plan=rx.RefinementPlan.lab_sample_refine(),
-        two_theta_limits=(2.0, 24.0))
+        data, mode="lebail", plan=plan, two_theta_limits=(2.0, 24.0))
 
 
 def test_issue_243_reproduction_reads_unusable_while_converged():
     """The issue's script on the repo's own fixture.  ``status`` keeps its one
     meaning — the solver's exit — and the two channels agree through the
-    documented reading: an error-level diagnostic makes the fit unusable."""
-    result = _nac(seeded=False)
+    documented reading: an error-level diagnostic makes the fit unusable.
+
+    Three stages of the plan, not all six.  Unseeded, the fit is 150 % from
+    the data by then, and every later stage wanders: a 1e-12 change to the
+    FD step moved the final Rwp from 1.56 to 2243 and the last stage from
+    22 to 112 iterations.  Linux py3.11 stopped on ``max_iter`` after #857.
+    The first three stages reach Rwp 1.613518, ``converged`` and
+    ``MODEL_FAR_FROM_DATA`` at every one of eight nudges (macOS arm64)."""
+    result = _nac(seeded=False, n_stages=3)
     assert result.status == "converged"
     errors = {d.code for d in result.diagnostics if d.level == "error"}
     assert "MODEL_FAR_FROM_DATA" in errors
