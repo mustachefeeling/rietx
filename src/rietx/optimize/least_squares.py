@@ -431,6 +431,20 @@ def _residual_cosine(jac, fun) -> np.ndarray | None:
     return np.divide(j.T @ f, denom, out=np.zeros(j.shape[1]), where=denom > 0)
 
 
+def _feasible_start(x0: np.ndarray, lo: np.ndarray, hi: np.ndarray,
+                    solver: str) -> np.ndarray:
+    """The start each driver is handed.  TRF requires it strictly inside the
+    bounds, so it is nudged 1e-12 off any it sits on.  The LM driver is handed
+    it on the bound: nudged, a stage restarting from a held value takes a first
+    step under the fp64 floor, stops there, and returns the value 1e-12 off
+    its bound and out of :attr:`LSQOutcome.active_bounds` (WP-1937)."""
+    if not len(x0):
+        return x0
+    if solver == "lm":
+        return np.clip(x0, lo, hi)
+    return np.clip(x0, lo + 1e-12, hi - 1e-12)
+
+
 def _active_bounds(res, n: int) -> np.ndarray:
     """The driver's active set over its first ``n`` columns — see
     :attr:`LSQOutcome.active_bounds`.  Both result shapes carry it as
@@ -1682,8 +1696,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         lo = np.concatenate([lo, plo])
         hi = np.concatenate([hi, phi])
     n_aux = len(x0) - n_table
-    # TRF requires x0 strictly inside the bounds
-    x0 = np.clip(x0, lo + 1e-12, hi - 1e-12) if len(x0) else x0
+    x0 = _feasible_start(x0, lo, hi, solver)
 
     r0 = residual(x0)
     # invariant 2: whatever built the columns, the residual is fp64 on host —
@@ -1874,7 +1887,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     _freeze_cell_windows_multi(models, mtable)
     x0 = mtable.x0()
     lo, hi = mtable.bounds()
-    x0 = np.clip(x0, lo + 1e-12, hi - 1e-12) if len(x0) else x0
+    x0 = _feasible_start(x0, lo, hi, solver)
     r0 = residual(x0)
     require_fp64(r0, "least-squares residual")
     cost0 = 0.5 * float(r0 @ r0)

@@ -287,6 +287,13 @@ def test_the_active_set_names_a_scale_held_by_its_ceiling(pattern, solver):
     assert out.active_bounds.tolist() == expected.tolist()
     if solver == "lm":
         assert out.theta[k] == table.bounds()[1][k]
+    # a restart from the held value keeps it held: the LM start is not nudged
+    # off the bound the way TRF's must be
+    table.commit(out.theta)
+    again = run_least_squares(model, table, solver=solver)
+    assert again.active_bounds.tolist() == expected.tolist()
+    if solver == "lm":
+        assert again.theta[k] == table.bounds()[1][k]
 
 
 # -- what the iteration budget means (WP-1109) ----------------------------
