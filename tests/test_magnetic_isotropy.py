@@ -1843,9 +1843,9 @@ def test_identify_refuses_the_same_way_in_both_spglib_error_modes():
     unnoticed.  ``tests/conftest.py`` restores the flag per test.
     """
     spglib_error = pytest.importorskip("spglib.error")
-    from rietx.crystallography.magnetic.operators import magnetic_group
+    from tests.test_magnetic_operators import not_a_group
 
-    group = magnetic_group(283)          # the entry spglib cannot match at all
+    group = not_a_group()                # a list spglib cannot match at all
     with pytest.raises(ValueError, match="did not match"):
         identify(group)                  # the documented behaviour, default mode
 
