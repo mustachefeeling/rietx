@@ -2,8 +2,8 @@
 
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
-Depends on: 1936 (the FD step, landed 2026-10-09), 1937 (a driver that handles widths on zero)
-Priority: P2 2026-10-09 — the base WP-1929's P1 rests on; WP-1936 landed, so only 1937 still blocks it
+Depends on: 1936 (the FD step, landed 2026-10-09), 1937 (a driver that handles widths on zero, landed 2026-10-10)
+Priority: P1 2026-10-10 — was P2: WP-1937 landed, nothing blocks it, and it now carries the default-driver flip WP-1929's P1 rests on
 
 ## Goal
 
@@ -74,6 +74,88 @@ not (the review: χ² 4.2987 against 4.0619 at parameters within one esd, both
 a poor basin). VALIDATION.md's rows and the landing page are re-measured.
 
 ### Inherited
+
+- **2026-10-10, from WP-1937 (maintainer decision): the default-driver flip
+  lands here, with the coordinates, in one PR.** Each half alone is worse
+  than today. Grid of `examples/probe_driver_grid.py` (14 acceptance fits,
+  five starts nudged by 1e-14, macOS arm64, `[dev]`, `src` at `790c7ce7`),
+  fits whose χ²_red spread is over 1e-9: softplus + TRF (today) 3, softplus
+  + LM 7, physical + TRF 4 with `max_iter` on brucite, corundum and brucite +
+  Stephens, physical + LM 2 with no `max_iter` anywhere. Residual
+  evaluations over twelve fits: 1292 today, 1065 physical + LM, 2717
+  physical + TRF. In softplus coordinates the exact LM step drives widths to
+  u ≈ −400, their columns die, and stages end on `ftol_runs` after moving
+  Biso by 4e-9, so softplus + LM must never ship as the default. The full
+  table is in WP-1937's 2026-10-10 handover entry.
+  - *Moved here from 1937's checklist.* Flip `solver=` to `"lm"` in every
+    signature that defaults it (`refine.py` ×4, `multi.py` ×2,
+    `sequential.py` ×2, `project.py` ×2, both `run_*least_squares`,
+    `LSQOutcome.solver`), as one constant; `Provenance.solver`'s `"trf"`
+    default stays, since every old record was TRF. Keep `"trf"` selectable.
+    Rewrite `lm.py`'s module docstring: re-measure "not a speed play" and
+    "prefer the default driver on a texture plan" with
+    `examples/bench_solver.py`. Rewrite `docs/manual/estimation.md` §
+    Solvers (add `stark1995`), `using/refining.md` near the
+    `solver="trf"` example and the `n_constraint_truncations` paragraph, and
+    `using/first-refinement.md`'s `solver=trf` provenance line. Every text
+    saying the Stephens cone is a guard "under the default TRF driver"
+    changes: root CLAUDE.md's anisotropic-strain clause,
+    `strategy/staged.check_stephens_positive`, `refine.py`'s
+    `CONSTRAINT_ACTIVE` suggestion, `help.py`, `crystallography/stephens.py`,
+    `viz/compare.py`, `schemas/structure.py`, and the skill's
+    `STEPHENS_STRAIN_NOT_POSITIVE` and `CONSTRAINT_ACTIVE` rows. A joint fit
+    builds no cone under LM (`run_multi_least_squares`), so the guard still
+    fires there. Regenerate the skill's `api.md`. PNGs for the fits whose
+    answer moves.
+  - *Task: brucite's valley.* Physical + LM spreads 1.1e-8 on brucite
+    (isotropic). Two exactly degenerate Lorentzian pairs (`profile.y` with
+    `lor_strain`, `profile.x` with `lor_size`) split differently per start,
+    and `axial_sl` ends at 0.2 or under 3e-10. A final ftol of 1e-12 leaves
+    1.4e-8. Hypothesis: the Γ_G² < 0 clamp (`u` = −0.049) makes the
+    objective piecewise at that level. Today's default reaches 1.7e-9 on the
+    same fit. Establish the mechanism, then fix it or give brucite its own
+    bar with the reason.
+  - *Task: the cone stall.* Physical + LM spreads 1.6e-6 on brucite +
+    Stephens. `sample_broadening` truncates 8 steps against the strain cone
+    and stops `exhausted_fp64`, and the S_HKL differ at 7e-5 relative. BVLS
+    holds boxes only, and the cone is projected and truncated around the
+    step (`lm.LinearInequality`, `lm.minimize`'s inner loop). Hold the cone
+    inside the step's quadratic programme, or show the stall moves no
+    quoted number. Under LM brucite + Stephens reaches χ²_red 8.00056
+    against TRF's 7.636, a point outside the cone.
+  - *The 16 suite failures under physical + LM*, out of 455 tests in the
+    files 1937's item named, slow included; TRF passes all 455. Two are
+    expected: `test_acceptance_stephens`'s
+    `test_unconstrained_solver_leaves_the_cone_on_the_same_data` and
+    `test_brucite_improvement_is_justified_but_leaves_the_physical_cone`
+    assert TRF's cone-leaving point, so their fixture names `solver="trf"`.
+    Four come from the coordinates alone and fail under physical + TRF too:
+    `test_acceptance_lab6_cbn`'s seeded-set assertion, and three in
+    `test_multi_histogram` (a seed that lands on `lor_size`, and the
+    `CELL_RUNAWAY` pair, whose cell no longer runs away). Five in
+    `test_lebail_alternation`: LM's pass 1 lands on the 13.865 % fixed point
+    the docstring describes, where TRF stops at the pinned 0.138453.
+    `test_magnetic_series::test_the_ascent_out_of_the_floor_terminates_at_once`:
+    with `max_iter=1` LM leaves the moment on its 0.001 floor, where TRF
+    reaches 2.73 in four evaluations. `test_magnetic_solve`'s budget-stop
+    continuation: LM converges both one-iteration stages, so nothing is
+    continued. `test_magnetic_solve_acceptance::test_the_150k_pattern_has_nothing_to_solve`:
+    under LM all four classes refine (ΔBIC ≤ −21.9), and the test pairs
+    rows to classes by index. `test_multi_diagnostics::test_the_specimen_and_the_fit_are_told_once`
+    needs a stage that runs out of budget, and LM solves its linear scale
+    stage. One is unexplained:
+    `test_acceptance_sequential::test_chained_agrees_with_independent_fits`
+    gives cpd-1d chained 0.14604 against 0.13087 alone (bar 0.005). Its warm
+    refit starts with five widths at exactly 0 carried from cpd-1c.
+    Hypothesis: a carried zero starts on its bound unseeded
+    (`ParameterTable.seed_floor` lifts softplus rows only).
+  - *Numbers that move with the flip* (physical + LM against today): the
+    LaB₆ free-Gaussian plans swap between two genuine minima, 9.661408 and
+    9.840220, by schedule (no test runs them); brucite + Stephens +4.8e-2
+    (the cone is enforced); absent phase −8.0e-7 (the coordinates); FAP
+    +5.5e-8, Si 640c +7.5e-8, corundum +1.4e-7 (inside today's own
+    five-start range); NAC Pawley Rwp 0.13478 against 0.13628. Above 128
+    columns the LM step is still BCCG's (`lm.BVLS_MAX_COLUMNS`).
 
 - **From WP-1936 (2026-10-09): the FD step is one more reader that branches on
   the transform.** `least_squares._fd_typicals` sizes a column's step by

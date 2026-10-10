@@ -219,6 +219,16 @@ silently stop acting (WP-1938).
 
 ### Inherited
 
+- **2026-10-10, from WP-1937: the active set exists.**
+  `LSQOutcome.active_bounds` carries each driver's set over the table
+  columns (−1 lower, +1 upper, 0 neither). The LM driver's is exact: the
+  value sits on the bound and the gradient there points outward. TRF's is
+  scipy's `active_mask`, set within `XTOL` of a bound whatever the gradient,
+  so it misses brucite's `gauss_strain` parked 7.6e-6 above its floor. Nothing
+  copies it past the outcome yet; the flag task reads it there. The
+  default-driver flip moved from 1937 to WP-1938, so until 1938 lands the
+  default's set is TRF's.
+
 - **2026-10-09, from WP-1930 (PR #849).** The floor seed this WP soft-depended
   on has landed: a stage now starts a freed softplus row sitting on its floor
   at 1e-3 of its unit (`params.vector.FLOOR_SEEDS`), and records it in
