@@ -323,7 +323,7 @@ measurement. FPA and the peaks buffer stay fenced (1122).
       decided home, with the three code fixes (distinct-buffer check, per-plane
       shape check against `phi`, checked index conversion), `KERNEL_ABI`,
       `module-name`, abi3-py311, `codegen-units = 1`, `lto = "fat"`.
-- [ ] `compiled.py` loads the wheel: import, ABI check (a kernel the wheel
+- [x] `compiled.py` loads the wheel: import, ABI check (a kernel the wheel
       lacks declines the same way), decline that warns once and reaches
       `capabilities()`; `_SURFACE_FLAGS`/`features` updated;
       the numba model kernels and the cache-directory and warm-thread
@@ -341,9 +341,9 @@ measurement. FPA and the peaks buffer stay fenced (1122).
 - [x] Release machinery: `kernels.yml` (five wheels, each tested on its own
       platform with the refusals and the `--gate` agreement pass, published
       on a `kernels-v*` tag) and `RELEASING.md` § The kernel wheel.
-- [ ] 1.0.0 on PyPI (the maintainer's pending publisher, tag and approval),
+- [x] 1.0.0 on PyPI (the maintainer's pending publisher, tag and approval),
       then `pyproject` pins `rietx-kernels>=1,<2` in the `compiled.py` PR.
-- [ ] numba removed from the dependencies in the `compiled.py` PR
+- [x] numba removed from the dependencies in the `compiled.py` PR
       (§ Decisions item 8): the indexing traversal on its numpy loop, its
       numba twin and `test_indexing_kernels.py`'s compiled half deleted, and
       the indexing CLAUDE.md's "compiled twin" rule and root CLAUDE.md's
@@ -358,7 +358,7 @@ measurement. FPA and the peaks buffer stay fenced (1122).
       selection's passed+skipped delta quoted. When numba leaves, the
       agreement pass's reference moves from numba to the numpy path, in the
       bench and in `kernels.yml`'s `test` job.
-- [ ] Skill: `references/diagnostics-indexing.md`'s `compiled_kernels`
+- [x] Skill: `references/diagnostics-indexing.md`'s `compiled_kernels`
       paragraph rewritten (no numba to omit; a wheel that imports or does
       not), and `install.md`'s agent admonition. No body change: an agent
       never sees which compiler built a kernel.
