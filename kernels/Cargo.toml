@@ -3,10 +3,10 @@
 # Bump it with any change to a kernel's name, arguments or output planes.
 [package]
 name = "rietx-kernels"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 license = "MIT"
-description = "The compiled model kernels of rietx"
+description = "The compiled kernels of rietx: its model and its structure figure"
 repository = "https://github.com/yue-here/rietx"
 publish = false
 

@@ -57,6 +57,11 @@
 //!
 //! The loops keep their slice bounds checks too; WP-1939 measured no speed in
 //! removing them.
+//!
+//! The structure figure's rasteriser is the other module, `raster.rs`, with a
+//! header of its own.  It joined in 1.1.0 (WP-1940 § Decisions item 9).  Its
+//! oracle is `rietx/viz/figure3d/raster.py`, and its bar is the bit on every
+//! platform, because it calls no library function.
 
 use numpy::{
     Element, PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2,
@@ -65,6 +70,8 @@ use numpy::{
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::f64::consts::{LN_2, PI};
+
+mod raster;
 
 const K4LN2: f64 = 4.0 * LN_2;
 
@@ -635,5 +642,7 @@ fn rietx_kernels(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(omega_fcj, m)?)?;
     m.add_function(wrap_pyfunction!(bases_sym, m)?)?;
     m.add_function(wrap_pyfunction!(bases_fcj, m)?)?;
+    m.add_function(wrap_pyfunction!(raster::render_rows, m)?)?;
+    m.add_function(wrap_pyfunction!(raster::id_plane, m)?)?;
     Ok(())
 }
