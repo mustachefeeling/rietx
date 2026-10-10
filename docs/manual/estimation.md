@@ -42,7 +42,10 @@ R_{\exp} = \sqrt{\frac{N - P}{\sum w y_o^2}}, \qquad
 
 {source}`rietx.optimize.statistics`
 
-with $\mathrm{GoF} = \sqrt{\chi^2_{\mathrm{red}}} = R_{wp}/R_{\exp}$, plus
+Here $y_o$ and $y_c$ are the observed and calculated intensities at a channel,
+and $w$ is its weight. $N$ is the number of fitted channels and $P$ the number
+of refined parameters, so $N - P$ is the degrees of freedom. Also defined are
+$\mathrm{GoF} = \sqrt{\chi^2_{\mathrm{red}}} = R_{wp}/R_{\exp}$ and
 the background-subtracted $R_{wp}$ variant Toby recommends when the
 background carries much of the raw intensity. The Durbin-Watson statistic
 on weighted residuals {cite}`hillflack1987` flags serial correlation

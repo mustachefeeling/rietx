@@ -198,6 +198,15 @@ gh run view <id> --json jobs   # each "fast py3.x" job's "Fast suite" step
 
 ## Handover log
 
+### 2026-10-10 — a fix from WP-1936's session (reconstructed post hoc)
+
+WP-1936's session landed `c46a6679` under this WP's prefix (PR #859, merged
+as `ead856cb`). #857's merge had turned main's py3.11 leg red. The commit makes
+`test_fit_usable.py`'s #243 reproduction run the first three stages of the
+unseeded NAC Le Bail plan, which reach one answer at every nudge. That session
+recorded why under `### Inherited` (2026-10-10). No task is ticked. *Next:*
+the ten-run re-measure, which #857's merge has unblocked.
+
 ### 2026-10-09 (2nd session) — the tail cut lands; the ten-run re-measure waits for the merge
 
 The fast tier's three named costs are cut, and no assertion was lost. The

@@ -1,6 +1,6 @@
 # WP-1940 — the kernel tier in a wheel: Rust kernels, threaded on work, with a vector exponential
 
-Milestone: unscheduled · Status: 🔄 2026-10-10 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-10 — the rasteriser is in rietx-kernels 1.1.0 (#867); rietx calls it in #868 once 1.1.0 is on PyPI
 Track: Candidates — named on a use case, not yet on a measurement
 Depends on: 1939
 Priority: P2 2026-10-10 — the decision is taken (Rust, § Decisions) and every agent install pays numba's 143 MB and warm-up until this lands; the first task is a bit-neutral 1.4× that ships on its own
@@ -349,10 +349,12 @@ measurement. FPA and the peaks buffer stay fenced (1122).
       the indexing CLAUDE.md's "compiled twin" rule and root CLAUDE.md's
       compiled-tier clause rewritten; the figure on its numpy rasteriser;
       `pyproject`'s dependency comment rewritten.
-- [ ] Port the rasteriser into the crate against its bit-exact numpy twin
-      (`raster.py`'s docstring) and the figure tests; released as 1.1.0,
-      the next kernel release (§ Decisions item 9). If WP-1505 moves the
-      figure into rietview first, the port goes there.
+- [x] Port the rasteriser into the crate against its bit-exact numpy twin
+      (`raster.py`'s docstring) and the figure tests, as 1.1.0, the next
+      kernel release (§ Decisions item 9): `kernels/src/raster.rs`, PR #867.
+- [ ] 1.1.0 on PyPI (the maintainer's tag and approval), then rietx calls the
+      rasteriser and pins `rietx-kernels>=1.1,<2`: PR #868, stacked on #867
+      and readied once the wheel is on the index.
 - [ ] Tests: the guard, the bars, the branch counters, `test_capabilities`'s
       new flag writer, `test_compiled_kernels.py` on both paths; the fast
       selection's passed+skipped delta quoted. When numba leaves, the
@@ -398,6 +400,121 @@ with the guard green is a pass.
 - `docs/RELEASING.md` (build from the tag, never by hand).
 
 ## Handover log
+
+### 2026-10-10 (5th session) — the rasteriser joins the kernel package
+
+The structure figure's drawing code now exists in Rust inside the kernel
+package, as its version 1.1.0. It draws the same picture as the numpy code,
+bit for bit, in every render tried. A second pull request makes rietx use it
+and require 1.1.0. With it, choosing a view automatically takes about a tenth
+of a second on the NAC cell, where numba took 92 ms and numpy takes 1.3 s.
+Nothing reaches users until the maintainer publishes 1.1.0 and the second
+request merges. WP-1521 is closed, since #864 did its whole goal.
+
+*Done.*
+- **WP-1521 closed** as 🛑, superseded by this WP, with a line in the v1.8
+  record. Its three inherited entries all said to close it once #864 landed.
+- **`kernels/src/raster.rs`** (#867): `render_rows` and `id_plane`,
+  transcribed from the numba twins deleted in 2cc71c3e. Arguments come as
+  `raster._pack`'s tuples, `bg` is `None` for straight alpha, and every
+  argument is checked before the GIL is released. The crate is 1.1.0.
+  `kernels.yml` runs the new test file on each platform, asserts the wheel it
+  built has the rasteriser, and triggers on the test file and `raster.py`.
+- **`tests/test_raster_kernels.py`** (17 cases): the wheel runs beside
+  `_band_numpy` and `_ids_numpy` on every band and id frame of real renders.
+  It asserts each arm's inputs were present (rings both ways, halves,
+  outline, lines, faces, letters, both backgrounds), then runs the refusals.
+  It was made to fail once: the box filter's samples summed in reverse fail
+  two tests, with the expected message. An exact mutation (a multiply by 2
+  reassociated) gave the same bits and proved nothing.
+- **#868, the rietx half** (a lane, branch `wp1940-raster-wiring`, a draft
+  based on `main` and stacked on #867). `raster.draw` and `raster.id_plane`
+  call the wheel when the tier is on, bands spread over the pool. The two
+  kernels join `KERNEL_NAMES`, a new `KERNEL_FLOOR = "1.1"` writes the pin's
+  floor, and the pin is `rietx-kernels>=1.1,<2`. `model.compiled` is back in
+  the figure's import boundary. The figure tests run both paths. The manual,
+  the skill's figure row, the 1.8.0 notes and the v1.8 record were
+  re-measured. It cannot be readied before 1.1.0 is on PyPI, because CI
+  resolves the pin from the index.
+- **`/code-review high --fix`** found ten. It fixed six: min, max and the
+  clamp now keep a NaN as numpy does (`npmin`/`npmax`); `render_rows` refuses
+  a picture whose sample planes would overflow and an outline radius past
+  2^30; `P` is generic, so the rasteriser shares `lib.rs`'s pointer wrapper;
+  `kernels.yml` asserts the wheel has the rasteriser, since the test file
+  skips without it; the header names the right test file; a `kernels.yml`
+  comment pointed at the wrong subject. Four were declined. The pin floor is
+  #868's. The arm check reads the inputs, not what a band drew, and making a
+  kernel report what it drew is a design change. Folding `same_count` into
+  `per_row` would change messages the tests match. `id_plane` repeats
+  `render_rows`' ray tests on purpose, mirroring the oracle line for line.
+- Forward reference: 1505 (the figure now needs `rietx-kernels>=1.1` and the
+  tier's switch and pool if it moves to rietview). There was no
+  `### Inherited` to prune.
+
+*Measured.* `[dev]` venv with a local 1.1.0 wheel built from this tree,
+darwin/arm64, python 3.12.10, numpy 2.5.3.
+- Agreement probe, single thread, NAC cell (`cod_1000236.cif`) at 240 and
+  400 px in four modes plus a banded render: 127 bands and 207 id frames, none
+  differing. Kernel time 0.035 s against 0.73 s for the bands (21×), and
+  0.078 s against 2.43 s for the id frames (31×).
+- The lane's figures, 8 threads, through #868's wiring, against numpy in the
+  same session:
+
+| quantity | wheel | numpy |
+|---|---|---|
+| NAC 400 px render | 27-34 ms | 97.8-98.8 ms |
+| NAC id pass | 0.65-0.76 ms | 12.0-12.2 ms |
+| NAC 400 px `view="auto"` | 90-107 ms | 1.30-1.39 s |
+| NAC 1000 px render | 35-41 ms | 275-334 ms |
+| NAC 3000 px render | 89-117 ms | 1.75-1.82 s |
+| 3143 atoms, 400 px render | 175-209 ms | not run |
+| 3143 atoms, `view="auto"` | 530-548 ms | not run |
+
+  The 3143-atom block is `s3.build(nac, extent=((0,3),)*3, max_atoms=10**6)`.
+  Load averages were 3.3-4.3 from two other sessions, with no pytest running.
+- Fast suite on this branch with origin/main (33fe516e) merged: 9031 passed,
+  177 skipped, 1 xfailed, 4:37, nothing else running. The only test change
+  is the new file, so passed moves by exactly its 17. Under CI's published
+  1.0.0 the file is one module-level skip.
+- The 17 cost 8.01 s in that run: 3.48 s for the id-frame test and 2.24 s for
+  the band test, both rendering on the numpy path, which is the oracle they
+  compare against (`tests.added_test_times`). They stay in the fast tier
+  because they are the only per-platform check of the bit on this branch.
+- The full suite did not run. rietx calls none of the new kernels on this
+  branch, and on #868 the figure's pictures are held equal to numpy's.
+- Lanes:
+
+| lane | est | requests | main at dispatch | re-read | left in main | lane $ | saved $ |
+|---|---|---|---|---|---|---|---|
+| raster-wiring | 30 | 90 | 279K | 0K of 3K | 24K | 4.12 | +3.15 |
+
+  Kept: rasteriser-port, estimated 35, took 37, at 128K. Main 73 requests at
+  a 313K peak, $7.24. The selective policy's replay row (main > 150K and
+  item >= 20 requests): 110 items laned, -14 %.
+
+*Gotchas.*
+- Plain `cargo build` compiles the crate and fails to link on macOS. Build
+  with `uvx maturin build --release -m kernels/Cargo.toml -o <dir>` and
+  install the wheel with `uv pip install --python .venv/bin/python
+  --reinstall`. This worktree's venv holds that local 1.1.0, so
+  `uv pip install -e .` on #868's pin fails until 1.1.0 is on PyPI.
+- `raster.rs`'s header says `raster.draw` does not call the kernel yet. That
+  is true on #867 and false once #868 lands; #868 rewords it.
+- The arm check counts an arm as reached when its inputs exist. A ring that
+  inks no sample still counts.
+- `monkeypatch.undo()` inside a test also removes a fixture's patches made
+  with the same `monkeypatch`. Use `pytest.MonkeyPatch.context()` for a
+  scoped patch.
+
+*Next.*
+1. The maintainer: merge #867 once `kernels.yml` is green on all five
+   platforms, tag `kernels-v1.1.0` on that `main` commit, and approve the
+   publish (`docs/RELEASING.md` § The kernel wheel).
+2. Verify 1.1.0 from the index. Then merge `main` into
+   `wp1940-raster-wiring`, ready #868, give it its own `/code-review`, and tick
+   the publish task when it merges.
+3. The vectorised exponential with the relaxed rule as 1.2.0 (tasks 3 and 6),
+   its guard sized on the 2.2e-1 esd. Then multiversioning.
 
 ### 2026-10-10 (4th session) — rietx loads the wheel, and numba leaves
 
