@@ -1,6 +1,6 @@
 # WP-1937 — a bounded step solved exactly
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-10 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: 1936 soft, landed 2026-10-09 (a step constant moved the LaB₆ basin under either driver; it no longer does)
 Priority: P1 2026-10-09 — the second rung under WP-1929's P1; physical coordinates (WP-1938) cannot become the default until a driver handles widths pressed on zero, and TRF does not
