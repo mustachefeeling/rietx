@@ -1,0 +1,68 @@
+# WP-1939's spike, TEMPORARY: deleted before the WP's handover.
+#
+# Two questions a Mac cannot answer.  What maturin-action costs per platform for
+# the abi3 wheel (`build`), and whether the Rust and Cython kernels still agree
+# with numba bit for bit on Linux, where WP-1115 found numba's `exp` and
+# numpy's differing by ~3e-17 (`agree`, x86_64 and aarch64).
+name: spike-aot
+
+on:
+  push:
+    branches: [wp1939-aot-kernel-spike]
+    paths:
+      - 'examples/aot_spike/**'
+      - '.github/workflows/spike-aot.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: wheel ${{ matrix.os }} ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, target: x86_64}
+          - {os: ubuntu-24.04-arm, target: aarch64}
+          - {os: macos-latest, target: aarch64}
+          - {os: macos-latest, target: x86_64}
+          - {os: windows-latest, target: x64}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: auto
+          args: --release --out dist -m examples/aot_spike/rust/Cargo.toml
+      - run: ls -la dist
+        shell: bash
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheel-${{ matrix.os }}-${{ matrix.target }}
+          path: dist
+
+  agree:
+    name: agree ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - run: uv venv --python 3.12
+      - run: uv pip install -e ".[dev]" maturin cython setuptools
+      - name: build the Rust kernels
+        run: |
+          (cd examples/aot_spike/rust && ../../../.venv/bin/maturin build --release -i ../../../.venv/bin/python)
+          uv pip install examples/aot_spike/rust/target/wheels/*.whl
+      - name: build the Cython kernels three ways (gcc)
+        working-directory: examples/aot_spike/cython
+        run: |
+          RIETX_SPIKE_CONTRACT=off ../../../.venv/bin/python setup.py -q build_ext --inplace
+          RIETX_SPIKE_CONTRACT=off RIETX_SPIKE_ABI3=1 ../../../.venv/bin/python setup.py -q build_ext --inplace
+          ../../../.venv/bin/python setup.py -q build_ext --inplace
+          gcc --version | head -1
+      - name: agreement inside a real fit
+        run: .venv/bin/python examples/aot_spike/bench_aot_kernels.py --cases cpd-1a,trigger --skip 2,3
