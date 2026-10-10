@@ -108,15 +108,22 @@ task changes shape.
       `active_mask` is the fallback).
 - [x] Pawley at its largest fixture: BVLS against BCCG, time and answer; the
       size rule if one is needed.
-- [ ] The twelve-fit grid plus the Pawley, Le Bail, multi-histogram,
+- [x] The twelve-fit grid plus the Pawley, Le Bail, multi-histogram,
       magnetic and sequential suites under the new driver, in both coordinate
       systems. Every acceptance number that moves listed with its reason.
-- [ ] Flip the default (`Refinement(solver=)`), keep `"trf"` selectable, and
-      rewrite `lm.py`'s docstring and the manual's solver section.
-- [ ] Tests, plus obs/calc/diff PNGs to `tests/output/` for the fits whose
-      answer moves.
-- [ ] Skill: the solver row in the skill's references, if it names TRF as the
-      default.
+      (`examples/probe_driver_grid.py`; the table and the suite failures are
+      in the 2026-10-10 handover entry.)
+- [x] ~~Flip the default (`Refinement(solver=)`), keep `"trf"` selectable,
+      and rewrite `lm.py`'s docstring and the manual's solver section.~~ Moved
+      to WP-1938 2026-10-10 (maintainer). LM in softplus coordinates splits 7
+      of 14 grid fits against today's 3, so the driver and the coordinates
+      switch together.
+- [x] Tests, plus obs/calc/diff PNGs to `tests/output/` for the fits whose
+      answer moves. (Tests for items 1-4. No default answer moves here, so no
+      PNGs; the moved fits' PNGs go with the flip in WP-1938.)
+- [x] ~~Skill: the solver row in the skill's references, if it names TRF as
+      the default.~~ Moved to WP-1938 with the flip. The default is unchanged
+      here.
 
 ## Acceptance
 
