@@ -16,7 +16,9 @@ fixed estimated baseline.  Both use the same two ingredients:
   peak positions make the test slightly conservative, which is the safe
   direction).
 
-The selected order is the BIC minimiser among the scanned candidates.
+The selected order is the BIC minimiser among the scanned candidates.  A scan
+that returns its own cap without the whiteness stop has not chosen an order,
+and says so: ``BACKGROUND_ORDER_AT_CAP`` (issue #833).
 
 A declared fixed curve (a measured blank, an estimated baseline) is passed to
 :func:`select_chebyshev_order` as ``fixed``, because the order worth choosing is
@@ -32,7 +34,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from pydantic import Field
 
-from ..schemas.common import Base
+from ..schemas.common import Base, Diagnostic
 from ..schemas.pattern import PatternData
 from .estimators import arpls
 from .models import chebyshev_design_matrix, interpolate_fixed
@@ -55,6 +57,9 @@ class BackgroundSelection(Base):
     n_masked_channels: int
     scores: list[CandidateScore] = Field(default_factory=list)
     stopped_by_whiteness: bool = False
+    #: what the scan has to say about its own answer; today only
+    #: ``BACKGROUND_ORDER_AT_CAP`` from :func:`select_chebyshev_order`
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
 
 
 def peak_mask(tt: np.ndarray, y: np.ndarray, sigma: np.ndarray,
@@ -105,6 +110,17 @@ def select_chebyshev_order(data: PatternData, *, max_order: int = 16,
     curve are not orthogonal, so given enough terms the scan will dial the
     measured curve away and describe the same shape itself — BIC prefers it, and
     the scale that comes back is then a number about the polynomial.
+
+    **A selection equal to ``max_order`` without the whiteness stop is the cap,
+    not a choice**, and ``diagnostics`` carries ``BACKGROUND_ORDER_AT_CAP``
+    naming the cap and the last d.  BIC was still falling at the last order
+    scanned and d never reached ``dw_stop``.  On the 11-BM Si 640c pattern
+    (8-30°, 20 542 masked channels) that is the default's outcome, and at
+    ``max_order=32`` the scan returns 32: each term gains 50-800 in BIC against a
+    penalty ln m ≈ 10, and d stays at 0.43-1.02, because the masked residual's
+    serial correlation comes from profile misfit that no polynomial removes
+    (issue #833).  An interior BIC minimum and a scan the stop ended carry no
+    code.
     """
     mask = data.in_range_mask()
     tt, y, sigma = data.tt()[mask], data.y()[mask], data.sig()[mask]
@@ -140,9 +156,25 @@ def select_chebyshev_order(data: PatternData, *, max_order: int = 16,
             stopped = True
             break
     best = min(scores, key=lambda s: s.bic)
+    diagnostics: list[Diagnostic] = []
+    if not stopped and best.complexity == max_order:
+        d_last = scores[-1].durbin_watson
+        diagnostics.append(Diagnostic(
+            level="info", code="BACKGROUND_ORDER_AT_CAP",
+            message=(f"the Chebyshev order scan returned its cap, {max_order} "
+                     f"terms, with BIC still falling: Durbin-Watson d on the "
+                     f"{m} masked channels was {d_last:.3f} at the last order, "
+                     f"short of the {dw_stop:g} stop, so the order was not "
+                     f"chosen by the data"),
+            suggestion=("A higher max_order is not the cure: d under the stop at "
+                        "every order is profile misfit leaking into the masked "
+                        "channels.  Read the fit's BACKGROUND_ABSORPTION, or use "
+                        "the penalised P-spline (kind='pspline')."),
+            value=d_last))
     return BackgroundSelection(method="chebyshev_order", selected=best.complexity,
                                n_masked_channels=m, scores=scores,
-                               stopped_by_whiteness=stopped)
+                               stopped_by_whiteness=stopped,
+                               diagnostics=diagnostics)
 
 
 def select_arpls_lambda(data: PatternData, *,

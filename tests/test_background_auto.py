@@ -885,6 +885,60 @@ def test_chebyshev_selection_minimises_bic():
     assert sel.selected == min(sel.scores, key=lambda s: s.bic).complexity
 
 
+def _at_cap(sel):
+    return [d for d in sel.diagnostics if d.code == "BACKGROUND_ORDER_AT_CAP"]
+
+
+def test_a_scan_that_returns_its_cap_says_so():
+    """Issue #833 / WP-1931's acceptance line: on 11-BM Si 640c at the default
+    cap the scan never meets the Durbin-Watson stop and returns 16, so the code
+    fires, naming the cap and the last d.  On ``main`` it returned 16 in
+    silence."""
+    data = rx.read_pattern(Path(__file__).parent / "data" / "11BM_Si640c.xy").crop(8.0, 30.0)
+    sel = select_chebyshev_order(data)
+    assert sel.selected == 16 and not sel.stopped_by_whiteness
+    (hit,) = _at_cap(sel)
+    d_last = sel.scores[-1].durbin_watson
+    assert hit.value == d_last and d_last < 1.8
+    assert "16 terms" in hit.message and f"{d_last:.3f}" in hit.message
+
+    # a synthetic hump the scan needs 15 terms for, capped at 6: the same code
+    humpy = _peaky_pattern(background=_hump_bkg)
+    capped = select_chebyshev_order(humpy, max_order=6)
+    assert capped.selected == 6 and not capped.stopped_by_whiteness
+    assert _at_cap(capped)
+
+
+def test_an_order_the_scan_chose_carries_no_cap_code():
+    """The two ways a scan chooses: the whiteness stop ends it (the synthetic
+    hump at the default cap stops at 15 of 16), or BIC turns over inside the
+    cap without it (11-BM LaB₆ 660a, 4-30°, picks 31 of 32, #833's table)."""
+    stopped = select_chebyshev_order(_peaky_pattern(background=_hump_bkg))
+    assert stopped.stopped_by_whiteness and stopped.selected < 16
+    assert not stopped.diagnostics
+
+    lab6 = rx.read_pattern(Path(__file__).parent / "data" / "11BM_LaB6_660a.fxye").crop(4.0, 30.0)
+    interior = select_chebyshev_order(lab6, max_order=32)
+    assert not interior.stopped_by_whiteness and interior.selected < 32
+    assert not interior.diagnostics
+
+
+def test_auto_background_hands_the_cap_code_to_its_caller():
+    """``auto_background`` returns a background, so the selection's code
+    reaches the caller as a warning that starts with it, and a chosen order
+    raises none."""
+    humpy = _peaky_pattern(background=_hump_bkg)
+    with pytest.warns(UserWarning, match=r"^BACKGROUND_ORDER_AT_CAP: "):
+        auto_background(rx.read_pattern(
+            Path(__file__).parent / "data" / "11BM_Si640c.xy"), kind="chebyshev",
+            two_theta_limits=(8.0, 30.0))
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        cheb = auto_background(humpy, kind="chebyshev")
+    assert len(cheb.coefficients) == 15
+
+
 def test_arpls_lambda_selection_returns_evidence():
     sel = select_arpls_lambda(_peaky_pattern(background=_hump_bkg))
     assert sel.method == "arpls_lambda"
