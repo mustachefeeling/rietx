@@ -70,6 +70,16 @@ OUTPUTS = {
     "bases_fcj": (0, 1, 2, 3, 4, 5),
 }
 
+#: the argument that picks each kernel's arm (WP-1940): the scatter's term
+#: count, Ω's spelling (0 forward, 1 basis), the FCJ bases' axial planes.
+#: ``bases_sym`` has one arm.
+ARM = {
+    "accum": (11, "n_terms"),
+    "omega_sym": (7, "spell"),
+    "omega_fcj": (8, "spell"),
+    "bases_fcj": (19, "has_ax"),
+}
+
 CANDIDATES = ("rietx_kernels", "rietx_kernels_cy", "rietx_kernels_cy_abi3",
               "rietx_kernels_cy_default", "rietx_kernels_cy_default_abi3")
 LABEL = {"numba": "numba", "rietx_kernels": "rust",
@@ -155,7 +165,9 @@ def _theta_gap(ref: dict, got: dict) -> str:
 
 
 class _Shadow:
-    """Per-kernel call counts, mismatches, max |Δ| in ulps, serial seconds."""
+    """Per-kernel call counts, mismatches, max |Δ| in ulps, serial seconds,
+    and per-arm call and mismatch counts, so a zero says which arms it covers.
+    """
 
     def __init__(self, numba: dict, cands: dict[str, dict]):
         self.numba, self.cands = numba, cands
@@ -164,6 +176,8 @@ class _Shadow:
         self.secs: dict[tuple[str, str], float] = {}
         self.bad: dict[tuple[str, str], int] = {}
         self.ulps: dict[tuple[str, str], float] = {}
+        self.arms: dict[str, dict] = {}
+        self.arm_bad: dict[tuple[str, str], set] = {}
         self.rot = 0
 
     def wrap(self, kname: str):
@@ -171,6 +185,11 @@ class _Shadow:
 
         def call(*args):
             self.calls[kname] = self.calls.get(kname, 0) + 1
+            arm = args[ARM[kname][0]] if kname in ARM else None
+            if arm is not None:
+                arm = int(arm)
+                seen = self.arms.setdefault(kname, {})
+                seen[arm] = seen.get(arm, 0) + 1
             before = [args[i].copy() for i in outs]
             order = self.names[self.rot:] + self.names[:self.rot]
             self.rot = (self.rot + 1) % len(self.names)
@@ -195,6 +214,7 @@ class _Shadow:
                             self.ulps.get((kname, name), 0), _max_ulps(a, b))
                 if differs:
                     self.bad[(kname, name)] = self.bad.get((kname, name), 0) + 1
+                    self.arm_bad.setdefault((kname, name), set()).add(arm)
             for i, a in zip(outs, ref):
                 args[i][...] = a
 
@@ -214,8 +234,8 @@ def agreement(case: str, numba: dict, cands: dict[str, dict]) -> None:
     names = list(cands)
     head = " | ".join(f"{LABEL[n]}: s · ×numba · calls differing (max ulp)"
                       for n in names)
-    print(f"| kernel | calls | numba s | {head} |")
-    print("|---|---|---|" + "---|" * len(names))
+    print(f"| kernel | calls | arms ran (calls) | numba s | {head} |")
+    print("|---|---|---|---|" + "---|" * len(names))
     tot = {n: 0.0 for n in ["numba", *names]}
     for k in OUTPUTS:
         if k not in shadow.calls:
@@ -227,10 +247,18 @@ def agreement(case: str, numba: dict, cands: dict[str, dict]) -> None:
             s = shadow.secs[(k, n)]
             tot[n] += s
             bad = shadow.bad.get((k, n), 0)
-            ulp = f" ({shadow.ulps[(k, n)]:.0f})" if bad else ""
+            ulp = ""
+            if bad:
+                where = sorted(shadow.arm_bad.get((k, n), {None}), key=str)
+                ulp = (f" ({shadow.ulps[(k, n)]:.0f} ulp; "
+                       f"arms {', '.join(map(str, where))})")
             cells.append(f"{s:.3f} · {nb / s:.2f}× · {bad}{ulp}")
-        print(f"| {k} | {shadow.calls[k]} | {nb:.3f} | " + " | ".join(cells) + " |")
-    print(f"| **all** | | {tot['numba']:.3f} | "
+        arms = shadow.arms.get(k)
+        ran = ("—" if arms is None else f"{ARM[k][1]} " + ", ".join(
+            f"{a}: {c}" for a, c in sorted(arms.items())))
+        print(f"| {k} | {shadow.calls[k]} | {ran} | {nb:.3f} | "
+              + " | ".join(cells) + " |")
+    print(f"| **all** | | | {tot['numba']:.3f} | "
           + " | ".join(f"{tot[n]:.3f} · {tot['numba'] / tot[n]:.2f}×" for n in names)
           + " |")
 
