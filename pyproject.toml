@@ -51,7 +51,9 @@ dependencies = [
     "scipy>=1.11",
     "pydantic>=2.6",
     "gemmi>=0.6.5",
-    "spglib>=2.4",
+    # 2.8 corrects the time-reversal flags of UNI 282-284, the three magnetic
+    # groups 2.7.0 could not identify from their own operators (WP-1452).
+    "spglib>=2.8",
     # The compiled kernel tier (WP-1115): ~2x on a four-phase Cu Kα refinement
     # and ~1.35x on a synchrotron one, measured on the WP-1111 harness.  It is
     # *required* rather than an extra because the default install is what a
