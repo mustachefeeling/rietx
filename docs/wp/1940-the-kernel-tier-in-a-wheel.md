@@ -527,8 +527,22 @@ during any timing.
   Main 90 requests at a 278K peak, $6.93; lanes $12.46. Actual over
   estimated requests 2.49. The selective policy's replay row
   (main > 150K and item >= 20 requests): 109 items laned, -17 %.
+- **After the PR was readied, `kernels.yml` failed on macOS x86_64** (run
+  38083614821) while every kernel call there was within its bar. The bench's
+  twins check compares a fit on the twins with a fit on the numpy path. A
+  throwaway workflow (run 38085279862, branch deleted) found the numpy path
+  does not reproduce itself on that runner: i7-8700B, no AVX-512, numpy
+  2.4.6, three identical cpd-1a fits in one process, up to 9.7e-4 esd apart.
+  `np.exp` and the pseudo-Voigt gave the same bits at eight byte offsets, so
+  memory alignment is not the cause. *Hypothesis:* Accelerate's threading on
+  Intel. The bench now runs the numpy path twice and reports, rather than
+  gates, the twins' gap where the two disagree. The next run, 38085484334,
+  passed on all five; on that runner the numpy path differed from itself by
+  6.8e-3 esd on cpd-1a and 7.1e-1 esd on trigger.
 
 *Gotchas.*
+- On macOS x86_64 the numpy path is not deterministic between identical fits
+  in one process. A check that compares two fits there measures that noise.
 - An existing venv keeps numba after `uv pip install -e ".[dev]"`. Uninstall
   numba and llvmlite before trusting a numba-free run.
 - To count main's tests without a second worktree: `git archive origin/main
